@@ -3,6 +3,7 @@ import { tryDecryptToken } from "@/lib/oauthCrypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { toExactStorageArrayBuffer } from "@/lib/supabaseStorageBinary";
 import { createSafeStorageSignedUrl } from "@/lib/safeStorageSignedUrl";
+import { buildAbsoluteStorageContentUrl } from "@/lib/storageContentUrl";
 import { probeGoogleBusinessMediaUrl } from "@/lib/googleBusinessMediaProbe";
 import {
   optimizeFinalImageGeometry,
@@ -87,18 +88,27 @@ function dataUrlToBuffer(dataUrl: string) {
 async function buildUrlsFromStoragePath(
   path: string,
   bucket = "booster",
-): Promise<{ publicUrl: string | null; signedUrl: string | null }> {
-  const publicUrl =
+): Promise<{
+  publicUrl: string | null;
+  signedUrl: string | null;
+  deliveryUrl: string | null;
+}> {
+  const nativePublicUrl =
     supabaseAdmin.storage.from(bucket).getPublicUrl(path)?.data?.publicUrl ||
     null;
-  const signedUrl = await createSafeStorageSignedUrl(
-    bucket,
-    path,
-    60 * 60 * 24,
-  );
+  const publicUrl = bucket === "booster" ? nativePublicUrl : null;
+  const signedUrl =
+    bucket === "booster"
+      ? null
+      : await createSafeStorageSignedUrl(bucket, path, 60 * 60);
+  const deliveryUrl =
+    publicUrl ||
+    buildAbsoluteStorageContentUrl(bucket, path) ||
+    signedUrl;
   return {
-    publicUrl: signedUrl ? publicUrl : null,
+    publicUrl,
     signedUrl,
+    deliveryUrl,
   };
 }
 
@@ -138,8 +148,8 @@ export async function normalizeVideoPayload(
     const urls = await buildUrlsFromStoragePath(storagePath, bucket);
     publicUrl =
       bucket === "booster"
-        ? publicUrl || urls.publicUrl || urls.signedUrl || ""
-        : urls.signedUrl || publicUrl || urls.publicUrl || "";
+        ? urls.deliveryUrl || urls.publicUrl || publicUrl || ""
+        : urls.deliveryUrl || publicUrl || urls.signedUrl || "";
   }
 
   if (thumbnailStoragePath) {
@@ -149,13 +159,13 @@ export async function normalizeVideoPayload(
     );
     thumbnailUrl =
       thumbnailBucket === "booster"
-        ? thumbnailUrl ||
+        ? thumbnailUrls.deliveryUrl ||
           thumbnailUrls.publicUrl ||
-          thumbnailUrls.signedUrl ||
-          ""
-        : thumbnailUrls.signedUrl ||
           thumbnailUrl ||
-          thumbnailUrls.publicUrl ||
+          ""
+        : thumbnailUrls.deliveryUrl ||
+          thumbnailUrl ||
+          thumbnailUrls.signedUrl ||
           "";
   }
 
@@ -218,7 +228,11 @@ async function getGoogleBusinessPublishableUrl(
   path: string,
 ): Promise<string | null> {
   const urls = await buildUrlsFromStoragePath(path);
-  for (const candidate of [urls.publicUrl, urls.signedUrl]) {
+  for (const candidate of [
+    urls.deliveryUrl,
+    urls.publicUrl,
+    urls.signedUrl,
+  ]) {
     if (!candidate) continue;
     const probe = await probeGoogleBusinessMediaUrl({
       url: candidate,
@@ -270,10 +284,10 @@ async function resolveImageInput(
       mime,
       buffer: Buffer.from(arrayBuffer),
       originalPublicUrl: privateBucket
-        ? urls.signedUrl || img.publicUrl || urls.publicUrl
-        : img.publicUrl || urls.publicUrl,
+        ? urls.deliveryUrl || img.publicUrl || urls.signedUrl
+        : urls.publicUrl || img.publicUrl || null,
       originalPublishableUrl:
-        urls.signedUrl || img.publicUrl || urls.publicUrl,
+        urls.deliveryUrl || img.publicUrl || urls.signedUrl,
       storagePath: img.storagePath,
       bucket,
     };
@@ -419,7 +433,7 @@ export async function uploadImageSet(
 
       const urls = await buildUrlsFromStoragePath(path);
       originalPublicUrl = urls.publicUrl;
-      originalPublishableUrl = urls.signedUrl;
+      originalPublishableUrl = urls.deliveryUrl;
       sourceStoragePath = path;
     }
 
@@ -445,14 +459,14 @@ export async function uploadImageSet(
       publishableUrls.push(originalPublicUrl);
       uploadErrors.push({
         name: img?.name || "image",
-        reason: "Signed URL unavailable, fell back to publicUrl",
-        stage: "signedUrl",
+        reason: "Delivery URL unavailable, fell back to publicUrl",
+        stage: "deliveryUrl",
       });
     } else {
       uploadErrors.push({
         name: img?.name || "image",
         reason: "Original image publishable URL unavailable",
-        stage: "signedUrl",
+        stage: "deliveryUrl",
       });
     }
 
@@ -476,13 +490,9 @@ export async function uploadImageSet(
             stage: "instagramUpload",
           });
         } else {
-          const igSigned = await createSafeStorageSignedUrl(
-            "booster",
-            igPath,
-            60 * 60 * 24,
-          );
-          if (igSigned) {
-            instagramPublishableUrls.push(igSigned);
+          const igUrl = (await buildUrlsFromStoragePath(igPath)).deliveryUrl;
+          if (igUrl) {
+            instagramPublishableUrls.push(igUrl);
           } else {
             uploadErrors.push({
               name: img?.name || "image",
@@ -537,13 +547,10 @@ export async function uploadImageSet(
             stage: "socialFeedUpload",
           });
         } else {
-          const socialSigned = await createSafeStorageSignedUrl(
-            "booster",
-            socialPath,
-            60 * 60 * 24,
-          );
-          if (socialSigned) {
-            socialFeedPublishableUrls.push(socialSigned);
+          const socialUrl = (await buildUrlsFromStoragePath(socialPath))
+            .deliveryUrl;
+          if (socialUrl) {
+            socialFeedPublishableUrls.push(socialUrl);
             socialFeedStoragePaths.push(socialPath);
           } else {
             uploadErrors.push({
@@ -596,13 +603,10 @@ export async function uploadImageSet(
             stage: "siteCardUpload",
           });
         } else {
-          const siteSigned = await createSafeStorageSignedUrl(
-            "booster",
-            sitePath,
-            60 * 60 * 24,
-          );
-          if (siteSigned) {
-            siteCardPublishableUrls.push(siteSigned);
+          const siteUrl = (await buildUrlsFromStoragePath(sitePath))
+            .deliveryUrl;
+          if (siteUrl) {
+            siteCardPublishableUrls.push(siteUrl);
           } else {
             uploadErrors.push({
               name: img?.name || "image",

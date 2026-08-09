@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createHmac, timingSafeEqual } from "crypto";
+import { getAppBaseUrl } from "./tiktokMediaUrl";
 
 function signingSecret() {
   return String(
@@ -34,6 +35,23 @@ export function buildStorageContentUrl(bucket: string, storagePath: string) {
     token,
   });
   return `/api/storage/content?${params.toString()}`;
+}
+
+/**
+ * Stable provider-facing URL. The opaque HMAC authenticates the storage
+ * identity, while the route creates a fresh short-lived Supabase redirect on
+ * every request. Crawlers can therefore revisit a publication days later
+ * without holding on to an already-expired Supabase URL.
+ */
+export function buildAbsoluteStorageContentUrl(
+  bucket: string,
+  storagePath: string,
+  requestUrl?: string,
+) {
+  const relativeUrl = buildStorageContentUrl(bucket, storagePath);
+  const appBaseUrl = getAppBaseUrl(requestUrl);
+  if (!relativeUrl || !appBaseUrl) return null;
+  return new URL(relativeUrl, `${appBaseUrl}/`).toString();
 }
 
 export function verifyStorageContentToken(

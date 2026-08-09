@@ -107,3 +107,60 @@ test("les invitations évitent les appels Auth déjà connus comme doublons", ()
   assert.match(publicSignup, /hasKnownInrcyAccountForEmail\(payload\.email\)/);
   assert.match(adminSignup, /hasKnownInrcyAccountForEmail\(email\)/);
 });
+
+test("les robots recoivent un acces Storage prive frais sans mise en memoire Vercel", () => {
+  const route = read("app/api/storage/content/route.ts");
+  const urlBuilder = read("lib/storageContentUrl.ts");
+
+  assert.match(urlBuilder, /export function buildAbsoluteStorageContentUrl/);
+  assert.match(urlBuilder, /buildStorageContentUrl\(bucket, storagePath\)/);
+  assert.match(route, /createSafeStorageSignedUrl\(/);
+  assert.match(route, /status: 307/);
+  assert.match(route, /Location: signedUrl/);
+  assert.match(route, /export const HEAD = redirectToFreshStorageUrl/);
+  assert.doesNotMatch(route, /\.download\(/);
+  assert.doesNotMatch(route, /new Response\(download\.data/);
+});
+
+test("Booster publie des URLs permanentes et ne signe plus son bucket public", () => {
+  const preparation = read(
+    "app/api/booster/publish-now/publishNow.server-preparation.ts",
+  );
+  const inrsend = read("lib/inrsend/publicationChannelActions.ts");
+  const agentExecute = read("app/api/agent/actions/execute/route.ts");
+  const agentSchedule = read("app/api/agent/actions/schedule/route.ts");
+
+  assert.match(preparation, /bucket === "booster" \? nativePublicUrl : null/);
+  assert.match(
+    preparation,
+    /bucket === "booster"\s*\? null\s*:\s*await createSafeStorageSignedUrl/,
+  );
+  assert.match(preparation, /buildAbsoluteStorageContentUrl\(bucket, path\)/);
+  assert.match(
+    preparation,
+    /\? urls\.deliveryUrl \|\| urls\.publicUrl \|\| publicUrl \|\| ""/,
+  );
+  assert.match(
+    preparation,
+    /: urls\.deliveryUrl \|\| publicUrl \|\| urls\.signedUrl \|\| ""/,
+  );
+  assert.doesNotMatch(inrsend, /createSafeStorageSignedUrl/);
+  assert.match(
+    inrsend,
+    /storage\.from\("booster"\)\.getPublicUrl\(instagramPath\)/,
+  );
+  assert.match(
+    inrsend,
+    /storage\.from\("booster"\)\.getPublicUrl\(socialPath\)/,
+  );
+  assert.match(
+    inrsend,
+    /storage\.from\("booster"\)\.getPublicUrl\(sitePath\)/,
+  );
+  for (const agentRoute of [agentExecute, agentSchedule]) {
+    assert.doesNotMatch(agentRoute, /createSafeStorageSignedUrl/);
+    assert.match(agentRoute, /buildAbsoluteStorageContentUrl\(bucket, storagePath\)/);
+    assert.match(agentRoute, /bucket === "booster"/);
+    assert.match(agentRoute, /getPublicUrl\(storagePath\)/);
+  }
+});

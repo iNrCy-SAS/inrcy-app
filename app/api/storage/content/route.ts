@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { probeStorageObject } from "@/lib/safeStorageSignedUrl";
+import {
+  createSafeStorageSignedUrl,
+  probeStorageObject,
+} from "@/lib/safeStorageSignedUrl";
 import { verifyStorageContentToken } from "@/lib/storageContentUrl";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
 
@@ -10,7 +12,7 @@ function notFound() {
   return NextResponse.json({ error: "Fichier introuvable." }, { status: 404 });
 }
 
-export async function GET(request: NextRequest) {
+async function redirectToFreshStorageUrl(request: NextRequest) {
   const bucket = String(request.nextUrl.searchParams.get("bucket") || "").trim();
   const storagePath = String(request.nextUrl.searchParams.get("path") || "")
     .trim()
@@ -36,20 +38,30 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const download = await supabaseAdmin.storage.from(bucket).download(storagePath);
-  if (download.error || !download.data) {
+  // Do not buffer large private videos in Vercel. A stable inrCy URL issues a
+  // fresh redirect for every crawler request and preserves Range/HEAD semantics.
+  const signedUrl = await createSafeStorageSignedUrl(
+    bucket,
+    storagePath,
+    60 * 60,
+  );
+  if (!signedUrl) {
     return NextResponse.json(
       { error: "Lecture momentanément indisponible." },
       { status: 503 },
     );
   }
 
-  return new Response(download.data, {
-    status: 200,
+  return new Response(null, {
+    status: 307,
     headers: {
-      "Content-Type": download.data.type || "application/octet-stream",
-      "Cache-Control": "private, max-age=300, stale-while-revalidate=60",
+      Location: signedUrl,
+      "Cache-Control": "private, no-store, max-age=0",
       "X-Content-Type-Options": "nosniff",
+      "X-Robots-Tag": "noindex",
     },
   });
 }
+
+export const GET = redirectToFreshStorageUrl;
+export const HEAD = redirectToFreshStorageUrl;
