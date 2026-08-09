@@ -4,6 +4,7 @@ import { buildMediaLibraryContentUrl } from "@/lib/mediaLibraryContentUrl";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { loadInrAgentVideoDerivativePaths } from "@/lib/inrAgentVideoContextCache";
 import { MEDIA_LIBRARY_OPTIMIZATION_JOB_TYPES } from "@/lib/mediaLibraryOptimizationPolicy";
+import { normalizeTransferredMediaMetadata } from "@/lib/mediaMetadataTransfer";
 
 export const runtime = "nodejs";
 
@@ -334,13 +335,22 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const withUrls = rows.map((row: any) => ({
-    ...row,
-    optimization: optimizationByMediaId.get(String(row.id || "")) || null,
-    // URL applicative stable : aucun token Supabase temporaire n'est conservé
-    // dans l'interface après expiration.
-    signed_url: buildMediaLibraryContentUrl(String(row.id || "")),
-  }));
+  const withUrls = rows.map((row: any) => {
+    const metadata = normalizeTransferredMediaMetadata(row);
+    return {
+      ...row,
+      // Postgres peut renvoyer NUMERIC sous forme de chaîne. Booster reçoit
+      // toujours ici des nombres utilisables, y compris pour les anciennes
+      // lignes dont les colonnes sont complétées par la preuve FFmpeg.
+      width: metadata.width,
+      height: metadata.height,
+      duration_seconds: metadata.durationSeconds,
+      optimization: optimizationByMediaId.get(String(row.id || "")) || null,
+      // URL applicative stable : aucun token Supabase temporaire n'est conservé
+      // dans l'interface après expiration.
+      signed_url: buildMediaLibraryContentUrl(String(row.id || "")),
+    };
+  });
 
   const stats = {
     total: rows.length,

@@ -138,6 +138,9 @@ import {
   CHANNEL_KEYS,
   EMPTY_CHANNEL_DETAILS,
   buildVideoFileName,
+  buildVideoOrientation,
+  buildVideoRatioLabel,
+  getVideoOrientationLabel,
   isChannelKey,
   isStyleKey,
   isThemeKey,
@@ -188,6 +191,12 @@ import usePersistentMediaWorkspace, {
 import { isUnifiedMediaConsumptionClientEnabled } from "@/lib/mediaPipelineUnifiedConsumptionPolicy";
 import { buildMediaLibraryDownloadFileName } from "@/lib/mediaLibraryFileName";
 import { isLegacyMediaTransportCutoverClientEnabled } from "@/lib/mediaPipelineLegacyCutoverPolicy";
+import {
+  hasCompleteVideoMetadata,
+  mergeTransferredMediaMetadata,
+  normalizeTransferredMediaMetadata,
+  type TransferableMediaMetadata,
+} from "@/lib/mediaMetadataTransfer";
 import {
   getBoosterCreationWorkflow,
   getBoosterPublicationWorkflowSteps,
@@ -261,6 +270,39 @@ type BoosterMediaOptimizerRequest = {
   mediaType: "image" | "video";
   destination: BoosterMediaInsertionDestination;
 };
+
+function buildTransferredBoosterVideoMetadata(
+  file: Pick<File, "size" | "type">,
+  preferred: TransferableMediaMetadata | null | undefined,
+  fallback?: TransferableMediaMetadata | null,
+): BoosterVideoSourceMetadata | null {
+  const metadata = mergeTransferredMediaMetadata(preferred, fallback);
+  if (!metadata.width && !metadata.height && !metadata.durationSeconds) {
+    return null;
+  }
+  const existing =
+    preferred &&
+    typeof preferred === "object" &&
+    "orientationLabel" in preferred
+      ? (preferred as Partial<BoosterVideoSourceMetadata>)
+      : null;
+  const orientation = buildVideoOrientation(metadata.width, metadata.height);
+  return {
+    ...(existing || {}),
+    width: metadata.width,
+    height: metadata.height,
+    duration: metadata.durationSeconds,
+    size: Number(file.size || 0),
+    type: file.type || "video/mp4",
+    ratio:
+      metadata.width && metadata.height
+        ? metadata.width / metadata.height
+        : null,
+    ratioLabel: buildVideoRatioLabel(metadata.width, metadata.height),
+    orientation,
+    orientationLabel: getVideoOrientationLabel(orientation),
+  };
+}
 
 function getBoosterMediaOptimizerRequirements(
   request: BoosterMediaOptimizerRequest,
@@ -485,6 +527,9 @@ export default function PublishModal({
   const [mediaLibraryPickerScope, setMediaLibraryPickerScope] = useState<
     "generation" | "publication"
   >("generation");
+  const [preparedWorkspaceMedia, setPreparedWorkspaceMedia] = useState<
+    readonly MediaWorkspaceMediaSummary[]
+  >([]);
   const [publicationMediaType, setPublicationMediaType] =
     useState<PublicationMediaType>("images");
   const [channelMediaModes, setChannelMediaModes] = useState<
@@ -1526,6 +1571,7 @@ export default function PublishModal({
 
   const handlePreparedWorkspaceMedia = useCallback(
     (preparedMedia: readonly MediaWorkspaceMediaSummary[]) => {
+      setPreparedWorkspaceMedia([...preparedMedia]);
       const preparedVideos = preparedMedia.filter(
         (item) => item.mediaType === "video",
       );
@@ -1670,6 +1716,89 @@ export default function PublishModal({
     setPublishProgress: setContextualPublishProgress,
     setPublishProgressLabel: setContextualPublishProgressLabel,
   });
+
+  useEffect(() => {
+    const preparedVideo = preparedWorkspaceMedia.find(
+      (item) => item.mediaType === "video",
+    );
+    if (!preparedVideo || !videoFile) return;
+
+    const transferred = normalizeTransferredMediaMetadata(preparedVideo);
+    if (
+      !transferred.width &&
+      !transferred.height &&
+      !transferred.durationSeconds
+    ) {
+      return;
+    }
+
+    setVideoDurationSeconds((current) =>
+      current && current > 0 ? current : transferred.durationSeconds,
+    );
+    setVideoSourceMetadata((current) =>
+      hasCompleteVideoMetadata(current)
+        ? current
+        : buildTransferredBoosterVideoMetadata(videoFile, current, preparedVideo),
+    );
+  }, [
+    preparedWorkspaceMedia,
+    setVideoDurationSeconds,
+    setVideoSourceMetadata,
+    videoFile,
+  ]);
+
+  useEffect(() => {
+    if (
+      !videoFile ||
+      !videoPreviewUrl ||
+      hasCompleteVideoMetadata({
+        width: videoSourceMetadata?.width,
+        height: videoSourceMetadata?.height,
+        duration: videoDurationSeconds ?? videoSourceMetadata?.duration,
+      })
+    ) {
+      return;
+    }
+
+    // Le premier probe est volontairement court pour ne pas bloquer l'UX.
+    // Cette seconde lecture reste attachée à l'aperçu et réinjecte les
+    // informations si un appareil lent les expose quelques secondes plus tard.
+    const video = document.createElement("video");
+    let cancelled = false;
+    video.preload = "metadata";
+    video.onloadedmetadata = () => {
+      if (cancelled) return;
+      const lateMetadata = {
+        width: video.videoWidth,
+        height: video.videoHeight,
+        duration: video.duration,
+      };
+      const normalized = normalizeTransferredMediaMetadata(lateMetadata);
+      setVideoDurationSeconds((current) =>
+        current && current > 0 ? current : normalized.durationSeconds,
+      );
+      setVideoSourceMetadata((current) =>
+        buildTransferredBoosterVideoMetadata(videoFile, current, lateMetadata),
+      );
+    };
+    video.src = videoPreviewUrl;
+    video.load();
+    return () => {
+      cancelled = true;
+      video.onloadedmetadata = null;
+      video.removeAttribute("src");
+      video.load();
+    };
+  }, [
+    setVideoDurationSeconds,
+    setVideoSourceMetadata,
+    videoDurationSeconds,
+    videoFile,
+    videoPreviewUrl,
+    videoSourceMetadata?.duration,
+    videoSourceMetadata?.height,
+    videoSourceMetadata?.width,
+  ]);
 
   useEffect(() => {
     if (
@@ -3776,7 +3905,11 @@ export default function PublishModal({
 
   const addVideoFile = async (
     file: File | null,
-    options?: { hasImages?: boolean; targetChannel?: ChannelKey },
+    options?: {
+      hasImages?: boolean;
+      targetChannel?: ChannelKey;
+      transferredMetadata?: TransferableMediaMetadata | null;
+    },
   ) => {
     if (!file) return false;
     const channelModesBeforeVideo = options?.targetChannel
@@ -3828,11 +3961,22 @@ export default function PublishModal({
       type: file.type || "video/mp4",
       lastModified: file.lastModified || Date.now(),
     });
-    let sourceMetadata: BoosterVideoSourceMetadata | null = null;
-    try {
-      sourceMetadata = await readVideoSourceMetadata(normalizedFile);
-    } catch {
-      sourceMetadata = null;
+    let sourceMetadata = buildTransferredBoosterVideoMetadata(
+      normalizedFile,
+      options?.transferredMetadata,
+    );
+    if (!hasCompleteVideoMetadata(options?.transferredMetadata)) {
+      try {
+        const browserMetadata = await readVideoSourceMetadata(normalizedFile);
+        sourceMetadata = buildTransferredBoosterVideoMetadata(
+          normalizedFile,
+          browserMetadata,
+          sourceMetadata,
+        );
+      } catch {
+        // Les informations transmises par la Médiathèque restent utilisables
+        // même si le navigateur du client ne sait pas lire le conteneur.
+      }
     }
     const duration = sourceMetadata?.duration ?? null;
 
@@ -4005,6 +4149,7 @@ export default function PublishModal({
         hasImages: images.length + files.length > 0,
         targetChannel:
           destination.kind === "channel" ? destination.channel : undefined,
+        transferredMetadata: videos[0] || null,
       });
       if (!inserted) {
         throw new Error(

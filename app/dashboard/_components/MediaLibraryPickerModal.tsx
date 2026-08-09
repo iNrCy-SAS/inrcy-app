@@ -108,6 +108,9 @@ export function mediaLibraryItemToAttachment(item: MediaLibraryPickerItem) {
       item.mime_type ||
       (item.media_type === "video" ? "video/mp4" : "image/jpeg"),
     size: item.size_bytes || 0,
+    width: item.width,
+    height: item.height,
+    duration_seconds: item.duration_seconds,
   };
 }
 
