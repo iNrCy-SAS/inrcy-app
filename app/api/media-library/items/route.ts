@@ -375,18 +375,18 @@ export async function PATCH(request: NextRequest) {
     patch.source = cleanText(body.source, 80) || "mediatheque";
   }
 
-  const { data, error } = await supabaseAdmin
+  const { data: updatedRows, error } = await supabaseAdmin
     .from("pro_media_library")
     .update(patch)
     .eq("id", id)
     .eq("user_id", activeUserId)
-    .select("id")
-    .maybeSingle();
+    .select("id");
 
   if (error) {
     if (tableMissingError(error)) return jsonError("La table pro_media_library n’existe pas encore.", 503, error.message);
     return jsonError("Impossible de mettre à jour le média.", 500, error.message);
   }
+  const data = updatedRows?.[0] ?? null;
   if (!data) return jsonError("Média introuvable.", 404);
 
   return NextResponse.json({ ok: true, item: data });

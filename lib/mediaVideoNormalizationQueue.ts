@@ -92,8 +92,7 @@ async function persistPreparationMission(params: {
           .eq("account_id", params.accountId)
           .eq("updated_at", previousJobUpdatedAt)
           .select("id")
-          .maybeSingle()
-      : Promise.resolve({ data: { id: "no-job" }, error: null });
+      : Promise.resolve({ data: [{ id: "no-job" }], error: null });
     const mediaUpdate = supabaseAdmin
       .from("pro_media_library")
       .update({
@@ -108,12 +107,11 @@ async function persistPreparationMission(params: {
       .eq("id", params.mediaId)
       .eq("user_id", params.accountId)
       .eq("updated_at", previousMediaUpdatedAt)
-      .select("id")
-      .maybeSingle();
+      .select("id");
     const [jobResult, mediaResult] = await Promise.all([jobUpdate, mediaUpdate]);
     if (jobResult.error) throw jobResult.error;
     if (mediaResult.error) throw mediaResult.error;
-    if (jobResult.data && mediaResult.data) return;
+    if (jobResult.data?.[0] && mediaResult.data?.[0]) return;
   }
 
   throw new Error("video_preparation_request_contention");

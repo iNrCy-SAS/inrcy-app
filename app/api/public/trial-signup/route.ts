@@ -9,6 +9,10 @@ import { sendAdminSubscriptionAlertForUser } from "@/lib/subscriptionAdmin";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { ensureTrialSubscription } from "@/lib/trialSubscription";
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
+import {
+  hasKnownInrcyAccountForEmail,
+  isExistingAuthUserError,
+} from "@/lib/supabaseAuthBusinessErrors";
 
 export const runtime = "nodejs";
 
@@ -325,6 +329,16 @@ export async function POST(req: Request) {
 
     const appOrigin = (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || "https://app.inrcy.com").replace(/\/$/, "");
 
+    if (await hasKnownInrcyAccountForEmail(payload.email)) {
+      return jsonResponse(
+        {
+          error:
+            "Un compte existe déjà avec cet email. Le professionnel peut se connecter directement ou utiliser “Mot de passe oublié”.",
+        },
+        409,
+      );
+    }
+
     const { data: invite, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(payload.email, {
       data: {
         first_name: payload.firstName || undefined,
@@ -337,13 +351,7 @@ export async function POST(req: Request) {
     });
 
     if (inviteError) {
-      const msg = inviteError.message.toLowerCase();
-      if (
-        msg.includes("already") ||
-        msg.includes("registered") ||
-        msg.includes("exists") ||
-        msg.includes("already been registered")
-      ) {
+      if (isExistingAuthUserError(inviteError)) {
         return jsonResponse(
           {
             error:

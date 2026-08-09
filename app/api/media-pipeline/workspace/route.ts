@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/requireUser";
 import { enforceRateLimit } from "@/lib/rateLimit";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { createSafeStorageSignedUrl } from "@/lib/safeStorageSignedUrl";
+import {
+  createSafeStorageSignedUrl,
+  probeStorageObject,
+} from "@/lib/safeStorageSignedUrl";
 
 export const runtime = "nodejs";
 
@@ -39,6 +42,93 @@ function jsonError(error: string, status = 400, code?: string) {
     { ok: false, error, ...(code ? { code } : {}) },
     { status },
   );
+}
+
+const STORAGE_OBJECT_MISSING_CODE = "storage_object_missing";
+
+async function signWorkspaceSource(params: {
+  accountId: string;
+  mediaId: string;
+  bucket: string;
+  storagePath: string;
+  uploadStatus: string;
+  uploadErrorCode: string;
+  originalDeletedAt: unknown;
+}) {
+  if (
+    params.uploadStatus !== "uploaded" ||
+    params.uploadErrorCode === STORAGE_OBJECT_MISSING_CODE ||
+    params.originalDeletedAt
+  ) {
+    return null;
+  }
+
+  const signedUrl = await createSafeStorageSignedUrl(
+    params.bucket,
+    params.storagePath,
+    60 * 60 * 24,
+  );
+  if (signedUrl) return signedUrl;
+  if ((await probeStorageObject(params.bucket, params.storagePath)) !== "missing") {
+    return null;
+  }
+
+  const marked = await supabaseAdmin
+    .from("pro_media_library")
+    .update({
+      upload_error_code: STORAGE_OBJECT_MISSING_CODE,
+      upload_error_message:
+        "Le fichier source est absent du stockage. Un nouvel envoi est nécessaire.",
+    })
+    .eq("id", params.mediaId)
+    .eq("user_id", params.accountId)
+    .eq("upload_status", "uploaded");
+  if (marked.error) {
+    console.warn("[media-pipeline] missing workspace source marker failed", {
+      mediaId: params.mediaId,
+      message: marked.error.message,
+    });
+  }
+  return null;
+}
+
+async function signReadyWorkspaceVariant(params: {
+  accountId: string;
+  variant: Record<string, unknown> | null | undefined;
+}) {
+  const variantId = cleanText(params.variant?.id, "", 80);
+  const bucket = cleanText(params.variant?.bucket_name, "", 120);
+  const storagePath = cleanText(params.variant?.storage_path, "", 1_500);
+  if (!variantId || !bucket || !storagePath) return null;
+
+  const signedUrl = await createSafeStorageSignedUrl(
+    bucket,
+    storagePath,
+    60 * 60 * 24,
+  );
+  if (signedUrl) return signedUrl;
+  if ((await probeStorageObject(bucket, storagePath)) !== "missing") return null;
+
+  const marked = await supabaseAdmin
+    .from("media_variants")
+    .update({
+      status: "failed",
+      error_code: STORAGE_OBJECT_MISSING_CODE,
+      error_message:
+        "La variante annoncée comme prête est absente du stockage.",
+      ready_at: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", variantId)
+    .eq("account_id", params.accountId)
+    .eq("status", "ready");
+  if (marked.error) {
+    console.warn("[media-pipeline] missing workspace variant marker failed", {
+      variantId,
+      message: marked.error.message,
+    });
+  }
+  return null;
 }
 
 async function readOwnedWorkspace(workspaceId: string, accountId: string) {
@@ -155,7 +245,7 @@ export async function GET(request: Request) {
     const mediaResult = await supabaseAdmin
       .from("publication_workspace_media")
       .select(
-        "position,media_id,pro_media_library!inner(id,user_id,media_type,upload_status,upload_progress,bucket_name,storage_path,original_file_name,client_media_key,mime_type,size_bytes,width,height,duration_seconds,processing_status,processing_progress,processing_error_code,processing_error_message,publication_status)",
+        "position,media_id,pro_media_library!inner(id,user_id,media_type,upload_status,upload_progress,upload_error_code,original_deleted_at,bucket_name,storage_path,original_file_name,client_media_key,mime_type,size_bytes,width,height,duration_seconds,processing_status,processing_progress,processing_error_code,processing_error_message,publication_status)",
       )
       .eq("workspace_id", workspaceId)
       .eq("pro_media_library.user_id", activeUserId)
@@ -169,7 +259,7 @@ export async function GET(request: Request) {
       ? await supabaseAdmin
           .from("media_variants")
           .select(
-            "media_id,purpose,status,bucket_name,storage_path,width,height",
+            "id,media_id,purpose,status,bucket_name,storage_path,width,height",
           )
           .eq("account_id", activeUserId)
           .in("media_id", mediaIds)
@@ -196,7 +286,15 @@ export async function GET(request: Request) {
         const storagePath = String(item?.storage_path || "");
         const publicUrl =
           includeUrls && bucket && storagePath
-            ? await createSafeStorageSignedUrl(bucket, storagePath, 60 * 60 * 24)
+            ? await signWorkspaceSource({
+                accountId: activeUserId,
+                mediaId: String(row.media_id || item?.id || ""),
+                bucket,
+                storagePath,
+                uploadStatus: String(item?.upload_status || ""),
+                uploadErrorCode: String(item?.upload_error_code || ""),
+                originalDeletedAt: item?.original_deleted_at,
+              })
             : null;
         const normalizedVariants = variantsByMedia.get(
           String(row.media_id || item?.id || ""),
@@ -207,26 +305,27 @@ export async function GET(request: Request) {
         const previewVariant =
           normalizedVariants.find((variant) => variant.purpose === "thumbnail") ||
           canonicalVariant;
-        const previewUrl =
-          includeUrls &&
-          previewVariant?.bucket_name &&
-          previewVariant?.storage_path
-            ? await createSafeStorageSignedUrl(
-                String(previewVariant.bucket_name),
-                String(previewVariant.storage_path),
-                60 * 60 * 24,
-              )
-            : null;
-        const canonicalUrl =
-          includeUrls &&
-          canonicalVariant?.bucket_name &&
-          canonicalVariant?.storage_path
-            ? await createSafeStorageSignedUrl(
-                String(canonicalVariant.bucket_name),
-                String(canonicalVariant.storage_path),
-                60 * 60 * 24,
-              )
-            : null;
+        const signedVariantUrls = new Map<string, Promise<string | null>>();
+        const signVariant = (variant: Record<string, unknown> | undefined) => {
+          if (!variant) return Promise.resolve(null);
+          const key = String(
+            variant.id || `${variant.bucket_name || ""}:${variant.storage_path || ""}`,
+          );
+          const active = signedVariantUrls.get(key);
+          if (active) return active;
+          const request = signReadyWorkspaceVariant({
+            accountId: activeUserId,
+            variant,
+          });
+          signedVariantUrls.set(key, request);
+          return request;
+        };
+        const [previewUrl, canonicalUrl] = includeUrls
+          ? await Promise.all([
+              signVariant(previewVariant),
+              signVariant(canonicalVariant),
+            ])
+          : [null, null];
         return {
           mediaId: String(row.media_id || item?.id || ""),
           mediaType: item?.media_type,

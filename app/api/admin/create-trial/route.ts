@@ -7,6 +7,10 @@ import { ensureTrialSubscription } from "@/lib/trialSubscription";
 import { ensureProfileRow } from "@/lib/ensureProfileRow";
 import { requireAdminApi } from "@/lib/adminSecurity";
 import { provisionNewAccountBubbleAccess } from "@/lib/appBubbleAccessProvisioning";
+import {
+  hasKnownInrcyAccountForEmail,
+  isExistingAuthUserError,
+} from "@/lib/supabaseAuthBusinessErrors";
 
 export const runtime = "nodejs";
 
@@ -30,13 +34,33 @@ export async function POST(req: Request) {
 
     if (!email) return NextResponse.json({ error: "Email manquant." }, { status: 400 });
 
+    if (await hasKnownInrcyAccountForEmail(email)) {
+      return NextResponse.json(
+        {
+          error:
+            "Un compte existe déjà avec cet email. Utilise le renvoi de lien ou “Mot de passe oublié”.",
+        },
+        { status: 409 },
+      );
+    }
 
     const appOrigin = (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || "https://app.inrcy.com").replace(/\/$/, "");
     const { data: invite, error: invErr } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
       redirectTo: `${appOrigin}/auth/finish-invite`,
     });
 
-    if (invErr) throw new Error(invErr.message);
+    if (invErr) {
+      if (isExistingAuthUserError(invErr)) {
+        return NextResponse.json(
+          {
+            error:
+              "Un compte existe déjà avec cet email. Utilise le renvoi de lien ou “Mot de passe oublié”.",
+          },
+          { status: 409 },
+        );
+      }
+      throw invErr;
+    }
 
     const userId = invite.user.id;
 

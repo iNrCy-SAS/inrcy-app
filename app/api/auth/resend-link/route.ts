@@ -3,6 +3,10 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getClientIp, enforceRateLimit } from "@/lib/rateLimit";
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
+import {
+  hasKnownInrcyAccountForEmail,
+  isExistingAuthUserError,
+} from "@/lib/supabaseAuthBusinessErrors";
 
 export const runtime = "nodejs";
 
@@ -31,36 +35,8 @@ function successMessage(mode: ResendMode, email: string) {
     : `Un nouveau lien de réinitialisation vient d’être envoyé à ${email}.`;
 }
 
-function isAlreadyRegisteredError(message: string) {
-  const value = message.toLowerCase();
-  return (
-    value.includes("already") ||
-    value.includes("registered") ||
-    value.includes("exists") ||
-    value.includes("already been registered") ||
-    value.includes("email_exists")
-  );
-}
-
 function genericInviteMessage(email: string) {
   return `Si un accès iNrCy existe pour ${email}, un nouveau lien vient d’être envoyé.`;
-}
-
-async function canResendInviteForEmail(email: string) {
-  const [profileByAdmin, profileByContact, subscriptionByContact] = await Promise.all([
-    supabaseAdmin.from("profiles").select("user_id").eq("admin_email", email).limit(1),
-    supabaseAdmin.from("profiles").select("user_id").eq("contact_email", email).limit(1),
-    supabaseAdmin.from("subscriptions").select("user_id").eq("contact_email", email).limit(1),
-  ]);
-
-  const errors = [profileByAdmin.error, profileByContact.error, subscriptionByContact.error].filter(Boolean);
-  if (errors.length > 0) {
-    throw new Error(errors[0]?.message || "Vérification impossible.");
-  }
-
-  return [profileByAdmin.data, profileByContact.data, subscriptionByContact.data].some(
-    (rows) => Array.isArray(rows) && rows.length > 0,
-  );
 }
 
 export async function POST(req: Request) {
@@ -103,7 +79,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, message: successMessage(mode, email) });
     }
 
-    const canResendInvite = await canResendInviteForEmail(email);
+    const canResendInvite = await hasKnownInrcyAccountForEmail(email);
     if (!canResendInvite) {
       return NextResponse.json({ ok: true, message: genericInviteMessage(email) });
     }
@@ -116,7 +92,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, message: successMessage(mode, email) });
     }
 
-    if (isAlreadyRegisteredError(inviteResult.error.message || "")) {
+    if (isExistingAuthUserError(inviteResult.error)) {
       const recoveryResult = await supabaseAdmin.auth.resetPasswordForEmail(email, {
         redirectTo: `${appOrigin}/auth/finish-reset`,
       });

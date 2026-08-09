@@ -241,8 +241,7 @@ async function updateJobProgress(job: ClaimedVideoJob, progress: number) {
       .eq("id", job.id)
       .eq("account_id", job.account_id)
       .eq("status", "processing")
-      .select("id")
-      .maybeSingle(),
+      .select("id"),
     supabaseAdmin
       .from("pro_media_library")
       .update({
@@ -277,7 +276,7 @@ async function updateJobProgress(job: ClaimedVideoJob, progress: number) {
       message: compactMessage(publicationStatusUpdate.error),
     });
   }
-  if (jobUpdate.error || !jobUpdate.data) {
+  if (jobUpdate.error || !jobUpdate.data?.[0]) {
     throw new VideoNormalizationError(
       "video_job_lease_refresh_failed",
       jobUpdate.error
@@ -793,10 +792,9 @@ async function markJobFailure(params: {
       .eq("account_id", params.job.account_id)
       .eq("status", currentStatus)
       .eq("updated_at", previousUpdatedAt)
-      .select("id")
-      .maybeSingle();
+      .select("id");
     if (update.error) throw update.error;
-    if (!update.data) continue;
+    if (!update.data?.[0]) continue;
     finalStatus = status;
     break;
   }
@@ -964,10 +962,9 @@ async function updateMediaAfterSuccessfulNormalization(params: {
       .eq("id", params.job.media_id)
       .eq("user_id", params.job.account_id)
       .eq("updated_at", previousUpdatedAt)
-      .select("id")
-      .maybeSingle();
+      .select("id");
     if (update.error) throw update.error;
-    if (update.data) return;
+    if (update.data?.[0]) return;
   }
 
   throw new VideoNormalizationError(
@@ -1086,10 +1083,9 @@ async function settleSuccessfulVideoJob(params: {
       .eq("account_id", params.job.account_id)
       .eq("status", "processing")
       .eq("updated_at", previousUpdatedAt)
-      .select("id")
-      .maybeSingle();
+      .select("id");
     if (update.error) throw update.error;
-    if (!update.data) continue;
+    if (!update.data?.[0]) continue;
 
     if (chained) {
       const mediaUpdate = await supabaseAdmin

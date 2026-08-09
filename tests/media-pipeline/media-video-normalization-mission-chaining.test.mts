@@ -126,7 +126,7 @@ test("la queue et le worker protègent durablement la course AI vers publication
   assert.match(worker, /video_job_lease_refresh_failed/);
   assert.match(worker, /if \(mediaUpdate\.error\)/);
   assert.match(worker, /if \(publicationStatusUpdate\.error\)/);
-  assert.match(worker, /if \(jobUpdate\.error \|\| !jobUpdate\.data\)/);
+  assert.match(worker, /if \(jobUpdate\.error \|\| !jobUpdate\.data\?\.\[0\]\)/);
   assert.match(worker, /neq\("publication_status", "ready"\)/);
   assert.match(worker, /Exactly one bounded stage per invocation/);
   assert.match(worker, /const job = await claimTargetedProcessingJob/);

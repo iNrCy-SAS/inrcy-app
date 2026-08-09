@@ -266,16 +266,16 @@ export async function materializePreparingAsyncChannelEvent(params: {
     ...params.payload,
     updatedAt: new Date().toISOString(),
   };
-  const { data: updated, error: updateError } = await supabaseAdmin
+  const { data: updatedRows, error: updateError } = await supabaseAdmin
     .from("app_events")
     .update({ payload: nextPayload })
     .eq("id", params.eventId)
     .eq("user_id", params.userId)
     .eq("type", BOOSTER_ASYNC_CHANNEL_EVENT_TYPE)
     .eq("payload->>status", "preparing")
-    .select("id,payload")
-    .maybeSingle();
+    .select("id,payload");
   if (updateError) throw updateError;
+  const updated = updatedRows?.[0] ?? null;
   if (updated) return asRecord(updated.payload);
 
   // A recovered preparation must never put an already queued/processing or

@@ -153,12 +153,19 @@ export async function POST(request: NextRequest) {
         .eq("account_id", activeUserId)
         .select(
           "id,media_id,job_type,status,progress,result,error_code,error_message,attempt_count,max_attempts,created_at,updated_at",
-        )
-        .single();
+        );
       if (reset.error) {
         return jsonError("Impossible de relancer l’optimisation.", 500, reset.error.code);
       }
-      return NextResponse.json({ ok: true, queued: true, job: reset.data }, { status: 202 });
+      const resetJob = reset.data?.[0] ?? null;
+      if (!resetJob) {
+        return jsonError(
+          "La tâche d’optimisation n’existe plus.",
+          404,
+          "optimization_job_missing",
+        );
+      }
+      return NextResponse.json({ ok: true, queued: true, job: resetJob }, { status: 202 });
     }
     return NextResponse.json(
       { ok: true, queued: status !== "succeeded", job: existing.data },

@@ -61,6 +61,9 @@ function isUserResolvableOAuthException(message: string): boolean {
     'authorization code has been used',
     'code has been used',
     'code was already used',
+    'unable to retrieve access token: appid/redirect uri/code verifier does not match authorization code',
+    'authorization code expired',
+    'external member binding exists',
   ].some((needle) => raw.includes(needle));
 }
 

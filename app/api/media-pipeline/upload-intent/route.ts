@@ -420,10 +420,11 @@ async function createOrReuseRegistryRow(params: {
       .eq("user_id", params.activeUserId)
       .select(
         "id,bucket_name,storage_path,media_type,mime_type,size_bytes,upload_status,upload_protocol,client_media_key",
-      )
-      .single();
+      );
     if (update.error) throw update.error;
-    return { row: update.data, reused: true, alreadyUploaded: uploaded };
+    const updatedRow = update.data?.[0] ?? null;
+    if (!updatedRow) throw new Error("media_registry_update_missing");
+    return { row: updatedRow, reused: true, alreadyUploaded: uploaded };
   }
 
   const insert = await supabaseAdmin

@@ -400,10 +400,9 @@ async function repairCompletedStorageUploads(params: {
       .eq("id", item.mediaId)
       .eq("user_id", params.accountId)
       .in("upload_status", ["pending", "uploading"])
-      .select("id")
-      .maybeSingle();
+      .select("id");
     if (updated.error) throw updated.error;
-    if (updated.data) repaired += 1;
+    if (updated.data?.[0]) repaired += 1;
   }
 
   if (repaired > 0) {

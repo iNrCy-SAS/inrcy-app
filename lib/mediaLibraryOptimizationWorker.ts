@@ -295,9 +295,8 @@ async function updateJobProgress(
     .eq("id", job.id)
     .eq("account_id", job.account_id)
     .eq("status", "processing")
-    .select("id")
-    .maybeSingle();
-  if (update.error || !update.data) {
+    .select("id");
+  if (update.error || !update.data?.[0]) {
     throw new MediaLibraryOptimizationError(
       "media_library_optimization_lease_lost",
       update.error?.message || "Le verrou de l’optimisation n’est plus actif.",

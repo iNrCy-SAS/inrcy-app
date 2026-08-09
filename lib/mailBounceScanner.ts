@@ -372,12 +372,19 @@ async function scanImap(account: IntegrationRow) {
   if (!config.user || !config.password || !config.host || !config.port) return { scanned: 0, feedback: 0, updated: 0, skipped: 1 };
   return withImap(config, async (client) => {
     await client.mailboxOpen("INBOX");
-    const found = await client.search({ since: new Date(Date.now() - 3 * 24 * 60 * 60_000) });
+    const found = await client.search(
+      { since: new Date(Date.now() - 3 * 24 * 60 * 60_000) },
+      { uid: true },
+    );
     const uids = Array.isArray(found) ? found : [];
     const recent = uids.slice(-200);
     if (recent.length === 0) return { scanned: 0, feedback: 0, updated: 0, skipped: 0 };
     const bounceUids: number[] = [];
-    for await (const message of client.fetch(recent.join(","), { uid: true, envelope: true })) {
+    for await (const message of client.fetch(
+      recent,
+      { uid: true, envelope: true },
+      { uid: true },
+    )) {
       const subject = String(message.envelope?.subject || "");
       const from = (message.envelope?.from || []).map((entry) => entry.address || "").join(", ");
       if (/mailer-daemon|postmaster|undeliver|delivery status|mail delivery failed|failure notice|non remis|non distribué/i.test(`${from} ${subject}`)) {
@@ -391,7 +398,11 @@ async function scanImap(account: IntegrationRow) {
     let feedback = 0;
     let updated = 0;
     let scanned = 0;
-    for await (const message of client.fetch(pendingUids.join(","), { uid: true, envelope: true, source: true })) {
+    for await (const message of client.fetch(
+      pendingUids,
+      { uid: true, envelope: true, source: true },
+      { uid: true },
+    )) {
       scanned += 1;
       const subject = String(message.envelope?.subject || "");
       const from = (message.envelope?.from || []).map((entry) => entry.address || "").join(", ");

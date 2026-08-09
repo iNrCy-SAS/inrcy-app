@@ -295,9 +295,15 @@ export async function POST(request: Request) {
       .eq("user_id", activeUserId)
       .select(
         "id,upload_status,upload_progress,uploaded_at,upload_error_code,upload_error_message",
-      )
-      .single();
+      );
     if (updated.error) throw updated.error;
+    const updatedMedia = updated.data?.[0] ?? null;
+    if (!updatedMedia) {
+      return NextResponse.json(
+        { ok: false, error: "Média introuvable.", code: "media_missing" },
+        { status: 404 },
+      );
+    }
 
     let imageNormalization: ImageNormalizationEnqueueResult | null = null;
     let videoNormalization: VideoNormalizationEnqueueResult | null = null;
@@ -521,7 +527,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       ok: true,
-      media: updated.data,
+      media: updatedMedia,
       imageNormalization,
       videoNormalization,
     });

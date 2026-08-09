@@ -64,15 +64,15 @@ export async function POST(req: Request) {
         nextPayload: payload,
       });
 
-      const { data, error } = await supabase
+      const { data: updatedRows, error } = await supabase
         .from("app_events")
         .update({ payload: nextPayload })
         .eq("id", draftId)
         .eq("user_id", userId)
         .eq("module", "booster")
         .eq("type", "publish_draft")
-        .select("id")
-        .maybeSingle();
+        .select("id");
+      const data = updatedRows?.[0] ?? null;
 
       if (error) return jsonUserFacingError(error, { status: 500 });
       if (!data) return NextResponse.json({ error: "Brouillon introuvable." }, { status: 404 });
