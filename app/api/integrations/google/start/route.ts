@@ -34,15 +34,18 @@ export async function GET(request: Request) {
   const returnTo = safeInternalPath(searchParams.get("returnTo") || "/dashboard?panel=mails", "/dashboard?panel=mails");
   const { stateB64, cookieValue, cookieName } = makeOAuthState("google", returnTo, { accountId });
 
+  // iNrCy only sends mail through Gmail. No mailbox-reading permission is
+  // requested because the product does not need to read Gmail messages.
+  const gmailScopes = [
+    "https://www.googleapis.com/auth/gmail.send",
+    "https://www.googleapis.com/auth/userinfo.email",
+  ];
+
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri,
     response_type: "code",
-    scope: [
-      "https://www.googleapis.com/auth/gmail.send",
-      "https://www.googleapis.com/auth/gmail.readonly",
-      "https://www.googleapis.com/auth/userinfo.email",
-    ].join(" "),
+    scope: gmailScopes.join(" "),
     access_type: "offline",
     prompt: "consent",
     include_granted_scopes: "true",

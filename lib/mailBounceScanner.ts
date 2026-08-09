@@ -26,10 +26,6 @@ type ScanResult = {
   errors: number;
 };
 
-type GmailMessageListItem = {
-  id?: unknown;
-};
-
 type MicrosoftInboxMessage = {
   id?: unknown;
   internetMessageId?: unknown;
@@ -50,17 +46,98 @@ function asString(value: unknown) {
   return typeof value === "string" ? value : value == null ? null : String(value);
 }
 
+const MAILBOX_SCAN_FAILURE_THRESHOLD = 3;
+const MAILBOX_SCAN_PAUSE_MS = 6 * 60 * 60_000;
+
 function compactScannerError(error: unknown) {
-  return String(error instanceof Error ? error.message : error || "Erreur inconnue")
+  const candidate = asRecord(error);
+  const details = [
+    error instanceof Error ? error.message : error,
+    candidate.code,
+    candidate.responseStatus,
+    candidate.serverResponseCode,
+    candidate.responseText,
+  ]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+  return (Array.from(new Set(details)).join(" | ") || "Erreur inconnue")
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 500);
 }
 
 function isMailboxAuthenticationFailure(error: unknown) {
-  return /authenticationfailed|authentication failed|invalid credentials|invalid login|login failed|bad credentials|mot de passe incorrect/i.test(
+  return /authenticationfailed|authentication failed|authorizationfailed|authorization failed|invalid credentials|invalid login|login failed|bad credentials|mot de passe incorrect/i.test(
     compactScannerError(error),
   );
+}
+
+function mailboxScannerErrorCode(error: unknown) {
+  const candidate = asRecord(error);
+  const raw = String(
+    candidate.code || candidate.serverResponseCode || candidate.responseStatus || "mailbox_scan_failed",
+  )
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 80);
+  return raw || "mailbox_scan_failed";
+}
+
+function mailboxFeedbackScanIsPaused(account: IntegrationRow) {
+  const settings = asRecord(account.settings);
+  const pausedUntil = Date.parse(String(settings.mailbox_feedback_scan_paused_until || ""));
+  return Number.isFinite(pausedUntil) && pausedUntil > Date.now();
+}
+
+async function clearMailboxScanFailure(account: IntegrationRow) {
+  const settings = asRecord(account.settings);
+  if (
+    !settings.mailbox_feedback_scan_failure_count &&
+    !settings.mailbox_feedback_scan_paused_until &&
+    !settings.mailbox_feedback_scan_last_error_code
+  ) {
+    return;
+  }
+  const nextSettings = { ...settings };
+  delete nextSettings.mailbox_feedback_scan_failure_count;
+  delete nextSettings.mailbox_feedback_scan_paused_until;
+  delete nextSettings.mailbox_feedback_scan_last_failed_at;
+  delete nextSettings.mailbox_feedback_scan_last_error_code;
+  const result = await supabaseAdmin
+    .from("integrations")
+    .update({ settings: nextSettings, updated_at: new Date().toISOString() })
+    .eq("id", account.id)
+    .eq("user_id", account.user_id);
+  if (result.error) throw result.error;
+}
+
+async function recordMailboxScanFailure(account: IntegrationRow, error: unknown) {
+  const now = new Date();
+  const settings = asRecord(account.settings);
+  const previousCount = Math.max(
+    0,
+    Math.floor(Number(settings.mailbox_feedback_scan_failure_count || 0)),
+  );
+  const failureCount = previousCount + 1;
+  const pausedUntil = failureCount >= MAILBOX_SCAN_FAILURE_THRESHOLD
+    ? new Date(now.getTime() + MAILBOX_SCAN_PAUSE_MS).toISOString()
+    : null;
+  const nextSettings = {
+    ...settings,
+    mailbox_feedback_scan_failure_count: failureCount,
+    mailbox_feedback_scan_last_failed_at: now.toISOString(),
+    mailbox_feedback_scan_last_error_code: mailboxScannerErrorCode(error),
+    ...(pausedUntil ? { mailbox_feedback_scan_paused_until: pausedUntil } : {}),
+  };
+  const result = await supabaseAdmin
+    .from("integrations")
+    .update({ settings: nextSettings, updated_at: now.toISOString() })
+    .eq("id", account.id)
+    .eq("user_id", account.user_id);
+  if (result.error) throw result.error;
+  return { failureCount, pausedUntil };
 }
 
 async function markMailboxReconnectRequired(account: IntegrationRow) {
@@ -120,7 +197,7 @@ async function countConnectedMailboxes() {
     .select("id", { count: "exact", head: true })
     .eq("category", "mail")
     .eq("status", "connected")
-    .in("provider", ["gmail", "microsoft", "imap"]);
+    .in("provider", ["microsoft", "imap"]);
   if (error) throw error;
   return Math.max(0, Number(count || 0));
 }
@@ -132,7 +209,7 @@ async function fetchConnectedMailboxRange(start: number, end: number) {
     .select("id,user_id,provider,account_email,access_token_enc,refresh_token_enc,expires_at,settings")
     .eq("category", "mail")
     .eq("status", "connected")
-    .in("provider", ["gmail", "microsoft", "imap"])
+    .in("provider", ["microsoft", "imap"])
     .order("id", { ascending: true })
     .range(start, end);
   if (error) throw error;
@@ -149,33 +226,6 @@ async function loadConnectedMailboxes(maxAccounts: number) {
   const remaining = maxAccounts - first.length;
   const wrapped = await fetchConnectedMailboxRange(0, Math.min(start - 1, remaining - 1));
   return [...first, ...wrapped].slice(0, maxAccounts);
-}
-
-async function refreshGoogleToken(account: IntegrationRow) {
-  let accessToken = tryDecryptToken(account.access_token_enc);
-  const refreshToken = tryDecryptToken(account.refresh_token_enc);
-  if (!accessToken) return null;
-  if (!refreshToken || !isExpired(account.expires_at)) return accessToken;
-
-  const clientId = process.env.GOOGLE_CLIENT_ID;
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-  if (!clientId || !clientSecret) return accessToken;
-  const response = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id: clientId,
-      client_secret: clientSecret,
-      grant_type: "refresh_token",
-      refresh_token: refreshToken,
-    }),
-  });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok || !body?.access_token) return accessToken;
-  accessToken = String(body.access_token);
-  const expiresAt = body.expires_in ? new Date(Date.now() + Number(body.expires_in) * 1000).toISOString() : null;
-  await supabaseAdmin.from("integrations").update({ access_token_enc: encryptToken(accessToken), expires_at: expiresAt }).eq("id", account.id).eq("user_id", account.user_id);
-  return accessToken;
 }
 
 async function refreshMicrosoftToken(account: IntegrationRow) {
@@ -204,29 +254,6 @@ async function refreshMicrosoftToken(account: IntegrationRow) {
   const expiresAt = body.expires_in ? new Date(Date.now() + Number(body.expires_in) * 1000).toISOString() : null;
   await supabaseAdmin.from("integrations").update({ access_token_enc: encryptToken(accessToken), expires_at: expiresAt }).eq("id", account.id).eq("user_id", account.user_id);
   return accessToken;
-}
-
-function decodeBase64Url(value: unknown) {
-  const raw = String(value || "").replace(/-/g, "+").replace(/_/g, "/");
-  if (!raw) return "";
-  try {
-    return Buffer.from(raw, "base64").toString("utf8");
-  } catch {
-    return "";
-  }
-}
-
-function collectGmailBody(part: unknown): string {
-  const node = asRecord(part);
-  const own = decodeBase64Url(asRecord(node.body).data);
-  const children = Array.isArray(node.parts) ? node.parts.map(collectGmailBody).join("\n") : "";
-  return [own, children].filter(Boolean).join("\n");
-}
-
-function headerValue(headers: unknown, name: string) {
-  if (!Array.isArray(headers)) return "";
-  const hit = headers.find((header) => String(asRecord(header).name || "").toLowerCase() === name.toLowerCase());
-  return String(asRecord(hit).value || "");
 }
 
 async function applyFeedback(args: {
@@ -258,50 +285,6 @@ async function applyFeedback(args: {
   };
   const result = await processMailWebhookEvent(event);
   return { feedback: true, updated: Boolean(result.updated) };
-}
-
-async function scanGmail(account: IntegrationRow) {
-  if (!hasScope(account.settings, "https://www.googleapis.com/auth/gmail.readonly") && !hasScope(account.settings, "https://www.googleapis.com/auth/gmail.modify")) {
-    return { scanned: 0, feedback: 0, updated: 0, skipped: 1 };
-  }
-  const token = await refreshGoogleToken(account);
-  if (!token) return { scanned: 0, feedback: 0, updated: 0, skipped: 1 };
-  const q = 'newer_than:3d (from:mailer-daemon OR from:postmaster OR subject:undeliverable OR subject:"delivery status notification" OR subject:"mail delivery failed")';
-  const listRes = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=100&q=${encodeURIComponent(q)}`, { headers: { Authorization: `Bearer ${token}` } });
-  if (!listRes.ok) throw new Error(`Lecture Gmail impossible (${listRes.status}).`);
-  const list = await listRes.json().catch(() => ({}));
-  const messages: GmailMessageListItem[] = (Array.isArray(list.messages) ? list.messages : []).slice(0, 100);
-  const pendingEventIds = await filterUnprocessedFeedbackIds(
-    "gmail",
-    messages.map((item) => `gmail-inbox:${String(item?.id || "")}`),
-  );
-  let feedback = 0;
-  let updated = 0;
-  let scanned = 0;
-  for (const item of messages) {
-    if (scanned >= 15) break;
-    const id = String(item?.id || "");
-    const externalEventId = `gmail-inbox:${id}`;
-    if (!id || !pendingEventIds.has(externalEventId)) continue;
-    scanned += 1;
-    const res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(id)}?format=full`, { headers: { Authorization: `Bearer ${token}` } });
-    if (!res.ok) continue;
-    const msg = await res.json().catch(() => ({}));
-    const headers = asRecord(msg.payload).headers;
-    const result = await applyFeedback({
-      account,
-      provider: "gmail",
-      externalEventId,
-      subject: headerValue(headers, "Subject"),
-      from: headerValue(headers, "From"),
-      body: [String(msg.snippet || ""), collectGmailBody(msg.payload)].join("\n"),
-      occurredAt: headerValue(headers, "Date"),
-      payload: { id, threadId: msg.threadId, snippet: msg.snippet },
-    });
-    if (result.feedback) feedback += 1;
-    if (result.updated) updated += 1;
-  }
-  return { scanned, feedback, updated, skipped: 0 };
 }
 
 async function scanMicrosoft(account: IntegrationRow) {
@@ -432,17 +415,26 @@ export async function scanConnectedMailboxesForFeedback(opts?: { maxAccounts?: n
   const summary: ScanResult = { accounts: 0, scanned: 0, feedback: 0, updated: 0, skipped: 0, errors: 0 };
   for (const account of accounts) {
     summary.accounts += 1;
+    if (mailboxFeedbackScanIsPaused(account)) {
+      summary.skipped += 1;
+      continue;
+    }
     try {
       const provider = String(account.provider || "").toLowerCase();
-      const result = provider === "gmail"
-        ? await scanGmail(account)
-        : provider === "microsoft"
-          ? await scanMicrosoft(account)
-          : await scanImap(account);
+      const result = provider === "microsoft"
+        ? await scanMicrosoft(account)
+        : await scanImap(account);
       summary.scanned += result.scanned;
       summary.feedback += result.feedback;
       summary.updated += result.updated;
       summary.skipped += result.skipped;
+      await clearMailboxScanFailure(account).catch((updateError) => {
+        console.info("[mailBounceScanner] failure marker cleanup deferred", {
+          integrationId: account.id,
+          provider: account.provider,
+          message: compactScannerError(updateError),
+        });
+      });
     } catch (error) {
       summary.errors += 1;
       if (isMailboxAuthenticationFailure(error)) {
@@ -459,11 +451,27 @@ export async function scanConnectedMailboxesForFeedback(opts?: { maxAccounts?: n
           code: "mailbox_authentication_failed",
         });
       } else {
-        console.warn("[mailBounceScanner] account scan failed", {
+        const recorded = await recordMailboxScanFailure(account, error).catch((updateError) => {
+          console.warn("[mailBounceScanner] failure marker unavailable", {
+            integrationId: account.id,
+            provider: account.provider,
+            message: compactScannerError(updateError),
+          });
+          return null;
+        });
+        const details = {
           integrationId: account.id,
           provider: account.provider,
           message: compactScannerError(error),
-        });
+          code: mailboxScannerErrorCode(error),
+          failureCount: recorded?.failureCount || null,
+          pausedUntil: recorded?.pausedUntil || null,
+        };
+        if (recorded?.pausedUntil) {
+          console.info("[mailBounceScanner] feedback scan paused after repeated failures", details);
+        } else {
+          console.warn("[mailBounceScanner] account scan failed", details);
+        }
       }
     }
   }

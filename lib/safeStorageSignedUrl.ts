@@ -94,8 +94,9 @@ function sleep(ms: number) {
 }
 
 /**
- * Exact object probe through Storage's authenticated object endpoint.
- * This avoids folder listings and does not generate a signed URL.
+ * Exact object probe through a service-role-only SQL function.
+ * Reading storage.objects through PostgREST avoids turning a stale registry
+ * reference into a noisy Storage 400 before we have had a chance to repair it.
  */
 export async function probeStorageObject(
   bucket: string,
@@ -103,31 +104,19 @@ export async function probeStorageObject(
 ): Promise<StorageObjectProbe> {
   const normalizedBucket = String(bucket || "").trim();
   const path = normalizePath(storagePath);
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!normalizedBucket || !path) return "missing";
   if (isKnownMissingObject(normalizedBucket, path)) return "missing";
-  if (!supabaseUrl || !serviceRoleKey) return "unknown";
 
   try {
-    const encodedPath = path.split("/").map(encodeURIComponent).join("/");
-    const response = await fetch(
-      `${supabaseUrl}/storage/v1/object/authenticated/${encodeURIComponent(normalizedBucket)}/${encodedPath}`,
-      {
-        method: "HEAD",
-        headers: {
-          apikey: serviceRoleKey,
-          Authorization: `Bearer ${serviceRoleKey}`,
-        },
-        cache: "no-store",
-      },
+    const { data, error } = await supabaseAdmin.rpc(
+      "inrcy_storage_object_exists",
+      { p_bucket: normalizedBucket, p_path: path },
     );
-
-    if (response.ok) {
+    if (!error && data === true) {
       clearMissingObject(normalizedBucket, path);
       return "exists";
     }
-    if (response.status === 400 || response.status === 404) {
+    if (!error && data === false) {
       rememberMissingObject(normalizedBucket, path);
       return "missing";
     }

@@ -18,6 +18,34 @@ begin
 end;
 $$;
 
+-- Probe exact, non-public object existence without issuing a Storage request.
+-- Only the backend service role may call this function.
+create or replace function public.inrcy_storage_object_exists(
+  p_bucket text,
+  p_path text
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public, storage, pg_temp
+as $$
+  select
+    nullif(btrim(p_bucket), '') is not null
+    and nullif(ltrim(coalesce(p_path, ''), '/'), '') is not null
+    and exists (
+      select 1
+      from storage.objects as object
+      where object.bucket_id = btrim(p_bucket)
+        and object.name = ltrim(p_path, '/')
+    );
+$$;
+
+revoke all on function public.inrcy_storage_object_exists(text, text)
+  from public, anon, authenticated;
+grant execute on function public.inrcy_storage_object_exists(text, text)
+  to service_role;
+
 -- Une restauration manuelle du fichier doit lever le marqueur sans recréer le média.
 update public.pro_media_library as media
 set

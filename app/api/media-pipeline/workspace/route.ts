@@ -63,14 +63,13 @@ async function signWorkspaceSource(params: {
     return null;
   }
 
-  const signedUrl = await createSafeStorageSignedUrl(
-    params.bucket,
-    params.storagePath,
-    60 * 60 * 24,
-  );
-  if (signedUrl) return signedUrl;
-  if ((await probeStorageObject(params.bucket, params.storagePath)) !== "missing") {
-    return null;
+  const probe = await probeStorageObject(params.bucket, params.storagePath);
+  if (probe !== "missing") {
+    return createSafeStorageSignedUrl(
+      params.bucket,
+      params.storagePath,
+      60 * 60 * 24,
+    );
   }
 
   const marked = await supabaseAdmin
@@ -101,13 +100,10 @@ async function signReadyWorkspaceVariant(params: {
   const storagePath = cleanText(params.variant?.storage_path, "", 1_500);
   if (!variantId || !bucket || !storagePath) return null;
 
-  const signedUrl = await createSafeStorageSignedUrl(
-    bucket,
-    storagePath,
-    60 * 60 * 24,
-  );
-  if (signedUrl) return signedUrl;
-  if ((await probeStorageObject(bucket, storagePath)) !== "missing") return null;
+  const probe = await probeStorageObject(bucket, storagePath);
+  if (probe !== "missing") {
+    return createSafeStorageSignedUrl(bucket, storagePath, 60 * 60 * 24);
+  }
 
   const marked = await supabaseAdmin
     .from("media_variants")

@@ -39,8 +39,8 @@ test("les mails de campagne incluent le desabonnement en un clic", () => {
   assert.match(unsubscribe, /url\.searchParams\.get\("campaignId"\)/);
 });
 
-test("les retours automatiques sont analyses pour Gmail Outlook et IMAP", () => {
-  assert.match(scanner, /scanGmail/);
+test("les retours automatiques sont analyses sans lire les boites Gmail", () => {
+  assert.doesNotMatch(scanner, /scanGmail|gmail\.readonly|gmail\.modify|gmail-inbox/);
   assert.match(scanner, /scanMicrosoft/);
   assert.match(scanner, /scanImap/);
   assert.match(scanner, /filterUnprocessedFeedbackIds/);
@@ -51,8 +51,9 @@ test("les retours automatiques sont analyses pour Gmail Outlook et IMAP", () => 
   assert.match(vercel, /\/api\/cron\/mail-bounces/);
 });
 
-test("les nouveaux OAuth demandent la lecture necessaire aux retours", () => {
-  assert.match(googleStart, /gmail\.readonly/);
+test("Google ne demande que l'envoi et jamais la lecture Gmail", () => {
+  assert.match(googleStart, /gmail\.send/);
+  assert.doesNotMatch(googleStart, /gmail\.readonly|gmail\.modify/);
   assert.match(microsoftStart, /Mail\.Read/);
 });
 

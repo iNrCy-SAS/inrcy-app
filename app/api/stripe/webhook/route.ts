@@ -18,6 +18,7 @@ import {
 export const runtime = "nodejs";
 
 type StripeEvent = {
+  id?: string;
   type?: string;
   data?: {
     object?: unknown;
@@ -123,15 +124,21 @@ function normalizedEmailVariants(email?: string | null) {
   return Array.from(new Set([raw, raw.toLowerCase()]));
 }
 
+function exactIlikePattern(value: string) {
+  return value.replace(/([\\%_])/g, "\\$1");
+}
+
 async function findUniqueSubscriptionBy(column: string, value?: string | null) {
   const cleaned = String(value || "").trim();
   if (!cleaned) return null;
 
-  const { data, error } = await supabaseAdmin
+  const query = supabaseAdmin
     .from("subscriptions")
     .select(SUBSCRIPTION_SELECT)
-    .eq(column, cleaned)
     .limit(2);
+  const { data, error } = column === "contact_email"
+    ? await query.ilike(column, exactIlikePattern(cleaned))
+    : await query.eq(column, cleaned);
 
   if (error) throw error;
   const rows = (data as SubscriptionSnapshot[] | null) ?? [];
@@ -152,7 +159,7 @@ async function findUserIdByEmail(email?: string | null) {
       const { data, error } = await supabaseAdmin
         .from("profiles")
         .select("user_id")
-        .eq(column, value)
+        .ilike(column, exactIlikePattern(value))
         .limit(2);
 
       if (error) throw error;
@@ -256,12 +263,21 @@ export async function POST(req: Request) {
   ) => {
     const existingRow = await getSubscriptionRow(userId, customerId, subscriptionId, email);
     if (!existingRow?.user_id) {
-      console.warn("[stripe-webhook] Aucun compte Supabase unique ne correspond a l'evenement Stripe.", {
+      const details = {
+        eventId: typeof evt.id === "string" ? evt.id : null,
+        eventType: String(evt.type || "unknown"),
         hasUserId: Boolean(userId),
         hasCustomerId: Boolean(customerId),
         hasSubscriptionId: Boolean(subscriptionId),
         hasEmail: Boolean(email),
-      });
+      };
+      if (userId || evt.type === "checkout.session.completed") {
+        console.warn("[stripe-webhook] Aucun compte Supabase unique ne correspond a l'evenement Stripe.", details);
+      } else {
+        // Historical or out-of-scope Stripe objects can legitimately reach the
+        // endpoint. Acknowledge them without polluting the production warnings.
+        console.info("[stripe-webhook] Evenement Stripe sans compte iNrCy local.", details);
+      }
       return null;
     }
 
