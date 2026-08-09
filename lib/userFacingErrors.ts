@@ -219,7 +219,6 @@ function hasAuthSignal(raw: string): boolean {
     "(#190)",
     "(#200)",
     "401",
-    "403",
   ]);
 }
 

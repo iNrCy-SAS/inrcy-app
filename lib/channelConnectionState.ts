@@ -5,6 +5,8 @@ import { hasActiveInrcySite } from "@/lib/inrcySite";
 import { normalizeTiktokSettings } from "@/lib/tiktokSettings";
 import { buildTiktokProfileUrl } from "@/lib/tiktokOAuth";
 import { applyYoutubeShortsIntegrationState } from "@/lib/youtubeShortsOAuth";
+import { hasUsableRefreshCredential } from "@/lib/publicationChannelAvailability";
+import { getPinterestApiEnvironment } from "@/lib/pinterestOAuth";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -272,7 +274,9 @@ export async function getChannelConnectionStates(
   const fbPageConnected = fbHasOfficialRow
     ? Boolean(fbAccountConnected && fbResourceId)
     : Boolean((fbAccountConnected && fbResourceId) || fbSettings.pageConnected);
-  const fbConnectionStatus = getConnectionDisplayStatus(fbPageConnected, "channel:facebook", fbMeta);
+  const fbConnectionStatus = fbExpired
+    ? "needs_update"
+    : getConnectionDisplayStatus(fbPageConnected, "channel:facebook", fbMeta);
   const fbRequiresUpdate = fbConnectionStatus === "needs_update";
 
   const ig = latestIntegration(rows, "instagram", "instagram", "instagram");
@@ -290,22 +294,36 @@ export async function getChannelConnectionStates(
   const igUsername = asString(ig.resource_label) || asString(igSettings.username) || null;
   const igProfileUrl = asString(igSettings.url) || (igUsername ? `https://www.instagram.com/${igUsername}/` : null);
   const igConnected = Boolean(igAccountConnected && igResourceId);
-  const igConnectionStatus = getConnectionDisplayStatus(igConnected, "channel:instagram", igMeta);
+  const igConnectionStatus = igExpired
+    ? "needs_update"
+    : getConnectionDisplayStatus(igConnected, "channel:instagram", igMeta);
   const igRequiresUpdate = igConnectionStatus === "needs_update";
 
   const li = latestIntegration(rows, "linkedin", "linkedin", "linkedin");
   const liSettings = asRecord(settings.linkedin);
   const liHasToken = hasTruthyString(li.access_token_enc);
   const liHasRefreshToken = hasTruthyString(li.refresh_token_enc);
-  const liHasReusableAuth = liHasToken || liHasRefreshToken;
-  const liExpired = isExpired(li.expires_at) && !liHasRefreshToken;
-  const liStatus = asString(li.status);
   const liMeta = asRecord(li.meta);
+  const liHasUsableRefreshToken = hasUsableRefreshCredential(
+    liHasRefreshToken,
+    liMeta.refresh_expires_at,
+  );
+  const liHasReusableAuth = liHasToken || liHasUsableRefreshToken;
+  const liExpired = isExpired(li.expires_at) && !liHasUsableRefreshToken;
+  const liStatus = asString(li.status);
   const liHasOfficialRow = hasIntegrationRecord(li);
+  const liHasPublicationTarget = Boolean(
+    asString(li.resource_id) ||
+      asString(liMeta.profile_urn) ||
+      asString(liMeta.org_urn) ||
+      asString(liMeta.org_id),
+  );
   const liConnected = liHasOfficialRow
-    ? Boolean((liStatus === "connected" || liStatus === "account_connected") && liHasReusableAuth && !liExpired)
+    ? Boolean((liStatus === "connected" || liStatus === "account_connected") && liHasReusableAuth && liHasPublicationTarget && !liExpired)
     : Boolean(liSettings.accountConnected || liSettings.connected);
-  const liConnectionStatus = getConnectionDisplayStatus(liConnected, "channel:linkedin", liMeta);
+  const liConnectionStatus = liExpired
+    ? "needs_update"
+    : getConnectionDisplayStatus(liConnected, "channel:linkedin", liMeta);
   const liRequiresUpdate = liConnectionStatus === "needs_update";
   const liActiveOrganizationId = asString(liMeta.org_id) || asString(liSettings.orgId) || "";
   const liProfileUrl = asString(liMeta.profile_url) || asString(liMeta.profile) || asString(liSettings.profileUrl) || (!liActiveOrganizationId ? asString(liSettings.url) : "") || null;
@@ -315,10 +333,14 @@ export async function getChannelConnectionStates(
   const tiktokSettings = normalizeTiktokSettings(settings.tiktok);
   const tkHasToken = hasTruthyString(tk.access_token_enc);
   const tkHasRefreshToken = hasTruthyString(tk.refresh_token_enc);
-  const tkHasReusableAuth = tkHasToken || tkHasRefreshToken;
-  const tkExpired = isExpired(tk.expires_at) && !tkHasRefreshToken;
-  const tkStatus = asString(tk.status);
   const tkMeta = asRecord(tk.meta);
+  const tkHasUsableRefreshToken = hasUsableRefreshCredential(
+    tkHasRefreshToken,
+    tkMeta.refresh_expires_at,
+  );
+  const tkHasReusableAuth = tkHasToken || tkHasUsableRefreshToken;
+  const tkExpired = isExpired(tk.expires_at) && !tkHasUsableRefreshToken;
+  const tkStatus = asString(tk.status);
   // TikTok est connecté uniquement si une intégration OAuth réelle est active.
   // Les anciens réglages/mock ou un simple lien public ne doivent jamais rendre la bulle verte.
   const tiktokConnected = Boolean((tkStatus === "connected" || tkStatus === "account_connected") && tkHasReusableAuth && !tkExpired);
@@ -328,9 +350,11 @@ export async function getChannelConnectionStates(
       asString(tkMeta["tiktok_stats_needs_reconnect_at"]) ||
       asString(tkMeta["tiktok_token_invalid_at"]),
   );
-  const tiktokConnectionStatus = tiktokNeedsReconnect && tiktokConnected
+  const tiktokConnectionStatus = tkExpired
     ? "needs_update"
-    : getConnectionDisplayStatus(tiktokConnected, "channel:tiktok", tkMeta);
+    : tiktokNeedsReconnect && tiktokConnected
+      ? "needs_update"
+      : getConnectionDisplayStatus(tiktokConnected, "channel:tiktok", tkMeta);
   const tiktokRequiresUpdate = tiktokConnectionStatus === "needs_update";
   const tiktokUsername = tiktokConnected ? (asString(tkMeta.username) || asString(tk.resource_label) || tiktokSettings.username || null) : null;
   const tiktokProfileUrl = tiktokConnected ? (asString(tkMeta.profile_url) || tiktokSettings.profileUrl || buildTiktokProfileUrl(tiktokUsername) || null) : null;
@@ -340,7 +364,9 @@ export async function getChannelConnectionStates(
   const youtubeShorts = applyYoutubeShortsIntegrationState(settings.youtube_shorts, yt);
   const youtubeShortsHasRefreshToken = hasTruthyString(yt.refresh_token_enc);
   const youtubeShortsExpired = isExpired(yt.expires_at) && !youtubeShortsHasRefreshToken;
-  const youtubeShortsConnectionStatus = getConnectionDisplayStatus(youtubeShorts.connected, "channel:youtube_shorts", ytMeta);
+  const youtubeShortsConnectionStatus = youtubeShortsExpired
+    ? "needs_update"
+    : getConnectionDisplayStatus(youtubeShorts.connected, "channel:youtube_shorts", ytMeta);
   const youtubeShortsRequiresUpdate = youtubeShortsConnectionStatus === "needs_update";
 
   const mailRows = rows.filter((row) => row.category === "mail");
@@ -359,13 +385,27 @@ export async function getChannelConnectionStates(
   const mailsConnected = mailConnectedCount > 0;
 
   const pinterest = latestIntegration(rows, "pinterest", "pinterest", "pinterest");
-  const pinterestHasToken = hasTruthyString(pinterest.access_token_enc) || hasTruthyString(pinterest.refresh_token_enc);
-  const pinterestExpired = isExpired(pinterest.expires_at) && !hasTruthyString(pinterest.refresh_token_enc);
-  const pinterestStatus = asString(pinterest.status);
+  const pinterestHasAccessToken = hasTruthyString(pinterest.access_token_enc);
+  const pinterestHasRefreshToken = hasTruthyString(pinterest.refresh_token_enc);
   const pinterestMeta = asRecord(pinterest.meta);
+  const pinterestHasUsableRefreshToken = hasUsableRefreshCredential(
+    pinterestHasRefreshToken,
+    pinterestMeta.refresh_expires_at,
+  );
+  const pinterestHasToken = pinterestHasAccessToken || pinterestHasUsableRefreshToken;
+  const pinterestExpired = isExpired(pinterest.expires_at) && !pinterestHasUsableRefreshToken;
+  const pinterestStatus = asString(pinterest.status);
+  const pinterestStoredEnvironment =
+    asString(pinterestMeta.pinterest_api_environment) || "production";
+  const pinterestEnvironmentMismatch = Boolean(
+    hasIntegrationRecord(pinterest) &&
+      pinterestStoredEnvironment !== getPinterestApiEnvironment(),
+  );
   const pinterestOAuthConnected = Boolean((pinterestStatus === "connected" || pinterestStatus === "account_connected") && pinterestHasToken && !pinterestExpired);
-  const pinterestConnected = pinterestOAuthConnected;
-  const pinterestConnectionStatus = getConnectionDisplayStatus(pinterestConnected, "channel:pinterest", pinterestMeta);
+  const pinterestConnected = pinterestOAuthConnected && !pinterestEnvironmentMismatch;
+  const pinterestConnectionStatus = pinterestExpired || pinterestEnvironmentMismatch
+    ? "needs_update"
+    : getConnectionDisplayStatus(pinterestConnected, "channel:pinterest", pinterestMeta);
   const pinterestRequiresUpdate = pinterestConnectionStatus === "needs_update";
   const pinterestDefaultBoardId = asString(pinterestSettings.defaultBoardId) || null;
   const pinterestDefaultBoardName = asString(pinterestSettings.defaultBoardName) || null;
@@ -392,11 +432,14 @@ export async function getChannelConnectionStates(
     : Boolean(gmbSettings.connected || gmbSettings.accountEmail);
   const gmbResourceId = asString(gmb.resource_id) || asString(gmbSettings.locationName) || null;
   const gmbResourceLabel = asString(gmb.resource_label) || asString(gmbSettings.locationTitle) || null;
+  const gmbAccountName = asString(gmbMeta.account) || asString(gmbSettings.accountName) || null;
   const gmbUrl = asString(gmbMeta.url) || asString(gmbSettings.url) || buildGoogleMapsSearchUrl(gmbResourceLabel || gmbResourceId);
   const gmbConfigured = gmbHasOfficialRow
-    ? Boolean(gmbAccountConnected && gmbResourceId)
-    : Boolean((gmbAccountConnected && gmbResourceId) || (gmbSettings.connected && (gmbSettings.locationName || gmbSettings.locationTitle)));
-  const gmbConnectionStatus = getConnectionDisplayStatus(gmbConfigured, "channel:gmb", gmbMeta);
+    ? Boolean(gmbAccountConnected && gmbResourceId && gmbAccountName)
+    : Boolean((gmbAccountConnected && gmbResourceId && gmbAccountName) || (gmbSettings.connected && gmbSettings.accountName && (gmbSettings.locationName || gmbSettings.locationTitle)));
+  const gmbConnectionStatus = gmbExpired
+    ? "needs_update"
+    : getConnectionDisplayStatus(gmbConfigured, "channel:gmb", gmbMeta);
   const gmbRequiresUpdate = gmbConnectionStatus === "needs_update";
 
   return {

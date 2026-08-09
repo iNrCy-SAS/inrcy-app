@@ -485,11 +485,14 @@ export async function getGoogleTokenForAnyGoogle(
   const row = await selectLatestGoogleIntegration(supabase, userId, source, product);
   if (!row) return null;
 
-  const refreshToken = tryDecryptToken(row.refresh_token_enc);
-  if (!refreshToken) return null;
-
   let accessToken = tryDecryptToken(row.access_token_enc);
   let expiresAt = row.expires_at;
+  if (accessToken && !isExpired(expiresAt)) {
+    return { accessToken, row };
+  }
+
+  const refreshToken = tryDecryptToken(row.refresh_token_enc);
+  if (!refreshToken) return null;
 
   if (!accessToken || isExpired(expiresAt)) {
     let refreshed: Awaited<ReturnType<typeof refreshGoogleAccessToken>>;

@@ -297,6 +297,7 @@ export async function getPinterestAccessToken(userId: string, _requestUrl?: stri
   const refreshToken = tryDecryptToken(asString(row.refresh_token_enc) || "") || "";
   if (accessToken && !isExpired(row.expires_at)) return accessToken;
   if (!refreshToken) return "";
+  if (isExpired(meta.refresh_expires_at)) return "";
 
   const refreshed = await refreshPinterestAccessToken(refreshToken);
   const nextAccessToken = asString(refreshed.access_token) || "";
@@ -315,12 +316,14 @@ export async function getPinterestAccessToken(userId: string, _requestUrl?: stri
     "boards",
     "default_board_id",
     "default_board_name",
-    "refresh_expires_at",
   ]) {
     delete refreshedMeta[key];
   }
   refreshedMeta.pinterest_token_refreshed_at = new Date().toISOString();
   refreshedMeta.pinterest_api_environment = getPinterestApiEnvironment();
+  if (dates.refreshExpiresAt) {
+    refreshedMeta.refresh_expires_at = dates.refreshExpiresAt;
+  }
 
   await supabaseAdmin
     .from("integrations")

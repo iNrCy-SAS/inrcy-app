@@ -2,6 +2,7 @@ import "server-only";
 
 import { normalizeTiktokSettings, type TiktokSettings } from "@/lib/tiktokSettings";
 import { buildTiktokProfileUrl } from "@/lib/tiktokOAuth";
+import { hasUsableRefreshCredential } from "@/lib/publicationChannelAvailability";
 
 type IntegrationLite = {
   status?: string | null;
@@ -57,8 +58,12 @@ export function isTiktokIntegrationActive(integration: unknown) {
   const status = asString(row.status);
   const hasToken = hasTruthyString(row.access_token_enc);
   const hasRefreshToken = hasTruthyString(row.refresh_token_enc);
-  const expired = isExpired(row.expires_at) && !hasRefreshToken;
-  return Boolean((status === "connected" || status === "account_connected") && (hasToken || hasRefreshToken) && !expired);
+  const hasUsableRefreshToken = hasUsableRefreshCredential(
+    hasRefreshToken,
+    asRecord(row.meta).refresh_expires_at,
+  );
+  const expired = isExpired(row.expires_at) && !hasUsableRefreshToken;
+  return Boolean((status === "connected" || status === "account_connected") && (hasToken || hasUsableRefreshToken) && !expired);
 }
 
 export function applyTiktokIntegrationState(settings: unknown, integration: unknown): TiktokSettings {

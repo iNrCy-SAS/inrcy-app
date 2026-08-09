@@ -32,12 +32,13 @@ test("reconnect state is refreshed in realtime for every OAuth publication chann
 
 test("Booster only enables channels whose official connection status is connected", () => {
   const route = read("app/api/booster/connected-channels/route.ts");
+  const availability = read("lib/publicationChannelAvailability.ts");
   const modal = read("app/dashboard/booster/publier/PublishModal.tsx");
   const selector = read("app/dashboard/booster/publier/components/PublishChannelSelector.tsx");
 
-  assert.match(route, /state\.connected === true && state\.connection_status === "connected"/);
-  assert.match(route, /requiresReconnect:\s*requiresReconnect\(states\.gmb\)/);
-  assert.match(route, /requiresReconnect:\s*requiresReconnect\(states\.pinterest\)/);
+  assert.match(availability, /state\?\.connected === true && state\.connection_status === "connected"/);
+  assert.match(route, /requiresReconnect:\s*publicationChannelRequiresReconnect\(states\.gmb\)/);
+  assert.match(route, /requiresReconnect:\s*publicationChannelRequiresReconnect\(states\.pinterest\)/);
   assert.match(modal, /if \(!connected\[key\]\) return;/);
   assert.match(modal, /\[key\]: connected\[key\] \? selected : false/);
   assert.match(selector, /const requiresReconnect = Boolean\(info\?\.requiresReconnect\)/);
@@ -67,4 +68,55 @@ test("official integration rows win over stale legacy settings", () => {
   assert.match(state, /const igHasOfficialRow = hasIntegrationRecord\(ig\)/);
   assert.match(state, /const liHasOfficialRow = hasIntegrationRecord\(li\)/);
   assert.match(state, /pinterestRequiresUpdate/);
+});
+
+test("known credential expiry is orange for every OAuth publication channel", () => {
+  const state = read("lib/channelConnectionState.ts");
+  for (const [statusPrefix, expiryCondition] of [
+    ["gmb", "gmbExpired"],
+    ["fb", "fbExpired"],
+    ["ig", "igExpired"],
+    ["li", "liExpired"],
+    ["tiktok", "tkExpired"],
+    ["youtubeShorts", "youtubeShortsExpired"],
+    ["pinterest", "pinterestExpired \\|\\| pinterestEnvironmentMismatch"],
+  ]) {
+    assert.match(
+      state,
+      new RegExp(`const ${statusPrefix}ConnectionStatus = ${expiryCondition}\\s*\\? \\"needs_update\\"`),
+      `missing orange expiry state for ${statusPrefix}`,
+    );
+  }
+});
+
+test("providers with expiring refresh tokens persist and enforce the absolute expiry", () => {
+  const state = read("lib/channelConnectionState.ts");
+  const linkedinCallback = read("app/api/integrations/linkedin/callback/route.ts");
+  const linkedinOAuth = read("lib/linkedinOAuth.ts");
+  const tiktokStorage = read("lib/tiktokRouteStorage.ts");
+  const pinterestCallback = read("app/api/integrations/pinterest/callback/route.ts");
+  const pinterestOAuth = read("lib/pinterestOAuth.ts");
+
+  assert.match(state, /liMeta\.refresh_expires_at/);
+  assert.match(state, /tkMeta\.refresh_expires_at/);
+  assert.match(state, /pinterestMeta\.refresh_expires_at/);
+  assert.match(linkedinCallback, /refresh_expires_at:\s*refreshTokenExpiresAt/);
+  assert.match(linkedinOAuth, /refreshTokenExpired/);
+  assert.match(tiktokStorage, /hasUsableRefreshCredential/);
+  assert.match(pinterestCallback, /refresh_expires_at:\s*dates\.refreshExpiresAt/);
+  assert.match(pinterestOAuth, /isExpired\(meta\.refresh_expires_at\)/);
+});
+
+test("green publication channels also have the provider target required to publish", () => {
+  const state = read("lib/channelConnectionState.ts");
+  const linkedinCallback = read("app/api/integrations/linkedin/callback/route.ts");
+
+  assert.match(state, /liHasPublicationTarget/);
+  assert.match(
+    state,
+    /liHasReusableAuth && liHasPublicationTarget && !liExpired/,
+  );
+  assert.match(state, /gmbAccountConnected && gmbResourceId && gmbAccountName/);
+  assert.match(state, /pinterestEnvironmentMismatch/);
+  assert.match(linkedinCallback, /linkedin_profile_unavailable/);
 });

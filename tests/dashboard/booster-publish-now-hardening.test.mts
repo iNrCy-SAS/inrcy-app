@@ -23,6 +23,9 @@ const route = read("app/api/booster/publish-now/route.ts");
 const foundations = read("app/api/booster/publish-now/publishNow.foundations.ts");
 const asyncPublication = read("lib/boosterAsyncPublication.ts");
 const ingress = read("lib/boosterPublicationIngress.ts");
+const channelPublishDiagnostics = read("lib/channelPublishDiagnostics.ts");
+const channelReconnectPolicy = read("lib/channelReconnectPolicy.ts");
+const googleStats = read("lib/googleStats.ts");
 
 test("the runtime channel policy accepts only the ten supported channels", () => {
   assert.equal(BOOSTER_PUBLICATION_CHANNELS.length, 10);
@@ -156,4 +159,53 @@ test("synchronous and asynchronous summaries share the same retry policy", () =>
   assert.match(asyncPublication, /isBoosterPublishFailureRetryable\(\{/);
   assert.match(asyncPublication, /isBoosterPublicationChannel\(channel\)/);
   assert.doesNotMatch(asyncPublication, /const CHANNEL_LABELS:/);
+});
+
+test("Google Business publication reuses the resolved server identity", () => {
+  assert.match(
+    route,
+    /getGmbToken\(\{\s*supabase:\s*supabaseAdmin,\s*userId,\s*\}\)/,
+  );
+  assert.doesNotMatch(route, /const tok = await getGmbToken\(\);/);
+});
+
+test("a still-valid Google access token works even without a refresh token", () => {
+  const validAccessReturn = indexOfOrFail(
+    googleStats,
+    "if (accessToken && !isExpired(expiresAt))",
+  );
+  const refreshTokenRead = indexOfOrFail(
+    googleStats,
+    "const refreshToken = tryDecryptToken(row.refresh_token_enc)",
+  );
+  assert.ok(validAccessReturn < refreshTokenRead);
+  assert.match(
+    googleStats.slice(validAccessReturn, refreshTokenRead),
+    /return \{ accessToken, row \}/,
+  );
+});
+
+test("an application session failure cannot poison a provider connection", () => {
+  assert.match(
+    channelPublishDiagnostics,
+    /isProviderReconnectRequired\(\{/,
+  );
+  assert.match(
+    channelReconnectPolicy,
+    /isApplicationSessionAuthenticationError\(raw\)\) return false/,
+  );
+  assert.match(
+    channelReconnectPolicy,
+    /public[\s\S]*message[\s\S]*only when no raw error exists/i,
+  );
+});
+
+test("publish-now rechecks the official channel state inside the worker", () => {
+  assert.match(route, /getChannelConnectionStates\(supabaseAdmin, userId\)/);
+  assert.match(
+    route,
+    /!isOfficialPublicationChannelConnected\(liveChannelState\)/,
+  );
+  assert.match(route, /stage:\s*"connection_guard"/);
+  assert.match(route, /code:\s*reconnectRequired[\s\S]*"channel_requires_reconnect"/);
 });

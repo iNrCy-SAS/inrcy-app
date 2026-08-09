@@ -29,6 +29,7 @@ function clearConnectionReconnectMarkers<T extends Record<string, unknown>>(node
   delete next["needs_reconnect_at"];
   delete next["needs_reconnect_reason"];
   delete next["needs_reconnect_channel"];
+  delete next["needs_reconnect_stage"];
   return next;
 }
 

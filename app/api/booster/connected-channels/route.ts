@@ -5,6 +5,10 @@ import { getAppBubbleAccessMapForUser } from "@/lib/appBubbleAccessServer";
 import { isBubbleEnabled } from "@/lib/bubbleAccess";
 import { ensureSystemManagedInrSearch } from "@/lib/inrSearchProvisioning";
 import { buildInrSearchPublicUrl, getInrSearchPublicStatus } from "@/lib/inrSearchPublic";
+import {
+  isOfficialPublicationChannelConnected,
+  publicationChannelRequiresReconnect,
+} from "@/lib/publicationChannelAvailability";
 
 
 function decodeDisplayText(value: unknown) {
@@ -146,14 +150,6 @@ function firstCleanLabel(candidates: unknown[], fallback: string, formatter: (va
   return fallback;
 }
 
-function isOfficiallyConnected(state: { connected?: boolean; connection_status?: string | null }) {
-  return state.connected === true && state.connection_status === "connected";
-}
-
-function requiresReconnect(state: { expired?: boolean; requiresUpdate?: boolean; connection_status?: string | null }) {
-  return state.expired === true || state.requiresUpdate === true || state.connection_status === "needs_update";
-}
-
 export async function GET() {
   try {
     const { supabase, user, errorResponse, activeUserId } = await requireUser();
@@ -178,13 +174,13 @@ export async function GET() {
         inrcy_site: states.site_inrcy.connected,
         site_web: states.site_web.connected,
         inr_search: inrSearchPublished,
-        gmb: isOfficiallyConnected(states.gmb),
-        facebook: isOfficiallyConnected(states.facebook),
-        instagram: isOfficiallyConnected(states.instagram),
-        linkedin: isOfficiallyConnected(states.linkedin),
-        tiktok: isOfficiallyConnected(states.tiktok),
-        youtube_shorts: isOfficiallyConnected(states.youtube_shorts),
-        pinterest: pinterestEnabled && isOfficiallyConnected(states.pinterest),
+        gmb: isOfficialPublicationChannelConnected(states.gmb),
+        facebook: isOfficialPublicationChannelConnected(states.facebook),
+        instagram: isOfficialPublicationChannelConnected(states.instagram),
+        linkedin: isOfficialPublicationChannelConnected(states.linkedin),
+        tiktok: isOfficialPublicationChannelConnected(states.tiktok),
+        youtube_shorts: isOfficialPublicationChannelConnected(states.youtube_shorts),
+        pinterest: pinterestEnabled && isOfficialPublicationChannelConnected(states.pinterest),
       },
       channelDetails: {
         inrcy_site: {
@@ -211,7 +207,7 @@ export async function GET() {
           ),
           href: states.gmb.url,
           connectionStatus: states.gmb.connection_status,
-          requiresReconnect: requiresReconnect(states.gmb),
+          requiresReconnect: publicationChannelRequiresReconnect(states.gmb),
         },
         facebook: {
           type: "page",
@@ -222,7 +218,7 @@ export async function GET() {
           ),
           href: states.facebook.page_url,
           connectionStatus: states.facebook.connection_status,
-          requiresReconnect: requiresReconnect(states.facebook),
+          requiresReconnect: publicationChannelRequiresReconnect(states.facebook),
         },
         instagram: {
           type: "account",
@@ -233,7 +229,7 @@ export async function GET() {
           ),
           href: states.instagram.profile_url,
           connectionStatus: states.instagram.connection_status,
-          requiresReconnect: requiresReconnect(states.instagram),
+          requiresReconnect: publicationChannelRequiresReconnect(states.instagram),
         },
         linkedin: {
           type: states.linkedin.organization_id ? "page" : "profile",
@@ -248,7 +244,7 @@ export async function GET() {
             ? states.linkedin.organization_url
             : states.linkedin.profile_url,
           connectionStatus: states.linkedin.connection_status,
-          requiresReconnect: requiresReconnect(states.linkedin),
+          requiresReconnect: publicationChannelRequiresReconnect(states.linkedin),
         },
         tiktok: {
           type: "account",
@@ -259,7 +255,7 @@ export async function GET() {
           ),
           href: states.tiktok.profile_url,
           connectionStatus: states.tiktok.connection_status,
-          requiresReconnect: requiresReconnect(states.tiktok),
+          requiresReconnect: publicationChannelRequiresReconnect(states.tiktok),
         },
         youtube_shorts: {
           type: "channel",
@@ -270,7 +266,7 @@ export async function GET() {
           ),
           href: states.youtube_shorts.channel_url,
           connectionStatus: states.youtube_shorts.connection_status,
-          requiresReconnect: requiresReconnect(states.youtube_shorts),
+          requiresReconnect: publicationChannelRequiresReconnect(states.youtube_shorts),
         },
         pinterest: {
           type: "account",
@@ -281,7 +277,7 @@ export async function GET() {
           ),
           href: states.pinterest.profile_url,
           connectionStatus: states.pinterest.connection_status,
-          requiresReconnect: requiresReconnect(states.pinterest),
+          requiresReconnect: publicationChannelRequiresReconnect(states.pinterest),
         },
       },
     });

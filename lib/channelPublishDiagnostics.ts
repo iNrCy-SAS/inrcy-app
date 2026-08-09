@@ -13,6 +13,10 @@ import {
   ensureFrenchPublicationErrorMessage,
   getProviderPublicationErrorMessage,
 } from "@/lib/publicationErrorFrench";
+import {
+  isApplicationSessionAuthenticationError,
+  isProviderReconnectRequired,
+} from "@/lib/channelReconnectPolicy";
 
 export type PublishDiagnosticChannel = "facebook" | "instagram" | "linkedin" | "gmb" | "inrcy_site" | "site_web" | "inr_search" | "tiktok" | "youtube_shorts" | "pinterest";
 
@@ -72,18 +76,18 @@ const RECONNECT_INTEGRATION_KEYS: Partial<Record<PublishDiagnosticChannel, { pro
   pinterest: { provider: "pinterest", source: "pinterest", product: "pinterest" },
 };
 
-const RECONNECT_USER_MESSAGE_RE = /(?:\breconnect|reconnexion\s+requise|à\s+reconnecter|a\s+reconnecter|reconnecte)/i;
-const RECONNECT_RAW_ERROR_RE = /(?:invalid_grant|access_token_invalid|invalid\s+(?:access\s+)?token|token\s+(?:has\s+been\s+)?(?:expired|revoked)|expired\s+token|refresh\s+token.*(?:expired|revoked|invalid)|oauth.*(?:expired|invalid)|session\s+has\s+expired|unauthorized.*token|\b401\b)/i;
-
 export function isPublishReconnectRequiredError(
   channel: PublishDiagnosticChannel,
   error: unknown,
   userMessage?: string | null,
+  stage?: string | null,
 ): boolean {
-  if (!RECONNECT_INTEGRATION_KEYS[channel]) return false;
-  const publicMessage = String(userMessage || "");
-  if (RECONNECT_USER_MESSAGE_RE.test(publicMessage)) return true;
-  return RECONNECT_RAW_ERROR_RE.test(stringifyError(error));
+  return isProviderReconnectRequired({
+    channel,
+    error,
+    userMessage,
+    stage,
+  });
 }
 
 export async function markPublishChannelReconnectRequired(params: {
@@ -91,10 +95,12 @@ export async function markPublishChannelReconnectRequired(params: {
   userId: string;
   error?: unknown;
   userMessage?: string | null;
+  stage?: string | null;
+  attemptStartedAt?: string | null;
 }) {
   const key = RECONNECT_INTEGRATION_KEYS[params.channel];
   if (!key || !params.userId) return false;
-  if (!isPublishReconnectRequiredError(params.channel, params.error, params.userMessage)) return false;
+  if (!isPublishReconnectRequiredError(params.channel, params.error, params.userMessage, params.stage)) return false;
 
   const { data, error: readError } = await supabaseAdmin
     .from("integrations")
@@ -111,6 +117,19 @@ export async function markPublishChannelReconnectRequired(params: {
   const currentMeta = data.meta && typeof data.meta === "object" && !Array.isArray(data.meta)
     ? data.meta as Record<string, unknown>
     : {};
+  const attemptStartedAtMs = Date.parse(String(params.attemptStartedAt || ""));
+  const latestConnectionAtMs = Date.parse(
+    String(currentMeta.connection_version_updated_at || ""),
+  );
+  if (
+    Number.isFinite(attemptStartedAtMs) &&
+    Number.isFinite(latestConnectionAtMs) &&
+    latestConnectionAtMs > attemptStartedAtMs
+  ) {
+    // The user completed a newer OAuth connection while this publication was
+    // running. A late failure from the old token must never poison the new one.
+    return false;
+  }
   const now = new Date().toISOString();
   const { error: updateError } = await supabaseAdmin
     .from("integrations")
@@ -120,7 +139,8 @@ export async function markPublishChannelReconnectRequired(params: {
         needs_reconnect: true,
         needs_reconnect_at: now,
         needs_reconnect_channel: params.channel,
-        needs_reconnect_reason: "publication_authentication_failed",
+        needs_reconnect_reason: "provider_authentication_failed",
+        needs_reconnect_stage: params.stage || null,
       },
     })
     .eq("id", data.id)
@@ -157,6 +177,11 @@ export function getPublishChannelUserMessage(
   const raw = stringifyError(error).trim();
   const label = CHANNEL_LABELS[channel] || channel;
   const fallbackMessage = fallback || CHANNEL_FALLBACKS[channel] || "La publication n'a pas pu aboutir.";
+  // The route has already resolved the active account. A missing application
+  // session here is an internal execution-context problem, not proof that the
+  // provider connection has expired.
+  if (isApplicationSessionAuthenticationError(raw)) return fallbackMessage;
+
   const providerMessage = getProviderPublicationErrorMessage(channel, raw);
   const message = providerMessage || getSimpleFrenchErrorMessage(`${label} ${raw}`, fallbackMessage);
 
@@ -173,7 +198,7 @@ export function getPublishChannelUserMessage(
   const reconnectMessage = CHANNEL_RECONNECTS[channel];
   if (
     reconnectMessage
-    && /(authorization|autorisation|authorisation|unauthorized|unauthorised|not authorized|permission|scope|access token|oauth|token expired|expired token|invalid_grant|refresh token|session has expired|\(#?(10|190|200)\)|\b401\b|\b403\b)/i.test(lower)
+    && /(authorization|autorisation|authorisation|unauthorized|unauthorised|not authorized|permission|scope|access token|oauth|token expired|expired token|invalid_grant|refresh token|session has expired|\(#?(10|190|200)\)|\b401\b)/i.test(lower)
   ) {
     return reconnectMessage;
   }

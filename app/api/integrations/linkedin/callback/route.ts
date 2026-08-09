@@ -259,6 +259,13 @@ export async function GET(req: Request) {
         : null;
     } catch {}
 
+    if (!sub) {
+      return fail(
+        "linkedin_profile_unavailable",
+        "LinkedIn n'a pas confirmé le profil autorisé. Merci de relancer la connexion.",
+      );
+    }
+
     const authorUrn = sub ? `urn:li:person:${sub}` : "";
 
     const { data: existingIntegration } = await supabaseAdmin
@@ -271,6 +278,12 @@ export async function GET(req: Request) {
       .maybeSingle();
     const existingRec = asRecord(existingIntegration);
     const existingMeta = asRecord(existingRec["meta"]);
+    const refreshTokenExpiresAt =
+      refreshToken &&
+      Number.isFinite(refreshTokenExpiresIn) &&
+      refreshTokenExpiresIn > 0
+        ? new Date(Date.now() + refreshTokenExpiresIn * 1000).toISOString()
+        : asString(existingMeta["refresh_expires_at"]) || null;
     const refreshTokenEncToStore = refreshToken
       ? encryptToken(refreshToken)
       : existingRec["refresh_token_enc"] || null;
@@ -307,6 +320,7 @@ export async function GET(req: Request) {
         refresh_token_expires_in: Number.isFinite(refreshTokenExpiresIn)
           ? refreshTokenExpiresIn
           : (existingMeta["refresh_token_expires_in"] ?? null),
+        refresh_expires_at: refreshTokenExpiresAt,
         ...withCurrentConnectionVersion("channel:linkedin", {}),
       },
     };

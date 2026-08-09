@@ -94,6 +94,7 @@ export async function GET(request: Request) {
 
     const meta = withCurrentConnectionVersion("channel:pinterest", {
       pinterest_api_environment: getPinterestApiEnvironment(),
+      refresh_expires_at: dates.refreshExpiresAt,
     });
 
     await supabaseAdmin.from("integrations").upsert(

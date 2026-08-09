@@ -113,6 +113,9 @@ export async function getLinkedInAccessToken(params: {
     null;
   const orgUrn = asString(meta.org_urn) || null;
   const expired = isExpired(row.expires_at);
+  const refreshTokenExpired = Boolean(
+    refreshToken && isExpired(meta.refresh_expires_at),
+  );
 
   if (accessToken && !expired && !params.forceRefresh) {
     return {
@@ -140,6 +143,20 @@ export async function getLinkedInAccessToken(params: {
       error: expired
         ? "Le jeton LinkedIn a expiré et aucun refresh token n'est disponible."
         : undefined,
+    };
+  }
+
+  if (refreshTokenExpired) {
+    return {
+      row,
+      accessToken: accessToken && !expired ? accessToken : null,
+      expiresAt: asString(row.expires_at) || null,
+      authorUrn,
+      orgUrn,
+      refreshTokenPresent: true,
+      refreshed: false,
+      canReconnectSilently: false,
+      error: "Le jeton de renouvellement LinkedIn a expiré.",
     };
   }
 
@@ -178,13 +195,20 @@ export async function getLinkedInAccessToken(params: {
         : null;
 
     const nextRefreshToken = asString(tokenData.refresh_token) || refreshToken;
+    const nextRefreshExpiresIn = Number(
+      tokenData.refresh_token_expires_in,
+    );
     const nextMeta = {
       ...meta,
       refresh_token_expires_in: Number.isFinite(
-        Number(tokenData.refresh_token_expires_in),
+        nextRefreshExpiresIn,
       )
-        ? Number(tokenData.refresh_token_expires_in)
+        ? nextRefreshExpiresIn
         : (meta.refresh_token_expires_in ?? null),
+      refresh_expires_at:
+        Number.isFinite(nextRefreshExpiresIn) && nextRefreshExpiresIn > 0
+          ? new Date(Date.now() + nextRefreshExpiresIn * 1000).toISOString()
+          : (meta.refresh_expires_at ?? null),
       refreshed_at: new Date().toISOString(),
     };
 
