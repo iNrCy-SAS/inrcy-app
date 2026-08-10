@@ -10,6 +10,7 @@ import {
   resolveDashboardEdition,
   resolveDashboardEditionFromEdition,
   resolveDashboardEditionFromPlan,
+  hasPremiumDashboardAccess,
 } from "../../lib/dashboardEdition.ts";
 import {
   isStandardAgentActionDescriptor,
@@ -64,7 +65,7 @@ const stripeWebhookSource = readFileSync(
   "utf8",
 );
 const editionMigrationSource = readFileSync(
-  new URL("../../ops/sql/2026-08-10_subscriptions_app_edition.sql", import.meta.url),
+  new URL("../../ops/sql/2026-08-10_standard_premium_founder_and_stripe_webhook.sql", import.meta.url),
   "utf8",
 );
 const adminUsersApiSource = readFileSync(
@@ -167,6 +168,10 @@ const loyaltySummaryApiSource = readFileSync(
 test("app_edition pilote officiellement l'interface avec un fallback compatible sur les anciens plans", () => {
   assert.equal(resolveDashboardEditionFromEdition("standard"), "standard");
   assert.equal(resolveDashboardEditionFromEdition("premium"), "premium");
+  assert.equal(resolveDashboardEditionFromEdition("founder"), "founder");
+  assert.equal(hasPremiumDashboardAccess("premium"), true);
+  assert.equal(hasPremiumDashboardAccess("founder"), true);
+  assert.equal(hasPremiumDashboardAccess("standard"), false);
   assert.equal(resolveDashboardEdition({ edition: "standard", plan: "Trial", production: true }), "standard");
   assert.equal(resolveDashboardEdition({ edition: "premium", plan: "Standard", production: true }), "premium");
 
@@ -206,6 +211,7 @@ test("iNrBadge Standard utilise le mail de Mon profil et exclut entièrement la 
   assert.equal(storedSettings.appointment, true, "la configuration Premium reste réversible");
   assert.equal(canUseInrBadgeAppointments("standard", storedSettings), false);
   assert.equal(canUseInrBadgeAppointments("premium", storedSettings), true);
+  assert.equal(canUseInrBadgeAppointments("founder", storedSettings), true);
   assert.equal(resolveInrBadgePublicEmail({
     edition: "standard",
     profileEmail: "profil@example.fr",
@@ -217,7 +223,7 @@ test("iNrBadge Standard utilise le mail de Mon profil et exclut entièrement la 
     selectedMailAccountEmail: "boite-connectee@example.fr",
   }), "boite-connectee@example.fr");
 
-  assert.match(badgePageSource, /dashboardEdition === "premium" && selectedMailAccountId/);
+  assert.match(badgePageSource, /dashboardEdition !== "standard" && selectedMailAccountId/);
   assert.match(badgePageSource, /canUseInrBadgeAppointments\(dashboardEdition, shareSettings\)/);
   assert.match(badgeRdvPageSource, /canUseInrBadgeAppointments\(dashboardEdition, shareSettings\)/);
   assert.match(badgeAppointmentApiSource, /dashboardEdition === "standard"/);
@@ -290,7 +296,7 @@ test("Mon inertie Standard n'active que Booster et identifie les missions Premiu
   assert.match(dashboardHelpModalsSource, /edition === "standard" && row\.premiumOnly/);
   assert.match(dashboardHelpModalsSource, /Forfait Premium/);
   assert.match(loyaltyAwardApiSource, /dashboardEdition === "standard" && PREMIUM_ONLY_ACTION_KEYS\.has\(actionKey\)/);
-  assert.match(loyaltySummaryApiSource, /includePremiumMissions: dashboardEdition === "premium"/);
+  assert.match(loyaltySummaryApiSource, /includePremiumMissions: dashboardEdition !== "standard"/);
 });
 
 test("le GPS Standard adapte les rubriques mixtes et affiche les outils Premium en aperçu", () => {
@@ -399,7 +405,7 @@ test("iNrStats Standard exclut les données Mails de l'interface et des bilans i
   assert.match(statsClientSource, /!standardMode \? \[buildMailCubeModel/);
   assert.match(statsHooksSource, /includeMailStats/);
   assert.match(statsHooksSource, /if \(!includeMailStats\) return/);
-  assert.match(statsReportApiSource, /includeMail: dashboardEdition === "premium"/);
+  assert.match(statsReportApiSource, /includeMail: dashboardEdition !== "standard"/);
   assert.match(statsReportApiSource, /standardReport/);
   assert.match(statsReportApiSource, /sanitizeStatsInsightsForEdition/);
   assert.match(statsReportApiSource, /Ne cite jamais Propulser, Fidéliser, CRM, Agenda, Encaisser/);
@@ -421,19 +427,19 @@ test("iNrSend Standard n'expose que l'historique Publications", () => {
   assert.equal(isStandardApiRouteAllowed("/api/inrsend/signature"), false);
   assert.equal(isStandardApiRouteAllowed("/api/inrsend/campaigns/123/report"), false);
   assert.equal(isStandardApiRouteAllowed("/api/inrsend/publications/123/facebook"), true);
-  assert.equal(isStandardApiRouteAllowed("/api/billing/checkout"), false);
+  assert.equal(isStandardApiRouteAllowed("/api/billing/checkout"), true);
   assert.equal(isStandardApiRouteAllowed("/api/crm/contacts"), false);
   assert.match(inrSendFileDownloadSource, /dashboardEdition === "standard" && !isPublicationFile/);
   assert.match(inrSendFileDownloadSource, /file_role/);
 });
 
-test("Mon compte affiche les informations du professionnel avant les forfaits Standard et Premium", () => {
+test("Mon compte affiche le forfait avant les informations du professionnel", () => {
   const professionalInfoPosition = accountContentSource.indexOf("<div style={card}>");
   const subscriptionPosition = accountContentSource.lastIndexOf("<StandardSubscriptionContent");
 
   assert.notEqual(professionalInfoPosition, -1);
   assert.notEqual(subscriptionPosition, -1);
-  assert.ok(professionalInfoPosition < subscriptionPosition);
+  assert.ok(subscriptionPosition < professionalInfoPosition);
 });
 
 test("toute nouvelle inscription officielle reçoit Standard tout en conservant le cycle d'essai", () => {
@@ -450,12 +456,13 @@ test("toute nouvelle inscription officielle reçoit Standard tout en conservant 
   assert.match(billingCronSource, /\.eq\("plan", "Trial"\)/);
   assert.match(stripeWebhookSource, /plan: "Trial"/);
 
-  assert.match(editionMigrationSource, /add column if not exists app_edition text/i);
-  assert.match(editionMigrationSource, /set app_edition = 'premium'/i);
+  assert.match(editionMigrationSource, /check \(app_edition in \('standard', 'premium', 'founder'\)\)/i);
+  assert.match(editionMigrationSource, /set app_edition = 'founder'/i);
   assert.match(editionMigrationSource, /alter column app_edition set default 'standard'/i);
-  assert.match(editionMigrationSource, /check \(app_edition in \('standard', 'premium'\)\)/i);
+  assert.match(editionMigrationSource, /create table if not exists public\.stripe_webhook_events/i);
 
   assert.match(adminUsersApiSource, /ALLOWED_APP_EDITIONS/);
+  assert.match(adminUsersApiSource, /"founder"/);
   assert.match(adminUsersApiSource, /app_edition: appEdition/);
   assert.match(adminUsersClientSource, /Édition iNrCy/);
   assert.match(adminUsersClientSource, /app_edition: event\.target\.value/);

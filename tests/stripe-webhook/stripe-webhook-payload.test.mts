@@ -8,7 +8,6 @@ import {
   invoiceUserId,
   paymentFailureStatus,
   paymentSuccessStatus,
-  shouldAutoDeleteCanceledAccount,
   subscriptionCancellationReason,
 } from "../../lib/stripeWebhookPayload.ts";
 
@@ -55,12 +54,6 @@ test("un paiement recupere reactive uniquement un abonnement recuperable", () =>
   assert.equal(paymentSuccessStatus("canceled", "canceled"), null);
   assert.equal(paymentSuccessStatus("past_due", "incomplete"), null);
   assert.equal(paymentSuccessStatus("trialing", null), null);
-});
-
-test("la suppression automatique reste reservee a une resiliation explicitement demandee", () => {
-  assert.equal(shouldAutoDeleteCanceledAccount(null), false);
-  assert.equal(shouldAutoDeleteCanceledAccount(""), false);
-  assert.equal(shouldAutoDeleteCanceledAccount("2026-07-25T12:00:00.000Z"), true);
 });
 
 test("lit la raison d'annulation Stripe", () => {

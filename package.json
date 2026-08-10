@@ -109,7 +109,8 @@
     "test:booster-step5": "node --test --experimental-strip-types tests/certification/booster-step5-certification.test.mts",
     "certify:booster-step5": "node --test --experimental-strip-types tests/certification/*.test.mts tests/dashboard/*.test.mts tests/publication-system/*.test.mts tests/pinterest/*.test.mts tests/inragent/*.test.mts tests/inrsend/*.test.mts tests/booster-content-safety/*.test.mts && node --test tests/media-rules/*.test.mjs tests/media-pipeline/*.test.mjs && node --test --experimental-strip-types tests/media-pipeline/*.test.mts",
     "certify:booster-step5:full": "npm run certify:booster-step5 && npm run typecheck && npm run lint && npm run build",
-    "test:tiktok": "node --test tests/tiktok/*.test.mjs && node --test --experimental-strip-types tests/tiktok/*.test.mts"
+    "test:tiktok": "node --test tests/tiktok/*.test.mjs && node --test --experimental-strip-types tests/tiktok/*.test.mts",
+    "test:billing": "node --test --experimental-strip-types tests/stripe-webhook/*.test.mts"
   },
   "dependencies": {
     "@sentry/nextjs": "^10.39.0",

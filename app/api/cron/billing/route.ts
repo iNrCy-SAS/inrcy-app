@@ -4,11 +4,15 @@ import { optionalEnv } from "@/lib/env";
 import { sendTxMail } from "@/lib/txMailer";
 import { buildAnnualRenewalReminderEmail, buildTrialReminderEmail, buildTrialScheduledSubscriptionReminderEmail } from "@/lib/txTemplates";
 import { getAppUrl, stripeGet } from "@/lib/stripeRest";
-import { deleteUserAccountEverywhere } from "@/lib/deleteUserAccount";
 import { sendAdminSubscriptionAlertForUser } from "@/lib/subscriptionAdmin";
 import { computeTrialDatesFromStartDate, TRIAL_REMINDER_OFFSETS } from "@/lib/trialSubscription";
 import { getInrcyBrandInlineAttachments } from "@/lib/txEmailAssets";
-import { shouldAutoDeleteCanceledAccount } from "@/lib/stripeWebhookPayload";
+import {
+  commercialPriceFromId,
+  configuredCommercialAnnualPriceIds,
+} from "@/lib/billingCatalog";
+import { stripeSubscriptionPeriodEndUnix } from "@/lib/stripeSubscription";
+import { stripeSubscriptionCadence } from "@/lib/subscriptionCancellation";
 
 export const runtime = "nodejs";
 
@@ -67,14 +71,17 @@ type AnnualSubscriptionRow = {
 
 type CancelledRow = {
   user_id: string;
-  contact_email: string | null;
-  plan: string | null;
   status: string | null;
-  stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
-  stripe_price_id: string | null;
   end_date: string | null;
   cancel_requested_at: string | null;
+};
+
+type RenewalRepairRow = {
+  user_id: string;
+  stripe_subscription_id: string | null;
+  next_renewal_date: string | null;
+  billing_cycle: string | null;
 };
 
 function frDate(d: Date) {
@@ -103,6 +110,13 @@ async function stripeCustomerHasAnySubscription(stripeCustomerId: string) {
 
 function annualReminderMarker(renewalDate: Date, daysUntilRenewal: number) {
   return Number(`${ymd(renewalDate).replace(/-/g, "")}${String(100 - daysUntilRenewal).padStart(2, "0")}`);
+}
+
+function dueReminderOffset(daysUntilDate: number, offsets: readonly number[]): number | null {
+  if (!Number.isFinite(daysUntilDate) || daysUntilDate <= 0) return null;
+  return [...offsets]
+    .sort((a, b) => a - b)
+    .find((offset) => daysUntilDate <= offset) ?? null;
 }
 
 async function loadProfileEmails(userIds: string[]) {
@@ -200,10 +214,11 @@ export async function GET(req: Request) {
     const nowDay = new Date(`${ymd(now)}T00:00:00.000Z`);
     const endDay = new Date(`${ymd(end)}T00:00:00.000Z`);
     const daysUntilEnd = Math.round((endDay.getTime() - nowDay.getTime()) / (24 * 3600 * 1000));
-    if (!reminderOffsets.includes(daysUntilEnd as (typeof reminderOffsets)[number])) continue;
+    const reminderOffset = dueReminderOffset(daysUntilEnd, reminderOffsets);
+    if (reminderOffset === null) continue;
 
     const already = Number(s.last_trial_reminder_day || 0);
-    const reminderMarker = 100 - daysUntilEnd;
+    const reminderMarker = 100 - reminderOffset;
     if (already >= reminderMarker) continue;
 
     const profile = profileEmails.get(s.user_id);
@@ -307,8 +322,66 @@ export async function GET(req: Request) {
     expiredTrialAccounts++;
   }
 
+  // Filet de sécurité quotidien : un webhook Stripe peut être retardé ou avoir
+  // utilisé un ancien format de payload. Toute échéance active manquante est
+  // relue directement depuis Stripe, puis réparée dans Supabase.
+  const { data: missingRenewalRows } = await supabaseAdmin
+    .from("subscriptions")
+    .select("user_id, stripe_subscription_id, next_renewal_date, billing_cycle")
+    .in("status", ["active", "trialing", "past_due", "unpaid"])
+    .not("stripe_subscription_id", "is", null)
+    .limit(100);
+
+  let repairedRenewalDates = 0;
+  let repairedBillingCycles = 0;
+
+  for (const row of (missingRenewalRows || []) as RenewalRepairRow[]) {
+    if (row.next_renewal_date && row.billing_cycle) continue;
+    const subscriptionId = row.stripe_subscription_id?.trim();
+    if (!subscriptionId) continue;
+
+    try {
+      const stripeSubscription = await stripeGet(
+        `/subscriptions/${encodeURIComponent(subscriptionId)}`
+      );
+      const currentPeriodEnd = stripeSubscriptionPeriodEndUnix(stripeSubscription);
+      if (!currentPeriodEnd) continue;
+
+      const nextRenewalDate = ymd(new Date(currentPeriodEnd * 1000));
+      const cadence = stripeSubscriptionCadence(stripeSubscription);
+      const billingCycle = cadence?.interval === "year"
+        ? "yearly"
+        : cadence?.interval === "month"
+          ? "monthly"
+          : null;
+      const repairPatch: Record<string, string> = {
+        updated_at: new Date().toISOString(),
+      };
+      if (!row.next_renewal_date) repairPatch.next_renewal_date = nextRenewalDate;
+      if (!row.billing_cycle && billingCycle) repairPatch.billing_cycle = billingCycle;
+
+      const { error: renewalRepairError } = await supabaseAdmin
+        .from("subscriptions")
+        .update(repairPatch)
+        .eq("user_id", row.user_id)
+        .eq("stripe_subscription_id", subscriptionId);
+
+      if (!renewalRepairError) {
+        if (!row.next_renewal_date) repairedRenewalDates++;
+        if (!row.billing_cycle && billingCycle) repairedBillingCycles++;
+      }
+    } catch {
+      // Un incident Stripe ponctuel ne doit pas empêcher les rappels et
+      // expirations des autres comptes ; le cron réessaiera le lendemain.
+    }
+  }
+
   const annualReminderOffsets = [30, 7, 1] as const;
-  const annualPriceIds = [optionalEnv("STRIPE_PRICE_YEARLY", ""), optionalEnv("STRIPE_PRICE_ACCEL_YEARLY_ID", "")].filter(Boolean);
+  const annualPriceIds = Array.from(new Set([
+    optionalEnv("STRIPE_PRICE_YEARLY", ""),
+    optionalEnv("STRIPE_PRICE_ACCEL_YEARLY_ID", ""),
+    ...configuredCommercialAnnualPriceIds(),
+  ].filter(Boolean)));
   let sentAnnualRenewalReminders = 0;
 
   if (annualPriceIds.length > 0) {
@@ -340,9 +413,10 @@ export async function GET(req: Request) {
       const nowDay = new Date(`${ymd(now)}T00:00:00.000Z`);
       const renewalDay = new Date(`${ymd(renewalDate)}T00:00:00.000Z`);
       const daysUntilRenewal = Math.round((renewalDay.getTime() - nowDay.getTime()) / (24 * 3600 * 1000));
-      if (!annualReminderOffsets.includes(daysUntilRenewal as (typeof annualReminderOffsets)[number])) continue;
+      const reminderOffset = dueReminderOffset(daysUntilRenewal, annualReminderOffsets);
+      if (reminderOffset === null) continue;
 
-      const reminderMarker = annualReminderMarker(renewalDate, daysUntilRenewal);
+      const reminderMarker = annualReminderMarker(renewalDate, reminderOffset);
       const already = Number(s.last_annual_reminder_marker || 0);
       if (already >= reminderMarker) continue;
 
@@ -359,7 +433,11 @@ export async function GET(req: Request) {
           ? "iNrCy — Votre abonnement annuel se renouvelle demain"
           : "iNrCy — Votre abonnement annuel se renouvelle bientôt";
       const ctaUrl = `${getAppUrl(req)}/dashboard?panel=abonnement`;
-      const amountLabel = `${Number(s.monthly_price_eur || 690).toLocaleString("fr-FR", {
+      const commercialPrice = commercialPriceFromId(s.stripe_price_id);
+      const renewalAmount = commercialPrice?.billingCycle === "yearly"
+        ? commercialPrice.chargeAmountEur
+        : Number(s.monthly_price_eur || 690);
+      const amountLabel = `${renewalAmount.toLocaleString("fr-FR", {
         maximumFractionDigits: 2,
       })} € TTC`;
       const { html, text } = buildAnnualRenewalReminderEmail({
@@ -386,12 +464,10 @@ export async function GET(req: Request) {
   const { data: cancelledRows, error: cErr } = await supabaseAdmin
     .from("subscriptions")
     .select(
-      "user_id, contact_email, plan, status, stripe_customer_id, stripe_subscription_id, stripe_price_id, end_date, cancel_requested_at"
+      "user_id, status, stripe_subscription_id, end_date, cancel_requested_at"
     )
     .not("stripe_subscription_id", "is", null)
     .not("end_date", "is", null)
-    // Seules les résiliations explicitement demandées peuvent suivre le nettoyage historique.
-    // Une annulation Stripe après impayé reste bloquée mais le compte et ses données sont conservés.
     .not("cancel_requested_at", "is", null);
 
   if (cErr) return NextResponse.json({ error: "Impossible de vérifier les résiliations arrivées à échéance pour le moment." }, { status: 500 });
@@ -419,46 +495,29 @@ export async function GET(req: Request) {
     expiredAnnualAccesses++;
   }
 
-  let deletedCancelledAccounts = 0;
+  let reconciledCancelledAccesses = 0;
 
   for (const s of (cancelledRows || []) as CancelledRow[]) {
-    if (!shouldAutoDeleteCanceledAccount(s.cancel_requested_at)) continue;
+    if (!s.end_date || !s.stripe_subscription_id) continue;
+    const accessEnd = new Date(`${s.end_date}T23:59:59.999Z`);
+    if (now < accessEnd || normalizeStatus(s.status) === "canceled") continue;
 
-    const profile = profileEmails.get(s.user_id);
-    const accountEmail =
-      profile?.admin_email?.trim() ||
-      profile?.contact_email?.trim() ||
-      s.contact_email?.trim() ||
-      null;
+    try {
+      const stripeSubscription = (await stripeGet(
+        `/subscriptions/${encodeURIComponent(s.stripe_subscription_id)}`,
+      )) as StripeSubscriptionSummary;
+      if (normalizeStatus(stripeSubscription.status) !== "canceled") continue;
 
-    if (!s.end_date) continue;
-    const deleteAt = new Date(`${s.end_date}T23:59:59.999Z`);
-    if (now < deleteAt) continue;
-
-    if (s.stripe_customer_id) {
-      const hasAnySub = await stripeCustomerHasAnySubscription(s.stripe_customer_id);
-      if (hasAnySub) continue;
+      const { error: reconcileError } = await supabaseAdmin
+        .from("subscriptions")
+        .update({ status: "canceled", updated_at: new Date().toISOString() })
+        .eq("user_id", s.user_id)
+        .eq("stripe_subscription_id", s.stripe_subscription_id);
+      if (!reconcileError) reconciledCancelledAccesses++;
+    } catch {
+      // Le webhook reste prioritaire. En cas d'indisponibilité Stripe, le cron
+      // réessaiera sans couper un accès sur une simple supposition locale.
     }
-
-    const deletion = await deleteUserAccountEverywhere(s.user_id);
-    if (!deletion.ok) continue;
-
-    await sendAdminSubscriptionAlertForUser({
-      type: "cancelled_account_deleted",
-      source: "cron.billing.cancelled-expiry",
-      userId: s.user_id,
-      accountEmail,
-      plan: s.plan,
-      status: s.status,
-      stripeCustomerId: s.stripe_customer_id,
-      stripeSubscriptionId: s.stripe_subscription_id,
-      stripePriceId: s.stripe_price_id,
-      cancelRequestedAt: s.cancel_requested_at,
-      endDate: s.end_date,
-      note: `Compte supprimé automatiquement à la fin du préavis / période de résiliation. Mode suppression: ${deletion.mode}.`,
-    }).catch(() => null);
-
-    deletedCancelledAccounts++;
   }
 
   return NextResponse.json({
@@ -466,9 +525,12 @@ export async function GET(req: Request) {
     sent,
     sent_annual_renewal_reminders: sentAnnualRenewalReminders,
     repaired_trial_dates: repairedTrialDates,
+    repaired_renewal_dates: repairedRenewalDates,
+    repaired_billing_cycles: repairedBillingCycles,
     expired_trial_accounts: expiredTrialAccounts,
     deleted_trial_accounts: 0,
-    deleted_cancelled_accounts: deletedCancelledAccounts,
+    deleted_cancelled_accounts: 0,
+    reconciled_cancelled_accesses: reconciledCancelledAccesses,
     expired_annual_accesses: expiredAnnualAccesses,
   });
 }

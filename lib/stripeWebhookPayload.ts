@@ -89,7 +89,3 @@ export function paymentSuccessStatus(existingStatusValue: unknown, stripeStatusV
   if (["past_due", "unpaid", "incomplete"].includes(existingStatus)) return "active";
   return null;
 }
-
-export function shouldAutoDeleteCanceledAccount(cancelRequestedAt: unknown): boolean {
-  return typeof cancelRequestedAt === "string" && cancelRequestedAt.trim().length > 0;
-}

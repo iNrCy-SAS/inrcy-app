@@ -167,6 +167,9 @@ export default function AccountContent({
 
   return (
     <div style={{ display: "grid", gap: 12 }}>
+      {edition === "standard" ? (
+        <StandardSubscriptionContent onOpenContact={onRequestPremium ?? (() => {})} />
+      ) : null}
       <div style={card}>
         {createdAt ? (
           <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
@@ -239,9 +242,6 @@ export default function AccountContent({
           {ok ? <div style={{ marginTop: 6, opacity: 0.95 }}>{ok}</div> : null}
         </div>
       </div>
-      {edition === "standard" ? (
-        <StandardSubscriptionContent onOpenContact={onRequestPremium ?? (() => {})} />
-      ) : null}
     </div>
   );
 }

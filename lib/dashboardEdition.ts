@@ -1,4 +1,4 @@
-export type DashboardEdition = "standard" | "premium";
+export type DashboardEdition = "standard" | "premium" | "founder";
 
 const STANDARD_PLAN_VALUES = new Set([
   "standard",
@@ -89,7 +89,23 @@ export function resolveDashboardEditionFromPlan(plan: unknown): DashboardEdition
 }
 
 export function resolveDashboardEditionFromEdition(edition: unknown): DashboardEdition {
-  return normalizePlan(edition) === "standard" ? "standard" : "premium";
+  const normalizedEdition = normalizePlan(edition);
+  if (normalizedEdition === "standard") return "standard";
+  if (normalizedEdition === "founder") return "founder";
+  return "premium";
+}
+
+export function isStandardDashboardEdition(edition: DashboardEdition): boolean {
+  return edition === "standard";
+}
+
+/**
+ * Founder est l'edition historique la plus complete. Elle doit toujours
+ * beneficier des fonctionnalites commerciales Premium, y compris celles
+ * ajoutees plus tard, sans pour autant accorder un role administrateur.
+ */
+export function hasPremiumDashboardAccess(edition: DashboardEdition): boolean {
+  return edition === "premium" || edition === "founder";
 }
 
 export function resolveDashboardEdition({
@@ -105,7 +121,7 @@ export function resolveDashboardEdition({
 }): DashboardEdition {
   if (!production) {
     const override = normalizePlan(developmentOverride);
-    if (override === "standard" || override === "premium") return override;
+    if (override === "standard" || override === "premium" || override === "founder") return override;
   }
 
   // app_edition est la source officielle. Le fallback sur plan sécurise la
@@ -144,7 +160,7 @@ export function isStandardApiRouteAllowed(
   pathname: string,
   searchParams?: URLSearchParams,
 ): boolean {
-  if (pathname === "/api/billing/checkout") return false;
+  if (pathname === "/api/billing/checkout") return true;
 
   if (pathMatches(pathname, "/api/agent")) {
     return isStandardAgentApiPathAllowed(pathname);

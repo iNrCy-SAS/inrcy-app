@@ -3,10 +3,12 @@ import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 
 import { requireUser } from "@/lib/requireUser";
 import { stripePost } from "@/lib/stripeRest";
+import { stripeSubscriptionPeriodEndIso } from "@/lib/stripeSubscription";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 /**
- * Annule une résiliation programmée (Stripe: cancel_at_period_end=false)
+ * Annule une résiliation programmée, qu'elle utilise cancel_at (mensuel avec
+ * mois de préavis) ou cancel_at_period_end (annuel).
  * La DB est ensuite remise à jour (pour un UI immédiat) — le webhook Stripe fera foi ensuite.
  */
 export async function POST() {
@@ -29,7 +31,11 @@ export async function POST() {
     // Stripe REST API: POST /v1/subscriptions/{id}
     const updated = await stripePost(
       `/subscriptions/${stripeSubId}`,
-      new URLSearchParams({ cancel_at_period_end: "false" })
+      new URLSearchParams({
+        cancel_at: "",
+        cancel_at_period_end: "false",
+        proration_behavior: "none",
+      })
     );
 
     // UI immédiat (le webhook mettra aussi à jour)
@@ -39,9 +45,7 @@ export async function POST() {
         cancel_requested_at: null,
         end_date: null,
         status: updated.status,
-        next_renewal_date: updated.current_period_end
-          ? new Date(updated.current_period_end * 1000).toISOString().slice(0, 10)
-          : null,
+        next_renewal_date: stripeSubscriptionPeriodEndIso(updated)?.slice(0, 10) ?? null,
       })
       .eq("user_id", user.id);
 

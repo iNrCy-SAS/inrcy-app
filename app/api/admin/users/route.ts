@@ -18,7 +18,7 @@ const PROFILE_SELECT_FALLBACK =
   "user_id,admin_email,contact_email,first_name,last_name,company_legal_name,phone,last_active_at,updated_at";
 
 const ALLOWED_ROLES = new Set(["user", "admin"]);
-const ALLOWED_APP_EDITIONS = new Set(["standard", "premium"]);
+const ALLOWED_APP_EDITIONS = new Set(["standard", "premium", "founder"]);
 const ALLOWED_SUBSCRIPTION_STATUSES = new Set([
   "trialing",
   "active",

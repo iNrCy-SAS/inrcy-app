@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import styles from "./compte-bloque.module.css";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { createSupabaseServer } from "@/lib/supabaseServer";
+import { resolveDashboardEdition } from "@/lib/dashboardEdition";
+import BlockedBillingActions from "./BlockedBillingActions";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +16,8 @@ type SubscriptionRow = {
   start_date?: string | null;
   end_date?: string | null;
   updated_at?: string | null;
+  app_edition?: string | null;
+  stripe_customer_id?: string | null;
 };
 
 type BlockedCopy = {
@@ -82,7 +86,7 @@ function copyForStatus(rawStatus: unknown): BlockedCopy {
       title: "Compte bloqué",
       badge: "Essai 21 jours terminé",
       message:
-        "Votre période gratuite de 21 jours est terminée. Votre générateur iNrCy est temporairement bloqué. Contactez iNrCy pour le réactiver.",
+        "Votre période gratuite de 21 jours est terminée. Vos données sont conservées : vous pouvez activer iNrCy Standard pour reprendre immédiatement.",
       statusLabel: "Essai terminé",
       accessLabel: "Dashboard bloqué",
       dataLabel: "Données conservées",
@@ -108,7 +112,7 @@ function copyForStatus(rawStatus: unknown): BlockedCopy {
       title: "Régularisation nécessaire",
       badge: "Paiement en retard",
       message:
-        "Votre abonnement présente un retard de paiement. Contactez iNrCy pour régulariser la situation et réactiver votre générateur.",
+        "Votre abonnement présente un retard de paiement. Ouvrez votre espace de facturation sécurisé pour le régulariser et réactiver votre générateur.",
       statusLabel: "Paiement en retard",
       accessLabel: "Accès bloqué",
       dataLabel: "Données conservées",
@@ -121,7 +125,7 @@ function copyForStatus(rawStatus: unknown): BlockedCopy {
       title: "Compte bloqué",
       badge: "Paiement requis",
       message:
-        "Le paiement de votre abonnement n’a pas pu être validé. Votre générateur est bloqué jusqu’à régularisation.",
+        "Le paiement de votre abonnement n’a pas pu être validé. Votre générateur est bloqué jusqu’à sa régularisation dans l’espace de facturation.",
       statusLabel: "Impayé",
       accessLabel: "Dashboard bloqué",
       dataLabel: "Données conservées",
@@ -191,7 +195,7 @@ export default async function BlockedAccountPage() {
 
   const { data } = await supabaseAdmin
     .from("subscriptions")
-    .select("status, plan, trial_end_at, start_date, end_date, updated_at")
+    .select("status, plan, app_edition, trial_end_at, start_date, end_date, updated_at, stripe_customer_id")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -203,6 +207,10 @@ export default async function BlockedAccountPage() {
   }
 
   const copy = copyForStatus(status);
+  const edition = resolveDashboardEdition({
+    edition: subscription?.app_edition,
+    plan: subscription?.plan,
+  });
   const importantDate = formatDate(subscription?.trial_end_at) || formatDate(subscription?.end_date);
   const contactHref = `mailto:contact@inrcy.com?subject=${encodeURIComponent("Réactivation de mon générateur iNrCy")}`;
 
@@ -234,9 +242,12 @@ export default async function BlockedAccountPage() {
               <p className={styles.reassurance}>Vos données ne sont pas supprimées.</p>
 
               <div className={styles.actions}>
-                <a href={contactHref} className={styles.primaryBtn}>
-                  Contacter iNrCy
-                </a>
+                <BlockedBillingActions
+                  status={status}
+                  edition={edition}
+                  hasStripeCustomer={Boolean(subscription?.stripe_customer_id)}
+                  contactHref={contactHref}
+                />
 
                 <form action="/api/auth/sign-out" method="post">
                   <button type="submit" className={styles.secondaryBtn}>

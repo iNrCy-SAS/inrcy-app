@@ -102,7 +102,10 @@ function statusLabel(status?: string | null) {
 }
 
 function editionLabel(edition?: string | null) {
-  return String(edition || "").trim().toLowerCase() === "standard" ? "Standard" : "Premium";
+  const normalized = String(edition || "").trim().toLowerCase();
+  if (normalized === "standard") return "Standard";
+  if (normalized === "founder") return "Founder";
+  return "Premium";
 }
 
 function fullName(user: AdminUserRow) {
@@ -371,12 +374,13 @@ export default function AdminUsersClient() {
                             <span>Édition iNrCy</span>
                             <select
                               className={styles.miniSelect}
-                              value={String(subscription?.app_edition || "premium").toLowerCase()}
+                              value={String(subscription?.app_edition || "standard").toLowerCase()}
                               disabled={isSaving || !subscription}
                               onChange={(event) => patchUser(user.user_id, { app_edition: event.target.value }, "Édition iNrCy mise à jour.")}
                             >
                               <option value="standard">Standard</option>
                               <option value="premium">Premium</option>
+                              <option value="founder">Founder · accès total</option>
                             </select>
                           </div>
 
@@ -392,18 +396,6 @@ export default function AdminUsersClient() {
                                 <option key={option.value} value={option.value}>{option.label}</option>
                               ))}
                             </select>
-                          </div>
-
-                          <div className={styles.detailBox}>
-                            <span>Offre fondateur</span>
-                            <button
-                              type="button"
-                              className={subscription?.founder_offer_enabled ? styles.smallButton : styles.smallGhostButton}
-                              disabled={isSaving || !subscription}
-                              onClick={() => patchUser(user.user_id, { founder_offer_enabled: !subscription?.founder_offer_enabled }, "Offre fondateur mise à jour.")}
-                            >
-                              {subscription?.founder_offer_enabled ? "Activée" : "Désactivée"}
-                            </button>
                           </div>
 
                           <div className={styles.detailBox}>

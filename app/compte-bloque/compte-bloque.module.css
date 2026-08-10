@@ -139,6 +139,48 @@
   margin-top: 30px;
 }
 
+.recoveryBlock {
+  display: grid;
+  gap: 10px;
+  min-width: min(100%, 360px);
+}
+
+.cyclePicker {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.cycleButton,
+.cycleActive {
+  min-height: 46px;
+  border-radius: 12px;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.cycleButton {
+  color: #334155;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(203, 213, 225, 0.95);
+}
+
+.cycleActive {
+  color: #4338ca;
+  background: rgba(238, 242, 255, 0.95);
+  border: 1px solid rgba(99, 102, 241, 0.68);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.08);
+}
+
+.recoveryError {
+  color: #be123c;
+  font-size: 0.86rem;
+  font-weight: 750;
+}
+
 .primaryBtn,
 .secondaryBtn {
   min-height: 46px;
@@ -272,5 +314,9 @@
   .primaryBtn,
   .secondaryBtn {
     width: 100%;
+  }
+
+  .cyclePicker {
+    grid-template-columns: 1fr;
   }
 }

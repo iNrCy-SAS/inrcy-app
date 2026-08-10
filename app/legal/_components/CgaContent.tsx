@@ -89,23 +89,27 @@ L’activation d’un essai gratuit ne vaut pas nécessairement souscription pay
 
 La souscription payante peut intervenir pendant ou après la période d’essai. Lorsque le Client souscrit pendant son essai gratuit, les conditions de démarrage de l’abonnement, de facturation et de paiement sont celles indiquées au moment de la souscription ou dans l’accord commercial applicable.
 
+Une souscription programmée pendant l’essai peut être résiliée avant la fin de celui-ci ; elle s’arrête alors à l’échéance de l’essai sans prélèvement et sans préavis payant.
+
 La validation du paiement, l’activation du compte, l’utilisation de l’application, la connexion à un service tiers ou la demande d’essai gratuit vaut acceptation pleine et entière des présentes Conditions.
 
 iNrCy se réserve le droit de refuser, suspendre ou interrompre un essai gratuit en cas d’abus, de fraude, d’utilisation non conforme, de tentative de contournement, de risque technique ou de comportement contraire aux présentes Conditions.
 
 Article 6 – Durée – Résiliation
 
-Sauf accord contraire, l’abonnement est conclu pour une durée mensuelle, sans engagement.
+Sauf accord contraire, l’abonnement est conclu selon la périodicité mensuelle ou annuelle choisie lors de la souscription.
 
-Il est reconduit tacitement chaque mois.
+Il est reconduit tacitement à chaque échéance selon cette même périodicité.
 
 Le Client peut résilier à tout moment depuis son espace client, via les moyens mis à disposition par iNrCy ou par demande écrite adressée au support.
 
-La résiliation prend effet à la fin de la période d’abonnement en cours.
+Pour un abonnement mensuel, le premier renouvellement intervenant après la demande reste dû et constitue la dernière mensualité. Cette dernière mensualité couvre un mois complet de préavis ; la résiliation prend effet à l’échéance mensuelle suivante.
+
+Pour un abonnement annuel, la résiliation prend effet à la fin de la période annuelle en cours, sans préavis supplémentaire et sans nouveau prélèvement annuel.
 
 Toute période entamée est due.
 
-En cas de résiliation, l’accès au logiciel peut être désactivé à l’issue de la période en cours. Certaines données peuvent être conservées temporairement pour des raisons techniques, légales, comptables, contractuelles, de preuve ou de sécurité.
+En cas de résiliation, l’accès au logiciel peut être désactivé à la date de fin programmée. Certaines données peuvent être conservées temporairement pour des raisons techniques, légales, comptables, contractuelles, de preuve ou de sécurité.
 
 La résiliation n’entraîne pas automatiquement la suppression immédiate de toutes les données, notamment lorsque celles-ci doivent être conservées pour respecter une obligation légale, comptable, fiscale, de sécurité ou de preuve.
 

@@ -1,5 +1,8 @@
-import type { DashboardEdition } from "@/lib/dashboardEdition";
-import type { InrBadgeShareSettings } from "@/lib/inrBadgeSettings";
+import {
+  hasPremiumDashboardAccess,
+  type DashboardEdition,
+} from "./dashboardEdition.ts";
+import type { InrBadgeShareSettings } from "./inrBadgeSettings.ts";
 
 function clean(value: unknown): string {
   return String(value ?? "").trim();
@@ -9,7 +12,7 @@ export function effectiveInrBadgeShareSettings(
   settings: InrBadgeShareSettings,
   edition: DashboardEdition,
 ): InrBadgeShareSettings {
-  if (edition === "premium") return settings;
+  if (hasPremiumDashboardAccess(edition)) return settings;
   return { ...settings, appointment: false };
 }
 
@@ -17,7 +20,7 @@ export function canUseInrBadgeAppointments(
   edition: DashboardEdition,
   settings: InrBadgeShareSettings,
 ): boolean {
-  return edition === "premium" && settings.appointment === true;
+  return hasPremiumDashboardAccess(edition) && settings.appointment === true;
 }
 
 export function resolveInrBadgePublicEmail({

@@ -1,5 +1,6 @@
 import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
+import path from "node:path";
 
 // Content Security Policy (CSP)
 const cspReportOnly = [
@@ -17,6 +18,13 @@ const cspReportOnly = [
 ].join("; ");
 
 const nextConfig: NextConfig = {
+  // Aide de validation locale uniquement : le projet de contrôle utilise une
+  // jonction Windows vers un cache de dépendances situé dans le dossier parent.
+  // Sans la variable explicite, notamment sur Vercel, la configuration reste
+  // strictement identique à celle de production.
+  ...(process.env.INRCY_LOCAL_TURBOPACK_ROOT === "parent"
+    ? { turbopack: { root: path.resolve(process.cwd(), "..") } }
+    : {}),
   // Évite qu'un client encore ouvert mélange les assets/actions d'un ancien
   // déploiement avec le nouveau. Vercel fournit le SHA au moment du build ;
   // NEXT_DEPLOYMENT_ID peut être défini explicitement pour un autre hébergeur.

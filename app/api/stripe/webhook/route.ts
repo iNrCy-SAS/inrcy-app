@@ -3,6 +3,8 @@ import { jsonUserFacingError } from "@/lib/apiUserFacingErrors";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { stripeGet, verifyStripeWebhookSignature } from "@/lib/stripeRest";
 import { optionalEnv } from "@/lib/env";
+import { commercialPriceFromId } from "@/lib/billingCatalog";
+import { stripeSubscriptionPeriodEndIso } from "@/lib/stripeSubscription";
 import { sendAdminSubscriptionAlertForUser } from "@/lib/subscriptionAdmin";
 import {
   invoiceCustomerEmail,
@@ -43,6 +45,8 @@ type SubscriptionSnapshot = {
   stripe_subscription_id?: string | null;
   stripe_price_id?: string | null;
   monthly_price_eur?: number | null;
+  app_edition?: string | null;
+  billing_cycle?: string | null;
 };
 
 function normalizeStripeStatus(status: string): string {
@@ -62,6 +66,8 @@ function normalizeStripeStatus(status: string): string {
 
 function planFromPriceId(priceId: string | null) {
   if (!priceId) return null;
+  const commercialPrice = commercialPriceFromId(priceId);
+  if (commercialPrice) return commercialPrice.plan;
   const starter = optionalEnv("STRIPE_PRICE_STARTER_ID");
   const accel = optionalEnv("STRIPE_PRICE_ACCEL_ID");
   const speed = optionalEnv("STRIPE_PRICE_SPEED_ID") || optionalEnv("STRIPE_PRICE_FULL_ID");
@@ -116,7 +122,7 @@ async function resolveStripeStoredPrice(
 }
 
 const SUBSCRIPTION_SELECT =
-  "user_id, contact_email, plan, scheduled_plan, status, trial_start_at, trial_end_at, cancel_requested_at, end_date, next_renewal_date, stripe_customer_id, stripe_subscription_id, stripe_price_id, monthly_price_eur";
+  "user_id, contact_email, plan, scheduled_plan, status, trial_start_at, trial_end_at, cancel_requested_at, end_date, next_renewal_date, stripe_customer_id, stripe_subscription_id, stripe_price_id, monthly_price_eur, app_edition, billing_cycle";
 
 function normalizedEmailVariants(email?: string | null) {
   const raw = String(email || "").trim();
@@ -237,6 +243,90 @@ async function getStripeSubscriptionStatus(subscriptionId?: string | null) {
   }
 }
 
+type StripeWebhookEventRow = {
+  event_id: string;
+  status: "processing" | "completed" | "failed";
+  attempts: number;
+  last_received_at: string;
+};
+
+async function claimStripeWebhookEvent(event: StripeEvent): Promise<"process" | "duplicate"> {
+  const eventId = String(event.id || "").trim();
+  if (!eventId) return "process";
+
+  const nowIso = new Date().toISOString();
+  const { error: insertError } = await supabaseAdmin
+    .from("stripe_webhook_events")
+    .insert({
+      event_id: eventId,
+      event_type: String(event.type || "unknown"),
+      status: "processing",
+      attempts: 1,
+      first_received_at: nowIso,
+      last_received_at: nowIso,
+    });
+
+  if (!insertError) return "process";
+  if (insertError.code !== "23505") throw insertError;
+
+  const { data, error } = await supabaseAdmin
+    .from("stripe_webhook_events")
+    .select("event_id,status,attempts,last_received_at")
+    .eq("event_id", eventId)
+    .maybeSingle();
+  if (error) throw error;
+
+  const existing = data as StripeWebhookEventRow | null;
+  if (!existing || existing.status === "completed") return "duplicate";
+
+  const lastReceivedMs = new Date(existing.last_received_at).getTime();
+  const isFreshProcessing =
+    existing.status === "processing" &&
+    Number.isFinite(lastReceivedMs) &&
+    Date.now() - lastReceivedMs < 5 * 60 * 1000;
+  if (isFreshProcessing) return "duplicate";
+
+  const { error: retryError } = await supabaseAdmin
+    .from("stripe_webhook_events")
+    .update({
+      status: "processing",
+      attempts: Math.max(1, Number(existing.attempts || 0)) + 1,
+      last_received_at: nowIso,
+      last_error: null,
+    })
+    .eq("event_id", eventId);
+  if (retryError) throw retryError;
+  return "process";
+}
+
+async function completeStripeWebhookEvent(event: StripeEvent) {
+  const eventId = String(event.id || "").trim();
+  if (!eventId) return;
+  const { error } = await supabaseAdmin
+    .from("stripe_webhook_events")
+    .update({
+      status: "completed",
+      completed_at: new Date().toISOString(),
+      last_error: null,
+    })
+    .eq("event_id", eventId);
+  if (error) throw error;
+}
+
+async function failStripeWebhookEvent(event: StripeEvent, failure: unknown) {
+  const eventId = String(event.id || "").trim();
+  if (!eventId) return;
+  const message = failure instanceof Error ? failure.message : String(failure || "Unknown error");
+  await supabaseAdmin
+    .from("stripe_webhook_events")
+    .update({
+      status: "failed",
+      last_error: message.slice(0, 2000),
+      last_received_at: new Date().toISOString(),
+    })
+    .eq("event_id", eventId);
+}
+
 export async function POST(req: Request) {
   const sig = req.headers.get("stripe-signature");
   const payload = await req.text();
@@ -252,6 +342,18 @@ export async function POST(req: Request) {
     evt = JSON.parse(payload);
   } catch {
     return NextResponse.json({ error: "JSON invalide." }, { status: 400 });
+  }
+
+  try {
+    const claim = await claimStripeWebhookEvent(evt);
+    if (claim === "duplicate") {
+      return NextResponse.json({ received: true, duplicate: true });
+    }
+  } catch (error: unknown) {
+    return jsonUserFacingError(error, {
+      status: 500,
+      fallback: "La synchronisation du paiement sera retentée automatiquement.",
+    });
   }
 
   const updateSubscriptionRow = async (
@@ -316,6 +418,9 @@ export async function POST(req: Request) {
         {
           stripe_customer_id: customerId || null,
           stripe_subscription_id: subId || null,
+          ...(billingCycle === "monthly" || billingCycle === "yearly"
+            ? { billing_cycle: billingCycle }
+            : {}),
           ...(email ? { contact_email: email } : {}),
         },
         subId,
@@ -352,11 +457,10 @@ export async function POST(req: Request) {
       const customerId = stripeObjectId(sub?.customer);
       const subId = stripeObjectId(sub?.id);
       const stripeStatus = normalizeStripeStatus(String(sub?.status || ""));
-      const currentPeriodEnd = sub?.current_period_end
-        ? new Date(Number(sub.current_period_end) * 1000).toISOString()
-        : null;
+      const currentPeriodEnd = stripeSubscriptionPeriodEndIso(sub);
       const cancelAt = sub?.cancel_at ? new Date(Number(sub.cancel_at) * 1000).toISOString() : null;
       const cancelAtPeriodEnd = !!sub?.cancel_at_period_end;
+      const cancellationScheduled = cancelAtPeriodEnd || Boolean(cancelAt);
       const items = (sub?.items as StripeObjectLoose | undefined) ?? undefined;
       const dataArr = (items?.data as unknown[]) || [];
       const firstItem = (dataArr[0] as StripeObjectLoose | undefined) ?? undefined;
@@ -364,12 +468,23 @@ export async function POST(req: Request) {
       const priceId = typeof priceObj?.id === "string" ? priceObj.id : null;
       const trialEndAt = sub?.trial_end ? new Date(Number(sub.trial_end) * 1000).toISOString() : null;
       const trialStartAt = sub?.trial_start ? new Date(Number(sub.trial_start) * 1000).toISOString() : null;
+      const commercialPrice = commercialPriceFromId(priceId);
+      const recurring = (priceObj?.recurring as StripeObjectLoose | undefined) ?? undefined;
+      const recurringInterval = String(recurring?.interval || "").toLowerCase();
+      const billingCycle = commercialPrice?.billingCycle ??
+        (recurringInterval === "year"
+          ? "yearly"
+          : recurringInterval === "month"
+            ? "monthly"
+            : null);
       const inrcyPlan = planFromPriceId(priceId);
       const quantityRaw = Number(firstItem?.quantity ?? 1);
       const quantity = Number.isFinite(quantityRaw) && quantityRaw > 0 ? quantityRaw : 1;
       const existingRow = await getSubscriptionRow(userId, customerId, subId);
       const currentStoredPrice = storedDbPrice(existingRow?.monthly_price_eur);
       const stripeStoredPrice = await resolveStripeStoredPrice(priceObj, priceId, quantity);
+      const existingEdition = String(existingRow?.app_edition || "").trim().toLowerCase();
+      const founderAccount = existingEdition === "founder";
       const shouldKeepTrialPlan = stripeStatus === "trialing";
       const existingWasTrial =
         String(existingRow?.plan || "").toLowerCase() === "trial" ||
@@ -382,15 +497,20 @@ export async function POST(req: Request) {
         !shouldKeepTrialPlan &&
         stripeStoredPrice != null &&
         (currentStoredPrice == null || (existingWasTrial && currentStoredPrice === 0));
-      const cancellationTimestamp = cancelAtPeriodEnd
-        ? new Date().toISOString()
+      const cancellationTimestamp = cancellationScheduled
+        ? existingRow?.cancel_requested_at || new Date().toISOString()
         : null;
+      const cancellationEnd = cancelAt || (cancelAtPeriodEnd ? currentPeriodEnd : null);
+      const commercialMonthlyPrice =
+        commercialPrice && !founderAccount ? commercialPrice.monthlyReferenceEur : null;
 
       await updateSubscriptionRow(userId, customerId, {
         status: stripeStatus,
         stripe_customer_id: customerId || null,
         stripe_subscription_id: subId || null,
         stripe_price_id: priceId,
+        ...(billingCycle ? { billing_cycle: billingCycle } : {}),
+        ...(commercialPrice && !founderAccount ? { app_edition: commercialPrice.edition } : {}),
         ...(inrcyPlan ? { scheduled_plan: inrcyPlan } : {}),
         ...(shouldKeepTrialPlan
           ? {
@@ -400,21 +520,26 @@ export async function POST(req: Request) {
             }
           : {
               ...(inrcyPlan ? { plan: inrcyPlan } : {}),
-              ...(shouldAutofillPriceFromStripe ? { monthly_price_eur: stripeStoredPrice } : {}),
+              ...(commercialMonthlyPrice != null
+                ? { monthly_price_eur: commercialMonthlyPrice }
+                : shouldAutofillPriceFromStripe
+                  ? { monthly_price_eur: stripeStoredPrice }
+                  : {}),
               scheduled_plan: null,
             }),
         ...(trialEndAt ? { trial_end_at: trialEndAt } : {}),
         ...(trialStartAt ? { trial_start_at: trialStartAt } : {}),
         next_renewal_date: currentPeriodEnd ? currentPeriodEnd.slice(0, 10) : null,
         cancel_requested_at: cancellationTimestamp,
-        end_date: cancelAt ? cancelAt.slice(0, 10) : null,
+        end_date: cancellationEnd ? cancellationEnd.slice(0, 10) : null,
       }, subId);
 
       const row = await getSubscriptionRow(userId, customerId, subId);
       const resolvedUserId = userId || row?.user_id || null;
       if (resolvedUserId) {
         const previousStatus = normalizeStripeStatus(String(previous?.status || ""));
-        const previousCancelAtPeriodEnd = previous?.cancel_at_period_end;
+        const previousCancellationScheduled =
+          previous?.cancel_at_period_end === true || Boolean(previous?.cancel_at);
 
         if (stripeStatus === "active" && previousStatus === "trialing") {
           await sendAdminSubscriptionAlertForUser({
@@ -435,7 +560,7 @@ export async function POST(req: Request) {
           }).catch(() => null);
         }
 
-        if (cancelAtPeriodEnd && previousCancelAtPeriodEnd === false) {
+        if (cancellationScheduled && !previousCancellationScheduled) {
           await sendAdminSubscriptionAlertForUser({
             type: "cancellation_requested",
             source: `stripe.webhook.${type}`,
@@ -450,11 +575,13 @@ export async function POST(req: Request) {
             cancelRequestedAt: row?.cancel_requested_at ?? cancellationTimestamp,
             endDate: row?.end_date ?? (cancelAt ? cancelAt.slice(0, 10) : null),
             nextRenewalDate: row?.next_renewal_date ?? (currentPeriodEnd ? currentPeriodEnd.slice(0, 10) : null),
-            note: "Résiliation programmée en fin de période Stripe.",
+            note: cancelAtPeriodEnd
+              ? "Résiliation annuelle programmée à l'échéance Stripe."
+              : "Résiliation mensuelle programmée après le prochain renouvellement et son mois de préavis.",
           }).catch(() => null);
         }
 
-        if (!cancelAtPeriodEnd && previousCancelAtPeriodEnd === true) {
+        if (!cancellationScheduled && previousCancellationScheduled) {
           await sendAdminSubscriptionAlertForUser({
             type: "cancellation_reversed",
             source: `stripe.webhook.${type}`,
@@ -576,8 +703,10 @@ export async function POST(req: Request) {
       }
     }
 
+    await completeStripeWebhookEvent(evt);
     return NextResponse.json({ received: true });
   } catch (e: unknown) {
+    await failStripeWebhookEvent(evt, e).catch(() => null);
     return jsonUserFacingError(e, { status: 500, fallback: "Une erreur est survenue pendant la validation du paiement." });
   }
 }

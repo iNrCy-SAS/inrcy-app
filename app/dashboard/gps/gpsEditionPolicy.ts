@@ -190,7 +190,7 @@ function applyStandardArticleOverride(article: GpsArticle): GpsArticle {
 }
 
 export function getGpsSectionsForEdition(edition: DashboardEdition): GpsSection[] {
-  if (edition === "premium") return GPS_SECTIONS;
+  if (edition !== "standard") return GPS_SECTIONS;
 
   return GPS_SECTIONS.map((section) => ({
     ...section,

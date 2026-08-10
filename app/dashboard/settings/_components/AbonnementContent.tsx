@@ -5,15 +5,20 @@ import { confirmInrcy } from "@/lib/inrcyDialog";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import {
+  PREMIUM_SUBSCRIPTION_OFFER,
+  STANDARD_SUBSCRIPTION_OFFER,
+} from "@/lib/subscriptionOffers";
 
 
-type InrcyPlan = "Trial" | "Starter" | "Accel" | "Speed";
-type CheckoutPlan = "Starter" | "Accel";
+type InrcyPlan = "Trial" | "Standard" | "Premium" | "Starter" | "Accel" | "Speed";
 type BillingCycle = "monthly" | "yearly";
 
 function normalizePlan(raw: unknown): InrcyPlan {
   const value = String(raw || "").trim();
   if (value === "Trial" || /^essai/i.test(value)) return "Trial";
+  if (value === "Standard") return "Standard";
+  if (value === "Premium") return "Premium";
   if (value === "Starter" || /^d[ée]marrage/i.test(value)) return "Starter";
   if (value === "Accel" || /^acc[ée]l[ée]ration/i.test(value)) return "Accel";
   if (value === "Speed" || /^pleine vitesse/i.test(value)) return "Speed";
@@ -22,6 +27,8 @@ function normalizePlan(raw: unknown): InrcyPlan {
 
 function monthlyPriceTtcFromPlan(plan: unknown) {
   const normalized = normalizePlan(plan);
+  if (normalized === "Standard") return STANDARD_SUBSCRIPTION_OFFER.monthlyPriceEur;
+  if (normalized === "Premium") return PREMIUM_SUBSCRIPTION_OFFER.monthlyPriceEur;
   if (normalized === "Starter") return 69;
   if (normalized === "Accel") return 149;
   if (normalized === "Speed") return 359;
@@ -30,6 +37,8 @@ function monthlyPriceTtcFromPlan(plan: unknown) {
 
 function planShortLabel(plan: unknown) {
   const normalized = normalizePlan(plan);
+  if (normalized === "Standard") return "Standard";
+  if (normalized === "Premium") return "Premium";
   if (normalized === "Starter") return "Partenaire Fondateur";
   if (normalized === "Accel") return "Accélération";
   if (normalized === "Speed") return "Pleine vitesse";
@@ -42,8 +51,8 @@ type Props = {
 };
 
 type SubData = {
-  plan: "Trial" | "Starter" | "Accel" | "Speed";
-  scheduled_plan?: "Trial" | "Starter" | "Accel" | "Speed" | null;
+  plan: InrcyPlan;
+  scheduled_plan?: InrcyPlan | null;
   status:
     | "incomplete"
     | "incomplete_expired"
@@ -66,10 +75,11 @@ type SubData = {
   stripe_customer_id?: string | null;
   stripe_subscription_id?: string | null;
   stripe_price_id?: string | null;
+  billing_cycle?: BillingCycle | null;
   founder_offer_enabled?: boolean | null;
 };
 const SUB_SELECT =
-  "plan,scheduled_plan,status,monthly_price_eur,start_date,trial_start_at,trial_end_at,next_renewal_date,cancel_requested_at,end_date,stripe_customer_id,stripe_subscription_id,stripe_price_id,founder_offer_enabled";
+  "plan,scheduled_plan,status,monthly_price_eur,start_date,trial_start_at,trial_end_at,next_renewal_date,cancel_requested_at,end_date,stripe_customer_id,stripe_subscription_id,stripe_price_id,billing_cycle,founder_offer_enabled";
 
 
 function frDate(d: Date) {
@@ -161,39 +171,6 @@ function planLabel(plan: SubData["plan"]) {
   return "Essai 21j";
 }
 
-const CHECKOUT_OFFERS: Record<CheckoutPlan, {
-  title: string;
-  badge: string;
-  monthlyPrice: number;
-  yearlyPrice: number;
-  description: string;
-  annualSavingLabel: string;
-}> = {
-  Starter: {
-    title: "Offre Partenaire Fondateur",
-    badge: "Offre limitée",
-    monthlyPrice: 69,
-    yearlyPrice: 690,
-    description: "Tarif préférentiel réservé aux partenaires fondateurs en échange de retours terrain.",
-    annualSavingLabel: "2 mois offerts",
-  },
-  Accel: {
-    title: "Pack Accélération",
-    badge: "Pack complet",
-    monthlyPrice: 149,
-    yearlyPrice: 1490,
-    description: "Le générateur iNrCy complet pour accélérer votre communication, vos demandes et votre chiffre d’affaires.",
-    annualSavingLabel: "2 mois offerts",
-  },
-};
-
-function checkoutPriceLabel(plan: CheckoutPlan, billingCycle: BillingCycle) {
-  const offer = CHECKOUT_OFFERS[plan];
-  return billingCycle === "yearly"
-    ? `${offer.yearlyPrice} € TTC / an`
-    : `${offer.monthlyPrice} € TTC / mois`;
-}
-
 export default function AbonnementContent({ mode: _mode = "page", onOpenContact }: Props) {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -206,9 +183,6 @@ export default function AbonnementContent({ mode: _mode = "page", onOpenContact 
   const [billingBusy, setBillingBusy] = useState(false);
   const [portalBusy, setPortalBusy] = useState(false);
   const [billingMsg, setBillingMsg] = useState<string>("");
-  const [showBillingChoices, setShowBillingChoices] = useState(false);
-  const [selectedCheckoutPlan, setSelectedCheckoutPlan] = useState<CheckoutPlan>("Accel");
-  const [selectedBillingCycle, setSelectedBillingCycle] = useState<BillingCycle>("monthly");
 
 // ✅ Refresh abonnement après actions Stripe (merge pour éviter d'écraser des champs)
 const fetchSubscription = async () => {
@@ -338,11 +312,14 @@ useEffect(() => {
 
     const cancelEnd = sub.end_date ? parseYMD(sub.end_date) : null;
     const cancellationScheduled = !!sub.cancel_requested_at && !!cancelEnd && cancelEnd.getTime() > now.getTime();
+    const monthlyNoticeCancellation = Boolean(
+      cancellationScheduled && cancelEnd && renewal && cancelEnd.getTime() > renewal.getTime(),
+    );
 
     const hasStripeSub = !!sub.stripe_subscription_id;
     const annualPayment =
-      statusNorm === "active" &&
-      Number(sub.monthly_price_eur || 0) >= 600;
+      sub.billing_cycle === "yearly" ||
+      (!sub.billing_cycle && statusNorm === "active" && Number(sub.monthly_price_eur || 0) >= 600);
 
     // ✅ UX: au retour Stripe (?checkout=success), on considère l'abonnement comme "programmé" immédiatement,
     // même si le webhook n'a pas encore eu le temps d'écrire stripe_subscription_id en DB.
@@ -364,6 +341,13 @@ useEffect(() => {
     const monthlyPriceTtc = planNormalized === "Trial"
       ? 0
       : storedPrice ?? monthlyPriceTtcFromPlan(planNormalized);
+    const displayedPriceTtc = annualPayment
+      ? planNormalized === "Standard"
+        ? STANDARD_SUBSCRIPTION_OFFER.yearlyPriceEur
+        : planNormalized === "Premium"
+          ? PREMIUM_SUBSCRIPTION_OFFER.yearlyPriceEur
+          : monthlyPriceTtc
+      : monthlyPriceTtc;
 
     return {
       startLabel: frDate(start),
@@ -373,7 +357,8 @@ useEffect(() => {
       endEstLabel: frDate(endEst),
       cancelEndLabel: cancelEnd ? frDate(cancelEnd) : null,
       cancellationScheduled,
-      priceLabel: `${monthlyPriceTtc} €`,
+      monthlyNoticeCancellation,
+      priceLabel: `${displayedPriceTtc} €`,
       annualPayment,
       statusText: isTrialPlan ? "ESSAI" : statusLabel(statusNorm),
       hasStripeSub: hasScheduledSubscription,
@@ -461,35 +446,6 @@ useEffect(() => {
     background: "rgba(255, 80, 80, 0.10)",
   };
 
-  const offerCard: React.CSSProperties = {
-    padding: 12,
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.055)",
-    display: "grid",
-    gap: 8,
-  };
-
-  const doCheckout = async (plan: CheckoutPlan = selectedCheckoutPlan, billingCycle: BillingCycle = selectedBillingCycle) => {
-    try {
-      setBillingMsg("");
-      setBillingBusy(true);
-      const res = await fetch("/api/billing/checkout", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ plan, billingCycle }),
-      });
-      if (!res.ok) throw new Error(await getSimpleFrenchApiError(res, "Le paiement n’a pas pu être lancé pour le moment."));
-      const json = await res.json().catch(() => ({}));
-      if (!json?.url) throw new Error("Le paiement n’a pas pu être lancé pour le moment.");
-      window.location.href = json.url;
-    } catch (e: unknown) {
-      setBillingMsg(getSimpleFrenchErrorMessage(e, "Le paiement n’a pas pu être lancé pour le moment."));
-      setBillingBusy(false);
-    }
-  };
-
-
   const openBillingPortal = async () => {
     try {
       setBillingMsg("");
@@ -512,7 +468,7 @@ useEffect(() => {
   const doCancel = async () => {
     const ok = await confirmInrcy({
       title: "Confirmer la résiliation ?",
-      message: "La résiliation sera programmée avec un préavis d’un mois.",
+      message: "Mensuel actif : votre prochaine mensualité sera la dernière et couvrira un mois complet de préavis. Annuel : arrêt à l'échéance sans nouveau prélèvement annuel. Essai : arrêt sans prélèvement.",
       confirmLabel: "Résilier",
       variant: "danger",
     });
@@ -527,7 +483,14 @@ useEffect(() => {
       });
       if (!res.ok) throw new Error(await getSimpleFrenchApiError(res, "La résiliation n’a pas pu être enregistrée pour le moment."));
       const json = await res.json().catch(() => ({}));
-      setBillingMsg(json?.warning || "La résiliation a bien été programmée avec un préavis d’un mois. Un email a été envoyé à iNrCy.");
+      setBillingMsg(
+        json?.warning ||
+          (json?.cancellation_policy === "one_additional_monthly_renewal"
+            ? "La résiliation est programmée. Votre prochaine mensualité sera la dernière et financera le mois de préavis."
+            : json?.cancellation_policy === "trial_end_without_charge"
+              ? "Votre essai s'arrêtera à son échéance, sans prélèvement."
+              : "La résiliation est programmée à l'échéance annuelle, sans nouveau prélèvement annuel."),
+      );
       await fetchSubscription();
       setBillingBusy(false);
     } catch (e: unknown) {
@@ -740,13 +703,18 @@ useEffect(() => {
                     <div style={{ fontSize: 12, opacity: 0.85, marginTop: 4 }}>
                       Vous pouvez annuler la résiliation tant que la date n'est pas atteinte.
                     </div>
+                    {computed.monthlyNoticeCancellation ? (
+                      <div style={{ fontSize: 12, opacity: 0.85, marginTop: 4 }}>
+                        La prochaine mensualité reste due et sera votre dernière mensualité.
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
 
                 <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
                   {!computed?.cancellationScheduled ? (
                     <button type="button" onClick={doCancel} style={dangerBtn} disabled={billingBusy}>
-                      {billingBusy ? "Traitement…" : "Résilier (préavis 1 mois)"}
+                      {billingBusy ? "Traitement…" : "Programmer ma résiliation"}
                     </button>
                   ) : (
                     <button type="button" onClick={doUncancel} style={primaryBtn} disabled={billingBusy}>
@@ -770,142 +738,21 @@ useEffect(() => {
             ) : (
               <>
                 <p style={{ margin: "8px 0 0", opacity: 0.85, lineHeight: 1.5 }}>
-                  {computed?.trialEndsWithinStripeMinimum
-                    ? "Votre essai se termine bientôt. Vous pouvez vous abonner maintenant pour éviter toute coupure."
-                    : "Pour continuer après l’essai, abonnez-vous. L’abonnement démarrera à la fin de l’essai."}
+                  Les forfaits Premium et Founder sont activés et réactivés avec l’équipe iNrCy après un échange de présentation.
                 </p>
                 <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
-                  {!showBillingChoices ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const defaultPlan = sub.founder_offer_enabled ? "Starter" : "Accel";
-                        setSelectedCheckoutPlan(defaultPlan);
-                        setSelectedBillingCycle("monthly");
-                        setShowBillingChoices(true);
-                      }}
-                      style={primaryBtn}
-                      disabled={billingBusy}
-                    >
-                      {computed?.trialEndsWithinStripeMinimum ? "S’abonner maintenant" : "S’abonner"}
+                  {onOpenContact ? (
+                    <button type="button" onClick={onOpenContact} style={primaryBtn}>
+                      Contacter iNrCy
                     </button>
                   ) : (
-                    <div style={{ display: "grid", gap: 12 }}>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-                        <div style={{ fontWeight: 950, fontSize: 16 }}>Étape 1/2 · Choisissez votre pack</div>
-                        <span style={{ ...badge, fontSize: 11 }}>Puis choisissez mensuel ou annuel</span>
-                      </div>
-
-                      <div className="billingPackGrid">
-                        {(sub.founder_offer_enabled ? (["Starter", "Accel"] as CheckoutPlan[]) : (["Accel"] as CheckoutPlan[])).map((plan) => {
-                          const offer = CHECKOUT_OFFERS[plan];
-                          const selected = selectedCheckoutPlan === plan;
-                          return (
-                            <button
-                              key={plan}
-                              type="button"
-                              onClick={() => setSelectedCheckoutPlan(plan)}
-                              disabled={billingBusy}
-                              style={{
-                                ...offerCard,
-                                textAlign: "left",
-                                color: "white",
-                                cursor: billingBusy ? "default" : "pointer",
-                                opacity: billingBusy ? 0.75 : 1,
-                                border: selected ? "1px solid rgba(0, 200, 255, 0.65)" : offerCard.border,
-                                background: selected
-                                  ? "linear-gradient(135deg, rgba(255, 77, 166, 0.18), rgba(0, 200, 255, 0.12))"
-                                  : offerCard.background,
-                                boxShadow: selected ? "0 0 0 1px rgba(255, 77, 166, 0.18), 0 14px 32px rgba(0, 0, 0, 0.22)" : "none",
-                              }}
-                            >
-                              <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start" }}>
-                                <div style={{ minWidth: 0 }}>
-                                  <span style={{ ...badge, fontSize: 10 }}>{offer.badge}</span>
-                                  <div style={{ marginTop: 10, fontSize: 16, fontWeight: 950, lineHeight: 1.2 }}>{offer.title}</div>
-                                </div>
-                                <div style={{ fontSize: 18, fontWeight: 950, whiteSpace: "nowrap" }}>{offer.monthlyPrice} €</div>
-                              </div>
-                              <div style={{ fontSize: 12, opacity: 0.78 }}>TTC / mois</div>
-                              <div style={{ fontSize: 13, opacity: 0.86, lineHeight: 1.4 }}>{offer.description}</div>
-                              <div style={{ fontSize: 12, fontWeight: 900, opacity: selected ? 1 : 0.72 }}>
-                                {selected ? "✓ Pack sélectionné" : "Sélectionner ce pack"}
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-
-                      <div style={{ fontWeight: 950, fontSize: 16 }}>Étape 2/2 · Choisissez votre mode de paiement</div>
-                      <div className="billingCycleGrid">
-                        {(["monthly", "yearly"] as BillingCycle[]).map((cycle) => {
-                          const offer = CHECKOUT_OFFERS[selectedCheckoutPlan];
-                          const selected = selectedBillingCycle === cycle;
-                          const isYearly = cycle === "yearly";
-                          return (
-                            <button
-                              key={cycle}
-                              type="button"
-                              onClick={() => setSelectedBillingCycle(cycle)}
-                              disabled={billingBusy}
-                              style={{
-                                ...offerCard,
-                                textAlign: "left",
-                                color: "white",
-                                cursor: billingBusy ? "default" : "pointer",
-                                opacity: billingBusy ? 0.75 : 1,
-                                border: selected ? "1px solid rgba(255, 77, 166, 0.55)" : offerCard.border,
-                                background: selected
-                                  ? "linear-gradient(135deg, rgba(255, 77, 166, 0.16), rgba(97, 87, 255, 0.12), rgba(0, 200, 255, 0.08))"
-                                  : offerCard.background,
-                              }}
-                            >
-                              <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
-                                <strong>{isYearly ? "Annuel" : "Mensuel"}</strong>
-                                <strong>{isYearly ? `${offer.yearlyPrice} € TTC` : `${offer.monthlyPrice} € TTC / mois`}</strong>
-                              </div>
-                              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                                <span style={{ ...badge, fontSize: 11 }}>{selected ? "✓ Sélectionné" : isYearly ? offer.annualSavingLabel : "Sans engagement"}</span>
-                                {isYearly ? <span style={{ ...badge, fontSize: 11 }}>Renouvellement annuel</span> : null}
-                              </div>
-                              <div style={{ fontSize: 13, opacity: 0.82, lineHeight: 1.35 }}>
-                                {isYearly
-                                  ? "Renouvellement annuel · Résiliable avant la prochaine échéance."
-                                  : "Paiement mensuel · Préavis 1 mois."}
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-
-                      <div style={{ ...miniBox, display: "grid", gap: 8 }}>
-                        <div style={{ fontSize: 12, opacity: 0.78, fontWeight: 900 }}>Récapitulatif</div>
-                        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-                          <strong>{CHECKOUT_OFFERS[selectedCheckoutPlan].title} · {selectedBillingCycle === "yearly" ? "Annuel" : "Mensuel"}</strong>
-                          <strong>{checkoutPriceLabel(selectedCheckoutPlan, selectedBillingCycle)}</strong>
-                        </div>
-                      </div>
-
-                      <button type="button" onClick={() => doCheckout()} style={primaryBtn} disabled={billingBusy}>
-                        {billingBusy ? "Traitement…" : "Continuer vers le paiement"}
-                      </button>
-                      <button type="button" onClick={() => setShowBillingChoices(false)} style={ghostBtn} disabled={billingBusy}>
-                        Retour
-                      </button>
-                    </div>
+                    <a href="https://inrcy.com/contact/" target="_blank" rel="noreferrer" style={primaryBtn}>
+                      Contacter iNrCy
+                    </a>
                   )}
                   <a href="https://inrcy.com/nos-packs/" target="_blank" rel="noreferrer" style={ghostBtn}>
                     Voir nos packs
                   </a>
-                  {onOpenContact ? (
-                    <button type="button" onClick={onOpenContact} style={ghostBtn}>
-                      Contactez-nous
-                    </button>
-                  ) : (
-                    <a href="https://inrcy.com/contact/" target="_blank" rel="noreferrer" style={ghostBtn}>
-                      Contactez-nous
-                    </a>
-                  )}
                 </div>
               </>
             )}
@@ -1008,7 +855,7 @@ useEffect(() => {
                     </a>
                   )}
                   <button type="button" onClick={doCancel} style={dangerBtn} disabled={billingBusy}>
-                    {billingBusy ? "Traitement…" : computed.annualPayment ? "Résilier à l’échéance annuelle" : "Résilier (préavis 1 mois)"}
+                    {billingBusy ? "Traitement…" : "Programmer ma résiliation"}
                   </button>
                 </div>
               </>

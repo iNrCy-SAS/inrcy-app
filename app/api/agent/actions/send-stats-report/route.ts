@@ -427,7 +427,7 @@ function sanitizeStatsInsightsForEdition(
   insights: StatsAiInsights,
   edition: DashboardEdition,
 ): StatsAiInsights {
-  if (edition === "premium") return insights;
+  if (edition !== "standard") return insights;
 
   const safeText = (value: unknown) => {
     const text = cleanText(value, 900);
@@ -1409,7 +1409,7 @@ export async function POST(request: Request) {
     userEmail: recipientEmail,
     allowedThemes: automation.allowedThemes,
     cronUserId: isCron ? userId : undefined,
-    includeMail: dashboardEdition === "premium",
+    includeMail: dashboardEdition !== "standard",
   });
 
   const report: StatsReportData = {
@@ -1421,7 +1421,7 @@ export async function POST(request: Request) {
     proName,
     channels: stats.channels,
     mail:
-      dashboardEdition === "premium" &&
+      dashboardEdition !== "standard" &&
       (automation.allowedThemes.includes("mails") || automation.allowedThemes.includes("vue_globale"))
         ? stats.mail
         : null,

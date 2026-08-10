@@ -402,7 +402,7 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
   const selectedMailAccountId = trim(toolSettings.inrBadgeMailAccountId);
   let selectedMailAccountEmail = "";
 
-  if (dashboardEdition === "premium" && selectedMailAccountId) {
+  if (dashboardEdition !== "standard" && selectedMailAccountId) {
     const selectedMailRes = await supabaseAdmin
       .from("integrations")
       .select("account_email,status,settings")

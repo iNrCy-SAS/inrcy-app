@@ -22,7 +22,7 @@ export async function GET() {
   const dashboardEdition = await getDashboardEditionForAccountId(activeUserId);
 
   await repairWeeklyMissionAwardsForUser(activeUserId, {
-    includePremiumMissions: dashboardEdition === "premium",
+    includePremiumMissions: dashboardEdition !== "standard",
   }).catch(() => null);
 
   const [states, ledgerRes] = await Promise.all([
