@@ -24,6 +24,8 @@ import {
 import { rowToInrAgentAction } from "@/lib/inrAgentActions";
 import { buildAiLanguageInstruction } from "@/lib/aiWritingProfile";
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
+import { getDashboardEditionForAccountId } from "@/lib/dashboardEditionServer";
+import type { DashboardEdition } from "@/lib/dashboardEdition";
 
 export const runtime = "nodejs";
 export const maxDuration = 180;
@@ -90,6 +92,7 @@ type BadgeReport = {
 };
 
 type StatsReportData = {
+  edition: DashboardEdition;
   generatedAt: string;
   periodDays: number;
   recipientEmail: string;
@@ -417,6 +420,40 @@ function fallbackInsights(report: StatsReportData): StatsAiInsights {
   };
 }
 
+const STANDARD_PREMIUM_REPORT_PATTERN =
+  /\b(?:propulser|fidéliser|crm|agenda|encaisser|factures?|devis|campagnes?\s+mail)\b/i;
+
+function sanitizeStatsInsightsForEdition(
+  insights: StatsAiInsights,
+  edition: DashboardEdition,
+): StatsAiInsights {
+  if (edition === "premium") return insights;
+
+  const safeText = (value: unknown) => {
+    const text = cleanText(value, 900);
+    return text && !STANDARD_PREMIUM_REPORT_PATTERN.test(text) ? text : "";
+  };
+  const safeList = (value: unknown) =>
+    (Array.isArray(value) ? value : [])
+      .map((item) => safeText(item))
+      .filter(Boolean)
+      .slice(0, 5);
+  const safeChannelNotes = Object.fromEntries(
+    Object.entries(asRecord(insights.channelNotes))
+      .map(([key, value]) => [key, safeText(value)] as const)
+      .filter(([, value]) => Boolean(value)),
+  );
+
+  return {
+    ...insights,
+    globalSummary: safeText(insights.globalSummary) || undefined,
+    strengths: safeList(insights.strengths),
+    weaknesses: safeList(insights.weaknesses),
+    recommendations: safeList(insights.recommendations),
+    channelNotes: safeChannelNotes,
+  };
+}
+
 async function generateAiInsights(
   report: StatsReportData,
   aiLanguageInstruction: string,
@@ -450,6 +487,7 @@ async function generateAiInsights(
       temperature: 0.25,
       system:
         `Tu es iNr’Agent. Tu rédiges des bilans statistiques courts, utiles et honnêtes pour des professionnels. Tu ne dois jamais inventer des chiffres. Réponds uniquement en JSON.
+${report.edition === "standard" ? "Ce compte utilise iNrCy Standard : recommande uniquement les canaux disponibles, Booster, iNrStats, iNrSend Publications, Réputation et iNrBadge. Ne cite jamais Propulser, Fidéliser, CRM, Agenda, Encaisser, devis, factures ni campagnes mails." : ""}
 ${aiLanguageInstruction}`,
       input: `Analyse ces statistiques iNrCy et retourne un JSON avec les clés globalSummary, strengths, weaknesses, recommendations, channelNotes. Les tableaux doivent contenir 2 à 5 phrases courtes. channelNotes est un objet {cléCanal: phrase courte}. Respecte strictement la langue de sortie obligatoire indiquée. Données : ${JSON.stringify(compact)}`,
     });
@@ -475,11 +513,14 @@ async function buildReportData(args: {
   userEmail: string;
   allowedThemes: InrAgentTheme[];
   cronUserId?: string;
+  includeMail: boolean;
 }) {
   const fetchArgs = { cookie: args.cookie, cronUserId: args.cronUserId };
   const [bulkResult, mailResult, badgeResult] = await Promise.all([
     fetchJson<JsonRecord>(`${args.origin}/api/stats/dashboard-bulk?days=30&fresh=1`, fetchArgs),
-    fetchJson<JsonRecord>(`${args.origin}/api/inrstats/mails`, fetchArgs),
+    args.includeMail
+      ? fetchJson<JsonRecord>(`${args.origin}/api/inrstats/mails`, fetchArgs)
+      : Promise.resolve({ data: null, error: null }),
     fetchJson<JsonRecord>(`${args.origin}/api/inrstats/inrbadge`, fetchArgs),
   ]);
 
@@ -766,6 +807,7 @@ function drawMailBadgeMetric(doc: jsPDF, label: string, value: string, x: number
 function createStatsPdf(report: StatsReportData, insights: StatsAiInsights, options: { automatic: boolean }) {
   const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
   let page = 1;
+  const standardReport = report.edition === "standard";
   const reportLabel = "Bilan iNr’Stats";
   const reportModeLabel = options.automatic ? "RAPPORT AUTOMATIQUE INR’AGENT" : "BILAN MANUEL INR’STATS";
   const footerLabel = options.automatic ? "Rapport automatique généré par iNr’Agent" : "Bilan manuel généré depuis iNr’Stats";
@@ -781,11 +823,15 @@ function createStatsPdf(report: StatsReportData, insights: StatsAiInsights, opti
   ]);
   const weaknesses = normalizeInsightList(insights.weaknesses, [
     "Les canaux sans demandes captées doivent être retravaillés avec des appels à l'action plus directs.",
-    "Les campagnes mails peuvent être intensifiées pour relancer les contacts CRM.",
+    standardReport
+      ? "Les canaux peu actifs doivent être alimentés avec des publications plus régulières."
+      : "Les campagnes mails peuvent être intensifiées pour relancer les contacts CRM.",
   ]);
   const recommendations = normalizeInsightList(insights.recommendations, [
     "Publier un contenu orienté conversion sur les canaux connectés cette semaine.",
-    "Relancer les contacts CRM avec une campagne courte et ciblée.",
+    standardReport
+      ? "Consulter le Bilan Booster et iNrStats pour préparer la prochaine publication."
+      : "Relancer les contacts CRM avec une campagne courte et ciblée.",
     "Suivre les canaux sans demandes pour identifier les freins.",
   ]);
   const channelNotes = asRecord(insights.channelNotes);
@@ -918,62 +964,67 @@ function createStatsPdf(report: StatsReportData, insights: StatsAiInsights, opti
   }
   addFooter(doc, page, footerLabel);
 
-  // Page 4 - mails and badge
+  // Page 4 - iNrBadge, avec les données mails uniquement en Premium.
   doc.addPage();
   page += 1;
-  addSoftBackground(doc, "Mails et iNrBadge", page, reportLabel);
-  drawSectionTitle(doc, "Mails / Propulser / Fidéliser", "Activité de contact et campagnes sur 30 jours.", 14, 34, PDF.pink);
-  if (report.mail) {
-    drawMailBadgeMetric(doc, "Boîtes", `${report.mail.connectedCount}/${report.mail.maxAccounts}`, 14, 50, 42, PDF.green);
-    drawMailBadgeMetric(doc, "Contacts email", formatNumber(report.mail.contactsEmail), 61, 50, 42, PDF.blue);
-    drawMailBadgeMetric(doc, "Campagnes 30j", formatNumber(report.mail.campagnes30), 108, 50, 42, PDF.purple);
-    drawMailBadgeMetric(doc, "Destinataires", formatNumber(report.mail.destinataires30), 155, 50, 42, PDF.pink);
-    drawGlassCard(doc, 14, 88, 182, 40, { fill: PDF.white, border: [226, 232, 240], radius: 7, accent: PDF.pink });
-    setText(doc, PDF.slate);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    doc.text("Répartition des envois", 23, 102);
-    setText(doc, [51, 65, 85]);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9.4);
-    doc.text(`Propulser : ${formatNumber(report.mail.propulsions30)}   Fidéliser : ${formatNumber(report.mail.fidelisations30)}   Mails simples : ${formatNumber(report.mail.mailsSimples30)}`, 23, 114);
-    doc.text(`Rappels agenda : ${formatNumber(report.mail.agendaReminders30)}   Factures : ${formatNumber(report.mail.factures30)}   Devis : ${formatNumber(report.mail.devis30)}`, 23, 122);
-  } else {
-    setText(doc, PDF.muted);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    doc.text("Statistiques mails indisponibles au moment du bilan.", 14, 52);
+  addSoftBackground(doc, standardReport ? "iNrBadge" : "Mails et iNrBadge", page, reportLabel);
+  if (!standardReport) {
+    drawSectionTitle(doc, "Mails / Propulser / Fidéliser", "Activité de contact et campagnes sur 30 jours.", 14, 34, PDF.pink);
+    if (report.mail) {
+      drawMailBadgeMetric(doc, "Boîtes", `${report.mail.connectedCount}/${report.mail.maxAccounts}`, 14, 50, 42, PDF.green);
+      drawMailBadgeMetric(doc, "Contacts email", formatNumber(report.mail.contactsEmail), 61, 50, 42, PDF.blue);
+      drawMailBadgeMetric(doc, "Campagnes 30j", formatNumber(report.mail.campagnes30), 108, 50, 42, PDF.purple);
+      drawMailBadgeMetric(doc, "Destinataires", formatNumber(report.mail.destinataires30), 155, 50, 42, PDF.pink);
+      drawGlassCard(doc, 14, 88, 182, 40, { fill: PDF.white, border: [226, 232, 240], radius: 7, accent: PDF.pink });
+      setText(doc, PDF.slate);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.text("Répartition des envois", 23, 102);
+      setText(doc, [51, 65, 85]);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9.4);
+      doc.text(`Propulser : ${formatNumber(report.mail.propulsions30)}   Fidéliser : ${formatNumber(report.mail.fidelisations30)}   Mails simples : ${formatNumber(report.mail.mailsSimples30)}`, 23, 114);
+      doc.text(`Rappels agenda : ${formatNumber(report.mail.agendaReminders30)}   Factures : ${formatNumber(report.mail.factures30)}   Devis : ${formatNumber(report.mail.devis30)}`, 23, 122);
+    } else {
+      setText(doc, PDF.muted);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.text("Statistiques mails indisponibles au moment du bilan.", 14, 52);
+    }
   }
 
-  drawSectionTitle(doc, "iNrBadge", "Utilisation de la carte de visite numérique et conversion.", 14, 153, PDF.cyan);
+  const badgeTitleY = standardReport ? 34 : 153;
+  const badgeMetricsY = standardReport ? 50 : 169;
+  const badgeQualityY = standardReport ? 88 : 207;
+  drawSectionTitle(doc, "iNrBadge", "Utilisation de la carte de visite numérique et conversion.", 14, badgeTitleY, PDF.cyan);
   if (report.badge) {
-    drawMailBadgeMetric(doc, "Vues 30j", formatNumber(report.badge.views30), 14, 169, 42, PDF.blue);
-    drawMailBadgeMetric(doc, "Scans QR", formatNumber(report.badge.qrScans30), 61, 169, 42, PDF.purple);
-    drawMailBadgeMetric(doc, "Actions", formatNumber(report.badge.actions30), 108, 169, 42, PDF.pink);
-    drawMailBadgeMetric(doc, "Demandes", formatNumber(report.badge.capturedLeads30), 155, 169, 42, PDF.green);
-    drawGlassCard(doc, 14, 207, 88, 42, { fill: PDF.white, border: [226, 232, 240], radius: 7, accent: PDF.cyan });
+    drawMailBadgeMetric(doc, "Vues 30j", formatNumber(report.badge.views30), 14, badgeMetricsY, 42, PDF.blue);
+    drawMailBadgeMetric(doc, "Scans QR", formatNumber(report.badge.qrScans30), 61, badgeMetricsY, 42, PDF.purple);
+    drawMailBadgeMetric(doc, "Actions", formatNumber(report.badge.actions30), 108, badgeMetricsY, 42, PDF.pink);
+    drawMailBadgeMetric(doc, "Demandes", formatNumber(report.badge.capturedLeads30), 155, badgeMetricsY, 42, PDF.green);
+    drawGlassCard(doc, 14, badgeQualityY, 88, 42, { fill: PDF.white, border: [226, 232, 240], radius: 7, accent: PDF.cyan });
     setText(doc, PDF.muted);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(8);
-    doc.text("SCORE QUALITÉ", 23, 221);
+    doc.text("SCORE QUALITÉ", 23, badgeQualityY + 14);
     setText(doc, PDF.slate);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(22);
-    doc.text(`${report.badge.qualityScore}/100`, 23, 238);
-    drawGlassCard(doc, 108, 207, 88, 42, { fill: PDF.white, border: [226, 232, 240], radius: 7, accent: PDF.green });
+    doc.text(`${report.badge.qualityScore}/100`, 23, badgeQualityY + 31);
+    drawGlassCard(doc, 108, badgeQualityY, 88, 42, { fill: PDF.white, border: [226, 232, 240], radius: 7, accent: PDF.green });
     setText(doc, PDF.muted);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(8);
-    doc.text("TAUX ACTIONS / VUES", 117, 221);
+    doc.text("TAUX ACTIONS / VUES", 117, badgeQualityY + 14);
     setText(doc, PDF.slate);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(22);
-    doc.text(percentage(report.badge.actions30, report.badge.views30), 117, 238);
+    doc.text(percentage(report.badge.actions30, report.badge.views30), 117, badgeQualityY + 31);
   } else {
     setText(doc, PDF.muted);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
-    doc.text("Statistiques iNrBadge indisponibles au moment du bilan.", 14, 171);
+    doc.text("Statistiques iNrBadge indisponibles au moment du bilan.", 14, badgeMetricsY + 2);
   }
   addFooter(doc, page, footerLabel);
 
@@ -1007,7 +1058,14 @@ function createStatsPdf(report: StatsReportData, insights: StatsAiInsights, opti
   setText(doc, [51, 65, 85]);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
-  doc.text("Ce rapport doit servir à décider les prochaines publications, campagnes et relances.", 52, 248, { maxWidth: 132 });
+  doc.text(
+    standardReport
+      ? "Ce rapport doit servir à décider les prochaines publications et améliorations de vos canaux."
+      : "Ce rapport doit servir à décider les prochaines publications, campagnes et relances.",
+    52,
+    248,
+    { maxWidth: 132 },
+  );
   addFooter(doc, page, footerLabel);
 
   const buffer = Buffer.from(doc.output("arraybuffer") as ArrayBuffer);
@@ -1026,6 +1084,9 @@ function buildStatsEmail(args: { report: StatsReportData; insights: StatsAiInsig
   const safeSummary = escapeHtml(summary);
   const safeFilename = escapeHtml(args.filename);
   const sourceSentence = args.automatic ? "Mail automatique envoyé par iNr’Agent." : "Bilan manuel généré depuis iNr’Stats.";
+  const analysisScope = args.report.edition === "standard"
+    ? "Il analyse vos canaux, vos demandes captées et vos opportunités de publication."
+    : "Il analyse vos canaux, vos demandes captées, vos opportunités et vos actions mails.";
   const subtitle = args.automatic ? `Analyse automatique iNr’Agent pour ${safeCompany}` : `Bilan manuel iNr’Stats pour ${safeCompany}`;
   const text = [
     `Bonjour${args.report.proName ? ` ${args.report.proName}` : ""},`,
@@ -1055,7 +1116,7 @@ function buildStatsEmail(args: { report: StatsReportData; insights: StatsAiInsig
           </td></tr>
           <tr><td style="padding:8px 24px 6px 24px;font-family:Arial,Helvetica,sans-serif;color:#0f172a;">
             <p style="margin:12px 0 0 0;font-size:14px;line-height:1.65;">Bonjour${safeProName ? ` ${safeProName}` : ""},</p>
-            <p style="margin:12px 0 0 0;font-size:14px;line-height:1.65;">Votre bilan iNr’Stats est disponible en pièce jointe. Il analyse vos canaux, vos demandes captées, vos opportunités et vos actions mails.</p>
+            <p style="margin:12px 0 0 0;font-size:14px;line-height:1.65;">Votre bilan iNr’Stats est disponible en pièce jointe. ${analysisScope}</p>
             <div style="margin:18px 0;padding:16px;border-radius:14px;background:#f8fafc;border:1px solid #e2e8f0;">
               <p style="margin:0;font-size:14px;line-height:1.65;color:#334155;">${safeSummary}</p>
             </div>
@@ -1305,7 +1366,7 @@ export async function POST(request: Request) {
   const cookie = request.headers.get("cookie") || "";
   const now = new Date().toISOString();
 
-  const [profileResult, businessResult] = await Promise.all([
+  const [profileResult, businessResult, dashboardEdition] = await Promise.all([
     supabaseAdmin
       .from("profiles")
       .select("admin_email, contact_email, first_name, last_name, company_legal_name")
@@ -1318,6 +1379,7 @@ export async function POST(request: Request) {
       .order("updated_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    getDashboardEditionForAccountId(userId),
   ]);
 
   const profile = asRecord(profileResult.data);
@@ -1347,16 +1409,22 @@ export async function POST(request: Request) {
     userEmail: recipientEmail,
     allowedThemes: automation.allowedThemes,
     cronUserId: isCron ? userId : undefined,
+    includeMail: dashboardEdition === "premium",
   });
 
   const report: StatsReportData = {
+    edition: dashboardEdition,
     generatedAt: now,
     periodDays: 30,
     recipientEmail,
     companyName,
     proName,
     channels: stats.channels,
-    mail: automation.allowedThemes.includes("mails") || automation.allowedThemes.includes("vue_globale") ? stats.mail : null,
+    mail:
+      dashboardEdition === "premium" &&
+      (automation.allowedThemes.includes("mails") || automation.allowedThemes.includes("vue_globale"))
+        ? stats.mail
+        : null,
     badge: automation.allowedThemes.includes("inrbadge") || automation.allowedThemes.includes("vue_globale") ? stats.badge : null,
     totals: buildTotals(stats.channels),
   };
@@ -1376,7 +1444,8 @@ export async function POST(request: Request) {
     }
   }
 
-  const rawInsights = await generateAiInsights(report, aiLanguageInstruction, preferredEngine, userId);
+  const generatedInsights = await generateAiInsights(report, aiLanguageInstruction, preferredEngine, userId);
+  const rawInsights = sanitizeStatsInsightsForEdition(generatedInsights, report.edition);
   const reportSummary = cleanNarrativeText(
     rawInsights.globalSummary,
     fallbackReportSummary(report),

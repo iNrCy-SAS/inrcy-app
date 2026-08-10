@@ -72,6 +72,12 @@ export function restrictInrAgentSettingsForStandard(
 ): InrAgentSettings {
   const automations = {
     ...settings.automations,
+    stats: {
+      ...settings.automations.stats,
+      allowedThemes: settings.automations.stats.allowedThemes.filter(
+        (theme) => theme !== "mails",
+      ),
+    },
     grow: {
       ...settings.automations.grow,
       enabled: false,

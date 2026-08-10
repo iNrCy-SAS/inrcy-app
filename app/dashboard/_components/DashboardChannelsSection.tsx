@@ -688,6 +688,7 @@ export default function DashboardChannelsSection({
           goToModule={goToModule}
           onOpenStats={onOpenStats}
           onOpenBoosterPublish={onOpenBoosterPublish}
+          onOpenBoosterStats={onOpenBoosterStats}
         />
       ) : (
         <DashboardModulesCard

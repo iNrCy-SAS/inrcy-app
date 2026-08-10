@@ -188,6 +188,7 @@ export default function DashboardSettingsDrawerContent({
       {panel === "inertie" && (
         <InertiaContent
           mode="drawer"
+          edition={edition}
           snapshot={inertiaSnapshot}
           onOpenBoutique={() => openPanel("boutique")}
         />

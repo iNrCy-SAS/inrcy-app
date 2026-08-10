@@ -12,6 +12,7 @@ type Props = {
   goToModule: (path: string) => void;
   onOpenStats?: () => void;
   onOpenBoosterPublish?: () => void;
+  onOpenBoosterStats?: () => void;
 };
 
 function ArrowIcon() {
@@ -41,6 +42,7 @@ export default function DashboardStandardModulesCard({
   goToModule,
   onOpenStats,
   onOpenBoosterPublish,
+  onOpenBoosterStats,
 }: Props) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -79,6 +81,11 @@ export default function DashboardStandardModulesCard({
     if (!beginAction("modal:publish")) return;
     if (onOpenBoosterPublish) onOpenBoosterPublish();
     else goToModule("/dashboard?action=publish");
+  };
+
+  const openBoosterSummary = () => {
+    if (onOpenBoosterStats) onOpenBoosterStats();
+    else goToModule("/dashboard?stats=1");
   };
 
   const statsPath = "/dashboard/stats";
@@ -185,12 +192,12 @@ export default function DashboardStandardModulesCard({
         <button
           type="button"
           className={standardStyles.boosterStats}
-          aria-label="Voir les statistiques Booster"
-          title="Voir les statistiques Booster"
-          onClick={() => startModuleNavigation(statsPath, onOpenStats)}
+          aria-label="Ouvrir le bilan Booster"
+          title="Ouvrir le bilan Booster"
+          onClick={openBoosterSummary}
         >
           <span aria-hidden="true"><i /><i /><i /></span>
-          <b>Statistiques</b>
+          <b>Bilan</b>
         </button>
       </section>
     </div>

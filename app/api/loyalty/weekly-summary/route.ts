@@ -4,6 +4,7 @@ import { getChannelConnectionStates } from "@/lib/channelConnectionState";
 import { computeInertiaSnapshot } from "@/lib/loyalty/inertia";
 import { getIsoWeekId, getIsoWeekStart } from "@/lib/weeklyGoals";
 import { repairWeeklyMissionAwardsForUser } from "@/lib/loyalty/serverAward";
+import { getDashboardEditionForAccountId } from "@/lib/dashboardEditionServer";
 
 type LedgerRow = {
   created_at: string;
@@ -18,8 +19,11 @@ export async function GET() {
 
   const weekStart = getIsoWeekStart();
   const weekId = getIsoWeekId();
+  const dashboardEdition = await getDashboardEditionForAccountId(activeUserId);
 
-  await repairWeeklyMissionAwardsForUser(activeUserId).catch(() => null);
+  await repairWeeklyMissionAwardsForUser(activeUserId, {
+    includePremiumMissions: dashboardEdition === "premium",
+  }).catch(() => null);
 
   const [states, ledgerRes] = await Promise.all([
     getChannelConnectionStates(supabase, activeUserId),

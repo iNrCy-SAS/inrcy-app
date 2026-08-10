@@ -30,6 +30,7 @@ const STANDARD_BLOCKED_API_PREFIXES = [
   "/api/factures",
   "/api/fideliser",
   "/api/inbox",
+  "/api/inrstats/mails",
   "/api/mails",
   "/api/propulser",
   "/api/templates",

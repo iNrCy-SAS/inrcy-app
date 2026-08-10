@@ -146,6 +146,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
   });
 
   const hydrateMailStatsFromCache = useCallback((targetPeriod: Period) => {
+    if (standardMode) return false;
     const cachedMail = readCachedMailStats(targetPeriod);
     if (!cachedMail) return false;
     setMailStats((prev) => {
@@ -153,7 +154,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
       return { ...cachedMail.stats, loading: false, error: undefined, syncedAt: cachedMail.syncedAt };
     });
     return true;
-  }, []);
+  }, [standardMode]);
 
   useBrowserLayoutEffect(() => {
     const cachedCube = parseCachedCubeSnapshot(readUiCacheValue(cubeSessionKey(period)));
@@ -243,10 +244,14 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
     setInrBadgeStats,
     setInrSearchStats,
     hydrateMailStatsFromCache,
+    includeMailStats: !standardMode,
   });
 
 
-  const mailOpportunity30 = useMemo(() => buildMailOpportunity30(mailStats), [mailStats]);
+  const mailOpportunity30 = useMemo(
+    () => (standardMode ? 0 : buildMailOpportunity30(mailStats)),
+    [mailStats, standardMode],
+  );
   const inrBadgeOpportunity30 = useMemo(() => Math.max(0, Math.round(safeNum(inrBadgeStats.opportunity30))), [inrBadgeStats.opportunity30]);
   const inrSearchOpportunity30 = useMemo(() => buildInrSearchOpportunity30(inrSearchStats), [inrSearchStats]);
 
@@ -254,16 +259,22 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
     ...summaryOpp.byCube,
     inrbadge: inrBadgeOpportunity30,
     inr_search: inrSearchOpportunity30,
-    mails: mailOpportunity30,
-  }), [inrBadgeOpportunity30, inrSearchOpportunity30, mailOpportunity30, summaryOpp.byCube]);
+    mails: standardMode ? 0 : mailOpportunity30,
+  }), [inrBadgeOpportunity30, inrSearchOpportunity30, mailOpportunity30, standardMode, summaryOpp.byCube]);
 
-  const centralPotential30 = Math.max(0, safeNum(summaryOpp.total) + mailOpportunity30 + inrBadgeOpportunity30 + inrSearchOpportunity30);
+  const centralPotential30 = Math.max(
+    0,
+    safeNum(summaryOpp.total) +
+      (standardMode ? 0 : mailOpportunity30) +
+      inrBadgeOpportunity30 +
+      inrSearchOpportunity30,
+  );
 
   const models: CubeModel[] = useMemo(() => {
     const baseModels: CubeModel[] = [
       buildInrBadgeCubeModel(period, inrBadgeStats, { appointmentsEnabled: !standardMode }),
       buildInrSearchCubeModel(period, inrSearchStats),
-      buildMailCubeModel(mailStats, period),
+      ...(!standardMode ? [buildMailCubeModel(mailStats, period)] : []),
       buildCubeModel("site_inrcy", "Site iNrCy", "Optimisé pour convertir", period, dataByCube.site_inrcy, centralByCube),
       buildCubeModel("site_web", "Site Web", "Votre image", period, dataByCube.site_web, centralByCube),
       buildCubeModel("gmb", "Google Business", "Visibilité locale", period, dataByCube.gmb, centralByCube),
@@ -313,12 +324,12 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
       facebook: estimate(centralByCube.facebook),
       instagram: estimate(centralByCube.instagram),
       linkedin: estimate(centralByCube.linkedin),
-      mails: estimate(centralByCube.mails),
+      mails: standardMode ? 0 : estimate(centralByCube.mails),
       tiktok: estimate(centralByCube.tiktok),
       youtube_shorts: estimate(centralByCube.youtube_shorts),
       pinterest: estimate(centralByCube.pinterest),
     };
-  }, [centralByCube, summaryProfile.avg_basket, summaryProfile.lead_conversion_rate]);
+  }, [centralByCube, standardMode, summaryProfile.avg_basket, summaryProfile.lead_conversion_rate]);
 
   const summaryActionItems = useMemo(() => buildSummaryActionItems({
     centralByCube,

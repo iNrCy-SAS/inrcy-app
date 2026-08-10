@@ -36,9 +36,18 @@ L’expérience Premium existante n’a pas été redessinée ni réduite. Elle 
 
 Dans le compte Standard, l’offre Premium est présentée avec un bouton de contact. Aucun passage autonome ni paiement Premium n’est autorisé pour le moment.
 
-Dans « Mon compte », le forfait actif et l’offre Premium sont affichés en premier, avant les informations et identifiants du professionnel.
+Dans « Mon compte », les informations et identifiants du professionnel restent affichés en premier. Le forfait actif et l’offre Premium sont présentés ensuite, sans passage autonome vers Premium.
 
 Lorsque Google Business n’est pas connecté dans Réputation, chaque avis fictif porte désormais le badge « EXEMPLE », le texte précise qu’aucun vrai avis n’est chargé et un bouton « Brancher Google » renforcé remplace toute ambiguïté. Ces marqueurs disparaissent dès que les vrais avis sont disponibles.
+
+## Cohérence complète de l’édition Standard
+
+- le petit bouton du cadre Booster ouvre de nouveau son bilan historique propre ; il s’appelle « Bilan » et ne redirige plus vers iNrStats ;
+- iNrStats Standard ne charge ni n’affiche les statistiques Mails, y compris dans les bilans produits par iNr’Agent ;
+- iNr’Send Standard ne donne accès qu’à la colonne Publications et refuse également le téléchargement direct d’un fichier appartenant à une rubrique Premium ;
+- Mon inertie conserve Booster comme seule mission active ; Propulser et Fidéliser restent visibles en aperçu grisé « Forfait Premium », dans le panneau, l’historique et son aide ;
+- le GPS adapte iNr’Agent, iNr’Send, Booster, iNrStats et les parcours de démarrage au forfait Standard ; les rubriques Propulser, Fidéliser, CRM, Agenda et Devis & Factures sont des aperçus grisés avec un contact Premium ;
+- les anciennes actions Premium éventuellement créées avant un passage en Standard sont neutralisées, et leurs gains ne peuvent plus être attribués par appel API direct.
 
 ## Base de données et déploiement
 
@@ -72,10 +81,10 @@ Cette variable est volontairement ignorée en production. Pour revoir Premium en
 - TypeScript : validé ;
 - ESLint sur tous les fichiers modifiés : validé ;
 - build Next.js de production et génération des 220 pages : validés ;
-- suite complète du dashboard, incluant l’édition Standard, les nouveaux inscrits, le dashboard actuel, les blocs inférieurs, Mon compte, les bulles, la reconnexion, Booster, iNr’Badge, la navigation, Réputation et les protections d’accès : 273/273 ;
-- suite spécifique iNr’Agent, incluant Publications, Statistiques et les restrictions Standard : 15/15.
+- suite complète du dashboard, incluant l’édition Standard, les nouveaux inscrits, le dashboard actuel, les blocs inférieurs, Mon compte, les bulles, la reconnexion, Booster, iNr’Badge, la navigation, Réputation et les protections d’accès : 277/277 ;
+- suites iNr’Agent et iNr’Send, incluant Publications, bilans, programmation et restrictions Standard : 87/87.
 
-Total automatisé : 288/288 tests validés.
+Total automatisé : 364/364 tests validés.
 
 ## Retour arrière
 

@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/requireUser";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { safeErrorMessage } from "@/lib/tsSafe";
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
+import { getDashboardEditionForAccountId } from "@/lib/dashboardEditionServer";
 
 export const runtime = "nodejs";
 
@@ -29,7 +30,7 @@ export async function GET(_req: Request, context: RouteContext) {
 
     const { data: file, error } = await supabaseAdmin
       .from("inrsend_history_files")
-      .select("id, user_id, file_name, mime_type, size_bytes, storage_bucket, storage_path")
+      .select("id, user_id, category, file_role, file_name, mime_type, size_bytes, storage_bucket, storage_path")
       .eq("id", fileId)
       .eq("user_id", activeUserId)
       .maybeSingle();
@@ -38,6 +39,14 @@ export async function GET(_req: Request, context: RouteContext) {
       return NextResponse.json({ error: getSimpleFrenchErrorMessage(error, "Impossible de télécharger ce fichier.") }, { status: 500 });
     }
     if (!file?.id) {
+      return NextResponse.json({ error: "Fichier introuvable." }, { status: 404 });
+    }
+
+    const dashboardEdition = await getDashboardEditionForAccountId(activeUserId);
+    const isPublicationFile =
+      String(file.category || "").trim().toLowerCase() === "publications" ||
+      String(file.file_role || "").trim().toLowerCase() === "publication_media";
+    if (dashboardEdition === "standard" && !isPublicationFile) {
       return NextResponse.json({ error: "Fichier introuvable." }, { status: 404 });
     }
 

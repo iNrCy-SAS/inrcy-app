@@ -273,9 +273,13 @@ export async function awardWeeklyFeatureUseForCampaign(args: CampaignLike & {
   });
 }
 
-export async function repairWeeklyMissionAwardsForUser(userId: string) {
+export async function repairWeeklyMissionAwardsForUser(
+  userId: string,
+  options: { includePremiumMissions?: boolean } = {},
+) {
   const weekStartIso = getIsoWeekStart().toISOString();
   const results: AwardResult[] = [];
+  const includePremiumMissions = options.includePremiumMissions !== false;
 
   try {
     const { data: publishEvents } = await supabaseAdmin
@@ -300,6 +304,8 @@ export async function repairWeeklyMissionAwardsForUser(userId: string) {
   } catch {
     // Réparation best-effort : ne jamais bloquer l'affichage.
   }
+
+  if (!includePremiumMissions) return results;
 
   try {
     const { data: propulserEvents } = await supabaseAdmin

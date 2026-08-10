@@ -4,7 +4,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import styles from "./gps.module.css";
 import ResponsiveActionButton from "../_components/ResponsiveActionButton";
-import { GPS_SECTIONS, type GpsArticle } from "./noticeContent";
+import { useDashboardEdition } from "../_components/DashboardEditionProvider";
+import type { GpsArticle } from "./noticeContent";
+import { getGpsSectionsForEdition, isGpsSectionPremiumOnly } from "./gpsEditionPolicy";
 
 function normalizeText(input: string) {
   return input
@@ -44,20 +46,27 @@ type SearchHit = {
   sectionId: string;
   sectionTitle: string;
   sectionEmoji: string;
+  premiumOnly: boolean;
   score: number;
 };
 
 export default function GpsClient() {
+  const dashboardEdition = useDashboardEdition();
+  const standardMode = dashboardEdition === "standard";
+  const gpsSections = useMemo(() => getGpsSectionsForEdition(dashboardEdition), [dashboardEdition]);
   const [query, setQuery] = useState("");
-  const [activeSection, setActiveSection] = useState<string>(GPS_SECTIONS[0]?.id ?? "");
-  const [activeArticleId, setActiveArticleId] = useState<string>(GPS_SECTIONS[0]?.articles[0]?.id ?? "");
+  const [activeSection, setActiveSection] = useState<string>(gpsSections[0]?.id ?? "");
+  const [activeArticleId, setActiveArticleId] = useState<string>(gpsSections[0]?.articles[0]?.id ?? "");
   const searchWrapRef = useRef<HTMLDivElement | null>(null);
   const sectionPickerRef = useRef<HTMLDivElement | null>(null);
   const [sectionMenuOpen, setSectionMenuOpen] = useState(false);
 
   const selectedSection = useMemo(
-    () => GPS_SECTIONS.find((section) => section.id === activeSection) ?? GPS_SECTIONS[0],
-    [activeSection]
+    () => gpsSections.find((section) => section.id === activeSection) ?? gpsSections[0],
+    [activeSection, gpsSections]
+  );
+  const selectedSectionPremium = Boolean(
+    standardMode && selectedSection && isGpsSectionPremiumOnly(selectedSection.id),
   );
 
   const selectedArticle =
@@ -102,7 +111,7 @@ export default function GpsClient() {
     if (!q) return [];
 
     const results: SearchHit[] = [];
-    for (const section of GPS_SECTIONS) {
+    for (const section of gpsSections) {
       for (const article of section.articles) {
         const title = normalizeText(article.title);
         const keywords = normalizeText(article.keywords.join(" "));
@@ -132,6 +141,7 @@ export default function GpsClient() {
             sectionId: section.id,
             sectionTitle: section.title,
             sectionEmoji: section.emoji,
+            premiumOnly: standardMode && isGpsSectionPremiumOnly(section.id),
             score,
           });
         }
@@ -139,10 +149,10 @@ export default function GpsClient() {
     }
 
     return results.sort((a, b) => b.score - a.score).slice(0, 10);
-  }, [query]);
+  }, [gpsSections, query, standardMode]);
 
   const openSection = (sectionId: string, articleId?: string) => {
-    const section = GPS_SECTIONS.find((item) => item.id === sectionId);
+    const section = gpsSections.find((item) => item.id === sectionId);
     setActiveSection(sectionId);
     setActiveArticleId(articleId ?? section?.articles[0]?.id ?? "");
     setQuery("");
@@ -186,7 +196,10 @@ export default function GpsClient() {
                     className={styles.searchResult}
                     onClick={() => openSection(hit.sectionId, hit.article.id)}
                   >
-                    <span className={styles.searchResultTitle}>{hit.sectionEmoji} {hit.sectionTitle}</span>
+                    <span className={styles.searchResultTitle}>
+                      {hit.sectionEmoji} {hit.sectionTitle}
+                      {hit.premiumOnly ? <span className={styles.premiumBadge}>Premium</span> : null}
+                    </span>
                     <span className={styles.searchResultMeta}>{hit.article.title}</span>
                   </button>
                 ))}
@@ -219,23 +232,26 @@ export default function GpsClient() {
                 <span aria-hidden="true">{selectedSection.emoji}</span>
                 <span>{selectedSection.title}</span>
               </span>
+              {selectedSectionPremium ? <span className={styles.premiumBadge}>Premium</span> : null}
               <span className={styles.mobilePickerArrow} aria-hidden="true">▾</span>
             </button>
 
             {sectionMenuOpen && (
               <div className={styles.mobilePickerMenu} role="menu" aria-label="Choisir une rubrique GPS">
-                {GPS_SECTIONS.map((section) => {
+                {gpsSections.map((section) => {
                   const isActive = selectedSection.id === section.id;
+                  const premiumOnly = standardMode && isGpsSectionPremiumOnly(section.id);
                   return (
                     <button
                       key={section.id}
                       type="button"
                       role="menuitem"
-                      className={`${styles.mobilePickerItem} ${isActive ? styles.mobilePickerItemActive : ""}`}
+                      className={`${styles.mobilePickerItem} ${isActive ? styles.mobilePickerItemActive : ""} ${premiumOnly ? styles.mobilePickerItemPremium : ""}`}
                       onClick={() => openSection(section.id)}
                     >
                       <span aria-hidden="true">{section.emoji}</span>
                       <span>{section.title}</span>
+                      {premiumOnly ? <span className={styles.premiumBadge}>Premium</span> : null}
                     </button>
                   );
                 })}
@@ -250,22 +266,24 @@ export default function GpsClient() {
               <div className={styles.sidebarTitle}>Rubriques</div>
               <div className={styles.sidebarHint}>Une seule ouverte à droite</div>
             </div>
-            <span className={styles.sidebarBadge}>{GPS_SECTIONS.length}</span>
+            <span className={styles.sidebarBadge}>{gpsSections.length}</span>
           </div>
 
           <nav className={styles.nav} aria-label="Navigation GPS">
-            {GPS_SECTIONS.map((section) => {
+            {gpsSections.map((section) => {
               const isActive = selectedSection?.id === section.id;
+              const premiumOnly = standardMode && isGpsSectionPremiumOnly(section.id);
               return (
                 <button
                   key={section.id}
                   type="button"
-                  className={`${styles.navSection} ${isActive ? styles.navSectionActive : ""}`}
+                  className={`${styles.navSection} ${isActive ? styles.navSectionActive : ""} ${premiumOnly ? styles.navSectionPremium : ""}`}
                   onClick={() => openSection(section.id)}
                   aria-current={isActive ? "page" : undefined}
                 >
                   <span className={styles.navEmoji}>{section.emoji}</span>
                   <span className={styles.navLabel}>{section.title}</span>
+                  {premiumOnly ? <span className={styles.premiumBadge}>Premium</span> : null}
                 </button>
               );
             })}
@@ -274,7 +292,7 @@ export default function GpsClient() {
 
         <section className={styles.content} aria-live="polite">
           {selectedSection && selectedArticle && (
-            <div className={styles.panel}>
+            <div className={`${styles.panel} ${selectedSectionPremium ? styles.panelPremium : ""}`}>
               <div className={styles.panelTop}>
                 <div className={styles.panelHeader}>
                   <div className={styles.panelIcon} aria-hidden="true">
@@ -287,6 +305,13 @@ export default function GpsClient() {
                   </div>
                   {selectedArticle.duration && <span className={styles.timeBadge}>⏱ {selectedArticle.duration}</span>}
                 </div>
+
+                {selectedSectionPremium ? (
+                  <div className={styles.premiumNotice} role="note">
+                    <span className={styles.premiumBadge}>Premium</span>
+                    <span>Cette rubrique présente un outil disponible avec le forfait Premium.</span>
+                  </div>
+                ) : null}
 
                 {selectedSection.articles.length > 1 && (
                   <div className={styles.articleTabs} role="tablist" aria-label={`Guides ${selectedSection.title}`}>
@@ -357,7 +382,17 @@ export default function GpsClient() {
                 </article>
               </div>
 
-              {selectedArticle.links && selectedArticle.links.length > 0 && (
+              {selectedSectionPremium ? (
+                <div className={styles.linksRow}>
+                  <Link
+                    href="/dashboard?panel=contact&panelSource=gps"
+                    className={`${styles.primaryLink} ${styles.premiumLink}`}
+                    onClick={() => rememberPanelLink("/dashboard?panel=contact&panelSource=gps")}
+                  >
+                    Nous contacter pour Premium <span aria-hidden="true">→</span>
+                  </Link>
+                </div>
+              ) : selectedArticle.links && selectedArticle.links.length > 0 ? (
                 <div className={styles.linksRow}>
                   {selectedArticle.links.slice(0, 4).map((link) => (
                     <Link
@@ -370,7 +405,7 @@ export default function GpsClient() {
                     </Link>
                   ))}
                 </div>
-              )}
+              ) : null}
             </div>
           )}
         </section>

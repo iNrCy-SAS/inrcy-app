@@ -632,6 +632,14 @@ export default function AgentClient() {
       visibleAutomations.find((automation) => automation.key === settingsKey) ?? null,
     [settingsKey, visibleAutomations],
   );
+  const settingsAvailableThemes = useMemo(
+    () =>
+      settingsAutomation?.availableThemes.filter(
+        (theme) =>
+          !(standardMode && settingsAutomation.key === "stats" && theme === "Mails"),
+      ) ?? [],
+    [settingsAutomation, standardMode],
+  );
 
   const selectedHeaderTool = useMemo(
     () => headerToolLinkForAutomation(selected.key),
@@ -795,8 +803,10 @@ export default function AgentClient() {
       : selectedConfigChannels;
   const selectedStatsRubriques =
     selected.key === "stats" && loadState !== "loading"
-      ? selectedConfig.themes.filter((theme) =>
-          Boolean(statsRubriqueOptions[theme]),
+      ? selectedConfig.themes.filter(
+          (theme) =>
+            Boolean(statsRubriqueOptions[theme]) &&
+            !(standardMode && theme === "Mails"),
         )
       : [];
   const placeholderPreviewChannels = !selectedPreparedAction
@@ -6383,7 +6393,7 @@ export default function AgentClient() {
                       : "Thèmes"}
                   </span>
                   <div className={styles.choiceGrid}>
-                    {settingsAutomation.availableThemes.map((theme) => {
+                    {settingsAvailableThemes.map((theme) => {
                       const checked = settingsConfig.themes.includes(theme);
                       return (
                         <button

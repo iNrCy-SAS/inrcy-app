@@ -1,8 +1,10 @@
 "use client";
 
 import HelpModal from "./HelpModal";
+import type { DashboardEdition } from "@/lib/dashboardEdition";
 
 type DashboardHelpModalsProps = {
+  edition?: DashboardEdition;
   helpGeneratorOpen: boolean;
   helpCanauxOpen: boolean;
   helpSiteInrcyOpen: boolean;
@@ -19,21 +21,29 @@ type DashboardHelpModalsProps = {
   onCloseInstagram: () => void;
 };
 
-const INERTIA_ROWS = [
+type InertiaHelpRow = {
+  a: string;
+  g: string;
+  f: string;
+  premiumOnly?: boolean;
+};
+
+const INERTIA_ROWS: InertiaHelpRow[] = [
   { a: "Ouverture du compte", g: "+50 UI", f: "1 fois" },
   { a: "Compléter Mon profil", g: "+100 UI", f: "1 fois" },
   { a: "Compléter Mon activité", g: "+100 UI", f: "1 fois" },
   { a: "Utiliser Booster", g: "+10 UI", f: "1 publication / semaine" },
-  { a: "Utiliser Propulser", g: "+10 UI", f: "1 action / semaine" },
-  { a: "Utiliser Fidéliser", g: "+10 UI", f: "1 action / semaine" },
+  { a: "Utiliser Propulser", g: "+10 UI", f: "1 action / semaine", premiumOnly: true },
+  { a: "Utiliser Fidéliser", g: "+10 UI", f: "1 action / semaine", premiumOnly: true },
   {
     a: "Ancienneté",
     g: "+50 UI",
     f: "1re fois au 30e jour, puis tous les 30 jours",
   },
-] as const;
+];
 
 export default function DashboardHelpModals({
+  edition = "premium",
   helpGeneratorOpen,
   helpCanauxOpen,
   helpSiteInrcyOpen,
@@ -49,6 +59,8 @@ export default function DashboardHelpModals({
   onCloseFacebook,
   onCloseInstagram,
 }: DashboardHelpModalsProps) {
+  const standardMode = edition === "standard";
+
   return (
     <>
       <HelpModal
@@ -84,10 +96,20 @@ export default function DashboardHelpModals({
                 ⚡ Unités d’Inertie
               </div>
               <div style={{ opacity: 0.96, lineHeight: 1.75, fontSize: 14.5 }}>
-                Points générés par votre activité et votre communication sur
-                iNrCy (Booster, Propulser, Fidéliser, publications et actions
-                hebdo). Plus votre générateur est actif, plus vous accumulez
-                d’Unités d’Inertie utilisables dans la Boutique iNrCy.
+                {standardMode ? (
+                  <>
+                    Points générés par votre activité et vos publications avec
+                    Booster. Plus vous publiez régulièrement, plus vous accumulez
+                    d’Unités d’Inertie utilisables dans la Boutique iNrCy.
+                  </>
+                ) : (
+                  <>
+                    Points générés par votre activité et votre communication sur
+                    iNrCy (Booster, Propulser, Fidéliser, publications et actions
+                    hebdo). Plus votre générateur est actif, plus vous accumulez
+                    d’Unités d’Inertie utilisables dans la Boutique iNrCy.
+                  </>
+                )}
               </div>
             </div>
 
@@ -126,11 +148,22 @@ export default function DashboardHelpModals({
                 🚀 Opportunités activables
               </div>
               <div style={{ opacity: 0.96, lineHeight: 1.75, fontSize: 14.5 }}>
-                Contacts supplémentaires pouvant être générés grâce aux actions
-                recommandées dans iNrCy : publier avec Booster, développer avec
-                Propulser ou entretenir la relation avec Fidéliser. Chaque
-                opportunité activable représente une nouvelle demande
-                potentielle à capter via vos canaux de communication.
+                {standardMode ? (
+                  <>
+                    Contacts supplémentaires pouvant être générés en publiant
+                    régulièrement avec Booster et en maintenant vos canaux actifs.
+                    Chaque opportunité représente une nouvelle demande potentielle
+                    à capter via votre communication multicanale.
+                  </>
+                ) : (
+                  <>
+                    Contacts supplémentaires pouvant être générés grâce aux actions
+                    recommandées dans iNrCy : publier avec Booster, développer avec
+                    Propulser ou entretenir la relation avec Fidéliser. Chaque
+                    opportunité activable représente une nouvelle demande
+                    potentielle à capter via vos canaux de communication.
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -213,9 +246,9 @@ export default function DashboardHelpModals({
                   fontSize: 14,
                 }}
               >
-                Ils diffusent votre présence, vos publications, vos campagnes,
-                votre carte de visite digitale ou vos contenus courts sur les
-                supports utiles à votre activité.
+                {standardMode
+                  ? "Ils diffusent votre présence, vos publications, votre carte de visite digitale ou vos contenus courts sur les supports utiles à votre activité."
+                  : "Ils diffusent votre présence, vos publications, vos campagnes, votre carte de visite digitale ou vos contenus courts sur les supports utiles à votre activité."}
               </p>
               <div
                 style={{
@@ -229,7 +262,9 @@ export default function DashboardHelpModals({
                     icon: "🪪",
                     name: "iNr'Badge",
                     color: "#b7ff8a",
-                    text: "Diffuse votre carte de visite digitale en QR Code. Il donne accès à vos coordonnées, vos liens, vos demandes de contact et vos prises de rendez-vous.",
+                    text: standardMode
+                      ? "Diffuse votre carte de visite digitale en QR Code. Il donne accès à vos coordonnées, vos liens et vos demandes de contact."
+                      : "Diffuse votre carte de visite digitale en QR Code. Il donne accès à vos coordonnées, vos liens, vos demandes de contact et vos prises de rendez-vous.",
                   },
                   {
                     icon: "🌐",
@@ -284,9 +319,19 @@ export default function DashboardHelpModals({
                     name: "Mails",
                     color: "#9ee7ff",
                     text: "Diffuse vos campagnes, fidélisations et communications CRM depuis les boîtes mail connectées.",
+                    premiumOnly: true,
                   },
                 ].map((channel) => (
-                  <div key={channel.name} style={{ minWidth: 0, boxSizing: "border-box" }}>
+                  <div
+                    key={channel.name}
+                    style={{
+                      minWidth: 0,
+                      boxSizing: "border-box",
+                      opacity: standardMode && channel.premiumOnly ? 0.52 : 1,
+                      filter:
+                        standardMode && channel.premiumOnly ? "grayscale(0.75)" : undefined,
+                    }}
+                  >
                     <div
                       style={{
                         fontWeight: 800,
@@ -295,6 +340,20 @@ export default function DashboardHelpModals({
                       }}
                     >
                       {channel.icon} {channel.name}
+                      {standardMode && channel.premiumOnly ? (
+                        <span
+                          style={{
+                            marginLeft: 8,
+                            padding: "2px 7px",
+                            borderRadius: 999,
+                            border: "1px solid rgba(255,255,255,0.2)",
+                            fontSize: 10,
+                            color: "#fff",
+                          }}
+                        >
+                          Forfait Premium
+                        </span>
+                      ) : null}
                     </div>
                     <div
                       style={{ opacity: 0.96, lineHeight: 1.62, fontSize: 14 }}
@@ -320,9 +379,9 @@ export default function DashboardHelpModals({
               opacity: 0.95,
             }}
           >
-            Plus vos canaux de diffusion sont actifs, connectés et alimentés
-            par Booster, Propulser ou Fidéliser, plus le générateur augmente sa
-            capacité à attirer, analyser et convertir de nouveaux contacts.
+            {standardMode
+              ? "Plus vos canaux de diffusion sont actifs, connectés et alimentés par Booster, plus le générateur augmente sa capacité à attirer et analyser de nouveaux contacts."
+              : "Plus vos canaux de diffusion sont actifs, connectés et alimentés par Booster, Propulser ou Fidéliser, plus le générateur augmente sa capacité à attirer, analyser et convertir de nouveaux contacts."}
           </div>
         </div>
         </div>
@@ -670,6 +729,12 @@ export default function DashboardHelpModals({
           d’Inertie).
         </p>
 
+        {edition === "standard" ? (
+          <p style={{ marginTop: -4, color: "rgba(255,255,255,0.66)", fontSize: 13 }}>
+            Les actions grisées sont disponibles avec le forfait Premium.
+          </p>
+        ) : null}
+
         <div style={{ overflowX: "auto" }}>
           <table
             style={{
@@ -710,15 +775,43 @@ export default function DashboardHelpModals({
               </tr>
             </thead>
             <tbody>
-              {INERTIA_ROWS.map((row) => (
-                <tr key={row.a}>
+              {INERTIA_ROWS.map((row) => {
+                const premiumLocked = edition === "standard" && row.premiumOnly;
+                return (
+                  <tr
+                    key={row.a}
+                    aria-disabled={premiumLocked || undefined}
+                    style={{
+                      opacity: premiumLocked ? 0.48 : 1,
+                      filter: premiumLocked ? "grayscale(0.75)" : undefined,
+                      background: premiumLocked ? "rgba(255,255,255,0.018)" : undefined,
+                    }}
+                  >
                   <td
                     style={{
                       padding: "10px 10px",
                       borderBottom: "1px solid rgba(255,255,255,0.06)",
                     }}
                   >
-                    {row.a}
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <span>{row.a}</span>
+                      {premiumLocked ? (
+                        <span
+                          style={{
+                            padding: "3px 7px",
+                            borderRadius: 999,
+                            border: "1px solid rgba(192,132,252,0.34)",
+                            background: "rgba(126,34,206,0.18)",
+                            color: "rgba(233,213,255,0.92)",
+                            fontSize: 10,
+                            fontWeight: 850,
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          Forfait Premium
+                        </span>
+                      ) : null}
+                    </span>
                   </td>
                   <td
                     style={{
@@ -736,8 +829,9 @@ export default function DashboardHelpModals({
                   >
                     {row.f}
                   </td>
-                </tr>
-              ))}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

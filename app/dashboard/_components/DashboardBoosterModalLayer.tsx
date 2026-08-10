@@ -369,7 +369,7 @@ export default function DashboardBoosterModalLayer({
         <div
           role="dialog"
           aria-modal="true"
-          aria-label="Statistiques Booster"
+          aria-label="Bilan Booster"
           className={styles.fullscreenModalOverlay}
           onMouseDown={onClose}
           style={{
@@ -409,7 +409,7 @@ export default function DashboardBoosterModalLayer({
             >
               <span className={styles.ghostBtn} style={{ pointerEvents: "none", borderRadius: 999, padding: "7px 12px" }}>Booster</span>
               <div style={{ textAlign: "center" }}>
-                <span className={styles.ghostBtn} style={{ pointerEvents: "none", borderRadius: 999, padding: "7px 12px" }}>Statistiques Booster</span>
+                <span className={styles.ghostBtn} style={{ pointerEvents: "none", borderRadius: 999, padding: "7px 12px" }}>Bilan Booster</span>
               </div>
               <button type="button" className={styles.ghostBtn} onClick={onClose} style={{ borderRadius: 999, padding: "7px 12px" }}>
                 Fermer

@@ -3894,6 +3894,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
       </SettingsDrawer>
 
       <DashboardHelpModals
+        edition={dashboardEdition}
         helpGeneratorOpen={helpGeneratorOpen}
         helpCanauxOpen={helpCanauxOpen}
         helpSiteInrcyOpen={helpSiteInrcyOpen}

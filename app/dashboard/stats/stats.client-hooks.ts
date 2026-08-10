@@ -159,6 +159,7 @@ type UseStatsDataControllerArgs = {
   setInrBadgeStats: StateSetter<InrBadgeStatsSnapshot>;
   setInrSearchStats: StateSetter<InrSearchStatsSnapshot>;
   hydrateMailStatsFromCache: (targetPeriod: Period) => boolean;
+  includeMailStats: boolean;
 };
 
 export function useStatsDataController({
@@ -185,6 +186,7 @@ export function useStatsDataController({
   setInrBadgeStats,
   setInrSearchStats,
   hydrateMailStatsFromCache,
+  includeMailStats,
 }: UseStatsDataControllerArgs) {
   const inrSearchStatsRequestRef = useRef<Promise<void> | null>(null);
 
@@ -598,6 +600,7 @@ export function useStatsDataController({
   }, []);
 
   const refreshMailStats = useCallback(async () => {
+    if (!includeMailStats) return;
     setMailStats((prev) => ({ ...prev, loading: true, error: undefined }));
     try {
       const res = await fetch("/api/inrstats/mails", { cache: "no-store", credentials: "include" });
@@ -618,9 +621,10 @@ export function useStatsDataController({
         error: getSimpleFrenchErrorMessage(error, "Impossible de charger les données Mails pour le moment."),
       }));
     }
-  }, [period]);
+  }, [includeMailStats, period, setMailStats]);
 
   useEffect(() => {
+    if (!includeMailStats) return;
     void refreshMailStats();
     const handler = () => void refreshMailStats();
     window.addEventListener("focus", handler);
@@ -629,7 +633,7 @@ export function useStatsDataController({
       window.removeEventListener("focus", handler);
       window.removeEventListener("inrsend:mail-accounts-updated", handler);
     };
-  }, [refreshMailStats, refreshNonce]);
+  }, [includeMailStats, refreshMailStats, refreshNonce]);
 
   useEffect(() => {
     void refreshInrBadgeStats();
@@ -680,7 +684,7 @@ export function useStatsDataController({
 
 
   const hydrateFromSessionCache = useCallback((targetPeriod: Period) => {
-    hydrateMailStatsFromCache(targetPeriod);
+    if (includeMailStats) hydrateMailStatsFromCache(targetPeriod);
     const lastChannelSyncAt = getStatsLastChannelSyncAt();
     const cachedCube = parseCachedCubeSnapshot(readUiCacheValue(cubeSessionKey(targetPeriod)));
     const cachedSummary = parseCachedSummarySnapshot(readUiCacheValue(summarySessionKey(targetPeriod)));
@@ -744,7 +748,7 @@ export function useStatsDataController({
       pinterest: safeNum(estimatedByCubePartial.pinterest),
     });
     return true;
-  }, [hydrateMailStatsFromCache]);
+  }, [hydrateMailStatsFromCache, includeMailStats]);
 
 
   const fetchBulkStats = async (period: Period, forceFresh = false): Promise<BulkFetchResult> => {

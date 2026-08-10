@@ -4,10 +4,12 @@ import { resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
 
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
+import type { DashboardEdition } from "@/lib/dashboardEdition";
 import type { InertiaSnapshot } from "@/lib/loyalty/inertia";
 
 type Props = {
   mode?: "drawer" | "page";
+  edition?: DashboardEdition;
   snapshot: InertiaSnapshot;
   onOpenBoutique?: () => void;
 };
@@ -20,7 +22,13 @@ type LoyaltyEvent = {
   amount: number;
 };
 
-export default function InertiaContent({ snapshot, onOpenBoutique }: Props) {
+const PREMIUM_INERTIA_ACTION_KEYS = new Set([
+  "weekly_feature_use",
+  "weekly_propulser_use",
+  "weekly_fideliser_use",
+]);
+
+export default function InertiaContent({ edition = "premium", snapshot, onOpenBoutique }: Props) {
   const [uiBalance, setUiBalance] = useState<number>(0);
   const [events, setEvents] = useState<LoyaltyEvent[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -114,15 +122,17 @@ export default function InertiaContent({ snapshot, onOpenBoutique }: Props) {
         title: "Utiliser Propulser",
         subtitle: "+10 UI — 1 action / semaine",
         done: didPropulser,
+        premiumOnly: edition === "standard",
       },
       {
         key: "weekly_fideliser_use",
         title: "Utiliser Fidéliser",
         subtitle: "+10 UI — 1 action / semaine",
         done: didFideliser,
+        premiumOnly: edition === "standard",
       },
     ];
-  }, [events, weekStart]);
+  }, [edition, events, weekStart]);
 
   const labelFromAction = useMemo(() => {
     return {
@@ -277,36 +287,71 @@ export default function InertiaContent({ snapshot, onOpenBoutique }: Props) {
           Boosts à faire cette semaine
         </div>
 
+        {edition === "standard" ? (
+          <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 12.5, margin: "-2px 0 10px" }}>
+            Booster est votre mission active. Les autres missions sont présentées à titre d’aperçu Premium.
+          </div>
+        ) : null}
+
         <div style={{ display: "grid", gap: 8 }}>
-          {boosts.map((b) => (
-            <div
-              key={b.key}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 12,
-                padding: "10px 12px",
-                borderRadius: 14,
-                border: "1px solid rgba(255,255,255,0.10)",
-                background: b.done ? "rgba(34,197,94,0.08)" : "rgba(255,255,255,0.03)",
-              }}
-            >
-              <div style={{ color: "rgba(255,255,255,0.86)" }}>
-                <div style={{ fontWeight: 750 }}>{b.title}</div>
-                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.55)", marginTop: 2 }}>{b.subtitle}</div>
-              </div>
+          {boosts.map((b) => {
+            const premiumLocked = Boolean("premiumOnly" in b && b.premiumOnly);
+            return (
               <div
+                key={b.key}
+                aria-disabled={premiumLocked || undefined}
                 style={{
-                  fontWeight: 900,
-                  color: b.done ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.65)",
-                  whiteSpace: "nowrap",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  padding: "10px 12px",
+                  borderRadius: 14,
+                  border: premiumLocked
+                    ? "1px solid rgba(168,85,247,0.16)"
+                    : "1px solid rgba(255,255,255,0.10)",
+                  background: premiumLocked
+                    ? "rgba(255,255,255,0.018)"
+                    : b.done
+                      ? "rgba(34,197,94,0.08)"
+                      : "rgba(255,255,255,0.03)",
+                  opacity: premiumLocked ? 0.58 : 1,
+                  filter: premiumLocked ? "grayscale(0.72)" : undefined,
                 }}
               >
-                {b.done ? "✅ Fait" : "À faire"}
+                <div style={{ color: "rgba(255,255,255,0.86)" }}>
+                  <div style={{ fontWeight: 750 }}>{b.title}</div>
+                  <div style={{ fontSize: 12, color: "rgba(255,255,255,0.55)", marginTop: 2 }}>{b.subtitle}</div>
+                </div>
+                {premiumLocked ? (
+                  <span
+                    style={{
+                      padding: "5px 9px",
+                      borderRadius: 999,
+                      border: "1px solid rgba(192,132,252,0.34)",
+                      background: "rgba(126,34,206,0.18)",
+                      color: "rgba(233,213,255,0.92)",
+                      fontSize: 11,
+                      fontWeight: 850,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    Forfait Premium
+                  </span>
+                ) : (
+                  <div
+                    style={{
+                      fontWeight: 900,
+                      color: b.done ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.65)",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {b.done ? "✅ Fait" : "À faire"}
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <div style={{ marginTop: 10, color: "rgba(255,255,255,0.55)", fontSize: 12 }}>
@@ -338,30 +383,51 @@ export default function InertiaContent({ snapshot, onOpenBoutique }: Props) {
           </div>
         ) : (
           <div style={{ display: "grid", gap: 8 }}>
-            {events.map((e) => (
-              <div
-                key={e.id}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: 10,
-                  padding: "10px 12px",
-                  borderRadius: 14,
-                  border: "1px solid rgba(255,255,255,0.10)",
-                  background: "rgba(255,255,255,0.03)",
-                }}
-              >
-                <div style={{ color: "rgba(255,255,255,0.82)" }}>
-                  <div style={{ fontWeight: 650 }}>{e.label ?? labelFromAction[e.action_key] ?? "Inertie"}</div>
-                  <div style={{ fontSize: 12, color: "rgba(255,255,255,0.55)" }}>
-                    {new Date(e.created_at).toLocaleString()}
+            {events.map((e) => {
+              const premiumHistory =
+                edition === "standard" && PREMIUM_INERTIA_ACTION_KEYS.has(e.action_key);
+              return (
+                <div
+                  key={e.id}
+                  aria-disabled={premiumHistory || undefined}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 10,
+                    padding: "10px 12px",
+                    borderRadius: 14,
+                    border: "1px solid rgba(255,255,255,0.10)",
+                    background: "rgba(255,255,255,0.03)",
+                    opacity: premiumHistory ? 0.5 : 1,
+                    filter: premiumHistory ? "grayscale(0.7)" : undefined,
+                  }}
+                >
+                  <div style={{ color: "rgba(255,255,255,0.82)" }}>
+                    <div style={{ fontWeight: 650 }}>
+                      {e.label ?? labelFromAction[e.action_key] ?? "Inertie"}
+                      {premiumHistory ? (
+                        <span
+                          style={{
+                            marginLeft: 8,
+                            fontSize: 10,
+                            fontWeight: 850,
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          Forfait Premium
+                        </span>
+                      ) : null}
+                    </div>
+                    <div style={{ fontSize: 12, color: "rgba(255,255,255,0.55)" }}>
+                      {new Date(e.created_at).toLocaleString()}
+                    </div>
+                  </div>
+                  <div style={{ color: "rgba(255,255,255,0.88)", fontWeight: 850 }}>
+                    {e.amount > 0 ? `+${e.amount}` : e.amount}
                   </div>
                 </div>
-                <div style={{ color: "rgba(255,255,255,0.88)", fontWeight: 850 }}>
-                  {e.amount > 0 ? `+${e.amount}` : e.amount}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

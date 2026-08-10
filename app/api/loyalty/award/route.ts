@@ -3,6 +3,10 @@ import { awardInertiaActionForUser, type InertiaActionKey } from "@/lib/loyalty/
 import { resolveActiveInrcyAccountId } from "@/lib/multicompte/server";
 import { createSupabaseServer } from "@/lib/supabaseServer";
 import { getIsoWeekId } from "@/lib/weeklyGoals";
+import {
+  getDashboardEditionForAccountId,
+  premiumRequiredApiResponse,
+} from "@/lib/dashboardEditionServer";
 
 type AwardBody = {
   actionKey: string;
@@ -22,6 +26,12 @@ const ALLOWED_ACTION_KEYS = new Set<InertiaActionKey>([
   "weekly_propulser_use",
   "weekly_fideliser_use",
   "monthly_seniority",
+]);
+
+const PREMIUM_ONLY_ACTION_KEYS = new Set<InertiaActionKey>([
+  "weekly_feature_use",
+  "weekly_propulser_use",
+  "weekly_fideliser_use",
 ]);
 
 const DEFAULT_LABELS: Record<InertiaActionKey, string> = {
@@ -80,6 +90,10 @@ export async function POST(req: Request) {
   }
 
   const activeUserId = await resolveActiveInrcyAccountId(supabase, userData.user.id);
+  const dashboardEdition = await getDashboardEditionForAccountId(activeUserId);
+  if (dashboardEdition === "standard" && PREMIUM_ONLY_ACTION_KEYS.has(actionKey)) {
+    return premiumRequiredApiResponse();
+  }
   const sourceId = String(body.sourceId || defaultSourceId(actionKey)).trim();
   const label = String(body.label || DEFAULT_LABELS[actionKey]).trim();
   const result = await awardInertiaActionForUser({
