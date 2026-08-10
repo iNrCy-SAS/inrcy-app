@@ -29,6 +29,7 @@ import { isDashboardRequiredSetupProtectedDestination } from "@/lib/dashboardReq
 import { requestDashboardToolWarmup } from "./DashboardToolWarmup";
 import { useDelayedPendingAction } from "@/hooks/useDelayedPendingAction";
 import { useInrAgentPendingCount } from "../_hooks/useInrAgentPendingCount";
+import { useDashboardEdition } from "./DashboardEditionProvider";
 
 
 type DashboardPanelName =
@@ -47,6 +48,11 @@ type DashboardPanelName =
   | "notifications";
 
 const MOBILE_QUERY = "(max-width: 1100px)";
+const STANDARD_MOBILE_SHORTCUTS: readonly MobileShortcutId[] = [
+  "inrsend",
+  "stats",
+  "reputation",
+];
 
 
 type SearchParamsReader = {
@@ -146,6 +152,8 @@ function ResponsiveBottomNavMobile() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { requestNavigation } = useDashboardUnsavedNavigation();
+  const dashboardEdition = useDashboardEdition();
+  const standardMode = dashboardEdition === "standard";
   const t = useDashboardI18n();
   const { language, setLanguage } = useDashboardLanguage();
   const labels = useMemo(() => compactLabels(t.locale), [t.locale]);
@@ -175,9 +183,19 @@ function ResponsiveBottomNavMobile() {
   const [cameraCaptureOpen, setCameraCaptureOpen] = useState(false);
   const [explicitImmersiveModeOpen, setExplicitImmersiveModeOpen] = useState(false);
   const [publishModalOpen, setPublishModalOpen] = useState(false);
-  const pendingInrAgentCount = useInrAgentPendingCount();
+  const pendingInrAgentCount = useInrAgentPendingCount(!standardMode);
   const [shortcuts, setShortcuts] = useState<MobileShortcutId[]>([...DEFAULT_MOBILE_SHORTCUTS]);
   const [isAdmin, setIsAdmin] = useState(false);
+  const displayedShortcuts = useMemo(
+    () => standardMode ? [...STANDARD_MOBILE_SHORTCUTS] : shortcuts,
+    [shortcuts, standardMode],
+  );
+  const availableShortcutOptions = useMemo(
+    () => standardMode
+      ? MOBILE_SHORTCUT_OPTIONS.filter((option) => STANDARD_MOBILE_SHORTCUTS.includes(option.id))
+      : MOBILE_SHORTCUT_OPTIONS,
+    [standardMode],
+  );
 
   useEffect(() => {
     const syncViewport = () => setIsLandscapeViewport(window.innerWidth > window.innerHeight);
@@ -474,7 +492,7 @@ function ResponsiveBottomNavMobile() {
   return (
     <>
       <div className={styles.shortcutPreloader} aria-hidden="true">
-        {MOBILE_SHORTCUT_OPTIONS.map((option) => option.iconSrc).filter((src): src is string => Boolean(src)).map((src) => (
+        {availableShortcutOptions.map((option) => option.iconSrc).filter((src): src is string => Boolean(src)).map((src) => (
           <img key={src} src={src} alt="" loading="eager" decoding="async" />
         ))}
       </div>
@@ -495,7 +513,7 @@ function ResponsiveBottomNavMobile() {
             <section className={styles.menuSection} aria-label={labels.shortcuts}>
               <div className={styles.menuSectionTitle}>{labels.shortcuts}</div>
               <div className={styles.shortcutGrid}>
-                {shortcuts.map((id) => {
+                {displayedShortcuts.map((id) => {
                   const option = getMobileShortcutOption(id);
                   const label = getMobileShortcutLabel(id, t.locale);
                   const shortcutLocked = requiredSetupLocked && isDashboardRequiredSetupProtectedDestination(option.href);

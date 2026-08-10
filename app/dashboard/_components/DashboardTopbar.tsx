@@ -134,6 +134,7 @@ type DashboardTopbarProps = {
   onNavigateCta: (ctaUrl: string) => void;
   openPanel: (panel: DashboardPanelName) => void;
   inrAgentEnabled: boolean;
+  showInrAgent?: boolean;
   requiredSetupLockVisible: boolean;
   isAdmin?: boolean;
   userEmail: string | null;
@@ -163,6 +164,7 @@ export default function DashboardTopbar({
   onNavigateCta,
   openPanel,
   inrAgentEnabled,
+  showInrAgent = true,
   requiredSetupLockVisible,
   isAdmin = false,
   userEmail,
@@ -176,7 +178,7 @@ export default function DashboardTopbar({
 }: DashboardTopbarProps) {
   const router = useRouter();
   const t = useDashboardI18n();
-  const pendingInrAgentCount = useInrAgentPendingCount();
+  const pendingInrAgentCount = useInrAgentPendingCount(showInrAgent && inrAgentEnabled);
   const inrAgentSetupLocked = inrAgentEnabled && requiredSetupLockVisible;
 
   const pendingInrAgentLabel = pendingInrAgentCount > 99 ? "99+" : String(pendingInrAgentCount);
@@ -187,14 +189,14 @@ export default function DashboardTopbar({
     : t.topbar.inrAgentDisabled;
 
   useEffect(() => {
-    if (!inrAgentEnabled) return;
+    if (!showInrAgent || !inrAgentEnabled) return;
 
     router.prefetch(INR_AGENT_ROUTE);
     preloadInrAgentImages();
-  }, [inrAgentEnabled, router]);
+  }, [inrAgentEnabled, router, showInrAgent]);
 
   const warmInrAgent = () => {
-    if (!inrAgentEnabled) return;
+    if (!showInrAgent || !inrAgentEnabled) return;
 
     router.prefetch(INR_AGENT_ROUTE);
     preloadInrAgentImages();
@@ -262,48 +264,50 @@ export default function DashboardTopbar({
           />
         </div>
 
-        <button
-          type="button"
-          className={`${styles.ghostBtn} ${styles.agentTopbarBtn} ${!inrAgentEnabled ? styles.agentTopbarBtnDisabled : ""}`}
-          onPointerEnter={warmInrAgent}
-          onFocus={warmInrAgent}
-          onClick={() => {
-            if (!inrAgentEnabled) return;
-            warmInrAgent();
-            onNavigateCta(INR_AGENT_ROUTE);
-          }}
-          aria-label={agentTitle}
-          title={agentTitle}
-          disabled={!inrAgentEnabled}
-          aria-disabled={!inrAgentEnabled}
-        >
-          <span className={styles.agentTopbarIconSlot} aria-hidden>
-            <img
-              className={styles.agentTopbarIcon}
-              src="/icons/inr-agent-header.png"
-              alt=""
-              width={29}
-              height={29}
-              loading="eager"
-              decoding="sync"
-              fetchPriority="high"
-              aria-hidden
-            />
-          </span>
-          iNr'Agent
-          {inrAgentSetupLocked ? (
-            <RequiredSetupLock
-              message={t.modules.requiredSetupLocked}
-              className={styles.requiredSetupLockTopbar}
-              compact
-            />
-          ) : null}
-          {inrAgentEnabled && pendingInrAgentCount > 0 && (
-            <span className={styles.agentTopbarBadge} aria-hidden="true">
-              {pendingInrAgentLabel}
+        {showInrAgent ? (
+          <button
+            type="button"
+            className={`${styles.ghostBtn} ${styles.agentTopbarBtn} ${!inrAgentEnabled ? styles.agentTopbarBtnDisabled : ""}`}
+            onPointerEnter={warmInrAgent}
+            onFocus={warmInrAgent}
+            onClick={() => {
+              if (!inrAgentEnabled) return;
+              warmInrAgent();
+              onNavigateCta(INR_AGENT_ROUTE);
+            }}
+            aria-label={agentTitle}
+            title={agentTitle}
+            disabled={!inrAgentEnabled}
+            aria-disabled={!inrAgentEnabled}
+          >
+            <span className={styles.agentTopbarIconSlot} aria-hidden>
+              <img
+                className={styles.agentTopbarIcon}
+                src="/icons/inr-agent-header.png"
+                alt=""
+                width={29}
+                height={29}
+                loading="eager"
+                decoding="sync"
+                fetchPriority="high"
+                aria-hidden
+              />
             </span>
-          )}
-        </button>
+            iNr'Agent
+            {inrAgentSetupLocked ? (
+              <RequiredSetupLock
+                message={t.modules.requiredSetupLocked}
+                className={styles.requiredSetupLockTopbar}
+                compact
+              />
+            ) : null}
+            {inrAgentEnabled && pendingInrAgentCount > 0 && (
+              <span className={styles.agentTopbarBadge} aria-hidden="true">
+                {pendingInrAgentLabel}
+              </span>
+            )}
+          </button>
+        ) : null}
 
         <button
           type="button"

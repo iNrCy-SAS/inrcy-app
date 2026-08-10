@@ -24,12 +24,16 @@ import { DashboardRequiredSetupBypassProvider } from "./_components/DashboardReq
 import { isRequiredSetupE2EBypassEnabled } from "@/lib/e2eServerFlags";
 import { DASHBOARD_BUBBLE_ICON_PRELOADS } from "./dashboard.constants";
 import DashboardPersistentImageCache from "./_components/DashboardPersistentImageCache";
+import DashboardEditionProvider from "./_components/DashboardEditionProvider";
+import { resolveDashboardEdition } from "@/lib/dashboardEdition";
 
 
 type SubscriptionGateRow = {
   status?: string | null;
   trial_end_at?: string | null;
   start_date?: string | null;
+  app_edition?: string | null;
+  plan?: string | null;
 };
 
 const TRIAL_DURATION_DAYS = 21;
@@ -97,13 +101,22 @@ export default async function DashboardLayout({
 
   const { data: subscription } = await supabaseAdmin
     .from("subscriptions")
-    .select("status, trial_end_at, start_date")
+    .select("status, trial_end_at, start_date, app_edition, plan")
     .eq("user_id", user.id)
     .maybeSingle();
 
   if (!hasDashboardAccess(subscription)) {
     redirect("/compte-bloque");
   }
+
+  const dashboardEdition = resolveDashboardEdition({
+    edition: subscription?.app_edition,
+    plan: subscription?.plan,
+    developmentOverride: process.env.INRCY_DEV_DASHBOARD_EDITION,
+  });
+  const secondaryImagePreloads = dashboardEdition === "standard"
+    ? ["/logo-inrcy.png", "/inrstats-logo.png", "/inrsend-logo.png"]
+    : DASHBOARD_SECONDARY_IMAGE_PRELOADS;
 
   // Vérifie l'état maintenance
   const maintenance = await getMaintenanceState();
@@ -121,30 +134,32 @@ export default async function DashboardLayout({
       {DASHBOARD_BUBBLE_ICON_PRELOADS.map((src) => (
         <link key={src} rel="preload" as="image" href={src} fetchPriority="high" />
       ))}
-      {DASHBOARD_SECONDARY_IMAGE_PRELOADS.map((src) => (
+      {secondaryImagePreloads.map((src) => (
         <link key={src} rel="preload" as="image" href={src} />
       ))}
-      <DashboardPersistentImageCache />
-      <div className={styles.bg} />
-      <div className={styles.noise} />
-      <ActiveAccountTabSync />
-      <ProfileRealtimeBridge />
-      <LastActiveTracker />
-      <ClientAuthSessionGuard />
-      <DashboardToolWarmup />
-      <SentryUserContext userId={user.id} accountId={accountScope.activeUserId} />
+      <DashboardEditionProvider edition={dashboardEdition}>
+        <DashboardPersistentImageCache />
+        <div className={styles.bg} />
+        <div className={styles.noise} />
+        <ActiveAccountTabSync />
+        <ProfileRealtimeBridge />
+        <LastActiveTracker />
+        <ClientAuthSessionGuard />
+        <DashboardToolWarmup />
+        <SentryUserContext userId={user.id} accountId={accountScope.activeUserId} />
 
-      <DashboardRequiredSetupBypassProvider enabled={bypassRequiredSetup}>
-        <DashboardUnsavedNavigationProvider>
-          <DashboardPullToRefresh />
-          <DashboardRequiredSetupGate>
-            <div className={styles.mobileViewport}>
-              {children}
-            </div>
-            <ResponsiveBottomNav />
-          </DashboardRequiredSetupGate>
-        </DashboardUnsavedNavigationProvider>
-      </DashboardRequiredSetupBypassProvider>
+        <DashboardRequiredSetupBypassProvider enabled={bypassRequiredSetup}>
+          <DashboardUnsavedNavigationProvider>
+            <DashboardPullToRefresh />
+            <DashboardRequiredSetupGate>
+              <div className={styles.mobileViewport}>
+                {children}
+              </div>
+              <ResponsiveBottomNav />
+            </DashboardRequiredSetupGate>
+          </DashboardUnsavedNavigationProvider>
+        </DashboardRequiredSetupBypassProvider>
+      </DashboardEditionProvider>
     </div>
   );
 }

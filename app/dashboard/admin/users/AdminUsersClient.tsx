@@ -41,6 +41,7 @@ type AdminUserRow = {
   } | null;
   subscription: {
     contact_email?: string | null;
+    app_edition?: string | null;
     plan?: string | null;
     scheduled_plan?: string | null;
     status?: string | null;
@@ -98,6 +99,10 @@ function formatDateTime(value?: string | null) {
 function statusLabel(status?: string | null) {
   const match = STATUS_OPTIONS.find((option) => option.value === status);
   return match?.label || status || "Sans statut";
+}
+
+function editionLabel(edition?: string | null) {
+  return String(edition || "").trim().toLowerCase() === "standard" ? "Standard" : "Premium";
 }
 
 function fullName(user: AdminUserRow) {
@@ -331,7 +336,7 @@ export default function AdminUsersClient() {
                         <span className={`${styles.statusPill} ${styles[`status_${subscription?.status || "none"}`] || ""}`}>
                           {statusLabel(subscription?.status)}
                         </span>
-                        <small>{subscription?.plan || "Plan non renseigné"}</small>
+                        <small>{editionLabel(subscription?.app_edition)} · {subscription?.plan || "Plan non renseigné"}</small>
                       </div>
 
                       <div className={styles.dateStack}>
@@ -359,6 +364,19 @@ export default function AdminUsersClient() {
                             >
                               <option value="user">user</option>
                               <option value="admin">admin</option>
+                            </select>
+                          </div>
+
+                          <div className={styles.detailBox}>
+                            <span>Édition iNrCy</span>
+                            <select
+                              className={styles.miniSelect}
+                              value={String(subscription?.app_edition || "premium").toLowerCase()}
+                              disabled={isSaving || !subscription}
+                              onChange={(event) => patchUser(user.user_id, { app_edition: event.target.value }, "Édition iNrCy mise à jour.")}
+                            >
+                              <option value="standard">Standard</option>
+                              <option value="premium">Premium</option>
                             </select>
                           </div>
 

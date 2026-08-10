@@ -33,7 +33,7 @@ export type DashboardPanelName =
   | "parrainage"
   | "documents";
 
-const PANEL_RETURN_QUERY_KEYS = ["linked", "ok", "error", "message", "warning", "toast", "activated", "skipped", "panelSource"];
+const PANEL_RETURN_QUERY_KEYS = ["linked", "ok", "error", "message", "warning", "toast", "activated", "skipped", "panelSource", "premium"];
 
 function rememberDashboardScroll() {
   try {

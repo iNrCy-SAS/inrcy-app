@@ -8,6 +8,7 @@ import {
   writeModuleSnapshot,
 } from "@/lib/browserModuleSnapshotCache";
 import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
+import { useDashboardEdition } from "./DashboardEditionProvider";
 
 export const DASHBOARD_TOOL_WARMUP_EVENT = "inrcy:dashboard-tool-warmup";
 export const DASHBOARD_PREFETCH_ATTRIBUTE = "data-dashboard-prefetch";
@@ -25,6 +26,14 @@ const ROUTES_TO_PREFETCH = [
   "/dashboard/gps",
   "/dashboard/factures",
   "/dashboard/devis",
+] as const;
+
+const STANDARD_ROUTES_TO_PREFETCH = [
+  "/dashboard/stats",
+  "/dashboard/e-reputation",
+  "/dashboard/mails",
+  "/dashboard/mediatheque",
+  "/dashboard/gps",
 ] as const;
 
 const SNAPSHOT_FRESHNESS_MS = 2 * 60 * 1000;
@@ -89,6 +98,8 @@ function normalizedPath(path: string) {
 
 export default function DashboardToolWarmup() {
   const router = useRouter();
+  const edition = useDashboardEdition();
+  const standardMode = edition === "standard";
 
   useEffect(() => {
     let cancelled = false;
@@ -279,6 +290,10 @@ export default function DashboardToolWarmup() {
 
     const prioritize = (path: string) => {
       if (!path || !path.startsWith("/dashboard")) return;
+      if (
+        standardMode &&
+        !STANDARD_ROUTES_TO_PREFETCH.includes(normalizedPath(path) as (typeof STANDARD_ROUTES_TO_PREFETCH)[number])
+      ) return;
       prefetchRoute(path, 100);
       enqueueSnapshotForPath(path, 90);
     };
@@ -303,7 +318,8 @@ export default function DashboardToolWarmup() {
     window.addEventListener(DASHBOARD_TOOL_WARMUP_EVENT, onExplicitWarmup as EventListener);
 
     const startProgressiveWarmup = () => {
-      ROUTES_TO_PREFETCH.forEach((route, index) => {
+      const routes = standardMode ? STANDARD_ROUTES_TO_PREFETCH : ROUTES_TO_PREFETCH;
+      routes.forEach((route, index) => {
         prefetchRoute(route, 20 - Math.floor(index / 2));
       });
 
@@ -349,7 +365,7 @@ export default function DashboardToolWarmup() {
       window.removeEventListener(DASHBOARD_TOOL_WARMUP_EVENT, onExplicitWarmup as EventListener);
       window.removeEventListener(ACTIVE_INRCY_ACCOUNT_EVENT, handleAccountChange);
     };
-  }, [router]);
+  }, [router, standardMode]);
 
   return null;
 }

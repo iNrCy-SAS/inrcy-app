@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { confirmInrcy } from "@/lib/inrcyDialog";
@@ -612,6 +613,7 @@ export default function EReputationReviewsClient(props: Props) {
   const canReport = Boolean(selectedReview?.live && activePlatform.reportUrl && activePlatform.id === "google");
   const loadedLabel = totalReviewCount > 0 ? `${items.length.toLocaleString("fr-FR")} / ${totalReviewCount.toLocaleString("fr-FR")}` : items.length.toLocaleString("fr-FR");
   const totalReviewsLabel = (totalReviewCount > 0 ? totalReviewCount : stats.total).toLocaleString("fr-FR");
+  const totalReviewsCaption = reviewsReady ? `Qté : ${totalReviewsLabel}` : `Exemples : ${totalReviewsLabel}`;
   const summaryStatusLabel = reviewsReady ? "Avis chargés" : activePlatform.statusLabel || platformLabel;
   const summaryStatusShortLabel = reviewsReady ? "Chargés" : activePlatform.statusLabel || platformShortLabel;
   const averageRatingLabel = activePlatform.averageRatingLabel || "—";
@@ -1074,14 +1076,14 @@ export default function EReputationReviewsClient(props: Props) {
             <input className={styles.searchInput} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Rechercher un avis..." type="search" />
           </div>
           <div className={styles.toolbarRight}>
-            <div className={`${styles.reputationSummaryChip} ${activePlatform.connected ? styles.reputationSummaryReady : ""}`} aria-label={`${locationLabel} · ${summaryStatusLabel} · Qté : ${totalReviewsLabel} · Note : ${averageRatingLabel}`}>
+            <div className={`${styles.reputationSummaryChip} ${activePlatform.connected ? styles.reputationSummaryReady : ""}`} aria-label={`${locationLabel} · ${summaryStatusLabel} · ${totalReviewsCaption} · Note : ${averageRatingLabel}`}>
               <span className={styles.summaryLocation}>{locationLabel}</span>
               <span className={styles.summaryStatus}>
                 <span className={styles.summaryDot} aria-hidden="true" />
                 <span className={styles.summaryStatusDesktop}>{summaryStatusLabel}</span>
                 <span className={styles.summaryStatusMobile}>{summaryStatusShortLabel}</span>
               </span>
-              <span>Qté : {totalReviewsLabel}</span>
+              <span>{totalReviewsCaption}</span>
               <span>Note : {averageRatingLabel}</span>
             </div>
             <button
@@ -1106,9 +1108,16 @@ export default function EReputationReviewsClient(props: Props) {
         ) : null}
 
         {!reviewsReady ? (
-          <div className={styles.noticeInfo}>
-            <strong>Prévisualisation</strong>
-            <span>Les boutons de gestion s’activeront dès que les vrais avis {platformLabel} seront chargés.</span>
+          <div className={`${styles.noticeInfo} ${styles.previewNotice}`}>
+            <div className={styles.previewNoticeCopy}>
+              <strong>AVIS D’EXEMPLE — aucun avis Google n’est chargé</strong>
+              <span>Les lignes ci-dessous sont fictives. Branchez Google pour afficher et gérer les vrais avis de l’entreprise.</span>
+            </div>
+            <Link className={styles.connectGoogleCta} href="/dashboard?panel=gmb">
+              <span aria-hidden="true">G</span>
+              Brancher Google
+              <span aria-hidden="true">→</span>
+            </Link>
           </div>
         ) : null}
 
@@ -1130,10 +1139,16 @@ export default function EReputationReviewsClient(props: Props) {
             <tbody>
               {paginatedReviews.length ? (
                 paginatedReviews.map((review) => (
-                  <tr key={review.id} className={review.id === selectedId ? styles.activeRow : undefined}>
+                  <tr
+                    key={review.id}
+                    className={`${review.id === selectedId ? styles.activeRow : ""} ${!reviewsReady ? styles.previewRow : ""}`.trim() || undefined}
+                  >
                     <td>
                       <button type="button" className={styles.reviewMainCell} onClick={() => openDetails(review)}>
-                        <strong>{review.name}</strong>
+                        <strong>
+                          {review.name}
+                          {!reviewsReady ? <span className={styles.exampleBadge}>EXEMPLE</span> : null}
+                        </strong>
                         <span>{truncateText(review)}</span>
                         <span className={styles.mobileReviewMeta}>
                           <span className={styles.mobileReviewStars} aria-label={`${review.rating} étoiles sur 5`}>{renderStars(review.rating)}</span>
@@ -1168,9 +1183,11 @@ export default function EReputationReviewsClient(props: Props) {
 
         <div className={styles.footerBar}>
           <span>
-            {paginatedReviews.length
-              ? `Affichage ${firstDisplayedReview.toLocaleString("fr-FR")}–${lastDisplayedReview.toLocaleString("fr-FR")} sur ${footerTotalReviews.toLocaleString("fr-FR")} avis`
-              : "Affichage 0 avis"} · {loadedLabel} chargés
+            {reviewsReady
+              ? `${paginatedReviews.length
+                ? `Affichage ${firstDisplayedReview.toLocaleString("fr-FR")}–${lastDisplayedReview.toLocaleString("fr-FR")} sur ${footerTotalReviews.toLocaleString("fr-FR")} avis`
+                : "Affichage 0 avis"} · ${loadedLabel} chargés`
+              : `${paginatedReviews.length.toLocaleString("fr-FR")} exemples fictifs affichés`}
           </span>
           {reviewsReady ? (
             <div className={styles.paginationControls} aria-label="Pagination des avis">
@@ -1242,6 +1259,7 @@ export default function EReputationReviewsClient(props: Props) {
                     <div className={styles.reviewDetailTop}>
                       <div>
                         <strong>{selectedReview.name}</strong>
+                        {!reviewsReady ? <span className={styles.exampleBadge}>EXEMPLE — avis fictif</span> : null}
                         <span>{selectedReview.date}{selectedReview.verified ? " · Avis vérifié" : ""}</span>
                       </div>
                       <span className={selectedReview.status === "Répondu" ? styles.answeredBadge : styles.todoBadge}>{selectedReview.status}</span>

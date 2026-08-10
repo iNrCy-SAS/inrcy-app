@@ -9,6 +9,7 @@ import DashboardHelpModals from "./_components/DashboardHelpModals";
 import DashboardHero from "./_components/DashboardHero";
 import GeneratorSettingsModal from "./_components/GeneratorSettingsModal";
 import DashboardTopbar from "./_components/DashboardTopbar";
+import { useDashboardEdition } from "./_components/DashboardEditionProvider";
 import { useDashboardUnsavedNavigation } from "./_components/DashboardUnsavedNavigationProvider";
 import DashboardChannelsSection from "./_components/DashboardChannelsSection";
 import DashboardBoosterModalLayer from "./_components/DashboardBoosterModalLayer";
@@ -71,6 +72,10 @@ import { isDashboardRequiredSetupProtectedDestination, isDashboardRequiredSetupP
 import { confirmInrcy } from "@/lib/inrcyDialog";
 import { reportHandledClientError } from "@/lib/clientExpectedErrors";
 import { fetchSharedDashboardRefreshJson } from "@/lib/dashboardRefreshOrchestrator";
+import {
+  STANDARD_BONUS_CHANNEL_KEYS,
+  STANDARD_PUBLICATION_CHANNEL_KEYS,
+} from "@/lib/dashboardEdition";
 
 
 import {
@@ -116,6 +121,11 @@ import {
 
 const useBrowserLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
+const STANDARD_DASHBOARD_BUBBLE_KEYS = new Set<string>([
+  ...STANDARD_PUBLICATION_CHANNEL_KEYS,
+  ...STANDARD_BONUS_CHANNEL_KEYS,
+]);
+
 type DashboardClientProps = {
   isAdmin?: boolean;
   initialOnboardingState?: DashboardOnboardingInitialState;
@@ -160,6 +170,8 @@ export default function DashboardClient({
   const [displayedSiteBubbleProgress, setDisplayedSiteBubbleProgress] = useState<SiteBubbleProgressCache>(() => readCachedSiteBubbleProgress());
   const router = useRouter();
   const searchParams = useSearchParams();
+  const dashboardEdition = useDashboardEdition();
+  const isStandardEdition = dashboardEdition === "standard";
   const { requestNavigation } = useDashboardUnsavedNavigation();
   const { language: dashboardLanguage } = useDashboardLanguage();
   const dashboardCopy = useMemo(() => getDashboardTranslations(dashboardLanguage), [dashboardLanguage]);
@@ -3520,6 +3532,13 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     siteWebSavedUrl,
   ]);
 
+  const displayedFluxBubbleItems = useMemo(
+    () => isStandardEdition
+      ? fluxBubbleItems.filter((item) => STANDARD_DASHBOARD_BUBBLE_KEYS.has(item.key))
+      : fluxBubbleItems,
+    [fluxBubbleItems, isStandardEdition],
+  );
+
   const inrBadgeSettingsProps = useMemo(() => ({
     profile: inrBadgeProfile,
     publicUrl: inrBadgePublicUrl,
@@ -3709,6 +3728,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
         onNavigateCta={navigateDashboardCta}
         openPanel={openPanel}
         inrAgentEnabled={canAccessInrAgent}
+        showInrAgent={!isStandardEdition}
         requiredSetupLockVisible={requiredSetupLockVisible}
         isAdmin={isAdmin}
         userEmail={userEmail}
@@ -3753,7 +3773,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
       ) : null}
 
       <DashboardChannelsSection
-        fluxBubbleItems={fluxBubbleItems}
+        fluxBubbleItems={displayedFluxBubbleItems}
         goToModule={goToRequiredSetupAwareModule}
         openPanel={openPanel}
         requiredSetupAccessAllowed={requiredSetupAccessAllowed}
@@ -3763,6 +3783,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
         onOpenStats={openStatsModule}
         onOpenBoosterPublish={openBoosterPublish}
         onOpenBoosterStats={openBoosterStats}
+        standardMode={isStandardEdition}
       />
 
       <DashboardBoosterModalLayer
@@ -3831,6 +3852,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
           />
         ) : (
           <DashboardSettingsDrawerContent
+            edition={dashboardEdition}
             panel={panel}
             onUnsavedChange={handleSettingsDrawerUnsavedChange}
             checkProfile={checkProfile}

@@ -6,6 +6,7 @@ import bubbleStyles from "./DashboardChannelBubble.module.css";
 import HelpButton from "./HelpButton";
 import DashboardFluxBubble, { type DashboardFluxBubbleData } from "./DashboardFluxBubble";
 import DashboardModulesCard from "./DashboardModulesCard";
+import DashboardStandardModulesCard from "./DashboardStandardModulesCard";
 import { useDashboardI18n } from "../_hooks/useDashboardI18n";
 
 type DashboardPanelName =
@@ -99,6 +100,7 @@ type DashboardChannelsSectionProps = {
   onOpenStats?: () => void;
   onOpenBoosterPublish?: () => void;
   onOpenBoosterStats?: () => void;
+  standardMode?: boolean;
 };
 
 export default function DashboardChannelsSection({
@@ -112,6 +114,7 @@ export default function DashboardChannelsSection({
   onOpenStats,
   onOpenBoosterPublish,
   onOpenBoosterStats,
+  standardMode = false,
 }: DashboardChannelsSectionProps) {
   const t = useDashboardI18n();
   const [bubbleView, setBubbleView] = useState<BubbleViewMode>("carousel");
@@ -680,16 +683,24 @@ export default function DashboardChannelsSection({
         </>
       )}
 
-      <DashboardModulesCard
-        goToModule={goToModule}
-        openPanel={openPanel}
-        requiredSetupAccessAllowed={requiredSetupAccessAllowed}
-        requiredSetupLockVisible={requiredSetupLockVisible}
-        onRequiredSetupBlocked={onRequiredSetupBlocked}
-        onOpenStats={onOpenStats}
-        onOpenBoosterPublish={onOpenBoosterPublish}
-        onOpenBoosterStats={onOpenBoosterStats}
-      />
+      {standardMode ? (
+        <DashboardStandardModulesCard
+          goToModule={goToModule}
+          onOpenStats={onOpenStats}
+          onOpenBoosterPublish={onOpenBoosterPublish}
+        />
+      ) : (
+        <DashboardModulesCard
+          goToModule={goToModule}
+          openPanel={openPanel}
+          requiredSetupAccessAllowed={requiredSetupAccessAllowed}
+          requiredSetupLockVisible={requiredSetupLockVisible}
+          onRequiredSetupBlocked={onRequiredSetupBlocked}
+          onOpenStats={onOpenStats}
+          onOpenBoosterPublish={onOpenBoosterPublish}
+          onOpenBoosterStats={onOpenBoosterStats}
+        />
+      )}
     </section>
   );
 }

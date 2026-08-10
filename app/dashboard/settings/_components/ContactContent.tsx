@@ -1,10 +1,14 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
+
 type Props = {
   mode?: "page" | "drawer";
 };
 
 export default function ContactContent({ mode = "page" }: Props) {
+  const searchParams = useSearchParams();
+  const premiumRequired = searchParams.get("premium") === "required";
   const EMAIL = "contact@inrcy.com";
   const PHONE_DISPLAY = "06.22.08.21.79";
   const PHONE_TEL = "+33622082179"; // format tel: (plus clean)
@@ -102,6 +106,21 @@ export default function ContactContent({ mode = "page" }: Props) {
 
   return (
     <div style={{ display: "grid", gap: 12 }}>
+      {premiumRequired ? (
+        <div style={{
+          ...card,
+          borderColor: "rgba(183, 102, 255, 0.32)",
+          background: "linear-gradient(135deg, rgba(112, 52, 207, 0.18), rgba(255, 73, 164, 0.10))",
+        }}>
+          <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: ".08em", textTransform: "uppercase", color: "#d8b6ff" }}>
+            iNrCy Premium
+          </div>
+          <h2 style={{ margin: "6px 0 5px", fontSize: 18 }}>Cette fonctionnalité fait partie de Premium</h2>
+          <p style={{ margin: 0, opacity: 0.78, lineHeight: 1.5 }}>
+            Le passage à Premium se fait avec un conseiller iNrCy, sans achat automatique dans l’application.
+          </p>
+        </div>
+      ) : null}
       {/* HERO */}
       <div style={{ ...card, ...shell, padding: 18 }}>
         <h2 style={titleAccent}>Contactez-nous</h2>

@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { optionalEnv } from "@/lib/env";
 
 export const TRIAL_REMINDER_OFFSETS = [7, 3, 1] as const;
+export const NEW_ACCOUNT_EDITION = "standard" as const;
 
 export function getTrialDays() {
   return Math.max(1, Number(optionalEnv("INRCY_TRIAL_DAYS", "21")) || 21);
@@ -33,6 +34,8 @@ export async function ensureTrialSubscription(userId: string, adminEmail: string
       {
         user_id: userId,
         plan: "Trial",
+        // L'édition commerciale est indépendante du plan et du cycle Stripe.
+        app_edition: NEW_ACCOUNT_EDITION,
         status: "trialing",
         monthly_price_eur: 0,
         start_date: start.toISOString().slice(0, 10),
@@ -61,5 +64,5 @@ export async function ensureTrialSubscription(userId: string, adminEmail: string
 
   if (profileError) throw new Error(profileError.message);
 
-  return { trialDays, start, end };
+  return { edition: NEW_ACCOUNT_EDITION, trialDays, start, end };
 }

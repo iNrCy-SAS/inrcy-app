@@ -390,7 +390,7 @@ export async function POST(req: Request) {
 
     await ensureNotificationPreferences(userId);
     await seedOnboardingNotifications(userId);
-    const { trialDays, end } = await ensureTrialSubscription(userId, payload.email);
+    const { edition, trialDays, end } = await ensureTrialSubscription(userId, payload.email);
 
     await sendAdminSubscriptionAlertForUser({
       type: "trial_started",
@@ -416,6 +416,7 @@ export async function POST(req: Request) {
     return jsonResponse({
       ok: true,
       user_id: userId,
+      app_edition: edition,
       trial_days: trialDays,
       trial_end_at: end.toISOString(),
       message: "Invitation envoyée. Le professionnel peut créer son mot de passe depuis l'email reçu.",

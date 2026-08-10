@@ -214,7 +214,7 @@ function mailboxHistoryCountsKey(context: MailboxHistoryContext) {
   return `account=${encodeURIComponent(context.filterAccountId)}|q=${encodeURIComponent(context.query)}`;
 }
 
-export default function MailboxClient() {
+export default function MailboxClient({ standardMode = false }: { standardMode?: boolean }) {
   const [helpOpen, setHelpOpen] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -256,6 +256,7 @@ export default function MailboxClient() {
   const [draftFolderCounts, setDraftFolderCounts] = useState<FolderCounts>(() =>
     emptyFolderCounts(),
   );
+
   const historyCacheRef = useRef<Map<string, MailboxHistorySnapshot<OutboxItem>>>(new Map());
   const historyInFlightRef = useRef<Map<string, Promise<MailboxHistorySnapshot<OutboxItem> | null>>>(new Map());
   const historyCountsInFlightRef = useRef<Map<string, Promise<boolean>>>(new Map());
@@ -511,6 +512,29 @@ export default function MailboxClient() {
     useState<ScheduledMailEditState | null>(null);
   const scheduledMailEditLoadRef = useRef<string>("");
   const [scheduledMailEditSaving, setScheduledMailEditSaving] = useState(false);
+
+  useEffect(() => {
+    if (!standardMode) return;
+
+    setFolder("publications");
+    setBoxView("sent");
+    setFilterAccountId("");
+    setMobileFoldersOpen(false);
+    setSettingsOpen(false);
+    setComposeOpen(false);
+
+    const requestedFolder = String(searchParams?.get("folder") || "").toLowerCase();
+    const hasPremiumComposeIntent = [
+      "compose",
+      "template_key",
+      "finalizer",
+      "workflow_finalizer",
+      "scheduled_edit_id",
+    ].some((key) => searchParams?.has(key));
+    if ((requestedFolder && requestedFolder !== "publications") || hasPremiumComposeIntent) {
+      router.replace("/dashboard/mails?folder=publications", { scroll: false });
+    }
+  }, [router, searchParams, standardMode]);
 
   // Attachments uploaded by Factures / Devis screens are stored here.
   const ATTACH_BUCKET = "inrbox_attachments";
@@ -2280,19 +2304,22 @@ export default function MailboxClient() {
 
   // initial
   useEffect(() => {
+    if (standardMode) return;
     void loadAccounts();
     void loadSignature();
-  }, []);
+  }, [standardMode]);
 
   useEffect(() => {
+    if (standardMode) return;
     if (!composeOpen) {
       setLastSavedComposeSnapshot(null);
       return;
     }
     void loadSignature(selectedAccountId || undefined);
-  }, [composeOpen, selectedAccountId]);
+  }, [composeOpen, selectedAccountId, standardMode]);
 
   useEffect(() => {
+    if (standardMode) return;
     const handleSignatureUpdated = () => {
       void loadSignature(selectedAccountId || undefined);
     };
@@ -2306,7 +2333,7 @@ export default function MailboxClient() {
         "inrsend:signature-updated",
         handleSignatureUpdated,
       );
-  }, [selectedAccountId]);
+  }, [selectedAccountId, standardMode]);
 
   // refresh des changements de filtres / recherche
   useEffect(() => {
@@ -2330,6 +2357,7 @@ export default function MailboxClient() {
   ]);
 
   useEffect(() => {
+    if (standardMode) return;
     const handleMailAccountsUpdated = async () => {
       await loadAccounts();
       await loadHistory();
@@ -2344,12 +2372,13 @@ export default function MailboxClient() {
         MAIL_ACCOUNTS_UPDATED_EVENT,
         handleMailAccountsUpdated as EventListener,
       );
-  }, [loadHistory]);
+  }, [loadHistory, standardMode]);
 
   useEffect(() => {
+    if (standardMode) return;
     if (!composeOpen) return;
     void loadAccounts();
-  }, [composeOpen]);
+  }, [composeOpen, standardMode]);
 
   // UX recherche: Ctrl/Cmd+K pour ouvrir, Esc pour fermer (sans perdre la saisie)
   useEffect(() => {
@@ -2448,6 +2477,10 @@ export default function MailboxClient() {
 
   // open folder from URL
   useEffect(() => {
+    if (standardMode) {
+      setFolder("publications");
+      return;
+    }
     const q = (searchParams?.get("folder") || "").toLowerCase();
     const allowed: Record<string, Folder> = {
       mails: "mails",
@@ -2466,13 +2499,14 @@ export default function MailboxClient() {
       enquetes: "fidelisations",
     };
     if (q && allowed[q]) setFolder(allowed[q]);
-  }, [searchParams, signatureEnabled, signaturePreview]);
+  }, [searchParams, signatureEnabled, signaturePreview, standardMode]);
 
   // Open compose + prefill basic fields from URL params.
   // Used by:
   // - CRM: /dashboard/mails?compose=1&to=...&from=crm
   // - Factures / Devis: /dashboard/mails?compose=1&to=...&attachKey=...&attachName=...
   useEffect(() => {
+    if (standardMode) return;
     const openRaw = (searchParams?.get("compose") || "").toLowerCase();
     const shouldOpen = openRaw !== "0" && openRaw !== "false" && openRaw !== "";
     if (!shouldOpen) return;
@@ -2668,13 +2702,14 @@ export default function MailboxClient() {
     };
 
     void run();
-  }, [searchParams, signatureEnabled, signaturePreview]);
+  }, [searchParams, signatureEnabled, signaturePreview, standardMode]);
 
   // Prefill compose modal from workflow modules (Booster / Propulser / Fidéliser).
   // Usage:
   // - /dashboard/mails?folder=propulsions&template_key=...&prefill_subject=...&prefill_text=...&compose=1
   // If template_key is provided, we render placeholders server-side from the user's profile/activity + connected tools.
   useEffect(() => {
+    if (standardMode) return;
     const preSubjectRaw = searchParams?.get("prefill_subject") || "";
     const preTextRaw = searchParams?.get("prefill_text") || "";
     const preHtmlRaw = searchParams?.get("prefill_html") || "";
@@ -2785,9 +2820,10 @@ export default function MailboxClient() {
     };
 
     run();
-  }, [searchParams]);
+  }, [searchParams, standardMode]);
 
   useEffect(() => {
+    if (standardMode) return;
     const editId = String(searchParams?.get("scheduled_edit_id") || "").trim();
     if (!editId || scheduledMailEditLoadRef.current === editId) return;
     scheduledMailEditLoadRef.current = editId;
@@ -2914,7 +2950,7 @@ export default function MailboxClient() {
     };
 
     void run();
-  }, [searchParams]);
+  }, [searchParams, standardMode]);
 
   useEffect(() => {
     if (!composeOpen) return;
@@ -2997,6 +3033,13 @@ export default function MailboxClient() {
   }, [composeOpen]);
 
   function updateFolder(next: Folder) {
+    if (standardMode) {
+      setFolder("publications");
+      setBoxView("sent");
+      setSelectedId(null);
+      router.replace("/dashboard/mails?folder=publications");
+      return;
+    }
     setFolder(next);
     // quand on change de dossier, on revient à la vue principale
     setBoxView("sent");
@@ -4841,14 +4884,17 @@ export default function MailboxClient() {
 
   return (
     <div className={styles.page}>
-      <PublishAiConfigurationDrawer
-        open={aiConfigurationOpen}
-        isMobile={isMobileHeader}
-        drawerHeight="100dvh"
-        onClose={() => setAiConfigurationOpen(false)}
-      />
+      {!standardMode ? (
+        <PublishAiConfigurationDrawer
+          open={aiConfigurationOpen}
+          isMobile={isMobileHeader}
+          drawerHeight="100dvh"
+          onClose={() => setAiConfigurationOpen(false)}
+        />
+      ) : null}
       <div className={styles.wrap}>
         <MailboxHeader
+          standardMode={standardMode}
           helpOpen={helpOpen}
           settingsOpen={settingsOpen}
           onOpenHelp={() => setHelpOpen(true)}
@@ -4861,25 +4907,30 @@ export default function MailboxClient() {
           }}
         />
 
-        <MobileFoldersMenu
-          open={mobileFoldersOpen}
-          folder={folder}
-          counts={counts}
-          countsLoading={!historyCountsLoadedOnce}
-          onClose={() => setMobileFoldersOpen(false)}
-          onSelectFolder={updateFolder}
-        />
+        {!standardMode ? (
+          <MobileFoldersMenu
+            open={mobileFoldersOpen}
+            folder={folder}
+            counts={counts}
+            countsLoading={!historyCountsLoadedOnce}
+            onClose={() => setMobileFoldersOpen(false)}
+            onSelectFolder={updateFolder}
+          />
+        ) : null}
 
         <div className={styles.grid}>
           <div className={`${styles.card} ${styles.listCard}`}>
-            <FolderTabs
-              folder={folder}
-              counts={counts}
-              countsLoading={!historyCountsLoadedOnce}
-              onSelectFolder={updateFolder}
-            />
+            {!standardMode ? (
+              <FolderTabs
+                folder={folder}
+                counts={counts}
+                countsLoading={!historyCountsLoadedOnce}
+                onSelectFolder={updateFolder}
+              />
+            ) : null}
 
             <MailboxToolbar
+              publicationOnly={standardMode}
               folder={folder}
               filterAccountId={filterAccountId}
               setFilterAccountId={setFilterAccountId}
@@ -5021,7 +5072,8 @@ export default function MailboxClient() {
           closePublicationImageAdapter={closePublicationImageAdapter}
         />
 
-        <MailboxComposeModal
+        {!standardMode ? (
+          <MailboxComposeModal
           open={composeOpen}
           onClose={() => {
             setComposeOpen(false);
@@ -5122,9 +5174,10 @@ export default function MailboxClient() {
               ? handleWorkflowPrevious
               : undefined
           }
-        />
+          />
+        ) : null}
 
-        {campaignDistributionNotice ? (
+        {!standardMode && campaignDistributionNotice ? (
           <div
             className={styles.campaignDistributionOverlay}
             role="dialog"

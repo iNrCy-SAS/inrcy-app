@@ -3,6 +3,12 @@ import { createServerClient } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
 
 import { enforceQuota, enforceRateLimit } from "./lib/rateLimit";
+import {
+  isPotentialStandardRestrictedApiPath,
+  isStandardApiRouteAllowed,
+  isStandardDashboardRouteAllowed,
+  resolveDashboardEdition,
+} from "./lib/dashboardEdition";
 
 const ADMIN_USER_IDS = ["670b527d-5e08-42b4-ba95-e58e812339eb"] as const;
 
@@ -17,6 +23,8 @@ type SubscriptionGateRow = {
   status?: string | null;
   trial_end_at?: string | null;
   start_date?: string | null;
+  app_edition?: string | null;
+  plan?: string | null;
 };
 
 function isAuthorizedInternalPublishWorker(req: NextRequest, pathname: string) {
@@ -155,6 +163,18 @@ function blockedAccountApiResponse(subscription?: SubscriptionGateRow | null): N
   );
 }
 
+function premiumRequiredApiResponse(): NextResponse {
+  return NextResponse.json(
+    {
+      error: "PREMIUM_REQUIRED",
+      code: "PREMIUM_REQUIRED",
+      redirectTo: "/dashboard?panel=contact",
+      message: "Cette fonctionnalité est réservée à iNrCy Premium. Contactez-nous pour en parler.",
+    },
+    { status: 403 },
+  );
+}
+
 function getIp(req: NextRequest): string {
   // Vercel provides req.ip, but keep fallbacks for local/dev/proxies.
   const direct = (req as unknown as { ip?: string }).ip;
@@ -235,7 +255,7 @@ async function getSubscriptionGateRow(userId: string): Promise<SubscriptionGateR
     if (!headers || !supabaseUrl) return null;
 
     const url = new URL(`${supabaseUrl}/rest/v1/subscriptions`);
-    url.searchParams.set("select", "status,trial_end_at,start_date");
+    url.searchParams.set("select", "status,trial_end_at,start_date,app_edition,plan");
     url.searchParams.set("user_id", `eq.${userId}`);
     url.searchParams.set("limit", "1");
 
@@ -599,6 +619,23 @@ export async function proxy(req: NextRequest) {
         const out = NextResponse.redirect(url, 307);
         return applyResponseHeaders(out);
       }
+
+      const edition = resolveDashboardEdition({
+        edition: currentSubscriptionGate?.app_edition,
+        plan: currentSubscriptionGate?.plan,
+        developmentOverride: process.env.INRCY_DEV_DASHBOARD_EDITION,
+      });
+      if (
+        edition === "standard" &&
+        !isStandardDashboardRouteAllowed(pathname, req.nextUrl.searchParams)
+      ) {
+        const url = req.nextUrl.clone();
+        url.pathname = "/dashboard";
+        url.search = "";
+        url.searchParams.set("panel", "contact");
+        url.searchParams.set("premium", "required");
+        return applyResponseHeaders(NextResponse.redirect(url, 307));
+      }
     }
   }
 
@@ -615,6 +652,27 @@ export async function proxy(req: NextRequest) {
 
     if (currentUserId && !isAllowedSubscription(currentSubscriptionGate)) {
       return applyResponseHeaders(blockedAccountApiResponse(currentSubscriptionGate));
+    }
+  }
+
+  if (
+    req.method.toUpperCase() !== "OPTIONS" &&
+    isPotentialStandardRestrictedApiPath(pathname)
+  ) {
+    const currentUserId = await getCurrentUserId();
+    const currentSubscriptionGate = currentUserId ? await getCurrentSubscriptionGate() : null;
+    const edition = resolveDashboardEdition({
+      edition: currentSubscriptionGate?.app_edition,
+      plan: currentSubscriptionGate?.plan,
+      developmentOverride: process.env.INRCY_DEV_DASHBOARD_EDITION,
+    });
+
+    if (
+      currentUserId &&
+      edition === "standard" &&
+      !isStandardApiRouteAllowed(pathname, req.nextUrl.searchParams)
+    ) {
+      return applyResponseHeaders(premiumRequiredApiResponse());
     }
   }
 

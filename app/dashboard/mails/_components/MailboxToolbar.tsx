@@ -18,6 +18,7 @@ type Props = {
   boxView: BoxView;
   setBoxView: React.Dispatch<React.SetStateAction<BoxView>>;
   draftCount: number;
+  publicationOnly?: boolean;
 };
 
 export default function MailboxToolbar(props: Props) {
@@ -36,31 +37,36 @@ export default function MailboxToolbar(props: Props) {
     boxView,
     setBoxView,
     draftCount,
+    publicationOnly = false,
   } = props;
 
   return (
     <div className={styles.toolbarRow}>
       <div className={styles.filterRow}>
-        <div className={styles.toolbarInfo}>Filtrer</div>
-        <select
-          className={styles.filterSelect}
-          value={filterAccountId}
-          onChange={(e) => setFilterAccountId(e.target.value)}
-          title="Filtrer par boîte d’envoi"
-        >
-          <option value="">Toutes les boîtes</option>
-          {mailAccounts.map((a) => (
-            <option key={a.id} value={a.id}>
-              {(a.display_name ? `${a.display_name} — ` : "") + a.email_address + ` (${a.provider})`}
-            </option>
-          ))}
-        </select>
+        <div className={styles.toolbarInfo}>
+          {publicationOnly ? "Historique des publications" : "Filtrer"}
+        </div>
+        {!publicationOnly ? (
+          <select
+            className={styles.filterSelect}
+            value={filterAccountId}
+            onChange={(event) => setFilterAccountId(event.target.value)}
+            title="Filtrer par boîte d’envoi"
+          >
+            <option value="">Toutes les boîtes</option>
+            {mailAccounts.map((account) => (
+              <option key={account.id} value={account.id}>
+                {(account.display_name ? `${account.display_name} — ` : "") + account.email_address + ` (${account.provider})`}
+              </option>
+            ))}
+          </select>
+        ) : null}
         <div className={styles.mobileTopTools}>
           <button
             className={`${styles.toolbarBtn} ${styles.toolbarIconBtn} ${styles.mobileOnlyBtn} ${
               !searchOpen && historyQuery.trim() ? styles.toolbarIconBtnActive : ""
             }`}
-            onClick={() => setSearchOpen((v) => !v)}
+            onClick={() => setSearchOpen((value) => !value)}
             type="button"
             title={searchOpen ? "Fermer la recherche" : "Rechercher (Ctrl/Cmd+K)"}
             aria-label="Rechercher"
@@ -70,9 +76,7 @@ export default function MailboxToolbar(props: Props) {
           </button>
           <button
             className={`${styles.toolbarBtn} ${styles.toolbarIconBtn} ${styles.mobileOnlyBtn}`}
-            onClick={() => {
-              void loadHistory();
-            }}
+            onClick={() => { void loadHistory(); }}
             type="button"
             title="Actualiser"
             aria-label="Actualiser"
@@ -94,7 +98,7 @@ export default function MailboxToolbar(props: Props) {
           >
             {toolCfg.label}
           </Link>
-        ) : (
+        ) : !publicationOnly ? (
           <button
             className={`${styles.toolbarBtn} ${styles.toolbarBtnCta}`}
             style={toolbarActionTheme(folder)}
@@ -106,22 +110,25 @@ export default function MailboxToolbar(props: Props) {
           >
             {toolCfg.label}
           </button>
-        )}
+        ) : null}
 
-        <button
-          className={`${styles.toolbarBtn} ${styles.draftsToggleBtn} ${boxView === "drafts" ? styles.toolbarBtnActive : ""}`}
-          onClick={() => setBoxView((v: BoxView) => (v === "drafts" ? "sent" : "drafts"))}
-          type="button"
-          title={draftCount > 0 ? `${draftCount} brouillon${draftCount > 1 ? "s" : ""}` : "Brouillons"}
-        >
-          <span className={styles.draftsToggleLabel}>Brouillons</span>
-          {draftCount > 0 ? <span className={styles.badgeCount}>{draftCount}</span> : null}
-        </button>
+        {!publicationOnly ? (
+          <button
+            className={`${styles.toolbarBtn} ${styles.draftsToggleBtn} ${boxView === "drafts" ? styles.toolbarBtnActive : ""}`}
+            onClick={() => setBoxView((value: BoxView) => (value === "drafts" ? "sent" : "drafts"))}
+            type="button"
+            title={draftCount > 0 ? `${draftCount} brouillon${draftCount > 1 ? "s" : ""}` : "Brouillons"}
+          >
+            <span className={styles.draftsToggleLabel}>Brouillons</span>
+            {draftCount > 0 ? <span className={styles.badgeCount}>{draftCount}</span> : null}
+          </button>
+        ) : null}
+
         <button
           className={`${styles.toolbarBtn} ${styles.toolbarIconBtn} ${styles.desktopToolbarIconBtn} ${
             !searchOpen && historyQuery.trim() ? styles.toolbarIconBtnActive : ""
           }`}
-          onClick={() => setSearchOpen((v) => !v)}
+          onClick={() => setSearchOpen((value) => !value)}
           type="button"
           title={searchOpen ? "Fermer la recherche" : "Rechercher (Ctrl/Cmd+K)"}
           aria-label="Rechercher"
@@ -132,9 +139,7 @@ export default function MailboxToolbar(props: Props) {
 
         <button
           className={`${styles.toolbarBtn} ${styles.toolbarIconBtn} ${styles.desktopToolbarIconBtn}`}
-          onClick={() => {
-            void loadHistory();
-          }}
+          onClick={() => { void loadHistory(); }}
           type="button"
           title="Actualiser"
           aria-label="Actualiser"

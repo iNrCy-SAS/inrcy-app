@@ -25,6 +25,8 @@ import YoutubeShortsSettingsContent from "../settings/_components/YoutubeShortsS
 import PinterestSettingsContent from "../settings/_components/PinterestSettingsContent";
 import InrSearchSettingsContent from "../settings/_components/InrSearchSettingsContent";
 import InrBadgeSettingsContent from "../settings/_components/InrBadgeSettingsContent";
+import StandardSubscriptionContent from "../settings/_components/StandardSubscriptionContent";
+import type { DashboardEdition } from "@/lib/dashboardEdition";
 
 type DashboardPanelName =
   | "contact"
@@ -56,6 +58,7 @@ type DashboardPanelName =
   | "documents";
 
 type DashboardSettingsDrawerContentProps = {
+  edition?: DashboardEdition;
   panel: string | null;
   onUnsavedChange?: (hasUnsavedChanges: boolean) => void;
   checkProfile: () => unknown | Promise<unknown>;
@@ -95,6 +98,7 @@ type DashboardSettingsDrawerContentProps = {
 };
 
 export default function DashboardSettingsDrawerContent({
+  edition = "premium",
   panel,
   onUnsavedChange,
   checkProfile,
@@ -135,7 +139,14 @@ export default function DashboardSettingsDrawerContent({
   return (
     <>
       {panel === "contact" && <ContactContent mode="drawer" />}
-      {panel === "compte" && <AccountContent mode="drawer" onUnsavedChange={onUnsavedChange} />}
+      {panel === "compte" && (
+        <AccountContent
+          mode="drawer"
+          edition={edition}
+          onRequestPremium={() => openPanel("contact")}
+          onUnsavedChange={onUnsavedChange}
+        />
+      )}
       {panel === "profil" && (
         <ProfilContent
           mode="drawer"
@@ -165,7 +176,11 @@ export default function DashboardSettingsDrawerContent({
           onUnsavedChange={onUnsavedChange}
         />
       )}
-      {panel === "abonnement" && <AbonnementContent mode="drawer" />}
+      {panel === "abonnement" && (
+        edition === "standard"
+          ? <StandardSubscriptionContent onOpenContact={() => openPanel("contact")} />
+          : <AbonnementContent mode="drawer" />
+      )}
       {panel === "legal" && <LegalContent mode="drawer" />}
       {panel === "rgpd" && <RgpdContent mode="drawer" />}
       {panel === "mails" && <MailsSettingsContent onUnsavedChange={onUnsavedChange} />}

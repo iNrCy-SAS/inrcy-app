@@ -29,3 +29,17 @@ test("Google review details expose previous, next, counter and guarded close con
   assert.match(css, /\.reviewSequenceControls/);
   assert.match(css, /touch-action:\s*manipulation/);
 });
+
+test("les avis fictifs sont impossibles à confondre avec de vrais avis Google", () => {
+  const client = read("app/dashboard/e-reputation/EReputationReviewsClient.tsx");
+  const css = read("app/dashboard/e-reputation/eReputation.module.css");
+
+  assert.match(client, /AVIS D’EXEMPLE/);
+  assert.match(client, /Les lignes ci-dessous sont fictives/);
+  assert.match(client, /Brancher Google/);
+  assert.match(client, /!reviewsReady \? <span className=\{styles\.exampleBadge\}>EXEMPLE<\/span>/);
+  assert.match(client, /exemples fictifs affichés/);
+  assert.match(css, /\.previewNotice/);
+  assert.match(css, /\.connectGoogleCta/);
+  assert.match(css, /\.exampleBadge/);
+});

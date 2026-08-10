@@ -3,10 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
+import type { DashboardEdition } from "@/lib/dashboardEdition";
+import StandardSubscriptionContent from "./StandardSubscriptionContent";
 
 type Props = {
   mode?: "page" | "drawer";
   onUnsavedChange?: (hasUnsavedChanges: boolean) => void;
+  edition?: DashboardEdition;
+  onRequestPremium?: () => void;
 };
 
 function getPasswordStrength(pw: string) {
@@ -31,7 +35,12 @@ function Rule({ ok, label }: { ok: boolean; label: string }) {
   );
 }
 
-export default function AccountContent({ mode: _mode = "page", onUnsavedChange }: Props) {
+export default function AccountContent({
+  mode: _mode = "page",
+  onUnsavedChange,
+  edition = "premium",
+  onRequestPremium,
+}: Props) {
   const [email, setEmail] = useState<string>("");
   const [createdAt, setCreatedAt] = useState<string>("");
   const [loading, setLoading] = useState(true);
@@ -230,6 +239,9 @@ export default function AccountContent({ mode: _mode = "page", onUnsavedChange }
           {ok ? <div style={{ marginTop: 6, opacity: 0.95 }}>{ok}</div> : null}
         </div>
       </div>
+      {edition === "standard" ? (
+        <StandardSubscriptionContent onOpenContact={onRequestPremium ?? (() => {})} />
+      ) : null}
     </div>
   );
 }

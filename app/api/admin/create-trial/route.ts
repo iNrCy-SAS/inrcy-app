@@ -69,7 +69,7 @@ export async function POST(req: Request) {
     await ensureProfileRow(invite.user);
     await ensureNotificationPreferences(userId);
     await seedOnboardingNotifications(userId);
-    const { trialDays, start, end } = await ensureTrialSubscription(userId, email);
+    const { edition, trialDays, start, end } = await ensureTrialSubscription(userId, email);
 
     await sendAdminSubscriptionAlertForUser({
       type: "trial_started",
@@ -84,7 +84,7 @@ export async function POST(req: Request) {
       note: `Invitation envoyée pour un essai de ${trialDays} jours.`,
     }).catch(() => null);
 
-    return NextResponse.json({ ok: true, user_id: userId, trial_end_at: end.toISOString() });
+    return NextResponse.json({ ok: true, user_id: userId, app_edition: edition, trial_end_at: end.toISOString() });
   } catch (e: unknown) {
     const msg = getSimpleFrenchErrorMessage(e, "Le service est momentanément indisponible. Merci de réessayer dans quelques minutes.");
     return NextResponse.json({ error: msg }, { status: 500 });

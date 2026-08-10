@@ -1,8 +1,11 @@
+"use client";
+
 import MailboxClient from "./MailboxClient";
+import { useDashboardEdition } from "../_components/DashboardEditionProvider";
 
 export default function MailboxPage() {
-  return <MailboxClient />;
+  const edition = useDashboardEdition();
+  return <MailboxClient standardMode={edition === "standard"} />;
 }
-
 
 

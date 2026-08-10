@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireEnv } from "@/lib/env";
 import { getAppUrl, stripePost } from "@/lib/stripeRest";
 import { computeTrialDatesFromStartDate, getTrialDays } from "@/lib/trialSubscription";
+import { resolveDashboardEdition } from "@/lib/dashboardEdition";
 
 export const runtime = "nodejs";
 
@@ -12,6 +13,7 @@ type SubscriptionRow = {
   stripe_customer_id?: string | null;
   stripe_subscription_id?: string | null;
   status?: string | null;
+  app_edition?: string | null;
   plan?: string | null;
   start_date?: string | null;
   trial_start_at?: string | null;
@@ -87,7 +89,7 @@ export async function POST(req: Request) {
     const [{ data: sub, error: subErr }, { data: profile, error: profileErr }] = await Promise.all([
       supabase
         .from("subscriptions")
-        .select("stripe_customer_id, stripe_subscription_id, status, plan, start_date, trial_start_at, trial_end_at, contact_email, founder_offer_enabled")
+        .select("stripe_customer_id, stripe_subscription_id, status, app_edition, plan, start_date, trial_start_at, trial_end_at, contact_email, founder_offer_enabled")
         .eq("user_id", userId)
         .maybeSingle(),
       supabase
@@ -103,6 +105,21 @@ export async function POST(req: Request) {
     const row = sub as SubscriptionRow | null | undefined;
     const profileRow = profile as ProfileRow | null | undefined;
     const appUrl = getAppUrl(req) || requireEnv("NEXT_PUBLIC_APP_URL");
+
+    if (resolveDashboardEdition({
+      edition: row?.app_edition,
+      plan: row?.plan,
+      developmentOverride: process.env.INRCY_DEV_DASHBOARD_EDITION,
+    }) === "standard") {
+      return NextResponse.json(
+        {
+          error: "Le passage à iNrCy Premium nécessite un échange avec notre équipe.",
+          code: "PREMIUM_CONTACT_REQUIRED",
+          redirectTo: "/dashboard?panel=contact",
+        },
+        { status: 403 },
+      );
+    }
 
     if (wantedPlan === "Starter" && !row?.founder_offer_enabled) {
       return NextResponse.json(

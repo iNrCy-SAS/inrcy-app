@@ -184,6 +184,14 @@ function getServerSnapshot() {
   return 0;
 }
 
-export function useInrAgentPendingCount() {
-  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+function subscribeDisabled() {
+  return () => {};
+}
+
+export function useInrAgentPendingCount(enabled = true) {
+  return useSyncExternalStore(
+    enabled ? subscribe : subscribeDisabled,
+    enabled ? getSnapshot : getServerSnapshot,
+    getServerSnapshot,
+  );
 }

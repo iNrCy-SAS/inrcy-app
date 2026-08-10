@@ -17,6 +17,7 @@ type Props = {
   onOpenFolders: () => void;
   onOpenSettings: () => void;
   onCloseSettings: () => void;
+  standardMode?: boolean;
 };
 
 export default function MailboxHeader({
@@ -27,6 +28,7 @@ export default function MailboxHeader({
   onOpenFolders,
   onOpenSettings,
   onCloseSettings,
+  standardMode = false,
 }: Props) {
   const [settingsHasUnsavedChanges, setSettingsHasUnsavedChanges] = useState(false);
   useEffect(() => {
@@ -64,7 +66,9 @@ export default function MailboxHeader({
           <div className={styles.brandText}>
             <div className={styles.brandRow}>
               <span className={styles.tagline}>
-                Toutes vos communications, depuis une seule et même machine.
+                {standardMode
+                  ? "L’historique de toutes vos publications, au même endroit."
+                  : "Toutes vos communications, depuis une seule et même machine."}
               </span>
             </div>
           </div>
@@ -73,32 +77,36 @@ export default function MailboxHeader({
         <div className={styles.actions}>
           <HelpButton onClick={onOpenHelp} title="Aide iNr’Send" />
 
-          <button
-            className={`${styles.btnGhost} ${styles.iconOnlyBtn} ${styles.hamburgerBtn}`}
-            onClick={onOpenFolders}
-            type="button"
-            aria-label="Dossiers"
-            title="Dossiers"
-          >
-            <span aria-hidden>☰</span>
-            <span className={styles.srOnly}>Dossiers</span>
-          </button>
+          {!standardMode ? (
+            <>
+              <button
+                className={`${styles.btnGhost} ${styles.iconOnlyBtn} ${styles.hamburgerBtn}`}
+                onClick={onOpenFolders}
+                type="button"
+                aria-label="Dossiers"
+                title="Dossiers"
+              >
+                <span aria-hidden>☰</span>
+                <span className={styles.srOnly}>Dossiers</span>
+              </button>
 
-          <ResponsiveActionButton
-            desktopLabel="Réglages"
-            mobileIcon="⚙️"
-            onClick={onOpenSettings}
-          />
+              <ResponsiveActionButton
+                desktopLabel="Réglages"
+                mobileIcon="⚙️"
+                onClick={onOpenSettings}
+              />
 
-          <SettingsDrawer
-            title="Réglages Mails"
-            isOpen={settingsOpen}
-            onClose={requestCloseSettings}
-            closeOnBackdrop={false}
-            closeOnEscape={false}
-          >
-            <MailsSettingsContent onUnsavedChange={setSettingsHasUnsavedChanges} />
-          </SettingsDrawer>
+              <SettingsDrawer
+                title="Réglages Mails"
+                isOpen={settingsOpen}
+                onClose={requestCloseSettings}
+                closeOnBackdrop={false}
+                closeOnEscape={false}
+              >
+                <MailsSettingsContent onUnsavedChange={setSettingsHasUnsavedChanges} />
+              </SettingsDrawer>
+            </>
+          ) : null}
 
           <ResponsiveActionButton
             desktopLabel="Fermer"
@@ -111,23 +119,37 @@ export default function MailboxHeader({
 
       <HelpModal open={helpOpen} title="iNr’Send" onClose={onCloseHelp}>
         <p style={{ marginTop: 0 }}>
-          iNr’Send est le centre d’envoi de votre communication.
+          {standardMode
+            ? "iNr’Send conserve l’historique de toutes vos publications multicanales."
+            : "iNr’Send est le centre d’envoi de votre communication."}
         </p>
-        <ul style={{ margin: 0, paddingLeft: 18 }}>
-          <li>Centralisez vos échanges et vos messages.</li>
-          <li>Gagnez du temps pour communiquer sur vos canaux.</li>
-          <li>Utilisez les réglages pour connecter/configurer les envois.</li>
-        </ul>
+        {standardMode ? (
+          <ul style={{ margin: 0, paddingLeft: 18 }}>
+            <li>Retrouvez le résultat de chaque publication.</li>
+            <li>Consultez le détail canal par canal.</li>
+            <li>Relancez ou corrigez une publication lorsque l’action est disponible.</li>
+          </ul>
+        ) : (
+          <ul style={{ margin: 0, paddingLeft: 18 }}>
+            <li>Centralisez vos échanges et vos messages.</li>
+            <li>Gagnez du temps pour communiquer sur vos canaux.</li>
+            <li>Utilisez les réglages pour connecter/configurer les envois.</li>
+          </ul>
+        )}
 
         <div style={{ marginTop: 16 }}>
           <strong>Durées d’affichage dans iNr’Send</strong>
           <ul style={{ margin: "8px 0 0", paddingLeft: 18 }}>
             <li>Publications : {getInrSendRetentionLabel("publications")}</li>
-            <li>Propulsions : {getInrSendRetentionLabel("propulsions")}</li>
-            <li>Fidélisations : {getInrSendRetentionLabel("fidelisations")}</li>
-            <li>Mails : {getInrSendRetentionLabel("mails")}</li>
-            <li>Devis : {getInrSendRetentionLabel("devis")}</li>
-            <li>Factures : {getInrSendRetentionLabel("factures")}</li>
+            {!standardMode ? (
+              <>
+                <li>Propulsions : {getInrSendRetentionLabel("propulsions")}</li>
+                <li>Fidélisations : {getInrSendRetentionLabel("fidelisations")}</li>
+                <li>Mails : {getInrSendRetentionLabel("mails")}</li>
+                <li>Devis : {getInrSendRetentionLabel("devis")}</li>
+                <li>Factures : {getInrSendRetentionLabel("factures")}</li>
+              </>
+            ) : null}
           </ul>
           <p style={{ margin: "10px 0 0", opacity: 0.86 }}>
             Ces durées concernent uniquement l’historique iNr’Send. Le professionnel reste responsable de la conservation légale de ses documents comptables.
@@ -137,7 +159,7 @@ export default function MailboxHeader({
         <div style={{ marginTop: 14 }}>
           <strong>Suppression des historiques</strong>
           <p style={{ margin: "8px 0 0", opacity: 0.86 }}>
-            Aucune suppression manuelle n’est disponible dans iNr’Send. Pour toute demande exceptionnelle de suppression d’un historique, contactez-nous par mail à contact@inrcy.com.
+            Aucune suppression manuelle n’est disponible dans iNr’Send. Pour toute demande exceptionnelle, contactez-nous à contact@inrcy.com.
           </p>
         </div>
       </HelpModal>
