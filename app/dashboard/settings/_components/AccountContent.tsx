@@ -4,14 +4,78 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import type { DashboardEdition } from "@/lib/dashboardEdition";
-import StandardSubscriptionContent from "./StandardSubscriptionContent";
 
 type Props = {
   mode?: "page" | "drawer";
   onUnsavedChange?: (hasUnsavedChanges: boolean) => void;
   edition?: DashboardEdition;
-  onRequestPremium?: () => void;
+  onOpenSubscription?: () => void;
 };
+
+type AccountSubscriptionSummary = {
+  status?: string | null;
+  trial_end_at?: string | null;
+  next_renewal_date?: string | null;
+  cancel_requested_at?: string | null;
+  end_date?: string | null;
+};
+
+function formatSubscriptionDate(value?: string | null): string | null {
+  if (!value) return null;
+  const date = new Date(value.length === 10 ? `${value}T12:00:00` : value);
+  if (!Number.isFinite(date.getTime())) return null;
+  return date.toLocaleDateString("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
+
+function accountPlanPresentation(
+  edition: DashboardEdition,
+  subscription: AccountSubscriptionSummary | null,
+) {
+  const status = String(subscription?.status ?? "").trim().toLowerCase();
+  const statusView =
+    status === "trialing"
+      ? { label: "Essai 21 jours", color: "#8feaff" }
+      : status === "active"
+        ? { label: "Actif", color: "#8ff7d0" }
+        : status === "past_due" || status === "unpaid"
+          ? { label: "À régulariser", color: "#ffd38f" }
+          : status === "trial_expired"
+            ? { label: "Essai terminé", color: "#ffbd8f" }
+            : status === "canceled" || status === "cancelled"
+              ? { label: "Résilié", color: "#ff9bbd" }
+              : { label: "À vérifier", color: "#c8d3ef" };
+
+  const label =
+    edition === "standard"
+      ? "iNrCy Standard"
+      : edition === "founder"
+        ? "iNrCy Founder"
+        : "iNrCy Premium";
+  const description =
+    edition === "standard"
+      ? "Booster sur 10 canaux, iNr’Agent Publications + Statistiques, iNr’Badge, iNr’Stats, historique iNr’Send et Réputation."
+      : edition === "founder"
+        ? "Partenaire fondateur : accès complet aux outils iNrCy actuels et futurs."
+        : "Accès complet aux outils de pilotage et de développement de votre activité.";
+
+  const trialEnd = formatSubscriptionDate(subscription?.trial_end_at);
+  const renewal = formatSubscriptionDate(subscription?.next_renewal_date);
+  const accessEnd = formatSubscriptionDate(subscription?.end_date);
+  const detail =
+    status === "trialing" && trialEnd
+      ? `Fin de votre essai : ${trialEnd}`
+      : subscription?.cancel_requested_at && accessEnd
+        ? `Accès jusqu’au : ${accessEnd}`
+        : renewal
+          ? `Prochain renouvellement : ${renewal}`
+          : null;
+
+  return { label, description, detail, statusView };
+}
 
 function getPasswordStrength(pw: string) {
   const rules = {
@@ -39,10 +103,11 @@ export default function AccountContent({
   mode: _mode = "page",
   onUnsavedChange,
   edition = "premium",
-  onRequestPremium,
+  onOpenSubscription,
 }: Props) {
   const [email, setEmail] = useState<string>("");
   const [createdAt, setCreatedAt] = useState<string>("");
+  const [subscriptionSummary, setSubscriptionSummary] = useState<AccountSubscriptionSummary | null>(null);
   const [loading, setLoading] = useState(true);
 
   const [currentPassword, setCurrentPassword] = useState("");
@@ -65,7 +130,16 @@ export default function AccountContent({
         const supabase = createClient();
         const { data, error } = await supabase.auth.getUser();
         if (error) throw new Error(error.message);
-        setEmail(data.user?.email || "");
+        const user = data.user;
+        setEmail(user?.email || "");
+        if (user) {
+          const { data: subscriptionData } = await supabase
+            .from("subscriptions")
+            .select("status,trial_end_at,next_renewal_date,cancel_requested_at,end_date")
+            .eq("user_id", user.id)
+            .maybeSingle();
+          setSubscriptionSummary((subscriptionData as AccountSubscriptionSummary | null) ?? null);
+        }
         const raw = (data.user as any)?.created_at as string | undefined;
         if (raw) {
           const d = new Date(raw);
@@ -84,6 +158,10 @@ export default function AccountContent({
 
   const strength = useMemo(() => getPasswordStrength(newPassword), [newPassword]);
   const canSubmit = !busy && !!currentPassword && !!newPassword && newPassword === confirm && strength.isStrong;
+  const planPresentation = useMemo(
+    () => accountPlanPresentation(edition, subscriptionSummary),
+    [edition, subscriptionSummary],
+  );
 
   const card: React.CSSProperties = {
     padding: 16,
@@ -117,6 +195,21 @@ export default function AccountContent({
     fontWeight: 900,
     width: "100%",
     opacity: busy ? 0.7 : 1,
+  };
+
+  const planButton: React.CSSProperties = {
+    border: "1px solid rgba(255,255,255,0.18)",
+    background: "linear-gradient(115deg, rgba(39, 154, 255, .9), rgba(133, 74, 239, .92), rgba(238, 72, 163, .82))",
+    color: "white",
+    borderRadius: 14,
+    padding: "10px 14px",
+    cursor: "pointer",
+    fontWeight: 900,
+    width: "100%",
+    display: "block",
+    textAlign: "center",
+    textDecoration: "none",
+    marginTop: 14,
   };
 
 
@@ -167,9 +260,6 @@ export default function AccountContent({
 
   return (
     <div style={{ display: "grid", gap: 12 }}>
-      {edition === "standard" ? (
-        <StandardSubscriptionContent onOpenContact={onRequestPremium ?? (() => {})} />
-      ) : null}
       <div style={card}>
         {createdAt ? (
           <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
@@ -241,6 +331,56 @@ export default function AccountContent({
           {msg ? <div style={{ marginTop: 6, opacity: 0.9 }}>⚠️ {msg}</div> : null}
           {ok ? <div style={{ marginTop: 6, opacity: 0.95 }}>{ok}</div> : null}
         </div>
+      </div>
+      <div
+        style={{
+          ...card,
+          border: "1px solid rgba(69, 205, 255, 0.28)",
+          background:
+            "linear-gradient(135deg, rgba(33, 132, 190, 0.16), rgba(98, 72, 191, 0.12), rgba(255,255,255,0.035))",
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start" }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 12, fontWeight: 950, opacity: 0.82, letterSpacing: 0.6, textTransform: "uppercase" }}>
+              Votre forfait
+            </div>
+            <div style={{ marginTop: 6, fontSize: 24, lineHeight: 1.15, fontWeight: 900 }}>
+              {planPresentation.label}
+            </div>
+          </div>
+          <div
+            style={{
+              flexShrink: 0,
+              border: `1px solid ${planPresentation.statusView.color}55`,
+              background: `${planPresentation.statusView.color}16`,
+              color: planPresentation.statusView.color,
+              borderRadius: 999,
+              padding: "7px 11px",
+              fontSize: 12,
+              fontWeight: 900,
+            }}
+          >
+            ●&nbsp; {planPresentation.statusView.label}
+          </div>
+        </div>
+        <p style={{ margin: "14px 0 0", opacity: 0.84, lineHeight: 1.5 }}>
+          {planPresentation.description}
+        </p>
+        {planPresentation.detail ? (
+          <div style={{ marginTop: 12, fontSize: 13, fontWeight: 800, opacity: 0.92 }}>
+            {planPresentation.detail}
+          </div>
+        ) : null}
+        {onOpenSubscription ? (
+          <button type="button" onClick={onOpenSubscription} style={planButton}>
+            Voir Mon abonnement →
+          </button>
+        ) : (
+          <a href="/dashboard?panel=abonnement&panelSource=settings" style={planButton}>
+            Voir Mon abonnement →
+          </a>
+        )}
       </div>
     </div>
   );

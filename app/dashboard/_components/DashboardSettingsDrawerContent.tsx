@@ -143,7 +143,7 @@ export default function DashboardSettingsDrawerContent({
         <AccountContent
           mode="drawer"
           edition={edition}
-          onRequestPremium={() => openPanel("contact")}
+          onOpenSubscription={() => openPanel("abonnement")}
           onUnsavedChange={onUnsavedChange}
         />
       )}

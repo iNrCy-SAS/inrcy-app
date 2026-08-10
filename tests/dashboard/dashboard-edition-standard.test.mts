@@ -44,6 +44,10 @@ const accountContentSource = readFileSync(
   new URL("../../app/dashboard/settings/_components/AccountContent.tsx", import.meta.url),
   "utf8",
 );
+const settingsDrawerSource = readFileSync(
+  new URL("../../app/dashboard/_components/DashboardSettingsDrawerContent.tsx", import.meta.url),
+  "utf8",
+);
 const trialSubscriptionSource = readFileSync(
   new URL("../../lib/trialSubscription.ts", import.meta.url),
   "utf8",
@@ -433,13 +437,20 @@ test("iNrSend Standard n'expose que l'historique Publications", () => {
   assert.match(inrSendFileDownloadSource, /file_role/);
 });
 
-test("Mon compte affiche le forfait avant les informations du professionnel", () => {
+test("Mon compte affiche les identifiants puis le forfait et renvoie vers Mon abonnement", () => {
   const professionalInfoPosition = accountContentSource.indexOf("<div style={card}>");
-  const subscriptionPosition = accountContentSource.lastIndexOf("<StandardSubscriptionContent");
+  const subscriptionPosition = accountContentSource.indexOf("Votre forfait");
 
   assert.notEqual(professionalInfoPosition, -1);
   assert.notEqual(subscriptionPosition, -1);
-  assert.ok(subscriptionPosition < professionalInfoPosition);
+  assert.ok(professionalInfoPosition < subscriptionPosition);
+  assert.doesNotMatch(accountContentSource, /StandardSubscriptionContent/);
+  assert.doesNotMatch(accountContentSource, /\/api\/billing\//);
+  assert.match(accountContentSource, /Voir Mon abonnement/);
+  assert.match(settingsDrawerSource, /onOpenSubscription=\{\(\) => openPanel\("abonnement"\)\}/);
+  assert.match(settingsDrawerSource, /panel === "abonnement"/);
+  assert.match(settingsDrawerSource, /<StandardSubscriptionContent/);
+  assert.match(settingsDrawerSource, /<AbonnementContent mode="drawer"/);
 });
 
 test("toute nouvelle inscription officielle reçoit Standard tout en conservant le cycle d'essai", () => {
