@@ -45,6 +45,7 @@ import {
 } from "./stats.client-foundations";
 import { useStatsChannelIdentitySync, useStatsDataController } from "./stats.client-hooks";
 import { Cube } from "./stats.ui";
+import { useDashboardEdition } from "@/app/dashboard/_components/DashboardEditionProvider";
 
 const useBrowserLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
@@ -73,6 +74,8 @@ type StatsClientProps = {
 
 export default function StatsClient({ initialInrSearch }: StatsClientProps) {
   const router = useRouter();
+  const dashboardEdition = useDashboardEdition();
+  const standardMode = dashboardEdition === "standard";
   const [helpOpen, setHelpOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
@@ -258,7 +261,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
 
   const models: CubeModel[] = useMemo(() => {
     const baseModels: CubeModel[] = [
-      buildInrBadgeCubeModel(period, inrBadgeStats),
+      buildInrBadgeCubeModel(period, inrBadgeStats, { appointmentsEnabled: !standardMode }),
       buildInrSearchCubeModel(period, inrSearchStats),
       buildMailCubeModel(mailStats, period),
       buildCubeModel("site_inrcy", "Site iNrCy", "Optimisé pour convertir", period, dataByCube.site_inrcy, centralByCube),
@@ -294,7 +297,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
       // Elle prend donc le dessus sur un éventuel snapshot iNrStats plus ancien.
       return { ...hydratedModel, accountLabel: identityHint };
     });
-  }, [cachedChannelConnectivity, centralByCube, channelIdentityHints, dataByCube, inrBadgeStats, inrSearchStats, mailStats, period]);
+  }, [cachedChannelConnectivity, centralByCube, channelIdentityHints, dataByCube, inrBadgeStats, inrSearchStats, mailStats, period, standardMode]);
 
   const computedEstimatedByCube = useMemo<Record<CubeKey, number>>(() => {
     const rate = Math.max(0, safeNum(summaryProfile.lead_conversion_rate)) / 100;

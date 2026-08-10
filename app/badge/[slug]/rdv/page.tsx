@@ -4,6 +4,8 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { extractInrBadgeUserIdFromSlug } from "@/lib/inrBadge";
 import { normalizeInrBadgeShareSettings, resolveInrBadgeAppointmentSettings } from "@/lib/inrBadgeSettings";
 import { getInrBadgeTexts, normalizeInrBadgeLanguage } from "@/lib/inrBadgeLanguage";
+import { getDashboardEditionForAccountId } from "@/lib/dashboardEditionServer";
+import { canUseInrBadgeAppointments } from "@/lib/inrBadgeEditionPolicy";
 import RdvBookingClient from "./RdvBookingClient";
 
 export const dynamic = "force-dynamic";
@@ -75,7 +77,7 @@ export default async function InrBadgeRdvPage({ params }: { params: Promise<{ sl
   const userId = extractInrBadgeUserIdFromSlug(slug);
   if (!userId) notFound();
 
-  const [profileRes, toolsRes, businessRes] = await Promise.all([
+  const [profileRes, toolsRes, businessRes, dashboardEdition] = await Promise.all([
     supabaseAdmin
       .from("profiles")
       .select("user_id")
@@ -93,6 +95,7 @@ export default async function InrBadgeRdvPage({ params }: { params: Promise<{ sl
       .order("updated_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    getDashboardEditionForAccountId(userId),
   ]);
 
   if (profileRes.error || !profileRes.data) notFound();
@@ -102,7 +105,7 @@ export default async function InrBadgeRdvPage({ params }: { params: Promise<{ sl
   const appointmentSettings = resolveInrBadgeAppointmentSettings(rootSettings);
   const business = (businessRes.data ?? {}) as Record<string, unknown>;
   const badgeLanguage = normalizeInrBadgeLanguage(business.client_language || rootSettings.inrBadgeLanguage);
-  if (!shareSettings.appointment) notFound();
+  if (!canUseInrBadgeAppointments(dashboardEdition, shareSettings)) notFound();
 
   const now = new Date();
   const rangeEnd = new Date(now.getTime() + (appointmentSettings.daysAhead + 2) * 24 * 60 * 60 * 1000);

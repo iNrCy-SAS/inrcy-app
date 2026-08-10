@@ -11,6 +11,11 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { captureApiException } from "@/lib/observability/sentry";
 import { withApi } from "@/lib/observability/withApi";
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
+import {
+  getDashboardEditionForAuthUser,
+  premiumRequiredApiResponse,
+} from "@/lib/dashboardEditionServer";
+import { isStandardAgentActionDescriptor } from "@/lib/standardAgentPolicy";
 
 export const maxDuration = 180;
 export const runtime = "nodejs";
@@ -680,8 +685,10 @@ async function executeCampaignAction(args: {
 }
 
 async function executeAgentActionHandler(request: Request) {
-  const { user, errorResponse, activeUserId } = await requireUser();
+  const { user, errorResponse, authUserId, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
+  const standardMode =
+    (await getDashboardEditionForAuthUser(authUserId)) === "standard";
 
   const userId = activeUserId;
   const rl = await enforceRateLimit({
@@ -732,6 +739,9 @@ async function executeAgentActionHandler(request: Request) {
   }
 
   const action = rowToInrAgentAction(actionRow as any);
+  if (standardMode && !isStandardAgentActionDescriptor(action)) {
+    return premiumRequiredApiResponse();
+  }
   if (action.status === "completed") {
     return NextResponse.json({ action, alreadyCompleted: true });
   }

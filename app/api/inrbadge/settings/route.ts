@@ -7,6 +7,8 @@ import {
   sanitizeInrBadgeAppointmentSettingsPayload,
   sanitizeInrBadgeShareSettingsPayload,
 } from "@/lib/inrBadgeSettings";
+import { getDashboardEditionForAuthUser } from "@/lib/dashboardEditionServer";
+import { effectiveInrBadgeShareSettings } from "@/lib/inrBadgeEditionPolicy";
 
 function safeObj(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
@@ -15,6 +17,7 @@ function safeObj(value: unknown): Record<string, unknown> {
 export async function GET() {
   const { supabase, user, errorResponse, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
+  const dashboardEdition = await getDashboardEditionForAuthUser(user.id);
 
   const { data, error } = await supabase
     .from("pro_tools_configs")
@@ -25,17 +28,23 @@ export async function GET() {
   if (error) return jsonUserFacingError(error, { status: 500 });
 
   const rootSettings = safeObj(data?.settings);
+  const storedShareSettings = normalizeInrBadgeShareSettings(rootSettings.inrBadgeShareSettings);
   return NextResponse.json({
     ok: true,
-    settings: normalizeInrBadgeShareSettings(rootSettings.inrBadgeShareSettings),
+    settings: effectiveInrBadgeShareSettings(storedShareSettings, dashboardEdition),
     appointmentSettings: resolveInrBadgeAppointmentSettings(rootSettings),
-    selectedMailAccountId: typeof rootSettings.inrBadgeMailAccountId === "string" ? rootSettings.inrBadgeMailAccountId : "",
+    selectedMailAccountId: dashboardEdition === "standard"
+      ? ""
+      : typeof rootSettings.inrBadgeMailAccountId === "string"
+        ? rootSettings.inrBadgeMailAccountId
+        : "",
   });
 }
 
 export async function PATCH(req: Request) {
   const { supabase, user, errorResponse, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
+  const dashboardEdition = await getDashboardEditionForAuthUser(user.id);
 
   const body = await req.json().catch(() => ({}));
   const input = safeObj(body);
@@ -52,20 +61,30 @@ export async function PATCH(req: Request) {
   const hasShareSettings = Object.prototype.hasOwnProperty.call(input, "settings");
   const hasAppointmentSettings = Object.prototype.hasOwnProperty.call(input, "appointmentSettings");
   const hasSelectedMailAccountId = Object.prototype.hasOwnProperty.call(input, "selectedMailAccountId");
-  const nextShareSettings = hasShareSettings
+  const currentShareSettings = normalizeInrBadgeShareSettings(currentSettings.inrBadgeShareSettings);
+  const requestedShareSettings = hasShareSettings
     ? sanitizeInrBadgeShareSettingsPayload(input.settings)
-    : normalizeInrBadgeShareSettings(currentSettings.inrBadgeShareSettings);
-  const nextAppointmentSettings = hasAppointmentSettings
-    ? sanitizeInrBadgeAppointmentSettingsPayload(input.appointmentSettings)
-    : resolveInrBadgeAppointmentSettings(currentSettings);
+    : currentShareSettings;
+  const nextShareSettings = dashboardEdition === "standard"
+    ? { ...requestedShareSettings, appointment: currentShareSettings.appointment }
+    : requestedShareSettings;
+  const currentAppointmentSettings = resolveInrBadgeAppointmentSettings(currentSettings);
+  const nextAppointmentSettings = dashboardEdition === "standard"
+    ? currentAppointmentSettings
+    : hasAppointmentSettings
+      ? sanitizeInrBadgeAppointmentSettingsPayload(input.appointmentSettings)
+      : currentAppointmentSettings;
 
 
   const currentInrCalendar = safeObj(currentSettings.inrcalendar);
-  const nextSelectedMailAccountId = hasSelectedMailAccountId
-    ? String(input.selectedMailAccountId || "").trim()
-    : typeof currentSettings.inrBadgeMailAccountId === "string"
-      ? currentSettings.inrBadgeMailAccountId
-      : "";
+  const currentSelectedMailAccountId = typeof currentSettings.inrBadgeMailAccountId === "string"
+    ? currentSettings.inrBadgeMailAccountId
+    : "";
+  const nextSelectedMailAccountId = dashboardEdition === "standard"
+    ? currentSelectedMailAccountId
+    : hasSelectedMailAccountId
+      ? String(input.selectedMailAccountId || "").trim()
+      : currentSelectedMailAccountId;
 
   const nextSettings = {
     ...currentSettings,
@@ -84,5 +103,10 @@ export async function PATCH(req: Request) {
 
   if (error) return jsonUserFacingError(error, { status: 500 });
 
-  return NextResponse.json({ ok: true, settings: nextShareSettings, appointmentSettings: nextAppointmentSettings, selectedMailAccountId: nextSelectedMailAccountId });
+  return NextResponse.json({
+    ok: true,
+    settings: effectiveInrBadgeShareSettings(nextShareSettings, dashboardEdition),
+    appointmentSettings: nextAppointmentSettings,
+    selectedMailAccountId: dashboardEdition === "standard" ? "" : nextSelectedMailAccountId,
+  });
 }

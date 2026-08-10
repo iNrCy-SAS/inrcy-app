@@ -36,6 +36,10 @@ import {
 } from "../_lib/agent.settings";
 import { asRecord } from "../_lib/agent.utils";
 import type { AutomationConfig, AutomationKey } from "../_lib/agent.types";
+import {
+  filterStandardAgentItems,
+  restrictInrAgentSettingsForStandard,
+} from "@/lib/standardAgentPolicy";
 
 function channelMapFromConnectionStates(payload: unknown): ConnectedChannelMap {
   const states = asRecord(payload) || {};
@@ -252,7 +256,11 @@ export async function warmAgentRuntimeSnapshot() {
   }
 }
 
-export function useAgentRuntimeData() {
+export function useAgentRuntimeData({
+  standardMode = false,
+}: {
+  standardMode?: boolean;
+} = {}) {
   const cachedInitialAgentSnapshot = useMemo(
     () => readCachedAgentViewSnapshot(),
     [],
@@ -263,8 +271,17 @@ export function useAgentRuntimeData() {
       readCachedAgentConnectedChannels(),
     [cachedInitialAgentSnapshot],
   );
-  const cachedInitialSettings =
+  const cachedInitialSettingsSource =
     cachedInitialAgentSnapshot?.settings ?? INR_AGENT_DEFAULT_SETTINGS;
+  const cachedInitialSettings = standardMode
+    ? restrictInrAgentSettingsForStandard(cachedInitialSettingsSource)
+    : cachedInitialSettingsSource;
+  const cachedInitialActions = standardMode
+    ? filterStandardAgentItems(cachedInitialAgentSnapshot?.actions ?? [])
+    : cachedInitialAgentSnapshot?.actions ?? [];
+  const cachedInitialScheduledActions = standardMode
+    ? filterStandardAgentItems(cachedInitialAgentSnapshot?.scheduledActions ?? [])
+    : cachedInitialAgentSnapshot?.scheduledActions ?? [];
 
   const [agentSettings, setAgentSettings] = useState<InrAgentSettings>(
     cachedInitialSettings,
@@ -287,11 +304,11 @@ export function useAgentRuntimeData() {
   );
   const [notice, setNotice] = useState<string | null>(null);
   const [actions, setActions] = useState<AgentPreparedAction[]>(
-    () => cachedInitialAgentSnapshot?.actions ?? [],
+    () => cachedInitialActions,
   );
   const [scheduledActions, setScheduledActions] = useState<
     AgentScheduledAction[]
-  >(() => cachedInitialAgentSnapshot?.scheduledActions ?? []);
+  >(() => cachedInitialScheduledActions);
   const [scheduledActionsTableMissing, setScheduledActionsTableMissing] =
     useState(() =>
       Boolean(cachedInitialAgentSnapshot?.scheduledActionsTableMissing),
@@ -331,7 +348,10 @@ export function useAgentRuntimeData() {
           );
         }
 
-        const nextSettings = sanitizeInrAgentSettings(payload?.settings);
+        const sanitizedSettings = sanitizeInrAgentSettings(payload?.settings);
+        const nextSettings = standardMode
+          ? restrictInrAgentSettingsForStandard(sanitizedSettings)
+          : sanitizedSettings;
         setAgentSettings(nextSettings);
         setConfigs(settingsToConfigs(nextSettings));
         setTableMissing((current) => current || Boolean(payload?.tableMissing));
@@ -427,9 +447,12 @@ export function useAgentRuntimeData() {
         throw new Error(payload?.error || "Actions iNr’Agent indisponibles.");
       }
 
-      const nextActions = Array.isArray(payload?.actions)
+      const loadedActions = Array.isArray(payload?.actions)
         ? payload.actions
         : [];
+      const nextActions = standardMode
+        ? filterStandardAgentItems(loadedActions)
+        : loadedActions;
       const nextTableMissing = Boolean(payload?.tableMissing);
       setActions(nextActions);
       if (payload?.tableMissing) setTableMissing(true);
@@ -466,9 +489,12 @@ export function useAgentRuntimeData() {
         throw new Error(payload?.error || "Actions programmées indisponibles.");
       }
 
-      const nextScheduledActions = Array.isArray(payload?.scheduledActions)
+      const loadedScheduledActions = Array.isArray(payload?.scheduledActions)
         ? payload.scheduledActions
         : [];
+      const nextScheduledActions = standardMode
+        ? filterStandardAgentItems(loadedScheduledActions)
+        : loadedScheduledActions;
       const nextScheduledTableMissing = Boolean(payload?.tableMissing);
       setScheduledActions(nextScheduledActions);
       setScheduledActionsTableMissing(nextScheduledTableMissing);

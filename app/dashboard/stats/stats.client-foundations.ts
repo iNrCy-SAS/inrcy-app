@@ -560,7 +560,12 @@ export function buildMailCubeModel(stats: MailStatsSnapshot, period: Period): Cu
     action: recommendedAction,
   };
 }
-export function buildInrBadgeCubeModel(period: Period, stats: InrBadgeStatsSnapshot): CubeModel {
+export function buildInrBadgeCubeModel(
+  period: Period,
+  stats: InrBadgeStatsSnapshot,
+  options: { appointmentsEnabled?: boolean } = {},
+): CubeModel {
+  const appointmentsEnabled = options.appointmentsEnabled !== false;
   const action = (key: string) => normalizeInrBadgePeriodStats(stats.actionsByKey?.[key]);
   const views = normalizeInrBadgePeriodStats(stats.views);
   const qrScans = normalizeInrBadgePeriodStats(stats.qrScans);
@@ -594,7 +599,9 @@ export function buildInrBadgeCubeModel(period: Period, stats: InrBadgeStatsSnaps
     opportunity30,
     opportunityLabel: opportunity30 >= 18 ? "Fort potentiel" : opportunity30 >= 8 ? "Potentiel réel" : "Hub actif",
     capturedLeads,
-    capturedLeadsHint: "Coordonnées transmises + demandes de RDV issues de votre iNr’Badge.",
+    capturedLeadsHint: appointmentsEnabled
+      ? "Coordonnées transmises + demandes de RDV issues de votre iNr’Badge."
+      : "Coordonnées transmises depuis votre iNr’Badge.",
     visibilityStats: [
       { label: "Fiche publique", value: "Active" },
       { label: "Vues 30j", value: fmtInt(views.month), subValue: `${fmtInt(views.total)} au total` },
@@ -605,8 +612,10 @@ export function buildInrBadgeCubeModel(period: Period, stats: InrBadgeStatsSnaps
       { label: "Appels 30j", value: fmtInt(action("phone").month), subValue: `${fmtInt(action("phone").total)} au total` },
       { label: "Mails 30j", value: fmtInt(action("mail").month), subValue: `${fmtInt(action("mail").total)} au total` },
       { label: "Contacts 30j", value: fmtInt(leads.month), subValue: `${fmtInt(leads.total)} au total` },
-      { label: "RDV 30j", value: fmtInt(appointments.month), subValue: `${fmtInt(appointments.total)} au total` },
-    ],
+      appointmentsEnabled
+        ? { label: "RDV 30j", value: fmtInt(appointments.month), subValue: `${fmtInt(appointments.total)} au total` }
+        : null,
+    ].filter((item): item is NonNullable<typeof item> => item !== null),
     inrcyActivityStats: {
       publications: views,
       photos: qrScans,
@@ -619,11 +628,15 @@ export function buildInrBadgeCubeModel(period: Period, stats: InrBadgeStatsSnaps
       ? [
           `${fmtInt(views.month)} vues de fiche sur 30 jours, dont ${fmtInt(views.week)} sur 7 jours.`,
           `${fmtInt(qrScans.month)} scans QR et ${fmtInt(actions.month)} actions utiles sur 30 jours.`,
-          `${fmtInt(capturedLeads.month)} demandes captées via coordonnées ou prise de RDV sur 30 jours.`,
+          appointmentsEnabled
+            ? `${fmtInt(capturedLeads.month)} demandes captées via coordonnées ou prise de RDV sur 30 jours.`
+            : `${fmtInt(capturedLeads.month)} contacts captés via votre iNr’Badge sur 30 jours.`,
         ]
       : [
           "Le tracking réel iNr’Badge est actif.",
-          "Les prochaines ouvertures, scans QR, clics, contacts et demandes de RDV remonteront ici.",
+          appointmentsEnabled
+            ? "Les prochaines ouvertures, scans QR, clics, contacts et demandes de RDV remonteront ici."
+            : "Les prochaines ouvertures, scans QR, clics et contacts remonteront ici.",
           "Diffusez le QR Code avec la version téléchargée depuis Configuration pour mesurer les scans.",
         ],
     action: {

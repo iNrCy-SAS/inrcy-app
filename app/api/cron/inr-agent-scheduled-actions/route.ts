@@ -5,6 +5,8 @@ import {
   interpretScheduledPublicationResponse,
 } from "@/lib/inrAgentScheduledPublication";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getDashboardEditionsForAccountIds } from "@/lib/dashboardEditionServer";
+import { isStandardAgentActionDescriptor } from "@/lib/standardAgentPolicy";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -706,8 +708,49 @@ async function processDueScheduledActions(args: { origin: string; maxRows: numbe
 
   const rows = (Array.isArray(data) ? data : []) as ScheduledActionCronRow[];
   const results: ExecutionResult[] = [];
+  const editionsByAccount = await getDashboardEditionsForAccountIds(
+    rows.map((row) => row.user_id),
+  );
 
   for (const row of rows) {
+    if (
+      editionsByAccount.get(row.user_id) === "standard" &&
+      !isStandardAgentActionDescriptor(row)
+    ) {
+      if (!args.dryRun) {
+        const { error: cancelError } = await supabaseAdmin
+          .from("inr_agent_scheduled_actions")
+          .update({
+            status: "cancelled",
+            last_error:
+              "Automatisation annulée : cette action nécessite iNrCy Premium.",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", row.id)
+          .eq("user_id", row.user_id)
+          .eq("status", "scheduled");
+        if (cancelError) {
+          results.push({
+            ok: false,
+            status: "failed",
+            scheduledActionId: row.id,
+            targetTool: String(row.target_tool || "agent"),
+            error: "Annulation de l’action Premium impossible.",
+            detail: "premium_required",
+            retriable: true,
+          });
+          continue;
+        }
+      }
+      results.push({
+        ok: true,
+        status: "skipped",
+        scheduledActionId: row.id,
+        targetTool: String(row.target_tool || "agent"),
+        detail: args.dryRun ? "premium_required_dry_run" : "premium_required",
+      });
+      continue;
+    }
     if (args.dryRun) {
       results.push({
         ok: true,

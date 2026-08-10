@@ -49,6 +49,7 @@ type DashboardPanelName =
 
 const MOBILE_QUERY = "(max-width: 1100px)";
 const STANDARD_MOBILE_SHORTCUTS: readonly MobileShortcutId[] = [
+  "agent",
   "inrsend",
   "stats",
   "reputation",
@@ -183,7 +184,7 @@ function ResponsiveBottomNavMobile() {
   const [cameraCaptureOpen, setCameraCaptureOpen] = useState(false);
   const [explicitImmersiveModeOpen, setExplicitImmersiveModeOpen] = useState(false);
   const [publishModalOpen, setPublishModalOpen] = useState(false);
-  const pendingInrAgentCount = useInrAgentPendingCount(!standardMode);
+  const pendingInrAgentCount = useInrAgentPendingCount(true);
   const [shortcuts, setShortcuts] = useState<MobileShortcutId[]>([...DEFAULT_MOBILE_SHORTCUTS]);
   const [isAdmin, setIsAdmin] = useState(false);
   const displayedShortcuts = useMemo(

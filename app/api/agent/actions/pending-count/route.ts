@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { requireUser } from "@/lib/requireUser";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getDashboardEditionForAuthUser } from "@/lib/dashboardEditionServer";
 
 export const runtime = "nodejs";
 
@@ -24,15 +25,24 @@ function isMissingTableError(
 }
 
 export async function GET() {
-  const { user, errorResponse, activeUserId } = await requireUser();
+  const { user, errorResponse, authUserId, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
+  const standardMode =
+    (await getDashboardEditionForAuthUser(authUserId)) === "standard";
 
-  const { count, error } = await supabaseAdmin
+  let countQuery = supabaseAdmin
     .from("inr_agent_actions")
     .select("id", { count: "exact", head: true })
     .eq("user_id", activeUserId)
     .eq("validation_required", true)
     .in("status", PENDING_AGENT_ACTION_STATUSES);
+  if (standardMode) {
+    countQuery = countQuery
+      .eq("automation_key", "publish")
+      .eq("action_type", "publication")
+      .eq("target_tool", "booster");
+  }
+  const { count, error } = await countQuery;
 
   if (error) {
     if (isMissingTableError(error)) {

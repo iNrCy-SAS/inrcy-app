@@ -8,6 +8,11 @@ import {
 } from "@/lib/inrAgentScheduledPublication";
 import { requireUser } from "@/lib/requireUser";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import {
+  getDashboardEditionForAuthUser,
+  premiumRequiredApiResponse,
+} from "@/lib/dashboardEditionServer";
+import { isStandardAgentActionDescriptor } from "@/lib/standardAgentPolicy";
 
 export const runtime = "nodejs";
 export const maxDuration = 180;
@@ -366,8 +371,10 @@ async function executeBoosterPublicationNow(row: any, userId: string) {
 }
 
 export async function POST(_request: Request, ctx: { params: Promise<{ id: string }> }) {
-  const { user, errorResponse, activeUserId } = await requireUser();
+  const { user, errorResponse, authUserId, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
+  const standardMode =
+    (await getDashboardEditionForAuthUser(authUserId)) === "standard";
   const { id } = await ctx.params;
 
   const { data: scheduledRow, error: readError } = await supabaseAdmin
@@ -385,6 +392,9 @@ export async function POST(_request: Request, ctx: { params: Promise<{ id: strin
   }
   if (!scheduledRow) {
     return NextResponse.json({ error: "Action programmée introuvable." }, { status: 404 });
+  }
+  if (standardMode && !isStandardAgentActionDescriptor(scheduledRow)) {
+    return premiumRequiredApiResponse();
   }
   const currentStatus = cleanText(scheduledRow.status, 40).toLowerCase();
   if (currentStatus !== "scheduled" && currentStatus !== "failed") {

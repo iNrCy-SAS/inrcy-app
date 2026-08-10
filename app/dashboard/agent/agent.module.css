@@ -13064,3 +13064,14 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     overflow-x: auto;
   }
 }
+
+/* Standard conserve le même iNrAgent, avec ses deux automatisations utiles. */
+.automationGridStandard {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 760px) {
+  .automationGridStandard {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

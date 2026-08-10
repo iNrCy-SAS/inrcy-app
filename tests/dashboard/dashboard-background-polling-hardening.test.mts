@@ -59,8 +59,8 @@ test("iNrSearch refreshes use a bounded cadence and never overlap", () => {
 });
 
 test("topbar and mobile navigation consume one shared account-scoped pending-count source", () => {
-  assert.match(topbar, /useInrAgentPendingCount\(\)/);
-  assert.match(bottomNav, /useInrAgentPendingCount\(\)/);
+  assert.match(topbar, /useInrAgentPendingCount\([^)]*\)/);
+  assert.match(bottomNav, /useInrAgentPendingCount\([^)]*\)/);
   assert.doesNotMatch(topbar, /\/api\/agent\/actions\/pending-count/);
   assert.doesNotMatch(bottomNav, /\/api\/agent\/actions\/pending-count/);
 

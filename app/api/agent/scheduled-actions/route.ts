@@ -11,6 +11,14 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { findSimilarScheduledPublication } from "@/lib/scheduledPublicationDedupe";
 import { findSimilarScheduledCampaign } from "@/lib/scheduledCampaignDedupe";
 import { syncPublicationWorkspaceContext } from "@/lib/mediaWorkspaceConsumption";
+import {
+  getDashboardEditionForAuthUser,
+  premiumRequiredApiResponse,
+} from "@/lib/dashboardEditionServer";
+import {
+  filterStandardAgentItems,
+  isStandardAgentActionDescriptor,
+} from "@/lib/standardAgentPolicy";
 
 export const runtime = "nodejs";
 
@@ -79,8 +87,10 @@ function isCampaignSchedule(row: ReturnType<typeof scheduledActionToDbRow>) {
 }
 
 export async function GET(request: Request) {
-  const { user, errorResponse, activeUserId } = await requireUser();
+  const { user, errorResponse, authUserId, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
+  const standardMode =
+    (await getDashboardEditionForAuthUser(authUserId)) === "standard";
 
   const url = new URL(request.url);
   const rawRequestId = url.searchParams.get("requestId");
@@ -117,6 +127,9 @@ export async function GET(request: Request) {
         },
       );
     }
+    if (standardMode && !isStandardAgentActionDescriptor(exact.data)) {
+      return premiumRequiredApiResponse();
+    }
     return NextResponse.json(
       {
         scheduledAction: rowToInrAgentScheduledAction(exact.data),
@@ -145,13 +158,20 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Lecture des actions programmées impossible" }, { status: 500 });
   }
 
-  const scheduledActions = Array.isArray(data) ? data.map(rowToInrAgentScheduledAction) : [];
+  const visibleRows = Array.isArray(data)
+    ? standardMode
+      ? filterStandardAgentItems(data)
+      : data
+    : [];
+  const scheduledActions = visibleRows.map(rowToInrAgentScheduledAction);
   return NextResponse.json({ scheduledActions, tableMissing: false });
 }
 
 export async function POST(request: Request) {
-  const { user, errorResponse, activeUserId } = await requireUser();
+  const { user, errorResponse, authUserId, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
+  const standardMode =
+    (await getDashboardEditionForAuthUser(authUserId)) === "standard";
 
   let body: unknown;
   try {
@@ -198,6 +218,10 @@ export async function POST(request: Request) {
     payload: scheduledPayload,
   });
 
+  if (standardMode && !isStandardAgentActionDescriptor(row)) {
+    return premiumRequiredApiResponse();
+  }
+
   if (scheduleRequestId) {
     const existing = await supabaseAdmin
       .from("inr_agent_scheduled_actions")
@@ -207,6 +231,9 @@ export async function POST(request: Request) {
       .maybeSingle();
     if (existing.error) throw existing.error;
     if (existing.data) {
+      if (standardMode && !isStandardAgentActionDescriptor(existing.data)) {
+        return premiumRequiredApiResponse();
+      }
       return NextResponse.json({
         scheduledAction: rowToInrAgentScheduledAction(existing.data),
         tableMissing: false,
@@ -279,6 +306,9 @@ export async function POST(request: Request) {
         .maybeSingle();
       if (existing.error) throw existing.error;
       if (existing.data) {
+        if (standardMode && !isStandardAgentActionDescriptor(existing.data)) {
+          return premiumRequiredApiResponse();
+        }
         return NextResponse.json({
           scheduledAction: rowToInrAgentScheduledAction(existing.data),
           tableMissing: false,

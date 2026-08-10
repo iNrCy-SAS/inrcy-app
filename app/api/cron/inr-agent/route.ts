@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { buildInternalCronHeaders, getAppOriginFromRequest, isAuthorizedCronRequest } from "@/lib/cronAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import type { InrAgentAutomationKey, InrAgentFrequency } from "@/lib/inrAgentSettings";
+import { getDashboardEditionsForAccountIds } from "@/lib/dashboardEditionServer";
+import { isStandardAgentAutomationKey } from "@/lib/standardAgentPolicy";
 
 export const runtime = "nodejs";
 
@@ -576,8 +578,24 @@ export async function POST(req: Request) {
 
   const rows = (Array.isArray(automationRows) ? automationRows : []) as AutomationRow[];
   const results: CronRunResult[] = [];
+  const editionsByAccount = await getDashboardEditionsForAccountIds(
+    rows.map((row) => row.user_id),
+  );
 
   for (const row of rows) {
+    if (
+      editionsByAccount.get(row.user_id) === "standard" &&
+      !isStandardAgentAutomationKey(row.automation_key)
+    ) {
+      results.push({
+        userId: row.user_id,
+        automationKey: row.automation_key,
+        status: "skipped",
+        reason: "premium_required",
+        nextRunAt: row.next_run_at,
+      });
+      continue;
+    }
     const timeZone = userTimezone.get(row.user_id) || "Europe/Paris";
     results.push(await processAutomation({ row, origin, now, timeZone, dryRun, timeoutMs }));
   }

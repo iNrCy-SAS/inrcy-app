@@ -5,7 +5,7 @@ type Props = {
 };
 
 const premiumFeatures = [
-  "iNr'Agent et automatisations",
+  "iNr'Agent complet avec Propulser et Fidéliser",
   "iNr'Send complet et campagnes mails",
   "iNr'CRM et gestion commerciale",
   "Agenda et suivi des rendez-vous",
@@ -45,7 +45,8 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
           </span>
         </div>
         <p style={{ margin: "14px 0 0", opacity: 0.78, lineHeight: 1.55 }}>
-          Booster sur 10 canaux, iNr&apos;Badge inclus, iNr&apos;Stats, historique iNr&apos;Send et Réputation.
+          Booster sur 10 canaux, iNr&apos;Agent Publications + Statistiques,
+          iNr&apos;Badge inclus, iNr&apos;Stats, historique iNr&apos;Send et Réputation.
         </p>
       </section>
 

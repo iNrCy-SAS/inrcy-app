@@ -5,6 +5,8 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendTxMail } from "@/lib/txMailer";
 import { upsertCrmContactWithoutDuplicate } from "@/lib/crmContactDedupe";
 import { recordInrBadgeEvent } from "@/lib/inrBadgeAnalytics";
+import { getDashboardEditionForAccountId } from "@/lib/dashboardEditionServer";
+import { getInrBadgeLeadPresentation } from "@/lib/inrBadgeEditionPolicy";
 
 function cleanString(value: unknown, max = 240) {
   return String(value || "").trim().replace(/\s+/g, " ").slice(0, max);
@@ -67,7 +69,9 @@ function buildLeadNotificationMail(input: {
   companyName: string;
   message: string;
   sourceUrl: string;
-  crmUrl: string;
+  actionUrl: string;
+  actionLabel: string;
+  footerText: string;
 }) {
   const rows = [
     ["Contact", input.displayName],
@@ -86,7 +90,7 @@ function buildLeadNotificationMail(input: {
     "",
     ...rows.map(([label, value]) => `${label} : ${value}`),
     "",
-    `Voir dans iNr’CRM : ${input.crmUrl}`,
+    `${input.actionLabel} : ${input.actionUrl}`,
   ].join("\n");
 
   const htmlRows = rows.map(([label, value]) => `
@@ -110,9 +114,9 @@ function buildLeadNotificationMail(input: {
           <tr><td style="padding:8px 24px 4px;">
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">${htmlRows}</table>
             <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:18px 0 10px;"><tr><td style="border-radius:12px;background:#0f172a;">
-              <a href="${escapeHtml(input.crmUrl)}" style="display:inline-block;padding:13px 22px;color:#ffffff;text-decoration:none;font-weight:800;font-size:14px;border-radius:12px;">Ouvrir iNr’CRM</a>
+              <a href="${escapeHtml(input.actionUrl)}" style="display:inline-block;padding:13px 22px;color:#ffffff;text-decoration:none;font-weight:800;font-size:14px;border-radius:12px;">${escapeHtml(input.actionLabel)}</a>
             </td></tr></table>
-            <p style="margin:12px 0 0;color:#94a3b8;font-size:12px;line-height:1.5;">Ce contact a aussi été ajouté automatiquement dans votre CRM iNrCy.</p>
+            <p style="margin:12px 0 0;color:#94a3b8;font-size:12px;line-height:1.5;">${escapeHtml(input.footerText)}</p>
           </td></tr>
           <tr><td style="padding:18px 24px 22px;color:#94a3b8;font-size:12px;border-top:1px solid #eef2f7;">Email automatique envoyé par iNrCy.</td></tr>
         </table>
@@ -131,6 +135,8 @@ export async function POST(req: Request) {
   if (!userId) {
     return NextResponse.json({ error: "Fiche iNr'Badge introuvable." }, { status: 404 });
   }
+  const dashboardEdition = await getDashboardEditionForAccountId(userId);
+  const leadPresentation = getInrBadgeLeadPresentation(dashboardEdition);
 
   // Honeypot anti-spam discret : les vrais utilisateurs ne voient jamais ce champ.
   if (cleanString(body?.website)) {
@@ -216,8 +222,8 @@ export async function POST(req: Request) {
       kind: "inrbadge_lead",
       title: "Nouveau contact iNr'Badge",
       body: `${displayName} a transmis ses coordonnées depuis votre iNr'Badge.`,
-      cta_label: "Ouvrir le CRM",
-      cta_url: "/dashboard/crm",
+      cta_label: leadPresentation.ctaLabel,
+      cta_url: leadPresentation.ctaPath,
       dedupe_key: `inrbadge_lead:${crmResult.id || Date.now()}`,
       meta: { source: "inrbadge", contactId: crmResult.id || null, slug, displayName, email, phone, companyName },
     });
@@ -231,7 +237,7 @@ export async function POST(req: Request) {
       try {
         const origin = new URL(req.url).origin;
         const absoluteSourceUrl = new URL(sourceUrl, origin).toString();
-        const crmUrl = new URL("/dashboard/crm", origin).toString();
+        const actionUrl = new URL(leadPresentation.ctaPath, origin).toString();
         const mail = buildLeadNotificationMail({
           proCompany: cleanString((profile as Record<string, unknown>).company_legal_name) || "Votre entreprise",
           displayName,
@@ -240,7 +246,9 @@ export async function POST(req: Request) {
           companyName,
           message,
           sourceUrl: absoluteSourceUrl,
-          crmUrl,
+          actionUrl,
+          actionLabel: leadPresentation.emailActionLabel,
+          footerText: leadPresentation.emailFooter,
         });
         await sendTxMail({ to: proEmail, subject: mail.subject, text: mail.text, html: mail.html });
       } catch (mailError) {

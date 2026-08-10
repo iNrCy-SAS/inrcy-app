@@ -110,6 +110,8 @@ import {
   sanitizeInrAgentSettings,
   type InrAgentSettings,
 } from "@/lib/inrAgentSettings";
+import { isStandardAgentAutomationKey } from "@/lib/standardAgentPolicy";
+import { useDashboardEdition } from "../_components/DashboardEditionProvider";
 import {
   INR_AGENT_ACTION_LABELS,
   INR_AGENT_STATUS_LABELS,
@@ -295,6 +297,16 @@ const AGENT_VIDEO_OPTIMIZER_ACCEPT = [
 
 export default function AgentClient() {
   const router = useRouter();
+  const standardMode = useDashboardEdition() === "standard";
+  const visibleAutomations = useMemo(
+    () =>
+      standardMode
+        ? automations.filter((automation) =>
+            isStandardAgentAutomationKey(automation.key),
+          )
+        : automations,
+    [standardMode],
+  );
   const {
     agentSettings,
     setAgentSettings,
@@ -318,7 +330,7 @@ export default function AgentClient() {
     refreshActions,
     refreshScheduledActions,
     showNotice,
-  } = useAgentRuntimeData();
+  } = useAgentRuntimeData({ standardMode });
   const { robotPanelOpen, setRobotPanelOpen, isMobileHeader } =
     useAgentResponsiveUi();
   const [selectedKey, setSelectedKey] = useState<AutomationKey>("publish");
@@ -610,15 +622,15 @@ export default function AgentClient() {
 
   const selected = useMemo(
     () =>
-      automations.find((automation) => automation.key === selectedKey) ??
-      automations[0],
-    [selectedKey],
+      visibleAutomations.find((automation) => automation.key === selectedKey) ??
+      visibleAutomations[0],
+    [selectedKey, visibleAutomations],
   );
 
   const settingsAutomation = useMemo(
     () =>
-      automations.find((automation) => automation.key === settingsKey) ?? null,
-    [settingsKey],
+      visibleAutomations.find((automation) => automation.key === settingsKey) ?? null,
+    [settingsKey, visibleAutomations],
   );
 
   const selectedHeaderTool = useMemo(
@@ -629,7 +641,7 @@ export default function AgentClient() {
   const upcomingScheduleItems = useMemo<ScheduleListItem[]>(() => {
     const rows: ScheduleListItem[] = [];
 
-    for (const automation of automations) {
+    for (const automation of visibleAutomations) {
       const config = configs[automation.key];
       if (!config?.enabled) continue;
       const nextOccurrence = computeNextOccurrence(config);
@@ -714,7 +726,7 @@ export default function AgentClient() {
         new Date(b.scheduledAtIso || 0).getTime()
       );
     });
-  }, [agentConnectedChannels, configs, scheduledActions]);
+  }, [agentConnectedChannels, configs, scheduledActions, visibleAutomations]);
 
   const selectedConfig = configs[selected.key];
   const selectedAvailableChannels = useMemo(
@@ -3254,7 +3266,7 @@ export default function AgentClient() {
     key: AutomationKey | null | undefined,
   ) {
     if (!key || scheduleMutationState === "saving") return;
-    const automation = automations.find((item) => item.key === key);
+    const automation = visibleAutomations.find((item) => item.key === key);
     openAgentConfirmDialog({
       title: `Désactiver l’automatisation ${automation?.title || "iNrAgent"} ?`,
       message: "Les prochaines actions automatiques de cette rubrique seront retirées du planning.",
@@ -3668,7 +3680,11 @@ export default function AgentClient() {
               onClick={() => {
                 const openInrSend = () =>
                   router.push(
-                    `/dashboard/mails?folder=${inrSendFolderForAutomation(selected.key)}`,
+                    `/dashboard/mails?folder=${
+                      standardMode
+                        ? "publications"
+                        : inrSendFolderForAutomation(selected.key)
+                    }`,
                   );
                 if (!exitScheduledEditSession({ silent: true, onAfterExit: openInrSend })) return;
                 openInrSend();
@@ -3706,10 +3722,12 @@ export default function AgentClient() {
 
 
         <nav
-          className={styles.automationGrid}
+          className={`${styles.automationGrid} ${
+            standardMode ? styles.automationGridStandard : ""
+          }`}
           aria-label="Automatisations iNr’Agent"
         >
-          {automations.map((automation) => {
+          {visibleAutomations.map((automation) => {
             const selectedCard = automation.key === selectedKey;
             const active = configs[automation.key].enabled;
 
@@ -5989,14 +6007,18 @@ export default function AgentClient() {
                   par canal grâce au sélecteur situé sous la zone de
                   prévisualisation.
                 </li>
-                <li>
-                  <strong>Propulser</strong> prépare des campagnes Propulser par
-                  mail, basées sur vos contenus et templates.
-                </li>
-                <li>
-                  <strong>Fidéliser</strong> prépare des campagnes Fidéliser par
-                  mail pour garder le lien avec le CRM.
-                </li>
+                {!standardMode ? (
+                  <>
+                    <li>
+                      <strong>Propulser</strong> prépare des campagnes Propulser
+                      par mail, basées sur vos contenus et templates.
+                    </li>
+                    <li>
+                      <strong>Fidéliser</strong> prépare des campagnes Fidéliser
+                      par mail pour garder le lien avec le CRM.
+                    </li>
+                  </>
+                ) : null}
                 <li>
                   <strong>Statistiques</strong> génère un bilan iNr’Stats PDF
                   multi-pages et l’envoie automatiquement au pro selon les
@@ -6006,9 +6028,9 @@ export default function AgentClient() {
               <p>
                 Les roues de réglages permettent de choisir la fréquence, le
                 jour, l’horaire, les rubriques et le mode de validation de
-                chaque automatisation. Une fois exécutées, les communications
-                restent dans l’historique central iNr’Send, avec la pastille
-                iNr’Agent quand elles viennent de l’automatisation.
+                chaque automatisation. Les publications réalisées restent dans
+                l’historique iNr’Send, avec la pastille iNr’Agent quand elles
+                viennent de l’automatisation.
               </p>
             </div>
           </section>

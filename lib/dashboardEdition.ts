@@ -8,7 +8,6 @@ const STANDARD_PLAN_VALUES = new Set([
 ]);
 
 const STANDARD_BLOCKED_DASHBOARD_PREFIXES = [
-  "/dashboard/agent",
   "/dashboard/agenda",
   "/dashboard/crm",
   "/dashboard/devis",
@@ -25,7 +24,6 @@ const STANDARD_BLOCKED_DASHBOARD_PANELS = new Set([
 ]);
 
 const STANDARD_BLOCKED_API_PREFIXES = [
-  "/api/agent",
   "/api/calendar",
   "/api/crm",
   "/api/documents",
@@ -34,7 +32,26 @@ const STANDARD_BLOCKED_API_PREFIXES = [
   "/api/inbox",
   "/api/mails",
   "/api/propulser",
+  "/api/templates",
 ] as const;
+
+const STANDARD_ALLOWED_AGENT_API_PATHS = [
+  "/api/agent/settings",
+  "/api/agent/actions",
+  "/api/agent/actions/pending-count",
+  "/api/agent/actions/prepare-publish",
+  "/api/agent/actions/send-stats-report",
+  "/api/agent/actions/schedule",
+  "/api/agent/actions/execute",
+  "/api/agent/scheduled-actions",
+] as const;
+
+function isStandardAgentApiPathAllowed(pathname: string): boolean {
+  if (pathMatches(pathname, "/api/agent/scheduled-actions")) return true;
+  return STANDARD_ALLOWED_AGENT_API_PATHS.some(
+    (candidate) => pathname === candidate,
+  );
+}
 
 export const STANDARD_PUBLICATION_CHANNEL_KEYS = [
   "site_inrcy",
@@ -115,6 +132,7 @@ export function isStandardDashboardRouteAllowed(
 export function isPotentialStandardRestrictedApiPath(pathname: string): boolean {
   return (
     pathname === "/api/billing/checkout" ||
+    pathMatches(pathname, "/api/agent") ||
     pathname === "/api/inrsend" ||
     pathname.startsWith("/api/inrsend/") ||
     STANDARD_BLOCKED_API_PREFIXES.some((candidate) => pathMatches(pathname, candidate))
@@ -126,6 +144,10 @@ export function isStandardApiRouteAllowed(
   searchParams?: URLSearchParams,
 ): boolean {
   if (pathname === "/api/billing/checkout") return false;
+
+  if (pathMatches(pathname, "/api/agent")) {
+    return isStandardAgentApiPathAllowed(pathname);
+  }
 
   if (STANDARD_BLOCKED_API_PREFIXES.some((candidate) => pathMatches(pathname, candidate))) {
     return false;

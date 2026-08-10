@@ -18,6 +18,11 @@ import { ensureSystemManagedInrSearch } from "@/lib/inrSearchProvisioning";
 import { getInrSearchPublicStatus } from "@/lib/inrSearchPublic";
 import { captureApiException } from "@/lib/observability/sentry";
 import { withApi } from "@/lib/observability/withApi";
+import { getDashboardEditionForAuthUser } from "@/lib/dashboardEditionServer";
+import {
+  restrictInrAgentSettingsForStandard,
+  standardAgentAutomationKeysForPersistence,
+} from "@/lib/standardAgentPolicy";
 
 type DbAgentGlobalSettingsRow = {
   global_enabled?: boolean | null;
@@ -375,8 +380,10 @@ function rowsToSettings(globalRow: DbAgentGlobalSettingsRow | null | undefined, 
 }
 
 async function getAgentSettingsHandler() {
-  const { user, errorResponse, activeUserId } = await requireUser();
+  const { user, errorResponse, authUserId, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
+  const standardMode =
+    (await getDashboardEditionForAuthUser(authUserId)) === "standard";
 
   const { data: globalData, error: globalError } = await supabaseAdmin
     .from("inr_agent_settings")
@@ -386,7 +393,13 @@ async function getAgentSettingsHandler() {
 
   if (globalError) {
     if (isMissingSchemaError(globalError)) {
-      return NextResponse.json({ settings: sanitizeInrAgentSettings(null), tableMissing: true });
+      const fallback = sanitizeInrAgentSettings(null);
+      return NextResponse.json({
+        settings: standardMode
+          ? restrictInrAgentSettingsForStandard(fallback)
+          : fallback,
+        tableMissing: true,
+      });
     }
     console.warn("[inr-agent-settings] global read failed", globalError);
     return NextResponse.json({ error: "Lecture de la configuration globale iNr'Agent impossible" }, { status: 500 });
@@ -399,7 +412,13 @@ async function getAgentSettingsHandler() {
 
   if (automationError) {
     if (isMissingSchemaError(automationError)) {
-      return NextResponse.json({ settings: sanitizeInrAgentSettings(null), tableMissing: true });
+      const fallback = sanitizeInrAgentSettings(null);
+      return NextResponse.json({
+        settings: standardMode
+          ? restrictInrAgentSettingsForStandard(fallback)
+          : fallback,
+        tableMissing: true,
+      });
     }
     console.warn("[inr-agent-settings] automations read failed", automationError);
     return NextResponse.json({ error: "Lecture des automatisations iNr'Agent impossible" }, { status: 500 });
@@ -412,15 +431,23 @@ async function getAgentSettingsHandler() {
       : [],
   );
 
+  const connectedSettings = await applyConnectedChannelFilter(
+    settings,
+    activeUserId,
+  );
   return NextResponse.json({
-    settings: await applyConnectedChannelFilter(settings, activeUserId),
+    settings: standardMode
+      ? restrictInrAgentSettingsForStandard(connectedSettings)
+      : connectedSettings,
     tableMissing: false,
   });
 }
 
 async function saveAgentSettingsHandler(request: Request) {
-  const { user, errorResponse, activeUserId } = await requireUser();
+  const { user, errorResponse, authUserId, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
+  const standardMode =
+    (await getDashboardEditionForAuthUser(authUserId)) === "standard";
 
   let body: unknown;
   try {
@@ -429,13 +456,16 @@ async function saveAgentSettingsHandler(request: Request) {
     return NextResponse.json({ error: "Requête invalide" }, { status: 400 });
   }
 
-  const settings = await applyConnectedChannelFilter(
+  let settings = await applyConnectedChannelFilter(
     sanitizeInrAgentSettings(
       (body as { settings?: Partial<InrAgentSettings> } | null)?.settings,
     ),
     activeUserId,
     { hydrateMissingPublishDefaults: false },
   );
+  if (standardMode) {
+    settings = restrictInrAgentSettingsForStandard(settings);
+  }
   const now = new Date().toISOString();
 
   const globalPayload = {
@@ -481,7 +511,10 @@ async function saveAgentSettingsHandler(request: Request) {
   const existingByKey = new Map(existingRows.map((row) => [row.automation_key, row]));
   const nowDate = new Date(now);
 
-  const automationPayloads = INR_AGENT_AUTOMATION_KEYS.map((key: InrAgentAutomationKey) => {
+  const persistedAutomationKeys = standardAgentAutomationKeysForPersistence(
+    standardMode,
+  );
+  const automationPayloads = persistedAutomationKeys.map((key: InrAgentAutomationKey) => {
     const automation = settings.automations[key];
     const existing = existingByKey.get(key);
     const row = automationSettingsToDbRow(activeUserId, key, automation);
@@ -504,16 +537,19 @@ async function saveAgentSettingsHandler(request: Request) {
 
   const savedSettings = sanitizeInrAgentSettings({
     ...settings,
-    automations: Object.fromEntries(
-      automationPayloads.map((payload) => [
-        payload.automation_key,
-        {
-          ...settings.automations[payload.automation_key],
-          nextRunAt: payload.next_run_at,
-          metadata: payload.metadata,
-        },
-      ]),
-    ) as unknown as InrAgentSettings["automations"],
+    automations: {
+      ...settings.automations,
+      ...Object.fromEntries(
+        automationPayloads.map((payload) => [
+          payload.automation_key,
+          {
+            ...settings.automations[payload.automation_key],
+            nextRunAt: payload.next_run_at,
+            metadata: payload.metadata,
+          },
+        ]),
+      ),
+    } as InrAgentSettings["automations"],
   });
 
   const { error: automationError } = await supabaseAdmin
@@ -528,7 +564,13 @@ async function saveAgentSettingsHandler(request: Request) {
     return NextResponse.json({ error: "Enregistrement des automatisations iNr'Agent impossible" }, { status: 500 });
   }
 
-  return NextResponse.json({ settings: savedSettings, saved: true, tableMissing: false });
+  return NextResponse.json({
+    settings: standardMode
+      ? restrictInrAgentSettingsForStandard(savedSettings)
+      : savedSettings,
+    saved: true,
+    tableMissing: false,
+  });
 }
 
 export const GET = withApi(async (_req: Request) => getAgentSettingsHandler(), { route: "/api/agent/settings" });

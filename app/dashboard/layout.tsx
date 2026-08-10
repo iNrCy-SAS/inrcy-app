@@ -115,7 +115,13 @@ export default async function DashboardLayout({
     developmentOverride: process.env.INRCY_DEV_DASHBOARD_EDITION,
   });
   const secondaryImagePreloads = dashboardEdition === "standard"
-    ? ["/logo-inrcy.png", "/inrstats-logo.png", "/inrsend-logo.png"]
+    ? [
+        "/logo-inrcy.png",
+        "/agent/inr-agent-robot-cutout.webp",
+        "/icons/inr-agent-header.png",
+        "/inrstats-logo.png",
+        "/inrsend-logo.png",
+      ]
     : DASHBOARD_SECONDARY_IMAGE_PRELOADS;
 
   // Vérifie l'état maintenance

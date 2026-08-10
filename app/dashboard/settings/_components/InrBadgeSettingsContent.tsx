@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createInrBadgeQrMatrix } from "@/lib/inrBadgeQr";
 import { createInrBadgeQrTrackingUrl, type InrBadgeProfileSummary } from "@/lib/inrBadge";
+import { effectiveInrBadgeShareSettings } from "@/lib/inrBadgeEditionPolicy";
+import { useDashboardEdition } from "@/app/dashboard/_components/DashboardEditionProvider";
 import {
   DEFAULT_INRBADGE_APPOINTMENT_SETTINGS,
   DEFAULT_INRBADGE_SHARE_SETTINGS,
@@ -354,8 +356,11 @@ export default function InrBadgeSettingsContent({
   onOpenProfile,
   onOpenCalendarSettings,
 }: Props) {
+  const dashboardEdition = useDashboardEdition();
+  const standardMode = dashboardEdition === "standard";
   const storageKey = useMemo(() => getStorageKey(profile, publicUrl), [profile, publicUrl]);
-  const [settings, setSettings] = useState<ShareSettings>(() => loadShareSettings(storageKey));
+  const [settings, setSettings] = useState<ShareSettings>(() =>
+    effectiveInrBadgeShareSettings(loadShareSettings(storageKey), dashboardEdition));
   const [appointmentSettings, setAppointmentSettings] = useState<AppointmentSettings>(() => loadAppointmentSettings(storageKey));
   const [selectedMailAccountId, setSelectedMailAccountId] = useState<string>(() => loadSelectedMailAccountId(storageKey));
   const [mailAccounts, setMailAccounts] = useState<MailAccountOption[]>([]);
@@ -365,7 +370,7 @@ export default function InrBadgeSettingsContent({
 
   useEffect(() => {
     let cancelled = false;
-    const localSettings = loadShareSettings(storageKey);
+    const localSettings = effectiveInrBadgeShareSettings(loadShareSettings(storageKey), dashboardEdition);
     const localAppointmentSettings = loadAppointmentSettings(storageKey);
     const localSelectedMailAccountId = loadSelectedMailAccountId(storageKey);
     setSettings(localSettings);
@@ -376,13 +381,15 @@ export default function InrBadgeSettingsContent({
       try {
         const [settingsRes, accountsRes] = await Promise.all([
           fetch("/api/inrbadge/settings", { cache: "no-store" }),
-          fetch("/api/integrations/status", { cache: "no-store" }),
+          standardMode ? Promise.resolve(null) : fetch("/api/integrations/status", { cache: "no-store" }),
         ]);
         const json = await settingsRes.json().catch(() => null) as { settings?: unknown; appointmentSettings?: unknown; selectedMailAccountId?: unknown } | null;
-        const accountsJson = await accountsRes.json().catch(() => null) as { mailAccounts?: unknown } | null;
+        const accountsJson = accountsRes
+          ? await accountsRes.json().catch(() => null) as { mailAccounts?: unknown } | null
+          : null;
         if (cancelled) return;
 
-        if (accountsRes.ok) {
+        if (accountsRes?.ok) {
           const nextAccounts = Array.isArray(accountsJson?.mailAccounts)
             ? accountsJson.mailAccounts.filter((account): account is MailAccountOption => !!account && typeof account === "object" && isUsableMailAccount(account as MailAccountOption))
             : [];
@@ -390,7 +397,10 @@ export default function InrBadgeSettingsContent({
         }
 
         if (!settingsRes.ok) return;
-        const serverSettings = normalizeInrBadgeShareSettings(json?.settings);
+        const serverSettings = effectiveInrBadgeShareSettings(
+          normalizeInrBadgeShareSettings(json?.settings),
+          dashboardEdition,
+        );
         const serverAppointmentSettings = normalizeInrBadgeAppointmentSettings(json?.appointmentSettings);
         const serverSelectedMailAccountId = trim(json?.selectedMailAccountId);
         setSettings(serverSettings);
@@ -406,7 +416,7 @@ export default function InrBadgeSettingsContent({
     return () => {
       cancelled = true;
     };
-  }, [storageKey]);
+  }, [dashboardEdition, standardMode, storageKey]);
 
   useEffect(() => {
     if (!downloadMenuOpen) return;
@@ -505,26 +515,36 @@ export default function InrBadgeSettingsContent({
     { key: "youtubeShorts", label: "YouTube", connected: canShareChannel(channels.youtubeShorts || { connected: false }), helper: "Disponible si YouTube est configuré avec un lien enregistré." },
   ];
 
-  const mailSelectOptions = [
-    ...(email ? [{ value: "", label: `Email du profil — ${email}` }] : []),
-    ...mailAccounts.map((account) => ({
-      value: account.id,
-      label: `${providerLabel(account.provider)} — ${trim(account.display_name) || trim(account.email_address)}`,
-    })),
-  ];
-  const selectedMailAccountExists = Boolean(selectedMailAccountId && mailAccounts.some((account) => account.id === selectedMailAccountId));
-  const fallbackMailAccountId = trim(mailAccounts[0]?.id);
-  const selectedMailValue = selectedMailAccountExists
-    ? selectedMailAccountId
-    : email
-      ? ""
-      : fallbackMailAccountId;
-  const canShowMailButton = Boolean(email || mailAccounts.length > 0);
-  const mailHelper = !canShowMailButton
-    ? "Ajoutez un email dans Mon profil ou connectez une boîte dans Mails."
-    : selectedMailValue
-      ? "Le bouton Mail utilisera cette boîte connectée."
-      : "Le bouton Mail utilisera l'email du profil.";
+  const mailSelectOptions = standardMode
+    ? email ? [{ value: "", label: `Email de Mon profil — ${email}` }] : []
+    : [
+        ...(email ? [{ value: "", label: `Email du profil — ${email}` }] : []),
+        ...mailAccounts.map((account) => ({
+          value: account.id,
+          label: `${providerLabel(account.provider)} — ${trim(account.display_name) || trim(account.email_address)}`,
+        })),
+      ];
+  const selectedMailAccountExists = !standardMode && Boolean(
+    selectedMailAccountId && mailAccounts.some((account) => account.id === selectedMailAccountId),
+  );
+  const fallbackMailAccountId = standardMode ? "" : trim(mailAccounts[0]?.id);
+  const selectedMailValue = standardMode
+    ? ""
+    : selectedMailAccountExists
+      ? selectedMailAccountId
+      : email
+        ? ""
+        : fallbackMailAccountId;
+  const canShowMailButton = standardMode ? Boolean(email) : Boolean(email || mailAccounts.length > 0);
+  const mailHelper = standardMode
+    ? email
+      ? "Le bouton Mail utilise toujours l'adresse renseignée dans Mon profil."
+      : "Ajoutez une adresse dans Mon profil pour afficher le bouton Mail."
+    : !canShowMailButton
+      ? "Ajoutez un email dans Mon profil ou connectez une boîte dans Mails."
+      : selectedMailValue
+        ? "Le bouton Mail utilisera cette boîte connectée."
+        : "Le bouton Mail utilisera l'email du profil.";
 
   const updateSelectedMailAccount = (value: string) => {
     const nextId = trim(value);
@@ -534,11 +554,12 @@ export default function InrBadgeSettingsContent({
   };
 
   useEffect(() => {
+    if (standardMode) return;
     if (email || !fallbackMailAccountId || selectedMailAccountExists) return;
     setSelectedMailAccountId(fallbackMailAccountId);
     saveBadgeSettings(storageKey, settings, appointmentSettings, fallbackMailAccountId);
     void persistBadgeSettings(settings, fallbackMailAccountId);
-  }, [appointmentSettings, email, fallbackMailAccountId, selectedMailAccountExists, settings, storageKey]);
+  }, [appointmentSettings, email, fallbackMailAccountId, selectedMailAccountExists, settings, standardMode, storageKey]);
 
   return (
     <div style={{ display: "grid", gap: 14 }}>
@@ -634,7 +655,7 @@ export default function InrBadgeSettingsContent({
 
               <select
                 value={selectedMailValue}
-                disabled={!settings.email || !canShowMailButton || mailSelectOptions.length === 0}
+                disabled={standardMode || !settings.email || !canShowMailButton || mailSelectOptions.length === 0}
                 onChange={(event) => updateSelectedMailAccount(event.target.value)}
                 style={selectStyle}
                 aria-label="Adresse du bouton Mail"
@@ -664,24 +685,26 @@ export default function InrBadgeSettingsContent({
         </div>
       </div>
 
-      <div style={cardStyle}>
-        <h3 style={sectionTitleStyle}>Prise de RDV</h3>
-        <div style={appointmentActionRowStyle}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <FieldToggle label="Afficher Prendre RDV" checked={Boolean(settings.appointment)} helper="Ajoute le bouton sur la fiche publique." onChange={(value) => updateSetting("appointment", value)} />
+      {!standardMode ? (
+        <div style={cardStyle}>
+          <h3 style={sectionTitleStyle}>Prise de RDV</h3>
+          <div style={appointmentActionRowStyle}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <FieldToggle label="Afficher Prendre RDV" checked={Boolean(settings.appointment)} helper="Ajoute le bouton sur la fiche publique." onChange={(value) => updateSetting("appointment", value)} />
+            </div>
+            <button
+              type="button"
+              style={settingsGearButtonStyle}
+              onClick={onOpenCalendarSettings}
+              aria-label="Ouvrir les réglages iNr’Calendar"
+              title="Réglages iNr’Calendar"
+            >
+              <span aria-hidden="true" style={{ fontSize: 18, lineHeight: 1 }}>⚙</span>
+            </button>
           </div>
-          <button
-            type="button"
-            style={settingsGearButtonStyle}
-            onClick={onOpenCalendarSettings}
-            aria-label="Ouvrir les réglages iNr’Calendar"
-            title="Réglages iNr’Calendar"
-          >
-            <span aria-hidden="true" style={{ fontSize: 18, lineHeight: 1 }}>⚙</span>
-          </button>
+          <p style={{ ...mutedStyle, marginTop: 12, marginBottom: 0 }}>iNr’Badge affiche le bouton. Les jours, horaires, durées de créneaux, délai minimum et rappels se règlent dans iNr’Calendar.</p>
         </div>
-        <p style={{ ...mutedStyle, marginTop: 12, marginBottom: 0 }}>iNr’Badge affiche le bouton. Les jours, horaires, durées de créneaux, délai minimum et rappels se règlent dans iNr’Calendar.</p>
-      </div>
+      ) : null}
 
 
       {notice ? <div style={noticeStyle}>{notice}</div> : null}

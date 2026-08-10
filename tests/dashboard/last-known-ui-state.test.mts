@@ -46,7 +46,7 @@ test("notification and iNrAgent badges hydrate from account-scoped caches before
   assert.match(pendingCountHook, /INR_AGENT_PENDING_COUNT_CACHE_KEY =\s*"inrcy_inr_agent_pending_count_v1"/);
   assert.match(pendingCountHook, /readCachedPendingInrAgentCount\(nextAccountId\)/);
   assert.match(pendingCountHook, /ACTIVE_INRCY_ACCOUNT_EVENT/);
-  assert.match(dashboardTopbar, /useInrAgentPendingCount\(\)/);
+  assert.match(dashboardTopbar, /useInrAgentPendingCount\([^)]*\)/);
   assert.match(accountCache, /"inrcy_dashboard_notifications_v1"/);
   assert.match(accountCache, /"inrcy_inr_agent_pending_count_v1"/);
 });

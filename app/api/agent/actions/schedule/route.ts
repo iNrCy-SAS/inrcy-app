@@ -14,6 +14,11 @@ import { findSimilarScheduledCampaign } from "@/lib/scheduledCampaignDedupe";
 import { captureApiException } from "@/lib/observability/sentry";
 import { withApi } from "@/lib/observability/withApi";
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
+import {
+  getDashboardEditionForAuthUser,
+  premiumRequiredApiResponse,
+} from "@/lib/dashboardEditionServer";
+import { isStandardAgentActionDescriptor } from "@/lib/standardAgentPolicy";
 
 export const runtime = "nodejs";
 export const maxDuration = 90;
@@ -744,8 +749,10 @@ async function buildScheduledPayload(
 }
 
 async function scheduleAgentActionHandler(request: Request) {
-  const { user, errorResponse, activeUserId } = await requireUser();
+  const { user, errorResponse, authUserId, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
+  const standardMode =
+    (await getDashboardEditionForAuthUser(authUserId)) === "standard";
 
   const body = (await request.json().catch(() => null)) as {
     actionId?: unknown;
@@ -789,6 +796,9 @@ async function scheduleAgentActionHandler(request: Request) {
     );
 
   const action = rowToInrAgentAction(actionRow as any);
+  if (standardMode && !isStandardAgentActionDescriptor(action)) {
+    return premiumRequiredApiResponse();
+  }
   if (!schedulableStatuses.has(action.status)) {
     return NextResponse.json(
       {

@@ -22,7 +22,13 @@ Le tableau de bord Standard reprend volontairement le dashboard iNrCy actuel : m
 - les vraies bulles de connexion sont conservées avec leur état, « Voir » et « Configurer » ;
 - iNr’Badge reste une vraie bulle interactive, incluse comme bonus et non comptée parmi les 10 canaux ;
 
-La barre supérieure ne propose pas iNr’Agent en Standard. Tout le reste conserve le graphisme actuel. Le menu général reste disponible, mais les écrans Premium sont également protégés côté serveur : un simple changement d’URL ne permet pas de les ouvrir.
+En Standard, iNr’Badge reste une fiche publique et un QR Code complets : téléphone, mail, vCard, formulaire de contact, liens vers les canaux et statistiques. Le bouton Mail utilise exclusivement l’adresse renseignée dans « Mon profil ». Le formulaire transmet les coordonnées à cette adresse et les comptabilise dans iNr’Stats, sans renvoyer l’utilisateur Standard vers le CRM.
+
+La prise de rendez-vous iNr’Badge reste Premium avec iNr’Calendar. Elle est absente des réglages, de la fiche publique et d’iNr’Stats en Standard ; la page publique de réservation et son API refusent également tout accès direct. Les anciennes préférences Premium restent conservées en base pour permettre un futur changement d’édition sans perte de configuration.
+
+La barre supérieure conserve iNr’Agent en Standard afin que la programmation Booster et les bilans automatiques iNr’Stats continuent de fonctionner. Son interface ne présente que deux rubriques : **Publier** et **Statistiques**. **Propulser** et **Fidéliser** restent Premium : elles sont invisibles, refusées par les API et neutralisées dans les tâches automatiques, y compris pour une ancienne action programmée avant un passage de Premium vers Standard.
+
+Tout le reste conserve le graphisme actuel. Le menu général reste disponible, mais les autres écrans Premium sont également protégés côté serveur : un simple changement d’URL ou un appel API direct ne permet pas de les ouvrir.
 
 ## Premium
 
@@ -30,7 +36,7 @@ L’expérience Premium existante n’a pas été redessinée ni réduite. Elle 
 
 Dans le compte Standard, l’offre Premium est présentée avec un bouton de contact. Aucun passage autonome ni paiement Premium n’est autorisé pour le moment.
 
-Dans « Mon compte », les informations et identifiants du professionnel sont affichés avant les informations de forfait.
+Dans « Mon compte », le forfait actif et l’offre Premium sont affichés en premier, avant les informations et identifiants du professionnel.
 
 Lorsque Google Business n’est pas connecté dans Réputation, chaque avis fictif porte désormais le badge « EXEMPLE », le texte précise qu’aucun vrai avis n’est chargé et un bouton « Brancher Google » renforcé remplace toute ambiguïté. Ces marqueurs disparaissent dès que les vrais avis sont disponibles.
 
@@ -40,7 +46,7 @@ Lorsque Google Business n’est pas connecté dans Réputation, chaque avis fict
 - la valeur par défaut Supabase est `standard`, ce qui protège aussi les futurs parcours d’inscription ;
 - les lignes déjà présentes sont initialisées à `premium` ;
 - `plan`, `status`, Stripe, les données métier et les validations API/OAuth ne sont pas modifiés ;
-- aucun SQL n’a été exécuté et aucune modification n’a été déployée en production depuis ce dossier.
+- la migration additive a été exécutée avec succès par le responsable du projet ; la réintégration limitée d’iNr’Agent ne demande aucun SQL supplémentaire.
 
 Ordre de déploiement : exécuter `ops/sql/2026-08-10_subscriptions_app_edition.sql`, puis déployer le nouveau code.
 
@@ -65,12 +71,11 @@ Cette variable est volontairement ignorée en production. Pour revoir Premium en
 
 - TypeScript : validé ;
 - ESLint sur tous les fichiers modifiés : validé ;
-- tests édition Standard, nouveaux inscrits, dashboard actuel, blocs inférieurs, Mon compte, bulles et protections d’accès : 10/10 ;
-- tests de reconnexion et sélection Booster : 14/14 ;
-- tests de navigation et préchargement : 8/8.
-- tests spécifiques Réputation et avis d’exemple : 3/3.
+- build Next.js de production et génération des 220 pages : validés ;
+- suite complète du dashboard, incluant l’édition Standard, les nouveaux inscrits, le dashboard actuel, les blocs inférieurs, Mon compte, les bulles, la reconnexion, Booster, iNr’Badge, la navigation, Réputation et les protections d’accès : 273/273 ;
+- suite spécifique iNr’Agent, incluant Publications, Statistiques et les restrictions Standard : 15/15.
 
-Total ciblé : 35 tests réussis, aucun échec.
+Total automatisé : 288/288 tests validés.
 
 ## Retour arrière
 

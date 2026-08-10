@@ -22,6 +22,14 @@ import {
   INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT,
 } from "@/lib/mediaRules";
 import {
+  getDashboardEditionForAuthUser,
+  premiumRequiredApiResponse,
+} from "@/lib/dashboardEditionServer";
+import {
+  filterStandardAgentItems,
+  isStandardAgentActionDescriptor,
+} from "@/lib/standardAgentPolicy";
+import {
   asRecord,
   buildPublishMediaAdaptation,
   buildPublishMediaReadiness,
@@ -1172,8 +1180,10 @@ async function saveCampaignActionAsInrSendDraft(args: {
 }
 
 export async function GET() {
-  const { user, errorResponse, activeUserId } = await requireUser();
+  const { user, errorResponse, authUserId, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
+  const standardMode =
+    (await getDashboardEditionForAuthUser(authUserId)) === "standard";
 
   const { data, error } = await supabaseAdmin
     .from("inr_agent_actions")
@@ -1197,8 +1207,13 @@ export async function GET() {
     );
   }
 
-  const rawActions = Array.isArray(data)
-    ? data.map((row) => rowToInrAgentAction(row))
+  const visibleRows = Array.isArray(data)
+    ? standardMode
+      ? filterStandardAgentItems(data)
+      : data
+    : [];
+  const rawActions = visibleRows.length
+    ? visibleRows.map((row) => rowToInrAgentAction(row))
     : [];
   const actions = await Promise.all(rawActions.map(refreshActionImageUrls));
   return NextResponse.json({
@@ -1209,8 +1224,10 @@ export async function GET() {
 }
 
 export async function PATCH(request: Request) {
-  const { user, errorResponse, activeUserId } = await requireUser();
+  const { user, errorResponse, authUserId, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
+  const standardMode =
+    (await getDashboardEditionForAuthUser(authUserId)) === "standard";
 
   let body: unknown;
   try {
@@ -1245,6 +1262,30 @@ export async function PATCH(request: Request) {
     typeof requestBody?.actionId === "string" ? requestBody.actionId : "";
   const status = sanitizeInrAgentActionStatus(requestBody?.status);
   const editType = cleanText(requestBody?.editType, 80);
+
+  if (standardMode && actionId) {
+    const { data: descriptorRow, error: descriptorError } = await supabaseAdmin
+      .from("inr_agent_actions")
+      .select("automation_key, action_type, target_tool")
+      .eq("id", actionId)
+      .eq("user_id", activeUserId)
+      .maybeSingle();
+    if (descriptorError) {
+      return NextResponse.json(
+        { error: "Vérification de l’action iNr’Agent impossible." },
+        { status: 500 },
+      );
+    }
+    if (!descriptorRow) {
+      return NextResponse.json(
+        { error: "Action iNr’Agent introuvable." },
+        { status: 404 },
+      );
+    }
+    if (!isStandardAgentActionDescriptor(descriptorRow)) {
+      return premiumRequiredApiResponse();
+    }
+  }
 
   if (editType === "save_campaign_draft" || editType === "save_publish_draft") {
     if (!actionId) {

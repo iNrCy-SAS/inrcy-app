@@ -11,6 +11,17 @@ import {
   resolveDashboardEditionFromEdition,
   resolveDashboardEditionFromPlan,
 } from "../../lib/dashboardEdition.ts";
+import {
+  isStandardAgentActionDescriptor,
+  isStandardAgentAutomationKey,
+} from "../../lib/standardAgentPolicy.ts";
+import {
+  canUseInrBadgeAppointments,
+  effectiveInrBadgeShareSettings,
+  getInrBadgeLeadPresentation,
+  resolveInrBadgePublicEmail,
+} from "../../lib/inrBadgeEditionPolicy.ts";
+import { DEFAULT_INRBADGE_SHARE_SETTINGS } from "../../lib/inrBadgeSettings.ts";
 
 const dashboardClientSource = readFileSync(
   new URL("../../app/dashboard/DashboardClient.tsx", import.meta.url),
@@ -64,6 +75,54 @@ const adminUsersClientSource = readFileSync(
   new URL("../../app/dashboard/admin/users/AdminUsersClient.tsx", import.meta.url),
   "utf8",
 );
+const agentClientSource = readFileSync(
+  new URL("../../app/dashboard/agent/AgentClient.tsx", import.meta.url),
+  "utf8",
+);
+const agentSettingsApiSource = readFileSync(
+  new URL("../../app/api/agent/settings/route.ts", import.meta.url),
+  "utf8",
+);
+const agentCronSource = readFileSync(
+  new URL("../../app/api/cron/inr-agent/route.ts", import.meta.url),
+  "utf8",
+);
+const scheduledAgentCronSource = readFileSync(
+  new URL("../../app/api/cron/inr-agent-scheduled-actions/route.ts", import.meta.url),
+  "utf8",
+);
+const badgePageSource = readFileSync(
+  new URL("../../app/badge/[slug]/page.tsx", import.meta.url),
+  "utf8",
+);
+const badgeRdvPageSource = readFileSync(
+  new URL("../../app/badge/[slug]/rdv/page.tsx", import.meta.url),
+  "utf8",
+);
+const badgeAppointmentApiSource = readFileSync(
+  new URL("../../app/api/inrbadge/appointment-request/route.ts", import.meta.url),
+  "utf8",
+);
+const badgeSettingsApiSource = readFileSync(
+  new URL("../../app/api/inrbadge/settings/route.ts", import.meta.url),
+  "utf8",
+);
+const badgeSettingsSource = readFileSync(
+  new URL("../../app/dashboard/settings/_components/InrBadgeSettingsContent.tsx", import.meta.url),
+  "utf8",
+);
+const badgeLeadApiSource = readFileSync(
+  new URL("../../app/api/inrbadge/lead/route.ts", import.meta.url),
+  "utf8",
+);
+const statsClientSource = readFileSync(
+  new URL("../../app/dashboard/stats/StatsClient.tsx", import.meta.url),
+  "utf8",
+);
+const statsFoundationsSource = readFileSync(
+  new URL("../../app/dashboard/stats/stats.client-foundations.ts", import.meta.url),
+  "utf8",
+);
 
 test("app_edition pilote officiellement l'interface avec un fallback compatible sur les anciens plans", () => {
   assert.equal(resolveDashboardEditionFromEdition("standard"), "standard");
@@ -99,6 +158,50 @@ test("Standard contient exactement dix destinations de publication et iNrBadge e
   assert.equal(STANDARD_PUBLICATION_CHANNEL_KEYS.includes("mails" as never), false);
 });
 
+test("iNrBadge Standard utilise le mail de Mon profil et exclut entièrement la prise de RDV", () => {
+  const storedSettings = { ...DEFAULT_INRBADGE_SHARE_SETTINGS, appointment: true };
+  const effectiveSettings = effectiveInrBadgeShareSettings(storedSettings, "standard");
+
+  assert.equal(effectiveSettings.appointment, false);
+  assert.equal(storedSettings.appointment, true, "la configuration Premium reste réversible");
+  assert.equal(canUseInrBadgeAppointments("standard", storedSettings), false);
+  assert.equal(canUseInrBadgeAppointments("premium", storedSettings), true);
+  assert.equal(resolveInrBadgePublicEmail({
+    edition: "standard",
+    profileEmail: "profil@example.fr",
+    selectedMailAccountEmail: "boite-connectee@example.fr",
+  }), "profil@example.fr");
+  assert.equal(resolveInrBadgePublicEmail({
+    edition: "premium",
+    profileEmail: "profil@example.fr",
+    selectedMailAccountEmail: "boite-connectee@example.fr",
+  }), "boite-connectee@example.fr");
+
+  assert.match(badgePageSource, /dashboardEdition === "premium" && selectedMailAccountId/);
+  assert.match(badgePageSource, /canUseInrBadgeAppointments\(dashboardEdition, shareSettings\)/);
+  assert.match(badgeRdvPageSource, /canUseInrBadgeAppointments\(dashboardEdition, shareSettings\)/);
+  assert.match(badgeAppointmentApiSource, /dashboardEdition === "standard"/);
+  assert.match(badgeSettingsApiSource, /dashboardEdition === "standard"/);
+  assert.match(badgeSettingsSource, /!standardMode \? \(/);
+  assert.match(badgeSettingsSource, /Email de Mon profil/);
+  assert.match(statsClientSource, /appointmentsEnabled: !standardMode/);
+  assert.match(statsFoundationsSource, /appointmentsEnabled\s*\? \{ label: "RDV 30j"/);
+});
+
+test("la capture de contact iNrBadge reste autonome en Standard sans renvoyer vers le CRM Premium", () => {
+  const standardPresentation = getInrBadgeLeadPresentation("standard");
+  const premiumPresentation = getInrBadgeLeadPresentation("premium");
+
+  assert.equal(standardPresentation.ctaPath, "/dashboard/stats");
+  assert.equal(standardPresentation.emailActionLabel, "Voir iNr’Stats");
+  assert.doesNotMatch(standardPresentation.emailFooter, /CRM/i);
+  assert.equal(premiumPresentation.ctaPath, "/dashboard/crm");
+  assert.match(premiumPresentation.emailFooter, /CRM/i);
+  assert.match(badgeLeadApiSource, /getInrBadgeLeadPresentation\(dashboardEdition\)/);
+  assert.match(badgeLeadApiSource, /cta_url: leadPresentation\.ctaPath/);
+  assert.match(badgeLeadApiSource, /to: proEmail/);
+});
+
 test("Standard conserve le dashboard actuel et ne remplace que les deux blocs inférieurs", () => {
   assert.match(dashboardClientSource, /<DashboardHero/);
   assert.match(dashboardClientSource, /<DashboardChannelsSection/);
@@ -131,9 +234,10 @@ test("les blocs inférieurs Standard ne contiennent que Stats, Publications, Ré
   assert.match(standardModulesSource, /standardStyles\.toolAction/);
 });
 
-test("les écrans Premium sont refusés tandis que les quatre outils Standard restent accessibles", () => {
+test("les écrans Premium sont refusés tandis que les outils Standard et iNrAgent limité restent accessibles", () => {
   for (const path of [
     "/dashboard",
+    "/dashboard/agent",
     "/dashboard/stats",
     "/dashboard/mails",
     "/dashboard/e-reputation",
@@ -142,7 +246,6 @@ test("les écrans Premium sont refusés tandis que les quatre outils Standard re
   }
 
   for (const path of [
-    "/dashboard/agent",
     "/dashboard/crm",
     "/dashboard/agenda",
     "/dashboard/propulser",
@@ -160,6 +263,60 @@ test("les écrans Premium sont refusés tandis que les quatre outils Standard re
     isStandardDashboardRouteAllowed("/dashboard", new URLSearchParams("panel=ia")),
     true,
   );
+});
+
+test("iNrAgent Standard ne conserve que Publications et Statistiques", () => {
+  assert.equal(isStandardAgentAutomationKey("publish"), true);
+  assert.equal(isStandardAgentAutomationKey("stats"), true);
+  assert.equal(isStandardAgentAutomationKey("grow"), false);
+  assert.equal(isStandardAgentAutomationKey("loyalty"), false);
+
+  assert.equal(isStandardAgentActionDescriptor({
+    automationKey: "publish",
+    actionType: "publication",
+    targetTool: "booster",
+  }), true);
+  assert.equal(isStandardAgentActionDescriptor({
+    automation_key: "stats",
+    action_type: "stats_report",
+    target_tool: "inrstats",
+  }), true);
+  assert.equal(isStandardAgentActionDescriptor({
+    automationKey: "grow",
+    actionType: "campaign",
+    targetTool: "propulser",
+  }), false);
+  assert.equal(isStandardAgentActionDescriptor({
+    automationKey: "publish",
+    actionType: "campaign",
+    targetTool: "booster",
+  }), false);
+
+  for (const path of [
+    "/api/agent/settings",
+    "/api/agent/actions",
+    "/api/agent/actions/pending-count",
+    "/api/agent/actions/prepare-publish",
+    "/api/agent/actions/send-stats-report",
+    "/api/agent/actions/schedule",
+    "/api/agent/actions/execute",
+    "/api/agent/scheduled-actions",
+    "/api/agent/scheduled-actions/123/execute",
+  ]) {
+    assert.equal(isStandardApiRouteAllowed(path), true, path);
+  }
+  assert.equal(
+    isStandardApiRouteAllowed("/api/agent/actions/prepare-campaign"),
+    false,
+  );
+  assert.equal(isStandardApiRouteAllowed("/api/templates/render"), false);
+  assert.equal(isStandardApiRouteAllowed("/api/templates/generate-ai"), false);
+
+  assert.match(agentClientSource, /visibleAutomations/);
+  assert.match(agentClientSource, /isStandardAgentAutomationKey/);
+  assert.match(agentSettingsApiSource, /standardAgentAutomationKeysForPersistence/);
+  assert.match(agentCronSource, /reason: "premium_required"/);
+  assert.match(scheduledAgentCronSource, /status: "cancelled"/);
 });
 
 test("iNrSend Standard n'expose que l'historique Publications", () => {

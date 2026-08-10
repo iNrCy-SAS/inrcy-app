@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import { rowToInrAgentScheduledAction } from "@/lib/inrAgentScheduledActions";
 import { requireUser } from "@/lib/requireUser";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import {
+  getDashboardEditionForAuthUser,
+  premiumRequiredApiResponse,
+} from "@/lib/dashboardEditionServer";
+import { isStandardAgentActionDescriptor } from "@/lib/standardAgentPolicy";
 
 export const runtime = "nodejs";
 
@@ -45,8 +50,10 @@ function sanitizeText(value: unknown, fallback = "", maxLength = 180) {
 
 
 export async function GET(_request: Request, ctx: { params: Promise<{ id: string }> }) {
-  const { user, errorResponse, activeUserId } = await requireUser();
+  const { user, errorResponse, authUserId, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
+  const standardMode =
+    (await getDashboardEditionForAuthUser(authUserId)) === "standard";
   const { id } = await ctx.params;
 
   const { data, error } = await supabaseAdmin
@@ -65,12 +72,17 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
   }
 
   if (!data) return NextResponse.json({ error: "Action programmée introuvable" }, { status: 404 });
+  if (standardMode && !isStandardAgentActionDescriptor(data)) {
+    return premiumRequiredApiResponse();
+  }
   return NextResponse.json({ scheduledAction: rowToInrAgentScheduledAction(data), tableMissing: false });
 }
 
 export async function PATCH(request: Request, ctx: { params: Promise<{ id: string }> }) {
-  const { user, errorResponse, activeUserId } = await requireUser();
+  const { user, errorResponse, authUserId, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
+  const standardMode =
+    (await getDashboardEditionForAuthUser(authUserId)) === "standard";
   const { id } = await ctx.params;
 
   let body: unknown;
@@ -131,6 +143,38 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     updates.last_error = null;
   }
 
+  if (standardMode) {
+    const { data: currentRow, error: currentError } = await supabaseAdmin
+      .from("inr_agent_scheduled_actions")
+      .select("automation_key, action_type, target_tool")
+      .eq("id", id)
+      .eq("user_id", activeUserId)
+      .maybeSingle();
+    if (currentError) {
+      return NextResponse.json(
+        { error: "Vérification de l’action programmée impossible." },
+        { status: 500 },
+      );
+    }
+    if (!currentRow) {
+      return NextResponse.json(
+        { error: "Action programmée introuvable" },
+        { status: 404 },
+      );
+    }
+    const nextDescriptor = {
+      automation_key: updates.automation_key ?? currentRow.automation_key,
+      action_type: updates.action_type ?? currentRow.action_type,
+      target_tool: updates.target_tool ?? currentRow.target_tool,
+    };
+    if (
+      !isStandardAgentActionDescriptor(currentRow) ||
+      !isStandardAgentActionDescriptor(nextDescriptor)
+    ) {
+      return premiumRequiredApiResponse();
+    }
+  }
+
   const { data, error } = await supabaseAdmin
     .from("inr_agent_scheduled_actions")
     .update(updates)
@@ -153,9 +197,35 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
 }
 
 export async function DELETE(_request: Request, ctx: { params: Promise<{ id: string }> }) {
-  const { user, errorResponse, activeUserId } = await requireUser();
+  const { user, errorResponse, authUserId, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
+  const standardMode =
+    (await getDashboardEditionForAuthUser(authUserId)) === "standard";
   const { id } = await ctx.params;
+
+  if (standardMode) {
+    const { data: currentRow, error: currentError } = await supabaseAdmin
+      .from("inr_agent_scheduled_actions")
+      .select("automation_key, action_type, target_tool")
+      .eq("id", id)
+      .eq("user_id", activeUserId)
+      .maybeSingle();
+    if (currentError) {
+      return NextResponse.json(
+        { error: "Vérification de l’action programmée impossible." },
+        { status: 500 },
+      );
+    }
+    if (!currentRow) {
+      return NextResponse.json(
+        { error: "Action programmée introuvable" },
+        { status: 404 },
+      );
+    }
+    if (!isStandardAgentActionDescriptor(currentRow)) {
+      return premiumRequiredApiResponse();
+    }
+  }
 
   const { data, error } = await supabaseAdmin
     .from("inr_agent_scheduled_actions")

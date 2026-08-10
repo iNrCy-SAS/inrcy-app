@@ -9,6 +9,12 @@ import { normalizeInrBadgeShareSettings } from "@/lib/inrBadgeSettings";
 import { getInrBadgeTexts, normalizeInrBadgeLanguage } from "@/lib/inrBadgeLanguage";
 import { getChannelConnectionStates } from "@/lib/channelConnectionState";
 import { fetchPinterestUserAccount, getPinterestAccessToken } from "@/lib/pinterestOAuth";
+import { getDashboardEditionForAccountId } from "@/lib/dashboardEditionServer";
+import {
+  canUseInrBadgeAppointments,
+  effectiveInrBadgeShareSettings,
+  resolveInrBadgePublicEmail,
+} from "@/lib/inrBadgeEditionPolicy";
 import inrBadgeIcon from "@/public/icons/inrbadge-dashboard.png";
 import inrcyIcon from "@/public/icons/inrcy.png";
 import siteWebIcon from "@/public/icons/site-web.jpg";
@@ -273,7 +279,7 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
   const userId = extractInrBadgeUserIdFromSlug(slug);
   if (!userId) notFound();
 
-  const [profileRes, businessRes, badgeLanguageRes, toolsRes, siteInrcyRes, integrationsRes] = await Promise.all([
+  const [profileRes, businessRes, badgeLanguageRes, toolsRes, siteInrcyRes, integrationsRes, dashboardEdition] = await Promise.all([
     supabaseAdmin
       .from("profiles")
       .select("user_id,inrcy_site_ownership,logo_url,logo_path,company_legal_name,first_name,last_name,phone,contact_email,hq_address,hq_zip,hq_city,hq_country")
@@ -307,6 +313,7 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
       .from("integrations")
       .select("provider,source,product,category,account_email,settings,status,resource_id,resource_label,display_name,email_address,expires_at,access_token_enc,refresh_token_enc,meta,updated_at,created_at")
       .eq("user_id", userId),
+    getDashboardEditionForAccountId(userId),
   ]);
 
   if (profileRes.error || !profileRes.data) notFound();
@@ -315,7 +322,8 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
   const business = (businessRes.data ?? {}) as Record<string, unknown>;
   const badgeLanguageRow = (badgeLanguageRes.data ?? {}) as Record<string, unknown>;
   const toolSettings = safeObj((toolsRes.data as { settings?: unknown } | null)?.settings);
-  const shareSettings = normalizeInrBadgeShareSettings(toolSettings.inrBadgeShareSettings);
+  const storedShareSettings = normalizeInrBadgeShareSettings(toolSettings.inrBadgeShareSettings);
+  const shareSettings = effectiveInrBadgeShareSettings(storedShareSettings, dashboardEdition);
   // La langue publique du badge vient des Préférences générales.
   // Elle est lue dans une requête séparée pour éviter qu'un souci sur les champs métier
   // ne fasse retomber l'écran principal du badge sur l'ancien réglage inrBadgeLanguage.
@@ -394,7 +402,7 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
   const selectedMailAccountId = trim(toolSettings.inrBadgeMailAccountId);
   let selectedMailAccountEmail = "";
 
-  if (selectedMailAccountId) {
+  if (dashboardEdition === "premium" && selectedMailAccountId) {
     const selectedMailRes = await supabaseAdmin
       .from("integrations")
       .select("account_email,status,settings")
@@ -408,7 +416,11 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
     }
   }
 
-  const badgeEmail = selectedMailAccountEmail || email;
+  const badgeEmail = resolveInrBadgePublicEmail({
+    edition: dashboardEdition,
+    profileEmail: email,
+    selectedMailAccountEmail,
+  });
 
   const publicUrl = `${await getBadgeBaseUrl()}/badge/${slug}`;
 
@@ -445,7 +457,7 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
     shareSettings.youtubeShorts && publicChannelCanShare.youtubeShorts ? { href: youtubeShortsUrl, label: "YouTube", iconSrc: youtubeShortsIcon.src, tone: "youtube" as ActionTone, trackingAction: "youtube_shorts" } : null,
   ].filter(Boolean) as ActionLinkProps[];
 
-  const appointmentAction = shareSettings.appointment
+  const appointmentAction = canUseInrBadgeAppointments(dashboardEdition, shareSettings)
     ? { href: `/badge/${slug}/rdv`, label: badgeText.appointment, iconSrc: inrCalendarLogo.src, tone: "appointment" as ActionTone, trackingAction: "appointment" }
     : null;
 
@@ -460,7 +472,7 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
   const headerLogoSrc = hasCustomLogo ? getBadgeIconUrl(slug, logoVersion) : DEFAULT_INRBADGE_LOGO_SRC;
   const iconPreloads = Array.from(new Set([
     headerLogoSrc,
-    inrCalendarLogo.src,
+    ...(appointmentAction ? [inrCalendarLogo.src] : []),
     ...primaryActions.map((action) => action.iconSrc).filter((src): src is string => Boolean(src)),
     ...channelActions.map((action) => action.iconSrc).filter((src): src is string => Boolean(src)),
   ]));

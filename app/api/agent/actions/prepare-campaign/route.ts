@@ -23,6 +23,11 @@ import { getInrcyBrandInlineAttachments } from "@/lib/txEmailAssets";
 import { sendTxMail } from "@/lib/txMailer";
 import { optionalEnv } from "@/lib/env";
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
+import {
+  getDashboardEditionForAuthUser,
+  getDashboardEditionsForAccountIds,
+  premiumRequiredApiResponse,
+} from "@/lib/dashboardEditionServer";
 
 export const maxDuration = 120;
 export const runtime = "nodejs";
@@ -696,6 +701,10 @@ export async function POST(request: Request) {
   if (context.errorResponse) return context.errorResponse;
 
   const { supabase, user, userId, authUserId, isCron } = context;
+  const edition = isCron
+    ? (await getDashboardEditionsForAccountIds([userId])).get(userId)
+    : await getDashboardEditionForAuthUser(authUserId);
+  if (edition === "standard") return premiumRequiredApiResponse();
   const actorUserId = isCron ? userId : authUserId;
   const quotaUserId = userId;
   const body = context.body as {

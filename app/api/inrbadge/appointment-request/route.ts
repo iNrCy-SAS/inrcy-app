@@ -6,6 +6,8 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendTxMail } from "@/lib/txMailer";
 import { upsertCrmContactWithoutDuplicate } from "@/lib/crmContactDedupe";
 import { recordInrBadgeEvent } from "@/lib/inrBadgeAnalytics";
+import { getDashboardEditionForAccountId } from "@/lib/dashboardEditionServer";
+import { canUseInrBadgeAppointments } from "@/lib/inrBadgeEditionPolicy";
 
 type RequestBody = {
   slug?: string;
@@ -107,6 +109,11 @@ export async function POST(req: Request) {
   const userId = extractInrBadgeUserIdFromSlug(slug);
   if (!userId) return bad("Badge introuvable", 404);
 
+  const dashboardEdition = await getDashboardEditionForAccountId(userId);
+  if (dashboardEdition === "standard") {
+    return bad("La prise de RDV est réservée à iNrCy Premium", 403);
+  }
+
   const start = new Date(clean(body.start));
   const end = new Date(clean(body.end));
   if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end <= start) return bad("Créneau invalide");
@@ -136,7 +143,9 @@ export async function POST(req: Request) {
   const rootSettings = safeObj((toolsRes.data as { settings?: unknown } | null)?.settings);
   const shareSettings = normalizeInrBadgeShareSettings(rootSettings.inrBadgeShareSettings);
   const appointmentSettings = resolveInrBadgeAppointmentSettings(rootSettings);
-  if (!shareSettings.appointment) return bad("La prise de RDV n'est pas activée", 403);
+  if (!canUseInrBadgeAppointments(dashboardEdition, shareSettings)) {
+    return bad("La prise de RDV n'est pas activée", 403);
+  }
 
   const durationMinutes = Math.round((end.getTime() - start.getTime()) / 60000);
 

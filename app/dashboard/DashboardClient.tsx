@@ -3728,7 +3728,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
         onNavigateCta={navigateDashboardCta}
         openPanel={openPanel}
         inrAgentEnabled={canAccessInrAgent}
-        showInrAgent={!isStandardEdition}
+        showInrAgent
         requiredSetupLockVisible={requiredSetupLockVisible}
         isAdmin={isAdmin}
         userEmail={userEmail}
