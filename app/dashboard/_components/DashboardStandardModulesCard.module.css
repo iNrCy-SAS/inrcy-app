@@ -7,8 +7,17 @@
 
 .pilotPanel {
   background:
-    radial-gradient(circle at 10% 82%, rgba(48, 170, 255, 0.08), transparent 34%),
-    radial-gradient(circle at 88% 12%, rgba(175, 76, 255, 0.08), transparent 31%);
+    radial-gradient(circle at 8% 10%, rgba(48, 190, 255, 0.24), transparent 36%),
+    radial-gradient(circle at 91% 7%, rgba(175, 76, 255, 0.24), transparent 37%),
+    radial-gradient(circle at 90% 92%, rgba(255, 83, 184, 0.17), transparent 36%),
+    linear-gradient(145deg, rgba(17, 49, 94, 0.98), rgba(29, 35, 80, 0.98) 55%, rgba(63, 29, 80, 0.97));
+  border-color: rgba(96, 204, 255, 0.42);
+  box-shadow:
+    0 28px 78px rgba(0, 0, 0, 0.3),
+    -12px 0 40px rgba(56, 189, 248, 0.12),
+    12px 0 42px rgba(236, 72, 153, 0.1),
+    inset 0 1px rgba(255, 255, 255, 0.16),
+    inset 0 0 58px rgba(59, 130, 246, 0.08);
 }
 
 .pilotHead {
@@ -315,4 +324,55 @@
 @media (prefers-reduced-motion: reduce) {
   .toolCopy button,
   .boosterCopy button { transition: none; }
+}
+
+/* Les lignes Standard deviennent de vraies cartes de verre colorees afin de
+   se detacher du grand cadre sans modifier leur grille ni leurs actions. */
+.toolRow {
+  border-color: rgba(var(--tool-accent), 0.36);
+  background:
+    radial-gradient(100% 120% at 8% 0%, rgba(var(--tool-accent), 0.22), transparent 48%),
+    radial-gradient(85% 120% at 100% 100%, rgba(142, 81, 255, 0.18), transparent 58%),
+    linear-gradient(105deg, rgba(19, 58, 105, 0.96), rgba(39, 38, 94, 0.93) 62%, rgba(55, 32, 85, 0.91));
+  box-shadow:
+    0 14px 34px rgba(0, 0, 0, 0.21),
+    0 0 24px rgba(var(--tool-accent), 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -22px 42px rgba(6, 16, 47, 0.08);
+}
+
+.sendRow {
+  background:
+    radial-gradient(100% 120% at 8% 0%, rgba(171, 91, 255, 0.25), transparent 49%),
+    radial-gradient(85% 120% at 100% 100%, rgba(99, 102, 241, 0.2), transparent 58%),
+    linear-gradient(105deg, rgba(42, 43, 104, 0.96), rgba(64, 40, 106, 0.94) 62%, rgba(65, 31, 88, 0.92));
+}
+
+.reputationRow {
+  background:
+    radial-gradient(100% 120% at 8% 0%, rgba(255, 83, 184, 0.24), transparent 49%),
+    radial-gradient(85% 120% at 100% 100%, rgba(168, 85, 247, 0.18), transparent 58%),
+    linear-gradient(105deg, rgba(64, 39, 99, 0.96), rgba(88, 35, 92, 0.94) 62%, rgba(75, 30, 78, 0.92));
+}
+
+.toolLogo {
+  border-color: rgba(var(--tool-accent), 0.46);
+  background:
+    radial-gradient(circle at 25% 15%, rgba(255, 255, 255, 0.2), transparent 42%),
+    linear-gradient(145deg, rgba(var(--tool-accent), 0.31), rgba(73, 47, 139, 0.28));
+  box-shadow:
+    0 0 26px rgba(var(--tool-accent), 0.17),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.toolCopy p {
+  color: rgba(234, 241, 252, 0.78);
+}
+
+.toolAction {
+  border-color: rgba(var(--tool-accent), 0.47);
+  background: linear-gradient(90deg, rgba(var(--tool-accent), 0.29), rgba(107, 70, 205, 0.28));
+  box-shadow:
+    0 8px 20px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
 }

@@ -38,7 +38,7 @@ type DashboardPanelName =
 
 type BubbleViewMode = "list" | "carousel";
 
-type ChannelPillTone = "connected" | "available" | "warning";
+type ChannelPillTone = "connected" | "available" | "warning" | "disabled";
 
 const SITE_CHANNEL_KEYS = new Set(["site_inrcy", "site_web"]);
 
@@ -61,6 +61,7 @@ function getChannelPillLabel(item: DashboardFluxBubbleData) {
 
 function getChannelPillTone(item: DashboardFluxBubbleData): ChannelPillTone {
   if (item.bubbleStatus === "reconnect") return "warning";
+  if (item.bubbleStatus === "coming") return "disabled";
 
   const normalizedStatusText = item.bubbleStatusText
     .normalize("NFD")
@@ -456,7 +457,13 @@ export default function DashboardChannelsSection({
                     key={item.key}
                     className={[
                       styles.channelPill,
-                      tone === "connected" ? styles.channelPillConnected : tone === "warning" ? styles.channelPillWarning : styles.channelPillAvailable,
+                      tone === "connected"
+                        ? styles.channelPillConnected
+                        : tone === "warning"
+                          ? styles.channelPillWarning
+                          : tone === "disabled"
+                            ? styles.channelPillDisabled
+                            : styles.channelPillAvailable,
                       isActive ? styles.channelPillActive : "",
                     ].join(" ")}
                     onClick={() => {
@@ -534,7 +541,9 @@ export default function DashboardChannelsSection({
                             ? styles.carouselIconBtnConnected
                             : tone === "warning"
                               ? styles.carouselIconBtnWarning
-                              : styles.carouselIconBtnAvailable,
+                              : tone === "disabled"
+                                ? styles.carouselIconBtnDisabled
+                                : styles.carouselIconBtnAvailable,
                         ].join(" ")}
                         onClick={() => {
                           if (isAnimating.current) return;

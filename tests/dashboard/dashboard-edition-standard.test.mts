@@ -282,6 +282,31 @@ test("Standard conserve les vraies bulles de connexion avec Voir et Configurer",
   assert.match(connectionBubbleSource, /item\.configureLabel \|\| "Configurer"/);
 });
 
+test("un canal desactive reste gris tandis qu'un canal a connecter garde son etat disponible", () => {
+  assert.match(
+    channelsSectionSource,
+    /type ChannelPillTone = "connected" \| "available" \| "warning" \| "disabled";/,
+  );
+  assert.match(channelsSectionSource, /item\.bubbleStatus === "coming"\) return "disabled";/);
+  assert.match(
+    channelsSectionSource,
+    /tone === "disabled"[\s\S]{0,120}styles\.channelPillDisabled/,
+  );
+  assert.match(
+    channelsSectionSource,
+    /tone === "disabled"[\s\S]{0,120}styles\.carouselIconBtnDisabled/,
+  );
+  assert.match(dashboardCssSource, /\.channelPillDisabled\.channelPillActive\s*\{/);
+  assert.match(
+    dashboardCssSource,
+    /\.channelPillDisabled \.channelPillDot\s*\{[\s\S]*?background:\s*#64748b;/,
+  );
+  assert.match(
+    dashboardCssSource,
+    /\.carouselIconBtnDisabled\.carouselIconBtnActive\s*\{[\s\S]*?grayscale\(0\.82\)/,
+  );
+});
+
 test("les blocs inférieurs Standard ne contiennent que Stats, Publications, Réputation et Booster", () => {
   assert.match(standardModulesSource, /\/dashboard\/stats/);
   assert.match(standardModulesSource, /folder=publications&boxView=sent/);
