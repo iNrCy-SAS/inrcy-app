@@ -245,7 +245,7 @@
 }
 
 .connected { background: rgb(34, 197, 94); box-shadow: 0 0 12px rgba(34, 197, 94, 0.42); }
-.coming { background: rgb(251, 146, 60); box-shadow: 0 0 12px rgba(251, 146, 60, 0.4); }
+.coming { background: rgb(100, 116, 139); box-shadow: 0 0 10px rgba(100, 116, 139, 0.3); }
 
 @keyframes availableDotPulse {
   0%,

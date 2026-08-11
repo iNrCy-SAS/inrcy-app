@@ -407,7 +407,7 @@ function fallbackInsights(report: StatsReportData): StatsAiInsights {
   return {
     globalSummary:
       report.totals.statsConnectedChannels > 0
-        ? `Sur les ${report.periodDays} derniers jours, ${report.totals.statsConnectedChannels} canal${report.totals.statsConnectedChannels > 1 ? "aux" : ""} dispose${report.totals.statsConnectedChannels > 1 ? "nt" : ""} de statistiques exploitables. iNr’Agent estime ${formatNumber(report.totals.opportunities)} opportunité${report.totals.opportunities > 1 ? "s" : ""} et ${formatNumber(report.totals.capturedLeadsMonth)} demande${report.totals.capturedLeadsMonth > 1 ? "s" : ""} captée${report.totals.capturedLeadsMonth > 1 ? "s" : ""}.`
+        ? `Sur les ${report.periodDays} derniers jours, ${report.totals.statsConnectedChannels} ${report.totals.statsConnectedChannels > 1 ? "canaux disposent" : "canal dispose"} de statistiques exploitables. iNr’Agent estime ${formatNumber(report.totals.opportunities)} opportunité${report.totals.opportunities > 1 ? "s" : ""} et ${formatNumber(report.totals.capturedLeadsMonth)} demande${report.totals.capturedLeadsMonth > 1 ? "s" : ""} captée${report.totals.capturedLeadsMonth > 1 ? "s" : ""}.`
         : "Les statistiques sont encore limitées : il faut connecter les canaux et laisser iNrCy collecter davantage de données.",
     strengths,
     weaknesses,
@@ -818,7 +818,7 @@ function createStatsPdf(report: StatsReportData, insights: StatsAiInsights, opti
     900,
   );
   const strengths = normalizeInsightList(insights.strengths, [
-    `${report.totals.statsConnectedChannels} canal${report.totals.statsConnectedChannels > 1 ? "aux" : ""} dispose${report.totals.statsConnectedChannels > 1 ? "nt" : ""} de statistiques actives.`,
+    `${report.totals.statsConnectedChannels} ${report.totals.statsConnectedChannels > 1 ? "canaux disposent" : "canal dispose"} de statistiques actives.`,
     `${formatNumber(report.totals.capturedLeadsMonth)} demande${report.totals.capturedLeadsMonth > 1 ? "s" : ""} captée${report.totals.capturedLeadsMonth > 1 ? "s" : ""} sur 30 jours.`,
   ]);
   const weaknesses = normalizeInsightList(insights.weaknesses, [

@@ -93,6 +93,36 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function probeStorageObjectByListing(
+  bucket: string,
+  path: string,
+): Promise<StorageObjectProbe> {
+  const separatorIndex = path.lastIndexOf("/");
+  const folder = separatorIndex >= 0 ? path.slice(0, separatorIndex) : "";
+  const fileName = separatorIndex >= 0 ? path.slice(separatorIndex + 1) : path;
+  if (!fileName) return "missing";
+
+  try {
+    const { data, error } = await supabaseAdmin.storage
+      .from(bucket)
+      .list(folder, {
+        limit: 100,
+        search: fileName,
+      });
+    if (error) return "unknown";
+
+    const exists = (data || []).some((entry) => entry.name === fileName);
+    if (exists) {
+      clearMissingObject(bucket, path);
+      return "exists";
+    }
+    rememberMissingObject(bucket, path);
+    return "missing";
+  } catch {
+    return "unknown";
+  }
+}
+
 /**
  * Exact object probe through a service-role-only SQL function.
  * Reading storage.objects through PostgREST avoids turning a stale registry
@@ -120,9 +150,9 @@ export async function probeStorageObject(
       rememberMissingObject(normalizedBucket, path);
       return "missing";
     }
-    return "unknown";
+    return probeStorageObjectByListing(normalizedBucket, path);
   } catch {
-    return "unknown";
+    return probeStorageObjectByListing(normalizedBucket, path);
   }
 }
 

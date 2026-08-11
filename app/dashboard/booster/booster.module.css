@@ -471,10 +471,22 @@
 }
 
 .statsModalPanel{
+  min-width:0;
+  max-width:820px;
+  overflow:hidden!important;
   border:1px solid rgba(96,165,250,.18)!important;
   box-shadow:0 32px 110px rgba(0,0,0,.55),0 0 70px rgba(59,130,246,.12)!important;
 }
+.statsModalOverlay{
+  overflow:auto;
+  scrollbar-width:none;
+}
+.statsModalOverlay::-webkit-scrollbar{
+  width:0;
+  height:0;
+}
 .boosterStatsCard{
+  min-width:0;
   position:relative;
   overflow:hidden;
   background:
@@ -770,4 +782,3 @@
     filter:drop-shadow(0 0 10px rgba(96,165,250,.34))!important;
   }
 }
-

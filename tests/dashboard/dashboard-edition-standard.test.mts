@@ -132,6 +132,14 @@ const boosterModalLayerSource = readFileSync(
   new URL("../../app/dashboard/_components/DashboardBoosterModalLayer.tsx", import.meta.url),
   "utf8",
 );
+const publicationResultModalSource = readFileSync(
+  new URL("../../app/dashboard/_components/PublishExecutionResultModal.tsx", import.meta.url),
+  "utf8",
+);
+const dashboardI18nSource = readFileSync(
+  new URL("../../lib/dashboardI18n.ts", import.meta.url),
+  "utf8",
+);
 const inertiaContentSource = readFileSync(
   new URL("../../app/dashboard/settings/_components/InertiaContent.tsx", import.meta.url),
   "utf8",
@@ -288,8 +296,18 @@ test("le Bilan Booster reste distinct de iNrStats et ouvre la modale historique 
   assert.match(standardModulesSource, /onClick=\{openBoosterSummary\}/);
   assert.match(standardModulesSource, />\s*Bilan\s*</);
   assert.doesNotMatch(standardModulesSource, /href="\/dashboard\/stats"[\s\S]{0,240}Bilan/);
-  assert.match(boosterModalLayerSource, /Bilan Booster/);
+  assert.match(boosterModalLayerSource, /aria-label="Bilan Booster"/);
+  assert.match(boosterModalLayerSource, />\s*Bilan\s*<\/span>/);
+  assert.doesNotMatch(boosterModalLayerSource, />\s*Bilan Booster\s*<\/span>/);
   assert.doesNotMatch(boosterModalLayerSource, /Statistiques Booster/);
+});
+
+test("le cockpit reflète le parcours communication et les bilans utilisent le bon pluriel", () => {
+  assert.match(dashboardI18nSource, /flowContacts: "Publications"/);
+  assert.match(dashboardI18nSource, /flowQuotes: "Visibilité"/);
+  assert.match(dashboardI18nSource, /flowRevenue: "Résultats"/);
+  assert.doesNotMatch(publicationResultModalSource, /canal\$\{[^\n]*"aux/);
+  assert.match(publicationResultModalSource, /"canaux traités"/);
 });
 
 test("Mon inertie Standard n'active que Booster et identifie les missions Premium", () => {

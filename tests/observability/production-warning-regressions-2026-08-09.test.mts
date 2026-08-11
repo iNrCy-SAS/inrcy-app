@@ -68,7 +68,11 @@ test("les objets Storage absents sont persistés comme références manquantes",
       route.indexOf("createSafeStorageSignedUrl(\n      params.bucket"),
   );
   assert.match(signing, /rpc\(\s*"inrcy_storage_object_exists"/);
+  assert.match(signing, /probeStorageObjectByListing/);
+  assert.match(signing, /\.list\(folder,/);
   assert.doesNotMatch(signing, /storage\/v1\/object\/authenticated/);
+  assert.equal((route.match(/if \(probe === "exists"\)/g) || []).length, 2);
+  assert.equal((route.match(/if \(probe === "unknown"\) return null/g) || []).length, 2);
   assert.match(route, /STORAGE_OBJECT_MISSING_CODE/);
   assert.match(route, /\.eq\("status", "ready"\)/);
   assert.match(sql, /create or replace function public\.inrcy_storage_object_exists/);

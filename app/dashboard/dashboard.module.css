@@ -6287,11 +6287,11 @@
 .channelPillAvailable {
   background: linear-gradient(
     135deg,
-    rgba(148, 163, 184, 0.18),
-    rgba(71, 85, 105, 0.12)
+    rgba(30, 64, 91, 0.24),
+    rgba(51, 65, 85, 0.13)
   );
-  border-color: rgba(203, 213, 225, 0.16);
-  color: rgba(255, 255, 255, 0.7);
+  border-color: rgba(56, 189, 248, 0.32);
+  color: rgba(224, 242, 254, 0.82);
 }
 
 .channelPillWarning {
@@ -6327,8 +6327,8 @@
 }
 
 .channelPillAvailable .channelPillDot {
-  background: #94a3b8;
-  box-shadow: 0 0 10px rgba(148, 163, 184, 0.34);
+  background: #38bdf8;
+  box-shadow: 0 0 11px rgba(56, 189, 248, 0.62);
 }
 
 .channelPillWarning .channelPillDot {
@@ -7082,8 +7082,14 @@
 }
 
 .carouselIconBtnAvailable {
-  opacity: 0.42;
-  filter: saturate(0.75);
+  opacity: 0.66;
+  filter: saturate(0.88);
+  border-color: rgba(56, 189, 248, 0.3);
+}
+
+.carouselIconBtnAvailable::after {
+  background: #38bdf8;
+  box-shadow: 0 0 9px rgba(56, 189, 248, 0.62);
 }
 
 .carouselIconBtnActive {
@@ -11075,5 +11081,42 @@
   .sectionHead {
     margin: 0 0 8px;
     padding: 0 2px;
+  }
+}
+
+/* Finition lumière Premium : les cartes gagnent en relief sans changer
+   leur taille, leur ordre ni leur comportement. */
+.loopNode {
+  background:
+    radial-gradient(105% 92% at 14% 4%, rgba(255, 255, 255, 0.16), transparent 45%),
+    radial-gradient(90% 100% at 92% 82%, rgba(var(--cockpit-violet), 0.13), transparent 56%),
+    linear-gradient(145deg, rgba(11, 31, 67, 0.97), rgba(28, 23, 63, 0.94));
+  box-shadow:
+    0 16px 38px rgba(0, 0, 0, 0.25),
+    0 0 24px rgba(var(--cockpit-blue), 0.055),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.gearGrid > :not(:nth-child(1)).gearCapsule {
+  background:
+    radial-gradient(115% 125% at 14% 5%, rgba(255, 255, 255, 0.22), transparent 44%),
+    radial-gradient(circle at 18% 54%, rgba(var(--premium-gear-accent, 125, 211, 252), 0.23), transparent 49%),
+    linear-gradient(135deg, rgba(11, 32, 67, 0.98), rgba(34, 25, 70, 0.95) 64%, rgba(var(--premium-gear-accent, 125, 211, 252), 0.2));
+}
+
+.gearGrid > :nth-child(1).gearCapsule {
+  background:
+    radial-gradient(95% 115% at 17% 6%, rgba(255, 255, 255, 0.3), transparent 46%),
+    radial-gradient(circle at 17% 54%, rgba(var(--cockpit-cyan), 0.34), transparent 50%),
+    linear-gradient(135deg, rgba(8, 53, 101, 0.99), rgba(43, 64, 139, 0.96) 56%, rgba(113, 52, 170, 0.9));
+}
+
+@media (max-width: 700px), (hover: none) and (pointer: coarse) {
+  .loopNode,
+  .gearGrid > :not(:nth-child(1)).gearCapsule {
+    background:
+      radial-gradient(110% 88% at 15% 3%, rgba(255, 255, 255, 0.18), transparent 46%),
+      radial-gradient(90% 95% at 90% 85%, rgba(var(--premium-gear-accent, 125, 211, 252), 0.13), transparent 58%),
+      linear-gradient(145deg, rgba(12, 32, 68, 0.98), rgba(31, 24, 66, 0.96));
   }
 }

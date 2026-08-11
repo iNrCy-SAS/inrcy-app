@@ -370,7 +370,7 @@ export default function DashboardBoosterModalLayer({
           role="dialog"
           aria-modal="true"
           aria-label="Bilan Booster"
-          className={styles.fullscreenModalOverlay}
+          className={[styles.fullscreenModalOverlay, b.statsModalOverlay].join(" ")}
           onMouseDown={onClose}
           style={{
             position: "fixed",
@@ -382,16 +382,17 @@ export default function DashboardBoosterModalLayer({
             background: "rgba(3, 8, 20, 0.58)",
             backdropFilter: "blur(14px)",
             WebkitBackdropFilter: "blur(14px)",
+            overflow: "auto",
           }}
         >
           <div
             className={[styles.blockCard, b.statsModalPanel].join(" ")}
             onMouseDown={(event) => event.stopPropagation()}
             style={{
-              width: "min(650px, 100%)",
-              maxHeight: "calc(100dvh - 32px)",
-              overflow: "auto",
-              padding: 14,
+              width: "min(820px, calc(100vw - 24px))",
+              maxWidth: "100%",
+              overflow: "hidden",
+              padding: 16,
               borderRadius: 24,
               boxShadow: "0 28px 90px rgba(0,0,0,0.48)",
               background: "radial-gradient(circle at 18% 10%, rgba(56,189,248,0.18), transparent 34%), radial-gradient(circle at 86% 0%, rgba(168,85,247,0.18), transparent 32%), linear-gradient(180deg, rgba(14,18,32,0.99), rgba(9,12,24,0.99))",
@@ -409,7 +410,7 @@ export default function DashboardBoosterModalLayer({
             >
               <span className={styles.ghostBtn} style={{ pointerEvents: "none", borderRadius: 999, padding: "7px 12px" }}>Booster</span>
               <div style={{ textAlign: "center" }}>
-                <span className={styles.ghostBtn} style={{ pointerEvents: "none", borderRadius: 999, padding: "7px 12px" }}>Bilan Booster</span>
+                <span className={styles.ghostBtn} style={{ pointerEvents: "none", borderRadius: 999, padding: "7px 12px" }}>Bilan</span>
               </div>
               <button type="button" className={styles.ghostBtn} onClick={onClose} style={{ borderRadius: 999, padding: "7px 12px" }}>
                 Fermer

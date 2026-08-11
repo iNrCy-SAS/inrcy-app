@@ -425,14 +425,14 @@ export default function PublishExecutionResultModal({
   const overallSubtitle = allFailed
     ? "Aucun canal n’a pu publier. Les erreurs sont détaillées ci-dessous."
     : hasMixedResults
-      ? `${totalCount}/${totalCount} canal${totalCount > 1 ? "aux traités" : " traité"} avec détails ci-dessous.`
+      ? `${totalCount}/${totalCount} ${totalCount > 1 ? "canaux traités" : "canal traité"} avec détails ci-dessous.`
       : hasPublishedChannels && pendingCount
-        ? `${publishedCount} canal${publishedCount > 1 ? "aux sont déjà publiés" : " est déjà publié"} sur ${totalCount}. iNrCy poursuit automatiquement le traitement.`
+        ? `${publishedCount} ${publishedCount > 1 ? "canaux sont déjà publiés" : "canal est déjà publié"} sur ${totalCount}. iNrCy poursuit automatiquement le traitement.`
         : hasPublishedChannels && hasPublishedWarnings
-          ? `${publishedCount}/${totalCount} canal${totalCount > 1 ? "aux publiés" : " publié"} · ${warningCount} avertissement${warningCount > 1 ? "s" : ""} à consulter.`
+          ? `${publishedCount}/${totalCount} ${totalCount > 1 ? "canaux publiés" : "canal publié"} · ${warningCount} avertissement${warningCount > 1 ? "s" : ""} à consulter.`
         : hasPublishedChannels
-          ? `${publishedCount}/${totalCount} canal${totalCount > 1 ? "aux publiés" : " publié"} avec succès.`
-          : `${pendingCount || totalCount} canal${(pendingCount || totalCount) > 1 ? "aux sont" : " est"} encore en traitement. iNrCy actualise ce bilan automatiquement.`;
+          ? `${publishedCount}/${totalCount} ${totalCount > 1 ? "canaux publiés" : "canal publié"} avec succès.`
+          : `${pendingCount || totalCount} ${(pendingCount || totalCount) > 1 ? "canaux sont" : "canal est"} encore en traitement. iNrCy actualise ce bilan automatiquement.`;
 
   return (
     <div
@@ -996,7 +996,7 @@ export default function PublishExecutionResultModal({
             >
               {retrying
                 ? "Relance en cours…"
-                : `Retenter ${retryableFailureCount} canal${retryableFailureCount > 1 ? "aux" : ""} en échec`}
+                : `Retenter ${retryableFailureCount} ${retryableFailureCount > 1 ? "canaux" : "canal"} en échec`}
             </button>
           ) : null}
           <button
