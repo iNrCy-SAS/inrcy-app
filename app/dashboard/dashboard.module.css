@@ -9516,3 +9516,1564 @@
     flex-basis: 22px !important;
   }
 }
+
+/* =========================
+   Cockpit visuel 2026
+   Couche strictement decorative : aucune geometrie interactive ni aucun
+   branchement metier n'est modifie par les regles ci-dessous.
+========================= */
+.page {
+  --cockpit-cyan: 56, 189, 248;
+  --cockpit-blue: 59, 130, 246;
+  --cockpit-violet: 139, 92, 246;
+  --cockpit-pink: 236, 72, 153;
+  --cockpit-orange: 251, 146, 60;
+  background:
+    radial-gradient(760px 420px at 22% 4%, rgba(37, 99, 235, 0.2), transparent 68%),
+    radial-gradient(680px 380px at 79% 8%, rgba(139, 92, 246, 0.2), transparent 67%),
+    radial-gradient(840px 480px at 52% 38%, rgba(14, 165, 233, 0.055), transparent 72%),
+    radial-gradient(900px 520px at 55% 92%, rgba(251, 146, 60, 0.1), transparent 64%),
+    radial-gradient(700px 420px at 28% 78%, rgba(244, 114, 182, 0.1), transparent 64%),
+    linear-gradient(180deg, #091128 0%, #080d21 38%, #070a19 100%);
+}
+
+.hero {
+  position: relative;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.hero::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  left: 9%;
+  right: 9%;
+  bottom: -24px;
+  height: 84px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    rgba(var(--cockpit-cyan), 0.09),
+    rgba(var(--cockpit-violet), 0.12),
+    rgba(var(--cockpit-pink), 0.08)
+  );
+  filter: blur(34px);
+  pointer-events: none;
+}
+
+.heroLeft,
+.generatorCard {
+  min-width: 0;
+  border-color: rgba(125, 211, 252, 0.2);
+  box-shadow:
+    0 26px 78px rgba(0, 0, 0, 0.38),
+    0 0 52px rgba(37, 99, 235, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.heroLeft {
+  position: relative;
+  isolation: isolate;
+  min-height: 332px;
+  padding: 20px 22px 18px;
+  background:
+    radial-gradient(circle at 50% 37%, rgba(var(--cockpit-blue), 0.17), transparent 33%),
+    radial-gradient(circle at 12% 12%, rgba(var(--cockpit-cyan), 0.12), transparent 31%),
+    radial-gradient(circle at 90% 86%, rgba(var(--cockpit-pink), 0.1), transparent 34%),
+    linear-gradient(145deg, rgba(11, 28, 66, 0.94), rgba(12, 18, 48, 0.96) 54%, rgba(30, 15, 52, 0.92));
+}
+
+.heroLeft::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    125deg,
+    rgba(var(--cockpit-cyan), 0.72),
+    rgba(var(--cockpit-blue), 0.12) 30%,
+    rgba(var(--cockpit-violet), 0.4) 67%,
+    rgba(var(--cockpit-pink), 0.42)
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.heroLeft::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: 1px;
+  border-radius: 21px;
+  background:
+    radial-gradient(circle at 50% 39%, transparent 0 58px, rgba(var(--cockpit-cyan), 0.14) 59px, transparent 60px),
+    radial-gradient(circle at 50% 39%, transparent 0 96px, rgba(var(--cockpit-violet), 0.12) 97px, transparent 98px),
+    radial-gradient(circle at 50% 39%, transparent 0 138px, rgba(var(--cockpit-pink), 0.08) 139px, transparent 140px),
+    linear-gradient(rgba(125, 211, 252, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(125, 211, 252, 0.025) 1px, transparent 1px);
+  background-size: auto, auto, auto, 28px 28px, 28px 28px;
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0.86) 55%, transparent 95%);
+  mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0.86) 55%, transparent 95%);
+  animation: cockpitFieldPulse 5.8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.heroLeft > * {
+  position: relative;
+  z-index: 2;
+}
+
+.kicker {
+  padding: 9px 16px;
+  border-color: rgba(125, 211, 252, 0.28);
+  background: linear-gradient(135deg, rgba(8, 23, 55, 0.86), rgba(31, 20, 66, 0.74));
+  box-shadow:
+    0 12px 34px rgba(0, 0, 0, 0.3),
+    0 0 26px rgba(var(--cockpit-cyan), 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.title {
+  margin-top: 14px;
+  font-size: clamp(32px, 2.35vw, 38px);
+  letter-spacing: -1.05px;
+}
+
+.titleAccent {
+  filter: saturate(1.1);
+  text-shadow:
+    0 0 28px rgba(var(--cockpit-cyan), 0.12),
+    0 0 34px rgba(var(--cockpit-pink), 0.08);
+}
+
+.subtitle {
+  max-width: 52ch;
+  color: rgba(232, 241, 255, 0.78);
+  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.32);
+}
+
+.signatureFlow {
+  position: relative;
+  overflow: hidden;
+  gap: 8px;
+  padding: 7px 10px;
+  border-color: rgba(125, 211, 252, 0.24);
+  background: linear-gradient(90deg, rgba(8, 31, 68, 0.84), rgba(35, 22, 72, 0.78), rgba(62, 22, 62, 0.68));
+  box-shadow:
+    0 14px 32px rgba(0, 0, 0, 0.3),
+    0 0 24px rgba(var(--cockpit-violet), 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.signatureFlow::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 -40%;
+  width: 34%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.14), transparent);
+  transform: skewX(-18deg);
+  animation: cockpitBeam 4.8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.signatureFlow > span:not(.flowArrow) {
+  position: relative;
+  z-index: 1;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.075);
+  white-space: nowrap;
+}
+
+.flowArrow {
+  color: rgba(125, 211, 252, 0.92);
+  text-shadow: 0 0 12px rgba(var(--cockpit-cyan), 0.72);
+}
+
+.powerInlineTitle {
+  color: rgba(241, 247, 255, 0.95);
+}
+
+.powerBar {
+  height: 13px;
+  border: 1px solid rgba(125, 211, 252, 0.09);
+  background: rgba(4, 10, 27, 0.72);
+  box-shadow:
+    inset 0 2px 8px rgba(0, 0, 0, 0.52),
+    0 0 18px rgba(var(--cockpit-blue), 0.08);
+}
+
+.powerBarFill {
+  box-shadow:
+    0 0 18px rgba(var(--cockpit-cyan), 0.36),
+    0 0 34px rgba(var(--cockpit-violet), 0.2),
+    0 0 42px rgba(var(--cockpit-pink), 0.12);
+}
+
+.powerMeta,
+.powerHint,
+.powerHintComplete {
+  color: rgba(226, 235, 250, 0.74);
+}
+
+.generatorCard {
+  padding: 18px;
+  background:
+    radial-gradient(circle at 50% 54%, rgba(var(--cockpit-blue), 0.14), transparent 33%),
+    radial-gradient(circle at 8% 6%, rgba(var(--cockpit-cyan), 0.13), transparent 34%),
+    radial-gradient(circle at 93% 7%, rgba(var(--cockpit-violet), 0.2), transparent 38%),
+    radial-gradient(circle at 90% 94%, rgba(var(--cockpit-pink), 0.12), transparent 38%),
+    linear-gradient(145deg, rgba(9, 29, 63, 0.96), rgba(15, 18, 50, 0.96) 50%, rgba(37, 18, 62, 0.94));
+}
+
+.generatorCard::before {
+  content: "";
+  position: absolute;
+  z-index: 5;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    130deg,
+    rgba(var(--cockpit-cyan), 0.7),
+    rgba(var(--cockpit-blue), 0.12) 31%,
+    rgba(var(--cockpit-violet), 0.48) 69%,
+    rgba(var(--cockpit-pink), 0.42)
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.generatorCard::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  width: 360px;
+  height: 360px;
+  left: 50%;
+  top: 58%;
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+  background:
+    radial-gradient(circle, rgba(var(--cockpit-cyan), 0.1), transparent 29%),
+    radial-gradient(circle, transparent 0 39%, rgba(var(--cockpit-blue), 0.1) 39.5%, transparent 40.5%),
+    radial-gradient(circle, transparent 0 58%, rgba(var(--cockpit-violet), 0.08) 58.5%, transparent 59.5%);
+  filter: drop-shadow(0 0 28px rgba(var(--cockpit-blue), 0.12));
+  animation: cockpitCorePulse 5.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.generatorFX {
+  opacity: 0.78;
+}
+
+.generatorFX2 {
+  opacity: 0.22;
+}
+
+.generatorFX3 {
+  opacity: 0.16;
+}
+
+.generatorHeader,
+.generatorGrid {
+  z-index: 2;
+}
+
+.generatorHeader {
+  align-items: center;
+  margin: 0 0 14px;
+  padding: 0 2px 13px;
+  border-bottom: 1px solid rgba(125, 211, 252, 0.12);
+}
+
+.generatorTitle {
+  font-size: 18px;
+  letter-spacing: -0.35px;
+  color: rgba(247, 250, 255, 0.98);
+  text-shadow: 0 0 20px rgba(var(--cockpit-cyan), 0.14);
+}
+
+.generatorDesc {
+  color: rgba(220, 231, 248, 0.66);
+}
+
+.generatorStatus {
+  border-color: rgba(255, 255, 255, 0.16);
+  background: rgba(5, 14, 34, 0.62);
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.statusLive {
+  border-color: rgba(74, 222, 128, 0.38);
+  background: linear-gradient(135deg, rgba(20, 83, 67, 0.54), rgba(6, 38, 38, 0.6));
+  box-shadow:
+    0 0 22px rgba(34, 197, 94, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.generatorSettingsBtn,
+.generatorRefreshBtn {
+  background: linear-gradient(135deg, rgba(9, 31, 67, 0.82), rgba(41, 25, 73, 0.76));
+  border-color: rgba(125, 211, 252, 0.22);
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.generatorGrid {
+  gap: 10px;
+}
+
+.generatorGrid::before,
+.generatorGrid::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.generatorGrid::before {
+  left: 8%;
+  right: 8%;
+  top: 50%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(var(--cockpit-cyan), 0.34), rgba(var(--cockpit-violet), 0.48), rgba(var(--cockpit-pink), 0.3), transparent);
+  box-shadow: 0 0 12px rgba(var(--cockpit-blue), 0.22);
+}
+
+.generatorGrid::after {
+  top: 7%;
+  bottom: 7%;
+  left: 50%;
+  width: 1px;
+  background: linear-gradient(180deg, transparent, rgba(var(--cockpit-cyan), 0.32), rgba(var(--cockpit-violet), 0.46), rgba(var(--cockpit-pink), 0.28), transparent);
+  box-shadow: 0 0 12px rgba(var(--cockpit-violet), 0.2);
+}
+
+.metricCard {
+  min-height: 104px;
+  overflow: hidden;
+  border-color: rgba(255, 255, 255, 0.11);
+  background: linear-gradient(145deg, rgba(8, 22, 50, 0.86), rgba(18, 20, 53, 0.82));
+  box-shadow:
+    0 12px 28px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.075);
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.metricCard::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  left: 16%;
+  right: 16%;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--metric-accent, rgba(125, 211, 252, 0.8)), transparent);
+  box-shadow: 0 0 14px var(--metric-glow, rgba(56, 189, 248, 0.34));
+}
+
+.metricCard::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  width: 150px;
+  height: 92px;
+  left: 50%;
+  top: -62px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: var(--metric-halo, rgba(56, 189, 248, 0.12));
+  filter: blur(24px);
+  pointer-events: none;
+}
+
+.metricCard > * {
+  position: relative;
+  z-index: 1;
+}
+
+.metricInertia {
+  --metric-accent: rgba(56, 189, 248, 0.9);
+  --metric-glow: rgba(56, 189, 248, 0.42);
+  --metric-halo: rgba(56, 189, 248, 0.18);
+}
+
+.metricCa {
+  --metric-accent: rgba(167, 139, 250, 0.92);
+  --metric-glow: rgba(139, 92, 246, 0.42);
+  --metric-halo: rgba(139, 92, 246, 0.18);
+}
+
+.metricOpportunities {
+  --metric-accent: rgba(244, 114, 182, 0.9);
+  --metric-glow: rgba(236, 72, 153, 0.4);
+  --metric-halo: rgba(236, 72, 153, 0.16);
+}
+
+.metricDemandes {
+  --metric-accent: rgba(251, 146, 60, 0.92);
+  --metric-glow: rgba(251, 146, 60, 0.38);
+  --metric-halo: rgba(251, 146, 60, 0.16);
+}
+
+.metricLabel {
+  color: rgba(208, 221, 241, 0.72);
+  font-size: 12px;
+  font-weight: 850;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+.metricValue,
+.metricSplitValue {
+  color: #ffffff;
+  text-shadow: 0 0 22px var(--metric-glow, rgba(56, 189, 248, 0.25));
+}
+
+.metricHint,
+.metricSplitLabel {
+  color: rgba(210, 221, 240, 0.62);
+}
+
+.generatorCoreCenter {
+  z-index: 4;
+  width: 88px;
+  height: 88px;
+  opacity: 1;
+  filter: drop-shadow(0 0 18px rgba(var(--cockpit-cyan), 0.2));
+}
+
+.generatorCoreCenter::before,
+.generatorCoreCenter::after {
+  content: "";
+  position: absolute;
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.generatorCoreCenter::before {
+  inset: -10px;
+  border: 1px solid rgba(125, 211, 252, 0.2);
+  box-shadow:
+    0 0 24px rgba(var(--cockpit-blue), 0.14),
+    inset 0 0 18px rgba(var(--cockpit-violet), 0.1);
+  animation: cockpitCorePulse 3.8s ease-in-out infinite;
+}
+
+.generatorCoreCenter::after {
+  inset: 25px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.86), rgba(var(--cockpit-cyan), 0.7) 22%, rgba(var(--cockpit-violet), 0.22) 58%, transparent 72%);
+  box-shadow:
+    0 0 18px rgba(var(--cockpit-cyan), 0.78),
+    0 0 34px rgba(var(--cockpit-violet), 0.46);
+  animation: cockpitCoreLight 2.6s ease-in-out infinite;
+}
+
+.sectionHead {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  margin: 4px 0 12px;
+  padding: 14px 16px 15px;
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 5% 12%, rgba(var(--cockpit-cyan), 0.12), transparent 28%),
+    radial-gradient(circle at 94% 88%, rgba(var(--cockpit-violet), 0.14), transparent 32%),
+    linear-gradient(130deg, rgba(8, 25, 57, 0.86), rgba(13, 17, 43, 0.9) 55%, rgba(33, 16, 51, 0.84));
+  box-shadow:
+    0 18px 48px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.sectionHead::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  background:
+    linear-gradient(90deg, transparent 0 7%, rgba(125, 211, 252, 0.055) 7.2%, transparent 7.4%),
+    linear-gradient(90deg, transparent 0 49.8%, rgba(167, 139, 250, 0.055) 50%, transparent 50.2%),
+    linear-gradient(90deg, transparent 0 92.6%, rgba(244, 114, 182, 0.05) 92.8%, transparent 93%);
+  pointer-events: none;
+}
+
+.sectionHead::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  left: 8%;
+  right: 8%;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(var(--cockpit-cyan), 0.58), rgba(var(--cockpit-violet), 0.5), rgba(var(--cockpit-pink), 0.38), transparent);
+  box-shadow: 0 0 16px rgba(var(--cockpit-blue), 0.28);
+  pointer-events: none;
+}
+
+.sectionHead > * {
+  position: relative;
+  z-index: 2;
+}
+
+.channelTitleCluster::before {
+  content: "";
+  width: 4px;
+  height: 24px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgb(var(--cockpit-cyan)), rgb(var(--cockpit-violet)), rgb(var(--cockpit-pink)));
+  box-shadow:
+    0 0 12px rgba(var(--cockpit-cyan), 0.5),
+    0 0 20px rgba(var(--cockpit-violet), 0.22);
+  flex: 0 0 auto;
+}
+
+.channelTitleCluster .h2 {
+  font-size: 21px;
+  color: rgba(247, 250, 255, 0.98);
+  text-shadow: 0 0 20px rgba(var(--cockpit-cyan), 0.12);
+}
+
+.channelSummaryBadge {
+  min-height: 36px;
+  border-color: rgba(74, 222, 128, 0.26);
+  background: linear-gradient(135deg, rgba(6, 78, 59, 0.38), rgba(8, 47, 73, 0.5), rgba(46, 24, 83, 0.44));
+  box-shadow:
+    0 0 22px rgba(34, 197, 94, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.channelPillRail {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(125, 211, 252, 0.1);
+  border-radius: 15px;
+  background: linear-gradient(90deg, rgba(2, 12, 31, 0.48), rgba(15, 17, 46, 0.5), rgba(27, 12, 39, 0.42));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.045),
+    inset 0 0 28px rgba(var(--cockpit-blue), 0.025);
+}
+
+.channelPill {
+  border-color: rgba(255, 255, 255, 0.13);
+  background-clip: padding-box;
+  box-shadow:
+    0 7px 18px rgba(0, 0, 0, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.channelPillConnected {
+  border-color: rgba(74, 222, 128, 0.28);
+  background: linear-gradient(135deg, rgba(20, 112, 75, 0.34), rgba(5, 62, 58, 0.3));
+}
+
+.channelPillWarning {
+  border-color: rgba(251, 146, 60, 0.5);
+  box-shadow:
+    0 0 18px rgba(251, 146, 60, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.channelPillActive {
+  border-color: rgba(125, 211, 252, 0.72);
+  background: linear-gradient(135deg, rgba(14, 116, 144, 0.36), rgba(79, 70, 229, 0.3));
+  box-shadow:
+    0 0 0 1px rgba(125, 211, 252, 0.18),
+    0 0 24px rgba(var(--cockpit-cyan), 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .heroLeft,
+  .generatorCard,
+  .sectionHead {
+    transition:
+      border-color 220ms ease,
+      box-shadow 220ms ease,
+      transform 220ms ease;
+  }
+
+  .heroLeft:hover,
+  .generatorCard:hover {
+    border-color: rgba(125, 211, 252, 0.3);
+    box-shadow:
+      0 30px 88px rgba(0, 0, 0, 0.42),
+      0 0 58px rgba(var(--cockpit-blue), 0.09),
+      inset 0 1px 0 rgba(255, 255, 255, 0.11);
+  }
+
+  .metricCard:hover {
+    transform: translateY(-2px) translateZ(0);
+    border-color: var(--metric-accent, rgba(125, 211, 252, 0.42));
+    box-shadow:
+      0 16px 34px rgba(0, 0, 0, 0.3),
+      0 0 24px var(--metric-halo, rgba(56, 189, 248, 0.1)),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+}
+
+@keyframes cockpitFieldPulse {
+  0%,
+  100% {
+    opacity: 0.64;
+    filter: saturate(0.95);
+  }
+  50% {
+    opacity: 0.92;
+    filter: saturate(1.16);
+  }
+}
+
+@keyframes cockpitBeam {
+  0%,
+  22% {
+    left: -42%;
+    opacity: 0;
+  }
+  35% {
+    opacity: 0.8;
+  }
+  66%,
+  100% {
+    left: 118%;
+    opacity: 0;
+  }
+}
+
+@keyframes cockpitCorePulse {
+  0%,
+  100% {
+    opacity: 0.62;
+    transform: translate(-50%, -50%) scale(0.96);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.04);
+  }
+}
+
+@keyframes cockpitCoreLight {
+  0%,
+  100% {
+    opacity: 0.72;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+
+/* Le pseudo-element de la roue centrale n'utilise pas la translation de la
+   grande aura du generateur. */
+.generatorCoreCenter::before {
+  animation-name: cockpitCoreRingPulse;
+}
+
+@keyframes cockpitCoreRingPulse {
+  0%,
+  100% {
+    opacity: 0.58;
+    transform: scale(0.94) rotate(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.04) rotate(12deg);
+  }
+}
+
+@media (max-width: 1100px) {
+  .hero {
+    gap: 12px;
+  }
+
+  .heroLeft {
+    min-height: 0;
+    padding: 16px 15px 14px;
+  }
+
+  .heroLeft::after {
+    opacity: 0.7;
+  }
+
+  .generatorCard {
+    padding: 15px;
+  }
+
+  .sectionHead {
+    margin-top: 2px;
+  }
+}
+
+@media (max-width: 560px) {
+  .page {
+    padding-top: 10px;
+  }
+
+  .hero {
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .heroLeft,
+  .generatorCard {
+    border-radius: 19px;
+    box-shadow:
+      0 18px 52px rgba(0, 0, 0, 0.34),
+      0 0 28px rgba(var(--cockpit-blue), 0.045),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+
+  .heroLeft::after {
+    border-radius: 18px;
+    opacity: 0.48;
+    background:
+      radial-gradient(circle at 50% 35%, transparent 0 54px, rgba(var(--cockpit-cyan), 0.1) 55px, transparent 56px),
+      radial-gradient(circle at 50% 35%, transparent 0 91px, rgba(var(--cockpit-violet), 0.08) 92px, transparent 93px);
+  }
+
+  .title {
+    margin-top: 10px;
+    font-size: clamp(18px, 5.4vw, 21px);
+    letter-spacing: -0.45px;
+  }
+
+  .signatureFlow {
+    gap: 4px;
+    padding: 5px 7px;
+    font-size: 10.5px;
+  }
+
+  .signatureFlow > span:not(.flowArrow) {
+    padding: 3px 5px;
+  }
+
+  .generatorCard {
+    padding: 12px;
+  }
+
+  .generatorHeader {
+    padding-bottom: 10px;
+  }
+
+  .generatorTitle {
+    font-size: 16px;
+  }
+
+  .generatorGrid {
+    gap: 8px;
+  }
+
+  .metricCard {
+    min-height: 122px;
+    padding: 11px 8px;
+  }
+
+  .metricLabel {
+    font-size: 10px;
+    letter-spacing: 0.035em;
+  }
+
+  .generatorCoreCenter {
+    width: 58px;
+    height: 58px;
+  }
+
+  .generatorCoreCenter::before {
+    inset: -6px;
+  }
+
+  .generatorCoreCenter::after {
+    inset: 18px;
+  }
+
+  .sectionHead {
+    margin: 0 0 8px;
+    padding: 11px 12px;
+    border-radius: 17px;
+  }
+
+  .channelTitleCluster::before {
+    width: 3px;
+    height: 20px;
+  }
+
+  .channelTitleCluster .h2 {
+    font-size: 18px;
+  }
+
+  .channelHeaderActions {
+    gap: 6px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .heroLeft::after,
+  .signatureFlow::before,
+  .generatorCard::after,
+  .generatorCoreCenter::before,
+  .generatorCoreCenter::after,
+  .generatorFX2,
+  .generatorFX3,
+  .miniCoreRing,
+  .miniCoreRotor,
+  .miniCoreGlow,
+  .powerBarFill::before {
+    animation: none !important;
+  }
+}
+
+/* =========================
+   Edition Premium : modules de pilotage
+   Refonte visuelle uniquement. La structure, les boutons et leurs actions
+   restent ceux de DashboardModulesCard.
+========================= */
+.lowerRow {
+  gap: 18px;
+  margin-top: 20px;
+  align-items: stretch;
+}
+
+.lowerRow > .blockCard {
+  min-width: 0;
+}
+
+.blockCard {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  padding: 16px;
+  border-color: rgba(125, 211, 252, 0.18);
+  background:
+    radial-gradient(circle at 7% 3%, rgba(var(--cockpit-cyan), 0.12), transparent 28%),
+    radial-gradient(circle at 96% 98%, rgba(var(--cockpit-pink), 0.1), transparent 30%),
+    linear-gradient(145deg, rgba(7, 22, 52, 0.95), rgba(12, 16, 43, 0.97) 56%, rgba(31, 15, 47, 0.93));
+  box-shadow:
+    0 26px 74px rgba(0, 0, 0, 0.38),
+    0 0 46px rgba(var(--cockpit-blue), 0.055),
+    inset 0 1px 0 rgba(255, 255, 255, 0.085);
+}
+
+.blockCard::before {
+  content: "";
+  position: absolute;
+  z-index: 4;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    rgba(var(--cockpit-cyan), 0.62),
+    rgba(var(--cockpit-blue), 0.08) 34%,
+    rgba(var(--cockpit-violet), 0.4) 70%,
+    rgba(var(--cockpit-pink), 0.36)
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.blockCard::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: 1px;
+  border-radius: 19px;
+  background:
+    linear-gradient(rgba(125, 211, 252, 0.022) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(125, 211, 252, 0.022) 1px, transparent 1px);
+  background-size: 30px 30px;
+  -webkit-mask-image: linear-gradient(to bottom, #000, transparent 86%);
+  mask-image: linear-gradient(to bottom, #000, transparent 86%);
+  pointer-events: none;
+}
+
+.gearBlockCard {
+  background:
+    radial-gradient(circle at 92% 4%, rgba(var(--cockpit-violet), 0.16), transparent 31%),
+    radial-gradient(circle at 8% 96%, rgba(var(--cockpit-pink), 0.11), transparent 32%),
+    linear-gradient(145deg, rgba(10, 20, 52, 0.96), rgba(16, 15, 45, 0.97) 54%, rgba(38, 16, 53, 0.94));
+}
+
+.blockCard > * {
+  position: relative;
+  z-index: 2;
+}
+
+.blockHead {
+  align-items: center;
+  margin-bottom: 12px;
+  padding: 1px 2px 12px;
+  border-bottom: 1px solid rgba(125, 211, 252, 0.11);
+}
+
+.blockHead .h3 {
+  font-size: 21px;
+  line-height: 1.1;
+  color: rgba(248, 251, 255, 0.98);
+  text-shadow: 0 0 22px rgba(var(--cockpit-cyan), 0.13);
+}
+
+.blockHead .smallMuted {
+  padding: 6px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: rgba(5, 13, 33, 0.46);
+  color: rgba(218, 228, 244, 0.66);
+  font-size: 12px;
+  letter-spacing: 0.01em;
+}
+
+.loopWrap {
+  min-height: 462px;
+  padding: 10px;
+  border: 1px solid rgba(125, 211, 252, 0.08);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(var(--cockpit-blue), 0.11), transparent 27%),
+    radial-gradient(circle at 50% 50%, transparent 0 34%, rgba(var(--cockpit-violet), 0.045) 34.4%, transparent 35%),
+    linear-gradient(145deg, rgba(2, 12, 31, 0.54), rgba(15, 12, 37, 0.4));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.035),
+    inset 0 0 54px rgba(var(--cockpit-blue), 0.035);
+}
+
+.loopGrid {
+  min-height: 440px;
+  gap: 12px;
+}
+
+.loopWheel {
+  inset: 9px;
+  width: calc(100% - 18px);
+  height: calc(100% - 18px);
+  opacity: 0.54;
+  filter: drop-shadow(0 0 12px rgba(var(--cockpit-cyan), 0.14)) saturate(1.2);
+  transform: scale(1.38);
+}
+
+.loopNode {
+  min-height: 138px;
+  padding: 17px 15px 16px;
+  border-color: rgba(255, 255, 255, 0.13);
+  background: linear-gradient(145deg, rgba(9, 24, 54, 0.94), rgba(18, 17, 48, 0.9));
+  box-shadow:
+    0 16px 38px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.loopNode::after {
+  inset: 0;
+  width: auto;
+  height: auto;
+  border-radius: inherit;
+  opacity: 1;
+  filter: none;
+  background:
+    radial-gradient(120% 78% at 18% 3%, rgba(255, 255, 255, 0.12), transparent 48%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 42%);
+  pointer-events: none;
+}
+
+.loopNode::before {
+  inset: -28%;
+  opacity: 0.36;
+  filter: blur(34px);
+}
+
+.loop_cyan {
+  border-color: rgba(56, 189, 248, 0.34);
+  background:
+    radial-gradient(circle at 50% -30%, rgba(56, 189, 248, 0.2), transparent 50%),
+    linear-gradient(145deg, rgba(7, 33, 67, 0.95), rgba(14, 19, 49, 0.94));
+}
+
+.loop_purple {
+  border-color: rgba(167, 139, 250, 0.32);
+  background:
+    radial-gradient(circle at 50% -30%, rgba(139, 92, 246, 0.2), transparent 50%),
+    linear-gradient(145deg, rgba(27, 19, 66, 0.95), rgba(17, 17, 48, 0.94));
+}
+
+.loop_pink {
+  border-color: rgba(244, 114, 182, 0.32);
+  background:
+    radial-gradient(circle at 50% -30%, rgba(236, 72, 153, 0.18), transparent 50%),
+    linear-gradient(145deg, rgba(52, 16, 55, 0.95), rgba(20, 17, 47, 0.94));
+}
+
+.loop_orange {
+  border-color: rgba(251, 146, 60, 0.32);
+  background:
+    radial-gradient(circle at 50% -30%, rgba(251, 146, 60, 0.18), transparent 50%),
+    linear-gradient(145deg, rgba(54, 26, 44, 0.95), rgba(21, 18, 46, 0.94));
+}
+
+.loopTitle {
+  font-size: 18px;
+  color: rgba(250, 252, 255, 0.98);
+  text-shadow: 0 0 18px rgba(255, 255, 255, 0.11);
+}
+
+.loopSub {
+  margin-top: 2px;
+  color: rgba(221, 231, 247, 0.7);
+}
+
+.loopActions .actionBtn {
+  min-height: 34px;
+  padding: 7px 14px;
+  border-color: rgba(125, 211, 252, 0.24);
+  background: linear-gradient(90deg, rgba(14, 116, 144, 0.28), rgba(79, 70, 229, 0.22), rgba(126, 34, 206, 0.18));
+  box-shadow:
+    0 8px 20px rgba(0, 0, 0, 0.22),
+    0 0 16px rgba(var(--cockpit-cyan), 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.loopGearBtn {
+  border-color: rgba(125, 211, 252, 0.22);
+  background: linear-gradient(135deg, rgba(8, 32, 67, 0.86), rgba(44, 25, 75, 0.76));
+  box-shadow:
+    0 8px 20px rgba(0, 0, 0, 0.25),
+    0 0 16px rgba(var(--cockpit-violet), 0.11),
+    inset 0 1px 0 rgba(255, 255, 255, 0.09);
+}
+
+.signalHub {
+  width: 78px;
+  height: 78px;
+  z-index: 3;
+  filter: drop-shadow(0 0 18px rgba(var(--cockpit-cyan), 0.2));
+}
+
+.signalHub::before {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border-radius: 999px;
+  border: 1px solid rgba(125, 211, 252, 0.17);
+  background: conic-gradient(from 90deg, transparent, rgba(var(--cockpit-cyan), 0.18), transparent 28%, rgba(var(--cockpit-violet), 0.18), transparent 58%, rgba(var(--cockpit-pink), 0.12), transparent 82%);
+  -webkit-mask: radial-gradient(circle, transparent 66%, #000 67%);
+  mask: radial-gradient(circle, transparent 66%, #000 67%);
+  animation: premiumHubOrbit 7s linear infinite;
+}
+
+.signalCore {
+  inset: 21px;
+  border-color: rgba(125, 211, 252, 0.42);
+  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.48), rgba(var(--cockpit-cyan), 0.4) 20%, rgba(var(--cockpit-violet), 0.2) 52%, rgba(7, 18, 47, 0.72) 72%);
+  box-shadow:
+    0 0 18px rgba(var(--cockpit-cyan), 0.52),
+    0 0 32px rgba(var(--cockpit-violet), 0.26),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+.signalWave {
+  border-color: rgba(125, 211, 252, 0.28);
+}
+
+.loopBadge {
+  width: 10px;
+  min-width: 10px;
+  height: 10px;
+  padding: 0;
+  top: 13px;
+  left: 14px;
+  font-size: 0;
+  line-height: 0;
+}
+
+.gearWrap {
+  border: 1px solid rgba(167, 139, 250, 0.09);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(var(--cockpit-violet), 0.1), transparent 29%),
+    linear-gradient(145deg, rgba(3, 12, 31, 0.48), rgba(22, 11, 38, 0.38));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.035),
+    inset 0 0 56px rgba(var(--cockpit-violet), 0.03);
+}
+
+.gearWrap::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at 16% 12%, rgba(var(--cockpit-cyan), 0.1) 0 2px, transparent 3px),
+    radial-gradient(circle at 83% 26%, rgba(var(--cockpit-violet), 0.12) 0 2px, transparent 3px),
+    radial-gradient(circle at 22% 58%, rgba(var(--cockpit-pink), 0.1) 0 2px, transparent 3px),
+    radial-gradient(circle at 78% 84%, rgba(var(--cockpit-orange), 0.1) 0 2px, transparent 3px);
+  filter: drop-shadow(0 0 6px rgba(var(--cockpit-cyan), 0.2));
+  pointer-events: none;
+}
+
+.gearRail {
+  border-color: rgba(125, 211, 252, 0.11);
+  background:
+    radial-gradient(circle at 50% 50%, rgba(var(--cockpit-blue), 0.055), transparent 44%),
+    rgba(4, 11, 29, 0.2);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.03),
+    0 0 30px rgba(var(--cockpit-violet), 0.025);
+}
+
+.gearRail::before {
+  opacity: 0.9;
+  filter: drop-shadow(0 0 7px rgba(var(--cockpit-cyan), 0.26));
+}
+
+.gearRail::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle, rgba(125, 211, 252, 0.92) 0 2px, transparent 3px) 19% 14% / 12px 12px no-repeat,
+    radial-gradient(circle, rgba(167, 139, 250, 0.88) 0 2px, transparent 3px) 79% 30% / 12px 12px no-repeat,
+    radial-gradient(circle, rgba(244, 114, 182, 0.84) 0 2px, transparent 3px) 22% 58% / 12px 12px no-repeat,
+    radial-gradient(circle, rgba(251, 146, 60, 0.84) 0 2px, transparent 3px) 78% 79% / 12px 12px no-repeat;
+  filter: drop-shadow(0 0 7px rgba(125, 211, 252, 0.38));
+  pointer-events: none;
+}
+
+.gear_cyan {
+  --premium-gear-accent: 56, 189, 248;
+}
+
+.gear_purple {
+  --premium-gear-accent: 139, 92, 246;
+}
+
+.gear_pink {
+  --premium-gear-accent: 236, 72, 153;
+}
+
+.gear_orange {
+  --premium-gear-accent: 251, 146, 60;
+}
+
+.gearCapsule {
+  border-color: rgba(var(--premium-gear-accent, 125, 211, 252), 0.34);
+  background:
+    radial-gradient(110% 130% at 14% 8%, rgba(255, 255, 255, 0.17), transparent 42%),
+    radial-gradient(circle at 16% 50%, rgba(var(--premium-gear-accent, 125, 211, 252), 0.18), transparent 46%),
+    linear-gradient(135deg, rgba(7, 24, 53, 0.96), rgba(20, 17, 49, 0.94) 62%, rgba(var(--premium-gear-accent, 125, 211, 252), 0.14));
+  box-shadow:
+    0 17px 38px rgba(0, 0, 0, 0.3),
+    0 0 22px rgba(var(--premium-gear-accent, 125, 211, 252), 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.11);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.gearCapsule::before {
+  inset: -22%;
+  opacity: 0.32;
+  background: radial-gradient(circle at 20% 50%, rgba(var(--premium-gear-accent, 125, 211, 252), 0.62), transparent 48%);
+  filter: blur(32px);
+}
+
+.gearCapsule::after {
+  background:
+    linear-gradient(90deg, rgba(var(--premium-gear-accent, 125, 211, 252), 0.75), transparent) 0 0 / 42% 1px no-repeat,
+    radial-gradient(100% 70% at 20% 8%, rgba(255, 255, 255, 0.18), transparent 55%);
+  opacity: 0.94;
+}
+
+.gearGrid > :nth-child(1).gearCapsule {
+  border-color: rgba(125, 211, 252, 0.64);
+  background:
+    radial-gradient(90% 110% at 18% 8%, rgba(255, 255, 255, 0.24), transparent 44%),
+    radial-gradient(circle at 16% 54%, rgba(var(--cockpit-cyan), 0.28), transparent 48%),
+    linear-gradient(135deg, rgba(7, 46, 89, 0.98), rgba(35, 55, 122, 0.94) 56%, rgba(104, 44, 157, 0.86));
+  box-shadow:
+    0 20px 48px rgba(0, 0, 0, 0.34),
+    0 0 30px rgba(var(--cockpit-cyan), 0.18),
+    0 0 48px rgba(var(--cockpit-violet), 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+
+.gearTitle {
+  color: rgba(250, 252, 255, 0.98);
+  text-shadow: 0 0 16px rgba(var(--premium-gear-accent, 125, 211, 252), 0.2);
+}
+
+.gearSub {
+  color: rgba(220, 231, 247, 0.7);
+}
+
+.gearBtn {
+  border-color: rgba(var(--premium-gear-accent, 125, 211, 252), 0.28);
+  background: linear-gradient(90deg, rgba(var(--premium-gear-accent, 125, 211, 252), 0.19), rgba(99, 102, 241, 0.13));
+  box-shadow:
+    0 7px 18px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.09);
+}
+
+.gearSettingsBtn {
+  border-color: rgba(var(--premium-gear-accent, 125, 211, 252), 0.26);
+  background: linear-gradient(135deg, rgba(4, 16, 38, 0.82), rgba(39, 25, 68, 0.72));
+  box-shadow:
+    0 8px 18px rgba(0, 0, 0, 0.22),
+    0 0 14px rgba(var(--premium-gear-accent, 125, 211, 252), 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .blockCard {
+    transition:
+      border-color 220ms ease,
+      box-shadow 220ms ease;
+  }
+
+  .blockCard:hover {
+    border-color: rgba(125, 211, 252, 0.27);
+    box-shadow:
+      0 30px 86px rgba(0, 0, 0, 0.42),
+      0 0 54px rgba(var(--cockpit-blue), 0.075),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+
+  .loopNode:hover {
+    border-color: rgba(255, 255, 255, 0.27);
+    box-shadow:
+      0 20px 48px rgba(0, 0, 0, 0.34),
+      0 0 24px rgba(var(--cockpit-violet), 0.09),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+
+  .gearCapsule:hover {
+    border-color: rgba(var(--premium-gear-accent, 125, 211, 252), 0.56);
+    box-shadow:
+      0 22px 50px rgba(0, 0, 0, 0.36),
+      0 0 28px rgba(var(--premium-gear-accent, 125, 211, 252), 0.14),
+      inset 0 1px 0 rgba(255, 255, 255, 0.13);
+  }
+}
+
+@keyframes premiumHubOrbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 1080px) {
+  .lowerRow {
+    gap: 14px;
+  }
+
+  .loopWrap {
+    min-height: 458px;
+  }
+}
+
+@media (max-width: 700px), (any-hover: none) and (any-pointer: coarse) {
+  .lowerRow {
+    gap: 12px;
+    margin-top: 12px;
+  }
+
+  .blockCard {
+    padding: 12px;
+    border-radius: 18px;
+  }
+
+  .blockCard::after {
+    border-radius: 17px;
+  }
+
+  .blockHead {
+    margin-bottom: 9px;
+    padding-bottom: 10px;
+  }
+
+  .blockHead .h3 {
+    font-size: 18px;
+  }
+
+  .blockHead .smallMuted {
+    padding: 5px 8px;
+    font-size: 10.5px;
+  }
+
+  .loopWrap {
+    min-height: 0;
+    padding: 10px 7px;
+    border-radius: 15px;
+  }
+
+  .loopGrid {
+    min-height: 0;
+    gap: 11px;
+  }
+
+  .loopNode {
+    width: 100%;
+    min-height: 132px;
+    padding: 16px 14px;
+    border-radius: 18px;
+  }
+
+  .loopTitle {
+    font-size: 17px;
+  }
+
+  .loopSub {
+    min-height: 0;
+  }
+
+  .loopActions .actionBtn {
+    min-width: min(190px, 78vw);
+  }
+
+  .signalHub {
+    width: 48px;
+    height: 48px;
+    opacity: 0.3;
+  }
+
+  .signalCore {
+    inset: 14px;
+  }
+
+  .gearWrap {
+    padding: 8px 0 5px;
+    border-radius: 15px;
+  }
+
+  .gearGrid {
+    gap: 11px !important;
+    padding: 8px 9px !important;
+  }
+
+  .gearBlockCard .gearCapsule,
+  :global(html.isTouch) .gearBlockCard .gearCapsule {
+    width: 100% !important;
+    max-width: 520px !important;
+    height: auto !important;
+    min-height: 126px !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+  }
+
+  .gearBlockCard .gearInner,
+  :global(html.isTouch) .gearBlockCard .gearInner {
+    min-height: 126px;
+    padding: 14px 46px 14px 18px;
+    gap: 5px;
+  }
+
+  .gearBlockCard .gearTitle {
+    font-size: 18px;
+  }
+
+  .gearBlockCard .gearSub {
+    max-width: 30ch;
+    font-size: 13px;
+  }
+
+  .gearBlockCard .gearBtn {
+    padding: 7px 14px;
+  }
+
+  .gearRail {
+    inset: 10px 10px 12px;
+  }
+}
+
+@media (max-width: 420px) {
+  .blockHead {
+    align-items: flex-start;
+  }
+
+  .blockHead .smallMuted {
+    max-width: 48%;
+    white-space: normal;
+    text-align: right;
+  }
+
+  .gearBlockCard .gearInner,
+  :global(html.isTouch) .gearBlockCard .gearInner {
+    padding-right: 42px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .signalHub::before,
+  .signalWave,
+  .loopBadge,
+  .loopGearBtn:hover .loopGearSvg {
+    animation: none !important;
+  }
+}
+
+/* =========================
+   Finitions validees apres revue visuelle
+   Ces regles restent purement decoratives : aucun composant, bouton,
+   branchement, contenu ou comportement du dashboard n'est modifie.
+========================= */
+
+/* Le masque anime du cockpit pouvait provoquer un decrochage du calque
+   Chrome apres un aller-retour de scroll. Le decor reste identique dans
+   l'esprit, mais repose maintenant sur une bordure et un fond statiques. */
+.heroLeft {
+  isolation: auto;
+  border-color: rgba(125, 211, 252, 0.34);
+  box-shadow:
+    0 26px 78px rgba(0, 0, 0, 0.38),
+    -12px 0 42px rgba(var(--cockpit-cyan), 0.055),
+    12px 0 46px rgba(var(--cockpit-pink), 0.045),
+    inset 0 1px 0 rgba(255, 255, 255, 0.11),
+    inset 0 0 0 1px rgba(var(--cockpit-violet), 0.045);
+}
+
+.heroLeft::before {
+  content: none;
+  display: none;
+}
+
+.heroLeft::after {
+  inset: 1px;
+  opacity: 0.58;
+  animation: none;
+  -webkit-mask-image: none;
+  mask-image: none;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 58%),
+    radial-gradient(circle at 50% 39%, transparent 0 58px, rgba(var(--cockpit-cyan), 0.12) 59px, transparent 60px),
+    radial-gradient(circle at 50% 39%, transparent 0 96px, rgba(var(--cockpit-violet), 0.1) 97px, transparent 98px),
+    radial-gradient(circle at 50% 39%, transparent 0 138px, rgba(var(--cockpit-pink), 0.065) 139px, transparent 140px),
+    linear-gradient(rgba(125, 211, 252, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(125, 211, 252, 0.02) 1px, transparent 1px);
+  background-size: auto, auto, auto, auto, 28px 28px, 28px 28px;
+}
+
+/* Les canaux retrouvent leur presentation libre dans la page. Seuls le titre,
+   le compteur et les pastilles restent visibles, sans grand cadre imbrique. */
+.sectionHead {
+  isolation: auto;
+  overflow: visible;
+  margin: 3px 0 12px;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.sectionHead::before,
+.sectionHead::after {
+  content: none;
+  display: none;
+}
+
+.channelTitleCluster::before {
+  display: none;
+}
+
+.channelPillRail {
+  margin-top: 11px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.channelPill {
+  border-color: rgba(255, 255, 255, 0.14);
+  background:
+    radial-gradient(circle at 24% 0%, rgba(255, 255, 255, 0.075), transparent 46%),
+    rgba(7, 17, 39, 0.78);
+  box-shadow:
+    0 8px 19px rgba(0, 0, 0, 0.17),
+    inset 0 1px 0 rgba(255, 255, 255, 0.085);
+}
+
+.channelPillConnected {
+  border-color: rgba(74, 222, 128, 0.3);
+  background:
+    radial-gradient(circle at 20% 0%, rgba(134, 239, 172, 0.1), transparent 48%),
+    linear-gradient(135deg, rgba(10, 76, 59, 0.68), rgba(5, 45, 47, 0.66));
+}
+
+.channelPillWarning {
+  border-color: rgba(251, 146, 60, 0.54);
+  background:
+    radial-gradient(circle at 20% 0%, rgba(253, 186, 116, 0.12), transparent 48%),
+    linear-gradient(135deg, rgba(91, 45, 20, 0.7), rgba(55, 27, 35, 0.66));
+}
+
+.channelPillActive {
+  border-color: rgba(125, 211, 252, 0.75);
+  background:
+    radial-gradient(circle at 22% 0%, rgba(186, 230, 253, 0.14), transparent 48%),
+    linear-gradient(135deg, rgba(10, 89, 117, 0.72), rgba(66, 45, 135, 0.67));
+}
+
+/* Sur les deux colonnes Premium, AGENDA et E-reputation finissent desormais
+   sur la meme ligne sans modifier la taille des cartes elles-memes. */
+@media (min-width: 1081px) {
+  .loopGrid {
+    min-height: 558px;
+  }
+}
+
+/* Sur petit ecran, les halos restent contenus dans chaque carte. On retire
+   uniquement les rails decoratifs qui provoquaient des melanges de couleurs. */
+@media (max-width: 700px), (any-hover: none) and (any-pointer: coarse) {
+  .loopWrap::before,
+  .signalHub,
+  .signalWave {
+    display: none;
+  }
+
+  .loopNode::before,
+  .gearCapsule::before {
+    inset: 0;
+    opacity: 0.12;
+    filter: none;
+  }
+
+  .loopNode::after,
+  .gearCapsule::after {
+    opacity: 0.72;
+  }
+
+  .gearWrap::before {
+    opacity: 0.34;
+    filter: none;
+  }
+
+  .sectionHead {
+    margin: 0 0 8px;
+    padding: 0 2px;
+  }
+}
