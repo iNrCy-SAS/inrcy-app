@@ -140,6 +140,10 @@ const dashboardI18nSource = readFileSync(
   new URL("../../lib/dashboardI18n.ts", import.meta.url),
   "utf8",
 );
+const dashboardCssSource = readFileSync(
+  new URL("../../app/dashboard/dashboard.module.css", import.meta.url),
+  "utf8",
+);
 const inertiaContentSource = readFileSync(
   new URL("../../app/dashboard/settings/_components/InertiaContent.tsx", import.meta.url),
   "utf8",
@@ -306,8 +310,34 @@ test("le cockpit reflète le parcours communication et les bilans utilisent le b
   assert.match(dashboardI18nSource, /flowContacts: "Publications"/);
   assert.match(dashboardI18nSource, /flowQuotes: "Visibilité"/);
   assert.match(dashboardI18nSource, /flowRevenue: "Résultats"/);
+  assert.match(
+    dashboardI18nSource,
+    /generatorDesc: "Le reflet de l’efficacité de vos canaux de communication\."/,
+  );
+  assert.doesNotMatch(
+    dashboardI18nSource,
+    /Production de prospects et de clients dès qu.un module est connecté/,
+  );
   assert.doesNotMatch(publicationResultModalSource, /canal\$\{[^\n]*"aux/);
   assert.match(publicationResultModalSource, /"canaux traités"/);
+});
+
+test("les cartes Premium conservent leurs couleurs propres sans assombrissement global final", () => {
+  for (const className of [
+    "loop_cyan",
+    "loop_purple",
+    "loop_pink",
+    "loop_orange",
+    "gear_cyan",
+    "gear_purple",
+    "gear_pink",
+    "gear_orange",
+  ]) {
+    assert.match(dashboardCssSource, new RegExp(`\\.${className}\\s*\\{`));
+  }
+  assert.match(dashboardCssSource, /\.loopWrap\s*\{[\s\S]*rgba\(var\(--cockpit-cyan\), 0\.06\)/);
+  assert.match(dashboardCssSource, /\.gearWrap\s*\{[\s\S]*rgba\(var\(--cockpit-violet\), 0\.14\)/);
+  assert.doesNotMatch(dashboardCssSource, /Finition lumière Premium/);
 });
 
 test("Mon inertie Standard n'active que Booster et identifie les missions Premium", () => {

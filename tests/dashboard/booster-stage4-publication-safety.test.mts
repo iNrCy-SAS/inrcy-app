@@ -28,7 +28,8 @@ test("partial publishing retries only retryable failed channels and keeps the wo
 
 test("the result modal exposes a dedicated retry for failed channels", () => {
   assert.match(modalLayer, /publishRetryFailedRef/);
-  assert.match(resultModal, /Retenter \$\{retryableFailureCount\} canal/);
+  assert.match(resultModal, /Retenter \$\{retryableFailureCount\}/);
+  assert.match(resultModal, /retryableFailureCount > 1 \? "canaux" : "canal"/);
   assert.match(resultModal, /onRetryFailed/);
 });
 
