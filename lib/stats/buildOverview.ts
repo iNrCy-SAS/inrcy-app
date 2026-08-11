@@ -8,6 +8,7 @@ import { getChannelConnectionStates } from "@/lib/channelConnectionState";
 import { hasActiveInrcySite } from "@/lib/inrcySite";
 import { decodeBusinessSector } from "@/lib/activitySectors";
 import { buildSnapshotWindow } from "@/lib/stats/snapshotWindow";
+import { log } from "@/lib/observability/logger";
 import { getLinkedInAccessToken } from "@/lib/linkedinOAuth";
 import { refreshTiktokAccessToken } from "@/lib/tiktokOAuth";
 import { fetchTiktokAnalyticsSnapshot } from "@/lib/tiktokAnalytics";
@@ -23,6 +24,7 @@ import {
   clearTiktokReconnectMeta,
   clearTiktokStatsReconnectNeeded,
   collectLinkedInMetricErrors,
+  cubeHasUsableData,
   flagTiktokStatsReconnectNeeded,
   getErrorMessage,
   getLinkedInRateLimitErrorFromMetrics,
@@ -33,11 +35,17 @@ import {
   mergeCachedSourcesWithLiveState,
   mergePinterestLocalPublicationStats,
   mergeTiktokLocalPublicationStats,
+  resolveRequestedCube,
   safeJsonParse,
   shouldCacheLinkedInMetrics,
   stabilizeOverviewPayload,
   stripPinterestApiMetricsFromPayload,
 } from "@/lib/stats/buildOverview.shared";
+import {
+  OVERVIEW_CACHE_SOURCE,
+  OVERVIEW_LAST_GOOD_SOURCE,
+  OVERVIEW_LAST_GOOD_TTL_MS,
+} from "@/lib/stats/overviewPreservation";
 import type {
   OverviewPayload,
   PinterestLocalPublicationStats,
@@ -283,7 +291,7 @@ export async function buildStatsOverview(args: {
         .from("stats_cache")
         .select("payload, expires_at")
         .eq("user_id", userId)
-        .eq("source", "overview")
+        .eq("source", OVERVIEW_CACHE_SOURCE)
         .eq("range_key", rangeKey)
         .gt("expires_at", nowIso)
         .order("expires_at", { ascending: false })
@@ -298,7 +306,13 @@ export async function buildStatsOverview(args: {
             payload["sources"],
             liveSources,
           );
-        } catch {}
+        } catch (error) {
+          log.warn("inrstats_live_connection_sync_failed", {
+            user_id: userId,
+            stage: "cached_overview_rehydrate",
+            error_message: getErrorMessage(error).slice(0, 500),
+          });
+        }
         payload = await hydratePinterestMetricsOnPayload(payload);
         const stabilizedPayload = await stabilizeOverviewPayload({
           supabase,
@@ -1343,14 +1357,13 @@ export async function buildStatsOverview(args: {
     }
   } catch {}
 
-  // GMB: the UI needs a stable "connected" flag like GA4/GSC.
-  // We consider it connected if an OAuth row exists and a location (resource_id) has been selected.
-  // (We still *try* to fetch metrics, but a missing API enablement should not flip the badge back to "off".)
+  // Google Business uses the exact same live state as Dashboard and Booster.
+  // The integration row can temporarily miss its target after an OAuth refresh,
+  // while the mirrored settings still contain the selected establishment. The
+  // canonical channel state resolves that transition once for every consumer.
   try {
     const gmbRow = latestIntegrationAny("google", "gmb", "gmb");
-
-    const legacyResource = "";
-    const resourceId = String(gmbRow["resource_id"] || legacyResource || "");
+    const resourceId = String(channelStates.gmb.resource_id || "").trim();
     sourcesStatus.gmb.connected = isStatsActiveConnection(channelStates.gmb);
 
     const includeGmb = includeAll || includeSet.has("gmb");
@@ -1373,8 +1386,7 @@ export async function buildStatsOverview(args: {
         const end = dateWindow.end;
         const start = dateWindow.start;
         try {
-          const preferredAccountName =
-            String(asRecord(gmbRow["meta"])["account"] || "") || null;
+          const preferredAccountName = channelStates.gmb.account_name;
           const recovered = await gmbFetchDailyMetricsNormalizedWithRecovery({
             accessToken,
             locationName: loc,
@@ -1439,6 +1451,14 @@ export async function buildStatsOverview(args: {
             } catch {}
           }
         } catch (e) {
+          log.warn("gmb_stats_refresh_failed", {
+            user_id: userId,
+            stage: "provider_metrics",
+            connected: sourcesStatus.gmb.connected,
+            has_location: Boolean(loc),
+            has_account: Boolean(channelStates.gmb.account_name),
+            error_message: getErrorMessage(e).slice(0, 500),
+          });
           sourcesStatus.gmb.metrics = {
             error: getSimpleFrenchErrorMessage(
               e,
@@ -1448,10 +1468,24 @@ export async function buildStatsOverview(args: {
           };
         }
       } else {
+        log.warn("gmb_stats_target_missing", {
+          user_id: userId,
+          stage: "provider_metrics_precheck",
+          connected: sourcesStatus.gmb.connected,
+          has_location: Boolean(loc),
+          has_account: Boolean(channelStates.gmb.account_name),
+          connection_status: channelStates.gmb.connection_status,
+        });
         sourcesStatus.gmb.metrics = null;
       }
     }
-  } catch {}
+  } catch (error) {
+    log.warn("gmb_stats_state_failed", {
+      user_id: userId,
+      stage: "state_resolution",
+      error_message: getErrorMessage(error).slice(0, 500),
+    });
+  }
 
   const generatedAt = new Date().toISOString();
 
@@ -1567,19 +1601,34 @@ export async function buildStatsOverview(args: {
     },
   });
 
-  // cache write (best-effort)
+  // Cache write (best-effort). A healthy channel snapshot is also kept under
+  // a separate source so a temporary provider outage cannot overwrite it.
   try {
     const expiresAt = new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString();
     await supabase.from("stats_cache").upsert(
       {
         user_id: userId,
-        source: "overview",
+        source: OVERVIEW_CACHE_SOURCE,
         range_key: rangeKey,
         payload: stripPinterestApiMetricsFromPayload(payload),
         expires_at: expiresAt,
       },
       { onConflict: "user_id,source,range_key" },
     );
+
+    const requestedCube = resolveRequestedCube(includeRaw, includeAll);
+    if (requestedCube && cubeHasUsableData(payload, requestedCube)) {
+      await supabase.from("stats_cache").upsert(
+        {
+          user_id: userId,
+          source: OVERVIEW_LAST_GOOD_SOURCE,
+          range_key: rangeKey,
+          payload: stripPinterestApiMetricsFromPayload(payload),
+          expires_at: new Date(Date.now() + OVERVIEW_LAST_GOOD_TTL_MS).toISOString(),
+        },
+        { onConflict: "user_id,source,range_key" },
+      );
+    }
   } catch {}
 
 

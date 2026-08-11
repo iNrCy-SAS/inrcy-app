@@ -137,7 +137,7 @@ async function selectLatestGoogleIntegration(
     .eq("provider", "google")
     .eq("source", source)
     .eq("product", product)
-    .eq("status", "connected")
+    .in("status", ["connected", "account_connected"])
     .order("updated_at", { ascending: false })
     .order("created_at", { ascending: false })
     .limit(5);

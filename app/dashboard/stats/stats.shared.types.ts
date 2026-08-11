@@ -48,6 +48,7 @@ export type CubeState = {
   loading: boolean;
   error?: string;
   capturedLeads?: CapturedLeads;
+  connectionStatus?: "connected" | "needs_update" | "disconnected" | "unavailable";
 };
 
 export type StatsBulkResponse = {
@@ -138,6 +139,7 @@ export type CubeModel = {
   period: Period;
   loading: boolean;
   error?: string;
+  connectionStatus?: "connected" | "needs_update" | "disconnected" | "unavailable";
   connections: {
     ga4?: boolean;
     gsc?: boolean;

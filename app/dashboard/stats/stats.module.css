@@ -7624,6 +7624,58 @@
   }
 }
 
+/* État de connexion unique Dashboard / iNrStats / Booster.
+   Vert = exploitable, jaune = reconnexion requise, gris = non connecté. */
+.statsRailItemOff .statsRailDot,
+.statsMobileDrawerItem.statsRailItemOff .statsRailDot {
+  background: #7f8aa3 !important;
+  box-shadow: 0 0 0 3px rgba(127, 138, 163, 0.12) !important;
+}
+
+.statsRailItemOff .statsRailText small,
+.statsMobileDrawerItem.statsRailItemOff .statsRailText small {
+  color: #aab2c4 !important;
+}
+
+.statsRailItemReconnect,
+.statsMobileDrawerItem.statsRailItemReconnect {
+  border-color: rgba(251, 191, 36, 0.42) !important;
+  background: linear-gradient(135deg, rgba(146, 94, 12, 0.2), rgba(28, 34, 58, 0.72)) !important;
+}
+
+.statsRailItemReconnect .statsRailDot,
+.statsMobileDrawerItem.statsRailItemReconnect .statsRailDot {
+  background: #fbbf24 !important;
+  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.15), 0 0 12px rgba(251, 191, 36, 0.38) !important;
+}
+
+.statsRailItemReconnect .statsRailText small,
+.statsMobileDrawerItem.statsRailItemReconnect .statsRailText small,
+.statsRailItemReconnect .statsRailValue,
+.statsMobileDrawerItem.statsRailItemReconnect .statsRailValue {
+  color: #fcd34d !important;
+}
+
+.pillOff,
+.cubeOff .pillOff {
+  color: #c1c7d4 !important;
+  border-color: rgba(148, 163, 184, 0.38) !important;
+  background: rgba(71, 85, 105, 0.2) !important;
+}
+
+.pillReconnect,
+.cubeReconnect .pillReconnect {
+  color: #fde68a !important;
+  border-color: rgba(251, 191, 36, 0.5) !important;
+  background: rgba(146, 94, 12, 0.22) !important;
+}
+
+.cubeReconnect {
+  border-color: rgba(251, 191, 36, 0.42) !important;
+  background: linear-gradient(145deg, rgba(64, 44, 22, 0.5), rgba(17, 27, 49, 0.93)) !important;
+  box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.08), 0 16px 44px rgba(0, 0, 0, 0.2) !important;
+}
+
 /* iNr'Stats — gabarit canal aligné sur la vue globale.
    La vue globale reste inchangée. Sur desktop, la fiche d'un canal reprend
    exactement toute la colonne disponible : titre, KPI et cartes internes ont

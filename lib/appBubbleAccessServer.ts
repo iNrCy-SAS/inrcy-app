@@ -22,10 +22,14 @@ export async function getAppBubbleAccessMapForUser(
   supabase: SupabaseLike,
   userId: string,
 ): Promise<AppBubbleAccessMap> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("app_bubble_access")
     .select("bubble_key,enabled")
     .eq("user_id", userId);
+
+  // Fail closed: a transient database error must never make a disabled channel
+  // publishable by falling back to the default access map.
+  if (error) throw error;
 
   return buildBubbleAccessMap(Array.isArray(data) ? data : []);
 }

@@ -209,6 +209,33 @@ const DASHBOARD_CHANNEL_STATE_CACHE_KEY = "inrcy_dashboard_channel_state_v1";
 
 export type ChannelIdentityHints = Partial<Record<CubeKey, string>>;
 export type CachedChannelConnectivity = Partial<Record<CubeKey, boolean>>;
+export type OfficialChannelConnectionStatus = "connected" | "needs_update" | "disconnected" | "unavailable";
+export type OfficialChannelConnectionStatuses = Partial<Record<CubeKey, OfficialChannelConnectionStatus>>;
+
+export const FAIL_CLOSED_STATS_CHANNEL_KEYS: readonly CubeKey[] = [
+  "site_inrcy",
+  "site_web",
+  "gmb",
+  "facebook",
+  "instagram",
+  "linkedin",
+  "mails",
+  "tiktok",
+  "youtube_shorts",
+  "pinterest",
+];
+
+export function unavailableOfficialChannelStatuses(): OfficialChannelConnectionStatuses {
+  return Object.fromEntries(
+    FAIL_CLOSED_STATS_CHANNEL_KEYS.map((key) => [key, "unavailable"]),
+  ) as OfficialChannelConnectionStatuses;
+}
+
+export function unavailableOfficialChannelConnectivity(): CachedChannelConnectivity {
+  return Object.fromEntries(
+    FAIL_CLOSED_STATS_CHANNEL_KEYS.map((key) => [key, false]),
+  ) as CachedChannelConnectivity;
+}
 
 export function cleanChannelIdentityHint(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -289,7 +316,9 @@ export function channelConnectivityFromStates(payload: unknown): CachedChannelCo
   };
 
   return {
-    inr_search: isUsable("inr_search"),
+    // iNr'Search is not OAuth: its analytics endpoint verifies the actual
+    // public page (edition, Bubble Access and publication status). Do not let
+    // the lighter settings-only channel state override that stronger result.
     site_inrcy: Boolean(states.site_inrcy?.ga4 || states.site_inrcy?.gsc || states.site_inrcy?.statsConnected),
     site_web: Boolean(states.site_web?.ga4 || states.site_web?.gsc || states.site_web?.statsConnected),
     gmb: isUsable("gmb"),
@@ -300,6 +329,33 @@ export function channelConnectivityFromStates(payload: unknown): CachedChannelCo
     tiktok: isUsable("tiktok"),
     youtube_shorts: isUsable("youtube_shorts"),
     pinterest: isUsable("pinterest"),
+  };
+}
+
+export function channelConnectionStatusesFromStates(payload: unknown): OfficialChannelConnectionStatuses {
+  const states = payload && typeof payload === "object" && !Array.isArray(payload)
+    ? payload as Record<string, any>
+    : {};
+  const normalize = (key: string): OfficialChannelConnectionStatus => {
+    const state = states[key] && typeof states[key] === "object" ? states[key] : {};
+    if (state.requiresUpdate === true || state.connection_status === "needs_update") return "needs_update";
+    if (state.connected === true && state.connection_status !== "disconnected") return "connected";
+    return "disconnected";
+  };
+
+  return {
+    // See channelConnectivityFromStates: iNr'Search owns its authoritative
+    // public-page status through /api/inr-search/analytics.
+    site_inrcy: states.site_inrcy?.statsConnected || states.site_inrcy?.ga4 || states.site_inrcy?.gsc ? "connected" : "disconnected",
+    site_web: states.site_web?.statsConnected || states.site_web?.ga4 || states.site_web?.gsc ? "connected" : "disconnected",
+    gmb: normalize("gmb"),
+    facebook: normalize("facebook"),
+    instagram: normalize("instagram"),
+    linkedin: normalize("linkedin"),
+    mails: normalize("mails"),
+    tiktok: normalize("tiktok"),
+    youtube_shorts: normalize("youtube_shorts"),
+    pinterest: normalize("pinterest"),
   };
 }
 

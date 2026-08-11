@@ -10,6 +10,7 @@ import { getChannelConnectionStates } from '@/lib/channelConnectionState';
 import { buildStatsConnectionSignature } from '@/lib/stats/connectionSignature';
 import { applyLinkedInFallbackToStatsRecords, readLastGoodLinkedInGeneratorBlock } from '@/lib/linkedinStatsFallback';
 import { buildChannelBlocks, type InrstatsChannelBlocksByChannel } from '@/lib/inrstats/channelBlocks';
+import { DASHBOARD_CHANNEL_KEYS } from '@/lib/dashboardChannels';
 import {
   EMPTY_CUBE_RECORD,
   fetchCubeOverviews,
@@ -156,6 +157,25 @@ async function dashboardStatsBulkHandler(req: Request) {
       channelStates,
       preservedChannels: linkedInPreserved ? { linkedin: true } : undefined,
     });
+
+    // The official channel state wins over every cached/provider value. An
+    // expired, disconnected or otherwise unavailable channel must expose zero
+    // opportunities and zero estimated value everywhere in iNrStats.
+    for (const channel of DASHBOARD_CHANNEL_KEYS) {
+      opportunities.byCube[channel] = blocks[channel].opportunities;
+      estimatedByCube[channel] = blocks[channel].estimatedValue;
+      capturedLeadsByCube.week[channel] = blocks[channel].capturedLeads.week;
+      capturedLeadsByCube.month[channel] = blocks[channel].capturedLeads.month;
+    }
+    opportunities.total = Math.max(
+      0,
+      Math.round(
+        Object.values(opportunities.byCube).reduce(
+          (sum, value) => sum + (Number.isFinite(Number(value)) ? Number(value) : 0),
+          0,
+        ),
+      ),
+    );
 
     const overviewList = Object.values(overviews) as Array<{ meta?: { snapshotDate?: string | null; live?: boolean | null } }>;
     const overviewWithMeta = overviewList.find((overview) => overview?.meta);

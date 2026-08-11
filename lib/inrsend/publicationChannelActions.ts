@@ -31,12 +31,43 @@ import { ensureSystemManagedInrSearch, notifyInrSearchIndexing, revalidateInrSea
 import { getInrSearchPublicStatus } from "@/lib/inrSearchPublic";
 import { limitBoosterChannelContent } from "@/lib/boosterChannelRules";
 import { buildMetaGraphUrl } from "@/lib/metaGraphApi";
+import { getChannelConnectionStates } from "@/lib/channelConnectionState";
+import {
+  isOfficialPublicationChannelConnected,
+  publicationChannelRequiresReconnect,
+} from "@/lib/publicationChannelAvailability";
+import { getAppBubbleAccessMapForUser } from "@/lib/appBubbleAccessServer";
+import { isBubbleEnabled, type AppBubbleKey } from "@/lib/bubbleAccess";
 const LINKEDIN_VERSION = "202603";
 const TIKTOK_INRSEND_EXTERNAL_ACTION_MESSAGE =
   "TikTok ne permet pas la modification ou la suppression réelle depuis iNrCy. Ouvrez TikTok pour gérer cette publication.";
 
 export type ChannelKey = "inrcy_site" | "site_web" | "inr_search" | "gmb" | "facebook" | "instagram" | "linkedin" | "tiktok" | "pinterest";
 type JsonRecord = Record<string, unknown>;
+
+const CHANNEL_BUBBLE_KEYS: Record<ChannelKey, AppBubbleKey> = {
+  inrcy_site: "site_inrcy",
+  site_web: "site_web",
+  inr_search: "inr_search",
+  gmb: "gmb",
+  facebook: "facebook",
+  instagram: "instagram",
+  linkedin: "linkedin",
+  tiktok: "tiktok",
+  pinterest: "pinterest",
+};
+
+const CHANNEL_LABELS: Record<ChannelKey, string> = {
+  inrcy_site: "Site iNrCy",
+  site_web: "Site web",
+  inr_search: "iNr'Search",
+  gmb: "Google Business",
+  facebook: "Facebook",
+  instagram: "Instagram",
+  linkedin: "LinkedIn",
+  tiktok: "TikTok",
+  pinterest: "Pinterest",
+};
 
 type InstagramDeleteTokenCandidate = {
   source: string;
@@ -1077,6 +1108,35 @@ async function replaceChannelDelivery(params: {
   imageSet?: ImageSet | null;
 }) {
   const { userId, publicationId, channel, previousExternalId, publication, eventPayload, nextPost, imageSet } = params;
+  const [publicationStates, bubbleAccess] = await Promise.all([
+    getChannelConnectionStates(supabaseAdmin, userId),
+    getAppBubbleAccessMapForUser(supabaseAdmin, userId),
+  ]);
+  const channelLabel = CHANNEL_LABELS[channel];
+  if (!isBubbleEnabled(bubbleAccess, CHANNEL_BUBBLE_KEYS[channel])) {
+    throw new Error(`${channelLabel} est désactivé dans Bubble Access.`);
+  }
+
+  const officialState = channel === "inrcy_site"
+    ? publicationStates.site_inrcy
+    : channel === "site_web"
+      ? publicationStates.site_web
+      : channel === "inr_search"
+        ? publicationStates.inr_search
+        : publicationStates[channel];
+  const officiallyConnected = channel === "inrcy_site" || channel === "site_web"
+    ? officialState.connected === true
+    : isOfficialPublicationChannelConnected(officialState);
+  if (!officiallyConnected) {
+    const reconnectRequired = "connection_status" in officialState
+      && publicationChannelRequiresReconnect(officialState);
+    throw new Error(
+      reconnectRequired
+        ? `${channelLabel} à reconnecter. Rendez-vous dans Canaux.`
+        : `${channelLabel} à connecter. Rendez-vous dans Canaux.`,
+    );
+  }
+
   const mediaType = params.mediaType || getEventPublicationMediaType(eventPayload, publication, channel);
   const video = params.video || getPublicationVideo(eventPayload, publication, channel);
   const isVideoPublication = mediaType === "video";
@@ -1169,7 +1229,7 @@ async function replaceChannelDelivery(params: {
     const fb = asRecord(fbRow);
     const pageId = String(fb.resource_id ?? "");
     const pageToken = tryDecryptToken(String(fb.access_token_enc ?? "")) || "";
-    if (String(fb.status ?? "") !== "connected" || !pageId || !pageToken) {
+    if (!pageId || !pageToken) {
       const facebookUserError = "Facebook à connecter. Rendez-vous dans Canaux.";
       logPublishChannelFailure({
         route: "inrsend_publication_channel_action",
@@ -1284,7 +1344,7 @@ async function replaceChannelDelivery(params: {
     const ig = asRecord(igRow);
     const igUserId = String(ig.resource_id ?? "");
     const igToken = tryDecryptToken(String(ig.access_token_enc ?? "")) || "";
-    if (String(ig.status ?? "") !== "connected" || !igUserId || !igToken) {
+    if (!igUserId || !igToken) {
       const instagramUserError = "Instagram à connecter. Rendez-vous dans Canaux.";
       logPublishChannelFailure({
         route: "inrsend_publication_channel_action",
@@ -1431,7 +1491,7 @@ async function replaceChannelDelivery(params: {
     const selectedOrgId = String(liMeta.org_id || "").trim();
     const organizationAuthorUrn = auth.orgUrn || String(liMeta.org_urn || "") || (selectedOrgId ? `urn:li:organization:${selectedOrgId}` : "");
     const authorUrn = organizationAuthorUrn || memberAuthorUrn;
-    if (String(li.status ?? "") !== "connected" || !accessToken || !authorUrn) {
+    if (!accessToken || !authorUrn) {
       const linkedInRawError = auth.error || "not_connected";
       const linkedInUserError = getPublishChannelUserMessage("linkedin", linkedInRawError, "LinkedIn à connecter. Rendez-vous dans Canaux.");
       logPublishChannelFailure({
@@ -1544,10 +1604,10 @@ async function replaceChannelDelivery(params: {
 
   if (channel === "gmb") {
     const gmb = asRecord(gmbRow);
-    const meta = asRecord(gmb.meta);
-    const accountName = String(meta.account ?? "");
-    const locationName = String(gmb.resource_id ?? "");
-    if (String(gmb.status ?? "") !== "connected" || !accountName || !locationName) {
+    const gmbState = publicationStates.gmb;
+    const accountName = String(gmbState.account_name || "").trim();
+    const locationName = String(gmbState.resource_id || "").trim();
+    if (!isOfficialPublicationChannelConnected(gmbState) || !accountName || !locationName) {
       const gmbUserError = "Google Business à connecter. Rendez-vous dans Canaux.";
       logPublishChannelFailure({
         route: "inrsend_publication_channel_action",
@@ -1557,6 +1617,14 @@ async function replaceChannelDelivery(params: {
         stage: "precheck",
         error: "not_connected",
         userMessage: gmbUserError,
+        diagnostics: {
+          official_connected: gmbState.connected,
+          connection_status: gmbState.connection_status,
+          requires_update: gmbState.requiresUpdate,
+          raw_status: String(gmb.status || "") || null,
+          has_location: Boolean(locationName),
+          has_account: Boolean(accountName),
+        },
       });
       throw new Error(gmbUserError);
     }

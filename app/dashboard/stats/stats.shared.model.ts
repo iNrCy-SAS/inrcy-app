@@ -13,12 +13,15 @@ export function buildCubeModel(
   period: Period,
   state: CubeState | undefined | null,
   summaryOppByCube: Record<CubeKey, number>,
+  officialConnectionStatus?: "connected" | "needs_update" | "disconnected" | "unavailable",
 ): CubeModel {
   const safeState: CubeState = state && typeof state === "object"
     ? state
     : { ov: null, loading: false, error: undefined, capturedLeads: { week: 0, month: 0 } };
-  const hasRealOverview = !!safeState.ov;
-  const ov = safeState.ov ||
+  const stateConnectionStatus = officialConnectionStatus || safeState.connectionStatus;
+  const officialStatsActive = !stateConnectionStatus || stateConnectionStatus === "connected";
+  const hasRealOverview = officialStatsActive && !!safeState.ov;
+  const ov = (officialStatsActive ? safeState.ov : null) ||
     ({
       days: period,
       totals: { users: 0, sessions: 0, pageviews: 0, engagementRate: 0, avgSessionDuration: 0, clicks: 0, impressions: 0, ctr: 0 },
@@ -68,14 +71,15 @@ export function buildCubeModel(
   const computedOpp30 = computeOpportunity30(key, ov);
   const linkedInPartial = key === "linkedin" && isLinkedInStatsPartial(ov);
   const summaryOpp30 = summaryOppByCube[key];
-  const opp30 = linkedInPartial && computedOpp30 > safeNum(summaryOpp30)
+  const computedOpportunity = linkedInPartial && computedOpp30 > safeNum(summaryOpp30)
     ? computedOpp30
     : summaryOpp30 ?? computedOpp30;
+  const opp30 = officialStatsActive ? computedOpportunity : 0;
 
   const q = computeQuality(key, ov);
   const capturedLeads: CapturedLeads = {
-    week: Math.max(0, Math.round(safeNum(safeState.capturedLeads?.week))),
-    month: Math.max(0, Math.round(safeNum(safeState.capturedLeads?.month))),
+    week: officialStatsActive ? Math.max(0, Math.round(safeNum(safeState.capturedLeads?.week))) : 0,
+    month: officialStatsActive ? Math.max(0, Math.round(safeNum(safeState.capturedLeads?.month))) : 0,
   };
   let action = recommendAction(key, ov, q.score);
   let decision: DecisionResult | undefined;
@@ -108,6 +112,31 @@ export function buildCubeModel(
     };
   }
 
+  const inferredConnected = key === "site_inrcy" || key === "site_web"
+    ? Boolean(connections.ga4 || connections.gsc)
+    : Boolean(connections.main);
+  const connectionStatus = stateConnectionStatus || (inferredConnected ? "connected" : "disconnected");
+
+  if (connectionStatus === "needs_update") {
+    action = {
+      key: "connect",
+      title: `Reconnecter ${title}`,
+      detail: "La connexion a expiré. Reconnectez ce canal pour réactiver les statistiques et Booster.",
+      href: "/dashboard",
+      pill: "Connexion",
+    };
+  }
+
+  if (connectionStatus === "unavailable") {
+    action = {
+      key: "loading",
+      title: "Synchronisation indisponible",
+      detail: "L'état du canal n'a pas pu être vérifié. Aucune ancienne donnée n'est utilisée comme autorisation.",
+      href: "",
+      pill: "Connexion",
+    };
+  }
+
   const opportunityLabel =
     opp30 >= 14 ? "Fort potentiel" : opp30 >= 7 ? "Potentiel réel" : opp30 >= 3 ? "Potentiel modéré" : "À activer";
 
@@ -120,6 +149,7 @@ export function buildCubeModel(
     period,
     loading: !!safeState.loading,
     error: safeState.error,
+    connectionStatus,
     connections,
     provenance,
     opportunity30: opp30,

@@ -3,6 +3,8 @@ import { createSupabaseServer } from "@/lib/supabaseServer";
 import { getChannelConnectionStates } from "@/lib/channelConnectionState";
 import { resolveActiveInrcyAccountId } from "@/lib/multicompte/server";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   const supabase = await createSupabaseServer();
   const { data: authData, error: authErr } = await supabase.auth.getUser();

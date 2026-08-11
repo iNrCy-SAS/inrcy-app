@@ -1,6 +1,12 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  OVERVIEW_CACHE_SOURCE,
+  OVERVIEW_LAST_GOOD_SOURCE,
+  hasUsableGmbMetrics,
+  isRecentOverviewCandidate,
+} from "@/lib/stats/overviewPreservation";
 
 export function asRecord(v: unknown): Record<string, unknown> {
   return v && typeof v === "object" && !Array.isArray(v)
@@ -714,6 +720,7 @@ export function cubeHasUsableData(
     // mais un cache avec audience/followers reste exploitable pour le potentiel.
     return hasUsableLinkedInMetrics(metricsRec) || hasLinkedInOpportunityMetrics(metricsRec);
   }
+  if (cube === "gmb") return hasUsableGmbMetrics(metricsRec);
   return !String(metricsRec["error"] || "").trim();
 }
 
@@ -796,25 +803,29 @@ export async function loadPreviousOverviewCandidate(args: {
     `days=${days}|include=all|`,
   ]));
 
-  for (const prefix of prefixes) {
-    try {
-      const { data: rows = [] } = await supabase
-        .from("stats_cache")
-        .select("payload, expires_at")
-        .eq("user_id", userId)
-        .eq("source", "overview")
-        .like("range_key", `${prefix}%`)
-        .order("expires_at", { ascending: false })
-        .limit(12);
+  for (const source of [OVERVIEW_LAST_GOOD_SOURCE, OVERVIEW_CACHE_SOURCE]) {
+    for (const prefix of prefixes) {
+      try {
+        const { data: rows = [] } = await supabase
+          .from("stats_cache")
+          .select("payload, expires_at")
+          .eq("user_id", userId)
+          .eq("source", source)
+          .like("range_key", `${prefix}%`)
+          .order("expires_at", { ascending: false })
+          .limit(12);
 
-      for (const row of Array.isArray(rows) ? rows : []) {
-        const candidate = asRecord(asRecord(row)["payload"]);
-        if (!candidate || Object.keys(candidate).length === 0) continue;
-        if (!identitiesCompatible(currentPayload, candidate, cube)) continue;
-        if (!cubeHasUsableData(candidate, cube)) continue;
-        return candidate;
-      }
-    } catch {}
+        for (const row of Array.isArray(rows) ? rows : []) {
+          const rowRecord = asRecord(row);
+          if (!isRecentOverviewCandidate(rowRecord["expires_at"])) continue;
+          const candidate = asRecord(rowRecord["payload"]);
+          if (!candidate || Object.keys(candidate).length === 0) continue;
+          if (!identitiesCompatible(currentPayload, candidate, cube)) continue;
+          if (!cubeHasUsableData(candidate, cube)) continue;
+          return candidate;
+        }
+      } catch {}
+    }
   }
 
 

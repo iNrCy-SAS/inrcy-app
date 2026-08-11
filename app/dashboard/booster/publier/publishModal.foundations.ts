@@ -24,6 +24,8 @@ export type ChannelConnectionDetail = {
   href?: string | null;
   connectionStatus?: string | null;
   requiresReconnect?: boolean;
+  disabled?: boolean;
+  availabilityError?: boolean;
 };
 
 export type PinterestBoardOption = {

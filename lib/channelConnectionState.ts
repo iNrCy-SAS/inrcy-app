@@ -7,6 +7,7 @@ import { buildTiktokProfileUrl } from "@/lib/tiktokOAuth";
 import { applyYoutubeShortsIntegrationState } from "@/lib/youtubeShortsOAuth";
 import { hasUsableRefreshCredential } from "@/lib/publicationChannelAvailability";
 import { getPinterestApiEnvironment } from "@/lib/pinterestOAuth";
+import { log } from "@/lib/observability/logger";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -33,6 +34,9 @@ type IntegrationLite = {
 export type ChannelStates = {
   site_inrcy: {
     connected: boolean;
+    expired: false;
+    requiresUpdate: false;
+    connection_status: ConnectionDisplayStatus;
     statsConnected: boolean;
     score: number;
     url: string | null;
@@ -41,6 +45,9 @@ export type ChannelStates = {
   };
   site_web: {
     connected: boolean;
+    expired: false;
+    requiresUpdate: false;
+    connection_status: ConnectionDisplayStatus;
     statsConnected: boolean;
     score: number;
     url: string | null;
@@ -54,6 +61,7 @@ export type ChannelStates = {
     expired: boolean;
     requiresUpdate: boolean;
     connection_status: ConnectionDisplayStatus;
+    account_name: string | null;
     resource_id: string | null;
     resource_label: string | null;
     email: string | null;
@@ -235,6 +243,23 @@ export async function getChannelConnectionStates(
           .eq("user_id", userId),
       ]);
 
+  if (!usePreload) {
+    const failedSources = [
+      ["profiles", (profileRes as { error?: unknown }).error],
+      ["inrcy_site_configs", (inrcyCfgRes as { error?: unknown }).error],
+      ["pro_tools_configs", (proCfgRes as { error?: unknown }).error],
+      ["integrations", (integrationsRes as { error?: unknown }).error],
+    ].filter((entry) => Boolean(entry[1])).map((entry) => String(entry[0]));
+
+    if (failedSources.length > 0) {
+      log.error("channel_connection_state_read_failed", {
+        user_id: userId,
+        failed_sources: failedSources,
+      });
+      throw new Error("Impossible de synchroniser l'état des canaux.");
+    }
+  }
+
   const profile = asRecord((profileRes as { data?: unknown }).data);
   const inrcyCfg = asRecord((inrcyCfgRes as { data?: unknown }).data);
   const inrcyCfgSettings = asRecord(inrcyCfg.settings);
@@ -265,15 +290,18 @@ export async function getChannelConnectionStates(
   const fbStatus = asString(fb.status);
   const fbHasOfficialRow = hasIntegrationRecord(fb);
   const fbHasToken = hasTruthyString(fb.access_token_enc) || hasTruthyString(fbMeta.standard_user_access_token_enc) || hasTruthyString(fbMeta.business_user_access_token_enc) || hasTruthyString(fbMeta.user_access_token_enc);
-  const fbAccountConnected = fbHasOfficialRow
-    ? Boolean((fbStatus === "account_connected" || fbStatus === "connected") && !fbExpired && fbHasToken)
-    : Boolean(fbSettings.accountConnected);
+  // OAuth integrations are the only publication authority. pro_tools_configs
+  // is a display mirror and must never turn a channel green on its own.
+  const fbAccountConnected = Boolean(
+    fbHasOfficialRow &&
+      (fbStatus === "account_connected" || fbStatus === "connected") &&
+      !fbExpired &&
+      fbHasToken,
+  );
   const fbResourceId = asString(fb.resource_id) || asString(fbSettings.pageId) || null;
   const fbResourceLabel = asString(fb.resource_label) || asString(fbSettings.pageName) || null;
   const fbPageUrl = asString(asRecord(fb.meta).page_url) || asString(fbSettings.url) || buildFacebookPageUrl(fbResourceId);
-  const fbPageConnected = fbHasOfficialRow
-    ? Boolean(fbAccountConnected && fbResourceId)
-    : Boolean((fbAccountConnected && fbResourceId) || fbSettings.pageConnected);
+  const fbPageConnected = Boolean(fbAccountConnected && fbResourceId);
   const fbConnectionStatus = fbExpired
     ? "needs_update"
     : getConnectionDisplayStatus(fbPageConnected, "channel:facebook", fbMeta);
@@ -287,9 +315,12 @@ export async function getChannelConnectionStates(
   const igStatus = asString(ig.status);
   const igHasOfficialRow = hasIntegrationRecord(ig);
   const igHasToken = hasTruthyString(ig.access_token_enc);
-  const igAccountConnected = igHasOfficialRow
-    ? Boolean((igStatus === "account_connected" || igStatus === "connected") && !igExpired && igHasToken)
-    : Boolean(igSettings.accountConnected);
+  const igAccountConnected = Boolean(
+    igHasOfficialRow &&
+      (igStatus === "account_connected" || igStatus === "connected") &&
+      !igExpired &&
+      igHasToken,
+  );
   const igResourceId = asString(ig.resource_id) || asString(igSettings.igId) || asString(igSettings.pageId) || null;
   const igUsername = asString(ig.resource_label) || asString(igSettings.username) || null;
   const igProfileUrl = asString(igSettings.url) || (igUsername ? `https://www.instagram.com/${igUsername}/` : null);
@@ -318,9 +349,9 @@ export async function getChannelConnectionStates(
       asString(liMeta.org_urn) ||
       asString(liMeta.org_id),
   );
-  const liConnected = liHasOfficialRow
-    ? Boolean((liStatus === "connected" || liStatus === "account_connected") && liHasReusableAuth && liHasPublicationTarget && !liExpired)
-    : Boolean(liSettings.accountConnected || liSettings.connected);
+  const liConnected = Boolean(
+    liHasOfficialRow && (liStatus === "connected" || liStatus === "account_connected") && liHasReusableAuth && liHasPublicationTarget && !liExpired,
+  );
   const liConnectionStatus = liExpired
     ? "needs_update"
     : getConnectionDisplayStatus(liConnected, "channel:linkedin", liMeta);
@@ -383,6 +414,15 @@ export async function getChannelConnectionStates(
   });
   const mailConnectedCount = Math.max(0, Math.min(4, connectedMailRows.length));
   const mailsConnected = mailConnectedCount > 0;
+  const mailsRequireUpdate = !mailsConnected && mailRows.some((row) => {
+    const status = (asString(row.status) || "").toLowerCase();
+    const kind = mailConnectionKind(row.provider);
+    return Boolean(
+      status === "connected" &&
+        kind &&
+        getConnectionDisplayStatus(true, kind, asRecord(row.settings)) === "needs_update",
+    );
+  });
 
   const pinterest = latestIntegration(rows, "pinterest", "pinterest", "pinterest");
   const pinterestHasAccessToken = hasTruthyString(pinterest.access_token_enc);
@@ -427,16 +467,17 @@ export async function getChannelConnectionStates(
   const gmbHasRefreshToken = hasTruthyString(gmb.refresh_token_enc);
   const gmbHasReusableAuth = gmbHasToken || gmbHasRefreshToken;
   const gmbExpired = isExpired(gmb.expires_at) && !gmbHasRefreshToken;
-  const gmbAccountConnected = gmbHasOfficialRow
-    ? Boolean((gmbStatus === "connected" || gmbStatus === "account_connected") && gmbHasReusableAuth && !gmbExpired)
-    : Boolean(gmbSettings.connected || gmbSettings.accountEmail);
+  const gmbAccountConnected = Boolean(
+    gmbHasOfficialRow &&
+      (gmbStatus === "connected" || gmbStatus === "account_connected") &&
+      gmbHasReusableAuth &&
+      !gmbExpired,
+  );
   const gmbResourceId = asString(gmb.resource_id) || asString(gmbSettings.locationName) || null;
   const gmbResourceLabel = asString(gmb.resource_label) || asString(gmbSettings.locationTitle) || null;
   const gmbAccountName = asString(gmbMeta.account) || asString(gmbSettings.accountName) || null;
   const gmbUrl = asString(gmbMeta.url) || asString(gmbSettings.url) || buildGoogleMapsSearchUrl(gmbResourceLabel || gmbResourceId);
-  const gmbConfigured = gmbHasOfficialRow
-    ? Boolean(gmbAccountConnected && gmbResourceId && gmbAccountName)
-    : Boolean((gmbAccountConnected && gmbResourceId && gmbAccountName) || (gmbSettings.connected && gmbSettings.accountName && (gmbSettings.locationName || gmbSettings.locationTitle)));
+  const gmbConfigured = Boolean(gmbAccountConnected && gmbResourceId && gmbAccountName);
   const gmbConnectionStatus = gmbExpired
     ? "needs_update"
     : getConnectionDisplayStatus(gmbConfigured, "channel:gmb", gmbMeta);
@@ -445,6 +486,9 @@ export async function getChannelConnectionStates(
   return {
     site_inrcy: {
       connected: inrcyHasSite && !!inrcyUrl,
+      expired: false,
+      requiresUpdate: false,
+      connection_status: inrcyHasSite && !!inrcyUrl ? "connected" : "disconnected",
       statsConnected: inrcyGa4 || inrcyGsc,
       score: inrcyScore,
       url: inrcyUrl || null,
@@ -453,6 +497,9 @@ export async function getChannelConnectionStates(
     },
     site_web: {
       connected: !!siteWebUrl,
+      expired: false,
+      requiresUpdate: false,
+      connection_status: siteWebUrl ? "connected" : "disconnected",
       statsConnected: webGa4 || webGsc,
       score: webScore,
       url: siteWebUrl || null,
@@ -466,6 +513,7 @@ export async function getChannelConnectionStates(
       expired: gmbExpired,
       requiresUpdate: gmbRequiresUpdate,
       connection_status: gmbConnectionStatus,
+      account_name: gmbAccountName,
       resource_id: gmbResourceId,
       resource_label: gmbResourceLabel,
       email: asString(gmb.email_address) || asString(gmbSettings.accountEmail) || null,
@@ -511,8 +559,8 @@ export async function getChannelConnectionStates(
       connected: mailsConnected,
       connectedCount: mailConnectedCount,
       maxAccounts: 4,
-      requiresUpdate: false,
-      connection_status: mailsConnected ? "connected" : "disconnected",
+      requiresUpdate: mailsRequireUpdate,
+      connection_status: mailsConnected ? "connected" : mailsRequireUpdate ? "needs_update" : "disconnected",
     },
     tiktok: {
       accountConnected: tiktokConnected,

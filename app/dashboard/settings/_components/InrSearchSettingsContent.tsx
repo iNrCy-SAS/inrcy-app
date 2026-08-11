@@ -418,8 +418,8 @@ export default function InrSearchSettingsContent({
       ) : null}
 
       {helperOpen ? (
-        <div role="dialog" aria-modal="true" aria-labelledby="inrsearch-helper-title" style={{ position: "fixed", inset: 0, zIndex: 10050, display: "grid", placeItems: "center", padding: 20, background: "rgba(2,6,23,.76)" }}>
-          <div style={{ width: "min(680px, 100%)", maxHeight: "min(760px, 90vh)", overflowY: "auto", border: "1px solid rgba(167,139,250,.35)", borderRadius: 18, padding: 20, background: "linear-gradient(145deg, #111827, #0b1020)", boxShadow: "0 30px 80px rgba(0,0,0,.45)" }}>
+        <div role="dialog" aria-modal="true" aria-labelledby="inrsearch-helper-title" style={{ position: "fixed", inset: 0, zIndex: 10050, display: "grid", placeItems: "center", padding: 20, boxSizing: "border-box", overflowX: "hidden", overflowY: "auto", background: "rgba(2,6,23,.76)" }}>
+          <div style={{ width: "min(680px, 100%)", margin: "auto", overflow: "hidden", border: "1px solid rgba(167,139,250,.35)", borderRadius: 18, padding: 20, background: "linear-gradient(145deg, #111827, #0b1020)", boxShadow: "0 30px 80px rgba(0,0,0,.45)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}><div id="inrsearch-helper-title" className={styles.blockTitle}>À quoi sert iNr&apos;Search ?</div><button className={styles.ghostBtn} type="button" onClick={() => setHelperOpen(false)}>Fermer</button></div>
             <p className={`${styles.smallMuted} ${localStyles.muted}`} style={{ marginTop: 12 }}>iNr&apos;Search transforme automatiquement les informations déjà enregistrées dans iNrCy en une page professionnelle publique, conçue pour les internautes, Google, Bing et les moteurs de réponse IA.</p>
             <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))" }}>

@@ -54,7 +54,7 @@ import { captureApiException } from "@/lib/observability/sentry";
 import { withApi } from "@/lib/observability/withApi";
 import { invalidateBoosterGenerationContext } from "@/lib/boosterGenerationContext";
 import { getAppBubbleAccessMapForUser } from "@/lib/appBubbleAccessServer";
-import { isBubbleEnabled } from "@/lib/bubbleAccess";
+import { isBubbleEnabled, type AppBubbleKey } from "@/lib/bubbleAccess";
 import {
   GOOGLE_BUSINESS_RECONNECT_USER_MESSAGE,
   INSTAGRAM_RECONNECT_USER_MESSAGE,
@@ -244,17 +244,23 @@ import {
 export const runtime = "nodejs";
 export const maxDuration = 180;
 
-const OAUTH_PUBLICATION_CHANNEL_KEYS = new Set<ChannelKey>([
-  "gmb",
-  "facebook",
-  "instagram",
-  "linkedin",
-  "tiktok",
-  "youtube_shorts",
-  "pinterest",
-]);
+const PUBLICATION_BUBBLE_KEYS: Record<ChannelKey, AppBubbleKey> = {
+  inrcy_site: "site_inrcy",
+  site_web: "site_web",
+  inr_search: "inr_search",
+  gmb: "gmb",
+  facebook: "facebook",
+  instagram: "instagram",
+  linkedin: "linkedin",
+  tiktok: "tiktok",
+  youtube_shorts: "youtube_shorts",
+  pinterest: "pinterest",
+};
 
-const OAUTH_PUBLICATION_CHANNEL_LABELS: Partial<Record<ChannelKey, string>> = {
+const PUBLICATION_CHANNEL_LABELS: Record<ChannelKey, string> = {
+  inrcy_site: "Site iNrCy",
+  site_web: "Site web",
+  inr_search: "iNr'Search",
   gmb: "Google Business",
   facebook: "Facebook",
   instagram: "Instagram",
@@ -264,19 +270,26 @@ const OAUTH_PUBLICATION_CHANNEL_LABELS: Partial<Record<ChannelKey, string>> = {
   pinterest: "Pinterest",
 };
 
-function getOAuthPublicationChannelState(
-  states: ChannelStates | null,
+function getPublicationChannelState(
+  states: ChannelStates,
   channel: ChannelKey,
 ) {
-  if (!states || !OAUTH_PUBLICATION_CHANNEL_KEYS.has(channel)) return null;
-  if (channel === "gmb") return states.gmb;
-  if (channel === "facebook") return states.facebook;
-  if (channel === "instagram") return states.instagram;
-  if (channel === "linkedin") return states.linkedin;
-  if (channel === "tiktok") return states.tiktok;
-  if (channel === "youtube_shorts") return states.youtube_shorts;
-  if (channel === "pinterest") return states.pinterest;
-  return null;
+  switch (channel) {
+    case "inrcy_site": return states.site_inrcy;
+    case "site_web": return states.site_web;
+    case "inr_search": return states.inr_search;
+    case "gmb": return states.gmb;
+    case "facebook": return states.facebook;
+    case "instagram": return states.instagram;
+    case "linkedin": return states.linkedin;
+    case "tiktok": return states.tiktok;
+    case "youtube_shorts": return states.youtube_shorts;
+    case "pinterest": return states.pinterest;
+    default: {
+      const unsupportedChannel: never = channel;
+      throw new Error(`Canal de publication inconnu: ${unsupportedChannel}`);
+    }
+  }
 }
 
 async function publishNowHandler(req: Request) {
@@ -830,10 +843,6 @@ async function publishNowHandler(req: Request) {
     if (workspaceHasVideo && !workspaceHasImages) mediaType = "video";
     if (workspaceHasImages && !workspaceHasVideo) mediaType = "images";
 
-    const bubbleAccess = await getAppBubbleAccessMapForUser(
-      supabaseAdmin as any,
-      userId,
-    );
     const rawModeByChannel = (body.mediaModeByChannel || {}) as Record<
       string,
       unknown
@@ -3198,25 +3207,48 @@ async function publishNowHandler(req: Request) {
       return accessToken;
     }
 
-    const liveChannelStates = selected.some((channel) =>
-      OAUTH_PUBLICATION_CHANNEL_KEYS.has(channel),
-    )
-      ? await getChannelConnectionStates(supabaseAdmin, userId)
-      : null;
-
     for (const ch of selected) {
+      // Final authority check, deliberately performed after every media
+      // preparation step and immediately before this channel is dispatched.
+      // This closes the race where a credential expires or an administrator
+      // disables a channel while a long image/video preparation is running.
+      let liveChannelStates: ChannelStates;
+      let liveBubbleAccess: Awaited<ReturnType<typeof getAppBubbleAccessMapForUser>>;
       try {
-        const liveChannelState = getOAuthPublicationChannelState(
+        [liveChannelStates, liveBubbleAccess] = await Promise.all([
+          getChannelConnectionStates(supabaseAdmin, userId),
+          getAppBubbleAccessMapForUser(supabaseAdmin as any, userId),
+        ]);
+      } catch (availabilityError) {
+        const unavailableMessage = `${PUBLICATION_CHANNEL_LABELS[ch]} est temporairement indisponible : son état n'a pas pu être vérifié.`;
+        logPublishChannelFailure({
+          route: "booster_publish_now",
+          channel: ch,
+          userId,
+          publicationId,
+          stage: "availability_guard",
+          error: availabilityError,
+          userMessage: unavailableMessage,
+        });
+        await setDelivery(ch, { status: "failed", error: unavailableMessage });
+        results[ch] = {
+          ok: false,
+          error: unavailableMessage,
+          code: "channel_state_unavailable",
+          retryable: true,
+        };
+        continue;
+      }
+
+      try {
+        const liveChannelState = getPublicationChannelState(
           liveChannelStates,
           ch,
         );
-        if (
-          liveChannelState &&
-          !isOfficialPublicationChannelConnected(liveChannelState)
-        ) {
+        if (!isOfficialPublicationChannelConnected(liveChannelState)) {
           const reconnectRequired =
             publicationChannelRequiresReconnect(liveChannelState);
-          const label = OAUTH_PUBLICATION_CHANNEL_LABELS[ch] || ch;
+          const label = PUBLICATION_CHANNEL_LABELS[ch];
           const connectionError = reconnectRequired
             ? `${label} à reconnecter. Rendez-vous dans Canaux.`
             : `${label} à connecter. Rendez-vous dans Canaux.`;
@@ -3252,6 +3284,29 @@ async function publishNowHandler(req: Request) {
           continue;
         }
 
+        const bubbleKey = PUBLICATION_BUBBLE_KEYS[ch];
+        if (!isBubbleEnabled(liveBubbleAccess, bubbleKey)) {
+          const disabledMessage = `${PUBLICATION_CHANNEL_LABELS[ch]} est désactivé dans Bubble Access.`;
+          logPublishChannelFailure({
+            route: "booster_publish_now",
+            channel: ch,
+            userId,
+            publicationId,
+            stage: "bubble_access_guard",
+            error: "bubble_access_disabled",
+            userMessage: disabledMessage,
+            diagnostics: { bubble_key: bubbleKey, enabled: false },
+          });
+          await setDelivery(ch, { status: "failed", error: disabledMessage });
+          results[ch] = {
+            ok: false,
+            error: disabledMessage,
+            code: "bubble_access_disabled",
+            retryable: false,
+          };
+          continue;
+        }
+
         const preflightFailure = preflightFailuresByChannel[ch];
         if (preflightFailure) {
           await setDelivery(ch, {
@@ -3263,25 +3318,7 @@ async function publishNowHandler(req: Request) {
           results[ch] = preflightFailure;
           continue;
         }
-        if (ch === "pinterest" && !isBubbleEnabled(bubbleAccess, "pinterest")) {
-          const disabledMessage = "Pinterest est désactivé dans Bubble Access.";
-          await setDelivery(ch, { status: "failed", error: disabledMessage });
-          results[ch] = {
-            ok: false,
-            error: disabledMessage,
-            code: "bubble_access_disabled",
-          };
-          continue;
-        }
-
         if (ch === "inr_search") {
-          if (!isBubbleEnabled(bubbleAccess, "inr_search")) {
-            const disabledMessage = "iNr'Search est désactivé dans Bubble Access.";
-            await setDelivery(ch, { status: "failed", error: disabledMessage });
-            results[ch] = { ok: false, error: disabledMessage, code: "bubble_access_disabled" };
-            continue;
-          }
-
           const provisioned = await ensureSystemManagedInrSearch(supabaseAdmin as any, userId);
           const publicStatus = await getInrSearchPublicStatus(provisioned.inrSearch.slug);
           if (!publicStatus.published) {
@@ -5440,11 +5477,11 @@ async function publishNowHandler(req: Request) {
 
         if (ch === "gmb") {
           const gmb = asRecord(gmbRow);
-          const locationName = String(gmb["resource_id"] ?? "");
-          const gmbMeta = asRecord(gmb["meta"]);
-          const accountName = String(gmbMeta["account"] ?? "");
+          const gmbState = liveChannelStates.gmb;
+          const locationName = String(gmbState?.resource_id || "").trim();
+          const accountName = String(gmbState?.account_name || "").trim();
           if (
-            String(gmb["status"] ?? "") !== "connected" ||
+            !isOfficialPublicationChannelConnected(gmbState) ||
             !locationName ||
             !accountName
           ) {
@@ -5458,6 +5495,14 @@ async function publishNowHandler(req: Request) {
               stage: "precheck",
               error: "not_connected",
               userMessage: gmbUserError,
+              diagnostics: {
+                official_connected: Boolean(gmbState?.connected),
+                connection_status: gmbState?.connection_status || null,
+                requires_update: Boolean(gmbState?.requiresUpdate),
+                raw_status: String(gmb["status"] || "") || null,
+                has_location: Boolean(locationName),
+                has_account: Boolean(accountName),
+              },
             });
             await setDelivery(ch, { status: "failed", error: gmbUserError });
             results[ch] = { ok: false, error: gmbUserError };

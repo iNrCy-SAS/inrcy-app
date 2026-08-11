@@ -70,8 +70,8 @@ function RingScore({ value, tone }: { value: number; tone: "low" | "ok" | "solid
   );
 }
 
-function StatusPill({ ok, label }: { ok: boolean; label: string }) {
-  return <span className={`${styles.pill} ${ok ? styles.pillOn : styles.pillOff}`}>{label}</span>;
+function StatusPill({ tone, label }: { tone: "on" | "reconnect" | "off"; label: string }) {
+  return <span className={`${styles.pill} ${tone === "on" ? styles.pillOn : tone === "reconnect" ? styles.pillReconnect : styles.pillOff}`}>{label}</span>;
 }
 
 function normalizeMobileIdentityLabel(label: string) {
@@ -373,15 +373,17 @@ export function Cube({
   const pill = (action as any)?.pill ?? "Connexion";
   const pillKey = actionPillClassKey(pill);
 
-  const connectionPending = model.key === "mails" && !!model.connectionPending;
+  const connectionPending = model.connectionStatus === "unavailable" || (model.key === "mails" && !!model.connectionPending);
   const connectionOk = (connectionPending || (isSite
     ? !!model.connections.ga4 || !!model.connections.gsc
     : !!model.connections.main));
+  const reconnectRequired = model.connectionStatus === "needs_update";
+  const connectionTone = reconnectRequired ? "reconnect" : connectionOk ? "on" : "off";
   const headerTitle = hideDetailsToggle ? getForcedCubeContextLabel(model.key) : model.title;
   const mobileChannelAccountLabel = getMobileChannelAccountLabel(model, connectionPending);
 
   return (
-    <section className={`${styles.cube} ${styles[`cube_${model.key}`] ?? ""} ${connectionOk ? styles.cubeOn : styles.cubeOff}`} aria-label={model.title}>
+    <section className={`${styles.cube} ${styles[`cube_${model.key}`] ?? ""} ${reconnectRequired ? styles.cubeReconnect : connectionOk ? styles.cubeOn : styles.cubeOff}`} aria-label={model.title}>
       <div className={`${styles.cubeTop} ${hideDetailsToggle ? styles.cubeTopCompact : ""}`}>
         <div className={hideDetailsToggle ? styles.cubeHeaderInline : undefined}>
           {hideDetailsToggle ? (
@@ -408,11 +410,11 @@ export function Cube({
           <div className={styles.pills}>
             {isSite ? (
               <>
-                <StatusPill ok={!!model.connections.ga4} label="GA4" />
-                <StatusPill ok={!!model.connections.gsc} label="GSC" />
+                <StatusPill tone={model.connections.ga4 ? "on" : "off"} label="GA4" />
+                <StatusPill tone={model.connections.gsc ? "on" : "off"} label="GSC" />
               </>
             ) : (
-              <StatusPill ok={(!!model.connections.main || connectionPending)} label={connectionPending ? "Vérification" : model.connections.main ? "Connecté" : "Déconnecté"} />
+              <StatusPill tone={connectionTone} label={reconnectRequired ? "À reconnecter" : connectionPending ? "Vérification" : model.connections.main ? "Connecté" : "Déconnecté"} />
             )}
           </div>
           {!hideDetailsToggle ? (
@@ -443,11 +445,11 @@ export function Cube({
           <div className={styles.mobileChannelPills}>
             {isSite ? (
               <>
-                <StatusPill ok={!!model.connections.ga4} label="GA4" />
-                <StatusPill ok={!!model.connections.gsc} label="GSC" />
+                <StatusPill tone={model.connections.ga4 ? "on" : "off"} label="GA4" />
+                <StatusPill tone={model.connections.gsc ? "on" : "off"} label="GSC" />
               </>
             ) : (
-              <StatusPill ok={(!!model.connections.main || connectionPending)} label={connectionPending ? "Vérification" : model.connections.main ? "Connecté" : "Déconnecté"} />
+              <StatusPill tone={connectionTone} label={reconnectRequired ? "À reconnecter" : connectionPending ? "Vérification" : model.connections.main ? "Connecté" : "Déconnecté"} />
             )}
           </div>
 

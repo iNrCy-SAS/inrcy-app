@@ -8,6 +8,7 @@ import { getProfileLogoVersion } from "@/lib/profileLogo";
 import { normalizeInrBadgeShareSettings } from "@/lib/inrBadgeSettings";
 import { getInrBadgeTexts, normalizeInrBadgeLanguage } from "@/lib/inrBadgeLanguage";
 import { getChannelConnectionStates } from "@/lib/channelConnectionState";
+import { getInrSearchPublicStatus } from "@/lib/inrSearchPublic";
 import { fetchPinterestUserAccount, getPinterestAccessToken } from "@/lib/pinterestOAuth";
 import { getDashboardEditionForAccountId } from "@/lib/dashboardEditionServer";
 import {
@@ -17,6 +18,7 @@ import {
 } from "@/lib/inrBadgeEditionPolicy";
 import inrBadgeIcon from "@/public/icons/inrbadge-dashboard.png";
 import inrcyIcon from "@/public/icons/inrcy.png";
+import inrSearchIcon from "@/public/icons/inr-search-logo.png";
 import siteWebIcon from "@/public/icons/site-web.jpg";
 import googleBusinessIcon from "@/public/icons/google.jpg";
 import linkedinIcon from "@/public/icons/linkedin.png";
@@ -138,7 +140,7 @@ async function getBadgeBaseUrl() {
   ).replace(/\/+$/, "");
 }
 
-type ActionTone = "phone" | "mail" | "contact" | "site" | "google" | "linkedin" | "instagram" | "facebook" | "tiktok" | "youtube" | "neutral" | "appointment";
+type ActionTone = "phone" | "mail" | "contact" | "site" | "google" | "linkedin" | "instagram" | "facebook" | "tiktok" | "youtube" | "neutral" | "inrsearch" | "appointment";
 
 type ActionLinkProps = {
   href: string;
@@ -241,12 +243,13 @@ function ActionLink({ href, label, detail, download, icon, iconSrc, tone = "neut
 }
 
 function getBalancedChannelRows(actions: ActionLinkProps[]) {
-  const rowSizes =
-    actions.length <= 4 ? [actions.length]
-    : actions.length === 5 ? [3, 2]
-    : actions.length === 6 ? [3, 3]
-    : actions.length === 7 ? [4, 3]
-    : [4, 4];
+  const rowCount = Math.max(1, Math.ceil(actions.length / 4));
+  const baseSize = Math.floor(actions.length / rowCount);
+  const remainder = actions.length % rowCount;
+  const rowSizes = Array.from(
+    { length: rowCount },
+    (_, index) => baseSize + (index < remainder ? 1 : 0),
+  );
 
   let cursor = 0;
   return rowSizes
@@ -356,6 +359,7 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
   const pinterestSettings = safeObj(toolSettings.pinterest);
   const tiktokSettings = safeObj(toolSettings.tiktok);
   const youtubeShortsSettings = safeObj(toolSettings.youtube_shorts);
+  const inrSearchSettings = safeObj(toolSettings.inrSearch);
 
   const siteInrcyUrl = normalizeUrl(channelStates.site_inrcy.url || (siteInrcyRes.data as { site_url?: string | null } | null)?.site_url);
   const siteWebUrl = normalizeUrl(channelStates.site_web.url || siteWebSettings.url);
@@ -386,9 +390,16 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
   }
   const tiktokUrl = normalizeUrl(channelStates.tiktok.profile_url || tiktokSettings.url);
   const youtubeShortsUrl = normalizeUrl(channelStates.youtube_shorts.channel_url || youtubeShortsSettings.channelUrl || youtubeShortsSettings.url);
+  const inrSearchSlug = trim(inrSearchSettings.slug);
+  const inrSearchStatus = shareSettings.inrSearch && inrSearchSlug
+    ? await getInrSearchPublicStatus(inrSearchSlug).catch(() => null)
+    : null;
+  const inrSearchUrl = inrSearchStatus?.published ? inrSearchStatus.publicUrl : "";
+  const inrSearchNewsUrl = inrSearchUrl ? `${inrSearchUrl}#actualites` : "";
   const primaryWebsite = siteWebUrl || siteInrcyUrl;
 
   const publicChannelCanShare = {
+    inrSearch: Boolean(inrSearchUrl),
     siteInrcy: Boolean(channelStates.site_inrcy.connected && siteInrcyUrl),
     siteWeb: Boolean(channelStates.site_web.connected && siteWebUrl),
     googleBusiness: Boolean(channelStates.gmb.connected && gmbUrl),
@@ -446,6 +457,7 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
   ].filter(Boolean) as ActionLinkProps[];
 
   const channelActions = [
+    shareSettings.inrSearch && publicChannelCanShare.inrSearch ? { href: inrSearchUrl, label: "iNr'Search", iconSrc: inrSearchIcon.src, tone: "inrsearch" as ActionTone, trackingAction: "inr_search" } : null,
     shareSettings.siteInrcy && publicChannelCanShare.siteInrcy ? { href: siteInrcyUrl, label: "Site iNrCy", iconSrc: inrcyIcon.src, tone: "site" as ActionTone, trackingAction: "site_inrcy" } : null,
     shareSettings.siteWeb && publicChannelCanShare.siteWeb ? { href: siteWebUrl, label: "Site web", iconSrc: siteWebIcon.src, tone: "site" as ActionTone, trackingAction: "site_web" } : null,
     shareSettings.googleBusiness && publicChannelCanShare.googleBusiness ? { href: gmbUrl, label: "Google Business", iconSrc: googleBusinessIcon.src, tone: "google" as ActionTone, trackingAction: "google_business" } : null,
@@ -456,6 +468,10 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
     shareSettings.tiktok && publicChannelCanShare.tiktok ? { href: tiktokUrl, label: "TikTok", iconSrc: tiktokIcon.src, tone: "tiktok" as ActionTone, trackingAction: "tiktok" } : null,
     shareSettings.youtubeShorts && publicChannelCanShare.youtubeShorts ? { href: youtubeShortsUrl, label: "YouTube", iconSrc: youtubeShortsIcon.src, tone: "youtube" as ActionTone, trackingAction: "youtube_shorts" } : null,
   ].filter(Boolean) as ActionLinkProps[];
+
+  const inrSearchNewsAction = shareSettings.inrSearch && inrSearchNewsUrl
+    ? { href: inrSearchNewsUrl, label: "Voir nos actualités", iconSrc: inrSearchIcon.src, tone: "inrsearch" as ActionTone, trackingAction: "inr_search_news" }
+    : null;
 
   const appointmentAction = canUseInrBadgeAppointments(dashboardEdition, shareSettings)
     ? { href: `/badge/${slug}/rdv`, label: badgeText.appointment, iconSrc: inrCalendarLogo.src, tone: "appointment" as ActionTone, trackingAction: "appointment" }
@@ -472,6 +488,7 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
   const headerLogoSrc = hasCustomLogo ? getBadgeIconUrl(slug, logoVersion) : DEFAULT_INRBADGE_LOGO_SRC;
   const iconPreloads = Array.from(new Set([
     headerLogoSrc,
+    ...(inrSearchNewsAction ? [inrSearchIcon.src] : []),
     ...(appointmentAction ? [inrCalendarLogo.src] : []),
     ...primaryActions.map((action) => action.iconSrc).filter((src): src is string => Boolean(src)),
     ...channelActions.map((action) => action.iconSrc).filter((src): src is string => Boolean(src)),
@@ -529,6 +546,12 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
                 ))}
               </div>
             </section>
+          ) : null}
+
+          {inrSearchNewsAction ? (
+            <div className={styles.ctaWrap}>
+              <ActionLink {...inrSearchNewsAction} />
+            </div>
           ) : null}
 
           {appointmentAction ? (

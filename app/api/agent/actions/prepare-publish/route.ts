@@ -25,7 +25,8 @@ import {
   type InrAgentCachedVideoPreparationResult,
 } from "@/lib/inrAgentVideoContextCache";
 import { getAppBubbleAccessMapForUser } from "@/lib/appBubbleAccessServer";
-import { isBubbleEnabled } from "@/lib/bubbleAccess";
+import { isBubbleEnabled, type AppBubbleKey } from "@/lib/bubbleAccess";
+import { isOfficialPublicationChannelConnected } from "@/lib/publicationChannelAvailability";
 import { ensureSystemManagedInrSearch } from "@/lib/inrSearchProvisioning";
 import { getInrSearchPublicStatus } from "@/lib/inrSearchPublic";
 import { decodeBusinessSector } from "@/lib/activitySectors";
@@ -928,28 +929,44 @@ async function selectConnectedChannels(args: {
     .map((channel) => agentToBoosterChannel[channel])
     .filter(isAllowedBoosterChannel);
 
+  const bubbleKeyByChannel: Record<BoosterChannels, AppBubbleKey> = {
+    inrcy_site: "site_inrcy",
+    site_web: "site_web",
+    inr_search: "inr_search",
+    gmb: "gmb",
+    facebook: "facebook",
+    instagram: "instagram",
+    linkedin: "linkedin",
+    tiktok: "tiktok",
+    youtube_shorts: "youtube_shorts",
+    pinterest: "pinterest",
+  };
+
   const connected: Record<BoosterChannels, boolean> = {
-    inrcy_site: states.site_inrcy.connected,
-    site_web: states.site_web.connected,
-    inr_search: inrSearchStatus.published,
-    gmb: states.gmb.connected && !states.gmb.requiresUpdate,
-    facebook: states.facebook.connected && !states.facebook.requiresUpdate,
-    instagram: states.instagram.connected && !states.instagram.requiresUpdate,
-    linkedin: states.linkedin.connected && !states.linkedin.requiresUpdate,
-    tiktok: states.tiktok.connected && !states.tiktok.requiresUpdate,
-    youtube_shorts:
-      states.youtube_shorts.connected && !states.youtube_shorts.requiresUpdate,
+    inrcy_site: isOfficialPublicationChannelConnected(states.site_inrcy),
+    site_web: isOfficialPublicationChannelConnected(states.site_web),
+    inr_search:
+      isOfficialPublicationChannelConnected(states.inr_search) &&
+      inrSearchStatus.published,
+    gmb: isOfficialPublicationChannelConnected(states.gmb),
+    facebook: isOfficialPublicationChannelConnected(states.facebook),
+    instagram: isOfficialPublicationChannelConnected(states.instagram),
+    linkedin: isOfficialPublicationChannelConnected(states.linkedin),
+    tiktok: isOfficialPublicationChannelConnected(states.tiktok),
+    youtube_shorts: isOfficialPublicationChannelConnected(states.youtube_shorts),
     pinterest:
-      isBubbleEnabled(bubbleAccess, "pinterest") &&
-      states.pinterest.connected &&
-      !states.pinterest.requiresUpdate &&
+      isOfficialPublicationChannelConnected(states.pinterest) &&
       Boolean(states.pinterest.default_board_id),
   };
 
   const uniqueChannels: BoosterChannels[] = Array.from(
     new Set<BoosterChannels>(allowedChannels),
   );
-  return uniqueChannels.filter((channel) => connected[channel]);
+  return uniqueChannels.filter(
+    (channel) =>
+      isBubbleEnabled(bubbleAccess, bubbleKeyByChannel[channel]) &&
+      connected[channel],
+  );
 }
 
 async function loadPublishAutomationSettings(userId: string) {

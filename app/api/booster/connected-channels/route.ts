@@ -9,6 +9,9 @@ import {
   isOfficialPublicationChannelConnected,
   publicationChannelRequiresReconnect,
 } from "@/lib/publicationChannelAvailability";
+import { log } from "@/lib/observability/logger";
+
+export const dynamic = "force-dynamic";
 
 
 function decodeDisplayText(value: unknown) {
@@ -160,8 +163,19 @@ export async function GET() {
       getAppBubbleAccessMapForUser(supabase, activeUserId),
       ensureSystemManagedInrSearch(supabase, activeUserId),
     ]);
-    const pinterestEnabled = isBubbleEnabled(bubbleAccess, "pinterest");
-    const inrSearchEnabled = isBubbleEnabled(bubbleAccess, "inr_search");
+    const channelEnabled = {
+      inrcy_site: isBubbleEnabled(bubbleAccess, "site_inrcy"),
+      site_web: isBubbleEnabled(bubbleAccess, "site_web"),
+      inr_search: isBubbleEnabled(bubbleAccess, "inr_search"),
+      gmb: isBubbleEnabled(bubbleAccess, "gmb"),
+      facebook: isBubbleEnabled(bubbleAccess, "facebook"),
+      instagram: isBubbleEnabled(bubbleAccess, "instagram"),
+      linkedin: isBubbleEnabled(bubbleAccess, "linkedin"),
+      tiktok: isBubbleEnabled(bubbleAccess, "tiktok"),
+      youtube_shorts: isBubbleEnabled(bubbleAccess, "youtube_shorts"),
+      pinterest: isBubbleEnabled(bubbleAccess, "pinterest"),
+    } as const;
+    const inrSearchEnabled = channelEnabled.inr_search;
     const inrSearchStatus = inrSearchEnabled
       ? await getInrSearchPublicStatus(provisioned.inrSearch.slug)
       : null;
@@ -171,32 +185,38 @@ export async function GET() {
       : null;
     return NextResponse.json({
       channels: {
-        inrcy_site: states.site_inrcy.connected,
-        site_web: states.site_web.connected,
-        inr_search: inrSearchPublished,
-        gmb: isOfficialPublicationChannelConnected(states.gmb),
-        facebook: isOfficialPublicationChannelConnected(states.facebook),
-        instagram: isOfficialPublicationChannelConnected(states.instagram),
-        linkedin: isOfficialPublicationChannelConnected(states.linkedin),
-        tiktok: isOfficialPublicationChannelConnected(states.tiktok),
-        youtube_shorts: isOfficialPublicationChannelConnected(states.youtube_shorts),
-        pinterest: pinterestEnabled && isOfficialPublicationChannelConnected(states.pinterest),
+        inrcy_site: channelEnabled.inrcy_site && isOfficialPublicationChannelConnected(states.site_inrcy),
+        site_web: channelEnabled.site_web && isOfficialPublicationChannelConnected(states.site_web),
+        inr_search: channelEnabled.inr_search && inrSearchPublished,
+        gmb: channelEnabled.gmb && isOfficialPublicationChannelConnected(states.gmb),
+        facebook: channelEnabled.facebook && isOfficialPublicationChannelConnected(states.facebook),
+        instagram: channelEnabled.instagram && isOfficialPublicationChannelConnected(states.instagram),
+        linkedin: channelEnabled.linkedin && isOfficialPublicationChannelConnected(states.linkedin),
+        tiktok: channelEnabled.tiktok && isOfficialPublicationChannelConnected(states.tiktok),
+        youtube_shorts: channelEnabled.youtube_shorts && isOfficialPublicationChannelConnected(states.youtube_shorts),
+        pinterest: channelEnabled.pinterest && isOfficialPublicationChannelConnected(states.pinterest),
       },
       channelDetails: {
         inrcy_site: {
           type: "url",
           label: firstCleanLabel([states.site_inrcy.url], "Site iNrCy connecté", displayDomain),
           href: states.site_inrcy.url,
+          connectionStatus: states.site_inrcy.connected ? "connected" : "disconnected",
+          disabled: !channelEnabled.inrcy_site,
         },
         site_web: {
           type: "url",
           label: firstCleanLabel([states.site_web.url], "Site web connecté", displayDomain),
           href: states.site_web.url,
+          connectionStatus: states.site_web.connected ? "connected" : "disconnected",
+          disabled: !channelEnabled.site_web,
         },
         inr_search: {
           type: "page",
           label: inrSearchPublished ? "Page iNr'Search publiée" : "Page iNr'Search indisponible",
           href: inrSearchPublished ? inrSearchUrl : null,
+          connectionStatus: inrSearchPublished ? "connected" : "disconnected",
+          disabled: !channelEnabled.inr_search,
         },
         gmb: {
           type: "location",
@@ -208,6 +228,7 @@ export async function GET() {
           href: states.gmb.url,
           connectionStatus: states.gmb.connection_status,
           requiresReconnect: publicationChannelRequiresReconnect(states.gmb),
+          disabled: !channelEnabled.gmb,
         },
         facebook: {
           type: "page",
@@ -219,6 +240,7 @@ export async function GET() {
           href: states.facebook.page_url,
           connectionStatus: states.facebook.connection_status,
           requiresReconnect: publicationChannelRequiresReconnect(states.facebook),
+          disabled: !channelEnabled.facebook,
         },
         instagram: {
           type: "account",
@@ -230,6 +252,7 @@ export async function GET() {
           href: states.instagram.profile_url,
           connectionStatus: states.instagram.connection_status,
           requiresReconnect: publicationChannelRequiresReconnect(states.instagram),
+          disabled: !channelEnabled.instagram,
         },
         linkedin: {
           type: states.linkedin.organization_id ? "page" : "profile",
@@ -245,6 +268,7 @@ export async function GET() {
             : states.linkedin.profile_url,
           connectionStatus: states.linkedin.connection_status,
           requiresReconnect: publicationChannelRequiresReconnect(states.linkedin),
+          disabled: !channelEnabled.linkedin,
         },
         tiktok: {
           type: "account",
@@ -256,6 +280,7 @@ export async function GET() {
           href: states.tiktok.profile_url,
           connectionStatus: states.tiktok.connection_status,
           requiresReconnect: publicationChannelRequiresReconnect(states.tiktok),
+          disabled: !channelEnabled.tiktok,
         },
         youtube_shorts: {
           type: "channel",
@@ -267,6 +292,7 @@ export async function GET() {
           href: states.youtube_shorts.channel_url,
           connectionStatus: states.youtube_shorts.connection_status,
           requiresReconnect: publicationChannelRequiresReconnect(states.youtube_shorts),
+          disabled: !channelEnabled.youtube_shorts,
         },
         pinterest: {
           type: "account",
@@ -278,10 +304,22 @@ export async function GET() {
           href: states.pinterest.profile_url,
           connectionStatus: states.pinterest.connection_status,
           requiresReconnect: publicationChannelRequiresReconnect(states.pinterest),
+          disabled: !channelEnabled.pinterest,
         },
       },
     });
-  } catch {
-    return NextResponse.json({ error: "Requête invalide." }, { status: 400 });
+  } catch (error) {
+    log.error("booster_connected_channels_sync_failed", {
+      route: "booster_connected_channels",
+      error_type: error instanceof Error ? error.name : typeof error,
+    });
+    return NextResponse.json(
+      {
+        ok: false,
+        code: "channel_state_unavailable",
+        error: "L'état des canaux est temporairement indisponible.",
+      },
+      { status: 503 },
+    );
   }
 }

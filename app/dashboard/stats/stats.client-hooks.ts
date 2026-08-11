@@ -46,6 +46,7 @@ import {
   type StatsBulkResponse,
 } from "./stats.shared";
 import {
+  channelConnectionStatusesFromStates,
   channelConnectivityFromStates,
   cleanChannelIdentityHint,
   normalizeCapturedLeads,
@@ -54,12 +55,15 @@ import {
   normalizeMailStatsSnapshot,
   readCachedDashboardChannelConnectivity,
   readCachedDashboardChannelIdentityHints,
+  unavailableOfficialChannelConnectivity,
+  unavailableOfficialChannelStatuses,
   writeCachedMailStats,
   type CachedChannelConnectivity,
   type ChannelIdentityHints,
   type InrBadgeStatsSnapshot,
   type InrSearchStatsSnapshot,
   type MailStatsSnapshot,
+  type OfficialChannelConnectionStatuses,
 } from "./stats.client-foundations";
 
 type StateSetter<T> = Dispatch<SetStateAction<T>>;
@@ -78,17 +82,22 @@ type SummaryProfileState = {
 type RefValue<T> = { current: T };
 
 const INR_SEARCH_ANALYTICS_POLL_MS = 120_000;
+// Fallback léger uniquement pour l'état de connexion (aucun appel aux métriques
+// Google/Meta). L'ouverture, le focus et Actualiser restent immédiats.
+const CHANNEL_CONNECTION_STATE_POLL_MS = 60_000;
 
 type UseStatsChannelIdentitySyncArgs = {
   refreshNonce: number;
   setChannelIdentityHints: StateSetter<ChannelIdentityHints>;
   setCachedChannelConnectivity: StateSetter<CachedChannelConnectivity>;
+  setOfficialChannelConnectionStatuses: StateSetter<OfficialChannelConnectionStatuses>;
 };
 
 export function useStatsChannelIdentitySync({
   refreshNonce,
   setChannelIdentityHints,
   setCachedChannelConnectivity,
+  setOfficialChannelConnectionStatuses,
 }: UseStatsChannelIdentitySyncArgs) {
   useEffect(() => {
     let cancelled = false;
@@ -118,19 +127,56 @@ export function useStatsChannelIdentitySync({
       })
       .catch(() => null);
 
-    void fetch("/api/integrations/channel-states", {
-      cache: "no-store",
-      credentials: "include",
-    })
-      .then(async (response) => (response.ok ? response.json().catch(() => null) : null))
-      .then((payload) => {
-        if (cancelled || !payload) return;
-        setCachedChannelConnectivity((current) => ({ ...current, ...channelConnectivityFromStates(payload) }));
+    const markOfficialChannelStatesUnavailable = () => {
+      if (cancelled) return;
+      setCachedChannelConnectivity((current) => ({
+        ...current,
+        ...unavailableOfficialChannelConnectivity(),
+      }));
+      setOfficialChannelConnectionStatuses((current) => ({
+        ...current,
+        ...unavailableOfficialChannelStatuses(),
+      }));
+    };
+
+    const refreshOfficialChannelStates = () => {
+      void fetch("/api/integrations/channel-states", {
+        cache: "no-store",
+        credentials: "include",
       })
-      .catch(() => null);
+        .then(async (response) => {
+          if (!response.ok) {
+            markOfficialChannelStatesUnavailable();
+            return null;
+          }
+          return response.json().catch(() => null);
+        })
+        .then((payload) => {
+          if (cancelled) return;
+          if (!payload || typeof payload !== "object") {
+            markOfficialChannelStatesUnavailable();
+            return;
+          }
+          setCachedChannelConnectivity((current) => ({ ...current, ...channelConnectivityFromStates(payload) }));
+          setOfficialChannelConnectionStatuses((current) => ({ ...current, ...channelConnectionStatusesFromStates(payload) }));
+        })
+        .catch(markOfficialChannelStatesUnavailable);
+    };
+    refreshOfficialChannelStates();
+
+    const intervalId = window.setInterval(refreshOfficialChannelStates, CHANNEL_CONNECTION_STATE_POLL_MS);
+    const onFocus = () => refreshOfficialChannelStates();
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") refreshOfficialChannelStates();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibilityChange);
 
     return () => {
       cancelled = true;
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [refreshNonce]);
 }
@@ -224,11 +270,13 @@ export function useStatsDataController({
     setDataByCube((prev) => {
       const updated: any = { ...prev };
       for (const k of Object.keys(snap) as CubeKey[]) {
+        const block = next.blocks?.[k];
         updated[k] = {
-          ov: snap[k] ?? null,
+          ov: block ? ((block.overview as Overview | null | undefined) ?? null) : snap[k] ?? null,
           loading: false,
-          error: undefined,
-          capturedLeads: normalizeCapturedLeads(next.blocks?.[k]?.capturedLeads, prev[k]?.capturedLeads),
+          error: block?.error ?? undefined,
+          capturedLeads: normalizeCapturedLeads(block?.capturedLeads, prev[k]?.capturedLeads),
+          connectionStatus: block?.connection?.connectionStatus,
         };
       }
       return updated;
@@ -267,10 +315,11 @@ export function useStatsDataController({
       setDataByCube((prev) => ({
         ...prev,
         [channel]: {
-          ov: ((periodPayload?.overview as Overview | undefined) ?? (block.overview as Overview | null | undefined) ?? prev[channel]?.ov ?? null),
+          ov: (block.overview as Overview | null | undefined) ?? null,
           loading: false,
           error: block.error ?? undefined,
           capturedLeads: normalizeCapturedLeads(block.capturedLeads, prev[channel]?.capturedLeads),
+          connectionStatus: block.connection?.connectionStatus,
         },
       }));
 
@@ -698,11 +747,13 @@ export function useStatsDataController({
     setDataByCube((prev) => {
       const next: any = { ...prev };
       for (const k of Object.keys(cachedCube.overviews) as CubeKey[]) {
+        const block = cachedCube.blocks?.[k];
         next[k] = {
-          ov: (cachedCube.overviews as any)[k],
+          ov: block ? ((block.overview as Overview | null | undefined) ?? null) : (cachedCube.overviews as any)[k],
           loading: false,
-          error: undefined,
-          capturedLeads: normalizeCapturedLeads(cachedCube.blocks?.[k]?.capturedLeads, prev[k]?.capturedLeads),
+          error: block?.error ?? undefined,
+          capturedLeads: normalizeCapturedLeads(block?.capturedLeads, prev[k]?.capturedLeads),
+          connectionStatus: block?.connection?.connectionStatus,
         };
       }
       return next;
@@ -875,11 +926,13 @@ export function useStatsDataController({
       setDataByCube((prev) => {
         const next: any = { ...prev };
         for (const k of Object.keys(cached) as CubeKey[]) {
+          const block = cachedCubeSnapshot?.blocks?.[k];
           next[k] = {
-            ov: (cached as any)[k],
+            ov: block ? ((block.overview as Overview | null | undefined) ?? null) : (cached as any)[k],
             loading: false,
-            error: undefined,
-            capturedLeads: normalizeCapturedLeads(cachedCubeSnapshot?.blocks?.[k]?.capturedLeads, prev[k]?.capturedLeads),
+            error: block?.error ?? undefined,
+            capturedLeads: normalizeCapturedLeads(block?.capturedLeads, prev[k]?.capturedLeads),
+            connectionStatus: block?.connection?.connectionStatus,
           };
         }
         return next;
@@ -893,11 +946,13 @@ export function useStatsDataController({
       setDataByCube((prev) => {
         const next: any = { ...prev };
         for (const k of Object.keys(cached) as CubeKey[]) {
+          const block = cachedCubeSnapshot?.blocks?.[k];
           next[k] = {
-            ov: (cached as any)[k],
+            ov: block ? ((block.overview as Overview | null | undefined) ?? null) : (cached as any)[k],
             loading: false,
-            error: undefined,
-            capturedLeads: normalizeCapturedLeads(cachedCubeSnapshot?.blocks?.[k]?.capturedLeads, prev[k]?.capturedLeads),
+            error: block?.error ?? undefined,
+            capturedLeads: normalizeCapturedLeads(block?.capturedLeads, prev[k]?.capturedLeads),
+            connectionStatus: block?.connection?.connectionStatus,
           };
         }
         return next;

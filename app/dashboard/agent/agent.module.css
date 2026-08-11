@@ -13075,3 +13075,12 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* Les confirmations compactes laissent le défilement de secours à l'overlay. */
+.campaignDraftModal,
+.campaignEditModal,
+.validationChoiceModal {
+  max-height: none;
+  overflow: hidden !important;
+  overscroll-behavior: auto;
+}

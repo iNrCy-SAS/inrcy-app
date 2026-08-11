@@ -42,6 +42,7 @@ import {
   type InrBadgeStatsSnapshot,
   type InrSearchStatsSnapshot,
   type MailStatsSnapshot,
+  type OfficialChannelConnectionStatuses,
 } from "./stats.client-foundations";
 import { useStatsChannelIdentitySync, useStatsDataController } from "./stats.client-hooks";
 import { Cube } from "./stats.ui";
@@ -124,6 +125,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
   }));
   const [channelIdentityHints, setChannelIdentityHints] = useState<ChannelIdentityHints>({});
   const [cachedChannelConnectivity, setCachedChannelConnectivity] = useState<CachedChannelConnectivity>(() => readCachedDashboardChannelConnectivity());
+  const [officialChannelConnectionStatuses, setOfficialChannelConnectionStatuses] = useState<OfficialChannelConnectionStatuses>({});
 
   const scrollTo = (key: CubeKey) => {
     setActiveStatsPanel(key);
@@ -143,6 +145,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
     refreshNonce,
     setChannelIdentityHints,
     setCachedChannelConnectivity,
+    setOfficialChannelConnectionStatuses,
   });
 
   const hydrateMailStatsFromCache = useCallback((targetPeriod: Period) => {
@@ -166,12 +169,23 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
       setDataByCube((prev) => {
         const next: typeof prev = { ...prev };
         for (const k of Object.keys(cachedCube.overviews) as CubeKey[]) {
+          const cachedBlock = cachedCube.blocks?.[k];
+          const hasAuthoritativeOverview = Boolean(cachedBlock && Object.prototype.hasOwnProperty.call(cachedBlock, "overview"));
           next[k] = {
-            ov: cachedCube.overviews[k] ?? null,
+            ov: hasAuthoritativeOverview ? (cachedBlock?.overview as Overview | null | undefined) ?? null : cachedCube.overviews[k] ?? null,
             loading: false,
-            error: undefined,
+            error: cachedBlock?.error || undefined,
             capturedLeads: normalizeCapturedLeads(cachedCube.blocks?.[k]?.capturedLeads, prev[k]?.capturedLeads),
+            connectionStatus: cachedBlock?.connection?.connectionStatus,
           };
+        }
+        return next;
+      });
+      setOfficialChannelConnectionStatuses((current) => {
+        const next = { ...current };
+        for (const key of Object.keys(cachedCube.blocks || {}) as CubeKey[]) {
+          const status = cachedCube.blocks?.[key]?.connection?.connectionStatus;
+          if (status === "connected" || status === "needs_update" || status === "disconnected") next[key] = status;
         }
         return next;
       });
@@ -255,19 +269,26 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
   const inrBadgeOpportunity30 = useMemo(() => Math.max(0, Math.round(safeNum(inrBadgeStats.opportunity30))), [inrBadgeStats.opportunity30]);
   const inrSearchOpportunity30 = useMemo(() => buildInrSearchOpportunity30(inrSearchStats), [inrSearchStats]);
 
-  const centralByCube = useMemo<Record<CubeKey, number>>(() => ({
-    ...summaryOpp.byCube,
-    inrbadge: inrBadgeOpportunity30,
-    inr_search: inrSearchOpportunity30,
-    mails: standardMode ? 0 : mailOpportunity30,
-  }), [inrBadgeOpportunity30, inrSearchOpportunity30, mailOpportunity30, standardMode, summaryOpp.byCube]);
+  const centralByCube = useMemo<Record<CubeKey, number>>(() => {
+    const next: Record<CubeKey, number> = {
+      ...summaryOpp.byCube,
+      inrbadge: inrBadgeOpportunity30,
+      inr_search: inrSearchOpportunity30,
+      mails: standardMode ? 0 : mailOpportunity30,
+    };
+
+    // L'état officiel de connexion est prioritaire sur tout snapshot de statistiques.
+    // Un canal déconnecté ou à reconnecter ne doit jamais conserver d'anciens chiffres.
+    for (const [key, status] of Object.entries(officialChannelConnectionStatuses)) {
+      if (status && status !== "connected" && key in next) next[key as CubeKey] = 0;
+    }
+
+    return next;
+  }, [inrBadgeOpportunity30, inrSearchOpportunity30, mailOpportunity30, officialChannelConnectionStatuses, standardMode, summaryOpp.byCube]);
 
   const centralPotential30 = Math.max(
     0,
-    safeNum(summaryOpp.total) +
-      (standardMode ? 0 : mailOpportunity30) +
-      inrBadgeOpportunity30 +
-      inrSearchOpportunity30,
+    Object.values(centralByCube).reduce((sum, value) => sum + safeNum(value), 0),
   );
 
   const models: CubeModel[] = useMemo(() => {
@@ -275,40 +296,78 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
       buildInrBadgeCubeModel(period, inrBadgeStats, { appointmentsEnabled: !standardMode }),
       buildInrSearchCubeModel(period, inrSearchStats),
       ...(!standardMode ? [buildMailCubeModel(mailStats, period)] : []),
-      buildCubeModel("site_inrcy", "Site iNrCy", "Optimisé pour convertir", period, dataByCube.site_inrcy, centralByCube),
-      buildCubeModel("site_web", "Site Web", "Votre image", period, dataByCube.site_web, centralByCube),
-      buildCubeModel("gmb", "Google Business", "Visibilité locale", period, dataByCube.gmb, centralByCube),
-      buildCubeModel("facebook", "Facebook", "Visibilité sociale", period, dataByCube.facebook, centralByCube),
-      buildCubeModel("instagram", "Instagram", "Visibilité de marque", period, dataByCube.instagram, centralByCube),
-      buildCubeModel("linkedin", "LinkedIn", "Visibilité professionnelle", period, dataByCube.linkedin, centralByCube),
-      buildCubeModel("tiktok", "TikTok", "Photos & vidéos courtes", period, dataByCube.tiktok, centralByCube),
-      buildCubeModel("youtube_shorts", "YouTube", "Vidéos courtes & longues", period, dataByCube.youtube_shorts, centralByCube),
-      buildCubeModel("pinterest", "Pinterest", "Inspiration & idées", period, dataByCube.pinterest, centralByCube),
+      buildCubeModel("site_inrcy", "Site iNrCy", "Optimisé pour convertir", period, dataByCube.site_inrcy, centralByCube, officialChannelConnectionStatuses.site_inrcy),
+      buildCubeModel("site_web", "Site Web", "Votre image", period, dataByCube.site_web, centralByCube, officialChannelConnectionStatuses.site_web),
+      buildCubeModel("gmb", "Google Business", "Visibilité locale", period, dataByCube.gmb, centralByCube, officialChannelConnectionStatuses.gmb),
+      buildCubeModel("facebook", "Facebook", "Visibilité sociale", period, dataByCube.facebook, centralByCube, officialChannelConnectionStatuses.facebook),
+      buildCubeModel("instagram", "Instagram", "Visibilité de marque", period, dataByCube.instagram, centralByCube, officialChannelConnectionStatuses.instagram),
+      buildCubeModel("linkedin", "LinkedIn", "Visibilité professionnelle", period, dataByCube.linkedin, centralByCube, officialChannelConnectionStatuses.linkedin),
+      buildCubeModel("tiktok", "TikTok", "Photos & vidéos courtes", period, dataByCube.tiktok, centralByCube, officialChannelConnectionStatuses.tiktok),
+      buildCubeModel("youtube_shorts", "YouTube", "Vidéos courtes & longues", period, dataByCube.youtube_shorts, centralByCube, officialChannelConnectionStatuses.youtube_shorts),
+      buildCubeModel("pinterest", "Pinterest", "Inspiration & idées", period, dataByCube.pinterest, centralByCube, officialChannelConnectionStatuses.pinterest),
     ];
 
     return baseModels.map((model) => {
-      const cachedConnected = cachedChannelConnectivity[model.key] === true;
+      const officialStatus = officialChannelConnectionStatuses[model.key];
+      const cachedConnected = officialStatus
+        ? officialStatus === "connected"
+        : cachedChannelConnectivity[model.key] === true;
       const isSite = model.key === "site_inrcy" || model.key === "site_web";
       const liveConnected = isSite
         ? Boolean(model.connections.ga4 || model.connections.gsc)
         : Boolean(model.connections.main);
-      const hydratedModel = cachedConnected && !liveConnected
+      const forceUnavailable = Boolean(officialStatus && officialStatus !== "connected");
+      const hydratedModel: CubeModel = forceUnavailable
         ? {
             ...model,
+            connectionStatus: officialStatus,
             connectionPending: false,
+            connections: isSite
+              ? { ...model.connections, ga4: false, gsc: false }
+              : { ...model.connections, main: false },
+            opportunity30: 0,
+            capturedLeads: { week: 0, month: 0 },
+            action: {
+              key: "connect",
+              title: officialStatus === "needs_update" ? `Reconnecter ${model.title}` : "Connexion",
+              detail: officialStatus === "needs_update"
+                ? "La connexion a expiré. Reconnectez ce canal pour réactiver les statistiques et Booster."
+                : "Connectez ce canal pour activer les statistiques et Booster.",
+              href: "/dashboard",
+              pill: "Connexion",
+            },
+          }
+        : cachedConnected && !liveConnected
+          ? {
+            ...model,
+            connectionPending: false,
+            connectionStatus: "connected",
             connections: isSite
               ? { ...model.connections, ga4: true }
               : { ...model.connections, main: true },
           }
-        : model;
+          : model;
+      const availabilityAwareModel: CubeModel = officialStatus === "unavailable"
+        ? {
+            ...hydratedModel,
+            connectionPending: true,
+            action: {
+              key: "loading",
+              title: "Synchronisation indisponible",
+              detail: "L'état du canal n'a pas pu être vérifié. Les anciennes données restent neutralisées.",
+              href: "",
+              pill: "Connexion",
+            },
+          }
+        : hydratedModel;
       const identityHint = cleanChannelIdentityHint(channelIdentityHints[model.key]);
-      if (!identityHint) return hydratedModel;
+      if (!identityHint) return availabilityAwareModel;
 
       // La source fraîche est la même que celle des bulles du Dashboard.
       // Elle prend donc le dessus sur un éventuel snapshot iNrStats plus ancien.
-      return { ...hydratedModel, accountLabel: identityHint };
+      return { ...availabilityAwareModel, accountLabel: identityHint };
     });
-  }, [cachedChannelConnectivity, centralByCube, channelIdentityHints, dataByCube, inrBadgeStats, inrSearchStats, mailStats, period, standardMode]);
+  }, [cachedChannelConnectivity, centralByCube, channelIdentityHints, dataByCube, inrBadgeStats, inrSearchStats, mailStats, officialChannelConnectionStatuses, period, standardMode]);
 
   const computedEstimatedByCube = useMemo<Record<CubeKey, number>>(() => {
     const rate = Math.max(0, safeNum(summaryProfile.lead_conversion_rate)) / 100;
@@ -497,21 +556,22 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
 
               {models.map((model) => {
                 const isSite = model.key === "site_inrcy" || model.key === "site_web";
-                const connectionPending = (model.key === "mails" && !!model.connectionPending) || (model.key === "inr_search" && model.loading);
+                const connectionPending = model.connectionStatus === "unavailable" || (model.key === "mails" && !!model.connectionPending) || (model.key === "inr_search" && model.loading);
                 const connected = !connectionPending && (isSite ? !!model.connections.ga4 || !!model.connections.gsc : !!model.connections.main);
+                const reconnectRequired = model.connectionStatus === "needs_update";
                 const isActive = activeStatsPanel === model.key;
 
                 return (
                   <button
                     type="button"
                     key={model.key}
-                    className={`${styles.statsMobileDrawerItem} ${isActive ? styles.statsMobileDrawerItemActive : ""} ${connected ? styles.statsRailItemConnected : styles.statsRailItemOff}`}
+                    className={`${styles.statsMobileDrawerItem} ${isActive ? styles.statsMobileDrawerItemActive : ""} ${reconnectRequired ? styles.statsRailItemReconnect : connected ? styles.statsRailItemConnected : styles.statsRailItemOff}`}
                     onClick={() => selectStatsPanel(model.key)}
                   >
                     <span className={styles.statsRailDot} aria-hidden />
                     <span className={styles.statsRailText}>
                       <b>{model.title}</b>
-                      <small>{model.key === "inr_search" ? (connectionPending ? "Synchronisation…" : connected ? "Page publiée" : "Page indisponible") : connectionPending ? "Vérification" : connected ? "Connecté" : "Déconnecté"}</small>
+                      <small>{reconnectRequired ? "À reconnecter" : model.key === "inr_search" ? (connectionPending ? "Synchronisation…" : connected ? "Page publiée" : "Page indisponible") : connectionPending ? "Vérification" : connected ? "Connecté" : "Déconnecté"}</small>
                     </span>
                     <span className={styles.statsRailValue}>+{fmtInt(model.opportunity30)}</span>
                   </button>
@@ -542,21 +602,22 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
 
           {models.map((model) => {
             const isSite = model.key === "site_inrcy" || model.key === "site_web";
-            const connectionPending = (model.key === "mails" && !!model.connectionPending) || (model.key === "inr_search" && model.loading);
+            const connectionPending = model.connectionStatus === "unavailable" || (model.key === "mails" && !!model.connectionPending) || (model.key === "inr_search" && model.loading);
             const connected = !connectionPending && (isSite ? !!model.connections.ga4 || !!model.connections.gsc : !!model.connections.main);
+            const reconnectRequired = model.connectionStatus === "needs_update";
             const isActive = activeStatsPanel === model.key;
 
             return (
               <button
                 key={model.key}
                 type="button"
-                className={`${styles.statsRailItem} ${isActive ? styles.statsRailItemActive : ""} ${connected ? styles.statsRailItemConnected : styles.statsRailItemOff}`}
+                className={`${styles.statsRailItem} ${isActive ? styles.statsRailItemActive : ""} ${reconnectRequired ? styles.statsRailItemReconnect : connected ? styles.statsRailItemConnected : styles.statsRailItemOff}`}
                 onClick={() => selectStatsPanel(model.key)}
               >
                 <span className={styles.statsRailDot} aria-hidden />
                 <span className={styles.statsRailText}>
                   <b>{model.title}</b>
-                  <small>{model.key === "inr_search" ? (connectionPending ? "Synchronisation…" : connected ? "Page publiée" : "Page indisponible") : connectionPending ? "Vérification" : connected ? "Connecté" : "Déconnecté"}</small>
+                  <small>{reconnectRequired ? "À reconnecter" : model.key === "inr_search" ? (connectionPending ? "Synchronisation…" : connected ? "Page publiée" : "Page indisponible") : connectionPending ? "Vérification" : connected ? "Connecté" : "Déconnecté"}</small>
                 </span>
                 <span className={styles.statsRailValue}>+{fmtInt(model.opportunity30)}</span>
               </button>
@@ -617,7 +678,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
                   const channelText = model.insights.find((text) => !text.toLowerCase().startsWith("recommandation")) || model.capturedLeadsHint || model.subtitle;
                   const actionText = actionItem?.kicker || model.action.title;
                   const isSite = model.key === "site_inrcy" || model.key === "site_web";
-                    const connectionPending = (model.key === "mails" && !!model.connectionPending) || (model.key === "inr_search" && model.loading);
+                    const connectionPending = model.connectionStatus === "unavailable" || (model.key === "mails" && !!model.connectionPending) || (model.key === "inr_search" && model.loading);
                   const connected = !connectionPending && (isSite ? !!model.connections.ga4 || !!model.connections.gsc : !!model.connections.main);
 
                   return (

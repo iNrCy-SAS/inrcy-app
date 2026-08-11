@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import {
+  OVERVIEW_CACHE_SOURCE,
+  OVERVIEW_HISTORY_RETENTION_MS,
+} from "@/lib/stats/overviewPreservation";
 
 export const runtime = "nodejs";
 
@@ -25,13 +29,27 @@ export async function GET(req: Request) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
-  const { error } = await supabase
+  const now = Date.now();
+  const nowIso = new Date(now).toISOString();
+  const overviewRetentionCutoff = new Date(now - OVERVIEW_HISTORY_RETENTION_MS).toISOString();
+
+  // Normal caches may be removed as soon as they expire. Overview rows are
+  // deliberately retained for a short history because iNrStats uses them as
+  // the fallback when Google/Meta/etc. temporarily return no usable metrics.
+  const { error: regularCacheError } = await supabase
     .from("stats_cache")
     .delete()
-    .lt("expires_at", new Date().toISOString());
+    .neq("source", OVERVIEW_CACHE_SOURCE)
+    .lt("expires_at", nowIso);
 
-  if (error) {
-    console.error("Cleanup stats_cache error:", error);
+  const { error: overviewHistoryError } = await supabase
+    .from("stats_cache")
+    .delete()
+    .eq("source", OVERVIEW_CACHE_SOURCE)
+    .lt("expires_at", overviewRetentionCutoff);
+
+  if (regularCacheError || overviewHistoryError) {
+    console.error("Cleanup stats_cache error:", regularCacheError || overviewHistoryError);
     return NextResponse.json({ ok: false });
   }
 

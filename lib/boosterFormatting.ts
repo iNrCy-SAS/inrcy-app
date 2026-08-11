@@ -85,7 +85,6 @@ export function sanitizeBoosterSiteText(input: unknown) {
     })
     .replace(/[ \t]+\n/g, "\n")
     .replace(/\n[ \t]+/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
     .trim();
 
   // Remove orphan allowed tags by simulating a very small inline-tag stack.
@@ -112,7 +111,9 @@ export function sanitizeBoosterSiteText(input: unknown) {
   }
   for (const leftover of stack) tokens[leftover.index] = "";
 
-  return tokens.join("").replace(/\n{3,}/g, "\n\n").trim();
+  // Internal blank lines belong to the professional's authored layout.
+  // Only trim the outer envelope; do not compact the content itself.
+  return tokens.join("").trim();
 }
 
 export function siteTextToEditableHtml(input: unknown) {
@@ -125,11 +126,11 @@ export function siteTextToEditableHtml(input: unknown) {
 export function editableHtmlToSiteText(input: unknown) {
   let html = String(input ?? "")
     .replace(/\r\n/g, "\n")
-    .replace(/<\s*(strong|b)[^>]*>/gi, "%%INRCY_STRONG_OPEN%%")
+    .replace(/<\s*(strong|b)\b[^>]*>/gi, "%%INRCY_STRONG_OPEN%%")
     .replace(/<\s*\/\s*(strong|b)\s*>/gi, "%%INRCY_STRONG_CLOSE%%")
-    .replace(/<\s*(em|i)[^>]*>/gi, "%%INRCY_EM_OPEN%%")
+    .replace(/<\s*(em|i)\b[^>]*>/gi, "%%INRCY_EM_OPEN%%")
     .replace(/<\s*\/\s*(em|i)\s*>/gi, "%%INRCY_EM_CLOSE%%")
-    .replace(/<\s*u[^>]*>/gi, "%%INRCY_U_OPEN%%")
+    .replace(/<\s*u\b[^>]*>/gi, "%%INRCY_U_OPEN%%")
     .replace(/<\s*\/\s*u\s*>/gi, "%%INRCY_U_CLOSE%%")
     .replace(/<\s*br\s*\/?\s*>/gi, "\n")
     .replace(/<\s*\/\s*(div|p|li|h[1-6])\s*>/gi, "\n")
@@ -145,7 +146,6 @@ export function editableHtmlToSiteText(input: unknown) {
     .replace(/%%INRCY_U_CLOSE%%/g, "</u>")
     .replace(/[ \t]+\n/g, "\n")
     .replace(/\n[ \t]+/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
     .trim();
 
   return sanitizeBoosterSiteText(html);
@@ -163,12 +163,10 @@ export function renderBoosterSiteContentHtml(input: unknown) {
   const raw = sanitizeBoosterSiteText(input);
   if (!raw) return "";
 
-  return raw
-    .split(/\n{2,}/)
-    .map((p) => p.trim())
-    .filter(Boolean)
-    .map((p) => `<p>${renderBoosterSiteInlineHtml(p)}</p>`)
-    .join("");
+  // A single safe paragraph with explicit <br> nodes preserves every line
+  // break, including several intentionally blank lines. Splitting on \n{2,}
+  // used to lose the exact spacing before the website embed rendered it.
+  return `<p>${renderBoosterSiteInlineHtml(raw)}</p>`;
 }
 
 export function stripSiteTextFormattingForEditor(input: unknown) {

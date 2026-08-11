@@ -437,6 +437,10 @@
   background: linear-gradient(135deg, #20283a, #394760);
 }
 
+.tone_inrsearch .actionIcon {
+  background: linear-gradient(135deg, #0ea5e9, #7c3aed);
+}
+
 .tone_appointment {
   background: linear-gradient(135deg, rgba(129, 58, 180, 0.40), rgba(95, 35, 112, 0.56));
   border-color: rgba(214, 146, 255, 0.30);
@@ -506,6 +510,9 @@
   display: grid;
   place-items: center;
   padding: 14px;
+  box-sizing: border-box;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .sheetBackdrop {
@@ -523,8 +530,8 @@
   position: relative;
   z-index: 1;
   width: min(calc(100vw - 28px), 360px);
-  max-height: min(calc(100vh - 28px), 620px);
-  overflow: auto;
+  margin: auto;
+  overflow: hidden;
   padding: 14px;
   border-radius: 24px;
   border: 1px solid rgba(255, 255, 255, 0.16);
@@ -2705,5 +2712,90 @@
     width: 100%;
     height: 100%;
     transform: scale(1.1);
+  }
+}
+
+/* iNr'Search is the permanent news bridge from the digital badge. */
+.ctaWrap .tone_inrsearch {
+  position: relative;
+  overflow: hidden;
+  min-height: 76px;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 14px !important;
+  background:
+    radial-gradient(circle at 16% 18%, rgba(255,255,255,0.22), transparent 24%),
+    linear-gradient(135deg, rgba(14,165,233,0.72), rgba(37,99,235,0.72) 48%, rgba(124,58,237,0.74) 100%) !important;
+  border: 1px solid rgba(186,230,253,0.38) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.22),
+    0 16px 32px rgba(37,99,235,0.20),
+    0 0 28px rgba(14,165,233,0.12) !important;
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+}
+
+.ctaWrap .tone_inrsearch::before {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(255,255,255,0.16), rgba(255,255,255,0.02) 62%, rgba(255,255,255,0.08));
+}
+
+.ctaWrap .tone_inrsearch .actionIcon,
+.ctaWrap .tone_inrsearch .actionBody,
+.ctaWrap .tone_inrsearch .arrow {
+  position: relative;
+  z-index: 1;
+}
+
+.ctaWrap .tone_inrsearch .actionIcon {
+  width: 58px;
+  height: 58px;
+  flex: 0 0 58px;
+  border-radius: 18px;
+  background: rgba(255,255,255,0.94);
+  box-shadow: 0 10px 24px rgba(15,23,42,0.24), inset 0 1px 0 #fff;
+}
+
+.ctaWrap .tone_inrsearch .iconImage {
+  width: 88%;
+  height: 88%;
+  object-fit: contain;
+}
+
+.ctaWrap .tone_inrsearch .actionBody {
+  flex: 1 1 auto;
+  text-align: left;
+}
+
+.ctaWrap .tone_inrsearch .actionBody strong {
+  font-size: 16px;
+  text-shadow: 0 2px 12px rgba(15,23,42,0.32);
+}
+
+.ctaWrap .tone_inrsearch .arrow {
+  color: rgba(255,255,255,0.96);
+  font-size: 28px;
+}
+
+@media (max-width: 420px) {
+  .ctaWrap .tone_inrsearch {
+    min-height: 70px;
+    padding: 10px 12px;
+  }
+
+  .ctaWrap .tone_inrsearch .actionIcon {
+    width: 52px;
+    height: 52px;
+    flex-basis: 52px;
+    border-radius: 16px;
+  }
+
+  .ctaWrap .tone_inrsearch .actionBody strong {
+    font-size: 14px;
   }
 }

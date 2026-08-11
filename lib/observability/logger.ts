@@ -36,8 +36,12 @@ function emit(level: LogLevel, msg: string, ctx: LogContext = {}) {
     ...sanitizeContext(ctx),
   };
 
-  // Vercel logs: JSON is easiest to filter.
-  console.log(JSON.stringify(payload));
+  // Vercel indexes the native console method as the log severity. Keeping every
+  // payload on console.log made real provider failures invisible in Error/Warning.
+  const line = JSON.stringify(payload);
+  if (level === "error") console.error(line);
+  else if (level === "warn") console.warn(line);
+  else console.log(line);
 }
 
 export const log = {

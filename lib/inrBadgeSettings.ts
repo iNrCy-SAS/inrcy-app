@@ -5,6 +5,7 @@ export type InrBadgeShareKey =
   | "phone"
   | "email"
   | "saveContact"
+  | "inrSearch"
   | "siteInrcy"
   | "siteWeb"
   | "googleBusiness"
@@ -48,6 +49,7 @@ export const DEFAULT_INRBADGE_SHARE_SETTINGS: InrBadgeShareSettings = {
   phone: true,
   email: true,
   saveContact: true,
+  inrSearch: true,
   siteInrcy: true,
   siteWeb: true,
   googleBusiness: true,

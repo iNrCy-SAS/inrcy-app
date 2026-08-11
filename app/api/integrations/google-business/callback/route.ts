@@ -9,6 +9,7 @@ import { asRecord, asString } from "@/lib/tsSafe";
 import { oauthCallbackEvent, oauthCallbackException } from "@/lib/observability/oauth";
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { log } from "@/lib/observability/logger";
 
 import { withCurrentConnectionVersion } from "@/lib/connectionVersions";
 import { resolveOAuthBoundInrcyAccountId } from "@/lib/multicompte/server";
@@ -157,24 +158,54 @@ export async function GET(req: Request) {
     }
 
     // Preserve refresh_token if Google doesn't return it
-    const { data: existing, error: existingErr } = await supabaseAdmin
-      .from("integrations")
-      .select("id,refresh_token_enc")
-      .eq("user_id", userId)
-      .eq("provider", "google")
-      .eq("source", "gmb")
-      .eq("product", "gmb")
-      .maybeSingle();
+    const [existingIntegrationRes, existingConfigRes] = await Promise.all([
+      supabaseAdmin
+        .from("integrations")
+        .select("id,refresh_token_enc,resource_id,resource_label,email_address,meta")
+        .eq("user_id", userId)
+        .eq("provider", "google")
+        .eq("source", "gmb")
+        .eq("product", "gmb")
+        .maybeSingle(),
+      supabaseAdmin
+        .from("pro_tools_configs")
+        .select("settings")
+        .eq("user_id", userId)
+        .maybeSingle(),
+    ]);
+    const { data: existing, error: existingErr } = existingIntegrationRes;
 
-    if (existingErr) {
+    if (existingErr || existingConfigRes.error) {
       return fail("db_read_failed", "Le service est momentanément indisponible. Merci de réessayer.");
     }
 
     const existingRec = asRecord(existing);
+    const existingMeta = asRecord(existingRec["meta"]);
+    const existingProSettings = asRecord(asRecord(existingConfigRes.data)["settings"]);
+    const existingSettings = asRecord(existingProSettings["gmb"]);
     const existingRefresh = asString(existingRec["refresh_token_enc"]);
     const existingId = asString(existingRec["id"]);
+    const existingEmail = String(existingRec["email_address"] || "").trim().toLowerCase();
+    const nextEmail = String(userInfo.email || "").trim().toLowerCase();
+    const sameGoogleIdentity = !existingEmail || existingEmail === nextEmail;
+    const preservedLocationName = sameGoogleIdentity
+      ? asString(existingRec["resource_id"]) || asString(existingSettings["locationName"]) || asString(existingSettings["resource_id"])
+      : null;
+    const preservedLocationTitle = sameGoogleIdentity
+      ? asString(existingRec["resource_label"]) || asString(existingSettings["locationTitle"]) || asString(existingSettings["resource_label"])
+      : null;
+    const preservedAccountName = sameGoogleIdentity
+      ? asString(existingMeta["account"]) || asString(existingSettings["accountName"])
+      : null;
+    const preserveSelection = Boolean(
+      preservedLocationName && preservedAccountName,
+    );
 
-    const refreshTokenToStore = tokenData.refresh_token ? _encryptToken(tokenData.refresh_token) : existingRefresh ?? null;
+    const refreshTokenToStore = tokenData.refresh_token
+      ? _encryptToken(tokenData.refresh_token)
+      : sameGoogleIdentity
+        ? existingRefresh ?? null
+        : null;
 
     const expiresAt =
       tokenData.expires_in != null
@@ -187,7 +218,7 @@ export async function GET(req: Request) {
       category: "local",
       source: "gmb",
       product: "gmb",
-      status: "connected",
+      status: preserveSelection ? "connected" : "account_connected",
       email_address: userInfo.email,
       display_name: userInfo.name ?? null,
       provider_account_id: userInfo.id ?? null,
@@ -195,7 +226,13 @@ export async function GET(req: Request) {
       access_token_enc: tokenData.access_token ? _encryptToken(tokenData.access_token) : null,
       refresh_token_enc: refreshTokenToStore,
       expires_at: expiresAt,
-      meta: withCurrentConnectionVersion("channel:gmb", { picture: userInfo.picture ?? null }),
+      resource_id: preserveSelection ? preservedLocationName : null,
+      resource_label: preserveSelection ? preservedLocationTitle : null,
+      meta: withCurrentConnectionVersion("channel:gmb", {
+        ...existingMeta,
+        picture: userInfo.picture ?? null,
+        account: preserveSelection ? preservedAccountName : null,
+      }),
     };
 
     if (existingId) {
@@ -210,23 +247,34 @@ export async function GET(req: Request) {
       if (insErr) return fail("db_insert_failed", "Le service est momentanément indisponible. Merci de réessayer.");
     }
 
-    // Also keep a boolean in pro_tools_configs.settings so the dashboard can show it instantly.
-    try {
-      const { data: scRow } = await supabaseAdmin.from("pro_tools_configs").select("settings").eq("user_id", userId).maybeSingle();
-      const current = asRecord(asRecord(scRow)["settings"]);
-      const currentGmb = asRecord(current["gmb"]);
+    // Keep this display mirror synchronized, but never use it as publication
+    // authority. Reusing the validated snapshot avoids a second-read race.
+    {
       const merged = {
-        ...current,
+        ...existingProSettings,
         gmb: {
-          ...currentGmb,
+          ...existingSettings,
           connected: true,
+          configured: preserveSelection,
           accountEmail: userInfo.email,
           accountDisplayName: userInfo.name ?? null,
+          accountName: preserveSelection ? preservedAccountName : null,
+          locationName: preserveSelection ? preservedLocationName : null,
+          locationTitle: preserveSelection ? preservedLocationTitle : null,
+          resource_id: preserveSelection ? preservedLocationName : null,
+          resource_label: preserveSelection ? preservedLocationTitle : null,
         },
       };
-      await supabaseAdmin.from("pro_tools_configs").upsert({ user_id: userId, settings: merged }, { onConflict: "user_id" });
-    } catch {
-      // non-fatal
+      const { error: mirrorError } = await supabaseAdmin
+        .from("pro_tools_configs")
+        .upsert({ user_id: userId, settings: merged }, { onConflict: "user_id" });
+      if (mirrorError) {
+        log.warn("google_business_settings_mirror_sync_failed", {
+          route: "google_business_callback",
+          user_id: userId,
+          error: mirrorError.message,
+        });
+      }
     }
 
 
@@ -242,20 +290,39 @@ export async function GET(req: Request) {
       const accessToken = typeof tokenData.access_token === "string" ? tokenData.access_token.trim() : "";
       if (accessToken) {
         const accounts = await gmbListAccounts(accessToken);
-        const firstAcc = accounts?.[0]?.name; // e.g. "accounts/123"
-        if (firstAcc) {
-          const metaToMerge = asRecord(payload["meta"]);
-          await supabaseAdmin
-            .from("integrations")
-            .update({ meta: withCurrentConnectionVersion("channel:gmb", { ...metaToMerge, account: firstAcc }), resource_id: null, resource_label: null })
+          const firstAcc = preserveSelection ? preservedAccountName : accounts?.[0]?.name; // e.g. "accounts/123"
+          if (firstAcc) {
+            const metaToMerge = asRecord(payload["meta"]);
+            const { error: accountHintError } = await supabaseAdmin
+              .from("integrations")
+              .update({
+                meta: withCurrentConnectionVersion("channel:gmb", { ...metaToMerge, account: firstAcc }),
+                resource_id: preserveSelection ? preservedLocationName : null,
+                resource_label: preserveSelection ? preservedLocationTitle : null,
+                status: preserveSelection ? "connected" : "account_connected",
+              })
             .eq("user_id", userId)
             .eq("provider", "google")
             .eq("source", "gmb")
             .eq("product", "gmb");
+            if (accountHintError) {
+              log.warn("google_business_account_hint_sync_failed", {
+                route: "google_business_callback",
+                user_id: userId,
+                error: accountHintError.message,
+              });
+            }
         }
       }
-    } catch {
-      // ignore discovery errors
+    } catch (discoveryError) {
+      log.warn("google_business_account_discovery_failed", {
+        route: "google_business_callback",
+        user_id: userId,
+        error:
+          discoveryError instanceof Error
+            ? discoveryError.message
+            : String(discoveryError || ""),
+      });
     }
 
     // Invalidate stats cache so iNrStats + Generator reflect the new connection immediately.

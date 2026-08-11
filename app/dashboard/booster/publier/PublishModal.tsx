@@ -1017,15 +1017,43 @@ export default function PublishModal({
 
   useEffect(() => {
     let alive = true;
-    (async () => {
+    const failClosedConnectedChannels = () => {
+      if (!alive) return;
+      const unavailable = CHANNEL_KEYS.reduce(
+        (result, key) => {
+          result[key] = false;
+          return result;
+        },
+        {} as Record<ChannelKey, boolean>,
+      );
+      applyConnectedChannels(unavailable);
+      setChannelDetails((current) =>
+        CHANNEL_KEYS.reduce(
+          (next, key) => {
+            next[key] = {
+              ...(current[key] || EMPTY_CHANNEL_DETAILS[key]),
+              connectionStatus: "unavailable",
+              requiresReconnect: false,
+              availabilityError: true,
+            };
+            return next;
+          },
+          {} as Record<ChannelKey, ChannelConnectionDetail>,
+        ),
+      );
+    };
+    const refreshConnectedChannels = async () => {
       try {
         const res = await fetch("/api/booster/connected-channels", {
           cache: "no-store" as any,
         });
-        if (!res.ok) return;
+        if (!res.ok) {
+          failClosedConnectedChannels();
+          return;
+        }
         const json = await res.json();
         if (!alive) return;
-        if (json?.channels) {
+        if (json?.channels && typeof json.channels === "object") {
           const nextConnected = CHANNEL_KEYS.reduce(
             (result, key) => {
               result[key] = Boolean(json.channels[key]);
@@ -1035,7 +1063,13 @@ export default function PublishModal({
           );
           applyConnectedChannels(nextConnected);
           if (json?.channelDetails) {
-            setChannelDetails((prev) => ({ ...prev, ...json.channelDetails }));
+            setChannelDetails((prev) => {
+              const next = { ...prev, ...json.channelDetails };
+              CHANNEL_KEYS.forEach((key) => {
+                next[key] = { ...next[key], availabilityError: false };
+              });
+              return next;
+            });
           }
           if (json.channels.pinterest) {
             void fetch("/api/integrations/pinterest/status?live=1", {
@@ -1106,13 +1140,21 @@ export default function PublishModal({
               })
               .catch(() => null);
           }
+        } else {
+          failClosedConnectedChannels();
         }
       } catch {
-        // ignore
+        failClosedConnectedChannels();
       }
-    })();
+    };
+    void refreshConnectedChannels();
+    const intervalId = window.setInterval(refreshConnectedChannels, 60_000);
+    const onFocus = () => void refreshConnectedChannels();
+    window.addEventListener("focus", onFocus);
     return () => {
       alive = false;
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", onFocus);
     };
   }, [applyConnectedChannels]);
 
@@ -3046,15 +3088,25 @@ export default function PublishModal({
   const getChannelDetailInfo = (key: ChannelKey) => {
     const detail = channelDetails[key] || EMPTY_CHANNEL_DETAILS[key];
     const requiresReconnect = Boolean(detail?.requiresReconnect);
+    const channelDisabled = Boolean(detail?.disabled);
+    const availabilityError = Boolean(detail?.availabilityError);
     const rawLabel = String(detail?.label || detail?.href || "").trim();
     const simplifiedLabel = simplifyChannelDetail(key, rawLabel);
-    const statusLabel = requiresReconnect ? "À reconnecter dans Canaux" : "";
+    const statusLabel = availabilityError
+      ? "Vérification temporairement indisponible"
+      : channelDisabled
+      ? "Canal désactivé"
+      : requiresReconnect
+        ? "À reconnecter dans Canaux"
+        : detail?.connectionStatus === "disconnected"
+          ? "À connecter dans Canaux"
+          : "";
     const fullLabel = statusLabel || simplifiedLabel;
     if (!fullLabel) return null;
     const desktopLabel = truncateText(fullLabel, 34);
     const mobileLabel = truncateText(fullLabel, 24);
     return {
-      href: requiresReconnect ? null : detail?.href || null,
+      href: requiresReconnect || availabilityError ? null : detail?.href || null,
       desktopLabel,
       mobileLabel,
       fullLabel,

@@ -21,6 +21,7 @@ type InrBadgeChannelStatus = {
 };
 
 type InrBadgeSettingsChannels = {
+  inrSearch: InrBadgeChannelStatus;
   siteInrcy: InrBadgeChannelStatus;
   siteWeb: InrBadgeChannelStatus;
   googleBusiness: InrBadgeChannelStatus;
@@ -504,6 +505,7 @@ export default function InrBadgeSettingsContent({
   };
 
   const channelItems: Array<{ key: ShareKey; label: string; connected: boolean; helper: string }> = [
+    { key: "inrSearch", label: "iNr'Search", connected: canShareChannel(channels.inrSearch), helper: "Disponible dès que votre page iNr'Search est publiée." },
     { key: "siteInrcy", label: "Site iNrCy", connected: canShareChannel(channels.siteInrcy), helper: "Disponible si le site iNrCy est actif avec un lien enregistré." },
     { key: "siteWeb", label: "Site web", connected: canShareChannel(channels.siteWeb), helper: "Disponible si le site web est renseigné." },
     { key: "googleBusiness", label: "Google Business", connected: canShareChannel(channels.googleBusiness), helper: "Disponible si Google Business est connecté avec un lien enregistré." },
@@ -704,7 +706,21 @@ export default function InrBadgeSettingsContent({
           </div>
           <p style={{ ...mutedStyle, marginTop: 12, marginBottom: 0 }}>iNr’Badge affiche le bouton. Les jours, horaires, durées de créneaux, délai minimum et rappels se règlent dans iNr’Calendar.</p>
         </div>
-      ) : null}
+      ) : (
+        <div style={lockedAppointmentCardStyle} aria-label="Prise de RDV réservée au forfait Premium">
+          <div style={lockedAppointmentHeadingStyle}>
+            <h3 style={{ ...sectionTitleStyle, margin: 0 }}>Prise de RDV</h3>
+            <span style={premiumPillStyle}>Premium</span>
+          </div>
+          <div style={lockedAppointmentToggleStyle} aria-disabled="true">
+            <span style={{ minWidth: 0, textAlign: "left" }}>
+              <strong style={toggleTitleStyle}>Afficher Prendre RDV</strong>
+              <small style={toggleHelperStyle}>Disponible avec iNr’Calendar dans le forfait Premium.</small>
+            </span>
+            <span aria-hidden="true" style={toggleCheckStyle} />
+          </div>
+        </div>
+      )}
 
 
       {notice ? <div style={noticeStyle}>{notice}</div> : null}
@@ -832,6 +848,37 @@ const appointmentActionRowStyle: CSSProperties = {
   gap: 10,
 };
 
+const lockedAppointmentCardStyle: CSSProperties = {
+  ...cardStyle,
+  opacity: 0.72,
+  background: "rgba(71,85,105,0.22)",
+  border: "1px solid rgba(148,163,184,0.22)",
+  filter: "grayscale(0.35)",
+};
+
+const lockedAppointmentHeadingStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 12,
+  marginBottom: 10,
+};
+
+const premiumPillStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  minHeight: 24,
+  padding: "3px 9px",
+  borderRadius: 999,
+  border: "1px solid rgba(196,181,253,0.38)",
+  background: "rgba(139,92,246,0.18)",
+  color: "#ddd6fe",
+  fontSize: 10,
+  fontWeight: 900,
+  letterSpacing: "0.04em",
+  textTransform: "uppercase",
+};
+
 const settingsGearButtonStyle: CSSProperties = {
   width: 46,
   height: 46,
@@ -868,6 +915,12 @@ const toggleRowStyle: CSSProperties = {
   padding: "10px 12px",
   color: "#fff",
   font: "inherit",
+};
+
+const lockedAppointmentToggleStyle: CSSProperties = {
+  ...toggleRowStyle,
+  cursor: "not-allowed",
+  opacity: 0.58,
 };
 
 const toggleCheckStyle: CSSProperties = {

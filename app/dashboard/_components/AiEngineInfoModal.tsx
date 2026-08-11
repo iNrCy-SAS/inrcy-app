@@ -45,7 +45,8 @@ export default function AiEngineInfoModal({ open, activeEngine, onClose }: Props
         placeItems: "center",
         padding: 16,
         boxSizing: "border-box",
-        overflow: "hidden",
+        overflowX: "hidden",
+        overflowY: "auto",
         overscrollBehavior: "contain",
         background: "rgba(2,6,23,0.64)",
         backdropFilter: "blur(8px)",
@@ -59,8 +60,8 @@ export default function AiEngineInfoModal({ open, activeEngine, onClose }: Props
         onMouseDown={(event) => event.stopPropagation()}
         style={{
           width: "min(620px, 100%)",
-          maxHeight: `min(760px, calc(100dvh - ${MOBILE_DOCK_HEIGHT} - 32px))`,
-          overflow: "auto",
+          margin: "auto",
+          overflow: "hidden",
           borderRadius: 18,
           border: "1px solid rgba(255,255,255,0.16)",
           background:
