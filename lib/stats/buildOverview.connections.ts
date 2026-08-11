@@ -5,6 +5,7 @@ import {
   asRecord,
 } from "@/lib/stats/buildOverview.shared";
 import type { InrcyActivityStatsByChannel } from "@/lib/stats/buildOverview.shared";
+import { INRCY_STATS_CACHE_SCHEMA_VERSION } from "@/lib/stats/cacheSchema";
 
 export async function buildOverviewConnectionsKey({
   integrationsAll,
@@ -27,7 +28,9 @@ export async function buildOverviewConnectionsKey({
   profession: string;
   inrcyPublishedActivityStats: InrcyActivityStatsByChannel;
 }) {
-  const keyParts: string[] = [];
+  const keyParts: string[] = [
+    `cache_schema:${INRCY_STATS_CACHE_SCHEMA_VERSION}`,
+  ];
 
   try {
     const rows = Array.isArray(integrationsAll)

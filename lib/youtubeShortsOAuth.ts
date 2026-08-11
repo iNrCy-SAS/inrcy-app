@@ -131,13 +131,11 @@ export function isYoutubeUsingDedicatedOAuthClient() {
 }
 
 export function getYoutubeShortsOAuthScope() {
-  const raw = process.env.YOUTUBE_SHORTS_SCOPES || process.env.GOOGLE_YOUTUBE_SHORTS_SCOPES;
-  if (!raw || !raw.trim()) return YOUTUBE_SHORTS_DEFAULT_SCOPES.join(" ");
-  return raw
-    .split(/[\s,]+/)
-    .map((scope) => scope.trim())
-    .filter(Boolean)
-    .join(" ");
+  // Contrat de moindre privilège : une variable Vercel historique ne doit pas
+  // pouvoir réintroduire silencieusement un scope Gmail/Drive/etc. dans le
+  // parcours YouTube. Toute évolution de cette liste doit passer par le code,
+  // les tests et la validation Google correspondante.
+  return YOUTUBE_SHORTS_DEFAULT_SCOPES.join(" ");
 }
 
 export function getYoutubeShortsRedirectUri(requestUrl: string) {

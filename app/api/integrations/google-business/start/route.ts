@@ -29,7 +29,8 @@ export async function GET(request: Request) {
     response_type: "code",
     access_type: "offline",
     prompt: "consent",
-    include_granted_scopes: "true",
+    // Google Business ne doit jamais hériter des anciens droits Gmail,
+    // Analytics ou YouTube déjà accordés au même client OAuth.
     state: stateB64,
     scope: [
       "https://www.googleapis.com/auth/business.manage",

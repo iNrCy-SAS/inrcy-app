@@ -48,7 +48,8 @@ export async function GET(request: Request) {
     scope: gmailScopes.join(" "),
     access_type: "offline",
     prompt: "consent",
-    include_granted_scopes: "true",
+    // Ne jamais fusionner les anciens droits Google du compte : ce jeton doit
+    // rester strictement limité à Gmail Send + identité.
     state: stateB64,
   });
 

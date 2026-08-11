@@ -212,7 +212,8 @@ const rawUrl =
     response_type: "code",
     access_type: "offline",
     prompt: "consent",
-    include_granted_scopes: "true",
+    // Un jeton GA4/GSC reste isolé par produit. Fusionner les autorisations
+    // historiques réintroduirait d'anciens scopes Google non demandés ici.
     state: stateB64,
     scope: requestedScopes.join(" "),
   });

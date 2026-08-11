@@ -9,6 +9,7 @@ import { hasActiveInrcySite } from "@/lib/inrcySite";
 import { decodeBusinessSector } from "@/lib/activitySectors";
 import { buildSnapshotWindow } from "@/lib/stats/snapshotWindow";
 import { log } from "@/lib/observability/logger";
+import { markPublishChannelReconnectRequired } from "@/lib/channelPublishDiagnostics";
 import { getLinkedInAccessToken } from "@/lib/linkedinOAuth";
 import { refreshTiktokAccessToken } from "@/lib/tiktokOAuth";
 import { fetchTiktokAnalyticsSnapshot } from "@/lib/tiktokAnalytics";
@@ -748,6 +749,17 @@ export async function buildStatsOverview(args: {
           lowerMessage.includes("reconnecte") ||
           lowerMessage.includes("expired") ||
           lowerMessage.includes("revoked");
+        const reconnectPersisted = needsReconnect
+          ? await markPublishChannelReconnectRequired({
+              channel: "youtube_shorts",
+              userId,
+              error: e,
+              stage: "stats_provider_metrics",
+            })
+          : false;
+        if (reconnectPersisted) {
+          sourcesStatus.youtube_shorts.connected = false;
+        }
         if (needsReconnect) {
           console.info("[youtube-stats] reconnect required", {
             code: "youtube_credentials_expired",
@@ -1451,6 +1463,15 @@ export async function buildStatsOverview(args: {
             } catch {}
           }
         } catch (e) {
+          const reconnectPersisted = await markPublishChannelReconnectRequired({
+            channel: "gmb",
+            userId,
+            error: e,
+            stage: "stats_provider_metrics",
+          });
+          if (reconnectPersisted) {
+            sourcesStatus.gmb.connected = false;
+          }
           log.warn("gmb_stats_refresh_failed", {
             user_id: userId,
             stage: "provider_metrics",
@@ -1465,9 +1486,16 @@ export async function buildStatsOverview(args: {
               "Impossible de récupérer les statistiques Google Business pour le moment.",
             ),
             location: loc,
+            needs_reconnect: reconnectPersisted,
           };
         }
       } else {
+        if (!accessToken) {
+          // getGoogleTokenForAnyGoogle persists a revoked refresh token as a
+          // reconnect state. Reflect it in this very response instead of
+          // waiting for the next Dashboard poll.
+          sourcesStatus.gmb.connected = false;
+        }
         log.warn("gmb_stats_target_missing", {
           user_id: userId,
           stage: "provider_metrics_precheck",

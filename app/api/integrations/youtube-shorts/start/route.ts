@@ -32,7 +32,8 @@ export async function GET(request: Request) {
     scope: getYoutubeShortsOAuthScope(),
     access_type: "offline",
     prompt: "consent",
-    include_granted_scopes: "true",
+    // Le jeton YouTube reste limité aux scopes YouTube explicitement requis ;
+    // les autorisations Google historiques du compte ne sont pas réinjectées.
     state: stateB64,
   });
 

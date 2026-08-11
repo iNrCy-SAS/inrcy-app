@@ -2,6 +2,7 @@ import 'server-only';
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { buildStatsOverview, type OverviewPayload } from '@/lib/stats/buildOverview';
+import { INRCY_STATS_CACHE_SCHEMA_VERSION } from '@/lib/stats/cacheSchema';
 
 export type Period = 7 | 30 | 60 | 90;
 export type CubeKey = 'site_inrcy' | 'site_web' | 'gmb' | 'facebook' | 'instagram' | 'linkedin' | 'tiktok' | 'youtube_shorts' | 'pinterest';
@@ -676,7 +677,7 @@ export async function fetchCubeOverviews(args: {
     CUBES.map(async (cube) => {
       const includeRaw = INCLUDE_BY_CUBE[cube];
       if (supabase && userId) {
-        const directKey = `direct:${userId}:days=${days}:include=${includeRaw}:snapshot=${snapshotDate || (bypassCache ? 'live' : 'default')}:fresh=${bypassCache ? 1 : 0}`;
+        const directKey = `direct:${userId}:schema=${INRCY_STATS_CACHE_SCHEMA_VERSION}:days=${days}:include=${includeRaw}:snapshot=${snapshotDate || (bypassCache ? 'live' : 'default')}:fresh=${bypassCache ? 1 : 0}`;
         const overview = await resolveOverviewWithCache(
           directKey,
           async () => (await buildStatsOverview({ supabase, userId, days, includeRaw, fresh: bypassCache, snapshotDate })) as OverviewPayload,

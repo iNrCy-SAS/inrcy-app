@@ -3,6 +3,7 @@ import "server-only";
 import { createHash } from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { CONNECTION_REQUIRED_VERSIONS } from "@/lib/connectionVersions";
+import { INRCY_STATS_CACHE_SCHEMA_VERSION } from "@/lib/stats/cacheSchema";
 
 type AnyRec = Record<string, unknown>;
 
@@ -66,6 +67,8 @@ export async function buildStatsConnectionSignature(
   userId: string,
 ): Promise<string> {
   const parts: string[] = [];
+
+  pushPart(parts, "stats_cache_schema", INRCY_STATS_CACHE_SCHEMA_VERSION);
 
   pushPart(parts, "required_versions", {
     gmb: CONNECTION_REQUIRED_VERSIONS["channel:gmb"],
