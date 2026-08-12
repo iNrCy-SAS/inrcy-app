@@ -72,3 +72,18 @@ test("mobile iNrSearch always paints an opaque dark surface between horizontal s
     /item\.setAttribute\("inert", ""\)[\s\S]{0,80}item\.removeAttribute\("inert"\)/,
   );
 });
+
+test("iNrSearch news renews publication media from durable storage before historical URLs", () => {
+  const publicData = read("lib/inrSearchPublic.ts");
+
+  assert.match(publicData, /collectImageStorageCandidates/);
+  assert.match(publicData, /post\.storagePaths/);
+  assert.match(publicData, /post\.publishableStoragePaths/);
+  assert.match(publicData, /post\.socialFeedStoragePaths/);
+  assert.match(publicData, /collectVideoStorageCandidates/);
+  assert.match(publicData, /collectThumbnailStorageCandidates/);
+  assert.match(publicData, /createSafeStorageSignedUrl\([\s\S]*MEDIA_SIGNED_URL_TTL_SECONDS/);
+  assert.match(publicData, /const storageUrl = await resolveStorageMediaUrl/);
+  assert.match(publicData, /const publications = await normalizeBoosterPublicationEvents/);
+  assert.match(publicData, /"inr-search-public-page-v2"/);
+});

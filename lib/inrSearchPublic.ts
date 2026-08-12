@@ -318,9 +318,22 @@ function normalizeExternalUrl(value: unknown): string {
 function firstImageUrl(value: unknown): string | null {
   const candidates = Array.isArray(value) ? value : [];
   for (const candidate of candidates) {
+    const record = asRecord(candidate);
     const raw = typeof candidate === "string"
       ? candidate
-      : clean(asRecord(candidate).url || asRecord(candidate).publicUrl || asRecord(candidate).src, 1000);
+      : clean(
+          record.url ||
+          record.publicUrl ||
+          record.public_url ||
+          record.renderedUrl ||
+          record.rendered_url ||
+          record.originalPublicUrl ||
+          record.original_public_url ||
+          record.originalUrl ||
+          record.original_url ||
+          record.src,
+          1000,
+        );
     const url = normalizeExternalUrl(raw);
     if (url) return url;
   }
@@ -329,6 +342,197 @@ function firstImageUrl(value: unknown): string | null {
 
 function arrayFromUnknown(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
+}
+
+type StorageMediaCandidate = {
+  bucket: string;
+  storagePath: string;
+};
+
+function normalizeStoragePath(value: unknown) {
+  const raw = clean(value, 1200).replace(/^\/+/, "");
+  if (!raw || /^https?:\/\//i.test(raw) || raw.includes("..") || raw.includes("\\")) return "";
+  return raw;
+}
+
+function normalizeStorageBucket(value: unknown, fallback = "booster") {
+  return clean(value, 120) || fallback;
+}
+
+function addStorageCandidate(
+  target: StorageMediaCandidate[],
+  seen: Set<string>,
+  storagePathValue: unknown,
+  bucketValue: unknown = "booster",
+) {
+  const storagePath = normalizeStoragePath(storagePathValue);
+  const bucket = normalizeStorageBucket(bucketValue);
+  if (!storagePath || !bucket) return;
+  const key = `${bucket}:${storagePath}`;
+  if (seen.has(key)) return;
+  seen.add(key);
+  target.push({ bucket, storagePath });
+}
+
+function isVideoLikeRecord(value: unknown) {
+  const record = asRecord(value);
+  const mime = clean(
+    record.type || record.mime || record.mimeType || record.mime_type || record.contentType || record.content_type,
+    160,
+  ).toLowerCase();
+  const name = clean(record.name || record.filename || record.fileName, 400).toLowerCase();
+  return mime.startsWith("video/") || /\.(?:mp4|mov|m4v|webm|avi|mkv)(?:$|[?#])/i.test(name);
+}
+
+function collectAttachmentRecords(...values: unknown[]) {
+  const records: Record<string, unknown>[] = [];
+  for (const value of values) {
+    for (const item of arrayFromUnknown(value)) {
+      const record = asRecord(item);
+      if (Object.keys(record).length) records.push(record);
+    }
+  }
+  return records;
+}
+
+function collectImageStorageCandidates(payload: Record<string, unknown>, post: Record<string, unknown>) {
+  const candidates: StorageMediaCandidate[] = [];
+  const seen = new Set<string>();
+
+  // Prefer the durable Booster copies persisted with the channel post. These
+  // paths survive expired delivery URLs and are valid for old publications too.
+  for (const value of [
+    post.storagePaths,
+    post.publishableStoragePaths,
+    post.socialFeedStoragePaths,
+    payload.storagePaths,
+    payload.publishableStoragePaths,
+    payload.socialFeedStoragePaths,
+  ]) {
+    for (const storagePath of arrayFromUnknown(value)) {
+      addStorageCandidate(candidates, seen, storagePath, "booster");
+    }
+  }
+
+  for (const attachment of collectAttachmentRecords(post.attachments, payload.attachments, post.images, payload.images)) {
+    if (isVideoLikeRecord(attachment)) continue;
+    const bucket = normalizeStorageBucket(
+      attachment.bucket || attachment.bucketName || attachment.bucket_name,
+      "booster",
+    );
+    for (const storagePath of [
+      attachment.storagePath,
+      attachment.storage_path,
+      attachment.renderedStoragePath,
+      attachment.rendered_storage_path,
+      attachment.originalStoragePath,
+      attachment.original_storage_path,
+      attachment.path,
+    ]) {
+      addStorageCandidate(candidates, seen, storagePath, bucket);
+    }
+  }
+
+  return candidates;
+}
+
+function collectVideoRecords(payload: Record<string, unknown>, post: Record<string, unknown>) {
+  const byChannel = asRecord(payload.videoByChannel);
+  const queue: Array<{ value: unknown; trustedVideo: boolean }> = [
+    { value: post.video, trustedVideo: true },
+    { value: post.sourceVideo, trustedVideo: true },
+    { value: byChannel.inr_search, trustedVideo: true },
+    { value: payload.video, trustedVideo: true },
+    ...arrayFromUnknown(post.attachments).map((value) => ({ value, trustedVideo: false })),
+    ...arrayFromUnknown(payload.attachments).map((value) => ({ value, trustedVideo: false })),
+  ];
+  const records: Record<string, unknown>[] = [];
+  const seen = new Set<Record<string, unknown>>();
+
+  while (queue.length) {
+    const entry = queue.shift();
+    const record = asRecord(entry?.value);
+    if (!Object.keys(record).length || seen.has(record)) continue;
+    seen.add(record);
+
+    const accepted = entry?.trustedVideo === true || isVideoLikeRecord(record);
+    if (!accepted) continue;
+    records.push(record);
+
+    queue.push(
+      { value: record.sourceVideo, trustedVideo: true },
+      { value: record.source_video, trustedVideo: true },
+      { value: record.transformedVariant, trustedVideo: true },
+      { value: record.transformed_variant, trustedVideo: true },
+      ...arrayFromUnknown(record.transformedVariants).map((value) => ({ value, trustedVideo: true })),
+      ...arrayFromUnknown(record.transformed_variants).map((value) => ({ value, trustedVideo: true })),
+    );
+  }
+
+  return records;
+}
+
+function collectVideoStorageCandidates(records: Record<string, unknown>[]) {
+  const candidates: StorageMediaCandidate[] = [];
+  const seen = new Set<string>();
+  for (const record of records) {
+    const bucket = normalizeStorageBucket(
+      record.bucket || record.bucketName || record.bucket_name,
+      "booster",
+    );
+    for (const storagePath of [record.storagePath, record.storage_path, record.path]) {
+      addStorageCandidate(candidates, seen, storagePath, bucket);
+    }
+  }
+  return candidates;
+}
+
+function collectThumbnailStorageCandidates(records: Record<string, unknown>[]) {
+  const candidates: StorageMediaCandidate[] = [];
+  const seen = new Set<string>();
+  for (const record of records) {
+    const videoBucket = normalizeStorageBucket(
+      record.bucket || record.bucketName || record.bucket_name,
+      "booster",
+    );
+    const thumbnailBucket = normalizeStorageBucket(
+      record.thumbnailBucket ||
+      record.thumbnail_bucket ||
+      record.video_thumbnail_bucket,
+      videoBucket,
+    );
+    for (const storagePath of [
+      record.thumbnailStoragePath,
+      record.thumbnail_storage_path,
+      record.video_thumbnail_storage_path,
+    ]) {
+      addStorageCandidate(candidates, seen, storagePath, thumbnailBucket);
+    }
+  }
+  return candidates;
+}
+
+async function resolveStorageMediaUrl(candidates: StorageMediaCandidate[]) {
+  for (const candidate of candidates) {
+    const signedUrl = await createSafeStorageSignedUrl(
+      candidate.bucket,
+      candidate.storagePath,
+      MEDIA_SIGNED_URL_TTL_SECONDS,
+    );
+    const normalizedSignedUrl = normalizeExternalUrl(signedUrl);
+    if (normalizedSignedUrl) return normalizedSignedUrl;
+
+    // The Booster bucket is intentionally public. Keep a stable public fallback
+    // if signing is temporarily unavailable, without trusting an expired URL
+    // persisted in the historical event.
+    if (candidate.bucket === "booster") {
+      const publicUrl = normalizeExternalUrl(
+        supabaseAdmin.storage.from(candidate.bucket).getPublicUrl(candidate.storagePath)?.data?.publicUrl,
+      );
+      if (publicUrl) return publicUrl;
+    }
+  }
+  return null;
 }
 
 async function loadRowsInBatches<T>(buildQuery: () => any, pageSize = 1000) {
@@ -342,29 +546,40 @@ async function loadRowsInBatches<T>(buildQuery: () => any, pageSize = 1000) {
   return rows;
 }
 
-function publicationImageUrl(payload: Record<string, unknown>, post: Record<string, unknown>) {
-  const video = asRecord(post.video || payload.video);
+async function publicationImageUrl(payload: Record<string, unknown>, post: Record<string, unknown>) {
+  const storageUrl = await resolveStorageMediaUrl(collectImageStorageCandidates(payload, post));
+  if (storageUrl) return storageUrl;
+
+  const videoRecords = collectVideoRecords(payload, post);
   const candidates = [
     ...arrayFromUnknown(post.siteCardPublishableUrls),
     ...arrayFromUnknown(post.socialFeedPublishableUrls),
     ...arrayFromUnknown(post.publishableUrls),
     ...arrayFromUnknown(post.images),
+    ...arrayFromUnknown(post.attachments).filter((item) => !isVideoLikeRecord(item)),
     ...arrayFromUnknown(payload.siteCardPublishableUrls),
     ...arrayFromUnknown(payload.socialFeedPublishableUrls),
     ...arrayFromUnknown(payload.publishableUrls),
     ...arrayFromUnknown(payload.images),
-    video.thumbnailUrl,
-    video.thumbnail_url,
+    ...arrayFromUnknown(payload.attachments).filter((item) => !isVideoLikeRecord(item)),
+    ...videoRecords.flatMap((video) => [video.thumbnailUrl, video.thumbnail_url, video.video_thumbnail_url]),
   ].filter(Boolean);
   return firstImageUrl(candidates);
 }
 
-function publicationVideoUrl(payload: Record<string, unknown>, post: Record<string, unknown>) {
-  const video = asRecord(post.video || payload.video);
+async function publicationVideoUrl(payload: Record<string, unknown>, post: Record<string, unknown>) {
+  const videoRecords = collectVideoRecords(payload, post);
+  const storageUrl = await resolveStorageMediaUrl(collectVideoStorageCandidates(videoRecords));
+  if (storageUrl) return storageUrl;
+
   const candidates = [
-    video.publicUrl,
-    video.public_url,
-    video.url,
+    ...videoRecords.flatMap((video) => [
+      video.publicUrl,
+      video.public_url,
+      video.url,
+      video.videoUrl,
+      video.video_url,
+    ]),
     payload.videoUrl,
     payload.video_url,
   ];
@@ -376,15 +591,28 @@ function publicationVideoUrl(payload: Record<string, unknown>, post: Record<stri
 }
 
 function publicationVideoMime(payload: Record<string, unknown>, post: Record<string, unknown>) {
-  const video = asRecord(post.video || payload.video);
-  return clean(video.type || video.mime || payload.video_mime || "video/mp4", 120) || "video/mp4";
+  const videoRecords = collectVideoRecords(payload, post);
+  for (const video of videoRecords) {
+    const mime = clean(
+      video.type || video.mime || video.mimeType || video.mime_type || video.contentType || video.content_type,
+      120,
+    );
+    if (mime) return mime;
+  }
+  return clean(payload.video_mime || "video/mp4", 120) || "video/mp4";
 }
 
-function publicationVideoThumbnailUrl(payload: Record<string, unknown>, post: Record<string, unknown>) {
-  const video = asRecord(post.video || payload.video);
+async function publicationVideoThumbnailUrl(payload: Record<string, unknown>, post: Record<string, unknown>) {
+  const videoRecords = collectVideoRecords(payload, post);
+  const storageUrl = await resolveStorageMediaUrl(collectThumbnailStorageCandidates(videoRecords));
+  if (storageUrl) return storageUrl;
+
   return firstImageUrl([
-    video.thumbnailUrl,
-    video.thumbnail_url,
+    ...videoRecords.flatMap((video) => [
+      video.thumbnailUrl,
+      video.thumbnail_url,
+      video.video_thumbnail_url,
+    ]),
     payload.video_thumbnail_url,
   ]);
 }
@@ -398,7 +626,7 @@ function hasLivePublicationChannel(payload: Record<string, unknown>) {
     && (result.ok === true || status === "delivered" || status === "published");
 }
 
-function normalizeBoosterPublicationEvents(value: unknown): InrSearchPublication[] {
+async function normalizeBoosterPublicationEvents(value: unknown): Promise<InrSearchPublication[]> {
   if (!Array.isArray(value)) return [];
   const seen = new Set<string>();
   const publications: InrSearchPublication[] = [];
@@ -418,17 +646,21 @@ function normalizeBoosterPublicationEvents(value: unknown): InrSearchPublication
     const content = clean(preferredPost.content || preferredPost.text || fallbackPost.content || fallbackPost.text, 2400);
     if (!title && !content) continue;
 
-    const videoUrl = publicationVideoUrl(payload, preferredPost);
+    const [imageUrl, videoUrl, videoThumbnailUrl] = await Promise.all([
+      publicationImageUrl(payload, preferredPost),
+      publicationVideoUrl(payload, preferredPost),
+      publicationVideoThumbnailUrl(payload, preferredPost),
+    ]);
 
     seen.add(publicationId);
     publications.push({
       id: publicationId,
       title: title || "Actualité",
       content,
-      imageUrl: publicationImageUrl(payload, preferredPost),
+      imageUrl,
       videoUrl,
       videoMime: publicationVideoMime(payload, preferredPost),
-      videoThumbnailUrl: publicationVideoThumbnailUrl(payload, preferredPost),
+      videoThumbnailUrl,
       createdAt: clean(record.created_at, 80) || null,
     });
     if (publications.length >= 10) break;
@@ -436,6 +668,7 @@ function normalizeBoosterPublicationEvents(value: unknown): InrSearchPublication
 
   return publications;
 }
+
 async function findPublishedConfigBySlug(slug: string) {
   const normalizedSlug = normalizeInrSearchDirectorySlug(slug);
   if (!normalizedSlug) return null;
@@ -790,7 +1023,7 @@ async function loadInrSearchPublicPageUncached(slug: string): Promise<InrSearchP
   ].filter((item) => Boolean(item.url));
 
   const faq = buildFaq({ companyName, profession, city, services, zones, customerTypes, phone, email, openingDays, openingHours });
-  const publications = normalizeBoosterPublicationEvents(boosterEventsRes.data);
+  const publications = await normalizeBoosterPublicationEvents(boosterEventsRes.data);
   const updatedAt = latestIsoDate([
     config.updatedAt,
     profile.updated_at,
@@ -850,7 +1083,7 @@ const loadInrSearchPublicPageCached = cache(async (slugValue: string) => {
   if (!slug) return null;
   const readCachedPage = unstable_cache(
     () => loadInrSearchPublicPageRequestCached(slug),
-    ["inr-search-public-page", slug],
+    ["inr-search-public-page-v2", slug],
     { revalidate: 300, tags: [getInrSearchPublicPageCacheTag(slug)] },
   );
   return readCachedPage();
