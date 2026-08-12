@@ -45,6 +45,19 @@ test("the public badge exposes iNr'Search as a channel and a verified news CTA",
   assert.match(publicBadge, /label: "Voir nos actualités"/);
   assert.match(publicBadge, /`\$\{inrSearchUrl\}#actualites`/);
   assert.match(publicBadgeStyles, /\.ctaWrap \.tone_inrsearch/);
+  assert.match(publicBadge, /inr-search-bubble-128\.png/);
+  assert.match(publicBadge, /inr-search-logo-transparent\.png/);
+  assert.match(publicBadge, /iconSrc: inrSearchBubbleIcon\.src/);
+  assert.match(publicBadge, /iconSrc: inrSearchLogo\.src/);
+  assert.match(publicBadgeStyles, /\.channelsRow > \.tone_inrsearch\.actionIconOnly \.iconImage/);
+  assert.match(
+    publicBadgeStyles,
+    /\.ctaWrap \.tone_inrsearch \.arrow \{[\s\S]*?position: absolute;[\s\S]*?top: 50%;[\s\S]*?transform: translateY\(-50%\);/,
+  );
+  assert.match(
+    publicBadgeStyles,
+    /\.ctaWrap \.tone_inrsearch \.actionIcon \{[\s\S]*?background: transparent;[\s\S]*?box-shadow: none;/,
+  );
 });
 
 test("Standard keeps the appointment card visible but locked as Premium", () => {

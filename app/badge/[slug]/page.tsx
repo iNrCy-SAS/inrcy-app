@@ -18,7 +18,8 @@ import {
 } from "@/lib/inrBadgeEditionPolicy";
 import inrBadgeIcon from "@/public/icons/inrbadge-dashboard.png";
 import inrcyIcon from "@/public/icons/inrcy.png";
-import inrSearchIcon from "@/public/icons/inr-search-logo.png";
+import inrSearchBubbleIcon from "@/public/icons/inr-search-bubble-128.png";
+import inrSearchLogo from "@/public/icons/inr-search-logo-transparent.png";
 import siteWebIcon from "@/public/icons/site-web.jpg";
 import googleBusinessIcon from "@/public/icons/google.jpg";
 import linkedinIcon from "@/public/icons/linkedin.png";
@@ -457,7 +458,7 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
   ].filter(Boolean) as ActionLinkProps[];
 
   const channelActions = [
-    shareSettings.inrSearch && publicChannelCanShare.inrSearch ? { href: inrSearchUrl, label: "iNr'Search", iconSrc: inrSearchIcon.src, tone: "inrsearch" as ActionTone, trackingAction: "inr_search" } : null,
+    shareSettings.inrSearch && publicChannelCanShare.inrSearch ? { href: inrSearchUrl, label: "iNr'Search", iconSrc: inrSearchBubbleIcon.src, tone: "inrsearch" as ActionTone, trackingAction: "inr_search" } : null,
     shareSettings.siteInrcy && publicChannelCanShare.siteInrcy ? { href: siteInrcyUrl, label: "Site iNrCy", iconSrc: inrcyIcon.src, tone: "site" as ActionTone, trackingAction: "site_inrcy" } : null,
     shareSettings.siteWeb && publicChannelCanShare.siteWeb ? { href: siteWebUrl, label: "Site web", iconSrc: siteWebIcon.src, tone: "site" as ActionTone, trackingAction: "site_web" } : null,
     shareSettings.googleBusiness && publicChannelCanShare.googleBusiness ? { href: gmbUrl, label: "Google Business", iconSrc: googleBusinessIcon.src, tone: "google" as ActionTone, trackingAction: "google_business" } : null,
@@ -470,7 +471,7 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
   ].filter(Boolean) as ActionLinkProps[];
 
   const inrSearchNewsAction = shareSettings.inrSearch && inrSearchNewsUrl
-    ? { href: inrSearchNewsUrl, label: "Voir nos actualités", iconSrc: inrSearchIcon.src, tone: "inrsearch" as ActionTone, trackingAction: "inr_search_news" }
+    ? { href: inrSearchNewsUrl, label: "Voir nos actualités", iconSrc: inrSearchLogo.src, tone: "inrsearch" as ActionTone, trackingAction: "inr_search_news" }
     : null;
 
   const appointmentAction = canUseInrBadgeAppointments(dashboardEdition, shareSettings)
@@ -488,7 +489,7 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
   const headerLogoSrc = hasCustomLogo ? getBadgeIconUrl(slug, logoVersion) : DEFAULT_INRBADGE_LOGO_SRC;
   const iconPreloads = Array.from(new Set([
     headerLogoSrc,
-    ...(inrSearchNewsAction ? [inrSearchIcon.src] : []),
+    ...(inrSearchNewsAction ? [inrSearchLogo.src] : []),
     ...(appointmentAction ? [inrCalendarLogo.src] : []),
     ...primaryActions.map((action) => action.iconSrc).filter((src): src is string => Boolean(src)),
     ...channelActions.map((action) => action.iconSrc).filter((src): src is string => Boolean(src)),
