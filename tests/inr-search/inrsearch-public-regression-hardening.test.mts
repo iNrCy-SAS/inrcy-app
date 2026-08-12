@@ -86,7 +86,12 @@ test("iNrSearch news renews publication media from durable storage before histor
   assert.match(publicData, /const storageUrl = await resolveStorageMediaUrl/);
   assert.match(publicData, /normalizeBoosterPublicationEvents\(boosterEventsRes\.data\)/);
   assert.match(publicData, /normalizeDurableInrSearchPublications/);
-  assert.match(publicData, /"inr-search-public-page-v3"/);
+  assert.match(publicData, /"inr-search-public-page-v4"/);
+  assert.match(publicData, /INR_SEARCH_PAGE_MISSING_CACHE_SENTINEL/);
+  assert.match(publicData, /if \(!page\) throw new Error/);
+  const publicPage = read("app/entreprises/[slug]/page.tsx");
+  assert.match(publicPage, /export const dynamic = "force-dynamic"/);
+  assert.match(publicPage, /export const revalidate = 0/);
 });
 
 test("public iNrSearch news keeps all media contained and exposes video controls", () => {

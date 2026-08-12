@@ -28,10 +28,11 @@ import {
   rgbTriplet,
 } from "@/lib/inrSearchVisualIdentity";
 
-// Keep the visual experience server-rendered, while allowing crawlers and users
-// to benefit from a short-lived cache. Publication flows already invalidate
-// the public routes when the underlying profile changes.
-export const revalidate = 300;
+// Keep the route itself dynamic so a transient cold-start failure can never
+// persist a false 404. The data loader still caches successful public pages
+// for five minutes and publication flows invalidate that cache explicitly.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 type PageProps = {
   params: Promise<{ slug: string }>;

@@ -1256,16 +1256,34 @@ export function getInrSearchPublicPageCacheTag(slugValue: unknown) {
 }
 
 const loadInrSearchPublicPageRequestCached = cache(loadInrSearchPublicPageUncached);
+const INR_SEARCH_PAGE_MISSING_CACHE_SENTINEL = "inr_search_page_missing_do_not_cache";
 
 const loadInrSearchPublicPageCached = cache(async (slugValue: string) => {
   const slug = normalizeInrSearchDirectorySlug(slugValue);
   if (!slug) return null;
   const readCachedPage = unstable_cache(
-    () => loadInrSearchPublicPageRequestCached(slug),
-    ["inr-search-public-page-v3", slug],
+    async () => {
+      const page = await loadInrSearchPublicPageRequestCached(slug);
+      // Never persist a false negative. A cold deployment can briefly lose a
+      // database read; caching that `null` would turn a healthy page into a
+      // five-minute 404. Successful pages remain cached normally.
+      if (!page) throw new Error(INR_SEARCH_PAGE_MISSING_CACHE_SENTINEL);
+      return page;
+    },
+    ["inr-search-public-page-v4", slug],
     { revalidate: 300, tags: [getInrSearchPublicPageCacheTag(slug)] },
   );
-  return readCachedPage();
+  try {
+    return await readCachedPage();
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message.includes(INR_SEARCH_PAGE_MISSING_CACHE_SENTINEL)
+    ) {
+      return null;
+    }
+    throw error;
+  }
 });
 
 export const loadInrSearchPublicPage = loadInrSearchPublicPageCached;
