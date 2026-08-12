@@ -118,13 +118,9 @@ export default function InrSearchNewsShowcase({ companyName, publications }: Pro
         >
           <div className={styles.newsPulseGenerator} aria-hidden="true"><span /><span /><i /></div>
 
-          <button
-            type="button"
+          <div
             className={styles.newsOrbitFocus}
             onClick={openModal}
-            aria-label={`Lire l’actualité ${activePublication.title}`}
-            aria-haspopup="dialog"
-            aria-controls="news-orbit-modal"
           >
             <span className={styles.newsOrbitFocusMedia}>
               {activePublication.videoUrl ? (
@@ -132,19 +128,22 @@ export default function InrSearchNewsShowcase({ companyName, publications }: Pro
                   className={styles.newsOrbitFocusVideo}
                   src={activePublication.videoUrl}
                   poster={activePublication.videoThumbnailUrl || activePublication.imageUrl || undefined}
+                  controls
                   muted
                   autoPlay
                   loop
                   playsInline
                   preload="metadata"
-                  aria-hidden="true"
+                  aria-label={`Vidéo de l’actualité ${activePublication.title}`}
+                  onClick={(event) => event.stopPropagation()}
+                  onKeyDown={(event) => event.stopPropagation()}
                 />
               ) : activePublication.imageUrl ? (
                 <Image src={activePublication.imageUrl} alt={`${activePublication.title} – ${companyName}`} width={1600} height={1000} sizes="(max-width: 900px) 92vw, 720px" loading="eager" unoptimized />
               ) : (
                 <span className={styles.newsOrbitFallback} aria-hidden="true"><b>✦</b><i /></span>
               )}
-              <span className={styles.newsOrbitFocusShade} />
+              {!activePublication.videoUrl ? <span className={styles.newsOrbitFocusShade} /> : null}
             </span>
             <span className={styles.newsOrbitFocusContent}>
               <span className={styles.newsOrbitFocusMeta}>
@@ -155,7 +154,7 @@ export default function InrSearchNewsShowcase({ companyName, publications }: Pro
               {activePublication.content ? <span className={styles.newsOrbitFocusExcerpt}>{excerpt(activePublication.content, 250)}</span> : null}
               <span className={styles.newsOrbitRead}>Lire l’actualité <b aria-hidden="true">↗</b></span>
             </span>
-          </button>
+          </div>
 
           <div className={styles.newsOrbitSecondary} aria-label="Signaux suivants">
             {secondaryIndices.map((index) => {
@@ -246,6 +245,8 @@ export default function InrSearchNewsShowcase({ companyName, publications }: Pro
                       preload="metadata"
                       poster={activePublication.videoThumbnailUrl || activePublication.imageUrl || undefined}
                       aria-label={`Vidéo de l’actualité ${activePublication.title}`}
+                      onClick={(event) => event.stopPropagation()}
+                      onKeyDown={(event) => event.stopPropagation()}
                     >
                       <source src={activePublication.videoUrl} type={activePublication.videoMime || "video/mp4"} />
                     </video>

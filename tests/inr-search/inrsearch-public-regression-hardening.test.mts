@@ -87,3 +87,18 @@ test("iNrSearch news renews publication media from durable storage before histor
   assert.match(publicData, /const publications = await normalizeBoosterPublicationEvents/);
   assert.match(publicData, /"inr-search-public-page-v2"/);
 });
+
+test("public iNrSearch news keeps all media contained and exposes video controls", () => {
+  const showcase = read("app/entreprises/[slug]/InrSearchNewsShowcase.tsx");
+  const css = read("app/entreprises/[slug]/inrSearchPublic.module.css");
+  const marker = "/* === iNrSearch media framing hardening ===";
+  const block = css.slice(css.indexOf(marker));
+
+  assert.ok(block.startsWith(marker));
+  assert.match(showcase, /className=\{styles\.newsOrbitFocusVideo\}[\s\S]{0,400}controls/);
+  assert.match(showcase, /onClick=\{\(event\) => event\.stopPropagation\(\)\}/);
+  assert.match(showcase, /!activePublication\.videoUrl \? <span className=\{styles\.newsOrbitFocusShade\}/);
+  assert.match(block, /newsOrbitFocusMedia > img,[\s\S]*newsOrbitModalMedia video[\s\S]*object-fit:\s*contain !important/);
+  assert.match(block, /object-position:\s*center center !important/);
+  assert.match(block, /newsOrbitFocus:hover[\s\S]*transform:\s*none !important/);
+});

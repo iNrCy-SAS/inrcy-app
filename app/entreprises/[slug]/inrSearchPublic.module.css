@@ -13266,3 +13266,49 @@
     backface-visibility: hidden;
   }
 }
+
+/* === iNrSearch media framing hardening ===
+   Keep every publication media fully visible, whatever its aspect ratio.
+   Videos expose native controls on the main news card and in the modal. */
+.newsOrbitFocusMedia {
+  display: grid !important;
+  place-items: center !important;
+  background: #030817 !important;
+}
+
+.newsOrbitFocusMedia > img,
+.newsOrbitFocusMedia > video,
+.newsOrbitSecondaryCard > span img,
+.newsOrbitSecondaryCard > span video,
+.newsOrbitModalMedia img,
+.newsOrbitModalMedia video {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  display: block !important;
+  object-fit: contain !important;
+  object-position: center center !important;
+  transform: none !important;
+}
+
+.newsOrbitFocus:hover .newsOrbitFocusMedia > img,
+.newsOrbitFocus:hover .newsOrbitFocusMedia > video {
+  transform: none !important;
+  filter: none !important;
+}
+
+.newsOrbitSecondaryCard > span:first-child {
+  display: grid !important;
+  place-items: center !important;
+  background: #071027 !important;
+}
+
+.newsOrbitModalMedia {
+  background: #030817 !important;
+}
+
+.newsOrbitFocusVideo {
+  position: relative;
+  z-index: 2;
+}
