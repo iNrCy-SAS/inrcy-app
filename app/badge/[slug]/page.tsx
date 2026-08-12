@@ -471,7 +471,7 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
   ].filter(Boolean) as ActionLinkProps[];
 
   const inrSearchNewsAction = shareSettings.inrSearch && inrSearchNewsUrl
-    ? { href: inrSearchNewsUrl, label: "Voir nos actualités", iconSrc: inrSearchLogo.src, tone: "inrsearch" as ActionTone, trackingAction: "inr_search_news" }
+    ? { href: inrSearchNewsUrl, label: "Nos actualités", iconSrc: inrSearchLogo.src, tone: "inrsearch" as ActionTone, trackingAction: "inr_search_news" }
     : null;
 
   const appointmentAction = canUseInrBadgeAppointments(dashboardEdition, shareSettings)
