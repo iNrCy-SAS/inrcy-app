@@ -117,6 +117,8 @@ test("public iNrSearch news uses one full stage and ten direct number controls",
   assert.match(showcase, /aria-current=\{index === activeIndex/);
   assert.match(block, /newsOrbitStage[\s\S]*grid-template-columns:\s*minmax\(0, 1fr\) !important/);
   assert.match(block, /newsOrbitRailItem\[data-active="true"\]/);
+  assert.match(block, /grid-template-columns:\s*minmax\(0, 1fr\) !important/);
+  assert.match(block, /newsOrbitRailItem > span:first-child[\s\S]*place-items:\s*center/);
   assert.match(block, /grid-template-columns:\s*repeat\(5, minmax\(0, 1fr\)\)/);
   assert.match(block, /newsOrbitModalMedia > img,[\s\S]*position:\s*absolute !important/);
   assert.match(block, /newsOrbitModalMedia > video[\s\S]*height:\s*100% !important/);
