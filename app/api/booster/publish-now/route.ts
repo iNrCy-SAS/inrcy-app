@@ -1992,6 +1992,46 @@ async function publishNowHandler(req: Request) {
     );
     if (!internalAsyncDispatch) {
       // 2) Persist publication
+      const inrSearchSelected = selected.includes("inr_search");
+      const inrSearchMediaMode = mediaModeByChannel.inr_search || "none";
+      const inrSearchImageSet =
+        channelImageSets.inr_search || publicationImageSet;
+      const inrSearchImageAttachments =
+        inrSearchSelected && inrSearchMediaMode === "images"
+          ? getOriginalImagesForChannel("inr_search")
+          : [];
+      const inrSearchPreparedVideo =
+        inrSearchSelected && inrSearchMediaMode === "video"
+          ? getPublicationVideoForChannel("inr_search")
+          : null;
+      const durableInrSearchVideo =
+        inrSearchMediaMode === "video"
+          ? publicationVideo ||
+            inrSearchPreparedVideo?.sourceVideo ||
+            inrSearchPreparedVideo ||
+            null
+          : null;
+      const inrSearchSnapshot = inrSearchSelected
+        ? {
+            post: getChannelPost("inr_search"),
+            mediaMode: inrSearchMediaMode,
+            images: inrSearchImageAttachments
+              .map((attachment) => String(asRecord(attachment).url || "").trim())
+              .filter(Boolean),
+            attachments: inrSearchImageAttachments,
+            storagePaths: inrSearchImageSet.storagePaths,
+            publishableStoragePaths:
+              inrSearchImageSet.publishableStoragePaths,
+            socialFeedStoragePaths:
+              inrSearchImageSet.socialFeedStoragePaths,
+            publishableUrls: inrSearchImageSet.publishableUrls,
+            socialFeedPublishableUrls:
+              inrSearchImageSet.socialFeedPublishableUrls,
+            siteCardPublishableUrls:
+              inrSearchImageSet.siteCardPublishableUrls,
+            video: durableInrSearchVideo,
+          }
+        : null;
       const publicationInsert: JsonRecord = {
         id: publicationId,
         user_id: userId,
@@ -2003,6 +2043,10 @@ async function publishNowHandler(req: Request) {
         idea,
       };
 
+      if (inrSearchSnapshot) {
+        publicationInsert.media_metadata = { inrSearch: inrSearchSnapshot };
+      }
+
       // Champs ajoutés par ops/sql/2026-05-29_booster_video_publication_columns.sql.
       if (hasAnyVideoChannel && publicationVideo) {
         publicationInsert.media_type = "video";
@@ -2013,6 +2057,7 @@ async function publishNowHandler(req: Request) {
         publicationInsert.video_duration_seconds = publicationVideo.duration;
         publicationInsert.video_thumbnail_url = publicationVideo.thumbnailUrl;
         publicationInsert.media_metadata = {
+          ...asRecord(publicationInsert.media_metadata),
           video: publicationVideo,
           videoByChannel: publicationVideoByChannel,
         };

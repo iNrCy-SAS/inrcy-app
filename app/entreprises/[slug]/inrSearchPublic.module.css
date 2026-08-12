@@ -13312,3 +13312,146 @@
   position: relative;
   z-index: 2;
 }
+
+/* === iNrSearch news single-stage and direct-number navigation ===
+   One publication owns the full stage. The ten latest publications remain
+   directly reachable without clipped titles or a hidden horizontal rail. */
+.newsOrbitStage {
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 0 !important;
+}
+
+.newsPulseGenerator {
+  left: 50%;
+  opacity: .56;
+}
+
+.newsOrbitFocus {
+  grid-template-columns: minmax(0, 1.18fr) minmax(300px, .82fr) !important;
+}
+
+.newsOrbitSecondary {
+  display: none !important;
+}
+
+.newsOrbitRail {
+  width: min(760px, 100%) !important;
+  min-height: 50px !important;
+  margin: 0 auto !important;
+  padding: 3px 2px 5px !important;
+  display: flex !important;
+  justify-content: center;
+  gap: clamp(6px, .75vw, 10px) !important;
+  overflow: visible !important;
+  touch-action: manipulation !important;
+}
+
+.newsOrbitRailItem {
+  flex: 1 1 0 !important;
+  width: auto !important;
+  max-width: 64px;
+  min-width: 42px !important;
+  min-height: 44px !important;
+  aspect-ratio: 1.18 / 1;
+  padding: 0 !important;
+  display: grid !important;
+  place-items: center;
+  border: 1px solid rgba(157, 186, 255, .18) !important;
+  border-radius: 999px !important;
+  color: rgba(232, 238, 255, .68) !important;
+  background: rgba(7, 15, 41, .72) !important;
+  box-shadow: inset 0 1px rgba(255, 255, 255, .05);
+  transition: color .2s ease, border-color .2s ease, background .2s ease, transform .2s ease, box-shadow .2s ease !important;
+}
+
+.newsOrbitRailItem > span:first-child {
+  color: inherit !important;
+  font-size: 11px !important;
+  font-weight: 950 !important;
+  letter-spacing: .07em;
+}
+
+.newsOrbitRailItem:hover {
+  transform: translateY(-2px);
+  color: #fff !important;
+  border-color: rgba(50, 216, 255, .48) !important;
+  background: rgba(50, 216, 255, .1) !important;
+}
+
+.newsOrbitRailItem[data-active="true"] {
+  transform: translateY(-2px) scale(1.06);
+  color: #fff !important;
+  border-color: rgba(255, 169, 124, .68) !important;
+  background: linear-gradient(135deg, rgba(255, 122, 69, .94), rgba(139, 92, 246, .9)) !important;
+  box-shadow: 0 10px 26px rgba(12, 7, 35, .34), 0 0 22px rgba(255, 122, 69, .2) !important;
+}
+
+.newsOrbitRailItem:focus-visible {
+  outline: 2px solid #68e8ff;
+  outline-offset: 3px;
+}
+
+.newsOrbitModalMedia img,
+.galleryLightboxFigure img,
+.galleryOrbitFocus img {
+  object-fit: contain !important;
+  object-position: center center !important;
+}
+
+.newsOrbitModalMedia > img,
+.newsOrbitModalMedia > video {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+}
+
+@media (max-width: 900px) {
+  .newsOrbitStage {
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+  }
+
+  .newsOrbitFocus {
+    height: auto !important;
+    min-height: 0 !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-rows: minmax(280px, 54vw) auto !important;
+  }
+
+  .newsOrbitFocusMedia {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+  }
+
+  .newsOrbitFocusContent {
+    grid-column: 1 !important;
+    grid-row: 2 !important;
+  }
+
+  .newsPulseGenerator {
+    display: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .newsOrbitRail {
+    width: min(390px, 100%) !important;
+    min-height: 98px !important;
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 7px !important;
+  }
+
+  .newsOrbitRailItem {
+    width: 100% !important;
+    max-width: none;
+    min-width: 0 !important;
+    min-height: 42px !important;
+    aspect-ratio: auto;
+  }
+}

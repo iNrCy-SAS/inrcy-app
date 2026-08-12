@@ -9,6 +9,10 @@ import { createInrBadgePublicUrl, createInrBadgeQrTrackingUrl } from "@/lib/inrB
 import { resolveFrenchGeography } from "@/lib/frenchGeography";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { combineOpeningSchedule } from "@/lib/openingSchedule";
+import {
+  hasSuccessfulInrSearchChannel,
+  mergeInrSearchPublicationFeeds,
+} from "@/lib/inrSearchPublicationFeed";
 
 export type InrSearchSectionKey =
   | "identity"
@@ -618,12 +622,7 @@ async function publicationVideoThumbnailUrl(payload: Record<string, unknown>, po
 }
 
 function hasLivePublicationChannel(payload: Record<string, unknown>) {
-  const result = asRecord(asRecord(payload.results).inr_search);
-  if (!Object.keys(result).length) return false;
-  const status = clean(result.status, 40).toLowerCase();
-  return result.deleted !== true
-    && status !== "deleted"
-    && (result.ok === true || status === "delivered" || status === "published");
+  return hasSuccessfulInrSearchChannel(payload);
 }
 
 async function normalizeBoosterPublicationEvents(value: unknown): Promise<InrSearchPublication[]> {
@@ -660,6 +659,138 @@ async function normalizeBoosterPublicationEvents(value: unknown): Promise<InrSea
       imageUrl,
       videoUrl,
       videoMime: publicationVideoMime(payload, preferredPost),
+      videoThumbnailUrl,
+      createdAt: clean(record.created_at, 80) || null,
+    });
+    if (publications.length >= 10) break;
+  }
+
+  return publications;
+}
+
+async function normalizeDurableInrSearchPublications(
+  value: unknown,
+): Promise<InrSearchPublication[]> {
+  if (!Array.isArray(value)) return [];
+  const publications: InrSearchPublication[] = [];
+
+  for (const row of value) {
+    const record = asRecord(row);
+    const publicationId = clean(record.id, 120);
+    if (!publicationId) continue;
+
+    const metadata = asRecord(record.media_metadata);
+    const inrSearchSnapshot = asRecord(metadata.inrSearch);
+    const hasInrSearchSnapshot = Object.keys(inrSearchSnapshot).length > 0;
+    const snapshotMediaMode = clean(inrSearchSnapshot.mediaMode, 40).toLowerCase();
+    const storedPost = asRecord(inrSearchSnapshot.post);
+    const metadataVideoByChannel = asRecord(metadata.videoByChannel);
+    const storedVideoCandidates = hasInrSearchSnapshot
+      ? snapshotMediaMode === "video"
+        ? [inrSearchSnapshot.video]
+        : []
+      : [metadataVideoByChannel.inr_search, metadata.video];
+    let storedVideo: Record<string, unknown> = {};
+    for (const candidate of storedVideoCandidates) {
+      const normalized = asRecord(candidate);
+      if (!Object.keys(normalized).length) continue;
+      storedVideo = normalized;
+      break;
+    }
+
+    if (
+      !Object.keys(storedVideo).length &&
+      (!hasInrSearchSnapshot || snapshotMediaMode === "video") &&
+      (record.video_path || record.video_url)
+    ) {
+      storedVideo = {
+        storagePath: record.video_path,
+        publicUrl: record.video_url,
+        type: record.video_mime,
+        thumbnailUrl: record.video_thumbnail_url,
+      };
+    }
+
+    const snapshotImages = arrayFromUnknown(inrSearchSnapshot.images);
+    const snapshotAttachments = arrayFromUnknown(inrSearchSnapshot.attachments);
+    const durableImages = hasInrSearchSnapshot
+      ? snapshotMediaMode === "images"
+        ? snapshotImages
+        : []
+      : arrayFromUnknown(record.images);
+    const durableAttachments = hasInrSearchSnapshot
+      && snapshotMediaMode === "images"
+      ? snapshotAttachments
+      : [];
+    const durablePost = {
+      ...storedPost,
+      images: durableImages,
+      attachments: durableAttachments,
+      storagePaths:
+        snapshotMediaMode === "images" ? inrSearchSnapshot.storagePaths : [],
+      publishableStoragePaths:
+        snapshotMediaMode === "images"
+          ? inrSearchSnapshot.publishableStoragePaths
+          : [],
+      socialFeedStoragePaths:
+        snapshotMediaMode === "images"
+          ? inrSearchSnapshot.socialFeedStoragePaths
+          : [],
+      publishableUrls:
+        snapshotMediaMode === "images"
+          ? inrSearchSnapshot.publishableUrls
+          : [],
+      socialFeedPublishableUrls:
+        snapshotMediaMode === "images"
+          ? inrSearchSnapshot.socialFeedPublishableUrls
+          : [],
+      siteCardPublishableUrls:
+        snapshotMediaMode === "images"
+          ? inrSearchSnapshot.siteCardPublishableUrls
+          : [],
+      video: storedVideo,
+      sourceVideo: storedVideo,
+    };
+    const durablePayload = {
+      images: durableImages,
+      attachments: durableAttachments,
+      video: storedVideo,
+      videoByChannel: { inr_search: storedVideo },
+      videoUrl:
+        !hasInrSearchSnapshot || snapshotMediaMode === "video"
+          ? record.video_url
+          : null,
+      video_mime:
+        !hasInrSearchSnapshot || snapshotMediaMode === "video"
+          ? record.video_mime
+          : null,
+      video_thumbnail_url:
+        !hasInrSearchSnapshot || snapshotMediaMode === "video"
+          ? record.video_thumbnail_url
+          : null,
+    };
+    const title = clean(storedPost.title || record.title || record.idea, 180);
+    const content = clean(
+      storedPost.content || storedPost.text || record.content,
+      2400,
+    );
+    if (!title && !content) continue;
+
+    const [imageUrl, videoUrl, videoThumbnailUrl] = await Promise.all([
+      publicationImageUrl(durablePayload, durablePost),
+      publicationVideoUrl(durablePayload, durablePost),
+      publicationVideoThumbnailUrl(durablePayload, durablePost),
+    ]);
+
+    publications.push({
+      id: publicationId,
+      title: title || "Actualité",
+      content,
+      imageUrl,
+      videoUrl,
+      videoMime:
+        clean(record.video_mime, 120) ||
+        publicationVideoMime(durablePayload, durablePost),
       videoThumbnailUrl,
       createdAt: clean(record.created_at, 80) || null,
     });
@@ -845,6 +976,13 @@ async function loadInrSearchPublicPageUncached(slug: string): Promise<InrSearchP
         { id: "preview-news-1", title: "iNr’Search donne une nouvelle gravité à votre présence en ligne", content: "Votre profil, vos expertises, vos réalisations et vos actualités se rejoignent désormais dans un parcours spectaculaire, lisible et conçu pour convertir.", imageUrl: "/icons/inr-search-logo.png", videoUrl: null, videoMime: "video/mp4", videoThumbnailUrl: null, createdAt: "2026-07-11T09:00:00.000Z" },
         { id: "preview-news-2", title: "Publiez une fois, rayonnez partout", content: "Les contenus envoyés depuis Booster Publier alimentent automatiquement la chronologie iNr’Search et montrent une entreprise réellement active.", imageUrl: "/icons/inr-search-bubble.png", videoUrl: null, videoMime: "video/mp4", videoThumbnailUrl: null, createdAt: "2026-07-09T09:00:00.000Z" },
         { id: "preview-news-3", title: "iNrBadge devient votre passeport de confiance", content: "Un QR code immédiatement accessible rassemble les informations essentielles et facilite le passage de la découverte au contact.", imageUrl: "/icons/inrbadge-dashboard.png", videoUrl: null, videoMime: "video/mp4", videoThumbnailUrl: null, createdAt: "2026-07-06T09:00:00.000Z" },
+        { id: "preview-news-4", title: "Vos expertises deviennent immédiatement lisibles", content: "Chaque publication enrichit un profil professionnel clair et directement accessible.", imageUrl: "/logo-appli-inrcy.png", videoUrl: null, videoMime: "video/mp4", videoThumbnailUrl: null, createdAt: "2026-07-04T09:00:00.000Z" },
+        { id: "preview-news-5", title: "Une actualité pensée pour tous les écrans", content: "Les textes et les médias restent accessibles sur ordinateur, tablette et mobile.", imageUrl: "/icons/inr-search-logo.png", videoUrl: null, videoMime: "video/mp4", videoThumbnailUrl: null, createdAt: "2026-07-02T09:00:00.000Z" },
+        { id: "preview-news-6", title: "Booster alimente automatiquement votre profil", content: "Le canal iNrSearch reçoit le texte et le média sélectionnés dès que la publication aboutit.", imageUrl: "/icons/inr-search-bubble.png", videoUrl: null, videoMime: "video/mp4", videoThumbnailUrl: null, createdAt: "2026-06-30T09:00:00.000Z" },
+        { id: "preview-news-7", title: "Votre activité reste vivante dans le temps", content: "Les dix actualités les plus récentes forment une chronologie simple à parcourir.", imageUrl: "/icons/inrbadge-dashboard.png", videoUrl: null, videoMime: "video/mp4", videoThumbnailUrl: null, createdAt: "2026-06-28T09:00:00.000Z" },
+        { id: "preview-news-8", title: "Chaque média conserve son cadrage", content: "Les formats carrés, verticaux et horizontaux sont affichés sans découpe.", imageUrl: "/logo-appli-inrcy.png", videoUrl: null, videoMime: "video/mp4", videoThumbnailUrl: null, createdAt: "2026-06-26T09:00:00.000Z" },
+        { id: "preview-news-9", title: "Une navigation directe et accessible", content: "Les numéros permettent d’ouvrir immédiatement l’actualité souhaitée.", imageUrl: "/icons/inr-search-logo.png", videoUrl: null, videoMime: "video/mp4", videoThumbnailUrl: null, createdAt: "2026-06-24T09:00:00.000Z" },
+        { id: "preview-news-10", title: "Votre dernière publication toujours en avant", content: "La chronologie se réorganise automatiquement pour présenter les nouveautés en premier.", imageUrl: "/icons/inr-search-bubble.png", videoUrl: null, videoMime: "video/mp4", videoThumbnailUrl: null, createdAt: "2026-06-22T09:00:00.000Z" },
       ],
       media: [
         { id: "preview-media-1", title: "L’univers iNr’Search", url: "/icons/inr-search-logo.png" },
@@ -877,7 +1015,15 @@ async function loadInrSearchPublicPageUncached(slug: string): Promise<InrSearchP
   if (!normalizedSlug || config.enabled !== true) return null;
 
   const profileOwnerIds = Array.from(new Set([userId, eligibility.authUserId].filter(Boolean)));
-  const [profileRes, businessRes, siteRes, integrationsRes, boosterEventsRes, media] = await Promise.all([
+  const [
+    profileRes,
+    businessRes,
+    siteRes,
+    integrationsRes,
+    boosterEventsRes,
+    inrSearchDeliveriesRes,
+    media,
+  ] = await Promise.all([
     supabaseAdmin
       .from("profiles")
       .select("*")
@@ -907,6 +1053,14 @@ async function loadInrSearchPublicPageUncached(slug: string): Promise<InrSearchP
       .eq("type", "publish")
       .order("created_at", { ascending: false })
       .limit(120),
+    supabaseAdmin
+      .from("publication_deliveries")
+      .select("publication_id,status,created_at")
+      .eq("user_id", userId)
+      .eq("channel", "inr_search")
+      .in("status", ["delivered", "published", "completed"])
+      .order("created_at", { ascending: false })
+      .limit(120),
     loadMedia(userId),
   ]);
 
@@ -925,6 +1079,23 @@ async function loadInrSearchPublicPageUncached(slug: string): Promise<InrSearchP
   const profile = selectedProfile;
   const business = asRecord(businessRes.data);
   const siteConfig = asRecord(siteRes.data);
+  const deliveredPublicationIds = Array.from(
+    new Set(
+      (Array.isArray(inrSearchDeliveriesRes.data)
+        ? inrSearchDeliveriesRes.data
+        : [])
+        .map((row) => clean(asRecord(row).publication_id, 120))
+        .filter(Boolean),
+    ),
+  );
+  const durablePublicationsRes = deliveredPublicationIds.length
+    ? await supabaseAdmin
+        .from("publications")
+        .select("id,title,content,idea,images,created_at,media_type,video_url,video_path,video_mime,video_thumbnail_url,media_metadata")
+        .eq("user_id", userId)
+        .in("id", deliveredPublicationIds)
+        .order("created_at", { ascending: false })
+    : { data: [], error: null };
 
   // The active professional account remains the source of business identity,
   // but its logo may still live on the authenticated owner profile after a
@@ -1023,7 +1194,15 @@ async function loadInrSearchPublicPageUncached(slug: string): Promise<InrSearchP
   ].filter((item) => Boolean(item.url));
 
   const faq = buildFaq({ companyName, profession, city, services, zones, customerTypes, phone, email, openingDays, openingHours });
-  const publications = await normalizeBoosterPublicationEvents(boosterEventsRes.data);
+  const [eventPublications, durablePublications] = await Promise.all([
+    normalizeBoosterPublicationEvents(boosterEventsRes.data),
+    normalizeDurableInrSearchPublications(durablePublicationsRes.data),
+  ]);
+  const publications = mergeInrSearchPublicationFeeds(
+    eventPublications,
+    durablePublications,
+    10,
+  );
   const updatedAt = latestIsoDate([
     config.updatedAt,
     profile.updated_at,
@@ -1083,7 +1262,7 @@ const loadInrSearchPublicPageCached = cache(async (slugValue: string) => {
   if (!slug) return null;
   const readCachedPage = unstable_cache(
     () => loadInrSearchPublicPageRequestCached(slug),
-    ["inr-search-public-page-v2", slug],
+    ["inr-search-public-page-v3", slug],
     { revalidate: 300, tags: [getInrSearchPublicPageCacheTag(slug)] },
   );
   return readCachedPage();

@@ -18,13 +18,6 @@ function formatDate(value: string | null) {
   return date.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
 }
 
-function formatShortDate(value: string | null) {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleDateString("fr-FR", { day: "2-digit", month: "short" });
-}
-
 function wrapIndex(index: number, length: number) {
   if (!length) return 0;
   return (index + length) % length;
@@ -87,10 +80,6 @@ export default function InrSearchNewsShowcase({ companyName, publications }: Pro
       requestAnimationFrame(() => returnFocusRef.current?.focus());
     };
   }, [modalOpen, move]);
-
-  const secondaryIndices = total > 1
-    ? Array.from({ length: Math.min(2, total - 1) }, (_, offset) => wrapIndex(activeIndex + offset + 1, total))
-    : [];
 
   return (
     <div className={styles.newsOrbitExperience}>
@@ -156,39 +145,6 @@ export default function InrSearchNewsShowcase({ companyName, publications }: Pro
             </span>
           </div>
 
-          <div className={styles.newsOrbitSecondary} aria-label="Signaux suivants">
-            {secondaryIndices.map((index) => {
-              const publication = publications[index];
-              return (
-                <button
-                  type="button"
-                  className={styles.newsOrbitSecondaryCard}
-                  key={publication.id}
-                  onClick={() => setActiveIndex(index)}
-                  id={`actualite-${index + 1}`}
-                  aria-label={`Afficher l’actualité ${publication.title}`}
-                >
-                  <span>
-                    {publication.videoUrl ? (
-                      <video
-                        src={publication.videoUrl}
-                        poster={publication.videoThumbnailUrl || publication.imageUrl || undefined}
-                        muted
-                        playsInline
-                        preload="metadata"
-                        aria-hidden="true"
-                      />
-                    ) : publication.imageUrl ? (
-                      <Image src={publication.imageUrl} alt={`${publication.title} — ${companyName}`} width={640} height={400} sizes="240px" loading="lazy" unoptimized />
-                    ) : <i aria-hidden="true">✦</i>}
-                  </span>
-                  <small>{publication.createdAt ? formatShortDate(publication.createdAt) : "Signal"}</small>
-                  <strong>{publication.title}</strong>
-                  <p>{excerpt(publication.content, 95)}</p>
-                </button>
-              );
-            })}
-          </div>
         </div>
       ) : (
         <div className={styles.newsOrbitEmpty} role="status">
@@ -210,10 +166,9 @@ export default function InrSearchNewsShowcase({ companyName, publications }: Pro
               onClick={() => setActiveIndex(index)}
               role="listitem"
               aria-label={`Afficher ${publication.title}`}
+              aria-current={index === activeIndex ? "true" : undefined}
             >
               <span>{String(index + 1).padStart(2, "0")}</span>
-              <strong>{publication.title}</strong>
-              {publication.createdAt ? <time dateTime={publication.createdAt}>{formatShortDate(publication.createdAt)}</time> : null}
               <span className={styles.newsOrbitAccessibleContent}>{publication.content}</span>
             </button>
           ))}

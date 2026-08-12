@@ -84,8 +84,9 @@ test("iNrSearch news renews publication media from durable storage before histor
   assert.match(publicData, /collectThumbnailStorageCandidates/);
   assert.match(publicData, /createSafeStorageSignedUrl\([\s\S]*MEDIA_SIGNED_URL_TTL_SECONDS/);
   assert.match(publicData, /const storageUrl = await resolveStorageMediaUrl/);
-  assert.match(publicData, /const publications = await normalizeBoosterPublicationEvents/);
-  assert.match(publicData, /"inr-search-public-page-v2"/);
+  assert.match(publicData, /normalizeBoosterPublicationEvents\(boosterEventsRes\.data\)/);
+  assert.match(publicData, /normalizeDurableInrSearchPublications/);
+  assert.match(publicData, /"inr-search-public-page-v3"/);
 });
 
 test("public iNrSearch news keeps all media contained and exposes video controls", () => {
@@ -101,4 +102,37 @@ test("public iNrSearch news keeps all media contained and exposes video controls
   assert.match(block, /newsOrbitFocusMedia > img,[\s\S]*newsOrbitModalMedia video[\s\S]*object-fit:\s*contain !important/);
   assert.match(block, /object-position:\s*center center !important/);
   assert.match(block, /newsOrbitFocus:hover[\s\S]*transform:\s*none !important/);
+});
+
+test("public iNrSearch news uses one full stage and ten direct number controls", () => {
+  const showcase = read("app/entreprises/[slug]/InrSearchNewsShowcase.tsx");
+  const css = read("app/entreprises/[slug]/inrSearchPublic.module.css");
+  const marker = "/* === iNrSearch news single-stage and direct-number navigation ===";
+  const block = css.slice(css.indexOf(marker));
+
+  assert.ok(block.startsWith(marker));
+  assert.doesNotMatch(showcase, /styles\.newsOrbitSecondary/);
+  assert.doesNotMatch(showcase, /<strong>\{publication\.title\}<\/strong>/);
+  assert.doesNotMatch(showcase, /formatShortDate/);
+  assert.match(showcase, /aria-current=\{index === activeIndex/);
+  assert.match(block, /newsOrbitStage[\s\S]*grid-template-columns:\s*minmax\(0, 1fr\) !important/);
+  assert.match(block, /newsOrbitRailItem\[data-active="true"\]/);
+  assert.match(block, /grid-template-columns:\s*repeat\(5, minmax\(0, 1fr\)\)/);
+  assert.match(block, /newsOrbitModalMedia > img,[\s\S]*position:\s*absolute !important/);
+  assert.match(block, /newsOrbitModalMedia > video[\s\S]*height:\s*100% !important/);
+});
+
+test("successful iNrSearch deliveries have a durable text and media recovery path", () => {
+  const publishRoute = read("app/api/booster/publish-now/route.ts");
+  const publicData = read("lib/inrSearchPublic.ts");
+
+  assert.match(publishRoute, /const inrSearchSnapshot = inrSearchSelected/);
+  assert.match(
+    publishRoute,
+    /publicationInsert\.media_metadata\s*=\s*\{\s*inrSearch:\s*inrSearchSnapshot\s*\}/,
+  );
+  assert.match(publishRoute, /publishableStoragePaths/);
+  assert.match(publicData, /from\("publication_deliveries"\)/);
+  assert.match(publicData, /normalizeDurableInrSearchPublications/);
+  assert.match(publicData, /mergeInrSearchPublicationFeeds/);
 });
