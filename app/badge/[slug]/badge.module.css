@@ -2733,15 +2733,26 @@
   justify-content: space-between !important;
   gap: 14px !important;
   background:
-    radial-gradient(circle at 16% 18%, rgba(255,255,255,0.22), transparent 24%),
-    linear-gradient(135deg, rgba(14,165,233,0.72), rgba(37,99,235,0.72) 48%, rgba(124,58,237,0.74) 100%) !important;
-  border: 1px solid rgba(186,230,253,0.38) !important;
+    radial-gradient(circle at 16% 18%, rgba(255,255,255,0.30), transparent 24%),
+    linear-gradient(135deg, rgba(255,255,255,0.26), rgba(255,255,255,0.15) 48%, rgba(255,255,255,0.21) 100%) !important;
+  border: 1px solid rgba(255,255,255,0.30) !important;
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.22),
-    0 16px 32px rgba(37,99,235,0.20),
-    0 0 28px rgba(14,165,233,0.12) !important;
-  backdrop-filter: blur(14px) saturate(150%);
-  -webkit-backdrop-filter: blur(14px) saturate(150%);
+    inset 0 1px 0 rgba(255,255,255,0.32),
+    0 16px 32px rgba(0,0,0,0.22),
+    0 0 24px rgba(255,255,255,0.04) !important;
+  backdrop-filter: blur(16px) saturate(115%);
+  -webkit-backdrop-filter: blur(16px) saturate(115%);
+}
+
+.ctaWrap .tone_inrsearch:hover {
+  background:
+    radial-gradient(circle at 16% 18%, rgba(255,255,255,0.36), transparent 24%),
+    linear-gradient(135deg, rgba(255,255,255,0.32), rgba(255,255,255,0.19) 48%, rgba(255,255,255,0.25) 100%) !important;
+  border-color: rgba(255,255,255,0.38) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.38),
+    0 18px 36px rgba(0,0,0,0.24),
+    0 0 26px rgba(255,255,255,0.06) !important;
 }
 
 .ctaWrap .tone_inrsearch::before {
