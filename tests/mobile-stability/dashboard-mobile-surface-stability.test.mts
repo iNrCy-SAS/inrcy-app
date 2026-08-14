@@ -38,3 +38,13 @@ test("the bottom dock prevents compositor seams while preserving its border", ()
   assert.doesNotMatch(barBlock, /display: none/);
   assert.doesNotMatch(barBlock, /border-top: none/);
 });
+
+test("shared header actions switch to icon mode across the tablet breakpoint", () => {
+  const css = read("app/dashboard/_components/ResponsiveActionButton.module.css");
+
+  assert.match(
+    css,
+    /@media \(max-width: 900px\)\s*\{[\s\S]*?\.text\{ display:none; \}[\s\S]*?\.icon\{ display:inline; \}/,
+  );
+  assert.doesNotMatch(css, /@media \(max-width: 720px\)/);
+});
