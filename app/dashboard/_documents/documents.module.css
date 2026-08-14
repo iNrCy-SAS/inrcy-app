@@ -1437,8 +1437,8 @@
 }
 
 @media print {
-  :global(html),
-:global(body) {
+  :global(html):has(.editorPage),
+:global(body):has(.editorPage) {
     width: auto !important;
     height: auto !important;
     min-width: 0 !important;

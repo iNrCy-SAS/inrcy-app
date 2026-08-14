@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   readAccountCacheValue,
   writeAccountCacheValue,
@@ -261,67 +261,84 @@ export function useAgentRuntimeData({
 }: {
   standardMode?: boolean;
 } = {}) {
-  const cachedInitialAgentSnapshot = useMemo(
-    () => readCachedAgentViewSnapshot(),
-    [],
-  );
-  const cachedInitialConnectedChannels = useMemo(
-    () =>
-      cachedInitialAgentSnapshot?.connectedChannels ??
-      readCachedAgentConnectedChannels(),
-    [cachedInitialAgentSnapshot],
-  );
-  const cachedInitialSettingsSource =
-    cachedInitialAgentSnapshot?.settings ?? INR_AGENT_DEFAULT_SETTINGS;
-  const cachedInitialSettings = standardMode
-    ? restrictInrAgentSettingsForStandard(cachedInitialSettingsSource)
-    : cachedInitialSettingsSource;
-  const cachedInitialActions = standardMode
-    ? filterStandardAgentItems(cachedInitialAgentSnapshot?.actions ?? [])
-    : cachedInitialAgentSnapshot?.actions ?? [];
-  const cachedInitialScheduledActions = standardMode
-    ? filterStandardAgentItems(cachedInitialAgentSnapshot?.scheduledActions ?? [])
-    : cachedInitialAgentSnapshot?.scheduledActions ?? [];
+  // The server and the browser must produce the same first render. Browser
+  // caches are restored immediately after hydration, then refreshed from the
+  // authoritative APIs in the background.
+  const deterministicInitialSettings = standardMode
+    ? restrictInrAgentSettingsForStandard(INR_AGENT_DEFAULT_SETTINGS)
+    : INR_AGENT_DEFAULT_SETTINGS;
+  const cachedAgentSnapshotRef = useRef<CachedAgentViewSnapshot | null>(null);
 
   const [agentSettings, setAgentSettings] = useState<InrAgentSettings>(
-    cachedInitialSettings,
+    deterministicInitialSettings,
   );
   const [configs, setConfigs] = useState<
     Record<AutomationKey, AutomationConfig>
-  >(() => settingsToConfigs(cachedInitialSettings));
+  >(() => settingsToConfigs(deterministicInitialSettings));
   const [agentConnectedChannels, setAgentConnectedChannels] =
-    useState<ConnectedChannelMap | null>(() => cachedInitialConnectedChannels);
+    useState<ConnectedChannelMap | null>(null);
   const [connectedChannelsLoadState, setConnectedChannelsLoadState] =
-    useState<LoadState>(() =>
-      cachedInitialConnectedChannels ? "ready" : "loading",
-    );
-  const [loadState, setLoadState] = useState<LoadState>(() =>
-    cachedInitialAgentSnapshot?.settings ? "ready" : "loading",
-  );
+    useState<LoadState>("loading");
+  const [loadState, setLoadState] = useState<LoadState>("loading");
   const [saveState, setSaveState] = useState<SaveState>("idle");
-  const [tableMissing, setTableMissing] = useState(() =>
-    Boolean(cachedInitialAgentSnapshot?.tableMissing),
-  );
+  const [tableMissing, setTableMissing] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const [actions, setActions] = useState<AgentPreparedAction[]>(
-    () => cachedInitialActions,
-  );
+  const [actions, setActions] = useState<AgentPreparedAction[]>([]);
   const [scheduledActions, setScheduledActions] = useState<
     AgentScheduledAction[]
-  >(() => cachedInitialScheduledActions);
+  >([]);
   const [scheduledActionsTableMissing, setScheduledActionsTableMissing] =
-    useState(() =>
-      Boolean(cachedInitialAgentSnapshot?.scheduledActionsTableMissing),
-    );
+    useState(false);
   const [actionsLoadState, setActionsLoadState] =
-    useState<ActionsLoadState>(() =>
-      cachedInitialAgentSnapshot?.actions ? "ready" : "loading",
-    );
+    useState<ActionsLoadState>("loading");
 
   function showNotice(message: string) {
     setNotice(getClientUserFacingErrorMessage(message));
     window.setTimeout(() => setNotice(null), 2600);
   }
+
+  useEffect(() => {
+    const cachedSnapshot = readCachedAgentViewSnapshot();
+    const cachedConnectedChannels =
+      cachedSnapshot?.connectedChannels ?? readCachedAgentConnectedChannels();
+    cachedAgentSnapshotRef.current = cachedSnapshot;
+
+    if (cachedSnapshot?.settings) {
+      const nextSettings = standardMode
+        ? restrictInrAgentSettingsForStandard(cachedSnapshot.settings)
+        : cachedSnapshot.settings;
+      setAgentSettings(nextSettings);
+      setConfigs(settingsToConfigs(nextSettings));
+      setLoadState("ready");
+    }
+
+    if (cachedConnectedChannels) {
+      setAgentConnectedChannels(cachedConnectedChannels);
+      setConnectedChannelsLoadState("ready");
+    }
+
+    if (Array.isArray(cachedSnapshot?.actions)) {
+      setActions(
+        standardMode
+          ? filterStandardAgentItems(cachedSnapshot.actions)
+          : cachedSnapshot.actions,
+      );
+      setActionsLoadState("ready");
+    }
+
+    if (Array.isArray(cachedSnapshot?.scheduledActions)) {
+      setScheduledActions(
+        standardMode
+          ? filterStandardAgentItems(cachedSnapshot.scheduledActions)
+          : cachedSnapshot.scheduledActions,
+      );
+    }
+
+    setTableMissing(Boolean(cachedSnapshot?.tableMissing));
+    setScheduledActionsTableMissing(
+      Boolean(cachedSnapshot?.scheduledActionsTableMissing),
+    );
+  }, [standardMode]);
 
   useEffect(() => {
     let alive = true;
@@ -363,7 +380,7 @@ export function useAgentRuntimeData({
       } catch (error) {
         if (!alive) return;
         setLoadState((current) => (current === "ready" ? current : "error"));
-        if (!cachedInitialAgentSnapshot?.settings) {
+        if (!cachedAgentSnapshotRef.current?.settings) {
           setNotice(
             error instanceof Error
               ? error.message
@@ -465,7 +482,11 @@ export function useAgentRuntimeData({
       setActionsLoadState((current) =>
         current === "ready" ? current : "error",
       );
-      if (!silent && actionsLoadState !== "ready") {
+      if (
+        !silent &&
+        actionsLoadState !== "ready" &&
+        !Array.isArray(cachedAgentSnapshotRef.current?.actions)
+      ) {
         showNotice(
           error instanceof Error
             ? error.message

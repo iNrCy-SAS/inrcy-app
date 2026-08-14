@@ -52,11 +52,11 @@ test("the public badge exposes iNr'Search as a channel and a verified news CTA",
   assert.match(publicBadgeStyles, /\.channelsRow > \.tone_inrsearch\.actionIconOnly \.iconImage/);
   assert.match(
     publicBadgeStyles,
-    /\.ctaWrap \.tone_inrsearch \.arrow \{[\s\S]*?position: absolute;[\s\S]*?top: 50%;[\s\S]*?transform: translateY\(-50%\);/,
+    /\.ctaWrap \.tone_inrsearch \.arrow,[\s\S]*?position: relative;[\s\S]*?display: grid;[\s\S]*?place-items: center;[\s\S]*?transform: none;/,
   );
   assert.match(
     publicBadgeStyles,
-    /\.ctaWrap \.tone_inrsearch \.actionIcon \{[\s\S]*?background: transparent;[\s\S]*?box-shadow: none;/,
+    /\.ctaWrap \.tone_inrsearch \.actionIcon,[\s\S]*?\{[\s\S]*?background: transparent;[\s\S]*?box-shadow: none;/,
   );
 });
 

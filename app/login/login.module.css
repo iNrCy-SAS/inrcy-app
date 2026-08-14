@@ -48,7 +48,7 @@
 }
 
 /* ===== Fond luxe ===== */
-:global(.inrcy-soft-noise) {
+.layout :global(.inrcy-soft-noise) {
   background-image:
     radial-gradient(circle at 18% 12%, var(--c2), transparent 42%),
     radial-gradient(circle at 75% 22%, var(--c1), transparent 38%),
@@ -57,7 +57,7 @@
     linear-gradient(180deg, #f6f9ff, #edf2ff);
 }
 
-:global(.inrcy-noise-overlay) {
+.layout :global(.inrcy-noise-overlay) {
   position: absolute;
   inset: 0;
   pointer-events: none;
@@ -75,7 +75,7 @@
 }
 
 /* ===== Card ===== */
-:global(.inrcy-card) {
+.layout :global(.inrcy-card) {
   background: var(--glass);
   border: 1px solid rgba(255, 255, 255, 0.75);
   border-radius: 18px;
@@ -86,7 +86,7 @@
 }
 
 /* ===== Inputs ===== */
-:global(.inrcy-input) {
+.layout :global(.inrcy-input) {
   width: 100%;
   height: 44px;
   padding: 0 44px 0 14px;
@@ -97,11 +97,11 @@
   outline: none;
 }
 
-:global(.inrcy-input::placeholder) {
+.layout :global(.inrcy-input::placeholder) {
   color: rgba(2, 6, 23, 0.38);
 }
 
-:global(.inrcy-input:focus) {
+.layout :global(.inrcy-input:focus) {
   border-color: rgba(120, 90, 255, 0.35);
   box-shadow:
     0 0 0 4px rgba(120, 90, 255, 0.15),
@@ -109,7 +109,7 @@
 }
 
 /* ===== Bouton ===== */
-:global(.inrcy-btn) {
+.layout :global(.inrcy-btn) {
   height: 46px;
   border-radius: 12px;
   color: white;
@@ -118,14 +118,14 @@
 }
 
 /* ===== Réseau + particules ===== */
-:global(.inrcy-lines) {
+.layout :global(.inrcy-lines) {
   position: absolute;
   inset: 0;
   pointer-events: none;
   z-index: 0;
 }
 
-:global(.inrcy-float-field) {
+.layout :global(.inrcy-float-field) {
   position: absolute;
   inset: 0;
   pointer-events: none;
@@ -148,7 +148,7 @@
   50%      { transform: scale(1.22); filter: saturate(1.12); }
 }
 
-:global(.inrcy-wander-dot) {
+.layout :global(.inrcy-wander-dot) {
   position: absolute;
   border-radius: 9999px;
   animation: inrcy-wander calc(var(--dur) * 0.65) ease-in-out infinite;
@@ -156,7 +156,7 @@
   will-change: transform;
 }
 
-:global(.inrcy-wander-dot::after) {
+.layout :global(.inrcy-wander-dot::after) {
   content: "";
   position: absolute;
   inset: 0;
@@ -188,20 +188,20 @@
 }
 
 /* Logo */
-:global(.inrcy-logo-wrap) {
+.layout :global(.inrcy-logo-wrap) {
   display: inline-grid;
   place-items: center;
 }
 
-:global(.inrcy-logo) {
+.layout :global(.inrcy-logo) {
   background: transparent !important;
   box-shadow: none !important;
 }
 
 /* Accessibilité */
 @media (prefers-reduced-motion: reduce) {
-  :global(.inrcy-wander-dot),
-  :global(.inrcy-wander-dot::after) {
+  .layout :global(.inrcy-wander-dot),
+  .layout :global(.inrcy-wander-dot::after) {
     animation: none !important;
   }
 }

@@ -2,7 +2,7 @@
    Objectif : lecture business, pas un dashboard GA4.
 */
 
-:root {
+.page {
   --bg: #0b0d12;
   --card: rgba(18, 22, 32, 0.70);
   --card2: rgba(18, 22, 32, 0.55);
@@ -4794,7 +4794,7 @@
 }
 
 /* iNrStats — lecture Mails spécifique (canal différent des réseaux/sites) */
-:root {
+.page {
   --cValoriser: rgba(251, 146, 60, 0.96);
   --cRecolter: rgba(244, 114, 182, 0.96);
   --cOffrir: rgba(250, 204, 21, 0.96);

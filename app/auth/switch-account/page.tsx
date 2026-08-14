@@ -1,7 +1,7 @@
 import SwitchAccountClient from './SwitchAccountClient';
 
 type PageProps = {
-  searchParams?: Promise<Record<string, string | string[] | undefined>> | Record<string, string | string[] | undefined>
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
 function pickFirst(value: string | string[] | undefined): string | null {
@@ -10,7 +10,9 @@ function pickFirst(value: string | string[] | undefined): string | null {
 }
 
 export default async function SwitchAccountPage({ searchParams }: PageProps) {
-  const resolved = searchParams ? await searchParams : {};
+  const resolved: Record<string, string | string[] | undefined> = searchParams
+    ? await searchParams
+    : {};
 
   return (
     <SwitchAccountClient

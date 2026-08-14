@@ -1,4 +1,4 @@
-:root {
+.page {
   --admin-card: rgba(18, 22, 32, 0.72);
   --admin-card-soft: rgba(18, 22, 32, 0.52);
   --admin-border: rgba(255, 255, 255, 0.12);

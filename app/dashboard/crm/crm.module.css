@@ -4,7 +4,7 @@
    - Uses CSS variables when available, and graceful fallbacks
 */
 
-:root{
+.shell{
   --inrcy-bg: #0b0d12;
   --inrcy-card: rgba(18, 22, 32, .70);
   --inrcy-card-2: rgba(18, 22, 32, .55);
@@ -474,7 +474,7 @@
    iNrCy Dream UI Enhancements
    ========================= */
 
-:root{
+.shell{
   --inrcy-cyan: rgb(56,189,248);
   --inrcy-violet: rgb(157,78,255);
   --inrcy-pink: rgb(255,60,120);
@@ -2392,7 +2392,7 @@
    CRM compact rows + full-height board (Apr 2026)
    ========================= */
 
-:root{
+.shell{
   --crm-row-height: 28px;
   --crm-head-height: 34px;
 }
@@ -2485,7 +2485,7 @@
    CRM no-scroll fixed 25 rows — FINAL (Apr 2026)
    ========================= */
 
-:root{
+.shell{
   --crm-head-height: 34px;
 }
 

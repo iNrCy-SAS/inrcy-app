@@ -176,7 +176,7 @@
   box-shadow:0 12px 24px rgba(0,0,0,.16);
 }
 
-button:disabled{
+.page button:disabled{
   opacity:.55;
   cursor:not-allowed;
   transform:none!important;

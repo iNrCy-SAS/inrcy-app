@@ -33,7 +33,7 @@ function isRejectedAgendaEvent(event: Record<string, unknown>) {
   return String(meta.status || "").toLowerCase() === "rejected";
 }
 
-export async function generateMetadata({ params }: { params: Promise<{ slug: string }> | { slug: string } }): Promise<Metadata> {
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const resolvedParams = await params;
   const slug = trim(resolvedParams.slug);
   const iconUrl = getBadgeIconUrl(slug);
@@ -71,7 +71,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   };
 }
 
-export default async function InrBadgeRdvPage({ params }: { params: Promise<{ slug: string }> | { slug: string } }) {
+export default async function InrBadgeRdvPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = await params;
   const slug = trim(resolvedParams.slug);
   const userId = extractInrBadgeUserIdFromSlug(slug);
