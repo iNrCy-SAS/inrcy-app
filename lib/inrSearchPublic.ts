@@ -1256,34 +1256,23 @@ export function getInrSearchPublicPageCacheTag(slugValue: unknown) {
 }
 
 const loadInrSearchPublicPageRequestCached = cache(loadInrSearchPublicPageUncached);
-const INR_SEARCH_PAGE_MISSING_CACHE_SENTINEL = "inr_search_page_missing_do_not_cache";
 
 const loadInrSearchPublicPageCached = cache(async (slugValue: string) => {
   const slug = normalizeInrSearchDirectorySlug(slugValue);
   if (!slug) return null;
   const readCachedPage = unstable_cache(
-    async () => {
-      const page = await loadInrSearchPublicPageRequestCached(slug);
-      // Never persist a false negative. A cold deployment can briefly lose a
-      // database read; caching that `null` would turn a healthy page into a
-      // five-minute 404. Successful pages remain cached normally.
-      if (!page) throw new Error(INR_SEARCH_PAGE_MISSING_CACHE_SENTINEL);
-      return page;
-    },
+    async () => loadInrSearchPublicPageRequestCached(slug),
     ["inr-search-public-page-v4", slug],
     { revalidate: 300, tags: [getInrSearchPublicPageCacheTag(slug)] },
   );
-  try {
-    return await readCachedPage();
-  } catch (error) {
-    if (
-      error instanceof Error &&
-      error.message.includes(INR_SEARCH_PAGE_MISSING_CACHE_SENTINEL)
-    ) {
-      return null;
-    }
-    throw error;
-  }
+  const cachedPage = await readCachedPage();
+  if (cachedPage) return cachedPage;
+
+  // A cached miss is never authoritative. Retry outside `unstable_cache` so a
+  // transient database read cannot turn a healthy page into a five-minute 404.
+  // Returning `null` instead of throwing also keeps expected unknown slugs out
+  // of the production error stream.
+  return loadInrSearchPublicPageUncached(slug);
 });
 
 export const loadInrSearchPublicPage = loadInrSearchPublicPageCached;

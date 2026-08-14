@@ -46,8 +46,8 @@
   filter: drop-shadow(0 0 10px rgba(96, 165, 250, 0.32));
 }
 
-/* Mobile: icon only */
-@media (max-width: 720px){
+/* Phones and tablets use the compact action treatment used by the dashboard dock. */
+@media (max-width: 900px){
   .btn{ padding:10px 12px; }
   .text{ display:none; }
   .icon{ display:inline; }

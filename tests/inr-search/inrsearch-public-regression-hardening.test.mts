@@ -87,8 +87,9 @@ test("iNrSearch news renews publication media from durable storage before histor
   assert.match(publicData, /normalizeBoosterPublicationEvents\(boosterEventsRes\.data\)/);
   assert.match(publicData, /normalizeDurableInrSearchPublications/);
   assert.match(publicData, /"inr-search-public-page-v4"/);
-  assert.match(publicData, /INR_SEARCH_PAGE_MISSING_CACHE_SENTINEL/);
-  assert.match(publicData, /if \(!page\) throw new Error/);
+  assert.match(publicData, /if \(cachedPage\) return cachedPage/);
+  assert.match(publicData, /return loadInrSearchPublicPageUncached\(slug\)/);
+  assert.doesNotMatch(publicData, /inr_search_page_missing_do_not_cache/);
   const publicPage = read("app/entreprises/[slug]/page.tsx");
   assert.match(publicPage, /export const dynamic = "force-dynamic"/);
   assert.match(publicPage, /export const revalidate = 0/);
