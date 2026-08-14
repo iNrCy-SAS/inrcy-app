@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 
 type BoosterRedirectPageProps = {
-  searchParams?: Promise<Record<string, string | string[] | undefined>> | Record<string, string | string[] | undefined>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
 function firstParam(value: string | string[] | undefined) {
@@ -9,7 +9,9 @@ function firstParam(value: string | string[] | undefined) {
 }
 
 export default async function BoosterRedirectPage({ searchParams }: BoosterRedirectPageProps) {
-  const resolved = await Promise.resolve(searchParams || {});
+  const resolved: Record<string, string | string[] | undefined> = searchParams
+    ? await searchParams
+    : {};
   const params = new URLSearchParams();
 
   const action = firstParam(resolved.action);

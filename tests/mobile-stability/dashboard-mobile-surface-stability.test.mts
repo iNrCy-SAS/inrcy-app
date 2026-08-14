@@ -13,14 +13,14 @@ test("the dashboard activates a route-scoped dark browser surface", () => {
   assert.match(layout, /inrcy-dashboard-shell/);
   assert.match(globals, /html:has\(\.inrcy-dashboard-shell\)/);
   assert.match(globals, /body:has\(\.inrcy-dashboard-shell\)/);
-  assert.match(globals, /background-color: #080b1c/);
+  assert.match(globals, /background-color: #0b142c/);
 });
 
 test("the mobile dashboard keeps a continuous dark rendering surface", () => {
   const css = read("app/dashboard/dashboard.module.css");
 
-  assert.match(css, /\.shell \{[\s\S]*background-color: #080b1c/);
-  assert.match(css, /\.mobileViewport \{[\s\S]*overscroll-behavior-y: contain[\s\S]*background-color: #080b1c/);
+  assert.match(css, /\.shell \{[\s\S]*background-color: #0b142c/);
+  assert.match(css, /\.mobileViewport \{[\s\S]*overscroll-behavior-y: contain[\s\S]*background-color: #0b142c/);
 });
 
 test("the bottom dock prevents compositor seams while preserving its border", () => {

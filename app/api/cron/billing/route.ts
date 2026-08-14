@@ -13,6 +13,7 @@ import {
 } from "@/lib/billingCatalog";
 import { stripeSubscriptionPeriodEndUnix } from "@/lib/stripeSubscription";
 import { stripeSubscriptionCadence } from "@/lib/subscriptionCancellation";
+import { captureApiException } from "@/lib/observability/sentry";
 
 export const runtime = "nodejs";
 
@@ -154,6 +155,27 @@ export async function GET(req: Request) {
 
   const now = new Date();
   const reminderOffsets = [...TRIAL_REMINDER_OFFSETS];
+  let mailFailures = 0;
+
+  async function deliverReminderSafely(
+    operation: "trial_reminder" | "annual_renewal_reminder",
+    userId: string,
+    deliver: () => Promise<void>,
+  ) {
+    try {
+      await deliver();
+      return true;
+    } catch (error) {
+      mailFailures += 1;
+      captureApiException(req, error, {
+        area: "billing",
+        operation,
+        userId,
+        statusCode: 502,
+      });
+      return false;
+    }
+  }
 
   const { data: trials, error: tErr } = await supabaseAdmin
     .from("subscriptions")
@@ -250,7 +272,21 @@ export async function GET(req: Request) {
           daysBeforeEnd: daysUntilEnd,
         });
 
-    await sendTxMail({ to, subject, text, html, attachments: await getInrcyBrandInlineAttachments() });
+    const delivered = await deliverReminderSafely(
+      "trial_reminder",
+      s.user_id,
+      async () => {
+        await sendTxMail({
+          to,
+          subject,
+          text,
+          html,
+          attachments: await getInrcyBrandInlineAttachments(),
+        });
+      },
+    );
+    if (!delivered) continue;
+
     await supabaseAdmin
       .from("subscriptions")
       .update({
@@ -447,7 +483,21 @@ export async function GET(req: Request) {
         amountLabel,
       });
 
-      await sendTxMail({ to, subject, text, html, attachments: await getInrcyBrandInlineAttachments() });
+      const delivered = await deliverReminderSafely(
+        "annual_renewal_reminder",
+        s.user_id,
+        async () => {
+          await sendTxMail({
+            to,
+            subject,
+            text,
+            html,
+            attachments: await getInrcyBrandInlineAttachments(),
+          });
+        },
+      );
+      if (!delivered) continue;
+
       await supabaseAdmin
         .from("subscriptions")
         .update({
@@ -532,5 +582,7 @@ export async function GET(req: Request) {
     deleted_cancelled_accounts: 0,
     reconciled_cancelled_accesses: reconciledCancelledAccesses,
     expired_annual_accesses: expiredAnnualAccesses,
+    mail_failures: mailFailures,
+    degraded: mailFailures > 0,
   });
 }

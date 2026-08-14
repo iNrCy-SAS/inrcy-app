@@ -5,7 +5,7 @@ import test from "node:test";
 
 const ROOT = process.cwd();
 const read = (relativePath: string) =>
-  readFileSync(path.join(ROOT, relativePath), "utf8");
+  readFileSync(path.join(ROOT, relativePath), "utf8").replace(/\r\n/g, "\n");
 
 test("le scanner IMAP utilise des UID pour la recherche et les deux fetch", () => {
   const scanner = read("lib/mailBounceScanner.ts");

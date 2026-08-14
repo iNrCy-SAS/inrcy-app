@@ -48,7 +48,7 @@ body {
 /* Dashboard mobile surface guard: keeps browser chrome/overscroll from exposing the light public-page background. */
 html:has(.inrcy-dashboard-shell),
 body:has(.inrcy-dashboard-shell) {
-  background-color: #080b1c;
+  background-color: #0b142c;
 }
 
 

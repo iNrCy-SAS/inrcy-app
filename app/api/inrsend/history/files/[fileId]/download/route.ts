@@ -8,7 +8,7 @@ import { getDashboardEditionForAccountId } from "@/lib/dashboardEditionServer";
 export const runtime = "nodejs";
 
 type RouteContext = {
-  params: Promise<{ fileId?: string }> | { fileId?: string };
+  params: Promise<{ fileId?: string }>;
 };
 
 function encodeContentDisposition(filename: string) {

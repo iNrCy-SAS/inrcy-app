@@ -1,7 +1,8 @@
 -- iNrCRM — pagination/search performance
 -- À lancer dans Supabase SQL Editor ou via votre workflow de migrations.
 
-create extension if not exists pg_trgm;
+create schema if not exists extensions;
+create extension if not exists pg_trgm with schema extensions;
 
 create index if not exists crm_contacts_user_created_at_idx
 on public.crm_contacts (user_id, created_at desc);

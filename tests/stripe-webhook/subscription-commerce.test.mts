@@ -164,6 +164,18 @@ test("les relances et le blocage d'essai restent pilotés côté serveur", () =>
   assert.match(gate, /url\.pathname = "\/compte-bloque"/);
 });
 
+test("une panne SMTP ne coupe plus les expirations et réconciliations du cron", () => {
+  const cron = source("app/api/cron/billing/route.ts");
+  assert.match(cron, /async function deliverReminderSafely/);
+  assert.match(cron, /catch \(error\) \{/);
+  assert.match(cron, /captureApiException\(req, error/);
+  assert.match(cron, /if \(!delivered\) continue;/);
+  assert.match(cron, /mail_failures: mailFailures/);
+  assert.match(cron, /degraded: mailFailures > 0/);
+  assert.match(cron, /expired_trial_accounts: expiredTrialAccounts/);
+  assert.match(cron, /reconciled_cancelled_accesses: reconciledCancelledAccesses/);
+});
+
 test("la migration reste atomique et conserve la colonne texte existante", () => {
   const migration = source(
     "ops/sql/2026-08-10_standard_premium_founder_and_stripe_webhook.sql",

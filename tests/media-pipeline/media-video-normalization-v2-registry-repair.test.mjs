@@ -8,7 +8,8 @@ const MIGRATION_PATH =
   "ops/sql/2026-08-06_video_normalization_v2_registry_repair.sql";
 const VERIFY_PATH =
   "ops/sql/2026-08-06_video_normalization_v2_registry_repair_verify.sql";
-const read = (file) => readFileSync(resolve(ROOT, file), "utf8");
+const read = (file) =>
+  readFileSync(resolve(ROOT, file), "utf8").replace(/\r\n/g, "\n");
 
 const migration = read(MIGRATION_PATH);
 const verify = read(VERIFY_PATH);

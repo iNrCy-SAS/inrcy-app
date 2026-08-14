@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { withApi } from "@/lib/observability/withApi";
 import { jsonUserFacingError } from "@/lib/apiUserFacingErrors";
 import { requireUser } from "@/lib/requireUser";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getDefaultSnapshotDate } from "@/lib/stats/snapshotWindow";
 import { buildMetricsSummary } from "@/lib/metrics/summary";
 import { buildStatsConnectionSignature } from "@/lib/stats/connectionSignature";
@@ -129,12 +130,9 @@ function buildBulkPayloadFromOverviews(args: {
   };
 }
 
-async function bumpStatsVersion(
-  supabase: Awaited<ReturnType<typeof requireUser>>["supabase"],
-  userId: string,
-) {
+async function bumpStatsVersion(userId: string) {
   try {
-    await supabase.rpc("bump_profile_version", {
+    await supabaseAdmin.rpc("bump_profile_version", {
       p_user_id: userId,
       p_column: "stats_version",
     });
@@ -210,7 +208,7 @@ async function handler(req: Request) {
 
       const syncAt = Date.now();
       if (announce) {
-        await bumpStatsVersion(supabase, activeUserId);
+        await bumpStatsVersion(activeUserId);
       }
 
       return NextResponse.json({
@@ -312,7 +310,7 @@ async function handler(req: Request) {
         return jsonUserFacingError(`daily_refresh_complete_failed:${completeError.message}`, { status: 500 });
       }
 
-      await bumpStatsVersion(supabase, activeUserId);
+      await bumpStatsVersion(activeUserId);
 
       devLogDailyRefresh({
         userId: activeUserId,

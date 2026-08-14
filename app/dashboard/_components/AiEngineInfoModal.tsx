@@ -60,8 +60,11 @@ export default function AiEngineInfoModal({ open, activeEngine, onClose }: Props
         onMouseDown={(event) => event.stopPropagation()}
         style={{
           width: "min(620px, 100%)",
+          maxHeight: `calc(100dvh - ${MOBILE_DOCK_HEIGHT} - 32px)`,
           margin: "auto",
-          overflow: "hidden",
+          overflowX: "hidden",
+          overflowY: "auto",
+          overscrollBehavior: "contain",
           borderRadius: 18,
           border: "1px solid rgba(255,255,255,0.16)",
           background:

@@ -35,6 +35,20 @@ If you must restore:
 - Use Supabase backup/PITR
 - Redeploy last-known-good Vercel build
 
+## 2026-08-14 - Supabase Security Advisor function hardening
+
+Run after the existing iNrSend, publication, onboarding and media-pipeline
+migrations:
+
+```text
+ops/sql/2026-08-14_security_advisor_function_hardening.sql
+```
+
+The migration pins the search path of legacy helpers, removes direct API
+execution from trigger-only/server-only functions and makes future
+postgres-owned functions private-by-default. Authenticated business RPCs used
+by invoices, account scope, daily stats and onboarding remain available.
+
 ## 2026-07-15 — iNrAgent Lot C, contexte vidéo persistant
 
 Exécuter avant ou juste après le déploiement :

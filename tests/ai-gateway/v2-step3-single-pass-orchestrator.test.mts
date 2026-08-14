@@ -6,7 +6,8 @@ import { resolve } from "node:path";
 import { AI_FEATURE_POLICIES } from "../../lib/aiGatewayPolicy.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
-const read = (rel: string) => readFileSync(resolve(ROOT, rel), "utf8");
+const read = (rel: string) =>
+  readFileSync(resolve(ROOT, rel), "utf8").replace(/\r\n/g, "\n");
 
 test("V2 step 3 uses one primary multichannel call regardless of channel count", () => {
   const generation = read("lib/boosterPublishGeneration.ts");

@@ -12,6 +12,7 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:install": "playwright install --with-deps",
+    "test:contracts": "node scripts/run-contract-tests.mjs",
     "typecheck": "tsc --noEmit --pretty false --noErrorTruncation",
     "test:multicompte": "node --test --experimental-strip-types tests/multicompte/*.test.mts",
     "audit:multicompte": "node scripts/audit-multicompte.mjs",

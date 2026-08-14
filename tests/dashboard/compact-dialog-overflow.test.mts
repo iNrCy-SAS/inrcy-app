@@ -65,7 +65,7 @@ test("public badge mini-sheets delegate emergency scrolling to their overlay", (
   assert.doesNotMatch(sheet, /max-height|overflow: auto/);
 });
 
-test("informational mini-modals avoid card-level scrollbars", () => {
+test("informational mini-modals remain bounded and usable on short screens", () => {
   assert.match(
     inrSearchSettings,
     /aria-labelledby="inrsearch-helper-title"[\s\S]*?overflowY: "auto"[\s\S]*?<div style=\{\{ width: "min\(680px, 100%\)", margin: "auto", overflow: "hidden"/,
@@ -78,7 +78,7 @@ test("informational mini-modals avoid card-level scrollbars", () => {
   assert.match(aiEngineModal, /overflowX: "hidden",\s*overflowY: "auto"/);
   assert.match(
     aiEngineModal,
-    /width: "min\(620px, 100%\)",\s*margin: "auto",\s*overflow: "hidden"/,
+    /width: "min\(620px, 100%\)",[\s\S]{0,180}maxHeight: `calc\(100dvh - \$\{MOBILE_DOCK_HEIGHT\} - 32px\)`[\s\S]{0,120}margin: "auto",[\s\S]{0,80}overflowX: "hidden",\s*overflowY: "auto"/,
   );
-  assert.doesNotMatch(aiEngineModal, /width: "min\(620px, 100%\)",[\s\S]{0,180}overflow: "auto"/);
+  assert.match(aiEngineModal, /overscrollBehavior: "contain"/);
 });

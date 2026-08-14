@@ -262,7 +262,7 @@ function getBalancedChannelRows(actions: ActionLinkProps[]) {
     .filter((row) => row.length > 0);
 }
 
-export async function generateMetadata({ params }: { params: Promise<{ slug: string }> | { slug: string } }): Promise<Metadata> {
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const resolvedParams = await params;
   const slug = trim(resolvedParams.slug);
   const iconUrl = getBadgeIconUrl(slug);
@@ -277,7 +277,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   };
 }
 
-export default async function BadgePage({ params }: { params: Promise<{ slug: string }> | { slug: string } }) {
+export default async function BadgePage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = await params;
   const slug = trim(resolvedParams.slug);
   const userId = extractInrBadgeUserIdFromSlug(slug);
@@ -471,7 +471,7 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
   ].filter(Boolean) as ActionLinkProps[];
 
   const inrSearchNewsAction = shareSettings.inrSearch && inrSearchNewsUrl
-    ? { href: inrSearchNewsUrl, label: "Nos actualités", iconSrc: inrSearchLogo.src, tone: "inrsearch" as ActionTone, trackingAction: "inr_search_news" }
+    ? { href: inrSearchNewsUrl, label: "Voir nos actualités", iconSrc: inrSearchLogo.src, tone: "inrsearch" as ActionTone, trackingAction: "inr_search_news" }
     : null;
 
   const appointmentAction = canUseInrBadgeAppointments(dashboardEdition, shareSettings)
