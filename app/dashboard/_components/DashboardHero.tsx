@@ -69,6 +69,8 @@ export default function DashboardHero({
 }: DashboardHeroProps) {
   const t = useDashboardI18n();
   const mobileCopy = getMobileHeroCopy(t.locale);
+  const compactGeneratorTitle =
+    t.hero.generatorTitle.replace(/iNrCy/gi, "").replace(/\s{2,}/g, " ").trim() || t.hero.generatorTitle;
   const [powerBreakdownOpen, setPowerBreakdownOpen] = useState(false);
   const powerBreakdownRef = useRef<HTMLDivElement | null>(null);
 
@@ -205,9 +207,12 @@ export default function DashboardHero({
         <div className={styles.generatorFX3} aria-hidden />
 
         <div className={styles.generatorHeader}>
-          <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div className={styles.generatorTitle}>{t.hero.generatorTitle}</div>
+          <div className={styles.generatorHeaderCopy}>
+            <div className={styles.generatorHeaderLead}>
+              <div className={styles.generatorTitle}>
+                <span className={styles.generatorTitleFull}>{t.hero.generatorTitle}</span>
+                <span className={styles.generatorTitleCompact}>{compactGeneratorTitle}</span>
+              </div>
               <HelpButton onClick={onOpenGeneratorHelp} title={t.hero.generatorHelpTitle} />
             </div>
             <div className={styles.generatorDesc}>{t.hero.generatorDesc}</div>

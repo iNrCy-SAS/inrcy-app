@@ -1128,9 +1128,19 @@
   margin-bottom: 12px;
 }
 
+.generatorHeaderLead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .generatorTitle {
   font-weight: 950;
   letter-spacing: -0.2px;
+}
+
+.generatorTitleCompact {
+  display: none;
 }
 
 .generatorDesc {
@@ -10439,11 +10449,61 @@
   }
 
   .generatorHeader {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    align-items: center;
+    column-gap: 8px;
+    row-gap: 4px;
     padding-bottom: 10px;
   }
 
+  .generatorHeaderCopy {
+    display: contents;
+  }
+
+  .generatorHeaderLead {
+    grid-column: 1;
+    grid-row: 1;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .generatorHeaderRight {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
+    gap: 6px;
+    min-width: 0;
+    flex-wrap: nowrap;
+  }
+
   .generatorTitle {
-    font-size: 16px;
+    font-size: clamp(13px, 4.1vw, 16px);
+    white-space: nowrap;
+  }
+
+  .generatorTitleFull {
+    display: none;
+  }
+
+  .generatorTitleCompact {
+    display: inline;
+  }
+
+  .generatorDesc {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    margin-top: 0;
+    font-size: clamp(8.5px, 2.8vw, 11px);
+    line-height: 1.25;
+    letter-spacing: -0.08px;
+    white-space: nowrap;
+  }
+
+  .generatorStatus {
+    gap: 6px;
+    padding: 6px 8px;
+    font-size: 12px;
   }
 
   .generatorGrid {
@@ -10490,6 +10550,42 @@
 
   .channelHeaderActions {
     gap: 6px;
+  }
+}
+
+@media (max-width: 340px) {
+  .generatorHeader {
+    column-gap: 5px;
+  }
+
+  .generatorHeaderLead {
+    gap: 4px;
+  }
+
+  .generatorHeaderRight {
+    gap: 3px;
+  }
+
+  .generatorTitle {
+    font-size: 12px;
+  }
+
+  .generatorSettingsBtn,
+  .generatorRefreshBtn {
+    width: 30px;
+    height: 30px;
+    flex: 0 0 30px;
+    border-radius: 10px;
+  }
+
+  .generatorStatus {
+    gap: 4px;
+    padding: 5px;
+    font-size: 10.5px;
+  }
+
+  .generatorDesc {
+    font-size: clamp(7.5px, 2.65vw, 9px);
   }
 }
 
