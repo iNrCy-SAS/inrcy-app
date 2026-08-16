@@ -217,29 +217,33 @@ export default function GeneratorSettingsModal({
           color: "white",
         }}
       >
-        <header style={{ display: "flex", justifyContent: "space-between", gap: 14, alignItems: "flex-start" }}>
-          <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+        <header style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+          <div style={{ display: "flex", gap: 11, alignItems: "center", minWidth: 0 }}>
             <span
               aria-hidden="true"
               style={{
-                width: 45,
-                height: 45,
-                borderRadius: 16,
+                width: 46,
+                height: 46,
+                flex: "0 0 46px",
+                borderRadius: 999,
                 display: "grid",
                 placeItems: "center",
-                fontSize: 22,
-                background: "linear-gradient(135deg, #38bdf8, #8b5cf6, #f472b6)",
-                boxShadow: "0 10px 30px rgba(99,102,241,0.32)",
+                background: "linear-gradient(145deg, rgba(56,189,248,0.98), rgba(139,92,246,0.96) 55%, rgba(244,114,182,0.94))",
+                border: "1px solid rgba(255,255,255,0.26)",
+                boxShadow: "0 10px 28px rgba(99,102,241,0.30), inset 0 1px 0 rgba(255,255,255,0.30)",
               }}
             >
-              ⚙️
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 8.25A3.75 3.75 0 1 0 12 15.75 3.75 3.75 0 0 0 12 8.25Z" stroke="white" strokeWidth="1.9" />
+                <path d="M19.1 13.1a7.7 7.7 0 0 0 .05-1.1 7.7 7.7 0 0 0-.05-1.1l2-1.55-1.9-3.3-2.35.95a8.1 8.1 0 0 0-1.9-1.1L14.6 3.4h-3.8l-.35 2.5a8.1 8.1 0 0 0-1.9 1.1L6.2 6.05l-1.9 3.3 2 1.55a7.7 7.7 0 0 0-.05 1.1c0 .37.02.73.05 1.1l-2 1.55 1.9 3.3 2.35-.95a8.1 8.1 0 0 0 1.9 1.1l.35 2.5h3.8l.35-2.5a8.1 8.1 0 0 0 1.9-1.1l2.35.95 1.9-3.3-2-1.55Z" stroke="white" strokeWidth="1.55" strokeLinejoin="round" />
+              </svg>
             </span>
-            <div style={{ display: "grid", gap: 5 }}>
-              <h2 id="generator-settings-title" style={{ margin: 0, fontSize: 21 }}>
-                Réglages du générateur
+            <div style={{ display: "grid", gap: 2, minWidth: 0 }}>
+              <h2 id="generator-settings-title" style={{ margin: 0, fontSize: 20, lineHeight: 1.15 }}>
+                Projection
               </h2>
-              <p style={{ margin: 0, color: "rgba(255,255,255,0.68)", fontSize: 13.5, lineHeight: 1.45 }}>
-                Affinez vos projections sans modifier votre profil ni le fonctionnement de vos outils.
+              <p style={{ margin: 0, color: "rgba(255,255,255,0.68)", fontSize: 12.5, lineHeight: 1.3 }}>
+                Affinez vos estimations !
               </p>
             </div>
           </div>
@@ -258,7 +262,7 @@ export default function GeneratorSettingsModal({
             Chargement des réglages…
           </div>
         ) : (
-          <div style={{ display: "grid", gap: 14, marginTop: 20 }}>
+          <div style={{ display: "grid", gap: 14, marginTop: 14 }}>
             <div style={{ borderRadius: 17, border: "1px solid rgba(56,189,248,0.20)", background: "rgba(56,189,248,0.075)", padding: 14, display: "grid", gap: 7 }}>
               <strong style={{ fontSize: 13.5 }}>Repère conseillé · {recommendation.sectorLabel}</strong>
               <span style={{ color: "rgba(255,255,255,0.70)", fontSize: 12.5, lineHeight: 1.45 }}>
