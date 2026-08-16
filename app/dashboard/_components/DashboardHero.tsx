@@ -118,7 +118,7 @@ export default function DashboardHero({
   ) : null;
 
   return (
-    <section className={styles.hero}>
+    <section className={`${styles.hero} ${powerBreakdownOpen ? styles.heroPowerOpen : ""}`}>
       <div className={styles.heroLeft}>
         <div className={styles.heroTop}>
           <div className={styles.kicker}>

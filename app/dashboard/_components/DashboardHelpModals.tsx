@@ -5,6 +5,7 @@ import type { DashboardEdition } from "@/lib/dashboardEdition";
 
 type DashboardHelpModalsProps = {
   edition?: DashboardEdition;
+  siteInrcySubscribed: boolean;
   helpGeneratorOpen: boolean;
   helpCanauxOpen: boolean;
   helpSiteInrcyOpen: boolean;
@@ -44,6 +45,7 @@ const INERTIA_ROWS: InertiaHelpRow[] = [
 
 export default function DashboardHelpModals({
   edition = "premium",
+  siteInrcySubscribed,
   helpGeneratorOpen,
   helpCanauxOpen,
   helpSiteInrcyOpen,
@@ -271,6 +273,7 @@ export default function DashboardHelpModals({
                     name: "Site iNrCy",
                     color: "#66d9ff",
                     text: "Votre machine à leads intelligente. Disponible avec un site créé par iNrCy, il remonte automatiquement les statistiques et publications Booster dans votre générateur.",
+                    requiresSiteSubscription: true,
                   },
                   {
                     icon: "🖥️",
@@ -321,17 +324,22 @@ export default function DashboardHelpModals({
                     text: "Diffuse vos campagnes, fidélisations et communications CRM depuis les boîtes mail connectées.",
                     premiumOnly: true,
                   },
-                ].map((channel) => (
-                  <div
-                    key={channel.name}
-                    style={{
-                      minWidth: 0,
-                      boxSizing: "border-box",
-                      opacity: standardMode && channel.premiumOnly ? 0.52 : 1,
-                      filter:
-                        standardMode && channel.premiumOnly ? "grayscale(0.75)" : undefined,
-                    }}
-                  >
+                ].map((channel) => {
+                  const premiumLocked = standardMode && channel.premiumOnly;
+                  const siteNotSubscribed = Boolean(channel.requiresSiteSubscription && !siteInrcySubscribed);
+                  const channelDisabled = Boolean(premiumLocked || siteNotSubscribed);
+
+                  return (
+                    <div
+                      key={channel.name}
+                      aria-disabled={channelDisabled || undefined}
+                      style={{
+                        minWidth: 0,
+                        boxSizing: "border-box",
+                        opacity: channelDisabled ? 0.52 : 1,
+                        filter: channelDisabled ? "grayscale(0.75)" : undefined,
+                      }}
+                    >
                     <div
                       style={{
                         fontWeight: 800,
@@ -340,7 +348,7 @@ export default function DashboardHelpModals({
                       }}
                     >
                       {channel.icon} {channel.name}
-                      {standardMode && channel.premiumOnly ? (
+                      {premiumLocked || siteNotSubscribed ? (
                         <span
                           style={{
                             marginLeft: 8,
@@ -351,7 +359,7 @@ export default function DashboardHelpModals({
                             color: "#fff",
                           }}
                         >
-                          Forfait Premium
+                          {premiumLocked ? "Pack Premium" : "Non souscrit"}
                         </span>
                       ) : null}
                     </div>
@@ -360,8 +368,9 @@ export default function DashboardHelpModals({
                     >
                       {channel.text}
                     </div>
-                  </div>
-                ))}
+                    </div>
+                  );
+                })}
               </div>
             </section>
 

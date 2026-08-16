@@ -237,10 +237,17 @@ export default function DashboardChannelsSection({
     ? [baseModules[baseModules.length - 1], ...baseModules, baseModules[0]]
     : baseModules;
 
-  const connectedChannelsCount = useMemo(
-    () => baseModules.filter((item) => getChannelPillTone(item) === "connected").length,
-    [baseModules],
+  const summaryModules = useMemo(
+    () => standardMode
+      ? baseModules.filter((item) => item.key !== "mails" && item.key !== "site_inrcy")
+      : baseModules,
+    [baseModules, standardMode],
   );
+  const connectedChannelsCount = useMemo(
+    () => summaryModules.filter((item) => getChannelPillTone(item) === "connected").length,
+    [summaryModules],
+  );
+  const availableChannelsCount = summaryModules.length;
 
   const channelPillRows = useMemo(() => {
     if (baseModules.length <= 7) return [baseModules];
@@ -420,7 +427,7 @@ export default function DashboardChannelsSection({
 
           <div className={styles.channelHeaderActions}>
             <div className={styles.channelSummaryBadge}>
-              {connectedChannelsCount} {t.channels.connected} / {baseModules.length} {t.channels.available}
+              {connectedChannelsCount} {t.channels.connected} / {availableChannelsCount} {t.channels.available}
             </div>
 
             <div className={styles.mobileViewToggle} aria-label={t.channels.displayAria}>
@@ -581,8 +588,8 @@ export default function DashboardChannelsSection({
                 </button>
               </div>
 
-              <div className={styles.mobileChannelSummary} aria-label={`${connectedChannelsCount} ${t.channels.connectedAria} ${baseModules.length}`}>
-                {connectedChannelsCount}/{baseModules.length} {t.channels.connected}
+              <div className={styles.mobileChannelSummary} aria-label={`${connectedChannelsCount} ${t.channels.connectedAria} ${availableChannelsCount}`}>
+                {connectedChannelsCount}/{availableChannelsCount} {t.channels.connected}
               </div>
             </div>
           )}
@@ -593,8 +600,8 @@ export default function DashboardChannelsSection({
             {fluxBubbleItems.map((item) => renderFluxBubble(item, item.key))}
           </div>
 
-          <div className={styles.mobileChannelSummary} aria-label={`${connectedChannelsCount} ${t.channels.connectedAria} ${baseModules.length}`}>
-            {connectedChannelsCount}/{baseModules.length} {t.channels.connected}
+          <div className={styles.mobileChannelSummary} aria-label={`${connectedChannelsCount} ${t.channels.connectedAria} ${availableChannelsCount}`}>
+            {connectedChannelsCount}/{availableChannelsCount} {t.channels.connected}
           </div>
         </>
       ) : (

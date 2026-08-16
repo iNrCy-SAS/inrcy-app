@@ -11,6 +11,7 @@ import { getDashboardModuleCopy, getDashboardTranslations, translateDashboardSta
 
 type BuildFluxBubbleItemsArgs = {
   bubbleAccessMap: AppBubbleAccessMap;
+  standardMode?: boolean;
   siteInrcyAccessReady: boolean;
   siteInrcyDisplayAccess: boolean;
   canAccessPinterest: boolean;
@@ -52,6 +53,7 @@ type BuildFluxBubbleItemsArgs = {
 export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardFluxBubbleData[] {
   const {
     bubbleAccessMap,
+    standardMode = false,
     siteInrcyAccessReady,
     siteInrcyDisplayAccess,
     canAccessPinterest,
@@ -95,7 +97,9 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
   return fluxModules.flatMap((m) => {
     const moduleIcon = MODULE_ICONS[m.key] ?? MODULE_ICONS.site_inrcy;
     const bubbleKey = normalizeAppBubbleKey(m.key);
-    const accessEnabled = bubbleKey ? isBubbleEnabled(bubbleAccessMap, bubbleKey) : true;
+    const storedAccessEnabled = bubbleKey ? isBubbleEnabled(bubbleAccessMap, bubbleKey) : true;
+    const mailPremiumLocked = standardMode && m.key === "mails";
+    const accessEnabled = storedAccessEnabled && !mailPremiumLocked;
     const displayAccessEnabled = m.key === "site_inrcy" && !siteInrcyAccessReady
       ? siteInrcyDisplayAccess
       : accessEnabled;
@@ -176,7 +180,14 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
 
     const { status: bubbleStatus, text: bubbleStatusText } = displayAccessEnabled
       ? resolvedBubbleProgress
-      : { status: "coming" as ModuleStatus, text: copy.status.disabled };
+      : {
+          status: "coming" as ModuleStatus,
+          text: mailPremiumLocked
+            ? copy.status.premiumPlan
+            : m.key === "site_inrcy"
+              ? copy.status.notSubscribed
+              : copy.status.disabled,
+        };
 
     const specialViewHref = m.key === "site_inrcy"
       ? (blockDrivenViewHref || normalizeExternalHref(siteInrcySavedUrl) || "#")
@@ -297,7 +308,11 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
         (m.key === "site_inrcy" ? !canConfigureSite : false) ||
         (m.key === "inrbadge" ? !inrBadgeProfileCheckReady : false),
       configureTitle: !accessEnabled
-        ? copy.bubble.disabled
+        ? mailPremiumLocked
+          ? copy.status.premiumPlan
+          : m.key === "site_inrcy"
+            ? copy.status.notSubscribed
+            : copy.bubble.disabled
         : m.key === "site_inrcy" && !canConfigureSite
           ? moduleCopy?.siteOnlyTitle || copy.bubble.disabled
           : m.key === "inrbadge" && !inrBadgeProfileCheckReady

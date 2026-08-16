@@ -549,6 +549,11 @@
   align-items: stretch;
 }
 
+.heroPowerOpen {
+  position: relative;
+  z-index: 40;
+}
+
 .heroLeft {
   padding: 18px;
   border-radius: 22px;

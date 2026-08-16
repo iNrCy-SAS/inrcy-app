@@ -124,6 +124,7 @@ const useBrowserLayoutEffect = typeof window !== "undefined" ? useLayoutEffect :
 const STANDARD_DASHBOARD_BUBBLE_KEYS = new Set<string>([
   ...STANDARD_PUBLICATION_CHANNEL_KEYS,
   ...STANDARD_BONUS_CHANNEL_KEYS,
+  "mails",
 ]);
 
 type DashboardClientProps = {
@@ -1908,9 +1909,11 @@ const siteInrcyProgressCount = (hasSiteInrcyUrl ? 1 : 0) + (hasSiteInrcyUrl && s
 const siteWebProgressCount = (hasSiteWebUrl ? 1 : 0) + (hasSiteWebUrl && siteWebGa4Connected ? 1 : 0) + (hasSiteWebUrl && siteWebGscConnected ? 1 : 0);
 const siteInrcyAllGreen = canAccessSiteInrcy && siteInrcyProgressCount === 3;
 const siteWebAllGreen = siteWebProgressCount === 3;
-const sitePowerLinkConnected = hasSiteInrcyUrl || hasSiteWebUrl;
-const sitePowerGa4Connected = (hasSiteInrcyUrl && siteInrcyGa4Connected) || (hasSiteWebUrl && siteWebGa4Connected);
-const sitePowerGscConnected = (hasSiteInrcyUrl && siteInrcyGscConnected) || (hasSiteWebUrl && siteWebGscConnected);
+// La puissance commerciale du pack Standard ne dépend que de son canal Site web.
+// Un Site iNrCy loué reste un droit indépendant et ne modifie jamais ce calcul.
+const sitePowerLinkConnected = hasSiteWebUrl;
+const sitePowerGa4Connected = hasSiteWebUrl && siteWebGa4Connected;
+const sitePowerGscConnected = hasSiteWebUrl && siteWebGscConnected;
 const videoPowerConnected = Boolean(tiktokConnected || youtubeShortsConnected);
 const proNetworkPowerConnected = Boolean(
   (linkedinConnected && linkedinConnectionStatus !== "needs_update") || (canAccessPinterest && pinterestConnected)
@@ -1926,7 +1929,7 @@ const generatorPowerSteps = [
   { key: "facebook", label: dashboardCopy.generatorSteps.facebook.label, shortLabel: dashboardCopy.generatorSteps.facebook.shortLabel, weight: 10, completed: facebookPageConnected && facebookConnectionStatus !== "needs_update" },
   { key: "instagram", label: dashboardCopy.generatorSteps.instagram.label, shortLabel: dashboardCopy.generatorSteps.instagram.shortLabel, weight: 10, completed: instagramConnected && instagramConnectionStatus !== "needs_update" },
   { key: "pro_network", label: dashboardCopy.generatorSteps.pro_network.label, shortLabel: dashboardCopy.generatorSteps.pro_network.shortLabel, weight: 7, completed: proNetworkPowerConnected },
-  { key: "mails", label: dashboardCopy.generatorSteps.mails.label, shortLabel: dashboardCopy.generatorSteps.mails.shortLabel, weight: 5, completed: mailAccountsConnectedCount > 0 },
+  { key: "inr_search", label: dashboardCopy.generatorSteps.inr_search.label, shortLabel: dashboardCopy.generatorSteps.inr_search.shortLabel, weight: 5, completed: Boolean(canAccessInrSearch && inrSearchConnected) },
   { key: "video", label: dashboardCopy.generatorSteps.video.label, shortLabel: dashboardCopy.generatorSteps.video.shortLabel, weight: 8, completed: videoPowerConnected },
 ] as const;
 
@@ -3461,10 +3464,13 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     setInrBadgeModalOpen(true);
   }, []);
 
+  const siteInrcyDisplayAccess = canAccessSiteInrcy || (!bubbleAccessReady && displayedSiteInrcyAccess);
+
   const fluxBubbleItems = useMemo(() => buildFluxBubbleItems({
     bubbleAccessMap,
+    standardMode: isStandardEdition,
     siteInrcyAccessReady: bubbleAccessReady,
-    siteInrcyDisplayAccess: canAccessSiteInrcy || (!bubbleAccessReady && displayedSiteInrcyAccess),
+    siteInrcyDisplayAccess,
     canConfigureSite,
     canViewSite,
     channelBlocks,
@@ -3519,6 +3525,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     inrBadgeProfile.logoUrl,
     inrBadgeProfileCheckReady,
     inrBadgeProfileReady,
+    isStandardEdition,
     openInrBadgeModal,
     linkedinConnected,
     linkedinUrl,
@@ -3534,7 +3541,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     openPanel,
     savedSiteWebUrlMeta,
     siteInrcySavedUrl,
-    displayedSiteInrcyAccess,
+    siteInrcyDisplayAccess,
     siteWebSavedUrl,
   ]);
 
@@ -3908,6 +3915,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
 
       <DashboardHelpModals
         edition={dashboardEdition}
+        siteInrcySubscribed={siteInrcyDisplayAccess}
         helpGeneratorOpen={helpGeneratorOpen}
         helpCanauxOpen={helpCanauxOpen}
         helpSiteInrcyOpen={helpSiteInrcyOpen}

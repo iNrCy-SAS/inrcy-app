@@ -50,49 +50,6 @@ export const fluxModules: Module[] = [
     ],
   },
   {
-    key: "mails",
-    name: "Mails",
-    description: "Diffuse à votre réseau ✉️",
-    status: "available",
-    accent: "cyan",
-    actions: [
-      {
-        key: "view",
-        label: "Ouvrir iNr\'Send",
-        variant: "view",
-        href: "/dashboard/mails",
-      },
-      {
-        key: "connect",
-        label: "Configurer",
-        variant: "connect",
-        onClick: () => {},
-      },
-    ],
-  },
-  {
-    key: "site_inrcy",
-    name: "Site iNrCy",
-    description: "Votre machine à leads ⚡",
-    status: "available",
-    accent: "purple",
-    actions: [
-      { key: "view", label: "Voir le site", variant: "view", href: "#" },
-      {
-        key: "ga4",
-        label: "Connecter Google Analytics",
-        variant: "connect",
-        onClick: () => {},
-      },
-      {
-        key: "gsc",
-        label: "Connecter Search Console",
-        variant: "connect",
-        onClick: () => {},
-      },
-    ],
-  },
-  {
     key: "site_web",
     name: "Site web",
     description: "Convertit vos visiteurs 💡",
@@ -242,6 +199,49 @@ export const fluxModules: Module[] = [
       {
         key: "connect",
         label: "Configurer",
+        variant: "connect",
+        onClick: () => {},
+      },
+    ],
+  },
+  {
+    key: "mails",
+    name: "Mails",
+    description: "Diffuse à votre réseau ✉️",
+    status: "available",
+    accent: "cyan",
+    actions: [
+      {
+        key: "view",
+        label: "Ouvrir iNr\'Send",
+        variant: "view",
+        href: "/dashboard/mails",
+      },
+      {
+        key: "connect",
+        label: "Configurer",
+        variant: "connect",
+        onClick: () => {},
+      },
+    ],
+  },
+  {
+    key: "site_inrcy",
+    name: "Site iNrCy",
+    description: "Votre machine à leads ⚡",
+    status: "available",
+    accent: "purple",
+    actions: [
+      { key: "view", label: "Voir le site", variant: "view", href: "#" },
+      {
+        key: "ga4",
+        label: "Connecter Google Analytics",
+        variant: "connect",
+        onClick: () => {},
+      },
+      {
+        key: "gsc",
+        label: "Connecter Search Console",
         variant: "connect",
         onClick: () => {},
       },
