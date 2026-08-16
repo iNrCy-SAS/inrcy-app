@@ -192,6 +192,7 @@ export default function DashboardChannelsSection({
   const renderDesktopSideBubble = (item: DashboardFluxBubbleData, keyOverride?: string) => {
     const isComingSoon = item.bubbleStatus === "coming";
     const isReconnect = item.bubbleStatus === "reconnect";
+    const emphasizeDisabledReason = isComingSoon && item.emphasizeDisabledReason === true;
 
     return (
     <article
@@ -216,7 +217,7 @@ export default function DashboardChannelsSection({
 
         <div className={bubbleStyles.title}>{item.name}</div>
 
-        <div className={`${bubbleStyles.status} ${isReconnect ? bubbleStyles.statusReconnect : ""}`}>
+        <div className={`${bubbleStyles.status} ${isReconnect ? bubbleStyles.statusReconnect : ""} ${emphasizeDisabledReason ? bubbleStyles.statusDisabledReason : ""}`}>
           {isReconnect ? (
             <WarningTriangle className={bubbleStyles.warningTriangle} />
           ) : (

@@ -36,6 +36,7 @@ export type DashboardFluxBubbleData = {
   configureTitle?: string;
   configureLabel?: string;
   viewFallbackLabel?: string;
+  emphasizeDisabledReason?: boolean;
 };
 
 type Props = {
@@ -78,6 +79,7 @@ export default function DashboardFluxBubble({ item, itemKey, requiredSetupLocked
   const isComingSoon = item.bubbleStatus === "coming";
   const isReconnect = item.bubbleStatus === "reconnect" && !requiredSetupLocked;
   const isAvailableToConnect = item.bubbleStatus === "available" && !requiredSetupLocked;
+  const emphasizeDisabledReason = isComingSoon && item.emphasizeDisabledReason === true;
   const shouldHighlightConfigure = (isAvailableToConnect || isReconnect) && !item.configureDisabled;
   const configureActionKey = `configure:${item.key}`;
   const configurePending = pendingKey === configureActionKey;
@@ -114,7 +116,7 @@ export default function DashboardFluxBubble({ item, itemKey, requiredSetupLocked
 
         <div className={bubbleStyles.title}>{item.name}</div>
 
-        <div className={`${bubbleStyles.status} ${isAvailableToConnect ? bubbleStyles.statusAvailable : ""} ${isReconnect ? bubbleStyles.statusReconnect : ""}`}>
+        <div className={`${bubbleStyles.status} ${isAvailableToConnect ? bubbleStyles.statusAvailable : ""} ${isReconnect ? bubbleStyles.statusReconnect : ""} ${emphasizeDisabledReason ? bubbleStyles.statusDisabledReason : ""}`}>
           {requiredSetupLocked ? (
             <RequiredSetupLock
               message={requiredSetupLockMessage}

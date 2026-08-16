@@ -372,8 +372,8 @@
 }
 
 .comingSoon {
-  filter: grayscale(0.9) saturate(0.55);
-  opacity: 0.58;
+  filter: none;
+  opacity: 1;
 }
 
 .comingSoon:hover { transform: none; }
@@ -546,8 +546,39 @@
     0 20px 54px rgba(0, 0, 0, 0.34),
     inset 0 1px 0 rgba(255, 255, 255, 0.12),
     inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  filter: none;
+  opacity: 1;
+}
+
+.comingSoon .logo,
+.comingSoon .title,
+.comingSoon .tagline,
+.comingSoon .actions,
+.comingSoon .status:not(.statusDisabledReason) {
   filter: grayscale(0.92) saturate(0.35);
-  opacity: 0.58;
+  opacity: 0.45;
+}
+
+.statusDisabledReason {
+  border-color: rgba(226, 232, 240, 0.42);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(148, 163, 184, 0.1));
+  color: rgba(255, 255, 255, 0.98);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset,
+    0 0 18px rgba(226, 232, 240, 0.14),
+    0 8px 20px rgba(0, 0, 0, 0.18);
+  filter: none;
+  opacity: 1;
+}
+
+.statusDisabledReason .statusText {
+  color: rgba(255, 255, 255, 0.98);
+  text-shadow: 0 0 10px rgba(226, 232, 240, 0.16);
+}
+
+.statusDisabledReason .coming {
+  background: rgb(203, 213, 225);
+  box-shadow: 0 0 10px rgba(203, 213, 225, 0.34);
 }
 
 .logo {

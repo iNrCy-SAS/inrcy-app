@@ -324,6 +324,7 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
         ? moduleCopy?.view || "Ouvrir"
         : copy.bubble.configure,
       viewFallbackLabel: copy.bubble.viewFallback,
+      emphasizeDisabledReason: !displayAccessEnabled && (mailPremiumLocked || m.key === "site_inrcy"),
     };
   });
 }
