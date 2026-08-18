@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 
@@ -13,34 +16,34 @@ type EmojiPickerButtonProps = {
 
 type EmojiGroup = {
   key: string;
-  label: string;
+  labelKey: string;
   emojis: string[];
 };
 
 const EMOJI_GROUPS: EmojiGroup[] = [
   {
     key: "frequent",
-    label: "Fréquents",
+    labelKey: "frequents_964a1839",
     emojis: ["😊", "😀", "😂", "😍", "😉", "😄", "😌", "🤩", "😎", "🙂", "🙌", "👏", "👍", "👎", "🙏", "💪", "✨", "🔥", "💡", "✅", "⭐", "🎉", "❤️", "📣"],
   },
   {
     key: "smileys",
-    label: "Smileys",
+    labelKey: "smileys_e18b128a",
     emojis: ["😀", "😃", "😄", "😁", "😆", "😅", "😂", "🤣", "😊", "😇", "🙂", "🙃", "😉", "😌", "😍", "🥰", "😘", "😎", "🤩", "🤔", "😮", "😢", "😭", "😡"],
   },
   {
     key: "gestures",
-    label: "Gestes",
+    labelKey: "gestes_c73ece40",
     emojis: ["👍", "👎", "👌", "✌️", "🤞", "🤝", "👏", "🙌", "👐", "🙏", "💪", "👋", "👉", "👈", "☝️", "✍️", "🤗", "💯"],
   },
   {
     key: "business",
-    label: "Pro",
+    labelKey: "pro_66d0c5e6",
     emojis: ["✨", "⭐", "🌟", "🔥", "💡", "✅", "❌", "⚠️", "📣", "📢", "📌", "🎯", "🚀", "💼", "📈", "📊", "🛍️", "🏆", "🎉", "🎁", "💬", "📩", "☎️", "🗓️"],
   },
   {
     key: "objects",
-    label: "Objets",
+    labelKey: "objets_3b3a5f5b",
     emojis: ["📱", "💻", "⌚", "📸", "🎥", "🎨", "📝", "📚", "🔑", "🔒", "💳", "💰", "🛠️", "🏠", "📍", "🌐", "✉️", "📞", "⏰", "☀️", "☕", "🍽️", "🎵", "❤️"],
   },
 ];
@@ -55,6 +58,7 @@ export default function EmojiPickerButton({
   buttonStyle,
   className,
 }: EmojiPickerButtonProps) {
+  const i18nT = useTranslations("media");
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const searchRef = useRef<HTMLInputElement | null>(null);
@@ -154,8 +158,8 @@ export default function EmojiPickerButton({
         style={buttonStyle}
         onMouseDown={(event) => event.preventDefault()}
         onClick={toggle}
-        aria-label="Ajouter un emoji"
-        title="Emojis"
+        aria-label={i18nT("ajouter_un_emoji_5073bf87")}
+        title={i18nT("emojis_ac171aac")}
         aria-expanded={open}
         disabled={disabled}
       >
@@ -166,7 +170,7 @@ export default function EmojiPickerButton({
             <div
               ref={panelRef}
               role="dialog"
-              aria-label="Sélecteur d’emojis"
+              aria-label={i18nT("selecteur_d_emojis_371e284c")}
               style={{
                 position: "fixed",
                 top: position.top,
@@ -188,8 +192,8 @@ export default function EmojiPickerButton({
                 ref={searchRef}
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Rechercher un emoji…"
-                aria-label="Rechercher un emoji"
+                placeholder={i18nT("rechercher_un_emoji_ac220fec")}
+                aria-label={i18nT("rechercher_un_emoji_e6092dd0")}
                 style={{
                   width: "100%",
                   boxSizing: "border-box",
@@ -205,7 +209,7 @@ export default function EmojiPickerButton({
                 }}
               />
               {!query.trim() ? (
-                <div role="tablist" aria-label="Catégories d’emojis" style={{ display: "flex", gap: 5, overflowX: "auto", paddingBottom: 8 }}>
+                <div role="tablist" aria-label={i18nT("categories_d_emojis_45f203e0")} style={{ display: "flex", gap: 5, overflowX: "auto", paddingBottom: 8 }}>
                   {EMOJI_GROUPS.map((group) => (
                     <button
                       key={group.key}
@@ -227,7 +231,7 @@ export default function EmojiPickerButton({
                         whiteSpace: "nowrap",
                       }}
                     >
-                      {group.label}
+              {i18nT(group.labelKey)}
                     </button>
                   ))}
                 </div>
@@ -248,7 +252,7 @@ export default function EmojiPickerButton({
                     type="button"
                     onMouseDown={(event) => event.preventDefault()}
                     onClick={() => selectEmoji(emoji)}
-                    aria-label={`Insérer ${emoji}`}
+                    aria-label={i18nT("inserer_value_f2cefa14", { value0: emoji })}
                     title={emoji}
                     style={{
                       minWidth: 0,

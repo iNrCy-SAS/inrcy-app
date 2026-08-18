@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import { useState } from "react";
 import type { LegalDocKey } from "../../../legal/_components/legalDocs";
 import LegalDocumentsModal from "./LegalDocumentsModal";
@@ -9,6 +12,7 @@ type Props = {
 };
 
 export default function LegalContent({ mode = "page" }: Props) {
+  const i18nT = useTranslations("settings");
   const [openDoc, setOpenDoc] = useState<LegalDocKey | null>(null);
 
   const card: React.CSSProperties = {
@@ -60,24 +64,20 @@ export default function LegalContent({ mode = "page" }: Props) {
   return (
     <div style={{ display: "grid", gap: 12 }}>
       <div style={{ ...card, ...shell, padding: 18 }}>
-        <h2 style={titleAccent}>Informations légales</h2>
+        <h2 style={titleAccent}>{i18nT("informations_legales_4d326a77")}</h2>
         <p style={{ margin: "10px 0 0", opacity: 0.85, lineHeight: 1.5 }}>
-          Retrouvez ici la politique de confidentialité, les mentions légales, les conditions générales d’abonnement et les règles d’utilisation du générateur iNrCy.
-        </p>
+          {i18nT("retrouvez_ici_la_politique_de_confidentialite_631d7d46")}{" "}</p>
       </div>
 
       <div style={card}>
-        <h3 style={{ margin: 0, fontSize: 15, fontWeight: 900 }}>Documents</h3>
+        <h3 style={{ margin: 0, fontSize: 15, fontWeight: 900 }}>{i18nT("documents_687c8286")}</h3>
         <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
           <button type="button" onClick={() => setOpenDoc("confidentialite")} style={primaryBtn}>
-            Politique de confidentialité
-          </button>
+            {i18nT("politique_de_confidentialite_42b0e51e")}{" "}</button>
           <button type="button" onClick={() => setOpenDoc("mentions-legales")} style={btn}>
-            Mentions légales
-          </button>
+            {i18nT("mentions_legales_414291e0")}{" "}</button>
           <button type="button" onClick={() => setOpenDoc("cga")} style={btn}>
-            CGA et Conditions d’utilisation
-          </button>
+            {i18nT("cga_et_conditions_d_utilisation_353e0a8b")}{" "}</button>
         </div>
         {mode === "drawer" ? null : null}
       </div>

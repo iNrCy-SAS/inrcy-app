@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import { resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
 
 import { useEffect, useMemo, useState } from "react";
@@ -29,6 +32,7 @@ const PREMIUM_INERTIA_ACTION_KEYS = new Set([
 ]);
 
 export default function InertiaContent({ edition = "premium", snapshot, onOpenBoutique }: Props) {
+  const i18nT = useTranslations("settings");
   const [uiBalance, setUiBalance] = useState<number>(0);
   const [events, setEvents] = useState<LoyaltyEvent[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -113,21 +117,21 @@ export default function InertiaContent({ edition = "premium", snapshot, onOpenBo
     return [
       {
         key: "create_actu",
-        title: "Utiliser Booster",
-        subtitle: "+10 UI — 1 publication / semaine",
+        title: i18nT("utiliser_booster_6138c57d"),
+        subtitle: i18nT("10_ui_1_publication_semaine_64ed20db"),
         done: didActu,
       },
       {
         key: "weekly_propulser_use",
-        title: "Utiliser Propulser",
-        subtitle: "+10 UI — 1 action / semaine",
+        title: i18nT("utiliser_propulser_c4b4b56d"),
+        subtitle: i18nT("10_ui_1_action_semaine_8dafdd90"),
         done: didPropulser,
         premiumOnly: edition === "standard",
       },
       {
         key: "weekly_fideliser_use",
-        title: "Utiliser Fidéliser",
-        subtitle: "+10 UI — 1 action / semaine",
+        title: i18nT("utiliser_fideliser_af919842"),
+        subtitle: i18nT("10_ui_1_action_semaine_8dafdd90"),
         done: didFideliser,
         premiumOnly: edition === "standard",
       },
@@ -160,10 +164,9 @@ export default function InertiaContent({ edition = "premium", snapshot, onOpenBo
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
           <div>
             <div style={{ color: "rgba(255,255,255,0.92)", fontWeight: 800, fontSize: 16 }}>
-              Unités d&apos;Inertie
-            </div>
+              {i18nT("unites_d_apos_inertie_a9f73b8d")}{" "}</div>
             <div style={{ color: "rgba(255,255,255,0.64)", fontSize: 13, marginTop: 6 }}>
-              Turbo UI : <b>×{snapshot.multiplier}</b> — {snapshot.connectedCount}/{snapshot.totalChannels} canaux
+              {i18nT("turbo_ui_62a2f457")}{" "}<b>×{snapshot.multiplier}</b> — {snapshot.connectedCount}/{snapshot.totalChannels} canaux
             </div>
           </div>
 
@@ -173,7 +176,7 @@ export default function InertiaContent({ edition = "premium", snapshot, onOpenBo
               textAlign: "right",
             }}
           >
-            <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 12 }}>Solde UI</div>
+            <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 12 }}>{i18nT("solde_ui_86037358")}</div>
             <div style={{ color: "rgba(255,255,255,0.95)", fontWeight: 900, fontSize: 22 }}>
               {loading ? "…" : uiBalance}
             </div>
@@ -200,11 +203,9 @@ export default function InertiaContent({ edition = "premium", snapshot, onOpenBo
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
           <div>
             <div style={{ color: "rgba(255,255,255,0.92)", fontWeight: 900, fontSize: 15 }}>
-              Boutique
-            </div>
+              {i18nT("boutique_05236d3a")}{" "}</div>
             <div style={{ color: "rgba(255,255,255,0.66)", fontSize: 13, marginTop: 6 }}>
-              Dépensez vos UI ou commandez en € (print, logo, ads…).
-            </div>
+              {i18nT("depensez_vos_ui_ou_commandez_en_704bd67d")}{" "}</div>
           </div>
 
           <div
@@ -222,8 +223,7 @@ export default function InertiaContent({ edition = "premium", snapshot, onOpenBo
               whiteSpace: "nowrap",
             }}
           >
-            Ouvrir →
-          </div>
+            {i18nT("ouvrir_7fd29c03")}{" "}</div>
         </div>
       </button>
 
@@ -237,10 +237,9 @@ export default function InertiaContent({ edition = "premium", snapshot, onOpenBo
       >
         <div style={{ color: "rgba(255,255,255,0.9)", fontWeight: 800, marginBottom: 10 }}>
           <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-            <span>Détail du multiplicateur</span>
+            <span>{i18nT("detail_du_multiplicateur_96e13a14")}</span>
             <span style={{ color: "rgba(255,255,255,0.60)", fontSize: 12, fontWeight: 650 }}>
-              Bulle verte quand outil connecté
-            </span>
+              {i18nT("bulle_verte_quand_outil_connecte_ccfe01c6")}{" "}</span>
           </div>
         </div>
 
@@ -270,8 +269,7 @@ export default function InertiaContent({ edition = "premium", snapshot, onOpenBo
         </div>
 
         <div style={{ marginTop: 10, color: "rgba(255,255,255,0.55)", fontSize: 12 }}>
-          Plafond : ×{snapshot.maxMultiplier}
-        </div>
+          {i18nT("plafond_value_1bc731e7", { value0: snapshot.maxMultiplier })}</div>
       </div>
 
       {/* Boosts (semaine) */}
@@ -284,13 +282,11 @@ export default function InertiaContent({ edition = "premium", snapshot, onOpenBo
         }}
       >
         <div style={{ color: "rgba(255,255,255,0.9)", fontWeight: 800, marginBottom: 10 }}>
-          Boosts à faire cette semaine
-        </div>
+          {i18nT("boosts_a_faire_cette_semaine_a0a21688")}{" "}</div>
 
         {edition === "standard" ? (
           <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 12.5, margin: "-2px 0 10px" }}>
-            Booster est votre mission active. Les autres missions sont présentées à titre d’aperçu Premium.
-          </div>
+            {i18nT("booster_est_votre_mission_active_les_93914a0a")}{" "}</div>
         ) : null}
 
         <div style={{ display: "grid", gap: 8 }}>
@@ -336,8 +332,7 @@ export default function InertiaContent({ edition = "premium", snapshot, onOpenBo
                       whiteSpace: "nowrap",
                     }}
                   >
-                    Forfait Premium
-                  </span>
+                    {i18nT("forfait_premium_65aaf9d2")}{" "}</span>
                 ) : (
                   <div
                     style={{
@@ -346,7 +341,7 @@ export default function InertiaContent({ edition = "premium", snapshot, onOpenBo
                       whiteSpace: "nowrap",
                     }}
                   >
-                    {b.done ? "✅ Fait" : "À faire"}
+                    {b.done ? i18nT("fait_70149085") : i18nT("a_faire_262bf4ea")}
                   </div>
                 )}
               </div>
@@ -355,8 +350,7 @@ export default function InertiaContent({ edition = "premium", snapshot, onOpenBo
         </div>
 
         <div style={{ marginTop: 10, color: "rgba(255,255,255,0.55)", fontSize: 12 }}>
-          Réinitialisation automatique chaque lundi.
-        </div>
+          {i18nT("reinitialisation_automatique_chaque_lundi_f27eba74")}{" "}</div>
       </div>
 
       <div
@@ -368,19 +362,16 @@ export default function InertiaContent({ edition = "premium", snapshot, onOpenBo
         }}
       >
         <div style={{ color: "rgba(255,255,255,0.9)", fontWeight: 800, marginBottom: 10 }}>
-          Historique
-        </div>
+          {i18nT("historique_34f3a06a")}{" "}</div>
 
         {!supabaseReady ? (
           <div style={{ color: "rgba(255,255,255,0.65)", fontSize: 13 }}>
-            Supabase : tables fidélité non activées (à brancher).
-          </div>
+            {i18nT("supabase_tables_fidelite_non_activees_a_77d4e794")}{" "}</div>
         ) : loading ? (
-          <div style={{ color: "rgba(255,255,255,0.65)", fontSize: 13 }}>Chargement…</div>
+          <div style={{ color: "rgba(255,255,255,0.65)", fontSize: 13 }}>{i18nT("chargement_01cba1df")}</div>
         ) : events.length === 0 ? (
           <div style={{ color: "rgba(255,255,255,0.65)", fontSize: 13 }}>
-            Aucun mouvement pour le moment.
-          </div>
+            {i18nT("aucun_mouvement_pour_le_moment_5b0ccc2a")}{" "}</div>
         ) : (
           <div style={{ display: "grid", gap: 8 }}>
             {events.map((e) => {
@@ -404,7 +395,7 @@ export default function InertiaContent({ edition = "premium", snapshot, onOpenBo
                 >
                   <div style={{ color: "rgba(255,255,255,0.82)" }}>
                     <div style={{ fontWeight: 650 }}>
-                      {e.label ?? labelFromAction[e.action_key] ?? "Inertie"}
+                      {e.label ?? labelFromAction[e.action_key] ?? i18nT("inertie_0c1116ac")}
                       {premiumHistory ? (
                         <span
                           style={{
@@ -414,8 +405,7 @@ export default function InertiaContent({ edition = "premium", snapshot, onOpenBo
                             whiteSpace: "nowrap",
                           }}
                         >
-                          Forfait Premium
-                        </span>
+                          {i18nT("forfait_premium_65aaf9d2")}{" "}</span>
                       ) : null}
                     </div>
                     <div style={{ fontSize: 12, color: "rgba(255,255,255,0.55)" }}>

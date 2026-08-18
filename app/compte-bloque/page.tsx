@@ -1,3 +1,4 @@
+import { getLocale, getTranslations } from "next-intl/server";
 import Image from "next/image";
 import { redirect } from "next/navigation";
 
@@ -66,124 +67,118 @@ function getEffectiveStatus(subscription?: SubscriptionRow | null) {
   return status;
 }
 
-function formatDate(value?: string | null) {
+function formatDate(value: string | null | undefined, locale: string) {
   if (!value) return null;
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return null;
-  return new Intl.DateTimeFormat("fr-FR", {
+  return new Intl.DateTimeFormat(locale, {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
   }).format(date);
 }
 
-function copyForStatus(rawStatus: unknown): BlockedCopy {
+function copyForStatus(rawStatus: unknown, i18nT: (key: string) => string): BlockedCopy {
   const status = normalizeStatus(rawStatus);
 
   if (status === "trial_expired" || status === "trial-expired") {
     return {
-      eyebrow: "Période gratuite terminée",
-      title: "Compte bloqué",
-      badge: "Essai 21 jours terminé",
-      message:
-        "Votre période gratuite de 21 jours est terminée. Vos données sont conservées : vous pouvez activer iNrCy Standard pour reprendre immédiatement.",
-      statusLabel: "Essai terminé",
-      accessLabel: "Dashboard bloqué",
-      dataLabel: "Données conservées",
+      eyebrow: i18nT("periode_gratuite_terminee_19489bfe"),
+      title: i18nT("compte_bloque_cc393cd5"),
+      badge: i18nT("essai_21_jours_termine_70103f82"),
+      message: i18nT("votre_periode_gratuite_de_21_jours_733b8d78"),
+      statusLabel: i18nT("essai_termine_be984f1c"),
+      accessLabel: i18nT("dashboard_bloque_8fc74848"),
+      dataLabel: i18nT("donnees_conservees_c1aaabb1"),
     };
   }
 
   if (status === "paused") {
     return {
-      eyebrow: "Suspension temporaire",
-      title: "Compte en pause",
-      badge: "Accès suspendu",
-      message:
-        "Votre générateur iNrCy est actuellement suspendu. Vos données restent conservées et l’accès pourra être réactivé par iNrCy.",
-      statusLabel: "Suspendu",
-      accessLabel: "Accès temporairement bloqué",
-      dataLabel: "Données conservées",
+      eyebrow: i18nT("suspension_temporaire_ea1d13e5"),
+      title: i18nT("compte_en_pause_a1a56cd7"),
+      badge: i18nT("acces_suspendu_d5df1a05"),
+      message: i18nT("votre_generateur_inrcy_est_actuellement_suspendu_5ff9ff9b"),
+      statusLabel: i18nT("suspendu_e9a8be4e"),
+      accessLabel: i18nT("acces_temporairement_bloque_13cc9d9b"),
+      dataLabel: i18nT("donnees_conservees_c1aaabb1"),
     };
   }
 
   if (status === "past_due") {
     return {
-      eyebrow: "Paiement en retard",
-      title: "Régularisation nécessaire",
-      badge: "Paiement en retard",
-      message:
-        "Votre abonnement présente un retard de paiement. Ouvrez votre espace de facturation sécurisé pour le régulariser et réactiver votre générateur.",
-      statusLabel: "Paiement en retard",
-      accessLabel: "Accès bloqué",
-      dataLabel: "Données conservées",
+      eyebrow: i18nT("paiement_en_retard_178e0445"),
+      title: i18nT("regularisation_necessaire_5b514f95"),
+      badge: i18nT("paiement_en_retard_178e0445"),
+      message: i18nT("votre_abonnement_presente_un_retard_de_79e830ea"),
+      statusLabel: i18nT("paiement_en_retard_178e0445"),
+      accessLabel: i18nT("acces_6e47e630"),
+      dataLabel: i18nT("donnees_conservees_c1aaabb1"),
     };
   }
 
   if (status === "unpaid") {
     return {
-      eyebrow: "Paiement non réglé",
-      title: "Compte bloqué",
-      badge: "Paiement requis",
-      message:
-        "Le paiement de votre abonnement n’a pas pu être validé. Votre générateur est bloqué jusqu’à sa régularisation dans l’espace de facturation.",
-      statusLabel: "Impayé",
-      accessLabel: "Dashboard bloqué",
-      dataLabel: "Données conservées",
+      eyebrow: i18nT("paiement_non_regle_0bc4b42f"),
+      title: i18nT("compte_bloque_cc393cd5"),
+      badge: i18nT("paiement_requis_05da3d43"),
+      message: i18nT("le_paiement_de_votre_abonnement_n_f20f2e6f"),
+      statusLabel: i18nT("impaye_3f8d3329"),
+      accessLabel: i18nT("dashboard_bloque_8fc74848"),
+      dataLabel: i18nT("donnees_conservees_c1aaabb1"),
     };
   }
 
   if (status === "canceled" || status === "cancelled") {
     return {
-      eyebrow: "Abonnement résilié",
-      title: "Compte résilié",
-      badge: "Abonnement arrêté",
-      message:
-        "Votre abonnement iNrCy a été résilié. Contactez iNrCy si vous souhaitez réactiver votre générateur.",
-      statusLabel: "Résilié",
-      accessLabel: "Accès bloqué",
-      dataLabel: "Données conservées",
+      eyebrow: i18nT("abonnement_resilie_f5326fe8"),
+      title: i18nT("compte_resilie_72c7336f"),
+      badge: i18nT("abonnement_arrete_dfc9ba27"),
+      message: i18nT("votre_abonnement_inrcy_a_ete_resilie_7c8e06c7"),
+      statusLabel: i18nT("resilie_3578b2e9"),
+      accessLabel: i18nT("acces_6e47e630"),
+      dataLabel: i18nT("donnees_conservees_c1aaabb1"),
     };
   }
 
   if (status === "incomplete_expired") {
     return {
-      eyebrow: "Activation expirée",
-      title: "Activation non finalisée",
-      badge: "Activation expirée",
-      message:
-        "L’activation de votre abonnement n’a pas été finalisée dans les délais. Contactez iNrCy pour relancer votre générateur.",
-      statusLabel: "Activation expirée",
-      accessLabel: "Accès bloqué",
-      dataLabel: "Données conservées",
+      eyebrow: i18nT("activation_expiree_78c92717"),
+      title: i18nT("activation_non_finalisee_50b7c64c"),
+      badge: i18nT("activation_expiree_78c92717"),
+      message: i18nT("l_activation_de_votre_abonnement_n_31654080"),
+      statusLabel: i18nT("activation_expiree_78c92717"),
+      accessLabel: i18nT("acces_6e47e630"),
+      dataLabel: i18nT("donnees_conservees_c1aaabb1"),
     };
   }
 
   if (status === "incomplete") {
     return {
-      eyebrow: "Activation en attente",
-      title: "Activation non finalisée",
-      badge: "Activation en attente",
-      message:
-        "Votre abonnement n’est pas encore totalement activé. Contactez iNrCy si le blocage persiste.",
-      statusLabel: "En attente",
-      accessLabel: "Accès bloqué",
-      dataLabel: "Données conservées",
+      eyebrow: i18nT("activation_en_attente_c3d81a46"),
+      title: i18nT("activation_non_finalisee_50b7c64c"),
+      badge: i18nT("activation_en_attente_c3d81a46"),
+      message: i18nT("votre_abonnement_n_est_pas_encore_b8d5f825"),
+      statusLabel: i18nT("en_attente_5231158f"),
+      accessLabel: i18nT("acces_6e47e630"),
+      dataLabel: i18nT("donnees_conservees_c1aaabb1"),
     };
   }
 
   return {
-    eyebrow: "Accès suspendu",
-    title: "Compte bloqué",
-    badge: "Vérification nécessaire",
-    message:
-      "Votre générateur iNrCy est temporairement bloqué. Contactez iNrCy pour vérifier votre situation et réactiver l’accès.",
-    statusLabel: "Bloqué",
-    accessLabel: "Dashboard bloqué",
-    dataLabel: "Données conservées",
+    eyebrow: i18nT("acces_suspendu_d5df1a05"),
+    title: i18nT("compte_bloque_cc393cd5"),
+    badge: i18nT("verification_necessaire_b8a188c4"),
+    message: i18nT("votre_generateur_inrcy_est_temporairement_bloque_6c80550e"),
+    statusLabel: i18nT("bloque_70f90b1a"),
+    accessLabel: i18nT("dashboard_bloque_8fc74848"),
+    dataLabel: i18nT("donnees_conservees_c1aaabb1"),
   };
 }
 
 export default async function BlockedAccountPage() {
+  const i18nT = await getTranslations("public");
+  const locale = await getLocale();
   const supabase = await createSupabaseServer();
   const {
     data: { user },
@@ -206,12 +201,12 @@ export default async function BlockedAccountPage() {
     redirect("/dashboard");
   }
 
-  const copy = copyForStatus(status);
+  const copy = copyForStatus(status, i18nT);
   const edition = resolveDashboardEdition({
     edition: subscription?.app_edition,
     plan: subscription?.plan,
   });
-  const importantDate = formatDate(subscription?.trial_end_at) || formatDate(subscription?.end_date);
+  const importantDate = formatDate(subscription?.trial_end_at, locale) || formatDate(subscription?.end_date, locale);
   const contactHref = `mailto:contact@inrcy.com?subject=${encodeURIComponent("Réactivation de mon générateur iNrCy")}`;
 
   return (
@@ -221,7 +216,7 @@ export default async function BlockedAccountPage() {
       <section className={styles.shell}>
         <div className={styles.card}>
           <div className={styles.header}>
-            <Image src="/logo-inrcy.png" alt="iNrCy" width={56} height={56} priority className={styles.logo} />
+            <Image src="/logo-inrcy.png" alt={i18nT("inrcy_ef95fe0e")} width={56} height={56} priority className={styles.logo} />
 
             <div className={styles.brandBlock}>
               <div className={styles.brandSub}>{copy.eyebrow}</div>
@@ -239,7 +234,7 @@ export default async function BlockedAccountPage() {
 
               <p className={styles.text}>{copy.message}</p>
 
-              <p className={styles.reassurance}>Vos données ne sont pas supprimées.</p>
+              <p className={styles.reassurance}>{i18nT("vos_donnees_ne_sont_pas_supprimees_2f584f47")}</p>
 
               <div className={styles.actions}>
                 <BlockedBillingActions
@@ -251,31 +246,30 @@ export default async function BlockedAccountPage() {
 
                 <form action="/api/auth/sign-out" method="post">
                   <button type="submit" className={styles.secondaryBtn}>
-                    Se déconnecter
-                  </button>
+                    {i18nT("se_deconnecter_ea36fa17")}{" "}</button>
                 </form>
               </div>
             </div>
 
             <aside className={styles.infoCard}>
               <div className={styles.infoRow}>
-                <span className={styles.infoLabel}>Statut</span>
+                <span className={styles.infoLabel}>{i18nT("statut_659499f3")}</span>
                 <span className={styles.infoValue}>{copy.statusLabel}</span>
               </div>
 
               <div className={styles.infoRow}>
-                <span className={styles.infoLabel}>Accès</span>
+                <span className={styles.infoLabel}>{i18nT("acces_6e47e630")}</span>
                 <span className={styles.infoValue}>{copy.accessLabel}</span>
               </div>
 
               <div className={styles.infoRow}>
-                <span className={styles.infoLabel}>Données</span>
+                <span className={styles.infoLabel}>{i18nT("donnees_e3e0c5ec")}</span>
                 <span className={styles.infoValue}>{copy.dataLabel}</span>
               </div>
 
               {importantDate ? (
                 <div className={styles.infoRow}>
-                  <span className={styles.infoLabel}>Date concernée</span>
+                  <span className={styles.infoLabel}>{i18nT("date_concernee_78b24e3a")}</span>
                   <span className={styles.infoValue}>{importantDate}</span>
                 </div>
               ) : null}

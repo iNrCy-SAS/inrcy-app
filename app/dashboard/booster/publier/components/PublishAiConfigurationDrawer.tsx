@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import React from "react";
 import AiConfigurationContent from "../../../settings/_components/AiConfigurationContent";
 import { useUnsavedExitGuard } from "../../../_hooks/useUnsavedExitGuard";
@@ -18,16 +19,17 @@ export default function PublishAiConfigurationDrawer({
   drawerHeight,
   onClose,
 }: PublishAiConfigurationDrawerProps) {
+  const i18nT = useTranslations("booster");
   const [hasUnsavedChanges, setHasUnsavedChanges] = React.useState(false);
   const { confirmExit } = useUnsavedExitGuard({
     active: open,
     shouldBlock: hasUnsavedChanges,
     onConfirmExit: onClose,
-    eyebrow: "Configuration IA",
-    title: "Quitter sans enregistrer ?",
-    message: "Cette configuration contient des modifications non enregistrées. Si vous la fermez maintenant, elles seront perdues.",
-    confirmLabel: "Fermer sans enregistrer",
-    cancelLabel: "Continuer l’édition",
+    eyebrow: i18nT("configuration_ia_f620c8d8"),
+    title: i18nT("quitter_sans_enregistrer_6208bd94"),
+    message: i18nT("cette_configuration_contient_des_modifications_n_b64cbc4f"),
+    confirmLabel: i18nT("fermer_sans_enregistrer_15fdc373"),
+    cancelLabel: i18nT("continuer_l_edition_0f0075bb"),
     variant: "warning",
   });
 
@@ -37,7 +39,7 @@ export default function PublishAiConfigurationDrawer({
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Configuration IA"
+      aria-label={i18nT("configuration_ia_f620c8d8")}
       style={{
         position: "fixed",
         inset: 0,
@@ -104,8 +106,7 @@ export default function PublishAiConfigurationDrawer({
               color: "white",
             }}
           >
-            Configuration IA
-          </h2>
+            {i18nT("configuration_ia_f620c8d8")}{" "}</h2>
           <button
             type="button"
             onClick={() => void confirmExit()}
@@ -119,8 +120,7 @@ export default function PublishAiConfigurationDrawer({
               flexShrink: 0,
             }}
           >
-            Fermer
-          </button>
+            {i18nT("fermer_5ab4ec64")}{" "}</button>
         </div>
         <div
           style={{

@@ -3,9 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { useLocale, useTranslations } from "next-intl";
 import { type EmailOtpType } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabaseClient";
 import { setActiveBrowserUserId } from "@/lib/browserAccountCache";
+import { appLanguageFromLocale } from "@/i18n/config";
+import AuthLanguageSelector from "./AuthLanguageSelector";
 
 type Mode = "invite" | "reset";
 
@@ -55,10 +58,9 @@ function getPasswordStrength(pw: string) {
 
   const score = Object.values(rules).filter(Boolean).length;
   const percent = (score / 5) * 100;
-  const label = score <= 2 ? "Faible" : score <= 4 ? "Moyen" : "Fort";
   const isStrong = score === 5;
 
-  return { rules, score, percent, label, isStrong };
+  return { rules, score, percent, isStrong };
 }
 
 function Rule({ ok, label }: { ok: boolean; label: string }) {
@@ -70,19 +72,11 @@ function Rule({ ok, label }: { ok: boolean; label: string }) {
   );
 }
 
-function shouldOfferResendLink(message: string | null, mode: Mode, email?: string | null) {
-  if (!message || !email) return false;
-  const value = message.toLowerCase();
-  if (mode === "invite" && value.includes("activation")) return true;
-  if (mode === "reset" && value.includes("réinitialisation")) return true;
-  return ["lien", "expiré", "expire", "déjà utilisé", "deja utilise", "invalide", "nouveau"].some((signal) =>
-    value.includes(signal),
-  );
-}
-
 export default function FinishEmailLinkClient({ mode }: Props) {
   const supabase = useMemo(() => createClient(), []);
   const searchParams = useSearchParams();
+  const appLanguage = appLanguageFromLocale(useLocale());
+  const t = useTranslations("auth.password");
 
   const [ready, setReady] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -106,6 +100,8 @@ export default function FinishEmailLinkClient({ mode }: Props) {
   const nextPath = requestedNextPath.startsWith("/set-password") ? "/dashboard" : requestedNextPath;
   const isInvite = mode === "invite";
   const strength = useMemo(() => getPasswordStrength(password), [password]);
+  const strengthLabel =
+    strength.score <= 2 ? t("weak") : strength.score <= 4 ? t("medium") : t("strong");
 
   useEffect(() => {
     let cancelled = false;
@@ -155,10 +151,31 @@ export default function FinishEmailLinkClient({ mode }: Props) {
 
   function validatePassword() {
     if (!strength.isStrong) {
-      return "Mot de passe trop faible : 8+ caractères, lettre, chiffre, majuscule et symbole requis.";
+      return t("tooWeak");
     }
-    if (password !== confirm) return "Les deux mots de passe ne sont pas identiques.";
+    if (password !== confirm) return t("mismatch");
     return null;
+  }
+
+  function getFinishErrorMessage(code?: string) {
+    switch (code) {
+      case "auth_link_invalid":
+        return t("linkInvalid");
+      case "link_incomplete":
+        return t("linkIncomplete");
+      case "password_too_weak":
+        return t("tooWeak");
+      case "invalid_action":
+        return t("invalidAction");
+      case "session_failed":
+        return t("sessionFailed");
+      case "account_mismatch":
+        return t("accountMismatch");
+      case "password_save_failed":
+        return t("passwordSaveFailed");
+      default:
+        return t("finishFailed");
+    }
   }
 
   async function onResendLink() {
@@ -172,24 +189,23 @@ export default function FinishEmailLinkClient({ mode }: Props) {
       const res = await fetch("/api/auth/resend-link", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: expectedEmail, mode }),
+        body: JSON.stringify({ email: expectedEmail, mode, language: appLanguage }),
       });
-      const payload = (await res.json().catch(() => null)) as { error?: string; message?: string } | null;
+      await res.json().catch(() => null);
 
       if (!res.ok) {
-        setResendError(payload?.error || "Impossible d’envoyer un nouveau lien pour le moment.");
+        setResendError(res.status === 429 ? t("resendRateLimited") : t("sendFailed"));
         return;
       }
 
       setResendInfo(
-        payload?.message ||
-          (isInvite
-            ? `Un nouveau lien vient d’être envoyé à ${expectedEmail}.`
-            : `Un nouveau lien de réinitialisation vient d’être envoyé à ${expectedEmail}.`),
+        isInvite
+          ? t("resendInviteSuccess", { email: expectedEmail })
+          : t("resendResetSuccess", { email: expectedEmail }),
       );
       setResendCooldown(30);
     } catch {
-      setResendError("Impossible d’envoyer un nouveau lien pour le moment.");
+      setResendError(t("sendFailed"));
     } finally {
       setResendLoading(false);
     }
@@ -203,12 +219,12 @@ export default function FinishEmailLinkClient({ mode }: Props) {
     setResendError(null);
 
     if (linkRejected) {
-      setMessage("Ce lien n’est plus valide. Merci d’en demander un nouveau.");
+      setMessage(t("linkInvalid"));
       return;
     }
 
     if (!tokenHash) {
-      setMessage("Lien incomplet. Merci de demander un nouveau lien.");
+      setMessage(t("linkIncomplete"));
       return;
     }
 
@@ -230,6 +246,7 @@ export default function FinishEmailLinkClient({ mode }: Props) {
           token_hash: tokenHash,
           email: expectedEmail,
           password,
+          language: appLanguage,
         }),
       });
 
@@ -241,7 +258,7 @@ export default function FinishEmailLinkClient({ mode }: Props) {
           // refusé pendant que cette page reste ouverte.
           setLinkRejected(true);
         }
-        setMessage(payload?.error || "Impossible de finaliser le mot de passe pour le moment.");
+        setMessage(getFinishErrorMessage(payload?.code));
         return;
       }
 
@@ -258,8 +275,8 @@ export default function FinishEmailLinkClient({ mode }: Props) {
         if (!sessionError) {
           setSuccess(
             isInvite
-              ? "Mot de passe créé avec succès. Redirection vers votre espace…"
-              : "Mot de passe réinitialisé. Redirection…",
+              ? t("inviteRedirectSuccess")
+              : t("resetRedirectSuccess"),
           );
           window.location.replace(nextPath);
           return;
@@ -268,18 +285,18 @@ export default function FinishEmailLinkClient({ mode }: Props) {
 
       setSuccess(
         isInvite
-          ? "Mot de passe créé. Vous pouvez maintenant vous connecter."
-          : "Mot de passe réinitialisé. Vous pouvez maintenant vous connecter.",
+          ? t("inviteLoginSuccess")
+          : t("resetLoginSuccess"),
       );
       window.setTimeout(() => {
-        window.location.replace("/login");
+        window.location.replace(`/login?lang=${appLanguage}`);
       }, 1200);
     } catch (error) {
       console.error(error);
       setMessage(
         isInvite
-          ? "Impossible de finaliser l’activation pour le moment. Réessayez ou demandez un nouveau lien d’invitation."
-          : "Impossible de finaliser la réinitialisation pour le moment. Réessayez ou demandez un nouveau lien.",
+          ? t("inviteException")
+          : t("resetException"),
       );
     } finally {
       setLoading(false);
@@ -289,29 +306,30 @@ export default function FinishEmailLinkClient({ mode }: Props) {
   const confirmTouched = confirm.length > 0;
   const confirmOk = confirmTouched && password === confirm;
   const canSubmit = ready && !loading && !linkRejected && Boolean(tokenHash) && strength.isStrong && password === confirm;
-  const canResend = shouldOfferResendLink(message, mode, expectedEmail);
-  const title = isInvite ? "Créer votre mot de passe" : "Définir un nouveau mot de passe";
+  const canResend = Boolean(expectedEmail) && (linkRejected || !tokenHash);
+  const title = isInvite ? t("inviteTitle") : t("resetTitle");
   const body = isInvite
-    ? "Choisissez votre mot de passe. Le lien d’activation ne sera utilisé qu’au clic final."
-    : "Choisissez votre nouveau mot de passe. Le lien de réinitialisation ne sera utilisé qu’au clic final.";
+    ? t("inviteBody")
+    : t("resetBody");
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-slate-950 px-6 py-10 text-slate-100">
+      <AuthLanguageSelector />
       <div className="w-full max-w-xl rounded-3xl border border-white/10 bg-white/10 p-8 shadow-2xl backdrop-blur">
         <p className="text-sm font-medium uppercase tracking-[0.18em] text-cyan-300">
-          {isInvite ? "Activation du compte" : "Réinitialisation du mot de passe"}
+          {isInvite ? t("inviteEyebrow") : t("resetEyebrow")}
         </p>
         <h1 className="mt-3 text-3xl font-semibold text-white">{title}</h1>
         <p className="mt-4 text-sm leading-6 text-slate-200">{body}</p>
         {expectedEmail ? (
           <p className="mt-3 text-sm leading-6 text-slate-300">
-            Compte attendu : <strong>{expectedEmail}</strong>
+            {t("expectedAccount")} <strong>{expectedEmail}</strong>
           </p>
         ) : null}
 
         {!tokenHash ? (
           <p className="mt-5 rounded-2xl border border-rose-400/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
-            Lien incomplet. Merci de demander un nouveau lien.
+            {t("linkIncomplete")}
           </p>
         ) : null}
 
@@ -320,7 +338,7 @@ export default function FinishEmailLinkClient({ mode }: Props) {
             <input
               className="w-full rounded-2xl border border-white/10 bg-white/95 px-4 py-3 pr-12 text-sm font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-cyan-300"
               type={showPassword ? "text" : "password"}
-              placeholder="Nouveau mot de passe"
+              placeholder={t("newPassword")}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               autoComplete="new-password"
@@ -330,7 +348,7 @@ export default function FinishEmailLinkClient({ mode }: Props) {
               type="button"
               onClick={() => setShowPassword((value) => !value)}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-800"
-              aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+              aria-label={showPassword ? t("hidePassword") : t("showPassword")}
             >
               {showPassword ? "🙈" : "👁️"}
             </button>
@@ -338,17 +356,17 @@ export default function FinishEmailLinkClient({ mode }: Props) {
 
           <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
             <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-300">Niveau de protection</span>
+              <span className="text-slate-300">{t("protectionLevel")}</span>
               <span
                 className={
-                  strength.label === "Fort"
+                  strength.score === 5
                     ? "text-emerald-300"
-                    : strength.label === "Moyen"
+                    : strength.score >= 3
                     ? "text-amber-300"
                     : "text-rose-300"
                 }
               >
-                {strength.label}
+                {strengthLabel}
               </span>
             </div>
             <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-white/10">
@@ -358,11 +376,11 @@ export default function FinishEmailLinkClient({ mode }: Props) {
               />
             </div>
             <div className="mt-3 grid grid-cols-1 gap-1 text-xs">
-              <Rule ok={strength.rules.minLen} label="8 caractères minimum" />
-              <Rule ok={strength.rules.hasLetter} label="Au moins une lettre" />
-              <Rule ok={strength.rules.hasNumber} label="Au moins un chiffre" />
-              <Rule ok={strength.rules.hasUpper} label="Au moins une majuscule" />
-              <Rule ok={strength.rules.hasSymbol} label="Au moins un symbole" />
+              <Rule ok={strength.rules.minLen} label={t("minLength")} />
+              <Rule ok={strength.rules.hasLetter} label={t("letter")} />
+              <Rule ok={strength.rules.hasNumber} label={t("number")} />
+              <Rule ok={strength.rules.hasUpper} label={t("uppercase")} />
+              <Rule ok={strength.rules.hasSymbol} label={t("symbol")} />
             </div>
           </div>
 
@@ -370,7 +388,7 @@ export default function FinishEmailLinkClient({ mode }: Props) {
             <input
               className="w-full rounded-2xl border border-white/10 bg-white/95 px-4 py-3 pr-12 text-sm font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-cyan-300"
               type={showConfirmPassword ? "text" : "password"}
-              placeholder="Confirmer le mot de passe"
+              placeholder={t("confirmPassword")}
               value={confirm}
               onChange={(event) => setConfirm(event.target.value)}
               autoComplete="new-password"
@@ -380,7 +398,7 @@ export default function FinishEmailLinkClient({ mode }: Props) {
               type="button"
               onClick={() => setShowConfirmPassword((value) => !value)}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-800"
-              aria-label={showConfirmPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+              aria-label={showConfirmPassword ? t("hidePassword") : t("showPassword")}
             >
               {showConfirmPassword ? "🙈" : "👁️"}
             </button>
@@ -388,9 +406,9 @@ export default function FinishEmailLinkClient({ mode }: Props) {
 
           {confirmTouched ? (
             confirmOk ? (
-              <p className="text-xs text-emerald-300">Les mots de passe correspondent.</p>
+              <p className="text-xs text-emerald-300">{t("passwordsMatch")}</p>
             ) : (
-              <p className="text-xs text-rose-300">Les mots de passe ne correspondent pas.</p>
+              <p className="text-xs text-rose-300">{t("passwordsDoNotMatch")}</p>
             )
           ) : null}
 
@@ -403,7 +421,7 @@ export default function FinishEmailLinkClient({ mode }: Props) {
           {canResend ? (
             <div className="space-y-2 rounded-2xl border border-cyan-300/30 bg-cyan-300/10 px-4 py-3">
               <div className="text-sm text-cyan-50">
-                {isInvite ? "Besoin d’un nouveau lien d’activation ?" : "Besoin d’un nouveau lien de réinitialisation ?"}
+                {isInvite ? t("needInviteLink") : t("needResetLink")}
               </div>
               <button
                 type="button"
@@ -412,10 +430,10 @@ export default function FinishEmailLinkClient({ mode }: Props) {
                 className="inline-flex w-full items-center justify-center rounded-xl border border-cyan-200/30 bg-white/10 px-4 py-2 text-sm font-medium text-cyan-50 transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {resendLoading
-                  ? "Envoi en cours..."
+                  ? t("sending")
                   : resendCooldown > 0
-                  ? `Renvoyer dans ${resendCooldown}s`
-                  : "Envoyer un nouveau lien"}
+                  ? t("resendIn", { seconds: resendCooldown })
+                  : t("sendNewLink")}
               </button>
               {resendInfo ? <div className="text-sm text-emerald-200">{resendInfo}</div> : null}
               {resendError ? <div className="text-sm text-rose-200">{resendError}</div> : null}
@@ -435,18 +453,18 @@ export default function FinishEmailLinkClient({ mode }: Props) {
               className="inline-flex flex-1 items-center justify-center rounded-2xl bg-cyan-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {!ready
-                ? "Vérification…"
+                ? t("verifying")
                 : loading
-                ? "Enregistrement…"
+                ? t("saving")
                 : isInvite
-                ? "Créer mon mot de passe"
-                : "Réinitialiser mon mot de passe"}
+                ? t("createPassword")
+                : t("resetPassword")}
             </button>
             <Link
-              href="/login"
+              href={`/login?lang=${appLanguage}`}
               className="inline-flex items-center justify-center rounded-2xl border border-white/15 px-5 py-3 text-sm font-medium text-slate-200 transition hover:bg-white/5"
             >
-              Retour à la connexion
+              {t("backToLogin")}
             </Link>
           </div>
         </form>

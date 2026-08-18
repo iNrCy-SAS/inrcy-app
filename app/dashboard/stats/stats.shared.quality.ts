@@ -1,4 +1,4 @@
-import { type CubeKey, type Overview } from "./stats.shared.types";
+import { type CubeKey, type Overview, type StatsTranslator } from "./stats.shared.types";
 import { bestMetricValue, clamp, latestDailyMetricValue, safeNum, sumMetricValues } from "./stats.shared.core";
 import { engagementScore100, getGmbTotals, isIntentQuery, logNorm, mapChannelBucket, pageKind, qualityLabel } from "./stats.shared.opportunity";
 
@@ -65,13 +65,13 @@ export function isLinkedInStatsPartial(ov: Overview | null | undefined) {
   return true;
 }
 
-export function buildProvenance(cubeKey: CubeKey, ov: Overview) {
+export function buildProvenance(cubeKey: CubeKey, ov: Overview, t: StatsTranslator) {
   if (cubeKey === "mails") {
     const m = ov?.sources?.mails?.metrics;
     return [
-      { label: "Fidéliser", value: safeNum(m?.fidelisations30), colorVar: "--cSocial" },
-      { label: "Propulser", value: safeNum(m?.propulsions30), colorVar: "--cGoogle" },
-      { label: "Mails simples", value: safeNum(m?.mailsSimples30), colorVar: "--cDirect" },
+      { label: t("fideliser_8fa9e4f1"), value: safeNum(m?.fidelisations30), colorVar: "--cSocial" },
+      { label: t("propulser_2de43942"), value: safeNum(m?.propulsions30), colorVar: "--cGoogle" },
+      { label: t("mails_simples_608d9dcf"), value: safeNum(m?.mailsSimples30), colorVar: "--cDirect" },
     ];
   }
 
@@ -80,18 +80,18 @@ export function buildProvenance(cubeKey: CubeKey, ov: Overview) {
     const { impressions, mapsImpressions: maps, searchImpressions: search } = getGmbTotals(m);
     if (maps > 0 || search > 0) {
       return [
-        { label: "Maps", value: maps, colorVar: "--cGoogle" },
-        { label: "Search", value: search, colorVar: "--cDirect" },
+        { label: t("maps_80071cd7"), value: maps, colorVar: "--cGoogle" },
+        { label: t("search_bce06414"), value: search, colorVar: "--cDirect" },
       ];
     }
     if (impressions > 0) {
       return [
-        { label: "Visibilité locale", value: impressions, colorVar: "--cGoogle" },
+        { label: t("visibilite_locale_afa9cdc9"), value: impressions, colorVar: "--cGoogle" },
       ];
     }
     return [
-      { label: "Maps", value: 0, colorVar: "--cGoogle" },
-      { label: "Search", value: 0, colorVar: "--cDirect" },
+      { label: t("maps_80071cd7"), value: 0, colorVar: "--cGoogle" },
+      { label: t("search_bce06414"), value: 0, colorVar: "--cDirect" },
     ];
   }
 
@@ -112,8 +112,8 @@ export function buildProvenance(cubeKey: CubeKey, ov: Overview) {
       bestMetricValue(m, ["page_post_engagements", "page_engaged_users", "post_engaged_users_sum"]) ||
       sumMetricValues(m, ["reactions", "comments", "shares"]);
     return [
-      { label: "Audience", value: audience, colorVar: "--cSocial" },
-      { label: "Interactions", value: interactions, colorVar: "--cGoogle" },
+      { label: t("audience_51d99345"), value: audience, colorVar: "--cSocial" },
+      { label: t("interactions_0b3583ec"), value: interactions, colorVar: "--cGoogle" },
     ];
   }
 
@@ -127,8 +127,8 @@ export function buildProvenance(cubeKey: CubeKey, ov: Overview) {
       bestMetricValue(m, ["total_interactions", "accounts_engaged"]) ||
       sumMetricValues(m, ["profile_links_taps", "website_clicks", "phone_call_clicks", "email_contacts", "text_message_clicks", "get_directions_clicks", "get_direction_clicks"]);
     return [
-      { label: "Audience", value: audience, colorVar: "--cSocial" },
-      { label: "Engagement", value: engagement, colorVar: "--cGoogle" },
+      { label: t("audience_51d99345"), value: audience, colorVar: "--cSocial" },
+      { label: t("engagement_4b1f1c7b"), value: engagement, colorVar: "--cGoogle" },
     ];
   }
 
@@ -137,8 +137,8 @@ export function buildProvenance(cubeKey: CubeKey, ov: Overview) {
     const audience = safeNum(m?.totals?.video_views) + safeNum(m?.totals?.views) + safeNum(m?.totals?.profile_views) + safeNum(m?.totals?.followers);
     const engagement = sumMetricValues(m, ["engagements", "likes", "comments", "shares", "saves"]);
     return [
-      { label: "Vues", value: audience, colorVar: "--cSocial" },
-      { label: "Engagement", value: engagement, colorVar: "--cGoogle" },
+      { label: t("vues_ff576f2b"), value: audience, colorVar: "--cSocial" },
+      { label: t("engagement_4b1f1c7b"), value: engagement, colorVar: "--cGoogle" },
     ];
   }
 
@@ -147,8 +147,8 @@ export function buildProvenance(cubeKey: CubeKey, ov: Overview) {
     const audience = safeNum(m?.totals?.video_views) + safeNum(m?.totals?.views) + safeNum(m?.totals?.profile_views) + safeNum(m?.totals?.subscribers);
     const engagement = sumMetricValues(m, ["engagements", "likes", "comments", "shares", "saves"]);
     return [
-      { label: "Vues", value: audience, colorVar: "--cSocial" },
-      { label: "Engagement", value: engagement, colorVar: "--cGoogle" },
+      { label: t("vues_ff576f2b"), value: audience, colorVar: "--cSocial" },
+      { label: t("engagement_4b1f1c7b"), value: engagement, colorVar: "--cGoogle" },
     ];
   }
 
@@ -160,8 +160,8 @@ export function buildProvenance(cubeKey: CubeKey, ov: Overview) {
       safeNum(m?.totals?.pageViews);
     const clicks = sumMetricValues(m, ["clickCount", "clicks", "linkClickCount", "premiumCtaClickCount", "pageClicks"]);
     return [
-      { label: "Impressions", value: impressions, colorVar: "--cSocial" },
-      { label: "Clics", value: clicks, colorVar: "--cGoogle" },
+      { label: t("impressions_b5fb66f6"), value: impressions, colorVar: "--cSocial" },
+      { label: t("clics_6e92c5b0"), value: clicks, colorVar: "--cGoogle" },
     ];
   }
 
@@ -171,26 +171,38 @@ export function buildProvenance(cubeKey: CubeKey, ov: Overview) {
     buckets[b] += safeNum(c.sessions);
   }
   return [
-    { label: "Google", value: buckets.google, colorVar: "--cGoogle" },
-    { label: "Direct", value: buckets.direct, colorVar: "--cDirect" },
-    { label: "Social", value: buckets.social, colorVar: "--cSocial" },
-    { label: "Autres", value: buckets.other, colorVar: "--cOther" },
+    { label: t("google_2b681c0a"), value: buckets.google, colorVar: "--cGoogle" },
+    { label: t("direct_bc81524a"), value: buckets.direct, colorVar: "--cDirect" },
+    { label: t("social_41a57508"), value: buckets.social, colorVar: "--cSocial" },
+    { label: t("autres_2f0dd042"), value: buckets.other, colorVar: "--cOther" },
   ];
 }
 
-export function computeQuality(cubeKey: CubeKey, ov: Overview) {
+function localizedQualityLabel(score: number, t: StatsTranslator) {
+  const base = qualityLabel(score);
+  const key = score >= 80
+    ? "excellent_1aafbf54"
+    : score >= 65
+      ? "solide_ab31c54d"
+      : score >= 45
+        ? "correct_48e09e45"
+        : "a_ameliorer_3b604209";
+  return { ...base, label: t(key) };
+}
+
+export function computeQuality(cubeKey: CubeKey, ov: Overview, t: StatsTranslator) {
   if (cubeKey === "gmb") {
     const connected = !!ov?.sources?.gmb?.connected;
-    if (!connected) return { score: 0, ...qualityLabel(0) };
+    if (!connected) return { score: 0, ...localizedQualityLabel(0, t) };
 
     const m = ov?.sources?.gmb?.metrics;
-    if (m?.error) return { score: 55, ...qualityLabel(55) };
-    return { score: 70, ...qualityLabel(70) };
+    if (m?.error) return { score: 55, ...localizedQualityLabel(55, t) };
+    return { score: 70, ...localizedQualityLabel(70, t) };
   }
 
   if (cubeKey === "mails") {
     const connected = !!ov?.sources?.mails?.connected;
-    if (!connected) return { score: 0, ...qualityLabel(0) };
+    if (!connected) return { score: 0, ...localizedQualityLabel(0, t) };
     const m = ov?.sources?.mails?.metrics;
     const accounts = safeNum(m?.connectedCount);
     const contacts = safeNum(m?.contactsCrm);
@@ -198,15 +210,15 @@ export function computeQuality(cubeKey: CubeKey, ov: Overview) {
     const destinataires = safeNum(m?.destinataires30);
     const agenda = safeNum(m?.agendaReminders30);
     const score = clamp(Math.round(35 + Math.min(25, accounts * 8) + Math.min(20, contacts / 10) + Math.min(20, campaigns * 4 + destinataires * 0.10 + agenda * 0.12)), 35, 92);
-    return { score, ...qualityLabel(score) };
+    return { score, ...localizedQualityLabel(score, t) };
   }
 
   if (cubeKey === "facebook" || cubeKey === "instagram" || cubeKey === "linkedin" || cubeKey === "tiktok" || cubeKey === "youtube_shorts" || cubeKey === "pinterest") {
-    return computeSocialQuality(cubeKey, ov);
+    return computeSocialQuality(cubeKey, ov, t);
   }
 
-  const t = ov.totals || ({} as any);
-  const engagement = engagementScore100(t);
+  const totals = ov.totals || ({} as any);
+  const engagement = engagementScore100(totals);
   const pages = Array.isArray(ov.topPages) ? ov.topPages : [];
   const queries = Array.isArray(ov.topQueries) ? ov.topQueries : [];
 
@@ -227,7 +239,7 @@ export function computeQuality(cubeKey: CubeKey, ov: Overview) {
   if (cubeKey === "site_inrcy") score += 10;
 
   score = clamp(score, 15, 95);
-  return { score, ...qualityLabel(score) };
+  return { score, ...localizedQualityLabel(score, t) };
 }
 
 export function getSocialMetrics(cubeKey: "facebook" | "instagram" | "linkedin" | "tiktok" | "youtube_shorts" | "pinterest", ov: Overview) {
@@ -305,7 +317,7 @@ export function getSocialMetrics(cubeKey: "facebook" | "instagram" | "linkedin" 
   return { audience, engagement, conversions, visibility };
 }
 
-function computeSocialQuality(cubeKey: "facebook" | "instagram" | "linkedin" | "tiktok" | "youtube_shorts" | "pinterest", ov: Overview) {
+function computeSocialQuality(cubeKey: "facebook" | "instagram" | "linkedin" | "tiktok" | "youtube_shorts" | "pinterest", ov: Overview, t: StatsTranslator) {
   const connected =
     cubeKey === "facebook"
       ? !!ov?.sources?.facebook?.connected
@@ -318,7 +330,7 @@ function computeSocialQuality(cubeKey: "facebook" | "instagram" | "linkedin" | "
             : cubeKey === "pinterest"
               ? !!ov?.sources?.pinterest?.connected
               : !!ov?.sources?.linkedin?.connected;
-  if (!connected) return { score: 0, ...qualityLabel(0) };
+  if (!connected) return { score: 0, ...localizedQualityLabel(0, t) };
 
   const { audience, engagement, conversions, visibility } = getSocialMetrics(cubeKey, ov);
   const exposureBase =
@@ -333,5 +345,5 @@ function computeSocialQuality(cubeKey: "facebook" | "instagram" | "linkedin" | "
   const s3 = logNorm(conversions, conversionBase);
 
   const score = clamp(Math.round((s1 * 0.35 + s2 * 0.35 + s3 * 0.30) * 100), 18, 92);
-  return { score, ...qualityLabel(score) };
+  return { score, ...localizedQualityLabel(score, t) };
 }

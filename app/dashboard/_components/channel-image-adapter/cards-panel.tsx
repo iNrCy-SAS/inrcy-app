@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import React from "react";
 
 import type { CardsPanelProps, ChannelTab } from "./types";
@@ -24,6 +25,7 @@ export function ChannelImageAdapterCardsPanel({
   emptyMessage,
   publicationPreview,
 }: CardsPanelProps) {
+  const i18nT = useTranslations("shell");
   const viewportWidth = useViewportWidth();
 
   const isNarrow = viewportWidth <= 560;
@@ -132,8 +134,8 @@ export function ChannelImageAdapterCardsPanel({
       <div style={{ border: "1px solid rgba(255,255,255,0.10)", borderRadius: 18, padding: isNarrow ? 10 : 14, background: "rgba(255,255,255,0.03)", display: "grid", gap: 12, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
           <div style={{ display: "grid", gap: 2 }}>
-            <div style={{ fontWeight: 900 }}>Images de la publication</div>
-            <div style={{ fontSize: 12, opacity: 0.66 }}>Canal : {channelTitle} · sélectionnez les images, changez l’ordre, puis adaptez seulement si le cadrage n’est pas bon.</div>
+            <div style={{ fontWeight: 900 }}>{i18nT("images_de_la_publication_85bb3522")}</div>
+            <div style={{ fontSize: 12, opacity: 0.66 }}>{i18nT("canal_value_selectionnez_les_images_changez_33a9c68c", { value0: channelTitle })}</div>
           </div>
           <div style={{ fontSize: 12, opacity: 0.78 }}>{formatLabel}</div>
         </div>
@@ -219,7 +221,7 @@ export function ChannelImageAdapterCardsPanel({
                     {item.fitLabel}
                   </span>
                   <span style={{ marginLeft: "auto", fontSize: 10, fontWeight: 900, padding: "4px 7px", borderRadius: 999, background: item.included ? "rgba(34,197,94,0.13)" : "rgba(255,255,255,0.06)", color: item.included ? "#bbf7d0" : "rgba(255,255,255,0.62)", border: item.included ? "1px solid rgba(34,197,94,0.22)" : "1px solid rgba(255,255,255,0.08)" }}>
-                    {item.included ? "Incluse" : "Ignorée"}
+                    {item.included ? i18nT("incluse_8c79d3a2") : i18nT("ignoree_2b9acddb")}
                   </span>
                 </label>
 
@@ -227,18 +229,18 @@ export function ChannelImageAdapterCardsPanel({
 
                 <div style={{ display: "grid", gap: 7, alignSelf: "end" }}>
                   <div style={{ display: "grid", gridTemplateColumns: "34px 1fr 34px 34px", gap: 6 }}>
-                    <button type="button" className={buttonClassName} onClick={item.onMovePrevious} disabled={!item.onMovePrevious} title="Image précédente" style={{ justifyContent: "center", opacity: item.onMovePrevious ? 1 : 0.45, padding: "0 8px" }}>←</button>
-                    <button type="button" className={buttonClassName} onClick={item.onAdapt} style={{ justifyContent: "center", padding: "0 10px" }}>Adapter</button>
-                    {item.onReset ? <button type="button" className={buttonClassName} onClick={item.onReset} aria-label={`Réinitialiser ${item.title}`} style={{ justifyContent: "center", padding: "0 8px" }}>↺</button> : <span />}
-                    <button type="button" className={buttonClassName} onClick={item.onMoveNext} disabled={!item.onMoveNext} title="Image suivante" style={{ justifyContent: "center", opacity: item.onMoveNext ? 1 : 0.45, padding: "0 8px" }}>→</button>
+                    <button type="button" className={buttonClassName} onClick={item.onMovePrevious} disabled={!item.onMovePrevious} title={i18nT("image_precedente_635f9e95")} style={{ justifyContent: "center", opacity: item.onMovePrevious ? 1 : 0.45, padding: "0 8px" }}>←</button>
+                    <button type="button" className={buttonClassName} onClick={item.onAdapt} style={{ justifyContent: "center", padding: "0 10px" }}>{i18nT("adapter_e6b4616c")}</button>
+                    {item.onReset ? <button type="button" className={buttonClassName} onClick={item.onReset} aria-label={i18nT("reinitialiser_value_cecceaa0", { value0: item.title })} style={{ justifyContent: "center", padding: "0 8px" }}>↺</button> : <span />}
+                    <button type="button" className={buttonClassName} onClick={item.onMoveNext} disabled={!item.onMoveNext} title={i18nT("image_suivante_656228da")} style={{ justifyContent: "center", opacity: item.onMoveNext ? 1 : 0.45, padding: "0 8px" }}>→</button>
                   </div>
                   {(item.onRemove || item.onRemoveEverywhere) ? (
                     <div style={{ display: "grid", gridTemplateColumns: item.onRemove && item.onRemoveEverywhere ? "minmax(0, 1fr) minmax(0, 1fr)" : "minmax(0, 1fr)", gap: 6, minWidth: 0 }}>
                       {item.onRemove ? (
-                        <button type="button" className={buttonClassName} onClick={item.onRemove} title={item.removeLabel || "Retirer"} aria-label={`${item.removeLabel || "Retirer"} : ${item.title}`} style={{ minWidth: 0, maxWidth: "100%", justifyContent: "center", fontSize: 11, padding: "0 7px" }}>{item.removeLabel || "Retirer"}</button>
+                        <button type="button" className={buttonClassName} onClick={item.onRemove} title={item.removeLabel || "Retirer"} aria-label={`${item.removeLabel || "Retirer"} : ${item.title}`} style={{ minWidth: 0, maxWidth: "100%", justifyContent: "center", fontSize: 11, padding: "0 7px" }}>{item.removeLabel || i18nT("retirer_54ec24a1")}</button>
                       ) : null}
                       {item.onRemoveEverywhere ? (
-                        <button type="button" className={buttonClassName} onClick={item.onRemoveEverywhere} title={item.removeEverywhereLabel || "Supprimer partout"} aria-label={`${item.removeEverywhereLabel || "Supprimer partout"} : ${item.title}`} style={{ minWidth: 0, maxWidth: "100%", justifyContent: "center", fontSize: 10.5, padding: "0 7px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", background: "rgba(248,113,113,0.10)", border: "1px solid rgba(248,113,113,0.24)", color: "#fecaca" }}>{item.removeEverywhereLabel || "Supprimer partout"}</button>
+                        <button type="button" className={buttonClassName} onClick={item.onRemoveEverywhere} title={item.removeEverywhereLabel || "Supprimer partout"} aria-label={`${item.removeEverywhereLabel || "Supprimer partout"} : ${item.title}`} style={{ minWidth: 0, maxWidth: "100%", justifyContent: "center", fontSize: 10.5, padding: "0 7px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", background: "rgba(248,113,113,0.10)", border: "1px solid rgba(248,113,113,0.24)", color: "#fecaca" }}>{item.removeEverywhereLabel || i18nT("supprimer_partout_dfb790c4")}</button>
                       ) : null}
                     </div>
                   ) : null}
@@ -248,7 +250,7 @@ export function ChannelImageAdapterCardsPanel({
             })}
           </div>
         ) : (
-          <div style={{ fontSize: 13, opacity: 0.75 }}>{emptyMessage || "Aucune image"}</div>
+          <div style={{ fontSize: 13, opacity: 0.75 }}>{emptyMessage || i18nT("aucune_image_768c8a5c")}</div>
         )}
       </div>
 

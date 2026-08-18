@@ -1,0 +1,385 @@
+{
+  "topbar": {
+    "brandTag": "Business-Generator",
+    "admin": "Admin",
+    "adminTitle": "iNrCy admin",
+    "notifications": "Infos",
+    "openNotifications": "Infos öffnen",
+    "inrAgentOpen": "Open iNr’Agent",
+    "inrAgentDisabled": "iNr’Agent is off for this account",
+    "inrAgentAction": "action",
+    "inrAgentActions": "actions",
+    "inrAgentPending": "zu prüfen",
+    "gps": "Nutzungs-GPS",
+    "gpsAria": "Nutzungs-GPS öffnen",
+    "contact": "Kontakt",
+    "openMenu": "Menü öffnen",
+    "menu": "Menu"
+  },
+  "language": {
+    "buttonAria": "App-Sprache ändern",
+    "buttonTitle": "App-Sprache",
+    "panelAria": "App-Sprache wählen"
+  },
+  "userMenu": {
+    "title": "Benutzermenü",
+    "label": "Menu",
+    "profileIncomplete": "Profil fehlt",
+    "activityIncomplete": "Aktivität fehlt",
+    "completeProfileHint": "Klicken, um Ihr Profil zu vervollständigen und iNrCy zu aktivieren.",
+    "completeActivityHint": "Klicken, um Ihre Aktivität zu vervollständigen und iNrCy zu aktivieren.",
+    "account": "iNrCytizen-Konto",
+    "profile": "Mein Profil",
+    "activity": "Meine Aktivität",
+    "preferences": "Einstellungen",
+    "ai": "KI-Einstellungen",
+    "media": "Mediathek",
+    "notifications": "Infos",
+    "subscription": "Mein Tarif",
+    "inertia": "Meine Inertia",
+    "shop": "Shop",
+    "referral": "iNrCy weiterempfehlen",
+    "legal": "Rechtliches",
+    "rgpd": "Meine Daten (DSGVO)",
+    "logout": "Abmelden"
+  },
+  "notifications": {
+    "aria": "Infos",
+    "title": "Aktionen",
+    "subtitle": "Ihr Cockpit erinnert rechtzeitig.",
+    "settings": "Einstellungen",
+    "markAllRead": "Alles lesen",
+    "markAllReadConfirmTitle": "Alle Benachrichtigungen als gelesen markieren?",
+    "markAllReadConfirmMessage": "Sie werden anschließend dauerhaft gelöscht.",
+    "markAllReadConfirmCancel": "Abbrechen",
+    "loading": "Infos werden geladen…",
+    "empty": "Die Glocke ist leer. Neue Business-Infos erscheinen hier.",
+    "delete": "Info löschen",
+    "markRead": "Als gelesen"
+  },
+  "drawer": {
+    "close": "Schließen",
+    "titles": {
+      "contact": "Kontakt",
+      "compte": "iNrCytizen account",
+      "profil": "Mein Profil",
+      "preferences": "Einstellungen",
+      "inrbadge": "iNr'Badge settings",
+      "activite": "Meine Aktivität",
+      "ia": "KI-Einstellungen",
+      "abonnement": "Mein Tarif",
+      "legal": "Rechtliches",
+      "rgpd": "Meine Daten (DSGVO)",
+      "mails": "Mail-Einstellungen",
+      "agenda": "iNr’Calendar Einstellungen",
+      "site_inrcy": "Settings — Site iNrCy",
+      "site_web": "Einstellungen — Website",
+      "instagram": "Settings — Instagram",
+      "linkedin": "Settings — LinkedIn",
+      "gmb": "Settings — Google Unternehmensprofil",
+      "inr_search": "Settings — iNr’Search",
+      "facebook": "Settings — Facebook",
+      "tiktok": "Settings — TikTok",
+      "youtube_shorts": "Settings — YouTube",
+      "pinterest": "Settings — Pinterest",
+      "inertie": "Meine Inertia",
+      "boutique": "Shop",
+      "parrainage": "iNrCy weiterempfehlen",
+      "notifications": "Infos",
+      "documents": "Standardwerte"
+    }
+  },
+  "hero": {
+    "powerDialogAria": "Generator power detail",
+    "powerPanelTitle": "Power detail",
+    "kicker": "Ihr iNrCy Cockpit",
+    "title": "Generator läuft!",
+    "subtitle": "Alle Kanäle speisen jetzt eine Engine.",
+    "flowContacts": "Publikationen",
+    "flowQuotes": "Sichtbarkeit",
+    "flowRevenue": "Ergebnisse",
+    "powerTitle": "Generatorleistung:",
+    "powerDetailsAria": "See generator power detail",
+    "powerDetailsTitle": "See detail",
+    "fullPower": "Volle Leistung",
+    "stepSingular": "Schritt",
+    "stepPlural": "Schritte",
+    "remainingSingular": "offen",
+    "remainingPlural": "offen",
+    "progressAria": "Generator power",
+    "nextRise": "Nächster Boost:",
+    "completeHint": "Alle Hebel speisen die Maschine.",
+    "generatorTitle": "iNrCy Generator",
+    "generatorHelpTitle": "Hilfe: iNrCy Generator",
+    "generatorDesc": "Ein Spiegel der Wirksamkeit Ihrer Kommunikationskanäle.",
+    "settingsAria": "Generatoreinstellungen öffnen",
+    "settingsTitle": "Generatoreinstellungen",
+    "statsAria": "Siehe iNr’Stats",
+    "refreshAria": "Refresh generator",
+    "refreshTitle": "Refresh",
+    "active": "Aktiv",
+    "waiting": "Warten",
+    "inertiaUnits": "Inertia Units",
+    "channels": "Kanäle",
+    "potentialRevenue": "30-Tage-Umsatz",
+    "basedOnProfile": "Basierend auf Profil + Chancen",
+    "opportunities": "Chancen",
+    "projection30": "30-Tage-Prognose",
+    "capturedLeads": "Anfragen",
+    "last7": "Letzte 7 Tage",
+    "last30": "Letzte 30 Tage"
+  },
+  "generatorSteps": {
+    "profile": {
+      "label": "Profil vervollständigen",
+      "shortLabel": "Profil"
+    },
+    "activity": {
+      "label": "Aktivität ergänzen",
+      "shortLabel": "Aktivität"
+    },
+    "site_link": {
+      "label": "Website verbinden",
+      "shortLabel": "Website"
+    },
+    "site_ga4": {
+      "label": "GA4 verbinden",
+      "shortLabel": "GA4"
+    },
+    "site_gsc": {
+      "label": "GSC verbinden",
+      "shortLabel": "GSC"
+    },
+    "gmb": {
+      "label": "Google Unternehmensprofil verbinden",
+      "shortLabel": "Google Unternehmensprofil"
+    },
+    "facebook": {
+      "label": "Facebook verbinden",
+      "shortLabel": "Facebook"
+    },
+    "instagram": {
+      "label": "Instagram verbinden",
+      "shortLabel": "Instagram"
+    },
+    "pro_network": {
+      "label": "LinkedIn oder Pinterest",
+      "shortLabel": "LinkedIn / Pinterest"
+    },
+    "inr_search": {
+      "label": "Publish iNr’Search",
+      "shortLabel": "iNr’Search"
+    },
+    "mails": {
+      "label": "Mails verbinden",
+      "shortLabel": "Mails"
+    },
+    "video": {
+      "label": "TikTok oder YouTube",
+      "shortLabel": "TikTok / YouTube"
+    }
+  },
+  "channels": {
+    "title": "Kanäle",
+    "helpTitle": "Hilfe: Kanäle",
+    "connected": "verbunden",
+    "available": "verfügbar",
+    "displayAria": "Kanalansicht",
+    "list": "Liste",
+    "carousel": "Karussell",
+    "railAria": "Kanalliste",
+    "positionAria": "Karussellposition",
+    "prev": "Voriger Kanal",
+    "next": "Nächster Kanal",
+    "goToChannel": "Zum Kanal",
+    "showChannel": "Anzeigen",
+    "connectedAria": "Kanäle verbunden von"
+  },
+  "modules": {
+    "requiredSetupLocked": "Your profile and/or business activity are incomplete.",
+    "dashboardTitle": "Dashboard",
+    "dashboardSub": "Steuerung",
+    "statsSub": "Alle Leads sichtbar",
+    "mailsSettingsAria": "Mail-Einstellungen",
+    "mailsSub": "Alle Nachrichten starten hier",
+    "agendaSettingsAria": "Agenda-Einstellungen",
+    "agendaSub": "Kontakte zu Terminen machen",
+    "crmSub": "Leads und Kunden zentral",
+    "gearboxTitle": "Getriebe",
+    "gearboxSub": "Conversion",
+    "boosterStatsTitle": "Booster summary",
+    "boosterSub": "Kanäle aktivieren",
+    "publishTitle": "Booster",
+    "publishCta": "Posten",
+    "propulserTitle": "Wachsen",
+    "propulserSub": "Aktivität boosten",
+    "propulserCta": "Wachsen",
+    "fideliserTitle": "Binden",
+    "fideliserSub": "Kunden binden",
+    "fideliserCta": "Kommunizieren",
+    "cashSettingsTitle": "Standardwerte",
+    "cashTitle": "Kassieren",
+    "cashSub": "Angebote und Rechnungen",
+    "cashCta": "Kassieren",
+    "reputationTitle": "E-reputation",
+    "reputationSub": "Google-Bewertungen steuern",
+    "reputationCta": "Steuern",
+    "cashModalTitle": "Kassieren",
+    "cashModalLabel": "Angebote und Rechnungen",
+    "cashModalSettings": "Einstellungen",
+    "cashModalIntroStrong": "Kassieren",
+    "cashModalIntroText": "bündelt Angebote und Rechnungen ohne neue Gewohnheiten. Wählen Sie die Aktion.",
+    "invoiceEyebrow": "Rechnungen",
+    "invoiceTitle": "Rechnung erstellen",
+    "invoiceText": "Kunden abrechnen und Zahlung verfolgen.",
+    "invoiceCta": "Rechnen →",
+    "quoteEyebrow": "Angebote",
+    "quoteTitle": "Angebot erstellen",
+    "quoteText": "Anfrage bepreisen und Chance auslösen.",
+    "quoteCta": "Anbieten →"
+  },
+  "moduleCards": {
+    "inrbadge": {
+      "name": "iNr'Badge",
+      "description": "Firma als QR-Code",
+      "view": "Badge ansehen",
+      "connect": "Einrichten"
+    },
+    "mails": {
+      "name": "Mails",
+      "description": "Netzwerk erreichen ✉️",
+      "view": "iNr’Send öffnen",
+      "connect": "Einrichten"
+    },
+    "site_inrcy": {
+      "name": "Site iNrCy",
+      "description": "Ihre Lead-Engine ⚡",
+      "view": "Site ansehen",
+      "connect": "Google Analytics verbinden",
+      "siteOnlyTitle": "Nur mit iNrCy-Site"
+    },
+    "site_web": {
+      "name": "Website",
+      "description": "Besuche werden Leads 💡",
+      "view": "Site ansehen",
+      "connect": "Google Analytics verbinden"
+    },
+    "gmb": {
+      "name": "Google Unternehmensprofil",
+      "description": "Mehr Anrufe 📞",
+      "view": "Seite ansehen",
+      "connect": "Einrichten"
+    },
+    "inr_search": {
+      "name": "iNr’Search",
+      "description": "Ihre von iNrCy erstellte Seite 🔎",
+      "view": "Meine Seite ansehen",
+      "connect": "Einrichten"
+    },
+    "facebook": {
+      "name": "Facebook",
+      "description": "Erzeugt Nachfrage 📈",
+      "view": "Konto ansehen",
+      "connect": "Facebook verbinden"
+    },
+    "instagram": {
+      "name": "Instagram",
+      "description": "Marke wächst 📸",
+      "view": "Konto ansehen",
+      "connect": "Instagram verbinden"
+    },
+    "linkedin": {
+      "name": "LinkedIn",
+      "description": "Stärkt Expertise 💼",
+      "view": "Konto ansehen",
+      "connect": "LinkedIn verbinden"
+    },
+    "tiktok": {
+      "name": "TikTok",
+      "description": "Reichweite wächst 🎬",
+      "view": "Konto ansehen",
+      "connect": "Einrichten"
+    },
+    "youtube_shorts": {
+      "name": "YouTube",
+      "description": "Video senden ▶️",
+      "view": "Kanal ansehen",
+      "connect": "Einrichten"
+    },
+    "pinterest": {
+      "name": "Pinterest",
+      "description": "Inspiriert Kunden 📌",
+      "view": "Konto ansehen",
+      "connect": "Einrichten"
+    },
+    "inr_agent": {
+      "name": "iNr’Agent",
+      "description": "Automatisiert Aktionen 🤖",
+      "view": "Öffnen",
+      "connect": "Einrichten"
+    }
+  },
+  "bubble": {
+    "viewFallback": "Ansehen",
+    "configure": "Einrichten",
+    "disabled": "Option aus",
+    "open": "Öffnen"
+  },
+  "status": {
+    "connected": "Verbunden",
+    "disconnected": "Getrennt",
+    "toConnect": "Verbinden",
+    "toConfigure": "Einrichten",
+    "toUpdate": "Aktualisieren",
+    "reconnect": "Neu verbinden",
+    "disabled": "Aus",
+    "noSite": "Keine Site",
+    "soon": "Bald",
+    "premiumPlan": "🔒 Premium-Paket",
+    "notSubscribed": "Nicht gebucht",
+    "syncing": "Synchronisierung…",
+    "pagePublished": "Veröffentlichte Seite",
+    "pageUnavailable": "Seite Nicht verfügbar",
+    "profileChecking": "Ihr Profil wird überprüft…"
+  },
+  "onboarding": {
+    "initialSetup": "Ersteinrichtung",
+    "progress": "Ersteinrichtung · Schritt {current}/{total}",
+    "unsavedPrefix": "Nicht gespeicherte Änderungen gehen verloren.",
+    "keepDefaultsTitle": "Standardeinstellungen beibehalten?",
+    "continueLaterTitle": "Später fortfahren?",
+    "keepDefaultsMessage": "Ihre KI behält die empfohlenen Standardeinstellungen bei. Sie können diese später in den KI-Einstellungen anpassen.",
+    "continueLaterMessage": "Wenn Sie diesen Schritt überspringen, können nicht alle iNrCy-Werkzeuge aktiviert werden. Sie können die Einrichtung im Dashboard fortsetzen. Möchten Sie später fortfahren?",
+    "keepDefaults": "Standards beibehalten",
+    "continueLater": "Später fortfahren",
+    "settings": "Einstellungen",
+    "exitWithoutSavingTitle": "Beenden, ohne zu speichern?",
+    "exitWithoutSavingMessage": "Dieses Fenster enthält nicht gespeicherte Änderungen. Wenn Sie es jetzt schließen, gehen diese verloren.",
+    "closeWithoutSaving": "Ohne Speichern schließen",
+    "returnToSetup": "Zurück zur Einrichtung",
+    "continueEditing": "Weiter bearbeiten",
+    "skip": "Überspringen",
+    "aiReadyTitle": "Ihre KI ist bereits einsatzbereit",
+    "aiReadyDescription": "iNrCy verwendet bereits die empfohlenen Einstellungen. Sie können Engine, Ton und Stil jetzt anpassen oder die Standardkonfiguration beibehalten.",
+    "customizeAi": "Meine KI anpassen",
+    "requiredSetup": "Ersteinrichtung erforderlich…"
+  },
+  "standard": {
+    "pilotTitle": "Kontrollfeld",
+    "pilotSubtitle": "Messen, verfolgen und speichern",
+    "statsDescription": "Messen Sie Ihre Wirkung.",
+    "statsCta": "Statistiken anzeigen",
+    "sendDescription": "Alle Ihre Veröffentlichungen finden.",
+    "sendCta": "Verlauf ansehen",
+    "reputationName": "Reputation",
+    "reputationDescription": "Bewertungen verwalten Google",
+    "reputationCta": "Meine Bewertungen verwalten",
+    "loading": "Wird geladen…",
+    "boosterEyebrow": "Multichannel-Veröffentlichung",
+    "boosterLine1": "Veröffentlichen Überall,",
+    "boosterLine2": "in einem Schritt.",
+    "boosterCta": "Publikation erstellen",
+    "boosterSummaryAria": "Bilanz öffnen Booster",
+    "boosterSummary": "Bilanz"
+  }
+}

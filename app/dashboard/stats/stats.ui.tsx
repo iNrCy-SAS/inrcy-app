@@ -1,6 +1,6 @@
+import { useLocale, useTranslations } from "next-intl";
 import React, { useState } from "react";
 import styles from "./stats.module.css";
-import { getClientUserFacingErrorMessage as getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import { fmtInt, type CubeModel } from "./stats.shared";
 
 function Donut({ segments }: { segments: Array<{ label: string; value: number; colorVar: string }> }) {
@@ -85,36 +85,36 @@ function normalizeMobileIdentityLabel(label: string) {
     .replace(/[.!…]+$/g, "");
 }
 
-function getMobileChannelAccountLabel(model: CubeModel, connectionPending: boolean) {
+function getMobileChannelAccountLabel(model: CubeModel, technicalLabels: string[]) {
   const label = String(model.accountLabel || "").trim();
   if (!label) return undefined;
 
   const normalizedLabel = normalizeMobileIdentityLabel(label);
-  const statusLabel = normalizeMobileIdentityLabel(connectionPending ? "Vérification" : model.connections.main ? "Connecté" : "Déconnecté");
+  const normalizedTechnicalLabels = technicalLabels.map(normalizeMobileIdentityLabel);
 
   // En version mobile, le badge de statut est déjà affiché juste dessous.
   // On masque uniquement les libellés techniques purs pour éviter "Connecté" en doublon,
   // tout en gardant les vraies identités de canal : URL, page Facebook, compte, boîte 1/4, etc.
-  if (normalizedLabel === statusLabel || ["connecte", "deconnecte", "analyse", "verification", "verification en cours"].includes(normalizedLabel)) {
+  if (normalizedTechnicalLabels.includes(normalizedLabel)) {
     return undefined;
   }
 
   return label;
 }
 
-function actionPillClassKey(label: string) {
-  return String(label || "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "");
+function actionPillClassKey(actionKey: CubeModel["action"]["key"]) {
+  if (actionKey === "connect" || actionKey === "loading") return "connexion";
+  if (actionKey === "propulser_action") return "propulser";
+  if (actionKey === "mail_simple") return "mail_simple";
+  if (actionKey.startsWith("fideliser_")) return "fideliser";
+  return "booster";
 }
 
 
 function MiniMetricGrid({ items }: { items: Array<{ label: string; value: string; subValue?: string }> }) {
+  const i18nT = useTranslations("stats");
   if (!items.length) {
-    return <div className={styles.metricEmpty}>Données non exploitables pour le moment.</div>;
+    return <div className={styles.metricEmpty}>{i18nT("donnees_non_exploitables_pour_le_moment_418dc0c4")}</div>;
   }
 
   const densityClass =
@@ -138,38 +138,45 @@ function MiniMetricGrid({ items }: { items: Array<{ label: string; value: string
 
 
 function InrcyActivityBlock({ model }: { model: CubeModel }) {
+  const locale = useLocale();
+  const i18nT = useTranslations("stats");
+  const formatInt = (value: number) => fmtInt(value, locale);
   const stats = model.inrcyActivityStats;
   if (!stats) return null;
 
-  const title = model.key === "inrbadge" ? "Activité iNrBadge" : model.key === "inr_search" ? "Activité iNr'Search" : "Envoyé via iNrCy";
+  const title = model.key === "inrbadge"
+    ? i18nT("activity_inrbadge")
+    : model.key === "inr_search"
+      ? i18nT("activity_inr_search")
+      : i18nT("activity_sent_via_inrcy");
   const items = model.key === "mails"
     ? [
-        { label: "Campagnes", data: stats.publications },
-        { label: "Mails simples", data: stats.photos },
-        { label: "Destinataires", data: stats.videos },
+        { label: i18nT("campagnes_ef527e85"), data: stats.publications },
+        { label: i18nT("mails_simples_608d9dcf"), data: stats.photos },
+        { label: i18nT("destinataires_51610ad7"), data: stats.videos },
       ]
     : model.key === "inrbadge"
       ? [
-          { label: "Vues fiche", data: stats.publications },
-          { label: "Scans QR", data: stats.photos },
-          { label: "Actions", data: stats.videos },
+          { label: i18nT("vues_fiche_6d715930"), data: stats.publications },
+          { label: i18nT("scans_qr_a36ab7c7"), data: stats.photos },
+          { label: i18nT("actions_c3cd636a"), data: stats.videos },
         ]
       : model.key === "inr_search"
         ? [
-            { label: "Vues", data: stats.publications },
-            { label: "Actions", data: stats.photos },
-            { label: "Contacts", data: stats.videos },
+            { label: i18nT("vues_ff576f2b"), data: stats.publications },
+            { label: i18nT("actions_c3cd636a"), data: stats.photos },
+            { label: i18nT("contacts_b0dd615c"), data: stats.videos },
           ]
       : model.key === "youtube_shorts"
         ? [
-            { label: "Publications", data: stats.publications },
-            { label: "Vidéos courtes", data: stats.videos },
-            { label: "Vidéos classiques", data: stats.photos },
+            { label: i18nT("publications_0855684c"), data: stats.publications },
+            { label: i18nT("videos_courtes_ceab3daf"), data: stats.videos },
+            { label: i18nT("videos_classiques_f048cd71"), data: stats.photos },
           ]
         : [
-            { label: "Publications", data: stats.publications },
-            { label: "Photos", data: stats.photos },
-            { label: "Vidéos", data: stats.videos },
+            { label: i18nT("publications_0855684c"), data: stats.publications },
+            { label: i18nT("photos_c8b2e864"), data: stats.photos },
+            { label: i18nT("videos_ea129238"), data: stats.videos },
           ];
 
   return (
@@ -179,12 +186,12 @@ function InrcyActivityBlock({ model }: { model: CubeModel }) {
         {items.map((item) => (
           <div key={item.label} className={styles.inrcyActivityItem}>
             <span>{item.label}</span>
-            <b>{fmtInt(item.data.week)}</b>
-            <small>7j</small>
-            <b>{fmtInt(item.data.month)}</b>
-            <small>30j</small>
-            <b>{fmtInt(item.data.total)}</b>
-            <small>Total</small>
+            <b>{formatInt(item.data.week)}</b>
+            <small>{i18nT("7j_bf2371a9")}</small>
+            <b>{formatInt(item.data.month)}</b>
+            <small>{i18nT("30j_30690e0d")}</small>
+            <b>{formatInt(item.data.total)}</b>
+            <small>{i18nT("total_b25928c6")}</small>
           </div>
         ))}
       </div>
@@ -230,56 +237,59 @@ export function SummaryBar({
     badge: string;
   }>;
 }) {
+  const locale = useLocale();
+  const i18nT = useTranslations("stats");
+  const formatInt = (value: number) => fmtInt(value, locale);
   return (
-    <div className={styles.summaryBar} aria-label="Récapitulatif iNrStats">
+    <div className={styles.summaryBar} aria-label={i18nT("recapitulatif_inrstats_e18fbec8")}>
       <div className={styles.summaryMain}>
         <span
           className={styles.summaryValueBubble}
           aria-label={summaryDisplayReady
-            ? `+${fmtInt(centralPotential30)} opportunités à activer pour générer + de clients et + de CA potentiel`
-            : "Opportunités en cours de chargement"}
+            ? i18nT("summary_ready_aria", { value0: formatInt(centralPotential30) })
+            : i18nT("summary_loading_aria")}
         >
-          <span className={styles.summaryValue}>{summaryDisplayReady ? `+${fmtInt(centralPotential30)}` : "—"}</span>
+          <span className={styles.summaryValue}>{summaryDisplayReady ? `+${formatInt(centralPotential30)}` : "—"}</span>
         </span>
-        <span className={styles.summaryLabel}>opportunités à activer pour générer + de clients et + de CA potentiel</span>
-        <span className={styles.summarySub}>projection sur 30 jours si actions menées</span>
+        <span className={styles.summaryLabel}>{i18nT("opportunites_a_activer_pour_generer_de_d14e7cf6")}</span>
+        <span className={styles.summarySub}>{i18nT("projection_sur_30_jours_si_actions_52a41622")}</span>
       </div>
       <div className={styles.summaryModules}>
         <button type="button" className={styles.summaryItem} onClick={() => onScrollTo("mails")}>
-          <span>Mails</span>
-          <b>{summaryDisplayReady ? `+${fmtInt(centralByCube.mails)}` : "—"}</b>
+          <span>{i18nT("mails_8d79d3a8")}</span>
+          <b>{summaryDisplayReady ? `+${formatInt(centralByCube.mails)}` : "—"}</b>
         </button>
         <button type="button" className={styles.summaryItem} onClick={() => onScrollTo("site_inrcy")}>
-          <span>Site iNrCy</span>
-          <b>{summaryDisplayReady ? `+${fmtInt(centralByCube.site_inrcy)}` : "—"}</b>
+          <span>{i18nT("site_inrcy_57016d6f")}</span>
+          <b>{summaryDisplayReady ? `+${formatInt(centralByCube.site_inrcy)}` : "—"}</b>
         </button>
         <button type="button" className={styles.summaryItem} onClick={() => onScrollTo("site_web")}>
-          <span>Site Web</span>
-          <b>{summaryDisplayReady ? `+${fmtInt(centralByCube.site_web)}` : "—"}</b>
+          <span>{i18nT("site_web_c72c13ef")}</span>
+          <b>{summaryDisplayReady ? `+${formatInt(centralByCube.site_web)}` : "—"}</b>
         </button>
         <button type="button" className={styles.summaryItem} onClick={() => onScrollTo("gmb")}>
-          <span>Google Business</span>
-          <b>{summaryDisplayReady ? `+${fmtInt(centralByCube.gmb)}` : "—"}</b>
+          <span>{i18nT("google_business_a605b655")}</span>
+          <b>{summaryDisplayReady ? `+${formatInt(centralByCube.gmb)}` : "—"}</b>
         </button>
         <button type="button" className={styles.summaryItem} onClick={() => onScrollTo("facebook")}>
-          <span>Facebook</span>
-          <b>{summaryDisplayReady ? `+${fmtInt(centralByCube.facebook)}` : "—"}</b>
+          <span>{i18nT("facebook_82da67b2")}</span>
+          <b>{summaryDisplayReady ? `+${formatInt(centralByCube.facebook)}` : "—"}</b>
         </button>
         <button type="button" className={styles.summaryItem} onClick={() => onScrollTo("instagram")}>
-          <span>Instagram</span>
-          <b>{summaryDisplayReady ? `+${fmtInt(centralByCube.instagram)}` : "—"}</b>
+          <span>{i18nT("instagram_5721bbef")}</span>
+          <b>{summaryDisplayReady ? `+${formatInt(centralByCube.instagram)}` : "—"}</b>
         </button>
         <button type="button" className={styles.summaryItem} onClick={() => onScrollTo("linkedin")}>
-          <span>LinkedIn</span>
-          <b>{summaryDisplayReady ? `+${fmtInt(centralByCube.linkedin)}` : "—"}</b>
+          <span>{i18nT("linkedin_6b6390a4")}</span>
+          <b>{summaryDisplayReady ? `+${formatInt(centralByCube.linkedin)}` : "—"}</b>
         </button>
         <button type="button" className={styles.summaryItem} onClick={() => onScrollTo("tiktok")}>
-          <span>TikTok</span>
-          <b>{summaryDisplayReady ? `+${fmtInt(centralByCube.tiktok)}` : "—"}</b>
+          <span>{i18nT("tiktok_fc49f156")}</span>
+          <b>{summaryDisplayReady ? `+${formatInt(centralByCube.tiktok)}` : "—"}</b>
         </button>
         <button type="button" className={styles.summaryItem} onClick={() => onScrollTo("youtube_shorts")}>
-          <span>YouTube</span>
-          <b>{summaryDisplayReady ? `+${fmtInt(centralByCube.youtube_shorts)}` : "—"}</b>
+          <span>{i18nT("youtube_558865a1")}</span>
+          <b>{summaryDisplayReady ? `+${formatInt(centralByCube.youtube_shorts)}` : "—"}</b>
         </button>
       </div>
       <div className={styles.summaryActionsWrap}>
@@ -289,7 +299,7 @@ export function SummaryBar({
           onClick={onToggleActions}
           aria-expanded={summaryActionsOpen}
         >
-          {summaryActionsOpen ? "Masquer les actions" : "Voir les actions"}
+          {summaryActionsOpen ? i18nT("masquer_les_actions_ef4d0d52") : i18nT("voir_les_actions_e884560d")}
         </button>
 
         {summaryActionsOpen ? (
@@ -303,18 +313,18 @@ export function SummaryBar({
                       <div className={styles.summaryActionTitleRow}>
                         <span className={styles.summaryActionTitle}>{item.label}</span>
                         {item.opportunities > 0 ? (
-                          <span className={styles.summaryActionOpp}>{fmtInt(item.opportunities)} opportunités à capter</span>
+                          <span className={styles.summaryActionOpp}>{i18nT("value_opportunites_a_capter_9304bbae", { value0: formatInt(item.opportunities) })}</span>
                         ) : (
-                          <span className={styles.summaryActionOpp}>potentiel non exploité</span>
+                          <span className={styles.summaryActionOpp}>{i18nT("potentiel_non_exploite_f8810f1e")}</span>
                         )}
                       </div>
                       <div className={styles.summaryActionKicker}>{item.kicker}</div>
                     </div>
                   </div>
                   {item.opportunities > 0 ? (
-                    <div className={styles.summaryActionRevenueBubble}>+{fmtInt(item.revenue)} €</div>
+                    <div className={styles.summaryActionRevenueBubble}>+{formatInt(item.revenue)} €</div>
                   ) : (
-                    <div className={styles.summaryActionRevenueGhost}>À activer</div>
+                    <div className={styles.summaryActionRevenueGhost}>{i18nT("a_activer_15406658")}</div>
                   )}
                 </div>
                 <div className={styles.summaryActionMeta}>{item.motive}</div>
@@ -327,29 +337,29 @@ export function SummaryBar({
   );
 }
 
-function getForcedCubeContextLabel(key: CubeModel["key"]) {
+function getForcedCubeContextKey(key: CubeModel["key"]) {
   switch (key) {
     case "site_inrcy":
     case "site_web":
-      return "URL associée";
+      return "url_associee_92573a3c";
     case "gmb":
-      return "Fiche Google";
+      return "fiche_google_e09af4c2";
     case "inr_search":
-      return "Page publique";
+      return "page_publique_67483055";
     case "facebook":
-      return "Page Facebook";
+      return "page_facebook_5017637f";
     case "instagram":
-      return "Compte Instagram";
+      return "compte_instagram_8792fadf";
     case "linkedin":
-      return "Compte LinkedIn";
+      return "compte_linkedin_9168ff7a";
     case "mails":
-      return "Boîtes d’envoi";
+      return "boites_d_envoi_0dce5119";
     case "tiktok":
-      return "Compte TikTok";
+      return "compte_tiktok_0099e07c";
     case "youtube_shorts":
-      return "Chaîne YouTube";
+      return "chaine_youtube_1e7246ac";
     default:
-      return "Canal associé";
+      return "canal_associe_6f8463ec";
   }
 }
 
@@ -366,12 +376,15 @@ export function Cube({
   hideDetailsToggle?: boolean;
   estimatedRevenue?: number;
 }) {
+  const locale = useLocale();
+  const i18nT = useTranslations("stats");
+  const formatInt = (value: number) => fmtInt(value, locale);
   const [open, setOpen] = useState(false);
   const detailsOpen = forceOpen || open;
   const isSite = model.key === "site_inrcy" || model.key === "site_web";
-  const action = (model as any).action ?? ({ key: "connect", title: "Connexion", detail: "", href: "#", pill: "Connexion" } as const);
-  const pill = (action as any)?.pill ?? "Connexion";
-  const pillKey = actionPillClassKey(pill);
+  const action = (model as any).action ?? ({ key: "connect", title: i18nT("connexion_a33c58f5"), detail: "", href: "#", pill: i18nT("connexion_a33c58f5") } as const);
+  const localizedPill = (action as any)?.pill ?? i18nT("connexion_a33c58f5");
+  const pillKey = actionPillClassKey(action.key);
 
   const connectionPending = model.connectionStatus === "unavailable" || (model.key === "mails" && !!model.connectionPending);
   const connectionOk = (connectionPending || (isSite
@@ -379,8 +392,14 @@ export function Cube({
     : !!model.connections.main));
   const reconnectRequired = model.connectionStatus === "needs_update";
   const connectionTone = reconnectRequired ? "reconnect" : connectionOk ? "on" : "off";
-  const headerTitle = hideDetailsToggle ? getForcedCubeContextLabel(model.key) : model.title;
-  const mobileChannelAccountLabel = getMobileChannelAccountLabel(model, connectionPending);
+  const headerTitle = hideDetailsToggle ? i18nT(getForcedCubeContextKey(model.key)) : model.title;
+  const mobileChannelAccountLabel = getMobileChannelAccountLabel(model, [
+    i18nT("connecte_ce09957c"),
+    i18nT("deconnecte_3a67fd80"),
+    i18nT("analysis_status"),
+    i18nT("verification_bb27abfb"),
+    i18nT("verification_in_progress"),
+  ]);
 
   return (
     <section className={`${styles.cube} ${styles[`cube_${model.key}`] ?? ""} ${reconnectRequired ? styles.cubeReconnect : connectionOk ? styles.cubeOn : styles.cubeOff}`} aria-label={model.title}>
@@ -410,11 +429,11 @@ export function Cube({
           <div className={styles.pills}>
             {isSite ? (
               <>
-                <StatusPill tone={model.connections.ga4 ? "on" : "off"} label="GA4" />
-                <StatusPill tone={model.connections.gsc ? "on" : "off"} label="GSC" />
+                <StatusPill tone={model.connections.ga4 ? "on" : "off"} label={i18nT("ga4_5a2211b7")} />
+                <StatusPill tone={model.connections.gsc ? "on" : "off"} label={i18nT("gsc_ea8e44e6")} />
               </>
             ) : (
-              <StatusPill tone={connectionTone} label={reconnectRequired ? "À reconnecter" : connectionPending ? "Vérification" : model.connections.main ? "Connecté" : "Déconnecté"} />
+              <StatusPill tone={connectionTone} label={reconnectRequired ? i18nT("a_reconnecter_bb56a9d2") : connectionPending ? i18nT("verification_bb27abfb") : model.connections.main ? i18nT("connecte_ce09957c") : i18nT("deconnecte_3a67fd80")} />
             )}
           </div>
           {!hideDetailsToggle ? (
@@ -424,17 +443,17 @@ export function Cube({
               onClick={() => setOpen((v) => !v)}
               aria-expanded={detailsOpen}
             >
-              {detailsOpen ? "Masquer les détails" : "Voir les détails"}
+              {detailsOpen ? i18nT("masquer_les_details_38362ba9") : i18nT("voir_les_details_21f2c65d")}
             </button>
           ) : null}
         </div>
       </div>
 
-      {model.error ? <div className={styles.error}>{getSimpleFrenchErrorMessage(model.error, "Impossible de charger les statistiques pour le moment.")}</div> : null}
+      {model.error ? <div className={styles.error}>{i18nT("stats_load_error")}</div> : null}
 
       {hideDetailsToggle ? (
         <div className={styles.mobileChannelHero}>
-          <div className={styles.mobileChannelEyebrow}>Canal actif</div>
+          <div className={styles.mobileChannelEyebrow}>{i18nT("canal_actif_09801074")}</div>
           <h2 className={styles.mobileChannelTitle}>{model.title}</h2>
           <p className={styles.mobileChannelSub}>{model.subtitle}</p>
 
@@ -445,32 +464,32 @@ export function Cube({
           <div className={styles.mobileChannelPills}>
             {isSite ? (
               <>
-                <StatusPill tone={model.connections.ga4 ? "on" : "off"} label="GA4" />
-                <StatusPill tone={model.connections.gsc ? "on" : "off"} label="GSC" />
+                <StatusPill tone={model.connections.ga4 ? "on" : "off"} label={i18nT("ga4_5a2211b7")} />
+                <StatusPill tone={model.connections.gsc ? "on" : "off"} label={i18nT("gsc_ea8e44e6")} />
               </>
             ) : (
-              <StatusPill tone={connectionTone} label={reconnectRequired ? "À reconnecter" : connectionPending ? "Vérification" : model.connections.main ? "Connecté" : "Déconnecté"} />
+              <StatusPill tone={connectionTone} label={reconnectRequired ? i18nT("a_reconnecter_bb56a9d2") : connectionPending ? i18nT("verification_bb27abfb") : model.connections.main ? i18nT("connecte_ce09957c") : i18nT("deconnecte_3a67fd80")} />
             )}
           </div>
 
           <div className={styles.mobileChannelMetricGrid}>
             <div>
-              <span>Opportunités</span>
-              <b>+{fmtInt(model.opportunity30)}</b>
+              <span>{i18nT("opportunites_0dbfa3c5")}</span>
+              <b>+{formatInt(model.opportunity30)}</b>
             </div>
             <div>
-              <span>CA potentiel</span>
-              <b>+{fmtInt(estimatedRevenue)} €</b>
+              <span>{i18nT("ca_potentiel_fc9eeae4")}</span>
+              <b>+{formatInt(estimatedRevenue)} €</b>
             </div>
             {model.key !== "mails" ? (
               <>
                 <div>
-                  <span>Demandes captées 7j</span>
-                  <b>{model.capturedLeadsUnavailable ? "—" : fmtInt(model.capturedLeads.week)}</b>
+                  <span>{i18nT("demandes_captees_7j_15a42cdd")}</span>
+                  <b>{model.capturedLeadsUnavailable ? "—" : formatInt(model.capturedLeads.week)}</b>
                 </div>
                 <div>
-                  <span>Demandes captées 30j</span>
-                  <b>{model.capturedLeadsUnavailable ? "—" : fmtInt(model.capturedLeads.month)}</b>
+                  <span>{i18nT("demandes_captees_30j_0cdf7d86")}</span>
+                  <b>{model.capturedLeadsUnavailable ? "—" : formatInt(model.capturedLeads.month)}</b>
                 </div>
               </>
             ) : null}
@@ -482,9 +501,9 @@ export function Cube({
         <div className={styles.actionCompact}>
           <div className={styles.actionLeft}>
             <div className={styles.actionTopRow}>
-              <span className={`${styles.actionPill} ${styles[`action_${pillKey}`]}`}>{pill}</span>
+              <span className={`${styles.actionPill} ${styles[`action_${pillKey}`]}`}>{localizedPill}</span>
 
-              {pill === "Connexion" ? (
+              {action.key === "connect" || action.key === "loading" ? (
                 <div className={styles.actionTopText}>
                   <span className={styles.actionTitle}>{action.title}</span>
                 </div>
@@ -504,8 +523,8 @@ export function Cube({
             disabled={model.loading || !action.href}
             aria-disabled={model.loading || !action.href}
           >
-            <span className={styles.actionBtnDesktop}>{connectionOk ? "GO ⚡" : <>GO <PlugIcon /></>}</span>
-            <span className={styles.actionBtnMobile}>{connectionOk ? "GO ⚡" : <>GO <PlugIcon /></>}</span>
+            <span className={styles.actionBtnDesktop}>{connectionOk ? i18nT("go_bb63fc96") : <>{i18nT("go_f63f96ef")}{" "}<PlugIcon /></>}</span>
+            <span className={styles.actionBtnMobile}>{connectionOk ? i18nT("go_bb63fc96") : <>{i18nT("go_f63f96ef")}{" "}<PlugIcon /></>}</span>
           </button>
         </div>
       ) : null}
@@ -514,12 +533,12 @@ export function Cube({
         <div className={`${styles.cubeBody} ${model.inrcyActivityStats ? styles.cubeBodyWithInrcyActivity : ""}`}>
           <div className={styles.detailTopRow}>
             <div className={`${styles.block} ${styles.metricOverviewBlock}`}>
-              <div className={styles.blockTitle}>{model.key === "mails" ? "Activité mail" : model.key === "inrbadge" ? "Configuration badge" : model.key === "inr_search" ? "Visibilité de la page" : "Visibilité du canal"}</div>
+              <div className={styles.blockTitle}>{model.key === "mails" ? i18nT("activite_mail_64533c94") : model.key === "inrbadge" ? i18nT("configuration_badge_9ef560ae") : model.key === "inr_search" ? i18nT("visibilite_de_la_page_78765df2") : i18nT("visibilite_du_canal_98d32499")}</div>
               <MiniMetricGrid items={model.visibilityStats} />
             </div>
 
             <div className={`${styles.block} ${styles.provenanceCompactBlock}`}>
-              <div className={styles.blockTitle}>{model.key === "mails" ? "Répartition des actions mail" : model.key === "inrbadge" ? "Suivi iNrBadge" : model.key === "inr_search" ? "Sources de trafic" : "Provenance"}</div>
+              <div className={styles.blockTitle}>{model.key === "mails" ? i18nT("repartition_des_actions_mail_0df3dda5") : model.key === "inrbadge" ? i18nT("suivi_inrbadge_6ec1c532") : model.key === "inr_search" ? i18nT("sources_de_trafic_d908c5ca") : i18nT("provenance_dd35a816")}</div>
               <Donut segments={model.provenance} />
               {model.provenanceHint ? <div className={styles.provenanceHint}>{model.provenanceHint}</div> : null}
             </div>
@@ -527,18 +546,18 @@ export function Cube({
 
           <div className={styles.blockRow}>
             <div className={styles.block}>
-              <div className={styles.blockTitle}>Qualité</div>
+              <div className={styles.blockTitle}>{i18nT("qualite_2b2b1120")}</div>
               <div className={styles.qualityRow}>
                 <RingScore value={model.qualityScore} tone={model.qualityTone} />
                 <div>
                   <div className={styles.qualityLabel}>{model.qualityLabel}</div>
-                  <div className={styles.qualitySub}>Structure & exploitabilité</div>
+                  <div className={styles.qualitySub}>{i18nT("structure_exploitabilite_083b0b6d")}</div>
                 </div>
               </div>
             </div>
 
             <div className={`${styles.block} ${styles.metricOverviewBlock}`}>
-              <div className={styles.blockTitle}>{model.key === "mails" ? "Automatiques & business" : model.key === "inrbadge" ? "Actions rapides" : model.key === "inr_search" ? "Actions de contact" : "Actions utiles"}</div>
+              <div className={styles.blockTitle}>{model.key === "mails" ? i18nT("automatiques_business_71d9b6ff") : model.key === "inrbadge" ? i18nT("actions_rapides_abe69a9c") : model.key === "inr_search" ? i18nT("actions_de_contact_c544170f") : i18nT("actions_utiles_08ea2bac")}</div>
               <MiniMetricGrid items={model.actionStats} />
             </div>
           </div>
@@ -547,7 +566,7 @@ export function Cube({
 
           <div className={`${styles.block} ${hideDetailsToggle ? styles.lectureBusinessActionBlock : ""}`}>
             <div className={styles.lectureBusinessContent}>
-              <div className={styles.blockTitle}>Lecture business</div>
+              <div className={styles.blockTitle}>{i18nT("lecture_business_8b7d2470")}</div>
               <ul className={styles.bullets}>
                 {model.insights.map((t, i) => (
                   <li key={i}>{t}</li>
@@ -558,14 +577,14 @@ export function Cube({
             {hideDetailsToggle ? (
               <>
                 <div className={styles.lectureBusinessToolCol}>
-                  <span className={`${styles.actionPill} ${styles[`action_${pillKey}`]}`}>{pill}</span>
+                  <span className={`${styles.actionPill} ${styles[`action_${pillKey}`]}`}>{localizedPill}</span>
                 </div>
 
                 <div className={styles.lectureBusinessEffortCol}>
                   {action.effort ? (
                     <span className={`${styles.effort} ${styles[`effort_${action.effort.level}`]}`}>{action.effort.label}</span>
                   ) : (
-                    <span className={styles.lectureBusinessEffortPlaceholder}>Prêt à lancer</span>
+                    <span className={styles.lectureBusinessEffortPlaceholder}>{i18nT("pret_a_lancer_fb802548")}</span>
                   )}
                 </div>
 
@@ -575,8 +594,8 @@ export function Cube({
                   disabled={model.loading || !action.href}
                   aria-disabled={model.loading || !action.href}
                 >
-                  <span className={styles.actionBtnDesktop}>{connectionOk ? "GO ⚡" : <>GO <PlugIcon /></>}</span>
-                  <span className={styles.actionBtnMobile}>{connectionOk ? "GO ⚡" : <>GO <PlugIcon /></>}</span>
+                  <span className={styles.actionBtnDesktop}>{connectionOk ? i18nT("go_bb63fc96") : <>{i18nT("go_f63f96ef")}{" "}<PlugIcon /></>}</span>
+                  <span className={styles.actionBtnMobile}>{connectionOk ? i18nT("go_bb63fc96") : <>{i18nT("go_f63f96ef")}{" "}<PlugIcon /></>}</span>
                 </button>
               </>
             ) : null}

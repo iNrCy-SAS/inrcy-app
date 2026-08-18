@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import InrSearchLogo from "./InrSearchLogo";
 import { requestInrSearchContact } from "./inrSearchContactEvents";
@@ -54,6 +57,7 @@ export default function InrSearchExperience({
   logoUrl,
   navItems,
 }: Props) {
+  const i18nT = useTranslations("public");
   const [active, setActive] = useState(navItems[0]?.href || "#presentation");
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -498,7 +502,7 @@ export default function InrSearchExperience({
           <a
             className={styles.brandLockup}
             href="#presentation"
-            aria-label={`Revenir à la présentation de ${companyName}`}
+            aria-label={i18nT("revenir_a_la_presentation_de_value_8050ad4a", { value0: companyName })}
             onClick={(event) => {
               event.preventDefault();
               navigateTo("#presentation");
@@ -532,7 +536,7 @@ export default function InrSearchExperience({
 
           <nav
             className={styles.topbarLinks}
-            aria-label="Navigation dans la page"
+            aria-label={i18nT("navigation_dans_la_page_8ce3dd72")}
             id="inrsearch-page-navigation"
           >
             {navItems.map((item) => (
@@ -556,14 +560,14 @@ export default function InrSearchExperience({
 
       <div
         className={styles.orbitControls}
-        aria-label="Navigation entre les rubriques"
+        aria-label={i18nT("navigation_entre_les_rubriques_0fc5b94a")}
         role="group"
       >
         <button
           type="button"
           onClick={() => goRelative(-1)}
           disabled={activeIndex === 0}
-          aria-label="Rubrique précédente"
+          aria-label={i18nT("rubrique_precedente_bf41ecb1")}
         >
           ←
         </button>
@@ -596,7 +600,7 @@ export default function InrSearchExperience({
           type="button"
           onClick={() => goRelative(1)}
           disabled={activeIndex >= sectionCount - 1}
-          aria-label="Rubrique suivante"
+          aria-label={i18nT("rubrique_suivante_3a822c16")}
         >
           →
         </button>
@@ -608,7 +612,7 @@ export default function InrSearchExperience({
         aria-live="polite"
         aria-atomic="true"
       >
-        <span>{itemByHref.get(active)?.label || "Présentation"}</span>
+        <span>{itemByHref.get(active)?.label || i18nT("presentation_aa245f5f")}</span>
       </div>
     </>
   );

@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import { resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { invalidateBoosterGenerationContextClient } from "@/lib/boosterGenerationContextClient";
@@ -35,6 +38,7 @@ export default function GeneratorSettingsModal({
   onClose,
   onSaved,
 }: Props) {
+  const i18nT = useTranslations("shell");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [avgBasket, setAvgBasket] = useState(250);
@@ -240,17 +244,15 @@ export default function GeneratorSettingsModal({
             </span>
             <div style={{ display: "grid", gap: 2, minWidth: 0 }}>
               <h2 id="generator-settings-title" style={{ margin: 0, fontSize: 20, lineHeight: 1.15 }}>
-                Projection
-              </h2>
+                {i18nT("projection_8aa49fe8")}{" "}</h2>
               <p style={{ margin: 0, color: "rgba(255,255,255,0.68)", fontSize: 12.5, lineHeight: 1.3 }}>
-                Affinez vos estimations !
-              </p>
+                {i18nT("affinez_vos_estimations_1bc2b503")}{" "}</p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Fermer"
+            aria-label={i18nT("fermer_5ab4ec64")}
             style={{ width: 36, height: 36, borderRadius: 13, border: "1px solid rgba(255,255,255,0.14)", background: "rgba(255,255,255,0.06)", color: "white", cursor: "pointer", fontSize: 19, flex: "0 0 auto" }}
           >
             ×
@@ -259,15 +261,13 @@ export default function GeneratorSettingsModal({
 
         {loading ? (
           <div style={{ padding: "34px 0", textAlign: "center", color: "rgba(255,255,255,0.70)" }}>
-            Chargement des réglages…
-          </div>
+            {i18nT("chargement_des_reglages_d3437d0f")}{" "}</div>
         ) : (
           <div style={{ display: "grid", gap: 14, marginTop: 14 }}>
             <div style={{ borderRadius: 17, border: "1px solid rgba(56,189,248,0.20)", background: "rgba(56,189,248,0.075)", padding: 14, display: "grid", gap: 7 }}>
-              <strong style={{ fontSize: 13.5 }}>Repère conseillé · {recommendation.sectorLabel}</strong>
+              <strong style={{ fontSize: 13.5 }}>{i18nT("repere_conseille_value_fd7ab7e8", { value0: recommendation.sectorLabel })}</strong>
               <span style={{ color: "rgba(255,255,255,0.70)", fontSize: 12.5, lineHeight: 1.45 }}>
-                Panier moyen {recommendation.avgBasket.toLocaleString("fr-FR")} € · transformation {recommendation.conversionRate} %. Vos valeurs enregistrées restent prioritaires.
-              </span>
+                {i18nT("panier_moyen_value_transformation_value_vos_d847805e", { value0: recommendation.avgBasket.toLocaleString("fr-FR"), value1: recommendation.conversionRate })}</span>
               <button
                 type="button"
                 onClick={() => {
@@ -277,44 +277,39 @@ export default function GeneratorSettingsModal({
                 }}
                 style={{ justifySelf: "start", borderRadius: 999, border: "1px solid rgba(56,189,248,0.34)", background: "rgba(56,189,248,0.10)", color: "#bae6fd", padding: "8px 11px", cursor: "pointer", fontWeight: 800, fontSize: 12 }}
               >
-                Appliquer les valeurs conseillées
-              </button>
+                {i18nT("appliquer_les_valeurs_conseillees_ba152988")}{" "}</button>
             </div>
 
             <div data-generator-fields="2" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
               <label style={{ display: "grid", gap: 7, color: "rgba(255,255,255,0.78)", fontSize: 13, fontWeight: 750 }}>
-                Panier moyen (€)
-                <input style={fieldStyle} type="number" min="1" step="1" inputMode="decimal" value={avgBasket} onChange={(event) => setAvgBasket(Math.max(0, Number(event.target.value) || 0))} />
+                {i18nT("panier_moyen_b0d79762")}{" "}<input style={fieldStyle} type="number" min="1" step="1" inputMode="decimal" value={avgBasket} onChange={(event) => setAvgBasket(Math.max(0, Number(event.target.value) || 0))} />
               </label>
               <label style={{ display: "grid", gap: 7, color: "rgba(255,255,255,0.78)", fontSize: 13, fontWeight: 750 }}>
-                Taux de transformation (%)
-                <input style={fieldStyle} type="number" min="1" max="100" step="1" inputMode="decimal" value={conversionRate} onChange={(event) => setConversionRate(Math.min(100, Math.max(0, Number(event.target.value) || 0)))} />
+                {i18nT("taux_de_transformation_d8f6a7a2")}{" "}<input style={fieldStyle} type="number" min="1" max="100" step="1" inputMode="decimal" value={conversionRate} onChange={(event) => setConversionRate(Math.min(100, Math.max(0, Number(event.target.value) || 0)))} />
               </label>
             </div>
 
             <div style={{ borderRadius: 17, border: "1px solid rgba(244,114,182,0.24)", background: "linear-gradient(135deg, rgba(56,189,248,0.10), rgba(139,92,246,0.12), rgba(244,114,182,0.10))", padding: 15, display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
               <div style={{ display: "grid", gap: 3 }}>
                 <span style={{ color: "rgba(255,255,255,0.66)", fontSize: 12 }}>
-                  Projection pour {referenceCount} opportunité{referenceCount > 1 ? "s" : ""}
+                  {i18nT("projection_pour_c4c628f7")}{" "}{referenceCount} {" "}{i18nT("opportunite_f6947e41")}{referenceCount > 1 ? "s" : ""}
                 </span>
                 <strong style={{ fontSize: 24, letterSpacing: "-0.5px" }}>
                   {estimate.toLocaleString("fr-FR")} €
                 </strong>
               </div>
               <span style={{ color: "rgba(255,255,255,0.58)", fontSize: 11.5, maxWidth: 260, lineHeight: 1.4 }}>
-                Opportunités × taux de transformation × panier moyen. Il s’agit d’une estimation, pas d’une promesse de chiffre d’affaires.
-              </span>
+                {i18nT("opportunites_taux_de_transformation_panier_moyen_ff66baed")}{" "}</span>
             </div>
 
             {error ? <div style={{ color: "#fca5a5", fontSize: 12.5, fontWeight: 750 }}>{error}</div> : null}
-            {saved ? <div style={{ color: "#86efac", fontSize: 12.5, fontWeight: 850 }}>Réglages enregistrés ✓</div> : null}
+            {saved ? <div style={{ color: "#86efac", fontSize: 12.5, fontWeight: 850 }}>{i18nT("reglages_enregistres_08bc001b")}</div> : null}
 
             <div data-generator-actions style={{ position: "sticky", bottom: -1, display: "grid", gridTemplateColumns: "minmax(110px, 0.55fr) minmax(180px, 1fr)", gap: 10, paddingTop: 8, paddingBottom: "max(1px, env(safe-area-inset-bottom, 0px))", background: "linear-gradient(180deg, transparent, #081126 32%)" }}>
               <button type="button" onClick={onClose} style={{ borderRadius: 14, border: "1px solid rgba(255,255,255,0.14)", background: "rgba(255,255,255,0.06)", color: "white", padding: "12px", fontWeight: 850, cursor: "pointer" }}>
-                Annuler
-              </button>
+                {i18nT("annuler_49ba3292")}{" "}</button>
               <button type="button" onClick={() => void save()} disabled={saving || avgBasket <= 0 || conversionRate <= 0} style={{ borderRadius: 14, border: "1px solid rgba(255,255,255,0.18)", background: "linear-gradient(135deg, #38bdf8, #8b5cf6 52%, #f472b6)", color: "white", padding: "12px", fontWeight: 950, cursor: saving ? "wait" : "pointer", opacity: saving || avgBasket <= 0 || conversionRate <= 0 ? 0.58 : 1 }}>
-                {saving ? "Enregistrement…" : "Enregistrer"}
+                {saving ? i18nT("enregistrement_e7d5f232") : i18nT("enregistrer_f7c8bcd8")}
               </button>
             </div>
           </div>

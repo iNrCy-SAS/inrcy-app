@@ -151,17 +151,17 @@ export function splitFrenchAddress(value?: string | null) {
 }
 
 export const PAYMENT_METHODS = [
-  { key: "", label: "—" },
-  { key: "virement", label: "Virement bancaire" },
-  { key: "cb", label: "Carte bancaire" },
-  { key: "cheque", label: "Chèque" },
-  { key: "especes", label: "Espèces" },
-  { key: "abonnement", label: "Abonnement" },
+  { key: "", labelKey: null },
+  { key: "virement", labelKey: "virement_bancaire_8306f08e" },
+  { key: "cb", labelKey: "carte_bancaire_9e3d9bfa" },
+  { key: "cheque", labelKey: "cheque_8bbb89a9" },
+  { key: "especes", labelKey: "especes_b7679d62" },
+  { key: "abonnement", labelKey: "abonnement_96422751" },
 ] as const;
 
 export const OPERATION_CATEGORY_OPTIONS = [
-  { key: "", label: "—" },
-  { key: "vente", label: "Vente" },
-  { key: "prestation", label: "Prestation de services" },
-  { key: "mixte", label: "Vente + prestation" },
+  { key: "", labelKey: null },
+  { key: "vente", labelKey: "vente_9e7753e0" },
+  { key: "prestation", labelKey: "prestation_de_services_700b1a5a" },
+  { key: "mixte", labelKey: "vente_prestation_c004923b" },
 ] as const;

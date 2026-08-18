@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import React, { useEffect, useState } from "react";
 
 import { useUnsavedExitGuard } from "../../_hooks/useUnsavedExitGuard";
@@ -48,6 +49,7 @@ export function ChannelImageAdapterModal({
   pillButtonActiveStyle,
   sidebarItems,
 }: ModalProps) {
+  const i18nT = useTranslations("shell");
   const [viewportWidth, setViewportWidth] = useState<number>(typeof window === "undefined" ? 1440 : window.innerWidth);
   const [showBefore, setShowBefore] = useState(false);
   const [adapterBaseline, setAdapterBaseline] = useState("");
@@ -61,11 +63,11 @@ export function ChannelImageAdapterModal({
     active: open,
     shouldBlock: Boolean(adapterBaseline) && adapterSnapshot !== adapterBaseline,
     onConfirmExit: onClose,
-    eyebrow: "Adaptation d’image",
-    title: "Quitter sans enregistrer ?",
-    message: "Cette adaptation contient des modifications non enregistrées. Si vous la fermez maintenant, elles seront perdues.",
-    confirmLabel: "Fermer sans enregistrer",
-    cancelLabel: "Continuer l’édition",
+    eyebrow: i18nT("adaptation_d_image_686ac537"),
+    title: i18nT("quitter_sans_enregistrer_6208bd94"),
+    message: i18nT("cette_adaptation_contient_des_modifications_non_266cfa72"),
+    confirmLabel: i18nT("fermer_sans_enregistrer_15fdc373"),
+    cancelLabel: i18nT("continuer_l_edition_0f0075bb"),
     variant: "warning",
   });
 
@@ -126,11 +128,11 @@ export function ChannelImageAdapterModal({
             <div style={{ fontSize: 12, opacity: 0.74, marginTop: 4, overflowWrap: "anywhere", paddingLeft: isMobile ? 2 : 0 }}>{subtitle}</div>
           </div>
           <div style={{ display: "flex", alignItems: "stretch", gap: isMobile ? 6 : 8, flexShrink: 1, flexWrap: "wrap", justifyContent: isMobile ? "stretch" : "flex-end", width: isMobile ? "100%" : undefined, minWidth: 0, overflow: "visible", boxSizing: "border-box" }}>
-            <button type="button" className={buttonClassName} onClick={onApplyToChannelImages} disabled={!onApplyToChannelImages} title={onApplyToChannelImages ? "Appliquer ce cadrage à toutes les images de ce canal" : "Disponible avec au moins 2 images sur ce canal"} style={{ minWidth: 0, minHeight: isMobile ? 42 : 44, height: isMobile ? 42 : 44, flex: isMobile ? "1 1 0" : undefined, maxWidth: isMobile ? "none" : undefined, justifyContent: "center", alignItems: "center", fontSize: isMobile ? 11 : undefined, lineHeight: 1.1, padding: isMobile ? "0 6px" : "0 16px", whiteSpace: "normal", textAlign: "center", boxSizing: "border-box", opacity: onApplyToChannelImages ? 1 : 0.48, cursor: onApplyToChannelImages ? "pointer" : "not-allowed" }}>Appliquer partout</button>
-            {onApplyToSelectedChannels ? <button type="button" className={buttonClassName} onClick={onApplyToSelectedChannels} style={{ minWidth: 0, minHeight: isMobile ? 42 : 44, height: isMobile ? 42 : 44, flex: isMobile ? "1 1 0" : undefined, justifyContent: "center", alignItems: "center", fontSize: isMobile ? 11 : undefined, lineHeight: 1.1, padding: isMobile ? "0 6px" : "0 16px", whiteSpace: "normal", textAlign: "center", boxSizing: "border-box" }}>Appliquer aux canaux</button> : null}
-            {onResetChannel ? <button type="button" className={buttonClassName} onClick={onResetChannel} style={{ minWidth: 0, minHeight: isMobile ? 42 : 44, height: isMobile ? 42 : 44, flex: isMobile ? "1 1 0" : undefined, justifyContent: "center", alignItems: "center", fontSize: isMobile ? 11 : undefined, lineHeight: 1.1, padding: isMobile ? "0 6px" : "0 16px", whiteSpace: "nowrap", textAlign: "center", boxSizing: "border-box" }}>Réinit. canal</button> : null}
-            <button type="button" className={primaryButtonClassName || buttonClassName} onClick={onSave} disabled={saving} aria-busy={saving} aria-label={saving ? "Enregistrement en cours" : "Enregistrer"} title={saving ? "Enregistrement en cours" : "Enregistrer"} style={{ minWidth: 0, minHeight: isMobile ? 42 : 44, height: isMobile ? 42 : 44, flex: isMobile ? "0 0 42px" : undefined, width: isMobile ? 42 : undefined, padding: isMobile ? 0 : "0 16px", justifyContent: "center", alignItems: "center", fontSize: isMobile ? 18 : undefined, boxSizing: "border-box", cursor: saving ? "wait" : undefined, opacity: saving ? 0.68 : 1 }}>{saving ? (isMobile ? "…" : "Enregistrement…") : isMobile ? "💾" : "Enregistrer"}</button>
-            <button type="button" className={buttonClassName} onClick={() => void confirmExit()} aria-label="Fermer" title="Fermer" style={{ minWidth: 0, minHeight: isMobile ? 42 : 44, height: isMobile ? 42 : 44, flex: isMobile ? "0 0 42px" : undefined, width: isMobile ? 42 : undefined, padding: isMobile ? 0 : "0 16px", justifyContent: "center", alignItems: "center", fontSize: isMobile ? 20 : undefined, boxSizing: "border-box" }}>{isMobile ? "×" : "Fermer"}</button>
+            <button type="button" className={buttonClassName} onClick={onApplyToChannelImages} disabled={!onApplyToChannelImages} title={onApplyToChannelImages ? "Appliquer ce cadrage à toutes les images de ce canal" : "Disponible avec au moins 2 images sur ce canal"} style={{ minWidth: 0, minHeight: isMobile ? 42 : 44, height: isMobile ? 42 : 44, flex: isMobile ? "1 1 0" : undefined, maxWidth: isMobile ? "none" : undefined, justifyContent: "center", alignItems: "center", fontSize: isMobile ? 11 : undefined, lineHeight: 1.1, padding: isMobile ? "0 6px" : "0 16px", whiteSpace: "normal", textAlign: "center", boxSizing: "border-box", opacity: onApplyToChannelImages ? 1 : 0.48, cursor: onApplyToChannelImages ? "pointer" : "not-allowed" }}>{i18nT("appliquer_partout_1c738082")}</button>
+            {onApplyToSelectedChannels ? <button type="button" className={buttonClassName} onClick={onApplyToSelectedChannels} style={{ minWidth: 0, minHeight: isMobile ? 42 : 44, height: isMobile ? 42 : 44, flex: isMobile ? "1 1 0" : undefined, justifyContent: "center", alignItems: "center", fontSize: isMobile ? 11 : undefined, lineHeight: 1.1, padding: isMobile ? "0 6px" : "0 16px", whiteSpace: "normal", textAlign: "center", boxSizing: "border-box" }}>{i18nT("appliquer_aux_canaux_03aeae7e")}</button> : null}
+            {onResetChannel ? <button type="button" className={buttonClassName} onClick={onResetChannel} style={{ minWidth: 0, minHeight: isMobile ? 42 : 44, height: isMobile ? 42 : 44, flex: isMobile ? "1 1 0" : undefined, justifyContent: "center", alignItems: "center", fontSize: isMobile ? 11 : undefined, lineHeight: 1.1, padding: isMobile ? "0 6px" : "0 16px", whiteSpace: "nowrap", textAlign: "center", boxSizing: "border-box" }}>{i18nT("reinit_canal_bae403c5")}</button> : null}
+            <button type="button" className={primaryButtonClassName || buttonClassName} onClick={onSave} disabled={saving} aria-busy={saving} aria-label={saving ? "Enregistrement en cours" : "Enregistrer"} title={saving ? "Enregistrement en cours" : "Enregistrer"} style={{ minWidth: 0, minHeight: isMobile ? 42 : 44, height: isMobile ? 42 : 44, flex: isMobile ? "0 0 42px" : undefined, width: isMobile ? 42 : undefined, padding: isMobile ? 0 : "0 16px", justifyContent: "center", alignItems: "center", fontSize: isMobile ? 18 : undefined, boxSizing: "border-box", cursor: saving ? "wait" : undefined, opacity: saving ? 0.68 : 1 }}>{saving ? (isMobile ? "…" : i18nT("enregistrement_e7d5f232")) : isMobile ? "💾" : i18nT("enregistrer_f7c8bcd8")}</button>
+            <button type="button" className={buttonClassName} onClick={() => void confirmExit()} aria-label={i18nT("fermer_5ab4ec64")} title={i18nT("fermer_5ab4ec64")} style={{ minWidth: 0, minHeight: isMobile ? 42 : 44, height: isMobile ? 42 : 44, flex: isMobile ? "0 0 42px" : undefined, width: isMobile ? 42 : undefined, padding: isMobile ? 0 : "0 16px", justifyContent: "center", alignItems: "center", fontSize: isMobile ? 20 : undefined, boxSizing: "border-box" }}>{isMobile ? "×" : i18nT("fermer_5ab4ec64")}</button>
           </div>
         </div>
 
@@ -149,7 +151,7 @@ export function ChannelImageAdapterModal({
                 style={{ position: "relative", width: "100%", height: "100%", maxWidth: "100%", maxHeight: "100%", aspectRatio, borderRadius: isMobile ? 16 : 22, overflow: "hidden", border: "1px solid rgba(255,255,255,0.14)", ...previewBg, cursor: isDragging ? "grabbing" : "grab", touchAction: "none", boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.03)" }}
               >
                 {showBefore ? (
-                  <img src={previewSrc} alt="aperçu avant" draggable={false} style={{ width: "100%", height: "100%", objectFit: "contain", display: "block", userSelect: "none", pointerEvents: "none", background: "rgba(255,255,255,0.04)" }} />
+                  <img src={previewSrc} alt={i18nT("apercu_avant_eb65d0c1")} draggable={false} style={{ width: "100%", height: "100%", objectFit: "contain", display: "block", userSelect: "none", pointerEvents: "none", background: "rgba(255,255,255,0.04)" }} />
                 ) : hasLayout && previewLayout ? (
                   <img src={previewSrc} alt="preview" draggable={false} style={{ position: "absolute", left: previewLayout.dx, top: previewLayout.dy, width: previewLayout.drawW, height: previewLayout.drawH, maxWidth: "none", pointerEvents: "none", userSelect: "none" }} />
                 ) : (
@@ -157,43 +159,43 @@ export function ChannelImageAdapterModal({
                 )}
                 <div style={{ position: "absolute", inset: 12, borderRadius: 16, border: "1px solid rgba(255,255,255,0.14)", boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.14)", pointerEvents: "none" }} />
                 <div style={{ position: "absolute", left: 12, right: 12, bottom: 12, display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", pointerEvents: "none", flexWrap: "wrap" }}>
-                  <div style={{ fontSize: 12, padding: "6px 10px", borderRadius: 999, background: "rgba(6,10,20,0.72)", border: "1px solid rgba(255,255,255,0.12)", color: "#fff" }}>{showBefore ? "Image source" : `${fitLabel} • ${zoomLabel}`}</div>
-                  {!isMobile ? <div style={{ fontSize: 11, padding: "6px 10px", borderRadius: 999, background: "rgba(6,10,20,0.72)", border: "1px solid rgba(255,255,255,0.12)", color: "#fff" }}>Glisser • Molette • Double-clic</div> : null}
+                  <div style={{ fontSize: 12, padding: "6px 10px", borderRadius: 999, background: "rgba(6,10,20,0.72)", border: "1px solid rgba(255,255,255,0.12)", color: "#fff" }}>{showBefore ? i18nT("image_source_bbdaeab9") : `${fitLabel} • ${zoomLabel}`}</div>
+                  {!isMobile ? <div style={{ fontSize: 11, padding: "6px 10px", borderRadius: 999, background: "rgba(6,10,20,0.72)", border: "1px solid rgba(255,255,255,0.12)", color: "#fff" }}>{i18nT("glisser_molette_double_clic_292d179a")}</div> : null}
                 </div>
               </div>
             </div>
-            <div style={{ fontSize: 12, opacity: 0.72, padding: isMobile ? "12px 10px 0" : "10px 2px 0", lineHeight: 1.55, width: "100%", maxWidth: "100%", boxSizing: "border-box", overflowWrap: "break-word", wordBreak: "normal" }}>Déplacez l’image, ajustez le zoom, choisissez Image entière ou Plein cadre, puis enregistrez. {isolationNote || "Ces réglages concernent uniquement ce canal."}</div>
+            <div style={{ fontSize: 12, opacity: 0.72, padding: isMobile ? "12px 10px 0" : "10px 2px 0", lineHeight: 1.55, width: "100%", maxWidth: "100%", boxSizing: "border-box", overflowWrap: "break-word", wordBreak: "normal" }}>{i18nT("deplacez_l_image_ajustez_le_zoom_b7f704f4")}{" "}{isolationNote || i18nT("ces_reglages_concernent_uniquement_ce_canal_c0d2ebf2")}</div>
           </div>
 
           <div style={{ minWidth: 0, minHeight: 0, display: isMobile ? "flex" : "grid", flexDirection: isMobile ? "column" : undefined, alignContent: "start", gap: 12, order: isMobile ? 2 : 1, flex: isMobile ? "0 0 auto" : undefined }}>
             <div style={{ display: "grid", gap: 8, padding: isMobile ? 12 : 14, borderRadius: 20, minWidth: 0, width: "100%", boxSizing: "border-box", border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}><div style={{ fontSize: 12, opacity: 0.82 }}>Cadrage</div><div style={{ fontSize: 11, opacity: 0.55 }}>{fitLabel} • {zoomLabel}</div></div>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}><div style={{ fontSize: 12, opacity: 0.82 }}>{i18nT("cadrage_4e72389f")}</div><div style={{ fontSize: 11, opacity: 0.55 }}>{fitLabel} • {zoomLabel}</div></div>
               <div style={{ display: "grid", gridTemplateColumns: controlsGridColumns, gap: 8 }}>
                 <button type="button" className={buttonClassName} onClick={onZoomOut} style={{ justifyContent: "center" }}>−</button>
                 <button type="button" className={buttonClassName} onClick={onZoomIn} style={{ justifyContent: "center" }}>+</button>
-                <button type="button" className={buttonClassName} onClick={onContain} style={fitModeButtonStyle(!isFullFrame)}>Image entière</button>
-                <button type="button" className={buttonClassName} onClick={onCover} style={fitModeButtonStyle(isFullFrame)}>Plein cadre</button>
+                <button type="button" className={buttonClassName} onClick={onContain} style={fitModeButtonStyle(!isFullFrame)}>{i18nT("image_entiere_76cd8175")}</button>
+                <button type="button" className={buttonClassName} onClick={onCover} style={fitModeButtonStyle(isFullFrame)}>{i18nT("plein_cadre_96d0dd78")}</button>
               </div>
-              <button type="button" className={buttonClassName} onClick={() => setShowBefore((value) => !value)} style={{ width: "100%", justifyContent: "center" }}>{showBefore ? "Voir le rendu final" : "Comparer avant / rendu"}</button>
-              <button type="button" className={buttonClassName} onClick={onReset} style={{ width: "100%", justifyContent: "center" }}>Réinitialiser cette image</button>
+              <button type="button" className={buttonClassName} onClick={() => setShowBefore((value) => !value)} style={{ width: "100%", justifyContent: "center" }}>{showBefore ? i18nT("voir_le_rendu_final_4a4bf480") : i18nT("comparer_avant_rendu_1c1bbf82")}</button>
+              <button type="button" className={buttonClassName} onClick={onReset} style={{ width: "100%", justifyContent: "center" }}>{i18nT("reinitialiser_cette_image_b1b8c601")}</button>
             </div>
 
             <div style={{ display: "grid", gap: 6, padding: 12, borderRadius: 18, minWidth: 0, width: "100%", boxSizing: "border-box", border: "1px solid rgba(76,195,255,0.18)", background: "rgba(76,195,255,0.06)", fontSize: 12, lineHeight: 1.35 }}>
-              <b>Réglage isolé</b>
-              <span style={{ opacity: 0.78 }}>{isolationNote || "Ce cadrage ne modifie pas les autres canaux ni les autres sites."}</span>
+              <b>{i18nT("reglage_isole_0d378f04")}</b>
+              <span style={{ opacity: 0.78 }}>{isolationNote || i18nT("ce_cadrage_ne_modifie_pas_les_4f51ff0e")}</span>
             </div>
 
             <div style={{ display: "grid", gap: 10, padding: isMobile ? 12 : 14, borderRadius: 20, minWidth: 0, width: "100%", boxSizing: "border-box", border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)" }}>
-              <div style={{ fontSize: 12, opacity: 0.82 }}>Arrière-plan</div>
+              <div style={{ fontSize: 12, opacity: 0.82 }}>{i18nT("arriere_plan_d45252c1")}</div>
               <select value={bgMode} onChange={(e) => onBackgroundModeChange(e.target.value as BackgroundMode)} style={{ width: "100%", minHeight: 42, borderRadius: 14, border: "1px solid rgba(255,255,255,0.10)", background: "#ffffff", color: "#111827", padding: "0 12px" }}>
-                <option value="transparent" style={{ background: "#ffffff", color: "#111827" }}>Transparent</option>
-                <option value="white" style={{ background: "#ffffff", color: "#111827" }}>Blanc</option>
-                <option value="black" style={{ background: "#ffffff", color: "#111827" }}>Noir</option>
-                <option value="color" style={{ background: "#ffffff", color: "#111827" }}>Couleur personnalisée</option>
+                <option value="transparent" style={{ background: "#ffffff", color: "#111827" }}>{i18nT("transparent_0491f7bd")}</option>
+                <option value="white" style={{ background: "#ffffff", color: "#111827" }}>{i18nT("blanc_f03e5122")}</option>
+                <option value="black" style={{ background: "#ffffff", color: "#111827" }}>{i18nT("noir_c34fc172")}</option>
+                <option value="color" style={{ background: "#ffffff", color: "#111827" }}>{i18nT("couleur_personnalisee_a2881bf3")}</option>
               </select>
               {bgMode === "color" ? (
                 <label style={{ display: "grid", gap: 6, fontSize: 12, opacity: 0.82 }}>
-                  <span>Couleur de fond</span>
+                  <span>{i18nT("couleur_de_fond_84c3e127")}</span>
                   <input type="color" value={bgFill} onChange={(e) => onBackgroundColorChange?.(e.target.value)} style={{ width: "100%", height: 48, borderRadius: 12, border: "1px solid rgba(255,255,255,0.10)", background: "transparent" }} />
                 </label>
               ) : null}
@@ -204,7 +206,7 @@ export function ChannelImageAdapterModal({
             {sidebarItems?.length ? (
               <div style={{ minHeight: 0, height: isMobile ? "auto" : "100%",
                 marginTop: isMobile ? 8 : 0, display: "grid", gridTemplateRows: isMobile ? undefined : isCompact ? "auto auto" : "auto minmax(0, 1fr)", gap: 8, padding: 14, borderRadius: 20, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)" }}>
-                <div style={{ fontSize: 12, opacity: 0.82 }}>Images du canal</div>
+                <div style={{ fontSize: 12, opacity: 0.82 }}>{i18nT("images_du_canal_5ed27490")}</div>
                 <div
                   style={{
                     minHeight: 0,

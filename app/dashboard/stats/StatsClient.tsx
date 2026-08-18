@@ -1,5 +1,8 @@
 "use client";
 
+import { useLocale, useTranslations } from "next-intl";
+
+
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import styles from "./stats.module.css";
 import { useRouter } from "next/navigation";
@@ -23,6 +26,7 @@ import {
   type CubeState,
   type Overview,
   type Period,
+  type StatsTranslator,
 } from "./stats.shared";
 import {
   EMPTY_INRBADGE_STATS,
@@ -74,6 +78,10 @@ type StatsClientProps = {
 };
 
 export default function StatsClient({ initialInrSearch }: StatsClientProps) {
+  const locale = useLocale();
+  const i18nT = useTranslations("stats");
+  const runtimeT = i18nT as unknown as StatsTranslator;
+  const formatInt = (value: number) => fmtInt(value, locale);
   const router = useRouter();
   const dashboardEdition = useDashboardEdition();
   const standardMode = dashboardEdition === "standard";
@@ -293,18 +301,18 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
 
   const models: CubeModel[] = useMemo(() => {
     const baseModels: CubeModel[] = [
-      buildInrBadgeCubeModel(period, inrBadgeStats, { appointmentsEnabled: !standardMode }),
-      buildInrSearchCubeModel(period, inrSearchStats),
-      ...(!standardMode ? [buildMailCubeModel(mailStats, period)] : []),
-      buildCubeModel("site_inrcy", "Site iNrCy", "Optimisé pour convertir", period, dataByCube.site_inrcy, centralByCube, officialChannelConnectionStatuses.site_inrcy),
-      buildCubeModel("site_web", "Site Web", "Votre image", period, dataByCube.site_web, centralByCube, officialChannelConnectionStatuses.site_web),
-      buildCubeModel("gmb", "Google Business", "Visibilité locale", period, dataByCube.gmb, centralByCube, officialChannelConnectionStatuses.gmb),
-      buildCubeModel("facebook", "Facebook", "Visibilité sociale", period, dataByCube.facebook, centralByCube, officialChannelConnectionStatuses.facebook),
-      buildCubeModel("instagram", "Instagram", "Visibilité de marque", period, dataByCube.instagram, centralByCube, officialChannelConnectionStatuses.instagram),
-      buildCubeModel("linkedin", "LinkedIn", "Visibilité professionnelle", period, dataByCube.linkedin, centralByCube, officialChannelConnectionStatuses.linkedin),
-      buildCubeModel("tiktok", "TikTok", "Photos & vidéos courtes", period, dataByCube.tiktok, centralByCube, officialChannelConnectionStatuses.tiktok),
-      buildCubeModel("youtube_shorts", "YouTube", "Vidéos courtes & longues", period, dataByCube.youtube_shorts, centralByCube, officialChannelConnectionStatuses.youtube_shorts),
-      buildCubeModel("pinterest", "Pinterest", "Inspiration & idées", period, dataByCube.pinterest, centralByCube, officialChannelConnectionStatuses.pinterest),
+      buildInrBadgeCubeModel(period, inrBadgeStats, { appointmentsEnabled: !standardMode }, locale, runtimeT),
+      buildInrSearchCubeModel(period, inrSearchStats, locale, runtimeT),
+      ...(!standardMode ? [buildMailCubeModel(mailStats, period, locale, runtimeT)] : []),
+      buildCubeModel("site_inrcy", i18nT("site_inrcy_57016d6f"), i18nT("subtitle_optimized_for_conversion"), period, dataByCube.site_inrcy, centralByCube, officialChannelConnectionStatuses.site_inrcy, locale, runtimeT),
+      buildCubeModel("site_web", i18nT("site_web_c72c13ef"), i18nT("subtitle_your_image"), period, dataByCube.site_web, centralByCube, officialChannelConnectionStatuses.site_web, locale, runtimeT),
+      buildCubeModel("gmb", i18nT("google_business_a605b655"), i18nT("visibilite_locale_afa9cdc9"), period, dataByCube.gmb, centralByCube, officialChannelConnectionStatuses.gmb, locale, runtimeT),
+      buildCubeModel("facebook", i18nT("facebook_82da67b2"), i18nT("subtitle_social_visibility"), period, dataByCube.facebook, centralByCube, officialChannelConnectionStatuses.facebook, locale, runtimeT),
+      buildCubeModel("instagram", i18nT("instagram_5721bbef"), i18nT("subtitle_brand_visibility"), period, dataByCube.instagram, centralByCube, officialChannelConnectionStatuses.instagram, locale, runtimeT),
+      buildCubeModel("linkedin", i18nT("linkedin_6b6390a4"), i18nT("subtitle_professional_visibility"), period, dataByCube.linkedin, centralByCube, officialChannelConnectionStatuses.linkedin, locale, runtimeT),
+      buildCubeModel("tiktok", i18nT("tiktok_fc49f156"), i18nT("subtitle_short_photos_videos"), period, dataByCube.tiktok, centralByCube, officialChannelConnectionStatuses.tiktok, locale, runtimeT),
+      buildCubeModel("youtube_shorts", i18nT("youtube_558865a1"), i18nT("subtitle_short_long_videos"), period, dataByCube.youtube_shorts, centralByCube, officialChannelConnectionStatuses.youtube_shorts, locale, runtimeT),
+      buildCubeModel("pinterest", i18nT("title_pinterest"), i18nT("subtitle_inspiration_ideas"), period, dataByCube.pinterest, centralByCube, officialChannelConnectionStatuses.pinterest, locale, runtimeT),
     ];
 
     return baseModels.map((model) => {
@@ -329,12 +337,12 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
             capturedLeads: { week: 0, month: 0 },
             action: {
               key: "connect",
-              title: officialStatus === "needs_update" ? `Reconnecter ${model.title}` : "Connexion",
+              title: officialStatus === "needs_update" ? i18nT("reconnecter_value_d8079aa6", { value0: model.title }) : i18nT("connexion_a33c58f5"),
               detail: officialStatus === "needs_update"
-                ? "La connexion a expiré. Reconnectez ce canal pour réactiver les statistiques et Booster."
-                : "Connectez ce canal pour activer les statistiques et Booster.",
+                ? i18nT("stats_reconnect_expired_channel")
+                : i18nT("stats_connect_channel_to_activate"),
               href: "/dashboard",
-              pill: "Connexion",
+              pill: i18nT("connexion_a33c58f5"),
             },
           }
         : cachedConnected && !liveConnected
@@ -353,10 +361,10 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
             connectionPending: true,
             action: {
               key: "loading",
-              title: "Synchronisation indisponible",
-              detail: "L'état du canal n'a pas pu être vérifié. Les anciennes données restent neutralisées.",
+              title: i18nT("synchronisation_indisponible_8d911564"),
+              detail: i18nT("stats_old_data_neutralized"),
               href: "",
-              pill: "Connexion",
+              pill: i18nT("connexion_a33c58f5"),
             },
           }
         : hydratedModel;
@@ -367,7 +375,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
       // Elle prend donc le dessus sur un éventuel snapshot iNrStats plus ancien.
       return { ...availabilityAwareModel, accountLabel: identityHint };
     });
-  }, [cachedChannelConnectivity, centralByCube, channelIdentityHints, dataByCube, inrBadgeStats, inrSearchStats, mailStats, officialChannelConnectionStatuses, period, standardMode]);
+  }, [cachedChannelConnectivity, centralByCube, channelIdentityHints, dataByCube, i18nT, inrBadgeStats, inrSearchStats, locale, mailStats, officialChannelConnectionStatuses, period, runtimeT, standardMode]);
 
   const computedEstimatedByCube = useMemo<Record<CubeKey, number>>(() => {
     const rate = Math.max(0, safeNum(summaryProfile.lead_conversion_rate)) / 100;
@@ -395,7 +403,8 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
     computedEstimatedByCube,
     models,
     summaryEstimatedByCube,
-  }), [centralByCube, computedEstimatedByCube, models, summaryEstimatedByCube]);
+    t: runtimeT,
+  }), [centralByCube, computedEstimatedByCube, models, runtimeT, summaryEstimatedByCube]);
 
   const summaryActionByChannel = useMemo(() => {
     return new Map(summaryActionItems.map((item) => [item.key, item]));
@@ -427,7 +436,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
     if (isGeneratingReport) return;
 
     setIsGeneratingReport(true);
-    setReportNotice("Génération du bilan en cours…");
+    setReportNotice(i18nT("report_generation_progress"));
 
     try {
       const response = await fetch("/api/agent/actions/send-stats-report", {
@@ -446,19 +455,20 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
         throw new Error(
           payload?.error ||
             payload?.detail ||
-            "Génération ou envoi du bilan iNr’Stats impossible.",
+            i18nT("report_generation_failed"),
         );
       }
 
-      setReportNotice(
-        `Bilan généré et envoyé${payload.recipientEmail ? ` à ${payload.recipientEmail}` : ""}.`,
-      );
+      setReportNotice(i18nT("report_sent", {
+        hasEmail: payload.recipientEmail ? "yes" : "no",
+        email: payload.recipientEmail || "",
+      }));
       setTimeout(() => setReportNotice(null), 4500);
     } catch (error) {
       setReportNotice(
         error instanceof Error
           ? error.message
-          : "Génération ou envoi du bilan iNr’Stats impossible.",
+          : i18nT("report_generation_failed"),
       );
     } finally {
       setIsGeneratingReport(false);
@@ -477,7 +487,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
           <div className={styles.brand}>
             <img
               src="/inrstats-logo.png"
-              alt="iNr’Stats"
+              alt={i18nT("inr_stats_323b32a2")}
               width={154}
               height={64}
               className={styles.headerLogo}
@@ -485,35 +495,35 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
               decoding="sync"
               fetchPriority="high"
             />
-            <div className={`${styles.tagline} ${styles.taglineDesktop}`}>Vos données analysées en mode business.</div>
+            <div className={`${styles.tagline} ${styles.taglineDesktop}`}>{i18nT("vos_donnees_analysees_en_mode_business_11b869ec")}</div>
           </div>
 
           <div className={styles.headerActions}>
             <div className={styles.headerCloseControls}>
-              <HelpButton onClick={() => setHelpOpen(true)} title="Aide iNr’Stats" size={34} />
+              <HelpButton onClick={() => setHelpOpen(true)} title={i18nT("aide_inr_stats_14d89e71")} size={34} />
               <button
                 type="button"
                 className={styles.statsMobileNavButton}
                 onClick={() => setStatsMenuOpen(true)}
-                aria-label="Ouvrir les canaux iNr’Stats"
-                title="Canaux"
+                aria-label={i18nT("ouvrir_les_canaux_inr_stats_23157396")}
+                title={i18nT("canaux_27cb4473")}
               >
                 ☰
               </button>
               <ResponsiveActionButton
-                desktopLabel={isRefreshing ? "Actualisation…" : "Actualiser"}
+                desktopLabel={isRefreshing ? i18nT("refresh_in_progress") : i18nT("refresh_now")}
                 mobileIcon="↻"
                 onClick={() => {
                   void handleSharedStatsRefresh();
                 }}
-                ariaLabel="Actualiser les données iNr’Stats"
-                title={lastRefreshAt ? `Dernière actualisation : ${new Date(lastRefreshAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}` : "Mettre à jour les statistiques"}
+                ariaLabel={i18nT("actualiser_les_donnees_inr_stats_86d7bbef")}
+                title={lastRefreshAt ? i18nT("stats_last_refresh", { time: new Date(lastRefreshAt).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit", second: "2-digit" }) }) : i18nT("stats_refresh")}
               />
-              <ResponsiveActionButton desktopLabel="Fermer" mobileIcon="✕" onClick={() => router.push("/dashboard")} title="Retour au tableau de bord" />
+              <ResponsiveActionButton desktopLabel={i18nT("fermer_5ab4ec64")} mobileIcon="✕" onClick={() => router.push("/dashboard")} title={i18nT("retour_au_tableau_de_bord_72006dd2")} />
             </div>
           </div>
         </div>
-        <div className={`${styles.tagline} ${styles.taglineMobile}`}>Vos données analysées en mode business.</div>
+        <div className={`${styles.tagline} ${styles.taglineMobile}`}>{i18nT("vos_donnees_analysees_en_mode_business_11b869ec")}</div>
         {reportNotice ? (
           <div className={styles.reportNotice} role="status">
             {reportNotice}
@@ -521,23 +531,22 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
         ) : null}
       </div>
 
-      <HelpModal open={helpOpen} title="iNr’Stats" onClose={() => setHelpOpen(false)}>
+      <HelpModal open={helpOpen} title={i18nT("inr_stats_323b32a2")} onClose={() => setHelpOpen(false)}>
         <p style={{ marginTop: 0 }}>
-          iNr’Stats analyse les données récupérées sur vos canaux (site, Google, réseaux…) et les transforme en analyse business.
-        </p>
+          {i18nT("inr_stats_analyse_les_donnees_recuperees_0a6b0cad")}{" "}</p>
         <ul style={{ margin: 0, paddingLeft: 18 }}>
-          <li>Comprenez votre potentiel d’opportunités sur les 30 jours à venir.</li>
-          <li>Identifiez les actions à mener pour capter ce potentiel.</li>
-          <li>Suivez l’évolution par canal et identifiez les actions à mener sur les 30 jours à venir.</li>
+          <li>{i18nT("comprenez_votre_potentiel_d_opportunites_sur_fa5e3aab")}</li>
+          <li>{i18nT("identifiez_les_actions_a_mener_pour_09a3bade")}</li>
+          <li>{i18nT("suivez_l_evolution_par_canal_et_c09ea54b")}</li>
         </ul>
       </HelpModal>
 
       {statsMenuOpen ? (
         <div className={styles.statsMobileDrawerOverlay} role="presentation" onClick={() => setStatsMenuOpen(false)}>
-          <aside className={styles.statsMobileDrawer} aria-label="Choisir une vue iNr’Stats" onClick={(event) => event.stopPropagation()}>
+          <aside className={styles.statsMobileDrawer} aria-label={i18nT("choisir_une_vue_inr_stats_4a70e095")} onClick={(event) => event.stopPropagation()}>
             <div className={styles.statsMobileDrawerHead}>
-              <strong>Canaux</strong>
-              <button type="button" onClick={() => setStatsMenuOpen(false)} aria-label="Fermer le menu des canaux">×</button>
+              <strong>{i18nT("canaux_27cb4473")}</strong>
+              <button type="button" onClick={() => setStatsMenuOpen(false)} aria-label={i18nT("fermer_le_menu_des_canaux_d436bbec")}>×</button>
             </div>
 
             <div className={styles.statsMobileDrawerList}>
@@ -548,10 +557,10 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
               >
                 <span className={styles.statsRailDot} aria-hidden />
                 <span className={styles.statsRailText}>
-                  <b>Tous</b>
-                  <small>Vue globale</small>
+                  <b>{i18nT("tous_b97ae3b4")}</b>
+                  <small>{i18nT("vue_globale_08073c33")}</small>
                 </span>
-                <span className={styles.statsRailValue}>+{fmtInt(centralPotential30)}</span>
+                <span className={styles.statsRailValue}>+{formatInt(centralPotential30)}</span>
               </button>
 
               {models.map((model) => {
@@ -571,9 +580,9 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
                     <span className={styles.statsRailDot} aria-hidden />
                     <span className={styles.statsRailText}>
                       <b>{model.title}</b>
-                      <small>{reconnectRequired ? "À reconnecter" : model.key === "inr_search" ? (connectionPending ? "Synchronisation…" : connected ? "Page publiée" : "Page indisponible") : connectionPending ? "Vérification" : connected ? "Connecté" : "Déconnecté"}</small>
+                      <small>{reconnectRequired ? i18nT("a_reconnecter_bb56a9d2") : model.key === "inr_search" ? (connectionPending ? i18nT("synchronisation_cc8ad3ae") : connected ? i18nT("page_publiee_1916dffd") : i18nT("page_indisponible_1d78169a")) : connectionPending ? i18nT("verification_bb27abfb") : connected ? i18nT("connecte_ce09957c") : i18nT("deconnecte_3a67fd80")}</small>
                     </span>
-                    <span className={styles.statsRailValue}>+{fmtInt(model.opportunity30)}</span>
+                    <span className={styles.statsRailValue}>+{formatInt(model.opportunity30)}</span>
                   </button>
                 );
               })}
@@ -586,7 +595,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
         className={`${styles.statsWorkspace} ${activeStatsPanel === "all" ? "" : styles.statsWorkspaceChannel}`}
         data-stats-view={activeStatsPanel === "all" ? "global" : "channel"}
       >
-        <aside className={styles.statsRail} aria-label="Canaux iNr’Stats">
+        <aside className={styles.statsRail} aria-label={i18nT("canaux_inr_stats_d37cba0f")}>
           <button
             type="button"
             className={`${styles.statsRailItem} ${styles.statsRailItemGlobal} ${connectedChannelsCount > 0 ? styles.statsRailItemConnected : styles.statsRailItemOff} ${activeStatsPanel === "all" ? styles.statsRailItemActive : ""}`}
@@ -594,10 +603,10 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
           >
             <span className={styles.statsRailDot} aria-hidden />
             <span className={styles.statsRailText}>
-              <b>Tous</b>
-              <small>Vue globale</small>
+              <b>{i18nT("tous_b97ae3b4")}</b>
+              <small>{i18nT("vue_globale_08073c33")}</small>
             </span>
-            <span className={styles.statsRailValue}>+{fmtInt(centralPotential30)}</span>
+            <span className={styles.statsRailValue}>+{formatInt(centralPotential30)}</span>
           </button>
 
           {models.map((model) => {
@@ -617,9 +626,9 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
                 <span className={styles.statsRailDot} aria-hidden />
                 <span className={styles.statsRailText}>
                   <b>{model.title}</b>
-                  <small>{reconnectRequired ? "À reconnecter" : model.key === "inr_search" ? (connectionPending ? "Synchronisation…" : connected ? "Page publiée" : "Page indisponible") : connectionPending ? "Vérification" : connected ? "Connecté" : "Déconnecté"}</small>
+                  <small>{reconnectRequired ? i18nT("a_reconnecter_bb56a9d2") : model.key === "inr_search" ? (connectionPending ? i18nT("synchronisation_cc8ad3ae") : connected ? i18nT("page_publiee_1916dffd") : i18nT("page_indisponible_1d78169a")) : connectionPending ? i18nT("verification_bb27abfb") : connected ? i18nT("connecte_ce09957c") : i18nT("deconnecte_3a67fd80")}</small>
                 </span>
-                <span className={styles.statsRailValue}>+{fmtInt(model.opportunity30)}</span>
+                <span className={styles.statsRailValue}>+{formatInt(model.opportunity30)}</span>
               </button>
             );
           })}
@@ -627,11 +636,11 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
 
         <main className={styles.statsPanel}>
           {activeStatsPanel === "all" ? (
-            <section className={styles.allStatsPanel} aria-label="Vue globale iNr’Stats">
+            <section className={styles.allStatsPanel} aria-label={i18nT("vue_globale_inr_stats_db5feb84")}>
               <div className={styles.allStatsHero}>
                 <div className={styles.allStatsHeaderMain}>
                   <div className={styles.allStatsHeadingRow}>
-                    <h2 className={styles.allStatsTitle}>Vue globale — Tous vos canaux en un coup d’œil</h2>
+                    <h2 className={styles.allStatsTitle}>{i18nT("vue_globale_tous_vos_canaux_en_60fb6351")}</h2>
                     <button
                       type="button"
                       className={styles.allStatsReportButton}
@@ -639,32 +648,31 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
                         void generateStatsReportNow();
                       }}
                       disabled={isGeneratingReport}
-                      aria-label="Générer un bilan iNr’Stats manuel"
-                      title="Créer et envoyer un bilan manuel maintenant"
+                      aria-label={i18nT("generer_un_bilan_inr_stats_manuel_30ea8535")}
+                      title={i18nT("creer_et_envoyer_un_bilan_manuel_f462a5fc")}
                     >
-                      {isGeneratingReport ? "Génération du bilan…" : "🧾 Générer un bilan"}
+                      {isGeneratingReport ? i18nT("generation_du_bilan_9b3321bd") : i18nT("generer_un_bilan_77d1d8d2")}
                     </button>
                   </div>
                   <p className={styles.allStatsText}>
-                    Synthèse par canal : opportunités activables, CA potentiel et outil recommandé.
-                  </p>
+                    {i18nT("synthese_par_canal_opportunites_activables_ca_7b735b50")}{" "}</p>
                 </div>
 
                 <div className={styles.allStatsKpis}>
                   <div className={`${styles.allStatsKpi} ${styles.kpiToneBlue}`}>
-                    <span>Opportunités</span>
-                    <b>+{fmtInt(centralPotential30)}</b>
+                    <span>{i18nT("opportunites_0dbfa3c5")}</span>
+                    <b>+{formatInt(centralPotential30)}</b>
                   </div>
                   <div className={`${styles.allStatsKpi} ${styles.kpiTonePurple}`}>
-                    <span>CA potentiel</span>
-                    <b>+{fmtInt(summaryActionItems.reduce((total, item) => total + safeNum(item.revenue), 0))} €</b>
+                    <span>{i18nT("ca_potentiel_fc9eeae4")}</span>
+                    <b>+{formatInt(summaryActionItems.reduce((total, item) => total + safeNum(item.revenue), 0))} €</b>
                   </div>
                   <div className={`${styles.allStatsKpi} ${styles.kpiToneGreen}`}>
-                    <span>Demandes captées 30 j</span>
-                    <b>{fmtInt(totalCapturedLeads30)}</b>
+                    <span>{i18nT("demandes_captees_30_j_a45db939")}</span>
+                    <b>{formatInt(totalCapturedLeads30)}</b>
                   </div>
                   <div className={`${styles.allStatsKpi} ${styles.kpiToneSlate}`}>
-                    <span>Canaux</span>
+                    <span>{i18nT("canaux_27cb4473")}</span>
                     <b>{models.length}</b>
                   </div>
                 </div>
@@ -690,8 +698,8 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
                         type="button"
                         className={styles.allStatsDetailArrow}
                         onClick={() => scrollTo(model.key)}
-                        aria-label={`Voir le détail ${model.title}`}
-                        title="Voir le détail"
+                        aria-label={i18nT("voir_le_detail_value_ba79238d", { value0: model.title })}
+                        title={i18nT("voir_le_detail_c6565c15")}
                       >
                         ↗
                       </button>
@@ -702,12 +710,12 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
 
                       <div className={styles.allStatsMetrics}>
                         <span>
-                          <small>Opportunités</small>
-                          <b>+{fmtInt(model.opportunity30)}</b>
+                          <small>{i18nT("opportunites_0dbfa3c5")}</small>
+                          <b>+{formatInt(model.opportunity30)}</b>
                         </span>
                         <span>
-                          <small>CA potentiel</small>
-                          <b>+{fmtInt(revenue)} €</b>
+                          <small>{i18nT("ca_potentiel_fc9eeae4")}</small>
+                          <b>+{formatInt(revenue)} €</b>
                         </span>
                       </div>
 
@@ -722,9 +730,9 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
                         className={`${styles.allStatsGoButton} ${connected ? styles.allStatsGoButtonOn : styles.allStatsGoButtonConnect}`}
                         onClick={() => actionHref && actionHref !== "#" ? navigateFromStats(actionHref) : scrollTo(model.key)}
                         disabled={false}
-                        title={connected ? "Lancer l’action recommandée" : "Configurer ce canal"}
+                        title={connected ? i18nT("stats_run_recommended_action") : i18nT("stats_configure_channel")}
                       >
-                        {connected ? "GO ⚡" : <>GO <PlugIcon /></>}
+                        {connected ? i18nT("go_bb63fc96") : <>{i18nT("go_f63f96ef")}{" "}<PlugIcon /></>}
                       </button>
                     </article>
                   );
@@ -732,27 +740,27 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
               </div>
             </section>
           ) : activeModel ? (
-            <section className={styles.channelStatsPanel} aria-label={`Données ${activeModel.title}`}>
+            <section className={styles.channelStatsPanel} aria-label={i18nT("donnees_value_9d3b1503", { value0: activeModel.title })}>
               <div className={styles.channelStatsHeader}>
                 <div className={styles.channelStatsTitleBlock}>
-                  <div className={styles.allStatsEyebrow}>Canal actif</div>
+                  <div className={styles.allStatsEyebrow}>{i18nT("canal_actif_09801074")}</div>
                   <h2 className={styles.allStatsTitle}>{activeModel.title}</h2>
                   <p className={styles.allStatsText}>{activeModel.subtitle}</p>
                 </div>
 
                 <div className={`${styles.allStatsKpis} ${styles.channelStatsKpis} ${activeModel.key === "mails" ? styles.channelStatsKpisMail : ""}`}>
                   <div className={`${styles.allStatsKpi} ${styles.kpiToneBlue}`}>
-                    <span>Opportunités</span>
-                    <b>+{fmtInt(activeModel.opportunity30)}</b>
+                    <span>{i18nT("opportunites_0dbfa3c5")}</span>
+                    <b>+{formatInt(activeModel.opportunity30)}</b>
                   </div>
                   <div className={`${styles.allStatsKpi} ${styles.kpiTonePurple}`}>
-                    <span>CA potentiel</span>
-                    <b>+{fmtInt(summaryEstimatedByCube[activeModel.key] || computedEstimatedByCube[activeModel.key] || 0)} €</b>
+                    <span>{i18nT("ca_potentiel_fc9eeae4")}</span>
+                    <b>+{formatInt(summaryEstimatedByCube[activeModel.key] || computedEstimatedByCube[activeModel.key] || 0)} €</b>
                   </div>
                   {activeModel.key !== "mails" ? (
                     <div className={`${styles.allStatsKpi} ${styles.kpiToneGreen} ${styles.channelDemandesKpi}`}>
-                      <span className={styles.channelDemandesKpiLabel}>Demandes captées 7j / 30j</span>
-                      <b>{activeModel.capturedLeadsUnavailable ? "—" : `${fmtInt(activeModel.capturedLeads.week)} / ${fmtInt(activeModel.capturedLeads.month)}`}</b>
+                      <span className={styles.channelDemandesKpiLabel}>{i18nT("demandes_captees_7j_30j_d1d1b0de")}</span>
+                      <b>{activeModel.capturedLeadsUnavailable ? "—" : `${formatInt(activeModel.capturedLeads.week)} / ${formatInt(activeModel.capturedLeads.month)}`}</b>
                     </div>
                   ) : null}
                 </div>

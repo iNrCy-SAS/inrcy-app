@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import styles from "../crm.module.css";
 import {
@@ -63,11 +64,12 @@ export default function CRMContactsView({
   desktopRowHeight,
   desktopPlaceholderRows,
 }: Props) {
+  const i18nT = useTranslations("crm");
   if (isResponsive) {
     return (
       <div className={styles.mobileTable}>
         {visibleContacts.length === 0 ? (
-          loading && page <= 1 ? <div className={styles.mobileEmpty}>Chargement des contacts…</div> : <div className={styles.mobileEmpty}>{emptyMessage}</div>
+          loading && page <= 1 ? <div className={styles.mobileEmpty}>{i18nT("chargement_des_contacts_37c250fb")}</div> : <div className={styles.mobileEmpty}>{emptyMessage}</div>
         ) : (
           visibleContacts.map((c) => {
             const isExpanded = expandedMobileContactId === c.id;
@@ -80,7 +82,7 @@ export default function CRMContactsView({
                       className={styles.checkbox}
                       checked={selectedContactIds.has(c.id)}
                       onChange={() => toggleSelect(c.id)}
-                      aria-label={`Sélectionner ${buildDisplayName(c) || "ce contact"}`}
+                      aria-label={i18nT("selectionner_value_b74d84aa", { value0: buildDisplayName(c) || "ce contact" })}
                     />
                   </label>
 
@@ -91,7 +93,7 @@ export default function CRMContactsView({
                     aria-expanded={isExpanded ? "true" : "false"}
                   >
                     <span className={`${styles.mobileListName} ${c.important ? styles.nameImportant : ""}`.trim()}>
-                      {buildDisplayName(c) || "Contact sans nom"}
+                      {buildDisplayName(c) || i18nT("contact_sans_nom_5b4b82fc")}
                     </span>
                   </button>
 
@@ -110,32 +112,32 @@ export default function CRMContactsView({
                   <div className={styles.mobileRowDetails}>
                     <div className={styles.mobileDetailGrid}>
                       <div>
-                        <span className={styles.mobileDetailLabel}>Mail</span>
+                        <span className={styles.mobileDetailLabel}>{i18nT("mail_92379cbb")}</span>
                         <strong>{c.email || "—"}</strong>
                       </div>
                       <div>
-                        <span className={styles.mobileDetailLabel}>Téléphone</span>
+                        <span className={styles.mobileDetailLabel}>{i18nT("telephone_d3b023ea")}</span>
                         <strong>{c.phone || "—"}</strong>
                       </div>
                       <div>
-                        <span className={styles.mobileDetailLabel}>Catégorie</span>
+                        <span className={styles.mobileDetailLabel}>{i18nT("categorie_6b38300a")}</span>
                         <strong>{c.category ? CATEGORY_LABEL[c.category as Exclude<Category, "">] : "—"}</strong>
                       </div>
                       <div>
-                        <span className={styles.mobileDetailLabel}>Type</span>
+                        <span className={styles.mobileDetailLabel}>{i18nT("type_3deb7456")}</span>
                         <strong>{c.contact_type ? TYPE_LABEL[c.contact_type as Exclude<ContactType, "">] : "—"}</strong>
                       </div>
                       <div>
-                        <span className={styles.mobileDetailLabel}>Département</span>
+                        <span className={styles.mobileDetailLabel}>{i18nT("departement_3d7c87c2")}</span>
                         <strong>{getDepartmentCode(c.postal_code) || "—"}</strong>
                       </div>
                       <div>
-                        <span className={styles.mobileDetailLabel}>Adresse</span>
+                        <span className={styles.mobileDetailLabel}>{i18nT("adresse_522e1466")}</span>
                         <strong>{[c.address, c.postal_code, c.city].filter(Boolean).join(" ") || "—"}</strong>
                       </div>
                       {(c.notes || "").trim() ? (
                         <div className={styles.mobileDetailNotes}>
-                          <span className={styles.mobileDetailLabel}>Notes</span>
+                          <span className={styles.mobileDetailLabel}>{i18nT("notes_70440046")}</span>
                           <strong>{c.notes}</strong>
                         </div>
                       ) : null}
@@ -143,26 +145,20 @@ export default function CRMContactsView({
 
                     <div className={styles.mobileDetailActions}>
                       <button type="button" className={styles.smallBtn} disabled={!c.email} onClick={(e) => { e.stopPropagation(); sendMailToContact(c); }}>
-                        Mail
-                      </button>
+                        {i18nT("mail_92379cbb")}{" "}</button>
                       <button type="button" className={styles.smallBtn} onClick={(e) => { e.stopPropagation(); goPlanifierIntervention(c); }}>
-                        Agenda
-                      </button>
+                        {i18nT("agenda_891e9d6d")}{" "}</button>
                       <button type="button" className={styles.smallBtn} onClick={(e) => { e.stopPropagation(); goNewDevis(c); }}>
-                        Devis
-                      </button>
+                        {i18nT("devis_f7622f90")}{" "}</button>
                       <button type="button" className={styles.smallBtn} onClick={(e) => { e.stopPropagation(); goNewFacture(c); }}>
-                        Facture
-                      </button>
+                        {i18nT("facture_3953b9f5")}{" "}</button>
                       <button type="button" className={styles.smallBtn} onClick={(e) => { e.stopPropagation(); startEdit(c); }}>
-                        Modifier
-                      </button>
+                        {i18nT("modifier_f260e757")}{" "}</button>
                       <button type="button" className={styles.smallBtn} onClick={(e) => { e.stopPropagation(); toggleImportant(c.id); }}>
-                        {c.important ? "Retirer ★" : "Mettre ★"}
+                        {c.important ? i18nT("retirer_7ef7a367") : i18nT("mettre_e1ba02e1")}
                       </button>
                       <button type="button" className={`${styles.smallBtn} ${styles.dangerBtn}`.trim()} onClick={(e) => { e.stopPropagation(); void remove(c.id); }}>
-                        Supprimer
-                      </button>
+                        {i18nT("supprimer_1acfc1c7")}{" "}</button>
                     </div>
                   </div>
                 ) : null}
@@ -172,8 +168,8 @@ export default function CRMContactsView({
         )}
 
         <div ref={mobileLoadMoreRef} className={styles.mobileLoadSentinel} aria-hidden="true" />
-        {loading && page > 1 ? <div className={styles.mobileLoadMore}>Chargement de plus de contacts...</div> : null}
-        {!mobileHasMore && visibleContacts.length > 0 ? <div className={styles.mobileListEnd}>Tous les contacts sont affichés.</div> : null}
+        {loading && page > 1 ? <div className={styles.mobileLoadMore}>{i18nT("chargement_de_plus_de_contacts_ecb1f149")}</div> : null}
+        {!mobileHasMore && visibleContacts.length > 0 ? <div className={styles.mobileListEnd}>{i18nT("tous_les_contacts_sont_affiches_2c02a496")}</div> : null}
       </div>
     );
   }
@@ -189,15 +185,15 @@ export default function CRMContactsView({
               onClick={(e) => e.stopPropagation()}
               onChange={toggleSelectAllVisible}
               checked={allVisibleSelected}
-              aria-label="Sélectionner tous les contacts de la page"
+              aria-label={i18nT("selectionner_tous_les_contacts_de_la_24fdd0b2")}
             />
           </th>
-          <th className={styles.thName}>Nom Prénom / RS</th>
-          <th className={styles.thMail}>Mail</th>
-          <th className={styles.thTel}>Téléphone</th>
+          <th className={styles.thName}>{i18nT("nom_prenom_rs_15d43630")}</th>
+          <th className={styles.thMail}>{i18nT("mail_92379cbb")}</th>
+          <th className={styles.thTel}>{i18nT("telephone_d3b023ea")}</th>
           <th className={styles.thCp}>CP</th>
-          <th className={styles.thCat}>Catégorie</th>
-          <th className={styles.thType}>Type</th>
+          <th className={styles.thCat}>{i18nT("categorie_6b38300a")}</th>
+          <th className={styles.thType}>{i18nT("type_3deb7456")}</th>
           <th className={styles.thStar}>⭐</th>
         </tr>
       </thead>
@@ -224,7 +220,7 @@ export default function CRMContactsView({
                 checked={selectedContactIds.has(c.id)}
                 onClick={(e) => e.stopPropagation()}
                 onChange={() => toggleSelect(c.id)}
-                aria-label={`Sélectionner ${buildDisplayName(c)}`}
+                aria-label={i18nT("selectionner_value_b74d84aa", { value0: buildDisplayName(c) })}
               />
             </td>
             <td className={`${styles.tdName} ${c.important ? styles.nameImportant : ""}`.trim()}>{buildDisplayName(c)}</td>
@@ -252,21 +248,21 @@ export default function CRMContactsView({
               )}
             </td>
             <td className={styles.tdStar}>
-              {c.important ? <span className={styles.starStatic} title="Important" aria-label="Important">★</span> : null}
+              {c.important ? <span className={styles.starStatic} title={i18nT("important_4b6d6a30")} aria-label={i18nT("important_4b6d6a30")}>★</span> : null}
             </td>
           </tr>
         ))}
 
         {desktopPlaceholderRows.map((_, index) => (
           <tr key={`placeholder-row-${page}-${index}`} className={styles.placeholderRow} aria-hidden="true" style={{ height: `${desktopRowHeight}px` }}>
-            <td className={styles.tdSelect}>&nbsp;</td>
-            <td className={styles.tdName}>&nbsp;</td>
-            <td className={`${styles.mono} ${styles.tdMail}`}>&nbsp;</td>
-            <td className={`${styles.mono} ${styles.tdTel}`}>&nbsp;</td>
-            <td className={`${styles.mono} ${styles.tdCp}`}>&nbsp;</td>
-            <td className={styles.tdCat}>&nbsp;</td>
-            <td>&nbsp;</td>
-            <td className={styles.tdStar}>&nbsp;</td>
+            <td className={styles.tdSelect}>{i18nT("nbsp_47c1f11e")}</td>
+            <td className={styles.tdName}>{i18nT("nbsp_47c1f11e")}</td>
+            <td className={`${styles.mono} ${styles.tdMail}`}>{i18nT("nbsp_47c1f11e")}</td>
+            <td className={`${styles.mono} ${styles.tdTel}`}>{i18nT("nbsp_47c1f11e")}</td>
+            <td className={`${styles.mono} ${styles.tdCp}`}>{i18nT("nbsp_47c1f11e")}</td>
+            <td className={styles.tdCat}>{i18nT("nbsp_47c1f11e")}</td>
+            <td>{i18nT("nbsp_47c1f11e")}</td>
+            <td className={styles.tdStar}>{i18nT("nbsp_47c1f11e")}</td>
           </tr>
         ))}
       </tbody>

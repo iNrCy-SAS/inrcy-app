@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import type { BoosterCreationMode } from "@/lib/boosterCreationMode";
 import PublishStepTitle from "./PublishStepTitle";
 
@@ -18,22 +19,22 @@ type PublishCreationModePanelProps = {
 const MODE_OPTIONS: Array<{
   mode: BoosterCreationMode;
   icon: string;
-  title: string;
-  description: string;
+  titleKey: "creer_avec_inrcy_6abf3922" | "creer_manuellement_89b2d47e";
+  descriptionKey:
+    | "decrivez_votre_intention_et_laissez_inrcy_594d642e"
+    | "redigez_directement_vos_contenus_par_canal_3c8f02e2";
 }> = [
   {
     mode: "ai",
     icon: "✨",
-    title: "Créer avec iNrCy",
-    description:
-      "Décrivez votre intention et laissez iNrCy générer les contenus adaptés à vos canaux.",
+    titleKey: "creer_avec_inrcy_6abf3922",
+    descriptionKey: "decrivez_votre_intention_et_laissez_inrcy_594d642e",
   },
   {
     mode: "manual",
     icon: "✍️",
-    title: "Créer manuellement",
-    description:
-      "Rédigez directement vos contenus par canal et gardez la maîtrise de chaque texte.",
+    titleKey: "creer_manuellement_89b2d47e",
+    descriptionKey: "redigez_directement_vos_contenus_par_canal_3c8f02e2",
   },
 ];
 
@@ -48,6 +49,7 @@ export default function PublishCreationModePanel({
   onSelectMode,
   onReset,
 }: PublishCreationModePanelProps) {
+  const i18nT = useTranslations("booster");
   const channelSelectionMissing = selectedChannelCount === 0;
   const selectionDisabled = disabled || channelSelectionMissing;
 
@@ -68,8 +70,7 @@ export default function PublishCreationModePanel({
         }}
       >
         <PublishStepTitle styles={styles} step={2}>
-          Mode de création
-        </PublishStepTitle>
+          {i18nT("mode_de_creation_18e407f0")}{" "}</PublishStepTitle>
         {showReset ? (
           <button
             type="button"
@@ -83,8 +84,7 @@ export default function PublishCreationModePanel({
               cursor: disabled ? "wait" : "pointer",
             }}
           >
-            Réinitialiser
-          </button>
+            {i18nT("reinitialiser_e0e2ad54")}{" "}</button>
         ) : null}
       </div>
 
@@ -92,12 +92,11 @@ export default function PublishCreationModePanel({
         className={styles.subtitle}
         style={{ marginBottom: 12, maxWidth: "none", whiteSpace: "normal" }}
       >
-        Choisissez votre mode de création. Vous pourrez en changer ensuite.
-      </div>
+        {i18nT("choisissez_votre_mode_de_creation_vous_4d39fb96")}{" "}</div>
 
       <div
         role="radiogroup"
-        aria-label="Mode de création de la publication"
+        aria-label={i18nT("mode_de_creation_de_la_publication_970ff581")}
         style={{
           display: "grid",
           gridTemplateColumns: isMobile
@@ -172,7 +171,7 @@ export default function PublishCreationModePanel({
                     lineHeight: 1.2,
                   }}
                 >
-                  <span>{option.title}</span>
+                  <span>{i18nT(option.titleKey)}</span>
                   {active ? (
                     <span
                       style={{
@@ -186,8 +185,7 @@ export default function PublishCreationModePanel({
                         whiteSpace: "nowrap",
                       }}
                     >
-                      Sélectionné
-                    </span>
+                      {i18nT("selectionne_846fb343")}{" "}</span>
                   ) : null}
                 </span>
                 <span
@@ -198,7 +196,7 @@ export default function PublishCreationModePanel({
                     fontWeight: 650,
                   }}
                 >
-                  {option.description}
+                  {i18nT(option.descriptionKey)}
                 </span>
               </span>
             </button>
@@ -216,9 +214,7 @@ export default function PublishCreationModePanel({
             lineHeight: 1.35,
           }}
         >
-          Sélectionnez au moins un canal dans le bloc 1 pour choisir votre mode
-          de création.
-        </div>
+          {i18nT("selectionnez_au_moins_un_canal_dans_93e1f00a")}{" "}</div>
       ) : null}
       {error ? (
         <div

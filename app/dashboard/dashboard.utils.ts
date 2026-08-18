@@ -1,11 +1,10 @@
 import styles from "./dashboard.module.css";
 import type { ModuleStatus } from "./dashboard.types";
 import { DRAWER_PANELS, DRAWER_TITLES } from "./dashboard.constants";
-import { getDashboardDrawerTitle, getDashboardStatusLabel } from "@/lib/dashboardI18n";
-import type { AppLanguageCode } from "@/lib/appLanguage";
+import { getDashboardStatusLabel, type DashboardCopy } from "@/i18n/dashboard";
 
-export function statusLabel(s: ModuleStatus, language?: AppLanguageCode | string | null) {
-  return getDashboardStatusLabel(s, language);
+export function statusLabel(s: ModuleStatus, copy: DashboardCopy) {
+  return getDashboardStatusLabel(s, copy);
 }
 
 export function statusClass(s: ModuleStatus) {
@@ -14,8 +13,10 @@ export function statusClass(s: ModuleStatus) {
   return styles.badgeSoon;
 }
 
-export function getDrawerTitle(panel: string | null, language?: AppLanguageCode | string | null) {
-  const translatedTitle = getDashboardDrawerTitle(panel, language);
+export function getDrawerTitle(panel: string | null, copy: DashboardCopy) {
+  const translatedTitle = panel
+    ? (copy.drawer.titles as Record<string, string>)[panel] || ""
+    : "";
   if (translatedTitle) return translatedTitle;
   if (!panel) return "";
   return DRAWER_TITLES[panel as keyof typeof DRAWER_TITLES] ?? "";

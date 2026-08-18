@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import React from "react";
 import BusinessLegalSettingsCard from "./BusinessLegalSettingsCard";
 import { getSimpleFrenchApiError, getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
@@ -168,6 +171,7 @@ type Props = {
 };
 
 export default function DocumentsSettingsContent({ onUnsavedChange }: Props) {
+  const i18nT = useTranslations("documents");
   const [settings, setSettings] = React.useState<InrDocumentsSettings>(DEFAULT_INRDOCUMENTS_SETTINGS);
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
@@ -236,7 +240,7 @@ export default function DocumentsSettingsContent({ onUnsavedChange }: Props) {
       setSettings(nextSettings);
       savedSettingsSignatureRef.current = JSON.stringify(nextSettings);
       setDocumentsDirty(false);
-      setNotice("Réglages enregistrés.");
+      setNotice(i18nT("reglages_enregistres_1ea1f406"));
       dispatchUpdated();
     } catch (e: any) {
       setError(getSimpleFrenchErrorMessage(e, "Impossible d’enregistrer les réglages Devis & Factures."));
@@ -262,38 +266,37 @@ export default function DocumentsSettingsContent({ onUnsavedChange }: Props) {
           padding: 14,
         }}
       >
-        <div style={{ fontSize: 16, fontWeight: 950, color: "rgba(255,255,255,0.94)" }}>Devis & Factures</div>
+        <div style={{ fontSize: 16, fontWeight: 950, color: "rgba(255,255,255,0.94)" }}>{i18nT("devis_factures_0857f47f")}</div>
         <div style={{ marginTop: 6, fontSize: 13, color: "rgba(255,255,255,0.70)", lineHeight: 1.45 }}>
-          Ces valeurs remplissent automatiquement les nouveaux documents. Elles restent modifiables dans les options avancées.
-        </div>
+          {i18nT("ces_valeurs_remplissent_automatiquement_les_nouv_40dd8ef7")}{" "}</div>
       </div>
 
       <BusinessLegalSettingsCard onUnsavedChange={setLegalDirty} />
 
-      {loading ? <Notice>Chargement des réglages…</Notice> : null}
+      {loading ? <Notice>{i18nT("chargement_des_reglages_d3437d0f")}</Notice> : null}
 
-      <GlassCard icon="⚙️" title="Commun" subtitle="Ce qui sert aux devis et aux factures.">
+      <GlassCard icon="⚙️" title={i18nT("commun_f5f06977")} subtitle="Ce qui sert aux devis et aux factures.">
         <Grid2>
-          <Field label="Catégorie d’opération">
+          <Field label={i18nT("categorie_d_operation_298de450")}>
             <select style={fieldStyle} value={settings.common.operationCategory} onChange={(e) => updateLocal({ common: { ...settings.common, operationCategory: e.target.value as any } })}>
               {DOCUMENT_OPERATION_CATEGORIES.map((key) => <option key={key} value={key}>{operationLabels[key]}</option>)}
             </select>
           </Field>
-          <Field label="Acompte">
+          <Field label={i18nT("acompte_79f9f101")}>
             <select
               style={fieldStyle}
               value={settings.common.depositKind}
               onChange={(e) => updateLocal({ common: { ...settings.common, depositKind: e.target.value as any, depositValue: e.target.value ? settings.common.depositValue : "" } })}
             >
               <option value="">—</option>
-              <option value="percent">Pourcentage</option>
-              <option value="amount">Montant</option>
+              <option value="percent">{i18nT("pourcentage_e34218e3")}</option>
+              <option value="amount">{i18nT("montant_4adcd9fc")}</option>
             </select>
           </Field>
         </Grid2>
 
         <Grid2>
-          <Field label="Valeur acompte">
+          <Field label={i18nT("valeur_acompte_18f70f89")}>
             <input
               style={fieldStyle}
               type="number"
@@ -305,23 +308,23 @@ export default function DocumentsSettingsContent({ onUnsavedChange }: Props) {
               placeholder={settings.common.depositKind === "amount" ? "Ex : 300" : "Ex : 30"}
             />
           </Field>
-          <Field label="Notes">
-            <input style={fieldStyle} value={settings.common.notes} onChange={(e) => updateLocal({ common: { ...settings.common, notes: e.target.value } })} placeholder="Ex : Merci pour votre confiance." />
+          <Field label={i18nT("notes_70440046")}>
+            <input style={fieldStyle} value={settings.common.notes} onChange={(e) => updateLocal({ common: { ...settings.common, notes: e.target.value } })} placeholder={i18nT("ex_merci_pour_votre_confiance_2a2ef0a8")} />
           </Field>
         </Grid2>
       </GlassCard>
 
-      <GlassCard icon="🧾" title="Prestation" subtitle="La première ligne proposée dans le document.">
+      <GlassCard icon="🧾" title={i18nT("prestation_b51f479f")} subtitle="La première ligne proposée dans le document.">
         <Grid2>
-          <Field label="Libellé">
-            <input style={fieldStyle} value={settings.common.defaultLine.label} onChange={(e) => updateLocal({ common: { ...settings.common, defaultLine: { ...settings.common.defaultLine, label: e.target.value } } })} placeholder="Prestation" />
+          <Field label={i18nT("libelle_f5485bba")}>
+            <input style={fieldStyle} value={settings.common.defaultLine.label} onChange={(e) => updateLocal({ common: { ...settings.common, defaultLine: { ...settings.common.defaultLine, label: e.target.value } } })} placeholder={i18nT("prestation_b51f479f")} />
           </Field>
-          <Field label="Prix HT">
+          <Field label={i18nT("prix_ht_362207ca")}>
             <input style={fieldStyle} type="number" min="0" step="0.01" value={settings.common.defaultLine.unitPrice} onChange={(e) => updateLocal({ common: { ...settings.common, defaultLine: { ...settings.common.defaultLine, unitPrice: Number(e.target.value) || 0 } } })} />
           </Field>
         </Grid2>
         <Grid2>
-          <Field label="Quantité">
+          <Field label={i18nT("quantite_09a38fda")}>
             <input style={fieldStyle} type="number" min="1" step="0.01" value={settings.common.defaultLine.qty} onChange={(e) => updateLocal({ common: { ...settings.common, defaultLine: { ...settings.common.defaultLine, qty: Number(e.target.value) || 1 } } })} />
           </Field>
           <Field label="TVA">
@@ -332,51 +335,51 @@ export default function DocumentsSettingsContent({ onUnsavedChange }: Props) {
         </Grid2>
       </GlassCard>
 
-      <GlassCard icon="💳" title="Paiement" subtitle="Conditions de règlement reprises sur les documents.">
+      <GlassCard icon="💳" title={i18nT("paiement_0564e9ba")} subtitle="Conditions de règlement reprises sur les documents.">
         <Grid2>
-          <Field label="Mode de paiement">
+          <Field label={i18nT("mode_de_paiement_71aed79c")}>
             <select style={fieldStyle} value={settings.common.paymentMethod} onChange={(e) => updateLocal({ common: { ...settings.common, paymentMethod: e.target.value as any } })}>
               {DOCUMENT_PAYMENT_METHODS.map((key) => <option key={key} value={key}>{paymentLabels[key]}</option>)}
             </select>
           </Field>
           <Field label="IBAN">
-            <input style={fieldStyle} value={settings.common.paymentDetails} onChange={(e) => updateLocal({ common: { ...settings.common, paymentDetails: e.target.value } })} placeholder="Ex : IBAN FR76..." />
+            <input style={fieldStyle} value={settings.common.paymentDetails} onChange={(e) => updateLocal({ common: { ...settings.common, paymentDetails: e.target.value } })} placeholder={i18nT("ex_iban_fr76_6fc76637")} />
           </Field>
         </Grid2>
         <Grid2>
-          <Field label="Échéance facture (+ jours)">
+          <Field label={i18nT("echeance_facture_jours_3cb564f9")}>
             <input style={fieldStyle} type="number" min="1" value={settings.invoice.dueDays} onChange={(e) => updateLocal({ invoice: { ...settings.invoice, dueDays: Number(e.target.value) || 1 } })} />
           </Field>
-          <Field label="Pénalités de retard (%)">
-            <input style={fieldStyle} type="number" min="0" step="0.01" value={settings.invoice.lateFeeRate} onChange={(e) => updateLocal({ invoice: { ...settings.invoice, lateFeeRate: e.target.value } })} placeholder="Ex : 12.00" />
+          <Field label={i18nT("penalites_de_retard_1668daa8")}>
+            <input style={fieldStyle} type="number" min="0" step="0.01" value={settings.invoice.lateFeeRate} onChange={(e) => updateLocal({ invoice: { ...settings.invoice, lateFeeRate: e.target.value } })} placeholder={i18nT("ex_12_00_883dce79")} />
           </Field>
         </Grid2>
         <label style={checkboxLabelStyle}>
           <input type="checkbox" checked={settings.invoice.fixedRecoveryFee40} onChange={(e) => updateLocal({ invoice: { ...settings.invoice, fixedRecoveryFee40: e.target.checked } })} />
           <span style={{ display: "grid", gap: 3, minWidth: 0 }}>
-            <strong style={{ color: "rgba(255,255,255,0.92)", fontSize: 13.5 }}>Indemnité forfaitaire de 40 €</strong>
-            <span style={{ color: "rgba(255,255,255,0.62)", fontSize: 12.5 }}>Mentionnée en cas de retard de paiement.</span>
+            <strong style={{ color: "rgba(255,255,255,0.92)", fontSize: 13.5 }}>{i18nT("indemnite_forfaitaire_de_40_8a3e9ec4")}</strong>
+            <span style={{ color: "rgba(255,255,255,0.62)", fontSize: 12.5 }}>{i18nT("mentionnee_en_cas_de_retard_de_3320d8da")}</span>
           </span>
         </label>
       </GlassCard>
 
-      <GlassCard icon="✍️" title="Devis" subtitle="Réglages appliqués uniquement aux nouveaux devis.">
-        <Field label="Durée de validité (jours)">
+      <GlassCard icon="✍️" title={i18nT("devis_f7622f90")} subtitle="Réglages appliqués uniquement aux nouveaux devis.">
+        <Field label={i18nT("duree_de_validite_jours_f911e91b")}>
           <input style={fieldStyle} type="number" min="1" value={settings.quote.validityDays} onChange={(e) => updateLocal({ quote: { ...settings.quote, validityDays: Number(e.target.value) || 1 } })} />
         </Field>
-        <Field label="Mention spécifique">
-          <textarea style={{ ...fieldStyle, resize: "vertical" }} rows={2} value={settings.quote.mention} onChange={(e) => updateLocal({ quote: { ...settings.quote, mention: e.target.value } })} placeholder="Ex : Devis valable selon disponibilité." />
+        <Field label={i18nT("mention_specifique_75d1c5fb")}>
+          <textarea style={{ ...fieldStyle, resize: "vertical" }} rows={2} value={settings.quote.mention} onChange={(e) => updateLocal({ quote: { ...settings.quote, mention: e.target.value } })} placeholder={i18nT("ex_devis_valable_selon_disponibilite_2cc98990")} />
         </Field>
       </GlassCard>
 
-      <GlassCard icon="€" title="Factures" subtitle="Réglages appliqués uniquement aux nouvelles factures.">
+      <GlassCard icon="€" title={i18nT("factures_da35e4f2")} subtitle="Réglages appliqués uniquement aux nouvelles factures.">
         <Grid2>
-          <Field label="Type de document">
+          <Field label={i18nT("type_de_document_69938df4")}>
             <select style={fieldStyle} value={settings.invoice.documentKind} onChange={(e) => updateLocal({ invoice: { ...settings.invoice, documentKind: e.target.value as any } })}>
               {DOCUMENT_KINDS.map((key) => <option key={key} value={key}>{documentKindLabels[key]}</option>)}
             </select>
           </Field>
-          <Field label="Statut">
+          <Field label={i18nT("statut_659499f3")}>
             <select style={fieldStyle} value={settings.invoice.status} onChange={(e) => updateLocal({ invoice: { ...settings.invoice, status: e.target.value as any } })}>
               {DOCUMENT_STATUSES.map((key) => <option key={key} value={key}>{statusLabels[key]}</option>)}
             </select>
@@ -385,18 +388,18 @@ export default function DocumentsSettingsContent({ onUnsavedChange }: Props) {
         <label style={checkboxLabelStyle}>
           <input type="checkbox" checked={settings.invoice.vatOnDebits} onChange={(e) => updateLocal({ invoice: { ...settings.invoice, vatOnDebits: e.target.checked } })} />
           <span style={{ display: "grid", gap: 3, minWidth: 0 }}>
-            <strong style={{ color: "rgba(255,255,255,0.92)", fontSize: 13.5 }}>TVA sur les débits</strong>
-            <span style={{ color: "rgba(255,255,255,0.62)", fontSize: 12.5 }}>Cochée automatiquement sur les nouvelles factures.</span>
+            <strong style={{ color: "rgba(255,255,255,0.92)", fontSize: 13.5 }}>{i18nT("tva_sur_les_debits_d46bfbae")}</strong>
+            <span style={{ color: "rgba(255,255,255,0.62)", fontSize: 12.5 }}>{i18nT("cochee_automatiquement_sur_les_nouvelles_facture_f4985377")}</span>
           </span>
         </label>
-        <Field label="Mention spécifique">
-          <textarea style={{ ...fieldStyle, resize: "vertical" }} rows={2} value={settings.invoice.mention} onChange={(e) => updateLocal({ invoice: { ...settings.invoice, mention: e.target.value } })} placeholder="Ex : Aucun escompte pour paiement anticipé." />
+        <Field label={i18nT("mention_specifique_75d1c5fb")}>
+          <textarea style={{ ...fieldStyle, resize: "vertical" }} rows={2} value={settings.invoice.mention} onChange={(e) => updateLocal({ invoice: { ...settings.invoice, mention: e.target.value } })} placeholder={i18nT("ex_aucun_escompte_pour_paiement_anticipe_8ec87ff7")} />
         </Field>
       </GlassCard>
 
-      <GlassCard icon="🎨" title="Design du document" subtitle="Donnez un peu de vie aux devis et factures sans perdre le côté professionnel.">
+      <GlassCard icon="🎨" title={i18nT("design_du_document_a7dcf5f8")} subtitle="Donnez un peu de vie aux devis et factures sans perdre le côté professionnel.">
         <Grid2>
-          <Field label="Style">
+          <Field label={i18nT("style_99a0efc6")}>
             <select
               style={fieldStyle}
               value={settings.common.design.preset}
@@ -405,7 +408,7 @@ export default function DocumentsSettingsContent({ onUnsavedChange }: Props) {
               {DOCUMENT_DESIGN_PRESETS.map((key) => <option key={key} value={key}>{designPresetLabels[key]}</option>)}
             </select>
           </Field>
-          <Field label="Couleur">
+          <Field label={i18nT("couleur_145c4326")}>
             <select
               style={fieldStyle}
               value={settings.common.design.accentColor}
@@ -418,23 +421,23 @@ export default function DocumentsSettingsContent({ onUnsavedChange }: Props) {
         <Grid2>
           <label style={checkboxLabelStyle}>
             <input type="checkbox" checked={settings.common.design.frame} onChange={(e) => updateLocal({ common: { ...settings.common, design: { ...settings.common.design, frame: e.target.checked } } })} />
-            <span style={{ color: "rgba(255,255,255,0.92)", fontSize: 13.5, fontWeight: 800 }}>Cadre extérieur</span>
+            <span style={{ color: "rgba(255,255,255,0.92)", fontSize: 13.5, fontWeight: 800 }}>{i18nT("cadre_exterieur_a62d3c80")}</span>
           </label>
           <label style={checkboxLabelStyle}>
             <input type="checkbox" checked={settings.common.design.coloredTotals} onChange={(e) => updateLocal({ common: { ...settings.common, design: { ...settings.common.design, coloredTotals: e.target.checked } } })} />
-            <span style={{ color: "rgba(255,255,255,0.92)", fontSize: 13.5, fontWeight: 800 }}>Bloc total coloré</span>
+            <span style={{ color: "rgba(255,255,255,0.92)", fontSize: 13.5, fontWeight: 800 }}>{i18nT("bloc_total_colore_0bc347e3")}</span>
           </label>
         </Grid2>
         <label style={checkboxLabelStyle}>
           <input type="checkbox" checked={settings.common.design.coloredParties} onChange={(e) => updateLocal({ common: { ...settings.common, design: { ...settings.common.design, coloredParties: e.target.checked } } })} />
           <span style={{ display: "grid", gap: 3, minWidth: 0 }}>
-            <strong style={{ color: "rgba(255,255,255,0.92)", fontSize: 13.5 }}>Coordonnées encadrées</strong>
-            <span style={{ color: "rgba(255,255,255,0.62)", fontSize: 12.5 }}>Prestataire et client dans deux cadres légers.</span>
+            <strong style={{ color: "rgba(255,255,255,0.92)", fontSize: 13.5 }}>{i18nT("coordonnees_encadrees_eee5eb90")}</strong>
+            <span style={{ color: "rgba(255,255,255,0.62)", fontSize: 12.5 }}>{i18nT("prestataire_et_client_dans_deux_cadres_20e27dfa")}</span>
           </span>
         </label>
       </GlassCard>
 
-      {saving ? <Notice>Enregistrement…</Notice> : null}
+      {saving ? <Notice>{i18nT("enregistrement_e7d5f232")}</Notice> : null}
       {notice ? <Notice tone="success">{notice}</Notice> : null}
       {error ? <Notice tone="error">{error}</Notice> : null}
 
@@ -453,7 +456,7 @@ export default function DocumentsSettingsContent({ onUnsavedChange }: Props) {
           opacity: loading || saving ? 0.65 : 1,
         }}
       >
-        {saving ? "Enregistrement…" : "Enregistrer les réglages"}
+        {saving ? i18nT("enregistrement_e7d5f232") : i18nT("enregistrer_les_reglages_a47974c5")}
       </button>
     </div>
   );

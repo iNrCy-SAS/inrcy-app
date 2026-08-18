@@ -1,11 +1,11 @@
-import { type CubeKey, type CubeMetricItem, type InrcyActivityCount, type InrcyActivityStats, type Overview } from "./stats.shared.types";
+import { type CubeKey, type CubeMetricItem, type InrcyActivityCount, type InrcyActivityStats, type Overview, type StatsTranslator } from "./stats.shared.types";
 import { bestMetricValue, fmtInt, latestDailyMetricValue, safeNum, safeObj, sumMetricValues } from "./stats.shared.core";
 import { getGmbTotals, gmbMetricSeriesTotal, isIntentQuery, pageKind } from "./stats.shared.opportunity";
 import { isLinkedInStatsPartial } from "./stats.shared.quality";
 
-function formatPercent(value: number, digits = 0) {
+function formatPercent(value: number, locale: string, digits = 0) {
   const safe = Number.isFinite(value) ? value : 0;
-  return `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: digits }).format(safe)} %`;
+  return `${new Intl.NumberFormat(locale, { maximumFractionDigits: digits }).format(safe)} %`;
 }
 
 function formatSecondsToLabel(value: number) {
@@ -103,7 +103,7 @@ export function buildInrcyActivityStats(cubeKey: CubeKey, ov: Overview): InrcyAc
   };
 }
 
-function tikTokMetricItems(metrics: any, kind: "visibility" | "actions"): CubeMetricItem[] {
+function tikTokMetricItems(metrics: any, kind: "visibility" | "actions", locale: string, t: StatsTranslator): CubeMetricItem[] {
   const totals = safeObj(safeObj(metrics).totals);
   const videoViews = safeNum(totals.video_views) || safeNum(totals.views);
   const followers = safeNum(totals.followers);
@@ -119,18 +119,18 @@ function tikTokMetricItems(metrics: any, kind: "visibility" | "actions"): CubeMe
 
   if (kind === "visibility") {
     return [
-      { label: "Vues vidéo", value: fmtInt(videoViews) },
-      { label: "Abonnés", value: fmtInt(followers) },
-      { label: "J’aime reçus", value: fmtInt(likesTotal) },
-      { label: "Vidéos profil", value: fmtInt(videoCount) },
+      { label: t("vues_video_9a534bb5"), value: fmtInt(videoViews, locale) },
+      { label: t("abonnes_fa75b9d9"), value: fmtInt(followers, locale) },
+      { label: t("j_aime_recus_f5b74330"), value: fmtInt(likesTotal, locale) },
+      { label: t("videos_profil_193bd3a7"), value: fmtInt(videoCount, locale) },
     ];
   }
 
   return [
-    { label: "Interactions", value: fmtInt(interactions), subValue: `${fmtInt(posts)} post${posts > 1 ? "s" : ""} suivi${posts > 1 ? "s" : ""}` },
-    { label: "J’aime", value: fmtInt(likes) },
-    { label: "Commentaires", value: fmtInt(comments) },
-    { label: "Partages", value: fmtInt(shares) },
+    { label: t("interactions_0b3583ec"), value: fmtInt(interactions, locale), subValue: t("metric_tracked_posts", { count: posts }) },
+    { label: t("j_aime_b75f4622"), value: fmtInt(likes, locale) },
+    { label: t("commentaires_dbdeccaf"), value: fmtInt(comments, locale) },
+    { label: t("partages_18ab80f0"), value: fmtInt(shares, locale) },
   ];
 }
 
@@ -139,12 +139,13 @@ function pushNumberMetric(
   label: string,
   value: number,
   options: { available?: boolean; keepZero?: boolean; formatter?: (value: number) => string } = {},
+  locale = "fr-FR",
 ) {
   const n = Number.isFinite(value) ? value : 0;
   const available = options.available ?? n > 0;
   if (!available) return;
   if (!options.keepZero && n <= 0) return;
-  items.push({ label, value: options.formatter ? options.formatter(n) : fmtInt(n) });
+  items.push({ label, value: options.formatter ? options.formatter(n) : fmtInt(n, locale) });
 }
 
 function firstFour(items: CubeMetricItem[]) {
@@ -161,17 +162,19 @@ function isWebsiteConnected(cubeKey: CubeKey, ov: Overview) {
   return false;
 }
 
-export function buildVisibilityStats(cubeKey: CubeKey, ov: Overview): CubeMetricItem[] {
+export function buildVisibilityStats(cubeKey: CubeKey, ov: Overview, locale: string, t: StatsTranslator): CubeMetricItem[] {
   const items: CubeMetricItem[] = [];
+  const pushMetric = (label: string, value: number, options: { available?: boolean; keepZero?: boolean; formatter?: (value: number) => string } = {}) =>
+    pushNumberMetric(items, label, value, options, locale);
 
   if (cubeKey === "gmb") {
     if (!ov?.sources?.gmb?.connected) return [];
     const metrics = ov?.sources?.gmb?.metrics;
     const totals = getGmbTotals(metrics);
-    pushNumberMetric(items, "Impressions", totals.impressions, { available: !!metrics && totals.impressions > 0 });
-    pushNumberMetric(items, "Vues Maps", totals.mapsImpressions, { available: !!metrics && totals.mapsImpressions > 0 });
-    pushNumberMetric(items, "Vues Search", totals.searchImpressions, { available: !!metrics && totals.searchImpressions > 0 });
-    pushNumberMetric(items, "Vues fiche", safeNum(metrics?.totals?.views) || safeNum(metrics?.totals?.BUSINESS_PROFILE_VIEWS), {
+    pushMetric(t("impressions_b5fb66f6"), totals.impressions, { available: !!metrics && totals.impressions > 0 });
+    pushMetric(t("metric_map_views"), totals.mapsImpressions, { available: !!metrics && totals.mapsImpressions > 0 });
+    pushMetric(t("metric_search_views"), totals.searchImpressions, { available: !!metrics && totals.searchImpressions > 0 });
+    pushMetric(t("vues_fiche_6d715930"), safeNum(metrics?.totals?.views) || safeNum(metrics?.totals?.BUSINESS_PROFILE_VIEWS), {
       available: metricKeyExists(metrics, ["views", "BUSINESS_PROFILE_VIEWS"]),
     });
     return firstFour(items);
@@ -198,10 +201,10 @@ export function buildVisibilityStats(cubeKey: CubeKey, ov: Overview): CubeMetric
     ]);
     const audience = Math.max(safeNum(m?.totals?.fan_count), safeNum(m?.totals?.followers_count));
     const pageViews = safeNum(m?.totals?.page_views_total);
-    pushNumberMetric(items, "Vues", views, { available: metricKeyExists(m, ["page_media_view", "post_media_view_sum", "views", "page_impressions", "post_impressions_sum", "impressions"]) });
-    pushNumberMetric(items, "Spectateurs uniques", uniqueViewers, { available: metricKeyExists(m, ["page_total_media_view_unique", "post_total_media_view_unique_sum", "reach", "page_impressions_unique", "post_impressions_unique_sum"]) });
-    pushNumberMetric(items, "Audience", audience, { available: metricKeyExists(m, ["fan_count", "followers_count"]) });
-    pushNumberMetric(items, "Vues page", pageViews, { available: metricKeyExists(m, ["page_views_total"]) });
+    pushMetric(t("vues_ff576f2b"), views, { available: metricKeyExists(m, ["page_media_view", "post_media_view_sum", "views", "page_impressions", "post_impressions_sum", "impressions"]) });
+    pushMetric(t("metric_unique_viewers"), uniqueViewers, { available: metricKeyExists(m, ["page_total_media_view_unique", "post_total_media_view_unique_sum", "reach", "page_impressions_unique", "post_impressions_unique_sum"]) });
+    pushMetric(t("audience_51d99345"), audience, { available: metricKeyExists(m, ["fan_count", "followers_count"]) });
+    pushMetric(t("metric_page_views"), pageViews, { available: metricKeyExists(m, ["page_views_total"]) });
     return firstFour(items);
   }
 
@@ -209,35 +212,35 @@ export function buildVisibilityStats(cubeKey: CubeKey, ov: Overview): CubeMetric
     if (!ov?.sources?.instagram?.connected) return [];
     const m = ov?.sources?.instagram?.metrics;
     const followers = latestDailyMetricValue(m, "follower_count");
-    pushNumberMetric(items, "Portée", safeNum(m?.totals?.reach), { available: metricKeyExists(m, ["reach"]) });
-    pushNumberMetric(items, "Impressions", safeNum(m?.totals?.impressions), { available: metricKeyExists(m, ["impressions"]) });
-    pushNumberMetric(items, "Vues profil", safeNum(m?.totals?.profile_views), { available: metricKeyExists(m, ["profile_views"]) });
-    pushNumberMetric(items, "Abonnés", followers, { available: metricKeyExists(m, ["follower_count"]) });
+    pushMetric(t("metric_reach"), safeNum(m?.totals?.reach), { available: metricKeyExists(m, ["reach"]) });
+    pushMetric(t("impressions_b5fb66f6"), safeNum(m?.totals?.impressions), { available: metricKeyExists(m, ["impressions"]) });
+    pushMetric(t("metric_profile_views"), safeNum(m?.totals?.profile_views), { available: metricKeyExists(m, ["profile_views"]) });
+    pushMetric(t("abonnes_fa75b9d9"), followers, { available: metricKeyExists(m, ["follower_count"]) });
     return firstFour(items);
   }
 
   if (cubeKey === "tiktok") {
     if (!ov?.sources?.tiktok?.connected) return [];
-    return tikTokMetricItems(ov?.sources?.tiktok?.metrics, "visibility");
+    return tikTokMetricItems(ov?.sources?.tiktok?.metrics, "visibility", locale, t);
   }
 
   if (cubeKey === "youtube_shorts") {
     if (!ov?.sources?.youtube_shorts?.connected) return [];
     const m = ov?.sources?.youtube_shorts?.metrics;
-    pushNumberMetric(items, "Vues vidéo", safeNum(m?.totals?.video_views) || safeNum(m?.totals?.views), { available: metricKeyExists(m, ["video_views", "views"]), keepZero: true });
-    pushNumberMetric(items, "Vues chaîne", safeNum(m?.totals?.channel_views_total), { available: metricKeyExists(m, ["channel_views_total"]), keepZero: true });
-    pushNumberMetric(items, "Abonnés", safeNum(m?.totals?.subscribers) || safeNum(m?.totals?.followers), { available: metricKeyExists(m, ["subscribers", "followers"]), keepZero: true });
-    pushNumberMetric(items, "Vidéos chaîne", safeNum(m?.totals?.video_count) || safeNum(m?.totals?.shorts_count), { available: metricKeyExists(m, ["video_count", "shorts_count"]), keepZero: true });
+    pushMetric(t("vues_video_9a534bb5"), safeNum(m?.totals?.video_views) || safeNum(m?.totals?.views), { available: metricKeyExists(m, ["video_views", "views"]), keepZero: true });
+    pushMetric(t("metric_channel_views"), safeNum(m?.totals?.channel_views_total), { available: metricKeyExists(m, ["channel_views_total"]), keepZero: true });
+    pushMetric(t("abonnes_fa75b9d9"), safeNum(m?.totals?.subscribers) || safeNum(m?.totals?.followers), { available: metricKeyExists(m, ["subscribers", "followers"]), keepZero: true });
+    pushMetric(t("metric_channel_videos"), safeNum(m?.totals?.video_count) || safeNum(m?.totals?.shorts_count), { available: metricKeyExists(m, ["video_count", "shorts_count"]), keepZero: true });
     return firstFour(items);
   }
 
   if (cubeKey === "mails") {
     if (!ov?.sources?.mails?.connected) return [];
     const m = ov?.sources?.mails?.metrics;
-    pushNumberMetric(items, "Boîtes", safeNum(m?.connectedCount), { formatter: (value) => `${fmtInt(value)}/4` });
-    pushNumberMetric(items, "Contacts email", safeNum(m?.contactsEmail) || safeNum(m?.contactsCrm));
-    pushNumberMetric(items, "Campagnes 30j", safeNum(m?.campagnes30));
-    pushNumberMetric(items, "Destinataires", safeNum(m?.destinataires30));
+    pushMetric(t("boites_63c5cc0d"), safeNum(m?.connectedCount), { formatter: (value) => `${fmtInt(value, locale)}/4` });
+    pushMetric(t("contacts_email_90f13253"), safeNum(m?.contactsEmail) || safeNum(m?.contactsCrm));
+    pushMetric(t("metric_campaigns_30d"), safeNum(m?.campagnes30));
+    pushMetric(t("destinataires_51610ad7"), safeNum(m?.destinataires30));
     return firstFour(items);
   }
 
@@ -248,10 +251,10 @@ export function buildVisibilityStats(cubeKey: CubeKey, ov: Overview): CubeMetric
     const uniqueImpressions = safeNum(m?.totals?.uniqueImpressionsCount);
     const pageViews = bestMetricValue(m, ["pageViews", "profileViews"]);
     const followers = bestMetricValue(m, ["followers", "followerCount", "memberFollowersCount"]);
-    pushNumberMetric(items, "Impressions", impressions, { available: metricKeyExists(m, ["impressionCount", "impressions"]) });
-    pushNumberMetric(items, "Impr. uniques", uniqueImpressions, { available: metricKeyExists(m, ["uniqueImpressionsCount"]) });
-    pushNumberMetric(items, "Vues page", pageViews, { available: metricKeyExists(m, ["pageViews", "profileViews"]) });
-    pushNumberMetric(items, "Abonnés", followers, { available: metricKeyExists(m, ["followers", "followerCount", "memberFollowersCount"]) });
+    pushMetric(t("impressions_b5fb66f6"), impressions, { available: metricKeyExists(m, ["impressionCount", "impressions"]) });
+    pushMetric(t("metric_unique_impressions"), uniqueImpressions, { available: metricKeyExists(m, ["uniqueImpressionsCount"]) });
+    pushMetric(t("metric_page_views"), pageViews, { available: metricKeyExists(m, ["pageViews", "profileViews"]) });
+    pushMetric(t("abonnes_fa75b9d9"), followers, { available: metricKeyExists(m, ["followers", "followerCount", "memberFollowersCount"]) });
     return firstFour(items);
   }
 
@@ -260,31 +263,33 @@ export function buildVisibilityStats(cubeKey: CubeKey, ov: Overview): CubeMetric
   const gscConnected = cubeKey === "site_inrcy" ? !!ov.sources?.site_inrcy?.connected?.gsc : !!ov.sources?.site_web?.connected?.gsc;
   const ga4Connected = cubeKey === "site_inrcy" ? !!ov.sources?.site_inrcy?.connected?.ga4 : !!ov.sources?.site_web?.connected?.ga4;
   if (gscConnected) {
-    pushNumberMetric(items, "Impressions Google", safeNum(totals.impressions));
-    pushNumberMetric(items, "Clics Google", safeNum(totals.clicks));
+    pushMetric(t("metric_google_impressions"), safeNum(totals.impressions));
+    pushMetric(t("metric_google_clicks"), safeNum(totals.clicks));
   }
   if (ga4Connected) {
-    pushNumberMetric(items, "Sessions", safeNum(totals.sessions));
-    pushNumberMetric(items, "Pages vues", safeNum(totals.pageviews));
+    pushMetric(t("metric_sessions"), safeNum(totals.sessions));
+    pushMetric(t("metric_pages_viewed"), safeNum(totals.pageviews));
   }
   if (items.length < 4 && gscConnected && safeNum(totals.ctr) > 0) {
-    pushNumberMetric(items, "CTR Google", safeNum(totals.ctr) * 100, { formatter: (value) => formatPercent(value) });
+    pushMetric(t("metric_google_ctr"), safeNum(totals.ctr) * 100, { formatter: (value) => formatPercent(value, locale) });
   }
   return firstFour(items);
 }
 
-export function buildActionStats(cubeKey: CubeKey, ov: Overview): CubeMetricItem[] {
+export function buildActionStats(cubeKey: CubeKey, ov: Overview, locale: string, t: StatsTranslator): CubeMetricItem[] {
   const items: CubeMetricItem[] = [];
+  const pushMetric = (label: string, value: number, options: { available?: boolean; keepZero?: boolean; formatter?: (value: number) => string } = {}) =>
+    pushNumberMetric(items, label, value, options, locale);
 
   if (cubeKey === "gmb") {
     if (!ov?.sources?.gmb?.connected) return [];
     const metrics = ov?.sources?.gmb?.metrics;
     const totals = getGmbTotals(metrics);
     const conversations = safeNum(metrics?.totals?.conversations) || safeNum(metrics?.totals?.BUSINESS_CONVERSATIONS) || gmbMetricSeriesTotal(metrics, ["BUSINESS_CONVERSATIONS"]);
-    pushNumberMetric(items, "Appels", totals.callClicks, { available: !!metrics && totals.callClicks > 0 });
-    pushNumberMetric(items, "Itinéraires", totals.directionRequests, { available: !!metrics && totals.directionRequests > 0 });
-    pushNumberMetric(items, "Clics site", totals.websiteClicks, { available: !!metrics && totals.websiteClicks > 0 });
-    pushNumberMetric(items, "Messages", conversations, { available: !!metrics && conversations > 0 });
+    pushMetric(t("metric_calls"), totals.callClicks, { available: !!metrics && totals.callClicks > 0 });
+    pushMetric(t("metric_directions"), totals.directionRequests, { available: !!metrics && totals.directionRequests > 0 });
+    pushMetric(t("metric_website_clicks"), totals.websiteClicks, { available: !!metrics && totals.websiteClicks > 0 });
+    pushMetric(t("metric_messages"), conversations, { available: !!metrics && conversations > 0 });
     return firstFour(items);
   }
 
@@ -294,16 +299,16 @@ export function buildActionStats(cubeKey: CubeKey, ov: Overview): CubeMetricItem
     const interactions =
       bestMetricValue(m, ["page_post_engagements", "page_engaged_users", "post_engaged_users_sum"]) ||
       sumMetricValues(m, ["reactions", "comments", "shares"]);
-    pushNumberMetric(items, "Interactions", interactions, {
+    pushMetric(t("interactions_0b3583ec"), interactions, {
       available: metricKeyExists(m, ["page_post_engagements", "page_engaged_users", "post_engaged_users_sum", "reactions", "comments", "shares"]),
     });
-    pushNumberMetric(items, "Clics site", safeNum(m?.totals?.page_website_clicks_logged_in_unique), {
+    pushMetric(t("metric_website_clicks"), safeNum(m?.totals?.page_website_clicks_logged_in_unique), {
       available: metricKeyExists(m, ["page_website_clicks_logged_in_unique"]),
     });
-    pushNumberMetric(items, "Appels", safeNum(m?.totals?.page_call_phone_clicks_logged_in_unique), {
+    pushMetric(t("metric_calls"), safeNum(m?.totals?.page_call_phone_clicks_logged_in_unique), {
       available: metricKeyExists(m, ["page_call_phone_clicks_logged_in_unique"]),
     });
-    pushNumberMetric(items, "Itinéraires", safeNum(m?.totals?.page_get_directions_clicks_logged_in_unique), {
+    pushMetric(t("metric_directions"), safeNum(m?.totals?.page_get_directions_clicks_logged_in_unique), {
       available: metricKeyExists(m, ["page_get_directions_clicks_logged_in_unique"]),
     });
     return firstFour(items);
@@ -317,40 +322,40 @@ export function buildActionStats(cubeKey: CubeKey, ov: Overview): CubeMetricItem
     const messages = sumMetricValues(m, ["text_message_clicks", "replies"]);
     const calls = safeNum(m?.totals?.phone_call_clicks);
     const directions = safeNum(m?.totals?.get_directions_clicks) + safeNum(m?.totals?.get_direction_clicks);
-    pushNumberMetric(items, "Clics lien", linkClicks, { available: metricKeyExists(m, ["profile_links_taps", "website_clicks"]) });
-    pushNumberMetric(items, "Interactions", interactions, {
+    pushMetric(t("metric_link_clicks"), linkClicks, { available: metricKeyExists(m, ["profile_links_taps", "website_clicks"]) });
+    pushMetric(t("interactions_0b3583ec"), interactions, {
       available: metricKeyExists(m, ["total_interactions", "accounts_engaged", "likes", "comments", "shares", "replies", "saves"]),
     });
-    pushNumberMetric(items, "Messages", messages, { available: metricKeyExists(m, ["text_message_clicks", "replies"]) });
-    pushNumberMetric(items, "Appels", calls, { available: metricKeyExists(m, ["phone_call_clicks"]) });
-    pushNumberMetric(items, "Itinéraires", directions, { available: metricKeyExists(m, ["get_directions_clicks", "get_direction_clicks"]) });
+    pushMetric(t("metric_messages"), messages, { available: metricKeyExists(m, ["text_message_clicks", "replies"]) });
+    pushMetric(t("metric_calls"), calls, { available: metricKeyExists(m, ["phone_call_clicks"]) });
+    pushMetric(t("metric_directions"), directions, { available: metricKeyExists(m, ["get_directions_clicks", "get_direction_clicks"]) });
     return firstFour(items);
   }
 
   if (cubeKey === "tiktok") {
     if (!ov?.sources?.tiktok?.connected) return [];
-    return tikTokMetricItems(ov?.sources?.tiktok?.metrics, "actions");
+    return tikTokMetricItems(ov?.sources?.tiktok?.metrics, "actions", locale, t);
   }
 
   if (cubeKey === "youtube_shorts") {
     if (!ov?.sources?.youtube_shorts?.connected) return [];
     const m = ov?.sources?.youtube_shorts?.metrics;
     const interactions = sumMetricValues(m, ["engagements", "likes", "comments", "shares", "saves"]);
-    pushNumberMetric(items, "Interactions", interactions, { available: metricKeyExists(m, ["engagements", "likes", "comments", "shares", "saves"]) });
-    pushNumberMetric(items, "J’aime", safeNum(m?.totals?.likes), { available: metricKeyExists(m, ["likes"]) });
-    pushNumberMetric(items, "Commentaires", safeNum(m?.totals?.comments), { available: metricKeyExists(m, ["comments"]) });
-    pushNumberMetric(items, "Partages", safeNum(m?.totals?.shares), { available: metricKeyExists(m, ["shares"]) });
-    pushNumberMetric(items, "Vidéos", safeNum(m?.totals?.postsPublished) || safeNum(m?.totals?.video_count), { available: metricKeyExists(m, ["postsPublished", "video_count"]) });
+    pushMetric(t("interactions_0b3583ec"), interactions, { available: metricKeyExists(m, ["engagements", "likes", "comments", "shares", "saves"]) });
+    pushMetric(t("j_aime_b75f4622"), safeNum(m?.totals?.likes), { available: metricKeyExists(m, ["likes"]) });
+    pushMetric(t("commentaires_dbdeccaf"), safeNum(m?.totals?.comments), { available: metricKeyExists(m, ["comments"]) });
+    pushMetric(t("partages_18ab80f0"), safeNum(m?.totals?.shares), { available: metricKeyExists(m, ["shares"]) });
+    pushMetric(t("videos_ea129238"), safeNum(m?.totals?.postsPublished) || safeNum(m?.totals?.video_count), { available: metricKeyExists(m, ["postsPublished", "video_count"]) });
     return firstFour(items);
   }
 
   if (cubeKey === "mails") {
     if (!ov?.sources?.mails?.connected) return [];
     const m = ov?.sources?.mails?.metrics;
-    pushNumberMetric(items, "Boîtes", safeNum(m?.connectedCount), { formatter: (value) => `${fmtInt(value)}/4` });
-    pushNumberMetric(items, "Contacts email", safeNum(m?.contactsEmail) || safeNum(m?.contactsCrm));
-    pushNumberMetric(items, "Campagnes 30j", safeNum(m?.campagnes30));
-    pushNumberMetric(items, "Destinataires", safeNum(m?.destinataires30));
+    pushMetric(t("boites_63c5cc0d"), safeNum(m?.connectedCount), { formatter: (value) => `${fmtInt(value, locale)}/4` });
+    pushMetric(t("contacts_email_90f13253"), safeNum(m?.contactsEmail) || safeNum(m?.contactsCrm));
+    pushMetric(t("metric_campaigns_30d"), safeNum(m?.campagnes30));
+    pushMetric(t("destinataires_51610ad7"), safeNum(m?.destinataires30));
     return firstFour(items);
   }
 
@@ -361,10 +366,10 @@ export function buildActionStats(cubeKey: CubeKey, ov: Overview): CubeMetricItem
     const reactions = bestMetricValue(m, ["reactionCount", "likeCount", "likes"]);
     const comments = bestMetricValue(m, ["commentCount", "comments"]);
     const shares = bestMetricValue(m, ["shareCount", "shares"]);
-    pushNumberMetric(items, "Clics", clicks, { available: metricKeyExists(m, ["clickCount", "clicks", "linkClickCount", "pageClicks", "premiumCtaClickCount"]) });
-    pushNumberMetric(items, "Réactions", reactions, { available: metricKeyExists(m, ["reactionCount", "likeCount", "likes"]) });
-    pushNumberMetric(items, "Commentaires", comments, { available: metricKeyExists(m, ["commentCount", "comments"]) });
-    pushNumberMetric(items, "Partages", shares, { available: metricKeyExists(m, ["shareCount", "shares"]) });
+    pushMetric(t("clics_6e92c5b0"), clicks, { available: metricKeyExists(m, ["clickCount", "clicks", "linkClickCount", "pageClicks", "premiumCtaClickCount"]) });
+    pushMetric(t("metric_reactions"), reactions, { available: metricKeyExists(m, ["reactionCount", "likeCount", "likes"]) });
+    pushMetric(t("commentaires_dbdeccaf"), comments, { available: metricKeyExists(m, ["commentCount", "comments"]) });
+    pushMetric(t("partages_18ab80f0"), shares, { available: metricKeyExists(m, ["shareCount", "shares"]) });
     return firstFour(items);
   }
 
@@ -374,9 +379,9 @@ export function buildActionStats(cubeKey: CubeKey, ov: Overview): CubeMetricItem
   const topPages = Array.isArray(ov.topPages) ? ov.topPages : [];
   const intentQueryCount = queries.filter((q) => isIntentQuery(q.query) && (safeNum(q.clicks) > 0 || safeNum(q.impressions) > 0)).length;
   const contactViews = topPages.filter((page) => pageKind(page.path) === "contact").reduce((sum, page) => sum + safeNum(page.views), 0);
-  pushNumberMetric(items, "Pages contact", contactViews);
-  pushNumberMetric(items, "Requêtes intention", intentQueryCount);
-  pushNumberMetric(items, "Engagement", safeNum(totals.engagementRate) * 100, { formatter: (value) => formatPercent(value) });
-  pushNumberMetric(items, "Durée moy.", safeNum(totals.avgSessionDuration), { formatter: (value) => formatSecondsToLabel(value) });
+  pushMetric(t("metric_contact_pages"), contactViews);
+  pushMetric(t("metric_intent_queries"), intentQueryCount);
+  pushMetric(t("engagement_4b1f1c7b"), safeNum(totals.engagementRate) * 100, { formatter: (value) => formatPercent(value, locale) });
+  pushMetric(t("metric_average_duration"), safeNum(totals.avgSessionDuration), { formatter: (value) => formatSecondsToLabel(value) });
   return firstFour(items);
 }

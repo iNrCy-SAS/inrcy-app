@@ -1,11 +1,11 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 import {
   readAccountCacheValue,
   writeAccountCacheValue,
 } from "@/lib/browserAccountCache";
-import { getClientUserFacingErrorMessage } from "@/lib/userFacingErrors";
 import {
   INR_AGENT_DEFAULT_SETTINGS,
   sanitizeInrAgentSettings,
@@ -261,6 +261,7 @@ export function useAgentRuntimeData({
 }: {
   standardMode?: boolean;
 } = {}) {
+  const i18nT = useTranslations("agent");
   // The server and the browser must produce the same first render. Browser
   // caches are restored immediately after hydration, then refreshed from the
   // authoritative APIs in the background.
@@ -293,7 +294,7 @@ export function useAgentRuntimeData({
     useState<ActionsLoadState>("loading");
 
   function showNotice(message: string) {
-    setNotice(getClientUserFacingErrorMessage(message));
+    setNotice(message);
     window.setTimeout(() => setNotice(null), 2600);
   }
 
@@ -361,7 +362,7 @@ export function useAgentRuntimeData({
 
         if (!response.ok) {
           throw new Error(
-            payload?.error || "Réglages iNr’Agent indisponibles.",
+            payload?.error || i18nT("agent_settings_unavailable"),
           );
         }
 
@@ -381,11 +382,7 @@ export function useAgentRuntimeData({
         if (!alive) return;
         setLoadState((current) => (current === "ready" ? current : "error"));
         if (!cachedAgentSnapshotRef.current?.settings) {
-          setNotice(
-            error instanceof Error
-              ? error.message
-              : "Réglages iNr’Agent indisponibles.",
-          );
+          setNotice(i18nT("agent_settings_unavailable"));
           window.setTimeout(() => setNotice(null), 2600);
         }
       }
@@ -412,7 +409,7 @@ export function useAgentRuntimeData({
         const payload = await response.json().catch(() => null);
         if (!alive) return;
         if (!response.ok) {
-          throw new Error("Canaux connectés indisponibles.");
+          throw new Error(i18nT("agent_channels_unavailable"));
         }
 
         const nextConnectedChannels = channelMapFromConnectionStates(payload);
@@ -461,7 +458,7 @@ export function useAgentRuntimeData({
         .catch(() => null)) as AgentActionsResponse | null;
 
       if (!response.ok) {
-        throw new Error(payload?.error || "Actions iNr’Agent indisponibles.");
+        throw new Error(payload?.error || i18nT("agent_actions_unavailable"));
       }
 
       const loadedActions = Array.isArray(payload?.actions)
@@ -487,11 +484,7 @@ export function useAgentRuntimeData({
         actionsLoadState !== "ready" &&
         !Array.isArray(cachedAgentSnapshotRef.current?.actions)
       ) {
-        showNotice(
-          error instanceof Error
-            ? error.message
-            : "Actions iNr’Agent indisponibles.",
-        );
+        showNotice(i18nT("agent_actions_unavailable"));
       }
     }
   }
@@ -507,7 +500,9 @@ export function useAgentRuntimeData({
         .catch(() => null)) as ScheduledActionsResponse | null;
 
       if (!response.ok) {
-        throw new Error(payload?.error || "Actions programmées indisponibles.");
+        throw new Error(
+          payload?.error || i18nT("scheduled_actions_unavailable"),
+        );
       }
 
       const loadedScheduledActions = Array.isArray(payload?.scheduledActions)
@@ -525,11 +520,7 @@ export function useAgentRuntimeData({
       });
     } catch (error) {
       if (!silent) {
-        showNotice(
-          error instanceof Error
-            ? error.message
-            : "Actions programmées indisponibles.",
-        );
+        showNotice(i18nT("scheduled_actions_unavailable"));
       }
     }
   }

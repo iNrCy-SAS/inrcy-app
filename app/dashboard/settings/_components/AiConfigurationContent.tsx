@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import { resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { invalidateBoosterGenerationContextClient } from "@/lib/boosterGenerationContextClient";
 
@@ -172,6 +175,7 @@ function markAiLanguageCustom() {
 }
 
 export default function AiConfigurationContent({ mode = "drawer", onSaved, onUnsavedChange }: Props) {
+  const i18nT = useTranslations("settings");
   const [form, setForm] = useState<AiConfigForm>(initialForm);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -411,7 +415,7 @@ export default function AiConfigurationContent({ mode = "drawer", onSaved, onUns
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       if (/ai_preferred_engine|ai_commercial_level|ai_main_goal|ai_preferred_angle|ai_liked_example|ai_language/i.test(message)) {
-        setError("Il faut d’abord exécuter le SQL de mise à jour Configuration IA dans Supabase.");
+        setError(i18nT("il_faut_d_abord_executer_le_eaabb47e"));
       } else {
         setError(getSimpleFrenchErrorMessage(e, "Impossible d’enregistrer la configuration IA."));
       }
@@ -447,26 +451,24 @@ export default function AiConfigurationContent({ mode = "drawer", onSaved, onUns
           }}
         />
         <div style={{ fontSize: "clamp(16px, 4.6vw, 18px)", fontWeight: 950, color: "rgba(255,255,255,0.98)", marginBottom: 8, lineHeight: 1.25, overflowWrap: "break-word" }}>
-          ✨ Votre signature IA
-        </div>
+          {i18nT("votre_signature_ia_329379e6")}{" "}</div>
         <div style={{ color: "rgba(255,255,255,0.78)", fontSize: 13, lineHeight: 1.55, maxWidth: 560, overflowWrap: "break-word" }}>
-          Réglez une fois votre façon de communiquer. Ensuite, iNrCy génère des contenus plus proches de votre style, sans changer la logique SEO automatique des outils.
-        </div>
+          {i18nT("reglez_une_fois_votre_facon_de_4a141f29")}{" "}</div>
       </div>
 
       <div style={card}>
         {loading ? (
-          <div style={{ color: "rgba(255,255,255,0.72)", fontSize: 13 }}>Chargement…</div>
+          <div style={{ color: "rgba(255,255,255,0.72)", fontSize: 13 }}>{i18nT("chargement_01cba1df")}</div>
         ) : (
           <div style={{ display: "grid", gap: 18 }}>
             <div style={{ display: "grid", gap: 12 }}>
               <div style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
-                <div style={sectionTitle}>Moteur IA</div>
+                <div style={sectionTitle}>{i18nT("moteur_ia_a7f9dad3")}</div>
                 <button
                   type="button"
                   onClick={() => setEngineInfoOpen(true)}
-                  aria-label="Informations sur les moteurs IA"
-                  title="Informations sur les moteurs IA"
+                  aria-label={i18nT("informations_sur_les_moteurs_ia_499c34b6")}
+                  title={i18nT("informations_sur_les_moteurs_ia_499c34b6")}
                   style={{
                     width: 19,
                     height: 19,
@@ -487,7 +489,7 @@ export default function AiConfigurationContent({ mode = "drawer", onSaved, onUns
                 </button>
               </div>
               <label style={label}>
-                <span style={labelTitle}>Choisir votre moteur préférentiel</span>
+                <span style={labelTitle}>{i18nT("choisir_votre_moteur_preferentiel_05cc6c63")}</span>
                 <select
                   style={input}
                   value={form.preferredEngine}
@@ -500,66 +502,65 @@ export default function AiConfigurationContent({ mode = "drawer", onSaved, onUns
                   ))}
                 </select>
                 <span style={hint}>
-                  Tendance : {selectedEngineOption.naturalTendency} iNrCy garde vos règles métier.
-                  {!selectedEngineOption.supportsVision
-                    ? " Les images passent par une analyse compatible avant rédaction."
+                  {i18nT("tendance_f01115d3")}{" "}{selectedEngineOption.naturalTendency} {" "}{i18nT("inrcy_garde_vos_regles_metier_3bcab680")}{" "}{!selectedEngineOption.supportsVision
+                    ? i18nT("les_images_passent_par_une_analyse_95521dc0")
                     : ""}
                 </span>
               </label>
             </div>
 
             <div style={{ display: "grid", gap: 12 }}>
-              <div style={sectionTitle}>Style des contenus</div>
+              <div style={sectionTitle}>{i18nT("style_des_contenus_c6452c23")}</div>
               <div style={grid2}>
                 <label style={label}>
-                  <span style={labelTitle}>Ton du contenu</span>
+                  <span style={labelTitle}>{i18nT("ton_du_contenu_10a3083a")}</span>
                   <select style={input} value={form.tone} onChange={(e) => set("tone", e.target.value as AiConfigForm["tone"])}>
-                    <option value="serious" style={selectOption}>Sérieux</option>
-                    <option value="warm" style={selectOption}>Chaleureux</option>
-                    <option value="fun" style={selectOption}>Fun</option>
-                    <option value="premium" style={selectOption}>Premium</option>
+                    <option value="serious" style={selectOption}>{i18nT("serieux_5157cfa7")}</option>
+                    <option value="warm" style={selectOption}>{i18nT("chaleureux_dc07a406")}</option>
+                    <option value="fun" style={selectOption}>{i18nT("fun_5f941ab6")}</option>
+                    <option value="premium" style={selectOption}>{i18nT("premium_6c2f2888")}</option>
                   </select>
                 </label>
 
                 <label style={label}>
-                  <span style={labelTitle}>Style du texte</span>
+                  <span style={labelTitle}>{i18nT("style_du_texte_0187c8e2")}</span>
                   <select style={input} value={form.textStyle} onChange={(e) => set("textStyle", e.target.value as AiConfigForm["textStyle"])}>
-                    <option value="simple" style={selectOption}>Simple et clair</option>
-                    <option value="dynamic" style={selectOption}>Dynamique</option>
-                    <option value="expert" style={selectOption}>Conseil d’expert</option>
-                    <option value="coulisses" style={selectOption}>Coulisses / histoire</option>
+                    <option value="simple" style={selectOption}>{i18nT("simple_et_clair_72318cdd")}</option>
+                    <option value="dynamic" style={selectOption}>{i18nT("dynamique_8773c690")}</option>
+                    <option value="expert" style={selectOption}>{i18nT("conseil_d_expert_69d781fc")}</option>
+                    <option value="coulisses" style={selectOption}>{i18nT("coulisses_histoire_7ac223f9")}</option>
                   </select>
                 </label>
 
                 <label style={label}>
-                  <span style={labelTitle}>Originalité</span>
+                  <span style={labelTitle}>{i18nT("originalite_dac73a39")}</span>
                   <select style={input} value={form.originality} onChange={(e) => set("originality", e.target.value as AiConfigForm["originality"])}>
-                    <option value="classic" style={selectOption}>Classique</option>
-                    <option value="balanced" style={selectOption}>Équilibrée</option>
-                    <option value="creative" style={selectOption}>Créative</option>
+                    <option value="classic" style={selectOption}>{i18nT("classique_21d58b2b")}</option>
+                    <option value="balanced" style={selectOption}>{i18nT("equilibree_dc8d254a")}</option>
+                    <option value="creative" style={selectOption}>{i18nT("creative_e62adb99")}</option>
                   </select>
                 </label>
 
                 <label style={label}>
-                  <span style={labelTitle}>Longueur</span>
+                  <span style={labelTitle}>{i18nT("longueur_26218b9b")}</span>
                   <select style={input} value={form.length} onChange={(e) => set("length", e.target.value as AiConfigForm["length"])}>
-                    <option value="short" style={selectOption}>Court</option>
-                    <option value="medium" style={selectOption}>Moyen</option>
-                    <option value="detailed" style={selectOption}>Détaillé</option>
+                    <option value="short" style={selectOption}>{i18nT("court_65dfd1c0")}</option>
+                    <option value="medium" style={selectOption}>{i18nT("moyen_de03c108")}</option>
+                    <option value="detailed" style={selectOption}>{i18nT("detaille_6a3d00d4")}</option>
                   </select>
                 </label>
 
                 <label style={label}>
-                  <span style={labelTitle}>Emojis</span>
+                  <span style={labelTitle}>{i18nT("emojis_ac171aac")}</span>
                   <select style={input} value={form.emojiLevel} onChange={(e) => set("emojiLevel", e.target.value as AiConfigForm["emojiLevel"])}>
-                    <option value="none" style={selectOption}>Aucun</option>
-                    <option value="light" style={selectOption}>Léger</option>
-                    <option value="dynamic" style={selectOption}>Beaucoup</option>
+                    <option value="none" style={selectOption}>{i18nT("aucun_b2ed82f1")}</option>
+                    <option value="light" style={selectOption}>{i18nT("leger_8ad52b02")}</option>
+                    <option value="dynamic" style={selectOption}>{i18nT("beaucoup_32bb785f")}</option>
                   </select>
                 </label>
 
                 <label style={label}>
-                  <span style={labelTitle}>Langue du contenu généré</span>
+                  <span style={labelTitle}>{i18nT("langue_du_contenu_genere_04491b9a")}</span>
                   <select style={input} value={form.language} onChange={(e) => setGenerationLanguage(e.target.value as AiConfigForm["language"])}>
                     {APP_LANGUAGE_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value} style={selectOption}>{option.label}</option>
@@ -570,63 +571,63 @@ export default function AiConfigurationContent({ mode = "drawer", onSaved, onUns
             </div>
 
             <div style={{ display: "grid", gap: 12 }}>
-              <div style={sectionTitle}>Façon de parler</div>
+              <div style={sectionTitle}>{i18nT("facon_de_parler_aa932a4e")}</div>
               <div style={grid2}>
                 <label style={label}>
-                  <span style={labelTitle}>Pronom utilisé</span>
+                  <span style={labelTitle}>{i18nT("pronom_utilise_70514e6c")}</span>
                   <select style={input} value={form.pronoun} onChange={(e) => set("pronoun", e.target.value as AiConfigForm["pronoun"])}>
-                    <option value="je" style={selectOption}>Je</option>
-                    <option value="nous" style={selectOption}>Nous</option>
-                    <option value="vous" style={selectOption}>Vous</option>
-                    <option value="neutral" style={selectOption}>Neutre</option>
+                    <option value="je" style={selectOption}>{i18nT("je_a207fb96")}</option>
+                    <option value="nous" style={selectOption}>{i18nT("nous_1a432a70")}</option>
+                    <option value="vous" style={selectOption}>{i18nT("vous_ac3daf66")}</option>
+                    <option value="neutral" style={selectOption}>{i18nT("neutre_8984c075")}</option>
                   </select>
                 </label>
 
                 <label style={label}>
-                  <span style={labelTitle}>Relation avec le lecteur</span>
+                  <span style={labelTitle}>{i18nT("relation_avec_le_lecteur_828bcf75")}</span>
                   <select style={input} value={form.addressMode} onChange={(e) => set("addressMode", e.target.value as AiConfigForm["addressMode"])}>
-                    <option value="vous" style={selectOption}>Vouvoiement</option>
-                    <option value="tu" style={selectOption}>Tutoiement</option>
+                    <option value="vous" style={selectOption}>{i18nT("vouvoiement_c5254349")}</option>
+                    <option value="tu" style={selectOption}>{i18nT("tutoiement_01debf43")}</option>
                   </select>
                 </label>
 
                 <label style={label}>
-                  <span style={labelTitle}>Niveau commercial</span>
+                  <span style={labelTitle}>{i18nT("niveau_commercial_eb602ac7")}</span>
                   <select style={input} value={form.commercialLevel} onChange={(e) => set("commercialLevel", e.target.value as AiConfigForm["commercialLevel"])}>
-                    <option value="discreet" style={selectOption}>Discret</option>
-                    <option value="balanced" style={selectOption}>Équilibré</option>
-                    <option value="direct" style={selectOption}>Direct</option>
+                    <option value="discreet" style={selectOption}>{i18nT("discret_ddf3fbc7")}</option>
+                    <option value="balanced" style={selectOption}>{i18nT("equilibre_4e3141e0")}</option>
+                    <option value="direct" style={selectOption}>{i18nT("direct_bc81524a")}</option>
                   </select>
                 </label>
               </div>
             </div>
 
             <div style={{ display: "grid", gap: 12 }}>
-              <div style={sectionTitle}>Objectif des contenus</div>
+              <div style={sectionTitle}>{i18nT("objectif_des_contenus_2c129870")}</div>
               <div style={grid2}>
                 <label style={label}>
-                  <span style={labelTitle}>Objectif principal</span>
+                  <span style={labelTitle}>{i18nT("objectif_principal_cbb91d55")}</span>
                   <select style={input} value={form.mainGoal} onChange={(e) => set("mainGoal", e.target.value as AiConfigForm["mainGoal"])}>
-                    <option value="visibility" style={selectOption}>Faire connaître l’entreprise</option>
-                    <option value="contacts" style={selectOption}>Obtenir des contacts</option>
-                    <option value="reassure" style={selectOption}>Rassurer les clients</option>
-                    <option value="offer" style={selectOption}>Mettre en avant une offre</option>
+                    <option value="visibility" style={selectOption}>{i18nT("faire_connaitre_l_entreprise_b8357544")}</option>
+                    <option value="contacts" style={selectOption}>{i18nT("obtenir_des_contacts_e3239ba6")}</option>
+                    <option value="reassure" style={selectOption}>{i18nT("rassurer_les_clients_6b36d862")}</option>
+                    <option value="offer" style={selectOption}>{i18nT("mettre_en_avant_une_offre_bcabf361")}</option>
                   </select>
                 </label>
 
                 <label style={label}>
-                  <span style={labelTitle}>Angle préféré</span>
+                  <span style={labelTitle}>{i18nT("angle_prefere_082c1a4d")}</span>
                   <select style={input} value={form.preferredAngle} onChange={(e) => set("preferredAngle", e.target.value as AiConfigForm["preferredAngle"])}>
-                    <option value="local" style={selectOption}>Local / proximité</option>
-                    <option value="quality" style={selectOption}>Qualité du travail</option>
-                    <option value="price" style={selectOption}>Prix / avantage</option>
-                    <option value="speed" style={selectOption}>Rapidité / réactivité</option>
-                    <option value="trust" style={selectOption}>Confiance</option>
+                    <option value="local" style={selectOption}>{i18nT("local_proximite_fbac0b33")}</option>
+                    <option value="quality" style={selectOption}>{i18nT("qualite_du_travail_7ea25fd2")}</option>
+                    <option value="price" style={selectOption}>{i18nT("prix_avantage_911e00ab")}</option>
+                    <option value="speed" style={selectOption}>{i18nT("rapidite_reactivite_a93ebdbd")}</option>
+                    <option value="trust" style={selectOption}>{i18nT("confiance_7b2239f6")}</option>
                   </select>
                 </label>
 
                 <label style={label}>
-                  <span style={labelTitle}>Bouton préféré</span>
+                  <span style={labelTitle}>{i18nT("bouton_prefere_636a62cc")}</span>
                   <select style={input} value={form.preferredCta} onChange={(e) => set("preferredCta", e.target.value as AiConfigForm["preferredCta"])}>
                     {BOOSTER_PREFERRED_CTA_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value} style={selectOption}>
@@ -639,48 +640,46 @@ export default function AiConfigurationContent({ mode = "drawer", onSaved, onUns
             </div>
 
             <div style={{ display: "grid", gap: 12 }}>
-              <div style={sectionTitle}>Inspiration / limites</div>
+              <div style={sectionTitle}>{i18nT("inspiration_limites_9c94746f")}</div>
               <label style={label}>
-                <span style={labelTitle}>Exemple de contenu que vous aimez</span>
+                <span style={labelTitle}>{i18nT("exemple_de_contenu_que_vous_aimez_1b4d869b")}</span>
                 <textarea
                   style={{ ...input, minHeight: 112, resize: "vertical", lineHeight: 1.45 }}
                   value={form.likedExample}
                   maxLength={1200}
                   onChange={(e) => set("likedExample", e.target.value.slice(0, 1200))}
-                  placeholder="Collez ici une publication que vous aimez. iNrCy s’en inspirera pour le ton, le rythme et la structure, sans copier."
+                  placeholder={i18nT("collez_ici_une_publication_que_vous_8dbef14d")}
                 />
-                <span style={hint}>Optionnel, mais très puissant pour obtenir un style vraiment proche de ce que vous aimez.</span>
+                <span style={hint}>{i18nT("optionnel_mais_tres_puissant_pour_obtenir_2bd4cf4f")}</span>
               </label>
 
               <label style={label}>
-                <span style={labelTitle}>À éviter absolument</span>
+                <span style={labelTitle}>{i18nT("a_eviter_absolument_81a0d9e0")}</span>
                 <textarea
                   style={{ ...input, minHeight: 96, resize: "vertical", lineHeight: 1.45 }}
                   value={form.forbiddenStyle}
                   maxLength={700}
                   onChange={(e) => set("forbiddenStyle", e.target.value.slice(0, 700))}
-                  placeholder={'Ex : éviter un ton trop commercial, ne pas utiliser trop d’emojis, ne pas dire “pas cher”, rester sobre et rassurant.'}
+                  placeholder={i18nT("ex_eviter_un_ton_trop_commercial_e0c64d10")}
                 />
-                <span style={hint}>Mots, promesses ou tournures qui ne correspondent pas à l’image de l’entreprise.</span>
+                <span style={hint}>{i18nT("mots_promesses_ou_tournures_qui_ne_e49a83bd")}</span>
               </label>
             </div>
 
             {error ? <div style={{ color: "rgba(248,113,113,0.95)", fontWeight: 800 }}>{error}</div> : null}
-            {saved ? <div style={{ color: "rgba(34,197,94,0.95)", fontWeight: 900 }}>Configuration IA enregistrée ✅</div> : null}
+            {saved ? <div style={{ color: "rgba(34,197,94,0.95)", fontWeight: 900 }}>{i18nT("configuration_ia_enregistree_1ad4bba6")}</div> : null}
 
             <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 180px), 1fr))", minWidth: 0, maxWidth: "100%" }}>
-              <button type="button" style={primaryBtn} disabled={saving} onClick={save}>{saving ? "Enregistrement…" : "Enregistrer"}</button>
+              <button type="button" style={primaryBtn} disabled={saving} onClick={save}>{saving ? i18nT("enregistrement_e7d5f232") : i18nT("enregistrer_f7c8bcd8")}</button>
               <button type="button" disabled={saving} onClick={reset} style={{ border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.05)", color: "white", borderRadius: 14, padding: "10px 12px", cursor: saving ? "default" : "pointer", fontWeight: 900, fontSize: 16 }}>
-                Réinitialiser
-              </button>
+                {i18nT("reinitialiser_e0e2ad54")}{" "}</button>
             </div>
           </div>
         )}
       </div>
 
       <div style={{ ...card, color: "rgba(255,255,255,0.62)", fontSize: 12, lineHeight: 1.45 }}>
-        Astuce : plus “Mon activité” et votre “signature IA” sont précis, plus iNrCy peut générer des contenus naturels, locaux et à l’image du professionnel.
-      </div>
+        {i18nT("astuce_plus_mon_activite_et_votre_9776da1b")}{" "}</div>
       <AiEngineInfoModal
         open={engineInfoOpen}
         activeEngine={form.preferredEngine}

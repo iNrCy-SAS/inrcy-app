@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import HelpButton from "./HelpButton";
 import { useDashboardI18n } from "../_hooks/useDashboardI18n";
 import styles from "../dashboard.module.css";
@@ -19,15 +20,24 @@ type InertiaSnapshot = {
 };
 
 
-function getMobileHeroCopy(locale: string) {
+function getMobileHeroCopy(locale: string, i18nT: (key: string) => string) {
   const language = String(locale || "fr").slice(0, 2).toLowerCase();
-  if (language === "en") return { title1: "Your business generator", title2: "is live!", subtitle1: "All your channels now feed", subtitle2: "one single machine." };
-  if (language === "es") return { title1: "Tu generador de negocio", title2: "está activo!", subtitle1: "Todos tus canales alimentan ahora", subtitle2: "una sola máquina." };
-  if (language === "it") return { title1: "Il tuo generatore di business", title2: "è attivo!", subtitle1: "Tutti i tuoi canali alimentano ora", subtitle2: "un'unica macchina." };
-  if (language === "de") return { title1: "Ihr Business-Generator", title2: "läuft!", subtitle1: "Alle Kanäle speisen jetzt", subtitle2: "eine einzige Maschine." };
-  if (language === "nl") return { title1: "Uw businessgenerator", title2: "is actief!", subtitle1: "Al uw kanalen voeden nu", subtitle2: "één enkele machine." };
-  if (language === "pt") return { title1: "O seu gerador de negócio", title2: "está ativo!", subtitle1: "Todos os canais alimentam agora", subtitle2: "uma única máquina." };
-  return { title1: "Votre générateur de business", title2: "est lancé !", subtitle1: "Tous vos canaux alimentent maintenant", subtitle2: "une seule machine." };
+  const copyByLanguage: Record<string, { title1: string; title2: string; subtitle1: string; subtitle2: string }> = {
+    en: { title1: "your_business_generator_df29b041", title2: "is_live_5d0609ac", subtitle1: "all_your_channels_now_feed_c9df1042", subtitle2: "one_single_machine_d3ce3030" },
+    es: { title1: "tu_generador_de_negocio_b63ada17", title2: "esta_activo_64430b89", subtitle1: "todos_tus_canales_alimentan_ahora_34a46a6f", subtitle2: "una_sola_maquina_5e6c6550" },
+    it: { title1: "il_tuo_generatore_di_business_53256a69", title2: "e_attivo_55801ec5", subtitle1: "tutti_i_tuoi_canali_alimentano_ora_75b2ecc9", subtitle2: "un_unica_macchina_31b7ded2" },
+    de: { title1: "ihr_business_generator_64182920", title2: "lauft_56fb4d66", subtitle1: "alle_kanale_speisen_jetzt_c4251806", subtitle2: "eine_einzige_maschine_980093ae" },
+    nl: { title1: "uw_businessgenerator_7050b758", title2: "is_actief_0046dac7", subtitle1: "al_uw_kanalen_voeden_nu_5fd4723d", subtitle2: "een_enkele_machine_7a9be13e" },
+    pt: { title1: "o_seu_gerador_de_negocio_2270c558", title2: "esta_ativo_adb7b222", subtitle1: "todos_os_canais_alimentam_agora_68c2d867", subtitle2: "uma_unica_maquina_ecd78664" },
+    fr: { title1: "votre_generateur_de_business_2a1172dd", title2: "est_lance_1dda6f1c", subtitle1: "tous_vos_canaux_alimentent_maintenant_978f2df8", subtitle2: "une_seule_machine_00b77b87" },
+  };
+  const copy = copyByLanguage[language] || copyByLanguage.fr;
+  return {
+    title1: i18nT(copy.title1),
+    title2: i18nT(copy.title2),
+    subtitle1: i18nT(copy.subtitle1),
+    subtitle2: i18nT(copy.subtitle2),
+  };
 }
 
 type DashboardHeroProps = {
@@ -67,8 +77,10 @@ export default function DashboardHero({
   leadsWeek,
   leadsMonth,
 }: DashboardHeroProps) {
+  const i18nT = useTranslations("shell");
   const t = useDashboardI18n();
-  const mobileCopy = getMobileHeroCopy(t.locale);
+  const heroT = useTranslations("dashboard.hero");
+  const mobileCopy = getMobileHeroCopy(t.locale, i18nT);
   const compactGeneratorTitle =
     t.hero.generatorTitle.replace(/iNrCy/gi, "").replace(/\s{2,}/g, " ").trim() || t.hero.generatorTitle;
   const [powerBreakdownOpen, setPowerBreakdownOpen] = useState(false);
@@ -223,8 +235,8 @@ export default function DashboardHero({
               type="button"
               className={styles.generatorSettingsBtn}
               onClick={onOpenGeneratorSettings}
-              aria-label="Ouvrir les réglages du générateur"
-              title="Réglages du générateur"
+              aria-label={heroT("settingsAria")}
+              title={heroT("settingsTitle")}
             >
               <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z" />
@@ -278,8 +290,7 @@ export default function DashboardHero({
             <div className={styles.metricLabel}>{t.hero.inertiaUnits}</div>
             <div className={styles.metricValue}>{uiBalance}</div>
             <div className={styles.metricHint}>
-              Turbo UI ×{inertiaSnapshot.multiplier} — {inertiaSnapshot.connectedCount}/{inertiaSnapshot.totalChannels} {t.hero.channels}
-            </div>
+              {i18nT("turbo_ui_value_value_value_value_9a1ca86b", { value0: inertiaSnapshot.multiplier, value1: inertiaSnapshot.connectedCount, value2: inertiaSnapshot.totalChannels, value3: t.hero.channels })}</div>
           </div>
 
           <div className={styles.generatorCoreCenter} aria-hidden>
@@ -309,8 +320,8 @@ export default function DashboardHero({
                 type="button"
                 className={styles.generatorGoBtnCorner}
                 onClick={onOpenStats}
-                aria-label="Voir iNrStats"
-                title="Voir iNrStats"
+                aria-label={heroT("statsAria")}
+                title={heroT("statsAria")}
               >
                 <span className={styles.generatorGoBtnLabel}>GO</span>
               </button>

@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type TouchEvent as ReactTouchEvent } from "react";
 import styles from "../dashboard.module.css";
 import bubbleStyles from "./DashboardChannelBubble.module.css";
@@ -117,6 +120,7 @@ export default function DashboardChannelsSection({
   onOpenBoosterStats,
   standardMode = false,
 }: DashboardChannelsSectionProps) {
+  const i18nT = useTranslations("shell");
   const t = useDashboardI18n();
   const [bubbleView, setBubbleView] = useState<BubbleViewMode>("carousel");
   const [isMobile, setIsMobile] = useState<boolean | null>(null);
@@ -531,7 +535,7 @@ export default function DashboardChannelsSection({
                   onClick={goPrev}
                   aria-label={t.channels.prev}
                 >
-                  <span aria-hidden="true">&lt;</span>
+                  <span aria-hidden="true">{i18nT("lt_5d2c1a80")}</span>
                 </button>
 
                 <div className={styles.carouselIconRail}>
@@ -585,7 +589,7 @@ export default function DashboardChannelsSection({
                   onClick={goNext}
                   aria-label={t.channels.next}
                 >
-                  <span aria-hidden="true">&gt;</span>
+                  <span aria-hidden="true">{i18nT("gt_03c7b3d3")}</span>
                 </button>
               </div>
 
@@ -618,7 +622,7 @@ export default function DashboardChannelsSection({
                 onClick={goPrevDesktop}
                 aria-label={t.channels.prev}
               >
-                <span aria-hidden="true">&lt;</span>
+                <span aria-hidden="true">{i18nT("lt_5d2c1a80")}</span>
               </button>
             )}
 
@@ -679,7 +683,7 @@ export default function DashboardChannelsSection({
                 onClick={goNextDesktop}
                 aria-label={t.channels.next}
               >
-                <span aria-hidden="true">&gt;</span>
+                <span aria-hidden="true">{i18nT("gt_03c7b3d3")}</span>
               </button>
             )}
           </div>

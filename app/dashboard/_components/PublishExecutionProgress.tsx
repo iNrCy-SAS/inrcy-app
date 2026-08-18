@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 type DashboardStyles = Readonly<Record<string, string>>;
 
 export default function PublishExecutionProgress({
@@ -19,6 +22,7 @@ export default function PublishExecutionProgress({
   phaseTotal?: number;
   phaseLabel?: string;
 }) {
+  const i18nT = useTranslations("booster");
   const safeProgress = Math.max(
     0,
     Math.min(100, Math.round(Number(publishProgress) || 0)),
@@ -35,11 +39,11 @@ export default function PublishExecutionProgress({
       <div className={styles.publishProgressHeader}>
         <div className={styles.publishProgressHeadingGroup}>
           <strong className={styles.publishProgressTitle}>
-            {scheduling ? "Programmation en cours" : "Publication en cours"}
+            {scheduling ? i18nT("programmation_en_cours_63e2106d") : i18nT("publication_en_cours_58f34b8e")}
           </strong>
           {hasPhaseDetails ? (
             <span className={styles.publishProgressPhase}>
-              Étape {phaseIndex}/{phaseTotal}
+              {i18nT("etape_13146b48")}{" "}{phaseIndex}/{phaseTotal}
               {phaseLabel ? ` · ${phaseLabel}` : ""}
             </span>
           ) : null}
@@ -49,8 +53,8 @@ export default function PublishExecutionProgress({
       <span className={styles.publishProgressLabel}>
         {publishProgressLabel ||
           (scheduling
-            ? "Programmation en cours..."
-            : "Publication en cours...")}
+            ? i18nT("programmation_en_cours_33f59055")
+            : i18nT("publication_en_cours_09ec4187"))}
       </span>
       <div
         className={styles.publishProgressTrack}

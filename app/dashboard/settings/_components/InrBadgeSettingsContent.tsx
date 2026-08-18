@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createInrBadgeQrMatrix } from "@/lib/inrBadgeQr";
 import { createInrBadgeQrTrackingUrl, type InrBadgeProfileSummary } from "@/lib/inrBadge";
@@ -68,12 +71,12 @@ function canShareChannel(channel: InrBadgeChannelStatus) {
   return Boolean(channel.connected && trim(channel.url));
 }
 
-function providerLabel(provider: unknown) {
+function providerLabel(provider: unknown, fallback = "Mail") {
   const value = trim(provider).toLowerCase();
   if (value === "microsoft") return "Microsoft";
   if (value === "gmail" || value === "google") return "Gmail";
   if (value === "imap") return "IMAP";
-  return value ? value.charAt(0).toUpperCase() + value.slice(1) : "Mail";
+  return value ? value.charAt(0).toUpperCase() + value.slice(1) : fallback;
 }
 
 function isUsableMailAccount(account: MailAccountOption): boolean {
@@ -357,6 +360,7 @@ export default function InrBadgeSettingsContent({
   onOpenProfile,
   onOpenCalendarSettings,
 }: Props) {
+  const i18nT = useTranslations("settings");
   const dashboardEdition = useDashboardEdition();
   const standardMode = dashboardEdition === "standard";
   const storageKey = useMemo(() => getStorageKey(profile, publicUrl), [profile, publicUrl]);
@@ -443,7 +447,7 @@ export default function InrBadgeSettingsContent({
     setSettings(next);
     saveBadgeSettings(storageKey, next, appointmentSettings, selectedMailAccountId);
     void persistBadgeSettings(next, selectedMailAccountId);
-    setNotice("Réglages iNr'Badge enregistrés.");
+    setNotice(i18nT("reglages_inr_badge_enregistres_aa47bf78"));
     window.setTimeout(() => setNotice(null), 1800);
   };
 
@@ -452,7 +456,7 @@ export default function InrBadgeSettingsContent({
     setAppointmentSettings(next);
     saveBadgeSettings(storageKey, settings, next, selectedMailAccountId);
     void persistBadgeSettings(settings, selectedMailAccountId);
-    setNotice("Réglages de prise de RDV enregistrés.");
+    setNotice(i18nT("reglages_de_prise_de_rdv_enregistres_cf14d8ac"));
     window.setTimeout(() => setNotice(null), 1800);
   };
 
@@ -474,9 +478,9 @@ export default function InrBadgeSettingsContent({
     if (!publicUrl) return;
     try {
       await navigator.clipboard.writeText(publicUrl);
-      setNotice("Lien copié.");
+      setNotice(i18nT("lien_copie_8f514dc0"));
     } catch {
-      setNotice("Impossible de copier automatiquement. Sélectionnez le lien manuellement.");
+      setNotice(i18nT("impossible_de_copier_automatiquement_selectionne_df13c396"));
     }
     window.setTimeout(() => setNotice(null), 1800);
   };
@@ -505,25 +509,25 @@ export default function InrBadgeSettingsContent({
   };
 
   const channelItems: Array<{ key: ShareKey; label: string; connected: boolean; helper: string }> = [
-    { key: "inrSearch", label: "iNr'Search", connected: canShareChannel(channels.inrSearch), helper: "Disponible dès que votre page iNr'Search est publiée." },
-    { key: "siteInrcy", label: "Site iNrCy", connected: canShareChannel(channels.siteInrcy), helper: "Disponible si le site iNrCy est actif avec un lien enregistré." },
-    { key: "siteWeb", label: "Site web", connected: canShareChannel(channels.siteWeb), helper: "Disponible si le site web est renseigné." },
-    { key: "googleBusiness", label: "Google Business", connected: canShareChannel(channels.googleBusiness), helper: "Disponible si Google Business est connecté avec un lien enregistré." },
-    { key: "facebook", label: "Facebook", connected: canShareChannel(channels.facebook), helper: "Disponible si la page Facebook est connectée avec un lien enregistré." },
-    { key: "instagram", label: "Instagram", connected: canShareChannel(channels.instagram), helper: "Disponible si Instagram est connecté avec un lien enregistré." },
-    { key: "linkedin", label: "LinkedIn", connected: canShareChannel(channels.linkedin), helper: "Disponible si LinkedIn est connecté avec un lien enregistré." },
-    { key: "pinterest", label: "Pinterest", connected: canShareChannel(channels.pinterest || { connected: false }), helper: "Disponible si Pinterest est connecté avec un lien enregistré." },
-    { key: "tiktok", label: "TikTok", connected: canShareChannel(channels.tiktok), helper: "Disponible si TikTok est connecté avec un lien enregistré." },
-    { key: "youtubeShorts", label: "YouTube", connected: canShareChannel(channels.youtubeShorts || { connected: false }), helper: "Disponible si YouTube est configuré avec un lien enregistré." },
+    { key: "inrSearch", label: i18nT("inr_search_ce47ed45"), connected: canShareChannel(channels.inrSearch), helper: i18nT("disponible_des_que_votre_page_inr_dfa63b10") },
+    { key: "siteInrcy", label: i18nT("site_inrcy_57016d6f"), connected: canShareChannel(channels.siteInrcy), helper: i18nT("disponible_si_le_site_inrcy_est_e0e8f37c") },
+    { key: "siteWeb", label: i18nT("site_web_7e78af33"), connected: canShareChannel(channels.siteWeb), helper: i18nT("disponible_si_le_site_web_est_8e4d92e0") },
+    { key: "googleBusiness", label: i18nT("google_business_a605b655"), connected: canShareChannel(channels.googleBusiness), helper: i18nT("disponible_si_google_business_est_connecte_39bbde49") },
+    { key: "facebook", label: i18nT("facebook_82da67b2"), connected: canShareChannel(channels.facebook), helper: i18nT("disponible_si_la_page_facebook_est_8a5a0eb7") },
+    { key: "instagram", label: i18nT("instagram_5721bbef"), connected: canShareChannel(channels.instagram), helper: i18nT("disponible_si_instagram_est_connecte_avec_8ba9a12c") },
+    { key: "linkedin", label: i18nT("linkedin_6b6390a4"), connected: canShareChannel(channels.linkedin), helper: i18nT("disponible_si_linkedin_est_connecte_avec_c95a8863") },
+    { key: "pinterest", label: i18nT("pinterest_a45a7994"), connected: canShareChannel(channels.pinterest || { connected: false }), helper: i18nT("disponible_si_pinterest_est_connecte_avec_df07a312") },
+    { key: "tiktok", label: i18nT("tiktok_fc49f156"), connected: canShareChannel(channels.tiktok), helper: i18nT("disponible_si_tiktok_est_connecte_avec_b74a1d82") },
+    { key: "youtubeShorts", label: i18nT("youtube_558865a1"), connected: canShareChannel(channels.youtubeShorts || { connected: false }), helper: i18nT("disponible_si_youtube_est_configure_avec_c9a7a776") },
   ];
 
   const mailSelectOptions = standardMode
-    ? email ? [{ value: "", label: `Email de Mon profil — ${email}` }] : []
+    ? email ? [{ value: "", label: i18nT("email_de_mon_profil_value_fd93f05f", { value0: email }) }] : []
     : [
-        ...(email ? [{ value: "", label: `Email du profil — ${email}` }] : []),
+        ...(email ? [{ value: "", label: i18nT("email_du_profil_value_cd64756b", { value0: email }) }] : []),
         ...mailAccounts.map((account) => ({
           value: account.id,
-          label: `${providerLabel(account.provider)} — ${trim(account.display_name) || trim(account.email_address)}`,
+          label: `${providerLabel(account.provider, i18nT("mail_92379cbb"))} — ${trim(account.display_name) || trim(account.email_address)}`,
         })),
       ];
   const selectedMailAccountExists = !standardMode && Boolean(
@@ -565,9 +569,9 @@ export default function InrBadgeSettingsContent({
 
   return (
     <div style={{ display: "grid", gap: 14 }}>
-      <div style={autoSaveBadgeStyle} aria-label="Sauvegarde automatique activée">
+      <div style={autoSaveBadgeStyle} aria-label={i18nT("sauvegarde_automatique_activee_592ea89d")}>
         <span aria-hidden="true" style={autoSaveDotStyle} />
-        <span>Sauvegarde automatique</span>
+        <span>{i18nT("sauvegarde_automatique_6312ea6c")}</span>
       </div>
 
       <div style={heroCardStyle}>
@@ -583,24 +587,24 @@ export default function InrBadgeSettingsContent({
         /></div>
         <div style={{ minWidth: 0 }}>
           <h2 style={heroTitleStyle}>{INRBADGE_HEADER_LINE}</h2>
-          <p style={heroSubTextStyle}>Le QR reste permanent. Les informations partagées peuvent évoluer sans réimprimer vos supports.</p>
+          <p style={heroSubTextStyle}>{i18nT("le_qr_reste_permanent_les_informations_173e9fb9")}</p>
         </div>
       </div>
 
       {!profileReady ? (
         <div style={warningCardStyle}>
-          <strong>Profil incomplet</strong>
-          <span>Complétez Mon profil pour activer votre iNr'Badge et générer le QR Code.</span>
-          <button type="button" onClick={onOpenProfile} style={primarySmallButtonStyle}>compléter mon profil</button>
+          <strong>{i18nT("profil_incomplet_8a8f765c")}</strong>
+          <span>{i18nT("completez_mon_profil_pour_activer_votre_7ca26051")}</span>
+          <button type="button" onClick={onOpenProfile} style={primarySmallButtonStyle}>{i18nT("completer_mon_profil_0a56fe88")}</button>
         </div>
       ) : null}
 
       <div style={cardStyle}>
-        <h3 style={sectionTitleStyle}>QR Code</h3>
-        <p style={mutedStyle}>{publicUrl || "Le lien sera généré dès que Mon profil sera complété."}</p>
+        <h3 style={sectionTitleStyle}>{i18nT("qr_code_44742187")}</h3>
+        <p style={mutedStyle}>{publicUrl || i18nT("le_lien_sera_genere_des_que_25e0b814")}</p>
         <div style={buttonGridStyle}>
-          <button type="button" style={smallButtonStyle} onClick={openPreview} disabled={!publicUrl}>Aperçu fiche</button>
-          <button type="button" style={smallButtonStyle} onClick={copyLink} disabled={!publicUrl}>copier le lien</button>
+          <button type="button" style={smallButtonStyle} onClick={openPreview} disabled={!publicUrl}>{i18nT("apercu_fiche_c431fffe")}</button>
+          <button type="button" style={smallButtonStyle} onClick={copyLink} disabled={!publicUrl}>{i18nT("copier_le_lien_2b135d8c")}</button>
           <div style={downloadDropdownWrapStyle} ref={downloadMenuRef}>
             <button
               type="button"
@@ -610,11 +614,11 @@ export default function InrBadgeSettingsContent({
               aria-haspopup="menu"
               aria-expanded={downloadMenuOpen}
             >
-              <span>Télécharger</span>
+              <span>{i18nT("telecharger_b332d06d")}</span>
               <span aria-hidden="true" style={downloadChevronStyle}>▾</span>
             </button>
             {downloadMenuOpen ? (
-              <div style={downloadDropdownMenuStyle} role="menu" aria-label="Choisir un format de téléchargement">
+              <div style={downloadDropdownMenuStyle} role="menu" aria-label={i18nT("choisir_un_format_de_telechargement_42324b61")}>
                 <button type="button" style={downloadDropdownItemStyle} onClick={downloadPng} role="menuitem">PNG</button>
                 <button type="button" style={downloadDropdownItemStyle} onClick={downloadPdf} role="menuitem">PDF</button>
               </div>
@@ -625,25 +629,25 @@ export default function InrBadgeSettingsContent({
 
 
       <div style={cardStyle}>
-        <h3 style={sectionTitleStyle}>Informations partagées</h3>
+        <h3 style={sectionTitleStyle}>{i18nT("informations_partagees_cbea91ba")}</h3>
         <div style={twoColumnsGridStyle}>
-          <FieldToggle label="Logo" checked={Boolean(settings.logo)} helper={profile.logoUrl ? "Affiché en haut du badge." : "Logo iNr’Badge utilisé par défaut."} onChange={(value) => updateSetting("logo", value)} />
-          <FieldToggle label="Nom du professionnel" checked={Boolean(settings.name)} onChange={(value) => updateSetting("name", value)} />
-          <FieldToggle label="Entreprise" checked={Boolean(settings.company)} onChange={(value) => updateSetting("company", value)} />
+          <FieldToggle label={i18nT("logo_83fce832")} checked={Boolean(settings.logo)} helper={profile.logoUrl ? "Affiché en haut du badge." : "Logo iNr’Badge utilisé par défaut."} onChange={(value) => updateSetting("logo", value)} />
+          <FieldToggle label={i18nT("nom_du_professionnel_421772e3")} checked={Boolean(settings.name)} onChange={(value) => updateSetting("name", value)} />
+          <FieldToggle label={i18nT("entreprise_d03e74b6")} checked={Boolean(settings.company)} onChange={(value) => updateSetting("company", value)} />
         </div>
       </div>
 
       <div style={cardStyle}>
-        <h3 style={sectionTitleStyle}>Actions rapides</h3>
+        <h3 style={sectionTitleStyle}>{i18nT("actions_rapides_abe69a9c")}</h3>
         <div style={twoColumnsGridStyle}>
-          <FieldToggle label="Téléphone" checked={Boolean(settings.phone)} disabled={!phone} helper={!phone ? "À compléter dans Mon profil." : undefined} onChange={(value) => updateSetting("phone", value)} />
-          <FieldToggle label="Enregistrer le contact" checked={Boolean(settings.saveContact)} helper="Prépare la fiche contact vCard pour l'étape publique." onChange={(value) => updateSetting("saveContact", value)} />
+          <FieldToggle label={i18nT("telephone_d3b023ea")} checked={Boolean(settings.phone)} disabled={!phone} helper={!phone ? "À compléter dans Mon profil." : undefined} onChange={(value) => updateSetting("phone", value)} />
+          <FieldToggle label={i18nT("enregistrer_le_contact_fac37051")} checked={Boolean(settings.saveContact)} helper="Prépare la fiche contact vCard pour l'étape publique." onChange={(value) => updateSetting("saveContact", value)} />
 
           <div style={fullWidthGridItemStyle}>
             <div style={{ ...mailActionCardStyle, opacity: canShowMailButton ? 1 : 0.55 }}>
               <label style={mailActionHeaderStyle}>
                 <span style={mailActionHeaderTextStyle}>
-                  <strong style={toggleTitleStyle}>Mail</strong>
+                  <strong style={toggleTitleStyle}>{i18nT("mail_92379cbb")}</strong>
                   <small style={toggleHelperStyle}>{mailHelper}</small>
                 </span>
                 <input
@@ -660,9 +664,9 @@ export default function InrBadgeSettingsContent({
                 disabled={standardMode || !settings.email || !canShowMailButton || mailSelectOptions.length === 0}
                 onChange={(event) => updateSelectedMailAccount(event.target.value)}
                 style={selectStyle}
-                aria-label="Adresse du bouton Mail"
+                aria-label={i18nT("adresse_du_bouton_mail_7ef2a852")}
               >
-                {(mailSelectOptions.length ? mailSelectOptions : [{ value: "", label: "Aucune adresse disponible" }]).map((option) => (
+                {(mailSelectOptions.length ? mailSelectOptions : [{ value: "", label: i18nT("aucune_adresse_disponible_43d812a8") }]).map((option) => (
                   <option key={String(option.value)} value={String(option.value)}>{option.label}</option>
                 ))}
               </select>
@@ -672,7 +676,7 @@ export default function InrBadgeSettingsContent({
       </div>
 
       <div style={cardStyle}>
-        <h3 style={sectionTitleStyle}>Canaux disponibles au partage</h3>
+        <h3 style={sectionTitleStyle}>{i18nT("canaux_disponibles_au_partage_ef3028d3")}</h3>
         <div style={twoColumnsGridStyle}>
           {channelItems.map((item) => (
             <FieldToggle
@@ -689,33 +693,33 @@ export default function InrBadgeSettingsContent({
 
       {!standardMode ? (
         <div style={cardStyle}>
-          <h3 style={sectionTitleStyle}>Prise de RDV</h3>
+          <h3 style={sectionTitleStyle}>{i18nT("prise_de_rdv_d4e3d750")}</h3>
           <div style={appointmentActionRowStyle}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <FieldToggle label="Afficher Prendre RDV" checked={Boolean(settings.appointment)} helper="Ajoute le bouton sur la fiche publique." onChange={(value) => updateSetting("appointment", value)} />
+              <FieldToggle label={i18nT("afficher_prendre_rdv_a0d7cb8f")} checked={Boolean(settings.appointment)} helper="Ajoute le bouton sur la fiche publique." onChange={(value) => updateSetting("appointment", value)} />
             </div>
             <button
               type="button"
               style={settingsGearButtonStyle}
               onClick={onOpenCalendarSettings}
-              aria-label="Ouvrir les réglages iNr’Calendar"
-              title="Réglages iNr’Calendar"
+              aria-label={i18nT("ouvrir_les_reglages_inr_calendar_dff9b122")}
+              title={i18nT("reglages_inr_calendar_cdc58ac4")}
             >
               <span aria-hidden="true" style={{ fontSize: 18, lineHeight: 1 }}>⚙</span>
             </button>
           </div>
-          <p style={{ ...mutedStyle, marginTop: 12, marginBottom: 0 }}>iNr’Badge affiche le bouton. Les jours, horaires, durées de créneaux, délai minimum et rappels se règlent dans iNr’Calendar.</p>
+          <p style={{ ...mutedStyle, marginTop: 12, marginBottom: 0 }}>{i18nT("inr_badge_affiche_le_bouton_les_3ee354bc")}</p>
         </div>
       ) : (
-        <div style={lockedAppointmentCardStyle} aria-label="Prise de RDV réservée au forfait Premium">
+        <div style={lockedAppointmentCardStyle} aria-label={i18nT("prise_de_rdv_reservee_au_forfait_c652d03f")}>
           <div style={lockedAppointmentHeadingStyle}>
-            <h3 style={{ ...sectionTitleStyle, margin: 0 }}>Prise de RDV</h3>
-            <span style={premiumPillStyle}>Premium</span>
+            <h3 style={{ ...sectionTitleStyle, margin: 0 }}>{i18nT("prise_de_rdv_d4e3d750")}</h3>
+            <span style={premiumPillStyle}>{i18nT("premium_6c2f2888")}</span>
           </div>
           <div style={lockedAppointmentToggleStyle} aria-disabled="true">
             <span style={{ minWidth: 0, textAlign: "left" }}>
-              <strong style={toggleTitleStyle}>Afficher Prendre RDV</strong>
-              <small style={toggleHelperStyle}>Disponible avec iNr’Calendar dans le forfait Premium.</small>
+              <strong style={toggleTitleStyle}>{i18nT("afficher_prendre_rdv_a0d7cb8f")}</strong>
+              <small style={toggleHelperStyle}>{i18nT("disponible_avec_inr_calendar_dans_le_a627ba6d")}</small>
             </span>
             <span aria-hidden="true" style={toggleCheckStyle} />
           </div>

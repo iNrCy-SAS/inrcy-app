@@ -2,13 +2,15 @@
 
 import Image from "next/image";
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabaseClient";
+import { appLanguageFromLocale } from "@/i18n/config";
 import {
   purgeAllBrowserAccountCaches,
   setActiveBrowserUserId,
 } from "@/lib/browserAccountCache";
-import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import { waitForServerAuthSession } from "@/lib/browserAuthSessionReady";
+import AuthLanguageSelector from "@/app/auth/_components/AuthLanguageSelector";
 import styles from "./login.module.css";
 
 type WanderDot = {
@@ -63,10 +65,16 @@ function hasAny(value: string, needles: string[]) {
   return needles.some((needle) => value.includes(needle));
 }
 
-function friendlyLoginError(
-  input: unknown,
-  fallback = "La connexion a échoué. Veuillez réessayer.",
-): LoginErrorState {
+type LoginErrorKind =
+  | "invalidCredentials"
+  | "emailUnconfirmed"
+  | "linkUnavailable"
+  | "network"
+  | "storage"
+  | "service"
+  | "technical";
+
+function classifyLoginError(input: unknown): LoginErrorKind {
   const raw = rawErrorMessage(input);
   const message = raw.toLowerCase();
 
@@ -78,19 +86,11 @@ function friendlyLoginError(
       "wrong password",
     ])
   ) {
-    return {
-      title: "Connexion refusée",
-      message: "Adresse e-mail ou mot de passe incorrect.",
-      hint: "Vérifiez vos informations ou utilisez « Mot de passe oublié ? ».",
-    };
+    return "invalidCredentials";
   }
 
   if (hasAny(message, ["email not confirmed", "email_not_confirmed"])) {
-    return {
-      title: "E-mail non confirmé",
-      message: "Votre adresse e-mail n’est pas encore confirmée.",
-      hint: "Vérifiez votre boîte mail ou demandez un nouveau lien.",
-    };
+    return "emailUnconfirmed";
   }
 
   if (
@@ -103,12 +103,7 @@ function friendlyLoginError(
       "over_email_send_rate_limit",
     ])
   ) {
-    return {
-      title: "Lien indisponible",
-      message:
-        "Le lien n’est plus valide ou l’envoi est temporairement limité.",
-      hint: "Réessayez dans quelques minutes ou demandez un nouveau lien.",
-    };
+    return "linkUnavailable";
   }
 
   if (
@@ -127,13 +122,7 @@ function friendlyLoginError(
       "timed out",
     ])
   ) {
-    return {
-      title: "Connexion au serveur impossible",
-      message:
-        "Votre navigateur ou votre réseau professionnel bloque peut-être l’accès à iNrCy.",
-      hint: "Lancez le diagnostic pour envoyer automatiquement le bilan technique à iNrCy.",
-      diagnosticReason: "network",
-    };
+    return "network";
   }
 
   if (
@@ -146,13 +135,7 @@ function friendlyLoginError(
       "cookies",
     ])
   ) {
-    return {
-      title: "Session non conservée",
-      message:
-        "La connexion semble réussir, mais le navigateur ne conserve pas correctement la session.",
-      hint: "Le diagnostic vérifiera les cookies et le stockage navigateur.",
-      diagnosticReason: "storage",
-    };
+    return "storage";
   }
 
   if (
@@ -166,21 +149,10 @@ function friendlyLoginError(
       "service unavailable",
     ])
   ) {
-    return {
-      title: "Service momentanément indisponible",
-      message: "Le serveur iNrCy ne répond pas correctement pour le moment.",
-      hint: "Vous pouvez relancer un essai ou envoyer le diagnostic à iNrCy.",
-      diagnosticReason: "technical",
-    };
+    return "service";
   }
 
-  const clean = getSimpleFrenchErrorMessage(input, fallback);
-  return {
-    title: "Erreur technique",
-    message: clean,
-    hint: "Si le problème persiste, lancez le diagnostic pour transmettre le bilan à iNrCy.",
-    diagnosticReason: "technical",
-  };
+  return "technical";
 }
 
 function makeLoginError(
@@ -205,6 +177,9 @@ function rint(min: number, max: number) {
 }
 
 export default function LoginPage() {
+  const locale = useLocale();
+  const t = useTranslations("auth.login");
+  const appLanguage = appLanguageFromLocale(locale);
   const [supabaseReady, setSupabaseReady] = useState(false);
   const supabaseRef = useRef<ReturnType<typeof createClient> | null>(null);
   const [email, setEmail] = useState("");
@@ -214,6 +189,64 @@ export default function LoginPage() {
   const [checkingSession, setCheckingSession] = useState(true);
   const [redirectingToDashboard, setRedirectingToDashboard] = useState(false);
   const [error, setError] = useState<LoginErrorState | null>(null);
+
+  const friendlyLoginError = (
+    input: unknown,
+    fallback = t("errors.defaultLogin"),
+  ): LoginErrorState => {
+    switch (classifyLoginError(input)) {
+      case "invalidCredentials":
+        return makeLoginError(
+          t("errors.invalidCredentialsTitle"),
+          t("errors.invalidCredentialsMessage"),
+          { hint: t("errors.invalidCredentialsHint") },
+        );
+      case "emailUnconfirmed":
+        return makeLoginError(
+          t("errors.emailUnconfirmedTitle"),
+          t("errors.emailUnconfirmedMessage"),
+          { hint: t("errors.emailUnconfirmedHint") },
+        );
+      case "linkUnavailable":
+        return makeLoginError(
+          t("errors.linkUnavailableTitle"),
+          t("errors.linkUnavailableMessage"),
+          { hint: t("errors.linkUnavailableHint") },
+        );
+      case "network":
+        return makeLoginError(
+          t("errors.networkTitle"),
+          t("errors.networkMessage"),
+          {
+            hint: t("errors.networkHint"),
+            diagnosticReason: "network",
+          },
+        );
+      case "storage":
+        return makeLoginError(
+          t("errors.storageTitle"),
+          t("errors.storageMessage"),
+          {
+            hint: t("errors.storageHint"),
+            diagnosticReason: "storage",
+          },
+        );
+      case "service":
+        return makeLoginError(
+          t("errors.serviceTitle"),
+          t("errors.serviceMessage"),
+          {
+            hint: t("errors.serviceHint"),
+            diagnosticReason: "technical",
+          },
+        );
+      default:
+        return makeLoginError(t("errors.technicalTitle"), fallback, {
+          hint: t("errors.technicalHint"),
+          diagnosticReason: "technical",
+        });
+    }
+  };
 
   // ✅ ajout : message info (succès reset password)
   const [info, setInfo] = useState<string | null>(null);
@@ -299,10 +332,10 @@ export default function LoginPage() {
           } else if (!cancelled) {
             setError(
               makeLoginError(
-                "Session non synchronisée",
-                "Votre session locale est active, mais le serveur ne la reconnaît pas encore.",
+                t("errors.sessionUnsyncedTitle"),
+                t("errors.sessionUnsyncedMessage"),
                 {
-                  hint: "Rechargez la page puis reconnectez-vous. Si le problème persiste, lancez le diagnostic.",
+                  hint: t("errors.sessionUnsyncedHint"),
                   diagnosticReason: "storage",
                 },
               ),
@@ -345,7 +378,7 @@ export default function LoginPage() {
       cancelled = true;
       authListener.subscription.unsubscribe();
     };
-  }, [supabaseReady]);
+  }, [supabaseReady, t]);
 
   // ✅ gestion lien expiré / invalide (2e clic invitation)
   useEffect(() => {
@@ -364,13 +397,10 @@ export default function LoginPage() {
       errorDesc.toLowerCase().includes("invalid")
     ) {
       setInfo(
-        "Ce lien n’est plus valide (il a déjà été utilisé ou a expiré). " +
-          "Veuillez cliquer sur « Mot de passe oublié » pour en recevoir un nouveau.",
+        t("expiredLinkInfo"),
       );
     } else {
-      setInfo(
-        "Le lien de connexion est invalide. Veuillez cliquer sur « Mot de passe oublié » pour recevoir un nouveau lien.",
-      );
+      setInfo(t("invalidLinkInfo"));
     }
 
     // nettoie l’URL (supprime le #error=...)
@@ -379,7 +409,7 @@ export default function LoginPage() {
       document.title,
       window.location.pathname + window.location.search,
     );
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     (async () => {
@@ -429,13 +459,13 @@ export default function LoginPage() {
       // on redirige d'abord (sans tuer le hash avant)
       const target =
         type === "recovery"
-          ? "/set-password?mode=reset"
-          : "/set-password?mode=invite";
+          ? `/set-password?mode=reset&lang=${appLanguage}`
+          : `/set-password?mode=invite&lang=${appLanguage}`;
 
       // hard redirect + on garde l'historique propre
       window.location.replace(target);
     })();
-  }, [supabaseReady]);
+  }, [appLanguage, supabaseReady]);
 
   useEffect(() => {
     setMounted(true);
@@ -474,9 +504,9 @@ export default function LoginPage() {
     if (!email) {
       setError(
         makeLoginError(
-          "Adresse email requise",
-          "Veuillez d’abord saisir votre adresse email.",
-          { hint: "Nous en avons besoin pour vous envoyer un nouveau lien." },
+          t("errors.emailRequiredTitle"),
+          t("errors.emailRequiredMessage"),
+          { hint: t("errors.emailRequiredHint") },
         ),
       );
       return;
@@ -489,10 +519,10 @@ export default function LoginPage() {
       if (!supabase) {
         setError(
           makeLoginError(
-            "Service indisponible",
-            "Le service d’authentification est momentanément indisponible.",
+            t("errors.authUnavailableTitle"),
+            t("errors.authUnavailableMessage"),
             {
-              hint: "Rechargez la page ou lancez un diagnostic si le problème persiste.",
+              hint: t("errors.authUnavailableHint"),
               diagnosticReason: "technical",
             },
           ),
@@ -503,28 +533,28 @@ export default function LoginPage() {
       const appOrigin = (
         process.env.NEXT_PUBLIC_APP_URL || window.location.origin
       ).replace(/\/$/, "");
+      const resetUrl = new URL("/auth/finish-reset", `${appOrigin}/`);
+      resetUrl.searchParams.set("lang", appLanguage);
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${appOrigin}/auth/finish-reset`,
+        redirectTo: resetUrl.toString(),
       });
 
       if (error) {
         setError(
           friendlyLoginError(
             error,
-            "Cette action n’a pas pu aboutir. Merci de réessayer.",
+            t("errors.actionFailed"),
           ),
         );
         return;
       }
 
-      setInfo(
-        "Email envoyé. Veuillez vérifier votre boîte mail, y compris vos courriers indésirables.",
-      );
+      setInfo(t("errors.resetSent"));
     } catch (err: unknown) {
       setError(
         friendlyLoginError(
           err,
-          "L’email n’a pas pu être envoyé pour le moment.",
+          t("errors.resetFailed"),
         ),
       );
     } finally {
@@ -543,10 +573,10 @@ export default function LoginPage() {
       if (!supabase) {
         setError(
           makeLoginError(
-            "Service indisponible",
-            "Le service d’authentification est momentanément indisponible.",
+            t("errors.authUnavailableTitle"),
+            t("errors.authUnavailableMessage"),
             {
-              hint: "Rechargez la page ou lancez un diagnostic si le problème persiste.",
+              hint: t("errors.authUnavailableHint"),
               diagnosticReason: "technical",
             },
           ),
@@ -563,7 +593,7 @@ export default function LoginPage() {
         setError(
           friendlyLoginError(
             error,
-            "Cette action n’a pas pu aboutir. Merci de réessayer.",
+            t("errors.actionFailed"),
           ),
         );
         return;
@@ -581,10 +611,10 @@ export default function LoginPage() {
       if (!session) {
         setError(
           makeLoginError(
-            "Session non finalisée",
-            "La connexion a abouti, mais la session n’a pas pu être finalisée.",
+            t("errors.sessionIncompleteTitle"),
+            t("errors.sessionIncompleteMessage"),
             {
-              hint: "Le navigateur peut bloquer les cookies ou le stockage de session.",
+              hint: t("errors.sessionIncompleteHint"),
               diagnosticReason: "storage",
             },
           ),
@@ -603,10 +633,10 @@ export default function LoginPage() {
       if (!serverSessionReady) {
         setError(
           makeLoginError(
-            "Session non synchronisée",
-            "La connexion a réussi, mais le serveur ne reconnaît pas encore votre session.",
+            t("errors.sessionUnsyncedTitle"),
+            t("errors.sessionUnsyncedAfterLoginMessage"),
             {
-              hint: "Rechargez la page puis reconnectez-vous. Si le problème persiste, lancez le diagnostic.",
+              hint: t("errors.sessionUnsyncedHint"),
               diagnosticReason: "storage",
             },
           ),
@@ -619,7 +649,7 @@ export default function LoginPage() {
       window.location.replace("/dashboard");
     } catch (err: unknown) {
       setError(
-        friendlyLoginError(err, "La connexion a échoué. Veuillez réessayer."),
+        friendlyLoginError(err, t("errors.defaultLogin")),
       );
     } finally {
       setLoading(false);
@@ -628,16 +658,17 @@ export default function LoginPage() {
 
   return (
     <main className="relative min-h-screen inrcy-soft-noise overflow-hidden">
+      <AuthLanguageSelector />
       <div className="inrcy-noise-overlay" />
 
       {checkingSession || redirectingToDashboard ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-white/30 backdrop-blur-sm">
           <div className="rounded-2xl border border-white/70 bg-white/80 px-5 py-4 text-center shadow-xl">
             <div className="text-sm font-black text-slate-800">
-              Connexion en cours…
+              {t("sessionConnecting")}
             </div>
             <div className="mt-1 text-xs font-semibold text-slate-500">
-              Vérification de votre session.
+              {t("sessionChecking")}
             </div>
           </div>
         </div>
@@ -797,10 +828,10 @@ export default function LoginPage() {
             </div>
 
             <div className="text-sm font-semibold tracking-wide text-slate-700">
-              Espace Client
+              {t("clientArea")}
             </div>
             <div className="text-xs text-slate-500 text-center">
-              Accèdez à votre générateur et ses ressources.
+              {t("subtitle")}
             </div>
           </div>
 
@@ -815,7 +846,7 @@ export default function LoginPage() {
                 suppressHydrationWarning
                 className="inrcy-input"
                 type="email"
-                placeholder="Email"
+                placeholder={t("emailPlaceholder")}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 autoComplete="email"
@@ -831,7 +862,7 @@ export default function LoginPage() {
                 suppressHydrationWarning
                 className="inrcy-input"
                 type={showPassword ? "text" : "password"}
-                placeholder="Mot de passe"
+                placeholder={t("passwordPlaceholder")}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="current-password"
@@ -844,8 +875,8 @@ export default function LoginPage() {
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
                 aria-label={
                   showPassword
-                    ? "Masquer le mot de passe"
-                    : "Afficher le mot de passe"
+                    ? t("hidePassword")
+                    : t("showPassword")
                 }
               >
                 {showPassword ? "🙈" : "👁️"}
@@ -858,7 +889,7 @@ export default function LoginPage() {
                 role="alert"
                 data-testid="login-error"
               >
-                <div className={styles.loginErrorBadge}>Erreur</div>
+                <div className={styles.loginErrorBadge}>{t("errorBadge")}</div>
                 <div>
                   <div className={styles.loginErrorTitle}>{error.title}</div>
                   <div className={styles.loginErrorText}>{error.message}</div>
@@ -887,12 +918,12 @@ export default function LoginPage() {
               }
             >
               {loading
-                ? "Connexion..."
+                ? t("submitting")
                 : checkingSession || redirectingToDashboard
-                  ? "Vérification..."
+                  ? t("checking")
                   : !supabaseReady
-                    ? "Initialisation..."
-                    : "Se connecter"}
+                    ? t("initialising")
+                    : t("submit")}
             </button>
 
             {/* ✅ aide connexion */}
@@ -914,20 +945,20 @@ export default function LoginPage() {
                   !supabaseReady
                 }
               >
-                Mot de passe oublié ?
+                {t("forgotPassword")}
               </button>
 
               {error?.diagnosticReason ? (
                 <a className={styles.diagnosticButton} href={diagnosticHref}>
                   <span className={styles.diagnosticButtonIcon}>✦</span>
-                  Diagnostiquer l’erreur
+                  {t("diagnoseError")}
                 </a>
               ) : null}
             </div>
           </form>
 
           <div className="pt-4 text-center text-xs text-slate-500">
-            Besoin d’aide ?{" "}
+            {t("needHelp")} {" "}
             <a className="underline" href="mailto:contact@inrcy.com">
               contact@inrcy.com
             </a>

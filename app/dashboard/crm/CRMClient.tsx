@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import styles from "./crm.module.css";
@@ -44,6 +47,7 @@ function readInitialCrmSnapshot(): CrmDefaultSnapshot | null {
 }
 
 export default function CRMClient() {
+  const i18nT = useTranslations("crm");
   const [helpOpen, setHelpOpen] = useState(false);
   const router = useRouter();
   const [initialSnapshot] = useState<CrmDefaultSnapshot | null>(() => readInitialCrmSnapshot());
@@ -719,8 +723,8 @@ export default function CRMClient() {
     const n = selectedContactIds.size;
     const ok = await confirmInrcy({
       title: n > 1 ? "Supprimer les contacts ?" : "Supprimer le contact ?",
-      message: `Cette action supprimera définitivement ${n} contact${n > 1 ? "s" : ""}.`,
-      confirmLabel: "Supprimer",
+      message: i18nT("cette_action_supprimera_definitivement_value_con_9ecfd7cf", { value0: n, value1: n > 1 ? "s" : "" }),
+      confirmLabel: i18nT("supprimer_1acfc1c7"),
       variant: "danger",
     });
     if (!ok) return;
@@ -755,9 +759,9 @@ export default function CRMClient() {
 
   async function remove(id: string) {
     const ok = await confirmInrcy({
-      title: "Supprimer le contact ?",
-      message: "Cette action supprimera définitivement ce contact.",
-      confirmLabel: "Supprimer",
+      title: i18nT("supprimer_le_contact_81399390"),
+      message: i18nT("cette_action_supprimera_definitivement_ce_contac_cac6d970"),
+      confirmLabel: i18nT("supprimer_1acfc1c7"),
       variant: "danger",
     });
     if (!ok) return;
@@ -782,7 +786,7 @@ export default function CRMClient() {
         return next;
       });
       if (editingId === id) startNew();
-      setSuccess("Contact supprimé.");
+      setSuccess(i18nT("contact_supprime_fd4c9d21"));
     } catch (e: any) {
       setError(getSimpleFrenchErrorMessage(e, "Impossible de supprimer ce contact."));
     } finally {
@@ -792,12 +796,12 @@ export default function CRMClient() {
 
   const statsValue = (value: number) => (loading && contacts.length === 0 ? "…" : value);
   const statsItems = [
-    { label: "Contacts", value: statsValue(kpis.total) },
-    { label: "Prospects", value: statsValue(kpis.prospects) },
-    { label: "Clients", value: statsValue(kpis.clients) },
-    { label: "Partenaires", value: statsValue(kpis.partenaires) },
-    { label: "Fournisseurs", value: statsValue(kpis.fournisseurs) },
-    { label: "Autres", value: statsValue(kpis.autres) },
+    { label: i18nT("contacts_b0dd615c"), value: statsValue(kpis.total) },
+    { label: i18nT("prospects_8f522b12"), value: statsValue(kpis.prospects) },
+    { label: i18nT("clients_28e22fe3"), value: statsValue(kpis.clients) },
+    { label: i18nT("partenaires_e56efd6d"), value: statsValue(kpis.partenaires) },
+    { label: i18nT("fournisseurs_06b6d88c"), value: statsValue(kpis.fournisseurs) },
+    { label: i18nT("autres_2f0dd042"), value: statsValue(kpis.autres) },
   ];
 
   const openAddModal = () => setAddOpen(true);
@@ -846,12 +850,12 @@ export default function CRMClient() {
         onCloseDashboard={() => router.push("/dashboard")}
       />
 
-      <HelpModal open={helpOpen} title="iNr’CRM" onClose={() => setHelpOpen(false)}>
-        <p style={{ marginTop: 0 }}>iNr’CRM centralise tous vos contacts et prospects.</p>
+      <HelpModal open={helpOpen} title={i18nT("inr_crm_010c9ef1")} onClose={() => setHelpOpen(false)}>
+        <p style={{ marginTop: 0 }}>{i18nT("inr_crm_centralise_tous_vos_contacts_3afc3d01")}</p>
         <ul style={{ margin: 0, paddingLeft: 18 }}>
-          <li>Ajoutez et enregistrez vos contacts (prospects / clients / partenaires…).</li>
-          <li>Classez et retrouvez rapidement vos informations (notes, catégorie, important).</li>
-          <li>Suivez vos opportunités et organisez vos actions de communication.</li>
+          <li>{i18nT("ajoutez_et_enregistrez_vos_contacts_prospects_0668b259")}</li>
+          <li>{i18nT("classez_et_retrouvez_rapidement_vos_informations_f86675a7")}</li>
+          <li>{i18nT("suivez_vos_opportunites_et_organisez_vos_3def31a2")}</li>
         </ul>
       </HelpModal>
 
@@ -938,7 +942,7 @@ export default function CRMClient() {
           setImportantOnly={setImportantOnly}
         />
 
-        {loading && !(isResponsive && page > 1) ? <div className={styles.muted}>Chargement...</div> : null}
+        {loading && !(isResponsive && page > 1) ? <div className={styles.muted}>{i18nT("chargement_a209b664")}</div> : null}
 
         <div className={styles.tableWrap} ref={tableWrapRef}>
           <CRMContactsView

@@ -1,5 +1,8 @@
 "use client";
 
+import { useLocale, useTranslations } from "next-intl";
+
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
@@ -41,34 +44,36 @@ function normalizeStatus(value: unknown): string {
   return String(value ?? "").trim().toLowerCase();
 }
 
-function formatDate(value?: string | null): string | null {
+function formatDate(value: string | null | undefined, locale: string): string | null {
   if (!value) return null;
   const date = new Date(value.length === 10 ? `${value}T12:00:00` : value);
   if (!Number.isFinite(date.getTime())) return null;
-  return date.toLocaleDateString("fr-FR", {
+  return date.toLocaleDateString(locale, {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
   });
 }
 
-function statusPresentation(subscription: SubscriptionData | null) {
+function statusPresentation(subscription: SubscriptionData | null, i18nT: (key: string) => string) {
   const status = normalizeStatus(subscription?.status);
-  if (status === "trialing") return { label: "Essai 21 jours", color: "#8feaff" };
-  if (status === "active") return { label: "Actif", color: "#8ff7d0" };
-  if (status === "past_due" || status === "unpaid") return { label: "À régulariser", color: "#ffd38f" };
-  if (status === "canceled" || status === "cancelled") return { label: "Résilié", color: "#ff9bbd" };
-  if (status === "trial_expired") return { label: "Essai terminé", color: "#ffbd8f" };
-  if (status === "paused") return { label: "Suspendu", color: "#ffbd8f" };
-  return { label: "À vérifier", color: "#c8d3ef" };
+  if (status === "trialing") return { label: i18nT("essai_21_jours_3095df3f"), color: "#8feaff" };
+  if (status === "active") return { label: i18nT("actif_2eb75f84"), color: "#8ff7d0" };
+  if (status === "past_due" || status === "unpaid") return { label: i18nT("a_regulariser_7046f900"), color: "#ffd38f" };
+  if (status === "canceled" || status === "cancelled") return { label: i18nT("resilie_1ca48fe3"), color: "#ff9bbd" };
+  if (status === "trial_expired") return { label: i18nT("essai_termine_be984f1c"), color: "#ffbd8f" };
+  if (status === "paused") return { label: i18nT("suspendu_e9a8be4e"), color: "#ffbd8f" };
+  return { label: i18nT("a_verifier_8f5f7255"), color: "#c8d3ef" };
 }
 
-async function responseError(response: Response): Promise<string> {
+async function responseError(response: Response, fallback: string): Promise<string> {
   const body = (await response.json().catch(() => null)) as { error?: string } | null;
-  return body?.error || "L’opération n’a pas pu être réalisée.";
+  return body?.error || fallback;
 }
 
 export default function StandardSubscriptionContent({ onOpenContact }: Props) {
+  const i18nT = useTranslations("settings");
+  const locale = useLocale();
   const searchParams = useSearchParams();
   const checkoutState = searchParams.get("checkout");
   const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
@@ -97,7 +102,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
     setLoading(true);
     loadSubscription()
       .catch(() => {
-        if (active) setError("Impossible de charger votre abonnement.");
+        if (active) setError(i18nT("impossible_de_charger_votre_abonnement_01091210"));
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -109,7 +114,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
 
   useEffect(() => {
     if (checkoutState !== "success") return;
-    setMessage("Paiement enregistré. La synchronisation de votre abonnement est en cours.");
+    setMessage(i18nT("paiement_enregistre_la_synchronisation_de_votre_d53f480e"));
     let attempts = 0;
     const timer = window.setInterval(() => {
       attempts += 1;
@@ -135,13 +140,13 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
       cancellationScheduled,
       canStartCheckout,
       needsBillingRecovery,
-      trialEndLabel: formatDate(subscription?.trial_end_at),
-      renewalLabel: formatDate(subscription?.next_renewal_date),
-      endLabel: formatDate(subscription?.end_date),
+      trialEndLabel: formatDate(subscription?.trial_end_at, locale),
+      renewalLabel: formatDate(subscription?.next_renewal_date, locale),
+      endLabel: formatDate(subscription?.end_date, locale),
       billingCycle: subscription?.billing_cycle,
-      presentation: statusPresentation(subscription),
+      presentation: statusPresentation(subscription, i18nT),
     };
-  }, [subscription]);
+  }, [subscription, locale, i18nT]);
 
   async function openPortal() {
     setError("");
@@ -149,7 +154,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
     setBusyAction("portal");
     try {
       const response = await fetch("/api/billing/portal", { method: "POST" });
-      if (!response.ok) throw new Error(await responseError(response));
+      if (!response.ok) throw new Error(await responseError(response, i18nT("l_operation_n_a_pas_pu_2eda8de6")));
       const body = (await response.json()) as { url?: string };
       if (!body.url) throw new Error("Le portail de facturation n’a pas pu être ouvert.");
       window.location.assign(body.url);
@@ -170,7 +175,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ plan: "Standard", billingCycle }),
       });
-      if (!response.ok) throw new Error(await responseError(response));
+      if (!response.ok) throw new Error(await responseError(response, i18nT("l_operation_n_a_pas_pu_2eda8de6")));
       const body = (await response.json()) as { url?: string };
       if (!body.url) throw new Error("La page de paiement n’a pas pu être ouverte.");
       window.location.assign(body.url);
@@ -187,7 +192,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
     setBusyAction(action);
     try {
       const response = await fetch(`/api/billing/${action}`, { method: "POST" });
-      if (!response.ok) throw new Error(await responseError(response));
+      if (!response.ok) throw new Error(await responseError(response, i18nT("l_operation_n_a_pas_pu_2eda8de6")));
       const body = (await response.json().catch(() => ({}))) as {
         cancellation_policy?: string;
       };
@@ -225,7 +230,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
     boxShadow: "none",
   };
 
-  if (loading) return <div style={{ opacity: 0.78 }}>Chargement de votre forfait…</div>;
+  if (loading) return <div style={{ opacity: 0.78 }}>{i18nT("chargement_de_votre_forfait_0440bffc")}</div>;
 
   return (
     <div style={{ display: "grid", gap: 14 }}>
@@ -238,9 +243,8 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
           <div>
             <div style={{ fontSize: 12, fontWeight: 900, opacity: 0.72, textTransform: "uppercase", letterSpacing: ".08em" }}>
-              Votre forfait
-            </div>
-            <h2 style={{ margin: "5px 0 0", fontSize: 24 }}>iNrCy Standard</h2>
+              {i18nT("votre_forfait_6d06f631")}{" "}</div>
+            <h2 style={{ margin: "5px 0 0", fontSize: 24 }}>{i18nT("inrcy_standard_1dd18060")}</h2>
           </div>
           <span style={{
             display: "inline-flex",
@@ -260,28 +264,26 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
         </div>
 
         <p style={{ margin: "14px 0 0", opacity: 0.78, lineHeight: 1.55 }}>
-          Booster sur 10 canaux, iNr&apos;Agent Publications + Statistiques,
-          iNr&apos;Badge inclus, iNr&apos;Stats, historique iNr&apos;Send et Réputation.
-        </p>
+          {i18nT("booster_sur_10_canaux_inr_apos_38a43414")}{" "}</p>
 
         <div style={{ marginTop: 14, display: "grid", gap: 8, fontSize: 13 }}>
           {view.status === "trialing" && view.trialEndLabel ? (
-            <div>Fin de votre essai : <strong>{view.trialEndLabel}</strong></div>
+            <div>{i18nT("fin_de_votre_essai_f1bae9e9")}{" "}<strong>{view.trialEndLabel}</strong></div>
           ) : null}
           {view.status === "active" && view.renewalLabel ? (
-            <div>Prochaine échéance : <strong>{view.renewalLabel}</strong></div>
+            <div>{i18nT("prochaine_echeance_97d55f4d")}{" "}<strong>{view.renewalLabel}</strong></div>
           ) : null}
           {view.cancellationScheduled && view.endLabel ? (
-            <div style={{ color: "#ffd38f" }}>Accès maintenu jusqu’au <strong>{view.endLabel}</strong>.</div>
+            <div style={{ color: "#ffd38f" }}>{i18nT("acces_maintenu_jusqu_au_4270c8d3")}{" "}<strong>{view.endLabel}</strong>.</div>
           ) : null}
           {view.cancellationScheduled && view.billingCycle === "monthly" && view.renewalLabel ? (
-            <div style={{ color: "#ffd38f" }}>Dernière mensualité prévue le <strong>{view.renewalLabel}</strong>.</div>
+            <div style={{ color: "#ffd38f" }}>{i18nT("derniere_mensualite_prevue_le_f3d69894")}{" "}<strong>{view.renewalLabel}</strong>.</div>
           ) : null}
         </div>
 
         {view.canStartCheckout ? (
           <div style={{ marginTop: 18, display: "grid", gap: 12 }}>
-            <div style={{ fontWeight: 900 }}>Choisissez votre rythme de facturation</div>
+            <div style={{ fontWeight: 900 }}>{i18nT("choisissez_votre_rythme_de_facturation_aca0763d")}</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 10 }}>
               <button
                 type="button"
@@ -293,8 +295,8 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
                   background: billingCycle === "monthly" ? "rgba(24,145,220,.18)" : "rgba(255,255,255,.04)",
                 }}
               >
-                <strong>Mensuel · 69 € TTC</strong><br />
-                <span style={{ fontSize: 12, opacity: 0.72 }}>par mois</span>
+                <strong>{i18nT("mensuel_69_ttc_6c947c24")}</strong><br />
+                <span style={{ fontSize: 12, opacity: 0.72 }}>{i18nT("par_mois_5f10ecc3")}</span>
               </button>
               <button
                 type="button"
@@ -306,52 +308,50 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
                   background: billingCycle === "yearly" ? "rgba(150,72,220,.17)" : "rgba(255,255,255,.04)",
                 }}
               >
-                <strong>Annuel · 730 € TTC</strong><br />
+                <strong>{i18nT("annuel_730_ttc_19db2ae7")}</strong><br />
                 <span style={{ fontSize: 12, color: "#f3b0ff" }}>−{STANDARD_SUBSCRIPTION_OFFER.annualSavingPercent} %</span>
               </button>
             </div>
             <button type="button" onClick={startCheckout} style={primaryButton} disabled={busyAction !== null}>
               {busyAction === "checkout"
-                ? "Ouverture du paiement…"
+                ? i18nT("ouverture_du_paiement_147e6d80")
                 : billingCycle === "yearly"
-                  ? "S’abonner · 730 € TTC / an"
-                  : "S’abonner · 69 € TTC / mois"}
+                  ? i18nT("s_abonner_730_ttc_an_32c8d758")
+                  : i18nT("s_abonner_69_ttc_mois_095d3d9f")}
             </button>
             <div style={{ fontSize: 11, opacity: 0.62, textAlign: "center" }}>
-              Pendant l’essai, aucun débit avant sa date de fin. Après l’essai, l’abonnement démarre immédiatement.
-            </div>
+              {i18nT("pendant_l_essai_aucun_debit_avant_c17dea44")}{" "}</div>
           </div>
         ) : null}
 
         {view.needsBillingRecovery ? (
           <button type="button" onClick={openPortal} style={{ ...primaryButton, width: "100%", marginTop: 16 }} disabled={busyAction !== null}>
-            {busyAction === "portal" ? "Ouverture…" : "Régulariser mon paiement"}
+            {busyAction === "portal" ? i18nT("ouverture_3333ad14") : i18nT("regulariser_mon_paiement_00ae072e")}
           </button>
         ) : null}
 
         {view.hasStripeSubscription && !view.needsBillingRecovery ? (
           <div style={{ marginTop: 16, display: "grid", gap: 9 }}>
             <button type="button" onClick={openPortal} style={secondaryButton} disabled={busyAction !== null}>
-              {busyAction === "portal" ? "Ouverture…" : "Gérer ma facturation"}
+              {busyAction === "portal" ? i18nT("ouverture_3333ad14") : i18nT("gerer_ma_facturation_dc5027ac")}
             </button>
             {view.cancellationScheduled ? (
               <button type="button" onClick={() => updateCancellation("uncancel")} style={primaryButton} disabled={busyAction !== null}>
-                {busyAction === "uncancel" ? "Traitement…" : "Annuler ma résiliation"}
+                {busyAction === "uncancel" ? i18nT("traitement_2f66d9bc") : i18nT("annuler_ma_resiliation_902e43a0")}
               </button>
             ) : (
               <button type="button" onClick={() => updateCancellation("cancel")} style={secondaryButton} disabled={busyAction !== null}>
-                {busyAction === "cancel" ? "Traitement…" : "Programmer ma résiliation"}
+                {busyAction === "cancel" ? i18nT("traitement_2f66d9bc") : i18nT("programmer_ma_resiliation_d074ca2d")}
               </button>
             )}
             {!view.cancellationScheduled ? (
               <div style={{ fontSize: 11, opacity: 0.65, lineHeight: 1.45 }}>
-                Essai : arrêt sans prélèvement. Mensuel actif : la prochaine mensualité sera la dernière et couvrira le mois de préavis. Annuel : arrêt à l'échéance sans renouvellement supplémentaire.
-              </div>
+                {i18nT("essai_arret_sans_prelevement_mensuel_actif_32634c83")}{" "}</div>
             ) : null}
           </div>
         ) : null}
 
-        {checkoutState === "cancel" ? <p style={{ color: "#ffd38f" }}>Paiement annulé : aucun changement n’a été appliqué.</p> : null}
+        {checkoutState === "cancel" ? <p style={{ color: "#ffd38f" }}>{i18nT("paiement_annule_aucun_changement_n_a_c603ca12")}</p> : null}
         {message ? <p style={{ color: "#8ff7d0", marginBottom: 0 }}>{message}</p> : null}
         {error ? <p style={{ color: "#ff9bbd", marginBottom: 0 }}>{error}</p> : null}
       </section>
@@ -363,12 +363,10 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
         background: "linear-gradient(145deg, rgba(124, 55, 220, 0.13), rgba(255, 75, 172, 0.08))",
       }}>
         <div style={{ fontSize: 12, fontWeight: 900, opacity: 0.68, textTransform: "uppercase", letterSpacing: ".08em" }}>
-          Autre forfait
-        </div>
-        <h2 style={{ margin: "5px 0 4px", fontSize: 24 }}>iNrCy Premium</h2>
+          {i18nT("autre_forfait_b5347942")}{" "}</div>
+        <h2 style={{ margin: "5px 0 4px", fontSize: 24 }}>{i18nT("inrcy_premium_4c7d39c1")}</h2>
         <p style={{ margin: "0 0 14px", opacity: 0.75, lineHeight: 1.5 }}>
-          Passez du pilotage de votre visibilité au pilotage complet de votre activité.
-        </p>
+          {i18nT("passez_du_pilotage_de_votre_visibilite_37fbfe56")}{" "}</p>
         <div style={{ display: "grid", gap: 8, marginBottom: 16 }}>
           {premiumFeatures.map((feature) => (
             <div key={feature} style={{ display: "flex", gap: 9, alignItems: "center", fontSize: 13, opacity: 0.86 }}>
@@ -378,15 +376,13 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
           ))}
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12, fontSize: 12 }}>
-          <span style={{ padding: "6px 10px", borderRadius: 999, background: "rgba(255,255,255,.06)" }}>129 € TTC / mois</span>
-          <span style={{ padding: "6px 10px", borderRadius: 999, background: "rgba(255,255,255,.06)" }}>1 390 € TTC / an · −10 %</span>
+          <span style={{ padding: "6px 10px", borderRadius: 999, background: "rgba(255,255,255,.06)" }}>{i18nT("129_ttc_mois_8db9d0a4")}</span>
+          <span style={{ padding: "6px 10px", borderRadius: 999, background: "rgba(255,255,255,.06)" }}>{i18nT("1_390_ttc_an_10_d7b3747d")}</span>
         </div>
         <button type="button" onClick={onOpenContact} style={{ ...primaryButton, width: "100%" }}>
-          Nous contacter pour Premium
-        </button>
+          {i18nT("nous_contacter_pour_premium_149750a6")}{" "}</button>
         <p style={{ margin: "10px 0 0", textAlign: "center", fontSize: 11, opacity: 0.58 }}>
-          Le passage à Premium nécessite une présentation avec l’équipe iNrCy.
-        </p>
+          {i18nT("le_passage_a_premium_necessite_une_2e3ad843")}{" "}</p>
       </section>
     </div>
   );

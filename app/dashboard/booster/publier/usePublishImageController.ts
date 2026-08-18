@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import {
   useEffect,
   useMemo,
@@ -59,24 +60,27 @@ import {
 } from "./publishModal.shared";
 import { setImageKeysForChannel } from "./imageChannelAssignment";
 
-function buildServerPreviewPlaceholder(file: Pick<File, "name">) {
+function buildServerPreviewPlaceholder(file: Pick<File, "name">, placeholderLabel: string) {
   const safeName = String(file.name || "Image")
     .replace(/[<>&"']/g, "")
     .slice(0, 54);
+  const safePlaceholderLabel = String(placeholderLabel || "")
+    .replace(/[<>&"']/g, "")
+    .slice(0, 80);
   const svg = [
     '<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1080" viewBox="0 0 1080 1080">',
     '<rect width="1080" height="1080" fill="#f2f4f7"/>',
     '<rect x="220" y="260" width="640" height="430" rx="34" fill="#fff" stroke="#d0d5dd" stroke-width="14"/>',
     '<circle cx="380" cy="410" r="62" fill="#d0d5dd"/>',
     '<path d="M260 640l190-190 120 120 90-90 160 160H260z" fill="#98a2b3"/>',
-    '<text x="540" y="790" text-anchor="middle" font-family="Arial,sans-serif" font-size="40" fill="#344054">Aperçu préparé sur le serveur</text>',
+    `<text x="540" y="790" text-anchor="middle" font-family="Arial,sans-serif" font-size="40" fill="#344054">${safePlaceholderLabel}</text>`,
     `<text x="540" y="850" text-anchor="middle" font-family="Arial,sans-serif" font-size="28" fill="#667085">${safeName}</text>`,
     "</svg>",
   ].join("");
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
-async function buildLocalImagePresentation(file: File) {
+async function buildLocalImagePresentation(file: File, placeholderLabel: string) {
   try {
     return {
       meta: await readImageMeta(file),
@@ -87,7 +91,7 @@ async function buildLocalImagePresentation(file: File) {
     // pipeline mais ne sont pas décodables par tous les navigateurs.
     return {
       meta: { width: 1080, height: 1080, ratio: 1 } satisfies ImageMeta,
-      preview: buildServerPreviewPlaceholder(file),
+      preview: buildServerPreviewPlaceholder(file, placeholderLabel),
     };
   }
 }
@@ -170,6 +174,7 @@ export default function usePublishImageController({
   restorePublishScroll,
   syncPersistentWorkspaceImages,
 }: UsePublishImageControllerParams) {
+  const i18nT = useTranslations("booster");
   const imagePickerTargetChannelRef = useRef<ChannelKey | null>(null);
   const dragStateRef = useRef<{
     pointerId: number;
@@ -392,6 +397,7 @@ export default function usePublishImageController({
   })();
   const previewAspectRatio = `${activeEditorPreviewDimensions.width} / ${activeEditorPreviewDimensions.height}`;
   const activeEditorDecisionLabel = activeEditorDisplayPlan.decision.label;
+  const activeEditorDecisionMode = activeEditorDisplayPlan.decision.mode;
   const previewLayout = computePreviewLayout({
     containerWidth: previewStageSize.width,
     containerHeight: previewStageSize.height,
@@ -433,7 +439,7 @@ export default function usePublishImageController({
 
     const incoming = pickedFiles.filter(isBoosterImageFile);
     if (!incoming.length) {
-      setImgError("Ajoutez des fichiers image valides.");
+      setImgError(i18nT("image_files_invalid"));
       return false;
     }
 
@@ -453,8 +459,8 @@ export default function usePublishImageController({
     if (!allowed.length) {
       setImgError(
         images.length >= BOOSTER_MAX_IMAGE_COUNT
-          ? `Maximum ${BOOSTER_MAX_IMAGE_COUNT} images.`
-          : "Ces images sont déjà ajoutées.",
+          ? i18nT("image_maximum_count", { count: BOOSTER_MAX_IMAGE_COUNT })
+          : i18nT("images_already_added"),
       );
       return false;
     }
@@ -462,8 +468,8 @@ export default function usePublishImageController({
     if (incoming.length > allowed.length) {
       setImgError(
         images.length + allowed.length >= BOOSTER_MAX_IMAGE_COUNT
-          ? `Maximum ${BOOSTER_MAX_IMAGE_COUNT} images.`
-          : "Certaines images étaient déjà présentes.",
+          ? i18nT("image_maximum_count", { count: BOOSTER_MAX_IMAGE_COUNT })
+          : i18nT("some_images_already_added"),
       );
     }
 
@@ -479,7 +485,7 @@ export default function usePublishImageController({
       const handled = onOversizedMedia?.(first, targetChannel, rest) === true;
       if (!handled) {
         setImgError(
-          `L'image ${first.name} dépasse ${BOOSTER_MAX_IMAGE_MB_LABEL}.`,
+          i18nT("image_file_too_large", { name: first.name, limit: BOOSTER_MAX_IMAGE_MB_LABEL }),
         );
       }
     };
@@ -495,7 +501,7 @@ export default function usePublishImageController({
     );
     if (totalImageBytes > BOOSTER_MAX_MEDIA_BYTES) {
       setImgError(
-        `Vos images dépassent ${BOOSTER_MAX_MEDIA_MB_LABEL} au total. Réduisez le nombre ou le poids des photos.`,
+        i18nT("images_total_too_large", { limit: BOOSTER_MAX_MEDIA_MB_LABEL }),
       );
       return false;
     }
@@ -505,7 +511,7 @@ export default function usePublishImageController({
       BOOSTER_MAX_IMAGE_COUNT,
     );
     const presentations = await Promise.all(
-      insertableFiles.map((file) => buildLocalImagePresentation(file)),
+      insertableFiles.map((file) => buildLocalImagePresentation(file, i18nT("image_preview_prepared_server"))),
     );
     const nextMetaEntries = insertableFiles.map(
       (file, index) =>
@@ -817,7 +823,7 @@ export default function usePublishImageController({
         const lastModified = Number(image?.lastModified || Date.now());
         const file = new File([blob], name, { type, lastModified });
         const key = makeImageKey(file);
-        const presentation = await buildLocalImagePresentation(file);
+        const presentation = await buildLocalImagePresentation(file, i18nT("image_preview_prepared_server"));
         restoredFiles.push(file);
         restoredPreviews.push(presentation.preview);
         restoredMeta[key] = presentation.meta;
@@ -1059,12 +1065,12 @@ export default function usePublishImageController({
 
   const resetChannelImage = async (channel: ChannelKey, imageKey: string) => {
     const ok = await confirmInrcy({
-      eyebrow: "Retouche image",
-      title: "Réinitialiser le cadrage ?",
+      eyebrow: i18nT("retouche_image_d03a26d6"),
+      title: i18nT("reinitialiser_le_cadrage_a883e639"),
       message:
-        "Le cadrage actuel de cette image sera remplacé par le cadrage automatique.",
-      cancelLabel: "Annuler",
-      confirmLabel: "Réinitialiser",
+        i18nT("le_cadrage_actuel_de_cette_image_75498a81"),
+      cancelLabel: i18nT("annuler_49ba3292"),
+      confirmLabel: i18nT("reinitialiser_e0e2ad54"),
       variant: "warning",
     });
     if (!ok) return;
@@ -1080,12 +1086,12 @@ export default function usePublishImageController({
       channelImageEditors[activeImageChannel]?.imageKeys || [];
     if (!imageKeysForChannel.length) return;
     const ok = await confirmInrcy({
-      eyebrow: "Retouche image",
-      title: "Réinitialiser tous les cadrages du canal ?",
+      eyebrow: i18nT("retouche_image_d03a26d6"),
+      title: i18nT("reinitialiser_tous_les_cadrages_du_canal_25eb7049"),
       message:
-        "Tous les cadrages de ce canal seront remplacés par le cadrage automatique.",
-      cancelLabel: "Annuler",
-      confirmLabel: "Réinitialiser",
+        i18nT("tous_les_cadrages_de_ce_canal_981bd781"),
+      cancelLabel: i18nT("annuler_49ba3292"),
+      confirmLabel: i18nT("reinitialiser_e0e2ad54"),
       variant: "warning",
     });
     if (!ok) return;
@@ -1535,6 +1541,7 @@ export default function usePublishImageController({
     activeEditorImageKey,
     activeEditorTransform,
     activeEditorDecisionLabel,
+    activeEditorDecisionMode,
     activeEditorMeta,
     activeEffectiveZoom,
     activeBackgroundMode,

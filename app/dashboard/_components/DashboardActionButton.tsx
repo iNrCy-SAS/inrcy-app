@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
@@ -28,6 +31,7 @@ function internalHrefIsActive(href: string, pathname: string, searchParams: Sear
 }
 
 export default function DashboardActionButton({ action, className }: DashboardActionButtonProps) {
+  const i18nT = useTranslations("shell");
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const {
@@ -77,7 +81,7 @@ export default function DashboardActionButton({ action, className }: DashboardAc
           requestDashboardToolWarmup(internalHref);
         }}
       >
-        {loadingVisible ? "Chargement…" : action.label}
+        {loadingVisible ? i18nT("chargement_01cba1df") : action.label}
       </Link>
     );
   }

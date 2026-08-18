@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import Image from "next/image";
 import inrCalendarLogo from "@/public/inrcalendar-logo.png";
 import { useMemo, useState, type FormEvent } from "react";
@@ -50,6 +53,7 @@ function overlaps(start: Date, end: Date, event: BusyEvent) {
 }
 
 export default function RdvBookingClient({ slug, settings, events, language }: Props) {
+  const i18nT = useTranslations("public");
   const badgeLanguage = normalizeInrBadgeLanguage(language);
   const badgeText = getInrBadgeTexts(badgeLanguage);
   const [selectedDay, setSelectedDay] = useState("");
@@ -172,7 +176,7 @@ export default function RdvBookingClient({ slug, settings, events, language }: P
                 <a className={`${styles.previousPageButton} ${styles.iconActionButton}`} href={`/badge/${slug}`} aria-label={badgeText.rdvBack} title={badgeText.rdvBack}>←</a>
                 <button type="button" className={`${styles.closePageButton} ${styles.iconActionButton}`} onClick={handleClosePage} aria-label={badgeText.close} title={badgeText.close}>×</button>
               </div>
-              <Image className={styles.calendarHeroLogo} src={inrCalendarLogo} alt="iNr'Calendar" width={168} height={64} priority />
+              <Image className={styles.calendarHeroLogo} src={inrCalendarLogo} alt={i18nT("inr_calendar_f5f54ab6")} width={168} height={64} priority />
             </div>
             <p className={styles.calendarInlineInfo}>{badgeText.rdvTitle}</p>
           </div>
@@ -258,7 +262,7 @@ export default function RdvBookingClient({ slug, settings, events, language }: P
           </form>
         </div>
 
-        <div className={styles.footer}>{badgeText.poweredBy} <strong>iNrCy</strong></div>
+        <div className={styles.footer}>{badgeText.poweredBy} <strong>{i18nT("inrcy_ef95fe0e")}</strong></div>
       </section>
     </main>
   );

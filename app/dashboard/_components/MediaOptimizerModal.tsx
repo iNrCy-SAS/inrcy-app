@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import {
@@ -325,6 +328,7 @@ export default function MediaOptimizerModal({
   onOptimized,
   onLibraryChanged,
 }: Props) {
+  const i18nT = useTranslations("media");
   const [workingItem, setWorkingItem] = useState<MediaOptimizerItem | null>(null);
   const [busy, setBusy] = useState(false);
   const [keepOriginal, setKeepOriginal] = useState(true);
@@ -432,7 +436,7 @@ export default function MediaOptimizerModal({
           ? err.message
           : "La copie a bien été créée, mais son insertion automatique a échoué.",
       );
-      setNotice(`Copie optimisée créée. ${retentionMessage}`);
+      setNotice(i18nT("copie_optimisee_creee_value_369694d0", { value0: retentionMessage }));
       return false;
     }
   };
@@ -609,19 +613,16 @@ export default function MediaOptimizerModal({
           </div>
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ fontSize: 11, fontWeight: 900, letterSpacing: ".08em", color: "#84e9ff", textTransform: "uppercase" }}>
-              Outil média iNrCy
-            </div>
+              {i18nT("outil_media_inrcy_0c412e55")}{" "}</div>
             <h2 style={{ margin: "3px 0 0", fontSize: 22 }}>{title}</h2>
             <p style={{ margin: "5px 0 0", color: "#aebcdb", fontSize: 13, lineHeight: 1.45 }}>
-              iNrCy détecte automatiquement ce qui est nécessaire : conversion,
-              compression ou les deux.
-            </p>
+              {i18nT("inrcy_detecte_automatiquement_ce_qui_est_c3dd1c97")}{" "}</p>
           </div>
           <button
             type="button"
             onClick={onClose}
             disabled={busy}
-            aria-label="Fermer"
+            aria-label={i18nT("fermer_5ab4ec64")}
             style={{
               width: 38,
               height: 38,
@@ -655,7 +656,7 @@ export default function MediaOptimizerModal({
               {sourceName}
             </strong>
             <span style={{ display: "block", marginTop: 4, fontSize: 12, color: "#9fb0d2" }}>
-              {mediaType === "video" ? "Vidéo" : "Image"} · {formatBytes(currentSize)}
+              {mediaType === "video" ? i18nT("video_304f6ca4") : i18nT("image_50e19fda")} · {formatBytes(currentSize)}
             </span>
           </div>
           <span
@@ -671,8 +672,8 @@ export default function MediaOptimizerModal({
             }}
           >
             {origin === "email"
-              ? `E-mail : ${formatBytes(limit)} max`
-              : `${mediaType === "video" ? "Vidéo" : "Image"} : ${formatBytes(limit)} max`}
+              ? i18nT("e_mail_value_max_7f932c53", { value0: formatBytes(limit) })
+              : i18nT("value_value_max_208b83f4", { value0: mediaType === "video" ? "Vidéo" : "Image", value1: formatBytes(limit) })}
           </span>
         </div>
 
@@ -689,11 +690,9 @@ export default function MediaOptimizerModal({
               lineHeight: 1.45,
             }}
           >
-            <strong>Fichier source trop volumineux.</strong> Ce média fait{" "}
-            {formatBytes(currentSize)}. iNrCy accepte une source de{" "}
-            {formatBytes(sourceMaxBytes)} maximum et ne peut donc pas importer
-            ni optimiser ce fichier. Choisissez une source plus légère.
-          </div>
+            <strong>{i18nT("fichier_source_trop_volumineux_c85fdcd0")}</strong> {" "}{i18nT("ce_media_fait_35c1c7a2")}{" "}
+            {formatBytes(currentSize)}{i18nT("inrcy_accepte_une_source_de_88b8d8b4")}{" "}
+            {formatBytes(sourceMaxBytes)} {" "}{i18nT("maximum_et_ne_peut_donc_pas_554ed6aa")}{" "}</div>
         ) : null}
 
         <div
@@ -707,35 +706,31 @@ export default function MediaOptimizerModal({
           }}
         >
           <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "baseline" }}>
-            <strong style={{ fontSize: 13 }}>Optimisation détectée</strong>
-            <strong style={{ fontSize: 12, color: "#84e9ff" }}>Réglage automatique</strong>
+            <strong style={{ fontSize: 13 }}>{i18nT("optimisation_detectee_44e8bb9d")}</strong>
+            <strong style={{ fontSize: 12, color: "#84e9ff" }}>{i18nT("reglage_automatique_fb6ce5fa")}</strong>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {requirements?.needsConversion ? (
               <span style={{ borderRadius: 999, padding: "7px 10px", border: "1px solid rgba(96,165,250,.28)", background: "rgba(30,64,175,.16)", color: "#dbeafe", fontSize: 12, fontWeight: 850 }}>
-                ↻ Format adapté · MP4 / H.264 / AAC
-              </span>
+                {i18nT("format_adapte_mp4_h_264_aac_50709d9d")}{" "}</span>
             ) : null}
             {requirements?.needsCompression ? (
               <span style={{ borderRadius: 999, padding: "7px 10px", border: "1px solid rgba(167,139,250,.28)", background: "rgba(91,33,182,.15)", color: "#ede9fe", fontSize: 12, fontWeight: 850 }}>
-                ↓ Poids ramené à {formatBytes(limit)} maximum
-              </span>
+                {i18nT("poids_ramene_a_value_maximum_6f196b66", { value0: formatBytes(limit) })}</span>
             ) : null}
             {requirements && !requirements.needsOptimization ? (
               <span style={{ borderRadius: 999, padding: "7px 10px", border: "1px solid rgba(74,222,128,.26)", background: "rgba(22,101,52,.16)", color: "#d1fae5", fontSize: 12, fontWeight: 850 }}>
-                ✓ Média déjà prêt pour cet outil
-              </span>
+                {i18nT("media_deja_pret_pour_cet_outil_a53194a5")}{" "}</span>
             ) : null}
           </div>
           <div style={{ color: "#9fb0d2", fontSize: 11, lineHeight: 1.45 }}>
             {origin === "email"
-              ? "iNrCy prépare automatiquement une pièce jointe compatible de 20 Mo maximum."
-              : `iNrCy prépare automatiquement un média compatible avec Booster, sans modifier l’original.`}
+              ? i18nT("inrcy_prepare_automatiquement_une_piece_jointe_a87848b0")
+              : i18nT("inrcy_prepare_automatiquement_un_media_compatibl_908998f0")}
           </div>
           {aggressiveCompression ? (
             <div role="status" style={{ padding: "9px 10px", borderRadius: 12, border: "1px solid rgba(251,191,36,.28)", background: "rgba(120,53,15,.18)", color: "#fde68a", fontSize: 12, lineHeight: 1.4 }}>
-              ⚠️ Compression forte : passer de {formatBytes(currentSize)} à {formatBytes(limit)} peut réduire sensiblement la qualité.
-            </div>
+              {i18nT("compression_forte_passer_de_value_a_558a609f", { value0: formatBytes(currentSize), value1: formatBytes(limit) })}</div>
           ) : null}
         </div>
 
@@ -758,17 +753,16 @@ export default function MediaOptimizerModal({
             disabled={busy}
           />
           <span style={{ fontSize: 13, lineHeight: 1.4 }}>
-            <strong>Conserver l’original dans la Médiathèque</strong>
+            <strong>{i18nT("conserver_l_original_dans_la_mediatheque_13a65fe8")}</strong>
             <span style={{ display: "block", color: "#94a5c8", marginTop: 2 }}>
-              Recommandé. Si vous décochez, iNrCy ne le supprimera jamais s’il est encore utilisé ailleurs.
-            </span>
+              {i18nT("recommande_si_vous_decochez_inrcy_ne_a608a4c4")}{" "}</span>
           </span>
         </label>
 
         {(busy || progress > 0) && !error ? (
           <div style={{ display: "grid", gap: 7 }} aria-live="polite">
             <div style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 12 }}>
-              <span style={{ color: "#d8e7ff" }}>{stage || "Préparation…"}</span>
+              <span style={{ color: "#d8e7ff" }}>{stage || i18nT("preparation_47305e12")}</span>
               <strong>{Math.round(progress)} %</strong>
             </div>
             <div style={{ height: 9, borderRadius: 999, overflow: "hidden", background: "rgba(255,255,255,.08)" }}>
@@ -793,7 +787,7 @@ export default function MediaOptimizerModal({
 
         {outputItem && !error ? (
           <div role="status" style={{ padding: "10px 12px", borderRadius: 13, border: "1px solid rgba(74,222,128,.28)", background: "rgba(22,101,52,.18)", color: "#d1fae5", fontSize: 13 }}>
-            ✓ Média optimisé : <strong>{formatBytes(outputItem.size_bytes)}</strong>. {notice}
+            {i18nT("media_optimise_4b220141")}{" "}<strong>{formatBytes(outputItem.size_bytes)}</strong>. {notice}
           </div>
         ) : notice && !error ? (
           <div role="status" style={{ color: "#c9d8f4", fontSize: 12 }}>{notice}</div>
@@ -812,8 +806,7 @@ export default function MediaOptimizerModal({
               lineHeight: 1.45,
             }}
           >
-            L’optimisation est terminée, mais iNrCy n’a pas pu réinsérer automatiquement le fichier. {insertionError}
-          </div>
+            {i18nT("l_optimisation_est_terminee_mais_inrcy_e39b5e05", { value0: insertionError })}</div>
         ) : null}
 
         <footer style={{ display: "flex", justifyContent: "flex-end", gap: 10, flexWrap: "wrap" }}>
@@ -832,7 +825,7 @@ export default function MediaOptimizerModal({
               opacity: busy ? 0.5 : 1,
             }}
           >
-            {outputItem ? "Fermer" : "Annuler"}
+            {outputItem ? i18nT("fermer_5ab4ec64") : i18nT("annuler_49ba3292")}
           </button>
           {!outputItem ? (
             <button
@@ -850,7 +843,7 @@ export default function MediaOptimizerModal({
                 opacity: busy || sourceTooLarge ? 0.65 : 1,
               }}
             >
-              {busy ? "Optimisation en cours…" : "Optimiser le média"}
+              {busy ? i18nT("optimisation_en_cours_def4a3cc") : i18nT("optimiser_le_media_1bc4fc40")}
             </button>
           ) : insertionError && onOptimized ? (
             <button
@@ -868,7 +861,7 @@ export default function MediaOptimizerModal({
                 opacity: busy ? 0.65 : 1,
               }}
             >
-              {busy ? "Insertion…" : "Insérer le média optimisé"}
+              {busy ? i18nT("insertion_2e058212") : i18nT("inserer_le_media_optimise_a0ba71d7")}
             </button>
           ) : null}
         </footer>

@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MutableRefObject } from "react";
 import { getClientUserFacingErrorMessage } from "@/lib/userFacingErrors";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -34,6 +35,7 @@ export default function RecolterModal({
   saveDraftActionRef?: MutableRefObject<(() => Promise<void>) | null>;
   onDraftStatusChange?: (message: string) => void;
 }) {
+  const i18nT = useTranslations("growth");
   const router = useRouter();
   const searchParams = useSearchParams();
   const restoreKey = searchParams?.get("restore_key") || "";
@@ -222,10 +224,10 @@ export default function RecolterModal({
       const preview = placeholders.slice(0, 6).join(", ");
       const more = placeholders.length > 6 ? ` et ${placeholders.length - 6} autre(s)` : "";
       const shouldContinue = await confirmInrcy({
-        title: "Éléments à compléter",
-        message: `Votre message contient encore des éléments entre crochets : ${preview}${more}. Voulez-vous continuer quand même ?`,
-        confirmLabel: "Continuer quand même",
-        cancelLabel: "Corriger le message",
+        title: i18nT("elements_a_completer_c23b6061"),
+        message: i18nT("votre_message_contient_encore_des_elements_a77d88bf", { value0: preview, value1: more }),
+        confirmLabel: i18nT("continuer_quand_meme_3b026c8d"),
+        cancelLabel: i18nT("corriger_le_message_6d7e26a8"),
         variant: "warning",
       });
       if (!shouldContinue) return;
@@ -266,12 +268,10 @@ export default function RecolterModal({
     <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0, minWidth: 0 }}>
       <div className={styles.blockCard} style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, minWidth: 0, maxWidth: "100%", boxSizing: "border-box", height: "100%" }}>
         <div className={styles.blockTitle} style={{ marginBottom: 10, fontSize: 20, display: isMobile ? "none" : "block", flex: "0 0 auto" }}>
-          Modèle d’email — Récolter
-        </div>
+          {i18nT("modele_d_email_recolter_9b0d8657")}{" "}</div>
 
         <div className={styles.subtitle} style={{ marginBottom: isMobile ? 0 : 10, display: isMobile ? "none" : "block" }}>
-          Choisissez un email préconçu, modifiez si besoin, puis cliquez sur Suivant.
-        </div>
+          {i18nT("choisissez_un_email_preconcu_modifiez_si_6736bfa1")}{" "}</div>
 
         <div style={{ marginBottom: isMobile ? 8 : 12 }}>
           <div
@@ -285,12 +285,11 @@ export default function RecolterModal({
           >
             <div style={{ display: "grid", gap: 8, minWidth: 0 }}>
               <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.04em", color: "rgba(255,255,255,0.64)", textTransform: "uppercase" }}>
-                Modèle dédié
-              </div>
+                {i18nT("modele_dedie_c1a52e79")}{" "}</div>
               <select
               value={selectedKey}
               onChange={(e) => { restoredWorkflowKeyRef.current = ""; setSelectedKey(e.target.value); }}
-              aria-label="Choisir un modèle"
+              aria-label={i18nT("choisir_un_modele_426a410c")}
               style={{
                 width: "100%",
                 minHeight: 46,
@@ -333,7 +332,7 @@ export default function RecolterModal({
                 disabled={aiGenerating || !selected}
                 style={{ minHeight: 46, height: 46, padding: "10px 16px", fontWeight: 900, borderRadius: 999, opacity: aiGenerating ? 0.7 : 1, whiteSpace: "nowrap", width: "100%" }}
               >
-                {aiGenerating ? "Génération…" : "✨ Générer avec iNrCy"}
+                {aiGenerating ? i18nT("generation_ce4e3498") : i18nT("generer_avec_inrcy_58900495")}
               </button>
             </div>
           </div>
@@ -346,11 +345,11 @@ export default function RecolterModal({
               <TemplateSubjectInlineEditor value={subject} onChange={setSubject} />
             ) : (
               <>
-                <div style={sectionHeaderStyle}>Objet</div>
+                <div style={sectionHeaderStyle}>{i18nT("objet_3de621c5")}</div>
                 <input
                   value={subject}
                   onChange={(e) => setSubject(e.target.value)}
-                  placeholder="Objet"
+                  placeholder={i18nT("objet_3de621c5")}
                   className={styles.input}
                   style={{ width: "100%", fontSize: 16, boxSizing: "border-box", display: "block", maxWidth: "100%" }}
                 />
@@ -366,8 +365,8 @@ export default function RecolterModal({
                 setBody(text);
                 setBodyHtml(html);
               }}
-              placeholder="Votre message…"
-              toolbarTitle={<span style={{ ...sectionHeaderStyle, marginBottom: 0 }}>Message</span>}
+              placeholder={i18nT("votre_message_ffe7b099")}
+              toolbarTitle={<span style={{ ...sectionHeaderStyle, marginBottom: 0 }}>{i18nT("message_68f4145f")}</span>}
               compactToolbar
               mobileFullscreen={isMobile}
               minHeight={0}
@@ -392,16 +391,13 @@ export default function RecolterModal({
               variant="footer"
               />
               <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 12, fontWeight: 650, lineHeight: 1.25 }}>
-                Le média est pris en compte dans la génération IA
-              </div>
+                {i18nT("le_media_est_pris_en_compte_4bf16f58")}{" "}</div>
             </div>
             <div style={{ ...footerActionsStyle, ...(isMobile ? { width: "100%", marginLeft: 0 } : {}) }}>
               <button type="button" onClick={() => void onClose()} className={styles.secondaryBtn}>
-                Annuler
-              </button>
+                {i18nT("annuler_49ba3292")}{" "}</button>
               <button type="button" onClick={onNext} className={styles.primaryBtn}>
-                Suivant
-              </button>
+                {i18nT("suivant_596d29a7")}{" "}</button>
             </div>
           </div>
         </div>

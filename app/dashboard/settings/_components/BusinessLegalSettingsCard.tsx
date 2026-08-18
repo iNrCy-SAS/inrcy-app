@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import React from "react";
 import { resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { invalidateBoosterGenerationContextClient } from "@/lib/boosterGenerationContextClient";
@@ -70,6 +73,7 @@ function signature(value: LegalSettings) {
 }
 
 export default function BusinessLegalSettingsCard({ onUnsavedChange }: Props) {
+  const i18nT = useTranslations("documents");
   const [form, setForm] = React.useState<LegalSettings>(initialSettings);
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
@@ -268,8 +272,7 @@ export default function BusinessLegalSettingsCard({ onUnsavedChange }: Props) {
           </span>
           <div style={{ display: "grid", gap: 4 }}>
             <strong style={{ color: "white", fontSize: 16 }}>
-              Informations juridiques de l’entreprise
-            </strong>
+              {i18nT("informations_juridiques_de_l_entreprise_94a492a8")}{" "}</strong>
             <span
               style={{
                 color: "rgba(255,255,255,0.68)",
@@ -277,9 +280,7 @@ export default function BusinessLegalSettingsCard({ onUnsavedChange }: Props) {
                 lineHeight: 1.45,
               }}
             >
-              Utilisées uniquement pour vos devis, factures et documents légaux.
-              Les données déjà renseignées ont été reprises automatiquement.
-            </span>
+              {i18nT("utilisees_uniquement_pour_vos_devis_factures_75f96f4c")}{" "}</span>
           </div>
         </div>
         <span
@@ -294,61 +295,60 @@ export default function BusinessLegalSettingsCard({ onUnsavedChange }: Props) {
             fontWeight: 850,
           }}
         >
-          {completedFields >= 6 ? "Prêt pour Encaisser ✓" : `${completedFields}/6 essentiels`}
+          {completedFields >= 6 ? i18nT("pret_pour_encaisser_56edff06") : `${completedFields}/6 essentiels`}
         </span>
       </div>
 
       {loading ? (
         <div style={{ marginTop: 14, color: "rgba(255,255,255,0.68)" }}>
-          Chargement des informations…
-        </div>
+          {i18nT("chargement_des_informations_08161892")}{" "}</div>
       ) : (
         <div style={{ display: "grid", gap: 12, marginTop: 15 }}>
           <div data-legal-grid="2" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10 }}>
             <label style={labelStyle}>
-              <span>Raison sociale</span>
-              <input style={fieldStyle} value={form.companyLegalName} onChange={(event) => update("companyLegalName", event.target.value)} placeholder="Ex : DUPONT RÉNOVATION" />
+              <span>{i18nT("raison_sociale_28eaf8b0")}</span>
+              <input style={fieldStyle} value={form.companyLegalName} onChange={(event) => update("companyLegalName", event.target.value)} placeholder={i18nT("ex_dupont_renovation_5913229c")} />
             </label>
             <label style={labelStyle}>
-              <span>Forme juridique</span>
+              <span>{i18nT("forme_juridique_a7c1add5")}</span>
               <select style={fieldStyle} value={form.legalForm} onChange={(event) => update("legalForm", event.target.value as LegalForm)}>
                 <option value="EI">EI</option>
                 <option value="EURL">EURL</option>
                 <option value="SARL">SARL</option>
                 <option value="SAS">SAS</option>
                 <option value="SASU">SASU</option>
-                <option value="AUTRE">Autre</option>
+                <option value="AUTRE">{i18nT("autre_43dacf9e")}</option>
               </select>
             </label>
           </div>
 
           {form.legalForm === "AUTRE" ? (
             <label style={labelStyle}>
-              <span>Précisez la forme juridique</span>
-              <input style={fieldStyle} value={form.legalFormOther} onChange={(event) => update("legalFormOther", event.target.value)} placeholder="Ex : Association" />
+              <span>{i18nT("precisez_la_forme_juridique_0f6374b5")}</span>
+              <input style={fieldStyle} value={form.legalFormOther} onChange={(event) => update("legalFormOther", event.target.value)} placeholder={i18nT("ex_association_126ba3db")} />
             </label>
           ) : null}
 
           <label style={labelStyle}>
-            <span>Adresse du siège social</span>
-            <input style={fieldStyle} value={form.hqAddress} onChange={(event) => update("hqAddress", event.target.value)} placeholder="Numéro et voie" />
+            <span>{i18nT("adresse_du_siege_social_bd12217c")}</span>
+            <input style={fieldStyle} value={form.hqAddress} onChange={(event) => update("hqAddress", event.target.value)} placeholder={i18nT("numero_et_voie_ca13900b")} />
           </label>
 
           <div data-legal-grid="2" style={{ display: "grid", gridTemplateColumns: "0.8fr 1.2fr", gap: 10 }}>
             <label style={labelStyle}>
-              <span>Code postal</span>
+              <span>{i18nT("code_postal_74779109")}</span>
               <input style={fieldStyle} value={form.hqZip} onChange={(event) => update("hqZip", event.target.value)} inputMode="numeric" placeholder="62000" />
             </label>
             <label style={labelStyle}>
-              <span>Ville</span>
-              <input style={fieldStyle} value={form.hqCity} onChange={(event) => update("hqCity", event.target.value)} placeholder="Arras" />
+              <span>{i18nT("ville_97217611")}</span>
+              <input style={fieldStyle} value={form.hqCity} onChange={(event) => update("hqCity", event.target.value)} placeholder={i18nT("arras_14599ac1")} />
             </label>
           </div>
 
           <div data-legal-grid="2" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10 }}>
             <label style={labelStyle}>
-              <span>Pays</span>
-              <input style={fieldStyle} value={form.hqCountry} onChange={(event) => update("hqCountry", event.target.value)} placeholder="France" />
+              <span>{i18nT("pays_2a78f0e9")}</span>
+              <input style={fieldStyle} value={form.hqCountry} onChange={(event) => update("hqCountry", event.target.value)} placeholder={i18nT("france_e3772ac4")} />
             </label>
             <label style={labelStyle}>
               <span>SIREN</span>
@@ -358,31 +358,29 @@ export default function BusinessLegalSettingsCard({ onUnsavedChange }: Props) {
 
           <div data-legal-grid="2" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10 }}>
             <label style={labelStyle}>
-              <span>Ville du RCS</span>
-              <input style={fieldStyle} value={form.rcsCity} onChange={(event) => update("rcsCity", event.target.value)} placeholder="Arras" />
+              <span>{i18nT("ville_du_rcs_ef0528f2")}</span>
+              <input style={fieldStyle} value={form.rcsCity} onChange={(event) => update("rcsCity", event.target.value)} placeholder={i18nT("arras_14599ac1")} />
             </label>
             <label style={labelStyle}>
-              <span>Capital social (€)</span>
-              <input style={{ ...fieldStyle, opacity: form.capitalDispenseEi ? 0.55 : 1 }} value={form.capitalSocial} onChange={(event) => update("capitalSocial", event.target.value)} disabled={form.capitalDispenseEi} inputMode="decimal" placeholder="Ex : 1 000" />
+              <span>{i18nT("capital_social_49380151")}</span>
+              <input style={{ ...fieldStyle, opacity: form.capitalDispenseEi ? 0.55 : 1 }} value={form.capitalSocial} onChange={(event) => update("capitalSocial", event.target.value)} disabled={form.capitalDispenseEi} inputMode="decimal" placeholder={i18nT("ex_1_000_2ccfa56c")} />
             </label>
           </div>
 
           <label style={{ display: "flex", gap: 9, alignItems: "center", color: "rgba(255,255,255,0.78)", fontSize: 12.5 }}>
             <input type="checkbox" checked={form.capitalDispenseEi} onChange={(event) => update("capitalDispenseEi", event.target.checked)} />
-            Capital social non applicable / dispensé
-          </label>
+            {i18nT("capital_social_non_applicable_dispense_daab3a5a")}{" "}</label>
 
           <label style={labelStyle}>
-            <span>Numéro de TVA intracommunautaire</span>
-            <input style={{ ...fieldStyle, opacity: form.vatDispense ? 0.55 : 1 }} value={form.vatNumber} onChange={(event) => update("vatNumber", event.target.value)} disabled={form.vatDispense} placeholder="Ex : FR12345678901" />
+            <span>{i18nT("numero_de_tva_intracommunautaire_94082910")}</span>
+            <input style={{ ...fieldStyle, opacity: form.vatDispense ? 0.55 : 1 }} value={form.vatNumber} onChange={(event) => update("vatNumber", event.target.value)} disabled={form.vatDispense} placeholder={i18nT("ex_fr12345678901_d77e14ad")} />
           </label>
           <label style={{ display: "flex", gap: 9, alignItems: "center", color: "rgba(255,255,255,0.78)", fontSize: 12.5 }}>
             <input type="checkbox" checked={form.vatDispense} onChange={(event) => update("vatDispense", event.target.checked)} />
-            TVA non applicable / franchise en base
-          </label>
+            {i18nT("tva_non_applicable_franchise_en_base_fcae739a")}{" "}</label>
 
           {error ? <div style={{ color: "#fca5a5", fontSize: 12.5, fontWeight: 750 }}>{error}</div> : null}
-          {saved ? <div style={{ color: "#86efac", fontSize: 12.5, fontWeight: 850 }}>Informations juridiques enregistrées ✓</div> : null}
+          {saved ? <div style={{ color: "#86efac", fontSize: 12.5, fontWeight: 850 }}>{i18nT("informations_juridiques_enregistrees_91dab432")}</div> : null}
 
           <button
             type="button"
@@ -400,7 +398,7 @@ export default function BusinessLegalSettingsCard({ onUnsavedChange }: Props) {
               opacity: saving ? 0.65 : 1,
             }}
           >
-            {saving ? "Enregistrement…" : "Enregistrer les informations juridiques"}
+            {saving ? i18nT("enregistrement_e7d5f232") : i18nT("enregistrer_les_informations_juridiques_9f518676")}
           </button>
         </div>
       )}

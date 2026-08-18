@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import type { MutableRefObject } from "react";
 import StatusMessage from "../../../_components/StatusMessage";
 import PublishExecutionProgress from "../../../_components/PublishExecutionProgress";
@@ -35,6 +36,7 @@ export default function PublishFooterActions({
   onPublish,
   onSchedule,
 }: PublishFooterActionsProps) {
+  const i18nT = useTranslations("booster");
   const busy = saving || scheduling;
   return (
     <div ref={publishAreaRef} className={styles.publishFooterRoot}>
@@ -61,8 +63,7 @@ export default function PublishFooterActions({
                 cursor: draftSaving ? "wait" : "pointer",
               }}
             >
-              🕒 Programmer
-            </button>
+              {i18nT("programmer_ad97007f")}{" "}</button>
             <button
               type="button"
               className={`${styles.primaryBtn} ${styles.publishConfirmButton}`}
@@ -73,8 +74,7 @@ export default function PublishFooterActions({
                 cursor: draftSaving ? "wait" : "pointer",
               }}
             >
-              Vérifier et publier
-            </button>
+              {i18nT("verifier_et_publier_8f73de05")}{" "}</button>
           </div>
         )}
       </div>

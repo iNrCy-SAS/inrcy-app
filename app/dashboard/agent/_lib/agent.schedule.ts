@@ -31,8 +31,9 @@ export function scheduleDateParts(
   value: string | null | undefined,
   fallbackDate = "—",
   fallbackTime = "—",
+  locale = "fr-FR",
 ) {
-  const formatted = formatReportDateLabel(value);
+  const formatted = formatReportDateLabel(value, locale);
   return {
     date: formatted.date === "—" ? fallbackDate : formatted.date,
     time: formatted.time || fallbackTime,
@@ -942,7 +943,7 @@ export function scheduledEditUpdateFromAction(
     metadata: {
       ...(asRecord(campaign.metadata) || {}),
       source: "inr_agent",
-      label: "iNr'Agent",
+      label: "iNr’Agent",
       automationKey,
       targetTool,
       actionType: action.actionType,

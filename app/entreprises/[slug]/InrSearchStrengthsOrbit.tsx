@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import { useState } from "react";
 import { createInrBadgeQrMatrix } from "@/lib/inrBadgeQr";
 import styles from "./inrSearchPublic.module.css";
@@ -71,6 +74,7 @@ function InrBadgeQr({ value, label }: { value: string; label: string }) {
 }
 
 export default function InrSearchStrengthsOrbit({ companyName, strengths, inrBadgeUrl, inrBadgeQrUrl }: Props) {
+  const i18nT = useTranslations("public");
   const normalizedStrengths = strengths.map((strength) => strength.trim()).filter(Boolean);
   const completedStrengths = [...normalizedStrengths];
   for (const fallback of DEFAULT_STRENGTHS) {
@@ -96,16 +100,16 @@ export default function InrSearchStrengthsOrbit({ companyName, strengths, inrBad
     <div className={styles.strengthOrbitExperience}>
       <div className={styles.strengthOrbitHeader}>
         <div>
-          <span className={styles.strengthOrbitEyebrow}>Confiance en mouvement</span>
-          <h2 id="points-forts-title">Les points forts de {companyName}</h2>
-          <p>Découvrez les qualités et engagements que {companyName} met en avant pour ses clients.</p>
+          <span className={styles.strengthOrbitEyebrow}>{i18nT("confiance_en_mouvement_0260d16e")}</span>
+          <h2 id="points-forts-title">{i18nT("les_points_forts_de_value_738c4c2a", { value0: companyName })}</h2>
+          <p>{i18nT("decouvrez_les_qualites_et_engagements_que_c5e7d321", { value0: companyName })}</p>
         </div>
       </div>
 
       <div className={styles.strengthOrbitStage}>
         <div className={styles.strengthNewtonScene} data-direction={impulseDirection}>
           <div className={styles.strengthNewtonFrame} aria-hidden="true"><span /><span /></div>
-          <div className={styles.strengthDesktopList} aria-label="Liste des points forts">
+          <div className={styles.strengthDesktopList} aria-label={i18nT("liste_des_points_forts_e4946a4f")}>
             {cradleSlots.map((strength, index) => (
               <button
                 type="button"
@@ -125,7 +129,7 @@ export default function InrSearchStrengthsOrbit({ companyName, strengths, inrBad
             key={impulse}
             data-direction={impulseDirection}
             role="list"
-            aria-label="Points forts de l’entreprise"
+            aria-label={i18nT("points_forts_de_l_entreprise_92f8266f")}
           >
             <span className={styles.strengthNewtonImpulse} aria-hidden="true"><i /></span>
             {cradleSlots.map((strength, index) => (
@@ -152,16 +156,16 @@ export default function InrSearchStrengthsOrbit({ companyName, strengths, inrBad
           </div>
 
           <article className={styles.strengthNewtonDetail} aria-live="polite">
-            <small>Engagement sélectionné</small>
+            <small>{i18nT("engagement_selectionne_a9da550d")}</small>
             <strong>{activeStrength}</strong>
             <p>{strengthDefinition(activeStrength || "", companyName)}</p>
-            <span>Un engagement mis en avant par l’entreprise.</span>
+            <span>{i18nT("un_engagement_mis_en_avant_par_2c973413")}</span>
           </article>
         </div>
 
         <aside className={styles.strengthBadgeCard}>
           <span className={styles.strengthBadgeHalo} aria-hidden="true" />
-          <div className={styles.strengthBadgeLabel}><i /> PASSEPORT iNrBADGE</div>
+          <div className={styles.strengthBadgeLabel}><i /> {" "}{i18nT("passeport_inrbadge_14c9bcc1")}</div>
           {inrBadgeQrUrl ? (
             <a
               className={styles.strengthBadgeQr}
@@ -170,12 +174,12 @@ export default function InrSearchStrengthsOrbit({ companyName, strengths, inrBad
               rel="noopener noreferrer"
               data-inrsearch-action="inrbadge"
               data-inrsearch-target={inrBadgeUrl}
-              aria-label={`Ouvrir l’iNrBadge de ${companyName}`}
+              aria-label={i18nT("ouvrir_l_inrbadge_de_value_d8d65b8c", { value0: companyName })}
             >
-              <InrBadgeQr value={inrBadgeQrUrl} label={`QR code iNrBadge de ${companyName}`} />
+              <InrBadgeQr value={inrBadgeQrUrl} label={i18nT("qr_code_inrbadge_de_value_d902c8a7", { value0: companyName })} />
             </a>
-          ) : <span className={styles.strengthBadgeFallback}>iNr</span>}
-          <small>Scannez pour garder le contact</small>
+          ) : <span className={styles.strengthBadgeFallback}>{i18nT("inr_fe1e1b8a")}</span>}
+          <small>{i18nT("scannez_pour_garder_le_contact_0a7fcd31")}</small>
           <strong>{companyName}</strong>
           {inrBadgeUrl ? (
             <a
@@ -186,14 +190,14 @@ export default function InrSearchStrengthsOrbit({ companyName, strengths, inrBad
               data-inrsearch-action="inrbadge"
               data-inrsearch-target={inrBadgeUrl}
             >
-              Ouvrir l’iNrBadge <span aria-hidden="true">↗</span>
+              {i18nT("ouvrir_l_inrbadge_682716ab")}{" "}<span aria-hidden="true">↗</span>
             </a>
           ) : null}
         </aside>
       </div>
 
       {normalizedStrengths.length > visibleStrengths.length ? (
-        <div className={styles.strengthOrbitAll} aria-label="Tous les points forts">
+        <div className={styles.strengthOrbitAll} aria-label={i18nT("tous_les_points_forts_0c2c917b")}>
           {normalizedStrengths.map((strength) => <span key={strength}>{strength}</span>)}
         </div>
       ) : null}

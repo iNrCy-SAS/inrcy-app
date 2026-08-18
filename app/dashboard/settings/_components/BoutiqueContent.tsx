@@ -1,5 +1,8 @@
 "use client";
 
+import { useLocale, useTranslations } from "next-intl";
+
+
 import { resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
 
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
@@ -27,19 +30,21 @@ type OrderRow = {
 
 const BOUTIQUE_TO = process.env.NEXT_PUBLIC_BOUTIQUE_EMAIL || "boutique@inrcy.com";
 
-function formatDate(d: string) {
+function formatDate(d: string, locale: string) {
   try {
-    return new Date(d).toLocaleString();
+    return new Date(d).toLocaleString(locale);
   } catch {
     return d;
   }
 }
 
-function statusLabel(s: OrderRow["status"]) {
-  return s === "processed" ? "Traitée" : "En cours";
+function statusLabel(s: OrderRow["status"], i18nT: (key: string) => string) {
+  return s === "processed" ? i18nT("traitee_ed7d5868") : i18nT("en_cours_bc9b533a");
 }
 
 export default function BoutiqueContent({ onOpenInertia }: Props) {
+  const i18nT = useTranslations("settings");
+  const locale = useLocale();
   const router = useRouter();
   const [uiBalance, setUiBalance] = useState<number | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
@@ -133,11 +138,9 @@ export default function BoutiqueContent({ onOpenInertia }: Props) {
 
     const priceLabel = method === "EUR" ? `${p.priceEur} €` : `${p.comboEur} € + ${p.priceUi} UI`;
     const ok = await confirmInrcy({
-      title: "Confirmer la commande ?",
-      message: `Produit : ${p.title}
-Mode : ${method === "EUR" ? "€" : "UI"}
-Prix : ${priceLabel}`,
-      confirmLabel: "Commander",
+      title: i18nT("confirmer_la_commande_f529f5af"),
+      message: i18nT("produit_value_mode_value_prix_value_f8904050", { value0: p.title, value1: method === "EUR" ? "€" : "UI", value2: priceLabel }),
+      confirmLabel: i18nT("commander_79056c7a"),
       variant: "warning",
     });
     if (!ok) return;
@@ -165,7 +168,7 @@ Prix : ${priceLabel}`,
       }
 
       const shortId = String(json?.orderId ?? "").slice(0, 8);
-      setNotice(`✅ Commande envoyée à ${BOUTIQUE_TO}${shortId ? ` (réf. #${shortId})` : ""}. Un email de confirmation vous a été envoyé.`);
+      setNotice(i18nT("commande_envoyee_a_value_value_un_abb1c127", { value0: BOUTIQUE_TO, value1: shortId ? ` (réf. #${shortId})` : "" }));
 
       // Refresh balance (future: if UI gets debited)
       const supabase = createClient();
@@ -202,7 +205,7 @@ Prix : ${priceLabel}`,
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
           <div style={{ position: "relative" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              <div style={{ color: "rgba(255,255,255,0.94)", fontWeight: 950, fontSize: 16 }}>Solde UI</div>
+              <div style={{ color: "rgba(255,255,255,0.94)", fontWeight: 950, fontSize: 16 }}>{i18nT("solde_ui_86037358")}</div>
               <button
                 type="button"
                 onClick={() => setShowUiHelp((v) => !v)}
@@ -220,14 +223,13 @@ Prix : ${priceLabel}`,
                   alignItems: "center",
                   justifyContent: "center",
                 }}
-                aria-label="Comprendre les UI"
+                aria-label={i18nT("comprendre_les_ui_5d7da596")}
               >
                 ?
               </button>
             </div>
             <div style={{ color: "rgba(255,255,255,0.70)", fontSize: 13, marginTop: 6 }}>
-              Commandez en <b>€</b> (TTC) ou utilisez vos <b>UI</b> pour réduire le prix. 
-            </div>
+              {i18nT("commandez_en_28b396c4")}{" "}<b>€</b> {" "}{i18nT("ttc_ou_utilisez_vos_3603baf6")}{" "}<b>UI</b> {" "}{i18nT("pour_reduire_le_prix_ab807fed")}{" "}</div>
             {showUiHelp ? (
               <div
                 style={{
@@ -246,8 +248,7 @@ Prix : ${priceLabel}`,
                   lineHeight: 1.5,
                 }}
               >
-                Plus votre générateur iNrCy est actif, plus vous cumulez d’UI. Connectez davantage d’outils, gardez votre machine en mouvement et transformez cette inertie en économies sur des prestations premium.
-              </div>
+                {i18nT("plus_votre_generateur_inrcy_est_actif_6aee499e")}{" "}</div>
             ) : null}
           </div>
 
@@ -271,7 +272,7 @@ Prix : ${priceLabel}`,
           lineHeight: 1.45,
         }}
       >
-        En cliquant sur un bouton, une demande est envoyée automatiquement à <b>{BOUTIQUE_TO}</b>.
+        {i18nT("en_cliquant_sur_un_bouton_une_bebba311")}{" "}<b>{BOUTIQUE_TO}</b>.
       </div>
 
       {notice ? (
@@ -304,10 +305,9 @@ Prix : ${priceLabel}`,
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
           <div>
-            <div style={{ color: "rgba(255,255,255,0.92)", fontWeight: 900, fontSize: 15 }}>Voir mon inertie</div>
+            <div style={{ color: "rgba(255,255,255,0.92)", fontWeight: 900, fontSize: 15 }}>{i18nT("voir_mon_inertie_5f3d5554")}</div>
             <div style={{ color: "rgba(255,255,255,0.66)", fontSize: 13, marginTop: 6 }}>
-              Historique, Turbo UI et boosts de la semaine.
-            </div>
+              {i18nT("historique_turbo_ui_et_boosts_de_0834da43")}{" "}</div>
           </div>
 
           <div
@@ -325,8 +325,7 @@ Prix : ${priceLabel}`,
               whiteSpace: "nowrap",
             }}
           >
-            Ouvrir →
-          </div>
+            {i18nT("ouvrir_7fd29c03")}{" "}</div>
         </div>
       </button>
 
@@ -371,7 +370,7 @@ Prix : ${priceLabel}`,
 
               <div style={{ textAlign: "right", maxWidth: 180 }}>
                 <div style={{ color: "rgba(255,255,255,0.58)", fontSize: 12, lineHeight: 1.35 }}>
-                  Utilisez vos UI pour économiser jusqu’à {p.priceEur - p.comboEur} €.
+                  {i18nT("utilisez_vos_ui_pour_economiser_jusqu_0103209f")}{" "}{p.priceEur - p.comboEur} €.
                 </div>
               </div>
             </div>
@@ -393,7 +392,7 @@ Prix : ${priceLabel}`,
                   cursor: sendingKey !== null ? "not-allowed" : "pointer",
                 }}
               >
-                {sendingKey === `${p.key}:EUR` ? "Envoi…" : `${p.priceEur} €`}
+                {sendingKey === `${p.key}:EUR` ? i18nT("envoi_a625611f") : `${p.priceEur} €`}
               </button>
 
               <button
@@ -414,7 +413,7 @@ Prix : ${priceLabel}`,
                   opacity: canOrderUi(p) ? 1 : 0.45,
                 }}
               >
-                {sendingKey === `${p.key}:UI` ? "Envoi…" : `${p.comboEur} € + ${p.priceUi} UI`}
+                {sendingKey === `${p.key}:UI` ? i18nT("envoi_a625611f") : i18nT("value_value_ui_d6b7212e", { value0: p.comboEur, value1: p.priceUi })}
               </button>
             </div>
           </div>
@@ -434,7 +433,7 @@ Prix : ${priceLabel}`,
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <div style={{ color: "rgba(255,255,255,0.92)", fontWeight: 900, fontSize: 15 }}>Historique des commandes</div>
+            <div style={{ color: "rgba(255,255,255,0.92)", fontWeight: 900, fontSize: 15 }}>{i18nT("historique_des_commandes_3b9f0e3d")}</div>
             {isStaff ? (
               <a
                 href="/dashboard/admin/commandes"
@@ -451,8 +450,7 @@ Prix : ${priceLabel}`,
                   textDecoration: "none",
                 }}
               >
-                Admin commandes →
-              </a>
+                {i18nT("admin_commandes_d26357b1")}{" "}</a>
             ) : null}
           </div>
           <button
@@ -471,14 +469,13 @@ Prix : ${priceLabel}`,
               opacity: ordersLoading || !userId ? 0.6 : 1,
             }}
           >
-            {ordersLoading ? "Actualisation…" : "Rafraîchir"}
+            {ordersLoading ? i18nT("actualisation_2834f8d6") : i18nT("rafraichir_be30b7d1")}
           </button>
         </div>
 
         {!orders.length ? (
           <div style={{ color: "rgba(255,255,255,0.65)", fontSize: 13 }}>
-            Aucune commande pour le moment.
-          </div>
+            {i18nT("aucune_commande_pour_le_moment_2ca7b29e")}{" "}</div>
         ) : (
           <div style={{ display: "grid", gap: 8 }}>
             {orders.map((o) => (
@@ -501,7 +498,7 @@ Prix : ${priceLabel}`,
                     {o.product_name}
                     <span style={{ color: "rgba(255,255,255,0.55)", fontWeight: 700 }}> — #{o.id.slice(0, 8)}</span>
                   </div>
-                  <div style={{ color: "rgba(255,255,255,0.60)", fontSize: 12, marginTop: 6 }}>{formatDate(o.created_at)}</div>
+                  <div style={{ color: "rgba(255,255,255,0.60)", fontSize: 12, marginTop: 6 }}>{formatDate(o.created_at, locale)}</div>
                 </div>
 
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -534,7 +531,7 @@ Prix : ${priceLabel}`,
                       fontWeight: 900,
                     }}
                   >
-                    {statusLabel(o.status)}
+                    {statusLabel(o.status, i18nT)}
                   </span>
                 </div>
               </div>
@@ -543,8 +540,7 @@ Prix : ${priceLabel}`,
         )}
 
         <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 12, lineHeight: 1.4 }}>
-          Les commandes passent en <b>Traitée</b> quand l'équipe iNrCy les valide.
-        </div>
+          {i18nT("les_commandes_passent_en_c2192eda")}{" "}<b>{i18nT("traitee_ed7d5868")}</b> {" "}{i18nT("quand_l_equipe_inrcy_les_valide_49628885")}{" "}</div>
       </div>
     </div>
   );

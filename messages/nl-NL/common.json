@@ -1,0 +1,9 @@
+{
+  "pullToRefresh": {
+    "refreshing": "Vernieuwen…",
+    "ready": "Loslaten om te vernieuwen",
+    "pull": "Trekken om te vernieuwen"
+  },
+  "dashboardBoot": "Uw iNrCy-dashboard wordt geladen…",
+  "initialSetup": "Uw eerste configuratie wordt voorbereid…"
+}

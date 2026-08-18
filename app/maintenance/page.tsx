@@ -1,3 +1,4 @@
+import { getLocale, getTranslations } from "next-intl/server";
 import Image from "next/image";
 import { redirect } from "next/navigation";
 import Script from "next/script";
@@ -8,19 +9,21 @@ import { createSupabaseServer } from "@/lib/supabaseServer";
 
 export const dynamic = "force-dynamic";
 
-function formatUpdatedAt(value: string | null): string {
-  if (!value) return "Mise à jour en temps réel";
+function formatUpdatedAt(value: string | null, locale: string, realtimeLabel: string): string {
+  if (!value) return realtimeLabel;
 
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Mise à jour en temps réel";
+  if (Number.isNaN(date.getTime())) return realtimeLabel;
 
-  return new Intl.DateTimeFormat("fr-FR", {
+  return new Intl.DateTimeFormat(locale, {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(date);
 }
 
 export default async function MaintenancePage() {
+  const i18nT = await getTranslations("public");
+  const locale = await getLocale();
   const maintenance = await getMaintenanceState();
 
   if (!maintenance.enabled) {
@@ -47,7 +50,7 @@ export default async function MaintenancePage() {
           <div className={styles.header}>
             <Image
               src="/logo-inrcy.png"
-              alt="iNrCy"
+              alt={i18nT("inrcy_ef95fe0e")}
               width={52}
               height={52}
               priority
@@ -55,51 +58,52 @@ export default async function MaintenancePage() {
             />
 
             <div className={styles.brandBlock}>
-              <div className={styles.brandSub}>Plateforme temporairement indisponible</div>
+              <div className={styles.brandSub}>{i18nT("plateforme_temporairement_indisponible_39c7467e")}</div>
             </div>
           </div>
 
           <div className={styles.badge}>
             <span className={styles.badgeDot} />
-            Intervention technique en cours
-          </div>
+            {i18nT("intervention_technique_en_cours_1a968c70")}{" "}</div>
 
           <div className={styles.content}>
             <div className={styles.main}>
               <h1 className={styles.title}>
-                {maintenance.title || "Maintenance en cours"}
+                {maintenance.title || i18nT("maintenance_en_cours_d46a98a7")}
               </h1>
 
               <p className={styles.text}>
                 {maintenance.message ||
-                  "Nous réalisons actuellement une intervention technique afin de sécuriser et stabiliser la plateforme. L’accès utilisateur est temporairement suspendu. Merci de revenir dans quelques instants."}
+                  i18nT("nous_realisons_actuellement_une_intervention_tec_3b7713eb")}
               </p>
 
               <div className={styles.actions}>
                 <a href="/dashboard" className={styles.primaryBtn}>
-                  Réessayer
-                </a>
+                  {i18nT("reessayer_895d416b")}{" "}</a>
                 <a href="mailto:contact@inrcy.com" className={styles.secondaryBtn}>
-                  Contacter iNrCy
-                </a>
+                  {i18nT("contacter_inrcy_b0a48e55")}{" "}</a>
               </div>
             </div>
 
             <aside className={styles.infoCard}>
               <div className={styles.infoRow}>
-                <span className={styles.infoLabel}>Statut</span>
-                <span className={styles.infoValue}>Maintenance contrôlée</span>
+                <span className={styles.infoLabel}>{i18nT("statut_659499f3")}</span>
+                <span className={styles.infoValue}>{i18nT("maintenance_controlee_95655bce")}</span>
               </div>
 
               <div className={styles.infoRow}>
-                <span className={styles.infoLabel}>Accès</span>
-                <span className={styles.infoValue}>Utilisateurs en pause</span>
+                <span className={styles.infoLabel}>{i18nT("acces_6e47e630")}</span>
+                <span className={styles.infoValue}>{i18nT("utilisateurs_en_pause_cb800b1b")}</span>
               </div>
 
               <div className={styles.infoRow}>
-                <span className={styles.infoLabel}>Dernière mise à jour</span>
+                <span className={styles.infoLabel}>{i18nT("derniere_mise_a_jour_df82ab3d")}</span>
                 <span className={styles.infoValue}>
-                  {formatUpdatedAt(maintenance.updatedAt)}
+                  {formatUpdatedAt(
+                    maintenance.updatedAt,
+                    locale,
+                    i18nT("mise_a_jour_en_temps_reel_7542ca7d"),
+                  )}
                 </span>
               </div>
             </aside>

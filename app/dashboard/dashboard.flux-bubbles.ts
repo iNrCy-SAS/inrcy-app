@@ -6,8 +6,11 @@ import type { DashboardChannelKey } from "@/lib/dashboardChannels";
 import type { InrstatsChannelBlock } from "@/lib/inrstats/channelBlocks";
 import type { ModuleAction, ModuleStatus } from "./dashboard.types";
 import { isBubbleEnabled, normalizeAppBubbleKey, type AppBubbleAccessMap } from "@/lib/bubbleAccess";
-import type { AppLanguageCode } from "@/lib/appLanguage";
-import { getDashboardModuleCopy, getDashboardTranslations, translateDashboardStatusText } from "@/lib/dashboardI18n";
+import {
+  getDashboardModuleCopy,
+  translateDashboardStatusText,
+  type DashboardCopy,
+} from "@/i18n/dashboard";
 
 type BuildFluxBubbleItemsArgs = {
   bubbleAccessMap: AppBubbleAccessMap;
@@ -47,7 +50,7 @@ type BuildFluxBubbleItemsArgs = {
   setHelpSiteWebOpen: (open: boolean) => void;
   siteInrcySavedUrl: string | null | undefined;
   siteWebSavedUrl: string | null | undefined;
-  language?: AppLanguageCode | string | null;
+  copy: DashboardCopy;
 };
 
 export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardFluxBubbleData[] {
@@ -89,10 +92,8 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
     setHelpSiteWebOpen,
     siteInrcySavedUrl,
     siteWebSavedUrl,
-    language,
+    copy,
   } = args;
-
-  const copy = getDashboardTranslations(language);
 
   return fluxModules.flatMap((m) => {
     const moduleIcon = MODULE_ICONS[m.key] ?? MODULE_ICONS.site_inrcy;
@@ -116,7 +117,7 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
       channelBlock?.connection?.connectionStatus === "needs_update" ||
       channelBlock?.connection?.expired,
     );
-    const moduleCopy = getDashboardModuleCopy(m.key, language);
+    const moduleCopy = getDashboardModuleCopy(copy, m.key);
 
     const localizeViewAction = (action: ModuleAction | undefined): ModuleAction | undefined => action
       ? { ...action, label: moduleCopy?.view || action.label }
@@ -144,7 +145,7 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
           : blockDrivenStatus ?? (() => {
           if (m.key === "inrbadge") {
             if (!inrBadgeProfileCheckReady) {
-              return { status: "available" as ModuleStatus, text: "Synchronisation…" };
+              return { status: "available" as ModuleStatus, text: copy.status.syncing };
             }
             return inrBadgeProfileReady
               ? { status: "connected" as ModuleStatus, text: copy.status.connected }
@@ -164,18 +165,18 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
           if (m.key === "youtube_shorts") return youtubeShortsConnected ? { status: "connected" as ModuleStatus, text: copy.status.connected } : { status: "available" as ModuleStatus, text: copy.status.toConnect };
           if (m.key === "pinterest") return pinterestConnected ? { status: "connected" as ModuleStatus, text: copy.status.connected } : { status: "available" as ModuleStatus, text: copy.status.toConnect };
           if (m.key === "inr_search") {
-            if (inrSearchConnected === null) return { status: "available" as ModuleStatus, text: "Synchronisation…" };
+            if (inrSearchConnected === null) return { status: "available" as ModuleStatus, text: copy.status.syncing };
             return inrSearchConnected
-              ? { status: "connected" as ModuleStatus, text: "Page publiée" }
-              : { status: "available" as ModuleStatus, text: "Page indisponible" };
+              ? { status: "connected" as ModuleStatus, text: copy.status.pagePublished }
+              : { status: "available" as ModuleStatus, text: copy.status.pageUnavailable };
           }
           if (m.key === "inr_agent") return { status: "connected" as ModuleStatus, text: copy.status.connected };
-          return { status: m.status, text: statusLabel(m.status, language) };
+          return { status: m.status, text: statusLabel(m.status, copy) };
           })();
 
     const resolvedBubbleProgress = {
       ...resolvedBubbleProgressRaw,
-      text: translateDashboardStatusText(resolvedBubbleProgressRaw.text, language),
+      text: translateDashboardStatusText(resolvedBubbleProgressRaw.text, copy),
     };
 
     const { status: bubbleStatus, text: bubbleStatusText } = displayAccessEnabled
@@ -316,12 +317,12 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
         : m.key === "site_inrcy" && !canConfigureSite
           ? moduleCopy?.siteOnlyTitle || copy.bubble.disabled
           : m.key === "inrbadge" && !inrBadgeProfileCheckReady
-            ? "Vérification de votre profil…"
+            ? copy.status.profileChecking
             : undefined,
       // Toutes les bulles ouvrent leur panneau de configuration avec le même
       // libellé. La connexion réelle se fait ensuite dans le panneau dédié.
       configureLabel: m.key === "inr_agent"
-        ? moduleCopy?.view || "Ouvrir"
+        ? moduleCopy?.view || copy.bubble.open
         : copy.bubble.configure,
       viewFallbackLabel: copy.bubble.viewFallback,
       emphasizeDisabledReason: !displayAccessEnabled && (mailPremiumLocked || m.key === "site_inrcy"),

@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import { useEffect } from "react";
 
 type Props = {
@@ -13,6 +16,7 @@ const MOBILE_DOCK_HEIGHT =
   "var(--inrcy-mobile-bottom-nav-total-height, calc(50px + env(safe-area-inset-bottom, 0px)))";
 
 export default function HelpModal({ open, title, onClose, children }: Props) {
+  const i18nT = useTranslations("shell");
   useEffect(() => {
     if (!open) return;
 
@@ -102,8 +106,7 @@ export default function HelpModal({ open, title, onClose, children }: Props) {
               cursor: "pointer",
             }}
           >
-            Fermer
-          </button>
+            {i18nT("fermer_5ab4ec64")}{" "}</button>
         </div>
 
         {/* body */}

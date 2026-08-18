@@ -3,6 +3,7 @@ import type { BoosterVideoTransformedVariant } from "@/lib/boosterVideoTransform
 import {
   getBoosterImageDisplayPlan,
   getBoosterImageSafetyBackgroundMode,
+  type BoosterImageDecisionMode,
 } from "@/lib/boosterImageDecision";
 import { mergeBoosterChannelImageSelection } from "@/lib/boosterChannelImageSelection";
 import {
@@ -138,6 +139,22 @@ export const BOOSTER_PREFERRED_CTA_OPTIONS: Array<{
   { value: "message", label: "Envoyer un message" },
   { value: "custom", label: "Lien personnalisé" },
 ];
+
+const BOOSTER_PREFERRED_CTA_MESSAGE_KEYS = {
+  none: "aucun_bouton_fd9e05c4",
+  site: "voir_le_site_5bf01317",
+  devis: "demander_un_devis_8a1f1c6c",
+  appeler: "appeler_de49ee03",
+  message: "envoyer_un_message_c211810b",
+  custom: "lien_personnalise_d1d21cea",
+} as const satisfies Record<BoosterPreferredCta, string>;
+
+export function getLocalizedPreferredCtaLabel(
+  choice: BoosterPreferredCta,
+  translate: (key: string) => string,
+) {
+  return translate(BOOSTER_PREFERRED_CTA_MESSAGE_KEYS[choice]);
+}
 
 const BOOSTER_AI_LANGUAGE_VALUES: BoosterAiLanguage[] = [
   "fr",
@@ -408,6 +425,32 @@ export function getImageFitLabel(
   return transform?.fit === "cover" ? "Plein cadre" : "Image entière";
 }
 
+export function getLocalizedImageFitLabel(
+  transform: Pick<ImageTransform, "fit"> | null | undefined,
+  translate: (key: string) => string,
+) {
+  return translate(
+    transform?.fit === "cover"
+      ? "plein_cadre_96d0dd78"
+      : "image_entiere_76cd8175",
+  );
+}
+
+export function getLocalizedImageDecisionLabel(
+  mode: BoosterImageDecisionMode,
+  translate: (key: string) => string,
+) {
+  return translate(
+    mode === "original"
+      ? "image_decision_original"
+      : mode === "adapted"
+        ? "image_decision_adapted"
+        : mode === "customized"
+          ? "image_decision_customized"
+          : "image_decision_unavailable",
+  );
+}
+
 export const DISPLAY_LABELS: Record<DisplayKey, string> = {
   inrcy_site: "Site iNrCy",
   site_web: "Site web",
@@ -433,6 +476,19 @@ export const CHANNEL_LABELS: Record<ChannelKey, string> = {
   youtube_shorts: "YouTube",
   pinterest: "Pinterest",
 };
+
+export const CHANNEL_LABEL_MESSAGE_KEYS: Partial<Record<ChannelKey, string>> = {
+  inrcy_site: "site_inrcy_57016d6f",
+  site_web: "site_web_7e78af33",
+};
+
+export function getLocalizedChannelLabel(
+  channel: ChannelKey,
+  translate: (key: string) => string,
+) {
+  const messageKey = CHANNEL_LABEL_MESSAGE_KEYS[channel];
+  return messageKey ? translate(messageKey) : CHANNEL_LABELS[channel];
+}
 
 export const CHANNEL_PRESETS: Record<ChannelKey, RenderPreset> = {
   inrcy_site: {
@@ -507,6 +563,9 @@ export {
   getDefaultChannelVideoSettings,
   getAutomaticVideoSettingsForPublication,
   getRecommendedVideoFormatForSource,
+  getLocalizedVideoAdaptationModeLabel,
+  getLocalizedVideoFormatLabel,
+  getLocalizedVideoOrientationLabel,
   getVideoFormatLabel,
   getVideoPreviewAspectRatio,
   getVideoPreviewFitMode,
@@ -557,6 +616,26 @@ export function getUnavailableMediaModeMessage(
   }
   if (channel === "pinterest" && mode === "none") {
     return "Pinterest nécessite une image ou une vidéo.";
+  }
+  return "";
+}
+
+export function getLocalizedUnavailableMediaModeMessage(
+  channel: ChannelKey,
+  mode: ChannelMediaMode,
+  translate: (key: string) => string,
+) {
+  if (channel === "youtube_shorts") {
+    if (mode === "images") {
+      return translate("youtube_necessite_une_video_les_photos_be0f53d0");
+    }
+    if (mode === "none") return translate("youtube_necessite_une_video_e82a0e29");
+  }
+  if (channel === "tiktok" && mode === "none") {
+    return translate("tiktok_necessite_au_moins_une_photo_3359fe2d");
+  }
+  if (channel === "pinterest" && mode === "none") {
+    return translate("pinterest_necessite_une_image_ou_une_e2a7f196");
   }
   return "";
 }
@@ -618,6 +697,85 @@ export function getBoosterSelectedMediaSummary(params: {
           : BOOSTER_PUBLICATION_MEDIA_OPTIMIZATION_LABEL
       }`;
 }
+
+type BoosterMediaTranslator = (
+  key: string,
+  values?: Record<string, string | number>,
+) => string;
+
+const BOOSTER_MEDIA_MESSAGE_VALUES = {
+  maxImages: BOOSTER_MAX_IMAGE_COUNT,
+  imageMaxMb: 50,
+  imagesTotalMaxMb: 150,
+  videoSourceMaxMb: 300,
+  videoPublishMaxMb: 75,
+} as const;
+
+export function getLocalizedBoosterImageFormats(translate: BoosterMediaTranslator) {
+  return translate("media_image_formats");
+}
+
+export function getLocalizedBoosterVideoFormats(translate: BoosterMediaTranslator) {
+  return translate("media_video_formats");
+}
+
+export function getLocalizedBoosterRecommendedVideoDuration(
+  translate: BoosterMediaTranslator,
+) {
+  return translate("media_recommended_video_duration");
+}
+
+export function getLocalizedBoosterImageLimits(translate: BoosterMediaTranslator) {
+  return translate("media_image_limits", BOOSTER_MEDIA_MESSAGE_VALUES);
+}
+
+export function getLocalizedBoosterVideoLimits(translate: BoosterMediaTranslator) {
+  return translate("media_video_limits", BOOSTER_MEDIA_MESSAGE_VALUES);
+}
+
+export function getLocalizedBoosterMediaOptimization(
+  context: "generation" | "publication",
+  translate: BoosterMediaTranslator,
+) {
+  return translate(
+    context === "generation"
+      ? "media_generation_optimization"
+      : "media_publication_optimization",
+    BOOSTER_MEDIA_MESSAGE_VALUES,
+  );
+}
+
+export function getLocalizedBoosterSelectedMediaSummary(
+  params: {
+    imageCount: number;
+    hasVideo: boolean;
+    context?: "generation" | "publication";
+  },
+  translate: BoosterMediaTranslator,
+) {
+  const parts: string[] = [];
+  if (params.imageCount > 0) {
+    parts.push(
+      translate("media_selected_images_summary", {
+        ...BOOSTER_MEDIA_MESSAGE_VALUES,
+        count: params.imageCount,
+      }),
+    );
+  }
+  if (params.hasVideo) {
+    parts.push(
+      translate("media_selected_video_summary", BOOSTER_MEDIA_MESSAGE_VALUES),
+    );
+  }
+  return parts.length
+    ? parts.join(" · ")
+    : translate(
+        params.context === "generation"
+          ? "media_selected_none_generation"
+          : "media_selected_none_publication",
+        BOOSTER_MEDIA_MESSAGE_VALUES,
+      );
+}
 export type ChannelPublicationRequirementInput = {
   channel: ChannelKey;
   connected?: boolean;
@@ -638,11 +796,84 @@ export type ChannelPublicationRequirementInput = {
 
 export type ChannelPublicationRequirements = {
   warnings: string[];
+  warningCodes: string[];
   blockers: string[];
   mediaBlockers: string[];
   blockerCodes: string[];
   mediaBlockerCodes: string[];
 };
+
+type ChannelRequirementLocalizationInput = {
+  code: string;
+  channel: ChannelKey;
+  imageCount?: number;
+};
+
+export function getLocalizedChannelPublicationRequirement(
+  { code, channel, imageCount = 0 }: ChannelRequirementLocalizationInput,
+  translate: BoosterMediaTranslator,
+) {
+  const channelLabel = getLocalizedChannelLabel(channel, translate);
+  const simpleKeys: Record<string, string> = {
+    content_empty: "requirement_content_empty",
+    title_empty: "requirement_title_empty",
+    video_source_will_convert: "requirement_video_source_will_convert",
+    youtube_short_auto: "requirement_youtube_short_auto",
+    youtube_classic_auto: "requirement_youtube_classic_auto",
+    tiktok_video_settings_validated:
+      "requirement_tiktok_video_settings_validated",
+    pinterest_video_cover_auto: "requirement_pinterest_video_cover_auto",
+    linkedin_video_finalization: "requirement_linkedin_video_finalization",
+    no_image_selected: "requirement_no_image_selected",
+    tiktok_photo_settings_validated:
+      "requirement_tiktok_photo_settings_validated",
+    pinterest_board_selected: "requirement_pinterest_board_selected",
+    video_required: "requirement_video_required",
+    instagram_image_required: "requirement_instagram_image_required",
+    tiktok_photo_or_video_required:
+      "requirement_tiktok_photo_or_video_required",
+    youtube_video_required: "requirement_youtube_video_required",
+    pinterest_image_required: "requirement_pinterest_image_required",
+    youtube_photos_unsupported: "requirement_youtube_photos_unsupported",
+    instagram_media_required: "requirement_instagram_media_required",
+    pinterest_media_required: "requirement_pinterest_media_required",
+    text_or_media_required: "requirement_text_or_media_required",
+    video_conversion_failed: "requirement_video_conversion_failed",
+    media_upload_pending: "requirement_media_upload_failed",
+    pinterest_board_required: "requirement_pinterest_board_required",
+  };
+
+  if (code === "channel_not_connected") {
+    return translate("requirement_channel_not_connected", { channel: channelLabel });
+  }
+  if (code === "pinterest_multi_image") {
+    return translate("requirement_pinterest_multi_image", {
+      count: Math.min(imageCount, BOOSTER_MAX_IMAGE_COUNT),
+    });
+  }
+  if (code === "video_duration_unknown") {
+    return translate("requirement_video_duration_unknown", { channel: channelLabel });
+  }
+  if (code === "video_duration_too_short") {
+    return translate("requirement_video_duration_too_short", { channel: channelLabel });
+  }
+  if (code === "video_duration_too_long") {
+    return translate("requirement_video_duration_too_long", { channel: channelLabel });
+  }
+  if (code === "video_duration_account_limit_unknown") {
+    return translate(
+      channel === "tiktok"
+        ? "requirement_tiktok_duration_limit_unknown"
+        : "requirement_youtube_long_upload_status_unknown",
+    );
+  }
+  if (code === "video_duration_long_upload_not_allowed") {
+    return translate("requirement_youtube_long_upload_not_allowed");
+  }
+
+  const messageKey = simpleKeys[code];
+  return translate(messageKey || "requirement_validation_failed");
+}
 
 function isMp4VideoFile(type?: string | null, name?: string | null) {
   const normalizedType = String(type || "").toLowerCase();
@@ -668,10 +899,15 @@ export function getChannelPublicationRequirements({
   hasContent,
 }: ChannelPublicationRequirementInput): ChannelPublicationRequirements {
   const warnings: string[] = [];
+  const warningCodes: string[] = [];
   const blockers: string[] = [];
   const mediaBlockers: string[] = [];
   const blockerCodes: string[] = [];
   const mediaBlockerCodes: string[] = [];
+  const addWarning = (message: string, code: string) => {
+    warnings.push(message);
+    warningCodes.push(code);
+  };
   const addBlocker = (message: string, code = "prepublish_validation_failed") => {
     blockers.push(message);
     blockerCodes.push(code);
@@ -689,6 +925,7 @@ export function getChannelPublicationRequirements({
     addBlocker("Canal non connecté.", "channel_not_connected");
     return {
       warnings,
+      warningCodes,
       blockers,
       mediaBlockers,
       blockerCodes,
@@ -696,8 +933,8 @@ export function getChannelPublicationRequirements({
     };
   }
 
-  if (!hasContent) warnings.push("Contenu vide");
-  if (!hasTitle) warnings.push("Titre vide");
+  if (!hasContent) addWarning("Contenu vide", "content_empty");
+  if (!hasTitle) addWarning("Titre vide", "title_empty");
 
   if (mediaMode === "video") {
     if (!hasVideo) addMediaBlocker("Ajoutez une vidéo.", "video_required");
@@ -721,8 +958,9 @@ export function getChannelPublicationRequirements({
       }
 
       if (!isMp4VideoFile(videoFileType, videoFileName)) {
-        warnings.push(
+        addWarning(
           "Format source détecté : iNrCy le convertira automatiquement en MP4/H.264, audio AAC et 30 fps avant l’envoi.",
+          "video_source_will_convert",
         );
       }
     }
@@ -732,72 +970,109 @@ export function getChannelPublicationRequirements({
         const publicationType = getYoutubePublicationTypeForDuration(
           videoDurationSeconds,
         );
-        warnings.push(
-          publicationType === "short"
-            ? "YouTube : vidéo de 3 minutes maximum, iNrCy la convertira automatiquement en format vertical et la publiera en Short."
-            : "YouTube : vidéo de plus de 3 minutes, publication automatique en vidéo classique.",
-        );
+        if (publicationType === "short") {
+          addWarning(
+            "YouTube : vidéo de 3 minutes maximum, iNrCy la convertira automatiquement en format vertical et la publiera en Short.",
+            "youtube_short_auto",
+          );
+        } else {
+          addWarning(
+            "YouTube : vidéo de plus de 3 minutes, publication automatique en vidéo classique.",
+            "youtube_classic_auto",
+          );
+        }
       }
     }
 
     if (channel === "tiktok" && videoDurationIsValid) {
-      warnings.push(
+      addWarning(
         "TikTok publiera la vidéo sur le compte connecté avec les paramètres validés.",
+        "tiktok_video_settings_validated",
       );
     }
 
     if (channel === "pinterest" && hasVideo && videoDurationIsValid) {
-      warnings.push(
+      addWarning(
         "Pinterest publiera la vidéo avec une image de couverture générée automatiquement si nécessaire.",
+        "pinterest_video_cover_auto",
       );
     }
 
     if (channel === "linkedin" && hasVideo && videoDurationIsValid) {
-      warnings.push(
+      addWarning(
         "LinkedIn finalise la vidéo après la conversion iNrCy. L’envoi peut prendre quelques secondes.",
+        "linkedin_video_finalization",
       );
     }
   } else if (mediaMode === "images") {
     if (!hasImage) {
       if (channel === "instagram") {
-        addMediaBlocker("Instagram nécessite au moins 1 image.");
+        addMediaBlocker(
+          "Instagram nécessite au moins 1 image.",
+          "instagram_image_required",
+        );
       } else if (channel === "tiktok") {
-        addMediaBlocker("TikTok nécessite au moins 1 photo ou 1 vidéo.");
+        addMediaBlocker(
+          "TikTok nécessite au moins 1 photo ou 1 vidéo.",
+          "tiktok_photo_or_video_required",
+        );
       } else if (channel === "youtube_shorts") {
-        addMediaBlocker("YouTube nécessite une vidéo.");
+        addMediaBlocker("YouTube nécessite une vidéo.", "youtube_video_required");
       } else if (channel === "pinterest") {
-        addMediaBlocker("Pinterest nécessite au moins 1 image.");
+        addMediaBlocker(
+          "Pinterest nécessite au moins 1 image.",
+          "pinterest_image_required",
+        );
       } else if (channel !== "gmb") {
-        warnings.push("Aucune image sélectionnée.");
+        addWarning("Aucune image sélectionnée.", "no_image_selected");
       }
     }
 
     if (channel === "tiktok" && hasImage) {
-      warnings.push(
+      addWarning(
         "TikTok publiera les photos sur le compte connecté avec les paramètres validés.",
+        "tiktok_photo_settings_validated",
       );
     }
 
     if (channel === "pinterest" && hasImage) {
-      warnings.push(
-        imageCount > 1
-          ? `Pinterest créera une épingle multi-images avec ${Math.min(imageCount, 5)} images.`
-          : "Pinterest créera une épingle dans le tableau choisi.",
-      );
+      if (imageCount > 1) {
+        addWarning(
+          `Pinterest créera une épingle multi-images avec ${Math.min(imageCount, 5)} images.`,
+          "pinterest_multi_image",
+        );
+      } else {
+        addWarning(
+          "Pinterest créera une épingle dans le tableau choisi.",
+          "pinterest_board_selected",
+        );
+      }
     }
 
     if (channel === "youtube_shorts" && hasImage) {
-      addMediaBlocker("YouTube ne publie pas les photos : ajoutez une vidéo.");
+      addMediaBlocker(
+        "YouTube ne publie pas les photos : ajoutez une vidéo.",
+        "youtube_photos_unsupported",
+      );
     }
   } else {
     if (channel === "instagram") {
-      addMediaBlocker("Instagram nécessite une vidéo ou au moins 1 image.");
+      addMediaBlocker(
+        "Instagram nécessite une vidéo ou au moins 1 image.",
+        "instagram_media_required",
+      );
     } else if (channel === "tiktok") {
-      addMediaBlocker("TikTok nécessite une vidéo ou au moins 1 photo.");
+      addMediaBlocker(
+        "TikTok nécessite une vidéo ou au moins 1 photo.",
+        "tiktok_photo_or_video_required",
+      );
     } else if (channel === "youtube_shorts") {
-      addMediaBlocker("YouTube nécessite une vidéo.");
+      addMediaBlocker("YouTube nécessite une vidéo.", "youtube_video_required");
     } else if (channel === "pinterest") {
-      addMediaBlocker("Pinterest nécessite une image ou une vidéo.");
+      addMediaBlocker(
+        "Pinterest nécessite une image ou une vidéo.",
+        "pinterest_media_required",
+      );
     }
   }
 
@@ -808,11 +1083,15 @@ export function getChannelPublicationRequirements({
         ? hasImage
         : false;
   if (!hasText && !hasMedia) {
-    addBlocker("Ajoutez au moins du texte ou un média.");
+    addBlocker(
+      "Ajoutez au moins du texte ou un média.",
+      "text_or_media_required",
+    );
   }
 
   return {
     warnings: Array.from(new Set(warnings)),
+    warningCodes: Array.from(new Set(warningCodes)),
     blockers: Array.from(new Set(blockers)),
     mediaBlockers: Array.from(new Set(mediaBlockers)),
     blockerCodes: Array.from(new Set(blockerCodes)),
@@ -1099,6 +1378,22 @@ export function getCtaModeHelp(channel: DisplayKey, mode: BoosterCtaMode) {
     : "Lien personnalisé. Renseignez une URL et le texte du bouton si besoin.";
 }
 
+export function getLocalizedCtaModeHelp(
+  channel: DisplayKey,
+  mode: BoosterCtaMode,
+  translate: (key: string) => string,
+) {
+  if (mode === "none") return translate("cta_help_none");
+  if (mode === "website") {
+    return translate(channel === "gmb" ? "cta_help_gmb_website" : "cta_help_website");
+  }
+  if (mode === "call") {
+    return translate(channel === "gmb" ? "cta_help_gmb_call" : "cta_help_call");
+  }
+  if (mode === "message") return translate("cta_help_message");
+  return translate(channel === "gmb" ? "cta_help_gmb_custom" : "cta_help_custom");
+}
+
 export function getDefaultPost(): ChannelPost {
   return {
     title: "",
@@ -1119,6 +1414,16 @@ export function getChannelDefaultCtaLabel(
   if (mode === "website") return "Voir le site";
   if (mode === "call") return "Appeler";
   if (mode === "message") return "Envoyer un message";
+  return "";
+}
+
+export function getLocalizedChannelDefaultCtaLabel(
+  mode: BoosterCtaMode,
+  translate: (key: string) => string,
+) {
+  if (mode === "website") return translate("voir_le_site_5bf01317");
+  if (mode === "call") return translate("appeler_de49ee03");
+  if (mode === "message") return translate("envoyer_un_message_c211810b");
   return "";
 }
 
@@ -1165,6 +1470,38 @@ export function getWebsiteSourceLabelForChannel(
   if (defaults.inrcySiteUrl && url === defaults.inrcySiteUrl)
     return "Site iNrCy";
   return defaults.preferredWebsiteLabel || "Site connecté";
+}
+
+export function getLocalizedWebsiteSourceLabelForChannel(
+  channel: DisplayKey,
+  defaults: BoosterCtaDefaults | null,
+  translate: (key: string) => string,
+) {
+  const url = getWebsiteUrlForChannel(channel, defaults);
+  if (!url || !defaults) return "";
+  if (defaults.siteWebUrl && url === defaults.siteWebUrl) {
+    return translate("site_web_connecte_21cd3026");
+  }
+  if (defaults.inrcySiteUrl && url === defaults.inrcySiteUrl) {
+    return translate("site_inrcy_57016d6f");
+  }
+  return translate("site_connecte_f4833d02");
+}
+
+const CHANNEL_TOTAL_LABEL_MESSAGE_KEYS: Partial<Record<DisplayKey, string>> = {
+  gmb: "resume_final_google_business_d9bf3960",
+  instagram: "legende_instagram_finale_b89c3cc2",
+  tiktok: "legende_tiktok_finale_4975393f",
+  youtube_shorts: "legende_youtube_finale_11f26e6f",
+  pinterest: "description_pinterest_finale_4d0327ff",
+};
+
+export function getLocalizedChannelTotalLabel(
+  channel: DisplayKey,
+  translate: (key: string) => string,
+) {
+  const key = CHANNEL_TOTAL_LABEL_MESSAGE_KEYS[channel];
+  return key ? translate(key) : "";
 }
 
 export function getDefaultCtaModeForChannel(

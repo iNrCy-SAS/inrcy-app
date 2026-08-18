@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import React from "react";
 import { ChannelImageAdapterModal } from "@/app/dashboard/_components/ChannelImageAdapterTool";
 import styles from "../mails.module.css";
@@ -33,6 +34,7 @@ type MailboxPublicationImageAdapterModalProps = {
 };
 
 export default function MailboxPublicationImageAdapterModal(props: MailboxPublicationImageAdapterModalProps) {
+  const i18nT = useTranslations("mails");
   const {
     open,
     detailsEditMode,
@@ -70,7 +72,7 @@ export default function MailboxPublicationImageAdapterModal(props: MailboxPublic
   return (
     <ChannelImageAdapterModal
               open
-              title={`Adapter ${publicationImageAdapterAsset.name}`}
+              title={i18nT("adapter_value_b61c3d22", { value0: publicationImageAdapterAsset.name })}
               subtitle={`${formatChannelLabel(channel)} • ${preset.width}×${preset.height}`}
               aspectRatio={`${preset.width} / ${preset.height}`}
               backgroundMode={backgroundMode}
@@ -188,7 +190,7 @@ export default function MailboxPublicationImageAdapterModal(props: MailboxPublic
               sidebarItems={(publicationEditImagesByChannel[channel]?.assets || []).map((asset, index) => ({
                 key: asset.key,
                 previewUrl: asset.previewUrl,
-                title: `Image ${index + 1}`,
+                title: i18nT("image_value_5907a7ef", { value0: index + 1 }),
                 subtitle: asset.selected ? "Publiée sur ce canal" : "Non publiée sur ce canal",
                 active: asset.key === publicationImageAdapterAsset.key,
                 onClick: () => setPublicationImageAdapterImageKey(asset.key),

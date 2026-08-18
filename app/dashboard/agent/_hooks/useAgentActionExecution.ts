@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import {
   useEffect,
   useRef,
@@ -74,6 +77,7 @@ export function useAgentActionExecution({
   deleteScheduledEditAction,
   showNotice,
 }: UseAgentActionExecutionParams) {
+  const i18nT = useTranslations("agent");
   const [actionMutationState, setActionMutationState] =
     useState<ActionMutationState>("idle");
   const [actionMutationIntent, setActionMutationIntent] =
@@ -121,13 +125,13 @@ export function useAgentActionExecution({
 
     setAgentPublishExecutionProgress({
       progress: 6,
-      label: "Préparation de la publication iNr’Agent...",
+      label: i18nT("preparation_de_la_publication_inr_agent_56ab605b"),
     });
 
     agentPublishProgressTimerRef.current = window.setInterval(() => {
       const ratio = Math.min(1, (Date.now() - startedAt) / estimatedMs);
       const progress = Math.max(6, Math.min(96, Math.round(6 + ratio * 90)));
-      let label = "Préparation de la publication iNr’Agent...";
+      let label = i18nT("preparation_de_la_publication_inr_agent_56ab605b");
       if (ratio >= 0.12 && ratio < 0.72) {
         const channelRatio = Math.max(0, (ratio - 0.12) / 0.6);
         const channelIndex = Math.min(
@@ -140,12 +144,18 @@ export function useAgentActionExecution({
         const labelName = channelDisplayName(boosterChannel || channel);
         label =
           selectedChannels.length > 1
-            ? `Canal ${channelIndex + 1}/${selectedChannels.length} — publication sur ${labelName}...`
-            : `Publication sur ${labelName}...`;
+            ? i18nT("publish_progress_channel", {
+                index: channelIndex + 1,
+                total: selectedChannels.length,
+                channel: labelName,
+              })
+            : i18nT("publish_progress_single_channel", {
+                channel: labelName,
+              });
       } else if (ratio >= 0.72 && ratio < 0.88) {
-        label = "Récupération des retours canaux...";
+        label = i18nT("publish_progress_collecting_results");
       } else if (ratio >= 0.88) {
-        label = "Finalisation dans iNr’Send...";
+        label = i18nT("publish_progress_finalising");
       }
       setAgentPublishExecutionProgress((current) =>
         current
@@ -205,11 +215,13 @@ export function useAgentActionExecution({
     return {
       queued,
       folder,
-      title: "Campagne lancée",
+      title: i18nT("campagne_lancee_cd26fb1b"),
       details:
-        queued > 0
-          ? `${queued} email${queued > 1 ? "s" : ""} en file d’envoi. Le bilan final sera envoyé par mail au pro.`
-          : "La campagne a été confiée à iNr’Agent. Le bilan final sera envoyé par mail au pro.",
+        queued === 1
+          ? i18nT("campaign_launch_one_queued", { count: queued })
+          : queued > 1
+            ? i18nT("campaign_launch_many_queued", { count: queued })
+            : i18nT("campaign_launch_handed_off"),
     };
   }
 
@@ -253,7 +265,7 @@ export function useAgentActionExecution({
       if (!response.ok) {
         const failedPublishSummary = asRecord(payload?.publishResult)?.summary;
         if (failedPublishSummary) {
-          completeAgentPublishProgress("Échec");
+          completeAgentPublishProgress(i18nT("echec_0ff45fa6"));
           await new Promise((resolve) => window.setTimeout(resolve, 220));
           const channelLinks = await loadAgentPublishChannelLinks();
           setAgentPublishExecutionProgress(null);
@@ -271,13 +283,15 @@ export function useAgentActionExecution({
         }
         throw new Error(
           payload?.error ||
-            "Publication immédiate des autres canaux impossible.",
+            i18nT("immediate_other_channels_failed"),
         );
       }
 
       const publishSummary = asRecord(payload?.publishResult)?.summary;
       completeAgentPublishProgress(
-        asRecord(publishSummary)?.allFailed ? "Échec" : "Publié",
+        asRecord(publishSummary)?.allFailed
+          ? i18nT("echec_0ff45fa6")
+          : i18nT("publie_40c44c23"),
       );
       await new Promise((resolve) => window.setTimeout(resolve, 220));
       const channelLinks = await loadAgentPublishChannelLinks();
@@ -296,11 +310,7 @@ export function useAgentActionExecution({
     } catch (error) {
       stopAgentPublishProgressTimer();
       setAgentPublishExecutionProgress(null);
-      showNotice(
-        error instanceof Error
-          ? error.message
-          : "Publication immédiate des autres canaux impossible.",
-      );
+      showNotice(i18nT("immediate_other_channels_failed"));
     } finally {
       setActionMutationState("idle");
       setActionMutationIntent(null);
@@ -351,7 +361,7 @@ export function useAgentActionExecution({
       if (!response.ok) {
         const failedPublishSummary = asRecord(payload?.publishResult)?.summary;
         if (isPublishExecution && failedPublishSummary) {
-          completeAgentPublishProgress("Échec");
+          completeAgentPublishProgress(i18nT("echec_0ff45fa6"));
           await wait(220);
           const channelLinks = await loadAgentPublishChannelLinks();
           setAgentPublishExecutionProgress(null);
@@ -368,7 +378,7 @@ export function useAgentActionExecution({
           return;
         }
         throw new Error(
-          payload?.error || "Lancement immédiat de l’action programmée impossible.",
+          payload?.error || i18nT("scheduled_action_run_failed"),
         );
       }
 
@@ -388,7 +398,9 @@ export function useAgentActionExecution({
       if (isPublishExecution) {
         const publishSummary = asRecord(payload?.publishResult)?.summary;
         completeAgentPublishProgress(
-          asRecord(publishSummary)?.allFailed ? "Échec" : "Publié",
+          asRecord(publishSummary)?.allFailed
+            ? i18nT("echec_0ff45fa6")
+            : i18nT("publie_40c44c23"),
         );
         await wait(220);
         const channelLinks = await loadAgentPublishChannelLinks();
@@ -419,11 +431,7 @@ export function useAgentActionExecution({
         stopAgentPublishProgressTimer();
         setAgentPublishExecutionProgress(null);
       }
-      showNotice(
-        error instanceof Error
-          ? error.message
-          : "Lancement immédiat de l’action programmée impossible.",
-      );
+      showNotice(i18nT("scheduled_action_run_failed"));
     } finally {
       setActionMutationState("idle");
       setActionMutationIntent(null);
@@ -499,7 +507,7 @@ export function useAgentActionExecution({
 
         const failedPublishSummary = asRecord(payload?.publishResult)?.summary;
         if (isImmediatePublishExecution && failedPublishSummary) {
-          completeAgentPublishProgress("Échec");
+          completeAgentPublishProgress(i18nT("echec_0ff45fa6"));
           await new Promise((resolve) => window.setTimeout(resolve, 220));
           const channelLinks = await loadAgentPublishChannelLinks();
           setAgentPublishExecutionProgress(null);
@@ -517,7 +525,7 @@ export function useAgentActionExecution({
         }
 
         throw new Error(
-          payload?.error || "Mise à jour de l’action impossible.",
+          payload?.error || i18nT("mise_a_jour_de_l_action_1d95f4a2"),
         );
       }
 
@@ -539,7 +547,7 @@ export function useAgentActionExecution({
         if (isImmediatePublishExecution) {
           const publishSummary = asRecord(payload?.publishResult)?.summary;
           completeAgentPublishProgress(
-            asRecord(publishSummary)?.allFailed ? "Échec" : "Publié",
+            asRecord(publishSummary)?.allFailed ? i18nT("echec_0ff45fa6") : i18nT("publie_40c44c23"),
           );
           await new Promise((resolve) => window.setTimeout(resolve, 220));
           const channelLinks = await loadAgentPublishChannelLinks();
@@ -561,20 +569,16 @@ export function useAgentActionExecution({
           return;
         }
 
-        showNotice("Action validée et exécutée par iNr’Agent.");
+        showNotice(i18nT("action_validee_et_executee_par_inr_b157ecdf"));
       } else {
-        showNotice("Action refusée. Rien ne sera exécuté.");
+        showNotice(i18nT("action_refusee_rien_ne_sera_execute_30ca428e"));
       }
     } catch (error) {
       if (isImmediatePublishExecution) {
         stopAgentPublishProgressTimer();
         setAgentPublishExecutionProgress(null);
       }
-      showNotice(
-        error instanceof Error
-          ? error.message
-          : "Mise à jour de l’action impossible.",
-      );
+      showNotice(i18nT("mise_a_jour_de_l_action_1d95f4a2"));
     } finally {
       setActionMutationState("idle");
       setActionMutationIntent(null);

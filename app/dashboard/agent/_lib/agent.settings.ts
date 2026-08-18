@@ -221,10 +221,10 @@ export function connectedChannelsForAutomation(
 export function connectedChannelMessage(automation: Automation | null) {
   if (!automation || automation.availableChannels.length === 0) return "";
   if (automation.key === "grow") {
-    return "Aucune boîte mail connectée. Connecte une boîte dans iNrSend avant de laisser iNr’Agent travailler dans Propulser.";
+    return "Aucune boîte mail connectée. Connecte une boîte dans iNr’Send avant de laisser iNr’Agent travailler dans Propulser.";
   }
   if (automation.key === "loyalty") {
-    return "Aucune boîte mail connectée. Connecte une boîte dans iNrSend avant de laisser iNr’Agent travailler dans Fidéliser.";
+    return "Aucune boîte mail connectée. Connecte une boîte dans iNr’Send avant de laisser iNr’Agent travailler dans Fidéliser.";
   }
   if (automation.key === "publish") {
     return "Aucun canal de publication connecté. Connecte au moins un canal dans l’application avant de laisser iNr’Agent publier.";

@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import {
   useState,
   type Dispatch,
@@ -27,12 +30,16 @@ import {
 } from "../_lib/agent.config";
 import {
   configsToSettings,
-  connectedChannelMessage,
   connectedChannelsForAutomation,
   normalizeConfigScheduleSlots,
   normalizeConfigsForConnectedChannels,
   settingsToConfigs,
 } from "../_lib/agent.settings";
+import {
+  agentAutomationTitle,
+  agentConnectedChannelMessage,
+  type AgentTranslator,
+} from "../_lib/agent.i18n";
 import {
   prepareProgressLabel,
   statsProgressLabel,
@@ -82,6 +89,8 @@ export function useAgentAutomationController({
   setSelectedKey,
   showNotice,
 }: UseAgentAutomationControllerParams) {
+  const i18nT = useTranslations("agent");
+  const runtimeT = i18nT as unknown as AgentTranslator;
   const [prepareActionState, setPrepareActionState] =
     useState<PrepareActionState>("idle");
   const [prepareProgress, setPrepareProgress] =
@@ -166,7 +175,7 @@ export function useAgentAutomationController({
       } | null;
 
       if (!response.ok) {
-        throw new Error(payload?.error || "Enregistrement impossible.");
+        throw new Error(payload?.error || i18nT("agent_settings_save_failed"));
       }
 
       const savedSettings = sanitizeInrAgentSettings(
@@ -181,13 +190,11 @@ export function useAgentAutomationController({
       });
       setSaveState("saved");
       if (closeModal) setSettingsKey(null);
-      if (showSuccess) showNotice("Réglages iNr’Agent enregistrés.");
+      if (showSuccess) showNotice(i18nT("agent_settings_saved"));
       return true;
     } catch (error) {
       setSaveState("error");
-      showNotice(
-        error instanceof Error ? error.message : "Enregistrement impossible.",
-      );
+      showNotice(i18nT("agent_settings_save_failed"));
       return false;
     }
   }
@@ -259,7 +266,9 @@ export function useAgentAutomationController({
           current?.key === progressKey
             ? {
                 key: progressKey,
-                label: completed ? "Finalisation" : "Préparation arrêtée",
+                label: completed
+                  ? i18nT("automation_progress_finalising")
+                  : i18nT("automation_progress_stopped"),
                 percent: 100,
               }
             : current,
@@ -285,7 +294,7 @@ export function useAgentAutomationController({
       connectedChannelsForAutomation(automation, agentConnectedChannels)
         .length === 0
     ) {
-      showNotice(connectedChannelMessage(automation));
+      showNotice(agentConnectedChannelMessage(automation.key, runtimeT));
       return;
     }
 
@@ -295,7 +304,7 @@ export function useAgentAutomationController({
     ) {
       setPrepareNowConfirm({
         key,
-        label: key === "grow" ? "Propulser" : "Fidéliser",
+        label: agentAutomationTitle(key, runtimeT),
         pendingCount: pendingActionsByAutomation[key],
       });
       return;
@@ -330,9 +339,9 @@ export function useAgentAutomationController({
 
       if (!response.ok || !payload?.action) {
         throw new Error(
-          payload?.error ||
-            payload?.detail ||
-            "Préparation de la publication impossible.",
+            payload?.error ||
+              payload?.detail ||
+              i18nT("agent_publication_prepare_failed"),
         );
       }
 
@@ -342,14 +351,10 @@ export function useAgentAutomationController({
         ...current.filter((action) => action.id !== preparedAction.id),
       ]);
       setSelectedKey("publish");
-      showNotice("Publication Booster préparée par iNr’Agent.");
+      showNotice(i18nT("agent_publication_prepared"));
       return true;
     } catch (error) {
-      showNotice(
-        error instanceof Error
-          ? error.message
-          : "Préparation de la publication impossible.",
-      );
+      showNotice(i18nT("agent_publication_prepare_failed"));
       return false;
     } finally {
       setPrepareActionState("idle");
@@ -382,9 +387,9 @@ export function useAgentAutomationController({
 
       if (!response.ok || !payload?.action) {
         throw new Error(
-          payload?.error ||
-            payload?.detail ||
-            "Préparation de la campagne impossible.",
+            payload?.error ||
+              payload?.detail ||
+              i18nT("agent_campaign_prepare_failed"),
         );
       }
 
@@ -408,18 +413,10 @@ export function useAgentAutomationController({
       ]);
       void refreshActions(true);
       setSelectedKey(key);
-      showNotice(
-        key === "grow"
-          ? "Campagne Propulser préparée par iNr’Agent."
-          : "Campagne Fidéliser préparée par iNr’Agent.",
-      );
+      showNotice(i18nT(key === "grow" ? "agent_grow_campaign_prepared" : "agent_loyalty_campaign_prepared"));
       return true;
     } catch (error) {
-      showNotice(
-        error instanceof Error
-          ? error.message
-          : "Préparation de la campagne impossible.",
-      );
+      showNotice(i18nT("agent_campaign_prepare_failed"));
       return false;
     } finally {
       setPrepareActionState("idle");
@@ -430,7 +427,7 @@ export function useAgentAutomationController({
     if (prepareActionState === "saving") return;
 
     setPrepareActionState("saving");
-    setStatsProgress({ label: "Stats", percent: 3 });
+    setStatsProgress({ label: i18nT("stats_be763e9a"), percent: 3 });
     setNotice(null);
 
     let progressTimer: number | null = null;
@@ -472,9 +469,9 @@ export function useAgentAutomationController({
 
       if (!response.ok || !payload?.sent) {
         throw new Error(
-          payload?.error ||
-            payload?.detail ||
-            "Génération ou envoi du bilan iNr’Stats impossible.",
+            payload?.error ||
+              payload?.detail ||
+              i18nT("agent_stats_report_failed"),
         );
       }
 
@@ -482,12 +479,14 @@ export function useAgentAutomationController({
         window.clearInterval(progressTimer);
         progressTimer = null;
       }
-      setStatsProgress({ label: "Bilan envoyé", percent: 100 });
+      setStatsProgress({ label: i18nT("bilan_envoye_ad83545d"), percent: 100 });
 
       await refreshActions(true);
       setSelectedKey("stats");
       showNotice(
-        `Bilan iNr’Stats PDF envoyé${payload.recipientEmail ? ` à ${payload.recipientEmail}` : ""}.`,
+        payload.recipientEmail
+          ? i18nT("agent_stats_report_sent_to", { email: payload.recipientEmail })
+          : i18nT("agent_stats_report_sent"),
       );
       await wait(800);
     } catch (error) {
@@ -495,12 +494,8 @@ export function useAgentAutomationController({
         window.clearInterval(progressTimer);
         progressTimer = null;
       }
-      setStatsProgress({ label: "Erreur", percent: 100 });
-      showNotice(
-        error instanceof Error
-          ? error.message
-          : "Génération ou envoi du bilan iNr’Stats impossible.",
-      );
+      setStatsProgress({ label: i18nT("erreur_ab546c23"), percent: 100 });
+      showNotice(i18nT("agent_stats_report_failed"));
       await wait(900);
     } finally {
       if (progressTimer) window.clearInterval(progressTimer);

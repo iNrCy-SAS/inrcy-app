@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import type { Dispatch, SetStateAction } from "react";
 import {
   ChannelPublicationPreview,
@@ -39,6 +40,7 @@ export default function PublishPreviewPanel({
   setShowPublicationPreview,
   setSynchronizedActiveChannel,
 }: PublishPreviewPanelProps) {
+  const i18nT = useTranslations("booster");
   if (!activePublicationPreview) return null;
 
   return (
@@ -72,8 +74,7 @@ export default function PublishPreviewPanel({
               minWidth: 0,
             }}
           >
-            Aperçu
-          </PublishStepTitle>
+            {i18nT("apercu_f0f53004")}{" "}</PublishStepTitle>
           <div
             className={styles.subtitle}
             style={{
@@ -174,7 +175,7 @@ export default function PublishPreviewPanel({
             whiteSpace: "nowrap",
           }}
         >
-          {showPublicationPreview ? "Masquer" : "Afficher"}
+          {showPublicationPreview ? i18nT("masquer_adb05f2b") : i18nT("afficher_5e802040")}
         </button>
       </div>
       {showPublicationPreview ? (

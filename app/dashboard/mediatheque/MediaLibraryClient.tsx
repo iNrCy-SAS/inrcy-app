@@ -1,5 +1,6 @@
 "use client";
 
+import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 import {
   useCallback,
@@ -241,16 +242,18 @@ async function getMediaInfo(file: File) {
   return getVideoInfo(file);
 }
 
-function formatBytes(bytes: number | null | undefined) {
+function formatBytes(bytes: number | null | undefined, locale: string, kilobytes: string, megabytes: string) {
   if (!bytes) return "—";
-  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} Ko`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} Mo`;
+  if (bytes < 1024 * 1024) {
+    return `${new Intl.NumberFormat(locale).format(Math.max(1, Math.round(bytes / 1024)))} ${kilobytes}`;
+  }
+  return `${new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(bytes / 1024 / 1024)} ${megabytes}`;
 }
 
-function formatDate(iso: string | null | undefined) {
+function formatDate(iso: string | null | undefined, locale: string) {
   if (!iso) return "—";
   try {
-    return new Date(iso).toLocaleDateString("fr-FR", {
+    return new Date(iso).toLocaleDateString(locale, {
       day: "2-digit",
       month: "short",
       year: "numeric",
@@ -303,6 +306,11 @@ const MEDIA_LIBRARY_VIDEO_ACCEPT = [
 
 
 export default function MediaLibraryClient() {
+  const locale = useLocale();
+  const i18nT = useTranslations("media");
+  const displayBytes = (bytes: number | null | undefined) =>
+    formatBytes(bytes, locale, i18nT("unit_kilobytes"), i18nT("unit_megabytes"));
+  const displayDate = (iso: string | null | undefined) => formatDate(iso, locale);
   const [initialSnapshot] = useState<MediaLibrarySnapshot | null>(() => readInitialMediaLibrarySnapshot());
   const [items, setItems] = useState<MediaItem[]>(() => initialSnapshot?.items ?? []);
   const [stats, setStats] = useState(() => initialSnapshot?.stats ?? ({
@@ -374,10 +382,10 @@ export default function MediaLibraryClient() {
       );
       const json = await readApiJson(
         response,
-        "Impossible de charger la médiathèque.",
+        i18nT("library_load_failed"),
       );
       if (!response.ok)
-        throw new Error(json?.error || "Impossible de charger la médiathèque.");
+        throw new Error(json?.error || i18nT("library_load_failed"));
 
       const nextItems = (json.items ?? []) as MediaItem[];
       setItems(nextItems);
@@ -401,11 +409,11 @@ export default function MediaLibraryClient() {
         });
       }
     } catch (e: any) {
-      setError(getClientUserFacingErrorMessage(e, "Impossible de charger la médiathèque."));
+      setError(getClientUserFacingErrorMessage(e, i18nT("library_load_failed")));
     } finally {
       setLoading(false);
     }
-  }, [activeFilter, search, typeFilter]);
+  }, [activeFilter, i18nT, search, typeFilter]);
 
   useEffect(() => {
     void loadItems({ silent: Boolean(initialSnapshot) });
@@ -439,7 +447,7 @@ export default function MediaLibraryClient() {
       setFileInputKey((value) => value + 1);
     } catch (e: any) {
       setFileInputKey((value) => value + 1);
-      setError(getClientUserFacingErrorMessage(e, "Fichier non autorisé."));
+      setError(getClientUserFacingErrorMessage(e, i18nT("file_not_allowed")));
     }
   }
 
@@ -470,7 +478,7 @@ export default function MediaLibraryClient() {
     setUploadProgress(null);
 
     if (selectedFiles.length === 0) {
-      setError("Ajoute au moins une image ou une vidéo.");
+      setError(i18nT("ajoute_au_moins_une_image_ou_f47dc202"));
       return;
     }
 
@@ -491,9 +499,7 @@ export default function MediaLibraryClient() {
         const batch = batches[batchIndex];
         const batchNumber = batchIndex + 1;
         const startIndex = batchIndex * UPLOAD_BATCH_SIZE;
-        setUploadProgress(
-          `Préparation du lot ${batchNumber}/${batches.length}…`,
-        );
+        setUploadProgress(i18nT("upload_batch_preparing", { batch: batchNumber, total: batches.length }));
         setUploadPercent(
           Math.max(2, Math.round((processed / uploadFiles.length) * 90)),
         );
@@ -514,11 +520,11 @@ export default function MediaLibraryClient() {
         });
         const prepareJson = await readApiJson(
           prepareResponse,
-          "Préparation de l’import impossible.",
+          i18nT("upload_prepare_failed"),
         );
         if (!prepareResponse.ok)
           throw new Error(
-            prepareJson?.error || "Préparation de l’import impossible.",
+            prepareJson?.error || i18nT("upload_prepare_failed"),
           );
 
         const preparedItems = (
@@ -542,17 +548,18 @@ export default function MediaLibraryClient() {
                 Math.max(5, Math.round((processed / uploadFiles.length) * 90)),
               ),
             );
-            failures.push(
-              `${formatUploadName(file)} : préparation impossible.`,
-            );
+            failures.push(i18nT("upload_file_prepare_failed", { name: formatUploadName(file) }));
             continue;
           }
 
           try {
             let completedProtocol: "signed" | "tus" = "signed";
-            setUploadProgress(
-              `Import du lot ${batchNumber}/${batches.length} · fichier ${localIndex + 1}/${batch.length}…`,
-            );
+            setUploadProgress(i18nT("upload_batch_file_progress", {
+              batch: batchNumber,
+              batches: batches.length,
+              file: localIndex + 1,
+              files: batch.length,
+            }));
             const info = await getMediaInfo(file);
             const contentType =
               prepared.content_type || file.type || "application/octet-stream";
@@ -653,16 +660,15 @@ export default function MediaLibraryClient() {
                 Math.max(5, Math.round((processed / uploadFiles.length) * 90)),
               ),
             );
-            failures.push(
-              `${formatUploadName(file)} : ${uploadError?.message || "upload Supabase impossible."}`,
-            );
+            failures.push(i18nT("upload_file_error", {
+              name: formatUploadName(file),
+              error: getClientUserFacingErrorMessage(uploadError, i18nT("upload_transfer_failed")),
+            }));
           }
         }
 
         if (finalizeItems.length > 0) {
-          setUploadProgress(
-            `Finalisation du lot ${batchNumber}/${batches.length}…`,
-          );
+          setUploadProgress(i18nT("upload_batch_finalizing", { batch: batchNumber, total: batches.length }));
           setUploadPercent(
             Math.max(92, Math.round((processed / uploadFiles.length) * 92)),
           );
@@ -679,11 +685,11 @@ export default function MediaLibraryClient() {
           });
           const finalizeJson = await readApiJson(
             finalizeResponse,
-            "Finalisation de l’import impossible.",
+            i18nT("upload_finalize_failed"),
           );
           if (!finalizeResponse.ok)
             throw new Error(
-              finalizeJson?.error || "Finalisation de l’import impossible.",
+              finalizeJson?.error || i18nT("upload_finalize_failed"),
             );
           uploaded += Number(finalizeJson?.uploaded || 0);
           failed += Number(finalizeJson?.failed || 0);
@@ -692,25 +698,24 @@ export default function MediaLibraryClient() {
             : [];
           for (const result of results) {
             if (result && result.ok === false && result.original_name) {
-              failures.push(
-                `${result.original_name} : ${result.error || "finalisation impossible."}`,
-              );
+              failures.push(i18nT("upload_file_error", {
+                name: result.original_name,
+                error: getClientUserFacingErrorMessage(result.error, i18nT("upload_finalize_failed_short")),
+              }));
             }
           }
         }
       }
 
       setUploadPercent(100);
-      setSuccess(
-        `${uploaded} média(s) importé(s). ${failed ? `${failed} échec(s).` : ""}`.trim(),
-      );
+      setSuccess(i18nT("upload_result", { uploaded, failed }));
       if (failures.length > 0) setError(failures.slice(0, 4).join("\n"));
       setFiles([]);
       setFileInputKey((value) => value + 1);
       setTitle("");
       await loadItems();
     } catch (e: any) {
-      setError(getClientUserFacingErrorMessage(e, "Import impossible."));
+      setError(getClientUserFacingErrorMessage(e, i18nT("upload_failed")));
     } finally {
       setUploadProgress(null);
       setUploadPercent(null);
@@ -767,11 +772,11 @@ export default function MediaLibraryClient() {
   }
 
   function getDeleteUsageLabel(source: unknown) {
-    if (source === "inr_agent_scheduled_action") return "Programmation iNrAgent";
-    if (source === "publish_draft") return "Brouillon Publier";
-    if (source === "mail_campaign") return "Campagne programmée";
-    if (source === "send_item_draft") return "Brouillon iNrSend";
-    return "Action iNrAgent";
+    if (source === "inr_agent_scheduled_action") return i18nT("usage_source_agent_schedule");
+    if (source === "publish_draft") return i18nT("usage_source_publish_draft");
+    if (source === "mail_campaign") return i18nT("usage_source_mail_campaign");
+    if (source === "send_item_draft") return i18nT("usage_source_send_draft");
+    return i18nT("usage_source_agent_action");
   }
 
   function buildDeleteUsageConfirmMessage(payload: any, count: number) {
@@ -779,23 +784,26 @@ export default function MediaLibraryClient() {
     const usageLines = usages
       .slice(0, 6)
       .map((usage: any) => {
-        const title = String(usage?.title || "Élément iNrCy").trim();
+        const title = String(usage?.title || i18nT("usage_default_item")).trim();
         const label = getDeleteUsageLabel(usage?.source);
-        const scheduledFor = usage?.scheduledFor
-          ? ` · ${formatDate(String(usage.scheduledFor))}`
-          : "";
-        return `• ${label} : ${title}${scheduledFor}`;
+        const date = usage?.scheduledFor ? displayDate(String(usage.scheduledFor)) : "";
+        return i18nT("usage_line", {
+          label,
+          title,
+          hasDate: date ? "yes" : "no",
+          date,
+        });
       })
       .join("\n");
     const hiddenCount = Math.max(0, Number(payload?.usageCount || usages.length || 0) - 6);
     return [
-      `Attention : ${count > 1 ? "un ou plusieurs médias sélectionnés sont utilisés" : "ce média est utilisé"} dans iNrAgent, une programmation, une campagne ou un brouillon.`,
+      i18nT("delete_usage_warning", { count }),
       "",
       usageLines,
-      hiddenCount ? `… et ${hiddenCount} autre(s) utilisation(s).` : "",
+      hiddenCount ? i18nT("delete_usage_more", { count: hiddenCount }) : "",
       "",
-      "Si vous supprimez maintenant, ces actions, campagnes ou brouillons peuvent perdre leur média.",
-      "Confirmer quand même la suppression définitive ?",
+      i18nT("delete_usage_risk"),
+      i18nT("delete_usage_confirm"),
     ]
       .filter(Boolean)
       .join("\n");
@@ -814,11 +822,11 @@ export default function MediaLibraryClient() {
       !force
     ) {
       const ok = await confirmInrcy({
-        eyebrow: "Médiathèque",
-        title: "Supprimer malgré les utilisations ?",
+        eyebrow: i18nT("mediatheque_e4fa8e31"),
+        title: i18nT("supprimer_malgre_les_utilisations_faab5cc2"),
         message: buildDeleteUsageConfirmMessage(json, ids.length),
-        confirmLabel: "Supprimer définitivement",
-        cancelLabel: "Annuler",
+        confirmLabel: i18nT("supprimer_definitivement_66e03d8b"),
+        cancelLabel: i18nT("annuler_49ba3292"),
         variant: "danger",
       });
       if (!ok) return { ok: false, cancelled: true };
@@ -833,11 +841,11 @@ export default function MediaLibraryClient() {
     if (!ids.length) return;
 
     const ok = await confirmInrcy({
-      eyebrow: "Médiathèque",
-      title: "Supprimer les médias sélectionnés ?",
-      message: `Supprimer définitivement ${ids.length} média(s) de votre médiathèque ?`,
-      confirmLabel: "Supprimer",
-      cancelLabel: "Annuler",
+      eyebrow: i18nT("mediatheque_e4fa8e31"),
+      title: i18nT("supprimer_les_medias_selectionnes_9540bf97"),
+      message: i18nT("supprimer_definitivement_value_media_s_de_80952de7", { value0: ids.length }),
+      confirmLabel: i18nT("supprimer_1acfc1c7"),
+      cancelLabel: i18nT("annuler_49ba3292"),
       variant: "danger",
     });
     if (!ok) return;
@@ -848,11 +856,11 @@ export default function MediaLibraryClient() {
     try {
       const json = await requestMediaDelete(ids);
       if (json?.cancelled) return;
-      setSuccess(`${Number(json?.deleted || ids.length)} média(s) supprimé(s).`);
+      setSuccess(i18nT("value_media_s_supprime_s_8df3af87", { value0: Number(json?.deleted || ids.length) }));
       clearItemSelection();
       await loadItems();
     } catch (e: any) {
-      setError(getClientUserFacingErrorMessage(e, "Suppression impossible."));
+      setError(getClientUserFacingErrorMessage(e, i18nT("delete_failed")));
     } finally {
       setSavingId(null);
     }
@@ -860,11 +868,11 @@ export default function MediaLibraryClient() {
 
   async function deleteItem(item: MediaItem) {
     const ok = await confirmInrcy({
-      eyebrow: "Médiathèque",
-      title: "Supprimer ce média ?",
-      message: "Ce média sera supprimé définitivement de votre médiathèque.",
-      confirmLabel: "Supprimer",
-      cancelLabel: "Annuler",
+      eyebrow: i18nT("mediatheque_e4fa8e31"),
+      title: i18nT("supprimer_ce_media_854005e3"),
+      message: i18nT("ce_media_sera_supprime_definitivement_de_783dea19"),
+      confirmLabel: i18nT("supprimer_1acfc1c7"),
+      cancelLabel: i18nT("annuler_49ba3292"),
       variant: "danger",
     });
     if (!ok) return;
@@ -874,7 +882,7 @@ export default function MediaLibraryClient() {
     try {
       const json = await requestMediaDelete([item.id]);
       if (json?.cancelled) return;
-      setSuccess("Média supprimé.");
+      setSuccess(i18nT("media_supprime_09076281"));
       setSelectedItemIds((prev) => {
         const next = new Set(prev);
         next.delete(item.id);
@@ -882,7 +890,7 @@ export default function MediaLibraryClient() {
       });
       await loadItems();
     } catch (e: any) {
-      setError(getClientUserFacingErrorMessage(e, "Suppression impossible."));
+      setError(getClientUserFacingErrorMessage(e, i18nT("delete_failed")));
     } finally {
       setSavingId(null);
     }
@@ -897,12 +905,11 @@ export default function MediaLibraryClient() {
           </div>
           <div className={styles.heroContent}>
             <h1 className={styles.title}>
-              <span className={styles.titleFull}>Vos images et vidéos iNrCy</span>
-              <span className={styles.titleMobile}>Médiathèque iNrCy</span>
+              <span className={styles.titleFull}>{i18nT("vos_images_et_videos_inrcy_58912437")}</span>
+              <span className={styles.titleMobile}>{i18nT("mediatheque_inrcy_a885e19e")}</span>
             </h1>
             <p className={styles.subtitle}>
-              Médias privés pour vos publications et iNrAgent.
-            </p>
+              {i18nT("medias_prives_pour_vos_publications_et_d4b404be")}{" "}</p>
           </div>
 
           <div className={styles.headerActions}>
@@ -910,7 +917,7 @@ export default function MediaLibraryClient() {
               type="button"
               className={styles.helperButton}
               onClick={() => setHelperOpen(true)}
-              aria-label="Aide médiathèque"
+              aria-label={i18nT("aide_mediatheque_1327839a")}
             >
               ?
             </button>
@@ -919,15 +926,15 @@ export default function MediaLibraryClient() {
               className={styles.ghostButton}
               onClick={() => void loadItems()}
               disabled={loading}
-              aria-label={loading ? "Chargement de la médiathèque" : "Rafraîchir la médiathèque"}
+              aria-label={loading ? i18nT("library_loading_aria") : i18nT("library_refresh_aria")}
             >
               <span className={styles.actionIcon} aria-hidden="true">↻</span>
               <span className={styles.actionText}>
-                {loading ? "Chargement…" : "Rafraîchir"}
+                {loading ? i18nT("chargement_01cba1df") : i18nT("rafraichir_be30b7d1")}
               </span>
             </button>
-            <Link href="/dashboard" className={styles.closeButton} aria-label="Fermer la médiathèque">
-              <span className={styles.closeText}>Fermer</span>
+            <Link href="/dashboard" className={styles.closeButton} aria-label={i18nT("fermer_la_mediatheque_beaaf18f")}>
+              <span className={styles.closeText}>{i18nT("fermer_5ab4ec64")}</span>
               <span className={styles.closeIcon} aria-hidden="true">×</span>
             </Link>
           </div>
@@ -936,37 +943,35 @@ export default function MediaLibraryClient() {
 
         <section className={styles.metricsGrid}>
           <article className={styles.metricCard}>
-            <span className={styles.metricLabel}>Médias</span>
+            <span className={styles.metricLabel}>{i18nT("medias_486d82f4")}</span>
             <strong className={styles.metricValue}>{stats.total}</strong>
-            <small className={styles.metricSub}>éléments affichés</small>
+            <small className={styles.metricSub}>{i18nT("elements_affiches_20abefad")}</small>
           </article>
           <article className={styles.metricCard}>
-            <span className={styles.metricLabel}>Images</span>
+            <span className={styles.metricLabel}>{i18nT("images_09e871c9")}</span>
             <strong className={styles.metricValue}>{stats.images}</strong>
-            <small className={styles.metricSub}>JPG · PNG · WebP</small>
+            <small className={styles.metricSub}>{i18nT("jpg_png_webp_b52b82db")}</small>
           </article>
           <article className={styles.metricCard}>
-            <span className={styles.metricLabel}>Vidéos</span>
+            <span className={styles.metricLabel}>{i18nT("videos_ea129238")}</span>
             <strong className={styles.metricValue}>{stats.videos}</strong>
-            <small className={styles.metricSub}>MP4 · WebM · MOV</small>
+            <small className={styles.metricSub}>{i18nT("mp4_webm_mov_116ade48")}</small>
           </article>
           <article className={styles.metricCard}>
-            <span className={styles.metricLabel}>Poids affiché</span>
+            <span className={styles.metricLabel}>{i18nT("poids_affiche_299b78be")}</span>
             <strong className={styles.metricValueSmall}>
-              {formatBytes(stats.total_bytes)}
+              {displayBytes(stats.total_bytes)}
             </strong>
-            <small className={styles.metricSub}>sur cette vue</small>
+            <small className={styles.metricSub}>{i18nT("sur_cette_vue_d3d66a31")}</small>
           </article>
         </section>
 
         <div className={styles.grid}>
           <form className={styles.card} onSubmit={onSubmit}>
             <div className={styles.cardHeader}>
-              <h2>Importer dans ma médiathèque</h2>
+              <h2>{i18nT("importer_dans_ma_mediatheque_3f45cbb6")}</h2>
               <p>
-                Les médias restent privés et rattachés au compte du
-                professionnel.
-              </p>
+                {i18nT("les_medias_restent_prives_et_rattaches_384c40f8")}{" "}</p>
             </div>
 
             <label
@@ -988,7 +993,7 @@ export default function MediaLibraryClient() {
               }}
               onDrop={onDropFiles}
             >
-              <span>Fichiers</span>
+              <span>{i18nT("fichiers_23a9d9fc")}</span>
               <input
                 key={fileInputKey}
                 className={styles.fileInput}
@@ -1002,23 +1007,22 @@ export default function MediaLibraryClient() {
               />
               <small className={styles.helper}>
                 {selectedFiles.length
-                  ? `${selectedFiles.length} fichier(s) · ${selectedStats.images} image(s) · ${selectedStats.videos} vidéo(s) · ${formatBytes(selectedStats.bytes)}`
-                  : `Médias source jusqu’à 300 Mo · format adapté et/ou poids ramené à 50 Mo/image ou 75 Mo/vidéo · lots de ${UPLOAD_BATCH_SIZE}.`}
+                  ? i18nT("value_fichier_s_value_image_s_a7f02e95", { value0: selectedFiles.length, value1: selectedStats.images, value2: selectedStats.videos, value3: displayBytes(selectedStats.bytes) })
+                  : i18nT("medias_source_jusqu_a_300_mo_19c89ace", { value0: UPLOAD_BATCH_SIZE })}
               </small>
             </label>
 
             {selectedFiles.length > 0 ? (
               <div className={styles.selectedFilesBox}>
                 <div className={styles.selectedFilesHeader}>
-                  <strong>Sélection prête à importer</strong>
+                  <strong>{i18nT("selection_prete_a_importer_b9f33aa2")}</strong>
                   <button
                     type="button"
                     className={styles.clearSelectionButton}
                     onClick={clearSelectedFiles}
                     disabled={uploading}
                   >
-                    Vider
-                  </button>
+                    {i18nT("vider_13901111")}{" "}</button>
                 </div>
                 <div className={styles.selectedFilesList}>
                   {selectedFiles.map((file, index) => (
@@ -1036,14 +1040,14 @@ export default function MediaLibraryClient() {
                         {file.name}
                       </span>
                       <span className={styles.selectedFileSize}>
-                        {formatBytes(file.size)}
+                        {displayBytes(file.size)}
                       </span>
                       <button
                         type="button"
                         className={styles.removeFileButton}
                         onClick={() => removeSelectedFile(index)}
                         disabled={uploading}
-                        aria-label={`Retirer ${file.name}`}
+                        aria-label={i18nT("retirer_value_c04cdfcb", { value0: file.name })}
                       >
                         ×
                       </button>
@@ -1054,26 +1058,25 @@ export default function MediaLibraryClient() {
             ) : null}
 
             <label className={styles.label}>
-              <span>Titre commun optionnel</span>
+              <span>{i18nT("titre_commun_optionnel_01483e16")}</span>
               <input
                 className={styles.input}
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
-                placeholder="Ex : Réalisations toiture 2026"
+                placeholder={i18nT("ex_realisations_toiture_2026_a3f9cf21")}
               />
             </label>
 
             <label className={styles.label}>
-              <span>Tags</span>
+              <span>{i18nT("tags_848eed0f")}</span>
               <input
                 className={styles.input}
                 value={tags}
                 onChange={(event) => setTags(event.target.value)}
-                placeholder="chantier, avant-après, équipe, produit…"
+                placeholder={i18nT("chantier_avant_apres_equipe_produit_5ef60075")}
               />
               <small className={styles.helper}>
-                Les tags aideront iNrAgent à choisir le bon média.
-              </small>
+                {i18nT("les_tags_aideront_inragent_a_choisir_10723b6a")}{" "}</small>
             </label>
 
             {uploadProgress ? (
@@ -1093,7 +1096,7 @@ export default function MediaLibraryClient() {
               type="submit"
               disabled={uploading || selectedFiles.length === 0}
             >
-              {uploading ? "Import en cours…" : "Importer dans ma médiathèque"}
+              {uploading ? i18nT("import_en_cours_2357d6a4") : i18nT("importer_dans_ma_mediatheque_3f45cbb6")}
             </button>
 
             {(success || error) && (
@@ -1107,17 +1110,15 @@ export default function MediaLibraryClient() {
           <section className={styles.libraryCard}>
             <div className={styles.libraryHeader}>
               <div>
-                <h2>Mes médias</h2>
+                <h2>{i18nT("mes_medias_0c5196c9")}</h2>
                 <p>
-                  Photos et vidéos disponibles pour iNrAgent et vos futures
-                  publications.
-                </p>
+                  {i18nT("photos_et_videos_disponibles_pour_inragent_f169f51c")}{" "}</p>
               </div>
             </div>
 
             <div className={styles.filters}>
               <label>
-                <span>Type</span>
+                <span>{i18nT("type_3deb7456")}</span>
                 <select
                   className={styles.select}
                   value={typeFilter}
@@ -1125,13 +1126,13 @@ export default function MediaLibraryClient() {
                     setTypeFilter(event.target.value as MediaTypeFilter)
                   }
                 >
-                  <option value="all">Tous</option>
-                  <option value="image">Images</option>
-                  <option value="video">Vidéos</option>
+                  <option value="all">{i18nT("tous_b97ae3b4")}</option>
+                  <option value="image">{i18nT("images_09e871c9")}</option>
+                  <option value="video">{i18nT("videos_ea129238")}</option>
                 </select>
               </label>
               <label>
-                <span>Statut</span>
+                <span>{i18nT("statut_659499f3")}</span>
                 <select
                   className={styles.select}
                   value={activeFilter}
@@ -1139,18 +1140,18 @@ export default function MediaLibraryClient() {
                     setActiveFilter(event.target.value as ActiveFilter)
                   }
                 >
-                  <option value="active">Actifs</option>
-                  <option value="inactive">Masqués</option>
-                  <option value="all">Tous</option>
+                  <option value="active">{i18nT("actifs_4fc3a980")}</option>
+                  <option value="inactive">{i18nT("masques_cb0d30ef")}</option>
+                  <option value="all">{i18nT("tous_b97ae3b4")}</option>
                 </select>
               </label>
               <label className={styles.searchLabel}>
-                <span>Recherche</span>
+                <span>{i18nT("recherche_787b5492")}</span>
                 <input
                   className={styles.input}
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="titre, tag, fichier…"
+                  placeholder={i18nT("titre_tag_fichier_3ea8c409")}
                 />
               </label>
               <button
@@ -1158,8 +1159,7 @@ export default function MediaLibraryClient() {
                 className={styles.applyButton}
                 onClick={() => void loadItems()}
               >
-                Appliquer
-              </button>
+                {i18nT("appliquer_a4d66139")}{" "}</button>
             </div>
 
             <div className={styles.bulkToolbar}>
@@ -1169,20 +1169,19 @@ export default function MediaLibraryClient() {
                 onClick={toggleAllVisibleItems}
                 disabled={loading || items.length === 0 || bulkDeleting}
               >
-                {allVisibleItemsSelected ? "Tout désélectionner" : "Tout sélectionner"}
+                {allVisibleItemsSelected ? i18nT("tout_deselectionner_d17ec0b7") : i18nT("tout_selectionner_06f2c1c0")}
               </button>
               {selectedItemCount > 0 ? (
                 <>
                   <span className={styles.selectedCount}>
-                    {selectedItemCount} média(s) sélectionné(s)
-                  </span>
+                    {i18nT("value_media_s_selectionne_s_bf363244", { value0: selectedItemCount })}</span>
                   <button
                     type="button"
                     className={styles.bulkDangerButton}
                     onClick={deleteSelectedItems}
                     disabled={bulkDeleting}
                   >
-                    {bulkDeleting ? "Suppression…" : "Supprimer la sélection"}
+                    {bulkDeleting ? i18nT("suppression_a620db43") : i18nT("supprimer_la_selection_d1347096")}
                   </button>
                 </>
               ) : null}
@@ -1190,25 +1189,22 @@ export default function MediaLibraryClient() {
 
             {loading ? (
               <div className={styles.emptyState}>
-                Chargement de votre médiathèque…
-              </div>
+                {i18nT("chargement_de_votre_mediatheque_25fc0449")}{" "}</div>
             ) : items.length === 0 ? (
               <div className={styles.emptyState}>
-                <strong>Aucun média pour le moment.</strong>
+                <strong>{i18nT("aucun_media_pour_le_moment_12d38a73")}</strong>
                 <span>
-                  Importez vos premières photos ou vidéos pour alimenter
-                  iNrAgent.
-                </span>
+                  {i18nT("importez_vos_premieres_photos_ou_videos_7f226498")}{" "}</span>
               </div>
             ) : (
               <div className={styles.mediaList}>
                 <div className={styles.mediaListHead} aria-hidden="true">
                   <span></span>
-                  <span>Média</span>
-                  <span>Type</span>
-                  <span>Poids</span>
-                  <span>Format</span>
-                  <span>Date</span>
+                  <span>{i18nT("media_d8a313d3")}</span>
+                  <span>{i18nT("type_3deb7456")}</span>
+                  <span>{i18nT("poids_2cc4c1e5")}</span>
+                  <span>{i18nT("format_041a5dec")}</span>
+                  <span>{i18nT("date_eb9a4bc1")}</span>
                   <span></span>
                 </div>
                 {items.map((item) => {
@@ -1223,7 +1219,7 @@ export default function MediaLibraryClient() {
                   >
                     <label
                       className={styles.rowCheck}
-                      aria-label={`Sélectionner ${item.title || "ce média"}`}
+                      aria-label={i18nT("selectionner_value_b74d84aa", { value0: item.title || i18nT("media_this") })}
                     >
                       <input
                         type="checkbox"
@@ -1241,7 +1237,7 @@ export default function MediaLibraryClient() {
                           event.stopPropagation();
                           setPreviewItem(item);
                         }}
-                        aria-label="Agrandir le média"
+                        aria-label={i18nT("agrandir_le_media_55f536e4")}
                       >
                         {item.media_type === "video" ? (
                           <video
@@ -1254,23 +1250,22 @@ export default function MediaLibraryClient() {
                         ) : item.signed_url ? (
                           <img
                             src={item.signed_url}
-                            alt={item.title || "Média"}
+                            alt={item.title || i18nT("media_default_alt")}
                             className={styles.mediaRowThumb}
                             loading="lazy"
                           />
                         ) : (
-                          <div className={styles.noPreview}>Aperçu indisponible</div>
+                          <div className={styles.noPreview}>{i18nT("apercu_indisponible_d0ce704a")}</div>
                         )}
                       </button>
 
                       <div className={styles.mediaRowMain}>
-                        <strong>{item.title || "Média sans titre"}</strong>
-                        <span>{tagsToText(item.tags) || "Aucun tag"}</span>
+                        <strong>{item.title || i18nT("media_sans_titre_e77f1871")}</strong>
+                        <span>{tagsToText(item.tags) || i18nT("aucun_tag_b6d9425d")}</span>
                         {mediaNeedsOptimization(item) ? (
                           <div className={styles.mediaRowOptimizationActions}>
                             <span className={styles.optimizationBadge}>
-                              À optimiser · format et/ou poids
-                            </span>
+                              {i18nT("a_optimiser_format_et_ou_poids_df2070a3")}{" "}</span>
                             <button
                               type="button"
                               className={styles.optimizeButton}
@@ -1282,12 +1277,12 @@ export default function MediaLibraryClient() {
                               {["queued", "processing", "retry_wait"].includes(
                                 String(item.optimization?.status || ""),
                               )
-                                ? `Optimisation · ${Math.max(0, Math.min(99, Number(item.optimization?.progress || 0)))} %`
-                                : "Optimiser"}
+                                ? i18nT("optimisation_value_174c8358", { value0: Math.max(0, Math.min(99, Number(item.optimization?.progress || 0))) })
+                                : i18nT("optimiser_19599bcc")}
                             </button>
                           </div>
                         ) : item.source === "mediatheque_optimization" ? (
-                          <span className={styles.compatibleCopyBadge}>✓ Copie optimisée</span>
+                          <span className={styles.compatibleCopyBadge}>{i18nT("copie_optimisee_f10d59ec")}</span>
                         ) : null}
                       </div>
                     </div>
@@ -1308,7 +1303,7 @@ export default function MediaLibraryClient() {
                           event.stopPropagation();
                           toggleItemDetails(item.id);
                         }}
-                        aria-label={detailsOpen ? "Masquer les détails" : "Afficher les détails"}
+                        aria-label={detailsOpen ? i18nT("media_hide_details") : i18nT("media_show_details")}
                         aria-expanded={detailsOpen}
                       >
                         <svg
@@ -1329,10 +1324,10 @@ export default function MediaLibraryClient() {
                     </div>
 
                     <span className={styles.mediaRowPill} data-label="Type">
-                      {item.media_type === "video" ? "Vidéo" : "Image"}
+                      {item.media_type === "video" ? i18nT("video_304f6ca4") : i18nT("image_50e19fda")}
                     </span>
                     <span className={styles.mediaRowMeta} data-label="Poids">
-                      {formatBytes(item.size_bytes)}
+                      {displayBytes(item.size_bytes)}
                     </span>
                     <span className={styles.mediaRowMeta} data-label="Format">
                       {item.media_type === "video"
@@ -1342,7 +1337,7 @@ export default function MediaLibraryClient() {
                           : "—"}
                     </span>
                     <span className={styles.mediaRowMeta} data-label="Date">
-                      {formatDate(item.created_at)}
+                      {displayDate(item.created_at)}
                     </span>
 
                     <button
@@ -1354,8 +1349,7 @@ export default function MediaLibraryClient() {
                       }}
                       disabled={isSaving || bulkDeleting}
                     >
-                      Supprimer
-                    </button>
+                      {i18nT("supprimer_1acfc1c7")}{" "}</button>
                   </article>
                   );
                 })}
@@ -1383,14 +1377,14 @@ export default function MediaLibraryClient() {
             className={styles.helperModal}
             role="dialog"
             aria-modal="true"
-            aria-label="Aide médiathèque iNrCy"
+            aria-label={i18nT("aide_mediatheque_inrcy_c413fda4")}
             onClick={(event) => event.stopPropagation()}
           >
             <button
               type="button"
               className={styles.helperClose}
               onClick={() => setHelperOpen(false)}
-              aria-label="Fermer l’aide"
+              aria-label={i18nT("fermer_l_aide_b2e97a76")}
             >
               ×
             </button>
@@ -1399,41 +1393,38 @@ export default function MediaLibraryClient() {
                 🖼️
               </div>
               <div className={styles.helperModalIntro}>
-                <div className={styles.helperModalKicker}>Médiathèque iNrCy</div>
-                <h2>Comment utiliser vos médias ?</h2>
+                <div className={styles.helperModalKicker}>{i18nT("mediatheque_inrcy_a885e19e")}</div>
+                <h2>{i18nT("comment_utiliser_vos_medias_b2fba862")}</h2>
                 <p>
-                  Vos photos, logos et vidéos restent privés. iNrAgent les utilise en
-                  priorité pour préparer des publications plus authentiques.
-                </p>
+                  {i18nT("vos_photos_logos_et_videos_restent_a7a8faf5")}{" "}</p>
               </div>
             </div>
             <div className={styles.helperModalPills}>
-              <span>🔒 Privé</span>
-              <span>🖼️ Images · préparation automatique</span>
-              <span>🎬 Vidéos · envoi résumable</span>
-              <span>🤖 Priorité iNrAgent</span>
+              <span>{i18nT("prive_e3125aac")}</span>
+              <span>{i18nT("images_preparation_automatique_ff95b891")}</span>
+              <span>{i18nT("videos_envoi_resumable_e7b7f368")}</span>
+              <span>{i18nT("priorite_inragent_91b09501")}</span>
             </div>
             <div className={styles.helperModalGrid}>
               <div className={styles.helperInfoCard}>
-                <strong>🔒 Médias privés</strong>
-                <span>Chaque fichier reste rattaché au compte du professionnel.</span>
+                <strong>{i18nT("medias_prives_6faa78ff")}</strong>
+                <span>{i18nT("chaque_fichier_reste_rattache_au_compte_bed33f54")}</span>
               </div>
               <div className={styles.helperInfoCard}>
-                <strong>🖼️ Images</strong>
-                <span>Formats image courants · préparation automatique par iNrCy.</span>
+                <strong>{i18nT("images_d6597c32")}</strong>
+                <span>{i18nT("formats_image_courants_preparation_automatique_p_33468cd6")}</span>
               </div>
               <div className={styles.helperInfoCard}>
-                <strong>🎬 Vidéos</strong>
-                <span>Formats vidéo courants · envoi direct et résumable.</span>
+                <strong>{i18nT("videos_65b3bbeb")}</strong>
+                <span>{i18nT("formats_video_courants_envoi_direct_et_81881113")}</span>
               </div>
               <div className={styles.helperInfoCard}>
-                <strong>🤖 iNrAgent</strong>
-                <span>iNrAgent privilégie cette médiathèque avant la banque d’images iNrCy.</span>
+                <strong>{i18nT("inragent_9be84f49")}</strong>
+                <span>{i18nT("inragent_privilegie_cette_mediatheque_avant_la_d4f99b4d")}</span>
               </div>
             </div>
             <div className={styles.helperModalFooter}>
-              Importez vos meilleurs visuels ici pour qu’iNrAgent privilégie vos vrais médias.
-            </div>
+              {i18nT("importez_vos_meilleurs_visuels_ici_pour_470820ca")}{" "}</div>
           </div>
         </div>
       ) : null}
@@ -1448,14 +1439,14 @@ export default function MediaLibraryClient() {
             className={styles.previewModal}
             role="dialog"
             aria-modal="true"
-            aria-label="Aperçu du média"
+            aria-label={i18nT("apercu_du_media_a15051aa")}
             onClick={(event) => event.stopPropagation()}
           >
             <button
               type="button"
               className={styles.previewClose}
               onClick={() => setPreviewItem(null)}
-              aria-label="Fermer"
+              aria-label={i18nT("fermer_5ab4ec64")}
             >
               ×
             </button>
@@ -1469,14 +1460,14 @@ export default function MediaLibraryClient() {
               ) : (
                 <img
                   src={previewItem.signed_url || ""}
-                  alt={previewItem.title || "Média"}
+                  alt={previewItem.title || i18nT("media_default_alt")}
                   className={styles.previewMedia}
                 />
               )}
             </div>
             <div className={styles.previewInfo}>
-              <strong>{previewItem.title || "Média sans titre"}</strong>
-              <span>{tagsToText(previewItem.tags) || "Aucun tag"}</span>
+              <strong>{previewItem.title || i18nT("media_sans_titre_e77f1871")}</strong>
+              <span>{tagsToText(previewItem.tags) || i18nT("aucun_tag_b6d9425d")}</span>
             </div>
           </div>
         </div>

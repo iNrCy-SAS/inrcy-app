@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
@@ -103,15 +106,28 @@ function MenuIcon() {
   );
 }
 
-function compactLabels(locale: string) {
+type CompactLabels = {
+  home: string;
+  publish: string;
+  shortcuts: string;
+  general: string;
+  language: string;
+  gps: string;
+};
+
+function compactLabels(locale: string, i18nT: (key: string) => string): CompactLabels {
   const lang = locale.toLowerCase().split("-")[0];
-  if (lang === "en") return { home: "Home", publish: "Publish", shortcuts: "Shortcuts", general: "General", language: "Language", gps: "Usage GPS" };
-  if (lang === "es") return { home: "Inicio", publish: "Publicar", shortcuts: "Accesos directos", general: "General", language: "Idioma", gps: "GPS de uso" };
-  if (lang === "it") return { home: "Home", publish: "Pubblica", shortcuts: "Scorciatoie", general: "Generale", language: "Lingua", gps: "GPS utilizzo" };
-  if (lang === "de") return { home: "Start", publish: "Veröff.", shortcuts: "Schnellzugriffe", general: "Allgemein", language: "Sprache", gps: "Nutzungs-GPS" };
-  if (lang === "nl") return { home: "Home", publish: "Publiceren", shortcuts: "Snelkoppelingen", general: "Algemeen", language: "Taal", gps: "Gebruiks-GPS" };
-  if (lang === "pt") return { home: "Início", publish: "Publicar", shortcuts: "Atalhos", general: "Geral", language: "Idioma", gps: "GPS de utilização" };
-  return { home: "Accueil", publish: "Publier", shortcuts: "Raccourcis", general: "Général", language: "Langue", gps: "GPS d’utilisation" };
+  const keysByLanguage: Record<string, Record<keyof CompactLabels, string>> = {
+    en: { home: "home_70f8bb9a", publish: "publish_56564005", shortcuts: "shortcuts_90c93523", general: "general_9239ee2c", language: "language_89b86ab0", gps: "usage_gps_3938b96f" },
+    es: { home: "inicio_4f70d8c3", publish: "publicar_9df643f0", shortcuts: "accesos_directos_a5fc2348", general: "general_9239ee2c", language: "idioma_00943388", gps: "gps_de_uso_e0f617b6" },
+    it: { home: "home_70f8bb9a", publish: "pubblica_6887c13e", shortcuts: "scorciatoie_43143428", general: "generale_96cf0eaf", language: "lingua_a1b8a94a", gps: "gps_utilizzo_2c49e8ca" },
+    de: { home: "start_952f3754", publish: "veroff_d6edd358", shortcuts: "schnellzugriffe_25541a78", general: "allgemein_21a7b4ec", language: "sprache_3d9f5cb4", gps: "nutzungs_gps_b4fa44cc" },
+    nl: { home: "home_70f8bb9a", publish: "publiceren_83a7dddc", shortcuts: "snelkoppelingen_01c5d161", general: "algemeen_aedfc952", language: "taal_53eee21b", gps: "gebruiks_gps_0ddb3d74" },
+    pt: { home: "inicio_fc2c7400", publish: "publicar_9df643f0", shortcuts: "atalhos_c7f81ce8", general: "geral_b6748d4e", language: "idioma_00943388", gps: "gps_de_utilizacao_3a9e429c" },
+    fr: { home: "accueil_a8ff8fd2", publish: "publier_34e6b19e", shortcuts: "raccourcis_0e0d6404", general: "general_9239ee2c", language: "langue_6619264a", gps: "gps_d_utilisation_5f30c155" },
+  };
+  const keys = keysByLanguage[lang] || keysByLanguage.fr;
+  return Object.fromEntries(Object.entries(keys).map(([name, key]) => [name, i18nT(key)])) as CompactLabels;
 }
 
 type MobileMenuActionButtonProps = {
@@ -127,6 +143,7 @@ function MobileMenuActionButton({
   onClick,
   warning = false,
 }: MobileMenuActionButtonProps) {
+  const i18nT = useTranslations("shell");
   return (
     <button
       className={styles.menuItem}
@@ -137,7 +154,7 @@ function MobileMenuActionButton({
       onClick={onClick}
     >
       <span className={styles.menuItemText}>
-        {loading ? "Chargement…" : label}
+        {loading ? i18nT("chargement_01cba1df") : label}
       </span>
       {warning && !loading ? (
         <span className={styles.menuItemWarning} aria-hidden="true">
@@ -149,6 +166,7 @@ function MobileMenuActionButton({
 }
 
 function ResponsiveBottomNavMobile() {
+  const i18nT = useTranslations("shell");
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -157,7 +175,7 @@ function ResponsiveBottomNavMobile() {
   const standardMode = dashboardEdition === "standard";
   const t = useDashboardI18n();
   const { language, setLanguage } = useDashboardLanguage();
-  const labels = useMemo(() => compactLabels(t.locale), [t.locale]);
+  const labels = useMemo(() => compactLabels(t.locale, i18nT), [t.locale, i18nT]);
   const {
     profileIncomplete,
     activityIncomplete,
@@ -534,7 +552,7 @@ function ResponsiveBottomNavMobile() {
                         {option.iconSrc ? <img src={option.iconSrc} alt="" className={styles.shortcutIconImage} loading="eager" decoding="async" /> : <span className={styles.shortcutIconText}>{option.iconText}</span>}
                         {id === "agent" && pendingInrAgentCount > 0 ? <span className={styles.shortcutBadge}>{pendingLabel}</span> : null}
                       </span>
-                      <span className={styles.shortcutLabel}>{shortcutLoadingVisible ? "Chargement…" : label}</span>
+                      <span className={styles.shortcutLabel}>{shortcutLoadingVisible ? i18nT("chargement_01cba1df") : label}</span>
                       {shortcutLocked ? (
                         <RequiredSetupLock
                           message={requiredSetupLockMessage}
@@ -672,7 +690,7 @@ function ResponsiveBottomNavMobile() {
         </>
       ) : null}
 
-      <nav className={`${styles.root} ${hidden ? styles.rootHidden : ""}`} aria-label="Navigation mobile iNrCy">
+      <nav className={`${styles.root} ${hidden ? styles.rootHidden : ""}`} aria-label={i18nT("navigation_mobile_inrcy_3f17bb20")}>
         <div className={styles.bar}>
           <button
             type="button"
@@ -706,7 +724,7 @@ function ResponsiveBottomNavMobile() {
               navigate("/dashboard?action=publish");
             }}
           >
-            <span className={styles.publishButton}>{publishLoadingVisible ? "Chargement…" : labels.publish}</span>
+            <span className={styles.publishButton}>{publishLoadingVisible ? i18nT("chargement_01cba1df") : labels.publish}</span>
             {requiredSetupLocked ? (
               <RequiredSetupLock
                 message={requiredSetupLockMessage}

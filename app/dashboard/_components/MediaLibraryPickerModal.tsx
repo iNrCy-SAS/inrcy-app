@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { getMediaLibraryOptimizationRequirements } from "@/lib/mediaLibraryOptimizationPolicy";
 
@@ -130,6 +133,7 @@ export default function MediaLibraryPickerModal({
   onClose,
   onConfirm,
 }: MediaLibraryPickerModalProps) {
+  const i18nT = useTranslations("media");
   const [items, setItems] = useState<MediaLibraryPickerItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -243,7 +247,7 @@ export default function MediaLibraryPickerModal({
       if (!multiple) return [item.id];
       if (current.length >= maxSelection) {
         setError(
-          `Sélection limitée à ${maxSelection} fichier${maxSelection > 1 ? "s" : ""}.`,
+          i18nT("selection_limitee_a_value_fichier_value_e7ae0e47", { value0: maxSelection, value1: maxSelection > 1 ? "s" : "" }),
         );
         return current;
       }
@@ -253,7 +257,7 @@ export default function MediaLibraryPickerModal({
 
   const validate = async () => {
     if (!selectedItems.length) {
-      setError("Sélectionnez au moins un média.");
+      setError(i18nT("selectionnez_au_moins_un_media_9bb6a173"));
       return;
     }
     setBusy(true);
@@ -416,7 +420,7 @@ export default function MediaLibraryPickerModal({
   const filtersNode = compact ? (
     <div style={compactFiltersStyle}>
       <label style={compactTypeRowStyle}>
-        <span style={compactInlineLabelStyle}>Type</span>
+        <span style={compactInlineLabelStyle}>{i18nT("type_3deb7456")}</span>
         <select
           value={typeFilter}
           onChange={(event) =>
@@ -425,9 +429,9 @@ export default function MediaLibraryPickerModal({
           disabled={accept !== "all"}
           style={compactInputStyle}
         >
-          <option value="all">Tous</option>
-          <option value="image">Images</option>
-          <option value="video">Vidéos</option>
+          <option value="all">{i18nT("tous_b97ae3b4")}</option>
+          <option value="image">{i18nT("images_09e871c9")}</option>
+          <option value="video">{i18nT("videos_ea129238")}</option>
         </select>
       </label>
       <div style={compactSearchRowStyle}>
@@ -437,16 +441,16 @@ export default function MediaLibraryPickerModal({
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="titre, tag, fichier..."
+          placeholder={i18nT("titre_tag_fichier_5073bb6a")}
           style={compactSearchInputStyle}
-          aria-label="Recherche"
+          aria-label={i18nT("recherche_787b5492")}
         />
         <button
           type="button"
           style={compactApplyButtonStyle}
           onClick={loadItems}
           disabled={loading}
-          aria-label="Appliquer les filtres"
+          aria-label={i18nT("appliquer_les_filtres_9cdeaec0")}
         >
           {loading ? "…" : "OK"}
         </button>
@@ -455,7 +459,7 @@ export default function MediaLibraryPickerModal({
   ) : (
     <div style={filtersComputedStyle}>
       <label style={fieldStyle}>
-        <span>Type</span>
+        <span>{i18nT("type_3deb7456")}</span>
         <select
           value={typeFilter}
           onChange={(event) =>
@@ -464,17 +468,17 @@ export default function MediaLibraryPickerModal({
           disabled={accept !== "all"}
           style={inputStyle}
         >
-          <option value="all">Tous</option>
-          <option value="image">Images</option>
-          <option value="video">Vidéos</option>
+          <option value="all">{i18nT("tous_b97ae3b4")}</option>
+          <option value="image">{i18nT("images_09e871c9")}</option>
+          <option value="video">{i18nT("videos_ea129238")}</option>
         </select>
       </label>
       <label style={fieldStyle}>
-        <span>Recherche</span>
+        <span>{i18nT("recherche_787b5492")}</span>
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="titre, tag, fichier..."
+          placeholder={i18nT("titre_tag_fichier_5073bb6a")}
           style={inputStyle}
         />
       </label>
@@ -484,7 +488,7 @@ export default function MediaLibraryPickerModal({
         onClick={loadItems}
         disabled={loading}
       >
-        {loading ? "Chargement…" : "Appliquer"}
+        {loading ? i18nT("chargement_01cba1df") : i18nT("appliquer_a4d66139")}
       </button>
     </div>
   );
@@ -517,7 +521,7 @@ export default function MediaLibraryPickerModal({
             🖼️
           </div>
           <div style={{ minWidth: 0 }}>
-            {!compact ? <div style={kickerStyle}>Médiathèque iNrCy</div> : null}
+            {!compact ? <div style={kickerStyle}>{i18nT("mediatheque_inrcy_a885e19e")}</div> : null}
             <h2 style={titleComputedStyle}>{displayTitle}</h2>
             <p style={subtitleComputedStyle}>{displaySubtitle}</p>
           </div>
@@ -525,7 +529,7 @@ export default function MediaLibraryPickerModal({
             type="button"
             style={closeStyle}
             onClick={onClose}
-            aria-label="Fermer"
+            aria-label={i18nT("fermer_5ab4ec64")}
           >
             ×
           </button>
@@ -550,19 +554,17 @@ export default function MediaLibraryPickerModal({
                   padding: "8px 12px",
                 }}
               >
-                Optimiser le média
-              </button>
+                {i18nT("optimiser_le_media_1bc4fc40")}{" "}</button>
             ) : null}
           </div>
         ) : null}
 
         <div style={listComputedStyle}>
           {loading ? (
-            <div style={emptyStyle}>Chargement de votre Médiathèque…</div>
+            <div style={emptyStyle}>{i18nT("chargement_de_votre_mediatheque_6ad3bb8b")}</div>
           ) : items.length === 0 ? (
             <div style={emptyStyle}>
-              Aucun média disponible avec ces filtres.
-            </div>
+              {i18nT("aucun_media_disponible_avec_ces_filtres_41ed9f61")}{" "}</div>
           ) : (
             items.map((item) => {
               const selected = selectedIds.includes(item.id);
@@ -637,23 +639,22 @@ export default function MediaLibraryPickerModal({
                   {compact ? (
                     <span style={compactMediaStatusStyle}>
                       <span style={compactTypePillStyle}>
-                        {item.media_type === "video" ? "Vidéo" : "Image"}
+                        {item.media_type === "video" ? i18nT("video_304f6ca4") : i18nT("image_50e19fda")}
                       </span>
                       {itemOversized ? (
                         <button
                           type="button"
                           onClick={openOptimizerForItem}
                           style={compactOptimizeButtonStyle}
-                          title="Optimiser automatiquement le format et/ou le poids"
+                          title={i18nT("optimiser_automatiquement_le_format_et_ou_7ce59420")}
                         >
-                          À optimiser
-                        </button>
+                          {i18nT("a_optimiser_8f9aee8b")}{" "}</button>
                       ) : null}
                     </span>
                   ) : (
                     <>
                       <span style={pillStyle}>
-                        {item.media_type === "video" ? "Vidéo" : "Image"}
+                        {item.media_type === "video" ? i18nT("video_304f6ca4") : i18nT("image_50e19fda")}
                       </span>
                       <span style={optimizerCellStyle}>
                         {itemOversized ? (
@@ -661,10 +662,9 @@ export default function MediaLibraryPickerModal({
                             type="button"
                             onClick={openOptimizerForItem}
                             style={optimizeButtonStyle}
-                            title="Optimiser automatiquement le format et/ou le poids"
+                            title={i18nT("optimiser_automatiquement_le_format_et_ou_7ce59420")}
                           >
-                            À optimiser
-                          </button>
+                            {i18nT("a_optimiser_8f9aee8b")}{" "}</button>
                         ) : null}
                       </span>
                       <span style={metaStyle}>
@@ -692,8 +692,8 @@ export default function MediaLibraryPickerModal({
         <div style={footerComputedStyle}>
           <span style={footerHintStyle}>
             {selectedItems.length
-              ? `${selectedItems.length} média${selectedItems.length > 1 ? "s" : ""} sélectionné${selectedItems.length > 1 ? "s" : ""}`
-              : selectedHint || "Choisissez vos médias dans la liste."}
+              ? i18nT("value_media_value_selectionne_value_2ad6e24c", { value0: selectedItems.length, value1: selectedItems.length > 1 ? "s" : "", value2: selectedItems.length > 1 ? "s" : "" })
+              : selectedHint || i18nT("choisissez_vos_medias_dans_la_liste_301515e1")}
           </span>
           <div style={footerActionsStyle}>
             <button
@@ -706,8 +706,7 @@ export default function MediaLibraryPickerModal({
               onClick={onClose}
               disabled={busy}
             >
-              Annuler
-            </button>
+              {i18nT("annuler_49ba3292")}{" "}</button>
             <button
               type="button"
               style={{

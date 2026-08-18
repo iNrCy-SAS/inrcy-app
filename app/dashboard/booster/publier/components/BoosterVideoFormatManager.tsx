@@ -1,14 +1,16 @@
+import { useLocale, useTranslations } from "next-intl";
 import {
   buildVideoTransformSignature,
   getVideoPublicationProfileForChannel,
   type BoosterVideoTransformedVariant,
 } from "@/lib/boosterVideoTransforms";
 import {
-  VIDEO_ADAPTATION_MODE_LABELS,
   VIDEO_FORMAT_ASPECT_RATIOS,
   VIDEO_FORMAT_OPTIONS_BY_CHANNEL,
   getRecommendedVideoFormatForSource,
-  getVideoFormatLabel,
+  getLocalizedVideoAdaptationModeLabel,
+  getLocalizedVideoFormatLabel,
+  getLocalizedVideoOrientationLabel,
   type BoosterVideoSourceMetadata,
   type ChannelKey,
   type VideoAdaptationMode,
@@ -29,28 +31,59 @@ function formatVideoSeconds(seconds: number | null | undefined) {
   return `${minutes}:${String(remainingSeconds).padStart(2, "0")}`;
 }
 
-function formatVideoBytes(bytes: number | null | undefined) {
+type BoosterTranslator = (key: string, values?: Record<string, string | number>) => string;
+
+function formatVideoBytes(
+  bytes: number | null | undefined,
+  locale: string,
+  translate: BoosterTranslator,
+) {
   const value = Number(bytes || 0);
-  if (!Number.isFinite(value) || value <= 0) return "Poids inconnu";
-  if (value >= 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(value >= 10 * 1024 * 1024 ? 0 : 1)} Mo`;
-  if (value >= 1024) return `${Math.round(value / 1024)} Ko`;
-  return `${Math.round(value)} o`;
+  if (!Number.isFinite(value) || value <= 0) return translate("video_weight_unknown");
+  const format = (amount: number, maximumFractionDigits = 0) =>
+    new Intl.NumberFormat(locale, { maximumFractionDigits }).format(amount);
+  if (value >= 1024 * 1024) {
+    return translate("video_size_megabytes", {
+      value: format(value / (1024 * 1024), value >= 10 * 1024 * 1024 ? 0 : 1),
+    });
+  }
+  if (value >= 1024) return translate("video_size_kilobytes", { value: format(Math.round(value / 1024)) });
+  return translate("video_size_bytes", { value: format(Math.round(value)) });
 }
 
-function getVideoSourceSummary(meta: BoosterVideoSourceMetadata | null | undefined, fallbackDuration: number | null | undefined, fallbackSize?: number | null) {
+function getVideoSourceSummary(
+  meta: BoosterVideoSourceMetadata | null | undefined,
+  fallbackDuration: number | null | undefined,
+  fallbackSize: number | null | undefined,
+  locale: string,
+  translate: BoosterTranslator,
+) {
   const duration = formatVideoSeconds(meta?.duration ?? fallbackDuration ?? null);
-  const dimension = meta?.width && meta?.height ? `${meta.width}×${meta.height}` : "Dimensions inconnues";
-  const orientation = meta?.orientationLabel || "Orientation inconnue";
-  const ratio = meta?.ratioLabel && meta.ratioLabel !== "Ratio inconnu" ? meta.ratioLabel : null;
-  const size = formatVideoBytes(meta?.size || fallbackSize || 0);
+  const dimension = meta?.width && meta?.height
+    ? `${meta.width}×${meta.height}`
+    : translate("video_dimensions_unknown");
+  const orientation = getLocalizedVideoOrientationLabel(meta?.orientation, translate);
+  const ratio = meta?.width && meta?.height && meta.ratioLabel ? meta.ratioLabel : null;
+  const size = formatVideoBytes(meta?.size || fallbackSize || 0, locale, translate);
   return [orientation, ratio, dimension, duration ? duration : null, size].filter(Boolean).join(" · ");
 }
 
-function getVideoTechnicalDetails(meta: BoosterVideoSourceMetadata | null | undefined) {
+function getVideoTechnicalDetails(
+  meta: BoosterVideoSourceMetadata | null | undefined,
+  translate: BoosterTranslator,
+) {
   return [
-    meta?.width && meta?.height ? `Résolution ${meta.width} × ${meta.height}` : null,
-    meta?.ratioLabel && meta.ratioLabel !== "Ratio inconnu" ? `Ratio ${meta.ratioLabel}` : null,
-    meta?.orientationLabel ? `Source ${meta.orientationLabel.toLowerCase()}` : null,
+    meta?.width && meta?.height
+      ? translate("video_resolution", { width: meta.width, height: meta.height })
+      : null,
+    meta?.width && meta?.height && meta.ratioLabel
+      ? translate("video_ratio", { ratio: meta.ratioLabel })
+      : null,
+    meta?.orientation
+      ? translate("video_source_orientation", {
+          orientation: getLocalizedVideoOrientationLabel(meta.orientation, translate),
+        })
+      : null,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -107,10 +140,10 @@ export default function BoosterVideoFormatManager({
   onApplyFormatToAllChannels,
   onRemoveFromChannel,
   onDeleteVideo,
-  removeFromChannelLabel = "Retirer de ce canal",
-  deleteVideoLabel = "Supprimer partout",
+  removeFromChannelLabel,
+  deleteVideoLabel,
   onPickVideoClick,
-  pickVideoLabel = "Remplacer la vidéo",
+  pickVideoLabel,
   showApplyAll = true,
   buttonClassName,
   compact = false,
@@ -142,13 +175,24 @@ export default function BoosterVideoFormatManager({
   buttonClassName?: string;
   compact?: boolean;
 }) {
+  const locale = useLocale();
+  const i18nT = useTranslations("booster") as unknown as BoosterTranslator;
+  const resolvedRemoveFromChannelLabel = removeFromChannelLabel || i18nT("remove_video_from_channel");
+  const resolvedDeleteVideoLabel = deleteVideoLabel || i18nT("delete_video_everywhere");
+  const resolvedPickVideoLabel = pickVideoLabel || i18nT("replace_video");
   const smartRecommendedFormat = getRecommendedVideoFormatForSource(channel, videoSourceMetadata);
   const videoFormatOptions = [
     smartRecommendedFormat,
     ...(VIDEO_FORMAT_OPTIONS_BY_CHANNEL[channel] || ["original"]),
   ].filter((format, index, arr) => arr.indexOf(format) === index);
-  const sourceSummary = getVideoSourceSummary(videoSourceMetadata, videoDurationSeconds, videoSize);
-  const technicalDetails = getVideoTechnicalDetails(videoSourceMetadata);
+  const sourceSummary = getVideoSourceSummary(
+    videoSourceMetadata,
+    videoDurationSeconds,
+    videoSize,
+    locale,
+    i18nT,
+  );
+  const technicalDetails = getVideoTechnicalDetails(videoSourceMetadata, i18nT);
   const aspectRatio = getVideoPreviewAspectRatio(currentFormat, videoSourceMetadata);
   const signature = buildVideoTransformSignature(
     currentFormat,
@@ -216,7 +260,7 @@ export default function BoosterVideoFormatManager({
         }}
       >
         <strong
-          title={videoName || "Vidéo sélectionnée"}
+          title={videoName || i18nT("video_selected")}
           style={{
             fontSize: isMobile ? 12 : 13,
             maxWidth: "100%",
@@ -227,7 +271,7 @@ export default function BoosterVideoFormatManager({
             color: "rgba(248,250,252,0.94)",
           }}
         >
-          {videoName || "Vidéo sélectionnée"}
+          {videoName || i18nT("video_selectionnee_6124b660")}
         </strong>
 
         {sourceSummary ? (
@@ -292,7 +336,7 @@ export default function BoosterVideoFormatManager({
                 pointerEvents: "none",
               }}
             >
-              {isApplied ? "Format appliqué" : "Aperçu du format"}
+              {isApplied ? i18nT("format_applique_43fe4a7e") : i18nT("apercu_du_format_babb12e0")}
             </div>
             <video
               src={displayUrl}
@@ -325,8 +369,7 @@ export default function BoosterVideoFormatManager({
               textAlign: "center",
             }}
           >
-            Aucune vidéo sélectionnée.
-          </div>
+            {i18nT("aucune_video_selectionnee_2f7f03d2")}{" "}</div>
         )}
 
         {technicalDetails ? (
@@ -345,8 +388,7 @@ export default function BoosterVideoFormatManager({
             }}
           >
             <span style={{ color: "rgba(226,232,240,0.82)", fontWeight: 900 }}>
-              Infos techniques
-            </span>
+              {i18nT("infos_techniques_7fe7c797")}{" "}</span>
             <span>{technicalDetails}</span>
           </div>
         ) : null}
@@ -366,8 +408,7 @@ export default function BoosterVideoFormatManager({
       >
         <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", alignItems: isMobile ? "stretch" : "center", justifyContent: "space-between", gap: 10, minWidth: 0 }}>
           <div style={{ fontSize: 12, fontWeight: 950, color: "rgba(248,250,252,0.92)", letterSpacing: "0.01em" }}>
-            Modification
-          </div>
+            {i18nT("modification_e3ea079d")}{" "}</div>
           {onRemoveFromChannel || onDeleteVideo ? (
             <div style={{ display: isMobile ? "grid" : "inline-flex", gridTemplateColumns: isMobile && onRemoveFromChannel && onDeleteVideo ? "minmax(0, 1fr) minmax(0, 1fr)" : undefined, alignItems: "center", justifyContent: "flex-end", flexWrap: "wrap", gap: 6, flex: isMobile ? "1 1 auto" : "0 0 auto", width: isMobile ? "100%" : "auto", maxWidth: "100%", minWidth: 0 }}>
               {onRemoveFromChannel ? (
@@ -375,11 +416,11 @@ export default function BoosterVideoFormatManager({
                   type="button"
                   className={btnClass}
                   onClick={onRemoveFromChannel}
-                  title={removeFromChannelLabel}
-                  aria-label={removeFromChannelLabel}
+                  title={resolvedRemoveFromChannelLabel}
+                  aria-label={resolvedRemoveFromChannelLabel}
                   style={{ minWidth: 0, maxWidth: "100%", minHeight: 28, padding: "4px 7px", fontSize: 10.5, opacity: 0.78, whiteSpace: isMobile ? "normal" : "nowrap", overflowWrap: "anywhere" }}
                 >
-                  {removeFromChannelLabel}
+                  {resolvedRemoveFromChannelLabel}
                 </button>
               ) : null}
               {onDeleteVideo ? (
@@ -387,8 +428,8 @@ export default function BoosterVideoFormatManager({
                   type="button"
                   className={btnClass}
                   onClick={onDeleteVideo}
-                  title={deleteVideoLabel}
-                  aria-label={deleteVideoLabel}
+                  title={resolvedDeleteVideoLabel}
+                  aria-label={resolvedDeleteVideoLabel}
                   style={{
                     minHeight: 28,
                     minWidth: 0,
@@ -406,7 +447,7 @@ export default function BoosterVideoFormatManager({
                     overflowWrap: "anywhere",
                   }}
                 >
-                  {deleteVideoLabel}
+                  {resolvedDeleteVideoLabel}
                 </button>
               ) : null}
             </div>
@@ -414,7 +455,7 @@ export default function BoosterVideoFormatManager({
         </div>
 
         <div style={{ display: "grid", gap: 7, width: "100%", minWidth: 0 }}>
-          <div style={{ fontSize: 11, fontWeight: 900, color: "rgba(226,232,240,0.78)" }}>Format actuel</div>
+          <div style={{ fontSize: 11, fontWeight: 900, color: "rgba(226,232,240,0.78)" }}>{i18nT("format_actuel_07def762")}</div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: isMobile ? "center" : "flex-start" }}>
             {videoFormatOptions.map((format) => {
               const applied = appliedFormat === format;
@@ -428,10 +469,10 @@ export default function BoosterVideoFormatManager({
                   title={
                     applied
                       ? deferTechnicalPreparationUntilPublish
-                        ? "Format sélectionné pour la publication"
-                        : "Format actif qui sera publié"
+                        ? i18nT("video_format_selected_for_publication")
+                        : i18nT("video_format_active_for_publication")
                       : pending
-                        ? "Format sélectionné à appliquer"
+                        ? i18nT("video_format_selected_to_apply")
                         : undefined
                   }
                   style={{
@@ -461,7 +502,7 @@ export default function BoosterVideoFormatManager({
                     opacity: onFormatChange ? 1 : 0.86,
                   }}
                 >
-                  {getVideoFormatLabel(channel, format, videoSourceMetadata)}
+                  {getLocalizedVideoFormatLabel(channel, format, videoSourceMetadata, i18nT)}
                 </button>
               );
             })}
@@ -469,7 +510,7 @@ export default function BoosterVideoFormatManager({
         </div>
 
         <div style={{ display: "grid", gap: 7, width: "100%", minWidth: 0 }}>
-          <div style={{ fontSize: 11, fontWeight: 900, color: "rgba(226,232,240,0.78)" }}>Adaptation</div>
+          <div style={{ fontSize: 11, fontWeight: 900, color: "rgba(226,232,240,0.78)" }}>{i18nT("adaptation_1cda1dc6")}</div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: isMobile ? "center" : "flex-start" }}>
             {(["safe_frame", "cover_crop"] as const).map((mode) => {
               const active = adaptationMode === mode;
@@ -494,7 +535,7 @@ export default function BoosterVideoFormatManager({
                     opacity: onAdaptationModeChange ? 1 : 0.86,
                   }}
                 >
-                  {VIDEO_ADAPTATION_MODE_LABELS[mode]}
+                  {getLocalizedVideoAdaptationModeLabel(mode, i18nT)}
                 </button>
               );
             })}
@@ -514,8 +555,7 @@ export default function BoosterVideoFormatManager({
               fontWeight: 800,
             }}
           >
-            Vidéo horizontale détectée : le 9:16 créera un cadre autour de la vidéo. Le 16:9 est conseillé pour garder le meilleur rendu.
-          </div>
+            {i18nT("video_horizontale_detectee_le_9_16_23ada158")}{" "}</div>
         ) : isTikTokHorizontalRecommended ? (
           <div
             style={{
@@ -529,8 +569,7 @@ export default function BoosterVideoFormatManager({
               fontWeight: 800,
             }}
           >
-            Vidéo horizontale détectée : TikTok accepte le 16:9, même si le 9:16 reste le format plein écran.
-          </div>
+            {i18nT("video_horizontale_detectee_tiktok_accepte_le_b3cfd59d")}{" "}</div>
         ) : null}
 
         {!deferTechnicalPreparationUntilPublish && preparationState ? (
@@ -572,7 +611,7 @@ export default function BoosterVideoFormatManager({
                 background: "rgba(76,195,255,0.12)",
               }}
             >
-              {preparationState?.status === "ready" ? "Format appliqué" : preparing ? "Modification du format..." : "Appliquer ce format"}
+              {preparationState?.status === "ready" ? i18nT("format_applique_43fe4a7e") : preparing ? i18nT("modification_du_format_d563b6d2") : i18nT("appliquer_ce_format_17674f93")}
             </button>
           ) : null}
           {!deferTechnicalPreparationUntilPublish &&
@@ -594,7 +633,7 @@ export default function BoosterVideoFormatManager({
                 background: "rgba(255,255,255,0.055)",
               }}
             >
-              {preparing ? "Modification des formats..." : "Appliquer ce format à tous les canaux"}
+              {preparing ? i18nT("modification_des_formats_453f198d") : i18nT("appliquer_ce_format_a_tous_les_e33366cc")}
             </button>
           ) : null}
         </div>
@@ -614,7 +653,7 @@ export default function BoosterVideoFormatManager({
             }}
           >
             <span aria-hidden="true" style={{ color: "#93c5fd", fontWeight: 900 }}>ⓘ</span>
-            <span>Une modification du format peut prendre environ 1 à 2 minutes.</span>
+            <span>{i18nT("une_modification_du_format_peut_prendre_723d2cf5")}</span>
           </div>
         ) : null}
 
@@ -636,15 +675,14 @@ export default function BoosterVideoFormatManager({
                 background: "rgba(255,255,255,0.055)",
               }}
             >
-              {pickVideoLabel}
+              {resolvedPickVideoLabel}
             </button>
           ) : null}
         </div>
 
         {compact ? (
           <div style={{ fontSize: 11, lineHeight: 1.45, color: "rgba(226,232,240,0.62)" }}>
-            Enregistrez ensuite la modification pour republier ce canal avec la vidéo affichée.
-          </div>
+            {i18nT("enregistrez_ensuite_la_modification_pour_republi_fd69cf2c")}{" "}</div>
         ) : null}
       </div>
     </div>

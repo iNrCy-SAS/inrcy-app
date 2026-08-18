@@ -1,5 +1,5 @@
-export function fmtInt(n: number) {
-  return new Intl.NumberFormat("fr-FR").format(Math.round(Number.isFinite(n) ? n : 0));
+export function fmtInt(n: number, locale = "fr-FR") {
+  return new Intl.NumberFormat(locale).format(Math.round(Number.isFinite(n) ? n : 0));
 }
 
 export function clamp(n: number, min: number, max: number) {

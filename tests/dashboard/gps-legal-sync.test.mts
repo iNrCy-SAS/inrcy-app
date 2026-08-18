@@ -20,6 +20,7 @@ test("the GPS opens the exact guide selected from search or the article tabs", (
 
 test("the GPS documents onboarding, legal settings, media optimization and mobile recovery", () => {
   const content = read("app/dashboard/gps/noticeContent.ts");
+  const messages = JSON.parse(read("messages/fr-FR/gps.json")) as Record<string, string>;
 
   for (const articleId of [
     "demarrer-rangement",
@@ -32,8 +33,8 @@ test("the GPS documents onboarding, legal settings, media optimization and mobil
     assert.match(content, new RegExp(`id: "${articleId}"`));
   }
 
-  assert.match(content, /1 vidéo de 300 Mo maximum/);
-  assert.match(content, /50 Mo maximum par image et 75 Mo pour la vidéo/);
+  assert.ok(Object.values(messages).some((message) => message.includes("1 vidéo de 300 Mo maximum")));
+  assert.ok(Object.values(messages).some((message) => message.includes("50 Mo maximum par image et 75 Mo pour la vidéo")));
 });
 
 test("the three app legal documents share the current date and no longer expose Trustpilot", () => {

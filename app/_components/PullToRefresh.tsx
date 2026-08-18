@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import {
   isMostlyHorizontalPull,
   supportsCustomPullToRefresh,
@@ -115,6 +116,7 @@ export default function PullToRefresh({
   disabled = false,
   disabledOnDashboard = false,
 }: PullToRefreshProps) {
+  const t = useTranslations("common.pullToRefresh");
   const pathname = usePathname();
   const startYRef = useRef(0);
   const startXRef = useRef(0);
@@ -259,7 +261,7 @@ export default function PullToRefresh({
       style={{ transform: `translate(-50%, ${Math.min(76, distance)}px)` }}
       aria-hidden="true"
     >
-      {refreshing ? "Actualisation…" : ready ? "Relâcher pour actualiser" : "Tirer pour actualiser"}
+      {refreshing ? t("refreshing") : ready ? t("ready") : t("pull")}
     </div>
   );
 }

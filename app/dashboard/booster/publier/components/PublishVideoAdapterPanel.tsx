@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import type { BoosterVideoTransformedVariant } from "@/lib/boosterVideoTransforms";
 import BoosterVideoFormatManager, {
   type BoosterVideoPreparationState,
@@ -61,13 +62,13 @@ export default function PublishVideoAdapterPanel({
   onRemoveMediaFromChannel,
   onDeleteVideo,
 }: PublishVideoAdapterPanelProps) {
+  const i18nT = useTranslations("booster");
   const hasVideoMedia = Boolean(videoFile || videoPreviewUrl);
 
   if (!hasVideoMedia) {
     return (
       <div style={{ fontSize: 13, opacity: 0.75 }}>
-        Ajoutez une vidéo ou choisissez Photos / Aucun média pour ce canal.
-      </div>
+        {i18nT("ajoutez_une_video_ou_choisissez_photos_0fc6eb5c")}{" "}</div>
     );
   }
 
@@ -80,7 +81,7 @@ export default function PublishVideoAdapterPanel({
     <BoosterVideoFormatManager
       isMobile={isMobile}
       channel={activeChannel}
-      videoName={videoFile?.name || "Vidéo sélectionnée"}
+      videoName={videoFile?.name || i18nT("video_selected")}
       videoDisplayUrl={videoPreviewUrl}
       videoSize={videoFile?.size || videoSourceMetadata?.size || 0}
       videoDurationSeconds={videoDurationSeconds}

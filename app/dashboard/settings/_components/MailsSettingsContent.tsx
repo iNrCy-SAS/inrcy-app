@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import React from "react";
 import { getSimpleFrenchApiError, getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import { confirmInrcy } from "@/lib/inrcyDialog";
@@ -120,14 +123,16 @@ function Btn({
 }
 
 function ProviderLabel(p: MailAccount["provider"]) {
-  return p === "gmail" ? "Gmail" : p === "imap" ? "IMAP" : "Microsoft";
+  const i18nT = useTranslations("mails");
+  return p === "gmail" ? i18nT("gmail_eabdf94e") : p === "imap" ? "IMAP" : i18nT("microsoft_11f32421");
 }
 
 function MailConnectionStatusLabel(acc: MailAccount) {
+  const i18nT = useTranslations("mails");
   const status = acc.connection_status || (acc.status === "connected" ? "connected" : "disconnected");
-  if (status === "needs_update") return "À actualiser";
-  if (status === "connected") return "Connectée";
-  return "Déconnectée";
+  if (status === "needs_update") return i18nT("a_actualiser_228d3b1c");
+  if (status === "connected") return i18nT("connectee_ef6ef9e9");
+  return i18nT("deconnectee_0f5dae32");
 }
 
 function MailConnectionStatusColor(acc: MailAccount) {
@@ -215,6 +220,7 @@ const SIGNATURE_WIDTH_OPTIONS = [
 ];
 
 export default function MailsSettingsContent({ onUnsavedChange }: Props) {
+  const i18nT = useTranslations("mails");
   const [loading, setLoading] = React.useState(true);
   const [mailAccounts, setMailAccounts] = React.useState<MailAccount[]>([]);
   const [error, setError] = React.useState<string | null>(null);
@@ -261,9 +267,9 @@ Email : {{email}}`);
   } & ImapSettings> = {
     ovh: { label: "OVH", imap_host: "ssl0.ovh.net", imap_port: 993, imap_secure: true, smtp_host: "smtp.mail.ovh.net", smtp_port: 465, smtp_secure: true, smtp_starttls: false },
     ionos: { label: "IONOS", imap_host: "imap.ionos.com", imap_port: 993, imap_secure: true, smtp_host: "smtp.ionos.com", smtp_port: 587, smtp_secure: false, smtp_starttls: true },
-    orange: { label: "Orange", imap_host: "imap.orange.fr", imap_port: 993, imap_secure: true, smtp_host: "smtp.orange.fr", smtp_port: 465, smtp_secure: true, smtp_starttls: false },
+    orange: { label: i18nT("orange_09fb6aab"), imap_host: "imap.orange.fr", imap_port: 993, imap_secure: true, smtp_host: "smtp.orange.fr", smtp_port: 465, smtp_secure: true, smtp_starttls: false },
     sfr: { label: "SFR", imap_host: "imap.sfr.fr", imap_port: 993, imap_secure: true, smtp_host: "smtp.sfr.fr", smtp_port: 465, smtp_secure: true, smtp_starttls: false },
-    other: { label: "Autre fournisseur", imap_host: "", imap_port: 993, imap_secure: true, smtp_host: "", smtp_port: 587, smtp_secure: false, smtp_starttls: true },
+    other: { label: i18nT("autre_fournisseur_ce6f5c74"), imap_host: "", imap_port: 993, imap_secure: true, smtp_host: "", smtp_port: 587, smtp_secure: false, smtp_starttls: true },
   };
 
   const [imapModalOpen, setImapModalOpen] = React.useState(false);
@@ -306,11 +312,11 @@ Email : {{email}}`);
       && imapModalBaselineSignatureRef.current !== imapDraftSignature;
     if (hasUnsavedImapChanges) {
       const confirmed = await confirmInrcy({
-        eyebrow: "Connexion IMAP",
-        title: "Fermer sans enregistrer ?",
-        message: "Les informations de connexion saisies seront perdues.",
-        confirmLabel: "Fermer sans enregistrer",
-        cancelLabel: "Continuer la saisie",
+        eyebrow: i18nT("connexion_imap_1ee91f71"),
+        title: i18nT("fermer_sans_enregistrer_a3304100"),
+        message: i18nT("les_informations_de_connexion_saisies_seront_bc451150"),
+        confirmLabel: i18nT("fermer_sans_enregistrer_15fdc373"),
+        cancelLabel: i18nT("continuer_la_saisie_c2b2fe38"),
         variant: "warning",
       });
       if (!confirmed) return;
@@ -352,10 +358,10 @@ Email : {{email}}`);
 
   const suggestSmtpSecurityForPort = React.useCallback((port: number): { mode: SmtpSecurityMode; message: string | null } | null => {
     if (port === 465) {
-      return { mode: "ssl", message: "Configuration recommandée appliquée : port 465 → SSL/TLS." };
+      return { mode: "ssl", message: i18nT("configuration_recommandee_appliquee_port_465_ssl_16400633") };
     }
     if (port === 587) {
-      return { mode: "starttls", message: "Configuration recommandée appliquée : port 587 → STARTTLS." };
+      return { mode: "starttls", message: i18nT("configuration_recommandee_appliquee_port_587_sta_2ec12239") };
     }
     return null;
   }, []);
@@ -498,55 +504,46 @@ Email : {{email}}`));
         }}
       >
         <div style={{ fontSize: 16, fontWeight: 950, letterSpacing: "-0.2px", color: "rgba(255,255,255,0.95)" }}>
-          Réglages Mails
-        </div>
+          {i18nT("reglages_mails_a1957d12")}{" "}</div>
         <div style={{ marginTop: 6, fontSize: 13, color: "rgba(255,255,255,0.72)" }}>
-          Vous pouvez connecter jusqu’à <b>4 boîtes d’envoi</b> : <b>3</b> en OAuth (Gmail / Outlook) et <b>1</b> en IMAP.
-        </div>
+          {i18nT("vous_pouvez_connecter_jusqu_a_864e4375")}{" "}<b>{i18nT("4_boites_d_envoi_29de69bf")}</b> : <b>3</b> {" "}{i18nT("en_oauth_gmail_outlook_et_5169198f")}{" "}<b>1</b> {" "}{i18nT("en_imap_0b217ac4")}{" "}</div>
 
         <div style={{ marginTop: 10, fontSize: 12, color: "rgba(255,255,255,0.65)" }}>
-          {loading ? "Chargement…" : error ? error : `Boîtes connectées : ${oauthAccounts.length + (imapAccount ? 1 : 0)}/4`}
+          {loading ? i18nT("chargement_01cba1df") : error ? error : i18nT("boites_connectees_value_4_dc908b9f", { value0: oauthAccounts.length + (imapAccount ? 1 : 0) })}
         </div>
 {toast === "already_connected" && (
   <div style={{ marginTop: 8, fontSize: 13, color: "#fbbf24" }}>
-    ⚠️ Cette boîte mail est déjà connectée.
-  </div>
+    {i18nT("cette_boite_mail_est_deja_connectee_a0c7c8ce")}{" "}</div>
 )}
 
 {toast === "connected" && (
   <div style={{ marginTop: 8, fontSize: 13, color: "#34d399" }}>
-    ✅ Boîte mail connectée. Vous pouvez maintenant l’utiliser pour vos envois.
-  </div>
+    {i18nT("boite_mail_connectee_vous_pouvez_maintenant_6d472d63")}{" "}</div>
 )}
 
 {toast === "gmail_disconnected" && (
   <div style={{ marginTop: 8, fontSize: 13, color: "#34d399" }}>
-    ✅ Boîte Gmail déconnectée.
-  </div>
+    {i18nT("boite_gmail_deconnectee_3d83ef35")}{" "}</div>
 )}
 
 {toast === "outlook_disconnected" && (
   <div style={{ marginTop: 8, fontSize: 13, color: "#34d399" }}>
-    ✅ Boîte Outlook déconnectée.
-  </div>
+    {i18nT("boite_outlook_deconnectee_0544620c")}{" "}</div>
 )}
 
 {toast === "imap_disconnected" && (
   <div style={{ marginTop: 8, fontSize: 13, color: "#34d399" }}>
-    ✅ Boîte IMAP déconnectée.
-  </div>
+    {i18nT("boite_imap_deconnectee_392ad047")}{" "}</div>
 )}
 
 {toast === "imap_test_ok" && (
   <div style={{ marginTop: 8, fontSize: 13, color: "#34d399" }}>
-    ✅ Test de connexion réussi. Vous pouvez maintenant enregistrer cette boîte.
-  </div>
+    {i18nT("test_de_connexion_reussi_vous_pouvez_b896dce1")}{" "}</div>
 )}
 
 {toast === "imap_connected" && (
   <div style={{ marginTop: 8, fontSize: 13, color: "#34d399" }}>
-    ✅ Boîte IMAP connectée. Vous pouvez maintenant l’utiliser pour vos envois.
-  </div>
+    {i18nT("boite_imap_connectee_vous_pouvez_maintenant_4d98651e")}{" "}</div>
 )}
 
 
@@ -560,7 +557,7 @@ Email : {{email}}`));
           return (
             <GlassCard
               key={i}
-              title={`Boîte mail ${i + 1}`}
+              title={i18nT("boite_mail_value_d30aaf7d", { value0: i + 1 })}
               subtitle={
                 loading
                   ? "Chargement…"
@@ -575,7 +572,7 @@ Email : {{email}}`));
                 <>
                   {!isImapSlot && (
                     <Btn
-                      label="Connecter Gmail"
+                      label={i18nT("connecter_gmail_45c39b69")}
                       disabled={loading || maxReached}
                    onClick={() => {
   window.location.href = "/api/integrations/google/start";
@@ -584,7 +581,7 @@ Email : {{email}}`));
                   )}
                   {!isImapSlot && (
                     <Btn
-                      label="Connecter Microsoft"
+                      label={i18nT("connecter_microsoft_5ad49548")}
                       disabled={loading || maxReached}
                       onClick={() => {
                         window.location.href = "/api/integrations/microsoft/start";
@@ -594,7 +591,7 @@ Email : {{email}}`));
 
                   {isImapSlot && (
                     <Btn
-                      label="Connecter IMAP (OVH / IONOS / Orange / SFR…)"
+                      label={i18nT("connecter_imap_ovh_ionos_orange_sfr_9346ccf0")}
                       disabled={loading}
                       onClick={() => {
                         setImapFormError(null);
@@ -624,10 +621,10 @@ Email : {{email}}`));
                 </>
               ) : (
                 <>
-                  <div style={{ fontSize: 12, color: MailConnectionStatusColor(acc), marginTop: 4 }}>Statut : {MailConnectionStatusLabel(acc)}</div>
+                  <div style={{ fontSize: 12, color: MailConnectionStatusColor(acc), marginTop: 4 }}>{i18nT("statut_value_b14864f1", { value0: MailConnectionStatusLabel(acc) })}</div>
                   {acc.connection_status === "needs_update" && mailAccountRefreshUrl(acc) ? (
                     <Btn
-                      label="Actualiser"
+                      label={i18nT("actualiser_9d3b2a7d")}
                       disabled={loading}
                       onClick={() => {
                         const url = mailAccountRefreshUrl(acc);
@@ -675,7 +672,7 @@ Email : {{email}}`));
 
 
       <GlassCard
-        title="Signature automatique"
+        title={i18nT("signature_automatique_77745712")}
         subtitle="Cette signature est ajoutée automatiquement à la fin des mails iNr’Send. Vous pouvez utiliser les variables {{nom_complet}}, {{nom_entreprise}}, {{telephone}}, {{email}}, {{adresse}}, {{code_postal}}, {{ville}}, {{boite_mail}} et importer une image qui sera ajoutée automatiquement en bas des mails."
       >
         <div style={{ display: "grid", gap: 10, width: "100%" }}>
@@ -685,8 +682,7 @@ Email : {{email}}`));
               checked={signatureEnabled}
               onChange={(e) => setSignatureEnabled(e.target.checked)}
             />
-            Activer la signature automatique
-          </label>
+            {i18nT("activer_la_signature_automatique_d826254a")}{" "}</label>
 
           {signatureToast ? (
             <div style={{ fontSize: 13, color: signatureToast.startsWith("✅") ? "#34d399" : "#fbbf24" }}>
@@ -711,8 +707,7 @@ Email : {{email}}`));
 
           <div style={{ display: "grid", gap: 8 }}>
             <label style={{ fontSize: 12, color: "rgba(255,255,255,0.72)" }}>
-              Image de signature (optionnel)
-            </label>
+              {i18nT("image_de_signature_optionnel_e5259abb")}{" "}</label>
             <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
               <label
                 style={{
@@ -728,8 +723,7 @@ Email : {{email}}`));
                   opacity: signatureBusy ? 0.6 : 1,
                 }}
               >
-                Importer une image
-                <input
+                {i18nT("importer_une_image_fcd9d38d")}{" "}<input
                   type="file"
                   accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
                   disabled={signatureBusy}
@@ -751,7 +745,7 @@ Email : {{email}}`));
                       if (!res.ok) throw new Error(await getSimpleFrenchApiError(res, "Impossible d’importer cette image."));
                       setSignatureImagePath(String(data?.imagePath || ""));
                       setSignatureImageUrl(String(data?.imageUrl || ""));
-                      setSignatureToast("✅ Image insérée. Pensez à sauvegarder la signature.");
+                      setSignatureToast(i18nT("image_inseree_pensez_a_sauvegarder_la_77ab6eef"));
                     } catch (err: any) {
                       setSignatureToast(`⚠️ ${getSimpleFrenchErrorMessage(err, "Impossible d’importer cette image.")}`);
                     } finally {
@@ -777,7 +771,7 @@ Email : {{email}}`));
                       }
                       setSignatureImagePath("");
                       setSignatureImageUrl("");
-                      setSignatureToast("✅ Image retirée.");
+                      setSignatureToast(i18nT("image_retiree_99769015"));
                     } catch (err: any) {
                       setSignatureToast(`⚠️ ${getSimpleFrenchErrorMessage(err, "Impossible de retirer cette image.")}`);
                     } finally {
@@ -795,18 +789,15 @@ Email : {{email}}`));
                     opacity: signatureBusy ? 0.6 : 1,
                   }}
                 >
-                  Retirer l’image
-                </button>
+                  {i18nT("retirer_l_image_aae9b371")}{" "}</button>
               ) : null}
             </div>
             <div style={{ fontSize: 12, color: "rgba(255,255,255,0.56)" }}>
-              La signature est ajoutée automatiquement en bas des envois iNr’Send.
-            </div>
+              {i18nT("la_signature_est_ajoutee_automatiquement_en_93c003b1")}{" "}</div>
 
             <div style={{ display: "grid", gap: 8, marginTop: 4 }}>
               <label style={{ fontSize: 12, color: "rgba(255,255,255,0.72)" }}>
-                Taille de l’image de signature
-              </label>
+                {i18nT("taille_de_l_image_de_signature_6277a860")}{" "}</label>
               <select
                 value={String(signatureImageWidth)}
                 onChange={(e) => setSignatureImageWidth(Number(e.target.value || 400))}
@@ -828,14 +819,12 @@ Email : {{email}}`));
                 ))}
               </select>
               <div style={{ fontSize: 12, color: "rgba(255,255,255,0.56)" }}>
-                La taille choisie sera utilisée automatiquement dans les emails.
-              </div>
+                {i18nT("la_taille_choisie_sera_utilisee_automatiquement_c0d1a018")}{" "}</div>
             </div>
           </div>
 
           <div style={{ fontSize: 12, color: "rgba(255,255,255,0.62)" }}>
-            Aperçu actuel :
-          </div>
+            {i18nT("apercu_actuel_8cb7a75c")}{" "}</div>
           <div
             style={{
               borderRadius: 12,
@@ -855,13 +844,13 @@ Email : {{email}}`));
                 fontSize: 13,
               }}
             >
-              {signatureEnabled ? (signaturePreview || "Aperçu indisponible pour le moment.") : "Signature automatique désactivée."}
+              {signatureEnabled ? (signaturePreview || i18nT("apercu_indisponible_pour_le_moment_9ceb14a7")) : i18nT("signature_automatique_desactivee_9b6bd821")}
             </pre>
             {signatureEnabled && signatureImageUrl ? (
               <div style={{ marginTop: 12 }}>
                 <img
                   src={signatureImageUrl}
-                  alt="Aperçu image de signature"
+                  alt={i18nT("apercu_image_de_signature_2631aa60")}
                   style={{ width: `${signatureImageWidth}px`, maxWidth: "100%", maxHeight: 220, objectFit: "contain", borderRadius: 10, display: "block" }}
                 />
               </div>
@@ -901,7 +890,7 @@ Email : {{email}}`));
                     signatureImageWidth: nextSignatureImageWidth,
                   });
                   onUnsavedChange?.(false);
-                  setSignatureToast("✅ Signature enregistrée.");
+                  setSignatureToast(i18nT("signature_enregistree_a0d7c464"));
                   if (typeof window !== "undefined") {
                     window.dispatchEvent(new CustomEvent("inrsend:signature-updated"));
                   }
@@ -944,9 +933,9 @@ Email : {{email}}`));
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
               <div>
-                <div style={{ fontSize: 16, fontWeight: 950 }}>Connexion IMAP (boîte 4)</div>
+                <div style={{ fontSize: 16, fontWeight: 950 }}>{i18nT("connexion_imap_boite_4_6d4e6ca3")}</div>
                 <div style={{ fontSize: 12, opacity: 0.75, marginTop: 2 }}>
-                  Choisissez un fournisseur (prérempli), saisissez votre <b>identifiant</b> et votre <b>mot de passe</b>, puis cliquez sur <b>Connecter</b>.
+                  {i18nT("choisissez_un_fournisseur_prerempli_saisissez_vo_9888b1f7")}{" "}<b>identifiant</b> {" "}{i18nT("et_votre_1db8b8ca")}{" "}<b>{i18nT("mot_de_passe_b47ea832")}</b>{i18nT("puis_cliquez_sur_cfcbb581")}{" "}<b>{i18nT("connecter_ca28e250")}</b>.
                 </div>
               </div>
               <button
@@ -962,13 +951,12 @@ Email : {{email}}`));
                   cursor: "pointer",
                 }}
               >
-                Fermer
-              </button>
+                {i18nT("fermer_5ab4ec64")}{" "}</button>
             </div>
 
             <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
               <div style={{ display: "grid", gap: 6 }}>
-                <label style={{ fontSize: 12, opacity: 0.8 }}>Fournisseur</label>
+                <label style={{ fontSize: 12, opacity: 0.8 }}>{i18nT("fournisseur_97d91d89")}</label>
                 <select
                   value={imapPresetKey}
                   onChange={(e) => {
@@ -987,7 +975,7 @@ Email : {{email}}`));
               </div>
 
               <div style={{ display: "grid", gap: 6 }}>
-                <label style={{ fontSize: 12, opacity: 0.8 }}>Identifiant (email complet)</label>
+                <label style={{ fontSize: 12, opacity: 0.8 }}>{i18nT("identifiant_email_complet_47974259")}</label>
                 <input
                   value={imapLogin}
                   onChange={(e) => setImapLogin(e.target.value)}
@@ -997,7 +985,7 @@ Email : {{email}}`));
               </div>
 
               <div style={{ display: "grid", gap: 6 }}>
-                <label style={{ fontSize: 12, opacity: 0.8 }}>Mot de passe (ou mot de passe d’application)</label>
+                <label style={{ fontSize: 12, opacity: 0.8 }}>{i18nT("mot_de_passe_ou_mot_de_0c1000b8")}</label>
                 <div style={{ position: "relative" }}>
                   <input
                     value={imapPassword}
@@ -1032,8 +1020,8 @@ Email : {{email}}`));
               <div style={{ display: "grid", gap: 10, marginTop: 4 }}>
                 <div style={{ fontSize: 12, opacity: 0.8 }}>
                   {imapPresetKey === "other"
-                    ? "Autre fournisseur : renseignez vos paramètres librement."
-                    : `Réglages préremplis pour ${IMAP_PRESETS[imapPresetKey].label} — tous les champs restent modifiables.`}
+                    ? i18nT("autre_fournisseur_renseignez_vos_parametres_libr_6e3c39af")
+                    : i18nT("reglages_preremplis_pour_value_tous_les_826097a0", { value0: IMAP_PRESETS[imapPresetKey].label })}
                 </div>
                 {imapAssistMessage ? (
                   <div style={{ fontSize: 12, color: "#93c5fd" }}>{imapAssistMessage}</div>
@@ -1044,7 +1032,7 @@ Email : {{email}}`));
                       <input
                         value={imapCustom.imap_host}
                         onChange={(e) => setImapCustom((p) => ({ ...p, imap_host: e.target.value }))}
-                        placeholder="Serveur IMAP (ex: imap.domaine.fr)"
+                        placeholder={i18nT("serveur_imap_ex_imap_domaine_fr_e4179440")}
                         style={imapFieldStyle}
                       />
                       <div style={{ display: "grid", gridTemplateColumns: "96px minmax(0,1fr)", gap: 8 }}>
@@ -1063,8 +1051,8 @@ Email : {{email}}`));
                           }}
                           style={{ ...imapSelectStyle, minWidth: 0 }}
                         >
-                          <option value="ssl" style={{ background: "#ffffff", color: "#111827" }}>Sécurité IMAP : SSL/TLS</option>
-                          <option value="none" style={{ background: "#ffffff", color: "#111827" }}>Sécurité IMAP : aucune</option>
+                          <option value="ssl" style={{ background: "#ffffff", color: "#111827" }}>{i18nT("securite_imap_ssl_tls_e1dfe53d")}</option>
+                          <option value="none" style={{ background: "#ffffff", color: "#111827" }}>{i18nT("securite_imap_aucune_8c6e8b55")}</option>
                         </select>
                       </div>
                     </div>
@@ -1073,7 +1061,7 @@ Email : {{email}}`));
                       <input
                         value={imapCustom.smtp_host}
                         onChange={(e) => setImapCustom((p) => ({ ...p, smtp_host: e.target.value }))}
-                        placeholder="Serveur SMTP (ex: smtp.domaine.fr)"
+                        placeholder={i18nT("serveur_smtp_ex_smtp_domaine_fr_4946452d")}
                         style={imapFieldStyle}
                       />
                       <div style={{ display: "grid", gridTemplateColumns: "96px minmax(0,1fr)", gap: 8 }}>
@@ -1109,9 +1097,9 @@ Email : {{email}}`));
                           }}
                           style={{ ...imapSelectStyle, minWidth: 0 }}
                         >
-                          <option value="ssl" style={{ background: "#ffffff", color: "#111827" }}>Sécurité SMTP : SSL/TLS</option>
-                          <option value="starttls" style={{ background: "#ffffff", color: "#111827" }}>Sécurité SMTP : STARTTLS</option>
-                          <option value="none" style={{ background: "#ffffff", color: "#111827" }}>Sécurité SMTP : aucune</option>
+                          <option value="ssl" style={{ background: "#ffffff", color: "#111827" }}>{i18nT("securite_smtp_ssl_tls_0bc61850")}</option>
+                          <option value="starttls" style={{ background: "#ffffff", color: "#111827" }}>{i18nT("securite_smtp_starttls_5f10497e")}</option>
+                          <option value="none" style={{ background: "#ffffff", color: "#111827" }}>{i18nT("securite_smtp_aucune_b257d5a8")}</option>
                         </select>
                       </div>
                     </div>
@@ -1122,7 +1110,7 @@ Email : {{email}}`));
                       <input
                         value={imapCustom.imap_host}
                         onChange={(e) => setImapCustom((p) => ({ ...p, imap_host: e.target.value }))}
-                        placeholder="IMAP host (ex: imap.domaine.fr)"
+                        placeholder={i18nT("imap_host_ex_imap_domaine_fr_4ee758ea")}
                         style={imapFieldStyle}
                       />
                       <input
@@ -1140,15 +1128,15 @@ Email : {{email}}`));
                         }}
                         style={{ ...imapSelectStyle, minWidth: 0 }}
                       >
-                        <option value="ssl" style={{ background: "#ffffff", color: "#111827" }}>Sécurité IMAP : SSL/TLS</option>
-                        <option value="none" style={{ background: "#ffffff", color: "#111827" }}>Sécurité IMAP : aucune</option>
+                        <option value="ssl" style={{ background: "#ffffff", color: "#111827" }}>{i18nT("securite_imap_ssl_tls_e1dfe53d")}</option>
+                        <option value="none" style={{ background: "#ffffff", color: "#111827" }}>{i18nT("securite_imap_aucune_8c6e8b55")}</option>
                       </select>
                     </div>
                     <div style={{ display: "grid", gridTemplateColumns: "minmax(0,0.86fr) 96px minmax(220px,0.64fr)", gap: 8 }}>
                       <input
                         value={imapCustom.smtp_host}
                         onChange={(e) => setImapCustom((p) => ({ ...p, smtp_host: e.target.value }))}
-                        placeholder="SMTP host (ex: smtp.domaine.fr)"
+                        placeholder={i18nT("smtp_host_ex_smtp_domaine_fr_d4b5a7fb")}
                         style={imapFieldStyle}
                       />
                       <input
@@ -1183,9 +1171,9 @@ Email : {{email}}`));
                         }}
                         style={{ ...imapSelectStyle, minWidth: 0 }}
                       >
-                        <option value="ssl" style={{ background: "#ffffff", color: "#111827" }}>Sécurité SMTP : SSL/TLS</option>
-                        <option value="starttls" style={{ background: "#ffffff", color: "#111827" }}>Sécurité SMTP : STARTTLS</option>
-                        <option value="none" style={{ background: "#ffffff", color: "#111827" }}>Sécurité SMTP : aucune</option>
+                        <option value="ssl" style={{ background: "#ffffff", color: "#111827" }}>{i18nT("securite_smtp_ssl_tls_0bc61850")}</option>
+                        <option value="starttls" style={{ background: "#ffffff", color: "#111827" }}>{i18nT("securite_smtp_starttls_5f10497e")}</option>
+                        <option value="none" style={{ background: "#ffffff", color: "#111827" }}>{i18nT("securite_smtp_aucune_b257d5a8")}</option>
                       </select>
                     </div>
                   </>
@@ -1204,7 +1192,7 @@ Email : {{email}}`));
                     try {
                       setImapFormError(null);
                       if (!imapLogin.trim() || !imapPassword) {
-                        setImapFormError("Saisis identifiant et mot de passe.");
+                        setImapFormError(i18nT("saisis_identifiant_et_mot_de_passe_50c55741"));
                         return;
                       }
                       setImapConnectBusy(true);
@@ -1240,12 +1228,12 @@ Email : {{email}}`));
                     opacity: imapTestBusy || imapConnectBusy ? 0.6 : 1,
                   }}
                 >
-                  {imapConnectBusy ? "Connexion…" : "Connecter"}
+                  {imapConnectBusy ? i18nT("connexion_807c2021") : i18nT("connecter_ca28e250")}
                 </button>
               </div>
 
               <div style={{ fontSize: 12, opacity: 0.7, marginTop: 6 }}>
-                Astuce : si votre boîte a la double authentification, utilisez un <b>mot de passe d’application</b>.
+                {i18nT("astuce_si_votre_boite_a_la_167d4379")}{" "}<b>{i18nT("mot_de_passe_d_application_f6940e53")}</b>.
               </div>
             </div>
           </div>

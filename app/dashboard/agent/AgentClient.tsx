@@ -1,5 +1,8 @@
 "use client";
 
+import { useLocale, useTranslations } from "next-intl";
+
+
 import {
   useEffect,
   useMemo,
@@ -14,9 +17,6 @@ import {
 import {
   createClient,
 } from "@/lib/supabaseClient";
-import {
-  getClientUserFacingErrorMessage,
-} from "@/lib/userFacingErrors";
 import {
   resolveActiveBrowserUserId,
 } from "@/lib/browserAccountCache";
@@ -80,14 +80,16 @@ import {
   computePreviewLayout,
   getBackgroundFill,
   getBackgroundMode,
-  getCtaModeHelp,
+  getLocalizedCtaModeHelp,
+  getLocalizedPreferredCtaLabel,
+  getLocalizedVideoAdaptationModeLabel,
+  getLocalizedVideoFormatLabel,
+  getLocalizedWebsiteSourceLabelForChannel,
   getDefaultTransform,
   getEffectiveTransformZoom,
   getChannelSafetyBackgroundMode,
   getOptimizedTransform,
   getPreferredCtaChoiceFromPost,
-  getVideoFormatLabel,
-  getWebsiteSourceLabelForChannel,
   getWebsiteUrlForChannel,
   normalizeBoosterAiLanguage,
   normalizeBoosterPreferredCta,
@@ -112,11 +114,6 @@ import {
 } from "@/lib/inrAgentSettings";
 import { isStandardAgentAutomationKey } from "@/lib/standardAgentPolicy";
 import { useDashboardEdition } from "../_components/DashboardEditionProvider";
-import {
-  INR_AGENT_ACTION_LABELS,
-  INR_AGENT_STATUS_LABELS,
-  INR_AGENT_TOOL_LABELS,
-} from "@/lib/inrAgentActions";
 import styles from "./agent.module.css";
 import dashboardStyles from "../dashboard.module.css";
 import { useAgentResponsiveUi } from "./_hooks/useAgentResponsiveUi";
@@ -222,7 +219,6 @@ import {
   normalizeAgentCtaMode,
   inferPreferredCtaChoiceFromLabel,
   connectedChannelsForAutomation,
-  connectedChannelMessage,
   normalizeConfigsForConnectedChannels,
   dayOffsetLabel,
   normalizeConfigScheduleSlots,
@@ -243,7 +239,6 @@ import {
   getPublishMediaRecord,
   getMediaVideoSettingsRecord,
   extractPublishMediaAdaptationPreview,
-  publishContentKindLabel,
   publishStatusLabel,
   extractPublishCtaLine,
 } from "./_lib/agent.publish-preview";
@@ -272,7 +267,6 @@ import {
 } from "./_lib/agent.reports";
 import {
   scheduleDateParts,
-  scheduledActionStatusLabel,
   scheduleTypeLabelFromAutomation,
   scheduleChannelLabelFromAutomation,
   scheduledActionTypeLabel,
@@ -289,6 +283,29 @@ import {
   scheduledEditUpdateFromAction,
   computeNextOccurrence,
 } from "./_lib/agent.schedule";
+import {
+  agentActionStatusLabel,
+  agentActionTypeLabel,
+  agentAutomationSettingsTitle,
+  agentAutomationStep,
+  agentAutomationTitle,
+  agentChannelLabel,
+  agentConnectedChannelMessage,
+  agentContentKindLabel,
+  agentFrequencyLabel,
+  agentMediaStatusLabel,
+  agentProgressLabel,
+  agentScheduleChannelLabel,
+  agentScheduledStatusLabel,
+  agentScheduleTypeLabel,
+  agentSourceLabel,
+  agentThemeLabel,
+  agentThemeListLabel,
+  agentToolLabel,
+  agentValidationLabel,
+  agentWeekdayLabel,
+  type AgentTranslator,
+} from "./_lib/agent.i18n";
 
 const AGENT_VIDEO_OPTIMIZER_ACCEPT = [
   ...UNIVERSAL_MEDIA_VIDEO_MIME_TYPES,
@@ -296,6 +313,14 @@ const AGENT_VIDEO_OPTIMIZER_ACCEPT = [
 ].join(",");
 
 export default function AgentClient() {
+  const i18nT = useTranslations("agent");
+  const boosterT = useTranslations("booster");
+  const boosterRuntimeT = boosterT as unknown as (
+    key: string,
+    values?: Record<string, string | number>,
+  ) => string;
+  const locale = useLocale();
+  const runtimeT = i18nT as unknown as AgentTranslator;
   const router = useRouter();
   const standardMode = useDashboardEdition() === "standard";
   const visibleAutomations = useMemo(
@@ -655,8 +680,9 @@ export default function AgentClient() {
       const nextOccurrence = computeNextOccurrence(config);
       const dateParts = scheduleDateParts(
         nextOccurrence,
-        config.day || "—",
+        agentWeekdayLabel(config.day, runtimeT) || "—",
         config.time || "—",
+        locale,
       );
       const channels =
         automation.key === "stats"
@@ -674,19 +700,16 @@ export default function AgentClient() {
       for (const channel of channels) {
         rows.push({
           id: `automatic-${automation.key}-${channel}`,
-          action: automation.title,
+          action: agentAutomationTitle(automation.key, runtimeT),
           date: dateParts.date,
           time: dateParts.time,
-          typeLabel: scheduleTypeLabelFromAutomation(automation.key),
-          channelLabel: scheduleChannelLabelFromAutomation(
-            automation.key,
-            channel,
-          ),
+          typeLabel: agentScheduleTypeLabel(scheduleTypeLabelFromAutomation(automation.key), runtimeT),
+          channelLabel: agentScheduleChannelLabel(scheduleChannelLabelFromAutomation(automation.key, channel), runtimeT),
           channelLabels: [
-            scheduleChannelLabelFromAutomation(automation.key, channel),
+            agentScheduleChannelLabel(scheduleChannelLabelFromAutomation(automation.key, channel), runtimeT),
           ],
-          originLabel: "Automatique",
-          status: "Automatique",
+          originLabel: i18nT("automatique_f8a3c37b"),
+          status: i18nT("automatique_f8a3c37b"),
           statusKey: "scheduled",
           automationKey: automation.key,
           scheduledAtIso: nextOccurrence,
@@ -705,17 +728,20 @@ export default function AgentClient() {
         continue;
       const dateParts = scheduleDateParts(
         action.scheduledAt || action.createdAt,
+        "—",
+        "—",
+        locale,
       );
       rows.push({
         id: `manual-${action.id}`,
-        action: action.title || "Action programmée",
+        action: action.title || i18nT("action_programmee_ea2709b8"),
         date: dateParts.date,
         time: dateParts.time,
-        typeLabel: scheduledActionTypeLabel(action),
-        channelLabel: scheduledActionChannelLabel(action),
-        channelLabels: scheduledActionChannelLabels(action),
-        originLabel: "Programmé",
-        status: scheduledActionStatusLabel(action.status),
+        typeLabel: agentScheduleTypeLabel(scheduledActionTypeLabel(action), runtimeT),
+        channelLabel: agentScheduleChannelLabel(scheduledActionChannelLabel(action), runtimeT),
+        channelLabels: scheduledActionChannelLabels(action).map((label) => agentScheduleChannelLabel(label, runtimeT)),
+        originLabel: i18nT("programme_bab7d71e"),
+        status: agentScheduledStatusLabel(action.status, runtimeT),
         statusKey: action.status,
         automationKey: action.automationKey,
         scheduledActionId: action.id,
@@ -734,7 +760,7 @@ export default function AgentClient() {
         new Date(b.scheduledAtIso || 0).getTime()
       );
     });
-  }, [agentConnectedChannels, configs, scheduledActions, visibleAutomations]);
+  }, [agentConnectedChannels, configs, i18nT, locale, scheduledActions, visibleAutomations]);
 
   const selectedConfig = configs[selected.key];
   const selectedAvailableChannels = useMemo(
@@ -761,7 +787,9 @@ export default function AgentClient() {
     settingsAvailableChannels.length === 0,
   );
   const settingsConnectedChannelMessage = settingsNoConnectedChannelBlock
-    ? connectedChannelMessage(settingsAutomation)
+    ? settingsAutomation
+      ? agentConnectedChannelMessage(settingsAutomation.key, runtimeT)
+      : ""
     : "";
   const hasPreparedAction = Boolean(selectedPreparedAction);
   const preparedImage = selectedPreparedAction
@@ -825,8 +853,8 @@ export default function AgentClient() {
       ? (selectedAutomationChannel as ChannelKey)
       : (placeholderPreviewChannels[0] ?? null);
   const activePreviewChannelLabel = activePreviewChannel
-    ? channelOptions[activePreviewChannel]?.name
-    : "Aperçu";
+    ? agentChannelLabel(activePreviewChannel, runtimeT)
+    : i18nT("preview_label");
   const preparedChannelPreview = selectedPreparedAction
     ? extractChannelPreview(selectedPreparedAction, activePreviewChannel)
     : null;
@@ -850,12 +878,13 @@ export default function AgentClient() {
         activePreviewChannel,
       )
     : null;
-  const publishMediaRetouchLabel =
+  const publishMediaRetouchLabel = i18nT(
     publishMediaPreview?.kind === "video"
-      ? "Adapter la vidéo"
+      ? "adapt_video"
       : publishMediaPreview?.kind === "image"
-        ? "Adapter l’image"
-        : "Adapter le média";
+        ? "adapt_image"
+        : "adapt_media",
+  );
   const publishMediaRetouchIcon =
     publishMediaPreview?.kind === "video"
       ? "🎞️"
@@ -909,10 +938,7 @@ export default function AgentClient() {
       selectedPreparedAction?.summary),
   );
   const publishContentKind = isPublishView
-    ? publishContentKindLabel({
-        media: publishMediaPreview,
-        hasText: publishHasText,
-      })
+    ? agentContentKindLabel(publishMediaPreview?.kind || "none", publishHasText, runtimeT)
     : "—";
   const publishStatus = isPublishView
     ? publishStatusLabel({
@@ -951,37 +977,37 @@ export default function AgentClient() {
         );
         const blockers: string[] = [];
         if (media.statusTone === "blocked" && media.statusLabel) {
-          blockers.push(media.statusLabel);
+          blockers.push(agentMediaStatusLabel(media.statusLabel, runtimeT));
         }
         if (!hasText && media.kind === "none") {
-          blockers.push("Ajoutez au moins du texte ou un média.");
+          blockers.push(i18nT("publish_requires_content"));
         }
         if (channel === "youtube" && media.kind !== "video") {
-          blockers.push("YouTube nécessite une vidéo.");
+          blockers.push(i18nT("youtube_requires_video"));
         }
         if (
           channel === "instagram" &&
           media.kind !== "image" &&
           media.kind !== "video"
         ) {
-          blockers.push("Instagram nécessite une vidéo ou au moins 1 image.");
+          blockers.push(i18nT("instagram_requires_media"));
         }
         if (
           channel === "tiktok" &&
           media.kind !== "image" &&
           media.kind !== "video"
         ) {
-          blockers.push("TikTok nécessite une vidéo ou au moins 1 photo.");
+          blockers.push(i18nT("tiktok_requires_media"));
         }
         return {
           channel: boosterChannel,
-          label: channelOptions[channel]?.name || channel,
-          mediaLabel: publishContentKindLabel({ media, hasText }),
+          label: agentChannelLabel(channel, runtimeT),
+          mediaLabel: agentContentKindLabel(media.kind, hasText, runtimeT),
           blockers: Array.from(new Set(blockers)),
         } satisfies PublishScheduleItem;
       })
       .filter((item): item is PublishScheduleItem => Boolean(item));
-  }, [isPublishView, preparedChannels, selectedPreparedAction]);
+  }, [i18nT, isPublishView, preparedChannels, selectedPreparedAction]);
   const publishCtaLine = isPublishView
     ? extractPublishCtaLine(
         selectedPreparedAction,
@@ -1093,7 +1119,6 @@ export default function AgentClient() {
   const filteredCrmAllSelected =
     filteredCrmRecipientEmails.length > 0 &&
     filteredCrmSelectedCount === filteredCrmRecipientEmails.length;
-  const filteredCrmSelectionLabel = filteredCrmAllSelected ? "Aucun" : "Tout";
   const activeCrmRecipientFiltersCount =
     (crmRecipientCategory !== "all" ? 1 : 0) +
     (crmRecipientType !== "all" ? 1 : 0) +
@@ -1116,23 +1141,26 @@ export default function AgentClient() {
         latestStatsReport.document.createdAt ||
           latestStatsReport.completedAt ||
           latestStatsReport.createdAt,
+        "—",
+        locale,
       )
-    : "Aucun";
+    : i18nT("aucun_b2ed82f1");
   const statsNextRunLabel = formatDateTimeLabel(
     selectedAutomationSettings?.nextRunAt ||
       (selected.key === "stats" ? computeNextOccurrence(selectedConfig) : null),
-    "Programmation inactive",
+    i18nT("schedule_inactive"),
+    locale,
   );
   const statsAutomationLabel = selectedConfig.enabled
-    ? "Activée"
-    : "Désactivée";
-  const statsFrequencyLabel = selectedConfig.frequency || "Chaque semaine";
+    ? i18nT("automation_enabled")
+    : i18nT("automation_disabled");
+  const statsFrequencyLabel = agentFrequencyLabel(selectedConfig.frequency || "Chaque semaine", runtimeT);
   const statsStoredCountLabel = `${statsReports.length}/5`;
   const footerDateLabel =
     selected.key === "stats"
       ? statsNextRunLabel
       : hasPreparedAction && selectedPreparedAction
-        ? formatActionDate(selectedPreparedAction.scheduledFor, selectedConfig)
+        ? formatActionDate(selectedPreparedAction.scheduledFor, selectedConfig, locale)
         : "—";
 
   useEffect(() => {
@@ -1193,7 +1221,7 @@ export default function AgentClient() {
     const subject = campaignTextDraft.subject.trim();
     const body = campaignTextDraft.body.trim();
     if (!subject || !body) {
-      showNotice("L’objet et le corps du mail sont obligatoires.");
+      showNotice(i18nT("l_objet_et_le_corps_du_99f7bad3"));
       return;
     }
 
@@ -1207,20 +1235,16 @@ export default function AgentClient() {
           subject,
           bodyText: body,
         },
-        "Modification du mail impossible.",
+        i18nT("modification_du_mail_impossible_79c8df8a"),
       );
       setMailTextEditOpen(false);
       showNotice(
         scheduledEditSession
-          ? "Texte modifié temporairement. Valider l’enregistrera sur l’action programmée."
-          : "Texte de la campagne mis à jour.",
+          ? i18nT("texte_modifie_temporairement_valider_l_enregistr_97bc9fa5")
+          : i18nT("texte_de_la_campagne_mis_a_2147ff62"),
       );
     } catch (error) {
-      showNotice(
-        error instanceof Error
-          ? error.message
-          : "Modification du mail impossible.",
-      );
+      showNotice(i18nT("modification_du_mail_impossible_79c8df8a"));
     } finally {
       setCampaignSaveState("idle");
     }
@@ -1232,7 +1256,7 @@ export default function AgentClient() {
       !isPublishPreparedAction(selectedPreparedAction) ||
       !activePreviewChannel
     ) {
-      showNotice("Prépare d’abord une publication.");
+      showNotice(i18nT("prepare_d_abord_une_publication_f42a456a"));
       return;
     }
     const preview = extractChannelPreview(
@@ -1301,14 +1325,10 @@ export default function AgentClient() {
     const isImage = detectedType === "image" && isInrMediaImageFile(file);
     const isVideo = detectedType === "video";
     if (!isImage && !isVideo) {
-      throw new Error(
-        `Format non autorisé. Images : ${INR_MEDIA_IMAGE_FORMATS_LABEL}. Vidéos : ${INR_MEDIA_VIDEO_FORMATS_LABEL}.`,
-      );
+      throw new Error(i18nT("invalid_media"));
     }
     if (activePreviewChannel === "youtube" && !isVideo) {
-      throw new Error(
-        "YouTube nécessite une vidéo. Choisis une vidéo depuis la Médiathèque ou importe une vidéo.",
-      );
+      throw new Error(i18nT("youtube_requires_video"));
     }
     return isVideo ? "video" : "image";
   }
@@ -1367,12 +1387,12 @@ export default function AgentClient() {
   ) {
     if (!item) return false;
     if (activePreviewChannel === "youtube" && item.media_type !== "video") {
-      showNotice("YouTube nécessite une vidéo.");
+      showNotice(i18nT("youtube_requires_video"));
       return false;
     }
     if (item.media_type === "image" && publishImageLimitReached) {
       showNotice(
-        `Maximum de ${INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT} images atteint pour ce canal.`,
+        i18nT("max_images_channel", { count: INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT }),
       );
       return false;
     }
@@ -1388,18 +1408,14 @@ export default function AgentClient() {
             INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT - 1,
           ),
         );
-        showNotice("Image ajoutée à la publication.");
+        showNotice(i18nT("publish_image_added"));
       } else {
         setPublishMediaActiveIndex(0);
-        showNotice("Vidéo iNrAgent mise à jour.");
+        showNotice(i18nT("publish_video_updated"));
       }
       return true;
     } catch (error) {
-      showNotice(
-        error instanceof Error
-          ? error.message
-          : "Modification du média impossible.",
-      );
+      showNotice(i18nT("publish_media_update_failed"));
       return false;
     } finally {
       setPublishMediaUploadState("idle");
@@ -1412,7 +1428,7 @@ export default function AgentClient() {
       !isPublishPreparedAction(selectedPreparedAction) ||
       !activePreviewChannel
     ) {
-      showNotice("Prépare d’abord une publication.");
+      showNotice(i18nT("prepare_d_abord_une_publication_f42a456a"));
       return;
     }
     setPublishEditChoiceOpen(false);
@@ -1443,7 +1459,7 @@ export default function AgentClient() {
 
   async function openPublishImageAdapterTool() {
     if (!publishMediaPreview?.url) {
-      showNotice("Ajoute d’abord une image à adapter.");
+      showNotice(i18nT("add_image_first"));
       return;
     }
     try {
@@ -1467,11 +1483,7 @@ export default function AgentClient() {
       setPublishImageAdapterPreviewUrl(previewUrl);
       setPublishImageAdapterOpen(true);
     } catch (error) {
-      showNotice(
-        error instanceof Error
-          ? error.message
-          : "Adaptation de l’image impossible.",
-      );
+      showNotice(i18nT("image_adaptation_failed"));
     } finally {
       setPublishImageAdapterSaving(false);
     }
@@ -1496,7 +1508,7 @@ export default function AgentClient() {
 
   function openPublishVideoAdapterTool() {
     if (!publishMediaPreview?.url) {
-      showNotice("Ajoute d’abord une vidéo à adapter.");
+      showNotice(i18nT("add_video_first"));
       return;
     }
     const settings = getCurrentVideoSettings();
@@ -1508,7 +1520,7 @@ export default function AgentClient() {
 
   function openPublishMediaAdapterPreview() {
     if (!publishMediaPreview?.url) {
-      showNotice("Ajoute d’abord une image ou une vidéo à adapter.");
+      showNotice(i18nT("add_media_first"));
       return;
     }
     if (publishMediaPreview.kind === "video") {
@@ -1519,7 +1531,7 @@ export default function AgentClient() {
       void openPublishImageAdapterTool();
       return;
     }
-    showNotice("Ce média ne peut pas être adapté avec les outils Booster.");
+    showNotice(i18nT("media_not_adaptable"));
   }
 
   function handlePublishImageAdapterWheel(
@@ -1645,18 +1657,14 @@ export default function AgentClient() {
         rendered.name ||
         `${publishMediaPreview?.name?.replace(/\.[^.]+$/, "") || "image-inragent"}-adaptee.jpg`;
       if (!rendered.dataUrl) {
-        throw new Error("Image adaptée introuvable.");
+        throw new Error(i18nT("image_adaptation_failed"));
       }
       const renderedFile = dataUrlToFile(rendered.dataUrl, safeName);
       await uploadPublishMedia(renderedFile, "replace");
       closePublishImageAdapter();
-      showNotice("Image adaptée et enregistrée pour iNrAgent.");
+      showNotice(i18nT("image_adapted_saved"));
     } catch (error) {
-      showNotice(
-        error instanceof Error
-          ? error.message
-          : "Enregistrement de l’image adaptée impossible.",
-      );
+      showNotice(i18nT("image_adapted_save_failed"));
     } finally {
       setPublishImageAdapterSaving(false);
     }
@@ -1667,7 +1675,7 @@ export default function AgentClient() {
     setPublishVideoAdapterSaving(true);
     setPublishVideoPreparationState({
       status: "preparing",
-      label: "Préparation vidéo en cours...",
+      label: i18nT("preparation_video_en_cours_4903333d"),
     });
     try {
       const nextSettings = {
@@ -1745,33 +1753,31 @@ export default function AgentClient() {
       setPublishVideoPreparationState({
         status: generatedVariants.length ? "ready" : "ready",
         label: generatedVariants.length
-          ? "Format vidéo appliqué"
-          : "Vidéo originale conservée",
-        detail: `${getVideoFormatLabel(
+          ? i18nT("video_format_applied")
+          : i18nT("video_original_kept"),
+        detail: `${getLocalizedVideoFormatLabel(
           publishBoosterChannel,
           publishVideoFormat,
-        )} · ${publishVideoAdaptationMode === "cover_crop" ? "Recadrer plein écran" : "Vidéo entière sur fond sobre"}`,
+          (asRecord(currentPublishMediaRecord?.sourceMetadata) ||
+            null) as BoosterVideoSourceMetadata | null,
+          boosterRuntimeT,
+        )} · ${getLocalizedVideoAdaptationModeLabel(
+          publishVideoAdaptationMode,
+          boosterRuntimeT,
+        )}`,
       });
       if (response.errors?.length && !generatedVariants.length) {
-        showNotice(
-          response.errors[0]?.message ||
-            "Adaptation automatique indisponible : la vidéo originale sera conservée.",
-        );
+        showNotice(i18nT("video_auto_adaptation_unavailable"));
       } else {
-        showNotice("Réglage vidéo enregistré pour iNrAgent.");
+        showNotice(i18nT("video_setting_saved"));
       }
-    } catch (error) {
+    } catch {
       setPublishVideoPreparationState({
         status: "error",
-        label: "Adaptation vidéo impossible",
-        detail:
-          error instanceof Error
-            ? error.message
-            : "Réessaie ou conserve la vidéo originale.",
+        label: i18nT("adaptation_video_impossible_79ebe884"),
+        detail: i18nT("video_adaptation_retry"),
       });
-      showNotice(
-        error instanceof Error ? error.message : "Adaptation vidéo impossible.",
-      );
+      showNotice(i18nT("video_adaptation_failed"));
     } finally {
       setPublishVideoAdapterSaving(false);
     }
@@ -1815,7 +1821,7 @@ export default function AgentClient() {
     } | null;
 
     if (!response.ok || !payload?.action) {
-      throw new Error(payload?.error || "Modification du média impossible.");
+      throw new Error(payload?.error || i18nT("publish_media_update_failed"));
     }
 
     const updatedAction = payload.action;
@@ -1842,7 +1848,7 @@ export default function AgentClient() {
     try {
       mediaKind = validateAgentPublishMediaFile(file);
     } catch (error) {
-      showNotice(error instanceof Error ? error.message : "Média invalide.");
+      showNotice(i18nT("invalid_media"));
       return;
     }
 
@@ -1867,7 +1873,7 @@ export default function AgentClient() {
       publishImageLimitReached
     ) {
       showNotice(
-        `Maximum de ${INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT} images atteint pour ce canal.`,
+        i18nT("max_images_channel", { count: INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT }),
       );
       return;
     }
@@ -1895,17 +1901,17 @@ export default function AgentClient() {
       });
       const preparePayload = await readAgentApiJson(
         prepareResponse,
-        "Préparation du média impossible.",
+        i18nT("publish_media_update_failed"),
       );
       if (!prepareResponse.ok)
         throw new Error(
-          preparePayload?.error || "Préparation du média impossible.",
+          preparePayload?.error || i18nT("publish_media_update_failed"),
         );
       const prepared = Array.isArray(preparePayload?.items)
         ? preparePayload.items[0]
         : null;
       if (!prepared?.token || !prepared?.storage_path)
-        throw new Error("Préparation du média impossible.");
+        throw new Error(i18nT("publish_media_update_failed"));
 
       const mediaInfo = await readAgentMediaFileInfo(file, mediaKind);
 
@@ -1943,17 +1949,18 @@ export default function AgentClient() {
       });
       const finalizePayload = await readAgentApiJson(
         finalizeResponse,
-        "Finalisation du média impossible.",
+        i18nT("publish_media_update_failed"),
       );
       if (!finalizeResponse.ok || !finalizePayload?.ok) {
         throw new Error(
-          finalizePayload?.error || "Finalisation du média impossible.",
+          finalizePayload?.error || i18nT("publish_media_update_failed"),
         );
       }
       const result = Array.isArray(finalizePayload?.results)
         ? finalizePayload.results.find((item: any) => item?.ok)
         : null;
-      if (!result?.storage_path) throw new Error("Média finalisé introuvable.");
+      if (!result?.storage_path)
+        throw new Error(i18nT("publish_media_update_failed"));
 
       await savePublishMediaPatch(
         {
@@ -1969,7 +1976,9 @@ export default function AgentClient() {
             result.title ||
             prepared.original_name ||
             file.name ||
-            (mediaKind === "video" ? "Vidéo" : "Image"),
+            (mediaKind === "video"
+              ? i18nT("media_video")
+              : i18nT("media_image")),
           title: result.title || prepared.original_name || file.name || "",
           type:
             result.mime_type ||
@@ -2006,17 +2015,13 @@ export default function AgentClient() {
       }
       showNotice(
         mediaKind === "video"
-          ? "Vidéo iNrAgent mise à jour."
+          ? i18nT("publish_video_updated")
           : mutation === "append"
-            ? "Image ajoutée à la publication."
-            : "Image iNrAgent mise à jour.",
+            ? i18nT("publish_image_added")
+            : i18nT("publish_image_updated"),
       );
     } catch (error) {
-      showNotice(
-        error instanceof Error
-          ? error.message
-          : "Modification du média impossible.",
-      );
+      showNotice(i18nT("publish_media_update_failed"));
     } finally {
       setPublishMediaUploadState("idle");
     }
@@ -2047,13 +2052,9 @@ export default function AgentClient() {
       } else {
         setPublishMediaActiveIndex(0);
       }
-      showNotice("Média retiré de la publication.");
+      showNotice(i18nT("publish_media_removed"));
     } catch (error) {
-      showNotice(
-        error instanceof Error
-          ? error.message
-          : "Suppression du média impossible.",
-      );
+      showNotice(i18nT("publish_media_remove_failed"));
     } finally {
       setPublishMediaUploadState("idle");
     }
@@ -2097,7 +2098,7 @@ export default function AgentClient() {
     const channel = publishTextDraft.channel;
     const body = publishTextDraft.body.trim();
     if (!channel || !body) {
-      showNotice("Le contenu de la publication est obligatoire.");
+      showNotice(i18nT("le_contenu_de_la_publication_est_d18cf916"));
       return;
     }
 
@@ -2115,7 +2116,7 @@ export default function AgentClient() {
       );
       setPublishEditOpen(false);
       showNotice(
-        "Texte modifié temporairement. Valider l’enregistrera sur l’action programmée.",
+        i18nT("texte_modifie_temporairement_valider_l_enregistr_97bc9fa5"),
       );
       return;
     }
@@ -2147,7 +2148,7 @@ export default function AgentClient() {
 
       if (!response.ok || !payload?.action) {
         throw new Error(
-          payload?.error || "Modification de la publication impossible.",
+          payload?.error || i18nT("modification_de_la_publication_impossible_e4568d66"),
         );
       }
 
@@ -2158,13 +2159,9 @@ export default function AgentClient() {
         ),
       );
       setPublishEditOpen(false);
-      showNotice("Publication mise à jour.");
+      showNotice(i18nT("publication_mise_a_jour_de5f8c83"));
     } catch (error) {
-      showNotice(
-        error instanceof Error
-          ? error.message
-          : "Modification de la publication impossible.",
-      );
+      showNotice(i18nT("modification_de_la_publication_impossible_e4568d66"));
     } finally {
       setPublishSaveState("idle");
     }
@@ -2175,7 +2172,7 @@ export default function AgentClient() {
     fallbackError: string,
   ) {
     if (!selectedPreparedAction)
-      throw new Error("Action iNr’Agent introuvable.");
+      throw new Error(i18nT("scheduled_action_not_found"));
 
     if (scheduledEditSession) {
       const nextAction = updateScheduledEditCampaign(
@@ -2227,9 +2224,7 @@ export default function AgentClient() {
         throw new Error(payload?.error || "Contacts CRM indisponibles.");
       setCrmContacts(Array.isArray(payload?.contacts) ? payload.contacts : []);
     } catch (error) {
-      showNotice(
-        error instanceof Error ? error.message : "Contacts CRM indisponibles.",
-      );
+      showNotice(i18nT("crm_contacts_unavailable"));
     } finally {
       setCrmContactsLoading(false);
     }
@@ -2262,7 +2257,7 @@ export default function AgentClient() {
   function addManualRecipientsFromInput() {
     const emails = parseRecipientEmails(manualRecipientsInput);
     if (!emails.length) {
-      showNotice("Ajoute au moins une adresse mail valide.");
+      showNotice(i18nT("valid_email_required"));
       return;
     }
     setSelectedRecipientEmails((current) => {
@@ -2271,9 +2266,7 @@ export default function AgentClient() {
       return Array.from(next);
     });
     setManualRecipientsInput("");
-    showNotice(
-      `${emails.length} destinataire${emails.length > 1 ? "s" : ""} ajouté${emails.length > 1 ? "s" : ""}.`,
-    );
+    showNotice(i18nT("recipients_added", { count: emails.length }));
   }
 
   function selectAllFilteredCrmRecipients() {
@@ -2344,7 +2337,7 @@ export default function AgentClient() {
       );
 
     if (!recipients.length) {
-      showNotice("Sélectionne au moins un destinataire.");
+      showNotice(i18nT("recipient_required"));
       return;
     }
 
@@ -2352,17 +2345,13 @@ export default function AgentClient() {
     try {
       await patchCampaignAction(
         { editType: "campaign_recipients", recipients },
-        "Modification des destinataires impossible.",
+        i18nT("campaign_recipients_update_failed"),
       );
       setRecipientsEditOpen(false);
       setManualRecipientsInput("");
-      showNotice("Destinataires de la campagne mis à jour.");
+      showNotice(i18nT("campaign_recipients_updated"));
     } catch (error) {
-      showNotice(
-        error instanceof Error
-          ? error.message
-          : "Modification des destinataires impossible.",
-      );
+      showNotice(i18nT("campaign_recipients_update_failed"));
     } finally {
       setCampaignSaveState("idle");
     }
@@ -2373,7 +2362,7 @@ export default function AgentClient() {
     const email = newRecipientDraft.email.trim().toLowerCase();
     const name = newRecipientDraft.name.trim();
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/i.test(email)) {
-      showNotice("Renseigne un email valide.");
+      showNotice(i18nT("email_required"));
       return;
     }
 
@@ -2395,18 +2384,16 @@ export default function AgentClient() {
         error?: string;
       } | null;
       if (!response.ok)
-        throw new Error(payload?.error || "Ajout du contact impossible.");
+        throw new Error(payload?.error || i18nT("crm_contact_add_failed"));
       await loadCrmContactsForAgent();
       setSelectedRecipientEmails((current) =>
         current.includes(email) ? current : [...current, email],
       );
       setNewRecipientDraft({ name: "", email: "", phone: "" });
       setNewRecipientOpen(false);
-      showNotice("Contact ajouté au CRM et sélectionné.");
+      showNotice(i18nT("crm_contact_added"));
     } catch (error) {
-      showNotice(
-        error instanceof Error ? error.message : "Ajout du contact impossible.",
-      );
+      showNotice(i18nT("crm_contact_add_failed"));
     } finally {
       setNewRecipientState("idle");
     }
@@ -2424,7 +2411,7 @@ export default function AgentClient() {
         error?: string;
       } | null;
       if (!response.ok)
-        throw new Error(payload?.error || "Boîtes mail indisponibles.");
+        throw new Error(payload?.error || i18nT("mailboxes_unavailable"));
       const accounts = Array.isArray(payload?.mailAccounts)
         ? payload.mailAccounts
         : Array.isArray(payload?.accounts)
@@ -2434,9 +2421,7 @@ export default function AgentClient() {
           : [];
       setMailAccounts(accounts);
     } catch (error) {
-      showNotice(
-        error instanceof Error ? error.message : "Boîtes mail indisponibles.",
-      );
+      showNotice(i18nT("mailboxes_unavailable"));
     } finally {
       setMailAccountsLoading(false);
     }
@@ -2455,7 +2440,7 @@ export default function AgentClient() {
   async function saveCampaignMailAccount() {
     if (!selectedPreparedAction || campaignSaveState === "saving") return;
     if (!selectedMailAccountId) {
-      showNotice("Sélectionne une boîte d’envoi.");
+      showNotice(i18nT("mailbox_required"));
       return;
     }
 
@@ -2463,16 +2448,12 @@ export default function AgentClient() {
     try {
       await patchCampaignAction(
         { editType: "campaign_mail_account", accountId: selectedMailAccountId },
-        "Modification de la boîte d’envoi impossible.",
+        i18nT("mailbox_update_failed"),
       );
       setMailAccountEditOpen(false);
-      showNotice("Boîte d’envoi mise à jour.");
+      showNotice(i18nT("mailbox_updated"));
     } catch (error) {
-      showNotice(
-        error instanceof Error
-          ? error.message
-          : "Modification de la boîte d’envoi impossible.",
-      );
+      showNotice(i18nT("mailbox_update_failed"));
     } finally {
       setCampaignSaveState("idle");
     }
@@ -2481,7 +2462,7 @@ export default function AgentClient() {
   async function saveCampaignAttachments(attachments: CampaignAttachmentRef[]) {
     await patchCampaignAction(
       { editType: "campaign_attachments", attachments },
-      "Modification de la pièce jointe impossible.",
+      i18nT("attachment_add_failed"),
     );
   }
 
@@ -2518,7 +2499,7 @@ export default function AgentClient() {
     if (!directFiles.length) {
       if (oversizedUnsupported.length > 0) {
         showNotice(
-          `Les pièces jointes sont limitées à 20 Mo. ${oversizedUnsupported[0].name} ne peut pas être optimisé automatiquement par iNrCy.`,
+          i18nT("attachment_too_large_unoptimizable", { file: oversizedUnsupported[0].name }),
         );
       }
       if (oversizedMedia.length > 0) {
@@ -2558,22 +2539,12 @@ export default function AgentClient() {
       );
       await saveCampaignAttachments([...current, ...uploaded].slice(0, 10));
       showNotice(
-        `${
-          uploaded.length > 1
-            ? "Pièces jointes ajoutées."
-            : "Pièce jointe ajoutée."
-        }${
-          oversizedUnsupported.length > 0
-            ? ` ${oversizedUnsupported[0].name} dépasse 20 Mo et ne peut pas être optimisé automatiquement.`
-            : ""
-        }`,
+        oversizedUnsupported.length > 0
+          ? i18nT("attachments_added_with_warning", { count: uploaded.length, file: oversizedUnsupported[0].name })
+          : i18nT("attachments_added", { count: uploaded.length }),
       );
     } catch (error) {
-      showNotice(
-        error instanceof Error
-          ? error.message
-          : "Pièce jointe impossible à ajouter.",
-      );
+      showNotice(i18nT("attachment_add_failed"));
     } finally {
       setAttachmentUploadState("idle");
     }
@@ -2593,7 +2564,9 @@ export default function AgentClient() {
       name:
         item.title ||
         item.storage_path.split("/").pop() ||
-        (item.media_type === "video" ? "Vidéo iNrCy" : "Image iNrCy"),
+        (item.media_type === "video"
+          ? i18nT("media_video_inrcy")
+          : i18nT("media_image_inrcy")),
       type:
         item.mime_type ||
         (item.media_type === "video" ? "video/mp4" : "image/jpeg"),
@@ -2608,17 +2581,11 @@ export default function AgentClient() {
       );
       await saveCampaignAttachments([...current, ...picked].slice(0, 10));
       showNotice(
-        picked.length > 1
-          ? "Pièces jointes ajoutées depuis la Médiathèque."
-          : "Pièce jointe ajoutée depuis la Médiathèque.",
+        i18nT("attachments_library_added", { count: picked.length }),
       );
       return true;
     } catch (error) {
-      showNotice(
-        error instanceof Error
-          ? error.message
-          : "Pièce jointe impossible à ajouter.",
-      );
+      showNotice(i18nT("attachment_add_failed"));
       return false;
     } finally {
       setAttachmentUploadState("idle");
@@ -2628,18 +2595,14 @@ export default function AgentClient() {
   async function handleOptimizedAgentMedia(item: MediaOptimizerItem) {
     const request = mediaOptimizerRequest;
     if (!request) {
-      throw new Error(
-        "La destination du média optimisé n’est plus disponible dans iNrAgent.",
-      );
+      throw new Error(i18nT("optimized_media_destination_unavailable"));
     }
 
     if (
       request.destination === "campaign" &&
       Number(item.size_bytes || 0) > MEDIA_LIBRARY_EMAIL_TARGET_BYTES
     ) {
-      throw new Error(
-        "Le média optimisé dépasse encore 20 Mo.",
-      );
+      throw new Error(i18nT("optimized_media_still_too_large"));
     }
 
     const inserted =
@@ -2647,9 +2610,7 @@ export default function AgentClient() {
         ? await addCampaignAttachmentsFromMediaLibrary([item])
         : await selectPublishMediaFromLibrary(item);
     if (!inserted) {
-      throw new Error(
-        "Le média optimisé a été créé, mais son insertion dans iNrAgent a échoué.",
-      );
+      throw new Error(i18nT("optimized_media_insert_failed"));
     }
     setMediaOptimizerCompleted(true);
   }
@@ -2664,13 +2625,9 @@ export default function AgentClient() {
       await saveCampaignAttachments(
         current.filter((attachment) => attachment.path !== path),
       );
-      showNotice("Pièce jointe retirée.");
+      showNotice(i18nT("attachment_removed"));
     } catch (error) {
-      showNotice(
-        error instanceof Error
-          ? error.message
-          : "Suppression de la pièce jointe impossible.",
-      );
+      showNotice(i18nT("attachment_remove_failed"));
     } finally {
       setAttachmentUploadState("idle");
     }
@@ -2679,7 +2636,7 @@ export default function AgentClient() {
   async function saveCampaignAsDraft() {
     if (!selectedPreparedAction || campaignDraftSaveState === "saving") return;
     if (scheduledEditSession) {
-      showNotice("Action programmée en édition : validez d’abord les modifications de l’action programmée.");
+      showNotice(i18nT("scheduled_edit_save_first"));
       setCampaignDraftConfirmOpen(false);
       return;
     }
@@ -2704,7 +2661,7 @@ export default function AgentClient() {
 
       if (!response.ok || !payload?.action) {
         throw new Error(
-          payload?.error || "Enregistrement du brouillon impossible.",
+          payload?.error || i18nT("draft_save_failed"),
         );
       }
 
@@ -2715,13 +2672,9 @@ export default function AgentClient() {
         ),
       );
       setCampaignDraftConfirmOpen(false);
-      showNotice("Campagne enregistrée en brouillon dans iNrSend.");
+      showNotice(i18nT("campaign_draft_saved"));
     } catch (error) {
-      showNotice(
-        error instanceof Error
-          ? error.message
-          : "Enregistrement du brouillon impossible.",
-      );
+      showNotice(i18nT("draft_save_failed"));
     } finally {
       setCampaignDraftSaveState("idle");
     }
@@ -2730,7 +2683,7 @@ export default function AgentClient() {
   async function savePublishAsDraft() {
     if (!selectedPreparedAction || campaignDraftSaveState === "saving") return;
     if (scheduledEditSession) {
-      showNotice("Action programmée en édition : validez d’abord les modifications de l’action programmée.");
+      showNotice(i18nT("scheduled_edit_save_first"));
       setCampaignDraftConfirmOpen(false);
       return;
     }
@@ -2755,7 +2708,7 @@ export default function AgentClient() {
 
       if (!response.ok || !payload?.action) {
         throw new Error(
-          payload?.error || "Enregistrement du brouillon impossible.",
+          payload?.error || i18nT("draft_save_failed"),
         );
       }
 
@@ -2766,13 +2719,9 @@ export default function AgentClient() {
         ),
       );
       setCampaignDraftConfirmOpen(false);
-      showNotice("Publication enregistrée en brouillon dans iNrSend.");
+      showNotice(i18nT("publication_draft_saved"));
     } catch (error) {
-      showNotice(
-        error instanceof Error
-          ? error.message
-          : "Enregistrement du brouillon impossible.",
-      );
+      showNotice(i18nT("draft_save_failed"));
     } finally {
       setCampaignDraftSaveState("idle");
     }
@@ -2829,7 +2778,7 @@ export default function AgentClient() {
       setMailAccountEditOpen(false);
       setSelectedKey(session.previousSelectedKey);
       if (!options.silent) {
-        showNotice("Édition annulée. L’action programmée n’a pas été modifiée.");
+        showNotice(i18nT("scheduled_edit_cancelled"));
       }
       options.onAfterExit?.();
     };
@@ -2841,11 +2790,11 @@ export default function AgentClient() {
         return true;
       }
       void confirmInrcy({
-        eyebrow: "Édition iNrAgent",
-        title: "Continuer sans sauvegarder ?",
-        message: "Les modifications en cours seront perdues. L’action programmée restera inchangée.",
-        confirmLabel: "Continuer",
-        cancelLabel: "Annuler",
+        eyebrow: i18nT("edition_inragent_f58f5494"),
+        title: i18nT("continuer_sans_sauvegarder_c43811c9"),
+        message: i18nT("les_modifications_en_cours_seront_perdues_09635085"),
+        confirmLabel: i18nT("continuer_129ffff9"),
+        cancelLabel: i18nT("annuler_49ba3292"),
         variant: "danger",
       }).then((confirmed) => {
         if (confirmed) restorePreviousState();
@@ -2863,11 +2812,11 @@ export default function AgentClient() {
     onConfirmExit: () => {
       exitScheduledEditSession({ silent: true, force: true });
     },
-    eyebrow: "Édition iNrAgent",
-    title: "Continuer sans sauvegarder ?",
-    message: "Les modifications en cours seront perdues. L’action programmée restera inchangée.",
-    confirmLabel: "Continuer",
-    cancelLabel: "Annuler",
+    eyebrow: i18nT("edition_inragent_f58f5494"),
+    title: i18nT("continuer_sans_sauvegarder_c43811c9"),
+    message: i18nT("les_modifications_en_cours_seront_perdues_09635085"),
+    confirmLabel: i18nT("continuer_129ffff9"),
+    cancelLabel: i18nT("annuler_49ba3292"),
     variant: "danger",
   });
 
@@ -2886,7 +2835,7 @@ export default function AgentClient() {
     }
     const scheduledAction = scheduledActions.find((item) => item.id === actionId);
     if (!scheduledAction) {
-      showNotice("Action programmée introuvable.");
+      showNotice(i18nT("scheduled_action_not_found"));
       return;
     }
     if (isScheduledSimpleMailAction(scheduledAction)) {
@@ -2902,13 +2851,13 @@ export default function AgentClient() {
       setValidationChoiceOpen(false);
       setValidationScheduleOpen(false);
       setScheduleOnlyEditError(null);
-      setScheduleOnlyEdit({ action: scheduledAction, label: "Bilan iNr’Stats" });
+      setScheduleOnlyEdit({ action: scheduledAction, label: i18nT("bilan_inr_stats_d76f9e28") });
       return;
     }
 
     const action = scheduledActionToPreparedAction(scheduledAction);
     if (!action) {
-      showNotice("Cette action programmée ne peut pas encore être ouverte.");
+      showNotice(i18nT("scheduled_action_not_openable"));
       return;
     }
     const nextKey = (action.automationKey || scheduledAutomationKey(scheduledAction)) as AutomationKey;
@@ -2923,7 +2872,7 @@ export default function AgentClient() {
       baselineSignature: preparedActionDirtySignature(action),
       dirty: false,
     });
-    showNotice("Action programmée ouverte en édition temporaire.");
+    showNotice(i18nT("scheduled_action_edit_opened"));
   }
 
   async function patchScheduledAction(
@@ -2943,7 +2892,7 @@ export default function AgentClient() {
     if (!response.ok || !payload?.scheduledAction) {
       if (payload?.tableMissing) setScheduledActionsTableMissing(true);
       throw new Error(
-        payload?.error || "Modification de l’action programmée impossible.",
+        payload?.error || i18nT("schedule_update_failed"),
       );
     }
     return payload.scheduledAction;
@@ -2967,7 +2916,7 @@ export default function AgentClient() {
     if (!response.ok || !payload?.scheduledAction) {
       if (payload?.tableMissing) setScheduledActionsTableMissing(true);
       throw new Error(
-        payload?.error || "Création de l’action programmée impossible.",
+        payload?.error || i18nT("schedule_update_failed"),
       );
     }
     return payload.scheduledAction;
@@ -3006,7 +2955,7 @@ export default function AgentClient() {
     const session = scheduledEditSession;
     if (!session) return;
     if (!selections.length) {
-      throw new Error("Sélectionnez au moins un canal à programmer.");
+      throw new Error(i18nT("schedule_channels_required"));
     }
 
     const grouped = Array.from(
@@ -3018,7 +2967,7 @@ export default function AgentClient() {
       }, new Map<string, BoosterChannelKey[]>()),
     );
     if (!grouped.length) {
-      throw new Error("Sélectionnez au moins un canal à programmer.");
+      throw new Error(i18nT("schedule_channels_required"));
     }
 
     const savedActions: AgentScheduledAction[] = [];
@@ -3069,18 +3018,14 @@ export default function AgentClient() {
       } | null;
       if (!response.ok) {
         throw new Error(
-          payload?.error || "Suppression de l’action programmée impossible.",
+          payload?.error || i18nT("scheduled_action_delete_failed"),
         );
       }
       exitScheduledEditSession({ silent: true, force: true });
       await refreshScheduledActions(true);
-      showNotice("Action programmée supprimée.");
+      showNotice(i18nT("scheduled_action_deleted"));
     } catch (error) {
-      showNotice(
-        error instanceof Error
-          ? error.message
-          : "Suppression de l’action programmée impossible.",
-      );
+      showNotice(i18nT("scheduled_action_delete_failed"));
     } finally {
       setScheduleMutationState("idle");
     }
@@ -3090,10 +3035,10 @@ export default function AgentClient() {
     const session = scheduledEditSession;
     if (!session || scheduleMutationState === "saving") return;
     openAgentConfirmDialog({
-      title: "Supprimer ce contenu programmé ?",
-      message: "Ce contenu programmé sera supprimé définitivement. Continuer ?",
-      confirmLabel: "Supprimer",
-      cancelLabel: "Annuler",
+      title: i18nT("supprimer_ce_contenu_programme_69dec33b"),
+      message: i18nT("ce_contenu_programme_sera_supprime_definitivemen_c71f5bb9"),
+      confirmLabel: i18nT("supprimer_1acfc1c7"),
+      cancelLabel: i18nT("annuler_49ba3292"),
       tone: "danger",
       onConfirm: () => performDeleteScheduledEditAction(session),
     });
@@ -3105,7 +3050,7 @@ export default function AgentClient() {
   ): Pick<AutomationConfig, "day" | "time" | "scheduleSlots"> {
     const date = new Date(scheduledAt);
     if (Number.isNaN(date.getTime())) {
-      throw new Error("Date de programmation invalide.");
+      throw new Error(i18nT("future_date_required"));
     }
 
     const day = apiToDay[date.getDay()] || config.day || "Lundi";
@@ -3153,7 +3098,7 @@ export default function AgentClient() {
 
       if (!response.ok) {
         throw new Error(
-          payload?.error || "Modification de la programmation impossible.",
+          payload?.error || i18nT("schedule_update_failed"),
         );
       }
 
@@ -3169,10 +3114,9 @@ export default function AgentClient() {
       });
       setAutomationScheduleEdit(null);
       await refreshScheduledActions(true);
-      showNotice("Programmation mise à jour.");
+      showNotice(i18nT("programmation_mise_a_jour_ea5f575f"));
     } catch (error) {
-      const message =
-          getClientUserFacingErrorMessage(error, "Modification de la programmation impossible.");
+      const message = i18nT("schedule_update_failed");
       setAutomationScheduleEditError(message);
       throw new Error(message);
     }
@@ -3190,10 +3134,9 @@ export default function AgentClient() {
       );
       setScheduleOnlyEdit(null);
       await refreshScheduledActions(true);
-      showNotice("Programmation mise à jour.");
+      showNotice(i18nT("programmation_mise_a_jour_ea5f575f"));
     } catch (error) {
-      const message =
-          getClientUserFacingErrorMessage(error, "Modification de la programmation impossible.");
+      const message = i18nT("schedule_update_failed");
       setScheduleOnlyEditError(message);
       throw new Error(message);
     }
@@ -3210,16 +3153,12 @@ export default function AgentClient() {
       } | null;
       if (!response.ok)
         throw new Error(
-          payload?.error || "Suppression de l’action programmée impossible.",
+          payload?.error || i18nT("scheduled_action_delete_failed"),
         );
-      showNotice("Action programmée supprimée.");
+      showNotice(i18nT("scheduled_action_deleted"));
       await refreshScheduledActions(true);
     } catch (error) {
-      showNotice(
-        error instanceof Error
-          ? error.message
-          : "Suppression de l’action programmée impossible.",
-      );
+      showNotice(i18nT("scheduled_action_delete_failed"));
     } finally {
       setScheduleMutationState("idle");
     }
@@ -3228,10 +3167,10 @@ export default function AgentClient() {
   async function cancelScheduledAction(actionId: string | null | undefined) {
     if (!actionId || scheduleMutationState === "saving") return;
     openAgentConfirmDialog({
-      title: "Supprimer cette action programmée ?",
-      message: "Cette action sera retirée du planning iNr’Agent.",
-      confirmLabel: "Supprimer",
-      cancelLabel: "Annuler",
+      title: i18nT("supprimer_cette_action_programmee_01310ea3"),
+      message: i18nT("cette_action_sera_retiree_du_planning_31e5e378"),
+      confirmLabel: i18nT("supprimer_1acfc1c7"),
+      cancelLabel: i18nT("annuler_49ba3292"),
       tone: "danger",
       onConfirm: () => performCancelScheduledAction(actionId),
     });
@@ -3255,18 +3194,16 @@ export default function AgentClient() {
         error?: string;
       } | null;
       if (!response.ok)
-        throw new Error(payload?.error || "Désactivation impossible.");
+        throw new Error(payload?.error || i18nT("automation_disable_failed"));
       const savedSettings = sanitizeInrAgentSettings(
         payload?.settings ?? nextSettings,
       );
       setAgentSettings(savedSettings);
       setConfigs(settingsToConfigs(savedSettings));
       writeCachedAgentViewSnapshot({ settings: savedSettings });
-      showNotice("Automatisation désactivée.");
+      showNotice(i18nT("automation_disabled_notice"));
     } catch (error) {
-      showNotice(
-        error instanceof Error ? error.message : "Désactivation impossible.",
-      );
+      showNotice(i18nT("automation_disable_failed"));
     } finally {
       setScheduleMutationState("idle");
     }
@@ -3278,10 +3215,10 @@ export default function AgentClient() {
     if (!key || scheduleMutationState === "saving") return;
     const automation = visibleAutomations.find((item) => item.key === key);
     openAgentConfirmDialog({
-      title: `Désactiver l’automatisation ${automation?.title || "iNrAgent"} ?`,
-      message: "Les prochaines actions automatiques de cette rubrique seront retirées du planning.",
-      confirmLabel: "Désactiver",
-      cancelLabel: "Annuler",
+      title: i18nT("desactiver_l_automatisation_value_16e4507f", { value0: automation?.title || "iNrAgent" }),
+      message: i18nT("les_prochaines_actions_automatiques_de_cette_10b200ec"),
+      confirmLabel: i18nT("desactiver_d2839748"),
+      cancelLabel: i18nT("annuler_49ba3292"),
       tone: "danger",
       onConfirm: () => performDisableAutomationFromSchedule(key),
     });
@@ -3339,7 +3276,7 @@ export default function AgentClient() {
 
   async function persistScheduledPreparedAction(
     body: Record<string, unknown>,
-    successMessage = "Action validée et programmée dans iNr’Agent.",
+    successMessage = i18nT("scheduled_action_success"),
     options: { closeSchedule?: boolean; showSuccessNotice?: boolean } = {},
   ) {
     const response = await fetch("/api/agent/actions/schedule", {
@@ -3358,7 +3295,7 @@ export default function AgentClient() {
     if (!response.ok) {
       if (payload?.tableMissing) setScheduledActionsTableMissing(true);
       throw new Error(
-        payload?.error || "Programmation de l’action impossible.",
+        payload?.error || i18nT("schedule_update_failed"),
       );
     }
 
@@ -3399,7 +3336,7 @@ export default function AgentClient() {
       !scheduledAt ||
       new Date(scheduledAt).getTime() <= Date.now() + 30_000
     ) {
-      showNotice("Choisissez une date et une heure dans le futur.");
+      showNotice(i18nT("future_date_required"));
       return;
     }
 
@@ -3409,10 +3346,7 @@ export default function AgentClient() {
       try {
         await saveScheduledEditCampaign(scheduledAt);
       } catch (error) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : "Modification de la campagne programmée impossible.";
+        const message = i18nT("scheduled_campaign_update_failed");
         showNotice(message);
         throw new Error(message);
       } finally {
@@ -3430,14 +3364,11 @@ export default function AgentClient() {
           scheduledAt,
           timezone: agentSettings.timezone || "Europe/Paris",
         },
-        "Campagne validée et programmée dans iNr’Agent.",
+        i18nT("scheduled_campaign_success"),
         { closeSchedule: false, showSuccessNotice: false },
       );
     } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Programmation de la campagne impossible.";
+      const message = i18nT("campaign_schedule_failed");
       showNotice(message);
       throw new Error(message);
     } finally {
@@ -3451,7 +3382,7 @@ export default function AgentClient() {
   ) {
     if (!selectedPreparedAction || validationScheduleState === "saving") return;
     if (!selections.length) {
-      showNotice("Sélectionnez au moins un canal à programmer.");
+      showNotice(i18nT("schedule_channels_required"));
       return;
     }
 
@@ -3462,10 +3393,7 @@ export default function AgentClient() {
         await saveScheduledEditPublication(selections);
         setPendingImmediateAgentPublishAfterSchedule(null);
       } catch (error) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : "Modification de la publication programmée impossible.";
+        const message = i18nT("scheduled_publication_update_failed");
         showNotice(message);
         throw new Error(message);
       } finally {
@@ -3483,9 +3411,7 @@ export default function AgentClient() {
           scheduleSelections: selections,
           timezone: agentSettings.timezone || "Europe/Paris",
         },
-        selections.length > 1
-          ? `Publication validée et programmée dans iNr’Agent (${selections.length} canaux).`
-          : "Publication validée et programmée dans iNr’Agent.",
+        i18nT("scheduled_publication_success", { count: selections.length }),
         { closeSchedule: false, showSuccessNotice: false },
       );
 
@@ -3506,10 +3432,7 @@ export default function AgentClient() {
           : null,
       );
     } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Programmation de la publication impossible.";
+      const message = i18nT("publication_schedule_failed");
       showNotice(message);
       throw new Error(message);
     } finally {
@@ -3574,39 +3497,36 @@ export default function AgentClient() {
       />
       <section
         className={styles.agentCanvas}
-        aria-label="iNr’Agent - automatisations"
+        aria-label={i18nT("inr_agent_automatisations_e832d99d")}
       >
         <header className={styles.moduleHeader}>
           <div className={styles.moduleTitleBlock}>
             <img
               className={styles.moduleLogo}
               src="/icons/inr-agent-header.png"
-              alt="iNr’Agent"
+              alt={i18nT("inr_agent_88080b90")}
               width={68}
               height={68}
               loading="eager"
               decoding="sync"
             />
             <div className={styles.moduleTitleText}>
-              <h1>iNr’Agent</h1>
+              <h1>{i18nT("inr_agent_88080b90")}</h1>
               <p className={styles.moduleSubtitleDesktop}>
-                Programmateur d’automatisations connecté à vos outils.
-              </p>
+                {i18nT("programmateur_d_automatisations_connecte_a_vos_ee58d0a3")}{" "}</p>
             </div>
           </div>
 
           <p className={styles.moduleSubtitleMobile}>
-            Programmateur d’automatisations connecté à vos outils.
-          </p>
+            {i18nT("programmateur_d_automatisations_connecte_a_vos_ee58d0a3")}{" "}</p>
 
           <div className={styles.moduleHeaderActions}>
             {loadState === "loading" && (
-              <span className={styles.headerSyncPill}>Synchronisation...</span>
+              <span className={styles.headerSyncPill}>{i18nT("synchronisation_60a2d2da")}</span>
             )}
             {tableMissing && (
               <span className={styles.headerWarningPill}>
-                Tables Supabase à créer
-              </span>
+                {i18nT("tables_supabase_a_creer_61f5bd7b")}{" "}</span>
             )}
             <HelpButton
               onClick={() => {
@@ -3614,7 +3534,7 @@ export default function AgentClient() {
                 if (!exitScheduledEditSession({ silent: true, onAfterExit: openHelp })) return;
                 openHelp();
               }}
-              title="Aide iNr’Agent"
+              title={i18nT("aide_inr_agent_ec5c0488")}
               size={isMobileHeader ? 26 : 34}
             />
             <button
@@ -3625,11 +3545,10 @@ export default function AgentClient() {
                 if (!exitScheduledEditSession({ silent: true, onAfterExit: openAiConfiguration })) return;
                 openAiConfiguration();
               }}
-              aria-label="Configuration IA"
-              title="Configurer le style des contenus générés"
+              aria-label={i18nT("configuration_ia_f620c8d8")}
+              title={i18nT("configurer_le_style_des_contenus_generes_c780a7a6")}
             >
-              IA
-            </button>
+              {i18nT("ia_d41daf59")}{" "}</button>
             <button
               type="button"
               className={styles.headerScheduleButton}
@@ -3641,13 +3560,13 @@ export default function AgentClient() {
                 if (!exitScheduledEditSession({ silent: true, onAfterExit: openPlanning })) return;
                 openPlanning();
               }}
-              aria-label="Voir les actions programmées"
-              title="Programmation"
+              aria-label={i18nT("voir_les_actions_programmees_b3d2dc94")}
+              title={i18nT("programmation_6255df3b")}
             >
               <span className={styles.headerScheduleIcon} aria-hidden>
                 <CalendarMetaIcon />
               </span>
-              <span className={styles.headerScheduleLabel}>Planning</span>
+              <span className={styles.headerScheduleLabel}>{i18nT("planning_0005027d")}</span>
             </button>
             <button
               type="button"
@@ -3658,8 +3577,8 @@ export default function AgentClient() {
                 if (!exitScheduledEditSession({ silent: true, onAfterExit: openTool })) return;
                 openTool();
               }}
-              aria-label={`Ouvrir ${selectedHeaderTool.label}`}
-              title={`Ouvrir ${selectedHeaderTool.label}`}
+              aria-label={i18nT("ouvrir_value_b62c18f4", { value0: selectedHeaderTool.label })}
+              title={i18nT("ouvrir_value_b62c18f4", { value0: selectedHeaderTool.label })}
             >
               {selectedHeaderTool.logoSrc ? (
                 <img
@@ -3699,10 +3618,10 @@ export default function AgentClient() {
                 if (!exitScheduledEditSession({ silent: true, onAfterExit: openInrSend })) return;
                 openInrSend();
               }}
-              aria-label="Ouvrir iNr'Send"
-              title="Voir l’historique des actions réalisées"
+              aria-label={i18nT("ouvrir_inr_send_d4b453c9")}
+              title={i18nT("voir_l_historique_des_actions_realisees_98b66273")}
             >
-              <span className={styles.headerInrSendLabel}>iNr'Send</span>
+              <span className={styles.headerInrSendLabel}>{i18nT("inr_send_5c2a3e92")}</span>
               <img
                 className={styles.headerInrSendLogo}
                 src="/inrsend-logo-seul.png"
@@ -3722,10 +3641,10 @@ export default function AgentClient() {
                 if (!exitScheduledEditSession({ silent: true, onAfterExit: closeAgent })) return;
                 closeAgent();
               }}
-              aria-label="Retour au tableau de bord"
-              title="Retour au tableau de bord"
+              aria-label={i18nT("retour_au_tableau_de_bord_72006dd2")}
+              title={i18nT("retour_au_tableau_de_bord_72006dd2")}
             >
-              <span className={styles.headerCloseLabel}>Fermer</span>
+              <span className={styles.headerCloseLabel}>{i18nT("fermer_5ab4ec64")}</span>
             </button>
           </div>
         </header>
@@ -3735,7 +3654,7 @@ export default function AgentClient() {
           className={`${styles.automationGrid} ${
             standardMode ? styles.automationGridStandard : ""
           }`}
-          aria-label="Automatisations iNr’Agent"
+          aria-label={i18nT("automatisations_inr_agent_66ca506e")}
         >
           {visibleAutomations.map((automation) => {
             const selectedCard = automation.key === selectedKey;
@@ -3762,25 +3681,24 @@ export default function AgentClient() {
                   </span>
                   <span className={styles.cardTitle}>
                     <span className={styles.cardTitleFull}>
-                      {automation.title}
+                      {agentAutomationTitle(automation.key, runtimeT)}
                     </span>
                     <span className={styles.cardTitleShort}>
-                      {automation.shortTitle}
+                      {agentAutomationTitle(automation.key, runtimeT, true)}
                     </span>
                   </span>
                   {pendingActionsByAutomation[automation.key] > 0 && (
                     <span
                       className={styles.cardPendingCount}
                       data-count={pendingActionsByAutomation[automation.key]}
-                      aria-label={`${pendingActionsByAutomation[automation.key]} action à valider`}
+                      aria-label={i18nT("value_action_a_valider_c1bfb13c", { value0: pendingActionsByAutomation[automation.key] })}
                     >
-                      {pendingActionsByAutomation[automation.key]} à valider
-                    </span>
+                      {i18nT("value_a_valider_24b7d9fb", { value0: pendingActionsByAutomation[automation.key] })}</span>
                   )}
                   {active && (
                     <span
                       className={styles.cardStatus}
-                      aria-label="Automatisation activée"
+                      aria-label={i18nT("automatisation_activee_4636ff37")}
                     />
                   )}
                 </button>
@@ -3792,10 +3710,10 @@ export default function AgentClient() {
                     if (!exitScheduledEditSession({ silent: true, onAfterExit: openSettings })) return;
                     openSettings();
                   }}
-                  aria-label={`Programmer — ${automation.title}`}
-                  title="Programmer cette automatisation"
+                  aria-label={i18nT("programmer_value_1cfdf29d", { value0: agentAutomationTitle(automation.key, runtimeT) })}
+                  title={i18nT("programmer_cette_automatisation_2c756652")}
                 >
-                  <span className={styles.settingsButtonLabel}>Programmer</span>
+                  <span className={styles.settingsButtonLabel}>{i18nT("programmer_f704a30b")}</span>
                   <AutomationSettingsIcon />
                 </button>
               </article>
@@ -3809,13 +3727,13 @@ export default function AgentClient() {
               type="button"
               className={styles.robotPanelBackdrop}
               onClick={() => setRobotPanelOpen(false)}
-              aria-label="Fermer le panneau des missions"
+              aria-label={i18nT("fermer_le_panneau_des_missions_c4ea1e1c")}
             />
           )}
           <aside
             id="inr-agent-robot-panel"
             className={`${styles.robotCard} ${robotPanelOpen ? styles.robotCardCompactOpen : styles.robotCardCompactClosed} ${scheduledEditSession ? styles.scheduledEditCard : ""}`}
-            aria-label={scheduledEditSession ? "Édition temporaire d’une action programmée" : "Fonctionnement iNr’Agent"}
+            aria-label={i18nT(scheduledEditSession ? "scheduled_edit_aria" : "agent_operation_aria")}
           >
             <button
               type="button"
@@ -3823,7 +3741,7 @@ export default function AgentClient() {
               onClick={() => setRobotPanelOpen((open) => !open)}
               aria-expanded={robotPanelOpen}
               aria-controls="inr-agent-robot-panel"
-              title={robotPanelOpen ? "Replier les missions" : "Afficher les missions"}
+              title={i18nT(robotPanelOpen ? "collapse_missions" : "show_missions")}
             >
               <img
                 src="/icons/inr-agent-header.png"
@@ -3832,7 +3750,7 @@ export default function AgentClient() {
                 width={30}
                 height={30}
               />
-              <span>{robotPanelOpen ? "Missions iNr’Agent" : "Missions"}</span>
+              <span>{robotPanelOpen ? i18nT("missions_inr_agent_f8a40199") : i18nT("missions_323ea30c")}</span>
               <b aria-hidden>{robotPanelOpen ? "×" : "›"}</b>
             </button>
             {scheduledEditSession ? (
@@ -3840,30 +3758,27 @@ export default function AgentClient() {
                 <div className={styles.scheduledEditPanelIcon} aria-hidden>
                   <PencilActionIcon />
                 </div>
-                <span className={styles.scheduledEditEyebrow}>Édition temporaire</span>
-                <h3>Action programmée</h3>
+                <span className={styles.scheduledEditEyebrow}>{i18nT("edition_temporaire_11a384a6")}</span>
+                <h3>{i18nT("action_programmee_ea2709b8")}</h3>
                 <p>
-                  Vous modifiez une action déjà confiée à iNr’Agent. Rien n’est
-                  enregistré tant que vous ne validez pas.
-                </p>
+                  {i18nT("vous_modifiez_une_action_deja_confiee_810807e2")}{" "}</p>
                 <div
                   className={`${styles.scheduledEditState} ${scheduledEditDirty ? styles.scheduledEditStateDirty : ""}`}
                 >
                   {scheduledEditDirty
-                    ? "Modifications non sauvegardées"
-                    : "Aucune modification pour le moment"}
+                    ? i18nT("modifications_non_sauvegardees_ffc636a4")
+                    : i18nT("aucune_modification_pour_le_moment_909aff44")}
                 </div>
                 <small className={styles.scheduledEditHint}>
-                  <span>Valider = enregistrer</span>
-                  <span>Refuser = supprimer</span>
+                  <span>{i18nT("valider_enregistrer_693dd897")}</span>
+                  <span>{i18nT("refuser_supprimer_3811be52")}</span>
                 </small>
                 <button
                   type="button"
                   className={styles.scheduledEditQuitButton}
                   onClick={() => exitScheduledEditSession()}
                 >
-                  Quitter l’édition
-                </button>
+                  {i18nT("quitter_l_edition_08b3f0cb")}{" "}</button>
               </div>
             ) : (
               <>
@@ -3889,10 +3804,10 @@ export default function AgentClient() {
                 </div>
 
                 <ol className={styles.robotSteps}>
-                  {selectedRobotSteps.map((step, index) => (
+                  {selectedRobotSteps.map((_step, index) => (
                     <li key={`${selected.key}-step-${index + 1}`}>
                       <span>{index + 1}</span>
-                      <strong>{step}</strong>
+                      <strong>{agentAutomationStep(selected.key, index, runtimeT)}</strong>
                     </li>
                   ))}
                 </ol>
@@ -3903,7 +3818,7 @@ export default function AgentClient() {
           <div className={styles.workColumn}>
             <section
               className={`${styles.previewCard} ${selected.key === "stats" || isCampaignView || isPublishView ? styles.previewCardNoFrame : ""}`}
-              aria-label="Aperçu de l’action préparée"
+              aria-label={i18nT("apercu_de_l_action_preparee_460ac719")}
             >
               <div className={styles.previewBody}>
                 {selected.key === "stats" ? (
@@ -3913,11 +3828,9 @@ export default function AgentClient() {
                         <AutomationIcon type="stats" />
                       </span>
                       <div className={styles.statsHeadCopy}>
-                        <h3>Votre bilan iNr’Stats</h3>
+                        <h3>{i18nT("votre_bilan_inr_stats_54abf82e")}</h3>
                         <p className={styles.statsLead}>
-                          iNr’Agent analyse vos données et vous envoie un bilan
-                          PDF automatiquement.
-                        </p>
+                          {i18nT("inr_agent_analyse_vos_donnees_et_9f6ccde7")}{" "}</p>
                       </div>
                     </div>
 
@@ -3929,7 +3842,7 @@ export default function AgentClient() {
                           <span className={styles.statsMiniIcon} aria-hidden>
                             <SparkSettingsIcon />
                           </span>
-                          <small>Automatisation</small>
+                          <small>{i18nT("automatisation_598357a3")}</small>
                         </div>
                         <strong>{statsAutomationLabel}</strong>
                       </article>
@@ -3940,7 +3853,7 @@ export default function AgentClient() {
                           <span className={styles.statsMiniIcon} aria-hidden>
                             <CalendarMetaIcon />
                           </span>
-                          <small>Fréquence</small>
+                          <small>{i18nT("frequence_bafbfba7")}</small>
                         </div>
                         <strong>{statsFrequencyLabel}</strong>
                       </article>
@@ -3951,7 +3864,7 @@ export default function AgentClient() {
                           <span className={styles.statsMiniIcon} aria-hidden>
                             <CalendarMetaIcon />
                           </span>
-                          <small>Prochain bilan</small>
+                          <small>{i18nT("prochain_bilan_e0efe16b")}</small>
                         </div>
                         <strong>{statsNextRunLabel}</strong>
                       </article>
@@ -3962,7 +3875,7 @@ export default function AgentClient() {
                           <span className={styles.statsMiniIcon} aria-hidden>
                             <SendPlaneIcon />
                           </span>
-                          <small>Dernier bilan</small>
+                          <small>{i18nT("dernier_bilan_93cd87ee")}</small>
                         </div>
                         <strong>{statsLastReportLabel}</strong>
                       </article>
@@ -3973,7 +3886,7 @@ export default function AgentClient() {
                           <span className={styles.statsMiniIcon} aria-hidden>
                             <ShieldLineIcon />
                           </span>
-                          <small>Bilans conservés</small>
+                          <small>{i18nT("bilans_conserves_c7633c3f")}</small>
                         </div>
                         <strong>{statsStoredCountLabel}</strong>
                       </article>
@@ -3981,14 +3894,14 @@ export default function AgentClient() {
 
                     <section
                       className={styles.statsInsightCard}
-                      aria-label="Dernières recommandations iNrAgent"
+                      aria-label={i18nT("dernieres_recommandations_inragent_b873f1c0")}
                     >
                       <div className={styles.statsInsightHeader}>
                         <span className={styles.statsInsightIcon} aria-hidden>
                           <SparkSettingsIcon />
                         </span>
                         <div className={styles.statsInsightCopy}>
-                          <strong>Dernières recommandations iNr’Agent</strong>
+                          <strong>{i18nT("dernieres_recommandations_inr_agent_2b60c8f9")}</strong>
                         </div>
                       </div>
                       {latestStatsRecommendations.length > 0 ? (
@@ -4004,15 +3917,13 @@ export default function AgentClient() {
                         </ol>
                       ) : (
                         <p className={styles.statsRecommendationEmpty}>
-                          Le prochain bilan automatique affichera ici les
-                          recommandations de la dernière page du PDF.
-                        </p>
+                          {i18nT("le_prochain_bilan_automatique_affichera_ici_ccda89e0")}{" "}</p>
                       )}
                     </section>
 
                     <div className={styles.statsHistorySection}>
                       <div className={styles.statsHistoryHeader}>
-                        <h4>5 derniers bilans auto</h4>
+                        <h4>{i18nT("5_derniers_bilans_auto_e3296ab3")}</h4>
                       </div>
                       <div className={styles.statsHistoryRow}>
                         {Array.from({ length: 5 }).map((_, index) => {
@@ -4024,7 +3935,7 @@ export default function AgentClient() {
                               target="_blank"
                               rel="noreferrer"
                               className={styles.statsHistoryItem}
-                              aria-label={`Télécharger le bilan du ${formatMiniDateLabel(report.document.createdAt || report.completedAt || report.createdAt)}`}
+                              aria-label={i18nT("telecharger_le_bilan_du_value_954ac90e", { value0: formatMiniDateLabel(report.document.createdAt || report.completedAt || report.createdAt, locale) })}
                             >
                               <span
                                 className={styles.statsHistoryIcon}
@@ -4039,6 +3950,7 @@ export default function AgentClient() {
                                       report.document.createdAt ||
                                         report.completedAt ||
                                         report.createdAt,
+                                      locale,
                                     ).date
                                   }
                                 </strong>
@@ -4048,6 +3960,7 @@ export default function AgentClient() {
                                       report.document.createdAt ||
                                         report.completedAt ||
                                         report.createdAt,
+                                      locale,
                                     ).time
                                   }
                                 </small>
@@ -4084,7 +3997,7 @@ export default function AgentClient() {
                           <AutomationIcon type={selected.key} />
                         </span>
                         <span>
-                          <small>Rubrique</small>
+                          <small>{i18nT("rubrique_ef1b579b")}</small>
                           <strong>{campaignDisplayPreview.mission}</strong>
                         </span>
                       </article>
@@ -4098,18 +4011,18 @@ export default function AgentClient() {
                         }
                         title={
                           hasCampaignPreview
-                            ? "Voir les destinataires"
-                            : "Aucune campagne préparée"
+                            ? i18nT("view_recipients")
+                            : i18nT("no_campaign_prepared")
                         }
                       >
                         <span className={styles.campaignInfoIcon} aria-hidden>
                           <SparkSettingsIcon />
                         </span>
                         <span>
-                          <small>Destinataires</small>
+                          <small>{i18nT("destinataires_51610ad7")}</small>
                           <strong>
                             {hasCampaignPreview
-                              ? `${campaignDisplayPreview.recipientsCount} contact${campaignDisplayPreview.recipientsCount > 1 ? "s" : ""}`
+                              ? i18nT("value_contact_value_638ef1ed", { value0: campaignDisplayPreview.recipientsCount, value1: campaignDisplayPreview.recipientsCount > 1 ? "s" : "" })
                               : "—"}
                           </strong>
                         </span>
@@ -4124,15 +4037,15 @@ export default function AgentClient() {
                         disabled={!hasCampaignPreview}
                         title={
                           hasCampaignPreview
-                            ? "Modifier la boîte d’envoi"
-                            : "Aucune campagne préparée"
+                            ? i18nT("modifier_la_boite_d_envoi_a79d173b")
+                            : i18nT("no_campaign_prepared")
                         }
                       >
                         <span className={styles.campaignInfoIcon} aria-hidden>
                           <SendPlaneIcon />
                         </span>
                         <span className={styles.campaignInfoText}>
-                          <small>Boîte d’envoi</small>
+                          <small>{i18nT("boite_d_envoi_8af123c1")}</small>
                           <strong className={styles.campaignInfoMailLabel}>
                             {campaignDisplayPreview.mailAccountLabel}
                           </strong>
@@ -4148,22 +4061,22 @@ export default function AgentClient() {
                         disabled={!hasCampaignPreview}
                         title={
                           hasCampaignPreview
-                            ? "Voir la pièce jointe"
-                            : "Aucune campagne préparée"
+                            ? i18nT("view_attachment")
+                            : i18nT("no_campaign_prepared")
                         }
                       >
                         <span className={styles.campaignInfoIcon} aria-hidden>
                           <ImageMetaIcon />
                         </span>
                         <span>
-                          <small>Pièce jointe</small>
+                          <small>{i18nT("piece_jointe_2ecefd2c")}</small>
                           <strong>
                             {hasCampaignPreview
                               ? campaignAttachments.length > 0
                                 ? campaignAttachments.length === 1
                                   ? campaignAttachments[0].name
-                                  : `${campaignAttachments.length} fichiers`
-                                : "Aucune"
+                                  : i18nT("value_fichiers_0af8254f", { value0: campaignAttachments.length })
+                                : i18nT("aucune_e8f88273")
                               : "—"}
                           </strong>
                         </span>
@@ -4175,7 +4088,7 @@ export default function AgentClient() {
 
                     <article className={styles.campaignMailCard}>
                       <div className={styles.campaignMailSubject}>
-                        <span>Objet :</span>
+                        <span>{i18nT("objet_89673541")}</span>
                         <strong>{campaignDisplayPreview.subject}</strong>
                       </div>
                       <div className={styles.campaignMailContent}>
@@ -4195,8 +4108,8 @@ export default function AgentClient() {
                           <div className={styles.campaignEmptyHint}>
                             <span>
                               {actionsLoadState === "loading"
-                                ? "Recherche des actions préparées..."
-                                : "Aucune campagne automatique préparée pour le moment."}
+                                ? i18nT("recherche_des_actions_preparees_eb05a9af")
+                                : i18nT("aucune_campagne_automatique_preparee_pour_le_27977b8d")}
                             </span>
                           </div>
                         )}
@@ -4216,7 +4129,7 @@ export default function AgentClient() {
                           <AutomationIcon type="publish" />
                         </span>
                         <span>
-                          <small>Canal</small>
+                          <small>{i18nT("canal_61f21e6f")}</small>
                           <strong>{activePreviewChannelLabel}</strong>
                         </span>
                       </article>
@@ -4230,15 +4143,15 @@ export default function AgentClient() {
                         }
                         title={
                           selectedPreparedAction
-                            ? "Modifier le contenu"
-                            : "Aucune publication préparée"
+                            ? i18nT("edit_content")
+                            : i18nT("no_publication_prepared")
                         }
                       >
                         <span className={styles.campaignInfoIcon} aria-hidden>
                           <ImageMetaIcon />
                         </span>
                         <span>
-                          <small>Contenu</small>
+                          <small>{i18nT("contenu_f3cb82af")}</small>
                           <strong>{publishContentKind}</strong>
                         </span>
                         <span className={styles.campaignInfoEye} aria-hidden>
@@ -4255,17 +4168,17 @@ export default function AgentClient() {
                         }
                         title={
                           selectedPreparedAction
-                            ? "Gérer le média"
-                            : "Aucune publication préparée"
+                            ? i18nT("manage_media")
+                            : i18nT("no_publication_prepared")
                         }
                       >
                         <span className={styles.campaignInfoIcon} aria-hidden>
                           <ImageMetaIcon />
                         </span>
                         <span>
-                          <small>Média</small>
+                          <small>{i18nT("media_d8a313d3")}</small>
                           <strong>
-                            {publishMediaPreview?.name || "Aucun"}
+                            {publishMediaPreview?.name || i18nT("aucun_b2ed82f1")}
                           </strong>
                         </span>
                         <span className={styles.campaignInfoEye} aria-hidden>
@@ -4279,9 +4192,9 @@ export default function AgentClient() {
                           <ShieldLineIcon />
                         </span>
                         <span>
-                          <small>Statut</small>
+                          <small>{i18nT("statut_659499f3")}</small>
                           <strong className={publishStatusClass}>
-                            {publishStatus.label}
+                            {agentMediaStatusLabel(publishStatus.label, runtimeT)}
                           </strong>
                         </span>
                       </article>
@@ -4290,7 +4203,7 @@ export default function AgentClient() {
                     <article className={styles.publishPostCard}>
                       <div className={styles.publishPostText}>
                         <div className={styles.publishTitleLine}>
-                          <span>Titre :</span>
+                          <span>{i18nT("titre_d03e0c7c")}</span>
                           <strong>
                             {preparedChannelPreview?.title ||
                               selectedPreparedAction?.title ||
@@ -4319,14 +4232,9 @@ export default function AgentClient() {
                           ) : (
                             <div className={styles.publishEmptyHint}>
                               <strong>
-                                Aucune publication automatique préparée pour le
-                                moment.
-                              </strong>
+                                {i18nT("aucune_publication_automatique_preparee_pour_le_a48148f5")}{" "}</strong>
                               <span>
-                                Le futur contenu du canal sélectionné
-                                s’affichera ici dès qu’iNr’Agent aura préparé
-                                une publication.
-                              </span>
+                                {i18nT("le_futur_contenu_du_canal_selectionne_1b1512d5")}{" "}</span>
                             </div>
                           )}
                           {preparedChannelPreview?.hashtags.length ? (
@@ -4340,7 +4248,7 @@ export default function AgentClient() {
                           ) : null}
                         </div>
                         <div className={styles.publishCtaLine}>
-                          <span>CTA :</span>
+                          <span>{i18nT("cta_4f4f1f7e")}</span>
                           <strong>{publishCtaLine}</strong>
                         </div>
                       </div>
@@ -4363,31 +4271,25 @@ export default function AgentClient() {
                     ) : (
                       <div className={styles.previewImageFallback}>
                         <ImageMetaIcon />
-                        <span>Aucune image obligatoire pour cette action</span>
+                        <span>{i18nT("aucune_image_obligatoire_pour_cette_action_775a4d75")}</span>
                       </div>
                     )}
                     <div className={styles.previewText}>
                       <div className={styles.previewBadgeRow}>
-                        <span>Aperçu {activePreviewChannelLabel}</span>
+                        <span>{i18nT("apercu_value_a6963b7d", { value0: activePreviewChannelLabel })}</span>
                         <span>
                           {
-                            INR_AGENT_ACTION_LABELS[
-                              selectedPreparedAction.actionType
-                            ]
+                            agentActionTypeLabel(selectedPreparedAction.actionType, runtimeT)
                           }
                         </span>
                         <span>
                           {
-                            INR_AGENT_TOOL_LABELS[
-                              selectedPreparedAction.targetTool
-                            ]
+                            agentToolLabel(selectedPreparedAction.targetTool, runtimeT)
                           }
                         </span>
                         <span>
                           {
-                            INR_AGENT_STATUS_LABELS[
-                              selectedPreparedAction.status
-                            ]
+                            agentActionStatusLabel(selectedPreparedAction.status, runtimeT)
                           }
                         </span>
                       </div>
@@ -4416,8 +4318,7 @@ export default function AgentClient() {
                       )}
                       {preparedChannelPreview?.cta && (
                         <small className={styles.previewCta}>
-                          Appel à l’action : {preparedChannelPreview.cta}
-                        </small>
+                          {i18nT("appel_a_l_action_value_fae849c7", { value0: preparedChannelPreview.cta })}</small>
                       )}
                       {preparedChannelPreview?.hashtags.length ? (
                         <small className={styles.previewHashtags}>
@@ -4428,14 +4329,12 @@ export default function AgentClient() {
                       ) : null}
                       {targetThemesLabel(selectedPreparedAction) && (
                         <small className={styles.previewTheme}>
-                          Thème : {targetThemesLabel(selectedPreparedAction)}
-                        </small>
+                          {i18nT("theme_value_d32c52da", { value0: agentThemeListLabel(targetThemesLabel(selectedPreparedAction).split(/\s*·\s*/), runtimeT, locale) })}</small>
                       )}
                       {preparedRecipientsCount > 0 && (
                         <small className={styles.previewRecipients}>
-                          Destinataires proposés : {preparedRecipientsCount}{" "}
-                          contact{preparedRecipientsCount > 1 ? "s" : ""} CRM
-                        </small>
+                          {i18nT("destinataires_proposes_234d5404")}{" "}{preparedRecipientsCount}{" "}
+                          {i18nT("contact_1a73af9e")}{preparedRecipientsCount > 1 ? "s" : ""} {" "}{i18nT("crm_2a13d05e")}{" "}</small>
                       )}
                     </div>
                   </div>
@@ -4444,16 +4343,13 @@ export default function AgentClient() {
                     <span className={styles.emptyOrb} aria-hidden>
                       <AutomationIcon type={selected.key} />
                     </span>
-                    <h3>Aucune action préparée</h3>
+                    <h3>{i18nT("aucune_action_preparee_a9b0fde0")}</h3>
                     <p>
-                      Quand iNr’Agent aura préparé la prochaine action, l’aperçu
-                      s’affichera ici. Sélectionnez ensuite un canal en dessous
-                      pour contrôler le contenu prévu canal par canal.
-                    </p>
+                      {i18nT("quand_inr_agent_aura_prepare_la_3fc7b740")}{" "}</p>
                     <small>
                       {actionsLoadState === "loading"
-                        ? "Recherche des actions préparées..."
-                        : `Automatisation sélectionnée : ${selected.title}`}
+                        ? i18nT("recherche_des_actions_preparees_eb05a9af")
+                        : i18nT("automatisation_selectionnee_value_f18fd4cc", { value0: selected.title })}
                     </small>
                   </div>
                 )}
@@ -4465,12 +4361,12 @@ export default function AgentClient() {
                 <div className={`${styles.metaItem} ${styles.channelsItem}`}>
                   <small>
                     {selected.key === "stats"
-                      ? "Sources :"
+                      ? i18nT("sources_57811207")
                       : isCampaignView
-                        ? "Canal"
+                        ? i18nT("canal_61f21e6f")
                         : isPublishView
-                          ? "Canaux"
-                          : "Canaux :"}
+                          ? i18nT("canaux_27cb4473")
+                          : i18nT("canaux_b38e5b69")}
                   </small>
                   <div
                     className={`${styles.channelScrollerWrap} ${isPublishView ? styles.channelScrollerWrapPublish : ""}`}
@@ -4481,8 +4377,8 @@ export default function AgentClient() {
                         className={styles.channelNavArrow}
                         onClick={() => movePreviewChannel(-1)}
                         disabled={previewNavigationChannels.length < 2}
-                        aria-label="Afficher le canal précédent"
-                        title="Canal précédent"
+                        aria-label={i18nT("afficher_le_canal_precedent_777ef8f0")}
+                        title={i18nT("canal_precedent_e644dfdf")}
                       >
                         ‹
                       </button>
@@ -4505,8 +4401,8 @@ export default function AgentClient() {
                                     : "stats")
                               }
                               disabled
-                              aria-label={rubrique.name}
-                              title={rubrique.name}
+                              aria-label={rubrique.channelKey ? agentChannelLabel(rubrique.channelKey, runtimeT) : agentThemeLabel(theme, runtimeT)}
+                              title={rubrique.channelKey ? agentChannelLabel(rubrique.channelKey, runtimeT) : agentThemeLabel(theme, runtimeT)}
                             >
                               <img
                                 src={rubrique.src}
@@ -4521,8 +4417,8 @@ export default function AgentClient() {
                       ) : isCampaignView ? (
                         <span
                           className={styles.campaignMailPill}
-                          title="Mails"
-                          aria-label="Canal Mails"
+                          title={i18nT("mails_8d79d3a8")}
+                          aria-label={i18nT("canal_mails_0ad3f96c")}
                         >
                           <img
                             src={channelOptions.mails.src}
@@ -4560,16 +4456,8 @@ export default function AgentClient() {
                                 if (selectableChannel)
                                   selectPreviewChannel(channelKey);
                               }}
-                              aria-label={
-                                selectableChannel
-                                  ? `Afficher l’aperçu ${channel.name}`
-                                  : `${channel.name} désélectionné`
-                              }
-                              title={
-                                selectableChannel
-                                  ? channel.name
-                                  : `${channel.name} désélectionné`
-                              }
+                              aria-label={i18nT(selectableChannel ? "show_channel_preview" : "channel_deselected", { channel: agentChannelLabel(channelKey, runtimeT) })}
+                              title={selectableChannel ? agentChannelLabel(channelKey, runtimeT) : i18nT("channel_deselected", { channel: agentChannelLabel(channelKey, runtimeT) })}
                             >
                               <img
                                 src={channel.src}
@@ -4591,8 +4479,8 @@ export default function AgentClient() {
                         className={styles.channelNavArrow}
                         onClick={() => movePreviewChannel(1)}
                         disabled={previewNavigationChannels.length < 2}
-                        aria-label="Afficher le canal suivant"
-                        title="Canal suivant"
+                        aria-label={i18nT("afficher_le_canal_suivant_4802e0ec")}
+                        title={i18nT("canal_suivant_d20db274")}
                       >
                         ›
                       </button>
@@ -4601,11 +4489,7 @@ export default function AgentClient() {
                 </div>
                 <div
                   className={`${styles.metaItem} ${styles.dateItem}`}
-                  title={
-                    selected.key === "stats"
-                      ? "Prochain bilan automatique"
-                      : "Date programmée"
-                  }
+                  title={i18nT(selected.key === "stats" ? "next_automatic_report" : "scheduled_date")}
                 >
                   <span className={styles.metaIcon} aria-hidden>
                     <CalendarMetaIcon />
@@ -4616,7 +4500,7 @@ export default function AgentClient() {
                 </div>
                 {selected.key === "stats" ? (
                   <div className={styles.statsFooterNote}>
-                    <small>Validation non requise</small>
+                    <small>{i18nT("validation_non_requise_72a87029")}</small>
                   </div>
                 ) : (
                   <>
@@ -4627,26 +4511,26 @@ export default function AgentClient() {
                         aria-label={
                           actionMutationState === "saving" ||
                           campaignDraftSaveState === "saving"
-                            ? "Enregistrement en cours"
+                            ? i18nT("saving_in_progress")
                             : isPublishView
-                              ? "Enregistrer la publication en brouillon"
-                              : "Enregistrer la campagne en brouillon"
+                              ? i18nT("draft_save_publication_aria")
+                              : i18nT("draft_save_campaign_aria")
                         }
                         title={
                           actionMutationState === "saving" ||
                           campaignDraftSaveState === "saving"
-                            ? "Enregistrement en cours"
+                            ? i18nT("saving_in_progress")
                             : isPublishView
-                              ? "Enregistrer"
-                              : "Enregistrer la campagne"
+                              ? i18nT("enregistrer_f7c8bcd8")
+                              : i18nT("save_campaign")
                         }
                         data-tooltip={
                           actionMutationState === "saving" ||
                           campaignDraftSaveState === "saving"
-                            ? "Enregistrement en cours"
+                            ? i18nT("saving_in_progress")
                             : isPublishView
-                              ? "Enregistrer"
-                              : "Enregistrer la campagne"
+                              ? i18nT("enregistrer_f7c8bcd8")
+                              : i18nT("save_campaign")
                         }
                         aria-busy={
                           actionMutationState === "saving" ||
@@ -4669,8 +4553,8 @@ export default function AgentClient() {
                         </span>
                         {actionMutationState === "saving" ||
                         campaignDraftSaveState === "saving"
-                          ? "Enregistrement…"
-                          : "Enregistrer"}
+                          ? i18nT("enregistrement_e7d5f232")
+                          : i18nT("enregistrer_f7c8bcd8")}
                       </button>
                     )}
                     {(isCampaignView || isPublishView) && (
@@ -4679,14 +4563,18 @@ export default function AgentClient() {
                         className={styles.modifyCampaignButton}
                         aria-label={
                           isPublishView
-                            ? "Modifier la publication"
-                            : "Modifier la campagne"
+                            ? i18nT("modifier_la_publication_295870a4")
+                            : i18nT("modifier_la_campagne_cb246f76")
                         }
                         title={
-                          isPublishView ? "Modifier" : "Modifier la campagne"
+                          isPublishView
+                            ? i18nT("modifier_f260e757")
+                            : i18nT("modifier_la_campagne_cb246f76")
                         }
                         data-tooltip={
-                          isPublishView ? "Modifier" : "Modifier la campagne"
+                          isPublishView
+                            ? i18nT("modifier_f260e757")
+                            : i18nT("modifier_la_campagne_cb246f76")
                         }
                         disabled={
                           !hasPreparedAction || actionMutationState === "saving"
@@ -4700,8 +4588,7 @@ export default function AgentClient() {
                         }}
                       >
                         <span aria-hidden>✎</span>
-                        Modifier
-                      </button>
+                        {i18nT("modifier_f260e757")}{" "}</button>
                     )}
                     <div className={styles.previewActions}>
                       {actionMutationState === "saving" ? (
@@ -4721,8 +4608,8 @@ export default function AgentClient() {
                             aria-hidden
                           />
                           {actionMutationIntent === "refused"
-                            ? "Refus en cours…"
-                            : "Validation en cours…"}
+                            ? i18nT("refus_en_cours_6be9a897")
+                            : i18nT("validation_en_cours_25be85c2")}
                         </button>
                       ) : (
                         <>
@@ -4747,8 +4634,7 @@ export default function AgentClient() {
                             <span aria-hidden>
                               <ValidateActionIcon />
                             </span>
-                            Valider
-                          </button>
+                            {i18nT("valider_be4220f7")}{" "}</button>
                           <button
                             type="button"
                             className={styles.refuseButton}
@@ -4758,8 +4644,7 @@ export default function AgentClient() {
                             <span aria-hidden>
                               <RefuseActionIcon />
                             </span>
-                            Refuser
-                          </button>
+                            {i18nT("refuser_62897154")}{" "}</button>
                         </>
                       )}
                     </div>
@@ -4793,27 +4678,27 @@ export default function AgentClient() {
             className={`${styles.settingsModal} ${styles.publishTextModal}`}
             role="dialog"
             aria-modal="true"
-            aria-label="Modifier la publication"
+            aria-label={i18nT("modifier_la_publication_295870a4")}
             onClick={(event) => event.stopPropagation()}
           >
             <button
               type="button"
               className={styles.modalClose}
               onClick={() => setPublishEditOpen(false)}
-              aria-label="Fermer"
+              aria-label={i18nT("fermer_5ab4ec64")}
               disabled={publishSaveState === "saving"}
             >
               ×
             </button>
-            <p className={styles.modalEyebrow}>Publication iNr’Agent</p>
+            <p className={styles.modalEyebrow}>{i18nT("publication_inr_agent_62b957d7")}</p>
             <h2>
-              Modifier{" "}
+              {i18nT("modifier_f260e757")}{" "}
               {publishTextDraft.channel
                 ? channelOptions[publishTextDraft.channel]?.name
-                : "le canal"}
+                : i18nT("le_canal_50b13add")}
             </h2>
             <label className={styles.mailTextField}>
-              <span>Titre</span>
+              <span>{i18nT("titre_eb97899a")}</span>
               <input
                 value={publishTextDraft.title}
                 onChange={(event) =>
@@ -4823,20 +4708,20 @@ export default function AgentClient() {
                   }))
                 }
                 maxLength={180}
-                placeholder="Titre de la publication"
+                placeholder={i18nT("titre_de_la_publication_ee8fb585")}
               />
             </label>
             <label className={styles.mailTextField}>
-              <span>Contenu</span>
+              <span>{i18nT("contenu_f3cb82af")}</span>
               <div
                 className={styles.richTextToolbar}
-                aria-label="Mise en forme du contenu"
+                aria-label={i18nT("mise_en_forme_du_contenu_78829a8e")}
               >
                 <button
                   type="button"
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => applyPublishTextFormat("bold")}
-                  title="Gras"
+                  title={i18nT("gras_bd63d1e9")}
                 >
                   <strong>B</strong>
                 </button>
@@ -4844,7 +4729,7 @@ export default function AgentClient() {
                   type="button"
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => applyPublishTextFormat("italic")}
-                  title="Italique"
+                  title={i18nT("italique_023eb97e")}
                 >
                   <em>I</em>
                 </button>
@@ -4852,7 +4737,7 @@ export default function AgentClient() {
                   type="button"
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => applyPublishTextFormat("underline")}
-                  title="Souligné"
+                  title={i18nT("souligne_591b8563")}
                 >
                   <span className={styles.underlineToolbarLabel}>U</span>
                 </button>
@@ -4883,7 +4768,7 @@ export default function AgentClient() {
             <div
               className={`${styles.mailTextField} ${styles.publishCtaEditor}`}
             >
-              <span>CTA</span>
+              <span>{i18nT("cta_11441d32")}</span>
               {(() => {
                 const displayKey = boosterDisplayKeyFromAgentChannel(
                   publishTextDraft.channel,
@@ -4908,19 +4793,20 @@ export default function AgentClient() {
                   publishCtaDefaults,
                 );
                 const activeWebsiteSourceLabel =
-                  getWebsiteSourceLabelForChannel(
+                  getLocalizedWebsiteSourceLabelForChannel(
                     displayKey,
                     publishCtaDefaults,
+                    boosterRuntimeT,
                   );
                 const websiteChoices = [
                   publishCtaDefaults?.inrcySiteUrl
                     ? {
-                        label: "Site iNrCy",
+                        label: i18nT("site_inrcy_57016d6f"),
                         url: publishCtaDefaults.inrcySiteUrl,
                       }
                     : null,
                   publishCtaDefaults?.siteWebUrl
-                    ? { label: "Site web", url: publishCtaDefaults.siteWebUrl }
+                    ? { label: i18nT("site_web_7e78af33"), url: publishCtaDefaults.siteWebUrl }
                     : null,
                 ].filter(Boolean) as Array<{ label: string; url: string }>;
                 const ctaMode = publishTextDraft.ctaMode || "none";
@@ -4928,7 +4814,7 @@ export default function AgentClient() {
                   <>
                     <div className={styles.publishCtaGrid} data-mode={ctaMode}>
                       <label>
-                        <span>Bouton</span>
+                        <span>{i18nT("bouton_fd5aea71")}</span>
                         <select
                           value={ctaChoice}
                           onChange={(event) =>
@@ -4939,7 +4825,10 @@ export default function AgentClient() {
                         >
                           {BOOSTER_PREFERRED_CTA_OPTIONS.map((option) => (
                             <option key={option.value} value={option.value}>
-                              {option.label}
+                              {getLocalizedPreferredCtaLabel(
+                                option.value,
+                                boosterRuntimeT,
+                              )}
                             </option>
                           ))}
                         </select>
@@ -4947,7 +4836,7 @@ export default function AgentClient() {
 
                       {(ctaMode === "website" || ctaMode === "custom") && (
                         <label>
-                          <span>URL de destination</span>
+                          <span>{i18nT("url_de_destination_f11980ae")}</span>
                           <input
                             value={publishTextDraft.ctaUrl}
                             onChange={(event) =>
@@ -4958,10 +4847,12 @@ export default function AgentClient() {
                             maxLength={320}
                             placeholder={
                               activeWebsiteUrl
-                                ? `URL du site préremplie (${activeWebsiteSourceLabel})`
+                                ? i18nT("website_prefilled_placeholder", {
+                                    source: activeWebsiteSourceLabel,
+                                  })
                                 : websiteChoices.length > 1
-                                  ? "Choisissez Site iNrCy ou Site web"
-                                  : "URL du site (optionnel)"
+                                  ? i18nT("website_choice_placeholder")
+                                  : i18nT("website_optional_placeholder")
                             }
                           />
                           {ctaMode === "website" &&
@@ -4992,7 +4883,7 @@ export default function AgentClient() {
 
                       {(ctaMode === "website" || ctaMode === "custom") && (
                         <label>
-                          <span>Texte du bouton</span>
+                          <span>{i18nT("texte_du_bouton_5bc213b4")}</span>
                           <input
                             value={publishTextDraft.cta}
                             onChange={(event) =>
@@ -5001,8 +4892,8 @@ export default function AgentClient() {
                             maxLength={180}
                             placeholder={
                               ctaMode === "custom"
-                                ? "Ex : En savoir plus"
-                                : "Ex : Demander un devis"
+                                ? i18nT("cta_custom_placeholder")
+                                : i18nT("cta_quote_placeholder")
                             }
                           />
                         </label>
@@ -5010,7 +4901,7 @@ export default function AgentClient() {
 
                       {ctaMode === "call" && (
                         <label>
-                          <span>Téléphone</span>
+                          <span>{i18nT("telephone_d3b023ea")}</span>
                           <input
                             value={publishTextDraft.ctaPhone}
                             onChange={(event) =>
@@ -5021,26 +4912,30 @@ export default function AgentClient() {
                             maxLength={40}
                             placeholder={
                               publishCtaDefaults?.phone
-                                ? "Téléphone prérempli depuis Mon profil"
-                                : "Téléphone"
+                                ? i18nT("phone_prefilled_placeholder")
+                                : i18nT("telephone_d3b023ea")
                             }
                           />
                         </label>
                       )}
                     </div>
                     <small className={styles.publishCtaHelp}>
-                      {getCtaModeHelp(displayKey, ctaMode)}
+                      {getLocalizedCtaModeHelp(
+                        displayKey,
+                        ctaMode,
+                        boosterRuntimeT,
+                      )}
                     </small>
                     {ctaMode === "website" && activeWebsiteUrl && (
                       <small className={styles.publishCtaHelp}>
-                        Valeur par défaut disponible depuis{" "}
+                        {i18nT("valeur_par_defaut_disponible_depuis_26881dec")}{" "}
                         {activeWebsiteSourceLabel.toLowerCase()} :{" "}
                         {activeWebsiteUrl}
                       </small>
                     )}
                     {ctaMode === "call" && publishCtaDefaults?.phone && (
                       <small className={styles.publishCtaHelp}>
-                        Valeur par défaut disponible depuis Mon profil :{" "}
+                        {i18nT("valeur_par_defaut_disponible_depuis_mon_841d60a8")}{" "}
                         {publishCtaDefaults.phone}
                       </small>
                     )}
@@ -5050,7 +4945,7 @@ export default function AgentClient() {
             </div>
             {channelSupportsHashtags(publishTextDraft.channel || null) && (
               <label className={styles.mailTextField}>
-                <span>Hashtags</span>
+                <span>{i18nT("hashtags_338da6e1")}</span>
                 <input
                   value={publishTextDraft.hashtags}
                   onChange={(event) =>
@@ -5060,30 +4955,27 @@ export default function AgentClient() {
                     }))
                   }
                   maxLength={280}
-                  placeholder="#communication #local"
+                  placeholder={i18nT("communication_local_0f75c043")}
                 />
               </label>
             )}
             <p className={styles.campaignEditHint}>
-              La modification s’applique uniquement au canal sélectionné dans
-              iNr’Agent.
-            </p>
+              {i18nT("la_modification_s_applique_uniquement_au_ad6a3c95")}{" "}</p>
             <div className={styles.modalActions}>
               <button
                 type="button"
                 onClick={() => setPublishEditOpen(false)}
                 disabled={publishSaveState === "saving"}
               >
-                Annuler
-              </button>
+                {i18nT("annuler_49ba3292")}{" "}</button>
               <button
                 type="button"
                 onClick={savePublishText}
                 disabled={publishSaveState === "saving"}
               >
                 {publishSaveState === "saving"
-                  ? "Enregistrement..."
-                  : "Enregistrer"}
+                  ? i18nT("enregistrement_9bf1058a")
+                  : i18nT("enregistrer_f7c8bcd8")}
               </button>
             </div>
           </section>
@@ -5167,7 +5059,6 @@ export default function AgentClient() {
         importantOnly={crmRecipientImportantOnly}
         filteredContacts={filteredCrmContacts}
         filteredAllSelected={filteredCrmAllSelected}
-        filteredSelectionLabel={filteredCrmSelectionLabel}
         contactsLoading={crmContactsLoading}
         selectedRecipientEmails={selectedRecipientEmails}
         newRecipientOpen={newRecipientOpen}
@@ -5274,26 +5165,24 @@ export default function AgentClient() {
             className={`${styles.settingsModal} ${styles.publishMediaModal}`}
             role="dialog"
             aria-modal="true"
-            aria-label="Média de la publication"
+            aria-label={i18nT("media_de_la_publication_82477994")}
             onClick={(event) => event.stopPropagation()}
           >
             <button
               type="button"
               className={styles.modalClose}
               onClick={() => setPublishMediaPreviewOpen(false)}
-              aria-label="Fermer"
+              aria-label={i18nT("fermer_5ab4ec64")}
               disabled={publishMediaUploadState === "saving"}
             >
               ×
             </button>
             <div className={styles.publishMediaModalHeader}>
               <div>
-                <p className={styles.modalEyebrow}>Média iNr’Agent</p>
-                <h2>Gérer le média {activePreviewChannelLabel}</h2>
+                <p className={styles.modalEyebrow}>{i18nT("media_inr_agent_75389c98")}</p>
+                <h2>{i18nT("gerer_le_media_value_be737c89", { value0: activePreviewChannelLabel })}</h2>
                 <span>
-                  Choisissez, ajoutez, remplacez ou préparez le média avant
-                  validation.
-                </span>
+                  {i18nT("choisissez_ajoutez_remplacez_ou_preparez_le_ff06dd03")}{" "}</span>
               </div>
               <div
                 className={`${styles.publishMediaStatusPill} ${
@@ -5322,24 +5211,27 @@ export default function AgentClient() {
                   ) : (
                     <img
                       src={publishMediaPreview.url}
-                      alt={publishMediaPreview.name || "Média de publication"}
+                      alt={
+                        publishMediaPreview.name ||
+                        i18nT("publication_media_alt")
+                      }
                     />
                   )
                 ) : (
                   <div className={styles.publishMediaEmpty}>
                     <span aria-hidden>🖼️</span>
-                    <strong>Aucun média sélectionné</strong>
+                    <strong>{i18nT("aucun_media_selectionne_cbc78904")}</strong>
                   </div>
                 )}
               </div>
               <div className={styles.publishMediaCurrentText}>
                 <span className={styles.publishMediaTypeChip}>
-                  {publishMediaPreview?.typeLabel || "Média"}
+                  {publishMediaPreview?.typeLabel || i18nT("media_d8a313d3")}
                 </span>
-                <strong>{publishMediaPreview?.name || "Aucun média"}</strong>
+                <strong>{publishMediaPreview?.name || i18nT("aucun_media_c1858e25")}</strong>
                 <small>
                   {publishMediaPreview?.note ||
-                    "Ajoutez une image ou une vidéo depuis la Médiathèque."}
+                    i18nT("ajoutez_une_image_ou_une_video_d7497a12")}
                 </small>
                 {publishMediaAdaptationPreview?.userEditable &&
                 publishMediaPreview?.url ? (
@@ -5355,8 +5247,7 @@ export default function AgentClient() {
                 ) : (
                   <div className={styles.publishMediaRetouchHint}>
                     <span aria-hidden>✨</span>
-                    Ajoutez un média pour pouvoir l’adapter.
-                  </div>
+                    {i18nT("ajoutez_un_media_pour_pouvoir_l_f137cd89")}{" "}</div>
                 )}
               </div>
             </div>
@@ -5365,7 +5256,7 @@ export default function AgentClient() {
               <div
                 className={styles.publishMediaGallery}
                 role="list"
-                aria-label={`Médias ${activePreviewChannelLabel}`}
+                aria-label={i18nT("medias_value_508589dd", { value0: activePreviewChannelLabel })}
               >
                 {publishMediaPreview.items.map((item, index) => (
                   <button
@@ -5379,12 +5270,18 @@ export default function AgentClient() {
                     }`}
                     onClick={() => setPublishMediaActiveIndex(index)}
                     disabled={publishMediaUploadState === "saving"}
-                    aria-label={`Afficher l’image ${index + 1} sur ${publishMediaPreview.items.length}`}
+                    aria-label={i18nT("afficher_l_image_value_sur_value_516cb86d", { value0: index + 1, value1: publishMediaPreview.items.length })}
                   >
                     {item.kind === "video" ? (
                       <video src={item.url} muted preload="metadata" />
                     ) : (
-                      <img src={item.url} alt={item.name || `Image ${index + 1}`} />
+                      <img
+                        src={item.url}
+                        alt={
+                          item.name ||
+                          i18nT("image_number_alt", { number: index + 1 })
+                        }
+                      />
                     )}
                     <span>{index + 1}</span>
                   </button>
@@ -5394,29 +5291,38 @@ export default function AgentClient() {
 
             <div className={styles.publishMediaAdaptationBox}>
               <div>
-                <strong>Adaptation du canal</strong>
+                <strong>{i18nT("adaptation_du_canal_1af8dcef")}</strong>
                 <span>
                   {publishMediaAdaptationPreview?.note ||
-                    "iNrAgent préparera le média selon les règles du canal."}
+                    i18nT("inragent_preparera_le_media_selon_les_c6452f9f")}
                 </span>
               </div>
               <small>
-                Utilisez l’outil d’adaptation iNrCy pour ajuster ce média au
-                canal sélectionné, sans recréer de nouveau système.
-              </small>
+                {i18nT("utilisez_l_outil_d_adaptation_inrcy_e92f2a66")}{" "}</small>
             </div>
 
             <div className={styles.publishMediaSourcePanel}>
               <div className={styles.publishMediaSourceHeader}>
-                <strong>Ajouter ou remplacer</strong>
+                <strong>{i18nT("ajouter_ou_remplacer_9e1561b3")}</strong>
                 <span>
                   {publishMediaPreview?.kind === "image"
                     ? publishImageLimitReached
-                      ? `${publishImageCount}/${INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT} images enregistrées. Maximum atteint.`
-                      : `${publishImageCount}/${INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT} image${publishImageCount > 1 ? "s" : ""} enregistrée${publishImageCount > 1 ? "s" : ""} pour ce canal.`
+                      ? i18nT("media_images_saved_max", {
+                          count: publishImageCount,
+                          max: INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT,
+                        })
+                      : publishImageCount === 1
+                        ? i18nT("media_image_saved_channel", {
+                            count: publishImageCount,
+                            max: INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT,
+                          })
+                        : i18nT("media_images_saved_channel", {
+                            count: publishImageCount,
+                            max: INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT,
+                          })
                     : publishMediaPreview?.kind === "video"
-                      ? "Vidéo préparée pour ce canal."
-                      : "Média enregistré pour ce canal."}
+                      ? i18nT("video_preparee_pour_ce_canal_4350728f")
+                      : i18nT("media_enregistre_pour_ce_canal_a6dcb15c")}
                 </span>
               </div>
               <input
@@ -5470,24 +5376,26 @@ export default function AgentClient() {
                   }
                   title={
                     publishImageLimitReached
-                      ? `Maximum de ${INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT} images atteint`
-                      : "Ajouter une image à la publication"
+                      ? i18nT("maximum_de_value_images_atteint_af483c3f", {
+                          value0: INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT,
+                        })
+                      : i18nT("add_image_to_publication")
                   }
                   onClick={(event) => {
                     if (publishImageLimitReached) event.preventDefault();
                   }}
                 >
                   <span aria-hidden>🖼️</span>
-                  <strong>Ajouter une image</strong>
+                  <strong>{i18nT("ajouter_une_image_762947a7")}</strong>
                   <small>
                     {publishImageLimitReached
-                      ? `Maximum de ${INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT} images atteint`
+                      ? i18nT("maximum_de_value_images_atteint_af483c3f", { value0: INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT })
                       : INR_MEDIA_IMAGE_FORMATS_LABEL}
                   </small>
                 </label>
                 <label htmlFor="agent-publish-media-video">
                   <span aria-hidden>🎬</span>
-                  <strong>Ajouter une vidéo</strong>
+                  <strong>{i18nT("ajouter_une_video_741020e4")}</strong>
                   <small>{INR_MEDIA_VIDEO_FORMATS_LABEL}</small>
                 </label>
                 <button
@@ -5496,8 +5404,8 @@ export default function AgentClient() {
                   disabled={publishMediaUploadState === "saving"}
                 >
                   <span aria-hidden>🗂️</span>
-                  <strong>Médiathèque</strong>
-                  <small>Choisir un média existant</small>
+                  <strong>{i18nT("mediatheque_e4fa8e31")}</strong>
+                  <small>{i18nT("choisir_un_media_existant_6606a11d")}</small>
                 </button>
                 <label
                   htmlFor={
@@ -5510,10 +5418,12 @@ export default function AgentClient() {
                   }
                   title={
                     publishImageLimitReached
-                      ? `Maximum de ${INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT} images atteint`
+                      ? i18nT("maximum_de_value_images_atteint_af483c3f", {
+                          value0: INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT,
+                        })
                       : isMobileHeader
-                      ? "Prendre une photo dans iNrCy"
-                      : "Disponible sur mobile"
+                      ? i18nT("take_photo_in_inrcy")
+                      : i18nT("disponible_sur_mobile_386aeb66")
                   }
                   onClick={(event) => {
                     if (!isMobileHeader || publishImageLimitReached) {
@@ -5522,33 +5432,34 @@ export default function AgentClient() {
                   }}
                 >
                   <span aria-hidden>📷</span>
-                  <strong>Prendre une photo</strong>
+                  <strong>{i18nT("prendre_une_photo_49b3ea58")}</strong>
                   <small>
-                    {isMobileHeader ? "Depuis mobile" : "Disponible sur mobile"}
+                    {isMobileHeader ? i18nT("depuis_mobile_f39b9223") : i18nT("disponible_sur_mobile_386aeb66")}
                   </small>
                 </label>
               </div>
               <small className={styles.publishMediaSourceNote}>
-                Média source jusqu’à 300 Mo · optimisation proposée au-delà de{" "}
-                {INR_MEDIA_IMAGE_MAX_MB_LABEL} pour une image ou{" "}
-                {INR_MEDIA_VIDEO_SOURCE_MAX_MB_LABEL} pour une vidéo.
-              </small>
+                {i18nT("media_source_jusqu_a_300_mo_04468d50")}{" "}
+                {INR_MEDIA_IMAGE_MAX_MB_LABEL} {" "}{i18nT("pour_une_image_ou_5647eac3")}{" "}
+                {INR_MEDIA_VIDEO_SOURCE_MAX_MB_LABEL} {" "}{i18nT("pour_une_video_021e8484")}{" "}</small>
             </div>
 
             <MediaLibraryPickerModal
               open={publishMediaLibraryPickerOpen}
-              title="Ajouter depuis la Médiathèque"
-              subtitle="Ajouter un média"
+              title={i18nT("ajouter_depuis_la_mediatheque_d0f700b2")}
+              subtitle={i18nT("add_media")}
               accept={activePreviewChannel === "youtube" ? "video" : "all"}
               multiple={false}
               maxSelection={1}
               maxImageBytes={AGENT_MEDIA_MAX_IMAGE_BYTES}
               maxVideoBytes={AGENT_MEDIA_MAX_VIDEO_BYTES}
-              confirmLabel="Utiliser ce média"
+              confirmLabel={i18nT("utiliser_ce_media_5cc61021")}
               selectedHint={
                 publishImageLimitReached
-                  ? `Maximum de ${INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT} images atteint : choisissez une vidéo ou supprimez d’abord une image.`
-                  : "Choisissez un média pour iNrAgent."
+                  ? i18nT("media_picker_image_limit", {
+                      max: INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT,
+                    })
+                  : i18nT("media_picker_hint")
               }
               onOpenOptimizer={(item) =>
                 openMediaOptimizerForLibraryItem(item, "publish")
@@ -5566,8 +5477,7 @@ export default function AgentClient() {
                 onClick={() => setPublishMediaPreviewOpen(false)}
                 disabled={publishMediaUploadState === "saving"}
               >
-                Fermer
-              </button>
+                {i18nT("fermer_5ab4ec64")}{" "}</button>
               <button
                 type="button"
                 onClick={removePublishMedia}
@@ -5577,8 +5487,8 @@ export default function AgentClient() {
                 }
               >
                 {publishMediaPreview?.count && publishMediaPreview.count > 1
-                  ? "Supprimer cette image"
-                  : "Supprimer le média"}
+                  ? i18nT("supprimer_cette_image_785aa49a")
+                  : i18nT("supprimer_le_media_eb76b6ba")}
               </button>
             </div>
           </section>
@@ -5588,7 +5498,7 @@ export default function AgentClient() {
       {publishImageAdapterOpen && (
         <ChannelImageAdapterModal
           open={publishImageAdapterOpen}
-          title={`Adapter le média ${activePreviewChannelLabel}`}
+          title={i18nT("adapter_le_media_value_34c6f353", { value0: activePreviewChannelLabel })}
           subtitle={`${activePreviewChannelLabel} • ${publishImageAdapterPreset.width}×${publishImageAdapterPreset.height}`}
           aspectRatio={publishImageAdapterAspectRatio}
           backgroundMode={publishImageAdapterBackgroundMode}
@@ -5598,7 +5508,7 @@ export default function AgentClient() {
               ? "Remplir"
               : "Adapter"
           }
-          zoomLabel={`zoom ${publishImageAdapterEffectiveZoom.toFixed(2)}×`}
+          zoomLabel={i18nT("zoom_value_1d90c01c", { value0: publishImageAdapterEffectiveZoom.toFixed(2) })}
           previewSrc={publishImageAdapterPreviewUrl}
           previewLayout={publishImageAdapterPreviewLayout}
           isDragging={publishImageAdapterDragging}
@@ -5659,7 +5569,7 @@ export default function AgentClient() {
           }}
           onSave={savePublishImageAdapter}
           saving={publishImageAdapterSaving}
-          isolationNote="Ce réglage utilise l’outil Adapter image existant de Booster et remplacera le média iNrAgent par la version adaptée."
+          isolationNote={i18nT("image_adapter_isolation_note")}
           onBackgroundModeChange={(mode) =>
             updatePublishImageAdapterTransform(
               mode === "transparent"
@@ -5719,32 +5629,30 @@ export default function AgentClient() {
             className={`${styles.settingsModal} ${styles.publishVideoAdapterModal}`}
             role="dialog"
             aria-modal="true"
-            aria-label="Adapter la vidéo iNrAgent"
+            aria-label={i18nT("adapter_la_video_inragent_8eaacc97")}
             onClick={(event) => event.stopPropagation()}
           >
             <button
               type="button"
               className={styles.modalClose}
               onClick={() => setPublishVideoAdapterOpen(false)}
-              aria-label="Fermer"
+              aria-label={i18nT("fermer_5ab4ec64")}
               disabled={publishVideoAdapterSaving}
             >
               ×
             </button>
             <div className={styles.publishMediaModalHeader}>
               <div>
-                <p className={styles.modalEyebrow}>Adapter vidéo</p>
+                <p className={styles.modalEyebrow}>{i18nT("adapter_video_2d90a304")}</p>
                 <h2>{activePreviewChannelLabel}</h2>
                 <span>
-                  Outil Booster existant : choisissez le format puis
-                  appliquez-le au média iNrAgent.
-                </span>
+                  {i18nT("outil_booster_existant_choisissez_le_format_20c55e2f")}{" "}</span>
               </div>
             </div>
             <BoosterVideoFormatManager
               isMobile={isMobileHeader}
               channel={publishBoosterChannel}
-              videoName={publishMediaPreview?.name || "Vidéo iNrAgent"}
+              videoName={publishMediaPreview?.name || i18nT("video_inr_agent")}
               videoDisplayUrl={publishMediaPreview?.url || ""}
               videoSize={Number(currentPublishMediaRecord?.size || 0) || null}
               videoDurationSeconds={
@@ -5782,8 +5690,7 @@ export default function AgentClient() {
                 onClick={() => setPublishVideoAdapterOpen(false)}
                 disabled={publishVideoAdapterSaving}
               >
-                Fermer
-              </button>
+                {i18nT("fermer_5ab4ec64")}{" "}</button>
               <button
                 type="button"
                 onClick={savePublishVideoAdapter}
@@ -5793,8 +5700,8 @@ export default function AgentClient() {
                 aria-busy={publishVideoAdapterSaving}
               >
                 {publishVideoAdapterSaving
-                  ? "Enregistrement…"
-                  : "Enregistrer l’adaptation"}
+                  ? i18nT("enregistrement_e7d5f232")
+                  : i18nT("enregistrer_l_adaptation_83a36e4d")}
               </button>
             </div>
           </section>
@@ -5833,8 +5740,8 @@ export default function AgentClient() {
             isMobile={isMobileHeader}
             saving={validationScheduleState === "saving"}
             error=""
-            successMessage="Programmation réussie."
-            savingLabel="Envoi en cours…"
+            successMessage={i18nT("programmation_reussie_1307249b")}
+            savingLabel={i18nT("envoi_en_cours_2de80069")}
             enableImmediateUnselectedWarning={!scheduledEditSession}
             initialSelections={
               scheduledEditSession
@@ -5862,7 +5769,7 @@ export default function AgentClient() {
               setPendingImmediateAgentPublishAfterSchedule(null);
               if (scheduledEditSession) {
                 exitScheduledEditSession({ silent: true, force: true });
-                showNotice("Action programmée mise à jour.");
+                showNotice(i18nT("scheduled_action_updated"));
                 return;
               }
               if (immediatePublishRequest?.channels.length) {
@@ -5879,17 +5786,22 @@ export default function AgentClient() {
         selectedPreparedAction.automationKey !== "publish" && (
           <CampaignScheduleModal
             open={validationScheduleOpen}
-            description={`iNr’Agent enverra cette campagne ${
-              selectedPreparedAction.automationKey === "loyalty"
-                ? "Fidéliser"
-                : "Propulser"
-            } automatiquement au moment choisi.`}
+            description={i18nT("campaign_schedule_description", {
+              automation: agentAutomationTitle(
+                selectedPreparedAction.automationKey === "loyalty"
+                  ? "loyalty"
+                  : "grow",
+                runtimeT,
+              ),
+            })}
             recipientCount={preparedRecipientsCount}
-            subject={campaignDisplayPreview?.subject || "(sans objet)"}
+            subject={
+              campaignDisplayPreview?.subject || i18nT("no_subject")
+            }
             saving={validationScheduleState === "saving"}
             error={null}
-            successMessage="Programmation réussie."
-            savingLabel="Programmation en cours…"
+            successMessage={i18nT("programmation_reussie_1307249b")}
+            savingLabel={i18nT("programmation_en_cours_13ae187c")}
             initialScheduledAt={
               scheduledEditSession?.scheduledAction.scheduledAt ||
               selectedPreparedAction.scheduledFor
@@ -5904,7 +5816,7 @@ export default function AgentClient() {
               setValidationChoiceOpen(false);
               if (scheduledEditSession) {
                 exitScheduledEditSession({ silent: true, force: true });
-                showNotice("Campagne programmée mise à jour.");
+                showNotice(i18nT("scheduled_campaign_updated"));
               }
             }}
           />
@@ -5913,17 +5825,17 @@ export default function AgentClient() {
       {automationScheduleEdit && (
         <CampaignScheduleModal
           open={Boolean(automationScheduleEdit)}
-          title="Modifier la programmation"
-          kicker="Programmation"
-          description="Modifiez uniquement la date et l’heure de cette action automatique."
+          title={i18nT("modifier_la_programmation_2bdd7cdc")}
+          kicker={i18nT("programmation_6255df3b")}
+          description={i18nT("automation_schedule_edit_description")}
           recipientCount={0}
           subject={automationScheduleEdit.label}
           showSummary={!["publish", "stats"].includes(automationScheduleEdit.key)}
           saving={scheduleMutationState === "saving"}
           error={automationScheduleEditError}
-          confirmLabel="Enregistrer"
-          savingLabel="Enregistrement…"
-          successMessage="Programmation mise à jour."
+          confirmLabel={i18nT("enregistrer_f7c8bcd8")}
+          savingLabel={i18nT("enregistrement_e7d5f232")}
+          successMessage={i18nT("programmation_mise_a_jour_ea5f575f")}
           initialScheduledAt={automationScheduleEdit.scheduledAtIso}
           onClose={() => {
             if (scheduleMutationState === "saving") return;
@@ -5948,17 +5860,17 @@ export default function AgentClient() {
       {scheduleOnlyEdit && (
         <CampaignScheduleModal
           open={Boolean(scheduleOnlyEdit)}
-          title="Modifier la programmation"
-          kicker="Programmation"
-          description="Modifiez uniquement la date et l’heure de cette action programmée."
+          title={i18nT("modifier_la_programmation_2bdd7cdc")}
+          kicker={i18nT("programmation_6255df3b")}
+          description={i18nT("scheduled_action_edit_description")}
           recipientCount={0}
           subject={scheduleOnlyEdit.label}
           showSummary={false}
           saving={scheduleMutationState === "saving"}
           error={scheduleOnlyEditError}
-          confirmLabel="Enregistrer"
-          savingLabel="Enregistrement…"
-          successMessage="Programmation mise à jour."
+          confirmLabel={i18nT("enregistrer_f7c8bcd8")}
+          savingLabel={i18nT("enregistrement_e7d5f232")}
+          successMessage={i18nT("programmation_mise_a_jour_ea5f575f")}
           initialScheduledAt={scheduleOnlyEdit.action.scheduledAt}
           onClose={() => {
             if (scheduleMutationState === "saving") return;
@@ -5990,58 +5902,38 @@ export default function AgentClient() {
             className={`${styles.settingsModal} ${styles.helpModal}`}
             role="dialog"
             aria-modal="true"
-            aria-label="Aide iNr’Agent"
+            aria-label={i18nT("aide_inr_agent_ec5c0488")}
             onClick={(event) => event.stopPropagation()}
           >
             <button
               type="button"
               className={styles.modalClose}
               onClick={() => setHelpOpen(false)}
-              aria-label="Fermer"
+              aria-label={i18nT("fermer_5ab4ec64")}
             >
               ×
             </button>
-            <p className={styles.modalEyebrow}>Helper</p>
-            <h2>Qu’est-ce qu’iNr’Agent&nbsp;?</h2>
+            <p className={styles.modalEyebrow}>{i18nT("helper_1e7eebdb")}</p>
+            <h2>{i18nT("qu_est_ce_qu_inr_agent_0290f6c1")}</h2>
             <div className={styles.helpContent}>
               <p>
-                iNr’Agent est votre programmateur d’automatisations. Il prépare
-                des actions avec vos outils iNrCy, affiche un aperçu clair, puis
-                vous gardez la main avec Valider ou Refuser quand une validation
-                est nécessaire.
-              </p>
+                {i18nT("inr_agent_est_votre_programmateur_d_d3776182")}{" "}</p>
               <ul>
                 <li>
-                  <strong>Publier</strong> prépare des publications avec Booster
-                  / Publier sur vos canaux connectés. L’aperçu se consulte canal
-                  par canal grâce au sélecteur situé sous la zone de
-                  prévisualisation.
-                </li>
+                  <strong>{i18nT("publier_34e6b19e")}</strong> {" "}{i18nT("prepare_des_publications_avec_booster_publier_fed8f201")}{" "}</li>
                 {!standardMode ? (
                   <>
                     <li>
-                      <strong>Propulser</strong> prépare des campagnes Propulser
-                      par mail, basées sur vos contenus et templates.
-                    </li>
+                      <strong>{i18nT("propulser_2de43942")}</strong> {" "}{i18nT("prepare_des_campagnes_propulser_par_mail_4904e994")}{" "}</li>
                     <li>
-                      <strong>Fidéliser</strong> prépare des campagnes Fidéliser
-                      par mail pour garder le lien avec le CRM.
-                    </li>
+                      <strong>{i18nT("fideliser_8fa9e4f1")}</strong> {" "}{i18nT("prepare_des_campagnes_fideliser_par_mail_e7a28bd4")}{" "}</li>
                   </>
                 ) : null}
                 <li>
-                  <strong>Statistiques</strong> génère un bilan iNr’Stats PDF
-                  multi-pages et l’envoie automatiquement au pro selon les
-                  réglages.
-                </li>
+                  <strong>{i18nT("statistiques_fdce305a")}</strong> {" "}{i18nT("genere_un_bilan_inr_stats_pdf_0ed72e8c")}{" "}</li>
               </ul>
               <p>
-                Les roues de réglages permettent de choisir la fréquence, le
-                jour, l’horaire, les rubriques et le mode de validation de
-                chaque automatisation. Les publications réalisées restent dans
-                l’historique iNr’Send, avec la pastille iNr’Agent quand elles
-                viennent de l’automatisation.
-              </p>
+                {i18nT("les_roues_de_reglages_permettent_de_c517f1c9")}{" "}</p>
             </div>
           </section>
         </div>
@@ -6057,28 +5949,28 @@ export default function AgentClient() {
             className={styles.settingsModal}
             role="dialog"
             aria-modal="true"
-            aria-label={settingsAutomation.settingsTitle}
+            aria-label={agentAutomationSettingsTitle(settingsAutomation.key, runtimeT)}
             onClick={(event) => event.stopPropagation()}
           >
             <button
               type="button"
               className={styles.modalClose}
               onClick={() => setSettingsKey(null)}
-              aria-label="Fermer"
+              aria-label={i18nT("fermer_5ab4ec64")}
             >
               ×
             </button>
-            <p className={styles.modalEyebrow}>Automatisation</p>
-            <h2>{settingsAutomation.settingsTitle}</h2>
+            <p className={styles.modalEyebrow}>{i18nT("automatisation_598357a3")}</p>
+            <h2>{agentAutomationSettingsTitle(settingsAutomation.key, runtimeT)}</h2>
 
             <label className={styles.switchLine}>
               <span>
-                <strong>Statut</strong>
+                <strong>{i18nT("statut_659499f3")}</strong>
                 <small>
                   {settingsConnectedChannelMessage ||
                     (settingsConfig.enabled
-                      ? "Le robot peut préparer cette action."
-                      : "Cette automatisation est en pause.")}
+                      ? i18nT("le_robot_peut_preparer_cette_action_e4d59f66")
+                      : i18nT("cette_automatisation_est_en_pause_90aa064a"))}
                 </small>
               </span>
               <input
@@ -6095,7 +5987,7 @@ export default function AgentClient() {
 
             <div className={styles.modalGrid}>
               <label>
-                <span>Fréquence</span>
+                <span>{i18nT("frequence_bafbfba7")}</span>
                 <select
                   value={settingsConfig.frequency}
                   onChange={(event) =>
@@ -6108,7 +6000,7 @@ export default function AgentClient() {
                   {settingsOptions[settingsAutomation.key].frequency.map(
                     (frequency) => (
                       <option key={frequency.value} value={frequency.label}>
-                        {frequency.label}
+                        {agentFrequencyLabel(frequency.label, runtimeT)}
                       </option>
                     ),
                   )}
@@ -6123,7 +6015,7 @@ export default function AgentClient() {
                       key={`${settingsAutomation.key}-slot-${index}`}
                     >
                       <label>
-                        <span>Jour {index + 1}</span>
+                        <span>{i18nT("jour_240ce85d")}{" "}{index + 1}</span>
                         <select
                           value={slot.day}
                           onChange={(event) =>
@@ -6137,12 +6029,12 @@ export default function AgentClient() {
                           }
                         >
                           {weekDays.map((day) => (
-                            <option key={day}>{day}</option>
+                            <option key={day} value={day}>{agentWeekdayLabel(day, runtimeT)}</option>
                           ))}
                         </select>
                       </label>
                       <label>
-                        <span>Horaire {index + 1}</span>
+                        <span>{i18nT("horaire_db0addb3")}{" "}{index + 1}</span>
                         <select
                           value={slot.time}
                           onChange={(event) =>
@@ -6165,7 +6057,7 @@ export default function AgentClient() {
               ) : (
                 <>
                   <label>
-                    <span>Jour</span>
+                    <span>{i18nT("jour_240ce85d")}</span>
                     <select
                       value={settingsConfig.day}
                       onChange={(event) =>
@@ -6185,12 +6077,12 @@ export default function AgentClient() {
                       }
                     >
                       {weekDays.map((day) => (
-                        <option key={day}>{day}</option>
+                        <option key={day} value={day}>{agentWeekdayLabel(day, runtimeT)}</option>
                       ))}
                     </select>
                   </label>
                   <label>
-                    <span>Horaire</span>
+                    <span>{i18nT("horaire_db0addb3")}</span>
                     <select
                       value={settingsConfig.time}
                       onChange={(event) =>
@@ -6217,7 +6109,7 @@ export default function AgentClient() {
                 </>
               )}
               <label>
-                <span>Validation</span>
+                <span>{i18nT("validation_dd74d182")}</span>
                 <select
                   value={settingsConfig.validation}
                   onChange={(event) =>
@@ -6229,7 +6121,7 @@ export default function AgentClient() {
                   {settingsOptions[settingsAutomation.key].validation.map(
                     (validation) => (
                       <option key={validation.value} value={validation.label}>
-                        {validation.label}
+                        {agentValidationLabel(validation.label, runtimeT)}
                       </option>
                     ),
                   )}
@@ -6241,7 +6133,7 @@ export default function AgentClient() {
               <>
                 <div className={styles.campaignSettingsPair}>
                   <div className={styles.modalSection}>
-                    <span>Canal</span>
+                    <span>{i18nT("canal_61f21e6f")}</span>
                     {settingsAvailableChannels.length > 0 ? (
                       <div className={styles.choiceGrid}>
                         {settingsAvailableChannels.map((channelKey) => {
@@ -6270,7 +6162,7 @@ export default function AgentClient() {
                                 loading="eager"
                                 decoding="async"
                               />
-                              {channel.name}
+                              {agentChannelLabel(channelKey, runtimeT)}
                             </button>
                           );
                         })}
@@ -6278,8 +6170,8 @@ export default function AgentClient() {
                     ) : (
                       <p className={styles.campaignEditHint}>
                         {connectedChannelsLoadState === "loading"
-                          ? "Chargement des canaux connectés..."
-                          : connectedChannelMessage(settingsAutomation)}
+                          ? i18nT("chargement_des_canaux_connectes_3a145d06")
+                          : agentConnectedChannelMessage(settingsAutomation.key, runtimeT)}
                       </p>
                     )}
                   </div>
@@ -6287,8 +6179,8 @@ export default function AgentClient() {
                   <div className={styles.modalSection}>
                     <span>
                       {settingsAutomation.key === "grow"
-                        ? "Rubriques Propulser"
-                        : "Rubriques Fidéliser"}
+                        ? i18nT("rubriques_propulser_1c6a7e39")
+                        : i18nT("rubriques_fideliser_2ddba9ba")}
                     </span>
                     <div className={styles.choiceGrid}>
                       {settingsAutomation.availableThemes.map((theme) => {
@@ -6307,7 +6199,7 @@ export default function AgentClient() {
                               })
                             }
                           >
-                            {theme}
+                            {agentThemeLabel(theme, runtimeT)}
                           </button>
                         );
                       })}
@@ -6317,11 +6209,9 @@ export default function AgentClient() {
 
                 <label className={styles.signatureSwitchLine}>
                   <span>
-                    <strong>Signature automatique</strong>
+                    <strong>{i18nT("signature_automatique_77745712")}</strong>
                     <small>
-                      Activée par défaut pour ajouter la signature configurée au
-                      moment de l’envoi.
-                    </small>
+                      {i18nT("activee_par_defaut_pour_ajouter_la_85a5ac4b")}{" "}</small>
                   </span>
                   <input
                     type="checkbox"
@@ -6340,8 +6230,8 @@ export default function AgentClient() {
                   <div className={styles.modalSection}>
                     <span>
                       {settingsAutomation.key === "publish"
-                        ? "Canaux Booster / Publier"
-                        : "Canal"}
+                        ? i18nT("canaux_booster_publier_1ac0f46f")
+                        : i18nT("canal_61f21e6f")}
                     </span>
                     {settingsAvailableChannels.length > 0 ? (
                       <div className={styles.choiceGrid}>
@@ -6371,7 +6261,7 @@ export default function AgentClient() {
                                 loading="eager"
                                 decoding="async"
                               />
-                              {channel.name}
+                              {agentChannelLabel(channelKey, runtimeT)}
                             </button>
                           );
                         })}
@@ -6379,8 +6269,8 @@ export default function AgentClient() {
                     ) : (
                       <p className={styles.campaignEditHint}>
                         {connectedChannelsLoadState === "loading"
-                          ? "Chargement des canaux connectés..."
-                          : connectedChannelMessage(settingsAutomation)}
+                          ? i18nT("chargement_des_canaux_connectes_3a145d06")
+                          : agentConnectedChannelMessage(settingsAutomation.key, runtimeT)}
                       </p>
                     )}
                   </div>
@@ -6389,8 +6279,8 @@ export default function AgentClient() {
                 <div className={styles.modalSection}>
                   <span>
                     {settingsAutomation.key === "stats"
-                      ? "Rubriques iNr’Stats"
-                      : "Thèmes"}
+                      ? i18nT("rubriques_inr_stats_130152a9")
+                      : i18nT("themes_5dfcd420")}
                   </span>
                   <div className={styles.choiceGrid}>
                     {settingsAvailableThemes.map((theme) => {
@@ -6406,7 +6296,7 @@ export default function AgentClient() {
                             })
                           }
                         >
-                          {theme}
+                          {agentThemeLabel(theme, runtimeT)}
                         </button>
                       );
                     })}
@@ -6416,8 +6306,7 @@ export default function AgentClient() {
             )}
 
             <p className={styles.modalNote}>
-              Source des idées : {settingsConfig.source}
-            </p>
+              {i18nT("source_des_idees_value_75f522cb", { value0: agentSourceLabel(settingsConfig.source, runtimeT) })}</p>
             {prepareProgress?.key === settingsAutomation.key && (
               <div
                 className={styles.prepareProgressCard}
@@ -6425,8 +6314,8 @@ export default function AgentClient() {
                 aria-live="polite"
               >
                 <div>
-                  <strong>Préparation en cours</strong>
-                  <span>{prepareProgress.label}</span>
+                  <strong>{i18nT("preparation_en_cours_28379fdb")}</strong>
+                  <span>{agentProgressLabel(prepareProgress.label, runtimeT)}</span>
                 </div>
                 <b>{prepareProgress.percent}%</b>
               </div>
@@ -6444,8 +6333,8 @@ export default function AgentClient() {
                 }
               >
                 {saveState === "saving"
-                  ? "Enregistrement..."
-                  : "Enregistrer les réglages"}
+                  ? i18nT("enregistrement_9bf1058a")
+                  : i18nT("enregistrer_les_reglages_a47974c5")}
               </button>
               <button
                 type="button"
@@ -6462,13 +6351,13 @@ export default function AgentClient() {
                 {testNowKey === settingsAutomation.key ||
                 prepareActionState === "saving"
                   ? settingsAutomation.key === "stats"
-                    ? "Envoi du bilan..."
+                    ? i18nT("envoi_du_bilan_27b6de4a")
                     : prepareProgress?.key === settingsAutomation.key
-                      ? "Préparation..."
-                      : "Préparation..."
+                      ? i18nT("preparation_2c6b897e")
+                      : i18nT("preparation_2c6b897e")
                   : settingsAutomation.key === "stats"
-                    ? "Envoyer un bilan"
-                    : "Préparer maintenant"}
+                    ? i18nT("envoyer_un_bilan_6dff1c99")
+                    : i18nT("preparer_maintenant_e3f186ee")}
               </button>
             </div>
           </section>
@@ -6488,43 +6377,35 @@ export default function AgentClient() {
             className={`${styles.settingsModal} ${styles.campaignDraftModal}`}
             role="dialog"
             aria-modal="true"
-            aria-label="Préparer une nouvelle campagne"
+            aria-label={i18nT("preparer_une_nouvelle_campagne_9a083283")}
             onClick={(event) => event.stopPropagation()}
           >
             <button
               type="button"
               className={styles.modalClose}
               onClick={() => setPrepareNowConfirm(null)}
-              aria-label="Fermer"
+              aria-label={i18nT("fermer_5ab4ec64")}
               disabled={Boolean(testNowKey) || prepareActionState === "saving"}
             >
               ×
             </button>
-            <p className={styles.modalEyebrow}>Campagne iNr’Agent</p>
-            <h2>Préparer une nouvelle campagne ?</h2>
+            <p className={styles.modalEyebrow}>{i18nT("campagne_inr_agent_fa7db334")}</p>
+            <h2>{i18nT("preparer_une_nouvelle_campagne_170bfb63")}</h2>
             <div className={styles.campaignDraftNotice}>
               <span aria-hidden>⚠️</span>
               <div>
                 <strong>
-                  Une campagne {prepareNowConfirm.label} est déjà en attente de
-                  validation.
-                </strong>
+                  {i18nT("une_campagne_value_est_deja_en_22243601", { value0: prepareNowConfirm.label })}</strong>
                 <p>
-                  Si vous continuez, la campagne actuelle sera automatiquement
-                  enregistrée en brouillon dans iNrSend, puis une nouvelle
-                  campagne sera préparée à sa place dans iNrAgent.
-                </p>
+                  {i18nT("si_vous_continuez_la_campagne_actuelle_b57b70a9")}{" "}</p>
               </div>
             </div>
             <div className={styles.campaignDraftSummary}>
-              <small>Action</small>
+              <small>{i18nT("action_97c89a4d")}</small>
               <strong>{prepareNowConfirm.label}</strong>
-              <small>Campagne en cours</small>
+              <small>{i18nT("campagne_en_cours_e6239411")}</small>
               <strong>
-                {prepareNowConfirm.pendingCount} campagne
-                {prepareNowConfirm.pendingCount > 1 ? "s" : ""} à enregistrer en
-                brouillon
-              </strong>
+                {prepareNowConfirm.pendingCount} {" "}{i18nT("campagne_21daf4ed")}{" "}{prepareNowConfirm.pendingCount > 1 ? "s" : ""} {" "}{i18nT("a_enregistrer_en_brouillon_90f6d43b")}{" "}</strong>
             </div>
             <div className={styles.modalActions}>
               <button
@@ -6534,8 +6415,7 @@ export default function AgentClient() {
                   Boolean(testNowKey) || prepareActionState === "saving"
                 }
               >
-                Annuler
-              </button>
+                {i18nT("annuler_49ba3292")}{" "}</button>
               <button
                 type="button"
                 onClick={confirmPrepareNowReplacement}
@@ -6546,9 +6426,9 @@ export default function AgentClient() {
                 {testNowKey === prepareNowConfirm.key ||
                 prepareActionState === "saving"
                   ? prepareProgress?.key === prepareNowConfirm.key
-                    ? "Préparation..."
-                    : "Préparation..."
-                  : "Préparer maintenant"}
+                    ? i18nT("preparation_2c6b897e")
+                    : i18nT("preparation_2c6b897e")
+                  : i18nT("preparer_maintenant_e3f186ee")}
               </button>
             </div>
           </section>

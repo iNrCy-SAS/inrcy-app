@@ -53,7 +53,7 @@ function normalizeLines(lines: unknown, vatDispense: boolean) {
 
   return mapped.length
     ? mapped
-    : [{ id: "l_1", label: "Prestation", qty: 1, unitPrice: 0, vatRate: vatDispense ? 0 : 20 }];
+    : [{ id: "l_1", label: "", qty: 1, unitPrice: 0, vatRate: vatDispense ? 0 : 20 }];
 }
 
 function toISODate(value: unknown, fallbackISO: string) {

@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import React from "react";
 import { createPortal } from "react-dom";
 import { INR_MEDIA_VIDEO_SOURCE_MAX_BYTES } from "@/lib/mediaRules";
@@ -104,6 +105,7 @@ export default function InrcyCameraCaptureModal({
   maxVideoBytes = DEFAULT_MAX_VIDEO_BYTES,
   maxVideoSeconds = null,
 }: InrcyCameraCaptureModalProps) {
+  const i18nT = useTranslations("media");
   const videoRef = React.useRef<HTMLVideoElement | null>(null);
   const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
@@ -226,7 +228,7 @@ export default function InrcyCameraCaptureModal({
       console.warn("inrcy_camera_torch_apply_failed", err);
       setTorchOn(false);
       setTorchSupported(false);
-      setFlashNotice("Flash indisponible sur cet appareil");
+      setFlashNotice(i18nT("flash_indisponible_sur_cet_appareil_9eac5eab"));
       window.setTimeout(() => setFlashNotice(""), 1800);
     }
   }, []);
@@ -375,7 +377,7 @@ export default function InrcyCameraCaptureModal({
     if (cameraMode === "video" && typeof MediaRecorder === "undefined") {
       setPhase("error");
       setError(
-        "L’enregistrement vidéo n’est pas disponible sur ce navigateur.",
+        i18nT("l_enregistrement_video_n_est_pas_54fbe6f6"),
       );
       return;
     }
@@ -503,7 +505,7 @@ export default function InrcyCameraCaptureModal({
     const width = video.videoWidth || 1280;
     const height = video.videoHeight || 720;
     if (!width || !height) {
-      setError("Image caméra indisponible. Réessayez ou importez une image.");
+      setError(i18nT("image_camera_indisponible_reessayez_ou_importez_91edfa05"));
       setPhase("error");
       return;
     }
@@ -514,7 +516,7 @@ export default function InrcyCameraCaptureModal({
     const context = canvas.getContext("2d");
     if (!context) {
       setPhase("error");
-      setError("Capture impossible sur ce navigateur.");
+      setError(i18nT("capture_impossible_sur_ce_navigateur_85e428b9"));
       return;
     }
 
@@ -551,7 +553,7 @@ export default function InrcyCameraCaptureModal({
 
     if (!blob) {
       setPhase("error");
-      setError("Capture impossible. Importez une image à la place.");
+      setError(i18nT("capture_impossible_importez_une_image_a_746d40fd"));
       return;
     }
 
@@ -573,7 +575,7 @@ export default function InrcyCameraCaptureModal({
     if (phase !== "ready" || cameraMode !== "video") return;
     if (typeof MediaRecorder === "undefined") {
       setError(
-        "L’enregistrement vidéo n’est pas disponible sur ce navigateur.",
+        i18nT("l_enregistrement_video_n_est_pas_54fbe6f6"),
       );
       setPhase("error");
       return;
@@ -583,7 +585,7 @@ export default function InrcyCameraCaptureModal({
     if (!stream) return;
     if (!stream.getAudioTracks().length) {
       setError(
-        "Micro indisponible. Autorisez le micro pour filmer avec le son.",
+        i18nT("micro_indisponible_autorisez_le_micro_pour_41f094c3"),
       );
       return;
     }
@@ -617,7 +619,7 @@ export default function InrcyCameraCaptureModal({
       recorder.onerror = () => {
         clearRecordingTimer();
         setRecordingState("idle");
-        setError("Enregistrement vidéo interrompu. Merci de réessayer.");
+        setError(i18nT("enregistrement_video_interrompu_merci_de_reessay_d964ee55"));
       };
 
       recorder.onstop = () => {
@@ -643,13 +645,13 @@ export default function InrcyCameraCaptureModal({
 
         if (oversized) {
           setRecordingState("idle");
-          setError(`La vidéo dépasse ${formatMegabytes(maxVideoBytes)}. Faites une vidéo plus courte.`);
+          setError(i18nT("la_video_depasse_value_faites_une_a7f6d88f", { value0: formatMegabytes(maxVideoBytes) }));
           return;
         }
 
         if (!chunks.length) {
           setRecordingState("idle");
-          setError("Aucune vidéo enregistrée. Merci de réessayer.");
+          setError(i18nT("aucune_video_enregistree_merci_de_reessayer_3b444b28"));
           return;
         }
 
@@ -669,7 +671,7 @@ export default function InrcyCameraCaptureModal({
           .catch((err) => {
             console.warn("inrcy_camera_video_capture_failed", err);
             setRecordingState("idle");
-            setError("Impossible d’ajouter cette vidéo. Merci de réessayer.");
+            setError(i18nT("impossible_d_ajouter_cette_video_merci_b5b67c0f"));
           });
       };
 
@@ -688,7 +690,7 @@ export default function InrcyCameraCaptureModal({
       clearRecordingTimer();
       mediaRecorderRef.current = null;
       setRecordingState("idle");
-      setError("Impossible de lancer l’enregistrement vidéo sur cet appareil.");
+      setError(i18nT("impossible_de_lancer_l_enregistrement_video_b2c96916"));
     }
   }, [
     applyTorch,
@@ -842,7 +844,7 @@ export default function InrcyCameraCaptureModal({
     <button
       type="button"
       onClick={close}
-      aria-label="Fermer la caméra"
+      aria-label={i18nT("fermer_la_camera_fd5ac40e")}
       style={{
         ...iconButtonBase,
         position: "absolute",
@@ -893,7 +895,7 @@ export default function InrcyCameraCaptureModal({
       onClick={() => {
         if (controlsLocked) return;
         if (!torchSupported) {
-          setFlashNotice("Flash indisponible sur cet appareil");
+          setFlashNotice(i18nT("flash_indisponible_sur_cet_appareil_9eac5eab"));
           window.setTimeout(() => setFlashNotice(""), 1800);
           return;
         }
@@ -955,7 +957,7 @@ export default function InrcyCameraCaptureModal({
         WebkitBackdropFilter: "blur(12px)",
         boxShadow: "0 10px 24px rgba(0,0,0,0.28)",
       }}
-      aria-label="Mode de l’Appareil iNrCy"
+      aria-label={i18nT("mode_de_l_appareil_inrcy_6cad924c")}
     >
       {(["photo", "video"] as CameraMode[]).map((mode) => {
         const active = cameraMode === mode;
@@ -990,7 +992,7 @@ export default function InrcyCameraCaptureModal({
               opacity: disabled && !active ? 0.58 : 1,
             }}
           >
-            {mode === "photo" ? "Photo" : "Vidéo"}
+            {mode === "photo" ? i18nT("photo_d01d9003") : i18nT("video_304f6ca4")}
           </button>
         );
       })}
@@ -1145,7 +1147,7 @@ export default function InrcyCameraCaptureModal({
               <div style={{ maxWidth: 340 }}>
                 <div style={{ fontSize: 36, marginBottom: 12 }}>📷</div>
                 <div>
-                  {phase === "error" ? error : "Ouverture de la caméra…"}
+                  {phase === "error" ? error : i18nT("ouverture_de_la_camera_f7d62280")}
                 </div>
                 {phase === "error" ? (
                   <button
@@ -1154,8 +1156,8 @@ export default function InrcyCameraCaptureModal({
                     style={{ ...fallbackButtonStyle, marginTop: 16 }}
                   >
                     {cameraMode === "video"
-                      ? "Importer une vidéo"
-                      : "Importer une image"}
+                      ? i18nT("importer_une_video_280194c3")
+                      : i18nT("importer_une_image_fcd9d38d")}
                   </button>
                 ) : null}
               </div>
@@ -1182,10 +1184,10 @@ export default function InrcyCameraCaptureModal({
                 fontWeight: 950,
                 boxShadow: "0 10px 24px rgba(0,0,0,0.3)",
               }}
-              title="Pincez avec deux doigts pour zoomer"
+              title={i18nT("pincez_avec_deux_doigts_pour_zoomer_a3ed1c93")}
             >
               {zoom <= (zoomLimits.min || 1) + 0.02
-                ? "1x"
+                ? i18nT("1x_6fe62d0d")
                 : `${zoom.toFixed(1)}x`}
             </div>
           ) : null}
@@ -1217,9 +1219,9 @@ export default function InrcyCameraCaptureModal({
             >
               {isRecording
                 ? typeof maxVideoSeconds === "number" && maxVideoSeconds > 0
-                  ? `REC ${formatRecordingSeconds(recordingSeconds)} / ${formatRecordingSeconds(maxVideoSeconds)}`
+                  ? i18nT("rec_value_value_c37e4471", { value0: formatRecordingSeconds(recordingSeconds), value1: formatRecordingSeconds(maxVideoSeconds) })
                   : `REC ${formatRecordingSeconds(recordingSeconds)}`
-                : `Vidéo avec son · ${formatMegabytes(maxVideoBytes)} max`}
+                : i18nT("video_avec_son_value_max_1c2d8f98", { value0: formatMegabytes(maxVideoBytes) })}
             </div>
           ) : null}
 

@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import { useEffect } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import styles from "../dashboard.module.css";
@@ -68,6 +71,7 @@ function WarningTriangle({ className }: { className?: string }) {
 }
 
 export default function DashboardFluxBubble({ item, itemKey, requiredSetupLocked = false, requiredSetupLockMessage = "" }: Props) {
+  const i18nT = useTranslations("shell");
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const {
@@ -173,7 +177,7 @@ export default function DashboardFluxBubble({ item, itemKey, requiredSetupLocked
             <DashboardActionButton action={item.viewAction} className={bubbleStyles.action} />
           ) : (
             <button className={bubbleStyles.action} type="button" disabled>
-              {item.viewFallbackLabel || "Voir"}
+              {item.viewFallbackLabel || i18nT("voir_8a754f1f")}
             </button>
           )}
 
@@ -189,7 +193,7 @@ export default function DashboardFluxBubble({ item, itemKey, requiredSetupLocked
             aria-busy={configureLoadingVisible || undefined}
             title={requiredSetupLocked ? requiredSetupLockMessage : item.configureTitle}
           >
-            {configureLoadingVisible ? "Chargement…" : item.configureLabel || "Configurer"}
+            {configureLoadingVisible ? i18nT("chargement_01cba1df") : item.configureLabel || i18nT("configurer_382efbe9")}
           </button>
         </div>
       </div>

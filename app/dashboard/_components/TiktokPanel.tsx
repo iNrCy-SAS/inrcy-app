@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import styles from "../dashboard.module.css";
 import ConnectionPill from "./ConnectionPill";
 import StatusMessage from "./StatusMessage";
@@ -26,6 +29,7 @@ const inputStyle = {
 } as const;
 
 export default function TiktokPanel(props: any) {
+  const i18nT = useTranslations("shell");
   const {
     tiktokConnected,
     tiktokUsername,
@@ -59,18 +63,17 @@ export default function TiktokPanel(props: any) {
           }}
         >
           <span aria-hidden style={{ width: 8, height: 8, borderRadius: 999, background: statusColor }} />
-          Statut : <strong>{statusLabel}</strong>
+          {i18nT("statut_b20e7fc2")}{" "}<strong>{statusLabel}</strong>
         </span>
       </div>
 
       <div style={cardStyle}>
         <div className={styles.blockHeaderRow}>
-          <div className={styles.blockTitle}>Compte TikTok</div>
+          <div className={styles.blockTitle}>{i18nT("compte_tiktok_0099e07c")}</div>
           <ConnectionPill connected={tiktokConnected} />
         </div>
         <div className={styles.blockSub}>
-          Connexion officielle TikTok : le pro autorise son compte via Login Kit, puis iNrCy conserve les jetons chiffrés côté serveur.
-        </div>
+          {i18nT("connexion_officielle_tiktok_le_pro_autorise_1d5dce46")}{" "}</div>
 
         <input
           value={tiktokConnected ? tiktokUsername : ""}
@@ -82,15 +85,15 @@ export default function TiktokPanel(props: any) {
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           {!tiktokConnected ? (
             <button type="button" className={`${styles.actionBtn} ${styles.connectBtn}`} onClick={() => void connectTiktok?.()} disabled={tiktokLoading}>
-              {tiktokLoading ? "Connexion..." : "Connecter TikTok"}
+              {tiktokLoading ? i18nT("connexion_7adf849f") : i18nT("connecter_tiktok_bce38f69")}
             </button>
           ) : (
             <>
               <button type="button" className={`${styles.actionBtn} ${styles.secondaryBtn}`} onClick={() => void connectTiktok?.()} disabled={tiktokLoading}>
-                {tiktokLoading ? "Chargement..." : "Reconnecter TikTok"}
+                {tiktokLoading ? i18nT("chargement_a209b664") : i18nT("reconnecter_tiktok_125091e5")}
               </button>
               <button type="button" className={`${styles.actionBtn} ${styles.disconnectBtn}`} onClick={() => void disconnectTiktok?.()} disabled={tiktokLoading}>
-                {tiktokLoading ? "Déconnexion..." : "Déconnecter"}
+                {tiktokLoading ? i18nT("deconnexion_f5a5666d") : i18nT("deconnecter_9c1ef392")}
               </button>
             </>
           )}
@@ -99,12 +102,11 @@ export default function TiktokPanel(props: any) {
 
       <div style={cardStyle}>
         <div className={styles.blockHeaderRow}>
-          <div className={styles.blockTitle}>Lien du compte</div>
+          <div className={styles.blockTitle}>{i18nT("lien_du_compte_890d040b")}</div>
           <ConnectionPill connected={Boolean(tiktokConnected && tiktokProfileUrl?.trim())} />
         </div>
         <div className={styles.blockSub}>
-          Lien public du compte TikTok utilisé pour le bouton <strong>Voir le compte</strong> dans la bulle du dashboard.
-        </div>
+          {i18nT("lien_public_du_compte_tiktok_utilise_42d781f2")}{" "}<strong>{i18nT("voir_le_compte_1cbd7501")}</strong> {" "}{i18nT("dans_la_bulle_du_dashboard_689d3e85")}{" "}</div>
 
         <div style={{ display: "grid", gap: 10 }}>
           <input
@@ -116,7 +118,7 @@ export default function TiktokPanel(props: any) {
 
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <button type="button" className={`${styles.actionBtn} ${styles.connectBtn}`} onClick={() => void saveTiktokProfileUrl?.()} disabled={tiktokLoading}>
-              {tiktokLoading ? "Enregistrement..." : "Enregistrer"}
+              {tiktokLoading ? i18nT("enregistrement_9bf1058a") : i18nT("enregistrer_f7c8bcd8")}
             </button>
             <a
               href={tiktokProfileUrl || "#"}
@@ -125,8 +127,7 @@ export default function TiktokPanel(props: any) {
               className={`${styles.actionBtn} ${styles.viewBtn}`}
               style={{ pointerEvents: tiktokProfileUrl ? "auto" : "none", opacity: tiktokProfileUrl ? 1 : 0.5 }}
             >
-              Voir le compte
-            </a>
+              {i18nT("voir_le_compte_1cbd7501")}{" "}</a>
           </div>
         </div>
 
@@ -136,11 +137,10 @@ export default function TiktokPanel(props: any) {
 
       <div style={cardStyle}>
         <div className={styles.blockHeaderRow}>
-          <div className={styles.blockTitle}>Publication TikTok</div>
+          <div className={styles.blockTitle}>{i18nT("publication_tiktok_a6d8d0b0")}</div>
         </div>
         <div className={styles.blockSub}>
-          Les paramètres sensibles TikTok ne sont pas enregistrés ici. À chaque publication depuis Booster, iNrCy demandera la visibilité, les interactions et les déclarations nécessaires avant l’envoi.
-        </div>
+          {i18nT("les_parametres_sensibles_tiktok_ne_sont_0863053b")}{" "}</div>
       </div>
     </div>
   );

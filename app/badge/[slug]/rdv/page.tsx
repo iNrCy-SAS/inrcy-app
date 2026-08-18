@@ -1,3 +1,4 @@
+import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -34,11 +35,12 @@ function isRejectedAgendaEvent(event: Record<string, unknown>) {
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const i18nT = await getTranslations("public");
   const resolvedParams = await params;
   const slug = trim(resolvedParams.slug);
   const iconUrl = getBadgeIconUrl(slug);
   const userId = extractInrBadgeUserIdFromSlug(slug);
-  let title = "Prendre RDV - iNr'Badge";
+  let title = i18nT("prendre_rdv_inr_badge_4997d8db");
 
   if (userId) {
     const [businessRes, toolsRes] = await Promise.all([

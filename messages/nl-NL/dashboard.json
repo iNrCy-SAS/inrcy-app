@@ -1,0 +1,385 @@
+{
+  "topbar": {
+    "brandTag": "Business generator",
+    "admin": "Admin",
+    "adminTitle": "iNrCy admin",
+    "notifications": "Meldingen",
+    "openNotifications": "Meldingen openen",
+    "inrAgentOpen": "Open iNr’Agent",
+    "inrAgentDisabled": "iNr’Agent is off for this account",
+    "inrAgentAction": "action",
+    "inrAgentActions": "actions",
+    "inrAgentPending": "te keuren",
+    "gps": "Gebruik-GPS",
+    "gpsAria": "Gebruik-GPS openen",
+    "contact": "Contact",
+    "openMenu": "Menu openen",
+    "menu": "Menu"
+  },
+  "language": {
+    "buttonAria": "Taal wijzigen",
+    "buttonTitle": "App-taal",
+    "panelAria": "Kies taal"
+  },
+  "userMenu": {
+    "title": "Gebruikersmenu",
+    "label": "Menu",
+    "profileIncomplete": "Profiel mist",
+    "activityIncomplete": "Activiteit mist",
+    "completeProfileHint": "Klik om uw profiel te voltooien en iNrCy te activeren.",
+    "completeActivityHint": "Klik om uw activiteit te voltooien en iNrCy te activeren.",
+    "account": "iNrCytizen account",
+    "profile": "Mijn profiel",
+    "activity": "Mijn activiteit",
+    "preferences": "Instellingen",
+    "ai": "AI-instellingen",
+    "media": "Mediatheek",
+    "notifications": "Meldingen",
+    "subscription": "Mijn pakket",
+    "inertia": "Mijn inertia",
+    "shop": "Shop",
+    "referral": "iNrCy aanbevelen",
+    "legal": "Juridische info",
+    "rgpd": "Mijn data (GDPR)",
+    "logout": "Uitloggen"
+  },
+  "notifications": {
+    "aria": "Meldingen",
+    "title": "Acties",
+    "subtitle": "Uw cockpit herinnert op tijd.",
+    "settings": "Instellingen",
+    "markAllRead": "Alles lezen",
+    "markAllReadConfirmTitle": "Alle meldingen als gelezen markeren?",
+    "markAllReadConfirmMessage": "Ze worden daarna definitief verwijderd.",
+    "markAllReadConfirmCancel": "Annuleren",
+    "loading": "Meldingen laden…",
+    "empty": "De bel is leeg. Nieuwe businessmeldingen komen hier.",
+    "delete": "Melding wissen",
+    "markRead": "Gelezen"
+  },
+  "drawer": {
+    "close": "Sluiten",
+    "titles": {
+      "contact": "Contact",
+      "compte": "iNrCytizen account",
+      "profil": "Mijn profiel",
+      "preferences": "Instellingen",
+      "inrbadge": "iNr'Badge settings",
+      "activite": "Mijn activiteit",
+      "ia": "AI-instellingen",
+      "abonnement": "Mijn pakket",
+      "legal": "Juridische info",
+      "rgpd": "Mijn data (GDPR)",
+      "mails": "Mail-instellingen",
+      "agenda": "iNr’Calendar instellingen",
+      "site_inrcy": "Settings — Site iNrCy",
+      "site_web": "Instellingen — Website",
+      "instagram": "Settings — Instagram",
+      "linkedin": "Settings — LinkedIn",
+      "gmb": "Settings — Google-bedrijfsprofiel",
+      "inr_search": "Settings — iNr’Search",
+      "facebook": "Settings — Facebook",
+      "tiktok": "Settings — TikTok",
+      "youtube_shorts": "Settings — YouTube",
+      "pinterest": "Settings — Pinterest",
+      "inertie": "Mijn inertia",
+      "boutique": "Shop",
+      "parrainage": "iNrCy aanbevelen",
+      "notifications": "Meldingen",
+      "documents": "Standaardwaarden"
+    }
+  },
+  "hero": {
+    "powerDialogAria": "Generator power detail",
+    "powerPanelTitle": "Power detail",
+    "kicker": "Uw iNrCy cockpit",
+    "title": "Generator live!",
+    "subtitle": "Alle kanalen voeden nu één motor.",
+    "flowContacts": "Publicaties",
+    "flowQuotes": "Zichtbaarheid",
+    "flowRevenue": "Resultaten",
+    "powerTitle": "Generator kracht:",
+    "powerDetailsAria": "See generator power detail",
+    "powerDetailsTitle": "See detail",
+    "fullPower": "Volle kracht",
+    "stepSingular": "stap",
+    "stepPlural": "stappen",
+    "remainingSingular": "over",
+    "remainingPlural": "over",
+    "progressAria": "Generator power",
+    "nextRise": "Volgende boost:",
+    "completeHint": "Alle hefbomen voeden de machine.",
+    "generatorTitle": "iNrCy Generator",
+    "generatorHelpTitle": "Hulp: iNrCy Generator",
+    "generatorDesc": "Een weerspiegeling van de effectiviteit van uw communicatiekanalen.",
+    "settingsAria": "Generatorinstellingen openen",
+    "settingsTitle": "Generatorinstellingen",
+    "statsAria": "Zie iNr’Stats",
+    "refreshAria": "Refresh generator",
+    "refreshTitle": "Refresh",
+    "active": "Actief",
+    "waiting": "Wacht",
+    "inertiaUnits": "Inertia Units",
+    "channels": "kanalen",
+    "potentialRevenue": "30-d omzet",
+    "basedOnProfile": "Op profiel + kansen gebaseerd",
+    "opportunities": "Kansen",
+    "projection30": "30-d prognose",
+    "capturedLeads": "Aanvragen",
+    "last7": "Laatste 7 dagen",
+    "last30": "Laatste 30 dagen"
+  },
+  "generatorSteps": {
+    "profile": {
+      "label": "Profiel voltooien",
+      "shortLabel": "Profiel"
+    },
+    "activity": {
+      "label": "Activiteit vullen",
+      "shortLabel": "Activiteit"
+    },
+    "site_link": {
+      "label": "Website verbinden",
+      "shortLabel": "Website"
+    },
+    "site_ga4": {
+      "label": "GA4 koppelen",
+      "shortLabel": "GA4"
+    },
+    "site_gsc": {
+      "label": "GSC koppelen",
+      "shortLabel": "GSC"
+    },
+    "gmb": {
+      "label": "Google-bedrijfsprofiel verbinden",
+      "shortLabel": "Google-bedrijfsprofiel"
+    },
+    "facebook": {
+      "label": "Facebook verbinden",
+      "shortLabel": "Facebook"
+    },
+    "instagram": {
+      "label": "Instagram verbinden",
+      "shortLabel": "Instagram"
+    },
+    "pro_network": {
+      "label": "LinkedIn of Pinterest",
+      "shortLabel": "LinkedIn / Pinterest"
+    },
+    "inr_search": {
+      "label": "Publish iNr’Search",
+      "shortLabel": "iNr’Search"
+    },
+    "mails": {
+      "label": "Mails verbinden",
+      "shortLabel": "Mails"
+    },
+    "video": {
+      "label": "TikTok of YouTube",
+      "shortLabel": "TikTok / YouTube"
+    }
+  },
+  "channels": {
+    "title": "Kanalen",
+    "helpTitle": "Hulp: Kanalen",
+    "connected": "verbonden",
+    "available": "beschikbaar",
+    "displayAria": "Kanaalweergave",
+    "list": "Lijst",
+    "carousel": "Carrousel",
+    "railAria": "Kanalenlijst",
+    "positionAria": "Carrouselpositie",
+    "prev": "Vorig kanaal",
+    "next": "Volgend kanaal",
+    "goToChannel": "Naar kanaal",
+    "showChannel": "Tonen",
+    "connectedAria": "kanalen verbonden van"
+  },
+  "modules": {
+    "requiredSetupLocked": "Your profile and/or business activity are incomplete.",
+    "dashboardTitle": "Dashboard",
+    "dashboardSub": "Sturing",
+    "statsSub": "Al uw leads zichtbaar",
+    "mailsSettingsAria": "Mail-instellingen",
+    "mailsSub": "Alle berichten starten hier",
+    "agendaSettingsAria": "Agenda-instellingen",
+    "agendaSub": "Maak afspraken van contacten",
+    "crmSub": "Leads en klanten centraal",
+    "gearboxTitle": "Versnelling",
+    "gearboxSub": "Conversion",
+    "boosterStatsTitle": "Booster summary",
+    "boosterSub": "Kanalen activeren",
+    "publishTitle": "Booster",
+    "publishCta": "Posten",
+    "propulserTitle": "Groeien",
+    "propulserSub": "Versnel uw activiteit",
+    "propulserCta": "Groeien",
+    "fideliserTitle": "Binden",
+    "fideliserSub": "Klanten binden",
+    "fideliserCta": "Communiceren",
+    "cashSettingsTitle": "Standaardwaarden",
+    "cashTitle": "Innen",
+    "cashSub": "Offertes en facturen",
+    "cashCta": "Innen",
+    "reputationTitle": "E-reputation",
+    "reputationSub": "Beheer Google reviews",
+    "reputationCta": "Beheer",
+    "cashModalTitle": "Innen",
+    "cashModalLabel": "Offertes en facturen",
+    "cashModalSettings": "Instellingen",
+    "cashModalIntroStrong": "Innen",
+    "cashModalIntroText": "bundelt offertes en facturen zonder gewoonten te veranderen. Kies de actie.",
+    "invoiceEyebrow": "Facturen",
+    "invoiceTitle": "Factuur maken",
+    "invoiceText": "Factureer een klant en volg betaling.",
+    "invoiceCta": "Factuur →",
+    "quoteEyebrow": "Offertes",
+    "quoteTitle": "Offerte maken",
+    "quoteText": "Prijs een aanvraag en start een kans.",
+    "quoteCta": "Offerte →"
+  },
+  "moduleCards": {
+    "inrbadge": {
+      "name": "iNr'Badge",
+      "description": "Bedrijf als QR-code",
+      "view": "Badge bekijken",
+      "connect": "Instellen"
+    },
+    "mails": {
+      "name": "Mails",
+      "description": "Bereik uw netwerk ✉️",
+      "view": "Open iNr’Send",
+      "connect": "Instellen"
+    },
+    "site_inrcy": {
+      "name": "Site iNrCy",
+      "description": "Uw leadmotor ⚡",
+      "view": "Site bekijken",
+      "connect": "Google Analytics koppelen",
+      "siteOnlyTitle": "Alleen met iNrCy-site"
+    },
+    "site_web": {
+      "name": "Website",
+      "description": "Bezoek wordt lead 💡",
+      "view": "Site bekijken",
+      "connect": "Google Analytics koppelen"
+    },
+    "gmb": {
+      "name": "Google-bedrijfsprofiel",
+      "description": "Meer oproepen 📞",
+      "view": "Pagina bekijken",
+      "connect": "Instellen"
+    },
+    "inr_search": {
+      "name": "iNr’Search",
+      "description": "Uw door iNrCy gemaakte pagina 🔎",
+      "view": "Mijn pagina bekijken",
+      "connect": "Instellen"
+    },
+    "facebook": {
+      "name": "Facebook",
+      "description": "Creëert vraag 📈",
+      "view": "Account bekijken",
+      "connect": "Facebook koppelen"
+    },
+    "instagram": {
+      "name": "Instagram",
+      "description": "Merk groeit 📸",
+      "view": "Account bekijken",
+      "connect": "Instagram koppelen"
+    },
+    "linkedin": {
+      "name": "LinkedIn",
+      "description": "Versterkt expertise 💼",
+      "view": "Account bekijken",
+      "connect": "LinkedIn koppelen"
+    },
+    "tiktok": {
+      "name": "TikTok",
+      "description": "Bereik groeit 🎬",
+      "view": "Account bekijken",
+      "connect": "Instellen"
+    },
+    "youtube_shorts": {
+      "name": "YouTube",
+      "description": "Video verspreiden ▶️",
+      "view": "Kanaal bekijken",
+      "connect": "Instellen"
+    },
+    "pinterest": {
+      "name": "Pinterest",
+      "description": "Inspireert klanten 📌",
+      "view": "Account bekijken",
+      "connect": "Instellen"
+    },
+    "inr_agent": {
+      "name": "iNr’Agent",
+      "description": "Automatiseert acties 🤖",
+      "view": "Openen",
+      "connect": "Instellen"
+    }
+  },
+  "bubble": {
+    "viewFallback": "Bekijken",
+    "configure": "Instellen",
+    "disabled": "Optie uit",
+    "open": "Openen"
+  },
+  "status": {
+    "connected": "Verbonden",
+    "disconnected": "Losgekoppeld",
+    "toConnect": "Koppelen",
+    "toConfigure": "Instellen",
+    "toUpdate": "Bijwerken",
+    "reconnect": "Opnieuw koppelen",
+    "disabled": "Uit",
+    "noSite": "Geen site",
+    "soon": "Binnenkort",
+    "premiumPlan": "🔒 Premium-pakket",
+    "notSubscribed": "Niet afgesloten",
+    "syncing": "Synchronisatie…",
+    "pagePublished": "Gepubliceerde pagina",
+    "pageUnavailable": "Pagina niet beschikbaar",
+    "profileChecking": "Uw verificatie uitvoeren Profiel…"
+  },
+  "onboarding": {
+    "initialSetup": "Eerste configuratie",
+    "progress": "Eerste configuratie · Stap {current}/{total}",
+    "unsavedPrefix": "Niet-opgeslagen wijzigingen gaan verloren.",
+    "keepDefaultsTitle": "Standaardinstellingen behouden?",
+    "continueLaterTitle": "Later doorgaan?",
+    "keepDefaultsMessage": "Je AI behoudt de aanbevolen standaardinstellingen. U kunt deze later aanpassen bij AI-instellingen.",
+    "continueLaterMessage": "Als je deze stap overslaat, kunnen niet alle iNrCy-tools worden geactiveerd. U kunt de configuratie later hervatten vanuit het dashboard. Wilt u later doorgaan?",
+    "keepDefaults": "Standaard behouden",
+    "continueLater": "Later doorgaan",
+    "settings": "Instellingen",
+    "exitWithoutSavingTitle": "Afsluiten zonder op te slaan?",
+    "exitWithoutSavingMessage": "Dit venster bevat niet-opgeslagen wijzigingen. Als je het nu sluit, gaan deze verloren.",
+    "closeWithoutSaving": "Sluiten zonder opslaan",
+    "returnToSetup": "Terug naar configuratie",
+    "continueEditing": "Doorgaan met bewerken",
+    "skip": "Overslaan",
+    "aiReadyTitle": "Je AI is al klaar voor gebruik",
+    "aiReadyDescription": "iNrCy gebruikt al de aanbevolen instellingen. U kunt de engine, toon en stijl nu aanpassen of de standaardconfiguratie behouden.",
+    "customizeAi": "Mijn AI aanpassen",
+    "requiredSetup": "Eerste configuratie vereist…"
+  },
+  "standard": {
+    "pilotTitle": "Configuratiescherm",
+    "pilotSubtitle": "Meten, volgen en bewaren",
+    "statsDescription": "Meet uw impact.",
+    "statsCta": "Bekijk statistieken",
+    "sendDescription": "Vind al uw publicaties.",
+    "sendCta": "Bekijk geschiedenis",
+    "reputationName": "Reputatie",
+    "reputationDescription": "Beheer uw beoordelingen Google",
+    "reputationCta": "Beheer mijn beoordelingen",
+    "loading": "Laden…",
+    "boosterEyebrow": "Publiceren via meerdere kanalen",
+    "boosterLine1": "Publiceren overal,",
+    "boosterLine2": "in één stap.",
+    "boosterCta": "Een publicatie maken",
+    "boosterSummaryAria": "De balans openen Booster",
+    "boosterSummary": "Balans"
+  }
+}

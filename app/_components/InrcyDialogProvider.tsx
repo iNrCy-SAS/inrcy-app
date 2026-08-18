@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import styles from "../dashboard/dashboard.module.css";
 import { INRCY_DIALOG_EVENT, type InrcyDialogRequest } from "@/lib/inrcyDialog";
@@ -13,20 +16,21 @@ function splitMessage(message: string): string[] {
     .filter(Boolean);
 }
 
-function getDialogCopy(dialog: DialogState) {
+function getDialogCopy(dialog: DialogState, i18nT: (key: string) => string) {
   const isPrompt = dialog.type === "prompt";
   const variant = dialog.options.variant || "warning";
 
   return {
-    eyebrow: dialog.options.eyebrow || (variant === "danger" ? "Action sensible" : "Confirmation"),
-    title: dialog.options.title || (isPrompt ? "Saisir une information" : "Confirmer l’action"),
-    confirmLabel: dialog.options.confirmLabel || (isPrompt ? "Valider" : variant === "danger" ? "Confirmer" : "Continuer"),
-    cancelLabel: dialog.options.cancelLabel || "Annuler",
+    eyebrow: dialog.options.eyebrow || (variant === "danger" ? i18nT("action_sensible_d1f29317") : i18nT("confirmation_3424edc2")),
+    title: dialog.options.title || (isPrompt ? i18nT("saisir_une_information_41c060f6") : i18nT("confirmer_l_action_d1682c9c")),
+    confirmLabel: dialog.options.confirmLabel || (isPrompt ? i18nT("valider_be4220f7") : variant === "danger" ? i18nT("confirmer_80a664c8") : i18nT("continuer_129ffff9")),
+    cancelLabel: dialog.options.cancelLabel || i18nT("annuler_49ba3292"),
     variant,
   };
 }
 
 export default function InrcyDialogProvider() {
+  const i18nT = useTranslations("shell");
   const [dialog, setDialog] = useState<DialogState | null>(null);
   const [promptValue, setPromptValue] = useState("");
   const [promptError, setPromptError] = useState("");
@@ -128,14 +132,14 @@ export default function InrcyDialogProvider() {
 
   if (!dialog) return null;
 
-  const copy = getDialogCopy(dialog);
+  const copy = getDialogCopy(dialog, i18nT);
   const lines = splitMessage(dialog.options.message);
   const isDanger = copy.variant === "danger";
 
   const submitPrompt = () => {
     const value = promptValue.trim();
     if (dialog.type === "prompt" && dialog.options.required !== false && !value) {
-      setPromptError("Ce champ est obligatoire.");
+      setPromptError(i18nT("ce_champ_est_obligatoire_95840ee3"));
       return;
     }
     finish(value);
@@ -147,7 +151,7 @@ export default function InrcyDialogProvider() {
         <div style={glowStyle} />
         <div style={headerStyle}>
           <span style={pillStyle}>{copy.eyebrow}</span>
-          <button type="button" className={styles.ghostBtn} style={closeStyle} onClick={() => finish(null)} aria-label="Fermer">
+          <button type="button" className={styles.ghostBtn} style={closeStyle} onClick={() => finish(null)} aria-label={i18nT("fermer_5ab4ec64")}>
             ×
           </button>
         </div>

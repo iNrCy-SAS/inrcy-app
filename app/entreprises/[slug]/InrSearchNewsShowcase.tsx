@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
@@ -32,6 +35,7 @@ function excerpt(value: string, max = 220) {
 }
 
 export default function InrSearchNewsShowcase({ companyName, publications }: Props) {
+  const i18nT = useTranslations("public");
   const [activeIndex, setActiveIndex] = useState(0);
   const [modalOpen, setModalOpen] = useState(false);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -85,15 +89,15 @@ export default function InrSearchNewsShowcase({ companyName, publications }: Pro
     <div className={styles.newsOrbitExperience}>
       <div className={styles.newsOrbitHeader}>
         <div>
-          <span className={styles.newsOrbitEyebrow}>L’entreprise en mouvement</span>
-          <h2 id="actualites-title">Les actualités de {companyName}</h2>
-          <p>Découvrez les dernières nouvelles, réalisations et temps forts partagés par {companyName}.</p>
+          <span className={styles.newsOrbitEyebrow}>{i18nT("l_entreprise_en_mouvement_080a5c95")}</span>
+          <h2 id="actualites-title">{i18nT("les_actualites_de_value_d3ad6de3", { value0: companyName })}</h2>
+          <p>{i18nT("decouvrez_les_dernieres_nouvelles_realisations_e_3175ec71", { value0: companyName })}</p>
         </div>
         {total ? (
-          <div className={styles.newsOrbitNavigator} aria-label="Naviguer entre les actualités">
-            <button type="button" onClick={() => move(-1)} aria-label="Actualité précédente">←</button>
+          <div className={styles.newsOrbitNavigator} aria-label={i18nT("naviguer_entre_les_actualites_85b38268")}>
+            <button type="button" onClick={() => move(-1)} aria-label={i18nT("actualite_precedente_8a78294e")}>←</button>
             <span><strong>{String(activeIndex + 1).padStart(2, "0")}</strong><i>/</i>{String(total).padStart(2, "0")}</span>
-            <button type="button" onClick={() => move(1)} aria-label="Actualité suivante">→</button>
+            <button type="button" onClick={() => move(1)} aria-label={i18nT("actualite_suivante_7d6d1ce1")}>→</button>
           </div>
         ) : null}
       </div>
@@ -103,7 +107,7 @@ export default function InrSearchNewsShowcase({ companyName, publications }: Pro
           className={styles.newsOrbitStage}
           tabIndex={0}
           onKeyDown={onStageKeyDown}
-          aria-label="Actualités de l’entreprise. Utilisez les flèches pour naviguer."
+          aria-label={i18nT("actualites_de_l_entreprise_utilisez_les_fab2ee3c")}
         >
           <div className={styles.newsPulseGenerator} aria-hidden="true"><span /><span /><i /></div>
 
@@ -123,7 +127,7 @@ export default function InrSearchNewsShowcase({ companyName, publications }: Pro
                   loop
                   playsInline
                   preload="metadata"
-                  aria-label={`Vidéo de l’actualité ${activePublication.title}`}
+                  aria-label={i18nT("video_de_l_actualite_value_3926fdf3", { value0: activePublication.title })}
                   onClick={(event) => event.stopPropagation()}
                   onKeyDown={(event) => event.stopPropagation()}
                 />
@@ -136,12 +140,12 @@ export default function InrSearchNewsShowcase({ companyName, publications }: Pro
             </span>
             <span className={styles.newsOrbitFocusContent}>
               <span className={styles.newsOrbitFocusMeta}>
-                <small>Dernier signal</small>
+                <small>{i18nT("dernier_signal_e6e228e7")}</small>
                 {activePublication.createdAt ? <time dateTime={activePublication.createdAt}>{formatDate(activePublication.createdAt)}</time> : null}
               </span>
               <strong>{activePublication.title}</strong>
               {activePublication.content ? <span className={styles.newsOrbitFocusExcerpt}>{excerpt(activePublication.content, 250)}</span> : null}
-              <span className={styles.newsOrbitRead}>Lire l’actualité <b aria-hidden="true">↗</b></span>
+              <span className={styles.newsOrbitRead}>{i18nT("lire_l_actualite_e8ce9eb5")}{" "}<b aria-hidden="true">↗</b></span>
             </span>
           </div>
 
@@ -149,14 +153,14 @@ export default function InrSearchNewsShowcase({ companyName, publications }: Pro
       ) : (
         <div className={styles.newsOrbitEmpty} role="status">
           <div className={styles.newsOrbitEmptyGenerator} aria-hidden="true"><span /><span /><i /></div>
-          <small>Signal en préparation</small>
-          <h3>Les prochaines nouvelles seront publiées ici.</h3>
-          <p>{companyName} partagera prochainement ses actualités et ses temps forts.</p>
+          <small>{i18nT("signal_en_preparation_34b14ef0")}</small>
+          <h3>{i18nT("les_prochaines_nouvelles_seront_publiees_ici_c9e19910")}</h3>
+          <p>{i18nT("value_partagera_prochainement_ses_actualites_et_ca82e74a", { value0: companyName })}</p>
         </div>
       )}
 
       {total ? (
-        <div className={styles.newsOrbitRail} data-local-carousel role="list" aria-label="Chronologie des actualités">
+        <div className={styles.newsOrbitRail} data-local-carousel role="list" aria-label={i18nT("chronologie_des_actualites_7762b0d3")}>
           {publications.map((publication, index) => (
             <button
               type="button"
@@ -165,7 +169,7 @@ export default function InrSearchNewsShowcase({ companyName, publications }: Pro
               key={`${publication.id}-rail`}
               onClick={() => setActiveIndex(index)}
               role="listitem"
-              aria-label={`Afficher ${publication.title}`}
+              aria-label={i18nT("afficher_value_94359678", { value0: publication.title })}
               aria-current={index === activeIndex ? "true" : undefined}
             >
               <span>{String(index + 1).padStart(2, "0")}</span>
@@ -188,8 +192,8 @@ export default function InrSearchNewsShowcase({ companyName, publications }: Pro
                 if (event.currentTarget === event.target) setModalOpen(false);
               }}
             >
-              <button ref={closeButtonRef} type="button" className={styles.newsOrbitModalClose} onClick={() => setModalOpen(false)} aria-label="Fermer l’actualité">×</button>
-              <button type="button" className={`${styles.newsOrbitModalArrow} ${styles.newsOrbitModalArrowPrevious}`} onClick={() => move(-1)} aria-label="Actualité précédente">←</button>
+              <button ref={closeButtonRef} type="button" className={styles.newsOrbitModalClose} onClick={() => setModalOpen(false)} aria-label={i18nT("fermer_l_actualite_4578ea68")}>×</button>
+              <button type="button" className={`${styles.newsOrbitModalArrow} ${styles.newsOrbitModalArrowPrevious}`} onClick={() => move(-1)} aria-label={i18nT("actualite_precedente_8a78294e")}>←</button>
               <article className={styles.newsOrbitModal}>
                 {activePublication.videoUrl ? (
                   <div className={styles.newsOrbitModalMedia}>
@@ -199,7 +203,7 @@ export default function InrSearchNewsShowcase({ companyName, publications }: Pro
                       playsInline
                       preload="metadata"
                       poster={activePublication.videoThumbnailUrl || activePublication.imageUrl || undefined}
-                      aria-label={`Vidéo de l’actualité ${activePublication.title}`}
+                      aria-label={i18nT("video_de_l_actualite_value_3926fdf3", { value0: activePublication.title })}
                       onClick={(event) => event.stopPropagation()}
                       onKeyDown={(event) => event.stopPropagation()}
                     >
@@ -211,14 +215,14 @@ export default function InrSearchNewsShowcase({ companyName, publications }: Pro
                   <div className={styles.newsOrbitModalMedia}><Image key={activePublication.id} src={activePublication.imageUrl} alt={`${activePublication.title} – ${companyName}`} width={1800} height={1200} sizes="(max-width: 920px) 94vw, 70vw" unoptimized /><span /></div>
                 ) : null}
                 <div className={styles.newsOrbitModalContent}>
-                  <span className={styles.newsOrbitModalKicker}>Actualité de {companyName}</span>
+                  <span className={styles.newsOrbitModalKicker}>{i18nT("actualite_de_value_6ebd8b93", { value0: companyName })}</span>
                   {activePublication.createdAt ? <time dateTime={activePublication.createdAt}>{formatDate(activePublication.createdAt)}</time> : null}
                   <h2 id="news-orbit-modal-title">{activePublication.title}</h2>
                   <p id="news-orbit-modal-content">{activePublication.content}</p>
                   <span className={styles.newsOrbitModalCount}>{String(activeIndex + 1).padStart(2, "0")} / {String(total).padStart(2, "0")}</span>
                 </div>
               </article>
-              <button type="button" className={`${styles.newsOrbitModalArrow} ${styles.newsOrbitModalArrowNext}`} onClick={() => move(1)} aria-label="Actualité suivante">→</button>
+              <button type="button" className={`${styles.newsOrbitModalArrow} ${styles.newsOrbitModalArrowNext}`} onClick={() => move(1)} aria-label={i18nT("actualite_suivante_7d6d1ce1")}>→</button>
             </div>,
             document.body,
           )

@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import { useMemo, useState, type CSSProperties, type KeyboardEvent } from "react";
 import styles from "./inrSearchPublic.module.css";
 
@@ -56,6 +59,7 @@ function ServiceGlyph({ index }: { index: number }) {
 }
 
 export default function InrSearchServicesOrbit({ companyName, services, audiences }: Props) {
+  const i18nT = useTranslations("public");
   const [activeIndex, setActiveIndex] = useState(0);
   const total = services.length;
   const activeService = services[activeIndex] || services[0];
@@ -98,17 +102,16 @@ export default function InrSearchServicesOrbit({ companyName, services, audience
     <div className={styles.servicesOrbitExperience} onKeyDown={onKeyDown}>
       <div className={styles.servicesOrbitHeader}>
         <div>
-          <span className={styles.servicesOrbitEyebrow}>Accélérateur d’expertises</span>
-          <h2 id="prestations-title">Les prestations de {companyName}</h2>
+          <span className={styles.servicesOrbitEyebrow}>{i18nT("accelerateur_d_expertises_5ff474b0")}</span>
+          <h2 id="prestations-title">{i18nT("les_prestations_de_value_39d5ec75", { value0: companyName })}</h2>
           <p>
-            Découvrez les services proposés par {companyName} et sélectionnez celui qui correspond à votre besoin.
-          </p>
+            {i18nT("decouvrez_les_services_proposes_par_value_cc6de04f", { value0: companyName })}</p>
         </div>
 
-        <div className={styles.servicesOrbitNavigator} aria-label="Naviguer entre les expertises">
-          <button type="button" onClick={() => move(-1)} aria-label="Expertise précédente">←</button>
+        <div className={styles.servicesOrbitNavigator} aria-label={i18nT("naviguer_entre_les_expertises_a3d64bb8")}>
+          <button type="button" onClick={() => move(-1)} aria-label={i18nT("expertise_precedente_16fa7ea6")}>←</button>
           <span><strong>{String(activeIndex + 1).padStart(2, "0")}</strong> / {String(total).padStart(2, "0")}</span>
-          <button type="button" onClick={() => move(1)} aria-label="Expertise suivante">→</button>
+          <button type="button" onClick={() => move(1)} aria-label={i18nT("expertise_suivante_6b902217")}>→</button>
         </div>
       </div>
 
@@ -119,22 +122,22 @@ export default function InrSearchServicesOrbit({ companyName, services, audience
             <span className={styles.servicesOrbitGlyph}><ServiceGlyph index={activeIndex} /></span>
             <span>{String(activeIndex + 1).padStart(2, "0")}</span>
           </div>
-          <small>Expertise sélectionnée</small>
+          <small>{i18nT("expertise_selectionnee_3ab52571")}</small>
           <h3>{activeService?.name}</h3>
           <p>{activeService?.description}</p>
           <a href="#contact" data-inrsearch-contact-trigger data-inrsearch-action="service_contact" data-inrsearch-target="#contact-modal">
-            Activer cette expertise <span aria-hidden="true">↗</span>
+            {i18nT("activer_cette_expertise_3f1a78c0")}{" "}<span aria-hidden="true">↗</span>
           </a>
         </article>
 
-        <div className={styles.servicesAccelerator} role="list" aria-label="Expertises proposées">
+        <div className={styles.servicesAccelerator} role="list" aria-label={i18nT("expertises_proposees_dd812af6")}>
           <div className={styles.servicesAcceleratorRings} aria-hidden="true">
             <span />
             <span />
             <span />
           </div>
           <div className={styles.servicesAcceleratorCore} aria-hidden="true">
-            <span>iNr</span>
+            <span>{i18nT("inr_fe1e1b8a")}</span>
             <i />
           </div>
 
@@ -160,7 +163,7 @@ export default function InrSearchServicesOrbit({ companyName, services, audience
                 tabIndex={visible ? 0 : -1}
                 aria-hidden={visible ? undefined : true}
                 aria-current={active ? "true" : undefined}
-                aria-label={`Sélectionner ${service.name}`}
+                aria-label={i18nT("selectionner_value_b74d84aa", { value0: service.name })}
               >
                 <span className={styles.servicesOrbitGlyph}><ServiceGlyph index={index} /></span>
                 <strong>{service.name}</strong>
@@ -172,7 +175,7 @@ export default function InrSearchServicesOrbit({ companyName, services, audience
       </div>
 
       <div className={styles.servicesOrbitFooter}>
-        <div className={styles.servicesOrbitIndexList} data-local-carousel aria-label="Accès direct aux expertises">
+        <div className={styles.servicesOrbitIndexList} data-local-carousel aria-label={i18nT("acces_direct_aux_expertises_a8f804fa")}>
           {services.map((service, index) => (
             <button
               type="button"
@@ -184,7 +187,7 @@ export default function InrSearchServicesOrbit({ companyName, services, audience
             </button>
           ))}
         </div>
-        <div className={styles.servicesMobileSelector} aria-label="Sélecteur compact des expertises">
+        <div className={styles.servicesMobileSelector} aria-label={i18nT("selecteur_compact_des_expertises_d0423415")}>
           <div className={styles.mobileSelectorActive} aria-live="polite">
             <span>{String(activeIndex + 1).padStart(2, "0")}</span>
             <i aria-hidden="true" />
@@ -196,7 +199,7 @@ export default function InrSearchServicesOrbit({ companyName, services, audience
                 type="button"
                 key={`${service.name}-mobile-index`}
                 onClick={() => setActiveIndex(index)}
-                aria-label={`Afficher l’expertise ${String(index + 1).padStart(2, "0")} : ${service.name}`}
+                aria-label={i18nT("afficher_l_expertise_value_value_5f93e456", { value0: String(index + 1).padStart(2, "0"), value1: service.name })}
                 title={service.name}
               >
                 {String(index + 1).padStart(2, "0")}
@@ -206,7 +209,7 @@ export default function InrSearchServicesOrbit({ companyName, services, audience
         </div>
         {audiences.length ? (
           <div className={styles.servicesOrbitAudience}>
-            <span>Conçu notamment pour</span>
+            <span>{i18nT("concu_notamment_pour_a022b173")}</span>
             <div>{audiences.slice(0, 4).map((audience) => <strong key={audience}>{audience}</strong>)}</div>
           </div>
         ) : null}

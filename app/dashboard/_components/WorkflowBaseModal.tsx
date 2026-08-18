@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import { useEffect, useState } from "react";
 import styles from "../dashboard.module.css";
 
@@ -30,6 +33,7 @@ export default function BaseModal({
   maxWidth?: number | string;
   children: React.ReactNode;
 }) {
+  const i18nT = useTranslations("shell");
   const resolvedMaxWidth = typeof maxWidth === "number" ? `${maxWidth}px` : maxWidth;
   const [isMobileHeader, setIsMobileHeader] = useState(false);
 
@@ -190,10 +194,10 @@ export default function BaseModal({
                   className={[styles.ghostBtn, styles.modalCloseButton].join(" ")}
                   onClick={() => void onClose()}
                   style={isMobileHeader ? compactCloseBtnStyle : closeBtnStyle}
-                  aria-label="Fermer"
-                  title="Fermer"
+                  aria-label={i18nT("fermer_5ab4ec64")}
+                  title={i18nT("fermer_5ab4ec64")}
                 >
-                  <span className={styles.modalCloseDesktopLabel}>Fermer</span>
+                  <span className={styles.modalCloseDesktopLabel}>{i18nT("fermer_5ab4ec64")}</span>
                   <span className={styles.modalCloseMobileLabel} aria-hidden="true">×</span>
                 </button>
               </div>

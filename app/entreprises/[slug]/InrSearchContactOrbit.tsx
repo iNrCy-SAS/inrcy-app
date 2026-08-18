@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import InrSearchLeadForm from "./InrSearchLeadForm";
@@ -48,6 +51,7 @@ export default function InrSearchContactOrbit({
   websiteUrl,
   directionsUrl,
 }: Props) {
+  const i18nT = useTranslations("public");
   const [formOpen, setFormOpen] = useState(false);
   const [activeSignal, setActiveSignal] = useState<number | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -108,21 +112,21 @@ export default function InrSearchContactOrbit({
   }, [formOpen]);
 
   const signals: Signal[] = [
-    phone && phoneHref ? { key: "phone", label: "Appeler", value: phone, href: phoneHref, action: "phone", glyph: "☎" } : null,
-    email && emailHref ? { key: "email", label: "Écrire", value: email, href: emailHref, action: "email", glyph: "✉" } : null,
-    addressLine ? { key: "location", label: "Localiser", value: addressLine, href: directionsUrl || "#contact", action: directionsUrl ? "directions" : "", glyph: "⌖" } : null,
-    websiteUrl ? { key: "website", label: "Site internet", value: "Visiter le site", href: websiteUrl, action: "website", glyph: "◎" } : null,
+    phone && phoneHref ? { key: "phone", label: i18nT("appeler_de49ee03"), value: phone, href: phoneHref, action: "phone", glyph: "☎" } : null,
+    email && emailHref ? { key: "email", label: i18nT("ecrire_4a2abc77"), value: email, href: emailHref, action: "email", glyph: "✉" } : null,
+    addressLine ? { key: "location", label: i18nT("localiser_863066a6"), value: addressLine, href: directionsUrl || "#contact", action: directionsUrl ? "directions" : "", glyph: "⌖" } : null,
+    websiteUrl ? { key: "website", label: i18nT("site_internet_bcabc83e"), value: "Visiter le site", href: websiteUrl, action: "website", glyph: "◎" } : null,
   ].filter(Boolean) as Signal[];
 
   return (
     <div className={styles.contactUniverse}>
       <div className={styles.contactOrbitHeader}>
         <div>
-          <span className={styles.contactOrbitEyebrow}>Générateur de convergence</span>
-          <h2>Contacter {companyName}</h2>
-          <p>Choisissez le moyen qui vous convient pour joindre {companyName} ou présenter directement votre besoin.</p>
+          <span className={styles.contactOrbitEyebrow}>{i18nT("generateur_de_convergence_a8282757")}</span>
+          <h2>{i18nT("contacter_value_78104412", { value0: companyName })}</h2>
+          <p>{i18nT("choisissez_le_moyen_qui_vous_convient_851e9a78", { value0: companyName })}</p>
         </div>
-        <span className={styles.contactOrbitStatus}><i /> {signals.length} voie{signals.length > 1 ? "s" : ""} de contact</span>
+        <span className={styles.contactOrbitStatus}><i /> {signals.length} voie{signals.length > 1 ? "s" : ""} {" "}{i18nT("de_contact_f4ec0c36")}</span>
       </div>
 
       <div
@@ -149,13 +153,13 @@ export default function InrSearchContactOrbit({
             height={126}
             fallbackClassName={styles.contactCoreFallback}
           />
-          <small>{profession || "Entreprise"}</small>
+          <small>{profession || i18nT("entreprise_d03e74b6")}</small>
           <strong>{companyName}</strong>
-          <em>{city || "À votre écoute"}</em>
-          <button type="button" onClick={(event) => openForm(event.currentTarget)}>Présenter mon besoin <span aria-hidden="true">↗</span></button>
+          <em>{city || i18nT("a_votre_ecoute_0a2de931")}</em>
+          <button type="button" onClick={(event) => openForm(event.currentTarget)}>{i18nT("presenter_mon_besoin_7ee41902")}{" "}<span aria-hidden="true">↗</span></button>
         </div>
 
-        <div className={styles.contactSignals} role="list" aria-label="Moyens de contacter l’entreprise">
+        <div className={styles.contactSignals} role="list" aria-label={i18nT("moyens_de_contacter_l_entreprise_cd56744a")}>
           {signals.map((signal, index) => (
             <a
               className={styles.contactSignal}
@@ -180,9 +184,9 @@ export default function InrSearchContactOrbit({
         </div>
 
         <div className={styles.contactLegalLinks}>
-          <a href="/legal/mentions-legales" target="_blank" rel="noopener noreferrer" data-inrsearch-gesture-ignore>Mentions légales</a>
+          <a href="/legal/mentions-legales" target="_blank" rel="noopener noreferrer" data-inrsearch-gesture-ignore>{i18nT("mentions_legales_414291e0")}</a>
           <span aria-hidden="true">·</span>
-          <a href="/legal/confidentialite" target="_blank" rel="noopener noreferrer" data-inrsearch-gesture-ignore>Confidentialité</a>
+          <a href="/legal/confidentialite" target="_blank" rel="noopener noreferrer" data-inrsearch-gesture-ignore>{i18nT("confidentialite_89314676")}</a>
         </div>
       </div>
 
@@ -193,13 +197,13 @@ export default function InrSearchContactOrbit({
               className={styles.contactModalBackdrop}
               role="dialog"
               aria-modal="true"
-              aria-label={`Présenter un besoin à ${companyName}`}
+              aria-label={i18nT("presenter_un_besoin_a_value_02a7ee58", { value0: companyName })}
               onMouseDown={(event) => {
                 if (event.target === event.currentTarget) setFormOpen(false);
               }}
             >
               <div className={styles.contactModalShell}>
-                <button ref={closeButtonRef} className={styles.contactModalClose} type="button" onClick={() => setFormOpen(false)} aria-label="Fermer le formulaire">×</button>
+                <button ref={closeButtonRef} className={styles.contactModalClose} type="button" onClick={() => setFormOpen(false)} aria-label={i18nT("fermer_le_formulaire_4122eb9c")}>×</button>
                 <InrSearchLeadForm slug={slug} companyName={companyName} modal />
               </div>
             </div>,

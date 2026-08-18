@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import {
   useCallback,
   useEffect,
@@ -90,16 +91,18 @@ import {
   clampPercent,
   getChannelDefaultCtaLabel,
   getChannelPublicationRequirements,
+  getLocalizedChannelPublicationRequirement,
+  getLocalizedChannelLabel,
   getAutomaticVideoSettingsForPublication,
   getDefaultCtaModeForChannel,
   normalizeBoosterPreferredCta,
-  getPublicationMediaLabel,
   getWebsiteUrlForChannel,
-  getImageFitLabel,
+  getLocalizedImageDecisionLabel,
+  getLocalizedImageFitLabel,
   getChannelSafetyBackgroundMode,
   getOptimizedTransform,
-  getVideoFormatLabel,
-  VIDEO_ADAPTATION_MODE_LABELS,
+  getLocalizedVideoAdaptationModeLabel,
+  getLocalizedVideoFormatLabel,
   VIDEO_FORMAT_ASPECT_RATIOS,
   extractVideoFramesForAI,
   fileToBoosterAiImagePayload,
@@ -325,6 +328,46 @@ function getBoosterMediaOptimizerRequirements(
   });
 }
 
+const GENERATION_PHASE_MESSAGE_KEYS: Record<GenerationProgressPhaseKey, string> = {
+  initialization: "generation_phase_initialization",
+  media_security: "generation_phase_media_security",
+  media_analysis: "generation_phase_media_analysis",
+  request_understanding: "generation_phase_request_understanding",
+  ai_writing: "generation_phase_ai_writing",
+  channel_adaptation: "generation_phase_channel_adaptation",
+  quality_control: "generation_phase_quality_control",
+  editor_preparation: "generation_phase_editor_preparation",
+  final_wait: "generation_phase_final_wait",
+  complete: "generation_phase_complete",
+};
+
+const PUBLICATION_PHASE_MESSAGE_KEYS: Record<PublicationProgressPhaseKey, string> = {
+  verification: "publication_request_received",
+  channel_verification: "publication_checking_channels",
+  media_verification: "publication_checking_media",
+  media_preparation: "progress_media_preparation",
+  file_preparation: "publication_preparing_sends",
+  channel_dispatch: "publication_publishing_channels",
+  publication_finalization: "publication_publishing_channels",
+  status_collection: "publication_platform_confirmation",
+  inrsend_recording: "publication_recording_inrsend",
+  final_wait: "publication_phase_final_wait",
+  complete: "publication_phase_complete",
+};
+
+const PUBLICATION_STAGE_MESSAGE_KEYS = [
+  "publication_request_received",
+  "publication_checking_channels",
+  "publication_checking_media",
+  "progress_media_preparation",
+  "publication_preparing_sends",
+  "publication_publishing_channels",
+  "publication_platform_confirmation",
+  "publication_recording_inrsend",
+  "publication_phase_final_wait",
+  "publication_phase_complete",
+] as const;
+
 export default function PublishModal({
   styles,
   onClose,
@@ -352,6 +395,11 @@ export default function PublishModal({
   }) => void;
   initialConnectedChannels?: Partial<Record<ChannelKey, boolean>>;
 }) {
+  const i18nT = useTranslations("booster");
+  const runtimeT = i18nT as unknown as (
+    key: string,
+    values?: Record<string, string | number>,
+  ) => string;
   const router = useRouter();
   const searchParams = useSearchParams();
   const publicationDraftIdParam = String(
@@ -820,6 +868,7 @@ export default function PublishModal({
       target?: number,
     ) => {
       const phase = getProgressPhase(GENERATION_PROGRESS_PHASES, key);
+      const phaseLabel = runtimeT(GENERATION_PHASE_MESSAGE_KEYS[key]);
       const phaseIndex = getProgressPhaseIndex(
         GENERATION_PROGRESS_PHASES,
         key,
@@ -829,7 +878,7 @@ export default function PublishModal({
       if (phaseIndex > generationPhaseIndexRef.current) {
         generationPhaseIndexRef.current = phaseIndex;
         setGenerationPhaseIndex(phaseIndex);
-        setGenerationPhaseLabel(phase.label);
+        setGenerationPhaseLabel(phaseLabel);
         setGenerationProgress((current) => Math.max(current, phase.start));
       }
 
@@ -841,13 +890,14 @@ export default function PublishModal({
         generationProgressTargetRef.current,
         nextTarget,
       );
-      setGenerationStage(detail || phase.label);
+      setGenerationStage(detail || phaseLabel);
     },
-    [],
+    [runtimeT],
   );
 
   const completeGenerationProgress = useCallback((detail: string) => {
     const phase = getProgressPhase(GENERATION_PROGRESS_PHASES, "complete");
+    const phaseLabel = runtimeT(GENERATION_PHASE_MESSAGE_KEYS.complete);
     const phaseIndex = getProgressPhaseIndex(
       GENERATION_PROGRESS_PHASES,
       "complete",
@@ -855,10 +905,10 @@ export default function PublishModal({
     generationPhaseIndexRef.current = phaseIndex;
     generationProgressTargetRef.current = 100;
     setGenerationPhaseIndex(phaseIndex);
-    setGenerationPhaseLabel(phase.label);
-    setGenerationStage(detail || phase.label);
+    setGenerationPhaseLabel(phaseLabel);
+    setGenerationStage(detail || phaseLabel);
     setGenerationProgress(100);
-  }, []);
+  }, [runtimeT]);
 
   const resetPublicationProgressPhases = useCallback(() => {
     phasedPublicationProgressRef.current = false;
@@ -875,6 +925,7 @@ export default function PublishModal({
       target?: number,
     ) => {
       const phase = getProgressPhase(PUBLICATION_PROGRESS_PHASES, key);
+      const phaseLabel = runtimeT(PUBLICATION_PHASE_MESSAGE_KEYS[key]);
       const phaseIndex = getProgressPhaseIndex(
         PUBLICATION_PROGRESS_PHASES,
         key,
@@ -887,7 +938,9 @@ export default function PublishModal({
         if (publicationWasIdle) {
           const visibleStage = getPublicationProgressStageForValue(0);
           setPublishProgressPhaseIndex(visibleStage.index);
-          setPublishProgressPhaseLabel(visibleStage.label);
+          setPublishProgressPhaseLabel(
+            runtimeT(PUBLICATION_STAGE_MESSAGE_KEYS[visibleStage.index - 1]),
+          );
         }
       }
 
@@ -899,13 +952,14 @@ export default function PublishModal({
         publishProgressTargetRef.current,
         nextTarget,
       );
-      setPublishProgressLabel(detail || phase.label);
+      setPublishProgressLabel(detail || phaseLabel);
     },
-    [],
+    [runtimeT],
   );
 
   const completePublicationProgress = useCallback((detail: string) => {
     const phase = getProgressPhase(PUBLICATION_PROGRESS_PHASES, "complete");
+    const phaseLabel = runtimeT(PUBLICATION_PHASE_MESSAGE_KEYS.complete);
     const phaseIndex = getProgressPhaseIndex(
       PUBLICATION_PROGRESS_PHASES,
       "complete",
@@ -914,10 +968,12 @@ export default function PublishModal({
     publishProgressTargetRef.current = 100;
     const visibleStage = getPublicationProgressStage("complete");
     setPublishProgressPhaseIndex(visibleStage.index);
-    setPublishProgressPhaseLabel(visibleStage.label);
-    setPublishProgressLabel(detail || phase.label);
+    setPublishProgressPhaseLabel(
+      runtimeT(PUBLICATION_STAGE_MESSAGE_KEYS[visibleStage.index - 1]),
+    );
+    setPublishProgressLabel(detail || phaseLabel);
     setPublishProgress(100);
-  }, []);
+  }, [runtimeT]);
 
   const setContextualPublishProgress = useCallback(
     (value: number | ((previous: number) => number)) => {
@@ -986,8 +1042,10 @@ export default function PublishModal({
     if (!saving || !phasedPublicationProgressRef.current) return;
     const visibleStage = getPublicationProgressStageForValue(publishProgress);
     setPublishProgressPhaseIndex(visibleStage.index);
-    setPublishProgressPhaseLabel(visibleStage.label);
-  }, [publishProgress, saving]);
+    setPublishProgressPhaseLabel(
+      runtimeT(PUBLICATION_STAGE_MESSAGE_KEYS[visibleStage.index - 1]),
+    );
+  }, [publishProgress, runtimeT, saving]);
 
   useEffect(() => {
     return () => {
@@ -1256,10 +1314,7 @@ export default function PublishModal({
       });
     } catch (error) {
       setPinterestBoardsError(
-        getSimpleFrenchErrorMessage(
-          error,
-          "Impossible de charger les tableaux Pinterest.",
-        ),
+        getSimpleFrenchErrorMessage(error, i18nT("pinterest_boards_load_failed")),
       );
     } finally {
       setPinterestBoardsLoading(false);
@@ -1624,7 +1679,7 @@ export default function PublishModal({
       ) {
         setGenerationProgressPhase(
           "media_analysis",
-          "Préparation des médias",
+          i18nT("progress_media_preparation"),
           37,
         );
       }
@@ -2018,7 +2073,7 @@ export default function PublishModal({
           timeoutMs,
           phase: `workspace_readiness_${purpose}`,
           timeoutMessage:
-            "Supabase est temporairement saturé pendant la sécurisation des médias. Réessayez dans quelques secondes.",
+            i18nT("supabase_est_temporairement_sature_pendant_la_06103ceb"),
         },
       );
     },
@@ -2202,13 +2257,13 @@ export default function PublishModal({
       (channel) => publishMediaModeByChannel[channel] === "video",
     );
     if (!videoChannels.length) {
-      setImgError("Sélectionnez au moins un canal en mode vidéo.");
+      setImgError(i18nT("selectionnez_au_moins_un_canal_en_39050ae9"));
       return;
     }
 
     const sourceSettings = videoSettingsByChannel[sourceChannel];
     if (!sourceSettings) {
-      setImgError("Choisissez d’abord le format vidéo à appliquer.");
+      setImgError(i18nT("choisissez_d_abord_le_format_video_170a3d1e"));
       return;
     }
 
@@ -2281,7 +2336,7 @@ export default function PublishModal({
     previewByKey,
     activeEditorImageKey,
     activeEditorTransform,
-    activeEditorDecisionLabel,
+    activeEditorDecisionMode,
     activeEditorMeta,
     activeEffectiveZoom,
     activeBackgroundMode,
@@ -2990,10 +3045,7 @@ export default function PublishModal({
       } catch (error) {
         if (cancelled) return;
         setPublishError(
-          getSimpleFrenchErrorMessage(
-            error,
-            "Impossible de charger ce brouillon publication.",
-          ),
+          getSimpleFrenchErrorMessage(error, i18nT("publication_draft_load_failed")),
         );
         setDraftMessage("");
       }
@@ -3044,12 +3096,12 @@ export default function PublishModal({
   const confirmDiscardPublicationWork = async (actionLabel: string) => {
     if (!hasUnsavedChanges) return true;
     return confirmInrcy({
-      eyebrow: "Publication en cours",
+      eyebrow: i18nT("publication_en_cours_58f34b8e"),
       title: actionLabel,
       message:
-        "Du contenu a déjà été saisi, généré ou retouché. Cette action peut supprimer votre travail en cours.",
-      cancelLabel: "Continuer l’édition",
-      confirmLabel: "Supprimer",
+        i18nT("du_contenu_a_deja_ete_saisi_45466126"),
+      cancelLabel: i18nT("continuer_l_edition_0f0075bb"),
+      confirmLabel: i18nT("supprimer_1acfc1c7"),
       variant: "danger",
     });
   };
@@ -3093,14 +3145,14 @@ export default function PublishModal({
     const rawLabel = String(detail?.label || detail?.href || "").trim();
     const simplifiedLabel = simplifyChannelDetail(key, rawLabel);
     const statusLabel = availabilityError
-      ? "Vérification temporairement indisponible"
+      ? i18nT("channel_check_unavailable")
       : channelDisabled
-      ? "Canal désactivé"
-      : requiresReconnect
-        ? "À reconnecter dans Canaux"
-        : detail?.connectionStatus === "disconnected"
-          ? "À connecter dans Canaux"
-          : "";
+        ? i18nT("channel_disabled_status")
+        : requiresReconnect
+          ? i18nT("reconnect_in_channels")
+          : detail?.connectionStatus === "disconnected"
+            ? i18nT("connect_in_channels")
+            : "";
     const fullLabel = statusLabel || simplifiedLabel;
     if (!fullLabel) return null;
     const desktopLabel = truncateText(fullLabel, 34);
@@ -3209,7 +3261,7 @@ export default function PublishModal({
 
     if (!selectedChannels.length) {
       setCreationModeError(
-        "Sélectionnez au moins 1 canal avant de choisir votre mode de création.",
+        i18nT("selectionnez_au_moins_1_canal_avant_d976021a"),
       );
       return;
     }
@@ -3217,15 +3269,15 @@ export default function PublishModal({
     if (creationMode && hasCurrentCreationModeWork) {
       const switchingFromAi = creationMode === "ai";
       const confirmed = await confirmInrcy({
-        eyebrow: "Changement de mode",
+        eyebrow: i18nT("changement_de_mode_bf3b0963"),
         title: switchingFromAi
           ? "Passer à la création manuelle ?"
           : "Passer à la création avec iNrCy ?",
         message: switchingFromAi
           ? "Votre intention, vos consignes et les contenus générés ou modifiés seront supprimés. Vos canaux et vos médias seront conservés."
           : "Les textes saisis manuellement seront supprimés. Vos canaux et vos médias seront conservés.",
-        cancelLabel: "Conserver mon travail",
-        confirmLabel: "Changer de mode",
+        cancelLabel: i18nT("conserver_mon_travail_5510d9a7"),
+        confirmLabel: i18nT("changer_de_mode_9f3792f4"),
         variant: "warning",
       });
       if (!confirmed) return;
@@ -3264,7 +3316,7 @@ export default function PublishModal({
 
     if (creationMode !== "ai") {
       setGenError(
-        "Sélectionnez « Créer avec iNrCy » avant de lancer une génération.",
+        i18nT("selectionnez_creer_avec_inrcy_avant_de_c810a640"),
       );
       return;
     }
@@ -3272,22 +3324,22 @@ export default function PublishModal({
     const trimmed = idea.trim();
     const selectedAiEngineOption = getAiEngineOption(selectedAiPreferredEngine);
     if (!selectedChannels.length) {
-      setGenError("Veuillez sélectionner au moins 1 canal avant de générer.");
+      setGenError(i18nT("veuillez_selectionner_au_moins_1_canal_0e52243b"));
       return;
     }
     if (!trimmed) {
-      setGenError("Écrivez une phrase (ex : chantier terminé...).");
+      setGenError(i18nT("ecrivez_une_phrase_ex_chantier_termine_b7125e40"));
       return;
     }
 
     if (hasWrittenChannelContent) {
       const confirmed = await confirmInrcy({
-        eyebrow: "Contenus déjà présents",
-        title: "Générer de nouveaux contenus ?",
+        eyebrow: i18nT("contenus_deja_presents_37541640"),
+        title: i18nT("generer_de_nouveaux_contenus_8a601a4e"),
         message:
-          "Les textes déjà saisis ou générés seront remplacés par les nouveaux contenus créés par iNrCy.",
-        cancelLabel: "Conserver mes textes",
-        confirmLabel: "Générer et remplacer",
+          i18nT("les_textes_deja_saisis_ou_generes_b4ecf4a5"),
+        cancelLabel: i18nT("conserver_mes_textes_60ea7d68"),
+        confirmLabel: i18nT("generer_et_remplacer_808c9d9f"),
         variant: "warning",
       });
       if (!confirmed) return;
@@ -3315,7 +3367,7 @@ export default function PublishModal({
     setGenerating(true);
     setGenerationProgressPhase(
       "initialization",
-      `Préparation de la génération avec ${selectedAiEngineOption.shortLabel}`,
+      i18nT("generation_preparing_with_engine", { value0: selectedAiEngineOption.shortLabel }),
       6,
     );
     setDuplicateFeedback(null);
@@ -3340,16 +3392,14 @@ export default function PublishModal({
               if (progress <= 24) {
                 setGenerationProgressPhase(
                   "media_security",
-                  progress < 12
-                    ? "Ouverture de l’espace média sécurisé"
-                    : "Envoi sécurisé des médias en cours",
+                  progress < 12 ? i18nT("media_workspace_opening") : i18nT("media_secure_upload_progress"),
                   mapProgressRange(progress, 6, 24, 8, 21),
                 );
                 return;
               }
               setGenerationProgressPhase(
                 "media_analysis",
-                "Préparation des médias",
+                i18nT("progress_media_preparation"),
                 mapProgressRange(progress, 25, 42, 23, 39),
               );
             },
@@ -3383,7 +3433,7 @@ export default function PublishModal({
       ) {
         setGenerationProgressPhase(
           "media_analysis",
-          "Préparation des médias",
+          i18nT("progress_media_preparation"),
           34,
         );
         // La mission est dédupliquée par le hook et travaille directement
@@ -3428,13 +3478,7 @@ export default function PublishModal({
       if (shouldPrepareMediaForAi) {
         setGenerationProgressPhase(
           "media_analysis",
-          hasVideoForGeneration
-            ? videoAiPreparationReady
-              ? "Vidéo et captures prêtes pour l’analyse IA"
-              : "Vidéo prête · captures finalisées en arrière-plan"
-            : shouldUseImagesForAI
-              ? "Visuels prêts pour l’analyse IA"
-              : "Média prêt pour l’analyse IA",
+          hasVideoForGeneration ? videoAiPreparationReady ? i18nT("generation_video_captures_ready") : i18nT("generation_video_ready_captures_background") : shouldUseImagesForAI ? i18nT("generation_visuals_ready_analysis") : i18nT("generation_media_ready_analysis"),
           39,
         );
       }
@@ -3442,9 +3486,7 @@ export default function PublishModal({
       if (shouldUseImagesForAI && !mediaPipelineCutoverEnabled) {
         setGenerationProgressPhase(
           "media_analysis",
-          images.length > 1
-            ? "Préparation des images pour l’analyse visuelle"
-            : "Préparation de l’image pour l’analyse visuelle",
+          images.length > 1 ? i18nT("generation_images_preparing_visual_analysis") : i18nT("generation_image_preparing_visual_analysis"),
           39,
         );
       }
@@ -3487,7 +3529,7 @@ export default function PublishModal({
       ) {
         setGenerationProgressPhase(
           "media_analysis",
-          "Analyse audio et visuelle de la vidéo",
+          i18nT("generation_video_audio_visual_analysis"),
           39,
         );
 
@@ -3510,13 +3552,7 @@ export default function PublishModal({
 
         setGenerationProgressPhase(
           "media_analysis",
-          videoFramesForAI.length > 0 && videoAudioTranscript
-            ? "Analyse audio + images de la vidéo"
-            : videoFramesForAI.length > 0
-              ? "Analyse des images de la vidéo"
-              : videoAudioTranscript
-                ? "Analyse audio de la vidéo"
-                : "Analyse vidéo limitée, génération maintenue",
+          videoFramesForAI.length > 0 && videoAudioTranscript ? i18nT("generation_video_audio_images_analysis") : videoFramesForAI.length > 0 ? i18nT("generation_video_images_analysis") : videoAudioTranscript ? i18nT("generation_video_audio_analysis") : i18nT("generation_video_analysis_limited"),
           39,
         );
       } else if (
@@ -3525,16 +3561,14 @@ export default function PublishModal({
       ) {
         setGenerationProgressPhase(
           "media_analysis",
-          "Réutilisation de l’analyse vidéo iNrAgent",
+          i18nT("generation_video_analysis_reused"),
           39,
         );
       }
 
       setGenerationProgressPhase(
         "request_understanding",
-        publicationInstruction.trim()
-          ? "Analyse de votre intention et de vos consignes"
-          : "Analyse de votre intention de publication",
+        publicationInstruction.trim() ? i18nT("generation_intent_instructions_analysis") : i18nT("generation_intent_analysis"),
         47,
       );
 
@@ -3657,7 +3691,7 @@ export default function PublishModal({
           clearGenerationTimers();
           setGenerationProgressPhase(
             "final_wait",
-            "Connexion interrompue · récupération du résultat enregistré",
+            i18nT("generation_connection_recovering"),
             99,
           );
           const recovery = await recoverBoosterGenerationResult({
@@ -3695,9 +3729,7 @@ export default function PublishModal({
 
       setGenerationProgressPhase(
         "ai_writing",
-        hasVideoForGeneration
-          ? `Rédaction avec ${selectedAiEngineOption.shortLabel} à partir de votre vidéo`
-          : `Rédaction avec ${selectedAiEngineOption.shortLabel}`,
+        hasVideoForGeneration ? i18nT("generation_writing_from_video", { value0: selectedAiEngineOption.shortLabel }) : i18nT("generation_writing", { value0: selectedAiEngineOption.shortLabel }),
         67,
       );
       let generationRequestVisualPhase:
@@ -3714,7 +3746,7 @@ export default function PublishModal({
           generationRequestVisualPhase = "channel_adaptation";
           setGenerationProgressPhase(
             "channel_adaptation",
-            `Adaptation des contenus pour ${selectedForGeneration.length} ${selectedForGeneration.length > 1 ? "canaux" : "canal"}`,
+            i18nT("generation_channel_adaptation_progress", { value0: selectedForGeneration.length, value1: selectedForGeneration.length > 1 ? "canaux" : "canal" }),
             81,
           );
           return;
@@ -3723,7 +3755,7 @@ export default function PublishModal({
           generationRequestVisualPhase = "quality_control";
           setGenerationProgressPhase(
             "quality_control",
-            "Vérification de la cohérence et de la mise en forme",
+            i18nT("generation_quality_check"),
             91,
           );
           return;
@@ -3732,7 +3764,7 @@ export default function PublishModal({
           generationRequestVisualPhase = "final_wait";
           setGenerationProgressPhase(
             "final_wait",
-            "Encore quelques secondes… Finalisation de votre contenu",
+            i18nT("generation_finalizing_content"),
             99,
           );
           clearGenerationTimers();
@@ -3765,7 +3797,7 @@ export default function PublishModal({
         };
         setGenerationProgressPhase(
           "quality_control",
-          `${primaryLabel} n'a pas répondu, secours automatique avec ${retryLabel}`,
+          i18nT("generation_engine_retry", { value0: primaryLabel, value1: retryLabel }),
           91,
         );
 
@@ -3780,11 +3812,7 @@ export default function PublishModal({
           retryAfterHeader: res.headers.get("Retry-After"),
         });
         setGenError(
-          specialMessage ||
-            getSimpleFrenchErrorMessage(
-              json?.user_message || json?.error,
-              "La génération n'a pas pu aboutir. Merci de réessayer.",
-            ),
+          specialMessage || getSimpleFrenchErrorMessage(json?.user_message || json?.error, i18nT("generation_failed_retry")),
         );
         return;
       }
@@ -3792,7 +3820,7 @@ export default function PublishModal({
       if (generationPhaseIndexRef.current < 9) {
         setGenerationProgressPhase(
           "editor_preparation",
-          "Installation des contenus dans l’éditeur",
+          i18nT("generation_installing_editor"),
           95,
         );
       }
@@ -3815,7 +3843,7 @@ export default function PublishModal({
       const aiFallback = json?.aiFallback;
       if (generationRecoveredAfterTransportLoss) {
         setGenerationNotice(
-          "La connexion a été interrompue, mais iNrCy a récupéré automatiquement les contenus déjà générés, sans second appel IA.",
+          i18nT("la_connexion_a_ete_interrompue_mais_a4f2c2e4"),
         );
       } else if (aiFallback?.used) {
         const primaryLabel = String(
@@ -3829,7 +3857,7 @@ export default function PublishModal({
             ? "via la connexion OpenAI de secours"
             : "via le moteur de secours";
         setGenerationNotice(
-          `${primaryLabel} était temporairement indisponible. Le contenu a été généré avec ${finalLabel} ${transportLabel}.`,
+          i18nT("value_etait_temporairement_indisponible_le_conte_e64e687d", { value0: primaryLabel, value1: finalLabel, value2: transportLabel }),
         );
       } else if (automaticRetry) {
         const primaryLabel = getAiEngineOption(
@@ -3839,16 +3867,16 @@ export default function PublishModal({
           automaticRetry.finalEngine,
         ).shortLabel;
         setGenerationNotice(
-          `${primaryLabel} n'a pas répondu au premier essai. iNrCy a automatiquement terminé la génération avec ${finalLabel}, sans modifier votre moteur par défaut.`,
+          i18nT("value_n_a_pas_repondu_au_e653b7e3", { value0: primaryLabel, value1: finalLabel }),
         );
       }
       setGenerationProgressPhase(
         "final_wait",
-        "Encore quelques secondes… Finalisation de votre contenu",
+        i18nT("generation_finalizing_content"),
         99,
       );
       await new Promise((resolve) => window.setTimeout(resolve, 540));
-      completeGenerationProgress("Les contenus sont prêts à être relus");
+      completeGenerationProgress(i18nT("generation_content_ready_review"));
       await new Promise((resolve) => window.setTimeout(resolve, 320));
     } catch (error) {
       // Toute analyse média optionnelle a déjà été isolée ci-dessus. Une
@@ -3877,7 +3905,7 @@ export default function PublishModal({
     if (!hasSourceContent) {
       setDuplicateFeedback({
         kind: "error",
-        message: "Ajoutez au moins un titre ou un contenu avant de dupliquer.",
+        message: i18nT("ajoutez_au_moins_un_titre_ou_c8f6c900"),
       });
       return;
     }
@@ -3885,15 +3913,15 @@ export default function PublishModal({
     if (displayCards.length < 2) {
       setDuplicateFeedback({
         kind: "error",
-        message: "Sélectionnez au moins 2 canaux pour utiliser la duplication.",
+        message: i18nT("selectionnez_au_moins_2_canaux_pour_fb648ad3"),
       });
       return;
     }
 
     const confirmed = await confirmInrcy({
-      title: "Dupliquer le contenu ?",
-      message: "Le titre et le contenu des autres canaux seront remplacés.",
-      confirmLabel: "Dupliquer",
+      title: i18nT("dupliquer_le_contenu_14027202"),
+      message: i18nT("le_titre_et_le_contenu_des_bf6a88fe"),
+      confirmLabel: i18nT("dupliquer_c5e1d3f1"),
       variant: "warning",
     });
     if (!confirmed) return;
@@ -3920,7 +3948,7 @@ export default function PublishModal({
 
     setDuplicateFeedback({
       kind: "success",
-      message: "Titre et contenu dupliqués sur tous les canaux affichés.",
+      message: i18nT("titre_et_contenu_dupliques_sur_tous_f153bba6"),
     });
   };
 
@@ -3987,7 +4015,7 @@ export default function PublishModal({
       mimeType: file.type,
     });
     if (detectedMediaType !== "video") {
-      setImgError(`Ajoutez une vidéo valide : ${BOOSTER_VIDEO_FORMATS_LABEL}.`);
+      setImgError(i18nT("ajoutez_une_video_valide_value_10fc4557", { value0: BOOSTER_VIDEO_FORMATS_LABEL }));
       return false;
     }
 
@@ -4004,7 +4032,7 @@ export default function PublishModal({
     }
 
     if (!isBoosterVideoFile(file)) {
-      setImgError(`Ajoutez une vidéo valide : ${BOOSTER_VIDEO_FORMATS_LABEL}.`);
+      setImgError(i18nT("ajoutez_une_video_valide_value_10fc4557", { value0: BOOSTER_VIDEO_FORMATS_LABEL }));
       return false;
     }
 
@@ -4211,7 +4239,7 @@ export default function PublishModal({
     }
     if (imagesFromLibrary.length > selectedImages.length) {
       setImgError(
-        `${selectedImages.length} image(s) ajoutée(s). Maximum ${BOOSTER_MAX_IMAGE_COUNT} images par publication.`,
+        i18nT("value_image_s_ajoutee_s_maximum_ccd2bcaf", { value0: selectedImages.length, value1: BOOSTER_MAX_IMAGE_COUNT }),
       );
     }
     return true;
@@ -4243,7 +4271,7 @@ export default function PublishModal({
   ) => {
     setImgError("");
     if (images.length >= BOOSTER_MAX_IMAGE_COUNT) {
-      setImgError(`Maximum ${BOOSTER_MAX_IMAGE_COUNT} images.`);
+      setImgError(i18nT("maximum_value_images_f2da2faa", { value0: BOOSTER_MAX_IMAGE_COUNT }));
       return;
     }
     preservePublishScroll();
@@ -4411,7 +4439,7 @@ export default function PublishModal({
     const finalPreviewUrl = preparedPreviewUrl || videoPreviewUrl;
     return {
       channelKey: channel,
-      channelLabel: getImageAdapterLabel(channel),
+      channelLabel: getLocalizedChannelLabel(channel, runtimeT),
       mediaType: "video" as const,
       title: post.title,
       content: post.content,
@@ -4421,7 +4449,21 @@ export default function PublishModal({
           ? getLiveInstagramHashtags()
           : post.hashtags || [],
       imageCount: 0,
-      formatLabel: `Vidéo ${getVideoFormatLabel(channel, selectedVideoFormat, videoSourceMetadata)} · ${VIDEO_ADAPTATION_MODE_LABELS[selectedVideoAdaptation]}${preparedPreviewUrl ? " · Aperçu final" : ""}`,
+      formatLabel: i18nT("video_value_value_value_07f9ed6e", {
+        value0: getLocalizedVideoFormatLabel(
+          channel,
+          selectedVideoFormat,
+          videoSourceMetadata,
+          runtimeT,
+        ),
+        value1: getLocalizedVideoAdaptationModeLabel(
+          selectedVideoAdaptation,
+          runtimeT,
+        ),
+        value2: preparedPreviewUrl
+          ? i18nT("video_final_preview_suffix")
+          : "",
+      }),
       video: finalPreviewUrl
         ? {
             previewUrl: finalPreviewUrl,
@@ -4464,7 +4506,7 @@ export default function PublishModal({
     const post = getDisplayPost(displayKey);
     return {
       channelKey: channel,
-      channelLabel: getImageAdapterLabel(channel),
+      channelLabel: getLocalizedChannelLabel(channel, runtimeT),
       title: post.title,
       content: post.content,
       cta: getPreviewCtaForDisplayKey(displayKey, post),
@@ -4475,10 +4517,16 @@ export default function PublishModal({
       imageCount: selectedKeys.length,
       formatLabel:
         channel === "inrcy_site" || channel === "site_web" || channel === "inr_search"
-          ? "Rendu site / iframe"
+          ? i18nT("preview_format_site")
           : channel === "tiktok"
-            ? `Image verticale TikTok : ${CHANNEL_PRESETS[channel].width}×${CHANNEL_PRESETS[channel].height}`
-            : `Image finale : ${CHANNEL_PRESETS[channel].width}×${CHANNEL_PRESETS[channel].height}`,
+            ? i18nT("preview_format_tiktok", {
+                width: CHANNEL_PRESETS[channel].width,
+                height: CHANNEL_PRESETS[channel].height,
+              })
+            : i18nT("preview_format_final", {
+                width: CHANNEL_PRESETS[channel].width,
+                height: CHANNEL_PRESETS[channel].height,
+              }),
       image: firstImageKey
         ? {
             previewUrl: previewByKey[firstImageKey],
@@ -4514,7 +4562,7 @@ export default function PublishModal({
       const post = getDisplayPost(displayKey);
       return {
         channelKey: activePreviewChannel,
-        channelLabel: getImageAdapterLabel(activePreviewChannel),
+        channelLabel: getLocalizedChannelLabel(activePreviewChannel, runtimeT),
         mediaType: "images" as const,
         title: post.title,
         content: post.content,
@@ -4524,7 +4572,7 @@ export default function PublishModal({
             ? getLiveInstagramHashtags()
             : post.hashtags || [],
         imageCount: 0,
-        formatLabel: "Texte seul",
+        formatLabel: i18nT("texte_seul_24210789"),
         image: null,
         images: [],
         video: null,
@@ -4600,7 +4648,7 @@ export default function PublishModal({
     scrollToPublishArea("smooth");
 
     if (!publishTargetChannels.length) {
-      setPublishError("Sélectionnez au moins 1 canal.");
+      setPublishError(i18nT("selectionnez_au_moins_1_canal_ccf98c0c"));
       return;
     }
 
@@ -4609,7 +4657,7 @@ export default function PublishModal({
     setSaving(true);
     setPublicationProgressPhase(
       "verification",
-      "Demande prise en charge",
+      i18nT("publication_request_received"),
       5,
     );
     let publishDispatchStarted = false;
@@ -4618,7 +4666,7 @@ export default function PublishModal({
     try {
       setPublicationProgressPhase(
         "channel_verification",
-        "Vérification des canaux sélectionnés",
+        i18nT("publication_checking_channels"),
         11,
       );
       const requestedWorkspaceMediaTypes = [
@@ -4638,7 +4686,7 @@ export default function PublishModal({
             (progress, label) => {
               setPublicationProgressPhase(
                 "media_verification",
-                label || "Vérification des médias",
+                label || i18nT("publication_checking_media"),
                 mapProgressRange(progress, 0, 100, 13, 21),
               );
             },
@@ -4655,7 +4703,7 @@ export default function PublishModal({
       );
       setPublicationProgressPhase(
         "media_verification",
-        "Canaux et médias vérifiés",
+        i18nT("publication_channels_media_verified"),
         21,
       );
     const preflightFailedChannels = reviewItems
@@ -4673,7 +4721,7 @@ export default function PublishModal({
 
     if (!publishableChannels.length) {
       setPublishError(
-        "Aucun canal n’est prêt. Corrigez au moins un canal rouge dans le bloc Médias avant de publier.",
+        i18nT("aucun_canal_n_est_pret_corrigez_89c1e7f2"),
       );
       return;
     }
@@ -4768,7 +4816,7 @@ export default function PublishModal({
 
     if (hasAnyVideoPublish && !videoFile) {
       setImgError(
-        "Ajoutez une vidéo avant de publier ou choisissez Photos / Aucun média par canal.",
+        i18nT("ajoutez_une_video_avant_de_publier_74e6e32f"),
       );
       return;
     }
@@ -4792,40 +4840,40 @@ export default function PublishModal({
       const instagramMode = publishMediaModeByChannel.instagram || "none";
       const instagramImages = channelImageEditors.instagram?.imageKeys || [];
       if (instagramMode === "none") {
-        setImgError("Instagram nécessite une vidéo ou au moins 1 image.");
+        setImgError(i18nT("instagram_necessite_une_video_ou_au_dc42bf8d"));
         return;
       }
       if (instagramMode === "images" && !instagramImages.length) {
         setImgError(
-          "Veuillez ajouter au moins 1 image pour publier sur Instagram.",
+          i18nT("veuillez_ajouter_au_moins_1_image_2804ca41"),
         );
         return;
       }
       if (instagramMode === "video" && !videoFile) {
-        setImgError("Veuillez ajouter une vidéo pour publier sur Instagram.");
+        setImgError(i18nT("veuillez_ajouter_une_video_pour_publier_9e530780"));
         return;
       }
     }
 
     if (publishableChannels.includes("pinterest")) {
       if (!pinterestBoardId) {
-        setPublishError("Choisissez un tableau Pinterest avant de publier.");
+        setPublishError(i18nT("choisissez_un_tableau_pinterest_avant_de_60a6ce70"));
         return;
       }
       const pinterestMode = publishMediaModeByChannel.pinterest || "none";
       const pinterestImages = channelImageEditors.pinterest?.imageKeys || [];
       if (pinterestMode === "none") {
-        setImgError("Pinterest nécessite une image ou une vidéo.");
+        setImgError(i18nT("pinterest_necessite_une_image_ou_une_e2a7f196"));
         return;
       }
       if (pinterestMode === "images" && !pinterestImages.length) {
         setImgError(
-          "Veuillez ajouter au moins 1 image pour publier sur Pinterest.",
+          i18nT("veuillez_ajouter_au_moins_1_image_b3487d4c"),
         );
         return;
       }
       if (pinterestMode === "video" && !videoFile) {
-        setImgError("Veuillez ajouter une vidéo pour publier sur Pinterest.");
+        setImgError(i18nT("veuillez_ajouter_une_video_pour_publier_392ad3f1"));
         return;
       }
     }
@@ -4849,7 +4897,7 @@ export default function PublishModal({
         publicationFinalWaitTimeoutId = null;
         setPublicationProgressPhase(
           "final_wait",
-          "Encore quelques secondes… Finalisation de la publication",
+          i18nT("publication_finalizing"),
           99,
         );
       }, 8_000);
@@ -4933,7 +4981,7 @@ export default function PublishModal({
       if (update.stage === "request_accepted") {
         setPublicationProgressPhase(
           "file_preparation",
-          "Préparation des envois",
+          i18nT("publication_preparing_sends"),
           49,
         );
         dispatchPreparationShown = true;
@@ -4942,7 +4990,7 @@ export default function PublishModal({
       if (update.stage === "released_to_background") {
         setPublicationProgressPhase(
           "status_collection",
-          `${Math.max(0, totalCount - terminalCount)} ${totalCount - terminalCount > 1 ? "canaux finalisent" : "canal finalise"} · Confirmation des plateformes`,
+          i18nT("publication_pending_channels_confirmation", { value0: Math.max(0, totalCount - terminalCount), value1: totalCount - terminalCount > 1 ? "canaux finalisent" : "canal finalise" }),
           93,
         );
         return;
@@ -4950,7 +4998,7 @@ export default function PublishModal({
       if (update.stage === "completed") {
         setPublicationProgressPhase(
           "inrsend_recording",
-          "Enregistrement dans iNr’Send",
+          i18nT("publication_recording_inrsend"),
           96,
         );
         return;
@@ -4958,14 +5006,14 @@ export default function PublishModal({
       if (terminalCount >= totalCount) {
         setPublicationProgressPhase(
           "status_collection",
-          `Confirmation des plateformes · ${totalCount}/${totalCount}`,
+          i18nT("publication_platform_confirmation_count", { value0: totalCount, value1: totalCount }),
           93,
         );
       } else if (terminalCount > 0) {
         if (!dispatchPreparationShown) {
           setPublicationProgressPhase(
             "file_preparation",
-            "Préparation des envois",
+            i18nT("publication_preparing_sends"),
             49,
           );
           dispatchPreparationShown = true;
@@ -4980,7 +5028,7 @@ export default function PublishModal({
           : "le prochain canal";
         setPublicationProgressPhase(
           "publication_finalization",
-          `${Math.min(totalCount, terminalCount + 1)}/${totalCount} · Publication sur ${nextChannelLabel}`,
+          i18nT("publication_channel_progress", { value0: Math.min(totalCount, terminalCount + 1), value1: totalCount, value2: nextChannelLabel }),
           mapProgressRange(terminalCount, 0, totalCount, 67, 81),
         );
         publicationDispatchShown = true;
@@ -4988,7 +5036,7 @@ export default function PublishModal({
         if (!dispatchPreparationShown) {
           setPublicationProgressPhase(
             "file_preparation",
-            "Préparation des envois",
+            i18nT("publication_preparing_sends"),
             49,
           );
           dispatchPreparationShown = true;
@@ -5001,7 +5049,7 @@ export default function PublishModal({
           : "le canal sélectionné";
         setPublicationProgressPhase(
           "channel_dispatch",
-          `1/${totalCount} · Publication sur ${firstChannelLabel}`,
+          i18nT("publication_first_channel_progress", { value0: totalCount, value1: firstChannelLabel }),
           mapProgressRange(update.pollAttempt, 0, 12, 51, 65),
         );
         publicationDispatchShown = true;
@@ -5014,9 +5062,7 @@ export default function PublishModal({
           (progress) => {
             setPublicationProgressPhase(
               "media_preparation",
-              progress > 24
-                ? pendingMediaPreparationLabel
-                : "Vérification et préparation des médias",
+              progress > 24 ? pendingMediaPreparationLabel : i18nT("publication_verifying_preparing_media"),
               progress <= 24
                 ? mapProgressRange(progress, 6, 24, 23, 34)
                 : 35,
@@ -5056,7 +5102,7 @@ export default function PublishModal({
             if (!total) {
               setPublicationProgressPhase(
                 "media_preparation",
-                "Préparation des médias",
+                i18nT("progress_media_preparation"),
                 38,
               );
               return;
@@ -5064,7 +5110,7 @@ export default function PublishModal({
             const ratio = current / total;
             setPublicationProgressPhase(
               "media_preparation",
-              `Préparation des médias · ${clampPercent(ratio * 100)} %`,
+              i18nT("publication_media_progress", { value0: clampPercent(ratio * 100) }),
               mapProgressRange(ratio, 0, 1, 35, 38),
             );
           });
@@ -5075,7 +5121,7 @@ export default function PublishModal({
           : await (async () => {
               setPublicationProgressPhase(
                 "media_preparation",
-                "Préparation des médias",
+                i18nT("progress_media_preparation"),
                 38,
               );
               return await uploadOriginalImagesForPublication(
@@ -5084,7 +5130,7 @@ export default function PublishModal({
                   const ratio = current / total;
                   setPublicationProgressPhase(
                     "media_preparation",
-                    `Préparation des médias · ${clampPercent(ratio * 100)} %`,
+                    i18nT("publication_media_progress", { value0: clampPercent(ratio * 100) }),
                     mapProgressRange(ratio, 0, 1, 36, 39),
                   );
                 },
@@ -5094,7 +5140,7 @@ export default function PublishModal({
       if (hasAnyImagePublish) {
         setPublicationProgressPhase(
           "media_preparation",
-          "Préparation des médias",
+          i18nT("progress_media_preparation"),
           39,
         );
       }
@@ -5122,7 +5168,7 @@ export default function PublishModal({
                 const ratio = uploadTargets ? uploadedCount / uploadTargets : 1;
                 setPublicationProgressPhase(
                   "media_preparation",
-                  `Préparation des médias · ${clampPercent(ratio * 100)} %`,
+                  i18nT("publication_media_progress", { value0: clampPercent(ratio * 100) }),
                   mapProgressRange(ratio, 0, 1, 37, 39),
                 );
               },
@@ -5166,7 +5212,7 @@ export default function PublishModal({
       if (shouldBuildVideoFallbackPayload) {
         setPublicationProgressPhase(
           "media_preparation",
-          "Préparation des médias",
+          i18nT("progress_media_preparation"),
           39,
         );
         publicationVideo = await uploadPublicationVideoForPublish();
@@ -5249,7 +5295,7 @@ export default function PublishModal({
       if (!dispatchPreparationShown) {
         setPublicationProgressPhase(
           "file_preparation",
-          "Préparation des envois",
+          i18nT("publication_preparing_sends"),
           49,
         );
         dispatchPreparationShown = true;
@@ -5258,7 +5304,7 @@ export default function PublishModal({
       if (!publicationDispatchShown) {
         setPublicationProgressPhase(
           "publication_finalization",
-          "Publication sur les canaux",
+          i18nT("publication_publishing_channels"),
           81,
         );
         publicationDispatchShown = true;
@@ -5318,17 +5364,13 @@ export default function PublishModal({
 
       setPublicationProgressPhase(
         "status_collection",
-        pendingCount > 0
-          ? pendingCount > 1
-            ? `Confirmation des plateformes · ${pendingCount} canaux poursuivent le traitement`
-            : "Confirmation des plateformes · 1 canal poursuit le traitement"
-          : `Confirmation des plateformes · ${publishableChannels.length}/${publishableChannels.length}`,
+        pendingCount > 0 ? pendingCount > 1 ? i18nT("publication_pending_multiple", { value0: pendingCount }) : i18nT("publication_pending_one") : i18nT("publication_platform_confirmation_count", { value0: publishableChannels.length, value1: publishableChannels.length }),
         93,
       );
       await new Promise((resolve) => window.setTimeout(resolve, 220));
       setPublicationProgressPhase(
         "inrsend_recording",
-        "Enregistrement dans iNr’Send",
+        i18nT("publication_recording_inrsend"),
         96,
       );
       await new Promise((resolve) => window.setTimeout(resolve, 220));
@@ -5339,23 +5381,13 @@ export default function PublishModal({
       }
       setPublicationProgressPhase(
         "final_wait",
-        "Encore quelques secondes… Finalisation du bilan",
+        i18nT("publication_finalizing_report"),
         99,
       );
       await new Promise((resolve) => window.setTimeout(resolve, 540));
 
       completePublicationProgress(
-        bilanProgress.backgroundFinalization
-          ? bilanProgress.pendingCount > 1
-            ? `Bilan prêt — ${bilanProgress.pendingCount} canaux poursuivent leur finalisation`
-            : "Bilan prêt — 1 canal poursuit sa finalisation"
-          : result?.summary?.allFailed
-            ? "Bilan prêt — aucun canal n’a pu être publié"
-            : failureCount > 0
-              ? `Bilan prêt avec ${failureCount} échec${failureCount > 1 ? "s" : ""}`
-              : warningCount > 0
-                ? "Bilan prêt avec avertissement"
-                : "Bilan prêt — publication finalisée sur tous les canaux",
+        bilanProgress.backgroundFinalization ? bilanProgress.pendingCount > 1 ? i18nT("publication_report_pending_multiple", { value0: bilanProgress.pendingCount }) : i18nT("publication_report_pending_one") : result?.summary?.allFailed ? i18nT("publication_report_all_failed") : failureCount > 0 ? i18nT("publication_report_failures", { value0: failureCount, value1: failureCount > 1 ? "s" : "" }) : warningCount > 0 ? i18nT("publication_report_warning") : i18nT("publication_report_complete"),
       );
       await new Promise((resolve) => window.setTimeout(resolve, 320));
       if (publicationAccepted) {
@@ -5487,7 +5519,7 @@ export default function PublishModal({
 
     if (!hasDraftablePublicationContent) {
       setPublishError(
-        "Ajoutez un contenu ou un média avant d’enregistrer le brouillon.",
+        i18nT("ajoutez_un_contenu_ou_un_media_b14123ad"),
       );
       scrollToPublishArea("smooth");
       return;
@@ -5495,7 +5527,7 @@ export default function PublishModal({
 
     if (!selectedChannels.length) {
       setPublishError(
-        "Sélectionnez au moins 1 canal avant d’enregistrer le brouillon.",
+        i18nT("selectionnez_au_moins_1_canal_avant_ce44da85"),
       );
       scrollToPublishArea("smooth");
       return;
@@ -5639,10 +5671,7 @@ export default function PublishModal({
       setDraftMessage("Brouillon enregistré");
     } catch (e) {
       setPublishError(
-        getSimpleFrenchErrorMessage(
-          e,
-          "Impossible d’enregistrer le brouillon publication.",
-        ),
+        getSimpleFrenchErrorMessage(e, i18nT("publication_draft_save_failed")),
       );
     } finally {
       setDraftSaving(false);
@@ -5669,7 +5698,7 @@ export default function PublishModal({
     setTiktokPublicationSettings(null);
 
     if (!selectedChannels.length) {
-      setPublishError("Sélectionnez au moins 1 canal à programmer.");
+      setPublishError(i18nT("selectionnez_au_moins_1_canal_a_54437af6"));
       scrollToPublishArea("smooth");
       return;
     }
@@ -5723,7 +5752,7 @@ export default function PublishModal({
     );
 
     if (!requestedChannelsToSchedule.length) {
-      setScheduleError("Sélectionnez au moins un canal à programmer.");
+      setScheduleError(i18nT("schedule_select_channel_error"));
       return;
     }
 
@@ -5740,7 +5769,7 @@ export default function PublishModal({
     setDraftMessage("");
     setImgError("");
     setPublishProgress(5);
-    setPublishProgressLabel("Préparation de la programmation...");
+    setPublishProgressLabel(i18nT("schedule_preparing"));
     scrollToPublishArea("smooth");
 
     try {
@@ -5761,7 +5790,7 @@ export default function PublishModal({
             (progress, label) => {
               setPublishProgress((current) => Math.max(current, progress));
               setPublishProgressLabel(
-                label || "Vérification des médias...",
+                label || i18nT("schedule_checking_media"),
               );
             },
             {
@@ -5781,12 +5810,12 @@ export default function PublishModal({
       .map((item) => item.channel);
     if (!channelsToSchedule.length) {
       setScheduleError(
-        `Aucun canal ne peut être programmé : ${blocked
+        i18nT("aucun_canal_ne_peut_etre_programme_5dcc0e18", { value0: blocked
           .map(
             (item) =>
               `${item.label} — ${item.blockers[0] || "canal non prêt"}`,
           )
-          .join(" / ")}.`,
+          .join(" / ") }),
       );
       return;
     }
@@ -5835,7 +5864,7 @@ export default function PublishModal({
     >;
 
     if (hasAnyVideoPublish && !videoFile) {
-      setScheduleError("Ajoutez une vidéo avant de programmer ces canaux.");
+      setScheduleError(i18nT("ajoutez_une_video_avant_de_programmer_f54a63bc"));
       return;
     }
 
@@ -5844,7 +5873,7 @@ export default function PublishModal({
           "schedule",
           (progress, label) => {
             setPublishProgress((current) => Math.max(current, progress));
-            setPublishProgressLabel(label || "Vérification des médias...");
+            setPublishProgressLabel(label || i18nT("schedule_checking_media"));
           },
           requiredScheduleMediaTypes,
           scheduleWorkspaceReadinessTimeoutMs,
@@ -5855,7 +5884,7 @@ export default function PublishModal({
           (channel) => publishMediaModeByChannel[channel] === "video",
         );
         setPublishProgress((current) => Math.max(current, 43));
-        setPublishProgressLabel("Préparation des médias");
+        setPublishProgressLabel(i18nT("progress_media_preparation"));
         const videoPreparation = await ensureCutoverVideoVariantsReady(
           videoChannels,
           scheduleVideoSettingsByChannel,
@@ -5865,7 +5894,7 @@ export default function PublishModal({
           },
         );
         setPublishProgress((current) => Math.max(current, 57));
-        setPublishProgressLabel("Préparation des médias");
+        setPublishProgressLabel(i18nT("progress_media_preparation"));
       }
 
       const emptyChannelImages = {} as ChannelImagePayload;
@@ -5883,7 +5912,7 @@ export default function PublishModal({
           : await buildChannelImagesPayload((current, total) => {
             if (!total) {
               setPublishProgress((current) => Math.max(current, 20));
-              setPublishProgressLabel("Préparation des contenus...");
+              setPublishProgressLabel(i18nT("schedule_preparing_contents"));
               return;
             }
             const ratio = current / total;
@@ -5891,7 +5920,7 @@ export default function PublishModal({
               Math.max(current, clampPercent(8 + ratio * 22)),
             );
             setPublishProgressLabel(
-              `Préparation des images ${clampPercent(ratio * 100)}%`,
+              i18nT("schedule_preparing_images_progress", { value0: clampPercent(ratio * 100) }),
             );
           });
 
@@ -5900,7 +5929,7 @@ export default function PublishModal({
           ? {}
           : await (async () => {
               setPublishProgress((current) => Math.max(current, 32));
-              setPublishProgressLabel("Upload des images originales...");
+              setPublishProgressLabel(i18nT("schedule_upload_original_images"));
               return await uploadOriginalImagesForPublication(
                 (current, total) => {
                   if (!total) return;
@@ -5909,7 +5938,7 @@ export default function PublishModal({
                     Math.max(current, clampPercent(32 + ratio * 12)),
                   );
                   setPublishProgressLabel(
-                    `Upload des images originales ${clampPercent(ratio * 100)}%`,
+                    i18nT("schedule_upload_original_images_progress", { value0: clampPercent(ratio * 100) }),
                   );
                 },
               );
@@ -5918,7 +5947,7 @@ export default function PublishModal({
       const uploadedChannelImages = {} as ChannelImagePayload;
       if (shouldBuildScheduleImageFallback) {
         setPublishProgress((current) => Math.max(current, 48));
-        setPublishProgressLabel("Upload des images adaptées...");
+        setPublishProgressLabel(i18nT("schedule_upload_adapted_images"));
         let uploadedCount = 0;
         const uploadTargets = channelsToSchedule.reduce(
           (sum, channel) =>
@@ -5938,7 +5967,7 @@ export default function PublishModal({
                 Math.max(current, clampPercent(48 + ratio * 22)),
               );
               setPublishProgressLabel(
-                `Upload des images adaptées ${clampPercent(ratio * 100)}%`,
+                i18nT("schedule_upload_adapted_images_progress", { value0: clampPercent(ratio * 100) }),
               );
             },
           );
@@ -5978,7 +6007,7 @@ export default function PublishModal({
       let publicationVideo: any = null;
       if (shouldBuildScheduleVideoFallback) {
         setPublishProgress(48);
-        setPublishProgressLabel("Upload de la vidéo...");
+        setPublishProgressLabel(i18nT("schedule_upload_video"));
         publicationVideo = await uploadPublicationVideoForPublish();
         if (!publicationVideo?.publicUrl && !publicationVideo?.url) {
           throw new Error(
@@ -5994,7 +6023,7 @@ export default function PublishModal({
       }
 
       setPublishProgress(76);
-      setPublishProgressLabel("Enregistrement dans iNr’Agent...");
+      setPublishProgressLabel(i18nT("schedule_recording_agent"));
 
       const selectionByChannel = new Map(
         selections.map((selection) => [
@@ -6038,7 +6067,7 @@ export default function PublishModal({
               creationMode,
               origin: {
                 source: "booster_scheduled",
-                label: "Booster programmé",
+                label: i18nT("booster_programme_865e1b6b"),
                 workflowTool: "booster",
                 workflowAction: "publier",
               },
@@ -6062,7 +6091,7 @@ export default function PublishModal({
                 source: "booster_scheduled",
                 origin: {
                   source: "booster_scheduled",
-                  label: "Booster programmé",
+                  label: i18nT("booster_programme_865e1b6b"),
                   workflowTool: "booster",
                   workflowAction: "publier",
                 },
@@ -6130,9 +6159,7 @@ export default function PublishModal({
       });
       setPublishProgress(100);
       setPublishProgressLabel(
-        immediateChannelsToPublish.length
-          ? "Programmation enregistrée, envoi des autres canaux..."
-          : "Publication confiée à iNr’Agent.",
+        immediateChannelsToPublish.length ? i18nT("schedule_saved_other_channels") : i18nT("schedule_delegated_agent"),
       );
       const scheduledMessage =
         channelsToSchedule.length > 1
@@ -6240,7 +6267,7 @@ export default function PublishModal({
     setPublishProgressLabel("");
 
     if (!selectedChannels.length) {
-      setPublishError("Sélectionnez au moins 1 canal.");
+      setPublishError(i18nT("selectionnez_au_moins_1_canal_ccf98c0c"));
       scrollToPublishArea("smooth");
       return;
     }
@@ -6330,15 +6357,10 @@ export default function PublishModal({
         "original";
       const videoNeedsExplicitAdaptation =
         mode === "video" && requestedVideoFormat !== "original";
-      const videoPreparationBlocker =
+      const hasVideoPreparationBlocker =
         !mediaPipelineCutoverEnabled &&
         videoNeedsExplicitAdaptation &&
-        videoPreparationState?.status === "error"
-          ? String(
-              videoPreparationState.detail ||
-                "La conversion technique de la vidéo a échoué pour ce canal.",
-            ).trim()
-          : "";
+        videoPreparationState?.status === "error";
 
       const workspaceSourceExpected =
         persistentMediaWorkspaceEnabled &&
@@ -6350,54 +6372,45 @@ export default function PublishModal({
       const failedWorkspaceState = relevantWorkspaceStates.find(
         (state) => state.status === "failed",
       );
-      const mediaUploadBlocker = !workspaceSourceExpected
-        ? ""
-        : failedWorkspaceState
-          ? failedWorkspaceState.error ||
-            "L’envoi du média a échoué. Retirez-le puis ajoutez-le à nouveau."
-          : "";
-
-      const blockers = [
-        ...requirements.blockers,
-        ...(videoPreparationBlocker ? [videoPreparationBlocker] : []),
-        ...(mediaUploadBlocker ? [mediaUploadBlocker] : []),
-        ...(channel === "pinterest" && !pinterestBoardId
-          ? ["Choisissez un tableau Pinterest."]
-          : []),
-      ];
+      const hasMediaUploadBlocker = workspaceSourceExpected && !!failedWorkspaceState;
       const blockerCodes = [
         ...requirements.blockerCodes,
-        ...(videoPreparationBlocker ? ["video_conversion_failed"] : []),
-        ...(mediaUploadBlocker ? ["media_upload_pending"] : []),
+        ...(hasVideoPreparationBlocker ? ["video_conversion_failed"] : []),
+        ...(hasMediaUploadBlocker ? ["media_upload_pending"] : []),
         ...(channel === "pinterest" && !pinterestBoardId
           ? ["pinterest_board_required"]
           : []),
       ];
+      const mediaBlockerCodes = [
+        ...requirements.mediaBlockerCodes,
+        ...(hasVideoPreparationBlocker ? ["video_conversion_failed"] : []),
+        ...(hasMediaUploadBlocker ? ["media_upload_pending"] : []),
+      ];
+      const localizeRequirement = (code: string) =>
+        getLocalizedChannelPublicationRequirement(
+          { code, channel, imageCount: imageKeysToPublish.length },
+          runtimeT,
+        );
+      const blockers = blockerCodes.map(localizeRequirement);
 
       return {
         channel,
-        label: CHANNEL_LABELS[channel],
+        label: getLocalizedChannelLabel(channel, runtimeT),
         mediaType: mode === "video" ? ("video" as const) : ("images" as const),
         mediaLabel:
           mode === "video"
-            ? "1 vidéo"
+            ? i18nT("media_label_one_video")
             : mode === "images"
-              ? getPublicationMediaLabel("images", imageKeysToPublish.length)
-              : "Texte seul",
+              ? i18nT("media_label_images", {
+                  count: imageKeysToPublish.length,
+                })
+              : i18nT("media_label_text_only"),
         imageCount: imageKeysToPublish.length,
-        warnings: requirements.warnings,
+        warnings: requirements.warningCodes.map(localizeRequirement),
         blockers,
         blockerCodes,
-        mediaBlockers: [
-          ...requirements.mediaBlockers,
-          ...(videoPreparationBlocker ? [videoPreparationBlocker] : []),
-          ...(mediaUploadBlocker ? [mediaUploadBlocker] : []),
-        ],
-        mediaBlockerCodes: [
-          ...requirements.mediaBlockerCodes,
-          ...(videoPreparationBlocker ? ["video_conversion_failed"] : []),
-          ...(mediaUploadBlocker ? ["media_upload_pending"] : []),
-        ],
+        mediaBlockers: mediaBlockerCodes.map(localizeRequirement),
+        mediaBlockerCodes,
         publishable: blockers.length === 0,
         tiktokParametersValidated:
           channel === "tiktok" && Boolean(tiktokPublicationSettings),
@@ -6437,7 +6450,8 @@ export default function PublishModal({
   const channelReadiness = publishReadinessItems.reduce(
     (acc, item) => {
       const selectorBlockers = item.blockers.filter(
-        (blocker) => blocker !== "Ajoutez au moins du texte ou un média.",
+        (_blocker, index) =>
+          item.blockerCodes[index] !== "text_or_media_required",
       );
       acc[item.channel] = {
         tone: selectorBlockers.length
@@ -6469,7 +6483,7 @@ export default function PublishModal({
       reviewItem?.imageCount ?? getPublishImageKeysForChannel(channel).length;
     return {
       key: channel,
-      label: getImageAdapterLabel(channel),
+      label: getLocalizedChannelLabel(channel, runtimeT),
       count,
       tone: reviewItem?.mediaBlockers?.length
         ? ("blocked" as const)
@@ -6495,7 +6509,7 @@ export default function PublishModal({
           : false;
     return {
       key: channel,
-      label: getImageAdapterLabel(channel),
+      label: getLocalizedChannelLabel(channel, runtimeT),
       tone: reviewItem?.blockers?.length
         ? ("blocked" as const)
         : hasText && hasMedia
@@ -6701,8 +6715,8 @@ export default function PublishModal({
           if (scheduleSaving) return;
           setScheduleModalOpen(false);
         }}
-        successMessage="Programmation réussie."
-        savingLabel="Envoi en cours…"
+        successMessage={i18nT("programmation_reussie_1307249b")}
+        savingLabel={i18nT("envoi_en_cours_2de80069")}
         enableImmediateUnselectedWarning
         onConfirm={confirmSchedulePublication}
         onSuccess={() => {
@@ -6758,7 +6772,7 @@ export default function PublishModal({
 
       <InrcyCameraCaptureModal
         open={cameraCaptureOpen}
-        title="Appareil iNrCy"
+        title={i18nT("appareil_inrcy_7b70f4b8")}
         onClose={closeCameraCapture}
         onCapture={onCameraCapture}
         allowVideo={
@@ -6772,12 +6786,12 @@ export default function PublishModal({
 
       <MediaLibraryPickerModal
         open={mediaLibraryPickerOpen}
-        title="Ajouter depuis la Médiathèque"
-        subtitle={
+        title={i18nT("ajouter_depuis_la_mediatheque_d0f700b2")}
+        subtitle={i18nT(
           mediaLibraryPickerScope === "generation"
-            ? "Pour la génération, choisissez jusqu’à 5 images OU une vidéo. Le mixage reste disponible dans les Médias de la publication."
-            : "Choisissez jusqu’à 5 images et une vidéo déjà stockées dans iNrCy."
-        }
+            ? "media_library_generation_subtitle"
+            : "media_library_publication_subtitle",
+        )}
         accept={
           mediaLibraryPickerScope === "generation"
             ? generationMediaSelectionPolicy.libraryAccept
@@ -6797,11 +6811,11 @@ export default function PublishModal({
         maxVideoBytes={BOOSTER_MAX_VIDEO_BYTES}
         onOpenOptimizer={openMediaOptimizer}
         onOversizedMedia={registerOversizedLibraryMedia}
-        confirmLabel={
+        confirmLabel={i18nT(
           mediaLibraryPickerScope === "generation"
-            ? "Ajouter à la génération"
-            : "Ajouter à la publication"
-        }
+            ? "media_library_add_to_generation"
+            : "media_library_add_to_publication",
+        )}
         onClose={() => setMediaLibraryPickerOpen(false)}
         onConfirm={async (items) => {
           await addMediaLibrarySelection(
@@ -7025,7 +7039,6 @@ export default function PublishModal({
               imageMetaByKey={imageMetaByKey}
               previewByKey={previewByKey}
               previewAspectRatio={previewAspectRatio}
-              getImageAdapterLabel={getImageAdapterLabel}
               setSynchronizedActiveChannel={setSynchronizedActiveChannel}
               onPickImagesClick={() => {
                 pendingDirectMediaDestinationRef.current = { kind: "publication" };
@@ -7069,13 +7082,13 @@ export default function PublishModal({
 
           <ChannelImageAdapterModal
         open={!!(isImageEditorOpen && activeEditorImageKey)}
-        title={`Adapter Image ${(imageKeys.indexOf(activeEditorImageKey || "") || 0) + 1}`}
-        subtitle={`${getImageAdapterLabel(activeImageChannel)} • ${activeEditorDecisionLabel}`}
+        title={i18nT("adapter_image_value_c159004c", { value0: (imageKeys.indexOf(activeEditorImageKey || "") || 0) + 1 })}
+        subtitle={`${getLocalizedChannelLabel(activeImageChannel, runtimeT)} • ${getLocalizedImageDecisionLabel(activeEditorDecisionMode, runtimeT)}`}
         aspectRatio={previewAspectRatio}
         backgroundMode={activeBackgroundMode}
         backgroundColor={activeBackgroundColor}
-        fitLabel={getImageFitLabel(activeEditorTransform)}
-        zoomLabel={`zoom ${activeEffectiveZoom.toFixed(2)}×`}
+        fitLabel={getLocalizedImageFitLabel(activeEditorTransform, runtimeT)}
+        zoomLabel={i18nT("zoom_value_1d90c01c", { value0: activeEffectiveZoom.toFixed(2) })}
         previewSrc={
           activeEditorImageKey ? previewByKey[activeEditorImageKey] : ""
         }
@@ -7122,7 +7135,14 @@ export default function PublishModal({
             ? resetActiveChannelImages
             : undefined
         }
-        isolationNote={`Ce réglage concerne uniquement ${getImageAdapterLabel(activeImageChannel)}. Les autres canaux restent indépendants.${activeImageChannel === "gmb" ? " Fond transparent = export sur fond blanc pour un rendu propre sur Google Business." : ""}`}
+        isolationNote={i18nT(
+          activeImageChannel === "gmb"
+            ? "image_setting_channel_only_gmb"
+            : "image_setting_channel_only",
+          {
+            channel: getLocalizedChannelLabel(activeImageChannel, runtimeT),
+          },
+        )}
         onApplyToSelectedChannels={
           activeImageChannel === "inrcy_site" ||
           activeImageChannel === "site_web"
@@ -7187,11 +7207,13 @@ export default function PublishModal({
           return {
             key,
             previewUrl: previewByKey[key],
-            title: `Image ${index + 1}`,
-            subtitle: included
-              ? "Publiée sur ce canal"
-              : "Non envoyée sur ce canal",
-            fitLabel: getImageFitLabel(transform),
+            title: i18nT("image_value_5907a7ef", { value0: index + 1 }),
+            subtitle: i18nT(
+              included
+                ? "image_published_on_channel"
+                : "image_not_sent_on_channel",
+            ),
+            fitLabel: getLocalizedImageFitLabel(transform, runtimeT),
             active: key === activeEditorImageKey,
             onClick: () =>
               setActiveImageKeyByChannel((prev) => ({

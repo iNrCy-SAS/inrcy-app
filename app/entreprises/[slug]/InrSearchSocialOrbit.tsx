@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import Image from "next/image";
 import { useMemo, useState, type CSSProperties } from "react";
 import InrSearchLogo from "./InrSearchLogo";
@@ -36,6 +39,7 @@ const NETWORK_ICONS: Record<string, string> = {
 };
 
 export default function InrSearchSocialOrbit({ companyName, logoUrl, profession, city, links }: Props) {
+  const i18nT = useTranslations("public");
   const [activeIndex, setActiveIndex] = useState(0);
   const activeLink = links[activeIndex] || links[0];
   const total = links.length;
@@ -56,15 +60,15 @@ export default function InrSearchSocialOrbit({ companyName, logoUrl, profession,
     <div className={styles.socialOrbitExperience}>
       <div className={styles.socialOrbitHeader}>
         <div>
-          <span className={styles.socialOrbitEyebrow}>Système solaire numérique</span>
-          <h2>Présence en ligne de {companyName}</h2>
-          <p>Retrouvez {companyName} sur son site internet et ses réseaux sociaux.</p>
+          <span className={styles.socialOrbitEyebrow}>{i18nT("systeme_solaire_numerique_4e1f35c0")}</span>
+          <h2>{i18nT("presence_en_ligne_de_value_c04e82ab", { value0: companyName })}</h2>
+          <p>{i18nT("retrouvez_value_sur_son_site_internet_3da59f2d", { value0: companyName })}</p>
         </div>
-        <span className={styles.socialOrbitCount}><strong>{String(total).padStart(2, "0")}</strong> présence{total > 1 ? "s" : ""} en ligne</span>
+        <span className={styles.socialOrbitCount}><strong>{String(total).padStart(2, "0")}</strong> {" "}{i18nT("presence_7367bf2b")}{total > 1 ? "s" : ""} {" "}{i18nT("en_ligne_84b3c260")}</span>
       </div>
 
       <div className={styles.socialOrbitStage}>
-        <div className={styles.socialSolarSystem} role="list" aria-label="Présence en ligne de l’entreprise">
+        <div className={styles.socialSolarSystem} role="list" aria-label={i18nT("presence_en_ligne_de_l_entreprise_7ca041fe")}>
           <div className={styles.socialOrbitRings} aria-hidden="true"><span /><span /><span /></div>
           <div className={styles.socialOrbitCore}>
             <span className={styles.socialOrbitCoreGlow} aria-hidden="true" />
@@ -76,7 +80,7 @@ export default function InrSearchSocialOrbit({ companyName, logoUrl, profession,
               height={132}
               fallbackClassName={styles.socialOrbitFallback}
             />
-            <small>{profession || "Entreprise"}</small>
+            <small>{profession || i18nT("entreprise_d03e74b6")}</small>
             <strong>{companyName}</strong>
             {city ? <em>{city}</em> : null}
           </div>
@@ -120,11 +124,11 @@ export default function InrSearchSocialOrbit({ companyName, logoUrl, profession,
             <span className={`${styles.socialOrbitDetailGlyph} ${styles[`social_${activeLink.key}`] || ""}`}>
               {NETWORK_ICONS[activeLink.key] ? <Image src={NETWORK_ICONS[activeLink.key]} alt="" width={48} height={48} /> : activeLink.key === "website" ? "◎" : activeLink.label.slice(0, 1).toUpperCase()}
             </span>
-            <small>Planète sélectionnée</small>
+            <small>{i18nT("planete_selectionnee_0c005848")}</small>
             <strong>{activeLink.label}</strong>
-            <p>Consultez {activeLink.label} pour découvrir les contenus et les informations publiés par {companyName}.</p>
+            <p>{i18nT("consultez_value_pour_decouvrir_les_contenus_20c3952b", { value0: activeLink.label, value1: companyName })}</p>
             <a href={activeLink.url} target="_blank" rel="noopener noreferrer" data-inrsearch-action={activeLink.key} data-inrsearch-target={activeLink.url}>
-              Découvrir <span aria-hidden="true">↗</span>
+              {i18nT("decouvrir_8969b8d1")}{" "}<span aria-hidden="true">↗</span>
             </a>
             <div className={styles.socialOrbitDetailCoordinates} aria-hidden="true"><span /> ORBITE {String(activeIndex + 1).padStart(2, "0")}</div>
           </aside>

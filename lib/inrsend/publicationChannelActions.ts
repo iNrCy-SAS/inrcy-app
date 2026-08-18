@@ -1771,7 +1771,7 @@ async function replaceChannelDelivery(params: {
   if (channel === "pinterest") {
     const accessToken = await getPinterestAccessToken(userId);
     if (!accessToken) throw new Error("Pinterest à reconnecter. Rendez-vous dans Canaux.");
-    if (!previousExternalId) throw new Error("Épingle Pinterest introuvable dans l’historique iNrSend.");
+    if (!previousExternalId) throw new Error("Épingle Pinterest introuvable dans l’historique iNr’Send.");
 
     const channelResult = asRecord(asRecord(eventPayload.results).pinterest);
     const boardId = String(channelResult.board_id || "").trim();
@@ -1958,7 +1958,7 @@ async function removeChannelDelivery(params: {
   if (channel === "pinterest") {
     const accessToken = await getPinterestAccessToken(userId);
     if (!accessToken) throw new Error("Pinterest à reconnecter. Rendez-vous dans Canaux.");
-    if (!previousExternalId) throw new Error("Épingle Pinterest introuvable dans l’historique iNrSend.");
+    if (!previousExternalId) throw new Error("Épingle Pinterest introuvable dans l’historique iNr’Send.");
     await deletePinterestPin(accessToken, previousExternalId);
     return;
   }
@@ -2224,7 +2224,7 @@ function buildCancelledPayload(params: {
   const diagnostics = asRecord(channelResult.diagnostics);
   const cancelledAt = new Date().toISOString();
   const message =
-    "Publication annulée dans iNrSend. Le suivi automatique est arrêté. Une tentative déjà acceptée par TikTok ne peut pas être interrompue à distance.";
+    "Publication annulée dans iNr’Send. Le suivi automatique est arrêté. Une tentative déjà acceptée par TikTok ne peut pas être interrompue à distance.";
 
   results[channel] = {
     ...channelResult,
@@ -2438,14 +2438,14 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
             ok: true,
             cancelled: true,
             remote_cancellation_supported: false,
-            message: "Cette publication est déjà annulée dans iNrSend.",
+            message: "Cette publication est déjà annulée dans iNr’Send.",
             payload,
           });
         }
 
         if (!isPendingTiktokResult(channelResult)) {
           return jsonUserFacingError(
-            "Seule une publication TikTok encore en attente peut être annulée depuis iNrSend.",
+            "Seule une publication TikTok encore en attente peut être annulée depuis iNr’Send.",
             { status: 409, code: "tiktok_not_pending" },
           );
         }
@@ -2458,7 +2458,7 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
           ok: true,
           cancelled: true,
           remote_cancellation_supported: false,
-          message: "Publication annulée dans iNrSend. Le suivi automatique est arrêté.",
+          message: "Publication annulée dans iNr’Send. Le suivi automatique est arrêté.",
           payload: nextPayload,
         });
       }

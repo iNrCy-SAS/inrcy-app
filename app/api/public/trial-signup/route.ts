@@ -13,6 +13,13 @@ import {
   hasKnownInrcyAccountForEmail,
   isExistingAuthUserError,
 } from "@/lib/supabaseAuthBusinessErrors";
+import {
+  DEFAULT_APP_LOCALE,
+  appLanguageFromLocale,
+  tryNormalizeAppLocale,
+  type AppLanguage,
+  type AppLocale,
+} from "@/i18n/config";
 
 export const runtime = "nodejs";
 
@@ -27,6 +34,8 @@ type SignupPayload = {
   consent: boolean;
   honeypot: string;
   source: string;
+  language: AppLanguage;
+  locale: AppLocale;
 };
 
 function jsonResponse(body: unknown, status = 200) {
@@ -248,6 +257,38 @@ function normalizePayload(body: LooseRecord): SignupPayload {
     !!consentRaw &&
     !["0", "false", "no", "non", "off", "unchecked"].includes(consentRaw);
 
+  const rawLocale = lookupValue(flat, [
+    "language",
+    "lang",
+    "locale",
+    "language_code",
+    "site_language",
+    "wp_language",
+    "trp_language",
+  ]);
+  const sourcePageUrl = lookupValue(flat, [
+    "page_url",
+    "page-url",
+    "referer",
+    "referrer",
+    "source_url",
+  ]);
+  let locale = tryNormalizeAppLocale(rawLocale);
+
+  if (!locale && sourcePageUrl) {
+    try {
+      const sourceUrl = new URL(sourcePageUrl, "https://inrcy.com");
+      for (const segment of sourceUrl.pathname.split("/")) {
+        locale = tryNormalizeAppLocale(segment);
+        if (locale) break;
+      }
+    } catch {
+      // Une URL source invalide ne doit jamais bloquer une inscription.
+    }
+  }
+
+  locale ||= DEFAULT_APP_LOCALE;
+
   return {
     email: lookupValue(flat, ["email", "e-mail", "mail", "your-email"]).trim().toLowerCase(),
     firstName: lookupValue(flat, ["first_name", "firstname", "prenom", "prénom", "first-name"]),
@@ -276,6 +317,8 @@ function normalizePayload(body: LooseRecord): SignupPayload {
       "website",
     ]),
     source: lookupValue(flat, ["source", "form_name", "form-id"]) || optionalEnv("INRCY_MARKETING_SOURCE", "wordpress-elementor"),
+    language: appLanguageFromLocale(locale),
+    locale,
   };
 }
 
@@ -328,6 +371,8 @@ export async function POST(req: Request) {
 
 
     const appOrigin = (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || "https://app.inrcy.com").replace(/\/$/, "");
+    const inviteRedirectUrl = new URL("/auth/finish-invite", `${appOrigin}/`);
+    inviteRedirectUrl.searchParams.set("lang", payload.language);
 
     if (await hasKnownInrcyAccountForEmail(payload.email)) {
       return jsonResponse(
@@ -346,8 +391,10 @@ export async function POST(req: Request) {
         company_legal_name: payload.companyName || undefined,
         phone: payload.phone || undefined,
         source: payload.source || undefined,
+        app_language: payload.language,
+        app_locale: payload.locale,
       },
-      redirectTo: `${appOrigin}/auth/finish-invite`,
+      redirectTo: inviteRedirectUrl.toString(),
     });
 
     if (inviteError) {
@@ -387,6 +434,18 @@ export async function POST(req: Request) {
       .from("profiles")
       .upsert(profilePatch, { onConflict: "user_id" });
     if (profileError) throw new Error(profileError.message);
+
+    const { error: languageProfileError } = await supabaseAdmin
+      .from("business_profiles")
+      .upsert(
+        {
+          user_id: userId,
+          app_language: payload.language,
+          updated_at: nowIso,
+        },
+        { onConflict: "user_id" },
+      );
+    if (languageProfileError) throw new Error(languageProfileError.message);
 
     await ensureNotificationPreferences(userId);
     await seedOnboardingNotifications(userId);

@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import React, { useEffect, useState } from "react";
 
 import type { BackgroundMode, PreviewImage, PreviewVideo, PublicationPreview } from "./types";
@@ -89,7 +90,7 @@ function DeviceGrid({ children }: { children: React.ReactNode }) {
   );
 }
 
-function DeviceCard({ label, children, compact = false }: { label: "Desktop" | "Mobile"; children: React.ReactNode; compact?: boolean }) {
+function DeviceCard({ label, children, compact = false }: { label: string; children: React.ReactNode; compact?: boolean }) {
   return (
     <div style={{ display: "grid", gap: compact ? 7 : 8, minWidth: 0 }}>
       <div style={{ fontSize: 11, fontWeight: 900, textTransform: "uppercase", letterSpacing: 0.4, opacity: 0.68 }}>{label}</div>
@@ -99,6 +100,7 @@ function DeviceCard({ label, children, compact = false }: { label: "Desktop" | "
 }
 
 function DevicePreviewSwitcher({ desktop, mobile }: { desktop: React.ReactNode; mobile: React.ReactNode }) {
+  const i18nT = useTranslations("shell");
   const viewportWidth = useViewportWidth();
   const isMobileViewport = viewportWidth <= 640;
   const [active, setActive] = useState<"mobile" | "desktop">("mobile");
@@ -107,8 +109,8 @@ function DevicePreviewSwitcher({ desktop, mobile }: { desktop: React.ReactNode; 
   if (!isMobileViewport) {
     return (
       <DeviceGrid>
-        <DeviceCard label="Desktop">{desktop}</DeviceCard>
-        <DeviceCard label="Mobile">{mobile}</DeviceCard>
+        <DeviceCard label={i18nT("desktop_532c67fe")}>{desktop}</DeviceCard>
+        <DeviceCard label={i18nT("mobile_b1d70245")}>{mobile}</DeviceCard>
       </DeviceGrid>
     );
   }
@@ -139,7 +141,7 @@ function DevicePreviewSwitcher({ desktop, mobile }: { desktop: React.ReactNode; 
                 cursor: "pointer",
               }}
             >
-              {mode === "mobile" ? "Mobile" : "Desktop"}
+              {mode === "mobile" ? i18nT("mobile_b1d70245") : i18nT("desktop_532c67fe")}
             </button>
           );
         })}
@@ -167,13 +169,13 @@ function DevicePreviewSwitcher({ desktop, mobile }: { desktop: React.ReactNode; 
       >
         <DeviceCard label={activeLabel} compact>{showDesktop ? desktop : mobile}</DeviceCard>
 
-        <button type="button" onClick={goPrevious} aria-label="Aperçu précédent" style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", width: 32, height: 32, borderRadius: 999, border: "1px solid rgba(255,255,255,0.14)", background: "rgba(2,6,23,0.54)", color: "#fff", cursor: "pointer" }}>‹</button>
-        <button type="button" onClick={goNext} aria-label="Aperçu suivant" style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", width: 32, height: 32, borderRadius: 999, border: "1px solid rgba(255,255,255,0.14)", background: "rgba(2,6,23,0.54)", color: "#fff", cursor: "pointer" }}>›</button>
+        <button type="button" onClick={goPrevious} aria-label={i18nT("apercu_precedent_32003d48")} style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", width: 32, height: 32, borderRadius: 999, border: "1px solid rgba(255,255,255,0.14)", background: "rgba(2,6,23,0.54)", color: "#fff", cursor: "pointer" }}>‹</button>
+        <button type="button" onClick={goNext} aria-label={i18nT("apercu_suivant_6a2b57ef")} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", width: 32, height: 32, borderRadius: 999, border: "1px solid rgba(255,255,255,0.14)", background: "rgba(2,6,23,0.54)", color: "#fff", cursor: "pointer" }}>›</button>
       </div>
 
       <div style={{ display: "flex", justifyContent: "center", gap: 7 }}>
-        <button type="button" onClick={() => setActive("mobile")} aria-label="Voir l'aperçu mobile" style={{ width: active === "mobile" ? 18 : 7, height: 7, borderRadius: 999, border: 0, padding: 0, background: active === "mobile" ? "#ffffff" : "rgba(255,255,255,0.42)", cursor: "pointer", transition: "width 160ms ease" }} />
-        <button type="button" onClick={() => setActive("desktop")} aria-label="Voir l'aperçu desktop" style={{ width: active === "desktop" ? 18 : 7, height: 7, borderRadius: 999, border: 0, padding: 0, background: active === "desktop" ? "#ffffff" : "rgba(255,255,255,0.42)", cursor: "pointer", transition: "width 160ms ease" }} />
+        <button type="button" onClick={() => setActive("mobile")} aria-label={i18nT("voir_l_apercu_mobile_5b1b11ea")} style={{ width: active === "mobile" ? 18 : 7, height: 7, borderRadius: 999, border: 0, padding: 0, background: active === "mobile" ? "#ffffff" : "rgba(255,255,255,0.42)", cursor: "pointer", transition: "width 160ms ease" }} />
+        <button type="button" onClick={() => setActive("desktop")} aria-label={i18nT("voir_l_apercu_desktop_58cf1dca")} style={{ width: active === "desktop" ? 18 : 7, height: 7, borderRadius: 999, border: 0, padding: 0, background: active === "desktop" ? "#ffffff" : "rgba(255,255,255,0.42)", cursor: "pointer", transition: "width 160ms ease" }} />
       </div>
     </div>
   );
@@ -192,6 +194,7 @@ function SocialCarouselPreview({
   dark?: boolean;
   onOpen: (index: number) => void;
 }) {
+  const i18nT = useTranslations("shell");
   const [index, setIndex] = useState(0);
   const safeImages = images.length ? images : [];
 
@@ -217,7 +220,7 @@ function SocialCarouselPreview({
           <button type="button" onClick={() => setIndex((prev) => (prev + 1) % safeImages.length)} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", width: 34, height: 34, borderRadius: 999, border: "1px solid rgba(255,255,255,0.14)", background: dark ? "rgba(2,6,23,0.68)" : "rgba(255,255,255,0.92)", color: dark ? "#fff" : "#111827", cursor: "pointer" }}>›</button>
           <div style={{ position: "absolute", left: 0, right: 0, bottom: 10, display: "flex", justifyContent: "center", gap: 6 }}>
             {safeImages.map((_, dotIndex) => (
-              <button key={dotIndex} type="button" onClick={() => setIndex(dotIndex)} style={{ width: 7, height: 7, borderRadius: 999, border: 0, padding: 0, background: dotIndex === index ? "#ffffff" : "rgba(255,255,255,0.45)", cursor: "pointer" }} aria-label={`Aller à l'image ${dotIndex + 1}`} />
+              <button key={dotIndex} type="button" onClick={() => setIndex(dotIndex)} style={{ width: 7, height: 7, borderRadius: 999, border: 0, padding: 0, background: dotIndex === index ? "#ffffff" : "rgba(255,255,255,0.45)", cursor: "pointer" }} aria-label={i18nT("aller_a_l_image_value_869fd38d", { value0: dotIndex + 1 })} />
             ))}
           </div>
         </>
@@ -291,6 +294,7 @@ function SitePreviewCard({
   isInrcySite: boolean;
   onOpen: (index: number) => void;
 }) {
+  const i18nT = useTranslations("shell");
   const accent = isInrcySite ? "#4cc3ff" : "#111827";
   const isMobile = mode === "mobile";
   const safeImages = images.length ? images : [];
@@ -298,8 +302,8 @@ function SitePreviewCard({
   return (
     <div style={{ width: "100%", maxWidth: isMobile ? 360 : 680, margin: "0 auto", borderRadius: isMobile ? 24 : 18, background: "#ffffff", color: "#111827", padding: isMobile ? 12 : 14, boxShadow: "0 16px 45px rgba(0,0,0,0.22)", minWidth: 0, overflow: "hidden" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 10 }}>
-        <div style={{ fontSize: isMobile ? 14 : 15, fontWeight: 900 }}>Actualités</div>
-        <div style={{ fontSize: 10, fontWeight: 900, color: accent, textTransform: "uppercase", letterSpacing: 0.4 }}>{isMobile ? "Mobile" : "Desktop"}</div>
+        <div style={{ fontSize: isMobile ? 14 : 15, fontWeight: 900 }}>{i18nT("actualites_a3baa78e")}</div>
+        <div style={{ fontSize: 10, fontWeight: 900, color: accent, textTransform: "uppercase", letterSpacing: 0.4 }}>{isMobile ? i18nT("mobile_b1d70245") : i18nT("desktop_532c67fe")}</div>
       </div>
       <article style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 0.95fr) minmax(0, 1fr)", gap: isMobile ? 10 : 14, alignItems: "start", minWidth: 0 }}>
         <div style={{ borderRadius: isInrcySite ? 16 : 10, overflow: "hidden", background: "#eef2f7", minWidth: 0 }}>
@@ -330,14 +334,15 @@ function SitePreviewCard({
 }
 
 function GoogleBusinessPreviewCard({ mode, title, content, cta, image, video, onOpen }: { mode: "desktop" | "mobile"; title: string; content: string; cta: string; image: PreviewImage | null; video?: PreviewVideo | null; onOpen: () => void }) {
+  const i18nT = useTranslations("shell");
   const isMobile = mode === "mobile";
   return (
     <article style={{ width: "100%", maxWidth: isMobile ? 360 : 620, margin: "0 auto", borderRadius: isMobile ? 24 : 22, background: "#ffffff", color: "#111827", overflow: "hidden", border: "1px solid rgba(255,255,255,0.10)", boxShadow: "0 16px 45px rgba(0,0,0,0.22)", minWidth: 0 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: isMobile ? "12px" : "12px 14px" }}>
         <div style={{ width: isMobile ? 26 : 28, height: isMobile ? 26 : 28, borderRadius: 999, background: "#e5e7eb" }} />
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: isMobile ? 13 : 14, fontWeight: 900 }}>Votre entreprise</div>
-          <div style={{ fontSize: 12, color: "#6b7280" }}>Google Business Profile</div>
+          <div style={{ fontSize: isMobile ? 13 : 14, fontWeight: 900 }}>{i18nT("votre_entreprise_c001322f")}</div>
+          <div style={{ fontSize: 12, color: "#6b7280" }}>{i18nT("google_business_profile_b3776811")}</div>
         </div>
       </div>
       <div style={{ padding: isMobile ? "0 12px" : "0 14px" }}>
@@ -381,6 +386,7 @@ function InstagramPreviewCard({
   video?: PreviewVideo | null;
   onOpen: (index: number) => void;
 }) {
+  const i18nT = useTranslations("shell");
   const isMobile = mode === "mobile";
   const caption = titleValue ? `${title}\n\n${content}` : content;
   const hasVideo = !!video?.previewUrl;
@@ -391,8 +397,8 @@ function InstagramPreviewCard({
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 12px 10px" }}>
           <div style={{ width: 32, height: 32, borderRadius: 999, background: "#f3f4f6" }} />
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontWeight: 900, fontSize: 13 }}>Votre entreprise</div>
-            <div style={{ fontSize: 11, color: "#6b7280" }}>Instagram</div>
+            <div style={{ fontWeight: 900, fontSize: 13 }}>{i18nT("votre_entreprise_c001322f")}</div>
+            <div style={{ fontSize: 11, color: "#6b7280" }}>{i18nT("instagram_5721bbef")}</div>
           </div>
         </div>
         {hasVideo ? (
@@ -404,7 +410,7 @@ function InstagramPreviewCard({
           <div style={{ display: "flex", gap: 12 }}><span>♡</span><span>💬</span><span>➤</span></div><span>⌑</span>
         </div>
         <div style={{ display: "grid", gap: 8, padding: "8px 12px 14px" }}>
-          <div style={{ fontSize: 13, lineHeight: 1.5, whiteSpace: "pre-wrap", overflowWrap: "anywhere", display: "-webkit-box", WebkitLineClamp: 8, WebkitBoxOrient: "vertical", overflow: "hidden" }}><span style={{ fontWeight: 900 }}>Votre entreprise</span> {caption}</div>
+          <div style={{ fontSize: 13, lineHeight: 1.5, whiteSpace: "pre-wrap", overflowWrap: "anywhere", display: "-webkit-box", WebkitLineClamp: 8, WebkitBoxOrient: "vertical", overflow: "hidden" }}><span style={{ fontWeight: 900 }}>{i18nT("votre_entreprise_c001322f")}</span> {caption}</div>
           {cta ? <div style={{ fontSize: 12, fontWeight: 800, color: "#2563eb" }}>{cta}</div> : null}
           {hashtags.length ? <div style={{ fontSize: 12, lineHeight: 1.5, color: "#2563eb" }}>{hashtags.map((tag) => `#${tag}`).join(" ")}</div> : null}
         </div>
@@ -425,18 +431,18 @@ function InstagramPreviewCard({
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 16px", borderBottom: "1px solid #e5e7eb" }}>
           <div style={{ width: 36, height: 36, borderRadius: 999, background: "#f3f4f6" }} />
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontWeight: 900, fontSize: 14 }}>Votre entreprise</div>
-            <div style={{ fontSize: 12, color: "#6b7280" }}>Instagram</div>
+            <div style={{ fontWeight: 900, fontSize: 14 }}>{i18nT("votre_entreprise_c001322f")}</div>
+            <div style={{ fontSize: 12, color: "#6b7280" }}>{i18nT("instagram_5721bbef")}</div>
           </div>
         </div>
         <div style={{ padding: 16, overflow: "hidden", display: "grid", gap: 10, alignContent: "start" }}>
-          <div style={{ fontSize: 14, lineHeight: 1.55, whiteSpace: "pre-wrap", overflowWrap: "anywhere", display: "-webkit-box", WebkitLineClamp: 12, WebkitBoxOrient: "vertical", overflow: "hidden" }}><span style={{ fontWeight: 900 }}>Votre entreprise</span> {caption}</div>
+          <div style={{ fontSize: 14, lineHeight: 1.55, whiteSpace: "pre-wrap", overflowWrap: "anywhere", display: "-webkit-box", WebkitLineClamp: 12, WebkitBoxOrient: "vertical", overflow: "hidden" }}><span style={{ fontWeight: 900 }}>{i18nT("votre_entreprise_c001322f")}</span> {caption}</div>
           {cta ? <div style={{ fontSize: 13, fontWeight: 800, color: "#2563eb" }}>{cta}</div> : null}
           {hashtags.length ? <div style={{ fontSize: 13, lineHeight: 1.5, color: "#2563eb" }}>{hashtags.map((tag) => `#${tag}`).join(" ")}</div> : null}
         </div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "12px 16px", borderTop: "1px solid #e5e7eb", color: "#6b7280", fontSize: 12 }}>
           <div style={{ display: "flex", gap: 12 }}><span>♡</span><span>💬</span><span>➤</span></div>
-          <div>{hasVideo ? "1 vidéo" : images.length > 1 ? `${images.length} photos` : "1 photo"}</div>
+          <div>{hasVideo ? i18nT("1_video_33cad806") : images.length > 1 ? `${images.length} photos` : i18nT("1_photo_ce70caaa")}</div>
         </div>
       </div>
     </article>
@@ -444,6 +450,7 @@ function InstagramPreviewCard({
 }
 
 function FeedPreviewCard({ mode, channel, title, content, cta, hashtags = [], images, video, onOpen }: { mode: "desktop" | "mobile"; channel: "facebook" | "linkedin" | "tiktok" | "youtube_shorts"; title: string; content: string; cta: string; hashtags?: string[]; images: PreviewImage[]; video?: PreviewVideo | null; onOpen: (index: number) => void }) {
+  const i18nT = useTranslations("shell");
   const isMobile = mode === "mobile";
   const isLinkedin = channel === "linkedin";
   const isTiktok = channel === "tiktok";
@@ -468,7 +475,7 @@ function FeedPreviewCard({ mode, channel, title, content, cta, hashtags = [], im
       <div style={{ display: "flex", alignItems: "center", gap: isShortVideoChannel ? 8 : 10, padding: isShortVideoChannel ? (isMobile ? "9px 10px 6px" : "10px 12px 7px") : (isMobile ? "12px 12px 8px" : "14px 16px 10px") }}>
         <div style={{ width: avatarSize, height: avatarSize, borderRadius: 999, background: "#e5e7eb", flexShrink: 0 }} />
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: isShortVideoChannel ? (isMobile ? 11.5 : 12.5) : (isMobile ? 13 : 14), fontWeight: 900 }}>{isLinkedin ? "Votre entreprise · 1er" : isTiktok ? "@votreentreprise" : isYoutubeShorts ? "Votre chaîne" : "Votre entreprise"}</div>
+          <div style={{ fontSize: isShortVideoChannel ? (isMobile ? 11.5 : 12.5) : (isMobile ? 13 : 14), fontWeight: 900 }}>{isLinkedin ? i18nT("votre_entreprise_1er_8b45e231") : isTiktok ? i18nT("votreentreprise_5efc2bb5") : isYoutubeShorts ? i18nT("votre_chaine_1c8c877f") : i18nT("votre_entreprise_c001322f")}</div>
           <div style={{ fontSize: isShortVideoChannel ? 10.5 : 12, color: "#6b7280" }}>{label}</div>
         </div>
       </div>
@@ -481,11 +488,11 @@ function FeedPreviewCard({ mode, channel, title, content, cta, hashtags = [], im
         </div>
         {video?.previewUrl ? <div style={{ borderRadius: isTiktok ? 14 : 18, overflow: "hidden", background: isShortVideoChannel ? "#000" : undefined }}><VideoPreviewFrame video={video} aspectRatio={isShortVideoChannel ? (video.aspectRatio || "9 / 16") : (video.aspectRatio || "1 / 1")} badge={`Vidéo ${label}`} /></div> : <StackedImageGridPreview images={images} aspectRatio={isShortVideoChannel ? "9 / 16" : "1 / 1"} fallbackMode={isShortVideoChannel ? "black" : "color"} onOpen={onOpen} />}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: isShortVideoChannel ? 7 : 10, paddingTop: 4, borderTop: "1px solid #e5e7eb", color: "#6b7280", fontSize: isShortVideoChannel ? 10.5 : 12, flexWrap: "wrap" }}>
-          <div>{video?.previewUrl ? "1 vidéo" : images.length > 1 ? `${images.length} photos • cliquez pour ouvrir` : "1 photo • cliquez pour ouvrir"}</div>
+          <div>{video?.previewUrl ? i18nT("1_video_33cad806") : images.length > 1 ? i18nT("value_photos_cliquez_pour_ouvrir_e8f5fc98", { value0: images.length }) : i18nT("1_photo_cliquez_pour_ouvrir_0db64f1f")}</div>
           <div style={{ display: "flex", gap: 12 }}>
-            <span>J’aime</span>
-            <span>Commenter</span>
-            <span>{isLinkedin ? "Republier" : "Partager"}</span>
+            <span>{i18nT("j_aime_b75f4622")}</span>
+            <span>{i18nT("commenter_bf4df9c0")}</span>
+            <span>{isLinkedin ? i18nT("republier_d9aef6c4") : i18nT("partager_cbcb7f0c")}</span>
           </div>
         </div>
       </div>

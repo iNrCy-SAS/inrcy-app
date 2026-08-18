@@ -353,7 +353,7 @@ export type ScheduleListItem = {
   typeLabel: string;
   channelLabel: string;
   channelLabels: string[];
-  originLabel: "Automatique" | "Programmé";
+  originLabel: string;
   status: string;
   statusKey?: string;
   automationKey?: AutomationKey | null;

@@ -112,7 +112,7 @@ export function normalizeLabel(value: string) {
 export const VAT_OPTIONS = [0, 5.5, 10, 20] as const;
 
 export const DOCUMENT_KIND_OPTIONS = [
-  { key: "invoice", label: "Facture" },
-  { key: "deposit", label: "Facture d’acompte" },
-  { key: "credit_note", label: "Avoir" },
+  { key: "invoice", labelKey: "facture_3953b9f5" },
+  { key: "deposit", labelKey: "facture_d_acompte_ce9f9da4" },
+  { key: "credit_note", labelKey: "avoir_8ee24717" },
 ] as const;

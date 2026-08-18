@@ -1,6 +1,9 @@
 import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
+import createNextIntlPlugin from "next-intl/plugin";
 import path from "node:path";
+
+const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
 
 // Content Security Policy (CSP)
 const cspReportOnly = [
@@ -114,7 +117,7 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default withSentryConfig(nextConfig, {
+export default withSentryConfig(withNextIntl(nextConfig), {
   org: "inrcy",
   project: "javascript-nextjs",
   authToken: process.env.SENTRY_AUTH_TOKEN,

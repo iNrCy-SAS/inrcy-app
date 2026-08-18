@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import { useState } from "react";
 import type { DashboardEdition } from "@/lib/dashboardEdition";
 import type { BillingCycle } from "@/lib/subscriptionOffers";
@@ -12,12 +15,13 @@ type Props = {
   contactHref: string;
 };
 
-async function apiError(response: Response): Promise<string> {
+async function apiError(response: Response, fallback: string): Promise<string> {
   const body = (await response.json().catch(() => null)) as { error?: string } | null;
-  return body?.error || "L’opération n’a pas pu être réalisée.";
+  return body?.error || fallback;
 }
 
 export default function BlockedBillingActions({ status, edition, hasStripeCustomer, contactHref }: Props) {
+  const i18nT = useTranslations("public");
   const [cycle, setCycle] = useState<BillingCycle>("monthly");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -37,7 +41,7 @@ export default function BlockedBillingActions({ status, edition, hasStripeCustom
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ plan: "Standard", billingCycle: cycle }),
       });
-      if (!response.ok) throw new Error(await apiError(response));
+      if (!response.ok) throw new Error(await apiError(response, i18nT("l_operation_n_a_pas_pu_2eda8de6")));
       const body = (await response.json()) as { url?: string };
       if (!body.url) throw new Error("La page de paiement n’a pas pu être ouverte.");
       window.location.assign(body.url);
@@ -52,7 +56,7 @@ export default function BlockedBillingActions({ status, edition, hasStripeCustom
     setError("");
     try {
       const response = await fetch("/api/billing/portal", { method: "POST" });
-      if (!response.ok) throw new Error(await apiError(response));
+      if (!response.ok) throw new Error(await apiError(response, i18nT("l_operation_n_a_pas_pu_2eda8de6")));
       const body = (await response.json()) as { url?: string };
       if (!body.url) throw new Error("Le portail de facturation n’a pas pu être ouvert.");
       window.location.assign(body.url);
@@ -66,34 +70,32 @@ export default function BlockedBillingActions({ status, edition, hasStripeCustom
     <div className={styles.recoveryBlock}>
       {canSubscribe ? (
         <>
-          <div className={styles.cyclePicker} aria-label="Périodicité de l’abonnement">
+          <div className={styles.cyclePicker} aria-label={i18nT("periodicite_de_l_abonnement_625a0573")}>
             <button
               type="button"
               className={cycle === "monthly" ? styles.cycleActive : styles.cycleButton}
               onClick={() => setCycle("monthly")}
               disabled={busy}
             >
-              Mensuel · 69 € TTC
-            </button>
+              {i18nT("mensuel_69_ttc_6c947c24")}{" "}</button>
             <button
               type="button"
               className={cycle === "yearly" ? styles.cycleActive : styles.cycleButton}
               onClick={() => setCycle("yearly")}
               disabled={busy}
             >
-              Annuel · 730 € TTC · −12 %
-            </button>
+              {i18nT("annuel_730_ttc_12_a1b5098f")}{" "}</button>
           </div>
           <button type="button" className={styles.primaryBtn} onClick={startCheckout} disabled={busy}>
-            {busy ? "Ouverture…" : "Réactiver avec iNrCy Standard"}
+            {busy ? i18nT("ouverture_3333ad14") : i18nT("reactiver_avec_inrcy_standard_fa0d9b86")}
           </button>
         </>
       ) : canOpenPortal ? (
         <button type="button" className={styles.primaryBtn} onClick={openPortal} disabled={busy}>
-          {busy ? "Ouverture…" : "Régulariser mon paiement"}
+          {busy ? i18nT("ouverture_3333ad14") : i18nT("regulariser_mon_paiement_00ae072e")}
         </button>
       ) : (
-        <a href={contactHref} className={styles.primaryBtn}>Contacter iNrCy</a>
+        <a href={contactHref} className={styles.primaryBtn}>{i18nT("contacter_inrcy_b0a48e55")}</a>
       )}
       {error ? <div className={styles.recoveryError}>{error}</div> : null}
     </div>

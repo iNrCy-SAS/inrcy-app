@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import { useMemo, useState, useSyncExternalStore, type CSSProperties } from "react";
 import { usePathname } from "next/navigation";
 
@@ -61,6 +64,7 @@ function subscribeToConsent(onStoreChange: () => void) {
 }
 
 export default function CookieConsentBanner() {
+  const i18nT = useTranslations("shell");
   const pathname = usePathname();
   const isClient = useSyncExternalStore(
     () => () => undefined,
@@ -152,27 +156,22 @@ export default function CookieConsentBanner() {
   };
 
   return (
-    <div style={card} role="dialog" aria-live="polite" aria-label="Consentement cookies">
-      <div style={{ fontWeight: 1000, marginBottom: 6 }}>Cookies</div>
+    <div style={card} role="dialog" aria-live="polite" aria-label={i18nT("consentement_cookies_d393aeca")}>
+      <div style={{ fontWeight: 1000, marginBottom: 6 }}>{i18nT("cookies_524cf50b")}</div>
 
       <div style={{ width: "100%", opacity: 0.86, lineHeight: 1.42, fontSize: 13 }}>
-        iNrCy utilise des cookies <b>strictement nécessaires</b> au fonctionnement (connexion, sécurité). Les cookies de
-        mesure d’audience / services tiers ne sont activés qu’avec votre accord.
-      </div>
+        {i18nT("inrcy_utilise_des_cookies_be40ecb7")}{" "}<b>{i18nT("strictement_necessaires_396f10ee")}</b> {" "}{i18nT("au_fonctionnement_connexion_securite_les_cookies_d89c9d61")}{" "}</div>
 
       <div style={actionRow}>
         <a href="/legal/confidentialite" style={{ ...linkBtn, gridColumn: isMobile ? "1 / -1" : undefined }}>
-          Politique de confidentialité
-        </a>
+          {i18nT("politique_de_confidentialite_42b0e51e")}{" "}</a>
         <button type="button" onClick={() => setOpen((v) => !v)} style={{ ...btn, width: isMobile ? "100%" : undefined }}>
-          {open ? "Fermer les réglages" : "Gérer mes cookies"}
+          {open ? i18nT("fermer_les_reglages_354f1fa6") : i18nT("gerer_mes_cookies_7f8d3e65")}
         </button>
         <button type="button" onClick={() => setAll(false)} style={{ ...btn, width: isMobile ? "100%" : undefined }}>
-          Refuser
-        </button>
+          {i18nT("refuser_62897154")}{" "}</button>
         <button type="button" onClick={() => setAll(true)} style={{ ...primaryBtn, width: isMobile ? "100%" : undefined }}>
-          Accepter
-        </button>
+          {i18nT("accepter_f8b9b80e")}{" "}</button>
       </div>
 
       {open ? (
@@ -188,8 +187,7 @@ export default function CookieConsentBanner() {
           <label style={{ display: "flex", alignItems: "center", gap: 10, opacity: 0.9 }}>
             <input type="checkbox" checked readOnly />
             <span>
-              <b>Nécessaires</b> (toujours actifs)
-            </span>
+              <b>{i18nT("necessaires_c79b873d")}</b> {" "}{i18nT("toujours_actifs_cb18713e")}{" "}</span>
           </label>
           <label style={{ display: "flex", alignItems: "center", gap: 10, opacity: 0.9 }}>
             <input
@@ -198,13 +196,10 @@ export default function CookieConsentBanner() {
               onChange={(e) => setAll(Boolean(e.target.checked))}
             />
             <span>
-              <b>Mesure d’audience</b> (optionnel)
-            </span>
+              <b>{i18nT("mesure_d_audience_f4275bb4")}</b> {" "}{i18nT("optionnel_6f73b232")}{" "}</span>
           </label>
           <div style={{ fontSize: 12, opacity: 0.75, lineHeight: 1.4 }}>
-            Note : iNrCy ne force pas l’installation d’outils tiers. Les connexions à Google Analytics / GSC se font via OAuth
-            à l’initiative du professionnel.
-          </div>
+            {i18nT("note_inrcy_ne_force_pas_l_5ba6b0cf")}{" "}</div>
         </div>
       ) : null}
     </div>

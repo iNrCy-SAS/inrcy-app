@@ -1,6 +1,11 @@
 import type { DashboardEdition } from "@/lib/dashboardEdition";
 
-import { GPS_SECTIONS, type GpsArticle, type GpsSection } from "./noticeContent";
+import {
+  GPS_SECTIONS,
+  type GpsArticleSource,
+  type GpsMessageKey,
+  type GpsSectionSource,
+} from "./noticeContent";
 
 const PREMIUM_ONLY_SECTION_IDS = new Set([
   "propulser",
@@ -10,172 +15,172 @@ const PREMIUM_ONLY_SECTION_IDS = new Set([
   "documents",
 ]);
 
-type GpsArticleOverride = Partial<Omit<GpsArticle, "id">>;
+type GpsArticleOverride = Partial<Omit<GpsArticleSource, "id">>;
 
-const STANDARD_SECTION_DESCRIPTIONS: Record<string, string> = {
-  canaux: "Relier les 10 destinations de publication Standard et configurer iNr’Badge, inclus en bonus.",
-  inragent: "Programmer les publications Booster et recevoir les bilans automatiques iNrStats.",
-  inrsend: "Retrouver l’historique et le résultat de toutes les publications Booster.",
+const STANDARD_SECTION_DESCRIPTIONS: Record<string, GpsMessageKey> = {
+  canaux: "relier_les_10_destinations_de_publication_e63b94e4",
+  inragent: "programmer_les_publications_booster_et_recevoir_2e05ae9b",
+  inrsend: "retrouver_l_historique_et_le_resultat_06733a8a",
 };
 
 const STANDARD_ARTICLE_OVERRIDES: Record<string, GpsArticleOverride> = {
   "demarrer-express": {
     intro:
-      "Avant de publier ou d’analyser les résultats, iNrCy doit connaître l’entreprise. Sans Mon activité, Mon profil et Configuration IA, les contenus restent trop généraux.",
+      "avant_de_publier_ou_d_analyser_d71524fb",
     pitfalls: [
-      "Donner les bonnes informations à l’IA avant de lui demander de publier ou d’analyser les résultats.",
-      "Une IA bien configurée produit des contenus beaucoup plus naturels, locaux et efficaces.",
+      "donner_les_bonnes_informations_a_l_ba44340c",
+      "une_ia_bien_configuree_produit_des_05c34800",
     ],
   },
   "demarrer-rangement": {
     intro:
-      "Chaque donnée a un seul emplacement : les coordonnées dans Mon profil, le métier dans Mon activité et les paramètres de communication dans le Générateur.",
+      "chaque_donnee_a_un_seul_emplacement_357d476c",
     steps: [
-      "Utiliser **Mon profil** pour l’identité, les coordonnées, l’entreprise, la ville et le logo.",
-      "Utiliser **Mon activité** pour le métier, les prestations, zones, forces, clientèle et horaires publics.",
-      "Ouvrir **Réglages du générateur** pour le panier moyen et le taux de transformation.",
+      "utiliser_mon_profil_pour_l_identite_ad8f2074",
+      "utiliser_mon_activite_pour_le_metier_9afc1af8",
+      "ouvrir_reglages_du_generateur_pour_le_98a1bc70",
     ],
     checks: [
-      "Les informations déjà enregistrées sont conservées lors de cette organisation.",
-      "Les horaires publics de Mon activité décrivent correctement l’entreprise.",
-      "Les informations indispensables à Booster et iNrStats sont complètes.",
+      "les_informations_deja_enregistrees_sont_conserve_20d11de3",
+      "les_horaires_publics_de_mon_activite_33aa1e9a",
+      "les_informations_indispensables_a_booster_et_25d1d45d",
     ],
     links: [
-      { label: "Mon profil", href: "/dashboard?panel=profil&panelSource=gps" },
-      { label: "Mon activité", href: "/dashboard?panel=activite&panelSource=gps" },
+      { label: "mon_profil_faa6d321", href: "/dashboard?panel=profil&panelSource=gps" },
+      { label: "mon_activite_7732bf80", href: "/dashboard?panel=activite&panelSource=gps" },
     ],
   },
   "canaux-express": {
     intro:
-      "L’édition Standard réunit 10 destinations de publication et iNr’Badge en bonus. Les bulles servent à configurer, reconnecter et contrôler chaque canal avant de publier.",
+      "l_edition_standard_reunit_10_destinations_fc40dfbd",
     steps: [
-      "Ouvrir **Les canaux**, choisir la bulle concernée, puis cliquer sur **Configurer**.",
-      "Relier les destinations utiles : Site iNrCy, Site web, Google Business, iNr’Search, Facebook, Instagram, LinkedIn, TikTok, YouTube et Pinterest.",
-      "Configurer **iNr’Badge**, inclus en bonus, pour partager la fiche et le QR Code de l’entreprise.",
-      "Vérifier l’état de chaque bulle avant de lancer une publication Booster.",
+      "ouvrir_les_canaux_choisir_la_bulle_7694d398",
+      "relier_les_destinations_utiles_site_inrcy_483ab0d6",
+      "configurer_inr_badge_inclus_en_bonus_a94257d1",
+      "verifier_l_etat_de_chaque_bulle_e1a5ba41",
     ],
     pitfalls: [
-      "Commencer par les canaux sur lesquels les clients sont réellement présents.",
-      "Un canal expiré doit être reconnecté avant de redevenir sélectionnable dans Booster.",
+      "commencer_par_les_canaux_sur_lesquels_1684463c",
+      "un_canal_expire_doit_etre_reconnecte_f7cbb41a",
     ],
   },
   "inragent-express": {
     intro:
-      "Avec Standard, iNr’Agent accompagne deux parcours : programmer les publications Booster et préparer les bilans automatiques iNrStats.",
+      "avec_standard_inr_agent_accompagne_deux_d447518e",
     steps: [
-      "Ouvrir **iNr’Agent** depuis le header du dashboard.",
-      "Choisir **Publications** pour préparer ou programmer une publication Booster.",
-      "Choisir **Statistiques** pour préparer un bilan iNrStats.",
-      "Relire l’aperçu, puis **valider** ou **refuser** l’action avant son exécution.",
+      "ouvrir_inr_agent_depuis_le_header_8b9bfb22",
+      "choisir_publications_pour_preparer_ou_programmer_c835edba",
+      "choisir_statistiques_pour_preparer_un_bilan_895231ef",
+      "relire_l_apercu_puis_valider_ou_f3f66889",
     ],
     checks: [
-      "Votre activité, votre profil et votre Configuration IA sont bien renseignés.",
-      "Les canaux utiles à Booster sont réellement connectés.",
-      "Rien n’est publié ou envoyé sans votre validation.",
-      "Les rubriques Propulser et Fidéliser nécessitent le forfait Premium.",
+      "votre_activite_votre_profil_et_votre_cd0c8c24",
+      "les_canaux_utiles_a_booster_sont_0da9b7bc",
+      "rien_n_est_publie_ou_envoye_ecbfb256",
+      "les_rubriques_propulser_et_fideliser_necessitent_8d77ba5d",
     ],
     pitfalls: [
-      "iNr’Agent ne remplace pas votre décision : il prépare, propose et accélère.",
-      "Plus vos informations et vos canaux sont complets, plus ses propositions sont utiles.",
-      "Objectif : garder une publication régulière et recevoir des bilans faciles à lire.",
+      "inr_agent_ne_remplace_pas_votre_97699244",
+      "plus_vos_informations_et_vos_canaux_df8a26dc",
+      "objectif_garder_une_publication_reguliere_et_ad6a6ba1",
     ],
   },
   "generateur-express": {
     pitfalls: [
-      "Le Générateur n’est pas un tableau technique : c’est le compteur global de la communication.",
-      "Plus le pro publie et utilise les outils Standard, plus ses Unités d’Inertie progressent.",
-      "Les Unités d’Inertie sont aussi utiles pour accéder à des avantages dans la Boutique.",
+      "le_generateur_n_est_pas_un_c1e2b8e2",
+      "plus_le_pro_publie_et_utilise_09617c8c",
+      "les_unites_d_inertie_sont_aussi_6b3e941a",
     ],
   },
   "inrstats-express": {
     intro:
-      "iNrStats traduit les données des canaux Standard en lecture business simple : appels, clics, visites, formulaires, demandes et interactions utiles.",
+      "inr_stats_traduit_les_donnees_des_5eb14794",
     steps: [
-      "Connecter les canaux utiles pour laisser iNrCy récupérer les données disponibles.",
-      "Lire les résultats par canal : Google Business, sites, Facebook, Instagram, LinkedIn, TikTok, YouTube, Pinterest ou iNr’Badge selon les connexions.",
-      "Repérer ce qui fonctionne : appels, clics, itinéraires, visites, formulaires et interactions.",
-      "Utiliser ensuite **Booster** ou demander un bilan à **iNr’Agent**.",
+      "connecter_les_canaux_utiles_pour_laisser_2691c29f",
+      "lire_les_resultats_par_canal_google_2f5773a6",
+      "reperer_ce_qui_fonctionne_appels_clics_74268975",
+      "utiliser_ensuite_booster_ou_demander_un_69aff869",
     ],
     links: [
-      { label: "Ouvrir iNrStats", href: "/dashboard/stats" },
-      { label: "Ouvrir les canaux", href: "/dashboard" },
-      { label: "Ouvrir Booster", href: "/dashboard?action=publish" },
+      { label: "ouvrir_inr_stats_48397dcd", href: "/dashboard/stats" },
+      { label: "ouvrir_les_canaux_9322102a", href: "/dashboard" },
+      { label: "ouvrir_booster_940c06bc", href: "/dashboard?action=publish" },
     ],
   },
   "booster-express": {
     steps: [
-      "Cliquer sur **Publier maintenant** pour ouvrir directement l’outil de publication.",
-      "Préparer un contenu : chantier, nouveauté, conseil, photo, actualité ou preuve terrain.",
-      "Choisir parmi les 10 destinations Standard réellement connectées.",
-      "Vérifier le texte, le média, le ton et l’appel à l’action avant l’envoi.",
-      "Consulter ensuite le **Bilan Booster** pour suivre la régularité et les canaux utilisés.",
+      "cliquer_sur_publier_maintenant_pour_ouvrir_20ae1cfb",
+      "preparer_un_contenu_chantier_nouveaute_conseil_6b5ac3a7",
+      "choisir_parmi_les_10_destinations_standard_b90526d3",
+      "verifier_le_texte_le_media_le_652d37d4",
+      "consulter_ensuite_le_bilan_booster_pour_7610c5d7",
     ],
   },
   "booster-bilan": {
     links: [
-      { label: "Ouvrir Booster", href: "/dashboard?action=publish" },
-      { label: "Voir les publications", href: "/dashboard/mails?folder=publications&boxView=sent" },
+      { label: "ouvrir_booster_940c06bc", href: "/dashboard?action=publish" },
+      { label: "voir_les_publications_5eb7850c", href: "/dashboard/mails?folder=publications&boxView=sent" },
     ],
   },
   "inrsend-express": {
-    title: "Retrouver toutes les publications",
-    keywords: ["inrsend", "publications", "historique", "booster", "résultat", "canaux", "réutiliser"],
-    goal: "Publications retrouvées",
+    title: "retrouver_toutes_les_publications_cb35879c",
+    keywords: ["inrsend_73a8031f", "publications_1a4f2b10", "historique_1b0efe6e", "booster_73a103c5", "resultat_b3995030", "canaux_22467b10", "reutiliser_47058479"],
+    goal: "publications_retrouvees_a72c78fa",
     intro:
-      "Avec Standard, iNr’Send conserve la colonne Publications : contenus Booster, résultat par canal, liens publics et détails utiles.",
+      "avec_standard_inr_send_conserve_la_7cc5afc7",
     steps: [
-      "Ouvrir **iNr’Send** depuis la Boîte de pilotage.",
-      "Consulter la colonne **Publications** pour retrouver chaque envoi Booster.",
-      "Ouvrir le détail pour distinguer les canaux publiés, en traitement ou en échec.",
-      "Réutiliser une publication existante lorsque son contenu reste pertinent.",
+      "ouvrir_inr_send_depuis_la_boite_3b8c7859",
+      "consulter_la_colonne_publications_pour_retrouver_d691e14d",
+      "ouvrir_le_detail_pour_distinguer_les_8f114225",
+      "reutiliser_une_publication_existante_lorsque_son_c3746128",
     ],
     checks: [
-      "La publication apparaît bien dans l’historique.",
-      "Les détails indiquent les réussites, erreurs ou traitements en cours.",
-      "Les liens publics sont proposés lorsque la plateforme les transmet.",
+      "la_publication_apparait_bien_dans_l_ff4e0cb7",
+      "les_details_indiquent_les_reussites_erreurs_09f1a4b2",
+      "les_liens_publics_sont_proposes_lorsque_e7777671",
     ],
     pitfalls: [
-      "En Standard, iNr’Send est volontairement limité aux Publications.",
-      "Les campagnes mails et leurs autres colonnes sont disponibles avec Premium.",
+      "en_standard_inr_send_est_volontairement_898cfcb3",
+      "les_campagnes_mails_et_leurs_autres_c3b0a6fc",
     ],
     links: [
-      { label: "Voir les publications", href: "/dashboard/mails?folder=publications&boxView=sent" },
+      { label: "voir_les_publications_5eb7850c", href: "/dashboard/mails?folder=publications&boxView=sent" },
     ],
   },
   "abonnement-express": {
     intro:
-      "La période d’essai et les nouveaux comptes démarrent en Standard. Le passage à Premium se fait après un échange avec l’équipe iNrCy.",
+      "la_periode_d_essai_et_les_890d06b9",
     steps: [
-      "Utiliser la période d’essai pour configurer les canaux et tester Booster.",
-      "Consulter Mon abonnement pour vérifier l’édition et l’état de l’accès.",
-      "Continuer avec Standard ou contacter l’équipe iNrCy pour étudier Premium.",
-      "Aucun passage à Premium ne se fait automatiquement depuis l’application.",
+      "utiliser_la_periode_d_essai_pour_ce37df76",
+      "consulter_mon_abonnement_pour_verifier_l_61e64e4b",
+      "continuer_avec_standard_ou_contacter_l_7cf3af68",
+      "aucun_passage_a_premium_ne_se_5dc34e13",
     ],
   },
   "problemes-express": {
     steps: [
-      "Pas de données : vérifier qu’au moins un canal utile est connecté et attendre la prochaine mise à jour.",
-      "Publication refusée : ouvrir le détail du canal, corriger la cause puis relancer.",
-      "Canal indisponible : reconnecter le compte avant de le sélectionner dans Booster.",
-      "Image non visible : réduire le poids, adapter le format, puis réessayer.",
+      "pas_de_donnees_verifier_qu_au_eb93c267",
+      "publication_refusee_ouvrir_le_detail_du_05e539b1",
+      "canal_indisponible_reconnecter_le_compte_avant_8cc2c7bf",
+      "image_non_visible_reduire_le_poids_48c7b8d9",
     ],
   },
   "problemes-mobile-reseau": {
     links: [
-      { label: "Voir les publications", href: "/dashboard/mails?folder=publications&boxView=sent" },
+      { label: "voir_les_publications_5eb7850c", href: "/dashboard/mails?folder=publications&boxView=sent" },
     ],
   },
   "conseils-express": {
     steps: [
-      "Publier une fois par semaine une preuve d’activité : chantier, conseil, photo, offre ou actualité.",
-      "Piloter les avis depuis **Réputation** et demander un retour aux clients satisfaits.",
-      "Mettre à jour les informations visibles dès qu’un horaire, numéro ou service change.",
-      "Lire régulièrement iNrStats et le Bilan Booster pour ajuster les prochaines publications.",
+      "publier_une_fois_par_semaine_une_bd2cc453",
+      "piloter_les_avis_depuis_reputation_et_b8fd5cd0",
+      "mettre_a_jour_les_informations_visibles_090d3b33",
+      "lire_regulierement_inr_stats_et_le_e2cdcacb",
     ],
     links: [
-      { label: "Ouvrir Booster", href: "/dashboard?action=publish" },
-      { label: "Gérer les avis", href: "/dashboard/e-reputation" },
-      { label: "Ouvrir iNrStats", href: "/dashboard/stats" },
+      { label: "ouvrir_booster_940c06bc", href: "/dashboard?action=publish" },
+      { label: "gerer_les_avis_0b0df366", href: "/dashboard/e-reputation" },
+      { label: "ouvrir_inr_stats_48397dcd", href: "/dashboard/stats" },
     ],
   },
 };
@@ -184,12 +189,12 @@ export function isGpsSectionPremiumOnly(sectionId: string): boolean {
   return PREMIUM_ONLY_SECTION_IDS.has(sectionId);
 }
 
-function applyStandardArticleOverride(article: GpsArticle): GpsArticle {
+function applyStandardArticleOverride(article: GpsArticleSource): GpsArticleSource {
   const override = STANDARD_ARTICLE_OVERRIDES[article.id];
   return override ? { ...article, ...override } : article;
 }
 
-export function getGpsSectionsForEdition(edition: DashboardEdition): GpsSection[] {
+export function getGpsSectionsForEdition(edition: DashboardEdition): GpsSectionSource[] {
   if (edition !== "standard") return GPS_SECTIONS;
 
   return GPS_SECTIONS.map((section) => ({

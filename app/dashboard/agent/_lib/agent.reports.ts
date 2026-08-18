@@ -10,6 +10,7 @@ import { asRecord, firstSafeString } from "./agent.utils";
 export function formatActionDate(
   value: string | null,
   fallback: AutomationConfig,
+  locale = "fr-FR",
 ): string {
   const fallbackLabel = `${fallback.day} ${fallback.time}`.trim();
   if (!value) return fallbackLabel || "—";
@@ -17,10 +18,10 @@ export function formatActionDate(
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return fallbackLabel || "—";
 
-  const weekday = new Intl.DateTimeFormat("fr-FR", { weekday: "long" }).format(
+  const weekday = new Intl.DateTimeFormat(locale, { weekday: "long" }).format(
     date,
   );
-  const time = new Intl.DateTimeFormat("fr-FR", {
+  const time = new Intl.DateTimeFormat(locale, {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
@@ -145,11 +146,11 @@ export function prepareProgressLabel(
   return "Initialisation";
 }
 
-export function formatDateTimeLabel(value: string | null | undefined, fallback = "—") {
+export function formatDateTimeLabel(value: string | null | undefined, fallback = "—", locale = "fr-FR") {
   if (!value) return fallback;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return fallback;
-  return new Intl.DateTimeFormat("fr-FR", {
+  return new Intl.DateTimeFormat(locale, {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -158,27 +159,27 @@ export function formatDateTimeLabel(value: string | null | undefined, fallback =
   }).format(date);
 }
 
-export function formatMiniDateLabel(value: string | null | undefined) {
+export function formatMiniDateLabel(value: string | null | undefined, locale = "fr-FR") {
   if (!value) return "—";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
-  return new Intl.DateTimeFormat("fr-FR", {
+  return new Intl.DateTimeFormat(locale, {
     day: "2-digit",
     month: "2-digit",
   }).format(date);
 }
 
-export function formatReportDateLabel(value: string | null | undefined) {
+export function formatReportDateLabel(value: string | null | undefined, locale = "fr-FR") {
   if (!value) return { date: "—", time: "" };
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return { date: "—", time: "" };
   return {
-    date: new Intl.DateTimeFormat("fr-FR", {
+    date: new Intl.DateTimeFormat(locale, {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
     }).format(date),
-    time: new Intl.DateTimeFormat("fr-FR", {
+    time: new Intl.DateTimeFormat(locale, {
       hour: "2-digit",
       minute: "2-digit",
     }).format(date),

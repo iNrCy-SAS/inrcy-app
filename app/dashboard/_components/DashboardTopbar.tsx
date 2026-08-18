@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import { useEffect, type Dispatch, type RefObject, type SetStateAction } from "react";
 import { useRouter } from "next/navigation";
 
@@ -176,6 +179,7 @@ export default function DashboardTopbar({
   goToGps,
   handleLogout,
 }: DashboardTopbarProps) {
+  const i18nT = useTranslations("shell");
   const router = useRouter();
   const t = useDashboardI18n();
   const pendingInrAgentCount = useInrAgentPendingCount(showInrAgent && inrAgentEnabled);
@@ -208,7 +212,7 @@ export default function DashboardTopbar({
         <img
           className={styles.logoImg}
           src="/logo-inrcy.png"
-          alt="iNrCy"
+          alt={i18nT("inrcy_ef95fe0e")}
           width={112}
           height={42}
           loading="eager"
@@ -293,8 +297,7 @@ export default function DashboardTopbar({
                 aria-hidden
               />
             </span>
-            iNr'Agent
-            {inrAgentSetupLocked ? (
+            {i18nT("inr_agent_e5261e85")}{" "}{inrAgentSetupLocked ? (
               <RequiredSetupLock
                 message={t.modules.requiredSetupLocked}
                 className={styles.requiredSetupLockTopbar}

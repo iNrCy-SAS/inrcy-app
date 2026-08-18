@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import React, { useEffect, useRef, useState, type CSSProperties } from "react";
 import { highlightTemplatePlaceholdersInHtml, normalizeRichMailHtmlForSend, richMailHtmlToText, sanitizeRichMailHtml, stripTemplatePlaceholderHighlights, textToRichMailHtml } from "@/lib/mailRichText";
 import EmojiPickerButton from "./EmojiPickerButton";
@@ -33,6 +36,7 @@ export default function RichMailEditor({
   highlightTemplatePlaceholders = true,
   mobileFullscreen = false,
 }: RichMailEditorProps) {
+  const i18nT = useTranslations("mails");
   const editorRef = useRef<HTMLDivElement | null>(null);
   const lastHtmlRef = useRef("");
   const lastTouchYRef = useRef<number | null>(null);
@@ -215,13 +219,13 @@ export default function RichMailEditor({
   const buttonStyle = compactToolbar ? compactToolbarButtonStyle : toolbarButtonStyle;
   const toolbar = (
     <div style={{ display: "flex", gap: compactToolbar ? 5 : 6, alignItems: "center", flex: "0 0 auto" }}>
-      <button type="button" onMouseDown={keepEditorSelection} onTouchStart={(event) => applyToolbarCommandFromTouch(event, "bold")} onClick={() => applyToolbarCommandFromClick("bold")} aria-label="Gras" title="Gras" style={buttonStyle}>
+      <button type="button" onMouseDown={keepEditorSelection} onTouchStart={(event) => applyToolbarCommandFromTouch(event, "bold")} onClick={() => applyToolbarCommandFromClick("bold")} aria-label={i18nT("gras_bd63d1e9")} title={i18nT("gras_bd63d1e9")} style={buttonStyle}>
         <strong>B</strong>
       </button>
-      <button type="button" onMouseDown={keepEditorSelection} onTouchStart={(event) => applyToolbarCommandFromTouch(event, "italic")} onClick={() => applyToolbarCommandFromClick("italic")} aria-label="Italique" title="Italique" style={buttonStyle}>
+      <button type="button" onMouseDown={keepEditorSelection} onTouchStart={(event) => applyToolbarCommandFromTouch(event, "italic")} onClick={() => applyToolbarCommandFromClick("italic")} aria-label={i18nT("italique_023eb97e")} title={i18nT("italique_023eb97e")} style={buttonStyle}>
         <em>I</em>
       </button>
-      <button type="button" onMouseDown={keepEditorSelection} onTouchStart={(event) => applyToolbarCommandFromTouch(event, "underline")} onClick={() => applyToolbarCommandFromClick("underline")} aria-label="Souligné" title="Souligné" style={buttonStyle}>
+      <button type="button" onMouseDown={keepEditorSelection} onTouchStart={(event) => applyToolbarCommandFromTouch(event, "underline")} onClick={() => applyToolbarCommandFromClick("underline")} aria-label={i18nT("souligne_591b8563")} title={i18nT("souligne_591b8563")} style={buttonStyle}>
         <span style={{ textDecoration: "underline" }}>U</span>
       </button>
       <EmojiPickerButton onBeforeOpen={saveSelection} onSelect={insertEmoji} buttonStyle={buttonStyle} />
@@ -272,7 +276,7 @@ export default function RichMailEditor({
         ) : hideToolbarLabel ? (
           <span aria-hidden="true" style={{ minWidth: 0 }} />
         ) : (
-          <span style={{ fontSize: 12, color: "rgba(255,255,255,0.62)", minWidth: 0 }}>Mise en forme du message</span>
+          <span style={{ fontSize: 12, color: "rgba(255,255,255,0.62)", minWidth: 0 }}>{i18nT("mise_en_forme_du_message_87b921eb")}</span>
         )}
         {showExpandControl ? (
           <button

@@ -15,8 +15,8 @@ import {
   type PublicationEditForm,
 } from "./mailboxPhase1";
 
-export function formatCampaignProgressFromHealth(raw: any, health: any | null) {
-  if (!health || typeof health !== "object") return formatCampaignProgress(raw || {});
+export function formatCampaignProgressFromHealth(raw: any, health: any | null, locale = "fr-FR") {
+  if (!health || typeof health !== "object") return formatCampaignProgress(raw || {}, locale);
 
   const total = Math.max(0, Number(health.total ?? raw?.total_count ?? 0) || 0);
   const sent = Math.max(0, Number(health.sent ?? raw?.sent_count ?? 0) || 0);
@@ -24,10 +24,11 @@ export function formatCampaignProgressFromHealth(raw: any, health: any | null) {
   const queued = Math.max(0, Number(health.queued ?? raw?.queued_count ?? 0) || 0);
   const failed = Math.max(0, Number(health.failed ?? raw?.failed_count ?? 0) || 0);
 
-  const bits = [`${sent}/${total || sent} acceptés`];
-  if (processing > 0) bits.push(`${processing} en cours`);
-  if (queued > 0) bits.push(`${queued} en attente`);
-  if (failed > 0) bits.push(`${failed} en échec`);
+  const formatNumber = new Intl.NumberFormat(locale).format;
+  const bits = [`${formatNumber(sent)}/${formatNumber(total || sent)} acceptés`];
+  if (processing > 0) bits.push(`${formatNumber(processing)} en cours`);
+  if (queued > 0) bits.push(`${formatNumber(queued)} en attente`);
+  if (failed > 0) bits.push(`${formatNumber(failed)} en échec`);
   return bits.join(" • ");
 }
 

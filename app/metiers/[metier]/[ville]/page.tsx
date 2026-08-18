@@ -1,3 +1,4 @@
+import { getTranslations } from "next-intl/server";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
@@ -16,27 +17,29 @@ type PageProps = { params: Promise<{ metier: string; ville: string }> };
 export const revalidate = 300;
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const i18nT = await getTranslations("public");
   const { metier, ville } = await params;
   const normalizedMetier = normalizeInrSearchDirectorySlug(metier);
   const normalizedVille = normalizeInrSearchDirectorySlug(ville);
   const companies = await listInrSearchCompaniesByProfession(normalizedMetier, normalizedVille);
-  if (!companies.length) return { title: "Page introuvable | iNr'Search", robots: { index: false, follow: false } };
+  if (!companies.length) return { title: i18nT("page_introuvable_inr_search_a8985247"), robots: { index: false, follow: false } };
   const label = companies[0].profession;
   const city = companies[0].city;
   const canonical = buildInrSearchProfessionUrl(normalizedMetier, normalizedVille);
-  const title = `${label} à ${city} | iNr'Search`;
-  const description = `Découvrez les professionnels ${label.toLowerCase()} à ${city} présents sur iNr'Search.`;
+  const title = i18nT("value_a_value_inr_search_30f66798", { value0: label, value1: city });
+  const description = i18nT("decouvrez_les_professionnels_value_a_value_ca1614f5", { value0: label.toLowerCase(), value1: city });
   return {
     title,
     description,
     alternates: { canonical },
     robots: { index: true, follow: true },
-    openGraph: { type: "website", locale: "fr_FR", url: canonical, siteName: "iNrCy", title, description },
+    openGraph: { type: "website", locale: i18nT("fr_fr_5540fd60"), url: canonical, siteName: i18nT("inrcy_ef95fe0e"), title, description },
     twitter: { card: "summary", title, description },
   };
 }
 
 export default async function MetierVillePage({ params }: PageProps) {
+  const i18nT = await getTranslations("public");
   const { metier, ville } = await params;
   const normalizedMetier = normalizeInrSearchDirectorySlug(metier);
   const normalizedVille = normalizeInrSearchDirectorySlug(ville);
@@ -85,14 +88,14 @@ export default async function MetierVillePage({ params }: PageProps) {
     <main className={styles.page}>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeInrSearchJsonLd(jsonLd) }} />
       <nav className={styles.topbar}>
-        <a href="https://inrcy.com"><Image src="/logo-inrcy.png" alt="iNrCy" width={116} height={46} priority /></a>
-        <div className={styles.topbarNav}><Link href="/entreprises">Entreprises</Link><Link href="/metiers">Métiers</Link><Link href="/secteurs">Secteurs</Link></div>
+        <a href="https://inrcy.com"><Image src="/logo-inrcy.png" alt={i18nT("inrcy_ef95fe0e")} width={116} height={46} priority /></a>
+        <div className={styles.topbarNav}><Link href="/entreprises">{i18nT("entreprises_4b0c7c83")}</Link><Link href="/metiers">{i18nT("metiers_6a11606f")}</Link><Link href="/secteurs">{i18nT("secteurs_b01b1d0f")}</Link></div>
       </nav>
       <header className={styles.header}>
-        <div className={styles.breadcrumbs}><Link href="/entreprises">Entreprises</Link><span>›</span><Link href="/metiers">Métiers</Link><span>›</span><Link href={`/metiers/${normalizedMetier}`}>{label}</Link><span>›</span><span>{city}</span></div>
-        <span className={styles.kicker}>Professionnels locaux</span>
+        <div className={styles.breadcrumbs}><Link href="/entreprises">{i18nT("entreprises_4b0c7c83")}</Link><span>›</span><Link href="/metiers">{i18nT("metiers_6a11606f")}</Link><span>›</span><Link href={`/metiers/${normalizedMetier}`}>{label}</Link><span>›</span><span>{city}</span></div>
+        <span className={styles.kicker}>{i18nT("professionnels_locaux_5e7f5761")}</span>
         <h1>{label} à {city}</h1>
-        <p>Découvrez les entreprises spécialisées en {label.toLowerCase()} à {city}.</p>
+        <p>{i18nT("decouvrez_les_entreprises_specialisees_en_value_1cfda15e", { value0: label.toLowerCase(), value1: city })}</p>
       </header>
       <section className={styles.grid}>
         {companies.map((company) => (
@@ -100,7 +103,7 @@ export default async function MetierVillePage({ params }: PageProps) {
             <div className={styles.meta}>{[company.sectorLabel, company.city].filter(Boolean).join(" · ")}</div>
             <h2>{company.pageTitle}</h2>
             <p>{company.pageDescription}</p>
-            <span>Découvrir l’entreprise →</span>
+            <span>{i18nT("decouvrir_l_entreprise_435e69e8")}</span>
           </Link>
         ))}
       </section>

@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import { useSearchParams } from "next/navigation";
 
 type Props = {
@@ -7,6 +10,7 @@ type Props = {
 };
 
 export default function ContactContent({ mode = "page" }: Props) {
+  const i18nT = useTranslations("settings");
   const searchParams = useSearchParams();
   const premiumRequired = searchParams.get("premium") === "required";
   const EMAIL = "contact@inrcy.com";
@@ -113,31 +117,28 @@ export default function ContactContent({ mode = "page" }: Props) {
           background: "linear-gradient(135deg, rgba(112, 52, 207, 0.18), rgba(255, 73, 164, 0.10))",
         }}>
           <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: ".08em", textTransform: "uppercase", color: "#d8b6ff" }}>
-            iNrCy Premium
-          </div>
-          <h2 style={{ margin: "6px 0 5px", fontSize: 18 }}>Cette fonctionnalité fait partie de Premium</h2>
+            {i18nT("inrcy_premium_4c7d39c1")}{" "}</div>
+          <h2 style={{ margin: "6px 0 5px", fontSize: 18 }}>{i18nT("cette_fonctionnalite_fait_partie_de_premium_ab95c858")}</h2>
           <p style={{ margin: 0, opacity: 0.78, lineHeight: 1.5 }}>
-            Le passage à Premium se fait avec un conseiller iNrCy, sans achat automatique dans l’application.
-          </p>
+            {i18nT("le_passage_a_premium_se_fait_1a6cbaaa")}{" "}</p>
         </div>
       ) : null}
       {/* HERO */}
       <div style={{ ...card, ...shell, padding: 18 }}>
-        <h2 style={titleAccent}>Contactez-nous</h2>
+        <h2 style={titleAccent}>{i18nT("contactez_nous_ec4802ef")}</h2>
         <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <span style={badge}>RÉPONSE SOUS 48H</span>
-          <span style={badge}>MAIL & TÉLÉPHONE</span>
+          <span style={badge}>{i18nT("reponse_sous_48h_19d70d29")}</span>
+          <span style={badge}>{i18nT("mail_telephone_ed846f6c")}</span>
         </div>
         <p style={{ margin: "10px 0 0", opacity: 0.85, lineHeight: 1.5 }}>
-          Besoin d’aide, d'une démo, d’une information ou d’un ajustement ? Écrivez-nous ou appelez-nous, on s’occupe de vous rapidement.
-        </p>
+          {i18nT("besoin_d_aide_d_une_demo_1d13cfef")}{" "}</p>
       </div>
 
       {/* EMAIL */}
       <div style={card}>
-        <h3 style={{ margin: 0, fontSize: 15, fontWeight: 900 }}>Par email</h3>
+        <h3 style={{ margin: 0, fontSize: 15, fontWeight: 900 }}>{i18nT("par_email_93b88caf")}</h3>
         <p style={{ margin: "8px 0 0", opacity: 0.85 }}>
-          Adresse : <b>{EMAIL}</b>
+          {i18nT("adresse_745522e7")}{" "}<b>{EMAIL}</b>
         </p>
 
         <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
@@ -145,30 +146,26 @@ export default function ContactContent({ mode = "page" }: Props) {
             href={`mailto:${EMAIL}?subject=${encodeURIComponent("Demande iNrCy")}`}
             style={primaryBtn}
           >
-            Envoyer un email
-          </a>
+            {i18nT("envoyer_un_email_48feacc4")}{" "}</a>
 
           <button type="button" onClick={() => copy(EMAIL)} style={smallBtn}>
-            Copier l’email
-          </button>
+            {i18nT("copier_l_email_7b39b12c")}{" "}</button>
         </div>
       </div>
 
       {/* TÉLÉPHONE */}
       <div style={card}>
-        <h3 style={{ margin: 0, fontSize: 15, fontWeight: 900 }}>Par téléphone</h3>
+        <h3 style={{ margin: 0, fontSize: 15, fontWeight: 900 }}>{i18nT("par_telephone_18b51791")}</h3>
         <p style={{ margin: "8px 0 0", opacity: 0.85 }}>
-          Du lundi au vendredi, <b>10h → 18h</b>
+          {i18nT("du_lundi_au_vendredi_fcc95644")}{" "}<b>{i18nT("10h_18h_ee119944")}</b>
         </p>
 
         <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
           <a href={`tel:${PHONE_TEL}`} style={secondaryBtn}>
-            Appeler : {PHONE_DISPLAY}
-          </a>
+            {i18nT("appeler_value_f1b7ed8a", { value0: PHONE_DISPLAY })}</a>
 
           <button type="button" onClick={() => copy(PHONE_DISPLAY)} style={smallBtn}>
-            Copier le numéro
-          </button>
+            {i18nT("copier_le_numero_99c8d6c5")}{" "}</button>
 
           <div style={{ fontSize: 12, opacity: 0.7 }}>
             </div>
@@ -177,15 +174,13 @@ export default function ContactContent({ mode = "page" }: Props) {
 
       {/* SITE */}
       <div style={card}>
-        <h3 style={{ margin: 0, fontSize: 15, fontWeight: 900 }}>Ressources</h3>
+        <h3 style={{ margin: 0, fontSize: 15, fontWeight: 900 }}>{i18nT("ressources_926ac9d1")}</h3>
         <p style={{ margin: "8px 0 0", opacity: 0.85 }}>
-          Découvrir iNrCy et nos solutions.
-        </p>
+          {i18nT("decouvrir_inrcy_et_nos_solutions_03a2e799")}{" "}</p>
 
         <div style={{ marginTop: 12 }}>
           <a href={SITE} target="_blank" rel="noreferrer" style={primaryBtn}>
-            Visitez notre site
-          </a>
+            {i18nT("visitez_notre_site_78ab4082")}{" "}</a>
         </div>
       </div>
 

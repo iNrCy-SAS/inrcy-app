@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import styles from "../dashboard.module.css";
@@ -50,6 +53,7 @@ export default function DashboardBoosterModalLayer({
   onClose: () => void;
   initialConnectedChannels?: Partial<Record<"inrcy_site" | "site_web" | "inr_search" | "gmb" | "facebook" | "instagram" | "linkedin" | "tiktok" | "youtube_shorts" | "pinterest", boolean>>;
 }) {
+  const i18nT = useTranslations("booster");
   const router = useRouter();
   const [publishSuccessOpen, setPublishSuccessOpen] = useState(false);
   const [publishSummary, setPublishSummary] = useState<any>(null);
@@ -175,11 +179,11 @@ export default function DashboardBoosterModalLayer({
   const requestClosePublishModal = useCallback(async () => {
     if (publishHasUnsavedChanges) {
       const ok = await confirmInrcy({
-        eyebrow: "Publication en cours",
-        title: "Quitter la publication ?",
-        message: "Du contenu a déjà été saisi, généré ou retouché. Si vous quittez maintenant, il sera perdu.",
-        cancelLabel: "Continuer l’édition",
-        confirmLabel: "Quitter",
+        eyebrow: i18nT("publication_en_cours_58f34b8e"),
+        title: i18nT("quitter_la_publication_509848c0"),
+        message: i18nT("du_contenu_a_deja_ete_saisi_6057d3e7"),
+        cancelLabel: i18nT("continuer_l_edition_0f0075bb"),
+        confirmLabel: i18nT("quitter_3e4126f5"),
         variant: "danger",
       });
       if (!ok) return;
@@ -223,11 +227,11 @@ export default function DashboardBoosterModalLayer({
     active: mode === "publish",
     shouldBlock: mode === "publish" && publishHasUnsavedChanges,
     onConfirmExit: closePublishModal,
-    eyebrow: "Publication en cours",
-    title: "Quitter la publication ?",
-    message: "Du contenu a déjà été saisi, généré ou retouché. Si vous quittez maintenant, il sera perdu.",
-    cancelLabel: "Continuer l’édition",
-    confirmLabel: "Quitter",
+    eyebrow: i18nT("publication_en_cours_58f34b8e"),
+    title: i18nT("quitter_la_publication_509848c0"),
+    message: i18nT("du_contenu_a_deja_ete_saisi_6057d3e7"),
+    cancelLabel: i18nT("continuer_l_edition_0f0075bb"),
+    confirmLabel: i18nT("quitter_3e4126f5"),
     variant: "danger",
   });
 
@@ -333,7 +337,7 @@ export default function DashboardBoosterModalLayer({
     const createActuDone = Boolean(weeklySummary?.missions?.createActu?.done);
 
     return {
-      title: "Publications",
+      title: i18nT("publications_0855684c"),
       month: n(publish.month),
       week: publishWeek,
       goal: WEEKLY_GOALS.booster.publish,
@@ -369,7 +373,7 @@ export default function DashboardBoosterModalLayer({
         <div
           role="dialog"
           aria-modal="true"
-          aria-label="Bilan Booster"
+          aria-label={i18nT("bilan_booster_f20fce08")}
           className={[styles.fullscreenModalOverlay, b.statsModalOverlay].join(" ")}
           onMouseDown={onClose}
           style={{
@@ -408,18 +412,17 @@ export default function DashboardBoosterModalLayer({
                 marginBottom: 10,
               }}
             >
-              <span className={styles.ghostBtn} style={{ pointerEvents: "none", borderRadius: 999, padding: "7px 12px" }}>Booster</span>
+              <span className={styles.ghostBtn} style={{ pointerEvents: "none", borderRadius: 999, padding: "7px 12px" }}>{i18nT("booster_8e4caec0")}</span>
               <div style={{ textAlign: "center" }}>
-                <span className={styles.ghostBtn} style={{ pointerEvents: "none", borderRadius: 999, padding: "7px 12px" }}>Bilan</span>
+                <span className={styles.ghostBtn} style={{ pointerEvents: "none", borderRadius: 999, padding: "7px 12px" }}>{i18nT("bilan_a80c4623")}</span>
               </div>
               <button type="button" className={styles.ghostBtn} onClick={onClose} style={{ borderRadius: 999, padding: "7px 12px" }}>
-                Fermer
-              </button>
+                {i18nT("fermer_5ab4ec64")}{" "}</button>
             </div>
 
             <DashboardBoosterMetricCard data={data} />
             <details className={b.accordion} style={{ marginTop: 12 }}>
-              <summary className={b.accordionSummary}><span>💡 Pour mieux Publier</span><span className={b.chev}>▾</span></summary>
+              <summary className={b.accordionSummary}><span>{i18nT("pour_mieux_publier_d16d5b81")}</span><span className={b.chev}>▾</span></summary>
               <div className={b.accordionBody}>
                 <div className={[styles.blockCard, b.tipCard].join(" ")}>
                   <div className={b.tipListCompact}>
@@ -436,8 +439,8 @@ export default function DashboardBoosterModalLayer({
 
       {mode === "publish" ? (
         <BaseModal
-          title="Publier"
-          moduleLabel="Module Booster"
+          title={i18nT("publier_34e6b19e")}
+          moduleLabel={i18nT("module_booster_0eb9581c")}
           titleOnLeftOnMobile
           hideModuleLabelOnMobile
           onClose={requestClosePublishModal}
@@ -467,7 +470,7 @@ export default function DashboardBoosterModalLayer({
             <>
               <HelpButton
                 onClick={() => publishOpenHelpRef.current?.()}
-                title="Aide publication et iNr'Send"
+                title={i18nT("aide_publication_et_inr_send_b984bd87")}
                 size={32}
               />
 
@@ -475,8 +478,8 @@ export default function DashboardBoosterModalLayer({
                 type="button"
                 className={`${styles.secondaryBtn} ${styles.aiHeaderBtn}`}
                 onClick={() => window.dispatchEvent(new CustomEvent("inrcy:open-ai-configuration"))}
-                title="Configuration IA"
-                aria-label="Configuration IA"
+                title={i18nT("configuration_ia_f620c8d8")}
+                aria-label={i18nT("configuration_ia_f620c8d8")}
               >
                 IA
               </button>
@@ -485,8 +488,8 @@ export default function DashboardBoosterModalLayer({
                 className={styles.secondaryBtn}
                 onClick={() => publishSaveDraftRef.current?.()}
                 disabled={publishDraftHeaderState.saving || publishDraftHeaderState.draftSaving}
-                title="Enregistrer le brouillon publication"
-                aria-label="Enregistrer le brouillon publication"
+                title={i18nT("enregistrer_le_brouillon_publication_22a24f8b")}
+                aria-label={i18nT("enregistrer_le_brouillon_publication_22a24f8b")}
                 style={{
                   width: 38,
                   minWidth: 38,
@@ -599,6 +602,7 @@ export default function DashboardBoosterModalLayer({
 }
 
 function DashboardBoosterMetricCard({ data }: { data: any }) {
+  const i18nT = useTranslations("booster");
   const progress = clampProgress(data.week, data.goal);
   const toneClass = data.status.color === "green" ? b.toneGreen : data.status.color === "orange" ? b.toneOrange : b.toneRed;
   const reward = data.reward ?? { projected: 0, gained: 0, done: false };
@@ -608,13 +612,13 @@ function DashboardBoosterMetricCard({ data }: { data: any }) {
     <div className={[styles.blockCard, b.metricCard, b.boosterStatsCard].join(" ")}>
       <div className={b.cardTopRow}>
         <div className={styles.blockTitle}>{data.title}</div>
-        <div className={b.pill}>Ce mois : {data.month}</div>
+        <div className={b.pill}>{i18nT("ce_mois_value_98fdfb42", { value0: data.month })}</div>
       </div>
-      <div className={b.statsRewardInline} aria-label="Unités d’inr’çy à débloquer">
+      <div className={b.statsRewardInline} aria-label={i18nT("unites_d_inr_cy_a_debloquer_684675e7")}>
         <span className={b.statsRewardPrimary}>{rewardMain}</span>
         <span className={b.statsRewardSecondary}>{rewardSub}</span>
       </div>
-      <div className={b.progressLabel}>Progression hebdo</div>
+      <div className={b.progressLabel}>{i18nT("progression_hebdo_64ff4a6f")}</div>
       <div className={b.metricLine}>
         <div className={[b.metricBubble, toneClass].join(" ")}>{data.week}/{data.goal}</div>
         <div className={[b.progressState, toneClass].join(" ")}>{data.status.label}</div>

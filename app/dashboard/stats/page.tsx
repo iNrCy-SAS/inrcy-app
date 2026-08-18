@@ -3,6 +3,7 @@ import ClientHydrationGate from "../_components/ClientHydrationGate";
 import { getCurrentInrcyAccountScope } from "@/lib/multicompte/server";
 import { ensureSystemManagedInrSearch } from "@/lib/inrSearchProvisioning";
 import { buildInrSearchPublicUrl, getInrSearchPublicStatus } from "@/lib/inrSearchPublic";
+import { getTranslations } from "next-intl/server";
 
 type InitialInrSearchState = {
   published: boolean;
@@ -32,10 +33,11 @@ async function loadInitialInrSearchState(): Promise<InitialInrSearchState> {
 }
 
 export default async function Page() {
+  const t = await getTranslations("stats");
   const initialInrSearch = await loadInitialInrSearchState();
 
   return (
-    <ClientHydrationGate label="Chargement de vos statistiques...">
+    <ClientHydrationGate label={t("chargement_de_vos_statistiques_2def4130")}>
       <StatsClient initialInrSearch={initialInrSearch} />
     </ClientHydrationGate>
   );

@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import { useEffect, useRef, useState, type CSSProperties, type ClipboardEvent, type KeyboardEvent } from "react";
 
 type TemplateSubjectInlineEditorProps = {
@@ -13,6 +16,7 @@ export default function TemplateSubjectInlineEditor({
   onChange,
   placeholder = "Votre objet",
 }: TemplateSubjectInlineEditorProps) {
+  const i18nT = useTranslations("mails");
   const editableRef = useRef<HTMLSpanElement | null>(null);
   const [isFocused, setIsFocused] = useState(false);
   const showPlaceholder = !value.trim() && !isFocused;
@@ -47,17 +51,17 @@ export default function TemplateSubjectInlineEditor({
   return (
     <div
       role="group"
-      aria-label="Objet du message"
+      aria-label={i18nT("objet_du_message_b20d7489")}
       style={subjectShellStyle}
       onClick={() => editableRef.current?.focus()}
     >
-      <span style={subjectLabelStyle}>Objet&nbsp;:</span>{" "}
+      <span style={subjectLabelStyle}>{i18nT("objet_nbsp_82d7e48a")}</span>{" "}
       <span
         ref={editableRef}
         contentEditable
         suppressContentEditableWarning
         role="textbox"
-        aria-label="Objet"
+        aria-label={i18nT("objet_3de621c5")}
         onInput={emitChange}
         onFocus={() => setIsFocused(true)}
         onBlur={() => {

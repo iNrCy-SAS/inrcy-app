@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import { useEffect } from "react";
 import styles from "../dashboard.module.css";
 
@@ -45,6 +48,7 @@ export default function ReferralPanel({
   onSubmit,
   onUnsavedChange,
 }: ReferralPanelProps) {
+  const i18nT = useTranslations("shell");
   const hasUnsavedChanges = Boolean(referralName || referralPhone || referralEmail || referralFrom);
 
   useEffect(() => {
@@ -112,15 +116,11 @@ export default function ReferralPanel({
                 color: "rgba(255,255,255,0.92)",
               }}
             >
-              🎁 Programme de parrainage iNrCy
-            </div>
+              {i18nT("programme_de_parrainage_inrcy_ab7c7302")}{" "}</div>
             <div style={{ fontSize: 26, lineHeight: 1.08, fontWeight: 800, color: "white" }}>
-              Recommandez un professionnel et débloquez <span style={{ color: "#f9a8d4" }}>50 €</span> de chèque cadeau.
-            </div>
+              {i18nT("recommandez_un_professionnel_et_debloquez_b0df4e25")}{" "}<span style={{ color: "#f9a8d4" }}>50 €</span> {" "}{i18nT("de_cheque_cadeau_1c7fe645")}{" "}</div>
             <div style={{ color: "rgba(226,232,240,0.9)", fontSize: 14, lineHeight: 1.65 }}>
-              Dès qu’un client recommandé rejoint iNrCy et reste engagé au minimum <strong>6 mois</strong>,
-              nous validons votre récompense. Remplissez le formulaire ci-dessous : l’équipe contacte directement votre recommandation.
-            </div>
+              {i18nT("des_qu_un_client_recommande_rejoint_1851aabd")}{" "}<strong>{i18nT("6_mois_1242b310")}</strong>{i18nT("nous_validons_votre_recompense_remplissez_le_4af97166")}{" "}</div>
           </div>
 
           <div
@@ -137,13 +137,12 @@ export default function ReferralPanel({
             }}
           >
             <div style={{ fontSize: 13, color: "rgba(255,255,255,0.68)", textTransform: "uppercase", letterSpacing: 0.5 }}>
-              Conditions
-            </div>
+              {i18nT("conditions_5506eb61")}{" "}</div>
             <div style={{ display: "grid", gap: 8, color: "white", fontSize: 14, lineHeight: 1.45 }}>
-              <div>• 1 contact recommandé qualifié</div>
-              <div>• 50 € de chèque cadeau après validation</div>
-              <div>• Client engagé au minimum 6 mois</div>
-              <div>• Envoi direct à l’équipe iNrCy</div>
+              <div>{i18nT("1_contact_recommande_qualifie_0c1b9a17")}</div>
+              <div>{i18nT("50_de_cheque_cadeau_apres_validation_7f358de6")}</div>
+              <div>{i18nT("client_engage_au_minimum_6_mois_68e0f36c")}</div>
+              <div>{i18nT("envoi_direct_a_l_equipe_inrcy_4fd0cfce")}</div>
             </div>
           </div>
         </div>
@@ -161,9 +160,9 @@ export default function ReferralPanel({
           }}
         >
           <div style={{ display: "grid", gap: 6 }}>
-            <div className={styles.blockTitle}>Coordonnées à transmettre</div>
+            <div className={styles.blockTitle}>{i18nT("coordonnees_a_transmettre_4457c831")}</div>
             <div className={styles.blockSub}>
-              Les informations seront envoyées automatiquement à <strong>parrainage@inrcy.com</strong>.
+              {i18nT("les_informations_seront_envoyees_automatiquement_e4770777")}{" "}<strong>parrainage@inrcy.com</strong>.
             </div>
           </div>
 
@@ -171,14 +170,14 @@ export default function ReferralPanel({
             <input
               value={referralName}
               onChange={(e) => onReferralNameChange(e.target.value)}
-              placeholder="Nom Prénom ou raison sociale"
+              placeholder={i18nT("nom_prenom_ou_raison_sociale_77093731")}
               style={inputStyle}
             />
 
             <input
               value={referralPhone}
               onChange={(e) => onReferralPhoneChange(e.target.value)}
-              placeholder="Téléphone"
+              placeholder={i18nT("telephone_d3b023ea")}
               inputMode="tel"
               style={inputStyle}
             />
@@ -186,7 +185,7 @@ export default function ReferralPanel({
             <input
               value={referralEmail}
               onChange={(e) => onReferralEmailChange(e.target.value)}
-              placeholder="Mail"
+              placeholder={i18nT("mail_92379cbb")}
               inputMode="email"
               style={inputStyle}
             />
@@ -194,22 +193,21 @@ export default function ReferralPanel({
             <input
               value={referralFrom}
               onChange={(e) => onReferralFromChange(e.target.value)}
-              placeholder="Parrain / de la part de"
+              placeholder={i18nT("parrain_de_la_part_de_a4306cbb")}
               style={inputStyle}
             />
           </div>
 
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
             <div style={{ color: "rgba(255,255,255,0.66)", fontSize: 12, lineHeight: 1.5 }}>
-              Votre recommandation est transmise à l’équipe iNrCy pour prise de contact manuelle.
-            </div>
+              {i18nT("votre_recommandation_est_transmise_a_l_eb58d6c9")}{" "}</div>
             <button
               type="button"
               className={`${styles.actionBtn} ${styles.connectBtn}`}
               onClick={onSubmit}
               disabled={referralSubmitting}
             >
-              {referralSubmitting ? "Envoi..." : "Envoyer la recommandation"}
+              {referralSubmitting ? i18nT("envoi_5a377e56") : i18nT("envoyer_la_recommandation_b9cb2f31")}
             </button>
           </div>
 

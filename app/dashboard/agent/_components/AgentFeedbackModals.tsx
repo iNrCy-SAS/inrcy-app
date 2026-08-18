@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import type { ComponentProps } from "react";
 import PublishExecutionProgress from "../../_components/PublishExecutionProgress";
 import PublishExecutionResultModal from "../../_components/PublishExecutionResultModal";
@@ -36,6 +37,7 @@ export default function AgentFeedbackModals({
   onCloseConfirm,
   onConfirm,
 }: AgentFeedbackModalsProps) {
+  const i18nT = useTranslations("agent");
   return (
     <>
       {publishExecutionProgress ? (
@@ -51,7 +53,7 @@ export default function AgentFeedbackModals({
           }}
           role="dialog"
           aria-modal="true"
-          aria-label="Publication en cours"
+          aria-label={i18nT("publication_en_cours_58f34b8e")}
         >
           <div
             className={dashboardStyles.blockCard}
@@ -86,26 +88,24 @@ export default function AgentFeedbackModals({
             className={`${styles.settingsModal} ${styles.validationChoiceModal}`}
             role="dialog"
             aria-modal="true"
-            aria-label="Campagne lancée"
+            aria-label={i18nT("campagne_lancee_cd26fb1b")}
             onClick={(event) => event.stopPropagation()}
           >
-            <button type="button" className={styles.modalClose} onClick={onCloseCampaignLaunch} aria-label="Fermer">
+            <button type="button" className={styles.modalClose} onClick={onCloseCampaignLaunch} aria-label={i18nT("fermer_5ab4ec64")}>
               ×
             </button>
-            <p className={styles.modalEyebrow}>iNr’Agent</p>
+            <p className={styles.modalEyebrow}>{i18nT("inr_agent_88080b90")}</p>
             <h2>{campaignLaunchNotice.title}</h2>
             <p className={styles.modalHint}>{campaignLaunchNotice.details}</p>
             <div className={styles.modalActionButtonRow}>
               <button type="button" className={styles.modalActionSecondaryButton} onClick={onCloseCampaignLaunch}>
-                Fermer
-              </button>
+                {i18nT("fermer_5ab4ec64")}{" "}</button>
               <button
                 type="button"
                 className={styles.modalActionButton}
                 onClick={() => onOpenCampaignFolder(campaignLaunchNotice.folder)}
               >
-                Voir dans iNr’Send
-              </button>
+                {i18nT("voir_dans_inr_send_67983fee")}{" "}</button>
             </div>
           </section>
         </div>
@@ -124,15 +124,15 @@ export default function AgentFeedbackModals({
             aria-label={confirmDialog.title}
             onClick={(event) => event.stopPropagation()}
           >
-            <button type="button" className={styles.modalClose} onClick={onCloseConfirm} aria-label="Fermer">
+            <button type="button" className={styles.modalClose} onClick={onCloseConfirm} aria-label={i18nT("fermer_5ab4ec64")}>
               ×
             </button>
-            <p className={styles.modalEyebrow}>Confirmation</p>
+            <p className={styles.modalEyebrow}>{i18nT("confirmation_3424edc2")}</p>
             <h2>{confirmDialog.title}</h2>
             <p className={styles.modalHint}>{confirmDialog.message}</p>
             <div className={styles.modalActionButtonRow}>
               <button type="button" className={styles.modalActionSecondaryButton} onClick={onCloseConfirm}>
-                {confirmDialog.cancelLabel || "Annuler"}
+                {confirmDialog.cancelLabel || i18nT("annuler_49ba3292")}
               </button>
               <button
                 type="button"

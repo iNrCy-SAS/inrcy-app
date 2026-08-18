@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getClientIp, enforceRateLimit } from "@/lib/rateLimit";
@@ -7,6 +8,14 @@ import {
   hasKnownInrcyAccountForEmail,
   isExistingAuthUserError,
 } from "@/lib/supabaseAuthBusinessErrors";
+import {
+  APP_LOCALE_COOKIE,
+  DEFAULT_APP_LOCALE,
+  LEGACY_APP_LOCALE_COOKIE,
+  appLanguageFromLocale,
+  appLocaleFromAcceptLanguage,
+  tryNormalizeAppLocale,
+} from "@/i18n/config";
 
 export const runtime = "nodejs";
 
@@ -15,6 +24,9 @@ type ResendMode = "invite" | "reset";
 type Body = {
   email?: string;
   mode?: ResendMode;
+  language?: string;
+  lang?: string;
+  locale?: string;
 };
 
 function normalizeEmail(value: unknown) {
@@ -27,6 +39,24 @@ function isValidEmail(value: string) {
 
 function buildAppOrigin() {
   return (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || "https://app.inrcy.com").replace(/\/$/, "");
+}
+
+async function resolveRequestLanguage(req: Request, body: Body | null) {
+  const cookieStore = await cookies();
+  const locale =
+    tryNormalizeAppLocale(body?.language || body?.lang || body?.locale) ||
+    tryNormalizeAppLocale(cookieStore.get(APP_LOCALE_COOKIE)?.value) ||
+    tryNormalizeAppLocale(cookieStore.get(LEGACY_APP_LOCALE_COOKIE)?.value) ||
+    appLocaleFromAcceptLanguage(req.headers.get("accept-language")) ||
+    DEFAULT_APP_LOCALE;
+
+  return appLanguageFromLocale(locale);
+}
+
+function buildLocalizedFinishUrl(appOrigin: string, path: string, language: string) {
+  const url = new URL(path, `${appOrigin}/`);
+  url.searchParams.set("lang", language);
+  return url.toString();
 }
 
 function successMessage(mode: ResendMode, email: string) {
@@ -44,6 +74,7 @@ export async function POST(req: Request) {
     const body = (await req.json().catch(() => null)) as Body | null;
     const email = normalizeEmail(body?.email);
     const mode = body?.mode === "invite" ? "invite" : body?.mode === "reset" ? "reset" : null;
+    const language = await resolveRequestLanguage(req, body);
 
     if (!mode) {
       return NextResponse.json({ error: "Type de lien invalide." }, { status: 400 });
@@ -66,7 +97,7 @@ export async function POST(req: Request) {
 
     if (mode === "reset") {
       const { error } = await supabaseAdmin.auth.resetPasswordForEmail(email, {
-        redirectTo: `${appOrigin}/auth/finish-reset`,
+        redirectTo: buildLocalizedFinishUrl(appOrigin, "/auth/finish-reset", language),
       });
 
       if (error) {
@@ -85,7 +116,7 @@ export async function POST(req: Request) {
     }
 
     const inviteResult = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-      redirectTo: `${appOrigin}/auth/finish-invite`,
+      redirectTo: buildLocalizedFinishUrl(appOrigin, "/auth/finish-invite", language),
     });
 
     if (!inviteResult.error) {
@@ -94,7 +125,7 @@ export async function POST(req: Request) {
 
     if (isExistingAuthUserError(inviteResult.error)) {
       const recoveryResult = await supabaseAdmin.auth.resetPasswordForEmail(email, {
-        redirectTo: `${appOrigin}/auth/finish-reset`,
+        redirectTo: buildLocalizedFinishUrl(appOrigin, "/auth/finish-reset", language),
       });
 
       if (!recoveryResult.error) {

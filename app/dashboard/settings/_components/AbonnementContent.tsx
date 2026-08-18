@@ -1,5 +1,8 @@
 "use client";
 
+import { useLocale, useTranslations } from "next-intl";
+
+
 import { getSimpleFrenchApiError, getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import { confirmInrcy } from "@/lib/inrcyDialog";
 import { useEffect, useMemo, useState } from "react";
@@ -35,14 +38,14 @@ function monthlyPriceTtcFromPlan(plan: unknown) {
   return 0;
 }
 
-function planShortLabel(plan: unknown) {
+function planShortLabel(plan: unknown, i18nT: (key: string) => string) {
   const normalized = normalizePlan(plan);
   if (normalized === "Standard") return "Standard";
   if (normalized === "Premium") return "Premium";
-  if (normalized === "Starter") return "Partenaire Fondateur";
-  if (normalized === "Accel") return "Accélération";
-  if (normalized === "Speed") return "Pleine vitesse";
-  return "Essai 21j";
+  if (normalized === "Starter") return i18nT("partenaire_fondateur_7857c49b");
+  if (normalized === "Accel") return i18nT("acceleration_2aa4f284");
+  if (normalized === "Speed") return i18nT("pleine_vitesse_e2aad634");
+  return i18nT("essai_21j_2cf2287d");
 }
 
 type Props = {
@@ -82,8 +85,8 @@ const SUB_SELECT =
   "plan,scheduled_plan,status,monthly_price_eur,start_date,trial_start_at,trial_end_at,next_renewal_date,cancel_requested_at,end_date,stripe_customer_id,stripe_subscription_id,stripe_price_id,billing_cycle,founder_offer_enabled";
 
 
-function frDate(d: Date) {
-  return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
+function frDate(d: Date, locale: string) {
+  return d.toLocaleDateString(locale, { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
 function parseYMD(ymd: string) {
@@ -151,27 +154,31 @@ function addDays(date: Date, days: number) {
   return res;
 }
 
-function statusLabel(raw: string) {
+function statusLabel(raw: string, i18nT: (key: string) => string) {
   // Tolérance aux anciennes valeurs / fautes de frappe en base.
-  if (raw === "trialing" || raw === "trailing" || raw === "essai") return "ESSAI";
-  if (raw === "trial_expired" || raw === "trial-expired") return "ESSAI TERMINÉ";
-  if (raw === "active") return "ACTIF";
-  if (raw === "past_due" || raw === "unpaid") return "IMPAYÉ";
-  if (raw === "paused") return "SUSPENDU";
-  if (raw === "canceled" || raw === "cancelled") return "RÉSILIÉ";
-  if (raw === "incomplete" || raw === "incomplete_expired") return "EN ATTENTE";
+  if (raw === "trialing" || raw === "trailing" || raw === "essai") return i18nT("essai_21j_jours_3095df3f");
+  if (raw === "trial_expired" || raw === "trial-expired") return i18nT("essai_termine_02c47ac3");
+  if (raw === "active") return i18nT("actif_2eb75f84");
+  if (raw === "past_due" || raw === "unpaid") return i18nT("impaye_a4556347");
+  if (raw === "paused") return i18nT("suspendu_e9a8be4e");
+  if (raw === "canceled" || raw === "cancelled") return i18nT("resilie_1ca48fe3");
+  if (raw === "incomplete" || raw === "incomplete_expired") return i18nT("en_attente_a63fe859");
   return String(raw || "").toUpperCase() || "INCONNU";
 }
 
-function planLabel(plan: SubData["plan"]) {
+function planLabel(plan: SubData["plan"], i18nT: (key: string) => string) {
   const normalized = normalizePlan(plan);
-  if (normalized === "Starter") return "Offre Partenaire Fondateur";
-  if (normalized === "Accel") return "Pack Accélération";
-  if (normalized === "Speed") return "Pack Pleine vitesse";
-  return "Essai 21j";
+  if (normalized === "Starter") return i18nT("offre_partenaire_fondateur_82e34573");
+  if (normalized === "Accel") return i18nT("pack_acceleration_9148e468");
+  if (normalized === "Speed") return i18nT("pack_pleine_vitesse_a1aee34b");
+  if (normalized === "Standard") return "Standard";
+  if (normalized === "Premium") return "Premium";
+  return i18nT("essai_21j_2cf2287d");
 }
 
 export default function AbonnementContent({ mode: _mode = "page", onOpenContact }: Props) {
+  const i18nT = useTranslations("settings");
+  const locale = useLocale();
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -350,23 +357,23 @@ useEffect(() => {
       : monthlyPriceTtc;
 
     return {
-      startLabel: frDate(start),
-      trialEndLabel: frDate(trialEnd),
-      scheduledStartLabel: frDate(scheduledStart),
-      renewalLabel: frDate(renewal),
-      endEstLabel: frDate(endEst),
-      cancelEndLabel: cancelEnd ? frDate(cancelEnd) : null,
+      startLabel: frDate(start, locale),
+      trialEndLabel: frDate(trialEnd, locale),
+      scheduledStartLabel: frDate(scheduledStart, locale),
+      renewalLabel: frDate(renewal, locale),
+      endEstLabel: frDate(endEst, locale),
+      cancelEndLabel: cancelEnd ? frDate(cancelEnd, locale) : null,
       cancellationScheduled,
       monthlyNoticeCancellation,
       priceLabel: `${displayedPriceTtc} €`,
       annualPayment,
-      statusText: isTrialPlan ? "ESSAI" : statusLabel(statusNorm),
+      statusText: isTrialPlan ? i18nT("essai_21_jours_3095df3f") : statusLabel(statusNorm, i18nT),
       hasStripeSub: hasScheduledSubscription,
-      scheduledPlanLabel: planShortLabel(scheduledPlan),
+      scheduledPlanLabel: planShortLabel(scheduledPlan, i18nT),
       planNormalized,
       trialEndsWithinStripeMinimum,
     };
-  }, [sub, checkoutState]);
+  }, [sub, checkoutState, locale, i18nT]);
 
   const shell: React.CSSProperties = {
     borderRadius: 16,
@@ -467,9 +474,9 @@ useEffect(() => {
 
   const doCancel = async () => {
     const ok = await confirmInrcy({
-      title: "Confirmer la résiliation ?",
-      message: "Mensuel actif : votre prochaine mensualité sera la dernière et couvrira un mois complet de préavis. Annuel : arrêt à l'échéance sans nouveau prélèvement annuel. Essai : arrêt sans prélèvement.",
-      confirmLabel: "Résilier",
+      title: i18nT("confirmer_la_resiliation_893151df"),
+      message: i18nT("mensuel_actif_votre_prochaine_mensualite_sera_1c6e70ed"),
+      confirmLabel: i18nT("resilier_1b922dae"),
       variant: "danger",
     });
     if (!ok) return;
@@ -501,9 +508,9 @@ useEffect(() => {
 
   const doUncancel = async () => {
     const ok = await confirmInrcy({
-      title: "Annuler la résiliation ?",
-      message: "Votre abonnement restera actif comme avant.",
-      confirmLabel: "Annuler la résiliation",
+      title: i18nT("annuler_la_resiliation_dc5148d7"),
+      message: i18nT("votre_abonnement_restera_actif_comme_avant_ec636334"),
+      confirmLabel: i18nT("annuler_la_resiliation_a16defa8"),
       variant: "warning",
     });
     if (!ok) return;
@@ -526,16 +533,15 @@ useEffect(() => {
     }
   };
 
-  if (loading) return <div style={{ opacity: 0.85 }}>Chargement…</div>;
+  if (loading) return <div style={{ opacity: 0.85 }}>{i18nT("chargement_01cba1df")}</div>;
   if (err) return <div style={{ opacity: 0.9 }}>⚠️ {err}</div>;
 
   if (!sub || !computed) {
     return (
       <div style={card}>
-        <h2 style={{ margin: 0, fontSize: 16 }}>Mon abonnement</h2>
+        <h2 style={{ margin: 0, fontSize: 16 }}>{i18nT("mon_abonnement_d248414d")}</h2>
         <p style={{ margin: "8px 0 0", opacity: 0.8 }}>
-          Votre abonnement n’est pas encore renseigné. Contactez iNrCy si besoin.
-        </p>
+          {i18nT("votre_abonnement_n_est_pas_encore_e76722c5")}{" "}</p>
       </div>
     );
   }
@@ -568,10 +574,10 @@ useEffect(() => {
         <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start" }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ opacity: 0.85, fontSize: 12, fontWeight: 900, letterSpacing: 0.4 }}>PACK</div>
-            <div style={{ fontSize: 22, fontWeight: 950, marginTop: 4, lineHeight: 1.15 }}>{planLabel(sub.plan)}</div>
+            <div style={{ fontSize: 22, fontWeight: 950, marginTop: 4, lineHeight: 1.15 }}>{planLabel(sub.plan, i18nT)}</div>
 
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
-              <span style={badge}>SANS ENGAGEMENT</span>
+              <span style={badge}>{i18nT("sans_engagement_b19d4f9b")}</span>
               <span style={badge}>{computed.annualPayment ? "ANNUEL" : "MENSUEL"}</span>
               <span style={badge}>{computed.statusText}</span>
             </div>
@@ -580,13 +586,13 @@ useEffect(() => {
           <div style={{ textAlign: "right", flexShrink: 0 }}>
             <div style={{ opacity: 0.85, fontSize: 12, fontWeight: 900, letterSpacing: 0.4 }}>PRIX</div>
             <div style={{ fontSize: 26, fontWeight: 950, marginTop: 4, lineHeight: 1 }}>{computed.priceLabel}</div>
-            <div style={{ opacity: 0.75, fontSize: 12, marginTop: 6 }}>{computed.annualPayment ? "TTC / an" : "TTC par mois"}</div>
+            <div style={{ opacity: 0.75, fontSize: 12, marginTop: 6 }}>{computed.annualPayment ? i18nT("ttc_an_7615e4f3") : i18nT("ttc_par_mois_e7babfcd")}</div>
           </div>
         </div>
       </div>
 
       <div style={card}>
-        <h2 style={{ margin: 0, fontSize: 16 }}>Dates</h2>
+        <h2 style={{ margin: 0, fontSize: 16 }}>{i18nT("dates_842b7b5d")}</h2>
 
         <div
           className="datesGrid"
@@ -595,32 +601,32 @@ useEffect(() => {
           {computed?.planNormalized === "Trial" ? (
             <>
               <div style={miniBox}>
-                <div style={{ opacity: 0.8, fontSize: 12, fontWeight: 900 }}>Inscription</div>
+                <div style={{ opacity: 0.8, fontSize: 12, fontWeight: 900 }}>{i18nT("inscription_9be51f96")}</div>
                 <div style={{ marginTop: 6, fontSize: 16, fontWeight: 900 }}>{computed.startLabel}</div>
               </div>
 
               <div style={miniBox}>
-                <div style={{ opacity: 0.8, fontSize: 12, fontWeight: 900 }}>Fin de période d’essai</div>
+                <div style={{ opacity: 0.8, fontSize: 12, fontWeight: 900 }}>{i18nT("fin_de_periode_d_essai_e49ad56a")}</div>
                 <div style={{ marginTop: 6, fontSize: 16, fontWeight: 900 }}>{computed.trialEndLabel}</div>
               </div>
             </>
           ) : (
             <>
               <div style={miniBox}>
-                <div style={{ opacity: 0.8, fontSize: 12, fontWeight: 900 }}>Actualisation</div>
+                <div style={{ opacity: 0.8, fontSize: 12, fontWeight: 900 }}>{i18nT("actualisation_d386fa8d")}</div>
                 <div style={{ marginTop: 6, fontSize: 16, fontWeight: 900 }}>{computed.startLabel}</div>
               </div>
 
               <div style={miniBox}>
-                <div style={{ opacity: 0.8, fontSize: 12, fontWeight: 900 }}>{computed.annualPayment ? "Renouvellement annuel" : "Renouvellement"}</div>
+                <div style={{ opacity: 0.8, fontSize: 12, fontWeight: 900 }}>{computed.annualPayment ? i18nT("renouvellement_annuel_ffcc422c") : i18nT("renouvellement_5b961f3a")}</div>
                 <div style={{ marginTop: 6, fontSize: 16, fontWeight: 900 }}>{computed.renewalLabel}</div>
               </div>
 
               <div style={miniBox}>
-                <div style={{ opacity: 0.8, fontSize: 12, fontWeight: 900 }}>{computed.annualPayment ? "Formule" : "Fin prévisionnelle"}</div>
-                <div style={{ marginTop: 6, fontSize: 16, fontWeight: 900 }}>{computed.annualPayment && !computed.cancellationScheduled ? "Annuelle" : computed.cancellationScheduled && computed.cancelEndLabel ? computed.cancelEndLabel : computed.endEstLabel}</div>
+                <div style={{ opacity: 0.8, fontSize: 12, fontWeight: 900 }}>{computed.annualPayment ? i18nT("formule_1bb7d659") : i18nT("fin_previsionnelle_682cf200")}</div>
+                <div style={{ marginTop: 6, fontSize: 16, fontWeight: 900 }}>{computed.annualPayment && !computed.cancellationScheduled ? i18nT("annuelle_0e25612c") : computed.cancellationScheduled && computed.cancelEndLabel ? computed.cancelEndLabel : computed.endEstLabel}</div>
                 <div style={{ marginTop: 6, fontSize: 12, opacity: 0.75, lineHeight: 1.3 }}>
-                  {computed.cancellationScheduled ? "Résiliation programmée" : computed.annualPayment ? "Résiliable avant échéance" : "Préavis inclus (1 mois)"}
+                  {computed.cancellationScheduled ? i18nT("resiliation_programmee_09802990") : computed.annualPayment ? i18nT("resiliable_avant_echeance_7d2a6c32") : i18nT("preavis_inclus_1_mois_4e679006")}
                 </div>
               </div>
             </>
@@ -629,7 +635,7 @@ useEffect(() => {
       </div>
 
       <div style={card}>
-        <h2 style={{ margin: 0, fontSize: 16 }}>Modifier / Résilier</h2>
+        <h2 style={{ margin: 0, fontSize: 16 }}>{i18nT("modifier_resilier_36d44555")}</h2>
 
         {sub.stripe_customer_id ? (
           <div
@@ -644,12 +650,11 @@ useEffect(() => {
               gap: 10,
             }}
           >
-            <div style={{ fontWeight: 900 }}>Informations de facturation</div>
+            <div style={{ fontWeight: 900 }}>{i18nT("informations_de_facturation_8a6fd636")}</div>
             <p style={{ margin: 0, opacity: 0.84, lineHeight: 1.45, fontSize: 13 }}>
-              Mettez à jour votre adresse, votre TVA, vos factures et votre moyen de paiement depuis le portail sécurisé Stripe.
-            </p>
+              {i18nT("mettez_a_jour_votre_adresse_votre_1b61e677")}{" "}</p>
             <button type="button" onClick={openBillingPortal} style={ghostBtn} disabled={portalBusy || billingBusy}>
-              {portalBusy ? "Ouverture…" : "Mettre à jour mes informations de facturation"}
+              {portalBusy ? i18nT("ouverture_3333ad14") : i18nT("mettre_a_jour_mes_informations_de_6e93cb1c")}
             </button>
           </div>
         ) : null}
@@ -657,32 +662,30 @@ useEffect(() => {
         {checkoutState === "success" ? (
           <p style={{ margin: "8px 0 0", opacity: 0.9, lineHeight: 1.5 }}>
             {checkoutBilling === "yearly"
-              ? "✅ Abonnement annuel confirmé. Votre renouvellement est prévu chaque année."
+              ? i18nT("abonnement_annuel_confirme_votre_renouvellement__14c9e289")
               : computed?.trialEndsWithinStripeMinimum
-                ? "✅ Inscription confirmée. Votre abonnement démarre maintenant."
-                : "✅ Inscription confirmée. Votre abonnement démarrera à la fin de votre période d'essai de 21 jours."}
+                ? i18nT("inscription_confirmee_votre_abonnement_demarre_m_53bef1f6")
+                : i18nT("inscription_confirmee_votre_abonnement_demarrera_07043609")}
           </p>
         ) : checkoutState === "cancel" ? (
           <p style={{ margin: "8px 0 0", opacity: 0.9, lineHeight: 1.5 }}>
-            ℹ️ Paiement annulé.
-          </p>
+            {i18nT("paiement_annule_4e50bdaa")}{" "}</p>
         ) : null}
 
         {computed?.planNormalized === "Trial" ? (
           <>
             <p style={{ margin: "8px 0 0", opacity: 0.85, lineHeight: 1.5 }}>
-              Vous êtes en période d’essai 21 jours.
-            </p>
+              {i18nT("vous_etes_en_periode_d_essai_94b9a0f2")}{" "}</p>
 
             {computed?.hasStripeSub ? (
               <>
                 {checkoutState !== "success" ? (
                   <p style={{ margin: "8px 0 0", opacity: 0.9, lineHeight: 1.5 }}>
                     {checkoutBilling === "yearly"
-                      ? "✅ Abonnement annuel confirmé. Votre renouvellement est prévu chaque année."
+                      ? i18nT("abonnement_annuel_confirme_votre_renouvellement__14c9e289")
                       : computed?.trialEndsWithinStripeMinimum
-                        ? "✅ Inscription confirmée. Votre abonnement démarre maintenant."
-                        : "✅ Inscription confirmée. Votre abonnement démarrera à la fin de votre période d'essai de 21 jours."}
+                        ? i18nT("inscription_confirmee_votre_abonnement_demarre_m_53bef1f6")
+                        : i18nT("inscription_confirmee_votre_abonnement_demarrera_07043609")}
                   </p>
                 ) : null}
 
@@ -696,17 +699,15 @@ useEffect(() => {
                       padding: "10px 12px",
                     }}
                   >
-                    <div style={{ fontWeight: 800, marginBottom: 4 }}>Résiliation programmée</div>
+                    <div style={{ fontWeight: 800, marginBottom: 4 }}>{i18nT("resiliation_programmee_09802990")}</div>
                     <div style={{ opacity: 0.95, lineHeight: 1.45 }}>
-                      Votre accès restera actif jusqu'au <strong>{computed.cancelEndLabel}</strong>.
+                      {i18nT("votre_acces_restera_actif_jusqu_au_1da564dd")}{" "}<strong>{computed.cancelEndLabel}</strong>.
                     </div>
                     <div style={{ fontSize: 12, opacity: 0.85, marginTop: 4 }}>
-                      Vous pouvez annuler la résiliation tant que la date n'est pas atteinte.
-                    </div>
+                      {i18nT("vous_pouvez_annuler_la_resiliation_tant_b58e096f")}{" "}</div>
                     {computed.monthlyNoticeCancellation ? (
                       <div style={{ fontSize: 12, opacity: 0.85, marginTop: 4 }}>
-                        La prochaine mensualité reste due et sera votre dernière mensualité.
-                      </div>
+                        {i18nT("la_prochaine_mensualite_reste_due_et_01f3e3f3")}{" "}</div>
                     ) : null}
                   </div>
                 ) : null}
@@ -714,45 +715,38 @@ useEffect(() => {
                 <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
                   {!computed?.cancellationScheduled ? (
                     <button type="button" onClick={doCancel} style={dangerBtn} disabled={billingBusy}>
-                      {billingBusy ? "Traitement…" : "Programmer ma résiliation"}
+                      {billingBusy ? i18nT("traitement_2f66d9bc") : i18nT("programmer_ma_resiliation_d074ca2d")}
                     </button>
                   ) : (
                     <button type="button" onClick={doUncancel} style={primaryBtn} disabled={billingBusy}>
-                      {billingBusy ? "Traitement…" : "Annuler ma résiliation"}
+                      {billingBusy ? i18nT("traitement_2f66d9bc") : i18nT("annuler_ma_resiliation_902e43a0")}
                     </button>
                   )}
                   <a href="https://inrcy.com/nos-packs/" target="_blank" rel="noreferrer" style={ghostBtn}>
-                    Voir nos packs
-                  </a>
+                    {i18nT("voir_nos_packs_973446e0")}{" "}</a>
                   {onOpenContact ? (
                     <button type="button" onClick={onOpenContact} style={ghostBtn}>
-                      Contactez-nous
-                    </button>
+                      {i18nT("contactez_nous_ec4802ef")}{" "}</button>
                   ) : (
                     <a href="https://inrcy.com/contact/" target="_blank" rel="noreferrer" style={ghostBtn}>
-                      Contactez-nous
-                    </a>
+                      {i18nT("contactez_nous_ec4802ef")}{" "}</a>
                   )}
                 </div>
               </>
             ) : (
               <>
                 <p style={{ margin: "8px 0 0", opacity: 0.85, lineHeight: 1.5 }}>
-                  Les forfaits Premium et Founder sont activés et réactivés avec l’équipe iNrCy après un échange de présentation.
-                </p>
+                  {i18nT("les_forfaits_premium_et_founder_sont_374bb1ec")}{" "}</p>
                 <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
                   {onOpenContact ? (
                     <button type="button" onClick={onOpenContact} style={primaryBtn}>
-                      Contacter iNrCy
-                    </button>
+                      {i18nT("contacter_inrcy_b0a48e55")}{" "}</button>
                   ) : (
                     <a href="https://inrcy.com/contact/" target="_blank" rel="noreferrer" style={primaryBtn}>
-                      Contacter iNrCy
-                    </a>
+                      {i18nT("contacter_inrcy_b0a48e55")}{" "}</a>
                   )}
                   <a href="https://inrcy.com/nos-packs/" target="_blank" rel="noreferrer" style={ghostBtn}>
-                    Voir nos packs
-                  </a>
+                    {i18nT("voir_nos_packs_973446e0")}{" "}</a>
                 </div>
               </>
             )}
@@ -762,8 +756,7 @@ useEffect(() => {
             {false && computed?.annualPayment ? (
               <>
                 <p style={{ margin: "8px 0 0", opacity: 0.9, lineHeight: 1.5 }}>
-                  Votre abonnement annuel est actif.
-                </p>
+                  {i18nT("votre_abonnement_annuel_est_actif_563e5088")}{" "}</p>
                 <div
                   style={{
                     marginTop: 10,
@@ -773,33 +766,28 @@ useEffect(() => {
                     padding: "10px 12px",
                   }}
                 >
-                  <div style={{ fontWeight: 800, marginBottom: 4 }}>Abonnement annuel</div>
+                  <div style={{ fontWeight: 800, marginBottom: 4 }}>{i18nT("abonnement_annuel_68b3aae6")}</div>
                   <div style={{ opacity: 0.95, lineHeight: 1.45 }}>
-                    Le renouvellement automatique annuel est programmé à la prochaine échéance.
-                  </div>
+                    {i18nT("le_renouvellement_automatique_annuel_est_program_7ee5abc3")}{" "}</div>
                   <div style={{ fontSize: 12, opacity: 0.85, marginTop: 4 }}>
-                    Vous pouvez résilier avant la prochaine échéance.
-                  </div>
+                    {i18nT("vous_pouvez_resilier_avant_la_prochaine_c9597f47")}{" "}</div>
                 </div>
                 <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
                   <a href="https://inrcy.com/nos-packs/" target="_blank" rel="noreferrer" style={ghostBtn}>
-                    Voir les packs
-                  </a>
+                    {i18nT("voir_les_packs_ad21ffc7")}{" "}</a>
                   {onOpenContact ? (
                     <button type="button" onClick={onOpenContact} style={ghostBtn}>
-                      Contacter iNrCy
-                    </button>
+                      {i18nT("contacter_inrcy_b0a48e55")}{" "}</button>
                   ) : (
                     <a href="https://inrcy.com/contact/" target="_blank" rel="noreferrer" style={ghostBtn}>
-                      Contacter iNrCy
-                    </a>
+                      {i18nT("contacter_inrcy_b0a48e55")}{" "}</a>
                   )}
                 </div>
               </>
             ) : computed?.cancellationScheduled && computed?.cancelEndLabel ? (
               <>
                 <p style={{ margin: "8px 0 0", opacity: 0.9, lineHeight: 1.5 }}>
-                  Votre résiliation est programmée. Votre accès restera actif jusqu’au <strong>{computed.cancelEndLabel}</strong>.
+                  {i18nT("votre_resiliation_est_programmee_votre_acces_92d6055d")}{" "}<strong>{computed.cancelEndLabel}</strong>.
                 </p>
                 <div
                   style={{
@@ -810,52 +798,44 @@ useEffect(() => {
                     padding: "10px 12px",
                   }}
                 >
-                  <div style={{ fontWeight: 800, marginBottom: 4 }}>Résiliation programmée</div>
+                  <div style={{ fontWeight: 800, marginBottom: 4 }}>{i18nT("resiliation_programmee_09802990")}</div>
                   <div style={{ opacity: 0.95, lineHeight: 1.45 }}>
-                    La résiliation prendra effet le <strong>{computed.cancelEndLabel}</strong>.
+                    {i18nT("la_resiliation_prendra_effet_le_98fdf092")}{" "}<strong>{computed.cancelEndLabel}</strong>.
                   </div>
                   <div style={{ fontSize: 12, opacity: 0.85, marginTop: 4 }}>
-                    Vous pouvez l’annuler tant que la date n’est pas atteinte.
-                  </div>
+                    {i18nT("vous_pouvez_l_annuler_tant_que_5d37578a")}{" "}</div>
                 </div>
                 <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
                   <button type="button" onClick={doUncancel} style={primaryBtn} disabled={billingBusy}>
-                    {billingBusy ? "Traitement…" : "Annuler ma résiliation"}
+                    {billingBusy ? i18nT("traitement_2f66d9bc") : i18nT("annuler_ma_resiliation_902e43a0")}
                   </button>
                   <a href="https://inrcy.com/nos-packs/" target="_blank" rel="noreferrer" style={ghostBtn}>
-                    Voir les packs
-                  </a>
+                    {i18nT("voir_les_packs_ad21ffc7")}{" "}</a>
                   {onOpenContact ? (
                     <button type="button" onClick={onOpenContact} style={ghostBtn}>
-                      Contacter iNrCy
-                    </button>
+                      {i18nT("contacter_inrcy_b0a48e55")}{" "}</button>
                   ) : (
                     <a href="https://inrcy.com/contact/" target="_blank" rel="noreferrer" style={ghostBtn}>
-                      Contacter iNrCy
-                    </a>
+                      {i18nT("contacter_inrcy_b0a48e55")}{" "}</a>
                   )}
                 </div>
               </>
             ) : (
               <>
                 <p style={{ margin: "8px 0 0", opacity: 0.85, lineHeight: 1.5 }}>
-                  Les changements de pack se font uniquement sur demande auprès d’iNrCy.
-                </p>
+                  {i18nT("les_changements_de_pack_se_font_8b7b8305")}{" "}</p>
                 <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
                   <a href="https://inrcy.com/nos-packs/" target="_blank" rel="noreferrer" style={ghostBtn}>
-                    Voir les packs
-                  </a>
+                    {i18nT("voir_les_packs_ad21ffc7")}{" "}</a>
                   {onOpenContact ? (
                     <button type="button" onClick={onOpenContact} style={ghostBtn}>
-                      Contacter iNrCy
-                    </button>
+                      {i18nT("contacter_inrcy_b0a48e55")}{" "}</button>
                   ) : (
                     <a href="https://inrcy.com/contact/" target="_blank" rel="noreferrer" style={ghostBtn}>
-                      Contacter iNrCy
-                    </a>
+                      {i18nT("contacter_inrcy_b0a48e55")}{" "}</a>
                   )}
                   <button type="button" onClick={doCancel} style={dangerBtn} disabled={billingBusy}>
-                    {billingBusy ? "Traitement…" : "Programmer ma résiliation"}
+                    {billingBusy ? i18nT("traitement_2f66d9bc") : i18nT("programmer_ma_resiliation_d074ca2d")}
                   </button>
                 </div>
               </>
@@ -863,8 +843,7 @@ useEffect(() => {
           </>
         ) : (
           <p style={{ margin: "8px 0 0", opacity: 0.85, lineHeight: 1.5 }}>
-            Votre abonnement est actuellement {computed.statusText.toLowerCase()}.
-          </p>
+            {i18nT("votre_abonnement_est_actuellement_value_71a787c2", { value0: computed.statusText.toLowerCase() })}</p>
         )}
 
         {billingMsg ? (

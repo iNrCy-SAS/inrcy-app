@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import { useEffect, useRef, useState } from "react";
 
 import {
@@ -86,6 +89,7 @@ export default function PublishExecutionResultModal({
   onRetryFailed?: () => void | Promise<void>;
   retrying?: boolean;
 }) {
+  const i18nT = useTranslations("booster");
   const [liveSummary, setLiveSummary] = useState<PublishExecutionSummary | null>(summary || null);
   const [expandedEntryDetails, setExpandedEntryDetails] = useState<Record<string, boolean>>({});
   const tiktokPollInFlightRef = useRef(false);
@@ -478,7 +482,7 @@ export default function PublishExecutionResultModal({
         <button
           type="button"
           onClick={onClose}
-          aria-label="Fermer"
+          aria-label={i18nT("fermer_5ab4ec64")}
           className={styles.secondaryBtn}
           style={{
             position: "absolute",
@@ -576,12 +580,11 @@ export default function PublishExecutionResultModal({
                 >
                   ✓
                 </span>
-                {publishedCount} publié{publishedCount > 1 ? "s" : ""}
+                {publishedCount} {" "}{i18nT("publie_bf504032")}{publishedCount > 1 ? "s" : ""}
               </strong>
               {publishedCount === totalCount ? (
                 <strong style={{ color: "#c084fc", fontSize: 13, textAlign: "right" }}>
-                  Tout est en ligne ! 🎉
-                </strong>
+                  {i18nT("tout_est_en_ligne_94126b3c")}{" "}</strong>
               ) : null}
             </div>
           ) : null}
@@ -613,8 +616,7 @@ export default function PublishExecutionResultModal({
                 ◷
               </span>
               <strong style={{ color: "#fbbf24", whiteSpace: "nowrap" }}>
-                {pendingCount} en traitement
-              </strong>
+                {i18nT("value_en_traitement_cf234a8a", { value0: pendingCount })}</strong>
             </div>
           ) : null}
           {failedOrSkippedCount > 0 ? (
@@ -648,7 +650,7 @@ export default function PublishExecutionResultModal({
                 ×
               </span>
               <strong style={{ color: "#fb7185", whiteSpace: "nowrap" }}>
-                {failedOrSkippedCount} échec{failedOrSkippedCount > 1 ? "s" : ""}
+                {failedOrSkippedCount} {" "}{i18nT("echec_f2da5369")}{failedOrSkippedCount > 1 ? "s" : ""}
               </strong>
             </div>
           ) : null}
@@ -916,8 +918,7 @@ export default function PublishExecutionResultModal({
                             textDecoration: "none",
                           }}
                         >
-                          Voir
-                        </a>
+                          {i18nT("voir_8a754f1f")}{" "}</a>
                       ) : null}
                     </span>
                   </div>
@@ -995,8 +996,8 @@ export default function PublishExecutionResultModal({
               style={{ width: "100%" }}
             >
               {retrying
-                ? "Relance en cours…"
-                : `Retenter ${retryableFailureCount} ${retryableFailureCount > 1 ? "canaux" : "canal"} en échec`}
+                ? i18nT("relance_en_cours_82dfaae8")
+                : i18nT("retenter_value_value_en_echec_b7d1f934", { value0: retryableFailureCount, value1: retryableFailureCount > 1 ? "canaux" : "canal" })}
             </button>
           ) : null}
           <button
@@ -1026,8 +1027,7 @@ export default function PublishExecutionResultModal({
               height={23}
               style={{ width: 23, height: 23, objectFit: "contain" }}
             />
-            Voir dans iNr'Send
-          </button>
+            {i18nT("voir_dans_inr_send_a74cc9ea")}{" "}</button>
         </div>
       </div>
     </div>

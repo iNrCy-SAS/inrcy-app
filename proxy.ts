@@ -9,6 +9,16 @@ import {
   isStandardDashboardRouteAllowed,
   resolveDashboardEdition,
 } from "./lib/dashboardEdition";
+import {
+  APP_LOCALE_COOKIE,
+  APP_LOCALE_COOKIE_MAX_AGE,
+  APP_LOCALE_QUERY_PARAMS,
+  APP_LOCALE_REQUEST_HEADER,
+  APP_LOCALE_SHARED_DOMAIN,
+  LEGACY_APP_LOCALE_COOKIE,
+  tryNormalizeAppLocale,
+  type AppLocale,
+} from "./i18n/config";
 
 const ADMIN_USER_IDS = ["670b527d-5e08-42b4-ba95-e58e812339eb"] as const;
 
@@ -460,6 +470,27 @@ export async function proxy(req: NextRequest) {
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set("x-request-id", requestId);
 
+  let explicitlyRequestedLocale: AppLocale | null = null;
+  for (const parameter of APP_LOCALE_QUERY_PARAMS) {
+    explicitlyRequestedLocale = tryNormalizeAppLocale(req.nextUrl.searchParams.get(parameter));
+    if (explicitlyRequestedLocale) break;
+  }
+
+  const legacyLocale = tryNormalizeAppLocale(
+    req.cookies.get(LEGACY_APP_LOCALE_COOKIE)?.value,
+  );
+  const localeToPersist = explicitlyRequestedLocale || (
+    !req.cookies.get(APP_LOCALE_COOKIE)?.value ? legacyLocale : null
+  );
+
+  if (localeToPersist) {
+    req.cookies.set(APP_LOCALE_COOKIE, localeToPersist);
+    requestHeaders.set("cookie", req.cookies.toString());
+  }
+  if (explicitlyRequestedLocale) {
+    requestHeaders.set(APP_LOCALE_REQUEST_HEADER, explicitlyRequestedLocale);
+  }
+
   // TikTok downloads photos anonymously from this signed public endpoint.
   // Do not run session refresh, subscription checks or rate limiting on the
   // media transfer itself: any 401/403/429 or rewritten cache header leaves
@@ -512,6 +543,19 @@ export async function proxy(req: NextRequest) {
         }
       }
     }
+
+    if (localeToPersist) {
+      const hostname = req.nextUrl.hostname.toLowerCase();
+      const isInrcyDomain = hostname === "inrcy.com" || hostname.endsWith(".inrcy.com");
+      res.cookies.set(APP_LOCALE_COOKIE, localeToPersist, {
+        path: "/",
+        maxAge: APP_LOCALE_COOKIE_MAX_AGE,
+        sameSite: "lax",
+        secure: req.nextUrl.protocol === "https:",
+        ...(isInrcyDomain ? { domain: APP_LOCALE_SHARED_DOMAIN } : {}),
+      });
+    }
+
     // Correlate request/response across Vercel logs + Sentry
     res.headers.set("x-request-id", requestId);
 

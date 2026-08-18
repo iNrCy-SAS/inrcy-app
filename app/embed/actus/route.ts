@@ -1,3 +1,4 @@
+import { getTranslations } from "next-intl/server";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
@@ -112,6 +113,7 @@ function htmlResponse(html: string, status = 200, _domain?: string | null) {
 }
 
 export async function GET(req: Request) {
+  const i18nT = await getTranslations("public");
   try {
     const { searchParams } = new URL(req.url);
     const domain = normalizeWidgetDomain(searchParams.get("domain"));
@@ -159,6 +161,6 @@ export async function GET(req: Request) {
     const articles = await fetchArticles(domain, source, limit);
     return htmlResponse(renderEmbedHtml({ title, articles, layout, font, design, theme, accent, frameId }), 200, tokDomain);
   } catch {
-    return htmlResponse(renderEmbedHtml({ title: "Actualités", articles: [], layout: "list", font: "site", theme: "nature", frameId: "inrcy-embed" }), 500);
+    return htmlResponse(renderEmbedHtml({ title: i18nT("actualites_a3baa78e"), articles: [], layout: "list", font: "site", theme: "nature", frameId: "inrcy-embed" }), 500);
   }
 }

@@ -139,16 +139,16 @@ export function endOfWeekSunday(d: Date) {
   return new Date(s.getFullYear(), s.getMonth(), s.getDate() + 6, 23, 59, 59, 999);
 }
 
-export function formatMonthLabel(d: Date) {
-  return new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" }).format(d);
+export function formatMonthLabel(d: Date, locale = "fr-FR") {
+  return new Intl.DateTimeFormat(locale, { month: "long", year: "numeric" }).format(d);
 }
 
-export function formatDayLabel(d: Date) {
-  return new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(d);
+export function formatDayLabel(d: Date, locale = "fr-FR") {
+  return new Intl.DateTimeFormat(locale, { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(d);
 }
 
-export function formatTime(d: Date) {
-  return new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" }).format(d);
+export function formatTime(d: Date, locale = "fr-FR") {
+  return new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit" }).format(d);
 }
 
 export function buildQuarterHourOptions() {
@@ -199,19 +199,19 @@ export function buildIso(dateOnly: string, hhmm: string) {
   return dt.toISOString();
 }
 
-export function getContactOptionLabel(contact: CrmContact) {
+export function getContactOptionLabel(contact: CrmContact, fallback: string) {
   return (
     (contact.company_name && contact.company_name.trim()) ||
     [contact.first_name, contact.last_name].filter(Boolean).join(" ").trim() ||
     contact.email ||
-    "Contact"
+    fallback
   );
 }
 
-export function getEventWhenLabel(event: DayEvent) {
-  if (event.allDay) return "Toute la journée";
+export function getEventWhenLabel(event: DayEvent, locale = "fr-FR", allDayLabel: string) {
+  if (event.allDay) return allDayLabel;
   if (!event.startDate) return "";
-  return `${formatTime(event.startDate)}${event.endDate ? ` → ${formatTime(event.endDate)}` : ""}`;
+  return `${formatTime(event.startDate, locale)}${event.endDate ? ` → ${formatTime(event.endDate, locale)}` : ""}`;
 }
 
 export function getInrcyStatus(event: EventItem | DayEvent | null | undefined) {

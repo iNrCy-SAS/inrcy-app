@@ -12,27 +12,27 @@ export const legalDocs: Record<
   LegalDocKey,
   {
     key: LegalDocKey;
-    title: string;
-    subtitle?: string;
+    titleKey: string;
+    subtitleKey?: string;
     Content: React.ComponentType;
   }
 > = {
   confidentialite: {
     key: "confidentialite",
-    title: "Politique de confidentialité",
-    subtitle: "Dernière mise à jour : 08/08/2026",
+    titleKey: "politique_de_confidentialite_42b0e51e",
+    subtitleKey: "derniere_mise_a_jour_08_08_f576f6f7",
     Content: ConfidentialiteContent,
   },
   "mentions-legales": {
     key: "mentions-legales",
-    title: "Mentions légales",
-    subtitle: "Dernière mise à jour : 08/08/2026",
+    titleKey: "mentions_legales_414291e0",
+    subtitleKey: "derniere_mise_a_jour_08_08_f576f6f7",
     Content: MentionsLegalesContent,
   },
   cga: {
     key: "cga",
-    title: "CGA — Conditions Générales d’Abonnement et Conditions d’Utilisation iNrCy",
-    subtitle: "Version du 08/08/2026",
+    titleKey: "cga_et_conditions_d_utilisation_353e0a8b",
+    subtitleKey: "version_du_08_08_2026_1465b7bb",
     Content: CgaContent,
   },
 };

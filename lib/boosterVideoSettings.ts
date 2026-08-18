@@ -41,6 +41,23 @@ export const VIDEO_ADAPTATION_MODE_LABELS: Record<VideoAdaptationMode, string> =
   cover_crop: "Recadrer plein écran",
 };
 
+type VideoSettingsTranslator = (
+  key: string,
+  values?: Record<string, string | number>,
+) => string;
+
+const VIDEO_ADAPTATION_MODE_MESSAGE_KEYS = {
+  safe_frame: "video_adaptation_safe_frame",
+  cover_crop: "video_adaptation_cover_crop",
+} as const satisfies Record<VideoAdaptationMode, string>;
+
+const VIDEO_ORIENTATION_MESSAGE_KEYS = {
+  horizontal: "video_orientation_horizontal",
+  vertical: "video_orientation_vertical",
+  square: "video_orientation_square",
+  unknown: "video_orientation_unknown",
+} as const;
+
 export const VIDEO_RECOMMENDED_FORMAT_BY_CHANNEL: Record<BoosterVideoChannelKey, VideoFormat> = {
   inrcy_site: "original",
   site_web: "original",
@@ -119,6 +136,37 @@ export function getVideoFormatLabel(channel: BoosterVideoChannelKey, format: Vid
   const label = VIDEO_FORMAT_LABELS[normalized] || VIDEO_FORMAT_LABELS.original;
   const recommended = getRecommendedVideoFormatForSource(channel, sourceMetadata);
   return normalized === recommended ? `${label} recommandé` : label;
+}
+
+export function getLocalizedVideoFormatLabel(
+  channel: BoosterVideoChannelKey,
+  format: VideoFormat,
+  sourceMetadata: VideoSourceMetadataLike,
+  translate: VideoSettingsTranslator,
+) {
+  const normalized = normalizeVideoFormat(channel, format);
+  const label =
+    normalized === "original"
+      ? translate("video_format_original")
+      : VIDEO_FORMAT_LABELS[normalized];
+  const recommended = getRecommendedVideoFormatForSource(channel, sourceMetadata);
+  return normalized === recommended
+    ? translate("video_format_recommended", { format: label })
+    : label;
+}
+
+export function getLocalizedVideoAdaptationModeLabel(
+  mode: VideoAdaptationMode,
+  translate: VideoSettingsTranslator,
+) {
+  return translate(VIDEO_ADAPTATION_MODE_MESSAGE_KEYS[mode]);
+}
+
+export function getLocalizedVideoOrientationLabel(
+  orientation: "horizontal" | "vertical" | "square" | "unknown" | null | undefined,
+  translate: VideoSettingsTranslator,
+) {
+  return translate(VIDEO_ORIENTATION_MESSAGE_KEYS[orientation || "unknown"]);
 }
 
 export function getDefaultChannelVideoSettings(

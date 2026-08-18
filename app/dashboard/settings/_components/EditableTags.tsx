@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import { useState } from "react";
 
 type EditableTagsProps = {
@@ -36,6 +39,7 @@ export default function EditableTags({
   emptyText,
   maxItems = 30,
 }: EditableTagsProps) {
+  const i18nT = useTranslations("settings");
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState("");
 
@@ -87,8 +91,8 @@ export default function EditableTags({
             </span>
             <button
               type="button"
-              aria-label={`Retirer ${value}`}
-              title={`Retirer ${value}`}
+              aria-label={i18nT("retirer_value_c04cdfcb", { value0: value })}
+              title={i18nT("retirer_value_c04cdfcb", { value0: value })}
               onClick={() => onChange(values.filter((item) => item !== value))}
               style={{
                 width: 20,
@@ -170,8 +174,7 @@ export default function EditableTags({
               fontWeight: 850,
             }}
           >
-            Ajouter
-          </button>
+            {i18nT("ajouter_87c57ed1")}{" "}</button>
         </div>
       ) : values.length < maxItems ? (
         <button

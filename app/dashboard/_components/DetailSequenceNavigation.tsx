@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import styles from "./DetailSequenceNavigation.module.css";
 
 type Props = {
@@ -21,6 +24,7 @@ export default function DetailSequenceNavigation({
   onNext,
   ariaLabel = "Navigation entre les éléments",
 }: Props) {
+  const i18nT = useTranslations("shell");
   return (
     <div className={styles.root} aria-label={ariaLabel}>
       <button
@@ -28,8 +32,8 @@ export default function DetailSequenceNavigation({
         className={styles.button}
         onClick={() => void onPrevious()}
         disabled={busy || !canPrevious}
-        aria-label="Élément précédent"
-        title="Précédent"
+        aria-label={i18nT("element_precedent_358f9c1e")}
+        title={i18nT("precedent_a527f171")}
       >
         ‹
       </button>
@@ -41,8 +45,8 @@ export default function DetailSequenceNavigation({
         className={styles.button}
         onClick={() => void onNext()}
         disabled={busy || !canNext}
-        aria-label="Élément suivant"
-        title="Suivant"
+        aria-label={i18nT("element_suivant_9d61e569")}
+        title={i18nT("suivant_596d29a7")}
       >
         ›
       </button>

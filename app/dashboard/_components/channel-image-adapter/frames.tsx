@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 
 import type { BackgroundMode, PreviewImage, PreviewVideo } from "./types";
@@ -20,6 +21,7 @@ export function FinalImageFrame({
   fitLabel?: string;
   badge?: string;
 }) {
+  const i18nT = useTranslations("shell");
   const src = image?.previewUrl || "";
   const transform = image?.transform || {};
   const preset = image?.preset || { width: 1000, height: 1000 };
@@ -61,7 +63,7 @@ export function FinalImageFrame({
       ) : src ? (
         <img src={src} alt="preview" style={{ width: "100%", height: "100%", objectFit: fit, display: "block" }} />
       ) : (
-        <div style={{ width: "100%", height: "100%", display: "grid", placeItems: "center", color: "rgba(255,255,255,0.55)", fontSize: 12 }}>Aucune image</div>
+        <div style={{ width: "100%", height: "100%", display: "grid", placeItems: "center", color: "rgba(255,255,255,0.55)", fontSize: 12 }}>{i18nT("aucune_image_768c8a5c")}</div>
       )}
       {fitLabel ? (
         <div style={{ position: "absolute", left: 8, bottom: 8, fontSize: 11, padding: "5px 8px", borderRadius: 999, background: "rgba(6,10,20,0.72)", border: "1px solid rgba(255,255,255,0.12)", color: "#fff" }}>
@@ -88,6 +90,7 @@ export function VideoPreviewFrame({
   badge?: string;
   dark?: boolean;
 }) {
+  const i18nT = useTranslations("shell");
   const src = String(video?.previewUrl || "").trim();
   const duration = formatPreviewVideoSeconds(video?.duration);
   const size = formatPreviewVideoBytes(video?.size);
@@ -121,7 +124,7 @@ export function VideoPreviewFrame({
           }}
         />
       ) : (
-        <div style={{ color: "rgba(255,255,255,0.68)", fontSize: 12 }}>Aucune vidéo</div>
+        <div style={{ color: "rgba(255,255,255,0.68)", fontSize: 12 }}>{i18nT("aucune_video_c4607a21")}</div>
       )}
       {badge ? (
         <div style={{ position: "absolute", left: 8, bottom: 8, fontSize: 11, padding: "5px 8px", borderRadius: 999, background: "rgba(6,10,20,0.72)", border: "1px solid rgba(255,255,255,0.12)", color: "#fff", pointerEvents: "none" }}>
@@ -152,6 +155,7 @@ export function PublicationPreviewLightbox({
   fallbackMode: BackgroundMode;
   onClose: () => void;
 }) {
+  const i18nT = useTranslations("shell");
   const [index, setIndex] = useState(initialIndex);
 
   useEffect(() => {
@@ -181,10 +185,10 @@ export function PublicationPreviewLightbox({
         <div style={{ width: "min(980px, 100%)", display: "grid", gap: 12 }}>
           <div style={{ position: "sticky", top: 8, zIndex: 3, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, color: "#fff", flexWrap: "wrap", padding: "8px 0" }}>
             <div>
-              <div style={{ fontSize: 13, opacity: 0.9 }}>Carousel — image {safeIndex + 1} / {images.length}</div>
-              <div style={{ fontSize: 11, opacity: 0.65 }}>Flèches clavier, boutons ou miniatures.</div>
+              <div style={{ fontSize: 13, opacity: 0.9 }}>{i18nT("carousel_image_95458801")}{" "}{safeIndex + 1} / {images.length}</div>
+              <div style={{ fontSize: 11, opacity: 0.65 }}>{i18nT("fleches_clavier_boutons_ou_miniatures_f491f09e")}</div>
             </div>
-            <button type="button" onClick={onClose} style={{ border: "1px solid rgba(255,255,255,0.18)", background: "rgba(15,23,42,0.86)", color: "#fff", borderRadius: 999, padding: "9px 14px", cursor: "pointer" }}>Fermer</button>
+            <button type="button" onClick={onClose} style={{ border: "1px solid rgba(255,255,255,0.18)", background: "rgba(15,23,42,0.86)", color: "#fff", borderRadius: 999, padding: "9px 14px", cursor: "pointer" }}>{i18nT("fermer_5ab4ec64")}</button>
           </div>
 
           <div style={{ display: "grid", justifyItems: "center" }}>
@@ -202,7 +206,7 @@ export function PublicationPreviewLightbox({
           {images.length > 1 ? (
             <div style={{ display: "flex", gap: 8, overflowX: "auto", padding: "2px 0 8px", justifyContent: "center" }}>
               {images.map((img, thumbIndex) => (
-                <button key={thumbIndex} type="button" onClick={() => setIndex(thumbIndex)} style={{ flex: "0 0 auto", width: 58, height: 58, borderRadius: 12, overflow: "hidden", border: thumbIndex === safeIndex ? "2px solid #ffffff" : "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.06)", padding: 0, cursor: "pointer" }} aria-label={`Voir l'image ${thumbIndex + 1}`}>
+                <button key={thumbIndex} type="button" onClick={() => setIndex(thumbIndex)} style={{ flex: "0 0 auto", width: 58, height: 58, borderRadius: 12, overflow: "hidden", border: thumbIndex === safeIndex ? "2px solid #ffffff" : "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.06)", padding: 0, cursor: "pointer" }} aria-label={i18nT("voir_l_image_value_71740aa0", { value0: thumbIndex + 1 })}>
                   <img src={img.previewUrl} alt="" draggable={false} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
                 </button>
               ))}

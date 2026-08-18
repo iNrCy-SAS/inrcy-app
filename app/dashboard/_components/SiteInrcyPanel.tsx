@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import styles from "../dashboard.module.css";
 import ConnectionPill from "./ConnectionPill";
 import StatusMessage from "./StatusMessage";
@@ -8,6 +11,7 @@ import ActusWidgetControls from "./ActusWidgetControls";
 import SaveIcon from "./SaveIcon";
 
 export default function SiteInrcyPanel(props: any) {
+  const i18nT = useTranslations("shell");
   const {
     siteInrcyOwnership,
     siteInrcyAllGreen,
@@ -85,7 +89,7 @@ export default function SiteInrcyPanel(props: any) {
                     : "rgba(59,130,246,0.95)",
             }}
           />
-          Statut : <strong>{siteInrcyOwnership === "none" ? "Aucun site" : hasSiteInrcyUrl ? "Connecté" : "À connecter"}</strong>
+          {i18nT("statut_b20e7fc2")}{" "}<strong>{siteInrcyOwnership === "none" ? i18nT("aucun_site_f874e141") : hasSiteInrcyUrl ? i18nT("connecte_ce09957c") : i18nT("a_connecter_dee8dcb4")}</strong>
         </span>
 
         {!!siteInrcyContactEmail && (
@@ -102,7 +106,7 @@ export default function SiteInrcyPanel(props: any) {
               fontSize: 13,
             }}
           >
-            Email : <strong style={{ marginLeft: 6 }}>{siteInrcyContactEmail}</strong>
+            {i18nT("email_f2f25a21")}{" "}<strong style={{ marginLeft: 6 }}>{siteInrcyContactEmail}</strong>
           </span>
         )}
       </div>
@@ -117,12 +121,11 @@ export default function SiteInrcyPanel(props: any) {
         }}
       >
         <div className={styles.blockHeaderRow}>
-          <div className={styles.blockTitle}>Lien du site</div>
+          <div className={styles.blockTitle}>{i18nT("lien_du_site_760c2d8a")}</div>
           <ConnectionPill connected={siteInrcyOwnership !== "none" && hasSiteInrcyUrl} />
         </div>
         <div className={styles.blockSub}>
-          Le bouton <strong>Voir le site</strong> de la bulle utilisera ce lien.
-        </div>
+          {i18nT("le_bouton_f97378f8")}{" "}<strong>{i18nT("voir_le_site_5bf01317")}</strong> {" "}{i18nT("de_la_bulle_utilisera_ce_lien_f51f1013")}{" "}</div>
 
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           <input
@@ -152,8 +155,8 @@ export default function SiteInrcyPanel(props: any) {
               className={`${styles.actionBtn} ${styles.disconnectBtn}`}
               onClick={() => void deleteSiteInrcyUrl()}
               disabled={siteInrcyOwnership === "none" || siteInrcyUrlBusy}
-              title="Supprimer le lien"
-              aria-label="Supprimer le lien"
+              title={i18nT("supprimer_le_lien_c9d6952c")}
+              aria-label={i18nT("supprimer_le_lien_c9d6952c")}
               style={{ minWidth: 44, paddingInline: 0, fontSize: 22, fontWeight: 900, lineHeight: 1 }}
               aria-busy={siteInrcyUrlBusy}
             >
@@ -186,8 +189,7 @@ export default function SiteInrcyPanel(props: any) {
             className={`${styles.actionBtn} ${styles.viewBtn}`}
             style={{ pointerEvents: draftSiteInrcyUrlMeta ? "auto" : "none", opacity: draftSiteInrcyUrlMeta ? 1 : 0.5 }}
           >
-            Voir le site
-          </a>
+            {i18nT("voir_le_site_5bf01317")}{" "}</a>
         </div>
         {siteInrcyUrlNotice && <StatusMessage variant="success">{siteInrcyUrlNotice}</StatusMessage>}
       </div>
@@ -202,18 +204,18 @@ export default function SiteInrcyPanel(props: any) {
         }}
       >
         <div className={styles.blockHeaderRow}>
-          <div className={styles.blockTitle}>Google Analytics (GA4)</div>
+          <div className={styles.blockTitle}>{i18nT("google_analytics_ga4_f02551f4")}</div>
           <ConnectionPill connected={siteInrcyGa4Connected} />
         </div>
-        <div className={styles.blockSub}>Remplissage automatique des identifiants GA4 après connexion</div>
+        <div className={styles.blockSub}>{i18nT("remplissage_automatique_des_identifiants_ga4_apr_d79e4b21")}</div>
 
         <label style={{ display: "grid", gap: 8 }}>
-          <span style={{ color: "rgba(255,255,255,0.85)", fontSize: 13 }}>ID de mesure (ex: G-XXXXXXXXXX)</span>
+          <span style={{ color: "rgba(255,255,255,0.85)", fontSize: 13 }}>{i18nT("id_de_mesure_ex_g_xxxxxxxxxx_ab32feb7")}</span>
           <input
             value={ga4MeasurementId}
             readOnly
             aria-readonly="true"
-            placeholder="Remplissage automatique après connexion"
+            placeholder={i18nT("remplissage_automatique_apres_connexion_fc3ad543")}
             style={{
               width: "100%",
               borderRadius: 12,
@@ -230,13 +232,13 @@ export default function SiteInrcyPanel(props: any) {
 
 
         <label style={{ display: "grid", gap: 8 }}>
-          <span style={{ color: "rgba(255,255,255,0.85)", fontSize: 13 }}>Property ID (numérique, ex: 123456789)</span>
+          <span style={{ color: "rgba(255,255,255,0.85)", fontSize: 13 }}>{i18nT("property_id_numerique_ex_123456789_c8dc0757")}</span>
           <input
             value={ga4PropertyId}
             readOnly
             aria-readonly="true"
             inputMode="numeric"
-            placeholder="Remplissage automatique après connexion"
+            placeholder={i18nT("remplissage_automatique_apres_connexion_fc3ad543")}
             style={{
               width: "100%",
               borderRadius: 12,
@@ -260,7 +262,7 @@ export default function SiteInrcyPanel(props: any) {
               disabled={siteInrcyOwnership === "none" || siteInrcyGa4Busy}
               title={siteInrcyOwnership === "none" ? "Aucun site iNrCy associé" : "Déconnecter (GA4)"}
             >
-              {siteInrcyGa4Busy ? "Déconnexion..." : "Déconnecter"}
+              {siteInrcyGa4Busy ? i18nT("deconnexion_f5a5666d") : i18nT("deconnecter_9c1ef392")}
             </button>
           ) : (
             <button
@@ -276,8 +278,7 @@ export default function SiteInrcyPanel(props: any) {
                     : "Connecter Google Analytics"
               }
             >
-              Connecter Google Analytics
-            </button>
+              {i18nT("connecter_google_analytics_2a8cb23a")}{" "}</button>
           )}
         </div>
       </div>
@@ -293,20 +294,20 @@ export default function SiteInrcyPanel(props: any) {
         }}
       >
         <div className={styles.blockHeaderRow}>
-          <div className={styles.blockTitle}>Google Search Console</div>
+          <div className={styles.blockTitle}>{i18nT("google_search_console_fe6bf60d")}</div>
           <ConnectionPill connected={siteInrcyGscConnected} />
         </div>
-        <div className={styles.blockSub}>Remplissage automatique des identifiants GSC après connexion</div>
+        <div className={styles.blockSub}>{i18nT("remplissage_automatique_des_identifiants_gsc_apr_2a7727b1")}</div>
 
         <label style={{ display: "grid", gap: 8 }}>
           <span style={{ color: "rgba(255,255,255,0.85)", fontSize: 13 }}>
-            Propriété (ex: <code>sc-domain:monsite.fr</code> ou <code>https://monsite.fr/</code>)
+            {i18nT("propriete_ex_2b3d54fc")}{" "}<code>sc-domain:monsite.fr</code> ou <code>https://monsite.fr/</code>)
           </span>
           <input
             value={gscProperty}
             readOnly
             aria-readonly="true"
-            placeholder="Remplissage automatique après connexion"
+            placeholder={i18nT("remplissage_automatique_apres_connexion_fc3ad543")}
             style={{
               width: "100%",
               borderRadius: 12,
@@ -330,7 +331,7 @@ export default function SiteInrcyPanel(props: any) {
               disabled={siteInrcyOwnership === "none" || siteInrcyGscBusy}
               title={siteInrcyOwnership === "none" ? "Aucun site iNrCy associé" : "Déconnecter (GSC)"}
             >
-              {siteInrcyGscBusy ? "Déconnexion..." : "Déconnecter"}
+              {siteInrcyGscBusy ? i18nT("deconnexion_f5a5666d") : i18nT("deconnecter_9c1ef392")}
             </button>
           ) : (
             <button
@@ -346,8 +347,7 @@ export default function SiteInrcyPanel(props: any) {
                     : "Connecter Google Search Console"
               }
             >
-              Connecter Google Search Console
-            </button>
+              {i18nT("connecter_google_search_console_f3404063")}{" "}</button>
           )}
         </div>
       </div>
@@ -363,11 +363,10 @@ export default function SiteInrcyPanel(props: any) {
         }}
       >
         <div className={styles.blockHeaderRow}>
-          <div className={styles.blockTitle}>Widget « Actus »</div>
+          <div className={styles.blockTitle}>{i18nT("widget_actus_13beb3e6")}</div>
         </div>
         <div className={styles.blockSub}>
-          Collez ce code iframe dans votre site iNrCy (Elementor → widget HTML) pour afficher automatiquement vos dernières actus publiées depuis Booster.
-        </div>
+          {i18nT("collez_ce_code_iframe_dans_votre_b1499310")}{" "}</div>
 
         <ActusWidgetControls
           layout={siteInrcyActusLayout}
@@ -410,8 +409,7 @@ export default function SiteInrcyPanel(props: any) {
           disabled={siteInrcyOwnership === "none"}
           title={siteInrcyOwnership === "none" ? "Aucun site iNrCy" : "Réinitialiser (lien + GA4 + Search Console)"}
         >
-          Réinitialiser
-        </button>
+          {i18nT("reinitialiser_e0e2ad54")}{" "}</button>
       </div>
     </div>
   );

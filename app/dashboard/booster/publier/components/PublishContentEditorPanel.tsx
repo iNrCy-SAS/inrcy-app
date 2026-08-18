@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import type {
   Dispatch,
   KeyboardEvent,
@@ -12,11 +13,13 @@ import EmojiPickerButton from "@/app/dashboard/_components/EmojiPickerButton";
 import {
   BOOSTER_PREFERRED_CTA_OPTIONS,
   CHANNEL_TEXT_GUIDELINES,
-  DISPLAY_LABELS,
-  getChannelDefaultCtaLabel,
-  getCtaModeHelp,
+  getLocalizedChannelDefaultCtaLabel,
+  getLocalizedChannelLabel,
+  getLocalizedChannelTotalLabel,
+  getLocalizedCtaModeHelp,
+  getLocalizedPreferredCtaLabel,
+  getLocalizedWebsiteSourceLabelForChannel,
   getPreferredCtaChoiceFromPost,
-  getWebsiteSourceLabelForChannel,
   getWebsiteUrlForChannel,
   isSiteDisplayKey,
   renderLimitCounter,
@@ -104,6 +107,8 @@ export default function PublishContentEditorPanel({
   pinterestBoardsError,
   onPinterestBoardChange,
 }: PublishContentEditorPanelProps) {
+  const i18nT = useTranslations("booster");
+  const runtimeT = i18nT as unknown as (key: string) => string;
   const siteEmojiSelectionRef = useRef<Range | null>(null);
   const plainEmojiSelectionRef = useRef<{ start: number; end: number } | null>(null);
 
@@ -189,16 +194,16 @@ export default function PublishContentEditorPanel({
         style={{ marginBottom: 8 }}
       >
         {creationMode === "manual"
-          ? "Textes par canal"
-          : "Contenus générés par canal"}
+          ? i18nT("textes_par_canal_bf3c7397")
+          : i18nT("contenus_generes_par_canal_5197ef4e")}
       </PublishStepTitle>
       <div
         className={styles.subtitle}
         style={{ marginBottom: 10, maxWidth: "none", whiteSpace: "normal" }}
       >
         {creationMode === "manual"
-          ? "Rédigez directement le texte de chaque canal. Aucun appel IA n'est effectué dans ce parcours."
-          : "Vérifiez les contenus générés et adaptez-les si besoin avant de choisir les médias de publication."}
+          ? i18nT("redigez_directement_le_texte_de_chaque_83f7eae7")
+          : i18nT("verifiez_les_contenus_generes_et_adaptez_8907d2ac")}
       </div>
       {displayCards.length ? (
         <>
@@ -236,7 +241,7 @@ export default function PublishContentEditorPanel({
                   key={key}
                   type="button"
                   onClick={() => setSynchronizedActiveChannel(key)}
-                  title={hasText ? "Texte présent" : "Texte à vérifier"}
+                  title={hasText ? i18nT("content_text_present") : i18nT("content_text_to_review")}
                   style={{
                     ...pillBtn,
                     ...statusStyle,
@@ -265,7 +270,7 @@ export default function PublishContentEditorPanel({
                     lineHeight: isMobile ? 1.18 : 1.1,
                   }}
                 >
-                  {DISPLAY_LABELS[key]}
+                  {getLocalizedChannelLabel(key, runtimeT)}
                 </button>
               );
             })}
@@ -289,7 +294,7 @@ export default function PublishContentEditorPanel({
               }}
             >
               <div style={{ fontWeight: 900, flex: "0 0 auto" }}>
-                {DISPLAY_LABELS[activeCard]}
+                {getLocalizedChannelLabel(activeCard, runtimeT)}
               </div>
               {activeCard === "pinterest" ? (
                 <select
@@ -298,8 +303,8 @@ export default function PublishContentEditorPanel({
                     onPinterestBoardChange(event.target.value)
                   }
                   disabled={pinterestBoardsLoading || !pinterestBoards.length}
-                  aria-label="Tableau Pinterest"
-                  title="Tableau Pinterest"
+                  aria-label={i18nT("tableau_pinterest_1af82867")}
+                  title={i18nT("tableau_pinterest_1af82867")}
                   style={{
                     ...darkSelectStyle,
                     width: isMobile ? "min(58vw, 220px)" : "min(360px, 45%)",
@@ -310,12 +315,11 @@ export default function PublishContentEditorPanel({
                 >
                   {!pinterestBoards.length ? (
                     <option value="" style={darkOptionStyle}>
-                      {pinterestBoardsLoading ? "Chargement…" : "Aucun tableau"}
+                      {pinterestBoardsLoading ? i18nT("chargement_01cba1df") : i18nT("aucun_tableau_d327ddcf")}
                     </option>
                   ) : !pinterestBoardId ? (
                     <option value="" style={darkOptionStyle}>
-                      Choisir un tableau
-                    </option>
+                      {i18nT("choisir_un_tableau_77f9de39")}{" "}</option>
                   ) : null}
                   {pinterestBoards.map((board) => (
                     <option
@@ -337,14 +341,12 @@ export default function PublishContentEditorPanel({
               !pinterestBoardsLoading &&
               !pinterestBoards.length ? (
               <div style={{ marginBottom: 8, fontSize: 12, opacity: 0.72 }}>
-                Aucun tableau disponible. Créez-en un dans Configurer Pinterest.
-              </div>
+                {i18nT("aucun_tableau_disponible_creez_en_un_fdb1c0ea")}{" "}</div>
             ) : null}
             <div style={{ display: "grid", gap: 10 }}>
               <div>
                 <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 6 }}>
-                  Titre
-                </div>
+                  {i18nT("titre_eb97899a")}{" "}</div>
                 {isMobile ? (
                   <textarea
                     value={getDisplayPost(activeCard).title}
@@ -367,7 +369,7 @@ export default function PublishContentEditorPanel({
                       whiteSpace: "pre-wrap",
                     }}
                     rows={2}
-                    placeholder="Titre"
+                    placeholder={i18nT("titre_eb97899a")}
                   />
                 ) : (
                   <input
@@ -381,11 +383,11 @@ export default function PublishContentEditorPanel({
                       )
                     }
                     style={inputStyle}
-                    placeholder="Titre"
+                    placeholder={i18nT("titre_eb97899a")}
                   />
                 )}
                 {renderLimitCounter(
-                  "Titre",
+                  i18nT("titre_eb97899a"),
                   getDisplayPost(activeCard).title.length,
                   CHANNEL_TEXT_GUIDELINES[activeCard].title,
                 )}
@@ -403,8 +405,8 @@ export default function PublishContentEditorPanel({
                 >
                    <div style={{ fontSize: 12, opacity: 0.85 }}>
                      {activeCard === "inr_search"
-                       ? "Phrase courte iNr'Search"
-                       : "Contenu"}
+                       ? i18nT("phrase_courte_inr_search_ee6e97e1")
+                       : i18nT("contenu_f3cb82af")}
                    </div>
                   <div
                     style={{
@@ -422,14 +424,13 @@ export default function PublishContentEditorPanel({
                           marginRight: 2,
                         }}
                       >
-                        Formatage réservé au site internet
-                      </span>
+                        {i18nT("formatage_reserve_au_site_internet_18e28060")}{" "}</span>
                     ) : null}
                     {(
                       [
-                        ["bold", "B", "Gras"],
-                        ["italic", "I", "Italique"],
-                        ["underline", "U", "Souligné"],
+                        ["bold", "B", i18nT("format_bold")],
+                        ["italic", "I", i18nT("format_italic")],
+                        ["underline", "U", i18nT("format_underline")],
                       ] as const
                     ).map(([kind, label, title]) => (
                       <button
@@ -438,7 +439,7 @@ export default function PublishContentEditorPanel({
                         title={
                           isSiteDisplayKey(activeCard)
                             ? title
-                            : "Disponible uniquement pour Site internet"
+                            : i18nT("format_site_only")
                         }
                         aria-label={title}
                         disabled={!isSiteDisplayKey(activeCard)}
@@ -518,11 +519,11 @@ export default function PublishContentEditorPanel({
                       overflowY: "auto",
                     }}
                     rows={10}
-                    placeholder="Contenu"
+                    placeholder={i18nT("contenu_f3cb82af")}
                   />
                 )}
                 {renderLimitCounter(
-                  "Contenu",
+                  i18nT("contenu_f3cb82af"),
                   isSiteDisplayKey(activeCard)
                     ? stripSiteTextFormatting(
                         getDisplayPost(activeCard).content,
@@ -545,13 +546,13 @@ export default function PublishContentEditorPanel({
                     ctaDefaults,
                   );
                   const activeWebsiteSourceLabel =
-                    getWebsiteSourceLabelForChannel(activeCard, ctaDefaults);
+                    getLocalizedWebsiteSourceLabelForChannel(activeCard, ctaDefaults, runtimeT);
                   const websiteChoices = [
                     ctaDefaults?.inrcySiteUrl
-                      ? { label: "Site iNrCy", url: ctaDefaults.inrcySiteUrl }
+                      ? { label: i18nT("site_inrcy_57016d6f"), url: ctaDefaults.inrcySiteUrl }
                       : null,
                     ctaDefaults?.siteWebUrl
-                      ? { label: "Site web", url: ctaDefaults.siteWebUrl }
+                      ? { label: i18nT("site_web_7e78af33"), url: ctaDefaults.siteWebUrl }
                       : null,
                   ].filter(Boolean) as Array<{ label: string; url: string }>;
                   const ctaGridColumns = isMobile
@@ -580,8 +581,7 @@ export default function PublishContentEditorPanel({
                               marginBottom: 6,
                             }}
                           >
-                            Bouton
-                          </div>
+                            {i18nT("bouton_fd5aea71")}{" "}</div>
                           <select
                             value={ctaChoice}
                             onChange={(e) =>
@@ -598,7 +598,7 @@ export default function PublishContentEditorPanel({
                                 value={option.value}
                                 style={darkOptionStyle}
                               >
-                                {option.label}
+                                {getLocalizedPreferredCtaLabel(option.value, runtimeT)}
                               </option>
                             ))}
                           </select>
@@ -613,8 +613,7 @@ export default function PublishContentEditorPanel({
                                   marginBottom: 6,
                                 }}
                               >
-                                URL de destination
-                              </div>
+                                {i18nT("url_de_destination_f11980ae")}{" "}</div>
                               <input
                                 value={currentPost.ctaUrl || ""}
                                 onChange={(e) =>
@@ -625,10 +624,10 @@ export default function PublishContentEditorPanel({
                                 style={lightFieldStyle}
                                 placeholder={
                                   activeWebsiteUrl
-                                    ? `URL du site préremplie (${activeWebsiteSourceLabel})`
+                                    ? i18nT("website_url_prefilled", { source: activeWebsiteSourceLabel })
                                     : websiteChoices.length > 1
-                                      ? "Choisissez Site iNrCy ou Site web"
-                                      : "URL du site (optionnel)"
+                                      ? i18nT("website_choose_source")
+                                      : i18nT("website_url_optional")
                                 }
                               />
                               {websiteChoices.length ? (
@@ -680,8 +679,7 @@ export default function PublishContentEditorPanel({
                                   marginBottom: 6,
                                 }}
                               >
-                                Texte du bouton
-                              </div>
+                                {i18nT("texte_du_bouton_5bc213b4")}{" "}</div>
                               <input
                                 value={currentPost.cta}
                                 onChange={(e) =>
@@ -690,7 +688,7 @@ export default function PublishContentEditorPanel({
                                   })
                                 }
                                 style={lightFieldStyle}
-                                placeholder={`Texte du bouton (ex : ${getChannelDefaultCtaLabel(activeCard, "website") || "Voir le site"})`}
+                                placeholder={i18nT("texte_du_bouton_ex_value_872ff84c", { value0: getLocalizedChannelDefaultCtaLabel("website", runtimeT) })}
                               />
                             </div>
                           </>
@@ -704,8 +702,7 @@ export default function PublishContentEditorPanel({
                                 marginBottom: 6,
                               }}
                             >
-                              Téléphone
-                            </div>
+                              {i18nT("telephone_d3b023ea")}{" "}</div>
                             <input
                               value={currentPost.ctaPhone || ""}
                               onChange={(e) =>
@@ -716,8 +713,8 @@ export default function PublishContentEditorPanel({
                               style={lightFieldStyle}
                               placeholder={
                                 ctaDefaults?.phone
-                                  ? "Téléphone prérempli depuis Mon profil"
-                                  : "Téléphone (optionnel)"
+                                  ? i18nT("phone_prefilled_from_profile")
+                                  : i18nT("phone_optional")
                               }
                             />
                           </div>
@@ -732,8 +729,7 @@ export default function PublishContentEditorPanel({
                                   marginBottom: 6,
                                 }}
                               >
-                                URL de destination
-                              </div>
+                                {i18nT("url_de_destination_f11980ae")}{" "}</div>
                               <input
                                 value={currentPost.ctaUrl || ""}
                                 onChange={(e) =>
@@ -742,7 +738,7 @@ export default function PublishContentEditorPanel({
                                   })
                                 }
                                 style={lightFieldStyle}
-                                placeholder="URL personnalisée (optionnel)"
+                                placeholder={i18nT("url_personnalisee_optionnel_49f1857f")}
                               />
                             </div>
                             <div>
@@ -753,8 +749,7 @@ export default function PublishContentEditorPanel({
                                   marginBottom: 6,
                                 }}
                               >
-                                Texte du bouton
-                              </div>
+                                {i18nT("texte_du_bouton_5bc213b4")}{" "}</div>
                               <input
                                 value={currentPost.cta}
                                 onChange={(e) =>
@@ -763,7 +758,7 @@ export default function PublishContentEditorPanel({
                                   })
                                 }
                                 style={lightFieldStyle}
-                                placeholder="Ex : En savoir plus"
+                                placeholder={i18nT("ex_en_savoir_plus_8c60a773")}
                               />
                             </div>
                           </>
@@ -777,7 +772,7 @@ export default function PublishContentEditorPanel({
                           lineHeight: 1.45,
                         }}
                       >
-                        {getCtaModeHelp(activeCard, ctaMode)}
+                        {getLocalizedCtaModeHelp(activeCard, ctaMode, runtimeT)}
                       </div>
                       {ctaMode === "website" && activeWebsiteUrl ? (
                         <div
@@ -788,9 +783,10 @@ export default function PublishContentEditorPanel({
                             lineHeight: 1.45,
                           }}
                         >
-                          Valeur par défaut disponible depuis{" "}
-                          {activeWebsiteSourceLabel.toLowerCase()} :{" "}
-                          {activeWebsiteUrl}
+                          {i18nT("website_default_available_from", {
+                            source: activeWebsiteSourceLabel,
+                            url: activeWebsiteUrl,
+                          })}
                         </div>
                       ) : ctaMode === "website" && websiteChoices.length > 1 ? (
                         <div
@@ -801,9 +797,7 @@ export default function PublishContentEditorPanel({
                             lineHeight: 1.45,
                           }}
                         >
-                          Deux sites sont connectés : choisissez le lien à
-                          utiliser avec les boutons ci-dessus.
-                        </div>
+                          {i18nT("deux_sites_sont_connectes_choisissez_le_ec7d3ccc")}{" "}</div>
                       ) : null}
                       {ctaMode === "call" && ctaDefaults?.phone ? (
                         <div
@@ -814,13 +808,13 @@ export default function PublishContentEditorPanel({
                             lineHeight: 1.45,
                           }}
                         >
-                          Valeur par défaut disponible depuis Mon profil :{" "}
+                          {i18nT("valeur_par_defaut_disponible_depuis_mon_841d60a8")}{" "}
                           {ctaDefaults.phone}
                         </div>
                       ) : null}
                       {ctaMode === "website" || ctaMode === "custom"
                         ? renderLimitCounter(
-                            "Bouton",
+                            i18nT("bouton_fd5aea71"),
                             currentPost.cta.length,
                             CHANNEL_TEXT_GUIDELINES[activeCard].cta,
                           )
@@ -832,8 +826,7 @@ export default function PublishContentEditorPanel({
               {activeCard === "instagram" ? (
                 <div>
                   <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 6 }}>
-                    Hashtags
-                  </div>
+                    {i18nT("hashtags_338da6e1")}{" "}</div>
                   <input
                     value={instagramHashtagsInput}
                     onChange={(e) => setInstagramHashtagsInput(e.target.value)}
@@ -843,10 +836,10 @@ export default function PublishContentEditorPanel({
                       })
                     }
                     style={inputStyle}
-                    placeholder="#local #metier"
+                    placeholder={i18nT("local_metier_fb03ef96")}
                   />
                   {renderLimitCounter(
-                    "Hashtags",
+                    i18nT("hashtags_338da6e1"),
                     getLiveInstagramHashtags().length,
                     CHANNEL_TEXT_GUIDELINES.instagram.hashtags || 20,
                   )}
@@ -857,7 +850,7 @@ export default function PublishContentEditorPanel({
               CHANNEL_TEXT_GUIDELINES[activeCard].totalValue ? (
                 <div style={{ marginTop: 2 }}>
                   {renderLimitCounter(
-                    CHANNEL_TEXT_GUIDELINES[activeCard].totalLabel!,
+                    getLocalizedChannelTotalLabel(activeCard, runtimeT),
                     CHANNEL_TEXT_GUIDELINES[activeCard].totalValue!(
                       activeCard === "instagram"
                         ? {
@@ -891,8 +884,8 @@ export default function PublishContentEditorPanel({
                     : "rgba(255,255,255,0.72)",
               }}
             >
-              {duplicateFeedback?.message ||
-                "Dupliquez le titre et le contenu du canal ouvert vers les autres canaux affichés."}
+              {(duplicateFeedback?.message || null) ||
+                i18nT("dupliquez_le_titre_et_le_contenu_30b8cc6a")}
             </div>
             <button
               type="button"
@@ -901,14 +894,12 @@ export default function PublishContentEditorPanel({
               disabled={displayCards.length < 2}
               style={{ marginLeft: "auto" }}
             >
-              Dupliquer ce contenu sur tous les canaux
-            </button>
+              {i18nT("dupliquer_ce_contenu_sur_tous_les_464b623c")}{" "}</button>
           </div>
         </>
       ) : (
         <div style={{ fontSize: 13, opacity: 0.75 }}>
-          Sélectionnez d’abord vos canaux.
-        </div>
+          {i18nT("selectionnez_d_abord_vos_canaux_224225ce")}{" "}</div>
       )}
     </div>
   );

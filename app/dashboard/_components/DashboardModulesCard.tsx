@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import styles from "../dashboard.module.css";
@@ -45,6 +48,7 @@ type DashboardModulesCardProps = {
 };
 
 export default function DashboardModulesCard({ goToModule, openPanel, requiredSetupAccessAllowed, requiredSetupLockVisible, onRequiredSetupBlocked, onOpenStats, onOpenBoosterPublish, onOpenBoosterStats }: DashboardModulesCardProps) {
+  const i18nT = useTranslations("shell");
   const t = useDashboardI18n();
   const router = useRouter();
   const pathname = usePathname();
@@ -251,7 +255,7 @@ export default function DashboardModulesCard({ goToModule, openPanel, requiredSe
           disabled={isModuleLoadingVisible("/dashboard/stats")}
           aria-busy={isModuleLoadingVisible("/dashboard/stats") || undefined}
         >
-          {isModuleLoadingVisible("/dashboard/stats") ? "Chargement…" : "iNr'Stats →"}
+          {isModuleLoadingVisible("/dashboard/stats") ? i18nT("chargement_01cba1df") : i18nT("inr_stats_881d9239")}
         </button>
       </div>
     </div>
@@ -299,7 +303,7 @@ export default function DashboardModulesCard({ goToModule, openPanel, requiredSe
   disabled={isModuleLoadingVisible("/dashboard/mails")}
   aria-busy={isModuleLoadingVisible("/dashboard/mails") || undefined}
 >
-  {isModuleLoadingVisible("/dashboard/mails") ? "Chargement…" : "iNr'Send →"}
+  {isModuleLoadingVisible("/dashboard/mails") ? i18nT("chargement_01cba1df") : i18nT("inr_send_fd44a9fa")}
 </button>
       </div>
     </div>
@@ -336,7 +340,7 @@ export default function DashboardModulesCard({ goToModule, openPanel, requiredSe
   disabled={isModuleLoadingVisible("/dashboard/agenda")}
   aria-busy={isModuleLoadingVisible("/dashboard/agenda") || undefined}
 >
-  {isModuleLoadingVisible("/dashboard/agenda") ? "Chargement…" : "iNr'Calendar →"}
+  {isModuleLoadingVisible("/dashboard/agenda") ? i18nT("chargement_01cba1df") : i18nT("inr_calendar_a9473176")}
 </button>
       </div>
     </div>
@@ -357,7 +361,7 @@ export default function DashboardModulesCard({ goToModule, openPanel, requiredSe
           disabled={isModuleLoadingVisible("/dashboard/crm")}
           aria-busy={isModuleLoadingVisible("/dashboard/crm") || undefined}
         >
-          {isModuleLoadingVisible("/dashboard/crm") ? "Chargement…" : "iNr'CRM →"}
+          {isModuleLoadingVisible("/dashboard/crm") ? i18nT("chargement_01cba1df") : i18nT("inr_crm_aa43648a")}
         </button>
       </div>
     </div>
@@ -418,7 +422,7 @@ export default function DashboardModulesCard({ goToModule, openPanel, requiredSe
                   <div className={styles.gearInner}>
                     {renderGearTitle(t.modules.publishTitle)}
                     <div className={styles.gearSub}>{t.modules.boosterSub}</div>
-                    <div className={styles.gearBtn}>{isVisible("modal:publish") ? "Chargement…" : t.modules.publishCta}</div>
+                    <div className={styles.gearBtn}>{isVisible("modal:publish") ? i18nT("chargement_01cba1df") : t.modules.publishCta}</div>
                   </div>
                 </button>
 
@@ -433,7 +437,7 @@ export default function DashboardModulesCard({ goToModule, openPanel, requiredSe
                   <div className={styles.gearInner}>
                     {renderGearTitle(t.modules.propulserTitle)}
                     <div className={styles.gearSub}>{t.modules.propulserSub}</div>
-                    <div className={styles.gearBtn}>{isModuleLoadingVisible("/dashboard/propulser") ? "Chargement…" : t.modules.propulserCta}</div>
+                    <div className={styles.gearBtn}>{isModuleLoadingVisible("/dashboard/propulser") ? i18nT("chargement_01cba1df") : t.modules.propulserCta}</div>
                   </div>
                 </button>
 
@@ -448,7 +452,7 @@ export default function DashboardModulesCard({ goToModule, openPanel, requiredSe
                   <div className={styles.gearInner}>
                     {renderGearTitle(t.modules.fideliserTitle)}
                     <div className={styles.gearSub}>{t.modules.fideliserSub}</div>
-                    <div className={styles.gearBtn}>{isModuleLoadingVisible("/dashboard/fideliser") ? "Chargement…" : t.modules.fideliserCta}</div>
+                    <div className={styles.gearBtn}>{isModuleLoadingVisible("/dashboard/fideliser") ? i18nT("chargement_01cba1df") : t.modules.fideliserCta}</div>
                   </div>
                 </button>
 
@@ -500,7 +504,7 @@ export default function DashboardModulesCard({ goToModule, openPanel, requiredSe
                   <div className={styles.gearInner}>
                     {renderGearTitle(t.modules.cashTitle)}
                     <div className={styles.gearSub}>{t.modules.cashSub}</div>
-                    <div className={styles.gearBtn}>{isVisible("modal:cash") ? "Chargement…" : t.modules.cashCta}</div>
+                    <div className={styles.gearBtn}>{isVisible("modal:cash") ? i18nT("chargement_01cba1df") : t.modules.cashCta}</div>
                   </div>
                 </button>
 
@@ -515,7 +519,7 @@ export default function DashboardModulesCard({ goToModule, openPanel, requiredSe
                   <div className={styles.gearInner}>
                     {renderGearTitle(t.modules.reputationTitle)}
                     <div className={styles.gearSub}>{t.modules.reputationSub}</div>
-                    <div className={styles.gearBtn}>{isModuleLoadingVisible("/dashboard/e-reputation") ? "Chargement…" : t.modules.reputationCta}</div>
+                    <div className={styles.gearBtn}>{isModuleLoadingVisible("/dashboard/e-reputation") ? i18nT("chargement_01cba1df") : t.modules.reputationCta}</div>
                   </div>
                 </button>
               </div>
@@ -540,7 +544,7 @@ export default function DashboardModulesCard({ goToModule, openPanel, requiredSe
                 disabled={isPanelLoadingVisible("documents")}
                 aria-busy={isPanelLoadingVisible("documents") || undefined}
               >
-                {isPanelLoadingVisible("documents") ? "Chargement…" : t.modules.cashModalSettings}
+                {isPanelLoadingVisible("documents") ? i18nT("chargement_01cba1df") : t.modules.cashModalSettings}
               </button>
             }
           >

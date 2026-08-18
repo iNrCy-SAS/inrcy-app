@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import { resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { invalidateBoosterGenerationContextClient } from "@/lib/boosterGenerationContextClient";
 import { refreshPublicProfileDependents } from "@/lib/publicProfileRefreshClient";
@@ -60,6 +63,7 @@ export default function ActivityContent({
   onCloseDrawer,
   onUnsavedChange,
 }: Props) {
+  const i18nT = useTranslations("settings");
   const initial: BusinessActivityForm = useMemo(
     () => ({
       sectorCategory: "",
@@ -313,12 +317,12 @@ export default function ActivityContent({
       currentValues.every((value, index) => value === recommendations[index]);
     if (usesOnlyRecommendations) return true;
     return confirmInrcy({
-      eyebrow: "Mon activité",
-      title: "Adapter les prestations au nouveau métier ?",
+      eyebrow: i18nT("mon_activite_7732bf80"),
+      title: i18nT("adapter_les_prestations_au_nouveau_metier_4600da94"),
       message:
-        "Vos prestations actuelles seront remplacées par les recommandations du nouveau métier. Cette action évite de mélanger deux activités différentes.",
-      confirmLabel: "Adapter les prestations",
-      cancelLabel: "Conserver mon métier",
+        i18nT("vos_prestations_actuelles_seront_remplacees_par_e147469e"),
+      confirmLabel: i18nT("adapter_les_prestations_c904a349"),
+      cancelLabel: i18nT("conserver_mon_metier_4aa6ce68"),
       variant: "warning",
     });
   };
@@ -410,7 +414,7 @@ export default function ActivityContent({
       if (!form.strengths.length) missing.push("les forces");
       if (!form.customerTypes.length) missing.push("la clientèle");
       if (missing.length) {
-        setError(`Pour continuer, complétez ${missing.join(", ")}.`);
+        setError(i18nT("pour_continuer_completez_value_ad238d6f", { value0: missing.join(", ") }));
         return;
       }
     }
@@ -472,7 +476,7 @@ export default function ActivityContent({
               actionKey: "activity_complete",
               amount: 100,
               sourceId: "once",
-              label: "Activité complétée",
+              label: i18nT("activite_completee_241e5f48"),
               meta: { origin: "activity" },
             }),
           });
@@ -507,10 +511,10 @@ export default function ActivityContent({
 
   const handleReset = async () => {
     const ok = await confirmInrcy({
-      title: "Réinitialiser l’activité ?",
+      title: i18nT("reinitialiser_l_activite_f01d8d88"),
       message:
-        "Cela efface les informations d’activité en cours dans le formulaire.",
-      confirmLabel: "Réinitialiser",
+        i18nT("cela_efface_les_informations_d_activite_2a4693ce"),
+      confirmLabel: i18nT("reinitialiser_e0e2ad54"),
       variant: "danger",
     });
     if (!ok) return;
@@ -566,23 +570,21 @@ export default function ActivityContent({
         </span>
         <div style={{ display: "grid", gap: 3 }}>
           <strong style={{ fontSize: onboarding ? 18 : 15 }}>
-            {onboarding ? "Présentez votre activité" : "Votre activité professionnelle"}
+            {onboarding ? i18nT("presentez_votre_activite_59c7948b") : i18nT("votre_activite_professionnelle_c67bbd58")}
           </strong>
           <span style={{ opacity: 0.72, lineHeight: 1.4, fontSize: 13 }}>
-            iNrCy s’appuie sur ces informations pour créer des contenus précis et cohérents.
-          </span>
+            {i18nT("inrcy_s_appuie_sur_ces_informations_383b09e1")}{" "}</span>
         </div>
       </div>
 
       <div style={card}>
         {loading ? (
-          <div style={{ opacity: 0.75 }}>Chargement…</div>
+          <div style={{ opacity: 0.75 }}>{i18nT("chargement_01cba1df")}</div>
         ) : (
           <div style={{ display: "grid", gap: 14 }}>
             <div style={label}>
               <span style={{ ...labelTitle, fontSize: 15 }}>
-                Trouvez votre métier
-              </span>
+                {i18nT("trouvez_votre_metier_ab343504")}{" "}</span>
               <div style={{ position: "relative" }}>
                 <div
                   style={{
@@ -624,9 +626,9 @@ export default function ActivityContent({
                       setJobSearch(e.target.value);
                       setJobSearchOpen(true);
                     }}
-                    placeholder="Ex : Paysagiste, coiffeur, agence de communication…"
+                    placeholder={i18nT("ex_paysagiste_coiffeur_agence_de_communication_12b74806")}
                     role="combobox"
-                    aria-label="Rechercher votre métier"
+                    aria-label={i18nT("rechercher_votre_metier_da143d6f")}
                     aria-autocomplete="list"
                     aria-controls="activity-job-search-results"
                     aria-expanded={jobSearchOpen && jobSearch.trim().length > 0}
@@ -634,7 +636,7 @@ export default function ActivityContent({
                   {jobSearch ? (
                     <button
                       type="button"
-                      aria-label="Effacer la recherche"
+                      aria-label={i18nT("effacer_la_recherche_189351c0")}
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={() => {
                         setJobSearch("");
@@ -663,7 +665,7 @@ export default function ActivityContent({
                   <div
                     id="activity-job-search-results"
                     role="listbox"
-                    aria-label="Résultats des métiers"
+                    aria-label={i18nT("resultats_des_metiers_664b3798")}
                     style={{
                       position: "absolute",
                       zIndex: 30,
@@ -719,8 +721,7 @@ export default function ActivityContent({
                               color: "rgba(186,230,253,0.76)",
                             }}
                           >
-                            Secteur : {result.sectorLabel}
-                          </span>
+                            {i18nT("secteur_value_ef2c6faa", { value0: result.sectorLabel })}</span>
                         </button>
                       ))
                     ) : (
@@ -733,7 +734,7 @@ export default function ActivityContent({
                           fontSize: 13,
                         }}
                       >
-                        <span>Aucun métier correspondant.</span>
+                        <span>{i18nT("aucun_metier_correspondant_6b9c6162")}</span>
                         <button
                           type="button"
                           onMouseDown={(e) => e.preventDefault()}
@@ -751,17 +752,14 @@ export default function ActivityContent({
                             fontWeight: 800,
                           }}
                         >
-                          Parcourir manuellement
-                        </button>
+                          {i18nT("parcourir_manuellement_ce6cc06c")}{" "}</button>
                       </div>
                     )}
                   </div>
                 ) : null}
               </div>
               <span style={hint}>
-                Tapez quelques lettres : la recherche reconnaît aussi les
-                accents, variantes courantes et petites fautes de frappe.
-              </span>
+                {i18nT("tapez_quelques_lettres_la_recherche_reconnait_5941b098")}{" "}</span>
 
               {form.sectorCategory && form.sector ? (
                 <div
@@ -777,14 +775,13 @@ export default function ActivityContent({
                 >
                   <div style={{ display: "grid", gap: 2 }}>
                     <span style={{ ...hint, fontSize: 11 }}>
-                      Secteur d’activité
-                    </span>
+                      {i18nT("secteur_d_activite_04b6a420")}{" "}</span>
                     <span style={{ fontSize: 13, fontWeight: 850 }}>
                       {selectedSectorLabel}
                     </span>
                   </div>
                   <div style={{ display: "grid", gap: 2 }}>
-                    <span style={{ ...hint, fontSize: 11 }}>Métier</span>
+                    <span style={{ ...hint, fontSize: 11 }}>{i18nT("metier_96ffe41e")}</span>
                     <span style={{ fontSize: 13, fontWeight: 850 }}>
                       {selectedJobLabel}
                     </span>
@@ -807,8 +804,8 @@ export default function ActivityContent({
                 }}
               >
                 {manualSelectionOpen
-                  ? "Masquer la sélection manuelle"
-                  : "Parcourir les secteurs et métiers manuellement"}
+                  ? i18nT("masquer_la_selection_manuelle_ab711e29")
+                  : i18nT("parcourir_les_secteurs_et_metiers_manuellement_769da717")}
               </button>
             </div>
 
@@ -824,15 +821,14 @@ export default function ActivityContent({
                 }}
               >
                 <label style={label}>
-                  <span style={labelTitle}>Secteur d’activité</span>
+                  <span style={labelTitle}>{i18nT("secteur_d_activite_04b6a420")}</span>
                   <select
                     style={input}
                     value={form.sectorCategory}
                     onChange={(e) => void handleSectorChange(e.target.value)}
                   >
                     <option value="" style={selectOption}>
-                      Choisir un secteur
-                    </option>
+                      {i18nT("choisir_un_secteur_376c1b7a")}{" "}</option>
                     {ACTIVITY_SECTOR_OPTIONS.map((option) => (
                       <option
                         key={option.value}
@@ -844,13 +840,11 @@ export default function ActivityContent({
                     ))}
                   </select>
                   <span style={hint}>
-                    Cette catégorie pilote les modèles proposés dans Booster,
-                    Fidéliser et les publications IA.
-                  </span>
+                    {i18nT("cette_categorie_pilote_les_modeles_proposes_a6246c0e")}{" "}</span>
                 </label>
 
                 <label style={label}>
-                  <span style={labelTitle}>Métier</span>
+                  <span style={labelTitle}>{i18nT("metier_96ffe41e")}</span>
                   {isCustomJobSector ? (
                     <input
                       style={input}
@@ -861,7 +855,7 @@ export default function ActivityContent({
                         })
                       }
                       disabled={!form.sectorCategory}
-                      placeholder="Ex : Cordiste, Coach vocal, Fabricant sur mesure…"
+                      placeholder={i18nT("ex_cordiste_coach_vocal_fabricant_sur_1e1f8017")}
                     />
                   ) : (
                     <select
@@ -871,8 +865,7 @@ export default function ActivityContent({
                       disabled={!form.sectorCategory}
                     >
                       <option value="" style={selectOption}>
-                        Choisir un métier
-                      </option>
+                        {i18nT("choisir_un_metier_9b734694")}{" "}</option>
                       {currentJobOptions.map((option) => (
                         <option
                           key={option.value}
@@ -885,35 +878,30 @@ export default function ActivityContent({
                     </select>
                   )}
                   <span style={hint}>
-                    Le secteur et le métier restent enregistrés exactement comme
-                    avant et continuent d’alimenter les templates et l’IA. En
-                    choisissant “Autre”, vous pouvez saisir un métier libre.
-                  </span>
+                    {i18nT("le_secteur_et_le_metier_restent_0aa314e2")}{" "}</span>
                 </label>
               </div>
             ) : null}
 
             <label style={label}>
-              <span style={labelTitle}>Présentation courte de l’activité</span>
+              <span style={labelTitle}>{i18nT("presentation_courte_de_l_activite_3ea5cb74")}</span>
               <textarea
                 style={{ ...input, minHeight: 96, resize: "vertical" }}
                 value={form.activityDescription}
                 onChange={(e) => set("activityDescription", e.target.value)}
-                placeholder={`Ex: Entreprise familiale spécialisée dans les interventions rapides et soignées. Nous accompagnons les clients avec des conseils simples et un suivi sérieux.`}
+                placeholder={i18nT("ex_entreprise_familiale_specialisee_dans_les_ddbe7462")}
               />
               <span style={hint}>
-                Optionnel, mais très utile pour que l’IA écrive avec la vraie
-                personnalité de l’entreprise.
-              </span>
+                {i18nT("optionnel_mais_tres_utile_pour_que_0af0d364")}{" "}</span>
             </label>
 
             <div style={label}>
-              <span style={labelTitle}>Prestations principales</span>
+              <span style={labelTitle}>{i18nT("prestations_principales_5eb72f11")}</span>
               <EditableTags
                 values={form.services}
                 onChange={(values) => set("services", values)}
-                addLabel="Ajouter une prestation"
-                placeholder="Ex : Intervention week-end"
+                addLabel={i18nT("ajouter_une_prestation_f819082b")}
+                placeholder={i18nT("ex_intervention_week_end_931e57fb")}
                 emptyText={
                   form.sector
                     ? "Ajoutez au moins une prestation représentative de votre activité."
@@ -922,61 +910,55 @@ export default function ActivityContent({
                 maxItems={20}
               />
               <span style={hint}>
-                iNrCy propose automatiquement les prestations liées au métier.
-                Supprimez celles qui ne conviennent pas et ajoutez les vôtres.
-              </span>
+                {i18nT("inrcy_propose_automatiquement_les_prestations_li_7e2f1891")}{" "}</span>
             </div>
 
             <div style={label}>
-              <span style={labelTitle}>Zones d’intervention</span>
+              <span style={labelTitle}>{i18nT("zones_d_intervention_a4999f61")}</span>
               <EditableTags
                 values={form.interventionZones}
                 onChange={(values) => set("interventionZones", values)}
-                addLabel="Ajouter une zone"
-                placeholder="Ex : Arras"
-                emptyText="Ajoutez les villes, secteurs ou rayons réellement couverts."
+                addLabel={i18nT("ajouter_une_zone_85f56481")}
+                placeholder={i18nT("ex_arras_c3287f39")}
+                emptyText={i18nT("ajoutez_les_villes_secteurs_ou_rayons_dc934f3a")}
                 maxItems={30}
               />
               <span style={hint}>
-                Une zone par tag aide l’IA à localiser précisément les contenus.
-              </span>
+                {i18nT("une_zone_par_tag_aide_l_7516e004")}{" "}</span>
             </div>
 
             <label style={label}>
-              <span style={labelTitle}>Jours et horaires d’ouverture</span>
+              <span style={labelTitle}>{i18nT("jours_et_horaires_d_ouverture_7e60aca2")}</span>
               <textarea
                 style={{ ...input, minHeight: 128, resize: "vertical" }}
                 value={form.openingSchedule}
                 onChange={(e) => set("openingSchedule", e.target.value)}
-                placeholder={`Lundi : 9h - 13h
-Mardi : 15h - 19h
-Mercredi : fermé
-Jeudi : 9h - 12h / 14h - 18h`}
+                placeholder={i18nT("lundi_9h_13h_mardi_15h_19h_65f9b0b1")}
                 maxLength={1200}
               />
-              <span style={hint}>Une ligne par jour est recommandée.</span>
+              <span style={hint}>{i18nT("une_ligne_par_jour_est_recommandee_d8baf034")}</span>
             </label>
 
             <div style={label}>
-              <span style={labelTitle}>Vos forces</span>
+              <span style={labelTitle}>{i18nT("vos_forces_29964107")}</span>
               <EditableTags
                 values={form.strengths}
                 onChange={(values) => set("strengths", values)}
-                addLabel="Ajouter une force"
-                placeholder="Ex : Intervention rapide"
-                emptyText="Ajoutez 3 à 6 forces qui différencient votre entreprise."
+                addLabel={i18nT("ajouter_une_force_58699841")}
+                placeholder={i18nT("ex_intervention_rapide_e8d23c44")}
+                emptyText={i18nT("ajoutez_3_a_6_forces_qui_c9dbc997")}
                 maxItems={12}
               />
-              <span style={hint}>3 à 6 forces suffisent. Court.</span>
+              <span style={hint}>{i18nT("3_a_6_forces_suffisent_court_56d52d7c")}</span>
             </div>
 
             <div style={label}>
-              <span style={labelTitle}>Typologie de clientèle</span>
+              <span style={labelTitle}>{i18nT("typologie_de_clientele_4d08c355")}</span>
               <div style={checkboxGrid}>
                 {[
-                  { value: "particuliers", label: "Particuliers" },
-                  { value: "professionnels", label: "Professionnels" },
-                  { value: "collectivites", label: "Collectivités" },
+                  { value: "particuliers", label: i18nT("particuliers_918ed212") },
+                  { value: "professionnels", label: i18nT("professionnels_8d94a78e") },
+                  { value: "collectivites", label: i18nT("collectivites_c0c84588") },
                 ].map((option) => {
                   const checked = form.customerTypes.includes(option.value);
                   return (
@@ -1001,9 +983,7 @@ Jeudi : 9h - 12h / 14h - 18h`}
                 })}
               </div>
               <span style={hint}>
-                Aide l’IA à adapter les arguments, le vocabulaire et le niveau
-                de sérieux selon vos clients.
-              </span>
+                {i18nT("aide_l_ia_a_adapter_les_35ed6a9c")}{" "}</span>
             </div>
 
             {error ? (
@@ -1013,8 +993,7 @@ Jeudi : 9h - 12h / 14h - 18h`}
             ) : null}
             {saved ? (
               <div style={{ color: "rgba(34,197,94,0.95)", fontWeight: 900 }}>
-                Enregistré ✅
-              </div>
+                {i18nT("enregistre_a5dfbc23")}{" "}</div>
             ) : null}
 
             <div
@@ -1038,10 +1017,10 @@ Jeudi : 9h - 12h / 14h - 18h`}
                 onClick={save}
               >
                 {saving
-                  ? "Enregistrement…"
+                  ? i18nT("enregistrement_e7d5f232")
                   : onboarding
-                    ? "Enregistrer et continuer →"
-                    : "Enregistrer"}
+                    ? i18nT("enregistrer_et_continuer_c75a7f90")
+                    : i18nT("enregistrer_f7c8bcd8")}
               </button>
               <button
                 type="button"
@@ -1057,15 +1036,12 @@ Jeudi : 9h - 12h / 14h - 18h`}
                   fontWeight: 800,
                 }}
               >
-                Réinitialiser
-              </button>
+                {i18nT("reinitialiser_e0e2ad54")}{" "}</button>
             </div>
 
             {mode === "drawer" ? (
               <div style={{ fontSize: 12, opacity: 0.7 }}>
-                Astuce : plus vos informations sont précises, plus les contenus
-                IA sont bons.
-              </div>
+                {i18nT("astuce_plus_vos_informations_sont_precises_4518ea45")}{" "}</div>
             ) : null}
           </div>
         )}

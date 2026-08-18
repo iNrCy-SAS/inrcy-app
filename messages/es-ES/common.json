@@ -1,0 +1,9 @@
+{
+  "pullToRefresh": {
+    "refreshing": "Actualizar…",
+    "ready": "Liberar para actualizar",
+    "pull": "Descargar para actualizar"
+  },
+  "dashboardBoot": "Cargando tu panel de iNrCy…",
+  "initialSetup": "Preparando tu configuración inicial…"
+}

@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import styles from "./documents.module.css";
 import type { Profile } from "./documentEditorShared";
 
@@ -54,6 +57,7 @@ export function DocumentParties({
   deliveryFullAddress,
   clientEmail,
 }: DocumentPartiesProps) {
+  const i18nT = useTranslations("documents");
   const updateProviderField = (field: ProviderField, value: string) => {
     onProviderFieldChange?.(field, value);
   };
@@ -82,8 +86,7 @@ export function DocumentParties({
                 border: "1px solid #cbb4ff",
               }}
             >
-              ✏️ Modifier
-            </button>
+              {i18nT("modifier_723bbbfe")}{" "}</button>
             <button
               type="button"
               onClick={onResetProvider}
@@ -94,8 +97,7 @@ export function DocumentParties({
                 border: "1px solid #cbb4ff",
               }}
             >
-              ↩ Réinitialiser
-            </button>
+              {i18nT("reinitialiser_d4f58c8b")}{" "}</button>
           </div>
         ) : null}
         <div style={{ fontWeight: 600 }}>
@@ -118,7 +120,7 @@ export function DocumentParties({
               onChange={(event) =>
                 updateProviderField("hq_address", event.target.value)
               }
-              placeholder="Adresse"
+              placeholder={i18nT("adresse_522e1466")}
               style={{ width: "100%", marginTop: 4 }}
             />
           ) : (
@@ -144,7 +146,7 @@ export function DocumentParties({
               onChange={(event) =>
                 updateProviderField("hq_city", event.target.value)
               }
-              placeholder="Ville"
+              placeholder={i18nT("ville_97217611")}
               style={{ width: "100%", marginTop: 4 }}
             />
           ) : (
@@ -160,14 +162,14 @@ export function DocumentParties({
                 onChange={(event) =>
                   updateProviderField("phone", event.target.value)
                 }
-                placeholder="Téléphone"
+                placeholder={i18nT("telephone_d3b023ea")}
               />
               <input
                 value={providerData.contact_email ?? ""}
                 onChange={(event) =>
                   updateProviderField("contact_email", event.target.value)
                 }
-                placeholder="Email"
+                placeholder={i18nT("email_84add5b2")}
               />
               <input
                 value={providerData.siren ?? ""}
@@ -192,9 +194,9 @@ export function DocumentParties({
                 </div>
               ) : null}
               {providerData.contact_email ? (
-                <div>Email : {providerData.contact_email}</div>
+                <div>{i18nT("email_value_e78d7e52", { value0: providerData.contact_email })}</div>
               ) : null}
-              {providerData.siren ? <div>SIREN : {providerData.siren}</div> : null}
+              {providerData.siren ? <div>{i18nT("siren_value_b2ffa596", { value0: providerData.siren })}</div> : null}
               {providerData.vat_number ? (
                 <div>
                   {vatLabel} : {providerData.vat_number}
@@ -208,7 +210,7 @@ export function DocumentParties({
       <div className={styles.previewPartyCard}>
         <div className={styles.previewPartyTitle}>{clientLabel}</div>
         <div style={{ fontWeight: 600 }}>{clientName || "—"}</div>
-        {clientSiren ? <div>SIREN : {clientSiren}</div> : null}
+        {clientSiren ? <div>{i18nT("siren_value_b2ffa596", { value0: clientSiren })}</div> : null}
         {clientVatNumber ? (
           <div>
             {vatLabel} : {clientVatNumber}

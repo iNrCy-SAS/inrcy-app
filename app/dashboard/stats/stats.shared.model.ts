@@ -1,5 +1,5 @@
 import { decideAction, type DecisionResult } from "@/lib/decision/decisionEngine";
-import { type CapturedLeads, type CubeKey, type CubeModel, type CubeState, type Overview, type Period } from "./stats.shared.types";
+import { type CapturedLeads, type CubeKey, type CubeModel, type CubeState, type Overview, type Period, type StatsTranslator } from "./stats.shared.types";
 import { safeNum } from "./stats.shared.core";
 import { computeOpportunity30 } from "./stats.shared.opportunity";
 import { buildProvenance, computeQuality, isLinkedInStatsPartial } from "./stats.shared.quality";
@@ -14,7 +14,10 @@ export function buildCubeModel(
   state: CubeState | undefined | null,
   summaryOppByCube: Record<CubeKey, number>,
   officialConnectionStatus?: "connected" | "needs_update" | "disconnected" | "unavailable",
+  locale = "fr-FR",
+  t?: StatsTranslator,
 ): CubeModel {
+  if (!t) throw new Error("buildCubeModel requires a stats translator");
   const safeState: CubeState = state && typeof state === "object"
     ? state
     : { ov: null, loading: false, error: undefined, capturedLeads: { week: 0, month: 0 } };
@@ -67,7 +70,7 @@ export function buildCubeModel(
                       ? { main: !!ov.sources?.pinterest?.connected }
                       : { main: !!ov.sources?.linkedin?.connected };
 
-  const provenance = buildProvenance(key, ov);
+  const provenance = buildProvenance(key, ov, t);
   const computedOpp30 = computeOpportunity30(key, ov);
   const linkedInPartial = key === "linkedin" && isLinkedInStatsPartial(ov);
   const summaryOpp30 = summaryOppByCube[key];
@@ -76,39 +79,39 @@ export function buildCubeModel(
     : summaryOpp30 ?? computedOpp30;
   const opp30 = officialStatsActive ? computedOpportunity : 0;
 
-  const q = computeQuality(key, ov);
+  const q = computeQuality(key, ov, t);
   const capturedLeads: CapturedLeads = {
     week: officialStatsActive ? Math.max(0, Math.round(safeNum(safeState.capturedLeads?.week))) : 0,
     month: officialStatsActive ? Math.max(0, Math.round(safeNum(safeState.capturedLeads?.month))) : 0,
   };
-  let action = recommendAction(key, ov, q.score);
+  let action = recommendAction(key, ov, q.score, t);
   let decision: DecisionResult | undefined;
 
   if (action.key !== "connect" && action.key !== "loading") {
     decision = decideAction(getDecisionInput(key, ov, q.score, opp30, provenance, capturedLeads));
-    action = actionFromDecision(action, decision);
+    action = actionFromDecision(action, decision, t);
   }
 
   if (linkedInPartial && action.key !== "connect" && action.key !== "loading") {
     action = {
       ...action,
       key: "booster_publier",
-      title: "Booster",
-      detail: "Données LinkedIn non exploitables actuellement. Publiez depuis Booster puis réessayez demain.",
+      title: t("booster_8e4caec0"),
+      detail: t("stats_linkedin_publish_and_retry"),
       href: "/dashboard?action=publish",
-      pill: "Booster",
+      pill: t("booster_8e4caec0"),
     };
   }
 
-  const insights = buildInsights(key, ov, q.score, decision);
+  const insights = buildInsights(key, ov, q.score, decision, locale, t);
 
   if (safeState.loading && !hasRealOverview) {
     action = {
       key: "loading",
-      title: "Connexion…",
-      detail: "Récupération de vos connexions",
+      title: t("connexion_807c2021"),
+      detail: t("stats_fetching_connections"),
       href: "",
-      pill: "Connexion",
+      pill: t("connexion_a33c58f5"),
     };
   }
 
@@ -120,25 +123,31 @@ export function buildCubeModel(
   if (connectionStatus === "needs_update") {
     action = {
       key: "connect",
-      title: `Reconnecter ${title}`,
-      detail: "La connexion a expiré. Reconnectez ce canal pour réactiver les statistiques et Booster.",
+      title: t("reconnecter_value_d8079aa6", { value0: title }),
+      detail: t("stats_reconnect_expired_channel"),
       href: "/dashboard",
-      pill: "Connexion",
+      pill: t("connexion_a33c58f5"),
     };
   }
 
   if (connectionStatus === "unavailable") {
     action = {
       key: "loading",
-      title: "Synchronisation indisponible",
-      detail: "L'état du canal n'a pas pu être vérifié. Aucune ancienne donnée n'est utilisée comme autorisation.",
+      title: t("synchronisation_indisponible_8d911564"),
+      detail: t("stats_channel_verification_unavailable"),
       href: "",
-      pill: "Connexion",
+      pill: t("connexion_a33c58f5"),
     };
   }
 
   const opportunityLabel =
-    opp30 >= 14 ? "Fort potentiel" : opp30 >= 7 ? "Potentiel réel" : opp30 >= 3 ? "Potentiel modéré" : "À activer";
+    opp30 >= 14
+      ? t("opportunity_high")
+      : opp30 >= 7
+        ? t("opportunity_real")
+        : opp30 >= 3
+          ? t("opportunity_moderate")
+          : t("a_activer_15406658");
 
   return {
     key,
@@ -157,22 +166,22 @@ export function buildCubeModel(
     capturedLeads,
     capturedLeadsUnavailable: linkedInPartial,
     capturedLeadsHint: linkedInPartial
-      ? "Données LinkedIn non exploitables actuellement. Réessayez demain."
-      : "Demandes réelles mesurées sur ce canal.",
+      ? t("stats_linkedin_retry_tomorrow")
+      : t("stats_measured_requests_hint"),
     provenanceHint:
       key === "linkedin" && (linkedInPartial || provenance.every((entry) => safeNum(entry.value) <= 0))
-        ? "Données non exploitables actuellement."
+        ? t("stats_data_unavailable")
         : key === "tiktok" && ov?.sources?.tiktok?.connected && isTikTokStatsPermissionError(ov?.sources?.tiktok?.metrics)
-          ? "Autorisations statistiques TikTok incomplètes : reconnectez le canal."
+          ? t("stats_tiktok_permissions_hint")
           : key === "tiktok" && ov?.sources?.tiktok?.connected && readMetricError(ov?.sources?.tiktok?.metrics)
-            ? "Statistiques TikTok momentanément indisponibles."
+            ? t("stats_tiktok_temporarily_unavailable")
             : key === "tiktok" && ov?.sources?.tiktok?.connected && !hasTikTokStatsSignal(ov?.sources?.tiktok?.metrics)
-              ? "Compte connecté : données en attente de remontée par TikTok."
-              : key === "gmb" && provenance.length === 1 && provenance[0]?.label === "Visibilité locale"
-                ? "La répartition Maps / Search n’est pas remontée par Google sur cette période."
+              ? t("stats_tiktok_waiting_for_data")
+              : key === "gmb" && provenance.length === 1 && provenance[0]?.label === t("visibilite_locale_afa9cdc9")
+                ? t("stats_gmb_distribution_unavailable")
                 : undefined,
-    visibilityStats: buildVisibilityStats(key, ov),
-    actionStats: buildActionStats(key, ov),
+    visibilityStats: buildVisibilityStats(key, ov, locale, t),
+    actionStats: buildActionStats(key, ov, locale, t),
     inrcyActivityStats: buildInrcyActivityStats(key, ov),
     qualityScore: q.score,
     qualityLabel: q.label,
@@ -187,11 +196,13 @@ export function buildSummaryActionItems({
   computedEstimatedByCube,
   models,
   summaryEstimatedByCube,
+  t,
 }: {
   centralByCube: Record<CubeKey, number>;
   computedEstimatedByCube: Record<CubeKey, number>;
   models: CubeModel[];
   summaryEstimatedByCube: Record<CubeKey, number>;
+  t: StatsTranslator;
 }) {
   const connectionStateByCube: Record<CubeKey, boolean> = {
     inrbadge: !!models.find((m) => m.key === "inrbadge")?.connections.main,
@@ -210,151 +221,151 @@ export function buildSummaryActionItems({
 
   const connectedCopy: Record<CubeKey, { label: string; kicker: string; motive: string; badge: string }> = {
     inrbadge: {
-      label: "Partager le badge",
-      kicker: "Votre hub de conversion",
-      motive: "iNr’Badge centralise vos canaux et transforme vos visiteurs en actions utiles.",
-      badge: "Booster",
+      label: t("partager_le_badge_09b4365a"),
+      kicker: t("votre_hub_de_conversion_e9c599b2"),
+      motive: t("inr_badge_centralise_vos_canaux_et_965919b6"),
+      badge: t("booster_8e4caec0"),
     },
     inr_search: {
-      label: "Voir la page",
-      kicker: "Votre vitrine publique iNr’Search",
-      motive: "iNrCy crée, enrichit et référence automatiquement cette page pour générer de la visibilité et des contacts.",
-      badge: "Propulser",
+      label: t("voir_la_page_82561348"),
+      kicker: t("votre_vitrine_publique_inr_search_e67d5120"),
+      motive: t("inrcy_cree_enrichit_et_reference_automatiquement_1a66bb86"),
+      badge: t("propulser_2de43942"),
     },
     facebook: {
-      label: "Utiliser Booster",
-      kicker: "Relancez votre visibilité locale",
-      motive: "Booster permet de publier rapidement pour remettre votre activité en mouvement.",
-      badge: "Booster",
+      label: t("utiliser_booster_6138c57d"),
+      kicker: t("relancez_votre_visibilite_locale_b7d7ba45"),
+      motive: t("booster_permet_de_publier_rapidement_pour_c5c61333"),
+      badge: t("booster_8e4caec0"),
     },
     instagram: {
-      label: "Utiliser Booster",
-      kicker: "Réactivez votre visibilité de marque",
-      motive: "Booster vous aide à publier régulièrement pour transformer l’attention en contacts.",
-      badge: "Booster",
+      label: t("utiliser_booster_6138c57d"),
+      kicker: t("reactivez_votre_visibilite_de_marque_ce217439"),
+      motive: t("booster_vous_aide_a_publier_regulierement_1c1c3d92"),
+      badge: t("booster_8e4caec0"),
     },
     linkedin: {
-      label: "Utiliser Booster",
-      kicker: "Renforcez votre crédibilité pro",
-      motive: "Booster vous aide à prendre la parole simplement sur LinkedIn.",
-      badge: "Booster",
+      label: t("utiliser_booster_6138c57d"),
+      kicker: t("renforcez_votre_credibilite_pro_a7ed6a65"),
+      motive: t("booster_vous_aide_a_prendre_la_12591d89"),
+      badge: t("booster_8e4caec0"),
     },
     mails: {
-      label: "Utiliser Fidéliser",
-      kicker: "Animez votre base par mail",
-      motive: "Mails analyse vos usages Fidéliser, Propulser et mails simples pour transformer votre CRM en actions concrètes.",
-      badge: "Fidéliser",
+      label: t("utiliser_fideliser_af919842"),
+      kicker: t("animez_votre_base_par_mail_6284af7b"),
+      motive: t("mails_analyse_vos_usages_fideliser_propulser_37166dba"),
+      badge: t("fideliser_8fa9e4f1"),
     },
     tiktok: {
-      label: "Utiliser Booster",
-      kicker: "Activez vos contenus courts",
-      motive: "Booster vous aide à publier photos et vidéos TikTok depuis le même flux.",
-      badge: "Booster",
+      label: t("utiliser_booster_6138c57d"),
+      kicker: t("activez_vos_contenus_courts_0b4dcab9"),
+      motive: t("booster_vous_aide_a_publier_photos_249f5de3"),
+      badge: t("booster_8e4caec0"),
     },
     youtube_shorts: {
-      label: "Utiliser Booster",
-      kicker: "Activez vos vidéos YouTube",
-      motive: "YouTube transforme vos vidéos courtes ou longues en visibilité durable depuis le même flux iNrCy.",
-      badge: "Booster",
+      label: t("utiliser_booster_6138c57d"),
+      kicker: t("activez_vos_videos_youtube_3bccbcbf"),
+      motive: t("youtube_transforme_vos_videos_courtes_ou_cbe7ae01"),
+      badge: t("booster_8e4caec0"),
     },
     pinterest: {
-      label: "Utiliser Booster",
-      kicker: "Activez votre visibilité inspiration",
-      motive: "Booster vous aide à publier des visuels Pinterest depuis le même flux de communication.",
-      badge: "Booster",
+      label: t("utiliser_booster_6138c57d"),
+      kicker: t("activez_votre_visibilite_inspiration_714ee6e6"),
+      motive: t("booster_vous_aide_a_publier_des_bc2a2aa0"),
+      badge: t("booster_8e4caec0"),
     },
     site_web: {
-      label: "Utiliser Propulser",
-      kicker: "Transformez plus de visiteurs en prospects",
-      motive: "Propulser vous propose une action business claire : valoriser, récolter ou offrir.",
-      badge: "Propulser",
+      label: t("utiliser_propulser_c4b4b56d"),
+      kicker: t("transformez_plus_de_visiteurs_en_prospects_1a133cbd"),
+      motive: t("propulser_vous_propose_une_action_business_392120f0"),
+      badge: t("propulser_2de43942"),
     },
     site_inrcy: {
-      label: "Utiliser Propulser",
-      kicker: "Accélérez une machine déjà lancée",
-      motive: "Propulser aide à transformer le potentiel visible en action commerciale concrète.",
-      badge: "Propulser",
+      label: t("utiliser_propulser_c4b4b56d"),
+      kicker: t("accelerez_une_machine_deja_lancee_3a42543d"),
+      motive: t("propulser_aide_a_transformer_le_potentiel_1256c707"),
+      badge: t("propulser_2de43942"),
     },
     gmb: {
-      label: "Utiliser Propulser",
-      kicker: "Débloquez un potentiel local immédiat",
-      motive: "Propulser permet de valoriser vos preuves, récolter des avis ou pousser une offre locale.",
-      badge: "Propulser",
+      label: t("utiliser_propulser_c4b4b56d"),
+      kicker: t("debloquez_un_potentiel_local_immediat_643b2334"),
+      motive: t("propulser_permet_de_valoriser_vos_preuves_b071e504"),
+      badge: t("propulser_2de43942"),
     },
   };
 
   const disconnectedCopy: Record<CubeKey, { label: string; kicker: string; motive: string; badge: string }> = {
     inrbadge: {
-      label: "Configurer iNr’Badge",
-      kicker: "Activez votre fiche publique",
-      motive: "Complétez iNr’Badge pour centraliser vos canaux, vos actions rapides et votre QR Code.",
-      badge: "Connexion",
+      label: t("configurer_inr_badge_a14c8098"),
+      kicker: t("activez_votre_fiche_publique_d68b6aa3"),
+      motive: t("completez_inr_badge_pour_centraliser_vos_756c9d97"),
+      badge: t("connexion_a33c58f5"),
     },
     inr_search: {
-      label: "Page en préparation",
-      kicker: "Création automatique par iNrCy",
-      motive: "La page sera publiée automatiquement dès que l’identité essentielle de l’entreprise sera disponible.",
-      badge: "Connexion",
+      label: t("page_en_preparation_4f41e9fc"),
+      kicker: t("creation_automatique_par_inrcy_1377c3f6"),
+      motive: t("la_page_sera_publiee_automatiquement_des_b97895f5"),
+      badge: t("connexion_a33c58f5"),
     },
     facebook: {
-      label: "Connecter Facebook",
-      kicker: "Activez un levier social local",
-      motive: "Reliez Facebook pour mesurer votre visibilité sociale et capter plus de demandes locales.",
-      badge: "Connexion",
+      label: t("connecter_facebook_380a5db4"),
+      kicker: t("activez_un_levier_social_local_ed260a0f"),
+      motive: t("reliez_facebook_pour_mesurer_votre_visibilite_a27abe63"),
+      badge: t("connexion_a33c58f5"),
     },
     instagram: {
-      label: "Connecter Instagram",
-      kicker: "Activez votre vitrine de marque",
-      motive: "Reliez Instagram pour exploiter votre visibilité et transformer plus d’attention en opportunités.",
-      badge: "Connexion",
+      label: t("connecter_instagram_ea138dc0"),
+      kicker: t("activez_votre_vitrine_de_marque_03db73d4"),
+      motive: t("reliez_instagram_pour_exploiter_votre_visibilite_3de41cc3"),
+      badge: t("connexion_a33c58f5"),
     },
     linkedin: {
-      label: "Connecter LinkedIn",
-      kicker: "Activez votre crédibilité professionnelle",
-      motive: "Reliez LinkedIn pour publier facilement et préparer le suivi analytics dès que les accès seront disponibles.",
-      badge: "Connexion",
+      label: t("connecter_linkedin_dd6eba4d"),
+      kicker: t("activez_votre_credibilite_professionnelle_19ce03e5"),
+      motive: t("reliez_linkedin_pour_publier_facilement_et_8c294ad0"),
+      badge: t("connexion_a33c58f5"),
     },
     mails: {
-      label: "Connecter une boîte mail",
-      kicker: "Activez vos campagnes",
-      motive: "Connectez au moins une boîte d’envoi pour utiliser Fidéliser, Propulser et les mails simples.",
-      badge: "Connexion",
+      label: t("connecter_une_boite_mail_f120289b"),
+      kicker: t("activez_vos_campagnes_8670f54d"),
+      motive: t("connectez_au_moins_une_boite_d_817ecdef"),
+      badge: t("connexion_a33c58f5"),
     },
     tiktok: {
-      label: "Connecter TikTok",
-      kicker: "Préparez le canal vidéo/photo",
-      motive: "Reliez TikTok pour publier photos et vidéos, suivre le profil et lire les vidéos publiques dans iNrStats.",
-      badge: "Connexion",
+      label: t("connecter_tiktok_bce38f69"),
+      kicker: t("preparez_le_canal_video_photo_d6ca6835"),
+      motive: t("reliez_tiktok_pour_publier_photos_et_5f0d0a6a"),
+      badge: t("connexion_a33c58f5"),
     },
     youtube_shorts: {
-      label: "Configurer YouTube",
-      kicker: "Préparez le canal vidéo",
-      motive: "Ajoutez votre chaîne YouTube pour publier vos vidéos depuis iNrCy.",
-      badge: "Connexion",
+      label: t("configurer_youtube_b6b1b98d"),
+      kicker: t("preparez_le_canal_video_643a3928"),
+      motive: t("ajoutez_votre_chaine_youtube_pour_publier_b801467f"),
+      badge: t("connexion_a33c58f5"),
     },
     pinterest: {
-      label: "Connecter Pinterest",
-      kicker: "Activez le canal inspiration",
-      motive: "Reliez Pinterest pour publier vos visuels et renforcer votre découverte par l’image.",
-      badge: "Connexion",
+      label: t("connecter_pinterest_05788f6c"),
+      kicker: t("activez_le_canal_inspiration_0f332bb9"),
+      motive: t("reliez_pinterest_pour_publier_vos_visuels_72bc836e"),
+      badge: t("connexion_a33c58f5"),
     },
     site_web: {
-      label: "Connecter votre site",
-      kicker: "Mesurez enfin votre rendement web",
-      motive: "Connectez GA4 et GSC pour analyser votre trafic, vos intentions et votre potentiel business.",
-      badge: "Connexion",
+      label: t("connecter_votre_site_79fb2889"),
+      kicker: t("mesurez_enfin_votre_rendement_web_7a73b8a5"),
+      motive: t("connectez_ga4_et_gsc_pour_analyser_6125e506"),
+      badge: t("connexion_a33c58f5"),
     },
     site_inrcy: {
-      label: "Connecter le site iNrCy",
-      kicker: "Branchez votre machine à leads",
-      motive: "Activez les outils de mesure du site iNrCy pour suivre sa performance et ses opportunités.",
-      badge: "Connexion",
+      label: t("connecter_le_site_inrcy_33bf6baf"),
+      kicker: t("branchez_votre_machine_a_leads_a9d5a607"),
+      motive: t("activez_les_outils_de_mesure_du_59caaea2"),
+      badge: t("connexion_a33c58f5"),
     },
     gmb: {
-      label: "Connecter Google Business",
-      kicker: "Débloquez un potentiel local immédiat",
-      motive: "Vous laissez probablement passer des demandes locales : ce canal mérite d’être activé en priorité.",
-      badge: "Connexion",
+      label: t("connecter_google_business_ca8b3513"),
+      kicker: t("debloquez_un_potentiel_local_immediat_643b2334"),
+      motive: t("vous_laissez_probablement_passer_des_demandes_6a660812"),
+      badge: t("connexion_a33c58f5"),
     },
   };
 

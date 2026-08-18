@@ -38,6 +38,11 @@ export type CubeKey = "inrbadge" | "inr_search" | "site_inrcy" | "site_web" | "g
 
 export type Period = 7 | 14 | 30 | 60;
 
+export type StatsTranslator = (
+  key: string,
+  values?: Record<string, string | number | boolean>,
+) => string;
+
 export type CapturedLeads = {
   week: number;
   month: number;
@@ -165,7 +170,7 @@ export type CubeModel = {
     title: string;
     detail: string;
     href: string;
-    pill: "Booster" | "Propulser" | "Fidéliser" | "Mail simple" | "Connexion";
+    pill: string;
     effort?: ActionEffort;
   };
 };

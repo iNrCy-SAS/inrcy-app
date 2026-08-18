@@ -4,6 +4,7 @@ import ClientHydrationGate from "./_components/ClientHydrationGate";
 import { getMyRole } from "@/lib/roles";
 import { isDashboardRequiredSetupProtectedLocation } from "@/lib/dashboardRequiredSetupAccess";
 import { requireDashboardRequiredSetupCompleted } from "@/lib/dashboardRequiredSetupServer";
+import { getTranslations } from "next-intl/server";
 
 type DashboardPageSearchParams = Record<string, string | string[] | undefined>;
 
@@ -35,10 +36,11 @@ export default async function Page({
   }
 
   const { isAdmin } = await getMyRole();
+  const t = await getTranslations("common");
 
   return (
     <Suspense fallback={null}>
-      <ClientHydrationGate label="Chargement de votre dashboard iNrCy...">
+      <ClientHydrationGate label={t("dashboardBoot")}>
         <DashboardClient isAdmin={isAdmin} />
       </ClientHydrationGate>
     </Suspense>

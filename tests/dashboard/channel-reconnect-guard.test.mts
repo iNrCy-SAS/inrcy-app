@@ -11,7 +11,7 @@ test("dashboard exposes a dedicated reconnect state with orange warning UI", () 
   const shared = read("app/dashboard/dashboard.shared.ts");
   const bubble = read("app/dashboard/_components/DashboardFluxBubble.tsx");
   const bubbleCss = read("app/dashboard/_components/DashboardChannelBubble.module.css");
-  const i18n = read("lib/dashboardI18n.ts");
+  const i18n = read("messages/fr-FR/dashboard.json");
 
   assert.match(types, /"connected"\s*\|\s*"available"\s*\|\s*"reconnect"\s*\|\s*"coming"/);
   assert.match(shared, /status:\s*"reconnect",\s*text:\s*"À reconnecter"/);
@@ -20,7 +20,7 @@ test("dashboard exposes a dedicated reconnect state with orange warning UI", () 
   assert.match(bubbleCss, /\.reconnectCard\s*\{/);
   assert.match(bubbleCss, /\.statusReconnect\s*\{/);
   assert.match(bubbleCss, /#fb923c/i);
-  assert.match(i18n, /reconnect:\s*"À reconnecter"/);
+  assert.match(i18n, /"reconnect":\s*"À reconnecter"/);
 });
 
 test("reconnect state is refreshed in realtime for every OAuth publication channel", () => {

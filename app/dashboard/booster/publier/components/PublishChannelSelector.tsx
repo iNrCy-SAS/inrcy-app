@@ -1,7 +1,8 @@
+import { useTranslations } from "next-intl";
 import { useEffect, type Dispatch, type SetStateAction } from "react";
 import {
   BOOSTER_CHANNEL_ORDER,
-  CHANNEL_LABELS,
+  getLocalizedChannelLabel,
   type ChannelKey,
 } from "../publishModal.shared";
 import {
@@ -104,12 +105,15 @@ export default function PublishChannelSelector({
   setAllChannelsSelected,
   getChannelDetailInfo,
 }: PublishChannelSelectorProps) {
+  const i18nT = useTranslations("booster");
   const channelKeys = BOOSTER_CHANNEL_ORDER;
   const connectedChannelKeys = channelKeys.filter((key) => connected[key]);
   const selectedConnectedCount = connectedChannelKeys.filter((key) => channels[key]).length;
   const hasConnectedChannels = connectedChannelKeys.length > 0;
   const allConnectedSelected = hasConnectedChannels && selectedConnectedCount === connectedChannelKeys.length;
-  const bulkLabel = allConnectedSelected ? "Tout désélectionner" : "Tout sélectionner";
+  const bulkLabel = allConnectedSelected
+    ? i18nT("deselect_all_channels")
+    : i18nT("select_all_channels");
 
   useEffect(() => {
     // Warm every icon as soon as Booster opens so the channel row never
@@ -137,8 +141,7 @@ export default function PublishChannelSelector({
         }}
       >
         <PublishStepTitle styles={styles} step={1}>
-          Canaux
-        </PublishStepTitle>
+          {i18nT("canaux_27cb4473")}{" "}</PublishStepTitle>
         <button
           type="button"
           aria-label={bulkLabel}
@@ -190,8 +193,7 @@ export default function PublishChannelSelector({
         </button>
       </div>
       <div className={styles.subtitle} style={{ marginBottom: isMobile ? 10 : 8 }}>
-        iNrCy publie une version adaptée sur chaque canal sélectionné.
-      </div>
+        {i18nT("inrcy_publie_une_version_adaptee_sur_ede47961")}{" "}</div>
       <div
         style={{
           display: "grid",
@@ -209,6 +211,7 @@ export default function PublishChannelSelector({
           const isSelected = channels[key] && isConnected;
           const isInfoVisible = channelInfoOpen === key && !!info;
           const isLastOddMobileItem = isMobile && index === channelKeys.length - 1 && channelKeys.length % 2 === 1;
+          const channelLabel = getLocalizedChannelLabel(key, (messageKey) => i18nT(messageKey as never));
 
           if (isMobile) {
             return (
@@ -281,25 +284,27 @@ export default function PublishChannelSelector({
                         : "rgba(255,255,255,0.48)",
                   }}
                 >
-                  {CHANNEL_LABELS[key]}
+                  {channelLabel}
                 </span>
                 <button
                   type="button"
                   aria-label={
                     requiresReconnect
-                      ? `${CHANNEL_LABELS[key]} à reconnecter`
+                      ? i18nT("channel_reconnect_aria", { channel: channelLabel })
                       : info
-                        ? `Voir les détails de ${CHANNEL_LABELS[key]}`
-                        : `${CHANNEL_LABELS[key]} ${isConnected ? "connecté" : "non connecté"}`
+                        ? i18nT("channel_details_aria", { channel: channelLabel })
+                        : isConnected
+                          ? i18nT("channel_connected_aria", { channel: channelLabel })
+                          : i18nT("channel_disconnected_aria", { channel: channelLabel })
                   }
                   title={
                     requiresReconnect
-                      ? "À reconnecter dans Canaux"
+                      ? i18nT("reconnect_in_channels")
                       : info
-                        ? `Voir les détails de ${CHANNEL_LABELS[key]}`
+                        ? i18nT("channel_details_aria", { channel: channelLabel })
                         : isConnected
-                          ? "Canal connecté"
-                          : "Canal non connecté"
+                          ? i18nT("channel_connected")
+                          : i18nT("channel_disconnected")
                   }
                   disabled={!info}
                   onPointerDown={(event) => event.stopPropagation()}
@@ -385,7 +390,11 @@ export default function PublishChannelSelector({
               tabIndex={isConnected ? 0 : -1}
               aria-disabled={!isConnected}
               aria-pressed={isSelected}
-              title={requiresReconnect ? `${CHANNEL_LABELS[key]} · À reconnecter dans Canaux` : info?.fullLabel || `${CHANNEL_LABELS[key]} ${isConnected ? "connecté" : "non connecté"}`}
+              title={requiresReconnect
+                ? i18nT("channel_reconnect_title", { channel: channelLabel })
+                : info?.fullLabel || (isConnected
+                  ? i18nT("channel_connected_aria", { channel: channelLabel })
+                  : i18nT("channel_disconnected_aria", { channel: channelLabel }))}
               onMouseEnter={() => {
                 if (info) setChannelInfoOpen(key);
               }}
@@ -519,7 +528,7 @@ export default function PublishChannelSelector({
                   }}
                 >
                   <div style={{ fontSize: 12.5, fontWeight: 950, color: "rgba(255,255,255,0.96)", marginBottom: 2 }}>
-                    {CHANNEL_LABELS[key]}
+                    {channelLabel}
                   </div>
                   <div
                     style={{

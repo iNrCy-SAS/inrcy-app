@@ -8,6 +8,7 @@ import {
   type CubeKey,
   type CubeModel,
   type Period,
+  type StatsTranslator,
 } from "./stats.shared";
 
 export function normalizeCapturedLeads(raw: unknown, fallback?: CapturedLeads): CapturedLeads {
@@ -488,7 +489,8 @@ export function buildMailOpportunity30(stats: MailStatsSnapshot) {
   return Math.max(0, Math.round(base + contactsPotential + activityPotential));
 }
 
-export function buildMailCubeModel(stats: MailStatsSnapshot, period: Period): CubeModel {
+export function buildMailCubeModel(stats: MailStatsSnapshot, period: Period, locale: string, t: StatsTranslator): CubeModel {
+  const formatInt = (value: number) => fmtInt(value, locale);
   const connected = stats.connectedCount > 0;
   const opportunity30 = buildMailOpportunity30(stats);
   const contactsEmail = stats.contactsEmail || stats.contactsCrm;
@@ -501,7 +503,13 @@ export function buildMailCubeModel(stats: MailStatsSnapshot, period: Period): Cu
       + Math.min(10, stats.campagnes30 * 2)
       + Math.min(6, stats.agendaReminders30 / 5),
     )));
-  const qualityLabel = qualityScore >= 75 ? "Solide" : qualityScore >= 55 ? "Correct" : connected ? "À travailler" : "À connecter";
+  const qualityLabel = qualityScore >= 75
+    ? t("solide_ab31c54d")
+    : qualityScore >= 55
+      ? t("correct_48e09e45")
+      : connected
+        ? t("quality_needs_work")
+        : t("quality_connect_required");
   const qualityTone: CubeModel["qualityTone"] = qualityScore >= 80 ? "excellent" : qualityScore >= 65 ? "solid" : qualityScore >= 45 ? "ok" : "low";
 
   const propulserBreakdown = stats.breakdown?.propulser || {};
@@ -511,39 +519,39 @@ export function buildMailCubeModel(stats: MailStatsSnapshot, period: Period): Cu
     if (!connected) {
       return {
         key: "connect" as const,
-        title: "Configurer",
-        detail: "Connectez une boîte d’envoi pour activer le canal Mails.",
+        title: t("configurer_382efbe9"),
+        detail: t("mail_connect_channel_detail"),
         href: "/dashboard?panel=mails",
-        pill: "Connexion" as const,
+        pill: t("connexion_a33c58f5"),
       };
     }
     if (stats.fidelisations30 <= 0 || stats.fidelisations30 <= stats.propulsions30) {
       return {
         key: "fideliser_action" as const,
-        title: "Fidéliser",
-        detail: "Animez votre base client avec une campagne relationnelle claire.",
+        title: t("fideliser_8fa9e4f1"),
+        detail: t("mail_nurture_action_detail"),
         href: "/dashboard/fideliser",
-        pill: "Fidéliser" as const,
-        effort: { level: "moyen" as const, label: "Effort moyen • 10-15 min" },
+        pill: t("fideliser_8fa9e4f1"),
+        effort: { level: "moyen" as const, label: t("effort_moyen_10_15_min_33514efc") },
       };
     }
     if (stats.propulsions30 <= 0 || stats.propulsions30 < stats.fidelisations30) {
       return {
         key: "propulser_action" as const,
-        title: "Propulser",
-        detail: "Lancez une action commerciale par mail : valoriser, récolter ou offrir.",
+        title: t("propulser_2de43942"),
+        detail: t("mail_propulser_action_detail"),
         href: "/dashboard/propulser",
-        pill: "Propulser" as const,
-        effort: { level: "moyen" as const, label: "Effort moyen • 10-15 min" },
+        pill: t("propulser_2de43942"),
+        effort: { level: "moyen" as const, label: t("effort_moyen_10_15_min_33514efc") },
       };
     }
     return {
       key: "mail_simple" as const,
-      title: "Créer un mail simple",
-      detail: "Envoyez un message libre depuis une boîte mail connectée.",
+      title: t("creer_un_mail_simple_cbf8291d"),
+      detail: t("mail_simple_action_detail"),
       href: "/dashboard/mails?compose=1",
-      pill: "Mail simple" as const,
-      effort: { level: "faible" as const, label: "Effort faible • 3-5 min" },
+      pill: t("mail_simple_label"),
+      effort: { level: "faible" as const, label: t("effort_faible_3_5_min_7dd198dc") },
     };
   })();
 
@@ -551,46 +559,52 @@ export function buildMailCubeModel(stats: MailStatsSnapshot, period: Period): Cu
 
   return {
     key: "mails",
-    title: "Mails",
-    subtitle: "Actions mails par usage.",
+    title: t("mails_8d79d3a8"),
+    subtitle: t("actions_mails_par_usage_ee21b9bd"),
     accountLabel: connected
-      ? `Connecté ${stats.connectedCount}/${stats.maxAccounts}`
+      ? t("mail_connected_accounts", { count: stats.connectedCount, max: stats.maxAccounts })
       : connectionPending
-        ? "Vérification en cours..."
-        : `À connecter 0/${stats.maxAccounts}`,
+        ? t("verification_in_progress")
+        : t("mail_accounts_to_connect", { max: stats.maxAccounts }),
     period,
     loading: stats.loading,
     error: stats.error,
     connections: { main: connected },
     connectionPending,
     provenance: [
-      { label: "Valoriser", value: safeNum(propulserBreakdown.valoriser), colorVar: "--cValoriser" },
-      { label: "Récolter", value: safeNum(propulserBreakdown.recolter), colorVar: "--cRecolter" },
-      { label: "Offrir", value: safeNum(propulserBreakdown.offrir), colorVar: "--cOffrir" },
-      { label: "Informer", value: safeNum(fideliserBreakdown.informer), colorVar: "--cInformer" },
-      { label: "Suivre", value: safeNum(fideliserBreakdown.suivre), colorVar: "--cSuivre" },
-      { label: "Enquêter", value: safeNum(fideliserBreakdown.enqueter), colorVar: "--cEnqueter" },
-      { label: "Mails simples", value: stats.mailsSimples30, colorVar: "--cMailSimple" },
+      { label: t("valoriser_0859943f"), value: safeNum(propulserBreakdown.valoriser), colorVar: "--cValoriser" },
+      { label: t("recolter_1d0f06aa"), value: safeNum(propulserBreakdown.recolter), colorVar: "--cRecolter" },
+      { label: t("offrir_48d9d533"), value: safeNum(propulserBreakdown.offrir), colorVar: "--cOffrir" },
+      { label: t("informer_570ee22d"), value: safeNum(fideliserBreakdown.informer), colorVar: "--cInformer" },
+      { label: t("suivre_7cca6c92"), value: safeNum(fideliserBreakdown.suivre), colorVar: "--cSuivre" },
+      { label: t("enqueter_4fd8cc8c"), value: safeNum(fideliserBreakdown.enqueter), colorVar: "--cEnqueter" },
+      { label: t("mails_simples_608d9dcf"), value: stats.mailsSimples30, colorVar: "--cMailSimple" },
     ],
     provenanceHint: undefined,
     opportunity30,
-    opportunityLabel: opportunity30 >= 14 ? "Fort potentiel" : opportunity30 >= 7 ? "Potentiel réel" : connected ? "À développer" : "À activer",
+    opportunityLabel: opportunity30 >= 14
+      ? t("opportunity_high")
+      : opportunity30 >= 7
+        ? t("opportunity_real")
+        : connected
+          ? t("opportunity_to_develop")
+          : t("a_activer_15406658"),
     capturedLeads: { week: 0, month: 0 },
     capturedLeadsUnavailable: true,
     capturedLeadsHint: connected
-      ? "Le canal Mails mesure vos actions Fidéliser, Propulser, mails simples et envois automatiques."
-      : "Connectez une boîte mail pour activer ce canal.",
+      ? t("mail_measurement_hint")
+      : t("mail_connect_hint"),
     visibilityStats: connected
       ? [
-          { label: "Boîtes", value: `${fmtInt(stats.connectedCount)}/${fmtInt(stats.maxAccounts)}` },
-          { label: "Contacts email", value: fmtInt(contactsEmail) },
+          { label: t("boites_63c5cc0d"), value: `${formatInt(stats.connectedCount)}/${formatInt(stats.maxAccounts)}` },
+          { label: t("contacts_email_90f13253"), value: formatInt(contactsEmail) },
         ]
       : [],
     actionStats: connected
       ? [
-          { label: "Rappels Agenda 30j", value: fmtInt(stats.agendaReminders30), subValue: `${fmtInt(stats.agendaRemindersTotal)} au total` },
-          { label: "Factures 30j", value: fmtInt(stats.factures30), subValue: `${fmtInt(stats.facturesTotal)} au total` },
-          { label: "Devis 30j", value: fmtInt(stats.devis30), subValue: `${fmtInt(stats.devisTotal)} au total` },
+          { label: t("rappels_agenda_30j_e3c4a01a"), value: formatInt(stats.agendaReminders30), subValue: t("metric_total_count", { count: formatInt(stats.agendaRemindersTotal) }) },
+          { label: t("factures_30j_1624acb4"), value: formatInt(stats.factures30), subValue: t("metric_total_count", { count: formatInt(stats.facturesTotal) }) },
+          { label: t("devis_30j_5132b47f"), value: formatInt(stats.devis30), subValue: t("metric_total_count", { count: formatInt(stats.devisTotal) }) },
         ]
       : [],
     inrcyActivityStats: {
@@ -603,15 +617,15 @@ export function buildMailCubeModel(stats: MailStatsSnapshot, period: Period): Cu
     qualityTone,
     insights: connected
       ? [
-          `Boîtes connectées : ${stats.connectedCount}/${stats.maxAccounts}.`,
-          `${fmtInt(contactsEmail)} contacts email exploitables pour vos actions mails.`,
-          `${fmtInt(stats.campagnes30)} campagnes sur 30 jours, ${fmtInt(stats.campagnesTotal)} au total.`,
-          `${fmtInt(stats.destinataires30)} destinataires touchés sur 30 jours, ${fmtInt(stats.destinatairesTotal)} au total.`,
-          `${fmtInt(stats.agendaReminders30)} rappels Agenda, ${fmtInt(stats.factures30)} factures et ${fmtInt(stats.devis30)} devis envoyés sur 30 jours.`,
+          t("mail_insight_connected_accounts", { count: stats.connectedCount, max: stats.maxAccounts }),
+          t("mail_insight_usable_contacts", { count: formatInt(contactsEmail) }),
+          t("mail_insight_campaigns", { month: formatInt(stats.campagnes30), total: formatInt(stats.campagnesTotal) }),
+          t("mail_insight_recipients", { month: formatInt(stats.destinataires30), total: formatInt(stats.destinatairesTotal) }),
+          t("mail_insight_documents", { reminders: formatInt(stats.agendaReminders30), invoices: formatInt(stats.factures30), quotes: formatInt(stats.devis30) }),
         ]
       : [
-          "Canal mail non connecté.",
-          "Connectez au moins une boîte d’envoi pour débloquer Fidéliser, Propulser et les mails simples.",
+          t("insight_mail_disconnected"),
+          t("mail_connect_to_unlock_tools"),
         ],
     action: recommendedAction,
   };
@@ -620,7 +634,11 @@ export function buildInrBadgeCubeModel(
   period: Period,
   stats: InrBadgeStatsSnapshot,
   options: { appointmentsEnabled?: boolean } = {},
+  locale = "fr-FR",
+  t?: StatsTranslator,
 ): CubeModel {
+  if (!t) throw new Error("buildInrBadgeCubeModel requires a stats translator");
+  const formatInt = (value: number) => fmtInt(value, locale);
   const appointmentsEnabled = options.appointmentsEnabled !== false;
   const action = (key: string) => normalizeInrBadgePeriodStats(stats.actionsByKey?.[key]);
   const views = normalizeInrBadgePeriodStats(stats.views);
@@ -630,46 +648,52 @@ export function buildInrBadgeCubeModel(
   const appointments = normalizeInrBadgePeriodStats(stats.appointments);
   const capturedLeads = normalizeCapturedLeads(stats.capturedLeads);
   const qualityScore = Math.max(0, Math.min(100, Math.round(safeNum(stats.qualityScore, 52))));
-  const qualityLabel = qualityScore >= 82 ? "Très actif" : qualityScore >= 68 ? "Actif" : qualityScore >= 55 ? "À booster" : "À lancer";
+  const qualityLabel = qualityScore >= 82
+    ? t("quality_very_active")
+    : qualityScore >= 68
+      ? t("quality_active")
+      : qualityScore >= 55
+        ? t("quality_to_boost")
+        : t("quality_to_launch");
   const qualityTone: CubeModel["qualityTone"] = qualityScore >= 82 ? "excellent" : qualityScore >= 68 ? "solid" : qualityScore >= 55 ? "ok" : "low";
   const opportunity30 = Math.max(0, Math.round(safeNum(stats.opportunity30)));
   const hasActivity = views.month > 0 || qrScans.month > 0 || actions.month > 0 || capturedLeads.month > 0;
 
   return {
     key: "inrbadge",
-    title: "iNr’Badge",
-    subtitle: "Hub de conversion",
-    accountLabel: stats.loading ? "Analyse..." : "Connecté",
+    title: t("inr_badge_e95acd12"),
+    subtitle: t("hub_de_conversion_2d028079"),
+    accountLabel: stats.loading ? t("analysis_status") : t("connecte_ce09957c"),
     period,
     loading: stats.loading,
     error: stats.error,
     connections: { main: true },
     provenance: [
-      { label: "Vues fiche", value: views.month, colorVar: "--cSocial" },
-      { label: "Scans QR", value: qrScans.month, colorVar: "--cDirect" },
-      { label: "Actions", value: actions.month, colorVar: "--cGoogle" },
+      { label: t("vues_fiche_6d715930"), value: views.month, colorVar: "--cSocial" },
+      { label: t("scans_qr_a36ab7c7"), value: qrScans.month, colorVar: "--cDirect" },
+      { label: t("actions_c3cd636a"), value: actions.month, colorVar: "--cGoogle" },
     ],
     provenanceHint: hasActivity
-      ? "Répartition réelle des vues, scans QR et clics iNr’Badge sur 30 jours."
-      : "Les statistiques réelles démarrent dès les prochaines visites de la fiche publique.",
+      ? t("badge_real_distribution_hint")
+      : t("badge_stats_start_hint"),
     opportunity30,
-    opportunityLabel: opportunity30 >= 18 ? "Fort potentiel" : opportunity30 >= 8 ? "Potentiel réel" : "Hub actif",
+    opportunityLabel: opportunity30 >= 18 ? t("opportunity_high") : opportunity30 >= 8 ? t("opportunity_real") : t("badge_hub_active"),
     capturedLeads,
     capturedLeadsHint: appointmentsEnabled
-      ? "Coordonnées transmises + demandes de RDV issues de votre iNr’Badge."
-      : "Coordonnées transmises depuis votre iNr’Badge.",
+      ? t("badge_leads_with_appointments_hint")
+      : t("badge_leads_hint"),
     visibilityStats: [
-      { label: "Fiche publique", value: "Active" },
-      { label: "Vues 30j", value: fmtInt(views.month), subValue: `${fmtInt(views.total)} au total` },
-      { label: "Scans QR 30j", value: fmtInt(qrScans.month), subValue: `${fmtInt(qrScans.total)} au total` },
-      { label: "CTA rapides", value: "Trackés" },
+      { label: t("fiche_publique_ddee72e7"), value: t("status_active_feminine") },
+      { label: t("vues_30j_af08848c"), value: formatInt(views.month), subValue: t("metric_total_count", { count: formatInt(views.total) }) },
+      { label: t("scans_qr_30j_d500cdba"), value: formatInt(qrScans.month), subValue: t("metric_total_count", { count: formatInt(qrScans.total) }) },
+      { label: t("cta_rapides_3195b9c7"), value: t("status_tracked_plural") },
     ],
     actionStats: [
-      { label: "Appels 30j", value: fmtInt(action("phone").month), subValue: `${fmtInt(action("phone").total)} au total` },
-      { label: "Mails 30j", value: fmtInt(action("mail").month), subValue: `${fmtInt(action("mail").total)} au total` },
-      { label: "Contacts 30j", value: fmtInt(leads.month), subValue: `${fmtInt(leads.total)} au total` },
+      { label: t("appels_30j_6785b4d1"), value: formatInt(action("phone").month), subValue: t("metric_total_count", { count: formatInt(action("phone").total) }) },
+      { label: t("mails_30j_f8e114bf"), value: formatInt(action("mail").month), subValue: t("metric_total_count", { count: formatInt(action("mail").total) }) },
+      { label: t("contacts_30j_d0475df5"), value: formatInt(leads.month), subValue: t("metric_total_count", { count: formatInt(leads.total) }) },
       appointmentsEnabled
-        ? { label: "RDV 30j", value: fmtInt(appointments.month), subValue: `${fmtInt(appointments.total)} au total` }
+        ? { label: t("rdv_30j_395436a0"), value: formatInt(appointments.month), subValue: t("metric_total_count", { count: formatInt(appointments.total) }) }
         : null,
     ].filter((item): item is NonNullable<typeof item> => item !== null),
     inrcyActivityStats: {
@@ -682,26 +706,26 @@ export function buildInrBadgeCubeModel(
     qualityTone,
     insights: hasActivity
       ? [
-          `${fmtInt(views.month)} vues de fiche sur 30 jours, dont ${fmtInt(views.week)} sur 7 jours.`,
-          `${fmtInt(qrScans.month)} scans QR et ${fmtInt(actions.month)} actions utiles sur 30 jours.`,
+          t("badge_insight_views", { month: formatInt(views.month), week: formatInt(views.week) }),
+          t("badge_insight_scans_actions", { scans: formatInt(qrScans.month), actions: formatInt(actions.month) }),
           appointmentsEnabled
-            ? `${fmtInt(capturedLeads.month)} demandes captées via coordonnées ou prise de RDV sur 30 jours.`
-            : `${fmtInt(capturedLeads.month)} contacts captés via votre iNr’Badge sur 30 jours.`,
+            ? t("badge_insight_leads_with_appointments", { count: formatInt(capturedLeads.month) })
+            : t("badge_insight_contacts", { count: formatInt(capturedLeads.month) }),
         ]
       : [
-          "Le tracking réel iNr’Badge est actif.",
+          t("badge_tracking_active"),
           appointmentsEnabled
-            ? "Les prochaines ouvertures, scans QR, clics, contacts et demandes de RDV remonteront ici."
-            : "Les prochaines ouvertures, scans QR, clics et contacts remonteront ici.",
-          "Diffusez le QR Code avec la version téléchargée depuis Configuration pour mesurer les scans.",
+            ? t("badge_future_activity_with_appointments")
+            : t("badge_future_activity"),
+          t("badge_share_downloaded_qr"),
         ],
     action: {
       key: "booster_promotion",
-      title: "Partager votre badge",
-      detail: "Diffusez votre fiche publique et votre QR Code pour générer plus d’actions utiles.",
+      title: t("partager_votre_badge_79a471a0"),
+      detail: t("badge_share_action_detail"),
       href: "/dashboard?panel=inrbadge",
-      pill: "Booster",
-      effort: { level: "faible", label: "Rapide" },
+      pill: t("booster_8e4caec0"),
+      effort: { level: "faible", label: t("rapide_ea7cac7d") },
     },
   };
 }
@@ -722,7 +746,8 @@ export function buildInrSearchOpportunity30(stats: InrSearchStatsSnapshot) {
   return Math.max(directContacts, Math.round(qualityBase + visibilityPotential + intentPotential));
 }
 
-export function buildInrSearchCubeModel(period: Period, stats: InrSearchStatsSnapshot): CubeModel {
+export function buildInrSearchCubeModel(period: Period, stats: InrSearchStatsSnapshot, locale: string, t: StatsTranslator): CubeModel {
+  const formatInt = (value: number) => fmtInt(value, locale);
   const actions = (key: string) => Math.max(0, Math.round(safeNum(stats.actionsByKey[key])));
   const engines = Math.max(0, Math.round(safeNum(stats.sources.google) + safeNum(stats.sources.bing)));
   const aiEngines = Math.max(0, Math.round(
@@ -736,47 +761,53 @@ export function buildInrSearchCubeModel(period: Period, stats: InrSearchStatsSna
   const opportunity30 = buildInrSearchOpportunity30(stats);
   const hasActivity = stats.views.month > 0 || stats.actions.month > 0;
   const qualityScore = Math.max(0, Math.min(100, Math.round(safeNum(stats.qualityScore))));
-  const qualityLabel = qualityScore >= 82 ? "Très complète" : qualityScore >= 68 ? "Solide" : qualityScore >= 50 ? "À enrichir" : "En préparation";
+  const qualityLabel = qualityScore >= 82
+    ? t("quality_very_complete")
+    : qualityScore >= 68
+      ? t("solide_ab31c54d")
+      : qualityScore >= 50
+        ? t("quality_to_enrich")
+        : t("quality_in_preparation");
   const qualityTone: CubeModel["qualityTone"] = qualityScore >= 82 ? "excellent" : qualityScore >= 68 ? "solid" : qualityScore >= 50 ? "ok" : "low";
 
   return {
     key: "inr_search",
-    title: "iNr’Search",
-    subtitle: "Votre page publique",
-    accountLabel: stats.loading ? "Analyse…" : stats.enabled ? (stats.pageTitle || "Page publiée") : "En préparation",
+    title: t("inr_search_48e0df93"),
+    subtitle: t("votre_page_publique_1adfbc96"),
+    accountLabel: stats.loading ? t("analysis_status") : stats.enabled ? (stats.pageTitle || t("page_publiee_1916dffd")) : t("quality_in_preparation"),
     period,
     loading: stats.loading,
     error: stats.error,
     connections: { main: stats.enabled },
     provenance: [
-      { label: "Google & Bing", value: engines, colorVar: "--cGoogle" },
-      { label: "Moteurs IA", value: aiEngines, colorVar: "--cSocial" },
-      { label: "Réseaux sociaux", value: social, colorVar: "--cDirect" },
-      { label: "Accès direct", value: direct, colorVar: "--cOther" },
+      { label: t("google_bing_eca554fe"), value: engines, colorVar: "--cGoogle" },
+      { label: t("moteurs_ia_8871c7ec"), value: aiEngines, colorVar: "--cSocial" },
+      { label: t("reseaux_sociaux_4b975571"), value: social, colorVar: "--cDirect" },
+      { label: t("acces_direct_6113899e"), value: direct, colorVar: "--cOther" },
     ],
     provenanceHint: hasActivity
-      ? "Origine réelle des visites de votre page iNr’Search sur les 30 derniers jours."
-      : "Les sources apparaîtront dès les premières visites de la page publique.",
+      ? t("search_real_sources_hint")
+      : t("search_sources_start_hint"),
     opportunity30,
-    opportunityLabel: opportunity30 > 0 ? "Potentiel estimé" : "Visibilité active",
+    opportunityLabel: opportunity30 > 0 ? t("search_estimated_potential") : t("search_active_visibility"),
     capturedLeads: {
       week: Math.max(0, Math.round(safeNum(stats.contactActions.week))),
       month: Math.max(0, Math.round(safeNum(stats.contactActions.month))),
     },
-    capturedLeadsHint: "Appels, emails et demandes envoyées depuis la page publique.",
+    capturedLeadsHint: t("appels_emails_et_demandes_envoyees_depuis_5f709355"),
     visibilityStats: [
-      { label: "Vues 7j", value: fmtInt(stats.views.week) },
-      { label: "Vues 30j", value: fmtInt(stats.views.month), subValue: `${fmtInt(stats.views.total)} au total` },
-      { label: "Actions 30j", value: fmtInt(stats.actions.month), subValue: `${fmtInt(stats.actions.total)} au total` },
-      { label: "Taux d’action", value: stats.views.month > 0 ? `${Math.round((stats.actions.month / stats.views.month) * 100)}%` : "0%" },
+      { label: t("vues_7j_e2181bf1"), value: formatInt(stats.views.week) },
+      { label: t("vues_30j_af08848c"), value: formatInt(stats.views.month), subValue: t("metric_total_count", { count: formatInt(stats.views.total) }) },
+      { label: t("actions_30j_d501b2d0"), value: formatInt(stats.actions.month), subValue: t("metric_total_count", { count: formatInt(stats.actions.total) }) },
+      { label: t("taux_d_action_918ffc16"), value: stats.views.month > 0 ? `${Math.round((stats.actions.month / stats.views.month) * 100)}%` : "0%" },
     ],
     actionStats: [
-      { label: "Appels 30j", value: fmtInt(actions("phone")) },
-      { label: "Demandes formulaire 30j", value: fmtInt(actions("lead_form")) },
-      { label: "Emails 30j", value: fmtInt(actions("email") + actions("faq_contact")) },
-      { label: "Visites du site 30j", value: fmtInt(actions("website")) },
-      { label: "Ouvertures iNr'Badge 30j", value: fmtInt(actions("inrbadge")) },
-      { label: "Itinéraires 30j", value: fmtInt(actions("directions")) },
+      { label: t("appels_30j_6785b4d1"), value: formatInt(actions("phone")) },
+      { label: t("demandes_formulaire_30j_2c7a5939"), value: formatInt(actions("lead_form")) },
+      { label: t("emails_30j_2ccce3e9"), value: formatInt(actions("email") + actions("faq_contact")) },
+      { label: t("visites_du_site_30j_22c30531"), value: formatInt(actions("website")) },
+      { label: t("ouvertures_inr_badge_30j_ae971174"), value: formatInt(actions("inrbadge")) },
+      { label: t("itineraires_30j_4bd37286"), value: formatInt(actions("directions")) },
     ],
     inrcyActivityStats: {
       publications: stats.views,
@@ -792,30 +823,30 @@ export function buildInrSearchCubeModel(period: Period, stats: InrSearchStatsSna
     qualityTone,
     insights: hasActivity
       ? [
-          `${fmtInt(stats.views.month)} vues sur 30 jours, dont ${fmtInt(stats.views.week)} sur 7 jours.`,
-          `${fmtInt(stats.actions.month)} actions utiles et un potentiel estimé de ${fmtInt(opportunity30)} opportunités sur 30 jours.`,
-          stats.topSource ? `Première source de trafic : ${stats.topSource.key}.` : "Les sources de trafic sont mesurées automatiquement.",
+          t("search_insight_views", { month: formatInt(stats.views.month), week: formatInt(stats.views.week) }),
+          t("search_insight_actions_potential", { actions: formatInt(stats.actions.month), opportunities: formatInt(opportunity30) }),
+          stats.topSource ? t("search_insight_top_source", { source: stats.topSource.key }) : t("search_insight_sources_automatic"),
         ]
       : [
-          stats.enabled ? "La page iNr’Search est publiée et son suivi statistique est actif." : "La page iNr’Search est en préparation.",
-          "Les vues, sources, appels, emails et clics remonteront automatiquement dans iNr’Stats.",
+          stats.enabled ? t("search_page_tracking_active") : t("search_page_in_preparation"),
+          t("search_future_activity"),
         ],
     action: stats.enabled && stats.publicUrl
       ? {
           key: "booster_publier",
-          title: "Publier sur iNr’Search",
-          detail: "Diffusez une actualité web dédiée sur la page publique depuis Booster.",
+          title: t("publier_sur_inr_search_31302b2a"),
+          detail: t("search_publish_action_detail"),
           href: "/dashboard?action=publish",
-          pill: "Booster",
-          effort: { level: "faible", label: "Rapide" },
+          pill: t("booster_8e4caec0"),
+          effort: { level: "faible", label: t("rapide_ea7cac7d") },
         }
       : {
           key: "connect",
-          title: "Page en préparation",
-          detail: "iNrCy publiera automatiquement la page dès que l’identité de l’entreprise sera disponible.",
+          title: t("page_en_preparation_4f41e9fc"),
+          detail: t("search_auto_publish_detail"),
           href: "/dashboard?panel=inr_search",
-          pill: "Connexion",
-          effort: { level: "faible", label: "Automatique" },
+          pill: t("connexion_a33c58f5"),
+          effort: { level: "faible", label: t("automatique_f8a3c37b") },
         },
   };
 }

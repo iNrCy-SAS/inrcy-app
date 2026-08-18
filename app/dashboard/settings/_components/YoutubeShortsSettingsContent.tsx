@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import { resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -204,6 +207,7 @@ function emitDashboardUpdate(settings: YoutubeShortsSettings) {
 }
 
 export default function YoutubeShortsSettingsContent({ onUnsavedChange }: { onUnsavedChange?: (hasUnsavedChanges: boolean) => void }) {
+  const i18nT = useTranslations("settings");
   const [settings, setSettings] = useState<YoutubeShortsSettings>(DEFAULT_SETTINGS);
   const settingsBaselineRef = useRef("");
   const [loading, setLoading] = useState(true);
@@ -229,7 +233,7 @@ export default function YoutubeShortsSettingsContent({ onUnsavedChange }: { onUn
       emitDashboardUpdate(nextSettings);
     } catch (err) {
       console.warn("[youtube-shorts-settings] status failed", err);
-      setError("Chargement de la connexion YouTube impossible.");
+      setError(i18nT("chargement_de_la_connexion_youtube_impossible_c09a1176"));
     } finally {
       setLoading(false);
     }
@@ -249,7 +253,7 @@ export default function YoutubeShortsSettingsContent({ onUnsavedChange }: { onUn
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     if (params.get("linked") !== "youtube_shorts") return;
-    if (params.get("ok") === "1") setNotice("Chaîne YouTube connectée.");
+    if (params.get("ok") === "1") setNotice(i18nT("chaine_youtube_connectee_29fa0e53"));
     if (params.get("ok") === "0") setError(params.get("message") || "Connexion YouTube impossible.");
   }, []);
 
@@ -287,10 +291,10 @@ export default function YoutubeShortsSettingsContent({ onUnsavedChange }: { onUn
       settingsBaselineRef.current = JSON.stringify(nextSettings);
       onUnsavedChange?.(false);
       emitDashboardUpdate(nextSettings);
-      setNotice("Réglages YouTube enregistrés.");
+      setNotice(i18nT("reglages_youtube_enregistres_f74dc0ab"));
     } catch (err) {
       console.warn("[youtube-shorts-settings] save failed", err);
-      setError("Enregistrement des réglages YouTube impossible.");
+      setError(i18nT("enregistrement_des_reglages_youtube_impossible_a3106df5"));
     } finally {
       setSaving(false);
     }
@@ -315,10 +319,10 @@ export default function YoutubeShortsSettingsContent({ onUnsavedChange }: { onUn
       settingsBaselineRef.current = JSON.stringify(nextSettings);
       onUnsavedChange?.(false);
       emitDashboardUpdate(nextSettings);
-      setNotice("Chaîne YouTube déconnectée.");
+      setNotice(i18nT("chaine_youtube_deconnectee_2b548afe"));
     } catch (err) {
       console.warn("[youtube-shorts-settings] disconnect failed", err);
-      setError("Déconnexion YouTube impossible.");
+      setError(i18nT("deconnexion_youtube_impossible_76706752"));
     } finally {
       setSaving(false);
     }
@@ -347,24 +351,22 @@ export default function YoutubeShortsSettingsContent({ onUnsavedChange }: { onUn
           }}
         >
           <span aria-hidden style={{ width: 8, height: 8, borderRadius: 999, background: statusColor }} />
-          Statut : <strong>{statusLabel}</strong>
+          {i18nT("statut_b20e7fc2")}{" "}<strong>{statusLabel}</strong>
         </span>
       </div>
 
       {loading ? (
         <div style={{ border: "1px solid rgba(125,211,252,0.18)", background: "rgba(14,165,233,0.08)", borderRadius: 12, padding: "10px 12px", color: "rgba(224,242,254,0.96)", fontSize: 13 }}>
-          Chargement de la connexion YouTube...
-        </div>
+          {i18nT("chargement_de_la_connexion_youtube_f58580a0")}{" "}</div>
       ) : null}
 
       <div style={cardStyle}>
         <div className={styles.blockHeaderRow}>
-          <div className={styles.blockTitle}>Compte YouTube</div>
+          <div className={styles.blockTitle}>{i18nT("compte_youtube_dad8e6eb")}</div>
           <ConnectionPill connected={connected} />
         </div>
         <div className={styles.blockSub}>
-          Le professionnel autorise iNrCy à publier ses vidéos sur sa chaîne YouTube depuis Booster.
-        </div>
+          {i18nT("le_professionnel_autorise_inrcy_a_publier_70c0c2bc")}{" "}</div>
 
         <input
           value={connected ? (settings.channelName || settings.channelHandle || "Chaîne YouTube connectée") : ""}
@@ -375,22 +377,21 @@ export default function YoutubeShortsSettingsContent({ onUnsavedChange }: { onUn
 
         {connected ? (
           <div style={{ color: "rgba(226,232,240,0.86)", fontSize: 12 }}>
-            Compte utilisé : <strong>{settings.accountEmail || "Compte Google connecté"}</strong>
+            {i18nT("compte_utilise_7b6629db")}{" "}<strong>{settings.accountEmail || i18nT("compte_google_connecte_38f3b9c6")}</strong>
           </div>
         ) : null}
 
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           {!connected ? (
             <button type="button" className={`${styles.actionBtn} ${styles.connectBtn}`} onClick={connectYoutube} disabled={saving || loading}>
-              {saving ? "Connexion..." : "Connecter YouTube"}
+              {saving ? i18nT("connexion_7adf849f") : i18nT("connecter_youtube_b64d7544")}
             </button>
           ) : (
             <>
               <button type="button" className={`${styles.actionBtn} ${styles.secondaryBtn}`} onClick={connectYoutube} disabled={saving || loading}>
-                Reconnecter YouTube
-              </button>
+                {i18nT("reconnecter_youtube_c66fd70d")}{" "}</button>
               <button type="button" className={`${styles.actionBtn} ${styles.disconnectBtn}`} onClick={() => void disconnectYoutube()} disabled={saving || loading}>
-                {saving ? "Déconnexion..." : "Déconnecter"}
+                {saving ? i18nT("deconnexion_f5a5666d") : i18nT("deconnecter_9c1ef392")}
               </button>
             </>
           )}
@@ -399,12 +400,11 @@ export default function YoutubeShortsSettingsContent({ onUnsavedChange }: { onUn
 
       <div style={cardStyle}>
         <div className={styles.blockHeaderRow}>
-          <div className={styles.blockTitle}>Lien de la chaîne</div>
+          <div className={styles.blockTitle}>{i18nT("lien_de_la_chaine_815204fe")}</div>
           <ConnectionPill connected={Boolean(connected && settings.channelUrl?.trim())} />
         </div>
         <div className={styles.blockSub}>
-          Lien public utilisé pour le bouton <strong>Voir la chaîne</strong> dans la bulle du dashboard.
-        </div>
+          {i18nT("lien_public_utilise_pour_le_bouton_e782e367")}{" "}<strong>{i18nT("voir_la_chaine_3c999e92")}</strong> {" "}{i18nT("dans_la_bulle_du_dashboard_689d3e85")}{" "}</div>
 
         <div style={{ display: "grid", gap: 10 }}>
           <input
@@ -416,7 +416,7 @@ export default function YoutubeShortsSettingsContent({ onUnsavedChange }: { onUn
 
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <button type="button" className={`${styles.actionBtn} ${styles.connectBtn}`} onClick={() => void saveSettings()} disabled={saving || loading}>
-              {saving ? "Enregistrement..." : "Enregistrer"}
+              {saving ? i18nT("enregistrement_9bf1058a") : i18nT("enregistrer_f7c8bcd8")}
             </button>
             <a
               href={settings.channelUrl || "#"}
@@ -425,19 +425,17 @@ export default function YoutubeShortsSettingsContent({ onUnsavedChange }: { onUn
               className={`${styles.actionBtn} ${styles.viewBtn}`}
               style={{ pointerEvents: settings.channelUrl ? "auto" : "none", opacity: settings.channelUrl ? 1 : 0.5 }}
             >
-              Voir la chaîne
-            </a>
+              {i18nT("voir_la_chaine_3c999e92")}{" "}</a>
           </div>
         </div>
       </div>
 
       <div style={cardStyle}>
         <div className={styles.blockHeaderRow}>
-          <div className={styles.blockTitle}>Réglages YouTube par défaut</div>
+          <div className={styles.blockTitle}>{i18nT("reglages_youtube_par_defaut_1426d0d1")}</div>
         </div>
         <div className={styles.blockSub}>
-          Ces préférences serviront dans Booster pour préparer la publication YouTube avant validation finale.
-        </div>
+          {i18nT("ces_preferences_serviront_dans_booster_pour_2d5a6e2f")}{" "}</div>
 
         <div
           style={{
@@ -450,27 +448,26 @@ export default function YoutubeShortsSettingsContent({ onUnsavedChange }: { onUn
             lineHeight: 1.45,
           }}
         >
-          iNrCy publie vos vidéos sur <strong>YouTube</strong>. Si la vidéo est courte et adaptée, YouTube peut l’afficher au format court ; sinon elle reste une vidéo classique.
-        </div>
+          {i18nT("inrcy_publie_vos_videos_sur_fefeedf5")}{" "}<strong>{i18nT("youtube_558865a1")}</strong>{i18nT("si_la_video_est_courte_et_0b9de2b1")}{" "}</div>
 
         <div style={{ display: "grid", gap: 10 }}>
           <label style={{ display: "grid", gap: 6 }}>
-            <span className={styles.blockSub} style={{ opacity: 0.92 }}>Visibilité par défaut</span>
+            <span className={styles.blockSub} style={{ opacity: 0.92 }}>{i18nT("visibilite_par_defaut_68ad92d8")}</span>
             <select value={settings.defaultVisibility} onChange={(event) => patchSettings({ defaultVisibility: event.target.value as YoutubeShortsSettings["defaultVisibility"] })} style={selectStyle}>
-              <option value="public">Public</option>
-              <option value="unlisted">Non répertorié</option>
-              <option value="private">Privé</option>
+              <option value="public">{i18nT("public_dc5eb704")}</option>
+              <option value="unlisted">{i18nT("non_repertorie_42775da7")}</option>
+              <option value="private">{i18nT("prive_6e735639")}</option>
             </select>
           </label>
 
           <div style={switchRowStyle}>
-            <PreferenceToggle label="Hashtags automatiques" checked={settings.autoHashtags} onChange={(autoHashtags) => patchSettings({ autoHashtags })} />
-            <PreferenceToggle label="Contenu destiné aux enfants" checked={settings.madeForKids} onChange={(madeForKids) => patchSettings({ madeForKids })} />
+            <PreferenceToggle label={i18nT("hashtags_automatiques_49295275")} checked={settings.autoHashtags} onChange={(autoHashtags) => patchSettings({ autoHashtags })} />
+            <PreferenceToggle label={i18nT("contenu_destine_aux_enfants_e07f8415")} checked={settings.madeForKids} onChange={(madeForKids) => patchSettings({ madeForKids })} />
           </div>
 
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <button type="button" className={`${styles.actionBtn} ${styles.connectBtn}`} onClick={() => void saveSettings()} disabled={saving || loading}>
-              {saving ? "Enregistrement..." : "Enregistrer mes réglages"}
+              {saving ? i18nT("enregistrement_9bf1058a") : i18nT("enregistrer_mes_reglages_ec1b1b65")}
             </button>
           </div>
         </div>

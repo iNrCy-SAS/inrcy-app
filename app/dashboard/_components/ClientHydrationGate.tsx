@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 
@@ -9,6 +12,7 @@ type ClientHydrationGateProps = {
 };
 
 export function StableBootScreen({ label = "Chargement de votre espace iNrCy..." }: { label?: string }) {
+  const i18nT = useTranslations("shell");
   return (
     <main
       aria-busy="true"
@@ -42,7 +46,7 @@ export function StableBootScreen({ label = "Chargement de votre espace iNrCy..."
           backdropFilter: "blur(16px)",
         }}
       >
-        <div style={{ fontSize: "28px", fontWeight: 900, marginBottom: "8px" }}>iNrCy</div>
+        <div style={{ fontSize: "28px", fontWeight: 900, marginBottom: "8px" }}>{i18nT("inrcy_ef95fe0e")}</div>
         <div style={{ fontSize: "14px", lineHeight: 1.45, color: "rgba(255,255,255,.78)", fontWeight: 700 }}>{label}</div>
       </div>
     </main>

@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import HelpModal from "./HelpModal";
 import type { DashboardEdition } from "@/lib/dashboardEdition";
 
@@ -23,21 +26,21 @@ type DashboardHelpModalsProps = {
 };
 
 type InertiaHelpRow = {
-  a: string;
+  aKey: string;
   g: string;
   f: string;
   premiumOnly?: boolean;
 };
 
 const INERTIA_ROWS: InertiaHelpRow[] = [
-  { a: "Ouverture du compte", g: "+50 UI", f: "1 fois" },
-  { a: "Compléter Mon profil", g: "+100 UI", f: "1 fois" },
-  { a: "Compléter Mon activité", g: "+100 UI", f: "1 fois" },
-  { a: "Utiliser Booster", g: "+10 UI", f: "1 publication / semaine" },
-  { a: "Utiliser Propulser", g: "+10 UI", f: "1 action / semaine", premiumOnly: true },
-  { a: "Utiliser Fidéliser", g: "+10 UI", f: "1 action / semaine", premiumOnly: true },
+  { aKey: "ouverture_du_compte_6a19938f", g: "+50 UI", f: "1 fois" },
+  { aKey: "completer_mon_profil_11c8cb2b", g: "+100 UI", f: "1 fois" },
+  { aKey: "completer_mon_activite_5961359c", g: "+100 UI", f: "1 fois" },
+  { aKey: "utiliser_booster_6138c57d", g: "+10 UI", f: "1 publication / semaine" },
+  { aKey: "utiliser_propulser_c4b4b56d", g: "+10 UI", f: "1 action / semaine", premiumOnly: true },
+  { aKey: "utiliser_fideliser_af919842", g: "+10 UI", f: "1 action / semaine", premiumOnly: true },
   {
-    a: "Ancienneté",
+    aKey: "anciennete_166e0461",
     g: "+50 UI",
     f: "1re fois au 30e jour, puis tous les 30 jours",
   },
@@ -61,13 +64,14 @@ export default function DashboardHelpModals({
   onCloseFacebook,
   onCloseInstagram,
 }: DashboardHelpModalsProps) {
+  const i18nT = useTranslations("shell");
   const standardMode = edition === "standard";
 
   return (
     <>
       <HelpModal
         open={helpGeneratorOpen}
-        title="Générateur iNrCy"
+        title={i18nT("generateur_inrcy_3882fff4")}
         onClose={onCloseGenerator}
       >
         <div
@@ -85,32 +89,21 @@ export default function DashboardHelpModals({
           }}
         >
           <p style={{ marginTop: 0, fontSize: 15.5, lineHeight: 1.8 }}>
-            Le Générateur iNrCy centralise vos canaux et vos outils de
-            communication afin de développer votre visibilité, attirer de
-            nouveaux contacts et stimuler votre activité.
-          </p>
+            {i18nT("le_generateur_inrcy_centralise_vos_canaux_7e8b377d")}{" "}</p>
 
           <div style={{ display: "grid", gap: 22 }}>
             <div>
               <div
                 style={{ fontWeight: 700, color: "#66d9ff", marginBottom: 10 }}
               >
-                ⚡ Unités d’Inertie
-              </div>
+                {i18nT("unites_d_inertie_4d7ed5c6")}{" "}</div>
               <div style={{ opacity: 0.96, lineHeight: 1.75, fontSize: 14.5 }}>
                 {standardMode ? (
                   <>
-                    Points générés par votre activité et vos publications avec
-                    Booster. Plus vous publiez régulièrement, plus vous accumulez
-                    d’Unités d’Inertie utilisables dans la Boutique iNrCy.
-                  </>
+                    {i18nT("points_generes_par_votre_activite_et_93e1c500")}{" "}</>
                 ) : (
                   <>
-                    Points générés par votre activité et votre communication sur
-                    iNrCy (Booster, Propulser, Fidéliser, publications et actions
-                    hebdo). Plus votre générateur est actif, plus vous accumulez
-                    d’Unités d’Inertie utilisables dans la Boutique iNrCy.
-                  </>
+                    {i18nT("points_generes_par_votre_activite_et_a4e9014c")}{" "}</>
                 )}
               </div>
             </div>
@@ -119,52 +112,32 @@ export default function DashboardHelpModals({
               <div
                 style={{ fontWeight: 700, color: "#ff9ad5", marginBottom: 10 }}
               >
-                💰 CA potentiel 30 jours
-              </div>
+                {i18nT("ca_potentiel_30_jours_7325dfe0")}{" "}</div>
               <div style={{ opacity: 0.96, lineHeight: 1.75, fontSize: 14.5 }}>
-                Estimation du chiffre d’affaires pouvant être généré dans les 30
-                prochains jours selon votre activité, vos canaux et votre
-                dynamique de communication.
-              </div>
+                {i18nT("estimation_du_chiffre_d_affaires_pouvant_cb2212ef")}{" "}</div>
             </div>
 
             <div>
               <div
                 style={{ fontWeight: 700, color: "#7df7c4", marginBottom: 10 }}
               >
-                📈 Demandes captées
-              </div>
+                {i18nT("demandes_captees_369d1ff6")}{" "}</div>
               <div style={{ opacity: 0.96, lineHeight: 1.75, fontSize: 14.5 }}>
-                Analyse business des statistiques réelles de vos canaux sur les
-                7 et 30 derniers jours. Appels, clics, itinéraires, visites
-                engagées, formulaires ou prises de contact : iNrCy identifie les
-                contacts sérieux générés grâce à la qualité de vos canaux et aux
-                actions de communication réalisées.
-              </div>
+                {i18nT("analyse_business_des_statistiques_reelles_de_a51ff55a")}{" "}</div>
             </div>
 
             <div>
               <div
                 style={{ fontWeight: 700, color: "#ffd36f", marginBottom: 10 }}
               >
-                🚀 Opportunités activables
-              </div>
+                {i18nT("opportunites_activables_253f4140")}{" "}</div>
               <div style={{ opacity: 0.96, lineHeight: 1.75, fontSize: 14.5 }}>
                 {standardMode ? (
                   <>
-                    Contacts supplémentaires pouvant être générés en publiant
-                    régulièrement avec Booster et en maintenant vos canaux actifs.
-                    Chaque opportunité représente une nouvelle demande potentielle
-                    à capter via votre communication multicanale.
-                  </>
+                    {i18nT("contacts_supplementaires_pouvant_etre_generes_en_12d3fa24")}{" "}</>
                 ) : (
                   <>
-                    Contacts supplémentaires pouvant être générés grâce aux actions
-                    recommandées dans iNrCy : publier avec Booster, développer avec
-                    Propulser ou entretenir la relation avec Fidéliser. Chaque
-                    opportunité activable représente une nouvelle demande
-                    potentielle à capter via vos canaux de communication.
-                  </>
+                    {i18nT("contacts_supplementaires_pouvant_etre_generes_gr_207bdb80")}{" "}</>
                 )}
               </div>
             </div>
@@ -182,15 +155,13 @@ export default function DashboardHelpModals({
               opacity: 0.95,
             }}
           >
-            Les données affichées sont calculées automatiquement à partir de
-            l’activité détectée sur vos canaux et dans votre générateur iNrCy.
-          </div>
+            {i18nT("les_donnees_affichees_sont_calculees_automatique_ee4f1d05")}{" "}</div>
         </div>
       </HelpModal>
 
       <HelpModal
         open={helpCanauxOpen}
-        title="Canaux iNrCy"
+        title={i18nT("canaux_inrcy_527346d9")}
         onClose={onCloseCanaux}
       >
         <div
@@ -217,11 +188,7 @@ export default function DashboardHelpModals({
               overflowWrap: "anywhere",
             }}
           >
-            Les canaux iNrCy représentent vos différents leviers de diffusion :
-            ils rendent votre entreprise visible, partagent vos contenus,
-            diffusent votre carte de visite digitale et alimentent votre
-            générateur en signaux utiles.
-          </p>
+            {i18nT("les_canaux_inrcy_representent_vos_differents_dcda7bb8")}{" "}</p>
 
           <div style={{ display: "grid", gap: 20, maxWidth: "100%", minWidth: 0 }}>
             <section
@@ -238,8 +205,7 @@ export default function DashboardHelpModals({
               <div
                 style={{ fontWeight: 800, color: "#66d9ff", marginBottom: 6 }}
               >
-                📡 Tous vos canaux de diffusion
-              </div>
+                {i18nT("tous_vos_canaux_de_diffusion_cd4e685a")}{" "}</div>
               <p
                 style={{
                   margin: "0 0 14px",
@@ -249,8 +215,8 @@ export default function DashboardHelpModals({
                 }}
               >
                 {standardMode
-                  ? "Ils diffusent votre présence, vos publications, votre carte de visite digitale ou vos contenus courts sur les supports utiles à votre activité."
-                  : "Ils diffusent votre présence, vos publications, vos campagnes, votre carte de visite digitale ou vos contenus courts sur les supports utiles à votre activité."}
+                  ? i18nT("ils_diffusent_votre_presence_vos_publications_f90cfdd8")
+                  : i18nT("ils_diffusent_votre_presence_vos_publications_3e703a66")}
               </p>
               <div
                 style={{
@@ -272,56 +238,56 @@ export default function DashboardHelpModals({
                     icon: "🌐",
                     name: "Site iNrCy",
                     color: "#66d9ff",
-                    text: "Votre machine à leads intelligente. Disponible avec un site créé par iNrCy, il remonte automatiquement les statistiques et publications Booster dans votre générateur.",
+                    text: i18nT("votre_machine_a_leads_intelligente_disponible_2e4e9670"),
                     requiresSiteSubscription: true,
                   },
                   {
                     icon: "🖥️",
                     name: "Site web",
                     color: "#ff9ad5",
-                    text: "Relie votre site actuel à iNrCy. Ajoutez l’URL, connectez Analytics / Search Console et intégrez l’iframe pour analyser les performances et afficher vos publications.",
+                    text: i18nT("relie_votre_site_actuel_a_inrcy_19e0b1ac"),
                   },
                   {
                     icon: "📍",
                     name: "Google Business",
                     color: "#7df7c4",
-                    text: "Développe votre visibilité locale avec les appels, clics, itinéraires, interactions et avis. La fiche Google alimente automatiquement vos statistiques.",
+                    text: i18nT("developpe_votre_visibilite_locale_avec_les_a4382f02"),
                   },
                   {
                     icon: "📘",
                     name: "Facebook",
                     color: "#ffd36f",
-                    text: "Diffuse votre activité, développe l’engagement et permet de publier puis analyser vos performances depuis iNrCy.",
+                    text: i18nT("diffuse_votre_activite_developpe_l_engagement_e2d135e3"),
                   },
                   {
                     icon: "📸",
                     name: "Instagram",
                     color: "#d6a4ff",
-                    text: "Renforce votre image de marque avec vos contenus visuels et l’engagement généré par vos publications.",
+                    text: i18nT("renforce_votre_image_de_marque_avec_3a9094b4"),
                   },
                   {
                     icon: "💼",
                     name: "LinkedIn",
                     color: "#89c6ff",
-                    text: "Développe votre visibilité professionnelle et votre réseau business avec des contenus adaptés à votre activité.",
+                    text: i18nT("developpe_votre_visibilite_professionnelle_et_vo_03493360"),
                   },
                   {
                     icon: "🎵",
                     name: "TikTok",
                     color: "#ff8bbd",
-                    text: "Diffuse vos contenus courts et vidéos pour renforcer votre visibilité quand le canal est activé.",
+                    text: i18nT("diffuse_vos_contenus_courts_et_videos_e7119e4a"),
                   },
                   {
                     icon: "▶️",
                     name: "YouTube",
                     color: "#ff6b6b",
-                    text: "Diffuse vos vidéos courtes ou longues sur YouTube pour donner plus de portée à vos contenus rapides, démonstrations et actualités terrain.",
+                    text: i18nT("diffuse_vos_videos_courtes_ou_longues_0795ce8f"),
                   },
                   {
                     icon: "✉️",
                     name: "Mails",
                     color: "#9ee7ff",
-                    text: "Diffuse vos campagnes, fidélisations et communications CRM depuis les boîtes mail connectées.",
+                    text: i18nT("diffuse_vos_campagnes_fidelisations_et_communica_30ef2d48"),
                     premiumOnly: true,
                   },
                 ].map((channel) => {
@@ -359,7 +325,7 @@ export default function DashboardHelpModals({
                             color: "#fff",
                           }}
                         >
-                          {premiumLocked ? "Pack Premium" : "Non souscrit"}
+                          {premiumLocked ? i18nT("pack_premium_282f98ef") : i18nT("non_souscrit_fb632cc2")}
                         </span>
                       ) : null}
                     </div>
@@ -389,8 +355,8 @@ export default function DashboardHelpModals({
             }}
           >
             {standardMode
-              ? "Plus vos canaux de diffusion sont actifs, connectés et alimentés par Booster, plus le générateur augmente sa capacité à attirer et analyser de nouveaux contacts."
-              : "Plus vos canaux de diffusion sont actifs, connectés et alimentés par Booster, Propulser ou Fidéliser, plus le générateur augmente sa capacité à attirer, analyser et convertir de nouveaux contacts."}
+              ? i18nT("plus_vos_canaux_de_diffusion_sont_a947930b")
+              : i18nT("plus_vos_canaux_de_diffusion_sont_a95a7824")}
           </div>
         </div>
         </div>
@@ -398,7 +364,7 @@ export default function DashboardHelpModals({
 
       <HelpModal
         open={helpFacebookOpen}
-        title="Connexion Facebook"
+        title={i18nT("connexion_facebook_9d2d340c")}
         onClose={onCloseFacebook}
       >
         <div
@@ -420,12 +386,8 @@ export default function DashboardHelpModals({
               lineHeight: 1.75,
             }}
           >
-            Pour connecter Facebook à iNrCy, utilisez le{" "}
-            <strong>compte Facebook personnel</strong> qui possède les droits
-            sur votre <strong>Page Facebook professionnelle</strong>. iNrCy ne
-            publie pas sur votre profil personnel : ce compte sert uniquement à
-            accéder à la Page de votre entreprise.
-          </p>
+            {i18nT("pour_connecter_facebook_a_inrcy_utilisez_930a6ffc")}{" "}
+            <strong>{i18nT("compte_facebook_personnel_aa2b9d94")}</strong> {" "}{i18nT("qui_possede_les_droits_sur_votre_dae928a0")}{" "}<strong>{i18nT("page_facebook_professionnelle_bc97c28e")}</strong>{i18nT("inrcy_ne_publie_pas_sur_votre_418c9a4e")}{" "}</p>
 
           <div style={{ display: "grid", gap: 16 }}>
             <div
@@ -439,8 +401,7 @@ export default function DashboardHelpModals({
               <div
                 style={{ fontWeight: 800, color: "#66d9ff", marginBottom: 10 }}
               >
-                ✅ Configuration correcte
-              </div>
+                {i18nT("configuration_correcte_22f525e3")}{" "}</div>
               <ol
                 style={{
                   margin: 0,
@@ -450,16 +411,16 @@ export default function DashboardHelpModals({
                 }}
               >
                 <li>
-                  Vous avez un <strong>compte Facebook personnel</strong>.
+                  {i18nT("vous_avez_un_69258d0a")}{" "}<strong>{i18nT("compte_facebook_personnel_aa2b9d94")}</strong>.
                 </li>
                 <li>
-                  Ce compte gère une{" "}
-                  <strong>Page Facebook professionnelle</strong>.
+                  {i18nT("ce_compte_gere_une_58e15d90")}{" "}
+                  <strong>{i18nT("page_facebook_professionnelle_bc97c28e")}</strong>.
                 </li>
-                <li>Vous connectez ce compte Facebook à iNrCy.</li>
+                <li>{i18nT("vous_connectez_ce_compte_facebook_a_ef8626a5")}</li>
                 <li>
-                  Vous sélectionnez ensuite la bonne{" "}
-                  <strong>Page professionnelle</strong>.
+                  {i18nT("vous_selectionnez_ensuite_la_bonne_14661ff2")}{" "}
+                  <strong>{i18nT("page_professionnelle_9a3b53ce")}</strong>.
                 </li>
               </ol>
             </div>
@@ -475,8 +436,7 @@ export default function DashboardHelpModals({
               <div
                 style={{ fontWeight: 800, color: "#ff9ad5", marginBottom: 10 }}
               >
-                📘 Créer une Page professionnelle
-              </div>
+                {i18nT("creer_une_page_professionnelle_dbfc09f4")}{" "}</div>
               <ol
                 style={{
                   margin: 0,
@@ -486,22 +446,18 @@ export default function DashboardHelpModals({
                 }}
               >
                 <li>
-                  Ouvrez Facebook avec votre <strong>compte personnel</strong>.
+                  {i18nT("ouvrez_facebook_avec_votre_d2e26aa2")}{" "}<strong>{i18nT("compte_personnel_a017c87e")}</strong>.
                 </li>
                 <li>
-                  Allez dans <strong>Pages</strong>.
+                  {i18nT("allez_dans_7695bb57")}{" "}<strong>{i18nT("pages_600584c2")}</strong>.
                 </li>
                 <li>
-                  Cliquez sur <strong>Créer une Page</strong>.
+                  {i18nT("cliquez_sur_487bfa49")}{" "}<strong>{i18nT("creer_une_page_e1c32b3b")}</strong>.
                 </li>
                 <li>
-                  Ajoutez le nom de l’entreprise, la catégorie et les
-                  informations.
-                </li>
+                  {i18nT("ajoutez_le_nom_de_l_entreprise_9eb80590")}{" "}</li>
                 <li>
-                  Vérifiez qu’il s’agit bien d’une <strong>Page</strong>, pas
-                  d’un profil personnel.
-                </li>
+                  {i18nT("verifiez_qu_il_s_agit_bien_2b02e668")}{" "}<strong>{i18nT("page_fb06270f")}</strong>{i18nT("pas_d_un_profil_personnel_6a68ad03")}{" "}</li>
               </ol>
             </div>
           </div>
@@ -518,17 +474,13 @@ export default function DashboardHelpModals({
               opacity: 0.98,
             }}
           >
-            Attention : si votre “page entreprise” a des amis au lieu d’abonnés
-            ou de mentions J’aime, il s’agit probablement d’un profil personnel
-            mal configuré. Dans ce cas, iNrCy ne pourra pas l’utiliser comme
-            Page professionnelle.
-          </div>
+            {i18nT("attention_si_votre_page_entreprise_a_46904e09")}{" "}</div>
         </div>
       </HelpModal>
 
       <HelpModal
         open={helpInstagramOpen}
-        title="Connexion Instagram"
+        title={i18nT("connexion_instagram_d099afc4")}
         onClose={onCloseInstagram}
       >
         <div
@@ -550,12 +502,9 @@ export default function DashboardHelpModals({
               lineHeight: 1.75,
             }}
           >
-            Pour connecter Instagram à iNrCy, votre compte Instagram doit être{" "}
-            <strong>professionnel</strong> : Business ou Creator. Il doit
-            ensuite être relié à une{" "}
-            <strong>Page Facebook professionnelle</strong> accessible par votre
-            compte Facebook ou votre portefeuille Meta Business.
-          </p>
+            {i18nT("pour_connecter_instagram_a_inrcy_votre_27670a2a")}{" "}
+            <strong>professionnel</strong> {" "}{i18nT("business_ou_creator_il_doit_ensuite_4a6daae0")}{" "}
+            <strong>{i18nT("page_facebook_professionnelle_bc97c28e")}</strong> {" "}{i18nT("accessible_par_votre_compte_facebook_ou_1bd82c63")}{" "}</p>
 
           <div style={{ display: "grid", gap: 16 }}>
             <div
@@ -569,8 +518,7 @@ export default function DashboardHelpModals({
               <div
                 style={{ fontWeight: 800, color: "#66d9ff", marginBottom: 10 }}
               >
-                📸 Passer Instagram en compte professionnel
-              </div>
+                {i18nT("passer_instagram_en_compte_professionnel_1f09cd23")}{" "}</div>
               <ol
                 style={{
                   margin: 0,
@@ -580,23 +528,23 @@ export default function DashboardHelpModals({
                 }}
               >
                 <li>
-                  Ouvrez Instagram, puis allez sur votre <strong>profil</strong>
+                  {i18nT("ouvrez_instagram_puis_allez_sur_votre_bf9f7ed4")}{" "}<strong>profil</strong>
                   .
                 </li>
                 <li>
-                  Ouvrez le menu <strong>☰</strong>, puis{" "}
-                  <strong>Paramètres et activité</strong>.
+                  {i18nT("ouvrez_le_menu_8b3c2847")}{" "}<strong>☰</strong>{i18nT("puis_177b56f0")}{" "}
+                  <strong>{i18nT("parametres_et_activite_f117985c")}</strong>.
                 </li>
                 <li>
-                  Cherchez <strong>Type de compte et outils</strong> ou{" "}
-                  <strong>Outils professionnels</strong>.
+                  {i18nT("cherchez_c01086b1")}{" "}<strong>{i18nT("type_de_compte_et_outils_3d938170")}</strong> ou{" "}
+                  <strong>{i18nT("outils_professionnels_e062d9d5")}</strong>.
                 </li>
                 <li>
-                  Cliquez sur <strong>Passer à un compte professionnel</strong>.
+                  {i18nT("cliquez_sur_487bfa49")}{" "}<strong>{i18nT("passer_a_un_compte_professionnel_bc02e3cd")}</strong>.
                 </li>
                 <li>
-                  Choisissez <strong>Business</strong> ou{" "}
-                  <strong>Creator</strong>.
+                  {i18nT("choisissez_ebefc7d8")}{" "}<strong>{i18nT("business_d6663dda")}</strong> ou{" "}
+                  <strong>{i18nT("creator_817b79b0")}</strong>.
                 </li>
               </ol>
             </div>
@@ -612,8 +560,7 @@ export default function DashboardHelpModals({
               <div
                 style={{ fontWeight: 800, color: "#ff9ad5", marginBottom: 10 }}
               >
-                🔗 Relier Instagram à Facebook
-              </div>
+                {i18nT("relier_instagram_a_facebook_6331689b")}{" "}</div>
               <ol
                 style={{
                   margin: 0,
@@ -623,19 +570,11 @@ export default function DashboardHelpModals({
                 }}
               >
                 <li>
-                  <strong>Depuis Instagram</strong> : Profil → Modifier le
-                  profil → Page → sélectionnez la bonne Page Facebook
-                  professionnelle.
-                </li>
+                  <strong>{i18nT("depuis_instagram_322d9eab")}</strong> {" "}{i18nT("profil_modifier_le_profil_page_selectionnez_c7fd52e4")}{" "}</li>
                 <li>
-                  <strong>Depuis Facebook</strong> : ouvrez la Page
-                  professionnelle → Paramètres → Comptes liés ou Instagram →
-                  connectez le compte Instagram professionnel.
-                </li>
+                  <strong>{i18nT("depuis_facebook_a42f715c")}</strong> {" "}{i18nT("ouvrez_la_page_professionnelle_parametres_compte_bcabea63")}{" "}</li>
                 <li>
-                  Si la Page n’apparaît pas, vérifiez que le compte Facebook
-                  utilisé possède bien les droits sur cette Page.
-                </li>
+                  {i18nT("si_la_page_n_apparait_pas_08e773a9")}{" "}</li>
               </ol>
             </div>
 
@@ -650,15 +589,11 @@ export default function DashboardHelpModals({
               <div
                 style={{ fontWeight: 800, color: "#7df7c4", marginBottom: 10 }}
               >
-                🏢 Cas Meta Business
-              </div>
+                {i18nT("cas_meta_business_e1576b83")}{" "}</div>
               <div style={{ lineHeight: 1.7, fontSize: 14.5 }}>
-                Si vous utilisez Meta Business Suite, vérifiez que la{" "}
-                <strong>Page Facebook</strong> et le{" "}
-                <strong>compte Instagram</strong> sont dans le même portefeuille
-                Business, et que votre compte Facebook personnel a les droits
-                sur les deux.
-              </div>
+                {i18nT("si_vous_utilisez_meta_business_suite_ea5c6b40")}{" "}
+                <strong>{i18nT("page_facebook_5017637f")}</strong> {" "}{i18nT("et_le_60d2ac7f")}{" "}
+                <strong>{i18nT("compte_instagram_cf617acf")}</strong> {" "}{i18nT("sont_dans_le_meme_portefeuille_business_e9a37dbb")}{" "}</div>
             </div>
           </div>
 
@@ -674,74 +609,50 @@ export default function DashboardHelpModals({
               opacity: 0.98,
             }}
           >
-            Si le compte Instagram ou la Page Facebook n’apparaît pas dans
-            iNrCy, le problème vient presque toujours d’un compte personnel,
-            d’une Page mal créée ou de droits Meta insuffisants.
-          </div>
+            {i18nT("si_le_compte_instagram_ou_la_d9ecd233")}{" "}</div>
         </div>
       </HelpModal>
 
       <HelpModal
         open={helpSiteInrcyOpen}
-        title="Site iNrCy"
+        title={i18nT("site_inrcy_57016d6f")}
         onClose={onCloseSiteInrcy}
       >
         <p style={{ marginTop: 0 }}>
-          La bulle <strong>Site iNrCy</strong> est accessible uniquement si vous
-          êtes détenteur d&apos;un site internet chez nous.
-        </p>
+          {i18nT("la_bulle_cb4937bb")}{" "}<strong>{i18nT("site_inrcy_57016d6f")}</strong> {" "}{i18nT("est_accessible_uniquement_si_vous_etes_604521af")}{" "}</p>
         <p>
-          Si c&apos;est le cas, nous nous occupons directement de la performance
-          du site et vous pouvez activer et désactiver le suivi des résultats.
-          Vos publications via l&apos;outil Booster remontent automatiquement
-          sur le site en page d&apos;accueil.
-        </p>
+          {i18nT("si_c_apos_est_le_cas_2c0bc7a9")}{" "}</p>
       </HelpModal>
 
       <HelpModal
         open={helpSiteWebOpen}
-        title="Site web"
+        title={i18nT("site_web_7e78af33")}
         onClose={onCloseSiteWeb}
       >
         <p style={{ marginTop: 0 }}>
-          La bulle <strong>Site web</strong> correspond à votre site existant.
-          Une fois relié, il devient un canal supplémentaire dans votre
-          générateur iNrCy.
-        </p>
+          {i18nT("la_bulle_cb4937bb")}{" "}<strong>{i18nT("site_web_7e78af33")}</strong> {" "}{i18nT("correspond_a_votre_site_existant_une_d16778c0")}{" "}</p>
         <p>
-          Cette connexion permet de centraliser vos informations et de vérifier
-          que votre site travaille bien avec vos autres outils.
-        </p>
+          {i18nT("cette_connexion_permet_de_centraliser_vos_12496710")}{" "}</p>
         <ol style={{ margin: 0, paddingLeft: 18 }}>
-          <li>Ajoutez l&apos;URL de votre site web.</li>
+          <li>{i18nT("ajoutez_l_apos_url_de_votre_c8902776")}</li>
           <li>
-            Cliquez sur les boutons de connexion pour relier automatiquement
-            Google Analytics et Search Console pour remonter les statistiques.
-            Ces outils doivent évidemment être enregistrés sur votre compte
-            Google.
-          </li>
+            {i18nT("cliquez_sur_les_boutons_de_connexion_9ec2513b")}{" "}</li>
           <li>
-            Ajouter le code du &quot;widget iNrCy&quot; fourni n&apos;importe où
-            sur votre site internet pour que les publications de l&apos;outil
-            Booster arrivent automatiquement dessus.
-          </li>
+            {i18nT("ajouter_le_code_du_quot_widget_880867b7")}{" "}</li>
         </ol>
       </HelpModal>
 
       <HelpModal
         open={helpInertieOpen}
-        title="Mon inertie — Tableau des gains UI"
+        title={i18nT("mon_inertie_tableau_des_gains_ui_dbbbbd9a")}
         onClose={onCloseInertie}
       >
         <p style={{ marginTop: 0 }}>
-          Voici les actions qui rapportent des <strong>UI</strong> (Unités
-          d’Inertie).
-        </p>
+          {i18nT("voici_les_actions_qui_rapportent_des_9bee48b5")}{" "}<strong>UI</strong> {" "}{i18nT("unites_d_inertie_489e60cb")}{" "}</p>
 
         {edition === "standard" ? (
           <p style={{ marginTop: -4, color: "rgba(255,255,255,0.66)", fontSize: 13 }}>
-            Les actions grisées sont disponibles avec le forfait Premium.
-          </p>
+            {i18nT("les_actions_grisees_sont_disponibles_avec_92d9fcc5")}{" "}</p>
         ) : null}
 
         <div style={{ overflowX: "auto" }}>
@@ -761,8 +672,7 @@ export default function DashboardHelpModals({
                     borderBottom: "1px solid rgba(255,255,255,0.10)",
                   }}
                 >
-                  Action
-                </th>
+                  {i18nT("action_97c89a4d")}{" "}</th>
                 <th
                   style={{
                     textAlign: "left",
@@ -770,8 +680,7 @@ export default function DashboardHelpModals({
                     borderBottom: "1px solid rgba(255,255,255,0.10)",
                   }}
                 >
-                  Gain
-                </th>
+                  {i18nT("gain_96dd91cd")}{" "}</th>
                 <th
                   style={{
                     textAlign: "left",
@@ -779,8 +688,7 @@ export default function DashboardHelpModals({
                     borderBottom: "1px solid rgba(255,255,255,0.10)",
                   }}
                 >
-                  Fréquence
-                </th>
+                  {i18nT("frequence_bafbfba7")}{" "}</th>
               </tr>
             </thead>
             <tbody>
@@ -788,7 +696,7 @@ export default function DashboardHelpModals({
                 const premiumLocked = edition === "standard" && row.premiumOnly;
                 return (
                   <tr
-                    key={row.a}
+                    key={row.aKey}
                     aria-disabled={premiumLocked || undefined}
                     style={{
                       opacity: premiumLocked ? 0.48 : 1,
@@ -803,7 +711,7 @@ export default function DashboardHelpModals({
                     }}
                   >
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                      <span>{row.a}</span>
+                      <span>{i18nT(row.aKey)}</span>
                       {premiumLocked ? (
                         <span
                           style={{
@@ -817,8 +725,7 @@ export default function DashboardHelpModals({
                             whiteSpace: "nowrap",
                           }}
                         >
-                          Forfait Premium
-                        </span>
+                          {i18nT("forfait_premium_65aaf9d2")}{" "}</span>
                       ) : null}
                     </span>
                   </td>
@@ -846,9 +753,7 @@ export default function DashboardHelpModals({
         </div>
 
         <p style={{ marginBottom: 0, marginTop: 12, opacity: 0.9 }}>
-          Le Turbo UI multiplie certaines actions selon vos canaux connectés.
-          Tout est visible dans l’Historique de Mon inertie.
-        </p>
+          {i18nT("le_turbo_ui_multiplie_certaines_actions_2134fd76")}{" "}</p>
       </HelpModal>
     </>
   );

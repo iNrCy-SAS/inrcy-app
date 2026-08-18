@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import { useEffect, useMemo, useState } from "react";
 import styles from "../dashboard.module.css";
 import { getNormalizedSiteDomain } from "../dashboard.utils";
@@ -83,6 +86,7 @@ export default function SiteActusWidgetCode({
   onHideCode,
   onGenerate,
 }: SiteActusWidgetCodeProps) {
+  const i18nT = useTranslations("shell");
   const [copyNotice, setCopyNotice] = useState<string | null>(null);
   const [generateNotice, setGenerateNotice] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -125,11 +129,11 @@ export default function SiteActusWidgetCode({
 
   const handleGenerate = async () => {
     if (!hasSavedUrl) {
-      setGenerateNotice("Enregistrez d’abord le lien du site.");
+      setGenerateNotice(i18nT("enregistrez_d_abord_le_lien_du_01d8abe0"));
       return;
     }
     if (!hasToken) {
-      setGenerateNotice("Token du widget en préparation. Réessayez dans quelques secondes.");
+      setGenerateNotice(i18nT("token_du_widget_en_preparation_reessayez_769426a3"));
       return;
     }
 
@@ -140,9 +144,9 @@ export default function SiteActusWidgetCode({
       if (ok === false) return;
       setGeneratedConfig(currentConfig);
       onHideCode();
-      setGenerateNotice("✅ Code généré avec succès. Vous pouvez l’afficher ou le copier.");
+      setGenerateNotice(i18nT("code_genere_avec_succes_vous_pouvez_d4de2c80"));
     } catch {
-      setGenerateNotice("Enregistrement impossible pour le moment.");
+      setGenerateNotice(i18nT("enregistrement_impossible_pour_le_moment_b9a11825"));
     } finally {
       setIsGenerating(false);
     }
@@ -150,32 +154,31 @@ export default function SiteActusWidgetCode({
 
   return <>
     <div style={{ display: "flex", gap: 10, justifyContent: "space-between", alignItems: "center", flexWrap: "wrap" }}>
-      <div className={styles.blockSub}>Les médias sont affichés automatiquement quand une image ou une vidéo est présente dans l’actualité.</div>
+      <div className={styles.blockSub}>{i18nT("les_medias_sont_affiches_automatiquement_quand_21342321")}</div>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
         <button type="button" className={styles.actionBtn} onClick={handleGenerate} disabled={!hasSavedUrl || !hasToken || isGenerating} style={!hasSavedUrl || !hasToken || isGenerating ? { opacity: 0.5, cursor: "not-allowed" } : undefined}>
-          {isGenerating ? "Enregistrement…" : hasGeneratedCode ? "Réenregistrer et régénérer" : "Enregistrer et générer le code"}
+          {isGenerating ? i18nT("enregistrement_e7d5f232") : hasGeneratedCode ? i18nT("reenregistrer_et_regenerer_3c2dcd86") : i18nT("enregistrer_et_generer_le_code_1cb0df54")}
         </button>
         <button type="button" className={styles.actionBtn} onClick={onToggle} disabled={!codeReady} style={!codeReady ? { opacity: 0.5, cursor: "not-allowed" } : undefined}>
-          {showCode ? "Masquer le code" : "Afficher le code"}
+          {showCode ? i18nT("masquer_le_code_86dd3838") : i18nT("afficher_le_code_d5d99382")}
         </button>
         <button type="button" className={styles.actionBtn} disabled={!codeReady} style={!codeReady ? { opacity: 0.5, cursor: "not-allowed" } : undefined} onClick={async () => {
           if (!codeReady) return;
           try {
             await navigator.clipboard?.writeText(snippet);
-            setCopyNotice("Code copié");
+            setCopyNotice(i18nT("code_copie_cdc31064"));
           } catch {
             setCopyNotice(null);
           }
         }}>
-          Copier le code
-        </button>
+          {i18nT("copier_le_code_ffdfce13")}{" "}</button>
       </div>
     </div>
 
-    {!hasGeneratedCode ? <div className={styles.blockSub} style={{ color: "rgba(251,191,36,0.95)", fontWeight: 800 }}>Réglez les paramètres, puis cliquez sur « Enregistrer et générer le code ».</div> : paramsChanged ? <div className={styles.blockSub} style={{ color: "rgba(251,191,36,0.95)", fontWeight: 800 }}>Paramètres modifiés. Enregistrez pour générer un nouveau code.</div> : null}
+    {!hasGeneratedCode ? <div className={styles.blockSub} style={{ color: "rgba(251,191,36,0.95)", fontWeight: 800 }}>{i18nT("reglez_les_parametres_puis_cliquez_sur_998068de")}</div> : paramsChanged ? <div className={styles.blockSub} style={{ color: "rgba(251,191,36,0.95)", fontWeight: 800 }}>{i18nT("parametres_modifies_enregistrez_pour_generer_un_064d802a")}</div> : null}
     {generateNotice ? <div className={styles.blockSub} style={{ color: generateNotice.startsWith("✅") ? "#4ade80" : "rgba(251,191,36,0.95)", fontWeight: 800 }}>{generateNotice}</div> : null}
-    {showCode && codeReady ? <div aria-label="Code du widget" onCopy={(event) => event.preventDefault()} onCut={(event) => event.preventDefault()} style={{ width: "100%", minHeight: 170, borderRadius: 12, border: "1px solid rgba(255,255,255,0.14)", background: "rgba(15,23,42,0.65)", padding: "10px 12px", color: "rgba(255,255,255,0.92)", fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace", fontSize: 12, lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-all", userSelect: "none", pointerEvents: "none" }}>{snippet}</div> : null}
+    {showCode && codeReady ? <div aria-label={i18nT("code_du_widget_cbab80cb")} onCopy={(event) => event.preventDefault()} onCut={(event) => event.preventDefault()} style={{ width: "100%", minHeight: 170, borderRadius: 12, border: "1px solid rgba(255,255,255,0.14)", background: "rgba(15,23,42,0.65)", padding: "10px 12px", color: "rgba(255,255,255,0.92)", fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace", fontSize: 12, lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-all", userSelect: "none", pointerEvents: "none" }}>{snippet}</div> : null}
     {copyNotice ? <div className={styles.blockSub} style={{ color: "#4ade80", fontWeight: 800 }}>{copyNotice}</div> : null}
-    <div className={styles.blockSub}><strong>Où le coller ?</strong> Sur WordPress : un bloc <em>HTML personnalisé</em> (Elementor → widget HTML). Sur Wix : <em>Embed Code</em>. Sur Webflow : <em>Embed</em>.</div>
+    <div className={styles.blockSub}><strong>{i18nT("ou_le_coller_467285f4")}</strong> {" "}{i18nT("sur_wordpress_un_bloc_08838a7a")}{" "}<em>{i18nT("html_personnalise_33f4a892")}</em> {" "}{i18nT("elementor_widget_html_sur_wix_e512c7c3")}{" "}<em>{i18nT("embed_code_774dc9f7")}</em>{i18nT("sur_webflow_e0108361")}{" "}<em>{i18nT("embed_ad02e14e")}</em>.</div>
   </>;
 }

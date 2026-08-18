@@ -1,0 +1,30 @@
+export const STANDARD_I18N_TARGETS = {
+  stats: ["app/dashboard/stats"],
+  mails: [
+    "app/dashboard/mails",
+    "lib/inrsend",
+    "app/dashboard/_components/RichMailEditor.tsx",
+    "app/dashboard/_components/TemplateSubjectInlineEditor.tsx",
+    "app/dashboard/settings/_components/MailsSettingsContent.tsx",
+  ],
+  reputation: ["app/dashboard/e-reputation"],
+  booster: [
+    "app/dashboard/booster",
+    "app/dashboard/_components/DashboardBoosterModalLayer.tsx",
+    "app/dashboard/_components/PublishExecutionProgress.tsx",
+    "app/dashboard/_components/PublishExecutionResultModal.tsx",
+    "app/dashboard/_components/CampaignScheduleModal.tsx",
+    "app/dashboard/_components/PublishScheduleModal.tsx",
+    "app/dashboard/_components/AiEngineInfoModal.tsx",
+  ],
+  agent: ["app/dashboard/agent"],
+  gps: ["app/dashboard/gps"],
+  media: [
+    "app/dashboard/mediatheque",
+    "app/dashboard/_components/ChannelImageAdapterTool.tsx",
+    "app/dashboard/_components/InrcyCameraCaptureModal.tsx",
+    "app/dashboard/_components/MediaLibraryPickerModal.tsx",
+    "app/dashboard/_components/MediaOptimizerModal.tsx",
+    "app/dashboard/_components/EmojiPickerButton.tsx",
+  ],
+};

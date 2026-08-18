@@ -1,0 +1,9 @@
+{
+  "pullToRefresh": {
+    "refreshing": "Aggiorna…",
+    "ready": "Rilascia per aggiornare",
+    "pull": "Tira per aggiornare"
+  },
+  "dashboardBoot": "Caricamento della dashboard iNrCy…",
+  "initialSetup": "Preparazione della configurazione iniziale…"
+}

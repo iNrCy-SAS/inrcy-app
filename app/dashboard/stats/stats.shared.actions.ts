@@ -1,9 +1,24 @@
 import { type DecisionResult } from "@/lib/decision/decisionEngine";
-import { type ActionKey, type CapturedLeads, type CubeKey, type CubeModel, type Overview } from "./stats.shared.types";
+import { type ActionKey, type CapturedLeads, type CubeKey, type CubeModel, type Overview, type StatsTranslator } from "./stats.shared.types";
 import { fmtInt, safeNum } from "./stats.shared.core";
 import { computeOpportunity30, getGmbTotals, isIntentQuery, pageKind } from "./stats.shared.opportunity";
 import { getSocialMetrics, isLinkedInStatsPartial } from "./stats.shared.quality";
 import { hasTikTokStatsSignal, isTikTokStatsPermissionError, readMetricError } from "./stats.shared.metrics";
+
+function decisionProvenanceLabel(cubeKey: CubeKey, index: number) {
+  const labels: Partial<Record<CubeKey, string[]>> = {
+    gmb: ["maps", "search"],
+    facebook: ["audience", "interaction"],
+    instagram: ["audience", "engagement"],
+    linkedin: ["impressions", "click"],
+    tiktok: ["audience", "engagement"],
+    youtube_shorts: ["audience", "engagement"],
+    pinterest: ["audience", "engagement"],
+    site_inrcy: ["google", "direct", "social", "other"],
+    site_web: ["google", "direct", "social", "other"],
+  };
+  return labels[cubeKey]?.[index] || "other";
+}
 
 export function getDecisionInput(
   cubeKey: Exclude<CubeKey, "mails" | "inrbadge" | "inr_search">,
@@ -42,7 +57,7 @@ export function getDecisionInput(
         conversions: metrics.conversions,
         visibility: metrics.visibility,
       },
-      provenance: provenance.map((entry) => ({ label: entry.label, value: entry.value })),
+      provenance: provenance.map((entry, index) => ({ label: decisionProvenanceLabel(cubeKey, index), value: entry.value })),
     };
   }
 
@@ -64,7 +79,7 @@ export function getDecisionInput(
         conversions,
         visibility,
       },
-      provenance: provenance.map((entry) => ({ label: entry.label, value: entry.value })),
+      provenance: provenance.map((entry, index) => ({ label: decisionProvenanceLabel(cubeKey, index), value: entry.value })),
     };
   }
 
@@ -93,59 +108,60 @@ export function getDecisionInput(
       engagement,
       visibility,
     },
-    provenance: provenance.map((entry) => ({ label: entry.label, value: entry.value })),
+    provenance: provenance.map((entry, index) => ({ label: decisionProvenanceLabel(cubeKey, index), value: entry.value })),
   };
 }
 
 
-function boosterToolAction(detail: string): CubeModel["action"] {
+function boosterToolAction(detail: string, t: StatsTranslator): CubeModel["action"] {
   return {
     key: "booster_publier",
-    title: "Booster",
+    title: t("booster_8e4caec0"),
     detail,
     href: "/dashboard?action=publish",
-    pill: "Booster",
-    effort: { level: "faible", label: "Effort faible • 5 min" },
+    pill: t("booster_8e4caec0"),
+    effort: { level: "faible", label: t("effort_faible_5_min_e034d335") },
   };
 }
 
-function propulserToolAction(detail: string): CubeModel["action"] {
+function propulserToolAction(detail: string, t: StatsTranslator): CubeModel["action"] {
   return {
     key: "propulser_action",
-    title: "Propulser",
+    title: t("propulser_2de43942"),
     detail,
     href: "/dashboard/propulser",
-    pill: "Propulser",
-    effort: { level: "moyen", label: "Effort moyen • 10-15 min" },
+    pill: t("propulser_2de43942"),
+    effort: { level: "moyen", label: t("effort_moyen_10_15_min_33514efc") },
   };
 }
 
-function fideliserToolAction(detail: string): CubeModel["action"] {
+function fideliserToolAction(detail: string, t: StatsTranslator): CubeModel["action"] {
   return {
     key: "fideliser_action",
-    title: "Fidéliser",
+    title: t("fideliser_8fa9e4f1"),
     detail,
     href: "/dashboard/fideliser",
-    pill: "Fidéliser",
-    effort: { level: "moyen", label: "Effort moyen • 10-15 min" },
+    pill: t("fideliser_8fa9e4f1"),
+    effort: { level: "moyen", label: t("effort_moyen_10_15_min_33514efc") },
   };
 }
 
-export function actionFromDecision(baseAction: CubeModel["action"], decision: DecisionResult): CubeModel["action"] {
+export function actionFromDecision(baseAction: CubeModel["action"], decision: DecisionResult, t: StatsTranslator): CubeModel["action"] {
+  const localizedReason = t(`decision_reason_${decision.action}`);
 
   const map: Record<DecisionResult["action"], CubeModel["action"]> = {
-    publier: boosterToolAction(decision.reason),
-    offrir: propulserToolAction(decision.reason),
-    recolter: propulserToolAction(decision.reason),
-    informer: fideliserToolAction(decision.reason),
-    suivre: fideliserToolAction(decision.reason),
-    enqueter: fideliserToolAction(decision.reason),
+    publier: boosterToolAction(localizedReason, t),
+    offrir: propulserToolAction(localizedReason, t),
+    recolter: propulserToolAction(localizedReason, t),
+    informer: fideliserToolAction(localizedReason, t),
+    suivre: fideliserToolAction(localizedReason, t),
+    enqueter: fideliserToolAction(localizedReason, t),
   };
 
   return { ...baseAction, ...map[decision.action] };
 }
 
-export function recommendAction(cubeKey: CubeKey, ov: Overview, qualityScore: number): CubeModel["action"] {
+export function recommendAction(cubeKey: CubeKey, ov: Overview, qualityScore: number, t: StatsTranslator): CubeModel["action"] {
   if (cubeKey === "site_inrcy") {
     const ownership = ov?.inrcySiteOwnership;
     const c = ov?.sources?.site_inrcy?.connected;
@@ -153,29 +169,29 @@ export function recommendAction(cubeKey: CubeKey, ov: Overview, qualityScore: nu
     if (ownership === "none") {
       return {
         key: "connect",
-        title: "Configurer",
-        detail: "Aucun site iNrCy associé pour le moment.",
+        title: t("configurer_382efbe9"),
+        detail: t("action_no_inrcy_site"),
         href: "/dashboard?panel=site_inrcy",
-        pill: "Connexion",
+        pill: t("connexion_a33c58f5"),
       };
     }
 
     if (!c?.ga4) {
       return {
         key: "connect",
-        title: "Connecter GA4",
-        detail: "Pour analyser vos visiteurs et leur comportement.",
+        title: t("connecter_ga4_60ec761a"),
+        detail: t("action_connect_ga4_detail"),
         href: "/dashboard?panel=site_inrcy",
-        pill: "Connexion",
+        pill: t("connexion_a33c58f5"),
       };
     }
     if (!c?.gsc) {
       return {
         key: "connect",
-        title: "Connecter Google Search Console",
-        detail: "Pour lire les intentions de recherche (mots-clés).",
+        title: t("connecter_google_search_console_f3404063"),
+        detail: t("action_connect_gsc_detail"),
         href: "/dashboard?panel=site_inrcy",
-        pill: "Connexion",
+        pill: t("connexion_a33c58f5"),
       };
     }
   }
@@ -185,19 +201,19 @@ export function recommendAction(cubeKey: CubeKey, ov: Overview, qualityScore: nu
     if (!c?.ga4) {
       return {
         key: "connect",
-        title: "Connecter GA4",
-        detail: "Pour analyser vos visiteurs et leur comportement.",
+        title: t("connecter_ga4_60ec761a"),
+        detail: t("action_connect_ga4_detail"),
         href: "/dashboard?panel=site_web",
-        pill: "Connexion",
+        pill: t("connexion_a33c58f5"),
       };
     }
     if (!c?.gsc) {
       return {
         key: "connect",
-        title: "Connecter Google Search Console",
-        detail: "Pour lire les intentions de recherche (mots-clés).",
+        title: t("connecter_google_search_console_f3404063"),
+        detail: t("action_connect_gsc_detail"),
         href: "/dashboard?panel=site_web",
-        pill: "Connexion",
+        pill: t("connexion_a33c58f5"),
       };
     }
   }
@@ -205,92 +221,92 @@ export function recommendAction(cubeKey: CubeKey, ov: Overview, qualityScore: nu
   if (cubeKey === "gmb" && !ov?.sources?.gmb?.connected) {
     return {
       key: "connect",
-      title: "Connecter Google Business",
-      detail: "Pour capter les demandes locales (appels, itinéraires, clics site).",
+      title: t("connecter_google_business_ca8b3513"),
+      detail: t("action_connect_gmb_detail"),
       href: "/dashboard?panel=gmb",
-      pill: "Connexion",
+      pill: t("connexion_a33c58f5"),
     };
   }
 
   if (cubeKey === "facebook" && !ov?.sources?.facebook?.connected) {
     return {
       key: "connect",
-      title: "Connecter Facebook",
-      detail: "Pour activer la visibilité sociale et la communauté.",
+      title: t("connecter_facebook_380a5db4"),
+      detail: t("action_connect_facebook_detail"),
       href: "/dashboard?panel=facebook",
-      pill: "Connexion",
+      pill: t("connexion_a33c58f5"),
     };
   }
 
   if (cubeKey === "instagram" && !ov?.sources?.instagram?.connected) {
     return {
       key: "connect",
-      title: "Connecter Instagram",
-      detail: "Pour activer la visibilité de votre marque.",
+      title: t("connecter_instagram_ea138dc0"),
+      detail: t("action_connect_instagram_detail"),
       href: "/dashboard?panel=instagram",
-      pill: "Connexion",
+      pill: t("connexion_a33c58f5"),
     };
   }
 
   if (cubeKey === "linkedin" && !ov?.sources?.linkedin?.connected) {
     return {
       key: "connect",
-      title: "Connecter LinkedIn",
-      detail: "Pour activer la crédibilité.",
+      title: t("connecter_linkedin_dd6eba4d"),
+      detail: t("action_connect_linkedin_detail"),
       href: "/dashboard?panel=linkedin",
-      pill: "Connexion",
+      pill: t("connexion_a33c58f5"),
     };
   }
 
   if (cubeKey === "tiktok" && !ov?.sources?.tiktok?.connected) {
     return {
       key: "connect",
-      title: "Connecter TikTok",
-      detail: "Pour activer vos photos, vidéos et contenus courts.",
+      title: t("connecter_tiktok_bce38f69"),
+      detail: t("action_connect_tiktok_detail"),
       href: "/dashboard?panel=tiktok",
-      pill: "Connexion",
+      pill: t("connexion_a33c58f5"),
     };
   }
 
   if (cubeKey === "tiktok" && isTikTokStatsPermissionError(ov?.sources?.tiktok?.metrics)) {
     return {
       key: "connect",
-      title: "Reconnecter TikTok",
-      detail: "TikTok est connecté, mais les autorisations statistiques sont incomplètes. Reconnectez le canal pour autoriser les stats.",
+      title: t("reconnecter_tiktok_125091e5"),
+      detail: t("action_reconnect_tiktok_detail"),
       href: "/dashboard?panel=tiktok",
-      pill: "Connexion",
+      pill: t("connexion_a33c58f5"),
     };
   }
 
   if (cubeKey === "youtube_shorts" && !ov?.sources?.youtube_shorts?.connected) {
     return {
       key: "connect",
-      title: "Configurer YouTube",
-      detail: "Pour activer votre canal vidéo.",
+      title: t("configurer_youtube_b6b1b98d"),
+      detail: t("action_connect_youtube_detail"),
       href: "/dashboard?panel=youtube_shorts",
-      pill: "Connexion",
+      pill: t("connexion_a33c58f5"),
     };
   }
 
   if (cubeKey === "pinterest" && !ov?.sources?.pinterest?.connected) {
     return {
       key: "connect",
-      title: "Connecter Pinterest",
-      detail: "Pour activer les épingles et la visibilité inspirationnelle.",
+      title: t("connecter_pinterest_05788f6c"),
+      detail: t("action_connect_pinterest_detail"),
       href: "/dashboard?panel=pinterest",
-      pill: "Connexion",
+      pill: t("connexion_a33c58f5"),
     };
   }
 
   const effortMap: Partial<Record<ActionKey, CubeModel["action"]["effort"] | undefined>> = {
-    booster_publier: { level: "faible", label: "Effort faible • 5 min" },
-    propulser_action: { level: "moyen", label: "Effort moyen • 10-15 min" },
-    fideliser_action: { level: "moyen", label: "Effort moyen • 10-15 min" },
-    booster_avis: { level: "moyen", label: "Effort moyen • 10 min" },
-    booster_promotion: { level: "moyen", label: "Effort moyen • 15 min" },
-    fideliser_informer: { level: "moyen", label: "Effort moyen • 15 min" },
-    fideliser_satisfaction: { level: "faible", label: "Effort faible • 3 min" },
-    fideliser_remercier: { level: "faible", label: "Effort faible • 2 min" },
+    booster_publier: { level: "faible", label: t("effort_faible_5_min_e034d335") },
+    propulser_action: { level: "moyen", label: t("effort_moyen_10_15_min_33514efc") },
+    fideliser_action: { level: "moyen", label: t("effort_moyen_10_15_min_33514efc") },
+    booster_avis: { level: "moyen", label: t("effort_moyen_10_min_beff4f02") },
+    booster_promotion: { level: "moyen", label: t("effort_moyen_15_min_121017e1") },
+    fideliser_informer: { level: "moyen", label: t("effort_moyen_15_min_121017e1") },
+    fideliser_satisfaction: { level: "faible", label: t("effort_faible_3_min_25abc8a8") },
+    fideliser_remercier: { level: "faible", label: t("effort_faible_2_min_57b40ff4") },
     connect: undefined,
     loading: undefined,
   };
@@ -304,55 +320,61 @@ export function recommendAction(cubeKey: CubeKey, ov: Overview, qualityScore: nu
 
   if (cubeKey === "site_inrcy") {
     if (qualityScore >= 70) {
-      return fideliserToolAction("Entretenez la relation avec vos clients satisfaits pour générer recommandations, avis et retours.");
+      return fideliserToolAction(t("action_nurture_satisfied_clients"), t);
     }
-    return propulserToolAction("Lancez une action guidée pour mettre en avant une offre, une preuve ou une demande claire.");
+    return propulserToolAction(t("action_highlight_offer_or_proof"), t);
   }
 
   if (cubeKey === "site_web") {
     if (qualityScore < 60) {
-      return propulserToolAction("Lancez une action guidée pour renforcer le déclencheur commercial : offre, preuve ou demande d’avis.");
+      return propulserToolAction(t("action_strengthen_commercial_trigger"), t);
     }
     if (qualityScore >= 75 && opp30 > 4) {
-      return fideliserToolAction("Créez un lien régulier avec vos contacts : information, suivi ou enquête.");
+      return fideliserToolAction(t("action_build_regular_contact"), t);
     }
-    return boosterToolAction("Publiez une actualité locale pour relancer la visibilité et le trafic.");
+    return boosterToolAction(t("action_publish_local_news"), t);
   }
 
   if (cubeKey === "mails") {
     if (!ov?.sources?.mails?.connected) {
       return {
         key: "connect",
-        title: "Configurer",
-        detail: "Connectez une boîte d’envoi pour activer Fidéliser, Propulser et les mails simples.",
+        title: t("configurer_382efbe9"),
+        detail: t("connectez_au_moins_une_boite_d_817ecdef"),
         href: "/dashboard?panel=mails",
-        pill: "Connexion",
+        pill: t("connexion_a33c58f5"),
       };
     }
-    return fideliserToolAction("Communiquez avec vos contacts depuis le canal Mails : information, suivi ou relance.");
+    return fideliserToolAction(t("action_communicate_by_mail"), t);
   }
 
   if (cubeKey === "gmb") {
     const m = ov?.sources?.gmb?.metrics;
     const hasError = !!m?.error;
     if (hasError) {
-      return boosterToolAction("Publiez 1 post Google Business pour activer le canal, même sans métriques détaillées.");
+      return boosterToolAction(t("action_publish_gmb_post"), t);
     }
-    return propulserToolAction("Lancez une action Propulser : les avis et preuves de confiance sont le levier n°1 pour gagner des appels locaux.");
+    return propulserToolAction(t("action_launch_gmb_propulser"), t);
   }
 
-  const socialLabel = cubeKey === "linkedin" ? "votre audience pro" : cubeKey === "pinterest" ? "votre audience inspiration" : (cubeKey === "tiktok" || cubeKey === "youtube_shorts") ? "votre audience vidéo" : "votre audience";
-  return boosterToolAction(`1 publication simple/semaine suffit pour capter ${socialLabel}.`);
+  const socialLabel = cubeKey === "linkedin"
+    ? t("audience_professional")
+    : cubeKey === "pinterest"
+      ? t("audience_inspiration")
+      : (cubeKey === "tiktok" || cubeKey === "youtube_shorts")
+        ? t("audience_video")
+        : t("audience_general");
+  return boosterToolAction(t("action_weekly_social_post", { audience: socialLabel }), t);
 }
 
-export function buildInsights(cubeKey: CubeKey, ov: Overview, qualityScore: number, decision?: DecisionResult) {
+export function buildInsights(cubeKey: CubeKey, ov: Overview, qualityScore: number, decision: DecisionResult | undefined, locale: string, t: StatsTranslator) {
   const insights: string[] = [];
 
   if (cubeKey === "linkedin" && isLinkedInStatsPartial(ov)) {
     return [
-      "Les données LinkedIn ne sont pas exploitables actuellement.",
-      "Réessayez demain pour actualiser les statistiques détaillées.",
-      "En attendant, publiez régulièrement pour entretenir votre visibilité professionnelle.",
+      t("insight_linkedin_unavailable"),
+      t("insight_retry_tomorrow"),
+      t("insight_keep_linkedin_visible"),
     ];
   }
 
@@ -361,27 +383,27 @@ export function buildInsights(cubeKey: CubeKey, ov: Overview, qualityScore: numb
     const metrics = ov?.sources?.tiktok?.metrics;
     const metricError = readMetricError(metrics);
     if (!connected) {
-      return ["Canal TikTok non connecté.", "Connectez TikTok pour publier photos et vidéos depuis Booster."];
+      return [t("insight_tiktok_disconnected"), t("insight_connect_tiktok_to_publish")];
     }
     if (isTikTokStatsPermissionError(metrics)) {
       return [
-        "Compte TikTok connecté, mais autorisations statistiques incomplètes.",
-        "Reconnectez TikTok depuis Canaux pour autoriser la lecture des statistiques.",
-        "La publication reste disponible depuis Booster pendant la mise à jour.",
+        t("insight_tiktok_permissions_incomplete"),
+        t("insight_reconnect_tiktok_from_channels"),
+        t("insight_tiktok_publish_still_available"),
       ];
     }
     if (metricError) {
       return [
-        "Compte TikTok connecté.",
-        "Les statistiques TikTok sont momentanément indisponibles, mais le canal reste prêt pour publier.",
-        "Réactualisez iNrStats après vos prochaines publications publiques.",
+        t("insight_tiktok_connected"),
+        t("insight_tiktok_stats_temporarily_unavailable"),
+        t("insight_refresh_after_publications"),
       ];
     }
     if (!hasTikTokStatsSignal(metrics)) {
       return [
-        "Compte TikTok connecté.",
-        "Les premières statistiques seront enrichies dès que TikTok remontera des données publiques.",
-        "Publiez une photo ou une vidéo depuis Booster pour activer le suivi.",
+        t("insight_tiktok_connected"),
+        t("insight_tiktok_waiting_for_data"),
+        t("insight_publish_to_activate_tracking"),
       ];
     }
   }
@@ -393,71 +415,71 @@ export function buildInsights(cubeKey: CubeKey, ov: Overview, qualityScore: numb
         ? "Propulser"
         : "Fidéliser";
     const toolLine = tool === "Booster"
-      ? "Recommandation : utiliser Booster pour publier et activer le canal."
+      ? t("insight_recommend_booster")
       : tool === "Propulser"
-        ? "Recommandation : utiliser Propulser pour choisir une action business adaptée."
-        : "Recommandation : utiliser Fidéliser pour entretenir et convertir la relation client.";
-    return [toolLine, decision.reason].filter(Boolean).slice(0, 3);
+        ? t("insight_recommend_propulser")
+        : t("insight_recommend_fideliser");
+    return [toolLine, t(`decision_reason_${decision.action}`)].filter(Boolean).slice(0, 3);
   }
 
   if (cubeKey === "mails") {
     if (!ov?.sources?.mails?.connected) {
-      return ["Canal mail non connecté.", "Connectez une boîte d’envoi pour activer Fidéliser, Propulser et les mails simples."];
+      return [t("insight_mail_disconnected"), t("connectez_au_moins_une_boite_d_817ecdef")];
     }
     const m = ov?.sources?.mails?.metrics;
     return [
-      `Boîtes connectées : ${fmtInt(safeNum(m?.connectedCount))}/4.`,
-      `${fmtInt(safeNum(m?.contactsCrm))} contacts CRM exploitables pour vos campagnes.`,
-      safeNum(m?.campagnes30) > 0 ? "Des campagnes sont déjà visibles sur les 30 derniers jours." : "Canal prêt : lancez une première campagne Fidéliser ou Propulser.",
+      t("insight_connected_mailboxes", { count: fmtInt(safeNum(m?.connectedCount), locale) }),
+      t("insight_usable_crm_contacts", { count: fmtInt(safeNum(m?.contactsCrm), locale) }),
+      safeNum(m?.campagnes30) > 0 ? t("insight_campaigns_visible") : t("insight_launch_first_campaign"),
     ];
   }
 
   if (cubeKey === "facebook") {
     if (!ov?.sources?.facebook?.connected) {
-      return ["Canal non connecté : aucune lecture possible.", "Connectez Facebook pour activer la visibilité sociale."];
+      return [t("insight_channel_disconnected"), t("insight_connect_facebook")];
     }
-    return ["Canal social prêt à être activé.", "Misez sur la régularité plutôt que sur le volume."];
+    return [t("insight_social_ready"), t("insight_prioritize_consistency")];
   }
 
   if (cubeKey === "tiktok") {
     if (!ov?.sources?.tiktok?.connected) {
-      return ["Canal non connecté : aucune lecture possible.", "Connectez TikTok pour préparer vos publications photos et vidéos."];
+      return [t("insight_channel_disconnected"), t("insight_connect_tiktok_prepare")];
     }
-    return ["TikTok est connecté et mesurable.", "Publiez régulièrement des photos ou vidéos courtes pour développer votre audience."];
+    return [t("insight_tiktok_measurable"), t("insight_publish_short_content")];
   }
 
   if (cubeKey === "youtube_shorts") {
     if (!ov?.sources?.youtube_shorts?.connected) {
-      return ["Canal YouTube non connecté.", "Configurez votre chaîne pour préparer vos publications vidéo."];
+      return [t("insight_youtube_disconnected"), t("insight_configure_youtube")];
     }
-    return ["YouTube est connecté.", "Publiez régulièrement des vidéos courtes ou longues pour développer votre audience."];
+    return [t("insight_youtube_connected"), t("insight_publish_youtube_regularly")];
   }
 
   if (cubeKey === "gmb") {
     if (!ov?.sources?.gmb?.connected) {
-      return ["Canal local non connecté.", "Google Business est souvent le meilleur levier d’appels locaux."];
+      return [t("insight_local_channel_disconnected"), t("insight_gmb_local_calls")];
     }
     if (ov?.sources?.gmb?.metrics?.error) {
-      return ["Connexion OK, métriques détaillées indisponibles.", "On peut quand même agir : posts + avis."];
+      return [t("insight_metrics_unavailable"), t("insight_posts_and_reviews")];
     }
-    return ["Présence locale active.", "Les avis + des posts réguliers maximisent les demandes."];
+    return [t("insight_local_presence_active"), t("insight_reviews_and_posts")];
   }
 
-  const t = ov.totals || ({} as any);
-  const sessions = safeNum(t.sessions);
+  const totals = ov.totals || ({} as any);
+  const sessions = safeNum(totals.sessions);
   const queries = Array.isArray(ov.topQueries) ? ov.topQueries : [];
   const intentClicks = queries.filter((q) => isIntentQuery(q.query)).reduce((s, q) => s + safeNum(q.clicks), 0);
   const anyIntent = intentClicks > 0;
 
-  if (sessions <= 20) insights.push("Trafic faible sur la période : opportunité d’activation rapide.");
-  else insights.push("Trafic présent : on peut optimiser la conversion.");
+  if (sessions <= 20) insights.push(t("insight_low_traffic"));
+  else insights.push(t("insight_traffic_present"));
 
-  if (anyIntent) insights.push("Des recherches à intention business existent (devis, urgence, prix…).");
-  else insights.push("Peu d’intention business détectée : il faut clarifier l’offre et la zone.");
+  if (anyIntent) insights.push(t("insight_business_intent_found"));
+  else insights.push(t("insight_low_business_intent"));
 
-  if (qualityScore >= 75) insights.push("Structure solide : vous êtes prêt à capter des demandes.");
-  else if (qualityScore >= 55) insights.push("Structure correcte : quelques ajustements peuvent booster les demandes.");
-  else insights.push("Structure à renforcer : il manque des déclencheurs de contact.");
+  if (qualityScore >= 75) insights.push(t("insight_strong_structure"));
+  else if (qualityScore >= 55) insights.push(t("insight_correct_structure"));
+  else insights.push(t("insight_structure_to_improve"));
 
   return insights.slice(0, 3);
 }

@@ -113,6 +113,9 @@ const dashboardClientSource = readFileSync(
   new URL("../../app/dashboard/DashboardClient.tsx", import.meta.url),
   "utf8",
 );
+const commonMessages = JSON.parse(
+  readFileSync(new URL("../../messages/fr-FR/common.json", import.meta.url), "utf8"),
+) as { dashboardBoot: string; initialSetup: string };
 
 test("dashboard chains existing drawers without creating replacement forms", () => {
   assert.match(dashboardClientSource, /checkProfile\(\)[\s\S]*profileCompleted/);
@@ -122,7 +125,7 @@ test("dashboard chains existing drawers without creating replacement forms", () 
   assert.match(dashboardClientSource, /setCurrentOnboardingStep\("ai"\)/);
   assert.match(dashboardClientSource, /replacePanelDirect\("ia"\)/);
   assert.match(dashboardClientSource, /completeOnboardingFromAi/);
-  assert.match(dashboardClientSource, /Configuration initiale · Étape/);
+  assert.match(dashboardClientSource, /onboardingT\("progress"/);
 });
 
 const onboardingHookSource = readFileSync(
@@ -184,14 +187,16 @@ test("first onboarding uses a dedicated desktop presentation and a Passer action
   assert.match(settingsDrawerSource, /isDesktopOnboarding/);
   assert.match(settingsDrawerSource, /#06101f/);
   assert.match(dashboardClientSource, /presentation=\{isGuidedOnboardingPanel \? "onboarding" : "drawer"\}/);
-  assert.match(dashboardClientSource, /closeLabel=\{isGuidedOnboardingPanel \? "Passer" : undefined\}/);
+  assert.match(dashboardClientSource, /closeLabel=\{isGuidedOnboardingPanel \? onboardingT\("skip"\) : undefined\}/);
 });
 
 test("dashboard uses a generic boot screen after onboarding and reserves preparation for the first run", () => {
   assert.match(dashboardClientSource, /onboardingStateLoading/);
-  assert.match(dashboardClientSource, /StableBootScreen label="Chargement de votre dashboard iNrCy/);
+  assert.match(dashboardClientSource, /StableBootScreen label=\{commonT\("dashboardBoot"\)\}/);
+  assert.equal(commonMessages.dashboardBoot, "Chargement de votre dashboard iNrCy…");
   assert.match(dashboardClientSource, /onboardingInitialPreparationBlocking/);
-  assert.match(dashboardClientSource, /StableBootScreen label="Préparation de votre configuration initiale/);
+  assert.match(dashboardClientSource, /StableBootScreen label=\{commonT\("initialSetup"\)\}/);
+  assert.equal(commonMessages.initialSetup, "Préparation de votre configuration initiale…");
   assert.doesNotMatch(dashboardPageSource, /getDashboardInitialOnboardingStateServer/);
   assert.doesNotMatch(dashboardPageSource, /initialOnboardingState=/);
 });
@@ -228,15 +233,15 @@ test("dashboard navigation waits until the SSR session is readable", () => {
 });
 
 test("skipping required onboarding warns that tools remain unavailable", () => {
-  assert.match(dashboardClientSource, /Passer cette étape ne permet pas l’activation de tous les outils iNrCy/);
-  assert.match(dashboardClientSource, /Continuer plus tard/);
-  assert.match(dashboardClientSource, /Revenir à la configuration/);
+  assert.match(dashboardClientSource, /onboardingT\("continueLaterMessage"\)/);
+  assert.match(dashboardClientSource, /onboardingT\("continueLater"\)/);
+  assert.match(dashboardClientSource, /onboardingT\("returnToSetup"\)/);
 });
 
 test("step three offers defaults before opening the existing AI configuration", () => {
-  assert.match(aiChoiceSource, /Votre IA est déjà prête/);
-  assert.match(aiChoiceSource, /Personnaliser mon IA/);
-  assert.match(aiChoiceSource, /Conserver les réglages par défaut/);
+  assert.match(aiChoiceSource, /t\("aiReadyTitle"\)/);
+  assert.match(aiChoiceSource, /t\("customizeAi"\)/);
+  assert.match(aiChoiceSource, /t\("keepDefaults"\)/);
   assert.match(dashboardClientSource, /onboardingAiMode === "choice"/);
   assert.match(dashboardClientSource, /setOnboardingAiMode\("configure"\)/);
   assert.match(dashboardClientSource, /onKeepDefaults=\{completeOnboardingFromAi\}/);

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { confirmInrcy } from "@/lib/inrcyDialog";
 import type { ChannelKey } from "../booster/publier/publishModal.shared";
 import { useUnsavedExitGuard } from "../_hooks/useUnsavedExitGuard";
@@ -106,15 +107,19 @@ export default function PublishScheduleModal({
   saving,
   error,
   progress = 0,
-  progressLabel = "Préparation de la programmation...",
-  successMessage = "Programmation réussie.",
-  savingLabel = "Programmation en cours…",
+  progressLabel,
+  successMessage,
+  savingLabel,
   enableImmediateUnselectedWarning = false,
   initialSelections,
   onClose,
   onConfirm,
   onSuccess,
 }: PublishScheduleModalProps) {
+  const i18nT = useTranslations("booster");
+  const resolvedProgressLabel = progressLabel || i18nT("programmation_en_cours_33f59055");
+  const resolvedSuccessMessage = successMessage || i18nT("programmation_reussie_1307249b");
+  const resolvedSavingLabel = savingLabel || i18nT("programmation_en_cours_33f59055");
   const publishableItems = useMemo(
     () => items.filter((item) => !item.blockers.length),
     [items],
@@ -235,11 +240,11 @@ export default function PublishScheduleModal({
     active: open,
     shouldBlock: hasUnsavedChanges,
     onConfirmExit: onClose,
-    eyebrow: "Programmation",
-    title: "Quitter sans enregistrer ?",
-    message: "Cette programmation contient des modifications non enregistrées. Si vous fermez maintenant, elles seront perdues.",
-    confirmLabel: "Fermer sans enregistrer",
-    cancelLabel: "Continuer l’édition",
+    eyebrow: i18nT("schedule_eyebrow"),
+    title: i18nT("schedule_leave_title"),
+    message: i18nT("schedule_leave_message"),
+    confirmLabel: i18nT("schedule_leave_confirm"),
+    cancelLabel: i18nT("schedule_leave_cancel"),
     variant: "warning",
   });
 
@@ -310,7 +315,7 @@ export default function PublishScheduleModal({
     ).filter((item) => item.scheduledAt);
 
     if (!selections.length) {
-      setLocalError("Sélectionnez au moins un canal à programmer.");
+      setLocalError(i18nT("schedule_select_channel_error"));
       return;
     }
 
@@ -319,7 +324,7 @@ export default function PublishScheduleModal({
       (selection) => new Date(selection.scheduledAt).getTime() <= now + 60_000,
     );
     if (invalidPast) {
-      setLocalError("Choisissez une date et une heure dans le futur.");
+      setLocalError(i18nT("schedule_future_datetime_error"));
       return;
     }
 
@@ -336,10 +341,10 @@ export default function PublishScheduleModal({
         .map((item) => item.label)
         .join(", ");
       const confirmed = await confirmInrcy({
-        title: "Publier les autres canaux maintenant ?",
-        message: `Les canaux ${labels} partiront maintenant. Les canaux cochés seront confiés à iNr’Agent. Valider ?`,
-        confirmLabel: "Valider",
-        cancelLabel: "Revenir",
+        title: i18nT("schedule_publish_others_title"),
+        message: i18nT("schedule_publish_others_message", { channels: labels }),
+        confirmLabel: i18nT("schedule_confirm"),
+        cancelLabel: i18nT("schedule_back"),
         variant: "warning",
       });
       if (!confirmed) return;
@@ -349,7 +354,7 @@ export default function PublishScheduleModal({
     setSubmitting(true);
     try {
       await onConfirm(selections, immediateChannels);
-      setDoneMessage(successMessage);
+      setDoneMessage(resolvedSuccessMessage);
       window.setTimeout(() => {
         void onSuccess?.();
       }, 850);
@@ -406,7 +411,7 @@ export default function PublishScheduleModal({
           <div style={{ display: "grid", gap: 6, minWidth: 0 }}>
             <div style={{ fontSize: 22 }}>🕒</div>
             <div className={styles.blockTitle} style={{ marginBottom: 0 }}>
-              Programmer la publication
+              {i18nT("schedule_title")}
             </div>
             <div
               style={{
@@ -415,8 +420,7 @@ export default function PublishScheduleModal({
                 lineHeight: 1.45,
               }}
             >
-              Programmez tous les canaux au même moment, ou ouvrez le détail
-              pour choisir un créneau différent par canal.
+              {i18nT("schedule_description")}
             </div>
           </div>
           <button
@@ -425,7 +429,7 @@ export default function PublishScheduleModal({
             onClick={() => void confirmExit()}
             disabled={busy}
           >
-            Fermer
+            {i18nT("schedule_close")}
           </button>
         </div>
 
@@ -464,7 +468,7 @@ export default function PublishScheduleModal({
               />
               <span style={{ display: "grid", gap: 4 }}>
                 <strong style={{ color: "#fff", fontSize: 15 }}>
-                  Programmation générale
+                  {i18nT("schedule_general_title")}
                 </strong>
                 <span
                   style={{
@@ -473,7 +477,7 @@ export default function PublishScheduleModal({
                     color: "rgba(255,255,255,0.66)",
                   }}
                 >
-                  Une seule date et une seule heure pour tous les canaux prêts.
+                  {i18nT("schedule_general_description")}
                 </span>
               </span>
             </label>
@@ -495,12 +499,10 @@ export default function PublishScheduleModal({
                   color: "rgba(255,255,255,0.68)",
                 }}
               >
-                {publishableItems.length} canal
-                {publishableItems.length > 1 ? "aux" : ""} programmé
-                {publishableItems.length > 1 ? "s" : ""} ensemble
-                {blockedItems.length
-                  ? ` · ${blockedItems.length} indisponible${blockedItems.length > 1 ? "s" : ""}`
-                  : ""}
+                {i18nT("schedule_channels_summary", {
+                  count: publishableItems.length,
+                  blocked: blockedItems.length,
+                })}
               </div>
               <div
                 className={styles.scheduleDateTimeField}
@@ -527,7 +529,7 @@ export default function PublishScheduleModal({
                     openNativeDateTimePicker(generalDateInputRef.current);
                   }}
                   disabled={scheduleMode !== "general" || busy}
-                  aria-label="Ouvrir le calendrier de la programmation générale"
+                  aria-label={i18nT("schedule_open_general_calendar")}
                 >
                   <CalendarMiniIcon />
                 </button>
@@ -557,7 +559,7 @@ export default function PublishScheduleModal({
                     openNativeDateTimePicker(generalTimeInputRef.current);
                   }}
                   disabled={scheduleMode !== "general" || busy}
-                  aria-label="Ouvrir le choix de l’heure générale"
+                  aria-label={i18nT("schedule_open_general_time")}
                 >
                   <ClockMiniIcon />
                 </button>
@@ -610,7 +612,7 @@ export default function PublishScheduleModal({
                 />
                 <span style={{ display: "grid", gap: 4 }}>
                   <strong style={{ color: "#fff", fontSize: 15 }}>
-                    Programmation par canal
+                    {i18nT("schedule_per_channel_title")}
                   </strong>
                   <span
                     style={{
@@ -619,8 +621,7 @@ export default function PublishScheduleModal({
                       color: "rgba(255,255,255,0.66)",
                     }}
                   >
-                    Choisissez des créneaux différents ou laissez certains
-                    canaux partir maintenant.
+                    {i18nT("schedule_per_channel_description")}
                   </span>
                 </span>
               </span>
@@ -708,8 +709,8 @@ export default function PublishScheduleModal({
                             {disabled
                               ? item.blockers.join(" · ")
                               : checked
-                                ? `${item.mediaLabel} · sera programmé`
-                                : `${item.mediaLabel} · restera sélectionné pour maintenant`}
+                                ? i18nT("schedule_item_scheduled", { media: item.mediaLabel })
+                                : i18nT("schedule_item_now", { media: item.mediaLabel })}
                           </span>
                         </span>
                       </label>
@@ -749,7 +750,7 @@ export default function PublishScheduleModal({
                             );
                           }}
                           disabled={disabled || !checked || busy}
-                          aria-label={`Ouvrir le calendrier pour ${item.label}`}
+                          aria-label={i18nT("schedule_open_channel_calendar", { channel: item.label })}
                         >
                           <CalendarMiniIcon />
                         </button>
@@ -790,7 +791,7 @@ export default function PublishScheduleModal({
                             );
                           }}
                           disabled={disabled || !checked || busy}
-                          aria-label={`Ouvrir le choix de l’heure pour ${item.label}`}
+                          aria-label={i18nT("schedule_open_channel_time", { channel: item.label })}
                         >
                           <ClockMiniIcon />
                         </button>
@@ -808,7 +809,7 @@ export default function PublishScheduleModal({
             styles={styles}
             scheduling
             publishProgress={progress}
-            publishProgressLabel={progressLabel}
+            publishProgressLabel={resolvedProgressLabel}
           />
         ) : null}
 
@@ -848,7 +849,7 @@ export default function PublishScheduleModal({
             onClick={() => void confirmExit()}
             disabled={busy}
           >
-            Annuler
+            {i18nT("schedule_cancel")}
           </button>
           <button
             type="button"
@@ -860,7 +861,7 @@ export default function PublishScheduleModal({
                 busy || doneMessage || !publishableItems.length ? 0.58 : 1,
             }}
           >
-            {busy ? savingLabel : "Confier à iNr’Agent"}
+            {busy ? resolvedSavingLabel : i18nT("schedule_assign_agent")}
           </button>
         </div>
       </div>

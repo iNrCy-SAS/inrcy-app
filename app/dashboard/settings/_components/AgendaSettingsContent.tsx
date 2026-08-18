@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import React from "react";
 import {
   DEFAULT_INRBADGE_APPOINTMENT_SETTINGS,
@@ -14,20 +17,20 @@ import { providerLabel, type MailAccountOption } from "../../agenda/agenda.share
 const INRCALENDAR_SETTINGS_UPDATED_EVENT = "inrcalendar:settings-updated";
 
 const REMINDER_OPTIONS = [
-  { value: "confirmation", label: "À l’enregistrement" },
-  { value: 2880, label: "48h avant" },
-  { value: 1440, label: "24h avant" },
-  { value: 120, label: "2h avant" },
+  { value: "confirmation", labelKey: "a_l_enregistrement_b105b45c" },
+  { value: 2880, labelKey: "48h_avant_c4b98142" },
+  { value: 1440, labelKey: "24h_avant_03e04550" },
+  { value: 120, labelKey: "2h_avant_d3957c8b" },
 ] as const;
 
 const WEEKDAY_ITEMS = [
-  { key: "1", label: "Lundi" },
-  { key: "2", label: "Mardi" },
-  { key: "3", label: "Mercredi" },
-  { key: "4", label: "Jeudi" },
-  { key: "5", label: "Vendredi" },
-  { key: "6", label: "Samedi" },
-  { key: "0", label: "Dimanche" },
+  { key: "1", labelKey: "lundi_d257826e" },
+  { key: "2", labelKey: "mardi_1e9d6d0b" },
+  { key: "3", labelKey: "mercredi_382dd2f4" },
+  { key: "4", labelKey: "jeudi_e9ddb155" },
+  { key: "5", labelKey: "vendredi_cb289d87" },
+  { key: "6", labelKey: "samedi_a9b27832" },
+  { key: "0", labelKey: "dimanche_50176327" },
 ] as const;
 
 const TIME_OPTIONS = [
@@ -312,6 +315,7 @@ const reminderLabelStyle: React.CSSProperties = {
 };
 
 export default function AgendaSettingsContent() {
+  const i18nT = useTranslations("agenda");
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [accounts, setAccounts] = React.useState<MailAccountOption[]>([]);
@@ -374,7 +378,7 @@ export default function AgendaSettingsContent() {
       setSendConfirmationOnSave(Boolean(json?.sendConfirmationOnSave ?? payload.sendConfirmationOnSave));
       setReminderOffsetsMinutes(normalizeOffsets(json?.reminderOffsetsMinutes ?? payload.reminderOffsetsMinutes));
       setAppointmentSettings(normalizeInrBadgeAppointmentSettings(json?.appointmentSettings ?? payload.appointmentSettings));
-      setNotice("Réglages enregistrés.");
+      setNotice(i18nT("reglages_enregistres_1ea1f406"));
       dispatchCalendarSettingsUpdated();
     } catch (e: any) {
       setError(getSimpleFrenchErrorMessage(e, "Impossible d’enregistrer les réglages Agenda."));
@@ -546,19 +550,17 @@ export default function AgendaSettingsContent() {
         }}
       >
         <div style={{ fontSize: 16, fontWeight: 950, color: "rgba(255,255,255,0.94)" }}>
-          Réglages iNr’Calendar
-        </div>
+          {i18nT("reglages_inr_calendar_cdc58ac4")}{" "}</div>
         <div style={{ marginTop: 6, fontSize: 13, color: "rgba(255,255,255,0.70)", lineHeight: 1.45 }}>
-          Gérez la boîte d’envoi, les rappels et les créneaux proposés sur iNr’Badge.
-        </div>
+          {i18nT("gerez_la_boite_d_envoi_les_741aea10")}{" "}</div>
       </div>
 
-      {loading ? <Notice>Chargement des réglages…</Notice> : null}
-      {saving ? <Notice>Enregistrement…</Notice> : null}
+      {loading ? <Notice>{i18nT("chargement_des_reglages_d3437d0f")}</Notice> : null}
+      {saving ? <Notice>{i18nT("enregistrement_e7d5f232")}</Notice> : null}
       {notice ? <Notice tone="success">{notice}</Notice> : null}
       {error ? <Notice tone="error">{error}</Notice> : null}
 
-      <GlassCard title="Boîte d’envoi des rappels" subtitle="Les mails de rappel partiront de cette boîte mail iNr’Send.">
+      <GlassCard title={i18nT("boite_d_envoi_des_rappels_f512176e")} subtitle="Les mails de rappel partiront de cette boîte mail iNr’Send.">
         <select
           className="agendaSettings_select"
           style={fieldStyle}
@@ -570,7 +572,7 @@ export default function AgendaSettingsContent() {
             void saveSettings({ selectedMailAccountId: nextId });
           }}
         >
-          <option value="">— Envoi client depuis iNrCy —</option>
+          <option value="">{i18nT("envoi_client_depuis_inrcy_66ed9943")}</option>
           {accounts.map((account) => (
             <option key={account.id} value={account.id}>
               {providerLabel(account.provider)} — {account.display_name || account.email_address}
@@ -579,12 +581,12 @@ export default function AgendaSettingsContent() {
         </select>
         <Notice>
           {selectedMailAccountId
-            ? "Boîte sélectionnée pour les futurs rendez-vous."
-            : "Aucune boîte sélectionnée : les rappels restent envoyés depuis iNrCy."}
+            ? i18nT("boite_selectionnee_pour_les_futurs_rendez_6ecf0f05")
+            : i18nT("aucune_boite_selectionnee_les_rappels_restent_7cc91777")}
         </Notice>
       </GlassCard>
 
-      <GlassCard title="Créneaux des rappels">
+      <GlassCard title={i18nT("creneaux_des_rappels_3f5f05b7")}>
         <div className="agendaSettings_responsiveTwo" style={remindersGridStyle}>
           {REMINDER_OPTIONS.map((option) => {
             const isConfirmation = option.value === "confirmation";
@@ -607,7 +609,7 @@ export default function AgendaSettingsContent() {
                   }}
                   style={{ width: 16, height: 16, accentColor: "#ec4899" }}
                 />
-                <strong style={{ color: "rgba(255,255,255,0.92)", fontSize: 13.5 }}>{option.label}</strong>
+                <strong style={{ color: "rgba(255,255,255,0.92)", fontSize: 13.5 }}>{i18nT(option.labelKey)}</strong>
               </label>
             );
           })}
@@ -615,19 +617,19 @@ export default function AgendaSettingsContent() {
       </GlassCard>
 
       <GlassCard
-        title="Prise de RDV"
+        title={i18nT("prise_de_rdv_d4e3d750")}
         subtitle="Ces réglages concernent les créneaux proposés aux clients depuis votre fiche publique. L’ajout manuel d’un RDV dans iNr’Calendar reste libre."
       >
         <div className="agendaSettings_responsiveTwo" style={globalGridStyle}>
           <SelectField
-            label="Proposer sur"
+            label={i18nT("proposer_sur_fa5ff748")}
             value={appointmentSettings.daysAhead}
             options={DAYS_AHEAD_OPTIONS.map((value) => ({ value, label: `${value} jours` }))}
             disabled={loading}
             onChange={(value) => updateAppointmentSettings({ daysAhead: Number(value) })}
           />
           <SelectField
-            label="Délai minimum"
+            label={i18nT("delai_minimum_66e05140")}
             value={appointmentSettings.minNoticeHours}
             options={MIN_NOTICE_OPTIONS.map((value) => ({ value, label: value === 0 ? "Immédiat" : `${value}h avant` }))}
             disabled={loading}
@@ -645,7 +647,7 @@ export default function AgendaSettingsContent() {
               <div key={day.key} className="agendaSettings_dayBlock" style={{ ...slotDayBlockStyle, opacity: daySettings.enabled ? 1 : 0.62 }}>
                 <div style={slotDayHeaderStyle}>
                   <div style={dayMetaStackStyle}>
-                    <span style={dayNameStyle}>{day.label}</span>
+                    <span style={dayNameStyle}>{i18nT(day.labelKey)}</span>
                     <label style={dayToggleInlineStyle}>
                       <input
                         type="checkbox"
@@ -654,7 +656,7 @@ export default function AgendaSettingsContent() {
                         onChange={(e) => updateDaySettings(day.key, { enabled: e.target.checked })}
                         style={{ width: 16, height: 16, accentColor: "#8b5cf6" }}
                       />
-                      <span>{daySettings.enabled ? "Ouvert" : "Fermé"}</span>
+                      <span>{daySettings.enabled ? i18nT("ouvert_0201d810") : i18nT("ferme_79516c40")}</span>
                     </label>
                   </div>
 
@@ -664,16 +666,15 @@ export default function AgendaSettingsContent() {
                     disabled={!canAddSlot}
                     onClick={() => addDaySlot(day.key)}
                   >
-                    + Ajouter un créneau
-                  </button>
+                    {i18nT("ajouter_un_creneau_11c55695")}{" "}</button>
                 </div>
 
                 <div style={slotStackStyle}>
                   <div className="agendaSettings_slotHeader" style={slotHeaderStyle}>
-                    <span>Créneau</span>
-                    <span>Début</span>
-                    <span>Fin</span>
-                    <span>Durée</span>
+                    <span>{i18nT("creneau_285e769f")}</span>
+                    <span>{i18nT("debut_f0955314")}</span>
+                    <span>{i18nT("fin_4251065f")}</span>
+                    <span>{i18nT("duree_6feac25e")}</span>
                     <span />
                   </div>
 
@@ -722,8 +723,8 @@ export default function AgendaSettingsContent() {
                         style={{ ...removeSlotButtonStyle, visibility: slotIndex > 0 ? "visible" : "hidden" }}
                         disabled={slotIndex === 0 || loading}
                         onClick={() => removeDaySlot(day.key, slotIndex)}
-                        aria-label="Supprimer le créneau"
-                        title="Supprimer le créneau"
+                        aria-label={i18nT("supprimer_le_creneau_8367b797")}
+                        title={i18nT("supprimer_le_creneau_8367b797")}
                       >
                         ×
                       </button>

@@ -1,11 +1,15 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import { useEffect, useState } from "react";
 import styles from "../dashboard.module.css";
 import ConnectionPill from "./ConnectionPill";
 import StatusMessage from "./StatusMessage";
 
 export default function InstagramPanel(props: any) {
+  const i18nT = useTranslations("shell");
   const {
     instagramConnected,
     instagramAccountConnected,
@@ -151,7 +155,7 @@ export default function InstagramPanel(props: any) {
               background: instagramStatusDot,
             }}
           />
-          Statut : <strong>{instagramStatusLabel}</strong>
+          {i18nT("statut_b20e7fc2")}{" "}<strong>{instagramStatusLabel}</strong>
         </span>
       </div>
 
@@ -166,12 +170,11 @@ export default function InstagramPanel(props: any) {
         }}
       >
         <div className={styles.blockHeaderRow}>
-          <div className={styles.blockTitle}>Compte connecté</div>
+          <div className={styles.blockTitle}>{i18nT("compte_connecte_a442afe1")}</div>
           <ConnectionPill connected={instagramAccountConnected} status={instagramNeedsUpdate ? "needs_update" : undefined} />
         </div>
         <div className={styles.blockSub}>
-          Instagram peut être connecté en <strong>standard</strong> ou en <strong>business via Facebook Business</strong>. Pour la sélection du profil, un compte <strong>Business / Creator</strong> relié à une Page Facebook reste nécessaire.
-        </div>
+          {i18nT("instagram_peut_etre_connecte_en_32ac6030")}{" "}<strong>standard</strong> {" "}{i18nT("ou_en_d680c328")}{" "}<strong>{i18nT("business_via_facebook_business_eb4c034d")}</strong>{i18nT("pour_la_selection_du_profil_un_7c8dbfce")}{" "}<strong>{i18nT("business_creator_e28ea3ce")}</strong> {" "}{i18nT("relie_a_une_page_facebook_reste_5141f18f")}{" "}</div>
 
         <div style={{ width: "100%", minWidth: 0 }}>
           <input
@@ -190,21 +193,18 @@ export default function InstagramPanel(props: any) {
             <>
               {instagramNeedsUpdate ? (
                 <button type="button" className={`${styles.actionBtn} ${styles.connectBtn}`} onClick={repairStandardAuthorization} disabled={instagramAccountBusy} style={{ width: "100%" }}>
-                  Actualiser
-                </button>
+                  {i18nT("actualiser_9d3b2a7d")}{" "}</button>
               ) : null}
               <button type="button" className={`${styles.actionBtn} ${styles.disconnectBtn}`} onClick={disconnectAll} disabled={instagramAccountBusy} style={{ width: "100%" }}>
-                {instagramAccountBusy ? "Déconnexion..." : "Déconnexion"}
+                {instagramAccountBusy ? i18nT("deconnexion_f5a5666d") : i18nT("deconnexion_903dca17")}
               </button>
             </>
           ) : (
             <>
               <button type="button" className={`${styles.actionBtn} ${styles.secondaryBtn}`} onClick={startStandard} style={{ width: "100%" }}>
-                Connexion standard
-              </button>
+                {i18nT("connexion_standard_7718db4b")}{" "}</button>
               <button type="button" className={`${styles.actionBtn} ${styles.connectBtn}`} onClick={startBusiness} style={{ width: "100%" }}>
-                Connexion business
-              </button>
+                {i18nT("connexion_business_fbb4bbc5")}{" "}</button>
             </>
           )}
         </div>
@@ -222,7 +222,7 @@ export default function InstagramPanel(props: any) {
           }}
         >
           <div className={styles.blockHeaderRow}>
-            <div className={styles.blockTitle}>Compte Instagram à connecter</div>
+            <div className={styles.blockTitle}>{i18nT("compte_instagram_a_connecter_fe4d850a")}</div>
             <ConnectionPill
               connected={instagramConnected}
               status={instagramNeedsUpdate ? "needs_update" : undefined}
@@ -230,7 +230,7 @@ export default function InstagramPanel(props: any) {
               label={instagramProfileActivityLabel}
             />
           </div>
-          <div className={styles.blockSub}>On liste les Pages Facebook qui possèdent un Instagram Business/Creator.</div>
+          <div className={styles.blockSub}>{i18nT("on_liste_les_pages_facebook_qui_bf01d3e9")}</div>
 
           <div style={responsiveActionsRow}>
             <button
@@ -243,8 +243,7 @@ export default function InstagramPanel(props: any) {
               disabled={igAccountsLoading || instagramProfileBusy}
               style={{ width: "100%" }}
             >
-              Charger mes comptes
-            </button>
+              {i18nT("charger_mes_comptes_feac3a8e")}{" "}</button>
 
             <select
               value={selectedInstagramPageId}
@@ -256,7 +255,7 @@ export default function InstagramPanel(props: any) {
                 cursor: instagramPickerLocked ? "not-allowed" : "pointer",
               }}
             >
-              <option value="">Sélectionner un compte</option>
+              <option value="">{i18nT("selectionner_un_compte_9009d2c1")}</option>
               {igAccounts.map((a: { page_id: string; username?: string | null; page_name?: string | null }) => (
                 <option key={a.page_id} value={a.page_id}>
                   @{a.username || "instagram"} — {a.page_name || a.page_id}
@@ -273,8 +272,7 @@ export default function InstagramPanel(props: any) {
                   disabled={!canChangeInstagramProfile}
                   style={{ width: "100%" }}
                 >
-                  Changer de compte
-                </button>
+                  {i18nT("changer_de_compte_6a10073f")}{" "}</button>
                 <button
                   type="button"
                   className={`${styles.actionBtn} ${styles.disconnectBtn} ${instagramProfileBusy && instagramProfileAction === "disconnect" ? styles.connectingActionBtn : ""}`}
@@ -282,8 +280,7 @@ export default function InstagramPanel(props: any) {
                   disabled={igAccountsLoading || instagramProfileBusy}
                   style={{ width: "100%" }}
                 >
-                  Déconnecter le compte
-                </button>
+                  {i18nT("deconnecter_le_compte_d78850d1")}{" "}</button>
               </>
             ) : (
               <button
@@ -293,8 +290,7 @@ export default function InstagramPanel(props: any) {
                 disabled={!canConnectInstagramProfile}
                 style={{ width: "100%" }}
               >
-                Connecter le compte
-              </button>
+                {i18nT("connecter_le_compte_a88dc864")}{" "}</button>
             )}
           </div>
 
@@ -308,8 +304,7 @@ export default function InstagramPanel(props: any) {
                 disabled={igAccountsLoading || instagramProfileBusy}
                 style={{ width: "100%" }}
               >
-                Actualiser les autorisations Meta
-              </button>
+                {i18nT("actualiser_les_autorisations_meta_85e7f589")}{" "}</button>
             </div>
           ) : null}
         </div>
@@ -326,10 +321,10 @@ export default function InstagramPanel(props: any) {
         }}
       >
         <div className={styles.blockHeaderRow}>
-          <div className={styles.blockTitle}>Lien du compte</div>
+          <div className={styles.blockTitle}>{i18nT("lien_du_compte_890d040b")}</div>
           <ConnectionPill connected={instagramConnected && !!instagramUrl?.trim()} />
         </div>
-        <div className={styles.blockSub}>Se remplit automatiquement après sélection.</div>
+        <div className={styles.blockSub}>{i18nT("se_remplit_automatiquement_apres_selection_2e5c819f")}</div>
 
         <div style={responsiveActionsRow}>
           <input
@@ -349,8 +344,7 @@ export default function InstagramPanel(props: any) {
             className={`${styles.actionBtn} ${styles.viewBtn}`}
             style={{ pointerEvents: instagramUrl ? "auto" : "none", opacity: instagramUrl ? 1 : 0.5, width: "100%" }}
           >
-            Voir le compte
-          </a>
+            {i18nT("voir_le_compte_1cbd7501")}{" "}</a>
         </div>
 
         {instagramUrlNotice && <StatusMessage variant="success">{instagramUrlNotice}</StatusMessage>}

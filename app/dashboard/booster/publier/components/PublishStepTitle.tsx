@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import type { CSSProperties, ReactNode } from "react";
 
 type PublishModalStyles = Readonly<Record<string, string>>;
@@ -17,6 +18,7 @@ export default function PublishStepTitle({
   testId,
   style,
 }: PublishStepTitleProps) {
+  const i18nT = useTranslations("booster");
   return (
     <div
       className={styles.blockTitle}
@@ -36,12 +38,12 @@ export default function PublishStepTitle({
           borderRadius: 999,
           display: "inline-grid",
           placeItems: "center",
-          border: "1px solid rgba(76,195,255,0.38)",
+          border: i18nT("1px_solid_rgba_76_195_255_69093d94"),
           background: "rgba(76,195,255,0.12)",
           color: "#dff6ff",
           fontSize: 12,
           fontWeight: 950,
-          flex: "0 0 auto",
+          flex: i18nT("0_0_auto_18ba0b6e"),
         }}
       >
         {step}

@@ -1,9 +1,9 @@
+import { useLocale, useTranslations } from "next-intl";
 import type { ComponentProps } from "react";
 import MediaLibraryPickerModal from "../../_components/MediaLibraryPickerModal";
 import styles from "../agent.module.css";
 import { channelOptions } from "../_lib/agent.config";
 import {
-  formatAttachmentSize,
   mailAccountLabel,
   mailAccountSecondaryLabel,
   recipientDisplayName,
@@ -20,6 +20,63 @@ import type {
   ScheduleListItem,
   ScheduledActionEditSession,
 } from "../_lib/agent.types";
+
+type AgentTranslator = (key: any) => string;
+
+const AGENT_CHANNEL_MESSAGE_KEYS: Partial<Record<ChannelKey, string>> = {
+  siteInrcy: "site_inrcy_57016d6f",
+  siteWeb: "site_web_7e78af33",
+  mails: "mails_8d79d3a8",
+};
+
+function localizedAgentChannelLabel(
+  channel: ChannelKey,
+  translate: AgentTranslator,
+) {
+  const messageKey = AGENT_CHANNEL_MESSAGE_KEYS[channel];
+  return messageKey
+    ? translate(messageKey)
+    : channelOptions[channel]?.name || channel;
+}
+
+function localizedRecipientMetaLine(
+  recipient: CampaignRecipientPreview,
+  translate: AgentTranslator,
+) {
+  const label = recipientMetaLine(recipient);
+  if (label === "Destinataire libre") {
+    return translate("destinataire_libre_27f79223");
+  }
+  if (label === "Destinataire") return translate("destinataire_56579042");
+  return label;
+}
+
+function formatLocalizedAttachmentSize(value: number, locale: string) {
+  const bytes = Number(value || 0);
+  if (!Number.isFinite(bytes) || bytes <= 0) return "";
+  const unit =
+    bytes < 1024
+      ? "byte"
+      : bytes < 1024 * 1024
+        ? "kilobyte"
+        : "megabyte";
+  const amount =
+    unit === "byte"
+      ? Math.round(bytes)
+      : unit === "kilobyte"
+        ? Math.round(bytes / 1024)
+        : Number(
+            (bytes / 1024 / 1024).toFixed(
+              bytes >= 10 * 1024 * 1024 ? 0 : 1,
+            ),
+          );
+  return new Intl.NumberFormat(locale, {
+    style: "unit",
+    unit,
+    unitDisplay: "short",
+    maximumFractionDigits: 1,
+  }).format(amount);
+}
 
 type CampaignDraftConfirmModalProps = {
   open: boolean;
@@ -48,6 +105,7 @@ export function CampaignDraftConfirmModal({
   onSavePublish,
   onSaveCampaign,
 }: CampaignDraftConfirmModalProps) {
+  const i18nT = useTranslations("agent");
   if (!open || (!campaignMailPreview && !isPublishView)) return null;
 
   return (
@@ -60,63 +118,71 @@ export function CampaignDraftConfirmModal({
         className={`${styles.settingsModal} ${styles.campaignDraftModal}`}
         role="dialog"
         aria-modal="true"
-        aria-label={isPublishView ? "Enregistrer la publication en brouillon" : "Enregistrer la campagne en brouillon"}
+        aria-label={i18nT(
+          isPublishView
+            ? "draft_save_publication_aria"
+            : "draft_save_campaign_aria",
+        )}
         onClick={(event) => event.stopPropagation()}
       >
-        <button type="button" className={styles.modalClose} onClick={onClose} aria-label="Fermer" disabled={saveState === "saving"}>
+        <button type="button" className={styles.modalClose} onClick={onClose} aria-label={i18nT("fermer_5ab4ec64")} disabled={saveState === "saving"}>
           ×
         </button>
-        <p className={styles.modalEyebrow}>Brouillon iNrSend</p>
-        <h2>{isPublishView ? "Enregistrer cette publication ?" : "Enregistrer cette campagne ?"}</h2>
+        <p className={styles.modalEyebrow}>{i18nT("brouillon_inrsend_38854c1c")}</p>
+        <h2>{isPublishView ? i18nT("enregistrer_cette_publication_1116f936") : i18nT("enregistrer_cette_campagne_c80acd9a")}</h2>
         <div className={styles.campaignDraftNotice}>
           <span aria-hidden>💾</span>
           <div>
             <strong>
               {isPublishView
-                ? "La publication va être enregistrée en brouillon dans iNrSend."
-                : "La campagne va être enregistrée en brouillon dans iNrSend."}
+                ? i18nT("la_publication_va_etre_enregistree_en_154b5bc3")
+                : i18nT("la_campagne_va_etre_enregistree_en_3c545443")}
             </strong>
             <p>
               {isPublishView
-                ? "Vous pourrez la retrouver plus tard dans iNrSend, puis la réouvrir dans Publier pour la modifier ou la publier. Elle ne sera pas publiée maintenant."
-                : `Vous pourrez la retrouver plus tard, puis la rééditer directement dans${selectedAutomationKey === "loyalty" ? " Fidéliser" : " Propulser"}. Elle ne sera pas envoyée maintenant.`}
+                ? i18nT("vous_pourrez_la_retrouver_plus_tard_c2acfbd6")
+                : i18nT("vous_pourrez_la_retrouver_plus_tard_93d2f550", {
+                    value0: ` ${i18nT(
+                      selectedAutomationKey === "loyalty"
+                        ? "fideliser_8fa9e4f1"
+                        : "propulser_2de43942",
+                    )}`,
+                  })}
             </p>
           </div>
         </div>
         <div className={styles.campaignDraftSummary}>
           {isPublishView ? (
             <>
-              <small>Canaux</small>
+              <small>{i18nT("canaux_27cb4473")}</small>
               <strong>
                 {(previewNavigationChannels.length ? previewNavigationChannels : selectedConfigChannels)
-                  .map((channel) => channelOptions[channel]?.name || channel)
+                  .map((channel) => localizedAgentChannelLabel(channel, i18nT))
                   .join(" / ") || "—"}
               </strong>
-              <small>Contenu</small>
-              <strong>{publishContentKind || "Publication"}</strong>
+              <small>{i18nT("contenu_f3cb82af")}</small>
+              <strong>{publishContentKind || i18nT("publication_e00441c4")}</strong>
             </>
           ) : (
             <>
-              <small>Objet</small>
+              <small>{i18nT("objet_3de621c5")}</small>
               <strong>{campaignMailPreview?.subject || "—"}</strong>
-              <small>Destinataires prévus</small>
+              <small>{i18nT("destinataires_prevus_8f9d87d7")}</small>
               <strong>
-                {campaignMailPreview?.recipientsCount || 0} contact
-                {(campaignMailPreview?.recipientsCount || 0) > 1 ? "s" : ""}
+                {campaignMailPreview?.recipientsCount || 0} {" "}{i18nT("contact_1a73af9e")}{" "}{(campaignMailPreview?.recipientsCount || 0) > 1 ? "s" : ""}
               </strong>
             </>
           )}
         </div>
         <div className={styles.modalActions}>
           <button type="button" onClick={onClose} disabled={saveState === "saving"}>
-            Annuler
-          </button>
+            {i18nT("annuler_49ba3292")}{" "}</button>
           <button
             type="button"
             onClick={isPublishView ? onSavePublish : onSaveCampaign}
             disabled={saveState === "saving"}
           >
-            {saveState === "saving" ? "Enregistrement..." : "Enregistrer en brouillon"}
+            {saveState === "saving" ? i18nT("enregistrement_9bf1058a") : i18nT("enregistrer_en_brouillon_d0c5a1eb")}
           </button>
         </div>
       </section>
@@ -143,6 +209,7 @@ export function PublishEditChoiceModal({
   onOpenText,
   onOpenMedia,
 }: PublishEditChoiceModalProps) {
+  const i18nT = useTranslations("agent");
   if (!open || !isPublishView || !hasPreparedAction) return null;
   return (
     <div className={styles.modalBackdrop} role="presentation" onClick={onClose}>
@@ -150,20 +217,20 @@ export function PublishEditChoiceModal({
         className={`${styles.settingsModal} ${styles.campaignEditModal}`}
         role="dialog"
         aria-modal="true"
-        aria-label="Modifier la publication"
+        aria-label={i18nT("modifier_la_publication_295870a4")}
         onClick={(event) => event.stopPropagation()}
       >
-        <button type="button" className={styles.modalClose} onClick={onClose} aria-label="Fermer">×</button>
-        <p className={styles.modalEyebrow}>Publication iNr’Agent</p>
-        <h2>Modifier la publication</h2>
+        <button type="button" className={styles.modalClose} onClick={onClose} aria-label={i18nT("fermer_5ab4ec64")}>×</button>
+        <p className={styles.modalEyebrow}>{i18nT("publication_inr_agent_62b957d7")}</p>
+        <h2>{i18nT("modifier_la_publication_295870a4")}</h2>
         <div className={styles.campaignEditGrid}>
           <button type="button" onClick={onOpenText}>
-            <strong>Contenu</strong>
-            <small>Modifier le titre, le texte, le CTA et les hashtags.</small>
+            <strong>{i18nT("contenu_f3cb82af")}</strong>
+            <small>{i18nT("modifier_le_titre_le_texte_le_325c7a96")}</small>
           </button>
           <button type="button" onClick={onOpenMedia}>
-            <strong>Média</strong>
-            <small>{mediaName ? `Média actuel : ${mediaName}` : "Ajouter, remplacer ou adapter l’image / la vidéo."}</small>
+            <strong>{i18nT("media_d8a313d3")}</strong>
+            <small>{mediaName ? i18nT("media_actuel_value_36aa9a80", { value0: mediaName }) : i18nT("ajouter_remplacer_ou_adapter_l_image_042b8754")}</small>
           </button>
         </div>
       </section>
@@ -192,6 +259,7 @@ export function CampaignEditChoiceModal({
   onOpenRecipients,
   onOpenMailAccount,
 }: CampaignEditChoiceModalProps) {
+  const i18nT = useTranslations("agent");
   if (!open || !preview) return null;
   return (
     <div className={styles.modalBackdrop} role="presentation" onClick={onClose}>
@@ -199,30 +267,28 @@ export function CampaignEditChoiceModal({
         className={`${styles.settingsModal} ${styles.campaignEditModal}`}
         role="dialog"
         aria-modal="true"
-        aria-label="Modifier la campagne"
+        aria-label={i18nT("modifier_la_campagne_cb246f76")}
         onClick={(event) => event.stopPropagation()}
       >
-        <button type="button" className={styles.modalClose} onClick={onClose} aria-label="Fermer">×</button>
-        <p className={styles.modalEyebrow}>Campagne iNr’Agent</p>
-        <h2>Modifier la campagne</h2>
+        <button type="button" className={styles.modalClose} onClick={onClose} aria-label={i18nT("fermer_5ab4ec64")}>×</button>
+        <p className={styles.modalEyebrow}>{i18nT("campagne_inr_agent_fa7db334")}</p>
+        <h2>{i18nT("modifier_la_campagne_cb246f76")}</h2>
         <div className={styles.campaignEditGrid}>
           <button type="button" onClick={onOpenText}>
-            <strong>Texte du mail</strong>
-            <small>Modifier l’objet et le corps du message.</small>
+            <strong>{i18nT("texte_du_mail_47e3722c")}</strong>
+            <small>{i18nT("modifier_l_objet_et_le_corps_6c600d4a")}</small>
           </button>
           <button type="button" onClick={onOpenAttachments}>
-            <strong>Pièce jointe</strong>
-            <small>{attachmentCount > 0 ? `${attachmentCount} fichier${attachmentCount > 1 ? "s" : ""}` : "Ajouter ou remplacer un fichier."}</small>
+            <strong>{i18nT("piece_jointe_2ecefd2c")}</strong>
+            <small>{attachmentCount > 0 ? i18nT("value_fichier_value_34309747", { value0: attachmentCount, value1: attachmentCount > 1 ? "s" : "" }) : i18nT("ajouter_ou_remplacer_un_fichier_20caa78d")}</small>
           </button>
           <button type="button" onClick={onOpenRecipients}>
-            <strong>Destinataires CRM</strong>
+            <strong>{i18nT("destinataires_crm_beffd723")}</strong>
             <small>
-              {preview.recipientsCount} contact{preview.recipientsCount > 1 ? "s" : ""} prévu
-              {preview.recipientsCount > 1 ? "s" : ""}. Voir la liste.
-            </small>
+              {preview.recipientsCount} {" "}{i18nT("contact_1a73af9e")}{preview.recipientsCount > 1 ? "s" : ""} {" "}{i18nT("prevu_37c9337b")}{" "}{preview.recipientsCount > 1 ? "s" : ""}{i18nT("voir_la_liste_6f48769b")}{" "}</small>
           </button>
           <button type="button" onClick={onOpenMailAccount}>
-            <strong>Boîte d’envoi</strong>
+            <strong>{i18nT("boite_d_envoi_8af123c1")}</strong>
             <small>{preview.mailAccountLabel}</small>
           </button>
         </div>
@@ -240,6 +306,7 @@ type RecipientsPreviewModalProps = {
 };
 
 export function RecipientsPreviewModal({ open, preview, recipients, onClose, onEdit }: RecipientsPreviewModalProps) {
+  const i18nT = useTranslations("agent");
   if (!open || !preview) return null;
   return (
     <div className={styles.modalBackdrop} role="presentation" onClick={onClose}>
@@ -247,13 +314,13 @@ export function RecipientsPreviewModal({ open, preview, recipients, onClose, onE
         className={`${styles.settingsModal} ${styles.agentListModal}`}
         role="dialog"
         aria-modal="true"
-        aria-label="Destinataires prévus"
+        aria-label={i18nT("destinataires_prevus_8f9d87d7")}
         onClick={(event) => event.stopPropagation()}
       >
-        <button type="button" className={styles.modalClose} onClick={onClose} aria-label="Fermer">×</button>
-        <p className={styles.modalEyebrow}>Destinataires</p>
+        <button type="button" className={styles.modalClose} onClick={onClose} aria-label={i18nT("fermer_5ab4ec64")}>×</button>
+        <p className={styles.modalEyebrow}>{i18nT("destinataires_51610ad7")}</p>
         <h2>
-          {recipients.length} contact{recipients.length > 1 ? "s" : ""} prévu{recipients.length > 1 ? "s" : ""}
+          {recipients.length} {" "}{i18nT("contact_1a73af9e")}{recipients.length > 1 ? "s" : ""} {" "}{i18nT("prevu_37c9337b")}{recipients.length > 1 ? "s" : ""}
         </h2>
         <div className={styles.agentListScroll}>
           {recipients.length > 0 ? (
@@ -264,17 +331,17 @@ export function RecipientsPreviewModal({ open, preview, recipients, onClose, onE
                     <span>{recipientDisplayName(recipient)}</span>
                     <em>— {recipient.email}</em>
                   </strong>
-                  <small>{recipientMetaLine(recipient)}</small>
+                  <small>{localizedRecipientMetaLine(recipient, i18nT)}</small>
                 </span>
               </article>
             ))
           ) : (
-            <p className={styles.campaignEditHint}>Aucun destinataire n’est prévu pour cette campagne.</p>
+            <p className={styles.campaignEditHint}>{i18nT("aucun_destinataire_n_est_prevu_pour_65410721")}</p>
           )}
         </div>
         <div className={styles.modalActions}>
-          <button type="button" onClick={onClose}>Fermer</button>
-          <button type="button" onClick={onEdit}>Modifier les destinataires</button>
+          <button type="button" onClick={onClose}>{i18nT("fermer_5ab4ec64")}</button>
+          <button type="button" onClick={onEdit}>{i18nT("modifier_les_destinataires_3a589ae7")}</button>
         </div>
       </section>
     </div>
@@ -304,6 +371,7 @@ export function MailAccountEditModal({
   onClose,
   onSave,
 }: MailAccountEditModalProps) {
+  const i18nT = useTranslations("agent");
   if (!open || !preview) return null;
   return (
     <div className={styles.modalBackdrop} role="presentation" onClick={onClose}>
@@ -311,15 +379,15 @@ export function MailAccountEditModal({
         className={`${styles.settingsModal} ${styles.agentListModal}`}
         role="dialog"
         aria-modal="true"
-        aria-label="Modifier la boîte d’envoi"
+        aria-label={i18nT("modifier_la_boite_d_envoi_a79d173b")}
         onClick={(event) => event.stopPropagation()}
       >
-        <button type="button" className={styles.modalClose} onClick={onClose} aria-label="Fermer">×</button>
-        <p className={styles.modalEyebrow}>Boîte d’envoi</p>
-        <h2>Choisir la boîte mail</h2>
+        <button type="button" className={styles.modalClose} onClick={onClose} aria-label={i18nT("fermer_5ab4ec64")}>×</button>
+        <p className={styles.modalEyebrow}>{i18nT("boite_d_envoi_8af123c1")}</p>
+        <h2>{i18nT("choisir_la_boite_mail_8804ac3f")}</h2>
         <div className={styles.agentListScroll}>
           {loading ? (
-            <p className={styles.campaignEditHint}>Chargement des boîtes connectées...</p>
+            <p className={styles.campaignEditHint}>{i18nT("chargement_des_boites_connectees_0e870b3a")}</p>
           ) : accounts.length > 0 ? (
             accounts.map((account) => {
               const usable = account.status === "connected" && account.connection_status !== "needs_update" && !account.requires_update;
@@ -335,20 +403,20 @@ export function MailAccountEditModal({
                   <span className={styles.agentListAvatar} aria-hidden>✉</span>
                   <span className={styles.agentListContent}>
                     <strong>{mailAccountLabel(account)}</strong>
-                    <small>{mailAccountSecondaryLabel(account)}{usable ? " · connectée" : " · à reconnecter"}</small>
+                    <small>{mailAccountSecondaryLabel(account)}{usable ? i18nT("connectee_fea289b7") : i18nT("a_reconnecter_45087b6f")}</small>
                   </span>
-                  <span className={styles.agentListTag}>{usable ? "OK" : "À corriger"}</span>
+                  <span className={styles.agentListTag}>{usable ? i18nT("ok_9ce3bd42") : i18nT("a_corriger_4e4cde57")}</span>
                 </label>
               );
             })
           ) : (
-            <p className={styles.campaignEditHint}>Aucune boîte mail connectée. Connecte une boîte dans iNrSend avant validation.</p>
+            <p className={styles.campaignEditHint}>{i18nT("aucune_boite_mail_connectee_connecte_une_98952f86")}</p>
           )}
         </div>
         <div className={styles.modalActions}>
-          <button type="button" onClick={onClose} disabled={saveState === "saving"}>Annuler</button>
+          <button type="button" onClick={onClose} disabled={saveState === "saving"}>{i18nT("annuler_49ba3292")}</button>
           <button type="button" onClick={onSave} disabled={saveState === "saving" || !selectedAccountId}>
-            {saveState === "saving" ? "Enregistrement..." : "Utiliser cette boîte"}
+            {saveState === "saving" ? i18nT("enregistrement_9bf1058a") : i18nT("utiliser_cette_boite_38fae254")}
           </button>
         </div>
       </section>
@@ -389,6 +457,8 @@ export function AttachmentModal({
   onOversizedMedia,
   onRemove,
 }: AttachmentModalProps) {
+  const locale = useLocale();
+  const i18nT = useTranslations("agent");
   if (!open || !preview) return null;
   return (
     <div className={styles.modalBackdrop} role="presentation" onClick={onClose}>
@@ -396,12 +466,12 @@ export function AttachmentModal({
         className={`${styles.settingsModal} ${styles.attachmentModal}`}
         role="dialog"
         aria-modal="true"
-        aria-label="Pièce jointe"
+        aria-label={i18nT("piece_jointe_2ecefd2c")}
         onClick={(event) => event.stopPropagation()}
       >
-        <button type="button" className={styles.modalClose} onClick={onClose} aria-label="Fermer">×</button>
-        <p className={styles.modalEyebrow}>Pièce jointe</p>
-        <h2>{attachments.length > 0 ? "Pièces jointes" : "Ajouter une pièce jointe"}</h2>
+        <button type="button" className={styles.modalClose} onClick={onClose} aria-label={i18nT("fermer_5ab4ec64")}>×</button>
+        <p className={styles.modalEyebrow}>{i18nT("piece_jointe_2ecefd2c")}</p>
+        <h2>{attachments.length > 0 ? i18nT("pieces_jointes_98d89a25") : i18nT("ajouter_une_piece_jointe_fec460dc")}</h2>
         <div className={styles.attachmentUploadBox}>
           <input
             id="agent-campaign-attachment"
@@ -416,27 +486,26 @@ export function AttachmentModal({
           <div className={styles.campaignAttachmentActionButtons}>
             <label htmlFor="agent-campaign-attachment">
               <span aria-hidden>📎</span>
-              {uploadState === "saving" ? "Préparation..." : "Joindre"}
+              {uploadState === "saving" ? i18nT("preparation_2c6b897e") : i18nT("joindre_2ee36407")}
             </label>
             <button type="button" onClick={onOpenLibrary} disabled={uploadState === "saving"}>
               <span aria-hidden>🖼️</span>
-              Médiathèque
-            </button>
+              {i18nT("mediatheque_e4fa8e31")}{" "}</button>
           </div>
-          <small>20 Mo maximum par fichier. Les médias plus lourds peuvent être compressés par iNrCy.</small>
+          <small>{i18nT("20_mo_maximum_par_fichier_les_bc9d123e")}</small>
         </div>
 
         <MediaLibraryPickerModal
           open={libraryPickerOpen}
-          title="Joindre depuis la Médiathèque"
-          subtitle="Ajoutez un média déjà stocké dans iNrCy · 20 Mo max par fichier."
+          title={i18nT("joindre_depuis_la_mediatheque_132a0a6b")}
+          subtitle={i18nT("attachment_library_subtitle")}
           accept="all"
           multiple
           maxSelection={10}
           maxImageBytes={maxAttachmentBytes}
           maxVideoBytes={maxAttachmentBytes}
-          confirmLabel="Joindre"
-          selectedHint="Choisissez les médias à joindre à la campagne."
+          confirmLabel={i18nT("joindre_2ee36407")}
+          selectedHint={i18nT("choisissez_les_medias_a_joindre_a_58b1d39a")}
           onOpenOptimizer={onOpenOptimizer}
           onOversizedMedia={onOversizedMedia}
           onClose={onCloseLibrary}
@@ -449,17 +518,18 @@ export function AttachmentModal({
                 <span aria-hidden>📄</span>
                 <strong>{attachment.name}</strong>
                 <small>
-                  {attachment.type || "Document"}
-                  {attachment.size ? ` · ${formatAttachmentSize(attachment.size)}` : ""}
+                  {attachment.type || i18nT("document_e214b8a2")}
+                  {attachment.size
+                    ? ` · ${formatLocalizedAttachmentSize(attachment.size, locale)}`
+                    : ""}
                 </small>
                 <button type="button" onClick={() => onRemove(attachment.path)} disabled={uploadState === "saving"}>
-                  Supprimer
-                </button>
+                  {i18nT("supprimer_1acfc1c7")}{" "}</button>
               </div>
             ))}
           </div>
         ) : (
-          <p className={styles.campaignEditHint}>Aucune pièce jointe n’est prévue pour cette campagne.</p>
+          <p className={styles.campaignEditHint}>{i18nT("aucune_piece_jointe_n_est_prevue_cf88fd9f")}</p>
         )}
       </section>
     </div>
@@ -494,6 +564,7 @@ type AgentScheduleModalProps = {
 };
 
 export function AgentScheduleModal({ open, items, mutationState, onClose, onModify, onDelete }: AgentScheduleModalProps) {
+  const i18nT = useTranslations("agent");
   if (!open) return null;
   return (
     <div className={styles.modalBackdrop} role="presentation" onClick={onClose}>
@@ -501,32 +572,32 @@ export function AgentScheduleModal({ open, items, mutationState, onClose, onModi
         className={`${styles.settingsModal} ${styles.scheduleModal}`}
         role="dialog"
         aria-modal="true"
-        aria-label="Actions programmées"
+        aria-label={i18nT("actions_programmees_77ae2684")}
         onClick={(event) => event.stopPropagation()}
       >
         <div className={styles.scheduleModalHeader}>
           <div className={styles.scheduleModalTitle}>
-            <p className={styles.modalEyebrow}>Programmation</p>
-            <h2>Actions programmées</h2>
+            <p className={styles.modalEyebrow}>{i18nT("programmation_6255df3b")}</p>
+            <h2>{i18nT("actions_programmees_77ae2684")}</h2>
           </div>
           <div className={styles.scheduleModalHeaderActions}>
-            <div className={styles.scheduleSummaryPill} aria-label={`${items.length} actions à venir`}>
+            <div className={styles.scheduleSummaryPill} aria-label={i18nT("value_actions_a_venir_11a80df3", { value0: items.length })}>
               <strong>{items.length}</strong>
-              <span>actions à venir</span>
+              <span>{i18nT("actions_a_venir_a611605d")}</span>
             </div>
-            <button type="button" className={styles.scheduleCloseButton} onClick={onClose}>Fermer</button>
+            <button type="button" className={styles.scheduleCloseButton} onClick={onClose}>{i18nT("fermer_5ab4ec64")}</button>
           </div>
         </div>
 
         <section className={styles.scheduleSection}>
           <div className={styles.scheduleSectionHeader}>
-            <strong>Actions à venir</strong>
-            <span>Ordre chronologique</span>
+            <strong>{i18nT("actions_a_venir_7f041ed9")}</strong>
+            <span>{i18nT("ordre_chronologique_38b17a1e")}</span>
           </div>
           {items.length > 0 ? (
-            <div className={styles.scheduleTable} role="table" aria-label="Actions programmées à venir">
+            <div className={styles.scheduleTable} role="table" aria-label={i18nT("actions_programmees_a_venir_c1f610d0")}>
               <div className={styles.scheduleTableHeader} role="row">
-                <span>Date</span><span>Heure</span><span>Action</span><span>Type</span><span>Canal</span><span>Origine</span><span>Actions</span>
+                <span>{i18nT("date_eb9a4bc1")}</span><span>{i18nT("heure_5073129f")}</span><span>{i18nT("action_97c89a4d")}</span><span>{i18nT("type_3deb7456")}</span><span>{i18nT("canal_61f21e6f")}</span><span>{i18nT("origine_62e96258")}</span><span>{i18nT("actions_c3cd636a")}</span>
               </div>
               {items.map((item) => (
                 <div key={item.id} className={styles.scheduleTableRow} data-status={item.statusKey} role="row">
@@ -542,18 +613,28 @@ export function AgentScheduleModal({ open, items, mutationState, onClose, onModi
                       className={styles.scheduleIconButton}
                       onClick={() => onModify(item)}
                       disabled={!item.editable || mutationState === "saving"}
-                      aria-label={item.source === "automatic" ? "Modifier la programmation" : item.typeLabel === "Statistiques" ? "Modifier la programmation" : "Modifier le contenu"}
-                      title={item.source === "automatic" ? "Modifier la programmation" : item.typeLabel === "Statistiques" ? "Modifier la programmation" : "Modifier le contenu"}
+                      aria-label={i18nT(
+                        item.source === "automatic" ||
+                          item.automationKey === "stats"
+                          ? "modifier_la_programmation_2bdd7cdc"
+                          : "edit_content",
+                      )}
+                      title={i18nT(
+                        item.source === "automatic" ||
+                          item.automationKey === "stats"
+                          ? "modifier_la_programmation_2bdd7cdc"
+                          : "edit_content",
+                      )}
                     >
-                      {item.source === "automatic" || item.typeLabel === "Statistiques" ? "🕘" : "✎"}
+                      {item.source === "automatic" || item.automationKey === "stats" ? "🕘" : "✎"}
                     </button>
                     <button
                       type="button"
                       className={`${styles.scheduleIconButton} ${styles.scheduleIconDanger}`}
                       onClick={() => onDelete(item)}
                       disabled={!item.removable || mutationState === "saving"}
-                      aria-label="Supprimer"
-                      title="Supprimer"
+                      aria-label={i18nT("supprimer_1acfc1c7")}
+                      title={i18nT("supprimer_1acfc1c7")}
                     >
                       🗑
                     </button>
@@ -562,7 +643,7 @@ export function AgentScheduleModal({ open, items, mutationState, onClose, onModi
               ))}
             </div>
           ) : (
-            <p className={styles.scheduleEmpty}>Aucune action programmée à venir.</p>
+            <p className={styles.scheduleEmpty}>{i18nT("aucune_action_programmee_a_venir_a0bce831")}</p>
           )}
         </section>
       </section>
@@ -589,6 +670,7 @@ export function ValidationChoiceModal({
   onRunNow,
   onSchedule,
 }: ValidationChoiceModalProps) {
+  const i18nT = useTranslations("agent");
   if (!open || !selectedPreparedAction) return null;
   return (
     <div className={styles.modalBackdrop} role="presentation" onClick={() => mutationState !== "saving" && onClose()}>
@@ -596,49 +678,49 @@ export function ValidationChoiceModal({
         className={`${styles.settingsModal} ${styles.validationChoiceModal}`}
         role="dialog"
         aria-modal="true"
-        aria-label="Valider l’action iNr’Agent"
+        aria-label={i18nT("valider_l_action_inr_agent_be980832")}
         onClick={(event) => event.stopPropagation()}
       >
-        <button type="button" className={styles.modalClose} onClick={onClose} disabled={mutationState === "saving"} aria-label="Fermer">×</button>
-        <p className={styles.modalEyebrow}>Validation</p>
+        <button type="button" className={styles.modalClose} onClick={onClose} disabled={mutationState === "saving"} aria-label={i18nT("fermer_5ab4ec64")}>×</button>
+        <p className={styles.modalEyebrow}>{i18nT("validation_dd74d182")}</p>
         <h2>
           {scheduledEditSession
-            ? "Que faire de cette action programmée ?"
+            ? i18nT("que_faire_de_cette_action_programmee_6ed6ff22")
             : selectedPreparedAction.automationKey === "publish"
-              ? "Publier cette action ?"
-              : "Envoyer cette campagne ?"}
+              ? i18nT("publier_cette_action_333559e3")
+              : i18nT("envoyer_cette_campagne_fe09ca14")}
         </h2>
         <p className={styles.modalHint}>
           {scheduledEditSession
-            ? "Vous pouvez lancer maintenant ce contenu programmé ou enregistrer sa programmation avec les informations actuelles."
-            : "L’action est prête. Vous pouvez la lancer maintenant ou la programmer pour qu’iNr’Agent s’en occupe plus tard."}
+            ? i18nT("vous_pouvez_lancer_maintenant_ce_contenu_8c5a8a4d")
+            : i18nT("l_action_est_prete_vous_pouvez_91507571")}
         </p>
         <div className={styles.validationChoiceGrid}>
           <button type="button" className={styles.validationChoiceCard} onClick={onRunNow} disabled={mutationState === "saving"}>
             <span aria-hidden>⚡</span>
             <strong>
               {scheduledEditSession
-                ? "Lancer maintenant"
+                ? i18nT("lancer_maintenant_7bd5005e")
                 : selectedPreparedAction.automationKey === "publish"
-                  ? "Publier maintenant"
-                  : "Envoyer maintenant"}
+                  ? i18nT("publier_maintenant_b99ae0df")
+                  : i18nT("envoyer_maintenant_54fbd09c")}
             </strong>
             <small>
               {scheduledEditSession
-                ? "iNr’Agent exécute l’action immédiatement et retire la programmation future."
-                : "iNr’Agent exécute l’action immédiatement."}
+                ? i18nT("inr_agent_execute_l_action_immediatement_eae4b203")
+                : i18nT("inr_agent_execute_l_action_immediatement_9dc25e33")}
             </small>
           </button>
           <button type="button" className={styles.validationChoiceCard} onClick={onSchedule} disabled={mutationState === "saving"}>
             <span aria-hidden>🕒</span>
             <strong>
               {scheduledEditSession
-                ? "Programmer"
+                ? i18nT("programmer_f704a30b")
                 : selectedPreparedAction.automationKey === "publish"
-                  ? "Programmer la publication"
-                  : "Programmer l’envoi"}
+                  ? i18nT("programmer_la_publication_a364ade3")
+                  : i18nT("programmer_l_envoi_1c7213bd")}
             </strong>
-            <small>Les informations actuelles sont préremplies.</small>
+            <small>{i18nT("les_informations_actuelles_sont_preremplies_c8604211")}</small>
           </button>
         </div>
       </section>

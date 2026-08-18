@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import { useMemo } from "react";
 import { createInrBadgeQrMatrix } from "@/lib/inrBadgeQr";
 import styles from "../dashboard.module.css";
@@ -10,6 +13,7 @@ type Props = {
 };
 
 export default function InrBadgeQrCode({ value, label = "QR Code iNr'Badge" }: Props) {
+  const i18nT = useTranslations("shell");
   const matrix = useMemo(() => {
     try {
       return createInrBadgeQrMatrix(value);
@@ -20,9 +24,8 @@ export default function InrBadgeQrCode({ value, label = "QR Code iNr'Badge" }: P
 
   if (!matrix.length) {
     return (
-      <div className={styles.inrBadgeQrUnavailable} role="img" aria-label="QR Code indisponible">
-        QR indisponible
-      </div>
+      <div className={styles.inrBadgeQrUnavailable} role="img" aria-label={i18nT("qr_code_indisponible_7d1cdbea")}>
+        {i18nT("qr_indisponible_cd24def2")}{" "}</div>
     );
   }
 

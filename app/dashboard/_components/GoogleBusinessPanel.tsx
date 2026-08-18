@@ -1,11 +1,15 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import { useEffect, useMemo, useState } from "react";
 import styles from "../dashboard.module.css";
 import ConnectionPill from "./ConnectionPill";
 import StatusMessage from "./StatusMessage";
 
 export default function GoogleBusinessPanel(props: any) {
+  const i18nT = useTranslations("shell");
   const {
     gmbConnected,
     gmbAccountConnected,
@@ -129,7 +133,7 @@ export default function GoogleBusinessPanel(props: any) {
               background: gmbStatusDot,
             }}
           />
-          Statut : <strong>{gmbStatusLabel}</strong>
+          {i18nT("statut_b20e7fc2")}{" "}<strong>{gmbStatusLabel}</strong>
         </span>
       </div>
 
@@ -144,10 +148,10 @@ export default function GoogleBusinessPanel(props: any) {
         }}
       >
         <div className={styles.blockHeaderRow}>
-          <div className={styles.blockTitle}>Compte connecté</div>
+          <div className={styles.blockTitle}>{i18nT("compte_connecte_a442afe1")}</div>
           <ConnectionPill connected={gmbAccountConnected} status={gmbNeedsUpdate ? "needs_update" : undefined} />
         </div>
-        <div className={styles.blockSub}>Ce compte Google sert à accéder à vos établissements Google Business.</div>
+        <div className={styles.blockSub}>{i18nT("ce_compte_google_sert_a_acceder_80ee3ae0")}</div>
 
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           <input
@@ -172,17 +176,15 @@ export default function GoogleBusinessPanel(props: any) {
             <>
               {gmbNeedsUpdate ? (
                 <button type="button" className={`${styles.actionBtn} ${styles.connectBtn}`} onClick={connectGmbAccount} disabled={gmbAccountBusy}>
-                  Actualiser
-                </button>
+                  {i18nT("actualiser_9d3b2a7d")}{" "}</button>
               ) : null}
               <button type="button" className={`${styles.actionBtn} ${styles.disconnectBtn}`} onClick={() => void disconnectGmbAccount()} disabled={gmbAccountBusy}>
-                {gmbAccountBusy ? "Déconnexion..." : "Déconnexion"}
+                {gmbAccountBusy ? i18nT("deconnexion_f5a5666d") : i18nT("deconnexion_903dca17")}
               </button>
             </>
           ) : (
             <button type="button" className={`${styles.actionBtn} ${styles.connectBtn}`} onClick={connectGmbAccount}>
-              Connecter Google
-            </button>
+              {i18nT("connecter_google_cfcf4fe1")}{" "}</button>
           )}
         </div>
       </div>
@@ -199,7 +201,7 @@ export default function GoogleBusinessPanel(props: any) {
           }}
         >
           <div className={styles.blockHeaderRow}>
-            <div className={styles.blockTitle}>Établissement à connecter</div>
+            <div className={styles.blockTitle}>{i18nT("etablissement_a_connecter_264ce135")}</div>
             <ConnectionPill
               connected={gmbConfigured}
               status={gmbNeedsUpdate ? "needs_update" : undefined}
@@ -207,7 +209,7 @@ export default function GoogleBusinessPanel(props: any) {
               label={gmbLocationActivityLabel}
             />
           </div>
-          <div className={styles.blockSub}>Choisissez la fiche Google Business à relier à iNrCy.</div>
+          <div className={styles.blockSub}>{i18nT("choisissez_la_fiche_google_business_a_ea2602ec")}</div>
 
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
             <button
@@ -219,8 +221,7 @@ export default function GoogleBusinessPanel(props: any) {
               }}
               disabled={gmbLoadingList || gmbLocationBusy}
             >
-              Charger mes établissements
-            </button>
+              {i18nT("charger_mes_etablissements_b636d3f7")}{" "}</button>
 
             <select
               value={selectedLocationName}
@@ -240,7 +241,7 @@ export default function GoogleBusinessPanel(props: any) {
                 cursor: gmbPickerLocked ? "not-allowed" : "pointer",
               }}
             >
-              <option value="">Sélectionner un établissement</option>
+              <option value="">{i18nT("selectionner_un_etablissement_432be24b")}</option>
               {!hasSelectedLocationInList && selectedLocationName ? <option value={selectedLocationName}>{selectedLocationLabel}</option> : null}
               {gmbLocations.map((l: { name: string; title?: string | null }) => (
                 <option key={l.name} value={l.name}>
@@ -257,16 +258,14 @@ export default function GoogleBusinessPanel(props: any) {
                   onClick={() => void handleLocationConnect()}
                   disabled={!canChangeLocation}
                 >
-                  Changer d'établissement
-                </button>
+                  {i18nT("changer_d_etablissement_5dc8231c")}{" "}</button>
                 <button
                   type="button"
                   className={`${styles.actionBtn} ${styles.disconnectBtn} ${gmbLocationBusy && gmbLocationAction === "disconnect" ? styles.connectingActionBtn : ""}`}
                   onClick={() => void handleLocationDisconnect()}
                   disabled={gmbLoadingList || gmbLocationBusy}
                 >
-                  Déconnecter l'établissement
-                </button>
+                  {i18nT("deconnecter_l_etablissement_074a7268")}{" "}</button>
               </>
             ) : (
               <button
@@ -275,14 +274,13 @@ export default function GoogleBusinessPanel(props: any) {
                 onClick={() => void handleLocationConnect()}
                 disabled={!canConnectLocation}
               >
-                Connecter l'établissement
-              </button>
+                {i18nT("connecter_l_etablissement_197a12c9")}{" "}</button>
             )}
           </div>
 
           {gmbAccounts?.length > 1 ? (
             <div style={{ color: "rgba(255,255,255,0.65)", fontSize: 12, marginTop: -2 }}>
-              Plusieurs comptes détectés : iNrCy utilise actuellement <strong>{gmbAccountName || "(non défini)"}</strong>.
+              {i18nT("plusieurs_comptes_detectes_inrcy_utilise_actuell_fb1bcb5e")}{" "}<strong>{gmbAccountName || i18nT("non_defini_ca1771d6")}</strong>.
             </div>
           ) : null}
 
@@ -301,10 +299,10 @@ export default function GoogleBusinessPanel(props: any) {
         }}
       >
         <div className={styles.blockHeaderRow}>
-          <div className={styles.blockTitle}>Lien de la page</div>
+          <div className={styles.blockTitle}>{i18nT("lien_de_la_page_1f9f4b87")}</div>
           <ConnectionPill connected={gmbConfigured && !!gmbUrl?.trim()} />
         </div>
-        <div className={styles.blockSub}>Se remplit automatiquement une fois l'établissement sélectionné.</div>
+        <div className={styles.blockSub}>{i18nT("se_remplit_automatiquement_une_fois_l_27c3f226")}</div>
 
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           <input
@@ -332,8 +330,7 @@ export default function GoogleBusinessPanel(props: any) {
             className={`${styles.actionBtn} ${styles.viewBtn}`}
             style={{ pointerEvents: gmbUrl ? "auto" : "none", opacity: gmbUrl ? 1 : 0.5 }}
           >
-            Voir la page
-          </a>
+            {i18nT("voir_la_page_82561348")}{" "}</a>
         </div>
 
         {gmbUrlNotice && <StatusMessage variant="success">{gmbUrlNotice}</StatusMessage>}

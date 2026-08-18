@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import {
   useRef,
   type Dispatch,
@@ -28,6 +31,7 @@ export function useAgentRichTextEditors<
   setCampaignTextDraft,
   setPublishTextDraft,
 }: UseAgentRichTextEditorsParams<TCampaignDraft, TPublishDraft>) {
+  const i18nT = useTranslations("agent");
   const publishBodyEditorRef = useRef<HTMLDivElement | null>(null);
   const campaignBodyEditorRef = useRef<HTMLDivElement | null>(null);
   const publishEmojiSelectionRef = useRef<Range | null>(null);
@@ -120,7 +124,7 @@ export function useAgentRichTextEditors<
           : kind === "italic"
             ? "<em>texte</em>"
             : "<u>texte</u>";
-      document.execCommand("insertHTML", false, placeholderHtml);
+      document.execCommand(i18nT("inserthtml_d8d4d068"), false, placeholderHtml);
     }
 
     sync(editor);

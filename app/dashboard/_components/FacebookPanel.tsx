@@ -1,11 +1,15 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import { useEffect, useState } from "react";
 import styles from "../dashboard.module.css";
 import ConnectionPill from "./ConnectionPill";
 import StatusMessage from "./StatusMessage";
 
 export default function FacebookPanel(props: any) {
+  const i18nT = useTranslations("shell");
   const {
     facebookPageConnected,
     facebookAccountConnected,
@@ -133,7 +137,7 @@ export default function FacebookPanel(props: any) {
               background: facebookStatusDot,
             }}
           />
-          Statut : <strong>{facebookStatusLabel}</strong>
+          {i18nT("statut_b20e7fc2")}{" "}<strong>{facebookStatusLabel}</strong>
         </span>
       </div>
 
@@ -148,10 +152,10 @@ export default function FacebookPanel(props: any) {
         }}
       >
         <div className={styles.blockHeaderRow}>
-          <div className={styles.blockTitle}>Compte connecté</div>
+          <div className={styles.blockTitle}>{i18nT("compte_connecte_a442afe1")}</div>
           <ConnectionPill connected={facebookAccountConnected} status={facebookNeedsUpdate ? "needs_update" : undefined} />
         </div>
-        <div className={styles.blockSub}>Ce compte Facebook peut cumuler un accès standard et un accès via portefeuille business.</div>
+        <div className={styles.blockSub}>{i18nT("ce_compte_facebook_peut_cumuler_un_32c21e9e")}</div>
 
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           <input
@@ -178,21 +182,18 @@ export default function FacebookPanel(props: any) {
             <>
               {facebookNeedsUpdate ? (
                 <button type="button" className={`${styles.actionBtn} ${styles.connectBtn}`} onClick={startStandard} disabled={facebookAccountBusy}>
-                  Actualiser
-                </button>
+                  {i18nT("actualiser_9d3b2a7d")}{" "}</button>
               ) : null}
               <button type="button" className={`${styles.actionBtn} ${styles.disconnectBtn}`} onClick={disconnectAll} disabled={facebookAccountBusy}>
-                {facebookAccountBusy ? "Déconnexion..." : "Déconnexion"}
+                {facebookAccountBusy ? i18nT("deconnexion_f5a5666d") : i18nT("deconnexion_903dca17")}
               </button>
             </>
           ) : (
             <>
               <button type="button" className={`${styles.actionBtn} ${styles.connectBtn}`} onClick={startStandard}>
-                Connexion standard
-              </button>
+                {i18nT("connexion_standard_7718db4b")}{" "}</button>
               <button type="button" className={`${styles.actionBtn} ${styles.secondaryBtn}`} onClick={startBusiness}>
-                Connexion business
-              </button>
+                {i18nT("connexion_business_fbb4bbc5")}{" "}</button>
             </>
           )}
         </div>
@@ -210,7 +211,7 @@ export default function FacebookPanel(props: any) {
           }}
         >
           <div className={styles.blockHeaderRow}>
-            <div className={styles.blockTitle}>Page à connecter</div>
+            <div className={styles.blockTitle}>{i18nT("page_a_connecter_88e541ee")}</div>
             <ConnectionPill
               connected={facebookPageConnected}
               status={facebookNeedsUpdate ? "needs_update" : undefined}
@@ -218,7 +219,7 @@ export default function FacebookPanel(props: any) {
               label={facebookPageActivityLabel}
             />
           </div>
-          <div className={styles.blockSub}>Choisissez la page Facebook à analyser (et éventuellement publier).</div>
+          <div className={styles.blockSub}>{i18nT("choisissez_la_page_facebook_a_analyser_218e2577")}</div>
 
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
             <button
@@ -230,8 +231,7 @@ export default function FacebookPanel(props: any) {
               }}
               disabled={fbPagesLoading || facebookPageBusy}
             >
-              Charger mes pages
-            </button>
+              {i18nT("charger_mes_pages_df0e9c75")}{" "}</button>
 
             <select
               value={selectedPageValue}
@@ -251,7 +251,7 @@ export default function FacebookPanel(props: any) {
                 cursor: facebookPagePickerLocked ? "not-allowed" : "pointer",
               }}
             >
-              <option value="">Sélectionner une page</option>
+              <option value="">{i18nT("selectionner_une_page_36d5f135")}</option>
               {!hasSelectedPageInList && selectedPageValue ? <option value={selectedPageValue}>{selectedPageLabel}</option> : null}
               {fbPages.map((p: { id: string; name?: string | null }) => (
                 <option key={p.id} value={p.id}>
@@ -268,16 +268,14 @@ export default function FacebookPanel(props: any) {
                   onClick={() => void handlePageConnect()}
                   disabled={!canChangeFacebookPage}
                 >
-                  Changer de page
-                </button>
+                  {i18nT("changer_de_page_37d7e3f7")}{" "}</button>
                 <button
                   type="button"
                   className={`${styles.actionBtn} ${styles.disconnectBtn} ${facebookPageBusy && facebookPageAction === "disconnect" ? styles.connectingActionBtn : ""}`}
                   onClick={() => void handlePageDisconnect()}
                   disabled={fbPagesLoading || facebookPageBusy}
                 >
-                  Déconnecter la page
-                </button>
+                  {i18nT("deconnecter_la_page_45620524")}{" "}</button>
               </>
             ) : (
               <button
@@ -286,8 +284,7 @@ export default function FacebookPanel(props: any) {
                 onClick={() => void handlePageConnect()}
                 disabled={!canConnectFacebookPage}
               >
-                Connecter la page
-              </button>
+                {i18nT("connecter_la_page_5ca1c814")}{" "}</button>
             )}
           </div>
 
@@ -306,10 +303,10 @@ export default function FacebookPanel(props: any) {
         }}
       >
         <div className={styles.blockHeaderRow}>
-          <div className={styles.blockTitle}>Lien de la page</div>
+          <div className={styles.blockTitle}>{i18nT("lien_de_la_page_1f9f4b87")}</div>
           <ConnectionPill connected={facebookPageConnected && !!facebookUrl?.trim()} />
         </div>
-        <div className={styles.blockSub}>Se remplit automatiquement une fois la page choisie.</div>
+        <div className={styles.blockSub}>{i18nT("se_remplit_automatiquement_une_fois_la_4133d66e")}</div>
 
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           <input
@@ -337,8 +334,7 @@ export default function FacebookPanel(props: any) {
             className={`${styles.actionBtn} ${styles.viewBtn}`}
             style={{ pointerEvents: facebookUrl ? "auto" : "none", opacity: facebookUrl ? 1 : 0.5 }}
           >
-            Voir la page
-          </a>
+            {i18nT("voir_la_page_82561348")}{" "}</a>
         </div>
         {facebookUrlNotice && <StatusMessage variant="success">{facebookUrlNotice}</StatusMessage>}
         {facebookUrlError && <StatusMessage variant="error">{facebookUrlError}</StatusMessage>}

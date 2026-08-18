@@ -1,3 +1,4 @@
+import { getTranslations } from "next-intl/server";
 /* eslint-disable @next/next/no-img-element */
 import { headers } from "next/headers";
 import type { Metadata } from "next";
@@ -263,11 +264,12 @@ function getBalancedChannelRows(actions: ActionLinkProps[]) {
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const i18nT = await getTranslations("public");
   const resolvedParams = await params;
   const slug = trim(resolvedParams.slug);
   const iconUrl = getBadgeIconUrl(slug);
   return {
-    title: "iNr'Badge",
+    title: i18nT("inr_badge_cade3dfd"),
     manifest: getBadgeManifestUrl(slug),
     icons: {
       icon: iconUrl,
@@ -278,6 +280,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 }
 
 export default async function BadgePage({ params }: { params: Promise<{ slug: string }> }) {
+  const i18nT = await getTranslations("public");
   const resolvedParams = await params;
   const slug = trim(resolvedParams.slug);
   const userId = extractInrBadgeUserIdFromSlug(slug);
@@ -458,20 +461,20 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
   ].filter(Boolean) as ActionLinkProps[];
 
   const channelActions = [
-    shareSettings.inrSearch && publicChannelCanShare.inrSearch ? { href: inrSearchUrl, label: "iNr'Search", iconSrc: inrSearchBubbleIcon.src, tone: "inrsearch" as ActionTone, trackingAction: "inr_search" } : null,
-    shareSettings.siteInrcy && publicChannelCanShare.siteInrcy ? { href: siteInrcyUrl, label: "Site iNrCy", iconSrc: inrcyIcon.src, tone: "site" as ActionTone, trackingAction: "site_inrcy" } : null,
-    shareSettings.siteWeb && publicChannelCanShare.siteWeb ? { href: siteWebUrl, label: "Site web", iconSrc: siteWebIcon.src, tone: "site" as ActionTone, trackingAction: "site_web" } : null,
-    shareSettings.googleBusiness && publicChannelCanShare.googleBusiness ? { href: gmbUrl, label: "Google Business", iconSrc: googleBusinessIcon.src, tone: "google" as ActionTone, trackingAction: "google_business" } : null,
-    shareSettings.linkedin && publicChannelCanShare.linkedin ? { href: linkedinUrl, label: "LinkedIn", iconSrc: linkedinIcon.src, tone: "linkedin" as ActionTone, trackingAction: "linkedin" } : null,
-    shareSettings.pinterest && publicChannelCanShare.pinterest ? { href: pinterestUrl, label: "Pinterest", iconSrc: pinterestIcon.src, tone: "neutral" as ActionTone, trackingAction: "pinterest" } : null,
-    shareSettings.instagram && publicChannelCanShare.instagram ? { href: instagramUrl, label: "Instagram", iconSrc: instagramIcon.src, tone: "instagram" as ActionTone, trackingAction: "instagram" } : null,
-    shareSettings.facebook && publicChannelCanShare.facebook ? { href: facebookUrl, label: "Facebook", iconSrc: facebookIcon.src, tone: "facebook" as ActionTone, trackingAction: "facebook" } : null,
-    shareSettings.tiktok && publicChannelCanShare.tiktok ? { href: tiktokUrl, label: "TikTok", iconSrc: tiktokIcon.src, tone: "tiktok" as ActionTone, trackingAction: "tiktok" } : null,
-    shareSettings.youtubeShorts && publicChannelCanShare.youtubeShorts ? { href: youtubeShortsUrl, label: "YouTube", iconSrc: youtubeShortsIcon.src, tone: "youtube" as ActionTone, trackingAction: "youtube_shorts" } : null,
+    shareSettings.inrSearch && publicChannelCanShare.inrSearch ? { href: inrSearchUrl, label: i18nT("inr_search_ce47ed45"), iconSrc: inrSearchBubbleIcon.src, tone: "inrsearch" as ActionTone, trackingAction: "inr_search" } : null,
+    shareSettings.siteInrcy && publicChannelCanShare.siteInrcy ? { href: siteInrcyUrl, label: i18nT("site_inrcy_57016d6f"), iconSrc: inrcyIcon.src, tone: "site" as ActionTone, trackingAction: "site_inrcy" } : null,
+    shareSettings.siteWeb && publicChannelCanShare.siteWeb ? { href: siteWebUrl, label: i18nT("site_web_7e78af33"), iconSrc: siteWebIcon.src, tone: "site" as ActionTone, trackingAction: "site_web" } : null,
+    shareSettings.googleBusiness && publicChannelCanShare.googleBusiness ? { href: gmbUrl, label: i18nT("google_business_a605b655"), iconSrc: googleBusinessIcon.src, tone: "google" as ActionTone, trackingAction: "google_business" } : null,
+    shareSettings.linkedin && publicChannelCanShare.linkedin ? { href: linkedinUrl, label: i18nT("linkedin_6b6390a4"), iconSrc: linkedinIcon.src, tone: "linkedin" as ActionTone, trackingAction: "linkedin" } : null,
+    shareSettings.pinterest && publicChannelCanShare.pinterest ? { href: pinterestUrl, label: i18nT("pinterest_a45a7994"), iconSrc: pinterestIcon.src, tone: "neutral" as ActionTone, trackingAction: "pinterest" } : null,
+    shareSettings.instagram && publicChannelCanShare.instagram ? { href: instagramUrl, label: i18nT("instagram_5721bbef"), iconSrc: instagramIcon.src, tone: "instagram" as ActionTone, trackingAction: "instagram" } : null,
+    shareSettings.facebook && publicChannelCanShare.facebook ? { href: facebookUrl, label: i18nT("facebook_82da67b2"), iconSrc: facebookIcon.src, tone: "facebook" as ActionTone, trackingAction: "facebook" } : null,
+    shareSettings.tiktok && publicChannelCanShare.tiktok ? { href: tiktokUrl, label: i18nT("tiktok_fc49f156"), iconSrc: tiktokIcon.src, tone: "tiktok" as ActionTone, trackingAction: "tiktok" } : null,
+    shareSettings.youtubeShorts && publicChannelCanShare.youtubeShorts ? { href: youtubeShortsUrl, label: i18nT("youtube_558865a1"), iconSrc: youtubeShortsIcon.src, tone: "youtube" as ActionTone, trackingAction: "youtube_shorts" } : null,
   ].filter(Boolean) as ActionLinkProps[];
 
   const inrSearchNewsAction = shareSettings.inrSearch && inrSearchNewsUrl
-    ? { href: inrSearchNewsUrl, label: "Voir nos actualités", iconSrc: inrSearchLogo.src, tone: "inrsearch" as ActionTone, trackingAction: "inr_search_news" }
+    ? { href: inrSearchNewsUrl, label: i18nT("voir_nos_actualites_052324ba"), iconSrc: inrSearchLogo.src, tone: "inrsearch" as ActionTone, trackingAction: "inr_search_news" }
     : null;
 
   const appointmentAction = canUseInrBadgeAppointments(dashboardEdition, shareSettings)
@@ -511,7 +514,7 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
                 <div className={styles.logo} aria-hidden="true">
                   {shareSettings.logo ? (
                     <img src={headerLogoSrc} alt="" loading="eager" decoding="sync" fetchPriority="high" />
-                  ) : <span>iNr</span>}
+                  ) : <span>{i18nT("inr_fe1e1b8a")}</span>}
                 </div>
               </div>
             </div>
@@ -564,9 +567,9 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
         </div>
 
         <div className={styles.footer}>
-          <span>iNr&apos;Badge</span>
+          <span>{i18nT("inr_apos_badge_fa6bef12")}</span>
           <span className={styles.footerDot}>·</span>
-          <span>{badgeText.poweredBy} <strong>iNrCy</strong></span>
+          <span>{badgeText.poweredBy} <strong>{i18nT("inrcy_ef95fe0e")}</strong></span>
         </div>
       </section>
     </main>

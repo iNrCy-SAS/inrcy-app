@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import type { ChannelKey, PublicationMediaType } from "../publishModal.shared";
 
 export type PublishFinalReviewItem = {
@@ -43,6 +44,7 @@ export default function PublishFinalReviewModal({
   onClose,
   onConfirm,
 }: PublishFinalReviewModalProps) {
+  const i18nT = useTranslations("booster");
   if (!open) return null;
 
   return (
@@ -89,8 +91,7 @@ export default function PublishFinalReviewModal({
           <div style={{ display: "grid", gap: 6 }}>
             <div style={{ fontSize: 22 }}>✅</div>
             <div className={styles.blockTitle} style={{ marginBottom: 0 }}>
-              Vérification avant publication
-            </div>
+              {i18nT("verification_avant_publication_8ff13190")}{" "}</div>
             <div
               style={{
                 fontSize: 13,
@@ -98,9 +99,7 @@ export default function PublishFinalReviewModal({
                 lineHeight: 1.5,
               }}
             >
-              Contrôlez les canaux, les médias et les alertes avant l’envoi
-              final.
-            </div>
+              {i18nT("controlez_les_canaux_les_medias_et_01e0e60d")}{" "}</div>
           </div>
           <div
             style={{
@@ -112,8 +111,7 @@ export default function PublishFinalReviewModal({
               color: "rgba(255,255,255,0.86)",
             }}
           >
-            {items.length} canal(aux) sélectionné(s)
-          </div>
+            {i18nT("value_canal_aux_selectionne_s_e508e84f", { value0: items.length })}</div>
         </div>
 
         {showSiteNotice ? (
@@ -128,9 +126,7 @@ export default function PublishFinalReviewModal({
               lineHeight: 1.5,
             }}
           >
-            Site iNrCy et Site web ont des images ou un ordre différent :
-            c’est normal, les deux canaux sont indépendants.
-          </div>
+            {i18nT("site_inrcy_et_site_web_ont_8098e8ca")}{" "}</div>
         ) : null}
 
         <div style={{ display: "grid", gap: 10 }}>
@@ -181,7 +177,7 @@ export default function PublishFinalReviewModal({
                           : "1px solid rgba(34,197,94,0.25)",
                       }}
                     >
-                      {item.blockers.length ? "Bloquant" : "Prêt"}
+                      {item.blockers.length ? i18nT("bloquant_c05c5176") : i18nT("pret_c5e3c29f")}
                     </span>
                   </div>
                   <div
@@ -190,8 +186,7 @@ export default function PublishFinalReviewModal({
                       color: "rgba(255,255,255,0.58)",
                     }}
                   >
-                    Canal sélectionné
-                  </div>
+                    {i18nT("canal_selectionne_a989eaec")}{" "}</div>
                 </div>
                 <div
                   style={{
@@ -226,7 +221,7 @@ export default function PublishFinalReviewModal({
                       whiteSpace: "nowrap",
                     }}
                   >
-                    {item.hasContent ? "Texte OK" : "Texte vide"}
+                    {item.hasContent ? i18nT("texte_ok_e490a202") : i18nT("texte_vide_5e1fe6d5")}
                   </span>
                 </div>
                 <div
@@ -239,13 +234,12 @@ export default function PublishFinalReviewModal({
                 >
                   {!hasMessages ? (
                     <span style={{ color: "#bbf7d0" }}>
-                      {item.tiktokParametersValidated ? "Prêt · Paramètres validés" : "Prêt à publier."}
+                      {item.tiktokParametersValidated ? i18nT("pret_parametres_valides_8c17cc93") : i18nT("pret_a_publier_a82b75ce")}
                     </span>
                   ) : null}
                   {item.tiktokParametersValidated && !item.blockers.length ? (
                     <span style={{ color: "#bbf7d0" }}>
-                      ✅ Paramètres TikTok validés.
-                    </span>
+                      {i18nT("parametres_tiktok_valides_aab3d118")}{" "}</span>
                   ) : null}
                   {item.warnings.map((warning) => (
                     <span key={warning} style={{ color: "#fde68a" }}>
@@ -275,9 +269,7 @@ export default function PublishFinalReviewModal({
               lineHeight: 1.5,
             }}
           >
-            Les canaux rouges seront inscrits en échec dans le bilan. Ils ne
-            bloquent pas la publication des autres canaux prêts.
-          </div>
+            {i18nT("les_canaux_rouges_seront_inscrits_en_6ff68b36")}{" "}</div>
         ) : null}
 
         <div
@@ -297,8 +289,7 @@ export default function PublishFinalReviewModal({
             className={styles.secondaryBtn}
             onClick={onClose}
           >
-            Retour modifier
-          </button>
+            {i18nT("retour_modifier_ee98859e")}{" "}</button>
           <button
             type="button"
             className={styles.primaryBtn}
@@ -309,10 +300,10 @@ export default function PublishFinalReviewModal({
             }}
           >
             {saving
-              ? "Publication en cours..."
+              ? i18nT("publication_en_cours_09ec4187")
               : hasBlockers
-                ? `Publier les ${publishableCount} canal(aux) prêts`
-                : "Confirmer la publication"}
+                ? i18nT("publier_les_value_canal_aux_prets_400cb943", { value0: publishableCount })
+                : i18nT("confirmer_la_publication_dbfb1790")}
           </button>
         </div>
       </div>

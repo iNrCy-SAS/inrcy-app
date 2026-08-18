@@ -1,5 +1,8 @@
 "use client";
 
+import { useLocale, useTranslations } from "next-intl";
+
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { getClientUserFacingErrorMessage } from "@/lib/userFacingErrors";
@@ -24,30 +27,32 @@ type SendState = "idle" | "sending" | "sent" | "error";
 
 const TEST_TIMEOUT_MS = 8000;
 
-function nowLabel() {
-  return new Date().toLocaleString("fr-FR", {
+type Translator = (key: string) => string;
+
+function nowLabel(locale: string) {
+  return new Date().toLocaleString(locale, {
     dateStyle: "short",
     timeStyle: "medium",
   });
 }
 
-function statusLabel(severity: Severity) {
+function statusLabel(severity: Severity, i18nT: Translator) {
   switch (severity) {
     case "ok":
       return "OK";
     case "warn":
-      return "À vérifier";
+      return i18nT("a_verifier_8f5f7255");
     case "error":
-      return "Bloqué";
+      return i18nT("bloque_70f90b1a");
     case "running":
-      return "Test en cours";
+      return i18nT("test_en_cours_061a65d2");
     default:
-      return "En attente";
+      return i18nT("en_attente_5231158f");
   }
 }
 
-function getErrorMessage(error: unknown): string {
-  return getClientUserFacingErrorMessage(error, "Une vérification n’a pas pu aboutir.");
+function getErrorMessage(error: unknown, i18nT: Translator): string {
+  return getClientUserFacingErrorMessage(error, i18nT("une_verification_n_a_pas_pu_f122debc"));
 }
 
 async function fetchWithTimeout(url: string, init?: RequestInit): Promise<{ response: Response; durationMs: number }> {
@@ -67,75 +72,75 @@ async function fetchWithTimeout(url: string, init?: RequestInit): Promise<{ resp
   }
 }
 
-function buildInitialChecks(): DiagnosticCheck[] {
+function buildInitialChecks(i18nT: Translator): DiagnosticCheck[] {
   return [
     {
       id: "browser",
-      title: "Navigateur",
-      description: "Vérifie les informations de base du navigateur et l’état de connexion déclaré.",
+      title: i18nT("navigateur_a93302c2"),
+      description: i18nT("verifie_les_informations_de_base_du_3efdc91f"),
       target: "Navigateur client",
       severity: "pending",
-      statusText: "En attente",
+      statusText: i18nT("en_attente_5231158f"),
     },
     {
       id: "local-storage",
-      title: "Stockage local",
-      description: "Vérifie que le navigateur peut conserver les données nécessaires à la session.",
+      title: i18nT("stockage_local_92a84589"),
+      description: i18nT("verifie_que_le_navigateur_peut_conserver_b7490e42"),
       target: "localStorage",
       severity: "pending",
-      statusText: "En attente",
+      statusText: i18nT("en_attente_5231158f"),
     },
     {
       id: "session-storage",
-      title: "Stockage de session",
-      description: "Vérifie que le stockage temporaire du navigateur fonctionne correctement.",
+      title: i18nT("stockage_de_session_d8bac644"),
+      description: i18nT("verifie_que_le_stockage_temporaire_du_3806ed7b"),
       target: "sessionStorage",
       severity: "pending",
-      statusText: "En attente",
+      statusText: i18nT("en_attente_5231158f"),
     },
     {
       id: "cookies",
-      title: "Cookies navigateur",
-      description: "Vérifie que les cookies du domaine iNrCy peuvent être écrits et relus.",
+      title: i18nT("cookies_navigateur_90ae4f4f"),
+      description: i18nT("verifie_que_les_cookies_du_domaine_8831b8fd"),
       target: "Cookies iNrCy",
       severity: "pending",
-      statusText: "En attente",
+      statusText: i18nT("en_attente_5231158f"),
     },
     {
       id: "api-ping",
-      title: "API iNrCy",
-      description: "Vérifie que le PC peut appeler une route API simple sur le domaine iNrCy.",
+      title: i18nT("api_inrcy_0d898269"),
+      description: i18nT("verifie_que_le_pc_peut_appeler_018d793c"),
       target: "/api/diagnostic/ping",
       severity: "pending",
-      statusText: "En attente",
+      statusText: i18nT("en_attente_5231158f"),
     },
     {
       id: "asset-logo",
-      title: "Ressources iNrCy",
-      description: "Vérifie que les ressources publiques de l’application se chargent correctement.",
+      title: i18nT("ressources_inrcy_9408aa56"),
+      description: i18nT("verifie_que_les_ressources_publiques_de_a62797ad"),
       target: "/logo-inrcy.png",
       severity: "pending",
-      statusText: "En attente",
+      statusText: i18nT("en_attente_5231158f"),
     },
   ];
 }
 
-function makeCheck(id: string, patch: Partial<DiagnosticCheck>): DiagnosticCheck {
-  const base = buildInitialChecks().find((check) => check.id === id);
+function makeCheck(id: string, patch: Partial<DiagnosticCheck>, i18nT: Translator): DiagnosticCheck {
+  const base = buildInitialChecks(i18nT).find((check) => check.id === id);
   return {
     id,
     title: base?.title || id,
     description: base?.description || "",
     target: base?.target || "",
     severity: patch.severity || "pending",
-    statusText: patch.statusText || "En attente",
+    statusText: patch.statusText || i18nT("en_attente_5231158f"),
     detail: patch.detail,
     durationMs: patch.durationMs,
     httpStatus: patch.httpStatus,
   };
 }
 
-function checkFromHttp(id: string, response: Response, durationMs: number): DiagnosticCheck {
+function checkFromHttp(id: string, response: Response, durationMs: number, i18nT: Translator): DiagnosticCheck {
   if (response.ok) {
     return makeCheck(id, {
       severity: "ok",
@@ -143,27 +148,27 @@ function checkFromHttp(id: string, response: Response, durationMs: number): Diag
       detail: `Réponse HTTP ${response.status} reçue en ${durationMs} ms.`,
       durationMs,
       httpStatus: response.status,
-    });
+    }, i18nT);
   }
 
   return makeCheck(id, {
     severity: response.status >= 500 ? "error" : "warn",
-    statusText: response.status >= 500 ? "Erreur serveur" : "Joignable",
+    statusText: response.status >= 500 ? i18nT("bloque_70f90b1a") : i18nT("a_verifier_8f5f7255"),
     detail: `Réponse HTTP ${response.status} reçue en ${durationMs} ms.`,
     durationMs,
     httpStatus: response.status,
-  });
+  }, i18nT);
 }
 
-function checkFromError(id: string, error: unknown): DiagnosticCheck {
+function checkFromError(id: string, error: unknown, i18nT: Translator): DiagnosticCheck {
   return makeCheck(id, {
     severity: "error",
-    statusText: "Bloqué / inaccessible",
-    detail: getErrorMessage(error),
-  });
+    statusText: i18nT("bloque_inaccessible_7ad36249"),
+    detail: getErrorMessage(error, i18nT),
+  }, i18nT);
 }
 
-function storageCheck(kind: "localStorage" | "sessionStorage"): DiagnosticCheck {
+function storageCheck(kind: "localStorage" | "sessionStorage", i18nT: Translator): DiagnosticCheck {
   const id = kind === "localStorage" ? "local-storage" : "session-storage";
   const key = `inrcy_diag_${Date.now()}`;
 
@@ -178,24 +183,24 @@ function storageCheck(kind: "localStorage" | "sessionStorage"): DiagnosticCheck 
         severity: "ok",
         statusText: "OK",
         detail: `${kind} fonctionne correctement.`,
-      });
+      }, i18nT);
     }
 
     return makeCheck(id, {
       severity: "warn",
-      statusText: "À vérifier",
+      statusText: i18nT("a_verifier_8f5f7255"),
       detail: `${kind} a répondu, mais la valeur relue est inattendue.`,
-    });
+    }, i18nT);
   } catch (error) {
     return makeCheck(id, {
       severity: "error",
-      statusText: "Bloqué",
-      detail: getErrorMessage(error),
-    });
+      statusText: i18nT("bloque_70f90b1a"),
+      detail: getErrorMessage(error, i18nT),
+    }, i18nT);
   }
 }
 
-function cookieCheck(): DiagnosticCheck {
+function cookieCheck(i18nT: Translator): DiagnosticCheck {
   const name = `inrcy_diag_${Date.now()}`;
 
   try {
@@ -208,30 +213,32 @@ function cookieCheck(): DiagnosticCheck {
         severity: "ok",
         statusText: "OK",
         detail: "Les cookies du domaine iNrCy peuvent être écrits et relus.",
-      });
+      }, i18nT);
     }
 
     return makeCheck("cookies", {
       severity: "error",
-      statusText: "Bloqué",
-      detail: "Le cookie de test n’a pas pu être relu. Le navigateur ou la politique entreprise bloque peut-être les cookies.",
-    });
+      statusText: i18nT("bloque_70f90b1a"),
+      detail: i18nT("une_verification_n_a_pas_pu_f122debc"),
+    }, i18nT);
   } catch (error) {
     return makeCheck("cookies", {
       severity: "error",
-      statusText: "Bloqué",
-      detail: getErrorMessage(error),
-    });
+      statusText: i18nT("bloque_70f90b1a"),
+      detail: getErrorMessage(error, i18nT),
+    }, i18nT);
   }
 }
 
 export default function DiagnosticClient() {
+  const i18nT = useTranslations("public");
+  const locale = useLocale();
   const searchParams = useSearchParams();
   const from = searchParams.get("from") || "direct";
   const reason = searchParams.get("reason") || "manual";
   const auto = searchParams.get("auto") === "1";
 
-  const [checks, setChecks] = useState<DiagnosticCheck[]>(buildInitialChecks);
+  const [checks, setChecks] = useState<DiagnosticCheck[]>(() => buildInitialChecks(i18nT));
   const [running, setRunning] = useState(false);
   const [finishedAt, setFinishedAt] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -248,16 +255,16 @@ export default function DiagnosticClient() {
     const warnings = checks.filter((check) => check.severity === "warn").length;
     const pending = checks.filter((check) => check.severity === "pending" || check.severity === "running").length;
 
-    if (pending > 0 || running) return "Diagnostic en cours";
+    if (pending > 0 || running) return i18nT("diagnostic_en_cours_a29978be");
     if (errors > 0) return `${errors} point${errors > 1 ? "s" : ""} bloqué${errors > 1 ? "s" : ""}`;
     if (warnings > 0) return `${warnings} point${warnings > 1 ? "s" : ""} à vérifier`;
-    return "Tous les tests principaux sont OK";
-  }, [checks, running]);
+    return i18nT("tous_les_tests_principaux_sont_ok_2a8d0c6a");
+  }, [checks, running, i18nT]);
 
   const report = useMemo(() => {
     const lines = [
       "Diagnostic connexion iNrCy",
-      `Date navigateur : ${nowLabel()}`,
+      `Date navigateur : ${nowLabel(locale)}`,
       `Origine : ${from}`,
       `Raison : ${reason}`,
       `URL : ${typeof window !== "undefined" ? window.location.href : "-"}`,
@@ -270,7 +277,7 @@ export default function DiagnosticClient() {
         const duration = typeof check.durationMs === "number" ? ` · ${check.durationMs} ms` : "";
         const status = typeof check.httpStatus === "number" ? ` · HTTP ${check.httpStatus}` : "";
         return [
-          `[${statusLabel(check.severity)}] ${check.title}`,
+          `[${statusLabel(check.severity, i18nT)}] ${check.title}`,
           `Cible : ${check.target}`,
           `Statut : ${check.statusText}${status}${duration}`,
           check.detail ? `Détail : ${check.detail}` : null,
@@ -281,7 +288,7 @@ export default function DiagnosticClient() {
     ];
 
     return lines.join("\n\n");
-  }, [checks, from, reason, summary]);
+  }, [checks, from, reason, summary, locale, i18nT]);
 
   const runDiagnostic = useCallback(async () => {
     setRunning(true);
@@ -290,7 +297,7 @@ export default function DiagnosticClient() {
     setSendMessage(null);
     autoSendStartedRef.current = false;
     setFinishedAt(null);
-    setChecks(buildInitialChecks().map((check) => ({ ...check, severity: "running", statusText: "Test en cours" })));
+    setChecks(buildInitialChecks(i18nT).map((check) => ({ ...check, severity: "running", statusText: i18nT("test_en_cours_061a65d2") })));
 
     const next: DiagnosticCheck[] = [];
 
@@ -299,47 +306,47 @@ export default function DiagnosticClient() {
         severity: navigator.onLine ? "ok" : "warn",
         statusText: navigator.onLine ? "OK" : "Hors ligne déclaré",
         detail: `Navigateur : ${navigator.userAgent}. Langue : ${navigator.language}. En ligne : ${String(navigator.onLine)}.`,
-      }),
+      }, i18nT),
     );
     setChecks((previous) => previous.map((check) => (check.id === "browser" ? next[next.length - 1] : check)));
 
-    const local = storageCheck("localStorage");
+    const local = storageCheck("localStorage", i18nT);
     next.push(local);
     setChecks((previous) => previous.map((check) => (check.id === local.id ? local : check)));
 
-    const session = storageCheck("sessionStorage");
+    const session = storageCheck("sessionStorage", i18nT);
     next.push(session);
     setChecks((previous) => previous.map((check) => (check.id === session.id ? session : check)));
 
-    const cookies = cookieCheck();
+    const cookies = cookieCheck(i18nT);
     next.push(cookies);
     setChecks((previous) => previous.map((check) => (check.id === cookies.id ? cookies : check)));
 
     try {
       const { response, durationMs } = await fetchWithTimeout("/api/diagnostic/ping");
-      const api = checkFromHttp("api-ping", response, durationMs);
+      const api = checkFromHttp("api-ping", response, durationMs, i18nT);
       next.push(api);
       setChecks((previous) => previous.map((check) => (check.id === api.id ? api : check)));
     } catch (error) {
-      const api = checkFromError("api-ping", error);
+      const api = checkFromError("api-ping", error, i18nT);
       next.push(api);
       setChecks((previous) => previous.map((check) => (check.id === api.id ? api : check)));
     }
 
     try {
       const { response, durationMs } = await fetchWithTimeout(`/logo-inrcy.png?t=${Date.now()}`);
-      const asset = checkFromHttp("asset-logo", response, durationMs);
+      const asset = checkFromHttp("asset-logo", response, durationMs, i18nT);
       next.push(asset);
       setChecks((previous) => previous.map((check) => (check.id === asset.id ? asset : check)));
     } catch (error) {
-      const asset = checkFromError("asset-logo", error);
+      const asset = checkFromError("asset-logo", error, i18nT);
       next.push(asset);
       setChecks((previous) => previous.map((check) => (check.id === asset.id ? asset : check)));
     }
 
     setRunning(false);
-    setFinishedAt(nowLabel());
-  }, []);
+    setFinishedAt(nowLabel(locale));
+  }, [i18nT, locale]);
 
   const sendReport = useCallback(
     async (automatic = false) => {
@@ -371,7 +378,7 @@ export default function DiagnosticClient() {
         setSendMessage(automatic ? "Rapport envoyé automatiquement à iNrCy." : "Rapport envoyé à iNrCy.");
       } catch (error) {
         setSendState("error");
-        setSendMessage(`Envoi impossible pour le moment. Vous pouvez copier le rapport. ${getErrorMessage(error)}`);
+        setSendMessage(i18nT("envoi_impossible_pour_le_moment_vous_0bedda6a", { value0: getErrorMessage(error, i18nT) }));
       }
     },
     [clientName, company, from, message, phone, reason, report, summary],
@@ -404,25 +411,25 @@ export default function DiagnosticClient() {
       <div className={styles.orbOne} />
       <div className={styles.orbTwo} />
       <section className={styles.heroCard}>
-        <div className={styles.topPill}>iNrCy · Assistance connexion</div>
+        <div className={styles.topPill}>{i18nT("inrcy_assistance_connexion_6a1ab48a")}</div>
         <div className={styles.heroGrid}>
           <div>
-            <h1>Diagnostic de connexion</h1>
-            <p>{pageSubtitle}. La page teste uniquement le navigateur, les cookies, le stockage local et l’accès au domaine iNrCy.</p>
+            <h1>{i18nT("diagnostic_de_connexion_6c1c6a10")}</h1>
+            <p>{i18nT("value_la_page_teste_uniquement_le_0f230004", { value0: pageSubtitle })}</p>
           </div>
           <div className={styles.summaryCard} data-severity={summary.includes("bloqué") ? "error" : summary.includes("vérifier") ? "warn" : "ok"}>
-            <span>Résumé</span>
+            <span>{i18nT("resume_9fb58963")}</span>
             <strong>{summary}</strong>
-            {finishedAt ? <small>Terminé à {finishedAt}</small> : <small>Analyse en cours…</small>}
+            {finishedAt ? <small>{i18nT("termine_a_value_0136e0ce", { value0: finishedAt })}</small> : <small>{i18nT("analyse_en_cours_46645652")}</small>}
           </div>
         </div>
 
         <div className={styles.actionsRow}>
           <button type="button" className={styles.primaryButton} onClick={() => void runDiagnostic()} disabled={running}>
-            {running ? "Diagnostic en cours…" : "Relancer le diagnostic"}
+            {running ? i18nT("diagnostic_en_cours_a29978be") : i18nT("relancer_le_diagnostic_b550f62c")}
           </button>
           <button type="button" className={styles.secondaryButton} onClick={copyReport}>
-            {copied ? "Rapport copié" : "Copier le rapport"}
+            {copied ? i18nT("rapport_copie_b957e410") : i18nT("copier_le_rapport_8620a0bd")}
           </button>
         </div>
       </section>
@@ -435,7 +442,7 @@ export default function DiagnosticClient() {
                 <h2>{check.title}</h2>
                 <p>{check.description}</p>
               </div>
-              <span>{statusLabel(check.severity)}</span>
+              <span>{statusLabel(check.severity, i18nT)}</span>
             </div>
             <div className={styles.checkMeta}>{check.target}</div>
             {check.detail ? <div className={styles.checkDetail}>{check.detail}</div> : null}
@@ -445,25 +452,24 @@ export default function DiagnosticClient() {
 
       <section className={styles.sendCard}>
         <div>
-          <div className={styles.sectionPill}>Envoi à iNrCy</div>
-          <h2>Le bilan est transmis à contact@inrcy.com</h2>
+          <div className={styles.sectionPill}>{i18nT("envoi_a_inrcy_a79cb8ba")}</div>
+          <h2>{i18nT("le_bilan_est_transmis_a_contact_ffe5829f")}</h2>
           <p>
-            Depuis la page de connexion, l’envoi se lance automatiquement. Vous pouvez ajouter vos informations puis renvoyer le rapport si besoin.
-          </p>
+            {i18nT("depuis_la_page_de_connexion_l_5b2d8800")}{" "}</p>
         </div>
 
         <div className={styles.formGrid}>
-          <input value={clientName} onChange={(event) => setClientName(event.target.value)} placeholder="Nom du client" />
-          <input value={company} onChange={(event) => setCompany(event.target.value)} placeholder="Société" />
-          <input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="Téléphone" />
-          <textarea value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Message rapide ou contexte du blocage" rows={3} />
+          <input value={clientName} onChange={(event) => setClientName(event.target.value)} placeholder={i18nT("nom_du_client_8626bd1c")} />
+          <input value={company} onChange={(event) => setCompany(event.target.value)} placeholder={i18nT("societe_2c3fdad8")} />
+          <input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder={i18nT("telephone_d3b023ea")} />
+          <textarea value={message} onChange={(event) => setMessage(event.target.value)} placeholder={i18nT("message_rapide_ou_contexte_du_blocage_0f195f4e")} rows={3} />
         </div>
 
         <div className={styles.actionsRow}>
           <button type="button" className={styles.primaryButton} onClick={() => void sendReport(false)} disabled={sendState === "sending" || running}>
-            {sendState === "sending" ? "Envoi en cours…" : "Envoyer à iNrCy"}
+            {sendState === "sending" ? i18nT("envoi_en_cours_2de80069") : i18nT("envoyer_a_inrcy_3188b6db")}
           </button>
-          <a className={styles.backLink} href="/login">Retour connexion</a>
+          <a className={styles.backLink} href="/login">{i18nT("retour_connexion_a1ee2d62")}</a>
         </div>
 
         {sendMessage ? <div className={styles.sendStatus} data-state={sendState}>{sendMessage}</div> : null}

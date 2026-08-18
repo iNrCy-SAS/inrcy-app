@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import React from "react";
 import MediaLibraryPickerModal, {
   mediaLibraryItemToAttachment,
@@ -105,20 +106,21 @@ type MailboxComposeModalProps = {
 };
 
 const MAIL_WRITING_TYPE_OPTIONS = [
-  { value: "auto", label: "Automatique" },
-  { value: "presentation", label: "Présentation" },
-  { value: "prospection", label: "Prospection" },
-  { value: "relance", label: "Relance" },
-  { value: "thanks", label: "Remerciement" },
-  { value: "info", label: "Information" },
-  { value: "offer", label: "Offre commerciale" },
-  { value: "reply", label: "Réponse client" },
-  { value: "meeting", label: "Invitation / RDV" },
+  { value: "auto", messageKey: "automatique_f8a3c37b" },
+  { value: "presentation", messageKey: "presentation_aa245f5f" },
+  { value: "prospection", messageKey: "prospection_2f8b56f9" },
+  { value: "relance", messageKey: "relance_1b0d4e35" },
+  { value: "thanks", messageKey: "remerciement_cbbf9b3a" },
+  { value: "info", messageKey: "information_0eb5ed50" },
+  { value: "offer", messageKey: "offre_commerciale_40790051" },
+  { value: "reply", messageKey: "reponse_client_565c825f" },
+  { value: "meeting", messageKey: "invitation_rdv_0715fb3e" },
 ] as const;
 
 type MailWritingType = (typeof MAIL_WRITING_TYPE_OPTIONS)[number]["value"];
 
 export default function MailboxComposeModal(props: MailboxComposeModalProps) {
+  const i18nT = useTranslations("mails");
   const {
     open,
     onClose,
@@ -224,7 +226,7 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
         ? "Les modifications du mail programmé seront perdues. Continuer ?"
         : "Vous avez un message en cours. Voulez-vous vraiment fermer cette fenêtre sans l’envoyer ni sauvegarder le brouillon ?",
       confirmLabel: scheduledEditMode ? "Continuer sans sauvegarder" : "Fermer sans sauvegarder",
-      cancelLabel: "Continuer l’édition",
+      cancelLabel: i18nT("continuer_l_edition_0f0075bb"),
       variant: "warning",
     });
 
@@ -240,7 +242,7 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
       ? "Les modifications du mail programmé seront perdues. Continuer ?"
       : "Vous avez un message en cours. Voulez-vous vraiment fermer cette fenêtre sans l’envoyer ni sauvegarder le brouillon ?",
     confirmLabel: scheduledEditMode ? "Continuer sans sauvegarder" : "Fermer sans sauvegarder",
-    cancelLabel: "Continuer l’édition",
+    cancelLabel: i18nT("continuer_l_edition_0f0075bb"),
     variant: "warning",
   });
 
@@ -273,13 +275,10 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
     workflowFinalizerKind === "fideliser";
   const workflowFinalizerLabel =
     workflowFinalizerKind === "propulser"
-      ? "Propulser"
+      ? i18nT("workflow_propulser_name")
       : workflowFinalizerKind === "fideliser"
-        ? "Fidéliser"
+        ? i18nT("workflow_fideliser_name")
         : "";
-  const scheduleLabel = isWorkflowFinalizer
-    ? `campagne ${workflowFinalizerLabel}`
-    : "mail";
   const workflowFinalizerIcon =
     workflowFinalizerKind === "propulser"
       ? "🚀"
@@ -296,10 +295,10 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
           ? ` et ${placeholders.length - 6} autre(s)`
           : "";
       const confirmed = await confirmInrcy({
-        title: "Éléments à compléter",
-        message: `Votre message contient encore des éléments entre crochets : ${preview}${more}. Voulez-vous quand même l’envoyer ?`,
-        confirmLabel: "Envoyer quand même",
-        cancelLabel: "Corriger le message",
+        title: i18nT("elements_a_completer_c23b6061"),
+        message: i18nT("votre_message_contient_encore_des_elements_8afb764f", { value0: preview, value1: more }),
+        confirmLabel: i18nT("envoyer_quand_meme_f5af0679"),
+        cancelLabel: i18nT("corriger_le_message_6d7e26a8"),
         variant: "warning",
       });
       if (!confirmed) return;
@@ -342,23 +341,19 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
       try {
         await scheduleWorkflowCampaign(scheduledAt);
       } catch (error) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : "Programmation impossible pour le moment.";
+        console.error("Unable to schedule mail campaign", error);
+        const message = i18nT("schedule_failed");
         setScheduleError(message);
         throw new Error(message);
       }
     },
-    [scheduleWorkflowCampaign],
+    [i18nT, scheduleWorkflowCampaign],
   );
 
   const generateMailWithAi = React.useCallback(async () => {
     const mailSubject = normalizeMailSubject(subject).trim();
     if (!mailSubject) {
-      setAiError(
-        "Renseignez d’abord un objet pour générer votre mail avec iNrCy.",
-      );
+      setAiError(i18nT("renseignez_d_abord_un_objet_pour_7e7699f1"));
       return;
     }
 
@@ -390,27 +385,28 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
         }),
       });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok)
-        throw new Error(String(payload?.error || "La génération IA a échoué."));
+      if (!response.ok) throw new Error(i18nT("ai_generation_failed"));
       const nextText = String(payload?.body_text || "").trim();
-      if (!nextText)
-        throw new Error("iNrCy n’a pas retourné de message exploitable.");
+      if (!nextText) throw new Error(i18nT("ai_generation_empty"));
       setText(nextText);
       setHtml(textToRichMailHtml(nextText));
       setToast(
         composeAttachments.length > 0
-          ? "Message généré avec iNrCy en tenant compte des pièces jointes."
-          : "Message généré avec iNrCy.",
+          ? i18nT("ai_message_generated_with_attachments")
+          : i18nT("ai_message_generated"),
       );
     } catch (error) {
       setAiError(
-        error instanceof Error ? error.message : "La génération IA a échoué.",
+        error instanceof Error
+          ? error.message
+          : i18nT("ai_generation_failed"),
       );
     } finally {
       setAiGenerating(false);
     }
   }, [
     composeAttachments,
+    i18nT,
     mailWritingType,
     setHtml,
     setText,
@@ -517,7 +513,7 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
 
     if (oversizedUnsupported.length > 0) {
       setToast(
-        `Les pièces jointes sont limitées à 20 Mo. ${oversizedUnsupported[0].name} ne peut pas être optimisé automatiquement par iNrCy.`,
+        i18nT("les_pieces_jointes_sont_limitees_a_8ef45f93", { value0: oversizedUnsupported[0].name }),
       );
     }
 
@@ -529,7 +525,7 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
       } catch (err) {
         console.error("Attachment upload failed", err);
         setToast(
-          "Impossible de préparer cette pièce jointe. Veuillez vérifier son format ou sa taille.",
+          i18nT("impossible_de_preparer_cette_piece_jointe_9bbce7b0"),
         );
       } finally {
         setFiles([]);
@@ -537,7 +533,7 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
     }
 
     if (oversizedMedia.length > 0) {
-      setToast("Ce média doit être optimisé. iNrCy adaptera automatiquement son format et/ou son poids à l’e-mail.");
+      setToast(i18nT("ce_media_doit_etre_optimise_inrcy_0fe5d1f4"));
       openOptimizerForFiles(oversizedMedia);
     }
   };
@@ -555,12 +551,12 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
 
   const handleOptimizedAttachment = async (item: MediaOptimizerItem) => {
     if (Number(item.size_bytes || 0) > MEDIA_LIBRARY_EMAIL_TARGET_BYTES) {
-      setToast("Le média optimisé dépasse encore 20 Mo.");
+      setToast(i18nT("le_media_optimise_depasse_encore_20_ced888d4"));
       return;
     }
     appendComposeAttachments([mediaLibraryItemToAttachment(item)]);
     setOptimizerCompleted(true);
-    setToast("Média optimisé ajouté au message.");
+    setToast(i18nT("media_optimise_ajoute_au_message_06c69f58"));
   };
 
   return (
@@ -575,14 +571,14 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
       />
       <MediaLibraryPickerModal
         open={mediaLibraryOpen}
-        title="Joindre depuis la Médiathèque"
+        title={i18nT("joindre_depuis_la_mediatheque_132a0a6b")}
         subtitle="Ajoutez un média déjà stocké dans iNrCy · format adapté si nécessaire · 20 Mo max."
         accept="all"
         multiple
         maxSelection={10}
         maxImageBytes={MEDIA_LIBRARY_EMAIL_TARGET_BYTES}
         maxVideoBytes={MEDIA_LIBRARY_EMAIL_TARGET_BYTES}
-        confirmLabel="Joindre"
+        confirmLabel={i18nT("joindre_2ee36407")}
         onOpenOptimizer={openOptimizerForLibraryItem}
         onClose={() => setMediaLibraryOpen(false)}
         onConfirm={(items) => addMediaLibraryAttachments(items)}
@@ -599,23 +595,23 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
               </div>
               <div className={styles.composeTitleText}>
                 {scheduledEditMode
-                  ? "Modifier le mail programmé"
+                  ? i18nT("modifier_le_mail_programme_d6b80ee8")
                   : isWorkflowFinalizer
-                    ? `Finaliser l’envoi ${workflowFinalizerLabel}`
+                    ? i18nT("finaliser_l_envoi_value_6d2ac3eb", { value0: workflowFinalizerLabel })
                     : draftId
-                      ? "Éditer le brouillon"
-                      : "Nouveau message"}
+                      ? i18nT("editer_le_brouillon_8d63fe6b")
+                      : i18nT("nouveau_message_ed68c30d")}
               </div>
               <span className={`${styles.badge} ${styles.composeTypeBadge}`}>
-                {isWorkflowFinalizer ? workflowFinalizerLabel : "Mail"}
+                {isWorkflowFinalizer ? workflowFinalizerLabel : i18nT("mail_92379cbb")}
               </span>
             </div>
             <div className={styles.composeSubtitle}>
               {scheduledEditMode
-                ? "Modifiez ce mail programmé. Enregistrez pour conserver la date actuelle, programmez pour changer l’horaire ou envoyez maintenant."
+                ? i18nT("modifiez_ce_mail_programme_enregistrez_pour_3066350a")
                 : isWorkflowFinalizer
-                  ? `Vérifiez les destinataires, l’objet et le message préparé depuis ${workflowFinalizerLabel}, puis envoyez depuis votre boîte connectée.`
-                  : "Préparez un message clair, choisissez vos contacts CRM et envoyez depuis votre boîte connectée."}
+                  ? i18nT("verifiez_les_destinataires_l_objet_et_111a6b88", { value0: workflowFinalizerLabel })
+                  : i18nT("preparez_un_message_clair_choisissez_vos_30c3b015")}
             </div>
           </div>
 
@@ -625,8 +621,8 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
                 className={`${styles.btnGhost} ${styles.composeHeaderIconBtn}`}
                 onClick={() => void saveDraft()}
                 type="button"
-                aria-label="Sauvegarder le brouillon"
-                title="Sauvegarder le brouillon"
+                aria-label={i18nT("sauvegarder_le_brouillon_debe7862")}
+                title={i18nT("sauvegarder_le_brouillon_debe7862")}
                 disabled={sendBusy || attachBusy}
               >
                 {attachBusy ? "…" : "💾"}
@@ -637,18 +633,17 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
                 className={`${styles.btnGhost} ${styles.composeHeaderIconBtn} ${styles.aiHeaderBtn}`}
                 onClick={onOpenAiConfiguration}
                 type="button"
-                aria-label="Configuration IA"
-                title="Configuration IA"
+                aria-label={i18nT("configuration_ia_f620c8d8")}
+                title={i18nT("configuration_ia_f620c8d8")}
               >
-                IA
-              </button>
+                {i18nT("ia_d41daf59")}{" "}</button>
             ) : null}
             <button
               className={`${styles.btnGhost} ${styles.composeHeaderIconBtn}`}
               onClick={onOpenSettings}
               type="button"
-              aria-label="Ouvrir les réglages iNr’Send"
-              title="Réglages Mails"
+              aria-label={i18nT("ouvrir_les_reglages_inr_send_0a4fdc66")}
+              title={i18nT("reglages_mails_a1957d12")}
             >
               ⚙️
             </button>
@@ -656,8 +651,8 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
               className={`${styles.btnGhost} ${styles.composeCloseBtn}`}
               onClick={() => void requestClose()}
               type="button"
-              aria-label="Fermer"
-              title="Fermer"
+              aria-label={i18nT("fermer_5ab4ec64")}
+              title={i18nT("fermer_5ab4ec64")}
             >
               ✕
             </button>
@@ -670,12 +665,9 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
               <div className={styles.composeSectionHeader}>
                 <div>
                   <div className={styles.composeSectionTitle}>
-                    <span className={styles.composeSectionIcon}>➜</span>Boîte
-                    d’envoi
-                  </div>
+                    <span className={styles.composeSectionIcon}>➜</span>{i18nT("boite_d_envoi_8af123c1")}{" "}</div>
                   <div className={styles.composeSectionHint}>
-                    Compte utilisé pour envoyer le message.
-                  </div>
+                    {i18nT("compte_utilise_pour_envoyer_le_message_3386d4a9")}{" "}</div>
                 </div>
                 {selectedAccount ? (
                   <span
@@ -716,35 +708,27 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
                 <div>
                   <div className={styles.composeSectionTitle}>
                     <span className={styles.composeSectionIcon}>👥</span>
-                    Destinataires
-                  </div>
+                    {i18nT("destinataires_51610ad7")}{" "}</div>
                   <div className={styles.composeSectionHint}>
-                    Saisissez une adresse ou sélectionnez des contacts CRM.
-                    Séparez les adresses mails par un ";" pour ajouter plusieurs
-                    destinataires.
-                  </div>
+                    {i18nT("saisissez_une_adresse_ou_selectionnez_des_3e134c3b")}{" "}</div>
                 </div>
                 {selectedCrmCount > 0 ? (
                   <span
                     className={`${styles.badge} ${styles.composeCountBadge}`}
                   >
-                    {selectedCrmCount} sélectionné
-                    {selectedCrmCount > 1 ? "s" : ""}
+                    {selectedCrmCount} {" "}{i18nT("selectionne_34d3d2da")}{" "}{selectedCrmCount > 1 ? "s" : ""}
                   </span>
                 ) : null}
               </div>
               <input
                 value={to}
                 onChange={(e) => setTo(e.target.value)}
-                placeholder="email@exemple.com; autre@exemple.com"
+                placeholder={i18nT("email_exemple_com_autre_exemple_com_5b0dd69e")}
                 style={composeInputStyle}
               />
               {isBulkCampaignCompose ? (
                 <span style={{ fontSize: 12, color: "rgba(125,211,252,0.95)" }}>
-                  {composeRecipientList.length} destinataires détectés :
-                  iNr’SEND lancera une campagne avec un envoi individuel par
-                  contact.
-                </span>
+                  {i18nT("value_destinataires_detectes_inr_send_lancera_14fd84ca", { value0: composeRecipientList.length })}</span>
               ) : null}
               {bulkCampaignNotice ? (
                 <div
@@ -812,17 +796,14 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
                         fontWeight: 700,
                       }}
                     >
-                      Contacts CRM
-                    </span>
+                      {i18nT("contacts_crm_641538bb")}{" "}</span>
                     <span className={styles.badge} style={{ opacity: 0.9 }}>
-                      {selectedCrmCount} sélectionné
-                      {selectedCrmCount > 1 ? "s" : ""}
+                      {selectedCrmCount} {" "}{i18nT("selectionne_34d3d2da")}{" "}{selectedCrmCount > 1 ? "s" : ""}
                     </span>
                     <span
                       className={`${styles.badge} ${styles.crmPickerCountBadge}`}
                     >
-                      {filteredContacts.length} contact
-                      {filteredContacts.length > 1 ? "s" : ""}
+                      {filteredContacts.length} {" "}{i18nT("contact_1a73af9e")}{" "}{filteredContacts.length > 1 ? "s" : ""}
                     </span>
                   </span>
                   <span style={{ opacity: 0.85 }}>
@@ -842,7 +823,7 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
                           value={crmFilter}
                           onChange={(e) => setCrmFilter(e.target.value)}
                           onFocus={() => setCrmSearchOpen(true)}
-                          placeholder="Rechercher un contact…"
+                          placeholder={i18nT("rechercher_un_contact_99c66f51")}
                           className={styles.crmSearchInlineInput}
                         />
                         {crmFilter.trim() ? (
@@ -856,8 +837,8 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
                                 0,
                               );
                             }}
-                            aria-label="Effacer la recherche"
-                            title="Effacer"
+                            aria-label={i18nT("effacer_la_recherche_189351c0")}
+                            title={i18nT("effacer_fe23de7b")}
                           >
                             ×
                           </button>
@@ -869,12 +850,11 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
                         className={`${styles.btnGhost} ${styles.crmToolbarBtn} ${activeCrmFiltersCount > 0 ? styles.crmToolbarBtnActive : ""}`}
                         onClick={() => setCrmFiltersOpen((v) => !v)}
                         aria-expanded={crmFiltersOpen}
-                        title="Afficher les filtres"
+                        title={i18nT("afficher_les_filtres_cd8abbe3")}
                       >
                         <span aria-hidden>⚙️</span>
                         <span>
-                          Filtres
-                          {activeCrmFiltersCount > 0
+                          {i18nT("filtres_2a8e76e0")}{" "}{activeCrmFiltersCount > 0
                             ? ` (${activeCrmFiltersCount})`
                             : ""}
                         </span>
@@ -902,10 +882,9 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
                           setTo(next.join(", "));
                         }}
                         disabled={crmLoading || filteredContacts.length === 0}
-                        title="Sélectionner tous les contacts affichés"
+                        title={i18nT("selectionner_tous_les_contacts_affiches_dbbe3910")}
                       >
-                        Tout
-                      </button>
+                        {i18nT("tout_6b0b09b8")}{" "}</button>
 
                       <button
                         type="button"
@@ -924,21 +903,19 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
                           setTo(next.join(", "));
                         }}
                         disabled={crmLoading || filteredContacts.length === 0}
-                        title="Désélectionner tous les contacts affichés"
+                        title={i18nT("deselectionner_tous_les_contacts_affiches_7417b99b")}
                       >
-                        Aucun
-                      </button>
+                        {i18nT("aucun_b2ed82f1")}{" "}</button>
 
                       <div className={styles.crmToolbarCount}>
-                        {filteredContacts.length} contact
-                        {filteredContacts.length > 1 ? "s" : ""}
+                        {filteredContacts.length} {" "}{i18nT("contact_1a73af9e")}{" "}{filteredContacts.length > 1 ? "s" : ""}
                       </div>
                     </div>
 
                     {crmFiltersOpen ? (
                       <div className={styles.crmFiltersPanel}>
                         <label className={styles.crmFilterField}>
-                          <span>Catégorie</span>
+                          <span>{i18nT("categorie_6b38300a")}</span>
                           <select
                             value={crmCategory ?? "all"}
                             onChange={(e) =>
@@ -946,19 +923,17 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
                             }
                             className={styles.crmSelect}
                           >
-                            <option value="all">Toutes</option>
-                            <option value="particulier">Particuliers</option>
+                            <option value="all">{i18nT("toutes_c5f641e4")}</option>
+                            <option value="particulier">{i18nT("particuliers_918ed212")}</option>
                             <option value="professionnel">
-                              Professionnels
-                            </option>
+                              {i18nT("professionnels_8d94a78e")}{" "}</option>
                             <option value="collectivite_publique">
-                              Collectivités
-                            </option>
+                              {i18nT("collectivites_c0c84588")}{" "}</option>
                           </select>
                         </label>
 
                         <label className={styles.crmFilterField}>
-                          <span>Type</span>
+                          <span>{i18nT("type_3deb7456")}</span>
                           <select
                             value={crmContactType ?? "all"}
                             onChange={(e) =>
@@ -966,17 +941,17 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
                             }
                             className={styles.crmSelect}
                           >
-                            <option value="all">Tous</option>
-                            <option value="client">Clients</option>
-                            <option value="prospect">Prospects</option>
-                            <option value="fournisseur">Fournisseurs</option>
-                            <option value="partenaire">Partenaires</option>
-                            <option value="autre">Autres</option>
+                            <option value="all">{i18nT("tous_b97ae3b4")}</option>
+                            <option value="client">{i18nT("clients_28e22fe3")}</option>
+                            <option value="prospect">{i18nT("prospects_8f522b12")}</option>
+                            <option value="fournisseur">{i18nT("fournisseurs_06b6d88c")}</option>
+                            <option value="partenaire">{i18nT("partenaires_e56efd6d")}</option>
+                            <option value="autre">{i18nT("autres_2f0dd042")}</option>
                           </select>
                         </label>
 
                         <label className={styles.crmFilterField}>
-                          <span>Département</span>
+                          <span>{i18nT("departement_3d7c87c2")}</span>
                           <input
                             value={crmDepartment}
                             onChange={(e) => setCrmDepartment(e.target.value)}
@@ -984,7 +959,7 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
                             inputMode="text"
                             maxLength={3}
                             placeholder="62"
-                            aria-label="Filtrer par département"
+                            aria-label={i18nT("filtrer_par_departement_f4272d54")}
                           />
                         </label>
 
@@ -997,7 +972,7 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
                           <span aria-hidden>
                             {crmImportantOnly ? "★" : "☆"}
                           </span>
-                          <span>Important uniquement</span>
+                          <span>{i18nT("important_uniquement_ce4158c9")}</span>
                         </button>
                       </div>
                     ) : null}
@@ -1005,8 +980,7 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
                     <div className={styles.crmContactsList}>
                       {crmLoading ? (
                         <div className={styles.crmStateText}>
-                          Chargement des contacts…
-                        </div>
+                          {i18nT("chargement_des_contacts_37c250fb")}{" "}</div>
                       ) : crmError ? (
                         <div style={{ display: "grid", gap: 8 }}>
                           <div className={styles.crmStateText}>{crmError}</div>
@@ -1016,13 +990,11 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
                             onClick={() => void loadCrmContacts()}
                             style={{ width: "fit-content" }}
                           >
-                            Réessayer
-                          </button>
+                            {i18nT("reessayer_895d416b")}{" "}</button>
                         </div>
                       ) : filteredContacts.length === 0 ? (
                         <div className={styles.crmStateText}>
-                          Aucun contact.
-                        </div>
+                          {i18nT("aucun_contact_9b8a0582")}{" "}</div>
                       ) : (
                         <div className={styles.crmContactsGrid}>
                           {filteredContacts.slice(0, 200).map((c) => {
@@ -1046,7 +1018,7 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
                                 />
                                 <div className={styles.crmContactText}>
                                   <div className={styles.crmContactName}>
-                                    {c.full_name || "(Sans nom)"}
+                                    {c.full_name || i18nT("sans_nom_1f7c630b")}
                                     {c.important ? (
                                       <span className={styles.crmImportantMark}>
                                         ★
@@ -1077,27 +1049,21 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
                 {isWorkflowFinalizer ? (
                   <div>
                     <div className={styles.composeSectionTitle}>
-                      <span className={styles.composeSectionIcon}>🏷️</span>Objet
-                    </div>
+                      <span className={styles.composeSectionIcon}>🏷️</span>{i18nT("objet_3de621c5")}{" "}</div>
                     <div className={styles.composeSectionHint}>
-                      Objet préparé depuis {workflowFinalizerLabel}. Vous pouvez
-                      le relire ou l’ajuster avant l’envoi.
-                    </div>
+                      {i18nT("objet_prepare_depuis_value_vous_pouvez_43db283f", { value0: workflowFinalizerLabel })}</div>
                   </div>
                 ) : (
                   <div className={styles.composeSubjectHeaderGrid}>
                     <div className={styles.composeSubjectHeaderMain}>
                       <div className={styles.composeSectionTitle}>
                         <span className={styles.composeSectionIcon}>🏷️</span>
-                        Objet
-                      </div>
+                        {i18nT("objet_3de621c5")}{" "}</div>
                       <div className={styles.composeSectionHint}>
-                        Titre visible dans la boîte mail du destinataire.
-                      </div>
+                        {i18nT("titre_visible_dans_la_boite_mail_c1aa8673")}{" "}</div>
                     </div>
                     <div className={styles.composeWritingTypeLabel}>
-                      Typologie
-                    </div>
+                      {i18nT("typologie_3b7e8267")}{" "}</div>
                     <div aria-hidden="true" />
                   </div>
                 )}
@@ -1116,7 +1082,7 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
                       onChange={(next) =>
                         setSubject(normalizeMailSubjectDraft(next))
                       }
-                      placeholder="Ex : Relance devis, présentation de nos services..."
+                      placeholder={i18nT("ex_relance_devis_presentation_de_nos_2feaebb2")}
                     />
                   ) : (
                     <input
@@ -1127,22 +1093,20 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
                       onBlur={(e) =>
                         setSubject(normalizeMailSubject(e.target.value))
                       }
-                      placeholder="Ex : Relance devis, présentation de nos services..."
+                      placeholder={i18nT("ex_relance_devis_presentation_de_nos_2feaebb2")}
                       style={composeInputStyle}
                     />
                   )}
                   {!subject.trim() ? (
                     <span className={styles.composeWarning}>
-                      Le message partira avec “(sans objet)” si vous laissez ce
-                      champ vide.
-                    </span>
+                      {i18nT("le_message_partira_avec_sans_objet_19716814")}{" "}</span>
                   ) : null}
                 </div>
                 {!isWorkflowFinalizer ? (
                   <>
                     <div className={styles.composeWritingTypeStack}>
                       <select
-                        aria-label="Typologie du mail"
+                        aria-label={i18nT("typologie_du_mail_09972fbd")}
                         className={styles.composeWritingTypeSelect}
                         value={mailWritingType}
                         onChange={(e) =>
@@ -1151,7 +1115,7 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
                       >
                         {MAIL_WRITING_TYPE_OPTIONS.map((option) => (
                           <option key={option.value} value={option.value}>
-                            {option.label}
+                            {i18nT(option.messageKey)}
                           </option>
                         ))}
                       </select>
@@ -1164,15 +1128,15 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
                         disabled={aiGenerating || attachBusy || !subject.trim()}
                         title={
                           !subject.trim()
-                            ? "Renseignez d’abord un objet pour générer votre mail."
+                            ? i18nT("renseignez_d_abord_un_objet_pour_7e7699f1")
                             : attachBusy
-                              ? "Patientez pendant la préparation de la pièce jointe."
+                              ? i18nT("patientez_les_pieces_jointes_sont_encore_ac136c9e")
                               : composeAttachments.length > 0
-                                ? "Générer le message avec iNrCy en tenant compte des pièces jointes"
-                                : "Générer le message avec iNrCy"
+                                ? i18nT("generate_with_attachments_title")
+                                : i18nT("generate_message_title")
                         }
                       >
-                        {aiGenerating ? "Génération…" : "✨ Générer avec iNrCy"}
+                        {aiGenerating ? i18nT("generation_ce4e3498") : i18nT("generer_avec_inrcy_58900495")}
                       </button>
                       {aiError ? (
                         <span className={styles.composeAiError}>{aiError}</span>
@@ -1193,17 +1157,16 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
                   setText(nextText);
                   setHtml(nextHtml);
                 }}
-                placeholder="Votre message…"
+                placeholder={i18nT("votre_message_ffe7b099")}
                 toolbarTitle={
                   <div>
                     <div className={styles.composeSectionTitle}>
                       <span className={styles.composeSectionIcon}>✍️</span>
-                      Message
-                    </div>
+                      {i18nT("message_68f4145f")}{" "}</div>
                     <div className={styles.composeSectionHint}>
                       {isWorkflowFinalizer
-                        ? `Message préparé depuis ${workflowFinalizerLabel}. Relisez et ajustez si besoin avant l’envoi.`
-                        : "Ajoutez la touche finale avant l’envoi."}
+                        ? i18nT("message_prepare_depuis_value_relisez_et_172c2523", { value0: workflowFinalizerLabel })
+                        : i18nT("ajoutez_la_touche_finale_avant_l_2e3b2378")}
                     </div>
                   </div>
                 }
@@ -1216,18 +1179,15 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
                   <div>
                     <div className={styles.composeSignaturePreviewTitle}>
                       <span className={styles.composeSectionIcon}>✅</span>
-                      Signature automatique
-                    </div>
+                      {i18nT("signature_automatique_77745712")}{" "}</div>
                     <div className={styles.composeSignaturePreviewHint}>
-                      Elle sera ajoutée automatiquement en bas du mail à
-                      l’envoi.
-                    </div>
+                      {i18nT("elle_sera_ajoutee_automatiquement_en_bas_f1e910e0")}{" "}</div>
                   </div>
                   <div className={styles.composeSignatureActions}>
                     <span
                       className={`${styles.badge} ${signatureEnabled ? styles.composeSignatureOn : styles.composeSignatureOff}`}
                     >
-                      {signatureEnabled ? "Activée" : "Désactivée"}
+                      {signatureEnabled ? i18nT("activee_9b4e7cfb") : i18nT("desactivee_74cc3b9b")}
                     </span>
                   </div>
                 </div>
@@ -1236,13 +1196,13 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
                   <div className={styles.composeSignaturePreviewBox}>
                     <pre className={styles.composeSignaturePreviewText}>
                       {signaturePreview?.trim() ||
-                        "Aperçu indisponible pour le moment."}
+                        i18nT("apercu_indisponible_pour_le_moment_9ceb14a7")}
                     </pre>
                     {signatureImageUrl ? (
                       <div className={styles.composeSignatureImageWrap}>
                         <img
                           src={signatureImageUrl}
-                          alt="Signature automatique"
+                          alt={i18nT("signature_automatique_77745712")}
                           style={{
                             width: `${signatureImageWidth}px`,
                             maxWidth: "100%",
@@ -1257,8 +1217,7 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
                   </div>
                 ) : (
                   <div className={styles.composeSignaturePreviewEmpty}>
-                    Aucune signature ne sera ajoutée à cet envoi.
-                  </div>
+                    {i18nT("aucune_signature_ne_sera_ajoutee_a_e8dda5d5")}{" "}</div>
                 )}
               </div>
             </section>
@@ -1279,32 +1238,32 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
               htmlFor={fileInputId}
               className={styles.btnAttach}
               aria-disabled={attachBusy}
-              title="Joindre un fichier · 20 Mo max"
+              title={i18nT("joindre_un_fichier_20_mo_max_0776b74d")}
             >
               <span aria-hidden>📎</span>
-              <span className={styles.composeAttachLabel}>Joindre</span>
+              <span className={styles.composeAttachLabel}>{i18nT("joindre_2ee36407")}</span>
             </label>
             <button
               type="button"
               className={styles.btnAttach}
               onClick={() => setMediaLibraryOpen(true)}
               disabled={attachBusy}
-              title="Joindre depuis la Médiathèque"
+              title={i18nT("joindre_depuis_la_mediatheque_132a0a6b")}
             >
               <span aria-hidden>🖼️</span>
-              <span className={styles.composeAttachLabel}>Médiathèque</span>
+              <span className={styles.composeAttachLabel}>{i18nT("mediatheque_e4fa8e31")}</span>
             </button>
             <span className={styles.composeAttachmentStatus}>
               {composeAttachments.length > 0
-                ? `${composeAttachments.length} fichier${composeAttachments.length > 1 ? "s" : ""}`
+                ? i18nT("value_fichier_value_34309747", { value0: composeAttachments.length, value1: composeAttachments.length > 1 ? "s" : "" })
                 : attachBusy
-                  ? "Préparation…"
-                  : "Aucun fichier"}
+                  ? i18nT("preparation_47305e12")
+                  : i18nT("aucun_fichier_b960337c")}
             </span>
             {composeAttachments.length > 0 ? (
               <div
                 className={styles.composeAttachmentChips}
-                aria-label="Pièces jointes ajoutées"
+                aria-label={i18nT("pieces_jointes_ajoutees_b8f13395")}
               >
                 {composeAttachments.map((f, idx) => (
                   <span
@@ -1321,7 +1280,7 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
                           prev.filter((_, i) => i !== idx),
                         )
                       }
-                      aria-label={`Retirer ${f.name}`}
+                      aria-label={i18nT("retirer_value_c04cdfcb", { value0: f.name })}
                     >
                       ✕
                     </button>
@@ -1338,15 +1297,14 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
                 onClick={() => void onWorkflowPrevious()}
                 type="button"
                 disabled={sendBusy || attachBusy}
-                title="Revenir à l’étape précédente"
-                aria-label="Revenir à l’étape précédente"
+                title={i18nT("revenir_a_l_etape_precedente_81b175a7")}
+                aria-label={i18nT("revenir_a_l_etape_precedente_81b175a7")}
               >
                 <span className={styles.composePreviousMobileIcon} aria-hidden>
                   ←
                 </span>
                 <span className={styles.composePreviousDesktopText}>
-                  Précédent
-                </span>
+                  {i18nT("precedent_a527f171")}{" "}</span>
               </button>
             ) : null}
             {scheduledEditMode && onSaveScheduledEdit ? (
@@ -1361,7 +1319,7 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
               >
                 <span aria-hidden>{scheduledEditSaving ? "…" : "💾"}</span>
                 <span className={styles.composeScheduledSaveText}>
-                  {scheduledEditSaving ? "Enregistrement…" : "Enregistrer"}
+                  {scheduledEditSaving ? i18nT("enregistrement_e7d5f232") : i18nT("enregistrer_f7c8bcd8")}
                 </span>
               </button>
             ) : null}
@@ -1371,10 +1329,10 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
                 onClick={openScheduleModal}
                 type="button"
                 disabled={sendBusy || scheduleBusy || attachBusy}
-                title="Programmer l’envoi avec iNr’Agent"
+                title={i18nT("programmer_l_envoi_avec_inr_agent_224abf77")}
               >
                 <span aria-hidden>🕒</span>
-                <span className={styles.composeScheduleText}>Programmer</span>
+                <span className={styles.composeScheduleText}>{i18nT("programmer_f704a30b")}</span>
               </button>
             ) : null}
             <button
@@ -1382,12 +1340,16 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
               onClick={() => void requestSend()}
               type="button"
               disabled={sendBusy || scheduleBusy || attachBusy || scheduledEditSaving}
-              title={scheduledEditMode ? "Envoyer maintenant" : "Envoyer"}
-              aria-label={scheduledEditMode ? "Envoyer maintenant" : "Envoyer"}
+              title={i18nT(
+                scheduledEditMode ? "send_now" : "envoyer_e9ce243b",
+              )}
+              aria-label={i18nT(
+                scheduledEditMode ? "send_now" : "envoyer_e9ce243b",
+              )}
             >
               <span className={styles.composeSendIcon} aria-hidden>➤</span>
               <span className={styles.composeSendText}>
-                {attachBusy ? "Préparation…" : sendBusy || scheduledEditSaving ? "Envoi…" : "Envoyer"}
+                {attachBusy ? i18nT("preparation_47305e12") : sendBusy || scheduledEditSaving ? i18nT("envoi_a625611f") : i18nT("envoyer_e9ce243b")}
               </span>
             </button>
           </div>
@@ -1396,20 +1358,22 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
         <CampaignScheduleModal
           open={scheduleModalOpen}
           description={
-            scheduleLabel === "mail"
-              ? "iNr’Agent enverra ce mail automatiquement au moment choisi."
-              : `iNr’Agent enverra cette ${scheduleLabel} automatiquement au moment choisi.`
+            isWorkflowFinalizer
+              ? i18nT("schedule_campaign_description", {
+                  workflow: workflowFinalizerLabel,
+                })
+              : i18nT("schedule_mail_description")
           }
           recipientCount={
             composeRecipientList.length ||
             selectedCrmCount ||
             normalizeEmails(to).length
           }
-          subject={subject.trim() || "(sans objet)"}
+          subject={subject.trim() || i18nT("sans_objet_e5ad6a39")}
           saving={Boolean(scheduleBusy || scheduledEditSaving)}
           error={scheduleError}
-          successMessage="Programmation réussie."
-          savingLabel="Programmation en cours…"
+          successMessage={i18nT("programmation_reussie_1307249b")}
+          savingLabel={i18nT("programmation_en_cours_13ae187c")}
           initialScheduledAt={scheduledEditScheduledAt}
           onClose={() => !scheduleBusy && !scheduledEditSaving && setScheduleModalOpen(false)}
           onConfirm={(scheduledAt) => confirmSchedule(scheduledAt)}
@@ -1427,8 +1391,7 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
               onClick={() => setToast(null)}
               type="button"
             >
-              OK
-            </button>
+              {i18nT("ok_9ce3bd42")}{" "}</button>
           </div>
         ) : null}
       </div>

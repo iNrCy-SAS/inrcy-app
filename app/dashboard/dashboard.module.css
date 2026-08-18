@@ -306,6 +306,33 @@
     inset 0 -1px 0 rgba(56, 189, 248, 0.18);
 }
 
+.languageSelectorBtnCompact {
+  width: 40px;
+  min-width: 40px;
+  padding: 0;
+  gap: 0;
+  overflow: visible;
+}
+
+.languageSelectorBtnCompact .languageFlag {
+  width: 22px;
+  height: 22px;
+  flex-basis: 22px;
+}
+
+.languageSelectorBtnCompact .languageChevron {
+  position: absolute;
+  right: 2px;
+  bottom: 5px;
+  width: 12px;
+  height: 12px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(8, 15, 30, 0.9);
+  font-size: 8px;
+}
+
 .languageFlag,
 .languageItemFlag {
   display: inline-flex;

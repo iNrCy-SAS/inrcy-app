@@ -3,6 +3,7 @@
 import styles from "./dashboard.module.css";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo } from "react";
+import { useTranslations } from "next-intl";
 import SettingsDrawer from "./SettingsDrawer";
 import HelpButton from "./_components/HelpButton";
 import DashboardHelpModals from "./_components/DashboardHelpModals";
@@ -25,7 +26,7 @@ import { useDashboardPanelRouting } from "./_hooks/useDashboardPanelRouting";
 import { useDashboardCompletionChecks } from "./_hooks/useDashboardCompletionChecks";
 import { useDashboardOnboardingState } from "./_hooks/useDashboardOnboardingState";
 import { useDashboardMenus } from "./_hooks/useDashboardMenus";
-import { useDashboardLanguage } from "./_hooks/useDashboardLanguage";
+import { useDashboardI18n } from "./_hooks/useDashboardI18n";
 import { useFacebookChannel } from "./_hooks/channels/useFacebookChannel";
 import { useInstagramChannel } from "./_hooks/channels/useInstagramChannel";
 import { useLinkedinChannel } from "./_hooks/channels/useLinkedinChannel";
@@ -66,7 +67,6 @@ import { buildFluxBubbleItems } from "./dashboard.flux-bubbles";
 import { createInrBadgePublicUrl, type InrBadgeProfileSummary } from "@/lib/inrBadge";
 import { buildDashboardPanelProps } from "./dashboard.panel-props";
 import { createEmptyChannelBlock, createEmptyChannelBlocks, type InrstatsChannelBlock, type InrstatsChannelBlocksByChannel } from "@/lib/inrstats/channelBlocks";
-import { getDashboardTranslations } from "@/lib/dashboardI18n";
 import type { ConnectionDisplayStatus } from "@/lib/connectionVersions";
 import { isDashboardRequiredSetupProtectedDestination, isDashboardRequiredSetupProtectedLocation } from "@/lib/dashboardRequiredSetupAccess";
 import { confirmInrcy } from "@/lib/inrcyDialog";
@@ -136,6 +136,9 @@ export default function DashboardClient({
   isAdmin = false,
   initialOnboardingState,
 }: DashboardClientProps) {
+  const i18nT = useTranslations("shell");
+  const commonT = useTranslations("common");
+  const onboardingT = useTranslations("dashboard.onboarding");
   const [helpGeneratorOpen, setHelpGeneratorOpen] = useState(false);
   const [generatorSettingsOpen, setGeneratorSettingsOpen] = useState(false);
   const [helpCanauxOpen, setHelpCanauxOpen] = useState(false);
@@ -174,8 +177,7 @@ export default function DashboardClient({
   const dashboardEdition = useDashboardEdition();
   const isStandardEdition = dashboardEdition === "standard";
   const { requestNavigation } = useDashboardUnsavedNavigation();
-  const { language: dashboardLanguage } = useDashboardLanguage();
-  const dashboardCopy = useMemo(() => getDashboardTranslations(dashboardLanguage), [dashboardLanguage]);
+  const dashboardCopy = useDashboardI18n();
   const { panel, openPanel, replacePanelDirect, closePanel, goToModule } = useDashboardPanelRouting();
   const {
     profileIncomplete,
@@ -211,7 +213,10 @@ export default function DashboardClient({
     guidedOnboardingProgress !== null;
   const isGuidedOnboardingPanel = guidedOnboardingActive && panel === guidedOnboardingPanel;
   const onboardingProgressLabel = isGuidedOnboardingPanel && guidedOnboardingProgress
-    ? `Configuration initiale · Étape ${guidedOnboardingProgress.current}/${guidedOnboardingProgress.total}`
+    ? onboardingT("progress", {
+        current: guidedOnboardingProgress.current,
+        total: guidedOnboardingProgress.total,
+      })
     : undefined;
   const onboardingStateLoading = !onboardingState.onboardingReady;
   const onboardingInitialPreparationBlocking =
@@ -287,17 +292,17 @@ export default function DashboardClient({
 
   const guidedSkipIsAiStep = isGuidedOnboardingPanel && onboardingCurrentStep === "ai";
   const guidedSkipUnsavedPrefix = settingsDrawerHasUnsavedChanges
-    ? "Les modifications non enregistrées seront perdues. "
+    ? onboardingT("unsavedPrefix")
     : "";
   const guidedSkipTitle = guidedSkipIsAiStep
-    ? "Conserver les réglages par défaut ?"
-    : "Continuer plus tard ?";
+    ? onboardingT("keepDefaultsTitle")
+    : onboardingT("continueLaterTitle");
   const guidedSkipMessage = guidedSkipIsAiStep
-    ? `${guidedSkipUnsavedPrefix}Votre IA conservera les réglages recommandés par défaut. Vous pourrez les personnaliser plus tard depuis Configuration IA.`
-    : `${guidedSkipUnsavedPrefix}Passer cette étape ne permet pas l’activation de tous les outils iNrCy. Vous pourrez reprendre la configuration depuis le dashboard. Voulez-vous continuer plus tard ?`;
+    ? `${guidedSkipUnsavedPrefix}${onboardingT("keepDefaultsMessage")}`
+    : `${guidedSkipUnsavedPrefix}${onboardingT("continueLaterMessage")}`;
   const guidedSkipConfirmLabel = guidedSkipIsAiStep
-    ? "Conserver par défaut"
-    : "Continuer plus tard";
+    ? onboardingT("keepDefaults")
+    : onboardingT("continueLater");
 
   const { confirmExit: confirmSettingsDrawerExit } = useUnsavedExitGuard({
     active: settingsDrawerGuardActive,
@@ -305,13 +310,13 @@ export default function DashboardClient({
     onConfirmExit: () => {
       void closeSettingsDrawer();
     },
-    eyebrow: isGuidedOnboardingPanel ? "Configuration initiale" : "Réglages",
-    title: isGuidedOnboardingPanel ? guidedSkipTitle : "Quitter sans enregistrer ?",
+    eyebrow: isGuidedOnboardingPanel ? onboardingT("initialSetup") : onboardingT("settings"),
+    title: isGuidedOnboardingPanel ? guidedSkipTitle : onboardingT("exitWithoutSavingTitle"),
     message: isGuidedOnboardingPanel
       ? guidedSkipMessage
-      : "Cette fenêtre contient des modifications non enregistrées. Si vous la fermez maintenant, elles seront perdues.",
-    confirmLabel: isGuidedOnboardingPanel ? guidedSkipConfirmLabel : "Fermer sans enregistrer",
-    cancelLabel: isGuidedOnboardingPanel ? "Revenir à la configuration" : "Continuer l’édition",
+      : onboardingT("exitWithoutSavingMessage"),
+    confirmLabel: isGuidedOnboardingPanel ? guidedSkipConfirmLabel : onboardingT("closeWithoutSaving"),
+    cancelLabel: isGuidedOnboardingPanel ? onboardingT("returnToSetup") : onboardingT("continueEditing"),
     variant: "warning",
   });
 
@@ -321,11 +326,11 @@ export default function DashboardClient({
     onboardingSkipConfirmingRef.current = true;
     try {
       const confirmed = await confirmInrcy({
-        eyebrow: "Configuration initiale",
+        eyebrow: onboardingT("initialSetup"),
         title: guidedSkipTitle,
         message: guidedSkipMessage,
         confirmLabel: guidedSkipConfirmLabel,
-        cancelLabel: "Revenir à la configuration",
+        cancelLabel: onboardingT("returnToSetup"),
         variant: "warning",
       });
       if (!confirmed) return;
@@ -339,6 +344,7 @@ export default function DashboardClient({
     guidedSkipMessage,
     guidedSkipTitle,
     isGuidedOnboardingPanel,
+    onboardingT,
   ]);
 
   const requestCloseSettingsDrawer = useCallback(() => {
@@ -3061,10 +3067,10 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
           if (!res.ok || cancelled) return;
           const reauth = (json as any)?.reauth || {};
 
-          if (reauth?.site_inrcy?.ga4) setSiteInrcyGa4Notice("Reconnexion Google Analytics requise (sécurité).");
-          if (reauth?.site_inrcy?.gsc) setSiteInrcyGscNotice("Reconnexion Search Console requise (sécurité).");
-          if (reauth?.site_web?.ga4) setSiteWebGa4Notice("Reconnexion Google Analytics requise (sécurité).");
-          if (reauth?.site_web?.gsc) setSiteWebGscNotice("Reconnexion Search Console requise (sécurité).");
+          if (reauth?.site_inrcy?.ga4) setSiteInrcyGa4Notice(i18nT("reconnexion_google_analytics_requise_securite_24425a0e"));
+          if (reauth?.site_inrcy?.gsc) setSiteInrcyGscNotice(i18nT("reconnexion_search_console_requise_securite_0e2310af"));
+          if (reauth?.site_web?.ga4) setSiteWebGa4Notice(i18nT("reconnexion_google_analytics_requise_securite_24425a0e"));
+          if (reauth?.site_web?.gsc) setSiteWebGscNotice(i18nT("reconnexion_search_console_requise_securite_0e2310af"));
           if (reauth?.gmb) setPanelError("gmb", "Reconnexion Google Business requise (sécurité).", "Reconnexion Google Business requise (sécurité).", 5000);
         } catch {}
       })();
@@ -3107,22 +3113,22 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     if (ok !== "1" || skipped !== "1") return;
 
     if (targetPanel === "site_inrcy" && linked === "ga4") {
-      setSiteInrcyGa4Notice("Google Analytics déjà connecté pour le site iNrCy.");
+      setSiteInrcyGa4Notice(i18nT("google_analytics_deja_connecte_pour_le_cacb426f"));
       window.setTimeout(() => setSiteInrcyGa4Notice(null), 2600);
       return;
     }
     if (targetPanel === "site_inrcy" && linked === "gsc") {
-      setSiteInrcyGscNotice("Search Console déjà connecté pour le site iNrCy.");
+      setSiteInrcyGscNotice(i18nT("search_console_deja_connecte_pour_le_4aa7f95e"));
       window.setTimeout(() => setSiteInrcyGscNotice(null), 2600);
       return;
     }
     if (targetPanel === "site_web" && linked === "ga4") {
-      setSiteWebGa4Notice("Google Analytics déjà connecté pour le site web.");
+      setSiteWebGa4Notice(i18nT("google_analytics_deja_connecte_pour_le_9d2187db"));
       window.setTimeout(() => setSiteWebGa4Notice(null), 2600);
       return;
     }
     if (targetPanel === "site_web" && linked === "gsc") {
-      setSiteWebGscNotice("Search Console déjà connecté pour le site web.");
+      setSiteWebGscNotice(i18nT("search_console_deja_connecte_pour_le_9ff26595"));
       window.setTimeout(() => setSiteWebGscNotice(null), 2600);
     }
   }, [searchParams]);
@@ -3504,7 +3510,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     setHelpSiteWebOpen,
     siteInrcySavedUrl,
     siteWebSavedUrl,
-    language: dashboardLanguage,
+    copy: dashboardCopy,
   }), [
     bubbleAccessMap,
     bubbleAccessReady,
@@ -3513,7 +3519,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     canConfigureSite,
     canViewSite,
     channelBlocks,
-    dashboardLanguage,
+    dashboardCopy,
     facebookPageConnected,
     facebookUrl,
     getSiteBubbleProgress,
@@ -3717,11 +3723,11 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
   } = buildDashboardPanelProps(locals);
 
   if (onboardingStateLoading) {
-    return <StableBootScreen label="Chargement de votre dashboard iNrCy..." />;
+    return <StableBootScreen label={commonT("dashboardBoot")} />;
   }
 
   if (onboardingInitialPreparationBlocking) {
-    return <StableBootScreen label="Préparation de votre configuration initiale..." />;
+    return <StableBootScreen label={commonT("initialSetup")} />;
   }
 
   return (
@@ -3846,21 +3852,21 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
       ) : null}
 
       <SettingsDrawer
-        title={getDrawerTitle(panel, dashboardLanguage)}
+        title={getDrawerTitle(panel, dashboardCopy)}
         progressLabel={onboardingProgressLabel}
         isOpen={isDrawerPanel(panel)}
         onClose={requestCloseSettingsDrawer}
         closeOnBackdrop={!settingsDrawerRequiresExplicitClose}
         closeOnEscape={!settingsDrawerRequiresExplicitClose}
         presentation={isGuidedOnboardingPanel ? "onboarding" : "drawer"}
-        closeLabel={isGuidedOnboardingPanel ? "Passer" : undefined}
+        closeLabel={isGuidedOnboardingPanel ? onboardingT("skip") : undefined}
         headerActions={
           panel === "inertie" ? (
-            <HelpButton onClick={() => setHelpInertieOpen(true)} title="Aide : Mon inertie" />
+            <HelpButton onClick={() => setHelpInertieOpen(true)} title={i18nT("aide_mon_inertie_beeca900")} />
           ) : panel === "facebook" ? (
-            <HelpButton onClick={() => setHelpFacebookOpen(true)} title="Aide connexion Facebook" />
+            <HelpButton onClick={() => setHelpFacebookOpen(true)} title={i18nT("aide_connexion_facebook_d02c3216")} />
           ) : panel === "instagram" ? (
-            <HelpButton onClick={() => setHelpInstagramOpen(true)} title="Aide connexion Instagram" />
+            <HelpButton onClick={() => setHelpInstagramOpen(true)} title={i18nT("aide_connexion_instagram_64a937e4")} />
           ) : null
         }
       >
@@ -3933,7 +3939,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
       />
 
       <footer className={styles.footer}>
-        <div className={styles.footerLeft}>© 2026 iNrCy</div>
+        <div className={styles.footerLeft}>{i18nT("2026_inrcy_abae7872")}</div>
       </footer>
     </main>
   );

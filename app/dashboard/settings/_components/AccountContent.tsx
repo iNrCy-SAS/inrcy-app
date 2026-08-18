@@ -1,5 +1,8 @@
 "use client";
 
+import { useLocale, useTranslations } from "next-intl";
+
+
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
@@ -20,11 +23,11 @@ type AccountSubscriptionSummary = {
   end_date?: string | null;
 };
 
-function formatSubscriptionDate(value?: string | null): string | null {
+function formatSubscriptionDate(value: string | null | undefined, locale: string): string | null {
   if (!value) return null;
   const date = new Date(value.length === 10 ? `${value}T12:00:00` : value);
   if (!Number.isFinite(date.getTime())) return null;
-  return date.toLocaleDateString("fr-FR", {
+  return date.toLocaleDateString(locale, {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -34,44 +37,46 @@ function formatSubscriptionDate(value?: string | null): string | null {
 function accountPlanPresentation(
   edition: DashboardEdition,
   subscription: AccountSubscriptionSummary | null,
+  i18nT: (key: string) => string,
+  locale: string,
 ) {
   const status = String(subscription?.status ?? "").trim().toLowerCase();
   const statusView =
     status === "trialing"
-      ? { label: "Essai 21 jours", color: "#8feaff" }
+      ? { label: i18nT("essai_21_jours_3095df3f"), color: "#8feaff" }
       : status === "active"
-        ? { label: "Actif", color: "#8ff7d0" }
+        ? { label: i18nT("actif_2eb75f84"), color: "#8ff7d0" }
         : status === "past_due" || status === "unpaid"
-          ? { label: "À régulariser", color: "#ffd38f" }
+          ? { label: i18nT("a_regulariser_7046f900"), color: "#ffd38f" }
           : status === "trial_expired"
-            ? { label: "Essai terminé", color: "#ffbd8f" }
+            ? { label: i18nT("essai_termine_be984f1c"), color: "#ffbd8f" }
             : status === "canceled" || status === "cancelled"
-              ? { label: "Résilié", color: "#ff9bbd" }
-              : { label: "À vérifier", color: "#c8d3ef" };
+              ? { label: i18nT("resilie_1ca48fe3"), color: "#ff9bbd" }
+              : { label: i18nT("a_verifier_8f5f7255"), color: "#c8d3ef" };
 
   const label =
     edition === "standard"
-      ? "iNrCy Standard"
+      ? i18nT("inrcy_standard_1dd18060")
       : edition === "founder"
         ? "iNrCy Founder"
-        : "iNrCy Premium";
+        : i18nT("inrcy_premium_4c7d39c1");
   const description =
     edition === "standard"
-      ? "Booster sur 10 canaux, iNr’Agent Publications + Statistiques, iNr’Badge, iNr’Stats, historique iNr’Send et Réputation."
+      ? i18nT("booster_sur_10_canaux_inr_apos_38a43414")
       : edition === "founder"
-        ? "Partenaire fondateur : accès complet aux outils iNrCy actuels et futurs."
-        : "Accès complet aux outils de pilotage et de développement de votre activité.";
+        ? i18nT("passez_du_pilotage_de_votre_visibilite_37fbfe56")
+        : i18nT("passez_du_pilotage_de_votre_visibilite_37fbfe56");
 
-  const trialEnd = formatSubscriptionDate(subscription?.trial_end_at);
-  const renewal = formatSubscriptionDate(subscription?.next_renewal_date);
-  const accessEnd = formatSubscriptionDate(subscription?.end_date);
+  const trialEnd = formatSubscriptionDate(subscription?.trial_end_at, locale);
+  const renewal = formatSubscriptionDate(subscription?.next_renewal_date, locale);
+  const accessEnd = formatSubscriptionDate(subscription?.end_date, locale);
   const detail =
     status === "trialing" && trialEnd
-      ? `Fin de votre essai : ${trialEnd}`
+      ? `${i18nT("fin_de_votre_essai_f1bae9e9")} ${trialEnd}`
       : subscription?.cancel_requested_at && accessEnd
-        ? `Accès jusqu’au : ${accessEnd}`
+        ? `${i18nT("votre_acces_restera_actif_jusqu_au_1da564dd")} ${accessEnd}`
         : renewal
-          ? `Prochain renouvellement : ${renewal}`
+          ? `${i18nT("renouvellement_annuel_ffcc422c")}: ${renewal}`
           : null;
 
   return { label, description, detail, statusView };
@@ -105,6 +110,8 @@ export default function AccountContent({
   edition = "premium",
   onOpenSubscription,
 }: Props) {
+  const i18nT = useTranslations("settings");
+  const locale = useLocale();
   const [email, setEmail] = useState<string>("");
   const [createdAt, setCreatedAt] = useState<string>("");
   const [subscriptionSummary, setSubscriptionSummary] = useState<AccountSubscriptionSummary | null>(null);
@@ -159,8 +166,8 @@ export default function AccountContent({
   const strength = useMemo(() => getPasswordStrength(newPassword), [newPassword]);
   const canSubmit = !busy && !!currentPassword && !!newPassword && newPassword === confirm && strength.isStrong;
   const planPresentation = useMemo(
-    () => accountPlanPresentation(edition, subscriptionSummary),
-    [edition, subscriptionSummary],
+    () => accountPlanPresentation(edition, subscriptionSummary, i18nT, locale),
+    [edition, subscriptionSummary, i18nT, locale],
   );
 
   const card: React.CSSProperties = {
@@ -256,32 +263,31 @@ export default function AccountContent({
     }
   }
 
-  if (loading) return <div style={{ opacity: 0.85 }}>Chargement…</div>;
+  if (loading) return <div style={{ opacity: 0.85 }}>{i18nT("chargement_01cba1df")}</div>;
 
   return (
     <div style={{ display: "grid", gap: 12 }}>
       <div style={card}>
         {createdAt ? (
           <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
-            <div style={{ fontSize: 12, fontWeight: 900, opacity: 0.85 }}>Date de création</div>
+            <div style={{ fontSize: 12, fontWeight: 900, opacity: 0.85 }}>{i18nT("date_de_creation_d5e8d1af")}</div>
             <div style={{ fontSize: 13, fontWeight: 900, opacity: 0.92 }}>{createdAt}</div>
           </div>
         ) : null}
 
-        <h2 style={{ margin: 0, fontSize: 16 }}>Identifiants</h2>
+        <h2 style={{ margin: 0, fontSize: 16 }}>{i18nT("identifiants_7e7dc904")}</h2>
         <p style={{ margin: "8px 0 0", opacity: 0.8 }}>
-          Votre email de connexion est affiché ci-dessous. Vous pouvez modifier votre mot de passe.
-        </p>
+          {i18nT("votre_email_de_connexion_est_affiche_84123fc4")}{" "}</p>
 
         <div style={{ marginTop: 12, display: "grid", gap: 12 }}>
           <div>
-            <div style={label}>Mail</div>
+            <div style={label}>{i18nT("mail_92379cbb")}</div>
             <input style={{ ...input, opacity: 0.9 }} value={email} readOnly />
           </div>
 
 
           <div>
-            <div style={label}>Mot de passe actuel</div>
+            <div style={label}>{i18nT("mot_de_passe_actuel_f9242976")}</div>
             <input
               style={input}
               type="password"
@@ -293,7 +299,7 @@ export default function AccountContent({
           </div>
 
           <div>
-            <div style={label}>Nouveau mot de passe</div>
+            <div style={label}>{i18nT("nouveau_mot_de_passe_3a713829")}</div>
             <input
               style={input}
               type="password"
@@ -305,7 +311,7 @@ export default function AccountContent({
           </div>
 
           <div>
-            <div style={label}>Confirmer le mot de passe</div>
+            <div style={label}>{i18nT("confirmer_le_mot_de_passe_88362d0d")}</div>
             <input
               style={input}
               type="password"
@@ -317,16 +323,15 @@ export default function AccountContent({
           </div>
 
           <div style={{ display: "grid", gap: 6, opacity: 0.9 }}>
-            <Rule ok={strength.rules.minLen} label="8+ caractères" />
-            <Rule ok={strength.rules.hasLetter} label="1 lettre" />
-            <Rule ok={strength.rules.hasNumber} label="1 chiffre" />
-            <Rule ok={strength.rules.hasUpper} label="1 majuscule" />
-            <Rule ok={strength.rules.hasSymbol} label="1 symbole" />
+            <Rule ok={strength.rules.minLen} label={i18nT("8_caracteres_85066a4b")} />
+            <Rule ok={strength.rules.hasLetter} label={i18nT("1_lettre_2147bd0b")} />
+            <Rule ok={strength.rules.hasNumber} label={i18nT("1_chiffre_6d6bd070")} />
+            <Rule ok={strength.rules.hasUpper} label={i18nT("1_majuscule_6f8fac24")} />
+            <Rule ok={strength.rules.hasSymbol} label={i18nT("1_symbole_412b784c")} />
           </div>
 
           <button type="button" onClick={onChangePassword} style={primaryBtn} disabled={!canSubmit}>
-            Modifier le mot de passe
-          </button>
+            {i18nT("modifier_le_mot_de_passe_b6eec6a6")}{" "}</button>
 
           {msg ? <div style={{ marginTop: 6, opacity: 0.9 }}>⚠️ {msg}</div> : null}
           {ok ? <div style={{ marginTop: 6, opacity: 0.95 }}>{ok}</div> : null}
@@ -343,8 +348,7 @@ export default function AccountContent({
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start" }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 12, fontWeight: 950, opacity: 0.82, letterSpacing: 0.6, textTransform: "uppercase" }}>
-              Votre forfait
-            </div>
+              {i18nT("votre_forfait_6d06f631")}{" "}</div>
             <div style={{ marginTop: 6, fontSize: 24, lineHeight: 1.15, fontWeight: 900 }}>
               {planPresentation.label}
             </div>
@@ -361,8 +365,7 @@ export default function AccountContent({
               fontWeight: 900,
             }}
           >
-            ●&nbsp; {planPresentation.statusView.label}
-          </div>
+            {i18nT("nbsp_value_34e8a717", { value0: planPresentation.statusView.label })}</div>
         </div>
         <p style={{ margin: "14px 0 0", opacity: 0.84, lineHeight: 1.5 }}>
           {planPresentation.description}
@@ -374,12 +377,10 @@ export default function AccountContent({
         ) : null}
         {onOpenSubscription ? (
           <button type="button" onClick={onOpenSubscription} style={planButton}>
-            Voir Mon abonnement →
-          </button>
+            {i18nT("voir_mon_abonnement_d5b2da25")}{" "}</button>
         ) : (
           <a href="/dashboard?panel=abonnement&panelSource=settings" style={planButton}>
-            Voir Mon abonnement →
-          </a>
+            {i18nT("voir_mon_abonnement_d5b2da25")}{" "}</a>
         )}
       </div>
     </div>

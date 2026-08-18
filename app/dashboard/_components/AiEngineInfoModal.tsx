@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import { useEffect } from "react";
 import {
   AI_ENGINE_OPTIONS,
@@ -17,6 +20,7 @@ const MOBILE_DOCK_HEIGHT =
   "var(--inrcy-mobile-bottom-nav-total-height, calc(50px + env(safe-area-inset-bottom, 0px)))";
 
 export default function AiEngineInfoModal({ open, activeEngine, onClose }: Props) {
+  const i18nT = useTranslations("booster");
   const activeOption = getAiEngineOption(activeEngine);
 
   useEffect(() => {
@@ -94,8 +98,7 @@ export default function AiEngineInfoModal({ open, activeEngine, onClose }: Props
                 marginBottom: 5,
               }}
             >
-              Couleur d’écriture
-            </div>
+              {i18nT("couleur_d_ecriture_14c6e5b9")}{" "}</div>
             <h2
               id="ai-engine-info-title"
               style={{
@@ -105,13 +108,12 @@ export default function AiEngineInfoModal({ open, activeEngine, onClose }: Props
                 letterSpacing: "-.02em",
               }}
             >
-              Quel moteur IA choisir ?
-            </h2>
+              {i18nT("quel_moteur_ia_choisir_b77594d2")}{" "}</h2>
           </div>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Fermer les informations sur les moteurs IA"
+            aria-label={i18nT("fermer_les_informations_sur_les_moteurs_a6165e55")}
             style={{
               width: 34,
               height: 34,
@@ -137,9 +139,7 @@ export default function AiEngineInfoModal({ open, activeEngine, onClose }: Props
             lineHeight: 1.45,
           }}
         >
-          iNrCy respecte toujours votre Configuration IA. Le moteur choisi apporte
-          surtout sa tendance naturelle d’écriture.
-        </p>
+          {i18nT("inrcy_respecte_toujours_votre_configuration_ia_0429a566")}{" "}</p>
 
         <div style={{ display: "grid", gap: 8 }}>
           {AI_ENGINE_OPTIONS.map((option) => {
@@ -199,8 +199,7 @@ export default function AiEngineInfoModal({ open, activeEngine, onClose }: Props
                     lineHeight: 1.35,
                   }}
                 >
-                  Idéal pour : {option.bestFor}
-                </div>
+                  {i18nT("ideal_pour_value_048201f3", { value0: option.bestFor })}</div>
               </div>
             );
           })}

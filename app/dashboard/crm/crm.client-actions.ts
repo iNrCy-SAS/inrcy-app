@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import { useCallback, type Dispatch, type SetStateAction } from "react";
 import { getClientUserFacingApiError as getSimpleFrenchApiError, getClientUserFacingErrorMessage as getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import { buildDisplayName } from "./crm.shared";
@@ -56,6 +59,7 @@ export function useCrmImportExportActions({
   mergeContactWithLocalState: (contact: CrmContact) => CrmContact;
   setExportingFormat: SetState<"" | "csv" | "xlsx">;
 }) {
+  const i18nT = useTranslations("crm");
 async function importContacts(rows: any[]) {
   const inferredDefaults = inferImportedDefaults(rows);
   const cleaned = rows
@@ -63,7 +67,7 @@ async function importContacts(rows: any[]) {
     .filter((r) => r.display_name || r.email || r.phone || r.last_name || r.company_name);
 
   if (cleaned.length === 0) {
-    setError("Aucune ligne exploitable trouvée dans le fichier.");
+    setError(i18nT("aucune_ligne_exploitable_trouvee_dans_le_907c885d"));
     setSuccess(null);
     return;
   }

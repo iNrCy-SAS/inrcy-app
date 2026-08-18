@@ -1,5 +1,6 @@
+import { useLocale, useTranslations } from "next-intl";
 import type { ReactNode } from "react";
-import { CHANNEL_LABELS, type ChannelKey } from "../publishModal.shared";
+import { getLocalizedChannelLabel, type ChannelKey } from "../publishModal.shared";
 
 type PublishModalStyles = Readonly<Record<string, string>>;
 
@@ -24,12 +25,14 @@ type PublishWarningModalsProps = {
   onOptimizeOversizedMedia: () => void;
 };
 
-function formatBytes(value: number) {
+function formatBytes(value: number, locale: string, kilobytes: string, megabytes: string) {
   const bytes = Number(value || 0);
   if (!Number.isFinite(bytes) || bytes <= 0) return "—";
-  if (bytes < 1_000_000) return `${Math.max(1, Math.round(bytes / 1_000))} Ko`;
+  if (bytes < 1_000_000) {
+    return `${new Intl.NumberFormat(locale).format(Math.max(1, Math.round(bytes / 1_000)))} ${kilobytes}`;
+  }
   const mb = bytes / 1_000_000;
-  return `${mb.toFixed(mb >= 10 ? 0 : 1)} Mo`;
+  return `${new Intl.NumberFormat(locale, { maximumFractionDigits: mb >= 10 ? 0 : 1 }).format(mb)} ${megabytes}`;
 }
 
 function WarningShell({
@@ -83,8 +86,14 @@ export default function PublishWarningModals({
   onCloseOversizedMedia,
   onOptimizeOversizedMedia,
 }: PublishWarningModalsProps) {
+  const locale = useLocale();
+  const i18nT = useTranslations("booster");
+  const displayBytes = (value: number) =>
+    formatBytes(value, locale, i18nT("unit_kilobytes"), i18nT("unit_megabytes"));
   if (oversizedMedia) {
-    const mediaLabel = oversizedMedia.mediaType === "video" ? "vidéo" : "image";
+    const mediaLabel = oversizedMedia.mediaType === "video"
+      ? i18nT("media_video_lowercase")
+      : i18nT("media_image_lowercase");
     const sourceTooLarge =
       oversizedMedia.sizeBytes > oversizedMedia.sourceMaxBytes;
     const needsConversion =
@@ -113,12 +122,12 @@ export default function PublishWarningModals({
         <div style={{ display: "grid", gap: 9 }}>
           <div className={styles.blockTitle} style={{ marginBottom: 0 }}>
             {sourceTooLarge
-              ? "Fichier source trop volumineux"
+              ? i18nT("fichier_source_trop_volumineux_dc9a0055")
               : needsConversion && needsCompression
-                ? "Format et poids à optimiser"
+                ? i18nT("format_et_poids_a_optimiser_7036249f")
                 : needsConversion
-                  ? "Format à optimiser"
-                  : "Fichier trop volumineux"}
+                  ? i18nT("format_a_optimiser_2231dfcb")
+                  : i18nT("fichier_trop_volumineux_9210818a")}
           </div>
           <div
             style={{
@@ -130,10 +139,14 @@ export default function PublishWarningModals({
             <strong style={{ overflowWrap: "anywhere" }}>{oversizedMedia.name}</strong>
             {needsCompression ? (
               <>
-                {" "}fait <strong>{formatBytes(oversizedMedia.sizeBytes)}</strong>. Une {mediaLabel} dans Booster doit faire au maximum <strong>{formatBytes(oversizedMedia.maxBytes)}</strong>.
+                {" "}{i18nT("oversized_media_compression_detail", {
+                  size: displayBytes(oversizedMedia.sizeBytes),
+                  media: mediaLabel,
+                  max: displayBytes(oversizedMedia.maxBytes),
+                })}
               </>
             ) : (
-              <> doit être converti dans un format compatible avec Booster.</>
+              <> {" "}{i18nT("doit_etre_converti_dans_un_format_99ec554e")}</>
             )}
           </div>
           <div
@@ -144,8 +157,8 @@ export default function PublishWarningModals({
             }}
           >
             {sourceTooLarge
-              ? `iNrCy accepte un fichier source de ${formatBytes(oversizedMedia.sourceMaxBytes)} maximum. Ce fichier ne peut pas être importé ni optimisé : choisissez une source plus légère.`
-              : "iNrCy va adapter automatiquement le format et/ou le poids, puis remettre le média exactement là où vous étiez en train de l’ajouter."}
+              ? i18nT("inrcy_accepte_un_fichier_source_de_09666c76", { value0: displayBytes(oversizedMedia.sourceMaxBytes) })
+              : i18nT("inrcy_va_adapter_automatiquement_le_format_07a3c98e")}
           </div>
         </div>
         <div
@@ -161,16 +174,14 @@ export default function PublishWarningModals({
             className={styles.secondaryBtn}
             onClick={onCloseOversizedMedia}
           >
-            Fermer
-          </button>
+            {i18nT("fermer_5ab4ec64")}{" "}</button>
           {!sourceTooLarge ? (
             <button
               type="button"
               className={styles.primaryBtn}
               onClick={onOptimizeOversizedMedia}
             >
-              Optimiser le média
-            </button>
+              {i18nT("optimiser_le_media_1bc4fc40")}{" "}</button>
           ) : null}
         </div>
       </WarningShell>
@@ -183,8 +194,7 @@ export default function PublishWarningModals({
         <div style={{ fontSize: 22 }}>⚠️</div>
         <div style={{ display: "grid", gap: 8 }}>
           <div className={styles.blockTitle} style={{ marginBottom: 0 }}>
-            Avertissement
-          </div>
+            {i18nT("avertissement_1b3e2777")}{" "}</div>
           <div
             style={{
               fontSize: 14,
@@ -192,12 +202,11 @@ export default function PublishWarningModals({
               color: "rgba(255,255,255,0.82)",
             }}
           >
-            Le contenu est vide pour{" "}
+            {i18nT("le_contenu_est_vide_pour_861601a1")}{" "}
             <strong>
-              {CHANNEL_LABELS[emptyContentChannel]}
+              {getLocalizedChannelLabel(emptyContentChannel, (key) => i18nT(key as never))}
             </strong>
-            . Voulez-vous continuer ?
-          </div>
+            {i18nT("voulez_vous_continuer_87ba948b")}{" "}</div>
         </div>
         <div
           style={{
@@ -212,15 +221,13 @@ export default function PublishWarningModals({
             className={styles.secondaryBtn}
             onClick={onCloseEmptyContentWarnings}
           >
-            Annuler
-          </button>
+            {i18nT("annuler_49ba3292")}{" "}</button>
           <button
             type="button"
             className={styles.primaryBtn}
             onClick={onValidateEmptyContentWarning}
           >
-            Valider
-          </button>
+            {i18nT("valider_be4220f7")}{" "}</button>
         </div>
       </WarningShell>
     );

@@ -1,3 +1,4 @@
+import { useLocale, useTranslations } from "next-intl";
 import {
   useEffect,
   useRef,
@@ -14,16 +15,15 @@ import {
 import AiEngineInfoModal from "../../../_components/AiEngineInfoModal";
 import {
   BOOSTER_MAX_IMAGE_COUNT,
-  BOOSTER_GENERATION_MEDIA_OPTIMIZATION_LABEL,
   BOOSTER_IMAGE_ACCEPT,
-  BOOSTER_IMAGE_FORMATS_LABEL,
-  BOOSTER_IMAGE_LIMITS_LABEL,
-  BOOSTER_RECOMMENDED_VIDEO_DURATION_LABEL,
   BOOSTER_VIDEO_ACCEPT,
-  BOOSTER_VIDEO_FORMATS_LABEL,
-  BOOSTER_VIDEO_LIMITS_LABEL,
-  getBoosterSelectedMediaSummary,
-  THEME_PLACEHOLDERS,
+  getLocalizedBoosterImageFormats,
+  getLocalizedBoosterImageLimits,
+  getLocalizedBoosterMediaOptimization,
+  getLocalizedBoosterRecommendedVideoDuration,
+  getLocalizedBoosterSelectedMediaSummary,
+  getLocalizedBoosterVideoFormats,
+  getLocalizedBoosterVideoLimits,
   type ThemeKey,
 } from "../publishModal.shared";
 import { textAreaStyle } from "../publishModal.styles";
@@ -43,6 +43,17 @@ function formatVideoSeconds(seconds: number | null) {
 type VoiceState = "idle" | "recording" | "transcribing";
 type VoiceRecordingMode = "media" | "liveOnly";
 type VoiceTarget = "idea" | "instruction";
+
+const THEME_PLACEHOLDER_KEYS: Record<ThemeKey, string> = {
+  "": "theme_placeholder_default",
+  promotion: "theme_placeholder_promotion",
+  information: "theme_placeholder_information",
+  conseil: "theme_placeholder_advice",
+  avis_client: "theme_placeholder_review",
+  realisation: "theme_placeholder_project",
+  actualite: "theme_placeholder_news",
+  autre: "theme_placeholder_other",
+};
 
 type VoiceSpeechRecognitionAlternative = {
   transcript?: string;
@@ -322,6 +333,12 @@ export default function PublishIntentPanel({
   onGenerate,
   onOpenAiConfiguration,
 }: PublishIntentPanelProps) {
+  const i18nT = useTranslations("booster");
+  const locale = useLocale();
+  const runtimeT = i18nT as unknown as (
+    key: string,
+    values?: Record<string, string | number>,
+  ) => string;
   const [voiceState, setVoiceState] = useState<VoiceState>("idle");
   const [voiceTarget, setVoiceTarget] = useState<VoiceTarget | null>(null);
   const [voiceError, setVoiceError] = useState("");
@@ -425,7 +442,7 @@ export default function PublishIntentPanel({
       resetLiveVoiceDraft();
 
       const recognition = new SpeechRecognitionConstructor();
-      recognition.lang = "fr-FR";
+      recognition.lang = locale;
       recognition.continuous = true;
       recognition.interimResults = true;
       recognition.maxAlternatives = 1;
@@ -463,7 +480,7 @@ export default function PublishIntentPanel({
           setVoiceState("idle");
           setTargetedVoiceError(
             target,
-            "Dictée en direct indisponible sur ce navigateur. Réessaie : iNrCy basculera sur le vocal classique.",
+            i18nT("voice_live_unavailable"),
           );
           clearVoiceTarget();
         }
@@ -497,7 +514,7 @@ export default function PublishIntentPanel({
     if (!liveTranscript) {
       setTargetedVoiceError(
         target,
-        "Aucun texte n’a été détecté pendant le vocal. Réessaie en parlant un peu plus longtemps.",
+        i18nT("aucun_texte_n_a_ete_detecte_7c72cc50"),
       );
       resetLiveVoiceDraft();
       setVoiceState("idle");
@@ -535,13 +552,9 @@ export default function PublishIntentPanel({
       );
       resetLiveVoiceDraft();
     } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Le vocal n’a pas pu être corrigé.";
       setTargetedVoiceError(
         target,
-        `${message} Le texte affiché en direct est conservé sans correction finale.`,
+        i18nT("voice_correction_failed_live_kept"),
       );
       resetLiveVoiceDraft();
     } finally {
@@ -558,8 +571,8 @@ export default function PublishIntentPanel({
       setTargetedVoiceError(
         target,
         liveDraftKept
-          ? "Vocal trop court pour la correction finale. Le texte affiché en direct est conservé."
-          : "Vocal trop court ou vide. Réessaie en parlant un peu plus longtemps.",
+          ? i18nT("voice_too_short_live_kept")
+          : i18nT("voice_too_short"),
       );
       resetLiveVoiceDraft();
       setVoiceState("idle");
@@ -611,15 +624,11 @@ export default function PublishIntentPanel({
     } catch (error) {
       const liveDraftKept =
         hasLiveVoiceDraftRef.current && liveVoiceLastTextRef.current.trim();
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Le vocal n’a pas pu être transcrit.";
       setTargetedVoiceError(
         target,
         liveDraftKept
-          ? `${message} Le texte affiché en direct est conservé sans correction finale.`
-          : message,
+          ? i18nT("voice_transcription_failed_live_kept")
+          : i18nT("voice_transcription_failed"),
       );
       resetLiveVoiceDraft();
     } finally {
@@ -686,7 +695,7 @@ export default function PublishIntentPanel({
     ) {
       setTargetedVoiceError(
         target,
-        "Ce navigateur ne permet pas l’enregistrement vocal. Utilise Chrome, Edge ou Safari récent.",
+        i18nT("voice_recording_unsupported"),
       );
       setVoiceState("idle");
       clearVoiceTarget();
@@ -716,7 +725,7 @@ export default function PublishIntentPanel({
       recorder.onerror = () => {
         setTargetedVoiceError(
           target,
-          "Erreur micro pendant l’enregistrement. Réessaie dans quelques secondes.",
+          i18nT("voice_micro_recording_error"),
         );
         clearVoiceTimers();
         stopLiveSpeechRecognition();
@@ -766,10 +775,10 @@ export default function PublishIntentPanel({
       if (name === "NotAllowedError" || name === "SecurityError") {
         setTargetedVoiceError(
           target,
-          "Micro refusé. Autorise le micro dans le navigateur puis réessaie.",
+          i18nT("voice_micro_permission_denied"),
         );
       } else if (name === "NotFoundError" || name === "DevicesNotFoundError") {
-        setTargetedVoiceError(target, "Aucun micro détecté sur cet appareil.");
+        setTargetedVoiceError(target, i18nT("voice_micro_not_found"));
       } else if (
         getVoicePlatformInfo().hasSpeechRecognition &&
         startLiveOnlyVoiceRecording(target)
@@ -778,7 +787,7 @@ export default function PublishIntentPanel({
       } else {
         setTargetedVoiceError(
           target,
-          "Impossible d’activer le micro. Vérifie l’autorisation navigateur/appareil.",
+          i18nT("voice_micro_activation_failed"),
         );
       }
       setVoiceState("idle");
@@ -800,7 +809,7 @@ export default function PublishIntentPanel({
     if (!window.isSecureContext && window.location.hostname !== "localhost") {
       setTargetedVoiceError(
         target,
-        "Le micro nécessite une connexion sécurisée HTTPS.",
+        i18nT("voice_https_required"),
       );
       clearVoiceTarget();
       return;
@@ -847,12 +856,14 @@ export default function PublishIntentPanel({
     (voiceState === "recording" && voiceTarget !== target);
   const getVoiceButtonLabel = (target: VoiceTarget) =>
     voiceTarget === target && voiceState === "recording"
-      ? `Arrêter le vocal ${formatVoiceDuration(recordingSeconds)}`
+      ? i18nT("arreter_le_vocal_value_aace3fb5", {
+          value0: formatVoiceDuration(recordingSeconds),
+        })
       : voiceTarget === target && voiceState === "transcribing"
-        ? "Correction du vocal en cours"
+        ? i18nT("correction_du_vocal_en_cours_2a811504")
         : target === "idea"
-          ? "Dicter le sujet"
-          : "Dicter la consigne ponctuelle";
+          ? i18nT("dicter_le_sujet_f14f51b5")
+          : i18nT("dicter_la_consigne_ponctuelle_312b62b3");
   const getVoiceButtonShortLabel = (target: VoiceTarget) =>
     voiceTarget === target && voiceState === "recording"
       ? `■ ${formatVoiceDuration(recordingSeconds)}`
@@ -913,11 +924,11 @@ export default function PublishIntentPanel({
               onClick={() => onVoiceButtonClick(args.target)}
               disabled={voiceDisabled}
               aria-label={getVoiceButtonLabel(args.target)}
-              title={
+              title={i18nT(
                 args.target === "idea"
-                  ? "Dictez le sujet : iNrCy le transcrit et corrige les fautes."
-                  : "Dictez la consigne ponctuelle : iNrCy la transcrit et corrige les fautes."
-              }
+                  ? "voice_subject_title"
+                  : "voice_instruction_title",
+              )}
               style={{
                 position: "absolute",
                 right: isMobile ? 10 : 12,
@@ -971,8 +982,8 @@ export default function PublishIntentPanel({
               }}
             >
               {liveVoiceEnabled
-                ? "Les mots apparaissent en direct. Recliquez sur le micro pour corriger le vocal."
-                : "Parlez maintenant, puis recliquez sur le micro pour arrêter."}
+                ? i18nT("les_mots_apparaissent_en_direct_recliquez_cf12629c")
+                : i18nT("parlez_maintenant_puis_recliquez_sur_le_2a84f44e")}
             </div>
           ) : null}
           {targetActive && voiceState === "transcribing" ? (
@@ -983,8 +994,7 @@ export default function PublishIntentPanel({
                 fontWeight: 800,
               }}
             >
-              Transcription + correction en cours...
-            </div>
+              {i18nT("transcription_correction_en_cours_a793d172")}{" "}</div>
           ) : null}
           {voiceError && voiceErrorTarget === args.target ? (
             <div
@@ -1030,16 +1040,14 @@ export default function PublishIntentPanel({
           step={stepNumber}
           testId="booster-intention-title"
         >
-          Votre intention
-        </PublishStepTitle>
+          {i18nT("votre_intention_97631932")}{" "}</PublishStepTitle>
       </div>
       <div
         className={styles.subtitle}
         style={{ marginBottom: 10, maxWidth: "none", whiteSpace: "normal" }}
       >
-        Décrivez le sujet de cette publication et, si nécessaire, ajoutez une
-        consigne ponctuelle. Le média est facultatif. {" "}
-        <strong>{BOOSTER_GENERATION_MEDIA_OPTIMIZATION_LABEL}</strong>
+        {i18nT("decrivez_le_sujet_de_cette_publication_d6313015")}{" "}{" "}
+        <strong>{getLocalizedBoosterMediaOptimization("generation", runtimeT)}</strong>
       </div>
       <div style={{ display: "grid", gap: 10 }}>
         <div
@@ -1055,10 +1063,9 @@ export default function PublishIntentPanel({
         >
           {renderIntentField({
             target: "idea",
-            label: "Sujet de la publication — obligatoire pour l’IA",
-            helper: "Le thème et les faits à traiter dans cette actualité.",
-            placeholder:
-              THEME_PLACEHOLDERS[theme] || THEME_PLACEHOLDERS[""],
+            label: i18nT("sujet_de_la_publication_obligatoire_pour_62d82326"),
+            helper: i18nT("le_theme_et_les_faits_a_3ed5ecc7"),
+            placeholder: runtimeT(THEME_PLACEHOLDER_KEYS[theme] || THEME_PLACEHOLDER_KEYS[""]),
             value: idea,
             onChange: setIdea,
           })}
@@ -1088,8 +1095,8 @@ export default function PublishIntentPanel({
               >
                 <span>
                   {publicationInstruction.trim()
-                    ? "✓ Consigne ajoutée — Modifier"
-                    : "+ Ajouter une consigne à l’IA"}
+                    ? i18nT("consigne_ajoutee_modifier_ee9b29d7")
+                    : i18nT("ajouter_une_consigne_a_l_ia_d2a6adfb")}
                 </span>
                 <span aria-hidden="true">
                   {mobileInstructionExpanded ? "▴" : "▾"}
@@ -1098,11 +1105,11 @@ export default function PublishIntentPanel({
               {mobileInstructionExpanded
                 ? renderIntentField({
                     target: "instruction",
-                    label: "Consigne ponctuelle à l’IA — facultatif",
+                    label: i18nT("consigne_ponctuelle_a_l_ia_facultatif_cf850551"),
                     helper:
-                      "Prioritaire sur votre Configuration IA pour cette publication uniquement.",
+                      i18nT("prioritaire_sur_votre_configuration_ia_pour_5278e325"),
                     placeholder:
-                      "Ex. : insistez sur la personnalisation, rédigez en espagnol, sans emoji, et terminez par une question.",
+                      i18nT("ex_insistez_sur_la_personnalisation_redigez_19b7a61d"),
                     value: publicationInstruction,
                     onChange: setPublicationInstruction,
                     maxLength: 4_000,
@@ -1112,11 +1119,11 @@ export default function PublishIntentPanel({
           ) : (
             renderIntentField({
               target: "instruction",
-              label: "Consigne ponctuelle à l’IA — facultatif",
+              label: i18nT("consigne_ponctuelle_a_l_ia_facultatif_cf850551"),
               helper:
-                "Prioritaire sur votre Configuration IA pour cette publication uniquement.",
+                i18nT("prioritaire_sur_votre_configuration_ia_pour_5278e325"),
               placeholder:
-                "Ex. : insistez sur la personnalisation, rédigez en espagnol, sans emoji, et terminez par une question.",
+                i18nT("ex_insistez_sur_la_personnalisation_redigez_19b7a61d"),
               value: publicationInstruction,
               onChange: setPublicationInstruction,
               maxLength: 4_000,
@@ -1171,10 +1178,10 @@ export default function PublishIntentPanel({
               disabled={pickImagesDisabled}
               title={
                 hasVideoMedia
-                  ? "La génération utilise soit des images, soit une vidéo. Supprimez la vidéo pour choisir des images."
+                  ? i18nT("generation_images_blocked_by_video")
                   : imagesLimitReached
-                  ? `${BOOSTER_MAX_IMAGE_COUNT} images maximum`
-                  : `${BOOSTER_IMAGE_LIMITS_LABEL} · ${BOOSTER_IMAGE_FORMATS_LABEL}`
+                    ? i18nT("generation_images_limit", { count: BOOSTER_MAX_IMAGE_COUNT })
+                    : `${getLocalizedBoosterImageLimits(runtimeT)} · ${getLocalizedBoosterImageFormats(runtimeT)}`
               }
               style={{
                 flex: "0 0 auto",
@@ -1187,8 +1194,7 @@ export default function PublishIntentPanel({
                 cursor: pickImagesDisabled ? "not-allowed" : "pointer",
               }}
             >
-              + Ajouter des images
-            </button>
+              {i18nT("ajouter_des_images_79088d11")}{" "}</button>
             <button
               type="button"
               className={styles.secondaryBtn}
@@ -1196,10 +1202,10 @@ export default function PublishIntentPanel({
               disabled={pickVideoDisabled}
               title={
                 hasImages
-                  ? "La génération utilise soit des images, soit une vidéo. Supprimez les images pour choisir une vidéo."
+                  ? i18nT("generation_video_blocked_by_images")
                   : pickVideoDisabled
-                  ? "1 vidéo maximum. Supprimez la vidéo actuelle pour la remplacer."
-                  : `${BOOSTER_VIDEO_LIMITS_LABEL} · ${BOOSTER_VIDEO_FORMATS_LABEL} · ${BOOSTER_RECOMMENDED_VIDEO_DURATION_LABEL}`
+                    ? i18nT("generation_video_limit")
+                    : `${getLocalizedBoosterVideoLimits(runtimeT)} · ${getLocalizedBoosterVideoFormats(runtimeT)} · ${getLocalizedBoosterRecommendedVideoDuration(runtimeT)}`
               }
               style={{
                 flex: "0 0 auto",
@@ -1212,13 +1218,12 @@ export default function PublishIntentPanel({
                 cursor: pickVideoDisabled ? "not-allowed" : "pointer",
               }}
             >
-              + Ajouter une vidéo
-            </button>
+              {i18nT("ajouter_une_video_c0be31cb")}{" "}</button>
             <button
               type="button"
               className={styles.secondaryBtn}
               onClick={onOpenMediaLibrary}
-              title="Ajouter depuis la Médiathèque"
+              title={i18nT("ajouter_depuis_la_mediatheque_d0f700b2")}
               style={{
                 flex: "0 0 auto",
                 minHeight: isMobile ? 32 : 34,
@@ -1227,19 +1232,18 @@ export default function PublishIntentPanel({
                 whiteSpace: "nowrap",
               }}
             >
-              🖼️ Médiathèque
-            </button>
+              {i18nT("mediatheque_f23ba807")}{" "}</button>
             <span
               title={
                 !isMobile
-                  ? "Utilisable en version mobile"
+                  ? i18nT("camera_mobile_only")
                   : hasVideoMedia
-                    ? "Ouvrir l’Appareil iNrCy en mode photo"
+                    ? i18nT("camera_open_to_take_photo")
                     : imagesLimitReached
-                      ? `${BOOSTER_MAX_IMAGE_COUNT} images maximum`
+                      ? i18nT("generation_images_limit", { count: BOOSTER_MAX_IMAGE_COUNT })
                       : hasImages
-                        ? "Ouvrir l’Appareil iNrCy en mode photo"
-                        : "Ouvrir l’Appareil iNrCy pour prendre une photo ou une vidéo"
+                        ? i18nT("camera_open_to_take_photo")
+                        : i18nT("camera_open_photo_or_video")
               }
               style={{ display: "inline-flex", flex: "0 0 auto" }}
             >
@@ -1260,8 +1264,7 @@ export default function PublishIntentPanel({
                   cursor: cameraDisabled ? "not-allowed" : "pointer",
                 }}
               >
-                📷 Appareil iNrCy
-              </button>
+                {i18nT("appareil_inrcy_89d04cc9")}{" "}</button>
             </span>
           </div>
 
@@ -1283,24 +1286,24 @@ export default function PublishIntentPanel({
                 overflowWrap: "anywhere",
               }}
             >
-              {getBoosterSelectedMediaSummary({
+              {getLocalizedBoosterSelectedMediaSummary({
                 imageCount: images.length,
                 hasVideo: hasVideoMedia,
                 context: "generation",
-              })}
+              }, runtimeT)}
               <span style={{ opacity: 0.74 }}>
-                {hasImages ? ` · ${BOOSTER_IMAGE_FORMATS_LABEL}` : ""}
+                {hasImages ? ` · ${getLocalizedBoosterImageFormats(runtimeT)}` : ""}
                 {hasVideoMedia
-                  ? ` · ${BOOSTER_VIDEO_FORMATS_LABEL} · ${BOOSTER_RECOMMENDED_VIDEO_DURATION_LABEL}`
+                  ? ` · ${getLocalizedBoosterVideoFormats(runtimeT)} · ${getLocalizedBoosterRecommendedVideoDuration(runtimeT)}`
                   : ""}
               </span>
             </div>
             <label
-              title={
+              title={i18nT(
                 useImagesForAI
-                  ? "Les images aideront iNrCy à rédiger un contenu plus précis."
-                  : "Les images seront utilisées uniquement pour la publication."
-              }
+                  ? "generation_images_used_by_ai"
+                  : "generation_images_publication_only",
+              )}
               style={{
                 flex: "0 0 auto",
                 display: "inline-flex",
@@ -1337,8 +1340,8 @@ export default function PublishIntentPanel({
                 }}
               />
               {useImagesForAI
-                ? "Images utilisées par l’IA"
-                : "Images hors génération"}
+                ? i18nT("images_utilisees_par_l_ia_27b19f51")
+                : i18nT("images_hors_generation_c3e94f90")}
             </label>
           </div>
 
@@ -1416,8 +1419,8 @@ export default function PublishIntentPanel({
                 </strong>
                 <button
                   type="button"
-                  aria-label="Supprimer la vidéo pour tous les canaux"
-                  title="Supprimer la vidéo pour tous les canaux"
+                  aria-label={i18nT("supprimer_la_video_pour_tous_les_42f4e867")}
+                  title={i18nT("supprimer_la_video_pour_tous_les_42f4e867")}
                   onClick={removeVideo}
                   style={{
                     flex: "0 0 auto",
@@ -1469,7 +1472,7 @@ export default function PublishIntentPanel({
                 >
                   <img
                     src={url}
-                    alt={`Image ${index + 1}`}
+                    alt={i18nT("image_value_5907a7ef", { value0: index + 1 })}
                     style={{
                       width: "100%",
                       height: "100%",
@@ -1479,8 +1482,8 @@ export default function PublishIntentPanel({
                   />
                   <button
                     type="button"
-                    aria-label={`Supprimer l’image ${index + 1} pour tous les canaux`}
-                    title={`Supprimer l’image ${index + 1} pour tous les canaux`}
+                    aria-label={i18nT("supprimer_l_image_value_pour_tous_561091e2", { value0: index + 1 })}
+                    title={i18nT("supprimer_l_image_value_pour_tous_561091e2", { value0: index + 1 })}
                     onClick={() => removeImage(index)}
                     style={{
                       position: "absolute",
@@ -1534,8 +1537,7 @@ export default function PublishIntentPanel({
               cursor: "pointer",
             }}
           >
-            Optimiser le média
-          </button>
+            {i18nT("optimiser_le_media_1bc4fc40")}{" "}</button>
         ) : null}
         {generationNotice ? (
           <div
@@ -1581,12 +1583,12 @@ export default function PublishIntentPanel({
                   minWidth: 0,
                 }}
               >
-                <span style={{ whiteSpace: "nowrap" }}>Moteur IA</span>
+                <span style={{ whiteSpace: "nowrap" }}>{i18nT("moteur_ia_a7f9dad3")}</span>
                 <button
                   type="button"
                   onClick={() => setEngineInfoOpen(true)}
-                  aria-label="Informations sur les moteurs IA"
-                  title="Informations sur les moteurs IA"
+                  aria-label={i18nT("informations_sur_les_moteurs_ia_499c34b6")}
+                  title={i18nT("informations_sur_les_moteurs_ia_499c34b6")}
                   style={{
                     width: 16,
                     height: 16,
@@ -1638,7 +1640,7 @@ export default function PublishIntentPanel({
                   >
                     {option.label}
                     {option.value === defaultAiPreferredEngine
-                      ? " — défaut"
+                      ? i18nT("defaut_9e21a00d")
                       : ""}
                   </option>
                 ))}
@@ -1653,10 +1655,10 @@ export default function PublishIntentPanel({
               disabled={generationDisabled}
             >
               {generating
-                ? `Génération avec ${selectedAiEngineOption.shortLabel}...`
+                ? i18nT("generation_avec_value_0ba06089", { value0: selectedAiEngineOption.shortLabel })
                 : voiceState !== "idle"
-                  ? "Vocal en cours..."
-                  : "✨ Générer avec iNrCy"}
+                  ? i18nT("vocal_en_cours_6e444e8f")
+                  : i18nT("generer_avec_inrcy_58900495")}
             </button>
           </div>
           {generationMediaWarning ? (
@@ -1703,7 +1705,7 @@ export default function PublishIntentPanel({
                       lineHeight: 1.2,
                     }}
                   >
-                    Étape {Math.max(1, generationPhaseIndex)}/{generationPhaseTotal}
+                    {i18nT("etape_13146b48")}{" "}{Math.max(1, generationPhaseIndex)}/{generationPhaseTotal}
                     {generationPhaseLabel ? ` · ${generationPhaseLabel}` : ""}
                   </strong>
                   <span
@@ -1714,7 +1716,7 @@ export default function PublishIntentPanel({
                       whiteSpace: "nowrap",
                     }}
                   >
-                    {generationStage || "Génération en cours"}
+                    {generationStage || i18nT("generation_en_cours_01513ecf")}
                   </span>
                 </div>
                 <strong

@@ -10,6 +10,9 @@ const fluxBubblesSource = readFileSync(
   new URL("../../app/dashboard/dashboard.flux-bubbles.ts", import.meta.url),
   "utf8",
 );
+const dashboardMessages = JSON.parse(
+  readFileSync(new URL("../../messages/fr-FR/dashboard.json", import.meta.url), "utf8"),
+) as { status: { syncing: string } };
 
 test("iNrBadge reuses the last account-scoped authoritative state during refresh", () => {
   assert.match(
@@ -33,8 +36,9 @@ test("iNrBadge reuses the last account-scoped authoritative state during refresh
 test("iNrBadge still falls back to synchronization only when no known state exists", () => {
   assert.match(
     fluxBubblesSource,
-    /if \(!inrBadgeProfileCheckReady\) \{[\s\S]*text: "Synchronisation…"/,
+    /if \(!inrBadgeProfileCheckReady\) \{[\s\S]*text: copy\.status\.syncing/,
   );
+  assert.equal(dashboardMessages.status.syncing, "Synchronisation…");
   assert.match(
     dashboardClientSource,
     /inrBadgeProfileCheckReady,/,

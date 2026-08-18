@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import WorkflowBaseModal from "./WorkflowBaseModal";
 import InrBadgeQrCode from "./InrBadgeQrCode";
 import { createInrBadgeQrTrackingUrl, type InrBadgeProfileSummary } from "@/lib/inrBadge";
@@ -20,6 +23,7 @@ function getDisplayName(profile: InrBadgeProfileSummary) {
 }
 
 export default function InrBadgePreviewModal({ profile, publicUrl, onClose, onConfigure }: Props) {
+  const i18nT = useTranslations("shell");
   const displayName = getDisplayName(profile);
   const company = profile.companyLegalName.trim() || "Votre entreprise";
   const qrUrl = createInrBadgeQrTrackingUrl(publicUrl);
@@ -27,7 +31,7 @@ export default function InrBadgePreviewModal({ profile, publicUrl, onClose, onCo
   return (
     <WorkflowBaseModal
       title={INRBADGE_HEADER_LINE}
-      moduleLabel="Canal iNrCy"
+      moduleLabel={i18nT("canal_inrcy_9590b630")}
       onClose={onClose}
       compact
       maxWidth={560}
@@ -36,8 +40,8 @@ export default function InrBadgePreviewModal({ profile, publicUrl, onClose, onCo
           type="button"
           className={[styles.ghostBtn, styles.modalCloseButton].join(" ")}
           onClick={onConfigure}
-          aria-label="Configurer iNr'Badge"
-          title="Configurer iNr'Badge"
+          aria-label={i18nT("configurer_inr_badge_698fff09")}
+          title={i18nT("configurer_inr_badge_698fff09")}
           style={{ borderRadius: 999, padding: "7px 12px", lineHeight: 1 }}
         >
           ⚙️
@@ -64,11 +68,10 @@ export default function InrBadgePreviewModal({ profile, publicUrl, onClose, onCo
 
         <div className={styles.inrBadgeQrRealWrap}>
           {publicUrl ? (
-            <InrBadgeQrCode value={qrUrl} label={`QR Code iNr'Badge ${company}`} />
+            <InrBadgeQrCode value={qrUrl} label={i18nT("qr_code_inr_badge_value_0dc7b6f6", { value0: company })} />
           ) : (
-            <div className={styles.inrBadgeQrUnavailable} role="img" aria-label="QR Code indisponible">
-              QR indisponible
-            </div>
+            <div className={styles.inrBadgeQrUnavailable} role="img" aria-label={i18nT("qr_code_indisponible_7d1cdbea")}>
+              {i18nT("qr_indisponible_cd24def2")}{" "}</div>
           )}
         </div>
 
@@ -77,9 +80,9 @@ export default function InrBadgePreviewModal({ profile, publicUrl, onClose, onCo
           {publicUrl ? (
             <span className={styles.inrBadgeModalUrl}>{publicUrl}</span>
           ) : (
-            <span>Complétez Mon profil pour générer votre QR Code iNr'Badge.</span>
+            <span>{i18nT("completez_mon_profil_pour_generer_votre_7c08ad6c")}</span>
           )}
-          <span>Ce QR Code est permanent : les informations du badge pourront évoluer sans changer le QR.</span>
+          <span>{i18nT("ce_qr_code_est_permanent_les_2c01ecd8")}</span>
         </div>
       </div>
     </WorkflowBaseModal>

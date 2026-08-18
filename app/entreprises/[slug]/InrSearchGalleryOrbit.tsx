@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
@@ -88,6 +91,7 @@ export default function InrSearchGalleryOrbit({
   zones,
   media,
 }: Props) {
+  const i18nT = useTranslations("public");
   const [activeIndex, setActiveIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -142,14 +146,14 @@ export default function InrSearchGalleryOrbit({
     <div className={styles.galleryOrbitExperience}>
       <div className={styles.galleryOrbitHeader}>
         <div>
-          <span className={styles.galleryOrbitEyebrow}>Observatoire créatif</span>
-          <h2 id="realisations-title">Les réalisations de {companyName}</h2>
-          <p>Parcourez les photos de {companyName} pour découvrir son univers, son activité et ses réalisations.</p>
+          <span className={styles.galleryOrbitEyebrow}>{i18nT("observatoire_creatif_b85cabe2")}</span>
+          <h2 id="realisations-title">{i18nT("les_realisations_de_value_71b2c270", { value0: companyName })}</h2>
+          <p>{i18nT("parcourez_les_photos_de_value_pour_cc3adef6", { value0: companyName })}</p>
         </div>
-        <div className={styles.galleryOrbitCounter} aria-label="Navigation dans la galerie">
-          <button type="button" onClick={() => move(-1)} aria-label="Réalisation précédente">←</button>
+        <div className={styles.galleryOrbitCounter} aria-label={i18nT("navigation_dans_la_galerie_d7ebd2cd")}>
+          <button type="button" onClick={() => move(-1)} aria-label={i18nT("realisation_precedente_4e3eb3f6")}>←</button>
           <span><strong>{String(activeIndex + 1).padStart(2, "0")}</strong><i>/</i>{String(total).padStart(2, "0")}</span>
-          <button type="button" onClick={() => move(1)} aria-label="Réalisation suivante">→</button>
+          <button type="button" onClick={() => move(1)} aria-label={i18nT("realisation_suivante_651c82ac")}>→</button>
         </div>
       </div>
 
@@ -157,7 +161,7 @@ export default function InrSearchGalleryOrbit({
         className={styles.galleryOrbitStage}
         tabIndex={0}
         onKeyDown={onStageKeyDown}
-        aria-label="Observatoire des réalisations. Utilisez les flèches pour naviguer."
+        aria-label={i18nT("observatoire_des_realisations_utilisez_les_flech_a58b0d19")}
       >
         <div className={styles.galleryOrbitAperture} aria-hidden="true"><span /><span /><span /></div>
 
@@ -165,7 +169,7 @@ export default function InrSearchGalleryOrbit({
           type="button"
           className={styles.galleryOrbitFocus}
           onClick={openLightbox}
-          aria-label={`Agrandir ${activeTitle}`}
+          aria-label={i18nT("agrandir_value_c5fb7dc9", { value0: activeTitle })}
           aria-haspopup="dialog"
           aria-controls="gallery-lightbox"
         >
@@ -175,17 +179,17 @@ export default function InrSearchGalleryOrbit({
         </button>
 
         <article className={styles.galleryOrbitMeta} aria-live="polite">
-          <span className={styles.galleryOrbitMetaSignal}><i /> Signal {String(activeIndex + 1).padStart(2, "0")}</span>
-          <small>{context || "Réalisation"}</small>
+          <span className={styles.galleryOrbitMetaSignal}><i /> {" "}{i18nT("signal_27bed13a")}{" "}{String(activeIndex + 1).padStart(2, "0")}</span>
+          <small>{context || i18nT("realisation_3c113b14")}</small>
           <h3>{activeTitle}</h3>
-          <p>Cette photo vous permet de mieux découvrir l’activité et l’univers de {companyName}.</p>
-          <button type="button" onClick={openLightbox}>Voir en plein écran <span aria-hidden="true">↗</span></button>
+          <p>{i18nT("cette_photo_vous_permet_de_mieux_fc6e4c78", { value0: companyName })}</p>
+          <button type="button" onClick={openLightbox}>{i18nT("voir_en_plein_ecran_f3c9424d")}{" "}<span aria-hidden="true">↗</span></button>
         </article>
 
         <div className={styles.galleryOrbitTrajectory} aria-hidden="true"><span /></div>
       </div>
 
-      <div className={styles.galleryOrbitRail} data-local-carousel role="list" aria-label="Toutes les réalisations">
+      <div className={styles.galleryOrbitRail} data-local-carousel role="list" aria-label={i18nT("toutes_les_realisations_be2a832b")}>
         {media.map((item, index) => {
           const itemTitle = mediaTitles[index] || `Réalisation de ${companyName}`;
           return (
@@ -196,7 +200,7 @@ export default function InrSearchGalleryOrbit({
               key={`${item.id}-rail`}
               onClick={() => setActiveIndex(index)}
               role="listitem"
-              aria-label={`Afficher ${itemTitle}`}
+              aria-label={i18nT("afficher_value_94359678", { value0: itemTitle })}
             >
               <Image src={item.url} alt={`${itemTitle} — ${companyName}`} width={320} height={220} sizes="128px" loading="lazy" unoptimized />
               <span>{itemTitle}</span>
@@ -218,8 +222,8 @@ export default function InrSearchGalleryOrbit({
                 if (event.currentTarget === event.target) setLightboxOpen(false);
               }}
             >
-              <button ref={closeButtonRef} type="button" className={styles.galleryLightboxClose} onClick={() => setLightboxOpen(false)} aria-label="Fermer la galerie">×</button>
-              <button type="button" className={`${styles.galleryLightboxArrow} ${styles.galleryLightboxArrowPrevious}`} onClick={() => move(-1)} aria-label="Réalisation précédente">←</button>
+              <button ref={closeButtonRef} type="button" className={styles.galleryLightboxClose} onClick={() => setLightboxOpen(false)} aria-label={i18nT("fermer_la_galerie_cc4d5290")}>×</button>
+              <button type="button" className={`${styles.galleryLightboxArrow} ${styles.galleryLightboxArrowPrevious}`} onClick={() => move(-1)} aria-label={i18nT("realisation_precedente_4e3eb3f6")}>←</button>
               <figure className={styles.galleryLightboxFigure}>
                 <Image src={activeMedia.url} alt={activeTitle} width={1800} height={1200} sizes="86vw" unoptimized />
                 <figcaption>
@@ -228,7 +232,7 @@ export default function InrSearchGalleryOrbit({
                   <span>{String(activeIndex + 1).padStart(2, "0")} / {String(total).padStart(2, "0")}</span>
                 </figcaption>
               </figure>
-              <button type="button" className={`${styles.galleryLightboxArrow} ${styles.galleryLightboxArrowNext}`} onClick={() => move(1)} aria-label="Réalisation suivante">→</button>
+              <button type="button" className={`${styles.galleryLightboxArrow} ${styles.galleryLightboxArrowNext}`} onClick={() => move(1)} aria-label={i18nT("realisation_suivante_651c82ac")}>→</button>
             </div>,
             document.body,
           )

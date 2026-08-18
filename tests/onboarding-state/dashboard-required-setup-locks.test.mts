@@ -23,7 +23,7 @@ const bottomNavSource = readFileSync(
   "utf8",
 );
 const i18nSource = readFileSync(
-  new URL("../../lib/dashboardI18n.ts", import.meta.url),
+  new URL("../../messages/fr-FR/dashboard.json", import.meta.url),
   "utf8",
 );
 
@@ -54,7 +54,7 @@ test("responsive shortcuts and Publish expose a clickable lock without a setting
 });
 
 test("the French tooltip uses the approved wording", () => {
-  assert.match(i18nSource, /requiredSetupLocked: "Mon profil et\/ou Mon activité sont incomplets\."/);
+  assert.match(i18nSource, /"requiredSetupLocked": "Mon profil et\/ou Mon activité sont incomplets\."/);
 });
 
 test("desktop keyboard focus keeps the explanatory tooltip open", () => {

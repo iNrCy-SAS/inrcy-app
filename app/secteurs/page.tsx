@@ -5,7 +5,7 @@ export const revalidate = 300;
 
 export function generateMetadata(): Metadata {
   return {
-    title: "Annuaire iNrCy",
+    title: "iNrCy",
     robots: { index: false, follow: false },
   };
 }

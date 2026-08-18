@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import { useMemo, useState } from "react";
 import { getSimpleFrenchApiError, getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import { confirmInrcy } from "@/lib/inrcyDialog";
@@ -32,6 +35,7 @@ type Props = {
 };
 
 export default function RgpdContent({ mode = "page" }: Props) {
+  const i18nT = useTranslations("settings");
   const [busy, setBusy] = useState<"export" | "delete" | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
@@ -99,9 +103,9 @@ export default function RgpdContent({ mode = "page" }: Props) {
     setErr(null);
     setDone(null);
     const ok = await confirmInrcy({
-      title: "Supprimer le compte ?",
-      message: "Cette action supprime votre compte iNrCy et vos données associées. Souhaitez-vous vraiment continuer ?",
-      confirmLabel: "Supprimer mon compte",
+      title: i18nT("supprimer_le_compte_c19124b5"),
+      message: i18nT("cette_action_supprime_votre_compte_inrcy_d9cb27ec"),
+      confirmLabel: i18nT("supprimer_mon_compte_e894aea3"),
       variant: "danger",
     });
     if (!ok) return;
@@ -144,10 +148,9 @@ export default function RgpdContent({ mode = "page" }: Props) {
   return (
     <div style={{ display: "grid", gap: 12 }}>
       <div style={card}>
-        <h3 style={{ margin: 0, fontSize: 15, fontWeight: 900 }}>Mes données (RGPD)</h3>
+        <h3 style={{ margin: 0, fontSize: 15, fontWeight: 900 }}>{i18nT("mes_donnees_rgpd_735ed1cb")}</h3>
         <p style={{ margin: "10px 0 0", opacity: 0.85, lineHeight: 1.5 }}>
-          Télécharger vos données, gérer vos cookies, ou supprimer votre compte.
-        </p>
+          {i18nT("telecharger_vos_donnees_gerer_vos_cookies_2af2d2a2")}{" "}</p>
 
         {(err || done) && (
           <div style={info}>
@@ -158,41 +161,37 @@ export default function RgpdContent({ mode = "page" }: Props) {
       </div>
 
       <div style={card}>
-        <h4 style={{ margin: 0, fontSize: 14, fontWeight: 900 }}>Export (portabilité)</h4>
+        <h4 style={{ margin: 0, fontSize: 14, fontWeight: 900 }}>{i18nT("export_portabilite_6f1c0665")}</h4>
         <p style={{ margin: "8px 0 0", opacity: 0.85, lineHeight: 1.5, fontSize: 13 }}>
-          Génère un fichier JSON téléchargeable contenant vos données principales.
-        </p>
+          {i18nT("genere_un_fichier_json_telechargeable_contenant_a96ab16c")}{" "}</p>
         <div style={{ marginTop: 10 }}>
           <button type="button" style={btn} onClick={downloadExport} disabled={busy !== null}>
-            {busy === "export" ? "Export en cours…" : "Télécharger mes données"}
+            {busy === "export" ? i18nT("export_en_cours_a536865e") : i18nT("telecharger_mes_donnees_b4de503a")}
           </button>
         </div>
       </div>
 
       <div style={card}>
-        <h4 style={{ margin: 0, fontSize: 14, fontWeight: 900 }}>Cookies</h4>
+        <h4 style={{ margin: 0, fontSize: 14, fontWeight: 900 }}>{i18nT("cookies_524cf50b")}</h4>
         <p style={{ margin: "8px 0 0", opacity: 0.85, lineHeight: 1.5, fontSize: 13 }}>
-          Les cookies nécessaires sont toujours actifs. La mesure d’audience est optionnelle.
-        </p>
+          {i18nT("les_cookies_necessaires_sont_toujours_actifs_6feb1cf6")}{" "}</p>
         <label style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10, opacity: 0.9 }}>
           <input type="checkbox" checked={analytics} onChange={(e) => onToggleAnalytics(Boolean(e.target.checked))} />
-          <span>Autoriser la mesure d’audience (optionnel)</span>
+          <span>{i18nT("autoriser_la_mesure_d_audience_optionnel_f8b76c20")}</span>
         </label>
       </div>
 
       <div style={card}>
-        <h4 style={{ margin: 0, fontSize: 14, fontWeight: 900 }}>Suppression du compte</h4>
+        <h4 style={{ margin: 0, fontSize: 14, fontWeight: 900 }}>{i18nT("suppression_du_compte_11789c76")}</h4>
         <p style={{ margin: "8px 0 0", opacity: 0.85, lineHeight: 1.5, fontSize: 13 }}>
-          Supprime votre compte et les données associées. Action irréversible.
-        </p>
+          {i18nT("supprime_votre_compte_et_les_donnees_dd539173")}{" "}</p>
         <div style={{ marginTop: 10 }}>
           <button type="button" style={dangerBtn} onClick={deleteAccount} disabled={busy !== null}>
-            {busy === "delete" ? "Suppression en cours…" : "Supprimer mon compte"}
+            {busy === "delete" ? i18nT("suppression_en_cours_29d17a80") : i18nT("supprimer_mon_compte_e894aea3")}
           </button>
         </div>
         <div style={{ marginTop: 10, opacity: 0.75, fontSize: 12, lineHeight: 1.4 }}>
-          Conseil : téléchargez d’abord vos données (bouton ci-dessus).
-        </div>
+          {i18nT("conseil_telechargez_d_abord_vos_donnees_5319daf3")}{" "}</div>
       </div>
 
       {mode === "drawer" ? null : null}

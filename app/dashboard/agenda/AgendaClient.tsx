@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import styles from "./agenda.module.css";
@@ -181,6 +184,7 @@ function readInitialAgendaMonthSnapshot(date: Date) {
 }
 
 export default function AgendaClient() {
+  const i18nT = useTranslations("agenda");
   const [initialMonth] = useState(() => startOfMonth(new Date()));
   const [initialAgendaSnapshot] = useState<AgendaMonthSnapshot | null>(() => readInitialAgendaMonthSnapshot(initialMonth));
   const [initialContactsSnapshot] = useState<AgendaContactsSnapshot | null>(() => readModuleSnapshot<AgendaContactsSnapshot>(MODULE_SNAPSHOT_KEYS.agendaContacts)?.data ?? null);
@@ -336,11 +340,11 @@ export default function AgendaClient() {
       return;
     }
     const ok = await confirmInrcy({
-      eyebrow: "Agenda",
+      eyebrow: i18nT("agenda_891e9d6d"),
       title: rdvMode === "request" ? "Fermer la demande ?" : "Fermer l’évènement ?",
       message: rdvMode === "request" ? "La demande restera à valider dans iNr’Calendar." : "Vous avez modifié cet évènement. Si vous fermez maintenant, les modifications seront perdues.",
-      confirmLabel: "Fermer sans enregistrer",
-      cancelLabel: "Continuer l’édition",
+      confirmLabel: i18nT("fermer_sans_enregistrer_15fdc373"),
+      cancelLabel: i18nT("continuer_l_edition_0f0075bb"),
       variant: "warning",
     });
     if (!ok) return;
@@ -351,11 +355,11 @@ export default function AgendaClient() {
     active: rdvOpen,
     shouldBlock: rdvHasUnsavedChanges && !rdvSaving,
     onConfirmExit: closeRdvModal,
-    eyebrow: "Agenda",
+    eyebrow: i18nT("agenda_891e9d6d"),
     title: rdvMode === "request" ? "Fermer la demande ?" : "Fermer l’évènement ?",
     message: rdvMode === "request" ? "La demande restera à valider dans iNr’Calendar." : "Vous avez modifié cet évènement. Si vous fermez maintenant, les modifications seront perdues.",
-    confirmLabel: "Fermer sans enregistrer",
-    cancelLabel: "Continuer l’édition",
+    confirmLabel: i18nT("fermer_sans_enregistrer_15fdc373"),
+    cancelLabel: i18nT("continuer_l_edition_0f0075bb"),
     variant: "warning",
   });
 
@@ -438,7 +442,7 @@ export default function AgendaClient() {
   }
 
   function buildGuestDisplayNameFromContact(contact: CrmContact) {
-    return getContactOptionLabel(contact);
+    return getContactOptionLabel(contact, i18nT("contact_b37456c4"));
   }
 
   function normalizeGuestForms(value: unknown): GuestContactForm[] {
@@ -657,7 +661,7 @@ export default function AgendaClient() {
     setRdvLocation("");
     setRdvNotes("");
     setIntType("");
-    setIntStatus("confirmé");
+    setIntStatus(i18nT("confirme_9fbcd433"));
     setIntReference("");
     setRdvExistingContact(null);
     setRdvGuests([]);
@@ -707,7 +711,7 @@ export default function AgendaClient() {
     setRdvLocation("");
     setRdvNotes(message);
     setIntType("");
-    setIntStatus("confirmé");
+    setIntStatus(i18nT("confirme_9fbcd433"));
     setIntReference("");
     setRdvExistingContact(null);
     setRdvGuests([]);
@@ -844,7 +848,7 @@ export default function AgendaClient() {
     setCrmAddFeedback("");
     try {
       if (rdvContactId) {
-        setCrmAddFeedback("Déjà ajouté au CRM");
+        setCrmAddFeedback(i18nT("deja_ajoute_au_crm_d7a41a78"));
         return;
       }
 
@@ -861,7 +865,7 @@ export default function AgendaClient() {
       const display_name = (rawDisplayName || "Nouveau contact").trim();
 
       if (!display_name && !email && !phone) {
-        setCrmAddFeedback("Renseigne au minimum un nom / email / téléphone");
+        setCrmAddFeedback(i18nT("renseigne_au_minimum_un_nom_email_88fa2f47"));
         return;
       }
 
@@ -879,7 +883,7 @@ export default function AgendaClient() {
 
       if (existing) {
         setRdvContactId(existing.id);
-        setCrmAddFeedback("Déjà ajouté au CRM");
+        setCrmAddFeedback(i18nT("deja_ajoute_au_crm_d7a41a78"));
         return;
       }
 
@@ -927,7 +931,7 @@ export default function AgendaClient() {
         }
       }
 
-      setCrmAddFeedback("Ajouté au CRM ✅");
+      setCrmAddFeedback(i18nT("ajoute_au_crm_fbe3398c"));
     } catch (e: any) {
       setCrmAddFeedback(getSimpleFrenchErrorMessage(e, "Impossible d'ajouter ce contact au CRM."));
     }
@@ -1018,7 +1022,7 @@ export default function AgendaClient() {
       }
       setRdvOpen(false);
       await loadEventsForMonth(cursorMonth);
-      setSuccess("Brouillon enregistré.");
+      setSuccess(i18nT("brouillon_enregistre_56ee4bbc"));
     } catch (e: any) {
       setRdvError(getSimpleFrenchErrorMessage(e, "Impossible d’enregistrer le brouillon."));
     } finally {
@@ -1074,19 +1078,19 @@ export default function AgendaClient() {
 
         if (!hasLocalChanges) {
           setRdvOpen(false);
-          setSuccess("Aucune modification détectée.");
+          setSuccess(i18nT("aucune_modification_detectee_4884a271"));
           return;
         }
 
         const draftToConfirm = Boolean(currentBeforeSubmit && isDraftEvent(currentBeforeSubmit));
         const confirmed = await confirmInrcy({
-          eyebrow: "Agenda",
+          eyebrow: i18nT("agenda_891e9d6d"),
           title: draftToConfirm ? "Confirmer le brouillon" : "Confirmer la modification",
           message: draftToConfirm
             ? "Ce brouillon va devenir un vrai rendez-vous. Les confirmations et rappels suivront vos réglages. Voulez-vous continuer ?"
             : "Ce rendez-vous va être mis à jour. Les mails de mise à jour seront envoyés selon vos réglages. Voulez-vous continuer ?",
           confirmLabel: draftToConfirm ? "Confirmer le RDV" : "Confirmer la modification",
-          cancelLabel: "Annuler",
+          cancelLabel: i18nT("annuler_49ba3292"),
           variant: "warning",
         });
 
@@ -1110,7 +1114,7 @@ export default function AgendaClient() {
 
         if (json?.unchanged) {
           setRdvOpen(false);
-          setSuccess("Aucune modification détectée.");
+          setSuccess(i18nT("aucune_modification_detectee_4884a271"));
           return;
         }
       }
@@ -1143,7 +1147,7 @@ export default function AgendaClient() {
       }
       setRdvOpen(false);
       await loadEventsForMonth(cursorMonth);
-      setSuccess("Rendez-vous supprimé.");
+      setSuccess(i18nT("rendez_vous_supprime_27bd089e"));
     } catch (e: any) {
       setRdvError(getSimpleFrenchErrorMessage(e, "Impossible de supprimer ce rendez-vous."));
     } finally {
@@ -1154,11 +1158,11 @@ export default function AgendaClient() {
   async function rejectAppointmentRequest() {
     if (!rdvEventId || rdvMode !== "request") return;
     const confirmed = await confirmInrcy({
-      eyebrow: "iNr'Calendar",
-      title: "Refuser cette demande ?",
-      message: "Aucun rendez-vous ne sera créé dans l'agenda.",
-      confirmLabel: "Refuser",
-      cancelLabel: "Annuler",
+      eyebrow: i18nT("inr_calendar_f5f54ab6"),
+      title: i18nT("refuser_cette_demande_8213dba0"),
+      message: i18nT("aucun_rendez_vous_ne_sera_cree_5f1bd901"),
+      confirmLabel: i18nT("refuser_62897154"),
+      cancelLabel: i18nT("annuler_49ba3292"),
       variant: "danger",
     });
     if (!confirmed) return;
@@ -1183,7 +1187,7 @@ export default function AgendaClient() {
 
       setRdvOpen(false);
       await loadEventsForMonth(cursorMonth);
-      setSuccess("Demande de rendez-vous refusée.");
+      setSuccess(i18nT("demande_de_rendez_vous_refusee_6769d371"));
     } catch (e: any) {
       setRdvError(getSimpleFrenchErrorMessage(e, "Impossible de refuser cette demande."));
     } finally {
@@ -1398,11 +1402,11 @@ export default function AgendaClient() {
     if (!target) return;
     if (rdvHasUnsavedChanges) {
       const ok = await confirmInrcy({
-        eyebrow: "Agenda",
-        title: "Changer d’évènement ?",
-        message: "Les modifications non enregistrées de l’évènement actuel seront perdues.",
-        confirmLabel: "Changer d’évènement",
-        cancelLabel: "Continuer l’édition",
+        eyebrow: i18nT("agenda_891e9d6d"),
+        title: i18nT("changer_d_evenement_8ee6ed37"),
+        message: i18nT("les_modifications_non_enregistrees_de_l_11d9582d"),
+        confirmLabel: i18nT("changer_d_evenement_7bd0879c"),
+        cancelLabel: i18nT("continuer_l_edition_0f0075bb"),
         variant: "warning",
       });
       if (!ok) return;

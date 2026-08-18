@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import {
   getBoosterImageDisplayPlan,
   getBoosterImageRenderDimensions,
@@ -10,18 +11,19 @@ import PublishVideoAdapterPanel, {
 } from "./PublishVideoAdapterPanel";
 import {
   BOOSTER_MAX_IMAGE_COUNT,
-  BOOSTER_PUBLICATION_MEDIA_OPTIMIZATION_LABEL,
   BOOSTER_IMAGE_ACCEPT,
-  BOOSTER_IMAGE_FORMATS_LABEL,
-  BOOSTER_IMAGE_LIMITS_LABEL,
-  BOOSTER_RECOMMENDED_VIDEO_DURATION_LABEL,
-  BOOSTER_VIDEO_FORMATS_LABEL,
-  BOOSTER_VIDEO_LIMITS_LABEL,
-  getBoosterSelectedMediaSummary,
+  getLocalizedBoosterImageFormats,
+  getLocalizedBoosterImageLimits,
+  getLocalizedBoosterMediaOptimization,
+  getLocalizedBoosterRecommendedVideoDuration,
+  getLocalizedBoosterSelectedMediaSummary,
+  getLocalizedBoosterVideoFormats,
+  getLocalizedBoosterVideoLimits,
+  getLocalizedChannelLabel,
+  getLocalizedUnavailableMediaModeMessage,
   CHANNEL_PRESETS,
   channelSupportsImages,
   channelSupportsTextOnly,
-  getUnavailableMediaModeMessage,
   getBackgroundMode,
   getChannelSafetyBackgroundMode,
   getOptimizedTransform,
@@ -114,7 +116,6 @@ type PublishImagesPanelProps = {
   imageMetaByKey: Record<string, ImageMeta>;
   previewByKey: Record<string, string>;
   previewAspectRatio: string;
-  getImageAdapterLabel: (channel: ChannelKey) => string;
   setSynchronizedActiveChannel: (channel: ChannelKey) => void;
   onPickImagesClick: () => void;
   onPickImagesForChannel: (channel: ChannelKey) => void;
@@ -168,7 +169,6 @@ export default function PublishImagesPanel({
   imageMetaByKey,
   previewByKey,
   previewAspectRatio,
-  getImageAdapterLabel,
   setSynchronizedActiveChannel,
   onPickImagesClick,
   onPickImagesForChannel,
@@ -183,6 +183,11 @@ export default function PublishImagesPanel({
   removeImage,
   moveChannelImage,
 }: PublishImagesPanelProps) {
+  const i18nT = useTranslations("booster");
+  const runtimeT = i18nT as unknown as (
+    key: string,
+    values?: Record<string, string | number>,
+  ) => string;
   const hasImages = images.length > 0;
   const hasVideoMedia = Boolean(videoFile || videoPreviewUrl);
   const imagesLimitReached = images.length >= BOOSTER_MAX_IMAGE_COUNT;
@@ -229,13 +234,13 @@ export default function PublishImagesPanel({
   );
   const allocationParts = [
     mediaAllocation.images
-      ? `${mediaAllocation.images} ${mediaAllocation.images > 1 ? "canaux" : "canal"} avec photos`
+      ? i18nT("media_allocation_images", { count: mediaAllocation.images })
       : "",
     mediaAllocation.video
-      ? `${mediaAllocation.video} ${mediaAllocation.video > 1 ? "canaux" : "canal"} avec vidéo`
+      ? i18nT("media_allocation_videos", { count: mediaAllocation.video })
       : "",
     mediaAllocation.none
-      ? `${mediaAllocation.none} ${mediaAllocation.none > 1 ? "canaux" : "canal"} sans média`
+      ? i18nT("media_allocation_none", { count: mediaAllocation.none })
       : "",
   ].filter(Boolean);
 
@@ -250,6 +255,18 @@ export default function PublishImagesPanel({
       channelImageEditors[activeImageChannel]?.imageKeys?.length || 0,
     mode: activeMode,
   });
+  const videoChannelActionLabel =
+    videoChannelAction.kind === "selected"
+      ? i18nT("video_304f6ca4")
+      : videoChannelAction.kind === "reuse"
+        ? i18nT("utiliser_la_meme_video_ici_7d817d29")
+        : i18nT("ajouter_une_video_c0be31cb");
+  const imageChannelActionLabel =
+    imageChannelAction.kind === "selected"
+      ? i18nT("photos_c8b2e864")
+      : imageChannelAction.kind === "pick"
+        ? i18nT("ajouter_des_images_79088d11")
+        : i18nT("utiliser_les_images_existantes_ici_f482c30c");
   const activeMediaTab = imageAdapterTabs.find(
     (tab) => tab.key === activeImageChannel,
   );
@@ -308,10 +325,18 @@ export default function PublishImagesPanel({
     onActivate?: () => void,
   ) => {
     const active = activeMode === mode;
-    const unsupportedMessage = getUnavailableMediaModeMessage(activeImageChannel, mode);
+    const unsupportedMessage = getLocalizedUnavailableMediaModeMessage(
+      activeImageChannel,
+      mode,
+      runtimeT,
+    );
     const unavailable = Boolean(unsupportedMessage);
     const effectiveDisabled = disabled || unavailable;
-    const accessibleLabel = `${label} pour ${getImageAdapterLabel(activeImageChannel)}`;
+    const translatedLabel = label;
+    const accessibleLabel = i18nT("media_mode_for_channel", {
+      mode: translatedLabel,
+      channel: getLocalizedChannelLabel(activeImageChannel, runtimeT),
+    });
     return (
       <button
         type="button"
@@ -353,7 +378,7 @@ export default function PublishImagesPanel({
         }}
       >
         <MediaModeGlyph mode={mode} size={isMobile ? 13 : 14} />
-        <span>{label}</span>
+        <span>{translatedLabel}</span>
       </button>
     );
   };
@@ -374,14 +399,13 @@ export default function PublishImagesPanel({
         }}
       >
         <PublishStepTitle styles={styles} step={stepNumber}>
-          Médias de la publication
-        </PublishStepTitle>
+          {i18nT("medias_de_la_publication_12d110a4")}{" "}</PublishStepTitle>
       </div>
       <div
         className={styles.subtitle}
         style={{ marginBottom: 12, maxWidth: "none", whiteSpace: "normal" }}
       >
-        {BOOSTER_PUBLICATION_MEDIA_OPTIMIZATION_LABEL}
+        {getLocalizedBoosterMediaOptimization("publication", runtimeT)}
       </div>
       <div
         style={{
@@ -397,11 +421,14 @@ export default function PublishImagesPanel({
           className={styles.secondaryBtn}
           onClick={onPickImagesClick}
           disabled={pickImagesDisabled}
-          aria-label="Ajouter une image à la publication"
+          aria-label={i18nT("ajouter_une_image_a_la_publication_c382ed8d")}
           title={
             imagesLimitReached
-              ? `${BOOSTER_MAX_IMAGE_COUNT} images maximum`
-              : `Ajouter une image à la publication · ${BOOSTER_IMAGE_LIMITS_LABEL} · ${BOOSTER_IMAGE_FORMATS_LABEL}`
+              ? i18nT("media_max_images", { count: BOOSTER_MAX_IMAGE_COUNT })
+              : i18nT("media_add_image_details", {
+                  limits: getLocalizedBoosterImageLimits(runtimeT),
+                  formats: getLocalizedBoosterImageFormats(runtimeT),
+                })
           }
           style={{
             opacity: pickImagesDisabled ? 0.48 : 1,
@@ -409,8 +436,7 @@ export default function PublishImagesPanel({
             cursor: pickImagesDisabled ? "not-allowed" : "pointer",
           }}
         >
-          + Ajouter une image
-        </button>
+          {i18nT("ajouter_une_image_c297ad3e")}{" "}</button>
         <button
           type="button"
           className={styles.secondaryBtn}
@@ -418,8 +444,12 @@ export default function PublishImagesPanel({
           disabled={pickVideoDisabled}
           title={
             pickVideoDisabled
-              ? "1 vidéo maximum par publication."
-              : `${BOOSTER_VIDEO_LIMITS_LABEL} · ${BOOSTER_VIDEO_FORMATS_LABEL} · ${BOOSTER_RECOMMENDED_VIDEO_DURATION_LABEL}`
+              ? i18nT("media_max_one_video")
+              : i18nT("media_video_details", {
+                  limits: getLocalizedBoosterVideoLimits(runtimeT),
+                  formats: getLocalizedBoosterVideoFormats(runtimeT),
+                  duration: getLocalizedBoosterRecommendedVideoDuration(runtimeT),
+                })
           }
           style={{
             opacity: pickVideoDisabled ? 0.48 : 1,
@@ -427,15 +457,14 @@ export default function PublishImagesPanel({
             cursor: pickVideoDisabled ? "not-allowed" : "pointer",
           }}
         >
-          + Ajouter une vidéo
-        </button>
+          {i18nT("ajouter_une_video_c0be31cb")}{" "}</button>
         <span
           title={
             !isMobile
-              ? "Utilisable en version mobile"
+              ? i18nT("camera_mobile_only")
               : imagesLimitReached
-                ? `${BOOSTER_MAX_IMAGE_COUNT} images maximum`
-                : "Ouvrir l’Appareil iNrCy pour prendre une photo"
+                ? i18nT("media_max_images", { count: BOOSTER_MAX_IMAGE_COUNT })
+                : i18nT("camera_open_to_take_photo")
           }
           style={{ display: "inline-flex" }}
         >
@@ -451,8 +480,7 @@ export default function PublishImagesPanel({
               cursor: cameraDisabled ? "not-allowed" : "pointer",
             }}
           >
-            📷 Appareil iNrCy
-          </button>
+            {i18nT("appareil_inrcy_89d04cc9")}{" "}</button>
         </span>
         <div
           style={{
@@ -463,15 +491,15 @@ export default function PublishImagesPanel({
             overflowWrap: "anywhere",
           }}
         >
-          {getBoosterSelectedMediaSummary({
+          {getLocalizedBoosterSelectedMediaSummary({
             imageCount: images.length,
             hasVideo: hasVideoMedia,
             context: "publication",
-          })}
+          }, runtimeT)}
           <span style={{ opacity: 0.74 }}>
-            {hasImages ? ` · ${BOOSTER_IMAGE_FORMATS_LABEL}` : ""}
+            {hasImages ? ` · ${getLocalizedBoosterImageFormats(runtimeT)}` : ""}
             {hasVideoMedia
-              ? ` · ${BOOSTER_VIDEO_FORMATS_LABEL} · ${BOOSTER_RECOMMENDED_VIDEO_DURATION_LABEL}`
+              ? ` · ${getLocalizedBoosterVideoFormats(runtimeT)} · ${getLocalizedBoosterRecommendedVideoDuration(runtimeT)}`
               : ""}
           </span>
         </div>
@@ -504,8 +532,7 @@ export default function PublishImagesPanel({
                 cursor: "pointer",
               }}
             >
-              Optimiser le média
-            </button>
+              {i18nT("optimiser_le_media_1bc4fc40")}{" "}</button>
           ) : null}
         </div>
       ) : null}
@@ -545,7 +572,7 @@ export default function PublishImagesPanel({
                   aria-pressed={isActive}
                   aria-label={
                     toneBlocked && mediaMessage
-                      ? `${getImageAdapterLabel(channel)} : ${mediaMessage}`
+                      ? `${getLocalizedChannelLabel(channel, runtimeT)} : ${mediaMessage}`
                       : undefined
                   }
                   style={{
@@ -599,7 +626,7 @@ export default function PublishImagesPanel({
                       textAlign: isMobile ? "center" : undefined,
                     }}
                   >
-                    {getCompactChannelLabel(channel, getImageAdapterLabel(channel))}
+                    {getCompactChannelLabel(channel, getLocalizedChannelLabel(channel, runtimeT))}
                   </span>
                   <span
                     style={{
@@ -633,7 +660,7 @@ export default function PublishImagesPanel({
                   {getModeForChannel(channel) === "video" && hasVideoMedia && videoVariantPreparationByChannel[channel]?.status ? (
                     <span
                       aria-hidden="true"
-                      title={videoVariantPreparationByChannel[channel]?.label || "Format vidéo"}
+                      title={videoVariantPreparationByChannel[channel]?.label || i18nT("video_format")}
                       style={{
                         flex: "0 0 auto",
                         fontSize: 12,
@@ -650,7 +677,7 @@ export default function PublishImagesPanel({
 
           <div
             role="status"
-            aria-label="Répartition actuelle des médias par canal"
+            aria-label={i18nT("repartition_actuelle_des_medias_par_canal_538dffe4")}
             style={{
               display: "flex",
               alignItems: isMobile ? "flex-start" : "center",
@@ -668,11 +695,10 @@ export default function PublishImagesPanel({
             }}
           >
             <strong style={{ minWidth: 0 }}>
-              Répartition actuelle · {allocationParts.join(" · ") || "aucun média"}
+              {i18nT("repartition_actuelle_8ccf5af1")}{" "}{allocationParts.join(" · ") || i18nT("aucun_media_30513906")}
             </strong>
             <span style={{ opacity: 0.7 }}>
-              Cliquez sur un canal, puis choisissez Photos, Vidéo ou Aucun.
-            </span>
+              {i18nT("cliquez_sur_un_canal_puis_choisissez_f2189aac")}{" "}</span>
           </div>
 
           <div
@@ -687,7 +713,7 @@ export default function PublishImagesPanel({
           >
             {mediaModeButton(
               "video",
-              videoChannelAction.label,
+              videoChannelActionLabel,
               false,
               () => {
                 if (videoChannelAction.kind === "pick") {
@@ -699,7 +725,7 @@ export default function PublishImagesPanel({
             )}
             {mediaModeButton(
               "images",
-              imageChannelAction.label,
+              imageChannelActionLabel,
               !channelSupportsImages(activeImageChannel),
               () => {
                 if (imageChannelAction.kind === "pick") {
@@ -713,7 +739,7 @@ export default function PublishImagesPanel({
                 setChannelMediaMode(activeImageChannel, "images");
               },
             )}
-            {mediaModeButton("none", "Aucun", !channelSupportsTextOnly(activeImageChannel))}
+            {mediaModeButton("none", i18nT("media_none"), !channelSupportsTextOnly(activeImageChannel))}
           </div>
 
           {activeMediaBlockers.length ? (
@@ -738,8 +764,7 @@ export default function PublishImagesPanel({
               </span>
               <div style={{ display: "grid", gap: 3, minWidth: 0 }}>
                 <strong>
-                  Média incompatible pour {getImageAdapterLabel(activeImageChannel)}
-                </strong>
+                  {i18nT("media_incompatible_pour_value_20130e10", { value0: getLocalizedChannelLabel(activeImageChannel, runtimeT) })}</strong>
                 {activeMediaBlockers.map((blocker) => (
                   <span key={blocker}>{blocker}</span>
                 ))}
@@ -760,9 +785,9 @@ export default function PublishImagesPanel({
               }}
             >
               {!channelSupportsTextOnly(activeImageChannel)
-                ? getUnavailableMediaModeMessage(activeImageChannel, "none") ||
-                  "Ce canal nécessite un média."
-                : "Ce canal publiera uniquement le texte."}
+                ? getLocalizedUnavailableMediaModeMessage(activeImageChannel, "none", runtimeT) ||
+                  i18nT("ce_canal_necessite_un_media_848df7b6")
+                : i18nT("ce_canal_publiera_uniquement_le_texte_dbcc6b36")}
             </div>
           ) : activeMode === "video" ? (
             <PublishVideoAdapterPanel
@@ -791,10 +816,10 @@ export default function PublishImagesPanel({
           ) : !images.length ? (
             <div style={{ fontSize: 13, opacity: 0.75 }}>
               {activeImageChannel === "youtube_shorts"
-                ? "Ajoutez une vidéo pour publier sur YouTube."
+                ? i18nT("ajoutez_une_video_pour_publier_sur_25b3629b")
                 : activeImageChannel === "tiktok"
-                  ? "Ajoutez une photo ou une vidéo pour publier sur TikTok."
-                  : "Ajoutez une ou plusieurs images, ou choisissez Vidéo / Aucun média pour ce canal."}
+                  ? i18nT("ajoutez_une_photo_ou_une_video_a053ec3d")
+                  : i18nT("ajoutez_une_ou_plusieurs_images_ou_5e529a68")}
             </div>
           ) : (
             <>
@@ -811,8 +836,8 @@ export default function PublishImagesPanel({
                   onClick={() =>
                     onRemoveImagesFromChannel(activeImageChannel)
                   }
-                  title={`Retirer les images de ${getImageAdapterLabel(activeImageChannel)} sans toucher aux autres canaux`}
-                  aria-label={`Retirer les images de ce canal : ${getImageAdapterLabel(activeImageChannel)}`}
+                  title={i18nT("retirer_les_images_de_value_sans_2fc93efd", { value0: getLocalizedChannelLabel(activeImageChannel, runtimeT) })}
+                  aria-label={i18nT("retirer_les_images_de_ce_canal_87c1a09b", { value0: getLocalizedChannelLabel(activeImageChannel, runtimeT) })}
                   style={{
                     minHeight: 30,
                     padding: "4px 10px",
@@ -820,8 +845,7 @@ export default function PublishImagesPanel({
                     opacity: 0.82,
                   }}
                 >
-                  Retirer les images de ce canal
-                </button>
+                  {i18nT("retirer_les_images_de_ce_canal_b025e5ef")}{" "}</button>
               </div>
               <ChannelImageAdapterCardsPanel
                 tabs={imageAdapterTabs}
@@ -829,8 +853,8 @@ export default function PublishImagesPanel({
                 onActiveChannelChange={(key) =>
                   setSynchronizedActiveChannel(key as ChannelKey)
                 }
-                channelTitle={getImageAdapterLabel(activeImageChannel)}
-                formatLabel="Rendu intelligent par image"
+                channelTitle={getLocalizedChannelLabel(activeImageChannel, runtimeT)}
+                formatLabel={i18nT("rendu_intelligent_par_image_f1db3463")}
                 aspectRatio={previewAspectRatio}
                 items={imageKeys.map((key, index) => {
                   const selectedKeysForActiveChannel =
@@ -922,11 +946,19 @@ export default function PublishImagesPanel({
                     previewUrl: previewByKey[key],
                     included,
                     disabled: false,
-                    title: `Image ${index + 1}`,
+                    title: i18nT("image_value_5907a7ef", { value0: index + 1 }),
                     subtitle: included
-                      ? `Publiée sur ce canal · utilisée sur ${usedChannelCount} ${usedChannelCount > 1 ? "canaux" : "canal"}`
-                      : `Retirée de ce canal · utilisée sur ${usedChannelCount} ${usedChannelCount > 1 ? "canaux" : "canal"}`,
-                    fitLabel: decision.label,
+                      ? i18nT("image_usage_included", { count: usedChannelCount })
+                      : i18nT("image_usage_excluded", { count: usedChannelCount }),
+                    fitLabel: runtimeT(
+                      decision.mode === "original"
+                        ? "image_decision_original"
+                        : decision.mode === "adapted"
+                          ? "image_decision_adapted"
+                          : decision.mode === "customized"
+                            ? "image_decision_customized"
+                            : "image_decision_unavailable",
+                    ),
                     previewAspectRatio,
                     backgroundMode: bgMode,
                     backgroundColor: previewTransform.backgroundColor,
@@ -939,9 +971,9 @@ export default function PublishImagesPanel({
                     onRemove: included
                       ? () => toggleChannelImage(activeImageChannel, key)
                       : undefined,
-                    removeLabel: "Retirer de ce canal",
+                    removeLabel: i18nT("retirer_de_ce_canal_76fbf864"),
                     onRemoveEverywhere: () => removeImage(index),
-                    removeEverywhereLabel: "Supprimer partout",
+                    removeEverywhereLabel: i18nT("supprimer_partout_dfb790c4"),
                     onMovePrevious:
                       included && selectedKeysForActiveChannel.indexOf(key) > 0
                         ? () => moveChannelImage(activeImageChannel, key, -1)
@@ -965,8 +997,7 @@ export default function PublishImagesPanel({
         </div>
       ) : (
         <div style={{ fontSize: 13, opacity: 0.75 }}>
-          Sélectionnez d’abord vos canaux.
-        </div>
+          {i18nT("selectionnez_d_abord_vos_canaux_224225ce")}{" "}</div>
       )}
     </div>
   );

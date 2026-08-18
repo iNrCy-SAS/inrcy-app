@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale, getMessages } from "next-intl/server";
 import "./globals.css";
 import OrientationGuard from "./OrientationGuard";
 import CookieConsentBanner from "./_components/CookieConsentBanner";
 import InrcyDialogProvider from "./_components/InrcyDialogProvider";
 import PullToRefresh from "./_components/PullToRefresh";
+import { htmlLanguageFromLocale } from "@/i18n/config";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,13 +34,16 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const locale = await getLocale();
+  const messages = await getMessages();
+
   return (
-    <html lang="fr" translate="no" className="notranslate">
+    <html lang={htmlLanguageFromLocale(locale)} translate="no" className="notranslate">
       <head>
         {/* 🔒 Empêche Google Translate */}
         <meta name="google" content="notranslate" />
@@ -46,11 +52,13 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         translate="no"
       >
-        <OrientationGuard />
-        <CookieConsentBanner />
-        <InrcyDialogProvider />
-        <PullToRefresh disabledOnDashboard />
-        {children}
+        <NextIntlClientProvider locale={locale} messages={messages} timeZone="Europe/Paris">
+          <OrientationGuard />
+          <CookieConsentBanner />
+          <InrcyDialogProvider />
+          <PullToRefresh disabledOnDashboard />
+          {children}
+        </NextIntlClientProvider>
       </body>
     </html>
   );

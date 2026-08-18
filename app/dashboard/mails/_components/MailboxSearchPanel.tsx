@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import React from "react";
 import styles from "../mails.module.css";
 
@@ -11,6 +12,7 @@ type MailboxSearchPanelProps = {
 };
 
 export default function MailboxSearchPanel({ open, value, inputRef, onChange, onClose, onClear }: MailboxSearchPanelProps) {
+  const i18nT = useTranslations("mails");
   if (!open) return null;
 
   return (
@@ -19,7 +21,7 @@ export default function MailboxSearchPanel({ open, value, inputRef, onChange, on
         <input
           ref={inputRef}
           className={styles.searchInputInline}
-          placeholder="Rechercher un envoi…"
+          placeholder={i18nT("rechercher_un_envoi_5200f657")}
           value={value}
           onChange={(e) => onChange(e.target.value)}
         />
@@ -28,8 +30,8 @@ export default function MailboxSearchPanel({ open, value, inputRef, onChange, on
             className={styles.searchClearBtn}
             type="button"
             onClick={onClear}
-            title="Effacer"
-            aria-label="Effacer"
+            title={i18nT("effacer_fe23de7b")}
+            aria-label={i18nT("effacer_fe23de7b")}
           >
             ×
           </button>
@@ -38,8 +40,8 @@ export default function MailboxSearchPanel({ open, value, inputRef, onChange, on
           className={styles.searchCloseBtn}
           type="button"
           onClick={onClose}
-          title="Fermer"
-          aria-label="Fermer"
+          title={i18nT("fermer_5ab4ec64")}
+          aria-label={i18nT("fermer_5ab4ec64")}
         >
           ✕
         </button>

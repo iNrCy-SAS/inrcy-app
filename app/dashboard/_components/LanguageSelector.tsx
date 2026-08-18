@@ -1,20 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { APP_LANGUAGE_OPTIONS, getAppLanguageOption, type AppLanguageCode } from "@/lib/appLanguage";
 import { useDashboardLanguage } from "../_hooks/useDashboardLanguage";
-import { getDashboardTranslations } from "@/lib/dashboardI18n";
+import { useDashboardI18n } from "../_hooks/useDashboardI18n";
 import styles from "../dashboard.module.css";
 
 type Props = {
   mobile?: boolean;
+  compact?: boolean;
   onOpen?: () => void;
 };
 
-export default function LanguageSelector({ mobile = false, onOpen }: Props) {
+export default function LanguageSelector({ mobile = false, compact = false, onOpen }: Props) {
   const { language, setLanguage } = useDashboardLanguage();
-  const t = useMemo(() => getDashboardTranslations(language), [language]);
+  const t = useDashboardI18n();
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const current = getAppLanguageOption(language);
@@ -59,7 +60,7 @@ export default function LanguageSelector({ mobile = false, onOpen }: Props) {
     <div className={`${styles.languageSelectorWrap} ${mobile ? styles.languageSelectorWrapMobile : ""}`.trim()} ref={wrapRef}>
       <button
         type="button"
-        className={`${styles.languageSelectorBtn} ${mobile ? styles.languageSelectorBtnMobile : ""}`.trim()}
+        className={`${styles.languageSelectorBtn} ${mobile ? styles.languageSelectorBtnMobile : ""} ${compact ? styles.languageSelectorBtnCompact : ""}`.trim()}
         aria-label={t.language.buttonAria}
         aria-haspopup="menu"
         aria-expanded={open}
@@ -81,7 +82,7 @@ export default function LanguageSelector({ mobile = false, onOpen }: Props) {
           loading="eager"
           decoding="async"
         />
-        {!mobile ? <span className={styles.languageShort}>{current.shortLabel}</span> : null}
+        {!mobile && !compact ? <span className={styles.languageShort}>{current.shortLabel}</span> : null}
         <span className={styles.languageChevron} aria-hidden>▾</span>
       </button>
 

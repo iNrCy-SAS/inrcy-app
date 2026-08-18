@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 type Props = {
   onCustomize: () => void;
   onKeepDefaults: () => void | Promise<void>;
@@ -11,6 +13,8 @@ export default function DashboardOnboardingAiChoice({
   onKeepDefaults,
   busy = false,
 }: Props) {
+  const t = useTranslations("dashboard.onboarding");
+
   return (
     <section
       aria-labelledby="dashboard-onboarding-ai-choice-title"
@@ -56,7 +60,7 @@ export default function DashboardOnboardingAiChoice({
           id="dashboard-onboarding-ai-choice-title"
           style={{ margin: 0, color: "white", fontSize: "clamp(22px, 4vw, 30px)", lineHeight: 1.15 }}
         >
-          Votre IA est déjà prête
+          {t("aiReadyTitle")}
         </h3>
         <p
           style={{
@@ -67,8 +71,7 @@ export default function DashboardOnboardingAiChoice({
             lineHeight: 1.65,
           }}
         >
-          iNrCy utilise déjà les réglages recommandés. Vous pouvez personnaliser votre moteur,
-          votre ton et votre style maintenant, ou conserver la configuration par défaut.
+          {t("aiReadyDescription")}
         </p>
 
         <div
@@ -95,7 +98,7 @@ export default function DashboardOnboardingAiChoice({
               background: "linear-gradient(135deg, rgba(14,165,233,.88), rgba(59,130,246,.84))",
             }}
           >
-            Personnaliser mon IA
+            {t("customizeAi")}
           </button>
           <button
             type="button"
@@ -113,7 +116,7 @@ export default function DashboardOnboardingAiChoice({
               background: "rgba(255,255,255,.055)",
             }}
           >
-            Conserver les réglages par défaut
+            {t("keepDefaults")}
           </button>
         </div>
       </div>

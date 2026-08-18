@@ -7,6 +7,7 @@ import {
 import { invalidateBoosterGenerationContextClient } from "@/lib/boosterGenerationContextClient";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import {
   APP_LANGUAGE_EVENT,
@@ -16,6 +17,13 @@ import {
   normalizeAppLanguage,
 } from "@/lib/appLanguage";
 import { createClient } from "@/lib/supabaseClient";
+import {
+  APP_LANGUAGE_TO_LOCALE,
+  APP_LOCALE_QUERY_PARAMS,
+  appLanguageFromLocale,
+  tryNormalizeAppLocale,
+} from "@/i18n/config";
+import { persistBrowserAppLocale } from "@/i18n/client-locale";
 
 type LanguageEventDetail = {
   language?: unknown;
@@ -99,10 +107,34 @@ function readLocalLanguage(): AppLanguageCode {
 
 function writeLocalLanguage(language: AppLanguageCode) {
   if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(APP_LANGUAGE_STORAGE_KEY, language);
-  } catch {
-    // Le stockage local ne doit jamais bloquer l'interface.
+  persistBrowserAppLocale(APP_LANGUAGE_TO_LOCALE[language]);
+}
+
+function readRequestedUrlLanguage(): AppLanguageCode | null {
+  if (typeof window === "undefined") return null;
+  const searchParams = new URLSearchParams(window.location.search);
+
+  for (const parameter of APP_LOCALE_QUERY_PARAMS) {
+    const locale = tryNormalizeAppLocale(searchParams.get(parameter));
+    if (locale) return appLanguageFromLocale(locale);
+  }
+
+  return null;
+}
+
+function removeLanguageFromCurrentUrl() {
+  if (typeof window === "undefined") return;
+  const url = new URL(window.location.href);
+  let changed = false;
+
+  for (const parameter of APP_LOCALE_QUERY_PARAMS) {
+    if (!url.searchParams.has(parameter)) continue;
+    url.searchParams.delete(parameter);
+    changed = true;
+  }
+
+  if (changed) {
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
   }
 }
 
@@ -122,13 +154,16 @@ function resolveEventLanguage(detail: unknown): AppLanguageCode | null {
 }
 
 export function useDashboardLanguage() {
+  const router = useRouter();
   const [language, setLanguageState] = useState<AppLanguageCode>(DEFAULT_APP_LANGUAGE);
   const mountedRef = useRef(false);
 
   useEffect(() => {
     mountedRef.current = true;
-    const localLanguage = readLocalLanguage();
-    setLanguageState(localLanguage);
+    const requestedLanguage = readRequestedUrlLanguage();
+    const initialLanguage = requestedLanguage || readLocalLanguage();
+    writeLocalLanguage(initialLanguage);
+    setLanguageState(initialLanguage);
 
     const loadDbLanguage = async () => {
       try {
@@ -141,7 +176,34 @@ export function useDashboardLanguage() {
       }
     };
 
-    void loadDbLanguage();
+    if (requestedLanguage) {
+      removeLanguageFromCurrentUrl();
+      void (async () => {
+        try {
+          const accountId = await resolveDashboardAccountId();
+          if (!accountId) return;
+          const supabase = createClient();
+          const { error } = await supabase.from("business_profiles").upsert(
+            {
+              user_id: accountId,
+              app_language: requestedLanguage,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "user_id" },
+          );
+          if (error) throw error;
+          dbLanguageCache.set(accountId, {
+            language: requestedLanguage,
+            expiresAt: Date.now() + DB_LANGUAGE_CACHE_TTL_MS,
+          });
+          await invalidateBoosterGenerationContextClient("professional");
+        } catch {
+          // Le choix explicite reste actif via le cookie partagé.
+        }
+      })();
+    } else {
+      void loadDbLanguage();
+    }
 
     const handleStorage = (event: StorageEvent) => {
       if (event.key !== APP_LANGUAGE_STORAGE_KEY) return;
@@ -195,8 +257,10 @@ export function useDashboardLanguage() {
       await invalidateBoosterGenerationContextClient("professional");
     } catch {
       // Le choix reste actif localement même si la sauvegarde distante échoue.
+    } finally {
+      router.refresh();
     }
-  }, []);
+  }, [router]);
 
   return { language, setLanguage };
 }

@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import {
   useCallback,
   useEffect,
@@ -41,6 +44,7 @@ import {
 import { uid, type DiscountKind, type LineItem } from "./docUtils";
 
 export function useDocumentSettingsPanel() {
+  const i18nT = useTranslations("documents");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsHasUnsavedChanges, setSettingsHasUnsavedChanges] =
     useState(false);
@@ -53,12 +57,12 @@ export function useDocumentSettingsPanel() {
     active: settingsOpen,
     shouldBlock: settingsHasUnsavedChanges,
     onConfirmExit: () => setSettingsOpen(false),
-    eyebrow: "Réglages par défaut",
-    title: "Quitter sans enregistrer ?",
+    eyebrow: i18nT("reglages_par_defaut_6d661a73"),
+    title: i18nT("quitter_sans_enregistrer_6208bd94"),
     message:
-      "Ces réglages contiennent des modifications non enregistrées. Si vous fermez maintenant, elles seront perdues.",
-    confirmLabel: "Fermer sans enregistrer",
-    cancelLabel: "Continuer l’édition",
+      i18nT("ces_reglages_contiennent_des_modifications_non_a3c8a17d"),
+    confirmLabel: i18nT("fermer_sans_enregistrer_15fdc373"),
+    cancelLabel: i18nT("continuer_l_edition_0f0075bb"),
     variant: "warning",
   });
 
@@ -252,10 +256,11 @@ export function useDocumentLineEditor<TFieldErrors extends LineFieldErrors>({
   initialUnitPrice: number;
   setFieldErrors: Dispatch<SetStateAction<TFieldErrors>>;
 }) {
+  const i18nT = useTranslations("documents");
   const [lines, setLines] = useState<LineItem[]>([
     {
       id: "l_1",
-      label: "Prestation",
+      label: i18nT("prestation_b51f479f"),
       qty: 1,
       unitPrice: initialUnitPrice,
       vatRate: 20,
@@ -312,7 +317,8 @@ export function getDocumentCrmContactLabel(contact: CrmContact) {
     (contact.company_name && contact.company_name.trim()) ||
     [contact.first_name, contact.last_name].filter(Boolean).join(" ").trim() ||
     (contact.last_name || "").trim() ||
-    "(Sans nom)"
+    (contact.email || "").trim() ||
+    "—"
   );
 }
 
@@ -564,8 +570,7 @@ export function applyDocumentCrmContact(
   unnamedLabel: string,
 ) {
   const contactLabel = getDocumentCrmContactLabel(contact);
-  const displayName =
-    contactLabel === "(Sans nom)" ? unnamedLabel : contactLabel;
+  const displayName = contactLabel === "—" ? unnamedLabel : contactLabel;
   const billingParsed = splitFrenchAddress(
     contact.billing_address || contact.address || "",
   );

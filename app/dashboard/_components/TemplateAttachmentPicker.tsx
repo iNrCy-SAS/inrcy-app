@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import React, { type CSSProperties } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import { resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
@@ -37,6 +40,7 @@ export default function TemplateAttachmentPicker({
   inputIdPrefix,
   variant = "inline",
 }: TemplateAttachmentPickerProps) {
+  const i18nT = useTranslations("shell");
   const generatedId = React.useId().replace(/:/g, "");
   const inputId = `${inputIdPrefix}-${generatedId}`;
   const [busy, setBusy] = React.useState(false);
@@ -157,7 +161,7 @@ export default function TemplateAttachmentPicker({
         appendAttachments(uploaded);
       } catch (err) {
         console.error("Template attachment upload failed", err);
-        setError("Pièce jointe impossible à préparer.");
+        setError(i18nT("piece_jointe_impossible_a_preparer_1674893c"));
       } finally {
         setBusy(false);
       }
@@ -181,7 +185,7 @@ export default function TemplateAttachmentPicker({
 
   const handleOptimized = async (item: MediaOptimizerItem) => {
     if (Number(item.size_bytes || 0) > MEDIA_LIBRARY_EMAIL_TARGET_BYTES) {
-      setError("Le média optimisé dépasse encore 20 Mo.");
+      setError(i18nT("le_media_optimise_depasse_encore_20_ced888d4"));
       return;
     }
     appendAttachments([mediaLibraryItemToAttachment(item)]);
@@ -216,14 +220,14 @@ export default function TemplateAttachmentPicker({
       />
       <MediaLibraryPickerModal
         open={mediaLibraryOpen}
-        title="Joindre depuis la Médiathèque"
+        title={i18nT("joindre_depuis_la_mediatheque_132a0a6b")}
         subtitle="Ajoutez un média déjà stocké dans iNrCy · format adapté si nécessaire · 20 Mo max."
         accept="all"
         multiple
         maxSelection={10}
         maxImageBytes={MEDIA_LIBRARY_EMAIL_TARGET_BYTES}
         maxVideoBytes={MEDIA_LIBRARY_EMAIL_TARGET_BYTES}
-        confirmLabel="Joindre"
+        confirmLabel={i18nT("joindre_2ee36407")}
         onOpenOptimizer={openOptimizerForLibraryItem}
         onClose={() => setMediaLibraryOpen(false)}
         onConfirm={(items) => addMediaLibraryItems(items)}
@@ -246,7 +250,7 @@ export default function TemplateAttachmentPicker({
           htmlFor={inputId}
           className={styles.secondaryBtn}
           aria-disabled={busy}
-          title="Joindre un fichier · 20 Mo max par fichier"
+          title={i18nT("joindre_un_fichier_20_mo_max_1feceb18")}
           style={{
             ...attachButtonStyle,
             opacity: busy ? 0.72 : 1,
@@ -278,7 +282,7 @@ export default function TemplateAttachmentPicker({
           className={styles.secondaryBtn}
           onClick={() => setMediaLibraryOpen(true)}
           disabled={busy}
-          title="Joindre depuis la Médiathèque"
+          title={i18nT("joindre_depuis_la_mediatheque_132a0a6b")}
           style={{
             ...attachButtonStyle,
             width: mobileIconOnly
@@ -300,8 +304,7 @@ export default function TemplateAttachmentPicker({
         >
           <span aria-hidden>🖼️</span>
           <span style={mobileIconOnly ? visuallyHiddenStyle : undefined}>
-            Médiathèque
-          </span>
+            {i18nT("mediatheque_e4fa8e31")}{" "}</span>
         </button>
 
         {mobileFooter ? (
@@ -318,7 +321,7 @@ export default function TemplateAttachmentPicker({
         ) : attachments.length > 0 ? (
           <div
             style={isFooter ? footerChipsWrapStyle(isMobile) : chipsWrapStyle}
-            aria-label="Pièces jointes du modèle"
+            aria-label={i18nT("pieces_jointes_du_modele_346165e7")}
           >
             {attachments.map((attachment, index) => (
               <span
@@ -334,7 +337,7 @@ export default function TemplateAttachmentPicker({
                       prev.filter((_, itemIndex) => itemIndex !== index),
                     )
                   }
-                  aria-label={`Retirer ${attachment.name}`}
+                  aria-label={i18nT("retirer_value_c04cdfcb", { value0: attachment.name })}
                   style={chipRemoveStyle}
                 >
                   ×

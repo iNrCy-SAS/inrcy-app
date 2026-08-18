@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import React from "react";
 import Link from "next/link";
 import styles from "../mails.module.css";
@@ -22,6 +23,7 @@ type Props = {
 };
 
 export default function MailboxToolbar(props: Props) {
+  const i18nT = useTranslations("mails");
   const {
     folder,
     filterAccountId,
@@ -44,16 +46,16 @@ export default function MailboxToolbar(props: Props) {
     <div className={styles.toolbarRow}>
       <div className={styles.filterRow}>
         <div className={styles.toolbarInfo}>
-          {publicationOnly ? "Historique des publications" : "Filtrer"}
+          {publicationOnly ? i18nT("historique_des_publications_2bcf9ffb") : i18nT("filtrer_a7a02ef5")}
         </div>
         {!publicationOnly ? (
           <select
             className={styles.filterSelect}
             value={filterAccountId}
             onChange={(event) => setFilterAccountId(event.target.value)}
-            title="Filtrer par boîte d’envoi"
+            title={i18nT("filtrer_par_boite_d_envoi_960f88f5")}
           >
-            <option value="">Toutes les boîtes</option>
+            <option value="">{i18nT("toutes_les_boites_2d792cf5")}</option>
             {mailAccounts.map((account) => (
               <option key={account.id} value={account.id}>
                 {(account.display_name ? `${account.display_name} — ` : "") + account.email_address + ` (${account.provider})`}
@@ -69,7 +71,7 @@ export default function MailboxToolbar(props: Props) {
             onClick={() => setSearchOpen((value) => !value)}
             type="button"
             title={searchOpen ? "Fermer la recherche" : "Rechercher (Ctrl/Cmd+K)"}
-            aria-label="Rechercher"
+            aria-label={i18nT("rechercher_91f7d3e9")}
           >
             <span className={styles.toolbarIconGlyph}>⌕</span>
             {!searchOpen && historyQuery.trim() ? <span className={styles.activeDot} /> : null}
@@ -78,8 +80,8 @@ export default function MailboxToolbar(props: Props) {
             className={`${styles.toolbarBtn} ${styles.toolbarIconBtn} ${styles.mobileOnlyBtn}`}
             onClick={() => { void loadHistory(); }}
             type="button"
-            title="Actualiser"
-            aria-label="Actualiser"
+            title={i18nT("actualiser_9d3b2a7d")}
+            aria-label={i18nT("actualiser_9d3b2a7d")}
           >
             ↻
           </button>
@@ -119,7 +121,7 @@ export default function MailboxToolbar(props: Props) {
             type="button"
             title={draftCount > 0 ? `${draftCount} brouillon${draftCount > 1 ? "s" : ""}` : "Brouillons"}
           >
-            <span className={styles.draftsToggleLabel}>Brouillons</span>
+            <span className={styles.draftsToggleLabel}>{i18nT("brouillons_a55f3cd9")}</span>
             {draftCount > 0 ? <span className={styles.badgeCount}>{draftCount}</span> : null}
           </button>
         ) : null}
@@ -131,7 +133,7 @@ export default function MailboxToolbar(props: Props) {
           onClick={() => setSearchOpen((value) => !value)}
           type="button"
           title={searchOpen ? "Fermer la recherche" : "Rechercher (Ctrl/Cmd+K)"}
-          aria-label="Rechercher"
+          aria-label={i18nT("rechercher_91f7d3e9")}
         >
           <span className={styles.toolbarIconGlyph}>⌕</span>
           {!searchOpen && historyQuery.trim() ? <span className={styles.activeDot} /> : null}
@@ -141,8 +143,8 @@ export default function MailboxToolbar(props: Props) {
           className={`${styles.toolbarBtn} ${styles.toolbarIconBtn} ${styles.desktopToolbarIconBtn}`}
           onClick={() => { void loadHistory(); }}
           type="button"
-          title="Actualiser"
-          aria-label="Actualiser"
+          title={i18nT("actualiser_9d3b2a7d")}
+          aria-label={i18nT("actualiser_9d3b2a7d")}
         >
           ↻
         </button>

@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 import styles from "./CampaignScheduleModal.module.css";
 import { useUnsavedExitGuard } from "../_hooks/useUnsavedExitGuard";
@@ -112,6 +113,7 @@ export default function CampaignScheduleModal({
   onConfirm,
   onSuccess,
 }: CampaignScheduleModalProps) {
+  const i18nT = useTranslations("booster");
   const [date, setDate] = useState(() => defaultDateTime().date);
   const [time, setTime] = useState(() => defaultDateTime().time);
   const [localError, setLocalError] = useState("");
@@ -137,11 +139,11 @@ export default function CampaignScheduleModal({
     active: open,
     shouldBlock: hasUnsavedChanges,
     onConfirmExit: onClose,
-    eyebrow: "Programmation",
-    title: "Quitter sans enregistrer ?",
-    message: "Cet horaire contient des modifications non enregistrées. Si vous fermez maintenant, elles seront perdues.",
-    confirmLabel: "Fermer sans enregistrer",
-    cancelLabel: "Continuer l’édition",
+    eyebrow: i18nT("programmation_6255df3b"),
+    title: i18nT("quitter_sans_enregistrer_6208bd94"),
+    message: i18nT("cet_horaire_contient_des_modifications_non_1500fafb"),
+    confirmLabel: i18nT("fermer_sans_enregistrer_15fdc373"),
+    cancelLabel: i18nT("continuer_l_edition_0f0075bb"),
     variant: "warning",
   });
 
@@ -153,11 +155,11 @@ export default function CampaignScheduleModal({
     if (busy || doneMessage) return;
     const scheduledAt = localInputsToIso(date, time);
     if (!scheduledAt) {
-      setLocalError("Choisissez une date et une heure valides.");
+      setLocalError(i18nT("choisissez_une_date_et_une_heure_6da66356"));
       return;
     }
     if (new Date(scheduledAt).getTime() <= Date.now() + 30_000) {
-      setLocalError("Choisissez un horaire dans le futur.");
+      setLocalError(i18nT("choisissez_un_horaire_dans_le_futur_2393d0e3"));
       return;
     }
     setLocalError("");
@@ -204,7 +206,7 @@ export default function CampaignScheduleModal({
             type="button"
             onClick={() => void confirmExit()}
             disabled={busy}
-            aria-label="Fermer"
+            aria-label={i18nT("fermer_5ab4ec64")}
           >
             ×
           </button>
@@ -212,7 +214,7 @@ export default function CampaignScheduleModal({
 
         <div className={styles.fields}>
           <label className={styles.field}>
-            <span>Date</span>
+            <span>{i18nT("date_eb9a4bc1")}</span>
             <div
               className={styles.nativeField}
               data-disabled={busy ? "true" : "false"}
@@ -234,14 +236,14 @@ export default function CampaignScheduleModal({
                   openNativeDateTimePicker(dateInputRef.current);
                 }}
                 disabled={busy}
-                aria-label="Ouvrir le calendrier"
+                aria-label={i18nT("ouvrir_le_calendrier_68d7da0b")}
               >
                 <CalendarMiniIcon />
               </button>
             </div>
           </label>
           <label className={styles.field}>
-            <span>Heure</span>
+            <span>{i18nT("heure_5073129f")}</span>
             <div
               className={styles.nativeField}
               data-disabled={busy ? "true" : "false"}
@@ -263,7 +265,7 @@ export default function CampaignScheduleModal({
                   openNativeDateTimePicker(timeInputRef.current);
                 }}
                 disabled={busy}
-                aria-label="Ouvrir le choix de l’heure"
+                aria-label={i18nT("ouvrir_le_choix_de_l_heure_47f474ac")}
               >
                 <ClockMiniIcon />
               </button>
@@ -283,7 +285,7 @@ export default function CampaignScheduleModal({
             <strong>
               {recipientCount} destinataire{recipientCount > 1 ? "s" : ""}
             </strong>
-            <span>Objet : {subject.trim() || "(sans objet)"}</span>
+            <span>{i18nT("objet_89673541")}{" "}{subject.trim() || i18nT("sans_objet_e5ad6a39")}</span>
           </div>
         ) : null}
 
@@ -294,8 +296,7 @@ export default function CampaignScheduleModal({
             onClick={() => void confirmExit()}
             disabled={busy}
           >
-            Annuler
-          </button>
+            {i18nT("annuler_49ba3292")}{" "}</button>
           <button
             className={styles.primaryBtn}
             type="button"

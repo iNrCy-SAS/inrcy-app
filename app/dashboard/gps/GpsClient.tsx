@@ -1,12 +1,31 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import styles from "./gps.module.css";
 import ResponsiveActionButton from "../_components/ResponsiveActionButton";
 import { useDashboardEdition } from "../_components/DashboardEditionProvider";
-import type { GpsArticle } from "./noticeContent";
+import type { GpsArticle, GpsArticleSource, GpsMessageKey } from "./noticeContent";
 import { getGpsSectionsForEdition, isGpsSectionPremiumOnly } from "./gpsEditionPolicy";
+
+type GpsTranslator = (key: GpsMessageKey) => string;
+
+function localizeGpsArticle(article: GpsArticleSource, translate: GpsTranslator): GpsArticle {
+  return {
+    ...article,
+    title: translate(article.title),
+    keywords: article.keywords.map(translate),
+    intro: translate(article.intro),
+    steps: article.steps.map(translate),
+    checks: article.checks?.map(translate),
+    pitfalls: article.pitfalls?.map(translate),
+    faq: article.faq?.map((item) => ({ q: translate(item.q), a: translate(item.a) })),
+    links: article.links?.map((link) => ({ ...link, label: translate(link.label) })),
+    duration: article.duration ? translate(article.duration) : article.duration,
+    goal: article.goal ? translate(article.goal) : article.goal,
+  };
+}
 
 function normalizeText(input: string) {
   return input
@@ -51,9 +70,19 @@ type SearchHit = {
 };
 
 export default function GpsClient() {
+  const i18nT = useTranslations("gps");
+  const translateKey = useCallback<GpsTranslator>((key) => i18nT(key as never), [i18nT]);
   const dashboardEdition = useDashboardEdition();
   const standardMode = dashboardEdition === "standard";
-  const gpsSections = useMemo(() => getGpsSectionsForEdition(dashboardEdition), [dashboardEdition]);
+  const gpsSections = useMemo(
+    () => getGpsSectionsForEdition(dashboardEdition).map((section) => ({
+      ...section,
+      title: translateKey(section.title),
+      description: translateKey(section.description),
+      articles: section.articles.map((article) => localizeGpsArticle(article, translateKey)),
+    })),
+    [dashboardEdition, translateKey],
+  );
   const [query, setQuery] = useState("");
   const [activeSection, setActiveSection] = useState<string>(gpsSections[0]?.id ?? "");
   const [activeArticleId, setActiveArticleId] = useState<string>(gpsSections[0]?.articles[0]?.id ?? "");
@@ -167,28 +196,27 @@ export default function GpsClient() {
             🧭
           </div>
           <div className={styles.brandText}>
-            <h1 className={styles.title}>GPS d’utilisation</h1>
-            <p className={styles.subtitle}>Le guide express pour utiliser iNrCy simplement.</p>
+            <h1 className={styles.title}>{i18nT("gps_d_utilisation_5f30c155")}</h1>
+            <p className={styles.subtitle}>{i18nT("le_guide_express_pour_utiliser_inrcy_1eb58463")}</p>
           </div>
         </div>
 
         <div className={styles.headerActions}>
           <div className={styles.searchWrap} ref={searchWrapRef}>
             <label className={styles.searchLabel} htmlFor="gps-search">
-              Rechercher dans le GPS
-            </label>
+              {i18nT("rechercher_dans_le_gps_f9b7d9e4")}{" "}</label>
             <span className={styles.searchIcon}>🔎</span>
             <input
               id="gps-search"
               className={styles.search}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Rechercher..."
+              placeholder={i18nT("rechercher_8bd64daa")}
               autoComplete="off"
             />
 
             {hits.length > 0 && (
-              <div className={styles.searchResults} role="listbox" aria-label="Résultats de recherche">
+              <div className={styles.searchResults} role="listbox" aria-label={i18nT("resultats_de_recherche_f9fa293c")}>
                 {hits.map((hit) => (
                   <button
                     key={`${hit.sectionId}:${hit.article.id}`}
@@ -198,7 +226,7 @@ export default function GpsClient() {
                   >
                     <span className={styles.searchResultTitle}>
                       {hit.sectionEmoji} {hit.sectionTitle}
-                      {hit.premiumOnly ? <span className={styles.premiumBadge}>Premium</span> : null}
+                      {hit.premiumOnly ? <span className={styles.premiumBadge}>{i18nT("premium_6c2f2888")}</span> : null}
                     </span>
                     <span className={styles.searchResultMeta}>{hit.article.title}</span>
                   </button>
@@ -207,20 +235,20 @@ export default function GpsClient() {
             )}
 
             {query && hits.length === 0 && (
-              <div className={styles.searchResults} role="status" aria-label="Aucun résultat">
-                <div className={styles.noResult}>Aucun résultat. Essayez “Google”, “devis”, “mail” ou “stats”.</div>
+              <div className={styles.searchResults} role="status" aria-label={i18nT("aucun_resultat_9e524fe1")}>
+                <div className={styles.noResult}>{i18nT("aucun_resultat_essayez_google_devis_mail_cb2eb93e")}</div>
               </div>
             )}
           </div>
 
-          <ResponsiveActionButton desktopLabel="Fermer" mobileIcon="✕" href="/dashboard" />
+          <ResponsiveActionButton desktopLabel={i18nT("fermer_5ab4ec64")} mobileIcon="✕" href="/dashboard" />
         </div>
       </header>
 
       <main className={styles.main}>
         {selectedSection && (
           <div className={styles.mobileSectionPicker} ref={sectionPickerRef}>
-            <div className={styles.mobilePickerLabel}>Rubrique active</div>
+            <div className={styles.mobilePickerLabel}>{i18nT("rubrique_active_291ff341")}</div>
             <button
               type="button"
               className={styles.mobilePickerButton}
@@ -232,12 +260,12 @@ export default function GpsClient() {
                 <span aria-hidden="true">{selectedSection.emoji}</span>
                 <span>{selectedSection.title}</span>
               </span>
-              {selectedSectionPremium ? <span className={styles.premiumBadge}>Premium</span> : null}
+              {selectedSectionPremium ? <span className={styles.premiumBadge}>{i18nT("premium_6c2f2888")}</span> : null}
               <span className={styles.mobilePickerArrow} aria-hidden="true">▾</span>
             </button>
 
             {sectionMenuOpen && (
-              <div className={styles.mobilePickerMenu} role="menu" aria-label="Choisir une rubrique GPS">
+              <div className={styles.mobilePickerMenu} role="menu" aria-label={i18nT("choisir_une_rubrique_gps_c8357f33")}>
                 {gpsSections.map((section) => {
                   const isActive = selectedSection.id === section.id;
                   const premiumOnly = standardMode && isGpsSectionPremiumOnly(section.id);
@@ -251,7 +279,7 @@ export default function GpsClient() {
                     >
                       <span aria-hidden="true">{section.emoji}</span>
                       <span>{section.title}</span>
-                      {premiumOnly ? <span className={styles.premiumBadge}>Premium</span> : null}
+                      {premiumOnly ? <span className={styles.premiumBadge}>{i18nT("premium_6c2f2888")}</span> : null}
                     </button>
                   );
                 })}
@@ -263,13 +291,13 @@ export default function GpsClient() {
         <aside className={styles.sidebar}>
           <div className={styles.sidebarHeader}>
             <div>
-              <div className={styles.sidebarTitle}>Rubriques</div>
-              <div className={styles.sidebarHint}>Une seule ouverte à droite</div>
+              <div className={styles.sidebarTitle}>{i18nT("rubriques_a5155d21")}</div>
+              <div className={styles.sidebarHint}>{i18nT("une_seule_ouverte_a_droite_4a2620e9")}</div>
             </div>
             <span className={styles.sidebarBadge}>{gpsSections.length}</span>
           </div>
 
-          <nav className={styles.nav} aria-label="Navigation GPS">
+          <nav className={styles.nav} aria-label={i18nT("navigation_gps_2ebb5c69")}>
             {gpsSections.map((section) => {
               const isActive = selectedSection?.id === section.id;
               const premiumOnly = standardMode && isGpsSectionPremiumOnly(section.id);
@@ -283,7 +311,7 @@ export default function GpsClient() {
                 >
                   <span className={styles.navEmoji}>{section.emoji}</span>
                   <span className={styles.navLabel}>{section.title}</span>
-                  {premiumOnly ? <span className={styles.premiumBadge}>Premium</span> : null}
+                  {premiumOnly ? <span className={styles.premiumBadge}>{i18nT("premium_6c2f2888")}</span> : null}
                 </button>
               );
             })}
@@ -299,7 +327,7 @@ export default function GpsClient() {
                     {selectedSection.emoji}
                   </div>
                   <div className={styles.panelTitleWrap}>
-                    <span className={styles.panelKicker}>Rubrique active</span>
+                    <span className={styles.panelKicker}>{i18nT("rubrique_active_291ff341")}</span>
                     <h2 className={styles.panelTitle}>{selectedSection.title}</h2>
                     <p className={styles.panelDesc}>{selectedSection.description}</p>
                   </div>
@@ -308,13 +336,13 @@ export default function GpsClient() {
 
                 {selectedSectionPremium ? (
                   <div className={styles.premiumNotice} role="note">
-                    <span className={styles.premiumBadge}>Premium</span>
-                    <span>Cette rubrique présente un outil disponible avec le forfait Premium.</span>
+                    <span className={styles.premiumBadge}>{i18nT("premium_6c2f2888")}</span>
+                    <span>{i18nT("cette_rubrique_presente_un_outil_disponible_ff4b0e16")}</span>
                   </div>
                 ) : null}
 
                 {selectedSection.articles.length > 1 && (
-                  <div className={styles.articleTabs} role="tablist" aria-label={`Guides ${selectedSection.title}`}>
+                  <div className={styles.articleTabs} role="tablist" aria-label={i18nT("guides_value_4d60cd25", { value0: selectedSection.title })}>
                     {selectedSection.articles.map((article) => {
                       const isActive = article.id === selectedArticle.id;
                       return (
@@ -338,16 +366,14 @@ export default function GpsClient() {
                 <article className={styles.infoCard}>
                   <h3 className={styles.cardTitle}>
                     <span className={`${styles.titleDot} ${styles.titleDotPurpose}`} aria-hidden="true" />
-                    À quoi ça sert ?
-                  </h3>
+                    {i18nT("a_quoi_ca_sert_d75da076")}{" "}</h3>
                   <p>{selectedArticle.intro}</p>
                 </article>
 
                 <article className={styles.infoCard}>
                   <h3 className={styles.cardTitle}>
                     <span className={`${styles.titleDot} ${styles.titleDotHow}`} aria-hidden="true" />
-                    Comment l’utiliser ?
-                  </h3>
+                    {i18nT("comment_l_utiliser_cadca3b9")}{" "}</h3>
                   <ol className={styles.steps}>
                     {selectedArticle.steps.slice(0, 4).map((step, idx) => (
                       <li key={idx}>{renderStrongParts(step)}</li>
@@ -358,8 +384,7 @@ export default function GpsClient() {
                 <article className={`${styles.infoCard} ${styles.checkCard}`}>
                   <h3 className={styles.cardTitle}>
                     <span className={`${styles.titleDot} ${styles.titleDotCheck}`} aria-hidden="true" />
-                    À vérifier
-                  </h3>
+                    {i18nT("a_verifier_8f5f7255")}{" "}</h3>
                   <ul className={styles.list}>
                     {(selectedArticle.checks?.length ? selectedArticle.checks : selectedArticle.pitfalls ?? [])
                       .slice(0, 4)
@@ -372,8 +397,7 @@ export default function GpsClient() {
                 <article className={`${styles.infoCard} ${styles.focusCard}`}>
                   <h3 className={styles.cardTitle}>
                     <span className={`${styles.titleDot} ${styles.titleDotReflex}`} aria-hidden="true" />
-                    Le bon réflexe
-                  </h3>
+                    {i18nT("le_bon_reflexe_c5102b05")}{" "}</h3>
                   <ul className={styles.list}>
                     {focusItems.map((item, idx) => (
                       <li key={idx}>{renderStrongParts(item)}</li>
@@ -389,7 +413,7 @@ export default function GpsClient() {
                     className={`${styles.primaryLink} ${styles.premiumLink}`}
                     onClick={() => rememberPanelLink("/dashboard?panel=contact&panelSource=gps")}
                   >
-                    Nous contacter pour Premium <span aria-hidden="true">→</span>
+                    {i18nT("nous_contacter_pour_premium_149750a6")}{" "}<span aria-hidden="true">→</span>
                   </Link>
                 </div>
               ) : selectedArticle.links && selectedArticle.links.length > 0 ? (

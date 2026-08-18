@@ -6,6 +6,11 @@ import { ensureNotificationPreferences } from "@/lib/notifications";
 import { ensureProfileRow } from "@/lib/ensureProfileRow";
 import { getClientIp, enforceRateLimit } from "@/lib/rateLimit";
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
+import {
+  DEFAULT_APP_LOCALE,
+  appLanguageFromLocale,
+  tryNormalizeAppLocale,
+} from "@/i18n/config";
 
 export const runtime = "nodejs";
 
@@ -17,6 +22,7 @@ type Body = {
   type?: string;
   email?: string | null;
   password?: string;
+  language?: string;
 };
 
 function normalizeEmail(value: unknown) {
@@ -87,23 +93,32 @@ export async function POST(req: Request) {
     const password = String(body?.password || "");
 
     if (!mode) {
-      return NextResponse.json({ error: "Type de lien invalide." }, { status: 400 });
+      return NextResponse.json({ code: "invalid_action", error: "Type de lien invalide." }, { status: 400 });
     }
 
     const expectedType = getExpectedType(mode);
     const requestedType = normalizeText(body?.type) || expectedType;
 
     if (!isAllowedType(requestedType, expectedType)) {
-      return NextResponse.json({ error: "Ce lien ne correspond pas à cette action." }, { status: 400 });
+      return NextResponse.json(
+        { code: "invalid_action", error: "Ce lien ne correspond pas à cette action." },
+        { status: 400 },
+      );
     }
 
     if (!tokenHash || !isPlausibleTokenHash(tokenHash)) {
-      return NextResponse.json({ error: "Lien incomplet. Merci de demander un nouveau lien." }, { status: 400 });
+      return NextResponse.json(
+        { code: "link_incomplete", error: "Lien incomplet. Merci de demander un nouveau lien." },
+        { status: 400 },
+      );
     }
 
     if (!validatePassword(password)) {
       return NextResponse.json(
-        { error: "Mot de passe trop faible : 8+ caractères, lettre, chiffre, majuscule et symbole requis." },
+        {
+          code: "password_too_weak",
+          error: "Mot de passe trop faible : 8+ caractères, lettre, chiffre, majuscule et symbole requis.",
+        },
         { status: 400 },
       );
     }
@@ -141,6 +156,7 @@ export async function POST(req: Request) {
     if (!authUser || !userId) {
       return NextResponse.json(
         {
+          code: "session_failed",
           error:
             mode === "invite"
               ? "La session d’activation n’a pas pu être créée. Merci de demander un nouveau lien."
@@ -151,7 +167,10 @@ export async function POST(req: Request) {
     }
 
     if (expectedEmail && verifiedEmail && verifiedEmail !== expectedEmail) {
-      return NextResponse.json({ error: "Ce lien ne correspond pas au compte attendu." }, { status: 400 });
+      return NextResponse.json(
+        { code: "account_mismatch", error: "Ce lien ne correspond pas au compte attendu." },
+        { status: 400 },
+      );
     }
 
     if (session?.access_token && session.refresh_token) {
@@ -171,6 +190,7 @@ export async function POST(req: Request) {
       if (adminUpdateError) {
         return NextResponse.json(
           {
+            code: "password_save_failed",
             error: getSimpleFrenchErrorMessage(
               adminUpdateError || sessionUpdateError,
               "Impossible d’enregistrer ce mot de passe pour le moment.",
@@ -187,6 +207,40 @@ export async function POST(req: Request) {
     await ensureProfileRow(authUser).catch(() => null);
     await ensureNotificationPreferences(userId).catch(() => null);
 
+    const authMetadata = authUser.user_metadata && typeof authUser.user_metadata === "object"
+      ? (authUser.user_metadata as Record<string, unknown>)
+      : {};
+    const selectedLocale =
+      tryNormalizeAppLocale(body?.language) ||
+      tryNormalizeAppLocale(authMetadata.app_locale) ||
+      tryNormalizeAppLocale(authMetadata.app_language) ||
+      DEFAULT_APP_LOCALE;
+    const selectedLanguage = appLanguageFromLocale(selectedLocale);
+    const updatedAt = new Date().toISOString();
+
+    // La langue choisie sur le lien d'activation devient la préférence unique
+    // du compte. Les deux écritures sont volontaires : Auth sert aux liens
+    // publics, business_profiles au dashboard authentifié.
+    await Promise.allSettled([
+      supabaseAdmin.auth.admin.updateUserById(userId, {
+        user_metadata: {
+          ...authMetadata,
+          app_language: selectedLanguage,
+          app_locale: selectedLocale,
+        },
+      }),
+      supabaseAdmin
+        .from("business_profiles")
+        .upsert(
+          {
+            user_id: userId,
+            app_language: selectedLanguage,
+            updated_at: updatedAt,
+          },
+          { onConflict: "user_id" },
+        ),
+    ]);
+
     return NextResponse.json({
       ok: true,
       user_id: userId,
@@ -200,7 +254,10 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     return NextResponse.json(
-      { error: getSimpleFrenchErrorMessage(error, "Impossible de finaliser le mot de passe pour le moment.") },
+      {
+        code: "finish_failed",
+        error: getSimpleFrenchErrorMessage(error, "Impossible de finaliser le mot de passe pour le moment."),
+      },
       { status: 500 },
     );
   }

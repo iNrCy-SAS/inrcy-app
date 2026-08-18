@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import styles from "./badge.module.css";
@@ -32,6 +35,7 @@ function detectPlatform() {
 }
 
 export default function BadgeShareButton({ publicUrl, company, language }: Props) {
+  const i18nT = useTranslations("public");
   const badgeText = getInrBadgeTexts(normalizeInrBadgeLanguage(language));
   const [open, setOpen] = useState(false);
   const [installPromptEvent, setInstallPromptEvent] = useState<BeforeInstallPromptEvent | null>(null);
@@ -61,7 +65,7 @@ export default function BadgeShareButton({ publicUrl, company, language }: Props
   async function handleNativeShare() {
     try {
       if (navigator.share) {
-        await navigator.share({ title: company || "iNr'Badge", text: `${badgeText.shareTextPrefix} ${company || "iNr'Badge"} · iNr'Badge`, url: publicUrl });
+        await navigator.share({ title: company || "iNr'Badge", text: i18nT("value_value_inr_badge_3b39f90f", { value0: badgeText.shareTextPrefix, value1: company || "iNr'Badge" }), url: publicUrl });
       } else {
         await navigator.clipboard.writeText(publicUrl);
         setHelperText(badgeText.linkCopied);

@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import { resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { invalidateBoosterGenerationContextClient } from "@/lib/boosterGenerationContextClient";
@@ -55,6 +58,7 @@ export default function ProfilContent({
   onCloseDrawer,
   onUnsavedChange,
 }: Props) {
+  const i18nT = useTranslations("settings");
   const initial = useMemo<ProfileForm>(
     () => ({
       contactEmail: "",
@@ -240,7 +244,7 @@ export default function ProfilContent({
     setGlobalError("");
     setSaved(false);
     if (!validate()) {
-      setGlobalError("Certaines informations sont invalides. Vérifiez les champs signalés.");
+      setGlobalError(i18nT("certaines_informations_sont_invalides_verifiez_l_4906f2b7"));
       return;
     }
 
@@ -300,7 +304,7 @@ export default function ProfilContent({
               actionKey: "profile_complete",
               amount: 100,
               sourceId: "once",
-              label: "Profil complété",
+              label: i18nT("profil_complete_daaeced5"),
               meta: { origin: "profile" },
             }),
           });
@@ -337,9 +341,9 @@ export default function ProfilContent({
 
   const handleReset = async () => {
     const confirmed = await confirmInrcy({
-      title: "Réinitialiser le profil ?",
-      message: "Les informations visibles dans ce formulaire seront effacées.",
-      confirmLabel: "Réinitialiser",
+      title: i18nT("reinitialiser_le_profil_ac580741"),
+      message: i18nT("les_informations_visibles_dans_ce_formulaire_ac3155d0"),
+      confirmLabel: i18nT("reinitialiser_e0e2ad54"),
       variant: "danger",
     });
     if (!confirmed) return;
@@ -374,34 +378,33 @@ export default function ProfilContent({
         <section style={onboardingHeroStyle}>
           <span style={onboardingIconStyle}>👋</span>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 19, fontWeight: 950 }}>Faisons connaissance</div>
+            <div style={{ fontSize: 19, fontWeight: 950 }}>{i18nT("faisons_connaissance_06564687")}</div>
             <div style={{ marginTop: 4, color: "rgba(255,255,255,0.72)", lineHeight: 1.4 }}>
-              Quelques informations essentielles suffisent pour personnaliser iNrCy.
-            </div>
+              {i18nT("quelques_informations_essentielles_suffisent_pou_424524c0")}{" "}</div>
           </div>
         </section>
       ) : (
         <section style={introStyle}>
-          <strong>Votre identité professionnelle</strong>
-          <span>Ces informations alimentent votre signature et vos pages publiques.</span>
+          <strong>{i18nT("votre_identite_professionnelle_60502e51")}</strong>
+          <span>{i18nT("ces_informations_alimentent_votre_signature_et_cc93cb1e")}</span>
         </section>
       )}
 
       <section style={cardStyle}>
         {loading ? (
-          <div style={{ color: "rgba(255,255,255,0.68)" }}>Chargement…</div>
+          <div style={{ color: "rgba(255,255,255,0.68)" }}>{i18nT("chargement_01cba1df")}</div>
         ) : (
           <div style={{ display: "grid", gap: 13 }}>
             <div style={sectionTitleStyle}>
               <span style={sectionBubbleStyle}>1</span>
               <div>
-                <div style={{ fontWeight: 950 }}>Vous contacter</div>
-                <div style={hintStyle}>Utilisé dans les signatures et les échanges clients.</div>
+                <div style={{ fontWeight: 950 }}>{i18nT("vous_contacter_514d4b54")}</div>
+                <div style={hintStyle}>{i18nT("utilise_dans_les_signatures_et_les_51bb6225")}</div>
               </div>
             </div>
 
             <label style={labelStyle}>
-              <span style={labelTextStyle}>Email professionnel *</span>
+              <span style={labelTextStyle}>{i18nT("email_professionnel_26f8e47c")}</span>
               <input
                 type="email"
                 autoComplete="email"
@@ -415,23 +418,23 @@ export default function ProfilContent({
 
             <div data-profile-grid="two" style={gridTwoStyle}>
               <label style={labelStyle}>
-                <span style={labelTextStyle}>Prénom *</span>
+                <span style={labelTextStyle}>{i18nT("prenom_72fe3505")}</span>
                 <input
                   autoComplete="given-name"
                   value={form.firstName}
                   onChange={(event) => update("firstName", event.target.value)}
-                  placeholder="Paul"
+                  placeholder={i18nT("paul_c3687ab9")}
                   style={fieldStyle("firstName")}
                 />
                 {errors.firstName ? <span style={errorStyle}>{errors.firstName}</span> : null}
               </label>
               <label style={labelStyle}>
-                <span style={labelTextStyle}>Nom *</span>
+                <span style={labelTextStyle}>{i18nT("nom_463a6959")}</span>
                 <input
                   autoComplete="family-name"
                   value={form.lastName}
                   onChange={(event) => update("lastName", event.target.value)}
-                  placeholder="Martin"
+                  placeholder={i18nT("martin_7347fd3b")}
                   style={fieldStyle("lastName")}
                 />
                 {errors.lastName ? <span style={errorStyle}>{errors.lastName}</span> : null}
@@ -439,7 +442,7 @@ export default function ProfilContent({
             </div>
 
             <label style={labelStyle}>
-              <span style={labelTextStyle}>Téléphone *</span>
+              <span style={labelTextStyle}>{i18nT("telephone_f846c67a")}</span>
               <input
                 type="tel"
                 autoComplete="tel"
@@ -461,18 +464,18 @@ export default function ProfilContent({
             <div style={sectionTitleStyle}>
               <span style={sectionBubbleStyle}>2</span>
               <div>
-                <div style={{ fontWeight: 950 }}>Votre entreprise</div>
-                <div style={hintStyle}>Le nom affiché et votre implantation principale.</div>
+                <div style={{ fontWeight: 950 }}>{i18nT("votre_entreprise_c001322f")}</div>
+                <div style={hintStyle}>{i18nT("le_nom_affiche_et_votre_implantation_d0cbc5ff")}</div>
               </div>
             </div>
 
             <label style={labelStyle}>
-              <span style={labelTextStyle}>Nom de l’entreprise *</span>
+              <span style={labelTextStyle}>{i18nT("nom_de_l_entreprise_299b652c")}</span>
               <input
                 autoComplete="organization"
                 value={form.companyName}
                 onChange={(event) => update("companyName", event.target.value)}
-                placeholder="Votre entreprise"
+                placeholder={i18nT("votre_entreprise_c001322f")}
                 style={fieldStyle("companyName")}
               />
               {errors.companyName ? <span style={errorStyle}>{errors.companyName}</span> : null}
@@ -480,7 +483,7 @@ export default function ProfilContent({
 
             <div data-profile-grid="location" style={locationGridStyle}>
               <label style={labelStyle}>
-                <span style={labelTextStyle}>Code postal *</span>
+                <span style={labelTextStyle}>{i18nT("code_postal_71f695db")}</span>
                 <input
                   inputMode="text"
                   autoComplete="postal-code"
@@ -492,12 +495,12 @@ export default function ProfilContent({
                 {errors.hqZip ? <span style={errorStyle}>{errors.hqZip}</span> : null}
               </label>
               <label style={labelStyle}>
-                <span style={labelTextStyle}>Ville *</span>
+                <span style={labelTextStyle}>{i18nT("ville_e23c3241")}</span>
                 <input
                   autoComplete="address-level2"
                   value={form.hqCity}
                   onChange={(event) => update("hqCity", event.target.value)}
-                  placeholder="Arras"
+                  placeholder={i18nT("arras_14599ac1")}
                   style={fieldStyle("hqCity")}
                 />
                 {errors.hqCity ? <span style={errorStyle}>{errors.hqCity}</span> : null}
@@ -505,7 +508,7 @@ export default function ProfilContent({
             </div>
 
             <div style={{ display: "grid", gap: 8 }}>
-              <span style={labelTextStyle}>Logo de l’entreprise <em style={optionalStyle}>optionnel</em></span>
+              <span style={labelTextStyle}>{i18nT("logo_de_l_entreprise_a1d7bdb9")}{" "}<em style={optionalStyle}>optionnel</em></span>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -532,19 +535,19 @@ export default function ProfilContent({
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   style={logoPreviewStyle}
-                  aria-label="Choisir le logo de l’entreprise"
+                  aria-label={i18nT("choisir_le_logo_de_l_entreprise_77e2284b")}
                 >
                   {form.logoPreview ? (
-                    <img src={form.logoPreview} alt="Logo" style={logoImageStyle} />
+                    <img src={form.logoPreview} alt={i18nT("logo_83fce832")} style={logoImageStyle} />
                   ) : (
                     <span style={{ fontSize: 22 }}>🏢</span>
                   )}
                 </button>
                 <div style={{ display: "grid", gap: 7, minWidth: 0 }}>
                   <button type="button" onClick={() => fileInputRef.current?.click()} style={secondaryButtonStyle}>
-                    {form.logoPreview ? "Remplacer le logo" : "Ajouter un logo"}
+                    {form.logoPreview ? i18nT("remplacer_le_logo_603cabb5") : i18nT("ajouter_un_logo_5b311e6a")}
                   </button>
-                  <span style={hintStyle}>PNG, JPG/JPEG, WebP ou SVG · 20 Mo maximum</span>
+                  <span style={hintStyle}>{i18nT("png_jpg_jpeg_webp_ou_svg_410fa833")}</span>
                   {form.logoPreview ? (
                     <button
                       type="button"
@@ -557,8 +560,7 @@ export default function ProfilContent({
                       }}
                       style={removeButtonStyle}
                     >
-                      Supprimer
-                    </button>
+                      {i18nT("supprimer_1acfc1c7")}{" "}</button>
                   ) : null}
                 </div>
               </div>
@@ -569,13 +571,12 @@ export default function ProfilContent({
       ) : null}
 
       {globalError ? <div style={errorBannerStyle}>{globalError}</div> : null}
-      {saved ? <div style={successBannerStyle}>✓ Profil enregistré</div> : null}
+      {saved ? <div style={successBannerStyle}>{i18nT("profil_enregistre_d21b6a7e")}</div> : null}
 
       {!loading ? (
         <div data-profile-actions style={actionsStyle}>
           <button type="button" onClick={handleReset} disabled={saving} style={resetButtonStyle}>
-            Réinitialiser
-          </button>
+            {i18nT("reinitialiser_e0e2ad54")}{" "}</button>
           <button
             type="button"
             onClick={() => void handleSave()}
@@ -584,10 +585,10 @@ export default function ProfilContent({
             style={{ ...primaryButtonStyle, opacity: saving ? 0.7 : 1 }}
           >
             {saving
-              ? "Enregistrement…"
+              ? i18nT("enregistrement_e7d5f232")
               : onboarding
-                ? "Enregistrer et continuer →"
-                : "Enregistrer"}
+                ? i18nT("enregistrer_et_continuer_c75a7f90")
+                : i18nT("enregistrer_f7c8bcd8")}
           </button>
         </div>
       ) : null}

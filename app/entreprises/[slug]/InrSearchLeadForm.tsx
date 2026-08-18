@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import { FormEvent, useState } from "react";
 import Link from "next/link";
 import styles from "./InrSearchLeadForm.module.css";
@@ -64,6 +67,7 @@ function detectSource() {
 }
 
 export default function InrSearchLeadForm({ slug, companyName, modal = false }: Props) {
+  const i18nT = useTranslations("public");
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
   const [sent, setSent] = useState(false);
@@ -79,15 +83,15 @@ export default function InrSearchLeadForm({ slug, companyName, modal = false }: 
     setError("");
 
     if (!form.displayName.trim() && !form.companyName.trim()) {
-      setError("Indiquez votre nom ou le nom de votre entreprise.");
+      setError(i18nT("indiquez_votre_nom_ou_le_nom_51f6ba57"));
       return;
     }
     if (!form.email.trim() && !form.phone.trim()) {
-      setError("Indiquez un email ou un téléphone pour être recontacté.");
+      setError(i18nT("indiquez_un_email_ou_un_telephone_5f648834"));
       return;
     }
     if (!form.consent) {
-      setError("Votre accord est nécessaire pour transmettre la demande.");
+      setError(i18nT("votre_accord_est_necessaire_pour_transmettre_d176e20f"));
       return;
     }
 
@@ -120,13 +124,13 @@ export default function InrSearchLeadForm({ slug, companyName, modal = false }: 
   return (
     <section className={`${styles.section} ${modal ? styles.modalSection : ""}`} id="demande" aria-labelledby="demande-title">
       <div className={styles.intro}>
-        <span className={styles.kicker}>Contact direct</span>
-        <h2 id="demande-title">Présentez votre besoin à {companyName}</h2>
-        <p>Décrivez votre projet en quelques lignes. Vos coordonnées seront transmises directement à l’entreprise afin qu’elle puisse vous recontacter.</p>
+        <span className={styles.kicker}>{i18nT("contact_direct_bdb8702a")}</span>
+        <h2 id="demande-title">{i18nT("presentez_votre_besoin_a_value_a83fd5b4", { value0: companyName })}</h2>
+        <p>{i18nT("decrivez_votre_projet_en_quelques_lignes_86091575")}</p>
         <div className={styles.signals}>
-          <span><i>✓</i> Demande transmise immédiatement</span>
-          <span><i>✓</i> Aucun compte à créer</span>
-          <span><i>✓</i> Coordonnées envoyées uniquement à cette entreprise</span>
+          <span><i>✓</i> {" "}{i18nT("demande_transmise_immediatement_a6426e83")}</span>
+          <span><i>✓</i> {" "}{i18nT("aucun_compte_a_creer_aa91e48a")}</span>
+          <span><i>✓</i> {" "}{i18nT("coordonnees_envoyees_uniquement_a_cette_entrepri_e62d5fee")}</span>
         </div>
       </div>
 
@@ -134,9 +138,9 @@ export default function InrSearchLeadForm({ slug, companyName, modal = false }: 
         {sent ? (
           <div className={styles.success} role="status" aria-live="polite">
             <span aria-hidden="true">✓</span>
-            <h3>Votre demande est bien partie.</h3>
-            <p>{companyName} a reçu vos coordonnées et pourra vous recontacter.</p>
-            <button type="button" onClick={() => setSent(false)}>Envoyer une autre demande</button>
+            <h3>{i18nT("votre_demande_est_bien_partie_f10f2ef2")}</h3>
+            <p>{i18nT("value_a_recu_vos_coordonnees_et_2ec4d9f6", { value0: companyName })}</p>
+            <button type="button" onClick={() => setSent(false)}>{i18nT("envoyer_une_autre_demande_fd2f9cde")}</button>
           </div>
         ) : (
           <form onSubmit={submit} noValidate>
@@ -152,29 +156,29 @@ export default function InrSearchLeadForm({ slug, companyName, modal = false }: 
 
             <div className={styles.formGrid}>
               <label>
-                <span>Nom et prénom <b>*</b></span>
+                <span>{i18nT("nom_et_prenom_cfad8e02")}{" "}<b>*</b></span>
                 <input
                   name="displayName"
                   value={form.displayName}
                   onChange={(event) => update("displayName", event.target.value)}
                   autoComplete="name"
-                  placeholder="Marie Dupont"
+                  placeholder={i18nT("marie_dupont_fb29a763")}
                   maxLength={180}
                 />
               </label>
               <label>
-                <span>Entreprise</span>
+                <span>{i18nT("entreprise_d03e74b6")}</span>
                 <input
                   name="companyName"
                   value={form.companyName}
                   onChange={(event) => update("companyName", event.target.value)}
                   autoComplete="organization"
-                  placeholder="Nom de votre entreprise"
+                  placeholder={i18nT("nom_de_votre_entreprise_87f2ec87")}
                   maxLength={140}
                 />
               </label>
               <label>
-                <span>Téléphone</span>
+                <span>{i18nT("telephone_d3b023ea")}</span>
                 <input
                   name="phone"
                   value={form.phone}
@@ -186,7 +190,7 @@ export default function InrSearchLeadForm({ slug, companyName, modal = false }: 
                 />
               </label>
               <label>
-                <span>Email</span>
+                <span>{i18nT("email_84add5b2")}</span>
                 <input
                   name="email"
                   value={form.email}
@@ -201,26 +205,26 @@ export default function InrSearchLeadForm({ slug, companyName, modal = false }: 
             </div>
 
             <label className={styles.messageField}>
-              <span>Votre demande</span>
+              <span>{i18nT("votre_demande_afba342f")}</span>
               <textarea
                 name="message"
                 value={form.message}
                 onChange={(event) => update("message", event.target.value)}
                 rows={5}
                 maxLength={1400}
-                placeholder="Décrivez votre projet, votre besoin ou le meilleur moment pour vous rappeler…"
+                placeholder={i18nT("decrivez_votre_projet_votre_besoin_ou_271d1264")}
               />
             </label>
 
             <label className={styles.consent}>
               <input name="consent" type="checkbox" checked={form.consent} onChange={(event) => update("consent", event.target.checked)} />
-              <span>J’accepte que mes coordonnées soient transmises à {companyName} afin d’être recontacté. Consultez la <Link href="/legal/confidentialite" target="_blank">politique de confidentialité</Link>.</span>
+              <span>{i18nT("j_accepte_que_mes_coordonnees_soient_da6a7dae")}{" "}{companyName} {" "}{i18nT("afin_d_etre_recontacte_consultez_la_3a77b073")}{" "}<Link href="/legal/confidentialite" target="_blank">{i18nT("politique_de_confidentialite_f3b40d83")}</Link>.</span>
             </label>
 
             {error ? <div className={styles.error} role="alert">{error}</div> : null}
 
             <button className={styles.submit} type="submit" disabled={submitting}>
-              <span>{submitting ? "Transmission en cours…" : "Envoyer ma demande"}</span>
+              <span>{submitting ? i18nT("transmission_en_cours_7b990bf1") : i18nT("envoyer_ma_demande_0eb22583")}</span>
               <i aria-hidden="true">→</i>
             </button>
           </form>

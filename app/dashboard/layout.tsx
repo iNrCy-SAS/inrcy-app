@@ -3,6 +3,8 @@ export const revalidate = 0;
 
 import React from "react";
 import { unstable_noStore as noStore } from "next/cache";
+import { headers } from "next/headers";
+import { getLocale } from "next-intl/server";
 import styles from "./dashboard.module.css";
 import { redirect } from "next/navigation";
 import { createSupabaseServer } from "@/lib/supabaseServer";
@@ -25,7 +27,14 @@ import { isRequiredSetupE2EBypassEnabled } from "@/lib/e2eServerFlags";
 import { DASHBOARD_BUBBLE_ICON_PRELOADS } from "./dashboard.constants";
 import DashboardPersistentImageCache from "./_components/DashboardPersistentImageCache";
 import DashboardEditionProvider from "./_components/DashboardEditionProvider";
+import DashboardIntlProvider from "./_components/DashboardIntlProvider";
 import { resolveDashboardEdition } from "@/lib/dashboardEdition";
+import {
+  APP_LOCALE_REQUEST_HEADER,
+  normalizeAppLocale,
+  tryNormalizeAppLocale,
+} from "@/i18n/config";
+import { loadAppMessages } from "@/i18n/messages";
 
 
 type SubscriptionGateRow = {
@@ -114,6 +123,20 @@ export default async function DashboardLayout({
     plan: subscription?.plan,
     developmentOverride: process.env.INRCY_DEV_DASHBOARD_EDITION,
   });
+  const { data: languageProfile } = await supabaseAdmin
+    .from("business_profiles")
+    .select("app_language")
+    .eq("user_id", accountScope.activeUserId)
+    .maybeSingle();
+  const [requestLocale, requestHeaders] = await Promise.all([getLocale(), headers()]);
+  const explicitlyRequestedLocale = tryNormalizeAppLocale(
+    requestHeaders.get(APP_LOCALE_REQUEST_HEADER),
+  );
+  const dashboardLocale =
+    explicitlyRequestedLocale ||
+    tryNormalizeAppLocale(languageProfile?.app_language) ||
+    normalizeAppLocale(requestLocale);
+  const dashboardMessages = await loadAppMessages(dashboardLocale);
   const secondaryImagePreloads = dashboardEdition === "standard"
     ? [
         "/logo-inrcy.png",
@@ -143,6 +166,7 @@ export default async function DashboardLayout({
       {secondaryImagePreloads.map((src) => (
         <link key={src} rel="preload" as="image" href={src} />
       ))}
+      <DashboardIntlProvider locale={dashboardLocale} messages={dashboardMessages}>
       <DashboardEditionProvider edition={dashboardEdition}>
         <DashboardPersistentImageCache />
         <div className={styles.bg} />
@@ -166,6 +190,7 @@ export default async function DashboardLayout({
           </DashboardUnsavedNavigationProvider>
         </DashboardRequiredSetupBypassProvider>
       </DashboardEditionProvider>
+      </DashboardIntlProvider>
     </div>
   );
 }

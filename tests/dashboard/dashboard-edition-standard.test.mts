@@ -137,9 +137,16 @@ const publicationResultModalSource = readFileSync(
   "utf8",
 );
 const dashboardI18nSource = readFileSync(
-  new URL("../../lib/dashboardI18n.ts", import.meta.url),
+  new URL("../../messages/fr-FR/dashboard.json", import.meta.url),
   "utf8",
 );
+const boosterI18nSource = readFileSync(
+  new URL("../../messages/fr-FR/booster.json", import.meta.url),
+  "utf8",
+);
+const gpsI18n = JSON.parse(
+  readFileSync(new URL("../../messages/fr-FR/gps.json", import.meta.url), "utf8"),
+) as Record<string, string>;
 const dashboardCssSource = readFileSync(
   new URL("../../app/dashboard/dashboard.module.css", import.meta.url),
   "utf8",
@@ -311,7 +318,8 @@ test("les blocs inférieurs Standard ne contiennent que Stats, Publications, Ré
   assert.match(standardModulesSource, /\/dashboard\/stats/);
   assert.match(standardModulesSource, /folder=publications&boxView=sent/);
   assert.match(standardModulesSource, /\/dashboard\/e-reputation/);
-  assert.match(standardModulesSource, /Créer une publication/);
+  assert.match(standardModulesSource, /t\("boosterCta"\)/);
+  assert.match(dashboardI18nSource, /"boosterCta": "Créer une publication"/);
   assert.doesNotMatch(standardModulesSource, /dashboard\/crm/);
   assert.doesNotMatch(standardModulesSource, /dashboard\/agenda/);
   assert.doesNotMatch(standardModulesSource, /dashboard\/propulser/);
@@ -323,21 +331,24 @@ test("les blocs inférieurs Standard ne contiennent que Stats, Publications, Ré
 
 test("le Bilan Booster reste distinct de iNrStats et ouvre la modale historique Booster", () => {
   assert.match(standardModulesSource, /onClick=\{openBoosterSummary\}/);
-  assert.match(standardModulesSource, />\s*Bilan\s*</);
+  assert.match(standardModulesSource, /t\("boosterSummary"\)/);
+  assert.match(dashboardI18nSource, /"boosterSummary": "Bilan"/);
   assert.doesNotMatch(standardModulesSource, /href="\/dashboard\/stats"[\s\S]{0,240}Bilan/);
-  assert.match(boosterModalLayerSource, /aria-label="Bilan Booster"/);
-  assert.match(boosterModalLayerSource, />\s*Bilan\s*<\/span>/);
+  assert.match(boosterModalLayerSource, /aria-label=\{i18nT\("bilan_booster_f20fce08"\)\}/);
+  assert.match(boosterModalLayerSource, /i18nT\("bilan_a80c4623"\)/);
+  assert.match(boosterI18nSource, /"bilan_booster_f20fce08": "Bilan Booster"/);
+  assert.match(boosterI18nSource, /"bilan_a80c4623": "Bilan"/);
   assert.doesNotMatch(boosterModalLayerSource, />\s*Bilan Booster\s*<\/span>/);
   assert.doesNotMatch(boosterModalLayerSource, /Statistiques Booster/);
 });
 
 test("le cockpit reflète le parcours communication et les bilans utilisent le bon pluriel", () => {
-  assert.match(dashboardI18nSource, /flowContacts: "Publications"/);
-  assert.match(dashboardI18nSource, /flowQuotes: "Visibilité"/);
-  assert.match(dashboardI18nSource, /flowRevenue: "Résultats"/);
+  assert.match(dashboardI18nSource, /"flowContacts": "Publications"/);
+  assert.match(dashboardI18nSource, /"flowQuotes": "Visibilité"/);
+  assert.match(dashboardI18nSource, /"flowRevenue": "Résultats"/);
   assert.match(
     dashboardI18nSource,
-    /generatorDesc: "Le reflet de l’efficacité de vos canaux de communication\."/,
+    /"generatorDesc": "Le reflet de l’efficacité de vos canaux de communication\."/,
   );
   assert.doesNotMatch(
     dashboardI18nSource,
@@ -380,12 +391,17 @@ test("le GPS Standard adapte les rubriques mixtes et affiche les outils Premium 
   for (const sectionId of ["propulser", "fideliser", "crm", "agenda", "documents"]) {
     assert.match(gpsEditionPolicySource, new RegExp(`"${sectionId}"`));
   }
-  assert.match(gpsEditionPolicySource, /programmer les publications Booster/i);
-  assert.match(gpsEditionPolicySource, /colonne Publications/i);
-  assert.match(gpsEditionPolicySource, /données des canaux Standard/i);
-  assert.match(gpsEditionPolicySource, /Bilan Booster/);
+  assert.match(gpsEditionPolicySource, /programmer_les_publications_booster_et_recevoir_2e05ae9b/);
+  assert.equal(
+    gpsI18n.programmer_les_publications_booster_et_recevoir_2e05ae9b,
+    "Programmer les publications Booster et recevoir les bilans automatiques iNr’Stats.",
+  );
+  assert.ok(Object.values(gpsI18n).some((message) => message.includes("colonne **Publications**")));
+  assert.ok(Object.values(gpsI18n).some((message) => message.includes("données des canaux Standard")));
+  assert.ok(Object.values(gpsI18n).some((message) => message.includes("Bilan Booster")));
   assert.match(gpsClientSource, /selectedSectionPremium/);
-  assert.match(gpsClientSource, /Nous contacter pour Premium/);
+  assert.match(gpsClientSource, /i18nT\("nous_contacter_pour_premium_149750a6"\)/);
+  assert.equal(gpsI18n.nous_contacter_pour_premium_149750a6, "Nous contacter pour Premium");
   assert.match(gpsClientSource, /styles\.premiumBadge/);
 });
 

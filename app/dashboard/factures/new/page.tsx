@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import { resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -83,6 +86,7 @@ import {
 } from "@/lib/clientCommunication";
 
 export default function NewFacturePage() {
+  const i18nT = useTranslations("documents");
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = createClient();
@@ -610,14 +614,14 @@ export default function NewFacturePage() {
         if (!cancelled)
           setFormMessage({
             type: "error",
-            text: "Impossible de réouvrir cette facture.",
+            text: i18nT("impossible_de_reouvrir_cette_facture_b35f4a6b"),
           });
         return;
       }
 
       if (!data?.payload) {
         if (!cancelled)
-          setFormMessage({ type: "error", text: "Facture introuvable." });
+          setFormMessage({ type: "error", text: i18nT("facture_introuvable_ab2a4359") });
         return;
       }
 
@@ -626,7 +630,7 @@ export default function NewFacturePage() {
         setCurrentSaveId(data.id);
         setFormMessage({
           type: "success",
-          text: "Facture réouverte depuis iNrSend.",
+          text: i18nT("facture_reouverte_depuis_inrsend_d05c29b9"),
         });
       }
     };
@@ -671,7 +675,7 @@ export default function NewFacturePage() {
         if (!cancelled)
           setFormMessage({
             type: "error",
-            text: "Impossible de charger ce devis pour la conversion.",
+            text: i18nT("impossible_de_charger_ce_devis_pour_37592632"),
           });
         return;
       }
@@ -681,7 +685,7 @@ export default function NewFacturePage() {
         if (!cancelled)
           setFormMessage({
             type: "error",
-            text: "Devis introuvable pour la conversion.",
+            text: i18nT("devis_introuvable_pour_la_conversion_b075b89b"),
           });
         return;
       }
@@ -803,7 +807,7 @@ export default function NewFacturePage() {
             : [
                 {
                   id: "l_1",
-                  label: "Prestation",
+                  label: i18nT("prestation_b51f479f"),
                   qty: 1,
                   unitPrice: 120,
                   vatRate: vatDispense ? 0 : 20,
@@ -815,7 +819,7 @@ export default function NewFacturePage() {
         setDiscountDetails(devis.discountDetails || "");
         setFormMessage({
           type: "success",
-          text: `Facture préremplie depuis le devis ${devis.number || "sélectionné"}.`,
+          text: i18nT("facture_preremplie_depuis_le_devis_value_dbbc57b2", { value0: devis.number || "sélectionné" }),
         });
       }
     };
@@ -1005,7 +1009,7 @@ export default function NewFacturePage() {
       console.error(error);
       setFormMessage({
         type: "error",
-        text: "Impossible d’enregistrer cette facture pour le moment.",
+        text: i18nT("impossible_d_enregistrer_cette_facture_pour_cd4c5608"),
       });
       return;
     }
@@ -1040,12 +1044,12 @@ export default function NewFacturePage() {
     }
 
     const templateName = await promptInrcy({
-      title: "Créer un modèle",
+      title: i18nT("creer_un_modele_082a9b78"),
       message:
-        "Donnez un nom à ce modèle de facture pour le réutiliser plus tard.",
+        i18nT("donnez_un_nom_a_ce_modele_df1c6b74"),
       defaultValue: "Modèle facture",
-      placeholder: "Nom du modèle",
-      confirmLabel: "Créer modèle",
+      placeholder: i18nT("nom_du_modele_68d49f67"),
+      confirmLabel: i18nT("creer_modele_386adb21"),
       required: false,
     });
     if (templateName === null) return;
@@ -1103,7 +1107,7 @@ export default function NewFacturePage() {
       console.error(error);
       setFormMessage({
         type: "error",
-        text: "Impossible d’enregistrer ce modèle pour le moment.",
+        text: i18nT("impossible_d_enregistrer_ce_modele_pour_99e1aa63"),
       });
       return;
     }
@@ -1111,7 +1115,7 @@ export default function NewFacturePage() {
     await refreshSaves();
     setDocumentsTab("templates");
     setDraftsOpen(true);
-    setFormMessage({ type: "success", text: "Modèle de facture enregistré." });
+    setFormMessage({ type: "success", text: i18nT("modele_de_facture_enregistre_8ed67319") });
   };
 
   const applyTemplateSnapshot = (s: FactureDraft["snapshot"]) => {
@@ -1196,7 +1200,7 @@ export default function NewFacturePage() {
     setDraftsOpen(false);
     setFormMessage({
       type: "success",
-      text: "Modèle appliqué. Ajoutez ou vérifiez le client avant l’envoi.",
+      text: i18nT("modele_applique_ajoutez_ou_verifiez_le_f1f8dd3d"),
     });
   };
 
@@ -1215,7 +1219,7 @@ export default function NewFacturePage() {
     if (!displayName && !email && !primaryAddress) {
       setCrmActionMessage({
         type: "error",
-        text: "Renseignez au moins un nom, un email ou une adresse client.",
+        text: i18nT("renseignez_au_moins_un_nom_un_7b57dac5"),
       });
       return;
     }
@@ -1256,7 +1260,7 @@ export default function NewFacturePage() {
         );
       }
 
-      setCrmActionMessage({ type: "success", text: "Client ajouté au CRM." });
+      setCrmActionMessage({ type: "success", text: i18nT("client_ajoute_au_crm_601a8cb4") });
     } catch (error) {
       setCrmActionMessage({
         type: "error",
@@ -1501,7 +1505,7 @@ export default function NewFacturePage() {
     if (userErr || !user) {
       setFormMessage({
         type: "error",
-        text: "Vous devez être connecté pour envoyer par mail.",
+        text: i18nT("vous_devez_etre_connecte_pour_envoyer_0bc75018"),
       });
       return;
     }
@@ -1510,7 +1514,7 @@ export default function NewFacturePage() {
     if (!docSaveId) {
       setFormMessage({
         type: "error",
-        text: "Veuillez d’abord sauvegarder cette facture avant l’envoi.",
+        text: i18nT("veuillez_d_abord_sauvegarder_cette_facture_a29af67f"),
       });
       return;
     }
@@ -1527,7 +1531,7 @@ export default function NewFacturePage() {
     if (!pdfBlob) {
       setFormMessage({
         type: "error",
-        text: "Impossible de générer le PDF de cette facture pour le moment.",
+        text: i18nT("impossible_de_generer_le_pdf_de_dda266e5"),
       });
       return;
     }
@@ -1545,7 +1549,7 @@ export default function NewFacturePage() {
       console.error(upErr);
       setFormMessage({
         type: "error",
-        text: "Impossible de préparer cette facture pour l’envoi.",
+        text: i18nT("impossible_de_preparer_cette_facture_pour_374a080b"),
       });
       return;
     }
@@ -1609,7 +1613,7 @@ export default function NewFacturePage() {
         {/* Formulaire */}
         <div className={styles.panel}>
           <div className={styles.panelToolbar}>
-            <h1 className={styles.titleBadge}>Créer une facture</h1>
+            <h1 className={styles.titleBadge}>{i18nT("creer_une_facture_13a9becd")}</h1>
             <button
               type="button"
               className={`${styles.closeBtn} ${styles.toolbarBtn}`}
@@ -1619,19 +1623,18 @@ export default function NewFacturePage() {
                 setDraftsOpen(true);
               }}
             >
-              Documents
-            </button>
+              {i18nT("documents_687c8286")}{" "}</button>
             <button
               type="button"
               className={`${styles.closeBtn} ${styles.toolbarBtn}`}
               onClick={async () => {
                 const ok = await confirmInrcy({
-                  eyebrow: "Document en cours",
-                  title: "Réinitialiser la facture ?",
+                  eyebrow: i18nT("document_en_cours_7ee793c2"),
+                  title: i18nT("reinitialiser_la_facture_56100e12"),
                   message:
-                    "Cette action supprimera la saisie actuelle et remettra le document à zéro.",
-                  cancelLabel: "Annuler",
-                  confirmLabel: "Réinitialiser",
+                    i18nT("cette_action_supprimera_la_saisie_actuelle_336136f8"),
+                  cancelLabel: i18nT("annuler_49ba3292"),
+                  confirmLabel: i18nT("reinitialiser_e0e2ad54"),
                   variant: "danger",
                 });
                 if (!ok) return;
@@ -1712,33 +1715,29 @@ export default function NewFacturePage() {
                 ]);
               }}
             >
-              Réinitialiser
-            </button>
+              {i18nT("reinitialiser_e0e2ad54")}{" "}</button>
             <button
               type="button"
               className={`${styles.closeBtn} ${styles.toolbarBtn} ${styles.switchBtnDevis}`}
               onClick={() => router.push("/dashboard/devis/new")}
             >
-              Devis
-            </button>
+              {i18nT("devis_f7622f90")}{" "}</button>
             <button
               type="button"
               className={`${styles.closeBtn} ${styles.toolbarBtn}`}
               onClick={() => setSettingsOpen(true)}
             >
-              Réglages
-            </button>
+              {i18nT("reglages_00d63297")}{" "}</button>
             <button
               type="button"
               className={`${styles.closeBtn} ${styles.toolbarBtn}`}
               onClick={() => router.push("/dashboard")}
             >
-              Fermer
-            </button>
+              {i18nT("fermer_5ab4ec64")}{" "}</button>
           </div>
 
           <SettingsDrawer
-            title="Réglages par défaut"
+            title={i18nT("reglages_par_defaut_6d661a73")}
             isOpen={settingsOpen}
             onClose={requestCloseSettings}
             closeOnBackdrop={false}
@@ -1759,10 +1758,10 @@ export default function NewFacturePage() {
                 lineHeight: 1.4,
               }}
             >
-              Facture figée avec le numéro officiel{" "}
+              {i18nT("facture_figee_avec_le_numero_officiel_2db76fbb")}{" "}
               <strong>{number || "—"}</strong>
               {finalizedAt ? (
-                <> · figée le {new Date(finalizedAt).toLocaleString("fr-FR")}</>
+                <> {" "}{i18nT("figee_le_a93d8a93")}{" "}{new Date(finalizedAt).toLocaleString("fr-FR")}</>
               ) : null}
             </div>
           ) : null}
@@ -1815,14 +1814,13 @@ export default function NewFacturePage() {
                     borderBottom: "1px solid rgba(255,255,255,0.08)",
                   }}
                 >
-                  <div style={{ fontWeight: 750, fontSize: 16 }}>Documents</div>
+                  <div style={{ fontWeight: 750, fontSize: 16 }}>{i18nT("documents_687c8286")}</div>
                   <button
                     type="button"
                     className={styles.closeBtn}
                     onClick={() => setDraftsOpen(false)}
                   >
-                    Fermer
-                  </button>
+                    {i18nT("fermer_5ab4ec64")}{" "}</button>
                 </div>
                 <div
                   style={{
@@ -1846,8 +1844,7 @@ export default function NewFacturePage() {
                     }
                     onClick={() => setDocumentsTab("saves")}
                   >
-                    Sauvegardes
-                  </button>
+                    {i18nT("sauvegardes_64fb00cd")}{" "}</button>
                   <button
                     type="button"
                     className={
@@ -1857,15 +1854,13 @@ export default function NewFacturePage() {
                     }
                     onClick={() => setDocumentsTab("templates")}
                   >
-                    Modèles
-                  </button>
+                    {i18nT("modeles_0f7183be")}{" "}</button>
                 </div>
 
                 {documentsTab === "saves" ? (
                   drafts.length === 0 ? (
                     <div style={{ padding: 14, opacity: 0.85 }}>
-                      Aucune facture sauvegardée.
-                    </div>
+                      {i18nT("aucune_facture_sauvegardee_eb99154a")}{" "}</div>
                   ) : (
                     <div
                       style={{
@@ -1917,7 +1912,7 @@ export default function NewFacturePage() {
                                 {who}
                               </div>
                               <div style={{ fontSize: 12, opacity: 0.8 }}>
-                                Sauvegardé le{" "}
+                                {i18nT("sauvegarde_le_16d512aa")}{" "}
                                 {new Date(d.updatedAtISO).toLocaleString(
                                   "fr-FR",
                                 )}
@@ -1937,15 +1932,13 @@ export default function NewFacturePage() {
                                 type="button"
                                 onClick={() => openDraft(d)}
                               >
-                                Ouvrir
-                              </button>
+                                {i18nT("ouvrir_42c07747")}{" "}</button>
                               <button
                                 type="button"
                                 className={styles.ghostBtn}
                                 onClick={() => deleteDraft(d.id)}
                               >
-                                Supprimer
-                              </button>
+                                {i18nT("supprimer_1acfc1c7")}{" "}</button>
                             </div>
                           </div>
                         );
@@ -1954,8 +1947,7 @@ export default function NewFacturePage() {
                   )
                 ) : templates.length === 0 ? (
                   <div style={{ padding: 14, opacity: 0.85 }}>
-                    Aucun modèle de facture pour l’instant.
-                  </div>
+                    {i18nT("aucun_modele_de_facture_pour_l_15fd45d2")}{" "}</div>
                 ) : (
                   <div
                     style={{
@@ -2002,7 +1994,7 @@ export default function NewFacturePage() {
                               {label}
                             </div>
                             <div style={{ fontSize: 12, opacity: 0.8 }}>
-                              Modèle enregistré le{" "}
+                              {i18nT("modele_enregistre_le_b7560023")}{" "}
                               {new Date(d.updatedAtISO).toLocaleString("fr-FR")}
                             </div>
                           </div>
@@ -2020,15 +2012,13 @@ export default function NewFacturePage() {
                               type="button"
                               onClick={() => applyTemplateSnapshot(d.snapshot)}
                             >
-                              Utiliser
-                            </button>
+                              {i18nT("utiliser_fb5e43ce")}{" "}</button>
                             <button
                               type="button"
                               className={styles.ghostBtn}
                               onClick={() => deleteDraft(d.id)}
                             >
-                              Supprimer
-                            </button>
+                              {i18nT("supprimer_1acfc1c7")}{" "}</button>
                           </div>
                         </div>
                       );
@@ -2122,11 +2112,10 @@ export default function NewFacturePage() {
                   <span className={styles.formBlockIcon} aria-hidden="true">
                     🧾
                   </span>
-                  <div className={styles.formBlockTitle}>Infos facture</div>
+                  <div className={styles.formBlockTitle}>{i18nT("infos_facture_fa8812ec")}</div>
                 </div>
                 <div className={styles.formBlockSubtitle}>
-                  Numéro, dates, options avancées et actions.
-                </div>
+                  {i18nT("numero_dates_options_avancees_et_actions_3082e1e1")}{" "}</div>
               </div>
             </div>
 
@@ -2135,8 +2124,7 @@ export default function NewFacturePage() {
             >
               <div className={styles.field}>
                 <label>
-                  Numéro de facture
-                  <span className={styles.requiredMark}>*</span>
+                  {i18nT("numero_de_facture_a19ac308")}{" "}<span className={styles.requiredMark}>*</span>
                 </label>
                 <input
                   value={number}
@@ -2154,7 +2142,7 @@ export default function NewFacturePage() {
 
               <div className={styles.field}>
                 <label>
-                  Date de facture<span className={styles.requiredMark}>*</span>
+                  {i18nT("date_de_facture_f1edd0d6")}<span className={styles.requiredMark}>*</span>
                 </label>
                 <DocumentDateInput
                   value={invoiceDate}
@@ -2179,7 +2167,7 @@ export default function NewFacturePage() {
 
               <div className={styles.field}>
                 <label>
-                  Échéance<span className={styles.requiredMark}>*</span>
+                  {i18nT("echeance_f9a77ff6")}<span className={styles.requiredMark}>*</span>
                 </label>
                 <DocumentDateInput
                   value={dueDate}
@@ -2201,14 +2189,13 @@ export default function NewFacturePage() {
               onToggle={(e) => setAdvancedOpen(e.currentTarget.open)}
             >
               <summary className={styles.advancedSummary}>
-                Options avancées de la facture
-              </summary>
+                {i18nT("options_avancees_de_la_facture_ece5a072")}{" "}</summary>
               <div className={styles.advancedBody}>
                 <div className={styles.advancedSection}>
-                  <div className={styles.advancedSectionTitle}>Document</div>
+                  <div className={styles.advancedSectionTitle}>{i18nT("document_e214b8a2")}</div>
                   <div className={styles.compactThreeCol}>
                     <div className={styles.field}>
-                      <label>Type de document</label>
+                      <label>{i18nT("type_de_document_69938df4")}</label>
                       <select
                         value={documentKind}
                         onChange={(e) =>
@@ -2221,15 +2208,14 @@ export default function NewFacturePage() {
                       >
                         {DOCUMENT_KIND_OPTIONS.map((option) => (
                           <option key={option.key} value={option.key}>
-                            {option.label}
+                            {option.labelKey ? i18nT(option.labelKey) : "—"}
                           </option>
                         ))}
                       </select>
                     </div>
                     <div className={styles.field}>
                       <label>
-                        Catégorie d’opération
-                        {clientType && clientType !== "particulier" ? (
+                        {i18nT("categorie_d_operation_298de450")}{" "}{clientType && clientType !== "particulier" ? (
                           <span className={styles.requiredMark}>*</span>
                         ) : null}
                       </label>
@@ -2246,7 +2232,7 @@ export default function NewFacturePage() {
                       >
                         {OPERATION_CATEGORY_OPTIONS.map((option) => (
                           <option key={option.key} value={option.key}>
-                            {option.label}
+                            {option.labelKey ? i18nT(option.labelKey) : "—"}
                           </option>
                         ))}
                       </select>
@@ -2257,7 +2243,7 @@ export default function NewFacturePage() {
                       ) : null}
                     </div>
                     <div className={styles.field}>
-                      <label>Statut</label>
+                      <label>{i18nT("statut_659499f3")}</label>
                       <select
                         value={status}
                         onChange={(e) =>
@@ -2271,12 +2257,11 @@ export default function NewFacturePage() {
                         disabled={coreEditingLocked}
                       >
                         <option value="">—</option>
-                        <option value="brouillon">Brouillon</option>
+                        <option value="brouillon">{i18nT("brouillon_57d2d7a7")}</option>
                         <option value="en_attente_paiement">
-                          En attente de paiement
-                        </option>
-                        <option value="envoye">Envoyé</option>
-                        <option value="paye">Payé</option>
+                          {i18nT("en_attente_de_paiement_9b68eb63")}{" "}</option>
+                        <option value="envoye">{i18nT("envoye_7b0a810d")}</option>
+                        <option value="paye">{i18nT("paye_fa02fd68")}</option>
                       </select>
                     </div>
                   </div>
@@ -2284,11 +2269,10 @@ export default function NewFacturePage() {
 
                 <div className={styles.advancedSection}>
                   <div className={styles.advancedSectionTitle}>
-                    Acompte & paiement
-                  </div>
+                    {i18nT("acompte_paiement_72841894")}{" "}</div>
                   <div className={styles.compactThreeCol}>
                     <div className={styles.field}>
-                      <label>Acompte</label>
+                      <label>{i18nT("acompte_79f9f101")}</label>
                       <select
                         value={depositKind}
                         onChange={(e) => {
@@ -2302,12 +2286,12 @@ export default function NewFacturePage() {
                         disabled={coreEditingLocked}
                       >
                         <option value="">—</option>
-                        <option value="percent">Pourcentage</option>
-                        <option value="amount">Montant</option>
+                        <option value="percent">{i18nT("pourcentage_e34218e3")}</option>
+                        <option value="amount">{i18nT("montant_4adcd9fc")}</option>
                       </select>
                     </div>
                     <div className={styles.field}>
-                      <label>Valeur acompte</label>
+                      <label>{i18nT("valeur_acompte_18f70f89")}</label>
                       <input
                         type="number"
                         min="0"
@@ -2321,7 +2305,7 @@ export default function NewFacturePage() {
                       />
                     </div>
                     <div className={styles.field}>
-                      <label>Mode de paiement</label>
+                      <label>{i18nT("mode_de_paiement_71aed79c")}</label>
                       <select
                         value={paymentMethod}
                         onChange={(e) =>
@@ -2334,7 +2318,7 @@ export default function NewFacturePage() {
                       >
                         {PAYMENT_METHODS.map((method) => (
                           <option key={method.key} value={method.key}>
-                            {method.label}
+                            {method.labelKey ? i18nT(method.labelKey) : "—"}
                           </option>
                         ))}
                       </select>
@@ -2345,7 +2329,7 @@ export default function NewFacturePage() {
                     <input
                       value={paymentDetails}
                       onChange={(e) => setPaymentDetails(e.target.value)}
-                      placeholder="Ex : IBAN FR76..."
+                      placeholder={i18nT("ex_iban_fr76_6fc76637")}
                       disabled={coreEditingLocked}
                     />
                   </div>
@@ -2353,23 +2337,22 @@ export default function NewFacturePage() {
 
                 <div className={styles.advancedSection}>
                   <div className={styles.advancedSectionTitle}>
-                    Échéance & mentions légales
-                  </div>
+                    {i18nT("echeance_mentions_legales_804c2f47")}{" "}</div>
                   <div className={styles.compactThreeCol}>
                     <div className={styles.field}>
-                      <label>Pénalités de retard (%)</label>
+                      <label>{i18nT("penalites_de_retard_1668daa8")}</label>
                       <input
                         type="number"
                         min="0"
                         step="0.01"
                         value={lateFeeRate}
                         onChange={(e) => setLateFeeRate(e.target.value)}
-                        placeholder="Ex : 12.00"
+                        placeholder={i18nT("ex_12_00_883dce79")}
                         disabled={coreEditingLocked}
                       />
                     </div>
                     <div className={styles.field}>
-                      <label>TVA sur les débits</label>
+                      <label>{i18nT("tva_sur_les_debits_d46bfbae")}</label>
                       <label className={styles.toggleInputLike}>
                         <input
                           type="checkbox"
@@ -2377,11 +2360,11 @@ export default function NewFacturePage() {
                           onChange={(e) => setVatOnDebits(e.target.checked)}
                           disabled={coreEditingLocked}
                         />
-                        <span>{vatOnDebits ? "Oui" : "Non"}</span>
+                        <span>{vatOnDebits ? i18nT("oui_eaa02f3f") : i18nT("non_a7219939")}</span>
                       </label>
                     </div>
                     <div className={styles.field}>
-                      <label>Indemnité forfaitaire de 40 €</label>
+                      <label>{i18nT("indemnite_forfaitaire_de_40_8a3e9ec4")}</label>
                       <label className={styles.toggleInputLike}>
                         <input
                           type="checkbox"
@@ -2391,14 +2374,14 @@ export default function NewFacturePage() {
                           }
                           disabled={coreEditingLocked}
                         />
-                        <span>{fixedRecoveryFee40 ? "Oui" : "Non"}</span>
+                        <span>{fixedRecoveryFee40 ? i18nT("oui_eaa02f3f") : i18nT("non_a7219939")}</span>
                       </label>
                     </div>
                   </div>
                 </div>
 
                 <div className={styles.advancedSection}>
-                  <div className={styles.advancedSectionTitle}>Prestation</div>
+                  <div className={styles.advancedSectionTitle}>{i18nT("prestation_b51f479f")}</div>
                   <ServiceDateFields
                     radioName="factureServiceDateMode"
                     mode={serviceDateMode}
@@ -2413,13 +2396,13 @@ export default function NewFacturePage() {
                   />
 
                   <div className={styles.field} style={{ marginBottom: 0 }}>
-                    <label>Référence commande / PO</label>
+                    <label>{i18nT("reference_commande_po_b40bb4c5")}</label>
                     <input
                       value={purchaseOrderReference}
                       onChange={(e) =>
                         setPurchaseOrderReference(e.target.value)
                       }
-                      placeholder="Ex : BC-2026-014 / PO-7781"
+                      placeholder={i18nT("ex_bc_2026_014_po_7781_fa20f4e5")}
                       disabled={coreEditingLocked}
                     />
                   </div>
@@ -2428,10 +2411,10 @@ export default function NewFacturePage() {
                 <NotesAndMentionsSection
                   notes={notes}
                   onNotesChange={setNotes}
-                  mentionLabel="Mention spécifique facture"
+                  mentionLabel={i18nT("mention_specifique_facture_48f660eb")}
                   mention={invoiceMention}
                   onMentionChange={setInvoiceMention}
-                  mentionPlaceholder="Ex : Aucun escompte pour paiement anticipé."
+                  mentionPlaceholder={i18nT("ex_aucun_escompte_pour_paiement_anticipe_8ec87ff7")}
                   disabled={coreEditingLocked}
                 />
               </div>
@@ -2446,10 +2429,9 @@ export default function NewFacturePage() {
                 disabled={finalizing || addingToCrm}
               >
                 <>
-                  Sauvegarder
-                  <span
+                  {i18nT("sauvegarder_9ada1439")}{" "}<span
                     className={styles.helpBubble}
-                    title="Retrouvez vos sauvegardes dans Factures > Documents > Sauvegardes"
+                    title={i18nT("retrouvez_vos_sauvegardes_dans_factures_document_70c2c8ab")}
                   >
                     ?
                   </span>
@@ -2463,10 +2445,9 @@ export default function NewFacturePage() {
                 disabled={finalizing || addingToCrm}
               >
                 <>
-                  Créer modèle
-                  <span
+                  {i18nT("creer_modele_386adb21")}{" "}<span
                     className={styles.helpBubble}
-                    title="Retrouvez vos modèles dans Factures > Documents > Modèles"
+                    title={i18nT("retrouvez_vos_modeles_dans_factures_documents_043506ec")}
                   >
                     ?
                   </span>
@@ -2489,19 +2470,18 @@ export default function NewFacturePage() {
                   if (finalized) {
                     setFormMessage({
                       type: "success",
-                      text: `Facture figée sous le numéro ${finalized.number}.`,
+                      text: i18nT("facture_figee_sous_le_numero_value_9af08308", { value0: finalized.number }),
                     });
                   }
                 }}
               >
                 {finalizing ? (
-                  "Figement…"
+                  i18nT("figement_5b043868")
                 ) : (
                   <>
-                    Figer
-                    <span
+                    {i18nT("figer_14a87a23")}{" "}<span
                       className={styles.helpBubble}
-                      title="Fige la facture avec un numéro officiel. Les informations principales sont verrouillées pour sécuriser le document avant envoi au client."
+                      title={i18nT("fige_la_facture_avec_un_numero_dcfc41a8")}
                     >
                       ?
                     </span>
@@ -2515,10 +2495,10 @@ export default function NewFacturePage() {
                   if (!validateInvoiceAction({ requireEmail: true })) return;
                   if (!isFinalized) {
                     const ok = await confirmInrcy({
-                      title: "Figer la facture ?",
+                      title: i18nT("figer_la_facture_10e7098e"),
                       message:
-                        "L’envoi par mail va figer ce document avant son ouverture dans iNrSend. Continuer ?",
-                      confirmLabel: "Figer et envoyer",
+                        i18nT("l_envoi_par_mail_va_figer_c1a0ab4c"),
+                      confirmLabel: i18nT("figer_et_envoyer_87694ed8"),
                       variant: "warning",
                     });
                     if (!ok) return;
@@ -2528,13 +2508,12 @@ export default function NewFacturePage() {
                 }}
               >
                 {finalizing ? (
-                  "Préparation…"
+                  i18nT("preparation_47305e12")
                 ) : (
                   <>
-                    Envoyer par mail
-                    <span
+                    {i18nT("envoyer_par_mail_e60a588c")}{" "}<span
                       className={styles.helpBubble}
-                      title="Fige le document si besoin, prépare le PDF puis ouvre l’envoi par email au client."
+                      title={i18nT("fige_le_document_si_besoin_prepare_45066c02")}
                     >
                       ?
                     </span>
@@ -2546,14 +2525,11 @@ export default function NewFacturePage() {
                 onClick={print}
                 disabled={finalizing || addingToCrm}
               >
-                Imprimer / PDF
-              </button>
+                {i18nT("imprimer_pdf_2dd09ec2")}{" "}</button>
             </div>
 
             <div className={styles.requiredHint}>
-              * champs obligatoires selon le type de client. L’email client est
-              requis uniquement pour l’envoi par mail.
-            </div>
+              {i18nT("champs_obligatoires_selon_le_type_de_3140b9c9")}{" "}</div>
 
             {formMessage ? (
               <div
@@ -2565,8 +2541,8 @@ export default function NewFacturePage() {
 
             {vatDispense ? (
               <p style={{ marginTop: 12, opacity: 0.9 }}>
-                TVA désactivée :{" "}
-                <strong>TVA non applicable (article 293 B du CGI)</strong>
+                {i18nT("tva_desactivee_9d51689a")}{" "}
+                <strong>{i18nT("tva_non_applicable_article_293_b_ca29077b")}</strong>
               </p>
             ) : null}
           </div>
@@ -2610,10 +2586,10 @@ export default function NewFacturePage() {
               ) : null}
             </div>
             {profile?.logo_url ? (
-              <div className={styles.logoBox} aria-label="Logo">
+              <div className={styles.logoBox} aria-label={i18nT("logo_83fce832")}>
                 <img
                   src={profile.logo_url}
-                  alt="Logo"
+                  alt={i18nT("logo_83fce832")}
                   className={styles.logoImg}
                 />
               </div>
@@ -2672,7 +2648,7 @@ export default function NewFacturePage() {
                       onChange={(e) =>
                         updateLine(l.id, { label: e.target.value })
                       }
-                      placeholder="Ex: Réparation / entretien"
+                      placeholder={i18nT("ex_reparation_entretien_870432e7")}
                       disabled={coreEditingLocked}
                       style={{
                         width: "100%",
@@ -2765,7 +2741,7 @@ export default function NewFacturePage() {
                         type="button"
                         className={styles.removeLineBtn}
                         onClick={() => removeLine(l.id)}
-                        title="Supprimer la ligne"
+                        title={i18nT("supprimer_la_ligne_17611368")}
                         disabled={coreEditingLocked}
                       >
                         ×
@@ -2784,8 +2760,7 @@ export default function NewFacturePage() {
               onClick={addLine}
               disabled={coreEditingLocked}
             >
-              + Ajouter une prestation
-            </button>
+              {i18nT("ajouter_une_prestation_1613d29a")}{" "}</button>
           </div>
           {fieldErrors.lines ? (
             <div className={styles.fieldError} style={{ marginTop: 6 }}>
@@ -2865,14 +2840,11 @@ export default function NewFacturePage() {
               ) : null}
               {fixedRecoveryFee40 ? (
                 <div style={{ marginBottom: 6 }}>
-                  Indemnité forfaitaire de 40 € pour frais de recouvrement en
-                  cas de retard de paiement.
-                </div>
+                  {i18nT("indemnite_forfaitaire_de_40_pour_frais_96b7a004")}{" "}</div>
               ) : null}
               {vatDispense ? (
                 <div>
-                  <strong>{documentClientTexts.labels.vatNotApplicable}</strong> — Article 293 B du CGI.
-                </div>
+                  <strong>{documentClientTexts.labels.vatNotApplicable}</strong> {" "}{i18nT("article_293_b_du_cgi_da0560a3")}{" "}</div>
               ) : null}
               {notes ? <div style={{ marginTop: 8 }}>{notes}</div> : null}
               {invoiceMention ? (
@@ -2882,8 +2854,7 @@ export default function NewFacturePage() {
             <div className={styles.previewTotalsBox}>
               <div style={{ marginBottom: 8 }} className={styles.noPrint}>
                 <div style={{ fontWeight: 650, marginBottom: 6 }}>
-                  Remise commerciale
-                </div>
+                  {i18nT("remise_commerciale_c3564bdc")}{" "}</div>
                 <div
                   style={{
                     display: "grid",
@@ -2910,7 +2881,7 @@ export default function NewFacturePage() {
                       color: "#111",
                     }}
                   >
-                    <option value="">Aucune</option>
+                    <option value="">{i18nT("aucune_e8f88273")}</option>
                     <option value="percent">%</option>
                     <option value="amount">€</option>
                   </select>
@@ -2938,7 +2909,7 @@ export default function NewFacturePage() {
                   <textarea
                     value={discountDetails}
                     onChange={(e) => setDiscountDetails(e.target.value)}
-                    placeholder="Détail de la remise (optionnel)"
+                    placeholder={i18nT("detail_de_la_remise_optionnel_31f73b08")}
                     disabled={!discountKind || coreEditingLocked}
                     rows={2}
                     style={{
@@ -3054,8 +3025,8 @@ export default function NewFacturePage() {
                         ) : null}
                       </div>
                       {profile?.logo_url ? (
-                        <div className={styles.logoBox} aria-label="Logo">
-                          <img src={profile.logo_url} alt="Logo" className={styles.logoImg} />
+                        <div className={styles.logoBox} aria-label={i18nT("logo_83fce832")}>
+                          <img src={profile.logo_url} alt={i18nT("logo_83fce832")} className={styles.logoImg} />
                         </div>
                       ) : null}
                     </div>
@@ -3118,7 +3089,7 @@ export default function NewFacturePage() {
                         {vatOnDebits ? <div style={{ marginBottom: 6 }}><strong>{documentClientTexts.labels.vatOnDebits}</strong></div> : null}
                         {lateFeeRate ? <div style={{ marginBottom: 6 }}><strong>{documentClientTexts.labels.lateFees} :</strong> {lateFeeRate} %</div> : null}
                         {fixedRecoveryFee40 ? <div style={{ marginBottom: 6 }}>{documentClientTexts.labels.recoveryFee40}</div> : null}
-                        {vatDispense ? <div><strong>{documentClientTexts.labels.vatNotApplicable}</strong> — Article 293 B du CGI.</div> : null}
+                        {vatDispense ? <div><strong>{documentClientTexts.labels.vatNotApplicable}</strong> {" "}{i18nT("article_293_b_du_cgi_da0560a3")}</div> : null}
                         {notes ? <div style={{ marginTop: 8 }}>{notes}</div> : null}
                         {invoiceMention ? <div style={{ marginTop: 8 }}>{invoiceMention}</div> : null}
                       </div>

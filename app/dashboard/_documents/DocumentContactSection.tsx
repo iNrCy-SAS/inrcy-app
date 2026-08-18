@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import type { RefObject } from "react";
 import styles from "./documents.module.css";
 import type { ClientType, CrmContact } from "./documentEditorShared";
@@ -109,6 +112,7 @@ export function DocumentContactSection({
   editingLocked = false,
   showOptionalSirenLabel = false,
 }: DocumentContactSectionProps) {
+  const i18nT = useTranslations("documents");
   return (
     <div className={styles.formBlock}>
       <div className={styles.formBlockHeader}>
@@ -117,17 +121,16 @@ export function DocumentContactSection({
             <span className={styles.formBlockIcon} aria-hidden="true">
               👤
             </span>
-            <div className={styles.formBlockTitle}>Infos contact</div>
+            <div className={styles.formBlockTitle}>{i18nT("infos_contact_ee4e5207")}</div>
           </div>
           <div className={styles.formBlockSubtitle}>
-            Import CRM, coordonnées et adresse du client.
-          </div>
+            {i18nT("import_crm_coordonnees_et_adresse_du_65ebcecd")}{" "}</div>
         </div>
       </div>
 
       <div className={styles.crmActionBar} ref={crmContainerRef}>
         <div className={styles.crmActionMain}>
-          <span className={styles.crmActionLabel}>Importer un contact</span>
+          <span className={styles.crmActionLabel}>{i18nT("importer_un_contact_d2ca1cf2")}</span>
           <button
             type="button"
             className={styles.crmImportButton}
@@ -146,14 +149,14 @@ export function DocumentContactSection({
             <div
               className={styles.crmSearchPanel}
               role="dialog"
-              aria-label="Importer ou rechercher un contact CRM"
+              aria-label={i18nT("importer_ou_rechercher_un_contact_crm_c07daf05")}
             >
               <input
                 className={styles.crmSearchInput}
                 type="search"
                 value={crmQuery}
                 onChange={(event) => onCrmQueryChange(event.target.value)}
-                placeholder="Rechercher un contact, email, téléphone..."
+                placeholder={i18nT("rechercher_un_contact_email_telephone_8f861916")}
                 autoFocus
               />
               <div className={styles.crmSearchResults} role="listbox">
@@ -177,9 +180,7 @@ export function DocumentContactSection({
                   })
                 ) : (
                   <div className={styles.crmSearchEmpty}>
-                    Aucun contact trouvé. Remplissez le client puis utilisez “+
-                    Ajouter au CRM”.
-                  </div>
+                    {i18nT("aucun_contact_trouve_remplissez_le_client_716d0a18")}{" "}</div>
                 )}
               </div>
             </div>
@@ -188,7 +189,7 @@ export function DocumentContactSection({
 
         <div className={`${styles.field} ${styles.crmClientTypeField}`}>
           <label>
-            Type de client<span className={styles.requiredMark}>*</span>
+            {i18nT("type_de_client_b2406987")}<span className={styles.requiredMark}>*</span>
           </label>
           <select
             value={clientType}
@@ -198,9 +199,9 @@ export function DocumentContactSection({
             disabled={editingLocked}
           >
             <option value="">—</option>
-            <option value="particulier">Particulier</option>
-            <option value="professionnel">Professionnel</option>
-            <option value="institution">Institution</option>
+            <option value="particulier">{i18nT("particulier_281680dd")}</option>
+            <option value="professionnel">{i18nT("professionnel_aec80314")}</option>
+            <option value="institution">{i18nT("institution_429f9450")}</option>
           </select>
           {fieldErrors.clientType ? (
             <div className={styles.fieldError}>{fieldErrors.clientType}</div>
@@ -214,7 +215,7 @@ export function DocumentContactSection({
             onClick={onAddCurrentClientToCrm}
             disabled={addToCrmDisabled}
           >
-            {addingToCrm ? "Ajout CRM…" : "+ Ajouter au CRM"}
+            {addingToCrm ? i18nT("ajout_crm_6e9af468") : i18nT("ajouter_au_crm_3fc72231")}
           </button>
           {crmActionMessage ? (
             <div
@@ -242,12 +243,12 @@ export function DocumentContactSection({
       <div className={styles.fourCol}>
         <div className={styles.field}>
           <label>
-            Client<span className={styles.requiredMark}>*</span>
+            {i18nT("client_1bdd79b1")}<span className={styles.requiredMark}>*</span>
           </label>
           <input
             value={clientName}
             onChange={(event) => onClientNameChange(event.target.value)}
-            placeholder="Nom du client"
+            placeholder={i18nT("nom_du_client_8626bd1c")}
             disabled={editingLocked}
           />
           {fieldErrors.clientName ? (
@@ -257,7 +258,7 @@ export function DocumentContactSection({
 
         <div className={styles.field}>
           <label>
-            Email client<span className={styles.requiredMark}>*</span>
+            {i18nT("email_client_a1f95beb")}<span className={styles.requiredMark}>*</span>
           </label>
           <input
             value={clientEmail}
@@ -272,17 +273,16 @@ export function DocumentContactSection({
 
         <div className={styles.field}>
           <label>
-            SIREN client
-            {clientType && clientType !== "particulier" ? (
+            {i18nT("siren_client_70e2fa4d")}{" "}{clientType && clientType !== "particulier" ? (
               <span className={styles.requiredMark}>*</span>
             ) : showOptionalSirenLabel ? (
-              <span> (optionnel)</span>
+              <span> {" "}{i18nT("optionnel_6f73b232")}</span>
             ) : null}
           </label>
           <input
             value={clientSiren}
             onChange={(event) => onClientSirenChange(event.target.value)}
-            placeholder="Ex : 123456789"
+            placeholder={i18nT("ex_123456789_c5c1c4f3")}
             disabled={editingLocked}
           />
           {fieldErrors.clientSiren ? (
@@ -291,11 +291,11 @@ export function DocumentContactSection({
         </div>
 
         <div className={styles.field}>
-          <label>N° TVA client (optionnel)</label>
+          <label>{i18nT("n_tva_client_optionnel_c4f67258")}</label>
           <input
             value={clientVatNumber}
             onChange={(event) => onClientVatNumberChange(event.target.value)}
-            placeholder="Ex : FR12345678901"
+            placeholder={i18nT("ex_fr12345678901_d77e14ad")}
             disabled={editingLocked}
           />
         </div>
@@ -304,12 +304,12 @@ export function DocumentContactSection({
       <div className={styles.compactThreeCol}>
         <div className={styles.field}>
           <label>
-            Adresse<span className={styles.requiredMark}>*</span>
+            {i18nT("adresse_522e1466")}<span className={styles.requiredMark}>*</span>
           </label>
           <input
             value={billingAddress}
             onChange={(event) => onBillingAddressChange(event.target.value)}
-            placeholder="Adresse"
+            placeholder={i18nT("adresse_522e1466")}
             disabled={editingLocked}
           />
           {fieldErrors.billingAddress ? (
@@ -320,14 +320,14 @@ export function DocumentContactSection({
         </div>
         <div className={styles.field}>
           <label>
-            Code postal<span className={styles.requiredMark}>*</span>
+            {i18nT("code_postal_74779109")}<span className={styles.requiredMark}>*</span>
           </label>
           <input
             value={billingPostalCode}
             onChange={(event) =>
               onBillingPostalCodeChange(event.target.value)
             }
-            placeholder="Ex : 62440"
+            placeholder={i18nT("ex_62440_337b8fbc")}
             disabled={editingLocked}
           />
           {fieldErrors.billingPostalCode ? (
@@ -338,12 +338,12 @@ export function DocumentContactSection({
         </div>
         <div className={styles.field}>
           <label>
-            Ville<span className={styles.requiredMark}>*</span>
+            {i18nT("ville_97217611")}<span className={styles.requiredMark}>*</span>
           </label>
           <input
             value={billingCity}
             onChange={(event) => onBillingCityChange(event.target.value)}
-            placeholder="Ex : Harnes"
+            placeholder={i18nT("ex_harnes_00e9b711")}
             disabled={editingLocked}
           />
           {fieldErrors.billingCity ? (
@@ -365,8 +365,7 @@ export function DocumentContactSection({
             disabled={editingLocked}
           />
           <span>
-            Adresse de livraison identique à l’adresse de facturation
-          </span>
+            {i18nT("adresse_de_livraison_identique_a_l_e672289e")}{" "}</span>
         </label>
       </div>
 
@@ -383,35 +382,35 @@ export function DocumentContactSection({
         >
           <div className={styles.compactThreeCol}>
             <div className={styles.field} style={{ marginBottom: 0 }}>
-              <label>Adresse de livraison</label>
+              <label>{i18nT("adresse_de_livraison_31eac756")}</label>
               <input
                 value={deliveryAddress}
                 onChange={(event) =>
                   onDeliveryAddressChange(event.target.value)
                 }
-                placeholder="Adresse"
+                placeholder={i18nT("adresse_522e1466")}
                 disabled={editingLocked}
               />
             </div>
             <div className={styles.field} style={{ marginBottom: 0 }}>
-              <label>Code postal livraison</label>
+              <label>{i18nT("code_postal_livraison_025cc681")}</label>
               <input
                 value={deliveryPostalCode}
                 onChange={(event) =>
                   onDeliveryPostalCodeChange(event.target.value)
                 }
-                placeholder="Ex : 62440"
+                placeholder={i18nT("ex_62440_337b8fbc")}
                 disabled={editingLocked}
               />
             </div>
             <div className={styles.field} style={{ marginBottom: 0 }}>
-              <label>Ville livraison</label>
+              <label>{i18nT("ville_livraison_54612c4a")}</label>
               <input
                 value={deliveryCity}
                 onChange={(event) =>
                   onDeliveryCityChange(event.target.value)
                 }
-                placeholder="Ex : Harnes"
+                placeholder={i18nT("ex_harnes_00e9b711")}
                 disabled={editingLocked}
               />
             </div>

@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import { useEffect, useState } from "react";
 import styles from "../dashboard.module.css";
 import ConnectionPill from "./ConnectionPill";
@@ -27,6 +30,7 @@ const inputStyle = {
 } as const;
 
 export default function LinkedinPanel(props: any) {
+  const i18nT = useTranslations("shell");
   const {
     linkedinAccountConnected,
     linkedinConnectionStatus,
@@ -117,16 +121,15 @@ export default function LinkedinPanel(props: any) {
           }}
         >
           <span aria-hidden style={{ width: 8, height: 8, borderRadius: 999, background: linkedinStatusDot }} />
-          Statut : <strong>{linkedinStatusLabel}</strong>
+          {i18nT("statut_b20e7fc2")}{" "}<strong>{linkedinStatusLabel}</strong>
         </span>
       </div>
 
       {!profileReady ? (
         <div style={cardStyle}>
-          <div className={styles.blockTitle}>Choisissez le type de connexion</div>
+          <div className={styles.blockTitle}>{i18nT("choisissez_le_type_de_connexion_f1ff9d4f")}</div>
           <div className={styles.blockSub}>
-            La connexion LinkedIn permet l’analyse des statistiques et la gestion des publications.
-          </div>
+            {i18nT("la_connexion_linkedin_permet_l_analyse_cec215a5")}{" "}</div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             <button
@@ -135,8 +138,7 @@ export default function LinkedinPanel(props: any) {
               onClick={() => void connectLinkedinAccount?.("profile")}
               style={{ justifyContent: "center", padding: "8px 16px", width: "auto" }}
             >
-              Profil personnel
-            </button>
+              {i18nT("profil_personnel_8e5d4316")}{" "}</button>
 
             <button
               type="button"
@@ -144,33 +146,31 @@ export default function LinkedinPanel(props: any) {
               onClick={() => void connectLinkedinBusinessAccount?.()}
               style={{ justifyContent: "center", padding: "8px 16px", width: "auto" }}
             >
-              Page entreprise
-            </button>
+              {i18nT("page_entreprise_a6ed751d")}{" "}</button>
           </div>
         </div>
       ) : (
         <div style={cardStyle}>
           <div className={styles.blockHeaderRow}>
-            <div className={styles.blockTitle}>Profil personnel LinkedIn</div>
+            <div className={styles.blockTitle}>{i18nT("profil_personnel_linkedin_c520fcd0")}</div>
             <ConnectionPill connected={profileReady} status={linkedinNeedsUpdate ? "needs_update" : undefined} />
           </div>
           <div className={styles.blockSub}>
             {hasCompanyPage
-              ? "Profil connecté pour autoriser et piloter la page entreprise LinkedIn."
-              : "Canal actif : publication et données exploitées depuis le profil personnel."}
+              ? i18nT("profil_connecte_pour_autoriser_et_piloter_e456d337")
+              : i18nT("canal_actif_publication_et_donnees_exploitees_f35e73a2")}
           </div>
 
           <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-            <input value={linkedinDisplayName} readOnly placeholder="Profil connecté" style={{ ...inputStyle, opacity: 1 }} />
+            <input value={linkedinDisplayName} readOnly placeholder={i18nT("profil_connecte_c77184e6")} style={{ ...inputStyle, opacity: 1 }} />
 
             {linkedinNeedsUpdate ? (
               <button type="button" className={`${styles.actionBtn} ${styles.connectBtn}`} onClick={() => void connectLinkedinAccount?.("profile")} disabled={linkedinAccountBusy}>
-                Actualiser
-              </button>
+                {i18nT("actualiser_9d3b2a7d")}{" "}</button>
             ) : null}
 
             <button type="button" className={`${styles.actionBtn} ${styles.disconnectBtn}`} onClick={() => void disconnectLinkedinAccount()} disabled={linkedinAccountBusy}>
-              {linkedinAccountBusy ? "Déconnexion..." : "Déconnecter"}
+              {linkedinAccountBusy ? i18nT("deconnexion_f5a5666d") : i18nT("deconnecter_9c1ef392")}
             </button>
           </div>
         </div>
@@ -179,7 +179,7 @@ export default function LinkedinPanel(props: any) {
       {profileReady ? (
         <div style={cardStyle}>
           <div className={styles.blockHeaderRow}>
-            <div className={styles.blockTitle}>{hasCompanyPage ? "Page entreprise LinkedIn" : "Connecter une page entreprise"}</div>
+            <div className={styles.blockTitle}>{hasCompanyPage ? i18nT("page_entreprise_linkedin_8da517e0") : i18nT("connecter_une_page_entreprise_e6a59e95")}</div>
             <ConnectionPill
               connected={hasCompanyPage}
               activity={linkedinOrganizationActivity}
@@ -188,8 +188,8 @@ export default function LinkedinPanel(props: any) {
           </div>
           <div className={styles.blockSub}>
             {hasCompanyPage
-              ? "Canal actif : publication et données exploitées depuis la page entreprise."
-              : "Sélectionnez la page entreprise à connecter. Si une seule page est disponible, elle sera connectée automatiquement."}
+              ? i18nT("canal_actif_publication_et_donnees_exploitees_33649201")
+              : i18nT("selectionnez_la_page_entreprise_a_connecter_71a46f47")}
           </div>
 
           <div style={{ display: "grid", gap: 10 }}>
@@ -197,7 +197,7 @@ export default function LinkedinPanel(props: any) {
               <input
                 value={linkedinSelectedOrganizationName || ""}
                 readOnly
-                placeholder="Aucune page entreprise connectée"
+                placeholder={i18nT("aucune_page_entreprise_connectee_cc9aa3eb")}
                 style={{ ...inputStyle, opacity: linkedinSelectedOrganizationName ? 1 : 0.8 }}
               />
 
@@ -207,8 +207,7 @@ export default function LinkedinPanel(props: any) {
                 onClick={() => void loadLinkedinOrganizations?.()}
                 disabled={linkedinOrganizationsLoading || linkedinOrganizationsPhase !== "idle" || linkedinOrganizationBusy}
               >
-                Charger mes pages
-              </button>
+                {i18nT("charger_mes_pages_df0e9c75")}{" "}</button>
             </div>
 
             {hasCompanyPage ? (
@@ -233,8 +232,7 @@ export default function LinkedinPanel(props: any) {
                   disabled={linkedinShareToPersonalProfileBusy || linkedinOrganizationsLoading || linkedinOrganizationsPhase !== "idle" || linkedinOrganizationBusy}
                   style={{ width: 16, height: 16, accentColor: "#0A66C2" }}
                 />
-                Autoriser le partage auto sur mon profil personnel
-              </label>
+                {i18nT("autoriser_le_partage_auto_sur_mon_babf8408")}{" "}</label>
             ) : null}
 
             {linkedinOrganizationPickerOpen && linkedinOrganizations.length > 1 ? (
@@ -253,7 +251,7 @@ export default function LinkedinPanel(props: any) {
                   outline: "none",
                 }}
               >
-                <option value="">Sélectionner la page entreprise</option>
+                <option value="">{i18nT("selectionner_la_page_entreprise_827e4855")}</option>
                 {linkedinOrganizations.map((org: any) => (
                   <option key={org.id} value={org.id}>{org.name}</option>
                 ))}
@@ -270,8 +268,7 @@ export default function LinkedinPanel(props: any) {
                     disabled={!canApplyLinkedinOrganization}
                     style={{ width: "fit-content" }}
                   >
-                    Changer de page
-                  </button>
+                    {i18nT("changer_de_page_37d7e3f7")}{" "}</button>
                   <button
                     type="button"
                     className={`${styles.actionBtn} ${styles.disconnectBtn} ${linkedinOrganizationAction === "disconnect" ? styles.connectingActionBtn : ""}`}
@@ -279,8 +276,7 @@ export default function LinkedinPanel(props: any) {
                     disabled={linkedinOrganizationsLoading || linkedinOrganizationsPhase !== "idle" || linkedinOrganizationBusy}
                     style={{ width: "fit-content" }}
                   >
-                    Déconnecter la page
-                  </button>
+                    {i18nT("deconnecter_la_page_45620524")}{" "}</button>
                 </>
               ) : (
                 <button
@@ -290,8 +286,7 @@ export default function LinkedinPanel(props: any) {
                   disabled={!canApplyLinkedinOrganization}
                   style={{ width: "fit-content" }}
                 >
-                  Connecter la page
-                </button>
+                  {i18nT("connecter_la_page_5ca1c814")}{" "}</button>
               )}
             </div>
           </div>
@@ -317,7 +312,7 @@ export default function LinkedinPanel(props: any) {
           />
 
           <button type="button" className={`${styles.actionBtn} ${styles.connectBtn}`} onClick={() => void saveLinkedinProfileUrl()} disabled={linkedinUrlBusy}>
-            {linkedinUrlBusy ? "Enregistrement..." : "Enregistrer"}
+            {linkedinUrlBusy ? i18nT("enregistrement_9bf1058a") : i18nT("enregistrer_f7c8bcd8")}
           </button>
 
           <a
@@ -327,8 +322,7 @@ export default function LinkedinPanel(props: any) {
             className={`${styles.actionBtn} ${styles.viewBtn}`}
             style={{ pointerEvents: linkedinUrl ? "auto" : "none", opacity: linkedinUrl ? 1 : 0.5 }}
           >
-            Voir
-          </a>
+            {i18nT("voir_8a754f1f")}{" "}</a>
         </div>
 
         {linkedinUrlNotice && <StatusMessage variant="success">{linkedinUrlNotice}</StatusMessage>}

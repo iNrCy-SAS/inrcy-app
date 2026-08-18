@@ -1341,7 +1341,7 @@ export function getChannelIndicatorMeta(result: any, channel = ""): { kind: "fai
   if (isCancelledChannelResult(result)) {
     return {
       kind: "cancelled",
-      title: "Publication annulée dans iNrSend",
+      title: "Publication annulée dans iNr’Send",
       className: styles.channelCancelledDot,
     };
   }
@@ -1707,18 +1707,22 @@ export function campaignCounts(raw: any) {
   };
 }
 
-export function formatCampaignProgress(raw: any) {
+export function formatCampaignProgress(raw: any, locale = "fr-FR") {
   const counts = campaignCounts(raw);
-  const bits = [`${counts.sent}/${counts.total || counts.sent} acceptés`];
-  if (counts.processing > 0) bits.push(`${counts.processing} en cours`);
-  if (counts.queued > 0) bits.push(`${counts.queued} en attente`);
-  if (counts.failed > 0) bits.push(`${counts.failed} en échec`);
+  const formatNumber = new Intl.NumberFormat(locale).format;
+  const bits = [`${formatNumber(counts.sent)}/${formatNumber(counts.total || counts.sent)} acceptés`];
+  if (counts.processing > 0) bits.push(`${formatNumber(counts.processing)} en cours`);
+  if (counts.queued > 0) bits.push(`${formatNumber(counts.queued)} en attente`);
+  if (counts.failed > 0) bits.push(`${formatNumber(counts.failed)} en échec`);
   return bits.join(" • ");
 }
 
-export function formatCampaignDuration(value: number | null | undefined) {
+export function formatCampaignDuration(
+  value: number | null | undefined,
+  lessThanMinute = "moins d’une minute",
+) {
   const totalSeconds = Math.max(0, Math.round(Number(value || 0) / 1000));
-  if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) return "moins d’une minute";
+  if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) return lessThanMinute;
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
@@ -1785,21 +1789,21 @@ export function formatCampaignFilterLabel(filter: CampaignRecipientsFilterId) {
   }
 }
 
-export function getCampaignRecipientStatusLabel(recipient: CampaignRecipientLog) {
+export function getCampaignRecipientStatusLabel(recipient: CampaignRecipientLog, locale = "fr-FR") {
   if (recipient.status === "sent") {
     if (recipient.unsubscribed_at) {
-      return `Envoyé • désinscrit le ${new Date(recipient.unsubscribed_at).toLocaleString()}`;
+      return `Envoyé • désinscrit le ${new Date(recipient.unsubscribed_at).toLocaleString(locale)}`;
     }
     if (recipient.delivery_status === "delivered" && recipient.delivered_at) {
-      return `Délivré • ${new Date(recipient.delivered_at).toLocaleString()}`;
+      return `Délivré • ${new Date(recipient.delivered_at).toLocaleString(locale)}`;
     }
     if (recipient.delivery_status === "accepted") {
       return recipient.sent_at
-        ? `Accepté par la messagerie d’envoi • ${new Date(recipient.sent_at).toLocaleString()}`
+        ? `Accepté par la messagerie d’envoi • ${new Date(recipient.sent_at).toLocaleString(locale)}`
         : "Accepté par la messagerie d’envoi";
     }
     if (recipient.sent_at) {
-      return `Envoyé • ${new Date(recipient.sent_at).toLocaleString()}`;
+      return `Envoyé • ${new Date(recipient.sent_at).toLocaleString(locale)}`;
     }
     return "Envoyé";
   }
@@ -1819,39 +1823,39 @@ export function getCampaignRecipientStatusLabel(recipient: CampaignRecipientLog)
   if (recipient.status === "processing") return "En cours";
   if (recipient.next_attempt_at) {
     const retryLabel = recipient.failure_retryable ? "Nouvel essai" : "En attente";
-    return `${retryLabel} • ${new Date(recipient.next_attempt_at).toLocaleString()}`;
+    return `${retryLabel} • ${new Date(recipient.next_attempt_at).toLocaleString(locale)}`;
   }
   return "En attente";
 }
 
 
-export function formatOutboxStatusLabel(item: OutboxItem) {
+export function formatOutboxStatusLabel(item: OutboxItem, locale = "fr-FR") {
   if (item.source === "mail_campaigns") {
     const raw = (item.raw || {}) as any;
     const status = String(raw?.status || item.status || "").toLowerCase();
     const counts = campaignCounts(raw);
-    if (status === "queued") return `En attente • ${formatCampaignProgress(raw)}`;
-    if (status === "processing") return `Campagne en cours • ${formatCampaignProgress(raw)}`;
+    if (status === "queued") return `En attente • ${formatCampaignProgress(raw, locale)}`;
+    if (status === "processing") return `Campagne en cours • ${formatCampaignProgress(raw, locale)}`;
     if (status === "paused") {
       const resumeAt = raw?.resume_at ? new Date(raw.resume_at) : null;
       const hasValidResumeAt = resumeAt && Number.isFinite(resumeAt.getTime());
-      if (hasValidResumeAt) return `Campagne en pause • reprise automatique le ${resumeAt.toLocaleString()}`;
+      if (hasValidResumeAt) return `Campagne en pause • reprise automatique le ${resumeAt.toLocaleString(locale)}`;
       return raw?.last_error
         ? `Campagne en pause • ${getUserFacingMailError(raw.last_error, raw?.provider)}`
-        : `Campagne en pause • ${formatCampaignProgress(raw)}`;
+        : `Campagne en pause • ${formatCampaignProgress(raw, locale)}`;
     }
-    if (status === "partial") return `Campagne partielle • ${formatCampaignProgress(raw)}`;
-    if (status === "failed") return `Campagne en échec • ${counts.failed}/${counts.total || counts.failed} en échec`;
-    if (status === "sent" || status === "completed") return item.sent_at ? `Campagne terminée • ${new Date(item.sent_at).toLocaleString()}` : `Campagne terminée • ${formatCampaignProgress(raw)}`;
-    return `Campagne • ${formatCampaignProgress(raw)}`;
+    if (status === "partial") return `Campagne partielle • ${formatCampaignProgress(raw, locale)}`;
+    if (status === "failed") return `Campagne en échec • ${new Intl.NumberFormat(locale).format(counts.failed)}/${new Intl.NumberFormat(locale).format(counts.total || counts.failed)} en échec`;
+    if (status === "sent" || status === "completed") return item.sent_at ? `Campagne terminée • ${new Date(item.sent_at).toLocaleString(locale)}` : `Campagne terminée • ${formatCampaignProgress(raw, locale)}`;
+    return `Campagne • ${formatCampaignProgress(raw, locale)}`;
   }
 
   if (item.status === "draft") return "Brouillon";
   if (item.status === "error" || item.status === "failed") return "En échec";
   if (item.source === "inr_agent_actions") {
-    return item.sent_at ? `Bilan envoyé • ${new Date(item.sent_at).toLocaleString()}` : `Bilan généré • ${new Date(item.created_at).toLocaleString()}`;
+    return item.sent_at ? `Bilan envoyé • ${new Date(item.sent_at).toLocaleString(locale)}` : `Bilan généré • ${new Date(item.created_at).toLocaleString(locale)}`;
   }
-  return item.sent_at ? `Envoyé • ${new Date(item.sent_at).toLocaleString()}` : `Historique • ${new Date(item.created_at).toLocaleString()}`;
+  return item.sent_at ? `Envoyé • ${new Date(item.sent_at).toLocaleString(locale)}` : `Historique • ${new Date(item.created_at).toLocaleString(locale)}`;
 }
 
 export function isRetryableCampaignItem(item: OutboxItem | null) {

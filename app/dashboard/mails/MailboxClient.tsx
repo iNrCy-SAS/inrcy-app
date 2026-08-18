@@ -1,5 +1,8 @@
 "use client";
 
+import { useLocale, useTranslations } from "next-intl";
+
+
 import { resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { MODULE_SNAPSHOT_KEYS, readModuleSnapshot, writeModuleSnapshot } from "@/lib/browserModuleSnapshotCache";
 
@@ -215,6 +218,8 @@ function mailboxHistoryCountsKey(context: MailboxHistoryContext) {
 }
 
 export default function MailboxClient({ standardMode = false }: { standardMode?: boolean }) {
+  const i18nT = useTranslations("mails");
+  const locale = useLocale();
   const [helpOpen, setHelpOpen] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -854,7 +859,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
       automationKey: null,
       actionType: "mailing",
       targetTool: "mails",
-      title: `Mail — ${cleanSubject}`,
+      title: i18nT("mail_value_772b3623", { value0: cleanSubject }),
       summary: `${recipientsList.length} destinataire${recipientsList.length > 1 ? "s" : ""} · ${selectedAccount.email_address || selectedAccount.provider || "boîte connectée"}`,
       ...(scheduledAt ? { scheduledAt } : {}),
       channels: ["mails"],
@@ -907,7 +912,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
       const saved = await patchScheduledMailEdit(body);
       setScheduledMailEdit(saved);
       setLastSavedComposeSnapshot(makeComposeSnapshot());
-      setToast("Mail programmé enregistré.");
+      setToast(i18nT("mail_programme_enregistre_85a78243"));
       setComposeOpen(false);
       setScheduledMailEdit(null);
       scheduledMailEditLoadRef.current = "";
@@ -936,7 +941,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
           data?.error || "Envoi immédiat du mail programmé impossible.",
         );
       }
-      setToast("Mail lancé maintenant. La programmation future est retirée.");
+      setToast(i18nT("mail_lance_maintenant_la_programmation_future_73010184"));
       setComposeOpen(false);
       setScheduledMailEdit(null);
       await loadHistory();
@@ -1075,7 +1080,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
 
       if (mode === "resend" && recipients.length === 0) {
         setToast(
-          "Impossible de retrouver les destinataires de cette campagne.",
+          i18nT("impossible_de_retrouver_les_destinataires_de_a9386f01"),
         );
         return;
       }
@@ -1136,7 +1141,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
       );
     } catch (error) {
       console.error(error);
-      setToast("Impossible de préparer cette campagne pour le moment.");
+      setToast(i18nT("impossible_de_preparer_cette_campagne_pour_24419c7f"));
     } finally {
       setCampaignActionBusyId(null);
     }
@@ -2213,7 +2218,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
         preparation: finalVideo.publicUrl
           ? {
               status: "ready",
-              label: "Format appliqué",
+              label: i18nT("format_applique_43fe4a7e"),
               detail: `${getVideoFormatLabel(channel, format, sourceMetadata)} · ${VIDEO_ADAPTATION_MODE_LABELS[adaptationMode]}`,
             }
           : null,
@@ -2253,22 +2258,22 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
     if (count >= BULK_CONFIRM_STRONG_THRESHOLD) {
       return {
         tone: "strong" as const,
-        title: `Campagne importante : ${count} destinataires`,
-        text: "Une confirmation sera demandée avant l’envoi. Les garde-fous, quotas et reprises automatiques resteront actifs.",
+        title: i18nT("campagne_importante_value_destinataires_473e90bc", { value0: count }),
+        text: i18nT("une_confirmation_sera_demandee_avant_l_5e7f4ea1"),
       };
     }
     if (count >= BULK_CONFIRM_WARNING_THRESHOLD) {
       return {
         tone: "warning" as const,
-        title: `Campagne multi-destinataires : ${count} destinataires`,
-        text: "Vérifiez l’objet, la boîte d’envoi et le segment sélectionné avant de lancer la campagne.",
+        title: i18nT("campagne_multi_destinataires_value_destinataires_64088f63", { value0: count }),
+        text: i18nT("verifiez_l_objet_la_boite_d_3d1bbaee"),
       };
     }
     if (count > 1) {
       return {
         tone: "info" as const,
-        title: `Mode campagne activé : ${count} destinataires`,
-        text: "Chaque contact recevra un email individuel depuis iNr’SEND.",
+        title: i18nT("mode_campagne_active_value_destinataires_80a94557", { value0: count }),
+        text: i18nT("chaque_contact_recevra_un_email_individuel_996f757c"),
       };
     }
     return null;
@@ -2277,28 +2282,28 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
   const toolCfg = useMemo(() => {
     switch (folder) {
       case "mails":
-        return { label: "✉️ Envoyer", href: null as string | null };
+        return { label: i18nT("envoyer_f1d24a59"), href: null as string | null };
       case "factures":
-        return { label: "📄 Factures", href: "/dashboard/factures/new" };
+        return { label: i18nT("factures_7bcc32e6"), href: "/dashboard/factures/new" };
       case "devis":
-        return { label: "🧾 Devis", href: "/dashboard/devis/new" };
+        return { label: i18nT("devis_0eddca3e"), href: "/dashboard/devis/new" };
 
       case "publications":
-        return { label: "📣 Publier", href: "/dashboard?action=publish" };
+        return { label: i18nT("publier_34ef049f"), href: "/dashboard?action=publish" };
       case "propulsions":
       case "recoltes":
       case "offres":
-        return { label: "🚀 Propulser", href: "/dashboard/propulser" };
+        return { label: i18nT("propulser_e7c8950b"), href: "/dashboard/propulser" };
       case "fidelisations":
       case "informations":
       case "suivis":
       case "enquetes":
-        return { label: "💌 Fidéliser", href: "/dashboard/fideliser" };
+        return { label: i18nT("fideliser_398bb02e"), href: "/dashboard/fideliser" };
       case "stats":
-        return { label: "iNr'Stats", href: "/dashboard/stats" };
+        return { label: i18nT("inr_stats_22458bde"), href: "/dashboard/stats" };
 
       default:
-        return { label: "Ouvrir l’outil", href: null as string | null };
+        return { label: i18nT("ouvrir_l_outil_32a62f9c"), href: null as string | null };
     }
   }, [folder]);
 
@@ -2942,7 +2947,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
           }),
         );
         setComposeOpen(true);
-        setToast("Mail programmé ouvert en réédition.");
+        setToast(i18nT("mail_programme_ouvert_en_reedition_25196d5f"));
         router.replace("/dashboard/mails?folder=mails", { scroll: false });
       } catch (error) {
         setToast(getSimpleFrenchErrorMessage(error, "Ouverture du mail programmé impossible."));
@@ -3293,7 +3298,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
         );
         setScheduledMailEdit(saved);
         setLastSavedComposeSnapshot(makeComposeSnapshot());
-        setToast("Mail programmé mis à jour.");
+        setToast(i18nT("mail_programme_mis_a_jour_9819e8e5"));
         return;
       }
 
@@ -3354,11 +3359,11 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
 
   async function doSend() {
     if (attachBusy) {
-      setToast("Patientez : les pièces jointes sont encore en préparation.");
+      setToast(i18nT("patientez_les_pieces_jointes_sont_encore_ac136c9e"));
       return;
     }
     if (!selectedAccount) {
-      setToast("Veuillez connecter une boîte d’envoi dans les réglages.");
+      setToast(i18nT("veuillez_connecter_une_boite_d_envoi_98abd470"));
       return;
     }
     if (
@@ -3366,18 +3371,18 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
       selectedAccount.requires_update
     ) {
       setToast(
-        "Cette boîte d’envoi doit être actualisée avant de pouvoir envoyer.",
+        i18nT("cette_boite_d_envoi_doit_etre_9e1cb696"),
       );
       return;
     }
 
     const recipientsList = normalizeEmails(to);
     if (recipientsList.length === 0) {
-      setToast("Veuillez ajouter au moins un destinataire.");
+      setToast(i18nT("veuillez_ajouter_au_moins_un_destinataire_7e03a00e"));
       return;
     }
     if (attachBusy) {
-      setToast("Veuillez patienter pendant le chargement des pièces jointes.");
+      setToast(i18nT("veuillez_patienter_pendant_le_chargement_des_354773b1"));
       return;
     }
 
@@ -3387,16 +3392,16 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
 
     if (recipientsList.length > 1 && composeType !== "mail") {
       setToast(
-        "L’envoi individuel en masse est disponible uniquement pour les mails classiques.",
+        i18nT("l_envoi_individuel_en_masse_est_d93580cc"),
       );
       return;
     }
 
     if (recipientsList.length >= BULK_CONFIRM_WARNING_THRESHOLD) {
       const ok = await confirmInrcy({
-        title: "Confirmer l’envoi en masse ?",
+        title: i18nT("confirmer_l_envoi_en_masse_ad787aad"),
         message: bulkConfirmationMessage(recipientsList.length),
-        confirmLabel: "Envoyer",
+        confirmLabel: i18nT("envoyer_e9ce243b"),
         variant: "warning",
       });
       if (!ok) return;
@@ -3558,7 +3563,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
         return;
       }
 
-      setToast("Message envoyé.");
+      setToast(i18nT("message_envoye_1791794b"));
       setComposeOpen(false);
       resetCompose();
       await loadHistory();
@@ -3794,7 +3799,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
           removed: true,
           preparation: {
             status: "idle",
-            label: "Images sélectionnées",
+            label: i18nT("images_selectionnees_db1d99e0"),
             detail: "La publication sera enregistrée en images.",
           },
         },
@@ -3965,7 +3970,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
           adaptationMode: prev[videoChannel]?.adaptationMode || "safe_frame",
           preparation: {
             status: "idle",
-            label: "Vidéo ajoutée depuis la Médiathèque",
+            label: i18nT("video_ajoutee_depuis_la_mediatheque_880252c9"),
             detail: "Appliquez le format avant d’enregistrer.",
           },
           preparing: false,
@@ -4024,7 +4029,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
             removed: true,
             preparation: {
               status: "idle",
-              label: "Images sélectionnées",
+              label: i18nT("images_selectionnees_db1d99e0"),
               detail: "La publication sera enregistrée en images.",
             },
           },
@@ -4119,7 +4124,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
         adaptationMode: prev[channel]?.adaptationMode || "safe_frame",
         preparation: {
           status: "idle",
-          label: "Nouvelle vidéo ajoutée",
+          label: i18nT("nouvelle_video_ajoutee_73db7bab"),
           detail: "Appliquez le format avant d’enregistrer.",
         },
         removed: false,
@@ -4157,7 +4162,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
           removed: true,
           preparation: {
             status: "error",
-            label: "Vidéo supprimée",
+            label: i18nT("video_supprimee_5fd3ed00"),
             detail: "Ajoutez une nouvelle vidéo avant d’enregistrer.",
           },
         },
@@ -4182,7 +4187,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
             current.preparation?.status === "ready"
               ? {
                   status: "idle",
-                  label: "Format modifié",
+                  label: i18nT("format_modifie_a2680e9d"),
                   detail: "Appliquez ce format avant d’enregistrer.",
                 }
               : current.preparation,
@@ -4208,7 +4213,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
             current.preparation?.status === "ready"
               ? {
                   status: "idle",
-                  label: "Adaptation modifiée",
+                  label: i18nT("adaptation_modifiee_7c8ae175"),
                   detail: "Appliquez ce format avant d’enregistrer.",
                 }
               : current.preparation,
@@ -4239,7 +4244,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
         transformedVariants: [],
         preparation: {
           status: "idle",
-          label: "Vidéo ajoutée",
+          label: i18nT("video_ajoutee_ad22d54a"),
           detail: "Vous pouvez appliquer le format.",
         },
       },
@@ -4273,7 +4278,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
           previewUrl: existing.publicUrl || existing.url || current.previewUrl,
           preparation: {
             status: "ready",
-            label: "Format appliqué",
+            label: i18nT("format_applique_43fe4a7e"),
             detail: `${getVideoFormatLabel(channel, format, current.sourceMetadata)} · ${VIDEO_ADAPTATION_MODE_LABELS[adaptationMode]}`,
           },
         },
@@ -4289,7 +4294,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
         preparing: true,
         preparation: {
           status: "preparing",
-          label: "Modification du format...",
+          label: i18nT("modification_du_format_d563b6d2"),
           detail: `${getVideoFormatLabel(channel, format, current.sourceMetadata)} · ${VIDEO_ADAPTATION_MODE_LABELS[adaptationMode]}`,
         },
       },
@@ -4338,7 +4343,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
             preparing: false,
             preparation: {
               status: "ready",
-              label: "Vidéo originale conservée",
+              label: i18nT("video_originale_conservee_84fd0d77"),
               detail:
                 "Adaptation automatique indisponible : la vidéo originale sera utilisée.",
             },
@@ -4360,7 +4365,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
           preparing: false,
           preparation: {
             status: "ready",
-            label: "Format appliqué",
+            label: i18nT("format_applique_43fe4a7e"),
             detail: `${getVideoFormatLabel(channel, format, current.sourceMetadata)} · ${VIDEO_ADAPTATION_MODE_LABELS[adaptationMode]}`,
           },
         },
@@ -4376,7 +4381,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
           preparing: false,
           preparation: {
             status: "ready",
-            label: "Vidéo originale conservée",
+            label: i18nT("video_originale_conservee_84fd0d77"),
             detail: fallbackDetail,
           },
         },
@@ -4597,9 +4602,9 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
     const label =
       activeDetailsChannelEntry?.label || formatChannelLabel(channel);
     const ok = await confirmInrcy({
-      title: "Supprimer la publication ?",
-      message: `Cette action supprimera la publication ${label}.`,
-      confirmLabel: "Supprimer",
+      title: i18nT("supprimer_la_publication_1006f8f4"),
+      message: i18nT("cette_action_supprimera_la_publication_value_ea883f23", { value0: label }),
+      confirmLabel: i18nT("supprimer_1acfc1c7"),
       variant: "danger",
     });
     if (!ok) return null;
@@ -4757,7 +4762,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
         setToast(data?.error || "Le bilan n’a pas pu être renvoyé.");
         return;
       }
-      setToast("Bilan de campagne envoyé.");
+      setToast(i18nT("bilan_de_campagne_envoye_0c1ba823"));
       await loadCampaignHealth(campaignId, (detailsItem as any)?.raw || {});
     } finally {
       setCampaignSummaryBusyId(null);
@@ -5199,23 +5204,21 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
                 id="campaign-distribution-title"
                 className={styles.campaignDistributionTitle}
               >
-                Campagne validée : en cours de distribution
-              </h2>
+                {i18nT("campagne_validee_en_cours_de_distribution_1588afb2")}{" "}</h2>
               <p className={styles.campaignDistributionText}>
-                {campaignDistributionNotice.queuedCount} email
-                {campaignDistributionNotice.queuedCount > 1 ? "s" : ""} vont
-                partir automatiquement par vagues de{" "}
+                {campaignDistributionNotice.queuedCount} {" "}{i18nT("email_a88b7dcd")}{" "}{campaignDistributionNotice.queuedCount > 1 ? "s" : ""} {" "}{i18nT("vont_partir_automatiquement_par_vagues_de_6041fa3e")}{" "}
                 {campaignDistributionNotice.batchSize} maximum.
               </p>
               <p className={styles.campaignDistributionSubText}>
-                Vous pouvez fermer cette fenêtre : le suivi reste disponible
-                dans iNrSend.
-              </p>
+                {i18nT("vous_pouvez_fermer_cette_fenetre_le_301098d7")}{" "}</p>
               {campaignDistributionNotice.estimatedDurationMs != null ? (
                 <p className={styles.campaignDistributionNote}>
-                  Durée estimée : {formatCampaignDuration(campaignDistributionNotice.estimatedDurationMs)}
+                  {i18nT("duree_estimee_526601ed")}{" "}{formatCampaignDuration(
+                    campaignDistributionNotice.estimatedDurationMs,
+                    i18nT("moins_d_une_minute_abf2db93"),
+                  )}
                   {campaignDistributionNotice.estimatedCompletionAt
-                    ? ` • fin prévue vers ${new Date(campaignDistributionNotice.estimatedCompletionAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                    ? i18nT("fin_prevue_vers_value_50f1aa26", { value0: new Date(campaignDistributionNotice.estimatedCompletionAt).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }) })
                     : ""}
                 </p>
               ) : null}
@@ -5234,8 +5237,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
                 className={styles.btnPrimary}
                 onClick={() => setCampaignDistributionNotice(null)}
               >
-                Fermer
-              </button>
+                {i18nT("fermer_5ab4ec64")}{" "}</button>
             </div>
           </div>
         ) : null}

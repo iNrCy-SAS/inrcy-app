@@ -1,5 +1,8 @@
 "use client";
 
+import { useLocale, useTranslations } from "next-intl";
+
+
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
@@ -21,16 +24,21 @@ import { MODULE_SNAPSHOT_KEYS, readModuleSnapshot, writeModuleSnapshot } from "@
 
 const InformerModal = dynamic(() => import("./components/informer/InformerModal"), {
   ssr: false,
-  loading: () => <div style={{ padding: 24, textAlign: "center" }}>Chargement de l’éditeur…</div>,
+  loading: () => <GrowthEditorLoading />,
 });
 const SuivreModal = dynamic(() => import("./components/suivre/SuivreModal"), {
   ssr: false,
-  loading: () => <div style={{ padding: 24, textAlign: "center" }}>Chargement de l’éditeur…</div>,
+  loading: () => <GrowthEditorLoading />,
 });
 const EnqueterModal = dynamic(() => import("./components/enqueter/EnqueterModal"), {
   ssr: false,
-  loading: () => <div style={{ padding: 24, textAlign: "center" }}>Chargement de l’éditeur…</div>,
+  loading: () => <GrowthEditorLoading />,
 });
+
+function GrowthEditorLoading() {
+  const i18nT = useTranslations("growth");
+  return <div style={{ padding: 24, textAlign: "center" }}>{i18nT("chargement_de_l_editeur_5a6e7fa2")}</div>;
+}
 
 type ActiveModal = null | "inform" | "thanks" | "satisfaction";
 const FIDELISER_THEMES = ["inform", "thanks", "satisfaction"] as const;
@@ -45,6 +53,8 @@ type WeeklySummary = {
 type FideliserMetricsSnapshot = { metrics: any; weeklySummary: WeeklySummary | null };
 
 export default function FideliserPage() {
+  const i18nT = useTranslations("growth");
+  const locale = useLocale();
   const [helpOpen, setHelpOpen] = useState(false);
   const [aiConfigurationOpen, setAiConfigurationOpen] = useState(false);
   const [isMobileHeader, setIsMobileHeader] = useState(false);
@@ -73,11 +83,11 @@ export default function FideliserPage() {
   const requestCloseActiveModal = useCallback(async () => {
     if (active) {
       const ok = await confirmInrcy({
-        eyebrow: "Modèle en cours",
-        title: "Quitter ce modèle ?",
-        message: "Vous avez un modèle en cours de préparation. Si vous quittez maintenant, vos modifications seront perdues.",
-        cancelLabel: "Continuer l’édition",
-        confirmLabel: "Quitter",
+        eyebrow: i18nT("modele_en_cours_12d87956"),
+        title: i18nT("quitter_ce_modele_a8a7d73a"),
+        message: i18nT("vous_avez_un_modele_en_cours_6354a6c4"),
+        cancelLabel: i18nT("continuer_l_edition_0f0075bb"),
+        confirmLabel: i18nT("quitter_3e4126f5"),
         variant: "danger",
       });
       if (!ok) return;
@@ -89,11 +99,11 @@ export default function FideliserPage() {
     active: Boolean(active),
     shouldBlock: Boolean(active),
     onConfirmExit: closeActiveModal,
-    eyebrow: "Modèle en cours",
-    title: "Quitter ce modèle ?",
-    message: "Vous avez un modèle en cours de préparation. Si vous quittez maintenant, vos modifications seront perdues.",
-    cancelLabel: "Continuer l’édition",
-    confirmLabel: "Quitter",
+    eyebrow: i18nT("modele_en_cours_12d87956"),
+    title: i18nT("quitter_ce_modele_a8a7d73a"),
+    message: i18nT("vous_avez_un_modele_en_cours_6354a6c4"),
+    cancelLabel: i18nT("continuer_l_edition_0f0075bb"),
+    confirmLabel: i18nT("quitter_3e4126f5"),
     variant: "danger",
   });
 
@@ -151,11 +161,11 @@ export default function FideliserPage() {
     const next = FIDELISER_THEMES[activeThemeIndex + direction];
     if (!next) return;
     const ok = await confirmInrcy({
-      eyebrow: "Modèle en cours",
-      title: "Changer de thème ?",
-      message: "Les modifications non enregistrées du thème actuel seront perdues.",
-      cancelLabel: "Continuer l’édition",
-      confirmLabel: "Changer de thème",
+      eyebrow: i18nT("modele_en_cours_12d87956"),
+      title: i18nT("changer_de_theme_681e14d6"),
+      message: i18nT("les_modifications_non_enregistrees_du_theme_b2a5284d"),
+      cancelLabel: i18nT("continuer_l_edition_0f0075bb"),
+      confirmLabel: i18nT("changer_de_theme_5113d95e"),
       variant: "warning",
     });
     if (!ok) return;
@@ -205,7 +215,7 @@ export default function FideliserPage() {
       if (!value) return "—";
       const date = new Date(value);
       if (Number.isNaN(date.getTime())) return "—";
-      return date.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
+      return date.toLocaleDateString(locale, { day: "2-digit", month: "2-digit", year: "numeric" });
     };
 
     return {
@@ -221,35 +231,35 @@ export default function FideliserPage() {
       actions: [
         {
           key: "inform" as const,
-          title: "Informer",
+          title: i18nT("informer_570ee22d"),
           desc: "Newsletter, actualités, nouveautés. Sélectionnez vos contacts CRM puis envoyez.",
           accent: "cyan" as const,
-          cta: "Envoyer",
+          cta: i18nT("envoyer_e9ce243b"),
           status: { ...missionStatus, helper: buildMissionHelper(informWeek, featureMissionDone, missionStatus.helper) },
           reward: buildMissionReward(informWeek, featureMissionDone, missionProjected, featureGained),
         },
         {
           key: "thanks" as const,
-          title: "Suivre",
+          title: i18nT("suivre_7cca6c92"),
           desc: "Un mail simple après intervention. Sélectionnez des contacts CRM. Lancez.",
           accent: "purple" as const,
-          cta: "Envoyer",
+          cta: i18nT("envoyer_e9ce243b"),
           status: { ...missionStatus, helper: buildMissionHelper(thanksWeek, featureMissionDone, missionStatus.helper) },
           reward: buildMissionReward(thanksWeek, featureMissionDone, missionProjected, featureGained),
         },
         {
           key: "satisfaction" as const,
-          title: "Enquêter",
+          title: i18nT("enqueter_4fd8cc8c"),
           desc: "Enquête de satisfaction ou demande d’avis. Envoyez aux bons clients.",
           accent: "pink" as const,
-          cta: "Envoyer",
+          cta: i18nT("envoyer_e9ce243b"),
           status: { ...missionStatus, helper: buildMissionHelper(satisfactionWeek, featureMissionDone, missionStatus.helper) },
           reward: buildMissionReward(satisfactionWeek, featureMissionDone, missionProjected, featureGained),
         },
       ],
       metrics: [
         {
-          title: "Informations",
+          title: i18nT("informations_54937b3a"),
           variant: "campaign",
           month: n(newsletter.month),
           week: informWeek,
@@ -263,7 +273,7 @@ export default function FideliserPage() {
           ],
         },
         {
-          title: "Suivis",
+          title: i18nT("suivis_ba12ded5"),
           variant: "campaign",
           month: n(thanks.month),
           week: thanksWeek,
@@ -277,7 +287,7 @@ export default function FideliserPage() {
           ],
         },
         {
-          title: "Enquêtes",
+          title: i18nT("enquetes_354b5a30"),
           variant: "campaign",
           month: n(satisfaction.month),
           week: satisfactionWeek,
@@ -293,7 +303,7 @@ export default function FideliserPage() {
       ],
       tips: [
         {
-          title: "Pour mieux Informer",
+          title: i18nT("pour_mieux_informer_dae2682a"),
           lines: [
             { left: "1 newsletter / mois", right: "Top rappel" },
             { left: "Sujet clair", right: "Plus d’ouvertures" },
@@ -301,7 +311,7 @@ export default function FideliserPage() {
           ],
         },
         {
-          title: "Pour mieux Suivre",
+          title: i18nT("pour_mieux_suivre_4879e325"),
           lines: [
             { left: "Envoyer à J+1", right: "Meilleur timing" },
             { left: "Message court", right: "Lecture rapide" },
@@ -309,7 +319,7 @@ export default function FideliserPage() {
           ],
         },
         {
-          title: "Pour mieux Enquêter",
+          title: i18nT("pour_mieux_enqueter_d1a88772"),
           lines: [
             { left: "3 questions max", right: "Plus de réponses" },
             { left: "Demande d’avis ciblée", right: "Plus d’avis" },
@@ -318,7 +328,7 @@ export default function FideliserPage() {
         },
       ],
     };
-  }, [metrics, weeklySummary]);
+  }, [i18nT, locale, metrics, weeklySummary]);
 
   const saveWorkflowDraftFromHeader = useCallback(async () => {
     if (!workflowDraftActionRef.current || workflowDraftSaving) return;
@@ -348,39 +358,38 @@ export default function FideliserPage() {
       <div style={{ filter: active ? "blur(10px)" : "none", opacity: active ? 0.55 : 1, transition: "filter 180ms ease, opacity 180ms ease", pointerEvents: active ? "none" : "auto" }} aria-hidden={active ? true : undefined}>
         <div className={b.container}>
           <header className={b.headerRow}>
-            <div className={b.titleLine}><span aria-hidden className={b.titleIcon}>💌</span><div className={styles.title}>Fidéliser</div></div>
-            <div className={b.tagline}>Faites revenir vos clients. <strong>3 actions</strong>, maintenant.</div>
-            <div className={b.closeWrap}><div style={{ display: "flex", alignItems: "center", gap: 10 }}><HelpButton onClick={() => setHelpOpen(true)} title="Aide Fidéliser" /><ResponsiveActionButton desktopLabel="Propulser" mobileIcon="P" href="/dashboard/propulser" ariaLabel="Aller vers Propulser" title="Propulser" className={b.headerBtnBooster} /><Link href="/dashboard/mails?folder=fidelisations" aria-label="Aller vers iNr'Send / Fidélisations" title="Ouvrir iNr'Send" className={`${b.inrSendHeaderShortcut} ${b.headerBtnInrSend}`}>
-                    <span className={b.inrSendHeaderText}>iNr'Send</span>
+            <div className={b.titleLine}><span aria-hidden className={b.titleIcon}>💌</span><div className={styles.title}>{i18nT("fideliser_8fa9e4f1")}</div></div>
+            <div className={b.tagline}>{i18nT("faites_revenir_vos_clients_40a33c57")}{" "}<strong>{i18nT("3_actions_997cf6ea")}</strong>{i18nT("maintenant_4590a147")}</div>
+            <div className={b.closeWrap}><div style={{ display: "flex", alignItems: "center", gap: 10 }}><HelpButton onClick={() => setHelpOpen(true)} title={i18nT("aide_fideliser_a1feee79")} /><ResponsiveActionButton desktopLabel={i18nT("propulser_2de43942")} mobileIcon="P" href="/dashboard/propulser" ariaLabel={i18nT("aller_vers_propulser_f020d44a")} title={i18nT("propulser_2de43942")} className={b.headerBtnBooster} /><Link href="/dashboard/mails?folder=fidelisations" aria-label={i18nT("aller_vers_inr_send_fidelisations_834d32a3")} title={i18nT("ouvrir_inr_send_d4b453c9")} className={`${b.inrSendHeaderShortcut} ${b.headerBtnInrSend}`}>
+                    <span className={b.inrSendHeaderText}>{i18nT("inr_send_5c2a3e92")}</span>
                     <img className={b.inrSendHeaderLogo} src="/inrsend-logo-seul.png" alt="" aria-hidden />
-                  </Link><ResponsiveActionButton desktopLabel="Fermer" mobileIcon="✕" href="/dashboard" /></div></div>
+                  </Link><ResponsiveActionButton desktopLabel={i18nT("fermer_5ab4ec64")} mobileIcon="✕" href="/dashboard" /></div></div>
           </header>
 
-          <HelpModal open={helpOpen} title="Fidéliser" onClose={() => setHelpOpen(false)}>
-            <p style={{ marginTop: 0 }}>Fidéliser vous aide à faire revenir vos clients avec un rythme simple.</p>
+          <HelpModal open={helpOpen} title={i18nT("fideliser_8fa9e4f1")} onClose={() => setHelpOpen(false)}>
+            <p style={{ marginTop: 0 }}>{i18nT("fideliser_vous_aide_a_faire_revenir_2dfec881")}</p>
             <ul style={{ margin: 0, paddingLeft: 18 }}>
-              <li>Restez visible après l’intervention.</li>
-              <li>Transformez la relation client en récurrence.</li>
-              <li>Débloquez vos UI avec le multiplicateur Turbo UI.</li>
+              <li>{i18nT("restez_visible_apres_l_intervention_dd7b3122")}</li>
+              <li>{i18nT("transformez_la_relation_client_en_recurrence_9c8a79b6")}</li>
+              <li>{i18nT("debloquez_vos_ui_avec_le_multiplicateur_cd6abd6a")}</li>
             </ul>
             <div style={{ marginTop: 14, borderRadius: 14, padding: "12px 14px", border: "1px solid rgba(76,195,255,0.24)", background: "rgba(76,195,255,0.08)", lineHeight: 1.55 }}>
-              <strong>Toutes vos communications sont accessibles dans iNr'Send.</strong><br />
-              Les actions lancées depuis Fidéliser y restent consultables, et les publications réalisées depuis Booster sont aussi retrouvables dans iNr'Send / Publications pour être modifiées ou supprimées.
-            </div>
+              <strong>{i18nT("toutes_vos_communications_sont_accessibles_dans_66e42690")}</strong><br />
+              {i18nT("les_actions_lancees_depuis_fideliser_y_795ea881")}{" "}</div>
           </HelpModal>
 
           <section className={[styles.blockCard, b.missionBanner, data.missions.featureDone ? b.missionBannerDone : b.missionBannerTodo].join(" ")}>
             <div className={b.missionBannerLeft}>
-              <div className={b.heroEyebrow}>Mission Fidéliser</div>
-              <div className={b.missionBannerTitle}>1 action / semaine</div>
+              <div className={b.heroEyebrow}>{i18nT("mission_fideliser_4c1796f6")}</div>
+              <div className={b.missionBannerTitle}>{i18nT("1_action_semaine_af4d116e")}</div>
             </div>
             <div className={b.missionBannerCenter}>
               <span className={b.missionBannerProgress}>{metricsLoading ? <TinyLoader /> : `${data.missions.completedCount}/1`}</span>
-              <span className={b.missionBannerState}>{metricsLoading ? "Chargement" : data.missions.featureDone ? "Validée" : "À lancer"}</span>
+              <span className={b.missionBannerState}>{metricsLoading ? i18nT("chargement_c7ac0481") : data.missions.featureDone ? i18nT("validee_2cc6c327") : i18nT("a_lancer_244bf2ef")}</span>
             </div>
             <div className={b.missionBannerRight}>
-              <span className={b.missionBannerUi}>Jusqu’à {metricsLoading ? <TinyLoader /> : `+${data.missions.totalAvailable}`} UI</span>
-              <span className={b.missionBannerEarned}>{metricsLoading ? <TinyLoader /> : `+${data.missions.totalEarned}`} UI gagnés</span>
+              <span className={b.missionBannerUi}>{i18nT("jusqu_a_22ae04ef")}{" "}{metricsLoading ? <TinyLoader /> : `+${data.missions.totalAvailable}`} UI</span>
+              <span className={b.missionBannerEarned}>{metricsLoading ? <TinyLoader /> : `+${data.missions.totalEarned}`} {" "}{i18nT("ui_gagnes_cb41480e")}</span>
             </div>
           </section>
 
@@ -388,7 +397,7 @@ export default function FideliserPage() {
             <section className={b.triRow} aria-hidden>
               <div className={[b.triItem, b.triCyan].join(" ")}><div className={b.triLabel}>INFORMER</div></div>
               <div className={[b.triItem, b.triPurple].join(" ")}><div className={b.triLabel}>SUIVRE</div></div>
-              <div className={[b.triItem, b.triPink].join(" ")}><div className={b.triLabel}>ENQUÊTER</div></div>
+              <div className={[b.triItem, b.triPink].join(" ")}><div className={b.triLabel}>{i18nT("enqueter_9f2b15ae")}</div></div>
             </section>
             <section className={b.rocketGrid}>
               {data.actions.map((a, idx) => {
@@ -440,7 +449,7 @@ export default function FideliserPage() {
       {active && (
         <BaseModal
           title={active === "inform" ? "Informer" : active === "thanks" ? "Suivre" : "Enquêter"}
-          moduleLabel="Module Fidéliser"
+          moduleLabel={i18nT("module_fideliser_b309c73d")}
           onClose={requestCloseActiveModal}
           titleOnLeftOnMobile
           hideModuleLabelOnMobile
@@ -454,10 +463,10 @@ export default function FideliserPage() {
                 canNext={activeThemeIndex >= 0 && activeThemeIndex < FIDELISER_THEMES.length - 1}
                 onPrevious={() => switchActiveTheme(-1)}
                 onNext={() => switchActiveTheme(1)}
-                ariaLabel="Navigation entre les thèmes Fidéliser"
+                ariaLabel={i18nT("navigation_entre_les_themes_fideliser_436ee375")}
               />
-              <button type="button" className={`${styles.secondaryBtn} ${styles.aiHeaderBtn}`} onClick={() => setAiConfigurationOpen(true)} aria-label="Configuration IA" title="Configuration IA" style={{ width: isMobileHeader ? 32 : 38, minWidth: isMobileHeader ? 32 : 38, minHeight: isMobileHeader ? 32 : 36, padding: 0, fontSize: isMobileHeader ? 12 : 13, borderRadius: 999 }}>IA</button>
-              <button type="button" className={styles.secondaryBtn} onClick={() => void saveWorkflowDraftFromHeader()} disabled={workflowDraftSaving} title="Enregistrer le brouillon" aria-label="Enregistrer le brouillon" style={{ width: isMobileHeader ? 32 : 38, minWidth: isMobileHeader ? 32 : 38, minHeight: isMobileHeader ? 32 : 36, padding: 0, display: "inline-grid", placeItems: "center", fontSize: isMobileHeader ? 15 : 18, borderRadius: 999, opacity: workflowDraftSaving ? 0.64 : 1, cursor: workflowDraftSaving ? "wait" : "pointer" }}>
+              <button type="button" className={`${styles.secondaryBtn} ${styles.aiHeaderBtn}`} onClick={() => setAiConfigurationOpen(true)} aria-label={i18nT("configuration_ia_f620c8d8")} title={i18nT("configuration_ia_f620c8d8")} style={{ width: isMobileHeader ? 32 : 38, minWidth: isMobileHeader ? 32 : 38, minHeight: isMobileHeader ? 32 : 36, padding: 0, fontSize: isMobileHeader ? 12 : 13, borderRadius: 999 }}>IA</button>
+              <button type="button" className={styles.secondaryBtn} onClick={() => void saveWorkflowDraftFromHeader()} disabled={workflowDraftSaving} title={i18nT("enregistrer_le_brouillon_6a319595")} aria-label={i18nT("enregistrer_le_brouillon_6a319595")} style={{ width: isMobileHeader ? 32 : 38, minWidth: isMobileHeader ? 32 : 38, minHeight: isMobileHeader ? 32 : 36, padding: 0, display: "inline-grid", placeItems: "center", fontSize: isMobileHeader ? 15 : 18, borderRadius: 999, opacity: workflowDraftSaving ? 0.64 : 1, cursor: workflowDraftSaving ? "wait" : "pointer" }}>
                 {workflowDraftSaving ? "…" : "💾"}
               </button>
             </>
@@ -487,18 +496,20 @@ function ActionCard({ styles, accent, title, desc, cta, onClick }: any) {
 }
 
 function TinyLoader() {
-  return <span aria-label="Chargement" title="Chargement">…</span>;
+  const i18nT = useTranslations("growth");
+  return <span aria-label={i18nT("chargement_c7ac0481")} title={i18nT("chargement_c7ac0481")}>…</span>;
 }
 
 function MetricCard({ styles, title, month, channels, loading }: any) {
+  const i18nT = useTranslations("growth");
   return (
     <div className={[styles.blockCard, b.metricCard, b.metricCardSimple].join(" ")}>
       <div className={b.cardTopRow}>
         <div>
           <div className={styles.blockTitle}>{title}</div>
-          <div className={b.progressLabel}>Statistiques</div>
+          <div className={b.progressLabel}>{i18nT("statistiques_fdce305a")}</div>
         </div>
-        <div className={b.pill}>Ce mois : {loading ? <TinyLoader /> : month}</div>
+        <div className={b.pill}>{i18nT("ce_mois_688e5f3c")}{" "}{loading ? <TinyLoader /> : month}</div>
       </div>
       <div className={[b.channelGridCompact, b.channelGridCampaign, b.statsListSimple].join(" ")}>
         {channels.map((c: any) => (

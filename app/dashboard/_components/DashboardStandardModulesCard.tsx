@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 
 import { useDelayedPendingAction } from "@/hooks/useDelayedPendingAction";
 import styles from "../dashboard.module.css";
@@ -44,6 +45,8 @@ export default function DashboardStandardModulesCard({
   onOpenBoosterPublish,
   onOpenBoosterStats,
 }: Props) {
+  const i18nT = useTranslations("shell");
+  const t = useTranslations("dashboard.standard");
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { pendingKey, beginAction, completeAction, isVisible } = useDelayedPendingAction<string>();
@@ -96,8 +99,8 @@ export default function DashboardStandardModulesCard({
     <div className={styles.lowerRow} data-dashboard-standard-lower-blocks="true">
       <section className={`${styles.blockCard} ${standardStyles.panel} ${standardStyles.pilotPanel}`}>
         <div className={`${styles.blockHead} ${standardStyles.pilotHead}`}>
-          <h3 className={styles.h3}>Boîte de pilotage</h3>
-          <span className={styles.smallMuted}>Mesurez, retrouvez, fidélisez</span>
+          <h3 className={styles.h3}>{t("pilotTitle")}</h3>
+          <span className={styles.smallMuted}>{t("pilotSubtitle")}</span>
         </div>
 
         <div className={standardStyles.dashboardList}>
@@ -108,8 +111,8 @@ export default function DashboardStandardModulesCard({
               <img src="/inrstats-logo-seul.png" alt="" />
             </span>
             <div className={standardStyles.toolCopy}>
-              <h4>iNr&apos;Stats</h4>
-              <p>Mesurez votre impact.</p>
+              <h4>{i18nT("inr_apos_stats_e43f5622")}</h4>
+              <p>{t("statsDescription")}</p>
             </div>
             <button
               type="button"
@@ -119,7 +122,7 @@ export default function DashboardStandardModulesCard({
               disabled={isVisible(`route:${statsPath}`)}
               aria-busy={isVisible(`route:${statsPath}`) || undefined}
             >
-              {isVisible(`route:${statsPath}`) ? "Chargement…" : "Voir les statistiques"} <ArrowIcon />
+              {isVisible(`route:${statsPath}`) ? t("loading") : t("statsCta")} <ArrowIcon />
             </button>
           </article>
 
@@ -128,8 +131,8 @@ export default function DashboardStandardModulesCard({
               <img src="/inrsend-logo-seul.png" alt="" />
             </span>
             <div className={standardStyles.toolCopy}>
-              <h4>iNr&apos;Send</h4>
-              <p>Retrouvez toutes vos publications.</p>
+              <h4>{i18nT("inr_apos_send_aaa1fcec")}</h4>
+              <p>{t("sendDescription")}</p>
             </div>
             <button
               type="button"
@@ -139,7 +142,7 @@ export default function DashboardStandardModulesCard({
               disabled={isVisible(`route:${publicationsPath}`)}
               aria-busy={isVisible(`route:${publicationsPath}`) || undefined}
             >
-              {isVisible(`route:${publicationsPath}`) ? "Chargement…" : "Voir l’historique"} <ArrowIcon />
+              {isVisible(`route:${publicationsPath}`) ? t("loading") : t("sendCta")} <ArrowIcon />
             </button>
           </article>
 
@@ -148,8 +151,8 @@ export default function DashboardStandardModulesCard({
               <ReputationIcon />
             </span>
             <div className={standardStyles.toolCopy}>
-              <h4>Réputation</h4>
-              <p>Pilotez vos avis Google.</p>
+              <h4>{t("reputationName")}</h4>
+              <p>{t("reputationDescription")}</p>
             </div>
             <button
               type="button"
@@ -159,7 +162,7 @@ export default function DashboardStandardModulesCard({
               disabled={isVisible(`route:${reputationPath}`)}
               aria-busy={isVisible(`route:${reputationPath}`) || undefined}
             >
-              {isVisible(`route:${reputationPath}`) ? "Chargement…" : "Gérer mes avis"} <ArrowIcon />
+              {isVisible(`route:${reputationPath}`) ? t("loading") : t("reputationCta")} <ArrowIcon />
             </button>
           </article>
         </div>
@@ -173,18 +176,18 @@ export default function DashboardStandardModulesCard({
         <span className={standardStyles.boosterNodeThree} aria-hidden="true" />
 
         <div className={standardStyles.boosterContent}>
-          <span className={standardStyles.boosterEyebrow}>Publication multicanale</span>
+          <span className={standardStyles.boosterEyebrow}>{t("boosterEyebrow")}</span>
           <span className={standardStyles.boosterLogo} aria-hidden="true"><BoosterIcon /></span>
           <div className={standardStyles.boosterCopy}>
-            <h3>Booster</h3>
-            <p>Publiez partout,<br /><strong>en un seul geste.</strong></p>
+            <h3>{i18nT("booster_8e4caec0")}</h3>
+            <p>{t("boosterLine1")}<br /><strong>{t("boosterLine2")}</strong></p>
             <button
               type="button"
               onClick={openPublishModal}
               disabled={isVisible("modal:publish")}
               aria-busy={isVisible("modal:publish") || undefined}
             >
-              {isVisible("modal:publish") ? "Chargement…" : "Créer une publication"} <ArrowIcon />
+              {isVisible("modal:publish") ? t("loading") : t("boosterCta")} <ArrowIcon />
             </button>
           </div>
         </div>
@@ -192,12 +195,12 @@ export default function DashboardStandardModulesCard({
         <button
           type="button"
           className={standardStyles.boosterStats}
-          aria-label="Ouvrir le bilan Booster"
-          title="Ouvrir le bilan Booster"
+          aria-label={t("boosterSummaryAria")}
+          title={t("boosterSummaryAria")}
           onClick={openBoosterSummary}
         >
           <span aria-hidden="true"><i /><i /><i /></span>
-          <b>Bilan</b>
+          <b>{t("boosterSummary")}</b>
         </button>
       </section>
     </div>

@@ -3,6 +3,7 @@
 import React, { useEffect, useId, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useDashboardI18n } from "./_hooks/useDashboardI18n";
+import LanguageSelector from "./_components/LanguageSelector";
 
 type Props = {
   title: string;
@@ -221,6 +222,9 @@ export default function SettingsDrawer({
               maxWidth: "100%",
             }}
           >
+            {presentation === "onboarding" ? (
+              <LanguageSelector compact mobile={isPhone} />
+            ) : null}
             {headerActions}
             <button
               type="button"

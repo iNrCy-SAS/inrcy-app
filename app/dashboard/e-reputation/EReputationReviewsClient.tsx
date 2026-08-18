@@ -1,5 +1,8 @@
 "use client";
 
+import { useLocale, useTranslations } from "next-intl";
+
+
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -8,6 +11,11 @@ import EmojiPickerButton from "@/app/dashboard/_components/EmojiPickerButton";
 import PublishAiConfigurationDrawer from "@/app/dashboard/booster/publier/components/PublishAiConfigurationDrawer";
 import { MODULE_SNAPSHOT_KEYS, readModuleSnapshot, writeModuleSnapshot } from "@/lib/browserModuleSnapshotCache";
 import styles from "./eReputation.module.css";
+
+type ReputationTranslator = (
+  key: string,
+  values?: Record<string, string | number | boolean>,
+) => string;
 
 export type EReputationPlatformId = "google";
 
@@ -154,89 +162,100 @@ function getReviewerFirstName(name: string) {
 }
 
 function reviewHasWrittenComment(review: EReputationReviewItem | null) {
-  const text = getReviewOriginalText(review);
-  return Boolean(text && !/avis sans commentaire écrit/i.test(text));
+  if (!review) return false;
+  if (review.live) return Boolean(compactReviewText(review.originalComment));
+  return Boolean(getReviewOriginalText(review));
 }
 
-function joinWithOptionalSignature(text: string, seed: number) {
-  const signature = pickVariant(["", "", "", "\n— L’équipe"], seed + 17);
+function joinWithOptionalSignature(text: string, seed: number, t: ReputationTranslator) {
+  const signature = pickVariant(["", "", "", `\n${t("team_signature")}`], seed + 17);
   return `${text}${signature}`.trim();
 }
 
-function defaultReplyFor(review: EReputationReviewItem | null) {
+function defaultReplyFor(review: EReputationReviewItem | null, t: ReputationTranslator) {
   if (!review) return "";
   if (review.reply) return review.reply;
 
   const seed = stableHash([review.id, review.name, review.rating, getReviewOriginalText(review), review.date].join("|"));
   const firstName = getReviewerFirstName(review.name);
-  const directName = firstName ? ` ${firstName}` : "";
-  const commaName = firstName ? `, ${firstName}` : "";
   const withComment = reviewHasWrittenComment(review);
-  let variants: string[] = [];
+  let variants: Array<{ key: string; nameStyle: "direct" | "comma" }> = [];
 
   if (review.rating >= 5) {
     variants = withComment
       ? [
-          `Merci${directName} pour votre retour si positif. Nous sommes ravis de voir que notre accompagnement a répondu à vos attentes. Au plaisir de vous revoir bientôt !`,
-          `Un grand merci${directName} pour votre confiance et pour votre avis. Toute l’équipe est heureuse d’avoir pu vous apporter satisfaction.`,
-          `Merci beaucoup${directName} pour ce très beau retour. Votre satisfaction est une vraie récompense pour notre équipe.`,
-          `Merci${directName} pour votre commentaire et votre excellente note. Nous sommes heureux d’avoir pu vous accompagner dans les meilleures conditions.`,
+          { key: "merci_value_pour_votre_retour_si_f0c2ab82", nameStyle: "direct" },
+          { key: "un_grand_merci_value_pour_votre_68c38539", nameStyle: "direct" },
+          { key: "merci_beaucoup_value_pour_ce_tres_563e04eb", nameStyle: "direct" },
+          { key: "merci_value_pour_votre_commentaire_et_d30ebbd5", nameStyle: "direct" },
         ]
       : [
-          `Merci beaucoup${directName} pour votre excellente note. Nous sommes ravis de votre confiance et espérons vous revoir prochainement.`,
-          `Un grand merci${directName} pour vos 5 étoiles. Toute l’équipe vous remercie chaleureusement pour ce retour.`,
-          `Merci${directName} pour cette très belle note. Votre satisfaction nous fait très plaisir.`,
-          `Merci infiniment${directName} pour votre note. Nous sommes heureux d’avoir pu vous apporter une expérience positive.`,
+          { key: "merci_beaucoup_value_pour_votre_excellente_a012072c", nameStyle: "direct" },
+          { key: "un_grand_merci_value_pour_vos_a4686f98", nameStyle: "direct" },
+          { key: "merci_value_pour_cette_tres_belle_3b6ca1d1", nameStyle: "direct" },
+          { key: "merci_infiniment_value_pour_votre_note_3f2a9070", nameStyle: "direct" },
         ];
   } else if (review.rating === 4) {
     variants = withComment
       ? [
-          `Merci${directName} pour votre retour et pour cette belle note. Nous sommes heureux d’avoir pu vous satisfaire et restons attentifs à toujours faire encore mieux.`,
-          `Merci beaucoup${directName} pour votre avis. Votre retour compte pour nous et nous motive à continuer dans cette direction.`,
-          `Merci${directName} pour votre confiance et pour votre commentaire. Nous sommes ravis de votre satisfaction et prenons aussi en compte chaque détail pour progresser.`,
-          `Un grand merci${directName} pour votre retour positif. Nous restons mobilisés pour vous offrir la meilleure expérience possible.`,
+          { key: "merci_value_pour_votre_retour_et_7a6b283c", nameStyle: "direct" },
+          { key: "merci_beaucoup_value_pour_votre_avis_ff352f28", nameStyle: "direct" },
+          { key: "merci_value_pour_votre_confiance_et_b5a214f5", nameStyle: "direct" },
+          { key: "un_grand_merci_value_pour_votre_af57b469", nameStyle: "direct" },
         ]
       : [
-          `Merci beaucoup${directName} pour votre note et votre confiance. Nous sommes ravis de voir que votre expérience a été positive.`,
-          `Merci${directName} pour cette belle note. Votre retour nous encourage à continuer avec le même sérieux.`,
-          `Un grand merci${directName} pour votre évaluation. Nous espérons avoir le plaisir de vous accompagner à nouveau.`,
-          `Merci${directName} pour votre retour. Toute l’équipe vous remercie pour cette belle note.`,
+          { key: "merci_beaucoup_value_pour_votre_note_a5d924e4", nameStyle: "direct" },
+          { key: "merci_value_pour_cette_belle_note_5595bdae", nameStyle: "direct" },
+          { key: "un_grand_merci_value_pour_votre_032c55c8", nameStyle: "direct" },
+          { key: "merci_value_pour_votre_retour_toute_ece727a1", nameStyle: "direct" },
         ];
   } else if (review.rating === 3) {
     variants = [
-      `Merci${directName} pour votre retour. Nous prenons bien en compte votre avis et restons à votre écoute si vous souhaitez nous préciser votre expérience.`,
-      `Merci${directName} d’avoir pris le temps de partager votre avis. Votre retour nous aide à continuer à progresser.`,
-      `Merci pour votre évaluation${commaName}. Nous restons disponibles si vous souhaitez échanger avec nous sur votre expérience.`,
-      `Merci${directName} pour votre avis. Nous sommes attentifs à vos retours et disponibles pour en discuter si besoin.`,
+      { key: "merci_value_pour_votre_retour_nous_8a13bc92", nameStyle: "direct" },
+      { key: "merci_value_d_avoir_pris_le_9021204e", nameStyle: "direct" },
+      { key: "merci_pour_votre_evaluation_value_nous_e5421e2d", nameStyle: "comma" },
+      { key: "merci_value_pour_votre_avis_nous_80996010", nameStyle: "direct" },
     ];
   } else {
     variants = [
-      `Merci${directName} d’avoir pris le temps de partager votre ressenti. Nous sommes désolés que votre expérience n’ait pas été pleinement satisfaisante et restons disponibles pour échanger avec vous.`,
-      `Merci pour votre retour${commaName}. Nous prenons votre avis au sérieux et vous invitons à nous contacter afin que nous puissions mieux comprendre la situation.`,
-      `Merci${directName} pour votre message. Nous regrettons que votre expérience n’ait pas répondu à vos attentes et restons à votre écoute pour en discuter.`,
-      `Merci d’avoir partagé votre avis${commaName}. Nous restons disponibles pour échanger directement et mieux comprendre votre retour.`,
+      { key: "merci_value_d_avoir_pris_le_03cb2ebc", nameStyle: "direct" },
+      { key: "merci_pour_votre_retour_value_nous_de42f06e", nameStyle: "comma" },
+      { key: "merci_value_pour_votre_message_nous_aea336d4", nameStyle: "direct" },
+      { key: "merci_d_avoir_partage_votre_avis_94bf4a38", nameStyle: "comma" },
     ];
   }
 
-  return joinWithOptionalSignature(pickVariant(variants, seed), seed);
+  const variant = pickVariant(variants, seed);
+  const name = firstName
+    ? variant.nameStyle === "comma"
+      ? `, ${firstName}`
+      : ` ${firstName}`
+    : "";
+  return joinWithOptionalSignature(t(variant.key, { value0: name }), seed, t);
 }
 
 function getErrorMessage(payload: ReplyResponse | GenerateReplyResponse | ReviewsResponse | null, fallback: string) {
-  return payload?.user_message || payload?.error || fallback;
+  void payload;
+  return fallback;
 }
 
-function formatReviewDate(value: string | null | undefined) {
-  if (!value) return "Date non précisée";
+function formatReviewDate(value: string | null | undefined, locale: string, t: ReputationTranslator) {
+  if (!value) return t("date_non_precisee_4bef7159");
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Date non précisée";
-  return date.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
+  if (Number.isNaN(date.getTime())) return t("date_non_precisee_4bef7159");
+  return date.toLocaleDateString(locale, { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
-function platformDefaultReviewer(_platform: EReputationPlatformId) {
-  return "Client Google";
+function platformDefaultReviewer(_platform: EReputationPlatformId, t: ReputationTranslator) {
+  return t("client_google");
 }
 
-function toReviewItem(review: ApiReview, platform: EReputationPlatformId): EReputationReviewItem {
+function toReviewItem(
+  review: ApiReview,
+  platform: EReputationPlatformId,
+  locale: string,
+  t: ReputationTranslator,
+): EReputationReviewItem {
   const reviewName = String(review.name || review.reviewId || "").trim() || null;
   const reviewId = String(review.reviewId || reviewName || Math.random().toString(36).slice(2)).trim();
   const hasReply = review.replyStatus === "answered" || Boolean(review.reply?.comment);
@@ -251,11 +270,11 @@ function toReviewItem(review: ApiReview, platform: EReputationPlatformId): ERepu
     id: `${platform}:${reviewName || reviewId}`,
     platform,
     reviewName: reviewName || reviewId,
-    name: String(review.reviewerName || platformDefaultReviewer(platform)).trim() || platformDefaultReviewer(platform),
+    name: String(review.reviewerName || platformDefaultReviewer(platform, t)).trim() || platformDefaultReviewer(platform, t),
     rating,
-    date: formatReviewDate(review.updateTime || review.createTime),
+    date: formatReviewDate(review.updateTime || review.createTime, locale, t),
     status: hasReply ? "Répondu" : rating > 0 && rating <= 3 ? "À traiter" : "À répondre",
-    comment: cleanComment || "Avis sans commentaire écrit.",
+    comment: cleanComment || t("avis_sans_commentaire_ecrit_3e602596"),
     originalComment: originalComment || cleanComment || null,
     translatedComment: translatedComment || null,
     reply: cleanReply || null,
@@ -324,9 +343,16 @@ function getReviewTranslatedText(review: EReputationReviewItem | null) {
 }
 
 function truncateText(review: EReputationReviewItem, max = 110) {
-  const clean = getReviewOriginalText(review) || review.comment;
+  const source = getReviewOriginalText(review) || review.comment;
+  const clean = source;
   if (clean.length <= max) return clean;
   return `${clean.slice(0, max).trim()}…`;
+}
+
+function reviewStatusLabel(status: EReputationReviewItem["status"], t: ReputationTranslator) {
+  if (status === "Répondu") return t("status_answered");
+  if (status === "À traiter") return t("status_to_handle");
+  return t("a_repondre_6f7c5ab8");
 }
 
 function renderMultilineText(value: string) {
@@ -338,6 +364,7 @@ function renderMultilineText(value: string) {
 }
 
 function ReviewTextBlock({ review }: { review: EReputationReviewItem }) {
+  const i18nT = useTranslations("reputation");
   const original = getReviewOriginalText(review);
   const translated = getReviewTranslatedText(review);
 
@@ -345,36 +372,36 @@ function ReviewTextBlock({ review }: { review: EReputationReviewItem }) {
     return (
       <div className={styles.reviewLanguageGroup}>
         <div className={styles.reviewLanguageBlock}>
-          <span className={styles.reviewLanguageLabel}>Version originale</span>
+          <span className={styles.reviewLanguageLabel}>{i18nT("version_originale_4f69bd3a")}</span>
           <div className={styles.reviewLanguageText}>{renderMultilineText(original)}</div>
         </div>
         <div className={styles.reviewLanguageBlock}>
-          <span className={styles.reviewLanguageLabel}>Version traduite par Google</span>
+          <span className={styles.reviewLanguageLabel}>{i18nT("version_traduite_par_google_374a8b9f")}</span>
           <div className={styles.reviewLanguageText}>{renderMultilineText(translated)}</div>
         </div>
       </div>
     );
   }
 
-  return <div className={styles.reviewLanguageText}>{renderMultilineText(original || "Avis sans commentaire écrit.")}</div>;
+  return <div className={styles.reviewLanguageText}>{renderMultilineText(original || i18nT("avis_sans_commentaire_ecrit_3e602596"))}</div>;
 }
 
-function buildDefaultPlatform(props: Props): EReputationReviewsPlatform {
+function buildDefaultPlatform(props: Props, t: ReputationTranslator): EReputationReviewsPlatform {
   return {
     id: "google",
     label: "Google",
     shortLabel: "Google",
     iconSrc: "/icons/google.jpg",
-    modalKicker: "Avis Google",
-    replyLabel: "Réponse Google",
+    modalKicker: t("avis_google_7cf4e619"),
+    replyLabel: t("reponse_google_447ce1c4"),
     reviews: props.reviews.map((review) => ({ ...review, platform: "google" as const, replyable: review.replyable !== false })),
     reviewsReady: props.reviewsReady,
     reviewsError: props.reviewsError,
     initialNextPageToken: props.initialNextPageToken || null,
     totalReviewCount: props.totalReviewCount || 0,
     averageRatingLabel: props.averageRatingLabel || "—",
-    locationLabel: props.locationLabel || "Fiche Google Business",
-    statusLabel: props.statusLabel || "Google Business",
+    locationLabel: props.locationLabel || t("fiche_google_business_09b337dd"),
+    statusLabel: props.statusLabel || t("synchronisation_google_0008de4a"),
     connected: props.gmbReady,
     canReply: props.gmbReady,
     reportUrl: props.reportGoogleUrl || null,
@@ -399,9 +426,9 @@ function apiBaseFor(_platform: EReputationPlatformId) {
   return "/api/e-reputation/google";
 }
 
-function formatAverageRating(value: number | null | undefined) {
+function formatAverageRating(value: number | null | undefined, locale: string) {
   if (!Number.isFinite(Number(value))) return "—";
-  return Number(value).toLocaleString("fr-FR", {
+  return Number(value).toLocaleString(locale, {
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,
   });
@@ -410,13 +437,15 @@ function formatAverageRating(value: number | null | undefined) {
 function platformFromSnapshot(
   platform: EReputationReviewsPlatform,
   snapshot: ReviewsResponse | null,
+  locale: string,
+  t: ReputationTranslator,
 ): EReputationReviewsPlatform {
   if (!snapshot) return platform;
   const connected = Boolean(snapshot.connected);
   const configured = Boolean(snapshot.configured);
   const ready = connected && configured;
   const cachedReviews = Array.isArray(snapshot.reviews)
-    ? snapshot.reviews.map((review) => toReviewItem(review, platform.id))
+    ? snapshot.reviews.map((review) => toReviewItem(review, platform.id, locale, t))
     : [];
 
   return normalizePlatform({
@@ -428,13 +457,13 @@ function platformFromSnapshot(
     totalReviewCount: Number.isFinite(Number(snapshot.totalReviewCount))
       ? Number(snapshot.totalReviewCount)
       : cachedReviews.length,
-    averageRatingLabel: ready ? formatAverageRating(snapshot.averageRating) : "—",
-    locationLabel: String(snapshot.locationTitle || platform.locationLabel || "Fiche Google Business"),
+    averageRatingLabel: ready ? formatAverageRating(snapshot.averageRating, locale) : "—",
+    locationLabel: String(snapshot.locationTitle || platform.locationLabel || t("fiche_google_business_09b337dd")),
     statusLabel: ready
-      ? "Avis Google chargés"
+      ? t("google_reviews_loaded")
       : connected
-        ? "Établissement à choisir"
-        : "Google Business à connecter",
+        ? t("establishment_to_choose")
+        : t("google_business_to_connect"),
     connected,
     canReply: ready,
     reportUrl: snapshot.reportUrl || platform.reportUrl || null,
@@ -443,14 +472,17 @@ function platformFromSnapshot(
 }
 
 export default function EReputationReviewsClient(props: Props) {
+  const i18nT = useTranslations("reputation");
+  const locale = useLocale();
+  const runtimeT = i18nT as unknown as ReputationTranslator;
   const normalizedPlatforms = useMemo(() => {
-    const source = props.platforms?.length ? props.platforms : [buildDefaultPlatform(props)];
+    const source = props.platforms?.length ? props.platforms : [buildDefaultPlatform(props, runtimeT)];
     return source.map(normalizePlatform);
-  }, [props.platforms, props.reviews, props.reviewsReady, props.reviewsError, props.initialNextPageToken, props.totalReviewCount, props.averageRatingLabel, props.locationLabel, props.statusLabel, props.gmbReady, props.reportGoogleUrl]);
+  }, [i18nT, props.platforms, props.reviews, props.reviewsReady, props.reviewsError, props.initialNextPageToken, props.totalReviewCount, props.averageRatingLabel, props.locationLabel, props.statusLabel, props.gmbReady, props.reportGoogleUrl]);
 
   const [platformData, setPlatformData] = useState<EReputationReviewsPlatform[]>(() => {
     const snapshot = readModuleSnapshot<ReviewsResponse>(MODULE_SNAPSHOT_KEYS.eReputationGoogle)?.data ?? null;
-    return normalizedPlatforms.map((platform) => platform.id === "google" ? platformFromSnapshot(platform, snapshot) : platform);
+    return normalizedPlatforms.map((platform) => platform.id === "google" ? platformFromSnapshot(platform, snapshot, locale, runtimeT) : platform);
   });
   const [activePlatformId, setActivePlatformId] = useState<EReputationPlatformId>(() => {
     const initial = platformData.find((platform) => platform.connected) || platformData[0];
@@ -462,7 +494,7 @@ export default function EReputationReviewsClient(props: Props) {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedId, setSelectedId] = useState(platformData[0]?.reviews[0]?.id || "");
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const [replyText, setReplyText] = useState(defaultReplyFor(platformData[0]?.reviews[0] || null));
+  const [replyText, setReplyText] = useState(defaultReplyFor(platformData[0]?.reviews[0] || null, runtimeT));
   const [publishing, setPublishing] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -486,7 +518,7 @@ export default function EReputationReviewsClient(props: Props) {
     return () => mediaQuery.removeEventListener?.("change", update);
   }, []);
 
-  const activePlatform = platformData.find((platform) => platform.id === activePlatformId) || platformData[0] || normalizePlatform(buildDefaultPlatform(props));
+  const activePlatform = platformData.find((platform) => platform.id === activePlatformId) || platformData[0] || normalizePlatform(buildDefaultPlatform(props, runtimeT));
   const items = activePlatform.reviews;
   const nextPageToken = activePlatform.initialNextPageToken || null;
   const reviewsReady = activePlatform.reviewsReady;
@@ -515,10 +547,10 @@ export default function EReputationReviewsClient(props: Props) {
     const first = activePlatform.reviews[0] || null;
     setCurrentPage(1);
     setSelectedId((current) => (activePlatform.reviews.some((review) => review.id === current) ? current : first?.id || ""));
-    setReplyText(defaultReplyFor(first));
+    setReplyText(defaultReplyFor(first, runtimeT));
     setNotice(null);
     setListNotice(null);
-  }, [activePlatform.id]);
+  }, [activePlatform.id, i18nT]);
 
   const stats = useMemo(() => {
     const answered = items.filter((review) => review.status === "Répondu").length;
@@ -590,10 +622,10 @@ export default function EReputationReviewsClient(props: Props) {
   }, [currentPage, totalPages]);
 
   useEffect(() => {
-    setReplyText(defaultReplyFor(selectedReview));
+    setReplyText(defaultReplyFor(selectedReview, runtimeT));
     replySelectionRef.current = null;
     setNotice(null);
-  }, [selectedReview?.id]);
+  }, [selectedReview?.id, i18nT]);
 
   useEffect(() => {
     if (!detailsOpen) return;
@@ -611,11 +643,13 @@ export default function EReputationReviewsClient(props: Props) {
   const canPublish = Boolean(selectedCanReply && replyText.trim().length >= 2 && !busy);
   const canDelete = Boolean(selectedCanReply && selectedReview?.reply && !busy);
   const canReport = Boolean(selectedReview?.live && activePlatform.reportUrl && activePlatform.id === "google");
-  const loadedLabel = totalReviewCount > 0 ? `${items.length.toLocaleString("fr-FR")} / ${totalReviewCount.toLocaleString("fr-FR")}` : items.length.toLocaleString("fr-FR");
-  const totalReviewsLabel = (totalReviewCount > 0 ? totalReviewCount : stats.total).toLocaleString("fr-FR");
-  const totalReviewsCaption = reviewsReady ? `Qté : ${totalReviewsLabel}` : `Exemples : ${totalReviewsLabel}`;
-  const summaryStatusLabel = reviewsReady ? "Avis chargés" : activePlatform.statusLabel || platformLabel;
-  const summaryStatusShortLabel = reviewsReady ? "Chargés" : activePlatform.statusLabel || platformShortLabel;
+  const loadedLabel = totalReviewCount > 0 ? `${items.length.toLocaleString(locale)} / ${totalReviewCount.toLocaleString(locale)}` : items.length.toLocaleString(locale);
+  const totalReviewsLabel = (totalReviewCount > 0 ? totalReviewCount : stats.total).toLocaleString(locale);
+  const totalReviewsCaption = reviewsReady
+    ? i18nT("review_quantity", { count: totalReviewsLabel })
+    : i18nT("example_quantity", { count: totalReviewsLabel });
+  const summaryStatusLabel = reviewsReady ? i18nT("reviews_loaded") : activePlatform.statusLabel || platformLabel;
+  const summaryStatusShortLabel = reviewsReady ? i18nT("loaded_short") : activePlatform.statusLabel || platformShortLabel;
   const averageRatingLabel = activePlatform.averageRatingLabel || "—";
   const locationLabel = activePlatform.locationLabel || platformLabel;
   const selectedFilteredIndex = selectedReview
@@ -631,12 +665,12 @@ export default function EReputationReviewsClient(props: Props) {
     (!hasLocalFilter && Boolean(nextPageToken))
   );
   const replyHasUnsavedChanges = Boolean(
-    selectedReview && replyText.trim() !== defaultReplyFor(selectedReview).trim(),
+    selectedReview && replyText.trim() !== defaultReplyFor(selectedReview, runtimeT).trim(),
   );
 
   function openDetails(review: EReputationReviewItem) {
     setSelectedId(review.id);
-    setReplyText(defaultReplyFor(review));
+    setReplyText(defaultReplyFor(review, runtimeT));
     replySelectionRef.current = null;
     setNotice(null);
     setDetailsOpen(true);
@@ -645,18 +679,18 @@ export default function EReputationReviewsClient(props: Props) {
   async function confirmReviewChange() {
     if (!replyHasUnsavedChanges) return true;
     return confirmInrcy({
-      eyebrow: "Réponse non publiée",
-      title: "Changer d’avis ?",
-      message: "La réponse préparée pour cet avis n’a pas été publiée. Elle sera perdue si vous continuez.",
-      cancelLabel: "Continuer l’édition",
-      confirmLabel: "Changer d’avis",
+      eyebrow: i18nT("reponse_non_publiee_432acc3a"),
+      title: i18nT("changer_d_avis_70394e68"),
+      message: i18nT("la_reponse_preparee_pour_cet_avis_e2f53bc1"),
+      cancelLabel: i18nT("continuer_l_edition_0f0075bb"),
+      confirmLabel: i18nT("changer_d_avis_e7b9f76f"),
       variant: "warning",
     });
   }
 
   function selectReviewFromSequence(review: EReputationReviewItem, index: number) {
     setSelectedId(review.id);
-    setReplyText(defaultReplyFor(review));
+    setReplyText(defaultReplyFor(review, runtimeT));
     setCurrentPage(Math.floor(Math.max(0, index) / REVIEWS_PAGE_SIZE) + 1);
     replySelectionRef.current = null;
     setNotice(null);
@@ -697,12 +731,12 @@ export default function EReputationReviewsClient(props: Props) {
         canReply: payload.ready,
         locationLabel: payload.locationLabel,
         averageRatingLabel: payload.averageRatingLabel,
-        statusLabel: payload.ready ? "Avis Google chargés" : platform.statusLabel,
+        statusLabel: payload.ready ? i18nT("google_reviews_loaded") : platform.statusLabel,
       }));
       const nextReview = mergedItems[currentIndex + 1];
       if (nextReview) selectReviewFromSequence(nextReview, currentIndex + 1);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Impossible de charger l’avis suivant.";
+      const message = error instanceof Error ? error.message : i18nT("unable_load_next_review");
       setListNotice({ type: "error", text: message });
     } finally {
       setLoadingMore(false);
@@ -779,7 +813,7 @@ export default function EReputationReviewsClient(props: Props) {
     const payload = (await response.json().catch(() => null)) as ReviewsResponse | null;
 
     if (!response.ok || !payload) {
-      throw new Error(getErrorMessage(payload, `Impossible de charger les avis ${platformLabel} pour le moment.`));
+      throw new Error(getErrorMessage(payload, i18nT("unable_load_reviews_source", { value0: platformLabel })));
     }
 
     // Le snapshot d'ouverture doit toujours rester la première page complète.
@@ -791,14 +825,14 @@ export default function EReputationReviewsClient(props: Props) {
     const configured = Boolean(payload.configured);
 
     return {
-      incoming: Array.isArray(payload.reviews) ? payload.reviews.map((review) => toReviewItem(review, activePlatform.id)) : [],
+      incoming: Array.isArray(payload.reviews) ? payload.reviews.map((review) => toReviewItem(review, activePlatform.id, locale, runtimeT)) : [],
       nextToken: payload.nextPageToken || null,
       total: Number.isFinite(Number(payload.totalReviewCount)) ? Number(payload.totalReviewCount) : activePlatform.totalReviewCount || 0,
       connected,
       configured,
       ready: connected && configured,
-      locationLabel: String(payload.locationTitle || activePlatform.locationLabel || "Fiche Google Business"),
-      averageRatingLabel: connected && configured ? formatAverageRating(payload.averageRating) : "—",
+      locationLabel: String(payload.locationTitle || activePlatform.locationLabel || i18nT("fiche_google_business_09b337dd")),
+      averageRatingLabel: connected && configured ? formatAverageRating(payload.averageRating, locale) : "—",
       reportUrl: payload.reportUrl || null,
     };
   }
@@ -821,10 +855,10 @@ export default function EReputationReviewsClient(props: Props) {
       reportUrl: payload.reportUrl || platform.reportUrl || null,
       profileUrl: payload.reportUrl || platform.profileUrl || null,
       statusLabel: payload.ready
-        ? "Avis Google chargés"
+        ? i18nT("google_reviews_loaded")
         : payload.connected
-          ? "Établissement à choisir"
-          : "Google Business à connecter",
+          ? i18nT("establishment_to_choose")
+          : i18nT("google_business_to_connect"),
     }));
     setSelectedId((current) => {
       if (!replace && current) return current;
@@ -843,11 +877,13 @@ export default function EReputationReviewsClient(props: Props) {
       if (!silent) {
         setListNotice({
           type: "success",
-          text: count > 0 ? `Avis ${platformLabel} actualisés.` : `Aucun avis ${platformLabel} n’a été retourné.`,
+          text: count > 0
+            ? i18nT("reviews_refreshed_source", { value0: platformLabel })
+            : i18nT("no_reviews_returned_source", { value0: platformLabel }),
         });
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : `Impossible d’actualiser les avis ${platformLabel} pour le moment.`;
+      const message = error instanceof Error ? error.message : i18nT("unable_refresh_reviews_source", { value0: platformLabel });
       if (!silent) setListNotice({ type: "error", text: message });
       updateActivePlatform((platform) => ({ ...platform, reviewsError: message }));
     } finally {
@@ -871,10 +907,10 @@ export default function EReputationReviewsClient(props: Props) {
     setListNotice(null);
     try {
       const count = await fetchReviews({ pageToken: nextPageToken });
-      setListNotice({ type: "success", text: count > 0 ? "Avis supplémentaires chargés." : "Aucun autre avis à afficher." });
+      setListNotice({ type: "success", text: count > 0 ? i18nT("more_reviews_loaded") : i18nT("no_more_reviews") });
       if (count > 0) setCurrentPage((page) => page + 1);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Impossible de charger les avis suivants.";
+      const message = error instanceof Error ? error.message : i18nT("unable_load_following_reviews");
       setListNotice({ type: "error", text: message });
     } finally {
       setLoadingMore(false);
@@ -910,9 +946,9 @@ export default function EReputationReviewsClient(props: Props) {
       setNextPageToken(token);
       updateActivePlatform((platform) => ({ ...platform, totalReviewCount: total }));
       setCurrentPage(Math.min(cleanTarget, Math.max(1, Math.ceil(accumulated.length / REVIEWS_PAGE_SIZE))));
-      setListNotice({ type: "success", text: "Page d’avis chargée." });
+      setListNotice({ type: "success", text: i18nT("page_d_avis_chargee_ff57e1db") });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Impossible de charger cette page d’avis.";
+      const message = error instanceof Error ? error.message : i18nT("unable_load_review_page");
       setListNotice({ type: "error", text: message });
     } finally {
       setLoadingMore(false);
@@ -939,17 +975,17 @@ export default function EReputationReviewsClient(props: Props) {
       });
       const payload = (await response.json().catch(() => null)) as GenerateReplyResponse | null;
       if (!response.ok || !payload?.ok || !payload.reply_text) {
-        throw new Error(getErrorMessage(payload, "Impossible de générer une réponse IA pour le moment."));
+        throw new Error(getErrorMessage(payload, i18nT("impossible_de_generer_une_reponse_ia_ebc226a1")));
       }
       setReplyText(payload.reply_text);
       setNotice({
         type: "success",
         text: selectedAlreadyAnswered
-          ? `Nouvelle proposition générée. Relisez-la puis modifiez la réponse ${platformLabel} si elle vous convient.`
-          : `Réponse générée. Relisez-la puis publiez-la sur ${platformLabel} si elle vous convient.`,
+          ? i18nT("nouvelle_proposition_generee_relisez_la_puis_aa2473e8", { value0: platformLabel })
+          : i18nT("reponse_generee_relisez_la_puis_publiez_ab165142", { value0: platformLabel }),
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Impossible de générer une réponse IA pour le moment.";
+      const message = error instanceof Error ? error.message : i18nT("impossible_de_generer_une_reponse_ia_ebc226a1");
       setNotice({ type: "error", text: message });
     } finally {
       setGenerating(false);
@@ -960,7 +996,7 @@ export default function EReputationReviewsClient(props: Props) {
     if (!selectedReview?.reviewName) return;
     const cleanReply = replyText.trim();
     if (cleanReply.length < 2) {
-      setNotice({ type: "error", text: "La réponse ne peut pas être vide." });
+      setNotice({ type: "error", text: i18nT("la_reponse_ne_peut_pas_etre_d4b602fe") });
       return;
     }
     setPublishing(true);
@@ -975,14 +1011,14 @@ export default function EReputationReviewsClient(props: Props) {
       });
       const payload = (await response.json().catch(() => null)) as ReplyResponse | null;
       if (!response.ok || !payload?.ok) {
-        throw new Error(getErrorMessage(payload, `Impossible de publier la réponse ${platformLabel} pour le moment.`));
+        throw new Error(getErrorMessage(payload, i18nT("impossible_de_publier_la_reponse_value_a883eef2", { value0: platformLabel })));
       }
       const publishedComment = payload.reply?.comment || cleanReply;
       setItems((current) => current.map((review) => review.id === selectedReview.id ? { ...review, reply: publishedComment, status: "Répondu" } : review));
       setReplyText(publishedComment);
-      setNotice({ type: "success", text: `Réponse publiée sur ${platformLabel}.` });
+      setNotice({ type: "success", text: i18nT("reponse_publiee_sur_value_f848d3da", { value0: platformLabel }) });
     } catch (error) {
-      const message = error instanceof Error ? error.message : `Impossible de publier la réponse ${platformLabel} pour le moment.`;
+      const message = error instanceof Error ? error.message : i18nT("impossible_de_publier_la_reponse_value_a883eef2", { value0: platformLabel });
       setNotice({ type: "error", text: message });
     } finally {
       setPublishing(false);
@@ -992,11 +1028,11 @@ export default function EReputationReviewsClient(props: Props) {
   async function deleteReply() {
     if (!selectedReview?.reviewName || !selectedReview.reply) return;
     const confirmed = await confirmInrcy({
-      eyebrow: "e-Réputation",
-      title: "Supprimer cette réponse ?",
-      message: `La réponse publiée sur ${platformLabel} sera supprimée définitivement pour cet avis.`,
-      confirmLabel: "Supprimer",
-      cancelLabel: "Annuler",
+      eyebrow: i18nT("e_reputation_1d5febdc"),
+      title: i18nT("supprimer_cette_reponse_a67330f4"),
+      message: i18nT("la_reponse_publiee_sur_value_sera_4250c131", { value0: platformLabel }),
+      confirmLabel: i18nT("supprimer_1acfc1c7"),
+      cancelLabel: i18nT("annuler_49ba3292"),
       variant: "danger",
     });
     if (!confirmed) return;
@@ -1012,13 +1048,13 @@ export default function EReputationReviewsClient(props: Props) {
       });
       const payload = (await response.json().catch(() => null)) as ReplyResponse | null;
       if (!response.ok || !payload?.ok) {
-        throw new Error(getErrorMessage(payload, `Impossible de supprimer la réponse ${platformLabel} pour le moment.`));
+        throw new Error(getErrorMessage(payload, i18nT("impossible_de_supprimer_la_reponse_value_9114adb7", { value0: platformLabel })));
       }
       setItems((current) => current.map((review) => review.id === selectedReview.id ? { ...review, reply: null, status: "À répondre" } : review));
-      setReplyText(defaultReplyFor({ ...selectedReview, reply: null, status: "À répondre" }));
-      setNotice({ type: "success", text: `Réponse supprimée de ${platformLabel}.` });
+      setReplyText(defaultReplyFor({ ...selectedReview, reply: null, status: "À répondre" }, runtimeT));
+      setNotice({ type: "success", text: i18nT("reponse_supprimee_de_value_35d48b8f", { value0: platformLabel }) });
     } catch (error) {
-      const message = error instanceof Error ? error.message : `Impossible de supprimer la réponse ${platformLabel} pour le moment.`;
+      const message = error instanceof Error ? error.message : i18nT("impossible_de_supprimer_la_reponse_value_9114adb7", { value0: platformLabel });
       setNotice({ type: "error", text: message });
     } finally {
       setDeleting(false);
@@ -1038,11 +1074,11 @@ export default function EReputationReviewsClient(props: Props) {
             document.body,
           )
         : null}
-      <section className={styles.mailboxPanel} aria-label={`Gestion des avis ${platformLabel}`}>
+      <section className={styles.mailboxPanel} aria-label={i18nT("gestion_des_avis_value_3fa4a9b6", { value0: platformLabel })}>
         <div className={styles.toolbar}>
           <div className={styles.toolbarLeft}>
             {platformData.length > 1 ? (
-              <div className={styles.platformTabs} role="tablist" aria-label="Plateformes d’avis">
+              <div className={styles.platformTabs} role="tablist" aria-label={i18nT("plateformes_d_avis_df7d687b")}>
                 {platformData.map((platform) => (
                   <button
                     key={platform.id}
@@ -1059,24 +1095,24 @@ export default function EReputationReviewsClient(props: Props) {
                 ))}
               </div>
             ) : null}
-            <label className={styles.filterLabel} htmlFor="review-filter">Filtrer</label>
+            <label className={styles.filterLabel} htmlFor="review-filter">{i18nT("filtrer_a7a02ef5")}</label>
             <select id="review-filter" className={styles.select} value={filter} onChange={(event) => setFilter(event.target.value as "all" | "todo" | "answered")}>
-              <option value="all">Tous les avis</option>
-              <option value="todo">À répondre</option>
-              <option value="answered">Répondus</option>
+              <option value="all">{i18nT("tous_les_avis_a5afe373")}</option>
+              <option value="todo">{i18nT("a_repondre_6f7c5ab8")}</option>
+              <option value="answered">{i18nT("repondus_c1c02d63")}</option>
             </select>
             <select id="review-star-filter" className={styles.select} value={starFilter} onChange={(event) => setStarFilter(event.target.value as "all" | "5" | "4" | "3" | "2" | "1")}>
-              <option value="all">Toutes les notes</option>
-              <option value="5">5 étoiles</option>
-              <option value="4">4 étoiles</option>
-              <option value="3">3 étoiles</option>
-              <option value="2">2 étoiles</option>
-              <option value="1">1 étoile</option>
+              <option value="all">{i18nT("toutes_les_notes_6126cdb9")}</option>
+              <option value="5">{i18nT("5_etoiles_ee75ad7d")}</option>
+              <option value="4">{i18nT("4_etoiles_de837521")}</option>
+              <option value="3">{i18nT("3_etoiles_1bb6d17b")}</option>
+              <option value="2">{i18nT("2_etoiles_0b452909")}</option>
+              <option value="1">{i18nT("1_etoile_cd0c0850")}</option>
             </select>
-            <input className={styles.searchInput} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Rechercher un avis..." type="search" />
+            <input className={styles.searchInput} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={i18nT("rechercher_un_avis_572722a7")} type="search" />
           </div>
           <div className={styles.toolbarRight}>
-            <div className={`${styles.reputationSummaryChip} ${activePlatform.connected ? styles.reputationSummaryReady : ""}`} aria-label={`${locationLabel} · ${summaryStatusLabel} · ${totalReviewsCaption} · Note : ${averageRatingLabel}`}>
+            <div className={`${styles.reputationSummaryChip} ${activePlatform.connected ? styles.reputationSummaryReady : ""}`} aria-label={i18nT("value_value_value_note_value_8e0d66cb", { value0: locationLabel, value1: summaryStatusLabel, value2: totalReviewsCaption, value3: averageRatingLabel })}>
               <span className={styles.summaryLocation}>{locationLabel}</span>
               <span className={styles.summaryStatus}>
                 <span className={styles.summaryDot} aria-hidden="true" />
@@ -1084,25 +1120,25 @@ export default function EReputationReviewsClient(props: Props) {
                 <span className={styles.summaryStatusMobile}>{summaryStatusShortLabel}</span>
               </span>
               <span>{totalReviewsCaption}</span>
-              <span>Note : {averageRatingLabel}</span>
+              <span>{i18nT("note_value_e58cb214", { value0: averageRatingLabel })}</span>
             </div>
             <button
               type="button"
               className={`${styles.btnGhostSmall} ${styles.refreshButton}`}
               onClick={() => void refreshReviews()}
               disabled={busy}
-              aria-label={refreshing ? "Actualisation des avis" : "Actualiser les avis"}
-              title={refreshing ? "Actualisation..." : "Actualiser"}
+              aria-label={refreshing ? i18nT("refreshing_reviews_aria") : i18nT("refresh_reviews_aria")}
+              title={refreshing ? i18nT("actualisation_d6e57c7d") : i18nT("actualiser_9d3b2a7d")}
             >
               <span className={styles.refreshIcon} aria-hidden="true">⟳</span>
-              <span className={styles.refreshText}>{refreshing ? "Actualisation..." : "Actualiser"}</span>
+              <span className={styles.refreshText}>{refreshing ? i18nT("actualisation_d6e57c7d") : i18nT("actualiser_9d3b2a7d")}</span>
             </button>
           </div>
         </div>
 
         {reviewsError ? (
           <div className={styles.noticeError}>
-            <strong>Avis indisponibles</strong>
+            <strong>{i18nT("avis_indisponibles_4933ffc3")}</strong>
             <span>{reviewsError}</span>
           </div>
         ) : null}
@@ -1110,13 +1146,12 @@ export default function EReputationReviewsClient(props: Props) {
         {!reviewsReady ? (
           <div className={`${styles.noticeInfo} ${styles.previewNotice}`}>
             <div className={styles.previewNoticeCopy}>
-              <strong>AVIS D’EXEMPLE — aucun avis Google n’est chargé</strong>
-              <span>Les lignes ci-dessous sont fictives. Branchez Google pour afficher et gérer les vrais avis de l’entreprise.</span>
+              <strong>{i18nT("avis_d_exemple_aucun_avis_google_a67550e6")}</strong>
+              <span>{i18nT("les_lignes_ci_dessous_sont_fictives_a40db886")}</span>
             </div>
             <Link className={styles.connectGoogleCta} href="/dashboard?panel=gmb">
               <span aria-hidden="true">G</span>
-              Brancher Google
-              <span aria-hidden="true">→</span>
+              {i18nT("brancher_google_c497afba")}{" "}<span aria-hidden="true">→</span>
             </Link>
           </div>
         ) : null}
@@ -1129,11 +1164,11 @@ export default function EReputationReviewsClient(props: Props) {
           <table className={styles.reviewsTable}>
             <thead>
               <tr>
-                <th>Avis</th>
-                <th>Note</th>
-                <th>Statut</th>
-                <th>Date</th>
-                <th>Détails</th>
+                <th>{i18nT("avis_69f2e194")}</th>
+                <th>{i18nT("note_2c924e30")}</th>
+                <th>{i18nT("statut_659499f3")}</th>
+                <th>{i18nT("date_eb9a4bc1")}</th>
+                <th>{i18nT("details_aaa029e6")}</th>
               </tr>
             </thead>
             <tbody>
@@ -1147,21 +1182,21 @@ export default function EReputationReviewsClient(props: Props) {
                       <button type="button" className={styles.reviewMainCell} onClick={() => openDetails(review)}>
                         <strong>
                           {review.name}
-                          {!reviewsReady ? <span className={styles.exampleBadge}>EXEMPLE</span> : null}
+                          {!reviewsReady ? <span className={styles.exampleBadge}>{i18nT("exemple_396e7bd8")}</span> : null}
                         </strong>
                         <span>{truncateText(review)}</span>
                         <span className={styles.mobileReviewMeta}>
-                          <span className={styles.mobileReviewStars} aria-label={`${review.rating} étoiles sur 5`}>{renderStars(review.rating)}</span>
-                          <span className={review.status === "Répondu" ? styles.mobileStatusAnswered : styles.mobileStatusTodo}>{review.status}</span>
+                          <span className={styles.mobileReviewStars} aria-label={i18nT("value_etoiles_sur_5_d0131ac3", { value0: review.rating })}>{renderStars(review.rating)}</span>
+                          <span className={review.status === "Répondu" ? styles.mobileStatusAnswered : styles.mobileStatusTodo}>{reviewStatusLabel(review.status, runtimeT)}</span>
                           <span>{review.date}</span>
                         </span>
                       </button>
                     </td>
-                    <td><span className={styles.stars} aria-label={`${review.rating} étoiles sur 5`}>{renderStars(review.rating)}</span></td>
-                    <td><span className={review.status === "Répondu" ? styles.answeredBadge : styles.todoBadge}>{review.status}</span></td>
+                    <td><span className={styles.stars} aria-label={i18nT("value_etoiles_sur_5_d0131ac3", { value0: review.rating })}>{renderStars(review.rating)}</span></td>
+                    <td><span className={review.status === "Répondu" ? styles.answeredBadge : styles.todoBadge}>{reviewStatusLabel(review.status, runtimeT)}</span></td>
                     <td>{review.date}</td>
                     <td>
-                      <button type="button" className={styles.detailsBtn} onClick={() => openDetails(review)} aria-label={`Ouvrir le détail de l’avis de ${review.name}`}>
+                      <button type="button" className={styles.detailsBtn} onClick={() => openDetails(review)} aria-label={i18nT("ouvrir_le_detail_de_l_avis_387d2096", { value0: review.name })}>
                         ↗
                       </button>
                     </td>
@@ -1171,8 +1206,8 @@ export default function EReputationReviewsClient(props: Props) {
                 <tr>
                   <td colSpan={5}>
                     <div className={styles.emptyState}>
-                      <strong>Aucun avis dans ce filtre</strong>
-                      <span>Changez de filtre ou réclamez de nouveaux avis.</span>
+                      <strong>{i18nT("aucun_avis_dans_ce_filtre_9ec92ee7")}</strong>
+                      <span>{i18nT("changez_de_filtre_ou_reclamez_de_37e61258")}</span>
                     </div>
                   </td>
                 </tr>
@@ -1184,13 +1219,17 @@ export default function EReputationReviewsClient(props: Props) {
         <div className={styles.footerBar}>
           <span>
             {reviewsReady
-              ? `${paginatedReviews.length
-                ? `Affichage ${firstDisplayedReview.toLocaleString("fr-FR")}–${lastDisplayedReview.toLocaleString("fr-FR")} sur ${footerTotalReviews.toLocaleString("fr-FR")} avis`
-                : "Affichage 0 avis"} · ${loadedLabel} chargés`
-              : `${paginatedReviews.length.toLocaleString("fr-FR")} exemples fictifs affichés`}
+              ? i18nT("value_value_charges_662e7e53", { value0: paginatedReviews.length
+                ? i18nT("reviews_range", {
+                    start: firstDisplayedReview.toLocaleString(locale),
+                    end: lastDisplayedReview.toLocaleString(locale),
+                    total: footerTotalReviews.toLocaleString(locale),
+                  })
+                : i18nT("no_reviews_displayed"), value1: loadedLabel })
+              : i18nT("value_exemples_fictifs_affiches_56447aa0", { value0: paginatedReviews.length.toLocaleString(locale) })}
           </span>
           {reviewsReady ? (
-            <div className={styles.paginationControls} aria-label="Pagination des avis">
+            <div className={styles.paginationControls} aria-label={i18nT("pagination_des_avis_49f33c6b")}>
               <button type="button" className={styles.paginationArrow} onClick={() => goToPage(safeCurrentPage - 1)} disabled={busy || safeCurrentPage <= 1}>‹</button>
               {paginationItems.map((page, index) => page === "ellipsis" ? (
                 <span key={`ellipsis-${index}`} className={styles.paginationEllipsis}>…</span>
@@ -1200,7 +1239,7 @@ export default function EReputationReviewsClient(props: Props) {
               <button type="button" className={styles.paginationArrow} onClick={() => goToPage(safeCurrentPage + 1)} disabled={busy || safeCurrentPage >= totalPages || (!hasLocalFilter && !nextPageToken && items.length <= safeCurrentPage * REVIEWS_PAGE_SIZE)}>›</button>
             </div>
           ) : (
-            <span className={styles.footerHint}>Connexion {platformLabel} requise</span>
+            <span className={styles.footerHint}>{i18nT("connexion_value_requise_72d0dbdd", { value0: platformLabel })}</span>
           )}
         </div>
       </section>
@@ -1217,28 +1256,28 @@ export default function EReputationReviewsClient(props: Props) {
               <section className={styles.detailsModal} role="dialog" aria-modal="true" aria-labelledby="review-details-title" onMouseDown={(event) => event.stopPropagation()}>
                 <header className={styles.modalHeader}>
                   <span className={styles.modalKicker}>{activePlatform.modalKicker}</span>
-                  <h2 id="review-details-title">Détails de l’avis</h2>
-                  <div className={styles.reviewSequenceControls} aria-label="Navigation entre les avis">
+                  <h2 id="review-details-title">{i18nT("details_de_l_avis_3fc3ec16")}</h2>
+                  <div className={styles.reviewSequenceControls} aria-label={i18nT("navigation_entre_les_avis_f543661b")}>
                     <button
                       type="button"
                       className={styles.reviewSequenceButton}
                       onClick={() => void navigateReview("previous")}
                       disabled={!canGoToPreviousReview || busy}
-                      aria-label="Avis précédent"
-                      title="Avis précédent"
+                      aria-label={i18nT("avis_precedent_21f2a811")}
+                      title={i18nT("avis_precedent_21f2a811")}
                     >
                       ‹
                     </button>
                     <span className={styles.reviewSequenceCounter} aria-live="polite">
-                      {detailPosition.toLocaleString("fr-FR")} / {detailTotalReviews.toLocaleString("fr-FR")}
+                      {detailPosition.toLocaleString(locale)} / {detailTotalReviews.toLocaleString(locale)}
                     </span>
                     <button
                       type="button"
                       className={styles.reviewSequenceButton}
                       onClick={() => void navigateReview("next")}
                       disabled={!canGoToNextReview || busy}
-                      aria-label="Avis suivant"
-                      title="Avis suivant"
+                      aria-label={i18nT("avis_suivant_11787676")}
+                      title={i18nT("avis_suivant_11787676")}
                     >
                       ›
                     </button>
@@ -1246,8 +1285,8 @@ export default function EReputationReviewsClient(props: Props) {
                       type="button"
                       className={`${styles.modalClose} ${styles.modalCloseIcon}`}
                       onClick={() => void requestCloseDetails()}
-                      aria-label="Fermer"
-                      title="Fermer"
+                      aria-label={i18nT("fermer_5ab4ec64")}
+                      title={i18nT("fermer_5ab4ec64")}
                     >
                       ×
                     </button>
@@ -1259,17 +1298,17 @@ export default function EReputationReviewsClient(props: Props) {
                     <div className={styles.reviewDetailTop}>
                       <div>
                         <strong>{selectedReview.name}</strong>
-                        {!reviewsReady ? <span className={styles.exampleBadge}>EXEMPLE — avis fictif</span> : null}
-                        <span>{selectedReview.date}{selectedReview.verified ? " · Avis vérifié" : ""}</span>
+                        {!reviewsReady ? <span className={styles.exampleBadge}>{i18nT("exemple_avis_fictif_8d938cc5")}</span> : null}
+                        <span>{selectedReview.date}{selectedReview.verified ? i18nT("avis_verifie_8d816987") : ""}</span>
                       </div>
-                      <span className={selectedReview.status === "Répondu" ? styles.answeredBadge : styles.todoBadge}>{selectedReview.status}</span>
+                      <span className={selectedReview.status === "Répondu" ? styles.answeredBadge : styles.todoBadge}>{reviewStatusLabel(selectedReview.status, runtimeT)}</span>
                     </div>
-                    <div className={styles.modalStars} aria-label={`${selectedReview.rating} étoiles sur 5`}>{renderStars(selectedReview.rating)}</div>
+                    <div className={styles.modalStars} aria-label={i18nT("value_etoiles_sur_5_d0131ac3", { value0: selectedReview.rating })}>{renderStars(selectedReview.rating)}</div>
                     <div className={styles.reviewDetailScroll}>
                       <ReviewTextBlock review={selectedReview} />
                       {selectedReview.reply ? (
                         <div className={styles.currentReplyBox}>
-                          <strong>Réponse actuelle</strong>
+                          <strong>{i18nT("reponse_actuelle_00f1de26")}</strong>
                           <span>{selectedReview.reply}</span>
                         </div>
                       ) : null}
@@ -1283,14 +1322,13 @@ export default function EReputationReviewsClient(props: Props) {
                         type="button"
                         className={`${styles.aiChip} ${styles.aiChipButton}`}
                         onClick={() => setAiConfigurationOpen(true)}
-                        aria-label="Ouvrir la Configuration IA"
-                        title="Configuration IA"
+                        aria-label={i18nT("ouvrir_la_configuration_ia_a4ecd6d4")}
+                        title={i18nT("configuration_ia_f620c8d8")}
                       >
-                        IA
-                      </button>
+                        {i18nT("ia_d41daf59")}{" "}</button>
                     </div>
                     <div className={styles.replyHeaderTitleLine}>
-                      <h3>{selectedAlreadyAnswered ? "Modifier la réponse" : "Préparer la réponse"}</h3>
+                      <h3>{selectedAlreadyAnswered ? i18nT("modifier_la_reponse_46c5f616") : i18nT("preparer_la_reponse_4df89405")}</h3>
                       <EmojiPickerButton
                         onBeforeOpen={saveReplySelection}
                         onSelect={insertReplyEmoji}
@@ -1308,21 +1346,21 @@ export default function EReputationReviewsClient(props: Props) {
                       onKeyUp={saveReplySelection}
                       disabled={!selectedCanReply || busy}
                       maxLength={4096}
-                      placeholder={`Rédigez votre réponse ${platformLabel}...`}
+                      placeholder={i18nT("redigez_votre_reponse_value_35171dc3", { value0: platformLabel })}
                     />
-                    <div className={styles.charCount}>{replyText.trim().length.toLocaleString("fr-FR")} / 4 096 caractères</div>
+                    <div className={styles.charCount}>{i18nT("characters_count", { count: replyText.trim().length.toLocaleString(locale), max: (4096).toLocaleString(locale) })}</div>
                     {notice ? <div className={notice.type === "success" ? styles.noticeSuccess : styles.noticeError} role="status">{notice.text}</div> : null}
                     <div className={styles.modalActions}>
-                      <button className={styles.btnGhostSmall} type="button" disabled={!canGenerate} onClick={generateReply}>{generating ? "Génération..." : "Générer avec iNrCy"}</button>
-                      <button className={styles.btnPrimarySmall} type="button" disabled={!canPublish} onClick={publishReply}>{publishing ? "Publication..." : selectedAlreadyAnswered ? "Modifier la réponse" : "Publier la réponse"}</button>
-                      {selectedAlreadyAnswered ? <button className={styles.btnDangerSmall} type="button" disabled={!canDelete} onClick={deleteReply}>{deleting ? "Suppression..." : "Supprimer"}</button> : null}
+                      <button className={styles.btnGhostSmall} type="button" disabled={!canGenerate} onClick={generateReply}>{generating ? i18nT("generation_839b5564") : i18nT("generer_avec_inrcy_bcf461c3")}</button>
+                      <button className={styles.btnPrimarySmall} type="button" disabled={!canPublish} onClick={publishReply}>{publishing ? i18nT("publication_aa5ddada") : selectedAlreadyAnswered ? i18nT("modifier_la_reponse_46c5f616") : i18nT("publier_la_reponse_5d40615c")}</button>
+                      {selectedAlreadyAnswered ? <button className={styles.btnDangerSmall} type="button" disabled={!canDelete} onClick={deleteReply}>{deleting ? i18nT("suppression_a67d695d") : i18nT("supprimer_1acfc1c7")}</button> : null}
                     </div>
                     <div className={styles.reportFooterLine}>
-                      <p className={styles.secureText}>Vous validez chaque réponse avant publication sur {platformLabel}.</p>
+                      <p className={styles.secureText}>{i18nT("vous_validez_chaque_reponse_avant_publication_fc19200d", { value0: platformLabel })}</p>
                       {canReport ? (
-                        <a className={styles.reportReviewButton} href={activePlatform.reportUrl || "#"} target="_blank" rel="noreferrer" aria-label={`Signaler l’avis de ${selectedReview.name} sur Google`}>
+                        <a className={styles.reportReviewButton} href={activePlatform.reportUrl || "#"} target="_blank" rel="noreferrer" aria-label={i18nT("signaler_l_avis_de_value_sur_4b52223b", { value0: selectedReview.name })}>
                           <span aria-hidden="true">⚠</span>
-                          <span className={styles.reportReviewTooltip}>Signaler l’avis sur Google</span>
+                          <span className={styles.reportReviewTooltip}>{i18nT("signaler_l_avis_sur_google_cfad97a3")}</span>
                         </a>
                       ) : null}
                     </div>
