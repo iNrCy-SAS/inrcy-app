@@ -2197,7 +2197,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                 <article key={activePublicationEntry.key} className={styles.channelPublicationCard}>
                                   {activePublicationDeleted ? (
                                     <div className={styles.detailsError} style={{ marginBottom: 12 }}>
-                                      <b>{i18nT("statut_b20e7fc2")}</b> {" "}{i18nT("supprime_c73cacd5")}{deletedAt ? i18nT("le_value_02cc4688", { value0: deletedAt }) : ""}
+                                      <b>{i18nT("statut_b20e7fc2")}</b> {" "}{deletedAt ? i18nT("status_with_detail", { status: i18nT("supprime_c73cacd5"), detail: deletedAt }) : i18nT("supprime_c73cacd5")}
                                     </div>
                                   ) : null}
                                   <div className={styles.publicationParts}>
