@@ -519,6 +519,52 @@ const validationOverrides = new Map([
   ["nl-NL:shell.inr_stats_881d9239", "iNr\u2019Stats \u2192"],
   ["pt-PT:shell.inr_send_fd44a9fa", "iNr\u2019Send \u2192"],
   ["pt-PT:shell.inr_stats_881d9239", "iNr\u2019Stats \u2192"],
+  ["fr-FR:shell.inr_apos_send_aaa1fcec", "iNr’Send"],
+  ["fr-FR:shell.inr_apos_stats_e43f5622", "iNr’Stats"],
+  ["en-GB:shell.inr_apos_send_aaa1fcec", "iNr’Send"],
+  ["en-GB:shell.inr_apos_stats_e43f5622", "iNr’Stats"],
+  ["es-ES:shell.inr_apos_send_aaa1fcec", "iNr’Send"],
+  ["es-ES:shell.inr_apos_stats_e43f5622", "iNr’Stats"],
+  ["it-IT:shell.inr_apos_send_aaa1fcec", "iNr’Send"],
+  ["it-IT:shell.inr_apos_stats_e43f5622", "iNr’Stats"],
+  ["de-DE:shell.inr_apos_send_aaa1fcec", "iNr’Send"],
+  ["de-DE:shell.inr_apos_stats_e43f5622", "iNr’Stats"],
+  ["nl-NL:shell.inr_apos_send_aaa1fcec", "iNr’Send"],
+  ["nl-NL:shell.inr_apos_stats_e43f5622", "iNr’Stats"],
+  ["pt-PT:shell.inr_apos_send_aaa1fcec", "iNr’Send"],
+  ["pt-PT:shell.inr_apos_stats_e43f5622", "iNr’Stats"],
+  ["fr-FR:crm.nbsp_47c1f11e", "&nbsp;"],
+  ["en-GB:crm.nbsp_47c1f11e", "&nbsp;"],
+  ["es-ES:crm.nbsp_47c1f11e", "&nbsp;"],
+  ["it-IT:crm.nbsp_47c1f11e", "&nbsp;"],
+  ["de-DE:crm.nbsp_47c1f11e", "&nbsp;"],
+  ["nl-NL:crm.nbsp_47c1f11e", "&nbsp;"],
+  ["pt-PT:crm.nbsp_47c1f11e", "&nbsp;"],
+  ["es-ES:public.inr_apos_search_6cbfd855", "iNr’Search"],
+  ["it-IT:public.inr_apos_search_6cbfd855", "iNr’Search"],
+  ["de-DE:public.inr_apos_search_6cbfd855", "iNr’Search"],
+  ["nl-NL:public.inr_apos_search_6cbfd855", "iNr’Search"],
+  ["pt-PT:public.inr_apos_search_6cbfd855", "iNr’Search"],
+  ["es-ES:settings.deconnecter_votre_page_inr_apos_search_c5a16ef8", "¿Desconectar tu página de iNr’Search?"],
+  ["it-IT:settings.deconnecter_votre_page_inr_apos_search_c5a16ef8", "Disconnettere la pagina iNr’Search?"],
+  ["de-DE:settings.deconnecter_votre_page_inr_apos_search_c5a16ef8", "Ihre iNr’Search-Seite trennen?"],
+  ["nl-NL:settings.a_quoi_sert_inr_apos_search_c32318a6", "Waarvoor wordt iNr’Search gebruikt?"],
+  ["nl-NL:settings.deconnecter_votre_page_inr_apos_search_c5a16ef8", "Verbinding met uw iNr’Search-pagina verbreken?"],
+  ["pt-PT:settings.deconnecter_votre_page_inr_apos_search_c5a16ef8", "Desligar a sua página iNr’Search?"],
+  ["es-ES:settings.inr_apos_search_transforme_automatiquement_les_99deb0af", "iNr’Search transforma automáticamente la información ya guardada en iNrCy en una página profesional pública, diseñada para los usuarios de Internet, Google, Bing y los motores de respuesta de IA."],
+  ["it-IT:settings.inr_apos_search_transforme_automatiquement_les_99deb0af", "iNr’Search trasforma automaticamente le informazioni già salvate in iNrCy in una pagina professionale pubblica, progettata per gli utenti di Internet, Google, Bing e i motori di risposta IA."],
+  ["de-DE:settings.inr_apos_search_transforme_automatiquement_les_99deb0af", "iNr’Search wandelt die bereits in iNrCy gespeicherten Informationen automatisch in eine öffentliche professionelle Seite um, die für Internetnutzer, Google, Bing und KI-Antwortmaschinen konzipiert ist."],
+  ["nl-NL:settings.inr_apos_search_transforme_automatiquement_les_99deb0af", "iNr’Search zet de informatie die al in iNrCy is opgeslagen automatisch om in een openbare professionele pagina voor internetgebruikers, Google, Bing en AI-antwoordmachines."],
+  ["pt-PT:settings.inr_apos_search_transforme_automatiquement_les_99deb0af", "O iNr’Search transforma automaticamente a informação já guardada no iNrCy numa página profissional pública, concebida para utilizadores da internet, Google, Bing e motores de resposta com IA."],
+  ["es-ES:settings.page_publique_inr_apos_search_31dc348f", "Página pública de iNr’Search"],
+  ["it-IT:settings.page_publique_inr_apos_search_31dc348f", "Pagina pubblica iNr’Search"],
+  ["de-DE:settings.page_publique_inr_apos_search_31dc348f", "Öffentliche iNr’Search-Seite"],
+  ["nl-NL:settings.page_publique_inr_apos_search_31dc348f", "Openbare iNr’Search-pagina"],
+  ["pt-PT:settings.page_publique_inr_apos_search_31dc348f", "Página pública do iNr’Search"],
+  ["it-IT:settings.booster_sur_10_canaux_inr_apos_38a43414", "Booster su 10 canali, pubblicazioni e statistiche di iNr’Agent, iNr’Badge incluso, iNr’Stats, cronologia iNr’Send e Reputazione."],
+  ["de-DE:settings.booster_sur_10_canaux_inr_apos_38a43414", "Booster über 10 Kanäle, iNr’Agent-Veröffentlichungen + Statistiken, iNr’Badge inklusive, iNr’Stats, iNr’Send-Verlauf und Reputation."],
+  ["nl-NL:settings.booster_sur_10_canaux_inr_apos_38a43414", "Booster op 10 kanalen, iNr’Agent-publicaties + statistieken, iNr’Badge inbegrepen, iNr’Stats, iNr’Send-geschiedenis en Reputatie."],
+  ["pt-PT:settings.booster_sur_10_canaux_inr_apos_38a43414", "Booster em 10 canais, publicações e estatísticas do iNr’Agent, iNr’Badge incluído, iNr’Stats, histórico do iNr’Send e Reputação."],
 ]);
 
 const ptReplacements = [
@@ -745,6 +791,27 @@ function normalizeBrands(value) {
   return output.replace(/\b((?:app\.)?)iNrCy\.com\b/giu, (_match, prefix) => `${prefix}inrcy.com`);
 }
 
+// Catalog values are rendered as React text, not injected as HTML. Decode
+// entities that slipped in from the legacy/Google translation pipeline so
+// users see real punctuation and channel arrows (e.g. iNr’Send, <, >).
+function decodeHtmlEntities(value) {
+  return value
+    // Keep the dedicated non-breaking-space token stable: the catalog
+    // validator treats this token as intentional whitespace.
+    .replace(/\u00a0/gu, "&nbsp;")
+    .replace(/&apos;/giu, "'")
+    .replace(/&quot;/giu, '"')
+    .replace(/&lt;/giu, "<")
+    .replace(/&gt;/giu, ">")
+    .replace(/&amp;/giu, "&")
+    .replace(/&#(x[0-9a-f]+|\d+);/giu, (_match, token) => {
+      const codePoint = token[0].toLocaleLowerCase() === "x"
+        ? Number.parseInt(token.slice(1), 16)
+        : Number.parseInt(token, 10);
+      return Number.isFinite(codePoint) ? String.fromCodePoint(codePoint) : _match;
+    });
+}
+
 function posteditValue(locale, namespace, key, value) {
   let output = normalizeBrands(value).replace(leakedLanguageLabelSuffix, "");
   for (const [pattern, replacement] of localeTermReplacements.get(locale) ?? []) output = output.replace(pattern, replacement);
@@ -752,10 +819,11 @@ function posteditValue(locale, namespace, key, value) {
   if (locale === "en-GB") output = posteditEnglish(output);
   if (locale === "es-ES") output = posteditSpanish(key, output);
   if (locale === "nl-NL") output = posteditDutch(output);
-  return validationOverrides.get(`${locale}:${namespace}.${key}`)
+  const edited = validationOverrides.get(`${locale}:${namespace}.${key}`)
     ?? localeOverrides.get(`${locale}:${namespace}.${key}`)
     ?? (locale === "en-GB" ? englishOverrides.get(`${namespace}.${key}`) : undefined)
     ?? output;
+  return normalizeBrands(decodeHtmlEntities(edited));
 }
 
 function restorePlaceholderWhitespace(source, translation) {

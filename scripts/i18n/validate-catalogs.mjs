@@ -3,6 +3,7 @@ import path from "node:path";
 import {parse} from "@formatjs/icu-messageformat-parser";
 
 const root = process.cwd();
+const renderedHtmlEntity = /&(?:apos|lt|gt|quot|amp);/iu;
 const locales = ["fr-FR", "en-GB", "es-ES", "it-IT", "de-DE", "nl-NL", "pt-PT"];
 const namespaces = fs.readdirSync(path.join(root, "messages", "fr-FR"))
   .filter((name) => name.endsWith(".json"))
@@ -129,6 +130,9 @@ for (const namespace of namespaces) {
       if (typeof translation !== "string" || !translation.trim()) {
         errors.push(`${locale}/${namespace}/${key}: traduction vide`);
         continue;
+      }
+      if (renderedHtmlEntity.test(translation)) {
+        errors.push(`${locale}/${namespace}/${key}: entité HTML non décodée`);
       }
       if (mojibake.test(translation)) errors.push(`${locale}/${namespace}/${key}: encodage corrompu`);
       if (leakedTranslationMarker.test(translation)) errors.push(`${locale}/${namespace}/${key}: marqueur de traduction interne présent`);
