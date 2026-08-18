@@ -152,7 +152,7 @@
     },
     "gmb": {
       "label": "Ligar Perfil de Empresa no Google",
-      "shortLabel": "Perfil de Empresa no Google"
+      "shortLabel": "Google Business"
     },
     "facebook": {
       "label": "Ligar Facebook",
@@ -265,7 +265,7 @@
       "connect": "Ligar o Google Analytics"
     },
     "gmb": {
-      "name": "Perfil de Empresa no Google",
+      "name": "Google Business",
       "description": "Aumenta chamadas 📞",
       "view": "Ver página",
       "connect": "Configurar"

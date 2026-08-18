@@ -152,7 +152,7 @@
     },
     "gmb": {
       "label": "Connect Google Business Profile",
-      "shortLabel": "Google Business Profile"
+      "shortLabel": "Google Business"
     },
     "facebook": {
       "label": "Connect Facebook",
@@ -265,7 +265,7 @@
       "connect": "Connect Google Analytics"
     },
     "gmb": {
-      "name": "Google Business Profile",
+      "name": "Google Business",
       "description": "Boosts calls 📞",
       "view": "View page",
       "connect": "Set up"

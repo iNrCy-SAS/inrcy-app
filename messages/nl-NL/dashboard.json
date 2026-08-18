@@ -152,7 +152,7 @@
     },
     "gmb": {
       "label": "Google-bedrijfsprofiel verbinden",
-      "shortLabel": "Google-bedrijfsprofiel"
+      "shortLabel": "Google Business"
     },
     "facebook": {
       "label": "Facebook verbinden",
@@ -265,7 +265,7 @@
       "connect": "Google Analytics koppelen"
     },
     "gmb": {
-      "name": "Google-bedrijfsprofiel",
+      "name": "Google Business",
       "description": "Meer oproepen 📞",
       "view": "Pagina bekijken",
       "connect": "Instellen"

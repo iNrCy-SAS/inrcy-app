@@ -3,7 +3,9 @@ import path from "node:path";
 import {parse} from "@formatjs/icu-messageformat-parser";
 
 const root = process.cwd();
-const renderedHtmlEntity = /&(?:apos|lt|gt|quot|amp);/iu;
+// Catalog values are rendered as text. Encoded HTML entities would leak to
+// the interface instead of being interpreted by the browser.
+const renderedHtmlEntity = /&(?:[a-z][a-z0-9]+|#x?[0-9a-f]+);/iu;
 const locales = ["fr-FR", "en-GB", "es-ES", "it-IT", "de-DE", "nl-NL", "pt-PT"];
 const namespaces = fs.readdirSync(path.join(root, "messages", "fr-FR"))
   .filter((name) => name.endsWith(".json"))
@@ -74,7 +76,7 @@ function placeholderSpacingErrors(source, translation) {
     const sourceHead = source.slice(0, sourceIndex);
     const targetHead = translation.slice(0, targetIndex);
     const expectedLeftBoundary = (sourceHead.match(/[.,;:!?…\s]+$/u)?.[0] ?? "").replace(/\s+/gu, " ");
-    const actualLeftBoundary = targetHead.match(/[.,;:!?…\s]+$/u)?.[0] ?? "";
+    const actualLeftBoundary = (targetHead.match(/[.,;:!?…\s]+$/u)?.[0] ?? "").replace(/\s+/gu, " ");
     if (actualLeftBoundary !== expectedLeftBoundary) issues.push(`${token} ponctuation avant`);
     const sourceHasSpaceBefore = sourceIndex > 0 && /\s/u.test(source[sourceIndex - 1]);
     const sourceHasSpaceAfter = sourceIndex + token.length < source.length && /\s/u.test(source[sourceIndex + token.length]);
@@ -85,7 +87,7 @@ function placeholderSpacingErrors(source, translation) {
     const sourceBoundary = sourceTail.match(/^[.,;:!?…\s]+/u)?.[0];
     if (sourceBoundary === undefined) continue;
     const expectedBoundary = sourceBoundary.replace(/\s+/gu, " ");
-    const actualBoundary = targetTail.match(/^[.,;:!?…\s]+/u)?.[0] ?? "";
+    const actualBoundary = (targetTail.match(/^[.,;:!?…\s]+/u)?.[0] ?? "").replace(/\s+/gu, " ");
     if (actualBoundary !== expectedBoundary) issues.push(`${token} ponctuation`);
   }
   return issues;
@@ -127,7 +129,8 @@ for (const namespace of namespaces) {
     if (extra.length) errors.push(`${locale}/${namespace}: ${extra.length} clé(s) en trop: ${extra.slice(0, 5).join(", ")}`);
     for (const [key, source] of reference) {
       const translation = catalog.get(key);
-      if (typeof translation !== "string" || !translation.trim()) {
+      const isIntentionalNbsp = key === "nbsp_47c1f11e" && translation === "\u00a0";
+      if (typeof translation !== "string" || (!translation.trim() && !isIntentionalNbsp)) {
         errors.push(`${locale}/${namespace}/${key}: traduction vide`);
         continue;
       }

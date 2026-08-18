@@ -152,7 +152,7 @@
     },
     "gmb": {
       "label": "Google Unternehmensprofil verbinden",
-      "shortLabel": "Google Unternehmensprofil"
+      "shortLabel": "Google Business"
     },
     "facebook": {
       "label": "Facebook verbinden",
@@ -265,7 +265,7 @@
       "connect": "Google Analytics verbinden"
     },
     "gmb": {
-      "name": "Google Unternehmensprofil",
+      "name": "Google Business",
       "description": "Mehr Anrufe 📞",
       "view": "Seite ansehen",
       "connect": "Einrichten"

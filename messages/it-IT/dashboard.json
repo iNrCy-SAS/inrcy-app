@@ -152,7 +152,7 @@
     },
     "gmb": {
       "label": "Connetti Profilo dell’attività su Google",
-      "shortLabel": "Profilo dell’attività su Google"
+      "shortLabel": "Google Business"
     },
     "facebook": {
       "label": "Connetti Facebook",
@@ -265,7 +265,7 @@
       "connect": "Collega Google Analytics"
     },
     "gmb": {
-      "name": "Profilo dell’attività su Google",
+      "name": "Google Business",
       "description": "Aumenta chiamate 📞",
       "view": "Vedi pagina",
       "connect": "Configura"

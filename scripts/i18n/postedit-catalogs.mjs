@@ -533,13 +533,27 @@ const validationOverrides = new Map([
   ["nl-NL:shell.inr_apos_stats_e43f5622", "iNr’Stats"],
   ["pt-PT:shell.inr_apos_send_aaa1fcec", "iNr’Send"],
   ["pt-PT:shell.inr_apos_stats_e43f5622", "iNr’Stats"],
-  ["fr-FR:crm.nbsp_47c1f11e", "&nbsp;"],
-  ["en-GB:crm.nbsp_47c1f11e", "&nbsp;"],
-  ["es-ES:crm.nbsp_47c1f11e", "&nbsp;"],
-  ["it-IT:crm.nbsp_47c1f11e", "&nbsp;"],
-  ["de-DE:crm.nbsp_47c1f11e", "&nbsp;"],
-  ["nl-NL:crm.nbsp_47c1f11e", "&nbsp;"],
-  ["pt-PT:crm.nbsp_47c1f11e", "&nbsp;"],
+  ["fr-FR:dashboard.generatorSteps.gmb.shortLabel", "Google Business"],
+  ["en-GB:dashboard.generatorSteps.gmb.shortLabel", "Google Business"],
+  ["es-ES:dashboard.generatorSteps.gmb.shortLabel", "Google Business"],
+  ["it-IT:dashboard.generatorSteps.gmb.shortLabel", "Google Business"],
+  ["de-DE:dashboard.generatorSteps.gmb.shortLabel", "Google Business"],
+  ["nl-NL:dashboard.generatorSteps.gmb.shortLabel", "Google Business"],
+  ["pt-PT:dashboard.generatorSteps.gmb.shortLabel", "Google Business"],
+  ["fr-FR:dashboard.moduleCards.gmb.name", "Google Business"],
+  ["en-GB:dashboard.moduleCards.gmb.name", "Google Business"],
+  ["es-ES:dashboard.moduleCards.gmb.name", "Google Business"],
+  ["it-IT:dashboard.moduleCards.gmb.name", "Google Business"],
+  ["de-DE:dashboard.moduleCards.gmb.name", "Google Business"],
+  ["nl-NL:dashboard.moduleCards.gmb.name", "Google Business"],
+  ["pt-PT:dashboard.moduleCards.gmb.name", "Google Business"],
+  ["fr-FR:crm.nbsp_47c1f11e", "\u00a0"],
+  ["en-GB:crm.nbsp_47c1f11e", "\u00a0"],
+  ["es-ES:crm.nbsp_47c1f11e", "\u00a0"],
+  ["it-IT:crm.nbsp_47c1f11e", "\u00a0"],
+  ["de-DE:crm.nbsp_47c1f11e", "\u00a0"],
+  ["nl-NL:crm.nbsp_47c1f11e", "\u00a0"],
+  ["pt-PT:crm.nbsp_47c1f11e", "\u00a0"],
   ["es-ES:public.inr_apos_search_6cbfd855", "iNr’Search"],
   ["it-IT:public.inr_apos_search_6cbfd855", "iNr’Search"],
   ["de-DE:public.inr_apos_search_6cbfd855", "iNr’Search"],
@@ -793,12 +807,13 @@ function normalizeBrands(value) {
 
 // Catalog values are rendered as React text, not injected as HTML. Decode
 // entities that slipped in from the legacy/Google translation pipeline so
-// users see real punctuation and channel arrows (e.g. iNr’Send, <, >).
+// users see real punctuation, spacing and channel arrows (e.g. iNr’Send, <, >).
 function decodeHtmlEntities(value) {
   return value
-    // Keep the dedicated non-breaking-space token stable: the catalog
-    // validator treats this token as intentional whitespace.
-    .replace(/\u00a0/gu, "&nbsp;")
+    // next-intl returns plain React text: an HTML entity would therefore be
+    // displayed literally. Keep the non-breaking behaviour with U+00A0.
+    .replace(/&nbsp;/giu, "\u00a0")
+    .replace(/&egrave;/giu, "è")
     .replace(/&apos;/giu, "'")
     .replace(/&quot;/giu, '"')
     .replace(/&lt;/giu, "<")
@@ -906,7 +921,7 @@ for (const namespace of namespaces) {
     const after = transformCatalog(before, sourceAfter, (value, source, key) => {
       const edited = posteditValue(locale, namespace, key, value);
       const lineSafe = typeof source === "string" && !source.includes("\n")
-        ? edited.replace(/\s*[\r\n]+\s*/gu, " ").trim()
+        ? (edited === "\u00a0" ? edited : edited.replace(/\s*[\r\n]+\s*/gu, " ").trim())
         : edited;
       return typeof source === "string" ? restorePlaceholderWhitespace(source, lineSafe) : lineSafe;
     });
