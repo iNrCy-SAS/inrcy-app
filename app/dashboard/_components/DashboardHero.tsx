@@ -83,6 +83,7 @@ export default function DashboardHero({
   const mobileCopy = getMobileHeroCopy(t.locale, i18nT);
   const compactGeneratorTitle =
     t.hero.generatorTitle.replace(/iNrCy/gi, "").replace(/\s{2,}/g, " ").trim() || t.hero.generatorTitle;
+  const [cockpitOpen, setCockpitOpen] = useState(false);
   const [powerBreakdownOpen, setPowerBreakdownOpen] = useState(false);
   const powerBreakdownRef = useRef<HTMLDivElement | null>(null);
 
@@ -131,84 +132,110 @@ export default function DashboardHero({
 
   return (
     <section className={`${styles.hero} ${powerBreakdownOpen ? styles.heroPowerOpen : ""}`}>
-      <div className={styles.heroLeft}>
-        <div className={styles.heroTop}>
-          <div className={styles.kicker}>
-            <img className={styles.kickerLogo} src="/mobile-shortcuts/inrcy-bubble.png" alt="" aria-hidden="true" />
+      <div className={`${styles.heroLeft} ${styles.cockpitPanel} ${cockpitOpen ? styles.cockpitPanelOpen : ""}`}>
+        <button
+          type="button"
+          className={styles.cockpitToggle}
+          onClick={() => {
+            setCockpitOpen((open) => {
+              if (open) setPowerBreakdownOpen(false);
+              return !open;
+            });
+          }}
+          aria-expanded={cockpitOpen}
+          aria-controls="dashboard-cockpit-details"
+          aria-label={cockpitOpen ? t.hero.collapseCockpitAria : t.hero.expandCockpitAria}
+        >
+          <span className={styles.cockpitToggleLabel}>
+            <img className={styles.cockpitToggleLogo} src="/mobile-shortcuts/inrcy-bubble.png" alt="" aria-hidden="true" />
             <span className={styles.kickerText}>{t.hero.kicker}</span>
-          </div>
+          </span>
+          <svg className={styles.cockpitChevron} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="m7 9.5 5 5 5-5" />
+          </svg>
+        </button>
 
-          <h1 className={styles.title}>
-            <span className={`${styles.titleAccent} ${styles.heroDesktopCopy}`}>{t.hero.title}</span>
-            <span className={`${styles.titleAccent} ${styles.heroMobileCopy}`}>
-              <span>{mobileCopy.title1}</span>
-              <span>{mobileCopy.title2}</span>
-            </span>
-          </h1>
+        <div
+          id="dashboard-cockpit-details"
+          className={styles.cockpitDetails}
+          aria-hidden={!cockpitOpen}
+          inert={!cockpitOpen}
+        >
+          <div className={styles.cockpitDetailsInner}>
+            <div className={styles.heroTop}>
+              <h1 className={styles.title}>
+                <span className={`${styles.titleAccent} ${styles.heroDesktopCopy}`}>{t.hero.title}</span>
+                <span className={`${styles.titleAccent} ${styles.heroMobileCopy}`}>
+                  <span>{mobileCopy.title1}</span>
+                  <span>{mobileCopy.title2}</span>
+                </span>
+              </h1>
 
-          <p className={styles.subtitle}>
-            <span className={styles.heroDesktopCopy}>{t.hero.subtitle}</span>
-            <span className={styles.heroMobileCopy}>
-              <span>{mobileCopy.subtitle1}</span>
-              <span>{mobileCopy.subtitle2}</span>
-            </span>
-          </p>
+              <p className={styles.subtitle}>
+                <span className={styles.heroDesktopCopy}>{t.hero.subtitle}</span>
+                <span className={styles.heroMobileCopy}>
+                  <span>{mobileCopy.subtitle1}</span>
+                  <span>{mobileCopy.subtitle2}</span>
+                </span>
+              </p>
 
-          <div className={styles.signatureFlow}>
-            <span>{t.hero.flowContacts}</span>
-            <span className={styles.flowArrow}>→</span>
-            <span>{t.hero.flowQuotes}</span>
-            <span className={styles.flowArrow}>→</span>
-            <span>{t.hero.flowRevenue}</span>
-          </div>
-        </div>
-
-        <div className={styles.powerBlock} ref={powerBreakdownRef}>
-          <div className={styles.powerHeader}>
-            <div className={styles.powerInlineTitle}>
-              {t.hero.powerTitle}
-              <span className={styles.powerValueWrap}>
-                <span className={styles.powerInlineValue}>{generatorPower}%</span>
-                <button
-                  type="button"
-                  className={styles.powerInfoBtn}
-                  onClick={() => setPowerBreakdownOpen((open) => !open)}
-                  aria-label={t.hero.powerDetailsAria}
-                  aria-expanded={powerBreakdownOpen}
-                  title={t.hero.powerDetailsTitle}
-                >
-                  i
-                </button>
-              </span>
+              <div className={styles.signatureFlow}>
+                <span>{t.hero.flowContacts}</span>
+                <span className={styles.flowArrow}>→</span>
+                <span>{t.hero.flowQuotes}</span>
+                <span className={styles.flowArrow}>→</span>
+                <span>{t.hero.flowRevenue}</span>
+              </div>
             </div>
-            <div className={styles.powerMeta}>
-              {remainingGeneratorPowerSteps === 0
-                ? t.hero.fullPower
-                : `${remainingGeneratorPowerSteps} ${remainingGeneratorPowerSteps > 1 ? t.hero.stepPlural : t.hero.stepSingular} ${remainingGeneratorPowerSteps > 1 ? t.hero.remainingPlural : t.hero.remainingSingular}`}
+
+            <div className={styles.powerBlock} ref={powerBreakdownRef}>
+              <div className={styles.powerHeader}>
+                <div className={styles.powerInlineTitle}>
+                  {t.hero.powerTitle}
+                  <span className={styles.powerValueWrap}>
+                    <span className={styles.powerInlineValue}>{generatorPower}%</span>
+                    <button
+                      type="button"
+                      className={styles.powerInfoBtn}
+                      onClick={() => setPowerBreakdownOpen((open) => !open)}
+                      aria-label={t.hero.powerDetailsAria}
+                      aria-expanded={powerBreakdownOpen}
+                      title={t.hero.powerDetailsTitle}
+                    >
+                      i
+                    </button>
+                  </span>
+                </div>
+                <div className={styles.powerMeta}>
+                  {remainingGeneratorPowerSteps === 0
+                    ? t.hero.fullPower
+                    : `${remainingGeneratorPowerSteps} ${remainingGeneratorPowerSteps > 1 ? t.hero.stepPlural : t.hero.stepSingular} ${remainingGeneratorPowerSteps > 1 ? t.hero.remainingPlural : t.hero.remainingSingular}`}
+                </div>
+              </div>
+
+              {powerInfoPanel}
+
+              <div
+                className={styles.powerBar}
+                role="progressbar"
+                aria-label={t.hero.progressAria}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={generatorPower}
+              >
+                <div className={styles.powerBarFill} style={{ width: `${generatorPower}%` }} />
+              </div>
+
+              <div className={styles.powerFooter}>
+                {nextGeneratorPowerStep ? (
+                  <span className={styles.powerHint}>
+                    {t.hero.nextRise} {nextGeneratorPowerStep.label} <strong>(+{nextGeneratorPowerStep.weight}%)</strong>
+                  </span>
+                ) : (
+                  <span className={styles.powerHintComplete}>{t.hero.completeHint}</span>
+                )}
+              </div>
             </div>
-          </div>
-
-          {powerInfoPanel}
-
-          <div
-            className={styles.powerBar}
-            role="progressbar"
-            aria-label={t.hero.progressAria}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={generatorPower}
-          >
-            <div className={styles.powerBarFill} style={{ width: `${generatorPower}%` }} />
-          </div>
-
-          <div className={styles.powerFooter}>
-            {nextGeneratorPowerStep ? (
-              <span className={styles.powerHint}>
-                {t.hero.nextRise} {nextGeneratorPowerStep.label} <strong>(+{nextGeneratorPowerStep.weight}%)</strong>
-              </span>
-            ) : (
-              <span className={styles.powerHintComplete}>{t.hero.completeHint}</span>
-            )}
           </div>
         </div>
       </div>

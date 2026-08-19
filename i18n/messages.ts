@@ -21,6 +21,7 @@ const MESSAGE_LOADERS: Record<AppLocale, () => Promise<AbstractIntlMessages>> = 
     settings: (await import("../messages/fr-FR/settings.json")).default,
     shell: (await import("../messages/fr-FR/shell.json")).default,
     public: (await import("../messages/fr-FR/public.json")).default,
+    legal: (await import("../messages/fr-FR/legal.json")).default,
   }),
   "en-GB": async () => ({
     common: (await import("../messages/en-GB/common.json")).default,
@@ -40,6 +41,7 @@ const MESSAGE_LOADERS: Record<AppLocale, () => Promise<AbstractIntlMessages>> = 
     settings: (await import("../messages/en-GB/settings.json")).default,
     shell: (await import("../messages/en-GB/shell.json")).default,
     public: (await import("../messages/en-GB/public.json")).default,
+    legal: (await import("../messages/en-GB/legal.json")).default,
   }),
   "es-ES": async () => ({
     common: (await import("../messages/es-ES/common.json")).default,
@@ -59,6 +61,7 @@ const MESSAGE_LOADERS: Record<AppLocale, () => Promise<AbstractIntlMessages>> = 
     settings: (await import("../messages/es-ES/settings.json")).default,
     shell: (await import("../messages/es-ES/shell.json")).default,
     public: (await import("../messages/es-ES/public.json")).default,
+    legal: (await import("../messages/es-ES/legal.json")).default,
   }),
   "it-IT": async () => ({
     common: (await import("../messages/it-IT/common.json")).default,
@@ -78,6 +81,7 @@ const MESSAGE_LOADERS: Record<AppLocale, () => Promise<AbstractIntlMessages>> = 
     settings: (await import("../messages/it-IT/settings.json")).default,
     shell: (await import("../messages/it-IT/shell.json")).default,
     public: (await import("../messages/it-IT/public.json")).default,
+    legal: (await import("../messages/it-IT/legal.json")).default,
   }),
   "de-DE": async () => ({
     common: (await import("../messages/de-DE/common.json")).default,
@@ -97,6 +101,7 @@ const MESSAGE_LOADERS: Record<AppLocale, () => Promise<AbstractIntlMessages>> = 
     settings: (await import("../messages/de-DE/settings.json")).default,
     shell: (await import("../messages/de-DE/shell.json")).default,
     public: (await import("../messages/de-DE/public.json")).default,
+    legal: (await import("../messages/de-DE/legal.json")).default,
   }),
   "nl-NL": async () => ({
     common: (await import("../messages/nl-NL/common.json")).default,
@@ -116,6 +121,7 @@ const MESSAGE_LOADERS: Record<AppLocale, () => Promise<AbstractIntlMessages>> = 
     settings: (await import("../messages/nl-NL/settings.json")).default,
     shell: (await import("../messages/nl-NL/shell.json")).default,
     public: (await import("../messages/nl-NL/public.json")).default,
+    legal: (await import("../messages/nl-NL/legal.json")).default,
   }),
   "pt-PT": async () => ({
     common: (await import("../messages/pt-PT/common.json")).default,
@@ -135,6 +141,7 @@ const MESSAGE_LOADERS: Record<AppLocale, () => Promise<AbstractIntlMessages>> = 
     settings: (await import("../messages/pt-PT/settings.json")).default,
     shell: (await import("../messages/pt-PT/shell.json")).default,
     public: (await import("../messages/pt-PT/public.json")).default,
+    legal: (await import("../messages/pt-PT/legal.json")).default,
   }),
 };
 

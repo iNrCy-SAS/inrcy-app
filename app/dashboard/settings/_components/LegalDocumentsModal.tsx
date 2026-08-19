@@ -26,8 +26,6 @@ export default function LegalDocumentsModal({
           <div style={{ marginTop: 14 }}>
             <Content />
           </div>
-          <p className={legalStyles.small} style={{ marginTop: 18 }}>
-            {i18nT("derniere_mise_a_jour_30_06_0c4ba073")}{" "}</p>
         </div>
       </div>
     </BaseModal>

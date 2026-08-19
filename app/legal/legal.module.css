@@ -60,6 +60,17 @@
   font-size: 13px;
 }
 
+.translationNotice {
+  margin: 24px 0 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  border-radius: 12px;
+  background: rgba(56, 189, 248, 0.07);
+  color: rgba(226, 235, 250, 0.76);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 
 /* close button */
 

@@ -11694,3 +11694,195 @@
       inset 0 1px 0 rgba(255, 255, 255, 0.18);
   }
 }
+
+/* =========================
+   Cockpit compact
+   Le résumé reste replié à chaque arrivée sur le dashboard afin de placer
+   le Générateur au premier plan. Son contenu d'origine reste disponible
+   dans un disclosure accessible, sans navigation ni saut de page.
+========================= */
+.hero {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.cockpitPanel {
+  min-height: 0;
+  padding: 0;
+  align-items: stretch;
+  justify-content: flex-start;
+  overflow: hidden;
+  text-align: left;
+}
+
+.cockpitToggle {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  width: 100%;
+  min-height: 68px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 18px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.cockpitToggle::after {
+  content: "";
+  position: absolute;
+  inset: auto 18px 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(125, 211, 252, 0.18), transparent);
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+
+.cockpitPanelOpen .cockpitToggle::after {
+  opacity: 1;
+}
+
+.cockpitToggle:focus-visible {
+  outline: 2px solid rgba(125, 211, 252, 0.92);
+  outline-offset: -4px;
+  border-radius: 20px;
+}
+
+.cockpitToggleLabel {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+  font-size: 17px;
+  font-weight: 950;
+  letter-spacing: -0.25px;
+}
+
+.cockpitToggleLogo {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 16px rgba(var(--cockpit-cyan), 0.34));
+}
+
+.cockpitChevron {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  padding: 7px;
+  border: 1px solid rgba(125, 211, 252, 0.28);
+  border-radius: 999px;
+  background: rgba(7, 17, 39, 0.48);
+  color: rgba(232, 241, 255, 0.86);
+  transition:
+    transform 220ms ease,
+    border-color 180ms ease,
+    background 180ms ease;
+}
+
+.cockpitChevron path {
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.cockpitPanelOpen .cockpitChevron {
+  transform: rotate(180deg);
+  border-color: rgba(196, 181, 253, 0.48);
+  background: rgba(55, 36, 94, 0.52);
+}
+
+.cockpitDetails {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    grid-template-rows 260ms ease,
+    opacity 180ms ease,
+    visibility 0s linear 260ms;
+}
+
+.cockpitPanelOpen .cockpitDetails {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  visibility: visible;
+  transition:
+    grid-template-rows 260ms ease,
+    opacity 220ms ease 40ms,
+    visibility 0s linear 0s;
+}
+
+.cockpitDetailsInner {
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 22px 18px;
+  text-align: center;
+}
+
+.cockpitDetailsInner .title {
+  margin-top: 14px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .cockpitToggle:hover .cockpitChevron {
+    border-color: rgba(125, 211, 252, 0.56);
+    background: rgba(22, 52, 96, 0.58);
+  }
+}
+
+@media (max-width: 560px) {
+  .cockpitToggle {
+    min-height: 58px;
+    gap: 10px;
+    padding: 9px 12px;
+  }
+
+  .cockpitToggle::after {
+    inset-inline: 12px;
+  }
+
+  .cockpitToggleLabel {
+    gap: 9px;
+    font-size: 15px;
+  }
+
+  .cockpitToggleLogo {
+    width: 36px;
+    height: 36px;
+    flex-basis: 36px;
+  }
+
+  .cockpitChevron {
+    width: 30px;
+    height: 30px;
+    flex-basis: 30px;
+    padding: 6px;
+  }
+
+  .cockpitDetailsInner {
+    padding: 0 14px 14px;
+  }
+
+  .cockpitDetailsInner .title {
+    margin-top: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cockpitToggle::after,
+  .cockpitChevron,
+  .cockpitDetails {
+    transition: none !important;
+  }
+}

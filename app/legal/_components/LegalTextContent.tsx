@@ -1,91 +1,48 @@
 "use client";
 
-import type React from "react";
+import { useTranslations } from "next-intl";
+
 import styles from "../legal.module.css";
+import {
+  LEGAL_DOCUMENT_BLOCKS,
+  type LegalDocumentId,
+} from "./legalDocumentSchema";
 
-function isSectionTitle(line: string) {
-  return /^(?:\d+\.\s|\d+\.\d+\s|Article\s+\d+\s+[\u2013\u2014-])/.test(line);
-}
+export default function LegalTextContent({ document }: { document: LegalDocumentId }) {
+  const t = useTranslations("legal");
+  const blocks = LEGAL_DOCUMENT_BLOCKS[document];
 
-function isListCandidate(line: string, hasPreviousListItem: boolean) {
-  if (!line) return false;
-  if (isSectionTitle(line)) return false;
-  if (line.endsWith(";")) return true;
-  if (hasPreviousListItem && line.endsWith(".")) return true;
-  if (hasPreviousListItem && line.length <= 160 && !line.endsWith(":")) return true;
-  return false;
-}
-
-export default function LegalTextContent({
-  text,
-  headings = [],
-}: {
-  text: string;
-  headings?: readonly string[];
-}) {
-  const lines = text.replace(/\r\n/g, "\n").split("\n");
-  const elements: React.ReactNode[] = [];
-  const headingSet = new Set(headings);
-
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index]?.trim();
-
-    if (!line) {
-      continue;
-    }
-
-    if (isSectionTitle(line) || headingSet.has(line)) {
-      elements.push(
-        <h2 className={styles.h2} key={`title-${index}`}>
-          {line}
-        </h2>,
-      );
-      continue;
-    }
-
-    if (line.endsWith(":")) {
-      const items: string[] = [];
-      let cursor = index + 1;
-
-      while (cursor < lines.length) {
-        const candidate = lines[cursor]?.trim();
-        if (!candidate) {
-          cursor += 1;
-          if (items.length > 0) break;
-          continue;
+  return (
+    <section>
+      {blocks.map((block, index) => {
+        if (block.kind === "heading") {
+          return (
+            <h2 className={styles.h2} key={`${block.key}-${index}`}>
+              {t(block.key)}
+            </h2>
+          );
         }
-        if (!isListCandidate(candidate, items.length > 0)) break;
-        items.push(candidate);
-        cursor += 1;
-        if (candidate.endsWith(".")) break;
-      }
 
-      elements.push(
-        <p className={styles.p} key={`p-${index}`}>
-          {line}
-        </p>,
-      );
+        if (block.kind === "list") {
+          return (
+            <ul className={styles.ul} key={`${block.keys[0]}-${index}`}>
+              {block.keys.map((key) => (
+                <li key={key}>{t(key)}</li>
+              ))}
+            </ul>
+          );
+        }
 
-      if (items.length >= 2) {
-        elements.push(
-          <ul className={styles.ul} key={`ul-${index}`}>
-            {items.map((item, itemIndex) => (
-              <li key={`${index}-${itemIndex}`}>{item}</li>
-            ))}
-          </ul>,
+        return (
+          <p className={styles.p} key={`${block.key}-${index}`}>
+            {t(block.key)}
+          </p>
         );
-        index = cursor - 1;
-      }
+      })}
 
-      continue;
-    }
-
-    elements.push(
-      <p className={styles.p} key={`p-${index}`}>
-        {line}
-      </p>,
-    );
-  }
-
-  return <section>{elements}</section>;
+      <p className={styles.translationNotice}>
+        {t("version_francaise_reference_2d7d7eab")}
+      </p>
+    </section>
+  );
 }

@@ -93,6 +93,8 @@
     "powerDialogAria": "Generator power detail",
     "powerPanelTitle": "Power detail",
     "kicker": "Ihr iNrCy Cockpit",
+    "expandCockpitAria": "Ihr iNrCy Cockpit aufklappen",
+    "collapseCockpitAria": "Ihr iNrCy Cockpit zuklappen",
     "title": "Generator läuft!",
     "subtitle": "Alle Kanäle speisen jetzt eine Engine.",
     "flowContacts": "Publikationen",

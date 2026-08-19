@@ -43,18 +43,23 @@ test("the three app legal documents share the current date and no longer expose 
   const cga = read("app/legal/_components/CgaContent.tsx");
   const privacy = read("app/legal/_components/ConfidentialiteContent.tsx");
   const mentions = read("app/legal/_components/MentionsLegalesContent.tsx");
+  const legalText = read("app/legal/_components/LegalTextContent.tsx");
   const templates = read("lib/messageTemplates.ts");
   const publicMessages = JSON.parse(read("messages/fr-FR/public.json")) as Record<string, string>;
+  const legalMessages = JSON.parse(read("messages/fr-FR/legal.json")) as Record<string, string>;
 
   assert.equal((docs.match(/derniere_mise_a_jour_08_08_f576f6f7/g) ?? []).length, 2);
   assert.equal((docs.match(/version_du_08_08_2026_1465b7bb/g) ?? []).length, 1);
   assert.equal(publicMessages.derniere_mise_a_jour_08_08_f576f6f7, "Dernière mise à jour : 08/08/2026");
   assert.equal(publicMessages.version_du_08_08_2026_1465b7bb, "Version du 08/08/2026");
   assert.match(shell, /subtitle/);
-  assert.match(cga, /1 vidéo source jusqu’à 300 Mo/);
-  assert.match(privacy, /1 vidéo source jusqu’à 300 Mo/);
+  assert.ok(Object.values(legalMessages).some((message) => message.includes("1 vidéo source jusqu’à 300 Mo")));
+  assert.match(legalText, /useTranslations\("legal"\)/);
+  assert.match(cga, /document="cga"/);
+  assert.match(privacy, /document="confidentialite"/);
+  assert.match(mentions, /document="mentions-legales"/);
 
-  for (const source of [cga, privacy, mentions, templates]) {
+  for (const source of [JSON.stringify(legalMessages), templates]) {
     assert.doesNotMatch(source, /Trustpilot/i);
   }
 });

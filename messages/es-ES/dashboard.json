@@ -93,6 +93,8 @@
     "powerDialogAria": "Detalle potencia",
     "powerPanelTitle": "Detalle potencia",
     "kicker": "Tu cockpit iNrCy",
+    "expandCockpitAria": "Desplegar tu cockpit iNrCy",
+    "collapseCockpitAria": "Replegar tu cockpit iNrCy",
     "title": "¡Generador activo!",
     "subtitle": "Todos los canales alimentan un solo motor.",
     "flowContacts": "Publicaciones",
