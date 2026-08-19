@@ -14,6 +14,11 @@ import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import { log } from "@/lib/observability/logger";
 import { evaluatePassword } from "@/lib/passwordPolicy";
 import {
+  getPasswordWriteDiagnostic,
+  passwordWriteErrorCode,
+  writeVerifiedPassword,
+} from "@/lib/verifiedPasswordWrite";
+import {
   PASSWORD_FINISH_CONTINUATION_TTL_SECONDS,
   PASSWORD_FINISH_COOKIE,
   openPasswordFinishContinuation,
@@ -144,47 +149,6 @@ function attachContinuationCookie(
   return response;
 }
 
-function errorText(error: unknown) {
-  if (!error) return "";
-  if (typeof error === "string") return error.toLowerCase();
-  if (error instanceof Error) return error.message.toLowerCase();
-  if (typeof error === "object") {
-    const candidate = error as { code?: unknown; message?: unknown; status?: unknown };
-    return `${String(candidate.code || "")} ${String(candidate.message || "")} ${String(candidate.status || "")}`.toLowerCase();
-  }
-  return String(error).toLowerCase();
-}
-
-function errorCode(error: unknown) {
-  if (!error || typeof error !== "object") return undefined;
-  const code = String((error as { code?: unknown }).code || "").trim();
-  return code || undefined;
-}
-
-function isUserUnavailableError(error: unknown) {
-  const value = errorText(error);
-  return (
-    value.includes("user not found") ||
-    value.includes("user_not_found") ||
-    value.includes("no user") ||
-    value.includes("does not exist") ||
-    value.includes("404")
-  );
-}
-
-function isPasswordRejectedError(error: unknown) {
-  const value = errorText(error);
-  return (
-    value.includes("weak_password") ||
-    value.includes("password is too weak") ||
-    value.includes("password should") ||
-    value.includes("password must") ||
-    value.includes("password has been pwned") ||
-    value.includes("password is known to be weak") ||
-    value.includes("same password")
-  );
-}
-
 function getFriendlyOtpError(error: unknown, mode: FinishMode) {
   const raw = getSimpleFrenchErrorMessage(
     error,
@@ -294,7 +258,7 @@ export async function POST(req: NextRequest) {
           route: "/api/auth/finish-password",
           stage: "set_session",
           mode,
-          error_code: errorCode(continuationError),
+          error_code: passwordWriteErrorCode(continuationError),
         });
         return clearContinuationCookie(json(
           {
@@ -311,7 +275,7 @@ export async function POST(req: NextRequest) {
           route: "/api/auth/finish-password",
           stage: "get_user",
           mode,
-          error_code: errorCode(continuationUserError),
+          error_code: passwordWriteErrorCode(continuationUserError),
         });
         return clearContinuationCookie(json(
           {
@@ -349,7 +313,7 @@ export async function POST(req: NextRequest) {
           route: "/api/auth/finish-password",
           stage: "verify_otp",
           mode,
-          error_code: errorCode(verifyError),
+          error_code: passwordWriteErrorCode(verifyError),
         });
         const response = json(
           {
@@ -402,35 +366,34 @@ export async function POST(req: NextRequest) {
       ));
     }
 
-    // L’écriture administrateur est l’opération canonique : elle ne dépend ni
-    // des cookies du navigateur ni d’une autre session ouverte dans un onglet.
-    // La session issue du lien reste un secours légitime si le service admin a
-    // un incident ponctuel.
-    const { error: adminUpdateError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
-      password,
-      ...(mode === "invite" ? { email_confirm: true } : {}),
+    const passwordWrite = await writeVerifiedPassword({
+      // This client owns only the session created from the current email link:
+      // other accounts open in other browser tabs cannot affect this write.
+      writeWithVerifiedSession: async () => {
+        const { error } = await supabaseAuth.auth.updateUser({ password });
+        return { error };
+      },
+      // The signed server continuation authorizes a service-role fallback only
+      // when the verified session endpoint has a transient infrastructure error.
+      writeWithAdminFallback: async () => {
+        const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+          password,
+          ...(mode === "invite" ? { email_confirm: true } : {}),
+        });
+        return { error };
+      },
     });
 
-    const adminPasswordRejected = isPasswordRejectedError(adminUpdateError);
-    let passwordSaved = !adminUpdateError;
-    let sessionUpdateError: unknown = null;
-    // A policy rejection must not trigger a second password write. Keeping the
-    // verified session untouched is what makes the next user choice reliable.
-    if (adminUpdateError && !adminPasswordRejected) {
-      const sessionUpdate = await supabaseAuth.auth.updateUser({ password });
-      sessionUpdateError = sessionUpdate.error;
-      passwordSaved = !sessionUpdate.error;
-    }
-
-    if (!passwordSaved) {
+    if (!passwordWrite.ok) {
       const { data: latestSessionData } = await supabaseAuth.auth
         .getSession()
         .catch(() => ({ data: { session: null } }));
       const continuationPayload = sessionPayload(latestSessionData.session || session);
-      const accountUnavailable =
-        isUserUnavailableError(adminUpdateError) || isUserUnavailableError(sessionUpdateError);
-      const passwordRejected =
-        adminPasswordRejected || isPasswordRejectedError(sessionUpdateError);
+      const accountUnavailable = passwordWrite.failureKind === "account_unavailable";
+      const passwordPolicyMismatch = passwordWrite.failureKind === "password_rejected";
+      const passwordRejected = passwordWrite.failureKind === "same_password";
+      const sessionDiagnostic = getPasswordWriteDiagnostic(passwordWrite.sessionError);
+      const adminDiagnostic = getPasswordWriteDiagnostic(passwordWrite.adminError);
 
       log.warn("auth_password_save_failed", {
         route: "/api/auth/finish-password",
@@ -439,8 +402,13 @@ export async function POST(req: NextRequest) {
         user_id: userId,
         credential_source: credentialSource,
         retryable: Boolean(continuationPayload) && !accountUnavailable,
-        admin_error_code: errorCode(adminUpdateError),
-        session_error_code: errorCode(sessionUpdateError),
+        failure_kind: passwordWrite.failureKind,
+        session_error_code: sessionDiagnostic.code,
+        session_error_reasons: sessionDiagnostic.reasons,
+        session_minimum_length: sessionDiagnostic.minimumLength,
+        admin_error_code: adminDiagnostic.code,
+        admin_error_reasons: adminDiagnostic.reasons,
+        admin_minimum_length: adminDiagnostic.minimumLength,
       });
 
       if (accountUnavailable) {
@@ -454,12 +422,19 @@ export async function POST(req: NextRequest) {
       }
 
       if (continuationPayload) {
+        const responseCode = passwordPolicyMismatch
+          ? "password_policy_mismatch"
+          : passwordRejected
+            ? "password_rejected"
+            : "password_save_retryable";
         const response = json(
           {
-            code: passwordRejected ? "password_rejected" : "password_save_retryable",
-            error: passwordRejected
-              ? "Ce mot de passe a été refusé par le service d’authentification. Choisissez-en un autre."
-              : "Le service d’authentification a rencontré un incident temporaire. Vous pouvez réessayer sans nouveau lien.",
+            code: responseCode,
+            error: passwordPolicyMismatch
+              ? "La politique du service d’authentification ne correspond pas aux critères affichés. Votre lien reste utilisable."
+              : passwordRejected
+                ? "Ce mot de passe est déjà utilisé pour ce compte. Choisissez-en un autre."
+                : "Le service d’authentification a rencontré un incident temporaire. Vous pouvez réessayer sans nouveau lien.",
             retryable: true,
             continuation_available: true,
           },
@@ -475,8 +450,10 @@ export async function POST(req: NextRequest) {
 
       return clearContinuationCookie(json(
         {
-          code: "password_save_failed",
-          error: "Impossible d’enregistrer ce mot de passe pour le moment.",
+          code: passwordPolicyMismatch ? "password_policy_mismatch" : "password_save_failed",
+          error: passwordPolicyMismatch
+            ? "La politique du service d’authentification ne correspond pas aux critères affichés."
+            : "Impossible d’enregistrer ce mot de passe pour le moment.",
         },
         503,
       ));
@@ -504,6 +481,7 @@ export async function POST(req: NextRequest) {
     // La langue choisie sur le lien devient la préférence unique du compte.
     await Promise.allSettled([
       supabaseAdmin.auth.admin.updateUserById(userId, {
+        ...(mode === "invite" ? { email_confirm: true } : {}),
         user_metadata: {
           ...authMetadata,
           app_language: selectedLanguage,
@@ -531,7 +509,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     log.error("auth_password_finish_exception", {
       route: "/api/auth/finish-password",
-      error_code: errorCode(error),
+      error_code: passwordWriteErrorCode(error),
     });
     return json(
       {

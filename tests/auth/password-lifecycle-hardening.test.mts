@@ -2,6 +2,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
+import {
+  getPasswordWriteDiagnostic,
+  writeVerifiedPassword,
+} from "../../lib/verifiedPasswordWrite.ts";
+
 const read = (path: string) => readFileSync(path, "utf8");
 
 test("invitation and reset share a recoverable server-side password finalizer", () => {
@@ -12,13 +17,76 @@ test("invitation and reset share a recoverable server-side password finalizer", 
   assert.match(route, /openPasswordFinishContinuation/);
   assert.match(route, /export async function GET\(req: NextRequest\)/);
   assert.match(route, /supabaseAuth\.auth\.verifyOtp/);
-  assert.match(route, /supabaseAdmin\.auth\.admin\.updateUserById\(userId/);
-  assert.match(route, /supabaseAuth\.auth\.updateUser\(\{ password \}\)/);
-  assert.match(route, /code: passwordRejected \? "password_rejected" : "password_save_retryable"/);
+  assert.match(route, /writeVerifiedPassword\(\{/);
+  assert.match(route, /writeWithVerifiedSession/);
+  assert.match(route, /writeWithAdminFallback/);
+  assert.match(route, /password_policy_mismatch/);
   assert.match(route, /continuation_available: true/);
   assert.doesNotMatch(route, /continuation: continuationPayload/);
-  assert.match(route, /adminUpdateError && !adminPasswordRejected/);
+  assert.doesNotMatch(route, /adminUpdateError && !adminPasswordRejected/);
   assert.match(route, /"Cache-Control": "no-store"/);
+});
+
+test("a verified session is canonical and an admin write is only a transient fallback", async () => {
+  const calls: string[] = [];
+  const direct = await writeVerifiedPassword({
+    writeWithVerifiedSession: async () => {
+      calls.push("session");
+      return { error: null };
+    },
+    writeWithAdminFallback: async () => {
+      calls.push("admin");
+      return { error: null };
+    },
+  });
+
+  assert.equal(direct.ok, true);
+  assert.equal(direct.source, "session");
+  assert.deepEqual(calls, ["session"]);
+
+  calls.length = 0;
+  const recovered = await writeVerifiedPassword({
+    writeWithVerifiedSession: async () => {
+      calls.push("session");
+      return { error: { code: "request_timeout", message: "temporary timeout" } };
+    },
+    writeWithAdminFallback: async () => {
+      calls.push("admin");
+      return { error: null };
+    },
+  });
+
+  assert.equal(recovered.ok, true);
+  assert.equal(recovered.source, "admin");
+  assert.deepEqual(calls, ["session", "admin"]);
+});
+
+test("a backend password-policy mismatch is explicit and never causes a second write", async () => {
+  const calls: string[] = [];
+  const backendError = {
+    code: "weak_password",
+    message: "Password should be at least 108 characters.",
+    reasons: ["length"],
+  };
+  const result = await writeVerifiedPassword({
+    writeWithVerifiedSession: async () => {
+      calls.push("session");
+      return { error: backendError };
+    },
+    writeWithAdminFallback: async () => {
+      calls.push("admin");
+      return { error: null };
+    },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.failureKind, "password_rejected");
+  assert.deepEqual(calls, ["session"]);
+  assert.deepEqual(getPasswordWriteDiagnostic(backendError), {
+    code: "weak_password",
+    reasons: ["length"],
+    minimumLength: 108,
+  });
 });
 
 test("the browser retries a verified password write without requesting a new link", () => {
@@ -113,6 +181,7 @@ test("all supported languages include lifecycle and account-switch messages", ()
 
     assert.equal(typeof auth.switchAccount?.title, "string", locale);
     assert.equal(typeof auth.password?.passwordRejected, "string", locale);
+    assert.equal(typeof auth.password?.passwordPolicyMismatch, "string", locale);
     assert.equal(typeof auth.password?.retryWithoutNewLink, "string", locale);
     assert.equal(typeof auth.password?.accountUnavailable, "string", locale);
     for (const key of [

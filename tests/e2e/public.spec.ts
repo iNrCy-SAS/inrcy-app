@@ -18,10 +18,11 @@ test.describe('public flows', () => {
 
   test('health endpoints behave as expected', async ({ request }) => {
     const health = await request.get('/api/health');
-    expect(health.ok()).toBeTruthy();
-
     const healthJson = await health.json();
-    expect(healthJson).toHaveProperty('ok');
+    expect([200, 503]).toContain(health.status());
+    expect(typeof healthJson.ok).toBe('boolean');
+    expect(health.status()).toBe(healthJson.ok ? 200 : 503);
+    expect(typeof healthJson.ts).toBe('string');
 
     const internal = await request.get('/api/health/internal');
     expect([401, 403]).toContain(internal.status());

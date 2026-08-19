@@ -262,6 +262,8 @@ export default function FinishEmailLinkClient({
         return t("tooWeak");
       case "password_rejected":
         return t("passwordRejected");
+      case "password_policy_mismatch":
+        return t("passwordPolicyMismatch");
       case "password_save_retryable":
         return t("retryWithoutNewLink");
       case "invalid_action":
