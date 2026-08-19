@@ -4,11 +4,9 @@ test.describe('public flows', () => {
   test('login page loads and shows email/password fields', async ({ page }) => {
     await page.goto('/login');
 
-    await expect(page.getByPlaceholder(/email/i)).toBeVisible();
-    await expect(page.getByPlaceholder(/mot de passe|password/i)).toBeVisible();
-    await expect(
-      page.getByRole('button', { name: /se connecter|connexion|login/i })
-    ).toBeVisible();
+    await expect(page.getByTestId('login-email')).toBeVisible();
+    await expect(page.getByTestId('login-password')).toBeVisible();
+    await expect(page.getByTestId('login-submit')).toBeVisible();
   });
 
   test('anonymous user is redirected to login when visiting dashboard', async ({ page }) => {

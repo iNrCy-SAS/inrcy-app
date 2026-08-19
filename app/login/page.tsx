@@ -856,6 +856,7 @@ export default function LoginPage() {
             <div className="relative">
               <input
                 suppressHydrationWarning
+                data-testid="login-email"
                 className="inrcy-input"
                 type="email"
                 placeholder={t("emailPlaceholder")}
@@ -872,6 +873,7 @@ export default function LoginPage() {
             <div className="relative">
               <input
                 suppressHydrationWarning
+                data-testid="login-password"
                 className="inrcy-input"
                 type={showPassword ? "text" : "password"}
                 placeholder={t("passwordPlaceholder")}
@@ -920,6 +922,7 @@ export default function LoginPage() {
             ) : null}
 
             <button
+              data-testid="login-submit"
               className="inrcy-btn w-full"
               type="submit"
               disabled={
@@ -947,6 +950,7 @@ export default function LoginPage() {
               }
             >
               <button
+                data-testid="forgot-password"
                 type="button"
                 onClick={onForgotPassword}
                 className={styles.forgotButton}

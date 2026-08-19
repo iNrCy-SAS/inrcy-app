@@ -7,23 +7,50 @@ const read = (path: string) => readFileSync(path, "utf8");
 test("invitation and reset share a recoverable server-side password finalizer", () => {
   const route = read("app/api/auth/finish-password/route.ts");
 
-  assert.match(route, /continuation\?: SessionContinuation/);
+  assert.match(route, /PASSWORD_FINISH_COOKIE/);
+  assert.match(route, /sealPasswordFinishContinuation/);
+  assert.match(route, /openPasswordFinishContinuation/);
+  assert.match(route, /export async function GET\(req: NextRequest\)/);
   assert.match(route, /supabaseAuth\.auth\.verifyOtp/);
   assert.match(route, /supabaseAdmin\.auth\.admin\.updateUserById\(userId/);
   assert.match(route, /supabaseAuth\.auth\.updateUser\(\{ password \}\)/);
   assert.match(route, /code: passwordRejected \? "password_rejected" : "password_save_retryable"/);
-  assert.match(route, /continuation: continuationPayload/);
+  assert.match(route, /continuation_available: true/);
+  assert.doesNotMatch(route, /continuation: continuationPayload/);
+  assert.match(route, /adminUpdateError && !adminPasswordRejected/);
   assert.match(route, /"Cache-Control": "no-store"/);
 });
 
 test("the browser retries a verified password write without requesting a new link", () => {
   const client = read("app/auth/_components/FinishEmailLinkClient.tsx");
 
-  assert.match(client, /payload\?\.code === "password_save_retryable" && allowAutomaticRetry/);
-  assert.match(client, /submitPassword\(retryContinuation, false\)/);
+  assert.match(client, /payload\?\.continuation_available/);
+  assert.match(client, /submitPassword\(null, false, true\)/);
+  assert.match(client, /serverContinuationAvailable/);
   assert.match(client, /recoverAlreadyCommittedPassword/);
   assert.match(client, /supabase\.auth\.signInWithPassword/);
   assert.match(client, /waitForServerAuthSession\(\)/);
+  assert.match(client, /data-testid="auth-link-error"/);
+});
+
+test("E2E authentication selectors are stable across every interface language", () => {
+  const loginPage = read("app/login/page.tsx");
+  const authHelper = read("tests/e2e/helpers/auth.ts");
+  const publicSpec = read("tests/e2e/public.spec.ts");
+  const recoverySpec = read("tests/e2e/auth-recovery.spec.ts");
+
+  assert.match(loginPage, /data-testid="login-email"/);
+  assert.match(loginPage, /data-testid="login-password"/);
+  assert.match(loginPage, /data-testid="login-submit"/);
+  assert.match(loginPage, /data-testid="forgot-password"/);
+  assert.match(authHelper, /getByTestId\('login-email'\)/);
+  assert.match(authHelper, /getByTestId\('login-password'\)/);
+  assert.match(authHelper, /getByTestId\('login-submit'\)/);
+  assert.match(publicSpec, /getByTestId\('login-email'\)/);
+  assert.match(publicSpec, /getByTestId\('login-password'\)/);
+  assert.match(publicSpec, /getByTestId\('login-submit'\)/);
+  assert.match(recoverySpec, /getByTestId\('forgot-password'\)/);
+  assert.match(recoverySpec, /getByTestId\('auth-link-error'\)/);
 });
 
 test("the legacy password page is only a bridge to the canonical flow", () => {

@@ -92,11 +92,9 @@ export async function login(
     let outcome: LoginOutcome;
     try {
       await page.goto('/login');
-      await page.getByPlaceholder(/email/i).fill(email);
-      await page.getByPlaceholder(/mot de passe|password/i).fill(password);
-      await page
-        .getByRole('button', { name: /se connecter|login|connexion/i })
-        .click();
+      await page.getByTestId('login-email').fill(email);
+      await page.getByTestId('login-password').fill(password);
+      await page.getByTestId('login-submit').click();
       outcome = await waitForLoginOutcome(page);
     } finally {
       page.off('requestfailed', onRequestFailed);

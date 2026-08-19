@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import {
   createClient,
   type EmailOtpType,
@@ -12,6 +12,14 @@ import { ensureProfileRow } from "@/lib/ensureProfileRow";
 import { getClientIp, enforceRateLimit } from "@/lib/rateLimit";
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import { log } from "@/lib/observability/logger";
+import { evaluatePassword } from "@/lib/passwordPolicy";
+import {
+  PASSWORD_FINISH_CONTINUATION_TTL_SECONDS,
+  PASSWORD_FINISH_COOKIE,
+  openPasswordFinishContinuation,
+  sealPasswordFinishContinuation,
+  type PasswordFinishSession,
+} from "@/lib/authPasswordContinuation";
 import {
   DEFAULT_APP_LOCALE,
   appLanguageFromLocale,
@@ -22,11 +30,6 @@ export const runtime = "nodejs";
 
 type FinishMode = "invite" | "reset";
 
-type SessionContinuation = {
-  access_token?: string;
-  refresh_token?: string;
-};
-
 type Body = {
   mode?: FinishMode;
   token_hash?: string;
@@ -34,7 +37,7 @@ type Body = {
   email?: string | null;
   password?: string;
   language?: string;
-  continuation?: SessionContinuation | null;
+  continuation?: Partial<PasswordFinishSession> | null;
 };
 
 function json(body: unknown, status = 200) {
@@ -57,14 +60,17 @@ function isPlausibleTokenHash(value: string) {
   return /^[a-zA-Z0-9_-]{32,256}$/.test(value);
 }
 
-function isPlausibleSessionToken(value: string) {
-  return value.length >= 20 && value.length <= 16_384 && !/\s/.test(value);
+function isPlausibleSessionToken(value: string, minLength: number) {
+  return value.length >= minLength && value.length <= 16_384 && !/\s/.test(value);
 }
 
-function readContinuation(value: SessionContinuation | null | undefined) {
+function readContinuation(value: Partial<PasswordFinishSession> | null | undefined) {
   const accessToken = normalizeText(value?.access_token);
   const refreshToken = normalizeText(value?.refresh_token);
-  if (!isPlausibleSessionToken(accessToken) || !isPlausibleSessionToken(refreshToken)) {
+  if (
+    !isPlausibleSessionToken(accessToken, 20) ||
+    !isPlausibleSessionToken(refreshToken, 6)
+  ) {
     return null;
   }
   return { access_token: accessToken, refresh_token: refreshToken };
@@ -86,16 +92,6 @@ function isAllowedType(value: string | null, expected: EmailOtpType): value is E
   return value === expected;
 }
 
-function validatePassword(password: string) {
-  const hasMinLength = password.length >= 8;
-  const hasLetter = /[a-zA-Z]/.test(password);
-  const hasNumber = /\d/.test(password);
-  const hasUpper = /[A-Z]/.test(password);
-  const hasSymbol = /[^a-zA-Z0-9]/.test(password);
-
-  return hasMinLength && hasLetter && hasNumber && hasUpper && hasSymbol;
-}
-
 function buildAuthClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -108,6 +104,44 @@ function buildAuthClient() {
       },
     },
   );
+}
+
+function readMode(value: unknown): FinishMode | null {
+  return value === "invite" ? "invite" : value === "reset" ? "reset" : null;
+}
+
+function clearContinuationCookie(response: NextResponse) {
+  response.cookies.set({
+    name: PASSWORD_FINISH_COOKIE,
+    value: "",
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/api/auth/finish-password",
+    maxAge: 0,
+  });
+  return response;
+}
+
+function attachContinuationCookie(
+  response: NextResponse,
+  input: {
+    mode: FinishMode;
+    userId: string;
+    email: string | null;
+    session: PasswordFinishSession;
+  },
+) {
+  response.cookies.set({
+    name: PASSWORD_FINISH_COOKIE,
+    value: sealPasswordFinishContinuation(input),
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/api/auth/finish-password",
+    maxAge: PASSWORD_FINISH_CONTINUATION_TTL_SECONDS,
+  });
+  return response;
 }
 
 function errorText(error: unknown) {
@@ -169,12 +203,25 @@ function getFriendlyOtpError(error: unknown, mode: FinishMode) {
   return raw;
 }
 
-export async function POST(req: Request) {
+export async function GET(req: NextRequest) {
+  const mode = readMode(req.nextUrl.searchParams.get("mode"));
+  const expectedEmail = normalizeEmail(req.nextUrl.searchParams.get("email"));
+  if (!mode) return json({ continuation_available: false });
+
+  const sealedValue = req.cookies.get(PASSWORD_FINISH_COOKIE)?.value;
+  const continuation = openPasswordFinishContinuation(sealedValue, {
+    mode,
+    email: expectedEmail,
+  });
+  const response = json({ continuation_available: Boolean(continuation) });
+  return sealedValue && !continuation ? clearContinuationCookie(response) : response;
+}
+
+export async function POST(req: NextRequest) {
   try {
     const body = (await req.json().catch(() => null)) as Body | null;
-    const mode: FinishMode | null = body?.mode === "invite" ? "invite" : body?.mode === "reset" ? "reset" : null;
+    const mode = readMode(body?.mode);
     const tokenHash = normalizeText(body?.token_hash);
-    const continuation = readContinuation(body?.continuation);
     const expectedEmail = normalizeEmail(body?.email);
     const password = String(body?.password || "");
 
@@ -192,14 +239,27 @@ export async function POST(req: Request) {
       );
     }
 
+    const sealedCookieValue = req.cookies.get(PASSWORD_FINISH_COOKIE)?.value;
+    const sealedContinuation = openPasswordFinishContinuation(sealedCookieValue, {
+      mode,
+      email: expectedEmail,
+    });
+    // The encrypted HttpOnly continuation is authoritative. The body variant
+    // remains accepted for legacy PKCE/session links, but failed writes never
+    // expose session tokens back to browser JavaScript.
+    const legacyContinuation = readContinuation(body?.continuation);
+    const continuation = sealedContinuation?.session || legacyContinuation;
+
     if (!continuation && (!tokenHash || !isPlausibleTokenHash(tokenHash))) {
-      return json(
+      const response = json(
         { code: "link_incomplete", error: "Lien incomplet. Merci de demander un nouveau lien." },
         400,
       );
+      return sealedCookieValue ? clearContinuationCookie(response) : response;
     }
 
-    if (!validatePassword(password)) {
+    const passwordPolicy = evaluatePassword(password);
+    if (!passwordPolicy.isStrong) {
       return json(
         {
           code: "password_too_weak",
@@ -221,7 +281,11 @@ export async function POST(req: Request) {
     const supabaseAuth = buildAuthClient();
     let authUser: User | null = null;
     let session: Session | null = null;
-    const credentialSource = continuation ? "continuation" : "otp";
+    const credentialSource = sealedContinuation
+      ? "sealed_cookie"
+      : continuation
+        ? "legacy_continuation"
+        : "otp";
 
     if (continuation) {
       const { data: continuationData, error: continuationError } = await supabaseAuth.auth.setSession(continuation);
@@ -232,13 +296,13 @@ export async function POST(req: Request) {
           mode,
           error_code: errorCode(continuationError),
         });
-        return json(
+        return clearContinuationCookie(json(
           {
             code: "session_failed",
             error: "La reprise sécurisée a expiré. Merci de demander un nouveau lien.",
           },
           401,
-        );
+        ));
       }
 
       const { data: continuationUserData, error: continuationUserError } = await supabaseAuth.auth.getUser();
@@ -249,17 +313,31 @@ export async function POST(req: Request) {
           mode,
           error_code: errorCode(continuationUserError),
         });
-        return json(
+        return clearContinuationCookie(json(
           {
             code: "session_failed",
             error: "La reprise sécurisée a expiré. Merci de demander un nouveau lien.",
           },
           401,
-        );
+        ));
       }
 
       authUser = continuationUserData.user;
       session = continuationData.session;
+      if (sealedContinuation && authUser.id !== sealedContinuation.userId) {
+        log.warn("auth_password_continuation_rejected", {
+          route: "/api/auth/finish-password",
+          stage: "user_mismatch",
+          mode,
+        });
+        return clearContinuationCookie(json(
+          {
+            code: "session_failed",
+            error: "La reprise sécurisée ne correspond pas à ce compte. Merci de demander un nouveau lien.",
+          },
+          401,
+        ));
+      }
     } else {
       const { data, error: verifyError } = await supabaseAuth.auth.verifyOtp({
         type: expectedType,
@@ -273,13 +351,14 @@ export async function POST(req: Request) {
           mode,
           error_code: errorCode(verifyError),
         });
-        return json(
+        const response = json(
           {
             code: "auth_link_invalid",
             error: getFriendlyOtpError(verifyError, mode),
           },
           400,
         );
+        return sealedCookieValue ? clearContinuationCookie(response) : response;
       }
 
       authUser = data.user;
@@ -299,7 +378,7 @@ export async function POST(req: Request) {
     const verifiedEmail = normalizeEmail(authUser?.email);
 
     if (!authUser || !userId) {
-      return json(
+      return clearContinuationCookie(json(
         {
           code: "session_failed",
           error:
@@ -308,7 +387,7 @@ export async function POST(req: Request) {
               : "La session de réinitialisation n’a pas pu être créée. Merci de refaire une demande.",
         },
         400,
-      );
+      ));
     }
 
     if (expectedEmail && verifiedEmail && verifiedEmail !== expectedEmail) {
@@ -317,10 +396,10 @@ export async function POST(req: Request) {
         mode,
         user_id: userId,
       });
-      return json(
+      return clearContinuationCookie(json(
         { code: "account_mismatch", error: "Ce lien ne correspond pas au compte attendu." },
         403,
-      );
+      ));
     }
 
     // L’écriture administrateur est l’opération canonique : elle ne dépend ni
@@ -332,18 +411,26 @@ export async function POST(req: Request) {
       ...(mode === "invite" ? { email_confirm: true } : {}),
     });
 
+    const adminPasswordRejected = isPasswordRejectedError(adminUpdateError);
+    let passwordSaved = !adminUpdateError;
     let sessionUpdateError: unknown = null;
-    if (adminUpdateError) {
+    // A policy rejection must not trigger a second password write. Keeping the
+    // verified session untouched is what makes the next user choice reliable.
+    if (adminUpdateError && !adminPasswordRejected) {
       const sessionUpdate = await supabaseAuth.auth.updateUser({ password });
       sessionUpdateError = sessionUpdate.error;
+      passwordSaved = !sessionUpdate.error;
     }
 
-    if (adminUpdateError && sessionUpdateError) {
-      const continuationPayload = sessionPayload(session);
+    if (!passwordSaved) {
+      const { data: latestSessionData } = await supabaseAuth.auth
+        .getSession()
+        .catch(() => ({ data: { session: null } }));
+      const continuationPayload = sessionPayload(latestSessionData.session || session);
       const accountUnavailable =
         isUserUnavailableError(adminUpdateError) || isUserUnavailableError(sessionUpdateError);
       const passwordRejected =
-        isPasswordRejectedError(adminUpdateError) || isPasswordRejectedError(sessionUpdateError);
+        adminPasswordRejected || isPasswordRejectedError(sessionUpdateError);
 
       log.warn("auth_password_save_failed", {
         route: "/api/auth/finish-password",
@@ -357,36 +444,42 @@ export async function POST(req: Request) {
       });
 
       if (accountUnavailable) {
-        return json(
+        return clearContinuationCookie(json(
           {
             code: "account_unavailable",
             error: "Ce compte n’existe plus ou n’est plus disponible.",
           },
           410,
-        );
+        ));
       }
 
       if (continuationPayload) {
-        return json(
+        const response = json(
           {
             code: passwordRejected ? "password_rejected" : "password_save_retryable",
             error: passwordRejected
               ? "Ce mot de passe a été refusé par le service d’authentification. Choisissez-en un autre."
               : "Le service d’authentification a rencontré un incident temporaire. Vous pouvez réessayer sans nouveau lien.",
             retryable: true,
-            continuation: continuationPayload,
+            continuation_available: true,
           },
           passwordRejected ? 422 : 503,
         );
+        return attachContinuationCookie(response, {
+          mode,
+          userId,
+          email: verifiedEmail || expectedEmail,
+          session: continuationPayload,
+        });
       }
 
-      return json(
+      return clearContinuationCookie(json(
         {
           code: "password_save_failed",
           error: "Impossible d’enregistrer ce mot de passe pour le moment.",
         },
         503,
-      );
+      ));
     }
 
     const { data: finalSessionData } = await supabaseAuth.auth
@@ -429,12 +522,12 @@ export async function POST(req: Request) {
         ),
     ]);
 
-    return json({
+    return clearContinuationCookie(json({
       ok: true,
       user_id: userId,
       email: verifiedEmail || expectedEmail,
       session: sessionPayload(finalSession),
-    });
+    }));
   } catch (error) {
     log.error("auth_password_finish_exception", {
       route: "/api/auth/finish-password",

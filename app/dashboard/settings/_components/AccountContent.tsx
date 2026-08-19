@@ -6,6 +6,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import type { DashboardEdition } from "@/lib/dashboardEdition";
+import { evaluatePassword } from "@/lib/passwordPolicy";
 
 type Props = {
   mode?: "page" | "drawer";
@@ -81,19 +82,6 @@ function accountPlanPresentation(
   return { label, description, detail, statusView };
 }
 
-function getPasswordStrength(pw: string) {
-  const rules = {
-    minLen: pw.length >= 8,
-    hasLetter: /[a-zA-Z]/.test(pw),
-    hasNumber: /\d/.test(pw),
-    hasUpper: /[A-Z]/.test(pw),
-    hasSymbol: /[^a-zA-Z0-9]/.test(pw),
-  };
-  const score = Object.values(rules).filter(Boolean).length; // 0..5
-  const isStrong = score === 5;
-  return { rules, score, isStrong };
-}
-
 function Rule({ ok, label }: { ok: boolean; label: string }) {
   return (
     <div style={{ display: "flex", gap: 8, alignItems: "center", opacity: ok ? 1 : 0.75 }}>
@@ -164,8 +152,8 @@ export default function AccountContent({
     void load();
   }, [locale, passwordT]);
 
-  const strength = useMemo(() => getPasswordStrength(newPassword), [newPassword]);
-  const canSubmit = !busy && !!currentPassword && !!newPassword && newPassword === confirm && strength.isStrong;
+  const strength = useMemo(() => evaluatePassword(newPassword), [newPassword]);
+  const canSubmit = !busy && !!currentPassword && !!newPassword && newPassword === confirm && strength.isAcceptable;
   const planPresentation = useMemo(
     () => accountPlanPresentation(edition, subscriptionSummary, i18nT, locale),
     [edition, subscriptionSummary, i18nT, locale],

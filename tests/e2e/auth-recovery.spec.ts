@@ -4,24 +4,18 @@ test.describe('auth recovery flows', () => {
   test('forgot-password link is visible on login page', async ({ page }) => {
     await page.goto('/login');
 
-    await expect(
-      page.getByRole('button', { name: /mot de passe oublié/i })
-    ).toBeVisible();
+    await expect(page.getByTestId('forgot-password')).toBeVisible();
   });
 
   test('set-password page shows expired-link message', async ({ page }) => {
     await page.goto('/set-password?error_code=otp_expired&mode=reset');
 
-    await expect(
-      page.getByText(/Ce lien a expiré|réinitialisation/i).first()
-    ).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId('auth-link-error')).toBeVisible({ timeout: 15_000 });
   });
 
   test('set-password page shows invalid-link message', async ({ page }) => {
     await page.goto('/set-password?error_description=invalid_token&mode=reset');
 
-    await expect(
-      page.getByText(/Lien invalide|réinitialisation/i).first()
-    ).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId('auth-link-error')).toBeVisible({ timeout: 15_000 });
   });
 });
