@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useDashboardUnsavedNavigation } from "../_components/DashboardUnsavedNavigationProvider";
 
@@ -46,7 +46,17 @@ export function useDashboardPanelRouting() {
   const searchParams = useSearchParams();
   const { requestNavigation } = useDashboardUnsavedNavigation();
   const rawPanel = searchParams.get("panel");
-  const panel = rawPanel === "trustpilot" ? "inr_search" : rawPanel;
+  const urlPanel = rawPanel === "trustpilot" ? "inr_search" : rawPanel;
+  // Le panneau visible doit changer dans le même rendu que l'action de
+  // navigation. `window.history.replaceState` met bien l'URL à jour, mais
+  // `useSearchParams` peut rester sur son ancien instantané jusqu'à une vraie
+  // navigation Next (ou un rechargement). Cet état local est donc le miroir
+  // immédiat de l'URL ; les navigations externes le resynchronisent ensuite.
+  const [panel, setPanel] = useState<string | null>(urlPanel);
+
+  useEffect(() => {
+    setPanel(urlPanel);
+  }, [urlPanel]);
 
   useEffect(() => {
     if (rawPanel !== "trustpilot") return;
@@ -72,6 +82,7 @@ export function useDashboardPanelRouting() {
         markPanelAsExplicitlyOpened(name);
         // ✅ En mobile, on garde la position de scroll (pas de jump en haut)
         rememberDashboardScroll();
+        setPanel(name);
         router.push(`/dashboard?${params.toString()}`, { scroll: false });
       });
     },
@@ -80,15 +91,16 @@ export function useDashboardPanelRouting() {
 
   // Transition interne après une sauvegarde réussie. Elle ne passe pas par le
   // guard "modifications non enregistrées", car la sauvegarde a déjà remis le
-  // formulaire à l'état propre. L'historique natif synchronise useSearchParams
-  // sans lancer une nouvelle navigation serveur : la coque onboarding reste
-  // montée et le dashboard ne peut pas apparaître entre deux pages.
+  // formulaire à l'état propre. Le miroir React change avant l'URL native :
+  // la page suivante apparaît immédiatement, sans navigation serveur et sans
+  // possibilité d'exposer le dashboard entre deux étapes.
   const replacePanelDirect = useCallback(
     (name: DashboardPanelName) => {
       const params = new URLSearchParams(searchParams.toString());
       params.set("panel", name);
       markPanelAsExplicitlyOpened(name);
       rememberDashboardScroll();
+      setPanel(name);
       window.history.replaceState(
         window.history.state,
         "",
@@ -113,6 +125,7 @@ export function useDashboardPanelRouting() {
     } catch {}
     // ✅ En mobile, on garde la position de scroll (pas de jump en haut)
     rememberDashboardScroll();
+    setPanel(null);
     router.replace(qs ? `/dashboard?${qs}` : "/dashboard", { scroll: false });
   }, [router, searchParams]);
 

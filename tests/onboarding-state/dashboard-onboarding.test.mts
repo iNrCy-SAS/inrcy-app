@@ -115,7 +115,7 @@ const dashboardClientSource = readFileSync(
 );
 const commonMessages = JSON.parse(
   readFileSync(new URL("../../messages/fr-FR/common.json", import.meta.url), "utf8"),
-) as { dashboardBoot: string; initialSetup: string };
+) as { dashboardBoot: string };
 
 test("dashboard chains existing drawers without creating replacement forms", () => {
   assert.match(dashboardClientSource, /checkProfile\(\)[\s\S]*profileCompleted/);
@@ -143,6 +143,7 @@ test("successful onboarding saves use a direct guarded-safe panel transition", (
   )?.[0] ?? "";
 
   assert.match(directTransition, /window\.history\.replaceState/);
+  assert.match(directTransition, /setPanel\(name\)[\s\S]*window\.history\.replaceState/);
   assert.doesNotMatch(directTransition, /requestNavigation/);
   assert.match(
     dashboardClientSource,
@@ -202,15 +203,22 @@ test("first onboarding uses a dedicated desktop presentation and a Passer action
   assert.match(dashboardClientSource, /closeLabel=\{guidedOnboardingActive \? onboardingT\("skip"\) : undefined\}/);
 });
 
-test("dashboard uses a generic boot screen after onboarding and reserves preparation for the first run", () => {
+test("dashboard only boots while onboarding state loads and never waits for an URL mirror", () => {
   assert.match(dashboardClientSource, /onboardingStateLoading/);
   assert.match(dashboardClientSource, /StableBootScreen label=\{commonT\("dashboardBoot"\)\}/);
   assert.equal(commonMessages.dashboardBoot, "Chargement de votre dashboard iNrCy…");
-  assert.match(dashboardClientSource, /onboardingInitialPreparationBlocking/);
-  assert.match(dashboardClientSource, /StableBootScreen label=\{commonT\("initialSetup"\)\}/);
-  assert.equal(commonMessages.initialSetup, "Préparation de votre configuration initiale…");
+  assert.doesNotMatch(dashboardClientSource, /onboardingInitialPreparationBlocking/);
+  assert.doesNotMatch(dashboardClientSource, /StableBootScreen label=\{commonT\("initialSetup"\)\}/);
   assert.doesNotMatch(dashboardPageSource, /getDashboardInitialOnboardingStateServer/);
   assert.doesNotMatch(dashboardPageSource, /initialOnboardingState=/);
+});
+
+test("panel routing updates React immediately and then mirrors the browser URL", () => {
+  assert.match(panelRoutingSource, /const \[panel, setPanel\] = useState<string \| null>\(urlPanel\)/);
+  assert.match(panelRoutingSource, /useEffect\(\(\) => \{\s*setPanel\(urlPanel\);\s*\}, \[urlPanel\]\)/);
+  assert.match(panelRoutingSource, /setPanel\(name\)[\s\S]*router\.push/);
+  assert.match(panelRoutingSource, /setPanel\(name\)[\s\S]*window\.history\.replaceState/);
+  assert.match(panelRoutingSource, /setPanel\(null\)[\s\S]*router\.replace/);
 });
 
 test("login auth events cannot race the explicit dashboard redirect", () => {

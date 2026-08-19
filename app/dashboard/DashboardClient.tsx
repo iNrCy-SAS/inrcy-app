@@ -220,10 +220,6 @@ export default function DashboardClient({
       })
     : undefined;
   const onboardingStateLoading = !onboardingState.onboardingReady;
-  const onboardingInitialPreparationBlocking =
-    guidedOnboardingActive &&
-    guidedOnboardingPanel !== null &&
-    panel !== guidedOnboardingPanel;
   const onboardingAutoOpenKeyRef = useRef<string | null>(null);
   const onboardingSkipConfirmingRef = useRef(false);
   const [onboardingAiCompleting, setOnboardingAiCompleting] = useState(false);
@@ -3749,10 +3745,6 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
 
   if (onboardingStateLoading) {
     return <StableBootScreen label={commonT("dashboardBoot")} />;
-  }
-
-  if (onboardingInitialPreparationBlocking) {
-    return <StableBootScreen label={commonT("initialSetup")} />;
   }
 
   return (
