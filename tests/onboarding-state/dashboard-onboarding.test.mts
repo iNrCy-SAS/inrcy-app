@@ -242,14 +242,14 @@ test("dashboard navigation waits until the SSR session is readable", () => {
     new URL("../../lib/browserAuthSessionReady.ts", import.meta.url),
     "utf8",
   );
-  const setPasswordSource = readFileSync(
-    new URL("../../app/set-password/page.tsx", import.meta.url),
+  const finishPasswordSource = readFileSync(
+    new URL("../../app/auth/_components/FinishEmailLinkClient.tsx", import.meta.url),
     "utf8",
   );
   assert.match(readyRouteSource, /supabase\.auth\.getUser\(\)/);
   assert.match(browserReadySource, /fetch\("\/api\/auth\/session-ready"/);
   assert.match(browserReadySource, /credentials: "include"/);
-  assert.match(setPasswordSource, /waitForServerAuthSession\(\)/);
+  assert.match(finishPasswordSource, /waitForServerAuthSession\(\)/);
 });
 
 test("skipping required onboarding warns that tools remain unavailable", () => {

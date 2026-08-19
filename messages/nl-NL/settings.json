@@ -577,5 +577,10 @@
   "vous_pouvez_resilier_avant_la_prochaine_c9597f47": "U kunt annuleren vóór de volgende factuurdatum.",
   "vouvoiement_c5254349": "Formeel adres",
   "youtube_558865a1": "YouTube",
-  "zones_d_intervention_a4999f61": "Servicegebieden"
+  "zones_d_intervention_a4999f61": "Servicegebieden",
+  "rgpd_export_done": "Export aangemaakt en gedownload.",
+  "rgpd_export_failed": "Uw gegevensexport kan momenteel niet worden voorbereid.",
+  "rgpd_delete_done": "Account verwijderd. Afmelden…",
+  "rgpd_delete_failed": "Uw account kan momenteel niet worden verwijderd.",
+  "rgpd_cookie_saved": "Cookievoorkeuren opgeslagen."
 }

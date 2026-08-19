@@ -577,5 +577,10 @@
   "vous_pouvez_resilier_avant_la_prochaine_c9597f47": "Sie können vor dem nächsten Abrechnungsdatum kündigen.",
   "vouvoiement_c5254349": "Offizielle Adresse",
   "youtube_558865a1": "YouTube",
-  "zones_d_intervention_a4999f61": "Servicegebiete"
+  "zones_d_intervention_a4999f61": "Servicegebiete",
+  "rgpd_export_done": "Export erstellt und heruntergeladen.",
+  "rgpd_export_failed": "Der Export Ihrer Daten konnte nicht vorbereitet werden.",
+  "rgpd_delete_done": "Konto gelöscht. Abmeldung läuft…",
+  "rgpd_delete_failed": "Ihr Konto kann momentan nicht gelöscht werden.",
+  "rgpd_cookie_saved": "Cookie-Einstellungen gespeichert."
 }

@@ -5,7 +5,6 @@ import { useLocale, useTranslations } from "next-intl";
 
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
-import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import type { DashboardEdition } from "@/lib/dashboardEdition";
 
 type Props = {
@@ -111,6 +110,7 @@ export default function AccountContent({
   onOpenSubscription,
 }: Props) {
   const i18nT = useTranslations("settings");
+  const passwordT = useTranslations("auth.password");
   const locale = useLocale();
   const [email, setEmail] = useState<string>("");
   const [createdAt, setCreatedAt] = useState<string>("");
@@ -151,17 +151,18 @@ export default function AccountContent({
         if (raw) {
           const d = new Date(raw);
           setCreatedAt(
-            Number.isFinite(d.getTime()) ? d.toLocaleDateString("fr-FR", { year: "numeric", month: "long", day: "numeric" }) : ""
+            Number.isFinite(d.getTime()) ? d.toLocaleDateString(locale, { year: "numeric", month: "long", day: "numeric" }) : ""
           );
         }
       } catch (e: unknown) {
-        setMsg(getSimpleFrenchErrorMessage(e, "Impossible de charger votre compte."));
+        console.error(e);
+        setMsg(passwordT("accountLoadFailed"));
       } finally {
         setLoading(false);
       }
     };
     void load();
-  }, []);
+  }, [locale, passwordT]);
 
   const strength = useMemo(() => getPasswordStrength(newPassword), [newPassword]);
   const canSubmit = !busy && !!currentPassword && !!newPassword && newPassword === confirm && strength.isStrong;
@@ -224,15 +225,15 @@ export default function AccountContent({
     setMsg("");
     setOk("");
     if (!currentPassword) {
-      setMsg("Veuillez saisir votre mot de passe actuel.");
+      setMsg(passwordT("currentRequired"));
       return;
     }
     if (!strength.isStrong) {
-      setMsg("Mot de passe trop faible : 8+ caractères, lettre, chiffre, majuscule et symbole requis.");
+      setMsg(passwordT("tooWeak"));
       return;
     }
     if (newPassword !== confirm) {
-      setMsg("Les deux mots de passe ne sont pas identiques.");
+      setMsg(passwordT("mismatch"));
       return;
     }
 
@@ -246,18 +247,33 @@ export default function AccountContent({
         password: currentPassword,
       });
       if (signInError) {
-        setMsg("Mot de passe actuel incorrect.");
-        return;
+        const signInFailure = `${String(signInError.code || "")} ${signInError.message}`.toLowerCase();
+        if (signInFailure.includes("invalid_credentials") || signInFailure.includes("invalid login credentials")) {
+          setMsg(passwordT("currentIncorrect"));
+          return;
+        }
+        throw signInError;
       }
 
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
-      if (error) throw new Error(error.message);
-      setOk("✅ Mot de passe mis à jour.");
+      const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
+      if (updateError) {
+        // Une réponse réseau peut être perdue après l’écriture. Vérifier le
+        // résultat rend le changement idempotent au lieu d’afficher un faux
+        // échec alors que le nouveau mot de passe est déjà actif.
+        const verification = await supabase.auth.signInWithPassword({
+          email,
+          password: newPassword,
+        });
+        if (verification.error) throw updateError;
+      }
+
+      setOk(passwordT("updateSuccess"));
       setCurrentPassword("");
       setNewPassword("");
       setConfirm("");
     } catch (e: unknown) {
-      setMsg(getSimpleFrenchErrorMessage(e, "Impossible de mettre à jour le mot de passe."));
+      console.error(e);
+      setMsg(passwordT("updateFailed"));
     } finally {
       setBusy(false);
     }

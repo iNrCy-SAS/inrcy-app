@@ -1,0 +1,110 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import test from "node:test";
+
+const read = (path: string) => readFileSync(path, "utf8");
+
+test("invitation and reset share a recoverable server-side password finalizer", () => {
+  const route = read("app/api/auth/finish-password/route.ts");
+
+  assert.match(route, /continuation\?: SessionContinuation/);
+  assert.match(route, /supabaseAuth\.auth\.verifyOtp/);
+  assert.match(route, /supabaseAdmin\.auth\.admin\.updateUserById\(userId/);
+  assert.match(route, /supabaseAuth\.auth\.updateUser\(\{ password \}\)/);
+  assert.match(route, /code: passwordRejected \? "password_rejected" : "password_save_retryable"/);
+  assert.match(route, /continuation: continuationPayload/);
+  assert.match(route, /"Cache-Control": "no-store"/);
+});
+
+test("the browser retries a verified password write without requesting a new link", () => {
+  const client = read("app/auth/_components/FinishEmailLinkClient.tsx");
+
+  assert.match(client, /payload\?\.code === "password_save_retryable" && allowAutomaticRetry/);
+  assert.match(client, /submitPassword\(retryContinuation, false\)/);
+  assert.match(client, /recoverAlreadyCommittedPassword/);
+  assert.match(client, /supabase\.auth\.signInWithPassword/);
+  assert.match(client, /waitForServerAuthSession\(\)/);
+});
+
+test("the legacy password page is only a bridge to the canonical flow", () => {
+  const legacyPage = read("app/set-password/page.tsx");
+
+  assert.match(legacyPage, /FinishEmailLinkClient/);
+  assert.match(legacyPage, /allowSessionFallback/);
+  assert.doesNotMatch(legacyPage, /auth\.updateUser/);
+});
+
+test("implicit and PKCE callbacks land on the same localized password flow", () => {
+  const login = read("app/login/page.tsx");
+  const callback = read("app/auth/callback/route.ts");
+
+  assert.match(login, /\/auth\/finish-reset\/\$\{appLanguage\}/);
+  assert.match(login, /\/auth\/finish-invite\/\$\{appLanguage\}/);
+  assert.match(login, /source: "session"/);
+  assert.doesNotMatch(login, /\/set-password\?mode=/);
+  assert.match(callback, /if \(type === "recovery"\) return "\/auth\/finish-reset"/);
+  assert.match(callback, /if \(type === "invite"\) return "\/auth\/finish-invite"/);
+  assert.match(callback, /function localizeFinishPath/);
+  assert.match(callback, /language \? `\$\{path\}\/\$\{language\}` : path/);
+  assert.match(callback, /localizeFinishPath\(getFinishPath\(type\) \|\| "\/login", url\)/);
+  assert.match(callback, /source", "session"/);
+});
+
+test("stale deleted-account cookies cannot block recovery routes", () => {
+  const proxy = read("proxy.ts");
+  const recoveryDeclaration = proxy.indexOf("function isAuthRecoveryPath");
+  const invalidSessionBranch = proxy.lastIndexOf("if (invalidAuthSession)");
+  const recoveryBranch = proxy.indexOf("isAuthRecoveryPath(pathname)", invalidSessionBranch);
+  const genericApiRejection = proxy.indexOf('pathname.startsWith("/api/")', invalidSessionBranch);
+
+  assert.ok(recoveryDeclaration >= 0);
+  assert.match(proxy, /pathname === "\/api\/auth\/finish-password"/);
+  assert.ok(recoveryBranch > invalidSessionBranch);
+  assert.ok(genericApiRejection > recoveryBranch);
+});
+
+test("account deletion is retry-safe and clears browser authentication state", () => {
+  const deletion = read("lib/deleteUserAccount.ts");
+  const deletionApi = read("app/api/account/route.ts");
+  const deletionUi = read("app/dashboard/settings/_components/RgpdContent.tsx");
+  const firstCleanupGuard = deletion.indexOf("if (Object.keys(errors).length > 0)");
+  const identityDeletion = deletion.indexOf("deleteUser(authUserId)");
+
+  assert.ok(firstCleanupGuard >= 0 && firstCleanupGuard < identityDeletion);
+  assert.match(deletionApi, /if \(!deletion\.ok\)/);
+  assert.match(deletionUi, /purgeAllBrowserAccountCaches\(\)/);
+  assert.match(deletionUi, /supabase\.auth\.signOut\(\{ scope: "local" \}\)/);
+  assert.match(deletionUi, /window\.location\.replace\(`\/login\?lang=\$\{appLanguage\}`\)/);
+});
+
+test("all supported languages include lifecycle and account-switch messages", () => {
+  const locales = ["fr-FR", "en-GB", "es-ES", "it-IT", "de-DE", "nl-NL", "pt-PT"];
+
+  for (const locale of locales) {
+    const auth = JSON.parse(read(`messages/${locale}/auth.json`));
+    const settings = JSON.parse(read(`messages/${locale}/settings.json`));
+
+    assert.equal(typeof auth.switchAccount?.title, "string", locale);
+    assert.equal(typeof auth.password?.passwordRejected, "string", locale);
+    assert.equal(typeof auth.password?.retryWithoutNewLink, "string", locale);
+    assert.equal(typeof auth.password?.accountUnavailable, "string", locale);
+    for (const key of [
+      "currentRequired",
+      "currentIncorrect",
+      "updateSuccess",
+      "updateFailed",
+      "accountLoadFailed",
+    ]) {
+      assert.equal(typeof auth.password?.[key], "string", `${locale}:password.${key}`);
+    }
+    for (const key of [
+      "rgpd_export_done",
+      "rgpd_export_failed",
+      "rgpd_delete_done",
+      "rgpd_delete_failed",
+      "rgpd_cookie_saved",
+    ]) {
+      assert.equal(typeof settings[key], "string", `${locale}:${key}`);
+    }
+  }
+});

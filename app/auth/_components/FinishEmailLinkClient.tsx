@@ -5,8 +5,13 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { type EmailOtpType } from "@supabase/supabase-js";
+
 import { createClient } from "@/lib/supabaseClient";
-import { setActiveBrowserUserId } from "@/lib/browserAccountCache";
+import {
+  purgeAllBrowserAccountCaches,
+  setActiveBrowserUserId,
+} from "@/lib/browserAccountCache";
+import { waitForServerAuthSession } from "@/lib/browserAuthSessionReady";
 import { appLanguageFromLocale, tryNormalizeAppLocale } from "@/i18n/config";
 import { readAuthEmailLinkParams } from "@/lib/authEmailLinks";
 import AuthLanguageSelector from "./AuthLanguageSelector";
@@ -16,23 +21,35 @@ type Mode = "invite" | "reset";
 type Props = {
   mode: Mode;
   initialLanguage?: string;
+  allowSessionFallback?: boolean;
+};
+
+type SessionContinuation = {
+  access_token: string;
+  refresh_token: string;
 };
 
 type FinishPasswordResponse = {
   ok?: boolean;
   code?: string;
   error?: string;
+  retryable?: boolean;
   user_id?: string;
   email?: string | null;
-  session?: {
-    access_token?: string;
-    refresh_token?: string;
-  } | null;
+  session?: Partial<SessionContinuation> | null;
+  continuation?: Partial<SessionContinuation> | null;
 };
 
 function normalizeEmail(value?: string | null) {
   const normalized = String(value || "").trim().toLowerCase();
   return normalized || null;
+}
+
+function readSessionContinuation(value?: Partial<SessionContinuation> | null) {
+  const accessToken = String(value?.access_token || "").trim();
+  const refreshToken = String(value?.refresh_token || "").trim();
+  if (!accessToken || !refreshToken) return null;
+  return { access_token: accessToken, refresh_token: refreshToken };
 }
 
 function safeContinuePath(input: string | null, fallback: string) {
@@ -74,7 +91,15 @@ function Rule({ ok, label }: { ok: boolean; label: string }) {
   );
 }
 
-export default function FinishEmailLinkClient({ mode, initialLanguage }: Props) {
+function wait(delayMs: number) {
+  return new Promise<void>((resolve) => window.setTimeout(resolve, delayMs));
+}
+
+export default function FinishEmailLinkClient({
+  mode,
+  initialLanguage,
+  allowSessionFallback = false,
+}: Props) {
   const supabase = useMemo(() => createClient(), []);
   const searchParams = useSearchParams();
   const currentLocale = useLocale();
@@ -101,13 +126,23 @@ export default function FinishEmailLinkClient({ mode, initialLanguage }: Props) 
   const [resendError, setResendError] = useState<string | null>(null);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [linkRejected, setLinkRejected] = useState(false);
+  const [accountUnavailable, setAccountUnavailable] = useState(false);
+  const [continuation, setContinuation] = useState<SessionContinuation | null>(null);
+  const [sessionEmail, setSessionEmail] = useState<string | null>(null);
 
   const tokenHash = emailLinkParams.tokenHash;
   const rawType = searchParams.get("type");
   const type = (rawType || (mode === "invite" ? "invite" : "recovery")) as EmailOtpType;
   const expectedEmail = normalizeEmail(searchParams.get("email"));
+  const accountEmail = expectedEmail || sessionEmail;
   const requestedNextPath = safeContinuePath(searchParams.get("next") || "/dashboard", "/dashboard");
   const nextPath = requestedNextPath.startsWith("/set-password") ? "/dashboard" : requestedNextPath;
+  const sessionSourceRequested = allowSessionFallback || searchParams.get("source") === "session";
+  const hasIncomingLinkError = Boolean(
+    searchParams.get("error") ||
+    searchParams.get("error_code") ||
+    searchParams.get("error_description"),
+  );
   const isInvite = mode === "invite";
   const strength = useMemo(() => getPasswordStrength(password), [password]);
   const strengthLabel =
@@ -133,40 +168,66 @@ export default function FinishEmailLinkClient({ mode, initialLanguage }: Props) 
   useEffect(() => {
     let cancelled = false;
 
-    const checkCurrentSession = async () => {
-      if (!expectedEmail) {
-        if (!cancelled) setReady(true);
-        return;
-      }
-
-      const { data, error } = await supabase.auth.getUser().catch(() => ({ data: { user: null }, error: null }));
+    const prepareCredential = async () => {
+      let browserContinuation: SessionContinuation | null = null;
+      const { data, error } = await supabase.auth
+        .getUser()
+        .catch(() => ({ data: { user: null }, error: null }));
       if (cancelled) return;
 
       const currentUser = data?.user;
-      if (error || !currentUser) {
-        setReady(true);
-        return;
-      }
+      const currentEmail = normalizeEmail(currentUser?.email);
 
-      if (currentUser.id) {
+      if (!error && currentUser) {
         setActiveBrowserUserId(currentUser.id);
+
+        if (expectedEmail && currentEmail && currentEmail !== expectedEmail) {
+          window.location.replace(buildSwitchAccountUrl(currentEmail, expectedEmail));
+          return;
+        }
+
+        // A session is a valid continuation only when the route explicitly
+        // requests it (legacy links/PKCE) or when it belongs to the email named
+        // by the link. An unrelated open account can never consume the link.
+        const canReuseCurrentSession =
+          sessionSourceRequested || Boolean(expectedEmail && currentEmail === expectedEmail);
+
+        if (canReuseCurrentSession) {
+          const { data: sessionData } = await supabase.auth
+            .getSession()
+            .catch(() => ({ data: { session: null } }));
+          browserContinuation = readSessionContinuation(sessionData.session);
+          if (browserContinuation) {
+            setContinuation(browserContinuation);
+            setSessionEmail(currentEmail);
+          }
+        }
       }
 
-      const currentEmail = normalizeEmail(currentUser.email);
-      if (currentEmail && currentEmail !== expectedEmail) {
-        window.location.replace(buildSwitchAccountUrl(currentEmail, expectedEmail));
-        return;
+      if (hasIncomingLinkError && !browserContinuation) {
+        setLinkRejected(true);
+        setMessage(t("linkInvalid"));
+      } else if (sessionSourceRequested && !tokenHash && !browserContinuation) {
+        setLinkRejected(true);
+        setMessage(t("sessionFailed"));
       }
 
       setReady(true);
     };
 
-    void checkCurrentSession();
+    void prepareCredential();
 
     return () => {
       cancelled = true;
     };
-  }, [expectedEmail, supabase]);
+  }, [
+    expectedEmail,
+    hasIncomingLinkError,
+    sessionSourceRequested,
+    supabase,
+    t,
+    tokenHash,
+  ]);
 
   useEffect(() => {
     if (resendCooldown <= 0) return;
@@ -177,9 +238,7 @@ export default function FinishEmailLinkClient({ mode, initialLanguage }: Props) 
   }, [resendCooldown]);
 
   function validatePassword() {
-    if (!strength.isStrong) {
-      return t("tooWeak");
-    }
+    if (!strength.isStrong) return t("tooWeak");
     if (password !== confirm) return t("mismatch");
     return null;
   }
@@ -192,12 +251,18 @@ export default function FinishEmailLinkClient({ mode, initialLanguage }: Props) 
         return t("linkIncomplete");
       case "password_too_weak":
         return t("tooWeak");
+      case "password_rejected":
+        return t("passwordRejected");
+      case "password_save_retryable":
+        return t("retryWithoutNewLink");
       case "invalid_action":
         return t("invalidAction");
       case "session_failed":
         return t("sessionFailed");
       case "account_mismatch":
         return t("accountMismatch");
+      case "account_unavailable":
+        return t("accountUnavailable");
       case "password_save_failed":
         return t("passwordSaveFailed");
       default:
@@ -206,7 +271,7 @@ export default function FinishEmailLinkClient({ mode, initialLanguage }: Props) 
   }
 
   async function onResendLink() {
-    if (!expectedEmail || resendLoading || resendCooldown > 0) return;
+    if (!accountEmail || resendLoading || resendCooldown > 0) return;
 
     setResendLoading(true);
     setResendError(null);
@@ -216,7 +281,7 @@ export default function FinishEmailLinkClient({ mode, initialLanguage }: Props) 
       const res = await fetch("/api/auth/resend-link", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: expectedEmail, mode, language: appLanguage }),
+        body: JSON.stringify({ email: accountEmail, mode, language: appLanguage }),
       });
       await res.json().catch(() => null);
 
@@ -227,8 +292,8 @@ export default function FinishEmailLinkClient({ mode, initialLanguage }: Props) 
 
       setResendInfo(
         isInvite
-          ? t("resendInviteSuccess", { email: expectedEmail })
-          : t("resendResetSuccess", { email: expectedEmail }),
+          ? t("resendInviteSuccess", { email: accountEmail })
+          : t("resendResetSuccess", { email: accountEmail }),
       );
       setResendCooldown(30);
     } catch {
@@ -238,6 +303,119 @@ export default function FinishEmailLinkClient({ mode, initialLanguage }: Props) 
     }
   }
 
+  async function persistContinuation(next: SessionContinuation, userId?: string) {
+    setContinuation(next);
+    const installedSession = await supabase.auth.setSession(next).catch(() => null);
+    const resolvedUserId = userId || installedSession?.data.user?.id;
+    if (resolvedUserId) setActiveBrowserUserId(resolvedUserId);
+  }
+
+  async function finishSuccessfulResponse(payload: FinishPasswordResponse) {
+    const completedSession = readSessionContinuation(payload.session) || continuation;
+    if (payload.user_id) setActiveBrowserUserId(payload.user_id);
+
+    if (completedSession) {
+      purgeAllBrowserAccountCaches();
+      const { data: installedSession, error: sessionError } = await supabase.auth.setSession(completedSession);
+      if (!sessionError) {
+        const resolvedUserId = payload.user_id || installedSession.user?.id;
+        if (resolvedUserId) setActiveBrowserUserId(resolvedUserId);
+        const serverSessionReady = await waitForServerAuthSession();
+        if (serverSessionReady) {
+          setSuccess(isInvite ? t("inviteRedirectSuccess") : t("resetRedirectSuccess"));
+          window.location.replace(nextPath);
+          return;
+        }
+      }
+    }
+
+    // Le mot de passe est déjà enregistré. Une synchronisation de cookie ne
+    // doit jamais obliger l’utilisateur à redemander un lien à usage unique.
+    setSuccess(isInvite ? t("inviteLoginSuccess") : t("resetLoginSuccess"));
+    window.setTimeout(() => {
+      window.location.replace(`/login?lang=${appLanguage}`);
+    }, 1200);
+  }
+
+  async function recoverAlreadyCommittedPassword() {
+    if (!accountEmail) return false;
+
+    purgeAllBrowserAccountCaches();
+    setActiveBrowserUserId(null);
+    await supabase.auth.signOut({ scope: "local" }).catch(() => null);
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: accountEmail,
+      password,
+    });
+    if (error || !data.user || !data.session) return false;
+
+    setActiveBrowserUserId(data.user.id);
+    const serverSessionReady = await waitForServerAuthSession();
+    setSuccess(isInvite ? t("inviteRedirectSuccess") : t("resetRedirectSuccess"));
+    window.location.replace(serverSessionReady ? nextPath : `/login?lang=${appLanguage}`);
+    return true;
+  }
+
+  async function submitPassword(
+    credential: SessionContinuation | null,
+    allowAutomaticRetry: boolean,
+  ): Promise<void> {
+    const res = await fetch("/api/auth/finish-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mode,
+        type,
+        token_hash: credential ? undefined : tokenHash,
+        continuation: credential,
+        email: accountEmail,
+        password,
+        language: appLanguage,
+      }),
+    });
+
+    const payload = (await res.json().catch(() => null)) as FinishPasswordResponse | null;
+
+    if (res.ok && payload?.ok) {
+      await finishSuccessfulResponse(payload);
+      return;
+    }
+
+    const retryContinuation = readSessionContinuation(payload?.continuation);
+    if (retryContinuation) {
+      await persistContinuation(retryContinuation, payload?.user_id);
+
+      if (payload?.code === "password_save_retryable" && allowAutomaticRetry) {
+        await wait(250);
+        await submitPassword(retryContinuation, false);
+        return;
+      }
+    }
+
+    if (payload?.code === "auth_link_invalid") {
+      // Si la réponse du premier POST a été perdue après l’écriture du mot de
+      // passe, le jeton est consommé mais le nouveau mot de passe fonctionne.
+      // Une connexion contrôlée rend l’opération idempotente côté utilisateur.
+      if (await recoverAlreadyCommittedPassword()) return;
+      setLinkRejected(true);
+    }
+
+    if (
+      !retryContinuation &&
+      ["link_incomplete", "session_failed", "password_save_failed"].includes(payload?.code || "")
+    ) {
+      setLinkRejected(true);
+    }
+
+    if (payload?.code === "account_unavailable") {
+      setAccountUnavailable(true);
+      setLinkRejected(true);
+    }
+
+    setMessage(res.status === 429 ? t("resendRateLimited") : getFinishErrorMessage(payload?.code));
+  }
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setMessage(null);
@@ -245,13 +423,13 @@ export default function FinishEmailLinkClient({ mode, initialLanguage }: Props) 
     setResendInfo(null);
     setResendError(null);
 
-    if (linkRejected) {
-      setMessage(t("linkInvalid"));
+    if (linkRejected && !continuation) {
+      setMessage(accountUnavailable ? t("accountUnavailable") : t("linkInvalid"));
       return;
     }
 
-    if (!tokenHash) {
-      setMessage(t("linkIncomplete"));
+    if (!continuation && !tokenHash) {
+      setMessage(sessionSourceRequested ? t("sessionFailed") : t("linkIncomplete"));
       return;
     }
 
@@ -262,69 +440,11 @@ export default function FinishEmailLinkClient({ mode, initialLanguage }: Props) 
     }
 
     setLoading(true);
-
     try {
-      const res = await fetch("/api/auth/finish-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          mode,
-          type,
-          token_hash: tokenHash,
-          email: expectedEmail,
-          password,
-          language: appLanguage,
-        }),
-      });
-
-      const payload = (await res.json().catch(() => null)) as FinishPasswordResponse | null;
-
-      if (!res.ok || !payload?.ok) {
-        if (payload?.code === "auth_link_invalid") {
-          // Empêche les nouveaux POST /auth/v1/verify avec le même lien déjà
-          // refusé pendant que cette page reste ouverte.
-          setLinkRejected(true);
-        }
-        setMessage(getFinishErrorMessage(payload?.code));
-        return;
-      }
-
-      if (payload.user_id) {
-        setActiveBrowserUserId(payload.user_id);
-      }
-
-      if (payload.session?.access_token && payload.session?.refresh_token) {
-        const { error: sessionError } = await supabase.auth.setSession({
-          access_token: payload.session.access_token,
-          refresh_token: payload.session.refresh_token,
-        });
-
-        if (!sessionError) {
-          setSuccess(
-            isInvite
-              ? t("inviteRedirectSuccess")
-              : t("resetRedirectSuccess"),
-          );
-          window.location.replace(nextPath);
-          return;
-        }
-      }
-
-      setSuccess(
-        isInvite
-          ? t("inviteLoginSuccess")
-          : t("resetLoginSuccess"),
-      );
-      window.setTimeout(() => {
-        window.location.replace(`/login?lang=${appLanguage}`);
-      }, 1200);
+      await submitPassword(continuation, true);
     } catch (error) {
       console.error(error);
-      setMessage(
-        isInvite
-          ? t("inviteException")
-          : t("resetException"),
-      );
+      setMessage(isInvite ? t("inviteException") : t("resetException"));
     } finally {
       setLoading(false);
     }
@@ -332,12 +452,18 @@ export default function FinishEmailLinkClient({ mode, initialLanguage }: Props) 
 
   const confirmTouched = confirm.length > 0;
   const confirmOk = confirmTouched && password === confirm;
-  const canSubmit = ready && !loading && !linkRejected && Boolean(tokenHash) && strength.isStrong && password === confirm;
-  const canResend = Boolean(expectedEmail) && (linkRejected || !tokenHash);
+  const hasCredential = Boolean(continuation || tokenHash);
+  const canSubmit =
+    ready &&
+    !loading &&
+    (!linkRejected || Boolean(continuation)) &&
+    hasCredential &&
+    strength.isStrong &&
+    password === confirm;
+  const canResend =
+    !accountUnavailable && Boolean(accountEmail) && (linkRejected || !hasCredential);
   const title = isInvite ? t("inviteTitle") : t("resetTitle");
-  const body = isInvite
-    ? t("inviteBody")
-    : t("resetBody");
+  const body = isInvite ? t("inviteBody") : t("resetBody");
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-slate-950 px-6 py-10 text-slate-100">
@@ -348,15 +474,15 @@ export default function FinishEmailLinkClient({ mode, initialLanguage }: Props) 
         </p>
         <h1 className="mt-3 text-3xl font-semibold text-white">{title}</h1>
         <p className="mt-4 text-sm leading-6 text-slate-200">{body}</p>
-        {expectedEmail ? (
+        {accountEmail ? (
           <p className="mt-3 text-sm leading-6 text-slate-300">
-            {t("expectedAccount")} <strong>{expectedEmail}</strong>
+            {t("expectedAccount")} <strong>{accountEmail}</strong>
           </p>
         ) : null}
 
-        {!tokenHash ? (
+        {ready && !hasCredential ? (
           <p className="mt-5 rounded-2xl border border-rose-400/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
-            {t("linkIncomplete")}
+            {sessionSourceRequested ? t("sessionFailed") : t("linkIncomplete")}
           </p>
         ) : null}
 

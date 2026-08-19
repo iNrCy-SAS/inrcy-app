@@ -457,11 +457,20 @@ export default function LoginPage() {
         setActiveBrowserUserId(userData.user.id);
       }
 
-      // on redirige d'abord (sans tuer le hash avant)
-      const target =
+      // Les anciens liens "implicit flow" déposent la session dans le hash.
+      // Une fois cette session vérifiée, ils rejoignent le même écran et le
+      // même moteur serveur que les liens token_hash récents.
+      const targetPath =
         type === "recovery"
-          ? `/set-password?mode=reset&lang=${appLanguage}`
-          : `/set-password?mode=invite&lang=${appLanguage}`;
+          ? `/auth/finish-reset/${appLanguage}`
+          : `/auth/finish-invite/${appLanguage}`;
+      const targetParams = new URLSearchParams({
+        source: "session",
+        next: "/dashboard",
+      });
+      const verifiedEmail = String(userData?.user?.email || "").trim().toLowerCase();
+      if (verifiedEmail) targetParams.set("email", verifiedEmail);
+      const target = `${targetPath}?${targetParams.toString()}`;
 
       // hard redirect + on garde l'historique propre
       window.location.replace(target);

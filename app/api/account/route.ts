@@ -9,14 +9,6 @@ export const DELETE = withApi(async () => {
 
   const deletion = await deleteUserAccountEverywhere(user.id);
 
-  // Sign out local session cookies (best-effort), even if the admin-side
-  // deletion was only partial. This keeps the browser state coherent.
-  try {
-    await supabase.auth.signOut();
-  } catch {
-    // no-op
-  }
-
   if (!deletion.ok) {
     return NextResponse.json(
       {
@@ -25,6 +17,15 @@ export const DELETE = withApi(async () => {
       },
       { status: 500 }
     );
+  }
+
+  // L’identité a bien été supprimée : expirer maintenant les cookies de cette
+  // session. En cas d’échec partiel, on conserve au contraire l’accès afin que
+  // la suppression puisse être relancée proprement.
+  try {
+    await supabase.auth.signOut();
+  } catch {
+    // Le client efface également sa session locale avant la redirection.
   }
 
   return NextResponse.json({ ok: true }, { status: 200 });

@@ -1,11 +1,13 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 
 import { useMemo, useState } from "react";
-import { getSimpleFrenchApiError, getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import { confirmInrcy } from "@/lib/inrcyDialog";
+import { createClient } from "@/lib/supabaseClient";
+import { purgeAllBrowserAccountCaches, setActiveBrowserUserId } from "@/lib/browserAccountCache";
+import { appLanguageFromLocale } from "@/i18n/config";
 
 const LS_KEY = "inrcy_cookie_consent";
 
@@ -36,6 +38,8 @@ type Props = {
 
 export default function RgpdContent({ mode = "page" }: Props) {
   const i18nT = useTranslations("settings");
+  const locale = useLocale();
+  const appLanguage = appLanguageFromLocale(locale);
   const [busy, setBusy] = useState<"export" | "delete" | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
@@ -79,8 +83,7 @@ export default function RgpdContent({ mode = "page" }: Props) {
     try {
       const res = await fetch("/api/account/export", { method: "GET" });
       if (!res.ok) {
-        const t = await res.text().catch(() => "");
-        throw new Error(await getSimpleFrenchApiError(res, "Export impossible"));
+        throw new Error(`account_export_${res.status}`);
       }
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
@@ -91,9 +94,9 @@ export default function RgpdContent({ mode = "page" }: Props) {
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
-      setDone("Export généré et téléchargé.");
-    } catch (e: any) {
-      setErr(getSimpleFrenchErrorMessage(e, "Impossible de préparer l’export de vos données."));
+      setDone(i18nT("rgpd_export_done"));
+    } catch {
+      setErr(i18nT("rgpd_export_failed"));
     } finally {
       setBusy(null);
     }
@@ -115,14 +118,20 @@ export default function RgpdContent({ mode = "page" }: Props) {
       const res = await fetch("/api/account", { method: "DELETE" });
       const json = await res.json().catch(() => null);
       if (!res.ok) {
-        const msg = json?.error || `Suppression impossible (${res.status})`;
-        throw new Error(getSimpleFrenchErrorMessage(msg));
+        throw new Error(json?.error || `account_delete_${res.status}`);
       }
-      setDone("Compte supprimé. Vous allez être déconnecté.");
-      // Redirect to home/login.
-      window.location.href = "/";
-    } catch (e: any) {
-      setErr(getSimpleFrenchErrorMessage(e, "Impossible de supprimer votre compte pour le moment."));
+      setDone(i18nT("rgpd_delete_done"));
+
+      // L’API supprime les cookies serveur. Le navigateur peut encore conserver
+      // une session locale et les caches multicompte : ils doivent disparaître
+      // avant toute nouvelle inscription avec la même adresse.
+      purgeAllBrowserAccountCaches();
+      setActiveBrowserUserId(null);
+      const supabase = createClient();
+      await supabase.auth.signOut({ scope: "local" }).catch(() => null);
+      window.location.replace(`/login?lang=${appLanguage}`);
+    } catch {
+      setErr(i18nT("rgpd_delete_failed"));
     } finally {
       setBusy(null);
     }
@@ -131,7 +140,7 @@ export default function RgpdContent({ mode = "page" }: Props) {
   function onToggleAnalytics(next: boolean) {
     setAnalytics(next);
     setCookiePrefs(next);
-    setDone("Préférences cookies enregistrées.");
+    setDone(i18nT("rgpd_cookie_saved"));
   }
 
   const info: React.CSSProperties = {

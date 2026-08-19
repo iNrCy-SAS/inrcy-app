@@ -349,6 +349,20 @@ function isPublicBypassPath(pathname: string): boolean {
   );
 }
 
+function isAuthRecoveryPath(pathname: string): boolean {
+  return (
+    pathname === "/login" ||
+    pathname === "/set-password" ||
+    pathname === "/auth/callback" ||
+    pathname === "/auth/switch-account" ||
+    pathname.startsWith("/auth/finish-invite") ||
+    pathname.startsWith("/auth/finish-reset") ||
+    pathname === "/api/auth/finish-password" ||
+    pathname === "/api/auth/resend-link" ||
+    pathname === "/api/auth/sign-out"
+  );
+}
+
 type LimitPlan = {
   tokens: number;
   windowSeconds: number;
@@ -604,6 +618,30 @@ export async function proxy(req: NextRequest) {
   };
 
   if (invalidAuthSession) {
+    if (isAuthRecoveryPath(pathname)) {
+      // Un compte supprimé ou une ancienne session ne doit jamais empêcher
+      // l’ouverture d’un nouveau lien d’invitation/récupération. On transmet
+      // la requête sans les cookies Supabase invalides et on les expire dans
+      // la réponse, tout en conservant intégralement l’URL à usage unique.
+      const cleanRequestHeaders = new Headers(requestHeaders);
+      const cleanCookie = String(cleanRequestHeaders.get("cookie") || "")
+        .split(";")
+        .map((part) => part.trim())
+        .filter(Boolean)
+        .filter((part) => {
+          const separator = part.indexOf("=");
+          const name = separator >= 0 ? part.slice(0, separator).trim() : part;
+          return !supabaseAuthCookiePattern.test(name);
+        })
+        .join("; ");
+      if (cleanCookie) cleanRequestHeaders.set("cookie", cleanCookie);
+      else cleanRequestHeaders.delete("cookie");
+
+      return applyResponseHeaders(
+        NextResponse.next({ request: { headers: cleanRequestHeaders } }),
+      );
+    }
+
     if (pathname.startsWith("/api/")) {
       return applyResponseHeaders(NextResponse.json(
         { error: "SESSION_EXPIRED", code: "SESSION_EXPIRED", redirectTo: "/login" },

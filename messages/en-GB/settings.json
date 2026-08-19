@@ -577,5 +577,10 @@
   "vous_pouvez_resilier_avant_la_prochaine_c9597f47": "You can terminate before the next due date.",
   "vouvoiement_c5254349": "Formal address",
   "youtube_558865a1": "YouTube",
-  "zones_d_intervention_a4999f61": "Service areas"
+  "zones_d_intervention_a4999f61": "Service areas",
+  "rgpd_export_done": "Export generated and downloaded.",
+  "rgpd_export_failed": "Unable to prepare your data export.",
+  "rgpd_delete_done": "Account deleted. Signing out…",
+  "rgpd_delete_failed": "Unable to delete your account at the moment.",
+  "rgpd_cookie_saved": "Cookie preferences saved."
 }

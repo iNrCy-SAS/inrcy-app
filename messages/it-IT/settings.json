@@ -577,5 +577,10 @@
   "vous_pouvez_resilier_avant_la_prochaine_c9597f47": "È possibile annullare l'abbonamento prima della prossima data di fatturazione.",
   "vouvoiement_c5254349": "Indirizzo completo",
   "youtube_558865a1": "YouTube",
-  "zones_d_intervention_a4999f61": "Aree di servizio"
+  "zones_d_intervention_a4999f61": "Aree di servizio",
+  "rgpd_export_done": "Esportazione generata e scaricata.",
+  "rgpd_export_failed": "Non è possibile preparare l’esportazione dei dati.",
+  "rgpd_delete_done": "Account eliminato. Disconnessione…",
+  "rgpd_delete_failed": "Al momento non è possibile eliminare l’account.",
+  "rgpd_cookie_saved": "Preferenze dei cookie salvate."
 }

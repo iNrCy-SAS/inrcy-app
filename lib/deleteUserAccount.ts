@@ -144,7 +144,27 @@ export async function deleteUserAccountEverywhere(authUserId: string): Promise<D
     if (subscriptionErr) errors["subscriptions"] = subscriptionErr;
   }
 
+  // Ne jamais supprimer l’identité AUTH après un nettoyage métier incomplet.
+  // Le compte reste alors authentifiable afin que l’opération puisse être
+  // relancée ou prise en charge, au lieu de laisser une session fantôme et des
+  // données devenues inaccessibles.
+  if (Object.keys(errors).length > 0) {
+    return {
+      ok: false,
+      mode: usedFallback ? "fallback" : "rpc",
+      details: errors,
+    };
+  }
+
   await cleanupMulticompteRows(authUserId, accountIds, errors);
+
+  if (Object.keys(errors).length > 0) {
+    return {
+      ok: false,
+      mode: usedFallback ? "fallback" : "rpc",
+      details: errors,
+    };
+  }
 
   const { error: authErr } = await supabaseAdmin.auth.admin.deleteUser(authUserId);
   if (authErr) errors["auth"] = authErr.message;

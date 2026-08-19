@@ -577,5 +577,10 @@
   "vous_pouvez_resilier_avant_la_prochaine_c9597f47": "Pode cancelar antes da próxima data de vencimento.",
   "vouvoiement_c5254349": "Endereço completo",
   "youtube_558865a1": "YouTube",
-  "zones_d_intervention_a4999f61": "Áreas de atendimento"
+  "zones_d_intervention_a4999f61": "Áreas de atendimento",
+  "rgpd_export_done": "Exportação gerada e transferida.",
+  "rgpd_export_failed": "Não foi possível preparar a exportação dos seus dados.",
+  "rgpd_delete_done": "Conta eliminada. A terminar sessão…",
+  "rgpd_delete_failed": "Não é possível eliminar a sua conta neste momento.",
+  "rgpd_cookie_saved": "Preferências de cookies guardadas."
 }

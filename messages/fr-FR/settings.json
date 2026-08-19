@@ -577,5 +577,10 @@
   "vous_pouvez_resilier_avant_la_prochaine_c9597f47": "Vous pouvez résilier avant la prochaine échéance.",
   "vouvoiement_c5254349": "Vouvoiement",
   "youtube_558865a1": "YouTube",
-  "zones_d_intervention_a4999f61": "Zones d’intervention"
+  "zones_d_intervention_a4999f61": "Zones d’intervention",
+  "rgpd_export_done": "Export généré et téléchargé.",
+  "rgpd_export_failed": "Impossible de préparer l’export de vos données.",
+  "rgpd_delete_done": "Compte supprimé. Déconnexion en cours…",
+  "rgpd_delete_failed": "Impossible de supprimer votre compte pour le moment.",
+  "rgpd_cookie_saved": "Préférences de cookies enregistrées."
 }
