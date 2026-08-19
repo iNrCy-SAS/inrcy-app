@@ -329,6 +329,21 @@ test("les blocs inférieurs Standard ne contiennent que Stats, Publications, Ré
   assert.match(standardModulesSource, /standardStyles\.toolAction/);
 });
 
+test("le CTA Booster Standard reste verrouillé sans ouvrir Mon profil quand la configuration requise est incomplète", () => {
+  assert.match(
+    channelsSectionSource,
+    /<DashboardStandardModulesCard[\s\S]{0,500}requiredSetupLockVisible=\{requiredSetupLockVisible\}/,
+  );
+  assert.match(standardModulesSource, /import RequiredSetupLock from "\.\/RequiredSetupLock"/);
+  assert.match(standardModulesSource, /data-testid="standard-booster-publish"/);
+  assert.match(standardModulesSource, /if \(requiredSetupLocked\) return;/);
+  assert.match(
+    standardModulesSource,
+    /disabled=\{requiredSetupLocked \|\| isVisible\("modal:publish"\)\}/,
+  );
+  assert.match(standardModulesSource, /message=\{requiredSetupLockMessage\}/);
+});
+
 test("le Bilan Booster reste distinct de iNrStats et ouvre la modale historique Booster", () => {
   assert.match(standardModulesSource, /onClick=\{openBoosterSummary\}/);
   assert.match(standardModulesSource, /t\("boosterSummary"\)/);

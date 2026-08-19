@@ -710,6 +710,7 @@ export default function DashboardChannelsSection({
           onOpenStats={onOpenStats}
           onOpenBoosterPublish={onOpenBoosterPublish}
           onOpenBoosterStats={onOpenBoosterStats}
+          requiredSetupLockVisible={requiredSetupLockVisible}
         />
       ) : (
         <DashboardModulesCard
