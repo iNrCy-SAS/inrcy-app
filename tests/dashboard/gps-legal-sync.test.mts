@@ -44,9 +44,13 @@ test("the three app legal documents share the current date and no longer expose 
   const privacy = read("app/legal/_components/ConfidentialiteContent.tsx");
   const mentions = read("app/legal/_components/MentionsLegalesContent.tsx");
   const templates = read("lib/messageTemplates.ts");
+  const publicMessages = JSON.parse(read("messages/fr-FR/public.json")) as Record<string, string>;
 
-  assert.equal((docs.match(/08\/08\/2026/g) ?? []).length, 3);
-  assert.match(shell, /08\/08\/2026/);
+  assert.equal((docs.match(/derniere_mise_a_jour_08_08_f576f6f7/g) ?? []).length, 2);
+  assert.equal((docs.match(/version_du_08_08_2026_1465b7bb/g) ?? []).length, 1);
+  assert.equal(publicMessages.derniere_mise_a_jour_08_08_f576f6f7, "Dernière mise à jour : 08/08/2026");
+  assert.equal(publicMessages.version_du_08_08_2026_1465b7bb, "Version du 08/08/2026");
+  assert.match(shell, /subtitle/);
   assert.match(cga, /1 vidéo source jusqu’à 300 Mo/);
   assert.match(privacy, /1 vidéo source jusqu’à 300 Mo/);
 

@@ -222,8 +222,8 @@ test("block 4 exposes reuse and explicit local versus global deletion labels", (
     imagesPanel,
     /onUseExistingImagesForChannel\(activeImageChannel\)/,
   );
-  assert.match(imagesPanel, /Retirer les images de ce canal/);
-  assert.match(imagesPanel, /Supprimer partout/);
+  assert.match(imagesPanel, /i18nT\("retirer_les_images_de_ce_canal_b025e5ef"\)/);
+  assert.match(imagesPanel, /i18nT\("supprimer_partout_dfb790c4"\)/);
   assert.match(cardPanel, /aria-label=\{`\$\{item\.removeLabel/);
   assert.match(
     cardPanel,
@@ -231,7 +231,7 @@ test("block 4 exposes reuse and explicit local versus global deletion labels", (
   );
   assert.match(
     intentPanel,
-    /Supprimer l’image \$\{index \+ 1\} pour tous les canaux/,
+    /i18nT\("supprimer_l_image_value_pour_tous_561091e2", \{ value0: index \+ 1 \}\)/,
   );
 });
 

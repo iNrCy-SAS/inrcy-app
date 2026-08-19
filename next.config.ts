@@ -5,6 +5,29 @@ import path from "node:path";
 
 const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
 
+// Sharp 0.35 keeps its native addon and libvips runtime in sibling @img
+// packages. Turbopack can trace the addon without retaining the shared
+// libvips library in a Vercel function, which only fails once the route runs.
+// Keep the includes limited to server routes that can process an image.
+const sharpRuntimeFiles = [
+  "node_modules/sharp/**/*",
+  "node_modules/@img/**/*",
+];
+
+// Transactional emails load these images from Outlook/Gmail origins. The
+// application-wide same-origin resource policy is correct for private app
+// assets, but it must not be sent for explicitly public email branding.
+const publicEmailAssetHeaders = [
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "Cross-Origin-Resource-Policy", value: "cross-origin" },
+  { key: "Access-Control-Allow-Origin", value: "*" },
+  { key: "Cache-Control", value: "public, max-age=3600, s-maxage=3600" },
+  {
+    key: "Strict-Transport-Security",
+    value: "max-age=15552000; includeSubDomains; preload",
+  },
+];
+
 // Content Security Policy (CSP)
 const cspReportOnly = [
   "default-src 'self'",
@@ -32,6 +55,16 @@ const nextConfig: NextConfig = {
   // déploiement avec le nouveau. Vercel fournit le SHA au moment du build ;
   // NEXT_DEPLOYMENT_ID peut être défini explicitement pour un autre hébergeur.
   deploymentId: process.env.NEXT_DEPLOYMENT_ID || process.env.VERCEL_GIT_COMMIT_SHA || undefined,
+  outputFileTracingIncludes: {
+    "/api/cron/*": sharpRuntimeFiles,
+    "/api/agent/**/*": sharpRuntimeFiles,
+    "/api/booster/**/*": sharpRuntimeFiles,
+    "/api/media-pipeline/**/*": sharpRuntimeFiles,
+    "/api/media-library/**/*": sharpRuntimeFiles,
+    "/api/media/tiktok": sharpRuntimeFiles,
+    "/api/admin/image-bank/upload": sharpRuntimeFiles,
+    "/api/inrsend/**/*": sharpRuntimeFiles,
+  },
   ...(process.env.INR_SEARCH_LOCAL_PREVIEW === "1"
     ? { experimental: { workerThreads: true } }
     : {}),
@@ -70,6 +103,14 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        source: "/signature-client.png",
+        headers: publicEmailAssetHeaders,
+      },
+      {
+        source: "/email/:path*",
+        headers: publicEmailAssetHeaders,
+      },
+      {
         source: "/entreprises/:path*",
         headers: [
           { key: "Cache-Control", value: "public, s-maxage=300, stale-while-revalidate=86400" },
@@ -91,7 +132,7 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        source: "/((?!widgets/|embed/).*)",
+        source: "/((?!widgets/|embed/|email/|signature-client\\.png$).*)",
         headers: [
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "X-DNS-Prefetch-Control", value: "off" },

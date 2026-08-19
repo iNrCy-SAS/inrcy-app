@@ -13,6 +13,7 @@ const publishRoute = readFileSync("app/api/booster/publish-now/route.ts", "utf8"
 const agentExecute = readFileSync("app/api/agent/actions/execute/route.ts", "utf8");
 const scheduledCron = readFileSync("app/api/cron/inr-agent-scheduled-actions/route.ts", "utf8");
 const styles = readFileSync("app/dashboard/mails/mails.module.css", "utf8");
+const frenchMails = JSON.parse(readFileSync("messages/fr-FR/mails.json", "utf8"));
 
 
 test("iNrSend ne propose plus de suppression manuelle ni de selection de lignes", () => {
@@ -27,8 +28,11 @@ test("la suppression manuelle est refusee cote serveur et le support est indique
   assert.match(deleteRoute, /inrsend_history_manual_deletion_disabled/);
   assert.match(deleteRoute, /status:\s*403/);
   assert.match(deleteRoute, /contact@inrcy\.com/);
-  assert.match(header, /Aucune suppression manuelle n’est disponible dans iNr’Send/);
-  assert.match(header, /contact@inrcy\.com/);
+  assert.match(header, /i18nT\("aucune_suppression_manuelle_n_est_disponible_0685aa74"\)/);
+  assert.match(
+    frenchMails.aucune_suppression_manuelle_n_est_disponible_0685aa74,
+    /contact@inrcy\.com/,
+  );
 });
 
 
@@ -37,7 +41,7 @@ test("les actions iNrAgent sont identifiables dans la liste et le detail", () =>
   assert.doesNotMatch(list, /originMarkerSlot/);
   assert.match(list, /rowActions[\s\S]*inrAgentOriginIcon[\s\S]*detailsBtn/);
   assert.match(list, /\/icons\/inr-agent\.png/);
-  assert.match(details, /Créé par iNr’Agent/);
+  assert.match(details, /i18nT\("cree_par_inr_agent_31bbe816"\)/);
   assert.match(details, /inrAgentDetailBadge/);
 });
 

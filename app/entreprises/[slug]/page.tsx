@@ -197,7 +197,7 @@ function storedServiceDescription(service: string, data: InrSearchPublicPageData
   ).trim();
 }
 
-function buildFactualSummary(data: InrSearchPublicPageData, i18nT: (key: string, values?: Record<string, string>) => string, locale: string) {
+function buildFactualSummary(data: InrSearchPublicPageData, i18nT: (_key: string, _values?: Record<string, string>) => string, locale: string) {
   const identity = [
     data.companyName,
     data.profession
@@ -263,7 +263,7 @@ function buildPresentationLead(data: InrSearchPublicPageData) {
     .trim();
 }
 
-function buildConversionSummary(data: InrSearchPublicPageData, i18nT: (key: string, values?: Record<string, string>) => string, locale: string) {
+function buildConversionSummary(data: InrSearchPublicPageData, i18nT: (_key: string, _values?: Record<string, string>) => string, locale: string) {
   const details = [
     data.services.length ? i18nT("ses_prestations_df8b6ca7") : "",
     data.zones.length || data.city ? i18nT("sa_zone_d_intervention_3a5e6ee4") : "",
@@ -369,7 +369,7 @@ function buildSeoDescription(data: InrSearchPublicPageData) {
 function buildServiceDescription(
   service: string,
   data: InrSearchPublicPageData,
-  i18nT: (key: string, values?: Record<string, string>) => string,
+  i18nT: (_key: string, _values?: Record<string, string>) => string,
   locale: string,
 ) {
   const generated = storedServiceDescription(service, data);
@@ -469,7 +469,7 @@ function normalizeStructuredPhone(value: string) {
   return compact || undefined;
 }
 
-function buildJsonLd(data: InrSearchPublicPageData, i18nT: (key: string, values?: Record<string, string>) => string, locale: string) {
+function buildJsonLd(data: InrSearchPublicPageData, i18nT: (_key: string, _values?: Record<string, string>) => string, locale: string) {
   const sameAs = data.socialLinks.map((link) => link.url).filter(Boolean);
   const offers = data.services.map((service) => ({
     "@type": "Offer",

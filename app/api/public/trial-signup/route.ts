@@ -9,6 +9,7 @@ import { sendAdminSubscriptionAlertForUser } from "@/lib/subscriptionAdmin";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { ensureTrialSubscription } from "@/lib/trialSubscription";
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
+import { buildSupabaseEmailRedirectUrl } from "@/lib/authEmailLinks";
 import {
   hasKnownInrcyAccountForEmail,
   isExistingAuthUserError,
@@ -371,8 +372,11 @@ export async function POST(req: Request) {
 
 
     const appOrigin = (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || "https://app.inrcy.com").replace(/\/$/, "");
-    const inviteRedirectUrl = new URL("/auth/finish-invite", `${appOrigin}/`);
-    inviteRedirectUrl.searchParams.set("lang", payload.language);
+    const inviteRedirectUrl = buildSupabaseEmailRedirectUrl(
+      appOrigin,
+      "/auth/finish-invite",
+      payload.language,
+    );
 
     if (await hasKnownInrcyAccountForEmail(payload.email)) {
       return jsonResponse(
@@ -394,7 +398,7 @@ export async function POST(req: Request) {
         app_language: payload.language,
         app_locale: payload.locale,
       },
-      redirectTo: inviteRedirectUrl.toString(),
+      redirectTo: inviteRedirectUrl,
     });
 
     if (inviteError) {

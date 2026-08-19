@@ -109,7 +109,7 @@ test("the manual path cannot trigger AI generation or AI media preparation", () 
   assert.match(generationRoute, /body\.creationMode === "manual"/);
   assert.match(generationRoute, /manual_generation_forbidden/);
   assert.match(contentPanel, /creationMode === "manual"/);
-  assert.match(contentPanel, /Textes par canal/);
+  assert.match(contentPanel, /i18nT\("textes_par_canal_bf3c7397"\)/);
   assert.match(modal, /creationMode=\{creationMode\}/);
 });
 
@@ -164,8 +164,8 @@ test("media can be added after generation without clearing channel content", () 
   assert.doesNotMatch(imageSource, /setPostsByChannel\(/);
   assert.doesNotMatch(imageSource, /setContentWorkspaceOpen/);
 
-  assert.match(intentPanel, /BOOSTER_GENERATION_MEDIA_OPTIMIZATION_LABEL/);
-  assert.match(imagePanel, /BOOSTER_PUBLICATION_MEDIA_OPTIMIZATION_LABEL/);
+  assert.match(intentPanel, /getLocalizedBoosterMediaOptimization\("generation", runtimeT\)/);
+  assert.match(imagePanel, /getLocalizedBoosterMediaOptimization\("publication", runtimeT\)/);
 });
 
 test("the UI keeps one final publishing engine with dynamic branch labels", () => {
@@ -174,6 +174,6 @@ test("the UI keeps one final publishing engine with dynamic branch labels", () =
     /creationMode === "ai" && workflowSteps\?\.intention && creationWorkflow\?\.showsIntent/,
   );
   assert.match(modal, /showContentWorkspace && workflowSteps/);
-  assert.match(contentPanel, /Contenus g\u00e9n\u00e9r\u00e9s par canal/);
+  assert.match(contentPanel, /i18nT\("contenus_generes_par_canal_5197ef4e"\)/);
   assert.equal((modal.match(/<PublishFooterActions/g) || []).length, 1);
 });

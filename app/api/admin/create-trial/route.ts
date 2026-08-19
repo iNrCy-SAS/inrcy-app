@@ -7,6 +7,12 @@ import { ensureTrialSubscription } from "@/lib/trialSubscription";
 import { ensureProfileRow } from "@/lib/ensureProfileRow";
 import { requireAdminApi } from "@/lib/adminSecurity";
 import { provisionNewAccountBubbleAccess } from "@/lib/appBubbleAccessProvisioning";
+import { buildSupabaseEmailRedirectUrl } from "@/lib/authEmailLinks";
+import {
+  DEFAULT_APP_LOCALE,
+  appLanguageFromLocale,
+  tryNormalizeAppLocale,
+} from "@/i18n/config";
 import {
   hasKnownInrcyAccountForEmail,
   isExistingAuthUserError,
@@ -31,6 +37,10 @@ export async function POST(req: Request) {
 
     const body = await req.json().catch(() => ({}));
     const email = String(body?.email || "").trim().toLowerCase();
+    const inviteLocale =
+      tryNormalizeAppLocale(body?.language || body?.lang || body?.locale) ||
+      DEFAULT_APP_LOCALE;
+    const inviteLanguage = appLanguageFromLocale(inviteLocale);
 
     if (!email) return NextResponse.json({ error: "Email manquant." }, { status: 400 });
 
@@ -46,7 +56,15 @@ export async function POST(req: Request) {
 
     const appOrigin = (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || "https://app.inrcy.com").replace(/\/$/, "");
     const { data: invite, error: invErr } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-      redirectTo: `${appOrigin}/auth/finish-invite`,
+      data: {
+        app_language: inviteLanguage,
+        app_locale: inviteLocale,
+      },
+      redirectTo: buildSupabaseEmailRedirectUrl(
+        appOrigin,
+        "/auth/finish-invite",
+        inviteLanguage,
+      ),
     });
 
     if (invErr) {

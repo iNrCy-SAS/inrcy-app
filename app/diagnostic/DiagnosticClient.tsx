@@ -27,7 +27,7 @@ type SendState = "idle" | "sending" | "sent" | "error";
 
 const TEST_TIMEOUT_MS = 8000;
 
-type Translator = (key: string) => string;
+type Translator = (_key: string) => string;
 
 function nowLabel(locale: string) {
   return new Date().toLocaleString(locale, {
@@ -381,7 +381,7 @@ export default function DiagnosticClient() {
         setSendMessage(i18nT("envoi_impossible_pour_le_moment_vous_0bedda6a", { value0: getErrorMessage(error, i18nT) }));
       }
     },
-    [clientName, company, from, message, phone, reason, report, summary],
+    [clientName, company, from, i18nT, message, phone, reason, report, summary],
   );
 
   const copyReport = useCallback(async () => {

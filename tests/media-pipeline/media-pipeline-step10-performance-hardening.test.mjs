@@ -48,7 +48,7 @@ test("HEIC et HEIF ne traversent plus une route de conversion Vercel", () => {
   assert.doesNotMatch(controller, /convertHeicOrHeifImageFile/);
   assert.doesNotMatch(shared, /\/api\/booster\/convert-image/);
   assert.match(controller, /buildLocalImagePresentation/);
-  assert.match(controller, /Aperçu préparé sur le serveur/);
+  assert.match(controller, /i18nT\("image_preview_prepared_server"\)/);
 });
 
 test("les formats annoncés disposent d'un décodeur serveur", () => {

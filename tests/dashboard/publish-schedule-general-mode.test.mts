@@ -9,7 +9,7 @@ const modal = readFileSync(
 
 test("general scheduling is the default and applies one slot to every ready channel", () => {
   assert.match(modal, /useState<PublishScheduleMode>\("general"\)/);
-  assert.match(modal, /Programmation générale/);
+  assert.match(modal, /i18nT\("schedule_general_title"\)/);
   assert.match(modal, /publishableItems\.map\(\(item\) => \(\{/);
   assert.match(modal, /generalDate \|\| defaultDateTime\.date/);
   assert.match(modal, /generalTime \|\| defaultDateTime\.time/);
@@ -17,7 +17,7 @@ test("general scheduling is the default and applies one slot to every ready chan
 });
 
 test("per-channel scheduling stays collapsed until explicitly selected", () => {
-  assert.match(modal, /Programmation par canal/);
+  assert.match(modal, /i18nT\("schedule_per_channel_title"\)/);
   assert.match(modal, /aria-expanded=\{scheduleMode === "channel"\}/);
   assert.match(modal, /scheduleMode === "channel" \? \(/);
   assert.match(modal, /id="publish-schedule-channel-details"/);

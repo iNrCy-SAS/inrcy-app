@@ -17,9 +17,9 @@ test("Step 10 octies adds a separate 50/50 desktop publication instruction field
     panel,
     /"minmax\(0, 1fr\) minmax\(0, 1fr\)"/,
   );
-  assert.match(panel, /Sujet de la publication — obligatoire/);
-  assert.match(panel, /Consigne ponctuelle à l’IA — facultatif/);
-  assert.match(panel, /Prioritaire sur votre Configuration IA/);
+  assert.match(panel, /i18nT\("sujet_de_la_publication_obligatoire_pour_62d82326"\)/);
+  assert.match(panel, /i18nT\("consigne_ponctuelle_a_l_ia_facultatif_cf850551"\)/);
+  assert.match(panel, /i18nT\("prioritaire_sur_votre_configuration_ia_pour_5278e325"\)/);
 });
 
 test("Step 10 octies keeps mobile compact with a collapsible instruction", () => {
@@ -28,8 +28,8 @@ test("Step 10 octies keeps mobile compact with a collapsible instruction", () =>
   );
 
   assert.match(panel, /mobileInstructionExpanded/);
-  assert.match(panel, /\+ Ajouter une consigne à l’IA/);
-  assert.match(panel, /✓ Consigne ajoutée — Modifier/);
+  assert.match(panel, /i18nT\("ajouter_une_consigne_a_l_ia_d2a6adfb"\)/);
+  assert.match(panel, /i18nT\("consigne_ajoutee_modifier_ee9b29d7"\)/);
   assert.match(panel, /aria-expanded=\{mobileInstructionExpanded\}/);
 });
 
@@ -41,8 +41,8 @@ test("Step 10 octies gives both subject and publication instruction their own mi
   assert.match(panel, /type VoiceTarget = "idea" \| "instruction"/);
   assert.match(panel, /target: "idea"/);
   assert.match(panel, /target: "instruction"/);
-  assert.match(panel, /Dicter le sujet/);
-  assert.match(panel, /Dicter la consigne ponctuelle/);
+  assert.match(panel, /i18nT\("dicter_le_sujet_f14f51b5"\)/);
+  assert.match(panel, /i18nT\("dicter_la_consigne_ponctuelle_312b62b3"\)/);
   assert.match(panel, /setVoiceTargetText/);
 });
 

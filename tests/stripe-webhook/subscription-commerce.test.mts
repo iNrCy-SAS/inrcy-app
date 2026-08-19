@@ -121,7 +121,7 @@ test("le Checkout reste Standard en libre-service et Premium reste accompagné",
   assert.match(checkout, /findLiveStripeSubscription/);
   assert.match(checkout, /checkoutAttemptBucket/);
   assert.match(checkout, /15 \* 60 \* 1000/);
-  assert.match(managedSubscriptionUi, /Les forfaits Premium et Founder sont activés et réactivés avec l’équipe iNrCy/);
+  assert.match(managedSubscriptionUi, /i18nT\("les_forfaits_premium_et_founder_sont_374bb1ec"\)/);
   assert.doesNotMatch(managedSubscriptionUi, /CHECKOUT_OFFERS/);
 });
 

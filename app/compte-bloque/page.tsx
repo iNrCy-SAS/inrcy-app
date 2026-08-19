@@ -78,7 +78,7 @@ function formatDate(value: string | null | undefined, locale: string) {
   }).format(date);
 }
 
-function copyForStatus(rawStatus: unknown, i18nT: (key: string) => string): BlockedCopy {
+function copyForStatus(rawStatus: unknown, i18nT: (_key: string) => string): BlockedCopy {
   const status = normalizeStatus(rawStatus);
 
   if (status === "trial_expired" || status === "trial-expired") {

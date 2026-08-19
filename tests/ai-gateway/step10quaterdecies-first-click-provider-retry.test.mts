@@ -15,8 +15,8 @@ test("Booster retries a recoverable provider failure automatically with a fresh 
   assert.match(modal, /isAutomaticBoosterGenerationRetryEligible/);
   assert.doesNotMatch(modal, /\[429, 502, 503, 504\]\.includes\(response\.status\)/);
   assert.match(modal, /executeGenerationRequestWithRecovery\(retryEngine\)/);
-  assert.match(modal, /secours automatique avec/);
-  assert.match(modal, /sans modifier votre moteur par défaut/);
+  assert.match(modal, /i18nT\("generation_engine_retry"/);
+  assert.match(modal, /i18nT\("value_n_a_pas_repondu_au_e653b7e3"/);
 });
 
 test("Automatic retry never changes the saved preferred engine", () => {

@@ -26,7 +26,7 @@ test("le suivi est actualise automatiquement sans recharger toute la page", () =
   assert.match(client, /visibilitychange/);
   assert.match(client, /schedule\(0\)/);
   assert.match(client, /120_000/);
-  assert.match(modal, /Suivi automatique toutes les 2 minutes/);
+  assert.match(modal, /i18nT\("suivi_automatique_toutes_les_2_minutes_8ff76207"\)/);
   assert.match(modal, /!isCampaignFinishedStatus/);
   assert.match(modal, /progressPercent/);
 });
@@ -35,7 +35,7 @@ test("le bilan mail est trace et peut etre renvoye", () => {
   assert.match(completion, /sendTrackedMailCampaignCompletionSummary/);
   assert.match(completion, /completion_email_status/);
   assert.match(summaryRoute, /force: true/);
-  assert.match(modal, /Renvoyer le bilan/);
+  assert.match(modal, /i18nT\("renvoyer_le_bilan_c0b47db8"\)/);
   assert.match(sql, /claim_mail_campaign_completion_email/);
 });
 

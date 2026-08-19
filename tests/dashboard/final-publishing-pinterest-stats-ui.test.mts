@@ -21,8 +21,8 @@ test("Booster explains the 300 Mo source ceiling and the automatic optimization 
     /Jusqu’à \$\{BOOSTER_MAX_IMAGE_COUNT\} images ou 1 vidéo \(\$\{MEDIA_LIBRARY_VIDEO_SOURCE_MAX_MB_LABEL\} max\) · médias optimisés si nécessaire : format adapté et\/ou poids ramené à \$\{BOOSTER_MAX_IMAGE_MB_LABEL\}\/image ou \$\{BOOSTER_MAX_VIDEO_MB_LABEL\}\/vidéo\./,
   );
   assert.match(shared, /BOOSTER_PUBLICATION_MEDIA_OPTIMIZATION_LABEL/);
-  assert.match(intent, /BOOSTER_GENERATION_MEDIA_OPTIMIZATION_LABEL/);
-  assert.match(media, /BOOSTER_PUBLICATION_MEDIA_OPTIMIZATION_LABEL/);
+  assert.match(intent, /getLocalizedBoosterMediaOptimization\("generation", runtimeT\)/);
+  assert.match(media, /getLocalizedBoosterMediaOptimization\("publication", runtimeT\)/);
 });
 
 test("the publication balance highlights successes and keeps independent processing and failure quotas", () => {
@@ -44,9 +44,9 @@ test("the publication balance highlights successes and keeps independent process
   assert.match(modal, /Afficher le détail de l’échec/);
   assert.match(modal, /expandedEntryDetails/);
   assert.match(modal, /const orderedEntries = \[\.\.\.entries\]\.sort/);
-  assert.match(modal, />\s*Voir\s*<\/a>/);
-  assert.match(modal, /Voir dans iNr'Send/);
-  assert.match(modal, /Retenter \$\{retryableFailureCount\}/);
+  assert.match(modal, /i18nT\("voir_8a754f1f"\)/);
+  assert.match(modal, /i18nT\("voir_dans_inr_send_a74cc9ea"\)/);
+  assert.match(modal, /i18nT\("retenter_value_value_en_echec_b7d1f934"/);
 });
 
 test("Pinterest derives its account URL for settings, the immediate balance and iNrSend", () => {
@@ -73,7 +73,7 @@ test("Pinterest derives its account URL for settings, the immediate balance and 
   assert.match(publishModal, /channelLinks = Object\.fromEntries/);
   assert.match(inrSend, /status\?live=1/);
   assert.match(inrSend, /activeChannelAccountHref/);
-  assert.match(inrSend, /Ouvrir le compte/);
+  assert.match(inrSend, /t\("ouvrir_le_compte_72c79948"\)/);
 });
 
 test("TikTok uses the OAuth username and never turns a short-link token into the account name", () => {

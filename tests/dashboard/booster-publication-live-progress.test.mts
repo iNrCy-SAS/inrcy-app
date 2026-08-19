@@ -34,7 +34,7 @@ test("publication progress consumes existing durable snapshots without an extra 
   assert.doesNotMatch(modal, /Préparation de la vidéo/);
   assert.match(modal, /mapProgressRange\(progress, 0, 100, 23, 39\)/);
   assert.match(modal, /getPublicationProgressStageForValue\(publishProgress\)/);
-  assert.match(modal, /1\/\$\{totalCount\} · Publication sur/);
+  assert.match(modal, /i18nT\("publication_first_channel_progress"/);
   assert.doesNotMatch(
     modal,
     /setPublishProgress\(\(current\) => Math\.max\(current, phase\.start\)\)/,
@@ -65,10 +65,10 @@ test("the execution UI keeps one clean global bar without a horizontal channel s
 });
 
 test("mixed photo and video allocation is explicit and persists to draft and publish", () => {
-  assert.match(mediaPanel, /Répartition actuelle des médias par canal/);
+  assert.match(mediaPanel, /i18nT\("repartition_actuelle_des_medias_par_canal_538dffe4"\)/);
   assert.match(mediaPanel, /mediaAllocation\.images/);
   assert.match(mediaPanel, /mediaAllocation\.video/);
-  assert.match(mediaPanel, /choisissez Photos, Vidéo ou Aucun/);
+  assert.match(mediaPanel, /i18nT\("cliquez_sur_un_canal_puis_choisissez_f2189aac"\)/);
   assert.match(modal, /channelMediaModes,/);
   assert.match(modal, /setChannelMediaModes\(nextChannelMediaModes\)/);
   assert.match(

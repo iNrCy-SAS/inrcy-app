@@ -16,7 +16,7 @@ function splitMessage(message: string): string[] {
     .filter(Boolean);
 }
 
-function getDialogCopy(dialog: DialogState, i18nT: (key: string) => string) {
+function getDialogCopy(dialog: DialogState, i18nT: (_key: string) => string) {
   const isPrompt = dialog.type === "prompt";
   const variant = dialog.options.variant || "warning";
 

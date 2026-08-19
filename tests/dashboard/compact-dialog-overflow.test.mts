@@ -38,8 +38,8 @@ test("shared confirmations scroll on the overlay without an inner scrollbar", ()
 
 test("Booster exit warnings use the shared confirmation dialog", () => {
   assert.match(boosterLayer, /await confirmInrcy\(\{/);
-  assert.match(boosterLayer, /title: "Quitter la publication \?"/);
-  assert.match(boosterLayer, /confirmLabel: "Quitter"/);
+  assert.match(boosterLayer, /title: i18nT\("quitter_la_publication_509848c0"\)/);
+  assert.match(boosterLayer, /confirmLabel: i18nT\("quitter_3e4126f5"\)/);
 });
 
 test("compact iNrAgent dialogs override the generic scrolling modal", () => {

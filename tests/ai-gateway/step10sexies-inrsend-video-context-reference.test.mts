@@ -100,7 +100,7 @@ test("la génération cutover conserve la référence et un fallback local born�
     /hasVideoForGeneration &&[\s\S]{0,180}!videoAiContextRef &&[\s\S]{0,80}!mediaPipelineCutoverEnabled/,
   );
   assert.match(modal, /contextRef: videoAiContextRef/);
-  assert.match(modal, /Réutilisation de l’analyse vidéo iNrAgent/);
+  assert.match(modal, /i18nT\("generation_video_analysis_reused"\)/);
   assert.match(modal, /videoAiContextReferenceAliases\(videoAiContextRef\)/);
 
   const generate = read("app/api/booster/generate/route.ts");

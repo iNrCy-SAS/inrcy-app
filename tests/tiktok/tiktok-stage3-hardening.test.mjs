@@ -73,13 +73,13 @@ test("iNrSend automatically polls pending TikTok publications", () => {
   assert.match(detailsModal, /tiktokAutoPollInFlightRef/);
   assert.match(detailsModal, /20_000/);
   assert.match(detailsModal, /60_000/);
-  assert.match(detailsModal, /Motif technique TikTok/);
+  assert.match(detailsModal, /i18nT\("motif_technique_tiktok_4641189f"\)/);
 });
 
 test("iNrSend can cancel a pending TikTok publication locally", () => {
   assert.match(detailsModal, /cancelPendingTiktokPublication/);
   assert.match(detailsModal, /body:\s*JSON\.stringify\(\{ action: "cancel_pending" \}\)/);
-  assert.match(detailsModal, /Annuler la publication/);
+  assert.match(detailsModal, /i18nT\("annuler_la_publication_e7d30046"\)/);
   assert.match(channelActions, /isPendingTiktokResult/);
   assert.match(channelActions, /buildCancelledPayload/);
   assert.match(channelActions, /remote_cancellation_supported:\s*false/);

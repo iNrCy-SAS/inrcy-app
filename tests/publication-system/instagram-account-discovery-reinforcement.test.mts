@@ -48,7 +48,7 @@ test("la réparation OAuth est explicite et ne modifie pas la connexion normale"
   assert.match(start, /auth_type/);
   assert.match(start, /rerequest/);
   assert.match(hook, /repairParam/);
-  assert.match(panel, /Actualiser les autorisations Meta/);
+  assert.match(panel, /i18nT\("actualiser_les_autorisations_meta_85e7f589"\)/);
 });
 
 

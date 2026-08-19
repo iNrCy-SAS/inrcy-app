@@ -34,11 +34,11 @@ test("les avis fictifs sont impossibles à confondre avec de vrais avis Google",
   const client = read("app/dashboard/e-reputation/EReputationReviewsClient.tsx");
   const css = read("app/dashboard/e-reputation/eReputation.module.css");
 
-  assert.match(client, /AVIS D’EXEMPLE/);
-  assert.match(client, /Les lignes ci-dessous sont fictives/);
-  assert.match(client, /Brancher Google/);
-  assert.match(client, /!reviewsReady \? <span className=\{styles\.exampleBadge\}>EXEMPLE<\/span>/);
-  assert.match(client, /exemples fictifs affichés/);
+  assert.match(client, /i18nT\("avis_d_exemple_aucun_avis_google_a67550e6"\)/);
+  assert.match(client, /i18nT\("les_lignes_ci_dessous_sont_fictives_a40db886"\)/);
+  assert.match(client, /i18nT\("brancher_google_c497afba"\)/);
+  assert.match(client, /!reviewsReady \? <span className=\{styles\.exampleBadge\}>\{i18nT\("exemple_396e7bd8"\)\}<\/span>/);
+  assert.match(client, /i18nT\("value_exemples_fictifs_affiches_56447aa0"/);
   assert.match(css, /\.previewNotice/);
   assert.match(css, /\.connectGoogleCta/);
   assert.match(css, /\.exampleBadge/);

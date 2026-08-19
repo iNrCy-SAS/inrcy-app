@@ -476,6 +476,16 @@ export async function proxy(req: NextRequest) {
     if (explicitlyRequestedLocale) break;
   }
 
+  // Supabase appends its token query to RedirectTo. The locale is therefore
+  // carried in a path segment (`/auth/finish-invite/fr`) so it cannot corrupt
+  // `?token_hash=...`. Treat that segment exactly like an explicit locale.
+  if (!explicitlyRequestedLocale) {
+    const authEmailLocale = pathname.match(
+      /^\/auth\/finish-(?:invite|reset)\/([^/]+)\/?$/,
+    )?.[1];
+    explicitlyRequestedLocale = tryNormalizeAppLocale(authEmailLocale);
+  }
+
   const legacyLocale = tryNormalizeAppLocale(
     req.cookies.get(LEGACY_APP_LOCALE_COOKIE)?.value,
   );

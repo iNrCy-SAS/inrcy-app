@@ -38,10 +38,10 @@ test("dashboard tools use progressive intent-first warmup and immediate click fe
     assert.ok(warmup.includes(route), `${route} doit rester dans la file progressive`);
   }
 
-  assert.match(modules, /Chargement…/);
+  assert.match(modules, /i18nT\("chargement_01cba1df"\)/);
   assert.match(modules, /aria-busy=/);
   assert.match(modules, /data-dashboard-prefetch=/);
-  assert.match(actionButton, /Chargement…/);
+  assert.match(actionButton, /i18nT\("chargement_01cba1df"\)/);
   assert.match(actionButton, /event\.preventDefault\(\)/);
   assert.doesNotMatch(dashboard, /if \(!requiredSetupAccessAllowed\) return/);
   assert.doesNotMatch(bottomNav, /&& !requiredSetupAccessAllowed\) return/);

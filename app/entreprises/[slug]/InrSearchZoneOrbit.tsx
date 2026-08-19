@@ -48,12 +48,12 @@ function zoneLayoutKey(zone: string) {
   return "other";
 }
 
-function zoneStatus(zone: string, active: boolean, i18nT: (key: string) => string) {
+function zoneStatus(zone: string, active: boolean, i18nT: (_key: string) => string) {
   if (isDepartmentZone(zone)) return active ? i18nT("couverture_elargie_76d5864b") : i18nT("departement_3d7c87c2");
   return active ? i18nT("signal_actif_58c288e3") : i18nT("selectionner_ab31a36f");
 }
 
-function zoneActionText(zone: string, companyName: string, i18nT: (key: string, values?: Record<string, string>) => string) {
+function zoneActionText(zone: string, companyName: string, i18nT: (_key: string, _values?: Record<string, string>) => string) {
   if (isDepartmentZone(zone)) {
     return i18nT("contactez_value_pour_verifier_si_votre_6d0002ac", { value0: companyName });
   }

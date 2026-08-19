@@ -37,7 +37,7 @@ test("Booster exposes iNrSearch in content, generation and image channel flows",
   assert.match(foundations, /CHANNEL_KEYS: ChannelKey\[\] = BOOSTER_CHANNEL_ORDER/);
   assert.match(modal, /CHANNEL_KEYS\.filter\(\(channel\) => channels\[channel\] && connected\[channel\]\)/);
   assert.match(imageController, /BOOSTER_CHANNEL_ORDER\.filter/);
-  assert.match(contentEditor, /Phrase courte iNr'Search/);
+  assert.match(contentEditor, /i18nT\("phrase_courte_inr_search_ee6e97e1"\)/);
   assert.match(mediaPanel, /gridTemplateColumns: isMobile/);
   assert.match(mediaPanel, /repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(mediaPanel, /overflowX: "hidden"/);

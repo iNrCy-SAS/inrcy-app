@@ -141,7 +141,7 @@ test("duration-invalid channels turn red before dispatch and are reported as fai
     /if \(readinessTone === "blocked"\) return "blocked"/,
   );
   assert.match(mediaPanel, /role="alert"/);
-  assert.match(mediaPanel, /Média incompatible pour/);
+  assert.match(mediaPanel, /i18nT\("media_incompatible_pour_value_20130e10"/);
   assert.match(mediaPanel, /activeMediaBlockers\.map/);
   assert.match(previewPanel, /tab\.message \|\| "Canal incompatible/);
   assert.match(layer, /mergePreflightFailuresIntoPublicationSummary/);

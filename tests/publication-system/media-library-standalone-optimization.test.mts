@@ -122,10 +122,10 @@ test("compression stays autonomous and reusable outside Booster", () => {
   assert.match(worker, /target_bytes/);
   assert.match(worker, /source:\s*"mediatheque_optimization"/);
   assert.match(compressor, /superfast/);
-  assert.match(modal, /Optimisation détectée/);
-  assert.match(modal, /Réglage automatique/);
-  assert.match(modal, /E-mail : \$\{formatBytes\(limit\)\} max/);
-  assert.match(modal, /Compression forte/);
+  assert.match(modal, /i18nT\("optimisation_detectee_44e8bb9d"\)/);
+  assert.match(modal, /i18nT\("reglage_automatique_fb6ce5fa"\)/);
+  assert.match(modal, /i18nT\("e_mail_value_max_7f932c53"/);
+  assert.match(modal, /i18nT\("compression_forte_passer_de_value_a_558a609f"/);
   assert.match(mediaLibrary, /mediaNeedsOptimization/);
   assert.match(vercel, /api\/cron\/media-library-optimization/);
   assert.doesNotMatch(boosterProgress, /Compression des médias/);
@@ -148,14 +148,14 @@ test("Booster optimizer buttons never forward the React click event as a media i
   assert.match(publishModal, /type BoosterMediaInsertionDestination/);
   assert.match(publishModal, /destination\.kind === "channel" \? destination\.channel : undefined/);
   assert.match(publishModal, /setMediaOptimizerPromptOpen\(true\)/);
-  assert.match(warningModals, /Fichier trop volumineux/);
-  assert.match(warningModals, /Optimiser le média/);
-  assert.match(optimizer, /Insérer le média optimisé/);
-  assert.match(optimizer, /iNrCy n’a pas pu réinsérer automatiquement le fichier/);
+  assert.match(warningModals, /i18nT\("fichier_trop_volumineux_9210818a"\)/);
+  assert.match(warningModals, /i18nT\("optimiser_le_media_1bc4fc40"\)/);
+  assert.match(optimizer, /i18nT\("inserer_le_media_optimise_a0ba71d7"\)/);
+  assert.match(optimizer, /i18nT\("l_optimisation_est_terminee_mais_inrcy_e39b5e05"/);
   assert.match(picker, /width: "min\(1000px, calc\(100vw - 32px\)\)"/);
   assert.match(picker, /compactMediaStatusStyle/);
   assert.match(picker, /optimizeButtonStyle/);
-  assert.match(picker, /item\.media_type === "video" \? "Vidéo" : "Image"/);
+  assert.match(picker, /item\.media_type === "video" \? i18nT\("video_304f6ca4"\) : i18nT\("image_50e19fda"\)/);
 });
 
 
@@ -167,7 +167,7 @@ test("mail, Propulser and Fidéliser reuse the optimizer with a strict 20 Mo att
 
   assert.match(modal, /origin\?: "booster" \| "mediatheque" \| "email"/);
   assert.match(modal, /origin === "email"\) return MEDIA_LIBRARY_EMAIL_TARGET_BYTES/);
-  assert.match(modal, /pièce jointe compatible de 20 Mo maximum/);
+  assert.match(modal, /i18nT\("inrcy_prepare_automatiquement_une_piece_jointe_a87848b0"\)/);
   assert.match(picker, /formatLimitBytes/);
   assert.doesNotMatch(picker, /item\.media_type === "video" \? "75 Mo" : "50 Mo"/);
 

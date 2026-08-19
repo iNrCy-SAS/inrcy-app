@@ -84,7 +84,7 @@ test("public profile lists remove editorial bullets and leading conjunctions", (
   assert.match(publicData, /replace\(\/\^\(\?:\[-–—•·▪◦\*\]\+\|\\d\+\[\.\)\]\)\\s\*\/u, ""\)/);
   assert.match(publicData, /replace\(\/\^\(\?:et\|ou\)\\s\+\/iu, ""\)/);
   assert.match(publicData, /dans les zones suivantes/);
-  assert.match(publicPage, /dans les zones suivantes/);
+  assert.match(publicPage, /i18nT\("elle_intervient_notamment_dans_les_zones_33195e40"/);
   assert.doesNotMatch(publicPage, /intervient notamment à \$\{joinFrenchList/);
   assert.match(publicPage, /"@type": "AdministrativeArea"/);
 });

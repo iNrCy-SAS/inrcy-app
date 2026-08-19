@@ -66,7 +66,7 @@ test("YouTube streams the stored source instead of buffering the full video", ()
 });
 
 test("media finalization exposes universal media preparation progress", () => {
-  assert.match(publishModal, /Vérification des médias/);
+  assert.match(publishModal, /"publication_checking_media"/);
   assert.match(publishModal, /Préparation des médias/);
   assert.doesNotMatch(publishModal, /Préparation de la vidéo/);
   assert.match(publishModal, /mediaPreparationProgress/);

@@ -115,5 +115,5 @@ test("le clic immédiat absorbe l'upload dans Générer, Publier et Programmer",
   );
   assert.match(scheduleModal, /PublishExecutionProgress/);
   assert.match(scheduleModal, /publishProgress=\{progress\}/);
-  assert.match(scheduleModal, /publishProgressLabel=\{progressLabel\}/);
+  assert.match(scheduleModal, /publishProgressLabel=\{resolvedProgressLabel\}/);
 });

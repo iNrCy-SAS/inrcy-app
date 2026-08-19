@@ -72,7 +72,9 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const alertTo = process.env.INRCY_NEW_USER_ALERT_EMAIL;
+    const alertTo = (
+      process.env.INRCY_NEW_USER_ALERT_EMAIL || "compte@inrcy.com"
+    ).trim();
     const smtpHost = process.env.TX_SMTP_HOST;
     const smtpPort = Number(process.env.TX_SMTP_PORT || 587);
     const smtpUser = process.env.TX_SMTP_USER;

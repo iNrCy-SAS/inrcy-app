@@ -10,6 +10,7 @@ import {
   setActiveBrowserUserId,
 } from "@/lib/browserAccountCache";
 import { waitForServerAuthSession } from "@/lib/browserAuthSessionReady";
+import { buildSupabaseEmailRedirectUrl } from "@/lib/authEmailLinks";
 import AuthLanguageSelector from "@/app/auth/_components/AuthLanguageSelector";
 import styles from "./login.module.css";
 
@@ -533,10 +534,12 @@ export default function LoginPage() {
       const appOrigin = (
         process.env.NEXT_PUBLIC_APP_URL || window.location.origin
       ).replace(/\/$/, "");
-      const resetUrl = new URL("/auth/finish-reset", `${appOrigin}/`);
-      resetUrl.searchParams.set("lang", appLanguage);
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: resetUrl.toString(),
+        redirectTo: buildSupabaseEmailRedirectUrl(
+          appOrigin,
+          "/auth/finish-reset",
+          appLanguage,
+        ),
       });
 
       if (error) {

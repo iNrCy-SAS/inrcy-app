@@ -177,9 +177,12 @@ export default function BoosterVideoFormatManager({
 }) {
   const locale = useLocale();
   const i18nT = useTranslations("booster") as unknown as BoosterTranslator;
-  const resolvedRemoveFromChannelLabel = removeFromChannelLabel || i18nT("remove_video_from_channel");
-  const resolvedDeleteVideoLabel = deleteVideoLabel || i18nT("delete_video_everywhere");
-  const resolvedPickVideoLabel = pickVideoLabel || i18nT("replace_video");
+  const resolvedRemoveFromChannelLabel =
+    removeFromChannelLabel || i18nT("retirer_de_ce_canal_76fbf864");
+  const resolvedDeleteVideoLabel =
+    deleteVideoLabel || i18nT("supprimer_partout_dfb790c4");
+  const resolvedPickVideoLabel =
+    pickVideoLabel || i18nT("remplacer_la_video_f6f7fbb3");
   const smartRecommendedFormat = getRecommendedVideoFormatForSource(channel, videoSourceMetadata);
   const videoFormatOptions = [
     smartRecommendedFormat,

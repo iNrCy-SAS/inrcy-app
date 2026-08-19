@@ -62,7 +62,7 @@ test("Booster, iNrAgent and iNrSend keep Original as the untouched default", asy
   assert.match(publishImagesPanel, /getChannelSafetyBackgroundMode/);
   assert.doesNotMatch(publishImagesPanel, /backgroundMode:\s*["']blur["']/);
   assert.doesNotMatch(publishImagesPanel, /blurBackground:\s*true/);
-  assert.match(agent, /Vidéo entière sur fond sobre/);
+  assert.match(agent, /getLocalizedVideoAdaptationModeLabel\([\s\S]*?boosterRuntimeT/);
   assert.doesNotMatch(agent, /Fond flouté/);
   assert.doesNotMatch(
     mailbox,

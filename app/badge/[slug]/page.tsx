@@ -461,7 +461,7 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
   ].filter(Boolean) as ActionLinkProps[];
 
   const channelActions = [
-    shareSettings.inrSearch && publicChannelCanShare.inrSearch ? { href: inrSearchUrl, label: i18nT("inr_search_ce47ed45"), iconSrc: inrSearchBubbleIcon.src, tone: "inrsearch" as ActionTone, trackingAction: "inr_search" } : null,
+    shareSettings.inrSearch && publicChannelCanShare.inrSearch ? { href: inrSearchUrl, label: i18nT("inr_apos_search_6cbfd855"), iconSrc: inrSearchBubbleIcon.src, tone: "inrsearch" as ActionTone, trackingAction: "inr_search" } : null,
     shareSettings.siteInrcy && publicChannelCanShare.siteInrcy ? { href: siteInrcyUrl, label: i18nT("site_inrcy_57016d6f"), iconSrc: inrcyIcon.src, tone: "site" as ActionTone, trackingAction: "site_inrcy" } : null,
     shareSettings.siteWeb && publicChannelCanShare.siteWeb ? { href: siteWebUrl, label: i18nT("site_web_7e78af33"), iconSrc: siteWebIcon.src, tone: "site" as ActionTone, trackingAction: "site_web" } : null,
     shareSettings.googleBusiness && publicChannelCanShare.googleBusiness ? { href: gmbUrl, label: i18nT("google_business_a605b655"), iconSrc: googleBusinessIcon.src, tone: "google" as ActionTone, trackingAction: "google_business" } : null,

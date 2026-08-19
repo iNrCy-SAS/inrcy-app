@@ -24,7 +24,7 @@ test("explicit per-channel media removal wins for TikTok and YouTube", () => {
 });
 
 test("creation mode helper is concise", () => {
-  assert.match(creationPanel, /Choisissez votre mode de création\. Vous pourrez en changer ensuite\./);
+  assert.match(creationPanel, /i18nT\("choisissez_votre_mode_de_creation_vous_4d39fb96"\)/);
   assert.doesNotMatch(creationPanel, /travail propre au mode actuel/);
 });
 

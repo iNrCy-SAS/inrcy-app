@@ -32,15 +32,15 @@ test("dashboard tool, modal and configure buttons share the delayed loading beha
   for (const source of [actionButton, modules, bubble, mobileNavigation]) {
     assert.match(source, /useDelayedPendingAction/);
     assert.match(source, /aria-busy=/);
-    assert.match(source, /Chargement…/);
+    assert.match(source, /i18nT\("chargement_01cba1df"\)/);
   }
 
-  assert.match(actionButton, /loadingVisible \? "Chargement…" : action\.label/);
+  assert.match(actionButton, /loadingVisible \? i18nT\("chargement_01cba1df"\) : action\.label/);
   assert.match(modules, /modal:publish/);
   assert.match(modules, /modal:cash/);
   assert.match(modules, /panel:/);
   assert.match(modules, /route:/);
-  assert.match(bubble, /configureLoadingVisible \? "Chargement…"/);
+  assert.match(bubble, /configureLoadingVisible \? i18nT\("chargement_01cba1df"\)/);
   assert.match(bubble, /data-dashboard-prefetch=/);
   assert.match(mobileNavigation, /modal:publish/);
   assert.match(mobileNavigation, /shortcutLoadingVisible/);

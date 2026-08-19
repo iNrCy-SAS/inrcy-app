@@ -11,12 +11,15 @@ test("iNrSend details load the account or page URL for the active publication ch
   assert.match(source, /\/api\/booster\/connected-channels/);
   assert.match(source, /activeChannelAccountHref/);
   assert.match(source, /target="_blank"/);
-  assert.match(source, /Ouvrir le compte|Ouvrir la page|Ouvrir la fiche|Ouvrir la chaîne/);
+  assert.match(source, /ouvrir_le_compte_72c79948/);
+  assert.match(source, /open_page/);
+  assert.match(source, /open_listing/);
+  assert.match(source, /open_channel/);
 });
 
 test("iNrSend details expose and refresh the live status of each selected channel", () => {
   assert.match(source, /\/api\/booster\/publications\/\$\{encodeURIComponent\(requestedPublicationId\)\}\/status/);
-  assert.match(source, /Statut : <b>\{activePublicationStatusMeta\.label\}<\/b>/);
-  assert.match(source, /Actualiser le statut/);
+  assert.match(source, /i18nT\("statut_b20e7fc2"\)/);
+  assert.match(source, /i18nT\("actualiser_le_statut_47041c70"\)/);
   assert.match(source, /shouldPollPublicationStatus/);
 });

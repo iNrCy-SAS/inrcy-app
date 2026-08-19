@@ -68,6 +68,6 @@ test("a successful delete updates the visible iNrSend payload immediately", () =
   assert.match(mailboxClient, /const deletedPayload\s*=/);
   assert.match(mailboxClient, /setItems\(\(current\)\s*=>/);
   assert.match(mailboxClient, /payload:\s*deletedPayload/);
-  assert.match(detailsModal, /source original conserv/);
-  assert.match(detailsModal, /Les adaptations propres au canal/);
+  assert.match(detailsModal, /media_source_original_conserve_pour_value_19606662/);
+  assert.match(detailsModal, /ce_detail_affiche_l_original_reutilisable_5ffe24c1/);
 });

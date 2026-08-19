@@ -54,7 +54,7 @@ test("Site iNrCy reste indépendant du forfait et affiche Non souscrit sans droi
   assert.match(fluxBubblesSource, /m\.key === "site_inrcy"[\s\S]*copy\.status\.notSubscribed/);
   assert.match(dashboardClientSource, /siteInrcySubscribed=\{siteInrcyDisplayAccess\}/);
   assert.match(helpModalsSource, /requiresSiteSubscription: true/);
-  assert.match(helpModalsSource, /siteNotSubscribed[\s\S]*"Non souscrit"/);
+  assert.match(helpModalsSource, /siteNotSubscribed[\s\S]*i18nT\("non_souscrit_fb632cc2"\)/);
 });
 
 test("le compteur Standard ignore les deux bulles commerciales", () => {

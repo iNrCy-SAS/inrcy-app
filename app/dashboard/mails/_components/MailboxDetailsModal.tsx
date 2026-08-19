@@ -1348,7 +1348,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                     <>
                       <span className={`${styles.badge} ${pill(detailsItem.provider).cls}`}>{pill(detailsItem.provider).label}</span>
                       {detailsItem.originSource === "inr_agent" ? (
-                        <span className={styles.inrAgentDetailBadge} title={detailsItem.originLabel || "Créé par iNr’Agent"}>
+                        <span className={styles.inrAgentDetailBadge} title={detailsItem.originLabel || i18nT("cree_par_inr_agent_31bbe816")}>
                           <img src="/icons/inr-agent.png" alt="" aria-hidden="true" />
                           {i18nT("cree_par_inr_agent_31bbe816")}{" "}</span>
                       ) : null}

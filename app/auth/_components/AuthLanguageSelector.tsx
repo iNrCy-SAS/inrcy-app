@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import { useLocale, useTranslations } from "next-intl";
 
 import { persistBrowserAppLocale } from "@/i18n/client-locale";
@@ -60,7 +61,7 @@ export default function AuthLanguageSelector({ className = "" }: Props) {
         onClick={() => setOpen((value) => !value)}
         className="flex h-11 min-w-14 items-center justify-center gap-2 rounded-xl border border-white/30 bg-slate-950/85 px-3 text-white shadow-xl backdrop-blur transition hover:bg-slate-900"
       >
-        <img
+        <Image
           src={current.flagSrc}
           alt={current.flag}
           width={24}
@@ -89,7 +90,7 @@ export default function AuthLanguageSelector({ className = "" }: Props) {
                 option.value === current.value ? "bg-white/10" : ""
               }`}
             >
-              <img
+              <Image
                 src={option.flagSrc}
                 alt={option.flag}
                 width={24}

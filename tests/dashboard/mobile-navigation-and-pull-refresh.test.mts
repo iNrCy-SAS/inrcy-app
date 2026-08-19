@@ -52,8 +52,8 @@ test("mobile navigation uses the shared 650 ms loading controller", () => {
 
   assert.match(navigation, /useDelayedPendingAction/);
   assert.match(navigation, /modal:publish/);
-  assert.match(navigation, /publishLoadingVisible \? "Chargement…"/);
-  assert.match(navigation, /shortcutLoadingVisible \? "Chargement…"/);
+  assert.match(navigation, /publishLoadingVisible \? i18nT\("chargement_01cba1df"\)/);
+  assert.match(navigation, /shortcutLoadingVisible \? i18nT\("chargement_01cba1df"\)/);
   assert.match(navigation, /panel:ia/);
   assert.match(navigation, /resolveHrefDestination\("\/dashboard\/mediatheque"\)/);
   assert.match(navigation, /data-disable-pull-refresh/);

@@ -30,7 +30,7 @@ test("iNr'Search is a persisted iNrBadge sharing choice in every edition", () =>
 });
 
 test("the dashboard only enables the iNr'Search share option for a published page", () => {
-  assert.match(settingsPanel, /key: "inrSearch", label: "iNr'Search"/);
+  assert.match(settingsPanel, /key: "inrSearch", label: i18nT\("inr_search_ce47ed45"\)/);
   assert.match(settingsPanel, /canShareChannel\(channels\.inrSearch\)/);
   assert.match(
     dashboard,
@@ -41,8 +41,8 @@ test("the dashboard only enables the iNr'Search share option for a published pag
 test("the public badge exposes iNr'Search as a channel and a verified news CTA", () => {
   assert.match(publicBadge, /getInrSearchPublicStatus\(inrSearchSlug\)/);
   assert.match(publicBadge, /inrSearchStatus\?\.published \? inrSearchStatus\.publicUrl/);
-  assert.match(publicBadge, /label: "iNr'Search"/);
-  assert.match(publicBadge, /label: "Voir nos actualités"/);
+  assert.match(publicBadge, /label: i18nT\("inr_apos_search_6cbfd855"\)/);
+  assert.match(publicBadge, /label: i18nT\("voir_nos_actualites_052324ba"\)/);
   assert.match(publicBadge, /`\$\{inrSearchUrl\}#actualites`/);
   assert.match(publicBadgeStyles, /\.ctaWrap \.tone_inrsearch/);
   assert.match(publicBadge, /inr-search-bubble-128\.png/);
@@ -61,9 +61,9 @@ test("the public badge exposes iNr'Search as a channel and a verified news CTA",
 });
 
 test("Standard keeps the appointment card visible but locked as Premium", () => {
-  assert.match(settingsPanel, /aria-label="Prise de RDV réservée au forfait Premium"/);
-  assert.match(settingsPanel, /<span style=\{premiumPillStyle\}>Premium<\/span>/);
-  assert.match(settingsPanel, /Disponible avec iNr’Calendar dans le forfait Premium/);
+  assert.match(settingsPanel, /aria-label=\{i18nT\("prise_de_rdv_reservee_au_forfait_c652d03f"\)\}/);
+  assert.match(settingsPanel, /<span style=\{premiumPillStyle\}>\{i18nT\("premium_6c2f2888"\)\}<\/span>/);
+  assert.match(settingsPanel, /i18nT\("disponible_avec_inr_calendar_dans_le_a627ba6d"\)/);
 });
 
 test("channel row balancing cannot truncate a ninth or tenth channel", () => {

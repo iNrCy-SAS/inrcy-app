@@ -127,7 +127,7 @@ test("Facebook Insights migre vers Media Views sans nouveau scope", () => {
   assert.doesNotMatch(insights, /\"page_impressions(?:_unique)?\"/);
   assert.doesNotMatch(insights, /\"post_impressions(?:_unique)?\"/);
   assert.match(insights, /fetchPostMetricRowsResilient/);
-  assert.match(stats, /Spectateurs uniques/);
+  assert.match(stats, /t\("metric_unique_viewers"\)/);
 
   for (const permission of ["read_insights", "pages_read_engagement"]) {
     assert.match(facebook, new RegExp(permission));

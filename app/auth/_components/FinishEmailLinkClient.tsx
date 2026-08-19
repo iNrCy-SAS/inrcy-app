@@ -7,13 +7,15 @@ import { useLocale, useTranslations } from "next-intl";
 import { type EmailOtpType } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabaseClient";
 import { setActiveBrowserUserId } from "@/lib/browserAccountCache";
-import { appLanguageFromLocale } from "@/i18n/config";
+import { appLanguageFromLocale, tryNormalizeAppLocale } from "@/i18n/config";
+import { readAuthEmailLinkParams } from "@/lib/authEmailLinks";
 import AuthLanguageSelector from "./AuthLanguageSelector";
 
 type Mode = "invite" | "reset";
 
 type Props = {
   mode: Mode;
+  initialLanguage?: string;
 };
 
 type FinishPasswordResponse = {
@@ -72,10 +74,18 @@ function Rule({ ok, label }: { ok: boolean; label: string }) {
   );
 }
 
-export default function FinishEmailLinkClient({ mode }: Props) {
+export default function FinishEmailLinkClient({ mode, initialLanguage }: Props) {
   const supabase = useMemo(() => createClient(), []);
   const searchParams = useSearchParams();
-  const appLanguage = appLanguageFromLocale(useLocale());
+  const currentLocale = useLocale();
+  const emailLinkParams = useMemo(
+    () => readAuthEmailLinkParams(searchParams),
+    [searchParams],
+  );
+  const recoveredLocale = tryNormalizeAppLocale(
+    emailLinkParams.language || initialLanguage,
+  );
+  const appLanguage = appLanguageFromLocale(recoveredLocale || currentLocale);
   const t = useTranslations("auth.password");
 
   const [ready, setReady] = useState(false);
@@ -92,7 +102,7 @@ export default function FinishEmailLinkClient({ mode }: Props) {
   const [resendCooldown, setResendCooldown] = useState(0);
   const [linkRejected, setLinkRejected] = useState(false);
 
-  const tokenHash = searchParams.get("token_hash") || "";
+  const tokenHash = emailLinkParams.tokenHash;
   const rawType = searchParams.get("type");
   const type = (rawType || (mode === "invite" ? "invite" : "recovery")) as EmailOtpType;
   const expectedEmail = normalizeEmail(searchParams.get("email"));
@@ -102,6 +112,23 @@ export default function FinishEmailLinkClient({ mode }: Props) {
   const strength = useMemo(() => getPasswordStrength(password), [password]);
   const strengthLabel =
     strength.score <= 2 ? t("weak") : strength.score <= 4 ? t("medium") : t("strong");
+
+  useEffect(() => {
+    if (!emailLinkParams.recoveredMalformedQuery || !tokenHash) return;
+
+    const canonicalUrl = new URL(window.location.href);
+    if (emailLinkParams.language) {
+      canonicalUrl.searchParams.set("lang", emailLinkParams.language);
+    } else {
+      canonicalUrl.searchParams.delete("lang");
+    }
+    canonicalUrl.searchParams.set("token_hash", tokenHash);
+    window.history.replaceState(
+      window.history.state,
+      "",
+      `${canonicalUrl.pathname}${canonicalUrl.search}${canonicalUrl.hash}`,
+    );
+  }, [emailLinkParams.language, emailLinkParams.recoveredMalformedQuery, tokenHash]);
 
   useEffect(() => {
     let cancelled = false;

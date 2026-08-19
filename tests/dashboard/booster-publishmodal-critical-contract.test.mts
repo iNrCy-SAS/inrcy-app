@@ -110,7 +110,7 @@ test("cutover records the format choice and requires the workspace master for sc
   );
   assert.match(
     publishModal,
-    /const videoPreparationBlocker =[\s\S]*!mediaPipelineCutoverEnabled/,
+    /const hasVideoPreparationBlocker =[\s\S]*!mediaPipelineCutoverEnabled/,
   );
   assert.match(
     videoFormatManager,
@@ -166,9 +166,9 @@ test("final review excludes invalid channels without blocking the ready subset",
   );
   assert.match(publishModal, /preflightFailedChannels,/);
   assert.match(modalLayer, /mergePreflightFailuresIntoPublicationSummary/);
-  assert.match(publishModal, /Instagram nécessite une vidéo ou au moins 1 image/);
-  assert.match(publishModal, /Choisissez un tableau Pinterest/);
-  assert.match(publishModal, /Pinterest nécessite une image ou une vidéo/);
+  assert.match(publishModal, /i18nT\("instagram_necessite_une_video_ou_au_dc42bf8d"\)/);
+  assert.match(publishModal, /i18nT\("choisissez_un_tableau_pinterest_avant_de_60a6ce70"\)/);
+  assert.match(publishModal, /i18nT\("pinterest_necessite_une_image_ou_une_e2a7f196"\)/);
 });
 
 test("manual publication remains idempotent, asynchronous and partially retryable", () => {

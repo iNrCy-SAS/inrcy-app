@@ -252,9 +252,9 @@ test("iNrBadge Standard utilise le mail de Mon profil et exclut entièrement la 
   assert.match(badgeAppointmentApiSource, /dashboardEdition === "standard"/);
   assert.match(badgeSettingsApiSource, /dashboardEdition === "standard"/);
   assert.match(badgeSettingsSource, /!standardMode \? \(/);
-  assert.match(badgeSettingsSource, /Email de Mon profil/);
+  assert.match(badgeSettingsSource, /i18nT\("email_de_mon_profil_value_fd93f05f"/);
   assert.match(statsClientSource, /appointmentsEnabled: !standardMode/);
-  assert.match(statsFoundationsSource, /appointmentsEnabled\s*\? \{ label: "RDV 30j"/);
+  assert.match(statsFoundationsSource, /appointmentsEnabled\s*\? \{ label: t\("rdv_30j_395436a0"\)/);
 });
 
 test("la capture de contact iNrBadge reste autonome en Standard sans renvoyer vers le CRM Premium", () => {
@@ -285,8 +285,8 @@ test("Standard conserve les vraies bulles de connexion avec Voir et Configurer",
   assert.match(channelsSectionSource, /<DashboardFluxBubble/);
   assert.match(dashboardClientSource, /STANDARD_DASHBOARD_BUBBLE_KEYS/);
   assert.match(dashboardClientSource, /STANDARD_BONUS_CHANNEL_KEYS/);
-  assert.match(connectionBubbleSource, /item\.viewFallbackLabel \|\| "Voir"/);
-  assert.match(connectionBubbleSource, /item\.configureLabel \|\| "Configurer"/);
+  assert.match(connectionBubbleSource, /item\.viewFallbackLabel \|\| i18nT\("voir_8a754f1f"\)/);
+  assert.match(connectionBubbleSource, /item\.configureLabel \|\| i18nT\("configurer_382efbe9"\)/);
 });
 
 test("un canal desactive reste gris tandis qu'un canal a connecter garde son etat disponible", () => {
@@ -377,12 +377,12 @@ test("les cartes Premium conservent leurs couleurs propres sans assombrissement 
 });
 
 test("Mon inertie Standard n'active que Booster et identifie les missions Premium", () => {
-  assert.match(inertiaContentSource, /Booster est votre mission active/);
+  assert.match(inertiaContentSource, /i18nT\("booster_est_votre_mission_active_les_93914a0a"\)/);
   assert.match(inertiaContentSource, /premiumOnly: edition === "standard"/);
-  assert.match(inertiaContentSource, /Forfait Premium/);
+  assert.match(inertiaContentSource, /i18nT\("forfait_premium_65aaf9d2"\)/);
   assert.match(inertiaContentSource, /PREMIUM_INERTIA_ACTION_KEYS\.has\(e\.action_key\)/);
   assert.match(dashboardHelpModalsSource, /edition === "standard" && row\.premiumOnly/);
-  assert.match(dashboardHelpModalsSource, /Forfait Premium/);
+  assert.match(dashboardHelpModalsSource, /i18nT\("forfait_premium_65aaf9d2"\)/);
   assert.match(loyaltyAwardApiSource, /dashboardEdition === "standard" && PREMIUM_ONLY_ACTION_KEYS\.has\(actionKey\)/);
   assert.match(loyaltySummaryApiSource, /includePremiumMissions: dashboardEdition !== "standard"/);
 });
@@ -528,14 +528,14 @@ test("iNrSend Standard n'expose que l'historique Publications", () => {
 
 test("Mon compte affiche les identifiants puis le forfait et renvoie vers Mon abonnement", () => {
   const professionalInfoPosition = accountContentSource.indexOf("<div style={card}>");
-  const subscriptionPosition = accountContentSource.indexOf("Votre forfait");
+  const subscriptionPosition = accountContentSource.indexOf('i18nT("votre_forfait_6d06f631")');
 
   assert.notEqual(professionalInfoPosition, -1);
   assert.notEqual(subscriptionPosition, -1);
   assert.ok(professionalInfoPosition < subscriptionPosition);
   assert.doesNotMatch(accountContentSource, /StandardSubscriptionContent/);
   assert.doesNotMatch(accountContentSource, /\/api\/billing\//);
-  assert.match(accountContentSource, /Voir Mon abonnement/);
+  assert.match(accountContentSource, /i18nT\("voir_mon_abonnement_d5b2da25"\)/);
   assert.match(settingsDrawerSource, /onOpenSubscription=\{\(\) => openPanel\("abonnement"\)\}/);
   assert.match(settingsDrawerSource, /panel === "abonnement"/);
   assert.match(settingsDrawerSource, /<StandardSubscriptionContent/);

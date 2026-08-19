@@ -22,11 +22,11 @@ test("the 300 Mo source safety ceiling remains unchanged and is explained before
   );
 
   assert.match(optimizer, /const sourceTooLarge = Boolean/);
-  assert.match(optimizer, /Fichier source trop volumineux/);
-  assert.match(optimizer, /ne peut donc pas importer\s+ni optimiser ce fichier/);
+  assert.match(optimizer, /i18nT\("fichier_source_trop_volumineux_c85fdcd0"\)/);
+  assert.match(optimizer, /i18nT\("maximum_et_ne_peut_donc_pas_554ed6aa"\)/);
   assert.match(optimizer, /!requirements\?\.needsOptimization \|\| sourceTooLarge/);
   assert.match(warning, /sourceMaxBytes/);
-  assert.match(warning, /Ce fichier ne peut pas être importé ni optimisé/);
+  assert.match(warning, /i18nT\("inrcy_accepte_un_fichier_source_de_09666c76"/);
   assert.match(warning, /!sourceTooLarge \? \(/);
 });
 

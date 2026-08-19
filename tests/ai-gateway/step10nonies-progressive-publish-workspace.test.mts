@@ -33,8 +33,8 @@ test("Step 10 nonies opens the manual workspace directly without duplicating pub
 
   assert.match(modal, /const onSelectCreationMode = async/);
   assert.match(modal, /setContentWorkspaceOpen\(nextMode === "manual"\)/);
-  assert.match(modePanel, /Créer avec iNrCy/);
-  assert.match(modePanel, /Créer manuellement/);
+  assert.match(modePanel, /titleKey: "creer_avec_inrcy_6abf3922"/);
+  assert.match(modePanel, /titleKey: "creer_manuellement_89b2d47e"/);
   assert.doesNotMatch(intentPanel, /onCreateManually/);
   assert.equal((modal.match(/<PublishFooterActions/g) || []).length, 1);
 });
@@ -47,7 +47,7 @@ test("Step 10 nonies protects current branch work before changing mode or regene
   assert.match(modal, /Passer à la création avec iNrCy/);
   assert.match(modal, /Vos canaux et vos médias seront conservés/);
   assert.match(modal, /if \(hasWrittenChannelContent\)/);
-  assert.match(modal, /Générer de nouveaux contenus \?/);
+  assert.match(modal, /i18nT\("generer_de_nouveaux_contenus_8a601a4e"\)/);
 });
 
 test("Step 10 nonies restores a saved creation mode and closes every branch on reset", () => {

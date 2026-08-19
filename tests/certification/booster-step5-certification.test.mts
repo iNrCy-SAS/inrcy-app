@@ -290,7 +290,7 @@ test("15 - suivi, nouvelle tentative et annulation TikTok restent disponibles", 
   assert.match(mailboxDetails, /tiktok\/status/);
   assert.match(mailboxDetails, /tiktok\/retry/);
   assert.match(mailboxDetails, /cancelPendingTiktokPublication/);
-  assert.match(mailboxDetails, /Annuler la publication/);
+  assert.match(mailboxDetails, /i18nT\("annuler_la_publication_e7d30046"\)/);
   assert.match(tiktokStatusRoute, /CANCELLED/);
   assert.match(tiktokRetryRoute, /retry/i);
 });

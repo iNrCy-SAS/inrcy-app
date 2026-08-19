@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getClientIp, enforceRateLimit } from "@/lib/rateLimit";
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
+import { buildSupabaseEmailRedirectUrl } from "@/lib/authEmailLinks";
 import {
   hasKnownInrcyAccountForEmail,
   isExistingAuthUserError,
@@ -53,12 +54,6 @@ async function resolveRequestLanguage(req: Request, body: Body | null) {
   return appLanguageFromLocale(locale);
 }
 
-function buildLocalizedFinishUrl(appOrigin: string, path: string, language: string) {
-  const url = new URL(path, `${appOrigin}/`);
-  url.searchParams.set("lang", language);
-  return url.toString();
-}
-
 function successMessage(mode: ResendMode, email: string) {
   return mode === "invite"
     ? `Un nouveau lien d’accès vient d’être envoyé à ${email}.`
@@ -97,7 +92,7 @@ export async function POST(req: Request) {
 
     if (mode === "reset") {
       const { error } = await supabaseAdmin.auth.resetPasswordForEmail(email, {
-        redirectTo: buildLocalizedFinishUrl(appOrigin, "/auth/finish-reset", language),
+        redirectTo: buildSupabaseEmailRedirectUrl(appOrigin, "/auth/finish-reset", language),
       });
 
       if (error) {
@@ -116,7 +111,8 @@ export async function POST(req: Request) {
     }
 
     const inviteResult = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-      redirectTo: buildLocalizedFinishUrl(appOrigin, "/auth/finish-invite", language),
+      data: { app_language: language },
+      redirectTo: buildSupabaseEmailRedirectUrl(appOrigin, "/auth/finish-invite", language),
     });
 
     if (!inviteResult.error) {
@@ -125,7 +121,7 @@ export async function POST(req: Request) {
 
     if (isExistingAuthUserError(inviteResult.error)) {
       const recoveryResult = await supabaseAdmin.auth.resetPasswordForEmail(email, {
-        redirectTo: buildLocalizedFinishUrl(appOrigin, "/auth/finish-reset", language),
+        redirectTo: buildSupabaseEmailRedirectUrl(appOrigin, "/auth/finish-reset", language),
       });
 
       if (!recoveryResult.error) {

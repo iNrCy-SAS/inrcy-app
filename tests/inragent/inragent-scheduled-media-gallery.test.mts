@@ -46,7 +46,7 @@ test("image adaptation replaces only the active image and video replaces the gal
 
 test("the image gallery is capped at five in the UI and API", () => {
   assert.match(scheduledMediaSource, /publishImageLimitReached/);
-  assert.match(scheduledMediaSource, /Maximum de \$\{INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT\} images atteint/);
+  assert.match(scheduledMediaSource, /i18nT\("maximum_de_value_images_atteint_af483c3f"/);
   assert.match(api, /mediaOperation: "append" \| "replace" \| "remove"/);
   assert.match(
     api,
