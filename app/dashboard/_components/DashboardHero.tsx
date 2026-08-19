@@ -158,11 +158,14 @@ export default function DashboardHero({
         <div
           id="dashboard-cockpit-details"
           className={styles.cockpitDetails}
-          aria-hidden={!cockpitOpen}
-          inert={!cockpitOpen}
         >
           <div className={styles.cockpitDetailsInner}>
             <div className={styles.heroTop}>
+              <div className={styles.kicker}>
+                <img className={styles.kickerLogo} src="/mobile-shortcuts/inrcy-bubble.png" alt="" aria-hidden="true" />
+                <span className={styles.kickerText}>{t.hero.kicker}</span>
+              </div>
+
               <h1 className={styles.title}>
                 <span className={`${styles.titleAccent} ${styles.heroDesktopCopy}`}>{t.hero.title}</span>
                 <span className={`${styles.titleAccent} ${styles.heroMobileCopy}`}>

@@ -43,19 +43,26 @@ test("les dates légales de la modale Réglages existent dans chaque langue", ()
   assert.doesNotMatch(modal, /derniere_mise_a_jour_30_06_0c4ba073/);
 });
 
-test("le cockpit est replié par défaut et le Générateur reste juste dessous", () => {
+test("le cockpit reste complet sur desktop et se replie uniquement en responsive", () => {
   const hero = read("app/dashboard/_components/DashboardHero.tsx");
   const css = read("app/dashboard/dashboard.module.css");
+  const responsiveCockpit = css.slice(css.indexOf("Cockpit compact — responsive uniquement"));
 
   assert.match(hero, /const \[cockpitOpen, setCockpitOpen\] = useState\(false\)/);
   assert.match(hero, /aria-expanded=\{cockpitOpen\}/);
   assert.match(hero, /aria-controls="dashboard-cockpit-details"/);
-  assert.match(hero, /inert=\{!cockpitOpen\}/);
+  assert.doesNotMatch(hero, /inert=\{!cockpitOpen\}/);
+  assert.match(hero, /className=\{styles\.kicker\}/);
   assert.match(
     hero,
     /className=\{styles\.cockpitDetails\}[\s\S]*?<div className=\{styles\.generatorCard\}>/,
   );
-  assert.match(css, /\.cockpitDetails\s*\{[\s\S]*grid-template-rows: 0fr/);
-  assert.match(css, /\.cockpitPanelOpen \.cockpitDetails\s*\{[\s\S]*grid-template-rows: 1fr/);
-  assert.match(css, /\.hero\s*\{\s*grid-template-columns: minmax\(0, 1fr\)/);
+  assert.match(css, /\.hero\s*\{[\s\S]*?grid-template-columns: 1\.05fr 0\.95fr/);
+  assert.match(responsiveCockpit, /\.cockpitToggle\s*\{\s*display: none/);
+  assert.match(responsiveCockpit, /\.cockpitDetails,\s*\.cockpitDetailsInner\s*\{\s*display: contents/);
+  assert.match(responsiveCockpit, /@media \(max-width: 1100px\)/);
+  assert.match(responsiveCockpit, /\.cockpitToggle\s*\{[\s\S]*?display: flex/);
+  assert.match(responsiveCockpit, /\.cockpitDetails\s*\{[\s\S]*?grid-template-rows: 0fr/);
+  assert.match(responsiveCockpit, /\.cockpitPanelOpen \.cockpitDetails\s*\{[\s\S]*?grid-template-rows: 1fr/);
+  assert.match(responsiveCockpit, /\.hero\s*\{\s*grid-template-columns: minmax\(0, 1fr\)/);
 });
