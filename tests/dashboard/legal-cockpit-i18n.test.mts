@@ -53,6 +53,8 @@ test("le cockpit reste complet sur desktop et se replie uniquement en responsive
   assert.match(hero, /aria-controls="dashboard-cockpit-details"/);
   assert.doesNotMatch(hero, /inert=\{!cockpitOpen\}/);
   assert.match(hero, /className=\{styles\.kicker\}/);
+  assert.match(hero, /className=\{`\$\{styles\.kicker\} \$\{styles\.cockpitToggleKicker\}`\}/);
+  assert.doesNotMatch(hero, /cockpitToggleLabel|cockpitToggleLogo/);
   assert.match(
     hero,
     /className=\{styles\.cockpitDetails\}[\s\S]*?<div className=\{styles\.generatorCard\}>/,
@@ -61,8 +63,36 @@ test("le cockpit reste complet sur desktop et se replie uniquement en responsive
   assert.match(responsiveCockpit, /\.cockpitToggle\s*\{\s*display: none/);
   assert.match(responsiveCockpit, /\.cockpitDetails,\s*\.cockpitDetailsInner\s*\{\s*display: contents/);
   assert.match(responsiveCockpit, /@media \(max-width: 1100px\)/);
-  assert.match(responsiveCockpit, /\.cockpitToggle\s*\{[\s\S]*?display: flex/);
+  assert.match(responsiveCockpit, /\.cockpitToggle\s*\{[\s\S]*?display: grid/);
+  assert.match(
+    responsiveCockpit,
+    /\.cockpitToggle\s*\{[\s\S]*?grid-template-columns: minmax\(0, 1fr\) auto minmax\(0, 1fr\)/,
+  );
+  assert.match(
+    responsiveCockpit,
+    /\.cockpitToggleKicker\s*\{[\s\S]*?grid-column: 2;[\s\S]*?align-self: center;[\s\S]*?justify-self: center/,
+  );
+  assert.match(
+    responsiveCockpit,
+    /\.cockpitChevron\s*\{[\s\S]*?grid-column: 3;[\s\S]*?align-self: center;[\s\S]*?justify-self: end/,
+  );
   assert.match(responsiveCockpit, /\.cockpitDetails\s*\{[\s\S]*?grid-template-rows: 0fr/);
   assert.match(responsiveCockpit, /\.cockpitPanelOpen \.cockpitDetails\s*\{[\s\S]*?grid-template-rows: 1fr/);
   assert.match(responsiveCockpit, /\.hero\s*\{\s*grid-template-columns: minmax\(0, 1fr\)/);
+});
+
+test("le Générateur conserve un en-tête strictement organisé sur deux lignes", () => {
+  const hero = read("app/dashboard/_components/DashboardHero.tsx");
+  const css = read("app/dashboard/dashboard.module.css");
+
+  assert.match(hero, /className=\{styles\.generatorTitle\}>\{t\.hero\.generatorTitle\}<\/div>/);
+  assert.doesNotMatch(hero, /compactGeneratorTitle|generatorTitleFull|generatorTitleCompact/);
+  assert.match(css, /\.generatorHeader\s*\{[\s\S]*?display: grid;[\s\S]*?grid-template-columns: minmax\(0, 1fr\) auto/);
+  assert.match(css, /\.generatorHeaderCopy\s*\{\s*display: contents/);
+  assert.match(css, /\.generatorHeaderLead\s*\{[\s\S]*?grid-column: 1;[\s\S]*?grid-row: 1/);
+  assert.match(css, /\.generatorHeaderRight\s*\{[\s\S]*?grid-column: 2;[\s\S]*?grid-row: 1/);
+  assert.match(
+    css,
+    /\.generatorDesc\s*\{[\s\S]*?grid-column: 1 \/ -1;[\s\S]*?grid-row: 2;[\s\S]*?white-space: nowrap/,
+  );
 });

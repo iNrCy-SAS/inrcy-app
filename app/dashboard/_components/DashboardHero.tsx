@@ -81,8 +81,6 @@ export default function DashboardHero({
   const t = useDashboardI18n();
   const heroT = useTranslations("dashboard.hero");
   const mobileCopy = getMobileHeroCopy(t.locale, i18nT);
-  const compactGeneratorTitle =
-    t.hero.generatorTitle.replace(/iNrCy/gi, "").replace(/\s{2,}/g, " ").trim() || t.hero.generatorTitle;
   const [cockpitOpen, setCockpitOpen] = useState(false);
   const [powerBreakdownOpen, setPowerBreakdownOpen] = useState(false);
   const powerBreakdownRef = useRef<HTMLDivElement | null>(null);
@@ -146,8 +144,8 @@ export default function DashboardHero({
           aria-controls="dashboard-cockpit-details"
           aria-label={cockpitOpen ? t.hero.collapseCockpitAria : t.hero.expandCockpitAria}
         >
-          <span className={styles.cockpitToggleLabel}>
-            <img className={styles.cockpitToggleLogo} src="/mobile-shortcuts/inrcy-bubble.png" alt="" aria-hidden="true" />
+          <span className={`${styles.kicker} ${styles.cockpitToggleKicker}`}>
+            <img className={styles.kickerLogo} src="/mobile-shortcuts/inrcy-bubble.png" alt="" aria-hidden="true" />
             <span className={styles.kickerText}>{t.hero.kicker}</span>
           </span>
           <svg className={styles.cockpitChevron} viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -251,10 +249,7 @@ export default function DashboardHero({
         <div className={styles.generatorHeader}>
           <div className={styles.generatorHeaderCopy}>
             <div className={styles.generatorHeaderLead}>
-              <div className={styles.generatorTitle}>
-                <span className={styles.generatorTitleFull}>{t.hero.generatorTitle}</span>
-                <span className={styles.generatorTitleCompact}>{compactGeneratorTitle}</span>
-              </div>
+              <div className={styles.generatorTitle}>{t.hero.generatorTitle}</div>
               <HelpButton onClick={onOpenGeneratorHelp} title={t.hero.generatorHelpTitle} />
             </div>
             <div className={styles.generatorDesc}>{t.hero.generatorDesc}</div>

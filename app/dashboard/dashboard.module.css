@@ -1153,38 +1153,52 @@
 }
 
 .generatorHeader {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 4px;
   margin-bottom: 12px;
 }
 
+.generatorHeaderCopy {
+  display: contents;
+}
+
 .generatorHeaderLead {
+  grid-column: 1;
+  grid-row: 1;
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 0;
 }
 
 .generatorTitle {
   font-weight: 950;
   letter-spacing: -0.2px;
-}
-
-.generatorTitleCompact {
-  display: none;
+  white-space: nowrap;
 }
 
 .generatorDesc {
-  margin-top: 4px;
+  grid-column: 1 / -1;
+  grid-row: 2;
+  min-width: 0;
+  margin-top: 0;
   font-size: 13px;
+  line-height: 1.3;
   color: rgba(255, 255, 255, 0.7);
+  white-space: nowrap;
 }
 
 .generatorHeaderRight {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
   display: inline-flex;
   align-items: center;
   gap: 10px;
+  flex-wrap: nowrap;
 }
 
 .generatorStatus {
@@ -10481,32 +10495,20 @@
   }
 
   .generatorHeader {
-    display: grid;
-    grid-template-columns: max-content minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     column-gap: 8px;
     row-gap: 4px;
     padding-bottom: 10px;
   }
 
-  .generatorHeaderCopy {
-    display: contents;
-  }
-
   .generatorHeaderLead {
-    grid-column: 1;
-    grid-row: 1;
     gap: 6px;
-    min-width: 0;
   }
 
   .generatorHeaderRight {
-    grid-column: 2;
-    grid-row: 1;
-    justify-self: end;
     gap: 6px;
     min-width: 0;
-    flex-wrap: nowrap;
   }
 
   .generatorTitle {
@@ -10514,22 +10516,10 @@
     white-space: nowrap;
   }
 
-  .generatorTitleFull {
-    display: none;
-  }
-
-  .generatorTitleCompact {
-    display: inline;
-  }
-
   .generatorDesc {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    margin-top: 0;
     font-size: clamp(8.5px, 2.8vw, 11px);
     line-height: 1.25;
     letter-spacing: -0.08px;
-    white-space: nowrap;
   }
 
   .generatorStatus {
@@ -11732,18 +11722,19 @@
   .cockpitToggle {
     position: relative;
     z-index: 3;
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     width: 100%;
-    min-height: 68px;
+    min-height: 72px;
     align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    padding: 12px 18px;
+    justify-items: stretch;
+    gap: 0;
+    padding: 10px 14px;
     border: 0;
     background: transparent;
     color: inherit;
     font: inherit;
-    text-align: left;
+    text-align: center;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
   }
@@ -11768,25 +11759,19 @@
     border-radius: 20px;
   }
 
-  .cockpitToggleLabel {
-    display: inline-flex;
-    min-width: 0;
-    align-items: center;
-    gap: 12px;
-    font-size: 17px;
-    font-weight: 950;
-    letter-spacing: -0.25px;
-  }
-
-  .cockpitToggleLogo {
-    width: 42px;
-    height: 42px;
-    flex: 0 0 42px;
-    object-fit: contain;
-    filter: drop-shadow(0 0 16px rgba(var(--cockpit-cyan), 0.34));
+  .cockpitToggleKicker {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: center;
+    justify-self: center;
+    margin: 0;
   }
 
   .cockpitChevron {
+    grid-column: 3;
+    grid-row: 1;
+    align-self: center;
+    justify-self: end;
     width: 34px;
     height: 34px;
     flex: 0 0 34px;
@@ -11845,6 +11830,10 @@
     text-align: center;
   }
 
+  .cockpitPanel:not(.cockpitPanelOpen) .cockpitDetailsInner {
+    padding-bottom: 0;
+  }
+
   .cockpitDetailsInner .kicker {
     display: none;
   }
@@ -11863,24 +11852,12 @@
 
 @media (max-width: 560px) {
   .cockpitToggle {
-    min-height: 58px;
-    gap: 10px;
-    padding: 9px 12px;
+    min-height: 64px;
+    padding: 8px 10px;
   }
 
   .cockpitToggle::after {
     inset-inline: 12px;
-  }
-
-  .cockpitToggleLabel {
-    gap: 9px;
-    font-size: 15px;
-  }
-
-  .cockpitToggleLogo {
-    width: 36px;
-    height: 36px;
-    flex-basis: 36px;
   }
 
   .cockpitChevron {
