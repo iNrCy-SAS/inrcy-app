@@ -185,6 +185,111 @@ const localeTermReplacements = new Map([
   ]],
 ]);
 
+// Propulser/Fidéliser are action labels, not immutable brands. Keep one
+// concise, native label per locale everywhere the modules are displayed.
+const moduleTerms = new Map([
+  ["en-GB", {
+    grow: "Grow", retain: "Retain", collect: "Collect", highlight: "Highlight", offer: "Offer",
+    simpleEmails: "simple emails", helpGrow: "Grow help", helpRetain: "Retain help",
+    goGrow: "Go to Grow", goRetain: "Go to Retain", missionGrow: "Grow mission",
+    missionRetain: "Retain mission", moduleGrow: "Grow module", moduleRetain: "Retain module",
+    navigationGrow: "Navigation between Grow themes", navigationRetain: "Navigation between Retain themes",
+    useGrow: "Use Grow", useRetain: "Use Retain",
+  }],
+  ["es-ES", {
+    grow: "Impulsar", retain: "Fidelizar", collect: "Recopilar", highlight: "Valorar", offer: "Ofrecer",
+    simpleEmails: "correos simples", helpGrow: "Ayuda de Impulsar", helpRetain: "Ayuda de Fidelizar",
+    goGrow: "Ir a Impulsar", goRetain: "Ir a Fidelizar", missionGrow: "Misión Impulsar",
+    missionRetain: "Misión Fidelizar", moduleGrow: "Módulo Impulsar", moduleRetain: "Módulo Fidelizar",
+    navigationGrow: "Navegación entre los temas de Impulsar", navigationRetain: "Navegación entre los temas de Fidelizar",
+    useGrow: "Usar Impulsar", useRetain: "Usar Fidelizar",
+  }],
+  ["it-IT", {
+    grow: "Promuovi", retain: "Fidelizza", collect: "Raccogliere", highlight: "Valorizzare", offer: "Offrire",
+    simpleEmails: "email semplici", helpGrow: "Aiuto Promuovi", helpRetain: "Aiuto Fidelizza",
+    goGrow: "Vai a Promuovi", goRetain: "Vai a Fidelizza", missionGrow: "Missione Promuovi",
+    missionRetain: "Missione Fidelizza", moduleGrow: "Modulo Promuovi", moduleRetain: "Modulo Fidelizza",
+    navigationGrow: "Navigazione tra i temi Promuovi", navigationRetain: "Navigazione tra i temi Fidelizza",
+    useGrow: "Usa Promuovi", useRetain: "Usa Fidelizza",
+  }],
+  ["de-DE", {
+    grow: "Wachstum", retain: "Kundenbindung", collect: "Sammeln", highlight: "Hervorheben", offer: "Anbieten",
+    simpleEmails: "einfache E-Mails", helpGrow: "Hilfe zu Wachstum", helpRetain: "Hilfe zur Kundenbindung",
+    goGrow: "Zu Wachstum", goRetain: "Zur Kundenbindung", missionGrow: "Wachstumsmission",
+    missionRetain: "Kundenbindungsmission", moduleGrow: "Wachstumsmodul", moduleRetain: "Kundenbindungsmodul",
+    navigationGrow: "Navigation zwischen Wachstumsthemen", navigationRetain: "Navigation zwischen Kundenbindungsthemen",
+    useGrow: "Wachstum nutzen", useRetain: "Kundenbindung nutzen",
+  }],
+  ["nl-NL", {
+    grow: "Groei", retain: "Klantenbinding", collect: "Verzamelen", highlight: "Benadrukken", offer: "Aanbieden",
+    simpleEmails: "eenvoudige e-mails", helpGrow: "Hulp bij Groei", helpRetain: "Hulp bij Klantenbinding",
+    goGrow: "Naar Groei", goRetain: "Naar Klantenbinding", missionGrow: "Groei-missie",
+    missionRetain: "Klantenbindingsmissie", moduleGrow: "Groei-module", moduleRetain: "Klantenbindingsmodule",
+    navigationGrow: "Navigatie tussen Groei-thema's", navigationRetain: "Navigatie tussen Klantenbindingsthema's",
+    useGrow: "Groei gebruiken", useRetain: "Klantenbinding gebruiken",
+  }],
+  ["pt-PT", {
+    grow: "Impulsionar", retain: "Fidelizar", collect: "Recolher", highlight: "Valorizar", offer: "Oferecer",
+    simpleEmails: "e-mails simples", helpGrow: "Ajuda de Impulsionar", helpRetain: "Ajuda de Fidelizar",
+    goGrow: "Ir para Impulsionar", goRetain: "Ir para Fidelizar", missionGrow: "Missão Impulsionar",
+    missionRetain: "Missão Fidelizar", moduleGrow: "Módulo Impulsionar", moduleRetain: "Módulo Fidelizar",
+    navigationGrow: "Navegação entre temas de Impulsionar", navigationRetain: "Navegação entre temas de Fidelizar",
+    useGrow: "Usar Impulsionar", useRetain: "Usar Fidelizar",
+  }],
+]);
+
+const directGrowKeys = new Set([
+  "agent.propulser_2de43942", "gps.propulser_2de43942", "gps.propulser_dfe314e3",
+  "growth.propulser_2de43942", "mails.workflow_propulser_name", "stats.propulser_2de43942",
+]);
+const directRetainKeys = new Set([
+  "agent.fideliser_8fa9e4f1", "gps.fideliser_8fa9e4f1", "gps.fideliser_ccc21ec9",
+  "growth.fideliser_8fa9e4f1", "mails.workflow_fideliser_name", "stats.fideliser_8fa9e4f1",
+]);
+
+function normalizeModuleTerminology(locale, namespace, key, value) {
+  const terms = moduleTerms.get(locale);
+  if (!terms) return value;
+  const qualifiedKey = `${namespace}.${key}`;
+  if (directGrowKeys.has(qualifiedKey)) return terms.grow;
+  if (directRetainKeys.has(qualifiedKey)) return terms.retain;
+  if (qualifiedKey === "mails.propulser_e7c8950b") return `🚀 ${terms.grow}`;
+  if (qualifiedKey === "mails.fideliser_398bb02e") return `💌 ${terms.retain}`;
+
+  const directTemplates = new Map([
+    ["growth.aide_propulser_f14568d1", terms.helpGrow],
+    ["growth.aide_fideliser_a1feee79", terms.helpRetain],
+    ["growth.aller_vers_propulser_f020d44a", terms.goGrow],
+    ["growth.aller_vers_fideliser_27c4ce6a", terms.goRetain],
+    ["growth.mission_propulser_09f6fdac", terms.missionGrow],
+    ["growth.mission_fideliser_4c1796f6", terms.missionRetain],
+    ["growth.module_propulser_08eded54", terms.moduleGrow],
+    ["growth.module_fideliser_b309c73d", terms.moduleRetain],
+    ["growth.navigation_entre_les_themes_propulser_9e51e926", terms.navigationGrow],
+    ["growth.navigation_entre_les_themes_fideliser_436ee375", terms.navigationRetain],
+    ["settings.utiliser_propulser_c4b4b56d", terms.useGrow],
+    ["settings.utiliser_fideliser_af919842", terms.useRetain],
+    ["shell.utiliser_propulser_c4b4b56d", terms.useGrow],
+    ["shell.utiliser_fideliser_af919842", terms.useRetain],
+    ["stats.utiliser_propulser_c4b4b56d", terms.useGrow],
+    ["stats.utiliser_fideliser_af919842", terms.useRetain],
+  ]);
+  if (directTemplates.has(qualifiedKey)) return directTemplates.get(qualifiedKey);
+
+  const moduleContext = /(?:propul|fideli|loyalty|grow)|^(?:mail_connect_to_unlock_tools|mail_measurement_hint|connectez_au_moins_une_boite_d_|contacts_supplementaires_pouvant_etre_generes_gr_|plus_vos_canaux_de_diffusion_sont_|points_generes_par_votre_activite_et_|cette_categorie_pilote_les_modeles_proposes_)/iu.test(key)
+    || /\b(?:Propulser|Propel|Propulse|Fidéliser|Fideliser|Loyalty|Retain)\b/u.test(value);
+  if (!moduleContext) return value;
+
+  return value
+    .replace(/\b(?:Propulser|Propel|Propulse)\b/gu, terms.grow)
+    .replace(/\bBoost\b/gu, terms.grow)
+    .replace(/\b(?:Fidéliser|Fideliser|Loyalty|Retain)\b/gu, terms.retain)
+    .replace(/\b(?:Reap|Harvest|Harvesting|Collect)\b/gu, terms.collect)
+    .replace(/\b(?:Value|Valuing)\b/gu, terms.highlight)
+    .replace(/\b(?:Offer|Offering)\b/gu, terms.offer)
+    .replace(/\bSimple Emails\b/gu, terms.simpleEmails);
+}
+
 const spanishReplacements = [
   [/\bSeleccione\b/g, "Selecciona"],
   [/\bElija\b/g, "Elige"],
@@ -431,11 +536,14 @@ const localeOverrides = new Map([
 // Keeping them in the post-edit pipeline makes the correction reproducible.
 const validationOverrides = new Map([
   ["es-ES:agenda.value_evenement_value_ea491d64", "{value0} evento{value1}"],
+  ["it-IT:agenda.vendredi_cb289d87", "Venerdì"],
   ["es-ES:crm.cette_action_supprimera_definitivement_value_con_9ecfd7cf", "Esta acci\u00f3n eliminar\u00e1 definitivamente {value0} contacto{value1}."],
   ["it-IT:crm.cette_action_supprimera_definitivement_value_con_9ecfd7cf", "Questa azione eliminer\u00e0 definitivamente {value0} contatto{value1}."],
   ["de-DE:crm.cette_action_supprimera_definitivement_value_con_9ecfd7cf", "Diese Aktion l\u00f6scht endg\u00fcltig {value0} Kontakt{value1}."],
   ["nl-NL:crm.cette_action_supprimera_definitivement_value_con_9ecfd7cf", "Deze actie verwijdert permanent {value0} contact{value1}."],
   ["pt-PT:crm.cette_action_supprimera_definitivement_value_con_9ecfd7cf", "Esta a\u00e7\u00e3o eliminar\u00e1 definitivamente {value0} contacto{value1}."],
+  ["pt-PT:public.service_intent_identity", "Dá à empresa uma identidade reconhecível, com elementos visuais coerentes em todos os suportes."],
+  ["pt-PT:public.service_intent_print", "Materializa a mensagem da empresa em suportes claros, úteis e prontos a divulgar."],
   ["es-ES:growth.les_actions_lancees_depuis_fideliser_y_795ea881", "Las acciones iniciadas desde Fidelizar siguen disponibles, y las publicaciones realizadas desde Booster tambi\u00e9n se encuentran en iNr\u2019Send / Publicaciones para modificarlas o eliminarlas."],
   ["it-IT:growth.inr_send_5c2a3e92", "iNr\u2019Send"],
   ["it-IT:growth.ouvrir_inr_send_d4b453c9", "Apri iNr\u2019Send"],
@@ -498,7 +606,7 @@ const validationOverrides = new Map([
   ["en-GB:shell.connexion_instagram_d099afc4", "Instagram personal account"],
   ["en-GB:shell.connexion_officielle_tiktok_le_pro_autorise_1d5dce46", "Official TikTok connection: the professional authorises their account via Login Kit, then iNrCy stores encrypted tokens server-side."],
   ["en-GB:shell.contacts_supplementaires_pouvant_etre_generes_en_12d3fa24", "Additional contacts can be generated by publishing regularly with Booster and keeping your channels active. Each opportunity is a potential new request captured through your multichannel communication."],
-  ["en-GB:shell.contacts_supplementaires_pouvant_etre_generes_gr_207bdb80", "Additional contacts can be generated through the actions recommended in iNrCy: publish with Booster, grow with Propulser or maintain relationships with Fideliser. Each opportunity is a potential new request captured through your communication channels."],
+  ["en-GB:shell.contacts_supplementaires_pouvant_etre_generes_gr_207bdb80", "Additional contacts can be generated through the actions recommended in iNrCy: publish with Booster, develop your business with Grow, or maintain relationships with Retain. Each opportunity is a potential new request captured through your communication channels."],
   ["en-GB:shell.copie_creee_l_original_a_ete_6b669e89", "Copy created. The original was kept because it is still used in iNrCy."],
   ["en-GB:shell.inr_apos_send_aaa1fcec", "iNr&apos;Send"],
   ["en-GB:shell.inr_apos_stats_e43f5622", "iNr&apos;Stats"],
@@ -838,7 +946,7 @@ function posteditValue(locale, namespace, key, value) {
     ?? localeOverrides.get(`${locale}:${namespace}.${key}`)
     ?? (locale === "en-GB" ? englishOverrides.get(`${namespace}.${key}`) : undefined)
     ?? output;
-  return normalizeBrands(decodeHtmlEntities(edited));
+  return normalizeBrands(decodeHtmlEntities(normalizeModuleTerminology(locale, namespace, key, edited)));
 }
 
 function restorePlaceholderWhitespace(source, translation) {
@@ -848,14 +956,9 @@ function restorePlaceholderWhitespace(source, translation) {
     const sourceIndex = source.indexOf(token);
     let targetIndex = output.indexOf(token);
     if (sourceIndex < 0 || targetIndex < 0) continue;
-    const sourceHead = source.slice(0, sourceIndex);
-    const targetHead = output.slice(0, targetIndex);
-    const expectedLeftBoundary = (sourceHead.match(/[.,;:!?…\s]+$/u)?.[0] ?? "").replace(/\s+/gu, " ");
-    const currentLeftBoundary = targetHead.match(/[.,;:!?…\s]+$/u)?.[0] ?? "";
-    if (currentLeftBoundary !== expectedLeftBoundary) {
-      output = `${targetHead.slice(0, targetHead.length - currentLeftBoundary.length)}${expectedLeftBoundary}${output.slice(targetIndex)}`;
-      targetIndex = output.indexOf(token);
-    }
+    // Keep placeholders separated from words when the source requires it, but
+    // never copy French punctuation into another language. Punctuation order
+    // and spacing are part of the translated sentence itself.
     const sourceHasSpaceBefore = sourceIndex > 0 && /\s/u.test(source[sourceIndex - 1]);
     const sourceHasSpaceAfter = sourceIndex + token.length < source.length && /\s/u.test(source[sourceIndex + token.length]);
     if (sourceHasSpaceBefore && targetIndex > 0 && /[\p{L}\p{N}]/u.test(output[targetIndex - 1])) {
@@ -864,16 +967,6 @@ function restorePlaceholderWhitespace(source, translation) {
     }
     if (sourceHasSpaceAfter && targetIndex + token.length < output.length && /[\p{L}\p{N}]/u.test(output[targetIndex + token.length])) {
       output = `${output.slice(0, targetIndex + token.length)} ${output.slice(targetIndex + token.length)}`;
-    }
-    targetIndex = output.indexOf(token);
-    const sourceTail = source.slice(sourceIndex + token.length);
-    const targetTail = output.slice(targetIndex + token.length);
-    const sourceBoundary = sourceTail.match(/^[.,;:!?…\s]+/u)?.[0];
-    if (sourceBoundary === undefined) continue;
-    const expectedBoundary = sourceBoundary.replace(/\s+/gu, " ");
-    const currentBoundary = targetTail.match(/^[.,;:!?…\s]+/u)?.[0] ?? "";
-    if (currentBoundary !== expectedBoundary) {
-      output = `${output.slice(0, targetIndex + token.length)}${expectedBoundary}${targetTail.slice(currentBoundary.length)}`;
     }
   }
   return output;

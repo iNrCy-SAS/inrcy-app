@@ -7,7 +7,7 @@ import { resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { invalidateBoosterGenerationContextClient } from "@/lib/boosterGenerationContextClient";
 import { refreshPublicProfileDependents } from "@/lib/publicProfileRefreshClient";
 
-import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
+import { getClientUserFacingErrorMessage } from "@/lib/userFacingErrors";
 import { confirmInrcy } from "@/lib/inrcyDialog";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
@@ -449,14 +449,14 @@ export default function ActivityContent({
     if (saving) return;
     if (requireComplete) {
       const missing: string[] = [];
-      if (!form.sectorCategory.trim() || !form.sector.trim()) missing.push("le métier");
-      if (!allSelectedServices.length) missing.push("les prestations");
-      if (!form.interventionZones.length) missing.push("les zones d’intervention");
+      if (!form.sectorCategory.trim() || !form.sector.trim()) missing.push(i18nT("activity_profession_missing_label"));
+      if (!allSelectedServices.length) missing.push(i18nT("activity_services_missing_label"));
+      if (!form.interventionZones.length) missing.push(i18nT("activity_zones_missing_label"));
       if (!normalizeOpeningScheduleText(form.openingSchedule).trim()) {
-        missing.push("les horaires d’ouverture");
+        missing.push(i18nT("activity_opening_hours_missing_label"));
       }
-      if (!form.strengths.length) missing.push("les forces");
-      if (!form.customerTypes.length) missing.push("la clientèle");
+      if (!form.strengths.length) missing.push(i18nT("activity_strengths_missing_label"));
+      if (!form.customerTypes.length) missing.push(i18nT("activity_customer_types_missing_label"));
       if (missing.length) {
         setError(i18nT("pour_continuer_completez_value_ad238d6f", { value0: missing.join(", ") }));
         return;
@@ -470,7 +470,7 @@ export default function ActivityContent({
       const { data: authData, error: authErr } = await supabase.auth.getUser();
       if (authErr) throw new Error(authErr.message);
       const user = authData?.user;
-      if (!user) throw new Error("Utilisateur non connecté.");
+      if (!user) throw new Error(i18nT("user_not_authenticated"));
 
       const payload = {
         user_id: resolveActiveBrowserUserId(user.id),
@@ -545,9 +545,9 @@ export default function ActivityContent({
       }
     } catch (e: unknown) {
       setError(
-        getSimpleFrenchErrorMessage(
+        getClientUserFacingErrorMessage(
           e,
-          "Impossible d'enregistrer cette activité.",
+          i18nT("activity_save_failed"),
         ),
       );
     } finally {
@@ -961,8 +961,8 @@ export default function ActivityContent({
                 placeholder={i18nT("ex_intervention_week_end_931e57fb")}
                 emptyText={
                   form.sector
-                    ? "Ajoutez au moins une prestation représentative de votre activité."
-                    : "Choisissez d’abord un métier : iNrCy proposera automatiquement jusqu’à 8 prestations."
+                    ? i18nT("activity_service_required")
+                    : i18nT("activity_services_choose_profession_first")
                 }
                 maxItems={20}
               />

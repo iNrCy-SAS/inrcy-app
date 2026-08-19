@@ -78,7 +78,7 @@ export default function TiktokPanel(props: any) {
         <input
           value={tiktokConnected ? tiktokUsername : ""}
           readOnly
-          placeholder={tiktokConnected ? "Compte connecté" : "Aucun compte connecté"}
+          placeholder={tiktokConnected ? i18nT("compte_connecte_a442afe1") : i18nT("account_not_connected")}
           style={{ ...inputStyle, opacity: tiktokConnected ? 1 : 0.8 }}
         />
 

@@ -19,7 +19,7 @@ import React, {
 import { useRouter, useSearchParams } from "next/navigation";
 import styles from "./mails.module.css";
 import { createClient } from "@/lib/supabaseClient";
-import { getClientUserFacingErrorMessage as getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
+import { getClientUserFacingErrorMessage } from "@/lib/userFacingErrors";
 import { requestBoosterVideoTransforms } from "@/lib/boosterVideoTransformClient";
 import {
   buildVideoTransformSignature,
@@ -173,10 +173,10 @@ import {
   BOOSTER_MAX_VIDEO_BYTES,
   BOOSTER_MAX_VIDEO_MB_LABEL,
   uploadBoosterVideo,
-  VIDEO_ADAPTATION_MODE_LABELS,
-  getVideoFormatLabel,
+  getLocalizedVideoAdaptationModeLabel,
+  getLocalizedVideoFormatLabel,
+  getLocalizedVideoOrientationLabel,
   isUnsupportedBrowserImageFile,
-  unsupportedBrowserImageMessage,
   type BoosterVideoSourceMetadata,
   type ChannelKey as BoosterChannelKey,
   type VideoAdaptationMode,
@@ -816,16 +816,18 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
   function buildScheduledMailEditPayload(scheduledAt?: string | null) {
     if (!scheduledMailEdit) return null;
     if (!selectedAccount) {
-      throw new Error("Veuillez connecter une boîte d’envoi dans les réglages.");
+      throw new Error(i18nT("veuillez_connecter_une_boite_d_envoi_98abd470"));
     }
     const recipientsList = normalizeEmails(to);
     if (recipientsList.length === 0) {
-      throw new Error("Veuillez ajouter au moins un destinataire.");
+      throw new Error(i18nT("veuillez_ajouter_au_moins_un_destinataire_7e03a00e"));
     }
 
     const existingPayload = asScheduledRecord(scheduledMailEdit.payload);
     const existingCampaign = asScheduledRecord(existingPayload.campaign);
-    const cleanSubject = normalizeMailSubject(subject.trim() || "(sans objet)");
+    const cleanSubject = normalizeMailSubject(
+      subject.trim() || i18nT("sans_objet_e5ad6a39"),
+    );
     const campaignPayload = {
       ...existingCampaign,
       accountId: selectedAccount.id,
@@ -860,7 +862,13 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
       actionType: "mailing",
       targetTool: "mails",
       title: i18nT("mail_value_772b3623", { value0: cleanSubject }),
-      summary: `${recipientsList.length} destinataire${recipientsList.length > 1 ? "s" : ""} · ${selectedAccount.email_address || selectedAccount.provider || "boîte connectée"}`,
+      summary: i18nT("scheduled_mail_recipient_summary", {
+        count: recipientsList.length,
+        account:
+          selectedAccount.email_address ||
+          selectedAccount.provider ||
+          i18nT("connected_mailbox"),
+      }),
       ...(scheduledAt ? { scheduledAt } : {}),
       channels: ["mails"],
       payload: {
@@ -877,7 +885,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
     body: Record<string, unknown>,
   ): Promise<ScheduledMailEditState> {
     if (!scheduledMailEdit) {
-      throw new Error("Mail programmé introuvable.");
+      throw new Error(i18nT("scheduled_mail_missing"));
     }
     const response = await fetch(
       `/api/agent/scheduled-actions/${scheduledMailEdit.id}`,
@@ -893,13 +901,13 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
     } | null;
     if (!response.ok || !data?.scheduledAction) {
       throw new Error(
-        data?.error || "Enregistrement du mail programmé impossible.",
+        data?.error || i18nT("scheduled_mail_save_failed"),
       );
     }
     return {
       id: String(data.scheduledAction.id),
       scheduledAt: data.scheduledAction.scheduledAt || null,
-      title: String(data.scheduledAction.title || "Mail programmé"),
+      title: String(data.scheduledAction.title || i18nT("scheduled_mail_default_title")),
       payload: asScheduledRecord(data.scheduledAction.payload),
     };
   }
@@ -917,7 +925,10 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
       setScheduledMailEdit(null);
       scheduledMailEditLoadRef.current = "";
     } catch (error) {
-      const message = getSimpleFrenchErrorMessage(error, "Enregistrement du mail programmé impossible.");
+      const message = getClientUserFacingErrorMessage(
+        error,
+        i18nT("scheduled_mail_save_failed"),
+      );
       setToast(message);
     } finally {
       setScheduledMailEditSaving(false);
@@ -938,7 +949,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(
-          data?.error || "Envoi immédiat du mail programmé impossible.",
+          data?.error || i18nT("scheduled_mail_send_now_failed"),
         );
       }
       setToast(i18nT("mail_lance_maintenant_la_programmation_future_73010184"));
@@ -947,7 +958,12 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
       await loadHistory();
       updateFolder("mails");
     } catch (error) {
-      setToast(getSimpleFrenchErrorMessage(error, "Envoi immédiat du mail programmé impossible."));
+      setToast(
+        getClientUserFacingErrorMessage(
+          error,
+          i18nT("scheduled_mail_send_now_failed"),
+        ),
+      );
     } finally {
       setScheduledMailEditSaving(false);
     }
@@ -1022,7 +1038,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
   ): Promise<ComposeCrmRecipientHint[]> {
     const { data: auth } = await supabase.auth.getUser();
     const userId = auth?.user?.id ? resolveActiveBrowserUserId(auth.user.id) : null;
-    if (!userId) throw new Error("Établissement actif indisponible.");
+    if (!userId) throw new Error(i18nT("active_establishment_unavailable"));
 
     const pageSize = 1000;
     let from = 0;
@@ -1097,7 +1113,8 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
       setComposeSourceDocNumber(String(raw.source_doc_number || ""));
       setSubject(
         normalizeMailSubject(
-          String(raw.subject || item.subject || "").trim() || "(sans objet)",
+          String(raw.subject || item.subject || "").trim() ||
+            i18nT("sans_objet_e5ad6a39"),
         ),
       );
       setComposeBody(
@@ -1136,8 +1153,8 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
       setComposeOpen(true);
       setToast(
         mode === "resend"
-          ? "Campagne prête à renvoyer : vérifiez puis envoyez."
-          : "Campagne prête à réutiliser : choisissez les nouveaux destinataires.",
+          ? i18nT("campaign_ready_to_resend")
+          : i18nT("campaign_ready_to_reuse"),
       );
     } catch (error) {
       console.error(error);
@@ -1275,7 +1292,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
         const payload = await response.json().catch(() => null);
         if (!response.ok) {
           throw new Error(
-            payload?.error || "Impossible de charger l’historique iNr’Send.",
+            payload?.error || i18nT("history_load_failed"),
           );
         }
 
@@ -1651,7 +1668,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
       try {
         const { data: auth } = await supabase.auth.getUser();
         const userId = auth?.user?.id ? resolveActiveBrowserUserId(auth.user.id) : null;
-        if (!userId) throw new Error("Établissement actif indisponible.");
+        if (!userId) throw new Error(i18nT("active_establishment_unavailable"));
 
         const safePage = Math.max(1, targetPage);
         const from = (safePage - 1) * MAILBOX_RECIPIENTS_PAGE_SIZE;
@@ -2171,7 +2188,12 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
               size: finalVideo.size || 0,
               duration: finalVideo.duration || null,
               target: {
-                label: getVideoFormatLabel(channel, format, sourceMetadata),
+                label: getLocalizedVideoFormatLabel(
+                  channel,
+                  format,
+                  sourceMetadata,
+                  i18nT,
+                ),
               },
             }
           : null;
@@ -2219,7 +2241,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
           ? {
               status: "ready",
               label: i18nT("format_applique_43fe4a7e"),
-              detail: `${getVideoFormatLabel(channel, format, sourceMetadata)} · ${VIDEO_ADAPTATION_MODE_LABELS[adaptationMode]}`,
+              detail: `${getLocalizedVideoFormatLabel(channel, format, sourceMetadata, i18nT)} · ${getLocalizedVideoAdaptationModeLabel(adaptationMode, i18nT)}`,
             }
           : null,
       };
@@ -2843,7 +2865,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
           error?: string;
         } | null;
         if (!response.ok || !data?.scheduledAction) {
-          throw new Error(data?.error || "Mail programmé introuvable.");
+          throw new Error(data?.error || i18nT("scheduled_mail_missing"));
         }
         const action = data.scheduledAction;
         const payload = asScheduledRecord(action.payload);
@@ -2880,7 +2902,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
         );
         const nextSubject = normalizeMailSubject(
           String(campaign.subject || payload.subject || action.title || "").trim() ||
-            "(sans objet)",
+            i18nT("sans_objet_e5ad6a39"),
         );
         const nextText = String(
           campaign.text || payload.campaignBody || payload.bodyText || "",
@@ -2911,7 +2933,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
         setScheduledMailEdit({
           id: editId,
           scheduledAt: action.scheduledAt || null,
-          title: String(action.title || "Mail programmé"),
+          title: String(action.title || i18nT("scheduled_mail_default_title")),
           payload,
         });
         setDraftId(null);
@@ -2950,7 +2972,12 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
         setToast(i18nT("mail_programme_ouvert_en_reedition_25196d5f"));
         router.replace("/dashboard/mails?folder=mails", { scroll: false });
       } catch (error) {
-        setToast(getSimpleFrenchErrorMessage(error, "Ouverture du mail programmé impossible."));
+        setToast(
+          getClientUserFacingErrorMessage(
+            error,
+            i18nT("scheduled_mail_open_failed"),
+          ),
+        );
       }
     };
 
@@ -3021,8 +3048,8 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
       console.error("CRM load error", e);
       const msg =
         e?.name === "AbortError"
-          ? "Le chargement a expiré. Veuillez réessayer."
-          : "Impossible de charger les contacts.";
+          ? i18nT("contacts_load_timeout")
+          : i18nT("contacts_load_failed");
       setCrmError(msg);
     } finally {
       clearTimeout(timeout);
@@ -3056,7 +3083,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
   async function saveDraft() {
     if (attachBusy) {
       throw new Error(
-        "Patientez : les pièces jointes sont encore en préparation.",
+        i18nT("patientez_les_pieces_jointes_sont_encore_ac136c9e"),
       );
     }
     const { data: auth } = await supabase.auth.getUser();
@@ -3130,17 +3157,17 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
       }
       if (error) {
         setToast(
-          getSimpleFrenchErrorMessage(
+          getClientUserFacingErrorMessage(
             error,
-            "Impossible d’enregistrer le brouillon.",
+            i18nT("draft_save_failed"),
           ),
         );
         return;
       }
       setToast(
         usedLegacyFallback
-          ? "Brouillon enregistré, mais classement avancé indisponible : exécutez le SQL des brouillons iNrSend."
-          : "Brouillon enregistré ✅",
+          ? i18nT("draft_saved_advanced_unavailable")
+          : i18nT("draft_saved"),
       );
       setComposeSavedSnapshotFromCurrent();
       await loadHistory();
@@ -3163,9 +3190,9 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
     }
     if (error) {
       setToast(
-        getSimpleFrenchErrorMessage(
+        getClientUserFacingErrorMessage(
           error,
-          "Impossible d’enregistrer le brouillon.",
+          i18nT("draft_save_failed"),
         ),
       );
       return;
@@ -3174,8 +3201,8 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
       setDraftId(data.id);
       setToast(
         usedLegacyFallback
-          ? "Brouillon enregistré, mais classement avancé indisponible : exécutez le SQL des brouillons iNrSend."
-          : "Brouillon enregistré ✅",
+          ? i18nT("draft_saved_advanced_unavailable")
+          : i18nT("draft_saved"),
       );
       setComposeSavedSnapshotFromCurrent();
       await loadHistory();
@@ -3200,7 +3227,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
   async function scheduleMailWithAgent(scheduledAt: string) {
     if (attachBusy) {
       throw new Error(
-        "Patientez : les pièces jointes sont encore en préparation.",
+        i18nT("patientez_les_pieces_jointes_sont_encore_ac136c9e"),
       );
     }
     const isWorkflowFinalizer =
@@ -3208,12 +3235,12 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
       workflowFinalizerKind === "fideliser";
     if (!isWorkflowFinalizer && composeType !== "mail") {
       throw new Error(
-        "La programmation est disponible pour les mails, les Propulsions et les Fidélisations.",
+        i18nT("scheduling_supported_types"),
       );
     }
     if (!selectedAccount) {
       throw new Error(
-        "Veuillez connecter une boîte d’envoi dans les réglages.",
+        i18nT("veuillez_connecter_une_boite_d_envoi_98abd470"),
       );
     }
     if (
@@ -3221,7 +3248,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
       selectedAccount.requires_update
     ) {
       throw new Error(
-        "Cette boîte d’envoi doit être actualisée avant de pouvoir programmer l’envoi.",
+        i18nT("send_account_refresh_required_for_schedule"),
       );
     }
 
@@ -3230,12 +3257,12 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
       !Number.isFinite(scheduledDate.getTime()) ||
       scheduledDate.getTime() <= Date.now() + 30_000
     ) {
-      throw new Error("Choisissez une date et une heure dans le futur.");
+      throw new Error(i18nT("schedule_future_required"));
     }
 
     const recipientsList = normalizeEmails(to);
     if (recipientsList.length === 0) {
-      throw new Error("Veuillez ajouter au moins un destinataire.");
+      throw new Error(i18nT("veuillez_ajouter_au_moins_un_destinataire_7e03a00e"));
     }
 
     const trackedCampaign = pendingTrack;
@@ -3251,17 +3278,19 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
           : "mails";
     const templateKey =
       composeTemplateKey || searchParams?.get("template_key") || "";
-    const cleanSubject = normalizeMailSubject(subject.trim() || "(sans objet)");
+    const cleanSubject = normalizeMailSubject(
+      subject.trim() || i18nT("sans_objet_e5ad6a39"),
+    );
     const scheduleTargetTool = isWorkflowFinalizer
       ? workflowFinalizerKind
       : "mails";
     const scheduleActionType = isWorkflowFinalizer ? "campaign" : "mailing";
     const scheduleTypeLabel =
       workflowFinalizerKind === "propulser"
-        ? "Propulsion"
+        ? i18nT("workflow_propulser_name")
         : workflowFinalizerKind === "fideliser"
-          ? "Fidélisation"
-          : "Mail";
+          ? i18nT("workflow_fideliser_name")
+          : i18nT("mail_92379cbb");
     const campaignPayload = {
       accountId: selectedAccount.id,
       accountEmail: selectedAccount.email_address || "",
@@ -3311,7 +3340,13 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
           targetTool: scheduleTargetTool,
           source: "manual",
           title: `${scheduleTypeLabel} — ${cleanSubject}`,
-          summary: `${recipientsList.length} destinataire${recipientsList.length > 1 ? "s" : ""} · ${selectedAccount.email_address || selectedAccount.provider || "boîte connectée"}`,
+          summary: i18nT("scheduled_mail_recipient_summary", {
+            count: recipientsList.length,
+            account:
+              selectedAccount.email_address ||
+              selectedAccount.provider ||
+              i18nT("connected_mailbox"),
+          }),
           scheduledAt: scheduledDate.toISOString(),
           timezone:
             Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Paris",
@@ -3333,7 +3368,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
         throw new Error(
           data?.user_message ||
             data?.error ||
-            "La campagne n’a pas pu être programmée pour le moment.",
+            i18nT("campaign_schedule_failed"),
         );
       }
 
@@ -3347,8 +3382,8 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
       }
       setToast(
         isWorkflowFinalizer
-          ? "Campagne programmée dans iNr’Agent."
-          : "Mail programmé dans iNr’Agent.",
+          ? i18nT("campaign_scheduled_in_agent")
+          : i18nT("mail_scheduled_in_agent"),
       );
       await loadHistory();
       updateFolder(campaignFolder);
@@ -3427,7 +3462,9 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
           trackKind: trackedCampaign?.kind || undefined,
           trackType: trackedCampaign?.type || undefined,
           templateKey: templateKey || undefined,
-          subject: normalizeMailSubject(subject.trim() || "(sans objet)"),
+          subject: normalizeMailSubject(
+            subject.trim() || i18nT("sans_objet_e5ad6a39"),
+          ),
           text: text || "",
           html: normalizeRichMailHtmlForSend(text, html),
           recipients: recipientsList.map((email) => {
@@ -3456,7 +3493,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
         if (!res.ok) {
           setToast(
             data?.error ||
-              "La campagne mail n’a pas pu être lancée pour le moment.",
+              i18nT("campaign_launch_failed"),
           );
           return;
         }
@@ -3495,17 +3532,20 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
         const extras: string[] = [];
         if (blockedDuplicates > 0)
           extras.push(
-            `${blockedDuplicates} doublon${blockedDuplicates > 1 ? "s" : ""} bloqué${blockedDuplicates > 1 ? "s" : ""}`,
+            i18nT("blocked_duplicates", { count: blockedDuplicates }),
           );
         if (ignoredInvalid > 0)
           extras.push(
-            `${ignoredInvalid} destinataire${ignoredInvalid > 1 ? "s" : ""} ignoré${ignoredInvalid > 1 ? "s" : ""}`,
+            i18nT("ignored_recipients", { count: ignoredInvalid }),
           );
         if (blockedOptOut > 0)
           extras.push(
-            `${blockedOptOut} désinscription${blockedOptOut > 1 ? "s" : ""}`,
+            i18nT("blocked_unsubscribes", { count: blockedOptOut }),
           );
-        if (blockedBlacklist > 0) extras.push(`${blockedBlacklist} blacklist`);
+        if (blockedBlacklist > 0)
+          extras.push(
+            i18nT("blocked_blacklist", { count: blockedBlacklist }),
+          );
         if (blockedHardBounce > 0)
           extras.push(
             `${blockedHardBounce} rebond${blockedHardBounce > 1 ? "s" : ""} dur${blockedHardBounce > 1 ? "s" : ""}`,
@@ -3537,7 +3577,9 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
       const payload = {
         accountId: selectedAccount.id,
         to: recipientsList[0],
-        subject: normalizeMailSubject(subject.trim() || "(sans objet)"),
+        subject: normalizeMailSubject(
+          subject.trim() || i18nT("sans_objet_e5ad6a39"),
+        ),
         text: text || "",
         html: normalizeRichMailHtmlForSend(text, html),
         type: composeType,
@@ -3558,7 +3600,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
         setToast(
           data?.user_message ||
             data?.error ||
-            "Le message n’a pas pu être envoyé pour le moment.",
+            i18nT("message_send_failed"),
         );
         return;
       }
@@ -3749,21 +3791,26 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
     const invalid = picked.find((file) => !file.type.startsWith("image/"));
     if (invalid) {
       setDetailsActionError(
-        "Seules les images sont acceptées dans les pièces jointes d'une publication.",
+        i18nT("seules_les_images_sont_acceptees_dans_d018d9b9"),
       );
       return;
     }
 
     const unsupported = picked.find(isUnsupportedBrowserImageFile);
     if (unsupported) {
-      setDetailsActionError(unsupportedBrowserImageMessage(unsupported));
+      setDetailsActionError(
+        i18nT("unsupported_browser_image", { name: unsupported.name }),
+      );
       return;
     }
 
     const tooBig = picked.find((file) => file.size > BOOSTER_MAX_IMAGE_BYTES);
     if (tooBig) {
       setDetailsActionError(
-        `L'image ${tooBig.name || "sélectionnée"} dépasse ${BOOSTER_MAX_IMAGE_MB_LABEL}.`,
+        i18nT("l_image_value_depasse_value_1c15db6a", {
+          value0: tooBig.name || i18nT("selected_file"),
+          value1: BOOSTER_MAX_IMAGE_MB_LABEL,
+        }),
       );
       return;
     }
@@ -3779,7 +3826,9 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
     );
     if (currentSelectedFileBytes + nextPickedBytes > BOOSTER_MAX_MEDIA_BYTES) {
       setDetailsActionError(
-        `Les images dépassent ${BOOSTER_MAX_MEDIA_MB_LABEL} au total. Réduisez le nombre ou le poids des photos.`,
+        i18nT("les_images_depassent_value_au_total_0e09a0f4", {
+          value0: BOOSTER_MAX_MEDIA_MB_LABEL,
+        }),
       );
       return;
     }
@@ -3800,7 +3849,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
           preparation: {
             status: "idle",
             label: i18nT("images_selectionnees_db1d99e0"),
-            detail: "La publication sera enregistrée en images.",
+            detail: i18nT("publication_saved_as_images"),
           },
         },
       };
@@ -3817,7 +3866,9 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
         if (merged.some((asset) => asset.key === key)) continue;
         if (merged.length >= BOOSTER_MAX_IMAGE_COUNT) {
           setDetailsActionError(
-            `Maximum ${BOOSTER_MAX_IMAGE_COUNT} images par publication.`,
+            i18nT("maximum_images_per_publication", {
+              count: BOOSTER_MAX_IMAGE_COUNT,
+            }),
           );
           break;
         }
@@ -3858,10 +3909,12 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
     item: MediaLibraryPickerItem,
   ): Promise<File> {
     const sourceUrl = String(item.signed_url || "").trim();
-    if (!sourceUrl) throw new Error("Média indisponible dans la Médiathèque.");
+    if (!sourceUrl) throw new Error(i18nT("media_unavailable_in_library"));
     const response = await fetch(sourceUrl);
     if (!response.ok)
-      throw new Error(`Impossible de charger le média (${response.status}).`);
+      throw new Error(
+        i18nT("media_load_failed_with_status", { status: response.status }),
+      );
     const blob = await response.blob();
     const type =
       item.mime_type ||
@@ -3896,16 +3949,10 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
       size: file.size || Number(item.size_bytes || 0) || 0,
       type: file.type || item.mime_type || "video/mp4",
       ratio,
-      ratioLabel: width && height ? `${width}:${height}` : "Ratio inconnu",
+      ratioLabel:
+        width && height ? `${width}:${height}` : i18nT("ratio_inconnu_26a9214a"),
       orientation,
-      orientationLabel:
-        orientation === "horizontal"
-          ? "Horizontale"
-          : orientation === "vertical"
-            ? "Verticale"
-            : orientation === "square"
-              ? "Carrée"
-              : "Orientation inconnue",
+      orientationLabel: getLocalizedVideoOrientationLabel(orientation, i18nT),
     };
   }
 
@@ -3922,14 +3969,12 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
       (item) => item.media_type === "image",
     );
     if (videos.length && imageItems.length) {
-      const message =
-        "Choisissez soit des images, soit une vidéo. Une publication ne mélange pas les deux médias.";
+      const message = i18nT("mixed_media_not_allowed");
       setDetailsActionError(message);
       throw new Error(message);
     }
     if (videos.length > 1) {
-      const message =
-        "Une seule vidéo peut être utilisée pour une publication.";
+      const message = i18nT("one_video_per_publication");
       setDetailsActionError(message);
       throw new Error(message);
     }
@@ -3938,7 +3983,10 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
       const item = videos[0];
       const file = await mediaLibraryItemToFile(item);
       if (file.size > BOOSTER_MAX_VIDEO_BYTES) {
-        const message = `Vidéo trop lourde. Taille maximale : ${BOOSTER_MAX_VIDEO_MB_LABEL}.`;
+        const message = i18nT(
+          "video_trop_lourde_taille_maximale_value_358dea38",
+          { value0: BOOSTER_MAX_VIDEO_MB_LABEL },
+        );
         setDetailsActionError(message);
         throw new Error(message);
       }
@@ -3971,7 +4019,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
           preparation: {
             status: "idle",
             label: i18nT("video_ajoutee_depuis_la_mediatheque_880252c9"),
-            detail: "Appliquez le format avant d’enregistrer.",
+            detail: i18nT("apply_format_before_saving"),
           },
           preparing: false,
           removed: false,
@@ -3986,13 +4034,16 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
       );
       const invalid = files.find((file) => !file.type.startsWith("image/"));
       if (invalid) {
-        const message = "Seules les images sont acceptées pour ce canal.";
+        const message = i18nT("images_only_for_channel");
         setDetailsActionError(message);
         throw new Error(message);
       }
       const tooBig = files.find((file) => file.size > BOOSTER_MAX_IMAGE_BYTES);
       if (tooBig) {
-        const message = `L'image ${tooBig.name || "sélectionnée"} dépasse ${BOOSTER_MAX_IMAGE_MB_LABEL}.`;
+        const message = i18nT("l_image_value_depasse_value_1c15db6a", {
+          value0: tooBig.name || i18nT("selected_file"),
+          value1: BOOSTER_MAX_IMAGE_MB_LABEL,
+        });
         setDetailsActionError(message);
         throw new Error(message);
       }
@@ -4009,7 +4060,10 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
         currentSelectedFileBytes + nextPickedBytes >
         BOOSTER_MAX_MEDIA_BYTES
       ) {
-        const message = `Les images dépassent ${BOOSTER_MAX_MEDIA_MB_LABEL} au total. Réduisez le nombre ou le poids des photos.`;
+        const message = i18nT(
+          "les_images_depassent_value_au_total_0e09a0f4",
+          { value0: BOOSTER_MAX_MEDIA_MB_LABEL },
+        );
         setDetailsActionError(message);
         throw new Error(message);
       }
@@ -4030,7 +4084,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
             preparation: {
               status: "idle",
               label: i18nT("images_selectionnees_db1d99e0"),
-              detail: "La publication sera enregistrée en images.",
+              detail: i18nT("publication_saved_as_images"),
             },
           },
         };
@@ -4048,7 +4102,9 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
           if (merged.some((asset) => asset.key === key)) return;
           if (merged.length >= BOOSTER_MAX_IMAGE_COUNT) {
             setDetailsActionError(
-              `Maximum ${BOOSTER_MAX_IMAGE_COUNT} images par publication.`,
+              i18nT("maximum_images_per_publication", {
+                count: BOOSTER_MAX_IMAGE_COUNT,
+              }),
             );
             return;
           }
@@ -4095,12 +4151,16 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
         /\.(mp4|m4v|mov|webm)$/i.test(candidate.name || ""),
     );
     if (!file) {
-      setDetailsActionError("Seuls les fichiers vidéo sont acceptés.");
+      setDetailsActionError(
+        i18nT("seuls_les_fichiers_video_sont_acceptes_20063d2f"),
+      );
       return;
     }
     if (file.size > BOOSTER_MAX_VIDEO_BYTES) {
       setDetailsActionError(
-        `Vidéo trop lourde. Taille maximale : ${BOOSTER_MAX_VIDEO_MB_LABEL}.`,
+        i18nT("video_trop_lourde_taille_maximale_value_358dea38", {
+          value0: BOOSTER_MAX_VIDEO_MB_LABEL,
+        }),
       );
       return;
     }
@@ -4125,7 +4185,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
         preparation: {
           status: "idle",
           label: i18nT("nouvelle_video_ajoutee_73db7bab"),
-          detail: "Appliquez le format avant d’enregistrer.",
+          detail: i18nT("apply_format_before_saving"),
         },
         removed: false,
       },
@@ -4163,7 +4223,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
           preparation: {
             status: "error",
             label: i18nT("video_supprimee_5fd3ed00"),
-            detail: "Ajoutez une nouvelle vidéo avant d’enregistrer.",
+            detail: i18nT("ajoutez_une_nouvelle_video_avant_d_803819f5"),
           },
         },
       };
@@ -4188,7 +4248,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
               ? {
                   status: "idle",
                   label: i18nT("format_modifie_a2680e9d"),
-                  detail: "Appliquez ce format avant d’enregistrer.",
+                  detail: i18nT("apply_this_format_before_saving"),
                 }
               : current.preparation,
         },
@@ -4214,7 +4274,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
               ? {
                   status: "idle",
                   label: i18nT("adaptation_modifiee_7c8ae175"),
-                  detail: "Appliquez ce format avant d’enregistrer.",
+                  detail: i18nT("apply_this_format_before_saving"),
                 }
               : current.preparation,
         },
@@ -4229,7 +4289,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
     if (!current.file && current.sourceVideo?.publicUrl)
       return current.sourceVideo;
     if (!current.file)
-      throw new Error("Ajoutez une vidéo avant d’enregistrer.");
+      throw new Error(i18nT("add_video_before_saving"));
     const uploaded = await uploadBoosterVideo(current.file, {
       folder: "booster-videos",
       duration: current.duration,
@@ -4245,7 +4305,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
         preparation: {
           status: "idle",
           label: i18nT("video_ajoutee_ad22d54a"),
-          detail: "Vous pouvez appliquer le format.",
+          detail: i18nT("format_can_be_applied"),
         },
       },
     }));
@@ -4256,7 +4316,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
     const channel = normalizeBoosterChannelKeyForVideo(channelValue);
     const current = publicationEditVideoByChannel[channel];
     if (!current || current.removed || !current.previewUrl) {
-      setDetailsActionError("Ajoutez une vidéo avant d’appliquer le format.");
+      setDetailsActionError(i18nT("ajoutez_une_video_avant_d_appliquer_580c0ec6"));
       return;
     }
 
@@ -4279,7 +4339,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
           preparation: {
             status: "ready",
             label: i18nT("format_applique_43fe4a7e"),
-            detail: `${getVideoFormatLabel(channel, format, current.sourceMetadata)} · ${VIDEO_ADAPTATION_MODE_LABELS[adaptationMode]}`,
+            detail: `${getLocalizedVideoFormatLabel(channel, format, current.sourceMetadata, i18nT)} · ${getLocalizedVideoAdaptationModeLabel(adaptationMode, i18nT)}`,
           },
         },
       }));
@@ -4295,7 +4355,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
         preparation: {
           status: "preparing",
           label: i18nT("modification_du_format_d563b6d2"),
-          detail: `${getVideoFormatLabel(channel, format, current.sourceMetadata)} · ${VIDEO_ADAPTATION_MODE_LABELS[adaptationMode]}`,
+          detail: `${getLocalizedVideoFormatLabel(channel, format, current.sourceMetadata, i18nT)} · ${getLocalizedVideoAdaptationModeLabel(adaptationMode, i18nT)}`,
         },
       },
     }));
@@ -4344,13 +4404,14 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
             preparation: {
               status: "ready",
               label: i18nT("video_originale_conservee_84fd0d77"),
-              detail:
-                "Adaptation automatique indisponible : la vidéo originale sera utilisée.",
+              detail: i18nT(
+                "adaptation_automatique_indisponible_la_video_ori_c770d639",
+              ),
             },
           },
         }));
         setDetailsActionError(
-          "Adaptation automatique indisponible : la vidéo originale sera utilisée.",
+          i18nT("adaptation_automatique_indisponible_la_video_ori_c770d639"),
         );
         return;
       }
@@ -4366,13 +4427,14 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
           preparation: {
             status: "ready",
             label: i18nT("format_applique_43fe4a7e"),
-            detail: `${getVideoFormatLabel(channel, format, current.sourceMetadata)} · ${VIDEO_ADAPTATION_MODE_LABELS[adaptationMode]}`,
+            detail: `${getLocalizedVideoFormatLabel(channel, format, current.sourceMetadata, i18nT)} · ${getLocalizedVideoAdaptationModeLabel(adaptationMode, i18nT)}`,
           },
         },
       }));
     } catch (error: any) {
-      const fallbackDetail =
-        "Adaptation automatique indisponible : la vidéo originale sera utilisée.";
+      const fallbackDetail = i18nT(
+        "adaptation_automatique_indisponible_la_video_ori_c770d639",
+      );
       setDetailsActionError(fallbackDetail);
       setPublicationEditVideoByChannel((prev) => ({
         ...prev,
@@ -4394,7 +4456,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
       const reader = new FileReader();
       reader.onload = () => resolve(String(reader.result || ""));
       reader.onerror = () =>
-        reject(reader.error ?? new Error("Impossible de lire ce fichier."));
+        reject(reader.error ?? new Error(i18nT("file_read_failed")));
       reader.readAsDataURL(file);
     });
 
@@ -4426,7 +4488,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
       if (isVideoEdit) {
         if (!editVideo || editVideo.removed || !editVideo.previewUrl) {
           throw new Error(
-            "Ajoutez une vidéo avant d’enregistrer cette publication.",
+            i18nT("ajoutez_une_nouvelle_video_avant_d_803819f5"),
           );
         }
         const boosterChannel = normalizeBoosterChannelKeyForVideo(channel);
@@ -4574,17 +4636,21 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
         },
       );
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json?.error || "Modification impossible.");
+      if (!res.ok) {
+        throw new Error(json?.error || i18nT("publication_update_failed"));
+      }
       setDetailsActionSuccess(
-        `Publication ${formatChannelLabel(channel)} modifiée.`,
+        i18nT("publication_value_modifiee_acf7a96f", {
+          value0: formatChannelLabel(channel),
+        }),
       );
       setDetailsEditMode(false);
       await loadHistory();
     } catch (e: any) {
       setDetailsActionError(
-        getSimpleFrenchErrorMessage(
+        getClientUserFacingErrorMessage(
           e,
-          "Impossible de modifier cette publication pour le moment.",
+          i18nT("publication_update_failed"),
         ),
       );
     } finally {
@@ -4625,7 +4691,9 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
         },
       );
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json?.error || "Suppression impossible.");
+      if (!res.ok) {
+        throw new Error(json?.error || i18nT("publication_delete_failed"));
+      }
 
       // The API returns the authoritative app_events payload after the remote
       // deletion. Apply it immediately so the details modal switches to
@@ -4682,7 +4750,9 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
             : item,
         ),
       );
-      setDetailsActionSuccess(`Publication ${label} supprimée.`);
+      setDetailsActionSuccess(
+        i18nT("publication_value_supprimee_3fa97962", { value0: label }),
+      );
       setDetailsEditMode(false);
       // Release the action immediately. The history refresh can continue in
       // the background so the professional may inspect another channel while
@@ -4692,9 +4762,9 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
       void loadHistory();
       return { payload: deletedPayload, channel };
     } catch (e: any) {
-      const baseMessage = getSimpleFrenchErrorMessage(
+      const baseMessage = getClientUserFacingErrorMessage(
         e,
-        "Impossible de supprimer cette publication pour le moment.",
+        i18nT("publication_delete_failed"),
       );
       setDetailsActionError(baseMessage);
       return null;
@@ -4716,27 +4786,36 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
       );
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setToast(data?.error || "Relance impossible pour le moment.");
+        setToast(
+          getClientUserFacingErrorMessage(
+            data?.error,
+            i18nT("campaign_retry_failed"),
+          ),
+        );
         return;
       }
       const blocked = Math.max(0, Number(data?.blocked ?? 0));
       const deliveryState = String(data?.campaignStatus || "").toLowerCase();
-      const deferredReason = String(data?.deferredReason || "").trim();
       const batchSize = Math.max(1, Number(data?.batchSize || 50));
       const baseRetryMessage = data?.retried
-        ? `${data.retried} contact${data.retried > 1 ? "s" : ""} relancé${data.retried > 1 ? "s" : ""}.${blocked > 0 ? ` ${blocked} blocage${blocked > 1 ? "s" : ""} ignoré${blocked > 1 ? "s" : ""}.` : ""}`
+        ? [
+            i18nT("campaign_retry_contacts", { count: Number(data.retried) }),
+            blocked > 0
+              ? i18nT("campaign_retry_blocked", { count: blocked })
+              : "",
+          ]
+            .filter(Boolean)
+            .join(" ")
         : data?.resumed
-          ? "Campagne remise en route."
-          : "Échecs relancés.";
+          ? i18nT("campaign_resumed")
+          : i18nT("campaign_failures_retried");
       const stateMessage =
         deliveryState === "paused"
-          ? " Campagne mise en pause automatiquement."
+          ? i18nT("campaign_auto_paused")
           : deliveryState === "queued"
-            ? " Campagne remise en file d’attente."
-            : ` Relance par vagues de ${batchSize}.`;
-      setToast(
-        `${baseRetryMessage}${stateMessage}${deferredReason ? ` ${deferredReason}` : ""}`,
-      );
+            ? i18nT("campaign_requeued")
+            : i18nT("campaign_retry_batches", { count: batchSize });
+      setToast(`${baseRetryMessage} ${stateMessage}`.trim());
       await loadHistory();
       if (detailsOpen && detailsId === campaignId) {
         await Promise.all([
@@ -4759,7 +4838,12 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
       );
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        setToast(data?.error || "Le bilan n’a pas pu être renvoyé.");
+        setToast(
+          getClientUserFacingErrorMessage(
+            data?.error,
+            i18nT("le_bilan_n_a_pas_pu_e6885e77"),
+          ),
+        );
         return;
       }
       setToast(i18nT("bilan_de_campagne_envoye_0c1ba823"));

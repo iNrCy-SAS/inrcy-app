@@ -180,7 +180,7 @@ export default function InstagramPanel(props: any) {
           <input
             value={instagramUsername}
             readOnly
-            placeholder={instagramAccountConnected ? "Compte connecté" : "Aucun compte connecté"}
+            placeholder={instagramAccountConnected ? i18nT("compte_connecte_a442afe1") : i18nT("account_not_connected")}
             style={{
               ...singleFieldStyle,
               opacity: instagramAccountConnected ? 1 : 0.8,

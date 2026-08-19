@@ -36,7 +36,7 @@ test("Booster eagerly warms channel logos", () => {
 });
 
 test("iNrSend releases delete loading before background history refresh", () => {
-  const successIndex = mailboxClient.indexOf('setDetailsActionSuccess(`Publication ${label} supprimée.`)');
+  const successIndex = mailboxClient.indexOf('i18nT("publication_value_supprimee_3fa97962"');
   const releaseIndex = mailboxClient.indexOf("setDetailsActionBusy(false);", successIndex);
   const refreshIndex = mailboxClient.indexOf("void loadHistory();", successIndex);
   assert.ok(successIndex >= 0);

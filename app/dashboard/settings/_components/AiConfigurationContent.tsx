@@ -9,7 +9,7 @@ import { invalidateBoosterGenerationContextClient } from "@/lib/boosterGeneratio
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import { APP_LANGUAGE_OPTIONS, APP_LANGUAGE_STORAGE_KEY, type AppLanguageCode, normalizeAppLanguage } from "@/lib/appLanguage";
-import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
+import { getClientUserFacingErrorMessage } from "@/lib/userFacingErrors";
 import {
   AI_ENGINE_OPTIONS,
   DEFAULT_AI_PREFERRED_ENGINE,
@@ -374,7 +374,7 @@ export default function AiConfigurationContent({
         setForm(nextForm);
         savedFormSignatureRef.current = JSON.stringify(nextForm);
       } catch (e) {
-        setError(getSimpleFrenchErrorMessage(e, "Impossible de charger la configuration IA."));
+        setError(getClientUserFacingErrorMessage(e, i18nT("ai_configuration_load_failed")));
       } finally {
         setLoading(false);
       }
@@ -463,7 +463,7 @@ export default function AiConfigurationContent({
       if (/ai_preferred_engine|ai_commercial_level|ai_main_goal|ai_preferred_angle|ai_liked_example|ai_language/i.test(message)) {
         setError(i18nT("il_faut_d_abord_executer_le_eaabb47e"));
       } else {
-        setError(getSimpleFrenchErrorMessage(e, "Impossible d’enregistrer la configuration IA."));
+        setError(getClientUserFacingErrorMessage(e, i18nT("ai_configuration_save_failed")));
       }
     } finally {
       setSaving(false);

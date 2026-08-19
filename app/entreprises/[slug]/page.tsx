@@ -159,7 +159,7 @@ function Icon({ name }: { name: IconName }) {
   );
 }
 
-function joinFrenchList(values: string[], locale = "fr-FR") {
+function joinLocalizedList(values: string[], locale = "fr-FR") {
   const cleanValues = values.map((value) => value.trim()).filter(Boolean);
   if (!cleanValues.length) return "";
   return new Intl.ListFormat(locale, { type: "conjunction" }).format(cleanValues);
@@ -211,13 +211,13 @@ function buildFactualSummary(data: InrSearchPublicPageData, i18nT: (_key: string
     .join(" ");
 
   const serviceSentence = data.services.length
-    ? i18nT("elle_propose_notamment_les_prestations_suivantes_401d6823", { value0: joinFrenchList(data.services.slice(0, 5), locale) })
+    ? i18nT("elle_propose_notamment_les_prestations_suivantes_401d6823", { value0: joinLocalizedList(data.services.slice(0, 5), locale) })
     : "";
   const zoneSentence = data.zones.length
-    ? i18nT("elle_intervient_notamment_dans_les_zones_33195e40", { value0: joinFrenchList(data.zones.slice(0, 8), locale) })
+    ? i18nT("elle_intervient_notamment_dans_les_zones_33195e40", { value0: joinLocalizedList(data.zones.slice(0, 8), locale) })
     : "";
   const audienceSentence = data.customerTypes.length
-    ? i18nT("ses_prestations_s_adressent_notamment_aux_a595758d", { value0: joinFrenchList(data.customerTypes.map((value) => lowerInitial(value, locale)), locale) })
+    ? i18nT("ses_prestations_s_adressent_notamment_aux_a595758d", { value0: joinLocalizedList(data.customerTypes.map((value) => lowerInitial(value, locale)), locale) })
     : "";
   const hoursSentence =
     data.openingDays || data.openingHours
@@ -236,21 +236,36 @@ function buildFactualSummary(data: InrSearchPublicPageData, i18nT: (_key: string
 }
 
 
-function buildPresentationLead(data: InrSearchPublicPageData) {
+function buildPresentationLead(
+  data: InrSearchPublicPageData,
+  i18nT: (_key: string, _values?: Record<string, string>) => string,
+  locale: string,
+) {
   const intro = data.description?.trim().replace(/\s+/g, " ");
   const services = data.services.length
-    ? `Découvrez notamment ${joinFrenchList(data.services.slice(0, 3).map((value) => lowerInitial(value)))}.`
+    ? i18nT("elle_propose_notamment_les_prestations_suivantes_401d6823", {
+        value0: joinLocalizedList(
+          data.services.slice(0, 3).map((value) => lowerInitial(value, locale)),
+          locale,
+        ),
+      })
     : "";
 
   const generatedIdentity = [
     data.companyName,
     data.profession
-      ? `est une ${lowerInitial(data.profession)}`
+      ? i18nT("exerce_l_activite_de_value_f7f3f9fc", {
+          value0: lowerInitial(data.profession, locale),
+        })
       : data.sectorLabel
-        ? `évolue dans le secteur ${lowerInitial(data.sectorLabel)}`
-        : "est une entreprise locale",
-    data.city ? `basée à ${data.city}.` : ".",
-  ].join(" ");
+        ? i18nT("exerce_dans_le_secteur_value_3680f396", {
+            value0: lowerInitial(data.sectorLabel, locale),
+          })
+        : i18nT("est_une_entreprise_2774c8db"),
+    data.city ? i18nT("situee_a_value_5ce1fb79", { value0: data.city }) : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   const identity = intro && intro.length <= 180
     ? intro
@@ -270,7 +285,7 @@ function buildConversionSummary(data: InrSearchPublicPageData, i18nT: (_key: str
     data.strengths.length ? i18nT("ses_points_forts_e59ac9bd") : "",
   ].filter(Boolean);
   const usefulDetails = details.length
-    ? joinFrenchList(details, locale)
+    ? joinLocalizedList(details, locale)
     : i18nT("les_informations_utiles_0ab61a92");
 
   return i18nT("retrouvez_value_avant_de_prendre_contact_1e01dd34", { value0: usefulDetails, value1: data.companyName });
@@ -318,10 +333,14 @@ function compactMetaText(value: string, maxLength: number) {
   return `${clipped}…`;
 }
 
-function buildSeoTitle(data: InrSearchPublicPageData) {
-  const activity = data.profession || data.sectorLabel || "entreprise";
-  const location = data.city ? ` à ${data.city}` : "";
-  const services = data.services.slice(0, 2).join(" et ");
+function buildSeoTitle(
+  data: InrSearchPublicPageData,
+  i18nT: (_key: string, _values?: Record<string, string>) => string,
+  locale: string,
+) {
+  const activity = data.profession || data.sectorLabel || i18nT("entreprise_locale_17aeb576");
+  const location = data.city ? ` · ${data.city}` : "";
+  const services = joinLocalizedList(data.services.slice(0, 2), locale);
   const suffix = services ? ` | ${services}` : "";
   return compactMetaText(`${data.companyName}, ${activity}${location}${suffix}`, 70);
 }
@@ -335,33 +354,44 @@ function normalizeMetaComparison(value: string) {
     .trim();
 }
 
-function resolveSeoTitle(data: InrSearchPublicPageData) {
+function resolveSeoTitle(
+  data: InrSearchPublicPageData,
+  i18nT: (_key: string, _values?: Record<string, string>) => string,
+  locale: string,
+) {
   const customTitle = data.pageTitle.trim();
   if (
     !customTitle
     || normalizeMetaComparison(customTitle) === normalizeMetaComparison(data.companyName)
   ) {
-    return buildSeoTitle(data);
+    return buildSeoTitle(data, i18nT, locale);
   }
   return compactMetaText(customTitle, 70);
 }
 
-function buildSeoDescription(data: InrSearchPublicPageData) {
-  const activity = data.profession || data.sectorLabel || "entreprise";
-  const location = data.city ? ` à ${data.city}` : "";
+function buildSeoDescription(
+  data: InrSearchPublicPageData,
+  i18nT: (_key: string, _values?: Record<string, string>) => string,
+  locale: string,
+) {
+  const activity = data.profession || data.sectorLabel || i18nT("entreprise_locale_17aeb576");
   const services = data.services.length
-    ? ` Prestations : ${joinFrenchList(data.services.slice(0, 4))}.`
+    ? i18nT("prestations_value_e11114c0", {
+        value0: joinLocalizedList(data.services.slice(0, 4), locale),
+      })
     : "";
   const zones = data.zones.length
-    ? ` Intervention : ${joinFrenchList(data.zones.slice(0, 3))}.`
+    ? i18nT("intervention_value_fd8c4083", {
+        value0: joinLocalizedList(data.zones.slice(0, 3), locale),
+      })
     : "";
-  const identity = `${data.companyName}, ${activity}${location}`;
+  const identity = [data.companyName, activity, data.city].filter(Boolean).join(" · ");
   const lead = (data.pageDescription || data.description).trim();
   const base = lead && normalizeMetaComparison(lead).startsWith(normalizeMetaComparison(identity))
     ? lead
     : `${identity}. ${lead}`;
   return compactMetaText(
-    `${base}${services}${zones}`,
+    [base, services, zones].filter(Boolean).join(" "),
     160,
   );
 }
@@ -378,46 +408,61 @@ function buildServiceDescription(
   const normalized = normalizeServiceDescriptionKey(service);
   const serviceLabel = lowerInitial(service, locale);
   const audiences = data.customerTypes.length
-    ? ` pour ${joinFrenchList(data.customerTypes.map((value) => lowerInitial(value, locale)), locale)}`
+    ? i18nT("service_audience_sentence", {
+        audiences: joinLocalizedList(
+          data.customerTypes.map((value) => lowerInitial(value, locale)),
+          locale,
+        ),
+      })
     : "";
   const zones = data.zones.length
-    ? ` ${i18nT("autour_de_value_ea952462", { value0: joinFrenchList(data.zones.slice(0, 3), locale) })}`
+    ? i18nT("service_zones_sentence", {
+        zones: joinLocalizedList(data.zones.slice(0, 3), locale),
+      })
     : data.city
-      ? ` depuis ${data.city}`
+      ? i18nT("service_city_sentence", { city: data.city })
       : "";
   const strengths = data.strengths.length
-    ? ` ${i18nT("l_approche_s_appuie_sur_value_c533a7c6", { value0: joinFrenchList(data.strengths.slice(0, 2).map((value) => lowerInitial(value, locale)), locale) })}`
+    ? i18nT("l_approche_s_appuie_sur_value_c533a7c6", {
+        value0: joinLocalizedList(
+          data.strengths.slice(0, 2).map((value) => lowerInitial(value, locale)),
+          locale,
+        ),
+      })
     : "";
   const localContext = data.description
-    ? ` ${i18nT("elle_s_inscrit_dans_l_univers_485c30e4", { value0: data.companyName, value1: data.description.replace(/\s+/g, " ").slice(0, 150) })}`
+    ? i18nT("service_company_context", {
+        company: data.companyName,
+        description: data.description.replace(/\s+/g, " ").slice(0, 150),
+      })
     : "";
 
-  const intent = (() => {
+  const intentKey = (() => {
     if (/(strategie|audit|diagnostic|conseil|plan|etude)/.test(normalized)) {
-      return "clarifie le point de départ, les priorités et les actions à mener pour éviter les décisions au hasard";
+      return "service_intent_strategy";
     }
     if (/(identite|logo|charte|visuel|marque|branding|image)/.test(normalized)) {
-      return "donne une forme reconnaissable à l’entreprise, avec des repères visuels cohérents sur chaque support";
+      return "service_intent_identity";
     }
     if (/(digital|reseau|social|facebook|instagram|linkedin|google|seo|sea|campagne|publicite|ads)/.test(normalized)) {
-      return "sert à gagner en visibilité, toucher les bons contacts et transformer l’attention en demandes concrètes";
+      return "service_intent_visibility";
     }
     if (/(print|flyer|brochure|carte|affiche|enseigne|support|signalétique|signaletique)/.test(normalized)) {
-      return "matérialise le message de l’entreprise sur des supports lisibles, utiles et prêts à être diffusés";
+      return "service_intent_print";
     }
     if (/(editorial|redaction|contenu|article|texte|copywriting)/.test(normalized)) {
-      return "structure le message, choisit les bons mots et rend l’offre plus facile à comprendre";
+      return "service_intent_editorial";
     }
     if (/(pose|installation|creation|conception|fabrication|amenagement)/.test(normalized)) {
-      return "transforme le besoin initial en réalisation concrète, avec une préparation adaptée au contexte";
+      return "service_intent_creation";
     }
     if (/(depannage|urgence|reparation|fuite|remplacement|debouchage)/.test(normalized)) {
-      return "répond à une situation précise avec une intervention lisible, rapide et orientée solution";
+      return "service_intent_emergency";
     }
     if (/(entretien|maintenance|nettoyage|suivi|controle)/.test(normalized)) {
-      return "préserve la qualité du résultat dans le temps et limite les problèmes évitables";
+      return "service_intent_maintenance";
     }
-    return "répond à un besoin précis en cadrant les attentes, les contraintes et le résultat recherché";
+    return "service_intent_default";
   })();
 
   const method = pickVariant([
@@ -427,7 +472,13 @@ function buildServiceDescription(
   ], `${service}-${data.companyName}`);
 
   return [
-    i18nT("avec_value_value_value_value_value_3356e4b9", { value0: serviceLabel, value1: data.companyName, value2: intent, value3: audiences, value4: zones }),
+    i18nT("service_description_intro", {
+      service: serviceLabel,
+      company: data.companyName,
+    }),
+    i18nT(intentKey),
+    audiences,
+    zones,
     method,
     strengths || localContext,
     i18nT("cette_expertise_permet_de_presenter_un_4f450f12"),
@@ -509,7 +560,7 @@ function buildJsonLd(data: InrSearchPublicPageData, i18nT: (_key: string, _value
             "@type": "ContactPoint",
             telephone: normalizeStructuredPhone(data.phone),
             email: data.email || undefined,
-            contactType: "customer service",
+            contactType: i18nT("customer_service_label"),
             availableLanguage: [locale],
           }
         : undefined,
@@ -518,7 +569,9 @@ function buildJsonLd(data: InrSearchPublicPageData, i18nT: (_key: string, _value
       data.phone || data.email
         ? {
             "@type": "CommunicateAction",
-            name: `Contacter ${data.companyName}`,
+            name: i18nT("contacter_value_78104412", {
+              value0: data.companyName,
+            }),
             target: data.phone
               ? `tel:${data.phone.replace(/[^+\d]/g, "")}`
               : `mailto:${data.email}`,
@@ -550,13 +603,15 @@ function buildJsonLd(data: InrSearchPublicPageData, i18nT: (_key: string, _value
       ? {
           "@type": "WebPage",
           url: data.inrBadgeUrl,
-          name: `Fiche iNr'Badge de ${data.companyName}`,
+          name: i18nT("inr_badge_page_of", { company: data.companyName }),
         }
       : undefined,
     hasOfferCatalog: offers.length
       ? {
           "@type": "OfferCatalog",
-          name: `Prestations de ${data.companyName}`,
+          name: i18nT("les_prestations_de_value_39d5ec75", {
+            value0: data.companyName,
+          }),
           itemListElement: offers,
         }
       : undefined,
@@ -579,15 +634,19 @@ function buildFaqJsonLd(data: InrSearchPublicPageData) {
   };
 }
 
-function buildWebPageJsonLd(data: InrSearchPublicPageData) {
+function buildWebPageJsonLd(
+  data: InrSearchPublicPageData,
+  i18nT: (_key: string, _values?: Record<string, string>) => string,
+  locale: string,
+) {
   const url = buildInrSearchPublicUrl(data.slug);
   return {
     "@context": "https://schema.org",
     "@type": "WebPage",
     "@id": `${url}#webpage`,
     url,
-    name: buildSeoTitle(data),
-    description: buildSeoDescription(data),
+    name: buildSeoTitle(data, i18nT, locale),
+    description: buildSeoDescription(data, i18nT, locale),
     dateModified: data.updatedAt || undefined,
     about: { "@id": `${url}#business` },
     mainEntity: { "@id": `${url}#business` },
@@ -595,40 +654,46 @@ function buildWebPageJsonLd(data: InrSearchPublicPageData) {
       ? {
           "@type": "ImageObject",
           url: data.media[0]?.url || data.logoUrl,
-          caption: `${data.companyName}${data.city ? ` à ${data.city}` : ""}`,
+          caption: [data.companyName, data.city].filter(Boolean).join(" — "),
         }
       : undefined,
     hasPart: [
-      { "@type": "WebPageElement", "@id": `${url}#presentation`, name: "Présentation" },
+      { "@type": "WebPageElement", "@id": `${url}#presentation`, name: i18nT("presentation_aa245f5f") },
       ...(data.sections.services && data.services.length
-        ? [{ "@type": "WebPageElement", "@id": `${url}#prestations`, name: "Prestations" }]
+        ? [{ "@type": "WebPageElement", "@id": `${url}#prestations`, name: i18nT("expertises_ecd4aa4e") }]
         : []),
       ...(data.sections.media && data.media.length
-        ? [{ "@type": "WebPageElement", "@id": `${url}#realisations`, name: "Réalisations" }]
+        ? [{ "@type": "WebPageElement", "@id": `${url}#realisations`, name: i18nT("realisations_c8d62f4b") }]
         : []),
       ...(data.sections.news
-        ? [{ "@type": "WebPageElement", "@id": `${url}#actualites`, name: "Actualités" }]
+        ? [{ "@type": "WebPageElement", "@id": `${url}#actualites`, name: i18nT("actualites_a3baa78e") }]
         : []),
       ...(data.sections.areas && data.zones.length
-        ? [{ "@type": "WebPageElement", "@id": `${url}#zone`, name: "Zone d’intervention" }]
+        ? [{ "@type": "WebPageElement", "@id": `${url}#zone`, name: i18nT("zone_d_intervention_2e900603") }]
         : []),
       ...(data.sections.faq && data.faq.length
-        ? [{ "@type": "WebPageElement", "@id": `${url}#faq`, name: "Questions fréquentes" }]
+        ? [{ "@type": "WebPageElement", "@id": `${url}#faq`, name: i18nT("questions_frequentes_16664684") }]
         : []),
       ...(data.sections.cta
-        ? [{ "@type": "WebPageElement", "@id": `${url}#contact`, name: "Contact" }]
+        ? [{ "@type": "WebPageElement", "@id": `${url}#contact`, name: i18nT("contact_b37456c4") }]
         : []),
     ],
-    inLanguage: "fr-FR",
+    inLanguage: locale,
   };
 }
 
-function buildNewsJsonLd(data: InrSearchPublicPageData) {
+function buildNewsJsonLd(
+  data: InrSearchPublicPageData,
+  i18nT: (_key: string, _values?: Record<string, string>) => string,
+  locale: string,
+) {
   if (!data.publications.length) return null;
   return {
     "@context": "https://schema.org",
     "@type": "ItemList",
-    name: `Actualités de ${data.companyName}`,
+    name: i18nT("les_actualites_de_value_d3ad6de3", {
+      value0: data.companyName,
+    }),
     itemListElement: data.publications.map((publication, index) => ({
       "@type": "ListItem",
       position: index + 1,
@@ -639,8 +704,8 @@ function buildNewsJsonLd(data: InrSearchPublicPageData) {
         headline: publication.title,
         description: publication.content?.replace(/\s+/g, " ").trim().slice(0, 220) || undefined,
         articleBody: publication.content || undefined,
-        articleSection: "Actualités",
-        inLanguage: "fr-FR",
+        articleSection: i18nT("actualites_a3baa78e"),
+        inLanguage: locale,
         datePublished: publication.createdAt || undefined,
         dateModified: publication.createdAt || undefined,
         image: publication.imageUrl || undefined,
@@ -661,7 +726,10 @@ function buildNewsJsonLd(data: InrSearchPublicPageData) {
 export async function generateMetadata({
   params,
 }: PageProps): Promise<Metadata> {
-  const i18nT = await getTranslations("public");
+  const [i18nT, locale] = await Promise.all([
+    getTranslations("public"),
+    getLocale(),
+  ]);
   const { slug } = await params;
   const data = await loadInrSearchPublicPage(slug);
   if (!data) {
@@ -672,8 +740,8 @@ export async function generateMetadata({
   }
 
   const canonical = buildInrSearchPublicUrl(data.slug);
-  const title = resolveSeoTitle(data);
-  const description = buildSeoDescription(data);
+  const title = resolveSeoTitle(data, i18nT, locale);
+  const description = buildSeoDescription(data, i18nT, locale);
   const image = data.logoUrl || data.media[0]?.url || undefined;
 
   return {
@@ -702,7 +770,7 @@ export async function generateMetadata({
     },
     openGraph: {
       type: "website",
-      locale: i18nT("fr_fr_5540fd60"),
+      locale: locale.replace("-", "_"),
       url: canonical,
       siteName: data.companyName,
       title,
@@ -729,11 +797,11 @@ export default async function InrSearchCompanyPage({ params }: PageProps) {
   }
 
   const localBusinessJsonLd = buildJsonLd(data, i18nT, locale);
-  const webPageJsonLd = buildWebPageJsonLd(data);
+  const webPageJsonLd = buildWebPageJsonLd(data, i18nT, locale);
   const faqJsonLd = buildFaqJsonLd(data);
-  const newsJsonLd = buildNewsJsonLd(data);
+  const newsJsonLd = buildNewsJsonLd(data, i18nT, locale);
   const factualSummary = buildFactualSummary(data, i18nT, locale);
-  const presentationLead = buildPresentationLead(data);
+  const presentationLead = buildPresentationLead(data, i18nT, locale);
   const conversionSummary = buildConversionSummary(data, i18nT, locale);
   const enhancedZones = buildEnhancedZones(data);
   const phoneHref = data.phone
@@ -778,7 +846,7 @@ export default async function InrSearchCompanyPage({ params }: PageProps) {
       {
         "@type": "ListItem",
         position: 1,
-        name: "Entreprises",
+        name: i18nT("entreprises_4b0c7c83"),
         item: `${buildInrSearchPublicUrl(data.slug).split("/entreprises/")[0]}/entreprises`,
       },
       ...(data.profession && professionUrl
@@ -840,7 +908,7 @@ export default async function InrSearchCompanyPage({ params }: PageProps) {
           icon: "users" as IconName,
           kind: "audience",
           label: i18nT("pour_qui_c99cf10a"),
-          value: joinFrenchList(data.customerTypes.slice(0, 2)),
+          value: joinLocalizedList(data.customerTypes.slice(0, 2), locale),
           href: "",
           actionKey: "",
         }

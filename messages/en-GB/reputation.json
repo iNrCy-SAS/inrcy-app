@@ -122,7 +122,7 @@
   "review_quantity": "Qty {count}",
   "reviews_loaded": "Reviews loaded",
   "reviews_range": "Showing {start}–{end} of {total} reviews",
-  "reviews_refreshed_source": " {value0} reviews refreshed.",
+  "reviews_refreshed_source": "{value0} reviews refreshed.",
   "signaler_l_avis_de_value_sur_4b52223b": "Report {value0} 's review on Google",
   "signaler_l_avis_sur_google_cfad97a3": "Report review on Google",
   "status_answered": "Replied",

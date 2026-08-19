@@ -73,22 +73,14 @@ function placeholderSpacingErrors(source, translation) {
     const sourceIndex = source.indexOf(token);
     const targetIndex = translation.indexOf(token);
     if (sourceIndex < 0 || targetIndex < 0) continue;
-    const sourceHead = source.slice(0, sourceIndex);
-    const targetHead = translation.slice(0, targetIndex);
-    const expectedLeftBoundary = (sourceHead.match(/[.,;:!?…\s]+$/u)?.[0] ?? "").replace(/\s+/gu, " ");
-    const actualLeftBoundary = (targetHead.match(/[.,;:!?…\s]+$/u)?.[0] ?? "").replace(/\s+/gu, " ");
-    if (actualLeftBoundary !== expectedLeftBoundary) issues.push(`${token} ponctuation avant`);
+    // Punctuation spacing is language-specific: French normally inserts a
+    // space before a colon, while the other supported languages do not. The
+    // invariant we need is that an interpolated value never becomes glued to
+    // a neighbouring word when the reference message separates it.
     const sourceHasSpaceBefore = sourceIndex > 0 && /\s/u.test(source[sourceIndex - 1]);
     const sourceHasSpaceAfter = sourceIndex + token.length < source.length && /\s/u.test(source[sourceIndex + token.length]);
     if (sourceHasSpaceBefore && targetIndex > 0 && /[\p{L}\p{N}]/u.test(translation[targetIndex - 1])) issues.push(`${token} avant`);
     if (sourceHasSpaceAfter && targetIndex + token.length < translation.length && /[\p{L}\p{N}]/u.test(translation[targetIndex + token.length])) issues.push(`${token} après`);
-    const sourceTail = source.slice(sourceIndex + token.length);
-    const targetTail = translation.slice(targetIndex + token.length);
-    const sourceBoundary = sourceTail.match(/^[.,;:!?…\s]+/u)?.[0];
-    if (sourceBoundary === undefined) continue;
-    const expectedBoundary = sourceBoundary.replace(/\s+/gu, " ");
-    const actualBoundary = (targetTail.match(/^[.,;:!?…\s]+/u)?.[0] ?? "").replace(/\s+/gu, " ");
-    if (actualBoundary !== expectedBoundary) issues.push(`${token} ponctuation`);
   }
   return issues;
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -26,6 +26,7 @@ import {
   getMediaLibraryOptimizationRequirements,
 } from "@/lib/mediaLibraryOptimizationPolicy";
 import type { MediaLibraryPickerItem } from "./MediaLibraryPickerModal";
+import { getLocalizedErrorMessage } from "@/lib/userFacingErrors";
 
 export type MediaOptimizerItem = MediaLibraryPickerItem & {
   source?: string | null;
@@ -61,19 +62,49 @@ type PreparedUpload = {
   media_type: "image" | "video";
 };
 
-function formatBytes(value: number | null | undefined) {
+type MediaOptimizerCopy = {
+  defaultName: string;
+  readFailed: string;
+  notFound: string;
+  unsupportedFormat: string;
+  sourceTooLarge: string;
+  preparingImport: string;
+  prepareFailed: string;
+  uploadingOriginal: string;
+  savingMedia: string;
+  finalizeFailed: string;
+  originalDeleted: string;
+  originalKeptInUse: string;
+  originalDeleteFailed: string;
+};
+
+function formatBytes(
+  value: number | null | undefined,
+  locale: string,
+  kilobytes: string,
+  megabytes: string,
+) {
   const bytes = Number(value || 0);
   if (!Number.isFinite(bytes) || bytes <= 0) return "—";
-  if (bytes < 1_000_000) return `${Math.max(1, Math.round(bytes / 1_000))} Ko`;
+  const formatter = new Intl.NumberFormat(locale, {
+    maximumFractionDigits: bytes >= 10_000_000 ? 0 : 1,
+  });
+  if (bytes < 1_000_000) {
+    return `${formatter.format(Math.max(1, Math.round(bytes / 1_000)))} ${kilobytes}`;
+  }
   const mb = bytes / 1_000_000;
-  return `${mb.toFixed(mb >= 10 ? 0 : 1)} Mo`;
+  return `${formatter.format(mb)} ${megabytes}`;
 }
 
-function itemName(item: MediaOptimizerItem | null, file: File | null) {
+function itemName(
+  item: MediaOptimizerItem | null,
+  file: File | null,
+  fallback: string,
+) {
   if (file?.name) return file.name;
   if (item?.title) return item.title;
   if (item?.original_file_name) return item.original_file_name;
-  return "Média iNrCy";
+  return fallback;
 }
 
 function outputLimit(
@@ -145,40 +176,48 @@ function readSourceMediaInfo(
   });
 }
 
-async function readJson(response: Response, fallback: string) {
+async function readJson(response: Response, fallback: string, locale: string) {
   const json = await response.json().catch(() => null);
-  if (!response.ok) throw new Error(String(json?.error || fallback));
+  if (!response.ok) {
+    throw new Error(getLocalizedErrorMessage(json?.error, locale, fallback));
+  }
   return json;
 }
 
-async function loadMediaItem(mediaId: string): Promise<MediaOptimizerItem> {
+async function loadMediaItem(
+  mediaId: string,
+  copy: MediaOptimizerCopy,
+  locale: string,
+): Promise<MediaOptimizerItem> {
   const response = await fetch(
     `/api/media-library/items?id=${encodeURIComponent(mediaId)}&active=all&limit=1`,
     { cache: "no-store" },
   );
-  const json = await readJson(response, "Impossible de relire le média.");
+  const json = await readJson(response, copy.readFailed, locale);
   const item = Array.isArray(json?.items) ? json.items[0] : null;
-  if (!item?.id) throw new Error("Média introuvable dans la Médiathèque.");
+  if (!item?.id) throw new Error(copy.notFound);
   return item as MediaOptimizerItem;
 }
 
 async function uploadSourceToLibrary(
   file: File,
   onProgress: (percent: number, label: string) => void,
+  copy: MediaOptimizerCopy,
+  locale: string,
 ): Promise<MediaOptimizerItem> {
   const mediaType = detectUniversalUploadMediaType({
     name: file.name,
     mimeType: file.type,
   });
   if (mediaType !== "image" && mediaType !== "video") {
-    throw new Error("Ce format ne peut pas être optimisé par iNrCy.");
+    throw new Error(copy.unsupportedFormat);
   }
   if (file.size > sourceLimit(mediaType)) {
-    throw new Error("Ce fichier dépasse le plafond de 300 Mo de la Médiathèque.");
+    throw new Error(copy.sourceTooLarge);
   }
 
   const clientId = `optimizer-${file.name}-${file.size}-${file.lastModified}`.slice(0, 180);
-  onProgress(3, "Préparation de l’import…");
+  onProgress(3, copy.preparingImport);
   const prepareResponse = await fetch("/api/media-library/upload", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -197,19 +236,20 @@ async function uploadSourceToLibrary(
   });
   const prepareJson = await readJson(
     prepareResponse,
-    "Préparation de l’import impossible.",
+    copy.prepareFailed,
+    locale,
   );
   const prepared = (Array.isArray(prepareJson?.items)
     ? prepareJson.items[0]
     : null) as PreparedUpload | null;
   if (!prepared?.token || !prepared?.storage_path) {
-    throw new Error("Préparation de l’import impossible.");
+    throw new Error(copy.prepareFailed);
   }
 
   const contentType = prepared.content_type || file.type || "application/octet-stream";
   let completedProtocol: "signed" | "tus" = "signed";
   const supabase = createClient();
-  onProgress(8, "Import de l’original dans la Médiathèque…");
+  onProgress(8, copy.uploadingOriginal);
 
   if (isUniversalMediaUploadEnabled()) {
     const intent: UniversalMediaUploadIntent = {
@@ -235,7 +275,7 @@ async function uploadSourceToLibrary(
         onProgress(progress) {
           onProgress(
             8 + Math.round(Math.max(0, Math.min(100, progress.percent)) * 0.32),
-            "Import de l’original dans la Médiathèque…",
+            copy.uploadingOriginal,
           );
         },
       });
@@ -258,7 +298,7 @@ async function uploadSourceToLibrary(
     if (uploadError) throw uploadError;
   }
 
-  onProgress(42, "Enregistrement du média…");
+  onProgress(42, copy.savingMedia);
   const mediaInfo = await readSourceMediaInfo(file, mediaType);
   const finalizeResponse = await fetch("/api/media-library/upload", {
     method: "POST",
@@ -285,7 +325,8 @@ async function uploadSourceToLibrary(
   });
   const finalizeJson = await readJson(
     finalizeResponse,
-    "Finalisation de l’import impossible.",
+    copy.finalizeFailed,
+    locale,
   );
   const result = Array.isArray(finalizeJson?.results)
     ? finalizeJson.results.find((entry: any) => entry?.ok && entry?.id)
@@ -293,29 +334,41 @@ async function uploadSourceToLibrary(
   if (!result?.id) {
     throw new Error(
       String(
-        finalizeJson?.results?.[0]?.error || "Finalisation de l’import impossible.",
+        getLocalizedErrorMessage(
+          finalizeJson?.results?.[0]?.error,
+          locale,
+          copy.finalizeFailed,
+        ),
       ),
     );
   }
-  return await loadMediaItem(String(result.id));
+  return await loadMediaItem(String(result.id), copy, locale);
 }
 
-async function removeOriginalIfSafe(mediaId: string) {
+async function removeOriginalIfSafe(
+  mediaId: string,
+  copy: MediaOptimizerCopy,
+  locale: string,
+) {
   const response = await fetch(
     `/api/media-library/items?id=${encodeURIComponent(mediaId)}`,
     { method: "DELETE" },
   );
   const json = await response.json().catch(() => null);
-  if (response.ok) return { deleted: true, message: "Original supprimé de la Médiathèque." };
+  if (response.ok) return { deleted: true, message: copy.originalDeleted };
   if (response.status === 409 && json?.requiresConfirmation) {
     return {
       deleted: false,
-      message: "Copie créée. L’original a été conservé car il est encore utilisé dans iNrCy.",
+      message: copy.originalKeptInUse,
     };
   }
   return {
     deleted: false,
-    message: String(json?.error || "Copie créée. L’original n’a pas pu être supprimé."),
+    message: getLocalizedErrorMessage(
+      json?.error,
+      locale,
+      copy.originalDeleteFailed,
+    ),
   };
 }
 
@@ -329,6 +382,24 @@ export default function MediaOptimizerModal({
   onLibraryChanged,
 }: Props) {
   const i18nT = useTranslations("media");
+  const locale = useLocale();
+  const unitKilobytes = i18nT("unit_kilobytes");
+  const unitMegabytes = i18nT("unit_megabytes");
+  const copy: MediaOptimizerCopy = {
+    defaultName: i18nT("optimizer_default_name"),
+    readFailed: i18nT("optimizer_read_failed"),
+    notFound: i18nT("optimizer_not_found"),
+    unsupportedFormat: i18nT("optimizer_unsupported_format"),
+    sourceTooLarge: i18nT("optimizer_source_too_large"),
+    preparingImport: i18nT("optimizer_preparing_import"),
+    prepareFailed: i18nT("optimizer_prepare_failed"),
+    uploadingOriginal: i18nT("optimizer_uploading_original"),
+    savingMedia: i18nT("optimizer_saving_media"),
+    finalizeFailed: i18nT("optimizer_finalize_failed"),
+    originalDeleted: i18nT("original_supprime_de_la_mediatheque_f5898a84"),
+    originalKeptInUse: i18nT("copie_creee_l_original_a_ete_6b669e89"),
+    originalDeleteFailed: i18nT("optimizer_original_delete_failed"),
+  };
   const [workingItem, setWorkingItem] = useState<MediaOptimizerItem | null>(null);
   const [busy, setBusy] = useState(false);
   const [keepOriginal, setKeepOriginal] = useState(true);
@@ -372,7 +443,7 @@ export default function MediaOptimizerModal({
   const sourceTooLarge = Boolean(
     sourceMaxBytes && currentSize > sourceMaxBytes,
   );
-  const sourceName = itemName(workingItem, sourceFile || null);
+  const sourceName = itemName(workingItem, sourceFile || null, copy.defaultName);
   const sourceMimeType =
     workingItem?.mime_type || sourceFile?.type || null;
   const requirements = useMemo(
@@ -402,7 +473,7 @@ export default function MediaOptimizerModal({
     ],
   );
   const targetBytes = limit;
-  const title = "Optimiser le média";
+  const title = i18nT("optimiser_le_media_1bc4fc40");
   const compressionRatio =
     requirements?.needsCompression && currentSize > 0 && targetBytes > 0
       ? targetBytes / currentSize
@@ -424,9 +495,9 @@ export default function MediaOptimizerModal({
       setInsertionError("");
       setNotice(
         origin === "booster"
-          ? `Média optimisé ajouté au Booster. ${retentionMessage}`
+          ? i18nT("optimizer_added_to_booster", { message: retentionMessage })
           : origin === "email"
-            ? `Média optimisé ajouté à la pièce jointe. ${retentionMessage}`
+            ? i18nT("optimizer_added_to_attachment", { message: retentionMessage })
             : retentionMessage,
       );
       return true;
@@ -434,7 +505,7 @@ export default function MediaOptimizerModal({
       setInsertionError(
         err instanceof Error
           ? err.message
-          : "La copie a bien été créée, mais son insertion automatique a échoué.",
+          : i18nT("optimizer_insertion_failed"),
       );
       setNotice(i18nT("copie_optimisee_creee_value_369694d0", { value0: retentionMessage }));
       return false;
@@ -448,7 +519,7 @@ export default function MediaOptimizerModal({
     try {
       await applyOptimizedItem(
         outputItem,
-        retentionNotice || "Original conservé dans la Médiathèque.",
+        retentionNotice || i18nT("optimizer_original_kept"),
       );
     } finally {
       if (openRef.current) setBusy(false);
@@ -466,19 +537,24 @@ export default function MediaOptimizerModal({
     try {
       let source = workingItem;
       if (!source) {
-        if (!sourceFile) throw new Error("Aucun média à optimiser.");
-        source = await uploadSourceToLibrary(sourceFile, (nextProgress, label) => {
-          if (!openRef.current) return;
-          setProgress(nextProgress);
-          setStage(label);
-        });
+        if (!sourceFile) throw new Error(i18nT("optimizer_no_media"));
+        source = await uploadSourceToLibrary(
+          sourceFile,
+          (nextProgress, label) => {
+            if (!openRef.current) return;
+            setProgress(nextProgress);
+            setStage(label);
+          },
+          copy,
+          locale,
+        );
         if (!openRef.current) return;
         setWorkingItem(source);
         await onLibraryChanged?.();
       }
 
       setProgress((current) => Math.max(current, 46));
-      setStage("Préparation de l’optimisation…");
+      setStage(i18nT("optimizer_preparing_optimization"));
       const queueResponse = await fetch("/api/media-library/optimization", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -486,7 +562,13 @@ export default function MediaOptimizerModal({
       });
       const queueJson = await queueResponse.json().catch(() => null);
       if (!queueResponse.ok && queueResponse.status !== 202) {
-        throw new Error(String(queueJson?.error || "Optimisation impossible."));
+        throw new Error(
+          getLocalizedErrorMessage(
+            queueJson?.error,
+            locale,
+            i18nT("optimizer_failed"),
+          ),
+        );
       }
 
       const queuedJobType = String(queueJson?.job?.job_type || "") || jobTypeFor(mediaType);
@@ -507,7 +589,7 @@ export default function MediaOptimizerModal({
         while (openRef.current && Date.now() - startedAt < 20 * 60 * 1000) {
           await new Promise((resolve) => window.setTimeout(resolve, 1_500));
           if (!openRef.current) return;
-          const refreshed = await loadMediaItem(source.id);
+          const refreshed = await loadMediaItem(source.id, copy, locale);
           setWorkingItem(refreshed);
           const optimization = refreshed.optimization;
           const status = String(optimization?.status || "");
@@ -521,7 +603,11 @@ export default function MediaOptimizerModal({
           }
           if (status === "failed" || status === "cancelled") {
             throw new Error(
-              String(optimization?.error_message || "L’optimisation du média a échoué."),
+              getLocalizedErrorMessage(
+                optimization?.error_message,
+                locale,
+                i18nT("optimizer_failed"),
+              ),
             );
           }
         }
@@ -529,21 +615,21 @@ export default function MediaOptimizerModal({
 
       if (!openRef.current) return;
       if (!outputMediaId) {
-        const refreshed = await loadMediaItem(source.id);
+        const refreshed = await loadMediaItem(source.id, copy, locale);
         outputMediaId = String(refreshed.optimization?.result?.outputMediaId || "").trim();
       }
       if (!outputMediaId) {
-        throw new Error("La copie optimisée n’a pas encore été créée. Réessayez dans quelques instants.");
+        throw new Error(i18nT("optimizer_output_pending"));
       }
 
-      const optimized = await loadMediaItem(outputMediaId);
+      const optimized = await loadMediaItem(outputMediaId, copy, locale);
       setOutputItem(optimized);
       setProgress(100);
-      setStage("Copie optimisée créée");
+      setStage(i18nT("optimizer_copy_created"));
 
-      let retentionMessage = "Original conservé dans la Médiathèque.";
+      let retentionMessage = i18nT("optimizer_original_kept");
       if (!keepOriginal) {
-        const retention = await removeOriginalIfSafe(source.id);
+        const retention = await removeOriginalIfSafe(source.id, copy, locale);
         retentionMessage = retention.message;
       }
       setRetentionNotice(retentionMessage);
@@ -552,7 +638,7 @@ export default function MediaOptimizerModal({
 
       await applyOptimizedItem(optimized, retentionMessage);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Optimisation impossible.");
+      setError(getLocalizedErrorMessage(err, locale, i18nT("optimizer_failed")));
     } finally {
       if (openRef.current) setBusy(false);
     }
@@ -656,7 +742,7 @@ export default function MediaOptimizerModal({
               {sourceName}
             </strong>
             <span style={{ display: "block", marginTop: 4, fontSize: 12, color: "#9fb0d2" }}>
-              {mediaType === "video" ? i18nT("video_304f6ca4") : i18nT("image_50e19fda")} · {formatBytes(currentSize)}
+              {mediaType === "video" ? i18nT("video_304f6ca4") : i18nT("image_50e19fda")} · {formatBytes(currentSize, locale, unitKilobytes, unitMegabytes)}
             </span>
           </div>
           <span
@@ -672,8 +758,8 @@ export default function MediaOptimizerModal({
             }}
           >
             {origin === "email"
-              ? i18nT("e_mail_value_max_7f932c53", { value0: formatBytes(limit) })
-              : i18nT("value_value_max_208b83f4", { value0: mediaType === "video" ? "Vidéo" : "Image", value1: formatBytes(limit) })}
+              ? i18nT("e_mail_value_max_7f932c53", { value0: formatBytes(limit, locale, unitKilobytes, unitMegabytes) })
+              : i18nT("value_value_max_208b83f4", { value0: mediaType === "video" ? i18nT("video_304f6ca4") : i18nT("image_50e19fda"), value1: formatBytes(limit, locale, unitKilobytes, unitMegabytes) })}
           </span>
         </div>
 
@@ -691,8 +777,8 @@ export default function MediaOptimizerModal({
             }}
           >
             <strong>{i18nT("fichier_source_trop_volumineux_c85fdcd0")}</strong> {" "}{i18nT("ce_media_fait_35c1c7a2")}{" "}
-            {formatBytes(currentSize)}{i18nT("inrcy_accepte_une_source_de_88b8d8b4")}{" "}
-            {formatBytes(sourceMaxBytes)} {" "}{i18nT("maximum_et_ne_peut_donc_pas_554ed6aa")}{" "}</div>
+            {formatBytes(currentSize, locale, unitKilobytes, unitMegabytes)}{i18nT("inrcy_accepte_une_source_de_88b8d8b4")}{" "}
+            {formatBytes(sourceMaxBytes, locale, unitKilobytes, unitMegabytes)} {" "}{i18nT("maximum_et_ne_peut_donc_pas_554ed6aa")}{" "}</div>
         ) : null}
 
         <div
@@ -716,7 +802,7 @@ export default function MediaOptimizerModal({
             ) : null}
             {requirements?.needsCompression ? (
               <span style={{ borderRadius: 999, padding: "7px 10px", border: "1px solid rgba(167,139,250,.28)", background: "rgba(91,33,182,.15)", color: "#ede9fe", fontSize: 12, fontWeight: 850 }}>
-                {i18nT("poids_ramene_a_value_maximum_6f196b66", { value0: formatBytes(limit) })}</span>
+                {i18nT("poids_ramene_a_value_maximum_6f196b66", { value0: formatBytes(limit, locale, unitKilobytes, unitMegabytes) })}</span>
             ) : null}
             {requirements && !requirements.needsOptimization ? (
               <span style={{ borderRadius: 999, padding: "7px 10px", border: "1px solid rgba(74,222,128,.26)", background: "rgba(22,101,52,.16)", color: "#d1fae5", fontSize: 12, fontWeight: 850 }}>
@@ -730,7 +816,7 @@ export default function MediaOptimizerModal({
           </div>
           {aggressiveCompression ? (
             <div role="status" style={{ padding: "9px 10px", borderRadius: 12, border: "1px solid rgba(251,191,36,.28)", background: "rgba(120,53,15,.18)", color: "#fde68a", fontSize: 12, lineHeight: 1.4 }}>
-              {i18nT("compression_forte_passer_de_value_a_558a609f", { value0: formatBytes(currentSize), value1: formatBytes(limit) })}</div>
+              {i18nT("compression_forte_passer_de_value_a_558a609f", { value0: formatBytes(currentSize, locale, unitKilobytes, unitMegabytes), value1: formatBytes(limit, locale, unitKilobytes, unitMegabytes) })}</div>
           ) : null}
         </div>
 
@@ -787,7 +873,7 @@ export default function MediaOptimizerModal({
 
         {outputItem && !error ? (
           <div role="status" style={{ padding: "10px 12px", borderRadius: 13, border: "1px solid rgba(74,222,128,.28)", background: "rgba(22,101,52,.18)", color: "#d1fae5", fontSize: 13 }}>
-            {i18nT("media_optimise_4b220141")}{" "}<strong>{formatBytes(outputItem.size_bytes)}</strong>. {notice}
+            {i18nT("media_optimise_4b220141")}{" "}<strong>{formatBytes(outputItem.size_bytes, locale, unitKilobytes, unitMegabytes)}</strong>. {notice}
           </div>
         ) : notice && !error ? (
           <div role="status" style={{ color: "#c9d8f4", fontSize: 12 }}>{notice}</div>

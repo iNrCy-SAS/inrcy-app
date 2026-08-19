@@ -221,27 +221,35 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
     }
 
     const confirmed = await confirmInrcy({
-      title: scheduledEditMode ? "Continuer sans sauvegarder ?" : "Fermer le message ?",
+      title: scheduledEditMode
+        ? i18nT("compose_unsaved_schedule_title")
+        : i18nT("compose_close_title"),
       message: scheduledEditMode
-        ? "Les modifications du mail programmé seront perdues. Continuer ?"
-        : "Vous avez un message en cours. Voulez-vous vraiment fermer cette fenêtre sans l’envoyer ni sauvegarder le brouillon ?",
-      confirmLabel: scheduledEditMode ? "Continuer sans sauvegarder" : "Fermer sans sauvegarder",
+        ? i18nT("compose_unsaved_schedule_message")
+        : i18nT("compose_unsaved_message"),
+      confirmLabel: scheduledEditMode
+        ? i18nT("compose_continue_without_saving")
+        : i18nT("compose_close_without_saving"),
       cancelLabel: i18nT("continuer_l_edition_0f0075bb"),
       variant: "warning",
     });
 
     if (confirmed) onClose();
-  }, [hasUnsavedComposeChanges, onClose, scheduledEditMode]);
+  }, [hasUnsavedComposeChanges, i18nT, onClose, scheduledEditMode]);
 
   useUnsavedExitGuard({
     active: open,
     shouldBlock: hasUnsavedComposeChanges,
     onConfirmExit: onClose,
-    title: scheduledEditMode ? "Continuer sans sauvegarder ?" : "Fermer le message ?",
+    title: scheduledEditMode
+      ? i18nT("compose_unsaved_schedule_title")
+      : i18nT("compose_close_title"),
     message: scheduledEditMode
-      ? "Les modifications du mail programmé seront perdues. Continuer ?"
-      : "Vous avez un message en cours. Voulez-vous vraiment fermer cette fenêtre sans l’envoyer ni sauvegarder le brouillon ?",
-    confirmLabel: scheduledEditMode ? "Continuer sans sauvegarder" : "Fermer sans sauvegarder",
+      ? i18nT("compose_unsaved_schedule_message")
+      : i18nT("compose_unsaved_message"),
+    confirmLabel: scheduledEditMode
+      ? i18nT("compose_continue_without_saving")
+      : i18nT("compose_close_without_saving"),
     cancelLabel: i18nT("continuer_l_edition_0f0075bb"),
     variant: "warning",
   });
@@ -1313,8 +1321,12 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
                 onClick={() => void onSaveScheduledEdit()}
                 type="button"
                 disabled={sendBusy || scheduleBusy || attachBusy || scheduledEditSaving}
-                title={scheduledEditSaving ? "Enregistrement en cours" : "Enregistrer les modifications sans changer la programmation"}
-                aria-label={scheduledEditSaving ? "Enregistrement en cours" : "Enregistrer le mail programmé"}
+                title={scheduledEditSaving
+                  ? i18nT("scheduled_save_busy_title")
+                  : i18nT("scheduled_save_title")}
+                aria-label={scheduledEditSaving
+                  ? i18nT("scheduled_save_busy_title")
+                  : i18nT("scheduled_save_aria")}
                 aria-busy={scheduledEditSaving}
               >
                 <span aria-hidden>{scheduledEditSaving ? "…" : "💾"}</span>

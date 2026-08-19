@@ -155,9 +155,9 @@ export default function GoogleBusinessPanel(props: any) {
 
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           <input
-            value={gmbAccountEmail || (gmbAccountConnected ? "Compte connecté" : "")}
+            value={gmbAccountEmail || (gmbAccountConnected ? i18nT("compte_connecte_a442afe1") : "")}
             readOnly
-            placeholder={gmbAccountConnected ? "Compte connecté" : "Aucun compte connecté"}
+            placeholder={gmbAccountConnected ? i18nT("compte_connecte_a442afe1") : i18nT("account_not_connected")}
             style={{
               flex: "1 1 280px",
               minWidth: 0,

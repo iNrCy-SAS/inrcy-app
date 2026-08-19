@@ -748,5 +748,8 @@
   "requirement_tiktok_duration_limit_unknown": "La limite de durée TikTok n’a pas pu être vérifiée. Actualisez la page puis réessayez.",
   "requirement_youtube_long_upload_status_unknown": "YouTube est bloqué : iNrCy n’a pas pu vérifier si les vidéos longues sont autorisées sur cette chaîne. Actualisez puis réessayez.",
   "requirement_youtube_long_upload_not_allowed": "YouTube est bloqué : cette chaîne n’autorise pas actuellement les vidéos de plus de 15 minutes.",
-  "requirement_validation_failed": "Vérifiez les conditions de publication de ce canal."
+  "requirement_validation_failed": "Vérifiez les conditions de publication de ce canal.",
+  "video_format_active_for_publication": "Format vidéo actif pour la publication",
+  "video_format_selected_for_publication": "Format vidéo sélectionné pour la publication",
+  "video_format_selected_to_apply": "Format vidéo sélectionné, prêt à être appliqué"
 }

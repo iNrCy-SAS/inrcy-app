@@ -8,7 +8,7 @@ import { resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { invalidateBoosterGenerationContextClient } from "@/lib/boosterGenerationContextClient";
 import { refreshPublicProfileDependents } from "@/lib/publicProfileRefreshClient";
 import { createClient } from "@/lib/supabaseClient";
-import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
+import { getClientUserFacingErrorMessage } from "@/lib/userFacingErrors";
 
 type LegalForm = "EI" | "EURL" | "SARL" | "SAS" | "SASU" | "AUTRE";
 
@@ -74,6 +74,7 @@ function signature(value: LegalSettings) {
 
 export default function BusinessLegalSettingsCard({ onUnsavedChange }: Props) {
   const i18nT = useTranslations("documents");
+  const settingsT = useTranslations("settings");
   const [form, setForm] = React.useState<LegalSettings>(initialSettings);
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
@@ -90,7 +91,7 @@ export default function BusinessLegalSettingsCard({ onUnsavedChange }: Props) {
         const supabase = createClient();
         const { data: authData, error: authError } = await supabase.auth.getUser();
         if (authError) throw authError;
-        if (!authData.user) throw new Error("Utilisateur non connecté.");
+        if (!authData.user) throw new Error(settingsT("user_not_authenticated"));
         const userId = resolveActiveBrowserUserId(authData.user.id);
         const { data, error: loadError } = await supabase
           .from("profiles")
@@ -122,9 +123,9 @@ export default function BusinessLegalSettingsCard({ onUnsavedChange }: Props) {
       } catch (caught) {
         if (active) {
           setError(
-            getSimpleFrenchErrorMessage(
+            getClientUserFacingErrorMessage(
               caught,
-              "Impossible de charger les informations juridiques.",
+              settingsT("business_legal_load_failed"),
             ),
           );
         }
@@ -157,7 +158,7 @@ export default function BusinessLegalSettingsCard({ onUnsavedChange }: Props) {
       const supabase = createClient();
       const { data: authData, error: authError } = await supabase.auth.getUser();
       if (authError) throw authError;
-      if (!authData.user) throw new Error("Utilisateur non connecté.");
+      if (!authData.user) throw new Error(settingsT("user_not_authenticated"));
       const userId = resolveActiveBrowserUserId(authData.user.id);
       const payload = {
         user_id: userId,
@@ -206,9 +207,9 @@ export default function BusinessLegalSettingsCard({ onUnsavedChange }: Props) {
       window.setTimeout(() => setSaved(false), 2500);
     } catch (caught) {
       setError(
-        getSimpleFrenchErrorMessage(
+        getClientUserFacingErrorMessage(
           caught,
-          "Impossible d’enregistrer les informations juridiques.",
+          settingsT("business_legal_save_failed"),
         ),
       );
     } finally {
@@ -295,7 +296,9 @@ export default function BusinessLegalSettingsCard({ onUnsavedChange }: Props) {
             fontWeight: 850,
           }}
         >
-          {completedFields >= 6 ? i18nT("pret_pour_encaisser_56edff06") : `${completedFields}/6 essentiels`}
+          {completedFields >= 6
+            ? i18nT("pret_pour_encaisser_56edff06")
+            : settingsT("essential_fields_progress", { count: completedFields })}
         </span>
       </div>
 

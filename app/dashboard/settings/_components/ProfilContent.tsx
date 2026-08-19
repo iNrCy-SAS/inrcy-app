@@ -17,7 +17,7 @@ import {
 } from "@/lib/profileLogo";
 import { refreshPublicProfileDependents } from "@/lib/publicProfileRefreshClient";
 import { createClient } from "@/lib/supabaseClient";
-import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
+import { getClientUserFacingErrorMessage } from "@/lib/userFacingErrors";
 import OnboardingStepFooter from "./OnboardingStepFooter";
 
 type Props = {
@@ -133,7 +133,7 @@ export default function ProfilContent({
         console.error(error);
         if (active) {
           setGlobalError(
-            getSimpleFrenchErrorMessage(error, "Impossible de charger le profil."),
+            getClientUserFacingErrorMessage(error, i18nT("profile_load_failed")),
           );
         }
       } finally {
@@ -168,18 +168,18 @@ export default function ProfilContent({
     const next: Record<string, string> = {};
     const email = form.contactEmail.trim();
     if (!email) {
-      next.contactEmail = "L’email professionnel est obligatoire.";
+      next.contactEmail = i18nT("professional_email_required");
     } else if (!/^\S+@\S+\.\S+$/.test(email)) {
-      next.contactEmail = "Email invalide.";
+      next.contactEmail = i18nT("invalid_email");
     }
-    if (!form.firstName.trim()) next.firstName = "Le prénom est obligatoire.";
-    if (!form.lastName.trim()) next.lastName = "Le nom est obligatoire.";
-    if (!form.phone.trim()) next.phone = "Le téléphone est obligatoire.";
+    if (!form.firstName.trim()) next.firstName = i18nT("first_name_required");
+    if (!form.lastName.trim()) next.lastName = i18nT("last_name_required");
+    if (!form.phone.trim()) next.phone = i18nT("phone_required");
     if (!form.companyName.trim()) {
-      next.companyName = "Le nom de l’entreprise est obligatoire.";
+      next.companyName = i18nT("company_name_required");
     }
-    if (!form.hqZip.trim()) next.hqZip = "Le code postal est obligatoire.";
-    if (!form.hqCity.trim()) next.hqCity = "La ville est obligatoire.";
+    if (!form.hqZip.trim()) next.hqZip = i18nT("postal_code_required");
+    if (!form.hqCity.trim()) next.hqCity = i18nT("city_required");
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -219,7 +219,7 @@ export default function ProfilContent({
       !prepared?.mimeType
     ) {
       throw new Error(
-        prepared?.error || "Impossible d’enregistrer le logo pour le moment.",
+        prepared?.error || i18nT("logo_save_failed"),
       );
     }
 
@@ -231,7 +231,7 @@ export default function ProfilContent({
         contentType: prepared.mimeType,
       });
     if (uploadError) {
-      throw new Error("Le logo n’a pas pu être envoyé. Vérifiez le fichier puis réessayez.");
+      throw new Error(i18nT("logo_upload_failed"));
     }
 
     const completeResponse = await fetch(
@@ -239,7 +239,7 @@ export default function ProfilContent({
     );
     const completed = await completeResponse.json().catch(() => ({}));
     if (!completeResponse.ok || !completed?.ok || !completed?.path || !completed?.displayUrl) {
-      throw new Error(completed?.error || "Impossible de préparer l’aperçu du logo.");
+      throw new Error(completed?.error || i18nT("logo_preview_failed"));
     }
     return { path: String(completed.path), signedUrl: String(completed.displayUrl) };
   }
@@ -259,7 +259,7 @@ export default function ProfilContent({
       const { data: authData, error: authError } = await supabase.auth.getUser();
       if (authError) throw authError;
       const user = authData?.user;
-      if (!user) throw new Error("Utilisateur non connecté.");
+      if (!user) throw new Error(i18nT("user_not_authenticated"));
 
       let logoUrl = form.logoPreview || "";
       let logoPath = form.logoPath || extractLogoPathFromUrl(form.logoPreview) || "";
@@ -339,7 +339,7 @@ export default function ProfilContent({
     } catch (error) {
       console.error(error);
       setGlobalError(
-        getSimpleFrenchErrorMessage(error, "Impossible d’enregistrer le profil."),
+        getClientUserFacingErrorMessage(error, i18nT("profile_save_failed")),
       );
     } finally {
       setSaving(false);
@@ -515,7 +515,7 @@ export default function ProfilContent({
             </div>
 
             <div style={{ display: "grid", gap: 8 }}>
-              <span style={labelTextStyle}>{i18nT("logo_de_l_entreprise_a1d7bdb9")}{" "}<em style={optionalStyle}>optionnel</em></span>
+              <span style={labelTextStyle}>{i18nT("logo_de_l_entreprise_a1d7bdb9")}{" "}<em style={optionalStyle}>{i18nT("optional_label")}</em></span>
               <input
                 ref={fileInputRef}
                 type="file"

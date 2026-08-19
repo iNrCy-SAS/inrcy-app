@@ -149,7 +149,7 @@
   "continuer_l_edition_0f0075bb": "Continue editing",
   "controlez_les_canaux_les_medias_et_01e0e60d": "Control channels, media and alerts before final sending.",
   "correction_du_vocal_en_cours_2a811504": "Voice correction in progress",
-  "correction_impossible_a95af972": "Correction impossible.",
+  "correction_impossible_a95af972": "Unable to correct.",
   "couleur_d_ecriture_14c6e5b9": "Writing style",
   "creer_avec_inrcy_6abf3922": "Create with iNrCy",
   "creer_manuellement_89b2d47e": "Create manually",
@@ -748,5 +748,8 @@
   "requirement_tiktok_duration_limit_unknown": "The TikTok duration limit could not be verified. Refresh the page and try again.",
   "requirement_youtube_long_upload_status_unknown": "YouTube is blocked because iNrCy could not verify whether long videos are allowed on this channel. Refresh and try again.",
   "requirement_youtube_long_upload_not_allowed": "YouTube is blocked because this channel does not currently allow videos longer than 15 minutes.",
-  "requirement_validation_failed": "Check this channel’s publication requirements."
+  "requirement_validation_failed": "Check this channel’s publication requirements.",
+  "video_format_active_for_publication": "Video format active for publishing",
+  "video_format_selected_for_publication": "Format selected for the post",
+  "video_format_selected_to_apply": "Video format selected, ready to apply"
 }

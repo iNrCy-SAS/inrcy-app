@@ -237,10 +237,10 @@ export function ChannelImageAdapterCardsPanel({
                   {(item.onRemove || item.onRemoveEverywhere) ? (
                     <div style={{ display: "grid", gridTemplateColumns: item.onRemove && item.onRemoveEverywhere ? "minmax(0, 1fr) minmax(0, 1fr)" : "minmax(0, 1fr)", gap: 6, minWidth: 0 }}>
                       {item.onRemove ? (
-                        <button type="button" className={buttonClassName} onClick={item.onRemove} title={item.removeLabel || "Retirer"} aria-label={`${item.removeLabel || "Retirer"} : ${item.title}`} style={{ minWidth: 0, maxWidth: "100%", justifyContent: "center", fontSize: 11, padding: "0 7px" }}>{item.removeLabel || i18nT("retirer_54ec24a1")}</button>
+                        <button type="button" className={buttonClassName} onClick={item.onRemove} title={item.removeLabel || i18nT("retirer_54ec24a1")} aria-label={`${item.removeLabel || i18nT("retirer_54ec24a1")} : ${item.title}`} style={{ minWidth: 0, maxWidth: "100%", justifyContent: "center", fontSize: 11, padding: "0 7px" }}>{item.removeLabel || i18nT("retirer_54ec24a1")}</button>
                       ) : null}
                       {item.onRemoveEverywhere ? (
-                        <button type="button" className={buttonClassName} onClick={item.onRemoveEverywhere} title={item.removeEverywhereLabel || "Supprimer partout"} aria-label={`${item.removeEverywhereLabel || "Supprimer partout"} : ${item.title}`} style={{ minWidth: 0, maxWidth: "100%", justifyContent: "center", fontSize: 10.5, padding: "0 7px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", background: "rgba(248,113,113,0.10)", border: "1px solid rgba(248,113,113,0.24)", color: "#fecaca" }}>{item.removeEverywhereLabel || i18nT("supprimer_partout_dfb790c4")}</button>
+                        <button type="button" className={buttonClassName} onClick={item.onRemoveEverywhere} title={item.removeEverywhereLabel || i18nT("supprimer_partout_dfb790c4")} aria-label={`${item.removeEverywhereLabel || i18nT("supprimer_partout_dfb790c4")} : ${item.title}`} style={{ minWidth: 0, maxWidth: "100%", justifyContent: "center", fontSize: 10.5, padding: "0 7px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", background: "rgba(248,113,113,0.10)", border: "1px solid rgba(248,113,113,0.24)", color: "#fecaca" }}>{item.removeEverywhereLabel || i18nT("supprimer_partout_dfb790c4")}</button>
                       ) : null}
                     </div>
                   ) : null}

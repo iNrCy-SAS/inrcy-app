@@ -11,8 +11,9 @@ type ClientHydrationGateProps = {
   label?: string;
 };
 
-export function StableBootScreen({ label = "Chargement de votre espace iNrCy..." }: { label?: string }) {
+export function StableBootScreen({ label }: { label?: string }) {
   const i18nT = useTranslations("shell");
+  const displayLabel = label ?? i18nT("loading_workspace");
   return (
     <main
       aria-busy="true"
@@ -47,7 +48,7 @@ export function StableBootScreen({ label = "Chargement de votre espace iNrCy..."
         }}
       >
         <div style={{ fontSize: "28px", fontWeight: 900, marginBottom: "8px" }}>{i18nT("inrcy_ef95fe0e")}</div>
-        <div style={{ fontSize: "14px", lineHeight: 1.45, color: "rgba(255,255,255,.78)", fontWeight: 700 }}>{label}</div>
+        <div style={{ fontSize: "14px", lineHeight: 1.45, color: "rgba(255,255,255,.78)", fontWeight: 700 }}>{displayLabel}</div>
       </div>
     </main>
   );

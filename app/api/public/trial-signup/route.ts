@@ -269,6 +269,10 @@ function normalizePayload(body: LooseRecord): SignupPayload {
     "language_code",
     "site_language",
     "wp_language",
+    // TranslatePress injecte ce champ caché dans les formulaires Elementor.
+    // Conserver les deux graphies protège les payloads JSON et form-data.
+    "trp-form-language",
+    "trp_form_language",
     "trp_language",
   ]);
   const sourcePageUrl = lookupValue(flat, [

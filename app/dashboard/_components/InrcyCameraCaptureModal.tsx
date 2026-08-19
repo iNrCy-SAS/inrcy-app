@@ -1022,14 +1022,14 @@ export default function InrcyCameraCaptureModal({
       aria-label={
         cameraMode === "video"
           ? canStopVideoRecording
-            ? "Arrêter la vidéo"
-            : "Enregistrer la vidéo"
+            ? i18nT("capture_stop_video")
+            : i18nT("capture_record_video")
           : phase === "capturing"
-            ? "Ajout de la photo"
-            : "Capturer la photo"
+            ? i18nT("capture_adding_photo")
+            : i18nT("capture_take_photo")
       }
       title={
-        cameraMode === "video" ? "Enregistrer la vidéo" : "Capturer la photo"
+        cameraMode === "video" ? i18nT("capture_record_video") : i18nT("capture_take_photo")
       }
       style={{
         ...captureButtonStyle,

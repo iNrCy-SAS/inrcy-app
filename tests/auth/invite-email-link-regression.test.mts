@@ -151,3 +151,12 @@ test("the signup webhook email renders all public form fields from the snapshot"
   }
   assert.doesNotMatch(alertRoute, /getDisplayName/);
 });
+
+test("the signup webhook recognizes TranslatePress language fields", () => {
+  const signupRoute = readFileSync("app/api/public/trial-signup/route.ts", "utf8");
+
+  assert.match(signupRoute, /"trp-form-language"/);
+  assert.match(signupRoute, /"trp_form_language"/);
+  assert.match(signupRoute, /app_language:\s*payload\.language/);
+  assert.match(signupRoute, /app_locale:\s*payload\.locale/);
+});

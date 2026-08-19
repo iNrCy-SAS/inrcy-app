@@ -748,5 +748,8 @@
   "requirement_tiktok_duration_limit_unknown": "De tijdslimiet van TikTok kon niet worden gecontroleerd. Vernieuw de pagina en probeer het opnieuw.",
   "requirement_youtube_long_upload_status_unknown": "YouTube is geblokkeerd omdat iNrCy niet kon controleren of dit kanaal lange video’s toestaat. Vernieuw de pagina en probeer het opnieuw.",
   "requirement_youtube_long_upload_not_allowed": "YouTube is geblokkeerd omdat dit kanaal momenteel geen video’s van meer dan 15 minuten toestaat.",
-  "requirement_validation_failed": "Controleer de publicatievereisten van dit kanaal."
+  "requirement_validation_failed": "Controleer de publicatievereisten van dit kanaal.",
+  "video_format_active_for_publication": "Actief videoformaat voor publicatie",
+  "video_format_selected_for_publication": "Videoformaat geselecteerd voor publicatie",
+  "video_format_selected_to_apply": "Videoformaat geselecteerd en klaar om toe te passen"
 }

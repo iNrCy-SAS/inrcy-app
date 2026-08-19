@@ -66,7 +66,9 @@ test("visible scene copy addresses visitors without technical conversion jargon"
 test("metadata enriches default company-only titles and avoids duplicated identity leads", () => {
   const source = read("app/entreprises/[slug]/page.tsx");
   assert.match(source, /normalizeMetaComparison\(customTitle\) === normalizeMetaComparison\(data\.companyName\)/);
-  assert.match(source, /const title = resolveSeoTitle\(data\)/);
+  assert.match(source, /const title = resolveSeoTitle\(data, i18nT, locale\)/);
+  assert.match(source, /getTranslations\("public"\)/);
+  assert.match(source, /getLocale\(\)/);
   assert.match(source, /normalizeMetaComparison\(lead\)\.startsWith\(normalizeMetaComparison\(identity\)\)/);
 });
 

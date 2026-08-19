@@ -267,7 +267,7 @@
   "m12_3_5_21_20h3l12_3_dc791ddf": "M12 3.5 21 20H3L12 3.5Z",
   "m12_8_5v5_7_4f62fc43": "M12 8.5v5.7",
   "masquer_adb05f2b": "Nascondi",
-  "maximum_value_images_f2da2faa": "Numero massimo di immagini {value0} ",
+  "maximum_value_images_f2da2faa": "Numero massimo di immagini {value0}",
   "media_add_image_details": "Aggiungi un'immagine al post: {limits} · {formats}",
   "media_allocation_images": "{count, plural, one {# Canale con foto:} other {# Canali con foto}}",
   "media_allocation_none": "{count, plural, one {# Canale senza contenuti multimediali} other {# Canali senza contenuti multimediali}}",
@@ -748,5 +748,8 @@
   "requirement_tiktok_duration_limit_unknown": "Non è stato possibile verificare il limite di durata di TikTok. Aggiorna la pagina e riprova.",
   "requirement_youtube_long_upload_status_unknown": "YouTube è bloccato perché iNrCy non ha potuto verificare se questo canale consente video lunghi. Aggiorna la pagina e riprova.",
   "requirement_youtube_long_upload_not_allowed": "YouTube è bloccato perché questo canale al momento non consente video di durata superiore a 15 minuti.",
-  "requirement_validation_failed": "Verifica i requisiti di pubblicazione di questo canale."
+  "requirement_validation_failed": "Verifica i requisiti di pubblicazione di questo canale.",
+  "video_format_active_for_publication": "Formato video attivo per la pubblicazione",
+  "video_format_selected_for_publication": "Formato video selezionato per la pubblicazione",
+  "video_format_selected_to_apply": "Formato video selezionato, pronto per essere applicato"
 }

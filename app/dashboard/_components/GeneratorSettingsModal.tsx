@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -12,7 +12,7 @@ import {
   sanitizeGeneratorBusinessSettings,
 } from "@/lib/generatorSettings";
 import { createClient } from "@/lib/supabaseClient";
-import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
+import { getLocalizedErrorMessage } from "@/lib/userFacingErrors";
 
 type Props = {
   opportunities: number | null;
@@ -39,6 +39,7 @@ export default function GeneratorSettingsModal({
   onSaved,
 }: Props) {
   const i18nT = useTranslations("shell");
+  const locale = useLocale();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [avgBasket, setAvgBasket] = useState(250);
@@ -85,7 +86,7 @@ export default function GeneratorSettingsModal({
         const supabase = createClient();
         const { data: authData, error: authError } = await supabase.auth.getUser();
         if (authError) throw authError;
-        if (!authData.user) throw new Error("Utilisateur non connecté.");
+        if (!authData.user) throw new Error(i18nT("generator_user_not_authenticated"));
         const userId = resolveActiveBrowserUserId(authData.user.id);
         const [profileResult, activityResult] = await Promise.all([
           supabase
@@ -115,9 +116,10 @@ export default function GeneratorSettingsModal({
       } catch (caught) {
         if (active) {
           setError(
-            getSimpleFrenchErrorMessage(
+            getLocalizedErrorMessage(
               caught,
-              "Impossible de charger les réglages du générateur.",
+              locale,
+              i18nT("generator_load_failed"),
             ),
           );
         }
@@ -129,7 +131,7 @@ export default function GeneratorSettingsModal({
     return () => {
       active = false;
     };
-  }, []);
+  }, [i18nT, locale]);
 
   async function save() {
     setSaving(true);
@@ -144,7 +146,7 @@ export default function GeneratorSettingsModal({
       const supabase = createClient();
       const { data: authData, error: authError } = await supabase.auth.getUser();
       if (authError) throw authError;
-      if (!authData.user) throw new Error("Utilisateur non connecté.");
+      if (!authData.user) throw new Error(i18nT("generator_user_not_authenticated"));
       const userId = resolveActiveBrowserUserId(authData.user.id);
       const { error: saveError } = await supabase.from("profiles").upsert(
         {
@@ -165,9 +167,10 @@ export default function GeneratorSettingsModal({
       closeTimerRef.current = window.setTimeout(onClose, 1500);
     } catch (caught) {
       setError(
-        getSimpleFrenchErrorMessage(
+        getLocalizedErrorMessage(
           caught,
-          "Impossible d’enregistrer les réglages du générateur.",
+          locale,
+          i18nT("generator_save_failed"),
         ),
       );
     } finally {

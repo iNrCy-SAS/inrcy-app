@@ -161,7 +161,7 @@ export default function FacebookPanel(props: any) {
           <input
             value={facebookAccountEmail}
             readOnly
-            placeholder={facebookAccountConnected ? "Compte connecté" : "Aucun compte connecté"}
+            placeholder={facebookAccountConnected ? i18nT("compte_connecte_a442afe1") : i18nT("account_not_connected")}
             style={{
               flex: "1 1 280px",
               minWidth: 0,

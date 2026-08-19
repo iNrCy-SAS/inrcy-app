@@ -1,10 +1,11 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { getMediaLibraryOptimizationRequirements } from "@/lib/mediaLibraryOptimizationPolicy";
+import { getLocalizedErrorMessage } from "@/lib/userFacingErrors";
 
 export type MediaLibraryPickerItem = {
   id: string;
@@ -43,18 +44,32 @@ type MediaLibraryPickerModalProps = {
 const MOBILE_DOCK_HEIGHT =
   "var(--inrcy-mobile-bottom-nav-total-height, calc(50px + env(safe-area-inset-bottom, 0px)))";
 
-function formatBytes(value: number | null | undefined) {
+function formatBytes(
+  value: number | null | undefined,
+  locale: string,
+  kilobytes: string,
+  megabytes: string,
+) {
   const bytes = Number(value || 0);
   if (!Number.isFinite(bytes) || bytes <= 0) return "—";
-  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} Ko`;
-  return `${(bytes / (1024 * 1024)).toFixed(bytes >= 10 * 1024 * 1024 ? 0 : 1)} Mo`;
+  const formatter = new Intl.NumberFormat(locale, {
+    maximumFractionDigits: bytes >= 10 * 1024 * 1024 ? 0 : 1,
+  });
+  if (bytes < 1024 * 1024) {
+    return `${formatter.format(Math.max(1, Math.round(bytes / 1024)))} ${kilobytes}`;
+  }
+  return `${formatter.format(bytes / (1024 * 1024))} ${megabytes}`;
 }
 
-
-function formatLimitBytes(value: number | null | undefined) {
+function formatLimitBytes(
+  value: number | null | undefined,
+  locale: string,
+  megabytes: string,
+  fallback: string,
+) {
   const bytes = Number(value || 0);
-  if (!Number.isFinite(bytes) || bytes <= 0) return "la limite autorisée";
-  return `${Math.max(1, Math.round(bytes / 1_000_000))} Mo`;
+  if (!Number.isFinite(bytes) || bytes <= 0) return fallback;
+  return `${new Intl.NumberFormat(locale).format(Math.max(1, Math.round(bytes / 1_000_000)))} ${megabytes}`;
 }
 
 function formatDuration(seconds: number | null | undefined) {
@@ -70,14 +85,14 @@ function displayName(item: MediaLibraryPickerItem) {
   return (
     item.title ||
     item.storage_path.split("/").pop() ||
-    (item.media_type === "video" ? "Vidéo iNrCy" : "Image iNrCy")
+    "iNrCy"
   );
 }
 
-function dateLabel(value: string | null) {
+function dateLabel(value: string | null, locale: string) {
   if (!value) return "—";
   try {
-    return new Intl.DateTimeFormat("fr-FR", {
+    return new Intl.DateTimeFormat(locale, {
       day: "2-digit",
       month: "short",
       year: "numeric",
@@ -119,12 +134,12 @@ export function mediaLibraryItemToAttachment(item: MediaLibraryPickerItem) {
 
 export default function MediaLibraryPickerModal({
   open,
-  title = "Choisir depuis la Médiathèque",
-  subtitle = "Sélectionnez un média déjà importé dans iNrCy.",
+  title,
+  subtitle,
   accept = "all",
   multiple = true,
   maxSelection = 10,
-  confirmLabel = "Ajouter",
+  confirmLabel,
   selectedHint,
   maxImageBytes,
   maxVideoBytes,
@@ -134,6 +149,12 @@ export default function MediaLibraryPickerModal({
   onConfirm,
 }: MediaLibraryPickerModalProps) {
   const i18nT = useTranslations("media");
+  const locale = useLocale();
+  const resolvedTitle = title || i18nT("picker_title");
+  const resolvedSubtitle = subtitle || i18nT("picker_subtitle");
+  const resolvedConfirmLabel = confirmLabel || i18nT("picker_add");
+  const unitKilobytes = i18nT("unit_kilobytes");
+  const unitMegabytes = i18nT("unit_megabytes");
   const [items, setItems] = useState<MediaLibraryPickerItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -184,7 +205,13 @@ export default function MediaLibraryPickerModal({
       );
       const json = await response.json().catch(() => null);
       if (!response.ok || json?.ok === false) {
-        throw new Error(json?.error || "Médiathèque indisponible.");
+        throw new Error(
+          getLocalizedErrorMessage(
+            json?.error,
+            locale,
+            i18nT("picker_unavailable"),
+          ),
+        );
       }
       const nextItems = Array.isArray(json?.items) ? json.items : [];
       setItems(
@@ -195,12 +222,12 @@ export default function MediaLibraryPickerModal({
       );
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Médiathèque indisponible.",
+        getLocalizedErrorMessage(err, locale, i18nT("picker_unavailable")),
       );
     } finally {
       setLoading(false);
     }
-  }, [accept, open, query, typeFilter]);
+  }, [accept, i18nT, locale, open, query, typeFilter]);
 
   useEffect(() => {
     if (!open) return;
@@ -230,14 +257,19 @@ export default function MediaLibraryPickerModal({
         onOversizedMedia(item);
         return;
       }
-      const limitLabel = formatLimitBytes(Number(maxBytes));
+      const limitLabel = formatLimitBytes(
+        Number(maxBytes),
+        locale,
+        unitMegabytes,
+        i18nT("la_limite_autorisee_fb77830b"),
+      );
       setOversizeBlocked(true);
       setOversizeBlockedItem(item);
       setError(
         optimizationRequirements.needsConversion &&
           !optimizationRequirements.needsCompression
-          ? "Ce format doit être optimisé avant son insertion."
-          : `Ce média dépasse ${limitLabel}. Créez d'abord une copie optimisée dans la Médiathèque.`,
+          ? i18nT("picker_conversion_required")
+          : i18nT("picker_size_exceeded", { limit: limitLabel }),
       );
       return;
     }
@@ -266,7 +298,9 @@ export default function MediaLibraryPickerModal({
       await onConfirm(selectedItems);
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ajout impossible.");
+      setError(
+        getLocalizedErrorMessage(err, locale, i18nT("picker_add_failed")),
+      );
     } finally {
       setBusy(false);
     }
@@ -274,8 +308,8 @@ export default function MediaLibraryPickerModal({
 
   if (!open) return null;
 
-  const displayTitle = compact ? "Médiathèque" : title;
-  const displaySubtitle = compact ? "Ajouter un média" : subtitle;
+  const displayTitle = compact ? i18nT("mediatheque_e4fa8e31") : resolvedTitle;
+  const displaySubtitle = compact ? i18nT("picker_mobile_subtitle") : resolvedSubtitle;
   const hasError = Boolean(error);
   const modalGridTemplateRows = hasError
     ? "auto auto auto minmax(0, 1fr) auto"
@@ -409,13 +443,13 @@ export default function MediaLibraryPickerModal({
     : primaryButtonStyle;
   const confirmButtonLabel = compact
     ? busy
-      ? "Ajout…"
+      ? i18nT("picker_adding")
       : selectedItems.length
-        ? `Ajouter (${selectedItems.length})`
-        : "Ajouter"
+        ? i18nT("picker_add_count", { count: selectedItems.length })
+        : i18nT("picker_add")
     : busy
-      ? "Ajout…"
-      : confirmLabel;
+      ? i18nT("picker_adding")
+      : resolvedConfirmLabel;
 
   const filtersNode = compact ? (
     <div style={compactFiltersStyle}>
@@ -578,7 +612,7 @@ export default function MediaLibraryPickerModal({
               const tags =
                 Array.isArray(item.tags) && item.tags.length
                   ? item.tags.join(", ")
-                  : "Aucun tag";
+                  : i18nT("aucun_tag_b6d9425d");
               const openOptimizerForItem = (
                 event: React.MouseEvent<HTMLButtonElement>,
               ) => {
@@ -668,7 +702,7 @@ export default function MediaLibraryPickerModal({
                         ) : null}
                       </span>
                       <span style={metaStyle}>
-                        {formatBytes(item.size_bytes)}
+                        {formatBytes(item.size_bytes, locale, unitKilobytes, unitMegabytes)}
                       </span>
                       <span style={metaStyle}>
                         {item.media_type === "video"
@@ -678,7 +712,7 @@ export default function MediaLibraryPickerModal({
                             : "—"}
                       </span>
                       <span style={metaStyle}>
-                        {dateLabel(item.created_at)}
+                        {dateLabel(item.created_at, locale)}
                       </span>
                     </>
                   )}

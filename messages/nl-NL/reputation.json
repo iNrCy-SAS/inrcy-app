@@ -146,7 +146,7 @@
   "unable_load_next_review": "Kan de volgende recensie niet laden.",
   "unable_load_review_page": "Deze beoordelingspagina kon niet worden geladen.",
   "unable_load_reviews_source": "Kan niet laden Recensies {value0} voorlopig.",
-  "unable_refresh_reviews_source": "Het is momenteel niet mogelijk om beoordelingen bij te werken {value0} ",
+  "unable_refresh_reviews_source": "Het is momenteel niet mogelijk om beoordelingen bij te werken {value0}",
   "value_etoiles_sur_5_d0131ac3": "{value0} 5 van de 5 sterren",
   "value_exemples_fictifs_affiches_56447aa0": "{value0} Fictieve voorbeelden weergegeven",
   "value_value_charges_662e7e53": "{value0} · {value1} Geladen",

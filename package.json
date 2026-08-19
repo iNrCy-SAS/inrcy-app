@@ -21,7 +21,7 @@
     "translate:i18n": "node --use-system-ca scripts/i18n/translate-catalogs.mjs",
     "prune:i18n:app": "node scripts/i18n/prune-unused-flat-catalogs.mjs --write",
     "postedit:i18n": "node scripts/i18n/postedit-catalogs.mjs --write",
-    "test:i18n": "npm run audit:i18n:all && node scripts/i18n/validate-standard-usage.mjs && node scripts/i18n/validate-catalogs.mjs",
+    "test:i18n": "npm run audit:i18n:all && node scripts/i18n/validate-standard-usage.mjs && node scripts/i18n/validate-referenced-keys.mjs && node scripts/i18n/validate-catalogs.mjs",
     "typecheck": "next typegen && tsc --noEmit --pretty false --noErrorTruncation",
     "test:multicompte": "node --test --experimental-strip-types tests/multicompte/*.test.mts",
     "audit:multicompte": "node scripts/audit-multicompte.mjs",

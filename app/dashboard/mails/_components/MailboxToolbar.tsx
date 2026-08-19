@@ -70,7 +70,7 @@ export default function MailboxToolbar(props: Props) {
             }`}
             onClick={() => setSearchOpen((value) => !value)}
             type="button"
-            title={searchOpen ? "Fermer la recherche" : "Rechercher (Ctrl/Cmd+K)"}
+            title={searchOpen ? i18nT("search_close_title") : i18nT("search_open_title")}
             aria-label={i18nT("rechercher_91f7d3e9")}
           >
             <span className={styles.toolbarIconGlyph}>⌕</span>
@@ -119,7 +119,9 @@ export default function MailboxToolbar(props: Props) {
             className={`${styles.toolbarBtn} ${styles.draftsToggleBtn} ${boxView === "drafts" ? styles.toolbarBtnActive : ""}`}
             onClick={() => setBoxView((value: BoxView) => (value === "drafts" ? "sent" : "drafts"))}
             type="button"
-            title={draftCount > 0 ? `${draftCount} brouillon${draftCount > 1 ? "s" : ""}` : "Brouillons"}
+            title={draftCount > 0
+              ? i18nT("drafts_count", { count: draftCount })
+              : i18nT("brouillons_a55f3cd9")}
           >
             <span className={styles.draftsToggleLabel}>{i18nT("brouillons_a55f3cd9")}</span>
             {draftCount > 0 ? <span className={styles.badgeCount}>{draftCount}</span> : null}
@@ -132,7 +134,7 @@ export default function MailboxToolbar(props: Props) {
           }`}
           onClick={() => setSearchOpen((value) => !value)}
           type="button"
-          title={searchOpen ? "Fermer la recherche" : "Rechercher (Ctrl/Cmd+K)"}
+          title={searchOpen ? i18nT("search_close_title") : i18nT("search_open_title")}
           aria-label={i18nT("rechercher_91f7d3e9")}
         >
           <span className={styles.toolbarIconGlyph}>⌕</span>

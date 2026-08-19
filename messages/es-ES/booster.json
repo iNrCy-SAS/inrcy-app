@@ -471,7 +471,7 @@
   "value_ko_07f2c21f": "{value0} KB",
   "value_le_texte_affiche_en_direct_793f1d77": "{value0} El texto que se muestra en directo se conserva sin corrección final.",
   "value_mo_e0c22daa": "{value0} Mo",
-  "value_n_a_pas_repondu_au_e653b7e3": "{value0} no respondió al primer intento. iNrCy completó automáticamente la generación con {value1}, sin cambiar tu motor predeterminado.",
+  "value_n_a_pas_repondu_au_e653b7e3": "{value0} no respondió al primer intento. iNrCy completó automáticamente la generación con {value1} sin cambiar tu motor predeterminado.",
   "value_restera_selectionne_pour_maintenant_65dddae3": "{value0} • Permanecerá seleccionado por ahora",
   "value_sera_programme_20436792": "{value0} • Se programará",
   "value_utilisez_un_format_compatible_value_c02ae7fc": "{value0} Usa un formato compatible : {value1}.",
@@ -748,5 +748,8 @@
   "requirement_tiktok_duration_limit_unknown": "No se ha podido verificar el límite de duración de TikTok. Actualiza la página e inténtalo de nuevo.",
   "requirement_youtube_long_upload_status_unknown": "YouTube está bloqueado porque iNrCy no ha podido verificar si este canal permite vídeos largos. Actualiza la página e inténtalo de nuevo.",
   "requirement_youtube_long_upload_not_allowed": "YouTube está bloqueado porque este canal no permite actualmente vídeos de más de 15 minutos.",
-  "requirement_validation_failed": "Comprueba los requisitos de publicación de este canal."
+  "requirement_validation_failed": "Comprueba los requisitos de publicación de este canal.",
+  "video_format_active_for_publication": "Formato activo para tu publicación",
+  "video_format_selected_for_publication": "Formato de vídeo seleccionado para la publicación",
+  "video_format_selected_to_apply": "Formato de vídeo seleccionado, listo para aplicar"
 }

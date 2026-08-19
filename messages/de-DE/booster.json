@@ -52,7 +52,7 @@
   "ajoutez_une_video_avant_de_publier_74e6e32f": "Fügen Sie vor der Veröffentlichung ein Video hinzu oder wählen Sie pro Kanal „Fotos / Keine Medien“.",
   "ajoutez_une_video_ou_choisissez_photos_0fc6eb5c": "Fügen Sie für diesen Kanal ein Video hinzu oder wählen Sie „Fotos / Keine Medien“.",
   "ajoutez_une_video_pour_publier_sur_25b3629b": "Fügen Sie ein Video hinzu, um es auf YouTube zu veröffentlichen.",
-  "ajoutez_une_video_valide_value_10fc4557": "Fügen Sie ein gültiges Video hinzu : {value0}.",
+  "ajoutez_une_video_valide_value_10fc4557": "Fügen Sie ein gültiges Video hinzu: {value0}.",
   "annuler_49ba3292": "Abbrechen",
   "apercu_du_format_babb12e0": "Formatvorschau",
   "apercu_f0f53004": "Vorschau",
@@ -748,5 +748,8 @@
   "requirement_tiktok_duration_limit_unknown": "Das TikTok-Dauerlimit konnte nicht überprüft werden. Aktualisiere die Seite und versuche es erneut.",
   "requirement_youtube_long_upload_status_unknown": "YouTube ist blockiert, da iNrCy nicht prüfen konnte, ob dieser Kanal lange Videos erlaubt. Aktualisiere die Seite und versuche es erneut.",
   "requirement_youtube_long_upload_not_allowed": "YouTube ist blockiert, da dieser Kanal derzeit keine Videos mit mehr als 15 Minuten Länge erlaubt.",
-  "requirement_validation_failed": "Prüfe die Veröffentlichungsanforderungen dieses Kanals."
+  "requirement_validation_failed": "Prüfe die Veröffentlichungsanforderungen dieses Kanals.",
+  "video_format_active_for_publication": "Aktives Videoformat für die Veröffentlichung",
+  "video_format_selected_for_publication": "Ausgewähltes Videoformat für die Veröffentlichung",
+  "video_format_selected_to_apply": "Videoformat ausgewählt und bereit zur Anwendung"
 }
