@@ -80,17 +80,22 @@ export function useDashboardPanelRouting() {
 
   // Transition interne après une sauvegarde réussie. Elle ne passe pas par le
   // guard "modifications non enregistrées", car la sauvegarde a déjà remis le
-  // formulaire à l'état propre. Le guard reste actif pour toute fermeture ou
-  // navigation déclenchée manuellement par le professionnel.
+  // formulaire à l'état propre. L'historique natif synchronise useSearchParams
+  // sans lancer une nouvelle navigation serveur : la coque onboarding reste
+  // montée et le dashboard ne peut pas apparaître entre deux pages.
   const replacePanelDirect = useCallback(
     (name: DashboardPanelName) => {
       const params = new URLSearchParams(searchParams.toString());
       params.set("panel", name);
       markPanelAsExplicitlyOpened(name);
       rememberDashboardScroll();
-      router.replace(`/dashboard?${params.toString()}`, { scroll: false });
+      window.history.replaceState(
+        window.history.state,
+        "",
+        `/dashboard?${params.toString()}`,
+      );
     },
-    [markPanelAsExplicitlyOpened, router, searchParams],
+    [markPanelAsExplicitlyOpened, searchParams],
   );
 
   const closePanel = useCallback(() => {

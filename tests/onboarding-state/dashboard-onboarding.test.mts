@@ -142,7 +142,7 @@ test("successful onboarding saves use a direct guarded-safe panel transition", (
     /const replacePanelDirect = useCallback\([\s\S]*?\n  \);/,
   )?.[0] ?? "";
 
-  assert.match(directTransition, /router\.replace/);
+  assert.match(directTransition, /window\.history\.replaceState/);
   assert.doesNotMatch(directTransition, /requestNavigation/);
   assert.match(
     dashboardClientSource,
@@ -166,8 +166,20 @@ const settingsDrawerSource = readFileSync(
   new URL("../../app/dashboard/SettingsDrawer.tsx", import.meta.url),
   "utf8",
 );
-const aiChoiceSource = readFileSync(
-  new URL("../../app/dashboard/_components/DashboardOnboardingAiChoice.tsx", import.meta.url),
+const onboardingFooterSource = readFileSync(
+  new URL("../../app/dashboard/settings/_components/OnboardingStepFooter.tsx", import.meta.url),
+  "utf8",
+);
+const settingsContentSource = readFileSync(
+  new URL("../../app/dashboard/_components/DashboardSettingsDrawerContent.tsx", import.meta.url),
+  "utf8",
+);
+const activityContentSource = readFileSync(
+  new URL("../../app/dashboard/settings/_components/ActivityContent.tsx", import.meta.url),
+  "utf8",
+);
+const aiConfigurationSource = readFileSync(
+  new URL("../../app/dashboard/settings/_components/AiConfigurationContent.tsx", import.meta.url),
   "utf8",
 );
 const dashboardPageSource = readFileSync(
@@ -186,8 +198,8 @@ test("first onboarding uses a dedicated desktop presentation and a Passer action
   assert.match(settingsDrawerSource, /presentation\?: "drawer" \| "onboarding"/);
   assert.match(settingsDrawerSource, /isDesktopOnboarding/);
   assert.match(settingsDrawerSource, /#06101f/);
-  assert.match(dashboardClientSource, /presentation=\{isGuidedOnboardingPanel \? "onboarding" : "drawer"\}/);
-  assert.match(dashboardClientSource, /closeLabel=\{isGuidedOnboardingPanel \? onboardingT\("skip"\) : undefined\}/);
+  assert.match(dashboardClientSource, /presentation=\{guidedOnboardingActive \? "onboarding" : "drawer"\}/);
+  assert.match(dashboardClientSource, /closeLabel=\{guidedOnboardingActive \? onboardingT\("skip"\) : undefined\}/);
 });
 
 test("dashboard uses a generic boot screen after onboarding and reserves preparation for the first run", () => {
@@ -238,13 +250,34 @@ test("skipping required onboarding warns that tools remain unavailable", () => {
   assert.match(dashboardClientSource, /onboardingT\("returnToSetup"\)/);
 });
 
-test("step three offers defaults before opening the existing AI configuration", () => {
-  assert.match(aiChoiceSource, /t\("aiReadyTitle"\)/);
-  assert.match(aiChoiceSource, /t\("customizeAi"\)/);
-  assert.match(aiChoiceSource, /t\("keepDefaults"\)/);
-  assert.match(dashboardClientSource, /onboardingAiMode === "choice"/);
-  assert.match(dashboardClientSource, /setOnboardingAiMode\("configure"\)/);
-  assert.match(dashboardClientSource, /onKeepDefaults=\{completeOnboardingFromAi\}/);
+test("the three pages use one autosaving previous-next-reset navigation", () => {
+  assert.match(onboardingFooterSource, /data-onboarding-step-footer/);
+  assert.match(onboardingFooterSource, /t\("previous"\)/);
+  assert.match(onboardingFooterSource, /t\("next"\)/);
+  assert.match(onboardingFooterSource, /t\("reset"\)/);
+  assert.match(activityContentSource, /requireComplete: false,[\s\S]*onSuccess: onOnboardingPrevious/);
+  assert.match(activityContentSource, /requireComplete: true,[\s\S]*onSuccess: onOnboardingNext/);
+  assert.match(aiConfigurationSource, /onPrevious=\{\(\) => save\(onOnboardingPrevious\)\}/);
+  assert.match(aiConfigurationSource, /onNext=\{\(\) => save\(onOnboardingNext\)\}/);
+});
+
+test("activity and AI are split into three framed, understandable sections", () => {
+  for (const section of ["identity", "reach", "positioning"]) {
+    assert.match(activityContentSource, new RegExp(`data-onboarding-activity-section="${section}"`));
+  }
+  for (const section of ["foundation", "voice", "goals"]) {
+    assert.match(aiConfigurationSource, new RegExp(`data-onboarding-ai-section="${section}"`));
+  }
+});
+
+test("backward navigation persists the step and the onboarding shell never exposes the dashboard", () => {
+  assert.match(dashboardClientSource, /setCurrentOnboardingStep\("profile"\)[\s\S]*replacePanelDirect\("profil"\)/);
+  assert.match(dashboardClientSource, /setCurrentOnboardingStep\("activity"\)[\s\S]*replacePanelDirect\("activite"\)/);
+  assert.match(dashboardClientSource, /isOpen=\{guidedOnboardingActive \|\| isDrawerPanel\(panel\)\}/);
+  assert.match(dashboardClientSource, /contentDirection=\{onboardingTransitionDirection\}/);
+  assert.match(settingsDrawerSource, /inrcy-onboarding-page-forward/);
+  assert.match(settingsDrawerSource, /inrcy-onboarding-page-backward/);
+  assert.match(settingsContentSource, /const visibleOnboardingPanel = onboardingPanel \?\? panel/);
 });
 
 test("returning to the dashboard reuses the establishment onboarding cache", () => {

@@ -85,5 +85,5 @@ test("the three-step onboarding uses dedicated profile and activity presentation
   assert.match(content, /onboarding=\{guidedOnboardingStep === "activity"\}/);
   assert.match(client, /onboardingT\("progress"/);
   assert.match(drawer, /presentation === "onboarding"/);
-  assert.match(drawer, /min\(780px, calc\(100vw - 48px\)\)/);
+  assert.match(drawer, /min\(860px, calc\(100vw - 48px\)\)/);
 });

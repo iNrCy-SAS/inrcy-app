@@ -82,6 +82,8 @@ test("Step 10 sexies keeps engine info and AI configuration drawers above the mo
   assert.match(publishDrawer, /onUnsavedChange=\{setHasUnsavedChanges\}/);
   assert.match(
     dashboardDrawer,
-    /onSaved=\{guidedOnboardingStep === "ai" \? onCompleteOnboardingAi : onCloseDrawer\}/,
+    /onSaved=\{guidedOnboardingStep === "ai" \? undefined : onCloseDrawer\}/,
   );
+  assert.match(dashboardDrawer, /onOnboardingPrevious=\{onPreviousOnboardingAi\}/);
+  assert.match(dashboardDrawer, /onOnboardingNext=\{onCompleteOnboardingAi\}/);
 });

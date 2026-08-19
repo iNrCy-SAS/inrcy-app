@@ -18,13 +18,16 @@ import {
 import { refreshPublicProfileDependents } from "@/lib/publicProfileRefreshClient";
 import { createClient } from "@/lib/supabaseClient";
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
+import OnboardingStepFooter from "./OnboardingStepFooter";
 
 type Props = {
   mode?: "page" | "drawer";
   onboarding?: boolean;
-  onProfileSaved?: () => void;
-  onProfileReset?: () => void;
-  onCloseDrawer?: () => void;
+  onProfileSaved?: () => unknown | Promise<unknown>;
+  onProfileReset?: () => unknown | Promise<unknown>;
+  onCloseDrawer?: () => unknown | Promise<unknown>;
+  onOnboardingPrevious?: () => void | Promise<void>;
+  onOnboardingNext?: () => void | Promise<void>;
   onUnsavedChange?: (hasUnsavedChanges: boolean) => void;
 };
 
@@ -56,6 +59,8 @@ export default function ProfilContent({
   onProfileSaved,
   onProfileReset,
   onCloseDrawer,
+  onOnboardingPrevious,
+  onOnboardingNext,
   onUnsavedChange,
 }: Props) {
   const i18nT = useTranslations("settings");
@@ -239,7 +244,7 @@ export default function ProfilContent({
     return { path: String(completed.path), signedUrl: String(completed.displayUrl) };
   }
 
-  const handleSave = async () => {
+  const handleSave = async (onSuccess?: () => void | Promise<void>) => {
     if (saving) return;
     setGlobalError("");
     setSaved(false);
@@ -323,8 +328,10 @@ export default function ProfilContent({
       baselineRef.current = profileSnapshot(savedForm);
       onUnsavedChange?.(false);
       setSaved(true);
-      onProfileSaved?.();
-      if (mode === "drawer") {
+      await onProfileSaved?.();
+      if (onSuccess) {
+        await onSuccess();
+      } else if (mode === "drawer") {
         window.setTimeout(() => onCloseDrawer?.(), 450);
       } else {
         window.setTimeout(() => setSaved(false), 2500);
@@ -355,7 +362,7 @@ export default function ProfilContent({
     setSaved(false);
     baselineRef.current = profileSnapshot(initial);
     onUnsavedChange?.(false);
-    onProfileReset?.();
+    await onProfileReset?.();
   };
 
   const fieldStyle = (key: keyof ProfileForm): React.CSSProperties => ({
@@ -574,23 +581,31 @@ export default function ProfilContent({
       {saved ? <div style={successBannerStyle}>{i18nT("profil_enregistre_d21b6a7e")}</div> : null}
 
       {!loading ? (
-        <div data-profile-actions style={actionsStyle}>
-          <button type="button" onClick={handleReset} disabled={saving} style={resetButtonStyle}>
-            {i18nT("reinitialiser_e0e2ad54")}{" "}</button>
-          <button
-            type="button"
-            onClick={() => void handleSave()}
-            disabled={saving}
-            aria-busy={saving}
-            style={{ ...primaryButtonStyle, opacity: saving ? 0.7 : 1 }}
-          >
-            {saving
-              ? i18nT("enregistrement_e7d5f232")
-              : onboarding
-                ? i18nT("enregistrer_et_continuer_c75a7f90")
+        onboarding ? (
+          <OnboardingStepFooter
+            busy={saving}
+            previousDisabled
+            onPrevious={onOnboardingPrevious ?? (() => undefined)}
+            onNext={() => handleSave(onOnboardingNext)}
+            onReset={handleReset}
+          />
+        ) : (
+          <div data-profile-actions style={actionsStyle}>
+            <button type="button" onClick={handleReset} disabled={saving} style={resetButtonStyle}>
+              {i18nT("reinitialiser_e0e2ad54")}{" "}</button>
+            <button
+              type="button"
+              onClick={() => void handleSave()}
+              disabled={saving}
+              aria-busy={saving}
+              style={{ ...primaryButtonStyle, opacity: saving ? 0.7 : 1 }}
+            >
+              {saving
+                ? i18nT("enregistrement_e7d5f232")
                 : i18nT("enregistrer_f7c8bcd8")}
-          </button>
-        </div>
+            </button>
+          </div>
+        )
       ) : null}
 
       <style jsx>{`

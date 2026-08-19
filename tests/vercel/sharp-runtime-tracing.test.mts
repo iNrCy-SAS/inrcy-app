@@ -22,3 +22,10 @@ test("Vercel functions retain Sharp and its native libvips packages", () => {
     assert.ok(nextConfig.includes(`"${route}": sharpRuntimeFiles`), route);
   }
 });
+
+test("HEIC conversion remains a traced Node runtime dependency", () => {
+  assert.match(
+    nextConfig,
+    /serverExternalPackages:\s*\["heic-convert"\]/,
+  );
+});

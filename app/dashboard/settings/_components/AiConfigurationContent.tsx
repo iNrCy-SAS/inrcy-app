@@ -23,10 +23,14 @@ import {
   type BoosterPreferredCta,
 } from "../../booster/publier/publishModal.shared";
 import AiEngineInfoModal from "../../_components/AiEngineInfoModal";
+import OnboardingStepFooter from "./OnboardingStepFooter";
 
 type Props = {
   mode?: "page" | "drawer";
-  onSaved?: () => void;
+  onboarding?: boolean;
+  onSaved?: () => void | Promise<void>;
+  onOnboardingPrevious?: () => void | Promise<void>;
+  onOnboardingNext?: () => void | Promise<void>;
   onUnsavedChange?: (hasUnsavedChanges: boolean) => void;
 };
 
@@ -174,8 +178,16 @@ function markAiLanguageCustom() {
   try { window.localStorage.setItem(AI_LANGUAGE_CUSTOM_STORAGE_KEY, "1"); } catch {}
 }
 
-export default function AiConfigurationContent({ mode = "drawer", onSaved, onUnsavedChange }: Props) {
+export default function AiConfigurationContent({
+  mode = "drawer",
+  onboarding = false,
+  onSaved,
+  onOnboardingPrevious,
+  onOnboardingNext,
+  onUnsavedChange,
+}: Props) {
   const i18nT = useTranslations("settings");
+  const onboardingT = useTranslations("dashboard.onboarding");
   const [form, setForm] = useState<AiConfigForm>(initialForm);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -217,6 +229,37 @@ export default function AiConfigurationContent({ mode = "drawer", onSaved, onUns
       "linear-gradient(135deg, rgba(251,191,36,0.18), rgba(56,189,248,0.16), rgba(167,139,250,0.18), rgba(244,114,182,0.14))",
     boxShadow: "0 20px 60px rgba(0,0,0,0.22), 0 0 34px rgba(251,191,36,0.12), inset 0 1px 0 rgba(255,255,255,0.10)",
   }), [card]);
+
+  const configurationCard: React.CSSProperties = useMemo(() => ({
+    ...card,
+    display: "grid",
+    gap: 18,
+    border: "1px solid rgba(125,211,252,0.16)",
+    background:
+      "linear-gradient(145deg, rgba(14,31,58,0.7), rgba(35,25,64,0.54))",
+    boxShadow: "0 16px 42px rgba(0,0,0,0.18)",
+  }), [card]);
+
+  const configurationHeader: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    gap: 11,
+    paddingBottom: 12,
+    borderBottom: "1px solid rgba(255,255,255,0.08)",
+  };
+
+  const configurationBubble: React.CSSProperties = {
+    width: 32,
+    height: 32,
+    flex: "0 0 auto",
+    display: "grid",
+    placeItems: "center",
+    borderRadius: 11,
+    border: "1px solid rgba(251,191,36,0.34)",
+    background: "rgba(251,191,36,0.13)",
+    color: "#fde68a",
+    fontWeight: 950,
+  };
 
   const sectionTitle: React.CSSProperties = {
     color: "rgba(255,255,255,0.94)",
@@ -350,7 +393,8 @@ export default function AiConfigurationContent({ mode = "drawer", onSaved, onUns
     set("language", value);
   };
 
-  const save = async () => {
+  const save = async (onSuccess?: () => void | Promise<void>) => {
+    if (saving) return;
     setSaving(true);
     setSaved(false);
     setError("");
@@ -405,7 +449,9 @@ export default function AiConfigurationContent({ mode = "drawer", onSaved, onUns
       // before the drawer's delayed close callback executes.
       onUnsavedChange?.(false);
       setSaved(true);
-      if (onSaved) {
+      if (onSuccess) {
+        await onSuccess();
+      } else if (onSaved) {
         if (typeof window !== "undefined") {
           window.setTimeout(() => onSaved(), 900);
         } else {
@@ -456,11 +502,22 @@ export default function AiConfigurationContent({ mode = "drawer", onSaved, onUns
           {i18nT("reglez_une_fois_votre_facon_de_4a141f29")}{" "}</div>
       </div>
 
-      <div style={card}>
+      <div style={loading ? card : { display: "grid", gap: 12 }}>
         {loading ? (
           <div style={{ color: "rgba(255,255,255,0.72)", fontSize: 13 }}>{i18nT("chargement_01cba1df")}</div>
         ) : (
-          <div style={{ display: "grid", gap: 18 }}>
+          <div style={{ display: "grid", gap: 14 }}>
+            <section data-onboarding-ai-section="foundation" style={configurationCard}>
+              <div style={configurationHeader}>
+                <span style={configurationBubble}>1</span>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 15, fontWeight: 950 }}>
+                    {onboardingT("aiFoundationTitle")}
+                  </div>
+                  <div style={hint}>{onboardingT("aiFoundationDescription")}</div>
+                </div>
+              </div>
+
             <div style={{ display: "grid", gap: 12 }}>
               <div style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
                 <div style={sectionTitle}>{i18nT("moteur_ia_a7f9dad3")}</div>
@@ -508,6 +565,27 @@ export default function AiConfigurationContent({ mode = "drawer", onSaved, onUns
                 </span>
               </label>
             </div>
+
+              <label style={label}>
+                <span style={labelTitle}>{i18nT("langue_du_contenu_genere_04491b9a")}</span>
+                <select style={input} value={form.language} onChange={(e) => setGenerationLanguage(e.target.value as AiConfigForm["language"])}>
+                  {APP_LANGUAGE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value} style={selectOption}>{option.label}</option>
+                  ))}
+                </select>
+              </label>
+            </section>
+
+            <section data-onboarding-ai-section="voice" style={configurationCard}>
+              <div style={configurationHeader}>
+                <span style={configurationBubble}>2</span>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 15, fontWeight: 950 }}>
+                    {onboardingT("aiVoiceTitle")}
+                  </div>
+                  <div style={hint}>{onboardingT("aiVoiceDescription")}</div>
+                </div>
+              </div>
 
             <div style={{ display: "grid", gap: 12 }}>
               <div style={sectionTitle}>{i18nT("style_des_contenus_c6452c23")}</div>
@@ -559,14 +637,6 @@ export default function AiConfigurationContent({ mode = "drawer", onSaved, onUns
                   </select>
                 </label>
 
-                <label style={label}>
-                  <span style={labelTitle}>{i18nT("langue_du_contenu_genere_04491b9a")}</span>
-                  <select style={input} value={form.language} onChange={(e) => setGenerationLanguage(e.target.value as AiConfigForm["language"])}>
-                    {APP_LANGUAGE_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value} style={selectOption}>{option.label}</option>
-                    ))}
-                  </select>
-                </label>
               </div>
             </div>
 
@@ -601,6 +671,19 @@ export default function AiConfigurationContent({ mode = "drawer", onSaved, onUns
                 </label>
               </div>
             </div>
+
+            </section>
+
+            <section data-onboarding-ai-section="goals" style={configurationCard}>
+              <div style={configurationHeader}>
+                <span style={configurationBubble}>3</span>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 15, fontWeight: 950 }}>
+                    {onboardingT("aiGoalsTitle")}
+                  </div>
+                  <div style={hint}>{onboardingT("aiGoalsDescription")}</div>
+                </div>
+              </div>
 
             <div style={{ display: "grid", gap: 12 }}>
               <div style={sectionTitle}>{i18nT("objectif_des_contenus_2c129870")}</div>
@@ -666,14 +749,25 @@ export default function AiConfigurationContent({ mode = "drawer", onSaved, onUns
               </label>
             </div>
 
+            </section>
+
             {error ? <div style={{ color: "rgba(248,113,113,0.95)", fontWeight: 800 }}>{error}</div> : null}
             {saved ? <div style={{ color: "rgba(34,197,94,0.95)", fontWeight: 900 }}>{i18nT("configuration_ia_enregistree_1ad4bba6")}</div> : null}
 
-            <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 180px), 1fr))", minWidth: 0, maxWidth: "100%" }}>
-              <button type="button" style={primaryBtn} disabled={saving} onClick={save}>{saving ? i18nT("enregistrement_e7d5f232") : i18nT("enregistrer_f7c8bcd8")}</button>
-              <button type="button" disabled={saving} onClick={reset} style={{ border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.05)", color: "white", borderRadius: 14, padding: "10px 12px", cursor: saving ? "default" : "pointer", fontWeight: 900, fontSize: 16 }}>
-                {i18nT("reinitialiser_e0e2ad54")}{" "}</button>
-            </div>
+            {onboarding ? (
+              <OnboardingStepFooter
+                busy={saving}
+                onPrevious={() => save(onOnboardingPrevious)}
+                onNext={() => save(onOnboardingNext)}
+                onReset={reset}
+              />
+            ) : (
+              <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 180px), 1fr))", minWidth: 0, maxWidth: "100%" }}>
+                <button type="button" style={primaryBtn} disabled={saving} onClick={() => void save()}>{saving ? i18nT("enregistrement_e7d5f232") : i18nT("enregistrer_f7c8bcd8")}</button>
+                <button type="button" disabled={saving} onClick={reset} style={{ border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.05)", color: "white", borderRadius: 14, padding: "10px 12px", cursor: saving ? "default" : "pointer", fontWeight: 900, fontSize: 16 }}>
+                  {i18nT("reinitialiser_e0e2ad54")}{" "}</button>
+              </div>
+            )}
           </div>
         )}
       </div>

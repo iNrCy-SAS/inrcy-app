@@ -69,6 +69,8 @@ type DashboardSettingsDrawerContentProps = {
   guidedOnboardingStep?: "profile" | "activity" | "ai" | null;
   onAdvanceOnboardingProfile?: () => void | Promise<void>;
   onAdvanceOnboardingActivity?: () => void | Promise<void>;
+  onPreviousOnboardingActivity?: () => void | Promise<void>;
+  onPreviousOnboardingAi?: () => void | Promise<void>;
   onCompleteOnboardingAi?: () => void | Promise<void>;
   referralName: string;
   referralPhone: string;
@@ -109,6 +111,8 @@ export default function DashboardSettingsDrawerContent({
   guidedOnboardingStep = null,
   onAdvanceOnboardingProfile,
   onAdvanceOnboardingActivity,
+  onPreviousOnboardingActivity,
+  onPreviousOnboardingAi,
   onCompleteOnboardingAi,
   referralName,
   referralPhone,
@@ -136,6 +140,18 @@ export default function DashboardSettingsDrawerContent({
   inrSearchUrl = "",
   inrSearchDirectoryEnabled = null,
 }: DashboardSettingsDrawerContentProps) {
+  const onboardingPanel = guidedOnboardingStep === "profile"
+    ? "profil"
+    : guidedOnboardingStep === "activity"
+      ? "activite"
+      : guidedOnboardingStep === "ai"
+        ? "ia"
+        : null;
+  // Pendant une transition, l'état métier peut avancer avant que l'URL ne
+  // reflète le nouveau panel. Le contenu suit donc l'étape, jamais ce bref
+  // décalage d'URL : la coque du parcours reste montée sans flash dashboard.
+  const visibleOnboardingPanel = onboardingPanel ?? panel;
+
   return (
     <>
       {panel === "contact" && <ContactContent mode="drawer" />}
@@ -147,32 +163,38 @@ export default function DashboardSettingsDrawerContent({
           onUnsavedChange={onUnsavedChange}
         />
       )}
-      {panel === "profil" && (
+      {visibleOnboardingPanel === "profil" && (
         <ProfilContent
           mode="drawer"
           onboarding={guidedOnboardingStep === "profile"}
           onProfileSaved={guidedOnboardingStep === "profile" ? undefined : checkProfile}
           onProfileReset={checkProfile}
-          onCloseDrawer={guidedOnboardingStep === "profile" ? onAdvanceOnboardingProfile : onCloseDrawer}
+          onCloseDrawer={onCloseDrawer}
+          onOnboardingNext={onAdvanceOnboardingProfile}
           onUnsavedChange={onUnsavedChange}
         />
       )}
       {panel === "preferences" && <GeneralPreferencesContent mode="drawer" onUnsavedChange={onUnsavedChange} />}
       {panel === "inrbadge" && <InrBadgeSettingsContent {...inrBadgeSettingsProps} />}
-      {panel === "activite" && (
+      {visibleOnboardingPanel === "activite" && (
         <ActivityContent
           mode="drawer"
           onboarding={guidedOnboardingStep === "activity"}
           onActivitySaved={guidedOnboardingStep === "activity" ? undefined : checkActivity}
           onActivityReset={checkActivity}
-          onCloseDrawer={guidedOnboardingStep === "activity" ? onAdvanceOnboardingActivity : onCloseDrawer}
+          onCloseDrawer={onCloseDrawer}
+          onOnboardingPrevious={onPreviousOnboardingActivity}
+          onOnboardingNext={onAdvanceOnboardingActivity}
           onUnsavedChange={onUnsavedChange}
         />
       )}
-      {panel === "ia" && (
+      {visibleOnboardingPanel === "ia" && (
         <AiConfigurationContent
           mode="drawer"
-          onSaved={guidedOnboardingStep === "ai" ? onCompleteOnboardingAi : onCloseDrawer}
+          onboarding={guidedOnboardingStep === "ai"}
+          onSaved={guidedOnboardingStep === "ai" ? undefined : onCloseDrawer}
+          onOnboardingPrevious={onPreviousOnboardingAi}
+          onOnboardingNext={onCompleteOnboardingAi}
           onUnsavedChange={onUnsavedChange}
         />
       )}

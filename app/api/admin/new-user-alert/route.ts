@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 import { requireSecretHeader } from "@/lib/adminSecurity";
+import { readSignupFormSnapshot } from "@/lib/signupFormSnapshot";
 
 export const runtime = "nodejs";
 
@@ -31,15 +32,17 @@ function escapeHtml(value: unknown) {
     .replaceAll("'", "&#039;");
 }
 
-function getDisplayName(record: SupabaseAuthWebhookPayload["record"]) {
-  const meta = record?.raw_user_meta_data || record?.metadata || {};
-  return (
-    meta.full_name ||
-    meta.name ||
-    meta.display_name ||
-    meta.first_name ||
-    "-"
-  );
+function displayValue(value: string, emptyLabel = "Non renseigné") {
+  return value || emptyLabel;
+}
+
+function emailRow(label: string, value: string, emphasis = false) {
+  return `
+    <tr>
+      <td style="padding:9px 0;color:#64748b;vertical-align:top;">${escapeHtml(label)}</td>
+      <td style="padding:9px 0;color:#0f172a;vertical-align:top;${emphasis ? "font-weight:700;" : ""}">${escapeHtml(value)}</td>
+    </tr>
+  `;
 }
 
 export async function POST(req: NextRequest) {
@@ -88,8 +91,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const email = record.email || "-";
-    const displayName = getDisplayName(record);
+    const signupForm = readSignupFormSnapshot(record);
+    const email = signupForm.email || record.email || "-";
+    const lastName = displayValue(signupForm.lastName);
+    const firstName = displayValue(signupForm.firstName);
+    const companyName = displayValue(signupForm.companyName);
+    const phone = displayValue(signupForm.phone);
+    const consent = signupForm.consent ? "Oui" : "Non renseigné";
     const createdAt = record.created_at
       ? new Date(record.created_at).toLocaleString("fr-FR", {
           timeZone: "Europe/Paris",
@@ -121,8 +129,15 @@ export async function POST(req: NextRequest) {
       text: [
         "Nouvelle inscription iNrCy",
         "",
-        `Email : ${email}`,
-        `Nom : ${String(displayName)}`,
+        "Informations saisies dans le formulaire",
+        `Nom : ${lastName}`,
+        `Prénom : ${firstName}`,
+        `E-mail : ${email}`,
+        `Société : ${companyName}`,
+        `Téléphone : ${phone}`,
+        `Consentement : ${consent}`,
+        "",
+        "Données techniques",
         `User ID : ${userId}`,
         `Date : ${createdAt}`,
         `Provider : ${String(provider)}`,
@@ -130,7 +145,7 @@ export async function POST(req: NextRequest) {
       ].join("\n"),
       html: `
         <div style="font-family:Arial,Helvetica,sans-serif;background:#f6f7fb;padding:24px;">
-          <div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:16px;padding:24px;border:1px solid #e5e7eb;">
+          <div style="max-width:620px;margin:0 auto;background:#ffffff;border-radius:18px;padding:26px;border:1px solid #e5e7eb;box-shadow:0 18px 50px rgba(15,23,42,0.08);">
             <h1 style="margin:0 0 16px;font-size:22px;color:#0f172a;">
               Nouvelle inscription iNrCy
             </h1>
@@ -139,32 +154,31 @@ export async function POST(req: NextRequest) {
               Un nouveau compte vient d’être créé depuis le formulaire d’inscription.
             </p>
 
-            <table style="width:100%;border-collapse:collapse;font-size:14px;color:#0f172a;">
-              <tr>
-                <td style="padding:8px 0;color:#64748b;">Email</td>
-                <td style="padding:8px 0;font-weight:700;">${escapeHtml(email)}</td>
-              </tr>
-              <tr>
-                <td style="padding:8px 0;color:#64748b;">Nom</td>
-                <td style="padding:8px 0;font-weight:700;">${escapeHtml(displayName)}</td>
-              </tr>
-              <tr>
-                <td style="padding:8px 0;color:#64748b;">User ID</td>
-                <td style="padding:8px 0;">${escapeHtml(userId)}</td>
-              </tr>
-              <tr>
-                <td style="padding:8px 0;color:#64748b;">Date</td>
-                <td style="padding:8px 0;">${escapeHtml(createdAt)}</td>
-              </tr>
-              <tr>
-                <td style="padding:8px 0;color:#64748b;">Provider</td>
-                <td style="padding:8px 0;">${escapeHtml(provider)}</td>
-              </tr>
-              <tr>
-                <td style="padding:8px 0;color:#64748b;">Email confirmé</td>
-                <td style="padding:8px 0;">${escapeHtml(emailConfirmed)}</td>
-              </tr>
-            </table>
+            <div style="margin:0 0 18px;padding:18px;border-radius:14px;background:#f8fafc;border:1px solid #e2e8f0;">
+              <div style="margin:0 0 8px;color:#0f172a;font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;">
+                Informations saisies dans le formulaire
+              </div>
+              <table style="width:100%;border-collapse:collapse;font-size:14px;table-layout:fixed;">
+                ${emailRow("Nom", lastName, true)}
+                ${emailRow("Prénom", firstName, true)}
+                ${emailRow("E-mail", email, true)}
+                ${emailRow("Société", companyName, true)}
+                ${emailRow("Téléphone", phone, true)}
+                ${emailRow("Consentement", consent)}
+              </table>
+            </div>
+
+            <div style="padding:18px;border-radius:14px;background:#ffffff;border:1px solid #e2e8f0;">
+              <div style="margin:0 0 8px;color:#64748b;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;">
+                Données techniques
+              </div>
+              <table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed;">
+                ${emailRow("User ID", String(userId))}
+                ${emailRow("Date", createdAt)}
+                ${emailRow("Provider", String(provider))}
+                ${emailRow("Email confirmé", emailConfirmed)}
+              </table>
+            </div>
           </div>
         </div>
       `,

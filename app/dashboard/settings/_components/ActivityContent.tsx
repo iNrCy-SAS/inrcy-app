@@ -32,13 +32,16 @@ import {
   normalizeOpeningScheduleText,
 } from "@/lib/openingSchedule";
 import EditableTags from "./EditableTags";
+import OnboardingStepFooter from "./OnboardingStepFooter";
 
 type Props = {
   mode?: "page" | "drawer";
   onboarding?: boolean;
-  onActivitySaved?: () => void;
-  onActivityReset?: () => void;
-  onCloseDrawer?: () => void;
+  onActivitySaved?: () => unknown | Promise<unknown>;
+  onActivityReset?: () => unknown | Promise<unknown>;
+  onCloseDrawer?: () => unknown | Promise<unknown>;
+  onOnboardingPrevious?: () => void | Promise<void>;
+  onOnboardingNext?: () => void | Promise<void>;
   onUnsavedChange?: (hasUnsavedChanges: boolean) => void;
 };
 
@@ -61,9 +64,12 @@ export default function ActivityContent({
   onActivitySaved,
   onActivityReset,
   onCloseDrawer,
+  onOnboardingPrevious,
+  onOnboardingNext,
   onUnsavedChange,
 }: Props) {
   const i18nT = useTranslations("settings");
+  const onboardingT = useTranslations("dashboard.onboarding");
   const initial: BusinessActivityForm = useMemo(
     () => ({
       sectorCategory: "",
@@ -130,6 +136,37 @@ export default function ActivityContent({
     background: "rgba(255,255,255,0.045)",
     backdropFilter: "blur(10px)",
     WebkitBackdropFilter: "blur(10px)",
+  };
+
+  const sectionCard: React.CSSProperties = {
+    ...card,
+    display: "grid",
+    gap: 16,
+    border: "1px solid rgba(125,211,252,0.16)",
+    background:
+      "linear-gradient(145deg, rgba(14,31,58,0.7), rgba(35,25,64,0.54))",
+    boxShadow: "0 16px 42px rgba(0,0,0,0.18)",
+  };
+
+  const sectionHeader: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    gap: 11,
+    paddingBottom: 12,
+    borderBottom: "1px solid rgba(255,255,255,0.08)",
+  };
+
+  const sectionBubble: React.CSSProperties = {
+    width: 32,
+    height: 32,
+    flex: "0 0 auto",
+    display: "grid",
+    placeItems: "center",
+    borderRadius: 11,
+    border: "1px solid rgba(56,189,248,0.34)",
+    background: "rgba(56,189,248,0.13)",
+    color: "#bae6fd",
+    fontWeight: 950,
   };
 
   const input: React.CSSProperties = {
@@ -402,8 +439,15 @@ export default function ActivityContent({
       .map((s) => s.trim())
       .filter(Boolean);
 
-  const save = async () => {
-    if (onboarding) {
+  const save = async ({
+    requireComplete = onboarding,
+    onSuccess,
+  }: {
+    requireComplete?: boolean;
+    onSuccess?: () => void | Promise<void>;
+  } = {}) => {
+    if (saving) return;
+    if (requireComplete) {
       const missing: string[] = [];
       if (!form.sectorCategory.trim() || !form.sector.trim()) missing.push("le métier");
       if (!allSelectedServices.length) missing.push("les prestations");
@@ -491,8 +535,10 @@ export default function ActivityContent({
       activityBaselineRef.current = activitySnapshot(form);
       onUnsavedChange?.(false);
       setSaved(true);
-      onActivitySaved?.();
-      if (mode === "drawer") {
+      await onActivitySaved?.();
+      if (onSuccess) {
+        await onSuccess();
+      } else if (mode === "drawer") {
         window.setTimeout(() => onCloseDrawer?.(), 700);
       } else {
         window.setTimeout(() => setSaved(false), 2500);
@@ -526,7 +572,7 @@ export default function ActivityContent({
     setError("");
     activityBaselineRef.current = activitySnapshot(initial);
     onUnsavedChange?.(false);
-    onActivityReset?.();
+    await onActivityReset?.();
   };
 
   return (
@@ -577,11 +623,22 @@ export default function ActivityContent({
         </div>
       </div>
 
-      <div style={card}>
+      <div style={loading ? card : { display: "grid", gap: 12 }}>
         {loading ? (
           <div style={{ opacity: 0.75 }}>{i18nT("chargement_01cba1df")}</div>
         ) : (
           <div style={{ display: "grid", gap: 14 }}>
+            <section data-onboarding-activity-section="identity" style={sectionCard}>
+              <div style={sectionHeader}>
+                <span style={sectionBubble}>1</span>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 15, fontWeight: 950 }}>
+                    {onboardingT("activityIdentityTitle")}
+                  </div>
+                  <div style={hint}>{onboardingT("activityIdentityDescription")}</div>
+                </div>
+              </div>
+
             <div style={label}>
               <span style={{ ...labelTitle, fontSize: 15 }}>
                 {i18nT("trouvez_votre_metier_ab343504")}{" "}</span>
@@ -913,6 +970,19 @@ export default function ActivityContent({
                 {i18nT("inrcy_propose_automatiquement_les_prestations_li_7e2f1891")}{" "}</span>
             </div>
 
+            </section>
+
+            <section data-onboarding-activity-section="reach" style={sectionCard}>
+              <div style={sectionHeader}>
+                <span style={sectionBubble}>2</span>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 15, fontWeight: 950 }}>
+                    {onboardingT("activityReachTitle")}
+                  </div>
+                  <div style={hint}>{onboardingT("activityReachDescription")}</div>
+                </div>
+              </div>
+
             <div style={label}>
               <span style={labelTitle}>{i18nT("zones_d_intervention_a4999f61")}</span>
               <EditableTags
@@ -938,6 +1008,19 @@ export default function ActivityContent({
               />
               <span style={hint}>{i18nT("une_ligne_par_jour_est_recommandee_d8baf034")}</span>
             </label>
+
+            </section>
+
+            <section data-onboarding-activity-section="positioning" style={sectionCard}>
+              <div style={sectionHeader}>
+                <span style={sectionBubble}>3</span>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 15, fontWeight: 950 }}>
+                    {onboardingT("activityPositioningTitle")}
+                  </div>
+                  <div style={hint}>{onboardingT("activityPositioningDescription")}</div>
+                </div>
+              </div>
 
             <div style={label}>
               <span style={labelTitle}>{i18nT("vos_forces_29964107")}</span>
@@ -986,6 +1069,8 @@ export default function ActivityContent({
                 {i18nT("aide_l_ia_a_adapter_les_35ed6a9c")}{" "}</span>
             </div>
 
+            </section>
+
             {error ? (
               <div style={{ color: "rgba(248,113,113,0.95)", fontWeight: 800 }}>
                 {error}
@@ -996,48 +1081,61 @@ export default function ActivityContent({
                 {i18nT("enregistre_a5dfbc23")}{" "}</div>
             ) : null}
 
-            <div
-              data-activity-actions
-              style={{
-                position: "sticky",
-                bottom: 0,
-                zIndex: 8,
-                display: "grid",
-                gap: 10,
-                gridTemplateColumns: "minmax(180px, 1.35fr) minmax(130px, 0.72fr)",
-                padding: "11px 0 max(2px, env(safe-area-inset-bottom, 0px))",
-                background:
-                  "linear-gradient(180deg, rgba(6,16,31,0), rgba(6,16,31,0.96) 28%)",
-              }}
-            >
-              <button
-                type="button"
-                style={primaryBtn}
-                disabled={saving}
-                onClick={save}
-              >
-                {saving
-                  ? i18nT("enregistrement_e7d5f232")
-                  : onboarding
-                    ? i18nT("enregistrer_et_continuer_c75a7f90")
-                    : i18nT("enregistrer_f7c8bcd8")}
-              </button>
-              <button
-                type="button"
-                disabled={saving}
-                onClick={handleReset}
+            {onboarding ? (
+              <OnboardingStepFooter
+                busy={saving}
+                onPrevious={() => save({
+                  requireComplete: false,
+                  onSuccess: onOnboardingPrevious,
+                })}
+                onNext={() => save({
+                  requireComplete: true,
+                  onSuccess: onOnboardingNext,
+                })}
+                onReset={handleReset}
+              />
+            ) : (
+              <div
+                data-activity-actions
                 style={{
-                  border: "1px solid rgba(255,255,255,0.12)",
-                  background: "rgba(255,255,255,0.05)",
-                  color: "white",
-                  borderRadius: 14,
-                  padding: "10px 12px",
-                  cursor: saving ? "not-allowed" : "pointer",
-                  fontWeight: 800,
+                  position: "sticky",
+                  bottom: 0,
+                  zIndex: 8,
+                  display: "grid",
+                  gap: 10,
+                  gridTemplateColumns: "minmax(180px, 1.35fr) minmax(130px, 0.72fr)",
+                  padding: "11px 0 max(2px, env(safe-area-inset-bottom, 0px))",
+                  background:
+                    "linear-gradient(180deg, rgba(6,16,31,0), rgba(6,16,31,0.96) 28%)",
                 }}
               >
-                {i18nT("reinitialiser_e0e2ad54")}{" "}</button>
-            </div>
+                <button
+                  type="button"
+                  style={primaryBtn}
+                  disabled={saving}
+                  onClick={() => void save()}
+                >
+                  {saving
+                    ? i18nT("enregistrement_e7d5f232")
+                    : i18nT("enregistrer_f7c8bcd8")}
+                </button>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={handleReset}
+                  style={{
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    background: "rgba(255,255,255,0.05)",
+                    color: "white",
+                    borderRadius: 14,
+                    padding: "10px 12px",
+                    cursor: saving ? "not-allowed" : "pointer",
+                    fontWeight: 800,
+                  }}
+                >
+                  {i18nT("reinitialiser_e0e2ad54")}{" "}</button>
+              </div>
+            )}
 
             {mode === "drawer" ? (
               <div style={{ fontSize: 12, opacity: 0.7 }}>

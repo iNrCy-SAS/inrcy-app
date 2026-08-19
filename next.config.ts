@@ -55,6 +55,11 @@ const nextConfig: NextConfig = {
   // déploiement avec le nouveau. Vercel fournit le SHA au moment du build ;
   // NEXT_DEPLOYMENT_ID peut être défini explicitement pour un autre hébergeur.
   deploymentId: process.env.NEXT_DEPLOYMENT_ID || process.env.VERCEL_GIT_COMMIT_SHA || undefined,
+  // heic-convert charge son décodeur WASM avec un require dynamique prévu pour
+  // Node.js. Le conserver comme paquet serveur évite à webpack de parcourir le
+  // bundle libheif (et son faux avertissement "Critical dependency") tout en
+  // laissant le traceur Vercel embarquer le paquet et ses dépendances runtime.
+  serverExternalPackages: ["heic-convert"],
   outputFileTracingIncludes: {
     "/api/cron/*": sharpRuntimeFiles,
     "/api/agent/**/*": sharpRuntimeFiles,

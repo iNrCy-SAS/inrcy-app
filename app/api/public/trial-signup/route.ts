@@ -15,6 +15,10 @@ import {
   isExistingAuthUserError,
 } from "@/lib/supabaseAuthBusinessErrors";
 import {
+  createSignupFormSnapshot,
+  SIGNUP_FORM_METADATA_KEY,
+} from "@/lib/signupFormSnapshot";
+import {
   DEFAULT_APP_LOCALE,
   appLanguageFromLocale,
   tryNormalizeAppLocale,
@@ -388,6 +392,15 @@ export async function POST(req: Request) {
       );
     }
 
+    const signupFormSnapshot = createSignupFormSnapshot({
+      lastName: payload.lastName,
+      firstName: payload.firstName,
+      email: payload.email,
+      companyName: payload.companyName,
+      phone: payload.phone,
+      consent: payload.consent,
+    });
+
     const { data: invite, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(payload.email, {
       data: {
         first_name: payload.firstName || undefined,
@@ -397,6 +410,7 @@ export async function POST(req: Request) {
         source: payload.source || undefined,
         app_language: payload.language,
         app_locale: payload.locale,
+        [SIGNUP_FORM_METADATA_KEY]: signupFormSnapshot,
       },
       redirectTo: inviteRedirectUrl,
     });

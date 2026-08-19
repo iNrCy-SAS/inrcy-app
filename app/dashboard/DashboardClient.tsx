@@ -15,7 +15,6 @@ import { useDashboardUnsavedNavigation } from "./_components/DashboardUnsavedNav
 import DashboardChannelsSection from "./_components/DashboardChannelsSection";
 import DashboardBoosterModalLayer from "./_components/DashboardBoosterModalLayer";
 import DashboardSettingsDrawerContent from "./_components/DashboardSettingsDrawerContent";
-import DashboardOnboardingAiChoice from "./_components/DashboardOnboardingAiChoice";
 import { StableBootScreen } from "./_components/ClientHydrationGate";
 import InrBadgePreviewModal from "./_components/InrBadgePreviewModal";
 import { useDrawerMutationGuard } from "./_hooks/useDrawerMutationGuard";
@@ -211,8 +210,10 @@ export default function DashboardClient({
     onboardingStatus === "in_progress" &&
     guidedOnboardingPanel !== null &&
     guidedOnboardingProgress !== null;
-  const isGuidedOnboardingPanel = guidedOnboardingActive && panel === guidedOnboardingPanel;
-  const onboardingProgressLabel = isGuidedOnboardingPanel && guidedOnboardingProgress
+  // La coque onboarding reste active pendant tout le parcours, y compris le
+  // bref instant où l'URL termine de refléter la nouvelle étape.
+  const isGuidedOnboardingPanel = guidedOnboardingActive;
+  const onboardingProgressLabel = guidedOnboardingActive && guidedOnboardingProgress
     ? onboardingT("progress", {
         current: guidedOnboardingProgress.current,
         total: guidedOnboardingProgress.total,
@@ -225,8 +226,8 @@ export default function DashboardClient({
     panel !== guidedOnboardingPanel;
   const onboardingAutoOpenKeyRef = useRef<string | null>(null);
   const onboardingSkipConfirmingRef = useRef(false);
-  const [onboardingAiMode, setOnboardingAiMode] = useState<"choice" | "configure">("choice");
   const [onboardingAiCompleting, setOnboardingAiCompleting] = useState(false);
+  const [onboardingTransitionDirection, setOnboardingTransitionDirection] = useState<"forward" | "backward">("forward");
   const [settingsDrawerHasUnsavedChanges, setSettingsDrawerHasUnsavedChanges] = useState(false);
   const settingsDrawerGuardActive = panel === "ia" || panel === "preferences" || panel === "documents" || panel === "mails" || panel === "compte" || panel === "parrainage" || panel === "profil" || panel === "activite" || panel === "youtube_shorts" || panel === "pinterest";
   const settingsDrawerRequiresExplicitClose = settingsDrawerGuardActive || panel === "profil" || panel === "activite";
@@ -236,7 +237,6 @@ export default function DashboardClient({
   }, [panel]);
 
   useEffect(() => {
-    setOnboardingAiMode("choice");
     setOnboardingAiCompleting(false);
   }, [onboardingAccountId, onboardingCurrentStep]);
 
@@ -261,14 +261,14 @@ export default function DashboardClient({
     if (onboardingAutoOpenKeyRef.current === openingKey) return;
 
     onboardingAutoOpenKeyRef.current = openingKey;
-    openPanel(guidedOnboardingPanel);
+    replacePanelDirect(guidedOnboardingPanel);
   }, [
     guidedOnboardingActive,
     guidedOnboardingPanel,
     onboardingAccountId,
     onboardingCurrentStep,
-    openPanel,
     panel,
+    replacePanelDirect,
   ]);
 
   const closeSettingsDrawer = useCallback(async () => {
@@ -377,6 +377,7 @@ export default function DashboardClient({
     // étape avant la mutation afin que l'effet d'auto-ouverture ne repasse pas
     // par le guard pendant le changement d'état React.
     setSettingsDrawerHasUnsavedChanges(false);
+    setOnboardingTransitionDirection("forward");
     onboardingAutoOpenKeyRef.current = `opening:${onboardingAccountId ?? "unknown"}:activity`;
     const row = await setCurrentOnboardingStep("activity");
     if (!row) {
@@ -391,7 +392,7 @@ export default function DashboardClient({
     if (!completion?.activityCompleted) return;
 
     setSettingsDrawerHasUnsavedChanges(false);
-    setOnboardingAiMode("choice");
+    setOnboardingTransitionDirection("forward");
     onboardingAutoOpenKeyRef.current = `opening:${onboardingAccountId ?? "unknown"}:ai`;
     const row = await setCurrentOnboardingStep("ai");
     if (!row) {
@@ -400,6 +401,30 @@ export default function DashboardClient({
     }
     replacePanelDirect("ia");
   }, [checkActivity, onboardingAccountId, replacePanelDirect, setCurrentOnboardingStep]);
+
+  const returnOnboardingToProfile = useCallback(async () => {
+    setSettingsDrawerHasUnsavedChanges(false);
+    setOnboardingTransitionDirection("backward");
+    onboardingAutoOpenKeyRef.current = `opening:${onboardingAccountId ?? "unknown"}:profile`;
+    const row = await setCurrentOnboardingStep("profile");
+    if (!row) {
+      onboardingAutoOpenKeyRef.current = null;
+      return;
+    }
+    replacePanelDirect("profil");
+  }, [onboardingAccountId, replacePanelDirect, setCurrentOnboardingStep]);
+
+  const returnOnboardingToActivity = useCallback(async () => {
+    setSettingsDrawerHasUnsavedChanges(false);
+    setOnboardingTransitionDirection("backward");
+    onboardingAutoOpenKeyRef.current = `opening:${onboardingAccountId ?? "unknown"}:activity`;
+    const row = await setCurrentOnboardingStep("activity");
+    if (!row) {
+      onboardingAutoOpenKeyRef.current = null;
+      return;
+    }
+    replacePanelDirect("activite");
+  }, [onboardingAccountId, replacePanelDirect, setCurrentOnboardingStep]);
 
   const completeOnboardingFromAi = useCallback(async () => {
     if (onboardingAiCompleting) return;
@@ -3852,14 +3877,16 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
       ) : null}
 
       <SettingsDrawer
-        title={getDrawerTitle(panel, dashboardCopy)}
+        title={getDrawerTitle(guidedOnboardingActive ? guidedOnboardingPanel : panel, dashboardCopy)}
         progressLabel={onboardingProgressLabel}
-        isOpen={isDrawerPanel(panel)}
+        isOpen={guidedOnboardingActive || isDrawerPanel(panel)}
         onClose={requestCloseSettingsDrawer}
-        closeOnBackdrop={!settingsDrawerRequiresExplicitClose}
-        closeOnEscape={!settingsDrawerRequiresExplicitClose}
-        presentation={isGuidedOnboardingPanel ? "onboarding" : "drawer"}
-        closeLabel={isGuidedOnboardingPanel ? onboardingT("skip") : undefined}
+        closeOnBackdrop={!guidedOnboardingActive && !settingsDrawerRequiresExplicitClose}
+        closeOnEscape={!guidedOnboardingActive && !settingsDrawerRequiresExplicitClose}
+        presentation={guidedOnboardingActive ? "onboarding" : "drawer"}
+        closeLabel={guidedOnboardingActive ? onboardingT("skip") : undefined}
+        contentKey={guidedOnboardingActive ? onboardingCurrentStep ?? undefined : undefined}
+        contentDirection={onboardingTransitionDirection}
         headerActions={
           panel === "inertie" ? (
             <HelpButton onClick={() => setHelpInertieOpen(true)} title={i18nT("aide_mon_inertie_beeca900")} />
@@ -3870,14 +3897,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
           ) : null
         }
       >
-        {isGuidedOnboardingPanel && onboardingCurrentStep === "ai" && onboardingAiMode === "choice" ? (
-          <DashboardOnboardingAiChoice
-            onCustomize={() => setOnboardingAiMode("configure")}
-            onKeepDefaults={completeOnboardingFromAi}
-            busy={onboardingAiCompleting}
-          />
-        ) : (
-          <DashboardSettingsDrawerContent
+        <DashboardSettingsDrawerContent
             edition={dashboardEdition}
             panel={panel}
             onUnsavedChange={handleSettingsDrawerUnsavedChange}
@@ -3886,9 +3906,11 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
             inertiaSnapshot={inertiaSnapshot}
             openPanel={openPanel}
             onCloseDrawer={requestCloseSettingsDrawer}
-            guidedOnboardingStep={isGuidedOnboardingPanel ? onboardingCurrentStep as "profile" | "activity" | "ai" : null}
+            guidedOnboardingStep={guidedOnboardingActive ? onboardingCurrentStep as "profile" | "activity" | "ai" : null}
             onAdvanceOnboardingProfile={advanceOnboardingFromProfile}
             onAdvanceOnboardingActivity={advanceOnboardingFromActivity}
+            onPreviousOnboardingActivity={returnOnboardingToProfile}
+            onPreviousOnboardingAi={returnOnboardingToActivity}
             onCompleteOnboardingAi={completeOnboardingFromAi}
             referralName={referralName}
             referralPhone={referralPhone}
@@ -3916,7 +3938,6 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
             inrSearchUrl={inrSearchUrl}
             inrSearchDirectoryEnabled={inrSearchDirectoryEnabled}
           />
-        )}
       </SettingsDrawer>
 
       <DashboardHelpModals

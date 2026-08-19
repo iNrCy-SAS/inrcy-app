@@ -6,6 +6,11 @@ import {
   buildSupabaseEmailRedirectUrl,
   readAuthEmailLinkParams,
 } from "../../lib/authEmailLinks.ts";
+import {
+  createSignupFormSnapshot,
+  readSignupFormSnapshot,
+  SIGNUP_FORM_METADATA_KEY,
+} from "../../lib/signupFormSnapshot.ts";
 
 test("Supabase email redirect targets stay query-free", () => {
   assert.equal(
@@ -103,4 +108,46 @@ test("new registration alerts default to the account mailbox", () => {
     /process\.env\.INRCY_NEW_USER_ALERT_EMAIL \|\| "compte@inrcy\.com"/,
   );
   assert.doesNotMatch(source, /contact@inrcy\.com/);
+});
+
+test("the public signup form snapshot preserves every submitted identity field", () => {
+  const submitted = createSignupFormSnapshot({
+    lastName: "  D’Haÿe  ",
+    firstName: "Élodie",
+    email: "elodie@example.fr",
+    companyName: "Atelier & Fils",
+    phone: "+33 6 12 34 56 78",
+    consent: true,
+  });
+
+  const restored = readSignupFormSnapshot({
+    email: "fallback@example.fr",
+    raw_user_meta_data: {
+      [SIGNUP_FORM_METADATA_KEY]: submitted,
+      first_name: "Valeur de repli",
+    },
+  });
+
+  assert.deepEqual(restored, {
+    version: 1,
+    lastName: "D’Haÿe",
+    firstName: "Élodie",
+    email: "elodie@example.fr",
+    companyName: "Atelier & Fils",
+    phone: "+33 6 12 34 56 78",
+    consent: true,
+  });
+});
+
+test("the signup webhook email renders all public form fields from the snapshot", () => {
+  const signupRoute = readFileSync("app/api/public/trial-signup/route.ts", "utf8");
+  const alertRoute = readFileSync("app/api/admin/new-user-alert/route.ts", "utf8");
+
+  assert.match(signupRoute, /createSignupFormSnapshot/);
+  assert.match(signupRoute, /\[SIGNUP_FORM_METADATA_KEY\]: signupFormSnapshot/);
+  assert.match(alertRoute, /readSignupFormSnapshot\(record\)/);
+  for (const label of ["Nom", "Prénom", "E-mail", "Société", "Téléphone", "Consentement"]) {
+    assert.match(alertRoute, new RegExp(`emailRow\\("${label}"`));
+  }
+  assert.doesNotMatch(alertRoute, /getDisplayName/);
 });

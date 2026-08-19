@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useId, useMemo, useState } from "react";
+import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useDashboardI18n } from "./_hooks/useDashboardI18n";
 import LanguageSelector from "./_components/LanguageSelector";
@@ -21,6 +21,10 @@ type Props = {
   presentation?: "drawer" | "onboarding";
   /** Libellé du bouton de fermeture. */
   closeLabel?: string;
+  /** Identifie la page interne du parcours afin d'animer son remplacement. */
+  contentKey?: string;
+  /** Sens de lecture de la transition entre deux pages du parcours. */
+  contentDirection?: "forward" | "backward";
   children: React.ReactNode;
 };
 
@@ -39,6 +43,8 @@ export default function SettingsDrawer({
   closeOnEscape = true,
   presentation = "drawer",
   closeLabel,
+  contentKey,
+  contentDirection = "forward",
   children,
 }: Props) {
   const t = useDashboardI18n();
@@ -49,6 +55,7 @@ export default function SettingsDrawer({
   const [viewportWidth, setViewportWidth] = useState<number>(1440);
   const [viewportHeight, setViewportHeight] = useState<number | null>(null);
   const [viewportOffsetTop, setViewportOffsetTop] = useState(0);
+  const drawerScrollRef = useRef<HTMLElement | null>(null);
   const isResponsive = viewportWidth <= RESPONSIVE_BREAKPOINT;
   const isPhone = viewportWidth <= PHONE_BREAKPOINT;
   const isDesktopOnboarding = presentation === "onboarding" && !isResponsive;
@@ -87,6 +94,13 @@ export default function SettingsDrawer({
   }, [viewportHeight]);
 
   const drawerHeight = isResponsive ? responsiveDrawerHeight : "100%";
+
+  useLayoutEffect(() => {
+    if (!contentKey) return;
+    const drawer = drawerScrollRef.current;
+    if (!drawer) return;
+    drawer.scrollTop = 0;
+  }, [contentKey]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -134,6 +148,7 @@ export default function SettingsDrawer({
       }}
     >
       <aside
+        ref={drawerScrollRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -142,7 +157,7 @@ export default function SettingsDrawer({
           width: isPhone
             ? "100vw"
             : isDesktopOnboarding
-              ? "min(780px, calc(100vw - 48px))"
+              ? "min(860px, calc(100vw - 48px))"
               : "min(560px, 92vw)",
           maxWidth: "100vw",
           height: "100%",
@@ -244,16 +259,54 @@ export default function SettingsDrawer({
         </div>
 
         <div
+          key={contentKey}
+          data-settings-drawer-page={contentKey || undefined}
+          data-settings-drawer-direction={contentKey ? contentDirection : undefined}
           style={{
             marginTop: 12,
             minWidth: 0,
             maxWidth: "100%",
             overflowX: "hidden",
             paddingBottom: isResponsive ? 8 : 0,
+            animation: contentKey
+              ? `inrcy-onboarding-page-${contentDirection} 280ms cubic-bezier(.22,.8,.3,1) both`
+              : undefined,
+            transformOrigin: contentDirection === "forward" ? "left center" : "right center",
           }}
         >
           {children}
         </div>
+
+        <style>{`
+          @keyframes inrcy-onboarding-page-forward {
+            from {
+              opacity: 0;
+              transform: perspective(1200px) translateX(26px) rotateY(-1.8deg);
+            }
+            to {
+              opacity: 1;
+              transform: perspective(1200px) translateX(0) rotateY(0);
+            }
+          }
+
+          @keyframes inrcy-onboarding-page-backward {
+            from {
+              opacity: 0;
+              transform: perspective(1200px) translateX(-26px) rotateY(1.8deg);
+            }
+            to {
+              opacity: 1;
+              transform: perspective(1200px) translateX(0) rotateY(0);
+            }
+          }
+
+          @media (prefers-reduced-motion: reduce) {
+            [data-settings-drawer-page] {
+              animation-duration: 1ms !important;
+              transform: none !important;
+            }
+          }
+        `}</style>
       </aside>
     </div>
   );
