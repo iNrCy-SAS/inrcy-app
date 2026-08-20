@@ -10575,21 +10575,19 @@
   }
 }
 
-@media (max-width: 340px) {
+@media (max-width: 420px) {
   .generatorHeader {
-    column-gap: 5px;
+    column-gap: 4px;
   }
 
-  .generatorHeaderLead {
+  .generatorHeaderLead,
+  .generatorHeaderRight {
     gap: 4px;
   }
 
-  .generatorHeaderRight {
-    gap: 3px;
-  }
-
   .generatorTitle {
-    font-size: 12px;
+    font-size: clamp(13px, 3.65vw, 14px);
+    letter-spacing: -0.35px;
   }
 
   .generatorSettingsBtn,
@@ -10600,10 +10598,69 @@
     border-radius: 10px;
   }
 
+  .generatorSettingsBtn svg,
+  .refreshIcon {
+    width: 15px;
+    height: 15px;
+  }
+
   .generatorStatus {
     gap: 4px;
-    padding: 5px;
+    padding: 5px 6px;
     font-size: 10.5px;
+    line-height: 1;
+  }
+
+  .liveDot,
+  .setupDot {
+    width: 7px;
+    height: 7px;
+  }
+
+  .liveDot {
+    box-shadow: 0 0 0 5px rgba(34, 197, 94, 0.16);
+  }
+
+  .setupDot {
+    box-shadow: 0 0 0 5px rgba(56, 189, 248, 0.16);
+  }
+}
+
+@media (max-width: 340px) {
+  .generatorHeader {
+    column-gap: 3px;
+  }
+
+  .generatorHeaderLead {
+    gap: 3px;
+  }
+
+  .generatorHeaderRight {
+    gap: 3px;
+  }
+
+  .generatorTitle {
+    font-size: 10.5px;
+  }
+
+  .generatorHeaderLead > button {
+    width: 24px !important;
+    height: 24px !important;
+    flex: 0 0 24px;
+  }
+
+  .generatorSettingsBtn,
+  .generatorRefreshBtn {
+    width: 28px;
+    height: 28px;
+    flex: 0 0 28px;
+    border-radius: 9px;
+  }
+
+  .generatorStatus {
+    gap: 3px;
+    padding: 4px;
+    font-size: 9px;
   }
 
   .generatorDesc {
