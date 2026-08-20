@@ -8,6 +8,7 @@ export const runtime = "nodejs";
 
 type SubscriptionRow = {
   stripe_customer_id?: string | null;
+  billing_provider?: string | null;
 };
 
 function hasStripeConfig() {
@@ -29,13 +30,22 @@ export async function POST(req: Request) {
     const userId = user.id;
     const { data: sub, error } = await supabaseAdmin
       .from("subscriptions")
-      .select("stripe_customer_id")
+      .select("stripe_customer_id,billing_provider")
       .eq("user_id", userId)
       .maybeSingle();
 
     if (error) throw new Error(error.message);
 
-    const customerId = (sub as SubscriptionRow | null | undefined)?.stripe_customer_id?.trim();
+    const row = sub as SubscriptionRow | null | undefined;
+    const billingProvider = String(row?.billing_provider || "").trim().toLowerCase();
+    if (billingProvider === "app_store" || billingProvider === "play_store") {
+      return NextResponse.json(
+        { error: "Cet abonnement se gère directement dans l’App Store ou Google Play.", code: "NATIVE_MANAGEMENT_REQUIRED" },
+        { status: 409 },
+      );
+    }
+
+    const customerId = row?.stripe_customer_id?.trim();
     if (!customerId) {
       return NextResponse.json(
         { error: "Aucun compte de facturation Stripe n’a encore été trouvé pour ce compte." },

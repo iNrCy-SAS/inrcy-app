@@ -38,6 +38,12 @@ export default defineConfig({
 
   use: {
     baseURL,
+    // Les assertions E2E historiques ciblent l’interface française. Sans ce
+    // réglage, Chromium envoie en-US et next-intl sélectionne l’anglais.
+    locale: 'fr-FR',
+    extraHTTPHeaders: {
+      'Accept-Language': 'fr-FR,fr;q=0.9',
+    },
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',

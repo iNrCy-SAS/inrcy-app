@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">iNrCy</string>
+    <string name="title_activity_main">iNrCy</string>
+    <string name="package_name">com.inrcy.app</string>
+    <string name="custom_url_scheme">com.inrcy.app</string>
+</resources>

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
@@ -7,6 +7,7 @@ import OrientationGuard from "./OrientationGuard";
 import CookieConsentBanner from "./_components/CookieConsentBanner";
 import InrcyDialogProvider from "./_components/InrcyDialogProvider";
 import PullToRefresh from "./_components/PullToRefresh";
+import NativeRuntimeBridge from "./_components/NativeRuntimeBridge";
 import { htmlLanguageFromLocale } from "@/i18n/config";
 
 const geistSans = Geist({
@@ -34,6 +35,13 @@ export const metadata: Metadata = {
   },
 };
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#ffffff",
+};
+
 export default async function RootLayout({
   children,
 }: {
@@ -53,6 +61,7 @@ export default async function RootLayout({
         translate="no"
       >
         <NextIntlClientProvider locale={locale} messages={messages} timeZone="Europe/Paris">
+          <NativeRuntimeBridge />
           <OrientationGuard />
           <CookieConsentBanner />
           <InrcyDialogProvider />

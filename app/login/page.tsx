@@ -44,6 +44,8 @@ type LoginErrorState = {
   diagnosticReason?: LoginDiagnosticReason;
 };
 
+const PUBLIC_SIGNUP_HREF = "https://inrcy.com/inscription";
+
 function rawErrorMessage(input: unknown): string {
   if (typeof input === "string") return input.trim();
   if (input instanceof Error) return String(input.message || "").trim();
@@ -940,6 +942,18 @@ export default function LoginPage() {
                     ? t("initialising")
                     : t("submit")}
             </button>
+
+            <div className={styles.signupPrompt}>
+              <span>{t("noAccount")}</span>
+              <a
+                className={styles.signupLink}
+                href={PUBLIC_SIGNUP_HREF}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {t("signUp")}
+              </a>
+            </div>
 
             {/* ✅ aide connexion */}
             <div

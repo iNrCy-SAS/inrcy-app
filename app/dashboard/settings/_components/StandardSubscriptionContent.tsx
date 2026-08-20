@@ -10,6 +10,8 @@ import {
   STANDARD_SUBSCRIPTION_OFFER,
   type BillingCycle,
 } from "@/lib/subscriptionOffers";
+import { startStandardSubscriptionCheckout } from "@/lib/clientSubscriptionBilling";
+import { openNativeSubscriptionManagement } from "@/lib/nativeBillingManagement";
 
 type Props = {
   onOpenContact: () => void;
@@ -27,10 +29,13 @@ type SubscriptionData = {
   stripe_subscription_id?: string | null;
   stripe_price_id?: string | null;
   billing_cycle?: string | null;
+  billing_provider?: "stripe" | "app_store" | "play_store" | string | null;
+  native_product_id?: string | null;
+  native_will_renew?: boolean | null;
 };
 
 const SUBSCRIPTION_SELECT =
-  "plan,scheduled_plan,status,trial_end_at,next_renewal_date,cancel_requested_at,end_date,stripe_customer_id,stripe_subscription_id,stripe_price_id,billing_cycle";
+  "plan,scheduled_plan,status,trial_end_at,next_renewal_date,cancel_requested_at,end_date,stripe_customer_id,stripe_subscription_id,stripe_price_id,billing_cycle,billing_provider,native_product_id,native_will_renew";
 
 const premiumFeatures = [
   "iNr’Agent complet avec Propulser et Fidéliser",
@@ -127,16 +132,25 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
   const view = useMemo(() => {
     const status = normalizeStatus(subscription?.status);
     const reusableStatuses = ["trial_expired", "canceled", "cancelled", "incomplete_expired", ""];
+    const billingProvider = normalizeStatus(subscription?.billing_provider);
+    const hasNativeSubscription =
+      (billingProvider === "app_store" || billingProvider === "play_store") &&
+      Boolean(subscription?.native_product_id);
     const hasStripeSubscription =
-      Boolean(subscription?.stripe_subscription_id) && !reusableStatuses.includes(status);
+      (billingProvider === "stripe" || !billingProvider) &&
+      Boolean(subscription?.stripe_subscription_id) &&
+      !reusableStatuses.includes(status);
     const cancellationScheduled = Boolean(subscription?.cancel_requested_at && subscription?.end_date);
     const canStartCheckout =
+      !hasNativeSubscription &&
       !hasStripeSubscription &&
       ["trialing", ...reusableStatuses].includes(status);
     const needsBillingRecovery = ["past_due", "unpaid", "incomplete"].includes(status);
     return {
       status,
       hasStripeSubscription,
+      hasNativeSubscription,
+      billingProvider,
       cancellationScheduled,
       canStartCheckout,
       needsBillingRecovery,
@@ -153,6 +167,10 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
     setMessage("");
     setBusyAction("portal");
     try {
+      if (view.hasNativeSubscription && (view.billingProvider === "app_store" || view.billingProvider === "play_store")) {
+        await openNativeSubscriptionManagement(view.billingProvider);
+        return;
+      }
       const response = await fetch("/api/billing/portal", { method: "POST" });
       if (!response.ok) throw new Error(await responseError(response, i18nT("l_operation_n_a_pas_pu_2eda8de6")));
       const body = (await response.json()) as { url?: string };
@@ -170,15 +188,14 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
     setMessage("");
     setBusyAction("checkout");
     try {
-      const response = await fetch("/api/billing/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: "Standard", billingCycle }),
+      const result = await startStandardSubscriptionCheckout({
+        billingCycle,
+        fallbackError: i18nT("l_operation_n_a_pas_pu_2eda8de6"),
       });
-      if (!response.ok) throw new Error(await responseError(response, i18nT("l_operation_n_a_pas_pu_2eda8de6")));
-      const body = (await response.json()) as { url?: string };
-      if (!body.url) throw new Error("La page de paiement n’a pas pu être ouverte.");
-      window.location.assign(body.url);
+      if (result.platform !== "web") {
+        setMessage("Achat confirmé. iNrCy synchronise votre abonnement avec le magasin.");
+        await loadSubscription();
+      }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Le paiement est momentanément indisponible.");
     } finally {
@@ -187,6 +204,19 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
   }
 
   async function updateCancellation(action: "cancel" | "uncancel") {
+    if (view.hasNativeSubscription && (view.billingProvider === "app_store" || view.billingProvider === "play_store")) {
+      setError("");
+      setMessage("La gestion de cet abonnement se fait dans le magasin de votre téléphone.");
+      setBusyAction("portal");
+      try {
+        await openNativeSubscriptionManagement(view.billingProvider);
+      } catch (caught) {
+        setError(caught instanceof Error ? caught.message : "Le magasin d’applications est indisponible.");
+      } finally {
+        setBusyAction(null);
+      }
+      return;
+    }
     setError("");
     setMessage("");
     setBusyAction(action);
@@ -348,6 +378,17 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
               <div style={{ fontSize: 11, opacity: 0.65, lineHeight: 1.45 }}>
                 {i18nT("essai_arret_sans_prelevement_mensuel_actif_32634c83")}{" "}</div>
             ) : null}
+          </div>
+        ) : null}
+
+        {view.hasNativeSubscription && !view.needsBillingRecovery ? (
+          <div style={{ marginTop: 16, display: "grid", gap: 9 }}>
+            <button type="button" onClick={openPortal} style={secondaryButton} disabled={busyAction !== null}>
+              {busyAction === "portal" ? i18nT("ouverture_3333ad14") : i18nT("gerer_ma_facturation_dc5027ac")}
+            </button>
+            <div style={{ fontSize: 11, opacity: 0.68, lineHeight: 1.45 }}>
+              Votre abonnement est géré par {view.billingProvider === "app_store" ? "l’App Store" : "Google Play"}. Les renouvellements, moyens de paiement et résiliations se gèrent dans le magasin.
+            </div>
           </div>
         ) : null}
 

@@ -17,12 +17,21 @@ export async function POST() {
 
     const { data: sub, error } = await supabaseAdmin
       .from("subscriptions")
-      .select("stripe_subscription_id")
+      .select("stripe_subscription_id,billing_provider")
       .eq("user_id", userId)
       .maybeSingle();
 
     if (error) throw new Error(error.message);
-    const stripeSubId = (sub as { stripe_subscription_id?: string | null } | null | undefined)?.stripe_subscription_id ?? undefined;
+    const row = sub as { stripe_subscription_id?: string | null; billing_provider?: string | null } | null | undefined;
+    const billingProvider = String(row?.billing_provider || "").trim().toLowerCase();
+    if (billingProvider === "app_store" || billingProvider === "play_store") {
+      return NextResponse.json(
+        { error: "Cet abonnement se résilie directement dans l’App Store ou Google Play.", code: "NATIVE_MANAGEMENT_REQUIRED" },
+        { status: 409 },
+      );
+    }
+
+    const stripeSubId = row?.stripe_subscription_id ?? undefined;
     if (!stripeSubId) {
       return NextResponse.json({ error: "Aucun abonnement actif n’a été trouvé pour ce compte." }, { status: 400 });
     }

@@ -18,12 +18,21 @@ export async function POST() {
 
     const { data: subRow, error: subErr } = await supabaseAdmin
       .from("subscriptions")
-      .select("stripe_subscription_id")
+      .select("stripe_subscription_id,billing_provider")
       .eq("user_id", user.id)
       .maybeSingle();
 
     if (subErr) throw subErr;
-    const stripeSubId = (subRow as { stripe_subscription_id?: string | null } | null | undefined)?.stripe_subscription_id ?? null;
+    const row = subRow as { stripe_subscription_id?: string | null; billing_provider?: string | null } | null | undefined;
+    const billingProvider = String(row?.billing_provider || "").trim().toLowerCase();
+    if (billingProvider === "app_store" || billingProvider === "play_store") {
+      return NextResponse.json(
+        { error: "Cet abonnement se réactive directement dans l’App Store ou Google Play.", code: "NATIVE_MANAGEMENT_REQUIRED" },
+        { status: 409 },
+      );
+    }
+
+    const stripeSubId = row?.stripe_subscription_id ?? null;
     if (!stripeSubId) {
       return NextResponse.json({ error: "Aucun abonnement actif n’a été trouvé pour ce compte." }, { status: 400 });
     }

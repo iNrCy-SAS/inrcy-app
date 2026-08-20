@@ -47,6 +47,7 @@ type SubscriptionSnapshot = {
   monthly_price_eur?: number | null;
   app_edition?: string | null;
   billing_cycle?: string | null;
+  billing_provider?: string | null;
 };
 
 function normalizeStripeStatus(status: string): string {
@@ -122,7 +123,7 @@ async function resolveStripeStoredPrice(
 }
 
 const SUBSCRIPTION_SELECT =
-  "user_id, contact_email, plan, scheduled_plan, status, trial_start_at, trial_end_at, cancel_requested_at, end_date, next_renewal_date, stripe_customer_id, stripe_subscription_id, stripe_price_id, monthly_price_eur, app_edition, billing_cycle";
+  "user_id, contact_email, plan, scheduled_plan, status, trial_start_at, trial_end_at, cancel_requested_at, end_date, next_renewal_date, stripe_customer_id, stripe_subscription_id, stripe_price_id, monthly_price_eur, app_edition, billing_cycle, billing_provider";
 
 function normalizedEmailVariants(email?: string | null) {
   const raw = String(email || "").trim();
@@ -383,6 +384,23 @@ export async function POST(req: Request) {
       return null;
     }
 
+    const existingProvider = String(existingRow.billing_provider || "").trim().toLowerCase();
+    const incomingProvider = String(patch.billing_provider || "").trim().toLowerCase();
+    const nativeProviders = new Set(["app_store", "play_store"]);
+    if (
+      incomingProvider === "stripe" &&
+      nativeProviders.has(existingProvider) &&
+      existingRow.stripe_subscription_id !== (subscriptionId || null)
+    ) {
+      console.warn("[stripe-webhook] Evenement Stripe ignore pour un abonnement natif deja actif.", {
+        eventId: typeof evt.id === "string" ? evt.id : null,
+        eventType: String(evt.type || "unknown"),
+        userId: existingRow.user_id,
+        existingProvider,
+      });
+      return existingRow;
+    }
+
     const { data, error } = await supabaseAdmin
       .from("subscriptions")
       .update({ ...patch, updated_at: new Date().toISOString() })
@@ -416,6 +434,7 @@ export async function POST(req: Request) {
         userId,
         customerId,
         {
+          billing_provider: "stripe",
           stripe_customer_id: customerId || null,
           stripe_subscription_id: subId || null,
           ...(billingCycle === "monthly" || billingCycle === "yearly"
@@ -505,6 +524,7 @@ export async function POST(req: Request) {
         commercialPrice && !founderAccount ? commercialPrice.monthlyReferenceEur : null;
 
       await updateSubscriptionRow(userId, customerId, {
+        billing_provider: "stripe",
         status: stripeStatus,
         stripe_customer_id: customerId || null,
         stripe_subscription_id: subId || null,
@@ -613,6 +633,7 @@ export async function POST(req: Request) {
         userId,
         customerId,
         {
+          billing_provider: "stripe",
           status: "canceled",
           stripe_customer_id: customerId || null,
           stripe_subscription_id: subId || null,
@@ -662,6 +683,7 @@ export async function POST(req: Request) {
           userId,
           customerId,
           {
+            billing_provider: "stripe",
             status: targetStatus,
             stripe_customer_id: customerId || existingRow?.stripe_customer_id || null,
             stripe_subscription_id: subId || existingRow?.stripe_subscription_id || null,
@@ -691,6 +713,7 @@ export async function POST(req: Request) {
             userId,
             customerId,
             {
+              billing_provider: "stripe",
               status: targetStatus,
               stripe_customer_id: customerId || existingRow?.stripe_customer_id || null,
               stripe_subscription_id: subId || existingRow?.stripe_subscription_id || null,

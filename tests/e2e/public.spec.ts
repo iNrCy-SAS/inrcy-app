@@ -7,6 +7,11 @@ test.describe('public flows', () => {
     await expect(page.getByTestId('login-email')).toBeVisible();
     await expect(page.getByTestId('login-password')).toBeVisible();
     await expect(page.getByTestId('login-submit')).toBeVisible();
+
+    const signupLink = page.getByRole('link', { name: 'S’inscrire', exact: true });
+    await expect(signupLink).toBeVisible();
+    await expect(signupLink).toHaveAttribute('href', 'https://inrcy.com/inscription');
+    await expect(signupLink).toHaveAttribute('target', '_blank');
   });
 
   test('anonymous user is redirected to login when visiting dashboard', async ({ page }) => {

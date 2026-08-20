@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { useState } from "react";
 import type { DashboardEdition } from "@/lib/dashboardEdition";
 import type { BillingCycle } from "@/lib/subscriptionOffers";
+import { startStandardSubscriptionCheckout } from "@/lib/clientSubscriptionBilling";
 import styles from "./compte-bloque.module.css";
 
 type Props = {
@@ -36,15 +37,10 @@ export default function BlockedBillingActions({ status, edition, hasStripeCustom
     setBusy(true);
     setError("");
     try {
-      const response = await fetch("/api/billing/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: "Standard", billingCycle: cycle }),
+      await startStandardSubscriptionCheckout({
+        billingCycle: cycle,
+        fallbackError: i18nT("l_operation_n_a_pas_pu_2eda8de6"),
       });
-      if (!response.ok) throw new Error(await apiError(response, i18nT("l_operation_n_a_pas_pu_2eda8de6")));
-      const body = (await response.json()) as { url?: string };
-      if (!body.url) throw new Error("La page de paiement n’a pas pu être ouverte.");
-      window.location.assign(body.url);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Le paiement est indisponible.");
       setBusy(false);

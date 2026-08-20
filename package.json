@@ -23,6 +23,10 @@
     "postedit:i18n": "node scripts/i18n/postedit-catalogs.mjs --write",
     "test:i18n": "npm run audit:i18n:all && node scripts/i18n/validate-standard-usage.mjs && node scripts/i18n/validate-referenced-keys.mjs && node scripts/i18n/validate-catalogs.mjs",
     "typecheck": "next typegen && tsc --noEmit --pretty false --noErrorTruncation",
+    "mobile:assets": "capacitor-assets generate --ios --android --iconBackgroundColor '#ffffff' --iconBackgroundColorDark '#111111' --splashBackgroundColor '#ffffff' --splashBackgroundColorDark '#111111'",
+    "mobile:sync": "cap sync",
+    "mobile:android": "cap open android",
+    "mobile:ios": "cap open ios",
     "test:multicompte": "node --test --experimental-strip-types tests/multicompte/*.test.mts",
     "audit:multicompte": "node scripts/audit-multicompte.mjs",
     "prebuild": "node scripts/prebuild-clean.mjs",
@@ -123,6 +127,15 @@
     "test:billing": "node --test --experimental-strip-types tests/stripe-webhook/*.test.mts"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/browser": "^8.0.2",
+    "@capacitor/core": "^8.5.0",
+    "@capacitor/ios": "^8.5.0",
+    "@capacitor/keyboard": "^8.0.5",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.3",
+    "@revenuecat/purchases-capacitor": "^13.4.0",
     "@sentry/nextjs": "^10.39.0",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.90.1",
@@ -142,6 +155,8 @@
     "sharp": "0.35.3"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^8.5.0",
     "@playwright/test": "^1.50.1",
     "@tailwindcss/postcss": "^4",
     "@types/heic-convert": "^2.1.1",

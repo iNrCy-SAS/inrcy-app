@@ -20,6 +20,7 @@ type SubscriptionRow = {
   trial_start_at?: string | null;
   trial_end_at?: string | null;
   contact_email?: string | null;
+  billing_provider?: string | null;
 };
 
 type ProfileRow = {
@@ -101,7 +102,7 @@ export async function POST(req: Request) {
         supabase
           .from("subscriptions")
           .select(
-            "stripe_customer_id, stripe_subscription_id, status, app_edition, plan, start_date, trial_start_at, trial_end_at, contact_email",
+            "stripe_customer_id, stripe_subscription_id, status, app_edition, plan, start_date, trial_start_at, trial_end_at, contact_email, billing_provider",
           )
           .eq("user_id", userId)
           .maybeSingle(),
@@ -141,6 +142,20 @@ export async function POST(req: Request) {
     }
 
     const currentStatus = normalizeStatus(row.status);
+    const billingProvider = normalizeStatus(row.billing_provider);
+    const nativeSubscriptionIsLive =
+      (billingProvider === "app_store" || billingProvider === "play_store") &&
+      STRIPE_LIVE_SUBSCRIPTION_STATUSES.has(currentStatus);
+    if (nativeSubscriptionIsLive) {
+      return NextResponse.json(
+        {
+          error: "Ce compte possède déjà un abonnement mobile actif. Il est utilisable sur la web app.",
+          code: "NATIVE_SUBSCRIPTION_ALREADY_EXISTS",
+        },
+        { status: 409 },
+      );
+    }
+
     const localSubscriptionIsLive =
       STRIPE_LIVE_SUBSCRIPTION_STATUSES.has(currentStatus) &&
       (Boolean(row.stripe_subscription_id) || currentStatus !== "trialing");
@@ -170,9 +185,10 @@ export async function POST(req: Request) {
       if (existingStripeSubscription?.id) {
         await supabaseAdmin
           .from("subscriptions")
-          .update({
-            stripe_subscription_id: existingStripeSubscription.id,
-            status: normalizeStatus(existingStripeSubscription.status),
+        .update({
+          stripe_subscription_id: existingStripeSubscription.id,
+          billing_provider: "stripe",
+          status: normalizeStatus(existingStripeSubscription.status),
             updated_at: new Date().toISOString(),
           })
           .eq("user_id", userId);
@@ -201,6 +217,7 @@ export async function POST(req: Request) {
         .from("subscriptions")
         .update({
           stripe_customer_id: customerId,
+          billing_provider: "stripe",
           contact_email: email,
           updated_at: new Date().toISOString(),
         })
