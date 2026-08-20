@@ -8,6 +8,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { confirmInrcy } from "@/lib/inrcyDialog";
 import EmojiPickerButton from "@/app/dashboard/_components/EmojiPickerButton";
+import AiContentReportButton from "@/app/dashboard/_components/AiContentReportButton";
 import PublishAiConfigurationDrawer from "@/app/dashboard/booster/publier/components/PublishAiConfigurationDrawer";
 import { MODULE_SNAPSHOT_KEYS, readModuleSnapshot, writeModuleSnapshot } from "@/lib/browserModuleSnapshotCache";
 import styles from "./eReputation.module.css";
@@ -495,6 +496,7 @@ export default function EReputationReviewsClient(props: Props) {
   const [selectedId, setSelectedId] = useState(platformData[0]?.reviews[0]?.id || "");
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [replyText, setReplyText] = useState(defaultReplyFor(platformData[0]?.reviews[0] || null, runtimeT));
+  const [aiReplyGenerated, setAiReplyGenerated] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -671,6 +673,7 @@ export default function EReputationReviewsClient(props: Props) {
   function openDetails(review: EReputationReviewItem) {
     setSelectedId(review.id);
     setReplyText(defaultReplyFor(review, runtimeT));
+    setAiReplyGenerated(false);
     replySelectionRef.current = null;
     setNotice(null);
     setDetailsOpen(true);
@@ -691,6 +694,7 @@ export default function EReputationReviewsClient(props: Props) {
   function selectReviewFromSequence(review: EReputationReviewItem, index: number) {
     setSelectedId(review.id);
     setReplyText(defaultReplyFor(review, runtimeT));
+    setAiReplyGenerated(false);
     setCurrentPage(Math.floor(Math.max(0, index) / REVIEWS_PAGE_SIZE) + 1);
     replySelectionRef.current = null;
     setNotice(null);
@@ -978,6 +982,7 @@ export default function EReputationReviewsClient(props: Props) {
         throw new Error(getErrorMessage(payload, i18nT("impossible_de_generer_une_reponse_ia_ebc226a1")));
       }
       setReplyText(payload.reply_text);
+      setAiReplyGenerated(true);
       setNotice({
         type: "success",
         text: selectedAlreadyAnswered
@@ -1349,6 +1354,14 @@ export default function EReputationReviewsClient(props: Props) {
                       placeholder={i18nT("redigez_votre_reponse_value_35171dc3", { value0: platformLabel })}
                     />
                     <div className={styles.charCount}>{i18nT("characters_count", { count: replyText.trim().length.toLocaleString(locale), max: (4096).toLocaleString(locale) })}</div>
+                    {aiReplyGenerated ? (
+                      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                        <AiContentReportButton
+                          surface="e-reputation:reply"
+                          content={replyText}
+                        />
+                      </div>
+                    ) : null}
                     {notice ? <div className={notice.type === "success" ? styles.noticeSuccess : styles.noticeError} role="status">{notice.text}</div> : null}
                     <div className={styles.modalActions}>
                       <button className={styles.btnGhostSmall} type="button" disabled={!canGenerate} onClick={generateReply}>{generating ? i18nT("generation_839b5564") : i18nT("generer_avec_inrcy_bcf461c3")}</button>

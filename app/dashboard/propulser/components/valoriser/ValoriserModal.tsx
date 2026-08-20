@@ -6,6 +6,7 @@ import stylesDash from "../../../dashboard.module.css";
 import { getTemplates, type TemplateDef } from "@/lib/messageTemplates";
 import { useBusinessTemplateContext } from "@/app/dashboard/_hooks/useBusinessTemplateContext";
 import RichMailEditor from "@/app/dashboard/_components/RichMailEditor";
+import AiContentReportButton from "@/app/dashboard/_components/AiContentReportButton";
 import TemplateSubjectInlineEditor from "@/app/dashboard/_components/TemplateSubjectInlineEditor";
 import { extractTemplatePlaceholders, textToRichMailHtml } from "@/lib/mailRichText";
 import { confirmInrcy } from "@/lib/inrcyDialog";
@@ -55,6 +56,7 @@ export default function ValoriserModal({ styles, onClose, onDone = onClose, save
   const [bodyHtml, setBodyHtml] = useState("");
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiError, setAiError] = useState("");
+  const [aiContentGenerated, setAiContentGenerated] = useState(false);
   const { engine: aiEngine, setEngine: setAiEngine, defaultEngine: defaultAiEngine } = useTemplateAiEngine();
   const [attachments, setAttachments] = useState<ComposeAttachmentRef[]>([]);
   const [workflowDraftId, setWorkflowDraftId] = useState<string | null>(null);
@@ -72,6 +74,7 @@ export default function ValoriserModal({ styles, onClose, onDone = onClose, save
   useEffect(() => {
     if (!selected) return;
     if (restoredWorkflowKeyRef.current) return;
+    setAiContentGenerated(false);
     const subj = selected.subject;
     const txt = selected.body;
     setSubject(subj);
@@ -150,6 +153,7 @@ export default function ValoriserModal({ styles, onClose, onDone = onClose, save
         setBody(nextBody);
         setBodyHtml(textToRichMailHtml(nextBody));
       }
+      if (j?.subject || j?.body_text) setAiContentGenerated(true);
     } catch (error) {
       setAiError(getClientUserFacingErrorMessage(error, "La génération IA a échoué."));
     } finally {
@@ -365,6 +369,11 @@ export default function ValoriserModal({ styles, onClose, onDone = onClose, save
                 maxHeight: "100%",
               }}
             />
+            {aiContentGenerated ? (
+              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
+                <AiContentReportButton surface="propulser:valoriser" content={`${subject}\n${body}`} />
+              </div>
+            ) : null}
           </div>
 
           <div style={{ ...footerStyle, ...(isMobile ? { alignItems: "stretch", flexDirection: "column" as const } : {}) }}>

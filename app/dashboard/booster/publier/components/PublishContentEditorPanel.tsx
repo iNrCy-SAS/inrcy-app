@@ -10,6 +10,7 @@ import type { BoosterCreationMode } from "@/lib/boosterCreationMode";
 import { editableHtmlToSiteText, stripSiteTextFormatting } from "@/lib/boosterFormatting";
 import { readSanitizedElementHtml } from "@/lib/sanitizeHtml";
 import EmojiPickerButton from "@/app/dashboard/_components/EmojiPickerButton";
+import AiContentReportButton from "@/app/dashboard/_components/AiContentReportButton";
 import {
   BOOSTER_PREFERRED_CTA_OPTIONS,
   CHANNEL_TEXT_GUIDELINES,
@@ -531,6 +532,14 @@ export default function PublishContentEditorPanel({
                     : getDisplayPost(activeCard).content.length,
                   CHANNEL_TEXT_GUIDELINES[activeCard].content,
                 )}
+                {creationMode === "ai" ? (
+                  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
+                    <AiContentReportButton
+                      surface={`booster:${activeCard}`}
+                      content={`${getDisplayPost(activeCard).title}\n${getDisplayPost(activeCard).content}`}
+                    />
+                  </div>
+                ) : null}
               </div>
               <div>
                 {(() => {

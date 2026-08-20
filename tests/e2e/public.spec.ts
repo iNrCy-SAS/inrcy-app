@@ -21,6 +21,14 @@ test.describe('public flows', () => {
     await expect(page).toHaveURL(/\/login/);
   });
 
+  test('account and data deletion page is public', async ({ page }) => {
+    const response = await page.goto('/suppression-compte');
+
+    expect(response?.status()).toBe(200);
+    await expect(page.getByRole('heading', { name: 'Supprimer votre compte ou certaines données' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Envoyer ma demande' })).toBeVisible();
+  });
+
   test('health endpoints behave as expected', async ({ request }) => {
     const health = await request.get('/api/health');
     const healthJson = await health.json();

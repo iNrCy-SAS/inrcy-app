@@ -21,6 +21,7 @@ import { pill } from "../_lib/mailboxPhase1";
 import { normalizeEmails } from "../_lib/mailboxPhase25";
 import { inputStyle, textareaStyle } from "./mailboxInlineStyles";
 import RichMailEditor from "@/app/dashboard/_components/RichMailEditor";
+import AiContentReportButton from "@/app/dashboard/_components/AiContentReportButton";
 import { confirmInrcy } from "@/lib/inrcyDialog";
 import {
   extractTemplatePlaceholders,
@@ -331,6 +332,7 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
 
   const [aiGenerating, setAiGenerating] = React.useState(false);
   const [aiError, setAiError] = React.useState<string | null>(null);
+  const [aiContentGenerated, setAiContentGenerated] = React.useState(false);
   const [mailWritingType, setMailWritingType] =
     React.useState<MailWritingType>("auto");
 
@@ -398,6 +400,7 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
       if (!nextText) throw new Error(i18nT("ai_generation_empty"));
       setText(nextText);
       setHtml(textToRichMailHtml(nextText));
+      setAiContentGenerated(true);
       setToast(
         composeAttachments.length > 0
           ? i18nT("ai_message_generated_with_attachments")
@@ -1182,6 +1185,14 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
                 minHeight={"clamp(260px, 38vh, 430px)"}
                 editorStyle={composeEditorStyle}
               />
+              {aiContentGenerated ? (
+                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
+                  <AiContentReportButton
+                    surface="mails:compose"
+                    content={`${subject}\n${text}`}
+                  />
+                </div>
+              ) : null}
               <div className={styles.composeSignaturePreview}>
                 <div className={styles.composeSignaturePreviewHeader}>
                   <div>

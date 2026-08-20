@@ -363,6 +363,14 @@ function isAuthRecoveryPath(pathname: string): boolean {
   );
 }
 
+function isAnonymousPublicPagePath(pathname: string): boolean {
+  return pathname === "/suppression-compte";
+}
+
+function isAnonymousPublicApiPath(pathname: string): boolean {
+  return pathname === "/api/public/privacy/deletion-request";
+}
+
 type LimitPlan = {
   tokens: number;
   windowSeconds: number;
@@ -618,7 +626,11 @@ export async function proxy(req: NextRequest) {
   };
 
   if (invalidAuthSession) {
-    if (isAuthRecoveryPath(pathname)) {
+    if (
+      isAuthRecoveryPath(pathname)
+      || isAnonymousPublicPagePath(pathname)
+      || isAnonymousPublicApiPath(pathname)
+    ) {
       // Un compte supprimé ou une ancienne session ne doit jamais empêcher
       // l’ouverture d’un nouveau lien d’invitation/récupération. On transmet
       // la requête sans les cookies Supabase invalides et on les expire dans
