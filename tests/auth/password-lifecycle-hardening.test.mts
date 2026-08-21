@@ -161,15 +161,19 @@ test("stale deleted-account cookies cannot block recovery routes", () => {
 test("account deletion is retry-safe and clears browser authentication state", () => {
   const deletion = read("lib/deleteUserAccount.ts");
   const deletionApi = read("app/api/account/route.ts");
-  const deletionUi = read("app/dashboard/settings/_components/RgpdContent.tsx");
+  const deletionUi = read("app/suppression-compte/DeletionRequestForm.tsx");
+  const deletionWorkflow = read("app/api/account/deletion/route.ts");
   const firstCleanupGuard = deletion.indexOf("if (Object.keys(errors).length > 0)");
   const identityDeletion = deletion.indexOf("deleteUser(authUserId)");
 
   assert.ok(firstCleanupGuard >= 0 && firstCleanupGuard < identityDeletion);
   assert.match(deletionApi, /if \(!deletion\.ok\)/);
+  assert.match(deletionWorkflow, /scheduleSubscriptionCancellationForUser/);
+  assert.match(deletionWorkflow, /deleteUserDataCategories/);
+  assert.match(deletionUi, /\/api\/account\/deletion/);
   assert.match(deletionUi, /purgeAllBrowserAccountCaches\(\)/);
   assert.match(deletionUi, /supabase\.auth\.signOut\(\{ scope: "local" \}\)/);
-  assert.match(deletionUi, /window\.location\.replace\(`\/login\?lang=\$\{appLanguage\}`\)/);
+  assert.match(deletionUi, /window\.location\.replace\("\/login"\)/);
 });
 
 test("all supported languages include lifecycle and account-switch messages", () => {

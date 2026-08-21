@@ -131,6 +131,9 @@ const SENSITIVE_API_PREFIXES = [
 
 const API_BLOCK_BYPASS_PREFIXES = [
   "/api/auth/",
+  // The owner must be able to finish or retry account deletion even after a
+  // cancellation has made the subscription status non-active.
+  "/api/account/deletion",
   "/api/billing/checkout",
   "/api/boutique/order",
   "/api/cron/",

@@ -14,6 +14,7 @@ import {
 import { stripeSubscriptionPeriodEndUnix } from "@/lib/stripeSubscription";
 import { stripeSubscriptionCadence } from "@/lib/subscriptionCancellation";
 import { captureApiException } from "@/lib/observability/sentry";
+import { deleteUserAccountEverywhere } from "@/lib/deleteUserAccount";
 
 export const runtime = "nodejs";
 
@@ -570,6 +571,82 @@ export async function GET(req: Request) {
     }
   }
 
+  // Suppression autonome demandée par le titulaire : la résiliation de
+  // l’abonnement et la suppression du compte sont volontairement séparées.
+  // L’accès reste donc disponible jusqu’à scheduled_for, puis ce cron réalise
+  // l’effacement complet sans intervention manuelle.
+  type DueDeletionRow = {
+    id: string;
+    user_id: string;
+    scheduled_for: string;
+  };
+  let deletedScheduledAccounts = 0;
+  let failedScheduledDeletions = 0;
+  let deletionWorkflowUnavailable = false;
+
+  const { data: dueDeletions, error: dueDeletionError } = await supabaseAdmin
+    .from("account_deletion_requests")
+    .select("id,user_id,scheduled_for")
+    .eq("status", "scheduled")
+    .lte("scheduled_for", now.toISOString())
+    .order("scheduled_for", { ascending: true })
+    .limit(50);
+
+  if (dueDeletionError) {
+    const code = String((dueDeletionError as { code?: unknown }).code || "");
+    const message = String(dueDeletionError.message || "");
+    deletionWorkflowUnavailable = code === "PGRST205" || /account_deletion_requests|does not exist/i.test(message);
+    if (!deletionWorkflowUnavailable) {
+      captureApiException(req, dueDeletionError, {
+        area: "billing",
+        operation: "account_deletion_due_query",
+        statusCode: 500,
+      });
+    }
+  }
+
+  for (const deletion of (dueDeletions || []) as DueDeletionRow[]) {
+    const { data: claimed, error: claimError } = await supabaseAdmin
+      .from("account_deletion_requests")
+      .update({ status: "processing", updated_at: new Date().toISOString(), last_error: null })
+      .eq("id", deletion.id)
+      .eq("status", "scheduled")
+      .select("id,user_id,scheduled_for")
+      .maybeSingle();
+
+    if (claimError || !claimed) continue;
+
+    const result = await deleteUserAccountEverywhere(deletion.user_id).catch((error: unknown) => ({
+      ok: false,
+      details: { account: error instanceof Error ? error.message : String(error || "unknown") },
+    }));
+
+    if (result.ok) {
+      const { error: completedError } = await supabaseAdmin
+        .from("account_deletion_requests")
+        .update({
+          status: "completed",
+          completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          last_error: null,
+        })
+        .eq("id", deletion.id);
+      if (!completedError) deletedScheduledAccounts++;
+      else failedScheduledDeletions++;
+      continue;
+    }
+
+    failedScheduledDeletions++;
+    await supabaseAdmin
+      .from("account_deletion_requests")
+      .update({
+        status: "scheduled",
+        updated_at: new Date().toISOString(),
+        last_error: JSON.stringify(result.details).slice(0, 4000),
+      })
+      .eq("id", deletion.id);
+  }
+
   return NextResponse.json({
     ok: true,
     sent,
@@ -579,9 +656,11 @@ export async function GET(req: Request) {
     repaired_billing_cycles: repairedBillingCycles,
     expired_trial_accounts: expiredTrialAccounts,
     deleted_trial_accounts: 0,
-    deleted_cancelled_accounts: 0,
+    deleted_cancelled_accounts: deletedScheduledAccounts,
     reconciled_cancelled_accesses: reconciledCancelledAccesses,
     expired_annual_accesses: expiredAnnualAccesses,
+    failed_scheduled_deletions: failedScheduledDeletions,
+    deletion_workflow_unavailable: deletionWorkflowUnavailable,
     mail_failures: mailFailures,
     degraded: mailFailures > 0,
   });

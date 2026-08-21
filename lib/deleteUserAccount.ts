@@ -38,7 +38,7 @@ async function safeDeleteByUserId(table: string, userId: string) {
   }
 }
 
-async function listManagedAccountIds(authUserId: string) {
+export async function listManagedAccountIds(authUserId: string) {
   const { data, error } = await supabaseAdmin
     .from("inrcy_account_members")
     .select("account_id")

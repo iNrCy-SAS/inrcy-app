@@ -1,13 +1,9 @@
 "use client";
 
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 
-
+import Link from "next/link";
 import { useMemo, useState } from "react";
-import { confirmInrcy } from "@/lib/inrcyDialog";
-import { createClient } from "@/lib/supabaseClient";
-import { purgeAllBrowserAccountCaches, setActiveBrowserUserId } from "@/lib/browserAccountCache";
-import { appLanguageFromLocale } from "@/i18n/config";
 
 const LS_KEY = "inrcy_cookie_consent";
 
@@ -38,9 +34,7 @@ type Props = {
 
 export default function RgpdContent({ mode = "page" }: Props) {
   const i18nT = useTranslations("settings");
-  const locale = useLocale();
-  const appLanguage = appLanguageFromLocale(locale);
-  const [busy, setBusy] = useState<"export" | "delete" | null>(null);
+  const [busy, setBusy] = useState<"export" | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const initialPrefs = useMemo(() => getCookiePrefs(), []);
@@ -102,41 +96,6 @@ export default function RgpdContent({ mode = "page" }: Props) {
     }
   }
 
-  async function deleteAccount() {
-    setErr(null);
-    setDone(null);
-    const ok = await confirmInrcy({
-      title: i18nT("supprimer_le_compte_c19124b5"),
-      message: i18nT("cette_action_supprime_votre_compte_inrcy_d9cb27ec"),
-      confirmLabel: i18nT("supprimer_mon_compte_e894aea3"),
-      variant: "danger",
-    });
-    if (!ok) return;
-
-    setBusy("delete");
-    try {
-      const res = await fetch("/api/account", { method: "DELETE" });
-      const json = await res.json().catch(() => null);
-      if (!res.ok) {
-        throw new Error(json?.error || `account_delete_${res.status}`);
-      }
-      setDone(i18nT("rgpd_delete_done"));
-
-      // L’API supprime les cookies serveur. Le navigateur peut encore conserver
-      // une session locale et les caches multicompte : ils doivent disparaître
-      // avant toute nouvelle inscription avec la même adresse.
-      purgeAllBrowserAccountCaches();
-      setActiveBrowserUserId(null);
-      const supabase = createClient();
-      await supabase.auth.signOut({ scope: "local" }).catch(() => null);
-      window.location.replace(`/login?lang=${appLanguage}`);
-    } catch {
-      setErr(i18nT("rgpd_delete_failed"));
-    } finally {
-      setBusy(null);
-    }
-  }
-
   function onToggleAnalytics(next: boolean) {
     setAnalytics(next);
     setCookiePrefs(next);
@@ -193,11 +152,11 @@ export default function RgpdContent({ mode = "page" }: Props) {
       <div style={card}>
         <h4 style={{ margin: 0, fontSize: 14, fontWeight: 900 }}>{i18nT("suppression_du_compte_11789c76")}</h4>
         <p style={{ margin: "8px 0 0", opacity: 0.85, lineHeight: 1.5, fontSize: 13 }}>
-          {i18nT("supprime_votre_compte_et_les_donnees_dd539173")}{" "}</p>
+          Accédez à la page dédiée pour choisir une suppression à la fin de votre accès, une suppression immédiate ou des catégories de données précises. {" "}</p>
         <div style={{ marginTop: 10 }}>
-          <button type="button" style={dangerBtn} onClick={deleteAccount} disabled={busy !== null}>
-            {busy === "delete" ? i18nT("suppression_en_cours_29d17a80") : i18nT("supprimer_mon_compte_e894aea3")}
-          </button>
+          <Link href="/suppression-compte" style={dangerBtn}>
+            {i18nT("supprimer_mon_compte_e894aea3")}
+          </Link>
         </div>
         <div style={{ marginTop: 10, opacity: 0.75, fontSize: 12, lineHeight: 1.4 }}>
           {i18nT("conseil_telechargez_d_abord_vos_donnees_5319daf3")}{" "}</div>

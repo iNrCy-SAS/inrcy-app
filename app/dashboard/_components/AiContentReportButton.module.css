@@ -4,10 +4,10 @@
   gap: 6px;
   min-height: 30px;
   padding: 5px 11px;
-  border: 1px solid rgba(224, 69, 106, 0.32);
+  border: 1px solid rgba(112, 132, 164, 0.38);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.76);
-  color: #b3264f;
+  color: #596980;
   font: inherit;
   font-size: 12px;
   font-weight: 800;
@@ -17,7 +17,7 @@
 
 .reportButton:hover {
   transform: translateY(-1px);
-  border-color: rgba(224, 69, 106, 0.62);
+  border-color: rgba(86, 111, 148, 0.72);
   background: #fff;
 }
 

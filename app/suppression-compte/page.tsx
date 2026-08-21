@@ -6,7 +6,7 @@ import styles from "./suppression-compte.module.css";
 
 export const metadata: Metadata = {
   title: "Suppression de compte | iNrCy",
-  description: "Demandez la suppression de votre compte iNrCy ou de certaines de vos données.",
+  description: "Supprimez votre compte iNrCy, programmez sa suppression à la fin de votre accès ou effacez certaines données.",
   robots: { index: true, follow: true },
 };
 
@@ -29,8 +29,8 @@ export default function SuppressionComptePage() {
           <span className={styles.eyebrow}>Confidentialité iNrCy</span>
           <h1>Supprimer votre compte ou certaines données</h1>
           <p>
-            Ce formulaire est accessible sans connexion. Nous vérifierons votre identité avant toute
-            suppression afin de protéger votre compte.
+            Connectez-vous pour gérer la suppression vous-même. Votre abonnement et vos services restent
+            actifs jusqu’à la date de fin si vous choisissez le parcours recommandé.
           </p>
         </div>
 
@@ -38,12 +38,11 @@ export default function SuppressionComptePage() {
           <DeletionRequestForm />
 
           <aside className={styles.infoCard}>
-            <h2>Ce qui se passe ensuite</h2>
+            <h2>Un parcours clair et autonome</h2>
             <ol>
-              <li>Nous accusons réception de votre demande.</li>
-              <li>Nous vérifions que vous êtes bien titulaire du compte.</li>
-              <li>Nous supprimons le compte entier ou uniquement les données indiquées.</li>
-              <li>Nous vous confirmons la fin du traitement par e-mail.</li>
+              <li>Connecté : choisissez l’échéance, l’immédiat ou des catégories précises.</li>
+              <li>À l’échéance : l’accès reste actif jusqu’au dernier jour prévu.</li>
+              <li>Sans connexion : envoyez une demande vérifiée depuis cette page.</li>
             </ol>
             <p>
               Certaines informations peuvent être conservées pendant la durée imposée par la loi,
