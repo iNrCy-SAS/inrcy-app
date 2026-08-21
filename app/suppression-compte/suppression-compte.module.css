@@ -124,3 +124,104 @@
   .inlineFields, .checkGrid { grid-template-columns: 1fr; }
 }
 
+/* Refonte outil : en-tête compact et parcours pleine largeur. */
+.shell {
+  width: min(980px, 100%);
+}
+
+.header {
+  min-height: 44px;
+  margin-bottom: 8px;
+}
+
+.headerIdentity {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 18px;
+}
+
+.headerTitle {
+  min-width: 0;
+  margin: 0;
+  color: #f3f7ff;
+  font-size: clamp(18px, 2.3vw, 24px);
+  line-height: 1.1;
+  letter-spacing: -0.035em;
+}
+
+.closeButton {
+  display: inline-flex;
+  flex: 0 0 auto;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 13px;
+  border: 1px solid rgba(255, 255, 255, .2);
+  border-radius: 10px;
+  color: #eef7ff;
+  background: rgba(255, 255, 255, .06);
+  font-size: 12px;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.closeButton:hover {
+  filter: brightness(1.08);
+}
+
+.subtitle {
+  max-width: 820px;
+  margin: 0 0 17px;
+  color: #b8c7df;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.content {
+  display: grid;
+  gap: 10px;
+}
+
+.content > .formCard {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.policyNote {
+  margin: 0 2px;
+  color: #9db0c8;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.policyNote a {
+  color: #86dcf7;
+  font-weight: 850;
+  text-decoration: none;
+}
+
+.policyNote a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 560px) {
+  .headerIdentity {
+    gap: 10px;
+  }
+
+  .headerTitle {
+    font-size: 17px;
+  }
+
+  .closeButton {
+    min-height: 34px;
+    padding: 0 10px;
+    font-size: 11px;
+  }
+
+  .subtitle {
+    margin-bottom: 14px;
+    font-size: 13px;
+  }
+}

@@ -18,38 +18,26 @@ export default function SuppressionComptePage() {
 
       <section className={styles.shell}>
         <header className={styles.header}>
-          <Link className={styles.brand} href="https://inrcy.com" aria-label="Accueil iNrCy">
-            <span className={styles.brandMark} aria-hidden="true">iN</span>
-            <span>iNrCy</span>
-          </Link>
-          <Link className={styles.loginLink} href="/login">Connexion</Link>
+          <div className={styles.headerIdentity}>
+            <Link className={styles.brand} href="https://inrcy.com" aria-label="Accueil iNrCy">
+              <span className={styles.brandMark} aria-hidden="true">iN</span>
+              <span>iNrCy</span>
+            </Link>
+            <h1 className={styles.headerTitle}>Suppression du compte</h1>
+          </div>
+          <Link className={styles.closeButton} href="/dashboard">Fermer</Link>
         </header>
 
-        <div className={styles.intro}>
-          <span className={styles.eyebrow}>Confidentialité iNrCy</span>
-          <h1>Supprimer votre compte ou certaines données</h1>
-          <p>
-            Connectez-vous pour gérer la suppression vous-même. Votre abonnement et vos services restent
-            actifs jusqu’à la date de fin si vous choisissez le parcours recommandé.
-          </p>
-        </div>
+        <p className={styles.subtitle}>
+          Gérez la suppression de votre compte ou de certaines données.
+        </p>
 
-        <div className={styles.grid}>
+        <div className={styles.content}>
           <DeletionRequestForm />
-
-          <aside className={styles.infoCard}>
-            <h2>Un parcours clair et autonome</h2>
-            <ol>
-              <li>Connecté : choisissez l’échéance, l’immédiat ou des catégories précises.</li>
-              <li>À l’échéance : l’accès reste actif jusqu’au dernier jour prévu.</li>
-              <li>Sans connexion : envoyez une demande vérifiée depuis cette page.</li>
-            </ol>
-            <p>
-              Certaines informations peuvent être conservées pendant la durée imposée par la loi,
-              notamment les pièces comptables et les éléments nécessaires à la défense de droits.
-            </p>
+          <p className={styles.policyNote}>
+            Certaines informations peuvent être conservées pendant la durée imposée par la loi.{" "}
             <Link href="/legal/confidentialite">Consulter la politique de confidentialité</Link>
-          </aside>
+          </p>
         </div>
       </section>
     </main>

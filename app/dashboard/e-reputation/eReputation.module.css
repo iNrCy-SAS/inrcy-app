@@ -2410,6 +2410,102 @@
   }
 }
 
+/* Avis IA — empilement stable après génération. */
+.replyDetailCard .replyMetaRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 30px;
+  margin-top: 8px;
+}
+
+.replyDetailCard .replyMetaRow .charCount {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-top: 0;
+  text-align: left;
+}
+
+.replyAiReportButton {
+  flex: 0 0 auto;
+  min-height: 28px !important;
+  padding: 4px 9px !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+  border-radius: 9px !important;
+  color: rgba(255, 255, 255, 0.72) !important;
+  background: rgba(255, 255, 255, 0.07) !important;
+  font-size: 11px !important;
+}
+
+.replyAiReportButton:hover {
+  border-color: rgba(125, 211, 252, 0.38) !important;
+  background: rgba(56, 189, 248, 0.12) !important;
+}
+
+.replyDetailCard .noticeSuccess,
+.replyDetailCard .noticeError {
+  flex: 0 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 10px 0 0;
+}
+
+.replyDetailCard .noticeSuccess {
+  overflow: hidden;
+  color: #fff;
+  background: linear-gradient(100deg, rgba(24, 151, 101, 0.48), rgba(31, 185, 127, 0.25));
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.replyDetailCard .noticeError {
+  color: #fff;
+}
+
+.replyDetailCard .modalActions,
+.replyDetailCard .reportFooterLine {
+  flex: 0 0 auto;
+}
+
+.reviewReportLine {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.52);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.reviewReportLine .reportReviewButton {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  border-radius: 10px;
+}
+
+@media (max-width: 760px) {
+  .replyDetailCard .replyMetaRow {
+    align-items: flex-start;
+  }
+
+  .replyAiReportButton {
+    max-width: 46%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .reviewReportLine {
+    margin-top: 10px;
+  }
+}
+
 /* Step 7 — Google + iNr'Search dans E-réputation */
 
 .platformTabs {

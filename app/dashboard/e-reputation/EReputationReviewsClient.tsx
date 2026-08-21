@@ -1318,6 +1318,15 @@ export default function EReputationReviewsClient(props: Props) {
                         </div>
                       ) : null}
                     </div>
+                    {canReport ? (
+                      <div className={styles.reviewReportLine}>
+                        <span>{i18nT("signaler_l_avis_sur_google_cfad97a3")}</span>
+                        <a className={styles.reportReviewButton} href={activePlatform.reportUrl || "#"} target="_blank" rel="noreferrer" aria-label={i18nT("signaler_l_avis_de_value_sur_4b52223b", { value0: selectedReview.name })}>
+                          <span aria-hidden="true">⚠</span>
+                          <span className={styles.reportReviewTooltip}>{i18nT("signaler_l_avis_sur_google_cfad97a3")}</span>
+                        </a>
+                      </div>
+                    ) : null}
                   </article>
 
                   <article className={styles.replyDetailCard}>
@@ -1353,15 +1362,16 @@ export default function EReputationReviewsClient(props: Props) {
                       maxLength={4096}
                       placeholder={i18nT("redigez_votre_reponse_value_35171dc3", { value0: platformLabel })}
                     />
-                    <div className={styles.charCount}>{i18nT("characters_count", { count: replyText.trim().length.toLocaleString(locale), max: (4096).toLocaleString(locale) })}</div>
-                    {aiReplyGenerated ? (
-                      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                    <div className={styles.replyMetaRow}>
+                      <div className={styles.charCount}>{i18nT("characters_count", { count: replyText.trim().length.toLocaleString(locale), max: (4096).toLocaleString(locale) })}</div>
+                      {aiReplyGenerated ? (
                         <AiContentReportButton
+                          className={styles.replyAiReportButton}
                           surface="e-reputation:reply"
                           content={replyText}
                         />
-                      </div>
-                    ) : null}
+                      ) : null}
+                    </div>
                     {notice ? <div className={notice.type === "success" ? styles.noticeSuccess : styles.noticeError} role="status">{notice.text}</div> : null}
                     <div className={styles.modalActions}>
                       <button className={styles.btnGhostSmall} type="button" disabled={!canGenerate} onClick={generateReply}>{generating ? i18nT("generation_839b5564") : i18nT("generer_avec_inrcy_bcf461c3")}</button>
@@ -1370,12 +1380,6 @@ export default function EReputationReviewsClient(props: Props) {
                     </div>
                     <div className={styles.reportFooterLine}>
                       <p className={styles.secureText}>{i18nT("vous_validez_chaque_reponse_avant_publication_fc19200d", { value0: platformLabel })}</p>
-                      {canReport ? (
-                        <a className={styles.reportReviewButton} href={activePlatform.reportUrl || "#"} target="_blank" rel="noreferrer" aria-label={i18nT("signaler_l_avis_de_value_sur_4b52223b", { value0: selectedReview.name })}>
-                          <span aria-hidden="true">⚠</span>
-                          <span className={styles.reportReviewTooltip}>{i18nT("signaler_l_avis_sur_google_cfad97a3")}</span>
-                        </a>
-                      ) : null}
                     </div>
                   </article>
                 </div>
