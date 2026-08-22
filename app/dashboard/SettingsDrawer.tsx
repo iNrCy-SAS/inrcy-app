@@ -31,7 +31,7 @@ type Props = {
 const RESPONSIVE_BREAKPOINT = 1100;
 const PHONE_BREAKPOINT = 640;
 const MOBILE_BOTTOM_NAV_HEIGHT =
-  "var(--inrcy-mobile-bottom-nav-total-height, calc(50px + env(safe-area-inset-bottom, 0px)))";
+  "var(--inrcy-mobile-bottom-nav-total-height, calc(50px + var(--inrcy-safe-area-bottom)))";
 
 export default function SettingsDrawer({
   title,
@@ -170,7 +170,7 @@ export default function SettingsDrawer({
           borderRight: isDesktopOnboarding ? "1px solid rgba(255,255,255,0.08)" : 0,
           boxShadow: isDesktopOnboarding ? "0 0 80px rgba(0,0,0,.45)" : undefined,
           padding: isPhone
-            ? "max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left))"
+            ? "max(12px, var(--inrcy-safe-area-top)) max(12px, var(--inrcy-safe-area-right)) max(24px, var(--inrcy-safe-area-bottom)) max(12px, var(--inrcy-safe-area-left))"
             : 16,
           overflowY: "auto",
           overflowX: "hidden",

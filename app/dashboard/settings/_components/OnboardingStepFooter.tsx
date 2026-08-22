@@ -30,7 +30,7 @@ export default function OnboardingStepFooter({
         display: "grid",
         gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
         gap: 10,
-        padding: "22px 0 max(4px, env(safe-area-inset-bottom, 0px))",
+        padding: "22px 0 max(4px, var(--inrcy-safe-area-bottom))",
         background:
           "linear-gradient(180deg, rgba(16,16,16,0), rgba(16,16,16,0.96) 30%, rgba(16,16,16,0.99))",
       }}

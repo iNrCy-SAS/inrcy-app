@@ -250,9 +250,9 @@ export default function RichMailEditor({
           ? {
               position: "fixed" as const,
               inset: 0,
-              bottom: "var(--inrcy-mobile-bottom-nav-total-height, calc(50px + env(safe-area-inset-bottom, 0px)))",
+              bottom: "var(--inrcy-mobile-bottom-nav-total-height, calc(50px + var(--inrcy-safe-area-bottom)))",
               zIndex: 100000,
-              padding: "max(14px, env(safe-area-inset-top)) 14px 14px",
+              padding: "max(14px, var(--inrcy-safe-area-top)) 14px 14px",
               background: "linear-gradient(180deg, #10182b 0%, #12172a 55%, #0b1020 100%)",
               boxSizing: "border-box" as const,
             }

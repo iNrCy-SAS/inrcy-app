@@ -14,8 +14,8 @@
     z-index: 120;
     display: block;
     width: 100%;
-    height: var(--inrcy-mobile-bottom-nav-total-height, calc(50px + env(safe-area-inset-bottom)));
-    flex: 0 0 var(--inrcy-mobile-bottom-nav-total-height, calc(50px + env(safe-area-inset-bottom)));
+    height: var(--inrcy-mobile-bottom-nav-total-height, calc(50px + var(--inrcy-safe-area-bottom)));
+    flex: 0 0 var(--inrcy-mobile-bottom-nav-total-height, calc(50px + var(--inrcy-safe-area-bottom)));
     min-height: 0;
     pointer-events: none;
     overflow: visible;
@@ -33,7 +33,7 @@
     bottom: 0;
     z-index: 120;
     width: 100%;
-    height: calc(var(--inrcy-mobile-bottom-nav-height, 50px) + env(safe-area-inset-bottom));
+    height: calc(var(--inrcy-mobile-bottom-nav-height, 50px) + var(--inrcy-safe-area-bottom));
     display: grid;
     grid-template-columns:
       42px
@@ -46,9 +46,9 @@
     gap: clamp(5px, 1.8vw, 8px);
     padding:
       4px
-      max(14px, env(safe-area-inset-right))
-      calc(4px + env(safe-area-inset-bottom))
-      max(14px, env(safe-area-inset-left));
+      max(14px, var(--inrcy-safe-area-right))
+      calc(4px + var(--inrcy-safe-area-bottom))
+      max(14px, var(--inrcy-safe-area-left));
     box-sizing: border-box;
     border-top: 1px solid rgba(255, 255, 255, 0.15);
     background-color: #070c1d;
@@ -293,15 +293,15 @@
     left: 8px;
     right: 8px;
     top: auto;
-    bottom: calc(var(--inrcy-mobile-bottom-nav-height, 50px) + env(safe-area-inset-bottom, 0px) + 8px);
+    bottom: calc(var(--inrcy-mobile-bottom-nav-height, 50px) + var(--inrcy-safe-area-bottom) + 8px);
     z-index: 121;
     width: auto;
     height: auto;
     max-height: calc(
       100dvh
-      - env(safe-area-inset-top, 0px)
+      - var(--inrcy-safe-area-top)
       - var(--inrcy-mobile-bottom-nav-height, 50px)
-      - env(safe-area-inset-bottom, 0px)
+      - var(--inrcy-safe-area-bottom)
       - 16px
     );
     overflow-y: auto;
@@ -389,8 +389,8 @@
       39px
       39px;
     gap: 4px;
-    padding-left: max(12px, env(safe-area-inset-left));
-    padding-right: max(12px, env(safe-area-inset-right));
+    padding-left: max(12px, var(--inrcy-safe-area-left));
+    padding-right: max(12px, var(--inrcy-safe-area-right));
   }
 
   .item {
@@ -453,15 +453,15 @@
     top: auto !important;
     left: 10px !important;
     right: 10px !important;
-    bottom: calc(var(--inrcy-mobile-bottom-nav-height, 50px) + env(safe-area-inset-bottom, 0px) + 8px) !important;
+    bottom: calc(var(--inrcy-mobile-bottom-nav-height, 50px) + var(--inrcy-safe-area-bottom) + 8px) !important;
     width: auto !important;
     max-width: none !important;
     height: auto !important;
     max-height: calc(
       100dvh
-      - env(safe-area-inset-top, 0px)
+      - var(--inrcy-safe-area-top)
       - var(--inrcy-mobile-bottom-nav-height, 50px)
-      - env(safe-area-inset-bottom, 0px)
+      - var(--inrcy-safe-area-bottom)
       - 16px
     ) !important;
     margin: 0 !important;
@@ -477,15 +477,15 @@
     top: auto !important;
     left: 10px !important;
     right: 10px !important;
-    bottom: calc(var(--inrcy-mobile-bottom-nav-height, 50px) + env(safe-area-inset-bottom, 0px) + 8px) !important;
+    bottom: calc(var(--inrcy-mobile-bottom-nav-height, 50px) + var(--inrcy-safe-area-bottom) + 8px) !important;
     width: auto !important;
     max-width: none !important;
     height: auto !important;
     max-height: calc(
       100dvh
-      - env(safe-area-inset-top, 0px)
+      - var(--inrcy-safe-area-top)
       - var(--inrcy-mobile-bottom-nav-height, 50px)
-      - env(safe-area-inset-bottom, 0px)
+      - var(--inrcy-safe-area-bottom)
       - 16px
     ) !important;
     overflow-y: auto !important;

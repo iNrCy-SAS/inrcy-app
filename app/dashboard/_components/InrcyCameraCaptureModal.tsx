@@ -848,8 +848,8 @@ export default function InrcyCameraCaptureModal({
       style={{
         ...iconButtonBase,
         position: "absolute",
-        top: "max(12px, env(safe-area-inset-top))",
-        right: "max(12px, env(safe-area-inset-right))",
+        top: "max(12px, var(--inrcy-safe-area-top))",
+        right: "max(12px, var(--inrcy-safe-area-right))",
         zIndex: 4,
         width: isLandscapeViewport ? 42 : 46,
         height: isLandscapeViewport ? 42 : 46,
@@ -943,7 +943,7 @@ export default function InrcyCameraCaptureModal({
     <div
       style={{
         position: "absolute",
-        top: "max(14px, env(safe-area-inset-top))",
+        top: "max(14px, var(--inrcy-safe-area-top))",
         left: "50%",
         transform: "translateX(-50%)",
         zIndex: 4,
@@ -1168,8 +1168,8 @@ export default function InrcyCameraCaptureModal({
             <div
               style={{
                 position: "absolute",
-                top: "max(14px, env(safe-area-inset-top))",
-                left: "max(14px, env(safe-area-inset-left))",
+                top: "max(14px, var(--inrcy-safe-area-top))",
+                left: "max(14px, var(--inrcy-safe-area-left))",
                 zIndex: 3,
                 borderRadius: 999,
                 padding: "7px 11px",
@@ -1272,9 +1272,9 @@ export default function InrcyCameraCaptureModal({
         <div
           style={{
             position: "absolute",
-            left: "max(14px, env(safe-area-inset-left))",
-            right: "max(14px, env(safe-area-inset-right))",
-            bottom: "max(14px, env(safe-area-inset-bottom))",
+            left: "max(14px, var(--inrcy-safe-area-left))",
+            right: "max(14px, var(--inrcy-safe-area-right))",
+            bottom: "max(14px, var(--inrcy-safe-area-bottom))",
             zIndex: 4,
             pointerEvents: phase === "error" ? "none" : "auto",
           }}

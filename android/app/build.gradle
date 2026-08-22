@@ -33,8 +33,8 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         // Bump the Android artifact so a phone/Play Console cannot silently
         // keep treating the corrected shell as the previous build.
-        versionCode 2
-        versionName "1.0.1"
+        versionCode 4
+        versionName "1.0.3"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

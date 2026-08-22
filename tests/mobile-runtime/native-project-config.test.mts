@@ -61,18 +61,26 @@ test("Android release signing is fail-closed and never stores credentials in sou
   assert.doesNotMatch(gradle, /storePassword\s+["'][^$][^"']+["']/);
 });
 
-test("Android WebView reserves the status-bar inset without double-padding the dock", () => {
+test("Android and iOS use one Capacitor safe-area source without double-padding the dock", () => {
   const activity = read(
     "android/app/src/main/java/com/inrcy/app/MainActivity.java",
   );
+  const capacitorConfig = read("capacitor.config.ts");
+  const globals = read("app/globals.css");
+  const bottomNav = read("app/dashboard/_components/ResponsiveBottomNav.module.css");
+  const runtimeBridge = read("app/_components/NativeRuntimeBridge.tsx");
 
-  assert.match(activity, /ViewCompat\.setOnApplyWindowInsetsListener/);
-  assert.match(activity, /WindowInsetsCompat\.Type\.statusBars\(\)/);
   assert.match(activity, /setAppearanceLightStatusBars\(true\)/);
   assert.match(activity, /WindowCompat\.setDecorFitsSystemWindows\(getWindow\(\), false\)/);
-  assert.match(activity, /webView\.setBackgroundColor\(Color\.WHITE\)/);
-  assert.match(activity, /setPadding\(/);
-  assert.match(activity, /navigation-bar and IME insets/);
+  assert.match(activity, /getBridge\(\)\.getWebView\(\)\.setBackgroundColor\(Color\.WHITE\)/);
+  assert.match(activity, /SystemBars plugin owns the parent inset listener/);
+  assert.match(capacitorConfig, /SystemBars:\s*\{[\s\S]*insetsHandling: "css"/);
+  assert.match(runtimeBridge, /SystemBars\.setStyle\(\{\s*style: SystemBarsStyle\.Light/);
+  assert.doesNotMatch(runtimeBridge, /StatusBar\.setOverlaysWebView|StatusBar\.setBackgroundColor/);
+  assert.doesNotMatch(capacitorConfig, /StatusBar:\s*\{/);
+  assert.match(globals, /--inrcy-safe-area-top: var\(--safe-area-inset-top, env\(safe-area-inset-top/);
+  assert.match(globals, /--inrcy-safe-area-bottom: var\(--safe-area-inset-bottom, env\(safe-area-inset-bottom/);
+  assert.match(bottomNav, /var\(--inrcy-safe-area-bottom\)/);
 });
 
 test("production Android shell keeps web updates on the deployed app origin", () => {

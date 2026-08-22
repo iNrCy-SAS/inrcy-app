@@ -581,7 +581,7 @@ export default function ActivityContent({
         display: "grid",
         gap: 12,
         color: "rgba(255,255,255,0.92)",
-        paddingBottom: "max(24px, env(safe-area-inset-bottom, 0px))",
+        paddingBottom: "max(24px, var(--inrcy-safe-area-bottom))",
       }}
     >
       <div
@@ -1104,7 +1104,7 @@ export default function ActivityContent({
                   display: "grid",
                   gap: 10,
                   gridTemplateColumns: "minmax(180px, 1.35fr) minmax(130px, 0.72fr)",
-                  padding: "11px 0 max(2px, env(safe-area-inset-bottom, 0px))",
+                  padding: "11px 0 max(2px, var(--inrcy-safe-area-bottom))",
                   background:
                     "linear-gradient(180deg, rgba(6,16,31,0), rgba(6,16,31,0.96) 28%)",
                 }}

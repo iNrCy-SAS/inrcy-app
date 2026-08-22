@@ -10436,7 +10436,7 @@
 /* Mobile/tablette : un chapitre horizontal, un contenu vertical réellement scrollable. */
 @media (max-width: 900px) {
   .page {
-    --orbit-footer-safe: calc(100px + env(safe-area-inset-bottom));
+    --orbit-footer-safe: calc(100px + var(--inrcy-safe-area-bottom));
     height: var(--inrsearch-viewport-height, 100dvh);
     min-height: var(--inrsearch-viewport-height, 100dvh);
     overflow: hidden;
@@ -10479,7 +10479,7 @@
   }
 
   .orbitControls {
-    bottom: max(8px, env(safe-area-inset-bottom));
+    bottom: max(8px, var(--inrcy-safe-area-bottom));
     min-height: 54px;
     max-width: calc(100% - 18px);
     padding: 7px 9px;
@@ -11019,7 +11019,7 @@
 @media (max-width: 700px) {
   .page {
     --orbit-header: 72px;
-    --orbit-footer-safe: calc(96px + env(safe-area-inset-bottom));
+    --orbit-footer-safe: calc(96px + var(--inrcy-safe-area-bottom));
   }
 
   .orbitPanel,

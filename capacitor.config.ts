@@ -15,7 +15,10 @@ const config: CapacitorConfig = {
   appId: "com.inrcy.app",
   appName: "iNrCy",
   webDir: "mobile-web",
-  loggingBehavior: process.env.NODE_ENV === "production" ? "none" : "debug",
+  loggingBehavior:
+    process.env.NODE_ENV === "production" || process.env.CAPACITOR_RELEASE === "true"
+      ? "none"
+      : "debug",
   server: {
     url: configuredUrl,
     cleartext: isLocalUrl,
@@ -36,10 +39,13 @@ const config: CapacitorConfig = {
       backgroundColor: "#ffffff",
       showSpinner: false,
     },
-    StatusBar: {
-      overlaysWebView: false,
+    SystemBars: {
+      // Capacitor 8 injects the real Android insets as CSS variables. The
+      // dashboard uses these variables so both system bars stay outside the UI.
+      insetsHandling: "css",
       style: "LIGHT",
-      backgroundColor: "#ffffff",
+      hidden: false,
+      animation: "NONE",
     },
   },
 };

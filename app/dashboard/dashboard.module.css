@@ -2358,7 +2358,7 @@
 
 /*
   Android mobile: certains navigateurs / modes de navigation système ne
-  remontent pas d'inset bas exploitable via env(safe-area-inset-bottom).
+  remontent pas d'inset bas exploitable via var(--inrcy-safe-area-bottom).
   Le dock visuel étant fixé au viewport, on garde une petite queue de scroll
   uniquement après le footer du dashboard afin que « © 2026 iNrCy » puisse
   toujours remonter entièrement au-dessus du dock / chrome système.
@@ -4993,7 +4993,7 @@
 }
 .notificationPanelMobile {
   position: fixed;
-  top: calc(env(safe-area-inset-top, 0px) + 8px);
+  top: calc(var(--inrcy-safe-area-top) + 8px);
   left: 12px;
   right: 12px;
   bottom: auto;
@@ -5002,8 +5002,8 @@
   height: auto;
   max-height: calc(
     100dvh
-    - env(safe-area-inset-top, 0px)
-    - env(safe-area-inset-bottom, 0px)
+    - var(--inrcy-safe-area-top)
+    - var(--inrcy-safe-area-bottom)
     - 24px
   );
   overflow-y: auto;
@@ -5021,7 +5021,7 @@
   }
 
   .notificationPanelMobile {
-    top: calc(env(safe-area-inset-top, 0px) + 8px);
+    top: calc(var(--inrcy-safe-area-top) + 8px);
   }
 
   .notificationPanelMobile .notificationPanelHeader {
@@ -5159,29 +5159,29 @@
    plus de largeur utile, sans modifier le rendu desktop.
 ========================================================= */
 .fullscreenModalOverlay {
-  --inrcy-modal-overlay-padding: max(8px, env(safe-area-inset-top))
-    max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom))
-    max(8px, env(safe-area-inset-left));
-  --inrcy-modal-header-padding: max(12px, env(safe-area-inset-top))
-    max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom))
-    max(12px, env(safe-area-inset-left));
-  --inrcy-modal-content-padding: max(12px, env(safe-area-inset-top))
-    max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom))
-    max(12px, env(safe-area-inset-left));
+  --inrcy-modal-overlay-padding: max(8px, var(--inrcy-safe-area-top))
+    max(8px, var(--inrcy-safe-area-right)) max(8px, var(--inrcy-safe-area-bottom))
+    max(8px, var(--inrcy-safe-area-left));
+  --inrcy-modal-header-padding: max(12px, var(--inrcy-safe-area-top))
+    max(12px, var(--inrcy-safe-area-right)) max(12px, var(--inrcy-safe-area-bottom))
+    max(12px, var(--inrcy-safe-area-left));
+  --inrcy-modal-content-padding: max(12px, var(--inrcy-safe-area-top))
+    max(12px, var(--inrcy-safe-area-right)) max(12px, var(--inrcy-safe-area-bottom))
+    max(12px, var(--inrcy-safe-area-left));
   --inrcy-modal-card-radius: 22px;
   --inrcy-modal-inner-max-width: min(1400px, 100%);
 }
 
 @media (max-width: 700px), (any-hover: none) and (any-pointer: coarse) {
   .fullscreenModalOverlay {
-    --inrcy-modal-overlay-padding: max(2px, env(safe-area-inset-top))
-      max(2px, env(safe-area-inset-right)) max(4px, env(safe-area-inset-bottom))
-      max(2px, env(safe-area-inset-left));
-    --inrcy-modal-header-padding: max(8px, env(safe-area-inset-top))
-      max(8px, env(safe-area-inset-right)) 8px
-      max(8px, env(safe-area-inset-left));
-    --inrcy-modal-content-padding: 8px max(5px, env(safe-area-inset-right)) 8px
-      max(5px, env(safe-area-inset-left));
+    --inrcy-modal-overlay-padding: max(2px, var(--inrcy-safe-area-top))
+      max(2px, var(--inrcy-safe-area-right)) max(4px, var(--inrcy-safe-area-bottom))
+      max(2px, var(--inrcy-safe-area-left));
+    --inrcy-modal-header-padding: max(8px, var(--inrcy-safe-area-top))
+      max(8px, var(--inrcy-safe-area-right)) 8px
+      max(8px, var(--inrcy-safe-area-left));
+    --inrcy-modal-content-padding: 8px max(5px, var(--inrcy-safe-area-right)) 8px
+      max(5px, var(--inrcy-safe-area-left));
     --inrcy-modal-card-radius: 18px;
     --inrcy-modal-inner-max-width: 100%;
   }
@@ -5297,23 +5297,23 @@
   .fullscreenModalOverlay {
     bottom: var(
       --inrcy-mobile-bottom-nav-total-height,
-      calc(50px + env(safe-area-inset-bottom))
+      calc(50px + var(--inrcy-safe-area-bottom))
     ) !important;
     height: calc(
       100dvh - var(
         --inrcy-mobile-bottom-nav-total-height,
-        calc(50px + env(safe-area-inset-bottom))
+        calc(50px + var(--inrcy-safe-area-bottom))
       )
     ) !important;
     max-height: calc(
       100dvh - var(
         --inrcy-mobile-bottom-nav-total-height,
-        calc(50px + env(safe-area-inset-bottom))
+        calc(50px + var(--inrcy-safe-area-bottom))
       )
     ) !important;
-    --inrcy-modal-overlay-padding: max(2px, env(safe-area-inset-top))
-      max(2px, env(safe-area-inset-right)) 4px
-      max(2px, env(safe-area-inset-left));
+    --inrcy-modal-overlay-padding: max(2px, var(--inrcy-safe-area-top))
+      max(2px, var(--inrcy-safe-area-right)) 4px
+      max(2px, var(--inrcy-safe-area-left));
   }
 }
 
@@ -5323,13 +5323,13 @@
       height: calc(
         100vh - var(
           --inrcy-mobile-bottom-nav-total-height,
-          calc(50px + env(safe-area-inset-bottom))
+          calc(50px + var(--inrcy-safe-area-bottom))
         )
       ) !important;
       max-height: calc(
         100vh - var(
           --inrcy-mobile-bottom-nav-total-height,
-          calc(50px + env(safe-area-inset-bottom))
+          calc(50px + var(--inrcy-safe-area-bottom))
         )
       ) !important;
     }
@@ -8523,7 +8523,7 @@
 /* Page passerelle E-réputation — évite une route vide avant l'étape API */
 .pageShell {
   min-height: 100dvh;
-  padding: max(24px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  padding: max(24px, var(--inrcy-safe-area-top)) max(16px, var(--inrcy-safe-area-right)) max(24px, var(--inrcy-safe-area-bottom)) max(16px, var(--inrcy-safe-area-left));
   background:
     radial-gradient(circle at 15% 0%, rgba(56, 189, 248, 0.16), transparent 34%),
     radial-gradient(circle at 85% 6%, rgba(168, 85, 247, 0.14), transparent 36%),
@@ -8623,7 +8623,7 @@
 
   .languageSelectorPanelMobile {
     position: fixed;
-    top: max(70px, calc(env(safe-area-inset-top, 0px) + 58px));
+    top: max(70px, calc(var(--inrcy-safe-area-top) + 58px));
     right: 10px;
     width: min(184px, calc(100vw - 20px));
     max-height: min(70vh, calc(100dvh - 88px));
@@ -9273,7 +9273,7 @@
   .shell {
     --inrcy-mobile-bottom-nav-height: 50px;
     --inrcy-mobile-bottom-nav-total-height:
-      calc(var(--inrcy-mobile-bottom-nav-height) + env(safe-area-inset-bottom));
+      calc(var(--inrcy-mobile-bottom-nav-height) + var(--inrcy-safe-area-bottom));
     --inrcy-mobile-content-height:
       calc(100dvh - var(--inrcy-mobile-bottom-nav-total-height));
 
@@ -9419,13 +9419,13 @@
 @media (max-width: 1100px) {
   .notificationPanelMobile {
     top: auto;
-    bottom: calc(var(--inrcy-mobile-bottom-nav-height, 50px) + env(safe-area-inset-bottom, 0px) + 8px);
+    bottom: calc(var(--inrcy-mobile-bottom-nav-height, 50px) + var(--inrcy-safe-area-bottom) + 8px);
     height: auto;
     max-height: calc(
       100dvh
-      - env(safe-area-inset-top, 0px)
+      - var(--inrcy-safe-area-top)
       - var(--inrcy-mobile-bottom-nav-height, 50px)
-      - env(safe-area-inset-bottom, 0px)
+      - var(--inrcy-safe-area-bottom)
       - 16px
     );
     display: flex;
@@ -10449,7 +10449,7 @@
 
 @media (max-width: 560px) {
   .page {
-    padding-top: 10px;
+    padding-top: calc(10px + var(--inrcy-safe-area-top));
   }
 
   .hero {

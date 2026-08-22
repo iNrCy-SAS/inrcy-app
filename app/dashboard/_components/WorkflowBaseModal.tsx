@@ -96,8 +96,8 @@ export default function BaseModal({
         alignItems: compact ? "center" : "stretch",
         justifyContent: compact ? "center" : "stretch",
         padding: compact
-          ? "max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left))"
-          : "var(--inrcy-modal-overlay-padding, max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)))",
+          ? "max(16px, var(--inrcy-safe-area-top)) max(16px, var(--inrcy-safe-area-right)) max(16px, var(--inrcy-safe-area-bottom)) max(16px, var(--inrcy-safe-area-left))"
+          : "var(--inrcy-modal-overlay-padding, max(8px, var(--inrcy-safe-area-top)) max(8px, var(--inrcy-safe-area-right)) max(8px, var(--inrcy-safe-area-bottom)) max(8px, var(--inrcy-safe-area-left)))",
         boxSizing: "border-box",
         overflow: "hidden",
       }}
@@ -127,7 +127,7 @@ export default function BaseModal({
             className={[styles.blockHeaderRow, styles.fullscreenModalHeader].join(" ")}
             style={{
               alignItems: "center",
-              padding: "var(--inrcy-modal-header-padding, max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)))",
+              padding: "var(--inrcy-modal-header-padding, max(12px, var(--inrcy-safe-area-top)) max(12px, var(--inrcy-safe-area-right)) max(12px, var(--inrcy-safe-area-bottom)) max(12px, var(--inrcy-safe-area-left)))",
               borderBottom: "1px solid rgba(255,255,255,0.08)",
               position: "sticky",
               top: 0,
@@ -214,7 +214,7 @@ export default function BaseModal({
         <div
           className={styles.fullscreenModalScroll}
           style={{
-            padding: "var(--inrcy-modal-content-padding, max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)))",
+            padding: "var(--inrcy-modal-content-padding, max(12px, var(--inrcy-safe-area-top)) max(12px, var(--inrcy-safe-area-right)) max(12px, var(--inrcy-safe-area-bottom)) max(12px, var(--inrcy-safe-area-left)))",
             overflowY: "auto",
             overflowX: "hidden",
             flex: compact ? "0 1 auto" : 1,

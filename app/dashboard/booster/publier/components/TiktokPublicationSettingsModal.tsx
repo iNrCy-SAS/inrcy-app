@@ -776,7 +776,7 @@ export default function TiktokPublicationSettingsModal({
             minWidth: 0,
             flexShrink: 0,
             padding: isMobile
-              ? "12px 12px max(12px, env(safe-area-inset-bottom))"
+              ? "12px 12px max(12px, var(--inrcy-safe-area-bottom))"
               : "12px 14px 14px",
             borderTop: "1px solid rgba(148,163,184,0.18)",
             background: "linear-gradient(180deg, rgba(17,24,39,0.98), rgba(15,23,42,1))",

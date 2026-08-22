@@ -308,7 +308,7 @@ export default function GeneratorSettingsModal({
             {error ? <div style={{ color: "#fca5a5", fontSize: 12.5, fontWeight: 750 }}>{error}</div> : null}
             {saved ? <div style={{ color: "#86efac", fontSize: 12.5, fontWeight: 850 }}>{i18nT("reglages_enregistres_08bc001b")}</div> : null}
 
-            <div data-generator-actions style={{ position: "sticky", bottom: -1, display: "grid", gridTemplateColumns: "minmax(110px, 0.55fr) minmax(180px, 1fr)", gap: 10, paddingTop: 8, paddingBottom: "max(1px, env(safe-area-inset-bottom, 0px))", background: "linear-gradient(180deg, transparent, #081126 32%)" }}>
+            <div data-generator-actions style={{ position: "sticky", bottom: -1, display: "grid", gridTemplateColumns: "minmax(110px, 0.55fr) minmax(180px, 1fr)", gap: 10, paddingTop: 8, paddingBottom: "max(1px, var(--inrcy-safe-area-bottom))", background: "linear-gradient(180deg, transparent, #081126 32%)" }}>
               <button type="button" onClick={onClose} style={{ borderRadius: 14, border: "1px solid rgba(255,255,255,0.14)", background: "rgba(255,255,255,0.06)", color: "white", padding: "12px", fontWeight: 850, cursor: "pointer" }}>
                 {i18nT("annuler_49ba3292")}{" "}</button>
               <button type="button" onClick={() => void save()} disabled={saving || avgBasket <= 0 || conversionRate <= 0} style={{ borderRadius: 14, border: "1px solid rgba(255,255,255,0.18)", background: "linear-gradient(135deg, #38bdf8, #8b5cf6 52%, #f472b6)", color: "white", padding: "12px", fontWeight: 950, cursor: saving ? "wait" : "pointer", opacity: saving || avgBasket <= 0 || conversionRate <= 0 ? 0.58 : 1 }}>

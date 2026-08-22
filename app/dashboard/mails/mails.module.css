@@ -4217,7 +4217,7 @@
   }
 
   .composeModalFooter {
-    padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
+    padding: 8px 8px calc(8px + var(--inrcy-safe-area-bottom));
     gap: 6px;
     align-items: center;
     flex-direction: row;
@@ -5386,7 +5386,7 @@
     justify-content: space-between;
     gap: 8px;
     min-height: 68px;
-    padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
+    padding: 8px 8px calc(8px + var(--inrcy-safe-area-bottom));
   }
 
   .composeAttachmentDock {

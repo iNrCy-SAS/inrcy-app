@@ -1158,22 +1158,22 @@
 
 @media (max-width: 1100px){
   .modalBackdrop{
-    bottom:var(--inrcy-mobile-bottom-nav-total-height, calc(50px + env(safe-area-inset-bottom, 0px)));
-    height:calc(100dvh - var(--inrcy-mobile-bottom-nav-total-height, calc(50px + env(safe-area-inset-bottom, 0px))));
-    max-height:calc(100dvh - var(--inrcy-mobile-bottom-nav-total-height, calc(50px + env(safe-area-inset-bottom, 0px))));
+    bottom:var(--inrcy-mobile-bottom-nav-total-height, calc(50px + var(--inrcy-safe-area-bottom)));
+    height:calc(100dvh - var(--inrcy-mobile-bottom-nav-total-height, calc(50px + var(--inrcy-safe-area-bottom))));
+    max-height:calc(100dvh - var(--inrcy-mobile-bottom-nav-total-height, calc(50px + var(--inrcy-safe-area-bottom))));
     z-index:10050;
     box-sizing:border-box;
   }
 
   .notice{
-    bottom:calc(var(--inrcy-mobile-bottom-nav-total-height, calc(50px + env(safe-area-inset-bottom, 0px))) + 12px);
+    bottom:calc(var(--inrcy-mobile-bottom-nav-total-height, calc(50px + var(--inrcy-safe-area-bottom))) + 12px);
     z-index:10060;
   }
 
   .robotPanelBackdrop{
-    bottom:var(--inrcy-mobile-bottom-nav-total-height, calc(50px + env(safe-area-inset-bottom, 0px)));
-    height:calc(100dvh - var(--inrcy-mobile-bottom-nav-total-height, calc(50px + env(safe-area-inset-bottom, 0px))));
-    max-height:calc(100dvh - var(--inrcy-mobile-bottom-nav-total-height, calc(50px + env(safe-area-inset-bottom, 0px))));
+    bottom:var(--inrcy-mobile-bottom-nav-total-height, calc(50px + var(--inrcy-safe-area-bottom)));
+    height:calc(100dvh - var(--inrcy-mobile-bottom-nav-total-height, calc(50px + var(--inrcy-safe-area-bottom))));
+    max-height:calc(100dvh - var(--inrcy-mobile-bottom-nav-total-height, calc(50px + var(--inrcy-safe-area-bottom))));
   }
 }
 
@@ -11945,7 +11945,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     right: 12px;
     bottom: calc(
       var(--inrcy-mobile-bottom-nav-height, 50px) +
-        env(safe-area-inset-bottom, 0px) + 10px
+        var(--inrcy-safe-area-bottom) + 10px
     );
     width: auto;
     max-width: none;

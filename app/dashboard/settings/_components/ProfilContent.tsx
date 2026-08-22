@@ -378,7 +378,7 @@ export default function ProfilContent({
         display: "grid",
         gap: 12,
         color: "rgba(255,255,255,0.94)",
-        paddingBottom: "max(24px, env(safe-area-inset-bottom, 0px))",
+        paddingBottom: "max(24px, var(--inrcy-safe-area-bottom))",
       }}
     >
       {onboarding ? (
@@ -792,7 +792,7 @@ const actionsStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "auto minmax(180px, 1fr)",
   gap: 10,
-  padding: "11px 0 max(2px, env(safe-area-inset-bottom, 0px))",
+  padding: "11px 0 max(2px, var(--inrcy-safe-area-bottom))",
   background: "linear-gradient(180deg, rgba(6,16,31,0), rgba(6,16,31,0.96) 28%)",
 };
 const resetButtonStyle: React.CSSProperties = {

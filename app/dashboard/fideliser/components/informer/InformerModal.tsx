@@ -485,7 +485,7 @@ const footerStyle: CSSProperties = {
   flexWrap: "nowrap",
   marginTop: "auto",
   paddingTop: 8,
-  paddingBottom: "max(2px, env(safe-area-inset-bottom))",
+  paddingBottom: "max(2px, var(--inrcy-safe-area-bottom))",
   position: "sticky",
   bottom: 0,
   zIndex: 1,

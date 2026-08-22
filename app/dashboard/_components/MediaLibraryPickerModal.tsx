@@ -42,7 +42,7 @@ type MediaLibraryPickerModalProps = {
 };
 
 const MOBILE_DOCK_HEIGHT =
-  "var(--inrcy-mobile-bottom-nav-total-height, calc(50px + env(safe-area-inset-bottom, 0px)))";
+  "var(--inrcy-mobile-bottom-nav-total-height, calc(50px + var(--inrcy-safe-area-bottom)))";
 
 function formatBytes(
   value: number | null | undefined,

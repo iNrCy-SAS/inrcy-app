@@ -11,7 +11,7 @@ type PublishAiConfigurationDrawerProps = {
 };
 
 const MOBILE_DOCK_HEIGHT =
-  "var(--inrcy-mobile-bottom-nav-total-height, calc(50px + env(safe-area-inset-bottom, 0px)))";
+  "var(--inrcy-mobile-bottom-nav-total-height, calc(50px + var(--inrcy-safe-area-bottom)))";
 
 export default function PublishAiConfigurationDrawer({
   open,
@@ -73,7 +73,7 @@ export default function PublishAiConfigurationDrawer({
           background: "rgba(16,16,16,0.98)",
           borderLeft: isMobile ? 0 : "1px solid rgba(255,255,255,0.08)",
           padding: isMobile
-            ? "max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left))"
+            ? "max(12px, var(--inrcy-safe-area-top)) max(12px, var(--inrcy-safe-area-right)) max(12px, var(--inrcy-safe-area-bottom)) max(12px, var(--inrcy-safe-area-left))"
             : 16,
           display: "flex",
           flexDirection: "column",

@@ -337,7 +337,7 @@ function ResponsiveBottomNavMobile() {
     const previousValue = root.style.getPropertyValue(property);
     root.style.setProperty(
       property,
-      hidden ? "0px" : "calc(50px + env(safe-area-inset-bottom, 0px))",
+      hidden ? "0px" : "calc(50px + var(--inrcy-safe-area-bottom))",
     );
 
     return () => {

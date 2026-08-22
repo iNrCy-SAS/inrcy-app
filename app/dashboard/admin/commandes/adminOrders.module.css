@@ -655,7 +655,7 @@
     min-height: 100dvh !important;
     overflow-y: auto !important;
     overflow-x: hidden !important;
-    padding: 10px 10px max(18px, env(safe-area-inset-bottom)) !important;
+    padding: 10px 10px max(18px, var(--inrcy-safe-area-bottom)) !important;
   }
 
   .wrap {
