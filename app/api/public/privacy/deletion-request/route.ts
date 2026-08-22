@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendTxMail } from "@/lib/txMailer";
+import { enforceRateLimit, getClientIp } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,6 +40,15 @@ export async function POST(request: NextRequest) {
 
   // Champ leurre anti-robots : on répond normalement sans créer de demande.
   if (text(body.website, 200)) return NextResponse.json({ ok: true }, { status: 202 });
+
+  const rateLimited = await enforceRateLimit({
+    name: "privacy_deletion_public",
+    identifier: getClientIp(request),
+    limit: 3,
+    fallbackLimit: 2,
+    window: "1 h",
+  });
+  if (rateLimited) return rateLimited;
 
   const requestType = body.requestType === "partial" ? "partial" : body.requestType === "account" ? "account" : "";
   const fullName = text(body.fullName, 160);

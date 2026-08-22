@@ -270,6 +270,7 @@ export async function POST(req: Request) {
       `${appUrl}/dashboard?panel=abonnement&checkout=success&billing=${billingCycle}`,
     );
     sessionParams.set("cancel_url", `${appUrl}/dashboard?panel=abonnement&checkout=cancel`);
+    sessionParams.set("client_reference_id", userId);
     sessionParams.set("metadata[user_id]", userId);
     sessionParams.set("metadata[plan]", "Standard");
     sessionParams.set("metadata[app_edition]", "standard");

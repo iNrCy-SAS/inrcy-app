@@ -37,11 +37,33 @@ function normalizeDateInput(value: unknown, fallback: Date) {
   return ymd(fallback);
 }
 
+class YoutubeAnalyticsRequestError extends Error {
+  readonly status: number;
+  readonly reason: string | null;
+
+  constructor(message: string, status: number, reason: string | null) {
+    super(message);
+    this.name = "YoutubeAnalyticsRequestError";
+    this.status = status;
+    this.reason = reason;
+  }
+}
+
 function youtubeApiError(data: unknown, fallback: string) {
   const rec = asRecord(data);
   const err = asRecord(rec.error);
   const errors = Array.isArray(err.errors) ? err.errors.map(asRecord) : [];
-  return asString(err.message) || asString(errors[0]?.message) || asString(errors[0]?.reason) || fallback;
+  const detail = asString(errors[0]?.message);
+  const reason = asString(errors[0]?.reason);
+  const topLevel = asString(err.message);
+  const message = detail || topLevel || reason || fallback;
+  return {
+    message:
+      reason && !message.toLowerCase().includes(reason.toLowerCase())
+        ? `${message} (${reason})`
+        : message,
+    reason: reason || null,
+  };
 }
 
 async function fetchJson(url: string, accessToken: string) {
@@ -50,7 +72,14 @@ async function fetchJson(url: string, accessToken: string) {
     cache: "no-store",
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(youtubeApiError(data, `YouTube HTTP ${res.status}`));
+  if (!res.ok) {
+    const details = youtubeApiError(data, `YouTube HTTP ${res.status}`);
+    throw new YoutubeAnalyticsRequestError(
+      details.message,
+      res.status,
+      details.reason,
+    );
+  }
   return data;
 }
 
@@ -124,10 +153,37 @@ export async function fetchYoutubeShortsAnalyticsSnapshot(args: {
     endDate: end,
   };
 
-  const totalsUrl = `https://youtubeanalytics.googleapis.com/v2/reports?${new URLSearchParams({
-    ...baseParams,
-    metrics: "views,estimatedMinutesWatched,averageViewDuration,likes,comments,shares,subscribersGained,subscribersLost",
-  }).toString()}`;
+  const totalsMetricCandidates = [
+    "views,estimatedMinutesWatched,averageViewDuration,likes,comments,shares,subscribersGained,subscribersLost",
+    "views,estimatedMinutesWatched,averageViewDuration",
+    "views",
+  ] as const;
+
+  async function fetchTotalsWithFallback() {
+    let fallbackReason: string | null = null;
+    for (let index = 0; index < totalsMetricCandidates.length; index += 1) {
+      const metrics = totalsMetricCandidates[index];
+      const url = `https://youtubeanalytics.googleapis.com/v2/reports?${new URLSearchParams({
+        ...baseParams,
+        metrics,
+      }).toString()}`;
+      try {
+        return {
+          data: await fetchJson(url, accessToken),
+          metrics,
+          fallbackReason,
+        };
+      } catch (error) {
+        const canUseNarrowerMetrics =
+          error instanceof YoutubeAnalyticsRequestError &&
+          error.status === 400 &&
+          index < totalsMetricCandidates.length - 1;
+        if (!canUseNarrowerMetrics) throw error;
+        fallbackReason ||= error.message;
+      }
+    }
+    throw new Error("YouTube Analytics totals unavailable.");
+  }
 
   const dailyUrl = `https://youtubeanalytics.googleapis.com/v2/reports?${new URLSearchParams({
     ...baseParams,
@@ -144,11 +200,12 @@ export async function fetchYoutubeShortsAnalyticsSnapshot(args: {
     maxResults: "10",
   }).toString()}`;
 
-  const [totalsData, dailyData, topVideosData] = await Promise.all([
-    fetchJson(totalsUrl, accessToken),
+  const [totalsResult, dailyData, topVideosData] = await Promise.all([
+    fetchTotalsWithFallback(),
     fetchJson(dailyUrl, accessToken).catch(() => ({ rows: [], columnHeaders: [] })),
     fetchJson(topVideosUrl, accessToken).catch(() => ({ rows: [], columnHeaders: [] })),
   ]);
+  const totalsData = totalsResult.data;
 
   const totalsRows = parseAnalyticsRows(totalsData);
   const daily = parseAnalyticsRows(dailyData);
@@ -189,6 +246,8 @@ export async function fetchYoutubeShortsAnalyticsSnapshot(args: {
       endDate: end,
       channelStats,
       totals: totalsData,
+      totalsMetrics: totalsResult.metrics,
+      totalsFallbackReason: totalsResult.fallbackReason,
     },
   };
 }

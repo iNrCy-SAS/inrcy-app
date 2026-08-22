@@ -768,9 +768,17 @@ function extractGraphErrorMeta(errorLike: unknown) {
 }
 
 function isInstagramDeletePermissionError(error: unknown) {
-  const message = String(error instanceof Error ? error.message : error || "").toLowerCase();
+  const candidate =
+    error && typeof error === "object"
+      ? (error as { message?: unknown; graph_code?: unknown; code?: unknown })
+      : null;
+  const graphCode = Number(candidate?.graph_code || candidate?.code || 0);
+  const message = String(
+    error instanceof Error ? error.message : candidate?.message || error || "",
+  ).toLowerCase();
   return (
-    message.includes("insufficient")
+    graphCode === 10
+    || message.includes("insufficient")
     || message.includes("permission")
     || message.includes("access this data")
     || message.includes("not authorized")
@@ -952,7 +960,7 @@ async function deleteInstagramMediaWithFallback(
       attempt.delete_error = extractGraphErrorMeta(deleted.json);
       lastErrorMessage = attempt.delete_error.message || `Suppression Instagram impossible (${deleted.res.status})`;
       attempts.push(attempt);
-      log.warn("instagram_delete_attempt_failed", {
+      const deleteFailureContext = {
         route: "inrsend_instagram_delete",
         external_id: externalId,
         delete_target_id: target.deleteTargetId || externalId,
@@ -963,7 +971,14 @@ async function deleteInstagramMediaWithFallback(
         verify_http_status: attempt.verify_http_status,
         delete_http_status: attempt.delete_http_status,
         graph_error: attempt.delete_error,
-      });
+      };
+      if (isInstagramDeletePermissionError(attempt.delete_error)) {
+        // Meta does not expose remote deletion for every media/token shape. The
+        // caller deliberately removes the local delivery in that known case.
+        log.info("instagram_delete_remote_unsupported", deleteFailureContext);
+      } else {
+        log.warn("instagram_delete_attempt_failed", deleteFailureContext);
+      }
     } catch (error) {
       lastErrorMessage = error instanceof Error ? error.message : String(error || "Suppression Instagram impossible.");
       attempt.delete_error = { message: lastErrorMessage, graph_code: null, graph_subcode: null, fbtrace_id: null };
@@ -992,7 +1007,10 @@ async function deleteInstagramMediaWithFallback(
     error: lastErrorMessage,
   };
 
-  if (options.allowLocalFallback || isInstagramDeletePermissionError(lastErrorMessage)) return result;
+  const permissionDenied = attempts.some((attempt) =>
+    isInstagramDeletePermissionError(attempt.delete_error),
+  );
+  if (options.allowLocalFallback || permissionDenied || isInstagramDeletePermissionError(lastErrorMessage)) return result;
 
   const error = new Error(lastErrorMessage) as Error & { instagramDeleteResult?: InstagramDeleteResult };
   error.instagramDeleteResult = result;

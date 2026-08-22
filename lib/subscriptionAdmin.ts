@@ -1,6 +1,6 @@
 import "server-only";
 
-import { sendTxMail } from "@/lib/txMailer";
+import { sendMonitoringMail } from "@/lib/txMailer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { optionalEnv } from "@/lib/env";
 
@@ -149,7 +149,7 @@ export async function sendAdminSubscriptionAlert(input: AdminAlertInput) {
     </div>
   `;
 
-  await sendTxMail({
+  await sendMonitoringMail({
     to: destination,
     subject,
     text,

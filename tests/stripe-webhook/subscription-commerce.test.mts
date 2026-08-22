@@ -121,6 +121,7 @@ test("le Checkout reste Standard en libre-service et Premium reste accompagné",
   assert.match(checkout, /findLiveStripeSubscription/);
   assert.match(checkout, /checkoutAttemptBucket/);
   assert.match(checkout, /15 \* 60 \* 1000/);
+  assert.match(checkout, /sessionParams\.set\("client_reference_id", userId\)/);
   assert.match(managedSubscriptionUi, /i18nT\("les_forfaits_premium_et_founder_sont_374bb1ec"\)/);
   assert.doesNotMatch(managedSubscriptionUi, /CHECKOUT_OFFERS/);
 });
@@ -135,23 +136,32 @@ test("le webhook est idempotent, compatible Basil et ne rétrograde jamais Found
   assert.match(webhook, /commercialPrice && !founderAccount/);
   assert.match(webhook, /const cancellationScheduled = cancelAtPeriodEnd \|\| Boolean\(cancelAt\)/);
   assert.match(webhook, /billing_cycle: billingCycle/);
+  assert.match(webhook, /session\?\.client_reference_id/);
+  assert.match(webhook, /metadataUserId \|\| clientReferenceId/);
 });
 
 test("la résiliation et sa réactivation couvrent les deux cadences commerciales", () => {
   const cancelRoute = source("app/api/billing/cancel/route.ts");
   const uncancelRoute = source("app/api/billing/uncancel/route.ts");
-  assert.match(cancelRoute, /stripeCancellationSchedule/);
-  assert.match(cancelRoute, /one_additional_monthly_renewal/);
-  assert.match(cancelRoute, /current_annual_period_end/);
-  assert.match(cancelRoute, /trial_end_without_charge/);
-  assert.match(cancelRoute, /proration_behavior", "none"/);
-  assert.match(uncancelRoute, /cancel_at: ""/);
-  assert.match(uncancelRoute, /cancel_at_period_end: "false"/);
+  const cancellationService = source("lib/scheduleSubscriptionCancellation.ts");
+  assert.match(cancelRoute, /scheduleSubscriptionCancellationForUser/);
+  assert.match(uncancelRoute, /restoreSubscriptionRenewalForUser/);
+  assert.match(cancellationService, /stripeCancellationSchedule/);
+  assert.match(cancellationService, /one_additional_monthly_renewal/);
+  assert.match(cancellationService, /current_annual_period_end/);
+  assert.match(cancellationService, /trial_end_without_charge/);
+  assert.match(cancellationService, /proration_behavior", "none"/);
+  assert.match(cancellationService, /cancel_at: ""/);
+  assert.match(cancellationService, /cancel_at_period_end: "false"/);
 });
 
 test("les relances et le blocage d'essai restent pilotés côté serveur", () => {
   const cron = source("app/api/cron/billing/route.ts");
   const gate = source("proxy.ts");
+  const trialExpiry = cron.slice(
+    cron.indexOf("const { data: maybeExpired"),
+    cron.indexOf("// Filet de sécurité quotidien"),
+  );
   assert.match(cron, /TRIAL_REMINDER_OFFSETS/);
   assert.match(cron, /dueReminderOffset/);
   assert.match(cron, /status: "trial_expired"/);
@@ -159,7 +169,9 @@ test("les relances et le blocage d'essai restent pilotés côté serveur", () =>
   assert.match(cron, /repaired_renewal_dates: repairedRenewalDates/);
   assert.match(cron, /repaired_billing_cycles: repairedBillingCycles/);
   assert.match(cron, /reconciled_cancelled_accesses: reconciledCancelledAccesses/);
-  assert.doesNotMatch(cron, /deleteUserAccountEverywhere/);
+  assert.doesNotMatch(trialExpiry, /deleteUserAccountEverywhere/);
+  assert.match(cron, /account_deletion_requests/);
+  assert.match(cron, /deleteUserAccountEverywhere\(deletion\.user_id\)/);
   assert.match(gate, /status === "active" \|\| isTrialStillValid\(subscription\)/);
   assert.match(gate, /url\.pathname = "\/compte-bloque"/);
 });

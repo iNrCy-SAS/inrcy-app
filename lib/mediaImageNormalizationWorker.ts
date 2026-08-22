@@ -25,6 +25,7 @@ import {
   type ImageNormalizationPurpose,
 } from "@/lib/mediaImageNormalizationPolicy";
 import { refreshPublicationWorkspaceStatusesForMedia } from "@/lib/mediaWorkspaceServer";
+import { createSafeStorageSignedUrl } from "@/lib/safeStorageSignedUrl";
 import {
   toExactStorageArrayBuffer,
   withStorageBinaryMetadata,
@@ -302,18 +303,20 @@ async function downloadSourceToTemp(media: MediaRow, jobId: string) {
     );
   }
 
-  const signed = await supabaseAdmin.storage
-    .from(media.bucket_name)
-    .createSignedUrl(media.storage_path, 300);
-  if (signed.error || !signed.data?.signedUrl) {
+  const signedUrl = await createSafeStorageSignedUrl(
+    media.bucket_name,
+    media.storage_path,
+    300,
+  );
+  if (!signedUrl) {
     throw new ImageNormalizationError(
       "image_source_signing_failed",
-      signed.error?.message || "URL source privée indisponible.",
+      "URL source privée indisponible.",
       true,
     );
   }
 
-  const response = await fetch(signed.data.signedUrl, { cache: "no-store" });
+  const response = await fetch(signedUrl, { cache: "no-store" });
   if (!response.ok || !response.body) {
     throw new ImageNormalizationError(
       "image_source_download_failed",

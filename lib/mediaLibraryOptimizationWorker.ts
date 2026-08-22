@@ -28,6 +28,7 @@ import {
 } from "@/lib/mediaLibraryOptimizationPolicy";
 import { claimTargetedProcessingJob } from "@/lib/mediaProcessingTargetedClaim";
 import { compressMediaLibraryVideo } from "@/lib/mediaLibraryVideoCompressor";
+import { createSafeStorageSignedUrl } from "@/lib/safeStorageSignedUrl";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 const MEDIA_LIBRARY_BUCKET = "inrcy-pro-media";
@@ -310,13 +311,15 @@ async function downloadSource(params: {
   media: OptimizationMedia;
   onProgress: (progress: number, stage?: string) => void;
 }) {
-  const signed = await supabaseAdmin.storage
-    .from(params.media.bucket_name)
-    .createSignedUrl(params.media.storage_path, 3_600);
-  if (signed.error || !signed.data?.signedUrl) {
+  const signedUrl = await createSafeStorageSignedUrl(
+    params.media.bucket_name,
+    params.media.storage_path,
+    3_600,
+  );
+  if (!signedUrl) {
     throw new MediaLibraryOptimizationError(
       "media_library_source_signing_failed",
-      signed.error?.message || "URL privée indisponible.",
+      "URL privée indisponible.",
       true,
     );
   }
@@ -329,7 +332,7 @@ async function downloadSource(params: {
   const timeout = setTimeout(() => controller.abort(), SOURCE_DOWNLOAD_TIMEOUT_MS);
   let workDir = "";
   try {
-    const response = await fetch(signed.data.signedUrl, {
+    const response = await fetch(signedUrl, {
       cache: "no-store",
       signal: controller.signal,
     });

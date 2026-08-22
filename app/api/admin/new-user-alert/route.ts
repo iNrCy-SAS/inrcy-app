@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import nodemailer from "nodemailer";
 import { requireSecretHeader } from "@/lib/adminSecurity";
 import { readSignupFormSnapshot } from "@/lib/signupFormSnapshot";
+import { sendMonitoringMail } from "@/lib/txMailer";
+import { isTxSmtpCircuitOpenError } from "@/lib/txSmtpCircuit";
 
 export const runtime = "nodejs";
 
@@ -78,13 +79,11 @@ export async function POST(req: NextRequest) {
     const alertTo = (
       process.env.INRCY_NEW_USER_ALERT_EMAIL || "compte@inrcy.com"
     ).trim();
-    const smtpHost = process.env.TX_SMTP_HOST;
-    const smtpPort = Number(process.env.TX_SMTP_PORT || 587);
-    const smtpUser = process.env.TX_SMTP_USER;
-    const smtpPass = process.env.TX_SMTP_PASS;
-    const mailFrom = process.env.TX_MAIL_FROM || smtpUser;
+    const smtpHost = process.env.MONITORING_SMTP_HOST || process.env.TX_SMTP_HOST;
+    const smtpUser = process.env.MONITORING_SMTP_USER || process.env.TX_SMTP_USER;
+    const smtpPass = process.env.MONITORING_SMTP_PASS || process.env.TX_SMTP_PASS;
 
-    if (!alertTo || !smtpHost || !smtpUser || !smtpPass || !mailFrom) {
+    if (!alertTo || !smtpHost || !smtpUser || !smtpPass) {
       return NextResponse.json(
         { ok: false, error: "Missing email environment variables" },
         { status: 500 }
@@ -112,18 +111,7 @@ export async function POST(req: NextRequest) {
 
     const emailConfirmed = record.email_confirmed_at ? "Oui" : "Non";
 
-    const transporter = nodemailer.createTransport({
-      host: smtpHost,
-      port: smtpPort,
-      secure: smtpPort === 465,
-      auth: {
-        user: smtpUser,
-        pass: smtpPass,
-      },
-    });
-
-    await transporter.sendMail({
-      from: mailFrom,
+    await sendMonitoringMail({
       to: alertTo,
       subject: "Nouvelle inscription iNrCy",
       text: [
@@ -186,6 +174,13 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
+    if (isTxSmtpCircuitOpenError(error)) {
+      console.info("[new-user-alert] SMTP auth backoff active");
+      return NextResponse.json(
+        { ok: false, error: "SMTP temporarily unavailable" },
+        { status: 503, headers: { "Retry-After": "3600" } },
+      );
+    }
     console.error("[new-user-alert]", error);
 
     return NextResponse.json(

@@ -421,7 +421,12 @@ export async function POST(req: Request) {
     if (type === "checkout.session.completed") {
       const session = obj;
       const metadata = (session?.metadata as StripeObjectLoose | undefined) ?? undefined;
-      const userId = typeof metadata?.user_id === "string" ? metadata.user_id : null;
+      const metadataUserId = typeof metadata?.user_id === "string" ? metadata.user_id : null;
+      const clientReferenceId =
+        typeof session?.client_reference_id === "string"
+          ? session.client_reference_id
+          : null;
+      const userId = metadataUserId || clientReferenceId;
       const customerId = stripeObjectId(session?.customer);
       const subId = stripeObjectId(session?.subscription);
       const customerDetails = (session?.customer_details as StripeObjectLoose | undefined) ?? undefined;

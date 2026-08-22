@@ -6,6 +6,7 @@ import path from "node:path";
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { refreshPublicationWorkspaceStatusesForMedia } from "@/lib/mediaWorkspaceServer";
+import { createSafeStorageSignedUrl } from "@/lib/safeStorageSignedUrl";
 import type { BoosterPreparationMission } from "@/lib/boosterMediaPipelineMissions";
 import { claimTargetedProcessingJob } from "@/lib/mediaProcessingTargetedClaim";
 import {
@@ -430,13 +431,15 @@ async function downloadSourceToTemp(
     );
   }
 
-  const signed = await supabaseAdmin.storage
-    .from(media.bucket_name)
-    .createSignedUrl(media.storage_path, 600);
-  if (signed.error || !signed.data?.signedUrl) {
+  const signedUrl = await createSafeStorageSignedUrl(
+    media.bucket_name,
+    media.storage_path,
+    600,
+  );
+  if (!signedUrl) {
     throw new VideoNormalizationError(
       "video_source_signing_failed",
-      signed.error?.message || "URL source privée indisponible.",
+      "URL source privée indisponible.",
       true,
     );
   }
@@ -448,7 +451,7 @@ async function downloadSourceToTemp(
   );
   let workDir: string | null = null;
   try {
-    const response = await fetch(signed.data.signedUrl, {
+    const response = await fetch(signedUrl, {
       cache: "no-store",
       signal: abortController.signal,
     });

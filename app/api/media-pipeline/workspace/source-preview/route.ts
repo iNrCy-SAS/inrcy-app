@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/requireUser";
 import { enforceRateLimit } from "@/lib/rateLimit";
+import { createSafeStorageSignedUrl } from "@/lib/safeStorageSignedUrl";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { normalizeImageThumbnailBuffer } from "@/lib/mediaImageNormalizer";
 import {
@@ -122,16 +123,14 @@ async function createSourceThumbnail(params: {
     throw new Error("source_preview_size_invalid");
   }
 
-  const signed = await supabaseAdmin.storage
-    .from(params.media.bucket_name)
-    .createSignedUrl(params.media.storage_path, 300);
-  if (signed.error || !signed.data?.signedUrl) {
-    throw new Error(
-      signed.error?.message || "URL source indisponible pour la miniature.",
-    );
-  }
+  const signedUrl = await createSafeStorageSignedUrl(
+    params.media.bucket_name,
+    params.media.storage_path,
+    300,
+  );
+  if (!signedUrl) throw new Error("URL source indisponible pour la miniature.");
 
-  const response = await fetch(signed.data.signedUrl, { cache: "no-store" });
+  const response = await fetch(signedUrl, { cache: "no-store" });
   if (!response.ok) {
     throw new Error(`source_preview_download_failed:${response.status}`);
   }

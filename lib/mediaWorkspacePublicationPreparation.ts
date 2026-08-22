@@ -18,6 +18,7 @@ import {
   hasServerVideoProbeProvenance,
 } from "@/lib/mediaVideoSourceCompatibility";
 import { refreshPublicationWorkspaceMediaStatus } from "@/lib/mediaWorkspaceServer";
+import { createSafeStorageSignedUrl } from "@/lib/safeStorageSignedUrl";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 type JsonRecord = Record<string, unknown>;
@@ -365,15 +366,15 @@ async function probePotentialDirectVideo(params: {
   ffmpegPath: string;
 }) {
   if (!params.media.bucket || !params.media.storagePath) return false;
-  const signed = await supabaseAdmin.storage
-    .from(params.media.bucket)
-    .createSignedUrl(params.media.storagePath, 180);
-  if (signed.error || !signed.data?.signedUrl) {
-    throw signed.error || new Error("video_source_signing_failed");
-  }
+  const signedUrl = await createSafeStorageSignedUrl(
+    params.media.bucket,
+    params.media.storagePath,
+    180,
+  );
+  if (!signedUrl) throw new Error("video_source_signing_failed");
   const probe = await probeVideoSource({
     ffmpegPath: params.ffmpegPath,
-    inputPath: signed.data.signedUrl,
+    inputPath: signedUrl,
     fallbackWidth: params.media.width,
     fallbackHeight: params.media.height,
     fallbackDurationSeconds: params.media.durationSeconds,

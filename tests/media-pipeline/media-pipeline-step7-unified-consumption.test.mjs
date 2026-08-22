@@ -120,7 +120,7 @@ test("TikTok relit les vidéos dans leur bucket réel et garde le proxy booster"
   assert.match(publish, /\.from\(bucket\)\.getPublicUrl\(storagePath\)/);
   assert.match(
     publish,
-    /\.from\(bucket\)\s*\.createSignedUrl\(storagePath,\s*15 \* 60\)/,
+    /createSafeStorageSignedUrl\(\s*bucket,\s*storagePath,\s*15 \* 60/,
   );
   assert.match(publish, /channelVideo\.bucket === "booster"/);
   assert.match(publish, /String\(candidate\.video\?\.bucket \|\| "booster"\)/);

@@ -259,11 +259,14 @@ async function downloadPinterestVideoSource(params: {
   const storagePath = sanitizeStoragePath(params.storagePath);
   let videoUrl = normalizePublicUrl(params.videoUrl);
   if (storagePath) {
-    const { data, error } = await supabaseAdmin.storage
-      .from(PINTEREST_COVER_BUCKET)
-      .createSignedUrl(storagePath, 60 * 60);
-    const signedUrl = normalizePublicUrl(data?.signedUrl);
-    if (!error && signedUrl) {
+    const signedUrl = normalizePublicUrl(
+      await createSafeStorageSignedUrl(
+        PINTEREST_COVER_BUCKET,
+        storagePath,
+        60 * 60,
+      ),
+    );
+    if (signedUrl) {
       videoUrl = signedUrl;
     }
   }

@@ -73,6 +73,8 @@ export async function GET() {
       present("AI_GATEWAY_TRANSCRIBE_FALLBACK_MODEL", process.env.AI_GATEWAY_TRANSCRIBE_FALLBACK_MODEL),
       present("TX_SMTP_HOST", process.env.TX_SMTP_HOST),
       present("TX_SMTP_USER", process.env.TX_SMTP_USER),
+      present("MONITORING_SMTP_USER", process.env.MONITORING_SMTP_USER),
+      present("MONITORING_MAIL_FROM", process.env.MONITORING_MAIL_FROM),
       present("CRON_SECRET", process.env.CRON_SECRET),
       present("ADMIN_SECRET", process.env.ADMIN_SECRET),
       present("SUPABASE_NEW_USER_WEBHOOK_SECRET", process.env.SUPABASE_NEW_USER_WEBHOOK_SECRET),

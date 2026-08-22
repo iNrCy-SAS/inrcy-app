@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
+import { createHash } from "node:crypto";
 import { Redis } from "@upstash/redis";
 import { withApi } from "@/lib/observability/withApi";
 import { optionalEnv, requireEnv } from "@/lib/env";
 import { runDeepHealthChecks } from "@/lib/health/checks";
 import { log } from "@/lib/observability/logger";
-import { sendTxMail } from "@/lib/txMailer";
+import { sendMonitoringMail } from "@/lib/txMailer";
+import { isTxSmtpCircuitOpenError } from "@/lib/txSmtpCircuit";
 import { shouldBypassUpstashInCurrentEnv } from "@/lib/upstashMode";
 
 export const runtime = "nodejs";
@@ -72,13 +74,44 @@ async function sendFailureAlert(report: Awaited<ReturnType<typeof runDeepHealthC
   if (!shouldSend) return false;
 
   const text = buildAlertBody(report);
-  await sendTxMail({
+  await sendMonitoringMail({
     to: alertTo,
     subject: "iNrCy — Alerte healthcheck infra",
     text,
     html: `<pre>${text}</pre>`,
   });
   return true;
+}
+
+async function shouldEmitFailureLog(
+  report: Awaited<ReturnType<typeof runDeepHealthChecks>>,
+) {
+  if (shouldBypassUpstashInCurrentEnv()) return true;
+
+  const failures = Object.entries(report.checks)
+    .filter(([, check]) => !check.ok)
+    .map(([name, check]) => ({ name, error: check.error || null }));
+  const fingerprint = createHash("sha256")
+    .update(JSON.stringify(failures))
+    .digest("hex")
+    .slice(0, 20);
+  const configuredSeconds = Number(
+    optionalEnv("HEALTHCHECK_FAILURE_LOG_DEDUPE_SECONDS", "3600"),
+  );
+  const dedupeSeconds = Number.isFinite(configuredSeconds)
+    ? Math.min(24 * 60 * 60, Math.max(5 * 60, Math.floor(configuredSeconds)))
+    : 3600;
+
+  try {
+    const result = await getRedis().set(
+      `healthcheck:failure-log:${fingerprint}`,
+      "1",
+      { nx: true, ex: dedupeSeconds },
+    );
+    return result === "OK";
+  } catch {
+    return true;
+  }
 }
 
 export const GET = withApi(async (req) => {
@@ -93,18 +126,24 @@ export const GET = withApi(async (req) => {
     try {
       alertSent = await sendFailureAlert(report);
     } catch (error) {
-      log.error("cron_health_alert_failed", {
+      const alertLog = isTxSmtpCircuitOpenError(error) ? log.info : log.error;
+      alertLog("cron_health_alert_failed", {
         route: "/api/cron/health",
         error: error instanceof Error ? error.message : String(error),
       });
     }
 
-    log.error("cron_health_failed", {
+    const failureDetails = {
       route: "/api/cron/health",
       checks: report.checks,
       total_ms: report.total_ms,
       alert_sent: alertSent,
-    });
+    };
+    if (await shouldEmitFailureLog(report)) {
+      log.error("cron_health_failed", failureDetails);
+    } else {
+      log.info("cron_health_failure_deduplicated", failureDetails);
+    }
   } else {
     log.info("cron_health_ok", {
       route: "/api/cron/health",

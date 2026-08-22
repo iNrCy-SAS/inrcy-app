@@ -8,6 +8,7 @@ import {
   isAuthorizedCronRequest,
 } from "@/lib/cronAuth";
 import { enforceRateLimit } from "@/lib/rateLimit";
+import { createSafeStorageSignedUrl } from "@/lib/safeStorageSignedUrl";
 import { encryptToken, tryDecryptToken } from "@/lib/oauthCrypto";
 import { randomUUID } from "crypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -2755,15 +2756,13 @@ async function publishNowHandler(req: Request) {
             }
             return publicUrl;
           }
-          const signed = await supabaseAdmin.storage
-            .from(bucket)
-            .createSignedUrl(storagePath, 15 * 60);
-          if (signed.error || !signed.data?.signedUrl) {
-            throw new Error(
-              signed.error?.message || "tiktok_storage_signed_url_failed",
-            );
-          }
-          return signed.data.signedUrl;
+          const signedUrl = await createSafeStorageSignedUrl(
+            bucket,
+            storagePath,
+            15 * 60,
+          );
+          if (!signedUrl) throw new Error("tiktok_storage_signed_url_failed");
+          return signedUrl;
         },
       };
     }

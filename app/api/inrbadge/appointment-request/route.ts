@@ -8,6 +8,7 @@ import { upsertCrmContactWithoutDuplicate } from "@/lib/crmContactDedupe";
 import { recordInrBadgeEvent } from "@/lib/inrBadgeAnalytics";
 import { getDashboardEditionForAccountId } from "@/lib/dashboardEditionServer";
 import { canUseInrBadgeAppointments } from "@/lib/inrBadgeEditionPolicy";
+import { enforceRateLimit, getClientIp } from "@/lib/rateLimit";
 
 type RequestBody = {
   slug?: string;
@@ -18,6 +19,7 @@ type RequestBody = {
   email?: string;
   phone?: string;
   message?: string;
+  website?: string;
 };
 
 function clean(value: unknown) {
@@ -108,6 +110,16 @@ export async function POST(req: Request) {
   const slug = clean(body.slug);
   const userId = extractInrBadgeUserIdFromSlug(slug);
   if (!userId) return bad("Badge introuvable", 404);
+  if (clean(body.website)) return NextResponse.json({ ok: true });
+
+  const rateLimited = await enforceRateLimit({
+    name: "inrbadge_public_appointment",
+    identifier: `${getClientIp(req)}:${userId}`,
+    limit: 6,
+    fallbackLimit: 2,
+    window: "1 h",
+  });
+  if (rateLimited) return rateLimited;
 
   const dashboardEdition = await getDashboardEditionForAccountId(userId);
   if (dashboardEdition === "standard") {

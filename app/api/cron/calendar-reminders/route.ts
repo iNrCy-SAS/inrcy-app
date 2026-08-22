@@ -3,6 +3,7 @@ import path from "node:path";
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendTxMail } from "@/lib/txMailer";
+import { isTxSmtpCircuitOpenError } from "@/lib/txSmtpCircuit";
 import { optionalEnv } from "@/lib/env";
 import { jsonUserFacingError } from "@/lib/apiUserFacingErrors";
 import { sendMailFromIntegration } from "@/lib/inrsend/sendMailFromIntegration";
@@ -870,7 +871,10 @@ export async function GET(req: Request) {
           nextMeta = { ...nextMeta, reminders: nextReminders };
           dirty = true;
         } catch (mailError) {
-          console.error("[calendar-reminders] reminder send failed", {
+          const logReminderFailure = isTxSmtpCircuitOpenError(mailError)
+            ? console.info
+            : console.error;
+          logReminderFailure("[calendar-reminders] reminder send failed", {
             eventId: row.id,
             recipient: recipient.email,
             kind: recipient.kind,

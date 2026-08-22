@@ -101,7 +101,10 @@ test("les captures locales commencent pour toute vidéo acceptée sans bloquer l
 test("le worker télécharge la source privée et conserve l'original", () => {
   const worker = read("lib/mediaVideoNormalizationWorker.ts");
   const cron = read("app/api/cron/media-video-normalization/route.ts");
-  assert.match(worker, /createSignedUrl\(media\.storage_path, 600\)/);
+  assert.match(
+    worker,
+    /createSafeStorageSignedUrl\(\s*media\.bucket_name,\s*media\.storage_path,\s*600/,
+  );
   assert.match(worker, /Readable\.fromWeb/);
   assert.match(worker, /createReadStream\(params\.normalized\.filePath\)/);
   assert.doesNotMatch(worker, /readFile\(params\.normalized\.filePath\)/);

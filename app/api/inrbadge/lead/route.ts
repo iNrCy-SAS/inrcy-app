@@ -7,6 +7,7 @@ import { upsertCrmContactWithoutDuplicate } from "@/lib/crmContactDedupe";
 import { recordInrBadgeEvent } from "@/lib/inrBadgeAnalytics";
 import { getDashboardEditionForAccountId } from "@/lib/dashboardEditionServer";
 import { getInrBadgeLeadPresentation } from "@/lib/inrBadgeEditionPolicy";
+import { enforceRateLimit, getClientIp } from "@/lib/rateLimit";
 
 function cleanString(value: unknown, max = 240) {
   return String(value || "").trim().replace(/\s+/g, " ").slice(0, max);
@@ -142,6 +143,15 @@ export async function POST(req: Request) {
   if (cleanString(body?.website)) {
     return NextResponse.json({ ok: true });
   }
+
+  const rateLimited = await enforceRateLimit({
+    name: "inrbadge_public_lead",
+    identifier: `${getClientIp(req)}:${userId}`,
+    limit: 8,
+    fallbackLimit: 3,
+    window: "1 h",
+  });
+  if (rateLimited) return rateLimited;
 
   const parsedDisplayName = parseDisplayName(body?.displayName ?? body?.display_name ?? body?.name);
   const firstName = cleanString(body?.firstName ?? body?.first_name, 80) || parsedDisplayName.firstName;

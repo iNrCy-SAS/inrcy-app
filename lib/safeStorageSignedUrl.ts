@@ -197,7 +197,8 @@ async function signWithRetry(bucket: string, path: string, expiresIn: number): P
 
 /**
  * Central signed-URL service:
- * - no preliminary folder listing;
+ * - probes the exact object before signing, when the registry/listing is available;
+ * - still attempts signing when the probe is inconclusive, preserving availability;
  * - one in-flight request per object (prevents request storms);
  * - retries only transient 5xx/timeout failures;
  * - never retries deterministic 400/404 stale paths;
@@ -224,7 +225,11 @@ export async function createSafeStorageSignedUrl(
   const active = signingInFlight.get(key);
   if (active) return active;
 
-  const request = signWithRetry(normalizedBucket, normalizedPath, ttlSeconds)
+  const request = probeStorageObject(normalizedBucket, normalizedPath)
+    .then((objectState) => {
+      if (objectState === "missing") return null;
+      return signWithRetry(normalizedBucket, normalizedPath, ttlSeconds);
+    })
     .then((url) => {
       if (url) {
         // Keep a safety margin: never serve a URL close to expiration.

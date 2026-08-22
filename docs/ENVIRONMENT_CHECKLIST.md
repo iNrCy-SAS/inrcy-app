@@ -86,6 +86,12 @@ Limites optionnelles :
 - [ ] `TX_SMTP_USER`
 - [ ] `TX_SMTP_PASS`
 - [ ] `TX_MAIL_FROM`
+- [ ] `MONITORING_SMTP_USER` (alertes internes ; repli sur `TX_SMTP_USER`)
+- [ ] `MONITORING_SMTP_PASS` (alertes internes ; repli sur `TX_SMTP_PASS`)
+- [ ] `MONITORING_MAIL_FROM` (alertes internes ; repli sur `TX_MAIL_FROM`)
+- [ ] `MONITORING_SMTP_HOST` / `MONITORING_SMTP_PORT` (optionnels ; repli sur `TX_SMTP_HOST` / `TX_SMTP_PORT`)
+- [ ] `TX_SMTP_AUTH_BACKOFF_SECONDS` (optionnel, défaut : 3600)
+- [ ] `HEALTHCHECK_FAILURE_LOG_DEDUPE_SECONDS` (optionnel, défaut : 3600)
 - [ ] `INRSEND_MAIL_WEBHOOK_SECRET`
 - [ ] `INRSEND_WEBHOOK_SECRET`
 - [ ] `INRSEND_CAMPAIGN_BATCH_SIZE` (optionnel, maximum de securite : 5)

@@ -74,7 +74,7 @@ export default function EReputationPage() {
           title={i18nT("e_reputation_6f346fbb")}
           tagline={i18nT("tous_vos_avis_google_depuis_une_4c85b97a")}
           sublineDesktop={i18nT("pilotez_vos_avis_preparez_une_reponse_d8961bbf")}
-          sublineMobile={i18nT("repondez_a_vos_avis_avec_inrcy_49a4a027")}
+          sublineMobile={i18nT("repondez_a_vos_avis_avec_inrcy_49a4b027")}
           manageLabel={i18nT("gerer_google_5eed5e3d")}
           askReviewsLabel={i18nT("reclamez_des_avis_78f79b2f")}
           closeLabel={i18nT("fermer_5ab4ec64")}

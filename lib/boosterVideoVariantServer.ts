@@ -8,6 +8,7 @@ import path from "path";
 import { Readable, Transform } from "stream";
 import { pipeline } from "stream/promises";
 import ffmpegStaticPath from "ffmpeg-static";
+import { createSafeStorageSignedUrl } from "@/lib/safeStorageSignedUrl";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
   buildVideoTransformPlan,
@@ -164,20 +165,19 @@ async function resolveSourceDownloadUrl(source: BoosterVideoTransformSource) {
       return { bucket, storagePath, publicUrl, downloadUrl: publicUrl };
     }
 
-    const signed = await supabaseAdmin.storage
-      .from(bucket)
-      .createSignedUrl(storagePath, 15 * 60);
-    if (signed.error || !signed.data?.signedUrl) {
-      throw new Error(
-        signed.error?.message ||
-          "Impossible de signer la vidéo source depuis le stockage.",
-      );
+    const signedUrl = await createSafeStorageSignedUrl(
+      bucket,
+      storagePath,
+      15 * 60,
+    );
+    if (!signedUrl) {
+      throw new Error("Impossible de signer la vidéo source depuis le stockage.");
     }
     return {
       bucket,
       storagePath,
       publicUrl: String(source.publicUrl || source.url || "").trim() || null,
-      downloadUrl: signed.data.signedUrl,
+      downloadUrl: signedUrl,
     };
   }
 
@@ -694,14 +694,15 @@ export async function probeStoredBoosterVideoForPublication(params: {
   });
   let publicUrl = "";
   if (authorization.urlMode === "signed") {
-    const signed = await supabaseAdmin.storage
-      .from(authorization.bucket)
-      .createSignedUrl(authorization.storagePath, 60 * 60 * 24);
-    publicUrl = String(signed.data?.signedUrl || "").trim();
-    if (signed.error || !/^https:\/\//i.test(publicUrl)) {
-      throw new Error(
-        signed.error?.message || "video_fallback_signed_url_unavailable",
-      );
+    publicUrl = String(
+      await createSafeStorageSignedUrl(
+        authorization.bucket,
+        authorization.storagePath,
+        60 * 60 * 24,
+      ),
+    ).trim();
+    if (!/^https:\/\//i.test(publicUrl)) {
+      throw new Error("video_fallback_signed_url_unavailable");
     }
   } else {
     publicUrl =

@@ -65,7 +65,10 @@ test("Publier recrée images et vidéos côté serveur depuis le workspace", () 
   assert.match(imageServer, /settingsByChannel/);
   assert.match(imageServer, /sharp\(params\.buffer/);
   assert.match(videoServer, /async function resolveSourceDownloadUrl\(/);
-  assert.match(videoServer, /\.from\(bucket\)\s*\.createSignedUrl\(storagePath/);
+  assert.match(
+    videoServer,
+    /createSafeStorageSignedUrl\(\s*bucket,\s*storagePath/,
+  );
   assert.match(videoServer, /const response = await fetch\(resolved\.downloadUrl/);
   assert.match(videoServer, /await pipeline\([\s\S]*createWriteStream\(inputPath/);
   assert.doesNotMatch(

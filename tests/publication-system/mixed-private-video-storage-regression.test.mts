@@ -240,11 +240,11 @@ test("le probe charge l'ownership uploadé avant de signer le bucket privé rée
   assert.match(server, /\.eq\("upload_status", "uploaded"\)/);
   assert.ok(
     probe.indexOf("loadBoosterVideoProbeRegistryRow") <
-      probe.indexOf("createSignedUrl"),
+      probe.indexOf("createSafeStorageSignedUrl"),
   );
   assert.match(
     probe,
-    /\.from\(authorization\.bucket\)[\s\S]{0,100}\.createSignedUrl\(authorization\.storagePath/,
+    /createSafeStorageSignedUrl\(\s*authorization\.bucket,\s*authorization\.storagePath/,
   );
   assert.doesNotMatch(probe, /params\.publicUrl|params\.url|params\.duration/);
 });

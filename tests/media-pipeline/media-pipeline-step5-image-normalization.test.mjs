@@ -65,7 +65,10 @@ test("l'upload image déclenche une préparation serveur transparente et idempot
 test("le worker ne reçoit aucun binaire navigateur et utilise la source privée", () => {
   const worker = read("lib/mediaImageNormalizationWorker.ts");
   const cron = read("app/api/cron/media-image-normalization/route.ts");
-  assert.match(worker, /createSignedUrl\(media\.storage_path, 300\)/);
+  assert.match(
+    worker,
+    /createSafeStorageSignedUrl\(\s*media\.bucket_name,\s*media\.storage_path,\s*300/,
+  );
   assert.match(worker, /Readable\.fromWeb/);
   assert.match(worker, /content_hash_sha256/);
   assert.match(worker, /canonical_bucket_name/);

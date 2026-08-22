@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { sendTxMail } from "@/lib/txMailer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { enforceRateLimit, getClientIp } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -170,6 +171,15 @@ async function persistDiagnosticReport(payload: {
 }
 
 export async function POST(req: NextRequest) {
+  const rateLimited = await enforceRateLimit({
+    name: "diagnostic_report_public",
+    identifier: getClientIp(req),
+    limit: 10,
+    fallbackLimit: 4,
+    window: "1 h",
+  });
+  if (rateLimited) return rateLimited;
+
   let body: DiagnosticReportBody;
 
   try {

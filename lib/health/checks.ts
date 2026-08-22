@@ -7,6 +7,11 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { shouldBypassUpstashInCurrentEnv } from "@/lib/upstashMode";
 import { stripeGet } from "@/lib/stripeRest";
 import { buildMediaPipelineCertificationSnapshot } from "@/lib/mediaPipelineCertification";
+import {
+  assertTxSmtpCircuitClosed,
+  clearTxSmtpCircuit,
+  openTxSmtpCircuit,
+} from "@/lib/txSmtpCircuit";
 
 export type HealthCheckName =
   | "supabase"
@@ -258,6 +263,8 @@ async function checkSmtp(): Promise<HealthCheckResult> {
     const secure =
       secureEnv === "true" ? true : secureEnv === "false" ? false : port === 465;
 
+    await assertTxSmtpCircuitClosed();
+
     const transporter = nodemailer.createTransport({
       host,
       port,
@@ -271,7 +278,13 @@ async function checkSmtp(): Promise<HealthCheckResult> {
       },
     });
 
-    await transporter.verify();
+    try {
+      await transporter.verify();
+      await clearTxSmtpCircuit();
+    } catch (error) {
+      await openTxSmtpCircuit(error);
+      throw error;
+    }
   });
 }
 
