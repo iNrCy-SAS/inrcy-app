@@ -60,3 +60,16 @@ test("Android release signing is fail-closed and never stores credentials in sou
   assert.match(example, /CHANGE_ME/);
   assert.doesNotMatch(gradle, /storePassword\s+["'][^$][^"']+["']/);
 });
+
+test("Android WebView reserves the status-bar inset without double-padding the dock", () => {
+  const activity = read(
+    "android/app/src/main/java/com/inrcy/app/MainActivity.java",
+  );
+
+  assert.match(activity, /ViewCompat\.setOnApplyWindowInsetsListener/);
+  assert.match(activity, /WindowInsetsCompat\.Type\.statusBars\(\)/);
+  assert.match(activity, /setAppearanceLightStatusBars\(true\)/);
+  assert.match(activity, /webView\.setBackgroundColor\(Color\.WHITE\)/);
+  assert.match(activity, /setPadding\(/);
+  assert.match(activity, /navigation-bar and IME insets/);
+});

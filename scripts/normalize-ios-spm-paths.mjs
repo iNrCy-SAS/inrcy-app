@@ -11,8 +11,8 @@ if (!existsSync(manifestPath)) {
 
 const source = readFileSync(manifestPath, "utf8");
 const normalized = source.replace(
-  /(path:\s*"[^"]*)\\([^"]*")/g,
-  (_match, prefix, suffix) => `${prefix}/${suffix.replaceAll("\\", "/")}`,
+  /(path:\s*"[^"]*")/g,
+  (match) => match.replaceAll("\\", "/"),
 );
 
 if (normalized !== source) {

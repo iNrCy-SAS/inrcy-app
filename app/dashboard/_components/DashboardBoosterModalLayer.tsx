@@ -176,6 +176,21 @@ export default function DashboardBoosterModalLayer({
     onClose();
   }, [onClose]);
 
+  const closePublishSuccess = useCallback(() => {
+    // The result modal can be shown while the publish editor is still mounted
+    // (for example after a partial/failed publication). Clear both layers so
+    // the close button always dismisses the complete Booster / Publier flow.
+    setPublishSuccessOpen(false);
+    setPublishSummary(null);
+    setPublishEditorOverlayOpen(false);
+    setPublishHasUnsavedChanges(false);
+    publishRetryFailedRef.current = null;
+    setPublishRetrying(false);
+    if (mode === "publish") {
+      closePublishModal();
+    }
+  }, [closePublishModal, mode]);
+
   const requestClosePublishModal = useCallback(async () => {
     if (publishHasUnsavedChanges) {
       const ok = await confirmInrcy({
@@ -569,7 +584,7 @@ export default function DashboardBoosterModalLayer({
         <PublishExecutionResultModal
           styles={styles}
           summary={publishSummary}
-          onClose={() => setPublishSuccessOpen(false)}
+          onClose={closePublishSuccess}
           retrying={publishRetrying}
           onRetryFailed={
             publishRetryFailedRef.current
@@ -589,6 +604,7 @@ export default function DashboardBoosterModalLayer({
             // Ne pas appeler closePublishModal ici : son onClose remet l'URL sur
             // /dashboard et peut écraser la navigation vers iNrSend.
             setPublishSuccessOpen(false);
+            setPublishSummary(null);
             setPublishEditorOverlayOpen(false);
             setPublishHasUnsavedChanges(false);
             publishRetryFailedRef.current = null;

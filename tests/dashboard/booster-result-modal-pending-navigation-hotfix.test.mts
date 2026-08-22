@@ -44,3 +44,11 @@ test("opening iNrSend does not call the dashboard close handler that resets the 
   assert.match(handler[1], /setPublishHasUnsavedChanges\(false\)/);
   assert.match(handler[1], /publishRetryFailedRef\.current = null/);
 });
+
+test("closing the publication result also clears the Booster publish layer", () => {
+  assert.match(
+    boosterLayer,
+    /const closePublishSuccess = useCallback\(\(\) => \{[\s\S]*?setPublishSuccessOpen\(false\);[\s\S]*?setPublishSummary\(null\);[\s\S]*?setPublishEditorOverlayOpen\(false\);[\s\S]*?setPublishHasUnsavedChanges\(false\);[\s\S]*?if \(mode === "publish"\) \{[\s\S]*?closePublishModal\(\);/,
+  );
+  assert.match(boosterLayer, /summary=\{publishSummary\}[\s\S]*?onClose=\{closePublishSuccess\}/);
+});
