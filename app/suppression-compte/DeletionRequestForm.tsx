@@ -68,6 +68,7 @@ async function apiError(response: Response, fallback: string) {
 }
 
 export default function DeletionRequestForm() {
+  const supabase = createClient();
   const [view, setView] = useState<AuthView>("loading");
   const [account, setAccount] = useState<AccountState | null>(null);
   const [busy, setBusy] = useState<Action | "native" | null>(null);
@@ -85,7 +86,6 @@ export default function DeletionRequestForm() {
     setError("");
     let data: { user: { email?: string | null } | null };
     try {
-      const supabase = createClient();
       const authResult = await supabase.auth.getUser();
       data = { user: authResult.data.user };
     } catch {
@@ -173,7 +173,7 @@ export default function DeletionRequestForm() {
       if (result.deleted) {
         purgeAllBrowserAccountCaches();
         setActiveBrowserUserId(null);
-        await createClient().auth.signOut({ scope: "local" }).catch(() => null);
+        await supabase.auth.signOut({ scope: "local" }).catch(() => null);
         window.location.replace("/login");
         return;
       }
