@@ -28,6 +28,9 @@
 # misc
 .DS_Store
 *.pem
+/android/keystore.properties
+/android/*.jks
+/android/*.keystore
 
 # debug
 npm-debug.log*

@@ -1,5 +1,29 @@
 apply plugin: 'com.android.application'
 
+def signingPropertiesFile = rootProject.file('keystore.properties')
+def signingProperties = new Properties()
+if (signingPropertiesFile.isFile()) {
+    signingPropertiesFile.withInputStream { stream -> signingProperties.load(stream) }
+}
+
+def hasReleaseSigning = ['storeFile', 'storePassword', 'keyAlias', 'keyPassword'].every { key ->
+    def value = signingProperties.getProperty(key)
+    value != null && !value.trim().isEmpty()
+}
+
+def releaseArtifactTaskRequested = gradle.startParameter.taskNames.any { taskName ->
+    def normalizedTaskName = taskName.toLowerCase(Locale.ROOT)
+    normalizedTaskName.contains('assemblerelease') ||
+        normalizedTaskName.contains('bundlerelease') ||
+        normalizedTaskName.contains('packagerelease')
+}
+
+if (releaseArtifactTaskRequested && !hasReleaseSigning) {
+    throw new GradleException(
+        'Release signing is not configured. Copy android/keystore.properties.example to android/keystore.properties and fill it with the existing Google Play upload-key values.'
+    )
+}
+
 android {
     namespace = "com.inrcy.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -16,10 +40,23 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (hasReleaseSigning) {
+                storeFile rootProject.file(signingProperties.getProperty('storeFile').trim())
+                storePassword signingProperties.getProperty('storePassword')
+                keyAlias signingProperties.getProperty('keyAlias')
+                keyPassword signingProperties.getProperty('keyPassword')
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }

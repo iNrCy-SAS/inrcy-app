@@ -43,7 +43,7 @@ export function normalizeNativeOpenUrl(rawUrl: string, currentOrigin: string): s
   }
 
   let pathname = parsed.pathname || "/";
-  if (parsed.protocol === "inrcy:") {
+  if (parsed.protocol === "inrcy:" || parsed.protocol === "com.inrcy.app:") {
     pathname = `/${parsed.host}${parsed.pathname}`.replace(/\/+/g, "/");
   } else {
     let origin: URL;

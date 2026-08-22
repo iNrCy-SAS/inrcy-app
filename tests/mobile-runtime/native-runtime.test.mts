@@ -15,6 +15,10 @@ test("app links are reduced to safe internal routes", () => {
     "/auth/callback?code=abc",
   );
   assert.equal(
+    normalizeNativeOpenUrl("com.inrcy.app://auth/callback?code=legacy", "https://app.inrcy.com"),
+    "/auth/callback?code=legacy",
+  );
+  assert.equal(
     normalizeNativeOpenUrl("https://app.inrcy.com/dashboard?panel=contact", "https://app.inrcy.com"),
     "/dashboard?panel=contact",
   );

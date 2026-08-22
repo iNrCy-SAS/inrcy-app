@@ -18,12 +18,30 @@
 	<string>$(PRODUCT_NAME)</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.inrcy.app</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>inrcy</string>
+				<string>com.inrcy.app</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>iNrCy utilise la caméra pour prendre des photos et enregistrer des vidéos dans vos contenus.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>iNrCy utilise le microphone pour enregistrer des messages vocaux et la piste audio de vos vidéos.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
