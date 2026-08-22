@@ -3,7 +3,7 @@
 import { useTranslations } from "next-intl";
 
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type SyntheticEvent } from "react";
 
 import {
   ensureFrenchPublicationErrorMessage,
@@ -93,6 +93,22 @@ export default function PublishExecutionResultModal({
   const [liveSummary, setLiveSummary] = useState<PublishExecutionSummary | null>(summary || null);
   const [expandedEntryDetails, setExpandedEntryDetails] = useState<Record<string, boolean>>({});
   const tiktokPollInFlightRef = useRef(false);
+  const closeTapHandledRef = useRef(false);
+
+  const handleClose = (event: SyntheticEvent<HTMLButtonElement>) => {
+    // Pointer-up is used below for touch WebViews because some Android builds
+    // do not promote a tap on a fixed/scrollable modal to a click reliably.
+    // Keep the click fallback for keyboard and desktop activation, while the
+    // short guard prevents one physical tap from closing twice.
+    event.preventDefault();
+    event.stopPropagation();
+    if (closeTapHandledRef.current) return;
+    closeTapHandledRef.current = true;
+    onClose();
+    window.setTimeout(() => {
+      closeTapHandledRef.current = false;
+    }, 0);
+  };
 
   useEffect(() => {
     setLiveSummary(summary || null);
@@ -481,7 +497,9 @@ export default function PublishExecutionResultModal({
       >
         <button
           type="button"
-          onClick={onClose}
+          onPointerUp={handleClose}
+          onClick={handleClose}
+          data-testid="publish-result-close"
           aria-label={i18nT("fermer_5ab4ec64")}
           className={styles.secondaryBtn}
           style={{

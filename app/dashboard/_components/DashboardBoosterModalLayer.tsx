@@ -186,10 +186,11 @@ export default function DashboardBoosterModalLayer({
     setPublishHasUnsavedChanges(false);
     publishRetryFailedRef.current = null;
     setPublishRetrying(false);
-    if (mode === "publish") {
-      closePublishModal();
-    }
-  }, [closePublishModal, mode]);
+    // Always close the parent layer as well. The result overlay can outlive a
+    // mode transition, and leaving the parent mounted makes the X appear to do
+    // nothing even though its own state was cleared.
+    closePublishModal();
+  }, [closePublishModal]);
 
   const requestClosePublishModal = useCallback(async () => {
     if (publishHasUnsavedChanges) {

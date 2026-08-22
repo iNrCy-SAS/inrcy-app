@@ -48,7 +48,14 @@ test("opening iNrSend does not call the dashboard close handler that resets the 
 test("closing the publication result also clears the Booster publish layer", () => {
   assert.match(
     boosterLayer,
-    /const closePublishSuccess = useCallback\(\(\) => \{[\s\S]*?setPublishSuccessOpen\(false\);[\s\S]*?setPublishSummary\(null\);[\s\S]*?setPublishEditorOverlayOpen\(false\);[\s\S]*?setPublishHasUnsavedChanges\(false\);[\s\S]*?if \(mode === "publish"\) \{[\s\S]*?closePublishModal\(\);/,
+    /const closePublishSuccess = useCallback\(\(\) => \{[\s\S]*?setPublishSuccessOpen\(false\);[\s\S]*?setPublishSummary\(null\);[\s\S]*?setPublishEditorOverlayOpen\(false\);[\s\S]*?setPublishHasUnsavedChanges\(false\);[\s\S]*?closePublishModal\(\);/,
   );
   assert.match(boosterLayer, /summary=\{publishSummary\}[\s\S]*?onClose=\{closePublishSuccess\}/);
+});
+
+test("the result X handles touch pointer-up and keeps a click fallback", () => {
+  assert.match(resultModal, /const handleClose = \(event: SyntheticEvent<HTMLButtonElement>\)/);
+  assert.match(resultModal, /onPointerUp=\{handleClose\}/);
+  assert.match(resultModal, /onClick=\{handleClose\}/);
+  assert.match(resultModal, /data-testid="publish-result-close"/);
 });

@@ -20,6 +20,7 @@ public class MainActivity extends BridgeActivity {
         // Android 15+ enforces edge-to-edge for apps targeting API 35 or newer.
         // Keep the system chrome readable and reserve the status-bar area before
         // the remote WebView renders the first dashboard pixel.
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
         getWindow().setStatusBarColor(Color.WHITE);
         getWindow().setNavigationBarColor(Color.WHITE);
         WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView())

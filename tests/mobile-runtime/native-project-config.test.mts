@@ -69,7 +69,16 @@ test("Android WebView reserves the status-bar inset without double-padding the d
   assert.match(activity, /ViewCompat\.setOnApplyWindowInsetsListener/);
   assert.match(activity, /WindowInsetsCompat\.Type\.statusBars\(\)/);
   assert.match(activity, /setAppearanceLightStatusBars\(true\)/);
+  assert.match(activity, /WindowCompat\.setDecorFitsSystemWindows\(getWindow\(\), false\)/);
   assert.match(activity, /webView\.setBackgroundColor\(Color\.WHITE\)/);
   assert.match(activity, /setPadding\(/);
   assert.match(activity, /navigation-bar and IME insets/);
+});
+
+test("production Android shell keeps web updates on the deployed app origin", () => {
+  const capacitorConfig = read("capacitor.config.ts");
+
+  assert.match(capacitorConfig, /const productionUrl = "https:\/\/app\.inrcy\.com"/);
+  assert.match(capacitorConfig, /url: configuredUrl/);
+  assert.match(capacitorConfig, /appStartPath: "\/login"/);
 });
