@@ -110,6 +110,30 @@ function actionPillClassKey(actionKey: CubeModel["action"]["key"]) {
   return "booster";
 }
 
+function ActionToolPill({
+  action,
+  label,
+  premiumLockTitle,
+}: {
+  action: CubeModel["action"];
+  label: string;
+  premiumLockTitle?: string;
+}) {
+  const premiumLocked = action.premiumLocked === true;
+  const pillKey = actionPillClassKey(action.key);
+
+  return (
+    <span
+      className={`${styles.actionPill} ${styles[`action_${pillKey}`]} ${premiumLocked ? styles.actionPillPremiumLocked : ""}`}
+      title={premiumLockTitle}
+      aria-label={premiumLockTitle}
+    >
+      {premiumLocked ? <span className={styles.premiumLockIcon} aria-hidden="true">🔒</span> : null}
+      {label}
+    </span>
+  );
+}
+
 
 function MiniMetricGrid({ items }: { items: Array<{ label: string; value: string; subValue?: string }> }) {
   const i18nT = useTranslations("stats");
@@ -382,9 +406,12 @@ export function Cube({
   const [open, setOpen] = useState(false);
   const detailsOpen = forceOpen || open;
   const isSite = model.key === "site_inrcy" || model.key === "site_web";
-  const action = (model as any).action ?? ({ key: "connect", title: i18nT("connexion_a33c58f5"), detail: "", href: "#", pill: i18nT("connexion_a33c58f5") } as const);
-  const localizedPill = (action as any)?.pill ?? i18nT("connexion_a33c58f5");
-  const pillKey = actionPillClassKey(action.key);
+  const action = model.action;
+  const localizedPill = action.pill;
+  const premiumLocked = action.premiumLocked === true;
+  const premiumLockTitle = premiumLocked
+    ? i18nT("stats_premium_action_locked", { tool: localizedPill })
+    : undefined;
 
   const connectionPending = model.connectionStatus === "unavailable" || (model.key === "mails" && !!model.connectionPending);
   const connectionOk = (connectionPending || (isSite
@@ -392,6 +419,12 @@ export function Cube({
     : !!model.connections.main));
   const reconnectRequired = model.connectionStatus === "needs_update";
   const connectionTone = reconnectRequired ? "reconnect" : connectionOk ? "on" : "off";
+  const actionDisabled = model.loading || !action.href || premiumLocked;
+  const actionButtonLabel = premiumLocked
+    ? i18nT("stats_go_locked")
+    : connectionOk
+      ? i18nT("go_bb63fc96")
+      : <>{i18nT("go_f63f96ef")}{" "}<PlugIcon /></>;
   const headerTitle = hideDetailsToggle ? i18nT(getForcedCubeContextKey(model.key)) : model.title;
   const mobileChannelAccountLabel = getMobileChannelAccountLabel(model, [
     i18nT("connecte_ce09957c"),
@@ -501,7 +534,7 @@ export function Cube({
         <div className={styles.actionCompact}>
           <div className={styles.actionLeft}>
             <div className={styles.actionTopRow}>
-              <span className={`${styles.actionPill} ${styles[`action_${pillKey}`]}`}>{localizedPill}</span>
+              <ActionToolPill action={action} label={localizedPill} premiumLockTitle={premiumLockTitle} />
 
               {action.key === "connect" || action.key === "loading" ? (
                 <div className={styles.actionTopText}>
@@ -518,13 +551,16 @@ export function Cube({
           </div>
 
           <button
-            className={`${styles.actionBtn} ${connectionOk ? styles.actionBtnOn : styles.actionBtnOff}`}
-            onClick={() => (action.href ? onNavigate(action.href) : undefined)}
-            disabled={model.loading || !action.href}
-            aria-disabled={model.loading || !action.href}
+            type="button"
+            className={`${styles.actionBtn} ${connectionOk ? styles.actionBtnOn : styles.actionBtnOff} ${premiumLocked ? styles.actionBtnDisabled : ""}`}
+            onClick={() => (!actionDisabled ? onNavigate(action.href) : undefined)}
+            disabled={actionDisabled}
+            aria-disabled={actionDisabled}
+            aria-label={premiumLockTitle}
+            title={premiumLockTitle}
           >
-            <span className={styles.actionBtnDesktop}>{connectionOk ? i18nT("go_bb63fc96") : <>{i18nT("go_f63f96ef")}{" "}<PlugIcon /></>}</span>
-            <span className={styles.actionBtnMobile}>{connectionOk ? i18nT("go_bb63fc96") : <>{i18nT("go_f63f96ef")}{" "}<PlugIcon /></>}</span>
+            <span className={styles.actionBtnDesktop}>{actionButtonLabel}</span>
+            <span className={styles.actionBtnMobile}>{actionButtonLabel}</span>
           </button>
         </div>
       ) : null}
@@ -577,7 +613,7 @@ export function Cube({
             {hideDetailsToggle ? (
               <>
                 <div className={styles.lectureBusinessToolCol}>
-                  <span className={`${styles.actionPill} ${styles[`action_${pillKey}`]}`}>{localizedPill}</span>
+                  <ActionToolPill action={action} label={localizedPill} premiumLockTitle={premiumLockTitle} />
                 </div>
 
                 <div className={styles.lectureBusinessEffortCol}>
@@ -589,13 +625,16 @@ export function Cube({
                 </div>
 
                 <button
-                  className={`${styles.actionBtn} ${styles.lectureBusinessGoButton} ${connectionOk ? styles.actionBtnOn : styles.actionBtnOff}`}
-                  onClick={() => (action.href ? onNavigate(action.href) : undefined)}
-                  disabled={model.loading || !action.href}
-                  aria-disabled={model.loading || !action.href}
+                  type="button"
+                  className={`${styles.actionBtn} ${styles.lectureBusinessGoButton} ${connectionOk ? styles.actionBtnOn : styles.actionBtnOff} ${premiumLocked ? styles.actionBtnDisabled : ""}`}
+                  onClick={() => (!actionDisabled ? onNavigate(action.href) : undefined)}
+                  disabled={actionDisabled}
+                  aria-disabled={actionDisabled}
+                  aria-label={premiumLockTitle}
+                  title={premiumLockTitle}
                 >
-                  <span className={styles.actionBtnDesktop}>{connectionOk ? i18nT("go_bb63fc96") : <>{i18nT("go_f63f96ef")}{" "}<PlugIcon /></>}</span>
-                  <span className={styles.actionBtnMobile}>{connectionOk ? i18nT("go_bb63fc96") : <>{i18nT("go_f63f96ef")}{" "}<PlugIcon /></>}</span>
+                  <span className={styles.actionBtnDesktop}>{actionButtonLabel}</span>
+                  <span className={styles.actionBtnMobile}>{actionButtonLabel}</span>
                 </button>
               </>
             ) : null}

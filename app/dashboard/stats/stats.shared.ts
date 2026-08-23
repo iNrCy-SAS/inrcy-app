@@ -5,3 +5,4 @@ export { computeOpportunity30 } from "./stats.shared.opportunity";
 export { buildProvenance, computeQuality, hasLinkedInDetailedStats, isLinkedInStatsPartial } from "./stats.shared.quality";
 export { buildInsights } from "./stats.shared.actions";
 export { buildCubeModel, buildSummaryActionItems } from "./stats.shared.model";
+export { applyStatsEditionActionPolicy, isPremiumStatsAction, isPremiumStatsRecommendedTool, type StatsRecommendedTool } from "./stats.edition-policy";

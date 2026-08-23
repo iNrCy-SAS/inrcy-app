@@ -146,6 +146,24 @@ export function isStandardDashboardRouteAllowed(
   return normalizePlan(searchParams?.get("action")) !== "cash";
 }
 
+export function isDashboardDestinationAllowedForEdition(
+  destination: string,
+  edition: DashboardEdition,
+): boolean {
+  if (edition !== "standard") return true;
+
+  const href = String(destination || "").trim();
+  if (!href) return false;
+
+  try {
+    const url = new URL(href, "https://app.inrcy.local");
+    if (!url.pathname.startsWith("/dashboard")) return true;
+    return isStandardDashboardRouteAllowed(url.pathname, url.searchParams);
+  } catch {
+    return false;
+  }
+}
+
 export function isPotentialStandardRestrictedApiPath(pathname: string): boolean {
   return (
     pathname === "/api/billing/checkout" ||

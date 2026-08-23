@@ -5,6 +5,7 @@ import { computeOpportunity30 } from "./stats.shared.opportunity";
 import { buildProvenance, computeQuality, isLinkedInStatsPartial } from "./stats.shared.quality";
 import { buildActionStats, buildInrcyActivityStats, buildVisibilityStats, hasTikTokStatsSignal, isTikTokStatsPermissionError, readMetricError } from "./stats.shared.metrics";
 import { actionFromDecision, buildInsights, getDecisionInput, recommendAction } from "./stats.shared.actions";
+import type { StatsRecommendedTool } from "./stats.edition-policy";
 
 export function buildCubeModel(
   key: Exclude<CubeKey, "mails" | "inrbadge" | "inr_search">,
@@ -219,6 +220,37 @@ export function buildSummaryActionItems({
     pinterest: !!models.find((m) => m.key === "pinterest")?.connections.main,
   };
 
+  // La destination est rattachee a l'outil affiche dans la bulle. Elle ne
+  // depend jamais d'une autre recommandation interne au detail du canal.
+  const connectedRecommendedToolByCube: Record<CubeKey, StatsRecommendedTool> = {
+    inrbadge: "booster",
+    inr_search: "propulser",
+    site_inrcy: "propulser",
+    site_web: "propulser",
+    gmb: "propulser",
+    facebook: "booster",
+    instagram: "booster",
+    linkedin: "booster",
+    mails: "fideliser",
+    tiktok: "booster",
+    youtube_shorts: "booster",
+    pinterest: "booster",
+  };
+  const connectedActionHrefByCube: Record<CubeKey, string> = {
+    inrbadge: "/dashboard?panel=inrbadge",
+    inr_search: "/dashboard/propulser",
+    site_inrcy: "/dashboard/propulser",
+    site_web: "/dashboard/propulser",
+    gmb: "/dashboard/propulser",
+    facebook: "/dashboard?action=publish",
+    instagram: "/dashboard?action=publish",
+    linkedin: "/dashboard?action=publish",
+    mails: "/dashboard/fideliser",
+    tiktok: "/dashboard?action=publish",
+    youtube_shorts: "/dashboard?action=publish",
+    pinterest: "/dashboard?action=publish",
+  };
+
   const connectedCopy: Record<CubeKey, { label: string; kicker: string; motive: string; badge: string }> = {
     inrbadge: {
       label: t("partager_le_badge_09b4365a"),
@@ -382,9 +414,20 @@ export function buildSummaryActionItems({
     { key: "tiktok" as CubeKey, opportunities: centralByCube.tiktok, revenue: computedEstimatedByCube.tiktok || summaryEstimatedByCube.tiktok },
     { key: "youtube_shorts" as CubeKey, opportunities: centralByCube.youtube_shorts, revenue: computedEstimatedByCube.youtube_shorts || summaryEstimatedByCube.youtube_shorts },
     { key: "pinterest" as CubeKey, opportunities: centralByCube.pinterest, revenue: computedEstimatedByCube.pinterest || summaryEstimatedByCube.pinterest },
-  ].map((item) => ({
-    ...item,
-    ...(connectionStateByCube[item.key] ? connectedCopy[item.key] : disconnectedCopy[item.key]),
-    connected: connectionStateByCube[item.key],
-  }));
+  ].map((item) => {
+    const connected = connectionStateByCube[item.key];
+    const model = models.find((candidate) => candidate.key === item.key);
+
+    return {
+      ...item,
+      ...(connected ? connectedCopy[item.key] : disconnectedCopy[item.key]),
+      connected,
+      recommendedTool: connected
+        ? connectedRecommendedToolByCube[item.key]
+        : "connection" as const,
+      actionHref: connected
+        ? connectedActionHrefByCube[item.key]
+        : model?.action.href || "/dashboard",
+    };
+  });
 }

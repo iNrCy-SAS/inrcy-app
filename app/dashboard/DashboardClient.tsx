@@ -74,6 +74,7 @@ import { fetchSharedDashboardRefreshJson } from "@/lib/dashboardRefreshOrchestra
 import {
   STANDARD_BONUS_CHANNEL_KEYS,
   STANDARD_PUBLICATION_CHANNEL_KEYS,
+  isDashboardDestinationAllowedForEdition,
 } from "@/lib/dashboardEdition";
 
 
@@ -449,6 +450,8 @@ export default function DashboardClient({
   }, [goToModule, openRequiredSetupPanel, requiredSetupAccessAllowed]);
 
   const navigateDashboardCta = useCallback((ctaUrl: string) => {
+    if (!isDashboardDestinationAllowedForEdition(ctaUrl, dashboardEdition)) return;
+
     if (isDashboardRequiredSetupProtectedDestination(ctaUrl) && !requiredSetupAccessAllowed) {
       openRequiredSetupPanel();
       return;
@@ -461,7 +464,7 @@ export default function DashboardClient({
         window.location.href = ctaUrl;
       }
     });
-  }, [openRequiredSetupPanel, requestNavigation, requiredSetupAccessAllowed, router]);
+  }, [dashboardEdition, openRequiredSetupPanel, requestNavigation, requiredSetupAccessAllowed, router]);
 
   const openBoosterPublish = useCallback(() => {
     if (!requiredSetupAccessAllowed) {

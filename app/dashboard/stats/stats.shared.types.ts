@@ -172,5 +172,6 @@ export type CubeModel = {
     href: string;
     pill: string;
     effort?: ActionEffort;
+    premiumLocked?: boolean;
   };
 };

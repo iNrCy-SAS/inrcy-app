@@ -4865,6 +4865,23 @@
   border-color: rgba(255, 255, 255, 0.2);
   background: rgba(255, 255, 255, 0.1);
 }
+.notificationActionBtnPremiumLocked,
+.notificationActionBtnPremiumLocked:hover,
+.notificationActionBtnPremiumLocked:focus-visible {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  cursor: not-allowed;
+  transform: none;
+  color: rgba(226, 232, 240, .72);
+  background: rgba(30, 41, 59, .72);
+  border-color: rgba(148, 163, 184, .22);
+}
+.notificationPremiumLabel {
+  font-size: 10px;
+  white-space: nowrap;
+  opacity: .82;
+}
 .notificationList {
   display: grid;
   gap: 10px;

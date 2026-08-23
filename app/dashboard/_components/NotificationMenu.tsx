@@ -4,6 +4,8 @@ import styles from "../dashboard.module.css";
 import { useDashboardI18n } from "../_hooks/useDashboardI18n";
 import type { NotificationItem } from "../dashboard.types";
 import { confirmInrcy } from "@/lib/inrcyDialog";
+import { isDashboardDestinationAllowedForEdition } from "@/lib/dashboardEdition";
+import { useDashboardEdition } from "./DashboardEditionProvider";
 
 export default function NotificationMenu(props: {
   notificationMenuOpen: boolean;
@@ -27,6 +29,7 @@ export default function NotificationMenu(props: {
   onOpen?: () => void;
 }) {
   const t = useDashboardI18n();
+  const dashboardEdition = useDashboardEdition();
 
   const {
     notificationMenuOpen,
@@ -176,7 +179,13 @@ export default function NotificationMenu(props: {
                 {t.notifications.empty}
               </div>
             ) : (
-              notifications.map((item) => (
+              notifications.map((item) => {
+                const premiumCtaLocked = Boolean(
+                  item.cta_url &&
+                  !isDashboardDestinationAllowedForEdition(item.cta_url, dashboardEdition),
+                );
+
+                return (
                 <div key={item.id} className={styles.notificationCard}>
                   <div className={styles.notificationMetaRow}>
                     <span
@@ -215,8 +224,13 @@ export default function NotificationMenu(props: {
                     {item.cta_url && item.cta_label ? (
                       <button
                         type="button"
-                        className={styles.notificationActionBtn}
+                        className={`${styles.notificationActionBtn} ${premiumCtaLocked ? styles.notificationActionBtnPremiumLocked : ""}`}
+                        disabled={premiumCtaLocked}
+                        aria-disabled={premiumCtaLocked || undefined}
+                        aria-label={premiumCtaLocked ? `${item.cta_label}. ${t.status.premiumPlan}` : undefined}
+                        title={premiumCtaLocked ? t.status.premiumPlan : undefined}
                         onClick={() => {
+                          if (premiumCtaLocked) return;
                           void markNotificationRead(item.id);
                           setNotificationMenuOpen(false);
                           if (!item.cta_url) return;
@@ -224,6 +238,7 @@ export default function NotificationMenu(props: {
                         }}
                       >
                         {item.cta_label}
+                        {premiumCtaLocked ? <span className={styles.notificationPremiumLabel}>{t.status.premiumPlan}</span> : null}
                       </button>
                     ) : null}
                     {item.unread && (
@@ -239,7 +254,8 @@ export default function NotificationMenu(props: {
                     )}
                   </div>
                 </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>

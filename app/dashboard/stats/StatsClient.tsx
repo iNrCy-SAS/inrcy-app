@@ -10,6 +10,7 @@ import ResponsiveActionButton from "../_components/ResponsiveActionButton";
 import HelpButton from "../_components/HelpButton";
 import HelpModal from "../_components/HelpModal";
 import {
+  applyStatsEditionActionPolicy,
   buildCubeModel,
   buildSummaryActionItems,
   cubeSessionKey,
@@ -21,6 +22,7 @@ import {
   readUiCacheValue,
   safeNum,
   summarySessionKey,
+  isPremiumStatsRecommendedTool,
   type CubeKey,
   type CubeModel,
   type CubeState,
@@ -369,11 +371,19 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
           }
         : hydratedModel;
       const identityHint = cleanChannelIdentityHint(channelIdentityHints[model.key]);
-      if (!identityHint) return availabilityAwareModel;
+      const identityAwareModel = identityHint
+        ? {
+            ...availabilityAwareModel,
+            // La source fraîche est la même que celle des bulles du Dashboard.
+            // Elle prend donc le dessus sur un éventuel snapshot iNrStats plus ancien.
+            accountLabel: identityHint,
+          }
+        : availabilityAwareModel;
 
-      // La source fraîche est la même que celle des bulles du Dashboard.
-      // Elle prend donc le dessus sur un éventuel snapshot iNrStats plus ancien.
-      return { ...availabilityAwareModel, accountLabel: identityHint };
+      return {
+        ...identityAwareModel,
+        action: applyStatsEditionActionPolicy(identityAwareModel.action, standardMode),
+      };
     });
   }, [cachedChannelConnectivity, centralByCube, channelIdentityHints, dataByCube, i18nT, inrBadgeStats, inrSearchStats, locale, mailStats, officialChannelConnectionStatuses, period, runtimeT, standardMode]);
 
@@ -682,12 +692,17 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
                 {models.map((model) => {
                   const actionItem = summaryActionByChannel.get(model.key);
                   const revenue = summaryEstimatedByCube[model.key] || computedEstimatedByCube[model.key] || actionItem?.revenue || 0;
-                  const actionHref = model.action?.href || "#";
-                  const channelText = model.insights.find((text) => !text.toLowerCase().startsWith("recommandation")) || model.capturedLeadsHint || model.subtitle;
-                  const actionText = actionItem?.kicker || model.action.title;
                   const isSite = model.key === "site_inrcy" || model.key === "site_web";
-                    const connectionPending = model.connectionStatus === "unavailable" || (model.key === "mails" && !!model.connectionPending) || (model.key === "inr_search" && model.loading);
+                  const connectionPending = model.connectionStatus === "unavailable" || (model.key === "mails" && !!model.connectionPending) || (model.key === "inr_search" && model.loading);
                   const connected = !connectionPending && (isSite ? !!model.connections.ga4 || !!model.connections.gsc : !!model.connections.main);
+                  const displayedTool = actionItem?.badge ?? model.action.pill;
+                  const premiumLocked = standardMode && connected && isPremiumStatsRecommendedTool(actionItem?.recommendedTool);
+                  const actionHref = premiumLocked ? "" : actionItem?.actionHref || model.action.href || "#";
+                  const actionTitle = premiumLocked
+                    ? i18nT("stats_premium_action_locked", { tool: displayedTool })
+                    : connected
+                      ? i18nT("stats_run_recommended_action")
+                      : i18nT("stats_configure_channel");
 
                   return (
                     <article
@@ -720,19 +735,33 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
                       </div>
 
                       <div className={styles.allStatsRecommendedAction}>
-                        <span className={`${styles.allStatsToolBadge} ${connected ? "" : styles.allStatsToolBadgeConnect}`}>
-                          {actionItem?.badge ?? model.action.pill}
+                        <span
+                          className={`${styles.allStatsToolBadge} ${connected ? "" : styles.allStatsToolBadgeConnect} ${premiumLocked ? styles.actionPillPremiumLocked : ""}`}
+                          title={premiumLocked ? actionTitle : undefined}
+                          aria-label={premiumLocked ? actionTitle : undefined}
+                        >
+                          {premiumLocked ? <span className={styles.premiumLockIcon} aria-hidden="true">🔒</span> : null}
+                          {displayedTool}
                         </span>
                       </div>
 
                       <button
                         type="button"
-                        className={`${styles.allStatsGoButton} ${connected ? styles.allStatsGoButtonOn : styles.allStatsGoButtonConnect}`}
-                        onClick={() => actionHref && actionHref !== "#" ? navigateFromStats(actionHref) : scrollTo(model.key)}
-                        disabled={false}
-                        title={connected ? i18nT("stats_run_recommended_action") : i18nT("stats_configure_channel")}
+                        className={`${styles.allStatsGoButton} ${connected ? styles.allStatsGoButtonOn : styles.allStatsGoButtonConnect} ${premiumLocked ? styles.allStatsGoButtonDisabled : ""}`}
+                        onClick={() => {
+                          if (premiumLocked) return;
+                          if (actionHref && actionHref !== "#") navigateFromStats(actionHref);
+                          else scrollTo(model.key);
+                        }}
+                        disabled={premiumLocked}
+                        aria-disabled={premiumLocked || undefined}
+                        title={actionTitle}
                       >
-                        {connected ? i18nT("go_bb63fc96") : <>{i18nT("go_f63f96ef")}{" "}<PlugIcon /></>}
+                        {premiumLocked
+                          ? i18nT("stats_go_locked")
+                          : connected
+                            ? i18nT("go_bb63fc96")
+                            : <>{i18nT("go_f63f96ef")}{" "}<PlugIcon /></>}
                       </button>
                     </article>
                   );
