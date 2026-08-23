@@ -1,5 +1,8 @@
 import { buildMetaGraphUrl } from "@/lib/metaGraphApi";
-import { isMetaAuthorizationError } from "@/lib/metaGraphErrorClassification";
+import {
+  isMetaAuthorizationError,
+  isMetaRateLimitError,
+} from "@/lib/metaGraphErrorClassification";
 
 type PublishOk = {
   ok: true;
@@ -25,6 +28,9 @@ type PublishOk = {
 type PublishKo = {
   ok: false;
   error: string;
+  code?: string;
+  retryable?: boolean;
+  retryAfterMs?: number;
   diagnostics?: any;
 };
 
@@ -127,6 +133,21 @@ export function isInstagramAuthorizationErrorResult(result: InstagramPublishResu
   ].some(isMetaAuthorizationError);
 }
 
+export function isInstagramRateLimitErrorResult(result: InstagramPublishResult): boolean {
+  if (result.ok) return false;
+  if (result.code === "instagram_rate_limited") return true;
+  const graphErrors = extractGraphErrors(result.diagnostics) || [];
+  return [
+    { message: result.error },
+    ...graphErrors.map((error) => ({
+      message: error.message,
+      type: error.type,
+      code: error.code,
+      subcode: error.subcode,
+    })),
+  ].some(isMetaRateLimitError);
+}
+
 function withTokenFallbackDiagnostics<T extends InstagramPublishResult>(
   result: T,
   attempts: InstagramPublishAttempt[],
@@ -153,6 +174,37 @@ async function fetchJson(url: string, init?: RequestInit) {
   const res = await fetch(url, { ...init, cache: "no-store" });
   const json = await res.json().catch(() => ({}));
   return { res, json };
+}
+
+function buildInstagramGraphFailure(params: {
+  fallbackMessage: string;
+  response: unknown;
+  httpStatus?: number;
+  diagnostics: unknown;
+}): PublishKo {
+  const response = asRecord(params.response);
+  const graphError = asRecord(response["error"]);
+  const failure: PublishKo = {
+    ok: false,
+    error:
+      String(graphError["message"] || "").trim() || params.fallbackMessage,
+    diagnostics: params.diagnostics,
+  };
+  const rateLimited = isMetaRateLimitError({
+    message: graphError["message"],
+    type: graphError["type"],
+    code: graphError["code"],
+    subcode: graphError["error_subcode"],
+    httpStatus: params.httpStatus,
+  });
+  return rateLimited
+    ? {
+        ...failure,
+        code: "instagram_rate_limited",
+        retryable: true,
+        retryAfterMs: 60_000,
+      }
+    : failure;
 }
 
 async function waitForContainerReady(params: {
@@ -333,16 +385,17 @@ export async function instagramPublishPhoto(params: {
     });
 
     if (!publishRes.ok) {
-      return {
-        ok: false,
-        error: publishJson?.error?.message || "Impossible de publier sur Instagram pour le moment.",
+      return buildInstagramGraphFailure({
+        fallbackMessage: "Impossible de publier sur Instagram pour le moment.",
+        response: publishJson,
+        httpStatus: publishRes.status,
         diagnostics: {
           containerId,
           createResponse: createJson,
           statusChecks: waitResult.checks,
           publishResponse: publishJson,
         },
-      };
+      });
     }
 
     const mediaId = String(publishJson?.id || "");
@@ -465,16 +518,17 @@ export async function instagramPublishVideo(params: {
     });
 
     if (!publishRes.ok) {
-      return {
-        ok: false,
-        error: publishJson?.error?.message || "Impossible de publier la vidéo Instagram pour le moment.",
+      return buildInstagramGraphFailure({
+        fallbackMessage: "Impossible de publier la vidéo Instagram pour le moment.",
+        response: publishJson,
+        httpStatus: publishRes.status,
         diagnostics: {
           containerId,
           createResponse: createJson,
           statusChecks: waitResult.checks,
           publishResponse: publishJson,
         },
-      };
+      });
     }
 
     const mediaId = String(publishJson?.id || "");
@@ -635,9 +689,10 @@ export async function instagramPublishCarousel(params: {
     });
 
     if (!publishRes.ok) {
-      return {
-        ok: false,
-        error: publishJson?.error?.message || "Impossible de publier le carrousel Instagram pour le moment.",
+      return buildInstagramGraphFailure({
+        fallbackMessage: "Impossible de publier le carrousel Instagram pour le moment.",
+        response: publishJson,
+        httpStatus: publishRes.status,
         diagnostics: {
           containerId,
           childContainerIds,
@@ -647,7 +702,7 @@ export async function instagramPublishCarousel(params: {
           statusChecks: waitResult.checks,
           publishResponse: publishJson,
         },
-      };
+      });
     }
 
     const mediaId = String(publishJson?.id || "");

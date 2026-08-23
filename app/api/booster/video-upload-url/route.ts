@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import { requireUser } from "@/lib/requireUser";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { enforceRateLimit } from "@/lib/rateLimit";
+import { normalizeStorageDeliveryUrl } from "@/lib/storageUrlSanitization";
 import {
   INR_MEDIA_VIDEO_FORMATS_LABEL,
   INR_MEDIA_VIDEO_SOURCE_MAX_BYTES,
@@ -267,7 +268,7 @@ export async function POST(req: Request) {
       storagePath,
       path: storagePath,
       token: signed.data.token,
-      signedUrl: signed.data.signedUrl,
+      signedUrl: normalizeStorageDeliveryUrl(signed.data.signedUrl),
       publicUrl: publicData.publicUrl,
       contentType,
       name: sanitizeFileName(name, contentType),

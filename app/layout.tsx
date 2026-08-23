@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import "./globals.css";
@@ -9,16 +8,6 @@ import InrcyDialogProvider from "./_components/InrcyDialogProvider";
 import PullToRefresh from "./_components/PullToRefresh";
 import NativeRuntimeBridge from "./_components/NativeRuntimeBridge";
 import { htmlLanguageFromLocale } from "@/i18n/config";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
   title: "iNrCy",
@@ -56,10 +45,7 @@ export default async function RootLayout({
         {/* 🔒 Empêche Google Translate */}
         <meta name="google" content="notranslate" />
       </head>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-        translate="no"
-      >
+      <body className="antialiased" translate="no">
         <NextIntlClientProvider locale={locale} messages={messages} timeZone="Europe/Paris">
           <NativeRuntimeBridge />
           <OrientationGuard />

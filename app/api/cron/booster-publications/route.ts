@@ -41,6 +41,7 @@ type AsyncChannelCandidateRow = AsyncEventCandidateRow & {
   candidate_channel?: unknown;
   candidate_instagram_checkpoint?: unknown;
   candidate_instagram_next_poll_at?: unknown;
+  candidate_instagram_rate_limit_next_run_at?: unknown;
   candidate_youtube_checkpoint?: unknown;
   candidate_youtube_next_run_at?: unknown;
   candidate_pinterest_checkpoint?: unknown;
@@ -100,6 +101,7 @@ const ASYNC_CHANNEL_CANDIDATE_COLUMNS = [
   "candidate_channel:payload->>channel",
   "candidate_instagram_checkpoint:payload->instagramVideoCheckpoint",
   "candidate_instagram_next_poll_at:payload->>instagramVideoNextPollAt",
+  "candidate_instagram_rate_limit_next_run_at:payload->>instagramRateLimitNextRunAt",
   "candidate_youtube_checkpoint:payload->youtubeUploadCheckpoint",
   "candidate_youtube_next_run_at:payload->>youtubeUploadNextRunAt",
   "candidate_pinterest_checkpoint:payload->pinterestVideoCheckpoint",
@@ -159,6 +161,12 @@ function isChannelCandidateDue(row: AsyncChannelCandidateRow, nowMs: number) {
     );
   if (pinterestTerminal) return false;
 
+  if (
+    channel === "instagram" &&
+    timestampMs(row.candidate_instagram_rate_limit_next_run_at) > nowMs
+  ) {
+    return false;
+  }
   if (
     channel === "instagram" &&
     Object.keys(instagramCheckpoint).length > 0 &&

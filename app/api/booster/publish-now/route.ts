@@ -20,6 +20,7 @@ import {
   instagramPublishCarouselWithTokenFallback,
   instagramPublishPhotoWithTokenFallback,
   isInstagramAuthorizationErrorResult,
+  isInstagramRateLimitErrorResult,
 } from "@/lib/instagramPublish";
 import {
   buildInstagramVideoRequestFingerprint,
@@ -2939,6 +2940,81 @@ async function publishNowHandler(req: Request) {
       );
     }
 
+    async function queueInstagramRateLimitRetry(params: {
+      error: string;
+      retryAfterMs?: number;
+    }) {
+      if (!internalAsyncDispatch || !asyncChannelEventId) return null;
+      const retryAfterMs = Math.max(
+        30_000,
+        Math.min(5 * 60_000, Number(params.retryAfterMs || 60_000)),
+      );
+      const nextRunAt = new Date(Date.now() + retryAfterMs).toISOString();
+
+      await updateAsyncChannelEvent({
+        userId,
+        eventId: asyncChannelEventId,
+        patch: {
+          status: "queued",
+          instagramRateLimitNextRunAt: nextRunAt,
+          lastInstagramRateLimitError: params.error,
+        },
+      });
+      await setDelivery("instagram", { status: "processing", error: null });
+      await failExecutionIdempotencyLock({
+        supabase: supabaseAdmin,
+        lockId: asyncChannelLockId,
+        error: "instagram_rate_limited",
+        result: {
+          ok: true,
+          pending: true,
+          code: "instagram_rate_limited",
+          retryable: true,
+          publication_id: publicationId,
+          channel: "instagram",
+          next_run_at: nextRunAt,
+        },
+        metadata: {
+          publicationId,
+          channel: "instagram",
+          asyncDispatch: true,
+          retryReason: "meta_rate_limit",
+        },
+      });
+      console.info("[instagram-publish] Meta limit; automatic retry queued", {
+        publicationId,
+        retryAfterMs,
+      });
+      asyncFailureContext = null;
+
+      const pendingResult = {
+        ok: true,
+        pending: true,
+        status: "processing",
+        code: "instagram_rate_limited",
+        retryable: true,
+        next_run_at: nextRunAt,
+      };
+      return NextResponse.json(
+        {
+          ok: true,
+          done: false,
+          queued: true,
+          asyncDispatch: true,
+          publication_id: publicationId,
+          channel: "instagram",
+          pollAfterMs: retryAfterMs,
+          results: { instagram: pendingResult },
+        },
+        {
+          status: 202,
+          headers: {
+            "Retry-After": String(Math.max(1, Math.ceil(retryAfterMs / 1_000))),
+          },
+        },
+      );
+    }
+
     async function persistYoutubeUploadCheckpoint(
       checkpoint: YoutubeResumableUploadCheckpoint,
       patch: JsonRecord = {},
@@ -4012,6 +4088,16 @@ async function publishNowHandler(req: Request) {
                   });
 
           if (!resp.ok) {
+            const instagramRateLimited =
+              resp.code === "instagram_rate_limited" ||
+              isInstagramRateLimitErrorResult(resp);
+            if (instagramRateLimited) {
+              const queuedRetry = await queueInstagramRateLimitRetry({
+                error: resp.error,
+                retryAfterMs: resp.retryAfterMs,
+              });
+              if (queuedRetry) return queuedRetry;
+            }
             const instagramUserError =
               isInstagramAuthorizationErrorResult(resp) ||
               isInstagramAuthorizationLikeMessage(`instagram ${resp.error}`)
@@ -4046,6 +4132,15 @@ async function publishNowHandler(req: Request) {
               ok: false,
               error: instagramUserError,
               raw_error: resp.error,
+              ...(resp.code || instagramRateLimited
+                ? {
+                    code: resp.code || "instagram_rate_limited",
+                    retryable:
+                      typeof resp.retryable === "boolean"
+                        ? resp.retryable
+                        : instagramRateLimited,
+                  }
+                : {}),
               diagnostics: resp,
             };
             continue;

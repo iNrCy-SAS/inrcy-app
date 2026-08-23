@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { enforceRateLimit } from "@/lib/rateLimit";
 import { requireUser } from "@/lib/requireUser";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { normalizeStorageDeliveryUrl } from "@/lib/storageUrlSanitization";
 
 export const runtime = "nodejs";
 
@@ -98,7 +99,7 @@ export async function POST(request: Request) {
     storagePath,
     path: storagePath,
     token: signed.data.token,
-    signedUrl: signed.data.signedUrl,
+    signedUrl: normalizeStorageDeliveryUrl(signed.data.signedUrl),
     contentType: "audio/wav",
   });
 }

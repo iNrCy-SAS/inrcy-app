@@ -1,3 +1,5 @@
+import { normalizeStorageDeliveryUrl } from "@/lib/storageUrlSanitization";
+
 type SignedUploadResponse = {
   data: { token: string; signedUrl: string } | null;
   error: { message?: string; statusCode?: number | string } | null;
@@ -24,9 +26,18 @@ export async function createSignedUploadUrlWithRetry(
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
       const result = await create();
-      lastResult = result;
+      const normalizedResult = result.data
+        ? {
+            ...result,
+            data: {
+              ...result.data,
+              signedUrl: normalizeStorageDeliveryUrl(result.data.signedUrl),
+            },
+          }
+        : result;
+      lastResult = normalizedResult;
       if (!result.error || !isTransientStorageError(result.error) || attempt === 2) {
-        return result;
+        return normalizedResult;
       }
     } catch (error) {
       const normalized: SignedUploadResponse = {

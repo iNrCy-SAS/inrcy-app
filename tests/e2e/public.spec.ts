@@ -25,7 +25,10 @@ test.describe('public flows', () => {
     const response = await page.goto('/suppression-compte');
 
     expect(response?.status()).toBe(200);
-    await expect(page.getByRole('heading', { name: 'Supprimer votre compte ou certaines données' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Suppression du compte' })).toBeVisible();
+    await expect(
+      page.getByText('Gérez la suppression de votre compte ou de certaines données.'),
+    ).toBeVisible();
     await expect(page.getByRole('button', { name: 'Envoyer ma demande' })).toBeVisible();
   });
 

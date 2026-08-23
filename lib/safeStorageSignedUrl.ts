@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { normalizeStorageDeliveryUrl } from "@/lib/storageUrlSanitization";
 
 function normalizePath(value: unknown) {
   const path = String(value ?? "").trim().replace(/^\/+/, "");
@@ -166,8 +167,10 @@ async function signWithRetry(bucket: string, path: string, expiresIn: number): P
         .createSignedUrl(path, expiresIn);
 
       if (!error && data?.signedUrl) {
+        const signedUrl = normalizeStorageDeliveryUrl(data.signedUrl);
+        if (!signedUrl) return null;
         clearMissingObject(bucket, path);
-        return data.signedUrl;
+        return signedUrl;
       }
       lastError = error;
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { createClient } from "@/lib/supabaseClient";
@@ -68,7 +68,7 @@ async function apiError(response: Response, fallback: string) {
 }
 
 export default function DeletionRequestForm() {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const [view, setView] = useState<AuthView>("loading");
   const [account, setAccount] = useState<AccountState | null>(null);
   const [busy, setBusy] = useState<Action | "native" | null>(null);
@@ -82,7 +82,7 @@ export default function DeletionRequestForm() {
   const [publicError, setPublicError] = useState("");
   const [publicDone, setPublicDone] = useState(false);
 
-  async function loadAccountState() {
+  const loadAccountState = useCallback(async () => {
     setError("");
     let data: { user: { email?: string | null } | null };
     try {
@@ -124,7 +124,7 @@ export default function DeletionRequestForm() {
       deletion: result.deletion ?? null,
     });
     setView("authenticated");
-  }
+  }, [supabase]);
 
   useEffect(() => {
     let active = true;
@@ -136,7 +136,7 @@ export default function DeletionRequestForm() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [loadAccountState]);
 
   async function runAuthenticatedAction(action: Action) {
     setBusy(action);
