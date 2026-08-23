@@ -122,19 +122,6 @@ function Btn({
   );
 }
 
-function ProviderLabel(p: MailAccount["provider"]) {
-  const i18nT = useTranslations("mails");
-  return p === "gmail" ? i18nT("gmail_eabdf94e") : p === "imap" ? "IMAP" : i18nT("microsoft_11f32421");
-}
-
-function MailConnectionStatusLabel(acc: MailAccount) {
-  const i18nT = useTranslations("mails");
-  const status = acc.connection_status || (acc.status === "connected" ? "connected" : "disconnected");
-  if (status === "needs_update") return i18nT("a_actualiser_228d3b1c");
-  if (status === "connected") return i18nT("connectee_ef6ef9e9");
-  return i18nT("deconnectee_0f5dae32");
-}
-
 function MailConnectionStatusColor(acc: MailAccount) {
   const status = acc.connection_status || (acc.status === "connected" ? "connected" : "disconnected");
   if (status === "needs_update") return "#fbbf24";
@@ -221,6 +208,18 @@ const SIGNATURE_WIDTH_OPTIONS = [
 
 export default function MailsSettingsContent({ onUnsavedChange }: Props) {
   const i18nT = useTranslations("mails");
+
+  function ProviderLabel(p: MailAccount["provider"]) {
+    return p === "gmail" ? i18nT("gmail_eabdf94e") : p === "imap" ? "IMAP" : i18nT("microsoft_11f32421");
+  }
+
+  function MailConnectionStatusLabel(acc: MailAccount) {
+    const status = acc.connection_status || (acc.status === "connected" ? "connected" : "disconnected");
+    if (status === "needs_update") return i18nT("a_actualiser_228d3b1c");
+    if (status === "connected") return i18nT("connectee_ef6ef9e9");
+    return i18nT("deconnectee_0f5dae32");
+  }
+
   const [loading, setLoading] = React.useState(true);
   const [mailAccounts, setMailAccounts] = React.useState<MailAccount[]>([]);
   const [error, setError] = React.useState<string | null>(null);
