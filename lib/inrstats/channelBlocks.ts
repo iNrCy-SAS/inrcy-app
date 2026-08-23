@@ -136,13 +136,13 @@ function mapChannelConnection(channel: DashboardChannelKey, states: ChannelState
     case 'site_inrcy': {
       const state = states.site_inrcy;
       return {
-        connected: state.connected,
+        connected: state.statsConnected,
         accountConnected: state.connected,
         configured: state.connected,
         statsConnected: state.statsConnected,
         expired: false,
         requiresUpdate: false,
-        connectionStatus: state.connected ? 'connected' : 'disconnected',
+        connectionStatus: state.statsConnected ? 'connected' : 'disconnected',
         resourceId: state.url,
         resourceLabel: state.url,
         resourceUrl: state.url,
@@ -151,13 +151,13 @@ function mapChannelConnection(channel: DashboardChannelKey, states: ChannelState
     case 'site_web': {
       const state = states.site_web;
       return {
-        connected: state.connected,
+        connected: state.statsConnected,
         accountConnected: state.connected,
         configured: state.connected,
         statsConnected: state.statsConnected,
         expired: false,
         requiresUpdate: false,
-        connectionStatus: state.connected ? 'connected' : 'disconnected',
+        connectionStatus: state.statsConnected ? 'connected' : 'disconnected',
         resourceId: state.url,
         resourceLabel: state.url,
         resourceUrl: state.url,

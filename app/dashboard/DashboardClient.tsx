@@ -1812,20 +1812,23 @@ const loadSiteInrcy = useCallback(async () => {
     inrSearchConnected: Boolean(inrSearchObj?.enabled && inrSearchSlug),
     inrSearchUrl: inrSearchUrlValue,
     inrSearchDirectoryEnabled: Boolean(inrSearchObj?.enabled && inrSearchObj?.directoryEnabled),
-    siteInrcyGa4Connected: !!(ga4MeasurementIdValue || ga4PropertyIdValue),
-    siteInrcyGscConnected: !!gscPropertyValue,
-    siteWebGa4Connected: !!((siteWebObj as any)?.ga4?.measurement_id || (siteWebObj as any)?.ga4?.property_id),
-    siteWebGscConnected: !!((siteWebObj as any)?.gsc?.property),
+    // Connection flags are filled only from the canonical channel-state API.
+    siteInrcyGa4Connected: false,
+    siteInrcyGscConnected: false,
+    siteWebGa4Connected: false,
+    siteWebGscConnected: false,
     inrBadgeProfile: nextInrBadgeProfile,
   };
 
   try {
     const states = channelStates as any;
     if (states) {
-      nextState.siteInrcyGa4Connected = Boolean(states?.site_inrcy?.ga4 || ga4MeasurementIdValue || ga4PropertyIdValue);
-      nextState.siteInrcyGscConnected = Boolean(states?.site_inrcy?.gsc || gscPropertyValue);
-      nextState.siteWebGa4Connected = Boolean(states?.site_web?.ga4 || (siteWebObj as any)?.ga4?.measurement_id || (siteWebObj as any)?.ga4?.property_id);
-      nextState.siteWebGscConnected = Boolean(states?.site_web?.gsc || (siteWebObj as any)?.gsc?.property);
+      // The server state is the sole connection authority once loaded.
+      // Saved IDs are configuration, not proof of a live Google binding.
+      nextState.siteInrcyGa4Connected = states?.site_inrcy?.ga4 === true;
+      nextState.siteInrcyGscConnected = states?.site_inrcy?.gsc === true;
+      nextState.siteWebGa4Connected = states?.site_web?.ga4 === true;
+      nextState.siteWebGscConnected = states?.site_web?.gsc === true;
 
       nextState.gmbConnected = !!states?.gmb?.connected;
       nextState.gmbAccountConnected = !!states?.gmb?.accountConnected;

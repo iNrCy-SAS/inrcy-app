@@ -8,6 +8,7 @@ import { applyYoutubeShortsIntegrationState } from "@/lib/youtubeShortsOAuth";
 import { hasUsableRefreshCredential } from "@/lib/publicationChannelAvailability";
 import { getPinterestApiEnvironment } from "@/lib/pinterestOAuth";
 import { log } from "@/lib/observability/logger";
+import { isGoogleStatsSiteBindingConnected } from "@/lib/googleStatsConnectionPolicy";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -200,19 +201,11 @@ function hasGoogleSetting(settingsNode: unknown, product: "ga4" | "gsc") {
 function isConnectedGoogleStat(rows: IntegrationLite[], source: "site_inrcy" | "site_web", product: "ga4" | "gsc", fallbackSettingsNode?: unknown) {
   const settingsConnected = hasGoogleSetting(fallbackSettingsNode, product);
   const row = latestIntegration(rows, "google", source, product);
-  const status = (asString(asRecord(row).status) || "").toLowerCase();
 
-  // For GA4/GSC, the persisted property selection is the business truth.
-  // Access tokens are short-lived and are refreshed on demand in lib/googleStats.ts.
-  // So an expired access token must never make the UI or iNrStats look disconnected.
-  // Only an explicit "disconnected" status should turn the connection off.
-  if (status === "disconnected") return false;
-
-  // If the integration row is connected, trust it as the official state.
-  if (status === "connected" || status === "account_connected") return true;
-
-  // If the row is missing or has no clear status yet, keep the persisted setup visible.
-  return settingsConnected;
+  return isGoogleStatsSiteBindingConnected({
+    row,
+    settingsConnected,
+  });
 }
 
 export async function getChannelConnectionStates(
@@ -275,10 +268,19 @@ export async function getChannelConnectionStates(
   const siteWeb = asRecord(settings.site_web);
   const siteWebUrl = (asString(siteWeb.url) || "").trim();
 
-  const inrcyGa4 = isConnectedGoogleStat(rows, "site_inrcy", "ga4", inrcyCfgSettings);
-  const inrcyGsc = isConnectedGoogleStat(rows, "site_inrcy", "gsc", inrcyCfgSettings);
-  const webGa4 = isConnectedGoogleStat(rows, "site_web", "ga4", siteWeb);
-  const webGsc = isConnectedGoogleStat(rows, "site_web", "gsc", siteWeb);
+  const inrcyGa4Binding = isConnectedGoogleStat(rows, "site_inrcy", "ga4", inrcyCfgSettings);
+  const inrcyGscBinding = isConnectedGoogleStat(rows, "site_inrcy", "gsc", inrcyCfgSettings);
+  const webGa4Binding = isConnectedGoogleStat(rows, "site_web", "ga4", siteWeb);
+  const webGscBinding = isConnectedGoogleStat(rows, "site_web", "gsc", siteWeb);
+
+  // A Google binding belongs to a site. Do not let an orphaned GA4/GSC
+  // setting make Dashboard or iNrStats report a connection without that site.
+  const inrcyGa4 = Boolean(inrcyHasSite && inrcyUrl && inrcyGa4Binding);
+  const inrcyGsc = Boolean(inrcyHasSite && inrcyUrl && inrcyGscBinding);
+  const webGa4 = Boolean(siteWebUrl && webGa4Binding);
+  const webGsc = Boolean(siteWebUrl && webGscBinding);
+  const inrcyStatsConnected = inrcyGa4 || inrcyGsc;
+  const webStatsConnected = webGa4 || webGsc;
   const inrcyScore = (inrcyHasSite && !!inrcyUrl ? 1 : 0) + (inrcyGa4 ? 1 : 0) + (inrcyGsc ? 1 : 0);
   const webScore = (!!siteWebUrl ? 1 : 0) + (webGa4 ? 1 : 0) + (webGsc ? 1 : 0);
 
@@ -489,18 +491,18 @@ export async function getChannelConnectionStates(
       expired: false,
       requiresUpdate: false,
       connection_status: inrcyHasSite && !!inrcyUrl ? "connected" : "disconnected",
-      statsConnected: inrcyGa4 || inrcyGsc,
+      statsConnected: inrcyStatsConnected,
       score: inrcyScore,
       url: inrcyUrl || null,
-      ga4: inrcyHasSite && inrcyGa4,
-      gsc: inrcyHasSite && inrcyGsc,
+      ga4: inrcyGa4,
+      gsc: inrcyGsc,
     },
     site_web: {
       connected: !!siteWebUrl,
       expired: false,
       requiresUpdate: false,
       connection_status: siteWebUrl ? "connected" : "disconnected",
-      statsConnected: webGa4 || webGsc,
+      statsConnected: webStatsConnected,
       score: webScore,
       url: siteWebUrl || null,
       ga4: webGa4,

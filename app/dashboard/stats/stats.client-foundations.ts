@@ -317,11 +317,10 @@ export function channelConnectivityFromStates(payload: unknown): CachedChannelCo
   };
 
   return {
-    // iNr'Search is not OAuth: its analytics endpoint verifies the actual
-    // public page (edition, Bubble Access and publication status). Do not let
-    // the lighter settings-only channel state override that stronger result.
-    site_inrcy: Boolean(states.site_inrcy?.ga4 || states.site_inrcy?.gsc || states.site_inrcy?.statsConnected),
-    site_web: Boolean(states.site_web?.ga4 || states.site_web?.gsc || states.site_web?.statsConnected),
+    // Site statistics use the exact canonical state returned by
+    // /api/integrations/channel-states. Saved IDs never override it here.
+    site_inrcy: states.site_inrcy?.statsConnected === true,
+    site_web: states.site_web?.statsConnected === true,
     gmb: isUsable("gmb"),
     facebook: isUsable("facebook"),
     instagram: isUsable("instagram"),
@@ -345,10 +344,9 @@ export function channelConnectionStatusesFromStates(payload: unknown): OfficialC
   };
 
   return {
-    // See channelConnectivityFromStates: iNr'Search owns its authoritative
-    // public-page status through /api/inr-search/analytics.
-    site_inrcy: states.site_inrcy?.statsConnected || states.site_inrcy?.ga4 || states.site_inrcy?.gsc ? "connected" : "disconnected",
-    site_web: states.site_web?.statsConnected || states.site_web?.ga4 || states.site_web?.gsc ? "connected" : "disconnected",
+    // Same authority as Dashboard and the bulk statistics payload.
+    site_inrcy: states.site_inrcy?.statsConnected === true ? "connected" : "disconnected",
+    site_web: states.site_web?.statsConnected === true ? "connected" : "disconnected",
     gmb: normalize("gmb"),
     facebook: normalize("facebook"),
     instagram: normalize("instagram"),

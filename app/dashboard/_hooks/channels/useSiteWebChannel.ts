@@ -170,11 +170,15 @@ export function useSiteWebChannel({
         setSiteWebGscNotice("Search Console déconnecté.");
       }
 
+      const remainingStatsConnected = product === "ga4"
+        ? Boolean(siteWebGscConnected)
+        : Boolean(siteWebGa4Connected);
       patchChannelConnectionLocally("site_web", {
-        connected: Boolean(siteWebSavedUrl.trim()),
+        connected: remainingStatsConnected,
         accountConnected: Boolean(siteWebSavedUrl.trim()),
         configured: Boolean(siteWebSavedUrl.trim()),
-        statsConnected: product === "ga4" ? Boolean(siteWebGscConnected) : Boolean(siteWebGa4Connected),
+        statsConnected: remainingStatsConnected,
+        connectionStatus: remainingStatsConnected ? "connected" : "disconnected",
         resourceId: siteWebSavedUrl || null,
         resourceLabel: siteWebSavedUrl || null,
         resourceUrl: siteWebSavedUrl || null,
@@ -245,11 +249,13 @@ export function useSiteWebChannel({
     await updateSiteWebSettings(parsed);
     setSiteWebUrl(valueToSave);
     setSiteWebSavedUrl(valueToSave);
+    const statsConnected = Boolean(valueToSave && (siteWebGa4Connected || siteWebGscConnected));
     patchChannelConnectionLocally("site_web", {
-      connected: Boolean(valueToSave),
+      connected: statsConnected,
       accountConnected: Boolean(valueToSave),
       configured: Boolean(valueToSave),
-      statsConnected: Boolean(siteWebGa4Connected || siteWebGscConnected),
+      statsConnected,
+      connectionStatus: statsConnected ? "connected" : "disconnected",
       resourceId: valueToSave || null,
       resourceLabel: valueToSave || null,
       resourceUrl: valueToSave || null,
@@ -296,6 +302,7 @@ export function useSiteWebChannel({
       accountConnected: false,
       configured: false,
       statsConnected: false,
+      connectionStatus: "disconnected",
       resourceId: null,
       resourceLabel: null,
       resourceUrl: null,
@@ -331,6 +338,7 @@ export function useSiteWebChannel({
       accountConnected: false,
       configured: false,
       statsConnected: false,
+      connectionStatus: "disconnected",
       resourceId: null,
       resourceLabel: null,
       resourceUrl: null,

@@ -315,6 +315,7 @@ export function useSiteInrcyChannel({
       accountConnected: true,
       configured: true,
       statsConnected: true,
+      connectionStatus: "connected",
       resourceId: siteUrl,
       resourceLabel: siteUrl,
       resourceUrl: siteUrl,
@@ -362,10 +363,11 @@ export function useSiteInrcyChannel({
     setSiteInrcyTrackingBusy(false);
 
     patchChannelConnectionLocally("site_inrcy", {
-      connected: Boolean(siteInrcySavedUrl.trim()),
+      connected: false,
       accountConnected: Boolean(siteInrcySavedUrl.trim()),
       configured: Boolean(siteInrcySavedUrl.trim()),
       statsConnected: false,
+      connectionStatus: "disconnected",
       resourceId: siteInrcySavedUrl || null,
       resourceLabel: siteInrcySavedUrl || null,
       resourceUrl: siteInrcySavedUrl || null,
@@ -409,11 +411,15 @@ export function useSiteInrcyChannel({
         setSiteInrcyGscNotice("Search Console déconnecté.");
       }
 
+      const remainingStatsConnected = product === "ga4"
+        ? Boolean(siteInrcyGscConnected)
+        : Boolean(siteInrcyGa4Connected);
       patchChannelConnectionLocally("site_inrcy", {
-        connected: Boolean(siteInrcySavedUrl.trim()),
+        connected: remainingStatsConnected,
         accountConnected: Boolean(siteInrcySavedUrl.trim()),
         configured: Boolean(siteInrcySavedUrl.trim()),
-        statsConnected: product === "ga4" ? Boolean(siteInrcyGscConnected) : Boolean(siteInrcyGa4Connected),
+        statsConnected: remainingStatsConnected,
+        connectionStatus: remainingStatsConnected ? "connected" : "disconnected",
         resourceId: siteInrcySavedUrl || null,
         resourceLabel: siteInrcySavedUrl || null,
         resourceUrl: siteInrcySavedUrl || null,
@@ -504,11 +510,13 @@ export function useSiteInrcyChannel({
     setSiteInrcyUrl(valueToSave);
     setSiteInrcySavedUrl(valueToSave);
     setSiteInrcyUrlNotice(valueToSave ? "✅ Lien du site enregistré" : null);
+    const statsConnected = Boolean(valueToSave && (siteInrcyGa4Connected || siteInrcyGscConnected));
     patchChannelConnectionLocally("site_inrcy", {
-      connected: Boolean(valueToSave),
+      connected: statsConnected,
       accountConnected: Boolean(valueToSave),
       configured: Boolean(valueToSave),
-      statsConnected: Boolean(siteInrcyGa4Connected || siteInrcyGscConnected),
+      statsConnected,
+      connectionStatus: statsConnected ? "connected" : "disconnected",
       resourceId: valueToSave || null,
       resourceLabel: valueToSave || null,
       resourceUrl: valueToSave || null,
@@ -557,6 +565,7 @@ export function useSiteInrcyChannel({
       accountConnected: false,
       configured: false,
       statsConnected: false,
+      connectionStatus: "disconnected",
       resourceId: null,
       resourceLabel: null,
       resourceUrl: null,
@@ -599,6 +608,7 @@ export function useSiteInrcyChannel({
       accountConnected: false,
       configured: false,
       statsConnected: false,
+      connectionStatus: "disconnected",
       resourceId: null,
       resourceLabel: null,
       resourceUrl: null,

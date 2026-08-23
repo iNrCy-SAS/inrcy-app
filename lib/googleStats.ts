@@ -2,6 +2,10 @@ import { createSupabaseServer } from "@/lib/supabaseServer";
 import { resolveActiveInrcyAccountId } from "@/lib/multicompte/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { tryDecryptToken, encryptToken } from "@/lib/oauthCrypto";
+import {
+  canRetryGoogleStatsIntegration,
+  isGoogleStatsRefreshRetryDeferred,
+} from "@/lib/googleStatsConnectionPolicy";
 
 export type StatsSourceKey = "site_inrcy" | "site_web" | "gmb" | "facebook";
 export type StatsProductKey = "ga4" | "gsc" | "gmb" | "facebook";
@@ -56,6 +60,62 @@ function isGoogleRefreshAuthenticationError(error: unknown) {
   );
 }
 
+const GOOGLE_STATS_REFRESH_RETRY_DELAY_MS = 15 * 60 * 1000;
+
+function clearGoogleStatsRefreshFailureMeta(metaValue: unknown) {
+  const meta = metaValue && typeof metaValue === "object" && !Array.isArray(metaValue)
+    ? { ...(metaValue as Record<string, unknown>) }
+    : {};
+  delete meta.google_stats_refresh_failure_at;
+  delete meta.google_stats_refresh_failure_reason;
+  delete meta.google_stats_refresh_failure_count;
+  delete meta.google_stats_refresh_retry_at;
+
+  if (meta.needs_reconnect_reason === "google_refresh_token_invalid") {
+    delete meta.needs_reconnect;
+    delete meta.needs_reconnect_at;
+    delete meta.needs_reconnect_channel;
+    delete meta.needs_reconnect_reason;
+  }
+  return meta;
+}
+
+async function markGoogleStatsRefreshFailure(row: GoogleTokenRow, userId: string) {
+  const now = new Date();
+  const previousMeta = row.meta && typeof row.meta === "object" && !Array.isArray(row.meta)
+    ? row.meta as Record<string, unknown>
+    : {};
+  const previousCount = Math.max(0, Number(previousMeta.google_stats_refresh_failure_count || 0));
+  const nextMeta = clearGoogleStatsRefreshFailureMeta(previousMeta);
+
+  const { error } = await supabaseAdmin
+    .from("integrations")
+    .update({
+      // Keep the business connection alive. The explicit Disconnect endpoint
+      // is the only path allowed to use status="disconnected" for GA4/GSC.
+      status: "connected",
+      access_token_enc: null,
+      expires_at: null,
+      meta: {
+        ...nextMeta,
+        google_stats_refresh_failure_at: now.toISOString(),
+        google_stats_refresh_failure_reason: "google_refresh_token_invalid",
+        google_stats_refresh_failure_count: previousCount + 1,
+        google_stats_refresh_retry_at: new Date(now.getTime() + GOOGLE_STATS_REFRESH_RETRY_DELAY_MS).toISOString(),
+      },
+    })
+    .eq("id", row.id)
+    .eq("user_id", userId);
+
+  if (error) {
+    console.error("[googleStats] Unable to persist Google Stats refresh failure", {
+      integrationId: row.id,
+      userId,
+      error: error.message,
+    });
+  }
+}
+
 async function markGoogleIntegrationDisconnected(row: GoogleTokenRow, userId: string) {
   const { error } = await supabaseAdmin
     .from("integrations")
@@ -108,43 +168,35 @@ async function getAdminRefreshToken(): Promise<string | null> {
   return token ? tryDecryptToken(token) : null;
 }
 
-function normStatus(s: any) {
-  return String(s || "").toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "");
-}
-
-async function legacyOverrideDisconnected(
-  _supabase: any,
-  _userId: string,
-  _provider: string,
-  _source: string,
-  _product: string
-) {
-  // The legacy integrations_statistiques table is no longer part of the current schema.
-  // Current connection state is sourced exclusively from public.integrations.
-  return false;
-}
-
 async function selectLatestGoogleIntegration(
   supabase: any,
   userId: string,
   source: StatsSourceKey,
-  product: StatsProductKey
+  product: StatsProductKey,
+  options?: { allowStatsRecovery?: boolean },
 ): Promise<GoogleTokenRow | null> {
-  const { data, error } = await supabase
+  let query = supabase
     .from("integrations")
     .select("*")
     .eq("user_id", userId)
     .eq("provider", "google")
     .eq("source", source)
     .eq("product", product)
-    .in("status", ["connected", "account_connected"])
     .order("updated_at", { ascending: false })
     .order("created_at", { ascending: false })
     .limit(5);
 
+  if (!options?.allowStatsRecovery) {
+    query = query.in("status", ["connected", "account_connected"]);
+  }
+
+  const { data, error } = await query;
+
   if (error) throw new Error("Lecture des données impossible pour le moment.");
   const rows = Array.isArray(data) ? (data as GoogleTokenRow[]) : [];
-  return rows[0] ?? null;
+  return options?.allowStatsRecovery
+    ? rows.find((row) => canRetryGoogleStatsIntegration(row)) ?? null
+    : rows[0] ?? null;
 }
 
 export async function getGoogleTokenFor(
@@ -160,14 +212,11 @@ export async function getGoogleTokenFor(
     effectiveUserId = await resolveActiveInrcyAccountId(supabase, authData.user.id);
   }
 
-  // Legacy override: si une ligne existe dans integrations_statistiques en "déconnecté",
-  // on force OFF même si integrations contient encore un vieux token.
-  if (await legacyOverrideDisconnected(supabase, effectiveUserId, "google", source, product)) {
-    return null;
-  }
-
-  const row = await selectLatestGoogleIntegration(supabase, effectiveUserId, source, product);
+  const row = await selectLatestGoogleIntegration(supabase, effectiveUserId, source, product, {
+    allowStatsRecovery: true,
+  });
   if (!row) return null;
+  if (isGoogleStatsRefreshRetryDeferred(row)) return null;
   const usesAdmin = Boolean((row as any)?.meta?.uses_admin);
 
   let refreshToken = tryDecryptToken(row.refresh_token_enc);
@@ -188,10 +237,10 @@ export async function getGoogleTokenFor(
       refreshed = await refreshGoogleAccessToken(refreshToken);
     } catch (error) {
       // A revoked/expired refresh token is a reconnect condition, not an
-      // anonymous-session error. Persist that state so publication can return
-      // a clear reconnect action instead of retrying a dead token forever.
+      // anonymous-session error. GA4/GSC bindings remain connected while the
+      // transport retries, so iNrStats can preserve its last-good figures.
       if (isGoogleRefreshAuthenticationError(error)) {
-        await markGoogleIntegrationDisconnected(row, effectiveUserId);
+        await markGoogleStatsRefreshFailure(row, effectiveUserId);
         return null;
       }
       throw error;
@@ -207,6 +256,7 @@ export async function getGoogleTokenFor(
         access_token_enc: accessToken ? encryptToken(accessToken) : null,
         expires_at: expiresAt,
         status: "connected",
+        meta: clearGoogleStatsRefreshFailureMeta(row.meta),
       })
       .eq("id", row.id)
       .eq("user_id", effectiveUserId);
@@ -476,10 +526,6 @@ export async function getGoogleTokenForAnyGoogle(
     const { data: authData, error: authErr } = await supabase.auth.getUser();
     if (authErr || !authData?.user) throw new Error("Non authentifié.");
     userId = await resolveActiveInrcyAccountId(supabase, authData.user.id);
-  }
-
-  if (await legacyOverrideDisconnected(supabase, userId, "google", source, product)) {
-    return null;
   }
 
   const row = await selectLatestGoogleIntegration(supabase, userId, source, product);
