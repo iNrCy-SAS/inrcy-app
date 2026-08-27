@@ -5,6 +5,21 @@ import { asRecord } from "@/lib/tsSafe";
 
 import { getConnectionDisplayStatus, mailConnectionKind, readConnectionVersion } from "@/lib/connectionVersions";
 import { resolveActiveInrcyAccountId } from "@/lib/multicompte/server";
+
+function publicImapSettings(settings: Record<string, unknown>) {
+  const imap = asRecord(settings["imap"]);
+  const smtp = asRecord(settings["smtp"]);
+  return {
+    imap_host: String(imap["host"] || ""),
+    imap_port: Number(imap["port"] || 993),
+    imap_secure: typeof imap["secure"] === "boolean" ? Boolean(imap["secure"]) : Number(imap["port"] || 993) === 993,
+    smtp_host: String(smtp["host"] || ""),
+    smtp_port: Number(smtp["port"] || 587),
+    smtp_secure: typeof smtp["secure"] === "boolean" ? Boolean(smtp["secure"]) : Number(smtp["port"] || 587) === 465,
+    smtp_starttls: Boolean(smtp["starttls"]),
+  };
+}
+
 export async function GET() {
   const supabase = await createSupabaseServer();
 
@@ -28,11 +43,16 @@ export async function GET() {
       const settings = asRecord(rr["settings"]);
       const kind = mailConnectionKind(rr["provider"]);
       const isConnected = String(rr["status"] || "").toLowerCase() === "connected";
-      const connectionStatus = kind
+      const computedConnectionStatus = kind
         ? getConnectionDisplayStatus(isConnected, kind, settings)
         : isConnected
           ? "connected"
           : "disconnected";
+      // A disconnected mailbox row only remains when the provider credentials
+      // need attention. An intentional disconnect deletes the row entirely.
+      const connectionStatus = kind && computedConnectionStatus === "disconnected"
+        ? "needs_update"
+        : computedConnectionStatus;
       return {
         id: rr["id"],
         provider: rr["provider"],
@@ -44,6 +64,7 @@ export async function GET() {
         connection_status: connectionStatus,
         requires_update: connectionStatus === "needs_update",
         connection_version: readConnectionVersion(settings),
+        imap_settings: rr["provider"] === "imap" ? publicImapSettings(settings) : null,
         created_at: rr["created_at"],
       };
     }) ?? [];

@@ -11,6 +11,7 @@ import { sanitizeRichMailHtml } from "@/lib/mailRichText";
 import { inferInrSendFileRole, saveInrSendHistoryFiles } from "@/lib/inrsend/historyFiles";
 import { getConnectionDisplayStatus } from "@/lib/connectionVersions";
 import { normalizeMailDeliveryError } from "@/lib/mailDeliveryErrors";
+import { markMailAccountReconnectRequired } from "@/lib/mailAccountReconnect";
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 function asRecord(v: unknown): Record<string, unknown> {
   return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
@@ -286,6 +287,7 @@ const handler = async (req: Request) => {
   const refreshTokenPlain = tryDecryptToken(refreshTokenEnc);
 
   if (!accessTokenPlain) {
+    await markMailAccountReconnectRequired({ userId, accountId: String(account.id), reason: "mailbox_access_token_missing" });
     return NextResponse.json({ error: "Jeton d’accès manquant." }, { status: 400 });
   }
 

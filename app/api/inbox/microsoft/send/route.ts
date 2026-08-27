@@ -13,6 +13,7 @@ import { inferInrSendFileRole, saveInrSendHistoryFiles } from "@/lib/inrsend/his
 import { getConnectionDisplayStatus } from "@/lib/connectionVersions";
 import { enforceRateLimit } from "@/lib/rateLimit";
 import { normalizeMailDeliveryError } from "@/lib/mailDeliveryErrors";
+import { markMailAccountReconnectRequired } from "@/lib/mailAccountReconnect";
 
 // Microsoft Graph mail send requires Node.js runtime in most deployments.
 export const runtime = "nodejs";
@@ -158,6 +159,7 @@ const handler = async (req: Request) => {
     const scopesRaw = asString(settingsRec["scopes_raw"]);
 
     if (!accessToken) {
+      await markMailAccountReconnectRequired({ userId, accountId: accountRowId, reason: "mailbox_access_token_missing" });
       return NextResponse.json({ error: "Jeton d’accès manquant." }, { status: 500 });
     }
 
@@ -209,6 +211,9 @@ const handler = async (req: Request) => {
 
     if (!graphRes.ok) {
       const details = await graphRes.text().catch(() => "");
+      if (graphRes.status === 401 || graphRes.status === 403) {
+        await markMailAccountReconnectRequired({ userId, accountId: accountRowId, reason: "mailbox_oauth_invalid" });
+      }
       const normalized = normalizeMailDeliveryError(details || `Envoi Outlook impossible (${graphRes.status})`, "microsoft", graphRes.status);
       return NextResponse.json(
         {

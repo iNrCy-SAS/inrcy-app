@@ -13,6 +13,7 @@ import { stripTemplateSignatureBlock } from "@/lib/mailTemplateCleanup";
 import { sanitizeRichMailHtml } from "@/lib/mailRichText";
 import { appendUnsubscribeFooterToHtml, appendUnsubscribeFooterToText } from "@/lib/mailSuppression";
 import { createMailProviderSendError } from "@/lib/mailDeliveryErrors";
+import { isMailAuthenticationFailure, markMailAccountReconnectRequired } from "@/lib/mailAccountReconnect";
 
 export type SendMailBinaryAttachment = {
   filename: string;
@@ -155,7 +156,14 @@ async function sendViaGmail(
   const accountId = asString(account.id) || "";
   const accessTokenPlain = tryDecryptToken(asString(account.access_token_enc));
   const refreshTokenPlain = tryDecryptToken(asString(account.refresh_token_enc));
-  if (!accessTokenPlain) throw new Error("Jeton Gmail manquant.");
+  if (!accessTokenPlain) {
+    await markMailAccountReconnectRequired({
+      userId: asString(account.user_id) || "",
+      accountId,
+      reason: "mailbox_access_token_missing",
+    });
+    throw new Error("Jeton Gmail manquant.");
+  }
 
   let accessToken = accessTokenPlain;
   if (refreshTokenPlain && isExpired(asString(account.expires_at))) {
@@ -222,7 +230,14 @@ async function sendViaMicrosoft(
   const scopesRaw = asString(settings.scopes_raw);
   const refreshTokenPlain = tryDecryptToken(asString(account.refresh_token_enc));
   let accessToken = tryDecryptToken(asString(account.access_token_enc));
-  if (!accessToken) throw new Error("Jeton Outlook manquant.");
+  if (!accessToken) {
+    await markMailAccountReconnectRequired({
+      userId: asString(account.user_id) || "",
+      accountId,
+      reason: "mailbox_access_token_missing",
+    });
+    throw new Error("Jeton Outlook manquant.");
+  }
 
   if (refreshTokenPlain && isExpired(asString(account.expires_at))) {
     const r = await refreshMicrosoftAccessToken(refreshTokenPlain, scopesRaw);
@@ -257,6 +272,13 @@ async function sendViaMicrosoft(
 
   if (!graphRes.ok) {
     const details = await graphRes.text().catch(() => "");
+    if (graphRes.status === 401 || graphRes.status === 403) {
+      await markMailAccountReconnectRequired({
+        userId: asString(account.user_id) || "",
+        accountId,
+        reason: "mailbox_oauth_invalid",
+      });
+    }
     throw createMailProviderSendError(
       details || `Envoi Outlook impossible (${graphRes.status})`,
       "microsoft",
@@ -331,6 +353,13 @@ async function sendViaImap(
   } catch (error) {
     const smtpError = asRecord(error);
     const responseCode = Number(smtpError.responseCode || smtpError.statusCode || 0);
+    if (isMailAuthenticationFailure(error)) {
+      await markMailAccountReconnectRequired({
+        userId: asString(account.user_id) || "",
+        accountId: asString(account.id) || "",
+        reason: "mailbox_authentication_failed",
+      });
+    }
     throw createMailProviderSendError(
       error,
       "imap",

@@ -32,6 +32,7 @@ export async function GET(request: Request) {
   // ✅ CSRF-safe OAuth state + safe post-auth redirect
   const { searchParams } = new URL(request.url);
   const returnTo = safeInternalPath(searchParams.get("returnTo") || "/dashboard?panel=mails", "/dashboard?panel=mails");
+  const loginHint = String(searchParams.get("loginHint") || "").trim().toLowerCase();
   const { stateB64, cookieValue, cookieName } = makeOAuthState("google", returnTo, { accountId });
 
   // iNrCy only sends mail through Gmail. No mailbox-reading permission is
@@ -52,6 +53,9 @@ export async function GET(request: Request) {
     // rester strictement limité à Gmail Send + identité.
     state: stateB64,
   });
+  if (loginHint.length <= 320 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(loginHint)) {
+    params.set("login_hint", loginHint);
+  }
 
   const url = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
   const res = NextResponse.redirect(url);

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { jsonUserFacingError } from "@/lib/apiUserFacingErrors";
 import { createSupabaseServer } from "@/lib/supabaseServer";
-import { encryptSecret } from "@/lib/imapCrypto";
+import { decryptSecret, encryptSecret } from "@/lib/imapCrypto";
 import nodemailer from "nodemailer";
 import net from "net";
 import { withApi } from "@/lib/observability/withApi";
@@ -10,6 +10,7 @@ import { withImap } from "@/lib/imapClient";
 
 import { withCurrentConnectionVersion } from "@/lib/connectionVersions";
 import { resolveActiveInrcyAccountId } from "@/lib/multicompte/server";
+import { asRecord, asString } from "@/lib/tsSafe";
 function isPrivateIp(ip: string): boolean {
   if (/^10\./.test(ip)) return true;
   if (/^127\./.test(ip)) return true;
@@ -76,8 +77,32 @@ const handler = async (req: Request) => {
 
   try {
     const body = await req.json().catch(() => ({}));
-    const login = String(body.login || "").trim();
-    const password = String(body.password || "");
+    const accountId = String(body.accountId || "").trim();
+    const submittedPassword = String(body.password || "");
+
+    const userId = await resolveActiveInrcyAccountId(supabase, userData.user.id);
+    let existingQuery = supabaseAdmin
+      .from("integrations")
+      .select("id,account_email,refresh_token_enc,settings")
+      .eq("user_id", userId)
+      .eq("category", "mail")
+      .eq("provider", "imap");
+    if (accountId) existingQuery = existingQuery.eq("id", accountId);
+    const { data: existingRows, error: existingReadError } = await existingQuery
+      .order("created_at", { ascending: true })
+      .limit(1);
+    if (existingReadError) {
+      return jsonUserFacingError("Impossible de charger cette boîte IMAP pour le moment.", { status: 500, code: "imap_read_failed" });
+    }
+    const existing = asRecord(existingRows?.[0]);
+    if (accountId && !existing["id"]) {
+      return jsonUserFacingError("Cette boîte IMAP est introuvable.", { status: 404, code: "imap_account_not_found" });
+    }
+
+    const login = String(body.login || existing["account_email"] || "").trim();
+    const existingPasswordEnc = asString(existing["refresh_token_enc"]) || "";
+    const storedPassword = !submittedPassword && existingPasswordEnc ? decryptSecret(existingPasswordEnc) : "";
+    const password = submittedPassword || storedPassword;
 
     const imap_host = validateHost(body.imap_host);
     const imap_port = validatePort(Number(body.imap_port ?? 993), 993);
@@ -124,14 +149,16 @@ const handler = async (req: Request) => {
     });
     await transport.verify();
 
-    const userId = await resolveActiveInrcyAccountId(supabase, userData.user.id);
-    await supabaseAdmin.from("integrations").delete().eq("user_id", userId).eq("category", "mail").eq("provider", "imap");
-
-    const password_enc = encryptSecret(password);
-
-    const { data, error } = await supabaseAdmin
-      .from("integrations")
-      .insert({
+    const password_enc = submittedPassword || !existingPasswordEnc
+      ? encryptSecret(password)
+      : existingPasswordEnc;
+    const existingSettings = asRecord(existing["settings"]);
+    const cleanedSettings = { ...existingSettings };
+    delete cleanedSettings["mailbox_feedback_scan_failure_count"];
+    delete cleanedSettings["mailbox_feedback_scan_paused_until"];
+    delete cleanedSettings["mailbox_feedback_scan_last_failed_at"];
+    delete cleanedSettings["mailbox_feedback_scan_last_error_code"];
+    const payload = {
         user_id: userId,
         provider: "imap",
         category: "mail",
@@ -143,16 +170,31 @@ const handler = async (req: Request) => {
         refresh_token_enc: password_enc,
         expires_at: null,
         settings: withCurrentConnectionVersion("mail:imap", {
+          ...cleanedSettings,
           display_name: "IMAP",
           imap: { host: imap_host, port: imap_port, secure: imap_secure },
           smtp: { host: smtp_host, port: smtp_port, secure: smtp_secure, starttls: smtp_starttls },
         }),
-      })
-      .select("id")
-      .single();
+        updated_at: new Date().toISOString(),
+      };
+
+    const saveQuery = existing["id"]
+      ? supabaseAdmin
+          .from("integrations")
+          .update(payload)
+          .eq("id", String(existing["id"]))
+          .eq("user_id", userId)
+          .select("id")
+          .single()
+      : supabaseAdmin
+          .from("integrations")
+          .insert(payload)
+          .select("id")
+          .single();
+    const { data, error } = await saveQuery;
 
     if (error) return jsonUserFacingError("Impossible d'enregistrer ce compte de messagerie pour le moment.", { status: 500, code: "imap_save_failed" });
-    return NextResponse.json({ ok: true, id: data?.id });
+    return NextResponse.json({ ok: true, id: data?.id, updated: Boolean(existing["id"]) });
   } catch (e: unknown) {
     return jsonUserFacingError(translateMailConnectionError(e, "Connexion impossible pour le moment."), {
       status: 400,

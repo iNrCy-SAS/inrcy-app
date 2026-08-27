@@ -11,6 +11,16 @@ type Props = {
   onUnsavedChange?: (hasUnsavedChanges: boolean) => void;
 };
 
+type ImapPublicSettings = {
+  imap_host: string;
+  imap_port: number;
+  imap_secure: boolean;
+  smtp_host: string;
+  smtp_port: number;
+  smtp_secure: boolean;
+  smtp_starttls: boolean;
+};
+
 type MailAccount = {
   id: string;
   provider: "gmail" | "microsoft" | "imap";
@@ -20,6 +30,7 @@ type MailAccount = {
   connection_status?: "connected" | "needs_update" | "disconnected";
   requires_update?: boolean;
   connection_version?: number;
+  imap_settings?: ImapPublicSettings | null;
   created_at: string;
 };
 
@@ -130,8 +141,12 @@ function MailConnectionStatusColor(acc: MailAccount) {
 }
 
 function mailAccountRefreshUrl(acc: MailAccount) {
-  if (acc.provider === "gmail") return "/api/integrations/google/start";
-  if (acc.provider === "microsoft") return "/api/integrations/microsoft/start";
+  const params = new URLSearchParams({
+    returnTo: "/dashboard?panel=mails",
+    loginHint: acc.email_address,
+  });
+  if (acc.provider === "gmail") return `/api/integrations/google/start?${params.toString()}`;
+  if (acc.provider === "microsoft") return `/api/integrations/microsoft/start?${params.toString()}`;
   return null;
 }
 
@@ -272,6 +287,7 @@ Email : {{email}}`);
   };
 
   const [imapModalOpen, setImapModalOpen] = React.useState(false);
+  const [imapEditingAccountId, setImapEditingAccountId] = React.useState<string | null>(null);
   const [imapPresetKey, setImapPresetKey] = React.useState<ImapPresetKey>("ovh");
   const [imapLogin, setImapLogin] = React.useState("");
   const [imapPassword, setImapPassword] = React.useState("");
@@ -299,6 +315,7 @@ Email : {{email}}`);
     signatureImageWidth,
   });
   const imapDraftSignature = JSON.stringify({
+    imapEditingAccountId,
     imapPresetKey,
     imapLogin,
     imapPassword,
@@ -322,6 +339,7 @@ Email : {{email}}`);
     }
     imapModalBaselineSignatureRef.current = "";
     setImapModalOpen(false);
+    setImapEditingAccountId(null);
   }, [imapDraftSignature, imapModalOpen]);
 
   React.useEffect(() => {
@@ -382,6 +400,50 @@ Email : {{email}}`);
         : `Réglages recommandés chargés pour ${IMAP_PRESETS[key].label}. Vous pouvez les modifier.`
     );
   }, []);
+
+  function openImapModal(account: MailAccount | null) {
+    const settings: ImapSettings = account?.imap_settings
+      ? { ...account.imap_settings }
+      : {
+          imap_host: IMAP_PRESETS.ovh.imap_host,
+          imap_port: IMAP_PRESETS.ovh.imap_port,
+          imap_secure: IMAP_PRESETS.ovh.imap_secure,
+          smtp_host: IMAP_PRESETS.ovh.smtp_host,
+          smtp_port: IMAP_PRESETS.ovh.smtp_port,
+          smtp_secure: IMAP_PRESETS.ovh.smtp_secure,
+          smtp_starttls: IMAP_PRESETS.ovh.smtp_starttls,
+        };
+    const matchedPreset = account
+      ? (Object.entries(IMAP_PRESETS).find(([key, preset]) => key !== "other"
+          && preset.imap_host === settings.imap_host
+          && preset.imap_port === settings.imap_port
+          && preset.imap_secure === settings.imap_secure
+          && preset.smtp_host === settings.smtp_host
+          && preset.smtp_port === settings.smtp_port
+          && preset.smtp_secure === settings.smtp_secure
+          && preset.smtp_starttls === settings.smtp_starttls)?.[0] as ImapPresetKey | undefined)
+      : "ovh";
+    const nextPresetKey = matchedPreset || "other";
+    const nextLogin = account?.email_address || "";
+    const nextEditingAccountId = account?.id || null;
+
+    setImapFormError(null);
+    setImapAssistMessage(null);
+    setImapEditingAccountId(nextEditingAccountId);
+    setImapLogin(nextLogin);
+    setImapPassword("");
+    setImapPresetKey(nextPresetKey);
+    setImapCustom(settings);
+    setImapShowPassword(false);
+    imapModalBaselineSignatureRef.current = JSON.stringify({
+      imapEditingAccountId: nextEditingAccountId,
+      imapPresetKey: nextPresetKey,
+      imapLogin: nextLogin,
+      imapPassword: "",
+      imapCustom: settings,
+    });
+    setImapModalOpen(true);
+  }
 
   const imapFieldStyle: React.CSSProperties = {
     borderRadius: 12,
@@ -545,6 +607,11 @@ Email : {{email}}`));
     {i18nT("boite_imap_connectee_vous_pouvez_maintenant_4d98651e")}{" "}</div>
 )}
 
+{toast === "imap_updated" && (
+  <div style={{ marginTop: 8, fontSize: 13, color: "#34d399" }}>
+    {i18nT("imap_settings_saved")}{" "}</div>
+)}
+
 
       </div>
 
@@ -592,38 +659,23 @@ Email : {{email}}`));
                     <Btn
                       label={i18nT("connecter_imap_ovh_ionos_orange_sfr_9346ccf0")}
                       disabled={loading}
-                      onClick={() => {
-                        setImapFormError(null);
-                        setImapLogin("");
-                        setImapPassword("");
-                        setImapPresetKey("ovh");
-                        applyImapPreset("ovh");
-                        imapModalBaselineSignatureRef.current = JSON.stringify({
-                          imapPresetKey: "ovh",
-                          imapLogin: "",
-                          imapPassword: "",
-                          imapCustom: {
-                            imap_host: IMAP_PRESETS.ovh.imap_host,
-                            imap_port: IMAP_PRESETS.ovh.imap_port,
-                            imap_secure: IMAP_PRESETS.ovh.imap_secure,
-                            smtp_host: IMAP_PRESETS.ovh.smtp_host,
-                            smtp_port: IMAP_PRESETS.ovh.smtp_port,
-                            smtp_secure: IMAP_PRESETS.ovh.smtp_secure,
-                            smtp_starttls: IMAP_PRESETS.ovh.smtp_starttls,
-                          },
-                        });
-                        setImapShowPassword(false);
-                        setImapModalOpen(true);
-                      }}
+                      onClick={() => openImapModal(null)}
                     />
                   )}
                 </>
               ) : (
                 <>
                   <div style={{ fontSize: 12, color: MailConnectionStatusColor(acc), marginTop: 4 }}>{i18nT("statut_value_b14864f1", { value0: MailConnectionStatusLabel(acc) })}</div>
-                  {acc.connection_status === "needs_update" && mailAccountRefreshUrl(acc) ? (
+                  {acc.provider === "imap" ? (
                     <Btn
-                      label={i18nT("actualiser_9d3b2a7d")}
+                      label={i18nT("imap_settings_button")}
+                      disabled={loading}
+                      onClick={() => openImapModal(acc)}
+                    />
+                  ) : null}
+                  {acc.provider !== "imap" && acc.connection_status === "needs_update" && mailAccountRefreshUrl(acc) ? (
+                    <Btn
+                      label={i18nT("reconnect_mailbox")}
                       disabled={loading}
                       onClick={() => {
                         const url = mailAccountRefreshUrl(acc);
@@ -932,9 +984,13 @@ Email : {{email}}`));
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
               <div>
-                <div style={{ fontSize: 16, fontWeight: 950 }}>{i18nT("connexion_imap_boite_4_6d4e6ca3")}</div>
+                <div style={{ fontSize: 16, fontWeight: 950 }}>
+                  {imapEditingAccountId ? i18nT("imap_settings_title") : i18nT("connexion_imap_boite_4_6d4e6ca3")}
+                </div>
                 <div style={{ fontSize: 12, opacity: 0.75, marginTop: 2 }}>
-                  {i18nT("choisissez_un_fournisseur_prerempli_saisissez_vo_9888b1f7")}{" "}<b>identifiant</b> {" "}{i18nT("et_votre_1db8b8ca")}{" "}<b>{i18nT("mot_de_passe_b47ea832")}</b>{i18nT("puis_cliquez_sur_cfcbb581")}{" "}<b>{i18nT("connecter_ca28e250")}</b>.
+                  {imapEditingAccountId
+                    ? i18nT("imap_settings_intro")
+                    : <>{i18nT("choisissez_un_fournisseur_prerempli_saisissez_vo_9888b1f7")}{" "}<b>identifiant</b> {" "}{i18nT("et_votre_1db8b8ca")}{" "}<b>{i18nT("mot_de_passe_b47ea832")}</b>{i18nT("puis_cliquez_sur_cfcbb581")}{" "}<b>{i18nT("connecter_ca28e250")}</b>.</>}
                 </div>
               </div>
               <button
@@ -1014,6 +1070,9 @@ Email : {{email}}`));
                     {imapShowPassword ? "🙈" : "👁️"}
                   </button>
                 </div>
+                {imapEditingAccountId ? (
+                  <div style={{ fontSize: 12, opacity: 0.72 }}>{i18nT("imap_settings_password_hint")}</div>
+                ) : null}
               </div>
 
               <div style={{ display: "grid", gap: 10, marginTop: 4 }}>
@@ -1190,7 +1249,7 @@ Email : {{email}}`));
                   onClick={async () => {
                     try {
                       setImapFormError(null);
-                      if (!imapLogin.trim() || !imapPassword) {
+                      if (!imapLogin.trim() || (!imapEditingAccountId && !imapPassword)) {
                         setImapFormError(i18nT("saisis_identifiant_et_mot_de_passe_50c55741"));
                         return;
                       }
@@ -1202,6 +1261,7 @@ Email : {{email}}`));
                         body: JSON.stringify({
                           login: imapLogin.trim(),
                           password: imapPassword,
+                          accountId: imapEditingAccountId,
                           ...preset,
                         }),
                       });
@@ -1210,7 +1270,8 @@ Email : {{email}}`));
                       imapModalBaselineSignatureRef.current = "";
                       setImapModalOpen(false);
                       await refreshMailAccounts(true);
-                      setToast("imap_connected");
+                      setToast(imapEditingAccountId ? "imap_updated" : "imap_connected");
+                      setImapEditingAccountId(null);
                     } catch (e: any) {
                       setImapFormError(getSimpleFrenchErrorMessage(e, "Connexion impossible pour le moment."));
                     } finally {
@@ -1227,7 +1288,9 @@ Email : {{email}}`));
                     opacity: imapTestBusy || imapConnectBusy ? 0.6 : 1,
                   }}
                 >
-                  {imapConnectBusy ? i18nT("connexion_807c2021") : i18nT("connecter_ca28e250")}
+                  {imapConnectBusy
+                    ? (imapEditingAccountId ? i18nT("enregistrement_e7d5f232") : i18nT("connexion_807c2021"))
+                    : (imapEditingAccountId ? i18nT("enregistrer_f7c8bcd8") : i18nT("connecter_ca28e250"))}
                 </button>
               </div>
 

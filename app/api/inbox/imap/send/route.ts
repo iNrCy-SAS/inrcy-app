@@ -16,16 +16,20 @@ import { sanitizeRichMailHtml } from "@/lib/mailRichText";
 import { inferInrSendFileRole, saveInrSendHistoryFiles } from "@/lib/inrsend/historyFiles";
 import { enforceRateLimit } from "@/lib/rateLimit";
 import { normalizeMailDeliveryError } from "@/lib/mailDeliveryErrors";
+import { isMailAuthenticationFailure, markMailAccountReconnectRequired } from "@/lib/mailAccountReconnect";
 
 
 // IMAP + SMTP require Node.js runtime (Edge runtime can't open raw TCP sockets)
 export const runtime = "nodejs";
 
 const handler = async (req: Request) => {
+  let scopedUserId = "";
+  let scopedAccountId = "";
   try {
     const { supabase, activeUserId, errorResponse } = await requireUser();
     if (errorResponse) return errorResponse;
     const userId = activeUserId;
+    scopedUserId = userId;
 
     const rateLimited = await enforceRateLimit({
       name: "imap_send",
@@ -93,6 +97,7 @@ const handler = async (req: Request) => {
     if (!accountId) {
       return NextResponse.json({ error: "Boîte d’envoi manquante." }, { status: 400 });
     }
+    scopedAccountId = accountId;
     if (!to) {
       return NextResponse.json({ error: "Destinataire manquant." }, { status: 400 });
     }
@@ -245,6 +250,13 @@ const handler = async (req: Request) => {
 
     return NextResponse.json({ success: true, id: info.messageId });
   } catch (e: unknown) {
+    if (scopedUserId && scopedAccountId && isMailAuthenticationFailure(e)) {
+      await markMailAccountReconnectRequired({
+        userId: scopedUserId,
+        accountId: scopedAccountId,
+        reason: "mailbox_authentication_failed",
+      }).catch(() => undefined);
+    }
     const normalized = normalizeMailDeliveryError(safeErrorMessage(e) || e || "Impossible d'envoyer le message pour le moment.", "imap");
     return NextResponse.json(
       {

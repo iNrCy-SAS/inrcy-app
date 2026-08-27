@@ -44,6 +44,10 @@ export async function GET(req: Request) {
 
   const { searchParams } = new URL(req.url);
   const returnTo = safeInternalPath(searchParams.get("returnTo") || "/dashboard?panel=mails", "/dashboard?panel=mails");
+  const loginHint = String(searchParams.get("loginHint") || "").trim().toLowerCase();
+  if (loginHint.length <= 320 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(loginHint)) {
+    url.searchParams.set("login_hint", loginHint);
+  }
   const { stateB64, cookieValue, cookieName } = makeOAuthState("microsoft", returnTo, { accountId });
   url.searchParams.set("state", stateB64);
 
