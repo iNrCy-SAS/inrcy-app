@@ -48,6 +48,8 @@ test.describe('settings pages', () => {
 
     await expectSettingsPanelUrl(page, 'contact');
     await expect(page.getByText(/Nous contacter/i).first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('a[href="tel:+33631260812"]')).toBeVisible();
+    await expect(page.locator('a[href^="https://wa.me/33631260812?text="]')).toBeVisible();
 
     await runtime.expectNoErrors();
   });

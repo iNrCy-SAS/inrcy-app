@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { normalizeStorageDeliveryUrl } from "../../lib/storageUrlSanitization.ts";
+import {
+  normalizeStorageDeliveryUrl,
+  shouldUseRangeGetForStorageDeliveryUrl,
+} from "../../lib/storageUrlSanitization.ts";
 
 test("les URL Storage perdent uniquement les antislashs parasites de fin", () => {
   const base = "https://project.supabase.co/storage/v1/object/sign/booster/image.png?token=abc_DEF-123";
@@ -13,6 +16,25 @@ test("les URL Storage perdent uniquement les antislashs parasites de fin", () =>
   assert.equal(
     normalizeStorageDeliveryUrl(`${base}&label=milieu%5Cvalide`),
     `${base}&label=milieu%5Cvalide`,
+  );
+});
+
+test("détecte les URL privées à sonder avec un GET borné", () => {
+  assert.equal(
+    shouldUseRangeGetForStorageDeliveryUrl(
+      "https://project.supabase.co/storage/v1/object/sign/booster/image.jpg?token=abc",
+    ),
+    true,
+  );
+  assert.equal(
+    shouldUseRangeGetForStorageDeliveryUrl(
+      "https://app.inrcy.com/api/storage/content?bucket=booster&path=image.jpg",
+    ),
+    true,
+  );
+  assert.equal(
+    shouldUseRangeGetForStorageDeliveryUrl("https://cdn.example.test/image.jpg"),
+    false,
   );
 });
 

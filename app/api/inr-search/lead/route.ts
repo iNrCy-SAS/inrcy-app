@@ -6,6 +6,7 @@ import { recordInrSearchEvent, resolvePublishedInrSearchOwner } from "@/lib/inrS
 import { upsertCrmContactWithoutDuplicate } from "@/lib/crmContactDedupe";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendTxMail } from "@/lib/txMailer";
+import { insertNotificationOnce } from "@/lib/notificationWriter";
 
 const MAX_BODY_BYTES = 16_384;
 
@@ -239,28 +240,29 @@ export async function POST(request: Request) {
 
   const contactLabel = displayName || visitorCompany || email || phone || "Nouveau prospect";
   const notificationKey = `inrsearch_lead:${crmResult.id || Date.now()}:${Date.now()}`;
-  const { error: notificationError } = await supabaseAdmin.from("notifications").insert({
-    user_id: owner.userId,
-    category: "information",
-    kind: "inrsearch_lead",
-    title: "Nouvelle demande iNr’Search",
-    body: `${contactLabel} souhaite être recontacté depuis votre page publique.`,
-    cta_label: "Ouvrir le CRM",
-    cta_url: "/dashboard/crm",
-    dedupe_key: notificationKey,
-    meta: {
-      source: "inr_search",
-      contactId: crmResult.id || null,
-      slug: owner.slug,
-      displayName,
-      visitorCompany,
-      email,
-      phone,
-      message,
-      created: Boolean(crmResult.created),
-    },
-  });
-  if (notificationError) {
+  try {
+    await insertNotificationOnce({
+      user_id: owner.userId,
+      category: "information",
+      kind: "inrsearch_lead",
+      title: "Nouvelle demande iNr’Search",
+      body: `${contactLabel} souhaite être recontacté depuis votre page publique.`,
+      cta_label: "Ouvrir le CRM",
+      cta_url: "/dashboard/crm",
+      dedupe_key: notificationKey,
+      meta: {
+        source: "inr_search",
+        contactId: crmResult.id || null,
+        slug: owner.slug,
+        displayName,
+        visitorCompany,
+        email,
+        phone,
+        message,
+        created: Boolean(crmResult.created),
+      },
+    });
+  } catch (notificationError) {
     console.warn("[inr-search-lead] notification insert failed", notificationError);
   }
 

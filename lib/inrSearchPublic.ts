@@ -932,7 +932,7 @@ async function loadInrSearchPublicPageUncached(slug: string): Promise<InrSearchP
       companyName: "Écurie et élevage des frênes",
       contactName: "Équipe des frênes",
       logoUrl: "/logo-inrcy.png",
-      phone: "06 22 08 21 79",
+      phone: "06 31 26 08 12",
       email: "j.wright@inrcy.com",
       address: "1 rue de Fouquières",
       zip: "62440",

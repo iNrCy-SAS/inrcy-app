@@ -8,6 +8,7 @@ import { optionalEnv } from "@/lib/env";
 import { jsonUserFacingError } from "@/lib/apiUserFacingErrors";
 import { sendMailFromIntegration } from "@/lib/inrsend/sendMailFromIntegration";
 import { getConnectionDisplayStatus, mailConnectionKind } from "@/lib/connectionVersions";
+import { insertNotificationOnce } from "@/lib/notificationWriter";
 import {
   buildClientExchangePreferences,
   DEFAULT_CLIENT_EXCHANGE_PREFERENCES,
@@ -759,22 +760,24 @@ export async function GET(req: Request) {
     let dirty = false;
 
     if (!lastInAppReminderAt && minutesUntil <= inAppMinutesBefore) {
-      const { error: notificationError } = await supabaseAdmin.from("notifications").insert({
-        user_id: row.user_id,
-        category: "action",
-        kind: "agenda_rappel",
-        title: `Rappel rendez-vous : ${row.title || "Rendez-vous"}`,
-        body: `Votre rendez-vous est prévu le ${fmtDate(String(row.start_at))}${row.location ? ` à ${row.location}` : ""}.`,
-        cta_label: "Ouvrir l’agenda",
-        cta_url: "/dashboard/agenda",
-        dedupe_key: `agenda:inapp:${row.id}:${String(row.start_at)}`,
-        meta: { source: "agenda", event_id: row.id },
-      });
-      if (!notificationError) {
+      try {
+        await insertNotificationOnce({
+          user_id: row.user_id,
+          category: "action",
+          kind: "agenda_rappel",
+          title: `Rappel rendez-vous : ${row.title || "Rendez-vous"}`,
+          body: `Votre rendez-vous est prévu le ${fmtDate(String(row.start_at))}${row.location ? ` à ${row.location}` : ""}.`,
+          cta_label: "Ouvrir l’agenda",
+          cta_url: "/dashboard/agenda",
+          dedupe_key: `agenda:inapp:${row.id}:${String(row.start_at)}`,
+          meta: { source: "agenda", event_id: row.id },
+        });
         inAppSent += 1;
         nextReminders = { ...nextReminders, lastInAppReminderAt: now.toISOString() };
         nextMeta = { ...nextMeta, reminders: nextReminders };
         dirty = true;
+      } catch (notificationError) {
+        console.warn("[calendar-reminders] notification insert failed", notificationError);
       }
     }
 

@@ -10,6 +10,12 @@ import { oauthCallbackEvent, oauthCallbackException } from "@/lib/observability/
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { log } from "@/lib/observability/logger";
+import {
+  findExplicitlyMissingGoogleScopes,
+  GOOGLE_OAUTH_PERMISSION_ERROR_CODE,
+  GOOGLE_OAUTH_PERMISSION_MESSAGE,
+  GOOGLE_USERINFO_EMAIL_SCOPE,
+} from "@/lib/googleOAuthConsent";
 
 import { withCurrentConnectionVersion } from "@/lib/connectionVersions";
 import { resolveOAuthBoundInrcyAccountId } from "@/lib/multicompte/server";
@@ -145,8 +151,16 @@ export async function GET(req: Request) {
     });
 
     const tokenData = (await tokenRes.json()) as TokenResponse;
-    if (!tokenRes.ok) {
+    if (!tokenRes.ok || !tokenData.access_token) {
       return fail("token_exchange_failed", "La connexion au compte a échoué. Merci de réessayer.");
+    }
+
+    const missingScopes = findExplicitlyMissingGoogleScopes(tokenData.scope, [
+      "https://www.googleapis.com/auth/business.manage",
+      GOOGLE_USERINFO_EMAIL_SCOPE,
+    ]);
+    if (missingScopes.length) {
+      return fail(GOOGLE_OAUTH_PERMISSION_ERROR_CODE, GOOGLE_OAUTH_PERMISSION_MESSAGE);
     }
 
     const userRes = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {

@@ -2,9 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { readAccountCacheValue, resolveActiveBrowserUserId, writeAccountCacheValue } from "@/lib/browserAccountCache";
+import { readAccountCacheValue, writeAccountCacheValue } from "@/lib/browserAccountCache";
 import {
-  DASHBOARD_ONBOARDING_SELECT,
   DASHBOARD_ONBOARDING_VERSION,
   isDashboardOnboardingFirstOpening,
   normalizeDashboardOnboardingRow,
@@ -15,7 +14,6 @@ import {
   type DashboardOnboardingStep,
 } from "@/lib/dashboardOnboarding";
 import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
-import { createClient } from "@/lib/supabaseClient";
 
 type OnboardingState = {
   accountId: string | null;
@@ -84,47 +82,42 @@ function cacheOnboardingState(state: OnboardingState) {
   }
 }
 
+const ONBOARDING_API_URL = "/api/dashboard/onboarding-state";
 const inFlightOnboardingLoads = new Map<
   string,
-  Promise<DashboardOnboardingRow | null>
+  Promise<DashboardOnboardingInitialState>
 >();
 
-async function resolveOnboardingAccountId() {
-  const supabase = createClient();
-  const { data: authData, error } = await supabase.auth.getUser();
-  const user = authData?.user;
-  if (error || !user) return null;
+async function loadOnboardingState(options?: { force?: boolean }) {
+  const requestKey = "active-account";
+  if (options?.force) inFlightOnboardingLoads.delete(requestKey);
 
-  return resolveActiveBrowserUserId(user.id);
-}
-
-async function loadOnboardingRow(
-  accountId: string,
-  options?: { force?: boolean },
-) {
-  if (options?.force) inFlightOnboardingLoads.delete(accountId);
-
-  const existingRequest = inFlightOnboardingLoads.get(accountId);
+  const existingRequest = inFlightOnboardingLoads.get(requestKey);
   if (existingRequest) return existingRequest;
 
   const request = (async () => {
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from("inrcy_onboarding_states")
-      .select(DASHBOARD_ONBOARDING_SELECT)
-      .eq("account_id", accountId)
-      .maybeSingle();
-
-    if (error) throw error;
-    return normalizeDashboardOnboardingRow(data);
+    const response = await fetch(ONBOARDING_API_URL, {
+      credentials: "include",
+      cache: "no-store",
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok || !payload?.ok) throw new Error("ONBOARDING_LOAD_FAILED");
+    const row = normalizeDashboardOnboardingRow(payload.row);
+    return {
+      accountId: String(payload.accountId || row?.accountId || "") || null,
+      row,
+      onboardingAvailable: Boolean(payload.onboardingAvailable && row),
+      onboardingError: false,
+      firstOpeningDetected: Boolean(payload.firstOpeningDetected),
+    };
   })();
 
-  inFlightOnboardingLoads.set(accountId, request);
+  inFlightOnboardingLoads.set(requestKey, request);
   try {
     return await request;
   } finally {
-    if (inFlightOnboardingLoads.get(accountId) === request) {
-      inFlightOnboardingLoads.delete(accountId);
+    if (inFlightOnboardingLoads.get(requestKey) === request) {
+      inFlightOnboardingLoads.delete(requestKey);
     }
   }
 }
@@ -134,17 +127,21 @@ async function persistOnboardingRow(
   status: DashboardOnboardingStatus,
   currentStep: DashboardOnboardingStep,
 ) {
-  const supabase = createClient();
-  const { data, error } = await supabase.rpc("inrcy_save_onboarding_state", {
-    p_account_id: accountId,
-    p_status: status,
-    p_current_step: currentStep,
-    p_version: DASHBOARD_ONBOARDING_VERSION,
+  const response = await fetch(ONBOARDING_API_URL, {
+    method: "POST",
+    credentials: "include",
+    cache: "no-store",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      accountId,
+      status,
+      currentStep,
+      version: DASHBOARD_ONBOARDING_VERSION,
+    }),
   });
-
-  if (error) throw error;
-
-  const row = normalizeDashboardOnboardingRow(data);
+  const payload = await response.json().catch(() => null);
+  if (!response.ok || !payload?.ok) throw new Error("ONBOARDING_SAVE_FAILED");
+  const row = normalizeDashboardOnboardingRow(payload.row);
   if (!row) throw new Error("INRCY_ONBOARDING_STATE_INVALID_RESPONSE");
   return row;
 }
@@ -166,43 +163,18 @@ export function useDashboardOnboardingState(
   const hasServerInitialStateRef = useRef(Boolean(initialState));
 
   const refreshOnboarding = useCallback(
-    async (options?: { force?: boolean; startPending?: boolean }) => {
+    async (options?: { force?: boolean }) => {
       const requestSequence = ++requestSequenceRef.current;
-      const accountId = await resolveOnboardingAccountId();
-      if (requestSequence !== requestSequenceRef.current) return null;
-
-      if (!accountId) {
-        activeAccountIdRef.current = null;
-        setState({
-          accountId: null,
-          row: null,
-          onboardingReady: true,
-          onboardingAvailable: false,
-          onboardingError: true,
-          firstOpeningDetected: false,
-        });
-        return null;
-      }
-
-      activeAccountIdRef.current = accountId;
-
       try {
-        let row = await loadOnboardingRow(accountId, options);
+        const loaded = await loadOnboardingState(options);
         if (requestSequence !== requestSequenceRef.current) return null;
+        const accountId = loaded.accountId;
+        if (!accountId) throw new Error("ONBOARDING_ACCOUNT_MISSING");
+        activeAccountIdRef.current = accountId;
 
-        const firstOpeningDetected = isDashboardOnboardingFirstOpening(row);
-
-        if (
-          row &&
-          firstOpeningDetected &&
-          options?.startPending !== false
-        ) {
-          row = await persistOnboardingRow(
-            accountId,
-            "in_progress",
-            row.currentStep,
-          );
-        }
+        const row = loaded.row;
+        const firstOpeningDetected =
+          loaded.firstOpeningDetected || isDashboardOnboardingFirstOpening(row);
 
         if (requestSequence !== requestSequenceRef.current) return null;
         const nextState: OnboardingState = {
@@ -218,8 +190,9 @@ export function useDashboardOnboardingState(
         return row;
       } catch {
         if (requestSequence !== requestSequenceRef.current) return null;
+        activeAccountIdRef.current = null;
         setState({
-          accountId,
+          accountId: null,
           row: null,
           onboardingReady: true,
           onboardingAvailable: false,
@@ -238,12 +211,9 @@ export function useDashboardOnboardingState(
       currentStep: DashboardOnboardingStep,
     ) => {
       const mutationSequence = ++mutationSequenceRef.current;
-      const currentAccountId = await resolveOnboardingAccountId();
-      if (!currentAccountId) return null;
-
-      const accountId = state.accountId ?? currentAccountId;
-      if (accountId !== currentAccountId) return null;
-      activeAccountIdRef.current = currentAccountId;
+      const accountId = state.accountId ?? activeAccountIdRef.current;
+      if (!accountId) return null;
+      activeAccountIdRef.current = accountId;
 
       try {
         const row = await persistOnboardingRow(accountId, status, currentStep);

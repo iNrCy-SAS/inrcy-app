@@ -8,7 +8,7 @@ import { isMetaRateLimitError } from "@/lib/metaGraphErrorClassification";
 export const FACEBOOK_RECONNECT_USER_MESSAGE = "Facebook à reconnecter. Rendez-vous dans Canaux.";
 export const INSTAGRAM_RECONNECT_USER_MESSAGE = "Instagram à reconnecter. Rendez-vous dans Canaux.";
 export const LINKEDIN_RECONNECT_USER_MESSAGE = "LinkedIn à reconnecter. Rendez-vous dans Canaux.";
-export const GOOGLE_BUSINESS_RECONNECT_USER_MESSAGE = "Google Business à reconnecter. Rendez-vous dans Canaux.";
+export const GOOGLE_BUSINESS_RECONNECT_USER_MESSAGE = "Connexion Google Business à actualiser. Reconnectez le compte et cochez toutes les cases d’autorisation demandées par Google.";
 
 type UserFacingErrorKey =
   | "generic"
@@ -75,7 +75,7 @@ const LOCALIZED_ERROR_COPY: Record<AppLanguageCode, Record<UserFacingErrorKey, s
     facebook_reconnect: "Facebook needs to be reconnected. Go to Channels.",
     instagram_reconnect: "Instagram needs to be reconnected. Go to Channels.",
     linkedin_reconnect: "LinkedIn needs to be reconnected. Go to Channels.",
-    google_business_reconnect: "Google Business needs to be reconnected. Go to Channels.",
+    google_business_reconnect: "The Google Business connection needs updating. Reconnect it and select every permission requested by Google.",
   },
   es: {
     generic: "No se ha podido completar esta acción. Inténtalo de nuevo.",
@@ -97,7 +97,7 @@ const LOCALIZED_ERROR_COPY: Record<AppLanguageCode, Record<UserFacingErrorKey, s
     facebook_reconnect: "Hay que volver a conectar Facebook. Ve a Canales.",
     instagram_reconnect: "Hay que volver a conectar Instagram. Ve a Canales.",
     linkedin_reconnect: "Hay que volver a conectar LinkedIn. Ve a Canales.",
-    google_business_reconnect: "Hay que volver a conectar Google Business. Ve a Canales.",
+    google_business_reconnect: "Hay que actualizar la conexión de Google Business. Vuelve a conectarla y marca todos los permisos solicitados por Google.",
   },
   it: {
     generic: "Non è stato possibile completare questa azione. Riprova.",
@@ -119,7 +119,7 @@ const LOCALIZED_ERROR_COPY: Record<AppLanguageCode, Record<UserFacingErrorKey, s
     facebook_reconnect: "Facebook deve essere ricollegato. Vai su Canali.",
     instagram_reconnect: "Instagram deve essere ricollegato. Vai su Canali.",
     linkedin_reconnect: "LinkedIn deve essere ricollegato. Vai su Canali.",
-    google_business_reconnect: "Google Business deve essere ricollegato. Vai su Canali.",
+    google_business_reconnect: "La connessione Google Business deve essere aggiornata. Ricollegala e seleziona tutte le autorizzazioni richieste da Google.",
   },
   de: {
     generic: "Diese Aktion konnte nicht abgeschlossen werden. Bitte versuchen Sie es erneut.",
@@ -141,7 +141,7 @@ const LOCALIZED_ERROR_COPY: Record<AppLanguageCode, Record<UserFacingErrorKey, s
     facebook_reconnect: "Facebook muss erneut verbunden werden. Öffnen Sie Kanäle.",
     instagram_reconnect: "Instagram muss erneut verbunden werden. Öffnen Sie Kanäle.",
     linkedin_reconnect: "LinkedIn muss erneut verbunden werden. Öffnen Sie Kanäle.",
-    google_business_reconnect: "Google Business muss erneut verbunden werden. Öffnen Sie Kanäle.",
+    google_business_reconnect: "Die Google-Business-Verbindung muss aktualisiert werden. Verbinden Sie sie erneut und wählen Sie alle von Google angeforderten Berechtigungen aus.",
   },
   nl: {
     generic: "Deze actie kon niet worden voltooid. Probeer het opnieuw.",
@@ -163,7 +163,7 @@ const LOCALIZED_ERROR_COPY: Record<AppLanguageCode, Record<UserFacingErrorKey, s
     facebook_reconnect: "Facebook moet opnieuw worden verbonden. Ga naar Kanalen.",
     instagram_reconnect: "Instagram moet opnieuw worden verbonden. Ga naar Kanalen.",
     linkedin_reconnect: "LinkedIn moet opnieuw worden verbonden. Ga naar Kanalen.",
-    google_business_reconnect: "Google Business moet opnieuw worden verbonden. Ga naar Kanalen.",
+    google_business_reconnect: "De Google Business-verbinding moet worden bijgewerkt. Verbind opnieuw en selecteer alle door Google gevraagde toestemmingen.",
   },
   pt: {
     generic: "Não foi possível concluir esta ação. Tente novamente.",
@@ -185,7 +185,7 @@ const LOCALIZED_ERROR_COPY: Record<AppLanguageCode, Record<UserFacingErrorKey, s
     facebook_reconnect: "É necessário ligar novamente o Facebook. Aceda a Canais.",
     instagram_reconnect: "É necessário ligar novamente o Instagram. Aceda a Canais.",
     linkedin_reconnect: "É necessário ligar novamente o LinkedIn. Aceda a Canais.",
-    google_business_reconnect: "É necessário ligar novamente o Google Business. Aceda a Canais.",
+    google_business_reconnect: "É necessário atualizar a ligação ao Google Business. Ligue novamente e selecione todas as autorizações pedidas pela Google.",
   },
 };
 
@@ -308,7 +308,7 @@ export function getSimpleFrenchErrorMessage(input: unknown, fallback = "Cette ac
   }
 
   if (matches(message, ["insufficient authentication scopes", "request had insufficient authentication scopes"])) {
-    return "Compte Google à reconnecter avec les autorisations demandées.";
+    return "Compte Google à reconnecter : recommencez la connexion et cochez toutes les cases d’autorisation demandées par Google.";
   }
 
   if (matches(message, ["aucune propriété ga4 ne correspond à ce domaine", "aucune propriete ga4 ne correspond a ce domaine"])) {

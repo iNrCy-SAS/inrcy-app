@@ -131,6 +131,7 @@ test("the cron independently recovers parent preparation and channel dispatch", 
   assert.match(cron, /dispatchPreparationJob/);
   assert.match(cron, /dispatchChannelJob/);
   assert.match(cron, /Math\.max\(2, job\.attempt\)/);
-  assert.match(cron, /_asyncPreparationAttempt: nextPreparationAttempt/);
+  assert.match(cron, /buildBoosterPreparationDispatchReference\(\{/);
+  assert.match(cron, /attempt: nextPreparationAttempt/);
   assert.match(cron, /failPreparingAsyncPublicationChannels/);
 });

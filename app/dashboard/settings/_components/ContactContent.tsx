@@ -14,9 +14,13 @@ export default function ContactContent({ mode = "page" }: Props) {
   const searchParams = useSearchParams();
   const premiumRequired = searchParams.get("premium") === "required";
   const EMAIL = "contact@inrcy.com";
-  const PHONE_DISPLAY = "06.22.08.21.79";
-  const PHONE_TEL = "+33622082179"; // format tel: (plus clean)
+  const PHONE_DISPLAY = "06.31.26.08.12";
+  const PHONE_TEL = "+33631260812";
+  const WHATSAPP_PHONE = "33631260812";
   const SITE = "https://inrcy.com";
+  const WHATSAPP_URL = `https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent(
+    i18nT("bonjour_inrcy_je_vous_contacte_depuis_l_application_41a7e2cd"),
+  )}`;
 
   const card: React.CSSProperties = {
     padding: 16,
@@ -166,6 +170,19 @@ export default function ContactContent({ mode = "page" }: Props) {
 
           <button type="button" onClick={() => copy(PHONE_DISPLAY)} style={smallBtn}>
             {i18nT("copier_le_numero_99c8d6c5")}{" "}</button>
+
+          <a
+            href={WHATSAPP_URL}
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              ...primaryBtn,
+              borderColor: "rgba(37, 211, 102, 0.55)",
+              background: "linear-gradient(135deg, rgba(37, 211, 102, 0.48), rgba(18, 140, 126, 0.42))",
+            }}
+          >
+            {i18nT("ecrire_sur_whatsapp_c86e042a")}
+          </a>
 
           <div style={{ fontSize: 12, opacity: 0.7 }}>
             </div>

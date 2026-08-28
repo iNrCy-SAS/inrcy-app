@@ -5,6 +5,10 @@ import { buildNotificationDigestEmail, type NotificationDigestItem } from "@/lib
 import { optionalEnv } from "@/lib/env";
 import { getInrcyLogoInlineAttachments } from "@/lib/txEmailAssets";
 import { defaultNotificationPreferences } from "@/lib/notifications";
+import {
+  insertNotificationOnce,
+  type NotificationInsertRow,
+} from "@/lib/notificationWriter";
 
 export const runtime = "nodejs";
 
@@ -112,19 +116,10 @@ async function hasRecentCategoryNotification(userId: string, category: string, h
   return Boolean(data && data.length > 0);
 }
 
-async function insertNotification(row: Record<string, unknown>) {
-  const { data, error } = await supabaseAdmin
-    .from("notifications")
-    .insert(row)
-    .select("category, title, body, cta_label, cta_url, created_at")
-    .single();
-
-  if (error && error.code !== "23505") {
-    throw new Error(`notifications_insert_failed:${error.message}`);
-  }
-
-  if (!data) return null;
-  return data as NotificationDigestItem;
+async function insertNotification(row: NotificationInsertRow) {
+  const result = await insertNotificationOnce(row);
+  if (!result.inserted || !result.data) return null;
+  return result.data as unknown as NotificationDigestItem;
 }
 
 async function buildPerformanceNotification(userId: string, digestHours: number) {

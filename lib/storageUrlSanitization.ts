@@ -18,3 +18,22 @@ export function normalizeStorageDeliveryUrl(value: unknown): string {
 
   return normalized;
 }
+
+/**
+ * Supabase signed-object endpoints reject HEAD on some storage versions. The
+ * two iNrCy delivery routes redirect to the same endpoint, so they must also
+ * be probed with a bounded one-byte GET.
+ */
+export function shouldUseRangeGetForStorageDeliveryUrl(value: unknown) {
+  try {
+    const url = new URL(String(value || ""));
+    const path = url.pathname.replace(/\/+$/, "");
+    return (
+      path.includes("/storage/v1/object/sign/") ||
+      path === "/api/storage/content" ||
+      /^\/api\/media-library\/items\/[^/]+\/content$/i.test(path)
+    );
+  } catch {
+    return false;
+  }
+}

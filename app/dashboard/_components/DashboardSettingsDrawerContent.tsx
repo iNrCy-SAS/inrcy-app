@@ -27,6 +27,7 @@ import InrSearchSettingsContent from "../settings/_components/InrSearchSettingsC
 import InrBadgeSettingsContent from "../settings/_components/InrBadgeSettingsContent";
 import StandardSubscriptionContent from "../settings/_components/StandardSubscriptionContent";
 import type { DashboardEdition } from "@/lib/dashboardEdition";
+import GoogleOAuthConsentBanner from "./GoogleOAuthConsentBanner";
 
 type DashboardPanelName =
   | "contact"
@@ -154,6 +155,7 @@ export default function DashboardSettingsDrawerContent({
 
   return (
     <>
+      <GoogleOAuthConsentBanner panel={panel} />
       {panel === "contact" && <ContactContent mode="drawer" />}
       {panel === "compte" && (
         <AccountContent

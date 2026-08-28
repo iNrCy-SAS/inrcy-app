@@ -9,6 +9,12 @@ import { asRecord, asString } from "@/lib/tsSafe";
 import { oauthCallbackEvent, oauthCallbackException } from "@/lib/observability/oauth";
 import { syncSitePresenceIntegrations } from '@/lib/sitePresenceSync';
 import { resolveOAuthBoundInrcyAccountId } from "@/lib/multicompte/server";
+import {
+  findExplicitlyMissingGoogleScopes,
+  GOOGLE_OAUTH_PERMISSION_ERROR_CODE,
+  GOOGLE_OAUTH_PERMISSION_MESSAGE,
+  GOOGLE_USERINFO_EMAIL_SCOPE,
+} from "@/lib/googleOAuthConsent";
 
 type TokenResponse = {
   access_token?: string;
@@ -31,6 +37,11 @@ const ALLOWED_PRODUCTS = ["ga4", "gsc"] as const;
 
 type AllowedSource = (typeof ALLOWED_SOURCES)[number];
 type AllowedProduct = (typeof ALLOWED_PRODUCTS)[number];
+
+const REQUIRED_SCOPE_BY_PRODUCT: Record<AllowedProduct, string> = {
+  ga4: "https://www.googleapis.com/auth/analytics.readonly",
+  gsc: "https://www.googleapis.com/auth/webmasters.readonly",
+};
 
 function isAllowedSource(v: string): v is AllowedSource {
   return (ALLOWED_SOURCES as readonly string[]).includes(v);
@@ -515,8 +526,16 @@ export async function GET(req: Request) {
     });
 
     const tokenData = (await tokenRes.json()) as TokenResponse;
-    if (!tokenRes.ok) {
+    if (!tokenRes.ok || !tokenData.access_token) {
       return fail("token_exchange_failed", "La connexion au compte a échoué. Merci de réessayer.");
+    }
+
+    const missingScopes = findExplicitlyMissingGoogleScopes(tokenData.scope, [
+      REQUIRED_SCOPE_BY_PRODUCT[product],
+      GOOGLE_USERINFO_EMAIL_SCOPE,
+    ]);
+    if (missingScopes.length) {
+      return fail(GOOGLE_OAUTH_PERMISSION_ERROR_CODE, GOOGLE_OAUTH_PERMISSION_MESSAGE);
     }
 
     const userRes = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {

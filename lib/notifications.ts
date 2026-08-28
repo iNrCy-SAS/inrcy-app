@@ -1,6 +1,7 @@
 import "server-only";
 
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { insertNotificationOnce } from "@/lib/notificationWriter";
 
 export type NotificationCategory = "performance" | "action" | "information";
 
@@ -165,16 +166,12 @@ export async function seedOnboardingNotifications(userId: string) {
 
   if (rows.length === 0) return [];
 
-  const { data, error } = await supabaseAdmin
-    .from("notifications")
-    .insert(rows)
-    .select("id, user_id, category, kind, title, body, cta_label, cta_url, read_at, meta, dedupe_key, created_at");
-
-  if (error) {
-    throw new Error(`notifications_onboarding_insert_failed:${error.message}`);
-  }
-
-  return (data ?? []) as NotificationRow[];
+  const inserted = await Promise.all(
+    rows.map((row) => insertNotificationOnce(row)),
+  );
+  return inserted
+    .filter((result) => result.inserted && result.data)
+    .map((result) => result.data as unknown as NotificationRow);
 }
 
 export function getCategoryLabel(category: NotificationCategory) {

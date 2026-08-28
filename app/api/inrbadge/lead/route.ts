@@ -8,6 +8,7 @@ import { recordInrBadgeEvent } from "@/lib/inrBadgeAnalytics";
 import { getDashboardEditionForAccountId } from "@/lib/dashboardEditionServer";
 import { getInrBadgeLeadPresentation } from "@/lib/inrBadgeEditionPolicy";
 import { enforceRateLimit, getClientIp } from "@/lib/rateLimit";
+import { insertNotificationOnce } from "@/lib/notificationWriter";
 
 function cleanString(value: unknown, max = 240) {
   return String(value || "").trim().replace(/\s+/g, " ").slice(0, max);
@@ -226,19 +227,19 @@ export async function POST(req: Request) {
   });
 
   if (crmResult.created) {
-    const { error: notificationError } = await supabaseAdmin.from("notifications").insert({
-      user_id: userId,
-      category: "information",
-      kind: "inrbadge_lead",
-      title: "Nouveau contact iNr'Badge",
-      body: `${displayName} a transmis ses coordonnées depuis votre iNr'Badge.`,
-      cta_label: leadPresentation.ctaLabel,
-      cta_url: leadPresentation.ctaPath,
-      dedupe_key: `inrbadge_lead:${crmResult.id || Date.now()}`,
-      meta: { source: "inrbadge", contactId: crmResult.id || null, slug, displayName, email, phone, companyName },
-    });
-
-    if (notificationError) {
+    try {
+      await insertNotificationOnce({
+        user_id: userId,
+        category: "information",
+        kind: "inrbadge_lead",
+        title: "Nouveau contact iNr'Badge",
+        body: `${displayName} a transmis ses coordonnées depuis votre iNr'Badge.`,
+        cta_label: leadPresentation.ctaLabel,
+        cta_url: leadPresentation.ctaPath,
+        dedupe_key: `inrbadge_lead:${crmResult.id || Date.now()}`,
+        meta: { source: "inrbadge", contactId: crmResult.id || null, slug, displayName, email, phone, companyName },
+      });
+    } catch (notificationError) {
       console.warn("[inrbadge-lead] notification insert failed", notificationError);
     }
 

@@ -9,6 +9,7 @@ import {
 } from "@/lib/cronAuth";
 import { enforceRateLimit } from "@/lib/rateLimit";
 import { createSafeStorageSignedUrl } from "@/lib/safeStorageSignedUrl";
+import { shouldUseRangeGetForStorageDeliveryUrl } from "@/lib/storageUrlSanitization";
 import { encryptToken, tryDecryptToken } from "@/lib/oauthCrypto";
 import { randomUUID } from "crypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -183,6 +184,10 @@ import {
   enqueueBoosterPublication,
   normalizeClientPreflightFailuresByChannel,
 } from "@/lib/boosterPublicationIngress";
+import {
+  buildBoosterPreparationDispatchReference,
+  resolveBoosterPreparationDispatchReference,
+} from "@/lib/boosterPreparationDispatch";
 import { normalizeBoosterPublicationChannels } from "@/lib/boosterPublicationPolicy";
 import { buildBoosterPublicationDispatchPlan } from "@/lib/boosterPublicationDispatchPlan";
 import {
@@ -334,7 +339,7 @@ async function publishNowHandler(req: Request) {
       if (rl) return rl;
     }
 
-    const body = await req.json().catch(() => null);
+    let body = await req.json().catch(() => null);
     if (!body)
       return NextResponse.json(
         { error: "Données invalides." },
@@ -368,6 +373,37 @@ async function publishNowHandler(req: Request) {
       body._asyncChannelEventId,
     );
 
+    if (internalAsyncPreparationDispatch && !asyncPublicationId) {
+      return NextResponse.json(
+        {
+          ok: false,
+          code: "async_preparation_invalid",
+          error: "Le job interne de préparation est invalide.",
+        },
+        { status: 400 },
+      );
+    }
+    if (internalAsyncPreparationDispatch) {
+      const resolvedPreparation =
+        await resolveBoosterPreparationDispatchReference({
+          userId,
+          publicationId: asyncPublicationId,
+          body: asRecord(body),
+        });
+      if (!resolvedPreparation.ok) {
+        return NextResponse.json(
+          {
+            ok: false,
+            code: resolvedPreparation.code,
+            retryable: resolvedPreparation.status >= 500,
+            error: resolvedPreparation.error,
+          },
+          { status: resolvedPreparation.status },
+        );
+      }
+      body = resolvedPreparation.body;
+    }
+
     const normalizedChannels = normalizeBoosterPublicationChannels(
       body.channels,
     );
@@ -396,16 +432,6 @@ async function publishNowHandler(req: Request) {
           ok: false,
           code: "async_dispatch_invalid",
           error: "Le dispatch interne doit cibler exactement un canal existant.",
-        },
-        { status: 400 },
-      );
-    }
-    if (internalAsyncPreparationDispatch && !asyncPublicationId) {
-      return NextResponse.json(
-        {
-          ok: false,
-          code: "async_preparation_invalid",
-          error: "Le job interne de préparation est invalide.",
         },
         { status: 400 },
       );
@@ -519,7 +545,12 @@ async function publishNowHandler(req: Request) {
             await fetch(`${appOrigin}/api/booster/publish-now`, {
               method: "POST",
               headers: internalHeaders,
-              body: JSON.stringify(ingress.preparationRequest),
+              body: JSON.stringify(
+                buildBoosterPreparationDispatchReference({
+                  publicationId: ingress.publicationId,
+                  attempt: 1,
+                }),
+              ),
               cache: "no-store",
             });
           } catch (dispatchError) {
@@ -4957,13 +4988,16 @@ async function publishNowHandler(req: Request) {
             const prewarmResults = await Promise.all(
               tiktokImageUrls.map(async (imageUrl) => {
                 try {
+                  const rangeGet =
+                    shouldUseRangeGetForStorageDeliveryUrl(imageUrl);
                   const response = await fetch(imageUrl, {
-                    method: "HEAD",
+                    method: rangeGet ? "GET" : "HEAD",
+                    headers: rangeGet ? { Range: "bytes=0-0" } : undefined,
                     cache: "no-store",
                   });
                   const contentType = String(response.headers.get("content-type") || "").toLowerCase();
                   const contentLength = Number(response.headers.get("content-length") || 0);
-                  return {
+                  const result = {
                     ok: response.ok &&
                       (contentType === "image/jpeg" || contentType === "image/webp") &&
                       contentLength > 0,
@@ -4971,6 +5005,8 @@ async function publishNowHandler(req: Request) {
                     contentType,
                     contentLength,
                   };
+                  await response.body?.cancel().catch(() => undefined);
+                  return result;
                 } catch (error) {
                   return {
                     ok: false,

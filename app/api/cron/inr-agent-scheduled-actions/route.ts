@@ -7,6 +7,7 @@ import {
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getDashboardEditionsForAccountIds } from "@/lib/dashboardEditionServer";
 import { isStandardAgentActionDescriptor } from "@/lib/standardAgentPolicy";
+import { insertNotificationOnce } from "@/lib/notificationWriter";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -297,32 +298,32 @@ async function notifyScheduledActionOutcome(row: ScheduledActionCronRow, args: {
       ? `${title} a bien été exécutée au moment prévu.`
       : `${title} n’a pas pu être exécutée. ${trimDiagnosticText(args.error || row.last_error || "Consultez le planning iNr’Agent pour corriger l’action.", 500)}`;
 
-  const { error } = await supabaseAdmin.from("notifications").insert({
-    user_id: row.user_id,
-    category: isDone || isProcessing ? "information" : "action",
-    kind: isProcessing
-      ? "inragent_scheduled_action_processing"
-      : isDone
-        ? "inragent_scheduled_action_done"
-        : "inragent_scheduled_action_failed",
-    title: notificationTitle,
-    body: notificationBody,
-    cta_label: "Ouvrir iNr’Agent",
-    cta_url: "/dashboard/agent",
-    dedupe_key: `inragent_scheduled_action:${row.id}:${args.outcome}`,
-    meta: {
-      source: "inr_agent",
-      scheduledActionId: row.id,
-      outcome: args.outcome,
-      automationKey: row.automation_key || null,
-      actionType: row.action_type || null,
-      targetTool: row.target_tool || null,
-      campaignId: args.campaignId || null,
-      publicationId: args.publicationId || null,
-    },
-  });
-
-  if (error) {
+  try {
+    await insertNotificationOnce({
+      user_id: row.user_id,
+      category: isDone || isProcessing ? "information" : "action",
+      kind: isProcessing
+        ? "inragent_scheduled_action_processing"
+        : isDone
+          ? "inragent_scheduled_action_done"
+          : "inragent_scheduled_action_failed",
+      title: notificationTitle,
+      body: notificationBody,
+      cta_label: "Ouvrir iNr’Agent",
+      cta_url: "/dashboard/agent",
+      dedupe_key: `inragent_scheduled_action:${row.id}:${args.outcome}`,
+      meta: {
+        source: "inr_agent",
+        scheduledActionId: row.id,
+        outcome: args.outcome,
+        automationKey: row.automation_key || null,
+        actionType: row.action_type || null,
+        targetTool: row.target_tool || null,
+        campaignId: args.campaignId || null,
+        publicationId: args.publicationId || null,
+      },
+    });
+  } catch (error) {
     console.warn("[inr-agent-scheduled-actions] notification insert failed", error);
   }
 }

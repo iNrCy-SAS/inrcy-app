@@ -132,6 +132,10 @@ const onboardingHookSource = readFileSync(
   new URL("../../app/dashboard/_hooks/useDashboardOnboardingState.ts", import.meta.url),
   "utf8",
 );
+const onboardingApiSource = readFileSync(
+  new URL("../../app/api/dashboard/onboarding-state/route.ts", import.meta.url),
+  "utf8",
+);
 const panelRoutingSource = readFileSync(
   new URL("../../app/dashboard/_hooks/useDashboardPanelRouting.ts", import.meta.url),
   "utf8",
@@ -158,7 +162,8 @@ test("successful onboarding saves use a direct guarded-safe panel transition", (
 test("stale onboarding mutations cannot restore the previous establishment", () => {
   assert.match(onboardingHookSource, /mutationSequenceRef/);
   assert.match(onboardingHookSource, /activeAccountIdRef/);
-  assert.match(onboardingHookSource, /accountId !== currentAccountId/);
+  assert.match(onboardingHookSource, /activeAccountIdRef\.current !== accountId/);
+  assert.match(onboardingApiSource, /expectedAccountId !== activeUserId/);
   assert.match(onboardingHookSource, /mutationSequenceRef\.current \+= 1/);
   assert.match(onboardingHookSource, /activeAccountIdRef\.current = null/);
 });

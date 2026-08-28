@@ -11,6 +11,12 @@ import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import { withCurrentConnectionVersion } from "@/lib/connectionVersions";
 import { resolveOAuthBoundInrcyAccountId } from "@/lib/multicompte/server";
 import {
+  findExplicitlyMissingGoogleScopes,
+  GOOGLE_OAUTH_PERMISSION_ERROR_CODE,
+  GOOGLE_OAUTH_PERMISSION_MESSAGE,
+} from "@/lib/googleOAuthConsent";
+import {
+  YOUTUBE_SHORTS_DEFAULT_SCOPES,
   fetchYoutubeMineChannel,
   getYoutubeShortsOAuthClientId,
   getYoutubeShortsOAuthClientSecret,
@@ -129,6 +135,14 @@ export async function GET(request: Request) {
     const accessToken = asString(tokenData.access_token);
     if (!tokenRes.ok || !accessToken) {
       return fail("token_exchange_failed", tokenData.error_description || tokenData.error || "La connexion au compte YouTube a échoué.");
+    }
+
+    const missingScopes = findExplicitlyMissingGoogleScopes(
+      tokenData.scope,
+      YOUTUBE_SHORTS_DEFAULT_SCOPES,
+    );
+    if (missingScopes.length) {
+      return fail(GOOGLE_OAUTH_PERMISSION_ERROR_CODE, GOOGLE_OAUTH_PERMISSION_MESSAGE);
     }
 
     const userRes = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {

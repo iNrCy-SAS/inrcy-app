@@ -5,6 +5,7 @@ import {
   isAuthorizedCronRequest,
 } from "@/lib/cronAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { buildBoosterPreparationDispatchReference } from "@/lib/boosterPreparationDispatch";
 import {
   acquireAsyncPublicationPreparationLease,
   BOOSTER_ASYNC_CHANNEL_EVENT_TYPE,
@@ -416,10 +417,12 @@ async function dispatchPreparationJob(job: AsyncPreparationJob, appOrigin: strin
     const response = await fetch(`${appOrigin}/api/booster/publish-now`, {
       method: "POST",
       headers: buildInternalCronHeaders(job.userId),
-      body: JSON.stringify({
-        ...job.preparationRequest,
-        _asyncPreparationAttempt: nextPreparationAttempt,
-      }),
+      body: JSON.stringify(
+        buildBoosterPreparationDispatchReference({
+          publicationId: job.id,
+          attempt: nextPreparationAttempt,
+        }),
+      ),
       cache: "no-store",
     });
     if (!response.ok) {

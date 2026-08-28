@@ -9,6 +9,7 @@ import { recordInrBadgeEvent } from "@/lib/inrBadgeAnalytics";
 import { getDashboardEditionForAccountId } from "@/lib/dashboardEditionServer";
 import { canUseInrBadgeAppointments } from "@/lib/inrBadgeEditionPolicy";
 import { enforceRateLimit, getClientIp } from "@/lib/rateLimit";
+import { insertNotificationOnce } from "@/lib/notificationWriter";
 
 type RequestBody = {
   slug?: string;
@@ -336,19 +337,19 @@ export async function POST(req: Request) {
     metadata: { requestId, crmContactId: crmResult?.id || null, start: start.toISOString(), end: end.toISOString() },
   });
 
-  const { error: notificationError } = await supabaseAdmin.from("notifications").insert({
-    user_id: userId,
-    category: "information",
-    kind: "inrbadge_appointment_request",
-    title: "Nouvelle demande de RDV iNr'Badge",
-    body: `${clientName} souhaite un rendez-vous le ${dateLabel} à ${fmtTime(start.toISOString())}.`,
-    cta_label: "Valider dans l'agenda",
-    cta_url: `/dashboard/agenda?request=${encodeURIComponent(requestId)}`,
-    dedupe_key: `inrbadge_rdv:${requestId}`,
-    meta: { source: "inrbadge", requestId, clientName, clientCompany, clientEmail, clientPhone, start: start.toISOString(), end: end.toISOString(), mailSent },
-  });
-
-  if (notificationError) {
+  try {
+    await insertNotificationOnce({
+      user_id: userId,
+      category: "information",
+      kind: "inrbadge_appointment_request",
+      title: "Nouvelle demande de RDV iNr'Badge",
+      body: `${clientName} souhaite un rendez-vous le ${dateLabel} à ${fmtTime(start.toISOString())}.`,
+      cta_label: "Valider dans l'agenda",
+      cta_url: `/dashboard/agenda?request=${encodeURIComponent(requestId)}`,
+      dedupe_key: `inrbadge_rdv:${requestId}`,
+      meta: { source: "inrbadge", requestId, clientName, clientCompany, clientEmail, clientPhone, start: start.toISOString(), end: end.toISOString(), mailSent },
+    });
+  } catch (notificationError) {
     console.warn("[inrbadge-appointment-request] notification insert failed", notificationError);
   }
 

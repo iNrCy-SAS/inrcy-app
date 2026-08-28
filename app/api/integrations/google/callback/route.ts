@@ -8,6 +8,12 @@ import { oauthCallbackEvent, oauthCallbackException } from "@/lib/observability/
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { resolveOAuthBoundInrcyAccountId } from "@/lib/multicompte/server";
+import {
+  findExplicitlyMissingGoogleScopes,
+  GOOGLE_OAUTH_PERMISSION_ERROR_CODE,
+  GOOGLE_OAUTH_PERMISSION_MESSAGE,
+  GOOGLE_USERINFO_EMAIL_SCOPE,
+} from "@/lib/googleOAuthConsent";
 
 import { withCurrentConnectionVersion } from "@/lib/connectionVersions";
 type TokenResponse = {
@@ -132,6 +138,14 @@ if (!tokenRes.ok || !tokenData.access_token) {
     tokenData.error_description || tokenData.error || "La connexion au compte a échoué. Merci de réessayer."
   );
 }
+
+    const missingScopes = findExplicitlyMissingGoogleScopes(tokenData.scope, [
+      "https://www.googleapis.com/auth/gmail.send",
+      GOOGLE_USERINFO_EMAIL_SCOPE,
+    ]);
+    if (missingScopes.length) {
+      return fail(GOOGLE_OAUTH_PERMISSION_ERROR_CODE, GOOGLE_OAUTH_PERMISSION_MESSAGE);
+    }
 
     // 2) Get user email
     const userRes = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {

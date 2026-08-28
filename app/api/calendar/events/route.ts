@@ -6,6 +6,7 @@ import { optionalEnv } from "@/lib/env";
 import { sendTxMail } from "@/lib/txMailer";
 import { sendMailFromIntegration } from "@/lib/inrsend/sendMailFromIntegration";
 import { withApi } from "@/lib/observability/withApi";
+import { insertNotificationOnce } from "@/lib/notificationWriter";
 import {
   buildClientExchangePreferences,
   DEFAULT_CLIENT_EXCHANGE_PREFERENCES,
@@ -281,7 +282,7 @@ async function createAgendaConfirmationNotification(userId: string, title: strin
       }).format(when)
     : "bientôt";
 
-  await supabaseAdmin.from("notifications").insert({
+  await insertNotificationOnce({
     user_id: userId,
     category: "information",
     kind: "agenda_event_saved",

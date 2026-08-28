@@ -115,6 +115,31 @@ test("un HEAD sans taille utilise uniquement GET bytes=0-0 et valide la Range", 
   assert.deepEqual(methods, ["HEAD", "GET"]);
 });
 
+test("une URL Storage signée évite HEAD et utilise directement un GET borné", async () => {
+  const methods: string[] = [];
+  const fetchImpl = (async (_input: string | URL | Request, init?: RequestInit) => {
+    methods.push(String(init?.method || "GET"));
+    assert.equal(new Headers(init?.headers).get("range"), "bytes=0-0");
+    return new Response(new Uint8Array([1]), {
+      status: 206,
+      headers: {
+        ...videoHeaders(),
+        "Content-Length": "1",
+        "Content-Range": "bytes 0-0/75000000",
+      },
+    });
+  }) as typeof fetch;
+
+  const result = await probeGoogleBusinessMediaUrl({
+    url: "https://project.supabase.co/storage/v1/object/sign/booster/video.mp4?token=test",
+    kind: "video",
+    fetchImpl,
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(methods, ["GET"]);
+});
+
 test("un serveur qui ignore Range n'est jamais autorisé à renvoyer la vidéo entière", async () => {
   const fetchImpl = (async (_input: string | URL | Request, init?: RequestInit) => {
     if (init?.method === "HEAD") {

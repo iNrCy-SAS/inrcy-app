@@ -3,6 +3,7 @@ import {
   GOOGLE_BUSINESS_IMAGE_MIN_BYTES,
   GOOGLE_BUSINESS_VIDEO_MAX_BYTES,
 } from "./googleBusinessMediaPolicy.ts";
+import { shouldUseRangeGetForStorageDeliveryUrl } from "./storageUrlSanitization.ts";
 
 export type GoogleBusinessMediaKind = "image" | "video";
 
@@ -229,20 +230,24 @@ export async function probeGoogleBusinessMediaUrl(params: {
   }
 
   const attempts = Math.max(1, Math.min(2, Math.round(params.attempts || 1)));
+  const rangeGetOnly = shouldUseRangeGetForStorageDeliveryUrl(url);
   let lastResult: GoogleBusinessMediaProbeResult | null = null;
   for (let index = 0; index < attempts; index += 1) {
-    const head = await fetchHeaders(
-      url,
-      params.kind,
-      "HEAD",
-      params.fetchImpl || fetch,
-    );
-    if (head.ok) return head;
-    // A known out-of-bounds length cannot be repaired by a second request.
-    // Avoid even the one-byte fallback for a source already rejected by the
-    // shared 75,000,000-byte Booster ceiling.
-    if (head.reason === "file_too_large" || head.reason === "file_too_small") {
-      return head;
+    let head: GoogleBusinessMediaProbeResult | null = null;
+    if (!rangeGetOnly) {
+      head = await fetchHeaders(
+        url,
+        params.kind,
+        "HEAD",
+        params.fetchImpl || fetch,
+      );
+      if (head.ok) return head;
+      // A known out-of-bounds length cannot be repaired by a second request.
+      // Avoid even the one-byte fallback for a source already rejected by the
+      // shared 75,000,000-byte Booster ceiling.
+      if (head.reason === "file_too_large" || head.reason === "file_too_small") {
+        return head;
+      }
     }
 
     const get = await fetchHeaders(
@@ -252,7 +257,7 @@ export async function probeGoogleBusinessMediaUrl(params: {
       params.fetchImpl || fetch,
     );
     if (get.ok) return get;
-    lastResult = get.reason === "network_error" ? head : get;
+    lastResult = get.reason === "network_error" && head ? head : get;
 
     if (index < attempts - 1) {
       await sleep(index === 0 ? 300 : 800);
