@@ -616,5 +616,9 @@
   "vous_pouvez_resilier_avant_la_prochaine_c9597f47": "Puedes cancelar antes de la próxima fecha de facturación.",
   "vouvoiement_c5254349": "Dirección formal",
   "youtube_558865a1": "YouTube",
-  "zones_d_intervention_a4999f61": "Áreas de servicio"
+  "zones_d_intervention_a4999f61": "Áreas de servicio",
+  "account_deletion_choices_description": "Acceda a la página dedicada para elegir la eliminación al final de su acceso, la eliminación inmediata o categorías específicas de datos.",
+  "native_purchase_confirmed": "Compra confirmada. iNrCy sincroniza tu suscripción con la tienda.",
+  "native_subscription_management_message": "Esta suscripción se gestiona en la tienda de tu teléfono.",
+  "native_subscription_managed_by_store": "Su suscripción es administrada por {store}. Las renovaciones, formas de pago y cancelaciones se gestionan en la tienda."
 }

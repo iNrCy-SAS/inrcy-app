@@ -10,6 +10,8 @@ export const APP_LANGUAGE_OPTIONS = [
   { value: "de", label: "Deutsch", shortLabel: "De", flag: "Deutsch", flagSrc: "/flags/de.png" },
   { value: "nl", label: "Nederlands", shortLabel: "Nl", flag: "Nederlands", flagSrc: "/flags/nl.png" },
   { value: "pt", label: "Português", shortLabel: "Pt", flag: "Português", flagSrc: "/flags/pt.png" },
+  { value: "th", label: "ไทย", shortLabel: "ไทย", flag: "ไทย", flagSrc: "/flags/th.svg" },
+  { value: "zh", label: "中文（简体）", shortLabel: "中文", flag: "中国", flagSrc: "/flags/zh.svg" },
 ] as const;
 
 export type AppLanguageCode = (typeof APP_LANGUAGE_OPTIONS)[number]["value"];
@@ -26,6 +28,8 @@ export function normalizeAppLanguage(value: unknown): AppLanguageCode {
   if (["german", "allemand"].includes(raw)) return "de";
   if (["dutch", "neerlandais", "néerlandais"].includes(raw)) return "nl";
   if (["portuguese", "portugais"].includes(raw)) return "pt";
+  if (["thai", "thailandais", "thaïlandais", "ภาษาไทย", "th-th", "th_th"].includes(raw)) return "th";
+  if (["chinese", "simplified chinese", "chinois", "chinois simplifié", "中文", "简体中文", "zh-cn", "zh_cn", "zh-hans"].includes(raw)) return "zh";
   return DEFAULT_APP_LANGUAGE;
 }
 

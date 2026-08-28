@@ -16,7 +16,7 @@ function normalizePreferredCta(value: unknown) {
   return VALID_PREFERRED_CTAS.has(raw) ? raw : "devis";
 }
 
-const VALID_AI_LANGUAGES = new Set(["fr", "en", "es", "it", "de", "nl", "pt"]);
+const VALID_AI_LANGUAGES = new Set(["fr", "en", "es", "it", "de", "nl", "pt", "th", "zh"]);
 
 function normalizeAiLanguage(value: unknown) {
   const raw = String(value || "").trim().toLowerCase();

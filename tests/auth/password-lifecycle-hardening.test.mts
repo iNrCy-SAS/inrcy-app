@@ -177,7 +177,7 @@ test("account deletion is retry-safe and clears browser authentication state", (
 });
 
 test("all supported languages include lifecycle and account-switch messages", () => {
-  const locales = ["fr-FR", "en-GB", "es-ES", "it-IT", "de-DE", "nl-NL", "pt-PT"];
+  const locales = ["fr-FR", "en-GB", "es-ES", "it-IT", "de-DE", "nl-NL", "pt-PT", "th-TH", "zh-CN"];
 
   for (const locale of locales) {
     const auth = JSON.parse(read(`messages/${locale}/auth.json`));

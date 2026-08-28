@@ -75,6 +75,24 @@ function inrcy_home_hero_locale_runtime() {
       performance: 'Desempenho global', performanceSub: 'Todos os seus canais reunidos num único painel',
       titles: ['Partilhe a sua ideia com a iNrCy', 'A iNrCy adapta o conteúdo a cada canal', 'Publique em 12 canais', 'Acompanhe o desempenho e edite os conteúdos a qualquer momento'],
       descriptions: ['Uma fotografia, um vídeo ou algumas palavras são suficientes para começar.', '12 conteúdos únicos e inteligentes, pensados para cada plataforma.', 'Publique os seus conteúdos em todos os canais selecionados.', 'Analise os seus resultados e gira as publicações diretamente na iNrCy.']
+    },
+    th: {
+      channels: ['Facebook', 'Instagram', 'LinkedIn', 'TikTok', 'YouTube', 'Google Business', 'เว็บไซต์', 'อีเมล', 'Pinterest', 'นามบัตร', 'เว็บไซต์ iNrCy', 'iNr’Search'],
+      published: 'เผยแพร่แล้ว', publishing: 'กำลังเผยแพร่', sent: 'ส่งแล้ว', sending: 'กำลังส่ง', updated: 'อัปเดตแล้ว', updating: 'กำลังอัปเดต',
+      edit: 'แก้ไข', remove: 'ลบ', views: 'ยอดดู', interactions: 'การโต้ตอบ', clicks: 'คลิก',
+      progress: 'เผยแพร่หลายช่องทาง', posts: 'โพสต์ของฉัน', postsSub: 'แก้ไขหรือลบเนื้อหาได้ในไม่กี่คลิก',
+      performance: 'ประสิทธิภาพโดยรวม', performanceSub: 'รวมทุกช่องทางไว้ในแดชบอร์ดเดียว',
+      titles: ['บอกไอเดียของคุณกับ iNrCy', 'iNrCy ปรับเนื้อหาให้เหมาะกับแต่ละช่องทาง', 'เผยแพร่ผ่าน 12 ช่องทาง', 'ติดตามผลและแก้ไขเนื้อหาได้ทุกเมื่อ'],
+      descriptions: ['เพียงรูปภาพ วิดีโอ หรือข้อความไม่กี่คำก็เริ่มต้นได้', 'เนื้อหาอัจฉริยะที่ไม่ซ้ำกัน 12 ชิ้น ออกแบบสำหรับแต่ละแพลตฟอร์ม', 'เผยแพร่เนื้อหาไปยังทุกช่องทางที่เลือก', 'วิเคราะห์ผลลัพธ์และจัดการโพสต์ได้โดยตรงจาก iNrCy']
+    },
+    zh: {
+      channels: ['Facebook', 'Instagram', 'LinkedIn', 'TikTok', 'YouTube', 'Google Business', '网站', '电子邮件', 'Pinterest', '电子名片', 'iNrCy 网站', 'iNr’Search'],
+      published: '已发布', publishing: '正在发布', sent: '已发送', sending: '正在发送', updated: '已更新', updating: '正在更新',
+      edit: '编辑', remove: '删除', views: '浏览量', interactions: '互动', clicks: '点击',
+      progress: '多渠道发布', posts: '我的内容', postsSub: '只需几次点击即可编辑或删除内容',
+      performance: '整体表现', performanceSub: '在一个仪表板中汇总所有渠道',
+      titles: ['向 iNrCy 描述您的想法', 'iNrCy 为每个渠道调整内容', '发布到 12 个渠道', '随时跟踪表现并编辑内容'],
+      descriptions: ['一张图片、一段视频或几句话即可开始。', '为每个平台量身打造 12 条独特的智能内容。', '将内容发布到所有选定渠道。', '直接在 iNrCy 中分析结果并管理发布内容。']
     }
   };
 

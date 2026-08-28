@@ -47,7 +47,11 @@ test("TikTok photo URLs are prewarmed before Direct Post init", async () => {
   const directPostAt = publish.indexOf("const tiktokResult = isVideo");
   assert.ok(prewarmAt >= 0);
   assert.ok(directPostAt > prewarmAt);
-  assert.match(publish.slice(prewarmAt, directPostAt), /method: "HEAD"/);
+  assert.match(
+    publish.slice(prewarmAt, directPostAt),
+    /method: rangeGet \? "GET" : "HEAD"/,
+  );
+  assert.match(publish.slice(prewarmAt, directPostAt), /Range: "bytes=0-0"/);
   assert.match(publish.slice(prewarmAt, directPostAt), /image\/jpeg/);
   assert.match(publish.slice(prewarmAt, directPostAt), /image\/webp/);
 });

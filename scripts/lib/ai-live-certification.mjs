@@ -1,6 +1,6 @@
 import { percentile } from "./ai-live-qa-evaluator.mjs";
 
-const REQUIRED_LANGUAGES = ["fr", "en", "es", "it", "de", "nl", "pt"];
+const REQUIRED_LANGUAGES = ["fr", "en", "es", "it", "de", "nl", "pt", "th", "zh"];
 const REQUIRED_MEDIA = ["text", "image", "video"];
 const REQUIRED_CREATIVITY = ["classic", "balanced", "creative"];
 const REQUIRED_PROFILES = ["minimal", "full"];
@@ -59,6 +59,8 @@ export function buildCoverageSummary(report) {
     maxConfiguredChannels,
     hasSingleChannelCase: channelCounts.includes(1),
     hasAllChannelCase: maxConfiguredChannels >= 9,
+    coversAllLanguages: coversAll(languages, REQUIRED_LANGUAGES),
+    // Kept for consumers of reports generated before Thai and Chinese support.
     coversSevenLanguages: coversAll(languages, REQUIRED_LANGUAGES),
     coversAllMedia: coversAll(media, REQUIRED_MEDIA),
     coversAllCreativity: coversAll(creativity, REQUIRED_CREATIVITY),
@@ -149,7 +151,7 @@ export function buildFinalCertification(report, options = {}) {
   };
 
   addGate("coverage.engines", coverage.engineCount === 8, coverage.engineCount, "8 moteurs");
-  addGate("coverage.languages", coverage.coversSevenLanguages, coverage.languages, REQUIRED_LANGUAGES);
+  addGate("coverage.languages", coverage.coversAllLanguages, coverage.languages, REQUIRED_LANGUAGES);
   addGate("coverage.media", coverage.coversAllMedia, coverage.media, REQUIRED_MEDIA);
   addGate("coverage.creativity", coverage.coversAllCreativity, coverage.creativity, REQUIRED_CREATIVITY);
   addGate("coverage.profiles", coverage.coversBothProfiles, coverage.profiles, REQUIRED_PROFILES);

@@ -3,7 +3,7 @@ import path from "node:path";
 
 const root = process.cwd();
 const sourceLocale = "fr-FR";
-const targetLocales = ["en-GB", "es-ES", "it-IT", "de-DE", "nl-NL", "pt-PT"];
+const targetLocales = ["en-GB", "es-ES", "it-IT", "de-DE", "nl-NL", "pt-PT", "th-TH", "zh-CN"];
 const sourceDirectory = path.join(root, "messages", sourceLocale);
 const namespaces = fs.readdirSync(sourceDirectory)
   .filter((name) => name.endsWith(".json"))

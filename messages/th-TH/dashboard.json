@@ -1,0 +1,404 @@
+{
+  "topbar": {
+    "brandTag": "เครื่องกำเนิดการมองเห็น",
+    "admin": "ผู้ดูแลระบบ",
+    "adminTitle": "การดูแลระบบ iNrCy",
+    "notifications": "การแจ้งเตือน",
+    "openNotifications": "เปิดการแจ้งเตือน",
+    "inrAgentOpen": "เปิด iNr’Agent",
+    "inrAgentDisabled": "iNr’Agent ถูกปิดใช้งานในการเข้าถึงบัญชี",
+    "inrAgentAction": "การกระทำ",
+    "inrAgentActions": "การกระทำ",
+    "inrAgentPending": "เพื่อตรวจสอบ",
+    "gps": "การใช้งานจีพีเอส",
+    "gpsAria": "เปิดการใช้งาน GPS",
+    "contact": "ติดต่อเรา",
+    "openMenu": "เปิดเมนู",
+    "menu": "เมนู"
+  },
+  "language": {
+    "buttonAria": "เปลี่ยนภาษาของแอป",
+    "buttonTitle": "ภาษาของแอปพลิเคชัน",
+    "panelAria": "เลือกภาษาของแอปพลิเคชัน"
+  },
+  "userMenu": {
+    "title": "เมนูผู้ใช้",
+    "label": "เมนู",
+    "profileIncomplete": "โปรไฟล์ที่ไม่สมบูรณ์",
+    "activityIncomplete": "กิจกรรมที่ไม่สมบูรณ์",
+    "completeProfileHint": "คลิกเพื่อกรอกโปรไฟล์ของคุณและเปิดใช้งานโดยสมบูรณ์ iNrCy",
+    "completeActivityHint": "คลิกเพื่อทำกิจกรรมของคุณให้เสร็จสิ้นและเปิดใช้งาน iNrCy โดยสมบูรณ์",
+    "account": "บัญชี iNrCytizen",
+    "profile": "โปรไฟล์ของฉัน",
+    "activity": "กิจกรรมของฉัน",
+    "preferences": "การตั้งค่าทั่วไป",
+    "ai": "การตั้งค่าเอไอ",
+    "media": "ห้องสมุดสื่อ",
+    "notifications": "การแจ้งเตือน",
+    "subscription": "การสมัครของฉัน",
+    "inertia": "ความเฉื่อยของฉัน",
+    "shop": "ร้านค้า",
+    "referral": "สปอนเซอร์ iNrCy",
+    "legal": "ข้อมูลทางกฎหมาย",
+    "rgpd": "ข้อมูลของฉัน (GDPR)",
+    "logout": "ตัดการเชื่อมต่อ"
+  },
+  "notifications": {
+    "aria": "การแจ้งเตือน",
+    "title": "การดำเนินการที่ต้องทำ",
+    "subtitle": "ห้องนักบินของคุณจะรีสตาร์ทคุณในเวลาที่เหมาะสม",
+    "settings": "การตั้งค่า",
+    "markAllRead": "อ่านทั้งหมด",
+    "markAllReadConfirmTitle": "ทำเครื่องหมายการแจ้งเตือนทั้งหมดว่าอ่านแล้วใช่ไหม",
+    "markAllReadConfirmMessage": "จากนั้นจะถูกลบออกอย่างถาวร",
+    "markAllReadConfirmCancel": "ยกเลิก",
+    "loading": "กำลังโหลดการแจ้งเตือน...",
+    "empty": "ระฆังของคุณว่างเปล่าในขณะนี้ การอัปเดตธุรกิจครั้งต่อไปจะมาถึงที่นี่",
+    "delete": "ลบการแจ้งเตือน",
+    "markRead": "ทำเครื่องหมายว่าอ่านแล้ว"
+  },
+  "drawer": {
+    "close": "ปิด",
+    "titles": {
+      "contact": "ติดต่อเรา",
+      "compte": "บัญชี iNrCytizen",
+      "profil": "โปรไฟล์ของฉัน",
+      "preferences": "การตั้งค่าทั่วไป",
+      "inrbadge": "การตั้งค่า iNr'Badge",
+      "activite": "กิจกรรมของฉัน",
+      "ia": "การตั้งค่าเอไอ",
+      "abonnement": "การสมัครของฉัน",
+      "legal": "ข้อมูลทางกฎหมาย",
+      "rgpd": "ข้อมูลของฉัน (GDPR)",
+      "mails": "การตั้งค่าอีเมล",
+      "agenda": "การตั้งค่า iNr’Calendar",
+      "site_inrcy": "การกำหนดค่า — ไซต์ iNrCy",
+      "site_web": "การกำหนดค่า — เว็บไซต์",
+      "instagram": "การกำหนดค่า — Instagram",
+      "linkedin": "การกำหนดค่า — LinkedIn",
+      "gmb": "การกำหนดค่า — Google Business",
+      "inr_search": "ตั้งค่า — iNr’Search",
+      "facebook": "การกำหนดค่า — Facebook",
+      "tiktok": "การกำหนดค่า — TikTok",
+      "youtube_shorts": "การกำหนดค่า — YouTube",
+      "pinterest": "การกำหนดค่า — Pinterest",
+      "inertie": "ความเฉื่อยของฉัน",
+      "boutique": "ร้านค้า",
+      "parrainage": "สนับสนุน iNrCy",
+      "notifications": "การแจ้งเตือน",
+      "documents": "การตั้งค่าเริ่มต้น"
+    }
+  },
+  "hero": {
+    "powerDialogAria": "รายละเอียดเครื่องกำเนิดไฟฟ้า",
+    "powerPanelTitle": "รายละเอียดขุมพลัง",
+    "kicker": "ห้องนักบินของคุณ iNrCy",
+    "expandCockpitAria": "เปิดห้องนักบินของคุณ iNrCy",
+    "collapseCockpitAria": "พับห้องนักบินของคุณ iNrCy",
+    "title": "เจเนอเรเตอร์เปิดตัวแล้ว!",
+    "subtitle": "ตอนนี้ช่องทั้งหมดของคุณรวมอยู่ในเครื่องเดียวแล้ว",
+    "flowContacts": "สิ่งพิมพ์",
+    "flowQuotes": "ทัศนวิสัย",
+    "flowRevenue": "ผลลัพธ์",
+    "powerTitle": "กำลังเครื่องกำเนิดไฟฟ้า:",
+    "powerDetailsAria": "ดูรายละเอียดพลังงานของเครื่องกำเนิดไฟฟ้า",
+    "powerDetailsTitle": "ดูรายละเอียด",
+    "fullPower": "พลังเต็มเปี่ยม",
+    "stepSingular": "ขั้นตอน",
+    "stepPlural": "ขั้นตอน",
+    "remainingSingular": "ที่เหลืออยู่",
+    "remainingPlural": "ที่เหลืออยู่",
+    "progressAria": "เครื่องกำเนิดไฟฟ้า",
+    "nextRise": "ปีนต่อไป:",
+    "completeHint": "คันโยกทั้งหมดของคุณขับเคลื่อนเครื่องจักรอย่างเต็มกำลัง",
+    "generatorTitle": "ตัวสร้าง iNrCy",
+    "generatorHelpTitle": "ช่วยเหลือ: ตัวสร้าง iNrCy",
+    "generatorDesc": "ภาพสะท้อนถึงประสิทธิผลของช่องทางการสื่อสารของคุณ",
+    "settingsAria": "เปิดการตั้งค่าเครื่องกำเนิดไฟฟ้า",
+    "settingsTitle": "การตั้งค่าเครื่องกำเนิดไฟฟ้า",
+    "statsAria": "ดูiNr’Stats",
+    "refreshAria": "เครื่องกำเนิดรีเฟรช",
+    "refreshTitle": "รีเฟรช",
+    "active": "ใช้งานอยู่",
+    "waiting": "กำลังรอ",
+    "inertiaUnits": "หน่วยความเฉื่อย",
+    "channels": "ช่อง",
+    "potentialRevenue": "มูลค่าการซื้อขายที่เป็นไปได้ 30 วัน",
+    "basedOnProfile": "ขึ้นอยู่กับโปรไฟล์ + โอกาส",
+    "opportunities": "โอกาสที่เปิดใช้งานได้",
+    "projection30": "การฉายภาพ 30 วัน",
+    "capturedLeads": "คำขอที่ถูกจับ",
+    "last7": "7 วันที่ผ่านมา",
+    "last30": "30 วันที่ผ่านมา"
+  },
+  "generatorSteps": {
+    "profile": {
+      "label": "กรอกโปรไฟล์ของฉันให้สมบูรณ์",
+      "shortLabel": "โปรไฟล์"
+    },
+    "activity": {
+      "label": "เสร็จสิ้นกิจกรรมของฉัน",
+      "shortLabel": "กิจกรรม"
+    },
+    "site_link": {
+      "label": "เชื่อมต่อเว็บไซต์",
+      "shortLabel": "เว็บไซต์"
+    },
+    "site_ga4": {
+      "label": "ปลั๊ก GA4",
+      "shortLabel": "GA4"
+    },
+    "site_gsc": {
+      "label": "เชื่อมต่อ GSC",
+      "shortLabel": "GSC"
+    },
+    "gmb": {
+      "label": "เข้าสู่ระบบ Google Business",
+      "shortLabel": "Google Business"
+    },
+    "facebook": {
+      "label": "เข้าสู่ระบบ Facebook",
+      "shortLabel": "Facebook"
+    },
+    "instagram": {
+      "label": "เชื่อมต่อ Instagram",
+      "shortLabel": "Instagram"
+    },
+    "pro_network": {
+      "label": "เชื่อมต่อ LinkedIn หรือ Pinterest",
+      "shortLabel": "LinkedIn / Pinterest"
+    },
+    "inr_search": {
+      "label": "เผยแพร่ iNr’Search",
+      "shortLabel": "iNr’Search"
+    },
+    "mails": {
+      "label": "เชื่อมต่อเมล",
+      "shortLabel": "อีเมล"
+    },
+    "video": {
+      "label": "เชื่อมต่อ TikTok หรือ YouTube",
+      "shortLabel": "TikTok / YouTube"
+    }
+  },
+  "channels": {
+    "title": "ช่อง",
+    "helpTitle": "ช่วยเหลือ: ช่อง",
+    "connected": "เชื่อมต่อแล้ว",
+    "available": "ใช้ได้",
+    "displayAria": "การแสดงช่อง",
+    "list": "รายการ",
+    "carousel": "ม้าหมุน",
+    "railAria": "รายการช่อง",
+    "positionAria": "ตำแหน่งในม้าหมุน",
+    "prev": "ช่องก่อนหน้า",
+    "next": "ช่องต่อไป",
+    "goToChannel": "ไปที่ช่อง",
+    "showChannel": "แสดง",
+    "connectedAria": "ช่องที่เชื่อมต่ออยู่"
+  },
+  "modules": {
+    "requiredSetupLocked": "โปรไฟล์ของฉันและ/หรือกิจกรรมของฉันไม่สมบูรณ์",
+    "dashboardTitle": "แดชบอร์ด",
+    "dashboardSub": "ขับเครื่องบิน",
+    "statsSub": "โอกาสในการขายทั้งหมดของคุณ ในที่สุดก็มองเห็นได้",
+    "mailsSettingsAria": "การตั้งค่าอีเมล",
+    "mailsSub": "ข้อความทั้งหมดของคุณไปจากที่นี่",
+    "agendaSettingsAria": "การตั้งค่าปฏิทิน",
+    "agendaSub": "เปลี่ยนผู้ติดต่อเป็นการนัดหมาย",
+    "crmSub": "ผู้มีแนวโน้มจะเป็นลูกค้าและลูกค้าแบบรวมศูนย์ของคุณ",
+    "gearboxTitle": "กล่องเกียร์",
+    "gearboxSub": "การแปลง",
+    "boosterStatsTitle": "การประเมิน Booster",
+    "boosterSub": "เปิดใช้งานช่องของคุณ",
+    "publishTitle": "Booster",
+    "publishCta": "เผยแพร่",
+    "propulserTitle": "ขับเคลื่อน",
+    "propulserSub": "เร่งธุรกิจของคุณ",
+    "propulserCta": "พัฒนา",
+    "fideliserTitle": "สร้างความภักดี",
+    "fideliserSub": "ค้ำจุนกิจกรรม",
+    "fideliserCta": "สื่อสาร",
+    "cashSettingsTitle": "การตั้งค่าเริ่มต้น",
+    "cashTitle": "เงินสดเข้า",
+    "cashSub": "ใบเสนอราคาและใบแจ้งหนี้",
+    "cashCta": "เงินสดเข้า",
+    "reputationTitle": "E-ชื่อเสียง",
+    "reputationSub": "จัดการบทวิจารณ์ของคุณ Google",
+    "reputationCta": "จัดการ",
+    "cashModalTitle": "เงินสดเข้า",
+    "cashModalLabel": "ใบเสนอราคาและใบแจ้งหนี้",
+    "cashModalSettings": "การตั้งค่า",
+    "cashModalIntroStrong": "เงินสดเข้า",
+    "cashModalIntroText": "รวมใบเสนอราคาและใบแจ้งหนี้ของคุณโดยไม่เปลี่ยนนิสัยของคุณ เพียงเลือกการกระทำที่จะเปิดตัว",
+    "invoiceEyebrow": "ใบแจ้งหนี้",
+    "invoiceTitle": "สร้างใบแจ้งหนี้",
+    "invoiceText": "ออกใบแจ้งหนี้ให้กับลูกค้าและติดตามการชำระเงิน",
+    "invoiceCta": "ใบแจ้งหนี้ →",
+    "quoteEyebrow": "อ้าง",
+    "quoteTitle": "สร้างใบเสนอราคา",
+    "quoteText": "เข้ารหัสคำขอและทริกเกอร์โอกาส",
+    "quoteCta": "อ้าง →"
+  },
+  "moduleCards": {
+    "inrbadge": {
+      "name": "iNr'Badge",
+      "description": "ธุรกิจของฉันใน QR Code",
+      "view": "ดูป้ายของฉัน",
+      "connect": "กำหนดค่า"
+    },
+    "mails": {
+      "name": "อีเมล",
+      "description": "ออกอากาศไปยังเครือข่ายของคุณ ✉️",
+      "view": "เปิด iNr’Send",
+      "connect": "กำหนดค่า"
+    },
+    "site_inrcy": {
+      "name": "เว็บไซต์ iNrCy",
+      "description": "เครื่องนำทางของคุณ ⚡",
+      "view": "ดูเว็บไซต์",
+      "connect": "เชื่อมต่อ Google Analytics",
+      "siteOnlyTitle": "ใช้ได้เฉพาะในกรณีที่คุณมีไซต์ iNrCy"
+    },
+    "site_web": {
+      "name": "เว็บไซต์",
+      "description": "แปลงผู้เข้าชมของคุณ 💡",
+      "view": "ดูเว็บไซต์",
+      "connect": "เชื่อมต่อ Google Analytics"
+    },
+    "gmb": {
+      "name": "Google Business",
+      "description": "เพิ่มการโทร 📞",
+      "view": "ดูหน้า",
+      "connect": "กำหนดค่า"
+    },
+    "inr_search": {
+      "name": "iNr’Search",
+      "description": "เพจของคุณสร้างโดย iNrCy 🔎",
+      "view": "ดูหน้าของฉัน",
+      "connect": "กำหนดค่า"
+    },
+    "facebook": {
+      "name": "Facebook",
+      "description": "สร้างความต้องการ 📈",
+      "view": "ดูบัญชี",
+      "connect": "เข้าสู่ระบบ Facebook"
+    },
+    "instagram": {
+      "name": "Instagram",
+      "description": "พัฒนาแบรนด์ของคุณ 📸",
+      "view": "ดูบัญชี",
+      "connect": "เชื่อมต่อ Instagram"
+    },
+    "linkedin": {
+      "name": "LinkedIn",
+      "description": "ให้ความน่าเชื่อถือกับความเชี่ยวชาญของคุณ 💼",
+      "view": "ดูบัญชี",
+      "connect": "เข้าสู่ระบบ LinkedIn"
+    },
+    "tiktok": {
+      "name": "TikTok",
+      "description": "พัฒนาผู้ชมของคุณ 📷",
+      "view": "ดูบัญชี",
+      "connect": "กำหนดค่า"
+    },
+    "youtube_shorts": {
+      "name": "YouTube",
+      "description": "สตรีมบนวิดีโอ ▶️",
+      "view": "ดูช่อง",
+      "connect": "กำหนดค่า"
+    },
+    "pinterest": {
+      "name": "Pinterest",
+      "description": "สร้างแรงบันดาลใจให้กับลูกค้าของคุณ 📌",
+      "view": "ดูบัญชี",
+      "connect": "กำหนดค่า"
+    },
+    "inr_agent": {
+      "name": "iNr’Agent",
+      "description": "ดำเนินการของคุณโดยอัตโนมัติ 🤖",
+      "view": "เปิด",
+      "connect": "กำหนดค่า"
+    }
+  },
+  "bubble": {
+    "viewFallback": "ดูสิ",
+    "configure": "กำหนดค่า",
+    "disabled": "ตัวเลือกถูกปิดใช้งาน",
+    "open": "เปิด"
+  },
+  "status": {
+    "connected": "เชื่อมต่อแล้ว",
+    "disconnected": "ตัดการเชื่อมต่อแล้ว",
+    "toConnect": "เพื่อเชื่อมต่อ",
+    "toConfigure": "เพื่อกำหนดค่า",
+    "toUpdate": "หากต้องการอัปเดต",
+    "reconnect": "เพื่อเชื่อมต่อใหม่",
+    "disabled": "ปิดการใช้งาน",
+    "noSite": "ไม่มีไซต์",
+    "soon": "เร็วๆ นี้",
+    "premiumPlan": "🔒แพ็กพรีเมียม",
+    "notSubscribed": "ไม่ได้สมัครสมาชิก",
+    "syncing": "กำลังซิงโครไนซ์...",
+    "pagePublished": "เผยแพร่เพจแล้ว",
+    "pageUnavailable": "เพจไม่พร้อมใช้งาน",
+    "profileChecking": "กำลังตรวจสอบโปรไฟล์ของคุณ..."
+  },
+  "onboarding": {
+    "initialSetup": "การตั้งค่าเริ่มต้น",
+    "progress": "ขั้นตอนการตั้งค่าเริ่มต้น {current}/{total}",
+    "unsavedPrefix": "การเปลี่ยนแปลงที่ไม่ได้บันทึกจะสูญหาย",
+    "keepDefaultsTitle": "คงการตั้งค่าเริ่มต้นไว้ใช่ไหม",
+    "continueLaterTitle": "ดำเนินการต่อในภายหลัง?",
+    "keepDefaultsMessage": "AI ของคุณจะคงการตั้งค่าที่แนะนำไว้ตามค่าเริ่มต้น คุณสามารถปรับแต่งได้ในภายหลังจากการกำหนดค่า AI",
+    "continueLaterMessage": "การข้ามขั้นตอนนี้ไม่ได้เปิดใช้งานการเปิดใช้งานเครื่องมือทั้งหมด iNrCy คุณสามารถดำเนินการกำหนดค่าต่อได้จากแดชบอร์ด คุณต้องการดำเนินการต่อในภายหลังหรือไม่?",
+    "keepDefaults": "เก็บไว้เป็นค่าเริ่มต้น",
+    "continueLater": "ดำเนินการต่อในภายหลัง",
+    "settings": "การตั้งค่า",
+    "exitWithoutSavingTitle": "ออกโดยไม่บันทึกใช่ไหม",
+    "exitWithoutSavingMessage": "หน้าต่างนี้มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก หากปิดตอนนี้จะสูญหาย",
+    "closeWithoutSaving": "ปิดโดยไม่บันทึก",
+    "returnToSetup": "กลับไปที่การกำหนดค่า",
+    "continueEditing": "แก้ไขต่อ",
+    "skip": "ผ่าน",
+    "aiReadyTitle": "AI ของคุณพร้อมแล้ว",
+    "aiReadyDescription": "iNrCy ใช้การตั้งค่าที่แนะนำแล้ว คุณสามารถปรับแต่งเครื่องยนต์ โทนเสียง และสไตล์ของคุณได้เลย หรือจะเก็บการกำหนดค่าเริ่มต้นไว้ก็ได้",
+    "customizeAi": "ปรับแต่ง AI ของฉัน",
+    "requiredSetup": "ต้องตั้งค่าเริ่มต้น...",
+    "navigationLabel": "การนำทางระหว่างขั้นตอนการกำหนดค่า",
+    "previous": "ก่อนหน้า",
+    "next": "ถัดไป",
+    "reset": "รีเซ็ต",
+    "saving": "การลงทะเบียน...",
+    "activityIdentityTitle": "วิชาชีพและการบริการ",
+    "activityIdentityDescription": "นำเสนอสิ่งที่คุณทำและสิ่งที่คุณนำเสนออย่างชัดเจน",
+    "activityReachTitle": "พื้นที่และความพร้อม",
+    "activityReachDescription": "ระบุสถานที่และเวลาที่ลูกค้าของคุณสามารถโทรหาคุณได้",
+    "activityPositioningTitle": "การวางตำแหน่งลูกค้า",
+    "activityPositioningDescription": "ระบุจุดแข็งของคุณและลูกค้าที่คุณกำหนดเป้าหมาย",
+    "aiFoundationTitle": "มอเตอร์และลิ้น",
+    "aiFoundationDescription": "เลือกพื้นฐานทางเทคนิคและภาษาของเนื้อหาในอนาคตของคุณ",
+    "aiVoiceTitle": "สไตล์และเสียง",
+    "aiVoiceDescription": "กำหนดแนวทางที่สอดคล้องกับธุรกิจของคุณ",
+    "aiGoalsTitle": "วัตถุประสงค์และการป้องกัน",
+    "aiGoalsDescription": "วางกรอบผลลัพธ์ที่คาดหวัง แรงบันดาลใจของคุณ และสิ่งที่ควรหลีกเลี่ยง"
+  },
+  "standard": {
+    "pilotTitle": "กล่องควบคุม",
+    "pilotSubtitle": "วัดผล ค้นหา สร้างความภักดี",
+    "statsDescription": "วัดผลกระทบของคุณ",
+    "statsCta": "ดูสถิติ",
+    "sendDescription": "ค้นหาสิ่งพิมพ์ทั้งหมดของคุณ",
+    "sendCta": "ดูประวัติ",
+    "reputationName": "ชื่อเสียง",
+    "reputationDescription": "จัดการบทวิจารณ์ของคุณ Google",
+    "reputationCta": "จัดการรีวิวของฉัน",
+    "loading": "กำลังโหลด...",
+    "boosterEyebrow": "การเผยแพร่หลายช่องทาง",
+    "boosterLine1": "เผยแพร่ทุกที่",
+    "boosterLine2": "ในท่าทางเดียว",
+    "boosterCta": "สร้างโพสต์",
+    "boosterSummaryAria": "เปิดงบดุล Booster",
+    "boosterSummary": "การประเมิน"
+  }
+}

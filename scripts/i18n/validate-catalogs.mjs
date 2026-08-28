@@ -6,13 +6,13 @@ const root = process.cwd();
 // Catalog values are rendered as text. Encoded HTML entities would leak to
 // the interface instead of being interpreted by the browser.
 const renderedHtmlEntity = /&(?:[a-z][a-z0-9]+|#x?[0-9a-f]+);/iu;
-const locales = ["fr-FR", "en-GB", "es-ES", "it-IT", "de-DE", "nl-NL", "pt-PT"];
+const locales = ["fr-FR", "en-GB", "es-ES", "it-IT", "de-DE", "nl-NL", "pt-PT", "th-TH", "zh-CN"];
 const namespaces = fs.readdirSync(path.join(root, "messages", "fr-FR"))
   .filter((name) => name.endsWith(".json"))
   .map((name) => path.basename(name, ".json"))
   .sort();
 const mojibake = /(?:Ã.|Â.|â€|â€™|â€œ|â€�|â€¦|ï¿½|�)/;
-const leakedTranslationMarker = /(?:ZORBLAX\d+Z|987654321\d{10}123456789|https:\/\/(?:inrcy|l10n)\.invalid\/|ZXQINRCY|__IV\d|INRCY_TERM|(?:Italiano|Español|Deutsch|Nederlands|Português|English|Français):)/;
+const leakedTranslationMarker = /(?:ZORBLAX\d+Z|987654321\d{10}123456789|https:\/\/(?:inrcy|l10n)\.invalid\/|ZXQ(?:INRCY|(?:VARIABLE|TAG|BRAND|TERM|SPLIT)\d+QXZ)|__IV\d|INRCY_TERM|(?:Italiano|Español|Deutsch|Nederlands|Português|English|Français):)/;
 const frenchLeak = /\b(?:bilan|bo[iî]te|veuillez|réglages|échec|aperçu|cliquez|choisir|ouvrir|fermer|enregistrer|supprimer|annuler|devis|facture|aucun|aucune|vous|votre|vos)\b/iu;
 const malformedPortuguesePossessive = /(?:à\s+)+(?:a\s+)+sua\b|(?:às\s+)+(?:as\s+)+suas\b|(?:ao\s+)+(?:o\s+)+seu\b|(?:aos\s+)+(?:os\s+)+seus\b|(?:^|[\s(])(?:a\s+a\s+sua|as\s+as\s+suas|o\s+o\s+seu|os\s+os\s+seus)\b/iu;
 const protectedTerms = [
@@ -139,7 +139,8 @@ for (const namespace of namespaces) {
         errors.push(`${locale}/${namespace}/${key}: saut de ligne ajouté par la traduction`);
       }
       const lengthRatio = translation.length / Math.max(1, source.length);
-      if (source.length > 40 && lengthRatio < 0.25) {
+      const minimumLengthRatio = locale === "zh-CN" ? 0.1 : 0.25;
+      if (source.length > 40 && lengthRatio < minimumLengthRatio) {
         errors.push(`${locale}/${namespace}/${key}: traduction anormalement courte`);
       }
       if (translation.length > 100 && lengthRatio > 3) {

@@ -616,5 +616,9 @@
   "vous_pouvez_resilier_avant_la_prochaine_c9597f47": "You can terminate before the next due date.",
   "vouvoiement_c5254349": "Formal address",
   "youtube_558865a1": "YouTube",
-  "zones_d_intervention_a4999f61": "Service areas"
+  "zones_d_intervention_a4999f61": "Service areas",
+  "account_deletion_choices_description": "Access the dedicated page to choose deletion at the end of your access, immediate deletion or specific categories of data.",
+  "native_purchase_confirmed": "Purchase confirmed. iNrCy syncs your subscription with the store.",
+  "native_subscription_management_message": "This subscription is managed in your phone's store.",
+  "native_subscription_managed_by_store": "Your subscription is managed by {store}. Renewals, payment methods and cancellations are managed in the store."
 }

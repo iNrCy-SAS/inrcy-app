@@ -196,6 +196,8 @@ const AI_LANGUAGE_LABELS: Record<string, string> = {
   de: "allemand",
   nl: "néerlandais",
   pt: "portugais",
+  th: "thaï",
+  zh: "chinois simplifié",
 };
 
 function asNormalized(source: unknown): NormalizedAiGenerationProfile {

@@ -616,5 +616,9 @@
   "vous_pouvez_resilier_avant_la_prochaine_c9597f47": "È possibile annullare l'abbonamento prima della prossima data di fatturazione.",
   "vouvoiement_c5254349": "Indirizzo completo",
   "youtube_558865a1": "YouTube",
-  "zones_d_intervention_a4999f61": "Aree di servizio"
+  "zones_d_intervention_a4999f61": "Aree di servizio",
+  "account_deletion_choices_description": "Accedi alla pagina dedicata per scegliere la cancellazione al termine dell'accesso, la cancellazione immediata o categorie specifiche di dati.",
+  "native_purchase_confirmed": "Acquisto confermato. iNrCy sincronizza il tuo abbonamento con lo store.",
+  "native_subscription_management_message": "Questo abbonamento è gestito nello store del tuo telefono.",
+  "native_subscription_managed_by_store": "Il tuo abbonamento è gestito da {store}. Nello store vengono gestiti rinnovi, modalità di pagamento e cancellazioni."
 }

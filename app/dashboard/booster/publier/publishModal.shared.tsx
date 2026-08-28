@@ -49,6 +49,7 @@ import {
   UNIVERSAL_MEDIA_VIDEO_MIME_TYPES,
 } from "@/lib/mediaUploadPolicy";
 import { MEDIA_LIBRARY_VIDEO_SOURCE_MAX_MB_LABEL } from "@/lib/mediaLibraryOptimizationPolicy";
+import { BOOSTER_ASIAN_CTA_LABELS } from "@/lib/boosterAsianCtaLabels";
 export type { BoosterCtaMode } from "@/lib/boosterCta";
 
 export type ChannelKey =
@@ -116,7 +117,7 @@ export type BoosterPreferredCta =
   | "message"
   | "custom";
 
-export type BoosterAiLanguage = "fr" | "en" | "es" | "it" | "de" | "nl" | "pt";
+export type BoosterAiLanguage = "fr" | "en" | "es" | "it" | "de" | "nl" | "pt" | "th" | "zh";
 
 export type BoosterCtaDefaults = {
   preferredWebsiteUrl: string;
@@ -164,6 +165,8 @@ const BOOSTER_AI_LANGUAGE_VALUES: BoosterAiLanguage[] = [
   "de",
   "nl",
   "pt",
+  "th",
+  "zh",
 ];
 
 const CTA_LABELS_BY_LANGUAGE: Record<
@@ -226,6 +229,8 @@ const CTA_LABELS_BY_LANGUAGE: Record<
     message: "Enviar mensagem",
     custom: "",
   },
+  th: BOOSTER_ASIAN_CTA_LABELS.th,
+  zh: BOOSTER_ASIAN_CTA_LABELS.zh,
 };
 
 export function normalizeBoosterAiLanguage(value: unknown): BoosterAiLanguage {
@@ -241,6 +246,8 @@ export function normalizeBoosterAiLanguage(value: unknown): BoosterAiLanguage {
   if (["german", "allemand"].includes(raw)) return "de";
   if (["dutch", "neerlandais", "néerlandais"].includes(raw)) return "nl";
   if (["portuguese", "portugais"].includes(raw)) return "pt";
+  if (["thai", "thailandais", "thaïlandais", "ภาษาไทย", "th-th"].includes(raw)) return "th";
+  if (["chinese", "simplified chinese", "chinois", "chinois simplifié", "中文", "简体中文", "zh-cn", "zh_cn", "zh-hans"].includes(raw)) return "zh";
   return "fr";
 }
 
@@ -287,6 +294,16 @@ const AUTO_CTA_LABELS = [
   "Ligar",
   "Enviar mensagem",
   "Saiba mais",
+  "เยี่ยมชมเว็บไซต์",
+  "ขอใบเสนอราคา",
+  "โทร",
+  "ส่งข้อความ",
+  "ดูเพิ่มเติม",
+  "访问网站",
+  "索取报价",
+  "致电",
+  "发送消息",
+  "了解更多",
 ];
 
 export function normalizeBoosterPreferredCta(

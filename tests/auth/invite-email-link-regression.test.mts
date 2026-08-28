@@ -24,7 +24,7 @@ test("Supabase email redirect targets stay query-free", () => {
 });
 
 test("every supported site language survives in a query-free auth path", () => {
-  for (const language of ["fr", "en", "es", "it", "de", "nl", "pt"]) {
+  for (const language of ["fr", "en", "es", "it", "de", "nl", "pt", "th", "zh"]) {
     const redirect = buildSupabaseEmailRedirectUrl(
       "https://app.inrcy.com",
       "/auth/finish-invite",
@@ -50,7 +50,7 @@ test("well-formed invitation links keep their token and language", () => {
 });
 
 test("already-sent links recover token_hash from the malformed lang value", () => {
-  for (const language of ["fr", "en", "es", "it", "de", "nl", "pt"]) {
+  for (const language of ["fr", "en", "es", "it", "de", "nl", "pt", "th", "zh"]) {
     const params = new URLSearchParams(
       `lang=${language}?token_hash=abcdefghijklmnopqrstuvwxyz012345&type=invite`,
     );

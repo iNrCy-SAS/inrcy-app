@@ -616,5 +616,9 @@
   "vous_pouvez_resilier_avant_la_prochaine_c9597f47": "Vous pouvez résilier avant la prochaine échéance.",
   "vouvoiement_c5254349": "Vouvoiement",
   "youtube_558865a1": "YouTube",
-  "zones_d_intervention_a4999f61": "Zones d’intervention"
+  "zones_d_intervention_a4999f61": "Zones d’intervention",
+  "account_deletion_choices_description": "Accédez à la page dédiée pour choisir une suppression à la fin de votre accès, une suppression immédiate ou des catégories de données précises.",
+  "native_purchase_confirmed": "Achat confirmé. iNrCy synchronise votre abonnement avec le magasin.",
+  "native_subscription_management_message": "La gestion de cet abonnement se fait dans le magasin de votre téléphone.",
+  "native_subscription_managed_by_store": "Votre abonnement est géré par {store}. Les renouvellements, moyens de paiement et résiliations se gèrent dans le magasin."
 }

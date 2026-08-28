@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { purgeAllBrowserAccountCaches, setActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { switchActiveInrcyAccount } from "@/lib/multicompte/client";
 import { getAvailableEstablishmentSlots } from "@/lib/multicompte/normalize";
@@ -34,17 +35,15 @@ type Copy = {
   retry: string;
 };
 
-const COPIES: Record<string, Copy> = {
+type CatalogCopyKey = "title" | "loading" | "createTitle" | "nameLabel" | "namePlaceholder";
+type StaticCopy = Omit<Copy, CatalogCopyKey>;
+
+const COPIES: Record<string, StaticCopy> = {
   fr: {
     button: "Établissements",
-    title: "Mes établissements",
-    loading: "Chargement…",
     current: "Actuel",
     switchError: "Impossible de changer d’établissement.",
     create: "Créer",
-    createTitle: "Créer un établissement",
-    nameLabel: "Nom de l’établissement",
-    namePlaceholder: "Etablissement 2",
     confirm: "Créer",
     cancel: "Annuler",
     creating: "Création…",
@@ -55,14 +54,9 @@ const COPIES: Record<string, Copy> = {
   },
   en: {
     button: "Establishments",
-    title: "My establishments",
-    loading: "Loading…",
     current: "Current",
     switchError: "Unable to switch establishment.",
     create: "Create",
-    createTitle: "Create an establishment",
-    nameLabel: "Establishment name",
-    namePlaceholder: "Establishment 2",
     confirm: "Create",
     cancel: "Cancel",
     creating: "Creating…",
@@ -72,39 +66,53 @@ const COPIES: Record<string, Copy> = {
     retry: "Retry",
   },
   es: {
-    button: "Establecimientos", title: "Mis establecimientos", loading: "Cargando…", current: "Actual",
-    switchError: "No se puede cambiar de establecimiento.", create: "Crear", createTitle: "Crear un establecimiento",
-    nameLabel: "Nombre del establecimiento", namePlaceholder: "Establecimiento 2", confirm: "Crear", cancel: "Cancelar",
+    button: "Establecimientos", current: "Actual",
+    switchError: "No se puede cambiar de establecimiento.", create: "Crear",
+    confirm: "Crear", cancel: "Cancelar",
     creating: "Creando…", contactPrefix: "Para añadir otro establecimiento,", contactAction: "contacte con iNrCy",
     establishment: "Establecimiento", retry: "Reintentar",
   },
   it: {
-    button: "Sedi", title: "Le mie sedi", loading: "Caricamento…", current: "Attuale",
-    switchError: "Impossibile cambiare sede.", create: "Crea", createTitle: "Crea una sede",
-    nameLabel: "Nome della sede", namePlaceholder: "Sede 2", confirm: "Crea", cancel: "Annulla",
+    button: "Sedi", current: "Attuale",
+    switchError: "Impossibile cambiare sede.", create: "Crea",
+    confirm: "Crea", cancel: "Annulla",
     creating: "Creazione…", contactPrefix: "Per aggiungere un'altra sede,", contactAction: "contatta iNrCy",
     establishment: "Sede", retry: "Riprova",
   },
   de: {
-    button: "Standorte", title: "Meine Standorte", loading: "Wird geladen…", current: "Aktuell",
-    switchError: "Standortwechsel nicht möglich.", create: "Erstellen", createTitle: "Standort erstellen",
-    nameLabel: "Name des Standorts", namePlaceholder: "Standort 2", confirm: "Erstellen", cancel: "Abbrechen",
+    button: "Standorte", current: "Aktuell",
+    switchError: "Standortwechsel nicht möglich.", create: "Erstellen",
+    confirm: "Erstellen", cancel: "Abbrechen",
     creating: "Erstellung…", contactPrefix: "Für einen weiteren Standort", contactAction: "iNrCy kontaktieren",
     establishment: "Standort", retry: "Erneut versuchen",
   },
   nl: {
-    button: "Vestigingen", title: "Mijn vestigingen", loading: "Laden…", current: "Actief",
-    switchError: "Kan niet van vestiging wisselen.", create: "Maken", createTitle: "Vestiging maken",
-    nameLabel: "Naam van de vestiging", namePlaceholder: "Vestiging 2", confirm: "Maken", cancel: "Annuleren",
+    button: "Vestigingen", current: "Actief",
+    switchError: "Kan niet van vestiging wisselen.", create: "Maken",
+    confirm: "Maken", cancel: "Annuleren",
     creating: "Aanmaken…", contactPrefix: "Om een extra vestiging toe te voegen,", contactAction: "neem contact op met iNrCy",
     establishment: "Vestiging", retry: "Opnieuw proberen",
   },
   pt: {
-    button: "Estabelecimentos", title: "Meus estabelecimentos", loading: "A carregar…", current: "Atual",
-    switchError: "Não foi possível mudar de estabelecimento.", create: "Criar", createTitle: "Criar estabelecimento",
-    nameLabel: "Nome do estabelecimento", namePlaceholder: "Estabelecimento 2", confirm: "Criar", cancel: "Cancelar",
+    button: "Estabelecimentos", current: "Atual",
+    switchError: "Não foi possível mudar de estabelecimento.", create: "Criar",
+    confirm: "Criar", cancel: "Cancelar",
     creating: "A criar…", contactPrefix: "Para adicionar outro estabelecimento,", contactAction: "contacte a iNrCy",
     establishment: "Estabelecimento", retry: "Tentar novamente",
+  },
+  th: {
+    button: "สถานประกอบการ", current: "ปัจจุบัน",
+    switchError: "ไม่สามารถเปลี่ยนสถานประกอบการได้", create: "สร้าง",
+    confirm: "สร้าง", cancel: "ยกเลิก",
+    creating: "กำลังสร้าง…", contactPrefix: "หากต้องการเพิ่มสถานประกอบการอีกแห่ง", contactAction: "ติดต่อ iNrCy",
+    establishment: "สถานประกอบการ", retry: "ลองอีกครั้ง",
+  },
+  zh: {
+    button: "企业", current: "当前",
+    switchError: "无法切换企业。", create: "创建",
+    confirm: "创建", cancel: "取消",
+    creating: "正在创建…", contactPrefix: "如需添加其他企业，", contactAction: "请联系 iNrCy",
+    establishment: "企业", retry: "重试",
   },
 };
 
@@ -135,7 +143,15 @@ export default function EstablishmentMenu({
   beforeAccountSwitch?: (proceed: () => Promise<void>) => void | Promise<void> | Promise<boolean>;
 }) {
   const language = String(locale || "fr").slice(0, 2).toLowerCase();
-  const copy = COPIES[language] || COPIES.fr;
+  const t = useTranslations("shell");
+  const copy: Copy = {
+    ...(COPIES[language] || COPIES.fr),
+    title: t("mes_etablissements_e04da90f"),
+    loading: t("chargement_01cba1df"),
+    createTitle: t("creer_un_etablissement_e6f28d50"),
+    nameLabel: t("nom_de_l_etablissement_ab74773b"),
+    namePlaceholder: t("etablissement_2_7e566a56"),
+  };
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);

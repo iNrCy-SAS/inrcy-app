@@ -6,10 +6,12 @@ export const APP_LOCALES = [
   "de-DE",
   "nl-NL",
   "pt-PT",
+  "th-TH",
+  "zh-CN",
 ] as const;
 
 export type AppLocale = (typeof APP_LOCALES)[number];
-export type AppLanguage = "fr" | "en" | "es" | "it" | "de" | "nl" | "pt";
+export type AppLanguage = "fr" | "en" | "es" | "it" | "de" | "nl" | "pt" | "th" | "zh";
 
 export const DEFAULT_APP_LOCALE: AppLocale = "fr-FR";
 export const APP_LOCALE_COOKIE = "inrcy_locale";
@@ -27,6 +29,8 @@ export const APP_LANGUAGE_TO_LOCALE: Record<AppLanguage, AppLocale> = {
   de: "de-DE",
   nl: "nl-NL",
   pt: "pt-PT",
+  th: "th-TH",
+  zh: "zh-CN",
 };
 
 const APP_LOCALE_BY_LOWERCASE = new Map<string, AppLocale>(
@@ -77,5 +81,6 @@ export function appLanguageFromLocale(value: unknown): AppLanguage {
 }
 
 export function htmlLanguageFromLocale(value: unknown): string {
-  return appLanguageFromLocale(value);
+  const locale = normalizeAppLocale(value);
+  return locale === "zh-CN" ? locale : appLanguageFromLocale(locale);
 }

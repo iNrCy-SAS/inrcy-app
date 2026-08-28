@@ -272,6 +272,24 @@ const FULL_EXTRA_SCENARIOS = [
     media: "text",
     idea: "Apresentar um projeto exterior concluído com cuidado e destacar a qualidade do trabalho sem inventar informações.",
   },
+  {
+    id: "all-th-full-balanced-text",
+    channels: ALL_CHANNELS,
+    language: "th",
+    creativity: "balanced",
+    profile: "full",
+    media: "text",
+    idea: "นำเสนอโครงการปรับปรุงพื้นที่ภายนอกที่เสร็จสมบูรณ์อย่างใส่ใจ โดยไม่แต่งข้อมูล ราคา หรือรายละเอียดของลูกค้า",
+  },
+  {
+    id: "all-zh-full-balanced-text",
+    channels: ALL_CHANNELS,
+    language: "zh",
+    creativity: "balanced",
+    profile: "full",
+    media: "text",
+    idea: "介绍一个精心完成的户外改造项目，突出施工质量，不虚构价格、客户信息或其他事实。",
+  },
 ];
 
 function buildScenario(raw) {

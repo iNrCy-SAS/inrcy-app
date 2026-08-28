@@ -152,7 +152,7 @@ export default function RgpdContent({ mode = "page" }: Props) {
       <div style={card}>
         <h4 style={{ margin: 0, fontSize: 14, fontWeight: 900 }}>{i18nT("suppression_du_compte_11789c76")}</h4>
         <p style={{ margin: "8px 0 0", opacity: 0.85, lineHeight: 1.5, fontSize: 13 }}>
-          Accédez à la page dédiée pour choisir une suppression à la fin de votre accès, une suppression immédiate ou des catégories de données précises. {" "}</p>
+          {i18nT("account_deletion_choices_description")} {" "}</p>
         <div style={{ marginTop: 10 }}>
           <Link href="/suppression-compte" style={dangerBtn}>
             {i18nT("supprimer_mon_compte_e894aea3")}

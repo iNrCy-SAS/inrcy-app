@@ -53,7 +53,7 @@ test("la route de création ouvre le nouvel établissement et ne crée pas de no
 });
 
 test("le header affiche toujours le sélecteur et garde le message de contact", () => {
-  assert.match(menu, /Mes établissements/);
+  assert.match(menu, /t\("mes_etablissements_e04da90f"\)/);
   assert.match(menu, /contactez iNrCy/);
   assert.match(menu, /getAvailableEstablishmentSlots/);
 });

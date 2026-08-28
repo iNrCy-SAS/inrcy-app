@@ -616,5 +616,9 @@
   "vous_pouvez_resilier_avant_la_prochaine_c9597f47": "U kunt annuleren vóór de volgende factuurdatum.",
   "vouvoiement_c5254349": "Formeel adres",
   "youtube_558865a1": "YouTube",
-  "zones_d_intervention_a4999f61": "Servicegebieden"
+  "zones_d_intervention_a4999f61": "Servicegebieden",
+  "account_deletion_choices_description": "Ga naar de speciale pagina om te kiezen voor verwijdering aan het einde van uw toegang, onmiddellijke verwijdering of specifieke gegevenscategorieën.",
+  "native_purchase_confirmed": "Aankoop bevestigd. iNrCy synchroniseert uw abonnement met de winkel.",
+  "native_subscription_management_message": "Dit abonnement wordt beheerd in de winkel van uw telefoon.",
+  "native_subscription_managed_by_store": "Uw abonnement wordt beheerd door {store}. Verlengingen, betaalmethoden en annuleringen worden beheerd in de winkel."
 }

@@ -9,7 +9,7 @@ const source = fs.readFileSync(
 );
 
 test("the WordPress homepage hero runtime covers every supported site language", () => {
-  for (const locale of ["fr", "en", "es", "it", "de", "nl", "pt"]) {
+  for (const locale of ["fr", "en", "es", "it", "de", "nl", "pt", "th", "zh"]) {
     assert.match(source, new RegExp(`\\n\\s{4}${locale}: \\{`));
   }
 
@@ -19,6 +19,8 @@ test("the WordPress homepage hero runtime covers every supported site language",
     "Pubblicato",
     "Veröffentlicht",
     "Gepubliceerd",
+    "เผยแพร่แล้ว",
+    "已发布",
   ]) {
     assert.ok(source.includes(`published: '${label}'`), `${label} is missing`);
   }

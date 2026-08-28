@@ -1,0 +1,404 @@
+{
+  "topbar": {
+    "brandTag": "能见度发生器",
+    "admin": "管理员",
+    "adminTitle": "管理 iNrCy",
+    "notifications": "通知",
+    "openNotifications": "打开通知",
+    "inrAgentOpen": "打开 iNr’Agent",
+    "inrAgentDisabled": "iNr’Agent 在帐户访问中被禁用",
+    "inrAgentAction": "行动",
+    "inrAgentActions": "行动",
+    "inrAgentPending": "验证",
+    "gps": "GPS 使用情况",
+    "gpsAria": "开放使用GPS",
+    "contact": "联系我们",
+    "openMenu": "打开菜单",
+    "menu": "菜单"
+  },
+  "language": {
+    "buttonAria": "更改应用程序语言",
+    "buttonTitle": "应用语言",
+    "panelAria": "选择应用程序语言"
+  },
+  "userMenu": {
+    "title": "用户菜单",
+    "label": "菜单",
+    "profileIncomplete": "个人资料不完整",
+    "activityIncomplete": "活动不完整",
+    "completeProfileHint": "单击以完成您的个人资料并完全激活 iNrCy。",
+    "completeActivityHint": "单击以完成您的活动并完全激活 iNrCy。",
+    "account": "帐户 iNrCytizen",
+    "profile": "我的个人资料",
+    "activity": "我的活动",
+    "preferences": "一般偏好",
+    "ai": "人工智能设置",
+    "media": "媒体库",
+    "notifications": "通知",
+    "subscription": "我的订阅",
+    "inertia": "我的惰性",
+    "shop": "商店",
+    "referral": "赞助 iNrCy",
+    "legal": "法律信息",
+    "rgpd": "我的数据 (GDPR)",
+    "logout": "断开连接"
+  },
+  "notifications": {
+    "aria": "通知",
+    "title": "采取的行动",
+    "subtitle": "您的驾驶舱会在正确的时间重新启动您。",
+    "settings": "设置",
+    "markAllRead": "阅读全部",
+    "markAllReadConfirmTitle": "将所有通知标记为已读？",
+    "markAllReadConfirmMessage": "然后它们将被永久删除。",
+    "markAllReadConfirmCancel": "取消",
+    "loading": "正在加载通知...",
+    "empty": "你的铃现在是空的。下一个业务更新将到达这里。",
+    "delete": "删除通知",
+    "markRead": "标记为已读"
+  },
+  "drawer": {
+    "close": "关闭",
+    "titles": {
+      "contact": "联系我们",
+      "compte": "帐户 iNrCytizen",
+      "profil": "我的个人资料",
+      "preferences": "一般偏好",
+      "inrbadge": "设置 iNr'Badge",
+      "activite": "我的活动",
+      "ia": "人工智能设置",
+      "abonnement": "我的订阅",
+      "legal": "法律信息",
+      "rgpd": "我的数据 (GDPR)",
+      "mails": "电子邮件设置",
+      "agenda": "设置 iNr’Calendar",
+      "site_inrcy": "配置 — 站点 iNrCy",
+      "site_web": "配置——网站",
+      "instagram": "配置 — Instagram",
+      "linkedin": "配置 — LinkedIn",
+      "gmb": "配置 — Google Business",
+      "inr_search": "设置 — iNr’Search",
+      "facebook": "配置 — Facebook",
+      "tiktok": "配置 — TikTok",
+      "youtube_shorts": "配置 — YouTube",
+      "pinterest": "配置 — Pinterest",
+      "inertie": "我的惰性",
+      "boutique": "商店",
+      "parrainage": "赞助 iNrCy",
+      "notifications": "通知",
+      "documents": "默认设置"
+    }
+  },
+  "hero": {
+    "powerDialogAria": "发电机功率详细信息",
+    "powerPanelTitle": "电源详情",
+    "kicker": "你的驾驶舱 iNrCy",
+    "expandCockpitAria": "展开你的驾驶舱 iNrCy",
+    "collapseCockpitAria": "折叠你的驾驶舱 iNrCy",
+    "title": "生成器已启动！",
+    "subtitle": "您的所有通道现在都输入到一台机器中。",
+    "flowContacts": "刊物",
+    "flowQuotes": "能见度",
+    "flowRevenue": "结果",
+    "powerTitle": "发电机功率：",
+    "powerDetailsAria": "查看发电机功率详细信息",
+    "powerDetailsTitle": "查看详情",
+    "fullPower": "全功率",
+    "stepSingular": "步骤",
+    "stepPlural": "步骤",
+    "remainingSingular": "剩余",
+    "remainingPlural": "剩余",
+    "progressAria": "发电机功率",
+    "nextRise": "下一次攀登：",
+    "completeHint": "您的所有杠杆都可以全功率为机器提供动力。",
+    "generatorTitle": "生成器 iNrCy",
+    "generatorHelpTitle": "帮助：生成器 iNrCy",
+    "generatorDesc": "反映您的沟通渠道的有效性。",
+    "settingsAria": "打开生成器设置",
+    "settingsTitle": "发电机设置",
+    "statsAria": "请参阅 iNr’Stats",
+    "refreshAria": "刷新生成器",
+    "refreshTitle": "刷新",
+    "active": "活跃",
+    "waiting": "等待",
+    "inertiaUnits": "惯性单位",
+    "channels": "渠道",
+    "potentialRevenue": "30 天的潜在营业额",
+    "basedOnProfile": "基于个人资料+机会",
+    "opportunities": "可激活的机会",
+    "projection30": "30天预测",
+    "capturedLeads": "捕获的请求",
+    "last7": "过去 7 天",
+    "last30": "过去 30 天"
+  },
+  "generatorSteps": {
+    "profile": {
+      "label": "完成我的个人资料",
+      "shortLabel": "公司简介"
+    },
+    "activity": {
+      "label": "完成我的活动",
+      "shortLabel": "活动"
+    },
+    "site_link": {
+      "label": "连接网站",
+      "shortLabel": "网站"
+    },
+    "site_ga4": {
+      "label": "插头GA4",
+      "shortLabel": "GA4"
+    },
+    "site_gsc": {
+      "label": "连接 GSC",
+      "shortLabel": "GSC"
+    },
+    "gmb": {
+      "label": "登录 Google Business",
+      "shortLabel": "Google Business"
+    },
+    "facebook": {
+      "label": "登录 Facebook",
+      "shortLabel": "Facebook"
+    },
+    "instagram": {
+      "label": "连接 Instagram",
+      "shortLabel": "Instagram"
+    },
+    "pro_network": {
+      "label": "连接 LinkedIn 或 Pinterest",
+      "shortLabel": "LinkedIn / Pinterest"
+    },
+    "inr_search": {
+      "label": "发布 iNr’Search",
+      "shortLabel": "iNr’Search"
+    },
+    "mails": {
+      "label": "连接邮件",
+      "shortLabel": "电子邮件"
+    },
+    "video": {
+      "label": "连接 TikTok 或 YouTube",
+      "shortLabel": "TikTok / YouTube"
+    }
+  },
+  "channels": {
+    "title": "渠道",
+    "helpTitle": "帮助：频道",
+    "connected": "已连接",
+    "available": "可用",
+    "displayAria": "频道显示",
+    "list": "列表",
+    "carousel": "轮播",
+    "railAria": "频道列表",
+    "positionAria": "在轮播中的位置",
+    "prev": "上一个频道",
+    "next": "下一个频道",
+    "goToChannel": "前往频道",
+    "showChannel": "显示",
+    "connectedAria": "通道已连接"
+  },
+  "modules": {
+    "requiredSetupLocked": "我的个人资料和/或我的活动不完整。",
+    "dashboardTitle": "仪表板",
+    "dashboardSub": "驾驶",
+    "statsSub": "您的所有线索终于可见",
+    "mailsSettingsAria": "电子邮件设置",
+    "mailsSub": "您所有的消息都从这里发出",
+    "agendaSettingsAria": "日历设置",
+    "agendaSub": "将联系人转化为约会",
+    "crmSub": "您集中的潜在客户和客户",
+    "gearboxTitle": "变速箱",
+    "gearboxSub": "转换",
+    "boosterStatsTitle": "评估Booster",
+    "boosterSub": "激活您的渠道",
+    "publishTitle": "Booster",
+    "publishCta": "发布",
+    "propulserTitle": "推进",
+    "propulserSub": "加速您的业务",
+    "propulserCta": "开发",
+    "fideliserTitle": "建立忠诚度",
+    "fideliserSub": "维持活动",
+    "fideliserCta": "沟通",
+    "cashSettingsTitle": "默认设置",
+    "cashTitle": "兑现",
+    "cashSub": "报价单和发票",
+    "cashCta": "兑现",
+    "reputationTitle": "电子声誉",
+    "reputationSub": "管理您的评论 Google",
+    "reputationCta": "管理",
+    "cashModalTitle": "兑现",
+    "cashModalLabel": "报价单和发票",
+    "cashModalSettings": "设置",
+    "cashModalIntroStrong": "兑现",
+    "cashModalIntroText": "整合您的报价和发票，而无需改变您的习惯。只需选择要启动的操作即可。",
+    "invoiceEyebrow": "发票",
+    "invoiceTitle": "创建发票",
+    "invoiceText": "向客户开具发票并跟踪付款。",
+    "invoiceCta": "发票 →",
+    "quoteEyebrow": "报价",
+    "quoteTitle": "创建报价",
+    "quoteText": "加密请求并触发机会。",
+    "quoteCta": "报价 →"
+  },
+  "moduleCards": {
+    "inrbadge": {
+      "name": "iNr'Badge",
+      "description": "我的二维码业务",
+      "view": "查看我的徽章",
+      "connect": "配置"
+    },
+    "mails": {
+      "name": "电子邮件",
+      "description": "广播到您的网络✉️",
+      "view": "打开 iNr’Send",
+      "connect": "配置"
+    },
+    "site_inrcy": {
+      "name": "网站 iNrCy",
+      "description": "你的主导机器⚡",
+      "view": "查看网站",
+      "connect": "连接 Google 分析",
+      "siteOnlyTitle": "仅当您有网站时可用 iNrCy"
+    },
+    "site_web": {
+      "name": "网站",
+      "description": "转化您的访客💡",
+      "view": "查看网站",
+      "connect": "连接 Google 分析"
+    },
+    "gmb": {
+      "name": "Google Business",
+      "description": "增加来电📞",
+      "view": "查看页面",
+      "connect": "配置"
+    },
+    "inr_search": {
+      "name": "iNr’Search",
+      "description": "您的页面由 iNrCy 🔎 创建",
+      "view": "查看我的页面",
+      "connect": "配置"
+    },
+    "facebook": {
+      "name": "Facebook",
+      "description": "创造需求📈",
+      "view": "查看账户",
+      "connect": "登录 Facebook"
+    },
+    "instagram": {
+      "name": "Instagram",
+      "description": "发展您的品牌📸",
+      "view": "查看账户",
+      "connect": "连接 Instagram"
+    },
+    "linkedin": {
+      "name": "LinkedIn",
+      "description": "为您的专业知识提供可信度💼",
+      "view": "查看账户",
+      "connect": "登录 LinkedIn"
+    },
+    "tiktok": {
+      "name": "TikTok",
+      "description": "发展你的观众🎬",
+      "view": "查看账户",
+      "connect": "配置"
+    },
+    "youtube_shorts": {
+      "name": "YouTube",
+      "description": "视频串流 ▶️",
+      "view": "查看频道",
+      "connect": "配置"
+    },
+    "pinterest": {
+      "name": "Pinterest",
+      "description": "激励您的客户📌",
+      "view": "查看账户",
+      "connect": "配置"
+    },
+    "inr_agent": {
+      "name": "iNr’Agent",
+      "description": "自动化你的行动🤖",
+      "view": "打开",
+      "connect": "配置"
+    }
+  },
+  "bubble": {
+    "viewFallback": "参见",
+    "configure": "配置",
+    "disabled": "选项已禁用",
+    "open": "打开"
+  },
+  "status": {
+    "connected": "已连接",
+    "disconnected": "已断开连接",
+    "toConnect": "连接",
+    "toConfigure": "配置",
+    "toUpdate": "更新",
+    "reconnect": "重新连接",
+    "disabled": "残疾人",
+    "noSite": "没有站点",
+    "soon": "很快",
+    "premiumPlan": "🔒高级包",
+    "notSubscribed": "未订阅",
+    "syncing": "同步…",
+    "pagePublished": "已发布页面",
+    "pageUnavailable": "页面不可用",
+    "profileChecking": "正在检查您的个人资料..."
+  },
+  "onboarding": {
+    "initialSetup": "初始设置",
+    "progress": "初始设置步骤 {current}/{total}",
+    "unsavedPrefix": "未保存的更改将会丢失。",
+    "keepDefaultsTitle": "保留默认设置？",
+    "continueLaterTitle": "稍后继续吗？",
+    "keepDefaultsMessage": "默认情况下，您的 AI 将保留推荐的设置。您可以稍后从 AI 配置中自定义它们。",
+    "continueLaterMessage": "跳过此步骤不会启用所有工具 iNrCy 的激活。您可以从仪表板恢复配置。您想稍后继续吗？",
+    "keepDefaults": "保持默认",
+    "continueLater": "稍后继续",
+    "settings": "设置",
+    "exitWithoutSavingTitle": "不保存就退出？",
+    "exitWithoutSavingMessage": "该窗口包含未保存的更改。如果你现在关闭它，它们就会丢失。",
+    "closeWithoutSaving": "关闭而不保存",
+    "returnToSetup": "返回配置",
+    "continueEditing": "继续编辑",
+    "skip": "通行证",
+    "aiReadyTitle": "你的人工智能已经准备好了",
+    "aiReadyDescription": "iNrCy 已使用推荐的设置。您现在可以自定义引擎、音调和风格，或保留默认配置。",
+    "customizeAi": "定制我的人工智能",
+    "requiredSetup": "需要初始设置...",
+    "navigationLabel": "在配置步骤之间导航",
+    "previous": "上一页",
+    "next": "下一步",
+    "reset": "重置",
+    "saving": "注册…",
+    "activityIdentityTitle": "专业与服务",
+    "activityIdentityDescription": "清楚地展示您所做的事情和提供的产品。",
+    "activityReachTitle": "面积和可用性",
+    "activityReachDescription": "指出您的客户可以在何时何地拜访您。",
+    "activityPositioningTitle": "客户定位",
+    "activityPositioningDescription": "指定您的优势和您的目标客户。",
+    "aiFoundationTitle": "电机和舌头",
+    "aiFoundationDescription": "选择您未来内容的技术基础和语言。",
+    "aiVoiceTitle": "风格和声音",
+    "aiVoiceDescription": "设定与您的业务一致的基调。",
+    "aiGoalsTitle": "目标和保障措施",
+    "aiGoalsDescription": "列出预期的结果、你的灵感以及要避免的事情。"
+  },
+  "standard": {
+    "pilotTitle": "控制箱",
+    "pilotSubtitle": "衡量、发现、建立忠诚度",
+    "statsDescription": "衡量你的影响力。",
+    "statsCta": "查看统计数据",
+    "sendDescription": "查找您的所有出版物。",
+    "sendCta": "查看历史记录",
+    "reputationName": "声誉",
+    "reputationDescription": "管理您的评论 Google。",
+    "reputationCta": "管理我的评论",
+    "loading": "加载中...",
+    "boosterEyebrow": "多渠道发布",
+    "boosterLine1": "到处发布，",
+    "boosterLine2": "只需一个手势即可。",
+    "boosterCta": "创建帖子",
+    "boosterSummaryAria": "未结资产负债表 Booster",
+    "boosterSummary": "评估"
+  }
+}

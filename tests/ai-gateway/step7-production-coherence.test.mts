@@ -42,9 +42,9 @@ test("unsupported raw vision never silently swaps the selected writer engine", (
   assert.doesNotMatch(routing, /model:\s*visionFallbackModel/);
 });
 
-test("full live QA certifies all seven supported languages", () => {
+test("full live QA certifies all nine supported languages", () => {
   const script = read("scripts/qa-ai-gateway-live.mjs");
-  for (const code of ["fr", "en", "es", "it", "de", "nl", "pt"]) {
+  for (const code of ["fr", "en", "es", "it", "de", "nl", "pt", "th", "zh"]) {
     assert.match(script, new RegExp(`language:\\s*"${code}"`));
   }
 });

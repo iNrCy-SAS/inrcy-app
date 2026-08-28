@@ -1,0 +1,9 @@
+{
+  "pullToRefresh": {
+    "refreshing": "更新…",
+    "ready": "释放刷新",
+    "pull": "拉动刷新"
+  },
+  "dashboardBoot": "正在加载您的仪表板 iNrCy...",
+  "initialSetup": "正在准备您的初始配置..."
+}

@@ -1155,7 +1155,7 @@ function normalizeInstructionForDetection(value: unknown) {
 function removeNegatedInstructionSegments(value: string) {
   return value
     .replace(
-      /\b(?:ne\s+)?(?:pas|jamais)\b[^.!?;]{0,48}\b(?:en|in)\s+(?:francais|anglais|espagnol|italien|allemand|neerlandais|portugais|french|english|spanish|italian|german|dutch|portuguese)\b/g,
+      /\b(?:ne\s+)?(?:pas|jamais)\b[^.!?;]{0,48}\b(?:en|in)\s+(?:francais|anglais|espagnol|italien|allemand|neerlandais|portugais|thai|thailandais|chinois|chinois\s+simplifie|french|english|spanish|italian|german|dutch|portuguese|simplified\s+chinese)\b/g,
       " ",
     )
     .replace(
@@ -1186,6 +1186,8 @@ function detectPublicationInstructionLanguage(
     ["de", /\b(?:en|in)\s+allemand\b|\bgerman\b/],
     ["nl", /\b(?:en|in)\s+neerlandais\b|\bdutch\b/],
     ["pt", /\b(?:en|in)\s+portugais\b|\bportuguese\b/],
+    ["th", /\b(?:en|in)\s+(?:thai|thailandais)\b|\bthai\b|ภาษาไทย/u],
+    ["zh", /\b(?:en|in)\s+chinois(?:\s+simplifie)?\b|\b(?:simplified\s+)?chinese\b|简体中文|中文/u],
   ];
 
   for (const [language, pattern] of rules) {

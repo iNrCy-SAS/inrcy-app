@@ -1,4 +1,4 @@
-export type SupportedAiLanguageCode = "fr" | "en" | "es" | "it" | "de" | "nl" | "pt";
+export type SupportedAiLanguageCode = "fr" | "en" | "es" | "it" | "de" | "nl" | "pt" | "th" | "zh";
 
 const SUPPORTED_LANGUAGES = new Set<SupportedAiLanguageCode>([
   "fr",
@@ -8,6 +8,8 @@ const SUPPORTED_LANGUAGES = new Set<SupportedAiLanguageCode>([
   "de",
   "nl",
   "pt",
+  "th",
+  "zh",
 ]);
 
 const LANGUAGE_HINTS: Record<SupportedAiLanguageCode, ReadonlySet<string>> = {
@@ -46,6 +48,8 @@ const LANGUAGE_HINTS: Record<SupportedAiLanguageCode, ReadonlySet<string>> = {
     "descubra", "contato", "servico", "servicos", "jardim", "empresa", "qualidade", "conselho", "local", "resultado",
     "resultados", "exterior", "hoje", "como", "este", "esta", "mais", "sobre", "nossos",
   ]),
+  th: new Set(["และ", "สำหรับ", "คุณ", "เรา", "บริการ", "คุณภาพ", "โครงการ", "ติดต่อ"]),
+  zh: new Set(["和", "为", "您", "我们", "服务", "质量", "项目", "联系"]),
 };
 
 function normalizeToken(value: string) {
@@ -53,14 +57,18 @@ function normalizeToken(value: string) {
     .toLocaleLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]/g, "")
+    .replace(/[^\p{L}\p{N}]/gu, "")
     .trim();
 }
 
 function tokenize(value: unknown) {
-  return (String(value ?? "").match(/[A-Za-zÀ-ÖØ-öø-ÿ0-9'-]+/g) || [])
+  return (String(value ?? "").match(/[\p{L}\p{M}\p{N}'-]+/gu) || [])
     .map(normalizeToken)
     .filter((token) => token.length >= 2);
+}
+
+function countScriptCharacters(value: string, pattern: RegExp) {
+  return value.match(pattern)?.length || 0;
 }
 
 export function getSupportedAiLanguageCode(value: unknown): SupportedAiLanguageCode | null {
@@ -69,7 +77,8 @@ export function getSupportedAiLanguageCode(value: unknown): SupportedAiLanguageC
 }
 
 export function scoreTextLanguages(value: unknown) {
-  const tokens = tokenize(value);
+  const raw = String(value ?? "");
+  const tokens = tokenize(raw);
   const scores = Object.fromEntries(
     (Array.from(SUPPORTED_LANGUAGES) as SupportedAiLanguageCode[]).map((language) => [
       language,
@@ -77,7 +86,16 @@ export function scoreTextLanguages(value: unknown) {
     ]),
   ) as Record<SupportedAiLanguageCode, number>;
 
-  return { tokens, scores };
+  // Le thaï n'utilise généralement pas d'espaces entre les mots et le chinois
+  // n'en utilise pas du tout. Les scripts sont donc un signal plus fiable que
+  // les listes de mots pour ces deux langues.
+  const thaiCharacters = countScriptCharacters(raw, /\p{Script=Thai}/gu);
+  const hanCharacters = countScriptCharacters(raw, /\p{Script=Han}/gu);
+  scores.th += Math.ceil(thaiCharacters / 3);
+  scores.zh += Math.ceil(hanCharacters / 2);
+  const evidenceCount = tokens.length + Math.ceil(thaiCharacters / 2) + Math.ceil(hanCharacters / 2);
+
+  return { tokens, scores, evidenceCount };
 }
 
 export function detectLikelyAiLanguage(value: unknown): {
@@ -86,7 +104,7 @@ export function detectLikelyAiLanguage(value: unknown): {
   scores: Record<SupportedAiLanguageCode, number>;
   tokenCount: number;
 } {
-  const { tokens, scores } = scoreTextLanguages(value);
+  const { scores, evidenceCount } = scoreTextLanguages(value);
   const ranked = (Object.entries(scores) as Array<[SupportedAiLanguageCode, number]>)
     .sort((left, right) => right[1] - left[1]);
   const [bestLanguage, bestScore] = ranked[0] || [null, 0];
@@ -97,7 +115,7 @@ export function detectLikelyAiLanguage(value: unknown): {
     language: bestScore >= 3 ? bestLanguage : null,
     confidence,
     scores,
-    tokenCount: tokens.length,
+    tokenCount: evidenceCount,
   };
 }
 
@@ -109,8 +127,8 @@ export function hasAiLanguageMismatch(expectedLanguage: unknown, value: unknown)
   const expected = getSupportedAiLanguageCode(expectedLanguage);
   if (!expected) return false;
 
-  const { tokens, scores } = scoreTextLanguages(value);
-  if (tokens.length < 10) return false;
+  const { scores, evidenceCount } = scoreTextLanguages(value);
+  if (evidenceCount < 10) return false;
 
   const expectedScore = scores[expected] || 0;
   const otherScores = (Object.entries(scores) as Array<[SupportedAiLanguageCode, number]>)

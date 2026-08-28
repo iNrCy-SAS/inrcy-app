@@ -29,6 +29,8 @@ const SCENARIOS = [
   { id: "de", language: "de", media: "text", creativity: "classic", profile: "full", channels: Array.from({ length: 5 }, (_, i) => `c${i}`) },
   { id: "nl", language: "nl", media: "text", creativity: "creative", profile: "minimal", channels: Array.from({ length: 5 }, (_, i) => `c${i}`) },
   { id: "pt", language: "pt", media: "text", creativity: "balanced", profile: "full", channels: Array.from({ length: 9 }, (_, i) => `c${i}`) },
+  { id: "th", language: "th", media: "text", creativity: "balanced", profile: "full", channels: Array.from({ length: 9 }, (_, i) => `c${i}`) },
+  { id: "zh", language: "zh", media: "text", creativity: "balanced", profile: "full", channels: Array.from({ length: 9 }, (_, i) => `c${i}`) },
 ];
 
 function syntheticReport() {
@@ -81,6 +83,7 @@ test("Step 9 certifies a complete, reliable and economically measurable matrix",
   assert.equal(certification.certified, true);
   assert.equal(certification.coverage.engineCount, 8);
   assert.equal(certification.coverage.coversSevenLanguages, true);
+  assert.equal(certification.coverage.coversAllLanguages, true);
   assert.equal(certification.coverage.coversAllMedia, true);
   assert.equal(certification.coverage.coversAllCreativity, true);
   assert.equal(certification.coverage.coversBothProfiles, true);

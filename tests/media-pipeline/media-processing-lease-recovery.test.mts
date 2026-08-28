@@ -95,7 +95,10 @@ test("workspace media processing does not consume parent publication attempts", 
     cron,
     /waitingForWorkspaceMedia[\s\S]*Math\.max\(2, job\.attempt\)[\s\S]*job\.attempt \+ 1/,
   );
-  assert.match(cron, /_asyncPreparationAttempt: nextPreparationAttempt/);
+  assert.match(
+    cron,
+    /buildBoosterPreparationDispatchReference\(\{[\s\S]*?attempt: nextPreparationAttempt/,
+  );
 });
 
 test("manual and AI workspace videos enqueue preparation as soon as upload finishes", () => {

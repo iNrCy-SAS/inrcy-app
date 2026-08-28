@@ -18,6 +18,8 @@ const LANGUAGE_HINTS = {
   de: new Set(["mit", "fur", "sie", "ihr", "ihre", "unser", "projekt", "arbeit", "entdecken", "kontakt", "service", "garten", "qualitat", "ohne", "diese", "wir"]),
   nl: new Set(["met", "voor", "uw", "ons", "onze", "project", "werk", "ontdek", "contact", "dienst", "tuin", "kwaliteit", "zonder", "deze", "wij"]),
   pt: new Set(["com", "para", "voce", "voces", "nosso", "nossa", "projeto", "trabalho", "descubra", "contato", "servico", "jardim", "qualidade", "sem"]),
+  th: new Set(["กับ", "สำหรับ", "คุณ", "เรา", "ของเรา", "โครงการ", "งาน", "บริการ", "คุณภาพ", "ติดต่อ"]),
+  zh: new Set(["与", "为", "您", "我们", "项目", "工作", "服务", "质量", "联系", "了解"]),
 };
 
 const STOP_WORDS = new Set([
@@ -34,6 +36,8 @@ const ADDRESS_PATTERNS = {
   de: { informal: /\b(du|dein|deine|deinen|dir|dich)\b/, formal: /\b(sie|ihr|ihre|ihren|ihnen)\b/ },
   nl: { informal: /\b(jij|je|jouw|jou)\b/, formal: /\b(u|uw)\b/ },
   pt: { informal: /\b(tu|teu|tua|teus|tuas|te)\b/, formal: /\b(voce|voces|seu|sua|seus|suas)\b/ },
+  th: { informal: /(เธอ|คุณ)/, formal: /(คุณ|ท่าน)/ },
+  zh: { informal: /(你|你的)/, formal: /(您|您的)/ },
 };
 
 const VOICE_PATTERNS = {
@@ -44,6 +48,8 @@ const VOICE_PATTERNS = {
   de: { singular: /\b(ich|mein|meine|meiner)\b/, plural: /\b(wir|unser|unsere|unseren)\b/ },
   nl: { singular: /\b(ik|mijn|mij)\b/, plural: /\b(wij|we|ons|onze)\b/ },
   pt: { singular: /\b(eu|meu|minha|meus|minhas)\b/, plural: /\b(nos|nosso|nossa|nossos|nossas)\b/ },
+  th: { singular: /(ฉัน|ผม|ดิฉัน)/, plural: /(เรา|พวกเรา)/ },
+  zh: { singular: /(我|我的)/, plural: /(我们|我们的)/ },
 };
 
 const ANGLE_HINTS = {
@@ -70,7 +76,7 @@ function normalizeText(value) {
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -98,6 +104,17 @@ function countEmoji(value) {
 }
 
 function detectLanguageScore(value, expectedLanguage) {
+  const raw = String(value || "");
+  if (expectedLanguage === "th") {
+    const thai = (raw.match(/[\u0E00-\u0E7F]/g) || []).length;
+    const han = (raw.match(/[\u3400-\u4DBF\u4E00-\u9FFF]/g) || []).length;
+    if (thai || han) return thai > han ? Math.min(1, 0.78 + thai / 120) : 0.25;
+  }
+  if (expectedLanguage === "zh") {
+    const han = (raw.match(/[\u3400-\u4DBF\u4E00-\u9FFF]/g) || []).length;
+    const thai = (raw.match(/[\u0E00-\u0E7F]/g) || []).length;
+    if (han || thai) return han > thai ? Math.min(1, 0.78 + han / 120) : 0.25;
+  }
   const tokens = words(value);
   if (!tokens.length) return 0;
   const scores = Object.fromEntries(

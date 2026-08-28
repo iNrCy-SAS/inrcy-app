@@ -8,6 +8,8 @@ export const CLIENT_LANGUAGE_OPTIONS = [
   { value: "de", label: "Deutsch" },
   { value: "nl", label: "Nederlands" },
   { value: "pt", label: "Português" },
+  { value: "th", label: "ไทย" },
+  { value: "zh", label: "中文（简体）" },
 ] as const;
 
 export type ClientLanguageCode = (typeof CLIENT_LANGUAGE_OPTIONS)[number]["value"];
@@ -32,6 +34,8 @@ export function normalizeClientLanguage(value: unknown): ClientLanguageCode {
   if (["german", "allemand"].includes(raw)) return "de";
   if (["dutch", "neerlandais", "néerlandais"].includes(raw)) return "nl";
   if (["portuguese", "portugais"].includes(raw)) return "pt";
+  if (["thai", "thailandais", "thaïlandais", "ภาษาไทย", "th-th"].includes(raw)) return "th";
+  if (["chinese", "simplified chinese", "chinois", "chinois simplifié", "中文", "简体中文", "zh-cn", "zh_cn", "zh-hans"].includes(raw)) return "zh";
   return DEFAULT_CLIENT_LANGUAGE;
 }
 
@@ -43,6 +47,8 @@ export function getClientLocale(language: unknown) {
   if (lang === "de") return "de-DE";
   if (lang === "nl") return "nl-NL";
   if (lang === "pt") return "pt-PT";
+  if (lang === "th") return "th-TH";
+  if (lang === "zh") return "zh-CN";
   return "fr-FR";
 }
 
@@ -617,6 +623,124 @@ const CALENDAR_TEXTS: Record<ClientLanguageCode, CalendarClientTexts> = {
       footer: "Este lembrete é enviado automaticamente por iNr'Calendar, um serviço iNrCy.",
     },
   },
+  th: {
+    htmlLang: "th",
+    generic: {
+      greeting: (name) => (name ? `สวัสดี ${name},` : "สวัสดี,"),
+      professional: "ผู้ให้บริการของคุณ",
+      client: "ลูกค้า",
+      appointment: "การนัดหมาย",
+      automaticMail: "อีเมลอัตโนมัติที่ส่งโดย iNr’Calendar",
+    },
+    labels: {
+      date: "วันที่",
+      time: "เวลา",
+      reason: "เหตุผล",
+      location: "สถานที่",
+      professional: "ผู้ติดต่อ",
+      phone: "โทรศัพท์",
+      usefulInfo: "ข้อมูลที่เป็นประโยชน์",
+      requestedDate: "วันที่ที่ขอ",
+      requestedTime: "เวลาที่ขอ",
+      yourMessage: "ข้อความของคุณ",
+      email: "อีเมล",
+      appointmentReason: "เหตุผลในการนัดหมาย",
+      address: "ที่อยู่",
+      provider: "ผู้ให้บริการ",
+    },
+    confirmation: {
+      subjectCreated: (eventTitle) => `ยืนยันการนัดหมายของคุณ - ${eventTitle}`,
+      subjectUpdated: (eventTitle) => `อัปเดตการนัดหมายของคุณ - ${eventTitle}`,
+      titleCreated: "ยืนยันการนัดหมายของคุณแล้ว",
+      titleUpdated: "อัปเดตการนัดหมายของคุณแล้ว",
+      statusCreated: "ยืนยันการนัดหมายแล้ว",
+      statusUpdated: "อัปเดตการนัดหมายแล้ว",
+      introCreated: (companyName) => `บันทึกการนัดหมายของคุณกับ ${companyName} แล้ว`,
+      introUpdated: (companyName) => `แก้ไขการนัดหมายของคุณกับ ${companyName} แล้ว`,
+      detailsTitle: "รายละเอียดการนัดหมาย",
+    },
+    rejection: {
+      subject: (companyName) => `ไม่สามารถยืนยันคำขอนัดหมายของคุณได้ - ${companyName}`,
+      title: "ไม่สามารถยืนยันคำขอของคุณได้",
+      status: "ยังไม่ยืนยันคำขอ",
+      detailsTitle: "รายละเอียดคำขอ",
+      intro: (companyName) => `ไม่สามารถยืนยันคำขอนัดหมายกับ ${companyName} ในช่วงเวลานี้ได้`,
+      action: "คุณสามารถเลือกช่วงเวลาอื่นผ่าน iNr’Badge หรือติดต่อผู้ให้บริการโดยตรง",
+      textTitle: "ไม่สามารถยืนยันคำขอของคุณได้",
+    },
+    reminder: {
+      offsetLabel: (minutes) => defaultOffsetLabel(minutes, "ล่วงหน้า"),
+      subject: (offsetLabel, eventTitle) => `เตือนการนัดหมาย ${offsetLabel} - ${eventTitle}`,
+      badgePrefix: "การแจ้งเตือน",
+      title: "การนัดหมายของคุณใกล้เข้ามาแล้ว",
+      intro: (dateTime, companyName) => `ขอยืนยันการนัดหมายของคุณในวันที่ ${dateTime} กับ ${companyName}`,
+      sectionTitle: "การยืนยันของคุณ",
+      secondaryTitle: "ข้อมูลที่ควรรู้",
+      defaultUsefulInfo: "โปรดเผื่อเวลาเพิ่มอีกเล็กน้อยหากจำเป็น หากไม่สามารถมาตามนัดได้ โปรดติดต่อผู้ให้บริการโดยตรง",
+      contactPro: (proName) => `ติดต่อ ${proName}`,
+      openAddress: "เปิดที่อยู่",
+      footer: "การแจ้งเตือนนี้ส่งโดยอัตโนมัติจาก iNr'Calendar ซึ่งเป็นบริการของ iNrCy",
+    },
+  },
+  zh: {
+    htmlLang: "zh-CN",
+    generic: {
+      greeting: (name) => (name ? `${name}，您好：` : "您好："),
+      professional: "您的服务商",
+      client: "客户",
+      appointment: "预约",
+      automaticMail: "此邮件由 iNr’Calendar 自动发送。",
+    },
+    labels: {
+      date: "日期",
+      time: "时间",
+      reason: "事由",
+      location: "地点",
+      professional: "联系人",
+      phone: "电话",
+      usefulInfo: "实用信息",
+      requestedDate: "申请日期",
+      requestedTime: "申请时间",
+      yourMessage: "您的留言",
+      email: "电子邮件",
+      appointmentReason: "预约事由",
+      address: "地址",
+      provider: "服务人员",
+    },
+    confirmation: {
+      subjectCreated: (eventTitle) => `您的预约已确认 - ${eventTitle}`,
+      subjectUpdated: (eventTitle) => `您的预约已更新 - ${eventTitle}`,
+      titleCreated: "您的预约已确认",
+      titleUpdated: "您的预约已更新",
+      statusCreated: "预约已确认",
+      statusUpdated: "预约已更新",
+      introCreated: (companyName) => `您与 ${companyName} 的预约已登记。`,
+      introUpdated: (companyName) => `您与 ${companyName} 的预约已修改。`,
+      detailsTitle: "预约详情",
+    },
+    rejection: {
+      subject: (companyName) => `无法确认您的预约申请 - ${companyName}`,
+      title: "无法确认您的申请",
+      status: "申请未确认",
+      detailsTitle: "申请详情",
+      intro: (companyName) => `无法确认您与 ${companyName} 在该时段的预约申请。`,
+      action: "您可以通过 iNr’Badge 选择其他时段，或直接联系服务商。",
+      textTitle: "无法确认您的申请",
+    },
+    reminder: {
+      offsetLabel: (minutes) => defaultOffsetLabel(minutes, "前"),
+      subject: (offsetLabel, eventTitle) => `预约提醒（${offsetLabel}）- ${eventTitle}`,
+      badgePrefix: "提醒",
+      title: "您的预约即将开始",
+      intro: (dateTime, companyName) => `确认您将于 ${dateTime} 与 ${companyName} 进行预约。`,
+      sectionTitle: "预约确认",
+      secondaryTitle: "温馨提示",
+      defaultUsefulInfo: "如有需要，请预留几分钟时间。如无法按时赴约，请直接联系您的服务商。",
+      contactPro: (proName) => `联系 ${proName}`,
+      openAddress: "打开地址",
+      footer: "此提醒由 iNrCy 服务 iNr'Calendar 自动发送。",
+    },
+  },
 };
 
 
@@ -791,6 +915,24 @@ const DOCUMENT_TEXTS: Record<ClientLanguageCode, DocumentClientTexts> = {
     operationCategories: { vente: "Venda", prestation: "Prestação de serviços", mixte: "Venda + serviços" },
     mail: { subjectInvoice: (ref) => `Envio da sua fatura${ref ? ` ${ref}` : ""}`, subjectQuote: (ref) => `Envio do seu orçamento${ref ? ` ${ref}` : ""}`, bodyInvoice: (name, ref) => [`Olá${name ? ` ${name}` : ""},`, "", `Segue em anexo a sua fatura${ref ? ` ${ref}` : ""}.`, "", "Fico à disposição se necessário."].join("\n"), bodyQuote: (name, ref) => [`Olá${name ? ` ${name}` : ""},`, "", `Segue em anexo o seu orçamento${ref ? ` ${ref}` : ""}.`, "", "Fico à disposição para qualquer pergunta ou alteração."].join("\n") },
   },
+  th: {
+    titles: { invoice: "ใบแจ้งหนี้", depositInvoice: "ใบแจ้งหนี้เงินมัดจำ", creditNote: "ใบลดหนี้", quote: "ใบเสนอราคา" },
+    labels: {
+      date: "วันที่", dueDate: "วันครบกำหนด", serviceDelivery: "บริการ / การจัดส่ง", period: "ระยะเวลา", provider: "ผู้ให้บริการ", client: "ลูกค้า", phone: "โทร.", email: "อีเมล", siren: "SIREN", vat: "ภาษีมูลค่าเพิ่ม", deliveryAddress: "ที่อยู่จัดส่ง", designation: "รายการ", quantity: "จำนวน", unitPriceHT: "ราคาต่อหน่วยไม่รวมภาษี", totalHT: "รวมไม่รวมภาษี", totalVAT: "ภาษีมูลค่าเพิ่ม", totalTTC: "รวมภาษีแล้ว", discount: "ส่วนลด", totalDue: "ยอดที่ต้องชำระ", payment: "การชำระเงิน", category: "หมวดหมู่", serviceDateDelivery: "วันที่ให้บริการ / จัดส่ง", servicePeriod: "ระยะเวลาการให้บริการ", purchaseOrderReference: "เลขอ้างอิงคำสั่งซื้อ / PO", deposit: "เงินมัดจำ", depositRequested: "เงินมัดจำที่ขอ", vatOnDebits: "ภาษีมูลค่าเพิ่มตามใบแจ้งหนี้", lateFees: "ค่าปรับชำระล่าช้า", recoveryFee40: "ค่าธรรมเนียมติดตามหนี้แบบเหมาจ่าย 40 ยูโรในกรณีชำระเงินล่าช้า", vatNotApplicable: "ไม่อยู่ในขอบเขตภาษีมูลค่าเพิ่ม", status: "สถานะ", continuation: "รายการบริการต่อเนื่อง", goodForAgreement: "ยอมรับ", signature: "ลายเซ็น", pricesInCurrency: (currency) => `ราคาแสดงเป็นสกุล ${currency}`, quoteValidity: (days) => `ใบเสนอราคานี้มีอายุ ${days} วัน`,
+    },
+    paymentMethods: { virement: "โอนเงินผ่านธนาคาร", cb: "บัตรธนาคาร", cheque: "เช็ค", especes: "เงินสด", abonnement: "การสมัครสมาชิก" },
+    operationCategories: { vente: "การขาย", prestation: "การให้บริการ", mixte: "การขาย + การให้บริการ" },
+    mail: { subjectInvoice: (ref) => `ใบแจ้งหนี้ของคุณ${ref ? ` ${ref}` : ""}`, subjectQuote: (ref) => `ใบเสนอราคาของคุณ${ref ? ` ${ref}` : ""}`, bodyInvoice: (name, ref) => [`สวัสดี${name ? ` ${name}` : ""},`, "", `กรุณาดูใบแจ้งหนี้${ref ? ` ${ref}` : ""} ที่แนบมาพร้อมนี้`, "", "หากต้องการข้อมูลเพิ่มเติม โปรดติดต่อเรา"].join("\n"), bodyQuote: (name, ref) => [`สวัสดี${name ? ` ${name}` : ""},`, "", `กรุณาดูใบเสนอราคา${ref ? ` ${ref}` : ""} ที่แนบมาพร้อมนี้`, "", "หากมีคำถามหรือต้องการแก้ไข โปรดติดต่อเรา"].join("\n") },
+  },
+  zh: {
+    titles: { invoice: "发票", depositInvoice: "预付款发票", creditNote: "贷项通知单", quote: "报价单" },
+    labels: {
+      date: "日期", dueDate: "到期日", serviceDelivery: "服务 / 交付", period: "期间", provider: "服务商", client: "客户", phone: "电话", email: "电子邮件", siren: "SIREN", vat: "增值税", deliveryAddress: "交付地址", designation: "项目说明", quantity: "数量", unitPriceHT: "未税单价", totalHT: "未税合计", totalVAT: "增值税", totalTTC: "含税合计", discount: "折扣", totalDue: "应付金额", payment: "付款", category: "类别", serviceDateDelivery: "服务 / 交付日期", servicePeriod: "服务期间", purchaseOrderReference: "采购订单 / PO 编号", deposit: "预付款", depositRequested: "要求的预付款", vatOnDebits: "按开票计征增值税", lateFees: "逾期付款罚金", recoveryFee40: "逾期付款时收取 40 欧元的固定追偿费用。", vatNotApplicable: "不适用增值税", status: "状态", continuation: "后续服务", goodForAgreement: "同意", signature: "签名", pricesInCurrency: (currency) => `价格以 ${currency} 表示。`, quoteValidity: (days) => `本报价单有效期为 ${days} 天。`,
+    },
+    paymentMethods: { virement: "银行转账", cb: "银行卡", cheque: "支票", especes: "现金", abonnement: "订阅" },
+    operationCategories: { vente: "销售", prestation: "服务", mixte: "销售 + 服务" },
+    mail: { subjectInvoice: (ref) => `您的发票${ref ? ` ${ref}` : ""}`, subjectQuote: (ref) => `您的报价单${ref ? ` ${ref}` : ""}`, bodyInvoice: (name, ref) => [name ? `${name}，您好：` : "您好：", "", `请查收随附的发票${ref ? ` ${ref}` : ""}。`, "", "如有需要，请随时与我们联系。"].join("\n"), bodyQuote: (name, ref) => [name ? `${name}，您好：` : "您好：", "", `请查收随附的报价单${ref ? ` ${ref}` : ""}。`, "", "如有任何问题或需要修改，请随时与我们联系。"].join("\n") },
+  },
 };
 
 export function getDocumentClientTexts(language: unknown) {
@@ -820,6 +962,8 @@ const DOCUMENT_STATUS_TEXTS: Record<ClientLanguageCode, Record<string, string>> 
   de: { brouillon: "Entwurf", envoye: "Gesendet", paye: "Bezahlt", en_attente_paiement: "Zahlung ausstehend", accepte: "Akzeptiert", annule: "Storniert" },
   nl: { brouillon: "Concept", envoye: "Verzonden", paye: "Betaald", en_attente_paiement: "In afwachting van betaling", accepte: "Geaccepteerd", annule: "Geannuleerd" },
   pt: { brouillon: "Rascunho", envoye: "Enviado", paye: "Pago", en_attente_paiement: "Pagamento pendente", accepte: "Aceite", annule: "Cancelado" },
+  th: { brouillon: "แบบร่าง", envoye: "ส่งแล้ว", paye: "ชำระแล้ว", en_attente_paiement: "รอชำระเงิน", accepte: "ยอมรับแล้ว", annule: "ยกเลิกแล้ว" },
+  zh: { brouillon: "草稿", envoye: "已发送", paye: "已付款", en_attente_paiement: "待付款", accepte: "已接受", annule: "已取消" },
 };
 
 export function getDocumentStatusLabel(language: unknown, status: unknown) {

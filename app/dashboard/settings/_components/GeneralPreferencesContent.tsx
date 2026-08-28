@@ -8,7 +8,12 @@ import { invalidateBoosterGenerationContextClient } from "@/lib/boosterGeneratio
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
-import { APP_LANGUAGE_STORAGE_KEY, normalizeAppLanguage, type AppLanguageCode } from "@/lib/appLanguage";
+import {
+  APP_LANGUAGE_STORAGE_KEY,
+  getAppLanguageOption,
+  normalizeAppLanguage,
+  type AppLanguageCode,
+} from "@/lib/appLanguage";
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import { useDashboardI18n } from "../../_hooks/useDashboardI18n";
 import {
@@ -39,6 +44,8 @@ type PreferencesForm = {
 const TABLE = "business_profiles";
 const STORAGE_KEY = "inrcy_general_preferences";
 const CLIENT_LANGUAGE_CUSTOM_STORAGE_KEY = "inrcy_client_language_custom_v1";
+const ASIA_BANGKOK_TIMEZONE = "Asia/Bangkok";
+const ASIA_SHANGHAI_TIMEZONE = "Asia/Shanghai";
 
 const initialForm: PreferencesForm = {
   clientLanguage: "fr",
@@ -415,6 +422,8 @@ export default function GeneralPreferencesContent({ mode = "drawer", onUnsavedCh
                     <option value="de" style={selectOption}>{i18nT("deutsch_a6a77092")}</option>
                     <option value="nl" style={selectOption}>{i18nT("nederlands_f61c54c1")}</option>
                     <option value="pt" style={selectOption}>{i18nT("portugues_053aa1d8")}</option>
+                    <option value="th" style={selectOption}>{getAppLanguageOption("th").label}</option>
+                    <option value="zh" style={selectOption}>{getAppLanguageOption("zh").label}</option>
                   </select>
                 </label>
 
@@ -429,6 +438,8 @@ export default function GeneralPreferencesContent({ mode = "drawer", onUnsavedCh
                     <option value="Europe/Brussels" style={selectOption}>{i18nT("europe_brussels_2efaae56")}</option>
                     <option value="Europe/Amsterdam" style={selectOption}>{i18nT("europe_amsterdam_5bb9fd02")}</option>
                     <option value="Europe/Lisbon" style={selectOption}>{i18nT("europe_lisbon_1960f0bb")}</option>
+                    <option value={ASIA_BANGKOK_TIMEZONE} style={selectOption}>{ASIA_BANGKOK_TIMEZONE}</option>
+                    <option value={ASIA_SHANGHAI_TIMEZONE} style={selectOption}>{ASIA_SHANGHAI_TIMEZONE}</option>
                     <option value="America/New_York" style={selectOption}>{i18nT("america_new_york_91a5e4a6")}</option>
                     <option value="America/Toronto" style={selectOption}>{i18nT("america_toronto_c0c13522")}</option>
                   </select>

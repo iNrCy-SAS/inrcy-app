@@ -193,7 +193,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
         fallbackError: i18nT("l_operation_n_a_pas_pu_2eda8de6"),
       });
       if (result.platform !== "web") {
-        setMessage("Achat confirmé. iNrCy synchronise votre abonnement avec le magasin.");
+        setMessage(i18nT("native_purchase_confirmed"));
         await loadSubscription();
       }
     } catch (caught) {
@@ -206,7 +206,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
   async function updateCancellation(action: "cancel" | "uncancel") {
     if (view.hasNativeSubscription && (view.billingProvider === "app_store" || view.billingProvider === "play_store")) {
       setError("");
-      setMessage("La gestion de cet abonnement se fait dans le magasin de votre téléphone.");
+      setMessage(i18nT("native_subscription_management_message"));
       setBusyAction("portal");
       try {
         await openNativeSubscriptionManagement(view.billingProvider);
@@ -387,7 +387,9 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
               {busyAction === "portal" ? i18nT("ouverture_3333ad14") : i18nT("gerer_ma_facturation_dc5027ac")}
             </button>
             <div style={{ fontSize: 11, opacity: 0.68, lineHeight: 1.45 }}>
-              Votre abonnement est géré par {view.billingProvider === "app_store" ? "l’App Store" : "Google Play"}. Les renouvellements, moyens de paiement et résiliations se gèrent dans le magasin.
+              {i18nT("native_subscription_managed_by_store", {
+                store: view.billingProvider === "app_store" ? "App Store" : "Google Play",
+              })}
             </div>
           </div>
         ) : null}

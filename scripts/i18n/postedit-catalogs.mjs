@@ -4,7 +4,10 @@ import path from "node:path";
 const root = process.cwd();
 const write = process.argv.includes("--write");
 const verbose = process.argv.includes("--verbose");
-const locales = ["fr-FR", "en-GB", "es-ES", "it-IT", "de-DE", "nl-NL", "pt-PT"];
+const locales = ["fr-FR", "en-GB", "es-ES", "it-IT", "de-DE", "nl-NL", "pt-PT", "th-TH", "zh-CN"];
+const onlyLocale = process.argv.find((argument) => argument.startsWith("--locale="))?.split("=")[1];
+const selectedLocales = onlyLocale ? locales.filter((locale) => locale === onlyLocale) : locales;
+if (!selectedLocales.length) throw new Error(`Locale inconnue: ${onlyLocale}`);
 const namespaces = fs.readdirSync(path.join(root, "messages", "fr-FR"))
   .filter((name) => name.endsWith(".json"))
   .map((name) => path.basename(name, ".json"))
@@ -662,6 +665,33 @@ const validationOverrides = new Map([
   ["de-DE:crm.nbsp_47c1f11e", "\u00a0"],
   ["nl-NL:crm.nbsp_47c1f11e", "\u00a0"],
   ["pt-PT:crm.nbsp_47c1f11e", "\u00a0"],
+  ["th-TH:crm.nbsp_47c1f11e", "\u00a0"],
+  ["zh-CN:crm.nbsp_47c1f11e", "\u00a0"],
+  ["th-TH:dashboard.generatorSteps.site_gsc.shortLabel", "GSC"],
+  ["th-TH:stats.gsc_ea8e44e6", "GSC"],
+  ["th-TH:gps.facebook_cbe64890", "Facebook"],
+  ["th-TH:gps.google_759730a9", "Google"],
+  ["th-TH:gps.instagram_b66806f4", "Instagram"],
+  ["th-TH:gps.linkedin_7728240c", "LinkedIn"],
+  ["th-TH:gps.pinterest_ea273f4e", "Pinterest"],
+  ["th-TH:gps.stripe_2fcb5a43", "Stripe"],
+  ["th-TH:gps.tiktok_8d762497", "TikTok"],
+  ["th-TH:gps.youtube_d5244a33", "YouTube"],
+  ["zh-CN:gps.facebook_cbe64890", "Facebook"],
+  ["zh-CN:gps.google_759730a9", "Google"],
+  ["zh-CN:gps.inrbadge_f4321501", "iNr’Badge"],
+  ["zh-CN:gps.linkedin_7728240c", "LinkedIn"],
+  ["zh-CN:gps.pinterest_ea273f4e", "Pinterest"],
+  ["zh-CN:gps.stripe_2fcb5a43", "Stripe"],
+  ["zh-CN:gps.tiktok_8d762497", "TikTok"],
+  ["zh-CN:gps.youtube_d5244a33", "YouTube"],
+  ["th-TH:legal.confidentialite_0289_87fa5817", "Stripe เมื่อจำเป็นสำหรับการจัดการการสมัครสมาชิก;"],
+  ["th-TH:legal.confidentialite_0473_f87a4f6a", "Stripe;"],
+  ["zh-CN:legal.mentions_legales_0046_59385139", "Stripe Technology Europe Ltd."],
+  ["zh-CN:legal.confidentialite_0289_87fa5817", "在订阅管理需要时使用 Stripe；"],
+  ["zh-CN:legal.confidentialite_0473_f87a4f6a", "Stripe；"],
+  ["zh-CN:settings.ttc_ou_utilisez_vos_3603baf6", "（含税）或使用您的"],
+  ["zh-CN:settings.votre_email_de_connexion_est_affiche_84123fc4", "您的登录电子邮件显示如下。您可以修改密码。"],
   ["es-ES:public.inr_apos_search_6cbfd855", "iNr’Search"],
   ["it-IT:public.inr_apos_search_6cbfd855", "iNr’Search"],
   ["de-DE:public.inr_apos_search_6cbfd855", "iNr’Search"],
@@ -998,17 +1028,19 @@ function changedStringPaths(before, after, prefix = "", output = []) {
   return output;
 }
 
-const localeChanges = new Map(locales.map((locale) => [locale, 0]));
+const localeChanges = new Map(selectedLocales.map((locale) => [locale, 0]));
 for (const namespace of namespaces) {
   const sourceFile = path.join(root, "messages", "fr-FR", `${namespace}.json`);
   const sourceBefore = JSON.parse(fs.readFileSync(sourceFile, "utf8"));
   const sourceAfter = transformCatalog(sourceBefore, sourceBefore, (value, _source, key) => posteditValue("fr-FR", namespace, key, value));
-  const sourceChanges = countStringChanges(sourceBefore, sourceAfter);
-  if (verbose && sourceChanges) console.log(`fr-FR/${namespace}: ${changedStringPaths(sourceBefore, sourceAfter).join(", ")}`);
-  localeChanges.set("fr-FR", localeChanges.get("fr-FR") + sourceChanges);
-  if (write && sourceChanges) fs.writeFileSync(sourceFile, `${JSON.stringify(sourceAfter, null, 2)}\n`, "utf8");
+  if (selectedLocales.includes("fr-FR")) {
+    const sourceChanges = countStringChanges(sourceBefore, sourceAfter);
+    if (verbose && sourceChanges) console.log(`fr-FR/${namespace}: ${changedStringPaths(sourceBefore, sourceAfter).join(", ")}`);
+    localeChanges.set("fr-FR", localeChanges.get("fr-FR") + sourceChanges);
+    if (write && sourceChanges) fs.writeFileSync(sourceFile, `${JSON.stringify(sourceAfter, null, 2)}\n`, "utf8");
+  }
 
-  for (const locale of locales.filter((candidate) => candidate !== "fr-FR")) {
+  for (const locale of selectedLocales.filter((candidate) => candidate !== "fr-FR")) {
     const file = path.join(root, "messages", locale, `${namespace}.json`);
     const before = JSON.parse(fs.readFileSync(file, "utf8"));
     const after = transformCatalog(before, sourceAfter, (value, source, key) => {

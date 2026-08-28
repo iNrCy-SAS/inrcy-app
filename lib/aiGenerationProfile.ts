@@ -10,7 +10,7 @@ import {
 import { asRecord } from "@/lib/tsSafe";
 import { combineOpeningSchedule } from "@/lib/openingSchedule";
 
-export type AiLanguageCode = "fr" | "en" | "es" | "it" | "de" | "nl" | "pt";
+export type AiLanguageCode = "fr" | "en" | "es" | "it" | "de" | "nl" | "pt" | "th" | "zh";
 export type AiTone = "serious" | "warm" | "fun" | "premium" | "direct";
 export type AiCommunicationStyle =
   | "simple"
@@ -310,6 +310,8 @@ export function normalizeAiLanguageCode(value: unknown): AiLanguageCode {
   if (["de", "german", "allemand"].includes(raw)) return "de";
   if (["nl", "dutch", "neerlandais", "néerlandais"].includes(raw)) return "nl";
   if (["pt", "portuguese", "portugais"].includes(raw)) return "pt";
+  if (["th", "th-th", "thai", "thailandais", "thaïlandais", "ภาษาไทย"].includes(raw)) return "th";
+  if (["zh", "zh-cn", "zh_cn", "zh-hans", "chinese", "simplified chinese", "chinois", "chinois simplifié", "中文", "简体中文"].includes(raw)) return "zh";
   return "fr";
 }
 

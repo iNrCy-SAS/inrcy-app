@@ -5,9 +5,9 @@ import test from "node:test";
 
 const root = process.cwd();
 const read = (relativePath: string) => readFileSync(join(root, relativePath), "utf8");
-const locales = ["fr-FR", "en-GB", "es-ES", "it-IT", "de-DE", "nl-NL", "pt-PT"] as const;
+const locales = ["fr-FR", "en-GB", "es-ES", "it-IT", "de-DE", "nl-NL", "pt-PT", "th-TH", "zh-CN"] as const;
 
-test("les trois documents légaux utilisent un catalogue complet dans les sept langues", () => {
+test("les trois documents légaux utilisent un catalogue complet dans les neuf langues", () => {
   const reference = JSON.parse(read("messages/fr-FR/legal.json")) as Record<string, string>;
   const referenceKeys = Object.keys(reference).sort();
   const schema = read("app/legal/_components/legalDocumentSchema.ts");

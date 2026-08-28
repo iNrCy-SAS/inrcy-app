@@ -616,5 +616,9 @@
   "vous_pouvez_resilier_avant_la_prochaine_c9597f47": "Pode cancelar antes da próxima data de vencimento.",
   "vouvoiement_c5254349": "Endereço completo",
   "youtube_558865a1": "YouTube",
-  "zones_d_intervention_a4999f61": "Áreas de atendimento"
+  "zones_d_intervention_a4999f61": "Áreas de atendimento",
+  "account_deletion_choices_description": "Acesse a página dedicada para escolher eliminação ao final do acesso, eliminação imediata ou categorias específicas de dados.",
+  "native_purchase_confirmed": "Compra confirmada. iNrCy sincroniza a sua assinatura com a loja.",
+  "native_subscription_management_message": "Esta assinatura é gereda na loja do seu telefone.",
+  "native_subscription_managed_by_store": "A sua assinatura é gereda por {store}. Renovações, formas de pagamento e cancelamentos são geredos na loja."
 }

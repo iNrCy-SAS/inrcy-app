@@ -616,5 +616,9 @@
   "vous_pouvez_resilier_avant_la_prochaine_c9597f47": "Sie können vor dem nächsten Abrechnungsdatum kündigen.",
   "vouvoiement_c5254349": "Offizielle Adresse",
   "youtube_558865a1": "YouTube",
-  "zones_d_intervention_a4999f61": "Servicegebiete"
+  "zones_d_intervention_a4999f61": "Servicegebiete",
+  "account_deletion_choices_description": "Rufen Sie die entsprechende Seite auf, um zwischen Löschung am Ende Ihres Zugriffs, sofortiger Löschung oder bestimmten Datenkategorien zu wählen.",
+  "native_purchase_confirmed": "Kauf bestätigt. iNrCy synchronisiert Ihr Abonnement mit dem Store.",
+  "native_subscription_management_message": "Dieses Abonnement wird im Store Ihres Telefons verwaltet.",
+  "native_subscription_managed_by_store": "Ihr Abonnement wird von {store} verwaltet. Verlängerungen, Zahlungsarten und Stornierungen werden im Shop verwaltet."
 }
