@@ -235,7 +235,15 @@ test("login auth events cannot race the explicit dashboard redirect", () => {
   assert.match(listenerBlock, /setActiveBrowserUserId\(session\.user\.id\)/);
   assert.doesNotMatch(listenerBlock, /redirectToDashboard\(\)/);
   assert.match(loginSource, /waitForServerAuthSession\(\)/);
-  assert.match(loginSource, /window\.location\.replace\("\/dashboard"\)/);
+  assert.match(
+    loginSource,
+    /const localizedDashboardHref = buildLocalizedDashboardPath\(appLanguage\)/,
+  );
+  assert.match(
+    loginSource,
+    /window\.location\.replace\(localizedDashboardHref\)/,
+  );
+  assert.doesNotMatch(loginSource, /window\.location\.replace\("\/dashboard"\)/);
 });
 
 test("dashboard navigation waits until the SSR session is readable", () => {
