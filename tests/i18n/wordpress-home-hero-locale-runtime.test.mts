@@ -29,7 +29,11 @@ test("the WordPress homepage hero runtime covers every supported site language",
 test("the hero runtime follows the page locale and survives Elementor mutations", () => {
   assert.match(source, /document\.documentElement\.lang/);
   assert.match(source, /window\.location\.pathname/);
+  assert.match(source, /root\.setAttribute\('data-no-translation', ''\)/);
+  assert.match(source, /root\.setAttribute\('data-no-dynamic-translation', ''\)/);
   assert.match(source, /new MutationObserver\(schedule\)/);
+  assert.doesNotMatch(source, /childList: true/);
+  assert.doesNotMatch(source, /characterData: true/);
   assert.match(source, /index === 7/);
   assert.match(source, /index === 9/);
   assert.match(source, /channel\.classList\.contains\('active'\)/);

@@ -11,6 +11,8 @@ function inrcy_home_hero_locale_runtime() {
   const root = document.getElementById('inrcyHeroSteps');
   if (!root || root.dataset.inrcyLocaleRuntime === '1') return;
   root.dataset.inrcyLocaleRuntime = '1';
+  root.setAttribute('data-no-translation', '');
+  root.setAttribute('data-no-dynamic-translation', '');
 
   const copy = {
     fr: {
@@ -163,8 +165,6 @@ function inrcy_home_hero_locale_runtime() {
   const observer = new MutationObserver(schedule);
   observer.observe(root, {
     subtree: true,
-    childList: true,
-    characterData: true,
     attributes: true,
     attributeFilter: ['class']
   });
