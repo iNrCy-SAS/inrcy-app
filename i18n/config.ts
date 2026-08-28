@@ -80,6 +80,10 @@ export function appLanguageFromLocale(value: unknown): AppLanguage {
   return normalizeAppLocale(value).slice(0, 2) as AppLanguage;
 }
 
+export function buildLocalizedDashboardPath(value: unknown): string {
+  return `/dashboard?lang=${appLanguageFromLocale(value)}`;
+}
+
 export function htmlLanguageFromLocale(value: unknown): string {
   const locale = normalizeAppLocale(value);
   return locale === "zh-CN" ? locale : appLanguageFromLocale(locale);

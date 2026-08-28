@@ -4,7 +4,10 @@ import Image from "next/image";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabaseClient";
-import { appLanguageFromLocale } from "@/i18n/config";
+import {
+  appLanguageFromLocale,
+  buildLocalizedDashboardPath,
+} from "@/i18n/config";
 import {
   purgeAllBrowserAccountCaches,
   setActiveBrowserUserId,
@@ -183,6 +186,7 @@ export default function LoginPage() {
   const locale = useLocale();
   const t = useTranslations("auth.login");
   const appLanguage = appLanguageFromLocale(locale);
+  const localizedDashboardHref = buildLocalizedDashboardPath(appLanguage);
   const [supabaseReady, setSupabaseReady] = useState(false);
   const supabaseRef = useRef<ReturnType<typeof createClient> | null>(null);
   const [email, setEmail] = useState("");
@@ -313,7 +317,7 @@ export default function LoginPage() {
       redirectingToDashboardRef.current = true;
       setRedirectingToDashboard(true);
       setCheckingSession(true);
-      window.location.replace("/dashboard");
+      window.location.replace(localizedDashboardHref);
     };
 
     const ensureExistingSession = async () => {
@@ -381,7 +385,7 @@ export default function LoginPage() {
       cancelled = true;
       authListener.subscription.unsubscribe();
     };
-  }, [supabaseReady, t]);
+  }, [localizedDashboardHref, supabaseReady, t]);
 
   // ✅ gestion lien expiré / invalide (2e clic invitation)
   useEffect(() => {
@@ -468,7 +472,7 @@ export default function LoginPage() {
           : `/auth/finish-invite/${appLanguage}`;
       const targetParams = new URLSearchParams({
         source: "session",
-        next: "/dashboard",
+        next: localizedDashboardHref,
       });
       const verifiedEmail = String(userData?.user?.email || "").trim().toLowerCase();
       if (verifiedEmail) targetParams.set("email", verifiedEmail);
@@ -477,7 +481,7 @@ export default function LoginPage() {
       // hard redirect + on garde l'historique propre
       window.location.replace(target);
     })();
-  }, [appLanguage, supabaseReady]);
+  }, [appLanguage, localizedDashboardHref, supabaseReady]);
 
   useEffect(() => {
     setMounted(true);
@@ -660,7 +664,7 @@ export default function LoginPage() {
 
       // Redirection complète uniquement après confirmation que la session est
       // lisible côté serveur. Cela évite un rebond /dashboard -> /login.
-      window.location.replace("/dashboard");
+      window.location.replace(localizedDashboardHref);
     } catch (err: unknown) {
       setError(
         friendlyLoginError(err, t("errors.defaultLogin")),

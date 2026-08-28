@@ -11,6 +11,24 @@ import {
   readSignupFormSnapshot,
   SIGNUP_FORM_METADATA_KEY,
 } from "../../lib/signupFormSnapshot.ts";
+import { buildLocalizedDashboardPath } from "../../i18n/config.ts";
+
+test("every site language survives login and authenticated redirects", () => {
+  for (const language of ["fr", "en", "es", "it", "de", "nl", "pt", "th", "zh"]) {
+    assert.equal(
+      buildLocalizedDashboardPath(language),
+      `/dashboard?lang=${language}`,
+    );
+  }
+
+  const loginPage = readFileSync("app/login/page.tsx", "utf8");
+  assert.equal(
+    loginPage.match(/window\.location\.replace\(localizedDashboardHref\)/g)?.length,
+    2,
+  );
+  assert.match(loginPage, /next:\s*localizedDashboardHref/);
+  assert.doesNotMatch(loginPage, /window\.location\.replace\("\/dashboard"\)/);
+});
 
 test("Supabase email redirect targets stay query-free", () => {
   assert.equal(
