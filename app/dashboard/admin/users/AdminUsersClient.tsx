@@ -58,6 +58,28 @@ type AdminUserRow = {
     founder_offer_enabled?: boolean | null;
     updated_at?: string | null;
   } | null;
+  attribution: {
+    form_source?: string;
+    utm_source?: string;
+    utm_medium?: string;
+    utm_campaign?: string;
+    utm_content?: string;
+    utm_term?: string;
+    campaign_id?: string;
+    campaign_name?: string;
+    adset_id?: string;
+    adset_name?: string;
+    ad_id?: string;
+    ad_name?: string;
+    placement?: string;
+    site_source_name?: string;
+    landing_page_url?: string;
+    event_source_url?: string;
+    referrer_url?: string;
+    event_id?: string;
+    captured_at?: string;
+    marketing_consent?: boolean;
+  };
   multi_account: {
     multi_account_enabled: boolean;
     max_establishments: number;
@@ -116,6 +138,34 @@ function fullName(user: AdminUserRow) {
 
 function companyName(user: AdminUserRow) {
   return user.profile?.company_legal_name?.trim() || "Société non renseignée";
+}
+
+function acquisitionSource(user: AdminUserRow) {
+  const platformLabels: Record<string, string> = {
+    fb: "Facebook",
+    ig: "Instagram",
+    an: "Audience Network",
+    msg: "Messenger",
+    threads: "Threads",
+  };
+  const rawSource = user.attribution?.site_source_name || user.attribution?.utm_source || "";
+  const platformKey = String(rawSource).toLowerCase();
+  const source = platformLabels[platformKey] || rawSource;
+  const medium = user.attribution?.utm_medium || "";
+  if (!source && !medium) return "Direct / non attribué";
+  return [source, medium].filter(Boolean).join(" · ");
+}
+
+function acquisitionCampaign(user: AdminUserRow) {
+  return user.attribution?.campaign_name || user.attribution?.utm_campaign || user.attribution?.campaign_id || "—";
+}
+
+function acquisitionAdset(user: AdminUserRow) {
+  return user.attribution?.adset_name || user.attribution?.utm_term || user.attribution?.adset_id || "—";
+}
+
+function acquisitionAd(user: AdminUserRow) {
+  return user.attribution?.ad_name || user.attribution?.utm_content || user.attribution?.ad_id || "—";
 }
 
 function daysUntil(value?: string | null) {
@@ -457,6 +507,22 @@ export default function AdminUsersClient() {
                             <span>Prochain renouvellement</span>
                             <strong>{formatDate(subscription?.next_renewal_date)}</strong>
                             <small>{subscription?.monthly_price_eur ? `${subscription.monthly_price_eur} € / mois` : "Montant non renseigné"}</small>
+                          </div>
+
+                          <div className={styles.detailBoxWide}>
+                            <span>Acquisition</span>
+                            <strong>{acquisitionSource(user)}</strong>
+                            <small>
+                              Campagne : {acquisitionCampaign(user)} · Ensemble : {acquisitionAdset(user)} · Publicité : {acquisitionAd(user)}
+                            </small>
+                            <small>
+                              Placement : {user.attribution?.placement || "—"} · Mesure Meta : {user.attribution?.marketing_consent ? "autorisée" : "non autorisée"}
+                            </small>
+                            {user.attribution?.landing_page_url ? (
+                              <a href={user.attribution.landing_page_url} target="_blank" rel="noreferrer">
+                                Page d’arrivée
+                              </a>
+                            ) : null}
                           </div>
 
                           <div className={styles.detailBoxWide}>

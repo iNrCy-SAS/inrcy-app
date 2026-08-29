@@ -18,6 +18,8 @@ Recommended field names:
 - `message`
 - `consent`
 - honeypot: `website`
+- attribution publicitaire : les champs `utm_*`, `campaign_*`, `adset_*`, `ad_*`, `placement`, `site_source_name`, `landing_page_url`, `event_source_url`, `referrer_url`, `event_id`
+- mesure Meta consentie : `meta_tracking_consent`, `fbp`, `fbc`, `client_user_agent`
 
 The endpoint also accepts common French aliases like `nom`, `prenom`, `societe`, `telephone`, plus Elementor-style keys such as `form_fields[email]` or `fields[first_name][value]`.
 
@@ -28,6 +30,8 @@ The endpoint also accepts common French aliases like `nom`, `prenom`, `societe`,
 - upserts the `profiles` row
 - creates / refreshes the `subscriptions` trial row
 - sends the internal admin alert email
+- stores the exact acquisition source in `signup_attributions`
+- sends a consent-aware Meta CAPI `Lead` deduplicated with the browser Pixel
 
 ## Recommended Elementor setup
 
@@ -53,6 +57,11 @@ Use an Elementor Pro Form widget with:
 
 4. Success message
    - `Invitation envoyée. Vérifiez votre boîte mail pour créer votre mot de passe et démarrer votre essai gratuit.`
+
+5. Attribution Meta
+   - charger `ops/wordpress-meta-attribution/inrcy-meta-attribution.js` sur tout le site
+   - retirer l'ancien gestionnaire `fbq('track', 'Lead', ...)` non dédupliqué
+   - suivre `docs/META_ATTRIBUTION_CAPI_ROLLOUT.md`
 
 ## Supabase prerequisites
 

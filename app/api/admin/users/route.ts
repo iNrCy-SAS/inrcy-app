@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminApi } from "@/lib/adminSecurity";
 import { ADMIN_USER_IDS } from "@/lib/roles";
+import { readSignupAttributionSnapshot } from "@/lib/signupAttribution";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -57,6 +58,18 @@ function includesSearch(row: any, q: string) {
     row.subscription?.status,
     row.subscription?.stripe_customer_id,
     row.subscription?.stripe_subscription_id,
+    row.attribution?.utm_source,
+    row.attribution?.utm_medium,
+    row.attribution?.utm_campaign,
+    row.attribution?.utm_content,
+    row.attribution?.campaign_id,
+    row.attribution?.campaign_name,
+    row.attribution?.adset_id,
+    row.attribution?.adset_name,
+    row.attribution?.ad_id,
+    row.attribution?.ad_name,
+    row.attribution?.placement,
+    row.attribution?.site_source_name,
   ]
     .map((value) => normalize(value))
     .join(" ");
@@ -180,6 +193,31 @@ export async function GET(request: NextRequest) {
       const email = user.email || profile?.admin_email || subscription?.contact_email || null;
       const multiConfig = multiAccountConfigs.get(user.id) ?? null;
       const accountCount = Math.max(1, accountCounts.get(user.id) || 0);
+      const attributionSnapshot = readSignupAttributionSnapshot({
+        user_metadata: user.user_metadata,
+      });
+      const attribution = {
+        form_source: attributionSnapshot.formSource,
+        utm_source: attributionSnapshot.utmSource,
+        utm_medium: attributionSnapshot.utmMedium,
+        utm_campaign: attributionSnapshot.utmCampaign,
+        utm_content: attributionSnapshot.utmContent,
+        utm_term: attributionSnapshot.utmTerm,
+        campaign_id: attributionSnapshot.campaignId,
+        campaign_name: attributionSnapshot.campaignName,
+        adset_id: attributionSnapshot.adsetId,
+        adset_name: attributionSnapshot.adsetName,
+        ad_id: attributionSnapshot.adId,
+        ad_name: attributionSnapshot.adName,
+        placement: attributionSnapshot.placement,
+        site_source_name: attributionSnapshot.siteSourceName,
+        landing_page_url: attributionSnapshot.landingPageUrl,
+        event_source_url: attributionSnapshot.eventSourceUrl,
+        referrer_url: attributionSnapshot.referrerUrl,
+        event_id: attributionSnapshot.eventId,
+        captured_at: attributionSnapshot.capturedAt,
+        marketing_consent: attributionSnapshot.marketingConsent,
+      };
 
       return {
         user_id: user.id,
@@ -192,6 +230,7 @@ export async function GET(request: NextRequest) {
         is_hard_admin: ADMIN_USER_IDS.includes(user.id as any),
         profile,
         subscription,
+        attribution,
         multi_account: {
           multi_account_enabled: multiConfig?.multi_account_enabled === true,
           max_establishments: Math.max(1, Number(multiConfig?.max_establishments || 1)),

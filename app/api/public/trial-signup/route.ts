@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { NextResponse } from "next/server";
 
 import { optionalEnv, requireEnv } from "@/lib/env";
@@ -18,6 +20,18 @@ import {
   createSignupFormSnapshot,
   SIGNUP_FORM_METADATA_KEY,
 } from "@/lib/signupFormSnapshot";
+import {
+  createMetaBrowserMatch,
+  createSignupAttributionSnapshot,
+  getSignupAdLabel,
+  getSignupCampaignLabel,
+  getSignupAttributionSourceLabel,
+  SIGNUP_ATTRIBUTION_METADATA_KEY,
+  type MetaBrowserMatch,
+  type SignupAttributionSnapshot,
+} from "@/lib/signupAttribution";
+import { sendMetaLeadConversion } from "@/lib/metaConversionsApi";
+import { persistSignupAttribution } from "@/lib/signupAttributionPersistence";
 import {
   DEFAULT_APP_LOCALE,
   appLanguageFromLocale,
@@ -41,6 +55,8 @@ type SignupPayload = {
   source: string;
   language: AppLanguage;
   locale: AppLocale;
+  attribution: SignupAttributionSnapshot;
+  browserMatch: MetaBrowserMatch;
 };
 
 function jsonResponse(body: unknown, status = 200) {
@@ -298,6 +314,67 @@ function normalizePayload(body: LooseRecord): SignupPayload {
 
   locale ||= DEFAULT_APP_LOCALE;
 
+  const formSource =
+    lookupValue(flat, ["source", "form_name", "form-id"]) ||
+    optionalEnv("INRCY_MARKETING_SOURCE", "wordpress-elementor");
+  const marketingConsent = lookupValue(flat, [
+    "meta_tracking_consent",
+    "marketing_consent",
+    "cmplz_marketing_consent",
+  ]);
+  const capturedAt = lookupValue(flat, [
+    "attribution_captured_at",
+    "captured_at",
+    "landing_timestamp",
+  ]);
+  const fbclid = lookupValue(flat, ["fbclid", "meta_click_id"]);
+  const suppliedFbc = lookupValue(flat, ["fbc", "_fbc"]);
+  const marketingConsentAccepted = [
+    "1",
+    "true",
+    "yes",
+    "oui",
+    "on",
+    "allow",
+    "accepted",
+  ].includes(marketingConsent.trim().toLowerCase());
+  const derivedFbc =
+    marketingConsentAccepted && fbclid
+      ? `fb.1.${Date.now()}.${fbclid.slice(0, 200)}`
+      : "";
+
+  const attribution = createSignupAttributionSnapshot({
+    formSource,
+    utmSource: lookupValue(flat, ["utm_source"]),
+    utmMedium: lookupValue(flat, ["utm_medium"]),
+    utmCampaign: lookupValue(flat, ["utm_campaign"]),
+    utmContent: lookupValue(flat, ["utm_content"]),
+    utmTerm: lookupValue(flat, ["utm_term"]),
+    campaignId: lookupValue(flat, ["campaign_id", "meta_campaign_id"]),
+    campaignName: lookupValue(flat, ["campaign_name", "meta_campaign_name"]),
+    adsetId: lookupValue(flat, ["adset_id", "ad_set_id", "meta_adset_id"]),
+    adsetName: lookupValue(flat, ["adset_name", "ad_set_name", "meta_adset_name"]),
+    adId: lookupValue(flat, ["ad_id", "meta_ad_id"]),
+    adName: lookupValue(flat, ["ad_name", "meta_ad_name"]),
+    placement: lookupValue(flat, ["placement", "meta_placement"]),
+    siteSourceName: lookupValue(flat, ["site_source_name", "meta_site_source_name"]),
+    landingPageUrl: lookupValue(flat, [
+      "landing_page_url",
+      "original_landing_page_url",
+      "original_landing_url",
+    ]),
+    eventSourceUrl: lookupValue(flat, [
+      "event_source_url",
+      "page_url",
+      "page-url",
+      "source_url",
+    ]),
+    referrerUrl: lookupValue(flat, ["referrer_url", "referer_url", "referrer", "referer"]),
+    eventId: lookupValue(flat, ["event_id", "meta_event_id"]) || `inrcy-lead-${randomUUID()}`,
+    capturedAt: capturedAt || new Date().toISOString(),
+    marketingConsent: marketingConsentAccepted,
+  });
+
   return {
     email: lookupValue(flat, ["email", "e-mail", "mail", "your-email"]).trim().toLowerCase(),
     firstName: lookupValue(flat, ["first_name", "firstname", "prenom", "prénom", "first-name"]),
@@ -325,9 +402,17 @@ function normalizePayload(body: LooseRecord): SignupPayload {
       "hp",
       "website",
     ]),
-    source: lookupValue(flat, ["source", "form_name", "form-id"]) || optionalEnv("INRCY_MARKETING_SOURCE", "wordpress-elementor"),
+    source: formSource,
     language: appLanguageFromLocale(locale),
     locale,
+    attribution,
+    browserMatch: createMetaBrowserMatch({
+      fbp: marketingConsentAccepted ? lookupValue(flat, ["fbp", "_fbp"]) : "",
+      fbc: marketingConsentAccepted ? suppliedFbc || derivedFbc : "",
+      clientUserAgent: marketingConsentAccepted
+        ? lookupValue(flat, ["client_user_agent", "browser_user_agent"])
+        : "",
+    }),
   };
 }
 
@@ -415,6 +500,7 @@ export async function POST(req: Request) {
         app_language: payload.language,
         app_locale: payload.locale,
         [SIGNUP_FORM_METADATA_KEY]: signupFormSnapshot,
+        [SIGNUP_ATTRIBUTION_METADATA_KEY]: payload.attribution,
       },
       redirectTo: inviteRedirectUrl,
     });
@@ -473,6 +559,27 @@ export async function POST(req: Request) {
     await seedOnboardingNotifications(userId);
     const { edition, trialDays, end } = await ensureTrialSubscription(userId, payload.email);
 
+    const capiResult = await sendMetaLeadConversion({
+      userId,
+      email: payload.email,
+      phone: payload.phone,
+      firstName: payload.firstName,
+      lastName: payload.lastName,
+      attribution: payload.attribution,
+      browserMatch: payload.browserMatch,
+    });
+
+    await persistSignupAttribution({
+      userId,
+      attribution: payload.attribution,
+      capi: capiResult,
+    }).catch((error: unknown) => {
+      console.error(
+        "[trial-signup][attribution]",
+        error instanceof Error ? error.message : "persistence_failed",
+      );
+    });
+
     await sendAdminSubscriptionAlertForUser({
       type: "trial_started",
       source: payload.source || "wordpress-elementor",
@@ -488,6 +595,13 @@ export async function POST(req: Request) {
           : null,
         payload.companyName ? `Société: ${payload.companyName}` : null,
         payload.phone ? `Téléphone: ${payload.phone}` : null,
+        `Acquisition: ${getSignupAttributionSourceLabel(payload.attribution)}`,
+        getSignupCampaignLabel(payload.attribution)
+          ? `Campagne: ${getSignupCampaignLabel(payload.attribution)}`
+          : null,
+        getSignupAdLabel(payload.attribution)
+          ? `Publicité: ${getSignupAdLabel(payload.attribution)}`
+          : null,
         "Consentement RGPD coché",
       ]
         .filter(Boolean)

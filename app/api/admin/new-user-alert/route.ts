@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireSecretHeader } from "@/lib/adminSecurity";
 import { readSignupFormSnapshot } from "@/lib/signupFormSnapshot";
+import {
+  getSignupAdLabel,
+  getSignupAdsetLabel,
+  getSignupAttributionSourceLabel,
+  getSignupCampaignLabel,
+  readSignupAttributionSnapshot,
+} from "@/lib/signupAttribution";
 import { sendMonitoringMail } from "@/lib/txMailer";
 import { isTxSmtpCircuitOpenError } from "@/lib/txSmtpCircuit";
 
@@ -41,7 +48,7 @@ function emailRow(label: string, value: string, emphasis = false) {
   return `
     <tr>
       <td style="padding:9px 0;color:#64748b;vertical-align:top;">${escapeHtml(label)}</td>
-      <td style="padding:9px 0;color:#0f172a;vertical-align:top;${emphasis ? "font-weight:700;" : ""}">${escapeHtml(value)}</td>
+      <td style="padding:9px 0;color:#0f172a;vertical-align:top;overflow-wrap:anywhere;word-break:break-word;${emphasis ? "font-weight:700;" : ""}">${escapeHtml(value)}</td>
     </tr>
   `;
 }
@@ -91,12 +98,22 @@ export async function POST(req: NextRequest) {
     }
 
     const signupForm = readSignupFormSnapshot(record);
+    const attribution = readSignupAttributionSnapshot(record);
     const email = signupForm.email || record.email || "-";
     const lastName = displayValue(signupForm.lastName);
     const firstName = displayValue(signupForm.firstName);
     const companyName = displayValue(signupForm.companyName);
     const phone = displayValue(signupForm.phone);
     const consent = signupForm.consent ? "Oui" : "Non renseigné";
+    const acquisitionSource = getSignupAttributionSourceLabel(attribution);
+    const campaign = displayValue(getSignupCampaignLabel(attribution), "—");
+    const adset = displayValue(getSignupAdsetLabel(attribution), "—");
+    const ad = displayValue(getSignupAdLabel(attribution), "—");
+    const placement = displayValue(attribution.placement, "—");
+    const landingPage = displayValue(attribution.landingPageUrl, "—");
+    const eventSource = displayValue(attribution.eventSourceUrl, "—");
+    const referrer = displayValue(attribution.referrerUrl, "—");
+    const metaMeasurement = attribution.marketingConsent ? "Autorisée" : "Non autorisée";
     const createdAt = record.created_at
       ? new Date(record.created_at).toLocaleString("fr-FR", {
           timeZone: "Europe/Paris",
@@ -124,6 +141,20 @@ export async function POST(req: NextRequest) {
         `Société : ${companyName}`,
         `Téléphone : ${phone}`,
         `Consentement : ${consent}`,
+        "",
+        "Provenance de l'inscription",
+        `Source : ${acquisitionSource}`,
+        `Campagne : ${campaign}`,
+        `ID campagne : ${attribution.campaignId || "—"}`,
+        `Ensemble : ${adset}`,
+        `ID ensemble : ${attribution.adsetId || "—"}`,
+        `Publicité : ${ad}`,
+        `ID publicité : ${attribution.adId || "—"}`,
+        `Placement : ${placement}`,
+        `Page d'arrivée : ${landingPage}`,
+        `Page d'inscription : ${eventSource}`,
+        `Référent : ${referrer}`,
+        `Mesure Meta : ${metaMeasurement}`,
         "",
         "Données techniques",
         `User ID : ${userId}`,
@@ -156,6 +187,26 @@ export async function POST(req: NextRequest) {
               </table>
             </div>
 
+            <div style="margin:0 0 18px;padding:18px;border-radius:14px;background:#fff7ed;border:1px solid #fed7aa;">
+              <div style="margin:0 0 8px;color:#9a3412;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;">
+                Provenance de l'inscription
+              </div>
+              <table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed;">
+                ${emailRow("Source", acquisitionSource, true)}
+                ${emailRow("Campagne", campaign, true)}
+                ${emailRow("ID campagne", attribution.campaignId || "—")}
+                ${emailRow("Ensemble", adset)}
+                ${emailRow("ID ensemble", attribution.adsetId || "—")}
+                ${emailRow("Publicité", ad)}
+                ${emailRow("ID publicité", attribution.adId || "—")}
+                ${emailRow("Placement", placement)}
+                ${emailRow("Page d'arrivée", landingPage)}
+                ${emailRow("Page d'inscription", eventSource)}
+                ${emailRow("Référent", referrer)}
+                ${emailRow("Mesure Meta", metaMeasurement)}
+              </table>
+            </div>
+
             <div style="padding:18px;border-radius:14px;background:#ffffff;border:1px solid #e2e8f0;">
               <div style="margin:0 0 8px;color:#64748b;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;">
                 Données techniques
@@ -165,6 +216,7 @@ export async function POST(req: NextRequest) {
                 ${emailRow("Date", createdAt)}
                 ${emailRow("Provider", String(provider))}
                 ${emailRow("Email confirmé", emailConfirmed)}
+                ${emailRow("Event ID Meta", attribution.eventId || "—")}
               </table>
             </div>
           </div>
