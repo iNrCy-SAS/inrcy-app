@@ -21,6 +21,7 @@ type LinkedinOrganization = { id: string; name: string; url?: string | null };
 type LinkedinConnectionTarget = "profile" | "organization";
 
 type UseLinkedinChannelOptions = {
+  initialState?: Record<string, any> | null;
   panel?: string | null;
   searchParams?: { get(name: string): string | null };
   patchChannelConnectionLocally: PatchChannelConnectionLocally;
@@ -29,26 +30,33 @@ type UseLinkedinChannelOptions = {
 };
 
 export function useLinkedinChannel({
+  initialState,
   panel,
   searchParams,
   patchChannelConnectionLocally,
   triggerChannelRefresh,
   updateRootSettingsKey,
 }: UseLinkedinChannelOptions) {
-  const [linkedinUrl, setLinkedinUrl] = useState<string>("");
-  const [linkedinAccountConnected, setLinkedinAccountConnected] = useState<boolean>(false);
-  const [linkedinConnected, setLinkedinConnected] = useState<boolean>(false);
-  const [linkedinConnectionStatus, setLinkedinConnectionStatus] = useState<ConnectionDisplayStatus>("disconnected");
-  const [linkedinDisplayName, setLinkedinDisplayName] = useState<string>("");
+  const initialConnected = initialState?.linkedinConnected === true;
+  const initialStatus = initialState?.linkedinConnectionStatus;
+  const [linkedinUrl, setLinkedinUrl] = useState<string>(() => typeof initialState?.linkedinUrl === "string" ? initialState.linkedinUrl : "");
+  const [linkedinAccountConnected, setLinkedinAccountConnected] = useState<boolean>(initialState?.linkedinAccountConnected === true);
+  const [linkedinConnected, setLinkedinConnected] = useState<boolean>(initialConnected);
+  const [linkedinConnectionStatus, setLinkedinConnectionStatus] = useState<ConnectionDisplayStatus>(() => (
+    initialStatus === "connected" || initialStatus === "needs_update" || initialStatus === "disconnected"
+      ? initialStatus
+      : initialConnected ? "connected" : "disconnected"
+  ));
+  const [linkedinDisplayName, setLinkedinDisplayName] = useState<string>(() => typeof initialState?.linkedinDisplayName === "string" ? initialState.linkedinDisplayName : "");
   const [linkedinUrlNotice, setLinkedinUrlNotice] = useState<string | null>(null);
   const [linkedinUrlError, setLinkedinUrlError] = useState<string | null>(null);
   const [linkedinOrganizations, setLinkedinOrganizations] = useState<LinkedinOrganization[]>([]);
   const [linkedinOrganizationsLoading, setLinkedinOrganizationsLoading] = useState(false);
   const [linkedinOrganizationsPhase, setLinkedinOrganizationsPhase] = useState<ChannelResourcePhase>("idle");
   const [linkedinOrganizationPickerOpen, setLinkedinOrganizationPickerOpen] = useState(false);
-  const [linkedinSelectedOrganizationId, setLinkedinSelectedOrganizationId] = useState<string>("");
-  const [linkedinSelectedOrganizationName, setLinkedinSelectedOrganizationName] = useState<string>("");
-  const [linkedinShareToPersonalProfile, setLinkedinShareToPersonalProfile] = useState<boolean>(false);
+  const [linkedinSelectedOrganizationId, setLinkedinSelectedOrganizationId] = useState<string>(() => typeof initialState?.linkedinSelectedOrganizationId === "string" ? initialState.linkedinSelectedOrganizationId : "");
+  const [linkedinSelectedOrganizationName, setLinkedinSelectedOrganizationName] = useState<string>(() => typeof initialState?.linkedinSelectedOrganizationName === "string" ? initialState.linkedinSelectedOrganizationName : "");
+  const [linkedinShareToPersonalProfile, setLinkedinShareToPersonalProfile] = useState<boolean>(initialState?.linkedinShareToPersonalProfile === true);
   const [linkedinShareToPersonalProfileBusy, setLinkedinShareToPersonalProfileBusy] = useState<boolean>(false);
   const organizationsAutoLoadRef = useRef(false);
 

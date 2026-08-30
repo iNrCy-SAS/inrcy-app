@@ -21,6 +21,44 @@ export type CanonicalChannelConnection = {
 
 export type OfficialDashboardChannelState = Record<string, unknown>;
 
+const OFFICIAL_DASHBOARD_BOOLEAN_FIELDS = [
+  "gmbConnected",
+  "facebookPageConnected",
+  "instagramConnected",
+  "linkedinConnected",
+  "tiktokConnected",
+  "tiktokRequiresUpdate",
+  "youtubeShortsConnected",
+  "youtubeShortsRequiresUpdate",
+  "pinterestConnected",
+  "pinterestRequiresUpdate",
+  "mailAccountsRequireUpdate",
+] as const;
+
+const OFFICIAL_DASHBOARD_STATUS_FIELDS = [
+  "gmbConnectionStatus",
+  "facebookConnectionStatus",
+  "instagramConnectionStatus",
+  "linkedinConnectionStatus",
+] as const;
+
+/**
+ * A dashboard cache is allowed to preserve the visual state only when it
+ * contains a complete projection for every official channel. This prevents a
+ * partial/old cache from inventing false disconnections during boot.
+ */
+export function hasCompleteOfficialDashboardChannelState(value: unknown): value is OfficialDashboardChannelState {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const state = value as Record<string, unknown>;
+  if (!OFFICIAL_DASHBOARD_BOOLEAN_FIELDS.every((field) => typeof state[field] === "boolean")) return false;
+  if (!OFFICIAL_DASHBOARD_STATUS_FIELDS.every((field) => (
+    state[field] === "connected" || state[field] === "disconnected" || state[field] === "needs_update"
+  ))) return false;
+
+  const mailCount = Number(state.mailAccountsConnectedCount);
+  return Number.isFinite(mailCount) && mailCount >= 0 && mailCount <= 4;
+}
+
 function canonicalStatus(node: Record<string, any>): CanonicalConnectionStatus {
   const value = node?.connection_status;
   if (value === "connected" || value === "disconnected" || value === "needs_update") return value;

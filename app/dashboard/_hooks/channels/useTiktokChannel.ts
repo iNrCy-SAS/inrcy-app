@@ -20,6 +20,7 @@ import {
 } from "@/lib/tiktokSettings";
 
 type UseTiktokChannelArgs = {
+  initialState?: Record<string, any> | null;
   panel: string | null;
   patchChannelConnectionLocally?: (
     channel: DashboardChannelKey,
@@ -96,8 +97,15 @@ async function readJson(res: Response) {
   return json;
 }
 
-export function useTiktokChannel({ panel, patchChannelConnectionLocally, triggerChannelRefresh }: UseTiktokChannelArgs) {
-  const [cachedTiktokState] = useState<CachedTiktokState>(readCachedTiktokState);
+export function useTiktokChannel({ initialState, panel, patchChannelConnectionLocally, triggerChannelRefresh }: UseTiktokChannelArgs) {
+  const [cachedTiktokState] = useState<CachedTiktokState>(() => {
+    const cached = readCachedTiktokState();
+    return {
+      connected: typeof initialState?.tiktokConnected === "boolean" ? initialState.tiktokConnected : cached.connected,
+      username: typeof initialState?.tiktokUsername === "string" ? initialState.tiktokUsername : cached.username,
+      profileUrl: typeof initialState?.tiktokProfileUrl === "string" ? initialState.tiktokProfileUrl : cached.profileUrl,
+    };
+  });
   const [tiktokConnected, setTiktokConnected] = useState(cachedTiktokState.connected);
   const [tiktokUsername, setTiktokUsername] = useState(cachedTiktokState.username);
   const [tiktokProfileUrl, setTiktokProfileUrl] = useState(cachedTiktokState.profileUrl);

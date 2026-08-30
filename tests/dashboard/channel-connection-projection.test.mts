@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   DASHBOARD_OAUTH_CHANNELS,
   buildOfficialDashboardChannelState,
+  hasCompleteOfficialDashboardChannelState,
   projectCanonicalChannelConnection,
 } from "../../lib/dashboardChannelSync.ts";
 
@@ -74,6 +75,7 @@ test("a provider expiry is always projected as reconnect", () => {
 test("the complete canonical payload updates every dashboard channel in one atomic projection", () => {
   const projected = buildOfficialDashboardChannelState(completePayload());
   assert.ok(projected);
+  assert.equal(hasCompleteOfficialDashboardChannelState(projected), true);
   assert.equal(projected.gmbConnected, true);
   assert.equal(projected.facebookPageConnected, true);
   assert.equal(projected.instagramConnected, true);
@@ -82,6 +84,16 @@ test("the complete canonical payload updates every dashboard channel in one atom
   assert.equal(projected.youtubeShortsConnected, true);
   assert.equal(projected.pinterestConnected, true);
   assert.equal(projected.mailAccountsConnectedCount, 1);
+});
+
+test("only a complete last-known snapshot may drive the first dashboard paint", () => {
+  const projected = buildOfficialDashboardChannelState(completePayload());
+  assert.equal(hasCompleteOfficialDashboardChannelState(projected), true);
+
+  const partial = { ...projected };
+  delete partial.facebookConnectionStatus;
+  assert.equal(hasCompleteOfficialDashboardChannelState(partial), false);
+  assert.equal(hasCompleteOfficialDashboardChannelState({ ...projected, mailAccountsConnectedCount: 99 }), false);
 });
 
 test("a partial server response is rejected instead of inventing false disconnections", () => {

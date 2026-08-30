@@ -18,6 +18,7 @@ type TriggerChannelRefresh = (channel: DashboardChannelKey) => Promise<void>;
 type UpdateRootSettingsKey = (key: "gmb" | "facebook" | "instagram" | "linkedin", nextObj: any) => Promise<void>;
 
 type UseInstagramChannelOptions = {
+  initialState?: Record<string, any> | null;
   panel: string | null;
   searchParams: { get(name: string): string | null };
   patchChannelConnectionLocally: PatchChannelConnectionLocally;
@@ -26,17 +27,24 @@ type UseInstagramChannelOptions = {
 };
 
 export function useInstagramChannel({
+  initialState,
   panel,
   searchParams,
   patchChannelConnectionLocally,
   triggerChannelRefresh,
   updateRootSettingsKey,
 }: UseInstagramChannelOptions) {
-  const [instagramUrl, setInstagramUrl] = useState<string>("");
-  const [instagramAccountConnected, setInstagramAccountConnected] = useState<boolean>(false);
-  const [instagramConnected, setInstagramConnected] = useState<boolean>(false);
-  const [instagramConnectionStatus, setInstagramConnectionStatus] = useState<ConnectionDisplayStatus>("disconnected");
-  const [instagramUsername, setInstagramUsername] = useState<string>("");
+  const initialConnected = initialState?.instagramConnected === true;
+  const initialStatus = initialState?.instagramConnectionStatus;
+  const [instagramUrl, setInstagramUrl] = useState<string>(() => typeof initialState?.instagramUrl === "string" ? initialState.instagramUrl : "");
+  const [instagramAccountConnected, setInstagramAccountConnected] = useState<boolean>(initialState?.instagramAccountConnected === true);
+  const [instagramConnected, setInstagramConnected] = useState<boolean>(initialConnected);
+  const [instagramConnectionStatus, setInstagramConnectionStatus] = useState<ConnectionDisplayStatus>(() => (
+    initialStatus === "connected" || initialStatus === "needs_update" || initialStatus === "disconnected"
+      ? initialStatus
+      : initialConnected ? "connected" : "disconnected"
+  ));
+  const [instagramUsername, setInstagramUsername] = useState<string>(() => typeof initialState?.instagramUsername === "string" ? initialState.instagramUsername : "");
   const [instagramUrlNotice, setInstagramUrlNotice] = useState<string | null>(null);
   const [instagramUrlError, setInstagramUrlError] = useState<string | null>(null);
 

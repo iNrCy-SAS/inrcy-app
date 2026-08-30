@@ -44,7 +44,7 @@ test("generator power commits only after a quiet settling window", () => {
 test("OAuth returns rehydrate the account-scoped confirmed power", () => {
   assert.match(
     dashboardClientSource,
-    /const hydrateActiveAccountCaches = \(\) => \{[\s\S]*applyDashboardChannelState\(readCachedDashboardChannelState\(\)\)[\s\S]*readCachedGeneratorPowerPercent\(\)[\s\S]*setDisplayedGeneratorPower\(cachedPower\)/,
+    /const hydrateActiveAccountCaches = \(\) => \{[\s\S]*const cachedChannelState = readCachedDashboardChannelState\(\);[\s\S]*applyDashboardChannelState\(cachedChannelState\)[\s\S]*readCachedGeneratorPowerPercent\(\)[\s\S]*setDisplayedGeneratorPower\(cachedPower\)/,
   );
   assert.match(
     dashboardClientSource,

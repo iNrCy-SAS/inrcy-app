@@ -18,6 +18,7 @@ type TriggerChannelRefresh = (channel: DashboardChannelKey) => Promise<void>;
 type UpdateRootSettingsKey = (key: "gmb" | "facebook" | "instagram" | "linkedin", nextObj: any) => Promise<void>;
 
 type UseGoogleBusinessChannelOptions = {
+  initialState?: Record<string, any> | null;
   panel: string | null;
   searchParams: { get(name: string): string | null };
   patchChannelConnectionLocally: PatchChannelConnectionLocally;
@@ -26,26 +27,33 @@ type UseGoogleBusinessChannelOptions = {
 };
 
 export function useGoogleBusinessChannel({
+  initialState,
   panel,
   searchParams,
   patchChannelConnectionLocally,
   triggerChannelRefresh,
   updateRootSettingsKey,
 }: UseGoogleBusinessChannelOptions) {
-  const [gmbUrl, setGmbUrl] = useState<string>("");
-  const [gmbConnected, setGmbConnected] = useState<boolean>(false);
-  const [gmbConnectionStatus, setGmbConnectionStatus] = useState<ConnectionDisplayStatus>("disconnected");
-  const [gmbAccountConnected, setGmbAccountConnected] = useState<boolean>(false);
-  const [gmbConfigured, setGmbConfigured] = useState<boolean>(false);
-  const [gmbAccountEmail, setGmbAccountEmail] = useState<string>("");
+  const initialConnected = initialState?.gmbConnected === true;
+  const initialStatus = initialState?.gmbConnectionStatus;
+  const [gmbUrl, setGmbUrl] = useState<string>(() => typeof initialState?.gmbUrl === "string" ? initialState.gmbUrl : "");
+  const [gmbConnected, setGmbConnected] = useState<boolean>(initialConnected);
+  const [gmbConnectionStatus, setGmbConnectionStatus] = useState<ConnectionDisplayStatus>(() => (
+    initialStatus === "connected" || initialStatus === "needs_update" || initialStatus === "disconnected"
+      ? initialStatus
+      : initialConnected ? "connected" : "disconnected"
+  ));
+  const [gmbAccountConnected, setGmbAccountConnected] = useState<boolean>(initialState?.gmbAccountConnected === true);
+  const [gmbConfigured, setGmbConfigured] = useState<boolean>(initialState?.gmbConfigured === true);
+  const [gmbAccountEmail, setGmbAccountEmail] = useState<string>(() => typeof initialState?.gmbAccountEmail === "string" ? initialState.gmbAccountEmail : "");
   const [gmbUrlNotice, setGmbUrlNotice] = useState<string | null>(null);
   const [gmbUrlError, setGmbUrlError] = useState<string | null>(null);
 
   const [gmbAccounts, setGmbAccounts] = useState<Array<{ name: string; accountName?: string; type?: string }>>([]);
   const [gmbLocations, setGmbLocations] = useState<Array<{ name: string; title?: string }>>([]);
   const [gmbAccountName, setGmbAccountName] = useState<string>("");
-  const [gmbLocationName, setGmbLocationName] = useState<string>("");
-  const [gmbLocationLabel, setGmbLocationLabel] = useState<string>("");
+  const [gmbLocationName, setGmbLocationName] = useState<string>(() => typeof initialState?.gmbLocationName === "string" ? initialState.gmbLocationName : "");
+  const [gmbLocationLabel, setGmbLocationLabel] = useState<string>(() => typeof initialState?.gmbLocationLabel === "string" ? initialState.gmbLocationLabel : "");
   const [gmbLoadingList, setGmbLoadingList] = useState(false);
   const [gmbLocationsPhase, setGmbLocationsPhase] = useState<ChannelResourcePhase>("idle");
   const [gmbListError, setGmbListError] = useState<string | null>(null);

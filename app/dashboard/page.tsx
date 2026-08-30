@@ -5,6 +5,8 @@ import { getMyRole } from "@/lib/roles";
 import { isDashboardRequiredSetupProtectedLocation } from "@/lib/dashboardRequiredSetupAccess";
 import { requireDashboardRequiredSetupCompleted } from "@/lib/dashboardRequiredSetupServer";
 import { getTranslations } from "next-intl/server";
+import { getCurrentInrcyAccountScope } from "@/lib/multicompte/server";
+import { getChannelConnectionStates, type ChannelStates } from "@/lib/channelConnectionState";
 
 type DashboardPageSearchParams = Record<string, string | string[] | undefined>;
 
@@ -18,6 +20,18 @@ function toURLSearchParams(input: DashboardPageSearchParams) {
     }
   }
   return params;
+}
+
+async function loadInitialOfficialChannelStates(): Promise<ChannelStates | null> {
+  try {
+    const current = await getCurrentInrcyAccountScope();
+    if (!current) return null;
+    return await getChannelConnectionStates(current.supabase, current.scope.activeUserId);
+  } catch {
+    // The account-scoped browser snapshot keeps the last confirmed colours.
+    // DashboardClient continues revalidating the canonical state in background.
+    return null;
+  }
 }
 
 export default async function Page({
@@ -35,13 +49,19 @@ export default async function Page({
     await requireDashboardRequiredSetupCompleted();
   }
 
-  const { isAdmin } = await getMyRole();
-  const t = await getTranslations("common");
+  const [{ isAdmin }, t, initialOfficialChannelStates] = await Promise.all([
+    getMyRole(),
+    getTranslations("common"),
+    loadInitialOfficialChannelStates(),
+  ]);
 
   return (
     <Suspense fallback={null}>
       <ClientHydrationGate label={t("dashboardBoot")}>
-        <DashboardClient isAdmin={isAdmin} />
+        <DashboardClient
+          isAdmin={isAdmin}
+          initialOfficialChannelStates={initialOfficialChannelStates}
+        />
       </ClientHydrationGate>
     </Suspense>
   );

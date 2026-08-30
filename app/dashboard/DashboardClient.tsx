@@ -71,7 +71,11 @@ import { isDashboardRequiredSetupProtectedDestination, isDashboardRequiredSetupP
 import { confirmInrcy } from "@/lib/inrcyDialog";
 import { reportHandledClientError } from "@/lib/clientExpectedErrors";
 import { fetchSharedDashboardRefreshJson } from "@/lib/dashboardRefreshOrchestrator";
-import { buildOfficialDashboardChannelState, createLatestChannelResponseGate } from "@/lib/dashboardChannelSync";
+import {
+  buildOfficialDashboardChannelState,
+  createLatestChannelResponseGate,
+  hasCompleteOfficialDashboardChannelState,
+} from "@/lib/dashboardChannelSync";
 import {
   STANDARD_BONUS_CHANNEL_KEYS,
   STANDARD_PUBLICATION_CHANNEL_KEYS,
@@ -131,15 +135,26 @@ const STANDARD_DASHBOARD_BUBBLE_KEYS = new Set<string>([
 type DashboardClientProps = {
   isAdmin?: boolean;
   initialOnboardingState?: DashboardOnboardingInitialState;
+  initialOfficialChannelStates?: unknown;
 };
 
 export default function DashboardClient({
   isAdmin = false,
   initialOnboardingState,
+  initialOfficialChannelStates = null,
 }: DashboardClientProps) {
   const i18nT = useTranslations("shell");
   const commonT = useTranslations("common");
   const onboardingT = useTranslations("dashboard.onboarding");
+  const [initialServerOfficialDashboardState] = useState(() => (
+    buildOfficialDashboardChannelState(initialOfficialChannelStates)
+  ));
+  const [initialDashboardChannelState] = useState<Record<string, any> | null>(() => {
+    const cached = readCachedDashboardChannelState();
+    return initialServerOfficialDashboardState
+      ? { ...(cached ?? {}), ...initialServerOfficialDashboardState }
+      : cached;
+  });
   const [helpGeneratorOpen, setHelpGeneratorOpen] = useState(false);
   const [generatorSettingsOpen, setGeneratorSettingsOpen] = useState(false);
   const [helpCanauxOpen, setHelpCanauxOpen] = useState(false);
@@ -150,18 +165,56 @@ export default function DashboardClient({
   const [helpFacebookOpen, setHelpFacebookOpen] = useState(false);
   const [dashboardBoosterModal, setDashboardBoosterModal] = useState<null | "publish" | "stats">(null);
   const [siteConnectionsReady, setSiteConnectionsReady] = useState(false);
-  const [officialChannelStatesReady, setOfficialChannelStatesReady] = useState(false);
+  const [officialChannelStatesReady, setOfficialChannelStatesReady] = useState(() => (
+    hasCompleteOfficialDashboardChannelState(initialDashboardChannelState)
+  ));
   const [bubbleAccessReady, setBubbleAccessReady] = useState(false);
   const [displayedSiteInrcyAccess, setDisplayedSiteInrcyAccess] = useState(() => readCachedSiteInrcyDisplayAccess());
-  const [mailAccountsConnectedCount, setMailAccountsConnectedCount] = useState(() => readCachedMailAccountsConnectedCount() ?? 0);
-  const [mailAccountsRequireUpdate, setMailAccountsRequireUpdate] = useState(() => readCachedDashboardBoolean("mailAccountsRequireUpdate"));
-  const [youtubeShortsConnected, setYoutubeShortsConnected] = useState(() => readCachedDashboardBoolean("youtubeShortsConnected"));
-  const [youtubeShortsRequiresUpdate, setYoutubeShortsRequiresUpdate] = useState(() => readCachedDashboardBoolean("youtubeShortsRequiresUpdate"));
-  const [youtubeShortsUrl, setYoutubeShortsUrl] = useState(() => readCachedDashboardString("youtubeShortsUrl"));
-  const [pinterestConnected, setPinterestConnected] = useState(() => readCachedDashboardBoolean("pinterestConnected"));
-  const [pinterestRequiresUpdate, setPinterestRequiresUpdate] = useState(() => readCachedDashboardBoolean("pinterestRequiresUpdate"));
-  const [pinterestUrl, setPinterestUrl] = useState(() => readCachedDashboardString("pinterestUrl"));
-  const [tiktokRequiresUpdate, setTiktokRequiresUpdate] = useState(() => readCachedDashboardBoolean("tiktokRequiresUpdate"));
+  const [mailAccountsConnectedCount, setMailAccountsConnectedCount] = useState(() => (
+    Object.prototype.hasOwnProperty.call(initialDashboardChannelState ?? {}, "mailAccountsConnectedCount")
+      ? sanitizeMailAccountsConnectedCount(initialDashboardChannelState?.mailAccountsConnectedCount)
+      : readCachedMailAccountsConnectedCount() ?? 0
+  ));
+  const [mailAccountsRequireUpdate, setMailAccountsRequireUpdate] = useState(() => (
+    typeof initialDashboardChannelState?.mailAccountsRequireUpdate === "boolean"
+      ? initialDashboardChannelState.mailAccountsRequireUpdate
+      : readCachedDashboardBoolean("mailAccountsRequireUpdate")
+  ));
+  const [youtubeShortsConnected, setYoutubeShortsConnected] = useState(() => (
+    typeof initialDashboardChannelState?.youtubeShortsConnected === "boolean"
+      ? initialDashboardChannelState.youtubeShortsConnected
+      : readCachedDashboardBoolean("youtubeShortsConnected")
+  ));
+  const [youtubeShortsRequiresUpdate, setYoutubeShortsRequiresUpdate] = useState(() => (
+    typeof initialDashboardChannelState?.youtubeShortsRequiresUpdate === "boolean"
+      ? initialDashboardChannelState.youtubeShortsRequiresUpdate
+      : readCachedDashboardBoolean("youtubeShortsRequiresUpdate")
+  ));
+  const [youtubeShortsUrl, setYoutubeShortsUrl] = useState(() => (
+    typeof initialDashboardChannelState?.youtubeShortsUrl === "string"
+      ? initialDashboardChannelState.youtubeShortsUrl
+      : readCachedDashboardString("youtubeShortsUrl")
+  ));
+  const [pinterestConnected, setPinterestConnected] = useState(() => (
+    typeof initialDashboardChannelState?.pinterestConnected === "boolean"
+      ? initialDashboardChannelState.pinterestConnected
+      : readCachedDashboardBoolean("pinterestConnected")
+  ));
+  const [pinterestRequiresUpdate, setPinterestRequiresUpdate] = useState(() => (
+    typeof initialDashboardChannelState?.pinterestRequiresUpdate === "boolean"
+      ? initialDashboardChannelState.pinterestRequiresUpdate
+      : readCachedDashboardBoolean("pinterestRequiresUpdate")
+  ));
+  const [pinterestUrl, setPinterestUrl] = useState(() => (
+    typeof initialDashboardChannelState?.pinterestUrl === "string"
+      ? initialDashboardChannelState.pinterestUrl
+      : readCachedDashboardString("pinterestUrl")
+  ));
+  const [tiktokRequiresUpdate, setTiktokRequiresUpdate] = useState(() => (
+    typeof initialDashboardChannelState?.tiktokRequiresUpdate === "boolean"
+      ? initialDashboardChannelState.tiktokRequiresUpdate
+      : readCachedDashboardBoolean("tiktokRequiresUpdate")
+  ));
   const [inrSearchConnected, setInrSearchConnected] = useState<boolean | null>(() => readCachedInrSearchConnected());
   const [inrSearchUrl, setInrSearchUrl] = useState(() => readCachedDashboardString("inrSearchUrl"));
   const [inrSearchDirectoryEnabled, setInrSearchDirectoryEnabled] = useState<boolean | null>(() => readCachedInrSearchDirectoryEnabled());
@@ -559,7 +612,9 @@ export default function DashboardClient({
   const kpisRequestSeqRef = useRef(0);
   const siteConfigRequestSeqRef = useRef(0);
   const officialChannelStatesRequestSeqRef = useRef(0);
-  const canonicalChannelStatesReadyRef = useRef(false);
+  // A server bootstrap is canonical immediately. A cached snapshot is only a
+  // display continuity layer and must still be revalidated in the background.
+  const canonicalChannelStatesReadyRef = useRef(Boolean(initialServerOfficialDashboardState));
   const inrSearchSettingsRequestRef = useRef<Promise<void> | null>(null);
   const activeUserIdRef = useRef<string | null>(null);
   const latestApplyBootstrapRefreshRef = useRef<((bootstrap: DailyStatsRefreshBootstrapResponse) => { syncAt: number; bootstrapSnapshotDate: string | null }) | null>(null);
@@ -881,6 +936,7 @@ const {
   setPanelSuccess: setFacebookPanelSuccess,
   setPanelError: setFacebookPanelError,
 } = useFacebookChannel({
+  initialState: initialDashboardChannelState,
   panel,
   searchParams,
   patchChannelConnectionLocally: patchChannelConnectionLocallyProxy,
@@ -917,6 +973,7 @@ const {
   setPanelSuccess: setInstagramPanelSuccess,
   setPanelError: setInstagramPanelError,
 } = useInstagramChannel({
+  initialState: initialDashboardChannelState,
   panel,
   searchParams,
   patchChannelConnectionLocally: patchChannelConnectionLocallyProxy,
@@ -960,6 +1017,7 @@ const {
   setPanelSuccess: setLinkedinPanelSuccess,
   setPanelError: setLinkedinPanelError,
 } = useLinkedinChannel({
+  initialState: initialDashboardChannelState,
   panel,
   searchParams,
   patchChannelConnectionLocally: patchChannelConnectionLocallyProxy,
@@ -1000,6 +1058,7 @@ const {
   setPanelSuccess: setGmbPanelSuccess,
   setPanelError: setGmbPanelError,
 } = useGoogleBusinessChannel({
+  initialState: initialDashboardChannelState,
   panel,
   searchParams,
   patchChannelConnectionLocally: patchChannelConnectionLocallyProxy,
@@ -1037,6 +1096,7 @@ const {
   saveTiktokDefaults,
   applyTiktokConnectionState,
 } = useTiktokChannel({
+  initialState: initialDashboardChannelState,
   panel,
   patchChannelConnectionLocally: patchChannelConnectionLocallyProxy,
   triggerChannelRefresh: triggerChannelRefreshProxy,
@@ -1463,11 +1523,19 @@ useEffect(() => {
 }, []);
 
 useBrowserLayoutEffect(() => {
-  const cached = readCachedDashboardChannelState();
-  // Cached channel values are visual continuity only. The dashboard must not
-  // consider the server connections authoritative until loadSiteInrcy ends.
-  applyDashboardChannelState(cached);
-}, [applyDashboardChannelState]);
+  // ClientHydrationGate mounts DashboardClient only in the browser. Applying
+  // this complete account-scoped snapshot in a layout effect guarantees the
+  // last known colours are restored before the first dashboard paint.
+  if (!initialDashboardChannelState) return;
+  applyDashboardChannelState(initialDashboardChannelState);
+  if (hasCompleteOfficialDashboardChannelState(initialDashboardChannelState)) {
+    setOfficialChannelStatesReady(true);
+    if (initialServerOfficialDashboardState) {
+      canonicalChannelStatesReadyRef.current = true;
+      writeCachedDashboardChannelState(initialDashboardChannelState);
+    }
+  }
+}, [applyDashboardChannelState, initialDashboardChannelState, initialServerOfficialDashboardState]);
 
 const setPanelSuccess = useCallback((kind: "facebook" | "instagram" | "linkedin" | "gmb", message: string, timeout = 2200) => {
   if (kind === "facebook") { setFacebookPanelSuccess(message, timeout); return; }
@@ -1585,7 +1653,11 @@ const setPanelError = useCallback((kind: "facebook" | "instagram" | "linkedin" |
       // Les useState initiaux peuvent s'exécuter avant que le compte actif soit
       // restauré après un retour OAuth. On relit alors immédiatement le cache
       // du bon compte pour conserver la dernière puissance confirmée.
-      if (!applyDashboardChannelState(readCachedDashboardChannelState())) {
+      const cachedChannelState = readCachedDashboardChannelState();
+      const hasDisplaySnapshot = hasCompleteOfficialDashboardChannelState(cachedChannelState);
+      canonicalChannelStatesReadyRef.current = false;
+      setOfficialChannelStatesReady(hasDisplaySnapshot);
+      if (!applyDashboardChannelState(cachedChannelState)) {
         resetAccountScopedDashboardState();
       }
       const cachedPower = readCachedGeneratorPowerPercent();
@@ -3233,11 +3305,12 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
       if (!scopedUserId) return;
       channelResponseGateRef.current.changeScope();
       canonicalChannelStatesReadyRef.current = false;
-      setOfficialChannelStatesReady(false);
       siteConfigRequestSeqRef.current += 1;
       officialChannelStatesRequestSeqRef.current += 1;
       kpisRequestSeqRef.current += 1;
-      if (!applyDashboardChannelState(readCachedDashboardChannelState())) {
+      const cachedChannelState = readCachedDashboardChannelState();
+      setOfficialChannelStatesReady(hasCompleteOfficialDashboardChannelState(cachedChannelState));
+      if (!applyDashboardChannelState(cachedChannelState)) {
         resetAccountScopedDashboardState();
       }
       refreshAfterVisibilityRestore = true;

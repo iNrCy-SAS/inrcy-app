@@ -17,6 +17,7 @@ type TriggerChannelRefresh = (channel: DashboardChannelKey) => Promise<void>;
 type UpdateRootSettingsKey = (key: "gmb" | "facebook" | "instagram" | "linkedin", nextObj: any) => Promise<void>;
 
 type UseFacebookChannelOptions = {
+  initialState?: Record<string, any> | null;
   panel: string | null;
   searchParams: { get(name: string): string | null };
   patchChannelConnectionLocally: PatchChannelConnectionLocally;
@@ -25,25 +26,32 @@ type UseFacebookChannelOptions = {
 };
 
 export function useFacebookChannel({
+  initialState,
   panel,
   searchParams,
   patchChannelConnectionLocally,
   triggerChannelRefresh,
   updateRootSettingsKey,
 }: UseFacebookChannelOptions) {
-  const [facebookUrl, setFacebookUrl] = useState<string>("");
-  const [facebookAccountConnected, setFacebookAccountConnected] = useState<boolean>(false);
-  const [facebookPageConnected, setFacebookPageConnected] = useState<boolean>(false);
-  const [facebookConnectionStatus, setFacebookConnectionStatus] = useState<"connected" | "disconnected" | "needs_update">("disconnected");
-  const [facebookAccountEmail, setFacebookAccountEmail] = useState<string>("");
+  const initialConnected = initialState?.facebookPageConnected === true;
+  const initialStatus = initialState?.facebookConnectionStatus;
+  const [facebookUrl, setFacebookUrl] = useState<string>(() => typeof initialState?.facebookUrl === "string" ? initialState.facebookUrl : "");
+  const [facebookAccountConnected, setFacebookAccountConnected] = useState<boolean>(initialState?.facebookAccountConnected === true);
+  const [facebookPageConnected, setFacebookPageConnected] = useState<boolean>(initialConnected);
+  const [facebookConnectionStatus, setFacebookConnectionStatus] = useState<"connected" | "disconnected" | "needs_update">(() => (
+    initialStatus === "connected" || initialStatus === "needs_update" || initialStatus === "disconnected"
+      ? initialStatus
+      : initialConnected ? "connected" : "disconnected"
+  ));
+  const [facebookAccountEmail, setFacebookAccountEmail] = useState<string>(() => typeof initialState?.facebookAccountEmail === "string" ? initialState.facebookAccountEmail : "");
   const [facebookUrlNotice, setFacebookUrlNotice] = useState<string | null>(null);
   const [facebookUrlError, setFacebookUrlError] = useState<string | null>(null);
 
   const [fbPages, setFbPages] = useState<Array<{ id: string; name?: string; access_token?: string }>>([]);
   const [fbPagesLoading, setFbPagesLoading] = useState(false);
   const [fbPagesPhase, setFbPagesPhase] = useState<ChannelResourcePhase>("idle");
-  const [fbSelectedPageId, setFbSelectedPageId] = useState<string>("");
-  const [fbSelectedPageName, setFbSelectedPageName] = useState<string>("");
+  const [fbSelectedPageId, setFbSelectedPageId] = useState<string>(() => typeof initialState?.fbSelectedPageId === "string" ? initialState.fbSelectedPageId : "");
+  const [fbSelectedPageName, setFbSelectedPageName] = useState<string>(() => typeof initialState?.fbSelectedPageName === "string" ? initialState.fbSelectedPageName : "");
   const [fbPagesError, setFbPagesError] = useState<string | null>(null);
   const fbPagesAutoLoadRef = useRef(false);
 

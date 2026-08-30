@@ -47,13 +47,13 @@ test("generator power waits for the real channel refresh and site progress waits
   );
 });
 
-test("cached channel hydration does not impersonate a completed server refresh", () => {
+test("cached channel hydration restores visuals without impersonating a completed server refresh", () => {
   assert.match(
     dashboardClientSource,
-    /useBrowserLayoutEffect\(\(\) => \{[\s\S]*applyDashboardChannelState\(cached\);[\s\S]*\}, \[applyDashboardChannelState\]\);/,
+    /useBrowserLayoutEffect\(\(\) => \{[\s\S]*applyDashboardChannelState\(initialDashboardChannelState\);[\s\S]*setOfficialChannelStatesReady\(true\);/,
   );
-  assert.doesNotMatch(
+  assert.match(
     dashboardClientSource,
-    /useBrowserLayoutEffect\(\(\) => \{[\s\S]*applyDashboardChannelState\(cached, \{ markReady: true \}\)/,
+    /canonicalChannelStatesReadyRef = useRef\(Boolean\(initialServerOfficialDashboardState\)\)/,
   );
 });
