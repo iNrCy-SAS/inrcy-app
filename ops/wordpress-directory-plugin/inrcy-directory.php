@@ -2,7 +2,7 @@
 /**
  * Plugin Name: iNrCy Annuaire
  * Description: Affiche dans WordPress un annuaire server-side des pages iNr’Search publiées.
- * Version: 1.4.1
+ * Version: 1.4.2
  * Author: iNrCy
  * License: GPL-2.0-or-later
  */
@@ -465,7 +465,7 @@ function inrcy_directory_enqueue_styles() {
         return;
     }
 
-    wp_register_style('inrcy-directory', false, array(), '1.4.1');
+    wp_register_style('inrcy-directory', false, array(), '1.4.2');
     wp_enqueue_style('inrcy-directory');
     $css = <<<'INRCY_DIRECTORY_CSS'
         .inrcy-directory-page .ast-article-single>.entry-header{display:none}
@@ -484,7 +484,7 @@ function inrcy_directory_enqueue_styles() {
         body.inrcy-directory-page .inrcy-directory__reset{grid-column:1/-1;width:max-content;color:#6a45be;font-size:14px;font-weight:750;text-decoration:underline;text-underline-offset:3px}
         body.inrcy-directory-page .inrcy-directory__summary{margin:24px 0 16px;color:#687693;font-size:15px}
         body.inrcy-directory-page .inrcy-directory__summary strong{color:#16213f;font-size:22px}
-        body.inrcy-directory-page .inrcy-directory__grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:16px}
+        body.inrcy-directory-page .inrcy-directory__grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:16px}
         body.inrcy-directory-page .inrcy-directory__card{position:relative;display:flex;min-width:0;min-height:300px;overflow:hidden;flex-direction:column;padding:20px;border:1px solid rgba(126,98,255,.28);border-radius:22px;background:radial-gradient(circle at 90% 0%,rgba(47,190,255,.24),transparent 40%),linear-gradient(145deg,#101a38,#211b4d 58%,#172c5c);box-shadow:0 16px 34px rgba(25,35,83,.18);color:#f8fafc;transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}
         body.inrcy-directory-page .inrcy-directory__card::after{position:absolute;right:-38px;bottom:-54px;width:150px;height:150px;border-radius:50%;background:radial-gradient(circle,rgba(255,67,151,.26),transparent 68%);content:"";pointer-events:none}
         body.inrcy-directory-page .inrcy-directory__card:hover,body.inrcy-directory-page .inrcy-directory__card:focus-within{transform:translateY(-4px);border-color:rgba(82,194,255,.68);box-shadow:0 24px 48px rgba(29,43,111,.28)}

@@ -36,7 +36,7 @@ test("directory changes trigger an authenticated WordPress purge", () => {
 test("the WordPress plugin invalidates every filter and page cache atomically", () => {
   const plugin = read("ops/wordpress-directory-plugin/inrcy-directory.php");
 
-  assert.match(plugin, /Version: 1\.4\.1/);
+  assert.match(plugin, /Version: 1\.4\.2/);
   assert.match(plugin, /register_rest_route\(/);
   assert.match(plugin, /'\/directory-cache\/purge'/);
   assert.match(plugin, /hash_hmac\('sha256', \$timestamp \. '\.' \. \$request->get_body\(\), \$secret\)/);
@@ -84,6 +84,11 @@ test("the WordPress directory 1.4 is accessible, responsive and machine-readable
   assert.match(plugin, /Voir le profil iNr’Search de %s/);
   assert.match(plugin, /inrcy-directory__join/);
   assert.match(plugin, /min-width:44px;min-height:44px/);
+  assert.match(
+    plugin,
+    /\.inrcy-directory__grid\{display:grid;grid-template-columns:repeat\(auto-fill,minmax\(270px,1fr\)\);gap:16px\}/,
+  );
+  assert.doesNotMatch(plugin, /repeat\(auto-fit,minmax\(270px,1fr\)\)/);
   assert.match(plugin, /@media \(max-width:700px\)/);
   assert.match(plugin, /@media \(prefers-reduced-motion:reduce\)/);
   assert.match(plugin, /rank_math\/opengraph\/facebook\/image/);
