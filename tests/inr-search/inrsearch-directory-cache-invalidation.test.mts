@@ -36,20 +36,44 @@ test("directory changes trigger an authenticated WordPress purge", () => {
 test("the WordPress plugin invalidates every filter and page cache atomically", () => {
   const plugin = read("ops/wordpress-directory-plugin/inrcy-directory.php");
 
-  assert.match(plugin, /Version: 1\.3\.0/);
+  assert.match(plugin, /Version: 1\.4\.1/);
   assert.match(plugin, /register_rest_route\(/);
   assert.match(plugin, /'\/directory-cache\/purge'/);
   assert.match(plugin, /hash_hmac\('sha256', \$timestamp \. '\.' \. \$request->get_body\(\), \$secret\)/);
   assert.match(plugin, /hash_equals\(\$expected, \$signature\)/);
   assert.match(plugin, /abs\(time\(\) - \(int\) \$timestamp\) > 300/);
   assert.match(plugin, /inrcy_directory_bump_cache_version\(\)/);
-  assert.match(
-    plugin,
-    /'inrcy_directory_' \. inrcy_directory_cache_version\(\) \. '_' \. md5\(\$url\)/,
-  );
+  assert.match(plugin, /\$cache_suffix = inrcy_directory_cache_version\(\) \. '_' \. md5\(\$url\)/);
+  assert.match(plugin, /\$cache_key = 'inrcy_directory_' \. \$cache_suffix/);
+  assert.match(plugin, /\$stale_cache_key = 'inrcy_directory_stale_' \. \$cache_suffix/);
+  assert.match(plugin, /define\('INRCY_DIRECTORY_CACHE_TTL', HOUR_IN_SECONDS\)/);
+  assert.match(plugin, /define\('INRCY_DIRECTORY_STALE_TTL', DAY_IN_SECONDS\)/);
 });
 
-test("the WordPress directory 1.3 is accessible, responsive and machine-readable", () => {
+test("the WordPress public pagination avoids WordPress reserved query variables", () => {
+  const plugin = read("ops/wordpress-directory-plugin/inrcy-directory.php");
+  const apiFunction = plugin.match(
+    /function inrcy_directory_api_url[\s\S]*?(?=function inrcy_directory_empty_result)/,
+  )?.[0];
+  const paginationFunction = plugin.match(
+    /function inrcy_directory_render_pagination[\s\S]*?(?=function inrcy_directory_render_schema)/,
+  )?.[0];
+
+  assert.ok(apiFunction);
+  assert.ok(paginationFunction);
+  assert.match(plugin, /define\('INRCY_DIRECTORY_PAGE_QUERY_ARG', 'inrcy_page'\)/);
+  assert.match(apiFunction, /'page' => max\(1, absint\(\$page\)\)/);
+  assert.doesNotMatch(apiFunction, /inrcy_page|INRCY_DIRECTORY_PAGE_QUERY_ARG/);
+  assert.equal(paginationFunction.match(/INRCY_DIRECTORY_PAGE_QUERY_ARG/g)?.length, 3);
+  assert.doesNotMatch(paginationFunction, /array\('page' =>/);
+  assert.match(
+    plugin,
+    /inrcy_directory_get_filter\(INRCY_DIRECTORY_PAGE_QUERY_ARG\)/,
+  );
+  assert.doesNotMatch(plugin, /inrcy_directory_get_filter\('page'\)/);
+});
+
+test("the WordPress directory 1.4 is accessible, responsive and machine-readable", () => {
   const plugin = read("ops/wordpress-directory-plugin/inrcy-directory.php");
 
   assert.match(plugin, /'@type' => 'CollectionPage'/);

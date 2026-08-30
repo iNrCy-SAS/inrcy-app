@@ -2,7 +2,7 @@
 /**
  * Plugin Name: iNrCy Annuaire
  * Description: Affiche dans WordPress un annuaire server-side des pages iNr’Search publiées.
- * Version: 1.3.0
+ * Version: 1.4.1
  * Author: iNrCy
  * License: GPL-2.0-or-later
  */
@@ -12,8 +12,10 @@ if (!defined('ABSPATH')) {
 }
 
 define('INRCY_DIRECTORY_API_URL', 'https://app.inrcy.com/api/public/inrsearch/directory');
-define('INRCY_DIRECTORY_CACHE_TTL', 300);
+define('INRCY_DIRECTORY_CACHE_TTL', HOUR_IN_SECONDS);
+define('INRCY_DIRECTORY_STALE_TTL', DAY_IN_SECONDS);
 define('INRCY_DIRECTORY_CACHE_VERSION_OPTION', 'inrcy_directory_cache_version');
+define('INRCY_DIRECTORY_PAGE_QUERY_ARG', 'inrcy_page');
 
 function inrcy_directory_cache_version() {
     $version = absint(get_option(INRCY_DIRECTORY_CACHE_VERSION_OPTION, 1));
@@ -124,9 +126,15 @@ function inrcy_directory_api_url($filters, $page = 1) {
     return add_query_arg($query, INRCY_DIRECTORY_API_URL);
 }
 
+function inrcy_directory_empty_result() {
+    return array('ok' => false, 'items' => array(), 'total' => 0, 'facets' => array());
+}
+
 function inrcy_directory_fetch($filters, $page = 1) {
     $url = inrcy_directory_api_url($filters, $page);
-    $cache_key = 'inrcy_directory_' . inrcy_directory_cache_version() . '_' . md5($url);
+    $cache_suffix = inrcy_directory_cache_version() . '_' . md5($url);
+    $cache_key = 'inrcy_directory_' . $cache_suffix;
+    $stale_cache_key = 'inrcy_directory_stale_' . $cache_suffix;
     $cached = get_transient($cache_key);
 
     if (is_array($cached)) {
@@ -134,7 +142,7 @@ function inrcy_directory_fetch($filters, $page = 1) {
     }
 
     $response = wp_remote_get($url, array(
-        'timeout' => 8,
+        'timeout' => 3,
         'headers' => array(
             'Accept' => 'application/json',
             'User-Agent' => 'iNrCy-WordPress-Directory/1.0',
@@ -142,17 +150,20 @@ function inrcy_directory_fetch($filters, $page = 1) {
     ));
 
     if (is_wp_error($response)) {
-        return array('ok' => false, 'items' => array(), 'total' => 0, 'facets' => array());
+        $stale = get_transient($stale_cache_key);
+        return is_array($stale) ? $stale : inrcy_directory_empty_result();
     }
 
     $status = wp_remote_retrieve_response_code($response);
     $body = json_decode(wp_remote_retrieve_body($response), true);
 
     if ($status < 200 || $status >= 300 || !is_array($body) || empty($body['ok'])) {
-        return array('ok' => false, 'items' => array(), 'total' => 0, 'facets' => array());
+        $stale = get_transient($stale_cache_key);
+        return is_array($stale) ? $stale : inrcy_directory_empty_result();
     }
 
     set_transient($cache_key, $body, INRCY_DIRECTORY_CACHE_TTL);
+    set_transient($stale_cache_key, $body, INRCY_DIRECTORY_STALE_TTL);
     return $body;
 }
 
@@ -190,7 +201,7 @@ function inrcy_directory_render_pagination($page, $has_next, $filters, $total, $
     if ($page > 1) {
         $links[] = sprintf(
             '<a class="inrcy-directory__page" href="%s">← Précédent</a>',
-            esc_url(add_query_arg(array_merge($filters, array('page' => $page - 1)), get_permalink()))
+            esc_url(add_query_arg(array_merge($filters, array(INRCY_DIRECTORY_PAGE_QUERY_ARG => $page - 1)), get_permalink()))
         );
     }
 
@@ -199,7 +210,7 @@ function inrcy_directory_render_pagination($page, $has_next, $filters, $total, $
     $start = max(1, $end - 4);
 
     for ($number = $start; $number <= $end; $number++) {
-        $url = esc_url(add_query_arg(array_merge($filters, array('page' => $number)), get_permalink()));
+        $url = esc_url(add_query_arg(array_merge($filters, array(INRCY_DIRECTORY_PAGE_QUERY_ARG => $number)), get_permalink()));
         if ($number === $page) {
             $links[] = sprintf(
                 '<span class="inrcy-directory__page inrcy-directory__page--current" aria-current="page">%s</span>',
@@ -217,7 +228,7 @@ function inrcy_directory_render_pagination($page, $has_next, $filters, $total, $
     if ($has_next) {
         $links[] = sprintf(
             '<a class="inrcy-directory__page" href="%s">Suivant →</a>',
-            esc_url(add_query_arg(array_merge($filters, array('page' => $page + 1)), get_permalink()))
+            esc_url(add_query_arg(array_merge($filters, array(INRCY_DIRECTORY_PAGE_QUERY_ARG => $page + 1)), get_permalink()))
         );
     }
 
@@ -302,7 +313,7 @@ function inrcy_directory_shortcode() {
         'departement' => inrcy_directory_get_filter('departement'),
         'region' => inrcy_directory_get_filter('region'),
     );
-    $page = max(1, absint(inrcy_directory_get_filter('page')));
+    $page = max(1, absint(inrcy_directory_get_filter(INRCY_DIRECTORY_PAGE_QUERY_ARG)));
     $data = inrcy_directory_fetch($filters, $page);
     $facets = !empty($data['facets']) && is_array($data['facets']) ? $data['facets'] : array();
     $items = !empty($data['items']) && is_array($data['items']) ? $data['items'] : array();
@@ -454,7 +465,7 @@ function inrcy_directory_enqueue_styles() {
         return;
     }
 
-    wp_register_style('inrcy-directory', false, array(), '1.3.0');
+    wp_register_style('inrcy-directory', false, array(), '1.4.1');
     wp_enqueue_style('inrcy-directory');
     $css = <<<'INRCY_DIRECTORY_CSS'
         .inrcy-directory-page .ast-article-single>.entry-header{display:none}
