@@ -2,7 +2,7 @@ import { asRecord, asString } from "@/lib/tsSafe";
 
 export type ConnectionDisplayStatus = "connected" | "needs_update" | "disconnected";
 
-const RECONNECT_MARKER_KEYS = [
+export const CONNECTION_RECONNECT_MARKER_KEYS = [
   "needs_reconnect",
   "reconnect_required",
   "token_invalid",
@@ -16,7 +16,7 @@ const RECONNECT_MARKER_KEYS = [
 
 export function hasConnectionReconnectMarker(node: unknown): boolean {
   const rec = asRecord(node);
-  return RECONNECT_MARKER_KEYS.some((key) => {
+  return CONNECTION_RECONNECT_MARKER_KEYS.some((key) => {
     const value = rec[key];
     if (value === true) return true;
     return typeof value === "string" && value.trim().length > 0;
@@ -25,7 +25,7 @@ export function hasConnectionReconnectMarker(node: unknown): boolean {
 
 function clearConnectionReconnectMarkers<T extends Record<string, unknown>>(node: T): T {
   const next = { ...node };
-  for (const key of RECONNECT_MARKER_KEYS) delete next[key];
+  for (const key of CONNECTION_RECONNECT_MARKER_KEYS) delete next[key];
   delete next["needs_reconnect_at"];
   delete next["needs_reconnect_reason"];
   delete next["needs_reconnect_channel"];
@@ -52,7 +52,8 @@ export type ConnectionKind =
  * - Ne pas modifier ces valeurs pour une simple mise à jour UI/build.
  * - À augmenter uniquement quand une ancienne autorisation devient insuffisante
  *   (nouveau scope OAuth, nouvelle donnée obligatoire, gros changement d’API provider).
- * - Les anciennes connexions sans version sont considérées comme version 1.
+ * - Une ancienne connexion sans version explicite reste compatible. Une vraie
+ *   version ancienne explicitement stockée doit, elle, être actualisée.
  */
 export const CONNECTION_REQUIRED_VERSIONS: Record<ConnectionKind, number> = {
   "mail:gmail": 1,
@@ -79,7 +80,14 @@ export function readConnectionVersion(node: unknown): number {
   return Math.trunc(n);
 }
 
+export function hasExplicitConnectionVersion(node: unknown): boolean {
+  const rec = asRecord(node);
+  return ["connection_version", "connectionVersion", "auth_version", "authVersion"]
+    .some((key) => rec[key] !== undefined && rec[key] !== null && String(rec[key]).trim() !== "");
+}
+
 export function isConnectionUpdateRequired(kind: ConnectionKind, versionNode: unknown): boolean {
+  if (!hasExplicitConnectionVersion(versionNode)) return false;
   return readConnectionVersion(versionNode) < getRequiredConnectionVersion(kind);
 }
 

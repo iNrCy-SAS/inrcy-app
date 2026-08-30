@@ -2,7 +2,10 @@ import "server-only";
 
 import { createHash } from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { CONNECTION_REQUIRED_VERSIONS } from "@/lib/connectionVersions";
+import {
+  CONNECTION_RECONNECT_MARKER_KEYS,
+  CONNECTION_REQUIRED_VERSIONS,
+} from "@/lib/connectionVersions";
 import { INRCY_STATS_CACHE_SCHEMA_VERSION } from "@/lib/stats/cacheSchema";
 
 type AnyRec = Record<string, unknown>;
@@ -39,6 +42,11 @@ function safeMetaSnapshot(metaValue: unknown): AnyRec {
     "organizationUrn",
     "location_name",
     "locationName",
+    ...CONNECTION_RECONNECT_MARKER_KEYS,
+    "needs_reconnect_at",
+    "needs_reconnect_reason",
+    "needs_reconnect_channel",
+    "needs_reconnect_stage",
   ]) {
     const value = meta[key];
     if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
@@ -70,18 +78,12 @@ export async function buildStatsConnectionSignature(
 
   pushPart(parts, "stats_cache_schema", INRCY_STATS_CACHE_SCHEMA_VERSION);
 
-  pushPart(parts, "required_versions", {
-    gmb: CONNECTION_REQUIRED_VERSIONS["channel:gmb"],
-    facebook: CONNECTION_REQUIRED_VERSIONS["channel:facebook"],
-    instagram: CONNECTION_REQUIRED_VERSIONS["channel:instagram"],
-    linkedin: CONNECTION_REQUIRED_VERSIONS["channel:linkedin"],
-    tiktok: CONNECTION_REQUIRED_VERSIONS["channel:tiktok"],
-  });
+  pushPart(parts, "required_versions", CONNECTION_REQUIRED_VERSIONS);
 
   try {
     const { data = [] } = await supabase
       .from("integrations")
-      .select("provider,source,product,status,resource_id,resource_label,display_name,email_address,meta")
+      .select("provider,source,product,status,resource_id,resource_label,display_name,email_address,expires_at,access_token_enc,refresh_token_enc,settings,meta")
       .eq("user_id", userId);
 
     const rows = Array.isArray(data) ? data : [];
@@ -97,6 +99,10 @@ export async function buildStatsConnectionSignature(
           resource_label: String(rec.resource_label ?? ""),
           display_name: String(rec.display_name ?? ""),
           email_address: String(rec.email_address ?? ""),
+          expires_at: String(rec.expires_at ?? ""),
+          has_access_token: typeof rec.access_token_enc === "string" && rec.access_token_enc.trim().length > 0,
+          has_refresh_token: typeof rec.refresh_token_enc === "string" && rec.refresh_token_enc.trim().length > 0,
+          settings: safeMetaSnapshot(rec.settings),
           meta: safeMetaSnapshot(rec.meta),
         };
       })

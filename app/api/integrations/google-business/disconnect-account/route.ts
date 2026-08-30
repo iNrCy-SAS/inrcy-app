@@ -49,7 +49,7 @@ export async function POST() {
     })));
   }
 
-  const { error } = await supabase
+  const { error } = await supabaseAdmin
     .from("integrations")
     .delete()
     .eq("user_id", userId)
@@ -58,6 +58,19 @@ export async function POST() {
     .eq("product", "gmb");
 
   if (error) return jsonUserFacingError(error, { status: 500 });
+
+  const { data: remaining, error: verifyError } = await supabaseAdmin
+    .from("integrations")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("provider", "google")
+    .eq("source", "gmb")
+    .eq("product", "gmb")
+    .limit(1);
+  if (verifyError) return jsonUserFacingError(verifyError, { status: 500 });
+  if (remaining?.length) {
+    return NextResponse.json({ error: "Google Business n’a pas été déconnecté. Réessayez." }, { status: 500 });
+  }
   try {
     const { data } = await supabaseAdmin.from("pro_tools_configs").select("settings").eq("user_id", userId).maybeSingle();
     const current = asRecord(asRecord(data)["settings"]);

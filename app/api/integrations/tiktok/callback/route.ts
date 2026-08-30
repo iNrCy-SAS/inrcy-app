@@ -150,23 +150,34 @@ export async function GET(request: Request) {
       ...withCurrentConnectionVersion("channel:tiktok", {}),
     };
 
-    await supabaseAdmin.from("integrations").upsert({
-      user_id: activeUserId,
-      provider: "tiktok",
-      category: "social",
-      source: "tiktok",
-      product: "tiktok",
-      status: "connected",
-      display_name: displayName || null,
-      provider_account_id: openId || null,
-      scopes: scope,
-      access_token_enc: encryptToken(accessToken),
-      refresh_token_enc: refreshToken ? encryptToken(refreshToken) : null,
-      expires_at: expiresAt,
-      resource_id: openId || username || null,
-      resource_label: username || displayName || null,
-      meta,
-    }, { onConflict: "user_id,provider,source,product" });
+    const { data: savedIntegration, error: integrationError } = await supabaseAdmin
+      .from("integrations")
+      .upsert({
+        user_id: activeUserId,
+        provider: "tiktok",
+        category: "social",
+        source: "tiktok",
+        product: "tiktok",
+        status: "connected",
+        display_name: displayName || null,
+        provider_account_id: openId || null,
+        scopes: scope,
+        access_token_enc: encryptToken(accessToken),
+        refresh_token_enc: refreshToken ? encryptToken(refreshToken) : null,
+        expires_at: expiresAt,
+        resource_id: openId || username || null,
+        resource_label: username || displayName || null,
+        meta,
+      }, { onConflict: "user_id,provider,source,product" })
+      .select("id,status")
+      .single();
+
+    if (integrationError || savedIntegration?.status !== "connected") {
+      return fail(
+        "integration_write_failed",
+        "TikTok est connecté, mais iNrCy n'a pas pu enregistrer la connexion. Réessayez.",
+      );
+    }
 
     const { root, tiktok: current } = await readTiktokSettings(supabaseAdmin, activeUserId);
     const next = buildTiktokSettingsPatch(current, {

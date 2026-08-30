@@ -6,6 +6,7 @@ import { clearAllToolCaches } from "@/lib/statsCache";
 import { tryDecryptToken } from "@/lib/oauthCrypto";
 import { buildTiktokSettingsPatch } from "@/lib/tiktokSettings";
 import { readTiktokSettings, saveTiktokSettings } from "@/lib/tiktokRouteStorage";
+import { jsonUserFacingError } from "@/lib/apiUserFacingErrors";
 
 async function revokeTiktokToken(token: string) {
   const clientKey = process.env.TIKTOK_CLIENT_KEY;
@@ -40,13 +41,32 @@ export async function POST() {
   const token = tryDecryptToken(integration?.access_token_enc);
   if (token) await revokeTiktokToken(token);
 
-  await supabaseAdmin
+  const { error: deleteError } = await supabaseAdmin
     .from("integrations")
     .delete()
     .eq("user_id", activeUserId)
     .eq("provider", "tiktok")
     .eq("source", "tiktok")
     .eq("product", "tiktok");
+  if (deleteError) {
+    return jsonUserFacingError(deleteError, {
+      status: 500,
+      fallback: "Impossible de déconnecter TikTok.",
+    });
+  }
+
+  const { data: remaining, error: verifyError } = await supabaseAdmin
+    .from("integrations")
+    .select("id")
+    .eq("user_id", activeUserId)
+    .eq("provider", "tiktok")
+    .eq("source", "tiktok")
+    .eq("product", "tiktok")
+    .limit(1);
+  if (verifyError) return jsonUserFacingError(verifyError, { status: 500 });
+  if (remaining?.length) {
+    return NextResponse.json({ error: "TikTok n’a pas été déconnecté. Réessayez." }, { status: 500 });
+  }
 
   const { root, tiktok: current } = await readTiktokSettings(supabaseAdmin, activeUserId);
   const next = buildTiktokSettingsPatch(current, {

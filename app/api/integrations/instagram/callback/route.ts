@@ -192,7 +192,7 @@ const selectedUsername =
   refreshedSelectedPage?.instagram_business_account?.username || previousResourceLabel || null;
 const selectedPageId = refreshedSelectedPage?.id || previousPageId || null;
 
-const repairedMeta: Record<string, unknown> = {
+const repairedMetaDraft: Record<string, unknown> = {
   ...previousMeta,
   user_access_token_enc: encryptedToken,
   standard_user_access_token_enc: loginMode === "standard"
@@ -202,18 +202,19 @@ const repairedMeta: Record<string, unknown> = {
     ? encryptedToken
     : asString(previousMeta["business_user_access_token_enc"]) || null,
   last_login_mode: loginMode,
-  ...withCurrentConnectionVersion("channel:instagram", {}),
 };
 
 if (preserveSelection) {
-  if (selectedPageId) repairedMeta.page_id = selectedPageId;
-  if (refreshedSelectedPage?.name) repairedMeta.page_name = refreshedSelectedPage.name;
-  if (refreshedSelectedPage?.source) repairedMeta.page_source = refreshedSelectedPage.source;
-  if (refreshedSelectedPage?.business_name) repairedMeta.business_name = refreshedSelectedPage.business_name;
-  if (refreshedPageTokenEnc) repairedMeta.page_access_token_enc = refreshedPageTokenEnc;
+  if (selectedPageId) repairedMetaDraft.page_id = selectedPageId;
+  if (refreshedSelectedPage?.name) repairedMetaDraft.page_name = refreshedSelectedPage.name;
+  if (refreshedSelectedPage?.source) repairedMetaDraft.page_source = refreshedSelectedPage.source;
+  if (refreshedSelectedPage?.business_name) repairedMetaDraft.business_name = refreshedSelectedPage.business_name;
+  if (refreshedPageTokenEnc) repairedMetaDraft.page_access_token_enc = refreshedPageTokenEnc;
 } else {
-  repairedMeta.picked = "none";
+  repairedMetaDraft.picked = "none";
 }
+
+const repairedMeta = withCurrentConnectionVersion("channel:instagram", repairedMetaDraft);
 
 const payload: Record<string, unknown> = {
   user_id: userId,

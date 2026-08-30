@@ -51,6 +51,8 @@ type PinterestBoard = {
 type PinterestSettings = {
   connected: boolean;
   accountConnected: boolean;
+  requiresUpdate: boolean;
+  connectionStatus: "connected" | "disconnected" | "needs_update";
   mode: "oauth" | "manual";
   accountName: string;
   username: string;
@@ -67,6 +69,8 @@ type PinterestSettings = {
 const DEFAULT_SETTINGS: PinterestSettings = {
   connected: false,
   accountConnected: false,
+  requiresUpdate: false,
+  connectionStatus: "disconnected",
   mode: "manual",
   accountName: "",
   username: "",
@@ -249,7 +253,8 @@ function mergeSettings(
   if (!status?.ok) return saved;
   const liveBoards = normalizeBoards(status.boards);
   const boards = liveBoards.length > 0 ? liveBoards : saved.boards;
-  const accountConnected = Boolean(status.connected);
+  const requiresUpdate = Boolean(status.status === "needs_update" || status.requiresUpdate);
+  const accountConnected = Boolean(status.connected && !requiresUpdate);
   const hasPublicProfileUrl = Object.prototype.hasOwnProperty.call(status, "publicProfileUrl");
   const publicProfileUrl = hasPublicProfileUrl
     ? String(status.publicProfileUrl || "")
@@ -262,6 +267,8 @@ function mergeSettings(
     ...saved,
     connected: accountConnected,
     accountConnected,
+    requiresUpdate,
+    connectionStatus: requiresUpdate ? "needs_update" : accountConnected ? "connected" : "disconnected",
     mode: accountConnected ? "oauth" : saved.mode,
     accountName: String(
       status.accountName || status.username || saved.accountName || "",
@@ -284,6 +291,8 @@ function emitDashboardUpdate(settings: PinterestSettings) {
     new CustomEvent("inrcy:pinterest-settings-updated", {
       detail: {
         connected: settings.connected,
+        requiresUpdate: settings.requiresUpdate,
+        connectionStatus: settings.connectionStatus,
         profileUrl: settings.publicProfileUrl || settings.profileUrl,
         accountName: settings.accountName || settings.username,
       },
@@ -709,10 +718,14 @@ export default function PinterestSettingsContent({ onUnsavedChange }: { onUnsave
   const statusLabel =
     loading && !settings.accountConnected
       ? "Chargement..."
+      : settings.requiresUpdate
+        ? "À reconnecter"
       : settings.accountConnected
         ? "Connecté"
         : "À connecter";
-  const statusColor = settings.accountConnected
+  const statusColor = settings.requiresUpdate
+    ? "rgba(251,146,60,0.95)"
+    : settings.accountConnected
     ? "rgba(34,197,94,0.95)"
     : loading
       ? "rgba(250,204,21,0.95)"

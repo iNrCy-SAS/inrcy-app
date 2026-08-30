@@ -97,27 +97,38 @@ export async function GET(request: Request) {
       refresh_expires_at: dates.refreshExpiresAt,
     });
 
-    await supabaseAdmin.from("integrations").upsert(
-      {
-        user_id: activeUserId,
-        provider: PINTEREST_PROVIDER,
-        category: "social",
-        source: PINTEREST_SOURCE,
-        product: PINTEREST_PRODUCT,
-        status: "connected",
-        display_name: "Compte Pinterest",
-        provider_account_id: null,
-        scopes: scope,
-        access_token_enc: encryptToken(accessToken),
-        refresh_token_enc: token.refresh_token ? encryptToken(token.refresh_token) : null,
-        expires_at: dates.expiresAt,
-        resource_id: null,
-        resource_label: null,
-        meta,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id,provider,source,product" },
-    );
+    const { data: savedIntegration, error: integrationError } = await supabaseAdmin
+      .from("integrations")
+      .upsert(
+        {
+          user_id: activeUserId,
+          provider: PINTEREST_PROVIDER,
+          category: "social",
+          source: PINTEREST_SOURCE,
+          product: PINTEREST_PRODUCT,
+          status: "connected",
+          display_name: "Compte Pinterest",
+          provider_account_id: null,
+          scopes: scope,
+          access_token_enc: encryptToken(accessToken),
+          refresh_token_enc: token.refresh_token ? encryptToken(token.refresh_token) : null,
+          expires_at: dates.expiresAt,
+          resource_id: null,
+          resource_label: null,
+          meta,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id,provider,source,product" },
+      )
+      .select("id,status")
+      .single();
+
+    if (integrationError || savedIntegration?.status !== "connected") {
+      return fail(
+        "integration_write_failed",
+        "Pinterest est connecté, mais iNrCy n'a pas pu enregistrer la connexion. Réessayez.",
+      );
+    }
 
     const { data: cfg } = await supabaseAdmin
       .from("pro_tools_configs")

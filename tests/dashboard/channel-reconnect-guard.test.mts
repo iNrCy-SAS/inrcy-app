@@ -8,13 +8,13 @@ const read = (relativePath: string) => fs.readFileSync(path.join(ROOT, relativeP
 
 test("dashboard exposes a dedicated reconnect state with orange warning UI", () => {
   const types = read("app/dashboard/dashboard.types.ts");
-  const shared = read("app/dashboard/dashboard.shared.ts");
+  const sync = read("lib/dashboardChannelSync.ts");
   const bubble = read("app/dashboard/_components/DashboardFluxBubble.tsx");
   const bubbleCss = read("app/dashboard/_components/DashboardChannelBubble.module.css");
   const i18n = read("messages/fr-FR/dashboard.json");
 
   assert.match(types, /"connected"\s*\|\s*"available"\s*\|\s*"reconnect"\s*\|\s*"coming"/);
-  assert.match(shared, /status:\s*"reconnect",\s*text:\s*"À reconnecter"/);
+  assert.match(sync, /requiresUpdate\s*\?\s*"reconnect"/);
   assert.match(bubble, /item\.bubbleStatus === "reconnect"/);
   assert.match(bubble, /WarningTriangle/);
   assert.match(bubbleCss, /\.reconnectCard\s*\{/);

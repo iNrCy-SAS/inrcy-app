@@ -249,16 +249,35 @@ export async function GET(req: Request) {
       }),
     };
 
+    let savedIntegration: { id?: unknown; status?: unknown; resource_id?: unknown } | null = null;
     if (existingId) {
-      const { error: upErr } = await supabaseAdmin
+      const { data, error: upErr } = await supabaseAdmin
         .from("integrations")
         .update(payload)
         .eq("id", existingId)
-        .eq("user_id", userId);
+        .eq("user_id", userId)
+        .select("id,status,resource_id")
+        .single();
       if (upErr) return fail("db_update_failed", "La mise à jour a échoué.");
+      savedIntegration = data;
     } else {
-      const { error: insErr } = await supabaseAdmin.from("integrations").insert(payload);
+      const { data, error: insErr } = await supabaseAdmin
+        .from("integrations")
+        .insert(payload)
+        .select("id,status,resource_id")
+        .single();
       if (insErr) return fail("db_insert_failed", "Le service est momentanément indisponible. Merci de réessayer.");
+      savedIntegration = data;
+    }
+
+    const expectedStatus = preserveSelection ? "connected" : "account_connected";
+    const savedResourceId = asString(savedIntegration?.resource_id);
+    if (
+      !savedIntegration?.id ||
+      asString(savedIntegration.status) !== expectedStatus ||
+      (preserveSelection ? savedResourceId !== preservedLocationName : savedResourceId !== null)
+    ) {
+      return fail("db_postcondition_failed", "La connexion Google Business n’a pas été enregistrée. Réessayez.");
     }
 
     // Keep this display mirror synchronized, but never use it as publication

@@ -77,7 +77,12 @@ export function useFacebookChannel({
   }, []);
 
   const disconnectFacebookAccount = useCallback(async () => {
-    await fetch("/api/integrations/facebook/disconnect-account", { method: "POST" });
+    const response = await fetch("/api/integrations/facebook/disconnect-account", { method: "POST" }).catch(() => null);
+    const payload = response ? await response.json().catch(() => null) : null;
+    if (!response || !response.ok || payload?.ok === false) {
+      setPanelError(payload?.error, "Impossible de déconnecter le compte Facebook.");
+      return;
+    }
     setFacebookAccountConnected(false);
     setFacebookPageConnected(false);
     patchChannelConnectionLocally("facebook", {
@@ -105,10 +110,15 @@ export function useFacebookChannel({
     setFbSelectedPageName("");
     setFbPagesPhase("idle");
     setPanelSuccess("Compte Facebook déconnecté.");
-  }, [patchChannelConnectionLocally, updateRootSettingsKey, triggerChannelRefresh, setPanelSuccess]);
+  }, [patchChannelConnectionLocally, updateRootSettingsKey, triggerChannelRefresh, setPanelError, setPanelSuccess]);
 
   const disconnectFacebookPage = useCallback(async () => {
-    await fetch("/api/integrations/facebook/disconnect-page", { method: "POST" });
+    const response = await fetch("/api/integrations/facebook/disconnect-page", { method: "POST" }).catch(() => null);
+    const payload = response ? await response.json().catch(() => null) : null;
+    if (!response || !response.ok || payload?.ok === false) {
+      setPanelError(payload?.error, "Impossible de déconnecter la page Facebook.");
+      return;
+    }
     setFacebookPageConnected(false);
     patchChannelConnectionLocally("facebook", {
       connected: false,
@@ -132,7 +142,7 @@ export function useFacebookChannel({
     setFbSelectedPageName("");
     setFbPagesPhase("idle");
     setPanelSuccess("Page Facebook déconnectée.");
-  }, [patchChannelConnectionLocally, updateRootSettingsKey, triggerChannelRefresh, setPanelSuccess]);
+  }, [patchChannelConnectionLocally, updateRootSettingsKey, triggerChannelRefresh, setPanelError, setPanelSuccess]);
 
   const loadFacebookPages = useCallback(async () => {
     if (!facebookAccountConnected) return;

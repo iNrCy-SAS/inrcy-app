@@ -258,7 +258,7 @@ export async function GET(req: Request) {
     const selectedPageId = asString(existingRec["resource_id"]) || null;
     const selectedPageName = asString(existingRec["resource_label"]) || null;
     const hasSelectedPage = !!selectedPageId;
-    const nextMeta: Record<string, unknown> = {
+    const nextMeta: Record<string, unknown> = withCurrentConnectionVersion("channel:facebook", {
       ...prevMeta,
       picked: hasSelectedPage ? prevMeta["picked"] || "page" : "none",
       pages_found: Math.max(Number(prevMeta["pages_found"] || 0), pages.length),
@@ -268,8 +268,7 @@ export async function GET(req: Request) {
       business_user_access_token_enc: loginMode === "business" ? encryptedUserToken : prevMeta["business_user_access_token_enc"] || null,
       page_url: prevMeta["page_url"] || null,
       last_login_mode: loginMode,
-      ...withCurrentConnectionVersion("channel:facebook", {}),
-    };
+    });
 
     const payload: Record<string, unknown> = {
       user_id: userId,
@@ -277,7 +276,7 @@ export async function GET(req: Request) {
       category: "social",
       source: "facebook",
       product: "facebook",
-      status: hasSelectedPage ? (asString(existingRec["status"]) || "connected") : "account_connected",
+      status: hasSelectedPage ? "connected" : "account_connected",
       email_address: me.email ?? null,
       display_name: me.name ?? null,
       provider_account_id: me.id ?? null,
@@ -291,16 +290,35 @@ export async function GET(req: Request) {
     };
 
     const existingId = asString(existingRec["id"]);
+    let savedIntegration: { id?: unknown; status?: unknown; resource_id?: unknown } | null = null;
     if (existingId) {
-      const { error: upErr } = await supabaseAdmin
+      const { data, error: upErr } = await supabaseAdmin
         .from("integrations")
         .update(payload)
         .eq("id", existingId)
-        .eq("user_id", userId);
+        .eq("user_id", userId)
+        .select("id,status,resource_id")
+        .single();
       if (upErr) return fail("db_update_failed", "La mise à jour a échoué.");
+      savedIntegration = data;
     } else {
-      const { error: insErr } = await supabaseAdmin.from("integrations").insert(payload);
+      const { data, error: insErr } = await supabaseAdmin
+        .from("integrations")
+        .insert(payload)
+        .select("id,status,resource_id")
+        .single();
       if (insErr) return fail("db_insert_failed", "Le service est momentanément indisponible. Merci de réessayer.");
+      savedIntegration = data;
+    }
+
+    const expectedStatus = hasSelectedPage ? "connected" : "account_connected";
+    const savedResourceId = asString(savedIntegration?.resource_id);
+    if (
+      !savedIntegration?.id ||
+      asString(savedIntegration.status) !== expectedStatus ||
+      (hasSelectedPage ? savedResourceId !== selectedPageId : savedResourceId !== null)
+    ) {
+      return fail("db_postcondition_failed", "La connexion Facebook n’a pas été enregistrée. Réessayez.");
     }
 
     // Also keep a boolean in pro_tools_configs.settings so the dashboard can show it instantly.
@@ -314,10 +332,10 @@ export async function GET(req: Request) {
           ...currentFacebook,
           accountConnected: true,
           userEmail: me.email ?? null,
-          pageConnected: false,
-          pageId: null,
-          pageName: null,
-          url: null,
+          pageConnected: hasSelectedPage,
+          pageId: selectedPageId,
+          pageName: selectedPageName,
+          url: hasSelectedPage ? asString(prevMeta["page_url"]) || null : null,
         },
       };
       await supabaseAdmin.from("pro_tools_configs").upsert({ user_id: userId, settings: merged }, { onConflict: "user_id" });

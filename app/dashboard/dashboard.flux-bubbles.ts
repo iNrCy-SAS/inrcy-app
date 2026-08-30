@@ -1,10 +1,11 @@
 import type { DashboardFluxBubbleData } from "./_components/DashboardFluxBubble";
 import { fluxModules, MODULE_ICONS } from "./dashboard.constants";
 import { statusLabel } from "./dashboard.utils";
-import { getBubbleStatusFromBlock, getBubbleViewHrefFromBlock, normalizeExternalHref } from "./dashboard.shared";
+import { getBubbleViewHrefFromBlock, normalizeExternalHref } from "./dashboard.shared";
+import { projectCanonicalChannelConnection } from "@/lib/dashboardChannelSync";
 import type { DashboardChannelKey } from "@/lib/dashboardChannels";
-import type { InrstatsChannelBlock } from "@/lib/inrstats/channelBlocks";
 import type { ModuleAction, ModuleStatus } from "./dashboard.types";
+import type { ConnectionDisplayStatus } from "@/lib/connectionVersions";
 import { isBubbleEnabled, normalizeAppBubbleKey, type AppBubbleAccessMap } from "@/lib/bubbleAccess";
 import {
   getDashboardModuleCopy,
@@ -20,13 +21,17 @@ type BuildFluxBubbleItemsArgs = {
   canAccessPinterest: boolean;
   canConfigureSite: boolean;
   canViewSite: boolean;
+  officialChannelStatesReady: boolean;
   channelBlocks: any;
   facebookPageConnected: boolean;
+  facebookConnectionStatus: ConnectionDisplayStatus;
   facebookUrl: string | null | undefined;
   getSiteBubbleProgress: (kind: "site_inrcy" | "site_web") => { status: ModuleStatus; text: string };
   gmbConnected: boolean;
+  gmbConnectionStatus: ConnectionDisplayStatus;
   gmbUrl: string | null | undefined;
   instagramConnected: boolean;
+  instagramConnectionStatus: ConnectionDisplayStatus;
   instagramUrl: string | null | undefined;
   inrBadgeLogoUrl?: string | null;
   inrBadgeProfileReady: boolean;
@@ -34,15 +39,20 @@ type BuildFluxBubbleItemsArgs = {
   onOpenInrBadgeModal: () => void;
   onOpenInrAgent: () => void;
   linkedinConnected: boolean;
+  linkedinConnectionStatus: ConnectionDisplayStatus;
   linkedinUrl: string | null | undefined;
   mailAccountsConnectedCount: number;
+  mailAccountsRequireUpdate?: boolean;
   tiktokConnected: boolean;
+  tiktokRequiresUpdate?: boolean;
   tiktokUrl: string | null | undefined;
   pinterestConnected?: boolean;
+  pinterestRequiresUpdate?: boolean;
   pinterestUrl?: string | null | undefined;
   inrSearchConnected?: boolean | null;
   inrSearchUrl?: string | null | undefined;
   youtubeShortsConnected: boolean;
+  youtubeShortsRequiresUpdate?: boolean;
   youtubeShortsUrl: string | null | undefined;
   openPanel: (panel: any) => void;
   savedSiteWebUrlMeta: unknown;
@@ -62,13 +72,17 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
     canAccessPinterest,
     canConfigureSite,
     canViewSite,
+    officialChannelStatesReady,
     channelBlocks,
     facebookPageConnected,
+    facebookConnectionStatus,
     facebookUrl,
     getSiteBubbleProgress,
     gmbConnected,
+    gmbConnectionStatus,
     gmbUrl,
     instagramConnected,
+    instagramConnectionStatus,
     instagramUrl,
     inrBadgeLogoUrl,
     inrBadgeProfileReady,
@@ -76,15 +90,20 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
     onOpenInrBadgeModal,
     onOpenInrAgent,
     linkedinConnected,
+    linkedinConnectionStatus,
     linkedinUrl,
     mailAccountsConnectedCount,
+    mailAccountsRequireUpdate = false,
     tiktokConnected,
+    tiktokRequiresUpdate = false,
     tiktokUrl,
     pinterestConnected = false,
+    pinterestRequiresUpdate = false,
     pinterestUrl,
     inrSearchConnected = null,
     inrSearchUrl,
     youtubeShortsConnected,
+    youtubeShortsRequiresUpdate = false,
     youtubeShortsUrl,
     openPanel,
     savedSiteWebUrlMeta,
@@ -106,17 +125,25 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
       : accessEnabled;
     const channelKey = m.key as DashboardChannelKey;
     const channelBlock = channelBlocks?.[channelKey] ?? null;
-    const blockDrivenStatus = getBubbleStatusFromBlock(channelKey, channelBlock as InrstatsChannelBlock);
     const blockDrivenViewHref = getBubbleViewHrefFromBlock(channelKey, channelBlock);
-    const immediateConnectedStatus =
-      (m.key === "tiktok" && tiktokConnected) || (m.key === "pinterest" && canAccessPinterest && pinterestConnected)
-        ? { status: "connected" as ModuleStatus, text: copy.status.connected }
-        : null;
-    const blockRequiresAttention = Boolean(
-      channelBlock?.connection?.requiresUpdate ||
-      channelBlock?.connection?.connectionStatus === "needs_update" ||
-      channelBlock?.connection?.expired,
-    );
+    const officialConnection = m.key === "gmb"
+      ? { connected: gmbConnected, connectionStatus: gmbConnectionStatus }
+      : m.key === "facebook"
+        ? { connected: facebookPageConnected, connectionStatus: facebookConnectionStatus }
+        : m.key === "instagram"
+          ? { connected: instagramConnected, connectionStatus: instagramConnectionStatus }
+          : m.key === "linkedin"
+            ? { connected: linkedinConnected, connectionStatus: linkedinConnectionStatus }
+            : m.key === "tiktok"
+              ? { connected: tiktokConnected, requiresUpdate: tiktokRequiresUpdate }
+              : m.key === "youtube_shorts"
+                ? { connected: youtubeShortsConnected, requiresUpdate: youtubeShortsRequiresUpdate }
+                : m.key === "pinterest"
+                  ? { connected: canAccessPinterest && pinterestConnected, requiresUpdate: pinterestRequiresUpdate }
+                  : null;
+    const officialBubbleStatus = officialConnection && officialChannelStatesReady
+      ? projectCanonicalChannelConnection(officialConnection).bubbleStatus
+      : null;
     const moduleCopy = getDashboardModuleCopy(copy, m.key);
 
     const localizeViewAction = (action: ModuleAction | undefined): ModuleAction | undefined => action
@@ -130,9 +157,9 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
         : (m.key === "site_web" && viewActionRaw)
           ? { ...viewActionRaw, href: normalizeExternalHref(blockDrivenViewHref || siteWebSavedUrl) || "#" }
           : (m.key === "instagram" && viewActionRaw)
-            ? { ...viewActionRaw, href: normalizeExternalHref(blockDrivenViewHref || instagramUrl) || "#" }
+            ? { ...viewActionRaw, href: normalizeExternalHref(instagramUrl) || "#" }
             : (m.key === "linkedin" && viewActionRaw)
-              ? { ...viewActionRaw, href: normalizeExternalHref(blockDrivenViewHref || linkedinUrl) || "#" }
+              ? { ...viewActionRaw, href: normalizeExternalHref(linkedinUrl) || "#" }
               : viewActionRaw,
     );
 
@@ -140,9 +167,11 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
       ? getSiteBubbleProgress("site_inrcy")
       : (m.key === "site_web")
         ? getSiteBubbleProgress("site_web")
-        : (immediateConnectedStatus && !blockRequiresAttention)
-          ? immediateConnectedStatus
-          : blockDrivenStatus ?? (() => {
+        : officialConnection && !officialChannelStatesReady
+          ? { status: "available" as ModuleStatus, text: copy.status.syncing }
+        : officialBubbleStatus
+          ? { status: officialBubbleStatus, text: statusLabel(officialBubbleStatus, copy) }
+          : (() => {
           if (m.key === "inrbadge") {
             if (!inrBadgeProfileCheckReady) {
               return { status: "available" as ModuleStatus, text: copy.status.syncing };
@@ -151,19 +180,18 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
               ? { status: "connected" as ModuleStatus, text: copy.status.connected }
               : { status: "available" as ModuleStatus, text: copy.status.disconnected };
           }
-          if (m.key === "instagram") return instagramConnected ? { status: "connected" as ModuleStatus, text: copy.status.connected } : { status: "available" as ModuleStatus, text: copy.status.toConnect };
-          if (m.key === "linkedin") return linkedinConnected ? { status: "connected" as ModuleStatus, text: copy.status.connected } : { status: "available" as ModuleStatus, text: copy.status.toConnect };
-          if (m.key === "gmb") return gmbConnected ? { status: "connected" as ModuleStatus, text: copy.status.connected } : { status: "available" as ModuleStatus, text: copy.status.toConnect };
-          if (m.key === "facebook") return facebookPageConnected ? { status: "connected" as ModuleStatus, text: copy.status.connected } : { status: "available" as ModuleStatus, text: copy.status.toConnect };
           if (m.key === "mails") {
+            if (!officialChannelStatesReady) {
+              return { status: "available" as ModuleStatus, text: copy.status.syncing };
+            }
+            if (mailAccountsRequireUpdate) {
+              return { status: "reconnect" as ModuleStatus, text: copy.status.reconnect };
+            }
             const count = Math.max(0, Math.round(Number(mailAccountsConnectedCount) || 0));
             return count > 0
               ? { status: "connected" as ModuleStatus, text: copy.status.connected }
               : { status: "available" as ModuleStatus, text: copy.status.toConnect };
           }
-          if (m.key === "tiktok") return tiktokConnected ? { status: "connected" as ModuleStatus, text: copy.status.connected } : { status: "available" as ModuleStatus, text: copy.status.toConnect };
-          if (m.key === "youtube_shorts") return youtubeShortsConnected ? { status: "connected" as ModuleStatus, text: copy.status.connected } : { status: "available" as ModuleStatus, text: copy.status.toConnect };
-          if (m.key === "pinterest") return pinterestConnected ? { status: "connected" as ModuleStatus, text: copy.status.connected } : { status: "available" as ModuleStatus, text: copy.status.toConnect };
           if (m.key === "inr_search") {
             if (inrSearchConnected === null) return { status: "available" as ModuleStatus, text: copy.status.syncing };
             return inrSearchConnected
@@ -192,20 +220,20 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
 
     const specialViewHref = m.key === "site_inrcy"
       ? (blockDrivenViewHref || normalizeExternalHref(siteInrcySavedUrl) || "#")
-      : m.key === "site_web"
-        ? (blockDrivenViewHref || normalizeExternalHref(siteWebSavedUrl) || "#")
-        : m.key === "instagram"
-          ? (blockDrivenViewHref || normalizeExternalHref(instagramUrl) || "#")
+        : m.key === "site_web"
+          ? (blockDrivenViewHref || normalizeExternalHref(siteWebSavedUrl) || "#")
+          : m.key === "instagram"
+          ? (normalizeExternalHref(instagramUrl) || "#")
           : m.key === "linkedin"
-            ? (blockDrivenViewHref || normalizeExternalHref(linkedinUrl) || "#")
+            ? (normalizeExternalHref(linkedinUrl) || "#")
             : m.key === "gmb"
-              ? (blockDrivenViewHref || normalizeExternalHref(gmbUrl) || "#")
+              ? (normalizeExternalHref(gmbUrl) || "#")
               : m.key === "facebook"
-                ? (blockDrivenViewHref || normalizeExternalHref(facebookUrl) || "#")
+                ? (normalizeExternalHref(facebookUrl) || "#")
                 : m.key === "tiktok"
-                  ? (blockDrivenViewHref || normalizeExternalHref(tiktokUrl) || "#")
+                  ? (normalizeExternalHref(tiktokUrl) || "#")
                   : m.key === "youtube_shorts"
-                    ? (blockDrivenViewHref || normalizeExternalHref(youtubeShortsUrl) || "#")
+                    ? (normalizeExternalHref(youtubeShortsUrl) || "#")
                     : m.key === "pinterest"
                       ? (normalizeExternalHref(pinterestUrl) || "#")
                       : m.key === "inr_search"
@@ -222,20 +250,20 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
       ? inrBadgeProfileReady
       : m.key === "site_inrcy"
         ? Boolean(blockDrivenViewHref || canViewSite)
-      : m.key === "site_web"
-        ? Boolean(blockDrivenViewHref || savedSiteWebUrlMeta)
+        : m.key === "site_web"
+          ? Boolean(blockDrivenViewHref || savedSiteWebUrlMeta)
         : m.key === "instagram"
-          ? Boolean(blockDrivenViewHref || instagramUrl)
+          ? Boolean(instagramUrl)
           : m.key === "linkedin"
-            ? Boolean(blockDrivenViewHref || linkedinUrl)
+            ? Boolean(linkedinUrl)
             : m.key === "gmb"
-              ? Boolean(blockDrivenViewHref || gmbUrl)
+              ? Boolean(gmbUrl)
               : m.key === "facebook"
-                ? Boolean(blockDrivenViewHref || facebookUrl)
+                ? Boolean(facebookUrl)
                 : m.key === "tiktok"
-                  ? Boolean(blockDrivenViewHref || tiktokUrl)
+                  ? Boolean(tiktokUrl)
                   : m.key === "youtube_shorts"
-                    ? Boolean(blockDrivenViewHref || youtubeShortsUrl)
+                    ? Boolean(youtubeShortsUrl)
                     : m.key === "pinterest"
                       ? Boolean(pinterestUrl)
                       : m.key === "inr_search"

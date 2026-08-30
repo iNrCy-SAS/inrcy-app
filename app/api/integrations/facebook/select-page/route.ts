@@ -31,7 +31,7 @@ export async function POST(req: Request) {
 
     const { data: existing, error: readErr } = await supabaseAdmin
       .from("integrations")
-      .select("meta,access_token_enc")
+      .select("id,meta,access_token_enc")
       .eq("user_id", userId)
       .eq("provider", "facebook")
       .eq("source", "facebook")
@@ -39,8 +39,21 @@ export async function POST(req: Request) {
       .maybeSingle();
 
     if (readErr) return jsonUserFacingError(readErr, { status: 500, fallback: "Impossible de charger les pages Facebook." });
+    if (!existing) {
+      return NextResponse.json(
+        { error: "La connexion Facebook doit être relancée." },
+        { status: 409 },
+      );
+    }
 
     const existingRec = asRecord(existing);
+    const integrationId = asString(existingRec["id"]);
+    if (!integrationId) {
+      return NextResponse.json(
+        { error: "La connexion Facebook est incomplète. Relancez-la." },
+        { status: 409 },
+      );
+    }
     const prevMeta = asRecord(existingRec["meta"]);
     const encryptedTokens = extractFacebookUserTokens(prevMeta, asString(existingRec["access_token_enc"]) || null);
     const userTokens = encryptedTokens.map((raw) => tryDecryptToken(raw)).filter((v): v is string => !!v);
@@ -53,17 +66,16 @@ export async function POST(req: Request) {
 
     const pageName = page.name || null;
     const pageUrl = `https://www.facebook.com/${pageId}`;
-    const nextMeta = {
+    const nextMeta = withCurrentConnectionVersion("channel:facebook", {
       ...prevMeta,
       selected: true,
       page_url: pageUrl,
       page_source: page.source,
       page_business_id: page.business_id || null,
       page_business_name: page.business_name || null,
-      ...withCurrentConnectionVersion("channel:facebook", {}),
-    };
+    });
 
-    const { error: upErr } = await supabaseAdmin
+    const { data: updated, error: upErr } = await supabaseAdmin
       .from("integrations")
       .update({
         resource_id: pageId,
@@ -72,13 +84,20 @@ export async function POST(req: Request) {
         expires_at: null,
         status: "connected",
         meta: nextMeta,
+        updated_at: new Date().toISOString(),
       })
+      .eq("id", integrationId)
       .eq("user_id", userId)
-      .eq("provider", "facebook")
-      .eq("source", "facebook")
-      .eq("product", "facebook");
+      .select("id,status,resource_id")
+      .single();
 
     if (upErr) return jsonUserFacingError(upErr, { status: 500, fallback: "Impossible d’enregistrer la page Facebook." });
+    if (asString(updated?.status) !== "connected" || asString(updated?.resource_id) !== pageId) {
+      return NextResponse.json(
+        { error: "La page Facebook n’a pas été enregistrée. Réessayez." },
+        { status: 500 },
+      );
+    }
 
     try {
       const { data: scRow } = await supabaseAdmin.from("pro_tools_configs").select("settings").eq("user_id", userId).maybeSingle();

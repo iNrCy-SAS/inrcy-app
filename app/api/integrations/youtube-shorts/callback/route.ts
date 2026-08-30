@@ -211,12 +211,33 @@ export async function GET(request: Request) {
       updated_at: new Date().toISOString(),
     };
 
+    let savedIntegration: { id?: unknown; status?: unknown; resource_id?: unknown } | null = null;
     if (existingId) {
-      const { error: updateErr } = await supabaseAdmin.from("integrations").update(payload).eq("id", existingId).eq("user_id", activeUserId);
+      const { data, error: updateErr } = await supabaseAdmin
+        .from("integrations")
+        .update(payload)
+        .eq("id", existingId)
+        .eq("user_id", activeUserId)
+        .select("id,status,resource_id")
+        .single();
       if (updateErr) return fail("db_update_failed", "La mise à jour de la connexion YouTube a échoué.");
+      savedIntegration = data;
     } else {
-      const { error: insertErr } = await supabaseAdmin.from("integrations").insert(payload);
+      const { data, error: insertErr } = await supabaseAdmin
+        .from("integrations")
+        .insert(payload)
+        .select("id,status,resource_id")
+        .single();
       if (insertErr) return fail("db_insert_failed", "L'enregistrement de la connexion YouTube a échoué.");
+      savedIntegration = data;
+    }
+
+    if (
+      !savedIntegration?.id ||
+      savedIntegration.status !== "connected" ||
+      savedIntegration.resource_id !== channel.channelId
+    ) {
+      return fail("db_postcondition_failed", "La connexion YouTube n’a pas été enregistrée. Réessayez.");
     }
 
     const { root, youtubeShorts: current } = await readYoutubeShortsSettings(supabaseAdmin, activeUserId);

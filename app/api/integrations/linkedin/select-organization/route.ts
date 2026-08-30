@@ -3,8 +3,8 @@ import { createSupabaseServer } from "@/lib/supabaseServer";
 import { clearAllToolCaches } from "@/lib/statsCache";
 import { asRecord, asString } from "@/lib/tsSafe";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { jsonUserFacingError } from "@/lib/apiUserFacingErrors";
 
-import { withCurrentConnectionVersion } from "@/lib/connectionVersions";
 import { resolveActiveInrcyAccountId } from "@/lib/multicompte/server";
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServer>>;
@@ -47,16 +47,30 @@ export async function POST(req: Request) {
       ? normalizeCompanyUrl(orgId)
       : null;
 
-  const { data: currentIntegration } = await supabaseAdmin
+  const { data: currentIntegration, error: currentIntegrationError } = await supabaseAdmin
     .from("integrations")
-    .select("meta,provider_account_id,display_name,resource_label")
+    .select("id,meta,provider_account_id,display_name,resource_label")
     .eq("user_id", activeUserId)
     .eq("provider", "linkedin")
     .eq("source", "linkedin")
     .eq("product", "linkedin")
     .maybeSingle();
 
+  if (currentIntegrationError) {
+    return jsonUserFacingError(currentIntegrationError, {
+      status: 500,
+      fallback: "Impossible de charger la connexion LinkedIn.",
+    });
+  }
+
   const currentRec = asRecord(currentIntegration);
+  const integrationId = asString(currentRec["id"]);
+  if (!integrationId) {
+    return NextResponse.json(
+      { error: "La connexion LinkedIn doit être relancée." },
+      { status: 409 },
+    );
+  }
   const currentMeta = asRecord(currentRec["meta"]);
   const providerAccountId = asString(currentRec["provider_account_id"]);
   const profileUrn =
@@ -70,6 +84,12 @@ export async function POST(req: Request) {
   const profileUrl = asString(currentMeta["profile_url"]) || null;
 
   if (mode === "profile") {
+    if (!profileUrn) {
+      return NextResponse.json(
+        { error: "Le profil LinkedIn connecté est incomplet. Relancez la connexion." },
+        { status: 409 },
+      );
+    }
     let currentLinkedinSettings: unknown = null;
     try {
       const { data } = await supabaseAdmin
@@ -88,12 +108,13 @@ export async function POST(req: Request) {
       asString(currentLinkedinRec["profile_url"]) ||
       "";
 
-    await supabaseAdmin
+    const { data: updatedIntegration, error: updateError } = await supabaseAdmin
       .from("integrations")
       .update({
+        status: "connected",
         resource_id: profileUrn,
         resource_label: displayName,
-        meta: withCurrentConnectionVersion("channel:linkedin", {
+        meta: {
           ...currentMeta,
           profile_display_name: displayName,
           profile_url: resolvedProfileUrl || null,
@@ -102,13 +123,26 @@ export async function POST(req: Request) {
           org_id: null,
           org_name: null,
           org_url: null,
-        }),
+        },
         updated_at: new Date().toISOString(),
       })
+      .eq("id", integrationId)
       .eq("user_id", activeUserId)
-      .eq("provider", "linkedin")
-      .eq("source", "linkedin")
-      .eq("product", "linkedin");
+      .select("id,status,resource_id")
+      .single();
+
+    if (updateError) {
+      return jsonUserFacingError(updateError, {
+        status: 500,
+        fallback: "Impossible d’enregistrer le profil LinkedIn.",
+      });
+    }
+    if (updatedIntegration?.status !== "connected" || updatedIntegration.resource_id !== profileUrn) {
+      return NextResponse.json(
+        { error: "Le profil LinkedIn n’a pas été enregistré. Réessayez." },
+        { status: 500 },
+      );
+    }
 
     try {
       const { data: scRow } = await supabaseAdmin
@@ -155,12 +189,13 @@ export async function POST(req: Request) {
   const finalOrgName = orgName || orgId;
   const finalOrgUrl = orgUrl || normalizeCompanyUrl(orgId);
 
-  await supabaseAdmin
+  const { data: updatedIntegration, error: updateError } = await supabaseAdmin
     .from("integrations")
     .update({
+      status: "connected",
       resource_id: orgId,
       resource_label: finalOrgName,
-      meta: withCurrentConnectionVersion("channel:linkedin", {
+      meta: {
         ...currentMeta,
         profile_display_name: displayName,
         profile_url: profileUrl,
@@ -169,13 +204,26 @@ export async function POST(req: Request) {
         org_id: orgId,
         org_name: finalOrgName,
         org_url: finalOrgUrl,
-      }),
+      },
       updated_at: new Date().toISOString(),
     })
+    .eq("id", integrationId)
     .eq("user_id", activeUserId)
-    .eq("provider", "linkedin")
-    .eq("source", "linkedin")
-    .eq("product", "linkedin");
+    .select("id,status,resource_id")
+    .single();
+
+  if (updateError) {
+    return jsonUserFacingError(updateError, {
+      status: 500,
+      fallback: "Impossible d’enregistrer l’organisation LinkedIn.",
+    });
+  }
+  if (updatedIntegration?.status !== "connected" || updatedIntegration.resource_id !== orgId) {
+    return NextResponse.json(
+      { error: "L’organisation LinkedIn n’a pas été enregistrée. Réessayez." },
+      { status: 500 },
+    );
+  }
 
   try {
     const { data: scRow } = await supabaseAdmin

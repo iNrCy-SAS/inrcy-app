@@ -71,6 +71,7 @@ import { isDashboardRequiredSetupProtectedDestination, isDashboardRequiredSetupP
 import { confirmInrcy } from "@/lib/inrcyDialog";
 import { reportHandledClientError } from "@/lib/clientExpectedErrors";
 import { fetchSharedDashboardRefreshJson } from "@/lib/dashboardRefreshOrchestrator";
+import { buildOfficialDashboardChannelState, createLatestChannelResponseGate } from "@/lib/dashboardChannelSync";
 import {
   STANDARD_BONUS_CHANNEL_KEYS,
   STANDARD_PUBLICATION_CHANNEL_KEYS,
@@ -149,13 +150,18 @@ export default function DashboardClient({
   const [helpFacebookOpen, setHelpFacebookOpen] = useState(false);
   const [dashboardBoosterModal, setDashboardBoosterModal] = useState<null | "publish" | "stats">(null);
   const [siteConnectionsReady, setSiteConnectionsReady] = useState(false);
+  const [officialChannelStatesReady, setOfficialChannelStatesReady] = useState(false);
   const [bubbleAccessReady, setBubbleAccessReady] = useState(false);
   const [displayedSiteInrcyAccess, setDisplayedSiteInrcyAccess] = useState(() => readCachedSiteInrcyDisplayAccess());
   const [mailAccountsConnectedCount, setMailAccountsConnectedCount] = useState(() => readCachedMailAccountsConnectedCount() ?? 0);
+  const [mailAccountsRequireUpdate, setMailAccountsRequireUpdate] = useState(() => readCachedDashboardBoolean("mailAccountsRequireUpdate"));
   const [youtubeShortsConnected, setYoutubeShortsConnected] = useState(() => readCachedDashboardBoolean("youtubeShortsConnected"));
+  const [youtubeShortsRequiresUpdate, setYoutubeShortsRequiresUpdate] = useState(() => readCachedDashboardBoolean("youtubeShortsRequiresUpdate"));
   const [youtubeShortsUrl, setYoutubeShortsUrl] = useState(() => readCachedDashboardString("youtubeShortsUrl"));
   const [pinterestConnected, setPinterestConnected] = useState(() => readCachedDashboardBoolean("pinterestConnected"));
+  const [pinterestRequiresUpdate, setPinterestRequiresUpdate] = useState(() => readCachedDashboardBoolean("pinterestRequiresUpdate"));
   const [pinterestUrl, setPinterestUrl] = useState(() => readCachedDashboardString("pinterestUrl"));
+  const [tiktokRequiresUpdate, setTiktokRequiresUpdate] = useState(() => readCachedDashboardBoolean("tiktokRequiresUpdate"));
   const [inrSearchConnected, setInrSearchConnected] = useState<boolean | null>(() => readCachedInrSearchConnected());
   const [inrSearchUrl, setInrSearchUrl] = useState(() => readCachedDashboardString("inrSearchUrl"));
   const [inrSearchDirectoryEnabled, setInrSearchDirectoryEnabled] = useState<boolean | null>(() => readCachedInrSearchDirectoryEnabled());
@@ -552,6 +558,8 @@ export default function DashboardClient({
   } = useDashboardNotifications();
   const kpisRequestSeqRef = useRef(0);
   const siteConfigRequestSeqRef = useRef(0);
+  const officialChannelStatesRequestSeqRef = useRef(0);
+  const canonicalChannelStatesReadyRef = useRef(false);
   const inrSearchSettingsRequestRef = useRef<Promise<void> | null>(null);
   const activeUserIdRef = useRef<string | null>(null);
   const latestApplyBootstrapRefreshRef = useRef<((bootstrap: DailyStatsRefreshBootstrapResponse) => { syncAt: number; bootstrapSnapshotDate: string | null }) | null>(null);
@@ -1097,6 +1105,7 @@ const applyDashboardChannelState = useCallback((state: Record<string, any> | nul
   if (typeof state.fbSelectedPageId === "string") setFbSelectedPageId(state.fbSelectedPageId);
   if (typeof state.fbSelectedPageName === "string") setFbSelectedPageName(state.fbSelectedPageName);
   if (typeof state.youtubeShortsConnected === "boolean") setYoutubeShortsConnected(state.youtubeShortsConnected);
+  if (typeof state.youtubeShortsRequiresUpdate === "boolean") setYoutubeShortsRequiresUpdate(state.youtubeShortsRequiresUpdate);
   if (typeof state.youtubeShortsUrl === "string") setYoutubeShortsUrl(state.youtubeShortsUrl);
   if (typeof state.tiktokConnected === "boolean") {
     applyTiktokConnectionState({
@@ -1107,7 +1116,9 @@ const applyDashboardChannelState = useCallback((state: Record<string, any> | nul
     });
   }
   if (typeof state.pinterestConnected === "boolean") setPinterestConnected(state.pinterestConnected);
+  if (typeof state.pinterestRequiresUpdate === "boolean") setPinterestRequiresUpdate(state.pinterestRequiresUpdate);
   if (typeof state.pinterestUrl === "string") setPinterestUrl(state.pinterestUrl);
+  if (typeof state.tiktokRequiresUpdate === "boolean") setTiktokRequiresUpdate(state.tiktokRequiresUpdate);
   if (typeof state.inrSearchConnected === "boolean") setInrSearchConnected(state.inrSearchConnected);
   if (typeof state.inrSearchUrl === "string") setInrSearchUrl(state.inrSearchUrl);
   if (typeof state.inrSearchDirectoryEnabled === "boolean") setInrSearchDirectoryEnabled(state.inrSearchDirectoryEnabled);
@@ -1119,6 +1130,9 @@ const applyDashboardChannelState = useCallback((state: Record<string, any> | nul
 
   if (Object.prototype.hasOwnProperty.call(state, "mailAccountsConnectedCount")) {
     setMailAccountsConnectedCount(sanitizeMailAccountsConnectedCount(state.mailAccountsConnectedCount));
+  }
+  if (typeof state.mailAccountsRequireUpdate === "boolean") {
+    setMailAccountsRequireUpdate(state.mailAccountsRequireUpdate);
   }
 
   if (state.inrBadgeProfile && typeof state.inrBadgeProfile === "object") {
@@ -1145,19 +1159,130 @@ const applyDashboardChannelState = useCallback((state: Record<string, any> | nul
   setSiteInrcySettingsError, setSiteInrcySettingsText, setSiteInrcyUrl, setSiteWebActusFont, setSiteWebActusLayout,
   setSiteWebActusLimit, setSiteWebActusDesign, setSiteWebActusTheme, setSiteWebActusAccent, setSiteWebGa4Connected, setSiteWebGa4MeasurementId,
   setSiteWebGa4PropertyId, setSiteWebGscConnected, setSiteWebGscProperty, setSiteWebSavedUrl,
-  setSiteWebSettingsError, setSiteWebSettingsText, setSiteWebUrl, setMailAccountsConnectedCount,
-  setYoutubeShortsConnected, setYoutubeShortsUrl, setPinterestConnected, setPinterestUrl, setInrSearchConnected, setInrSearchUrl, setInrSearchDirectoryEnabled,
+  setSiteWebSettingsError, setSiteWebSettingsText, setSiteWebUrl, setMailAccountsConnectedCount, setMailAccountsRequireUpdate,
+  setYoutubeShortsConnected, setYoutubeShortsRequiresUpdate, setYoutubeShortsUrl, setPinterestConnected, setPinterestRequiresUpdate, setPinterestUrl, setTiktokRequiresUpdate, setInrSearchConnected, setInrSearchUrl, setInrSearchDirectoryEnabled,
   applyTiktokConnectionState,
 ]);
+
+const applyOfficialChannelStates = useCallback((payload: unknown) => {
+  const officialState = buildOfficialDashboardChannelState(payload);
+  if (!officialState) return false;
+
+  canonicalChannelStatesReadyRef.current = true;
+  setOfficialChannelStatesReady(true);
+  mergeCachedDashboardChannelState(officialState);
+  applyDashboardChannelState(officialState);
+  return true;
+}, [applyDashboardChannelState]);
+
+const refreshOfficialChannelStates = useCallback(async () => {
+  const requestSeq = ++officialChannelStatesRequestSeqRef.current;
+  const accountScope = getActiveBrowserUserId();
+
+  try {
+    const response = await fetch("/api/integrations/channel-states", {
+      cache: "no-store",
+      credentials: "include",
+    });
+    const payload = response.ok ? await response.json().catch(() => null) : null;
+    if (
+      requestSeq !== officialChannelStatesRequestSeqRef.current ||
+      accountScope !== getActiveBrowserUserId() ||
+      !response.ok ||
+      !applyOfficialChannelStates(payload)
+    ) {
+      return null;
+    }
+    return payload as Record<string, any>;
+  } catch {
+    return null;
+  }
+}, [applyOfficialChannelStates]);
+
+const resetAccountScopedDashboardState = useCallback(() => {
+  applyDashboardChannelState({
+    siteInrcyOwnership: "none",
+    siteInrcyUrl: "",
+    siteInrcySavedUrl: "",
+    siteInrcyGa4Connected: false,
+    siteInrcyGscConnected: false,
+    siteWebUrl: "",
+    siteWebSavedUrl: "",
+    siteWebGa4Connected: false,
+    siteWebGscConnected: false,
+    gmbConnected: false,
+    gmbAccountConnected: false,
+    gmbConfigured: false,
+    gmbConnectionStatus: "disconnected",
+    gmbUrl: "",
+    gmbAccountEmail: "",
+    gmbLocationName: "",
+    gmbLocationLabel: "",
+    facebookAccountConnected: false,
+    facebookPageConnected: false,
+    facebookConnectionStatus: "disconnected",
+    facebookUrl: "",
+    facebookAccountEmail: "",
+    fbSelectedPageId: "",
+    fbSelectedPageName: "",
+    instagramAccountConnected: false,
+    instagramConnected: false,
+    instagramConnectionStatus: "disconnected",
+    instagramUrl: "",
+    instagramUsername: "",
+    linkedinAccountConnected: false,
+    linkedinConnected: false,
+    linkedinConnectionStatus: "disconnected",
+    linkedinUrl: "",
+    linkedinDisplayName: "",
+    linkedinSelectedOrganizationId: "",
+    linkedinSelectedOrganizationName: "",
+    tiktokConnected: false,
+    tiktokRequiresUpdate: false,
+    tiktokUsername: "",
+    tiktokProfileUrl: "",
+    youtubeShortsConnected: false,
+    youtubeShortsRequiresUpdate: false,
+    youtubeShortsUrl: "",
+    pinterestConnected: false,
+    pinterestRequiresUpdate: false,
+    pinterestUrl: "",
+    mailAccountsConnectedCount: 0,
+    mailAccountsRequireUpdate: false,
+  });
+  setInrSearchConnected(null);
+  setInrSearchUrl("");
+  setInrSearchDirectoryEnabled(null);
+  setDisplayedSiteBubbleProgress({});
+  setChannelBlocks(createEmptyChannelBlocks());
+}, [applyDashboardChannelState]);
 
 useEffect(() => {
   const handlePinterestUpdate = (event: Event) => {
     const detail = (event as CustomEvent)?.detail ?? {};
-    const connected = Boolean(detail.connected);
+    const requiresUpdate = Boolean(detail.requiresUpdate || detail.connectionStatus === "needs_update");
+    const connected = Boolean(detail.connected && !requiresUpdate);
     const profileUrl = typeof detail.profileUrl === "string" ? detail.profileUrl : "";
+    const accountName = typeof detail.accountName === "string" ? detail.accountName : "";
     setPinterestConnected(connected);
+    setPinterestRequiresUpdate(requiresUpdate);
     setPinterestUrl(profileUrl);
-    mergeCachedDashboardChannelState({ pinterestConnected: connected, pinterestUrl: profileUrl });
+    mergeCachedDashboardChannelState({ pinterestConnected: connected, pinterestRequiresUpdate: requiresUpdate, pinterestUrl: profileUrl });
+    patchChannelConnectionLocallyRef.current("pinterest", {
+      connected,
+      accountConnected: connected,
+      configured: connected,
+      statsConnected: connected,
+      expired: requiresUpdate,
+      requiresUpdate,
+      connectionStatus: requiresUpdate ? "needs_update" : connected ? "connected" : "disconnected",
+      resourceId: connected ? (accountName || profileUrl || null) : null,
+      resourceLabel: connected ? (accountName || null) : null,
+      resourceUrl: connected ? (profileUrl || null) : null,
+    }, { clearData: !connected, clearError: true });
+    void triggerChannelRefreshRef.current("pinterest").catch((error) => {
+      console.warn("[pinterest] channel refresh failed", error);
+    });
   };
 
   const handleInrSearchUpdate = (event: Event) => {
@@ -1299,16 +1424,19 @@ useEffect(() => {
 useEffect(() => {
   const handleYoutubeShortsUpdate = (event: Event) => {
     const detail = (event as CustomEvent)?.detail ?? {};
-    const connected = Boolean(detail.connected);
+    const requiresUpdate = Boolean(detail.requiresUpdate || detail.connectionStatus === "needs_update");
+    const connected = Boolean(detail.connected && !requiresUpdate);
     const channelUrl = typeof detail.channelUrl === "string" ? detail.channelUrl : "";
     const channelHandle = typeof detail.channelHandle === "string" ? detail.channelHandle : "";
     const channelName = typeof detail.channelName === "string" ? detail.channelName : "";
     const channelId = typeof detail.channelId === "string" ? detail.channelId : "";
 
     setYoutubeShortsConnected(connected);
+    setYoutubeShortsRequiresUpdate(requiresUpdate);
     setYoutubeShortsUrl(channelUrl);
     mergeCachedDashboardChannelState({
       youtubeShortsConnected: connected,
+      youtubeShortsRequiresUpdate: requiresUpdate,
       youtubeShortsUrl: channelUrl,
     });
 
@@ -1317,9 +1445,9 @@ useEffect(() => {
       accountConnected: connected,
       configured: connected,
       statsConnected: connected,
-      expired: false,
-      requiresUpdate: false,
-      connectionStatus: connected ? "connected" : "disconnected",
+      expired: requiresUpdate,
+      requiresUpdate,
+      connectionStatus: requiresUpdate ? "needs_update" : connected ? "connected" : "disconnected",
       resourceId: connected ? (channelId || channelHandle || channelUrl || null) : null,
       resourceLabel: connected ? (channelName || channelHandle || channelUrl || null) : null,
       resourceUrl: connected ? (channelUrl || null) : null,
@@ -1457,7 +1585,9 @@ const setPanelError = useCallback((kind: "facebook" | "instagram" | "linkedin" |
       // Les useState initiaux peuvent s'exécuter avant que le compte actif soit
       // restauré après un retour OAuth. On relit alors immédiatement le cache
       // du bon compte pour conserver la dernière puissance confirmée.
-      applyDashboardChannelState(readCachedDashboardChannelState());
+      if (!applyDashboardChannelState(readCachedDashboardChannelState())) {
+        resetAccountScopedDashboardState();
+      }
       const cachedPower = readCachedGeneratorPowerPercent();
       if (cachedPower !== null) setDisplayedGeneratorPower(cachedPower);
       const cachedPowerSnapshot = readCachedGeneratorPowerSnapshot();
@@ -1532,7 +1662,7 @@ const setPanelError = useCallback((kind: "facebook" | "instagram" | "linkedin" |
       cancelled = true;
       authListener.subscription.unsubscribe();
     };
-  }, [applyDashboardChannelState]);
+  }, [applyDashboardChannelState, resetAccountScopedDashboardState]);
 
 
   // =============================
@@ -1598,9 +1728,9 @@ const setPanelError = useCallback((kind: "facebook" | "instagram" | "linkedin" |
   const fetchGoogleConnected = useCallback(async (source: GoogleSource, product: GoogleProduct) => {
     const url = `/api/integrations/google-stats/status?source=${encodeURIComponent(source)}&product=${encodeURIComponent(product)}`;
     const res = await fetch(url, { method: "GET" }).catch(() => null);
-    if (!res || !res.ok) return false;
+    if (!res || !res.ok) return null;
     const json = (await res.json().catch(() => null)) as any;
-    return !!json?.connected;
+    return typeof json?.connected === "boolean" ? json.connected : null;
   }, []);
 
 // ✅ Charge infos Site iNrCy + outils du pro depuis Supabase
@@ -1629,25 +1759,9 @@ const loadSiteInrcy = useCallback(async () => {
     fetch("/api/bubble-access/ensure", { method: "GET", cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
       .catch(() => null),
-    fetch("/api/integrations/channel-states", { cache: "no-store", credentials: "include" })
-      .then((res) => (res.ok ? res.json().catch(() => null) : null))
-      .catch(() => null),
+    refreshOfficialChannelStates(),
   ]);
   if (requestSeq !== siteConfigRequestSeqRef.current) return;
-
-  // TikTok et Pinterest ne doivent pas attendre les lectures de profil, logo
-  // et réglages qui suivent. Leur état commun est appliqué dès cette première
-  // vague de chargement, comme pour les autres bulles du dashboard.
-  if (channelStates && typeof channelStates === "object") {
-    applyDashboardChannelState({
-      tiktokConnected: Boolean(channelStates?.tiktok?.connected && !channelStates?.tiktok?.requiresUpdate),
-      tiktokRequiresUpdate: Boolean(channelStates?.tiktok?.requiresUpdate),
-      tiktokUsername: String(channelStates?.tiktok?.username || ""),
-      tiktokProfileUrl: String(channelStates?.tiktok?.profile_url || ""),
-      pinterestConnected: Boolean(channelStates?.pinterest?.connected && !channelStates?.pinterest?.requiresUpdate),
-      pinterestUrl: String(channelStates?.pinterest?.profile_url || ""),
-    });
-  }
 
   const bubbleAccessMapPayload =
     bubbleAccessEnsureRes?.bubbleAccessMap &&
@@ -1733,21 +1847,17 @@ const loadSiteInrcy = useCallback(async () => {
     siteWebSettingsTextValue = "{}";
   }
 
-  const igObj = ((proSettingsObj as any)?.instagram ?? {}) as any;
   const liObj = ((proSettingsObj as any)?.linkedin ?? {}) as any;
-  const gmbObj = ((proSettingsObj as any)?.gmb ?? {}) as any;
-  const fbObj = ((proSettingsObj as any)?.facebook ?? {}) as any;
-  const ytObj = ((proSettingsObj as any)?.youtube_shorts ?? {}) as any;
-  const pinterestObj = ((proSettingsObj as any)?.pinterest ?? {}) as any;
   const inrSearchObj = ((proSettingsObj as any)?.inrSearch ?? {}) as any;
-  const youtubeShortsUrlValue = String(ytObj?.channelUrl ?? ytObj?.url ?? "");
-  const pinterestUrlValue = String(pinterestObj?.publicProfileUrl ?? pinterestObj?.profileUrl ?? pinterestObj?.url ?? "");
   const inrSearchSlug = String(inrSearchObj?.slug ?? "").trim();
   const inrSearchUrlValue = inrSearchObj?.enabled && inrSearchSlug
     ? `${getRuntimeInrSearchOrigin()}/entreprises/${inrSearchSlug}`
     : "";
 
   const nextState: Record<string, any> = {
+    // A transient network failure must keep the last server-confirmed
+    // connection state. A later successful read repairs this cache naturally.
+    ...(readCachedDashboardChannelState() ?? {}),
     siteInrcyOwnership: ownership,
     siteInrcyUrl: siteInrcyUrlValue,
     siteInrcySavedUrl: siteInrcyUrlValue,
@@ -1774,52 +1884,12 @@ const loadSiteInrcy = useCallback(async () => {
     siteWebActusDesign: normalizeActusDesign((siteWebObj as any)?.actus_widget?.design),
     siteWebActusTheme: normalizeActusTheme((siteWebObj as any)?.actus_widget?.theme),
     siteWebActusAccent: normalizeActusAccent((siteWebObj as any)?.actus_widget?.accent),
-    instagramUrl: igObj?.url ?? "",
-    // OAuth connection flags come exclusively from /channel-states below.
-    // pro_tools_configs remains a display mirror for labels and URLs only.
-    instagramAccountConnected: false,
-    instagramConnected: false,
-    instagramConnectionStatus: "disconnected" as ConnectionDisplayStatus,
-    instagramUsername: String(igObj?.username ?? ""),
-    linkedinUrl: liObj?.orgId ? (liObj?.orgUrl ?? liObj?.url ?? "") : (liObj?.profileUrl ?? liObj?.url ?? ""),
-    linkedinAccountConnected: false,
-    linkedinConnected: false,
-    linkedinConnectionStatus: "disconnected" as ConnectionDisplayStatus,
-    linkedinDisplayName: String(liObj?.displayName ?? ""),
-    linkedinSelectedOrganizationId: String(liObj?.orgId ?? ""),
-    linkedinSelectedOrganizationName: String(liObj?.orgName ?? ""),
+    // Les miroirs OAuth ne fournissent plus ni état ni identité de canal.
+    // Seule la préférence d'affichage LinkedIn reste locale.
     linkedinShareToPersonalProfile: liObj?.shareToPersonalProfile === true || liObj?.shareToPersonalProfile === "true",
-    gmbUrl: gmbObj?.url ?? "",
-    gmbAccountConnected: false,
-    gmbConfigured: false,
-    gmbConnected: false,
-    gmbConnectionStatus: "disconnected" as ConnectionDisplayStatus,
-    gmbAccountEmail: gmbObj?.accountEmail ?? "",
-    gmbLocationName: String(gmbObj?.locationName ?? gmbObj?.resource_id ?? ""),
-    gmbLocationLabel: String(gmbObj?.locationTitle ?? gmbObj?.resource_label ?? ""),
-    facebookUrl: fbObj?.url ?? "",
-    facebookAccountConnected: false,
-    facebookPageConnected: false,
-    facebookConnectionStatus: "disconnected" as ConnectionDisplayStatus,
-    facebookAccountEmail: fbObj?.userEmail ?? "",
-    fbSelectedPageId: fbObj?.pageId ?? "",
-    fbSelectedPageName: fbObj?.pageName ?? "",
-    youtubeShortsConnected: false,
-    youtubeShortsUrl: youtubeShortsUrlValue,
-    tiktokConnected: false,
-    tiktokRequiresUpdate: false,
-    tiktokUsername: "",
-    tiktokProfileUrl: "",
-    pinterestConnected: false,
-    pinterestUrl: pinterestUrlValue,
     inrSearchConnected: Boolean(inrSearchObj?.enabled && inrSearchSlug),
     inrSearchUrl: inrSearchUrlValue,
     inrSearchDirectoryEnabled: Boolean(inrSearchObj?.enabled && inrSearchObj?.directoryEnabled),
-    // Connection flags are filled only from the canonical channel-state API.
-    siteInrcyGa4Connected: false,
-    siteInrcyGscConnected: false,
-    siteWebGa4Connected: false,
-    siteWebGscConnected: false,
     inrBadgeProfile: nextInrBadgeProfile,
   };
 
@@ -1832,61 +1902,7 @@ const loadSiteInrcy = useCallback(async () => {
       nextState.siteInrcyGscConnected = states?.site_inrcy?.gsc === true;
       nextState.siteWebGa4Connected = states?.site_web?.ga4 === true;
       nextState.siteWebGscConnected = states?.site_web?.gsc === true;
-
-      nextState.gmbConnected = !!states?.gmb?.connected;
-      nextState.gmbAccountConnected = !!states?.gmb?.accountConnected;
-      nextState.gmbConfigured = !!states?.gmb?.configured;
-      nextState.gmbConnectionStatus = (states?.gmb?.connection_status || (states?.gmb?.connected ? "connected" : "disconnected")) as ConnectionDisplayStatus;
-      if (states?.gmb?.email) nextState.gmbAccountEmail = String(states.gmb.email);
-      if (states?.gmb?.resource_id) nextState.gmbLocationName = String(states.gmb.resource_id);
-      if (states?.gmb?.resource_label) nextState.gmbLocationLabel = String(states.gmb.resource_label);
-      if (states?.gmb?.url) nextState.gmbUrl = String(states.gmb.url);
-
-      nextState.facebookAccountConnected = !!states?.facebook?.accountConnected;
-      nextState.facebookPageConnected = !!states?.facebook?.pageConnected;
-      nextState.facebookConnectionStatus = (states?.facebook?.connection_status || (states?.facebook?.connected ? "connected" : "disconnected")) as ConnectionDisplayStatus;
-      if (states?.facebook?.user_email) nextState.facebookAccountEmail = String(states.facebook.user_email);
-      if (states?.facebook?.resource_id) nextState.fbSelectedPageId = String(states.facebook.resource_id);
-      if (states?.facebook?.resource_label) nextState.fbSelectedPageName = String(states.facebook.resource_label);
-      if (states?.facebook?.page_url) nextState.facebookUrl = String(states.facebook.page_url);
-
-      nextState.instagramAccountConnected = !!states?.instagram?.accountConnected;
-      nextState.instagramConnected = !!states?.instagram?.connected;
-      nextState.instagramConnectionStatus = (states?.instagram?.connection_status || (states?.instagram?.connected ? "connected" : "disconnected")) as ConnectionDisplayStatus;
-      if (states?.instagram?.username) nextState.instagramUsername = String(states.instagram.username);
-      if (states?.instagram?.profile_url) nextState.instagramUrl = String(states.instagram.profile_url);
-
-      nextState.linkedinAccountConnected = !!states?.linkedin?.accountConnected;
-      nextState.linkedinConnected = !!states?.linkedin?.connected;
-      nextState.linkedinConnectionStatus = (states?.linkedin?.connection_status || (states?.linkedin?.connected ? "connected" : "disconnected")) as ConnectionDisplayStatus;
-      if (states?.linkedin?.display_name) nextState.linkedinDisplayName = String(states.linkedin.display_name);
-
-      if (states?.mails && Object.prototype.hasOwnProperty.call(states.mails, "connectedCount")) {
-        (nextState as any).mailAccountsConnectedCount = sanitizeMailAccountsConnectedCount(states.mails.connectedCount);
-      }
-
-      if ((states?.linkedin as any)?.organization_id) {
-        nextState.linkedinSelectedOrganizationId = String((states.linkedin as any).organization_id);
-        nextState.linkedinUrl = String((states.linkedin as any).organization_url || states.linkedin.profile_url || "");
-      } else if (states?.linkedin?.profile_url) {
-        nextState.linkedinUrl = String(states.linkedin.profile_url);
-      }
-      if ((states?.linkedin as any)?.organization_name) nextState.linkedinSelectedOrganizationName = String((states.linkedin as any).organization_name);
-
-      nextState.youtubeShortsConnected = Boolean(states?.youtube_shorts?.connected && !states?.youtube_shorts?.requiresUpdate);
-      nextState.youtubeShortsUrl = String(states?.youtube_shorts?.channel_url || "");
-
-      nextState.tiktokConnected = Boolean(states?.tiktok?.connected && !states?.tiktok?.requiresUpdate);
-      nextState.tiktokRequiresUpdate = Boolean(states?.tiktok?.requiresUpdate);
-      nextState.tiktokUsername = String(states?.tiktok?.username || "");
-      nextState.tiktokProfileUrl = String(states?.tiktok?.profile_url || "");
-
-      nextState.pinterestConnected = Boolean(states?.pinterest?.connected && !states?.pinterest?.requiresUpdate);
-      nextState.pinterestUrl = String(states?.pinterest?.profile_url || pinterestUrlValue || "");
-
-      // iNr'Search n'est pas une connexion OAuth : son état réel provient exclusivement
-      // de /api/inr-search/settings, qui vérifie que la page publique est réellement publiable.
-
+      Object.assign(nextState, buildOfficialDashboardChannelState(states) ?? {});
     } else {
       const [inrcyGa4, inrcyGsc, webGa4, webGsc] = await Promise.all([
         fetchGoogleConnected("site_inrcy", "ga4"),
@@ -1895,10 +1911,10 @@ const loadSiteInrcy = useCallback(async () => {
         fetchGoogleConnected("site_web", "gsc"),
       ]);
       if (requestSeq !== siteConfigRequestSeqRef.current) return;
-      nextState.siteInrcyGa4Connected = inrcyGa4;
-      nextState.siteInrcyGscConnected = inrcyGsc;
-      nextState.siteWebGa4Connected = webGa4;
-      nextState.siteWebGscConnected = webGsc;
+      if (typeof inrcyGa4 === "boolean") nextState.siteInrcyGa4Connected = inrcyGa4;
+      if (typeof inrcyGsc === "boolean") nextState.siteInrcyGscConnected = inrcyGsc;
+      if (typeof webGa4 === "boolean") nextState.siteWebGa4Connected = webGa4;
+      if (typeof webGsc === "boolean") nextState.siteWebGscConnected = webGsc;
     }
   } catch {
     if (requestSeq !== siteConfigRequestSeqRef.current) return;
@@ -1907,11 +1923,35 @@ const loadSiteInrcy = useCallback(async () => {
   if (requestSeq !== siteConfigRequestSeqRef.current) return;
   writeCachedDashboardChannelState(nextState);
   applyDashboardChannelState(nextState, { markReady: true });
-}, [applyDashboardChannelState, fetchGoogleConnected]);
+}, [applyDashboardChannelState, fetchGoogleConnected, refreshOfficialChannelStates]);
 
 useEffect(() => {
   loadSiteInrcy();
 }, [loadSiteInrcy]);
+
+useEffect(() => {
+  const refreshCanonicalState = () => {
+    if (document.visibilityState !== "hidden") void refreshOfficialChannelStates();
+  };
+  const retryIfNeeded = () => {
+    if (!canonicalChannelStatesReadyRef.current) refreshCanonicalState();
+  };
+  const handleVisibility = () => {
+    if (document.visibilityState === "visible") refreshCanonicalState();
+  };
+  const retryTimer = window.setInterval(retryIfNeeded, 8_000);
+  const pollingTimer = window.setInterval(refreshCanonicalState, 30_000);
+  window.addEventListener("online", refreshCanonicalState);
+  window.addEventListener("focus", refreshCanonicalState);
+  document.addEventListener("visibilitychange", handleVisibility);
+  return () => {
+    window.clearInterval(retryTimer);
+    window.clearInterval(pollingTimer);
+    window.removeEventListener("online", refreshCanonicalState);
+    window.removeEventListener("focus", refreshCanonicalState);
+    document.removeEventListener("visibilitychange", handleVisibility);
+  };
+}, [refreshOfficialChannelStates]);
 
 useEffect(() => {
   const refreshProfileDependentChannels = () => {
@@ -2272,6 +2312,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
   const lastStatsChannelRefreshAtRef = useRef<Partial<Record<DashboardChannelKey, number>>>({});
   const inFlightGeneratorChannelRefreshesRef = useRef<Partial<Record<DashboardChannelKey, Promise<GeneratorChannelRefreshResult>>>>({});
   const lastGeneratorChannelRefreshAtRef = useRef<Partial<Record<DashboardChannelKey, number>>>({});
+  const channelResponseGateRef = useRef(createLatestChannelResponseGate<DashboardChannelKey>());
 
   const clearScheduledGeneratorRefreshes = useCallback(() => {
     refreshTimersRef.current.forEach((timerId) => window.clearTimeout(timerId));
@@ -2353,26 +2394,143 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     channel: DashboardChannelKey,
     patch: Partial<InrstatsChannelBlock["connection"]>,
     options?: { clearData?: boolean; clearError?: boolean },
-  ) => updateChannelBlockLocally(channel, (current) => ({
-    ...current,
-    connection: {
-      ...current.connection,
+  ) => {
+    const requiresUpdate = Boolean(
+      patch.requiresUpdate || patch.expired || patch.connectionStatus === "needs_update",
+    );
+    const inferredStatus = requiresUpdate
+      ? "needs_update"
+      : typeof patch.connected === "boolean"
+        ? patch.connected ? "connected" : "disconnected"
+        : patch.connectionStatus;
+    const normalizedPatch: Partial<InrstatsChannelBlock["connection"]> = {
       ...patch,
-    },
-    overview: options?.clearData ? null : current.overview,
-    opportunities: options?.clearData ? 0 : current.opportunities,
-    capturedLeads: options?.clearData ? { week: 0, month: 0 } : current.capturedLeads,
-    estimatedValue: options?.clearData ? 0 : current.estimatedValue,
-    live: options?.clearData ? false : current.live,
-    error: options?.clearError === false ? current.error : null,
-    syncAt: Date.now(),
-    snapshotDate: expectedUiSnapshotDate(),
-  })), [updateChannelBlockLocally]);
+      ...(typeof inferredStatus === "string" ? { connectionStatus: inferredStatus } : {}),
+      ...(typeof patch.connected === "boolean" ? {
+        requiresUpdate,
+        expired: requiresUpdate ? Boolean(patch.expired) : false,
+      } : {}),
+    };
+
+    if (typeof normalizedPatch.connected === "boolean") {
+      if (channel === "gmb") setGmbConnected(normalizedPatch.connected);
+      if (channel === "facebook") setFacebookPageConnected(normalizedPatch.connected);
+      if (channel === "instagram") setInstagramConnected(normalizedPatch.connected);
+      if (channel === "linkedin") setLinkedinConnected(normalizedPatch.connected);
+      if (channel === "youtube_shorts") setYoutubeShortsConnected(normalizedPatch.connected);
+      if (channel === "pinterest") setPinterestConnected(normalizedPatch.connected);
+    }
+    if (typeof normalizedPatch.accountConnected === "boolean") {
+      if (channel === "gmb") setGmbAccountConnected(normalizedPatch.accountConnected);
+      if (channel === "facebook") setFacebookAccountConnected(normalizedPatch.accountConnected);
+      if (channel === "instagram") setInstagramAccountConnected(normalizedPatch.accountConnected);
+      if (channel === "linkedin") setLinkedinAccountConnected(normalizedPatch.accountConnected);
+    }
+    if (channel === "gmb" && typeof normalizedPatch.configured === "boolean") {
+      setGmbConfigured(normalizedPatch.configured);
+    }
+    if (isConnectionStatus(normalizedPatch.connectionStatus)) {
+      if (channel === "gmb") setGmbConnectionStatus(normalizedPatch.connectionStatus);
+      if (channel === "facebook") setFacebookConnectionStatus(normalizedPatch.connectionStatus);
+      if (channel === "instagram") setInstagramConnectionStatus(normalizedPatch.connectionStatus);
+      if (channel === "linkedin") setLinkedinConnectionStatus(normalizedPatch.connectionStatus);
+    }
+    if (channel === "tiktok") setTiktokRequiresUpdate(requiresUpdate);
+    if (channel === "youtube_shorts") setYoutubeShortsRequiresUpdate(requiresUpdate);
+    if (channel === "pinterest") setPinterestRequiresUpdate(requiresUpdate);
+
+    const cachePatch: Record<string, unknown> = {};
+    const has = (key: keyof typeof normalizedPatch) => Object.prototype.hasOwnProperty.call(normalizedPatch, key);
+    if (channel === "gmb") {
+      if (typeof normalizedPatch.connected === "boolean") cachePatch.gmbConnected = normalizedPatch.connected;
+      if (typeof normalizedPatch.accountConnected === "boolean") cachePatch.gmbAccountConnected = normalizedPatch.accountConnected;
+      if (typeof normalizedPatch.configured === "boolean") cachePatch.gmbConfigured = normalizedPatch.configured;
+      if (isConnectionStatus(normalizedPatch.connectionStatus)) cachePatch.gmbConnectionStatus = normalizedPatch.connectionStatus;
+      if (has("resourceId")) cachePatch.gmbLocationName = String(normalizedPatch.resourceId || "");
+      if (has("resourceLabel")) cachePatch.gmbLocationLabel = String(normalizedPatch.resourceLabel || "");
+      if (has("resourceUrl")) cachePatch.gmbUrl = String(normalizedPatch.resourceUrl || "");
+    } else if (channel === "facebook") {
+      if (typeof normalizedPatch.connected === "boolean") cachePatch.facebookPageConnected = normalizedPatch.connected;
+      if (typeof normalizedPatch.accountConnected === "boolean") cachePatch.facebookAccountConnected = normalizedPatch.accountConnected;
+      if (isConnectionStatus(normalizedPatch.connectionStatus)) cachePatch.facebookConnectionStatus = normalizedPatch.connectionStatus;
+      if (has("resourceId")) cachePatch.fbSelectedPageId = String(normalizedPatch.resourceId || "");
+      if (has("resourceLabel")) cachePatch.fbSelectedPageName = String(normalizedPatch.resourceLabel || "");
+      if (has("resourceUrl")) cachePatch.facebookUrl = String(normalizedPatch.resourceUrl || "");
+    } else if (channel === "instagram") {
+      if (typeof normalizedPatch.connected === "boolean") cachePatch.instagramConnected = normalizedPatch.connected;
+      if (typeof normalizedPatch.accountConnected === "boolean") cachePatch.instagramAccountConnected = normalizedPatch.accountConnected;
+      if (isConnectionStatus(normalizedPatch.connectionStatus)) cachePatch.instagramConnectionStatus = normalizedPatch.connectionStatus;
+      if (has("resourceLabel")) cachePatch.instagramUsername = String(normalizedPatch.resourceLabel || "");
+      if (has("resourceUrl")) cachePatch.instagramUrl = String(normalizedPatch.resourceUrl || "");
+    } else if (channel === "linkedin") {
+      if (typeof normalizedPatch.connected === "boolean") cachePatch.linkedinConnected = normalizedPatch.connected;
+      if (typeof normalizedPatch.accountConnected === "boolean") cachePatch.linkedinAccountConnected = normalizedPatch.accountConnected;
+      if (isConnectionStatus(normalizedPatch.connectionStatus)) cachePatch.linkedinConnectionStatus = normalizedPatch.connectionStatus;
+      if (has("resourceLabel")) cachePatch.linkedinDisplayName = String(normalizedPatch.resourceLabel || "");
+      if (has("resourceUrl")) cachePatch.linkedinUrl = String(normalizedPatch.resourceUrl || "");
+    } else if (channel === "tiktok") {
+      if (typeof normalizedPatch.connected === "boolean") cachePatch.tiktokConnected = normalizedPatch.connected;
+      cachePatch.tiktokRequiresUpdate = requiresUpdate;
+      if (has("resourceLabel")) cachePatch.tiktokUsername = String(normalizedPatch.resourceLabel || "");
+      if (has("resourceUrl")) cachePatch.tiktokProfileUrl = String(normalizedPatch.resourceUrl || "");
+    } else if (channel === "youtube_shorts") {
+      if (typeof normalizedPatch.connected === "boolean") cachePatch.youtubeShortsConnected = normalizedPatch.connected;
+      cachePatch.youtubeShortsRequiresUpdate = requiresUpdate;
+      if (has("resourceUrl")) cachePatch.youtubeShortsUrl = String(normalizedPatch.resourceUrl || "");
+    } else if (channel === "pinterest") {
+      if (typeof normalizedPatch.connected === "boolean") cachePatch.pinterestConnected = normalizedPatch.connected;
+      cachePatch.pinterestRequiresUpdate = requiresUpdate;
+      if (has("resourceUrl")) cachePatch.pinterestUrl = String(normalizedPatch.resourceUrl || "");
+    }
+    if (Object.keys(cachePatch).length) mergeCachedDashboardChannelState(cachePatch);
+
+    return updateChannelBlockLocally(channel, (current) => ({
+      ...current,
+      connection: {
+        ...current.connection,
+        ...normalizedPatch,
+      },
+      overview: options?.clearData ? null : current.overview,
+      opportunities: options?.clearData ? 0 : current.opportunities,
+      capturedLeads: options?.clearData ? { week: 0, month: 0 } : current.capturedLeads,
+      estimatedValue: options?.clearData ? 0 : current.estimatedValue,
+      live: options?.clearData ? false : current.live,
+      error: options?.clearError === false ? current.error : null,
+      syncAt: Date.now(),
+      snapshotDate: expectedUiSnapshotDate(),
+    }));
+  }, [
+    setFacebookConnectionStatus,
+    setFacebookAccountConnected,
+    setFacebookPageConnected,
+    setGmbAccountConnected,
+    setGmbConfigured,
+    setGmbConnected,
+    setGmbConnectionStatus,
+    setInstagramAccountConnected,
+    setInstagramConnected,
+    setInstagramConnectionStatus,
+    setLinkedinAccountConnected,
+    setLinkedinConnected,
+    setLinkedinConnectionStatus,
+    setPinterestConnected,
+    setPinterestRequiresUpdate,
+    setTiktokRequiresUpdate,
+    setYoutubeShortsConnected,
+    setYoutubeShortsRequiresUpdate,
+    updateChannelBlockLocally,
+  ]);
   patchChannelConnectionLocallyRef.current = patchChannelConnectionLocally;
 
   const refreshChannelBlocksFromApi = useCallback(async (channel: DashboardChannelKey, fallbackSyncAt?: number, options?: ChannelRefreshOptions) => {
+    const forceFresh = options?.forceFresh === true;
     const inFlight = inFlightStatsChannelRefreshesRef.current[channel];
-    if (inFlight) return inFlight;
+    if (inFlight && !forceFresh) return inFlight;
+
+    const responseToken = options?.responseToken ?? channelResponseGateRef.current.capture(channel);
+    if (!channelResponseGateRef.current.isCurrent(channel, responseToken)) {
+      return { preferredBlock: null, syncAt: Date.now() };
+    }
 
     const now = Date.now();
     const dedupeMs = Number.isFinite(Number(options?.dedupeMs)) ? Number(options?.dedupeMs) : CHANNEL_REFRESH_DEDUP_MS;
@@ -2388,7 +2546,9 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
       const json = await fetchSharedDashboardRefreshJson<{
         periods?: Partial<Record<string, { block?: InrstatsChannelBlock; overview?: unknown; syncedAt?: number; snapshotDate?: string | null }>>;
       } | null>(
-        `stats-channel:${channel}`,
+        forceFresh
+          ? `stats-channel:${channel}:fresh:${responseToken.scopeGeneration}:${responseToken.generation}`
+          : `stats-channel:${channel}`,
         "/api/stats/channel-refresh",
         {
           method: "POST",
@@ -2397,9 +2557,12 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
           cache: "no-store",
           credentials: "include",
         },
-        { reuseMs: options?.force ? 1_500 : dedupeMs },
+        { reuseMs: forceFresh ? 0 : options?.force ? 1_500 : dedupeMs },
       );
 
+      if (!channelResponseGateRef.current.isCurrent(channel, responseToken)) {
+        return { preferredBlock: null, syncAt: Date.now() };
+      }
       const applied = applyChannelRefreshPayload(channel, json, fallbackSyncAt);
       lastStatsChannelRefreshAtRef.current[channel] = Number.isFinite(Number(applied.syncAt)) ? Number(applied.syncAt) : Date.now();
       return applied;
@@ -2484,8 +2647,14 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
   }, [applyGeneratorCacheToState, notifyGeneratorRefresh]);
 
   const refreshGeneratorChannelFromApi = useCallback(async (channel: DashboardChannelKey, fallbackSyncAt?: number, options?: ChannelRefreshOptions) => {
+    const forceFresh = options?.forceFresh === true;
     const inFlight = inFlightGeneratorChannelRefreshesRef.current[channel];
-    if (inFlight) return inFlight;
+    if (inFlight && !forceFresh) return inFlight;
+
+    const responseToken = options?.responseToken ?? channelResponseGateRef.current.capture(channel);
+    if (!channelResponseGateRef.current.isCurrent(channel, responseToken)) {
+      return { block: null, syncAt: Date.now() };
+    }
 
     const now = Date.now();
     const dedupeMs = Number.isFinite(Number(options?.dedupeMs)) ? Number(options?.dedupeMs) : CHANNEL_REFRESH_DEDUP_MS;
@@ -2515,7 +2684,9 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
           meta?: { snapshotDate?: string | null; live?: boolean };
         };
       } | null>(
-        `metrics-channel:${channel}`,
+        forceFresh
+          ? `metrics-channel:${channel}:fresh:${responseToken.scopeGeneration}:${responseToken.generation}`
+          : `metrics-channel:${channel}`,
         "/api/metrics/channel-refresh",
         {
           method: "POST",
@@ -2524,9 +2695,12 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
           cache: "no-store",
           credentials: "include",
         },
-        { reuseMs: options?.force ? 1_500 : dedupeMs },
+        { reuseMs: forceFresh ? 0 : options?.force ? 1_500 : dedupeMs },
       );
 
+      if (!channelResponseGateRef.current.isCurrent(channel, responseToken)) {
+        return { block: null, syncAt: Date.now() };
+      }
       const applied = applyGeneratorChannelRefreshPayload(channel, json, fallbackSyncAt);
       lastGeneratorChannelRefreshAtRef.current[channel] = Number.isFinite(Number(applied.syncAt)) ? Number(applied.syncAt) : Date.now();
       return applied;
@@ -2788,15 +2962,20 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
 
   const triggerChannelRefresh = useCallback(async (channel: DashboardChannelKey) => {
     const syncAt = Date.now();
+    const responseToken = channelResponseGateRef.current.begin(channel);
     lastGeneratorRefreshAtRef.current = syncAt;
 
     try {
       clearScheduledGeneratorRefreshes();
 
+      // First re-read the same canonical source used by Booster. The following
+      // iNrStats requests are fresh and tied to this exact connection revision.
+      await refreshOfficialChannelStates();
+      if (!channelResponseGateRef.current.isCurrent(channel, responseToken)) return;
+
       const results = await Promise.allSettled([
-        channel === "site_inrcy" ? loadSiteInrcy() : Promise.resolve(),
-        refreshGeneratorChannelFromApi(channel, syncAt, { force: true }),
-        refreshChannelBlocksFromApi(channel, syncAt, { force: true }),
+        refreshGeneratorChannelFromApi(channel, syncAt, { force: true, forceFresh: true, responseToken }),
+        refreshChannelBlocksFromApi(channel, syncAt, { force: true, forceFresh: true, responseToken }),
       ]);
 
       const rejected = results.find((result) => result.status === "rejected") as PromiseRejectedResult | undefined;
@@ -2811,7 +2990,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
       reportHandledClientError(error, "dashboard-channel-refresh");
       await fallbackToServerSyncThenGlobal();
     }
-  }, [clearScheduledGeneratorRefreshes, fallbackToServerSyncThenGlobal, loadSiteInrcy, notifyStatsRefresh, refreshChannelBlocksFromApi, refreshGeneratorChannelFromApi, syncInstagramStateFromServer]);
+  }, [clearScheduledGeneratorRefreshes, fallbackToServerSyncThenGlobal, notifyStatsRefresh, refreshChannelBlocksFromApi, refreshGeneratorChannelFromApi, refreshOfficialChannelStates, syncInstagramStateFromServer]);
   triggerChannelRefreshRef.current = triggerChannelRefresh;
 
   const triggerChannelsRefresh = useCallback(async (channelsInput: DashboardChannelKey[]) => {
@@ -2823,15 +3002,26 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     }
 
     const syncAt = Date.now();
+    const responseTokens = new Map(
+      channels.map((channel) => [channel, channelResponseGateRef.current.begin(channel)] as const),
+    );
     lastGeneratorRefreshAtRef.current = syncAt;
 
     try {
       clearScheduledGeneratorRefreshes();
 
+      await refreshOfficialChannelStates();
       const results = await Promise.allSettled([
-        channels.includes("site_inrcy") ? loadSiteInrcy() : Promise.resolve(),
-        refreshGeneratorChannelsFromApi(channels, syncAt, { force: true }),
-        ...channels.map((channel) => refreshChannelBlocksFromApi(channel, syncAt, { force: true })),
+        ...channels.map((channel) => refreshGeneratorChannelFromApi(channel, syncAt, {
+          force: true,
+          forceFresh: true,
+          responseToken: responseTokens.get(channel),
+        })),
+        ...channels.map((channel) => refreshChannelBlocksFromApi(channel, syncAt, {
+          force: true,
+          forceFresh: true,
+          responseToken: responseTokens.get(channel),
+        })),
       ]);
 
       const rejected = results.find((result) => result.status === "rejected") as PromiseRejectedResult | undefined;
@@ -2846,7 +3036,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
       reportHandledClientError(error, "dashboard-channels-refresh");
       await fallbackToServerSyncThenGlobal();
     }
-  }, [clearScheduledGeneratorRefreshes, fallbackToServerSyncThenGlobal, loadSiteInrcy, notifyStatsRefresh, refreshChannelBlocksFromApi, refreshGeneratorChannelsFromApi, triggerChannelRefresh, syncInstagramStateFromServer]);
+  }, [clearScheduledGeneratorRefreshes, fallbackToServerSyncThenGlobal, notifyStatsRefresh, refreshChannelBlocksFromApi, refreshGeneratorChannelFromApi, refreshOfficialChannelStates, triggerChannelRefresh, syncInstagramStateFromServer]);
   latestTriggerChannelsRefreshRef.current = triggerChannelsRefresh;
 
 
@@ -3041,8 +3231,18 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
       const nextUserId = (event as CustomEvent<{ activeUserId?: unknown }>).detail?.activeUserId;
       const scopedUserId = resolveScopedUserId(nextUserId);
       if (!scopedUserId) return;
+      channelResponseGateRef.current.changeScope();
+      canonicalChannelStatesReadyRef.current = false;
+      setOfficialChannelStatesReady(false);
+      siteConfigRequestSeqRef.current += 1;
+      officialChannelStatesRequestSeqRef.current += 1;
+      kpisRequestSeqRef.current += 1;
+      if (!applyDashboardChannelState(readCachedDashboardChannelState())) {
+        resetAccountScopedDashboardState();
+      }
       refreshAfterVisibilityRestore = true;
       subscribeForUser(scopedUserId);
+      void loadSiteInrcy();
     };
 
     document.addEventListener("visibilitychange", handleVisibility);
@@ -3062,7 +3262,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
       window.removeEventListener(ACTIVE_INRCY_ACCOUNT_EVENT, handleActiveAccountChange as EventListener);
       removeRealtimeChannel();
     };
-  }, [clearScheduledGeneratorRefreshes]);
+  }, [applyDashboardChannelState, clearScheduledGeneratorRefreshes, loadSiteInrcy, resetAccountScopedDashboardState]);
 
   useEffect(() => {
     const linked = searchParams.get("linked");
@@ -3300,10 +3500,16 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
       const data = await res.json().catch(() => ({}));
       if (!res.ok) return;
       const accounts = Array.isArray(data?.mailAccounts) ? data.mailAccounts : [];
-      // Canal Mails = actif dès qu’au moins une boîte d’envoi est enregistrée.
-      const nextCount = sanitizeMailAccountsConnectedCount(accounts.length);
+      const nextCount = sanitizeMailAccountsConnectedCount(
+        accounts.filter((account: any) => account?.connection_status === "connected").length,
+      );
+      const nextRequiresUpdate = nextCount === 0 && accounts.some((account: any) => account?.connection_status === "needs_update");
       setMailAccountsConnectedCount(nextCount);
-      mergeCachedDashboardChannelState({ mailAccountsConnectedCount: nextCount });
+      setMailAccountsRequireUpdate(nextRequiresUpdate);
+      mergeCachedDashboardChannelState({
+        mailAccountsConnectedCount: nextCount,
+        mailAccountsRequireUpdate: nextRequiresUpdate,
+      });
     } catch {
       // On garde le dernier état affiché si le statut mail est momentanément indisponible.
     }
@@ -3434,12 +3640,15 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
       linkedinSelectedOrganizationName,
       linkedinShareToPersonalProfile,
       tiktokConnected,
+      tiktokRequiresUpdate,
       tiktokUsername,
       tiktokProfileUrl,
       tiktokPreferredMedia,
       youtubeShortsConnected,
+      youtubeShortsRequiresUpdate,
       youtubeShortsUrl,
       pinterestConnected,
+      pinterestRequiresUpdate,
       pinterestUrl,
       inrSearchConnected,
       inrSearchUrl,
@@ -3459,6 +3668,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
       fbSelectedPageId,
       fbSelectedPageName,
       mailAccountsConnectedCount,
+      mailAccountsRequireUpdate,
       inrBadgeProfile,
       inrBadgeProfileReady,
       siteInrcyGa4Connected,
@@ -3506,13 +3716,17 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     siteInrcyDisplayAccess,
     canConfigureSite,
     canViewSite,
+    officialChannelStatesReady,
     channelBlocks,
     facebookPageConnected,
+    facebookConnectionStatus,
     facebookUrl,
     getSiteBubbleProgress,
     gmbConnected,
+    gmbConnectionStatus,
     gmbUrl,
     instagramConnected,
+    instagramConnectionStatus,
     instagramUrl,
     inrBadgeLogoUrl: inrBadgeProfile.logoUrl,
     inrBadgeProfileReady,
@@ -3520,16 +3734,21 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     onOpenInrBadgeModal: openInrBadgeModal,
     onOpenInrAgent: () => goToRequiredSetupAwareModule("/dashboard/agent"),
     linkedinConnected,
+    linkedinConnectionStatus,
     linkedinUrl,
     mailAccountsConnectedCount,
+    mailAccountsRequireUpdate,
     tiktokConnected,
+    tiktokRequiresUpdate,
     tiktokUrl: tiktokProfileUrl,
     canAccessPinterest,
     pinterestConnected,
+    pinterestRequiresUpdate,
     pinterestUrl,
     inrSearchConnected,
     inrSearchUrl,
     youtubeShortsConnected,
+    youtubeShortsRequiresUpdate,
     youtubeShortsUrl,
     openPanel,
     savedSiteWebUrlMeta,
@@ -3545,15 +3764,19 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     canAccessInrSearch,
     canConfigureSite,
     canViewSite,
+    officialChannelStatesReady,
     channelBlocks,
     dashboardCopy,
     facebookPageConnected,
+    facebookConnectionStatus,
     facebookUrl,
     getSiteBubbleProgress,
     goToRequiredSetupAwareModule,
     gmbConnected,
+    gmbConnectionStatus,
     gmbUrl,
     instagramConnected,
+    instagramConnectionStatus,
     instagramUrl,
     inrBadgeProfile.logoUrl,
     inrBadgeProfileCheckReady,
@@ -3561,15 +3784,20 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     isStandardEdition,
     openInrBadgeModal,
     linkedinConnected,
+    linkedinConnectionStatus,
     linkedinUrl,
     mailAccountsConnectedCount,
+    mailAccountsRequireUpdate,
     tiktokConnected,
+    tiktokRequiresUpdate,
     tiktokProfileUrl,
     pinterestConnected,
+    pinterestRequiresUpdate,
     pinterestUrl,
     inrSearchConnected,
     inrSearchUrl,
     youtubeShortsConnected,
+    youtubeShortsRequiresUpdate,
     youtubeShortsUrl,
     openPanel,
     savedSiteWebUrlMeta,

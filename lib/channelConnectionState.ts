@@ -300,7 +300,7 @@ export async function getChannelConnectionStates(
       !fbExpired &&
       fbHasToken,
   );
-  const fbResourceId = asString(fb.resource_id) || asString(fbSettings.pageId) || null;
+  const fbResourceId = asString(fb.resource_id) || null;
   const fbResourceLabel = asString(fb.resource_label) || asString(fbSettings.pageName) || null;
   const fbPageUrl = asString(asRecord(fb.meta).page_url) || asString(fbSettings.url) || buildFacebookPageUrl(fbResourceId);
   const fbPageConnected = Boolean(fbAccountConnected && fbResourceId);
@@ -323,7 +323,7 @@ export async function getChannelConnectionStates(
       !igExpired &&
       igHasToken,
   );
-  const igResourceId = asString(ig.resource_id) || asString(igSettings.igId) || asString(igSettings.pageId) || null;
+  const igResourceId = asString(ig.resource_id) || null;
   const igUsername = asString(ig.resource_label) || asString(igSettings.username) || null;
   const igProfileUrl = asString(igSettings.url) || (igUsername ? `https://www.instagram.com/${igUsername}/` : null);
   const igConnected = Boolean(igAccountConnected && igResourceId);
@@ -418,11 +418,11 @@ export async function getChannelConnectionStates(
   const mailsConnected = mailConnectedCount > 0;
   const mailsRequireUpdate = !mailsConnected && mailRows.some((row) => {
     const status = (asString(row.status) || "").toLowerCase();
+    const isConnected = status === "connected";
     const kind = mailConnectionKind(row.provider);
     return Boolean(
-      status === "connected" &&
-        kind &&
-        getConnectionDisplayStatus(true, kind, asRecord(row.settings)) === "needs_update",
+      kind &&
+        getConnectionDisplayStatus(isConnected, kind, asRecord(row.settings)) === "needs_update",
     );
   });
 
@@ -475,10 +475,13 @@ export async function getChannelConnectionStates(
       gmbHasReusableAuth &&
       !gmbExpired,
   );
-  const gmbResourceId = asString(gmb.resource_id) || asString(gmbSettings.locationName) || null;
+  const gmbResourceId = asString(gmb.resource_id) || null;
   const gmbResourceLabel = asString(gmb.resource_label) || asString(gmbSettings.locationTitle) || null;
   const gmbAccountName = asString(gmbMeta.account) || asString(gmbSettings.accountName) || null;
   const gmbUrl = asString(gmbMeta.url) || asString(gmbSettings.url) || buildGoogleMapsSearchUrl(gmbResourceLabel || gmbResourceId);
+  // Une ancienne valeur miroir peut compléter le nom du compte, mais jamais
+  // créer seule une connexion : la ligne OAuth et la cible officielle restent
+  // obligatoires, comme dans Booster et iNrSend.
   const gmbConfigured = Boolean(gmbAccountConnected && gmbResourceId && gmbAccountName);
   const gmbConnectionStatus = gmbExpired
     ? "needs_update"

@@ -67,6 +67,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       ok: true,
       connected,
+      requiresUpdate: Boolean(states.pinterest.requiresUpdate),
       status: connected ? "connected" : states.pinterest.connection_status,
       accountName: account?.displayName || account?.username || null,
       username: account?.username || null,

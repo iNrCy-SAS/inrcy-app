@@ -32,7 +32,7 @@ test("Google Business reconnect preserves the selected establishment for the sam
   assert.match(callback, /const preserveSelection = Boolean\([\s\S]*preservedLocationName && preservedAccountName/);
   assert.match(callback, /resource_id: preserveSelection \? preservedLocationName : null/);
   assert.match(callback, /status: preserveSelection \? "connected" : "account_connected"/);
-  assert.match(state, /const gmbResourceId = asString\(gmb\.resource_id\) \|\| asString\(gmbSettings\.locationName\)/);
+  assert.match(state, /const gmbResourceId = asString\(gmb\.resource_id\) \|\| null/);
   assert.match(state, /const gmbAccountName = asString\(gmbMeta\.account\) \|\| asString\(gmbSettings\.accountName\)/);
   assert.match(overview, /const resourceId = String\(channelStates\.gmb\.resource_id \|\| ""\)\.trim\(\)/);
   assert.match(overview, /const preferredAccountName = channelStates\.gmb\.account_name/);
@@ -64,7 +64,7 @@ test("iNrStats zeros unavailable channels and renders reconnect yellow versus di
   assert.match(foundations, /FAIL_CLOSED_STATS_CHANNEL_KEYS/);
   assert.match(foundations, /"unavailable"/);
   assert.match(hooks, /markOfficialChannelStatesUnavailable/);
-  assert.match(hooks, /\.catch\(markOfficialChannelStatesUnavailable\)/);
+  assert.match(hooks, /\.catch\(\(\) => markOfficialChannelStatesUnavailable\(requestSeq, accountScope\)\)/);
 });
 
 test("Booster applies connection and Bubble Access guards in UI, worker, and iNrSend", () => {
@@ -103,19 +103,37 @@ test("OAuth display mirrors cannot authorize a channel without a canonical integ
   assert.doesNotMatch(state, /:\s*Boolean\(igSettings\.accountConnected\)/);
   assert.doesNotMatch(state, /:\s*Boolean\(liSettings\.accountConnected \|\| liSettings\.connected\)/);
   assert.doesNotMatch(state, /:\s*Boolean\(gmbSettings\.connected \|\| gmbSettings\.accountEmail\)/);
+  assert.doesNotMatch(state, /const fbResourceId =[^;]*fbSettings\.pageId/);
+  assert.doesNotMatch(state, /const igResourceId =[^;]*igSettings\.(?:igId|pageId)/);
+  assert.doesNotMatch(state, /const gmbResourceId =[^;]*gmbSettings\.locationName/);
   assert.match(state, /OAuth integrations are the only publication authority/);
 
-  for (const assignment of [
-    "instagramAccountConnected: false",
-    "linkedinAccountConnected: false",
-    "gmbAccountConnected: false",
-    "facebookAccountConnected: false",
-    "youtubeShortsConnected: false",
-    "tiktokConnected: false",
-    "pinterestConnected: false",
-  ]) {
-    assert.ok(dashboard.includes(assignment), `dashboard mirror fallback remains: ${assignment}`);
-  }
+  assert.match(dashboard, /fetch\("\/api\/integrations\/channel-states"/);
+  assert.match(dashboard, /\.\.\.\(readCachedDashboardChannelState\(\) \?\? \{\}\)/);
+  assert.match(dashboard, /A transient network failure must keep the last server-confirmed/);
+  assert.doesNotMatch(dashboard, /instagramAccountConnected:\s*Boolean\(igObj/);
+  assert.doesNotMatch(dashboard, /gmbConnected:\s*Boolean\(gmbObj/);
+});
+
+test("Dashboard and iNrStats continuously reconcile canonical state without stale-response rollback", () => {
+  const dashboard = read("app/dashboard/DashboardClient.tsx");
+  const statsHooks = read("app/dashboard/stats/stats.client-hooks.ts");
+  const bubbles = read("app/dashboard/dashboard.flux-bubbles.ts");
+
+  assert.match(dashboard, /officialChannelStatesRequestSeqRef/);
+  assert.match(dashboard, /accountScope !== getActiveBrowserUserId\(\)/);
+  assert.match(dashboard, /window\.setInterval\(refreshCanonicalState, 30_000\)/);
+  assert.match(dashboard, /mergeCachedDashboardChannelState\(officialState\)/);
+  assert.match(dashboard, /if \(Object\.keys\(cachePatch\)\.length\) mergeCachedDashboardChannelState\(cachePatch\)/);
+  assert.match(dashboard, /resetAccountScopedDashboardState\(\)[\s\S]*void loadSiteInrcy\(\)/);
+
+  assert.match(statsHooks, /channelStatesRequestSeq/);
+  assert.match(statsHooks, /requestSeq === channelStatesRequestSeq/);
+  assert.match(statsHooks, /accountScope === getActiveBrowserUserId\(\)/);
+
+  assert.match(bubbles, /projectCanonicalChannelConnection\(officialConnection\)/);
+  assert.doesNotMatch(bubbles, /getBubbleStatusFromBlock/);
+  assert.doesNotMatch(bubbles, /blockDrivenStatus/);
 });
 
 test("iNrAgent uses the same official state and Bubble Access matrix as Booster", () => {

@@ -8,6 +8,7 @@ import {
 import { PROFILE_VERSION_EVENT, type ProfileVersionChangeDetail } from "@/lib/profileVersioning";
 import { fetchSharedDashboardRefreshJson } from "@/lib/dashboardRefreshOrchestrator";
 import { type DashboardChannelKey, isDashboardChannelKey } from "@/lib/dashboardChannels";
+import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
 import {
   markDailyStatsRefreshBootstrapChecked,
   markServerCacheSyncChecked,
@@ -101,6 +102,7 @@ export function useStatsChannelIdentitySync({
 }: UseStatsChannelIdentitySyncArgs) {
   useEffect(() => {
     let cancelled = false;
+    let channelStatesRequestSeq = 0;
 
     const cachedHints = readCachedDashboardChannelIdentityHints();
     if (Object.keys(cachedHints).length > 0) {
@@ -127,8 +129,14 @@ export function useStatsChannelIdentitySync({
       })
       .catch(() => null);
 
-    const markOfficialChannelStatesUnavailable = () => {
-      if (cancelled) return;
+    const isCurrentChannelStatesRequest = (requestSeq: number, accountScope: string | null) => (
+      !cancelled &&
+      requestSeq === channelStatesRequestSeq &&
+      accountScope === getActiveBrowserUserId()
+    );
+
+    const markOfficialChannelStatesUnavailable = (requestSeq: number, accountScope: string | null) => {
+      if (!isCurrentChannelStatesRequest(requestSeq, accountScope)) return;
       setCachedChannelConnectivity((current) => ({
         ...current,
         ...unavailableOfficialChannelConnectivity(),
@@ -140,27 +148,29 @@ export function useStatsChannelIdentitySync({
     };
 
     const refreshOfficialChannelStates = () => {
+      const requestSeq = ++channelStatesRequestSeq;
+      const accountScope = getActiveBrowserUserId();
       void fetch("/api/integrations/channel-states", {
         cache: "no-store",
         credentials: "include",
       })
         .then(async (response) => {
           if (!response.ok) {
-            markOfficialChannelStatesUnavailable();
+            markOfficialChannelStatesUnavailable(requestSeq, accountScope);
             return null;
           }
           return response.json().catch(() => null);
         })
         .then((payload) => {
-          if (cancelled) return;
+          if (!isCurrentChannelStatesRequest(requestSeq, accountScope)) return;
           if (!payload || typeof payload !== "object") {
-            markOfficialChannelStatesUnavailable();
+            markOfficialChannelStatesUnavailable(requestSeq, accountScope);
             return;
           }
           setCachedChannelConnectivity((current) => ({ ...current, ...channelConnectivityFromStates(payload) }));
           setOfficialChannelConnectionStatuses((current) => ({ ...current, ...channelConnectionStatusesFromStates(payload) }));
         })
-        .catch(markOfficialChannelStatesUnavailable);
+        .catch(() => markOfficialChannelStatesUnavailable(requestSeq, accountScope));
     };
     refreshOfficialChannelStates();
 
@@ -174,6 +184,7 @@ export function useStatsChannelIdentitySync({
 
     return () => {
       cancelled = true;
+      channelStatesRequestSeq += 1;
       window.clearInterval(intervalId);
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibilityChange);

@@ -76,7 +76,12 @@ export function useGoogleBusinessChannel({
   }, []);
 
   const disconnectGmbAccount = useCallback(async () => {
-    await fetch("/api/integrations/google-business/disconnect-account", { method: "POST" });
+    const response = await fetch("/api/integrations/google-business/disconnect-account", { method: "POST" }).catch(() => null);
+    const payload = response ? await response.json().catch(() => null) : null;
+    if (!response || !response.ok || payload?.ok === false) {
+      setPanelError(payload?.error, "Impossible de déconnecter le compte Google Business.");
+      return;
+    }
     setGmbConnected(false);
     setGmbAccountConnected(false);
     setGmbConfigured(false);
@@ -100,12 +105,12 @@ export function useGoogleBusinessChannel({
     }, { clearData: true });
     await triggerChannelRefresh("gmb");
     setPanelSuccess("Compte Google déconnecté.");
-  }, [patchChannelConnectionLocally, setPanelSuccess, triggerChannelRefresh, updateRootSettingsKey]);
+  }, [patchChannelConnectionLocally, setPanelError, setPanelSuccess, triggerChannelRefresh, updateRootSettingsKey]);
 
   const disconnectGmbBusiness = useCallback(async () => {
-    const res = await fetch("/api/integrations/google-business/disconnect-location", { method: "POST" });
-    const js = await res.json().catch(() => ({}));
-    if (!res.ok) {
+    const res = await fetch("/api/integrations/google-business/disconnect-location", { method: "POST" }).catch(() => null);
+    const js = res ? await res.json().catch(() => ({})) : {};
+    if (!res || !res.ok) {
       setPanelError(js?.error, "Impossible de déconnecter l'établissement Google Business.");
       return;
     }

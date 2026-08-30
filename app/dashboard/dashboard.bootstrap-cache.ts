@@ -32,7 +32,13 @@ export type GeneratorPowerSnapshot = {
   nextStepKey: string | null;
   remainingSteps: number;
 };
-export type ChannelRefreshOptions = { force?: boolean; dedupeMs?: number };
+export type ChannelRefreshToken = { generation: number; scopeGeneration: number };
+export type ChannelRefreshOptions = {
+  force?: boolean;
+  forceFresh?: boolean;
+  dedupeMs?: number;
+  responseToken?: ChannelRefreshToken;
+};
 export type ChannelStatsRefreshResult = { preferredBlock: InrstatsChannelBlock | null; syncAt: number };
 export type GeneratorChannelRefreshResult = { block: unknown | null; syncAt: number };
 
@@ -320,31 +326,6 @@ export function readCachedMailAccountsConnectedCount(): number | null {
     }
   } catch {
     // ignore malformed dashboard cache
-  }
-
-  try {
-    // Même source que iNrStats : permet à la bulle Mails du dashboard
-    // d'arriver déjà hydratée si iNrStats a été ouvert avant.
-    for (const period of [30, 7] as const) {
-      const raw = [
-        `inrcy_stats_mail_snapshot_v3:${period}`,
-        `inrcy_stats_mail_snapshot_v2:${period}`,
-        `inrcy_stats_mail_snapshot_v1:${period}`,
-      ].map((key) => readUiCacheValue(key)).find(Boolean);
-      if (!raw) continue;
-      const parsed = JSON.parse(raw) as any;
-      const syncedAt = Number(parsed?.syncedAt ?? parsed?.stats?.syncedAt);
-      const age = Date.now() - syncedAt;
-      if (!Number.isFinite(age) || age < 0 || age > 7 * 24 * 60 * 60 * 1000) continue;
-      if (parsed?.stats && Object.prototype.hasOwnProperty.call(parsed.stats, "connectedCount")) {
-        return sanitizeMailAccountsConnectedCount(parsed.stats.connectedCount);
-      }
-      if (Object.prototype.hasOwnProperty.call(parsed, "connectedCount")) {
-        return sanitizeMailAccountsConnectedCount(parsed.connectedCount);
-      }
-    }
-  } catch {
-    // ignore malformed iNrStats cache
   }
 
   return null;

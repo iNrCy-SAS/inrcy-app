@@ -1,4 +1,3 @@
-import type { ModuleStatus } from "./dashboard.types";
 import type { DashboardChannelKey } from "@/lib/dashboardChannels";
 import type { InrstatsChannelBlock } from "@/lib/inrstats/channelBlocks";
 
@@ -6,54 +5,6 @@ export function normalizeExternalHref(input: string | null | undefined) {
   const value = (input || "").trim();
   if (!value) return null;
   return value.startsWith("http") ? value : `https://${value}`;
-}
-
-export function hasMeaningfulChannelBlock(block: InrstatsChannelBlock | null | undefined) {
-  if (!block) return false;
-  return Boolean(
-    block.connection.connected ||
-      block.connection.accountConnected ||
-      block.connection.configured ||
-      block.connection.statsConnected ||
-      block.connection.expired ||
-      block.connection.requiresUpdate ||
-      block.syncAt ||
-      block.snapshotDate ||
-      block.opportunities > 0 ||
-      (block.capturedLeads?.week ?? 0) > 0 ||
-      (block.capturedLeads?.month ?? 0) > 0 ||
-      block.estimatedValue > 0 ||
-      block.error ||
-      block.connection.resourceUrl ||
-      block.connection.resourceLabel ||
-      block.connection.resourceId
-  );
-}
-
-export function getBubbleStatusFromBlock(
-  channel: DashboardChannelKey,
-  block: InrstatsChannelBlock,
-): { status: ModuleStatus; text: string } | null {
-  if (!hasMeaningfulChannelBlock(block)) return null;
-
-  if (channel === "site_inrcy") {
-    if (!block.connection.connected) return null;
-    return { status: "connected", text: "Connecté" };
-  }
-
-  if (
-    block.connection.requiresUpdate ||
-    block.connection.connectionStatus === "needs_update" ||
-    block.connection.expired
-  ) {
-    return { status: "reconnect", text: "À reconnecter" };
-  }
-
-  if (block.connection.connected) {
-    return { status: "connected", text: "Connecté" };
-  }
-
-  return { status: "available", text: "A connecter" };
 }
 
 export function getBubbleViewHrefFromBlock(

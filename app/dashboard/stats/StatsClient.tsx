@@ -186,16 +186,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
             loading: false,
             error: cachedBlock?.error || undefined,
             capturedLeads: normalizeCapturedLeads(cachedCube.blocks?.[k]?.capturedLeads, prev[k]?.capturedLeads),
-            connectionStatus: cachedBlock?.connection?.connectionStatus,
           };
-        }
-        return next;
-      });
-      setOfficialChannelConnectionStatuses((current) => {
-        const next = { ...current };
-        for (const key of Object.keys(cachedCube.blocks || {}) as CubeKey[]) {
-          const status = cachedCube.blocks?.[key]?.connection?.connectionStatus;
-          if (status === "connected" || status === "needs_update" || status === "disconnected") next[key] = status;
         }
         return next;
       });

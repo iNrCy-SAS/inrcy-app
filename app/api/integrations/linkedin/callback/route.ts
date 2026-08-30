@@ -307,7 +307,7 @@ export async function GET(req: Request) {
       expires_at: expiresAt,
       resource_id: authorUrn || null,
       resource_label: name || null,
-      meta: {
+      meta: withCurrentConnectionVersion("channel:linkedin", {
         ...existingMeta,
         profile_display_name:
           name || existingMeta["profile_display_name"] || null,
@@ -321,13 +321,15 @@ export async function GET(req: Request) {
           ? refreshTokenExpiresIn
           : (existingMeta["refresh_token_expires_in"] ?? null),
         refresh_expires_at: refreshTokenExpiresAt,
-        ...withCurrentConnectionVersion("channel:linkedin", {}),
-      },
+      }),
     };
 
-    await supabaseAdmin
+    const { error: integrationUpsertError } = await supabaseAdmin
       .from("integrations")
       .upsert(payload, { onConflict: "user_id,provider,source,product" });
+    if (integrationUpsertError) {
+      return fail("db_upsert_failed", "Le service est momentanément indisponible. Merci de réessayer.");
+    }
 
     // Invalidate stats cache so iNrStats + Generator reflect the new connection immediately.
     await invalidateUserStatsCache(supabase, userId);

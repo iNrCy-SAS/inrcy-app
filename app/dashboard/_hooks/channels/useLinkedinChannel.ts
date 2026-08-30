@@ -82,7 +82,12 @@ export function useLinkedinChannel({
   }, [connectLinkedinAccount]);
 
   const disconnectLinkedinAccount = useCallback(async () => {
-    await fetch("/api/integrations/linkedin/disconnect-account", { method: "POST" });
+    const response = await fetch("/api/integrations/linkedin/disconnect-account", { method: "POST" }).catch(() => null);
+    const payload = response ? await response.json().catch(() => null) : null;
+    if (!response || !response.ok || payload?.ok === false) {
+      setPanelError(payload?.error, "Impossible de déconnecter le compte LinkedIn.");
+      return;
+    }
     setLinkedinAccountConnected(false);
     setLinkedinConnected(false);
     setLinkedinDisplayName("");
@@ -116,7 +121,7 @@ export function useLinkedinChannel({
     });
     await triggerChannelRefresh("linkedin");
     setPanelSuccess("Compte LinkedIn déconnecté.");
-  }, [patchChannelConnectionLocally, updateRootSettingsKey, triggerChannelRefresh, setPanelSuccess]);
+  }, [patchChannelConnectionLocally, updateRootSettingsKey, triggerChannelRefresh, setPanelError, setPanelSuccess]);
 
   const persistLinkedinOrganization = useCallback(async (org: LinkedinOrganization, options?: { silent?: boolean }) => {
     if (!org?.id) return false;

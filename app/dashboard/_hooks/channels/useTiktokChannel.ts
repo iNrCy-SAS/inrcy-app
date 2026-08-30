@@ -128,10 +128,14 @@ export function useTiktokChannel({ panel, patchChannelConnectionLocally, trigger
   }, []);
 
   const applyTiktok = useCallback((payload: unknown, options?: { refresh?: boolean }) => {
+    const source = payload && typeof payload === "object" && !Array.isArray(payload)
+      ? payload as Record<string, unknown>
+      : {};
     const tiktok = normalizeTiktokSettings(payload);
     const defaults = normalizeTiktokDefaults(tiktok.defaults);
 
-    const connected = Boolean(tiktok.connected);
+    const requiresUpdate = Boolean(source.requiresUpdate || source.connectionStatus === "needs_update");
+    const connected = Boolean(tiktok.connected && !requiresUpdate);
     const username = connected ? (tiktok.username || "") : "";
     const profileUrl = connected ? (tiktok.profileUrl || "") : "";
 
@@ -152,9 +156,9 @@ export function useTiktokChannel({ panel, patchChannelConnectionLocally, trigger
       accountConnected: connected,
       configured: connected,
       statsConnected: connected,
-      expired: false,
-      requiresUpdate: false,
-      connectionStatus: connected ? "connected" : "disconnected",
+      expired: requiresUpdate,
+      requiresUpdate,
+      connectionStatus: requiresUpdate ? "needs_update" : connected ? "connected" : "disconnected",
       resourceId: connected ? (username || profileUrl || null) : null,
       resourceLabel: connected ? (username || null) : null,
       resourceUrl: connected ? (profileUrl || null) : null,

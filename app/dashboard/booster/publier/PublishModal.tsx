@@ -1075,6 +1075,7 @@ export default function PublishModal({
 
   useEffect(() => {
     let alive = true;
+    let connectedChannelsRequestSeq = 0;
     const failClosedConnectedChannels = () => {
       if (!alive) return;
       const unavailable = CHANNEL_KEYS.reduce(
@@ -1101,16 +1102,18 @@ export default function PublishModal({
       );
     };
     const refreshConnectedChannels = async () => {
+      const requestSeq = ++connectedChannelsRequestSeq;
       try {
         const res = await fetch("/api/booster/connected-channels", {
           cache: "no-store" as any,
         });
+        if (!alive || requestSeq !== connectedChannelsRequestSeq) return;
         if (!res.ok) {
           failClosedConnectedChannels();
           return;
         }
         const json = await res.json();
-        if (!alive) return;
+        if (!alive || requestSeq !== connectedChannelsRequestSeq) return;
         if (json?.channels && typeof json.channels === "object") {
           const nextConnected = CHANNEL_KEYS.reduce(
             (result, key) => {
@@ -1202,6 +1205,7 @@ export default function PublishModal({
           failClosedConnectedChannels();
         }
       } catch {
+        if (!alive || requestSeq !== connectedChannelsRequestSeq) return;
         failClosedConnectedChannels();
       }
     };
@@ -1211,6 +1215,7 @@ export default function PublishModal({
     window.addEventListener("focus", onFocus);
     return () => {
       alive = false;
+      connectedChannelsRequestSeq += 1;
       window.clearInterval(intervalId);
       window.removeEventListener("focus", onFocus);
     };

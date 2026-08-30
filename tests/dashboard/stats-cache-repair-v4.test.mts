@@ -6,15 +6,20 @@ import test from "node:test";
 const ROOT = process.cwd();
 const read = (relativePath: string) => fs.readFileSync(path.join(ROOT, relativePath), "utf8");
 
-test("one shared V4 schema invalidates overview, summary signature and direct memory caches", () => {
+test("one shared current schema invalidates overview, summary signature and direct memory caches", () => {
   const schema = read("lib/stats/cacheSchema.ts");
   const overviewKey = read("lib/stats/buildOverview.connections.ts");
   const signature = read("lib/stats/connectionSignature.ts");
   const metrics = read("lib/metrics/computeMetrics.ts");
 
-  assert.match(schema, /INRCY_STATS_CACHE_SCHEMA_VERSION = "v4-2026-08-12"/);
+  assert.match(schema, /INRCY_STATS_CACHE_SCHEMA_VERSION = "v5-2026-08-30-canonical-connections"/);
   assert.match(overviewKey, /cache_schema:\$\{INRCY_STATS_CACHE_SCHEMA_VERSION\}/);
   assert.match(signature, /"stats_cache_schema", INRCY_STATS_CACHE_SCHEMA_VERSION/);
+  assert.match(signature, /CONNECTION_RECONNECT_MARKER_KEYS/);
+  assert.match(signature, /pushPart\(parts, "required_versions", CONNECTION_REQUIRED_VERSIONS\)/);
+  assert.match(signature, /has_access_token/);
+  assert.match(signature, /has_refresh_token/);
+  assert.match(signature, /expires_at/);
   assert.match(metrics, /schema=\$\{INRCY_STATS_CACHE_SCHEMA_VERSION\}/);
 });
 

@@ -8,6 +8,7 @@ import { withCurrentConnectionVersion } from "@/lib/connectionVersions";
 import { asRecord } from "@/lib/tsSafe";
 import { PINTEREST_PRODUCT, PINTEREST_PROVIDER, PINTEREST_SOURCE } from "@/lib/pinterestOAuth";
 import { resolveActiveInrcyAccountId } from "@/lib/multicompte/server";
+import { jsonUserFacingError } from "@/lib/apiUserFacingErrors";
 
 function normalizeSettingsRoot(value: unknown) {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -27,7 +28,7 @@ export async function POST() {
       return bubbleAccessDisabledResponse("Pinterest");
     }
 
-    await supabaseAdmin
+    const { data: disconnected, error: disconnectError } = await supabaseAdmin
       .from("integrations")
       .update({
         status: "disconnected",
@@ -44,7 +45,19 @@ export async function POST() {
       .eq("user_id", activeUserId)
       .eq("provider", PINTEREST_PROVIDER)
       .eq("source", PINTEREST_SOURCE)
-      .eq("product", PINTEREST_PRODUCT);
+      .eq("product", PINTEREST_PRODUCT)
+      .select("id,status")
+      .maybeSingle();
+
+    if (disconnectError) {
+      return jsonUserFacingError(disconnectError, {
+        status: 500,
+        fallback: "Déconnexion Pinterest impossible.",
+      });
+    }
+    if (disconnected && disconnected.status !== "disconnected") {
+      return NextResponse.json({ ok: false, error: "Pinterest n’a pas été déconnecté. Réessayez." }, { status: 500 });
+    }
 
     const { data: cfg } = await supabaseAdmin
       .from("pro_tools_configs")

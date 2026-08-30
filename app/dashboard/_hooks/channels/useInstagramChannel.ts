@@ -130,7 +130,12 @@ export function useInstagramChannel({
   }, []);
 
   const disconnectInstagramAccount = useCallback(async () => {
-    await fetch("/api/integrations/instagram/disconnect-account", { method: "POST" });
+    const response = await fetch("/api/integrations/instagram/disconnect-account", { method: "POST" }).catch(() => null);
+    const payload = response ? await response.json().catch(() => null) : null;
+    if (!response || !response.ok || payload?.ok === false) {
+      setPanelError(payload?.error, "Impossible de déconnecter le compte Instagram.");
+      return;
+    }
     setInstagramAccountConnected(false);
     setInstagramConnected(false);
     setInstagramUsername("");
@@ -158,10 +163,15 @@ export function useInstagramChannel({
     await triggerChannelRefresh("instagram");
     await syncInstagramStateFromServer();
     setPanelSuccess("Compte Instagram déconnecté.");
-  }, [patchChannelConnectionLocally, updateRootSettingsKey, triggerChannelRefresh, setPanelSuccess, syncInstagramStateFromServer]);
+  }, [patchChannelConnectionLocally, updateRootSettingsKey, triggerChannelRefresh, setPanelError, setPanelSuccess, syncInstagramStateFromServer]);
 
   const disconnectInstagramProfile = useCallback(async () => {
-    await fetch("/api/integrations/instagram/disconnect-profile", { method: "POST" });
+    const response = await fetch("/api/integrations/instagram/disconnect-profile", { method: "POST" }).catch(() => null);
+    const payload = response ? await response.json().catch(() => null) : null;
+    if (!response || !response.ok || payload?.ok === false) {
+      setPanelError(payload?.error, "Impossible de déconnecter le profil Instagram.");
+      return;
+    }
     setInstagramConnected(false);
     setInstagramUsername("");
     setInstagramUrl("");
@@ -186,7 +196,7 @@ export function useInstagramChannel({
     await triggerChannelRefresh("instagram");
     await syncInstagramStateFromServer();
     setPanelSuccess("Profil Instagram déconnecté.");
-  }, [patchChannelConnectionLocally, updateRootSettingsKey, triggerChannelRefresh, setPanelSuccess, syncInstagramStateFromServer]);
+  }, [patchChannelConnectionLocally, updateRootSettingsKey, triggerChannelRefresh, setPanelError, setPanelSuccess, syncInstagramStateFromServer]);
 
   const loadInstagramAccounts = useCallback(async () => {
     if (!instagramAccountConnected) return;

@@ -78,6 +78,8 @@ function PreferenceToggle({
 type YoutubeShortsSettings = {
   connected: boolean;
   accountConnected: boolean;
+  requiresUpdate: boolean;
+  connectionStatus: "connected" | "disconnected" | "needs_update";
   channelUrl: string;
   channelHandle: string;
   channelName: string;
@@ -101,6 +103,8 @@ type YoutubeShortsSettings = {
 const DEFAULT_SETTINGS: YoutubeShortsSettings = {
   connected: false,
   accountConnected: false,
+  requiresUpdate: false,
+  connectionStatus: "disconnected",
   channelUrl: "",
   channelHandle: "",
   channelName: "",
@@ -149,6 +153,10 @@ function normalizeSettings(value: unknown): YoutubeShortsSettings {
     ...DEFAULT_SETTINGS,
     connected: Boolean(source.connected),
     accountConnected: Boolean(source.accountConnected ?? source.connected),
+    requiresUpdate: Boolean(source.requiresUpdate || source.connectionStatus === "needs_update"),
+    connectionStatus: source.connectionStatus === "needs_update"
+      ? "needs_update"
+      : source.connected ? "connected" : "disconnected",
     channelUrl: String(source.channelUrl || source.url || ""),
     channelHandle: String(source.channelHandle || source.handle || ""),
     channelName: String(source.channelName || source.name || ""),
@@ -198,6 +206,8 @@ function emitDashboardUpdate(settings: YoutubeShortsSettings) {
   window.dispatchEvent(new CustomEvent("inrcy:youtube-shorts-settings-updated", {
     detail: {
       connected: settings.connected,
+      requiresUpdate: settings.requiresUpdate,
+      connectionStatus: settings.connectionStatus,
       channelUrl: settings.connected ? settings.channelUrl : "",
       channelHandle: settings.connected ? settings.channelHandle : "",
       channelName: settings.connected ? settings.channelName : "",
@@ -330,9 +340,9 @@ export default function YoutubeShortsSettingsContent({ onUnsavedChange }: { onUn
 
 
 
-  const connected = Boolean(settings.connected);
-  const statusLabel = connected ? "Connecté" : "À connecter";
-  const statusColor = connected ? "rgba(34,197,94,0.95)" : "rgba(148,163,184,0.9)";
+  const connected = Boolean(settings.connected && !settings.requiresUpdate);
+  const statusLabel = settings.requiresUpdate ? "À reconnecter" : connected ? "Connecté" : "À connecter";
+  const statusColor = settings.requiresUpdate ? "rgba(251,146,60,0.95)" : connected ? "rgba(34,197,94,0.95)" : "rgba(148,163,184,0.9)";
 
   return (
     <div style={{ display: "grid", gap: 14 }}>
