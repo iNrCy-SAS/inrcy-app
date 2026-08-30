@@ -1,22 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-
-type AuthErrorLike = {
-  code?: unknown;
-  message?: unknown;
-};
-
-export function isExistingAuthUserError(error: unknown) {
-  const candidate = (error || {}) as AuthErrorLike;
-  const code = String(candidate.code || "").trim().toLowerCase();
-  const message = String(candidate.message || error || "").toLowerCase();
-  return (
-    ["user_already_exists", "email_exists"].includes(code) ||
-    message.includes("already") ||
-    message.includes("registered") ||
-    message.includes("already been registered") ||
-    message.includes("email_exists")
-  );
-}
+export { isExistingAuthUserError } from "@/lib/supabaseAuthErrorPolicy";
 
 export async function hasKnownInrcyAccountForEmail(rawEmail: unknown) {
   const email = String(rawEmail || "").trim().toLowerCase();

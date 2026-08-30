@@ -7,7 +7,17 @@ import { ensureNotificationPreferences, seedOnboardingNotifications } from "@/li
 import { ensureProfileRow } from "@/lib/ensureProfileRow";
 import { provisionNewAccountBubbleAccess } from "@/lib/appBubbleAccessProvisioning";
 import { getClientIp, enforceRateLimit } from "@/lib/rateLimit";
+import { log } from "@/lib/observability/logger";
+import { getRequestId } from "@/lib/observability/request";
+import { captureApiException } from "@/lib/observability/sentry";
 import { sendAdminSubscriptionAlertForUser } from "@/lib/subscriptionAdmin";
+import { sendSignupFailureAlert } from "@/lib/signupFailureAlert";
+import {
+  getSignupFailureErrorCode,
+  getSignupFailureSafeMessage,
+  maskSignupEmailForLog,
+  type SignupFailureStage,
+} from "@/lib/signupFailureAlertPolicy";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { ensureTrialSubscription } from "@/lib/trialSubscription";
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
@@ -59,13 +69,25 @@ type SignupPayload = {
   browserMatch: MetaBrowserMatch;
 };
 
-function jsonResponse(body: unknown, status = 200) {
+function jsonResponse(body: unknown, status = 200, extraHeaders?: HeadersInit) {
   return NextResponse.json(body, {
     status,
     headers: {
       "Cache-Control": "no-store",
+      ...Object.fromEntries(new Headers(extraHeaders).entries()),
     },
   });
+}
+
+function isValidSignupEmail(value: string) {
+  if (!value || value.length > 254 || /\s/.test(value)) return false;
+  const separator = value.lastIndexOf("@");
+  if (separator <= 0 || separator !== value.indexOf("@")) return false;
+  const local = value.slice(0, separator);
+  const domain = value.slice(separator + 1);
+  if (!local || local.length > 64 || !domain || domain.length > 253) return false;
+  if (!domain.includes(".") || domain.startsWith(".") || domain.endsWith(".")) return false;
+  return !domain.split(".").some((label) => !label || label.startsWith("-") || label.endsWith("-"));
 }
 
 function toPlainObject(value: unknown): LooseRecord {
@@ -429,9 +451,16 @@ function resolveSharedSecret(req: Request, body: LooseRecord) {
 }
 
 export async function POST(req: Request) {
+  const requestId = getRequestId(req) || randomUUID();
+  let payload: SignupPayload | null = null;
+  let acceptedAttempt = false;
+  let stage: SignupFailureStage = "unknown";
+  let authUserCreated = false;
+  let userId: string | null = null;
+
   try {
     const body = await readRequestBody(req);
-    const payload = normalizePayload(body);
+    payload = normalizePayload(body);
 
     const expectedSecret = requireEnv("INRCY_TRIAL_SIGNUP_SECRET").trim();
     const gotSecret = resolveSharedSecret(req, body);
@@ -456,6 +485,10 @@ export async function POST(req: Request) {
       return jsonResponse({ error: "Email manquant.", message: "Email manquant." }, 400);
     }
 
+    if (!isValidSignupEmail(payload.email)) {
+      return jsonResponse({ error: "Adresse email invalide.", message: "Adresse email invalide." }, 400);
+    }
+
     if (!payload.consent) {
       return jsonResponse({
         error: "Le consentement est obligatoire.",
@@ -463,7 +496,7 @@ export async function POST(req: Request) {
       }, 400);
     }
 
-
+    acceptedAttempt = true;
     const appOrigin = (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || "https://app.inrcy.com").replace(/\/$/, "");
     const inviteRedirectUrl = buildSupabaseEmailRedirectUrl(
       appOrigin,
@@ -471,6 +504,7 @@ export async function POST(req: Request) {
       payload.language,
     );
 
+    stage = "account_lookup";
     if (await hasKnownInrcyAccountForEmail(payload.email)) {
       return jsonResponse(
         {
@@ -490,6 +524,7 @@ export async function POST(req: Request) {
       consent: payload.consent,
     });
 
+    stage = "auth_invitation";
     const { data: invite, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(payload.email, {
       data: {
         first_name: payload.firstName || undefined,
@@ -515,16 +550,20 @@ export async function POST(req: Request) {
           409
         );
       }
-      throw new Error(inviteError.message);
+      throw inviteError;
     }
 
     const invitedUser = invite.user;
-    const userId = invitedUser.id;
+    userId = invitedUser?.id || null;
+    if (!userId) throw new Error("supabase_invitation_user_missing");
+    authUserCreated = true;
     const nowIso = new Date().toISOString();
 
     // Apply authoritative defaults after the Auth trigger has completed.
     // In particular, Site iNrCy must remain opt-in (false) for every new account.
+    stage = "bubble_access";
     await provisionNewAccountBubbleAccess(userId);
+    stage = "profile_bootstrap";
     await ensureProfileRow(invitedUser);
 
     const profilePatch: LooseRecord = {
@@ -538,11 +577,13 @@ export async function POST(req: Request) {
     if (payload.companyName) profilePatch.company_legal_name = payload.companyName;
     if (payload.phone) profilePatch.phone = payload.phone;
 
+    stage = "profile_update";
     const { error: profileError } = await supabaseAdmin
       .from("profiles")
       .upsert(profilePatch, { onConflict: "user_id" });
-    if (profileError) throw new Error(profileError.message);
+    if (profileError) throw profileError;
 
+    stage = "business_profile_update";
     const { error: languageProfileError } = await supabaseAdmin
       .from("business_profiles")
       .upsert(
@@ -553,10 +594,13 @@ export async function POST(req: Request) {
         },
         { onConflict: "user_id" },
       );
-    if (languageProfileError) throw new Error(languageProfileError.message);
+    if (languageProfileError) throw languageProfileError;
 
+    stage = "notification_preferences";
     await ensureNotificationPreferences(userId);
+    stage = "onboarding_notifications";
     await seedOnboardingNotifications(userId);
+    stage = "trial_subscription";
     const { edition, trialDays, end } = await ensureTrialSubscription(userId, payload.email);
 
     const capiResult = await sendMetaLeadConversion({
@@ -617,11 +661,113 @@ export async function POST(req: Request) {
       message: "Invitation envoyée. Le professionnel peut créer son mot de passe depuis l'email reçu.",
     });
   } catch (error: unknown) {
+    const errorCode = getSignupFailureErrorCode(error);
+    const safeErrorMessage = getSignupFailureSafeMessage(error);
+    const canAlert = acceptedAttempt && payload !== null;
+    let alertDelivery: "not-applicable" | "pending" | "sent" | "deduplicated" | "failed" =
+      canAlert ? "pending" : "not-applicable";
+
+    log.error("trial_signup_failed", {
+      request_id: requestId,
+      route: "/api/public/trial-signup",
+      status_code: 500,
+      stage,
+      user_id: userId || undefined,
+      auth_user_created: authUserCreated,
+      email_masked: maskSignupEmailForLog(payload?.email),
+      source: String(payload?.source || "wordpress-elementor").slice(0, 100),
+      error_code: errorCode,
+      error_message: safeErrorMessage,
+      alert_delivery: alertDelivery,
+    });
+    captureApiException(req, error, {
+      area: "auth",
+      operation: "POST /api/public/trial-signup",
+      statusCode: 500,
+      userId,
+      stage,
+      authUserCreated,
+      errorCode,
+    });
+
+    if (canAlert && payload) {
+      const alertInput = {
+        source: payload.source || "wordpress-elementor",
+        stage,
+        requestId,
+        occurredAt: new Date().toISOString(),
+        userId,
+        authUserCreated,
+        contact: {
+          email: payload.email,
+          firstName: payload.firstName,
+          lastName: payload.lastName,
+          companyName: payload.companyName,
+          phone: payload.phone,
+          consent: payload.consent,
+        },
+        errorCode,
+        errorMessage: safeErrorMessage,
+      } as const;
+
+      try {
+        const result = await sendSignupFailureAlert(alertInput);
+        alertDelivery = result.inFlight
+          ? "pending"
+          : result.deduplicated
+            ? "deduplicated"
+            : "sent";
+        log.info(
+          result.inFlight
+            ? "trial_signup_failure_alert_pending"
+            : result.deduplicated
+              ? "trial_signup_failure_alert_deduplicated"
+              : "trial_signup_failure_alert_sent",
+          {
+            request_id: requestId,
+            stage,
+            user_id: userId || undefined,
+            email_masked: maskSignupEmailForLog(payload?.email),
+          },
+        );
+      } catch (alertError) {
+        alertDelivery = "failed";
+        log.error("trial_signup_failure_alert_failed", {
+          request_id: requestId,
+          stage,
+          user_id: userId || undefined,
+          email_masked: maskSignupEmailForLog(payload?.email),
+          error_code: getSignupFailureErrorCode(alertError),
+          error_message: getSignupFailureSafeMessage(alertError),
+        });
+        captureApiException(req, alertError, {
+          area: "auth",
+          operation: "signup failure alert delivery",
+          statusCode: 500,
+          userId,
+          stage,
+        });
+      }
+    }
+
     const message = getSimpleFrenchErrorMessage(
       error,
       "Le service est momentanément indisponible. Merci de réessayer dans quelques minutes."
     );
-    return jsonResponse({ error: message }, 500);
+    return jsonResponse(
+      {
+        error: message,
+        request_id: requestId,
+        alert_delivery: alertDelivery,
+        alert_sent: alertDelivery === "sent",
+        alert_deduplicated: alertDelivery === "deduplicated",
+      },
+      500,
+      {
+        "X-Request-Id": requestId,
+        "X-InrCy-Signup-Alert": alertDelivery,
+      },
+    );
   }
 }
 
