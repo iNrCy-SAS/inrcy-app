@@ -103,11 +103,16 @@ test("les refus OAuth LinkedIn récupérables restent hors de Sentry", () => {
 
 test("les invitations évitent les appels Auth déjà connus comme doublons", () => {
   const helper = read("lib/supabaseAuthBusinessErrors.ts");
+  const authErrorPolicy = read("lib/supabaseAuthErrorPolicy.ts");
   const publicSignup = read("app/api/public/trial-signup/route.ts");
   const adminSignup = read("app/api/admin/create-trial/route.ts");
 
   assert.match(helper, /hasKnownInrcyAccountForEmail/);
-  assert.match(helper, /user_already_exists/);
+  assert.match(
+    helper,
+    /export\s*\{\s*isExistingAuthUserError\s*\}\s*from\s*["']@\/lib\/supabaseAuthErrorPolicy["']/,
+  );
+  assert.match(authErrorPolicy, /user_already_exists/);
   assert.match(publicSignup, /hasKnownInrcyAccountForEmail\(payload\.email\)/);
   assert.match(adminSignup, /hasKnownInrcyAccountForEmail\(email\)/);
 });
