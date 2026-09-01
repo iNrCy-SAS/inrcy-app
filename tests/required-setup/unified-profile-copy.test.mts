@@ -5,7 +5,7 @@ import test from "node:test";
 
 const root = process.cwd();
 const read = (relativePath: string) => readFileSync(join(root, relativePath), "utf8");
-const readJson = <T>(relativePath: string) => JSON.parse(read(relativePath)) as T;
+const readJson = <T,>(relativePath: string) => JSON.parse(read(relativePath)) as T;
 const locales = readdirSync(join(root, "messages"), { withFileTypes: true })
   .filter((entry) => entry.isDirectory())
   .map((entry) => entry.name)

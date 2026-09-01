@@ -23,8 +23,12 @@ import {
 } from "../../lib/boosterVideoTransforms.ts";
 import { validateVideoPublicationForChannel } from "../../lib/videoPublicationPolicy.ts";
 import {
+  describeGoogleBusinessMediaProbeFailure,
+  describeGoogleBusinessMediaProbeFailures,
+  isGoogleBusinessMediaProviderError,
   parseGoogleBusinessMediaContentLength,
   probeGoogleBusinessMediaUrl,
+  toGoogleBusinessMediaProbeDiagnostics,
 } from "../../lib/googleBusinessMediaProbe.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -239,6 +243,44 @@ test("Google media URL probing rejects inaccessible, mistyped and oversized file
   assert.match(sources, /file_too_large/);
 });
 
+test("Google media diagnostics explain the exact rejection without persisting the private URL", () => {
+  const result = {
+    ok: false,
+    url: "https://storage.example.test/private-name.jpg",
+    kind: "image" as const,
+    status: 403,
+    contentType: "text/html",
+    contentLength: 321,
+    reason: "http_error" as const,
+  };
+  assert.match(describeGoogleBusinessMediaProbeFailure(result), /HTTP 403/);
+  assert.match(describeGoogleBusinessMediaProbeFailures([result]), /Média 1/);
+  const diagnostics = toGoogleBusinessMediaProbeDiagnostics([result]);
+  assert.deepEqual(diagnostics, [
+    {
+      index: 1,
+      reason: "http_error",
+      status: 403,
+      contentType: "text/html",
+      contentLength: 321,
+    },
+  ]);
+  assert.equal("url" in diagnostics[0], false);
+});
+
+test("a CTA URL rejection is not misclassified as an image rejection", () => {
+  assert.equal(
+    isGoogleBusinessMediaProviderError("Invalid callToAction URL"),
+    false,
+  );
+  assert.equal(
+    isGoogleBusinessMediaProviderError(
+      "Invalid MediaItem: sourceUrl image could not be downloaded",
+    ),
+    true,
+  );
+});
+
 test("prewarm, publish-now and iNrSend all use the same Google safeguards", () => {
   const prewarm = read("app/api/media-pipeline/workspace/prewarm/route.ts");
   const route = read("app/api/booster/publish-now/route.ts");
@@ -251,8 +293,13 @@ test("prewarm, publish-now and iNrSend all use the same Google safeguards", () =
   assert.match(route, /preflightFailuresByChannel/);
   assert.match(route, /video_variant_required/);
   assert.match(route, /filterGoogleBusinessMediaUrls/);
+  assert.match(route, /gmb_media_preflight_failed/);
+  assert.match(route, /rebuildGoogleBusinessImages/);
   assert.match(route, /La publication texte n’a pas été envoyée à la place/);
   assert.match(inrsend, /filterGoogleBusinessMediaUrls/);
+  assert.match(inrsend, /gmbPatchLocalPost/);
+  assert.match(inrsend, /create and validate the new post first/);
+  assert.doesNotMatch(inrsend, /publishGmb\(\{ withoutMedia:/);
   assert.match(variantServer, /CHANNEL_VIDEO_VARIANT_PIPELINE_VERSION = 7/);
   assert.match(variantServer, /GOOGLE_BUSINESS_VIDEO_MIN_SHORT_EDGE/);
   assert.match(variantServer, /n’a pas été coupée automatiquement/);

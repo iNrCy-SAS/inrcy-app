@@ -67,15 +67,25 @@ test("Facebook envoie au plus deux images simultanément et garde l'ordre", () =
   assert.match(source, /results\[index\] = await mapper/);
 });
 
-test("une vidéo en échec reste un échec de canal, tandis que les images gardent leur reprise texte", () => {
+test("Google Business ne dégrade jamais une publication avec image en texte seul", () => {
   const immediate = read("app/api/booster/publish-now/route.ts");
   const inrSend = read("lib/inrsend/publicationChannelActions.ts");
-  for (const source of [immediate, inrSend]) {
-    assert.doesNotMatch(source, /published_without_video/);
-    assert.match(source, /published_without_image/);
-    assert.match(source, /published_with_partial_images/);
-    assert.match(source, /fallbackResp/);
-  }
+  const immediateGmb = immediate.slice(
+    immediate.indexOf('if (ch === "gmb")'),
+    immediate.indexOf("const unsupportedChannelMessage =", immediate.indexOf('if (ch === "gmb")')),
+  );
+  const inrSendGmb = inrSend.slice(
+    inrSend.indexOf('if (channel === "gmb")'),
+    inrSend.indexOf('if (channel === "tiktok")', inrSend.indexOf('if (channel === "gmb")')),
+  );
+
+  assert.doesNotMatch(immediateGmb, /retryWithoutMedia|published_without_image/);
+  assert.doesNotMatch(inrSendGmb, /withoutMedia|published_without_image/);
+  assert.match(immediateGmb, /gmb_media_preflight_failed/);
+  assert.match(immediateGmb, /rebuildGoogleBusinessImages/);
+  assert.match(inrSendGmb, /rebuildGoogleBusinessImagesFromSources/);
+  assert.match(inrSendGmb, /gmbPatchLocalPost/);
+  assert.match(inrSendGmb, /gmbDeleteLocalPost/);
 });
 
 test("aucun fond flouté n'est réintroduit", () => {

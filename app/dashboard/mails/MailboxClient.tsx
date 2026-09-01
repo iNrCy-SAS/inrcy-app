@@ -4640,6 +4640,17 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
     const channel = String(activeDetailsChannelEntry?.key || "").trim();
     if (!publicationId || !channel) return;
 
+    const normalizedChannel = normalizeChannelKey(channel);
+    if (normalizedChannel === "instagram") {
+      const confirmed = await confirmInrcy({
+        title: i18nT("instagram_business_edit_warning_title"),
+        message: i18nT("instagram_business_edit_warning_message"),
+        confirmLabel: i18nT("instagram_business_edit_warning_confirm"),
+        variant: "warning",
+      });
+      if (!confirmed) return;
+    }
+
     setDetailsActionBusy(true);
     setDetailsActionError(null);
     setDetailsActionSuccess(null);
@@ -4649,7 +4660,6 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
         .map((tag) => tag.trim().replace(/^#+/, ""))
         .filter(Boolean);
 
-      const normalizedChannel = normalizeChannelKey(channel);
       const editVideo = publicationEditVideoByChannel[normalizedChannel];
       const isVideoEdit = Boolean(
         editVideo && !editVideo.removed && editVideo.previewUrl,

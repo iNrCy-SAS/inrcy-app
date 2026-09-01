@@ -179,7 +179,7 @@ export function getProviderPublicationErrorMessage(
       message.includes("sourceurl") ||
       message.includes("invalid image")
     ) {
-      return "Google Business n’a pas pu récupérer une image conforme. iNrCy peut publier le texte sans ce média.";
+      return "Google Business a refusé le média malgré sa conversion automatique. La publication texte seule n’a pas été envoyée ; réessayez ou consultez le motif détaillé dans iNr’Send.";
     }
   }
 

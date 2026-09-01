@@ -27,6 +27,115 @@ export type GoogleBusinessMediaProbeResult = {
     | "network_error";
 };
 
+export type GoogleBusinessMediaProbeDiagnostic = {
+  index: number;
+  reason: GoogleBusinessMediaProbeResult["reason"];
+  status: number | null;
+  contentType: string | null;
+  contentLength: number | null;
+};
+
+function googleBusinessProviderErrorText(error: unknown) {
+  if (error instanceof Error) return String(error.message || "").toLowerCase();
+  if (typeof error === "string") return error.toLowerCase();
+  if (error && typeof error === "object" && !Array.isArray(error)) {
+    const record = error as Record<string, unknown>;
+    return String(
+      record.message || record.error || record.error_description || "",
+    ).toLowerCase();
+  }
+  return String(error || "").toLowerCase();
+}
+
+export function isGoogleBusinessMediaProviderError(error: unknown) {
+  const message = googleBusinessProviderErrorText(error);
+  if (!message) return false;
+  if (
+    [
+      "mediaitem",
+      "sourceurl",
+      "source url",
+      "invalid image",
+      "unsupported image",
+      "invalid media",
+      "unsupported media",
+      "content-type",
+      "content type",
+    ].some((needle) => message.includes(needle))
+  ) {
+    return true;
+  }
+  const namesMedia = ["image", "images", "photo", "media"].some((needle) =>
+    message.includes(needle),
+  );
+  const describesRetrievalFailure = [
+    "fetch",
+    "download",
+    "unreachable",
+    "not accessible",
+    "could not retrieve",
+    "url",
+  ].some((needle) => message.includes(needle));
+  return namesMedia && describesRetrievalFailure;
+}
+
+export function toGoogleBusinessMediaProbeDiagnostics(
+  results: readonly GoogleBusinessMediaProbeResult[],
+): GoogleBusinessMediaProbeDiagnostic[] {
+  return results.map((result, index) => ({
+    index: index + 1,
+    reason: result.reason,
+    status: result.status,
+    contentType: result.contentType || null,
+    contentLength: result.contentLength,
+  }));
+}
+
+export function describeGoogleBusinessMediaProbeFailure(
+  result: GoogleBusinessMediaProbeResult,
+) {
+  const mediaLabel = result.kind === "video" ? "La vidéo" : "L’image";
+  const sizeLabel = result.contentLength
+    ? ` (${Math.max(1, Math.round(result.contentLength / 1024))} Ko)`
+    : "";
+  switch (result.reason) {
+    case "url_invalid":
+      return `${mediaLabel} n’a pas d’URL HTTPS publique valide.`;
+    case "http_error":
+      return `${mediaLabel} n’est pas accessible publiquement${result.status ? ` (HTTP ${result.status})` : ""}.`;
+    case "content_type_invalid":
+      return `${mediaLabel} est servie avec un type invalide${result.contentType ? ` (${result.contentType})` : ""} au lieu d’un média Google Business compatible.`;
+    case "size_unknown":
+      return `${mediaLabel} ne fournit pas une taille vérifiable à Google Business.`;
+    case "range_not_supported":
+    case "range_invalid":
+      return `${mediaLabel} ne permet pas à Google Business de lire correctement le fichier à distance.`;
+    case "file_too_small":
+      return `${mediaLabel} est trop petite${sizeLabel} : Google Business exige au moins 10 Ko.`;
+    case "file_too_large":
+      return result.kind === "video"
+        ? `${mediaLabel} est trop volumineuse${sizeLabel} : Google Business accepte 75 Mo maximum.`
+        : `${mediaLabel} est trop volumineuse${sizeLabel} : Google Business accepte 5 Mo maximum.`;
+    case "network_error":
+      return `${mediaLabel} n’a pas pu être vérifiée à distance (réseau ou délai dépassé).`;
+    default:
+      return `${mediaLabel} n’a pas pu être validée pour Google Business.`;
+  }
+}
+
+export function describeGoogleBusinessMediaProbeFailures(
+  results: readonly GoogleBusinessMediaProbeResult[],
+) {
+  const rejected = results.filter((result) => !result.ok);
+  if (!rejected.length) return "";
+  return rejected
+    .map(
+      (result, index) =>
+        `Média ${index + 1} : ${describeGoogleBusinessMediaProbeFailure(result)}`,
+    )
+    .join(" ");
+}
+
 const sleep = (milliseconds: number) =>
   new Promise((resolve) => setTimeout(resolve, milliseconds));
 

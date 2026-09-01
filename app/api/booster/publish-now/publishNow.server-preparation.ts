@@ -4,7 +4,10 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { toExactStorageArrayBuffer } from "@/lib/supabaseStorageBinary";
 import { createSafeStorageSignedUrl } from "@/lib/safeStorageSignedUrl";
 import { buildAbsoluteStorageContentUrl } from "@/lib/storageContentUrl";
-import { probeGoogleBusinessMediaUrl } from "@/lib/googleBusinessMediaProbe";
+import {
+  isGoogleBusinessMediaProviderError,
+  probeGoogleBusinessMediaUrl,
+} from "@/lib/googleBusinessMediaProbe";
 import {
   optimizeFinalImageGeometry,
   optimizeForGoogleBusiness,
@@ -245,21 +248,7 @@ async function getGoogleBusinessPublishableUrl(
 }
 
 export function isGoogleBusinessImageError(error: unknown) {
-  const message = errMessage(error, "").toLowerCase();
-  return [
-    "image",
-    "images",
-    "photo",
-    "media",
-    "sourceurl",
-    "url",
-    "fetch",
-    "download",
-    "content-type",
-    "content type",
-    "invalid media",
-    "mediaitem",
-  ].some((needle) => message.includes(needle));
+  return isGoogleBusinessMediaProviderError(error);
 }
 
 async function resolveImageInput(
@@ -354,7 +343,12 @@ export async function uploadImageSet(
       img.publicationReady === true &&
       String(img.bucket || "") === "booster" &&
       preparedStoragePath &&
-      preparedPublicUrl
+      preparedPublicUrl &&
+      // A generic Booster-ready file is not necessarily a Google Business
+      // image. Google only accepts a narrow set of formats/sizes and fetches
+      // the file itself from sourceUrl. Always read and reconvert the source
+      // when a dedicated GMB derivative is requested.
+      !formats.gmb
     ) {
       uploadedUrls.push(preparedPublicUrl);
       publishableUrls.push(preparedPublicUrl);

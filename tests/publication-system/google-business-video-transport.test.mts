@@ -285,5 +285,6 @@ test("iNrSend ne lance aucun fallback GMB après un résultat de création ambig
     actions.indexOf('if (channel === "tiktok")', gmbAt),
   );
   assert.match(gmbFlow, /isGoogleBusinessPostOutcomeUnknown\(gmbFirstError\)/);
-  assert.match(gmbFlow, /isGoogleBusinessPostOutcomeUnknown\(retryError\)/);
+  assert.match(gmbFlow, /isGoogleBusinessPostOutcomeUnknown\(repairPublishError\)/);
+  assert.match(gmbFlow, /isGoogleBusinessPostOutcomeUnknown\(ctaError\)/);
 });

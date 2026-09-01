@@ -457,6 +457,125 @@ export async function gmbCreateLocalPost(args: {
   });
 }
 
+function normalizeGoogleBusinessLocalPostName(value: string) {
+  const raw = String(value || "").trim();
+  let candidate = raw.replace(/^\/+/, "");
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== "https:" || url.hostname !== "mybusiness.googleapis.com") {
+      throw new Error("Publication Google Business invalide.");
+    }
+    candidate = url.pathname.replace(/^\/v4\//, "").replace(/^\/+/, "");
+  } catch (error) {
+    if (/^https?:\/\//i.test(raw)) throw error;
+  }
+
+  if (!/^accounts\/[^/]+\/locations\/[^/]+\/localPosts\/[^/]+$/.test(candidate)) {
+    throw new Error("Publication Google Business invalide.");
+  }
+  return candidate;
+}
+
+async function readGoogleBusinessMutationResponse(response: Response, label: string) {
+  const raw = await response.text().catch(() => "");
+  let payload: any = {};
+  try {
+    payload = raw ? JSON.parse(raw) : {};
+  } catch {
+    payload = {};
+  }
+  if (!response.ok) {
+    const message =
+      payload?.error?.message ||
+      payload?.error_description ||
+      raw ||
+      `${label} (${response.status})`;
+    const error = new Error(`${label} (${response.status}) : ${message}`);
+    Object.assign(error, {
+      code: "gmb_local_post_http_error",
+      status: response.status,
+      retryable: response.status === 429 || response.status >= 500,
+      outcomeUnknown: false,
+    });
+    throw error;
+  }
+  return payload;
+}
+
+/** Updates text and CTA in place. Media changes are handled by safe replacement. */
+export async function gmbPatchLocalPost(args: {
+  accessToken: string;
+  localPostName: string;
+  summary: string;
+  languageCode?: string;
+  callToAction?: { actionType: "LEARN_MORE" | "CALL"; url: string } | null;
+}) {
+  const localPostName = normalizeGoogleBusinessLocalPostName(args.localPostName);
+  const endpoint = new URL(
+    `https://mybusiness.googleapis.com/v4/${localPostName}`,
+  );
+  endpoint.searchParams.set("updateMask", "summary,callToAction");
+  const payload: any = {
+    name: localPostName,
+    languageCode: args.languageCode || "fr-FR",
+    summary: args.summary,
+    topicType: "STANDARD",
+  };
+  if (args.callToAction?.actionType && args.callToAction?.url) {
+    payload.callToAction = args.callToAction;
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(endpoint.toString(), {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${String(args.accessToken || "").trim()}`,
+        "Content-Type": "application/json; charset=UTF-8",
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+      redirect: "error",
+    });
+  } catch (cause) {
+    const error = new Error(
+      "La réponse Google Business a été interrompue pendant la modification. Vérifiez la publication avant de relancer.",
+      { cause },
+    );
+    Object.assign(error, {
+      code: "gmb_local_post_patch_network_error",
+      retryable: false,
+      outcomeUnknown: true,
+    });
+    throw error;
+  }
+  return readGoogleBusinessMutationResponse(
+    response,
+    "Modification Google Business impossible",
+  );
+}
+
+export async function gmbDeleteLocalPost(args: {
+  accessToken: string;
+  localPostName: string;
+}) {
+  const localPostName = normalizeGoogleBusinessLocalPostName(args.localPostName);
+  const response = await fetch(
+    `https://mybusiness.googleapis.com/v4/${localPostName}`,
+    {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${String(args.accessToken || "").trim()}` },
+      cache: "no-store",
+      redirect: "error",
+    },
+  );
+  if (response.status === 404) return;
+  await readGoogleBusinessMutationResponse(
+    response,
+    "Suppression Google Business impossible",
+  );
+}
+
 export async function gmbFetchDailyMetricsNormalizedWithRecovery(args: {
   accessToken: string;
   locationName: string;

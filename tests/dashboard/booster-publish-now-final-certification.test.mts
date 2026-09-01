@@ -133,8 +133,9 @@ const branchDefinitions = [
     required: [
       "getGmbToken",
       "gmbCreateLocalPost",
-      "retryWithoutMedia",
-      "retryWithoutCta",
+      "rebuildGoogleBusinessImages",
+      "gmb_media_preflight_failed",
+      "publishGoogleBusiness",
       "setDelivery",
     ],
   },

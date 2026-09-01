@@ -1504,14 +1504,23 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                   const activePublicationDeleted = isDeletedChannelResult(activePublicationResult);
                   const activePublicationFailed = isFailedChannelResult(activePublicationResult);
                   const activePublicationFailureMessage = activePublicationFailed
-                    ? i18nT("la_publication_n_a_pas_abouti_9368e2ed")
+                    ? String(
+                        activePublicationResult?.user_message ||
+                          activePublicationResult?.error ||
+                          activePublicationResult?.raw_error ||
+                          i18nT("la_publication_n_a_pas_abouti_9368e2ed"),
+                      ).trim()
                     : "";
                   const activePublicationWarning = isWarningChannelResult(
                     activePublicationResult,
                     activePublicationEntry?.key || "",
                   );
                   const activePublicationWarningMessage = activePublicationWarning
-                    ? i18nT("publication_finalisee_avec_avertissement_b3f02094")
+                    ? String(
+                        activePublicationResult?.warning_message ||
+                          activePublicationResult?.warningMessage ||
+                          i18nT("publication_finalisee_avec_avertissement_b3f02094"),
+                      ).trim()
                     : "";
                   const visiblePublicationItemError =
                     detailsItem.source === "app_events" && detailsItem.error

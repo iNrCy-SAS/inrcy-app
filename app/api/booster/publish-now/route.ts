@@ -167,7 +167,11 @@ import {
 import {
   getGoogleBusinessVideoPreparationDecision,
 } from "@/lib/googleBusinessMediaPolicy";
-import { filterGoogleBusinessMediaUrls } from "@/lib/googleBusinessMediaProbe";
+import {
+  describeGoogleBusinessMediaProbeFailures,
+  filterGoogleBusinessMediaUrls,
+  toGoogleBusinessMediaProbeDiagnostics,
+} from "@/lib/googleBusinessMediaProbe";
 import {
   acquireAsyncPublicationPreparationLease,
   BOOSTER_ASYNC_CHANNEL_EVENT_TYPE,
@@ -5718,6 +5722,11 @@ async function publishNowHandler(req: Request) {
           }
 
           let gmbWarning: { code: string; message: string } | null = null;
+          let gmbMediaRepaired = false;
+          const expectedGmbImageCount =
+            mediaModeByChannel[ch] === "images"
+              ? getExpectedChannelImageCount(ch)
+              : 0;
 
           const rawGmbChannelImages =
             mediaModeByChannel[ch] === "images"
@@ -5732,37 +5741,119 @@ async function publishNowHandler(req: Request) {
                   limit: 5,
                 })
               : [];
-          const probedGmbImages = rawGmbChannelImages.length
+          let probedGmbImages = rawGmbChannelImages.length
             ? await filterGoogleBusinessMediaUrls({
                 urls: rawGmbChannelImages,
                 kind: "image",
               })
-            : { acceptedUrls: [] as string[] };
-          const gmbChannelImages = probedGmbImages.acceptedUrls.slice(0, 5);
+            : { acceptedUrls: [] as string[], rejected: [], probes: [] };
+          let gmbChannelImages = probedGmbImages.acceptedUrls.slice(0, 5);
+          const channelGmbSourceImages = Array.isArray(imagesByChannel?.[ch])
+            ? (imagesByChannel[ch] as ImagePayload[]).slice(0, 5)
+            : [];
+          const fallbackGmbSourceImages = Array.isArray(images)
+            ? (images as ImagePayload[]).slice(0, 5)
+            : [];
+          const gmbRepairInputs = (
+            channelGmbSourceImages.length
+              ? channelGmbSourceImages
+              : fallbackGmbSourceImages.length
+                ? fallbackGmbSourceImages
+                : rawGmbChannelImages.map((publicUrl, index) => ({
+                    name: `google-business-${index + 1}.jpg`,
+                    type: "image/jpeg",
+                    publicUrl,
+                  }))
+          ).slice(0, 5);
+          const gmbRepairErrors: Array<{
+            name: string;
+            reason: string;
+            stage: string;
+          }> = [];
+
+          const rebuildGoogleBusinessImages = async () => {
+            if (!gmbRepairInputs.length) return [] as string[];
+            const repaired = await uploadImageSet(
+              userId,
+              gmbRepairInputs,
+              { gmb: true },
+            );
+            const scopedErrors = repaired.uploadErrors.map((entry) => ({
+              ...entry,
+              stage: `gmb-repair:${entry.stage}`,
+            }));
+            gmbRepairErrors.push(...scopedErrors);
+            uploadErrors.push(...scopedErrors);
+
+            if (repaired.imageSet.gmbPublishableUrls.length) {
+              const existingImageSet = channelImageSets[ch];
+              channelImageSets[ch] = existingImageSet
+                ? {
+                    ...existingImageSet,
+                    gmbPublishableUrls:
+                      repaired.imageSet.gmbPublishableUrls.slice(0, 5),
+                  }
+                : repaired.imageSet;
+            }
+
+            probedGmbImages = repaired.imageSet.gmbPublishableUrls.length
+              ? await filterGoogleBusinessMediaUrls({
+                  urls: repaired.imageSet.gmbPublishableUrls.slice(0, 5),
+                  kind: "image",
+                })
+              : { acceptedUrls: [] as string[], rejected: [], probes: [] };
+            return probedGmbImages.acceptedUrls.slice(0, 5);
+          };
+
           if (
-            mediaModeByChannel[ch] === "images" &&
-            getExpectedChannelImageCount(ch) > 0 &&
-            gmbChannelImages.length < rawGmbChannelImages.length
+            expectedGmbImageCount > 0 &&
+            gmbChannelImages.length < expectedGmbImageCount
           ) {
-            gmbWarning = {
-              code: gmbChannelImages.length
-                ? "published_with_partial_images"
-                : "published_without_image",
-              message: gmbChannelImages.length
-                ? "Google Business a publié uniquement les images accessibles et conformes. Les autres médias ont été écartés avant l’envoi."
-                : "Google Business publiera le texte sans image, car aucune image n’était encore accessible ou conforme au moment de l’envoi.",
-            };
+            const repairedImages = await rebuildGoogleBusinessImages();
+            if (repairedImages.length >= gmbChannelImages.length) {
+              gmbChannelImages = repairedImages;
+              gmbMediaRepaired = repairedImages.length > 0;
+            }
           }
+
+          if (expectedGmbImageCount > 0 && !gmbChannelImages.length) {
+            const probeReason = describeGoogleBusinessMediaProbeFailures(
+              probedGmbImages.probes,
+            );
+            const preparationReason = gmbRepairErrors
+              .map((entry) => `${entry.name} (${entry.stage}) : ${entry.reason}`)
+              .join(" ");
+            const gmbImageError = [
+              "Google Business n’a reçu aucune image : iNrCy a tenté de la reconvertir automatiquement, mais aucune variante conforme et publiquement accessible n’a pu être préparée.",
+              probeReason,
+              preparationReason,
+            ]
+              .filter(Boolean)
+              .join(" ")
+              .slice(0, 1800);
+            await setDelivery(ch, { status: "failed", error: gmbImageError });
+            results[ch] = {
+              ok: false,
+              code: "gmb_media_preflight_failed",
+              retryable: true,
+              error: gmbImageError,
+              media_diagnostics: {
+                probes: toGoogleBusinessMediaProbeDiagnostics(
+                  probedGmbImages.probes,
+                ),
+                preparation_errors: gmbRepairErrors,
+              },
+            };
+            continue;
+          }
+
           if (
-            mediaModeByChannel[ch] === "images" &&
-            getExpectedChannelImageCount(ch) > 0 &&
-            !gmbChannelImages.length &&
-            !gmbWarning
+            expectedGmbImageCount > 0 &&
+            gmbChannelImages.length < expectedGmbImageCount
           ) {
             gmbWarning = {
-              code: "published_without_image",
-              message:
-                "Google Business publiera le texte sans image, car le média n’a pas pu être préparé de façon conforme.",
+              code: "published_with_partial_images",
+              message: `Google Business a publié ${gmbChannelImages.length} image(s) conforme(s) sur ${expectedGmbImageCount}. Les autres images ont été reconverties mais sont restées inaccessibles ou non conformes.`,
             };
           }
 
@@ -5819,84 +5910,111 @@ async function publishNowHandler(req: Request) {
             websiteUrl: siteWebUrl || inrcySiteUrl,
             phone: businessPhone,
           });
-          let gmbResp: any;
-
-          try {
-            gmbResp = await gmbCreateLocalPost({
+          let gmbResp: any = null;
+          const publishGoogleBusiness = (options?: {
+            imageUrls?: string[];
+            withoutCta?: boolean;
+          }) =>
+            gmbCreateLocalPost({
               accessToken: tok.accessToken,
               accountName,
               locationName,
               summary: gmbSummary,
-              imageUrls: gmbChannelImages.length ? gmbChannelImages : undefined,
+              imageUrls:
+                (options?.imageUrls || gmbChannelImages).length
+                  ? options?.imageUrls || gmbChannelImages
+                  : undefined,
               videoUrls: gmbChannelVideos.length ? gmbChannelVideos : undefined,
               languageCode: "fr-FR",
-              callToAction: gmbCallToAction || undefined,
+              callToAction:
+                !options?.withoutCta && gmbCallToAction
+                  ? gmbCallToAction
+                  : undefined,
             });
+
+          try {
+            gmbResp = await publishGoogleBusiness();
           } catch (gmbErr: unknown) {
             // A timed-out POST may already have created the remote post. A
             // degraded retry would therefore risk publishing it twice.
             if (isGoogleBusinessPostOutcomeUnknown(gmbErr)) {
               throw gmbErr;
             }
-            const hasMedia = Boolean(
-              gmbChannelImages.length || gmbChannelVideos.length,
-            );
-            const retryWithoutMedia = async () =>
-              gmbCreateLocalPost({
-                accessToken: tok.accessToken,
-                accountName,
-                locationName,
-                summary: gmbSummary,
-                languageCode: "fr-FR",
-                callToAction: gmbCallToAction || undefined,
-              });
-            const retryWithoutCta = async () =>
-              gmbCreateLocalPost({
-                accessToken: tok.accessToken,
-                accountName,
-                locationName,
-                summary: gmbSummary,
-                imageUrls: gmbChannelImages.length
-                  ? gmbChannelImages
-                  : undefined,
-                videoUrls: gmbChannelVideos.length
-                  ? gmbChannelVideos
-                  : undefined,
-                languageCode: "fr-FR",
-              });
-            try {
-              if (!hasMedia) throw gmbErr;
-              if (mediaModeByChannel[ch] === "video") throw gmbErr;
-              gmbResp = await retryWithoutMedia();
-              gmbWarning = {
-                code: isGoogleBusinessImageError(gmbErr)
-                  ? "published_without_image"
-                  : "published_after_retry_without_image",
-                message: isGoogleBusinessImageError(gmbErr)
-                  ? "Google Business a publié le texte, mais n'a pas pu récupérer l'image. Vérifiez que l'image reste publique et accessible sans connexion."
-                  : "Google Business a publié le texte après une reprise automatique. L'image n'a pas pu être jointe cette fois-ci.",
-              };
-            } catch (retryError: unknown) {
-              if (isGoogleBusinessPostOutcomeUnknown(retryError)) {
-                throw retryError;
-              }
-              if (gmbCallToAction) {
+            let lastGmbError: unknown = gmbErr;
+
+            // A known media rejection (HTTP response received) is safe to
+            // repair and retry: Google confirmed that the first POST failed.
+            if (
+              mediaModeByChannel[ch] === "images" &&
+              gmbChannelImages.length > 0 &&
+              isGoogleBusinessImageError(gmbErr)
+            ) {
+              const repairedImages = await rebuildGoogleBusinessImages();
+              if (repairedImages.length) {
+                gmbChannelImages = repairedImages;
                 try {
-                  gmbResp = await retryWithoutCta();
-                  gmbWarning = {
-                    code: "published_without_cta",
-                    message:
-                      "Google Business a publié le texte sans bouton CTA.",
-                  };
-                } catch (ctaError: unknown) {
-                  if (isGoogleBusinessPostOutcomeUnknown(ctaError)) {
-                    throw ctaError;
+                  gmbResp = await publishGoogleBusiness({
+                    imageUrls: repairedImages,
+                  });
+                  gmbMediaRepaired = true;
+                  lastGmbError = null;
+                } catch (repairPublishError: unknown) {
+                  if (isGoogleBusinessPostOutcomeUnknown(repairPublishError)) {
+                    throw repairPublishError;
                   }
-                  throw retryError;
+                  lastGmbError = repairPublishError;
                 }
-              } else {
-                throw retryError;
               }
+            }
+
+            // CTA is the only allowed degraded retry. The media is always
+            // preserved; iNrCy must never create a text-only replacement.
+            if (
+              lastGmbError &&
+              gmbCallToAction &&
+              !isGoogleBusinessImageError(lastGmbError)
+            ) {
+              try {
+                gmbResp = await publishGoogleBusiness({ withoutCta: true });
+                gmbWarning = {
+                  code: "published_without_cta",
+                  message: "Google Business a publié le média sans bouton CTA.",
+                };
+                lastGmbError = null;
+              } catch (ctaError: unknown) {
+                if (isGoogleBusinessPostOutcomeUnknown(ctaError)) {
+                  throw ctaError;
+                }
+                lastGmbError = ctaError;
+              }
+            }
+
+            if (lastGmbError) {
+              if (
+                mediaModeByChannel[ch] === "images" &&
+                isGoogleBusinessImageError(lastGmbError)
+              ) {
+                const providerReason = (
+                  lastGmbError instanceof Error
+                    ? lastGmbError.message
+                    : String(lastGmbError || "refus du média")
+                ).slice(0, 800);
+                const failure = new Error(
+                  `Google Business a refusé l’image même après sa reconversion automatique. Motif Google : ${providerReason}`,
+                );
+                Object.assign(failure, {
+                  code: "gmb_media_publish_failed",
+                  retryable: true,
+                  mediaDiagnostics: {
+                    probes: toGoogleBusinessMediaProbeDiagnostics(
+                      probedGmbImages.probes,
+                    ),
+                    preparation_errors: gmbRepairErrors,
+                  },
+                });
+                throw failure;
+              }
+              throw lastGmbError;
             }
           }
 
@@ -5909,6 +6027,17 @@ async function publishNowHandler(req: Request) {
           results[ch] = {
             ok: true,
             external_id: externalId || null,
+            ...(gmbMediaRepaired ? { media_repaired: true } : {}),
+            ...(probedGmbImages.probes.length
+              ? {
+                  media_diagnostics: {
+                    probes: toGoogleBusinessMediaProbeDiagnostics(
+                      probedGmbImages.probes,
+                    ),
+                    preparation_errors: gmbRepairErrors,
+                  },
+                }
+              : {}),
             ...(gmbWarning
               ? {
                   warning: gmbWarning.code,
@@ -5963,6 +6092,13 @@ async function publishNowHandler(req: Request) {
           ok: false,
           error: msg,
           raw_error: e instanceof Error ? e.message : String(e || ""),
+          ...(Object.keys(asRecord(exceptionRecord.mediaDiagnostics)).length
+            ? {
+                media_diagnostics: asRecord(
+                  exceptionRecord.mediaDiagnostics,
+                ),
+              }
+            : {}),
           ...(exceptionCode ? { code: exceptionCode } : {}),
           ...(typeof exceptionRetryable === "boolean"
             ? { retryable: exceptionRetryable }
