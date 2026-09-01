@@ -8,7 +8,7 @@ export type SignupFailureStage =
   | "profile_update"
   | "business_profile_update"
   | "notification_preferences"
-  | "onboarding_notifications"
+  | "welcome_notifications"
   | "trial_subscription"
   | "unknown";
 
@@ -41,7 +41,7 @@ const STAGE_LABELS: Record<SignupFailureStage, string> = {
   profile_update: "Enregistrement des coordonnées",
   business_profile_update: "Enregistrement de la langue",
   notification_preferences: "Préférences de notifications",
-  onboarding_notifications: "Notifications d’accueil",
+  welcome_notifications: "Notifications d’accueil",
   trial_subscription: "Création de la période d’essai",
   unknown: "Étape non identifiée",
 };

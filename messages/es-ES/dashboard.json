@@ -346,32 +346,25 @@
     "pageUnavailable": "Página No disponible",
     "profileChecking": "Verificando tu perfil…"
   },
-  "onboarding": {
-    "initialSetup": "Configuración inicial",
-    "progress": "Configuración inicial · Paso {current}/{total}",
-    "unsavedPrefix": "Los cambios no guardados se perderán.",
-    "keepDefaultsTitle": "¿Conservar los ajustes predeterminados?",
-    "continueLaterTitle": "¿Continuar más tarde?",
-    "keepDefaultsMessage": "Tu IA conservará los ajustes recomendados de forma predeterminada. Podrás personalizarlos más tarde en Configuración de IA.",
-    "continueLaterMessage": "Si omites este paso, no podrán activarse todas las herramientas de iNrCy. Podrás retomar la configuración desde el panel. ¿Quieres continuar más tarde?",
-    "keepDefaults": "Conservar los predeterminados",
-    "continueLater": "Continuar más tarde",
+  "setupAlert": {
+    "eyebrow": "Configuración de la cuenta",
+    "title": "Para activar completamente la aplicación",
+    "bothIncomplete": "Completa tu Perfil y tu Actividad desde el menú.",
+    "profileIncomplete": "Completa tu Perfil desde el menú.",
+    "activityIncomplete": "Completa tu Actividad desde el menú.",
+    "confirm": "Entendido"
+  },
+  "settingsDrawer": {
     "settings": "Ajustes",
     "exitWithoutSavingTitle": "¿Salir sin guardar?",
     "exitWithoutSavingMessage": "Esta ventana contiene cambios no guardados. Si la cierras ahora, se perderán.",
     "closeWithoutSaving": "Cerrar sin guardar",
-    "returnToSetup": "Volver a la configuración",
-    "continueEditing": "Seguir editando",
-    "skip": "Omitir",
-    "aiReadyTitle": "Tu IA ya está lista",
-    "aiReadyDescription": "iNrCy ya utiliza los ajustes recomendados. Puedes personalizar ahora el motor, el tono y el estilo, o conservar la configuración predeterminada.",
-    "customizeAi": "Personalizar mi IA",
-    "requiredSetup": "Configuración inicial obligatoria…",
-    "navigationLabel": "Navegación entre los pasos de configuración",
-    "previous": "Anterior",
-    "next": "Siguiente",
-    "reset": "Restablecer",
-    "saving": "Guardando…",
+    "continueEditing": "Seguir editando"
+  },
+  "requiredSetup": {
+    "loading": "Configuración obligatoria…"
+  },
+  "settingsSections": {
     "activityIdentityTitle": "Profesión y servicios",
     "activityIdentityDescription": "Explica claramente qué haces y qué servicios ofreces.",
     "activityReachTitle": "Zona y disponibilidad",

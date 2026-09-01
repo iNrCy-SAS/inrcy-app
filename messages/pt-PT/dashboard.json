@@ -346,32 +346,25 @@
     "pageUnavailable": "Página Indisponível",
     "profileChecking": "Verificando o seu perfil…"
   },
-  "onboarding": {
-    "initialSetup": "Configuração inicial",
-    "progress": "Configuração inicial · Passo {current}/{total}",
-    "unsavedPrefix": "As alterações não guardadas serão perdidas.",
-    "keepDefaultsTitle": "Manter as definições predefinidas?",
-    "continueLaterTitle": "Continuar mais tarde?",
-    "keepDefaultsMessage": "A sua IA manterá as definições predefinidas recomendadas. Poderá personalizá-las mais tarde nas Definições de IA.",
-    "continueLaterMessage": "Se ignorar este passo, não será possível ativar todas as ferramentas iNrCy. Poderá retomar a configuração no painel. Pretende continuar mais tarde?",
-    "keepDefaults": "Manter predefinições",
-    "continueLater": "Continuar mais tarde",
+  "setupAlert": {
+    "eyebrow": "Configuração da conta",
+    "title": "Para ativar completamente a aplicação",
+    "bothIncomplete": "Preencha o seu Perfil e a sua Atividade no menu.",
+    "profileIncomplete": "Preencha o seu Perfil no menu.",
+    "activityIncomplete": "Preencha a sua Atividade no menu.",
+    "confirm": "Compreendi"
+  },
+  "settingsDrawer": {
     "settings": "Definições",
     "exitWithoutSavingTitle": "Sair sem guardar?",
     "exitWithoutSavingMessage": "Esta janela contém alterações não guardadas. Se a fechar agora, serão perdidas.",
     "closeWithoutSaving": "Fechar sem guardar",
-    "returnToSetup": "Voltar à configuração",
-    "continueEditing": "Continuar a editar",
-    "skip": "Ignorar",
-    "aiReadyTitle": "A sua IA já está pronta",
-    "aiReadyDescription": "A iNrCy já utiliza as definições recomendadas. Pode personalizar agora o motor, o tom e o estilo ou manter a configuração predefinida.",
-    "customizeAi": "Personalizar a minha IA",
-    "requiredSetup": "Configuração inicial obrigatória…",
-    "navigationLabel": "Navegação entre etapas de configuração",
-    "previous": "Anterior",
-    "next": "Seguinte",
-    "reset": "Repor",
-    "saving": "A guardar…",
+    "continueEditing": "Continuar a editar"
+  },
+  "requiredSetup": {
+    "loading": "Configuração obrigatória…"
+  },
+  "settingsSections": {
     "activityIdentityTitle": "Profissão e serviços",
     "activityIdentityDescription": "Apresente claramente o que faz e os serviços que oferece.",
     "activityReachTitle": "Zona e disponibilidade",

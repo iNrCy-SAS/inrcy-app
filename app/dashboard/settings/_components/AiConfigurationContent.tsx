@@ -23,14 +23,9 @@ import {
   type BoosterPreferredCta,
 } from "../../booster/publier/publishModal.shared";
 import AiEngineInfoModal from "../../_components/AiEngineInfoModal";
-import OnboardingStepFooter from "./OnboardingStepFooter";
 
 type Props = {
-  mode?: "page" | "drawer";
-  onboarding?: boolean;
   onSaved?: () => void | Promise<void>;
-  onOnboardingPrevious?: () => void | Promise<void>;
-  onOnboardingNext?: () => void | Promise<void>;
   onUnsavedChange?: (hasUnsavedChanges: boolean) => void;
 };
 
@@ -179,15 +174,11 @@ function markAiLanguageCustom() {
 }
 
 export default function AiConfigurationContent({
-  mode = "drawer",
-  onboarding = false,
   onSaved,
-  onOnboardingPrevious,
-  onOnboardingNext,
   onUnsavedChange,
 }: Props) {
   const i18nT = useTranslations("settings");
-  const onboardingT = useTranslations("dashboard.onboarding");
+  const sectionT = useTranslations("dashboard.settingsSections");
   const [form, setForm] = useState<AiConfigForm>(initialForm);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -393,7 +384,7 @@ export default function AiConfigurationContent({
     set("language", value);
   };
 
-  const save = async (onSuccess?: () => void | Promise<void>) => {
+  const save = async () => {
     if (saving) return;
     setSaving(true);
     setSaved(false);
@@ -449,9 +440,7 @@ export default function AiConfigurationContent({
       // before the drawer's delayed close callback executes.
       onUnsavedChange?.(false);
       setSaved(true);
-      if (onSuccess) {
-        await onSuccess();
-      } else if (onSaved) {
+      if (onSaved) {
         if (typeof window !== "undefined") {
           window.setTimeout(() => onSaved(), 900);
         } else {
@@ -507,14 +496,14 @@ export default function AiConfigurationContent({
           <div style={{ color: "rgba(255,255,255,0.72)", fontSize: 13 }}>{i18nT("chargement_01cba1df")}</div>
         ) : (
           <div style={{ display: "grid", gap: 14 }}>
-            <section data-onboarding-ai-section="foundation" style={configurationCard}>
+            <section data-ai-section="foundation" style={configurationCard}>
               <div style={configurationHeader}>
                 <span style={configurationBubble}>1</span>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 15, fontWeight: 950 }}>
-                    {onboardingT("aiFoundationTitle")}
+                    {sectionT("aiFoundationTitle")}
                   </div>
-                  <div style={hint}>{onboardingT("aiFoundationDescription")}</div>
+                  <div style={hint}>{sectionT("aiFoundationDescription")}</div>
                 </div>
               </div>
 
@@ -576,14 +565,14 @@ export default function AiConfigurationContent({
               </label>
             </section>
 
-            <section data-onboarding-ai-section="voice" style={configurationCard}>
+            <section data-ai-section="voice" style={configurationCard}>
               <div style={configurationHeader}>
                 <span style={configurationBubble}>2</span>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 15, fontWeight: 950 }}>
-                    {onboardingT("aiVoiceTitle")}
+                    {sectionT("aiVoiceTitle")}
                   </div>
-                  <div style={hint}>{onboardingT("aiVoiceDescription")}</div>
+                  <div style={hint}>{sectionT("aiVoiceDescription")}</div>
                 </div>
               </div>
 
@@ -674,14 +663,14 @@ export default function AiConfigurationContent({
 
             </section>
 
-            <section data-onboarding-ai-section="goals" style={configurationCard}>
+            <section data-ai-section="goals" style={configurationCard}>
               <div style={configurationHeader}>
                 <span style={configurationBubble}>3</span>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 15, fontWeight: 950 }}>
-                    {onboardingT("aiGoalsTitle")}
+                    {sectionT("aiGoalsTitle")}
                   </div>
-                  <div style={hint}>{onboardingT("aiGoalsDescription")}</div>
+                  <div style={hint}>{sectionT("aiGoalsDescription")}</div>
                 </div>
               </div>
 
@@ -754,20 +743,11 @@ export default function AiConfigurationContent({
             {error ? <div style={{ color: "rgba(248,113,113,0.95)", fontWeight: 800 }}>{error}</div> : null}
             {saved ? <div style={{ color: "rgba(34,197,94,0.95)", fontWeight: 900 }}>{i18nT("configuration_ia_enregistree_1ad4bba6")}</div> : null}
 
-            {onboarding ? (
-              <OnboardingStepFooter
-                busy={saving}
-                onPrevious={() => save(onOnboardingPrevious)}
-                onNext={() => save(onOnboardingNext)}
-                onReset={reset}
-              />
-            ) : (
-              <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 180px), 1fr))", minWidth: 0, maxWidth: "100%" }}>
-                <button type="button" style={primaryBtn} disabled={saving} onClick={() => void save()}>{saving ? i18nT("enregistrement_e7d5f232") : i18nT("enregistrer_f7c8bcd8")}</button>
-                <button type="button" disabled={saving} onClick={reset} style={{ border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.05)", color: "white", borderRadius: 14, padding: "10px 12px", cursor: saving ? "default" : "pointer", fontWeight: 900, fontSize: 16 }}>
-                  {i18nT("reinitialiser_e0e2ad54")}{" "}</button>
-              </div>
-            )}
+            <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 180px), 1fr))", minWidth: 0, maxWidth: "100%" }}>
+              <button type="button" style={primaryBtn} disabled={saving} onClick={() => void save()}>{saving ? i18nT("enregistrement_e7d5f232") : i18nT("enregistrer_f7c8bcd8")}</button>
+              <button type="button" disabled={saving} onClick={reset} style={{ border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.05)", color: "white", borderRadius: 14, padding: "10px 12px", cursor: saving ? "default" : "pointer", fontWeight: 900, fontSize: 16 }}>
+                {i18nT("reinitialiser_e0e2ad54")}{" "}</button>
+            </div>
           </div>
         )}
       </div>

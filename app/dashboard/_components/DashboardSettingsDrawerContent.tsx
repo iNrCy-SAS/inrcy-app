@@ -62,17 +62,13 @@ type DashboardSettingsDrawerContentProps = {
   edition?: DashboardEdition;
   panel: string | null;
   onUnsavedChange?: (hasUnsavedChanges: boolean) => void;
-  checkProfile: () => unknown | Promise<unknown>;
-  checkActivity: () => unknown | Promise<unknown>;
+  onProfileSaved: () => unknown | Promise<unknown>;
+  onProfileReset: () => unknown | Promise<unknown>;
+  onActivitySaved: () => unknown | Promise<unknown>;
+  onActivityReset: () => unknown | Promise<unknown>;
   inertiaSnapshot: any;
   openPanel: (name: DashboardPanelName) => void;
   onCloseDrawer: () => void;
-  guidedOnboardingStep?: "profile" | "activity" | "ai" | null;
-  onAdvanceOnboardingProfile?: () => void | Promise<void>;
-  onAdvanceOnboardingActivity?: () => void | Promise<void>;
-  onPreviousOnboardingActivity?: () => void | Promise<void>;
-  onPreviousOnboardingAi?: () => void | Promise<void>;
-  onCompleteOnboardingAi?: () => void | Promise<void>;
   referralName: string;
   referralPhone: string;
   referralEmail: string;
@@ -104,17 +100,13 @@ export default function DashboardSettingsDrawerContent({
   edition = "premium",
   panel,
   onUnsavedChange,
-  checkProfile,
-  checkActivity,
+  onProfileSaved,
+  onProfileReset,
+  onActivitySaved,
+  onActivityReset,
   inertiaSnapshot,
   openPanel,
   onCloseDrawer,
-  guidedOnboardingStep = null,
-  onAdvanceOnboardingProfile,
-  onAdvanceOnboardingActivity,
-  onPreviousOnboardingActivity,
-  onPreviousOnboardingAi,
-  onCompleteOnboardingAi,
   referralName,
   referralPhone,
   referralEmail,
@@ -141,18 +133,6 @@ export default function DashboardSettingsDrawerContent({
   inrSearchUrl = "",
   inrSearchDirectoryEnabled = null,
 }: DashboardSettingsDrawerContentProps) {
-  const onboardingPanel = guidedOnboardingStep === "profile"
-    ? "profil"
-    : guidedOnboardingStep === "activity"
-      ? "activite"
-      : guidedOnboardingStep === "ai"
-        ? "ia"
-        : null;
-  // Pendant une transition, l'état métier peut avancer avant que l'URL ne
-  // reflète le nouveau panel. Le contenu suit donc l'étape, jamais ce bref
-  // décalage d'URL : la coque du parcours reste montée sans flash dashboard.
-  const visibleOnboardingPanel = onboardingPanel ?? panel;
-
   return (
     <>
       <GoogleOAuthConsentBanner panel={panel} />
@@ -165,38 +145,29 @@ export default function DashboardSettingsDrawerContent({
           onUnsavedChange={onUnsavedChange}
         />
       )}
-      {visibleOnboardingPanel === "profil" && (
+      {panel === "profil" && (
         <ProfilContent
           mode="drawer"
-          onboarding={guidedOnboardingStep === "profile"}
-          onProfileSaved={guidedOnboardingStep === "profile" ? undefined : checkProfile}
-          onProfileReset={checkProfile}
+          onProfileSaved={onProfileSaved}
+          onProfileReset={onProfileReset}
           onCloseDrawer={onCloseDrawer}
-          onOnboardingNext={onAdvanceOnboardingProfile}
           onUnsavedChange={onUnsavedChange}
         />
       )}
       {panel === "preferences" && <GeneralPreferencesContent mode="drawer" onUnsavedChange={onUnsavedChange} />}
       {panel === "inrbadge" && <InrBadgeSettingsContent {...inrBadgeSettingsProps} />}
-      {visibleOnboardingPanel === "activite" && (
+      {panel === "activite" && (
         <ActivityContent
           mode="drawer"
-          onboarding={guidedOnboardingStep === "activity"}
-          onActivitySaved={guidedOnboardingStep === "activity" ? undefined : checkActivity}
-          onActivityReset={checkActivity}
+          onActivitySaved={onActivitySaved}
+          onActivityReset={onActivityReset}
           onCloseDrawer={onCloseDrawer}
-          onOnboardingPrevious={onPreviousOnboardingActivity}
-          onOnboardingNext={onAdvanceOnboardingActivity}
           onUnsavedChange={onUnsavedChange}
         />
       )}
-      {visibleOnboardingPanel === "ia" && (
+      {panel === "ia" && (
         <AiConfigurationContent
-          mode="drawer"
-          onboarding={guidedOnboardingStep === "ai"}
-          onSaved={guidedOnboardingStep === "ai" ? undefined : onCloseDrawer}
-          onOnboardingPrevious={onPreviousOnboardingAi}
-          onOnboardingNext={onCompleteOnboardingAi}
+          onSaved={onCloseDrawer}
           onUnsavedChange={onUnsavedChange}
         />
       )}

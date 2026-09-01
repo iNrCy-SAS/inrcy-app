@@ -9,7 +9,6 @@ import {
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { ensureNotificationPreferences } from "@/lib/notifications";
 import { ensureProfileRow } from "@/lib/ensureProfileRow";
-import { buildDashboardOnboardingLaunchProofCookie } from "@/lib/dashboardOnboardingLaunchProof";
 import { getClientIp, enforceRateLimit } from "@/lib/rateLimit";
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import { log } from "@/lib/observability/logger";
@@ -507,12 +506,6 @@ export async function POST(req: NextRequest) {
       email: verifiedEmail || expectedEmail,
       session: sessionPayload(finalSession),
     }));
-    // Seule la finalisation d'une véritable invitation autorise le parcours
-    // créé atomiquement avec le compte. Un reset ou un login ordinaire ne
-    // produit jamais cette preuve éphémère.
-    if (mode === "invite") {
-      response.cookies.set(buildDashboardOnboardingLaunchProofCookie(userId));
-    }
     return response;
   } catch (error) {
     log.error("auth_password_finish_exception", {

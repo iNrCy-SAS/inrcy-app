@@ -61,7 +61,7 @@ const requiredGroups = [
 
 /** @type {string[]} */
 const optionalButRecommended = [
-  // Admin-only routes / onboarding helpers
+  // Admin-only routes / account lifecycle helpers
   "ADMIN_SECRET",
   "SUPABASE_NEW_USER_WEBHOOK_SECRET",
   "INRCY_NEW_USER_ALERT_EMAIL",

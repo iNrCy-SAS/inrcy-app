@@ -346,32 +346,25 @@
     "pageUnavailable": "เพจไม่พร้อมใช้งาน",
     "profileChecking": "กำลังตรวจสอบโปรไฟล์ของคุณ..."
   },
-  "onboarding": {
-    "initialSetup": "การตั้งค่าเริ่มต้น",
-    "progress": "ขั้นตอนการตั้งค่าเริ่มต้น {current}/{total}",
-    "unsavedPrefix": "การเปลี่ยนแปลงที่ไม่ได้บันทึกจะสูญหาย",
-    "keepDefaultsTitle": "คงการตั้งค่าเริ่มต้นไว้ใช่ไหม",
-    "continueLaterTitle": "ดำเนินการต่อในภายหลัง?",
-    "keepDefaultsMessage": "AI ของคุณจะคงการตั้งค่าที่แนะนำไว้ตามค่าเริ่มต้น คุณสามารถปรับแต่งได้ในภายหลังจากการกำหนดค่า AI",
-    "continueLaterMessage": "การข้ามขั้นตอนนี้ไม่ได้เปิดใช้งานการเปิดใช้งานเครื่องมือทั้งหมด iNrCy คุณสามารถดำเนินการกำหนดค่าต่อได้จากแดชบอร์ด คุณต้องการดำเนินการต่อในภายหลังหรือไม่?",
-    "keepDefaults": "เก็บไว้เป็นค่าเริ่มต้น",
-    "continueLater": "ดำเนินการต่อในภายหลัง",
+  "setupAlert": {
+    "eyebrow": "การตั้งค่าบัญชี",
+    "title": "เพื่อเปิดใช้งานแอปพลิเคชันอย่างเต็มรูปแบบ",
+    "bothIncomplete": "กรอกโปรไฟล์และกิจกรรมของคุณจากเมนู",
+    "profileIncomplete": "กรอกโปรไฟล์ของคุณจากเมนู",
+    "activityIncomplete": "กรอกกิจกรรมของคุณจากเมนู",
+    "confirm": "เข้าใจแล้ว"
+  },
+  "settingsDrawer": {
     "settings": "การตั้งค่า",
     "exitWithoutSavingTitle": "ออกโดยไม่บันทึกใช่ไหม",
     "exitWithoutSavingMessage": "หน้าต่างนี้มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก หากปิดตอนนี้จะสูญหาย",
     "closeWithoutSaving": "ปิดโดยไม่บันทึก",
-    "returnToSetup": "กลับไปที่การกำหนดค่า",
-    "continueEditing": "แก้ไขต่อ",
-    "skip": "ผ่าน",
-    "aiReadyTitle": "AI ของคุณพร้อมแล้ว",
-    "aiReadyDescription": "iNrCy ใช้การตั้งค่าที่แนะนำแล้ว คุณสามารถปรับแต่งเครื่องยนต์ โทนเสียง และสไตล์ของคุณได้เลย หรือจะเก็บการกำหนดค่าเริ่มต้นไว้ก็ได้",
-    "customizeAi": "ปรับแต่ง AI ของฉัน",
-    "requiredSetup": "ต้องตั้งค่าเริ่มต้น...",
-    "navigationLabel": "การนำทางระหว่างขั้นตอนการกำหนดค่า",
-    "previous": "ก่อนหน้า",
-    "next": "ถัดไป",
-    "reset": "รีเซ็ต",
-    "saving": "การลงทะเบียน...",
+    "continueEditing": "แก้ไขต่อ"
+  },
+  "requiredSetup": {
+    "loading": "ต้องตั้งค่า…"
+  },
+  "settingsSections": {
     "activityIdentityTitle": "วิชาชีพและการบริการ",
     "activityIdentityDescription": "นำเสนอสิ่งที่คุณทำและสิ่งที่คุณนำเสนออย่างชัดเจน",
     "activityReachTitle": "พื้นที่และความพร้อม",

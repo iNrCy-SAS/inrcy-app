@@ -346,32 +346,25 @@
     "pageUnavailable": "Seite Nicht verfügbar",
     "profileChecking": "Ihr Profil wird überprüft…"
   },
-  "onboarding": {
-    "initialSetup": "Ersteinrichtung",
-    "progress": "Ersteinrichtung · Schritt {current}/{total}",
-    "unsavedPrefix": "Nicht gespeicherte Änderungen gehen verloren.",
-    "keepDefaultsTitle": "Standardeinstellungen beibehalten?",
-    "continueLaterTitle": "Später fortfahren?",
-    "keepDefaultsMessage": "Ihre KI behält die empfohlenen Standardeinstellungen bei. Sie können diese später in den KI-Einstellungen anpassen.",
-    "continueLaterMessage": "Wenn Sie diesen Schritt überspringen, können nicht alle iNrCy-Werkzeuge aktiviert werden. Sie können die Einrichtung im Dashboard fortsetzen. Möchten Sie später fortfahren?",
-    "keepDefaults": "Standards beibehalten",
-    "continueLater": "Später fortfahren",
+  "setupAlert": {
+    "eyebrow": "Kontoeinrichtung",
+    "title": "So aktivieren Sie die Anwendung vollständig",
+    "bothIncomplete": "Vervollständigen Sie Ihr Profil und Ihre Aktivität über das Menü.",
+    "profileIncomplete": "Vervollständigen Sie Ihr Profil über das Menü.",
+    "activityIncomplete": "Vervollständigen Sie Ihre Aktivität über das Menü.",
+    "confirm": "Verstanden"
+  },
+  "settingsDrawer": {
     "settings": "Einstellungen",
     "exitWithoutSavingTitle": "Beenden, ohne zu speichern?",
     "exitWithoutSavingMessage": "Dieses Fenster enthält nicht gespeicherte Änderungen. Wenn Sie es jetzt schließen, gehen diese verloren.",
     "closeWithoutSaving": "Ohne Speichern schließen",
-    "returnToSetup": "Zurück zur Einrichtung",
-    "continueEditing": "Weiter bearbeiten",
-    "skip": "Überspringen",
-    "aiReadyTitle": "Ihre KI ist bereits einsatzbereit",
-    "aiReadyDescription": "iNrCy verwendet bereits die empfohlenen Einstellungen. Sie können Engine, Ton und Stil jetzt anpassen oder die Standardkonfiguration beibehalten.",
-    "customizeAi": "Meine KI anpassen",
-    "requiredSetup": "Ersteinrichtung erforderlich…",
-    "navigationLabel": "Navigation durch die Einrichtungsschritte",
-    "previous": "Zurück",
-    "next": "Weiter",
-    "reset": "Zurücksetzen",
-    "saving": "Wird gespeichert…",
+    "continueEditing": "Weiter bearbeiten"
+  },
+  "requiredSetup": {
+    "loading": "Konfiguration erforderlich…"
+  },
+  "settingsSections": {
     "activityIdentityTitle": "Beruf und Leistungen",
     "activityIdentityDescription": "Beschreiben Sie klar, was Sie tun und welche Leistungen Sie anbieten.",
     "activityReachTitle": "Gebiet und Verfügbarkeit",

@@ -21,6 +21,12 @@ type ConfirmRequest = {
   resolve: (value: boolean) => void;
 };
 
+type AlertRequest = {
+  type: "alert";
+  options: InrcyConfirmOptions;
+  resolve: () => void;
+};
+
 type PromptRequest = {
   type: "prompt";
   options: InrcyPromptOptions;
@@ -28,11 +34,12 @@ type PromptRequest = {
 };
 
 type ConfirmRequestInput = Omit<ConfirmRequest, "resolve">;
+type AlertRequestInput = Omit<AlertRequest, "resolve">;
 type PromptRequestInput = Omit<PromptRequest, "resolve">;
 
-type DialogRequestInput = ConfirmRequestInput | PromptRequestInput;
+type DialogRequestInput = AlertRequestInput | ConfirmRequestInput | PromptRequestInput;
 
-export type InrcyDialogRequest = ConfirmRequest | PromptRequest;
+export type InrcyDialogRequest = AlertRequest | ConfirmRequest | PromptRequest;
 
 export const INRCY_DIALOG_EVENT = "inrcy:dialog-request";
 
@@ -55,6 +62,17 @@ export function confirmInrcy(options: InrcyConfirmOptions | string): Promise<boo
 
   return new Promise<boolean>((resolve) => {
     dispatchDialogRequest<boolean>({ type: "confirm", options: normalized }, resolve);
+  });
+}
+
+export function alertInrcy(options: InrcyConfirmOptions | string): Promise<void> {
+  if (typeof window === "undefined") return Promise.resolve();
+
+  const normalized: InrcyConfirmOptions =
+    typeof options === "string" ? { message: options } : options;
+
+  return new Promise<void>((resolve) => {
+    dispatchDialogRequest<void>({ type: "alert", options: normalized }, resolve);
   });
 }
 

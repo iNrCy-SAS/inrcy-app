@@ -65,7 +65,7 @@ export async function ensureNotificationPreferences(userId: string) {
 
 
 
-type OnboardingNotificationSeed = {
+type WelcomeNotificationSeed = {
   category: NotificationCategory;
   kind: string;
   title: string;
@@ -75,7 +75,7 @@ type OnboardingNotificationSeed = {
   meta?: Record<string, unknown>;
 };
 
-function getOnboardingNotificationSeeds(): OnboardingNotificationSeed[] {
+function getWelcomeNotificationSeeds(): WelcomeNotificationSeed[] {
   return [
     {
       category: "action",
@@ -134,10 +134,12 @@ function getOnboardingNotificationSeeds(): OnboardingNotificationSeed[] {
   ];
 }
 
-export async function seedOnboardingNotifications(userId: string) {
-  const seeds = getOnboardingNotificationSeeds();
+export async function seedWelcomeNotifications(userId: string) {
+  const seeds = getWelcomeNotificationSeeds();
   if (!userId || seeds.length === 0) return [];
 
+  // Les identifiants historiques restent inchangés pour ne pas recréer les
+  // mêmes notifications chez les comptes déjà existants.
   const dedupeKeys = seeds.map((seed) => `onboarding:${userId}:${seed.kind}`);
   const { data: existing, error: existingError } = await supabaseAdmin
     .from("notifications")

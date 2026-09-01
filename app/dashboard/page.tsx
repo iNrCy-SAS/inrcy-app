@@ -7,7 +7,6 @@ import { requireDashboardRequiredSetupCompleted } from "@/lib/dashboardRequiredS
 import { getTranslations } from "next-intl/server";
 import { getCurrentInrcyAccountScope } from "@/lib/multicompte/server";
 import { getChannelConnectionStates, type ChannelStates } from "@/lib/channelConnectionState";
-import { getDashboardInitialOnboardingStateServer } from "@/lib/dashboardOnboardingServer";
 
 type DashboardPageSearchParams = Record<string, string | string[] | undefined>;
 
@@ -54,12 +53,10 @@ export default async function Page({
     { isAdmin },
     t,
     initialOfficialChannelStates,
-    initialOnboardingState,
   ] = await Promise.all([
     getMyRole(),
     getTranslations("common"),
     loadInitialOfficialChannelStates(),
-    getDashboardInitialOnboardingStateServer(),
   ]);
 
   return (
@@ -68,7 +65,6 @@ export default async function Page({
         <DashboardClient
           isAdmin={isAdmin}
           initialOfficialChannelStates={initialOfficialChannelStates}
-          initialOnboardingState={initialOnboardingState ?? undefined}
         />
       </ClientHydrationGate>
     </Suspense>

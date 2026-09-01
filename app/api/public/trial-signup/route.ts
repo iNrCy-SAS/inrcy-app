@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 
 import { optionalEnv, requireEnv } from "@/lib/env";
-import { ensureNotificationPreferences, seedOnboardingNotifications } from "@/lib/notifications";
+import { ensureNotificationPreferences, seedWelcomeNotifications } from "@/lib/notifications";
 import { ensureProfileRow } from "@/lib/ensureProfileRow";
 import { provisionNewAccountBubbleAccess } from "@/lib/appBubbleAccessProvisioning";
 import { ensurePrincipalInrcyAccountProvisioned } from "@/lib/inrcyAccountProvisioning";
@@ -561,7 +561,7 @@ export async function POST(req: Request) {
     const nowIso = new Date().toISOString();
 
     // Postcondition obligatoire : l'invitation ne peut être déclarée réussie
-    // sans établissement principal, membership, config et onboarding.
+    // sans établissement principal, membership ni configuration multicompte.
     stage = "profile_bootstrap";
     await ensurePrincipalInrcyAccountProvisioned(invitedUser);
 
@@ -604,8 +604,8 @@ export async function POST(req: Request) {
 
     stage = "notification_preferences";
     await ensureNotificationPreferences(userId);
-    stage = "onboarding_notifications";
-    await seedOnboardingNotifications(userId);
+    stage = "welcome_notifications";
+    await seedWelcomeNotifications(userId);
     stage = "trial_subscription";
     const { edition, trialDays, end } = await ensureTrialSubscription(userId, payload.email);
 

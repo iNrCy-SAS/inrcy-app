@@ -66,8 +66,7 @@ export function useDashboardPanelRouting() {
   }, [rawPanel, router, searchParams]);
 
   const markPanelAsExplicitlyOpened = useCallback((name: DashboardPanelName) => {
-    // Marqueur: panneau ouvert volontairement par l'utilisateur ou par une
-    // transition interne déjà validée (ex. sauvegarde d'une étape onboarding).
+    // Marqueur : panneau ouvert volontairement par l'utilisateur.
     try {
       sessionStorage.setItem("inrcy_panel_explicit_open", "1");
       sessionStorage.setItem("inrcy_last_panel", name);
@@ -87,27 +86,6 @@ export function useDashboardPanelRouting() {
       });
     },
     [markPanelAsExplicitlyOpened, requestNavigation, router, searchParams]
-  );
-
-  // Transition interne après une sauvegarde réussie. Elle ne passe pas par le
-  // guard "modifications non enregistrées", car la sauvegarde a déjà remis le
-  // formulaire à l'état propre. Le miroir React change avant l'URL native :
-  // la page suivante apparaît immédiatement, sans navigation serveur et sans
-  // possibilité d'exposer le dashboard entre deux étapes.
-  const replacePanelDirect = useCallback(
-    (name: DashboardPanelName) => {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("panel", name);
-      markPanelAsExplicitlyOpened(name);
-      rememberDashboardScroll();
-      setPanel(name);
-      window.history.replaceState(
-        window.history.state,
-        "",
-        `/dashboard?${params.toString()}`,
-      );
-    },
-    [markPanelAsExplicitlyOpened, searchParams],
   );
 
   const closePanel = useCallback(() => {
@@ -171,5 +149,5 @@ export function useDashboardPanelRouting() {
     } catch {}
   }, [panel]);
 
-  return { panel, openPanel, replacePanelDirect, closePanel, goToModule };
+  return { panel, openPanel, closePanel, goToModule };
 }

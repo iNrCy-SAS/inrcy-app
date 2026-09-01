@@ -346,32 +346,25 @@
     "pageUnavailable": "Page unavailable",
     "profileChecking": "Verifying your profile…"
   },
-  "onboarding": {
-    "initialSetup": "Initial setup",
-    "progress": "Initial setup · Step {current}/{total}",
-    "unsavedPrefix": "Unsaved changes will be lost.",
-    "keepDefaultsTitle": "Keep the default settings?",
-    "continueLaterTitle": "Continue later?",
-    "keepDefaultsMessage": "Your AI will keep the recommended default settings. You can customise them later in AI settings.",
-    "continueLaterMessage": "Skipping this step prevents all iNrCy tools from being activated. You can resume setup from the dashboard. Would you like to continue later?",
-    "keepDefaults": "Keep defaults",
-    "continueLater": "Continue later",
+  "setupAlert": {
+    "eyebrow": "Account setup",
+    "title": "To fully activate the application",
+    "bothIncomplete": "Complete your Profile and Activity from the menu.",
+    "profileIncomplete": "Complete your Profile from the menu.",
+    "activityIncomplete": "Complete your Activity from the menu.",
+    "confirm": "Got it"
+  },
+  "settingsDrawer": {
     "settings": "Settings",
     "exitWithoutSavingTitle": "Exit without saving?",
     "exitWithoutSavingMessage": "This window contains unsaved changes. If you close it now, they will be lost.",
     "closeWithoutSaving": "Close without saving",
-    "returnToSetup": "Return to setup",
-    "continueEditing": "Continue editing",
-    "skip": "Skip",
-    "aiReadyTitle": "Your AI is ready",
-    "aiReadyDescription": "iNrCy is already using the recommended settings. You can customise your engine, tone and style now, or keep the default configuration.",
-    "customizeAi": "Customise my AI",
-    "requiredSetup": "Initial setup required…",
-    "navigationLabel": "Setup step navigation",
-    "previous": "Previous",
-    "next": "Next",
-    "reset": "Reset",
-    "saving": "Saving…",
+    "continueEditing": "Continue editing"
+  },
+  "requiredSetup": {
+    "loading": "Setup required…"
+  },
+  "settingsSections": {
     "activityIdentityTitle": "Trade and services",
     "activityIdentityDescription": "Clearly present what you do and the services you provide.",
     "activityReachTitle": "Area and availability",

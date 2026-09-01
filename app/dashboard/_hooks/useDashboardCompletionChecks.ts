@@ -219,6 +219,42 @@ function buildFailedState(accountId: string | null): DashboardCompletionState {
   };
 }
 
+function markSectionCompleted(
+  current: DashboardCompletionState,
+  accountId: string,
+  section: DashboardCompletionSection,
+): DashboardCompletionState {
+  const profileCompleted = section === "profile" ? true : current.profileCompleted;
+  const activityCompleted = section === "activity" ? true : current.activityCompleted;
+  const profileCheckReady = section === "profile" ? true : current.profileCheckReady;
+  const activityCheckReady = section === "activity" ? true : current.activityCheckReady;
+  const completionCheckReady = profileCheckReady && activityCheckReady;
+  const missingSections: DashboardCompletionSection[] = [];
+  if (!profileCompleted) missingSections.push("profile");
+  if (!activityCompleted) missingSections.push("activity");
+
+  return {
+    ...current,
+    accountId,
+    profileIncomplete: !profileCompleted,
+    activityIncomplete: !activityCompleted,
+    profileCompleted,
+    activityCompleted,
+    requiredSetupCompleted:
+      completionCheckReady && profileCompleted && activityCompleted,
+    requiredSetupIncomplete:
+      completionCheckReady && (!profileCompleted || !activityCompleted),
+    missingSections,
+    profileMissingFields:
+      section === "profile" ? [] : current.profileMissingFields,
+    activityMissingFields:
+      section === "activity" ? [] : current.activityMissingFields,
+    profileCheckReady,
+    activityCheckReady,
+    completionCheckReady,
+  };
+}
+
 export function useDashboardCompletionChecks() {
   const bypassRequiredSetup = useDashboardRequiredSetupBypass();
   const [completionState, setCompletionState] = useState<DashboardCompletionState>(
@@ -275,6 +311,24 @@ export function useDashboardCompletionChecks() {
     [refreshCompletion],
   );
 
+  const markProfileCompleted = useCallback(() => {
+    const accountId = completionState.accountId ?? activeAccountIdRef.current;
+    if (!accountId) return;
+    const nextState = markSectionCompleted(completionState, accountId, "profile");
+    setCompletionState(nextState);
+    writeCachedCompletionState(nextState);
+    broadcastCompletionState(nextState);
+  }, [completionState]);
+
+  const markActivityCompleted = useCallback(() => {
+    const accountId = completionState.accountId ?? activeAccountIdRef.current;
+    if (!accountId) return;
+    const nextState = markSectionCompleted(completionState, accountId, "activity");
+    setCompletionState(nextState);
+    writeCachedCompletionState(nextState);
+    broadcastCompletionState(nextState);
+  }, [completionState]);
+
   useEffect(() => {
     if (bypassRequiredSetup) return;
 
@@ -309,5 +363,7 @@ export function useDashboardCompletionChecks() {
     refreshCompletion,
     checkProfile,
     checkActivity,
+    markProfileCompleted,
+    markActivityCompleted,
   };
 }

@@ -18,12 +18,13 @@ function splitMessage(message: string): string[] {
 
 function getDialogCopy(dialog: DialogState, i18nT: (_key: string) => string) {
   const isPrompt = dialog.type === "prompt";
+  const isAlert = dialog.type === "alert";
   const variant = dialog.options.variant || "warning";
 
   return {
     eyebrow: dialog.options.eyebrow || (variant === "danger" ? i18nT("action_sensible_d1f29317") : i18nT("confirmation_3424edc2")),
     title: dialog.options.title || (isPrompt ? i18nT("saisir_une_information_41c060f6") : i18nT("confirmer_l_action_d1682c9c")),
-    confirmLabel: dialog.options.confirmLabel || (isPrompt ? i18nT("valider_be4220f7") : variant === "danger" ? i18nT("confirmer_80a664c8") : i18nT("continuer_129ffff9")),
+    confirmLabel: dialog.options.confirmLabel || (isPrompt ? i18nT("valider_be4220f7") : isAlert ? i18nT("continuer_129ffff9") : variant === "danger" ? i18nT("confirmer_80a664c8") : i18nT("continuer_129ffff9")),
     cancelLabel: dialog.options.cancelLabel || i18nT("annuler_49ba3292"),
     variant,
   };
@@ -85,7 +86,7 @@ export default function InrcyDialogProvider() {
         event.preventDefault();
         finish(null);
       }
-      if (event.key === "Enter" && dialog.type === "confirm") {
+      if (event.key === "Enter" && dialog.type !== "prompt") {
         event.preventDefault();
         finish(true);
       }
@@ -117,6 +118,8 @@ export default function InrcyDialogProvider() {
 
       if (current.type === "confirm") {
         current.resolve(Boolean(value));
+      } else if (current.type === "alert") {
+        current.resolve();
       } else {
         current.resolve(typeof value === "string" ? value : null);
       }
@@ -189,9 +192,11 @@ export default function InrcyDialogProvider() {
         ) : null}
 
         <div style={actionsStyle}>
-          <button type="button" className={styles.secondaryBtn} style={buttonStyle} onClick={() => finish(null)}>
-            {copy.cancelLabel}
-          </button>
+          {dialog.type !== "alert" ? (
+            <button type="button" className={styles.secondaryBtn} style={buttonStyle} onClick={() => finish(null)}>
+              {copy.cancelLabel}
+            </button>
+          ) : null}
           <button
             type="button"
             className={styles.primaryBtn}

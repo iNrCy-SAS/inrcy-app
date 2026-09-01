@@ -346,32 +346,25 @@
     "pageUnavailable": "Pagina niet beschikbaar",
     "profileChecking": "Uw verificatie uitvoeren Profiel…"
   },
-  "onboarding": {
-    "initialSetup": "Eerste configuratie",
-    "progress": "Eerste configuratie · Stap {current}/{total}",
-    "unsavedPrefix": "Niet-opgeslagen wijzigingen gaan verloren.",
-    "keepDefaultsTitle": "Standaardinstellingen behouden?",
-    "continueLaterTitle": "Later doorgaan?",
-    "keepDefaultsMessage": "Je AI behoudt de aanbevolen standaardinstellingen. U kunt deze later aanpassen bij AI-instellingen.",
-    "continueLaterMessage": "Als je deze stap overslaat, kunnen niet alle iNrCy-tools worden geactiveerd. U kunt de configuratie later hervatten vanuit het dashboard. Wilt u later doorgaan?",
-    "keepDefaults": "Standaard behouden",
-    "continueLater": "Later doorgaan",
+  "setupAlert": {
+    "eyebrow": "Account instellen",
+    "title": "Om de applicatie volledig te activeren",
+    "bothIncomplete": "Vul uw Profiel en Activiteit in via het menu.",
+    "profileIncomplete": "Vul uw Profiel in via het menu.",
+    "activityIncomplete": "Vul uw Activiteit in via het menu.",
+    "confirm": "Begrepen"
+  },
+  "settingsDrawer": {
     "settings": "Instellingen",
     "exitWithoutSavingTitle": "Afsluiten zonder op te slaan?",
     "exitWithoutSavingMessage": "Dit venster bevat niet-opgeslagen wijzigingen. Als je het nu sluit, gaan deze verloren.",
     "closeWithoutSaving": "Sluiten zonder opslaan",
-    "returnToSetup": "Terug naar configuratie",
-    "continueEditing": "Doorgaan met bewerken",
-    "skip": "Overslaan",
-    "aiReadyTitle": "Je AI is al klaar voor gebruik",
-    "aiReadyDescription": "iNrCy gebruikt al de aanbevolen instellingen. U kunt de engine, toon en stijl nu aanpassen of de standaardconfiguratie behouden.",
-    "customizeAi": "Mijn AI aanpassen",
-    "requiredSetup": "Eerste configuratie vereist…",
-    "navigationLabel": "Navigatie tussen configuratiestappen",
-    "previous": "Vorige",
-    "next": "Volgende",
-    "reset": "Opnieuw instellen",
-    "saving": "Opslaan…",
+    "continueEditing": "Doorgaan met bewerken"
+  },
+  "requiredSetup": {
+    "loading": "Configuratie vereist…"
+  },
+  "settingsSections": {
     "activityIdentityTitle": "Vak en diensten",
     "activityIdentityDescription": "Leg duidelijk uit wat u doet en welke diensten u aanbiedt.",
     "activityReachTitle": "Werkgebied en beschikbaarheid",

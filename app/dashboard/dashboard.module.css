@@ -9692,12 +9692,12 @@
   }
 }
 
-/* Onboarding — cadenas des outils dépendant de Mon profil + Mon activité */
+/* Prérequis — cadenas des outils dépendant de Mon profil + Mon activité */
 .requiredSetupLockTopbar {
   margin-left: 2px;
 }
 
-/* Cadenas intégrés aux composants — onboarding Profil / Activité */
+/* Cadenas intégrés aux composants — prérequis Profil / Activité */
 .requiredSetupLockLoopBadge {
   position: absolute !important;
   top: 10px;

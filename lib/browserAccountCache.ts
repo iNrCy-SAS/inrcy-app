@@ -26,7 +26,6 @@ const ACCOUNT_CACHE_BASE_KEYS = [
   "inrcy_generator_active_v1",
   "inrcy_site_bubble_progress_v1",
   "inrcy_bubble_access_map_v1",
-  "inrcy_dashboard_onboarding_state_v1",
   "inrcy_dashboard_notifications_v1",
   "inrcy_inr_agent_pending_count_v1",
   "inrcy_dashboard_completion_state_v1",

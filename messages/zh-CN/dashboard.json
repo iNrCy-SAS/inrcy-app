@@ -346,32 +346,25 @@
     "pageUnavailable": "页面不可用",
     "profileChecking": "正在检查您的个人资料..."
   },
-  "onboarding": {
-    "initialSetup": "初始设置",
-    "progress": "初始设置步骤 {current}/{total}",
-    "unsavedPrefix": "未保存的更改将会丢失。",
-    "keepDefaultsTitle": "保留默认设置？",
-    "continueLaterTitle": "稍后继续吗？",
-    "keepDefaultsMessage": "默认情况下，您的 AI 将保留推荐的设置。您可以稍后从 AI 配置中自定义它们。",
-    "continueLaterMessage": "跳过此步骤不会启用所有工具 iNrCy 的激活。您可以从仪表板恢复配置。您想稍后继续吗？",
-    "keepDefaults": "保持默认",
-    "continueLater": "稍后继续",
+  "setupAlert": {
+    "eyebrow": "账户设置",
+    "title": "要完整启用应用程序",
+    "bothIncomplete": "请在菜单中填写您的个人资料和业务信息。",
+    "profileIncomplete": "请在菜单中填写您的个人资料。",
+    "activityIncomplete": "请在菜单中填写您的业务信息。",
+    "confirm": "知道了"
+  },
+  "settingsDrawer": {
     "settings": "设置",
     "exitWithoutSavingTitle": "不保存就退出？",
     "exitWithoutSavingMessage": "该窗口包含未保存的更改。如果你现在关闭它，它们就会丢失。",
     "closeWithoutSaving": "关闭而不保存",
-    "returnToSetup": "返回配置",
-    "continueEditing": "继续编辑",
-    "skip": "通行证",
-    "aiReadyTitle": "你的人工智能已经准备好了",
-    "aiReadyDescription": "iNrCy 已使用推荐的设置。您现在可以自定义引擎、音调和风格，或保留默认配置。",
-    "customizeAi": "定制我的人工智能",
-    "requiredSetup": "需要初始设置...",
-    "navigationLabel": "在配置步骤之间导航",
-    "previous": "上一页",
-    "next": "下一步",
-    "reset": "重置",
-    "saving": "注册…",
+    "continueEditing": "继续编辑"
+  },
+  "requiredSetup": {
+    "loading": "需要配置..."
+  },
+  "settingsSections": {
     "activityIdentityTitle": "专业与服务",
     "activityIdentityDescription": "清楚地展示您所做的事情和提供的产品。",
     "activityReachTitle": "面积和可用性",

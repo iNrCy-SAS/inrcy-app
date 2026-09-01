@@ -32,16 +32,12 @@ import {
   normalizeOpeningScheduleText,
 } from "@/lib/openingSchedule";
 import EditableTags from "./EditableTags";
-import OnboardingStepFooter from "./OnboardingStepFooter";
 
 type Props = {
   mode?: "page" | "drawer";
-  onboarding?: boolean;
   onActivitySaved?: () => unknown | Promise<unknown>;
   onActivityReset?: () => unknown | Promise<unknown>;
   onCloseDrawer?: () => unknown | Promise<unknown>;
-  onOnboardingPrevious?: () => void | Promise<void>;
-  onOnboardingNext?: () => void | Promise<void>;
   onUnsavedChange?: (hasUnsavedChanges: boolean) => void;
 };
 
@@ -60,16 +56,13 @@ const TABLE = "business_profiles";
 
 export default function ActivityContent({
   mode = "page",
-  onboarding = false,
   onActivitySaved,
   onActivityReset,
   onCloseDrawer,
-  onOnboardingPrevious,
-  onOnboardingNext,
   onUnsavedChange,
 }: Props) {
   const i18nT = useTranslations("settings");
-  const onboardingT = useTranslations("dashboard.onboarding");
+  const sectionT = useTranslations("dashboard.settingsSections");
   const initial: BusinessActivityForm = useMemo(
     () => ({
       sectorCategory: "",
@@ -439,29 +432,8 @@ export default function ActivityContent({
       .map((s) => s.trim())
       .filter(Boolean);
 
-  const save = async ({
-    requireComplete = onboarding,
-    onSuccess,
-  }: {
-    requireComplete?: boolean;
-    onSuccess?: () => void | Promise<void>;
-  } = {}) => {
+  const save = async () => {
     if (saving) return;
-    if (requireComplete) {
-      const missing: string[] = [];
-      if (!form.sectorCategory.trim() || !form.sector.trim()) missing.push(i18nT("activity_profession_missing_label"));
-      if (!allSelectedServices.length) missing.push(i18nT("activity_services_missing_label"));
-      if (!form.interventionZones.length) missing.push(i18nT("activity_zones_missing_label"));
-      if (!normalizeOpeningScheduleText(form.openingSchedule).trim()) {
-        missing.push(i18nT("activity_opening_hours_missing_label"));
-      }
-      if (!form.strengths.length) missing.push(i18nT("activity_strengths_missing_label"));
-      if (!form.customerTypes.length) missing.push(i18nT("activity_customer_types_missing_label"));
-      if (missing.length) {
-        setError(i18nT("pour_continuer_completez_value_ad238d6f", { value0: missing.join(", ") }));
-        return;
-      }
-    }
     setSaving(true);
     setSaved(false);
     setError("");
@@ -536,9 +508,7 @@ export default function ActivityContent({
       onUnsavedChange?.(false);
       setSaved(true);
       await onActivitySaved?.();
-      if (onSuccess) {
-        await onSuccess();
-      } else if (mode === "drawer") {
+      if (mode === "drawer") {
         window.setTimeout(() => onCloseDrawer?.(), 700);
       } else {
         window.setTimeout(() => setSaved(false), 2500);
@@ -590,12 +560,8 @@ export default function ActivityContent({
           display: "flex",
           alignItems: "center",
           gap: 13,
-          border: onboarding
-            ? "1px solid rgba(167,139,250,0.26)"
-            : card.border,
-          background: onboarding
-            ? "linear-gradient(135deg, rgba(56,189,248,0.14), rgba(139,92,246,0.17), rgba(244,114,182,0.11))"
-            : card.background,
+          border: card.border,
+          background: card.background,
         }}
       >
         <span
@@ -615,8 +581,8 @@ export default function ActivityContent({
           🎯
         </span>
         <div style={{ display: "grid", gap: 3 }}>
-          <strong style={{ fontSize: onboarding ? 18 : 15 }}>
-            {onboarding ? i18nT("presentez_votre_activite_59c7948b") : i18nT("votre_activite_professionnelle_c67bbd58")}
+          <strong style={{ fontSize: 15 }}>
+            {i18nT("votre_activite_professionnelle_c67bbd58")}
           </strong>
           <span style={{ opacity: 0.72, lineHeight: 1.4, fontSize: 13 }}>
             {i18nT("inrcy_s_appuie_sur_ces_informations_383b09e1")}{" "}</span>
@@ -628,14 +594,14 @@ export default function ActivityContent({
           <div style={{ opacity: 0.75 }}>{i18nT("chargement_01cba1df")}</div>
         ) : (
           <div style={{ display: "grid", gap: 14 }}>
-            <section data-onboarding-activity-section="identity" style={sectionCard}>
+            <section data-activity-section="identity" style={sectionCard}>
               <div style={sectionHeader}>
                 <span style={sectionBubble}>1</span>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 15, fontWeight: 950 }}>
-                    {onboardingT("activityIdentityTitle")}
+                    {sectionT("activityIdentityTitle")}
                   </div>
-                  <div style={hint}>{onboardingT("activityIdentityDescription")}</div>
+                  <div style={hint}>{sectionT("activityIdentityDescription")}</div>
                 </div>
               </div>
 
@@ -972,14 +938,14 @@ export default function ActivityContent({
 
             </section>
 
-            <section data-onboarding-activity-section="reach" style={sectionCard}>
+            <section data-activity-section="reach" style={sectionCard}>
               <div style={sectionHeader}>
                 <span style={sectionBubble}>2</span>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 15, fontWeight: 950 }}>
-                    {onboardingT("activityReachTitle")}
+                    {sectionT("activityReachTitle")}
                   </div>
-                  <div style={hint}>{onboardingT("activityReachDescription")}</div>
+                  <div style={hint}>{sectionT("activityReachDescription")}</div>
                 </div>
               </div>
 
@@ -1011,14 +977,14 @@ export default function ActivityContent({
 
             </section>
 
-            <section data-onboarding-activity-section="positioning" style={sectionCard}>
+            <section data-activity-section="positioning" style={sectionCard}>
               <div style={sectionHeader}>
                 <span style={sectionBubble}>3</span>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 15, fontWeight: 950 }}>
-                    {onboardingT("activityPositioningTitle")}
+                    {sectionT("activityPositioningTitle")}
                   </div>
-                  <div style={hint}>{onboardingT("activityPositioningDescription")}</div>
+                  <div style={hint}>{sectionT("activityPositioningDescription")}</div>
                 </div>
               </div>
 
@@ -1081,61 +1047,46 @@ export default function ActivityContent({
                 {i18nT("enregistre_a5dfbc23")}{" "}</div>
             ) : null}
 
-            {onboarding ? (
-              <OnboardingStepFooter
-                busy={saving}
-                onPrevious={() => save({
-                  requireComplete: false,
-                  onSuccess: onOnboardingPrevious,
-                })}
-                onNext={() => save({
-                  requireComplete: true,
-                  onSuccess: onOnboardingNext,
-                })}
-                onReset={handleReset}
-              />
-            ) : (
-              <div
-                data-activity-actions
+            <div
+              data-activity-actions
+              style={{
+                position: "sticky",
+                bottom: 0,
+                zIndex: 8,
+                display: "grid",
+                gap: 10,
+                gridTemplateColumns: "minmax(180px, 1.35fr) minmax(130px, 0.72fr)",
+                padding: "11px 0 max(2px, var(--inrcy-safe-area-bottom))",
+                background:
+                  "linear-gradient(180deg, rgba(6,16,31,0), rgba(6,16,31,0.96) 28%)",
+              }}
+            >
+              <button
+                type="button"
+                style={primaryBtn}
+                disabled={saving}
+                onClick={() => void save()}
+              >
+                {saving
+                  ? i18nT("enregistrement_e7d5f232")
+                  : i18nT("enregistrer_f7c8bcd8")}
+              </button>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={handleReset}
                 style={{
-                  position: "sticky",
-                  bottom: 0,
-                  zIndex: 8,
-                  display: "grid",
-                  gap: 10,
-                  gridTemplateColumns: "minmax(180px, 1.35fr) minmax(130px, 0.72fr)",
-                  padding: "11px 0 max(2px, var(--inrcy-safe-area-bottom))",
-                  background:
-                    "linear-gradient(180deg, rgba(6,16,31,0), rgba(6,16,31,0.96) 28%)",
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  background: "rgba(255,255,255,0.05)",
+                  color: "white",
+                  borderRadius: 14,
+                  padding: "10px 12px",
+                  cursor: saving ? "not-allowed" : "pointer",
+                  fontWeight: 800,
                 }}
               >
-                <button
-                  type="button"
-                  style={primaryBtn}
-                  disabled={saving}
-                  onClick={() => void save()}
-                >
-                  {saving
-                    ? i18nT("enregistrement_e7d5f232")
-                    : i18nT("enregistrer_f7c8bcd8")}
-                </button>
-                <button
-                  type="button"
-                  disabled={saving}
-                  onClick={handleReset}
-                  style={{
-                    border: "1px solid rgba(255,255,255,0.12)",
-                    background: "rgba(255,255,255,0.05)",
-                    color: "white",
-                    borderRadius: 14,
-                    padding: "10px 12px",
-                    cursor: saving ? "not-allowed" : "pointer",
-                    fontWeight: 800,
-                  }}
-                >
-                  {i18nT("reinitialiser_e0e2ad54")}{" "}</button>
-              </div>
-            )}
+                {i18nT("reinitialiser_e0e2ad54")}{" "}</button>
+            </div>
 
             {mode === "drawer" ? (
               <div style={{ fontSize: 12, opacity: 0.7 }}>

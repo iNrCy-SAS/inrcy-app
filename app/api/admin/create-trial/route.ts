@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendAdminSubscriptionAlertForUser } from "@/lib/subscriptionAdmin";
-import { ensureNotificationPreferences, seedOnboardingNotifications } from "@/lib/notifications";
+import { ensureNotificationPreferences, seedWelcomeNotifications } from "@/lib/notifications";
 import { ensureTrialSubscription } from "@/lib/trialSubscription";
 import { ensureProfileRow } from "@/lib/ensureProfileRow";
 import { requireAdminApi } from "@/lib/adminSecurity";
@@ -89,7 +89,7 @@ export async function POST(req: Request) {
     await provisionNewAccountBubbleAccess(userId);
     await ensureProfileRow(invite.user);
     await ensureNotificationPreferences(userId);
-    await seedOnboardingNotifications(userId);
+    await seedWelcomeNotifications(userId);
     const { edition, trialDays, start, end } = await ensureTrialSubscription(userId, email);
 
     await sendAdminSubscriptionAlertForUser({

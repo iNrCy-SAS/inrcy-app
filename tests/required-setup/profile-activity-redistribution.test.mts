@@ -26,7 +26,7 @@ const completeActivity = {
   customer_typologies: ["professionnels"],
 };
 
-test("legal and generator-only values no longer block the global onboarding", () => {
+test("legal and generator-only values do not block required setup", () => {
   const completionSource = read("lib/dashboardCompletion.ts");
   const profileFieldsBlock = completionSource.match(
     /DASHBOARD_PROFILE_COMPLETION_FIELDS = \[([\s\S]*?)\] as const/,
@@ -76,14 +76,14 @@ test("Encaisser and the generator keep the exact historical database columns", (
   assert.match(generator, /lead_conversion_rate: normalized\.conversionRate/);
 });
 
-test("the three-step onboarding uses dedicated profile and activity presentations", () => {
+test("profile and activity remain regular menu panels", () => {
   const content = read("app/dashboard/_components/DashboardSettingsDrawerContent.tsx");
   const client = read("app/dashboard/DashboardClient.tsx");
   const drawer = read("app/dashboard/SettingsDrawer.tsx");
 
-  assert.match(content, /onboarding=\{guidedOnboardingStep === "profile"\}/);
-  assert.match(content, /onboarding=\{guidedOnboardingStep === "activity"\}/);
-  assert.match(client, /onboardingT\("progress"/);
-  assert.match(drawer, /presentation === "onboarding"/);
-  assert.match(drawer, /min\(860px, calc\(100vw - 48px\)\)/);
+  assert.match(content, /panel === "profil"/);
+  assert.match(content, /panel === "activite"/);
+  assert.doesNotMatch(content, /guidedOnboarding|onOnboarding/);
+  assert.doesNotMatch(client, /guidedOnboarding|onboardingProgress/);
+  assert.doesNotMatch(drawer, /presentation.*onboarding|contentDirection/);
 });

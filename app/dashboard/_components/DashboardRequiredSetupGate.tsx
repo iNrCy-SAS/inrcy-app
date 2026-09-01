@@ -10,7 +10,7 @@ import { StableBootScreen } from "./ClientHydrationGate";
 import { useDashboardRequiredSetupBypass } from "./DashboardRequiredSetupBypassProvider";
 
 export default function DashboardRequiredSetupGate({ children }: { children: ReactNode }) {
-  const t = useTranslations("dashboard.onboarding");
+  const t = useTranslations("dashboard.requiredSetup");
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -31,7 +31,7 @@ export default function DashboardRequiredSetupGate({ children }: { children: Rea
   // Si le compte est réellement incomplet, l’effet ci-dessus redirige ensuite
   // vers le dashboard. Le cache de complétion rend ce cas quasi immédiat.
   if (!bypassRequiredSetup && protectedDestination && completionCheckReady && !requiredSetupCompleted) {
-    return <StableBootScreen label={t("requiredSetup")} />;
+    return <StableBootScreen label={t("loading")} />;
   }
 
   return <>{children}</>;

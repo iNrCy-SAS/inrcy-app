@@ -5,7 +5,7 @@ import { attachRuntimeErrorTracking } from './helpers/runtime';
 const email = process.env.E2E_EMAIL;
 const password = process.env.E2E_PASSWORD;
 
-test.describe('client onboarding flow', () => {
+test.describe('dashboard access', () => {
   test.skip(!email || !password, 'E2E_EMAIL et E2E_PASSWORD requis');
 
   test('user reaches dashboard and sees main modules', async ({ page }) => {

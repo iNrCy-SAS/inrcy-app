@@ -18,16 +18,11 @@ import {
 import { refreshPublicProfileDependents } from "@/lib/publicProfileRefreshClient";
 import { createClient } from "@/lib/supabaseClient";
 import { getClientUserFacingErrorMessage } from "@/lib/userFacingErrors";
-import OnboardingStepFooter from "./OnboardingStepFooter";
-
 type Props = {
   mode?: "page" | "drawer";
-  onboarding?: boolean;
   onProfileSaved?: () => unknown | Promise<unknown>;
   onProfileReset?: () => unknown | Promise<unknown>;
   onCloseDrawer?: () => unknown | Promise<unknown>;
-  onOnboardingPrevious?: () => void | Promise<void>;
-  onOnboardingNext?: () => void | Promise<void>;
   onUnsavedChange?: (hasUnsavedChanges: boolean) => void;
 };
 
@@ -55,12 +50,9 @@ function profileSnapshot(form: ProfileForm) {
 
 export default function ProfilContent({
   mode = "page",
-  onboarding = false,
   onProfileSaved,
   onProfileReset,
   onCloseDrawer,
-  onOnboardingPrevious,
-  onOnboardingNext,
   onUnsavedChange,
 }: Props) {
   const i18nT = useTranslations("settings");
@@ -244,7 +236,7 @@ export default function ProfilContent({
     return { path: String(completed.path), signedUrl: String(completed.displayUrl) };
   }
 
-  const handleSave = async (onSuccess?: () => void | Promise<void>) => {
+  const handleSave = async () => {
     if (saving) return;
     setGlobalError("");
     setSaved(false);
@@ -329,9 +321,7 @@ export default function ProfilContent({
       onUnsavedChange?.(false);
       setSaved(true);
       await onProfileSaved?.();
-      if (onSuccess) {
-        await onSuccess();
-      } else if (mode === "drawer") {
+      if (mode === "drawer") {
         window.setTimeout(() => onCloseDrawer?.(), 450);
       } else {
         window.setTimeout(() => setSaved(false), 2500);
@@ -381,21 +371,10 @@ export default function ProfilContent({
         paddingBottom: "max(24px, var(--inrcy-safe-area-bottom))",
       }}
     >
-      {onboarding ? (
-        <section style={onboardingHeroStyle}>
-          <span style={onboardingIconStyle}>👋</span>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 19, fontWeight: 950 }}>{i18nT("faisons_connaissance_06564687")}</div>
-            <div style={{ marginTop: 4, color: "rgba(255,255,255,0.72)", lineHeight: 1.4 }}>
-              {i18nT("quelques_informations_essentielles_suffisent_pou_424524c0")}{" "}</div>
-          </div>
-        </section>
-      ) : (
-        <section style={introStyle}>
-          <strong>{i18nT("votre_identite_professionnelle_60502e51")}</strong>
-          <span>{i18nT("ces_informations_alimentent_votre_signature_et_cc93cb1e")}</span>
-        </section>
-      )}
+      <section style={introStyle}>
+        <strong>{i18nT("votre_identite_professionnelle_60502e51")}</strong>
+        <span>{i18nT("ces_informations_alimentent_votre_signature_et_cc93cb1e")}</span>
+      </section>
 
       <section style={cardStyle}>
         {loading ? (
@@ -581,31 +560,21 @@ export default function ProfilContent({
       {saved ? <div style={successBannerStyle}>{i18nT("profil_enregistre_d21b6a7e")}</div> : null}
 
       {!loading ? (
-        onboarding ? (
-          <OnboardingStepFooter
-            busy={saving}
-            previousDisabled
-            onPrevious={onOnboardingPrevious ?? (() => undefined)}
-            onNext={() => handleSave(onOnboardingNext)}
-            onReset={handleReset}
-          />
-        ) : (
-          <div data-profile-actions style={actionsStyle}>
-            <button type="button" onClick={handleReset} disabled={saving} style={resetButtonStyle}>
-              {i18nT("reinitialiser_e0e2ad54")}{" "}</button>
-            <button
-              type="button"
-              onClick={() => void handleSave()}
-              disabled={saving}
-              aria-busy={saving}
-              style={{ ...primaryButtonStyle, opacity: saving ? 0.7 : 1 }}
-            >
-              {saving
-                ? i18nT("enregistrement_e7d5f232")
-                : i18nT("enregistrer_f7c8bcd8")}
-            </button>
-          </div>
-        )
+        <div data-profile-actions style={actionsStyle}>
+          <button type="button" onClick={handleReset} disabled={saving} style={resetButtonStyle}>
+            {i18nT("reinitialiser_e0e2ad54")}{" "}</button>
+          <button
+            type="button"
+            onClick={() => void handleSave()}
+            disabled={saving}
+            aria-busy={saving}
+            style={{ ...primaryButtonStyle, opacity: saving ? 0.7 : 1 }}
+          >
+            {saving
+              ? i18nT("enregistrement_e7d5f232")
+              : i18nT("enregistrer_f7c8bcd8")}
+          </button>
+        </div>
       ) : null}
 
       <style jsx>{`
@@ -652,29 +621,6 @@ const introStyle: React.CSSProperties = {
   border: "1px solid rgba(255,255,255,0.10)",
   background: "rgba(255,255,255,0.04)",
   color: "rgba(255,255,255,0.72)",
-};
-
-const onboardingHeroStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 14,
-  padding: 16,
-  borderRadius: 20,
-  border: "1px solid rgba(56,189,248,0.24)",
-  background:
-    "linear-gradient(135deg, rgba(56,189,248,0.16), rgba(139,92,246,0.16), rgba(244,114,182,0.12))",
-};
-
-const onboardingIconStyle: React.CSSProperties = {
-  width: 48,
-  height: 48,
-  display: "grid",
-  placeItems: "center",
-  flex: "0 0 auto",
-  borderRadius: 16,
-  border: "1px solid rgba(255,255,255,0.16)",
-  background: "rgba(4,10,24,0.38)",
-  fontSize: 26,
 };
 
 const sectionTitleStyle: React.CSSProperties = {

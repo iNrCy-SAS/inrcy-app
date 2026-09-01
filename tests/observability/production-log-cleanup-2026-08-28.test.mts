@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 
@@ -51,16 +51,16 @@ test("les URL Storage privées utilisent un GET borné à la place de HEAD", () 
   assert.match(route, /Range: "bytes=0-0"/);
 });
 
-test("l'onboarding ne lit plus la table Supabase depuis le navigateur", () => {
-  const hook = read("app/dashboard/_hooks/useDashboardOnboardingState.ts");
-  const api = read("app/api/dashboard/onboarding-state/route.ts");
-  const server = read("lib/dashboardOnboardingServer.ts");
+test("l'ancien parcours de démarrage n'existe plus dans le runtime", () => {
+  const removed = [
+    "app/dashboard/_hooks/useDashboardOnboardingState.ts",
+    "app/api/dashboard/onboarding-state/route.ts",
+    "lib/dashboardOnboardingServer.ts",
+  ];
 
-  assert.match(hook, /ONBOARDING_API_URL/);
-  assert.doesNotMatch(hook, /createClient\(/);
-  assert.doesNotMatch(hook, /\.from\("inrcy_onboarding_states"\)/);
-  assert.match(api, /expectedAccountId !== activeUserId/);
-  assert.match(server, /supabaseAdmin[\s\S]*?\.from\("inrcy_onboarding_states"\)/);
+  removed.forEach((relativePath) => {
+    assert.equal(existsSync(path.join(ROOT, relativePath)), false);
+  });
 });
 
 test("toutes les créations de notifications passent par l'écriture atomique", () => {

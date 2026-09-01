@@ -2,11 +2,6 @@ import "server-only";
 
 import type { User } from "@supabase/supabase-js";
 
-import {
-  DASHBOARD_ONBOARDING_SELECT,
-  normalizeDashboardOnboardingRow,
-  type DashboardOnboardingRow,
-} from "@/lib/dashboardOnboarding";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 function cleanString(value: unknown) {
@@ -33,44 +28,6 @@ function provisioningError(code: string, detail?: string | null) {
   return new Error(detail ? `${code}: ${detail}` : code);
 }
 
-export async function ensureInrcyAccountOnboardingState(
-  accountId: string,
-): Promise<DashboardOnboardingRow> {
-  const normalizedAccountId = cleanString(accountId);
-  if (!normalizedAccountId) {
-    throw provisioningError("INRCY_ONBOARDING_ACCOUNT_ID_MISSING");
-  }
-
-  const { error: ensureError } = await supabaseAdmin.rpc(
-    "inrcy_ensure_account_onboarding_state",
-    { p_account_id: normalizedAccountId },
-  );
-
-  // La relecture est volontaire : un retour RPC sans erreur ne suffit pas à
-  // déclarer le compte prêt. Inversement, si le trigger avait déjà fait son
-  // travail, une erreur réseau ponctuelle de la RPC ne doit pas créer un faux
-  // échec : seule la postcondition en base décide.
-  const { data, error } = await supabaseAdmin
-    .from("inrcy_onboarding_states")
-    .select(DASHBOARD_ONBOARDING_SELECT)
-    .eq("account_id", normalizedAccountId)
-    .maybeSingle();
-
-  if (error) {
-    throw provisioningError("INRCY_ONBOARDING_VERIFICATION_FAILED", error.message);
-  }
-
-  const row = normalizeDashboardOnboardingRow(data);
-  if (!row || row.accountId !== normalizedAccountId) {
-    throw provisioningError(
-      "INRCY_ONBOARDING_STATE_NOT_FOUND_AFTER_PROVISIONING",
-      ensureError?.message,
-    );
-  }
-
-  return row;
-}
-
 export async function ensurePrincipalInrcyAccountProvisioned(user: User) {
   if (!user?.id) {
     throw provisioningError("INRCY_AUTH_USER_ID_MISSING");
@@ -84,8 +41,7 @@ export async function ensurePrincipalInrcyAccountProvisioned(user: User) {
     },
   );
 
-  const onboarding = await ensureInrcyAccountOnboardingState(user.id);
-  const [accountResult, membershipResult, configResult, onboardingResult] =
+  const [accountResult, membershipResult, configResult] =
     await Promise.all([
       supabaseAdmin
         .from("inrcy_accounts")
@@ -103,18 +59,12 @@ export async function ensurePrincipalInrcyAccountProvisioned(user: User) {
         .select("auth_user_id, multi_account_enabled, max_establishments")
         .eq("auth_user_id", user.id)
         .maybeSingle(),
-      supabaseAdmin
-        .from("inrcy_onboarding_states")
-        .select(DASHBOARD_ONBOARDING_SELECT)
-        .eq("account_id", user.id)
-        .maybeSingle(),
     ]);
 
   const firstError = [
     accountResult.error,
     membershipResult.error,
     configResult.error,
-    onboardingResult.error,
   ].find(Boolean);
   if (firstError) {
     throw provisioningError(
@@ -126,7 +76,6 @@ export async function ensurePrincipalInrcyAccountProvisioned(user: User) {
   const account = accountResult.data;
   const membership = membershipResult.data;
   const config = configResult.data;
-  const verifiedOnboarding = normalizeDashboardOnboardingRow(onboardingResult.data);
 
   if (!account || account.id !== user.id) {
     throw provisioningError("INRCY_PRINCIPAL_ACCOUNT_MISSING", ensureError?.message);
@@ -147,12 +96,5 @@ export async function ensurePrincipalInrcyAccountProvisioned(user: User) {
   ) {
     throw provisioningError("INRCY_MULTI_ACCOUNT_CONFIG_INVALID");
   }
-  if (!verifiedOnboarding || verifiedOnboarding.accountId !== onboarding.accountId) {
-    throw provisioningError("INRCY_PRINCIPAL_ONBOARDING_INVALID", ensureError?.message);
-  }
-
-  return {
-    accountId: user.id,
-    onboarding: verifiedOnboarding,
-  };
+  return { accountId: user.id };
 }

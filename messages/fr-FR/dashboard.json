@@ -346,32 +346,25 @@
     "pageUnavailable": "Page indisponible",
     "profileChecking": "Vérification de votre profil…"
   },
-  "onboarding": {
-    "initialSetup": "Configuration initiale",
-    "progress": "Configuration initiale · Étape {current}/{total}",
-    "unsavedPrefix": "Les modifications non enregistrées seront perdues. ",
-    "keepDefaultsTitle": "Conserver les réglages par défaut ?",
-    "continueLaterTitle": "Continuer plus tard ?",
-    "keepDefaultsMessage": "Votre IA conservera les réglages recommandés par défaut. Vous pourrez les personnaliser plus tard depuis Configuration IA.",
-    "continueLaterMessage": "Passer cette étape ne permet pas l’activation de tous les outils iNrCy. Vous pourrez reprendre la configuration depuis le dashboard. Voulez-vous continuer plus tard ?",
-    "keepDefaults": "Conserver par défaut",
-    "continueLater": "Continuer plus tard",
+  "setupAlert": {
+    "eyebrow": "Configuration de votre compte",
+    "title": "Pour activer pleinement l’application",
+    "bothIncomplete": "Remplissez votre Profil et votre Activité dans le menu.",
+    "profileIncomplete": "Remplissez votre Profil dans le menu.",
+    "activityIncomplete": "Remplissez votre Activité dans le menu.",
+    "confirm": "J’ai compris"
+  },
+  "settingsDrawer": {
     "settings": "Réglages",
     "exitWithoutSavingTitle": "Quitter sans enregistrer ?",
     "exitWithoutSavingMessage": "Cette fenêtre contient des modifications non enregistrées. Si vous la fermez maintenant, elles seront perdues.",
     "closeWithoutSaving": "Fermer sans enregistrer",
-    "returnToSetup": "Revenir à la configuration",
-    "continueEditing": "Continuer l’édition",
-    "skip": "Passer",
-    "aiReadyTitle": "Votre IA est déjà prête",
-    "aiReadyDescription": "iNrCy utilise déjà les réglages recommandés. Vous pouvez personnaliser votre moteur, votre ton et votre style maintenant, ou conserver la configuration par défaut.",
-    "customizeAi": "Personnaliser mon IA",
-    "requiredSetup": "Configuration initiale requise…",
-    "navigationLabel": "Navigation entre les étapes de configuration",
-    "previous": "Précédent",
-    "next": "Suivant",
-    "reset": "Réinitialiser",
-    "saving": "Enregistrement…",
+    "continueEditing": "Continuer l’édition"
+  },
+  "requiredSetup": {
+    "loading": "Configuration requise…"
+  },
+  "settingsSections": {
     "activityIdentityTitle": "Métier et prestations",
     "activityIdentityDescription": "Présentez clairement ce que vous faites et ce que vous proposez.",
     "activityReachTitle": "Zone et disponibilité",
