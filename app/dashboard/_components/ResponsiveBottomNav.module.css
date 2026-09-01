@@ -348,6 +348,15 @@
     background: rgba(255, 255, 255, 0.10);
   }
 
+  .menuItemWide {
+    grid-column: 1 / -1;
+  }
+
+  .menuItemWide .menuItemText {
+    overflow: visible;
+    text-overflow: clip;
+  }
+
   .menuItemText {
     min-width: 0;
     overflow: hidden;
@@ -358,6 +367,19 @@
   .menuItemWarning {
     flex: 0 0 auto;
     font-size: 11px;
+  }
+
+  .menuItemBadge {
+    flex: 0 0 auto;
+    padding: 4px 7px;
+    border: 1px solid rgba(190, 117, 255, 0.3);
+    border-radius: 999px;
+    background: linear-gradient(135deg, rgba(52, 185, 255, 0.13), rgba(181, 67, 255, 0.17));
+    color: #eecbff;
+    font-size: 8px;
+    font-weight: 950;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
   }
 
   .menuDivider {

@@ -107,6 +107,8 @@ Limites optionnelles :
 - [ ] `AI_GATEWAY_API_KEY` ou authentification OIDC Vercel — transport principal pour la génération texte/vision et la transcription
 - [ ] `AI_GATEWAY_MODEL` (format `provider/model`)
 - [ ] `AI_GATEWAY_VISION_MODEL` si modèle vision distinct
+- [ ] `AI_GATEWAY_IMAGE_MODEL` (optionnel, format `provider/model`) — surcharge du modèle de génération d’image via la Gateway
+- [ ] `AI_GATEWAY_VIDEO_MODEL` (optionnel, format `provider/model`) — surcharge du modèle de génération vidéo via la Gateway
 - [ ] `AI_GATEWAY_BASE_URL` seulement si surcharge volontaire
 - [ ] `AI_GATEWAY_FALLBACK_MODEL` (optionnel ; secours Gateway des moteurs non-OpenAI, défaut `openai/gpt-4o-mini`)
 - [ ] `AI_GATEWAY_OPENAI_PRIMARY_FALLBACK_MODEL` (optionnel ; secours Gateway lorsque ChatGPT est sélectionné, défaut `google/gemini-2.5-flash-lite`)

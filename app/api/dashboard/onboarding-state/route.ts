@@ -8,9 +8,11 @@ import {
   type DashboardOnboardingStep,
 } from "@/lib/dashboardOnboarding";
 import {
+  abandonDashboardOnboardingForAccount,
   getDashboardOnboardingStateForAccount,
   saveDashboardOnboardingStateForAccount,
 } from "@/lib/dashboardOnboardingServer";
+import { ensureInrcyAccountOnboardingState } from "@/lib/inrcyAccountProvisioning";
 import { requireUser } from "@/lib/requireUser";
 
 export const runtime = "nodejs";
@@ -27,13 +29,25 @@ function json(body: Record<string, unknown>, status = 200) {
 
 export async function GET() {
   const { activeUserId, errorResponse } = await requireUser();
-  if (errorResponse) return errorResponse;
+  if (errorResponse) {
+    console.warn("[dashboard-onboarding] GET user scope unavailable", {
+      status: errorResponse.status,
+    });
+    return errorResponse;
+  }
   if (!activeUserId) {
     return json({ ok: false, code: "onboarding_account_missing" }, 401);
   }
 
   try {
     let row = await getDashboardOnboardingStateForAccount(activeUserId);
+    if (!row) {
+      row = await ensureInrcyAccountOnboardingState(activeUserId);
+    }
+    if (!row) {
+      throw new Error("INRCY_ONBOARDING_STATE_UNAVAILABLE_AFTER_REPAIR");
+    }
+
     const firstOpeningDetected = isDashboardOnboardingFirstOpening(row);
     if (row && firstOpeningDetected) {
       row = await saveDashboardOnboardingStateForAccount({
@@ -46,11 +60,12 @@ export async function GET() {
       ok: true,
       accountId: activeUserId,
       row,
-      onboardingAvailable: Boolean(row),
+      onboardingAvailable: true,
       onboardingError: false,
       firstOpeningDetected,
     });
-  } catch {
+  } catch (error) {
+    console.error("[dashboard-onboarding] GET failed", error);
     return json(
       {
         ok: false,
@@ -71,6 +86,7 @@ export async function POST(request: Request) {
 
   const body = await request.json().catch(() => null);
   const expectedAccountId = String(body?.accountId || "").trim();
+  const action = String(body?.action || "").trim();
   const status = String(body?.status || "") as DashboardOnboardingStatus;
   const currentStep = String(body?.currentStep || "") as DashboardOnboardingStep;
 
@@ -84,6 +100,23 @@ export async function POST(request: Request) {
       409,
     );
   }
+
+  if (action === "abandon_after_fail_open") {
+    try {
+      const row = await abandonDashboardOnboardingForAccount(activeUserId);
+      return json({ ok: true, accountId: activeUserId, row });
+    } catch {
+      return json(
+        {
+          ok: false,
+          code: "onboarding_abandon_save_failed",
+          error: "Le parcours n'a pas pu être abandonné en base.",
+        },
+        503,
+      );
+    }
+  }
+
   if (
     !DASHBOARD_ONBOARDING_STATUSES.includes(status) ||
     !DASHBOARD_ONBOARDING_STEPS.includes(currentStep)

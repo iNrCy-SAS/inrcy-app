@@ -9,6 +9,7 @@ import { normalizeTransferredMediaMetadata } from "@/lib/mediaMetadataTransfer";
 export const runtime = "nodejs";
 
 const BUCKET = "inrcy-pro-media";
+const AI_MEDIA_GENERATION_DRAFT_SOURCE = "ai_media_generation_draft";
 
 function cleanText(value: unknown, max = 500) {
   return String(value ?? "").trim().slice(0, max);
@@ -274,6 +275,10 @@ export async function GET(request: NextRequest) {
     .from("pro_media_library")
     .select("id,user_id,bucket_name,storage_path,media_type,mime_type,size_bytes,title,tags,source,width,height,duration_seconds,is_active,usage_count,last_used_at,created_at,updated_at,original_file_name,media_metadata")
     .eq("user_id", activeUserId)
+    // Les apercus IA temporaires appartiennent au workflow de generation, pas
+    // a la Mediatheque. Ils restent invisibles meme dans les vues Masques/Tous
+    // jusqu'a leur promotion explicite par la route d'acceptation dediee.
+    .neq("source", AI_MEDIA_GENERATION_DRAFT_SOURCE)
     .order("created_at", { ascending: false })
     .limit(fetchLimit);
 
@@ -370,6 +375,26 @@ export async function PATCH(request: NextRequest) {
   const id = cleanText(body?.id, 80);
   if (!id) return jsonError("Média obligatoire.", 400);
 
+  const existing = await supabaseAdmin
+    .from("pro_media_library")
+    .select("id,source")
+    .eq("id", id)
+    .eq("user_id", activeUserId)
+    .maybeSingle();
+  if (existing.error) {
+    if (tableMissingError(existing.error)) {
+      return jsonError("La table pro_media_library n’existe pas encore.", 503, existing.error.message);
+    }
+    return jsonError("Impossible de vérifier le média.", 500, existing.error.message);
+  }
+  if (!existing.data) return jsonError("Média introuvable.", 404);
+  if (existing.data.source === AI_MEDIA_GENERATION_DRAFT_SOURCE) {
+    return jsonError(
+      "Cet aperçu IA doit être validé ou abandonné depuis l’outil de génération.",
+      409,
+    );
+  }
+
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
 
   if (Object.prototype.hasOwnProperty.call(body, "title")) {
@@ -390,6 +415,7 @@ export async function PATCH(request: NextRequest) {
     .update(patch)
     .eq("id", id)
     .eq("user_id", activeUserId)
+    .neq("source", AI_MEDIA_GENERATION_DRAFT_SOURCE)
     .select("id");
 
   if (error) {
@@ -425,7 +451,7 @@ export async function DELETE(request: NextRequest) {
 
   const { data: rows, error: fetchError } = await supabaseAdmin
     .from("pro_media_library")
-    .select("id,bucket_name,storage_path")
+    .select("id,bucket_name,storage_path,source")
     .eq("user_id", activeUserId)
     .in("id", requestedIds);
 
@@ -436,6 +462,16 @@ export async function DELETE(request: NextRequest) {
 
   const foundRows = Array.isArray(rows) ? rows : [];
   if (!foundRows.length) return jsonError("Média introuvable.", 404);
+  if (
+    foundRows.some(
+      (row: any) => row.source === AI_MEDIA_GENERATION_DRAFT_SOURCE,
+    )
+  ) {
+    return jsonError(
+      "Cet aperçu IA doit être validé ou abandonné depuis l’outil de génération.",
+      409,
+    );
+  }
 
   for (const row of foundRows as any[]) {
     const storagePath = String(row.storage_path || "");

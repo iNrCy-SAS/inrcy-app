@@ -14,6 +14,12 @@ const sharpRuntimeFiles = [
   "node_modules/@img/**/*",
 ];
 
+const aiMediaGenerationRuntimeFiles = [
+  ...sharpRuntimeFiles,
+  "node_modules/ffmpeg-static/**/*",
+  "assets/media-generation/soundtracks/**/*",
+];
+
 // Transactional emails load these images from Outlook/Gmail origins. The
 // application-wide same-origin resource policy is correct for private app
 // assets, but it must not be sent for explicitly public email branding.
@@ -64,6 +70,7 @@ const nextConfig: NextConfig = {
     "/api/cron/*": sharpRuntimeFiles,
     "/api/agent/**/*": sharpRuntimeFiles,
     "/api/booster/**/*": sharpRuntimeFiles,
+    "/api/media-generation/**/*": aiMediaGenerationRuntimeFiles,
     "/api/media-pipeline/**/*": sharpRuntimeFiles,
     "/api/media-library/**/*": sharpRuntimeFiles,
     "/api/media/tiktok": sharpRuntimeFiles,

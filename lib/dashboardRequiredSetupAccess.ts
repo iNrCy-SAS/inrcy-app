@@ -4,6 +4,7 @@ export const DASHBOARD_REQUIRED_SETUP_BLOCKED_PREFIXES = [
   "/dashboard/propulser",
   "/dashboard/fideliser",
   "/dashboard/booster",
+  "/dashboard/generer-media",
   "/dashboard/factures",
   "/dashboard/devis",
   "/dashboard/e-reputation",

@@ -21,6 +21,8 @@ type Props = {
   presentation?: "drawer" | "onboarding";
   /** Libellé du bouton de fermeture. */
   closeLabel?: string;
+  /** Affiche le bouton de fermeture. Masqué pendant l'onboarding obligatoire. */
+  showCloseButton?: boolean;
   /** Identifie la page interne du parcours afin d'animer son remplacement. */
   contentKey?: string;
   /** Sens de lecture de la transition entre deux pages du parcours. */
@@ -43,6 +45,7 @@ export default function SettingsDrawer({
   closeOnEscape = true,
   presentation = "drawer",
   closeLabel,
+  showCloseButton = true,
   contentKey,
   contentDirection = "forward",
   children,
@@ -241,20 +244,22 @@ export default function SettingsDrawer({
               <LanguageSelector compact mobile={isPhone} />
             ) : null}
             {headerActions}
-            <button
-              type="button"
-              onClick={onClose}
-              style={{
-                border: "1px solid rgba(255,255,255,0.12)",
-                background: "transparent",
-                color: "white",
-                borderRadius: 10,
-                padding: "8px 10px",
-                cursor: "pointer",
-              }}
-            >
-              {closeLabel ?? t.drawer.close}
-            </button>
+            {showCloseButton ? (
+              <button
+                type="button"
+                onClick={onClose}
+                style={{
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  background: "transparent",
+                  color: "white",
+                  borderRadius: 10,
+                  padding: "8px 10px",
+                  cursor: "pointer",
+                }}
+              >
+                {closeLabel ?? t.drawer.close}
+              </button>
+            ) : null}
           </div>
         </div>
 

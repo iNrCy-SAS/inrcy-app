@@ -121,6 +121,7 @@ export type MailboxDetailsModalProps = {
   addPublicationFiles: (fileList: FileList | File[] | null) => void;
   addPublicationPhoto: (file: File) => void;
   addPublicationMediaLibraryItems: (items: MediaLibraryPickerItem[]) => void | Promise<void>;
+  replacePublicationMediaLibraryItem: (item: MediaLibraryPickerItem) => Promise<void>;
   publicationVideoInputId: string;
   activePublicationEditVideo: PublicationEditVideoState | null;
   addPublicationVideo: (fileList: FileList | File[] | null) => void;

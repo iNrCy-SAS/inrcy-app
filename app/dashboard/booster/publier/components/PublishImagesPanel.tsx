@@ -118,6 +118,8 @@ type PublishImagesPanelProps = {
   previewAspectRatio: string;
   setSynchronizedActiveChannel: (channel: ChannelKey) => void;
   onPickImagesClick: () => void;
+  onGenerateMedia: () => void;
+  onOpenMediaLibrary: () => void;
   onPickImagesForChannel: (channel: ChannelKey) => void;
   onUseExistingImagesForChannel: (channel: ChannelKey) => void;
   onRemoveImagesFromChannel: (channel: ChannelKey) => void;
@@ -171,6 +173,8 @@ export default function PublishImagesPanel({
   previewAspectRatio,
   setSynchronizedActiveChannel,
   onPickImagesClick,
+  onGenerateMedia,
+  onOpenMediaLibrary,
   onPickImagesForChannel,
   onUseExistingImagesForChannel,
   onRemoveImagesFromChannel,
@@ -184,6 +188,7 @@ export default function PublishImagesPanel({
   moveChannelImage,
 }: PublishImagesPanelProps) {
   const i18nT = useTranslations("booster");
+  const mediaT = useTranslations("media");
   const runtimeT = i18nT as unknown as (
     key: string,
     values?: Record<string, string | number>,
@@ -458,6 +463,27 @@ export default function PublishImagesPanel({
           }}
         >
           {i18nT("ajouter_une_video_c0be31cb")}{" "}</button>
+        <button
+          type="button"
+          className={styles.secondaryBtn}
+          onClick={onGenerateMedia}
+          title={mediaT("ai_generator_generate_media")}
+          style={{
+            borderColor: "rgba(81,215,255,0.34)",
+            background:
+              "linear-gradient(135deg, rgba(38,180,238,0.20), rgba(183,65,197,0.24))",
+          }}
+        >
+          ✦ {mediaT("ai_generator_generate_media")}
+        </button>
+        <button
+          type="button"
+          className={styles.secondaryBtn}
+          onClick={onOpenMediaLibrary}
+          title={i18nT("ajouter_depuis_la_mediatheque_d0f700b2")}
+        >
+          {i18nT("mediatheque_f23ba807")}
+        </button>
         <span
           title={
             !isMobile

@@ -13,6 +13,7 @@ import {
 } from "@/lib/dashboardOnboarding";
 import { requireUser } from "@/lib/requireUser";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { ensureInrcyAccountOnboardingState } from "@/lib/inrcyAccountProvisioning";
 
 export async function getDashboardOnboardingStateForAccount(accountId: string) {
   const { data, error } = await supabaseAdmin
@@ -44,6 +45,9 @@ export async function saveDashboardOnboardingStateForAccount(params: {
   if (!current) throw new Error("INRCY_ONBOARDING_STATE_NOT_FOUND");
   if (current.status === "completed" && params.status !== "completed") {
     throw new Error("INRCY_ONBOARDING_ALREADY_COMPLETED");
+  }
+  if (current.status === "deferred" && params.status !== "deferred") {
+    throw new Error("INRCY_ONBOARDING_ALREADY_ABANDONED");
   }
 
   const nowIso = new Date().toISOString();
@@ -79,12 +83,58 @@ export async function saveDashboardOnboardingStateForAccount(params: {
   return saved;
 }
 
+export async function abandonDashboardOnboardingForAccount(accountId: string) {
+  let current = await getDashboardOnboardingStateForAccount(accountId);
+  if (!current) current = await ensureInrcyAccountOnboardingState(accountId);
+  if (!current) throw new Error("INRCY_ONBOARDING_STATE_NOT_FOUND");
+  if (current.status === "completed" || current.status === "deferred") {
+    return current;
+  }
+
+  const nowIso = new Date().toISOString();
+  const { data, error } = await supabaseAdmin
+    .from("inrcy_onboarding_states")
+    .update({
+      status: "deferred",
+      started_at: current.startedAt || nowIso,
+      deferred_at: current.deferredAt || nowIso,
+      completed_at: null,
+    })
+    .eq("account_id", accountId)
+    .eq("version", current.version)
+    .in("status", ["pending", "in_progress", "deferred"])
+    .select(DASHBOARD_ONBOARDING_SELECT)
+    .maybeSingle();
+
+  if (error) throw error;
+  const saved = normalizeDashboardOnboardingRow(data);
+  if (saved) return saved;
+
+  const latest = await getDashboardOnboardingStateForAccount(accountId);
+  if (latest?.status === "completed" || latest?.status === "deferred") {
+    return latest;
+  }
+  throw new Error("INRCY_ONBOARDING_ABANDON_CONCURRENT_UPDATE");
+}
+
 export async function getDashboardInitialOnboardingStateServer(): Promise<DashboardOnboardingInitialState | null> {
   const { activeUserId, errorResponse } = await requireUser();
-  if (errorResponse || !activeUserId) return null;
+  if (errorResponse || !activeUserId) {
+    console.warn("[dashboard-onboarding] initial user scope unavailable", {
+      status: errorResponse?.status ?? null,
+      hasActiveAccount: Boolean(activeUserId),
+    });
+    return null;
+  }
 
   try {
     let row = await getDashboardOnboardingStateForAccount(activeUserId);
+    if (!row) {
+      row = await ensureInrcyAccountOnboardingState(activeUserId);
+    }
+    if (!row) {
+      throw new Error("INRCY_ONBOARDING_STATE_UNAVAILABLE_AFTER_REPAIR");
+    }
     const firstOpeningDetected = isDashboardOnboardingFirstOpening(row);
 
     if (row && firstOpeningDetected) {
@@ -98,11 +148,18 @@ export async function getDashboardInitialOnboardingStateServer(): Promise<Dashbo
     return {
       accountId: activeUserId,
       row,
-      onboardingAvailable: Boolean(row),
+      onboardingAvailable: true,
       onboardingError: false,
       firstOpeningDetected,
     };
-  } catch {
-    return null;
+  } catch (error) {
+    console.error("[dashboard-onboarding] initial server state failed", error);
+    return {
+      accountId: activeUserId,
+      row: null,
+      onboardingAvailable: false,
+      onboardingError: true,
+      firstOpeningDetected: false,
+    };
   }
 }

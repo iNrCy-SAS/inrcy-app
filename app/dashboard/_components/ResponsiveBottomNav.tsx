@@ -135,6 +135,8 @@ type MobileMenuActionButtonProps = {
   loading: boolean;
   onClick: () => void;
   warning?: boolean;
+  badge?: string;
+  wide?: boolean;
 };
 
 function MobileMenuActionButton({
@@ -142,11 +144,13 @@ function MobileMenuActionButton({
   loading,
   onClick,
   warning = false,
+  badge,
+  wide = false,
 }: MobileMenuActionButtonProps) {
   const i18nT = useTranslations("shell");
   return (
     <button
-      className={styles.menuItem}
+      className={`${styles.menuItem} ${wide ? styles.menuItemWide : ""}`}
       type="button"
       role="menuitem"
       aria-busy={loading || undefined}
@@ -156,6 +160,7 @@ function MobileMenuActionButton({
       <span className={styles.menuItemText}>
         {loading ? i18nT("chargement_01cba1df") : label}
       </span>
+      {badge && !loading ? <span className={styles.menuItemBadge}>{badge}</span> : null}
       {warning && !loading ? (
         <span className={styles.menuItemWarning} aria-hidden="true">
           ⚠️
@@ -504,6 +509,8 @@ function ResponsiveBottomNavMobile() {
   const hasMenuWarning = profileIncomplete || activityIncomplete;
   const publishActionKey = resolveHrefDestination("/dashboard?action=publish").key;
   const mediaActionKey = resolveHrefDestination("/dashboard/mediatheque").key;
+  const mediaGeneratorHref = "/dashboard/generer-media";
+  const mediaGeneratorActionKey = resolveHrefDestination(mediaGeneratorHref).key;
   const gpsActionKey = resolveHrefDestination("/dashboard/gps").key;
   const adminActionKey = resolveHrefDestination("/dashboard/admin").key;
   const publishLoadingVisible = isVisible(publishActionKey);
@@ -602,6 +609,12 @@ function ResponsiveBottomNavMobile() {
                   label={t.userMenu.ai}
                   loading={isVisible("panel:ia")}
                   onClick={() => openDashboardPanel("ia")}
+                />
+                <MobileMenuActionButton
+                  label={t.userMenu.mediaGenerator}
+                  wide
+                  loading={isVisible(mediaGeneratorActionKey)}
+                  onClick={() => navigate(mediaGeneratorHref)}
                 />
                 <MobileMenuActionButton
                   label={t.userMenu.media}

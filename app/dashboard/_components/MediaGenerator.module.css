@@ -1,0 +1,678 @@
+.generator {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.steps {
+  display: grid;
+  gap: 10px;
+}
+
+.stepCard {
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid rgba(137, 172, 255, 0.17);
+  border-radius: 17px;
+  background:
+    linear-gradient(135deg, rgba(38, 156, 221, 0.055), transparent 42%),
+    rgba(6, 15, 39, 0.5);
+  transition: border-color 160ms ease, opacity 160ms ease;
+}
+
+.stepCardDisabled {
+  opacity: 0.48;
+}
+
+.stepHeading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.stepHeading > span {
+  width: 27px;
+  height: 27px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(94, 221, 255, 0.28);
+  border-radius: 9px;
+  background: linear-gradient(135deg, rgba(35, 183, 235, 0.2), rgba(124, 88, 238, 0.2));
+  color: #8deeff;
+  font-size: 11px;
+  font-weight: 950;
+}
+
+.stepHeading > div {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.stepHeading strong {
+  color: #f7fbff;
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.stepHeading small {
+  color: rgba(204, 219, 246, 0.57);
+  font-size: 10.5px;
+  line-height: 1.35;
+}
+
+.subjectChoices {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.subjectChoices:has(> :only-child) {
+  grid-template-columns: 1fr;
+}
+
+.subjectChoices:has(> :nth-child(2):last-child) {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.choiceCard,
+.kindChoice,
+.optionChoices button {
+  min-width: 0;
+  border: 1px solid rgba(150, 178, 255, 0.15);
+  background: rgba(255, 255, 255, 0.045);
+  color: rgba(230, 239, 255, 0.76);
+  font: inherit;
+  cursor: pointer;
+  transition: transform 150ms ease, border-color 150ms ease, background 150ms ease, box-shadow 150ms ease;
+}
+
+.choiceCard:hover:not(:disabled),
+.kindChoice:hover:not(:disabled),
+.optionChoices button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: rgba(104, 220, 255, 0.3);
+}
+
+.choiceCard {
+  position: relative;
+  min-height: 78px;
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  padding: 11px 11px 10px;
+  border-radius: 13px;
+  text-align: left;
+}
+
+.choiceCard strong {
+  padding-right: 20px;
+  color: inherit;
+  font-size: 11.5px;
+  line-height: 1.25;
+}
+
+.choiceCard small {
+  color: rgba(203, 217, 243, 0.56);
+  font-size: 9.5px;
+  line-height: 1.35;
+}
+
+.choiceCheck {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(164, 191, 255, 0.22);
+  border-radius: 50%;
+  color: #fff;
+  font-size: 10px;
+}
+
+.choiceCardActive,
+.kindChoiceActive,
+.optionChoices .optionChoiceActive {
+  border-color: rgba(94, 222, 255, 0.52);
+  color: #fff;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(66, 212, 255, 0.18), transparent 46%),
+    linear-gradient(135deg, rgba(36, 151, 212, 0.2), rgba(134, 74, 224, 0.24));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 9px 24px rgba(54, 74, 193, 0.14);
+}
+
+.choiceCardActive .choiceCheck {
+  border-color: transparent;
+  background: linear-gradient(135deg, #23b8e9, #8656e7);
+}
+
+.customField {
+  display: grid;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.customField > span {
+  color: rgba(235, 244, 255, 0.86);
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.customField textarea {
+  width: 100%;
+  min-height: 76px;
+  box-sizing: border-box;
+  resize: vertical;
+  border: 1px solid rgba(118, 181, 255, 0.25);
+  border-radius: 13px;
+  padding: 10px 11px;
+  background: rgba(2, 9, 27, 0.68);
+  color: #f7fbff;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.45;
+  outline: none;
+}
+
+.customField textarea:focus {
+  border-color: rgba(81, 220, 255, 0.6);
+  box-shadow: 0 0 0 3px rgba(65, 202, 255, 0.09);
+}
+
+.customField textarea::placeholder {
+  color: rgba(198, 213, 242, 0.4);
+}
+
+.customField small {
+  color: #ffc2cc;
+  font-size: 10px;
+}
+
+.kindChoices,
+.optionChoices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.kindChoice,
+.optionChoices button {
+  min-height: 39px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border-radius: 12px;
+  font-size: 11.5px;
+  font-weight: 900;
+}
+
+.kindChoice > span {
+  color: #8beeff;
+  font-size: 12px;
+}
+
+.optionPlaceholder {
+  height: 39px;
+  border: 1px dashed rgba(150, 178, 255, 0.13);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.quotaCard,
+.progressCard,
+.resultCard {
+  border: 1px solid rgba(137, 172, 255, 0.18);
+  border-radius: 16px;
+  background: linear-gradient(145deg, rgba(17, 36, 77, 0.7), rgba(7, 16, 42, 0.76));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.quotaCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+}
+
+.quotaCard > div:first-child {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.quotaLabel,
+.quotaMeta {
+  color: rgba(205, 219, 248, 0.62);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.quotaCard strong {
+  color: #fff;
+  font-size: 15px;
+}
+
+.quotaMeta {
+  display: grid;
+  gap: 1px;
+  text-align: right;
+}
+
+.quotaMeta small {
+  color: rgba(112, 226, 255, 0.72);
+}
+
+.progressCard {
+  display: grid;
+  gap: 8px;
+  padding: 11px 12px;
+}
+
+.progressHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: #edf8ff;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.progressTrack {
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.progressTrack span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #35d8ff, #936fff, #ef75cf);
+  box-shadow: 0 0 16px rgba(107, 131, 255, 0.55);
+  transition: width 420ms ease;
+}
+
+.progressCard small {
+  color: rgba(203, 218, 244, 0.58);
+  font-size: 10px;
+}
+
+.error,
+.warning {
+  padding: 9px 11px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.error {
+  border: 1px solid rgba(255, 121, 145, 0.3);
+  background: rgba(180, 40, 72, 0.13);
+  color: #ffc6d1;
+}
+
+.warning {
+  border: 1px solid rgba(255, 189, 85, 0.28);
+  background: rgba(190, 119, 24, 0.12);
+  color: #ffe0a8;
+}
+
+.timingNotice,
+.savedStatus {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 13px;
+  font-size: 11.5px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.timingNotice {
+  border: 1px solid rgba(95, 215, 255, 0.24);
+  background: rgba(46, 162, 224, 0.09);
+  color: rgba(220, 241, 255, 0.82);
+}
+
+.timingNotice > span {
+  flex: 0 0 auto;
+  color: #8deeff;
+  font-size: 16px;
+}
+
+.savedStatus {
+  justify-content: center;
+  border: 1px solid rgba(74, 224, 170, 0.25);
+  background: rgba(41, 178, 128, 0.1);
+  color: #bdf8df;
+}
+
+.savedStatus > span {
+  width: 21px;
+  height: 21px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(66, 220, 162, 0.18);
+  color: #83f2c6;
+  font-size: 12px;
+}
+
+.generateButton,
+.secondaryButton,
+.confirmButton {
+  border: 0;
+  font: inherit;
+  font-weight: 950;
+  cursor: pointer;
+  transition: transform 150ms ease, opacity 150ms ease, box-shadow 150ms ease;
+}
+
+.generateButton {
+  min-height: 47px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 14px;
+  color: #fff;
+  background: linear-gradient(108deg, #0786dc, #6d4bea 55%, #ce48a9);
+  box-shadow: 0 13px 30px rgba(57, 78, 207, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.19);
+  font-size: 13px;
+}
+
+.generateButton:hover:not(:disabled),
+.secondaryButton:hover:not(:disabled),
+.confirmButton:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.generator button:disabled {
+  cursor: not-allowed;
+  opacity: 0.46;
+}
+
+.resultCard {
+  display: grid;
+  gap: 11px;
+  padding: 12px;
+}
+
+.previewFrame {
+  width: min(100%, 620px);
+  aspect-ratio: 1 / 1;
+  justify-self: center;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(151, 182, 255, 0.19);
+  border-radius: 15px;
+  background: rgba(1, 7, 22, 0.78);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.32);
+  color: rgba(206, 218, 244, 0.62);
+  font-size: 11px;
+}
+
+.previewFrame img,
+.previewFrame video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.resultActions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.resultActions > * {
+  flex: 1 1 190px;
+  max-width: 300px;
+}
+
+.secondaryButton,
+.confirmButton {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 14px;
+  border-radius: 12px;
+  color: #fff;
+  font-size: 11.5px;
+}
+
+.secondaryButton {
+  border: 1px solid rgba(150, 179, 255, 0.23);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.confirmButton {
+  background: linear-gradient(108deg, #0786dc, #6d4bea 55%, #ce48a9);
+  box-shadow: 0 11px 27px rgba(57, 78, 207, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+@media (min-width: 681px) {
+  .generator {
+    gap: 14px;
+  }
+
+  .steps {
+    gap: 11px;
+  }
+
+  .stepCard {
+    padding: 15px;
+    border-radius: 18px;
+  }
+
+  .stepHeading {
+    gap: 11px;
+    margin-bottom: 11px;
+  }
+
+  .stepHeading > span {
+    width: 30px;
+    height: 30px;
+    border-radius: 10px;
+    font-size: 12px;
+  }
+
+  .stepHeading strong {
+    font-size: 15px;
+  }
+
+  .stepHeading small {
+    font-size: 12px;
+  }
+
+  .subjectChoices,
+  .kindChoices,
+  .optionChoices {
+    gap: 10px;
+  }
+
+  .choiceCard {
+    min-height: 88px;
+    gap: 5px;
+    padding: 13px 13px 12px;
+    border-radius: 14px;
+  }
+
+  .choiceCard strong {
+    padding-right: 22px;
+    font-size: 13.25px;
+  }
+
+  .choiceCard small {
+    font-size: 11px;
+  }
+
+  .choiceCheck {
+    top: 10px;
+    right: 10px;
+    width: 20px;
+    height: 20px;
+    font-size: 11px;
+  }
+
+  .customField {
+    gap: 7px;
+    margin-top: 10px;
+  }
+
+  .customField > span {
+    font-size: 12.5px;
+  }
+
+  .customField textarea {
+    min-height: 84px;
+    padding: 12px 13px;
+    font-size: 13.5px;
+  }
+
+  .customField small {
+    font-size: 11.5px;
+  }
+
+  .kindChoice,
+  .optionChoices button {
+    min-height: 45px;
+    border-radius: 13px;
+    font-size: 13px;
+  }
+
+  .kindChoice > span {
+    font-size: 14px;
+  }
+
+  .optionPlaceholder {
+    height: 45px;
+    border-radius: 13px;
+  }
+
+  .quotaCard {
+    gap: 14px;
+    padding: 12px 14px;
+  }
+
+  .quotaLabel,
+  .quotaMeta {
+    font-size: 11.5px;
+  }
+
+  .quotaCard strong {
+    font-size: 17px;
+  }
+
+  .progressCard {
+    gap: 9px;
+    padding: 13px 14px;
+  }
+
+  .progressHeading {
+    font-size: 12.5px;
+  }
+
+  .progressTrack {
+    height: 8px;
+  }
+
+  .progressCard small {
+    font-size: 11.5px;
+  }
+
+  .error,
+  .warning {
+    padding: 11px 13px;
+    font-size: 12.5px;
+  }
+
+  .timingNotice,
+  .savedStatus {
+    padding: 12px 14px;
+    font-size: 13.5px;
+  }
+
+  .generateButton {
+    min-height: 54px;
+    gap: 9px;
+    border-radius: 15px;
+    font-size: 15px;
+  }
+
+  .resultCard {
+    gap: 13px;
+    padding: 14px;
+  }
+
+  .previewFrame {
+    width: min(100%, 680px);
+    border-radius: 17px;
+    font-size: 12.5px;
+  }
+
+  .resultActions {
+    gap: 10px;
+  }
+
+  .resultActions > * {
+    flex-basis: 220px;
+    max-width: 330px;
+  }
+
+  .secondaryButton,
+  .confirmButton {
+    min-height: 48px;
+    padding-inline: 16px;
+    border-radius: 13px;
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 680px) {
+  .generator {
+    gap: 10px;
+  }
+
+  .stepCard {
+    padding: 11px;
+    border-radius: 15px;
+  }
+
+  .subjectChoices,
+  .subjectChoices:has(> :nth-child(2):last-child) {
+    grid-template-columns: 1fr;
+  }
+
+  .choiceCard {
+    min-height: 62px;
+  }
+
+  .quotaCard {
+    align-items: flex-start;
+  }
+
+  .resultActions {
+    display: grid;
+  }
+
+  .resultActions > * {
+    max-width: none;
+  }
+}

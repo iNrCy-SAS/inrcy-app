@@ -62,7 +62,10 @@ const DEFAULT_LIMITS: GuardLimits = {
   dayCalls: 300,
   dayInputTokens: 2_000_000,
   dayOutputTokens: 250_000,
-  dayCostMicroUsd: 5_000_000,
+  // A Premium account may legitimately use its full daily media allowance:
+  // 10 videos at the guarded $1.50 estimate plus 30 images at $0.065 ~= $16.95.
+  // Keep headroom without weakening the independent SQL monthly quotas.
+  dayCostMicroUsd: 20_000_000,
   monthAttempts: 12_000,
   monthCalls: 6000,
   monthInputTokens: 40_000_000,
@@ -75,7 +78,10 @@ const WINDOW_TTL_SECONDS: Record<GuardWindow, number> = {
   month: 40 * 24 * 60 * 60,
 };
 
-const ATTEMPT_RESERVATION_TTL_SECONDS = 10 * 60;
+// Les générations vidéo asynchrones du Gateway peuvent dépasser dix minutes.
+// Garder la réservation économique jusqu'au commit évite qu'une vidéo lente
+// disparaisse artificiellement du budget de sécurité du compte.
+const ATTEMPT_RESERVATION_TTL_SECONDS = 30 * 60;
 
 function cleanId(value: unknown): string {
   return typeof value === "string" ? value.trim().slice(0, 180) : "";
@@ -391,6 +397,12 @@ export async function commitAiGatewayAccountAttempt(args: {
   feature: AiGenerationFeature;
   model: string;
   usage: AiGatewayUsage;
+  /**
+   * Image and video models are billed per image / second instead of tokens.
+   * Their caller supplies the media estimate explicitly so the global economic
+   * guard does not silently record a zero-cost call.
+   */
+  actualCostMicroUsd?: number;
 }): Promise<void> {
   const reservation = args.reservation;
   if (!reservation || reservation.state !== "reserved") return;
@@ -405,7 +417,10 @@ export async function commitAiGatewayAccountAttempt(args: {
     outputTokens: Math.max(0, Math.floor(Number(args.usage.outputTokens || 0))),
     totalTokens: Math.max(0, Math.floor(Number(args.usage.totalTokens || 0))),
   };
-  const costMicroUsd = estimateAiGatewayCostMicroUsd(args.model, safeUsage);
+  const explicitCost = Number(args.actualCostMicroUsd);
+  const costMicroUsd = Number.isFinite(explicitCost) && explicitCost >= 0
+    ? Math.floor(explicitCost)
+    : estimateAiGatewayCostMicroUsd(args.model, safeUsage);
   const keys = reservationKeys(reservation.accountId, reservation.id);
 
   const committed = Number(await (redis as any).eval(

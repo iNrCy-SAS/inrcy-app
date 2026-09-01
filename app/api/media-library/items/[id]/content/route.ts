@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { verifyMediaLibraryContentToken } from "@/lib/mediaLibraryContentUrl";
+import { requireUser } from "@/lib/requireUser";
 import {
   createSafeStorageSignedUrl,
   probeStorageObject,
@@ -17,6 +18,9 @@ export async function GET(
   request: NextRequest,
   context: { params: Promise<{ id: string }> },
 ) {
+  const { errorResponse, activeUserId } = await requireUser();
+  if (errorResponse) return errorResponse;
+
   const { id: rawId } = await context.params;
   const id = String(rawId || "").trim();
   const token = request.nextUrl.searchParams.get("token") || "";
@@ -27,6 +31,7 @@ export async function GET(
     .from("pro_media_library")
     .select("id,user_id,bucket_name,storage_path,mime_type,is_active")
     .eq("id", id)
+    .eq("user_id", activeUserId)
     .maybeSingle();
 
   if (error || !row || row.is_active === false) return notFound();

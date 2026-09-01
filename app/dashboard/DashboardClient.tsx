@@ -15,7 +15,6 @@ import { useDashboardUnsavedNavigation } from "./_components/DashboardUnsavedNav
 import DashboardChannelsSection from "./_components/DashboardChannelsSection";
 import DashboardBoosterModalLayer from "./_components/DashboardBoosterModalLayer";
 import DashboardSettingsDrawerContent from "./_components/DashboardSettingsDrawerContent";
-import { StableBootScreen } from "./_components/ClientHydrationGate";
 import InrBadgePreviewModal from "./_components/InrBadgePreviewModal";
 import { useDrawerMutationGuard } from "./_hooks/useDrawerMutationGuard";
 import { useUnsavedExitGuard } from "./_hooks/useUnsavedExitGuard";
@@ -68,7 +67,6 @@ import { buildDashboardPanelProps } from "./dashboard.panel-props";
 import { createEmptyChannelBlock, createEmptyChannelBlocks, type InrstatsChannelBlock, type InrstatsChannelBlocksByChannel } from "@/lib/inrstats/channelBlocks";
 import type { ConnectionDisplayStatus } from "@/lib/connectionVersions";
 import { isDashboardRequiredSetupProtectedDestination, isDashboardRequiredSetupProtectedLocation } from "@/lib/dashboardRequiredSetupAccess";
-import { confirmInrcy } from "@/lib/inrcyDialog";
 import { reportHandledClientError } from "@/lib/clientExpectedErrors";
 import { fetchSharedDashboardRefreshJson } from "@/lib/dashboardRefreshOrchestrator";
 import {
@@ -260,13 +258,14 @@ export default function DashboardClient({
     accountId: onboardingAccountId,
     onboardingStatus,
     onboardingCurrentStep,
+    onboardingAbandoned,
     setCurrentOnboardingStep,
-    deferOnboarding,
     completeOnboarding,
   } = onboardingState;
   const guidedOnboardingPanel = getDashboardOnboardingPanel(onboardingCurrentStep);
   const guidedOnboardingProgress = getDashboardOnboardingProgress(onboardingCurrentStep);
   const guidedOnboardingActive =
+    !onboardingAbandoned &&
     onboardingStatus === "in_progress" &&
     guidedOnboardingPanel !== null &&
     guidedOnboardingProgress !== null;
@@ -279,9 +278,7 @@ export default function DashboardClient({
         total: guidedOnboardingProgress.total,
       })
     : undefined;
-  const onboardingStateLoading = !onboardingState.onboardingReady;
   const onboardingAutoOpenKeyRef = useRef<string | null>(null);
-  const onboardingSkipConfirmingRef = useRef(false);
   const [onboardingAiCompleting, setOnboardingAiCompleting] = useState(false);
   const [onboardingTransitionDirection, setOnboardingTransitionDirection] = useState<"forward" | "backward">("forward");
   const [settingsDrawerHasUnsavedChanges, setSettingsDrawerHasUnsavedChanges] = useState(false);
@@ -328,84 +325,27 @@ export default function DashboardClient({
   ]);
 
   const closeSettingsDrawer = useCallback(async () => {
-    if (isGuidedOnboardingPanel) {
-      onboardingAutoOpenKeyRef.current = `closing:${onboardingAccountId ?? "unknown"}:${onboardingCurrentStep}`;
-      if (onboardingCurrentStep === "ai") {
-        await completeOnboarding();
-      } else {
-        await deferOnboarding();
-      }
-    }
     closePanel();
   }, [
     closePanel,
-    completeOnboarding,
-    deferOnboarding,
-    isGuidedOnboardingPanel,
-    onboardingAccountId,
-    onboardingCurrentStep,
   ]);
-
-  const guidedSkipIsAiStep = isGuidedOnboardingPanel && onboardingCurrentStep === "ai";
-  const guidedSkipUnsavedPrefix = settingsDrawerHasUnsavedChanges
-    ? onboardingT("unsavedPrefix")
-    : "";
-  const guidedSkipTitle = guidedSkipIsAiStep
-    ? onboardingT("keepDefaultsTitle")
-    : onboardingT("continueLaterTitle");
-  const guidedSkipMessage = guidedSkipIsAiStep
-    ? `${guidedSkipUnsavedPrefix}${onboardingT("keepDefaultsMessage")}`
-    : `${guidedSkipUnsavedPrefix}${onboardingT("continueLaterMessage")}`;
-  const guidedSkipConfirmLabel = guidedSkipIsAiStep
-    ? onboardingT("keepDefaults")
-    : onboardingT("continueLater");
 
   const { confirmExit: confirmSettingsDrawerExit } = useUnsavedExitGuard({
     active: settingsDrawerGuardActive,
-    shouldBlock: isGuidedOnboardingPanel || settingsDrawerHasUnsavedChanges,
+    shouldBlock: settingsDrawerHasUnsavedChanges,
     onConfirmExit: () => {
       void closeSettingsDrawer();
     },
-    eyebrow: isGuidedOnboardingPanel ? onboardingT("initialSetup") : onboardingT("settings"),
-    title: isGuidedOnboardingPanel ? guidedSkipTitle : onboardingT("exitWithoutSavingTitle"),
-    message: isGuidedOnboardingPanel
-      ? guidedSkipMessage
-      : onboardingT("exitWithoutSavingMessage"),
-    confirmLabel: isGuidedOnboardingPanel ? guidedSkipConfirmLabel : onboardingT("closeWithoutSaving"),
-    cancelLabel: isGuidedOnboardingPanel ? onboardingT("returnToSetup") : onboardingT("continueEditing"),
+    eyebrow: onboardingT("settings"),
+    title: onboardingT("exitWithoutSavingTitle"),
+    message: onboardingT("exitWithoutSavingMessage"),
+    confirmLabel: onboardingT("closeWithoutSaving"),
+    cancelLabel: onboardingT("continueEditing"),
     variant: "warning",
   });
 
-  const requestSkipGuidedOnboarding = useCallback(async () => {
-    if (!isGuidedOnboardingPanel || onboardingSkipConfirmingRef.current) return;
-
-    onboardingSkipConfirmingRef.current = true;
-    try {
-      const confirmed = await confirmInrcy({
-        eyebrow: onboardingT("initialSetup"),
-        title: guidedSkipTitle,
-        message: guidedSkipMessage,
-        confirmLabel: guidedSkipConfirmLabel,
-        cancelLabel: onboardingT("returnToSetup"),
-        variant: "warning",
-      });
-      if (!confirmed) return;
-      await closeSettingsDrawer();
-    } finally {
-      onboardingSkipConfirmingRef.current = false;
-    }
-  }, [
-    closeSettingsDrawer,
-    guidedSkipConfirmLabel,
-    guidedSkipMessage,
-    guidedSkipTitle,
-    isGuidedOnboardingPanel,
-    onboardingT,
-  ]);
-
   const requestCloseSettingsDrawer = useCallback(() => {
     if (isGuidedOnboardingPanel) {
-      void requestSkipGuidedOnboarding();
       return;
     }
     if (!settingsDrawerGuardActive) {
@@ -417,7 +357,6 @@ export default function DashboardClient({
     closeSettingsDrawer,
     confirmSettingsDrawerExit,
     isGuidedOnboardingPanel,
-    requestSkipGuidedOnboarding,
     settingsDrawerGuardActive,
   ]);
 
@@ -4050,14 +3989,11 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     tiktokPanelProps,
   } = buildDashboardPanelProps(locals);
 
-  if (onboardingStateLoading) {
-    return <StableBootScreen label={commonT("dashboardBoot")} />;
-  }
-
   return (
     <main
       className={styles.page}
       data-onboarding-ready={onboardingState.onboardingReady ? "true" : "false"}
+      data-onboarding-error={onboardingState.onboardingError ? "true" : "false"}
       data-onboarding-status={onboardingState.onboardingStatus ?? undefined}
       data-onboarding-step={onboardingState.onboardingCurrentStep ?? undefined}
     >
@@ -4183,7 +4119,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
         closeOnBackdrop={!guidedOnboardingActive && !settingsDrawerRequiresExplicitClose}
         closeOnEscape={!guidedOnboardingActive && !settingsDrawerRequiresExplicitClose}
         presentation={guidedOnboardingActive ? "onboarding" : "drawer"}
-        closeLabel={guidedOnboardingActive ? onboardingT("skip") : undefined}
+        showCloseButton={!guidedOnboardingActive}
         contentKey={guidedOnboardingActive ? onboardingCurrentStep ?? undefined : undefined}
         contentDirection={onboardingTransitionDirection}
         headerActions={

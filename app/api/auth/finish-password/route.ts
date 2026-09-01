@@ -9,6 +9,7 @@ import {
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { ensureNotificationPreferences } from "@/lib/notifications";
 import { ensureProfileRow } from "@/lib/ensureProfileRow";
+import { ensurePrincipalInrcyAccountProvisioned } from "@/lib/inrcyAccountProvisioning";
 import { getClientIp, enforceRateLimit } from "@/lib/rateLimit";
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import { log } from "@/lib/observability/logger";
@@ -463,6 +464,13 @@ export async function POST(req: NextRequest) {
       .getSession()
       .catch(() => ({ data: { session: null } }));
     const finalSession = finalSessionData.session || session;
+
+    // Dernière ceinture de sécurité pour une invitation créée pendant un
+    // incident de déploiement. Un reset de mot de passe historique ne doit, lui,
+    // jamais relancer un onboarding.
+    if (mode === "invite") {
+      await ensurePrincipalInrcyAccountProvisioned(authUser);
+    }
 
     await ensureProfileRow(authUser).catch(() => null);
     await ensureNotificationPreferences(userId).catch(() => null);

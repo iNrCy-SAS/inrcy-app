@@ -91,6 +91,8 @@ const optionalButRecommended = [
   // AI Gateway (transport principal ; credential vérifié dans requiredGroups)
   "AI_GATEWAY_MODEL",
   "AI_GATEWAY_VISION_MODEL",
+  "AI_GATEWAY_IMAGE_MODEL",
+  "AI_GATEWAY_VIDEO_MODEL",
   "AI_GATEWAY_FALLBACK_MODEL",
   "AI_GATEWAY_OPENAI_PRIMARY_FALLBACK_MODEL",
   "AI_GATEWAY_MODEL_PRICING_JSON",

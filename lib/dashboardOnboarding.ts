@@ -126,7 +126,7 @@ export function shouldRunDashboardOnboarding(
   return Boolean(
     row &&
       row.version === DASHBOARD_ONBOARDING_VERSION &&
-      row.status !== "completed",
+      (row.status === "pending" || row.status === "in_progress"),
   );
 }
 

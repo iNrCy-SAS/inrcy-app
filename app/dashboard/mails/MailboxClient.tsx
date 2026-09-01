@@ -4140,6 +4140,151 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
     }
   }
 
+  async function replacePublicationMediaLibraryItem(
+    item: MediaLibraryPickerItem,
+  ): Promise<void> {
+    const channel = normalizeChannelKey(activeDetailsChannelEntry?.key || "");
+    if (!channel) {
+      throw new Error(i18nT("publication_update_failed"));
+    }
+
+    const file = await mediaLibraryItemToFile(item);
+    const videoChannel = normalizeBoosterChannelKeyForVideo(channel);
+
+    if (item.media_type === "video") {
+      if (file.size > BOOSTER_MAX_VIDEO_BYTES) {
+        const message = i18nT(
+          "video_trop_lourde_taille_maximale_value_358dea38",
+          { value0: BOOSTER_MAX_VIDEO_MB_LABEL },
+        );
+        setDetailsActionError(message);
+        throw new Error(message);
+      }
+
+      const previewUrl = URL.createObjectURL(file);
+      const fallbackMeta = buildMediaLibraryVideoMetadata(item, file);
+      const sourceMetadata =
+        fallbackMeta.width || fallbackMeta.height
+          ? fallbackMeta
+          : await readPublicationVideoMetadata(file, previewUrl);
+
+      setPublicationEditImagesByChannel((prev) => ({
+        ...prev,
+        [channel]: { assets: [] },
+      }));
+      setPublicationEditVideoByChannel((prev) => ({
+        ...prev,
+        [videoChannel]: {
+          file,
+          previewUrl,
+          name: file.name || getMediaLibraryDisplayName(item),
+          type: file.type || item.mime_type || "video/mp4",
+          size: file.size || Number(item.size_bytes || 0) || 0,
+          duration:
+            sourceMetadata.duration ||
+            Number(item.duration_seconds || 0) ||
+            null,
+          sourceMetadata,
+          sourceVideo: null,
+          transformedVariants: [],
+          format: "original",
+          adaptationMode: prev[videoChannel]?.adaptationMode || "safe_frame",
+          preparation: {
+            status: "idle",
+            label: i18nT("video_ajoutee_depuis_la_mediatheque_880252c9"),
+            detail: i18nT("apply_format_before_saving"),
+          },
+          preparing: false,
+          removed: false,
+        },
+      }));
+      setDetailsActionError(null);
+      return;
+    }
+
+    if (!file.type.startsWith("image/") || isUnsupportedBrowserImageFile(file)) {
+      const message = i18nT("images_only_for_channel");
+      setDetailsActionError(message);
+      throw new Error(message);
+    }
+    if (file.size > BOOSTER_MAX_IMAGE_BYTES) {
+      const message = i18nT("l_image_value_depasse_value_1c15db6a", {
+        value0: file.name || i18nT("selected_file"),
+        value1: BOOSTER_MAX_IMAGE_MB_LABEL,
+      });
+      setDetailsActionError(message);
+      throw new Error(message);
+    }
+
+    const key = makePublicationImageAssetKey(
+      "library",
+      file.name,
+      item.id || `${item.storage_path}:${file.size}`,
+    );
+    const imageMeta =
+      item.width && item.height
+        ? {
+            width: item.width,
+            height: item.height,
+            ratio: item.width / item.height,
+          }
+        : null;
+
+    setPublicationEditVideoByChannel((prev) => {
+      const previousVideoState = prev[videoChannel];
+      return {
+        ...prev,
+        [videoChannel]: {
+          ...(previousVideoState || {
+            file: null,
+            previewUrl: "",
+            name: "video-inrcy.mp4",
+            type: "video/mp4",
+            size: 0,
+            duration: null,
+            sourceMetadata: null,
+            sourceVideo: null,
+            transformedVariants: [],
+            format: "original",
+            adaptationMode: "safe_frame",
+          }),
+          file: null,
+          previewUrl: "",
+          sourceVideo: null,
+          transformedVariants: [],
+          removed: true,
+          preparation: {
+            status: "idle",
+            label: i18nT("images_selectionnees_db1d99e0"),
+            detail: i18nT("publication_saved_as_images"),
+          },
+        },
+      };
+    });
+    setPublicationEditImagesByChannel((prev) => ({
+      ...prev,
+      [channel]: {
+        assets: [
+          {
+            key,
+            name: file.name || getMediaLibraryDisplayName(item),
+            type: file.type || item.mime_type || "image/jpeg",
+            previewUrl: URL.createObjectURL(file),
+            sourceUrl: null,
+            originalUrl: item.signed_url || null,
+            originalName: getMediaLibraryDisplayName(item),
+            originalType: item.mime_type || file.type || "image/jpeg",
+            file,
+            selected: true,
+            transform: buildPublicationDefaultTransform(channel),
+            imageMeta,
+          },
+        ],
+      },
+    }));
+    setDetailsActionError(null);
+  }
+
   async function addPublicationVideo(fileList: FileList | File[] | null) {
     const channel = normalizeBoosterChannelKeyForVideo(
       activeDetailsChannelEntry?.key || "",
@@ -5129,6 +5274,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
           addPublicationFiles={addPublicationFiles}
           addPublicationPhoto={addPublicationPhoto}
           addPublicationMediaLibraryItems={addPublicationMediaLibraryItems}
+          replacePublicationMediaLibraryItem={replacePublicationMediaLibraryItem}
           saveChannelPublication={saveChannelPublication}
           deleteChannelPublication={deleteChannelPublication}
           retryCampaignFailedRecipients={retryCampaignFailedRecipients}

@@ -143,6 +143,15 @@ export default function UserMenu(props: {
             type="button"
             className={styles.userMenuItem}
             role="menuitem"
+            data-dashboard-prefetch="/dashboard/generer-media"
+            onClick={() => closeAndNavigate("/dashboard/generer-media")}
+          >
+            {t.userMenu.mediaGenerator}
+          </button>
+          <button
+            type="button"
+            className={styles.userMenuItem}
+            role="menuitem"
             onClick={() => closeAndNavigate("/dashboard/mediatheque")}
           >
             {t.userMenu.media}

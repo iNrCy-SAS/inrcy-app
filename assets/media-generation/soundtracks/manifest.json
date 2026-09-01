@@ -1,0 +1,116 @@
+{
+  "version": 1,
+  "generatedBy": "inrcy-procedural-synth",
+  "tracks": [
+    {
+      "id": "horizon-clair",
+      "fileName": "horizon-clair.wav",
+      "durationSeconds": 8,
+      "sampleRate": 32000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 512044,
+      "sha256": "c15b9cf7b9ba63561432a3dc02823c0ceff02562e34e59f482a5cc1ed9438844",
+      "license": "inrcy-original-procedural-v1"
+    },
+    {
+      "id": "atelier-vivant",
+      "fileName": "atelier-vivant.wav",
+      "durationSeconds": 8,
+      "sampleRate": 32000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 512044,
+      "sha256": "9595ade45e82447269f43175ef25b3d09d5b4d152f53b645b46aec41255cc47a",
+      "license": "inrcy-original-procedural-v1"
+    },
+    {
+      "id": "elan-local",
+      "fileName": "elan-local.wav",
+      "durationSeconds": 8,
+      "sampleRate": 32000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 512044,
+      "sha256": "d11838ece4a7a3898122851c6e3ef7bc9c31e5b74dad1a25e18484c3df0fca8a",
+      "license": "inrcy-original-procedural-v1"
+    },
+    {
+      "id": "confiance-douce",
+      "fileName": "confiance-douce.wav",
+      "durationSeconds": 8,
+      "sampleRate": 32000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 512044,
+      "sha256": "7f6ed49b1c0d12ed7ed0dae28dfaf358d9ca99dc59c8711d3a097af8a59711d8",
+      "license": "inrcy-original-procedural-v1"
+    },
+    {
+      "id": "premium-minimal",
+      "fileName": "premium-minimal.wav",
+      "durationSeconds": 8,
+      "sampleRate": 32000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 512044,
+      "sha256": "cc269a64b9106cc5c654470cf7bebed8e39efd876b6a5cca10aa302d400d6acf",
+      "license": "inrcy-original-procedural-v1"
+    },
+    {
+      "id": "energie-sociale",
+      "fileName": "energie-sociale.wav",
+      "durationSeconds": 8,
+      "sampleRate": 32000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 512044,
+      "sha256": "d547093a4213062e8c1d6b382a9f7504e02d2810762a1fd891fa8d3a18710db9",
+      "license": "inrcy-original-procedural-v1"
+    },
+    {
+      "id": "nature-apaisante",
+      "fileName": "nature-apaisante.wav",
+      "durationSeconds": 8,
+      "sampleRate": 32000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 512044,
+      "sha256": "d52665be232dc212b7926a2a099bfd766990984149f8a9e05d32cf0c2319b261",
+      "license": "inrcy-original-procedural-v1"
+    },
+    {
+      "id": "innovation-lumineuse",
+      "fileName": "innovation-lumineuse.wav",
+      "durationSeconds": 8,
+      "sampleRate": 32000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 512044,
+      "sha256": "fbae60dc1503313cf236719b08f968023860cfea190ae8d7e907f9cee05dba72",
+      "license": "inrcy-original-procedural-v1"
+    },
+    {
+      "id": "celebration-legere",
+      "fileName": "celebration-legere.wav",
+      "durationSeconds": 8,
+      "sampleRate": 32000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 512044,
+      "sha256": "e1a7171f4583900a2865b6757e49eceec188ac9e7c1bd77205fcffb2e44a4233",
+      "license": "inrcy-original-procedural-v1"
+    },
+    {
+      "id": "nocturne-elegant",
+      "fileName": "nocturne-elegant.wav",
+      "durationSeconds": 8,
+      "sampleRate": 32000,
+      "channels": 1,
+      "bitsPerSample": 16,
+      "sizeBytes": 512044,
+      "sha256": "eb9bd2feb8d76f589d5d4b29d0773cc0bf3f52fc27a2a529dead5ab25d462958",
+      "license": "inrcy-original-procedural-v1"
+    }
+  ]
+}

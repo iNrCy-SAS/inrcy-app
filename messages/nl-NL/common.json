@@ -5,5 +5,6 @@
     "pull": "Trekken om te vernieuwen"
   },
   "dashboardBoot": "Uw iNrCy-dashboard wordt geladen…",
-  "initialSetup": "Uw eerste configuratie wordt voorbereid…"
+  "initialSetup": "Uw eerste configuratie wordt voorbereid…",
+  "retry": "Opnieuw proberen"
 }

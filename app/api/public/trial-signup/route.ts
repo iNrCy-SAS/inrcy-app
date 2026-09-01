@@ -6,6 +6,7 @@ import { optionalEnv, requireEnv } from "@/lib/env";
 import { ensureNotificationPreferences, seedOnboardingNotifications } from "@/lib/notifications";
 import { ensureProfileRow } from "@/lib/ensureProfileRow";
 import { provisionNewAccountBubbleAccess } from "@/lib/appBubbleAccessProvisioning";
+import { ensurePrincipalInrcyAccountProvisioned } from "@/lib/inrcyAccountProvisioning";
 import { getClientIp, enforceRateLimit } from "@/lib/rateLimit";
 import { log } from "@/lib/observability/logger";
 import { getRequestId } from "@/lib/observability/request";
@@ -558,6 +559,11 @@ export async function POST(req: Request) {
     if (!userId) throw new Error("supabase_invitation_user_missing");
     authUserCreated = true;
     const nowIso = new Date().toISOString();
+
+    // Postcondition obligatoire : l'invitation ne peut être déclarée réussie
+    // sans établissement principal, membership, config et onboarding.
+    stage = "profile_bootstrap";
+    await ensurePrincipalInrcyAccountProvisioned(invitedUser);
 
     // Apply authoritative defaults after the Auth trigger has completed.
     // In particular, Site iNrCy must remain opt-in (false) for every new account.

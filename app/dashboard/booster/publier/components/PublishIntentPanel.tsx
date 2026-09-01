@@ -259,6 +259,7 @@ type PublishIntentPanelProps = {
   onVideoChange: (files: FileList | null) => void;
   onPickImagesClick: () => void;
   onPickVideoClick: () => void;
+  onGenerateMedia: () => void;
   onTakePhotoClick: () => void;
   onOpenMediaLibrary: () => void;
   images: File[];
@@ -304,6 +305,7 @@ export default function PublishIntentPanel({
   onVideoChange,
   onPickImagesClick,
   onPickVideoClick,
+  onGenerateMedia,
   onTakePhotoClick,
   onOpenMediaLibrary,
   images,
@@ -334,6 +336,7 @@ export default function PublishIntentPanel({
   onOpenAiConfiguration,
 }: PublishIntentPanelProps) {
   const i18nT = useTranslations("booster");
+  const mediaT = useTranslations("media");
   const locale = useLocale();
   const runtimeT = i18nT as unknown as (
     key: string,
@@ -1219,6 +1222,24 @@ export default function PublishIntentPanel({
               }}
             >
               {i18nT("ajouter_une_video_c0be31cb")}{" "}</button>
+            <button
+              type="button"
+              className={styles.secondaryBtn}
+              onClick={onGenerateMedia}
+              title={mediaT("ai_generator_generate_media")}
+              style={{
+                flex: "0 0 auto",
+                minHeight: isMobile ? 32 : 34,
+                padding: isMobile ? "6px 9px" : "7px 12px",
+                fontSize: isMobile ? 11 : 12,
+                whiteSpace: "nowrap",
+                borderColor: "rgba(81,215,255,0.34)",
+                background:
+                  "linear-gradient(135deg, rgba(38,180,238,0.20), rgba(183,65,197,0.24))",
+              }}
+            >
+              ✦ {mediaT("ai_generator_generate_media")}
+            </button>
             <button
               type="button"
               className={styles.secondaryBtn}

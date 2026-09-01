@@ -4,6 +4,7 @@ import { ACTIVE_INRCY_ACCOUNT_COOKIE } from "@/lib/multicompte/constants";
 import { isUuidLike } from "@/lib/multicompte/normalize";
 import { listAccessibleInrcyAccounts, resolveInrcyAccountScopeForUser } from "@/lib/multicompte/server";
 import { provisionNewAccountBubbleAccess } from "@/lib/appBubbleAccessProvisioning";
+import { ensureInrcyAccountOnboardingState } from "@/lib/inrcyAccountProvisioning";
 
 export const dynamic = "force-dynamic";
 
@@ -116,6 +117,10 @@ export async function POST(request: Request) {
   }
 
   try {
+    // Ne jamais ouvrir l'établissement tant que son parcours Profil / Activité /
+    // Configuration IA n'est pas réellement présent en base.
+    await ensureInrcyAccountOnboardingState(accountId);
+
     // The database migration also provisions these defaults, but the API repeats
     // the operation deliberately so a stale SQL function can never grant Site iNrCy.
     await provisionNewAccountBubbleAccess(accountId);
@@ -126,7 +131,7 @@ export async function POST(request: Request) {
       error: provisioningError instanceof Error ? provisioningError.message : String(provisioningError),
     });
     return NextResponse.json(
-      { ok: false, error: "L’établissement a été créé, mais ses accès n’ont pas pu être initialisés. Merci de réessayer." },
+      { ok: false, error: "L’établissement a été créé, mais sa configuration initiale n’a pas pu être vérifiée. Merci de réessayer." },
       { status: 503 },
     );
   }

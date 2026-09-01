@@ -1,4 +1,5 @@
 {
+  "fluid": true,
   "crons": [
     {
       "path": "/api/cron/billing",
@@ -92,6 +93,9 @@
     },
     "app/api/media-pipeline/upload-event/route.ts": {
       "includeFiles": "node_modules/ffmpeg-static/**/*"
+    },
+    "app/api/media-generation/generate/route.ts": {
+      "includeFiles": "{node_modules/ffmpeg-static/**/*,assets/media-generation/soundtracks/**/*}"
     }
   }
 }

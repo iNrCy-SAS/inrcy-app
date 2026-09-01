@@ -427,6 +427,7 @@ test("les écrans Premium sont refusés tandis que les outils Standard et iNrAge
     "/dashboard/stats",
     "/dashboard/mails",
     "/dashboard/e-reputation",
+    "/dashboard/generer-media",
   ]) {
     assert.equal(isStandardDashboardRouteAllowed(path), true, path);
   }

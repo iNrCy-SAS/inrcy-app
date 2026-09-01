@@ -7,6 +7,7 @@ import { ensureTrialSubscription } from "@/lib/trialSubscription";
 import { ensureProfileRow } from "@/lib/ensureProfileRow";
 import { requireAdminApi } from "@/lib/adminSecurity";
 import { provisionNewAccountBubbleAccess } from "@/lib/appBubbleAccessProvisioning";
+import { ensurePrincipalInrcyAccountProvisioned } from "@/lib/inrcyAccountProvisioning";
 import { buildSupabaseEmailRedirectUrl } from "@/lib/authEmailLinks";
 import {
   DEFAULT_APP_LOCALE,
@@ -81,6 +82,8 @@ export async function POST(req: Request) {
     }
 
     const userId = invite.user.id;
+
+    await ensurePrincipalInrcyAccountProvisioned(invite.user);
 
     // New accounts always start from the canonical Bubble Access defaults.
     await provisionNewAccountBubbleAccess(userId);

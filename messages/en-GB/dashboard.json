@@ -33,6 +33,8 @@
     "activity": "My activity",
     "preferences": "General settings",
     "ai": "AI settings",
+    "mediaGenerator": "Generate media",
+    "premiumBadge": "Premium",
     "media": "Media library",
     "notifications": "Alerts",
     "subscription": "My plan",

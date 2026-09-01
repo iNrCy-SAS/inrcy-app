@@ -5,5 +5,6 @@
     "pull": "Puxar para atualizar"
   },
   "dashboardBoot": "A carregar o seu painel iNrCy…",
-  "initialSetup": "A preparar a sua configuração inicial…"
+  "initialSetup": "A preparar a sua configuração inicial…",
+  "retry": "Tentar novamente"
 }

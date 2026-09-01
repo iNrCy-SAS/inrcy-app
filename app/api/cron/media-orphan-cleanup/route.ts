@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { purgeExpiredGeneratedAiMediaDrafts } from "@/lib/aiGeneratedMediaRegistry";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -24,6 +25,20 @@ async function runCleanup(request: Request) {
   if (!isAuthorizedCron(request)) {
     return NextResponse.json({ ok: false, error: "Non autorisé." }, { status: 401 });
   }
+
+  const generatedDrafts = await purgeExpiredGeneratedAiMediaDrafts({
+    limit: 50,
+  }).catch((error) => ({
+    inspected: 0,
+    discarded: 0,
+    accepted: 0,
+    errors: [
+      {
+        mediaId: "ai-generated-drafts",
+        error: error instanceof Error ? error.message : String(error),
+      },
+    ],
+  }));
 
   const now = new Date().toISOString();
   const candidates = await supabaseAdmin
@@ -126,11 +141,12 @@ async function runCleanup(request: Request) {
   }
 
   return NextResponse.json({
-    ok: errors.length === 0,
+    ok: errors.length === 0 && generatedDrafts.errors.length === 0,
     inspected: candidates.data?.length || 0,
     removed,
     retained,
     errors,
+    generatedDrafts,
   });
 }
 

@@ -11,7 +11,9 @@ export type AiGenerationFeature =
   | "reviews.google"
   | "agent.stats-report"
   | "booster.transcript-cleanup"
-  | "booster.transcribe";
+  | "booster.transcribe"
+  | "media.image"
+  | "media.video";
 
 export type AiFeaturePolicy = {
   maxOutputTokens: number;
@@ -197,6 +199,28 @@ export const AI_FEATURE_POLICIES: Readonly<Record<AiGenerationFeature, AiFeature
     defaultOperationMaxCalls: 2,
     defaultOperationMaxReservedOutputTokens: 128,
     defaultOperationMaxDurationMs: 110_000,
+  },
+  "media.image": {
+    maxOutputTokens: 128,
+    maxRetries: 0,
+    maxTimeoutMs: 300_000,
+    maxInputChars: 12_000,
+    maxImages: 0,
+    maxImageDataChars: 0,
+    defaultOperationMaxCalls: 1,
+    defaultOperationMaxReservedOutputTokens: 128,
+    defaultOperationMaxDurationMs: 300_000,
+  },
+  "media.video": {
+    maxOutputTokens: 128,
+    maxRetries: 0,
+    maxTimeoutMs: 900_000,
+    maxInputChars: 12_000,
+    maxImages: 0,
+    maxImageDataChars: 0,
+    defaultOperationMaxCalls: 1,
+    defaultOperationMaxReservedOutputTokens: 128,
+    defaultOperationMaxDurationMs: 900_000,
   },
 };
 

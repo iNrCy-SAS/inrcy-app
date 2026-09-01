@@ -49,6 +49,17 @@ test("completed existing accounts do not run onboarding", () => {
   assert.equal(shouldRunDashboardOnboarding(row), false);
 });
 
+test("a deferred fail-open journey is terminal", () => {
+  const row = normalizeDashboardOnboardingRow({
+    ...baseRow,
+    status: "deferred",
+    started_at: "2026-07-25T20:00:00.000Z",
+    deferred_at: "2026-07-25T20:01:00.000Z",
+  });
+  assert.ok(row);
+  assert.equal(shouldRunDashboardOnboarding(row), false);
+});
+
 test("rejects inconsistent completed states", () => {
   const row = normalizeDashboardOnboardingRow({
     ...baseRow,
@@ -113,10 +124,6 @@ const dashboardClientSource = readFileSync(
   new URL("../../app/dashboard/DashboardClient.tsx", import.meta.url),
   "utf8",
 );
-const commonMessages = JSON.parse(
-  readFileSync(new URL("../../messages/fr-FR/common.json", import.meta.url), "utf8"),
-) as { dashboardBoot: string };
-
 test("dashboard chains existing drawers without creating replacement forms", () => {
   assert.match(dashboardClientSource, /checkProfile\(\)[\s\S]*profileCompleted/);
   assert.match(dashboardClientSource, /setCurrentOnboardingStep\("activity"\)/);
@@ -136,6 +143,13 @@ const onboardingApiSource = readFileSync(
   new URL("../../app/api/dashboard/onboarding-state/route.ts", import.meta.url),
   "utf8",
 );
+const onboardingRuntimeSnapshotSource = readFileSync(
+  new URL("../../app/api/dashboard/runtime-snapshot/route.ts", import.meta.url),
+  "utf8",
+);
+const packageJson = JSON.parse(
+  readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
+) as { scripts?: Record<string, string> };
 const panelRoutingSource = readFileSync(
   new URL("../../app/dashboard/_hooks/useDashboardPanelRouting.ts", import.meta.url),
   "utf8",
@@ -165,7 +179,7 @@ test("stale onboarding mutations cannot restore the previous establishment", () 
   assert.match(onboardingHookSource, /activeAccountIdRef\.current !== accountId/);
   assert.match(onboardingApiSource, /expectedAccountId !== activeUserId/);
   assert.match(onboardingHookSource, /mutationSequenceRef\.current \+= 1/);
-  assert.match(onboardingHookSource, /activeAccountIdRef\.current = null/);
+  assert.match(onboardingHookSource, /activeAccountIdRef\.current = nextAccountId/);
 });
 
 const settingsDrawerSource = readFileSync(
@@ -200,22 +214,59 @@ const googleBusinessChannelSource = readFileSync(
   ),
   "utf8",
 );
-test("first onboarding uses a dedicated desktop presentation and a Passer action", () => {
+test("first onboarding uses a dedicated desktop presentation without an exit action", () => {
   assert.match(settingsDrawerSource, /presentation\?: "drawer" \| "onboarding"/);
+  assert.match(settingsDrawerSource, /showCloseButton\?: boolean/);
+  assert.match(
+    settingsDrawerSource,
+    /\{showCloseButton \? \(\s*<button[\s\S]*?onClick=\{onClose\}[\s\S]*?\) : null\}/,
+  );
   assert.match(settingsDrawerSource, /isDesktopOnboarding/);
   assert.match(settingsDrawerSource, /#06101f/);
   assert.match(dashboardClientSource, /presentation=\{guidedOnboardingActive \? "onboarding" : "drawer"\}/);
-  assert.match(dashboardClientSource, /closeLabel=\{guidedOnboardingActive \? onboardingT\("skip"\) : undefined\}/);
+  assert.match(dashboardClientSource, /showCloseButton=\{!guidedOnboardingActive\}/);
+  assert.doesNotMatch(
+    dashboardClientSource,
+    /closeLabel=\{guidedOnboardingActive \? onboardingT\("skip"\) : undefined\}/,
+  );
 });
 
-test("dashboard only boots while onboarding state loads and never waits for an URL mirror", () => {
-  assert.match(dashboardClientSource, /onboardingStateLoading/);
-  assert.match(dashboardClientSource, /StableBootScreen label=\{commonT\("dashboardBoot"\)\}/);
-  assert.equal(commonMessages.dashboardBoot, "Chargement de votre dashboard iNrCy…");
-  assert.doesNotMatch(dashboardClientSource, /onboardingInitialPreparationBlocking/);
-  assert.doesNotMatch(dashboardClientSource, /StableBootScreen label=\{commonT\("initialSetup"\)\}/);
-  assert.doesNotMatch(dashboardPageSource, /getDashboardInitialOnboardingStateServer/);
-  assert.doesNotMatch(dashboardPageSource, /initialOnboardingState=/);
+test("dashboard receives the initial onboarding state from the server before the client fallback", () => {
+  assert.match(dashboardPageSource, /getDashboardInitialOnboardingStateServer\(\)/);
+  assert.match(
+    dashboardPageSource,
+    /initialOnboardingState=\{initialOnboardingState \?\? undefined\}/,
+  );
+  assert.match(onboardingHookSource, /const preparedState = stateFromServer\(initialState\)/);
+  assert.match(onboardingHookSource, /cacheOnboardingState\(preparedState\)/);
+  assert.doesNotMatch(dashboardClientSource, /SetupRecoveryScreen/);
+  assert.doesNotMatch(dashboardClientSource, /onboardingStateLoading/);
+});
+
+test("same-account synchronization preserves the SSR state", () => {
+  assert.match(
+    onboardingHookSource,
+    /if \(nextAccountId && nextAccountId === activeAccountIdRef\.current\) return/,
+  );
+  assert.match(
+    onboardingHookSource,
+    /if \(!options\?\.abandonOnFailure && current\.accountId && current\.row\)[\s\S]*?onboardingAvailable: true/,
+  );
+});
+
+test("local dashboard onboarding uses the system CA and the neutral runtime endpoint", () => {
+  assert.equal(
+    packageJson.scripts?.dev,
+    "node --use-system-ca node_modules/next/dist/bin/next dev",
+  );
+  assert.match(
+    onboardingHookSource,
+    /const ONBOARDING_API_URL = "\/api\/dashboard\/runtime-snapshot";/,
+  );
+  assert.match(
+    onboardingRuntimeSnapshotSource,
+    /export \{ GET, POST \} from "\.\.\/onboarding-state\/route";/,
+  );
 });
 
 test("panel routing updates React immediately and then mirrors the browser URL", () => {
@@ -265,10 +316,14 @@ test("dashboard navigation waits until the SSR session is readable", () => {
   assert.match(finishPasswordSource, /waitForServerAuthSession\(\)/);
 });
 
-test("skipping required onboarding warns that tools remain unavailable", () => {
-  assert.match(dashboardClientSource, /onboardingT\("continueLaterMessage"\)/);
-  assert.match(dashboardClientSource, /onboardingT\("continueLater"\)/);
-  assert.match(dashboardClientSource, /onboardingT\("returnToSetup"\)/);
+test("required onboarding cannot be deferred before the three steps are complete", () => {
+  assert.doesNotMatch(dashboardClientSource, /deferOnboarding/);
+  assert.doesNotMatch(dashboardClientSource, /requestSkipGuidedOnboarding/);
+  assert.doesNotMatch(onboardingHookSource, /resumeOnboarding/);
+  assert.match(
+    dashboardClientSource,
+    /if \(isGuidedOnboardingPanel\) \{\s*return;\s*\}/,
+  );
 });
 
 test("the three pages use one autosaving previous-next-reset navigation", () => {
@@ -305,7 +360,8 @@ test("returning to the dashboard reuses the establishment onboarding cache", () 
   assert.match(onboardingHookSource, /ONBOARDING_CACHE_KEY/);
   assert.match(onboardingHookSource, /readAccountCacheValue/);
   assert.match(onboardingHookSource, /writeAccountCacheValue/);
-  assert.match(onboardingHookSource, /readCachedOnboardingState\(\) \?\? INITIAL_ONBOARDING_STATE/);
+  assert.match(onboardingHookSource, /readCachedOnboardingState\(\) \?\? \{/);
+  assert.match(onboardingHookSource, /ONBOARDING_ABANDONED_KEY/);
 });
 
 test("Google OAuth uses a full browser navigation and cannot be prefetched by Next", () => {

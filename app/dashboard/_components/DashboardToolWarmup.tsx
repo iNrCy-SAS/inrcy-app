@@ -22,6 +22,7 @@ const ROUTES_TO_PREFETCH = [
   "/dashboard/crm",
   "/dashboard/agenda",
   "/dashboard/agent",
+  "/dashboard/generer-media",
   "/dashboard/mediatheque",
   "/dashboard/gps",
   "/dashboard/factures",
@@ -33,6 +34,7 @@ const STANDARD_ROUTES_TO_PREFETCH = [
   "/dashboard/stats",
   "/dashboard/e-reputation",
   "/dashboard/mails",
+  "/dashboard/generer-media",
   "/dashboard/mediatheque",
   "/dashboard/gps",
 ] as const;

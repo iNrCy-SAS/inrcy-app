@@ -5,5 +5,6 @@
     "pull": "Tira per aggiornare"
   },
   "dashboardBoot": "Caricamento della dashboard iNrCy…",
-  "initialSetup": "Preparazione della configurazione iniziale…"
+  "initialSetup": "Preparazione della configurazione iniziale…",
+  "retry": "Riprova"
 }

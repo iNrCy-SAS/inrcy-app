@@ -187,6 +187,8 @@ import PublishImagesPanel from "./components/PublishImagesPanel";
 import PublishPreviewPanel from "./components/PublishPreviewPanel";
 import PublishHelpModal from "./components/PublishHelpModal";
 import PublishWarningModals from "./components/PublishWarningModals";
+import MediaGeneratorModal from "@/app/dashboard/_components/MediaGeneratorModal";
+import type { MediaGenerationResult } from "@/app/dashboard/_hooks/useMediaGeneration";
 import usePublishImageController from "./usePublishImageController";
 import usePersistentMediaWorkspace, {
   type PersistentWorkspaceMediaState,
@@ -396,6 +398,7 @@ export default function PublishModal({
   initialConnectedChannels?: Partial<Record<ChannelKey, boolean>>;
 }) {
   const i18nT = useTranslations("booster");
+  const mediaT = useTranslations("media");
   const runtimeT = i18nT as unknown as (
     key: string,
     values?: Record<string, string | number>,
@@ -487,6 +490,7 @@ export default function PublishModal({
     message: string;
   } | null>(null);
   const [publishHelpOpen, setPublishHelpOpen] = useState(false);
+  const [mediaGeneratorOpen, setMediaGeneratorOpen] = useState(false);
 
   useEffect(() => {
     if (!openHelpActionRef) return;
@@ -1067,11 +1071,18 @@ export default function PublishModal({
   }, [postsByChannel.instagram?.hashtags?.join("|") ?? ""]);
 
   useEffect(() => {
-    onOverlayOpenChange?.(isImageEditorOpen || aiConfigurationOpen);
+    onOverlayOpenChange?.(
+      isImageEditorOpen || aiConfigurationOpen || mediaGeneratorOpen,
+    );
     return () => {
       onOverlayOpenChange?.(false);
     };
-  }, [isImageEditorOpen, aiConfigurationOpen, onOverlayOpenChange]);
+  }, [
+    isImageEditorOpen,
+    aiConfigurationOpen,
+    mediaGeneratorOpen,
+    onOverlayOpenChange,
+  ]);
 
   useEffect(() => {
     let alive = true;
@@ -4250,6 +4261,19 @@ export default function PublishModal({
     return true;
   };
 
+  const addGeneratedMediaToPublication = async (
+    result: MediaGenerationResult,
+  ) => {
+    const inserted = await addMediaLibrarySelection(
+      [result.item],
+      { kind: "publication" },
+    );
+    if (!inserted) {
+      throw new Error(mediaT("ai_generator_insert_error"));
+    }
+    setMediaGeneratorOpen(false);
+  };
+
   const applyOptimizedMediaToBooster = async (item: MediaOptimizerItem) => {
     setImgError("");
     const request = mediaOptimizerRequest;
@@ -6660,6 +6684,18 @@ export default function PublishModal({
     tiktokSettingsMediaMode === "video"
       ? 1
       : tiktokSettingsPreviewAny?.imageCount || images.length || 0;
+  const activeMediaGenerationPost = getDisplayPost(activeCard);
+  const mediaGenerationBrief = [
+    idea,
+    stripSiteTextFormatting(activeMediaGenerationPost.title || ""),
+    stripSiteTextFormattingPreserveLayout(
+      activeMediaGenerationPost.content || "",
+    ),
+  ]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean)
+    .join("\n\n")
+    .slice(0, 1_600);
 
   return (
     <div ref={publishRootRef} style={{ display: "grid", gap: 12, minWidth: 0 }}>
@@ -6673,6 +6709,16 @@ export default function PublishModal({
         isMobile={isMobile}
         drawerHeight={aiDrawerHeight}
         onClose={() => setAiConfigurationOpen(false)}
+      />
+
+      <MediaGeneratorModal
+        open={mediaGeneratorOpen}
+        source="booster"
+        origin="booster"
+        publicationBrief={mediaGenerationBrief}
+        acceptMode="insert"
+        onClose={() => setMediaGeneratorOpen(false)}
+        onAccepted={addGeneratedMediaToPublication}
       />
 
       <TiktokPublicationSettingsModal
@@ -6922,6 +6968,7 @@ export default function PublishModal({
               onPickImagesClick();
             }}
             onPickVideoClick={() => onPickVideoClick({ kind: "generation" })}
+            onGenerateMedia={() => setMediaGeneratorOpen(true)}
             onTakePhotoClick={() => onTakePhotoClick(undefined, "generation")}
             onOpenMediaLibrary={() => {
               setMediaLibraryPickerScope("generation");
@@ -7061,6 +7108,11 @@ export default function PublishModal({
               }
               onRemoveImagesFromChannel={removeImagesFromChannel}
               onPickVideoClick={() => onPickVideoClick({ kind: "publication" })}
+              onGenerateMedia={() => setMediaGeneratorOpen(true)}
+              onOpenMediaLibrary={() => {
+                setMediaLibraryPickerScope("publication");
+                setMediaLibraryPickerOpen(true);
+              }}
               onPickVideoForChannel={onPickVideoForChannel}
               onTakePhotoClick={(channel) =>
                 onTakePhotoClick(channel, "publication")

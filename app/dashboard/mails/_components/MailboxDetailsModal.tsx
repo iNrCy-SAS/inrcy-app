@@ -9,6 +9,7 @@ import InrcyCameraCaptureModal from "@/app/dashboard/_components/InrcyCameraCapt
 import MediaLibraryPickerModal, {
   type MediaLibraryPickerItem,
 } from "@/app/dashboard/_components/MediaLibraryPickerModal";
+import MediaGeneratorModal from "@/app/dashboard/_components/MediaGeneratorModal";
 import MediaOptimizerModal, {
   type MediaOptimizerItem,
 } from "@/app/dashboard/_components/MediaOptimizerModal";
@@ -445,6 +446,7 @@ function formatPublicationStatusCheckedAt(value: string, locale: string) {
 
 export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
   const i18nT = useTranslations("mails");
+  const mediaT = useTranslations("media");
   const locale = useLocale();
   const runtimeT = i18nT as unknown as MailsTranslator;
   const {
@@ -493,6 +495,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
     addPublicationFiles,
     addPublicationPhoto,
     addPublicationMediaLibraryItems,
+    replacePublicationMediaLibraryItem,
     publicationVideoInputId,
     activePublicationEditVideo,
     addPublicationVideo,
@@ -514,6 +517,8 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
   const [publicationPreviewOpen, setPublicationPreviewOpen] = React.useState(false);
   const [publicationCameraOpen, setPublicationCameraOpen] = React.useState(false);
   const [publicationMediaLibraryOpen, setPublicationMediaLibraryOpen] = React.useState(false);
+  const [publicationMediaGeneratorOpen, setPublicationMediaGeneratorOpen] =
+    React.useState(false);
   const [publicationOptimizerRequest, setPublicationOptimizerRequest] =
     React.useState<PublicationMediaOptimizerRequest | null>(null);
   const [publicationOptimizerQueue, setPublicationOptimizerQueue] =
@@ -1022,6 +1027,16 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
     restoreDetailsModalScroll();
   }, [restoreDetailsModalScroll]);
 
+  const openPublicationMediaGenerator = React.useCallback(() => {
+    preserveDetailsModalScroll();
+    setPublicationMediaGeneratorOpen(true);
+  }, [preserveDetailsModalScroll]);
+
+  const closePublicationMediaGenerator = React.useCallback(() => {
+    setPublicationMediaGeneratorOpen(false);
+    restoreDetailsModalScroll();
+  }, [restoreDetailsModalScroll]);
+
   const closePublicationCamera = React.useCallback(() => {
     setPublicationCameraOpen(false);
     restoreDetailsModalScroll();
@@ -1042,6 +1057,56 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
   const markPublicationEditDirty = React.useCallback(() => {
     setPublicationEditDirty(true);
   }, []);
+
+  const publicationMediaGeneratorBrief = React.useMemo(
+    () =>
+      [
+        stripSiteTextFormatting(publicationEditForm.title || ""),
+        stripSiteTextFormatting(publicationEditForm.content || ""),
+      ]
+        .map((value) => String(value || "").trim())
+        .filter(Boolean)
+        .join("\n\n")
+        .slice(0, 1_600),
+    [publicationEditForm.content, publicationEditForm.title],
+  );
+
+  const acceptGeneratedPublicationMedia = React.useCallback(
+    async (result: { item: MediaLibraryPickerItem }) => {
+      const hasSelectedImage = activePublicationEditAssets.some(
+        (asset) => asset.selected,
+      );
+      const hasVideo = Boolean(
+        activePublicationEditVideo &&
+          !activePublicationEditVideo.removed &&
+          activePublicationEditVideo.previewUrl,
+      );
+
+      if (hasSelectedImage || hasVideo) {
+        const confirmed = await confirmInrcy({
+          title: mediaT("ai_generator_replace_title"),
+          message: mediaT("ai_generator_replace_description"),
+          cancelLabel: mediaT("ai_generator_replace_cancel"),
+          confirmLabel: mediaT("ai_generator_replace_confirm"),
+          variant: "warning",
+        });
+        if (!confirmed) return;
+      }
+
+      await replacePublicationMediaLibraryItem(result.item);
+      markPublicationEditDirty();
+      setPublicationMediaGeneratorOpen(false);
+      restoreDetailsModalScroll();
+    },
+    [
+      activePublicationEditAssets,
+      activePublicationEditVideo,
+      markPublicationEditDirty,
+      mediaT,
+      replacePublicationMediaLibraryItem,
+      restoreDetailsModalScroll,
+    ],
+  );
 
   const updatePublicationEdit = React.useCallback((patch: Partial<PublicationEditForm>) => {
     markPublicationEditDirty();
@@ -1127,7 +1192,10 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
   }, []);
 
   React.useEffect(() => {
-    if (!open || !detailsEditMode) setPublicationEditDirty(false);
+    if (!open || !detailsEditMode) {
+      setPublicationEditDirty(false);
+      setPublicationMediaGeneratorOpen(false);
+    }
   }, [open, detailsItem?.id, activePublicationEditChannelKey, detailsEditMode]);
 
   const confirmDiscardPublicationEdit = React.useCallback(async () => {
@@ -1333,6 +1401,18 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
     markPublicationEditDirty();
     addPublicationPhoto(file);
   }
+
+  const publicationMediaGeneratorButton = detailsEditMode ? (
+    <button
+      type="button"
+      className={styles.btnAttach}
+      onClick={openPublicationMediaGenerator}
+      disabled={detailsActionBusy}
+    >
+      <span aria-hidden="true">✦</span>{" "}
+      {mediaT("ai_generator_generate_media")}
+    </button>
+  ) : null;
 
   if (!open) return null;
 
@@ -2614,6 +2694,15 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                     restoreDetailsModalScroll();
                                   }}
                                 />
+                                <MediaGeneratorModal
+                                  open={publicationMediaGeneratorOpen}
+                                  source="booster"
+                                  origin="inrsend"
+                                  publicationBrief={publicationMediaGeneratorBrief}
+                                  acceptMode="insert"
+                                  onClose={closePublicationMediaGenerator}
+                                  onAccepted={acceptGeneratedPublicationMedia}
+                                />
                               </>
                             ) : null}
 
@@ -2647,6 +2736,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                         onClick={() => document.getElementById(publicationVideoInputId)?.click()}
                                       >
                                         {i18nT("ajouter_remplacer_la_video_a495d0ec")}{" "}</button>
+                                      {publicationMediaGeneratorButton}
                                       <button
                                         type="button"
                                         className={styles.btnAttach}
@@ -2714,6 +2804,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                     onClick={() => document.getElementById(publicationVideoInputId)?.click()}
                                   >
                                     {i18nT("ajouter_une_video_47903bae")}{" "}</button>
+                                  {publicationMediaGeneratorButton}
                                   <button
                                     type="button"
                                     className={styles.btnAttach}
