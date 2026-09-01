@@ -25,12 +25,12 @@
     "title": "Menu utente",
     "label": "Menu",
     "profileIncomplete": "Profilo incompleto",
-    "activityIncomplete": "Attività incompleta",
+    "activityIncomplete": "Profilo incompleto",
     "completeProfileHint": "Clicca per completare il profilo e attivare iNrCy.",
-    "completeActivityHint": "Clicca per completare l’attività e attivare iNrCy.",
+    "completeActivityHint": "Clicca per completare il profilo e attivare completamente iNrCy.",
     "account": "Account iNrCytizen",
     "profile": "Il mio profilo",
-    "activity": "La mia attività",
+    "activity": "Il mio profilo",
     "preferences": "Impostazioni",
     "ai": "Impostazioni IA",
     "mediaGenerator": "Genera contenuti multimediali",
@@ -67,7 +67,7 @@
       "profil": "Il mio profilo",
       "preferences": "Impostazioni",
       "inrbadge": "Ajustes iNr'Badge",
-      "activite": "La mia attività",
+      "activite": "Il mio profilo",
       "ia": "Impostazioni IA",
       "abonnement": "Il mio piano",
       "legal": "Info legali",
@@ -139,8 +139,8 @@
       "shortLabel": "Profilo"
     },
     "activity": {
-      "label": "Completa attività",
-      "shortLabel": "Attività"
+      "label": "Completa i dati professionali del mio profilo",
+      "shortLabel": "Profilo"
     },
     "site_link": {
       "label": "Connetti sito",
@@ -200,7 +200,7 @@
     "connectedAria": "canali connessi su"
   },
   "modules": {
-    "requiredSetupLocked": "Your profile and/or business activity are incomplete.",
+    "requiredSetupLocked": "Completa il tuo profilo per sbloccare questo strumento.",
     "dashboardTitle": "Cruscotto",
     "dashboardSub": "Guida",
     "statsSub": "Tutti i lead visibili",
@@ -349,10 +349,26 @@
   "setupAlert": {
     "eyebrow": "Configurazione dell’account",
     "title": "Per attivare completamente l’applicazione",
-    "bothIncomplete": "Completa il Profilo e l’Attività dal menu.",
-    "profileIncomplete": "Completa il Profilo dal menu.",
-    "activityIncomplete": "Completa l’Attività dal menu.",
-    "confirm": "Ho capito"
+    "bothIncomplete": "Completa il profilo per attivare pienamente l’applicazione.",
+    "profileIncomplete": "Completa il profilo per attivare pienamente l’applicazione.",
+    "activityIncomplete": "Completa il profilo per attivare pienamente l’applicazione.",
+    "confirm": "Completa il mio profilo",
+    "cancel": "Più tardi"
+  },
+  "profilePanel": {
+    "identityTitle": "La mia identità",
+    "identityDescription": "Presenta la tua azienda e indica i recapiti professionali.",
+    "activityTitle": "La mia attività",
+    "activityDescription": "Descrivi professione, area di intervento e posizionamento.",
+    "identityError": "Controlla le informazioni nel blocco La mia identità.",
+    "activityError": "Non è stato possibile salvare i dati professionali del profilo. Riprova.",
+    "saved": "Il profilo completo è stato salvato.",
+    "reset": "Reimposta",
+    "saving": "Salvataggio…",
+    "save": "Salva il mio profilo",
+    "resetTitle": "Reimpostare il profilo?",
+    "resetMessage": "I campi di La mia identità e La mia attività verranno svuotati in questo modulo.",
+    "resetConfirm": "Reimposta"
   },
   "settingsDrawer": {
     "settings": "Impostazioni",

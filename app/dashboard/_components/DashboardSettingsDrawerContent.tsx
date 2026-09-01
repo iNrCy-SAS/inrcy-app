@@ -1,7 +1,6 @@
 import ContactContent from "../settings/_components/ContactContent";
 import AccountContent from "../settings/_components/AccountContent";
-import ProfilContent from "../settings/_components/ProfilContent";
-import ActivityContent from "../settings/_components/ActivityContent";
+import ProfileAndActivityContent from "../settings/_components/ProfileAndActivityContent";
 import GeneralPreferencesContent from "../settings/_components/GeneralPreferencesContent";
 import AiConfigurationContent from "../settings/_components/AiConfigurationContent";
 import AbonnementContent from "../settings/_components/AbonnementContent";
@@ -61,6 +60,7 @@ type DashboardPanelName =
 type DashboardSettingsDrawerContentProps = {
   edition?: DashboardEdition;
   panel: string | null;
+  profileInitialSection?: "identity" | "activity" | null;
   onUnsavedChange?: (hasUnsavedChanges: boolean) => void;
   onProfileSaved: () => unknown | Promise<unknown>;
   onProfileReset: () => unknown | Promise<unknown>;
@@ -99,6 +99,7 @@ type DashboardSettingsDrawerContentProps = {
 export default function DashboardSettingsDrawerContent({
   edition = "premium",
   panel,
+  profileInitialSection = null,
   onUnsavedChange,
   onProfileSaved,
   onProfileReset,
@@ -145,26 +146,19 @@ export default function DashboardSettingsDrawerContent({
           onUnsavedChange={onUnsavedChange}
         />
       )}
-      {panel === "profil" && (
-        <ProfilContent
-          mode="drawer"
+      {(panel === "profil" || panel === "activite") && (
+        <ProfileAndActivityContent
+          initialSection={panel === "activite" ? "activity" : profileInitialSection}
           onProfileSaved={onProfileSaved}
           onProfileReset={onProfileReset}
-          onCloseDrawer={onCloseDrawer}
-          onUnsavedChange={onUnsavedChange}
-        />
-      )}
-      {panel === "preferences" && <GeneralPreferencesContent mode="drawer" onUnsavedChange={onUnsavedChange} />}
-      {panel === "inrbadge" && <InrBadgeSettingsContent {...inrBadgeSettingsProps} />}
-      {panel === "activite" && (
-        <ActivityContent
-          mode="drawer"
           onActivitySaved={onActivitySaved}
           onActivityReset={onActivityReset}
           onCloseDrawer={onCloseDrawer}
           onUnsavedChange={onUnsavedChange}
         />
       )}
+      {panel === "preferences" && <GeneralPreferencesContent mode="drawer" onUnsavedChange={onUnsavedChange} />}
+      {panel === "inrbadge" && <InrBadgeSettingsContent {...inrBadgeSettingsProps} />}
       {panel === "ia" && (
         <AiConfigurationContent
           onSaved={onCloseDrawer}

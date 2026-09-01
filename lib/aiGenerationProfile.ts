@@ -339,7 +339,7 @@ export function buildNormalizedAiGenerationProfile(
   const business = asRecord(args.business);
   const preferenceOverrides = asRecord(args.preferences);
 
-  // Les préférences explicites gagnent, puis Mon activité, puis le profil général.
+  // Les préférences explicites gagnent, puis les informations métier et générales du profil unifié.
   // Cela rend la résolution identique dans Booster, iNrAgent et les reprises.
   const preferenceSources = [preferenceOverrides, business, profile];
   const identitySources = [profile, business];

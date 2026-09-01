@@ -55,6 +55,17 @@ test("the profile form contains only the public essentials", () => {
   assert.match(source, /hqZip/);
   assert.match(source, /hqCity/);
   assert.doesNotMatch(source, /avg_basket|lead_conversion_rate|legal_form|hq_address|siren|rcs_city|capital_social|vat_number/);
+
+  const companyIndex = source.indexOf('value={form.companyName}');
+  const emailIndex = source.indexOf('value={form.contactEmail}');
+  const firstNameIndex = source.indexOf('value={form.firstName}');
+  const locationIndex = source.indexOf('value={form.hqZip}');
+  const logoIndex = source.indexOf('ref={fileInputRef}');
+  assert.ok(companyIndex >= 0);
+  assert.ok(companyIndex < emailIndex);
+  assert.ok(emailIndex < firstNameIndex);
+  assert.ok(firstNameIndex < locationIndex);
+  assert.ok(locationIndex < logoIndex);
 });
 
 test("activity collections use removable tags and no legacy free service field", () => {
@@ -76,13 +87,25 @@ test("Encaisser and the generator keep the exact historical database columns", (
   assert.match(generator, /lead_conversion_rate: normalized\.conversionRate/);
 });
 
-test("profile and activity remain regular menu panels", () => {
+test("profile and activity are grouped into one regular profile panel", () => {
   const content = read("app/dashboard/_components/DashboardSettingsDrawerContent.tsx");
+  const combined = read("app/dashboard/settings/_components/ProfileAndActivityContent.tsx");
+  const activity = read("app/dashboard/settings/_components/ActivityContent.tsx");
+  const menu = read("app/dashboard/_components/UserMenu.tsx");
   const client = read("app/dashboard/DashboardClient.tsx");
   const drawer = read("app/dashboard/SettingsDrawer.tsx");
 
-  assert.match(content, /panel === "profil"/);
-  assert.match(content, /panel === "activite"/);
+  assert.match(content, /panel === "profil" \|\| panel === "activite"/);
+  assert.match(content, /<ProfileAndActivityContent/);
+  assert.match(combined, /data-profile-block="identity"/);
+  assert.match(combined, /data-profile-block="activity"/);
+  assert.match(combined, /<ProfilContent[\s\S]*showActions=\{false\}/);
+  assert.match(combined, /<ActivityContent[\s\S]*showActions=\{false\}/);
+  assert.match(combined, /handleSaveAll/);
+  assert.match(activity, /data-activity-section="identity"/);
+  assert.match(activity, /data-activity-section="reach"/);
+  assert.match(activity, /data-activity-section="positioning"/);
+  assert.doesNotMatch(menu, /closeAndOpen\("activite"\)/);
   assert.doesNotMatch(content, /guidedOnboarding|onOnboarding/);
   assert.doesNotMatch(client, /guidedOnboarding|onboardingProgress/);
   assert.doesNotMatch(drawer, /presentation.*onboarding|contentDirection/);

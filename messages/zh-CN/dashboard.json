@@ -25,12 +25,12 @@
     "title": "用户菜单",
     "label": "菜单",
     "profileIncomplete": "个人资料不完整",
-    "activityIncomplete": "活动不完整",
+    "activityIncomplete": "个人资料不完整",
     "completeProfileHint": "单击以完成您的个人资料并完全激活 iNrCy。",
-    "completeActivityHint": "单击以完成您的活动并完全激活 iNrCy。",
+    "completeActivityHint": "点击完善您的个人资料并完整启用 iNrCy。",
     "account": "帐户 iNrCytizen",
     "profile": "我的个人资料",
-    "activity": "我的活动",
+    "activity": "我的个人资料",
     "preferences": "一般偏好",
     "ai": "人工智能设置",
     "mediaGenerator": "生成媒体",
@@ -67,7 +67,7 @@
       "profil": "我的个人资料",
       "preferences": "一般偏好",
       "inrbadge": "设置 iNr'Badge",
-      "activite": "我的活动",
+      "activite": "我的个人资料",
       "ia": "人工智能设置",
       "abonnement": "我的订阅",
       "legal": "法律信息",
@@ -136,11 +136,11 @@
   "generatorSteps": {
     "profile": {
       "label": "完成我的个人资料",
-      "shortLabel": "公司简介"
+      "shortLabel": "个人资料"
     },
     "activity": {
-      "label": "完成我的活动",
-      "shortLabel": "活动"
+      "label": "完善个人资料中的职业信息",
+      "shortLabel": "个人资料"
     },
     "site_link": {
       "label": "连接网站",
@@ -200,7 +200,7 @@
     "connectedAria": "通道已连接"
   },
   "modules": {
-    "requiredSetupLocked": "我的个人资料和/或我的活动不完整。",
+    "requiredSetupLocked": "完善您的个人资料以解锁此工具。",
     "dashboardTitle": "仪表板",
     "dashboardSub": "驾驶",
     "statsSub": "您的所有线索终于可见",
@@ -349,10 +349,26 @@
   "setupAlert": {
     "eyebrow": "账户设置",
     "title": "要完整启用应用程序",
-    "bothIncomplete": "请在菜单中填写您的个人资料和业务信息。",
-    "profileIncomplete": "请在菜单中填写您的个人资料。",
-    "activityIncomplete": "请在菜单中填写您的业务信息。",
-    "confirm": "知道了"
+    "bothIncomplete": "请完善您的个人资料以完整启用应用程序。",
+    "profileIncomplete": "请完善您的个人资料以完整启用应用程序。",
+    "activityIncomplete": "请完善您的个人资料以完整启用应用程序。",
+    "confirm": "完善我的个人资料",
+    "cancel": "稍后"
+  },
+  "profilePanel": {
+    "identityTitle": "我的身份",
+    "identityDescription": "介绍您的企业并填写专业联系方式。",
+    "activityTitle": "我的业务",
+    "activityDescription": "说明您的职业、服务区域和市场定位。",
+    "identityError": "请检查“我的身份”模块中的信息。",
+    "activityError": "无法保存个人资料中的职业信息，请重试。",
+    "saved": "完整个人资料已保存。",
+    "reset": "重置",
+    "saving": "正在保存…",
+    "save": "保存我的个人资料",
+    "resetTitle": "重置个人资料？",
+    "resetMessage": "此表单中的“我的身份”和“我的业务”字段将被清空。",
+    "resetConfirm": "重置"
   },
   "settingsDrawer": {
     "settings": "设置",

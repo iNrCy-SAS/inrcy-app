@@ -8,7 +8,6 @@ type OpenPanelName =
   | "profil"
   | "preferences"
   | "compte"
-  | "activite"
   | "ia"
   | "abonnement"
   | "mails"
@@ -103,23 +102,12 @@ export default function UserMenu(props: {
           </button>
           <button
             type="button"
-            className={`${styles.userMenuItem} ${profileIncomplete ? styles.userMenuItemWithWarning : ""}`}
+            className={`${styles.userMenuItem} ${hasCompletionWarning ? styles.userMenuItemWithWarning : ""}`}
             role="menuitem"
             onClick={() => closeAndOpen("profil")}
           >
             <span>{t.userMenu.profile}</span>
-            {profileIncomplete && (
-              <span className={styles.menuWarningTriangle} aria-hidden="true">⚠️</span>
-            )}
-          </button>
-          <button
-            type="button"
-            className={`${styles.userMenuItem} ${activityIncomplete ? styles.userMenuItemWithWarning : ""}`}
-            role="menuitem"
-            onClick={() => closeAndOpen("activite")}
-          >
-            <span>{t.userMenu.activity}</span>
-            {activityIncomplete && (
+            {hasCompletionWarning && (
               <span className={styles.menuWarningTriangle} aria-hidden="true">⚠️</span>
             )}
           </button>

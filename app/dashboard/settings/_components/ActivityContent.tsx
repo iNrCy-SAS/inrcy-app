@@ -9,7 +9,14 @@ import { refreshPublicProfileDependents } from "@/lib/publicProfileRefreshClient
 
 import { getClientUserFacingErrorMessage } from "@/lib/userFacingErrors";
 import { confirmInrcy } from "@/lib/inrcyDialog";
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { createClient } from "@/lib/supabaseClient";
 import {
   ACTIVITY_SECTOR_OPTIONS,
@@ -39,6 +46,14 @@ type Props = {
   onActivityReset?: () => unknown | Promise<unknown>;
   onCloseDrawer?: () => unknown | Promise<unknown>;
   onUnsavedChange?: (hasUnsavedChanges: boolean) => void;
+  showIntro?: boolean;
+  showActions?: boolean;
+};
+
+export type ActivityContentHandle = {
+  isReady: () => boolean;
+  save: () => Promise<boolean>;
+  reset: (options?: { confirm?: boolean }) => Promise<boolean>;
 };
 
 type BusinessActivityForm = {
@@ -54,13 +69,18 @@ type BusinessActivityForm = {
 
 const TABLE = "business_profiles";
 
-export default function ActivityContent({
-  mode = "page",
-  onActivitySaved,
-  onActivityReset,
-  onCloseDrawer,
-  onUnsavedChange,
-}: Props) {
+const ActivityContent = forwardRef<ActivityContentHandle, Props>(function ActivityContent(
+  {
+    mode = "page",
+    onActivitySaved,
+    onActivityReset,
+    onCloseDrawer,
+    onUnsavedChange,
+    showIntro = true,
+    showActions = true,
+  },
+  ref,
+) {
   const i18nT = useTranslations("settings");
   const sectionT = useTranslations("dashboard.settingsSections");
   const initial: BusinessActivityForm = useMemo(
@@ -432,8 +452,8 @@ export default function ActivityContent({
       .map((s) => s.trim())
       .filter(Boolean);
 
-  const save = async () => {
-    if (saving) return;
+  const save = async (): Promise<boolean> => {
+    if (saving || loading) return false;
     setSaving(true);
     setSaved(false);
     setError("");
@@ -513,6 +533,7 @@ export default function ActivityContent({
       } else {
         window.setTimeout(() => setSaved(false), 2500);
       }
+      return true;
     } catch (e: unknown) {
       setError(
         getClientUserFacingErrorMessage(
@@ -520,20 +541,25 @@ export default function ActivityContent({
           i18nT("activity_save_failed"),
         ),
       );
+      return false;
     } finally {
       setSaving(false);
     }
   };
 
-  const handleReset = async () => {
-    const ok = await confirmInrcy({
-      title: i18nT("reinitialiser_l_activite_f01d8d88"),
-      message:
-        i18nT("cela_efface_les_informations_d_activite_2a4693ce"),
-      confirmLabel: i18nT("reinitialiser_e0e2ad54"),
-      variant: "danger",
-    });
-    if (!ok) return;
+  const handleReset = async (
+    options: { confirm?: boolean } = {},
+  ): Promise<boolean> => {
+    if (options.confirm !== false) {
+      const ok = await confirmInrcy({
+        title: i18nT("reinitialiser_l_activite_f01d8d88"),
+        message:
+          i18nT("cela_efface_les_informations_d_activite_2a4693ce"),
+        confirmLabel: i18nT("reinitialiser_e0e2ad54"),
+        variant: "danger",
+      });
+      if (!ok) return false;
+    }
     setForm(initial);
     setJobSearch("");
     setJobSearchOpen(false);
@@ -543,7 +569,14 @@ export default function ActivityContent({
     activityBaselineRef.current = activitySnapshot(initial);
     onUnsavedChange?.(false);
     await onActivityReset?.();
+    return true;
   };
+
+  useImperativeHandle(ref, () => ({
+    isReady: () => !loading && !saving,
+    save,
+    reset: handleReset,
+  }));
 
   return (
     <div
@@ -554,40 +587,42 @@ export default function ActivityContent({
         paddingBottom: "max(24px, var(--inrcy-safe-area-bottom))",
       }}
     >
-      <div
-        style={{
-          ...card,
-          display: "flex",
-          alignItems: "center",
-          gap: 13,
-          border: card.border,
-          background: card.background,
-        }}
-      >
-        <span
-          aria-hidden="true"
+      {showIntro ? (
+        <div
           style={{
-            width: 46,
-            height: 46,
-            flex: "0 0 auto",
-            display: "grid",
-            placeItems: "center",
-            borderRadius: 15,
-            border: "1px solid rgba(255,255,255,0.14)",
-            background: "rgba(4,10,24,0.34)",
-            fontSize: 24,
+            ...card,
+            display: "flex",
+            alignItems: "center",
+            gap: 13,
+            border: card.border,
+            background: card.background,
           }}
         >
-          🎯
-        </span>
-        <div style={{ display: "grid", gap: 3 }}>
-          <strong style={{ fontSize: 15 }}>
-            {i18nT("votre_activite_professionnelle_c67bbd58")}
-          </strong>
-          <span style={{ opacity: 0.72, lineHeight: 1.4, fontSize: 13 }}>
-            {i18nT("inrcy_s_appuie_sur_ces_informations_383b09e1")}{" "}</span>
+          <span
+            aria-hidden="true"
+            style={{
+              width: 46,
+              height: 46,
+              flex: "0 0 auto",
+              display: "grid",
+              placeItems: "center",
+              borderRadius: 15,
+              border: "1px solid rgba(255,255,255,0.14)",
+              background: "rgba(4,10,24,0.34)",
+              fontSize: 24,
+            }}
+          >
+            🎯
+          </span>
+          <div style={{ display: "grid", gap: 3 }}>
+            <strong style={{ fontSize: 15 }}>
+              {i18nT("votre_activite_professionnelle_c67bbd58")}
+            </strong>
+            <span style={{ opacity: 0.72, lineHeight: 1.4, fontSize: 13 }}>
+              {i18nT("inrcy_s_appuie_sur_ces_informations_383b09e1")}{" "}</span>
+          </div>
         </div>
-      </div>
+      ) : null}
 
       <div style={loading ? card : { display: "grid", gap: 12 }}>
         {loading ? (
@@ -1047,46 +1082,48 @@ export default function ActivityContent({
                 {i18nT("enregistre_a5dfbc23")}{" "}</div>
             ) : null}
 
-            <div
-              data-activity-actions
-              style={{
-                position: "sticky",
-                bottom: 0,
-                zIndex: 8,
-                display: "grid",
-                gap: 10,
-                gridTemplateColumns: "minmax(180px, 1.35fr) minmax(130px, 0.72fr)",
-                padding: "11px 0 max(2px, var(--inrcy-safe-area-bottom))",
-                background:
-                  "linear-gradient(180deg, rgba(6,16,31,0), rgba(6,16,31,0.96) 28%)",
-              }}
-            >
-              <button
-                type="button"
-                style={primaryBtn}
-                disabled={saving}
-                onClick={() => void save()}
-              >
-                {saving
-                  ? i18nT("enregistrement_e7d5f232")
-                  : i18nT("enregistrer_f7c8bcd8")}
-              </button>
-              <button
-                type="button"
-                disabled={saving}
-                onClick={handleReset}
+            {showActions ? (
+              <div
+                data-activity-actions
                 style={{
-                  border: "1px solid rgba(255,255,255,0.12)",
-                  background: "rgba(255,255,255,0.05)",
-                  color: "white",
-                  borderRadius: 14,
-                  padding: "10px 12px",
-                  cursor: saving ? "not-allowed" : "pointer",
-                  fontWeight: 800,
+                  position: "sticky",
+                  bottom: 0,
+                  zIndex: 8,
+                  display: "grid",
+                  gap: 10,
+                  gridTemplateColumns: "minmax(180px, 1.35fr) minmax(130px, 0.72fr)",
+                  padding: "11px 0 max(2px, var(--inrcy-safe-area-bottom))",
+                  background:
+                    "linear-gradient(180deg, rgba(6,16,31,0), rgba(6,16,31,0.96) 28%)",
                 }}
               >
-                {i18nT("reinitialiser_e0e2ad54")}{" "}</button>
-            </div>
+                <button
+                  type="button"
+                  style={primaryBtn}
+                  disabled={saving}
+                  onClick={() => void save()}
+                >
+                  {saving
+                    ? i18nT("enregistrement_e7d5f232")
+                    : i18nT("enregistrer_f7c8bcd8")}
+                </button>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => void handleReset()}
+                  style={{
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    background: "rgba(255,255,255,0.05)",
+                    color: "white",
+                    borderRadius: 14,
+                    padding: "10px 12px",
+                    cursor: saving ? "not-allowed" : "pointer",
+                    fontWeight: 800,
+                  }}
+                >
+                  {i18nT("reinitialiser_e0e2ad54")}{" "}</button>
+              </div>
+            ) : null}
 
             {mode === "drawer" ? (
               <div style={{ fontSize: 12, opacity: 0.7 }}>
@@ -1104,4 +1141,6 @@ export default function ActivityContent({
       `}</style>
     </div>
   );
-}
+});
+
+export default ActivityContent;

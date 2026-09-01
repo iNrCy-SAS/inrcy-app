@@ -400,7 +400,7 @@ function buildVideoGenerationInstructions(
   const frameContext =
     video.analysisPlan.visualFrames === "ready" && video.frameCount > 0
       ? `Des captures extraites de la vidéo sont jointes au prompt (début, milieu, fin quand possible). Utilise-les pour enrichir le contenu avec des détails visibles, sans changer le sujet principal donné par la phrase libre.`
-      : `Aucune capture exploitable n'est disponible : rédiger principalement à partir de l'intention libre du pro, de Mon activité, de Mon profil et du canal demandé.`;
+      : `Aucune capture exploitable n'est disponible : rédiger principalement à partir de l'intention libre du pro, des informations de son profil et du canal demandé.`;
   const audioContext = video.audioTranscript
     ? `Transcription audio détectée dans la vidéo :
 """${video.audioTranscript}"""

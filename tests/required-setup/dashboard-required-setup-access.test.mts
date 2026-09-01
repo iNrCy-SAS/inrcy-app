@@ -39,7 +39,7 @@ const allowedDestinations = [
   "/dashboard/gps",
 ];
 
-test("protects every module that requires Profil and Activité", () => {
+test("protects every module that requires a complete profile", () => {
   for (const href of protectedDestinations) {
     assert.equal(isDashboardRequiredSetupProtectedDestination(href), true, href);
   }

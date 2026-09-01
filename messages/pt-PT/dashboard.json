@@ -25,12 +25,12 @@
     "title": "Menu utilizador",
     "label": "Menu",
     "profileIncomplete": "Perfil incompleto",
-    "activityIncomplete": "Atividade incompleta",
+    "activityIncomplete": "Perfil incompleto",
     "completeProfileHint": "Clique para completar o perfil e ativar iNrCy.",
-    "completeActivityHint": "Clique para completar a atividade e ativar iNrCy.",
+    "completeActivityHint": "Clique para completar o seu perfil e ativar totalmente o iNrCy.",
     "account": "Conta iNrCytizen",
-    "profile": "Meu perfil",
-    "activity": "Minha atividade",
+    "profile": "O meu perfil",
+    "activity": "O meu perfil",
     "preferences": "Definições gerais",
     "ai": "Definições IA",
     "mediaGenerator": "Gerar multimédia",
@@ -64,10 +64,10 @@
     "titles": {
       "contact": "Contacto",
       "compte": "Conta iNrCytizen",
-      "profil": "Meu perfil",
+      "profil": "O meu perfil",
       "preferences": "Definições gerais",
       "inrbadge": "Ajustes iNr'Badge",
-      "activite": "Minha atividade",
+      "activite": "O meu perfil",
       "ia": "Definições IA",
       "abonnement": "Meu plano",
       "legal": "Info legal",
@@ -139,8 +139,8 @@
       "shortLabel": "Perfil"
     },
     "activity": {
-      "label": "Completar atividade",
-      "shortLabel": "Atividade"
+      "label": "Completar os dados profissionais do meu perfil",
+      "shortLabel": "Perfil"
     },
     "site_link": {
       "label": "Ligar site",
@@ -200,7 +200,7 @@
     "connectedAria": "canais ligados de"
   },
   "modules": {
-    "requiredSetupLocked": "Your profile and/or business activity are incomplete.",
+    "requiredSetupLocked": "Complete o seu perfil para desbloquear esta ferramenta.",
     "dashboardTitle": "Painel",
     "dashboardSub": "Controlo",
     "statsSub": "Todos os leads visíveis",
@@ -349,10 +349,26 @@
   "setupAlert": {
     "eyebrow": "Configuração da conta",
     "title": "Para ativar completamente a aplicação",
-    "bothIncomplete": "Preencha o seu Perfil e a sua Atividade no menu.",
-    "profileIncomplete": "Preencha o seu Perfil no menu.",
-    "activityIncomplete": "Preencha a sua Atividade no menu.",
-    "confirm": "Compreendi"
+    "bothIncomplete": "Complete o seu perfil para ativar totalmente a aplicação.",
+    "profileIncomplete": "Complete o seu perfil para ativar totalmente a aplicação.",
+    "activityIncomplete": "Complete o seu perfil para ativar totalmente a aplicação.",
+    "confirm": "Completar o meu perfil",
+    "cancel": "Mais tarde"
+  },
+  "profilePanel": {
+    "identityTitle": "A minha identidade",
+    "identityDescription": "Apresente a sua empresa e indique os seus contactos profissionais.",
+    "activityTitle": "A minha atividade",
+    "activityDescription": "Descreva a sua profissão, zona de intervenção e posicionamento.",
+    "identityError": "Verifique as informações do bloco A minha identidade.",
+    "activityError": "Não foi possível guardar os dados profissionais do perfil. Tente novamente.",
+    "saved": "O seu perfil completo foi guardado.",
+    "reset": "Repor",
+    "saving": "A guardar…",
+    "save": "Guardar o meu perfil",
+    "resetTitle": "Repor o perfil?",
+    "resetMessage": "Os campos de A minha identidade e A minha atividade serão limpos neste formulário.",
+    "resetConfirm": "Repor"
   },
   "settingsDrawer": {
     "settings": "Definições",

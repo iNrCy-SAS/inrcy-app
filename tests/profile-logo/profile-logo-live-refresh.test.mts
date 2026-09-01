@@ -6,7 +6,7 @@ import test from "node:test";
 const root = process.cwd();
 const read = (relativePath: string) => readFileSync(join(root, relativePath), "utf8");
 
-test("saving Mon profil and Mon activité refreshes iNrBadge and invalidates iNrSearch", () => {
+test("saving either part of the unified profile refreshes iNrBadge and invalidates iNrSearch", () => {
   const profileForm = read("app/dashboard/settings/_components/ProfilContent.tsx");
   const activityForm = read("app/dashboard/settings/_components/ActivityContent.tsx");
   const refreshClient = read("lib/publicProfileRefreshClient.ts");

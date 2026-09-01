@@ -97,7 +97,7 @@ export default function InformerModal({
     setBody(txt);
     setBodyHtml(textToRichMailHtml(txt));
 
-    // Auto-remplissage (profil / activité / liens connectés)
+    // Auto-remplissage (profil unifié / liens connectés)
     let cancelled = false;
     (async () => {
       try {

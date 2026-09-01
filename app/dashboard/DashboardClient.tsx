@@ -229,6 +229,9 @@ export default function DashboardClient({
   const { requestNavigation } = useDashboardUnsavedNavigation();
   const dashboardCopy = useDashboardI18n();
   const { panel, openPanel, closePanel, goToModule } = useDashboardPanelRouting();
+  const openCombinedProfilePanel = useCallback(() => {
+    openPanel("profil");
+  }, [openPanel]);
   const {
     accountId: completionAccountId,
     profileIncomplete,
@@ -254,6 +257,7 @@ export default function DashboardClient({
     completionCheckReady,
     profileIncomplete,
     activityIncomplete,
+    onOpenProfile: openCombinedProfilePanel,
   });
   const [settingsDrawerHasUnsavedChanges, setSettingsDrawerHasUnsavedChanges] = useState(false);
   const settingsDrawerGuardActive = panel === "ia" || panel === "preferences" || panel === "documents" || panel === "mails" || panel === "compte" || panel === "parrainage" || panel === "profil" || panel === "activite" || panel === "youtube_shorts" || panel === "pinterest";
@@ -3999,6 +4003,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
         <DashboardSettingsDrawerContent
             edition={dashboardEdition}
             panel={panel}
+            profileInitialSection={searchParams.get("profileSection") === "activity" ? "activity" : "identity"}
             onUnsavedChange={handleSettingsDrawerUnsavedChange}
             onProfileSaved={handleProfileSaved}
             onProfileReset={checkProfile}

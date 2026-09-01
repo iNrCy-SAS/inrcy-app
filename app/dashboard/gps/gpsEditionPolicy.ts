@@ -47,7 +47,7 @@ const STANDARD_ARTICLE_OVERRIDES: Record<string, GpsArticleOverride> = {
     ],
     links: [
       { label: "mon_profil_faa6d321", href: "/dashboard?panel=profil&panelSource=gps" },
-      { label: "mon_activite_7732bf80", href: "/dashboard?panel=activite&panelSource=gps" },
+      { label: "mon_activite_7732bf80", href: "/dashboard?panel=profil&profileSection=activity&panelSource=gps" },
     ],
   },
   "canaux-express": {

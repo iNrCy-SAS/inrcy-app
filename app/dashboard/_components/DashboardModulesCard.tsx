@@ -77,7 +77,7 @@ export default function DashboardModulesCard({ goToModule, openPanel, requiredSe
         return;
       }
       // A destination protected by the mandatory setup can legitimately open
-      // the profile/activity panel instead of the requested route. In that
+      // the unified profile panel instead of the requested route. In that
       // case the click has completed too and must not leave the button pending.
       if (searchParams.get("panel")) completeAction(pendingKey);
       return;

@@ -19,7 +19,7 @@ export async function POST(req: Request) {
     const subjectOverride = String(body["subject_override"] ?? "");
     const bodyOverride = String(body["body_override"] ?? "");
 
-    // --- Fetch profile + activity
+    // --- Fetch the two persisted sources that make up the unified profile
     const [profileRes, businessRes, inrcyCfgRes, proCfgRes, statsRes] = await Promise.all([
       supabase.from("profiles").select("*").eq("user_id", userId).maybeSingle(),
       supabase.from("business_profiles").select("*").eq("user_id", userId).maybeSingle(),

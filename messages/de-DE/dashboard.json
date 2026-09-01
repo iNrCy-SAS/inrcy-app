@@ -25,12 +25,12 @@
     "title": "Benutzermenü",
     "label": "Menu",
     "profileIncomplete": "Profil fehlt",
-    "activityIncomplete": "Aktivität fehlt",
+    "activityIncomplete": "Profil fehlt",
     "completeProfileHint": "Klicken, um Ihr Profil zu vervollständigen und iNrCy zu aktivieren.",
-    "completeActivityHint": "Klicken, um Ihre Aktivität zu vervollständigen und iNrCy zu aktivieren.",
+    "completeActivityHint": "Klicken, um Ihr Profil zu vervollständigen und iNrCy vollständig zu aktivieren.",
     "account": "iNrCytizen-Konto",
     "profile": "Mein Profil",
-    "activity": "Meine Aktivität",
+    "activity": "Mein Profil",
     "preferences": "Einstellungen",
     "ai": "KI-Einstellungen",
     "mediaGenerator": "Medium generieren",
@@ -67,7 +67,7 @@
       "profil": "Mein Profil",
       "preferences": "Einstellungen",
       "inrbadge": "iNr'Badge settings",
-      "activite": "Meine Aktivität",
+      "activite": "Mein Profil",
       "ia": "KI-Einstellungen",
       "abonnement": "Mein Tarif",
       "legal": "Rechtliches",
@@ -139,8 +139,8 @@
       "shortLabel": "Profil"
     },
     "activity": {
-      "label": "Aktivität ergänzen",
-      "shortLabel": "Aktivität"
+      "label": "Berufliche Angaben im Profil ergänzen",
+      "shortLabel": "Profil"
     },
     "site_link": {
       "label": "Website verbinden",
@@ -200,7 +200,7 @@
     "connectedAria": "Kanäle verbunden von"
   },
   "modules": {
-    "requiredSetupLocked": "Your profile and/or business activity are incomplete.",
+    "requiredSetupLocked": "Vervollständigen Sie Ihr Profil, um dieses Tool freizuschalten.",
     "dashboardTitle": "Dashboard",
     "dashboardSub": "Steuerung",
     "statsSub": "Alle Leads sichtbar",
@@ -349,10 +349,26 @@
   "setupAlert": {
     "eyebrow": "Kontoeinrichtung",
     "title": "So aktivieren Sie die Anwendung vollständig",
-    "bothIncomplete": "Vervollständigen Sie Ihr Profil und Ihre Aktivität über das Menü.",
-    "profileIncomplete": "Vervollständigen Sie Ihr Profil über das Menü.",
-    "activityIncomplete": "Vervollständigen Sie Ihre Aktivität über das Menü.",
-    "confirm": "Verstanden"
+    "bothIncomplete": "Vervollständigen Sie Ihr Profil, um die Anwendung vollständig zu aktivieren.",
+    "profileIncomplete": "Vervollständigen Sie Ihr Profil, um die Anwendung vollständig zu aktivieren.",
+    "activityIncomplete": "Vervollständigen Sie Ihr Profil, um die Anwendung vollständig zu aktivieren.",
+    "confirm": "Mein Profil vervollständigen",
+    "cancel": "Später"
+  },
+  "profilePanel": {
+    "identityTitle": "Meine Identität",
+    "identityDescription": "Stellen Sie Ihr Unternehmen vor und geben Sie Ihre geschäftlichen Kontaktdaten an.",
+    "activityTitle": "Meine Tätigkeit",
+    "activityDescription": "Beschreiben Sie Beruf, Einsatzgebiet und Positionierung.",
+    "identityError": "Prüfen Sie die Angaben im Bereich Meine Identität.",
+    "activityError": "Die beruflichen Angaben in Ihrem Profil konnten nicht gespeichert werden. Versuchen Sie es erneut.",
+    "saved": "Ihr vollständiges Profil wurde gespeichert.",
+    "reset": "Zurücksetzen",
+    "saving": "Wird gespeichert…",
+    "save": "Mein Profil speichern",
+    "resetTitle": "Profil zurücksetzen?",
+    "resetMessage": "Die Felder in Meine Identität und Meine Tätigkeit werden in diesem Formular geleert.",
+    "resetConfirm": "Zurücksetzen"
   },
   "settingsDrawer": {
     "settings": "Einstellungen",

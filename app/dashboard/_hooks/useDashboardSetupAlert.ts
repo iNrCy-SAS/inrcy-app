@@ -7,16 +7,17 @@ import {
   readAccountCacheValue,
   writeAccountCacheValue,
 } from "@/lib/browserAccountCache";
-import { alertInrcy } from "@/lib/inrcyDialog";
+import { confirmInrcy } from "@/lib/inrcyDialog";
 
 const DASHBOARD_SETUP_ALERT_SEEN_KEY =
-  "inrcy_dashboard_setup_alert_seen_v1";
+  "inrcy_dashboard_setup_alert_seen_v2";
 
 type DashboardSetupAlertOptions = {
   accountId: string | null;
   completionCheckReady: boolean;
   profileIncomplete: boolean;
   activityIncomplete: boolean;
+  onOpenProfile: () => void;
 };
 
 export function useDashboardSetupAlert({
@@ -24,6 +25,7 @@ export function useDashboardSetupAlert({
   completionCheckReady,
   profileIncomplete,
   activityIncomplete,
+  onOpenProfile,
 }: DashboardSetupAlertOptions) {
   const t = useTranslations("dashboard.setupAlert");
 
@@ -54,19 +56,25 @@ export function useDashboardSetupAlert({
 
     // Le léger décalage laisse au fournisseur global de dialogues le temps
     // d'installer son écouteur lors du tout premier rendu de l'application.
-    window.setTimeout(() => {
-      void alertInrcy({
+    const timeout = window.setTimeout(() => {
+      void confirmInrcy({
         eyebrow: t("eyebrow"),
         title: t("title"),
         message,
         confirmLabel: t("confirm"),
+        cancelLabel: t("cancel"),
         variant: "warning",
+      }).then((shouldOpenProfile) => {
+        if (shouldOpenProfile) onOpenProfile();
       });
     }, 0);
+
+    return () => window.clearTimeout(timeout);
   }, [
     accountId,
     activityIncomplete,
     completionCheckReady,
+    onOpenProfile,
     profileIncomplete,
     t,
   ]);

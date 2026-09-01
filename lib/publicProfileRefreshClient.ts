@@ -5,7 +5,7 @@ export const PUBLIC_PROFILE_DATA_SAVED_EVENT = "inrcy:public-profile-data-saved"
 export type PublicProfileDataSource = "profile" | "activity";
 
 /**
- * Synchronise les surfaces publiques qui dépendent de Mon profil / Mon activité.
+ * Synchronise les surfaces publiques qui dépendent du profil unifié.
  * - événement local : recharge immédiate des données du dashboard / iNrBadge ;
  * - appel serveur : invalidation immédiate des pages publiques iNrSearch.
  */

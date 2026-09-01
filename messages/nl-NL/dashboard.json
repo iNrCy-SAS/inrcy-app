@@ -25,12 +25,12 @@
     "title": "Gebruikersmenu",
     "label": "Menu",
     "profileIncomplete": "Profiel mist",
-    "activityIncomplete": "Activiteit mist",
+    "activityIncomplete": "Profiel mist",
     "completeProfileHint": "Klik om uw profiel te voltooien en iNrCy te activeren.",
-    "completeActivityHint": "Klik om uw activiteit te voltooien en iNrCy te activeren.",
+    "completeActivityHint": "Klik om uw profiel te voltooien en iNrCy volledig te activeren.",
     "account": "iNrCytizen account",
     "profile": "Mijn profiel",
-    "activity": "Mijn activiteit",
+    "activity": "Mijn profiel",
     "preferences": "Instellingen",
     "ai": "AI-instellingen",
     "mediaGenerator": "Media genereren",
@@ -67,7 +67,7 @@
       "profil": "Mijn profiel",
       "preferences": "Instellingen",
       "inrbadge": "iNr'Badge settings",
-      "activite": "Mijn activiteit",
+      "activite": "Mijn profiel",
       "ia": "AI-instellingen",
       "abonnement": "Mijn pakket",
       "legal": "Juridische info",
@@ -139,8 +139,8 @@
       "shortLabel": "Profiel"
     },
     "activity": {
-      "label": "Activiteit vullen",
-      "shortLabel": "Activiteit"
+      "label": "Bedrijfsgegevens in mijn profiel aanvullen",
+      "shortLabel": "Profiel"
     },
     "site_link": {
       "label": "Website verbinden",
@@ -200,7 +200,7 @@
     "connectedAria": "kanalen verbonden van"
   },
   "modules": {
-    "requiredSetupLocked": "Your profile and/or business activity are incomplete.",
+    "requiredSetupLocked": "Vul uw profiel aan om deze tool te ontgrendelen.",
     "dashboardTitle": "Dashboard",
     "dashboardSub": "Sturing",
     "statsSub": "Al uw leads zichtbaar",
@@ -349,10 +349,26 @@
   "setupAlert": {
     "eyebrow": "Account instellen",
     "title": "Om de applicatie volledig te activeren",
-    "bothIncomplete": "Vul uw Profiel en Activiteit in via het menu.",
-    "profileIncomplete": "Vul uw Profiel in via het menu.",
-    "activityIncomplete": "Vul uw Activiteit in via het menu.",
-    "confirm": "Begrepen"
+    "bothIncomplete": "Vul uw profiel aan om de toepassing volledig te activeren.",
+    "profileIncomplete": "Vul uw profiel aan om de toepassing volledig te activeren.",
+    "activityIncomplete": "Vul uw profiel aan om de toepassing volledig te activeren.",
+    "confirm": "Mijn profiel aanvullen",
+    "cancel": "Later"
+  },
+  "profilePanel": {
+    "identityTitle": "Mijn identiteit",
+    "identityDescription": "Stel uw bedrijf voor en vermeld uw professionele contactgegevens.",
+    "activityTitle": "Mijn activiteit",
+    "activityDescription": "Beschrijf uw beroep, werkgebied en positionering.",
+    "identityError": "Controleer de gegevens in het blok Mijn identiteit.",
+    "activityError": "De bedrijfsgegevens in uw profiel konden niet worden opgeslagen. Probeer het opnieuw.",
+    "saved": "Uw volledige profiel is opgeslagen.",
+    "reset": "Herstellen",
+    "saving": "Opslaan…",
+    "save": "Mijn profiel opslaan",
+    "resetTitle": "Profiel herstellen?",
+    "resetMessage": "De velden in Mijn identiteit en Mijn activiteit worden in dit formulier gewist.",
+    "resetConfirm": "Herstellen"
   },
   "settingsDrawer": {
     "settings": "Instellingen",

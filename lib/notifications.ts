@@ -89,10 +89,10 @@ function getWelcomeNotificationSeeds(): WelcomeNotificationSeed[] {
     {
       category: "action",
       kind: "onboarding_complete_activity",
-      title: "Complétez votre activité",
+      title: "Complétez votre profil",
       body: "Renseignez votre métier, vos services et votre zone d'action pour générer des contenus et recommandations plus utiles.",
-      cta_label: "Ouvrir mon activité",
-      cta_url: "/dashboard?panel=activite",
+      cta_label: "Ouvrir mon profil",
+      cta_url: "/dashboard?panel=profil&profileSection=activity",
       meta: { source: "onboarding", step: "activite" },
     },
     {
@@ -207,8 +207,17 @@ export function formatRelativeDate(iso: string) {
 }
 
 export function toNotificationPayload(row: NotificationRow) {
+  const unifiedProfileCopy = row.kind === "onboarding_complete_activity"
+    ? {
+        title: "Complétez votre profil",
+        cta_label: "Ouvrir mon profil",
+        cta_url: "/dashboard?panel=profil&profileSection=activity",
+      }
+    : null;
+
   return {
     ...row,
+    ...(unifiedProfileCopy ?? {}),
     categoryLabel: getCategoryLabel(row.category),
     relativeDate: formatRelativeDate(row.created_at),
     unread: !row.read_at,

@@ -301,7 +301,7 @@ export function useDashboardCompletionChecks() {
   }, [bypassRequiredSetup]);
 
   // Conservés pour les formulaires existants : les deux callbacks rafraîchissent
-  // désormais le même état atomique Profil + Activité.
+  // désormais le même état atomique du profil unifié.
   const checkProfile = useCallback(
     () => refreshCompletion({ force: true }),
     [refreshCompletion],

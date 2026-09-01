@@ -42,12 +42,16 @@ test("the first dashboard arrival shows one account-scoped setup alert", () => {
   const hook = read("app/dashboard/_hooks/useDashboardSetupAlert.ts");
   const dashboard = read("app/dashboard/DashboardClient.tsx");
 
-  assert.match(hook, /inrcy_dashboard_setup_alert_seen_v1/);
+  assert.match(hook, /inrcy_dashboard_setup_alert_seen_v2/);
   assert.match(hook, /readAccountCacheValue\([^;]*accountId/);
   assert.match(hook, /writeAccountCacheValue\([^;]*"1", accountId\)/);
   assert.match(hook, /!profileIncomplete && !activityIncomplete/);
-  assert.match(hook, /alertInrcy\(\{/);
+  assert.match(hook, /confirmInrcy\(\{/);
+  assert.match(hook, /confirmLabel: t\("confirm"\)/);
+  assert.match(hook, /cancelLabel: t\("cancel"\)/);
+  assert.match(hook, /if \(shouldOpenProfile\) onOpenProfile\(\)/);
   assert.match(dashboard, /useDashboardSetupAlert\(\{/);
+  assert.match(dashboard, /onOpenProfile: openCombinedProfilePanel/);
 });
 
 test("profile and activity saves clear their warning immediately then revalidate", () => {

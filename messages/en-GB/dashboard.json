@@ -25,12 +25,12 @@
     "title": "User menu",
     "label": "Menu",
     "profileIncomplete": "Profile missing",
-    "activityIncomplete": "Activity missing",
+    "activityIncomplete": "Profile missing",
     "completeProfileHint": "Click to complete your profile and activate iNrCy.",
-    "completeActivityHint": "Click to complete your activity and activate iNrCy.",
+    "completeActivityHint": "Click to complete your profile and fully activate iNrCy.",
     "account": "iNrCytizen account",
     "profile": "My profile",
-    "activity": "My activity",
+    "activity": "My profile",
     "preferences": "General settings",
     "ai": "AI settings",
     "mediaGenerator": "Generate media",
@@ -67,7 +67,7 @@
       "profil": "My profile",
       "preferences": "General settings",
       "inrbadge": "iNr'Badge settings",
-      "activite": "My activity",
+      "activite": "My profile",
       "ia": "AI settings",
       "abonnement": "My plan",
       "legal": "Legal info",
@@ -139,8 +139,8 @@
       "shortLabel": "Profile"
     },
     "activity": {
-      "label": "Complete activity",
-      "shortLabel": "Activity"
+      "label": "Complete the business details in my profile",
+      "shortLabel": "Profile"
     },
     "site_link": {
       "label": "Connect a website",
@@ -200,7 +200,7 @@
     "connectedAria": "channels connected out of"
   },
   "modules": {
-    "requiredSetupLocked": "Your profile and/or business activity are incomplete.",
+    "requiredSetupLocked": "Complete your profile to unlock this tool.",
     "dashboardTitle": "Dashboard",
     "dashboardSub": "Control",
     "statsSub": "All your leads, finally visible",
@@ -349,10 +349,26 @@
   "setupAlert": {
     "eyebrow": "Account setup",
     "title": "To fully activate the application",
-    "bothIncomplete": "Complete your Profile and Activity from the menu.",
-    "profileIncomplete": "Complete your Profile from the menu.",
-    "activityIncomplete": "Complete your Activity from the menu.",
-    "confirm": "Got it"
+    "bothIncomplete": "Complete your profile to fully activate the application.",
+    "profileIncomplete": "Complete your profile to fully activate the application.",
+    "activityIncomplete": "Complete your profile to fully activate the application.",
+    "confirm": "Complete my profile",
+    "cancel": "Later"
+  },
+  "profilePanel": {
+    "identityTitle": "My identity",
+    "identityDescription": "Introduce your company and provide your professional contact details.",
+    "activityTitle": "My activity",
+    "activityDescription": "Describe your profession, service area and positioning.",
+    "identityError": "Check the information in the My identity block.",
+    "activityError": "The business details in your profile could not be saved. Please try again.",
+    "saved": "Your complete profile has been saved.",
+    "reset": "Reset",
+    "saving": "Saving…",
+    "save": "Save my profile",
+    "resetTitle": "Reset the profile?",
+    "resetMessage": "The fields in My identity and My activity will be cleared in this form.",
+    "resetConfirm": "Reset"
   },
   "settingsDrawer": {
     "settings": "Settings",

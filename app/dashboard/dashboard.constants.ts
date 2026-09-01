@@ -255,7 +255,7 @@ export const DRAWER_TITLES = {
   profil: "Mon profil",
   preferences: "Préférences générales",
   inrbadge: "Réglages iNr'Badge",
-  activite: "Mon activité",
+  activite: "Mon profil",
   ia: "Configuration IA",
   abonnement: "Mon abonnement",
   legal: "Informations légales",

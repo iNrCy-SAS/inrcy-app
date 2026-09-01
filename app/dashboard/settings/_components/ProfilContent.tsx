@@ -3,7 +3,14 @@
 import { useTranslations } from "next-intl";
 
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { invalidateBoosterGenerationContextClient } from "@/lib/boosterGenerationContextClient";
 import { confirmInrcy } from "@/lib/inrcyDialog";
@@ -24,6 +31,14 @@ type Props = {
   onProfileReset?: () => unknown | Promise<unknown>;
   onCloseDrawer?: () => unknown | Promise<unknown>;
   onUnsavedChange?: (hasUnsavedChanges: boolean) => void;
+  showIntro?: boolean;
+  showActions?: boolean;
+};
+
+export type ProfilContentHandle = {
+  isReady: () => boolean;
+  save: () => Promise<boolean>;
+  reset: (options?: { confirm?: boolean }) => Promise<boolean>;
 };
 
 type ProfileForm = {
@@ -48,13 +63,18 @@ function profileSnapshot(form: ProfileForm) {
   });
 }
 
-export default function ProfilContent({
-  mode = "page",
-  onProfileSaved,
-  onProfileReset,
-  onCloseDrawer,
-  onUnsavedChange,
-}: Props) {
+const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilContent(
+  {
+    mode = "page",
+    onProfileSaved,
+    onProfileReset,
+    onCloseDrawer,
+    onUnsavedChange,
+    showIntro = true,
+    showActions = true,
+  },
+  ref,
+) {
   const i18nT = useTranslations("settings");
   const initial = useMemo<ProfileForm>(
     () => ({
@@ -236,13 +256,13 @@ export default function ProfilContent({
     return { path: String(completed.path), signedUrl: String(completed.displayUrl) };
   }
 
-  const handleSave = async () => {
-    if (saving) return;
+  const handleSave = async (): Promise<boolean> => {
+    if (saving || loading) return false;
     setGlobalError("");
     setSaved(false);
     if (!validate()) {
       setGlobalError(i18nT("certaines_informations_sont_invalides_verifiez_l_4906f2b7"));
-      return;
+      return false;
     }
 
     setSaving(true);
@@ -326,24 +346,30 @@ export default function ProfilContent({
       } else {
         window.setTimeout(() => setSaved(false), 2500);
       }
+      return true;
     } catch (error) {
       console.error(error);
       setGlobalError(
         getClientUserFacingErrorMessage(error, i18nT("profile_save_failed")),
       );
+      return false;
     } finally {
       setSaving(false);
     }
   };
 
-  const handleReset = async () => {
-    const confirmed = await confirmInrcy({
-      title: i18nT("reinitialiser_le_profil_ac580741"),
-      message: i18nT("les_informations_visibles_dans_ce_formulaire_ac3155d0"),
-      confirmLabel: i18nT("reinitialiser_e0e2ad54"),
-      variant: "danger",
-    });
-    if (!confirmed) return;
+  const handleReset = async (
+    options: { confirm?: boolean } = {},
+  ): Promise<boolean> => {
+    if (options.confirm !== false) {
+      const confirmed = await confirmInrcy({
+        title: i18nT("reinitialiser_le_profil_ac580741"),
+        message: i18nT("les_informations_visibles_dans_ce_formulaire_ac3155d0"),
+        confirmLabel: i18nT("reinitialiser_e0e2ad54"),
+        variant: "danger",
+      });
+      if (!confirmed) return false;
+    }
     revokeBlobUrl(form.logoPreview);
     setForm(initial);
     setErrors({});
@@ -353,7 +379,14 @@ export default function ProfilContent({
     baselineRef.current = profileSnapshot(initial);
     onUnsavedChange?.(false);
     await onProfileReset?.();
+    return true;
   };
+
+  useImperativeHandle(ref, () => ({
+    isReady: () => !loading && !saving,
+    save: handleSave,
+    reset: handleReset,
+  }));
 
   const fieldStyle = (key: keyof ProfileForm): React.CSSProperties => ({
     ...inputStyle,
@@ -371,23 +404,29 @@ export default function ProfilContent({
         paddingBottom: "max(24px, var(--inrcy-safe-area-bottom))",
       }}
     >
-      <section style={introStyle}>
-        <strong>{i18nT("votre_identite_professionnelle_60502e51")}</strong>
-        <span>{i18nT("ces_informations_alimentent_votre_signature_et_cc93cb1e")}</span>
-      </section>
+      {showIntro ? (
+        <section style={introStyle}>
+          <strong>{i18nT("votre_identite_professionnelle_60502e51")}</strong>
+          <span>{i18nT("ces_informations_alimentent_votre_signature_et_cc93cb1e")}</span>
+        </section>
+      ) : null}
 
       <section style={cardStyle}>
         {loading ? (
           <div style={{ color: "rgba(255,255,255,0.68)" }}>{i18nT("chargement_01cba1df")}</div>
         ) : (
           <div style={{ display: "grid", gap: 13 }}>
-            <div style={sectionTitleStyle}>
-              <span style={sectionBubbleStyle}>1</span>
-              <div>
-                <div style={{ fontWeight: 950 }}>{i18nT("vous_contacter_514d4b54")}</div>
-                <div style={hintStyle}>{i18nT("utilise_dans_les_signatures_et_les_51bb6225")}</div>
-              </div>
-            </div>
+            <label style={labelStyle}>
+              <span style={labelTextStyle}>{i18nT("nom_de_l_entreprise_299b652c")}</span>
+              <input
+                autoComplete="organization"
+                value={form.companyName}
+                onChange={(event) => update("companyName", event.target.value)}
+                placeholder={i18nT("votre_entreprise_c001322f")}
+                style={fieldStyle("companyName")}
+              />
+              {errors.companyName ? <span style={errorStyle}>{errors.companyName}</span> : null}
+            </label>
 
             <label style={labelStyle}>
               <span style={labelTextStyle}>{i18nT("email_professionnel_26f8e47c")}</span>
@@ -439,32 +478,6 @@ export default function ProfilContent({
                 style={fieldStyle("phone")}
               />
               {errors.phone ? <span style={errorStyle}>{errors.phone}</span> : null}
-            </label>
-          </div>
-        )}
-      </section>
-
-      {!loading ? (
-        <section style={cardStyle}>
-          <div style={{ display: "grid", gap: 13 }}>
-            <div style={sectionTitleStyle}>
-              <span style={sectionBubbleStyle}>2</span>
-              <div>
-                <div style={{ fontWeight: 950 }}>{i18nT("votre_entreprise_c001322f")}</div>
-                <div style={hintStyle}>{i18nT("le_nom_affiche_et_votre_implantation_d0cbc5ff")}</div>
-              </div>
-            </div>
-
-            <label style={labelStyle}>
-              <span style={labelTextStyle}>{i18nT("nom_de_l_entreprise_299b652c")}</span>
-              <input
-                autoComplete="organization"
-                value={form.companyName}
-                onChange={(event) => update("companyName", event.target.value)}
-                placeholder={i18nT("votre_entreprise_c001322f")}
-                style={fieldStyle("companyName")}
-              />
-              {errors.companyName ? <span style={errorStyle}>{errors.companyName}</span> : null}
             </label>
 
             <div data-profile-grid="location" style={locationGridStyle}>
@@ -553,15 +566,15 @@ export default function ProfilContent({
               {logoError ? <span style={errorStyle}>{logoError}</span> : null}
             </div>
           </div>
-        </section>
-      ) : null}
+        )}
+      </section>
 
       {globalError ? <div style={errorBannerStyle}>{globalError}</div> : null}
       {saved ? <div style={successBannerStyle}>{i18nT("profil_enregistre_d21b6a7e")}</div> : null}
 
-      {!loading ? (
+      {!loading && showActions ? (
         <div data-profile-actions style={actionsStyle}>
-          <button type="button" onClick={handleReset} disabled={saving} style={resetButtonStyle}>
+          <button type="button" onClick={() => void handleReset()} disabled={saving} style={resetButtonStyle}>
             {i18nT("reinitialiser_e0e2ad54")}{" "}</button>
           <button
             type="button"
@@ -590,7 +603,9 @@ export default function ProfilContent({
       `}</style>
     </div>
   );
-}
+});
+
+export default ProfilContent;
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
@@ -621,25 +636,6 @@ const introStyle: React.CSSProperties = {
   border: "1px solid rgba(255,255,255,0.10)",
   background: "rgba(255,255,255,0.04)",
   color: "rgba(255,255,255,0.72)",
-};
-
-const sectionTitleStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 10,
-};
-
-const sectionBubbleStyle: React.CSSProperties = {
-  width: 30,
-  height: 30,
-  display: "grid",
-  placeItems: "center",
-  flex: "0 0 auto",
-  borderRadius: 999,
-  border: "1px solid rgba(56,189,248,0.34)",
-  background: "rgba(56,189,248,0.13)",
-  color: "#bae6fd",
-  fontWeight: 950,
 };
 
 const labelStyle: React.CSSProperties = { display: "grid", gap: 6 };

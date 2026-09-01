@@ -33,7 +33,7 @@ export type DashboardPanelName =
   | "parrainage"
   | "documents";
 
-const PANEL_RETURN_QUERY_KEYS = ["linked", "ok", "error", "message", "warning", "toast", "activated", "skipped", "panelSource", "premium"];
+const PANEL_RETURN_QUERY_KEYS = ["linked", "ok", "error", "message", "warning", "toast", "activated", "skipped", "panelSource", "profileSection", "premium"];
 
 function rememberDashboardScroll() {
   try {
@@ -46,7 +46,11 @@ export function useDashboardPanelRouting() {
   const searchParams = useSearchParams();
   const { requestNavigation } = useDashboardUnsavedNavigation();
   const rawPanel = searchParams.get("panel");
-  const urlPanel = rawPanel === "trustpilot" ? "inr_search" : rawPanel;
+  const urlPanel = rawPanel === "trustpilot"
+    ? "inr_search"
+    : rawPanel === "activite"
+      ? "profil"
+      : rawPanel;
   // Le panneau visible doit changer dans le même rendu que l'action de
   // navigation. `window.history.replaceState` met bien l'URL à jour, mais
   // `useSearchParams` peut rester sur son ancien instantané jusqu'à une vraie
@@ -59,9 +63,19 @@ export function useDashboardPanelRouting() {
   }, [urlPanel]);
 
   useEffect(() => {
-    if (rawPanel !== "trustpilot") return;
+    if (rawPanel !== "trustpilot" && rawPanel !== "activite") return;
     const params = new URLSearchParams(searchParams.toString());
-    params.set("panel", "inr_search");
+    if (rawPanel === "trustpilot") {
+      params.set("panel", "inr_search");
+    } else {
+      params.set("panel", "profil");
+      params.set("profileSection", "activity");
+      if (!params.has("panelSource")) params.set("panelSource", "activity");
+      try {
+        sessionStorage.setItem("inrcy_panel_explicit_open", "1");
+        sessionStorage.setItem("inrcy_last_panel", "profil");
+      } catch {}
+    }
     router.replace(`/dashboard?${params.toString()}`, { scroll: false });
   }, [rawPanel, router, searchParams]);
 
@@ -76,12 +90,18 @@ export function useDashboardPanelRouting() {
   const openPanel = useCallback(
     (name: DashboardPanelName) => {
       void requestNavigation(() => {
+        const normalizedName = name === "activite" ? "profil" : name;
         const params = new URLSearchParams(searchParams.toString());
-        params.set("panel", name);
-        markPanelAsExplicitlyOpened(name);
+        params.set("panel", normalizedName);
+        if (name === "activite") {
+          params.set("profileSection", "activity");
+        } else if (normalizedName === "profil") {
+          params.delete("profileSection");
+        }
+        markPanelAsExplicitlyOpened(normalizedName);
         // ✅ En mobile, on garde la position de scroll (pas de jump en haut)
         rememberDashboardScroll();
-        setPanel(name);
+        setPanel(normalizedName);
         router.push(`/dashboard?${params.toString()}`, { scroll: false });
       });
     },

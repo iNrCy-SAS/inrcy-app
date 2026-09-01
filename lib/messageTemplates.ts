@@ -6,7 +6,7 @@ import { buildIntelligentTemplateContext, mergeIntelligentTemplateContext, sortT
 import { stripTemplateSignatureBlock } from "@/lib/mailTemplateCleanup";
 
 // Central registry for Booster/Fidéliser mail templates.
-// ✅ Version "dense" : vrais contenus, structurés, et auto-remplis via Mon Profil + Mon activité.
+// ✅ Version "dense" : vrais contenus, structurés, et auto-remplis via le profil unifié.
 // Placeholders disponibles (principaux) :
 // {{nom_entreprise}}, {{prenom}}, {{nom}}, {{telephone}}, {{email}}, {{adresse}}, {{code_postal}}, {{ville}}
 // {{secteur}}, {{services}}, {{zones}}, {{jours_ouverture}}, {{horaires_ouverture}}, {{forces}}, {{ton}}

@@ -95,7 +95,7 @@ export async function loadInrSearchQuality(
     item("identity", "Nom de l’entreprise", Boolean(companyName), 10, "Renseignez le nom légal ou commercial dans Mon profil.", true),
     item("title", "Titre public", clean(config.pageTitle, 180).length >= 3, 10, "Ajoutez un titre clair avec le nom de l’entreprise.", true),
     item("description", "Présentation détaillée", description.length >= 80, 15, "Ajoutez au moins 80 caractères pour expliquer clairement l’activité.", true),
-    item("profession", "Métier principal", Boolean(profession), 15, "Sélectionnez précisément le métier dans Mon activité.", true),
+    item("profession", "Métier principal", Boolean(profession), 15, "Sélectionnez précisément le métier dans Mon profil.", true),
     item("contact", "Moyen de contact", hasContact, 10, "Ajoutez un téléphone ou un email professionnel.", true),
     item("location", "Localisation", hasLocation, 10, "Ajoutez au minimum la ville ou l’adresse de l’entreprise."),
     item("services", "Prestations", hasList(business.services) || hasList(business.services_text), 10, "Renseignez les principales prestations proposées."),

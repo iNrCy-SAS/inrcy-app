@@ -2761,7 +2761,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
   // Prefill compose modal from workflow modules (Booster / Propulser / Fidéliser).
   // Usage:
   // - /dashboard/mails?folder=propulsions&template_key=...&prefill_subject=...&prefill_text=...&compose=1
-  // If template_key is provided, we render placeholders server-side from the user's profile/activity + connected tools.
+  // If template_key is provided, we render placeholders server-side from the user's unified profile + connected tools.
   useEffect(() => {
     if (standardMode) return;
     const preSubjectRaw = searchParams?.get("prefill_subject") || "";

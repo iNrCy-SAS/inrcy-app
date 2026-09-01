@@ -64,7 +64,7 @@ export const GPS_SECTIONS: GpsSectionSource[] = [
           "une_ia_bien_configuree_produit_des_05c34800",
         ],
         links: [
-          { label: "ouvrir_mon_activite_2786763e", href: "/dashboard?panel=activite&panelSource=gps" },
+          { label: "ouvrir_mon_activite_2786763e", href: "/dashboard?panel=profil&profileSection=activity&panelSource=gps" },
           { label: "ouvrir_mon_profil_15991b97", href: "/dashboard?panel=profil&panelSource=gps" },
           { label: "configuration_ia_f620c8d8", href: "/dashboard?panel=ia&panelSource=gps" },
         ],
@@ -94,7 +94,7 @@ export const GPS_SECTIONS: GpsSectionSource[] = [
         ],
         links: [
           { label: "mon_profil_faa6d321", href: "/dashboard?panel=profil&panelSource=gps" },
-          { label: "mon_activite_7732bf80", href: "/dashboard?panel=activite&panelSource=gps" },
+          { label: "mon_activite_7732bf80", href: "/dashboard?panel=profil&profileSection=activity&panelSource=gps" },
           { label: "reglages_encaisser_ef086133", href: "/dashboard?panel=documents&panelSource=gps" },
         ],
       },

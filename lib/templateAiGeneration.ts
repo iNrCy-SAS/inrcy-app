@@ -285,7 +285,7 @@ ${renderedSubject}
 Message actuel du modèle :
 ${renderedBody}
 
-Réécris un nouvel objet et un nouveau message, plus personnalisé et plus naturel, en respectant la même mission. Si une pièce jointe utile est présente, exploite ses informations pour rendre le mail plus concret sans la recopier. Utilise les informations Profil / Activité seulement quand elles servent réellement le message. Laisse le moteur choisir librement le rythme, l'ouverture, les transitions et la conclusion : ne reproduis pas automatiquement la structure du modèle de départ. Ne renvoie jamais un modèle à compléter : remplace les exemples, crochets et libellés techniques par un email finalisé.`;
+Réécris un nouvel objet et un nouveau message, plus personnalisé et plus naturel, en respectant la même mission. Si une pièce jointe utile est présente, exploite ses informations pour rendre le mail plus concret sans la recopier. Utilise les informations du profil seulement quand elles servent réellement le message. Laisse le moteur choisir librement le rythme, l'ouverture, les transitions et la conclusion : ne reproduis pas automatiquement la structure du modèle de départ. Ne renvoie jamais un modèle à compléter : remplace les exemples, crochets et libellés techniques par un email finalisé.`;
 
   const generationFeature = args.aiFeature || "templates.generate";
   const operationBudget = createAiOperationBudget(generationFeature);
