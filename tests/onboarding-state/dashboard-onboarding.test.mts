@@ -125,14 +125,37 @@ const dashboardClientSource = readFileSync(
   "utf8",
 );
 test("dashboard chains existing drawers without creating replacement forms", () => {
-  assert.match(dashboardClientSource, /checkProfile\(\)[\s\S]*profileCompleted/);
   assert.match(dashboardClientSource, /setCurrentOnboardingStep\("activity"\)/);
   assert.match(dashboardClientSource, /replacePanelDirect\("activite"\)/);
-  assert.match(dashboardClientSource, /checkActivity\(\)[\s\S]*activityCompleted/);
   assert.match(dashboardClientSource, /setCurrentOnboardingStep\("ai"\)/);
   assert.match(dashboardClientSource, /replacePanelDirect\("ia"\)/);
   assert.match(dashboardClientSource, /completeOnboardingFromAi/);
   assert.match(dashboardClientSource, /onboardingT\("progress"/);
+});
+
+test("successful onboarding saves are not blocked by a redundant completion reread", () => {
+  const profileAdvanceSource = dashboardClientSource.slice(
+    dashboardClientSource.indexOf("const advanceOnboardingFromProfile"),
+    dashboardClientSource.indexOf("const advanceOnboardingFromActivity"),
+  );
+  const activityAdvanceSource = dashboardClientSource.slice(
+    dashboardClientSource.indexOf("const advanceOnboardingFromActivity"),
+    dashboardClientSource.indexOf("const returnOnboardingToProfile"),
+  );
+
+  assert.doesNotMatch(profileAdvanceSource, /await checkProfile\(\)/);
+  assert.doesNotMatch(profileAdvanceSource, /profileCompleted/);
+  assert.match(
+    profileAdvanceSource,
+    /setCurrentOnboardingStep\("activity"\)[\s\S]*replacePanelDirect\("activite"\)[\s\S]*void checkProfile\(\)/,
+  );
+
+  assert.doesNotMatch(activityAdvanceSource, /await checkActivity\(\)/);
+  assert.doesNotMatch(activityAdvanceSource, /activityCompleted/);
+  assert.match(
+    activityAdvanceSource,
+    /setCurrentOnboardingStep\("ai"\)[\s\S]*replacePanelDirect\("ia"\)[\s\S]*void checkActivity\(\)/,
+  );
 });
 
 const onboardingHookSource = readFileSync(
@@ -141,6 +164,10 @@ const onboardingHookSource = readFileSync(
 );
 const onboardingApiSource = readFileSync(
   new URL("../../app/api/dashboard/onboarding-state/route.ts", import.meta.url),
+  "utf8",
+);
+const onboardingServerSource = readFileSync(
+  new URL("../../lib/dashboardOnboardingServer.ts", import.meta.url),
   "utf8",
 );
 const onboardingRuntimeSnapshotSource = readFileSync(
@@ -182,6 +209,53 @@ test("stale onboarding mutations cannot restore the previous establishment", () 
   assert.match(onboardingHookSource, /activeAccountIdRef\.current = nextAccountId/);
 });
 
+test("terminal onboarding states cannot be resurrected by a stale transition", () => {
+  assert.match(
+    onboardingServerSource,
+    /\.eq\("status", current\.status\)[\s\S]*?\.eq\("current_step", current\.currentStep\)/,
+  );
+  assert.match(
+    onboardingServerSource,
+    /const latest = await getDashboardOnboardingStateForAccount\(params\.accountId\)/,
+  );
+  assert.match(
+    onboardingServerSource,
+    /latest\.status === "completed"[\s\S]*?INRCY_ONBOARDING_ALREADY_COMPLETED/,
+  );
+  assert.match(
+    onboardingServerSource,
+    /latest\.status === "deferred"[\s\S]*?INRCY_ONBOARDING_ALREADY_ABANDONED/,
+  );
+});
+
+test("a failed step mutation exits to the dashboard and remains terminal locally", () => {
+  const saveSource = onboardingHookSource.slice(
+    onboardingHookSource.indexOf("const saveOnboardingState"),
+    onboardingHookSource.indexOf("const setCurrentOnboardingStep"),
+  );
+  const abandonSource = onboardingHookSource.slice(
+    onboardingHookSource.indexOf("const abandonOnboarding"),
+    onboardingHookSource.indexOf("useEffect(() =>", onboardingHookSource.indexOf("const abandonOnboarding")),
+  );
+
+  assert.match(
+    saveSource,
+    /requestSequenceRef\.current \+= 1;[\s\S]*?mutationSequenceRef\.current \+= 1;[\s\S]*?rememberAbandonedOnboarding\(accountId\)[\s\S]*?onboardingAbandoned: true[\s\S]*?reconcileAbandonedOnboarding\(accountId\)/,
+  );
+  assert.match(
+    abandonSource,
+    /requestSequenceRef\.current \+= 1;[\s\S]*?mutationSequenceRef\.current \+= 1;[\s\S]*?rememberAbandonedOnboarding\(accountId\)/,
+  );
+  assert.match(
+    dashboardClientSource,
+    /setCurrentOnboardingStep\("activity"\)[\s\S]*?if \(!row\) \{[\s\S]*?closePanel\(\);/,
+  );
+  assert.match(
+    dashboardClientSource,
+    /completeOnboarding\(\)[\s\S]*?if \(!row\) \{[\s\S]*?closePanel\(\);/,
+  );
+});
+
 const settingsDrawerSource = readFileSync(
   new URL("../../app/dashboard/SettingsDrawer.tsx", import.meta.url),
   "utf8",
@@ -214,7 +288,7 @@ const googleBusinessChannelSource = readFileSync(
   ),
   "utf8",
 );
-test("first onboarding uses a dedicated desktop presentation without an exit action", () => {
+test("first onboarding uses a dedicated desktop presentation with a permanent skip action", () => {
   assert.match(settingsDrawerSource, /presentation\?: "drawer" \| "onboarding"/);
   assert.match(settingsDrawerSource, /showCloseButton\?: boolean/);
   assert.match(
@@ -224,10 +298,14 @@ test("first onboarding uses a dedicated desktop presentation without an exit act
   assert.match(settingsDrawerSource, /isDesktopOnboarding/);
   assert.match(settingsDrawerSource, /#06101f/);
   assert.match(dashboardClientSource, /presentation=\{guidedOnboardingActive \? "onboarding" : "drawer"\}/);
-  assert.match(dashboardClientSource, /showCloseButton=\{!guidedOnboardingActive\}/);
-  assert.doesNotMatch(
+  assert.match(dashboardClientSource, /showCloseButton=\{true\}/);
+  assert.match(
     dashboardClientSource,
     /closeLabel=\{guidedOnboardingActive \? onboardingT\("skip"\) : undefined\}/,
+  );
+  assert.match(
+    dashboardClientSource,
+    /onClose=\{guidedOnboardingActive \? requestSkipGuidedOnboarding : requestCloseSettingsDrawer\}/,
   );
 });
 
@@ -316,14 +394,19 @@ test("dashboard navigation waits until the SSR session is readable", () => {
   assert.match(finishPasswordSource, /waitForServerAuthSession\(\)/);
 });
 
-test("required onboarding cannot be deferred before the three steps are complete", () => {
-  assert.doesNotMatch(dashboardClientSource, /deferOnboarding/);
-  assert.doesNotMatch(dashboardClientSource, /requestSkipGuidedOnboarding/);
+test("Passer abandons onboarding immediately and permanently for the active establishment", () => {
+  assert.match(onboardingHookSource, /const abandonOnboarding = useCallback/);
+  assert.match(
+    onboardingHookSource,
+    /rememberAbandonedOnboarding\(accountId\)[\s\S]*?void reconcileAbandonedOnboarding\(accountId\)/,
+  );
+  assert.match(onboardingHookSource, /abandonOnboarding,[\s\S]*?setCurrentOnboardingStep/);
   assert.doesNotMatch(onboardingHookSource, /resumeOnboarding/);
   assert.match(
     dashboardClientSource,
-    /if \(isGuidedOnboardingPanel\) \{\s*return;\s*\}/,
+    /const requestSkipGuidedOnboarding = useCallback\([\s\S]*?abandonOnboarding\(\);[\s\S]*?closePanel\(\);/,
   );
+  assert.match(dashboardClientSource, /if \(isGuidedOnboardingPanel\) \{\s*return;\s*\}/);
 });
 
 test("the three pages use one autosaving previous-next-reset navigation", () => {

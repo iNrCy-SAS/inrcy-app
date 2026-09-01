@@ -2038,7 +2038,12 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
     publicationEditVideoByChannel[activePublicationEditChannelKey] || null;
 
   useEffect(() => {
-    if (!detailsOpen || !detailsItem || detailsItem.source !== "app_events")
+    if (
+      !detailsOpen ||
+      !detailsItem ||
+      detailsItem.source !== "app_events" ||
+      detailsEditMode
+    )
       return;
     const parts = activeDetailsChannelEntry?.parts || {};
     setPublicationEditForm({
@@ -2058,13 +2063,20 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
       ctaPhone: parts.ctaPhone || "",
       hashtags: tagsToEditorString(parts.hashtags),
     });
-    setDetailsEditMode(false);
-    setDetailsActionError(null);
-    setDetailsActionSuccess(null);
-  }, [detailsOpen, detailsItem, activeDetailsChannelEntry?.key]);
+  }, [
+    detailsOpen,
+    detailsItem,
+    activeDetailsChannelEntry?.key,
+    detailsEditMode,
+  ]);
 
   useEffect(() => {
-    if (!detailsOpen || !detailsItem || detailsItem.source !== "app_events")
+    if (
+      !detailsOpen ||
+      !detailsItem ||
+      detailsItem.source !== "app_events" ||
+      detailsEditMode
+    )
       return;
     const nextState: Record<string, PublicationChannelImagesState> = {};
     for (const entry of detailsChannelEntries) {
@@ -2138,10 +2150,20 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
     setPublicationEditImagesByChannel(nextState);
     setPublicationImageAdapterChannelKey(null);
     setPublicationImageAdapterImageKey(null);
-  }, [detailsOpen, detailsItem?.id, detailsChannelEntries]);
+  }, [
+    detailsOpen,
+    detailsItem?.id,
+    detailsChannelEntries,
+    detailsEditMode,
+  ]);
 
   useEffect(() => {
-    if (!detailsOpen || !detailsItem || detailsItem.source !== "app_events")
+    if (
+      !detailsOpen ||
+      !detailsItem ||
+      detailsItem.source !== "app_events" ||
+      detailsEditMode
+    )
       return;
     const nextState: Record<string, PublicationEditVideoState> = {};
     for (const entry of detailsChannelEntries) {
@@ -2247,7 +2269,12 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
       };
     }
     setPublicationEditVideoByChannel(nextState);
-  }, [detailsOpen, detailsItem?.id, detailsChannelEntries]);
+  }, [
+    detailsOpen,
+    detailsItem?.id,
+    detailsChannelEntries,
+    detailsEditMode,
+  ]);
 
   const selectedAccount = useMemo(() => {
     return mailAccounts.find((a) => a.id === selectedAccountId) || null;

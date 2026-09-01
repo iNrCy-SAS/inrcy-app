@@ -256,53 +256,47 @@ test("the final establishment RPC facade keeps the account insert behind the pri
   );
 });
 
-test("finishing an invitation repairs provisioning, while password recovery never reprovisions", () => {
+test("finishing an invitation proves the creation flow without repairing historical accounts", () => {
   assert.match(
     finishPasswordSource,
-    /import \{[^}]*ensurePrincipalInrcyAccountProvisioned[^}]*\} from "@\/lib\/inrcyAccountProvisioning"/,
+    /import \{[^}]*buildDashboardOnboardingLaunchProofCookie[^}]*\} from "@\/lib\/dashboardOnboardingLaunchProof"/,
   );
   assert.match(
     finishPasswordSource,
-    /if \(mode === "invite"\)\s*\{\s*await ensurePrincipalInrcyAccountProvisioned\(authUser\);?\s*\}/,
-  );
-  assert.equal(
-    finishPasswordSource.match(/await ensurePrincipalInrcyAccountProvisioned\(authUser\)/g)?.length,
-    1,
-    "only the explicit invite branch may repair account provisioning",
+    /if \(mode === "invite"\)\s*\{\s*response\.cookies\.set\(buildDashboardOnboardingLaunchProofCookie\(userId\)\);?\s*\}/,
   );
   assert.doesNotMatch(
     finishPasswordSource,
-    /ensurePrincipalInrcyAccountProvisioned\(authUser\)[^;]*?\.catch\(/,
+    /ensurePrincipalInrcyAccountProvisioned|ensureInrcyAccountOnboardingState/,
+    "password finalization must never recreate a pending onboarding row",
   );
-  assertAppearsBefore(
-    finishPasswordSource,
-    "await ensurePrincipalInrcyAccountProvisioned(authUser)",
-    "await ensureProfileRow(authUser)",
-    "invitation provisioning must be complete before optional profile setup",
+  assert.equal(
+    finishPasswordSource.match(/buildDashboardOnboardingLaunchProofCookie\(userId\)/g)?.length,
+    1,
+    "password recovery must never receive the creation proof",
   );
 });
 
-test("a missing onboarding row is repaired by the API or returned as a 503", () => {
-  assert.match(
-    onboardingApiSource,
-    /import \{[^}]*ensureInrcyAccountOnboardingState[^}]*\} from "@\/lib\/inrcyAccountProvisioning"/,
-  );
-  assert.match(
-    onboardingApiSource,
-    /if \(!row\)\s*\{[\s\S]*?ensureInrcyAccountOnboardingState\(activeUserId\)[\s\S]*?\}/,
-  );
-  assert.match(
-    onboardingApiSource,
-    /if \(!row\)[\s\S]*?(?:throw new Error|return json\([\s\S]*?,\s*503\))/,
-  );
+test("a missing onboarding row reached from the dashboard becomes terminal", () => {
   assert.doesNotMatch(
     onboardingApiSource,
-    /onboardingAvailable:\s*Boolean\(row\)/,
-    "a successful onboarding response must always contain a real row",
+    /ensureInrcyAccountOnboardingState|inrcy_ensure_account_onboarding_state/,
   );
   assert.match(
     onboardingApiSource,
-    /code:\s*"onboarding_state_unavailable"[\s\S]*?503/,
+    /resolveDashboardOnboardingForDashboardAccess\([\s\S]*?DASHBOARD_ONBOARDING_LAUNCH_PROOF_COOKIE/,
+  );
+  assert.doesNotMatch(
+    onboardingServerSource,
+    /ensureInrcyAccountOnboardingState|inrcy_ensure_account_onboarding_state/,
+  );
+  assert.match(
+    onboardingServerSource,
+    /if \(!current\)[\s\S]*?\.insert\(\{[\s\S]*?status: "deferred"[\s\S]*?current_step: "profile"/,
+  );
+  assert.match(
+    onboardingServerSource,
+    /if \(!row\) return terminalizeDashboardOnboardingRow\(accountId, null\)/,
   );
 });
 
@@ -322,11 +316,11 @@ test("an onboarding load error permanently abandons the journey without blocking
   );
   assert.match(
     onboardingServerSource,
-    /function abandonDashboardOnboardingForAccount[\s\S]*?status === "completed" \|\| current\.status === "deferred"/,
+    /function terminalizeDashboardOnboardingRow[\s\S]*?current\?\.status === "completed" \|\| current\?\.status === "deferred"/,
   );
   assert.match(
     onboardingServerSource,
-    /\.in\("status", \["pending", "in_progress", "deferred"\]\)/,
+    /\.in\("status", \["pending", "in_progress"\]\)/,
   );
   assert.match(
     onboardingServerSource,

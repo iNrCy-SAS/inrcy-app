@@ -5,6 +5,7 @@ import { isUuidLike } from "@/lib/multicompte/normalize";
 import { listAccessibleInrcyAccounts, resolveInrcyAccountScopeForUser } from "@/lib/multicompte/server";
 import { provisionNewAccountBubbleAccess } from "@/lib/appBubbleAccessProvisioning";
 import { ensureInrcyAccountOnboardingState } from "@/lib/inrcyAccountProvisioning";
+import { buildDashboardOnboardingLaunchProofCookie } from "@/lib/dashboardOnboardingLaunchProof";
 
 export const dynamic = "force-dynamic";
 
@@ -163,6 +164,7 @@ export async function POST(request: Request) {
     secure: process.env.NODE_ENV === "production",
     maxAge: 60 * 60 * 24 * 30,
   });
+  response.cookies.set(buildDashboardOnboardingLaunchProofCookie(accountId));
 
   return response;
 }

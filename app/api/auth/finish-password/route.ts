@@ -9,7 +9,7 @@ import {
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { ensureNotificationPreferences } from "@/lib/notifications";
 import { ensureProfileRow } from "@/lib/ensureProfileRow";
-import { ensurePrincipalInrcyAccountProvisioned } from "@/lib/inrcyAccountProvisioning";
+import { buildDashboardOnboardingLaunchProofCookie } from "@/lib/dashboardOnboardingLaunchProof";
 import { getClientIp, enforceRateLimit } from "@/lib/rateLimit";
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import { log } from "@/lib/observability/logger";
@@ -465,13 +465,6 @@ export async function POST(req: NextRequest) {
       .catch(() => ({ data: { session: null } }));
     const finalSession = finalSessionData.session || session;
 
-    // Dernière ceinture de sécurité pour une invitation créée pendant un
-    // incident de déploiement. Un reset de mot de passe historique ne doit, lui,
-    // jamais relancer un onboarding.
-    if (mode === "invite") {
-      await ensurePrincipalInrcyAccountProvisioned(authUser);
-    }
-
     await ensureProfileRow(authUser).catch(() => null);
     await ensureNotificationPreferences(userId).catch(() => null);
 
@@ -508,12 +501,19 @@ export async function POST(req: NextRequest) {
         ),
     ]);
 
-    return clearContinuationCookie(json({
+    const response = clearContinuationCookie(json({
       ok: true,
       user_id: userId,
       email: verifiedEmail || expectedEmail,
       session: sessionPayload(finalSession),
     }));
+    // Seule la finalisation d'une véritable invitation autorise le parcours
+    // créé atomiquement avec le compte. Un reset ou un login ordinaire ne
+    // produit jamais cette preuve éphémère.
+    if (mode === "invite") {
+      response.cookies.set(buildDashboardOnboardingLaunchProofCookie(userId));
+    }
+    return response;
   } catch (error) {
     log.error("auth_password_finish_exception", {
       route: "/api/auth/finish-password",

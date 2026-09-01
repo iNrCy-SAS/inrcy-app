@@ -277,3 +277,19 @@ test("toutes les langues contiennent la copie complète de la modale", () => {
     }
   }
 });
+
+test("les temps indicatifs français restent courts et explicites", () => {
+  const media = JSON.parse(read("messages/fr-FR/media.json")) as Record<
+    string,
+    unknown
+  >;
+
+  assert.equal(
+    media.ai_generator_image_timing_hint,
+    "Temps indicatif : la création d'une image peut prendre entre 30 secondes et 2 minutes",
+  );
+  assert.equal(
+    media.ai_generator_video_timing_hint,
+    "Temps indicatif : la création d'une vidéo peut prendre quelques minutes",
+  );
+});

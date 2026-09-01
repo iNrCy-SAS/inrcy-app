@@ -344,63 +344,6 @@ export function useDashboardOnboardingState(
     [],
   );
 
-  const saveOnboardingState = useCallback(
-    async (
-      status: DashboardOnboardingStatus,
-      currentStep: DashboardOnboardingStep,
-    ) => {
-      const mutationSequence = ++mutationSequenceRef.current;
-      const accountId = state.accountId ?? activeAccountIdRef.current;
-      if (!accountId) return null;
-      activeAccountIdRef.current = accountId;
-
-      try {
-        const row = await persistOnboardingRow(accountId, status, currentStep);
-        if (mutationSequence !== mutationSequenceRef.current) return null;
-        if (activeAccountIdRef.current !== accountId) return null;
-
-        const nextState: OnboardingState = {
-          accountId,
-          row,
-          onboardingReady: true,
-          onboardingAvailable: true,
-          onboardingError: false,
-          onboardingAbandoned:
-            status === "deferred"
-              ? true
-              : status === "completed"
-                ? false
-                : state.onboardingAbandoned,
-          firstOpeningDetected: state.firstOpeningDetected,
-        };
-        setState(nextState);
-        cacheOnboardingState(nextState);
-        return row;
-      } catch {
-        if (mutationSequence !== mutationSequenceRef.current) return null;
-        if (activeAccountIdRef.current !== accountId) return null;
-        setState((current) => ({ ...current, onboardingError: true }));
-        return null;
-      }
-    },
-    [
-      state.accountId,
-      state.firstOpeningDetected,
-      state.onboardingAbandoned,
-    ],
-  );
-
-  const setCurrentOnboardingStep = useCallback(
-    (currentStep: Exclude<DashboardOnboardingStep, "completed">) =>
-      saveOnboardingState("in_progress", currentStep),
-    [saveOnboardingState],
-  );
-
-  const completeOnboarding = useCallback(
-    () => saveOnboardingState("completed", "completed"),
-    [saveOnboardingState],
-  );
-
   const reconcileAbandonedOnboarding = useCallback(async (accountId: string) => {
     try {
       const row = await persistAbandonedOnboarding(accountId);
@@ -427,6 +370,122 @@ export function useDashboardOnboardingState(
       // prochaine ouverture, sans jamais réafficher le parcours.
     }
   }, []);
+
+  const saveOnboardingState = useCallback(
+    async (
+      status: DashboardOnboardingStatus,
+      currentStep: DashboardOnboardingStep,
+    ) => {
+      const mutationSequence = ++mutationSequenceRef.current;
+      const accountId = state.accountId ?? activeAccountIdRef.current;
+      if (!accountId) return null;
+      activeAccountIdRef.current = accountId;
+
+      try {
+        const row = await persistOnboardingRow(accountId, status, currentStep);
+        if (mutationSequence !== mutationSequenceRef.current) return null;
+        if (activeAccountIdRef.current !== accountId) return null;
+
+        const nextState: OnboardingState = {
+          accountId,
+          row,
+          onboardingReady: true,
+          onboardingAvailable: true,
+          onboardingError: false,
+          onboardingAbandoned:
+            row.status === "deferred"
+              ? true
+              : row.status === "completed"
+                ? false
+                : state.onboardingAbandoned,
+          firstOpeningDetected:
+            row.status === "completed" || row.status === "deferred"
+              ? false
+              : state.firstOpeningDetected,
+        };
+        setState(nextState);
+        cacheOnboardingState(nextState);
+        return row;
+      } catch {
+        if (mutationSequence !== mutationSequenceRef.current) return null;
+        if (activeAccountIdRef.current !== accountId) return null;
+
+        // Une mutation réellement échouée ne doit jamais laisser la modale
+        // bloquée. Invalider d'abord les réponses déjà en vol empêche un ancien
+        // GET/POST de réactiver le parcours après ce fail-open local.
+        requestSequenceRef.current += 1;
+        mutationSequenceRef.current += 1;
+        abandonmentPendingAccountRef.current = false;
+        rememberAbandonedOnboarding(accountId);
+        setState((current) => {
+          if (current.accountId && current.accountId !== accountId) return current;
+          return {
+            ...current,
+            accountId,
+            onboardingReady: true,
+            onboardingError: true,
+            onboardingAbandoned: true,
+            firstOpeningDetected: false,
+          };
+        });
+        void reconcileAbandonedOnboarding(accountId);
+        return null;
+      }
+    },
+    [
+      state.accountId,
+      state.firstOpeningDetected,
+      state.onboardingAbandoned,
+      reconcileAbandonedOnboarding,
+    ],
+  );
+
+  const setCurrentOnboardingStep = useCallback(
+    (currentStep: Exclude<DashboardOnboardingStep, "completed">) =>
+      saveOnboardingState("in_progress", currentStep),
+    [saveOnboardingState],
+  );
+
+  const completeOnboarding = useCallback(
+    () => saveOnboardingState("completed", "completed"),
+    [saveOnboardingState],
+  );
+
+  const abandonOnboarding = useCallback(() => {
+    const accountId =
+      state.accountId ??
+      activeAccountIdRef.current ??
+      getActiveBrowserUserId();
+
+    // Toute réponse de chargement ou mutation déjà en vol devient obsolète
+    // avant que le marqueur terminal local soit écrit.
+    requestSequenceRef.current += 1;
+    mutationSequenceRef.current += 1;
+
+    if (accountId) {
+      activeAccountIdRef.current = accountId;
+      abandonmentPendingAccountRef.current = false;
+      rememberAbandonedOnboarding(accountId);
+    } else {
+      abandonmentPendingAccountRef.current = true;
+    }
+
+    // Le bouton « Passer » rend le dashboard immédiatement. La persistance
+    // serveur est volontairement réconciliée ensuite et ne peut donc pas
+    // transformer une indisponibilité réseau en nouveau verrou d'interface.
+    setState((current) => ({
+      ...current,
+      accountId: accountId ?? current.accountId,
+      onboardingReady: true,
+      onboardingError: false,
+      onboardingAbandoned: true,
+      firstOpeningDetected: false,
+    }));
+
+    if (accountId) {
+      void reconcileAbandonedOnboarding(accountId);
+    }
+  }, [reconcileAbandonedOnboarding, state.accountId]);
 
   useEffect(() => {
     // En React Strict Mode l'effet peut être monté deux fois. Tant que le
@@ -508,6 +567,7 @@ export function useDashboardOnboardingState(
     isFirstOnboardingOpening:
       !state.onboardingAbandoned &&
       (state.firstOpeningDetected || isDashboardOnboardingFirstOpening(state.row)),
+    abandonOnboarding,
     setCurrentOnboardingStep,
     completeOnboarding,
   };

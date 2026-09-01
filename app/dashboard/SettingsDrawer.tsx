@@ -21,7 +21,7 @@ type Props = {
   presentation?: "drawer" | "onboarding";
   /** Libellé du bouton de fermeture. */
   closeLabel?: string;
-  /** Affiche le bouton de fermeture. Masqué pendant l'onboarding obligatoire. */
+  /** Affiche l'action d'en-tête fournie par le parent (fermer ou passer). */
   showCloseButton?: boolean;
   /** Identifie la page interne du parcours afin d'animer son remplacement. */
   contentKey?: string;

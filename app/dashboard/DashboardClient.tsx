@@ -259,6 +259,7 @@ export default function DashboardClient({
     onboardingStatus,
     onboardingCurrentStep,
     onboardingAbandoned,
+    abandonOnboarding,
     setCurrentOnboardingStep,
     completeOnboarding,
   } = onboardingState;
@@ -360,14 +361,18 @@ export default function DashboardClient({
     settingsDrawerGuardActive,
   ]);
 
+  const requestSkipGuidedOnboarding = useCallback(() => {
+    setSettingsDrawerHasUnsavedChanges(false);
+    onboardingAutoOpenKeyRef.current = null;
+    abandonOnboarding();
+    closePanel();
+  }, [abandonOnboarding, closePanel]);
+
   const handleSettingsDrawerUnsavedChange = useCallback((hasUnsavedChanges: boolean) => {
     setSettingsDrawerHasUnsavedChanges(hasUnsavedChanges);
   }, []);
 
   const advanceOnboardingFromProfile = useCallback(async () => {
-    const completion = await checkProfile();
-    if (!completion?.profileCompleted) return;
-
     // La sauvegarde a déjà nettoyé le formulaire. On prépare la prochaine
     // étape avant la mutation afin que l'effet d'auto-ouverture ne repasse pas
     // par le guard pendant le changement d'état React.
@@ -377,25 +382,34 @@ export default function DashboardClient({
     const row = await setCurrentOnboardingStep("activity");
     if (!row) {
       onboardingAutoOpenKeyRef.current = null;
+      closePanel();
       return;
     }
     replacePanelDirect("activite");
-  }, [checkProfile, onboardingAccountId, replacePanelDirect, setCurrentOnboardingStep]);
+    // ProfilContent n'appelle cette transition qu'après validation et après le
+    // succès de l'upsert. Une seconde lecture bloquante ici créait une course
+    // avec les autres consommateurs du hook de complétion et pouvait renvoyer
+    // null (ou un cache obsolète), laissant le parcours figé sur l'étape 1.
+    // Le rafraîchissement reste utile pour le reste du dashboard, mais il ne
+    // doit pas conditionner une sauvegarde qui vient déjà de réussir.
+    void checkProfile();
+  }, [checkProfile, closePanel, onboardingAccountId, replacePanelDirect, setCurrentOnboardingStep]);
 
   const advanceOnboardingFromActivity = useCallback(async () => {
-    const completion = await checkActivity();
-    if (!completion?.activityCompleted) return;
-
     setSettingsDrawerHasUnsavedChanges(false);
     setOnboardingTransitionDirection("forward");
     onboardingAutoOpenKeyRef.current = `opening:${onboardingAccountId ?? "unknown"}:ai`;
     const row = await setCurrentOnboardingStep("ai");
     if (!row) {
       onboardingAutoOpenKeyRef.current = null;
+      closePanel();
       return;
     }
     replacePanelDirect("ia");
-  }, [checkActivity, onboardingAccountId, replacePanelDirect, setCurrentOnboardingStep]);
+    // Même principe qu'après le profil : ActivityContent a déjà validé puis
+    // persisté les champs obligatoires avant d'appeler ce callback.
+    void checkActivity();
+  }, [checkActivity, closePanel, onboardingAccountId, replacePanelDirect, setCurrentOnboardingStep]);
 
   const returnOnboardingToProfile = useCallback(async () => {
     setSettingsDrawerHasUnsavedChanges(false);
@@ -404,10 +418,11 @@ export default function DashboardClient({
     const row = await setCurrentOnboardingStep("profile");
     if (!row) {
       onboardingAutoOpenKeyRef.current = null;
+      closePanel();
       return;
     }
     replacePanelDirect("profil");
-  }, [onboardingAccountId, replacePanelDirect, setCurrentOnboardingStep]);
+  }, [closePanel, onboardingAccountId, replacePanelDirect, setCurrentOnboardingStep]);
 
   const returnOnboardingToActivity = useCallback(async () => {
     setSettingsDrawerHasUnsavedChanges(false);
@@ -416,10 +431,11 @@ export default function DashboardClient({
     const row = await setCurrentOnboardingStep("activity");
     if (!row) {
       onboardingAutoOpenKeyRef.current = null;
+      closePanel();
       return;
     }
     replacePanelDirect("activite");
-  }, [onboardingAccountId, replacePanelDirect, setCurrentOnboardingStep]);
+  }, [closePanel, onboardingAccountId, replacePanelDirect, setCurrentOnboardingStep]);
 
   const completeOnboardingFromAi = useCallback(async () => {
     if (onboardingAiCompleting) return;
@@ -430,6 +446,7 @@ export default function DashboardClient({
     if (!row) {
       onboardingAutoOpenKeyRef.current = null;
       setOnboardingAiCompleting(false);
+      closePanel();
       return;
     }
     closePanel();
@@ -4115,11 +4132,12 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
         title={getDrawerTitle(guidedOnboardingActive ? guidedOnboardingPanel : panel, dashboardCopy)}
         progressLabel={onboardingProgressLabel}
         isOpen={guidedOnboardingActive || isDrawerPanel(panel)}
-        onClose={requestCloseSettingsDrawer}
+        onClose={guidedOnboardingActive ? requestSkipGuidedOnboarding : requestCloseSettingsDrawer}
         closeOnBackdrop={!guidedOnboardingActive && !settingsDrawerRequiresExplicitClose}
         closeOnEscape={!guidedOnboardingActive && !settingsDrawerRequiresExplicitClose}
         presentation={guidedOnboardingActive ? "onboarding" : "drawer"}
-        showCloseButton={!guidedOnboardingActive}
+        showCloseButton={true}
+        closeLabel={guidedOnboardingActive ? onboardingT("skip") : undefined}
         contentKey={guidedOnboardingActive ? onboardingCurrentStep ?? undefined : undefined}
         contentDirection={onboardingTransitionDirection}
         headerActions={

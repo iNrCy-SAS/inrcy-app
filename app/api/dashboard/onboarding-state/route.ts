@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 import {
   DASHBOARD_ONBOARDING_STATUSES,
@@ -9,10 +9,13 @@ import {
 } from "@/lib/dashboardOnboarding";
 import {
   abandonDashboardOnboardingForAccount,
-  getDashboardOnboardingStateForAccount,
+  resolveDashboardOnboardingForDashboardAccess,
   saveDashboardOnboardingStateForAccount,
 } from "@/lib/dashboardOnboardingServer";
-import { ensureInrcyAccountOnboardingState } from "@/lib/inrcyAccountProvisioning";
+import {
+  DASHBOARD_ONBOARDING_LAUNCH_PROOF_COOKIE,
+  buildClearedDashboardOnboardingLaunchProofCookie,
+} from "@/lib/dashboardOnboardingLaunchProof";
 import { requireUser } from "@/lib/requireUser";
 
 export const runtime = "nodejs";
@@ -27,7 +30,17 @@ function json(body: Record<string, unknown>, status = 200) {
   return NextResponse.json(body, { status, headers: NO_STORE_HEADERS });
 }
 
-export async function GET() {
+function clearLaunchProofWhenTerminal(
+  response: NextResponse,
+  row: { status?: string | null },
+) {
+  if (row.status === "completed" || row.status === "deferred") {
+    response.cookies.set(buildClearedDashboardOnboardingLaunchProofCookie());
+  }
+  return response;
+}
+
+export async function GET(request: NextRequest) {
   const { activeUserId, errorResponse } = await requireUser();
   if (errorResponse) {
     console.warn("[dashboard-onboarding] GET user scope unavailable", {
@@ -40,14 +53,10 @@ export async function GET() {
   }
 
   try {
-    let row = await getDashboardOnboardingStateForAccount(activeUserId);
-    if (!row) {
-      row = await ensureInrcyAccountOnboardingState(activeUserId);
-    }
-    if (!row) {
-      throw new Error("INRCY_ONBOARDING_STATE_UNAVAILABLE_AFTER_REPAIR");
-    }
-
+    let row = await resolveDashboardOnboardingForDashboardAccess(
+      activeUserId,
+      request.cookies.get(DASHBOARD_ONBOARDING_LAUNCH_PROOF_COOKIE)?.value,
+    );
     const firstOpeningDetected = isDashboardOnboardingFirstOpening(row);
     if (row && firstOpeningDetected) {
       row = await saveDashboardOnboardingStateForAccount({
@@ -56,14 +65,17 @@ export async function GET() {
         currentStep: row.currentStep,
       });
     }
-    return json({
-      ok: true,
-      accountId: activeUserId,
+    return clearLaunchProofWhenTerminal(
+      json({
+        ok: true,
+        accountId: activeUserId,
+        row,
+        onboardingAvailable: true,
+        onboardingError: false,
+        firstOpeningDetected,
+      }),
       row,
-      onboardingAvailable: true,
-      onboardingError: false,
-      firstOpeningDetected,
-    });
+    );
   } catch (error) {
     console.error("[dashboard-onboarding] GET failed", error);
     return json(
@@ -77,7 +89,7 @@ export async function GET() {
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   const { activeUserId, errorResponse } = await requireUser();
   if (errorResponse) return errorResponse;
   if (!activeUserId) {
@@ -104,7 +116,10 @@ export async function POST(request: Request) {
   if (action === "abandon_after_fail_open") {
     try {
       const row = await abandonDashboardOnboardingForAccount(activeUserId);
-      return json({ ok: true, accountId: activeUserId, row });
+      return clearLaunchProofWhenTerminal(
+        json({ ok: true, accountId: activeUserId, row }),
+        row,
+      );
     } catch {
       return json(
         {
@@ -137,7 +152,10 @@ export async function POST(request: Request) {
       status,
       currentStep,
     });
-    return json({ ok: true, accountId: activeUserId, row });
+    return clearLaunchProofWhenTerminal(
+      json({ ok: true, accountId: activeUserId, row }),
+      row,
+    );
   } catch {
     return json(
       {
