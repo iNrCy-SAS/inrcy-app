@@ -85,6 +85,7 @@ async function withEconomicGuard<T>(args: {
   accountId: string;
   model: string;
   operation: () => Promise<T>;
+  signal?: AbortSignal;
 }) {
   const costMicroUsd = configuredCost();
   const reservation = await reserveAiGatewayAccountAttempt(args.accountId, {
@@ -104,11 +105,13 @@ async function withEconomicGuard<T>(args: {
     return result;
   } catch (error) {
     await rollbackAiGatewayAccountAttempt(reservation).catch(() => undefined);
-    await recordAiGatewayAccountFailure({
-      accountId: args.accountId,
-      feature: "media.image",
-      model: args.model,
-    }).catch(() => undefined);
+    if (!args.signal?.aborted) {
+      await recordAiGatewayAccountFailure({
+        accountId: args.accountId,
+        feature: "media.image",
+        model: args.model,
+      }).catch(() => undefined);
+    }
     throw error;
   }
 }
@@ -123,7 +126,9 @@ export async function generateAiMediaImage(args: {
    */
   officialLogo?: Buffer | null;
   size?: "1024x1024" | "1024x1536" | "1536x1024";
+  signal?: AbortSignal;
 }): Promise<AiMediaGatewayResult> {
+  args.signal?.throwIfAborted();
   assertGatewayCredentials();
   const model = resolveImageModel();
   const timeoutMs = positiveInt(
@@ -135,6 +140,7 @@ export async function generateAiMediaImage(args: {
   return await withEconomicGuard({
     accountId: args.accountId,
     model,
+    signal: args.signal,
     operation: async (): Promise<AiMediaGatewayResult> => {
       const referenceImagesCount = args.officialLogo?.byteLength ? 1 : 0;
       const result = await generateImage({
@@ -151,7 +157,9 @@ export async function generateAiMediaImage(args: {
         maxImagesPerCall: 1,
         size: args.size || "1024x1024",
         maxRetries: 0,
-        abortSignal: AbortSignal.timeout(timeoutMs),
+        abortSignal: args.signal
+          ? AbortSignal.any([args.signal, AbortSignal.timeout(timeoutMs)])
+          : AbortSignal.timeout(timeoutMs),
         providerOptions: model.startsWith("openai/")
           ? {
               openai: {

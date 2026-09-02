@@ -40,7 +40,9 @@ const DEFAULT_STANDARD_COST_MICRO_USD_PER_SECOND = 400_000;
 // pointe. La marge d'une minute couvre le téléchargement du clip sans couper
 // une opération Veo encore valide.
 const DEFAULT_TIMEOUT_MS = 420_000;
-const DEFAULT_POLL_MS = 5_000;
+// Un contrôle toutes les 2,5 s récupère le résultat terminé jusqu'à 2,5 s
+// plus tôt, tout en restant assez espacé pour les opérations longues.
+const DEFAULT_POLL_MS = 2_500;
 const DEFAULT_SUBMIT_ATTEMPTS = 4;
 const DEFAULT_DOWNLOAD_ATTEMPTS = 3;
 // Le modèle exposé à cette clé annonce une limite d'entrée de 480 tokens.

@@ -67,7 +67,10 @@ function buildStoragePath(args: {
   return `users/${safePathSegment(args.accountId, "account")}/ai-generated/${args.kind}/${year}/${month}/${safePathSegment(args.jobId, "job")}.${args.extension}`;
 }
 
-async function toPickerItem(row: RegistryRow): Promise<AiMediaLibraryPickerItem> {
+async function toPickerItem(
+  row: RegistryRow,
+  options: { signedUrl?: string | null } = {},
+): Promise<AiMediaLibraryPickerItem> {
   // La signature est un confort de réponse court terme, pas une condition de
   // persistance. Une panne Storage après l'INSERT ne doit jamais faire croire
   // au quota que le média n'existe pas.
@@ -80,11 +83,13 @@ async function toPickerItem(row: RegistryRow): Promise<AiMediaLibraryPickerItem>
     (isAcceptedGeneratedMedia(row)
       ? buildMediaLibraryContentUrl(String(row.id || ""))
       : null) ||
-    (await createSafeStorageSignedUrl(
-      String(row.bucket_name || BUCKET),
-      row.storage_path,
-      CONTENT_URL_TTL_SECONDS,
-    ).catch(() => null));
+    (options.signedUrl !== undefined
+      ? options.signedUrl
+      : await createSafeStorageSignedUrl(
+          String(row.bucket_name || BUCKET),
+          row.storage_path,
+          CONTENT_URL_TTL_SECONDS,
+        ).catch(() => null));
   return {
     id: String(row.id),
     bucket_name: row.bucket_name || BUCKET,
@@ -242,6 +247,15 @@ export async function saveGeneratedAiMediaDraft(args: {
   );
   if (uploaded.error) throw uploaded.error;
 
+  // L'objet vient d'être confirmé par Storage : sa signature peut être créée
+  // pendant l'INSERT du registre au lieu d'ajouter deux allers-retours réseau
+  // après celui-ci. L'échec éventuel reste non bloquant comme auparavant.
+  const draftSignedUrlTask = createSafeStorageSignedUrl(
+    BUCKET,
+    storagePath,
+    CONTENT_URL_TTL_SECONDS,
+  ).catch(() => null);
+
   const payload = {
     user_id: args.accountId,
     created_by_auth_user_id: args.authUserId,
@@ -306,7 +320,7 @@ export async function saveGeneratedAiMediaDraft(args: {
     throw inserted.error || new Error("ai_media_registry_insert_failed");
   }
 
-  return await toPickerItem(row);
+  return await toPickerItem(row, { signedUrl: await draftSignedUrlTask });
 }
 
 /**

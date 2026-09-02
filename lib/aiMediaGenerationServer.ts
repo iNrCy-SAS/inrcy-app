@@ -52,7 +52,59 @@ export type AiMediaGenerationServerResult = {
   model: string;
   promptVersion: string;
   promptSha256: string;
+  pipelineTimingsMs: Record<string, number>;
 };
+
+const DEFAULT_NARRATION_AFTER_VIDEO_GRACE_MS = 6_000;
+
+function positiveInt(value: unknown, fallback: number, maximum: number) {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  return Number.isFinite(parsed) && parsed > 0
+    ? Math.min(maximum, parsed)
+    : fallback;
+}
+
+function roundedDurationMs(startedAt: number) {
+  return Math.max(0, Math.round(performance.now() - startedAt));
+}
+
+async function waitForOptionalTaskWithinGrace<T>(args: {
+  task: Promise<T>;
+  graceMs: number;
+  signal?: AbortSignal;
+}): Promise<T | null> {
+  args.signal?.throwIfAborted();
+  return new Promise<T | null>((resolve, reject) => {
+    let settled = false;
+    const cleanup = () => {
+      clearTimeout(timer);
+      args.signal?.removeEventListener("abort", onAbort);
+    };
+    const finish = (value: T | null) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(value);
+    };
+    const fail = (error: unknown) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(error);
+    };
+    const onAbort = () => {
+      try {
+        args.signal?.throwIfAborted();
+      } catch (error) {
+        fail(error);
+      }
+    };
+    const timer = setTimeout(() => finish(null), args.graceMs);
+    args.signal?.addEventListener("abort", onAbort, { once: true });
+    if (args.signal?.aborted) onAbort();
+    args.task.then(finish, fail);
+  });
+}
 
 function promptSha256(prompt: string) {
   return createHash("sha256").update(prompt).digest("hex");
@@ -126,32 +178,50 @@ export async function generateAndSaveAiMedia(args: {
   request: AiMediaGenerationRequest;
   signal?: AbortSignal;
 }): Promise<AiMediaGenerationServerResult> {
+  const pipelineStartedAt = performance.now();
+  const pipelineTimingsMs: Record<string, number> = {};
+  const measure = async <T>(stage: string, action: () => Promise<T>) => {
+    const startedAt = performance.now();
+    try {
+      return await action();
+    } finally {
+      pipelineTimingsMs[stage] = roundedDurationMs(startedAt);
+    }
+  };
+
   args.signal?.throwIfAborted();
-  const existing = await getExistingGeneratedAiMedia({
-    accountId: args.accountId,
-    jobId: args.jobId,
-  });
+  const [existing, generationContext] = await Promise.all([
+    measure("draft_lookup", () =>
+      getExistingGeneratedAiMedia({
+        accountId: args.accountId,
+        jobId: args.jobId,
+      }),
+    ),
+    measure("business_context", () =>
+      getBoosterGenerationContext({
+        supabase: args.supabase,
+        userId: args.accountId,
+      }),
+    ),
+  ]);
   if (existing) {
+    pipelineTimingsMs.total = roundedDurationMs(pipelineStartedAt);
     return {
       item: existing,
       soundtrack: null,
       model: "replayed",
       promptVersion: AI_MEDIA_PROMPT_VERSION,
       promptSha256: "",
+      pipelineTimingsMs: { ...pipelineTimingsMs },
     };
   }
 
-  const generationContext = await getBoosterGenerationContext({
-    supabase: args.supabase,
-    userId: args.accountId,
-  });
-  const [brandKit] = await Promise.all([
+  const brandKitTask = measure("brand_kit", () =>
     loadAiMediaBrandKit({
       accountId: args.accountId,
       profile: generationContext.profile,
     }),
-  ]);
-  args.signal?.throwIfAborted();
+  );
   const profile = buildNormalizedAiGenerationProfile({
     profile: generationContext.profile,
     business: generationContext.business,
@@ -171,14 +241,21 @@ export async function generateAndSaveAiMedia(args: {
     profile,
     recentPublications: generationContext.recentPublications,
   });
-  const creativePlan = args.request.withText && args.request.textKeywords.length
-    ? await writeAiMediaHeadline({
-        accountId: args.accountId,
-        request: args.request,
-        profile,
-        plan: initialCreativePlan,
-      })
-    : initialCreativePlan;
+  const creativePlanTask = args.request.withText && args.request.textKeywords.length
+    ? measure("headline", () =>
+        writeAiMediaHeadline({
+          accountId: args.accountId,
+          request: args.request,
+          profile,
+          plan: initialCreativePlan,
+        }),
+      )
+    : Promise.resolve(initialCreativePlan);
+  const [brandKit, creativePlan] = await Promise.all([
+    brandKitTask,
+    creativePlanTask,
+  ]);
+  args.signal?.throwIfAborted();
   const officialLogo = args.request.logoMode === "none" ? null : brandKit.logo;
   const effectiveColors = args.request.useBrandColors
     ? brandKit.colors
@@ -201,79 +278,40 @@ export async function generateAndSaveAiMedia(args: {
 
   if (args.request.kind === "image") {
     args.signal?.throwIfAborted();
-    const gateway: AiMediaGatewayResult = await generateAiMediaImage({
-      accountId: args.accountId,
-      prompt,
-      officialLogo,
-      size: format.generationSize,
-    });
+    const gateway: AiMediaGatewayResult = await measure("image_provider", () =>
+      generateAiMediaImage({
+        accountId: args.accountId,
+        prompt,
+        officialLogo,
+        size: format.generationSize,
+        signal: args.signal,
+      }),
+    );
     // Sujet, profil et logo ont déjà guidé GPT Image. Cette étape ne dessine
     // rien : elle garantit uniquement le cadrage et le JPEG universel.
-    normalized = await normalizeGeneratedAiImage(gateway.buffer, {
-      width: format.width,
-      height: format.height,
-    });
+    normalized = await measure("image_normalization", () =>
+      normalizeGeneratedAiImage(gateway.buffer, {
+        width: format.width,
+        height: format.height,
+      }),
+    );
     args.signal?.throwIfAborted();
     model = gateway.model;
     providerMetadata = cleanProviderMetadata(gateway);
   } else {
     args.signal?.throwIfAborted();
     const pipelineWarnings: string[] = [];
-    const narration = await writeAiMediaNarration({
-      accountId: args.accountId,
-      request: args.request,
-      profile,
-      plan: creativePlan,
+    const durationSeconds = args.request.durationSeconds || 8;
+    const narrationController = new AbortController();
+    const abortNarrationFromCaller = () =>
+      narrationController.abort(args.signal?.reason);
+    args.signal?.addEventListener("abort", abortNarrationFromCaller, {
+      once: true,
     });
-    // La voix est préparée avant les clips coûteux. Une panne TTS ne peut donc
-    // jamais déclencher une facture Veo pour une vidéo privée de sa narration.
-    let narrationAudio: Awaited<
-      ReturnType<typeof generateAiMediaNarrationAudio>
-    > | null = null;
-    if (narration) {
-      try {
-        narrationAudio = await generateAiMediaNarrationAudio({
-          accountId: args.accountId,
-          narration,
-          durationSeconds: args.request.durationSeconds || 8,
-        });
-      } catch {
-        args.signal?.throwIfAborted();
-        // Narration is an enhancement. A TTS outage must not prevent the core
-        // Veo video from being generated and delivered.
-        pipelineWarnings.push("narration_unavailable_video_continued");
-      }
-    }
-    args.signal?.throwIfAborted();
-    const videoGateway = await generateOriginalAiVideoClips({
-      accountId: args.accountId,
-      request: args.request,
-      plan: creativePlan,
-      creativeBrief: buildConciseVideoProfileBrief(profile),
-      brandColors: effectiveColors,
-      profession:
-        profile.business.professionLabel ||
-        profile.business.sectorLabel ||
-        creativePlan.companyName,
-      signal: args.signal,
-    });
-    args.signal?.throwIfAborted();
-    if (args.request.withMusic) {
-      try {
-        soundtrack = await loadAiMediaSoundtrack(
-          args.request.idea ||
-            `${creativePlan.companyName} ${creativePlan.headline}`,
-        );
-      } catch {
-        args.signal?.throwIfAborted();
-        // The original Veo ambience remains available when a local soundtrack
-        // asset cannot be loaded.
-        soundtrack = null;
-        pipelineWarnings.push("soundtrack_unavailable_video_continued");
-      }
-    }
-    const renderMinimalOverlays = () =>
-      Promise.all(
+
+    let minimalOverlaysTask: Promise<Buffer[]> | null = null;
+    const renderMinimalOverlays = () => {
+      minimalOverlaysTask ||= Promise.all(
         creativePlan.scenes.map((scene) =>
           renderAiMediaVideoOverlay({
             scene,
@@ -288,47 +326,190 @@ export async function generateAndSaveAiMedia(args: {
           }),
         ),
       );
-    let overlays: Buffer[];
-    try {
-      overlays = await Promise.all(
-        creativePlan.scenes.map((scene) =>
-          renderAiMediaVideoOverlay({
-            scene,
-            logo: officialLogo,
-            colors: effectiveColors,
-            companyName: creativePlan.companyName,
-            visualStyle: args.request.visualStyle,
-            logoMode: args.request.logoMode,
-            withText: args.request.withText,
-            width: format.width,
-            height: format.height,
+      return minimalOverlaysTask;
+    };
+
+    // Le chemin critique commence immédiatement : Veo, la voix, la musique et
+    // les calques sont indépendants et sont donc préparés en parallèle. La
+    // qualité nominale reste identique, mais les temps ne s'additionnent plus.
+    const videoGatewayTask = measure("veo_generation", () =>
+      generateOriginalAiVideoClips({
+        accountId: args.accountId,
+        request: args.request,
+        plan: creativePlan,
+        creativeBrief: buildConciseVideoProfileBrief(profile),
+        brandColors: effectiveColors,
+        profession:
+          profile.business.professionLabel ||
+          profile.business.sectorLabel ||
+          creativePlan.companyName,
+        signal: args.signal,
+      }),
+    );
+    const narrationTask = measure("narration_pipeline", async () => {
+      try {
+        const narration = await measure("narration_copy", () =>
+          writeAiMediaNarration({
+            accountId: args.accountId,
+            request: args.request,
+            profile,
+            plan: creativePlan,
           }),
-        ),
-      );
-    } catch {
-      args.signal?.throwIfAborted();
-      // Un logo corrompu ou une accroche impossible à rasteriser ne doit pas
-      // annuler les clips Veo déjà facturés. On conserve la vidéo avec un
-      // calque transparent et on signale explicitement la dégradation.
-      overlays = await renderMinimalOverlays();
-      pipelineWarnings.push("branding_overlay_unavailable_video_continued");
+        );
+        args.signal?.throwIfAborted();
+        if (!narration) {
+          return {
+            narration: null,
+            audio: null,
+            warnings: [] as string[],
+          };
+        }
+        try {
+          const audio = await measure("narration_audio", () =>
+            generateAiMediaNarrationAudio({
+              accountId: args.accountId,
+              narration,
+              durationSeconds,
+              signal: narrationController.signal,
+            }),
+          );
+          return { narration, audio, warnings: [] as string[] };
+        } catch {
+          args.signal?.throwIfAborted();
+          return {
+            narration,
+            audio: null,
+            warnings: ["narration_unavailable_video_continued"],
+          };
+        }
+      } catch {
+        args.signal?.throwIfAborted();
+        return {
+          narration: null,
+          audio: null,
+          warnings: ["narration_unavailable_video_continued"],
+        };
+      }
+    });
+    const soundtrackTask = measure("soundtrack", async () => {
+      if (!args.request.withMusic) {
+        return { value: null, warnings: [] as string[] };
+      }
+      try {
+        const value = await loadAiMediaSoundtrack(
+          args.request.idea ||
+            `${creativePlan.companyName} ${creativePlan.headline}`,
+        );
+        return { value, warnings: [] as string[] };
+      } catch {
+        args.signal?.throwIfAborted();
+        // The original Veo ambience remains available when a local soundtrack
+        // asset cannot be loaded.
+        return {
+          value: null,
+          warnings: ["soundtrack_unavailable_video_continued"],
+        };
+      }
+    });
+    const overlaysTask = measure("video_overlays", async () => {
+      try {
+        const value = await Promise.all(
+          creativePlan.scenes.map((scene) =>
+            renderAiMediaVideoOverlay({
+              scene,
+              logo: officialLogo,
+              colors: effectiveColors,
+              companyName: creativePlan.companyName,
+              visualStyle: args.request.visualStyle,
+              logoMode: args.request.logoMode,
+              withText: args.request.withText,
+              width: format.width,
+              height: format.height,
+            }),
+          ),
+        );
+        return { value, warnings: [] as string[], error: null };
+      } catch {
+        args.signal?.throwIfAborted();
+        // Un logo corrompu ou une accroche impossible à rasteriser ne doit pas
+        // annuler les clips Veo déjà facturés. On conserve la vidéo avec un
+        // calque transparent et on signale explicitement la dégradation.
+        try {
+          const value = await renderMinimalOverlays();
+          return {
+            value,
+            warnings: ["branding_overlay_unavailable_video_continued"],
+            error: null,
+          };
+        } catch (error) {
+          return { value: null, warnings: [] as string[], error };
+        }
+      }
+    });
+
+    let videoGateway: Awaited<typeof videoGatewayTask>;
+    try {
+      videoGateway = await videoGatewayTask;
+    } catch (error) {
+      narrationController.abort(error);
+      throw error;
     }
+    args.signal?.throwIfAborted();
+
+    const narrationJoinStartedAt = performance.now();
+    const narrationResult = await waitForOptionalTaskWithinGrace({
+      task: narrationTask,
+      graceMs: positiveInt(
+        process.env.AI_MEDIA_NARRATION_AFTER_VIDEO_GRACE_MS,
+        DEFAULT_NARRATION_AFTER_VIDEO_GRACE_MS,
+        20_000,
+      ),
+      signal: args.signal,
+    });
+    pipelineTimingsMs.narration_join_after_veo = roundedDurationMs(
+      narrationJoinStartedAt,
+    );
+    if (!narrationResult) {
+      narrationController.abort(new Error("ai_media_narration_deadline"));
+      pipelineWarnings.push("narration_slow_video_continued");
+    }
+    args.signal?.removeEventListener("abort", abortNarrationFromCaller);
+
+    const [soundtrackResult, overlaysResult] = await Promise.all([
+      soundtrackTask,
+      overlaysTask,
+    ]);
+    args.signal?.throwIfAborted();
+    pipelineWarnings.push(
+      ...(narrationResult?.warnings || []),
+      ...soundtrackResult.warnings,
+      ...overlaysResult.warnings,
+    );
+    soundtrack = soundtrackResult.value;
+    if (overlaysResult.error || !overlaysResult.value) {
+      throw overlaysResult.error || new Error("ai_media_video_overlay_missing");
+    }
+    let overlays = overlaysResult.value;
+    let narration = narrationResult?.narration || null;
+    let narrationAudio = narrationResult?.audio || null;
 
     const clips = videoGateway.clips.map((clip) => ({
       buffer: clip.buffer,
       durationSeconds: clip.durationSeconds,
     }));
     try {
-      normalized = await composeOriginalAiVideo({
-        clips,
-        overlays,
-        width: format.width,
-        height: format.height,
-        durationSeconds: args.request.durationSeconds || 8,
-        soundtrack,
-        narration: narrationAudio,
-        signal: args.signal,
-      });
+      normalized = await measure("video_composition", () =>
+        composeOriginalAiVideo({
+          clips,
+          overlays,
+          width: format.width,
+          height: format.height,
+          durationSeconds,
+          soundtrack,
+          narration: narrationAudio,
+          signal: args.signal,
+        }),
+      );
     } catch {
       args.signal?.throwIfAborted();
       // Les pistes audio et l'habillage sont facultatifs. Si FFmpeg refuse
@@ -336,18 +517,21 @@ export async function generateAndSaveAiMedia(args: {
       // minimal évite de rappeler Veo et préserve le rendu déjà payé.
       overlays = await renderMinimalOverlays();
       soundtrack = null;
+      narration = null;
       narrationAudio = null;
       pipelineWarnings.push("video_enhancements_unavailable_video_continued");
-      normalized = await composeOriginalAiVideo({
-        clips,
-        overlays,
-        width: format.width,
-        height: format.height,
-        durationSeconds: args.request.durationSeconds || 8,
-        soundtrack: null,
-        narration: null,
-        signal: args.signal,
-      });
+      normalized = await measure("video_composition_fallback", () =>
+        composeOriginalAiVideo({
+          clips,
+          overlays,
+          width: format.width,
+          height: format.height,
+          durationSeconds,
+          soundtrack: null,
+          narration: null,
+          signal: args.signal,
+        }),
+      );
     }
     model = [
       videoGateway.model,
@@ -379,66 +563,78 @@ export async function generateAndSaveAiMedia(args: {
 
   args.signal?.throwIfAborted();
   const generatedAt = new Date().toISOString();
-  const item = await saveGeneratedAiMedia({
-    accountId: args.accountId,
-    authUserId: args.authUserId,
-    jobId: args.jobId,
-    // Le brief libre sert uniquement au prompt en mémoire. Il n'est ni
-    // conservé dans les métadonnées, ni réutilisé comme titre Médiathèque.
-    title: buildAiMediaTitle("", args.request.kind),
-    media: normalized,
-    metadata: {
-      provenance: {
-        source: args.request.kind === "video"
-          ? "inrcy_original_ai_video_engine"
-          : "inrcy_brand_image_engine",
-        surface: args.request.source,
-        prompt_version: AI_MEDIA_PROMPT_VERSION,
-        prompt_sha256: promptHash,
-        subject_source: args.request.subjectSource,
-        with_text: args.request.withText,
-        text_keyword_count: args.request.textKeywords.length,
-        with_music: args.request.withMusic,
-        with_narration: args.request.withNarration,
-        format: args.request.format,
-        typology: args.request.typology,
-        visual_style: args.request.visualStyle,
-        image_style: args.request.imageStyle,
-        shot_type: args.request.shotType,
-        people_mode: args.request.peopleMode,
-        creativity: args.request.creativity,
-        use_brand_colors: args.request.useBrandColors,
-        logo_mode: args.request.logoMode,
-        duration_seconds: args.request.durationSeconds,
-        inspiration_image_count: args.request.inspirationImages.length,
-        inspiration_image_sha256: args.request.inspirationImages.map((image) =>
-          createHash("sha256").update(image.data).digest("hex"),
-        ),
-        exact_logo_applied: Boolean(officialLogo),
-        brand_palette_applied: args.request.useBrandColors ? brandKit.colors : [],
-        professional_library_images_used: 0,
-        original_ai_video: args.request.kind === "video",
-        recent_publications_analyzed:
-          generationContext.recentPublications.length,
-        generated_at: generatedAt,
-        active_account_id: args.accountId,
-        actor_auth_user_id: args.authUserId,
-        context_cache_source: generationContext.cacheSource,
+  const item = await measure("media_persistence", () =>
+    saveGeneratedAiMedia({
+      accountId: args.accountId,
+      authUserId: args.authUserId,
+      jobId: args.jobId,
+      // Le brief libre sert uniquement au prompt en mémoire. Il n'est ni
+      // conservé dans les métadonnées, ni réutilisé comme titre Médiathèque.
+      title: buildAiMediaTitle("", args.request.kind),
+      media: normalized,
+      metadata: {
+        provenance: {
+          source: args.request.kind === "video"
+            ? "inrcy_original_ai_video_engine"
+            : "inrcy_brand_image_engine",
+          surface: args.request.source,
+          prompt_version: AI_MEDIA_PROMPT_VERSION,
+          prompt_sha256: promptHash,
+          subject_source: args.request.subjectSource,
+          with_text: args.request.withText,
+          text_keyword_count: args.request.textKeywords.length,
+          with_music: args.request.withMusic,
+          with_narration: args.request.withNarration,
+          format: args.request.format,
+          typology: args.request.typology,
+          visual_style: args.request.visualStyle,
+          image_style: args.request.imageStyle,
+          shot_type: args.request.shotType,
+          people_mode: args.request.peopleMode,
+          creativity: args.request.creativity,
+          use_brand_colors: args.request.useBrandColors,
+          logo_mode: args.request.logoMode,
+          duration_seconds: args.request.durationSeconds,
+          inspiration_image_count: args.request.inspirationImages.length,
+          inspiration_image_sha256: args.request.inspirationImages.map((image) =>
+            createHash("sha256").update(image.data).digest("hex"),
+          ),
+          exact_logo_applied: Boolean(officialLogo),
+          brand_palette_applied: args.request.useBrandColors ? brandKit.colors : [],
+          professional_library_images_used: 0,
+          original_ai_video: args.request.kind === "video",
+          recent_publications_analyzed:
+            generationContext.recentPublications.length,
+          generated_at: generatedAt,
+          active_account_id: args.accountId,
+          actor_auth_user_id: args.authUserId,
+          context_cache_source: generationContext.cacheSource,
+        },
+        output_spec: getAiMediaPromptOutputSpec(args.request),
+        gateway: providerMetadata,
+        soundtrack: soundtrack
+          ? {
+              id: soundtrack.id,
+              name: soundtrack.name,
+              file_name: soundtrack.fileName,
+              duration_seconds: soundtrack.durationSeconds,
+              license: soundtrack.license,
+              sha256: soundtrack.sha256,
+              size_bytes: soundtrack.sizeBytes,
+            }
+          : null,
       },
-      output_spec: getAiMediaPromptOutputSpec(args.request),
-      gateway: providerMetadata,
-      soundtrack: soundtrack
-        ? {
-            id: soundtrack.id,
-            name: soundtrack.name,
-            file_name: soundtrack.fileName,
-            duration_seconds: soundtrack.durationSeconds,
-            license: soundtrack.license,
-            sha256: soundtrack.sha256,
-            size_bytes: soundtrack.sizeBytes,
-          }
-        : null,
-    },
+    }),
+  );
+
+  pipelineTimingsMs.total = roundedDurationMs(pipelineStartedAt);
+  const completedPipelineTimings = { ...pipelineTimingsMs };
+  console.info("[ai-media] generation pipeline completed", {
+    accountId: args.accountId,
+    jobId: args.jobId,
+    kind: args.request.kind,
+    durationSeconds: args.request.durationSeconds || null,
+    timingsMs: completedPipelineTimings,
   });
 
   return {
@@ -449,5 +645,6 @@ export async function generateAndSaveAiMedia(args: {
     model,
     promptVersion: AI_MEDIA_PROMPT_VERSION,
     promptSha256: promptHash,
+    pipelineTimingsMs: completedPipelineTimings,
   };
 }

@@ -80,8 +80,24 @@ function retryable(error: unknown) {
   return [429, 500, 502, 503, 504].includes(statusFromError(error));
 }
 
-function delay(ms: number) {
-  return new Promise<void>((resolve) => setTimeout(resolve, ms));
+function delay(ms: number, signal?: AbortSignal) {
+  signal?.throwIfAborted();
+  return new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
+      try {
+        signal?.throwIfAborted();
+      } catch (error) {
+        reject(error);
+      }
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
 }
 
 function hasWavHeader(buffer: Buffer) {
@@ -149,7 +165,9 @@ export async function generateAiMediaNarrationAudio(args: {
   accountId: string;
   narration: AiMediaNarration;
   durationSeconds: 8 | 16 | 24;
+  signal?: AbortSignal;
 }): Promise<GeneratedAiNarrationAudio> {
+  args.signal?.throwIfAborted();
   const model = safeIdentifier(process.env.AI_MEDIA_TTS_MODEL, DEFAULT_TTS_MODEL);
   const voice = safeIdentifier(process.env.AI_MEDIA_TTS_VOICE, DEFAULT_TTS_VOICE);
   const costMicroUsd = positiveInt(
@@ -173,6 +191,7 @@ export async function generateAiMediaNarrationAudio(args: {
   try {
     let lastError: unknown = null;
     for (let attempt = 0; attempt < 3; attempt += 1) {
+      args.signal?.throwIfAborted();
       try {
         const interaction = await ai.interactions.create(
           {
@@ -191,7 +210,13 @@ export async function generateAiMediaNarrationAudio(args: {
               speech_config: [{ voice, language }],
             },
           },
-          { timeout: timeoutMs, maxRetries: 0 },
+          {
+            timeout: timeoutMs,
+            maxRetries: 0,
+            ...(args.signal
+              ? { fetchOptions: { signal: args.signal } }
+              : {}),
+          },
         );
         const audio = interaction.output_audio;
         if (!audio?.data) throw new Error("ai_media_narration_audio_empty");
@@ -214,12 +239,15 @@ export async function generateAiMediaNarrationAudio(args: {
         if (attempt >= 2 || (!retryable(error) && !String(error).includes("audio_empty"))) {
           throw error;
         }
-        await delay(attempt === 0 ? 1_500 : 4_000);
+        await delay(attempt === 0 ? 1_500 : 4_000, args.signal);
       }
     }
     throw lastError;
   } catch (error) {
     await rollbackAiGatewayAccountAttempt(reservation).catch(() => undefined);
+    if (args.signal?.aborted) {
+      throw args.signal.reason instanceof Error ? args.signal.reason : error;
+    }
     await recordAiGatewayAccountFailure({
       accountId: args.accountId,
       feature: "media.video",

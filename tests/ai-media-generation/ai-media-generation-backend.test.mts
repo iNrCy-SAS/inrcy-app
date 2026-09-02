@@ -342,6 +342,8 @@ test("image Gateway, vidéo Veo et médiathèque respectent le contrat universel
   assert.match(gateway, /AI_GATEWAY_IMAGE_MODEL/);
   assert.doesNotMatch(gateway, /AI_GATEWAY_VIDEO_MODEL|storyboard-v1/);
   assert.match(gateway, /size: args\.size \|\| "1024x1024"/);
+  assert.match(gateway, /AbortSignal\.any\(\[args\.signal, AbortSignal\.timeout\(timeoutMs\)\]\)/);
+  assert.match(gateway, /if \(!args\.signal\?\.aborted\)/);
   assert.match(gateway, /officialLogo\?: Buffer \| null/);
   assert.match(gateway, /images: \[args\.officialLogo as Buffer\]/);
   assert.match(gateway, /referenceImagesCount/);
@@ -516,10 +518,16 @@ test("image Gateway, vidéo Veo et médiathèque respectent le contrat universel
   assert.match(server, /soundtrack:\s*null/);
   assert.match(server, /narration:\s*null/);
   assert.equal((server.match(/generateOriginalAiVideoClips/g) || []).length, 2);
-  assert.match(
-    server,
-    /durationSeconds: args\.request\.durationSeconds \|\| 8/
-  );
+  assert.match(server, /const durationSeconds = args\.request\.durationSeconds \|\| 8/);
+  assert.match(server, /const videoGatewayTask = measure\("veo_generation"/);
+  assert.match(server, /const narrationTask = measure\("narration_pipeline"/);
+  assert.match(server, /const soundtrackTask = measure\("soundtrack"/);
+  assert.match(server, /const overlaysTask = measure\("video_overlays"/);
+  assert.match(server, /videoGateway = await videoGatewayTask/);
+  assert.match(server, /AI_MEDIA_NARRATION_AFTER_VIDEO_GRACE_MS/);
+  assert.match(narrationAudio, /fetchOptions: \{ signal: args\.signal \}/);
+  assert.match(narrationAudio, /if \(args\.signal\?\.aborted\)/);
+  assert.match(veo, /DEFAULT_POLL_MS = 2_500/);
   assert.match(server, /withText: args\.request\.withText/);
   assert.doesNotMatch(server, /prompt_sha256: promptHash,\s*prompt,/);
   assert.match(nextConfig, /assets\/media-generation\/soundtracks\/\*\*\/\*/);

@@ -173,7 +173,7 @@ test("le brief libre ne persiste pas dans le registre du media", () => {
   const server = read("lib/aiMediaGenerationServer.ts");
   const persistence = section(
     server,
-    "const item = await saveGeneratedAiMedia({",
+    'const item = await measure("media_persistence"',
     "return {\n    item,",
   );
 

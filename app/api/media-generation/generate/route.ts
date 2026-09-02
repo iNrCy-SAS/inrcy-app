@@ -53,6 +53,15 @@ const NO_STORE_HEADERS = { "Cache-Control": "private, no-store, max-age=0" };
 // sous cette limite, avant tout appel payant.
 const MAX_BODY_BYTES = 3 * 1024 * 1024;
 
+function serverTimingHeader(timings: Record<string, number>) {
+  return Object.entries(timings)
+    .filter(([, duration]) => Number.isFinite(duration) && duration >= 0)
+    .map(([stage, duration]) =>
+      `${stage.replace(/[^a-z0-9_-]/gi, "_")};dur=${Math.round(duration)}`,
+    )
+    .join(", ");
+}
+
 type RouteContext = {
   accountId: string;
   authUserId: string;
@@ -365,6 +374,7 @@ function assertDraftContractVersion(value: unknown) {
 }
 
 export async function POST(request: Request) {
+  const routeStartedAt = performance.now();
   const context: RouteContext = {
     accountId: "",
     authUserId: "",
@@ -393,20 +403,23 @@ export async function POST(request: Request) {
 
     context.accountId = current.scope.activeUserId;
     context.authUserId = current.scope.authUserId;
-    adminUnlimited = await isAdminUserForAi(
-      current.supabase,
-      context.authUserId,
-    );
-
-    const rateLimited = await enforceRateLimit({
-      name: "ai_media_generation",
-      identifier: context.accountId,
-      limit: 12,
-      fallbackLimit: 4,
-      window: "10 m",
-      failClosed: true,
-      code: "ai_media_generation_burst",
-    });
+    // Ces trois lectures sont indépendantes. Les lancer ensemble supprime deux
+    // allers-retours séquentiels avant même l'appel au moteur image ou vidéo.
+    const [resolvedAdminUnlimited, rateLimited, edition] = await Promise.all([
+      isAdminUserForAi(current.supabase, context.authUserId),
+      enforceRateLimit({
+        name: "ai_media_generation",
+        identifier: context.accountId,
+        limit: 12,
+        fallbackLimit: 4,
+        window: "10 m",
+        failClosed: true,
+        code: "ai_media_generation_burst",
+      }),
+      getDashboardEditionForAccountId(context.accountId),
+    ]);
+    adminUnlimited = resolvedAdminUnlimited;
+    accountEdition = edition;
     if (rateLimited) return rateLimited;
 
     const requestBody = await readRequestBody(request);
@@ -416,15 +429,17 @@ export async function POST(request: Request) {
     const normalizedRequest = normalizeAiMediaGenerationRequest(requestBody);
     context.requestId = normalizedRequest.requestId;
 
-    const edition = await getDashboardEditionForAccountId(context.accountId);
-    accountEdition = edition;
-    const videoEntitlement = await getAiMediaVideoEntitlement({
-      accountId: context.accountId,
-      edition,
-    });
-    videoMaxDurationSeconds = adminUnlimited
-      ? 24
-      : videoEntitlement.maxDurationSeconds;
+    // Une image n'a aucune durée vidéo à autoriser. Éviter cette lecture
+    // Supabase sur son chemin critique raccourcit chaque génération d'image.
+    if (normalizedRequest.kind === "video") {
+      const videoEntitlement = await getAiMediaVideoEntitlement({
+        accountId: context.accountId,
+        edition,
+      });
+      videoMaxDurationSeconds = adminUnlimited
+        ? 24
+        : videoEntitlement.maxDurationSeconds;
+    }
     if (
       normalizedRequest.kind === "video" &&
       (normalizedRequest.durationSeconds || 16) > videoMaxDurationSeconds
@@ -624,6 +639,7 @@ export async function POST(request: Request) {
     persistedItem = generated.item;
     persistedSoundtrack = generated.soundtrack;
 
+    const finalizationStartedAt = performance.now();
     await completeAiMediaGeneration({
       accountId: context.accountId,
       jobId: context.jobId,
@@ -633,14 +649,32 @@ export async function POST(request: Request) {
         prompt_version: generated.promptVersion,
         prompt_sha256: generated.promptSha256,
         soundtrack_id: generated.soundtrack?.id || null,
+        pipeline_timings_ms: generated.pipelineTimingsMs,
       },
     });
+    const quotaFinalizationMs = Math.round(
+      performance.now() - finalizationStartedAt,
+    );
     quotaCompleted = true;
 
+    const quotaSnapshotStartedAt = performance.now();
     const quota = await getAiMediaQuotaSnapshot({
       accountId: context.accountId,
       actorAuthUserId: context.authUserId,
       edition,
+    });
+    const requestTimings = {
+      ...generated.pipelineTimingsMs,
+      quota_finalization: quotaFinalizationMs,
+      quota_snapshot: Math.round(performance.now() - quotaSnapshotStartedAt),
+      request_total: Math.round(performance.now() - routeStartedAt),
+    };
+    console.info("[ai-media] request completed", {
+      accountId: context.accountId,
+      jobId: context.jobId,
+      kind: normalizedRequest.kind,
+      durationSeconds: normalizedRequest.durationSeconds || null,
+      timingsMs: requestTimings,
     });
     return NextResponse.json(
       {
@@ -654,7 +688,12 @@ export async function POST(request: Request) {
         soundtrack: generated.soundtrack,
         draft: true,
       },
-      { headers: NO_STORE_HEADERS },
+      {
+        headers: {
+          ...NO_STORE_HEADERS,
+          "Server-Timing": serverTimingHeader(requestTimings),
+        },
+      },
     );
   } catch (error) {
     // Le débit et le média sont déjà acquis : une lecture de snapshot en panne

@@ -199,8 +199,10 @@ test("la fenêtre iNrCy sépare les critères de la création et de la revue", (
   assert.match(generator, /ai_generator_edit_criteria/);
   assert.match(generator, /progress >= 99/);
   assert.match(generator, /ai_generator_stage_patience/);
-  assert.match(hook, /const COMPLETION_RAMP_MIN_MS = 900/);
-  assert.match(hook, /const COMPLETION_RAMP_MAX_MS = 1_800/);
+  assert.match(hook, /const COMPLETION_RAMP_MIN_MS = 300/);
+  assert.match(hook, /const COMPLETION_RAMP_MAX_MS = 700/);
+  assert.match(hook, /const COMPLETION_99_HOLD_MS = 120/);
+  assert.match(hook, /const COMPLETION_100_HOLD_MS = 250/);
   assert.match(hook, /function estimateGenerationProgress/);
   assert.match(hook, /function animateProgressToCompletion/);
   assert.match(hook, /args\.onProgress\(99\)/);

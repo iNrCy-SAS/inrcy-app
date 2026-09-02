@@ -116,10 +116,10 @@ type MediaGenerationStatus =
 // L'API Veo ne diffuse pas de pourcentage de rendu. Ces jalons suivent les
 // étapes réelles du pipeline iNrCy (profil, marque, scénario, rendu) puis la
 // réponse serveur déclenche une rampe distincte 99 -> 100 -> aperçu.
-const COMPLETION_RAMP_MIN_MS = 900;
-const COMPLETION_RAMP_MAX_MS = 1_800;
-const COMPLETION_99_HOLD_MS = 320;
-const COMPLETION_100_HOLD_MS = 760;
+const COMPLETION_RAMP_MIN_MS = 300;
+const COMPLETION_RAMP_MAX_MS = 700;
+const COMPLETION_99_HOLD_MS = 120;
+const COMPLETION_100_HOLD_MS = 250;
 const DRAFT_ACCEPT_RETRY_DELAYS_MS = [0, 450, 1_200] as const;
 
 function interpolateProgress(
@@ -184,7 +184,7 @@ function animateProgressToCompletion(args: {
   const startProgress = Math.max(4, Math.min(98, args.from));
   const rampDuration = Math.min(
     COMPLETION_RAMP_MAX_MS,
-    Math.max(COMPLETION_RAMP_MIN_MS, (99 - startProgress) * 38)
+    Math.max(COMPLETION_RAMP_MIN_MS, (99 - startProgress) * 18)
   );
 
   return new Promise<void>((resolve) => {
