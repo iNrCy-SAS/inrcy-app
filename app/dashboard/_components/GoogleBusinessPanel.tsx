@@ -47,16 +47,19 @@ export default function GoogleBusinessPanel(props: any) {
       : gmbAccountConnected
         ? "rgba(59,130,246,0.95)"
         : "rgba(148,163,184,0.9)";
+  const gmbLocationDetected = gmbLocationsPhase === "connecting";
   const gmbLocationActivity =
     gmbLocationBusy && gmbLocationAction === "disconnect"
       ? "disconnecting"
-      : gmbLocationBusy || gmbLocationsPhase === "connecting"
+      : gmbLocationBusy
         ? "connecting"
         : gmbLocationsPhase === "searching" || gmbLoadingList
           ? "searching"
           : undefined;
   const gmbLocationActivityLabel =
-    gmbLocationActivity === "searching"
+    gmbLocationDetected && !gmbLocationActivity
+      ? i18nT("connecte_ce09957c")
+      : gmbLocationActivity === "searching"
       ? "Recherche des établissements…"
       : gmbLocationActivity === "disconnecting"
         ? "Déconnexion en cours…"
@@ -203,7 +206,7 @@ export default function GoogleBusinessPanel(props: any) {
           <div className={styles.blockHeaderRow}>
             <div className={styles.blockTitle}>{i18nT("etablissement_a_connecter_264ce135")}</div>
             <ConnectionPill
-              connected={gmbConfigured}
+              connected={gmbConfigured || gmbLocationDetected}
               status={gmbNeedsUpdate ? "needs_update" : undefined}
               activity={gmbLocationActivity}
               label={gmbLocationActivityLabel}

@@ -2,6 +2,7 @@ import {
   INR_AGENT_DEFAULT_SETTINGS,
   sanitizeInrAgentSettings,
   type InrAgentAutomationSettings,
+  type InrAgentPreferredMediaSource,
   type InrAgentSettings,
   type InrAgentTheme,
 } from "@/lib/inrAgentSettings";
@@ -402,6 +403,7 @@ export function settingsToConfigs(
           typeof source.metadata?.signatureAutomatic === "boolean"
             ? source.metadata.signatureAutomatic
             : true,
+        preferredMediaSource: source.preferredMediaSource,
       };
 
       return [automation.key, config];
@@ -420,6 +422,7 @@ export function configToAutomationSettings(
   delete metadataWithoutScheduleSlots.scheduleSlots;
   const nextMetadata = {
     ...metadataWithoutScheduleSlots,
+    preferredMediaSource: config.preferredMediaSource,
     ...(key === "grow" || key === "loyalty"
       ? { signatureAutomatic: config.signatureAutomatic }
       : {}),
@@ -461,6 +464,10 @@ export function configToAutomationSettings(
       .filter((theme): theme is InrAgentTheme => Boolean(theme)),
     useImageBank: key !== "stats",
     imageRequired: key === "publish",
+    preferredMediaSource:
+      key === "publish"
+        ? config.preferredMediaSource
+        : (existing.preferredMediaSource as InrAgentPreferredMediaSource),
     recipientScope:
       key === "grow" ? "all_crm" : key === "loyalty" ? "clients" : "none",
     sourceStrategy:

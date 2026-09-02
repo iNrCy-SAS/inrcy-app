@@ -338,6 +338,10 @@ export async function generateAndSaveAiMedia(args: {
         use_brand_colors: args.request.useBrandColors,
         logo_mode: args.request.logoMode,
         duration_seconds: args.request.durationSeconds,
+        inspiration_image_count: args.request.inspirationImages.length,
+        inspiration_image_sha256: args.request.inspirationImages.map((image) =>
+          createHash("sha256").update(image.data).digest("hex"),
+        ),
         exact_logo_applied: Boolean(officialLogo),
         brand_palette_applied: args.request.useBrandColors ? brandKit.colors : [],
         professional_library_images_used: 0,

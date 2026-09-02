@@ -26,6 +26,18 @@ type UseInstagramChannelOptions = {
   updateRootSettingsKey: UpdateRootSettingsKey;
 };
 
+const INSTAGRAM_SETUP_HELP =
+  "Configuration Instagram à vérifier : le compte doit être Professionnel ou Créateur et être associé à votre Page Facebook professionnelle.";
+
+function withInstagramSetupHelp(input: unknown, fallback: string) {
+  const message = getSimpleFrenchErrorMessage(input, fallback).trim();
+  const normalized = message.toLocaleLowerCase("fr");
+  if (normalized.includes("professionnel") && normalized.includes("facebook")) {
+    return message;
+  }
+  return `${message} ${INSTAGRAM_SETUP_HELP}`;
+}
+
 export function useInstagramChannel({
   initialState,
   panel,
@@ -215,11 +227,18 @@ export function useInstagramChannel({
       const r = await fetch("/api/integrations/instagram/accounts", { cache: "no-store" });
       if (!r.ok) throw new Error(await getSimpleFrenchApiError(r, "Impossible de charger vos comptes Instagram."));
       const j = await r.json().catch(() => ({}));
-      setIgAccounts(j.accounts || []);
-      if (!igSelectedPageId && (j.accounts?.[0]?.page_id)) setIgSelectedPageId(j.accounts[0].page_id);
+      const accounts = Array.isArray(j.accounts) ? j.accounts : [];
+      setIgAccounts(accounts);
+      if (!accounts.length) {
+        setIgAccountsError(
+          `Aucun profil Instagram compatible n’a été trouvé. ${INSTAGRAM_SETUP_HELP}`,
+        );
+        return false;
+      }
+      if (!igSelectedPageId && accounts[0]?.page_id) setIgSelectedPageId(accounts[0].page_id);
 
-      if ((j.accounts || []).length === 1) {
-        const only = j.accounts[0];
+      if (accounts.length === 1) {
+        const only = accounts[0];
         setIgAccountsPhase("connecting");
         const autoRes = await fetch("/api/integrations/instagram/select-profile", {
           method: "POST",
@@ -255,7 +274,9 @@ export function useInstagramChannel({
       return true;
       }
     } catch (e: unknown) {
-      setIgAccountsError(getSimpleFrenchErrorMessage(e, "Impossible de charger vos comptes Instagram."));
+      setIgAccountsError(
+        withInstagramSetupHelp(e, "Impossible de charger vos comptes Instagram."),
+      );
     } finally {
       setIgAccountsLoading(false);
       setIgAccountsPhase("idle");
@@ -322,7 +343,11 @@ export function useInstagramChannel({
       setPanelSuccess("Compte Instagram enregistré.");
       return true;
     } else {
-      setPanelError(j?.error, "Impossible d'enregistrer Instagram.");
+      const setupError = withInstagramSetupHelp(
+        j?.error,
+        "Impossible d'enregistrer Instagram.",
+      );
+      setPanelError(setupError, setupError, 6000);
       return false;
     }
   }, [igAccounts, igSelectedPageId, patchChannelConnectionLocally, triggerChannelRefresh, updateRootSettingsKey, setPanelSuccess, setPanelError, syncInstagramStateFromServer]);

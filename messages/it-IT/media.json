@@ -462,5 +462,12 @@
   "vos_images_et_videos_inrcy_58912437": "Le tue immagini e i tuoi video iNrCy",
   "vos_photos_logos_et_videos_restent_a7a8faf5": "Le tue foto, i tuoi loghi e i tuoi video rimangono privati. iNr’Agent li utilizza principalmente per preparare post più autentici.",
   "ai_generator_premium_only_short": "Premium",
-  "ai_generator_video_premium_required": "Standard include 5 video da 10 s al mese. I formati da 20 e 30 s richiedono Premium o Founder."
+  "ai_generator_video_premium_required": "Standard include 5 video da 10 s al mese. I formati da 20 e 30 s richiedono Premium o Founder.",
+  "ai_generator_inspiration_title": "Immagini di ispirazione",
+  "ai_generator_inspiration_hint": "Aggiungi fino a 3 immagini per guidare il video. I video non sono accettati.",
+  "ai_generator_inspiration_ready": "Immagine pronta",
+  "ai_generator_inspiration_remove": "Rimuovi immagine",
+  "ai_generator_inspiration_preparing": "Preparazione…",
+  "ai_generator_inspiration_add": "Aggiungi immagini",
+  "ai_generator_inspiration_summary": " · {count, plural, one {# foto} other {# foto}}"
 }

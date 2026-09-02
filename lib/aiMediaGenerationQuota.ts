@@ -361,7 +361,7 @@ export async function reserveAiMediaGeneration(params: {
   }
   if (
     typeof params.limitOverride !== "undefined" &&
-    (!Number.isInteger(params.limitOverride) || params.limitOverride < 1 || params.limitOverride > 10000)
+    (!Number.isInteger(params.limitOverride) || params.limitOverride < 0 || params.limitOverride > 10000)
   ) {
     inputError("ai_media_invalid_limit", "Le plafond media IA est invalide.");
   }

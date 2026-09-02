@@ -614,5 +614,10 @@
   "optimized_media_destination_unavailable": "Das Ziel für das optimierte Medium ist in iNr’Agent nicht mehr verfügbar.",
   "optimized_media_still_too_large": "Das optimierte Medium ist weiterhin größer als 20 MB.",
   "optimized_media_insert_failed": "Das optimierte Medium wurde erstellt, konnte aber nicht in iNr’Agent eingefügt werden.",
-  "agent_channels_unavailable": "Verbundene Kanäle sind nicht verfügbar."
+  "agent_channels_unavailable": "Verbundene Kanäle sind nicht verfügbar.",
+  "preferred_media_title": "Bevorzugter Inhalt",
+  "preferred_media_hint": "iNr’Agent versucht zuerst diese Quelle und nutzt intelligent eine andere, wenn kein passendes Medium verfügbar ist.",
+  "preferred_media_library": "Mediathek",
+  "preferred_media_bank": "iNrCy-Bildbank",
+  "preferred_media_ai": "KI-Generierung"
 }

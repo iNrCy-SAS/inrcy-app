@@ -6302,6 +6302,39 @@ export default function AgentClient() {
                     })}
                   </div>
                 </div>
+
+                {settingsAutomation.key === "publish" && (
+                  <div className={styles.modalSection}>
+                    <span>{i18nT("preferred_media_title")}</span>
+                    <p className={styles.modalHint}>
+                      {i18nT("preferred_media_hint")}
+                    </p>
+                    <div className={styles.choiceGrid}>
+                      {([
+                        ["media_library", "preferred_media_library"],
+                        ["image_bank", "preferred_media_bank"],
+                        ["ai_generation", "preferred_media_ai"],
+                      ] as const).map(([value, label]) => (
+                        <button
+                          type="button"
+                          key={value}
+                          className={
+                            settingsConfig.preferredMediaSource === value
+                              ? styles.choiceActive
+                              : ""
+                          }
+                          onClick={() =>
+                            updateConfig(settingsAutomation.key, {
+                              preferredMediaSource: value,
+                            })
+                          }
+                        >
+                          {i18nT(label)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </>
             )}
 

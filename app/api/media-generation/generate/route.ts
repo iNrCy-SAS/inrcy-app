@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createHash } from "node:crypto";
 
 import {
   AiGatewayAccountLimitError,
@@ -46,7 +47,10 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 800;
 
 const NO_STORE_HEADERS = { "Cache-Control": "private, no-store, max-age=0" };
-const MAX_BODY_BYTES = 16 * 1024;
+// L'image d'inspiration est compressee a moins de 1,8 Mo par le navigateur.
+// La limite reste sous le plafond HTTP Vercel tout en refusant les charges
+// arbitraires avant tout appel payant.
+const MAX_BODY_BYTES = 3 * 1024 * 1024;
 
 type RouteContext = {
   accountId: string;
@@ -245,11 +249,26 @@ async function readRequestBody(request: Request) {
   if (declaredLength > MAX_BODY_BYTES) {
     throw new AiMediaRequestValidationError("Demande de média trop volumineuse.");
   }
+  let rawBody = "";
   try {
-    return await request.json();
+    rawBody = await request.text();
   } catch {
     throw new AiMediaRequestValidationError("Corps JSON invalide.");
   }
+  if (rawBody.length > MAX_BODY_BYTES) {
+    throw new AiMediaRequestValidationError("Demande de média trop volumineuse.");
+  }
+  try {
+    return JSON.parse(rawBody);
+  } catch {
+    throw new AiMediaRequestValidationError("Corps JSON invalide.");
+  }
+}
+
+function inspirationImageSha256(request: AiMediaGenerationRequest) {
+  return request.inspirationImages.map((image) =>
+    createHash("sha256").update(image.data).digest("hex"),
+  );
 }
 
 function generationFingerprint(request: AiMediaGenerationRequest) {
@@ -273,6 +292,7 @@ function generationFingerprint(request: AiMediaGenerationRequest) {
     useBrandColors: request.useBrandColors,
     logoMode: request.logoMode,
     durationSeconds: request.durationSeconds,
+    inspirationImageSha256: inspirationImageSha256(request),
     source: request.source,
   });
 }
@@ -391,6 +411,8 @@ export async function POST(request: Request) {
         use_brand_colors: normalizedRequest.useBrandColors,
         logo_mode: normalizedRequest.logoMode,
         duration_seconds: normalizedRequest.durationSeconds,
+        inspiration_image_count: normalizedRequest.inspirationImages.length,
+        inspiration_image_sha256: inspirationImageSha256(normalizedRequest),
       },
     });
 

@@ -30,6 +30,14 @@ export type AiMediaPeopleMode = "auto" | "none" | "solo" | "team";
 export type AiMediaCreativity = "faithful" | "bold";
 export type AiMediaLogoMode = "discreet" | "visible" | "none";
 export type AiMediaVideoDuration = 10 | 20 | 30;
+export type AiMediaInspirationImage = {
+  mimeType: "image/jpeg" | "image/png" | "image/webp";
+  /** Octets de l'image encodes en base64, sans prefixe data:. */
+  data: string;
+};
+
+export const AI_MEDIA_INSPIRATION_MAX_COUNT = 3;
+export const AI_MEDIA_INSPIRATION_MAX_IMAGE_BASE64_CHARS = 800_000;
 
 export type AiMediaFormatSpec = {
   format: AiMediaOutputFormat;
@@ -97,6 +105,7 @@ export type AiMediaGenerationRequest = {
   useBrandColors: boolean;
   logoMode: AiMediaLogoMode;
   durationSeconds: AiMediaVideoDuration | null;
+  inspirationImages: AiMediaInspirationImage[];
   source: AiMediaSurface;
 };
 
@@ -170,6 +179,57 @@ function normalizeTextKeywords(value: unknown) {
     if (keywords.length >= 6) break;
   }
   return keywords;
+}
+
+function normalizeInspirationImages(
+  value: unknown,
+  kind: AiMediaKind,
+): AiMediaInspirationImage[] {
+  if (
+    value === null ||
+    typeof value === "undefined" ||
+    value === "" ||
+    (Array.isArray(value) && value.length === 0)
+  ) {
+    return [];
+  }
+  if (kind !== "video") {
+    throw new AiMediaRequestValidationError(
+      "Le fichier d’inspiration est disponible uniquement pour une vidéo.",
+    );
+  }
+  const values = Array.isArray(value) ? value : [value];
+  if (!values.length || values.length > AI_MEDIA_INSPIRATION_MAX_COUNT) {
+    throw new AiMediaRequestValidationError(
+      "Ajoutez entre une et trois images d’inspiration.",
+    );
+  }
+  return values.map((candidate) => {
+    const source =
+      candidate && typeof candidate === "object" && !Array.isArray(candidate)
+        ? (candidate as Record<string, unknown>)
+        : null;
+    const mimeType = String(source?.mimeType ?? "").trim().toLowerCase();
+    if (!(["image/jpeg", "image/png", "image/webp"] as string[]).includes(mimeType)) {
+      throw new AiMediaRequestValidationError(
+        "Format d’image d’inspiration invalide. Utilisez JPG, PNG ou WebP.",
+      );
+    }
+    const data = typeof source?.data === "string" ? source.data.trim() : "";
+    if (
+      data.length < 64 ||
+      data.length > AI_MEDIA_INSPIRATION_MAX_IMAGE_BASE64_CHARS ||
+      !/^[A-Za-z0-9+/]+={0,2}$/.test(data)
+    ) {
+      throw new AiMediaRequestValidationError(
+        "Une image d’inspiration est invalide ou trop volumineuse.",
+      );
+    }
+    return {
+      mimeType: mimeType as AiMediaInspirationImage["mimeType"],
+      data,
+    };
+  });
 }
 
 export function normalizeAiMediaGenerationRequest(
@@ -305,6 +365,7 @@ export function normalizeAiMediaGenerationRequest(
     logoMode: logoMode as AiMediaLogoMode,
     durationSeconds:
       kind === "video" ? (requestedDuration as AiMediaVideoDuration) : null,
+    inspirationImages: normalizeInspirationImages(body.inspirationImages, kind),
     source,
   };
 }

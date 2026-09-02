@@ -6,6 +6,7 @@ import { join } from "node:path";
 
 import {
   GoogleGenAI,
+  VideoGenerationReferenceType,
   type GenerateVideosOperation,
   type Video,
 } from "@google/genai";
@@ -282,6 +283,11 @@ function scenePrompt(
       `PRIMARY SUBJECT — visually unmistakable: ${primarySubject}.`,
       `REQUIRED VISUAL PROOF: ${visualEvidence}.`,
       sceneDirection ? `Shot action: ${sceneDirection}.` : "",
+      args.request.inspirationImages.length && index === 0
+        ? args.request.inspirationImages.length === 1
+          ? "Animate the supplied initial image naturally. Preserve its principal subject, composition, colors and visual identity; do not replace it with an unrelated scene."
+          : "Use every supplied asset reference to preserve the appearance of the referenced person, character, product or object. Keep the result coherent with the exact business subject."
+        : "",
       "Keep every named trade, product, animal, object, action or place central; never switch category or use generic corporate imagery.",
       "Digital subject: show relevant devices and app UI with unlabeled shapes, icons and images only.",
       "No readable text, letters, numbers, captions, signs, logos, watermarks, fake writing, posters, slides or borders.",
@@ -308,6 +314,7 @@ async function submitOperation(args: {
   prompt: string;
   durationSeconds: 4 | 6 | 8;
   aspectRatio: "16:9" | "9:16";
+  inspirationImages?: AiVideoProviderGenerationArgs["request"]["inspirationImages"];
   signal: AbortSignal;
 }) {
   let lastError: unknown = null;
@@ -315,7 +322,17 @@ async function submitOperation(args: {
     try {
       return await args.ai.models.generateVideos({
         model: args.model,
-        source: { prompt: args.prompt },
+        source: {
+          prompt: args.prompt,
+          ...(args.inspirationImages?.length === 1
+            ? {
+                image: {
+                  imageBytes: args.inspirationImages[0].data,
+                  mimeType: args.inspirationImages[0].mimeType,
+                },
+              }
+            : {}),
+        },
         // Gemini Developer API / Veo 3.1 Fast whitelist. Do not add generic
         // GenerateVideosConfig fields here unless the Veo model contract lists
         // them explicitly. Audio, one output and 720p are model defaults.
@@ -323,6 +340,20 @@ async function submitOperation(args: {
           abortSignal: args.signal,
           durationSeconds: args.durationSeconds,
           aspectRatio: args.aspectRatio,
+          ...(args.inspirationImages?.length
+            ? { personGeneration: "allow_adult" }
+            : {}),
+          ...(args.inspirationImages && args.inspirationImages.length > 1
+            ? {
+                referenceImages: args.inspirationImages.map((image) => ({
+                  image: {
+                    imageBytes: image.data,
+                    mimeType: image.mimeType,
+                  },
+                  referenceType: VideoGenerationReferenceType.ASSET,
+                })),
+              }
+            : {}),
         },
       });
     } catch (error) {
@@ -379,6 +410,7 @@ async function generateClip(args: {
   prompt: string;
   durationSeconds: 4 | 6 | 8;
   aspectRatio: "16:9" | "9:16";
+  inspirationImages?: AiVideoProviderGenerationArgs["request"]["inspirationImages"];
   timeoutMs: number;
   pollMs: number;
   onSubmitted: () => void;
@@ -473,8 +505,17 @@ export const googleVeoVideoProvider: AiVideoProvider = {
       DEFAULT_COST_MICRO_USD_PER_SECOND,
       1_000_000
     );
-    const durations = getAiMediaVideoSegmentDurations(
+    const requestedDurations = getAiMediaVideoSegmentDurations(
       args.request.durationSeconds || 20
+    );
+    // Google impose 8 secondes sur un appel utilisant 2 ou 3 images de
+    // reference. Le composeur coupe ensuite proprement l'excedent eventuel
+    // afin de conserver exactement la duree commerciale choisie.
+    const durations: Array<4 | 6 | 8> = requestedDurations.map(
+      (duration, index) =>
+        args.request.inspirationImages.length > 1 && index === 0
+          ? 8
+          : duration,
     );
     if (args.plan.scenes.length !== durations.length) {
       throw new Error("ai_video_veo_scene_count_invalid");
@@ -508,6 +549,8 @@ export const googleVeoVideoProvider: AiVideoProvider = {
               prompt: scenePrompt(args, index, durationSeconds),
               durationSeconds,
               aspectRatio: aspectRatio(args.request.format),
+              inspirationImages:
+                index === 0 ? args.request.inspirationImages : [],
               timeoutMs,
               pollMs,
               signal: args.signal,

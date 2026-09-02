@@ -41,6 +41,11 @@ export type MediaGenerationPeopleMode = "auto" | "none" | "solo" | "team";
 export type MediaGenerationCreativity = "faithful" | "bold";
 export type MediaGenerationLogoMode = "discreet" | "visible" | "none";
 export type MediaGenerationVideoDuration = 10 | 20 | 30;
+export type MediaGenerationInspirationImage = {
+  mimeType: "image/jpeg" | "image/png" | "image/webp";
+  data: string;
+  name: string;
+};
 
 export type MediaGenerationQuotaCounter = {
   limit: number | null;
@@ -95,6 +100,7 @@ export type MediaGenerationRequest = {
   useBrandColors: boolean;
   logoMode: MediaGenerationLogoMode;
   durationSeconds?: MediaGenerationVideoDuration;
+  inspirationImages?: MediaGenerationInspirationImage[];
   source: MediaGenerationSource;
 };
 
@@ -334,6 +340,15 @@ function buildGenerationAttemptKey(
     logoMode: request.logoMode,
     durationSeconds:
       request.kind === "video" ? request.durationSeconds || 20 : null,
+    inspirationImages:
+      request.kind === "video"
+        ? (request.inspirationImages || []).map((image) => ({
+            mimeType: image.mimeType,
+            length: image.data.length,
+            start: image.data.slice(0, 32),
+            end: image.data.slice(-32),
+          }))
+        : [],
     source: request.source,
   });
 }
@@ -628,6 +643,13 @@ export default function useMediaGeneration() {
             durationSeconds:
               request.kind === "video"
                 ? request.durationSeconds || 20
+                : undefined,
+            inspirationImages:
+              request.kind === "video"
+                ? (request.inspirationImages || []).map((image) => ({
+                    mimeType: image.mimeType,
+                    data: image.data,
+                  }))
                 : undefined,
             source: request.source,
           }),

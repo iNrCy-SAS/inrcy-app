@@ -614,5 +614,10 @@
   "optimized_media_destination_unavailable": "De bestemming van het geoptimaliseerde medium is niet langer beschikbaar in iNr’Agent.",
   "optimized_media_still_too_large": "Het geoptimaliseerde medium is nog steeds groter dan 20 MB.",
   "optimized_media_insert_failed": "Het geoptimaliseerde medium is aangemaakt, maar kon niet aan iNr’Agent worden toegevoegd.",
-  "agent_channels_unavailable": "Verbonden kanalen zijn niet beschikbaar."
+  "agent_channels_unavailable": "Verbonden kanalen zijn niet beschikbaar.",
+  "preferred_media_title": "Voorkeursinhoud",
+  "preferred_media_hint": "iNr’Agent probeert eerst deze bron en gebruikt slim een andere bron als er geen geschikt medium beschikbaar is.",
+  "preferred_media_library": "Mediabibliotheek",
+  "preferred_media_bank": "iNrCy-beeldbank",
+  "preferred_media_ai": "AI-generatie"
 }

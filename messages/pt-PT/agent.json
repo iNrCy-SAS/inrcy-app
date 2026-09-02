@@ -614,5 +614,10 @@
   "optimized_media_destination_unavailable": "O destino do conteúdo multimédia otimizado já não está disponível no iNr’Agent.",
   "optimized_media_still_too_large": "O conteúdo multimédia otimizado ainda excede 20 MB.",
   "optimized_media_insert_failed": "O conteúdo multimédia otimizado foi criado, mas não foi possível inseri-lo no iNr’Agent.",
-  "agent_channels_unavailable": "Canais ligados indisponíveis."
+  "agent_channels_unavailable": "Canais ligados indisponíveis.",
+  "preferred_media_title": "Conteúdo preferido",
+  "preferred_media_hint": "O iNr’Agent tenta primeiro esta fonte e utiliza inteligentemente outra se não encontrar um média adequado.",
+  "preferred_media_library": "Biblioteca multimédia",
+  "preferred_media_bank": "Banco iNrCy",
+  "preferred_media_ai": "Geração por IA"
 }

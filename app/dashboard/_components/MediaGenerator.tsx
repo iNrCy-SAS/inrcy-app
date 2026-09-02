@@ -9,6 +9,7 @@ import useMediaGeneration, {
   type MediaGenerationFormat,
   type MediaGenerationCreativity,
   type MediaGenerationImageStyle,
+  type MediaGenerationInspirationImage,
   type MediaGenerationKind,
   type MediaGenerationLogoMode,
   type MediaGenerationPeopleMode,
@@ -77,6 +78,105 @@ const PEOPLE_MODES: MediaGenerationPeopleMode[] = ["auto", "none", "solo", "team
 const CREATIVITY_LEVELS: MediaGenerationCreativity[] = ["faithful", "bold"];
 const LOGO_MODES: MediaGenerationLogoMode[] = ["discreet", "visible", "none"];
 const MAX_TEXT_KEYWORDS = 6;
+const MAX_INSPIRATION_SOURCE_BYTES = 12 * 1024 * 1024;
+const MAX_INSPIRATION_OUTPUT_BYTES = 560_000;
+const MAX_INSPIRATION_DIMENSION = 1_280;
+const MAX_INSPIRATION_IMAGES = 3;
+
+function canvasBlob(
+  canvas: HTMLCanvasElement,
+  quality: number,
+): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) =>
+        blob
+          ? resolve(blob)
+          : reject(new Error("L’image d’inspiration n’a pas pu être préparée.")),
+      "image/jpeg",
+      quality,
+    );
+  });
+}
+
+function blobBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("L’image d’inspiration n’a pas pu être lue."));
+    reader.onload = () => {
+      const value = typeof reader.result === "string" ? reader.result : "";
+      const separator = value.indexOf(",");
+      if (separator < 0) {
+        reject(new Error("L’image d’inspiration est invalide."));
+        return;
+      }
+      resolve(value.slice(separator + 1));
+    };
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function prepareInspirationImage(
+  file: File,
+): Promise<MediaGenerationInspirationImage> {
+  if (!(["image/jpeg", "image/png", "image/webp"] as string[]).includes(file.type)) {
+    throw new Error("Utilisez une image JPG, PNG ou WebP.");
+  }
+  if (!file.size || file.size > MAX_INSPIRATION_SOURCE_BYTES) {
+    throw new Error("L’image d’inspiration doit peser moins de 12 Mo.");
+  }
+
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const image = new Image();
+    image.decoding = "async";
+    await new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve();
+      image.onerror = () => reject(new Error("L’image d’inspiration est illisible."));
+      image.src = objectUrl;
+    });
+    if (!image.naturalWidth || !image.naturalHeight) {
+      throw new Error("L’image d’inspiration est illisible.");
+    }
+
+    let scale = Math.min(
+      1,
+      MAX_INSPIRATION_DIMENSION / Math.max(image.naturalWidth, image.naturalHeight),
+    );
+    let output: Blob | null = null;
+    for (let resizeAttempt = 0; resizeAttempt < 4; resizeAttempt += 1) {
+      const width = Math.max(1, Math.round(image.naturalWidth * scale));
+      const height = Math.max(1, Math.round(image.naturalHeight * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext("2d", { alpha: false });
+      if (!context) throw new Error("L’image d’inspiration n’a pas pu être préparée.");
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, width, height);
+      context.drawImage(image, 0, 0, width, height);
+      for (const quality of [0.88, 0.78, 0.68]) {
+        const candidate = await canvasBlob(canvas, quality);
+        if (candidate.size <= MAX_INSPIRATION_OUTPUT_BYTES) {
+          output = candidate;
+          break;
+        }
+      }
+      if (output) break;
+      scale *= 0.78;
+    }
+    if (!output) {
+      throw new Error("L’image reste trop volumineuse après optimisation.");
+    }
+    return {
+      mimeType: "image/jpeg",
+      data: await blobBase64(output),
+      name: file.name.slice(0, 120) || "inspiration.jpg",
+    };
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
 
 function normalizeTextKeywordValues(values: readonly string[]) {
   const normalized: string[] = [];
@@ -150,6 +250,9 @@ export default function MediaGenerator({
   const [textKeywordDraft, setTextKeywordDraft] = useState("");
   const [withMusic, setWithMusic] = useState(true);
   const [withNarration, setWithNarration] = useState(true);
+  const [inspirationImages, setInspirationImages] =
+    useState<MediaGenerationInspirationImage[]>([]);
+  const [inspirationBusy, setInspirationBusy] = useState(false);
   const [expandedStep, setExpandedStep] = useState<1 | 2 | 3 | 4 | 5 | 6 | null>(null);
   const [voiceBusy, setVoiceBusy] = useState(false);
   const [creationScreen, setCreationScreen] = useState(false);
@@ -160,7 +263,7 @@ export default function MediaGenerator({
   const generationSequenceRef = useRef(0);
   const acceptInFlightRef = useRef(false);
   const busy = generationBusy || discarding;
-  const operationLocked = busy || finishing || voiceBusy;
+  const operationLocked = busy || finishing || voiceBusy || inspirationBusy;
 
   useEffect(() => {
     void loadQuota();
@@ -234,6 +337,8 @@ export default function MediaGenerator({
         ? t("ai_generator_unlimited")
         : counter?.limit === null || !counter
         ? "—"
+        : counter.limit === 0
+        ? "0 / 0"
         : `${counter.used + counter.reserved} / ${counter.limit}`;
 
   const clearTransientState = () => {
@@ -294,6 +399,7 @@ export default function MediaGenerator({
         useBrandColors,
         logoMode,
         durationSeconds: kind === "video" ? durationSeconds : undefined,
+        inspirationImages: kind === "video" ? inspirationImages : [],
       });
     } catch (caught) {
       if (sequence !== generationSequenceRef.current) return;
@@ -560,6 +666,11 @@ export default function MediaGenerator({
             </span>
             <span className={styles.sectionSelection}>
               {t(`ai_generator_subject_${subjectSource}`)} · {t(kind === "image" ? "image_50e19fda" : "video_304f6ca4")}
+              {kind === "video" && inspirationImages.length
+                ? t("ai_generator_inspiration_summary", {
+                    count: inspirationImages.length,
+                  })
+                : ""}
             </span>
             <i aria-hidden="true">⌄</i>
           </button>
@@ -614,6 +725,94 @@ export default function MediaGenerator({
                   />
                 </div>
                 {customIdea.trim().length > 0 && customIdea.trim().length < 3 ? <small>{t("ai_generator_custom_too_short")}</small> : null}
+                </div>
+              ) : null}
+              {kind === "video" ? (
+                <div className={styles.inspirationSection}>
+                  <strong className={styles.combinedSectionTitle}>
+                    {t("ai_generator_inspiration_title")}
+                  </strong>
+                  <p>{t("ai_generator_inspiration_hint")}</p>
+                  {inspirationImages.length ? (
+                    <div className={styles.inspirationPreviews}>
+                      {inspirationImages.map((image, index) => (
+                        <div
+                          key={`${image.name}-${index}`}
+                          className={styles.inspirationPreview}
+                        >
+                          <img
+                            src={`data:${image.mimeType};base64,${image.data}`}
+                            alt=""
+                          />
+                          <span>
+                            <strong>{image.name}</strong>
+                            <small>{t("ai_generator_inspiration_ready")}</small>
+                          </span>
+                          <button
+                            type="button"
+                            disabled={operationLocked}
+                            aria-label={t("ai_generator_inspiration_remove")}
+                            onClick={() => {
+                              setInspirationImages((current) =>
+                                current.filter((_, itemIndex) => itemIndex !== index),
+                              );
+                              if (actionError || error) clearTransientState();
+                            }}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                  {inspirationImages.length < MAX_INSPIRATION_IMAGES ? (
+                    <label className={styles.inspirationPicker}>
+                      <span aria-hidden="true">＋</span>
+                      <strong>
+                        {inspirationBusy
+                          ? t("ai_generator_inspiration_preparing")
+                          : t("ai_generator_inspiration_add")}
+                      </strong>
+                      <small>
+                        {inspirationImages.length} / {MAX_INSPIRATION_IMAGES}
+                      </small>
+                      <input
+                        type="file"
+                        multiple
+                        accept="image/jpeg,image/png,image/webp"
+                        disabled={operationLocked}
+                        onChange={(event) => {
+                          const remaining =
+                            MAX_INSPIRATION_IMAGES - inspirationImages.length;
+                          const files = Array.from(event.currentTarget.files || []).slice(
+                            0,
+                            remaining,
+                          );
+                          event.currentTarget.value = "";
+                          if (!files.length) return;
+                          setInspirationBusy(true);
+                          setActionError("");
+                          void Promise.all(files.map(prepareInspirationImage))
+                            .then((prepared) =>
+                              setInspirationImages((current) =>
+                                [...current, ...prepared].slice(
+                                  0,
+                                  MAX_INSPIRATION_IMAGES,
+                                ),
+                              ),
+                            )
+                            .catch((caught) =>
+                              setActionError(
+                                caught instanceof Error
+                                  ? caught.message
+                                  : t("ai_generator_error"),
+                              ),
+                            )
+                            .finally(() => setInspirationBusy(false));
+                        }}
+                      />
+                    </label>
+                  ) : null}
                 </div>
               ) : null}
             </div>

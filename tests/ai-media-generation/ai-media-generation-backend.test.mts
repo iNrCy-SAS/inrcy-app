@@ -19,6 +19,7 @@ const read = (relativePath: string) =>
   readFileSync(path.join(ROOT, relativePath), "utf8");
 
 test("le contrat réduit les options au média demandé", () => {
+  const inspirationData = Buffer.alloc(96, 7).toString("base64");
   const image = normalizeAiMediaGenerationRequest({
     requestId: "media-request-0001",
     kind: "image",
@@ -59,6 +60,7 @@ test("le contrat réduit les options au média demandé", () => {
   assert.equal(image.creativity, "faithful");
   assert.equal(image.useBrandColors, true);
   assert.equal(image.logoMode, "discreet");
+  assert.deepEqual(image.inspirationImages, []);
 
   const video = normalizeAiMediaGenerationRequest({
     requestId: "media-request-0002",
@@ -78,6 +80,11 @@ test("le contrat réduit les options au média demandé", () => {
     useBrandColors: false,
     logoMode: "visible",
     durationSeconds: 30,
+    inspirationImages: [
+      { mimeType: "image/jpeg", data: inspirationData },
+      { mimeType: "image/png", data: inspirationData },
+      { mimeType: "image/webp", data: inspirationData },
+    ],
     source: "studio",
   });
   assert.equal(video.withText, true);
@@ -93,6 +100,36 @@ test("le contrat réduit les options au média demandé", () => {
   assert.equal(video.useBrandColors, false);
   assert.equal(video.logoMode, "visible");
   assert.equal(video.durationSeconds, 30);
+  assert.equal(video.inspirationImages.length, 3);
+  assert.deepEqual(
+    video.inspirationImages.map((item) => item.mimeType),
+    ["image/jpeg", "image/png", "image/webp"],
+  );
+  assert.throws(
+    () =>
+      normalizeAiMediaGenerationRequest({
+        requestId: "media-request-image-ref",
+        kind: "image",
+        subjectSource: "profile",
+        inspirationImages: [{ mimeType: "image/jpeg", data: inspirationData }],
+        source: "studio",
+      }),
+    AiMediaRequestValidationError,
+  );
+  assert.throws(
+    () =>
+      normalizeAiMediaGenerationRequest({
+        requestId: "media-request-four-refs",
+        kind: "video",
+        subjectSource: "profile",
+        inspirationImages: Array.from({ length: 4 }, () => ({
+          mimeType: "image/jpeg",
+          data: inspirationData,
+        })),
+        source: "studio",
+      }),
+    AiMediaRequestValidationError,
+  );
   assert.throws(
     () =>
       normalizeAiMediaGenerationRequest({
@@ -332,14 +369,17 @@ test("image Gateway, vidéo Veo et médiathèque respectent le contrat universel
   assert.match(veo, /process\.env\.GEMINI_API_KEY/);
   assert.match(veo, /new GoogleGenAI/);
   assert.match(veo, /generateVideos/);
-  assert.match(veo, /source:\s*\{ prompt: args\.prompt \}/);
+  assert.match(veo, /source:\s*\{[\s\S]*?prompt: args\.prompt/);
   assert.doesNotMatch(veo, /\bseed:/);
   assert.doesNotMatch(veo, /stableSeed/);
   assert.doesNotMatch(veo, /generateAudio/);
   assert.doesNotMatch(veo, /enhancePrompt/);
   assert.doesNotMatch(veo, /negativePrompt/);
   assert.doesNotMatch(veo, /numberOfVideos/);
-  assert.doesNotMatch(veo, /personGeneration/);
+  assert.match(veo, /personGeneration: "allow_adult"/);
+  assert.match(veo, /referenceImages:/);
+  assert.match(veo, /VideoGenerationReferenceType\.ASSET/);
+  assert.match(veo, /imageBytes: args\.inspirationImages\[0\]\.data/);
   assert.doesNotMatch(veo, /resolution: "720p"/);
   assert.match(veo, /getVideosOperation/);
   assert.match(veo, /raiMediaFilteredReasons/);

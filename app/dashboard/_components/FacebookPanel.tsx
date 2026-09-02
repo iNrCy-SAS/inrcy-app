@@ -45,16 +45,19 @@ export default function FacebookPanel(props: any) {
       : facebookAccountConnected
         ? "rgba(59,130,246,0.95)"
         : "rgba(148,163,184,0.9)";
+  const facebookPageDetected = fbPagesPhase === "connecting";
   const facebookPageActivity =
     facebookPageBusy && facebookPageAction === "disconnect"
       ? "disconnecting"
-      : facebookPageBusy || fbPagesPhase === "connecting"
+      : facebookPageBusy
         ? "connecting"
         : fbPagesPhase === "searching" || fbPagesLoading
           ? "searching"
           : undefined;
   const facebookPageActivityLabel =
-    facebookPageActivity === "searching"
+    facebookPageDetected && !facebookPageActivity
+      ? i18nT("connecte_ce09957c")
+      : facebookPageActivity === "searching"
       ? "Recherche des pages…"
       : facebookPageActivity === "disconnecting"
         ? "Déconnexion en cours…"
@@ -213,7 +216,7 @@ export default function FacebookPanel(props: any) {
           <div className={styles.blockHeaderRow}>
             <div className={styles.blockTitle}>{i18nT("page_a_connecter_88e541ee")}</div>
             <ConnectionPill
-              connected={facebookPageConnected}
+              connected={facebookPageConnected || facebookPageDetected}
               status={facebookNeedsUpdate ? "needs_update" : undefined}
               activity={facebookPageActivity}
               label={facebookPageActivityLabel}

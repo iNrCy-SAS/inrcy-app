@@ -601,6 +601,120 @@
   font-weight: 900;
 }
 
+.inspirationSection {
+  margin-top: 13px;
+  padding-top: 13px;
+  border-top: 1px solid rgba(113, 178, 245, 0.12);
+}
+
+.inspirationSection > p {
+  margin: -4px 0 9px;
+  color: rgba(205, 221, 247, 0.58);
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.inspirationPreviews {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  margin-bottom: 8px;
+}
+
+.inspirationPreview {
+  position: relative;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  padding: 6px;
+  border: 1px solid rgba(93, 218, 255, 0.18);
+  border-radius: 11px;
+  background: rgba(12, 29, 62, 0.72);
+}
+
+.inspirationPreview img {
+  width: 46px;
+  height: 46px;
+  display: block;
+  border-radius: 8px;
+  object-fit: cover;
+  background: #040b1d;
+}
+
+.inspirationPreview > span {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.inspirationPreview strong,
+.inspirationPreview small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inspirationPreview strong {
+  color: #f7fbff;
+  font-size: 8.5px;
+}
+
+.inspirationPreview small {
+  color: #8ceacc;
+  font-size: 7.5px;
+}
+
+.inspirationPreview button {
+  width: 23px;
+  height: 23px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(255, 138, 165, 0.22);
+  border-radius: 7px;
+  color: #ffc2d0;
+  background: rgba(155, 43, 76, 0.16);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.inspirationPicker {
+  position: relative;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border: 1px dashed rgba(89, 218, 255, 0.32);
+  border-radius: 11px;
+  color: #dff8ff;
+  background: linear-gradient(135deg, rgba(38, 181, 224, 0.08), rgba(121, 82, 234, 0.1));
+  font-size: 9.5px;
+  cursor: pointer;
+}
+
+.inspirationPicker > span {
+  color: #7feaff;
+  font-size: 17px;
+}
+
+.inspirationPicker > small {
+  color: rgba(191, 218, 248, 0.58);
+  font-size: 8px;
+}
+
+.inspirationPicker input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .durationChoices button {
   min-height: 58px;
   display: grid;
@@ -898,6 +1012,14 @@
   cursor: not-allowed;
   opacity: 0.45;
   filter: grayscale(0.45);
+}
+
+.generateButton:disabled {
+  color: rgba(229, 234, 245, 0.72);
+  background: linear-gradient(100deg, #465065, #545a72 55%, #665467);
+  box-shadow: none;
+  opacity: 0.72;
+  filter: saturate(0.12);
 }
 
 .warning,
@@ -1513,6 +1635,7 @@ textarea:focus-visible,
   .styleChoices { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .parameterChoices { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .parameterChoices.threeChoices { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .inspirationPreviews { grid-template-columns: 1fr; }
   .footerBar {
     display: grid;
     grid-template-columns: minmax(0, 1fr);

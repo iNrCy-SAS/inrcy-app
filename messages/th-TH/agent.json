@@ -614,5 +614,10 @@
   "optimized_media_destination_unavailable": "ปลายทางสื่อที่ปรับให้เหมาะสมไม่มีให้บริการใน iNr’Agent อีกต่อไป",
   "optimized_media_still_too_large": "สื่อที่ปรับให้เหมาะสมยังคงมีขนาดเกิน 20 MB",
   "optimized_media_insert_failed": "มีการสร้างสื่อที่ปรับให้เหมาะสมแล้ว แต่ไม่สามารถแทรกลงใน iNr’Agent",
-  "agent_channels_unavailable": "ช่องที่เชื่อมต่อไม่พร้อมใช้งาน"
+  "agent_channels_unavailable": "ช่องที่เชื่อมต่อไม่พร้อมใช้งาน",
+  "preferred_media_title": "เนื้อหาที่ต้องการ",
+  "preferred_media_hint": "iNr’Agent จะลองใช้แหล่งนี้ก่อน แล้วเลือกแหล่งอื่นอย่างชาญฉลาดเมื่อไม่มีสื่อที่เหมาะสม",
+  "preferred_media_library": "คลังสื่อ",
+  "preferred_media_bank": "คลังภาพ iNrCy",
+  "preferred_media_ai": "สร้างด้วย AI"
 }

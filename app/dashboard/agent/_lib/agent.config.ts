@@ -395,6 +395,7 @@ export const defaultConfigs: Record<AutomationKey, AutomationConfig> = {
     validation: "Validation obligatoire avant publication",
     source: "Contenus déjà publiés + canaux Booster / Publier connectés",
     signatureAutomatic: true,
+    preferredMediaSource: "media_library",
   },
   grow: {
     enabled: false,
@@ -410,6 +411,7 @@ export const defaultConfigs: Record<AutomationKey, AutomationConfig> = {
     validation: "Validation obligatoire avant envoi",
     source: "Publications déjà faites + rubriques Propulser",
     signatureAutomatic: true,
+    preferredMediaSource: "media_library",
   },
   loyalty: {
     enabled: false,
@@ -425,6 +427,7 @@ export const defaultConfigs: Record<AutomationKey, AutomationConfig> = {
     validation: "Validation obligatoire avant envoi",
     source: "Publications déjà faites + rubriques Fidéliser",
     signatureAutomatic: true,
+    preferredMediaSource: "media_library",
   },
   stats: {
     enabled: false,
@@ -447,6 +450,7 @@ export const defaultConfigs: Record<AutomationKey, AutomationConfig> = {
     validation: "Bilan automatique",
     source: "Rubriques iNr’Stats connectées",
     signatureAutomatic: true,
+    preferredMediaSource: "media_library",
   },
 };
 

@@ -614,5 +614,10 @@
   "optimized_media_destination_unavailable": "The destination for the optimised media is no longer available in iNr’Agent.",
   "optimized_media_still_too_large": "The optimised media still exceeds 20 MB.",
   "optimized_media_insert_failed": "The optimised media was created but could not be added to iNr’Agent.",
-  "agent_channels_unavailable": "Connected channels are unavailable."
+  "agent_channels_unavailable": "Connected channels are unavailable.",
+  "preferred_media_title": "Preferred content",
+  "preferred_media_hint": "iNr’Agent tries this source first, then intelligently falls back to another source when no suitable media is available.",
+  "preferred_media_library": "Media library",
+  "preferred_media_bank": "iNrCy library",
+  "preferred_media_ai": "AI generation"
 }

@@ -13,16 +13,16 @@ import {
 test("les plafonds mensuels sont propres a chaque edition", () => {
   assert.deepEqual(AI_MEDIA_MONTHLY_LIMITS, {
     standard: { image: 20, video: 5, studioEnabled: true },
-    premium: { image: 30, video: 10, studioEnabled: true },
-    founder: { image: 30, video: 10, studioEnabled: true },
+    premium: { image: 30, video: 6, studioEnabled: true },
+    founder: { image: 30, video: 6, studioEnabled: true },
   });
 
   assert.equal(getAiMediaMonthlyLimit("standard", "image"), 20);
   assert.equal(getAiMediaMonthlyLimit("standard", "video"), 5);
   assert.equal(getAiMediaMonthlyLimit("premium", "image"), 30);
-  assert.equal(getAiMediaMonthlyLimit("premium", "video"), 10);
+  assert.equal(getAiMediaMonthlyLimit("premium", "video"), 6);
   assert.equal(getAiMediaMonthlyLimit("founder", "image"), 30);
-  assert.equal(getAiMediaMonthlyLimit("founder", "video"), 10);
+  assert.equal(getAiMediaMonthlyLimit("founder", "video"), 6);
 });
 
 test("le studio avance est accessible a toutes les editions", () => {

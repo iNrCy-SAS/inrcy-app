@@ -17,8 +17,8 @@ export type AiMediaPlanLimits = Readonly<{
 export const AI_MEDIA_MONTHLY_LIMITS: Readonly<Record<AiMediaEdition, AiMediaPlanLimits>> =
   Object.freeze({
     standard: Object.freeze({ image: 20, video: 5, studioEnabled: true }),
-    premium: Object.freeze({ image: 30, video: 10, studioEnabled: true }),
-    founder: Object.freeze({ image: 30, video: 10, studioEnabled: true }),
+    premium: Object.freeze({ image: 30, video: 6, studioEnabled: true }),
+    founder: Object.freeze({ image: 30, video: 6, studioEnabled: true }),
   });
 
 export function normalizeAiMediaEdition(value: unknown): AiMediaEdition {

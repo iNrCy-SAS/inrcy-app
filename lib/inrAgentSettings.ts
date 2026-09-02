@@ -31,6 +31,11 @@ export const INR_AGENT_THEMES = [
 ] as const;
 export const INR_AGENT_RECIPIENT_SCOPES = ["none", "all_crm", "clients", "prospects", "recent_contacts", "inactive_contacts", "manual_selection"] as const;
 export const INR_AGENT_SOURCE_STRATEGIES = ["published_history", "templates", "stats_snapshot", "mixed"] as const;
+export const INR_AGENT_PREFERRED_MEDIA_SOURCES = [
+  "media_library",
+  "image_bank",
+  "ai_generation",
+] as const;
 
 export type InrAgentAutomationKey = (typeof INR_AGENT_AUTOMATION_KEYS)[number];
 export type InrAgentFrequency = (typeof INR_AGENT_FREQUENCIES)[number];
@@ -41,6 +46,8 @@ export type InrAgentChannel = (typeof INR_AGENT_CHANNELS)[number];
 export type InrAgentTheme = (typeof INR_AGENT_THEMES)[number];
 export type InrAgentRecipientScope = (typeof INR_AGENT_RECIPIENT_SCOPES)[number];
 export type InrAgentSourceStrategy = (typeof INR_AGENT_SOURCE_STRATEGIES)[number];
+export type InrAgentPreferredMediaSource =
+  (typeof INR_AGENT_PREFERRED_MEDIA_SOURCES)[number];
 
 // Compat anciens composants / ancien vocabulaire V1.
 export const INR_AGENT_MODES = INR_AGENT_VALIDATION_MODES;
@@ -58,6 +65,7 @@ export type InrAgentAutomationSettings = {
   allowedThemes: InrAgentTheme[];
   useImageBank: boolean;
   imageRequired: boolean;
+  preferredMediaSource: InrAgentPreferredMediaSource;
   recipientScope: InrAgentRecipientScope;
   sourceStrategy: InrAgentSourceStrategy;
   lastPreparedAt: string | null;
@@ -96,6 +104,7 @@ const DEFAULT_AUTOMATIONS: Record<InrAgentAutomationKey, InrAgentAutomationSetti
     allowedThemes: ["conseils", "realisations", "offres", "actualites"],
     useImageBank: true,
     imageRequired: true,
+    preferredMediaSource: "media_library",
     recipientScope: "none",
     sourceStrategy: "published_history",
     lastPreparedAt: null,
@@ -113,6 +122,7 @@ const DEFAULT_AUTOMATIONS: Record<InrAgentAutomationKey, InrAgentAutomationSetti
     allowedThemes: ["valoriser", "recolter", "offrir"],
     useImageBank: true,
     imageRequired: false,
+    preferredMediaSource: "media_library",
     recipientScope: "all_crm",
     sourceStrategy: "templates",
     lastPreparedAt: null,
@@ -130,6 +140,7 @@ const DEFAULT_AUTOMATIONS: Record<InrAgentAutomationKey, InrAgentAutomationSetti
     allowedThemes: ["informer", "enqueter", "suivre"],
     useImageBank: true,
     imageRequired: false,
+    preferredMediaSource: "media_library",
     recipientScope: "clients",
     sourceStrategy: "templates",
     lastPreparedAt: null,
@@ -147,6 +158,7 @@ const DEFAULT_AUTOMATIONS: Record<InrAgentAutomationKey, InrAgentAutomationSetti
     allowedThemes: ["vue_globale", "site_inrcy", "site_web", "gmb", "inr_search", "facebook", "instagram", "linkedin", "tiktok", "youtube", "pinterest", "mails", "inrbadge"],
     useImageBank: false,
     imageRequired: false,
+    preferredMediaSource: "media_library",
     recipientScope: "none",
     sourceStrategy: "stats_snapshot",
     lastPreparedAt: null,
@@ -353,9 +365,21 @@ export function sanitizeInrAgentAutomationSettings(
     metadata[INR_SEARCH_PUBLISH_MIGRATION_FLAG] !== true;
   const normalizedAllowedChannels: InrAgentChannel[] = [...allowedChannels];
   if (shouldMigratePublishChannels) normalizedAllowedChannels.push("inr_search");
-  const normalizedMetadata = shouldMigratePublishChannels
+  const preferredMediaSourceInput =
+    source.preferredMediaSource ?? metadata.preferredMediaSource;
+  const preferredMediaSource = includesValue(
+    INR_AGENT_PREFERRED_MEDIA_SOURCES,
+    preferredMediaSourceInput,
+  )
+    ? preferredMediaSourceInput
+    : defaults.preferredMediaSource;
+  const normalizedMetadataBase = shouldMigratePublishChannels
     ? { ...metadata, [INR_SEARCH_PUBLISH_MIGRATION_FLAG]: true }
     : metadata;
+  const normalizedMetadata = {
+    ...normalizedMetadataBase,
+    preferredMediaSource,
+  };
 
   return {
     enabled: sanitizeBoolean(source.enabled, defaults.enabled),
@@ -367,6 +391,7 @@ export function sanitizeInrAgentAutomationSettings(
     allowedThemes: sanitizeMaybeEmptyStringArray(INR_AGENT_THEMES, source.allowedThemes, defaults.allowedThemes),
     useImageBank: sanitizeBoolean(source.useImageBank, defaults.useImageBank),
     imageRequired: sanitizeBoolean(source.imageRequired, defaults.imageRequired),
+    preferredMediaSource,
     recipientScope: includesValue(INR_AGENT_RECIPIENT_SCOPES, source.recipientScope) ? source.recipientScope : defaults.recipientScope,
     sourceStrategy: includesValue(INR_AGENT_SOURCE_STRATEGIES, source.sourceStrategy) ? source.sourceStrategy : defaults.sourceStrategy,
     lastPreparedAt: sanitizeNullableString(source.lastPreparedAt) ?? defaults.lastPreparedAt,

@@ -60,16 +60,19 @@ export default function InstagramPanel(props: any) {
       : instagramAccountConnected
         ? "rgba(59,130,246,0.95)"
         : "rgba(148,163,184,0.9)";
+  const instagramProfileDetected = igAccountsPhase === "connecting";
   const instagramProfileActivity =
     instagramProfileBusy && instagramProfileAction === "disconnect"
       ? "disconnecting"
-      : instagramProfileBusy || igAccountsPhase === "connecting"
+      : instagramProfileBusy
         ? "connecting"
         : igAccountsPhase === "searching" || igAccountsLoading
           ? "searching"
           : undefined;
   const instagramProfileActivityLabel =
-    instagramProfileActivity === "searching"
+    instagramProfileDetected && !instagramProfileActivity
+      ? i18nT("connecte_ce09957c")
+      : instagramProfileActivity === "searching"
       ? "Recherche des comptes…"
       : instagramProfileActivity === "disconnecting"
         ? "Déconnexion en cours…"
@@ -224,7 +227,7 @@ export default function InstagramPanel(props: any) {
           <div className={styles.blockHeaderRow}>
             <div className={styles.blockTitle}>{i18nT("compte_instagram_a_connecter_fe4d850a")}</div>
             <ConnectionPill
-              connected={instagramConnected}
+              connected={instagramConnected || instagramProfileDetected}
               status={instagramNeedsUpdate ? "needs_update" : undefined}
               activity={instagramProfileActivity}
               label={instagramProfileActivityLabel}

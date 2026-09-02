@@ -1,6 +1,7 @@
 import type { BoosterCtaMode } from "../../booster/publier/publishModal.shared";
 import type {
   InrAgentFrequency,
+  InrAgentPreferredMediaSource,
   InrAgentSettings,
   InrAgentValidationMode,
 } from "@/lib/inrAgentSettings";
@@ -48,6 +49,7 @@ export type AutomationConfig = {
   validation: string;
   source: string;
   signatureAutomatic: boolean;
+  preferredMediaSource: InrAgentPreferredMediaSource;
 };
 
 export type SelectOption<T extends string> = {

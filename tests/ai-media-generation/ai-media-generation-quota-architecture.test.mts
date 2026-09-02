@@ -39,9 +39,17 @@ const founderLimitsPostflightPath = path.join(
   repositoryRoot,
   "ops/sql/2026-09-01_ai_media_generation_founder_30_10_postflight_read_only.sql",
 );
+const accountLimitsPath = path.join(
+  repositoryRoot,
+  "ops/sql/2026-09-02_ai_media_account_limits_20_5_30_6.sql",
+);
+const accountLimitsPostflightPath = path.join(
+  repositoryRoot,
+  "ops/sql/2026-09-02_ai_media_account_limits_20_5_30_6_postflight_read_only.sql",
+);
 const helperPath = path.join(repositoryRoot, "lib/aiMediaGenerationQuota.ts");
 
-const [migration, preflight, postflight, studioAllPlans, studioAllPlansPostflight, quotaLimitsPatch, quotaLimitsPostflight, founderLimitsPatch, founderLimitsPostflight, helper] = await Promise.all([
+const [migration, preflight, postflight, studioAllPlans, studioAllPlansPostflight, quotaLimitsPatch, quotaLimitsPostflight, founderLimitsPatch, founderLimitsPostflight, accountLimits, accountLimitsPostflight, helper] = await Promise.all([
   readFile(migrationPath, "utf8"),
   readFile(preflightPath, "utf8"),
   readFile(postflightPath, "utf8"),
@@ -51,6 +59,8 @@ const [migration, preflight, postflight, studioAllPlans, studioAllPlansPostfligh
   readFile(quotaLimitsPostflightPath, "utf8"),
   readFile(founderLimitsPatchPath, "utf8"),
   readFile(founderLimitsPostflightPath, "utf8"),
+  readFile(accountLimitsPath, "utf8"),
+  readFile(accountLimitsPostflightPath, "utf8"),
   readFile(helperPath, "utf8"),
 ]);
 
@@ -326,6 +336,37 @@ test("le patch final aligne les trois forfaits avec le code sans suppression", (
     founderLimitsPostflight,
     /^\s*(?:insert|update|delete|truncate|drop|alter|create|grant|revoke)\b/im,
   );
+});
+
+test("les plafonds par établissement héritent, désactivent à zéro ou remplacent le forfait", () => {
+  assert.match(accountLimits, /create table public\.ai_media_account_limits/i);
+  assert.match(accountLimits, /account_id uuid primary key/i);
+  assert.match(accountLimits, /image_monthly_limit_override integer/i);
+  assert.match(accountLimits, /video_monthly_limit_override integer/i);
+  assert.match(accountLimits, /between 0 and 10000/i);
+  assert.match(accountLimits, /NULL herite du forfait, 0 desactive/i);
+  assert.match(accountLimits, /\('standard', 20, 5, true\)/i);
+  assert.match(accountLimits, /\('premium', 30, 6, true\)/i);
+  assert.match(accountLimits, /\('founder', 30, 6, true\)/i);
+  assert.match(
+    accountLimits,
+    /v_image_limit := coalesce\([\s\S]*?image_monthly_limit_override,[\s\S]*?v_plan\.image_monthly_limit/i,
+  );
+  assert.match(
+    accountLimits,
+    /v_limit := coalesce\([\s\S]*?p_limit_override,[\s\S]*?image_monthly_limit_override[\s\S]*?video_monthly_limit_override/i,
+  );
+  assert.match(accountLimits, /grant all on public\.ai_media_account_limits to service_role/i);
+  assert.doesNotMatch(
+    accountLimits,
+    /grant\s+(?:select|insert|update|delete|all)[\s\S]*?to\s+(?:anon|authenticated)/i,
+  );
+
+  assert.match(accountLimitsPostflight, /begin transaction read only/i);
+  assert.match(accountLimitsPostflight, /ai_media_account_limits/i);
+  assert.match(accountLimitsPostflight, /has_table_privilege\('authenticated'/i);
+  assert.match(accountLimitsPostflight, /has_table_privilege\('service_role'/i);
+  assert.match(accountLimitsPostflight, /rollback;/i);
 });
 
 test("la reservation est atomique et idempotente sous concurrence", () => {

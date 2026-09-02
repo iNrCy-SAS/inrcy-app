@@ -41,6 +41,7 @@ import {
   sanitizeInrAgentAutomationSettings,
   type InrAgentAutomationSettings,
   type InrAgentChannel,
+  type InrAgentPreferredMediaSource,
   type InrAgentTheme,
   type InrAgentValidationMode,
 } from "@/lib/inrAgentSettings";
@@ -53,8 +54,9 @@ import {
   generateSharedBoosterPosts,
   type BoosterAiImage,
 } from "@/lib/boosterPublishGeneration";
+import { generateInrAgentMedia } from "@/lib/inrAgentMediaGeneration";
 
-export const maxDuration = 120;
+export const maxDuration = 800;
 export const runtime = "nodejs";
 
 type JsonRecord = Record<string, unknown>;
@@ -800,6 +802,9 @@ function hasUsefulAgentMediaMetadata(media: ImageBankAsset | null) {
 
 function shouldUseFastAgentMediaContext(media: ImageBankAsset | null) {
   if (!media) return false;
+  // Un visuel fraîchement généré doit toujours être relu visuellement : ses
+  // tags techniques ne suffisent pas à écrire une publication fidèle.
+  if (media.source === "ai_media_generation") return false;
   const mediaKind = media.mediaType || media.kind || "image";
   const source = cleanText(media.librarySource || media.source || "", 80);
   const knownInternalSource =
@@ -980,6 +985,65 @@ async function loadPublishAutomationSettings(userId: string) {
     .maybeSingle();
 
   return rowToAutomationSettings((data as AutomationDbRow | null) ?? null);
+}
+
+async function resolveMediaGenerationActorAuthUserId(args: {
+  accountId: string;
+  requestAuthUserId: string;
+  isCron: boolean;
+}) {
+  if (!args.isCron && args.requestAuthUserId) return args.requestAuthUserId;
+
+  const { data } = await supabaseAdmin
+    .from("inrcy_account_members")
+    .select("auth_user_id,role")
+    .eq("account_id", args.accountId)
+    .limit(20);
+  const rows = Array.isArray(data) ? data : [];
+  const owner = rows.find(
+    (row) => String(row?.role || "").trim().toLowerCase() === "owner",
+  );
+  const resolved = String(owner?.auth_user_id || rows[0]?.auth_user_id || "").trim();
+  return resolved || args.requestAuthUserId || args.accountId;
+}
+
+function generatedPickerItemToAgentMedia(args: {
+  item: NonNullable<Awaited<ReturnType<typeof generateInrAgentMedia>>["item"]>;
+  business: JsonRecord | null;
+}) {
+  const profession = getBusinessProfession(args.business);
+  const mediaType = args.item.media_type === "video" ? "video" : "image";
+  const width = Number(args.item.width || 0);
+  const height = Number(args.item.height || 0);
+  const orientation =
+    width > height ? "landscape" : height > width ? "portrait" : "square";
+
+  return {
+    id: args.item.id,
+    bucket: String(args.item.bucket_name || PRO_MEDIA_BUCKET),
+    storagePath: args.item.storage_path,
+    url:
+      buildStorageContentUrl(
+        String(args.item.bucket_name || PRO_MEDIA_BUCKET),
+        args.item.storage_path,
+      ) || args.item.signed_url || "",
+    title: cleanText(args.item.title, 180),
+    sector: profession.sector,
+    job: profession.profession,
+    tags: cleanList(args.item.tags, 12, 60),
+    orientation,
+    source: "ai_media_generation",
+    // Le média accepté est physiquement enregistré dans la médiathèque du pro.
+    librarySource: "pro_media_library" as const,
+    matchLevel: "ai_generated_for_current_publication",
+    mediaType,
+    kind: mediaType,
+    mimeType:
+      cleanText(args.item.mime_type, 120) ||
+      (mediaType === "video" ? "video/mp4" : "image/jpeg"),
+    size: Number(args.item.size_bytes || 0) || null,
+    duration: Number(args.item.duration_seconds || 0) || null,
+  } satisfies ImageBankAsset;
 }
 
 async function pickMediaFromProLibrary(args: {
@@ -1277,6 +1341,7 @@ type MediaDiversificationTrace = {
   roll: number | null;
   decisionReason: string;
   attempts: MediaSelectionAttempt[];
+  preferredSource: InrAgentPreferredMediaSource;
 };
 
 function getCandidateSummary(media: ImageBankAsset | null) {
@@ -1298,6 +1363,7 @@ function buildMediaDiversificationTrace(params: {
   selected: ImageBankAsset | null;
   roll: number | null;
   decisionReason: string;
+  preferredSource?: InrAgentPreferredMediaSource;
   attempts?: MediaSelectionAttempt[];
 }): MediaDiversificationTrace {
   const {
@@ -1306,6 +1372,7 @@ function buildMediaDiversificationTrace(params: {
     selected,
     roll,
     decisionReason,
+    preferredSource = "media_library",
     attempts = [],
   } = params;
   return {
@@ -1328,6 +1395,7 @@ function buildMediaDiversificationTrace(params: {
     roll,
     decisionReason,
     attempts,
+    preferredSource,
   };
 }
 
@@ -1336,6 +1404,7 @@ async function pickDiversifiedMedia(args: {
   business: JsonRecord | null;
   theme: InrAgentTheme;
   preferredTypes: Array<"image" | "video">;
+  preferredSource: InrAgentPreferredMediaSource;
   recentMediaUsage: RecentMediaUsage;
 }): Promise<{
   media: ImageBankAsset | null;
@@ -1356,27 +1425,26 @@ async function pickDiversifiedMedia(args: {
   let roll: number | null = null;
   let decisionReason = "no_relevant_media_available";
 
-  if (proMedia && !imageBankMedia) {
+  if (args.preferredSource === "image_bank" && imageBankMedia) {
+    selected = imageBankMedia;
+    decisionReason = "preferred_image_bank_selected";
+  } else if (args.preferredSource === "media_library" && proMedia) {
     selected = proMedia;
-    decisionReason = "only_pro_media_library_candidate";
+    decisionReason = "preferred_media_library_selected";
+  } else if (args.preferredSource === "ai_generation") {
+    selected = proMedia || imageBankMedia;
+    decisionReason = selected
+      ? "ai_generation_preferred_existing_fallback_prepared"
+      : "ai_generation_preferred_without_existing_fallback";
+  } else if (proMedia && !imageBankMedia) {
+    selected = proMedia;
+    decisionReason = "preferred_source_unavailable_pro_library_fallback";
   } else if (!proMedia && imageBankMedia) {
     selected = imageBankMedia;
-    decisionReason = "only_relevant_image_bank_candidate";
+    decisionReason = "preferred_source_unavailable_image_bank_fallback";
   } else if (proMedia && imageBankMedia) {
-    const proMediaType = proMedia.mediaType || proMedia.kind || "image";
-    if (proMediaType === "video" && args.preferredTypes[0] === "video") {
-      selected = proMedia;
-      decisionReason =
-        "video_first_publication_keeps_pro_library_video_candidate";
-    } else {
-      roll = Math.random();
-      selected =
-        roll < IMAGE_BANK_DIVERSIFICATION_RATE ? imageBankMedia : proMedia;
-      decisionReason =
-        selected === imageBankMedia
-          ? "diversification_roll_selected_relevant_image_bank"
-          : "diversification_roll_selected_pro_media_library";
-    }
+    selected = proMedia;
+    decisionReason = "deterministic_pro_library_fallback";
   }
 
   return {
@@ -1387,6 +1455,7 @@ async function pickDiversifiedMedia(args: {
       selected,
       roll,
       decisionReason,
+      preferredSource: args.preferredSource,
       attempts,
     }),
     proCandidate: getCandidateSummary(proMedia),
@@ -1437,7 +1506,17 @@ function buildSummary(
   const labels = channels
     .map((channel) => channelLabels[boosterToAgentChannel[channel]] || channel)
     .join(", ");
-  return `Publication préparée pour ${labels}.${media ? (media.mediaType === "video" || media.kind === "video" ? " Vidéo ajoutée depuis la médiathèque du pro." : " Visuel ajouté depuis la médiathèque ou la banque d’images.") : " Aucun média disponible : les canaux compatibles seront préparés en texte seul."}`;
+  const mediaSentence =
+    media?.source === "ai_media_generation"
+      ? media.mediaType === "video" || media.kind === "video"
+        ? " Vidéo IA créée et ajoutée à la médiathèque."
+        : " Visuel IA créé et ajouté à la médiathèque."
+      : media
+        ? media.mediaType === "video" || media.kind === "video"
+          ? " Vidéo ajoutée depuis la médiathèque du pro."
+          : " Visuel ajouté depuis la médiathèque ou la banque d’images."
+        : " Aucun média disponible : les canaux compatibles seront préparés en texte seul.";
+  return `Publication préparée pour ${labels}.${mediaSentence}`;
 }
 
 export async function POST(request: Request) {
@@ -1456,7 +1535,11 @@ export async function POST(request: Request) {
   if (context.errorResponse) return context.errorResponse;
 
   const { supabase, userId, authUserId, isCron } = context;
-  const actorUserId = isCron ? userId : authUserId;
+  const actorUserId = await resolveMediaGenerationActorAuthUserId({
+    accountId: userId,
+    requestAuthUserId: authUserId,
+    isCron,
+  });
   const quotaAccountId = userId;
   const isAdmin = await isAdminUserForAi(supabase, actorUserId);
 
@@ -1513,8 +1596,9 @@ export async function POST(request: Request) {
   const agentTheme = chooseTheme(automation.allowedThemes);
   const boosterTheme = agentThemeToBoosterTheme[agentTheme] || "conseil";
   const idea = buildAgentIdea({ business, profile, theme: agentTheme });
-  const prefersVideo =
-    channels.includes("youtube_shorts") || channels.includes("tiktok");
+  const requiresGeneratedVideo = channels.includes("youtube_shorts");
+  const prefersExistingVideo =
+    requiresGeneratedVideo || channels.includes("tiktok");
   const mediaSelectionStartedAt = Date.now();
   const recentMediaUsage = await loadRecentMediaUsage(userId);
   const diversifiedMediaSelection = automation.useImageBank
@@ -1522,7 +1606,10 @@ export async function POST(request: Request) {
         userId,
         business,
         theme: agentTheme,
-        preferredTypes: prefersVideo ? ["video", "image"] : ["image", "video"],
+        preferredTypes: prefersExistingVideo
+          ? ["video", "image"]
+          : ["image", "video"],
+        preferredSource: automation.preferredMediaSource,
         recentMediaUsage,
       })
     : {
@@ -1533,17 +1620,63 @@ export async function POST(request: Request) {
           selected: null,
           roll: null,
           decisionReason: "image_bank_disabled_in_automation_settings",
+          preferredSource: automation.preferredMediaSource,
         }),
         proCandidate: null,
         imageBankCandidate: null,
       };
-  const media = diversifiedMediaSelection.media;
+  const fallbackMedia = diversifiedMediaSelection.media;
+  const fallbackKind =
+    fallbackMedia?.mediaType || fallbackMedia?.kind || "image";
+  const shouldGenerateMedia =
+    automation.preferredMediaSource === "ai_generation" ||
+    !fallbackMedia ||
+    (requiresGeneratedVideo && fallbackKind !== "video");
+  const generatedKind = requiresGeneratedVideo ? "video" : "image";
+  const generatedMediaResult = shouldGenerateMedia
+    ? await generateInrAgentMedia({
+        supabase: supabaseAdmin,
+        accountId: userId,
+        actorAuthUserId: actorUserId,
+        idea,
+        theme: agentTheme,
+        kind: generatedKind,
+        adminUnlimited: isAdmin,
+      })
+    : null;
+  let media = generatedMediaResult?.item
+    ? generatedPickerItemToAgentMedia({
+        item: generatedMediaResult.item,
+        business,
+      })
+    : fallbackMedia;
+
+  // Si une génération d'image ne peut pas satisfaire YouTube Shorts, on ne
+  // remplace jamais une vidéo existante valide par cette image.
+  if (
+    requiresGeneratedVideo &&
+    generatedMediaResult?.item &&
+    generatedMediaResult.item.media_type !== "video" &&
+    fallbackKind === "video"
+  ) {
+    media = fallbackMedia;
+  }
   mediaSelectionMs = Date.now() - mediaSelectionStartedAt;
+  const generationWarning = generatedMediaResult
+    ? generatedMediaResult.outcome === "quota_reached"
+      ? "ai_generation_quota_reached_existing_media_fallback_used"
+      : generatedMediaResult.outcome !== "generated"
+        ? `ai_generation_${generatedMediaResult.outcome}_existing_media_fallback_used`
+        : ""
+    : "";
   const mediaSelectionTrace = {
-    policyVersion: "media_selection_v5_strict_generic_sector_trace",
-    triedSources: automation.useImageBank
-      ? ["pro_media_library", "inrcy_image_bank"]
-      : [],
+    policyVersion: "media_selection_v6_preferred_source_ai_generation",
+    triedSources: [
+      ...(shouldGenerateMedia ? ["ai_media_generation"] : []),
+      ...(automation.useImageBank
+        ? ["pro_media_library", "inrcy_image_bank"]
+        : []),
+    ],
     sourcePolicy: {
       proMediaLibrary: "owned_media_allowed_with_recent_reuse_exclusion",
       imageBank: "job_exact_then_generic_sector_only",
@@ -1571,11 +1704,29 @@ export async function POST(request: Request) {
     businessProfession: businessProfession.profession,
     businessProfessionLabel: businessProfession.professionLabel,
     rawProfession: businessProfession.rawProfession,
+    aiGeneration: generatedMediaResult
+      ? {
+          attempted: true,
+          kind: generatedMediaResult.kind,
+          outcome: generatedMediaResult.outcome,
+          errorCode: generatedMediaResult.errorCode || null,
+          consumedSharedStudioQuota:
+            generatedMediaResult.outcome === "generated",
+        }
+      : {
+          attempted: false,
+          kind: null,
+          outcome: "not_requested",
+          errorCode: null,
+          consumedSharedStudioQuota: false,
+        },
     selectedSource: media
-      ? media.librarySource ||
-        (media.source === "pro_media_library"
-          ? "pro_media_library"
-          : "inrcy_image_bank")
+      ? media.source === "ai_media_generation"
+        ? "ai_media_generation"
+        : media.librarySource ||
+          (media.source === "pro_media_library"
+            ? "pro_media_library"
+            : "inrcy_image_bank")
       : "none",
     selectedSector: media?.sector || "",
     selectedJob: media?.job || "",
@@ -1583,7 +1734,8 @@ export async function POST(request: Request) {
     matchLevel: media?.matchLevel || "none",
     unsafeGlobalImageBankFallbackAllowed: false,
     recentMediaPolicy: getRecentMediaTrace(recentMediaUsage),
-    selectedWasRecentlyUsed: media
+    selectedWasRecentlyUsed:
+      media && media.source !== "ai_media_generation"
       ? isRecentlyUsedMediaRow(
           {
             id: media.id,
@@ -1596,7 +1748,9 @@ export async function POST(request: Request) {
         )
       : false,
     warnings: [
+      generationWarning,
       media?.librarySource === "pro_media_library" &&
+      media.source !== "ai_media_generation" &&
       media.matchLevel === "pro_library_owned_fallback"
         ? "pro_library_owned_fallback_without_business_match"
         : "",
@@ -1857,7 +2011,9 @@ export async function POST(request: Request) {
     if (media?.id) {
       try {
         const imageTable =
-          media.source === "pro_media_library"
+          media.librarySource === "pro_media_library" ||
+          media.source === "pro_media_library" ||
+          media.source === "ai_media_generation"
             ? "pro_media_library"
             : "inrcy_image_bank";
         const { data: usageRow } = await supabaseAdmin

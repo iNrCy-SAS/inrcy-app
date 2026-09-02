@@ -462,5 +462,12 @@
   "vos_images_et_videos_inrcy_58912437": "您的图片和视频 iNrCy",
   "vos_photos_logos_et_videos_restent_a7a8faf5": "您的照片、徽标和视频将保持私密。 iNr’Agent 主要使用它们来准备更真实的出版物。",
   "ai_generator_premium_only_short": "Premium",
-  "ai_generator_video_premium_required": "Standard 每月包含 5 个 10 秒视频；20 秒和 30 秒格式需要 Premium 或 Founder。"
+  "ai_generator_video_premium_required": "Standard 每月包含 5 个 10 秒视频；20 秒和 30 秒格式需要 Premium 或 Founder。",
+  "ai_generator_inspiration_title": "灵感图片",
+  "ai_generator_inspiration_hint": "最多添加 3 张图片来指导视频生成。不接受视频文件。",
+  "ai_generator_inspiration_ready": "图片已就绪",
+  "ai_generator_inspiration_remove": "移除图片",
+  "ai_generator_inspiration_preparing": "正在处理…",
+  "ai_generator_inspiration_add": "添加图片",
+  "ai_generator_inspiration_summary": " · {count} 张图片"
 }

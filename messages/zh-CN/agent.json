@@ -614,5 +614,10 @@
   "optimized_media_destination_unavailable": "iNr’Agent 中不再提供优化的媒体目标。",
   "optimized_media_still_too_large": "优化后的媒体仍然超过 20 MB。",
   "optimized_media_insert_failed": "已创建优化媒体，但无法插入 iNr’Agent。",
-  "agent_channels_unavailable": "连接的通道不可用。"
+  "agent_channels_unavailable": "连接的通道不可用。",
+  "preferred_media_title": "优先内容",
+  "preferred_media_hint": "iNr’Agent 会优先尝试此来源；如无合适媒体，则智能使用其他来源。",
+  "preferred_media_library": "媒体库",
+  "preferred_media_bank": "iNrCy 图片库",
+  "preferred_media_ai": "AI 生成"
 }

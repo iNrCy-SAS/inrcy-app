@@ -614,5 +614,10 @@
   "optimized_media_destination_unavailable": "La destinazione del contenuto multimediale ottimizzato non è più disponibile in iNr’Agent.",
   "optimized_media_still_too_large": "Il contenuto multimediale ottimizzato supera ancora i 20 MB.",
   "optimized_media_insert_failed": "Il contenuto multimediale ottimizzato è stato creato, ma non è stato possibile inserirlo in iNr’Agent.",
-  "agent_channels_unavailable": "I canali collegati non sono disponibili."
+  "agent_channels_unavailable": "I canali collegati non sono disponibili.",
+  "preferred_media_title": "Contenuto preferito",
+  "preferred_media_hint": "iNr’Agent prova prima questa fonte, poi usa in modo intelligente un’altra fonte se non trova un media adatto.",
+  "preferred_media_library": "Libreria multimediale",
+  "preferred_media_bank": "Banca iNrCy",
+  "preferred_media_ai": "Generazione IA"
 }

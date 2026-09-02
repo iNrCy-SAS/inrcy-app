@@ -79,16 +79,17 @@ export default function LinkedinPanel(props: any) {
     : profileReady
       ? "rgba(34,197,94,0.95)"
       : "rgba(148,163,184,0.9)";
+  const linkedinOrganizationDetected = linkedinOrganizationsPhase === "connecting";
   const linkedinOrganizationActivity =
     linkedinOrganizationBusy && linkedinOrganizationAction === "disconnect"
       ? "disconnecting"
-      : linkedinOrganizationsPhase === "connecting"
-        ? "connecting"
-        : linkedinOrganizationsPhase === "searching" || linkedinOrganizationsLoading
+      : linkedinOrganizationsPhase === "searching" || linkedinOrganizationsLoading
           ? "searching"
           : undefined;
   const linkedinOrganizationActivityLabel =
-    linkedinOrganizationActivity === "searching"
+    linkedinOrganizationDetected && !linkedinOrganizationActivity
+      ? i18nT("connecte_ce09957c")
+      : linkedinOrganizationActivity === "searching"
       ? "Recherche des pages…"
       : linkedinOrganizationActivity === "disconnecting"
         ? "Déconnexion en cours…"
@@ -181,7 +182,7 @@ export default function LinkedinPanel(props: any) {
           <div className={styles.blockHeaderRow}>
             <div className={styles.blockTitle}>{hasCompanyPage ? i18nT("page_entreprise_linkedin_8da517e0") : i18nT("connecter_une_page_entreprise_e6a59e95")}</div>
             <ConnectionPill
-              connected={hasCompanyPage}
+              connected={hasCompanyPage || linkedinOrganizationDetected}
               activity={linkedinOrganizationActivity}
               label={linkedinOrganizationActivityLabel}
             />
