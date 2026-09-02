@@ -1252,10 +1252,14 @@ export default function MediaGenerator({
       ) : null}
       {actionError || error ? <div className={styles.error} role="alert">{actionError || error}</div> : null}
 
-      <div className={styles.footerBar}>
+      <div className={styles.footerBar} data-kind={kind}>
         <div className={styles.quotaCard} data-kind={kind}>
           <span className={styles.quotaIcon} aria-hidden="true">
-            {kind === "image" ? "▣" : "▶"}
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="M4.6 15.8a8 8 0 1 1 14.8 0" />
+              <path d="M12 12l4.2-3.1" />
+              <circle cx="12" cy="12" r="1.45" />
+            </svg>
           </span>
           <div className={styles.quotaCopy}>
             <div className={styles.quotaHeadline}>
@@ -1302,7 +1306,7 @@ export default function MediaGenerator({
         ) : null}
         <button type="button" className={styles.generateButton} disabled={disabled} onClick={() => void handleGenerate()}>
           <span aria-hidden="true">✦</span>
-          {t(kind === "image" ? "ai_generator_generate_image" : "ai_generator_generate_video")}
+          <strong>{t(kind === "image" ? "ai_generator_generate_image" : "ai_generator_generate_video")}</strong>
         </button>
       </div>
 

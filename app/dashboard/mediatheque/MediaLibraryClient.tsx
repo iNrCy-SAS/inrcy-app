@@ -275,6 +275,11 @@ function tagsToText(tags: string[] | null | undefined) {
   return Array.isArray(tags) ? tags.join(", ") : "";
 }
 
+function buildMediaDownloadUrl(contentUrl: string | null) {
+  if (!contentUrl) return null;
+  return `${contentUrl}${contentUrl.includes("?") ? "&" : "?"}download=1`;
+}
+
 function cleanEditableTags(value: string) {
   return value
     .split(",")
@@ -1211,6 +1216,7 @@ export default function MediaLibraryClient() {
                   const isSelected = selectedItemIds.has(item.id);
                   const detailsOpen = expandedItemIds.has(item.id);
                   const isSaving = savingId === item.id;
+                  const downloadUrl = buildMediaDownloadUrl(item.signed_url);
                   return (
                   <article
                     key={item.id}
@@ -1340,16 +1346,49 @@ export default function MediaLibraryClient() {
                       {displayDate(item.created_at)}
                     </span>
 
-                    <button
-                      type="button"
-                      className={styles.mediaRowDelete}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        deleteItem(item);
-                      }}
-                      disabled={isSaving || bulkDeleting}
-                    >
-                      {i18nT("supprimer_1acfc1c7")}{" "}</button>
+                    <div className={styles.mediaRowActions}>
+                      <a
+                        className={styles.mediaRowDownload}
+                        href={downloadUrl || undefined}
+                        download={item.original_file_name || true}
+                        aria-label={i18nT("ai_generator_download")}
+                        aria-disabled={!downloadUrl}
+                        title={i18nT("ai_generator_download")}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          if (!downloadUrl) event.preventDefault();
+                        }}
+                      >
+                        <svg
+                          aria-hidden="true"
+                          viewBox="0 0 24 24"
+                          className={styles.downloadIcon}
+                        >
+                          <path
+                            d="M12 3v11m0 0 4-4m-4 4-4-4M5 18v2h14v-2"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                        <span className={styles.mediaRowDownloadLabel}>
+                          {i18nT("ai_generator_download")}
+                        </span>
+                      </a>
+                      <button
+                        type="button"
+                        className={styles.mediaRowDelete}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          deleteItem(item);
+                        }}
+                        disabled={isSaving || bulkDeleting}
+                      >
+                        {i18nT("supprimer_1acfc1c7")}{" "}
+                      </button>
+                    </div>
                   </article>
                   );
                 })}
