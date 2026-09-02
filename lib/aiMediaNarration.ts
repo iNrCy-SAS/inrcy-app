@@ -21,9 +21,9 @@ const NARRATION_SCHEMA = {
 } as const;
 
 const WORD_TARGETS = {
-  10: { min: 17, target: 20, max: 24 },
-  20: { min: 34, target: 40, max: 46 },
-  30: { min: 51, target: 58, max: 64 },
+  8: { min: 13, target: 16, max: 19 },
+  16: { min: 27, target: 32, max: 37 },
+  24: { min: 41, target: 47, max: 52 },
 } as const;
 
 const LANGUAGE_NAMES: Record<string, string> = {
@@ -78,7 +78,7 @@ function safeFallback(args: {
   plan: AiMediaCreativePlan;
 }) {
   const business = args.profile.business;
-  const duration = args.request.durationSeconds || 10;
+  const duration = args.request.durationSeconds || 8;
   const company = clean(business.companyName || args.plan.companyName, 80);
   const profession = clean(
     business.professionLabel || business.sectorLabel || "professionnel",
@@ -111,7 +111,7 @@ function safeFallback(args: {
   return limitWords(lines.join(" "), WORD_TARGETS[duration].max);
 }
 
-function validGeneratedScript(value: string, duration: 10 | 20 | 30) {
+function validGeneratedScript(value: string, duration: 8 | 16 | 24) {
   const count = words(value).length;
   const target = WORD_TARGETS[duration];
   return (
@@ -136,7 +136,7 @@ export async function writeAiMediaNarration(args: {
 }): Promise<AiMediaNarration | null> {
   if (args.request.kind !== "video" || !args.request.withNarration) return null;
 
-  const duration = args.request.durationSeconds || 10;
+  const duration = args.request.durationSeconds || 8;
   const target = WORD_TARGETS[duration];
   const languageCode = args.profile.preferences.language || "fr";
   const language = LANGUAGE_NAMES[languageCode] || LANGUAGE_NAMES.fr;
@@ -207,4 +207,3 @@ export async function writeAiMediaNarration(args: {
     sha256: createHash("sha256").update(script).digest("hex"),
   };
 }
-

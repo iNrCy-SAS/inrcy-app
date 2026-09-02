@@ -255,7 +255,7 @@ export function buildAiMediaCreativePlan(args: {
     scene(companyName, cta, business.city, "cta"),
   ].filter((value): value is AiMediaCreativeScene => Boolean(value));
 
-  const targetCount = getAiMediaVideoSegmentCount(request.durationSeconds || 20);
+  const targetCount = getAiMediaVideoSegmentCount(request.durationSeconds || 16);
   const fallbackScenes = [
     scene("Votre projet", "Une réponse sur mesure", service || profession, "statement"),
     scene("L’essentiel", "Qualité, écoute, proximité", strength || subline, "editorial"),

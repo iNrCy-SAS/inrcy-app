@@ -47,9 +47,17 @@ const accountLimitsPostflightPath = path.join(
   repositoryRoot,
   "ops/sql/2026-09-02_ai_media_account_limits_20_5_30_6_postflight_read_only.sql",
 );
+const videoDurationsPath = path.join(
+  repositoryRoot,
+  "ops/sql/2026-09-02_ai_media_video_durations_8_16_24.sql",
+);
+const videoDurationsPostflightPath = path.join(
+  repositoryRoot,
+  "ops/sql/2026-09-02_ai_media_video_durations_8_16_24_postflight_read_only.sql",
+);
 const helperPath = path.join(repositoryRoot, "lib/aiMediaGenerationQuota.ts");
 
-const [migration, preflight, postflight, studioAllPlans, studioAllPlansPostflight, quotaLimitsPatch, quotaLimitsPostflight, founderLimitsPatch, founderLimitsPostflight, accountLimits, accountLimitsPostflight, helper] = await Promise.all([
+const [migration, preflight, postflight, studioAllPlans, studioAllPlansPostflight, quotaLimitsPatch, quotaLimitsPostflight, founderLimitsPatch, founderLimitsPostflight, accountLimits, accountLimitsPostflight, videoDurations, videoDurationsPostflight, helper] = await Promise.all([
   readFile(migrationPath, "utf8"),
   readFile(preflightPath, "utf8"),
   readFile(postflightPath, "utf8"),
@@ -61,6 +69,8 @@ const [migration, preflight, postflight, studioAllPlans, studioAllPlansPostfligh
   readFile(founderLimitsPostflightPath, "utf8"),
   readFile(accountLimitsPath, "utf8"),
   readFile(accountLimitsPostflightPath, "utf8"),
+  readFile(videoDurationsPath, "utf8"),
+  readFile(videoDurationsPostflightPath, "utf8"),
   readFile(helperPath, "utf8"),
 ]);
 
@@ -367,6 +377,29 @@ test("les plafonds par établissement héritent, désactivent à zéro ou rempla
   assert.match(accountLimitsPostflight, /has_table_privilege\('authenticated'/i);
   assert.match(accountLimitsPostflight, /has_table_privilege\('service_role'/i);
   assert.match(accountLimitsPostflight, /rollback;/i);
+});
+
+test("le contrat vidéo 8/16/24 est pilotable dans Supabase sans toucher aux consommations", () => {
+  assert.match(videoDurations, /begin;/i);
+  assert.match(videoDurations, /video_max_duration_seconds integer/i);
+  assert.match(videoDurations, /video_max_duration_seconds_override integer/i);
+  assert.match(videoDurations, /'standard'::text, 20, 5, 8/i);
+  assert.match(videoDurations, /'premium'::text, 30, 6, 24/i);
+  assert.match(videoDurations, /'founder'::text, 30, 6, 24/i);
+  assert.match(videoDurations, /video_monthly_limit = expected\.video_limit/i);
+  assert.match(videoDurations, /in \(8, 16, 24\)/i);
+  assert.doesNotMatch(videoDurations, /ai_media_monthly_usage[\s\S]*?(?:update|delete)/i);
+  assert.doesNotMatch(videoDurations, /^\s*(?:drop|delete|truncate)\b/im);
+  assert.match(videoDurations, /commit;/i);
+
+  assert.match(videoDurationsPostflight, /begin transaction read only/i);
+  assert.match(videoDurationsPostflight, /video_max_duration_seconds/i);
+  assert.match(videoDurationsPostflight, /video_max_duration_seconds_override/i);
+  assert.match(videoDurationsPostflight, /rollback;/i);
+  assert.doesNotMatch(
+    videoDurationsPostflight,
+    /^\s*(?:insert|update|delete|truncate|drop|alter|create|grant|revoke)\b/im,
+  );
 });
 
 test("la reservation est atomique et idempotente sous concurrence", () => {

@@ -244,7 +244,7 @@ export default function MediaGenerator({
   const [useBrandColors, setUseBrandColors] = useState(true);
   const [logoMode, setLogoMode] = useState<MediaGenerationLogoMode>("discreet");
   const [durationSeconds, setDurationSeconds] =
-    useState<MediaGenerationVideoDuration>(10);
+    useState<MediaGenerationVideoDuration>(8);
   const [withText, setWithText] = useState(true);
   const [textKeywords, setTextKeywords] = useState<string[]>([]);
   const [textKeywordDraft, setTextKeywordDraft] = useState("");
@@ -304,10 +304,11 @@ export default function MediaGenerator({
     : [];
   const counter = quota?.[kind] || null;
   const exhausted = quota?.unlimited ? false : counter?.remaining === 0;
-  const standardVideoLongFormRestricted =
-    kind === "video" && quota?.videoLongFormPremiumRequired === true;
+  const videoMaxDurationSeconds = quota?.videoMaxDurationSeconds ?? 24;
+  const videoDurationRestricted =
+    kind === "video" && videoMaxDurationSeconds < 24;
   const videoPremiumRequired =
-    standardVideoLongFormRestricted && durationSeconds > 10;
+    kind === "video" && durationSeconds > videoMaxDurationSeconds;
   const disabled =
     operationLocked || !subjectReady || Boolean(exhausted) || videoPremiumRequired;
 
@@ -1126,8 +1127,8 @@ export default function MediaGenerator({
           {expandedStep === 6 ? <div className={styles.collapsibleBody}>
             {kind === "video" ? (
               <div className={styles.durationChoices} role="radiogroup" aria-label={t("ai_generator_duration_title")}>
-                {([10, 20, 30] as const).map((duration) => {
-                  const premiumLocked = standardVideoLongFormRestricted && duration > 10;
+                {([8, 16, 24] as const).map((duration) => {
+                  const premiumLocked = duration > videoMaxDurationSeconds;
                   return (
                     <button
                       key={duration}
@@ -1149,7 +1150,7 @@ export default function MediaGenerator({
                 })}
               </div>
             ) : null}
-            {standardVideoLongFormRestricted ? (
+            {videoDurationRestricted ? (
               <div className={styles.durationUpsell} role="note">
                 {t("ai_generator_video_premium_required")}
               </div>

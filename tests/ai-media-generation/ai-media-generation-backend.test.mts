@@ -79,7 +79,7 @@ test("le contrat réduit les options au média demandé", () => {
     creativity: "bold",
     useBrandColors: false,
     logoMode: "visible",
-    durationSeconds: 30,
+    durationSeconds: 24,
     inspirationImages: [
       { mimeType: "image/jpeg", data: inspirationData },
       { mimeType: "image/png", data: inspirationData },
@@ -99,7 +99,7 @@ test("le contrat réduit les options au média demandé", () => {
   assert.equal(video.creativity, "bold");
   assert.equal(video.useBrandColors, false);
   assert.equal(video.logoMode, "visible");
-  assert.equal(video.durationSeconds, 30);
+  assert.equal(video.durationSeconds, 24);
   assert.equal(video.inspirationImages.length, 3);
   assert.deepEqual(
     video.inspirationImages.map((item) => item.mimeType),
@@ -302,11 +302,14 @@ test("la route applique scope, abonnement et quota à l'établissement actif", (
   assert.match(route, /isAdminUserForAi\(/);
   assert.match(route, /AI_MEDIA_ADMIN_LIMIT_OVERRIDE/);
   assert.match(route, /limitOverride: adminUnlimited/);
-  assert.match(route, /\(normalizedRequest\.durationSeconds \|\| 20\) > 10/);
+  assert.match(route, /\(normalizedRequest\.durationSeconds \|\| 16\) > videoMaxDurationSeconds/);
   assert.match(route, /AI_MEDIA_VIDEO_LONG_FORM_PREMIUM_REQUIRED/);
-  assert.match(route, /presentAiMediaQuota\(quota, adminUnlimited\)/);
+  assert.match(route, /getAiMediaVideoEntitlement/);
+  assert.match(route, /videoMaxDurationSeconds/);
+  assert.match(route, /presentAiMediaQuota\([\s\S]*?videoMaxDurationSeconds/);
   assert.match(quotaRoute, /isAdminUserForAi\(current\.supabase, authUserId\)/);
-  assert.match(quotaRoute, /presentAiMediaQuota\(quota, unlimited\)/);
+  assert.match(quotaRoute, /getAiMediaVideoEntitlement/);
+  assert.match(quotaRoute, /videoEntitlement\.maxDurationSeconds/);
 });
 
 test("un média persisté n'est jamais libéré du quota", () => {
@@ -352,7 +355,7 @@ test("image Gateway, vidéo Veo et médiathèque respectent le contrat universel
   assert.doesNotMatch(gateway, /flux-3-video/);
   assert.match(gateway, /bufferFromUint8ArrayView\(image\.uint8Array\)/);
   assert.doesNotMatch(gateway, /Buffer\.from\(image\.uint8Array\)/);
-  assert.match(normalizer, /durationSeconds: 10 \| 20 \| 30/);
+  assert.match(normalizer, /durationSeconds: 8 \| 16 \| 24/);
   assert.match(normalizer, /options: \{ width\?: number; height\?: number \}/);
   assert.match(normalizer, /position: "centre"/);
   assert.equal(
@@ -365,7 +368,8 @@ test("image Gateway, vidéo Veo et médiathèque respectent le contrat universel
     existsSync(path.join(ROOT, "lib/aiVideoProviderFalOvi.ts")),
     false
   );
-  assert.match(veo, /DEFAULT_MODEL_ID = "veo-3\.1-fast-generate-preview"/);
+  assert.match(veo, /DEFAULT_VEO_MODEL/);
+  assert.match(veo, /AI_MEDIA_VEO_FALLBACK_MODELS/);
   assert.match(veo, /process\.env\.GEMINI_API_KEY/);
   assert.match(veo, /new GoogleGenAI/);
   assert.match(veo, /generateVideos/);
@@ -377,8 +381,8 @@ test("image Gateway, vidéo Veo et médiathèque respectent le contrat universel
   assert.doesNotMatch(veo, /negativePrompt/);
   assert.doesNotMatch(veo, /numberOfVideos/);
   assert.doesNotMatch(veo, /personGeneration\s*:/);
-  assert.match(veo, /isInvalidArgument/);
-  assert.match(veo, /inspirationMode === "references" \? "source" : "none"/);
+  assert.match(veo, /classifyVeoFailure/);
+  assert.match(veo, /nextVeoInspirationMode/);
   assert.match(veo, /Every visible person must be unmistakably adult/);
   assert.match(veo, /This business serves a family audience/);
   assert.match(veo, /safetyFallbackPrompt/);
@@ -397,13 +401,16 @@ test("image Gateway, vidéo Veo et médiathèque respectent le contrat universel
   assert.match(veo, /durationSeconds: args\.durationSeconds/);
   assert.match(veo, /aspectRatio: args\.aspectRatio/);
   assert.match(veo, /DEFAULT_TIMEOUT_MS = 420_000/);
-  assert.match(veo, /DEFAULT_SUBMIT_ATTEMPTS = 5/);
+  assert.match(veo, /DEFAULT_SUBMIT_ATTEMPTS = 4/);
+  assert.match(veo, /DEFAULT_DOWNLOAD_ATTEMPTS = 3/);
   assert.match(veo, /MAX_VEO_PROMPT_CHARS = 1_400/);
   assert.match(veo, /\.join\(" "\),\s*MAX_VEO_PROMPT_CHARS\s*\)/);
   assert.match(veo, /DEFAULT_CONCURRENCY = 2/);
   assert.match(veo, /retryDelayMs/);
   assert.match(veo, /Math\.min\(configuredConcurrency, durations\.length\)/);
-  assert.match(veo, /actualCostMicroUsd: billableSeconds \* costPerSecond/);
+  assert.match(veo, /actualCostMicroUsd \+=/);
+  assert.match(veo, /costMicroUsdPerSecond\(usedModel\)/);
+  assert.match(veo, /Math\.max\([\s\S]*costMicroUsdPerSecond/);
   for (const criterion of [
     "request.visualStyle",
     "request.imageStyle",
@@ -424,11 +431,12 @@ test("image Gateway, vidéo Veo et médiathèque respectent le contrat universel
   assert.match(veo, /smartphone, tablet or laptop in the foreground/);
   assert.match(veo, /masonry or construction site/);
   assert.match(veo, /real horses as central subjects/);
-  assert.match(veo, /Digital subject: show relevant devices and app UI/);
+  assert.match(veo, /function subjectDigitalDirection/);
+  assert.match(veo, /digitalDirection \? `\$\{digitalDirection\}\.\` : ""/);
   assert.doesNotMatch(veo, /watermarks, interfaces, posters/);
-  assert.match(timeline, /10: Object\.freeze\(\[6, 4\]/);
-  assert.match(timeline, /20: Object\.freeze\(\[8, 8, 4\]/);
-  assert.match(timeline, /30: Object\.freeze\(\[8, 8, 8, 6\]/);
+  assert.match(timeline, /8: Object\.freeze\(\[8\]/);
+  assert.match(timeline, /16: Object\.freeze\(\[8, 8\]/);
+  assert.match(timeline, /24: Object\.freeze\(\[8, 8, 8\]/);
   assert.match(copywriter, /ne les additionne jamais/);
   assert.match(copywriter, /une accroche publicitaire courte, naturelle/i);
   assert.match(copywriter, /mots_a_evoquer: args\.request\.textKeywords/);
@@ -436,6 +444,9 @@ test("image Gateway, vidéo Veo et médiathèque respectent le contrat universel
   assert.doesNotMatch(copywriter, /\.join\(" \+ "\)/);
   assert.match(composer, /composeOriginalAiVideo/);
   assert.match(composer, /libx264/);
+  assert.match(composer, /h264Video/);
+  assert.match(composer, /yuv420Video/);
+  assert.match(composer, /compatibleAudio/);
   assert.match(
     composer,
     /MAX_GOOGLE_BUSINESS_VIDEO_BYTES = 74 \* 1024 \* 1024/
@@ -500,9 +511,14 @@ test("image Gateway, vidéo Veo et médiathèque respectent le contrat universel
   assert.match(server, /writeAiMediaNarration/);
   assert.match(server, /generateAiMediaNarrationAudio/);
   assert.match(server, /composeOriginalAiVideo/);
+  assert.match(server, /branding_overlay_unavailable_video_continued/);
+  assert.match(server, /video_enhancements_unavailable_video_continued/);
+  assert.match(server, /soundtrack:\s*null/);
+  assert.match(server, /narration:\s*null/);
+  assert.equal((server.match(/generateOriginalAiVideoClips/g) || []).length, 2);
   assert.match(
     server,
-    /durationSeconds: args\.request\.durationSeconds \|\| 10/
+    /durationSeconds: args\.request\.durationSeconds \|\| 8/
   );
   assert.match(server, /withText: args\.request\.withText/);
   assert.doesNotMatch(server, /prompt_sha256: promptHash,\s*prompt,/);

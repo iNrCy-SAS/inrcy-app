@@ -6,6 +6,7 @@ import {
   getAiMediaQuotaSnapshot,
 } from "@/lib/aiMediaGenerationQuota";
 import { presentAiMediaQuota } from "@/lib/aiMediaQuotaPresentation";
+import { getAiMediaVideoEntitlement } from "@/lib/aiMediaVideoEntitlementServer";
 import { isAdminUserForAi } from "@/lib/aiUsageQuota";
 import { getCurrentInrcyAccountScope } from "@/lib/multicompte/server";
 
@@ -27,14 +28,24 @@ export async function GET() {
     const { authUserId, activeUserId } = current.scope;
     const unlimited = await isAdminUserForAi(current.supabase, authUserId);
     const edition = await getDashboardEditionForAccountId(activeUserId);
-    const quota = await getAiMediaQuotaSnapshot({
-      accountId: activeUserId,
-      actorAuthUserId: authUserId,
-      edition,
-    });
+    const [quota, videoEntitlement] = await Promise.all([
+      getAiMediaQuotaSnapshot({
+        accountId: activeUserId,
+        actorAuthUserId: authUserId,
+        edition,
+      }),
+      getAiMediaVideoEntitlement({ accountId: activeUserId, edition }),
+    ]);
 
     return NextResponse.json(
-      { ok: true, quota: presentAiMediaQuota(quota, unlimited) },
+      {
+        ok: true,
+        quota: presentAiMediaQuota(
+          quota,
+          unlimited,
+          videoEntitlement.maxDurationSeconds,
+        ),
+      },
       { headers: NO_STORE_HEADERS },
     );
   } catch (error) {

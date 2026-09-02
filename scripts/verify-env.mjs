@@ -46,8 +46,8 @@ const required = [
   "STRIPE_PRICE_ACCEL_ID",
   "STRIPE_PRICE_ACCEL_YEARLY_ID",
 
-  // Original AI video generation (server only)
-  "FAL_KEY",
+  // Google Veo video generation + Gemini TTS (server only)
+  "GEMINI_API_KEY",
 ];
 
 /** @type {{ label: string; keys: string[] }[]} */
@@ -112,13 +112,17 @@ const optionalButRecommended = [
   "AI_GATEWAY_ALLOWED_TRANSCRIPTION_MODELS",
   "HEALTHCHECK_ALERT_TO",
 
-  // Ovi video provider tuning (defaults are versioned in the server)
+  // Google Veo tuning (defaults are versioned in the server)
   "AI_MEDIA_VIDEO_PROVIDER",
   "AI_MEDIA_VIDEO_TIMEOUT_MS",
-  "AI_MEDIA_FAL_OVI_QUEUE_URL",
-  "AI_MEDIA_FAL_OVI_CLIP_COST_MICRO_USD",
-  "AI_MEDIA_FAL_POLL_MS",
-  "AI_MEDIA_FAL_CONCURRENCY",
+  "AI_MEDIA_VEO_MODEL",
+  "AI_MEDIA_VEO_FALLBACK_MODELS",
+  "AI_MEDIA_VEO_COST_MICRO_USD_PER_SECOND",
+  "AI_MEDIA_VEO_FAST_COST_MICRO_USD_PER_SECOND",
+  "AI_MEDIA_VEO_LITE_COST_MICRO_USD_PER_SECOND",
+  "AI_MEDIA_VEO_STANDARD_COST_MICRO_USD_PER_SECOND",
+  "AI_MEDIA_VEO_POLL_MS",
+  "AI_MEDIA_VEO_CONCURRENCY",
 
   // Integrations / OAuth
   "GOOGLE_CLIENT_ID",

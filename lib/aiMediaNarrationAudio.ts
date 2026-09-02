@@ -148,7 +148,7 @@ function normalizeAudio(args: {
 export async function generateAiMediaNarrationAudio(args: {
   accountId: string;
   narration: AiMediaNarration;
-  durationSeconds: 10 | 20 | 30;
+  durationSeconds: 8 | 16 | 24;
 }): Promise<GeneratedAiNarrationAudio> {
   const model = safeIdentifier(process.env.AI_MEDIA_TTS_MODEL, DEFAULT_TTS_MODEL);
   const voice = safeIdentifier(process.env.AI_MEDIA_TTS_VOICE, DEFAULT_TTS_VOICE);

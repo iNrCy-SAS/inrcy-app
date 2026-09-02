@@ -111,7 +111,7 @@ export async function composeOriginalAiVideo(args: {
   if (
     args.overlays.length !== args.clips.length ||
     clipDurationTotal !== args.durationSeconds ||
-    args.clips.length < 2 ||
+    args.clips.length < 1 ||
     args.clips.length > 4
   ) {
     throw new Error("ai_original_video_clip_count_invalid");
@@ -234,10 +234,30 @@ export async function composeOriginalAiVideo(args: {
       stat(outputPath),
     ]);
     args.signal?.throwIfAborted();
+    const mp4Container = metadata.containerFormats.some((format) =>
+      ["mp4", "mov"].includes(String(format || "").toLowerCase()),
+    );
+    const h264Video = ["h264", "avc1"].includes(
+      String(metadata.videoCodec || "").toLowerCase(),
+    );
+    const yuv420Video = String(metadata.pixelFormat || "")
+      .toLowerCase()
+      .startsWith("yuv420");
+    const stableFrameRate =
+      metadata.frameRate >= 29 && metadata.frameRate <= 31;
+    const compatibleAudio = hasOutputAudio
+      ? metadata.hasAudio &&
+        ["aac", "mp4a"].includes(String(metadata.audioCodec || "").toLowerCase())
+      : !metadata.hasAudio;
     if (
       metadata.orientedWidth !== args.width ||
       metadata.orientedHeight !== args.height ||
       Math.abs(metadata.durationSeconds - args.durationSeconds) > 0.35 ||
+      !mp4Container ||
+      !h264Video ||
+      !yuv420Video ||
+      !stableFrameRate ||
+      !compatibleAudio ||
       outputStats.size <= 0 ||
       outputStats.size > MAX_GOOGLE_BUSINESS_VIDEO_BYTES
     ) {

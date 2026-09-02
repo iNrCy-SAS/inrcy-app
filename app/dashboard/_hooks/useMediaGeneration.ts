@@ -40,7 +40,7 @@ export type MediaGenerationShotType = "auto" | "close" | "medium" | "wide";
 export type MediaGenerationPeopleMode = "auto" | "none" | "solo" | "team";
 export type MediaGenerationCreativity = "faithful" | "bold";
 export type MediaGenerationLogoMode = "discreet" | "visible" | "none";
-export type MediaGenerationVideoDuration = 10 | 20 | 30;
+export type MediaGenerationVideoDuration = 8 | 16 | 24;
 export type MediaGenerationInspirationImage = {
   mimeType: "image/jpeg" | "image/png" | "image/webp";
   data: string;
@@ -62,6 +62,8 @@ export type MediaGenerationQuota = {
   resetAt: string | null;
   studioEnabled: boolean;
   videoLongFormPremiumRequired: boolean;
+  videoMaxDurationSeconds: MediaGenerationVideoDuration;
+  videoAllowedDurationsSeconds: MediaGenerationVideoDuration[];
   image: MediaGenerationQuotaCounter;
   video: MediaGenerationQuotaCounter;
 };
@@ -118,6 +120,7 @@ const COMPLETION_RAMP_MIN_MS = 900;
 const COMPLETION_RAMP_MAX_MS = 1_800;
 const COMPLETION_99_HOLD_MS = 320;
 const COMPLETION_100_HOLD_MS = 760;
+const DRAFT_ACCEPT_RETRY_DELAYS_MS = [0, 450, 1_200] as const;
 
 function interpolateProgress(
   elapsedSeconds: number,
@@ -270,6 +273,24 @@ function normalizeQuota(value: unknown): MediaGenerationQuota {
     value && typeof value === "object"
       ? (value as Record<string, unknown>)
       : {};
+  const videoLongFormPremiumRequired =
+    source.videoLongFormPremiumRequired === true ||
+    source.video_long_form_premium_required === true ||
+    source.videoPremiumRequired === true ||
+    source.video_premium_required === true;
+  const reportedVideoMaxDuration = Number(
+    source.videoMaxDurationSeconds ?? source.video_max_duration_seconds,
+  );
+  const videoMaxDurationSeconds = ([8, 16, 24] as const).includes(
+    reportedVideoMaxDuration as MediaGenerationVideoDuration,
+  )
+    ? (reportedVideoMaxDuration as MediaGenerationVideoDuration)
+    : videoLongFormPremiumRequired
+      ? 8
+      : 24;
+  const videoAllowedDurationsSeconds = ([8, 16, 24] as const).filter(
+    (duration) => duration <= videoMaxDurationSeconds,
+  );
   return {
     accountId: typeof source.accountId === "string" ? source.accountId : null,
     edition: typeof source.edition === "string" ? source.edition : null,
@@ -278,11 +299,9 @@ function normalizeQuota(value: unknown): MediaGenerationQuota {
       typeof source.periodStart === "string" ? source.periodStart : null,
     resetAt: typeof source.resetAt === "string" ? source.resetAt : null,
     studioEnabled: source.studioEnabled !== false,
-    videoLongFormPremiumRequired:
-      source.videoLongFormPremiumRequired === true ||
-      source.video_long_form_premium_required === true ||
-      source.videoPremiumRequired === true ||
-      source.video_premium_required === true,
+    videoLongFormPremiumRequired,
+    videoMaxDurationSeconds,
+    videoAllowedDurationsSeconds,
     image: normalizeCounter(source.image ?? source.images),
     video: normalizeCounter(source.video ?? source.videos),
   };
@@ -339,7 +358,7 @@ function buildGenerationAttemptKey(
     useBrandColors: request.useBrandColors,
     logoMode: request.logoMode,
     durationSeconds:
-      request.kind === "video" ? request.durationSeconds || 20 : null,
+      request.kind === "video" ? request.durationSeconds || 16 : null,
     inspirationImages:
       request.kind === "video"
         ? (request.inspirationImages || []).map((image) => ({
@@ -369,6 +388,14 @@ async function readJson(response: Response) {
     .text()
     .then((text) => (text ? { message: text } : null))
     .catch(() => null);
+}
+
+function waitForDraftAcceptanceRetry(delayMs: number) {
+  return new Promise<void>((resolve) => window.setTimeout(resolve, delayMs));
+}
+
+function isRetryableDraftAcceptanceStatus(status: number) {
+  return status === 408 || status === 425 || status === 429 || status >= 500;
 }
 
 function mediaDraftEndpoint(mediaId: string) {
@@ -642,7 +669,7 @@ export default function useMediaGeneration() {
             logoMode: request.logoMode,
             durationSeconds:
               request.kind === "video"
-                ? request.durationSeconds || 20
+                ? request.durationSeconds || 16
                 : undefined,
             inspirationImages:
               request.kind === "video"
@@ -843,38 +870,82 @@ export default function useMediaGeneration() {
       if (!requested.draft) return requested;
 
       const requestEpoch = accountEpochRef.current;
-      const response = await fetch(
-        `${mediaDraftEndpoint(requested.item.id)}/accept`,
-        {
-          method: "POST",
-          credentials: "include",
-          cache: "no-store",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ contractVersion: 2 }),
-        }
+      let acceptedItem: MediaLibraryPickerItem | null = null;
+      let lastAcceptanceError = new Error(
+        "Le média n’a pas pu être enregistré. Réessayez : le même média sera conservé."
       );
-      const payload = await readJson(response);
-      if (!response.ok) {
-        throw new Error(
-          readErrorMessage(payload, "Le média n’a pas pu être enregistré.")
-        );
+
+      // POST est idempotent côté serveur. Une réponse perdue après la promotion
+      // du brouillon peut donc être rejouée sans créer de fichier ni consommer
+      // un second quota.
+      for (
+        let attempt = 0;
+        attempt < DRAFT_ACCEPT_RETRY_DELAYS_MS.length;
+        attempt += 1
+      ) {
+        const delayMs = DRAFT_ACCEPT_RETRY_DELAYS_MS[attempt];
+        if (delayMs > 0) await waitForDraftAcceptanceRetry(delayMs);
+        if (!mountedRef.current || requestEpoch !== accountEpochRef.current) {
+          throw new MediaGenerationAccountChangedError();
+        }
+
+        let retryableFailure = true;
+        try {
+          const response = await fetch(
+            `${mediaDraftEndpoint(requested.item.id)}/accept`,
+            {
+              method: "POST",
+              credentials: "include",
+              cache: "no-store",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ contractVersion: 2 }),
+            }
+          );
+          const payload = await readJson(response);
+          const data =
+            payload && typeof payload === "object"
+              ? (payload as Record<string, unknown>)
+              : null;
+
+          if (
+            response.ok &&
+            data?.ok === true &&
+            data.item &&
+            typeof data.item === "object"
+          ) {
+            acceptedItem = data.item as MediaLibraryPickerItem;
+            break;
+          }
+
+          lastAcceptanceError = new Error(
+            readErrorMessage(
+              payload,
+              response.ok
+                ? "La réponse de validation du média est incomplète."
+                : "Le média n’a pas pu être enregistré."
+            )
+          );
+          if (!response.ok && !isRetryableDraftAcceptanceStatus(response.status)) {
+            retryableFailure = false;
+          }
+        } catch (caught) {
+          if (caught instanceof MediaGenerationAccountChangedError) throw caught;
+          lastAcceptanceError =
+            caught instanceof Error ? caught : lastAcceptanceError;
+        }
+        const isLastAttempt =
+          attempt === DRAFT_ACCEPT_RETRY_DELAYS_MS.length - 1;
+        if (!retryableFailure || isLastAttempt) throw lastAcceptanceError;
       }
-      if (!payload || typeof payload !== "object") {
-        throw new Error("La réponse de validation du média est incomplète.");
-      }
-      const data = payload as Record<string, unknown>;
-      if (data.ok !== true || !data.item || typeof data.item !== "object") {
-        throw new Error(
-          readErrorMessage(payload, "Le média validé est incomplet.")
-        );
-      }
+
+      if (!acceptedItem) throw lastAcceptanceError;
       if (!mountedRef.current || requestEpoch !== accountEpochRef.current) {
         throw new MediaGenerationAccountChangedError();
       }
 
       const acceptedResult: MediaGenerationResult = {
         ...requested,
-        item: data.item as MediaLibraryPickerItem,
+        item: acceptedItem,
         draft: false,
       };
       resultRef.current = acceptedResult;

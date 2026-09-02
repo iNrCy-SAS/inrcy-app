@@ -36,7 +36,8 @@ import {
   getDashboardEditionForAccountId,
 } from "@/lib/dashboardEditionServer";
 import type { DashboardEdition } from "@/lib/dashboardEdition";
-import { hasPremiumDashboardAccess } from "@/lib/dashboardEdition";
+import type { AiMediaVideoDurationLimit } from "@/lib/aiMediaGenerationQuotaPolicy";
+import { getAiMediaVideoEntitlement } from "@/lib/aiMediaVideoEntitlementServer";
 import { getCurrentInrcyAccountScope } from "@/lib/multicompte/server";
 import { enforceRateLimit } from "@/lib/rateLimit";
 
@@ -47,9 +48,9 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 800;
 
 const NO_STORE_HEADERS = { "Cache-Control": "private, no-store, max-age=0" };
-// L'image d'inspiration est compressee a moins de 1,8 Mo par le navigateur.
-// La limite reste sous le plafond HTTP Vercel tout en refusant les charges
-// arbitraires avant tout appel payant.
+// Chaque image d'inspiration est compressée sous 560 ko par le navigateur.
+// Trois images encodées en base64, le brief et l'enveloppe JSON restent ainsi
+// sous cette limite, avant tout appel payant.
 const MAX_BODY_BYTES = 3 * 1024 * 1024;
 
 type RouteContext = {
@@ -191,12 +192,25 @@ function publicGenerationError(error: unknown) {
   }
   if (
     message.includes("ai_gateway_credentials_missing") ||
-    message.includes("ai_video_veo_credentials_missing")
+    message.includes("ai_video_veo_credentials_missing") ||
+    message.includes("ai_video_veo_credentials_rejected") ||
+    message.includes("ai_video_veo_permission_denied")
   ) {
     return jsonError({
       status: 503,
       code: "AI_MEDIA_GATEWAY_NOT_CONFIGURED",
-      message: "La génération IA est momentanément indisponible.",
+      message:
+        "Le service vidéo Google est momentanément indisponible. Aucun quota iNrCy n’a été consommé.",
+      retryAfterSeconds: 60,
+    });
+  }
+  if (message.includes("ai_video_veo_rate_limited")) {
+    return jsonError({
+      status: 429,
+      code: "AI_MEDIA_VIDEO_CAPACITY_REACHED",
+      message:
+        "Google reçoit trop de demandes vidéo pour le moment. Réessayez dans une minute : aucun quota iNrCy n’a été consommé.",
+      retryAfterSeconds: 60,
     });
   }
   if (
@@ -209,6 +223,7 @@ function publicGenerationError(error: unknown) {
       status: 504,
       code: "AI_MEDIA_GENERATION_TIMEOUT",
       message: "La génération a pris trop de temps. Aucun quota iNrCy n’a été consommé.",
+      retryAfterSeconds: 30,
     });
   }
   if (message.includes("ai_video_veo_safety_filtered")) {
@@ -227,8 +242,48 @@ function publicGenerationError(error: unknown) {
     });
   }
   if (
+    message.includes("ai_video_veo_unavailable") ||
+    message.includes("ai_video_veo_network_failed") ||
+    message.includes("ai_video_veo_model_unavailable")
+  ) {
+    return jsonError({
+      status: 503,
+      code: "AI_MEDIA_VIDEO_PROVIDER_UNAVAILABLE",
+      message:
+        "Le moteur vidéo Google est temporairement indisponible après plusieurs tentatives automatiques. Réessayez dans un instant : aucun quota iNrCy n’a été consommé.",
+      retryAfterSeconds: 30,
+    });
+  }
+  if (
+    message.includes("ai_video_veo_configuration_rejected") ||
+    message.includes("ai_video_veo_model_invalid")
+  ) {
+    return jsonError({
+      status: 502,
+      code: "AI_MEDIA_VIDEO_CONFIGURATION_REJECTED",
+      message:
+        "Google a refusé toutes les variantes compatibles de cette génération. Modifiez légèrement l’idée puis réessayez : aucun quota iNrCy n’a été consommé.",
+    });
+  }
+  if (
+    message.includes("ai_video_veo_download_failed") ||
+    message.includes("ai_video_veo_clip_not_mp4") ||
+    message.includes("ai_video_veo_clip_too_large")
+  ) {
+    return jsonError({
+      status: 502,
+      code: "AI_MEDIA_VIDEO_DOWNLOAD_FAILED",
+      message:
+        "La vidéo a été créée mais son fichier final n’a pas pu être récupéré correctement. Réessayez : aucun quota iNrCy n’a été consommé.",
+    });
+  }
+  if (
     message.includes("ai_video_veo_clip_empty") ||
-    message.includes("ai_video_veo_clip_set_incomplete")
+    message.includes("ai_video_veo_operation_id_missing") ||
+    message.includes("ai_video_veo_clip_set_incomplete") ||
+    message.includes("ai_original_video_clip_contract_failed") ||
+    message.includes("ai_original_video_output_contract_failed") ||
+    message.includes("ai_original_video_render_failed")
   ) {
     return jsonError({
       status: 502,
@@ -323,6 +378,7 @@ export async function POST(request: Request) {
   let persistedItem: AiMediaLibraryPickerItem | null = null;
   let persistedSoundtrack: AiMediaSoundtrackResponse | null = null;
   let accountEdition: DashboardEdition | null = null;
+  let videoMaxDurationSeconds: AiMediaVideoDurationLimit = 24;
   let adminUnlimited = false;
 
   try {
@@ -362,11 +418,16 @@ export async function POST(request: Request) {
 
     const edition = await getDashboardEditionForAccountId(context.accountId);
     accountEdition = edition;
+    const videoEntitlement = await getAiMediaVideoEntitlement({
+      accountId: context.accountId,
+      edition,
+    });
+    videoMaxDurationSeconds = adminUnlimited
+      ? 24
+      : videoEntitlement.maxDurationSeconds;
     if (
       normalizedRequest.kind === "video" &&
-      (normalizedRequest.durationSeconds || 20) > 10 &&
-      !adminUnlimited &&
-      !hasPremiumDashboardAccess(edition)
+      (normalizedRequest.durationSeconds || 16) > videoMaxDurationSeconds
     ) {
       const quota = await getAiMediaQuotaSnapshot({
         accountId: context.accountId,
@@ -375,9 +436,17 @@ export async function POST(request: Request) {
       }).catch(() => null);
       return jsonError({
         status: 403,
-        code: "AI_MEDIA_VIDEO_LONG_FORM_PREMIUM_REQUIRED",
-        message: "Les vidéos de 20 et 30 secondes sont réservées aux offres Premium et Founder. Votre offre Standard inclut 5 vidéos de 10 secondes par mois.",
-        quota: quota ? presentAiMediaQuota(quota, false) : undefined,
+        code:
+          edition === "standard" && videoMaxDurationSeconds === 8
+            ? "AI_MEDIA_VIDEO_LONG_FORM_PREMIUM_REQUIRED"
+            : "AI_MEDIA_VIDEO_DURATION_NOT_ALLOWED",
+        message:
+          edition === "standard" && videoMaxDurationSeconds === 8
+            ? "Les vidéos de 16 et 24 secondes sont réservées aux offres Premium et Founder. Votre offre Standard inclut 5 vidéos de 8 secondes par mois."
+            : `Cet établissement autorise actuellement les vidéos jusqu’à ${videoMaxDurationSeconds} secondes.`,
+        quota: quota
+          ? presentAiMediaQuota(quota, false, videoMaxDurationSeconds)
+          : undefined,
       });
     }
     const reservation = await reserveAiMediaGeneration({
@@ -474,7 +543,11 @@ export async function POST(request: Request) {
               ok: true,
               item,
               quota: quota
-                ? presentAiMediaQuota(quota, adminUnlimited)
+                ? presentAiMediaQuota(
+                    quota,
+                    adminUnlimited,
+                    videoMaxDurationSeconds,
+                  )
                 : null,
               soundtrack: null,
               replayed: true,
@@ -501,7 +574,11 @@ export async function POST(request: Request) {
               ok: true,
               item,
               quota: quota
-                ? presentAiMediaQuota(quota, adminUnlimited)
+                ? presentAiMediaQuota(
+                    quota,
+                    adminUnlimited,
+                    videoMaxDurationSeconds,
+                  )
                 : null,
               soundtrack: null,
               replayed: true,
@@ -569,7 +646,11 @@ export async function POST(request: Request) {
       {
         ok: true,
         item: generated.item,
-        quota: presentAiMediaQuota(quota, adminUnlimited),
+        quota: presentAiMediaQuota(
+          quota,
+          adminUnlimited,
+          videoMaxDurationSeconds,
+        ),
         soundtrack: generated.soundtrack,
         draft: true,
       },
@@ -628,7 +709,11 @@ export async function POST(request: Request) {
             {
               ok: true,
               item: persistedItem,
-              quota: presentAiMediaQuota(quota, adminUnlimited),
+              quota: presentAiMediaQuota(
+                quota,
+                adminUnlimited,
+                videoMaxDurationSeconds,
+              ),
               soundtrack: null,
               recovered: true,
               draft: true,

@@ -218,6 +218,7 @@ export async function generateAndSaveAiMedia(args: {
     providerMetadata = cleanProviderMetadata(gateway);
   } else {
     args.signal?.throwIfAborted();
+    const pipelineWarnings: string[] = [];
     const narration = await writeAiMediaNarration({
       accountId: args.accountId,
       request: args.request,
@@ -226,13 +227,23 @@ export async function generateAndSaveAiMedia(args: {
     });
     // La voix est préparée avant les clips coûteux. Une panne TTS ne peut donc
     // jamais déclencher une facture Veo pour une vidéo privée de sa narration.
-    const narrationAudio = narration
-      ? await generateAiMediaNarrationAudio({
+    let narrationAudio: Awaited<
+      ReturnType<typeof generateAiMediaNarrationAudio>
+    > | null = null;
+    if (narration) {
+      try {
+        narrationAudio = await generateAiMediaNarrationAudio({
           accountId: args.accountId,
           narration,
-          durationSeconds: args.request.durationSeconds || 10,
-        })
-      : null;
+          durationSeconds: args.request.durationSeconds || 8,
+        });
+      } catch {
+        args.signal?.throwIfAborted();
+        // Narration is an enhancement. A TTS outage must not prevent the core
+        // Veo video from being generated and delivered.
+        pipelineWarnings.push("narration_unavailable_video_continued");
+      }
+    }
     args.signal?.throwIfAborted();
     const videoGateway = await generateOriginalAiVideoClips({
       accountId: args.accountId,
@@ -247,38 +258,97 @@ export async function generateAndSaveAiMedia(args: {
       signal: args.signal,
     });
     args.signal?.throwIfAborted();
-    soundtrack = args.request.withMusic
-      ? await loadAiMediaSoundtrack(
+    if (args.request.withMusic) {
+      try {
+        soundtrack = await loadAiMediaSoundtrack(
           args.request.idea ||
             `${creativePlan.companyName} ${creativePlan.headline}`,
-        )
-      : null;
-    const overlays = await Promise.all(
-      creativePlan.scenes.map((scene) => renderAiMediaVideoOverlay({
-        scene,
-        logo: officialLogo,
-        colors: effectiveColors,
-        companyName: creativePlan.companyName,
-        visualStyle: args.request.visualStyle,
-        logoMode: args.request.logoMode,
-        withText: args.request.withText,
+        );
+      } catch {
+        args.signal?.throwIfAborted();
+        // The original Veo ambience remains available when a local soundtrack
+        // asset cannot be loaded.
+        soundtrack = null;
+        pipelineWarnings.push("soundtrack_unavailable_video_continued");
+      }
+    }
+    const renderMinimalOverlays = () =>
+      Promise.all(
+        creativePlan.scenes.map((scene) =>
+          renderAiMediaVideoOverlay({
+            scene,
+            logo: null,
+            colors: effectiveColors,
+            companyName: creativePlan.companyName,
+            visualStyle: args.request.visualStyle,
+            logoMode: "none",
+            withText: false,
+            width: format.width,
+            height: format.height,
+          }),
+        ),
+      );
+    let overlays: Buffer[];
+    try {
+      overlays = await Promise.all(
+        creativePlan.scenes.map((scene) =>
+          renderAiMediaVideoOverlay({
+            scene,
+            logo: officialLogo,
+            colors: effectiveColors,
+            companyName: creativePlan.companyName,
+            visualStyle: args.request.visualStyle,
+            logoMode: args.request.logoMode,
+            withText: args.request.withText,
+            width: format.width,
+            height: format.height,
+          }),
+        ),
+      );
+    } catch {
+      args.signal?.throwIfAborted();
+      // Un logo corrompu ou une accroche impossible à rasteriser ne doit pas
+      // annuler les clips Veo déjà facturés. On conserve la vidéo avec un
+      // calque transparent et on signale explicitement la dégradation.
+      overlays = await renderMinimalOverlays();
+      pipelineWarnings.push("branding_overlay_unavailable_video_continued");
+    }
+
+    const clips = videoGateway.clips.map((clip) => ({
+      buffer: clip.buffer,
+      durationSeconds: clip.durationSeconds,
+    }));
+    try {
+      normalized = await composeOriginalAiVideo({
+        clips,
+        overlays,
         width: format.width,
         height: format.height,
-      })),
-    );
-    normalized = await composeOriginalAiVideo({
-      clips: videoGateway.clips.map((clip) => ({
-        buffer: clip.buffer,
-        durationSeconds: clip.durationSeconds,
-      })),
-      overlays,
-      width: format.width,
-      height: format.height,
-      durationSeconds: args.request.durationSeconds || 10,
-      soundtrack,
-      narration: narrationAudio,
-      signal: args.signal,
-    });
+        durationSeconds: args.request.durationSeconds || 8,
+        soundtrack,
+        narration: narrationAudio,
+        signal: args.signal,
+      });
+    } catch {
+      args.signal?.throwIfAborted();
+      // Les pistes audio et l'habillage sont facultatifs. Si FFmpeg refuse
+      // l'un de ces actifs, réassembler une seule fois les mêmes clips en mode
+      // minimal évite de rappeler Veo et préserve le rendu déjà payé.
+      overlays = await renderMinimalOverlays();
+      soundtrack = null;
+      narrationAudio = null;
+      pipelineWarnings.push("video_enhancements_unavailable_video_continued");
+      normalized = await composeOriginalAiVideo({
+        clips,
+        overlays,
+        width: format.width,
+        height: format.height,
+        durationSeconds: args.request.durationSeconds || 8,
+        soundtrack: null,
+        narration: null,
+        signal: args.signal,
+      });
+    }
     model = [
       videoGateway.model,
       narrationAudio?.model,
@@ -290,7 +360,9 @@ export async function generateAndSaveAiMedia(args: {
       original_clip_count: videoGateway.clips.length,
       provider_request_ids: videoGateway.clips.map((clip) => clip.requestId),
       estimated_cost_micro_usd: videoGateway.estimatedCostMicroUsd,
-      warnings: videoGateway.warnings,
+      warnings: Array.from(
+        new Set([...videoGateway.warnings, ...pipelineWarnings]),
+      ),
       narration: narration && narrationAudio
         ? {
             enabled: true,

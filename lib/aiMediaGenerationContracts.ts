@@ -29,7 +29,7 @@ export type AiMediaShotType = "auto" | "close" | "medium" | "wide";
 export type AiMediaPeopleMode = "auto" | "none" | "solo" | "team";
 export type AiMediaCreativity = "faithful" | "bold";
 export type AiMediaLogoMode = "discreet" | "visible" | "none";
-export type AiMediaVideoDuration = 10 | 20 | 30;
+export type AiMediaVideoDuration = 8 | 16 | 24;
 export type AiMediaInspirationImage = {
   mimeType: "image/jpeg" | "image/png" | "image/webp";
   /** Octets de l'image encodes en base64, sans prefixe data:. */
@@ -336,10 +336,10 @@ export function normalizeAiMediaGenerationRequest(
     throw new AiMediaRequestValidationError("Présence du logo invalide.");
   }
 
-  const requestedDuration = Number(body.durationSeconds || 20);
-  if (kind === "video" && ![10, 20, 30].includes(requestedDuration)) {
+  const requestedDuration = Number(body.durationSeconds || 16);
+  if (kind === "video" && ![8, 16, 24].includes(requestedDuration)) {
     throw new AiMediaRequestValidationError(
-      "Durée vidéo invalide : choisissez 10, 20 ou 30 secondes.",
+      "Durée vidéo invalide : choisissez 8, 16 ou 24 secondes.",
     );
   }
 

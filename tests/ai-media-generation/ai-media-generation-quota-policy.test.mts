@@ -5,6 +5,7 @@ import {
   AI_MEDIA_MONTHLY_LIMITS,
   createAiMediaRequestFingerprint,
   getAiMediaMonthlyLimit,
+  getAiMediaVideoMaxDuration,
   hasAiMediaStudioAccess,
   normalizeAiMediaEdition,
   stableAiMediaRequestPayload,
@@ -12,9 +13,24 @@ import {
 
 test("les plafonds mensuels sont propres a chaque edition", () => {
   assert.deepEqual(AI_MEDIA_MONTHLY_LIMITS, {
-    standard: { image: 20, video: 5, studioEnabled: true },
-    premium: { image: 30, video: 6, studioEnabled: true },
-    founder: { image: 30, video: 6, studioEnabled: true },
+    standard: {
+      image: 20,
+      video: 5,
+      studioEnabled: true,
+      videoMaxDurationSeconds: 8,
+    },
+    premium: {
+      image: 30,
+      video: 6,
+      studioEnabled: true,
+      videoMaxDurationSeconds: 24,
+    },
+    founder: {
+      image: 30,
+      video: 6,
+      studioEnabled: true,
+      videoMaxDurationSeconds: 24,
+    },
   });
 
   assert.equal(getAiMediaMonthlyLimit("standard", "image"), 20);
@@ -23,6 +39,9 @@ test("les plafonds mensuels sont propres a chaque edition", () => {
   assert.equal(getAiMediaMonthlyLimit("premium", "video"), 6);
   assert.equal(getAiMediaMonthlyLimit("founder", "image"), 30);
   assert.equal(getAiMediaMonthlyLimit("founder", "video"), 6);
+  assert.equal(getAiMediaVideoMaxDuration("standard"), 8);
+  assert.equal(getAiMediaVideoMaxDuration("premium"), 24);
+  assert.equal(getAiMediaVideoMaxDuration("founder"), 24);
 });
 
 test("le studio avance est accessible a toutes les editions", () => {

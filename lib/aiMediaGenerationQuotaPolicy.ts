@@ -7,18 +7,35 @@ export const AI_MEDIA_SURFACES = ["booster", "studio"] as const;
 export type AiMediaEdition = (typeof AI_MEDIA_EDITIONS)[number];
 export type AiMediaKind = (typeof AI_MEDIA_KINDS)[number];
 export type AiMediaSurface = (typeof AI_MEDIA_SURFACES)[number];
+export type AiMediaVideoDurationLimit = 8 | 16 | 24;
 
 export type AiMediaPlanLimits = Readonly<{
   image: number;
   video: number;
   studioEnabled: boolean;
+  videoMaxDurationSeconds: AiMediaVideoDurationLimit;
 }>;
 
 export const AI_MEDIA_MONTHLY_LIMITS: Readonly<Record<AiMediaEdition, AiMediaPlanLimits>> =
   Object.freeze({
-    standard: Object.freeze({ image: 20, video: 5, studioEnabled: true }),
-    premium: Object.freeze({ image: 30, video: 6, studioEnabled: true }),
-    founder: Object.freeze({ image: 30, video: 6, studioEnabled: true }),
+    standard: Object.freeze({
+      image: 20,
+      video: 5,
+      studioEnabled: true,
+      videoMaxDurationSeconds: 8,
+    }),
+    premium: Object.freeze({
+      image: 30,
+      video: 6,
+      studioEnabled: true,
+      videoMaxDurationSeconds: 24,
+    }),
+    founder: Object.freeze({
+      image: 30,
+      video: 6,
+      studioEnabled: true,
+      videoMaxDurationSeconds: 24,
+    }),
   });
 
 export function normalizeAiMediaEdition(value: unknown): AiMediaEdition {
@@ -35,6 +52,12 @@ export function getAiMediaMonthlyLimit(edition: AiMediaEdition, kind: AiMediaKin
 
 export function hasAiMediaStudioAccess(edition: AiMediaEdition): boolean {
   return AI_MEDIA_MONTHLY_LIMITS[edition].studioEnabled;
+}
+
+export function getAiMediaVideoMaxDuration(
+  edition: AiMediaEdition,
+): AiMediaVideoDurationLimit {
+  return AI_MEDIA_MONTHLY_LIMITS[edition].videoMaxDurationSeconds;
 }
 
 function canonicalize(value: unknown, ancestors: Set<object>): unknown {

@@ -183,8 +183,8 @@ test("la fenêtre iNrCy sépare les critères de la création et de la revue", (
     assert.ok(generator.includes(key), `${key} doit être présent`);
   }
   assert.match(generator, /ai_generator_duration_\$\{duration\}/);
-  assert.match(generator, /useState<MediaGenerationVideoDuration>\(10\)/);
-  assert.match(generator, /standardVideoLongFormRestricted && duration > 10/);
+  assert.match(generator, /useState<MediaGenerationVideoDuration>\(8\)/);
+  assert.match(generator, /duration > videoMaxDurationSeconds/);
   assert.match(generator, /disabled=\{operationLocked \|\| premiumLocked\}/);
   assert.match(generator, /acceptMode === "insert"/);
   assert.match(generator, /await onAccepted\(result\)/);
@@ -222,7 +222,7 @@ test("la fenêtre iNrCy sépare les critères de la création et de la revue", (
       `${format} doit être proposé`
     );
   }
-  assert.match(generator, /\(\[10, 20, 30\] as const\)/);
+  assert.match(generator, /\(\[8, 16, 24\] as const\)/);
   assert.match(generator, /MediaSubjectVoiceButton/);
   assert.match(voice, /\/api\/booster\/transcribe/);
   assert.match(voice, /SpeechRecognition|webkitSpeechRecognition/);
@@ -480,9 +480,9 @@ test("toutes les langues contiennent la copie complète de la modale", () => {
     "ai_generator_inspiration_rules_title",
     "ai_generator_inspiration_rules_body",
     "ai_generator_unlimited",
-    "ai_generator_duration_10",
-    "ai_generator_duration_20",
-    "ai_generator_duration_30",
+    "ai_generator_duration_8",
+    "ai_generator_duration_16",
+    "ai_generator_duration_24",
     "ai_generator_stage_profile",
     "ai_generator_stage_brand",
     "ai_generator_stage_storyboard",

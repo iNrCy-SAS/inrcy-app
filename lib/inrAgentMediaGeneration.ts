@@ -82,7 +82,7 @@ export async function generateInrAgentMedia(args: {
     creativity: "faithful",
     useBrandColors: true,
     logoMode: "discreet",
-    durationSeconds: args.kind === "video" ? 10 : null,
+    durationSeconds: args.kind === "video" ? 8 : null,
     inspirationImages: [],
     source: "booster",
   };

@@ -273,7 +273,7 @@ export function getAiMediaPromptOutputSpec(
           aspectRatio: "1:1",
           width: 1080,
           height: 1080,
-          durationSeconds: 20,
+          durationSeconds: 16,
           quality: "hd",
         };
   }

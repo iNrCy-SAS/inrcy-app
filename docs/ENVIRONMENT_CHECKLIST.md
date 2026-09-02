@@ -111,7 +111,9 @@ Limites optionnelles :
 - [ ] `GEMINI_API_KEY` — secret serveur Google utilisé par Veo et Gemini TTS ; ne jamais le préfixer par `NEXT_PUBLIC_`
 - [ ] `AI_MEDIA_VIDEO_PROVIDER` (optionnel, défaut `google-veo-fast`)
 - [ ] `AI_MEDIA_VIDEO_TIMEOUT_MS` (optionnel, défaut 420000, plafond 600000)
-- [ ] `AI_MEDIA_VEO_MODEL`, `AI_MEDIA_VEO_COST_MICRO_USD_PER_SECOND`, `AI_MEDIA_VEO_POLL_MS` et `AI_MEDIA_VEO_CONCURRENCY` seulement après calibration en Preview
+- [ ] `AI_MEDIA_VEO_MODEL` (défaut Fast) et `AI_MEDIA_VEO_FALLBACK_MODELS` (défaut Lite ; valeur vide pour désactiver le secours)
+- [ ] `AI_MEDIA_VEO_FAST_COST_MICRO_USD_PER_SECOND`, `AI_MEDIA_VEO_LITE_COST_MICRO_USD_PER_SECOND` et `AI_MEDIA_VEO_STANDARD_COST_MICRO_USD_PER_SECOND` seulement si les tarifs par défaut doivent être surchargés ; `AI_MEDIA_VEO_COST_MICRO_USD_PER_SECOND` reste l’alias historique du coût Fast
+- [ ] `AI_MEDIA_VEO_POLL_MS` et `AI_MEDIA_VEO_CONCURRENCY` seulement après calibration en Preview
 - [ ] `AI_MEDIA_TTS_MODEL`, `AI_MEDIA_TTS_VOICE`, `AI_MEDIA_TTS_TIMEOUT_MS` et `AI_MEDIA_TTS_COST_MICRO_USD` seulement si les valeurs par défaut doivent être surchargées
 - [ ] `AI_GATEWAY_BASE_URL` seulement si surcharge volontaire
 - [ ] `AI_GATEWAY_FALLBACK_MODEL` (optionnel ; secours Gateway des moteurs non-OpenAI, défaut `openai/gpt-4o-mini`)

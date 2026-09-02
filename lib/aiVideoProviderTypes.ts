@@ -6,6 +6,8 @@ export type AiVideoProviderClip = {
   mediaType: string;
   durationSeconds: 4 | 6 | 8;
   requestId: string;
+  model: string;
+  warnings: string[];
 };
 
 export type AiVideoProviderResult = {

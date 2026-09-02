@@ -4174,11 +4174,43 @@ export default function PublishModal({
     if (!url) {
       throw new Error("Ce média n’a pas d’URL de lecture temporaire.");
     }
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Impossible de lire ${item.title || item.storage_path}.`);
+
+    const retryDelaysMs = [0, 400, 1_100, 2_400] as const;
+    let blob: Blob | null = null;
+
+    // L'URL acceptée est stable et recrée une signature Storage à chaque
+    // tentative. Sur mobile, une perte réseau après la génération ne doit donc
+    // jamais imposer de payer/générer une seconde image.
+    for (let attempt = 0; attempt < retryDelaysMs.length; attempt += 1) {
+      const delayMs = retryDelaysMs[attempt];
+      if (delayMs > 0) {
+        await new Promise<void>((resolve) => window.setTimeout(resolve, delayMs));
+      }
+      try {
+        const response = await fetch(url, {
+          credentials: "same-origin",
+          cache: "no-store",
+        });
+        if (!response.ok) {
+          continue;
+        }
+        const downloaded = await response.blob();
+        if (!downloaded.size) {
+          continue;
+        }
+        blob = downloaded;
+        break;
+      } catch {
+        // Safari/Chrome mobile remontent ici "Load failed"/"Failed to fetch".
+        // La prochaine tentative rejoue la lecture de la même ligne active.
+      }
     }
-    const blob = await response.blob();
+
+    if (!blob) {
+      throw new Error(
+        "Le média est bien enregistré dans la Médiathèque, mais le réseau n’a pas permis de l’insérer. Réessayez sans le régénérer."
+      );
+    }
     const mimeType =
       item.mime_type ||
       blob.type ||

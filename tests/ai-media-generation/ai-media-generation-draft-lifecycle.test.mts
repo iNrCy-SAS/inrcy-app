@@ -80,6 +80,30 @@ test("la validation est scopee au compte actif et idempotente", () => {
     registry,
     /\.eq\("user_id", args\.accountId\)[\s\S]*?\.eq\("source", GENERATED_DRAFT_SOURCE\)/,
   );
+  assert.match(registry, /buildMediaLibraryContentUrl/);
+  assert.match(registry, /isAcceptedGeneratedMedia\(row\)/);
+});
+
+test("une coupure apres generation rejoue le meme media sans regenerer", () => {
+  const hook = read("app/dashboard/_hooks/useMediaGeneration.ts");
+  const booster = read("app/dashboard/booster/publier/PublishModal.tsx");
+  const acceptDraft = section(
+    hook,
+    "const acceptDraft = useCallback",
+    "const discardDraft = useCallback",
+  );
+  const mediaDownload = section(
+    booster,
+    "async function mediaLibraryItemToFile",
+    "const addMediaLibrarySelection",
+  );
+
+  assert.match(acceptDraft, /DRAFT_ACCEPT_RETRY_DELAYS_MS/);
+  assert.match(acceptDraft, /mediaDraftEndpoint\(requested\.item\.id\)/);
+  assert.doesNotMatch(acceptDraft, /\/api\/media-generation\/generate/);
+  assert.match(mediaDownload, /retryDelaysMs/);
+  assert.match(mediaDownload, /cache:\s*"no-store"/);
+  assert.match(mediaDownload, /sans le régénérer/);
 });
 
 test("la fermeture et la regeneration detruisent le brouillon avant de continuer", () => {

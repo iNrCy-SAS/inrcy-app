@@ -2,15 +2,15 @@ import type { AiMediaVideoDuration } from "@/lib/aiMediaGenerationContracts";
 
 const SEGMENTS: Readonly<Record<AiMediaVideoDuration, readonly (4 | 6 | 8)[]>> =
   Object.freeze({
-    10: Object.freeze([6, 4] as const),
-    20: Object.freeze([8, 8, 4] as const),
-    30: Object.freeze([8, 8, 8, 6] as const),
+    8: Object.freeze([8] as const),
+    16: Object.freeze([8, 8] as const),
+    24: Object.freeze([8, 8, 8] as const),
   });
 
 /**
  * Veo genere nativement des plans de 4, 6 ou 8 secondes. Ces timelines
- * produisent exactement les durees commerciales iNrCy sans generer puis jeter
- * des secondes facturables.
+ * alignent les durees commerciales iNrCy sur le format natif de 8 secondes :
+ * aucun plan partiel, aucune seconde generee puis jetee.
  */
 export function getAiMediaVideoSegmentDurations(
   durationSeconds: AiMediaVideoDuration,

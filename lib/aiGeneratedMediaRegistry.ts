@@ -8,6 +8,7 @@ import type {
 } from "@/lib/aiMediaGenerationContracts";
 import type { NormalizedAiMedia } from "@/lib/aiMediaNormalizer";
 import { enqueueImageNormalization } from "@/lib/mediaImageNormalizationQueue";
+import { buildMediaLibraryContentUrl } from "@/lib/mediaLibraryContentUrl";
 import { UNIVERSAL_MEDIA_PIPELINE_VERSION } from "@/lib/mediaPipelineRegistry";
 import { enqueueVideoNormalization } from "@/lib/mediaVideoNormalizationQueue";
 import { createSafeStorageSignedUrl } from "@/lib/safeStorageSignedUrl";
@@ -70,11 +71,20 @@ async function toPickerItem(row: RegistryRow): Promise<AiMediaLibraryPickerItem>
   // La signature est un confort de réponse court terme, pas une condition de
   // persistance. Une panne Storage après l'INSERT ne doit jamais faire croire
   // au quota que le média n'existe pas.
-  const signedUrl = await createSafeStorageSignedUrl(
-    String(row.bucket_name || BUCKET),
-    row.storage_path,
-    CONTENT_URL_TTL_SECONDS,
-  ).catch(() => null);
+  // Une fois accepté, renvoyer l'URL applicative stable utilisée par toute la
+  // Médiathèque. Elle recrée une signature Storage à chaque lecture : Booster
+  // peut donc rejouer une insertion après une coupure mobile sans régénérer le
+  // média. Le brouillon privé conserve une signature directe pour son aperçu,
+  // car la route publique authentifiée refuse volontairement les lignes inactives.
+  const signedUrl =
+    (isAcceptedGeneratedMedia(row)
+      ? buildMediaLibraryContentUrl(String(row.id || ""))
+      : null) ||
+    (await createSafeStorageSignedUrl(
+      String(row.bucket_name || BUCKET),
+      row.storage_path,
+      CONTENT_URL_TTL_SECONDS,
+    ).catch(() => null));
   return {
     id: String(row.id),
     bucket_name: row.bucket_name || BUCKET,
