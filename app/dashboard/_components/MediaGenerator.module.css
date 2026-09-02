@@ -23,13 +23,41 @@
 }
 
 .criteriaSection {
+  --section-rgb: 47, 204, 242;
+  --section-rgb-secondary: 123, 87, 235;
   min-width: 0;
   padding: 15px;
-  border: 1px solid rgba(135, 168, 246, 0.16);
+  border: 1px solid rgba(var(--section-rgb), 0.22);
   border-radius: 19px;
   background:
-    radial-gradient(circle at 100% 0, rgba(116, 73, 235, 0.08), transparent 42%),
+    radial-gradient(circle at 100% 0, rgba(var(--section-rgb-secondary), 0.15), transparent 46%),
+    radial-gradient(circle at 0 100%, rgba(var(--section-rgb), 0.08), transparent 40%),
     rgba(5, 15, 39, 0.69);
+}
+
+.criteriaSection:nth-child(2) {
+  --section-rgb: 225, 79, 160;
+  --section-rgb-secondary: 132, 87, 238;
+}
+
+.criteriaSection:nth-child(3) {
+  --section-rgb: 116, 102, 246;
+  --section-rgb-secondary: 43, 201, 238;
+}
+
+.criteriaSection:nth-child(4) {
+  --section-rgb: 43, 190, 238;
+  --section-rgb-secondary: 71, 109, 239;
+}
+
+.criteriaSection:nth-child(5) {
+  --section-rgb: 229, 78, 157;
+  --section-rgb-secondary: 119, 87, 235;
+}
+
+.criteriaSection:nth-child(6) {
+  --section-rgb: 117, 91, 239;
+  --section-rgb-secondary: 226, 78, 159;
 }
 
 .sectionHeading {
@@ -165,11 +193,13 @@
 .durationChoices .compactChoiceActive,
 .typologyChoices .compactChoiceActive,
 .parameterChoices .compactChoiceActive {
-  border-color: rgba(88, 222, 255, 0.52);
+  border-color: rgba(var(--section-rgb), 0.64);
   background:
-    linear-gradient(135deg, rgba(40, 184, 233, 0.18), rgba(126, 77, 233, 0.18)),
+    linear-gradient(135deg, rgba(var(--section-rgb), 0.25), rgba(var(--section-rgb-secondary), 0.25)),
     rgba(13, 28, 63, 0.88);
-  box-shadow: inset 0 0 0 1px rgba(107, 183, 255, 0.07), 0 10px 25px rgba(31, 71, 166, 0.14);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 10px 28px rgba(var(--section-rgb-secondary), 0.16);
   color: #fff;
 }
 
@@ -432,6 +462,37 @@
   overflow: hidden;
 }
 
+.collapsibleSection::before {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  left: 20px;
+  right: 20px;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(var(--section-rgb), 0.9),
+    rgba(var(--section-rgb-secondary), 0.9),
+    transparent
+  );
+  opacity: 0.56;
+}
+
+.collapsibleSection:has(.collapsibleToggle[aria-expanded="true"]) {
+  border-color: rgba(var(--section-rgb), 0.4);
+  box-shadow:
+    0 16px 42px rgba(var(--section-rgb-secondary), 0.11),
+    inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+.collapsibleSection:has(.collapsibleToggle[aria-expanded="true"])::before {
+  height: 3px;
+  opacity: 1;
+}
+
 .contentCriteriaSection {
   align-self: start;
   height: fit-content;
@@ -456,7 +517,7 @@
 }
 
 .collapsibleToggle:hover {
-  background: rgba(57, 124, 218, 0.07);
+  background: linear-gradient(90deg, rgba(var(--section-rgb), 0.08), rgba(var(--section-rgb-secondary), 0.07));
 }
 
 .stepBadge {
@@ -464,10 +525,11 @@
   height: 29px;
   display: grid;
   place-items: center;
-  border: 1px solid rgba(91, 224, 255, 0.25);
+  border: 1px solid rgba(var(--section-rgb), 0.38);
   border-radius: 9px;
-  color: #8cecff;
-  background: linear-gradient(135deg, rgba(37, 188, 232, 0.17), rgba(122, 81, 232, 0.18));
+  color: rgb(var(--section-rgb));
+  background: linear-gradient(135deg, rgba(var(--section-rgb), 0.2), rgba(var(--section-rgb-secondary), 0.23));
+  box-shadow: inset 0 0 13px rgba(var(--section-rgb), 0.07);
   font-size: 11px;
   font-weight: 950;
 }
@@ -495,10 +557,10 @@
   max-width: 280px;
   overflow: hidden;
   padding: 6px 9px;
-  border: 1px solid rgba(89, 218, 255, 0.19);
+  border: 1px solid rgba(var(--section-rgb), 0.3);
   border-radius: 999px;
-  color: #9beeff;
-  background: rgba(38, 168, 220, 0.08);
+  color: color-mix(in srgb, rgb(var(--section-rgb)) 68%, white);
+  background: linear-gradient(110deg, rgba(var(--section-rgb), 0.12), rgba(var(--section-rgb-secondary), 0.13));
   font-size: 9.5px;
   font-weight: 850;
   text-overflow: ellipsis;
@@ -937,10 +999,13 @@
   justify-content: space-between;
   gap: 12px;
   padding: 12px;
-  border: 1px solid rgba(129, 168, 245, 0.2);
+  border: 1px solid rgba(125, 171, 255, 0.28);
   border-radius: 18px;
-  background: rgba(5, 14, 37, 0.92);
-  box-shadow: 0 -12px 45px rgba(2, 7, 22, 0.42);
+  background:
+    radial-gradient(circle at 9% 50%, rgba(38, 190, 235, 0.13), transparent 28%),
+    radial-gradient(circle at 92% 50%, rgba(226, 76, 158, 0.13), transparent 31%),
+    rgba(5, 14, 37, 0.94);
+  box-shadow: 0 -12px 45px rgba(2, 7, 22, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.04);
   backdrop-filter: blur(18px);
 }
 
@@ -964,6 +1029,10 @@
   grid-column: 2;
   align-self: center;
   color: #fff;
+  background: linear-gradient(90deg, #78ebff, #b8a2ff 52%, #ff91c7);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
   font-size: 18px;
 }
 
@@ -1041,7 +1110,7 @@
 /* Écran 2 : génération et revue plein espace. */
 .creationWorkspace {
   position: relative;
-  min-height: min(720px, calc(100dvh - 150px));
+  min-height: min(760px, calc(100dvh - 155px));
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -1253,7 +1322,24 @@
   letter-spacing: -0.035em;
 }
 
+.creationProgress h3 {
+  width: 100%;
+  height: 2.2em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
 .creationProgress > p:not(.creationEyebrow) {
+  width: 100%;
+  height: 3em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
   max-width: 520px;
   margin: 13px 0 23px;
   color: rgba(213, 226, 250, 0.66);
@@ -1288,6 +1374,13 @@
   margin-top: 20px;
   color: rgba(200, 216, 244, 0.46);
   font-size: 10px;
+}
+
+.stopGenerationSlot {
+  width: 100%;
+  min-height: 55px;
+  display: grid;
+  place-items: start center;
 }
 
 .stopGenerationButton {
@@ -1597,6 +1690,113 @@ textarea:focus-visible,
   outline-offset: 2px;
 }
 
+@media (min-width: 1101px) {
+  .stepBadge {
+    font-size: 12px;
+  }
+
+  .collapsibleTitle strong {
+    font-size: 14.5px;
+  }
+
+  .collapsibleTitle small {
+    font-size: 11.5px;
+  }
+
+  .sectionSelection {
+    font-size: 10.5px;
+  }
+
+  .combinedSectionTitle {
+    font-size: 12px;
+  }
+
+  .subjectChoices button strong {
+    font-size: 12.5px;
+  }
+
+  .subjectChoices button small,
+  .kindChoices small {
+    font-size: 10.5px;
+  }
+
+  .kindChoices strong {
+    font-size: 13px;
+  }
+
+  .typologyChoices button,
+  .styleChoices button,
+  .parameterChoices button {
+    font-size: 11px;
+  }
+
+  .parameterGroup > span {
+    font-size: 10.5px;
+  }
+
+  .switchRow strong {
+    font-size: 12px;
+  }
+
+  .switchRow small {
+    font-size: 10px;
+  }
+
+  .customField {
+    font-size: 11.5px;
+  }
+
+  .customField textarea {
+    font-size: 12px;
+  }
+
+  .inspirationSection > p,
+  .inspirationInfoBubble p {
+    font-size: 10px;
+  }
+
+  .inspirationPicker {
+    font-size: 10.5px;
+  }
+
+  .inspirationPicker > small {
+    font-size: 9px;
+  }
+
+  .formatChoices strong,
+  .durationChoices small {
+    font-size: 9.5px;
+  }
+
+  .formatChoices small {
+    font-size: 9px;
+  }
+
+  .durationChoices strong {
+    font-size: 14px;
+  }
+
+  .quotaCard span {
+    font-size: 10.5px;
+  }
+
+  .quotaCard strong {
+    font-size: 20px;
+  }
+
+  .quotaCard small {
+    font-size: 9.5px;
+  }
+
+  .generateButton {
+    font-size: 14.5px;
+  }
+
+  .generateButton > span {
+    font-size: 20px;
+  }
+}
+
 @media (max-width: 900px) {
   .criteriaGrid { grid-template-columns: 1fr; }
   .typologyChoices { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -1650,6 +1850,8 @@ textarea:focus-visible,
   .creationWorkspace { min-height: calc(100dvh - 72px); }
   .creationProgress h3,
   .creationErrorPanel h3 { font-size: 26px; }
+  .creationProgress h3 { height: 3.3em; }
+  .creationProgress > p:not(.creationEyebrow) { height: 4.5em; }
   .cancelGenerationDialog { padding: 22px 16px; border-radius: 18px; }
   .cancelGenerationDialog > div { grid-template-columns: 1fr; }
   .reviewWorkspace { width: calc(100% - 16px); }

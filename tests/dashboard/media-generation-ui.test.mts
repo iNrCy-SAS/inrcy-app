@@ -288,7 +288,20 @@ test("la fenêtre iNrCy sépare les critères de la création et de la revue", (
   assert.match(generatorStyles, /\.textKeywordTags/);
   assert.match(generatorStyles, /\.textKeywordInputRow/);
   assert.match(generatorStyles, /\.creationWorkspace::before/);
+  assert.match(
+    generatorStyles,
+    /\.creationWorkspace\s*\{[\s\S]*?min-height:\s*min\(760px, calc\(100dvh - 155px\)\)/
+  );
   assert.match(generatorStyles, /@keyframes creativeAurora/);
+  assert.match(generator, /className=\{styles\.stopGenerationSlot\}/);
+  assert.match(
+    generatorStyles,
+    /\.creationProgress h3\s*\{[\s\S]*?height:\s*2\.2em/
+  );
+  assert.match(
+    generatorStyles,
+    /\.stopGenerationSlot\s*\{[\s\S]*?min-height:\s*55px/
+  );
   assert.match(
     generatorStyles,
     /@media \(max-width: 620px\)[\s\S]*?\.footerBar\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\)[\s\S]*?justify-items:\s*center/

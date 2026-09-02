@@ -50,8 +50,12 @@
   gap: 16px;
   padding: 9px clamp(14px, 2vw, 30px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.075);
-  background: rgba(7, 17, 43, 0.9);
+  background:
+    radial-gradient(circle at 8% 50%, rgba(38, 195, 237, 0.12), transparent 25%),
+    radial-gradient(circle at 92% 50%, rgba(225, 78, 158, 0.13), transparent 27%),
+    linear-gradient(90deg, rgba(7, 23, 55, 0.96), rgba(11, 18, 48, 0.94) 55%, rgba(25, 18, 62, 0.95));
   backdrop-filter: blur(18px);
+  box-shadow: 0 10px 32px rgba(1, 7, 24, 0.2);
 }
 
 .moduleIdentity {
@@ -349,6 +353,32 @@
     justify-content: center;
     box-sizing: border-box;
     padding: 0;
+  }
+}
+
+@media (min-width: 1101px) {
+  .moduleIdentity strong {
+    font-size: 14px;
+  }
+
+  .moduleIdentity p {
+    font-size: 10.5px;
+  }
+
+  .heading h2 {
+    font-size: 21px;
+  }
+
+  .heading p {
+    font-size: 13px;
+  }
+
+  .profileSignals span {
+    font-size: 10px;
+  }
+
+  .close {
+    font-size: 12px;
   }
 }
 

@@ -523,15 +523,17 @@ export default function MediaGenerator({
             </div>
             <strong>{progress} %</strong>
             <small>{t("ai_generator_keep_open")}</small>
-            {generationCancellable ? (
-              <button
-                type="button"
-                className={styles.stopGenerationButton}
-                onClick={handleRequestGenerationStop}
-              >
-                {t("ai_generator_stop_generation")}
-              </button>
-            ) : null}
+            <div className={styles.stopGenerationSlot}>
+              {generationCancellable ? (
+                <button
+                  type="button"
+                  className={styles.stopGenerationButton}
+                  onClick={handleRequestGenerationStop}
+                >
+                  {t("ai_generator_stop_generation")}
+                </button>
+              ) : null}
+            </div>
           </div>
         ) : null}
 
