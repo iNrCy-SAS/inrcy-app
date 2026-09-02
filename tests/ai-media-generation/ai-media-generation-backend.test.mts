@@ -376,7 +376,9 @@ test("image Gateway, vidéo Veo et médiathèque respectent le contrat universel
   assert.doesNotMatch(veo, /enhancePrompt/);
   assert.doesNotMatch(veo, /negativePrompt/);
   assert.doesNotMatch(veo, /numberOfVideos/);
-  assert.match(veo, /personGeneration: "allow_adult"/);
+  assert.doesNotMatch(veo, /personGeneration\s*:/);
+  assert.match(veo, /isInvalidArgument/);
+  assert.match(veo, /inspirationMode === "references" \? "source" : "none"/);
   assert.match(veo, /Every visible person must be unmistakably adult/);
   assert.match(veo, /This business serves a family audience/);
   assert.match(veo, /safetyFallbackPrompt/);

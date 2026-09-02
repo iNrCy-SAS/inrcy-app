@@ -120,9 +120,19 @@ function statusFromError(error: unknown) {
   );
   if (Number.isFinite(value) && value >= 100 && value <= 599) return value;
   const match = String((error as { message?: unknown }).message || "").match(
-    /\b(429|500|502|503|504)\b/
+    /\b(400|429|500|502|503|504)\b/
   );
   return match ? Number(match[1]) : 0;
+}
+
+function isInvalidArgument(error: unknown) {
+  const message = compact(
+    error && typeof error === "object"
+      ? (error as { message?: unknown }).message
+      : error,
+    2_000
+  );
+  return statusFromError(error) === 400 || /\bINVALID_ARGUMENT\b/i.test(message);
 }
 
 function isExplicitlyRetryable(error: unknown) {
@@ -406,17 +416,25 @@ async function submitOperation(args: {
   signal: AbortSignal;
 }) {
   let lastError: unknown = null;
+  let inspirationMode: "references" | "source" | "none" =
+    (args.inspirationImages?.length || 0) > 1
+      ? "references"
+      : args.inspirationImages?.length === 1
+        ? "source"
+        : "none";
   for (let attempt = 0; attempt < DEFAULT_SUBMIT_ATTEMPTS; attempt += 1) {
     try {
+      const sourceImage =
+        inspirationMode === "source" ? args.inspirationImages?.[0] : null;
       return await args.ai.models.generateVideos({
         model: args.model,
         source: {
           prompt: args.prompt,
-          ...(args.inspirationImages?.length === 1
+          ...(sourceImage
             ? {
                 image: {
-                  imageBytes: args.inspirationImages[0].data,
-                  mimeType: args.inspirationImages[0].mimeType,
+                  imageBytes: sourceImage.data,
+                  mimeType: sourceImage.mimeType,
                 },
               }
             : {}),
@@ -428,12 +446,10 @@ async function submitOperation(args: {
           abortSignal: args.signal,
           durationSeconds: args.durationSeconds,
           aspectRatio: args.aspectRatio,
-          // Google limite Veo 3/3.1 a allow_adult dans l'UE, y compris
-          // lorsqu'un plan text-to-video suit un premier plan inspire d'une
-          // image. L'envoyer sur chaque clip evite un changement implicite de
-          // politique au milieu du montage.
-          personGeneration: "allow_adult",
-          ...(args.inspirationImages && args.inspirationImages.length > 1
+          // Intentionally omit personGeneration. Google currently rejects
+          // allow_adult on some Veo 3/3.1 routes with INVALID_ARGUMENT.
+          // Person safety remains enforced by the prompt and Google's filters.
+          ...(inspirationMode === "references" && args.inspirationImages
             ? {
                 referenceImages: args.inspirationImages.map((image) => ({
                   image: {
@@ -448,6 +464,13 @@ async function submitOperation(args: {
       });
     } catch (error) {
       lastError = error;
+      // Inspiration is optional: an SDK/model incompatibility must not block
+      // the whole video. Gracefully degrade references -> first image -> text.
+      if (isInvalidArgument(error) && inspirationMode !== "none") {
+        inspirationMode =
+          inspirationMode === "references" ? "source" : "none";
+        continue;
+      }
       if (
         attempt >= DEFAULT_SUBMIT_ATTEMPTS - 1 ||
         !isExplicitlyRetryable(error)
