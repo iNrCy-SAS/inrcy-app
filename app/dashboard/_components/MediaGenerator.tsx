@@ -665,7 +665,7 @@ export default function MediaGenerator({
               <small>{t("ai_generator_group_creation_hint")}</small>
             </span>
             <span className={styles.sectionSelection}>
-              {t(`ai_generator_subject_${subjectSource}`)} · {t(kind === "image" ? "image_50e19fda" : "video_304f6ca4")}
+              {t(kind === "image" ? "image_50e19fda" : "video_304f6ca4")} · {t(`ai_generator_subject_${subjectSource}`)}
               {kind === "video" && inspirationImages.length
                 ? t("ai_generator_inspiration_summary", {
                     count: inspirationImages.length,
@@ -675,6 +675,29 @@ export default function MediaGenerator({
             <i aria-hidden="true">⌄</i>
           </button>
           {expandedStep === 1 ? <div className={styles.collapsibleBody}>
+            <div className={styles.combinedSubsection}>
+              <strong className={styles.combinedSectionTitle}>{t("ai_generator_step_kind")}</strong>
+              <div className={styles.kindChoices} role="radiogroup" aria-label={t("ai_generator_kind_label")}>
+                {(["image", "video"] as const).map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    role="radio"
+                    aria-checked={kind === option}
+                    className={kind === option ? styles.kindActive : ""}
+                    disabled={operationLocked}
+                    onClick={() => {
+                      clearTransientState();
+                      setKind(option);
+                    }}
+                  >
+                    <span aria-hidden="true">{option === "image" ? "✦" : "▶"}</span>
+                    <strong>{t(option === "image" ? "image_50e19fda" : "video_304f6ca4")}</strong>
+                    <small>{t(option === "image" ? "ai_generator_kind_image_hint" : "ai_generator_kind_video_hint")}</small>
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className={styles.combinedSubsection}>
               <strong className={styles.combinedSectionTitle}>{t("ai_generator_step_subject")}</strong>
               <div className={styles.subjectChoices} role="radiogroup" aria-label={t("ai_generator_step_subject")}>
@@ -816,33 +839,10 @@ export default function MediaGenerator({
                 </div>
               ) : null}
             </div>
-            <div className={styles.combinedSubsection}>
-              <strong className={styles.combinedSectionTitle}>{t("ai_generator_step_kind")}</strong>
-              <div className={styles.kindChoices} role="radiogroup" aria-label={t("ai_generator_kind_label")}>
-                {(["image", "video"] as const).map((option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    role="radio"
-                    aria-checked={kind === option}
-                    className={kind === option ? styles.kindActive : ""}
-                    disabled={operationLocked}
-                    onClick={() => {
-                      clearTransientState();
-                      setKind(option);
-                    }}
-                  >
-                    <span aria-hidden="true">{option === "image" ? "✦" : "▶"}</span>
-                    <strong>{t(option === "image" ? "image_50e19fda" : "video_304f6ca4")}</strong>
-                    <small>{t(option === "image" ? "ai_generator_kind_image_hint" : "ai_generator_kind_video_hint")}</small>
-                  </button>
-                ))}
-              </div>
-            </div>
           </div> : null}
         </section>
 
-        <section className={`${styles.criteriaSection} ${styles.collapsibleSection}`}>
+        <section className={`${styles.criteriaSection} ${styles.collapsibleSection} ${styles.contentCriteriaSection}`}>
           <button
             type="button"
             className={styles.collapsibleToggle}

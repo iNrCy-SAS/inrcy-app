@@ -112,7 +112,7 @@
   "ai_generator_group_finish_title": "Finitions",
   "ai_generator_group_finish_hint": "Texte et options.",
   "ai_generator_custom_label": "Votre idée d’inspiration",
-  "ai_generator_custom_placeholder": "Ex. Faire découvrir la nouvelle terrasse dans une ambiance chaleureuse et donner envie de réserver…",
+  "ai_generator_custom_placeholder": "Expliquez ici votre idée et détaillez-la le plus possible pour obtenir un contenu de qualité…",
   "ai_generator_custom_too_short": "Décrivez le sujet en quelques mots.",
   "ai_generator_step_kind": "Sélectionnez le média",
   "ai_generator_step_kind_hint": "Image ou vidéo.",

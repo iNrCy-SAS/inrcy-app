@@ -240,6 +240,17 @@ test("la fenêtre iNrCy sépare les critères de la création et de la revue", (
   assert.match(generator, /aria-expanded=\{expandedStep === 6\}/);
   assert.doesNotMatch(generator, /expandedStep === [7-8]/);
   assert.equal((generator.match(/<section className=/g) || []).length, 6);
+  const creationBody = sourceSection(
+    generator,
+    "{expandedStep === 1 ? <div className={styles.collapsibleBody}>",
+    "</section>"
+  );
+  assertOrdered(creationBody, [
+    't("ai_generator_step_kind")',
+    't("ai_generator_step_subject")',
+    'styles.inspirationSection',
+  ]);
+  assert.match(generator, /styles\.contentCriteriaSection/);
   assert.doesNotMatch(generator, /styles\.wideSection/);
   assert.match(generatorStyles, /\.collapsibleToggle/);
   assert.match(generatorStyles, /\.combinedSubsection/);
@@ -254,6 +265,10 @@ test("la fenêtre iNrCy sépare les critères de la création et de la revue", (
   assert.match(
     generatorStyles,
     /\.criteriaGrid\s*\{[\s\S]*?align-items:\s*start/
+  );
+  assert.match(
+    generatorStyles,
+    /\.contentCriteriaSection\s*\{[\s\S]*?height:\s*fit-content/
   );
   assert.match(
     generatorStyles,
@@ -521,5 +536,9 @@ test("les temps indicatifs français restent courts et explicites", () => {
   assert.equal(
     media.ai_generator_video_timing_hint,
     "Temps indicatif : iNrCy analyse le profil, construit les scènes puis réalise le montage. La durée dépend du format choisi."
+  );
+  assert.equal(
+    media.ai_generator_custom_placeholder,
+    "Expliquez ici votre idée et détaillez-la le plus possible pour obtenir un contenu de qualité…"
   );
 });
