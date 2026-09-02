@@ -54,13 +54,14 @@ test.describe('settings pages', () => {
     await runtime.expectNoErrors();
   });
 
-  test('activite page loads', async ({ page }) => {
+  test('legacy activite page redirects to the unified profile panel', async ({ page }) => {
     const runtime = attachRuntimeErrorTracking(page);
 
     await login(page);
     await page.goto('/dashboard/settings/activite', { waitUntil: 'domcontentloaded' });
 
-    await expectSettingsPanelUrl(page, 'activite');
+    await expectSettingsPanelUrl(page, 'profil');
+    await expect(page.getByText(/Mon profil/i).first()).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText(/Mon activité/i).first()).toBeVisible({ timeout: 20_000 });
 
     await runtime.expectNoErrors();

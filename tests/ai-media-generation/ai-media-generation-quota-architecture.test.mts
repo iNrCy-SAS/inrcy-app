@@ -31,9 +31,17 @@ const quotaLimitsPostflightPath = path.join(
   repositoryRoot,
   "ops/sql/2026-08-31_ai_media_generation_quota_limits_20_5_30_10_postflight_read_only.sql",
 );
+const founderLimitsPatchPath = path.join(
+  repositoryRoot,
+  "ops/sql/2026-09-01_ai_media_generation_founder_30_10.sql",
+);
+const founderLimitsPostflightPath = path.join(
+  repositoryRoot,
+  "ops/sql/2026-09-01_ai_media_generation_founder_30_10_postflight_read_only.sql",
+);
 const helperPath = path.join(repositoryRoot, "lib/aiMediaGenerationQuota.ts");
 
-const [migration, preflight, postflight, studioAllPlans, studioAllPlansPostflight, quotaLimitsPatch, quotaLimitsPostflight, helper] = await Promise.all([
+const [migration, preflight, postflight, studioAllPlans, studioAllPlansPostflight, quotaLimitsPatch, quotaLimitsPostflight, founderLimitsPatch, founderLimitsPostflight, helper] = await Promise.all([
   readFile(migrationPath, "utf8"),
   readFile(preflightPath, "utf8"),
   readFile(postflightPath, "utf8"),
@@ -41,6 +49,8 @@ const [migration, preflight, postflight, studioAllPlans, studioAllPlansPostfligh
   readFile(studioAllPlansPostflightPath, "utf8"),
   readFile(quotaLimitsPatchPath, "utf8"),
   readFile(quotaLimitsPostflightPath, "utf8"),
+  readFile(founderLimitsPatchPath, "utf8"),
+  readFile(founderLimitsPostflightPath, "utf8"),
   readFile(helperPath, "utf8"),
 ]);
 
@@ -285,6 +295,35 @@ test("le patch de plafonds est additif, idempotent et conserve Founder", () => {
   assert.match(quotaLimitsPostflight, /commit;/i);
   assert.doesNotMatch(
     quotaLimitsPostflight,
+    /^\s*(?:insert|update|delete|truncate|drop|alter|create|grant|revoke)\b/im,
+  );
+});
+
+test("le patch final aligne les trois forfaits avec le code sans suppression", () => {
+  assert.match(founderLimitsPatch, /begin;/i);
+  assert.match(founderLimitsPatch, /update public\.ai_media_plan_limits/i);
+  assert.match(founderLimitsPatch, /where edition in \('standard', 'premium', 'founder'\)/i);
+  assert.match(founderLimitsPatch, /when 'standard' then 20/i);
+  assert.match(founderLimitsPatch, /when 'premium' then 30/i);
+  assert.match(founderLimitsPatch, /when 'founder' then 30/i);
+  assert.match(founderLimitsPatch, /when 'standard' then 5/i);
+  assert.match(founderLimitsPatch, /when 'premium' then 10/i);
+  assert.match(founderLimitsPatch, /when 'founder' then 10/i);
+  assert.match(founderLimitsPatch, /AI_MEDIA_FINAL_QUOTAS_VERIFICATION_FAILED/);
+  assert.match(founderLimitsPatch, /commit;/i);
+  assert.doesNotMatch(
+    founderLimitsPatch,
+    /^\s*(?:drop|delete|truncate|create|alter|grant|revoke)\b/im,
+  );
+
+  assert.match(founderLimitsPostflight, /begin transaction read only;/i);
+  assert.match(founderLimitsPostflight, /standard_20_images_5_videos/);
+  assert.match(founderLimitsPostflight, /premium_30_images_10_videos/);
+  assert.match(founderLimitsPostflight, /founder_30_images_10_videos/);
+  assert.match(founderLimitsPostflight, /then 'PASS' else 'FAIL' end as verdict/i);
+  assert.match(founderLimitsPostflight, /commit;/i);
+  assert.doesNotMatch(
+    founderLimitsPostflight,
     /^\s*(?:insert|update|delete|truncate|drop|alter|create|grant|revoke)\b/im,
   );
 });

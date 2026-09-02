@@ -1,0 +1,566 @@
+import "server-only";
+
+import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import {
+  GoogleGenAI,
+  type GenerateVideosOperation,
+  type Video,
+} from "@google/genai";
+
+import {
+  commitAiGatewayAccountAttempt,
+  recordAiGatewayAccountFailure,
+  reserveAiGatewayAccountAttempt,
+  rollbackAiGatewayAccountAttempt,
+} from "@/lib/aiGatewayAccountGuard";
+import { getAiMediaVideoSegmentDurations } from "@/lib/aiMediaVideoTimeline";
+import type {
+  AiVideoProvider,
+  AiVideoProviderClip,
+  AiVideoProviderGenerationArgs,
+  AiVideoProviderResult,
+} from "@/lib/aiVideoProviderTypes";
+
+const PROVIDER_ID = "google-gemini";
+const DEFAULT_MODEL_ID = "veo-3.1-fast-generate-preview";
+const DEFAULT_COST_MICRO_USD_PER_SECOND = 100_000;
+// Google annonce une latence pouvant atteindre six minutes en période de
+// pointe. La marge d'une minute couvre le téléchargement du clip sans couper
+// une opération Veo encore valide.
+const DEFAULT_TIMEOUT_MS = 420_000;
+const DEFAULT_POLL_MS = 5_000;
+const DEFAULT_SUBMIT_ATTEMPTS = 5;
+// Le modèle exposé à cette clé annonce une limite d'entrée de 480 tokens.
+// 1 400 caractères laisse une marge pour la tokenisation des accents et évite
+// qu'un profil très rempli invalide toute la génération.
+const MAX_VEO_PROMPT_CHARS = 1_400;
+// Deux plans simultanés offrent un bon compromis sur les nouveaux projets
+// Google : la génération reste parallèle sans saturer les faibles quotas RPM.
+// Les projets dont le plafond AI Studio le permet peuvent monter à 4 par env.
+const DEFAULT_CONCURRENCY = 2;
+const MAX_CLIP_BYTES = 128 * 1024 * 1024;
+
+function positiveInt(value: unknown, fallback: number, maximum: number) {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  return Number.isFinite(parsed) && parsed > 0
+    ? Math.min(maximum, parsed)
+    : fallback;
+}
+
+function compact(value: unknown, max = 400) {
+  return String(value ?? "")
+    .replace(/\u0000/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, max);
+}
+
+function apiKey() {
+  const value = String(
+    process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || ""
+  ).trim();
+  if (!value) throw new Error("ai_video_veo_credentials_missing");
+  return value;
+}
+
+function modelId() {
+  const value = String(
+    process.env.AI_MEDIA_VEO_MODEL || DEFAULT_MODEL_ID
+  ).trim();
+  if (!/^[a-z0-9][a-z0-9._-]{2,100}$/i.test(value)) {
+    throw new Error("ai_video_veo_model_invalid");
+  }
+  return value;
+}
+
+function aspectRatio(
+  format: AiVideoProviderGenerationArgs["request"]["format"]
+) {
+  return format === "landscape" ? "16:9" : "9:16";
+}
+
+function generationCancelledError() {
+  const error = new Error("ai_media_generation_cancelled");
+  error.name = "AbortError";
+  return error;
+}
+
+function throwIfAborted(signal?: AbortSignal) {
+  if (signal?.aborted) throw generationCancelledError();
+}
+
+function delay(ms: number, signal?: AbortSignal) {
+  throwIfAborted(signal);
+  return new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
+      reject(generationCancelledError());
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
+function statusFromError(error: unknown) {
+  if (!error || typeof error !== "object") return 0;
+  const value = Number(
+    (error as { status?: unknown; code?: unknown }).status ||
+      (error as { status?: unknown; code?: unknown }).code ||
+      0
+  );
+  if (Number.isFinite(value) && value >= 100 && value <= 599) return value;
+  const match = String((error as { message?: unknown }).message || "").match(
+    /\b(429|500|502|503|504)\b/
+  );
+  return match ? Number(match[1]) : 0;
+}
+
+function isExplicitlyRetryable(error: unknown) {
+  const status = statusFromError(error);
+  return (
+    status === 429 ||
+    status === 500 ||
+    status === 502 ||
+    status === 503 ||
+    status === 504
+  );
+}
+
+function retryDelayMs(error: unknown, attempt: number) {
+  const message = compact(
+    error && typeof error === "object"
+      ? (error as { message?: unknown }).message
+      : error,
+    1_000
+  );
+  const explicitSeconds = message.match(
+    /(?:retry(?:Delay)?|retry\s+in)[^0-9]{0,24}(\d+(?:\.\d+)?)\s*s/i
+  );
+  if (explicitSeconds) {
+    return Math.min(
+      60_000,
+      Math.max(2_000, Number(explicitSeconds[1]) * 1_000)
+    );
+  }
+  const schedule = [5_000, 15_000, 35_000, 60_000] as const;
+  return schedule[Math.min(attempt, schedule.length - 1)];
+}
+
+function providerError(operation: GenerateVideosOperation) {
+  const details = operation.error
+    ? compact(JSON.stringify(operation.error), 600)
+    : "unknown";
+  if (/safety|rai|responsible/i.test(details)) {
+    return safetyFilteredError(details);
+  }
+  return new Error(`ai_video_veo_operation_failed:${details}`);
+}
+
+function safetyFilteredError(reasons: unknown) {
+  const values = Array.isArray(reasons) ? reasons : [reasons];
+  const details = compact(
+    values
+      .map((reason) =>
+        typeof reason === "string" ? reason : JSON.stringify(reason)
+      )
+      .filter(Boolean)
+      .join(" | "),
+    600
+  );
+  return new Error(
+    details && details !== "undefined"
+      ? `ai_video_veo_safety_filtered:${details}`
+      : "ai_video_veo_safety_filtered"
+  );
+}
+
+function subjectVisualEvidence(value: string) {
+  const normalized = value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase();
+  const evidence: string[] = [];
+
+  if (
+    /\b(application|appli|app|mobile|smartphone|telephone|tablette)\b/.test(
+      normalized
+    )
+  ) {
+    evidence.push(
+      "Keep a smartphone, tablet or laptop in the foreground and show a real person tapping, swiping or using the digital product"
+    );
+  }
+  if (
+    /\b(logiciel|plateforme|saas|dashboard|site web|site internet|numerique|digital)\b/.test(
+      normalized
+    )
+  ) {
+    evidence.push(
+      "Make the software workflow visible through a clean unlabeled interface made only of cards, icons, images and motion"
+    );
+  }
+  if (
+    /\b(media|medias|image|images|video|videos|contenu|publication|communication|reseaux sociaux|ia|intelligence artificielle)\b/.test(
+      normalized
+    )
+  ) {
+    evidence.push(
+      "Show visual content being created, previewed or published through recognizable photo and video thumbnails"
+    );
+  }
+  if (
+    /\b(maconnerie|macon|construction|batiment|chantier|renovation|brique|beton)\b/.test(
+      normalized
+    )
+  ) {
+    evidence.push(
+      "Show an unmistakable masonry or construction site with the relevant craftsperson, tools and materials such as bricks, mortar, concrete or a trowel"
+    );
+  }
+  if (
+    /\b(cheval|chevaux|equitation|equestre|equine|ecurie|poney|poneys)\b/.test(
+      normalized
+    )
+  ) {
+    evidence.push(
+      "Show real horses as central subjects in a credible stable, paddock or riding environment with the requested human action"
+    );
+  }
+
+  return compact(
+    evidence.length
+      ? evidence.join(". ")
+      : "Show tangible objects, gestures and actions explicitly connected to the primary subject",
+    180
+  );
+}
+
+function conciseVisualDirection(
+  request: AiVideoProviderGenerationArgs["request"]
+) {
+  return compact(
+    [
+      `style ${request.visualStyle}`,
+      `render ${request.imageStyle}`,
+      `shot ${request.shotType}`,
+      `people ${request.peopleMode}`,
+      `creativity ${request.creativity}`,
+    ].join("; "),
+    140
+  );
+}
+
+function scenePrompt(
+  args: AiVideoProviderGenerationArgs,
+  index: number,
+  durationSeconds: 4 | 6 | 8
+) {
+  const scene = args.plan.scenes[index];
+  const colors = args.brandColors.filter(Boolean).slice(0, 5).join(", ");
+  const exactIdea = compact(args.request.idea, 180);
+  const primarySubject =
+    exactIdea || compact(args.profession || args.plan.companyName, 120);
+  const visualEvidence = subjectVisualEvidence(primarySubject);
+  const businessContext = compact(args.creativeBrief, 90);
+  const sceneDirection = compact(
+    [scene?.visualBrief, scene?.title, scene?.body].filter(Boolean).join(" "),
+    160
+  );
+  const visualDirection = conciseVisualDirection(args.request);
+  return compact(
+    [
+      `Create one original ${durationSeconds}-second cinematic business shot ${
+        index + 1
+      }/${args.plan.scenes.length}.`,
+      `PRIMARY SUBJECT — visually unmistakable: ${primarySubject}.`,
+      `REQUIRED VISUAL PROOF: ${visualEvidence}.`,
+      sceneDirection ? `Shot action: ${sceneDirection}.` : "",
+      "Keep every named trade, product, animal, object, action or place central; never switch category or use generic corporate imagery.",
+      "Digital subject: show relevant devices and app UI with unlabeled shapes, icons and images only.",
+      "No readable text, letters, numbers, captions, signs, logos, watermarks, fake writing, posters, slides or borders.",
+      "No dialogue, voice-over, lyrics or music; iNrCy adds exact branding, copy and audio.",
+      businessContext ? `Verified business context: ${businessContext}.` : "",
+      visualDirection ? `Visual direction: ${visualDirection}.` : "",
+      colors
+        ? `Use these brand colors subtly in lighting or decor: ${compact(
+            colors,
+            50
+          )}.`
+        : "Use a refined palette appropriate to the professional activity.",
+      "Credible action, natural motion and anatomy, clean framing, consistent cast, light and color across shots.",
+    ]
+      .filter(Boolean)
+      .join(" "),
+    MAX_VEO_PROMPT_CHARS
+  );
+}
+
+async function submitOperation(args: {
+  ai: GoogleGenAI;
+  model: string;
+  prompt: string;
+  durationSeconds: 4 | 6 | 8;
+  aspectRatio: "16:9" | "9:16";
+  signal: AbortSignal;
+}) {
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < DEFAULT_SUBMIT_ATTEMPTS; attempt += 1) {
+    try {
+      return await args.ai.models.generateVideos({
+        model: args.model,
+        source: { prompt: args.prompt },
+        // Gemini Developer API / Veo 3.1 Fast whitelist. Do not add generic
+        // GenerateVideosConfig fields here unless the Veo model contract lists
+        // them explicitly. Audio, one output and 720p are model defaults.
+        config: {
+          abortSignal: args.signal,
+          durationSeconds: args.durationSeconds,
+          aspectRatio: args.aspectRatio,
+        },
+      });
+    } catch (error) {
+      lastError = error;
+      if (
+        attempt >= DEFAULT_SUBMIT_ATTEMPTS - 1 ||
+        !isExplicitlyRetryable(error)
+      ) {
+        throw error;
+      }
+      await delay(retryDelayMs(error, attempt), args.signal);
+    }
+  }
+  throw lastError;
+}
+
+async function downloadVideo(args: {
+  ai: GoogleGenAI;
+  video: Video;
+  signal: AbortSignal;
+}) {
+  const mediaType = compact(args.video.mimeType, 80) || "video/mp4";
+  if (args.video.videoBytes) {
+    const buffer = Buffer.from(args.video.videoBytes, "base64");
+    if (!buffer.length) throw new Error("ai_video_veo_clip_empty");
+    if (buffer.length > MAX_CLIP_BYTES)
+      throw new Error("ai_video_veo_clip_too_large");
+    return { buffer, mediaType };
+  }
+
+  const directory = await mkdtemp(join(tmpdir(), "inrcy-veo-"));
+  const outputPath = join(directory, "clip.mp4");
+  try {
+    await args.ai.files.download({
+      file: args.video,
+      downloadPath: outputPath,
+      config: { abortSignal: args.signal },
+    });
+    const info = await stat(outputPath);
+    if (!info.size) throw new Error("ai_video_veo_clip_empty");
+    if (info.size > MAX_CLIP_BYTES)
+      throw new Error("ai_video_veo_clip_too_large");
+    return { buffer: await readFile(outputPath), mediaType };
+  } finally {
+    await rm(directory, { recursive: true, force: true }).catch(
+      () => undefined
+    );
+  }
+}
+
+async function generateClip(args: {
+  ai: GoogleGenAI;
+  model: string;
+  prompt: string;
+  durationSeconds: 4 | 6 | 8;
+  aspectRatio: "16:9" | "9:16";
+  timeoutMs: number;
+  pollMs: number;
+  onSubmitted: () => void;
+  signal?: AbortSignal;
+}): Promise<AiVideoProviderClip> {
+  throwIfAborted(args.signal);
+  const controller = new AbortController();
+  let timedOut = false;
+  const abortFromCaller = () =>
+    controller.abort(generationCancelledError());
+  args.signal?.addEventListener("abort", abortFromCaller, { once: true });
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    controller.abort(new Error("ai_video_veo_timeout"));
+  }, args.timeoutMs);
+  try {
+    let operation = await submitOperation({
+      ...args,
+      signal: controller.signal,
+    });
+    const requestId = compact(operation.name, 220);
+    if (!requestId) throw new Error("ai_video_veo_operation_id_missing");
+    args.onSubmitted();
+
+    while (!operation.done) {
+      await delay(args.pollMs, controller.signal);
+      try {
+        operation = await args.ai.operations.getVideosOperation({
+          operation,
+          config: { abortSignal: controller.signal },
+        });
+      } catch (error) {
+        if (!isExplicitlyRetryable(error)) throw error;
+        await delay(Math.min(args.pollMs, 3_000), controller.signal);
+      }
+    }
+    if (operation.error) throw providerError(operation);
+    const response = operation.response;
+    if (response?.raiMediaFilteredCount) {
+      throw safetyFilteredError(response.raiMediaFilteredReasons);
+    }
+    const video = response?.generatedVideos?.[0]?.video;
+    if (!video) throw new Error("ai_video_veo_video_missing");
+    const downloaded = await downloadVideo({
+      ai: args.ai,
+      video,
+      signal: controller.signal,
+    });
+    return {
+      ...downloaded,
+      durationSeconds: args.durationSeconds,
+      requestId,
+    };
+  } catch (error) {
+    if (timedOut) throw new Error("ai_video_veo_timeout");
+    if (args.signal?.aborted || controller.signal.aborted) {
+      throw generationCancelledError();
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+    args.signal?.removeEventListener("abort", abortFromCaller);
+  }
+}
+
+export const googleVeoVideoProvider: AiVideoProvider = {
+  id: PROVIDER_ID,
+  get model() {
+    return modelId();
+  },
+  async generate(args): Promise<AiVideoProviderResult> {
+    throwIfAborted(args.signal);
+    const ai = new GoogleGenAI({ apiKey: apiKey() });
+    const model = modelId();
+    const timeoutMs = positiveInt(
+      process.env.AI_MEDIA_VIDEO_TIMEOUT_MS,
+      DEFAULT_TIMEOUT_MS,
+      600_000
+    );
+    const pollMs = positiveInt(
+      process.env.AI_MEDIA_VEO_POLL_MS,
+      DEFAULT_POLL_MS,
+      15_000
+    );
+    const configuredConcurrency = positiveInt(
+      process.env.AI_MEDIA_VEO_CONCURRENCY,
+      DEFAULT_CONCURRENCY,
+      4
+    );
+    const costPerSecond = positiveInt(
+      process.env.AI_MEDIA_VEO_COST_MICRO_USD_PER_SECOND,
+      DEFAULT_COST_MICRO_USD_PER_SECOND,
+      1_000_000
+    );
+    const durations = getAiMediaVideoSegmentDurations(
+      args.request.durationSeconds || 20
+    );
+    if (args.plan.scenes.length !== durations.length) {
+      throw new Error("ai_video_veo_scene_count_invalid");
+    }
+    const estimatedCostMicroUsd =
+      durations.reduce((total, duration) => total + duration, 0) *
+      costPerSecond;
+    const reservation = await reserveAiGatewayAccountAttempt(args.accountId, {
+      estimatedInputTokens: 0,
+      reservedOutputTokens: 0,
+      estimatedCostMicroUsd,
+    });
+    let submittedSeconds = 0;
+    try {
+      const clips = new Array<AiVideoProviderClip | undefined>(
+        durations.length
+      );
+      let cursor = 0;
+      let stopped = false;
+      let firstError: unknown = null;
+      const worker = async () => {
+        while (!stopped && cursor < durations.length) {
+          throwIfAborted(args.signal);
+          const index = cursor;
+          cursor += 1;
+          const durationSeconds = durations[index];
+          try {
+            clips[index] = await generateClip({
+              ai,
+              model,
+              prompt: scenePrompt(args, index, durationSeconds),
+              durationSeconds,
+              aspectRatio: aspectRatio(args.request.format),
+              timeoutMs,
+              pollMs,
+              signal: args.signal,
+              onSubmitted: () => {
+                submittedSeconds += durationSeconds;
+              },
+            });
+          } catch (error) {
+            stopped = true;
+            firstError ||= error;
+          }
+        }
+      };
+      const concurrency = Math.min(configuredConcurrency, durations.length);
+      await Promise.all(Array.from({ length: concurrency }, () => worker()));
+      if (firstError) throw firstError;
+      if (clips.some((clip) => !clip)) {
+        throw new Error("ai_video_veo_clip_set_incomplete");
+      }
+      await commitAiGatewayAccountAttempt({
+        reservation,
+        feature: "media.video",
+        model,
+        usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+        actualCostMicroUsd: estimatedCostMicroUsd,
+      });
+      return {
+        provider: PROVIDER_ID,
+        model,
+        clips: clips as AiVideoProviderClip[],
+        estimatedCostMicroUsd,
+        warnings: [],
+      };
+    } catch (error) {
+      if (submittedSeconds > 0) {
+        await commitAiGatewayAccountAttempt({
+          reservation,
+          feature: "media.video",
+          model,
+          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+          actualCostMicroUsd: submittedSeconds * costPerSecond,
+        }).catch(() => undefined);
+      } else {
+        await rollbackAiGatewayAccountAttempt(reservation).catch(
+          () => undefined
+        );
+      }
+      await recordAiGatewayAccountFailure({
+        accountId: args.accountId,
+        feature: "media.video",
+        model,
+      }).catch(() => undefined);
+      throw error;
+    }
+  },
+};

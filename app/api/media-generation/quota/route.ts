@@ -5,6 +5,8 @@ import {
   AiMediaGenerationQuotaError,
   getAiMediaQuotaSnapshot,
 } from "@/lib/aiMediaGenerationQuota";
+import { presentAiMediaQuota } from "@/lib/aiMediaQuotaPresentation";
+import { isAdminUserForAi } from "@/lib/aiUsageQuota";
 import { getCurrentInrcyAccountScope } from "@/lib/multicompte/server";
 
 export const runtime = "nodejs";
@@ -23,6 +25,7 @@ export async function GET() {
     }
 
     const { authUserId, activeUserId } = current.scope;
+    const unlimited = await isAdminUserForAi(current.supabase, authUserId);
     const edition = await getDashboardEditionForAccountId(activeUserId);
     const quota = await getAiMediaQuotaSnapshot({
       accountId: activeUserId,
@@ -31,7 +34,7 @@ export async function GET() {
     });
 
     return NextResponse.json(
-      { ok: true, quota },
+      { ok: true, quota: presentAiMediaQuota(quota, unlimited) },
       { headers: NO_STORE_HEADERS },
     );
   } catch (error) {

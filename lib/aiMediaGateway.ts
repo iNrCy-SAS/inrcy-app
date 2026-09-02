@@ -1,11 +1,8 @@
 import "server-only";
 
 import {
-  createDownload,
   experimental_generateImage as generateImage,
-  experimental_generateVideo as generateVideo,
   NoImageGeneratedError,
-  NoVideoGeneratedError,
 } from "ai";
 
 import {
@@ -15,25 +12,17 @@ import {
   rollbackAiGatewayAccountAttempt,
 } from "@/lib/aiGatewayAccountGuard";
 import { bufferFromUint8ArrayView } from "@/lib/aiMediaBuffer";
-import type { AiMediaKind } from "@/lib/aiMediaGenerationContracts";
 
 const DEFAULT_IMAGE_MODEL = "openai/gpt-image-2";
-const DEFAULT_VIDEO_MODEL = "bfl/flux-3-video";
 const DEFAULT_IMAGE_COST_MICRO_USD = 65_000;
-// FLUX.3 full HD costs $0.17/s. An eight-second render is $1.36; the
-// reservation keeps a small safety margin without pricing it as a longer clip.
-const DEFAULT_VIDEO_COST_MICRO_USD = 1_500_000;
 const MAX_IMAGE_BYTES = 40 * 1024 * 1024;
-const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
-const DEFAULT_VIDEO_GATEWAY_POLL_TIMEOUT_MS = 540_000;
-const MAX_VIDEO_GATEWAY_POLL_TIMEOUT_MS = 560_000;
-const downloadGeneratedVideo = createDownload({ maxBytes: MAX_VIDEO_BYTES });
 
 export type AiMediaGatewayResult = {
-  kind: AiMediaKind;
+  kind: "image";
   model: string;
   buffer: Buffer;
   mediaType: string;
+  referenceImagesCount: 0 | 1;
   warnings: string[];
   usage: Record<string, unknown> | null;
 };
@@ -45,27 +34,21 @@ function positiveInt(value: unknown, fallback: number, max: number) {
     : fallback;
 }
 
-function resolveModel(kind: AiMediaKind) {
+function resolveImageModel() {
   const configured = String(
-    (kind === "image"
-      ? process.env.AI_GATEWAY_IMAGE_MODEL || process.env.AI_MEDIA_IMAGE_MODEL
-      : process.env.AI_GATEWAY_VIDEO_MODEL || process.env.AI_MEDIA_VIDEO_MODEL) ?? "",
+    process.env.AI_GATEWAY_IMAGE_MODEL || process.env.AI_MEDIA_IMAGE_MODEL || "",
   ).trim();
-  const model = configured || (kind === "image" ? DEFAULT_IMAGE_MODEL : DEFAULT_VIDEO_MODEL);
+  const model = configured || DEFAULT_IMAGE_MODEL;
   if (!/^[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*$/i.test(model)) {
     throw new Error("ai_media_model_invalid");
   }
   return model;
 }
 
-function configuredCost(kind: AiMediaKind) {
+function configuredCost() {
   return positiveInt(
-    kind === "image"
-      ? process.env.AI_MEDIA_IMAGE_COST_MICRO_USD
-      : process.env.AI_MEDIA_VIDEO_COST_MICRO_USD,
-    kind === "image"
-      ? DEFAULT_IMAGE_COST_MICRO_USD
-      : DEFAULT_VIDEO_COST_MICRO_USD,
+    process.env.AI_MEDIA_IMAGE_COST_MICRO_USD,
+    DEFAULT_IMAGE_COST_MICRO_USD,
     50_000_000,
   );
 }
@@ -100,11 +83,10 @@ function cleanUsage(value: unknown): Record<string, unknown> | null {
 
 async function withEconomicGuard<T>(args: {
   accountId: string;
-  kind: AiMediaKind;
   model: string;
   operation: () => Promise<T>;
 }) {
-  const costMicroUsd = configuredCost(args.kind);
+  const costMicroUsd = configuredCost();
   const reservation = await reserveAiGatewayAccountAttempt(args.accountId, {
     estimatedInputTokens: 0,
     reservedOutputTokens: 0,
@@ -114,7 +96,7 @@ async function withEconomicGuard<T>(args: {
     const result = await args.operation();
     await commitAiGatewayAccountAttempt({
       reservation,
-      feature: args.kind === "image" ? "media.image" : "media.video",
+      feature: "media.image",
       model: args.model,
       usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
       actualCostMicroUsd: costMicroUsd,
@@ -124,7 +106,7 @@ async function withEconomicGuard<T>(args: {
     await rollbackAiGatewayAccountAttempt(reservation).catch(() => undefined);
     await recordAiGatewayAccountFailure({
       accountId: args.accountId,
-      feature: args.kind === "image" ? "media.image" : "media.video",
+      feature: "media.image",
       model: args.model,
     }).catch(() => undefined);
     throw error;
@@ -134,9 +116,16 @@ async function withEconomicGuard<T>(args: {
 export async function generateAiMediaImage(args: {
   accountId: string;
   prompt: string;
+  /**
+   * Seule image de référence autorisée dans le Studio : le logo officiel
+   * chargé depuis le stockage de l'établissement actif. Les photos de la
+   * Médiathèque ne font volontairement pas partie de ce contrat.
+   */
+  officialLogo?: Buffer | null;
+  size?: "1024x1024" | "1024x1536" | "1536x1024";
 }): Promise<AiMediaGatewayResult> {
   assertGatewayCredentials();
-  const model = resolveModel("image");
+  const model = resolveImageModel();
   const timeoutMs = positiveInt(
     process.env.AI_MEDIA_IMAGE_TIMEOUT_MS,
     210_000,
@@ -145,15 +134,22 @@ export async function generateAiMediaImage(args: {
 
   return await withEconomicGuard({
     accountId: args.accountId,
-    kind: "image",
     model,
     operation: async (): Promise<AiMediaGatewayResult> => {
+      const referenceImagesCount = args.officialLogo?.byteLength ? 1 : 0;
       const result = await generateImage({
         model,
-        prompt: args.prompt,
+        prompt: referenceImagesCount
+          ? {
+              text: args.prompt,
+              // Une collection n'est jamais acceptée ici : cette propriété
+              // serveur représente exclusivement le logo officiel.
+              images: [args.officialLogo as Buffer],
+            }
+          : args.prompt,
         n: 1,
         maxImagesPerCall: 1,
-        size: "1024x1024",
+        size: args.size || "1024x1024",
         maxRetries: 0,
         abortSignal: AbortSignal.timeout(timeoutMs),
         providerOptions: model.startsWith("openai/")
@@ -177,6 +173,7 @@ export async function generateAiMediaImage(args: {
         model,
         buffer: bufferFromUint8ArrayView(image.uint8Array),
         mediaType: image.mediaType || "image/png",
+        referenceImagesCount,
         warnings: compactWarnings(result.warnings || []),
         usage: cleanUsage(result.usage),
       };
@@ -187,75 +184,4 @@ export async function generateAiMediaImage(args: {
     }
     throw error;
   });
-}
-
-export async function generateAiMediaVideo(args: {
-  accountId: string;
-  prompt: string;
-}): Promise<AiMediaGatewayResult> {
-  assertGatewayCredentials();
-  const model = resolveModel("video");
-  // AI SDK 6 / VideoModelV3 laisse le polling FLUX au flux SSE Gateway.
-  // L'AbortSignal est donc son vrai budget de polling dans cette version. Il
-  // expire assez tôt pour réserver la fin des 800 s à FFmpeg, Storage et SQL.
-  const pollTimeoutMs = positiveInt(
-    process.env.AI_MEDIA_VIDEO_TIMEOUT_MS,
-    DEFAULT_VIDEO_GATEWAY_POLL_TIMEOUT_MS,
-    MAX_VIDEO_GATEWAY_POLL_TIMEOUT_MS,
-  );
-
-  return await withEconomicGuard({
-    accountId: args.accountId,
-    kind: "video",
-    model,
-    operation: async (): Promise<AiMediaGatewayResult> => {
-      const result = await generateVideo({
-        model,
-        prompt: args.prompt,
-        n: 1,
-        maxVideosPerCall: 1,
-        duration: 8,
-        aspectRatio: "1:1",
-        resolution: "1080x1080",
-        generateAudio: false,
-        maxRetries: 0,
-        abortSignal: AbortSignal.timeout(pollTimeoutMs),
-        download: downloadGeneratedVideo,
-        providerOptions: model.startsWith("bfl/")
-          ? {
-              blackForestLabs: {
-                resolution: "hd",
-                aspectRatio: "1:1",
-                safetyTolerance: 2,
-                draft: false,
-              },
-            }
-          : undefined,
-      });
-      const video = result.video || result.videos[0];
-      if (!video?.uint8Array?.byteLength) {
-        throw new Error("ai_video_empty");
-      }
-      if (video.uint8Array.byteLength > MAX_VIDEO_BYTES) {
-        throw new Error("ai_video_too_large");
-      }
-      return {
-        kind: "video",
-        model,
-        buffer: bufferFromUint8ArrayView(video.uint8Array),
-        mediaType: video.mediaType || "video/mp4",
-        warnings: compactWarnings(result.warnings || []),
-        usage: null,
-      };
-    },
-  }).catch((error) => {
-    if (NoVideoGeneratedError.isInstance(error)) {
-      throw new Error("ai_video_not_generated", { cause: error });
-    }
-    throw error;
-  });
-}
-
-export function getAiMediaGatewayModel(kind: AiMediaKind) {
-  return resolveModel(kind);
 }

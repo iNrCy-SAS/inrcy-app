@@ -224,8 +224,9 @@ export default function MediaGeneratorModal({
         aria-labelledby={titleId}
       >
         <header className={styles.header}>
-          <div className={styles.icon} aria-hidden="true">
-            ✦
+          <div className={styles.moduleBadge}>
+            <span className={styles.icon} aria-hidden="true">✦</span>
+            <strong>{t("ai_generator_made_inrcy")}</strong>
           </div>
           <div className={styles.heading}>
             <h2 id={titleId}>{t("ai_generator_modal_title")}</h2>
@@ -239,7 +240,8 @@ export default function MediaGeneratorModal({
             disabled={locked}
             aria-label={t("fermer_5ab4ec64")}
           >
-            ×
+            <span>{t("fermer_5ab4ec64")}</span>
+            <i aria-hidden="true">×</i>
           </button>
         </header>
         <div className={styles.body}>

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 
@@ -25,11 +25,40 @@ test("le contrat réduit les options au média demandé", () => {
     subjectSource: "publication",
     idea: "Présenter le nouveau menu de printemps",
     withText: true,
+    textKeywords: [
+      " printemps ",
+      "Nouveauté",
+      "nouveauté",
+      "menu",
+      "local",
+      "gourmand",
+      "réservation",
+      "en trop",
+    ],
     withMusic: true,
+    withNarration: true,
     source: "booster",
   });
   assert.equal(image.withText, true);
+  assert.deepEqual(image.textKeywords, [
+    "printemps",
+    "Nouveauté",
+    "menu",
+    "local",
+    "gourmand",
+    "réservation",
+  ]);
   assert.equal(image.withMusic, false);
+  assert.equal(image.withNarration, false);
+  assert.equal(image.format, "square");
+  assert.equal(image.typology, "service");
+  assert.equal(image.visualStyle, "brand");
+  assert.equal(image.imageStyle, "photo");
+  assert.equal(image.shotType, "auto");
+  assert.equal(image.peopleMode, "auto");
+  assert.equal(image.creativity, "faithful");
+  assert.equal(image.useBrandColors, true);
+  assert.equal(image.logoMode, "discreet");
 
   const video = normalizeAiMediaGenerationRequest({
     requestId: "media-request-0002",
@@ -38,10 +67,43 @@ test("le contrat réduit les options au média demandé", () => {
     idea: "Montrer le savoir-faire de l'atelier",
     withText: true,
     withMusic: true,
+    withNarration: true,
+    format: "story",
+    typology: "showcase",
+    visualStyle: "dynamic",
+    imageStyle: "three_d",
+    shotType: "wide",
+    peopleMode: "team",
+    creativity: "bold",
+    useBrandColors: false,
+    logoMode: "visible",
+    durationSeconds: 30,
     source: "studio",
   });
-  assert.equal(video.withText, false);
+  assert.equal(video.withText, true);
   assert.equal(video.withMusic, true);
+  assert.equal(video.withNarration, true);
+  assert.equal(video.format, "story");
+  assert.equal(video.typology, "showcase");
+  assert.equal(video.visualStyle, "dynamic");
+  assert.equal(video.imageStyle, "three_d");
+  assert.equal(video.shotType, "wide");
+  assert.equal(video.peopleMode, "team");
+  assert.equal(video.creativity, "bold");
+  assert.equal(video.useBrandColors, false);
+  assert.equal(video.logoMode, "visible");
+  assert.equal(video.durationSeconds, 30);
+  assert.throws(
+    () =>
+      normalizeAiMediaGenerationRequest({
+        requestId: "media-request-0060",
+        kind: "video",
+        subjectSource: "profile",
+        durationSeconds: 60,
+        source: "studio",
+      }),
+    AiMediaRequestValidationError
+  );
 
   const profile = normalizeAiMediaGenerationRequest({
     requestId: "media-request-0003",
@@ -49,10 +111,12 @@ test("le contrat réduit les options au média demandé", () => {
     subjectSource: "profile",
     idea: "Ce texte doit être ignoré au profit du profil",
     withText: false,
+    textKeywords: ["ne doit pas rester"],
     source: "studio",
   });
   assert.equal(profile.subjectSource, "profile");
   assert.equal(profile.idea, "");
+  assert.deepEqual(profile.textKeywords, []);
   assert.throws(
     () =>
       normalizeAiMediaGenerationRequest({
@@ -60,13 +124,13 @@ test("le contrat réduit les options au média demandé", () => {
         subjectSource: "custom",
         idea: "x",
       }),
-    AiMediaRequestValidationError,
+    AiMediaRequestValidationError
   );
 });
 
 test("les dix bandes-son originales sont déterministes et durent exactement huit secondes", () => {
   const manifest = JSON.parse(
-    read("assets/media-generation/soundtracks/manifest.json"),
+    read("assets/media-generation/soundtracks/manifest.json")
   ) as {
     generatedBy: string;
     tracks: Array<{
@@ -85,12 +149,12 @@ test("les dix bandes-son originales sont déterministes et durent exactement hui
   assert.equal(manifest.tracks.length, 10);
   assert.equal(
     selectAiMediaSoundtrack("atelier artisan savoir-faire").id,
-    selectAiMediaSoundtrack("atelier artisan savoir-faire").id,
+    selectAiMediaSoundtrack("atelier artisan savoir-faire").id
   );
 
   for (const track of manifest.tracks) {
     const buffer = readFileSync(
-      path.join(ROOT, "assets/media-generation/soundtracks", track.fileName),
+      path.join(ROOT, "assets/media-generation/soundtracks", track.fileName)
     );
     assert.equal(buffer.toString("ascii", 0, 4), "RIFF");
     assert.equal(buffer.toString("ascii", 8, 12), "WAVE");
@@ -105,24 +169,67 @@ test("les dix bandes-son originales sont déterministes et durent exactement hui
     assert.equal(track.license, "inrcy-original-procedural-v1");
     assert.equal(
       track.sha256,
-      createHash("sha256").update(buffer).digest("hex"),
+      createHash("sha256").update(buffer).digest("hex")
     );
   }
 });
 
-test("le prompt rend le texte natif optionnel et interdit les faits inventés", () => {
+test("le prompt donne à GPT Image le sujet, le profil et le seul logo officiel", () => {
   const source = read("lib/aiMediaGenerationPrompt.ts");
-  assert.match(source, /MODE TEXTE NATIF/);
-  assert.match(source, /3 à 8 mots/);
-  assert.match(source, /jamais à recopier dans le média/);
-  assert.match(source, /le brief ne doit jamais devenir le texte de l’image/);
-  assert.match(source, /inrcy-media-v3/);
-  assert.match(source, /subjectSource/);
-  assert.match(source, /MODE SANS TEXTE/);
-  assert.match(source, /aucune lettre, aucun mot, aucun chiffre/);
+  assert.match(source, /inrcy-media-v8-brief-copy-separated/);
+  assert.match(source, /Palette réelle extraite du logo/);
+  assert.match(source, /le seul fichier image fourni qui est le logo officiel/);
+  assert.match(source, /Aucune photo de Médiathèque/);
+  assert.match(
+    source,
+    /imaginer une scène originale strictement adaptée au sujet actuel/
+  );
+  assert.match(
+    source,
+    /Respecter fidèlement sa forme, ses proportions, ses couleurs et son orthographe/
+  );
+  assert.match(source, /Accroche originale sélectionnée par iNrCy/);
+  assert.match(source, /Interdiction de recopier cette phrase/);
+  assert.match(source, /request\.textKeywords/);
+  assert.match(source, /HISTORIQUE RÉCENT À NE PAS COPIER/);
+  assert.match(source, /interventionZones/);
+  assert.match(source, /customerTypologies/);
+  assert.match(source, /openingHours/);
   assert.match(source, /Ne jamais inventer de prix, promotion, certification/);
-  assert.match(source, /exactement pensée pour 8 secondes/);
-  assert.match(source, /carrée 1:1/);
+  assert.match(source, /DIRECTION ARTISTIQUE DÉTAILLÉE/);
+  assert.match(source, /CADRAGE ET ZONES SÛRES/);
+  assert.match(source, /Palette créative libre/);
+  assert.match(
+    source,
+    /Ne jamais couper un mot, un visage, le logo ou le sujet principal/
+  );
+  assert.doesNotMatch(source, /exactement pensée pour 8 secondes/);
+  assert.match(source, /AI_MEDIA_FORMAT_SPECS/);
+});
+
+test("chaque critère créatif participe réellement au brief envoyé au moteur", () => {
+  const source = read("lib/aiMediaGenerationPrompt.ts");
+  for (const expression of [
+    "VISUAL_DIRECTIONS[request.visualStyle]",
+    "IMAGE_DIRECTIONS[request.imageStyle]",
+    "SHOT_DIRECTIONS[request.shotType]",
+    "PEOPLE_DIRECTIONS[request.peopleMode]",
+    "CREATIVE_DIRECTIONS[request.creativity]",
+  ]) {
+    assert.ok(
+      source.includes(expression),
+      `${expression} doit construire le brief`
+    );
+  }
+  assert.match(source, /request\.useBrandColors && palette\.length/);
+  assert.match(source, /request\.logoMode === "visible"/);
+  assert.match(source, /safeCompositionGuide\(request\)/);
+  const creativePlan = read("lib/aiMediaCreativePlan.ts");
+  assert.match(
+    creativePlan,
+    /request\.withText \? request\.textKeywords : \[\]/
+  );
+  assert.doesNotMatch(creativePlan, /idea: request\.idea/);
 });
 
 test("la vue Buffer des médias Gateway ne duplique pas le Uint8Array", () => {
@@ -155,50 +262,161 @@ test("la route applique scope, abonnement et quota à l'établissement actif", (
   assert.doesNotMatch(route, /code: "PREMIUM_REQUIRED"/);
   assert.doesNotMatch(route, /réservé à iNrCy Premium/);
   assert.match(route, /normalizedRequest\.source/);
+  assert.match(route, /isAdminUserForAi\(/);
+  assert.match(route, /AI_MEDIA_ADMIN_LIMIT_OVERRIDE/);
+  assert.match(route, /limitOverride: adminUnlimited/);
+  assert.match(route, /\(normalizedRequest\.durationSeconds \|\| 20\) > 10/);
+  assert.match(route, /AI_MEDIA_VIDEO_LONG_FORM_PREMIUM_REQUIRED/);
+  assert.match(route, /presentAiMediaQuota\(quota, adminUnlimited\)/);
+  assert.match(quotaRoute, /isAdminUserForAi\(current\.supabase, authUserId\)/);
+  assert.match(quotaRoute, /presentAiMediaQuota\(quota, unlimited\)/);
 });
 
 test("un média persisté n'est jamais libéré du quota", () => {
   const route = read("app/api/media-generation/generate/route.ts");
   assert.match(route, /getPersistedGeneratedAiMediaId/);
   assert.match(route, /recovered_after_persistence_error/);
-  assert.match(
-    route,
-    /quotaReserved && !quotaCompleted && !mediaPersisted/,
-  );
+  assert.match(route, /quotaReserved && !quotaCompleted && !mediaPersisted/);
   assert.match(route, /AI_MEDIA_FINALIZATION_PENDING/);
 });
 
-test("Gateway, normalisation et médiathèque respectent le contrat universel", () => {
+test("image Gateway, vidéo Veo et médiathèque respectent le contrat universel", () => {
   const gateway = read("lib/aiMediaGateway.ts");
   const normalizer = read("lib/aiMediaNormalizer.ts");
   const registry = read("lib/aiGeneratedMediaRegistry.ts");
   const server = read("lib/aiMediaGenerationServer.ts");
+  const brandKit = read("lib/aiMediaBrandKit.ts");
+  const renderer = read("lib/aiMediaBrandRenderer.ts");
+  const provider = read("lib/aiVideoProvider.ts");
+  const veo = read("lib/aiVideoProviderGoogleVeo.ts");
+  const timeline = read("lib/aiMediaVideoTimeline.ts");
+  const copywriter = read("lib/aiMediaCopywriter.ts");
+  const composer = read("lib/aiMediaGeneratedVideo.ts");
+  const narration = read("lib/aiMediaNarration.ts");
+  const narrationAudio = read("lib/aiMediaNarrationAudio.ts");
+  const quotaPresentation = read("lib/aiMediaQuotaPresentation.ts");
   const nextConfig = read("next.config.ts");
   const vercelConfig = read("vercel.json");
 
   assert.match(gateway, /openai\/gpt-image-2/);
-  assert.match(gateway, /AI_GATEWAY_IMAGE_MODEL[\s\S]{0,240}\?\? ""/);
-  assert.match(gateway, /configured \|\| \(kind === "image" \? DEFAULT_IMAGE_MODEL : DEFAULT_VIDEO_MODEL\)/);
-  assert.match(gateway, /bfl\/flux-3-video/);
   assert.match(gateway, /AI_GATEWAY_IMAGE_MODEL/);
-  assert.match(gateway, /AI_GATEWAY_VIDEO_MODEL/);
-  assert.match(gateway, /size: "1024x1024"/);
-  assert.match(gateway, /duration: 8/);
-  assert.match(gateway, /DEFAULT_VIDEO_COST_MICRO_USD = 1_500_000/);
-  assert.match(gateway, /aspectRatio: "1:1"/);
-  assert.match(gateway, /generateAudio: false/);
-  assert.match(gateway, /MAX_VIDEO_BYTES = 100 \* 1024 \* 1024/);
-  assert.match(gateway, /DEFAULT_VIDEO_GATEWAY_POLL_TIMEOUT_MS = 540_000/);
-  assert.match(gateway, /MAX_VIDEO_GATEWAY_POLL_TIMEOUT_MS = 560_000/);
-  assert.match(gateway, /AbortSignal\.timeout\(pollTimeoutMs\)/);
+  assert.doesNotMatch(gateway, /AI_GATEWAY_VIDEO_MODEL|storyboard-v1/);
+  assert.match(gateway, /size: args\.size \|\| "1024x1024"/);
+  assert.match(gateway, /officialLogo\?: Buffer \| null/);
+  assert.match(gateway, /images: \[args\.officialLogo as Buffer\]/);
+  assert.match(gateway, /referenceImagesCount/);
+  assert.match(
+    gateway,
+    /Les photos de la[\s\S]*Médiathèque ne font volontairement pas partie/
+  );
+  assert.doesNotMatch(gateway, /libraryImages|pro_media_library/);
+  assert.doesNotMatch(gateway, /featureKind\?: AiMediaKind/);
+  assert.doesNotMatch(gateway, /experimental_generateVideo/);
+  assert.doesNotMatch(gateway, /flux-3-video/);
   assert.match(gateway, /bufferFromUint8ArrayView\(image\.uint8Array\)/);
-  assert.match(gateway, /bufferFromUint8ArrayView\(video\.uint8Array\)/);
-  assert.doesNotMatch(gateway, /Buffer\.from\((?:image|video)\.uint8Array\)/);
-  assert.match(normalizer, /VIDEO_SIDE = 1080/);
-  assert.match(normalizer, /VIDEO_DURATION_SECONDS = 8/);
-  assert.match(normalizer, /MAX_NORMALIZED_VIDEO_BYTES = 60 \* 1024 \* 1024/);
-  assert.match(normalizer, /-c:v/);
-  assert.match(normalizer, /libx264/);
+  assert.doesNotMatch(gateway, /Buffer\.from\(image\.uint8Array\)/);
+  assert.match(normalizer, /durationSeconds: 10 \| 20 \| 30/);
+  assert.match(normalizer, /options: \{ width\?: number; height\?: number \}/);
+  assert.match(normalizer, /position: "centre"/);
+  assert.equal(
+    existsSync(path.join(ROOT, "lib/aiMediaStoryboardVideo.ts")),
+    false
+  );
+  assert.match(provider, /AI_MEDIA_VIDEO_PROVIDER \|\| "google-veo-fast"/);
+  assert.match(provider, /generateOriginalAiVideoClips/);
+  assert.equal(
+    existsSync(path.join(ROOT, "lib/aiVideoProviderFalOvi.ts")),
+    false
+  );
+  assert.match(veo, /DEFAULT_MODEL_ID = "veo-3\.1-fast-generate-preview"/);
+  assert.match(veo, /process\.env\.GEMINI_API_KEY/);
+  assert.match(veo, /new GoogleGenAI/);
+  assert.match(veo, /generateVideos/);
+  assert.match(veo, /source:\s*\{ prompt: args\.prompt \}/);
+  assert.doesNotMatch(veo, /\bseed:/);
+  assert.doesNotMatch(veo, /stableSeed/);
+  assert.doesNotMatch(veo, /generateAudio/);
+  assert.doesNotMatch(veo, /enhancePrompt/);
+  assert.doesNotMatch(veo, /negativePrompt/);
+  assert.doesNotMatch(veo, /numberOfVideos/);
+  assert.doesNotMatch(veo, /personGeneration/);
+  assert.doesNotMatch(veo, /resolution: "720p"/);
+  assert.match(veo, /getVideosOperation/);
+  assert.match(veo, /raiMediaFilteredReasons/);
+  assert.match(veo, /safetyFilteredError/);
+  assert.match(veo, /durationSeconds: args\.durationSeconds/);
+  assert.match(veo, /aspectRatio: args\.aspectRatio/);
+  assert.match(veo, /DEFAULT_TIMEOUT_MS = 420_000/);
+  assert.match(veo, /DEFAULT_SUBMIT_ATTEMPTS = 5/);
+  assert.match(veo, /MAX_VEO_PROMPT_CHARS = 1_400/);
+  assert.match(veo, /\.join\(" "\),\s*MAX_VEO_PROMPT_CHARS\s*\)/);
+  assert.match(veo, /DEFAULT_CONCURRENCY = 2/);
+  assert.match(veo, /retryDelayMs/);
+  assert.match(veo, /Math\.min\(configuredConcurrency, durations\.length\)/);
+  assert.match(veo, /actualCostMicroUsd: submittedSeconds \* costPerSecond/);
+  for (const criterion of [
+    "request.visualStyle",
+    "request.imageStyle",
+    "request.shotType",
+    "request.peopleMode",
+    "request.creativity",
+  ]) {
+    assert.ok(
+      veo.includes(criterion),
+      `${criterion} doit guider chaque plan Veo`
+    );
+  }
+  assert.match(veo, /PRIMARY SUBJECT — visually unmistakable/);
+  assert.match(
+    veo,
+    /Keep every named trade, product, animal, object, action or place central/
+  );
+  assert.match(veo, /smartphone, tablet or laptop in the foreground/);
+  assert.match(veo, /masonry or construction site/);
+  assert.match(veo, /real horses as central subjects/);
+  assert.match(veo, /Digital subject: show relevant devices and app UI/);
+  assert.doesNotMatch(veo, /watermarks, interfaces, posters/);
+  assert.match(timeline, /10: Object\.freeze\(\[6, 4\]/);
+  assert.match(timeline, /20: Object\.freeze\(\[8, 8, 4\]/);
+  assert.match(timeline, /30: Object\.freeze\(\[8, 8, 8, 6\]/);
+  assert.match(copywriter, /ne les additionne jamais/);
+  assert.match(copywriter, /une accroche publicitaire courte, naturelle/i);
+  assert.match(copywriter, /mots_a_evoquer: args\.request\.textKeywords/);
+  assert.match(copywriter, /applyHeadline/);
+  assert.doesNotMatch(copywriter, /\.join\(" \+ "\)/);
+  assert.match(composer, /composeOriginalAiVideo/);
+  assert.match(composer, /libx264/);
+  assert.match(
+    composer,
+    /MAX_GOOGLE_BUSINESS_VIDEO_BYTES = 74 \* 1024 \* 1024/
+  );
+  assert.match(composer, /durationSeconds: AiMediaVideoDuration/);
+  assert.match(composer, /narration\?: GeneratedAiNarrationAudio/);
+  assert.match(
+    composer,
+    /args\.narrationInputIndex === null \? "0\.16" : "0\.08"/
+  );
+  assert.match(composer, /\[voice\]/);
+  assert.match(narration, /idee_du_professionnel/);
+  assert.match(narration, /prestations: args\.profile\.business\.services/);
+  assert.match(narration, /N'invente aucun prix, résultat, certification/);
+  assert.match(narration, /WORD_TARGETS/);
+  assert.match(narrationAudio, /gemini-3\.1-flash-tts-preview/);
+  assert.match(narrationAudio, /TRANSCRIPTION À LIRE MOT POUR MOT/);
+  assert.match(narrationAudio, /response_format:[\s\S]*?type: "audio"/);
+  assert.match(narrationAudio, /pcm16ToWav/);
+  assert.match(brandKit, /LOGO_BUCKET/);
+  assert.doesNotMatch(brandKit, /pro_media_library|libraryImages/);
+  assert.match(brandKit, /extractPalette/);
+  assert.match(brandKit, /\.png\(\{ compressionLevel: 9/);
+  assert.doesNotMatch(renderer, /renderBrandedAiImage|imageCopySvg/);
+  assert.match(renderer, /renderAiMediaVideoOverlay/);
+  assert.match(renderer, /args\.logoMode === "none"/);
+  assert.match(
+    renderer,
+    /\.trim\(\{ background: "#ffffff", threshold: 10 \}\)/
+  );
+  assert.doesNotMatch(renderer, /renderAiMediaVideoScenes/);
 
   assert.match(registry, /const BUCKET = "inrcy-pro-media"/);
   assert.match(registry, /users\/\$\{safePathSegment\(args\.accountId/);
@@ -207,10 +425,44 @@ test("Gateway, normalisation et médiathèque respectent le contrat universel", 
   assert.match(registry, /upload_protocol: "server_legacy"/);
   assert.match(registry, /active_account_id: args\.accountId/);
   assert.match(server, /prompt_sha256: promptHash/);
+  assert.match(server, /generationContext\.recentPublications/);
+  assert.doesNotMatch(
+    server,
+    /brandKit\.libraryImages|composeAiMediaStoryboardVideo/
+  );
+  assert.match(
+    server,
+    /const officialLogo = args\.request\.logoMode === "none" \? null : brandKit\.logo/
+  );
+  assert.match(server, /generateAiMediaImage\(\{[\s\S]*?officialLogo,/);
+  assert.match(server, /const effectiveColors = args\.request\.useBrandColors/);
+  assert.match(server, /reference_policy: "official_logo_only"/);
+  assert.match(server, /normalizeGeneratedAiImage\(gateway\.buffer/);
+  assert.match(server, /generateOriginalAiVideoClips/);
+  assert.match(
+    server,
+    /creativeBrief: buildConciseVideoProfileBrief\(profile\)/
+  );
+  assert.match(server, /business\.services\.slice\(0, 5\)/);
+  assert.match(veo, /compact\(args\.creativeBrief, 90\)/);
+  assert.doesNotMatch(veo, /compact\(args\.creativeBrief, 6_000\)/);
+  assert.match(server, /writeAiMediaHeadline/);
+  assert.match(server, /writeAiMediaNarration/);
+  assert.match(server, /generateAiMediaNarrationAudio/);
+  assert.match(server, /composeOriginalAiVideo/);
+  assert.match(
+    server,
+    /durationSeconds: args\.request\.durationSeconds \|\| 10/
+  );
+  assert.match(server, /withText: args\.request\.withText/);
   assert.doesNotMatch(server, /prompt_sha256: promptHash,\s*prompt,/);
   assert.match(nextConfig, /assets\/media-generation\/soundtracks\/\*\*\/\*/);
   assert.match(nextConfig, /node_modules\/ffmpeg-static\/\*\*\/\*/);
   assert.match(vercelConfig, /media-generation\/generate\/route\.ts/);
   assert.match(vercelConfig, /assets\/media-generation\/soundtracks/);
   assert.equal((JSON.parse(vercelConfig) as { fluid?: boolean }).fluid, true);
+  assert.match(quotaPresentation, /AI_MEDIA_ADMIN_LIMIT_OVERRIDE = 10_000/);
+  assert.match(quotaPresentation, /videoLongFormPremiumRequired/);
+  assert.match(quotaPresentation, /quota\.edition === "standard"/);
+  assert.match(quotaPresentation, /limit: null, remaining: null/);
 });

@@ -1,6 +1,82 @@
 export type AiMediaKind = "image" | "video";
 export type AiMediaSurface = "booster" | "studio";
 export type AiMediaSubjectSource = "publication" | "profile" | "custom";
+export type AiMediaOutputFormat =
+  | "square"
+  | "portrait"
+  | "story"
+  | "landscape";
+export type AiMediaTypology =
+  | "company"
+  | "service"
+  | "advice"
+  | "showcase"
+  | "offer"
+  | "event"
+  | "behind_scenes"
+  | "recruitment";
+export type AiMediaVisualStyle =
+  | "brand"
+  | "clean"
+  | "premium"
+  | "warm"
+  | "dynamic"
+  | "expert"
+  | "local"
+  | "colorful";
+export type AiMediaImageStyle = "photo" | "illustration" | "three_d" | "graphic";
+export type AiMediaShotType = "auto" | "close" | "medium" | "wide";
+export type AiMediaPeopleMode = "auto" | "none" | "solo" | "team";
+export type AiMediaCreativity = "faithful" | "bold";
+export type AiMediaLogoMode = "discreet" | "visible" | "none";
+export type AiMediaVideoDuration = 10 | 20 | 30;
+
+export type AiMediaFormatSpec = {
+  format: AiMediaOutputFormat;
+  label: string;
+  aspectRatio: "1:1" | "4:5" | "9:16" | "16:9";
+  width: number;
+  height: number;
+  generationSize: "1024x1024" | "1024x1536" | "1536x1024";
+};
+
+export const AI_MEDIA_FORMAT_SPECS: Record<
+  AiMediaOutputFormat,
+  AiMediaFormatSpec
+> = {
+  square: {
+    format: "square",
+    label: "Carré",
+    aspectRatio: "1:1",
+    width: 1080,
+    height: 1080,
+    generationSize: "1024x1024",
+  },
+  portrait: {
+    format: "portrait",
+    label: "Portrait",
+    aspectRatio: "4:5",
+    width: 1080,
+    height: 1350,
+    generationSize: "1024x1536",
+  },
+  story: {
+    format: "story",
+    label: "Story / Reel",
+    aspectRatio: "9:16",
+    width: 1080,
+    height: 1920,
+    generationSize: "1024x1536",
+  },
+  landscape: {
+    format: "landscape",
+    label: "Paysage",
+    aspectRatio: "16:9",
+    width: 1920,
+    height: 1080,
+    generationSize: "1536x1024",
+  },
+};
 
 export type AiMediaGenerationRequest = {
   requestId: string;
@@ -8,7 +84,19 @@ export type AiMediaGenerationRequest = {
   subjectSource: AiMediaSubjectSource;
   idea: string;
   withText: boolean;
+  textKeywords: string[];
   withMusic: boolean;
+  withNarration: boolean;
+  format: AiMediaOutputFormat;
+  typology: AiMediaTypology;
+  visualStyle: AiMediaVisualStyle;
+  imageStyle: AiMediaImageStyle;
+  shotType: AiMediaShotType;
+  peopleMode: AiMediaPeopleMode;
+  creativity: AiMediaCreativity;
+  useBrandColors: boolean;
+  logoMode: AiMediaLogoMode;
+  durationSeconds: AiMediaVideoDuration | null;
   source: AiMediaSurface;
 };
 
@@ -61,6 +149,29 @@ function readRequestId(value: unknown) {
   return id;
 }
 
+function normalizeTextKeywords(value: unknown) {
+  const rawValues = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? value.split(/[,;\n]+/)
+      : [];
+  const keywords: string[] = [];
+  const seen = new Set<string>();
+  for (const rawValue of rawValues) {
+    const keyword = cleanText(rawValue, 48)
+      .replace(/\s+/g, " ")
+      .replace(/^[#,;\s]+|[#,;\s]+$/g, "")
+      .trim();
+    if (keyword.length < 2) continue;
+    const comparable = keyword.toLocaleLowerCase();
+    if (seen.has(comparable)) continue;
+    seen.add(comparable);
+    keywords.push(keyword);
+    if (keywords.length >= 6) break;
+  }
+  return keywords;
+}
+
 export function normalizeAiMediaGenerationRequest(
   value: unknown,
 ): AiMediaGenerationRequest {
@@ -103,13 +214,97 @@ export function normalizeAiMediaGenerationRequest(
     );
   }
 
+  const format = cleanText(body.format, 30) || "square";
+  if (!(format in AI_MEDIA_FORMAT_SPECS)) {
+    throw new AiMediaRequestValidationError("Format de média invalide.");
+  }
+
+  const typology = cleanText(body.typology, 40) || "service";
+  if (
+    ![
+      "company",
+      "service",
+      "advice",
+      "showcase",
+      "offer",
+      "event",
+      "behind_scenes",
+      "recruitment",
+    ].includes(typology)
+  ) {
+    throw new AiMediaRequestValidationError("Type de contenu invalide.");
+  }
+
+  const visualStyle = cleanText(body.visualStyle, 40) || "brand";
+  if (
+    ![
+      "brand",
+      "clean",
+      "premium",
+      "warm",
+      "dynamic",
+      "expert",
+      "local",
+      "colorful",
+    ].includes(visualStyle)
+  ) {
+    throw new AiMediaRequestValidationError("Style visuel invalide.");
+  }
+
+  const imageStyle = cleanText(body.imageStyle, 40) || "photo";
+  if (!["photo", "illustration", "three_d", "graphic"].includes(imageStyle)) {
+    throw new AiMediaRequestValidationError("Type de rendu invalide.");
+  }
+
+  const shotType = cleanText(body.shotType, 40) || "auto";
+  if (!["auto", "close", "medium", "wide"].includes(shotType)) {
+    throw new AiMediaRequestValidationError("Cadrage invalide.");
+  }
+
+  const peopleMode = cleanText(body.peopleMode, 40) || "auto";
+  if (!["auto", "none", "solo", "team"].includes(peopleMode)) {
+    throw new AiMediaRequestValidationError("Présence humaine invalide.");
+  }
+
+  const creativity = cleanText(body.creativity, 40) || "faithful";
+  if (!["faithful", "bold"].includes(creativity)) {
+    throw new AiMediaRequestValidationError("Niveau de créativité invalide.");
+  }
+
+  const logoMode = cleanText(body.logoMode, 40) || "discreet";
+  if (!["discreet", "visible", "none"].includes(logoMode)) {
+    throw new AiMediaRequestValidationError("Présence du logo invalide.");
+  }
+
+  const requestedDuration = Number(body.durationSeconds || 20);
+  if (kind === "video" && ![10, 20, 30].includes(requestedDuration)) {
+    throw new AiMediaRequestValidationError(
+      "Durée vidéo invalide : choisissez 10, 20 ou 30 secondes.",
+    );
+  }
+
+  const withText = body.withText === true;
+
   return {
     requestId: readRequestId(body.requestId),
     kind,
     subjectSource,
     idea,
-    withText: kind === "image" && body.withText === true,
+    withText,
+    textKeywords: withText ? normalizeTextKeywords(body.textKeywords) : [],
     withMusic: kind === "video" && body.withMusic === true,
+    withNarration: kind === "video" && body.withNarration === true,
+    format: format as AiMediaOutputFormat,
+    typology: typology as AiMediaTypology,
+    visualStyle: visualStyle as AiMediaVisualStyle,
+    imageStyle: imageStyle as AiMediaImageStyle,
+    shotType: shotType as AiMediaShotType,
+    peopleMode: peopleMode as AiMediaPeopleMode,
+    creativity: creativity as AiMediaCreativity,
+    useBrandColors: body.useBrandColors !== false,
+    logoMode: logoMode as AiMediaLogoMode,
+    durationSeconds:
+      kind === "video" ? (requestedDuration as AiMediaVideoDuration) : null,
     source,
   };
 }

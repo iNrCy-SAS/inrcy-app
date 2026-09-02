@@ -108,7 +108,11 @@ Limites optionnelles :
 - [ ] `AI_GATEWAY_MODEL` (format `provider/model`)
 - [ ] `AI_GATEWAY_VISION_MODEL` si modèle vision distinct
 - [ ] `AI_GATEWAY_IMAGE_MODEL` (optionnel, format `provider/model`) — surcharge du modèle de génération d’image via la Gateway
-- [ ] `AI_GATEWAY_VIDEO_MODEL` (optionnel, format `provider/model`) — surcharge du modèle de génération vidéo via la Gateway
+- [ ] `GEMINI_API_KEY` — secret serveur Google utilisé par Veo et Gemini TTS ; ne jamais le préfixer par `NEXT_PUBLIC_`
+- [ ] `AI_MEDIA_VIDEO_PROVIDER` (optionnel, défaut `google-veo-fast`)
+- [ ] `AI_MEDIA_VIDEO_TIMEOUT_MS` (optionnel, défaut 420000, plafond 600000)
+- [ ] `AI_MEDIA_VEO_MODEL`, `AI_MEDIA_VEO_COST_MICRO_USD_PER_SECOND`, `AI_MEDIA_VEO_POLL_MS` et `AI_MEDIA_VEO_CONCURRENCY` seulement après calibration en Preview
+- [ ] `AI_MEDIA_TTS_MODEL`, `AI_MEDIA_TTS_VOICE`, `AI_MEDIA_TTS_TIMEOUT_MS` et `AI_MEDIA_TTS_COST_MICRO_USD` seulement si les valeurs par défaut doivent être surchargées
 - [ ] `AI_GATEWAY_BASE_URL` seulement si surcharge volontaire
 - [ ] `AI_GATEWAY_FALLBACK_MODEL` (optionnel ; secours Gateway des moteurs non-OpenAI, défaut `openai/gpt-4o-mini`)
 - [ ] `AI_GATEWAY_OPENAI_PRIMARY_FALLBACK_MODEL` (optionnel ; secours Gateway lorsque ChatGPT est sélectionné, défaut `google/gemini-2.5-flash-lite`)

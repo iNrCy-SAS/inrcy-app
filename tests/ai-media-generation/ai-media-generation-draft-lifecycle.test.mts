@@ -18,14 +18,14 @@ function executableSql(source: string) {
     .replace(/\/\*[\s\S]*?\*\//g, "");
 }
 
-test("le contrat v2 est refuse avant toute reservation de quota", () => {
+test("le contrat v3 est refuse avant toute reservation de quota", () => {
   const route = read("app/api/media-generation/generate/route.ts");
   const versionCheck = route.indexOf("assertDraftContractVersion(requestBody)");
   const reservation = route.indexOf("reserveAiMediaGeneration({");
 
   assert.ok(versionCheck >= 0);
   assert.ok(reservation > versionCheck);
-  assert.match(route, /inrcy-ai-media-generation-v2-draft/);
+  assert.match(route, /inrcy-ai-media-generation-v8-veo-controlled-voiceover/);
   assert.match(route, /draft:\s*true/);
 });
 
@@ -94,7 +94,7 @@ test("la fermeture et la regeneration detruisent le brouillon avant de continuer
   const confirm = section(
     generator,
     "const handleConfirm = async () =>",
-    "const quotaValue",
+    "const subjectChoices",
   );
 
   assert.match(hook, /\/api\/media-generation\/drafts\/\$\{encodeURIComponent\(mediaId\)\}/);

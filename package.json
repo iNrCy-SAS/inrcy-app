@@ -137,6 +137,7 @@
     "@capacitor/ios": "^8.5.0",
     "@capacitor/keyboard": "^8.0.5",
     "@capacitor/splash-screen": "^8.0.2",
+    "@google/genai": "^2.20.0",
     "@revenuecat/purchases-capacitor": "^13.4.0",
     "@sentry/nextjs": "^10.39.0",
     "@supabase/ssr": "^0.8.0",

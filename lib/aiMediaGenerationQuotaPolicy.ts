@@ -18,7 +18,7 @@ export const AI_MEDIA_MONTHLY_LIMITS: Readonly<Record<AiMediaEdition, AiMediaPla
   Object.freeze({
     standard: Object.freeze({ image: 20, video: 5, studioEnabled: true }),
     premium: Object.freeze({ image: 30, video: 10, studioEnabled: true }),
-    founder: Object.freeze({ image: 150, video: 12, studioEnabled: true }),
+    founder: Object.freeze({ image: 30, video: 10, studioEnabled: true }),
   });
 
 export function normalizeAiMediaEdition(value: unknown): AiMediaEdition {

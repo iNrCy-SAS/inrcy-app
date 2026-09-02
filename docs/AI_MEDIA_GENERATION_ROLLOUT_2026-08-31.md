@@ -4,7 +4,8 @@
 
 ## 1. Contrat à préserver
 
-- Toutes les générations d’images et de vidéos passent par **Vercel AI Gateway**. Une clé fournisseur directe ne doit pas servir de repli pour ce flux.
+- Les images passent par **Vercel AI Gateway**. Les vidéos utilisent exclusivement Google Veo 3.1 Fast via l’API Gemini ; `GEMINI_API_KEY` ne doit jamais être exposée au navigateur.
+- Pour une image, le modèle reçoit uniquement le sujet actuel, le Profil et le logo officiel. Le logo est l’unique fichier image de référence ; la Médiathèque et les anciens médias ne sont jamais transmis.
 - Le quota appartient à l’**établissement actif** (`account_id`), jamais au seul utilisateur AUTH ni à un compteur commun au bundle multicompte.
 - Chaque établissement possède son propre compteur. Trois établissements couverts par l’édition Standard disposent donc chacun de 20 images et 5 vidéos par mois, soit 60 images et 15 vidéos au total.
 - L’entitlement commercial peut rester facturé au niveau du propriétaire AUTH ou d’un bundle multicompte. Le code doit néanmoins le résoudre sémantiquement depuis `activeUserId` afin de rester compatible avec une future facturation par établissement.
@@ -12,8 +13,8 @@
 - Booster et l’atelier avancé « Générer un média » sont accessibles à toutes les éditions. Les deux surfaces partagent le quota mensuel de l’établissement actif.
 - Booster impose une revue explicite du résultat : grand aperçu image ou vidéo, quota visible, puis « Utiliser ce média » ou « Régénérer ». Une génération réussie consomme son unité, mais reste un brouillon privé temporaire tant que le pro ne la valide pas. Fermer ou régénérer demande confirmation et supprime le brouillon ; le quota consommé n’est pas recrédité.
 - Le texte libre de l’idée est traité comme un brief confidentiel et ne doit jamais être recopié dans une image. Le mode « Avec texte » produit seulement une accroche courte originale fondée sur les faits vérifiés.
-- Une génération produit un seul média : image carrée 1024 × 1024 ou vidéo carrée HD de 8 secondes.
-- Le choix image est « avec texte » ou « sans texte ». Le choix vidéo est « avec musique » ou « sans musique ».
+- Une génération produit un seul média aux dimensions du format choisi : image JPEG ou vidéo MP4 H.264 de 10, 20 ou 30 secondes.
+- Le texte exact, la voix off Gemini et la musique iNrCy sont optionnels. Une vidéo assemble exclusivement de vrais plans IA Veo de 4, 6 ou 8 secondes ; l’ancien diaporama de médias existants est supprimé. Les textes et le logo sont ajoutés proprement par le compositeur iNrCy, jamais demandés à Veo dans l’image.
 - Le média n’est enregistré définitivement dans la médiathèque qu’après validation : « Utiliser ce média » dans Booster/iNrSend ou « Enregistrer dans la Médiathèque » depuis le menu.
 - Les médias restent **privés** : bucket privé, chemin sous `users/{accountId}/…` et consultation par URL signée courte. Ne jamais fabriquer d’URL publique permanente.
 - Réutiliser un média déjà présent dans la médiathèque ne lance aucune génération et **ne débite jamais de quota**.
@@ -27,9 +28,9 @@
 | --- | ---: | ---: | --- |
 | Standard | 20 | 5 | Oui |
 | Premium | 30 | 10 | Oui |
-| Founder | 150 | 12 | Oui |
+| Founder | 30 | 10 | Oui |
 
-Ces valeurs sont présentes dans `public.ai_media_plan_limits` et dans le helper serveur. Un éventuel `limitOverride` reste une décision serveur : il ne doit jamais être lu depuis le body client.
+Ces valeurs sont présentes dans `public.ai_media_plan_limits` et dans le helper serveur. Le seul admin global iNrCy est présenté comme illimité ; le serveur applique un fusible interne à 10 000, jamais lu depuis le body client. Un propriétaire d’établissement ou un membre `admin` n’obtient pas automatiquement cet illimité.
 
 ## 3. Préflight Supabase
 
@@ -102,7 +103,19 @@ Un `NO-GO` est bloquant. Après une installation réussie, les collisions sont n
    ops/sql/2026-08-31_ai_media_generation_quota_limits_20_5_30_10_postflight_read_only.sql
    ```
 
-8. Appliquer ensuite le patch additif des brouillons temporaires privés :
+8. Exécuter le patch final autonome qui aligne Standard sur 20/5 et Premium/Founder sur 30/10. Il est additif, idempotent et ne suppose pas que le patch de l’étape précédente ait déjà été joué :
+
+   ```text
+   ops/sql/2026-09-01_ai_media_generation_founder_30_10.sql
+   ```
+
+   Puis exiger `PASS` sur son postflight en lecture seule :
+
+   ```text
+   ops/sql/2026-09-01_ai_media_generation_founder_30_10_postflight_read_only.sql
+   ```
+
+9. Appliquer ensuite le patch additif des brouillons temporaires privés :
 
    ```text
    ops/sql/2026-08-31_ai_media_generation_temporary_drafts.sql
@@ -179,14 +192,16 @@ Les RPC doivent être `SECURITY DEFINER` avec un `search_path` fixe. `anon` et `
 - `VERCEL_CRON_SECRET` ou `CRON_SECRET` pour les crons existants ;
 - `FFMPEG_PATH` si l’exécutable embarqué n’est pas utilisé dans l’environnement cible.
 
-La clé Gateway et le service role restent exclusivement côté serveur. Aucune variable de ce flux ne doit être préfixée par `NEXT_PUBLIC_`.
+Les clés Gateway, Gemini et le service role restent exclusivement côté serveur. Aucune variable de ce flux ne doit être préfixée par `NEXT_PUBLIC_`.
 
-### Modèles média optionnels
+### Fournisseurs et modèles média
 
-- `AI_GATEWAY_IMAGE_MODEL` — surcharge au format `provider/model` ;
-- `AI_GATEWAY_VIDEO_MODEL` — surcharge au format `provider/model`.
+- `AI_GATEWAY_IMAGE_MODEL` — surcharge image au format `provider/model` ;
+- `GEMINI_API_KEY` — secret serveur obligatoire pour les vidéos Veo et la voix off Gemini TTS ;
+- `AI_MEDIA_VIDEO_PROVIDER` — surcharge optionnelle, valeur par défaut `google-veo-fast` ;
+- `AI_MEDIA_VEO_MODEL` — surcharge optionnelle, valeur par défaut `veo-3.1-fast-generate-preview`.
 
-Sans surcharge, le serveur utilise ses modèles par défaut versionnés dans le code. Au moment de ce lot, les valeurs de référence sont `openai/gpt-image-2` pour l’image et `bfl/flux-3-video` pour la vidéo. Vérifier leur présence et leur tarification dans le catalogue AI Gateway de l’équipe avant chaque promotion ; ne pas remplacer un modèle sans refaire les smokes de format, durée, coût et sécurité.
+Sans surcharge, le serveur utilise `openai/gpt-image-2` pour l’image, `veo-3.1-fast-generate-preview` pour les plans vidéo et `gemini-3.1-flash-tts-preview` pour la voix off. Vérifier la tarification officielle des fournisseurs avant chaque promotion ; ne pas remplacer un modèle sans refaire les smokes de format, durée, coût et sécurité.
 
 Le bucket privé et les URL signées protègent la médiathèque iNrCy, mais ne changent pas la politique de conservation du fournisseur IA. Au moment de ce lot, la fiche Gateway de GPT Image 2 n’annonce pas de Zero Data Retention. Valider le cadre contractuel et l’information fournie aux pros avant activation ; le registre iNrCy ne conserve volontairement que la version et l’empreinte SHA-256 du prompt compilé, pas son texte intégral.
 
@@ -196,11 +211,13 @@ Les anciens noms `AI_MEDIA_IMAGE_MODEL` et `AI_MEDIA_VIDEO_MODEL` ne font pas pa
 
 Le runtime possède des valeurs conservatrices par défaut. Les surcharges suivantes ne doivent être utilisées qu’après calibration en Preview :
 
-- `AI_MEDIA_IMAGE_COST_MICRO_USD` et `AI_MEDIA_VIDEO_COST_MICRO_USD` : réservation de coût estimé pour le garde-fou Gateway ;
+- `AI_MEDIA_IMAGE_COST_MICRO_USD`, `AI_MEDIA_VEO_COST_MICRO_USD_PER_SECOND` et `AI_MEDIA_TTS_COST_MICRO_USD` : réservations de coût estimé pour les garde-fous ;
 - `AI_MEDIA_IMAGE_TIMEOUT_MS` et `AI_MEDIA_VIDEO_TIMEOUT_MS` : délais maximums, bornés côté serveur.
+- `AI_MEDIA_VEO_POLL_MS` et `AI_MEDIA_VEO_CONCURRENCY` : polling et concurrence Veo, à calibrer d’abord en Preview ;
+- `AI_MEDIA_TTS_MODEL`, `AI_MEDIA_TTS_VOICE` et `AI_MEDIA_TTS_TIMEOUT_MS` : réglages optionnels de la voix off.
 - `AI_GATEWAY_MAX_COST_MICRO_USD_PER_ACCOUNT_DAY` : le défaut du code est `20000000`. Toute valeur Vercel existante surcharge ce défaut et doit rester au moins à `20000000` pour ne pas bloquer un Premium qui utilise légitimement 10 vidéos et 30 images le même jour.
 
-La réservation vidéo par défaut est `1500000` micro-USD : elle couvre un rendu FLUX 3 full HD non-draft de 8 secondes à 0,17 USD/s (1,36 USD) avec une marge raisonnable. Une valeur trop basse affaiblit le coupe-circuit économique. Une valeur trop haute peut refuser prématurément une génération légitime. Documenter toute modification dans le journal de déploiement.
+La réservation Veo Fast par défaut est `100000` micro-USD par seconde. Une vidéo de 10, 20 ou 30 secondes réserve donc respectivement 1, 2 ou 3 USD, auxquels s’ajoute le coût très faible de la voix off si elle est activée. Une valeur trop basse affaiblit le coupe-circuit économique ; documenter toute modification après contrôle du tarif officiel Google.
 
 ### Portée Vercel
 
@@ -217,7 +234,7 @@ Avant promotion, vérifier :
 - dix pistes présentes, toutes lisibles et d’une durée de 8 secondes avec fondu propre ;
 - aucune piste sous licence externe non documentée ;
 - un test `withMusic=true` dans le Preview sans erreur `ENOENT` ;
-- un MP4 final de 8 secondes contenant la piste attendue et sans dépassement de durée ;
+- un MP4 final de 10, 20 ou 30 secondes contenant la piste attendue et respectant moins de 75 Mo ;
 - un MP4 `withMusic=false` sans piste ajoutée ;
 - la présence de FFmpeg dans la fonction serveur réellement exécutée.
 
@@ -267,7 +284,8 @@ Ce scénario valide aussi le bundling des pistes et limite le coût à une vidé
 
 - Standard : Booster et atelier avancé autorisés dans les limites communes 20/5.
 - Premium : Booster et atelier avancé autorisés avec limites communes 30/10.
-- Founder : Booster et atelier avancé autorisés avec limites communes 150/12.
+- Founder : Booster et atelier avancé autorisés avec limites communes 30/10.
+- Admin global iNrCy : compteur présenté comme illimité ; les garde-fous de débit et le fusible technique restent actifs.
 - Un changement de plan ne doit jamais déplacer les compteurs vers un autre `account_id`.
 
 ### Échec, concurrence et expiration
@@ -341,7 +359,7 @@ Pendant au moins une journée puis sur un changement de mois UTC, surveiller :
 
 - taux de `completed`, `failed`, `expired` et `quota_reached` par type de média ;
 - réservations restant en `reserved` ou `processing` après leur échéance ;
-- dépenses et erreurs par modèle dans Vercel AI Gateway ;
+- dépenses et erreurs par modèle dans Vercel AI Gateway et fal ;
 - refus du garde-fou économique par `account_id` ;
 - temps de génération et timeouts image/vidéo ;
 - échecs d’écriture Storage, de registre et de normalisation ;
@@ -364,7 +382,7 @@ Le rollback privilégié est applicatif et non destructif.
 2. Laisser les tables et le ledger SQL en place. La migration est additive ; les conserver protège l’audit, l’idempotence et les compteurs déjà consommés.
 3. Laisser les médias déjà créés dans la médiathèque privée. Ils appartiennent au pro et leur suppression n’est pas un rollback technique.
 4. Laisser expirer les réservations en cours ou les terminer avec la RPC `fail_ai_media_generation`. Ne jamais décrémenter `reserved_count` manuellement.
-5. Retirer les overrides `AI_GATEWAY_IMAGE_MODEL` et `AI_GATEWAY_VIDEO_MODEL` seulement après retour au build précédent. Ne pas supprimer la clé Gateway si les autres modules IA l’utilisent.
+5. Retirer les overrides `AI_GATEWAY_IMAGE_MODEL`, `AI_MEDIA_VIDEO_PROVIDER` et `AI_MEDIA_VEO_MODEL` seulement après retour au build précédent. Ne supprimer ni la clé Gateway ni `GEMINI_API_KEY` si le build restauré les utilise encore.
 6. Vérifier qu’aucun job n’est bloqué et que les deux requêtes d’intégrité retournent zéro ligne.
 
 Ne pas exécuter de `drop table`, ne pas vider le ledger et ne pas supprimer en masse les objets Storage pendant un incident. Si une suppression définitive du schéma devient juridiquement ou techniquement nécessaire, préparer une migration distincte après export, délai de rétention, analyse des clés étrangères et validation humaine. Ce runbook ne contient volontairement aucun SQL destructif.
@@ -386,5 +404,5 @@ La Production n’est autorisée que si tous les points suivants sont vrais :
 - idempotence et concurrence validées ;
 - brouillon généré privé et signé, puis média visible dans la bonne médiathèque uniquement après validation ;
 - réutilisation de la médiathèque sans nouvelle consommation ;
-- atelier accessible aux trois éditions, avec quotas 20/5, 30/10 et 150/12 ;
+- atelier accessible aux trois éditions, avec quotas 20/5, 30/10 et 30/10 ;
 - plan de retour au build précédent identifié et sauvegarde Supabase disponible.

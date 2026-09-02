@@ -20,6 +20,12 @@ import {
   getAiMediaQuotaSnapshot,
   reserveAiMediaGeneration,
 } from "@/lib/aiMediaGenerationQuota";
+import {
+  AI_MEDIA_ADMIN_LIMIT_OVERRIDE,
+  presentAiMediaQuota,
+  presentAiMediaQuotaCounter,
+} from "@/lib/aiMediaQuotaPresentation";
+import { isAdminUserForAi } from "@/lib/aiUsageQuota";
 import { generateAndSaveAiMedia } from "@/lib/aiMediaGenerationServer";
 import {
   getExistingGeneratedAiMedia,
@@ -29,6 +35,7 @@ import {
   getDashboardEditionForAccountId,
 } from "@/lib/dashboardEditionServer";
 import type { DashboardEdition } from "@/lib/dashboardEdition";
+import { hasPremiumDashboardAccess } from "@/lib/dashboardEdition";
 import { getCurrentInrcyAccountScope } from "@/lib/multicompte/server";
 import { enforceRateLimit } from "@/lib/rateLimit";
 
@@ -86,6 +93,57 @@ function safeFailureDetails(error: unknown) {
   };
 }
 
+function veoSafetyReason(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || "");
+  const marker = "ai_video_veo_safety_filtered:";
+  const markerIndex = message.indexOf(marker);
+  if (markerIndex < 0) return "";
+  return message
+    .slice(markerIndex + marker.length)
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 600);
+}
+
+function publicVeoSafetyMessage(error: unknown) {
+  const reason = veoSafetyReason(error).toLocaleLowerCase();
+  const suffix = " Aucun quota iNrCy n’a été consommé.";
+  if (/audio|sound|speech|voice|music|piste sonore|sonore/.test(reason)) {
+    return (
+      "Google a bloqué ce rendu pendant le contrôle de sa piste audio. " +
+      "Votre sujet n’est pas forcément en cause : réessayez, un nouveau rendu peut fonctionner." +
+      suffix
+    );
+  }
+  if (/person|people|face|human|minor|child|adult|visage|personne/.test(reason)) {
+    return (
+      "Google a bloqué une personne ou un visage apparu dans le rendu final. " +
+      "Votre sujet n’est pas forcément en cause : réessayez pour produire une autre scène." +
+      suffix
+    );
+  }
+  if (/copyright|memor|privacy|public figure|celebrity|trademark|similar/.test(reason)) {
+    return (
+      "Google a bloqué le rendu lors de son contrôle de confidentialité ou de similarité. " +
+      "Réessayez afin de produire une création différente." +
+      suffix
+    );
+  }
+  if (/violence|sexual|danger|hate|toxic|derogatory|prohibited|harm/.test(reason)) {
+    return (
+      "Google a bloqué le contenu visuel généré pour une règle de sécurité. " +
+      "Modifiez légèrement la scène demandée puis réessayez." +
+      suffix
+    );
+  }
+  return (
+    "Google a bloqué le rendu généré lors de son contrôle final. " +
+    "Votre sujet n’est pas forcément en cause : réessayez, un nouveau rendu peut fonctionner." +
+    suffix
+  );
+}
+
 function publicGenerationError(error: unknown) {
   if (error instanceof AiMediaRequestValidationError) {
     return jsonError({ status: 400, code: error.code, message: error.message });
@@ -115,7 +173,22 @@ function publicGenerationError(error: unknown) {
   }
 
   const message = error instanceof Error ? error.message : "";
-  if (message.includes("ai_gateway_credentials_missing")) {
+  const errorName = error instanceof Error ? error.name : "";
+  if (
+    message.includes("ai_media_generation_cancelled") ||
+    errorName === "AbortError"
+  ) {
+    return jsonError({
+      status: 499,
+      code: "AI_MEDIA_GENERATION_CANCELLED",
+      message:
+        "Génération arrêtée à votre demande. Le quota iNrCy a été libéré.",
+    });
+  }
+  if (
+    message.includes("ai_gateway_credentials_missing") ||
+    message.includes("ai_video_veo_credentials_missing")
+  ) {
     return jsonError({
       status: 503,
       code: "AI_MEDIA_GATEWAY_NOT_CONFIGURED",
@@ -125,18 +198,45 @@ function publicGenerationError(error: unknown) {
   if (
     message.includes("TimeoutError") ||
     message.includes("AbortError") ||
-    message.includes("timed out")
+    message.includes("timed out") ||
+    message.includes("ai_video_veo_timeout")
   ) {
     return jsonError({
       status: 504,
       code: "AI_MEDIA_GENERATION_TIMEOUT",
-      message: "La génération a pris trop de temps. Aucun crédit n’a été consommé.",
+      message: "La génération a pris trop de temps. Aucun quota iNrCy n’a été consommé.",
+    });
+  }
+  if (message.includes("ai_video_veo_safety_filtered")) {
+    return jsonError({
+      status: 422,
+      code: "AI_MEDIA_VIDEO_SAFETY_FILTERED",
+      message: publicVeoSafetyMessage(error),
+    });
+  }
+  if (message.includes("ai_video_veo_video_missing")) {
+    return jsonError({
+      status: 502,
+      code: "AI_MEDIA_VIDEO_FILE_MISSING",
+      message:
+        "Google a terminé le rendu sans renvoyer de fichier vidéo. Réessayez : aucun quota iNrCy n’a été consommé.",
+    });
+  }
+  if (
+    message.includes("ai_video_veo_clip_empty") ||
+    message.includes("ai_video_veo_clip_set_incomplete")
+  ) {
+    return jsonError({
+      status: 502,
+      code: "AI_MEDIA_VIDEO_INCOMPLETE",
+      message:
+        "Google a renvoyé une vidéo incomplète. Réessayez : aucun quota iNrCy n’a été consommé.",
     });
   }
   return jsonError({
     status: 502,
     code: "AI_MEDIA_GENERATION_FAILED",
-    message: "Le média n’a pas pu être généré. Aucun crédit n’a été consommé.",
+    message: "Le média n’a pas pu être généré. Aucun quota iNrCy n’a été consommé.",
   });
 }
 
@@ -154,13 +254,25 @@ async function readRequestBody(request: Request) {
 
 function generationFingerprint(request: AiMediaGenerationRequest) {
   return createAiMediaRequestFingerprint({
-    contract: "inrcy-ai-media-generation-v2-draft",
+    contract: "inrcy-ai-media-generation-v8-veo-controlled-voiceover",
     promptVersion: AI_MEDIA_PROMPT_VERSION,
     kind: request.kind,
     subjectSource: request.subjectSource,
     idea: request.idea,
     withText: request.withText,
+    textKeywords: request.textKeywords,
     withMusic: request.withMusic,
+    withNarration: request.withNarration,
+    format: request.format,
+    typology: request.typology,
+    visualStyle: request.visualStyle,
+    imageStyle: request.imageStyle,
+    shotType: request.shotType,
+    peopleMode: request.peopleMode,
+    creativity: request.creativity,
+    useBrandColors: request.useBrandColors,
+    logoMode: request.logoMode,
+    durationSeconds: request.durationSeconds,
     source: request.source,
   });
 }
@@ -170,7 +282,7 @@ function assertDraftContractVersion(value: unknown) {
     value && typeof value === "object" && !Array.isArray(value)
       ? (value as Record<string, unknown>)
       : null;
-  if (!body || body.contractVersion !== 2) {
+  if (!body || body.contractVersion !== 3) {
     throw new AiMediaRequestValidationError(
       "Cette version de l’outil média n’est plus compatible. Actualisez la page avant de relancer.",
     );
@@ -191,6 +303,7 @@ export async function POST(request: Request) {
   let persistedItem: AiMediaLibraryPickerItem | null = null;
   let persistedSoundtrack: AiMediaSoundtrackResponse | null = null;
   let accountEdition: DashboardEdition | null = null;
+  let adminUnlimited = false;
 
   try {
     const current = await getCurrentInrcyAccountScope();
@@ -204,6 +317,10 @@ export async function POST(request: Request) {
 
     context.accountId = current.scope.activeUserId;
     context.authUserId = current.scope.authUserId;
+    adminUnlimited = await isAdminUserForAi(
+      current.supabase,
+      context.authUserId,
+    );
 
     const rateLimited = await enforceRateLimit({
       name: "ai_media_generation",
@@ -225,6 +342,24 @@ export async function POST(request: Request) {
 
     const edition = await getDashboardEditionForAccountId(context.accountId);
     accountEdition = edition;
+    if (
+      normalizedRequest.kind === "video" &&
+      (normalizedRequest.durationSeconds || 20) > 10 &&
+      !adminUnlimited &&
+      !hasPremiumDashboardAccess(edition)
+    ) {
+      const quota = await getAiMediaQuotaSnapshot({
+        accountId: context.accountId,
+        actorAuthUserId: context.authUserId,
+        edition,
+      }).catch(() => null);
+      return jsonError({
+        status: 403,
+        code: "AI_MEDIA_VIDEO_LONG_FORM_PREMIUM_REQUIRED",
+        message: "Les vidéos de 20 et 30 secondes sont réservées aux offres Premium et Founder. Votre offre Standard inclut 5 vidéos de 10 secondes par mois.",
+        quota: quota ? presentAiMediaQuota(quota, false) : undefined,
+      });
+    }
     const reservation = await reserveAiMediaGeneration({
       accountId: context.accountId,
       actorAuthUserId: context.authUserId,
@@ -234,12 +369,28 @@ export async function POST(request: Request) {
       surface: normalizedRequest.source,
       edition,
       reservationTtlSeconds: normalizedRequest.kind === "video" ? 3_600 : 900,
+      limitOverride: adminUnlimited
+        ? AI_MEDIA_ADMIN_LIMIT_OVERRIDE
+        : undefined,
       metadata: {
+        admin_unlimited: adminUnlimited,
         source: normalizedRequest.source,
         prompt_version: AI_MEDIA_PROMPT_VERSION,
         subject_source: normalizedRequest.subjectSource,
         with_text: normalizedRequest.withText,
+        text_keyword_count: normalizedRequest.textKeywords.length,
         with_music: normalizedRequest.withMusic,
+        with_narration: normalizedRequest.withNarration,
+        format: normalizedRequest.format,
+        typology: normalizedRequest.typology,
+        visual_style: normalizedRequest.visualStyle,
+        image_style: normalizedRequest.imageStyle,
+        shot_type: normalizedRequest.shotType,
+        people_mode: normalizedRequest.peopleMode,
+        creativity: normalizedRequest.creativity,
+        use_brand_colors: normalizedRequest.useBrandColors,
+        logo_mode: normalizedRequest.logoMode,
+        duration_seconds: normalizedRequest.durationSeconds,
       },
     });
 
@@ -249,7 +400,10 @@ export async function POST(request: Request) {
         code: "AI_MEDIA_STUDIO_DISABLED",
         message:
           "La génération de média est momentanément indisponible pour cet établissement.",
-        quota: reservation.quota,
+        quota: presentAiMediaQuotaCounter(
+          reservation.quota,
+          adminUnlimited,
+        ),
       });
     }
     if (reservation.outcome === "quota_reached") {
@@ -257,7 +411,10 @@ export async function POST(request: Request) {
         status: 429,
         code: "AI_MEDIA_QUOTA_REACHED",
         message: "Le plafond mensuel de cet établissement est atteint.",
-        quota: reservation.quota,
+        quota: presentAiMediaQuotaCounter(
+          reservation.quota,
+          adminUnlimited,
+        ),
       });
     }
 
@@ -294,7 +451,9 @@ export async function POST(request: Request) {
             {
               ok: true,
               item,
-              quota,
+              quota: quota
+                ? presentAiMediaQuota(quota, adminUnlimited)
+                : null,
               soundtrack: null,
               replayed: true,
               draft: true,
@@ -319,7 +478,9 @@ export async function POST(request: Request) {
             {
               ok: true,
               item,
-              quota,
+              quota: quota
+                ? presentAiMediaQuota(quota, adminUnlimited)
+                : null,
               soundtrack: null,
               replayed: true,
               draft: true,
@@ -342,7 +503,10 @@ export async function POST(request: Request) {
           requestClosed
             ? "Cette tentative est terminée. Relancez avec une nouvelle demande."
             : "Cette génération est déjà en cours.",
-        quota: reservation.quota,
+        quota: presentAiMediaQuotaCounter(
+          reservation.quota,
+          adminUnlimited,
+        ),
         retryAfterSeconds: requestClosed ? undefined : 5,
       });
     }
@@ -354,6 +518,7 @@ export async function POST(request: Request) {
       authUserId: context.authUserId,
       jobId: context.jobId,
       request: normalizedRequest,
+      signal: request.signal,
     });
     mediaPersisted = true;
     persistedMediaId = generated.item.id;
@@ -382,7 +547,7 @@ export async function POST(request: Request) {
       {
         ok: true,
         item: generated.item,
-        quota,
+        quota: presentAiMediaQuota(quota, adminUnlimited),
         soundtrack: generated.soundtrack,
         draft: true,
       },
@@ -441,7 +606,7 @@ export async function POST(request: Request) {
             {
               ok: true,
               item: persistedItem,
-              quota,
+              quota: presentAiMediaQuota(quota, adminUnlimited),
               soundtrack: null,
               recovered: true,
               draft: true,
