@@ -544,15 +544,41 @@ function getRecentMediaTrace(usage: RecentMediaUsage) {
   };
 }
 
-function chooseTheme(allowedThemes: InrAgentTheme[]): InrAgentTheme {
+function chooseTheme(
+  allowedThemes: InrAgentTheme[],
+  recentPublications: BoosterRecentPublication[],
+): InrAgentTheme {
   const publishThemes = allowedThemes.filter((theme) =>
     Boolean(agentThemeToBoosterTheme[theme]),
   );
   if (!publishThemes.length) return "conseils";
-  return (
-    publishThemes[Math.floor(Math.random() * publishThemes.length)] ??
-    "conseils"
+  const patterns: Partial<Record<InrAgentTheme, RegExp>> = {
+    conseils: /\b(conseil|astuce|guide|recommand|comment|bon geste|erreur a eviter)\b/i,
+    realisations: /\b(realisation|chantier|projet|intervention|avant apres|resultat|coulisses)\b/i,
+    offres: /\b(offre|promotion|service|prestation|devis|reservation|decouvr|profitez)\b/i,
+    actualites: /\b(actualite|nouveaute|saison|evenement|information|agenda|lancement)\b/i,
+  };
+  const normalizedHistory = recentPublications.slice(0, 5).map((publication) =>
+    normalizeCatalogText(
+      [publication.title, publication.idea, publication.content]
+        .filter(Boolean)
+        .join(" "),
+    ),
   );
+  const scored = publishThemes.map((theme, themeIndex) => {
+    const pattern = patterns[theme];
+    const repetitionScore = normalizedHistory.reduce(
+      (total, text, historyIndex) =>
+        total + (pattern?.test(text) ? Math.max(1, 6 - historyIndex) : 0),
+      0,
+    );
+    return { theme, repetitionScore, themeIndex };
+  });
+  scored.sort(
+    (a, b) =>
+      a.repetitionScore - b.repetitionScore || a.themeIndex - b.themeIndex,
+  );
+  return scored[0]?.theme || "conseils";
 }
 
 function normalizeCatalogText(value: unknown) {
@@ -649,6 +675,7 @@ function buildAgentIdea(args: {
   business: JsonRecord | null;
   profile: JsonRecord | null;
   theme: InrAgentTheme;
+  recentPublications: BoosterRecentPublication[];
 }) {
   const { sector, professionLabel } = getBusinessProfession(args.business);
   const company = cleanText(
@@ -678,20 +705,29 @@ function buildAgentIdea(args: {
     ? ` et ses environs (${zones.join(", ")})`
     : "";
   const companyText = company ? ` pour ${company}` : "";
+  const recentTopics = args.recentPublications
+    .slice(0, 3)
+    .map((publication) =>
+      cleanText(publication.title || publication.idea || "", 90),
+    )
+    .filter(Boolean);
+  const freshnessInstruction = recentTopics.length
+    ? ` Choisir un angle nettement différent de ces sujets récents : ${recentTopics.join(" ; ")}.`
+    : "";
 
   if (args.theme === "realisations") {
-    return `Préparer une publication de type réalisation${companyText} : mettre en avant le sérieux, la méthode et le soin apporté par un professionnel ${professionLabel || sector}${servicesText}${cityText}${zonesText}, sans inventer de faux chantier ni de faux client.`;
+    return `Préparer une publication de type réalisation${companyText} : mettre en avant le sérieux, la méthode et le soin apporté par un professionnel ${professionLabel || sector}${servicesText}${cityText}${zonesText}, sans inventer de faux chantier ni de faux client.${freshnessInstruction}`;
   }
 
   if (args.theme === "offres") {
-    return `Préparer une publication commerciale douce${companyText} : valoriser une prestation utile d'un professionnel ${professionLabel || sector}${servicesText}${cityText}${zonesText}, avec un appel à l'action naturel, sans inventer de remise, de prix ou de promesse.`;
+    return `Préparer une publication commerciale douce${companyText} : valoriser une prestation utile d'un professionnel ${professionLabel || sector}${servicesText}${cityText}${zonesText}, avec un appel à l'action naturel, sans inventer de remise, de prix ou de promesse.${freshnessInstruction}`;
   }
 
   if (args.theme === "actualites") {
-    return `Préparer une publication d'actualité locale${companyText} pour un professionnel ${professionLabel || sector}${servicesText}${cityText}${zonesText} : parler d'un sujet utile ou saisonnier en lien avec l'activité, sans inventer d'événement précis.`;
+    return `Préparer une publication d'actualité locale${companyText} pour un professionnel ${professionLabel || sector}${servicesText}${cityText}${zonesText} : parler d'un sujet utile ou saisonnier en lien avec l'activité, sans inventer d'événement précis.${freshnessInstruction}`;
   }
 
-  return `Préparer une publication de conseil utile${companyText} pour un professionnel ${professionLabel || sector}${servicesText}${cityText}${zonesText} : donner une astuce simple, concrète et rassurante en lien avec le métier, sans inventer de détail non fourni.`;
+  return `Préparer une publication de conseil utile${companyText} pour un professionnel ${professionLabel || sector}${servicesText}${cityText}${zonesText} : donner une astuce simple, concrète et rassurante en lien avec le métier, sans inventer de détail non fourni.${freshnessInstruction}`;
 }
 
 function cleanHashtags(channel: BoosterChannels, input: unknown) {
@@ -1422,7 +1458,7 @@ async function pickDiversifiedMedia(args: {
   });
 
   let selected: ImageBankAsset | null = null;
-  let roll: number | null = null;
+  const roll: number | null = null;
   let decisionReason = "no_relevant_media_available";
 
   if (args.preferredSource === "image_bank" && imageBankMedia) {
@@ -1593,9 +1629,14 @@ export async function POST(request: Request) {
   const { profile, business, recentPublications } = generationContext;
 
   const businessProfession = getBusinessProfession(business);
-  const agentTheme = chooseTheme(automation.allowedThemes);
+  const agentTheme = chooseTheme(automation.allowedThemes, recentPublications);
   const boosterTheme = agentThemeToBoosterTheme[agentTheme] || "conseil";
-  const idea = buildAgentIdea({ business, profile, theme: agentTheme });
+  const idea = buildAgentIdea({
+    business,
+    profile,
+    theme: agentTheme,
+    recentPublications,
+  });
   const requiresGeneratedVideo = channels.includes("youtube_shorts");
   const prefersExistingVideo =
     requiresGeneratedVideo || channels.includes("tiktok");

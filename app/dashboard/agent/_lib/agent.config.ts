@@ -214,7 +214,10 @@ export const settingsOptions: Record<AutomationKey, AutomationSettingsOptions> =
     frequency: [
       { value: "weekly", label: "1 fois par semaine" },
       { value: "twice_weekly", label: "2 fois par semaine" },
+      { value: "three_times_weekly", label: "3 fois par semaine" },
       { value: "monthly", label: "1 fois par mois" },
+      { value: "biweekly", label: "2 fois par mois" },
+      { value: "three_times_monthly", label: "3 fois par mois" },
     ],
     validation: [
       {
@@ -232,8 +235,10 @@ export const settingsOptions: Record<AutomationKey, AutomationSettingsOptions> =
     frequency: [
       { value: "weekly", label: "1 fois par semaine" },
       { value: "twice_weekly", label: "2 fois par semaine" },
-      { value: "biweekly", label: "2 fois par mois" },
+      { value: "three_times_weekly", label: "3 fois par semaine" },
       { value: "monthly", label: "1 fois par mois" },
+      { value: "biweekly", label: "2 fois par mois" },
+      { value: "three_times_monthly", label: "3 fois par mois" },
       { value: "one_off", label: "Campagne ponctuelle" },
     ],
     validation: [
@@ -252,8 +257,10 @@ export const settingsOptions: Record<AutomationKey, AutomationSettingsOptions> =
     frequency: [
       { value: "weekly", label: "1 fois par semaine" },
       { value: "twice_weekly", label: "2 fois par semaine" },
-      { value: "biweekly", label: "2 fois par mois" },
+      { value: "three_times_weekly", label: "3 fois par semaine" },
       { value: "monthly", label: "1 fois par mois" },
+      { value: "biweekly", label: "2 fois par mois" },
+      { value: "three_times_monthly", label: "3 fois par mois" },
       { value: "quarterly", label: "Chaque trimestre" },
     ],
     validation: [
@@ -272,8 +279,10 @@ export const settingsOptions: Record<AutomationKey, AutomationSettingsOptions> =
     frequency: [
       { value: "weekly", label: "Chaque semaine" },
       { value: "twice_weekly", label: "2 fois par semaine" },
-      { value: "biweekly", label: "Tous les 15 jours" },
+      { value: "three_times_weekly", label: "3 fois par semaine" },
       { value: "monthly", label: "Chaque mois" },
+      { value: "biweekly", label: "Tous les 15 jours" },
+      { value: "three_times_monthly", label: "3 fois par mois" },
       { value: "quarterly", label: "Chaque trimestre" },
     ],
     validation: [

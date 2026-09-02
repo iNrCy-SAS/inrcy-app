@@ -6006,9 +6006,13 @@ export default function AgentClient() {
                   )}
                 </select>
               </label>
-              {settingsConfig.frequency === "2 fois par semaine" ? (
+              {settingsConfig.frequency === "2 fois par semaine" ||
+              settingsConfig.frequency === "3 fois par semaine" ? (
                 normalizeConfigScheduleSlots(settingsConfig)
-                  .slice(0, 2)
+                  .slice(
+                    0,
+                    settingsConfig.frequency === "3 fois par semaine" ? 3 : 2,
+                  )
                   .map((slot, index) => (
                     <div
                       className={styles.scheduleSlotPair}

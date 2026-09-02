@@ -377,6 +377,14 @@ test("image Gateway, vidéo Veo et médiathèque respectent le contrat universel
   assert.doesNotMatch(veo, /negativePrompt/);
   assert.doesNotMatch(veo, /numberOfVideos/);
   assert.match(veo, /personGeneration: "allow_adult"/);
+  assert.match(veo, /Every visible person must be unmistakably adult/);
+  assert.match(veo, /This business serves a family audience/);
+  assert.match(veo, /safetyFallbackPrompt/);
+  assert.match(veo, /canRetryAfterSafety/);
+  assert.match(veo, /PROFESSIONAL SAFETY FRAMING/);
+  assert.match(veo, /Professional wellness service only/);
+  assert.match(veo, /modestly covered by towels or sheets/);
+  assert.match(veo, /no intimate body area/);
   assert.match(veo, /referenceImages:/);
   assert.match(veo, /VideoGenerationReferenceType\.ASSET/);
   assert.match(veo, /imageBytes: args\.inspirationImages\[0\]\.data/);
@@ -393,7 +401,7 @@ test("image Gateway, vidéo Veo et médiathèque respectent le contrat universel
   assert.match(veo, /DEFAULT_CONCURRENCY = 2/);
   assert.match(veo, /retryDelayMs/);
   assert.match(veo, /Math\.min\(configuredConcurrency, durations\.length\)/);
-  assert.match(veo, /actualCostMicroUsd: submittedSeconds \* costPerSecond/);
+  assert.match(veo, /actualCostMicroUsd: billableSeconds \* costPerSecond/);
   for (const criterion of [
     "request.visualStyle",
     "request.imageStyle",
@@ -484,7 +492,7 @@ test("image Gateway, vidéo Veo et médiathèque respectent le contrat universel
     /creativeBrief: buildConciseVideoProfileBrief\(profile\)/
   );
   assert.match(server, /business\.services\.slice\(0, 5\)/);
-  assert.match(veo, /compact\(args\.creativeBrief, 90\)/);
+  assert.match(veo, /adultSafePromptText\(args\.creativeBrief, 90\)/);
   assert.doesNotMatch(veo, /compact\(args\.creativeBrief, 6_000\)/);
   assert.match(server, /writeAiMediaHeadline/);
   assert.match(server, /writeAiMediaNarration/);

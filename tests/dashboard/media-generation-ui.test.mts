@@ -251,6 +251,11 @@ test("la fenêtre iNrCy sépare les critères de la création et de la revue", (
     'styles.inspirationSection',
   ]);
   assert.match(generator, /styles\.contentCriteriaSection/);
+  assert.match(generator, /styles\.inspirationInfoButton/);
+  assert.match(generator, /styles\.inspirationInfoBubble/);
+  assert.match(generator, /ai_generator_inspiration_rules_title/);
+  assert.match(generator, /ai_generator_inspiration_rules_body/);
+  assert.doesNotMatch(generator, /ai_generator_generate_summary_(?:video|image)/);
   assert.doesNotMatch(generator, /styles\.wideSection/);
   assert.match(generatorStyles, /\.collapsibleToggle/);
   assert.match(generatorStyles, /\.combinedSubsection/);
@@ -472,6 +477,8 @@ test("toutes les langues contiennent la copie complète de la modale", () => {
     "ai_generator_text_keyword_remove",
     "ai_generator_options_summary_text_keywords",
     "ai_generator_with_music",
+    "ai_generator_inspiration_rules_title",
+    "ai_generator_inspiration_rules_body",
     "ai_generator_unlimited",
     "ai_generator_duration_10",
     "ai_generator_duration_20",

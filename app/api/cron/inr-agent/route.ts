@@ -74,7 +74,7 @@ function normalizeDay(value: unknown) {
 
 function normalizeFrequency(value: unknown): InrAgentFrequency {
   const text = String(value || "weekly") as InrAgentFrequency;
-  return ["weekly", "twice_weekly", "biweekly", "monthly", "quarterly", "one_off"].includes(text) ? text : "weekly";
+  return ["weekly", "twice_weekly", "three_times_weekly", "biweekly", "three_times_monthly", "monthly", "quarterly", "one_off"].includes(text) ? text : "weekly";
 }
 
 function getLocalParts(date: Date, timeZone = "Europe/Paris") {
@@ -127,19 +127,13 @@ function timeParts(time: string) {
   return { hour: Number(hourRaw), minute: Number(minuteRaw) };
 }
 
-function scheduledWeekdays(frequency: InrAgentFrequency, dayOfWeek: number) {
-  if (frequency === "twice_weekly") return Array.from(new Set([dayOfWeek, (dayOfWeek + 3) % 7]));
-  return [dayOfWeek];
-}
-
 function normalizeScheduleSlots(row: AutomationRow, frequency: InrAgentFrequency): AutomationScheduleSlot[] {
   const dayOfWeek = normalizeDay(row.day_of_week);
   const time = normalizeTime(row.time || "09:00");
-  const fallback = [
-    { dayOfWeek, time },
-    { dayOfWeek: (dayOfWeek + 3) % 7, time },
-  ];
-  if (frequency !== "twice_weekly") return [fallback[0]];
+  const slotCount = frequency === "three_times_weekly" ? 3 : frequency === "twice_weekly" ? 2 : 1;
+  const offsets = slotCount === 3 ? [0, 2, 4] : slotCount === 2 ? [0, 3] : [0];
+  const fallback = offsets.map((offset) => ({ dayOfWeek: (dayOfWeek + offset) % 7, time }));
+  if (slotCount === 1) return fallback;
   const metadata = asRecord(row.metadata);
   const rawSlots = Array.isArray(metadata.scheduleSlots) ? metadata.scheduleSlots : [];
   const slots = rawSlots
@@ -151,8 +145,8 @@ function normalizeScheduleSlots(row: AutomationRow, frequency: InrAgentFrequency
       };
     })
     .filter((slot, index, list) => list.findIndex((candidate) => candidate.dayOfWeek === slot.dayOfWeek && candidate.time === slot.time) === index)
-    .slice(0, 2);
-  return slots.length >= 2 ? slots : fallback;
+    .slice(0, slotCount);
+  return slots.length >= slotCount ? slots : fallback;
 }
 
 function isFirstScheduledWeekdayOfMonth(local: ReturnType<typeof getLocalParts>, dayOfWeek: number) {
@@ -163,9 +157,14 @@ function isThirdScheduledWeekdayOfMonth(local: ReturnType<typeof getLocalParts>,
   return local.weekday === dayOfWeek && local.day >= 15 && local.day <= 21;
 }
 
+function isSecondScheduledWeekdayOfMonth(local: ReturnType<typeof getLocalParts>, dayOfWeek: number) {
+  return local.weekday === dayOfWeek && local.day >= 8 && local.day <= 14;
+}
+
 function isScheduledDate(local: ReturnType<typeof getLocalParts>, frequency: InrAgentFrequency, dayOfWeek: number) {
-  if (frequency === "twice_weekly") return scheduledWeekdays(frequency, dayOfWeek).includes(local.weekday);
+  if (frequency === "twice_weekly" || frequency === "three_times_weekly") return local.weekday === dayOfWeek;
   if (frequency === "biweekly") return isFirstScheduledWeekdayOfMonth(local, dayOfWeek) || isThirdScheduledWeekdayOfMonth(local, dayOfWeek);
+  if (frequency === "three_times_monthly") return isFirstScheduledWeekdayOfMonth(local, dayOfWeek) || isSecondScheduledWeekdayOfMonth(local, dayOfWeek) || isThirdScheduledWeekdayOfMonth(local, dayOfWeek);
   if (frequency === "monthly") return isFirstScheduledWeekdayOfMonth(local, dayOfWeek);
   if (frequency === "quarterly") return [1, 4, 7, 10].includes(local.month) && isFirstScheduledWeekdayOfMonth(local, dayOfWeek);
   return local.weekday === dayOfWeek;
@@ -179,6 +178,7 @@ function localBucket(date: Date, timeZone: string, frequency: InrAgentFrequency)
   if (frequency === "monthly") return `${y}-${m}`;
   if (frequency === "quarterly") return `${y}-Q${Math.floor((local.month - 1) / 3) + 1}`;
   if (frequency === "biweekly") return `${y}-${m}-${local.day <= 14 ? "H1" : "H2"}`;
+  if (frequency === "three_times_monthly") return `${y}-${m}-M${local.day <= 7 ? "1" : local.day <= 14 ? "2" : "3"}`;
   return `${y}-${m}-${d}`;
 }
 
@@ -236,7 +236,7 @@ function computeNextRunAt(row: AutomationRow, after: Date, timeZone: string) {
 
 function dedupeSince(row: AutomationRow, now: Date) {
   const frequency = normalizeFrequency(row.frequency);
-  const days = frequency === "twice_weekly" ? 3 : frequency === "weekly" ? 7 : frequency === "biweekly" ? 15 : frequency === "monthly" ? 31 : frequency === "quarterly" ? 95 : 1;
+  const days = frequency === "three_times_weekly" ? 2 : frequency === "twice_weekly" ? 3 : frequency === "weekly" ? 7 : frequency === "three_times_monthly" ? 8 : frequency === "biweekly" ? 15 : frequency === "monthly" ? 31 : frequency === "quarterly" ? 95 : 1;
   return new Date(now.getTime() - days * 24 * 60 * 60 * 1000).toISOString();
 }
 

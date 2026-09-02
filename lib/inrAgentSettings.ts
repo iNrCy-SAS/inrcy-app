@@ -1,5 +1,14 @@
 export const INR_AGENT_AUTOMATION_KEYS = ["publish", "grow", "loyalty", "stats"] as const;
-export const INR_AGENT_FREQUENCIES = ["weekly", "twice_weekly", "biweekly", "monthly", "quarterly", "one_off"] as const;
+export const INR_AGENT_FREQUENCIES = [
+  "weekly",
+  "twice_weekly",
+  "three_times_weekly",
+  "biweekly",
+  "three_times_monthly",
+  "monthly",
+  "quarterly",
+  "one_off",
+] as const;
 export const INR_AGENT_VALIDATION_MODES = ["validation_required", "draft_only", "notify_before_validation", "automatic_report"] as const;
 export const INR_AGENT_GOALS = ["visibility", "acquisition", "loyalty", "stats"] as const;
 export const INR_AGENT_TONES = ["professional", "friendly", "premium", "local", "dynamic"] as const;
@@ -196,7 +205,9 @@ export const INR_AGENT_LABELS = {
   frequencies: {
     weekly: "1 fois / semaine",
     twice_weekly: "2 fois / semaine",
+    three_times_weekly: "3 fois / semaine",
     biweekly: "2 fois / mois",
+    three_times_monthly: "3 fois / mois",
     monthly: "1 fois / mois",
     quarterly: "1 fois / trimestre",
     one_off: "Ponctuel",

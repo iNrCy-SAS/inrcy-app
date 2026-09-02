@@ -469,5 +469,7 @@
   "ai_generator_inspiration_remove": "ลบภาพ",
   "ai_generator_inspiration_preparing": "กำลังเตรียม…",
   "ai_generator_inspiration_add": "เพิ่มภาพ",
+  "ai_generator_inspiration_rules_title": "กฎสำหรับภาพแรงบันดาลใจ",
+  "ai_generator_inspiration_rules_body": "สำหรับวิดีโอ ให้ใช้เฉพาะบุคคลที่เป็นผู้ใหญ่อย่างชัดเจน หลีกเลี่ยงภาพเปลือยอย่างชัดเจน ความรุนแรง กิจกรรมผิดกฎหมาย คนดัง และบุคคลจริงที่ไม่ได้รับความยินยอม iNrCy อาจปรับฉากหรือลบใบหน้าเพื่อให้เป็นไปตามกฎของ Google",
   "ai_generator_inspiration_summary": " · {count} ภาพ"
 }

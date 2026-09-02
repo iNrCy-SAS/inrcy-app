@@ -469,5 +469,7 @@
   "ai_generator_inspiration_remove": "Afbeelding verwijderen",
   "ai_generator_inspiration_preparing": "Voorbereiden…",
   "ai_generator_inspiration_add": "Afbeeldingen toevoegen",
+  "ai_generator_inspiration_rules_title": "Regels voor inspiratiebeelden",
+  "ai_generator_inspiration_rules_body": "Gebruik voor video alleen duidelijk volwassen personen. Vermijd expliciete naaktheid, geweld, illegale activiteiten, beroemdheden en echte personen zonder hun toestemming. iNrCy kan de scène aanpassen of een gezicht verwijderen om aan de Google-regels te voldoen.",
   "ai_generator_inspiration_summary": " · {count, plural, one {# foto} other {# foto's}}"
 }

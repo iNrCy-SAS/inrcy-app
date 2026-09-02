@@ -69,7 +69,7 @@ create table if not exists public.inr_agent_automation_settings (
   updated_at timestamptz not null default now(),
   constraint inr_agent_automation_settings_unique unique (user_id, automation_key),
   constraint inr_agent_automation_key_check check (automation_key in ('publish', 'grow', 'loyalty', 'stats')),
-  constraint inr_agent_frequency_check check (frequency in ('weekly', 'twice_weekly', 'biweekly', 'monthly', 'quarterly', 'one_off')),
+  constraint inr_agent_frequency_check check (frequency in ('weekly', 'twice_weekly', 'three_times_weekly', 'biweekly', 'three_times_monthly', 'monthly', 'quarterly', 'one_off')),
   constraint inr_agent_day_check check (day_of_week between 0 and 6),
   constraint inr_agent_time_check check (time ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'),
   constraint inr_agent_validation_mode_check check (validation_mode in ('validation_required', 'draft_only', 'notify_before_validation', 'automatic_report')),

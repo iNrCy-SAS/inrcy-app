@@ -43,6 +43,8 @@ const MAX_VEO_PROMPT_CHARS = 1_400;
 // Les projets dont le plafond AI Studio le permet peuvent monter à 4 par env.
 const DEFAULT_CONCURRENCY = 2;
 const MAX_CLIP_BYTES = 128 * 1024 * 1024;
+const MINOR_SUBJECT_PATTERN =
+  /\b(enfants?|bébés?|bebes?|adolescents?|mineurs?|garçons?|garcons?|filles?|children?|child|kids?|bab(?:y|ies)|toddlers?|teen(?:ager)?s?|minors?)\b/gi;
 
 function positiveInt(value: unknown, fallback: number, maximum: number) {
   const parsed = Number.parseInt(String(value ?? ""), 10);
@@ -182,6 +184,44 @@ function safetyFilteredError(reasons: unknown) {
   );
 }
 
+function isSafetyFiltered(error: unknown) {
+  return compact(error instanceof Error ? error.message : error, 1_000).includes(
+    "ai_video_veo_safety_filtered"
+  );
+}
+
+function mentionsMinorAudience(value: unknown) {
+  MINOR_SUBJECT_PATTERN.lastIndex = 0;
+  return MINOR_SUBJECT_PATTERN.test(String(value ?? ""));
+}
+
+function adultSafePromptText(value: unknown, max: number) {
+  MINOR_SUBJECT_PATTERN.lastIndex = 0;
+  return compact(
+    String(value ?? "").replace(MINOR_SUBJECT_PATTERN, "public familial"),
+    max
+  );
+}
+
+function safetyFallbackPrompt(prompt: string) {
+  const withoutReferenceInstructions = prompt
+    .replace(
+      /Animate the supplied initial image naturally\.[^.]*\.[^.]*\./i,
+      "Create a fresh original scene faithful to the requested business subject and visual direction."
+    )
+    .replace(
+      /Use every supplied asset reference[^.]*\.[^.]*\./i,
+      "Create a fresh original scene faithful to the requested business subject and visual direction."
+    );
+  return compact(
+    [
+      "SAFETY RECOVERY: create a new scene without copying any recognizable real person's face or identity. Only unmistakably mature adults aged 25 or older may be visible.",
+      withoutReferenceInstructions,
+    ].join(" "),
+    MAX_VEO_PROMPT_CHARS
+  );
+}
+
 function subjectVisualEvidence(value: string) {
   const normalized = value
     .normalize("NFD")
@@ -243,6 +283,36 @@ function subjectVisualEvidence(value: string) {
   );
 }
 
+function subjectSafetyDirection(value: string) {
+  const normalized = value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase();
+
+  if (
+    /\b(massage|massages|spa|bien[- ]etre|relaxation|soin du corps|soins du corps|therapie manuelle)\b/.test(
+      normalized
+    )
+  ) {
+    return "Professional wellness service only: show a clearly adult client modestly covered by towels or sheets, with only shoulders, upper back, hands or lower legs visible; the adult practitioner wears professional clothing; calm non-sexual care, no intimate body area";
+  }
+  if (
+    /\b(esthetique|beaute|institut|visage|coiffure|barbier|onglerie|manucure|pedicure)\b/.test(
+      normalized
+    )
+  ) {
+    return "Professional beauty service only: clearly adult client and practitioner, normal salon clothing or modest treatment coverage, no intimate body area and no sexualized pose";
+  }
+  if (
+    /\b(medecin|medical|sante|clinique|cabinet|kine|physiotherapie|osteopath|dentiste|infirmier)\b/.test(
+      normalized
+    )
+  ) {
+    return "Professional healthcare context only: clearly adult patient and qualified adult professional, modest clothing, non-graphic routine care, no injury detail, blood or invasive procedure";
+  }
+  return "";
+}
+
 function conciseVisualDirection(
   request: AiVideoProviderGenerationArgs["request"]
 ) {
@@ -265,12 +335,23 @@ function scenePrompt(
 ) {
   const scene = args.plan.scenes[index];
   const colors = args.brandColors.filter(Boolean).slice(0, 5).join(", ");
-  const exactIdea = compact(args.request.idea, 180);
+  const rawContext = [
+    args.request.idea,
+    args.creativeBrief,
+    scene?.visualBrief,
+    scene?.title,
+    scene?.body,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const servesMinorAudience = mentionsMinorAudience(rawContext);
+  const exactIdea = adultSafePromptText(args.request.idea, 180);
   const primarySubject =
-    exactIdea || compact(args.profession || args.plan.companyName, 120);
+    exactIdea || adultSafePromptText(args.profession || args.plan.companyName, 120);
   const visualEvidence = subjectVisualEvidence(primarySubject);
-  const businessContext = compact(args.creativeBrief, 90);
-  const sceneDirection = compact(
+  const safetyDirection = subjectSafetyDirection(rawContext);
+  const businessContext = adultSafePromptText(args.creativeBrief, 90);
+  const sceneDirection = adultSafePromptText(
     [scene?.visualBrief, scene?.title, scene?.body].filter(Boolean).join(" "),
     160
   );
@@ -289,6 +370,13 @@ function scenePrompt(
           : "Use every supplied asset reference to preserve the appearance of the referenced person, character, product or object. Keep the result coherent with the exact business subject."
         : "",
       "Keep every named trade, product, animal, object, action or place central; never switch category or use generic corporate imagery.",
+      args.request.peopleMode === "none"
+        ? "Do not show any person, human silhouette or face."
+        : "Every visible person must be unmistakably adult and at least 25 years old; no younger-looking person may appear.",
+      servesMinorAudience
+        ? "This business serves a family audience. Represent that safely through the venue, equipment, animals, products and clearly adult staff only."
+        : "",
+      safetyDirection ? `PROFESSIONAL SAFETY FRAMING: ${safetyDirection}.` : "",
       "Digital subject: show relevant devices and app UI with unlabeled shapes, icons and images only.",
       "No readable text, letters, numbers, captions, signs, logos, watermarks, fake writing, posters, slides or borders.",
       "No dialogue, voice-over, lyrics or music; iNrCy adds exact branding, copy and audio.",
@@ -340,9 +428,11 @@ async function submitOperation(args: {
           abortSignal: args.signal,
           durationSeconds: args.durationSeconds,
           aspectRatio: args.aspectRatio,
-          ...(args.inspirationImages?.length
-            ? { personGeneration: "allow_adult" }
-            : {}),
+          // Google limite Veo 3/3.1 a allow_adult dans l'UE, y compris
+          // lorsqu'un plan text-to-video suit un premier plan inspire d'une
+          // image. L'envoyer sur chaque clip evite un changement implicite de
+          // politique au milieu du montage.
+          personGeneration: "allow_adult",
           ...(args.inspirationImages && args.inspirationImages.length > 1
             ? {
                 referenceImages: args.inspirationImages.map((image) => ({
@@ -413,7 +503,7 @@ async function generateClip(args: {
   inspirationImages?: AiVideoProviderGenerationArgs["request"]["inspirationImages"];
   timeoutMs: number;
   pollMs: number;
-  onSubmitted: () => void;
+  onBillable: () => void;
   signal?: AbortSignal;
 }): Promise<AiVideoProviderClip> {
   throwIfAborted(args.signal);
@@ -427,43 +517,70 @@ async function generateClip(args: {
     controller.abort(new Error("ai_video_veo_timeout"));
   }, args.timeoutMs);
   try {
-    let operation = await submitOperation({
-      ...args,
-      signal: controller.signal,
-    });
-    const requestId = compact(operation.name, 220);
-    if (!requestId) throw new Error("ai_video_veo_operation_id_missing");
-    args.onSubmitted();
+    const attempts = [
+      {
+        prompt: args.prompt,
+        inspirationImages: args.inspirationImages || [],
+      },
+      {
+        prompt: safetyFallbackPrompt(args.prompt),
+        inspirationImages: [],
+      },
+    ];
+    let lastError: unknown = null;
 
-    while (!operation.done) {
-      await delay(args.pollMs, controller.signal);
+    for (let attemptIndex = 0; attemptIndex < attempts.length; attemptIndex += 1) {
+      const attempt = attempts[attemptIndex];
       try {
-        operation = await args.ai.operations.getVideosOperation({
-          operation,
-          config: { abortSignal: controller.signal },
+        let operation = await submitOperation({
+          ...args,
+          prompt: attempt.prompt,
+          inspirationImages: attempt.inspirationImages,
+          signal: controller.signal,
         });
+        const requestId = compact(operation.name, 220);
+        if (!requestId) throw new Error("ai_video_veo_operation_id_missing");
+
+        while (!operation.done) {
+          await delay(args.pollMs, controller.signal);
+          try {
+            operation = await args.ai.operations.getVideosOperation({
+              operation,
+              config: { abortSignal: controller.signal },
+            });
+          } catch (error) {
+            if (!isExplicitlyRetryable(error)) throw error;
+            await delay(Math.min(args.pollMs, 3_000), controller.signal);
+          }
+        }
+        if (operation.error) throw providerError(operation);
+        const response = operation.response;
+        if (response?.raiMediaFilteredCount) {
+          throw safetyFilteredError(response.raiMediaFilteredReasons);
+        }
+        const video = response?.generatedVideos?.[0]?.video;
+        if (!video) throw new Error("ai_video_veo_video_missing");
+        // Google indique que les rendus bloques par ses filtres ne sont pas
+        // factures. On comptabilise uniquement un clip effectivement produit.
+        args.onBillable();
+        const downloaded = await downloadVideo({
+          ai: args.ai,
+          video,
+          signal: controller.signal,
+        });
+        return {
+          ...downloaded,
+          durationSeconds: args.durationSeconds,
+          requestId,
+        };
       } catch (error) {
-        if (!isExplicitlyRetryable(error)) throw error;
-        await delay(Math.min(args.pollMs, 3_000), controller.signal);
+        lastError = error;
+        const canRetryAfterSafety =
+          attemptIndex === 0 && isSafetyFiltered(error);
+        if (!canRetryAfterSafety) throw error;
       }
     }
-    if (operation.error) throw providerError(operation);
-    const response = operation.response;
-    if (response?.raiMediaFilteredCount) {
-      throw safetyFilteredError(response.raiMediaFilteredReasons);
-    }
-    const video = response?.generatedVideos?.[0]?.video;
-    if (!video) throw new Error("ai_video_veo_video_missing");
-    const downloaded = await downloadVideo({
-      ai: args.ai,
-      video,
-      signal: controller.signal,
-    });
-    return {
-      ...downloaded,
-      durationSeconds: args.durationSeconds,
-      requestId,
-    };
+    throw lastError;
   } catch (error) {
     if (timedOut) throw new Error("ai_video_veo_timeout");
     if (args.signal?.aborted || controller.signal.aborted) {
@@ -528,7 +645,7 @@ export const googleVeoVideoProvider: AiVideoProvider = {
       reservedOutputTokens: 0,
       estimatedCostMicroUsd,
     });
-    let submittedSeconds = 0;
+    let billableSeconds = 0;
     try {
       const clips = new Array<AiVideoProviderClip | undefined>(
         durations.length
@@ -554,8 +671,8 @@ export const googleVeoVideoProvider: AiVideoProvider = {
               timeoutMs,
               pollMs,
               signal: args.signal,
-              onSubmitted: () => {
-                submittedSeconds += durationSeconds;
+              onBillable: () => {
+                billableSeconds += durationSeconds;
               },
             });
           } catch (error) {
@@ -585,13 +702,13 @@ export const googleVeoVideoProvider: AiVideoProvider = {
         warnings: [],
       };
     } catch (error) {
-      if (submittedSeconds > 0) {
+      if (billableSeconds > 0) {
         await commitAiGatewayAccountAttempt({
           reservation,
           feature: "media.video",
           model,
           usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
-          actualCostMicroUsd: submittedSeconds * costPerSecond,
+          actualCostMicroUsd: billableSeconds * costPerSecond,
         }).catch(() => undefined);
       } else {
         await rollbackAiGatewayAccountAttempt(reservation).catch(

@@ -469,5 +469,7 @@
   "ai_generator_inspiration_remove": "移除图片",
   "ai_generator_inspiration_preparing": "正在处理…",
   "ai_generator_inspiration_add": "添加图片",
+  "ai_generator_inspiration_rules_title": "灵感图片规则",
+  "ai_generator_inspiration_rules_body": "视频中仅使用明显为成年人的人物。请避免露骨裸露、暴力、违法活动、名人，以及未经同意的真实人物。为遵守 Google 规则，iNrCy 可能会调整场景或移除面孔。",
   "ai_generator_inspiration_summary": " · {count} 张图片"
 }

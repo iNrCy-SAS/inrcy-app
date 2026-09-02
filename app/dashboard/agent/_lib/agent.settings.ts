@@ -279,30 +279,42 @@ export function dayOffsetLabel(day: string, offset: number) {
 }
 
 export function normalizeConfigScheduleSlots(
-  config: Pick<AutomationConfig, "day" | "time" | "scheduleSlots">,
+  config: Pick<AutomationConfig, "day" | "time"> &
+    Partial<Pick<AutomationConfig, "frequency" | "scheduleSlots">>,
 ) {
+  const slotCount =
+    config.frequency === "3 fois par semaine" ||
+    config.frequency === "three_times_weekly"
+      ? 3
+      : config.frequency === "2 fois par semaine" ||
+          config.frequency === "twice_weekly"
+        ? 2
+        : 1;
+  const offsets = slotCount === 3 ? [0, 2, 4] : slotCount === 2 ? [0, 3] : [0];
   const first = config.scheduleSlots?.[0] || {
     day: config.day,
     time: config.time,
   };
-  const second = config.scheduleSlots?.[1] || {
-    day: dayOffsetLabel(first.day || config.day, 3),
-    time: first.time || config.time,
-  };
-  return [first, second].map((slot, index) => ({
-    day: weekDays.includes(slot.day)
-      ? slot.day
-      : index === 0
-        ? config.day
-        : dayOffsetLabel(config.day, 3),
-    time: hourOptions.includes(slot.time) ? slot.time : config.time,
-  }));
+  return offsets.map((offset, index) => {
+    const fallbackDay = index === 0
+      ? config.day
+      : dayOffsetLabel(first.day || config.day, offset);
+    const slot = config.scheduleSlots?.[index] || {
+      day: fallbackDay,
+      time: first.time || config.time,
+    };
+    return {
+      day: weekDays.includes(slot.day) ? slot.day : fallbackDay,
+      time: hourOptions.includes(slot.time) ? slot.time : config.time,
+    };
+  });
 }
 
 export function scheduleSlotsFromMetadata(
   metadata: Record<string, unknown> | null | undefined,
   fallbackDay: string,
   fallbackTime: string,
+  frequency: string,
 ) {
   const rawSlots = Array.isArray(metadata?.scheduleSlots)
     ? metadata?.scheduleSlots
@@ -328,13 +340,11 @@ export function scheduleSlotsFromMetadata(
   return normalizeConfigScheduleSlots({
     day: slots[0]?.day || fallbackDay,
     time: slots[0]?.time || fallbackTime,
+    frequency,
     scheduleSlots:
       slots.length > 0
         ? slots
-        : [
-            { day: fallbackDay, time: fallbackTime },
-            { day: dayOffsetLabel(fallbackDay, 3), time: fallbackTime },
-          ],
+        : undefined,
   });
 }
 
@@ -363,20 +373,22 @@ export function settingsToConfigs(
       const source =
         settings.automations[automation.key] ??
         INR_AGENT_DEFAULT_SETTINGS.automations[automation.key];
+      const frequency = optionLabel(
+        settingsOptions[automation.key].frequency,
+        source.frequency,
+        defaults.frequency,
+      );
       const config: AutomationConfig = {
         ...defaults,
         enabled: source.enabled,
-        frequency: optionLabel(
-          settingsOptions[automation.key].frequency,
-          source.frequency,
-          defaults.frequency,
-        ),
+        frequency,
         day: apiToDay[source.dayOfWeek] ?? defaults.day,
         time: source.time || defaults.time,
         scheduleSlots: scheduleSlotsFromMetadata(
           source.metadata,
           apiToDay[source.dayOfWeek] ?? defaults.day,
           source.time || defaults.time,
+          frequency,
         ),
         channels: orderChannels(
           source.allowedChannels
@@ -417,6 +429,11 @@ export function configToAutomationSettings(
   existing: InrAgentAutomationSettings,
 ): InrAgentAutomationSettings {
   const options = settingsOptions[key];
+  const frequency = optionValue(
+    options.frequency,
+    config.frequency,
+    existing.frequency,
+  );
   const normalizedSlots = normalizeConfigScheduleSlots(config);
   const metadataWithoutScheduleSlots = { ...(existing.metadata || {}) };
   delete metadataWithoutScheduleSlots.scheduleSlots;
@@ -426,10 +443,9 @@ export function configToAutomationSettings(
     ...(key === "grow" || key === "loyalty"
       ? { signatureAutomatic: config.signatureAutomatic }
       : {}),
-    ...(optionValue(options.frequency, config.frequency, existing.frequency) ===
-    "twice_weekly"
+    ...(frequency === "twice_weekly" || frequency === "three_times_weekly"
       ? {
-          scheduleSlots: normalizedSlots.slice(0, 2).map((slot) => ({
+          scheduleSlots: normalizedSlots.slice(0, frequency === "three_times_weekly" ? 3 : 2).map((slot) => ({
             day: slot.day,
             dayOfWeek: dayToApi[slot.day] ?? existing.dayOfWeek,
             time: slot.time,
@@ -441,11 +457,7 @@ export function configToAutomationSettings(
   return {
     ...existing,
     enabled: config.enabled,
-    frequency: optionValue(
-      options.frequency,
-      config.frequency,
-      existing.frequency,
-    ),
+    frequency,
     dayOfWeek:
       dayToApi[normalizedSlots[0]?.day || config.day] ?? existing.dayOfWeek,
     time: normalizedSlots[0]?.time || config.time,

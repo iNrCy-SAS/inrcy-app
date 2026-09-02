@@ -253,6 +253,7 @@ export default function MediaGenerator({
   const [inspirationImages, setInspirationImages] =
     useState<MediaGenerationInspirationImage[]>([]);
   const [inspirationBusy, setInspirationBusy] = useState(false);
+  const [inspirationRulesOpen, setInspirationRulesOpen] = useState(false);
   const [expandedStep, setExpandedStep] = useState<1 | 2 | 3 | 4 | 5 | 6 | null>(null);
   const [voiceBusy, setVoiceBusy] = useState(false);
   const [creationScreen, setCreationScreen] = useState(false);
@@ -789,52 +790,69 @@ export default function MediaGenerator({
                     </div>
                   ) : null}
                   {inspirationImages.length < MAX_INSPIRATION_IMAGES ? (
-                    <label className={styles.inspirationPicker}>
-                      <span aria-hidden="true">＋</span>
-                      <strong>
-                        {inspirationBusy
-                          ? t("ai_generator_inspiration_preparing")
-                          : t("ai_generator_inspiration_add")}
-                      </strong>
-                      <small>
-                        {inspirationImages.length} / {MAX_INSPIRATION_IMAGES}
-                      </small>
-                      <input
-                        type="file"
-                        multiple
-                        accept="image/jpeg,image/png,image/webp"
-                        disabled={operationLocked}
-                        onChange={(event) => {
-                          const remaining =
-                            MAX_INSPIRATION_IMAGES - inspirationImages.length;
-                          const files = Array.from(event.currentTarget.files || []).slice(
-                            0,
-                            remaining,
-                          );
-                          event.currentTarget.value = "";
-                          if (!files.length) return;
-                          setInspirationBusy(true);
-                          setActionError("");
-                          void Promise.all(files.map(prepareInspirationImage))
-                            .then((prepared) =>
-                              setInspirationImages((current) =>
-                                [...current, ...prepared].slice(
-                                  0,
-                                  MAX_INSPIRATION_IMAGES,
+                    <div className={styles.inspirationPickerRow}>
+                      <label className={styles.inspirationPicker}>
+                        <span aria-hidden="true">＋</span>
+                        <strong>
+                          {inspirationBusy
+                            ? t("ai_generator_inspiration_preparing")
+                            : t("ai_generator_inspiration_add")}
+                        </strong>
+                        <small>
+                          {inspirationImages.length} / {MAX_INSPIRATION_IMAGES}
+                        </small>
+                        <input
+                          type="file"
+                          multiple
+                          accept="image/jpeg,image/png,image/webp"
+                          disabled={operationLocked}
+                          onChange={(event) => {
+                            const remaining =
+                              MAX_INSPIRATION_IMAGES - inspirationImages.length;
+                            const files = Array.from(event.currentTarget.files || []).slice(
+                              0,
+                              remaining,
+                            );
+                            event.currentTarget.value = "";
+                            if (!files.length) return;
+                            setInspirationBusy(true);
+                            setActionError("");
+                            void Promise.all(files.map(prepareInspirationImage))
+                              .then((prepared) =>
+                                setInspirationImages((current) =>
+                                  [...current, ...prepared].slice(
+                                    0,
+                                    MAX_INSPIRATION_IMAGES,
+                                  ),
                                 ),
-                              ),
-                            )
-                            .catch((caught) =>
-                              setActionError(
-                                caught instanceof Error
-                                  ? caught.message
-                                  : t("ai_generator_error"),
-                              ),
-                            )
-                            .finally(() => setInspirationBusy(false));
-                        }}
-                      />
-                    </label>
+                              )
+                              .catch((caught) =>
+                                setActionError(
+                                  caught instanceof Error
+                                    ? caught.message
+                                    : t("ai_generator_error"),
+                                ),
+                              )
+                              .finally(() => setInspirationBusy(false));
+                          }}
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        className={styles.inspirationInfoButton}
+                        aria-label={t("ai_generator_inspiration_rules_title")}
+                        aria-expanded={inspirationRulesOpen}
+                        onClick={() => setInspirationRulesOpen((current) => !current)}
+                      >
+                        i
+                      </button>
+                      {inspirationRulesOpen ? (
+                        <aside className={styles.inspirationInfoBubble} role="note">
+                          <strong>{t("ai_generator_inspiration_rules_title")}</strong>
+                          <p>{t("ai_generator_inspiration_rules_body")}</p>
+                        </aside>
+                      ) : null}
+                    </div>
                   ) : null}
                 </div>
               ) : null}
@@ -1241,16 +1259,6 @@ export default function MediaGenerator({
         <button type="button" className={styles.generateButton} disabled={disabled} onClick={() => void handleGenerate()}>
           <span aria-hidden="true">✦</span>
           {t("ai_generator_generate_media")}
-          <small>
-            {kind === "video"
-              ? t("ai_generator_generate_summary_video", {
-                  duration: durationSeconds,
-                  ratio: FORMATS.find((item) => item.id === format)?.ratio || "1:1",
-                })
-              : t("ai_generator_generate_summary_image", {
-                  ratio: FORMATS.find((item) => item.id === format)?.ratio || "1:1",
-                })}
-          </small>
         </button>
       </div>
 

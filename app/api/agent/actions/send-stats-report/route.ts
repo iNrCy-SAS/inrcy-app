@@ -1298,7 +1298,7 @@ async function pruneStoredReports(userId: string) {
 
 function normalizeFrequency(value: unknown): InrAgentAutomationSettings["frequency"] {
   const frequency = String(value || "weekly") as InrAgentAutomationSettings["frequency"];
-  return ["weekly", "twice_weekly", "biweekly", "monthly", "quarterly", "one_off"].includes(frequency)
+  return ["weekly", "twice_weekly", "three_times_weekly", "biweekly", "three_times_monthly", "monthly", "quarterly", "one_off"].includes(frequency)
     ? frequency
     : "weekly";
 }
@@ -1318,28 +1318,57 @@ function computeNextScheduledRun(automation: InrAgentAutomationSettings, after: 
   if (frequency === "one_off") return null;
 
   const scheduleTime = normalizeTimeLabel(automation.time);
-  const [hours, minutes] = scheduleTime.split(":").map((item) => Number(item));
-  const scheduleDays = frequency === "twice_weekly"
-    ? Array.from(new Set([normalizeDayOfWeek(automation.dayOfWeek), (normalizeDayOfWeek(automation.dayOfWeek) + 3) % 7]))
-    : [normalizeDayOfWeek(automation.dayOfWeek)];
+  const primaryDay = normalizeDayOfWeek(automation.dayOfWeek);
+  const slotCount = frequency === "three_times_weekly" ? 3 : frequency === "twice_weekly" ? 2 : 1;
+  const offsets = slotCount === 3 ? [0, 2, 4] : slotCount === 2 ? [0, 3] : [0];
+  const fallbackSlots = offsets.map((offset) => ({
+    dayOfWeek: (primaryDay + offset) % 7,
+    time: scheduleTime,
+  }));
+  const rawSlots = Array.isArray(automation.metadata?.scheduleSlots)
+    ? automation.metadata.scheduleSlots
+    : [];
+  const configuredSlots = rawSlots
+    .map((entry) => {
+      const source = entry && typeof entry === "object" && !Array.isArray(entry)
+        ? entry as Record<string, unknown>
+        : {};
+      return {
+        dayOfWeek: normalizeDayOfWeek(source.dayOfWeek),
+        time: normalizeTimeLabel(source.time),
+      };
+    })
+    .slice(0, slotCount);
+  const scheduleSlots = slotCount > 1 && configuredSlots.length >= slotCount
+    ? configuredSlots
+    : fallbackSlots;
 
   const isFirstOfMonth = (date: Date, dayOfWeek: number) => date.getDay() === dayOfWeek && date.getDate() <= 7;
+  const isSecondOfMonth = (date: Date, dayOfWeek: number) => date.getDay() === dayOfWeek && date.getDate() >= 8 && date.getDate() <= 14;
   const isThirdOfMonth = (date: Date, dayOfWeek: number) => date.getDay() === dayOfWeek && date.getDate() >= 15 && date.getDate() <= 21;
-  const isScheduledDate = (date: Date) => {
-    if (frequency === "twice_weekly") return scheduleDays.includes(date.getDay());
-    if (frequency === "biweekly") return isFirstOfMonth(date, scheduleDays[0]) || isThirdOfMonth(date, scheduleDays[0]);
-    if (frequency === "monthly") return isFirstOfMonth(date, scheduleDays[0]);
-    if (frequency === "quarterly") return [0, 3, 6, 9].includes(date.getMonth()) && isFirstOfMonth(date, scheduleDays[0]);
-    return date.getDay() === scheduleDays[0];
+  const isScheduledDate = (date: Date, dayOfWeek: number) => {
+    if (frequency === "twice_weekly" || frequency === "three_times_weekly") return date.getDay() === dayOfWeek;
+    if (frequency === "biweekly") return isFirstOfMonth(date, dayOfWeek) || isThirdOfMonth(date, dayOfWeek);
+    if (frequency === "three_times_monthly") return isFirstOfMonth(date, dayOfWeek) || isSecondOfMonth(date, dayOfWeek) || isThirdOfMonth(date, dayOfWeek);
+    if (frequency === "monthly") return isFirstOfMonth(date, dayOfWeek);
+    if (frequency === "quarterly") return [0, 3, 6, 9].includes(date.getMonth()) && isFirstOfMonth(date, dayOfWeek);
+    return date.getDay() === dayOfWeek;
   };
 
   for (let offset = 0; offset <= 120; offset += 1) {
-    const candidate = new Date(after.getTime());
-    candidate.setSeconds(0, 0);
-    candidate.setDate(candidate.getDate() + offset);
-    candidate.setHours(hours, minutes, 0, 0);
-    if (candidate.getTime() <= after.getTime()) continue;
-    if (isScheduledDate(candidate)) return candidate.toISOString();
+    const candidates = scheduleSlots
+      .map((slot) => {
+        const [hours, minutes] = slot.time.split(":").map((item) => Number(item));
+        const candidate = new Date(after.getTime());
+        candidate.setSeconds(0, 0);
+        candidate.setDate(candidate.getDate() + offset);
+        candidate.setHours(hours, minutes, 0, 0);
+        if (candidate.getTime() <= after.getTime()) return null;
+        return isScheduledDate(candidate, slot.dayOfWeek) ? candidate : null;
+      })
+      .filter((candidate): candidate is Date => Boolean(candidate))
+      .sort((a, b) => a.getTime() - b.getTime());
+    if (candidates[0]) return candidates[0].toISOString();
   }
   return null;
 }

@@ -469,5 +469,7 @@
   "ai_generator_inspiration_remove": "Quitar imagen",
   "ai_generator_inspiration_preparing": "Preparando…",
   "ai_generator_inspiration_add": "Añadir imágenes",
+  "ai_generator_inspiration_rules_title": "Reglas de las imágenes de inspiración",
+  "ai_generator_inspiration_rules_body": "Para vídeo, utiliza solo personas claramente adultas. Evita desnudos explícitos, violencia, actividades ilegales, famosos y personas reales sin su consentimiento. iNrCy puede adaptar la escena o eliminar un rostro para respetar las normas de Google.",
   "ai_generator_inspiration_summary": " · {count, plural, one {# foto} other {# fotos}}"
 }

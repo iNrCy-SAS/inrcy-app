@@ -1,5 +1,5 @@
 import { useLocale, useTranslations } from "next-intl";
-import type { ComponentProps } from "react";
+import { useEffect, useMemo, useState, type ComponentProps } from "react";
 import MediaLibraryPickerModal from "../../_components/MediaLibraryPickerModal";
 import styles from "../agent.module.css";
 import { channelOptions } from "../_lib/agent.config";
@@ -536,22 +536,71 @@ export function AttachmentModal({
   );
 }
 
-function ScheduleChannelCell({ labels }: { labels: string[] }) {
-  const cleanedLabels = labels.filter(Boolean);
-  const primaryLabel = cleanedLabels[0] || "—";
-  const extraLabels = cleanedLabels.slice(1);
-  if (extraLabels.length === 0) return <span className={styles.scheduleChannelSingle}>{primaryLabel}</span>;
-  return (
-    <details className={styles.scheduleChannelDetails}>
-      <summary className={styles.scheduleChannelSummary}>
-        <span>{primaryLabel}</span>
-        <span className={styles.scheduleChannelChevron} aria-hidden="true">▾</span>
-      </summary>
-      <div className={styles.scheduleChannelMenu}>
-        {cleanedLabels.map((label) => <span key={label}>{label}</span>)}
-      </div>
-    </details>
-  );
+type ScheduleCalendarGroup = {
+  key: string;
+  dayKey: string;
+  primary: ScheduleListItem;
+  channelLabels: string[];
+  itemCount: number;
+};
+
+function scheduleItemLocalDate(item: ScheduleListItem) {
+  const dateParts = item.date.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  const timeParts = item.time.match(/^(\d{1,2}):(\d{2})/);
+  if (dateParts) {
+    const parsed = new Date(
+      Number(dateParts[3]),
+      Number(dateParts[2]) - 1,
+      Number(dateParts[1]),
+      timeParts ? Number(timeParts[1]) : 12,
+      timeParts ? Number(timeParts[2]) : 0,
+    );
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+  if (item.scheduledAtIso) {
+    const parsed = new Date(item.scheduledAtIso);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+  return null;
+}
+
+function scheduleDayKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function groupScheduleItems(items: ScheduleListItem[]) {
+  const groups = new Map<string, ScheduleCalendarGroup>();
+  items.forEach((item) => {
+    const date = scheduleItemLocalDate(item);
+    if (!date) return;
+    const dayKey = scheduleDayKey(date);
+    const groupKey = [
+      dayKey,
+      item.time,
+      item.action,
+      item.typeLabel,
+      item.originLabel,
+      item.source,
+      item.automationKey || "",
+      item.statusKey || item.status,
+    ].join("|");
+    const existing = groups.get(groupKey);
+    if (existing) {
+      existing.itemCount += 1;
+      item.channelLabels.forEach((label) => {
+        if (label && !existing.channelLabels.includes(label)) existing.channelLabels.push(label);
+      });
+      return;
+    }
+    groups.set(groupKey, {
+      key: groupKey,
+      dayKey,
+      primary: item,
+      channelLabels: [...new Set(item.channelLabels.filter(Boolean))],
+      itemCount: 1,
+    });
+  });
+  return [...groups.values()];
 }
 
 type AgentScheduleModalProps = {
@@ -565,6 +614,78 @@ type AgentScheduleModalProps = {
 
 export function AgentScheduleModal({ open, items, mutationState, onClose, onModify, onDelete }: AgentScheduleModalProps) {
   const i18nT = useTranslations("agent");
+  const locale = useLocale();
+  const groupedItems = useMemo(() => groupScheduleItems(items), [items]);
+  const initialMonth = useMemo(() => {
+    const now = new Date();
+    const datedItems = items
+      .map(scheduleItemLocalDate)
+      .filter((value): value is Date => Boolean(value))
+      .sort((a, b) => a.getTime() - b.getTime());
+    const firstUpcoming = datedItems.find((date) => date.getTime() >= now.getTime() - 86_400_000);
+    const anchor = firstUpcoming || datedItems[0] || now;
+    return new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+  }, [items]);
+  const [visibleMonth, setVisibleMonth] = useState(initialMonth);
+  const [visibleHalf, setVisibleHalf] = useState<1 | 2>(() => {
+    const now = new Date();
+    return now.getFullYear() === initialMonth.getFullYear() && now.getMonth() === initialMonth.getMonth() && now.getDate() > 15 ? 2 : 1;
+  });
+
+  useEffect(() => {
+    if (!open) return;
+    setVisibleMonth(initialMonth);
+    const now = new Date();
+    setVisibleHalf(
+      now.getFullYear() === initialMonth.getFullYear() &&
+        now.getMonth() === initialMonth.getMonth() &&
+        now.getDate() > 15
+        ? 2
+        : 1,
+    );
+  }, [initialMonth, open]);
+
+  const calendarModel = useMemo(() => {
+    const year = visibleMonth.getFullYear();
+    const month = visibleMonth.getMonth();
+    const lastDay = new Date(year, month + 1, 0).getDate();
+    const firstDay = visibleHalf === 1 ? 1 : 16;
+    const finalDay = visibleHalf === 1 ? 15 : lastDay;
+    const leadingBlanks = (new Date(year, month, firstDay).getDay() + 6) % 7;
+    const cells: Array<Date | null> = Array.from({ length: leadingBlanks }, () => null);
+    for (let day = firstDay; day <= finalDay; day += 1) cells.push(new Date(year, month, day));
+    while (cells.length % 7 !== 0) cells.push(null);
+    const groupsByDay = new Map<string, ScheduleCalendarGroup[]>();
+    groupedItems.forEach((group) => {
+      const list = groupsByDay.get(group.dayKey) || [];
+      list.push(group);
+      groupsByDay.set(group.dayKey, list);
+    });
+    groupsByDay.forEach((list) => list.sort((a, b) => a.primary.time.localeCompare(b.primary.time)));
+    return { cells, groupsByDay, firstDay, finalDay };
+  }, [groupedItems, visibleHalf, visibleMonth]);
+
+  const weekdayLabels = useMemo(() => {
+    const monday = new Date(2026, 0, 5);
+    return Array.from({ length: 7 }, (_, index) =>
+      new Intl.DateTimeFormat(locale, { weekday: "short" })
+        .format(new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + index))
+        .replace(".", ""),
+    );
+  }, [locale]);
+
+  const monthLabel = new Intl.DateTimeFormat(locale, { month: "long", year: "numeric" }).format(visibleMonth);
+  const todayKey = scheduleDayKey(new Date());
+  const visibleActionCount = calendarModel.cells.reduce((total, date) => {
+    if (!date) return total;
+    return total + (calendarModel.groupsByDay.get(scheduleDayKey(date))?.reduce((sum, group) => sum + group.itemCount, 0) || 0);
+  }, 0);
+
+  const moveMonth = (offset: number) => {
+    setVisibleMonth((current) => new Date(current.getFullYear(), current.getMonth() + offset, 1));
+    setVisibleHalf(offset < 0 ? 2 : 1);
+  };
+
   if (!open) return null;
   return (
     <div className={styles.modalBackdrop} role="presentation" onClick={onClose}>
@@ -590,57 +711,79 @@ export function AgentScheduleModal({ open, items, mutationState, onClose, onModi
         </div>
 
         <section className={styles.scheduleSection}>
-          <div className={styles.scheduleSectionHeader}>
-            <strong>{i18nT("actions_a_venir_7f041ed9")}</strong>
-            <span>{i18nT("ordre_chronologique_38b17a1e")}</span>
-          </div>
           {items.length > 0 ? (
-            <div className={styles.scheduleTable} role="table" aria-label={i18nT("actions_programmees_a_venir_c1f610d0")}>
-              <div className={styles.scheduleTableHeader} role="row">
-                <span>{i18nT("date_eb9a4bc1")}</span><span>{i18nT("heure_5073129f")}</span><span>{i18nT("action_97c89a4d")}</span><span>{i18nT("type_3deb7456")}</span><span>{i18nT("canal_61f21e6f")}</span><span>{i18nT("origine_62e96258")}</span><span>{i18nT("actions_c3cd636a")}</span>
-              </div>
-              {items.map((item) => (
-                <div key={item.id} className={styles.scheduleTableRow} data-status={item.statusKey} role="row">
-                  <span>{item.date}</span>
-                  <span>{item.time}</span>
-                  <span className={styles.scheduleActionCell} title={item.action}>{item.action}</span>
-                  <span>{item.typeLabel}</span>
-                  <span className={styles.scheduleChannelCell}><ScheduleChannelCell labels={item.channelLabels} /></span>
-                  <span>{item.originLabel}</span>
-                  <span className={styles.scheduleActionsCell}>
-                    <button
-                      type="button"
-                      className={styles.scheduleIconButton}
-                      onClick={() => onModify(item)}
-                      disabled={!item.editable || mutationState === "saving"}
-                      aria-label={i18nT(
-                        item.source === "automatic" ||
-                          item.automationKey === "stats"
-                          ? "modifier_la_programmation_2bdd7cdc"
-                          : "edit_content",
-                      )}
-                      title={i18nT(
-                        item.source === "automatic" ||
-                          item.automationKey === "stats"
-                          ? "modifier_la_programmation_2bdd7cdc"
-                          : "edit_content",
-                      )}
-                    >
-                      {item.source === "automatic" || item.automationKey === "stats" ? "🕘" : "✎"}
-                    </button>
-                    <button
-                      type="button"
-                      className={`${styles.scheduleIconButton} ${styles.scheduleIconDanger}`}
-                      onClick={() => onDelete(item)}
-                      disabled={!item.removable || mutationState === "saving"}
-                      aria-label={i18nT("supprimer_1acfc1c7")}
-                      title={i18nT("supprimer_1acfc1c7")}
-                    >
-                      🗑
-                    </button>
-                  </span>
+            <div className={styles.scheduleCalendarShell}>
+              <div className={styles.scheduleCalendarToolbar}>
+                <div className={styles.scheduleMonthNavigation}>
+                  <button type="button" onClick={() => moveMonth(-1)} aria-label={i18nT("mois_precedent")}>‹</button>
+                  <strong>{monthLabel}</strong>
+                  <button type="button" onClick={() => moveMonth(1)} aria-label={i18nT("mois_suivant")}>›</button>
                 </div>
-              ))}
+                <div className={styles.scheduleHalfSwitcher} aria-label={i18nT("periode_affichee")}>
+                  <button type="button" data-active={visibleHalf === 1} onClick={() => setVisibleHalf(1)}>1–15</button>
+                  <button type="button" data-active={visibleHalf === 2} onClick={() => setVisibleHalf(2)}>16–{calendarModel.finalDay}</button>
+                </div>
+                <span className={styles.scheduleVisibleCount}>{i18nT("value_actions_sur_la_periode", { value0: visibleActionCount })}</span>
+              </div>
+              <div className={styles.scheduleCalendarViewport}>
+                <div className={styles.scheduleCalendar} role="grid" aria-label={i18nT("calendrier_des_publications_a_venir")}>
+                  {weekdayLabels.map((label) => <div key={label} className={styles.scheduleWeekday} role="columnheader">{label}</div>)}
+                  {calendarModel.cells.map((date, index) => {
+                    if (!date) return <div key={`empty-${index}`} className={`${styles.scheduleDayCell} ${styles.scheduleDayEmpty}`} aria-hidden="true" />;
+                    const dayKey = scheduleDayKey(date);
+                    const dayGroups = calendarModel.groupsByDay.get(dayKey) || [];
+                    return (
+                      <div key={dayKey} className={styles.scheduleDayCell} data-today={dayKey === todayKey} role="gridcell">
+                        <div className={styles.scheduleDayHeader}>
+                          <span>{date.getDate()}</span>
+                          {dayGroups.length > 0 ? <small>{dayGroups.reduce((sum, group) => sum + group.itemCount, 0)}</small> : null}
+                        </div>
+                        <div className={styles.scheduleDayActions}>
+                          {dayGroups.map((group) => {
+                            const item = group.primary;
+                            const channels = group.channelLabels.length > 0 ? group.channelLabels.join(" · ") : item.channelLabel || "—";
+                            return (
+                              <article key={group.key} className={styles.scheduleCalendarCard} data-status={item.statusKey}>
+                                <div className={styles.scheduleCalendarCardTopline}>
+                                  <time>{item.time}</time>
+                                  <span>{item.typeLabel}</span>
+                                </div>
+                                <strong title={item.action}>{item.action}</strong>
+                                <small title={channels}>{channels}</small>
+                                <div className={styles.scheduleCalendarCardFooter}>
+                                  <em>{item.originLabel}</em>
+                                  <span className={styles.scheduleActionsCell}>
+                                    <button
+                                      type="button"
+                                      className={styles.scheduleIconButton}
+                                      onClick={() => onModify(item)}
+                                      disabled={!item.editable || mutationState === "saving"}
+                                      aria-label={i18nT(item.source === "automatic" || item.automationKey === "stats" ? "modifier_la_programmation_2bdd7cdc" : "edit_content")}
+                                      title={i18nT(item.source === "automatic" || item.automationKey === "stats" ? "modifier_la_programmation_2bdd7cdc" : "edit_content")}
+                                    >
+                                      {item.source === "automatic" || item.automationKey === "stats" ? "🕘" : "✎"}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className={`${styles.scheduleIconButton} ${styles.scheduleIconDanger}`}
+                                      onClick={() => onDelete(item)}
+                                      disabled={!item.removable || mutationState === "saving"}
+                                      aria-label={i18nT("supprimer_1acfc1c7")}
+                                      title={i18nT("supprimer_1acfc1c7")}
+                                    >
+                                      🗑
+                                    </button>
+                                  </span>
+                                </div>
+                              </article>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           ) : (
             <p className={styles.scheduleEmpty}>{i18nT("aucune_action_programmee_a_venir_a0bce831")}</p>

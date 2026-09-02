@@ -69,7 +69,9 @@ const WEEKDAY_KEYS: Record<string, string> = {
 const FREQUENCY_KEYS: Record<string, string> = {
   "1 fois par semaine": "1_fois_par_semaine_3753e32e",
   "2 fois par semaine": "2_fois_par_semaine_d8dee617",
+  "3 fois par semaine": "3_fois_par_semaine_5b82c771",
   "2 fois par mois": "2_fois_par_mois_a7a7c6f7",
+  "3 fois par mois": "3_fois_par_mois_4f97c6a1",
   "1 fois par mois": "1_fois_par_mois_a9697a49",
   "Campagne ponctuelle": "campagne_ponctuelle_29abfc34",
   "Chaque semaine": "chaque_semaine_8dae7696",

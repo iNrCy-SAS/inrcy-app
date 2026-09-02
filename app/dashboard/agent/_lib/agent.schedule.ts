@@ -994,14 +994,20 @@ export function computeNextOccurrence(config: AutomationConfig): string | null {
     Samedi: 6,
   };
   const normalizedSlots =
-    config.frequency === "2 fois par semaine"
-      ? normalizeConfigScheduleSlots(config).slice(0, 2)
+    config.frequency === "2 fois par semaine" ||
+    config.frequency === "3 fois par semaine"
+      ? normalizeConfigScheduleSlots(config).slice(
+          0,
+          config.frequency === "3 fois par semaine" ? 3 : 2,
+        )
       : [{ day: config.day, time: config.time }];
   const now = new Date();
   const isFirstWeekday = (date: Date, targetDay: number) =>
     date.getDay() === targetDay && date.getDate() <= 7;
   const isThirdWeekday = (date: Date, targetDay: number) =>
     date.getDay() === targetDay && date.getDate() >= 15 && date.getDate() <= 21;
+  const isSecondWeekday = (date: Date, targetDay: number) =>
+    date.getDay() === targetDay && date.getDate() >= 8 && date.getDate() <= 14;
 
   for (let offset = 0; offset <= 120; offset += 1) {
     const candidates = normalizedSlots
@@ -1016,12 +1022,17 @@ export function computeNextOccurrence(config: AutomationConfig): string | null {
         candidate.setHours(hour, minute, 0, 0);
         if (candidate.getTime() <= now.getTime()) return null;
         const ok =
-          config.frequency === "2 fois par semaine"
+          config.frequency === "2 fois par semaine" ||
+          config.frequency === "3 fois par semaine"
             ? candidate.getDay() === targetDay
             : config.frequency === "Tous les 15 jours" ||
                 config.frequency === "2 fois par mois"
               ? isFirstWeekday(candidate, targetDay) ||
                 isThirdWeekday(candidate, targetDay)
+              : config.frequency === "3 fois par mois"
+                ? isFirstWeekday(candidate, targetDay) ||
+                  isSecondWeekday(candidate, targetDay) ||
+                  isThirdWeekday(candidate, targetDay)
               : config.frequency === "Chaque mois" ||
                   config.frequency === "1 fois par mois"
                 ? isFirstWeekday(candidate, targetDay)

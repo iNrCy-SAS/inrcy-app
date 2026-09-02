@@ -112,7 +112,11 @@ export function useAgentAutomationController({
   function updateConfigFrequency(key: AutomationKey, frequency: string) {
     setConfigs((current) => {
       const currentConfig = current[key];
-      const normalizedSlots = normalizeConfigScheduleSlots(currentConfig);
+      const normalizedSlots = normalizeConfigScheduleSlots({
+        ...currentConfig,
+        frequency,
+        scheduleSlots: currentConfig.scheduleSlots?.slice(0, 1),
+      });
       return {
         ...current,
         [key]: {

@@ -73,7 +73,7 @@ function normalizeDay(value: unknown) {
 
 function normalizeFrequency(value: unknown): InrAgentFrequency {
   const text = String(value || "weekly") as InrAgentFrequency;
-  return ["weekly", "twice_weekly", "biweekly", "monthly", "quarterly", "one_off"].includes(text) ? text : "weekly";
+  return ["weekly", "twice_weekly", "three_times_weekly", "biweekly", "three_times_monthly", "monthly", "quarterly", "one_off"].includes(text) ? text : "weekly";
 }
 
 function getLocalParts(date: Date, timeZone = "Europe/Paris") {
@@ -121,22 +121,16 @@ function addLocalDays(base: ReturnType<typeof getLocalParts>, days: number) {
   return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() };
 }
 
-function scheduledWeekdays(frequency: InrAgentFrequency, dayOfWeek: number) {
-  if (frequency === "twice_weekly") return Array.from(new Set([dayOfWeek, (dayOfWeek + 3) % 7]));
-  return [dayOfWeek];
-}
-
 function normalizeScheduleSlots(
   metadata: Record<string, unknown> | null | undefined,
   frequency: InrAgentFrequency,
   dayOfWeek: number,
   time: string,
 ): AutomationScheduleSlot[] {
-  const fallback = [
-    { dayOfWeek, time },
-    { dayOfWeek: (dayOfWeek + 3) % 7, time },
-  ];
-  if (frequency !== "twice_weekly") return [fallback[0]];
+  const slotCount = frequency === "three_times_weekly" ? 3 : frequency === "twice_weekly" ? 2 : 1;
+  const offsets = slotCount === 3 ? [0, 2, 4] : slotCount === 2 ? [0, 3] : [0];
+  const fallback = offsets.map((offset) => ({ dayOfWeek: (dayOfWeek + offset) % 7, time }));
+  if (slotCount === 1) return fallback;
   const rawSlots = Array.isArray(metadata?.scheduleSlots) ? metadata?.scheduleSlots : [];
   const slots = rawSlots
     .map((item) => {
@@ -147,8 +141,8 @@ function normalizeScheduleSlots(
       };
     })
     .filter((slot, index, list) => list.findIndex((candidate) => candidate.dayOfWeek === slot.dayOfWeek && candidate.time === slot.time) === index)
-    .slice(0, 2);
-  return slots.length >= 2 ? slots : fallback;
+    .slice(0, slotCount);
+  return slots.length >= slotCount ? slots : fallback;
 }
 
 function isFirstScheduledWeekdayOfMonth(local: ReturnType<typeof getLocalParts>, dayOfWeek: number) {
@@ -159,9 +153,14 @@ function isThirdScheduledWeekdayOfMonth(local: ReturnType<typeof getLocalParts>,
   return local.weekday === dayOfWeek && local.day >= 15 && local.day <= 21;
 }
 
+function isSecondScheduledWeekdayOfMonth(local: ReturnType<typeof getLocalParts>, dayOfWeek: number) {
+  return local.weekday === dayOfWeek && local.day >= 8 && local.day <= 14;
+}
+
 function isScheduledDate(local: ReturnType<typeof getLocalParts>, frequency: InrAgentFrequency, dayOfWeek: number) {
-  if (frequency === "twice_weekly") return scheduledWeekdays(frequency, dayOfWeek).includes(local.weekday);
+  if (frequency === "twice_weekly" || frequency === "three_times_weekly") return local.weekday === dayOfWeek;
   if (frequency === "biweekly") return isFirstScheduledWeekdayOfMonth(local, dayOfWeek) || isThirdScheduledWeekdayOfMonth(local, dayOfWeek);
+  if (frequency === "three_times_monthly") return isFirstScheduledWeekdayOfMonth(local, dayOfWeek) || isSecondScheduledWeekdayOfMonth(local, dayOfWeek) || isThirdScheduledWeekdayOfMonth(local, dayOfWeek);
   if (frequency === "monthly") return isFirstScheduledWeekdayOfMonth(local, dayOfWeek);
   if (frequency === "quarterly") return [1, 4, 7, 10].includes(local.month) && isFirstScheduledWeekdayOfMonth(local, dayOfWeek);
   return local.weekday === dayOfWeek;
