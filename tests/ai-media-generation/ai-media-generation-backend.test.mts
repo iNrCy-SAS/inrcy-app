@@ -341,7 +341,7 @@ test("un média persisté n'est jamais libéré du quota", () => {
   assert.match(route, /AI_MEDIA_FINALIZATION_PENDING/);
 });
 
-test("image Gateway, vidéo Veo et médiathèque respectent le contrat universel", () => {
+test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat universel", () => {
   const gateway = read("lib/aiMediaGateway.ts");
   const normalizer = read("lib/aiMediaNormalizer.ts");
   const registry = read("lib/aiGeneratedMediaRegistry.ts");
@@ -400,7 +400,11 @@ test("image Gateway, vidéo Veo et médiathèque respectent le contrat universel
   assert.match(omni, /response_format:\s*\{[\s\S]*?type: "video"/);
   assert.match(omni, /resolution: "720p"/);
   assert.match(omni, /duration: `\$\{args\.durationSeconds\}s`/);
-  assert.match(omni, /delivery: "inline"/);
+  assert.match(omni, /delivery: "uri"/);
+  assert.doesNotMatch(omni, /delivery: "inline"/);
+  assert.match(omni, /ai\.files\.get/);
+  assert.match(omni, /state === "ACTIVE"/);
+  assert.match(omni, /AI_MEDIA_OMNI_FILE_POLL_MS/);
   assert.match(omni, /background: false/);
   assert.match(omni, /store: false/);
   assert.match(omni, /stream: false/);
@@ -417,6 +421,8 @@ test("image Gateway, vidéo Veo et médiathèque respectent le contrat universel
   assert.match(omni, /rollbackAiGatewayAccountAttempt/);
   assert.match(omni, /buildGoogleVideoScenePrompt/);
   assert.match(omni, /buildGoogleVideoSafetyFallbackPrompt/);
+  assert.match(server, /videoEngineResult/);
+  assert.match(server, /omni_veo_fallback/);
   assert.match(veo, /DEFAULT_VEO_MODEL/);
   assert.match(veo, /AI_MEDIA_VEO_FALLBACK_MODELS/);
   assert.match(veo, /process\.env\.GEMINI_API_KEY/);

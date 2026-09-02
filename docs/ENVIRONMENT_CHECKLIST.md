@@ -114,6 +114,7 @@ Limites optionnelles :
 - [ ] `AI_MEDIA_OMNI_MODEL` (optionnel, défaut stable `gemini-omni-1.1-flash`)
 - [ ] `AI_MEDIA_OMNI_COST_MICRO_USD_PER_SECOND` (optionnel, défaut 100000 soit 0,10 $/s en 720p)
 - [ ] `AI_MEDIA_OMNI_CONCURRENCY` (optionnel, défaut 3, plafond 4) et `AI_MEDIA_OMNI_FALLBACK_TO_VEO` (optionnel, défaut activé) seulement après calibration en Production
+- [ ] `AI_MEDIA_OMNI_FILE_POLL_MS` (optionnel, défaut 2000 ms, plafond 10000 ms) — cadence de vérification du fichier vidéo URI jusqu’à l’état Google `ACTIVE`
 - [ ] `AI_MEDIA_VEO_MODEL` (défaut Fast) et `AI_MEDIA_VEO_FALLBACK_MODELS` (défaut Lite ; valeur vide pour désactiver le secours)
 - [ ] `AI_MEDIA_VEO_FAST_COST_MICRO_USD_PER_SECOND`, `AI_MEDIA_VEO_LITE_COST_MICRO_USD_PER_SECOND` et `AI_MEDIA_VEO_STANDARD_COST_MICRO_USD_PER_SECOND` seulement si les tarifs par défaut doivent être surchargés ; `AI_MEDIA_VEO_COST_MICRO_USD_PER_SECOND` reste l’alias historique du coût Fast
 - [ ] `AI_MEDIA_VEO_POLL_MS` et `AI_MEDIA_VEO_CONCURRENCY` seulement après calibration en Preview

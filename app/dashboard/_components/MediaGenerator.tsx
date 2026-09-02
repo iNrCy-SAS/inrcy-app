@@ -587,7 +587,17 @@ export default function MediaGenerator({
                 <p>{t("ai_generator_ready")}</p>
                 <h3>{t(kind === "video" ? "ai_generator_video_ready_title" : "ai_generator_image_ready_title")}</h3>
               </div>
-              <span>{FORMATS.find((item) => item.id === format)?.ratio}</span>
+              <div className={styles.reviewBadges}>
+                <span>{FORMATS.find((item) => item.id === format)?.ratio}</span>
+                {kind === "video" && generationResult.videoEngineResult ? (
+                  <span
+                    className={styles.engineResultBadge}
+                    data-fallback={generationResult.videoEngineResult === "omni_veo_fallback"}
+                  >
+                    {t(`ai_generator_video_engine_result_${generationResult.videoEngineResult}`)}
+                  </span>
+                ) : null}
+              </div>
             </div>
             <div className={styles.previewFrame} data-format={format}>
               {generationResult.item.signed_url ? (
@@ -1117,31 +1127,6 @@ export default function MediaGenerator({
           </button>
           {expandedStep === 6 ? <div className={styles.collapsibleBody}>
             {kind === "video" ? (
-              <div className={styles.videoEngineGroup}>
-                <span>{t("ai_generator_video_engine_title")}</span>
-                <div
-                  className={styles.videoEngineChoices}
-                  role="radiogroup"
-                  aria-label={t("ai_generator_video_engine_title")}
-                >
-                  {(["omni", "veo"] as const).map((engine) => (
-                    <button
-                      key={engine}
-                      type="button"
-                      role="radio"
-                      aria-checked={videoEngine === engine}
-                      className={videoEngine === engine ? styles.compactChoiceActive : ""}
-                      onClick={() => setVideoEngine(engine)}
-                      disabled={operationLocked}
-                    >
-                      <strong>{t(`ai_generator_video_engine_${engine}`)}</strong>
-                      <small>{t(`ai_generator_video_engine_${engine}_hint`)}</small>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-            {kind === "video" ? (
               <div className={styles.durationChoices} role="radiogroup" aria-label={t("ai_generator_duration_title")}>
                 {([8, 16, 24] as const).map((duration) => {
                   const premiumLocked = duration > videoMaxDurationSeconds;
@@ -1282,6 +1267,32 @@ export default function MediaGenerator({
             {resetDate ? ` · ${t("ai_generator_reset", { date: resetDate })}` : ""}
           </small>
         </div>
+        {kind === "video" ? (
+          <div className={styles.footerEnginePicker}>
+            <span>{t("ai_generator_video_engine_title")}</span>
+            <div
+              className={styles.footerEngineChoices}
+              role="radiogroup"
+              aria-label={t("ai_generator_video_engine_title")}
+            >
+              {(["omni", "veo"] as const).map((engine) => (
+                <button
+                  key={engine}
+                  type="button"
+                  role="radio"
+                  aria-checked={videoEngine === engine}
+                  data-active={videoEngine === engine}
+                  onClick={() => setVideoEngine(engine)}
+                  disabled={operationLocked}
+                  title={t(`ai_generator_video_engine_${engine}_hint`)}
+                >
+                  <span aria-hidden="true">{engine === "omni" ? "⚡" : "✦"}</span>
+                  <strong>{t(`ai_generator_video_engine_${engine}`)}</strong>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
         <button type="button" className={styles.generateButton} disabled={disabled} onClick={() => void handleGenerate()}>
           <span aria-hidden="true">✦</span>
           {t("ai_generator_generate_media")}

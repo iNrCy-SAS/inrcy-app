@@ -192,6 +192,11 @@ test("la fenêtre iNrCy sépare les critères de la création et de la revue", (
   assert.match(generator, /\(\["omni", "veo"\] as const\)/);
   assert.match(generator, /ai_generator_video_engine_\$\{engine\}/);
   assert.match(generator, /ai_generator_video_engine_\$\{engine\}_hint/);
+  assert.match(generator, /className=\{styles\.footerEnginePicker\}/);
+  assert.match(generator, /generationResult\.videoEngineResult/);
+  assert.match(generator, /ai_generator_video_engine_result_\$\{generationResult\.videoEngineResult\}/);
+  assert.match(hook, /videoEngineResult: MediaGenerationVideoEngineResult \| null/);
+  assert.match(hook, /rawVideoEngineResult === "omni_veo_fallback"/);
   assert.match(generator, /videoEngine: kind === "video" \? videoEngine : undefined/);
   assert.match(generator, /duration > videoMaxDurationSeconds/);
   assert.match(generator, /disabled=\{operationLocked \|\| premiumLocked\}/);
@@ -269,7 +274,10 @@ test("la fenêtre iNrCy sépare les critères de la création et de la revue", (
   assert.doesNotMatch(generator, /ai_generator_generate_summary_(?:video|image)/);
   assert.doesNotMatch(generator, /styles\.wideSection/);
   assert.match(generatorStyles, /\.collapsibleToggle/);
-  assert.match(generatorStyles, /\.videoEngineChoices/);
+  assert.match(generatorStyles, /\.footerEnginePicker/);
+  assert.match(generatorStyles, /\.footerEngineChoices/);
+  assert.match(generatorStyles, /\.engineResultBadge\[data-fallback="true"\]/);
+  assert.doesNotMatch(generatorStyles, /\.videoEngineChoices/);
   assert.match(generatorStyles, /\.combinedSubsection/);
   assert.match(
     generatorStyles,
@@ -529,6 +537,9 @@ test("toutes les langues contiennent la copie complète de la modale", () => {
     "ai_generator_video_engine_omni_hint",
     "ai_generator_video_engine_veo",
     "ai_generator_video_engine_veo_hint",
+    "ai_generator_video_engine_result_omni",
+    "ai_generator_video_engine_result_veo",
+    "ai_generator_video_engine_result_omni_veo_fallback",
     "ai_generator_stage_profile",
     "ai_generator_stage_brand",
     "ai_generator_stage_storyboard",

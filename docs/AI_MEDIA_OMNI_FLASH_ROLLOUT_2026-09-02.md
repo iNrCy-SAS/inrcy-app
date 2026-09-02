@@ -19,13 +19,16 @@ Les durées commerciales 8, 16 et 24 secondes correspondent à un, deux ou trois
 
 Une scène Omni peut être recréée par Veo uniquement si Omni n’a encore renvoyé aucun actif facturable pour cette scène. Les images d’inspiration incompatibles sont d’abord retirées automatiquement et un cadrage de sécurité professionnel est tenté. Une scène Omni déjà produite mais impossible à télécharger ne déclenche jamais une seconde génération payante silencieuse.
 
-Le coût réellement observé est enregistré dans le garde-fou économique. Les identifiants moteur/modèle et les avertissements de repli restent dans la provenance du média.
+Omni demande désormais une livraison par URI : le serveur attend que le fichier Google passe à l’état `ACTIVE`, puis télécharge le MP4 authentifié. Ce flux évite la limite des réponses vidéo inline, qui pouvait tronquer un rendu 720p pourtant terminé.
+
+Le coût réellement observé est enregistré dans le garde-fou économique. Les identifiants moteur/modèle et les avertissements de repli restent dans la provenance du média. L’écran de résultat indique aussi le moteur réellement utilisé ; un repli Veo Fast est affiché en orange et n’est jamais masqué au professionnel.
 
 ## Variables optionnelles
 
 - `AI_MEDIA_OMNI_MODEL` (défaut `gemini-omni-1.1-flash`)
 - `AI_MEDIA_OMNI_COST_MICRO_USD_PER_SECOND` (défaut `100000`)
 - `AI_MEDIA_OMNI_CONCURRENCY` (défaut `3`, maximum `4`)
+- `AI_MEDIA_OMNI_FILE_POLL_MS` (défaut `2000`, maximum `10000`)
 - `AI_MEDIA_OMNI_FALLBACK_TO_VEO` (défaut activé)
 - `AI_MEDIA_VIDEO_TIMEOUT_MS` (défaut `420000`, maximum `600000`)
 

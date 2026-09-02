@@ -42,6 +42,10 @@ export type MediaGenerationCreativity = "faithful" | "bold";
 export type MediaGenerationLogoMode = "discreet" | "visible" | "none";
 export type MediaGenerationVideoDuration = 8 | 16 | 24;
 export type MediaGenerationVideoEngine = "omni" | "veo";
+export type MediaGenerationVideoEngineResult =
+  | "omni"
+  | "veo"
+  | "omni_veo_fallback";
 export type MediaGenerationInspirationImage = {
   mimeType: "image/jpeg" | "image/png" | "image/webp";
   data: string;
@@ -78,6 +82,7 @@ export type MediaGenerationResult = {
   item: MediaLibraryPickerItem;
   quota: MediaGenerationQuota;
   soundtrack: MediaGenerationSoundtrack | null;
+  videoEngineResult: MediaGenerationVideoEngineResult | null;
   /**
    * A draft is private and temporary. It only becomes a regular library item
    * after the explicit accept call succeeds.
@@ -763,10 +768,18 @@ export default function useMediaGeneration() {
                     : soundtrackSource.id,
               }
             : null;
+        const rawVideoEngineResult = data.videoEngineResult;
+        const videoEngineResult: MediaGenerationVideoEngineResult | null =
+          rawVideoEngineResult === "omni" ||
+          rawVideoEngineResult === "veo" ||
+          rawVideoEngineResult === "omni_veo_fallback"
+            ? rawVideoEngineResult
+            : null;
         const nextResult: MediaGenerationResult = {
           item: data.item as MediaLibraryPickerItem,
           quota: normalizedQuota,
           soundtrack,
+          videoEngineResult,
           draft: data.draft !== false,
         };
         if (mountedRef.current) {

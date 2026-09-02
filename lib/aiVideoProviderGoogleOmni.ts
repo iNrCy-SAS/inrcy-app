@@ -28,6 +28,7 @@ const DEFAULT_COST_MICRO_USD_PER_SECOND = 100_000;
 const DEFAULT_TIMEOUT_MS = 420_000;
 const DEFAULT_GENERATION_ATTEMPTS = 3;
 const DEFAULT_DOWNLOAD_ATTEMPTS = 3;
+const DEFAULT_FILE_POLL_MS = 2_000;
 // An 8/16/24 s request contains at most three independent 8 s shots. Omni is
 // synchronous, so launching all three is the shortest 24 s path. Transient
 // quota errors are retried with jitter and the provider-level Veo fallback is
@@ -231,33 +232,98 @@ async function downloadVideoUri(args: {
   );
 }
 
+function googleFileNameFromUri(uri: string) {
+  const match = decodeURIComponent(uri).match(/(?:^|\/)(files\/[a-z0-9-]+)/i);
+  if (!match?.[1]) throw new Error("ai_video_omni_file_uri_invalid");
+  return match[1];
+}
+
+async function waitForVideoFile(args: {
+  ai: GoogleGenAI;
+  uri: string;
+  signal: AbortSignal;
+}) {
+  const name = googleFileNameFromUri(args.uri);
+  const pollMs = positiveInt(
+    process.env.AI_MEDIA_OMNI_FILE_POLL_MS,
+    DEFAULT_FILE_POLL_MS,
+    10_000,
+  );
+  let transientFailures = 0;
+
+  while (true) {
+    throwIfAborted(args.signal);
+    try {
+      const file = await args.ai.files.get({
+        name,
+        config: { abortSignal: args.signal },
+      });
+      transientFailures = 0;
+      const state = compact(file.state, 40).toUpperCase();
+      if (state === "ACTIVE") return file.downloadUri || args.uri;
+      if (state === "FAILED") {
+        const details = compact(file.error?.message, 700);
+        throw new Error(
+          details
+            ? `ai_video_omni_file_failed:${details}`
+            : "ai_video_omni_file_failed",
+        );
+      }
+      await delay(pollMs, args.signal);
+    } catch (error) {
+      throwIfAborted(args.signal);
+      const message = compact(error instanceof Error ? error.message : error, 900);
+      if (message.includes("ai_video_omni_file_failed")) throw error;
+      const failure = classifyVeoFailure(error);
+      transientFailures += 1;
+      if (!failure.retryable || transientFailures >= DEFAULT_DOWNLOAD_ATTEMPTS) {
+        throw error;
+      }
+      await delay(retryDelayMs(error, transientFailures - 1), args.signal);
+    }
+  }
+}
+
 async function readOutputVideo(args: {
+  ai: GoogleGenAI;
   output: { data?: string; mime_type?: string; uri?: string };
   key: string;
   signal: AbortSignal;
 }) {
-  let inlineError: unknown = null;
+  let uriError: unknown = null;
+  // At 720p an eight-second MP4 commonly exceeds the 4 MB inline response
+  // limit. URI delivery plus File API polling is Google's supported path and
+  // avoids receiving a truncated, non-MP4 payload.
+  if (args.output.uri) {
+    try {
+      const downloadUri = await waitForVideoFile({
+        ai: args.ai,
+        uri: args.output.uri,
+        signal: args.signal,
+      });
+      return {
+        buffer: await downloadVideoUri({
+          uri: downloadUri,
+          key: args.key,
+          signal: args.signal,
+        }),
+        mediaType: "video/mp4",
+      };
+    } catch (error) {
+      uriError = error;
+      if (!args.output.data) throw error;
+    }
+  }
   if (args.output.data) {
     try {
       const buffer = Buffer.from(args.output.data, "base64");
       assertMp4Clip(buffer);
       return { buffer, mediaType: "video/mp4" };
     } catch (error) {
-      inlineError = error;
-      if (!args.output.uri) throw error;
+      throw uriError || error;
     }
   }
-  if (!args.output.uri) {
-    throw inlineError || new Error("ai_video_omni_video_missing");
-  }
-  return {
-    buffer: await downloadVideoUri({
-      uri: args.output.uri,
-      key: args.key,
-      signal: args.signal,
-    }),
-    mediaType: "video/mp4",
-  };
+  throw uriError || new Error("ai_video_omni_video_missing");
 }
 
 async function generateClip(args: {
@@ -336,7 +402,7 @@ async function generateClip(args: {
                 aspect_ratio: args.aspectRatio,
                 resolution: "720p",
                 duration: `${args.durationSeconds}s`,
-                delivery: "inline",
+                delivery: "uri",
               },
               background: false,
               store: false,
@@ -372,6 +438,7 @@ async function generateClip(args: {
             throw new Error("ai_video_omni_interaction_id_missing");
           }
           const downloaded = await readOutputVideo({
+            ai: args.ai,
             output: interaction.output_video,
             key: args.key,
             signal: controller.signal,

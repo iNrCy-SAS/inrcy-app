@@ -414,6 +414,11 @@ export async function POST(request: Request) {
   let persistedMediaId: string | null = null;
   let persistedItem: AiMediaLibraryPickerItem | null = null;
   let persistedSoundtrack: AiMediaSoundtrackResponse | null = null;
+  let persistedVideoEngineResult:
+    | "omni"
+    | "veo"
+    | "omni_veo_fallback"
+    | null = null;
   let accountEdition: DashboardEdition | null = null;
   let videoMaxDurationSeconds: AiMediaVideoDurationLimit = 24;
   let adminUnlimited = false;
@@ -593,6 +598,7 @@ export async function POST(request: Request) {
                   )
                 : null,
               soundtrack: null,
+              videoEngineResult: null,
               replayed: true,
               draft: true,
               ...(quota ? {} : { quotaUnavailable: true }),
@@ -624,6 +630,7 @@ export async function POST(request: Request) {
                   )
                 : null,
               soundtrack: null,
+              videoEngineResult: null,
               replayed: true,
               draft: true,
               ...(quota ? {} : { quotaUnavailable: true }),
@@ -666,6 +673,7 @@ export async function POST(request: Request) {
     persistedMediaId = generated.item.id;
     persistedItem = generated.item;
     persistedSoundtrack = generated.soundtrack;
+    persistedVideoEngineResult = generated.videoEngineResult;
 
     const finalizationStartedAt = performance.now();
     await completeAiMediaGeneration({
@@ -677,6 +685,7 @@ export async function POST(request: Request) {
         prompt_version: generated.promptVersion,
         prompt_sha256: generated.promptSha256,
         soundtrack_id: generated.soundtrack?.id || null,
+        video_engine_result: generated.videoEngineResult,
         pipeline_timings_ms: generated.pipelineTimingsMs,
       },
     });
@@ -702,6 +711,7 @@ export async function POST(request: Request) {
       jobId: context.jobId,
       kind: normalizedRequest.kind,
       durationSeconds: normalizedRequest.durationSeconds || null,
+      videoEngineResult: generated.videoEngineResult,
       timingsMs: requestTimings,
     });
     return NextResponse.json(
@@ -714,6 +724,7 @@ export async function POST(request: Request) {
           videoMaxDurationSeconds,
         ),
         soundtrack: generated.soundtrack,
+        videoEngineResult: generated.videoEngineResult,
         draft: true,
       },
       {
@@ -733,6 +744,7 @@ export async function POST(request: Request) {
           item: persistedItem,
           quota: null,
           soundtrack: persistedSoundtrack,
+          videoEngineResult: persistedVideoEngineResult,
           recovered: true,
           quotaUnavailable: true,
           draft: true,
@@ -782,6 +794,7 @@ export async function POST(request: Request) {
                 videoMaxDurationSeconds,
               ),
               soundtrack: null,
+              videoEngineResult: persistedVideoEngineResult,
               recovered: true,
               draft: true,
             },
@@ -796,6 +809,7 @@ export async function POST(request: Request) {
               item: persistedItem,
               quota: null,
               soundtrack: persistedSoundtrack,
+              videoEngineResult: persistedVideoEngineResult,
               recovered: true,
               quotaUnavailable: true,
               draft: true,

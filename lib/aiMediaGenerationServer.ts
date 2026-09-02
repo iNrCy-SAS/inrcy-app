@@ -50,6 +50,7 @@ export type AiMediaGenerationServerResult = {
   item: AiMediaLibraryPickerItem;
   soundtrack: AiMediaSoundtrackResponse | null;
   model: string;
+  videoEngineResult: "omni" | "veo" | "omni_veo_fallback" | null;
   promptVersion: string;
   promptSha256: string;
   pipelineTimingsMs: Record<string, number>;
@@ -210,6 +211,7 @@ export async function generateAndSaveAiMedia(args: {
       item: existing,
       soundtrack: null,
       model: "replayed",
+      videoEngineResult: null,
       promptVersion: AI_MEDIA_PROMPT_VERSION,
       promptSha256: "",
       pipelineTimingsMs: { ...pipelineTimingsMs },
@@ -275,6 +277,7 @@ export async function generateAndSaveAiMedia(args: {
   let soundtrack: Awaited<ReturnType<typeof loadAiMediaSoundtrack>> | null = null;
   let model = "";
   let providerMetadata: Record<string, unknown>;
+  let videoEngineResult: AiMediaGenerationServerResult["videoEngineResult"] = null;
 
   if (args.request.kind === "image") {
     args.signal?.throwIfAborted();
@@ -538,6 +541,11 @@ export async function generateAndSaveAiMedia(args: {
       narrationAudio?.model,
       "inrcy/video-composer-v4-controlled-audio",
     ].filter(Boolean).join("+");
+    videoEngineResult = videoGateway.provider.includes("+")
+      ? "omni_veo_fallback"
+      : videoGateway.provider === "google-gemini-omni"
+        ? "omni"
+        : "veo";
     providerMetadata = {
       provider: videoGateway.provider,
       model: videoGateway.model,
@@ -644,6 +652,7 @@ export async function generateAndSaveAiMedia(args: {
       ? { id: soundtrack.id, name: soundtrack.name }
       : null,
     model,
+    videoEngineResult,
     promptVersion: AI_MEDIA_PROMPT_VERSION,
     promptSha256: promptHash,
     pipelineTimingsMs: completedPipelineTimings,

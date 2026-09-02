@@ -101,7 +101,6 @@
 .kindChoices,
 .formatChoices,
 .styleChoices,
-.videoEngineChoices,
 .durationChoices,
 .typologyChoices,
 .parameterChoices {
@@ -117,7 +116,6 @@
 .kindChoices button,
 .formatChoices button,
 .styleChoices button,
-.videoEngineChoices button,
 .durationChoices button,
 .typologyChoices button,
 .parameterChoices button {
@@ -134,7 +132,6 @@
 .kindChoices button:hover:not(:disabled),
 .formatChoices button:hover:not(:disabled),
 .styleChoices button:hover:not(:disabled),
-.videoEngineChoices button:hover:not(:disabled),
 .durationChoices button:hover:not(:disabled),
 .typologyChoices button:hover:not(:disabled),
 .parameterChoices button:hover:not(:disabled) {
@@ -146,7 +143,6 @@
 .kindChoices button:disabled,
 .formatChoices button:disabled,
 .styleChoices button:disabled,
-.videoEngineChoices button:disabled,
 .durationChoices button:disabled,
 .typologyChoices button:disabled,
 .parameterChoices button:disabled {
@@ -194,7 +190,6 @@
 .kindChoices .kindActive,
 .formatChoices .compactChoiceActive,
 .styleChoices .compactChoiceActive,
-.videoEngineChoices .compactChoiceActive,
 .durationChoices .compactChoiceActive,
 .typologyChoices .compactChoiceActive,
 .parameterChoices .compactChoiceActive {
@@ -407,43 +402,6 @@
 .durationChoices {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   margin-bottom: 10px;
-}
-
-.videoEngineGroup {
-  display: grid;
-  gap: 6px;
-  margin-bottom: 10px;
-}
-
-.videoEngineGroup > span {
-  color: rgba(217, 231, 252, 0.72);
-  font-size: 9.5px;
-  font-weight: 850;
-}
-
-.videoEngineChoices {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.videoEngineChoices button {
-  min-height: 58px;
-  display: grid;
-  align-content: center;
-  gap: 3px;
-  padding: 8px 12px;
-  border-radius: 12px;
-  text-align: left;
-}
-
-.videoEngineChoices strong {
-  color: #fff;
-  font-size: 12px;
-}
-
-.videoEngineChoices small {
-  color: rgba(208, 223, 248, 0.58);
-  font-size: 8.5px;
-  line-height: 1.35;
 }
 
 .durationUpsell {
@@ -1083,6 +1041,81 @@
   font-size: 8.5px;
 }
 
+.footerEnginePicker {
+  flex: 1 1 340px;
+  max-width: 500px;
+  align-self: center;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 5px;
+  border: 1px solid rgba(118, 155, 236, 0.2);
+  border-radius: 14px;
+  background: rgba(10, 23, 54, 0.72);
+}
+
+.footerEnginePicker > span {
+  padding-left: 7px;
+  color: rgba(211, 226, 249, 0.66);
+  font-size: 9px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.footerEngineChoices {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.footerEngineChoices button {
+  min-width: 0;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 9px;
+  border: 1px solid rgba(135, 168, 235, 0.16);
+  border-radius: 10px;
+  color: rgba(225, 235, 252, 0.72);
+  background: rgba(11, 25, 57, 0.78);
+  font: inherit;
+  font-size: 9.5px;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.footerEngineChoices button:hover:not(:disabled) {
+  border-color: rgba(86, 220, 255, 0.42);
+  transform: translateY(-1px);
+}
+
+.footerEngineChoices button[data-active="true"] {
+  border-color: rgba(100, 221, 255, 0.55);
+  color: #fff;
+  background: linear-gradient(110deg, rgba(29, 181, 227, 0.3), rgba(119, 82, 232, 0.4), rgba(225, 75, 153, 0.28));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05), 0 7px 20px rgba(80, 87, 222, 0.18);
+}
+
+.footerEngineChoices button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.footerEngineChoices button > span {
+  color: #80e8ff;
+  font-size: 13px;
+}
+
+.footerEngineChoices strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .generateButton,
 .confirmButton,
 .regenerateButton,
@@ -1562,9 +1595,17 @@
   font-size: clamp(26px, 2.6vw, 38px);
 }
 
-.reviewHeading > span {
-  display: inline-block;
+.reviewBadges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
   margin-top: 10px;
+}
+
+.reviewBadges > span {
+  display: inline-flex;
+  align-items: center;
   padding: 6px 9px;
   border: 1px solid rgba(98, 217, 255, 0.21);
   border-radius: 999px;
@@ -1572,6 +1613,21 @@
   background: rgba(39, 166, 218, 0.09);
   font-size: 9px;
   font-weight: 900;
+}
+
+.engineResultBadge::before {
+  content: "✓";
+  margin-right: 5px;
+}
+
+.engineResultBadge[data-fallback="true"] {
+  border-color: rgba(255, 170, 70, 0.42);
+  color: #ffd391;
+  background: rgba(213, 107, 27, 0.15);
+}
+
+.engineResultBadge[data-fallback="true"]::before {
+  content: "!";
 }
 
 .previewFrame {
@@ -1752,6 +1808,19 @@ textarea:focus-visible,
   .footerBar {
     position: relative;
     bottom: auto;
+    display: grid;
+    grid-template-columns: minmax(190px, 1fr) minmax(340px, 500px) minmax(360px, 1fr);
+    align-items: center;
+  }
+
+  .footerEnginePicker {
+    width: 100%;
+    max-width: none;
+    box-sizing: border-box;
+  }
+
+  .generateButton {
+    justify-self: end;
   }
 
   .stepBadge {
@@ -1900,6 +1969,15 @@ textarea:focus-visible,
     padding: 9px;
   }
   .quotaCard { width: 100%; min-width: 0; box-sizing: border-box; }
+  .footerEnginePicker {
+    width: 100%;
+    max-width: none;
+    grid-template-columns: 1fr;
+  }
+  .footerEnginePicker > span {
+    padding: 0;
+    text-align: center;
+  }
   .generateButton {
     width: min(100%, 250px);
     min-width: 0;
