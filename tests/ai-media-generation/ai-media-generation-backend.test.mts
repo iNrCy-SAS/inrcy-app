@@ -389,7 +389,7 @@ test("image Gateway, vidéo Veo et médiathèque respectent le contrat universel
   assert.match(veo, /no intimate body area/);
   assert.match(veo, /referenceImages:/);
   assert.match(veo, /VideoGenerationReferenceType\.ASSET/);
-  assert.match(veo, /imageBytes: args\.inspirationImages\[0\]\.data/);
+  assert.match(veo, /imageBytes: sourceImage\.data/);
   assert.doesNotMatch(veo, /resolution: "720p"/);
   assert.match(veo, /getVideosOperation/);
   assert.match(veo, /raiMediaFilteredReasons/);
