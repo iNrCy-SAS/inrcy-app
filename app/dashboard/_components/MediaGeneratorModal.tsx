@@ -224,25 +224,35 @@ export default function MediaGeneratorModal({
         aria-labelledby={titleId}
       >
         <header className={styles.header}>
-          <div className={styles.moduleBadge}>
+          <div className={styles.moduleIdentity}>
             <span className={styles.icon} aria-hidden="true">✦</span>
-            <strong>{t("ai_generator_made_inrcy")}</strong>
+            <div>
+              <strong>{t("ai_generator_made_inrcy")}</strong>
+              <p>{t("ai_generator_made_inrcy_hint")}</p>
+            </div>
           </div>
           <div className={styles.heading}>
             <h2 id={titleId}>{t("ai_generator_modal_title")}</h2>
             <p>{t("ai_generator_modal_subtitle")}</p>
           </div>
-          <button
-            ref={closeButtonRef}
-            type="button"
-            className={styles.close}
-            onClick={requestClose}
-            disabled={locked}
-            aria-label={t("fermer_5ab4ec64")}
-          >
-            <span>{t("fermer_5ab4ec64")}</span>
-            <i aria-hidden="true">×</i>
-          </button>
+          <div className={styles.headerActions}>
+            <div className={styles.profileSignals} aria-label={t("ai_generator_made_inrcy_hint")}>
+              <span title={t("ai_generator_signal_profile")}><i aria-hidden="true">✓</i><b>{t("ai_generator_signal_profile")}</b></span>
+              <span title={t("ai_generator_signal_brand")}><i aria-hidden="true">✓</i><b>{t("ai_generator_signal_brand")}</b></span>
+              <span title={t("ai_generator_signal_history")}><i aria-hidden="true">✓</i><b>{t("ai_generator_signal_history")}</b></span>
+            </div>
+            <button
+              ref={closeButtonRef}
+              type="button"
+              className={styles.close}
+              onClick={requestClose}
+              disabled={locked}
+              aria-label={t("fermer_5ab4ec64")}
+            >
+              <span>{t("fermer_5ab4ec64")}</span>
+              <i aria-hidden="true">×</i>
+            </button>
+          </div>
         </header>
         <div className={styles.body}>
           <MediaGenerator

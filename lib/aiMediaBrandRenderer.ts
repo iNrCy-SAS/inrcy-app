@@ -1,5 +1,6 @@
 import "server-only";
 
+import path from "node:path";
 import sharp from "sharp";
 
 import type { AiMediaCreativeScene } from "@/lib/aiMediaCreativePlan";
@@ -18,6 +19,21 @@ type RenderBaseArgs = {
   logoMode: AiMediaLogoMode;
 };
 
+// Sharp/Pango cannot rely on the fonts installed by a serverless host. Vercel
+// was therefore replacing every caption character with the missing-glyph box.
+// Next ships Geist with the application; the route trace below explicitly
+// retains it and every text layer supplies the file directly to Pango.
+const OVERLAY_FONT_FILE = path.join(
+  process.cwd(),
+  "node_modules",
+  "next",
+  "dist",
+  "compiled",
+  "@vercel",
+  "og",
+  "Geist-Regular.ttf",
+);
+
 function escapeXml(value: string) {
   return String(value || "")
     .replace(/&/g, "&amp;")
@@ -27,8 +43,20 @@ function escapeXml(value: string) {
     .replace(/'/g, "&apos;");
 }
 
+function safeOverlayText(value: string) {
+  return String(value || "")
+    .normalize("NFKC")
+    .replace(/[\u0000-\u001f\u007f-\u009f]/g, " ")
+    // Geist couvre les alphabets latins utilisés par l'application. Les emoji
+    // et pictogrammes couleur, eux, seraient à nouveau rendus en carrés.
+    .replace(/[^\p{Script=Latin}\p{M}\p{N}\s.,;:!?…'’"“”()&+#\-–—/%€@·•]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function wrapText(value: string, maxCharacters: number, maxLines: number) {
-  const words = String(value || "").trim().split(/\s+/).filter(Boolean);
+  const normalized = safeOverlayText(value);
+  const words = normalized.split(/\s+/).filter(Boolean);
   const lines: string[] = [];
   let current = "";
   for (const word of words) {
@@ -43,19 +71,46 @@ function wrapText(value: string, maxCharacters: number, maxLines: number) {
   }
   if (current && lines.length < maxLines) lines.push(current);
   const consumed = lines.join(" ").length;
-  if (consumed < String(value || "").trim().length && lines.length) {
+  if (consumed < normalized.length && lines.length) {
     lines[lines.length - 1] = `${lines[lines.length - 1].replace(/[.,;:!?…]+$/g, "")}…`;
   }
   return lines;
 }
 
-function textTspans(lines: string[], x: number, startY: number, lineHeight: number) {
-  return lines
-    .map(
-      (line, index) =>
-        `<tspan x="${x}" y="${Math.round(startY + index * lineHeight)}">${escapeXml(line)}</tspan>`,
-    )
-    .join("");
+async function rasterTextLayer(args: {
+  text: string;
+  fontSize: number;
+  fontWeight: 500 | 700 | 800;
+  color: string;
+  left: number;
+  top: number;
+  maxWidth: number;
+}) {
+  const text = safeOverlayText(args.text);
+  if (!text) return null;
+  const rendered = await sharp({
+    text: {
+      text: `<span foreground="${args.color}" weight="${args.fontWeight}">${escapeXml(text)}</span>`,
+      font: `Geist ${args.fontSize}`,
+      fontfile: OVERLAY_FONT_FILE,
+      rgba: true,
+      dpi: 72,
+      wrap: "none",
+    },
+  })
+    .png()
+    .toBuffer({ resolveWithObject: true });
+  const input = rendered.info.width > args.maxWidth
+    ? await sharp(rendered.data)
+        .resize({ width: args.maxWidth, fit: "inside", withoutEnlargement: true })
+        .png()
+        .toBuffer()
+    : rendered.data;
+  return {
+    input,
+    left: Math.max(0, Math.round(args.left)),
+    top: Math.max(0, Math.round(args.top)),
+  };
 }
 
 function styleOverlayOpacity(style: AiMediaVisualStyle) {
@@ -105,31 +160,25 @@ function brandPlateSvg(args: {
   height: number;
   plateWidth: number;
   plateHeight: number;
-  companyName: string;
-  showCompanyName: boolean;
 }) {
   const x = Math.round(args.width * 0.055);
   const y = Math.round(args.height * 0.045);
   const radius = Math.round(args.plateHeight * 0.27);
-  const fontSize = Math.max(22, Math.round(args.height * 0.024));
   return Buffer.from(`
     <svg width="${args.width}" height="${args.height}" xmlns="http://www.w3.org/2000/svg">
       <defs><filter id="shadow"><feDropShadow dx="0" dy="7" stdDeviation="12" flood-opacity="0.24"/></filter></defs>
       <rect x="${x}" y="${y}" width="${args.plateWidth}" height="${args.plateHeight}" rx="${radius}" fill="#ffffff" fill-opacity="0.94" filter="url(#shadow)"/>
-      ${
-        args.showCompanyName
-          ? `<text x="${x + Math.round(args.plateHeight * 0.32)}" y="${y + Math.round(args.plateHeight * 0.63)}" fill="#101827" font-family="Arial, Helvetica, sans-serif" font-size="${fontSize}" font-weight="700">${escapeXml(args.companyName)}</text>`
-          : ""
-      }
     </svg>
   `);
 }
 
-function sceneCopySvg(args: RenderBaseArgs & { scene: AiMediaCreativeScene }) {
+function sceneCopyBackdropSvg(args: RenderBaseArgs & { scene: AiMediaCreativeScene }) {
   const margin = Math.round(args.width * 0.065);
   const titleSize = Math.max(48, Math.min(94, Math.round(args.width * 0.065)));
   const bodySize = Math.max(25, Math.min(40, Math.round(args.width * 0.028)));
   const eyebrowSize = Math.max(20, Math.min(31, Math.round(args.width * 0.022)));
+  const statement = args.scene.layout === "statement" || args.scene.layout === "cta";
+  const shadeOpacity = statement ? 0.86 : styleOverlayOpacity(args.visualStyle);
   const titleLines = wrapText(args.scene.title, args.width > args.height ? 37 : 24, 3);
   const bodyLines = wrapText(args.scene.body, args.width > args.height ? 64 : 43, 2);
   const titleLineHeight = Math.round(titleSize * 1.05);
@@ -138,8 +187,6 @@ function sceneCopySvg(args: RenderBaseArgs & { scene: AiMediaCreativeScene }) {
   const bodyY = safeBottom - Math.max(0, bodyLines.length - 1) * bodyLineHeight;
   const titleLastBaseline = bodyY - Math.round(bodySize * 1.55);
   const startY = titleLastBaseline - titleSize - Math.max(0, titleLines.length - 1) * titleLineHeight;
-  const statement = args.scene.layout === "statement" || args.scene.layout === "cta";
-  const shadeOpacity = statement ? 0.86 : styleOverlayOpacity(args.visualStyle);
   return Buffer.from(`
     <svg width="${args.width}" height="${args.height}" xmlns="http://www.w3.org/2000/svg">
       <defs>
@@ -156,18 +203,81 @@ function sceneCopySvg(args: RenderBaseArgs & { scene: AiMediaCreativeScene }) {
       </defs>
       <rect width="${args.width}" height="${args.height}" fill="url(#shade)"/>
       <rect x="${margin}" y="${Math.round(startY - eyebrowSize * 1.55)}" width="${Math.round(args.width * 0.18)}" height="7" rx="4" fill="url(#brand)"/>
-      <text x="${margin}" y="${Math.round(startY - eyebrowSize * 0.45)}" fill="#ffffff" fill-opacity="0.82" font-family="Arial, Helvetica, sans-serif" font-size="${eyebrowSize}" font-weight="700" letter-spacing="2">${escapeXml(args.scene.eyebrow.toLocaleUpperCase())}</text>
-      <text fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${titleSize}" font-weight="800" letter-spacing="-1">${textTspans(titleLines, margin, startY + titleSize, titleLineHeight)}</text>
-      <text fill="#ffffff" fill-opacity="0.86" font-family="Arial, Helvetica, sans-serif" font-size="${bodySize}" font-weight="500">${textTspans(bodyLines, margin, bodyY, bodyLineHeight)}</text>
     </svg>
   `);
 }
 
+async function renderSceneCopyOverlay(
+  args: RenderBaseArgs & { scene: AiMediaCreativeScene },
+) {
+  const margin = Math.round(args.width * 0.065);
+  const maxWidth = args.width - margin * 2;
+  const titleSize = Math.max(48, Math.min(94, Math.round(args.width * 0.065)));
+  const bodySize = Math.max(25, Math.min(40, Math.round(args.width * 0.028)));
+  const eyebrowSize = Math.max(20, Math.min(31, Math.round(args.width * 0.022)));
+  const titleLines = wrapText(args.scene.title, args.width > args.height ? 37 : 24, 3);
+  const bodyLines = wrapText(args.scene.body, args.width > args.height ? 64 : 43, 2);
+  const titleLineHeight = Math.round(titleSize * 1.05);
+  const bodyLineHeight = Math.round(bodySize * 1.25);
+  const safeBottom = args.height - margin - 22;
+  const bodyY = safeBottom - Math.max(0, bodyLines.length - 1) * bodyLineHeight;
+  const titleLastBaseline = bodyY - Math.round(bodySize * 1.55);
+  const startY = titleLastBaseline - titleSize - Math.max(0, titleLines.length - 1) * titleLineHeight;
+  const textLayers = await Promise.all([
+    rasterTextLayer({
+      text: args.scene.eyebrow.toLocaleUpperCase(),
+      fontSize: eyebrowSize,
+      fontWeight: 700,
+      color: "#d5deed",
+      left: margin,
+      top: startY - eyebrowSize * 1.3,
+      maxWidth,
+    }),
+    ...titleLines.map((line, index) =>
+      rasterTextLayer({
+        text: line,
+        fontSize: titleSize,
+        fontWeight: 800,
+        color: "#ffffff",
+        left: margin,
+        top: startY + index * titleLineHeight,
+        maxWidth,
+      }),
+    ),
+    ...bodyLines.map((line, index) =>
+      rasterTextLayer({
+        text: line,
+        fontSize: bodySize,
+        fontWeight: 500,
+        color: "#dbe3f0",
+        left: margin,
+        top: bodyY - bodySize + index * bodyLineHeight,
+        maxWidth,
+      }),
+    ),
+  ]);
+  const transparent = await sharp({
+    create: {
+      width: args.width,
+      height: args.height,
+      channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    },
+  }).png().toBuffer();
+  return await sharp(transparent)
+    .composite([
+      { input: sceneCopyBackdropSvg(args), top: 0, left: 0 },
+      ...textLayers.filter((layer): layer is NonNullable<typeof layer> => Boolean(layer)),
+    ])
+    .png({ compressionLevel: 9, adaptiveFiltering: true })
+    .toBuffer();
+}
+
 async function buildBrandOverlays(args: RenderBaseArgs & {
-  copySvg: Buffer;
+  copyOverlay: Buffer;
 }) {
   const overlays: Array<{ input: Buffer; top?: number; left?: number }> = [
-    { input: args.copySvg, top: 0, left: 0 },
+    { input: args.copyOverlay, top: 0, left: 0 },
   ];
   if (args.logoMode === "none") return overlays;
 
@@ -195,8 +305,6 @@ async function buildBrandOverlays(args: RenderBaseArgs & {
     height: args.height,
     plateWidth,
     plateHeight,
-    companyName: args.companyName,
-    showCompanyName: !preparedLogo,
   });
   overlays.push({ input: plate, top: 0, left: 0 });
   if (preparedLogo) {
@@ -205,6 +313,17 @@ async function buildBrandOverlays(args: RenderBaseArgs & {
       left: x + Math.round((plateWidth - preparedLogo.width) / 2),
       top: y + Math.round((plateHeight - preparedLogo.height) / 2),
     });
+  } else {
+    const companyName = await rasterTextLayer({
+      text: args.companyName,
+      fontSize: Math.max(22, Math.round(args.height * 0.024)),
+      fontWeight: 700,
+      color: "#101827",
+      left: x + Math.round(plateHeight * 0.32),
+      top: y + Math.round(plateHeight * 0.28),
+      maxWidth: Math.max(1, plateWidth - Math.round(plateHeight * 0.52)),
+    });
+    if (companyName) overlays.push(companyName);
   }
   return overlays;
 }
@@ -228,8 +347,8 @@ export async function renderAiMediaVideoOverlay(args: RenderBaseArgs & {
   }).png().toBuffer();
   const overlays = await buildBrandOverlays({
     ...args,
-    copySvg: args.withText
-      ? sceneCopySvg(args)
+    copyOverlay: args.withText
+      ? await renderSceneCopyOverlay(args)
       : transparent,
   });
   return await sharp(transparent)

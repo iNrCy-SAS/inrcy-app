@@ -638,21 +638,6 @@ export default function MediaGenerator({
 
   return (
     <div className={styles.generator} data-origin={origin}>
-      <div className={styles.introCard}>
-        <div>
-          <span>✦</span>
-          <div>
-            <strong>{t("ai_generator_made_inrcy")}</strong>
-            <small>{t("ai_generator_made_inrcy_hint")}</small>
-          </div>
-        </div>
-        <div className={styles.profileSignals}>
-          <span>✓ {t("ai_generator_signal_profile")}</span>
-          <span>✓ {t("ai_generator_signal_brand")}</span>
-          <span>✓ {t("ai_generator_signal_history")}</span>
-        </div>
-      </div>
-
       <div className={styles.criteriaGrid}>
         <section className={`${styles.criteriaSection} ${styles.collapsibleSection}`}>
           <button

@@ -475,6 +475,11 @@ test("image Gateway, vidéo Veo et médiathèque respectent le contrat universel
   assert.doesNotMatch(renderer, /renderBrandedAiImage|imageCopySvg/);
   assert.match(renderer, /renderAiMediaVideoOverlay/);
   assert.match(renderer, /args\.logoMode === "none"/);
+  assert.match(renderer, /fontfile: OVERLAY_FONT_FILE/);
+  assert.match(renderer, /Geist-Regular\.ttf/);
+  assert.match(renderer, /safeOverlayText/);
+  assert.doesNotMatch(renderer, /font-family="Arial, Helvetica, sans-serif"/);
+  assert.match(nextConfig, /Geist-Regular\.ttf/);
   assert.match(
     renderer,
     /\.trim\(\{ background: "#ffffff", threshold: 10 \}\)/

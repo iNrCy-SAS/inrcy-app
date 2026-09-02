@@ -17,6 +17,7 @@ const sharpRuntimeFiles = [
 const aiMediaGenerationRuntimeFiles = [
   ...sharpRuntimeFiles,
   "node_modules/ffmpeg-static/**/*",
+  "node_modules/next/dist/compiled/@vercel/og/Geist-Regular.ttf",
   "assets/media-generation/soundtracks/**/*",
 ];
 

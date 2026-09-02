@@ -12,73 +12,6 @@
   padding-bottom: 8px;
 }
 
-.introCard {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-  padding: 14px 16px;
-  border: 1px solid rgba(105, 204, 255, 0.19);
-  border-radius: 18px;
-  background:
-    linear-gradient(135deg, rgba(31, 182, 231, 0.11), rgba(122, 79, 232, 0.08)),
-    rgba(8, 19, 47, 0.74);
-}
-
-.introCard > div:first-child {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.introCard > div:first-child > span {
-  width: 42px;
-  height: 42px;
-  flex: 0 0 auto;
-  display: grid;
-  place-items: center;
-  border-radius: 13px;
-  background: linear-gradient(135deg, #1fc8ec, #8357ec 62%, #f05a9d);
-  box-shadow: 0 10px 30px rgba(85, 89, 239, 0.28);
-  color: #fff;
-  font-size: 19px;
-}
-
-.introCard > div:first-child > div {
-  min-width: 0;
-  display: grid;
-  gap: 3px;
-}
-
-.introCard strong {
-  font-size: 14px;
-}
-
-.introCard small {
-  color: rgba(211, 226, 252, 0.68);
-  font-size: 11.5px;
-  line-height: 1.35;
-}
-
-.profileSignals {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 7px;
-}
-
-.profileSignals span {
-  padding: 7px 10px;
-  border: 1px solid rgba(93, 229, 199, 0.18);
-  border-radius: 999px;
-  background: rgba(34, 197, 139, 0.08);
-  color: #a8f7de;
-  font-size: 10.5px;
-  font-weight: 800;
-  white-space: nowrap;
-}
-
 .criteriaGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1687,9 +1620,6 @@ textarea:focus-visible,
 
 @media (max-width: 620px) {
   .generator { gap: 10px; }
-  .introCard { display: grid; padding: 12px; }
-  .profileSignals { justify-content: flex-start; }
-  .profileSignals span { padding: 5px 7px; font-size: 8.5px; }
   .criteriaSection { padding: 12px; border-radius: 16px; }
   .subjectChoices { grid-template-columns: 1fr; }
   .subjectChoices button { min-height: 68px; }

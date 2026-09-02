@@ -323,6 +323,10 @@ test("la fenêtre iNrCy sépare les critères de la création et de la revue", (
   assert.match(generatorStyles, /object-fit:\s*contain/);
   assert.match(modal, /createPortal/);
   assert.match(modal, /role="dialog"/);
+  assert.match(modal, /className=\{styles\.moduleIdentity\}/);
+  assert.match(modal, /className=\{styles\.profileSignals\}/);
+  assert.match(modal, /ai_generator_made_inrcy_hint/);
+  assert.doesNotMatch(generator, /className=\{styles\.introCard\}/);
 });
 
 test("fermer toute revue exige une confirmation, y compris depuis le Menu", () => {
