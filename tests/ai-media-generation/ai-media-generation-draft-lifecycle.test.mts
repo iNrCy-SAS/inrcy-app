@@ -25,7 +25,7 @@ test("le contrat v3 est refuse avant toute reservation de quota", () => {
 
   assert.ok(versionCheck >= 0);
   assert.ok(reservation > versionCheck);
-  assert.match(route, /inrcy-ai-media-generation-v8-veo-controlled-voiceover/);
+  assert.match(route, /inrcy-ai-media-generation-v9-omni-veo-controlled-voiceover/);
   assert.match(route, /draft:\s*true/);
 });
 

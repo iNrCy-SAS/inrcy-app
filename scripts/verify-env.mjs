@@ -112,9 +112,13 @@ const optionalButRecommended = [
   "AI_GATEWAY_ALLOWED_TRANSCRIPTION_MODELS",
   "HEALTHCHECK_ALERT_TO",
 
-  // Google Veo tuning (defaults are versioned in the server)
+  // Google Omni Flash + Veo Fast tuning (defaults are versioned in the server)
   "AI_MEDIA_VIDEO_PROVIDER",
   "AI_MEDIA_VIDEO_TIMEOUT_MS",
+  "AI_MEDIA_OMNI_MODEL",
+  "AI_MEDIA_OMNI_COST_MICRO_USD_PER_SECOND",
+  "AI_MEDIA_OMNI_CONCURRENCY",
+  "AI_MEDIA_OMNI_FALLBACK_TO_VEO",
   "AI_MEDIA_VEO_MODEL",
   "AI_MEDIA_VEO_FALLBACK_MODELS",
   "AI_MEDIA_VEO_COST_MICRO_USD_PER_SECOND",

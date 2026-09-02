@@ -101,6 +101,7 @@
 .kindChoices,
 .formatChoices,
 .styleChoices,
+.videoEngineChoices,
 .durationChoices,
 .typologyChoices,
 .parameterChoices {
@@ -116,6 +117,7 @@
 .kindChoices button,
 .formatChoices button,
 .styleChoices button,
+.videoEngineChoices button,
 .durationChoices button,
 .typologyChoices button,
 .parameterChoices button {
@@ -132,6 +134,7 @@
 .kindChoices button:hover:not(:disabled),
 .formatChoices button:hover:not(:disabled),
 .styleChoices button:hover:not(:disabled),
+.videoEngineChoices button:hover:not(:disabled),
 .durationChoices button:hover:not(:disabled),
 .typologyChoices button:hover:not(:disabled),
 .parameterChoices button:hover:not(:disabled) {
@@ -143,6 +146,7 @@
 .kindChoices button:disabled,
 .formatChoices button:disabled,
 .styleChoices button:disabled,
+.videoEngineChoices button:disabled,
 .durationChoices button:disabled,
 .typologyChoices button:disabled,
 .parameterChoices button:disabled {
@@ -190,6 +194,7 @@
 .kindChoices .kindActive,
 .formatChoices .compactChoiceActive,
 .styleChoices .compactChoiceActive,
+.videoEngineChoices .compactChoiceActive,
 .durationChoices .compactChoiceActive,
 .typologyChoices .compactChoiceActive,
 .parameterChoices .compactChoiceActive {
@@ -402,6 +407,43 @@
 .durationChoices {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   margin-bottom: 10px;
+}
+
+.videoEngineGroup {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.videoEngineGroup > span {
+  color: rgba(217, 231, 252, 0.72);
+  font-size: 9.5px;
+  font-weight: 850;
+}
+
+.videoEngineChoices {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.videoEngineChoices button {
+  min-height: 58px;
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  text-align: left;
+}
+
+.videoEngineChoices strong {
+  color: #fff;
+  font-size: 12px;
+}
+
+.videoEngineChoices small {
+  color: rgba(208, 223, 248, 0.58);
+  font-size: 8.5px;
+  line-height: 1.35;
 }
 
 .durationUpsell {
@@ -1691,6 +1733,27 @@ textarea:focus-visible,
 }
 
 @media (min-width: 1101px) {
+  .generator {
+    height: 100%;
+    min-height: 0;
+    grid-template-rows: minmax(0, 1fr) auto;
+    overflow: hidden;
+    padding-bottom: 0;
+  }
+
+  .criteriaGrid {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    padding-right: 4px;
+  }
+
+  .footerBar {
+    position: relative;
+    bottom: auto;
+  }
+
   .stepBadge {
     font-size: 12px;
   }

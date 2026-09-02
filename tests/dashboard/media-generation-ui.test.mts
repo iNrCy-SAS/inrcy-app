@@ -56,6 +56,7 @@ test("Booster utilise le générateur partagé et réinsère le média validé",
     "creativity",
     "useBrandColors",
     "logoMode",
+    "videoEngine",
     "durationSeconds",
     "source",
   ]) {
@@ -115,6 +116,7 @@ test("une génération peut être arrêtée avec confirmation et propagation ser
   const generator = read("app/dashboard/_components/MediaGenerator.tsx");
   const route = read("app/api/media-generation/generate/route.ts");
   const provider = read("lib/aiVideoProviderGoogleVeo.ts");
+  const omniProvider = read("lib/aiVideoProviderGoogleOmni.ts");
   const composer = read("lib/aiMediaGeneratedVideo.ts");
 
   assert.match(hook, /new AbortController\(\)/);
@@ -126,6 +128,7 @@ test("une génération peut être arrêtée avec confirmation et propagation ser
   assert.match(route, /AI_MEDIA_GENERATION_CANCELLED/);
   assert.match(route, /signal: request\.signal/);
   assert.match(provider, /args\.signal\?\.addEventListener\("abort"/);
+  assert.match(omniProvider, /args\.generationArgs\.signal\?\.addEventListener\("abort"/);
   assert.match(composer, /signal: args\.signal/);
 });
 
@@ -176,6 +179,7 @@ test("la fenêtre iNrCy sépare les critères de la création et de la revue", (
     "ai_generator_text_on_media",
     "ai_generator_text_keywords_label",
     "ai_generator_with_music",
+    "ai_generator_video_engine_title",
     "ai_generator_narration",
     "ai_generator_with_narration",
     "ai_generator_unlimited",
@@ -184,6 +188,11 @@ test("la fenêtre iNrCy sépare les critères de la création et de la revue", (
   }
   assert.match(generator, /ai_generator_duration_\$\{duration\}/);
   assert.match(generator, /useState<MediaGenerationVideoDuration>\(8\)/);
+  assert.match(generator, /useState<MediaGenerationVideoEngine>\("omni"\)/);
+  assert.match(generator, /\(\["omni", "veo"\] as const\)/);
+  assert.match(generator, /ai_generator_video_engine_\$\{engine\}/);
+  assert.match(generator, /ai_generator_video_engine_\$\{engine\}_hint/);
+  assert.match(generator, /videoEngine: kind === "video" \? videoEngine : undefined/);
   assert.match(generator, /duration > videoMaxDurationSeconds/);
   assert.match(generator, /disabled=\{operationLocked \|\| premiumLocked\}/);
   assert.match(generator, /acceptMode === "insert"/);
@@ -260,6 +269,7 @@ test("la fenêtre iNrCy sépare les critères de la création et de la revue", (
   assert.doesNotMatch(generator, /ai_generator_generate_summary_(?:video|image)/);
   assert.doesNotMatch(generator, /styles\.wideSection/);
   assert.match(generatorStyles, /\.collapsibleToggle/);
+  assert.match(generatorStyles, /\.videoEngineChoices/);
   assert.match(generatorStyles, /\.combinedSubsection/);
   assert.match(
     generatorStyles,
@@ -304,6 +314,14 @@ test("la fenêtre iNrCy sépare les critères de la création et de la revue", (
   );
   assert.match(
     generatorStyles,
+    /@media \(min-width: 1101px\)[\s\S]*?\.generator\s*\{[\s\S]*?grid-template-rows:\s*minmax\(0, 1fr\) auto[\s\S]*?overflow:\s*hidden/
+  );
+  assert.match(
+    generatorStyles,
+    /@media \(min-width: 1101px\)[\s\S]*?\.criteriaGrid\s*\{[\s\S]*?overflow-y:\s*auto/
+  );
+  assert.match(
+    generatorStyles,
     /@media \(max-width: 620px\)[\s\S]*?\.footerBar\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\)[\s\S]*?justify-items:\s*center/
   );
   assert.match(
@@ -320,6 +338,10 @@ test("la fenêtre iNrCy sépare les critères de la création et de la revue", (
   assert.match(
     modalStyles,
     /@media \(max-width: 620px\)[\s\S]*?height:\s*100dvh/
+  );
+  assert.match(
+    modalStyles,
+    /@media \(min-width: 1101px\)[\s\S]*?\.dialog\s*\{[\s\S]*?grid-template-rows:\s*auto minmax\(0, 1fr\)[\s\S]*?overflow:\s*hidden/
   );
   assert.match(
     generatorStyles,
@@ -502,6 +524,11 @@ test("toutes les langues contiennent la copie complète de la modale", () => {
     "ai_generator_duration_8",
     "ai_generator_duration_16",
     "ai_generator_duration_24",
+    "ai_generator_video_engine_title",
+    "ai_generator_video_engine_omni",
+    "ai_generator_video_engine_omni_hint",
+    "ai_generator_video_engine_veo",
+    "ai_generator_video_engine_veo_hint",
     "ai_generator_stage_profile",
     "ai_generator_stage_brand",
     "ai_generator_stage_storyboard",

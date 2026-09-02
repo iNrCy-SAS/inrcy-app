@@ -108,9 +108,12 @@ Limites optionnelles :
 - [ ] `AI_GATEWAY_MODEL` (format `provider/model`)
 - [ ] `AI_GATEWAY_VISION_MODEL` si modèle vision distinct
 - [ ] `AI_GATEWAY_IMAGE_MODEL` (optionnel, format `provider/model`) — surcharge du modèle de génération d’image via la Gateway
-- [ ] `GEMINI_API_KEY` — secret serveur Google utilisé par Veo et Gemini TTS ; ne jamais le préfixer par `NEXT_PUBLIC_`
-- [ ] `AI_MEDIA_VIDEO_PROVIDER` (optionnel, défaut `google-veo-fast`)
+- [ ] `GEMINI_API_KEY` — secret serveur Google utilisé par Gemini Omni Flash, Veo Fast et Gemini TTS ; ne jamais le préfixer par `NEXT_PUBLIC_`
+- [ ] `AI_MEDIA_VIDEO_PROVIDER` (optionnel, défaut `auto`) — respecte le choix Omni/Veo de l’interface ; `google-veo-fast` force immédiatement l’ancien moteur pour un rollback sans redéploiement
 - [ ] `AI_MEDIA_VIDEO_TIMEOUT_MS` (optionnel, défaut 420000, plafond 600000)
+- [ ] `AI_MEDIA_OMNI_MODEL` (optionnel, défaut stable `gemini-omni-1.1-flash`)
+- [ ] `AI_MEDIA_OMNI_COST_MICRO_USD_PER_SECOND` (optionnel, défaut 100000 soit 0,10 $/s en 720p)
+- [ ] `AI_MEDIA_OMNI_CONCURRENCY` (optionnel, défaut 3, plafond 4) et `AI_MEDIA_OMNI_FALLBACK_TO_VEO` (optionnel, défaut activé) seulement après calibration en Production
 - [ ] `AI_MEDIA_VEO_MODEL` (défaut Fast) et `AI_MEDIA_VEO_FALLBACK_MODELS` (défaut Lite ; valeur vide pour désactiver le secours)
 - [ ] `AI_MEDIA_VEO_FAST_COST_MICRO_USD_PER_SECOND`, `AI_MEDIA_VEO_LITE_COST_MICRO_USD_PER_SECOND` et `AI_MEDIA_VEO_STANDARD_COST_MICRO_USD_PER_SECOND` seulement si les tarifs par défaut doivent être surchargés ; `AI_MEDIA_VEO_COST_MICRO_USD_PER_SECOND` reste l’alias historique du coût Fast
 - [ ] `AI_MEDIA_VEO_POLL_MS` et `AI_MEDIA_VEO_CONCURRENCY` seulement après calibration en Preview

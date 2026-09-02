@@ -136,6 +136,20 @@ test("les erreurs Google déterminent correctement retry, fallback et sécurité
     "safety",
   );
   assert.equal(
+    classifyVeoFailure(new Error("ai_video_omni_safety_filtered: RAI_MEDIA"))
+      .kind,
+    "safety",
+  );
+  assert.equal(
+    classifyVeoFailure(new Error("ai_video_omni_configuration_rejected"))
+      .kind,
+    "invalid_argument",
+  );
+  assert.equal(
+    classifyVeoFailure(new Error("ai_video_omni_rate_limited")).kind,
+    "rate_limited",
+  );
+  assert.equal(
     classifyVeoFailure(new Error("401 invalid API key")).kind,
     "authentication",
   );

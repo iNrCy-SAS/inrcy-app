@@ -30,6 +30,7 @@ export type AiMediaPeopleMode = "auto" | "none" | "solo" | "team";
 export type AiMediaCreativity = "faithful" | "bold";
 export type AiMediaLogoMode = "discreet" | "visible" | "none";
 export type AiMediaVideoDuration = 8 | 16 | 24;
+export type AiMediaVideoEngine = "omni" | "veo";
 export type AiMediaInspirationImage = {
   mimeType: "image/jpeg" | "image/png" | "image/webp";
   /** Octets de l'image encodes en base64, sans prefixe data:. */
@@ -104,6 +105,7 @@ export type AiMediaGenerationRequest = {
   creativity: AiMediaCreativity;
   useBrandColors: boolean;
   logoMode: AiMediaLogoMode;
+  videoEngine: AiMediaVideoEngine | null;
   durationSeconds: AiMediaVideoDuration | null;
   inspirationImages: AiMediaInspirationImage[];
   source: AiMediaSurface;
@@ -344,6 +346,10 @@ export function normalizeAiMediaGenerationRequest(
   }
 
   const withText = body.withText === true;
+  const rawVideoEngine = cleanText(body.videoEngine, 24) || "omni";
+  if (kind === "video" && !["omni", "veo"].includes(rawVideoEngine)) {
+    throw new AiMediaRequestValidationError("Moteur vidéo invalide.");
+  }
 
   return {
     requestId: readRequestId(body.requestId),
@@ -363,6 +369,8 @@ export function normalizeAiMediaGenerationRequest(
     creativity: creativity as AiMediaCreativity,
     useBrandColors: body.useBrandColors !== false,
     logoMode: logoMode as AiMediaLogoMode,
+    videoEngine:
+      kind === "video" ? (rawVideoEngine as AiMediaVideoEngine) : null,
     durationSeconds:
       kind === "video" ? (requestedDuration as AiMediaVideoDuration) : null,
     inspirationImages: normalizeInspirationImages(body.inspirationImages, kind),

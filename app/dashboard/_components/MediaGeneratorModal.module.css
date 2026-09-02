@@ -357,6 +357,22 @@
 }
 
 @media (min-width: 1101px) {
+  .dialog {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    overflow: hidden;
+  }
+
+  .header {
+    position: relative;
+  }
+
+  .body {
+    min-height: 0;
+    overflow: auto;
+    padding-bottom: 12px;
+  }
+
   .moduleIdentity strong {
     font-size: 14px;
   }

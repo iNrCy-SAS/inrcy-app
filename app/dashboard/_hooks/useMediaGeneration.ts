@@ -41,6 +41,7 @@ export type MediaGenerationPeopleMode = "auto" | "none" | "solo" | "team";
 export type MediaGenerationCreativity = "faithful" | "bold";
 export type MediaGenerationLogoMode = "discreet" | "visible" | "none";
 export type MediaGenerationVideoDuration = 8 | 16 | 24;
+export type MediaGenerationVideoEngine = "omni" | "veo";
 export type MediaGenerationInspirationImage = {
   mimeType: "image/jpeg" | "image/png" | "image/webp";
   data: string;
@@ -101,6 +102,7 @@ export type MediaGenerationRequest = {
   creativity: MediaGenerationCreativity;
   useBrandColors: boolean;
   logoMode: MediaGenerationLogoMode;
+  videoEngine?: MediaGenerationVideoEngine;
   durationSeconds?: MediaGenerationVideoDuration;
   inspirationImages?: MediaGenerationInspirationImage[];
   source: MediaGenerationSource;
@@ -357,6 +359,8 @@ function buildGenerationAttemptKey(
     creativity: request.creativity,
     useBrandColors: request.useBrandColors,
     logoMode: request.logoMode,
+    videoEngine:
+      request.kind === "video" ? request.videoEngine || "omni" : null,
     durationSeconds:
       request.kind === "video" ? request.durationSeconds || 16 : null,
     inspirationImages:
@@ -667,6 +671,10 @@ export default function useMediaGeneration() {
             creativity: request.creativity,
             useBrandColors: request.useBrandColors,
             logoMode: request.logoMode,
+            videoEngine:
+              request.kind === "video"
+                ? request.videoEngine || "omni"
+                : undefined,
             durationSeconds:
               request.kind === "video"
                 ? request.durationSeconds || 16

@@ -294,5 +294,6 @@ export function getAiMediaPromptOutputSpec(
     creativity: value.creativity,
     useBrandColors: value.useBrandColors,
     logoMode: value.logoMode,
+    videoEngine: value.kind === "video" ? value.videoEngine : null,
   };
 }

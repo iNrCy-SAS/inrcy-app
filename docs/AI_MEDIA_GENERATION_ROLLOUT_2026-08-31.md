@@ -4,7 +4,7 @@
 
 ## 1. Contrat à préserver
 
-- Les images passent par **Vercel AI Gateway**. Les vidéos utilisent Google Veo 3.1 via l’API Gemini : Fast est essayé en premier, puis Lite peut prendre le relais sur un échec non facturé ; `GEMINI_API_KEY` ne doit jamais être exposée au navigateur.
+- Les images passent par **Vercel AI Gateway**. Les vidéos proposent Gemini Omni Flash (choix rapide par défaut) et Google Veo 3.1 Fast (choix cinématographique) ; une scène Omni non facturée peut basculer vers Veo, puis Lite peut prendre le relais sur un échec Veo non facturé. `GEMINI_API_KEY` ne doit jamais être exposée au navigateur.
 - Pour une image, le modèle reçoit uniquement le sujet actuel, le Profil et le logo officiel. Le logo est l’unique fichier image de référence ; la Médiathèque et les anciens médias ne sont jamais transmis.
 - Le quota appartient à l’**établissement actif** (`account_id`), jamais au seul utilisateur AUTH ni à un compteur commun au bundle multicompte.
 - Chaque établissement possède son propre compteur. Trois établissements couverts par l’édition Standard disposent donc chacun de 20 images et 5 vidéos par mois, soit 60 images et 15 vidéos au total.
@@ -14,7 +14,7 @@
 - Booster impose une revue explicite du résultat : grand aperçu image ou vidéo, quota visible, puis « Utiliser ce média » ou « Régénérer ». Une génération réussie consomme son unité, mais reste un brouillon privé temporaire tant que le pro ne la valide pas. Fermer ou régénérer demande confirmation et supprime le brouillon ; le quota consommé n’est pas recrédité.
 - Le texte libre de l’idée est traité comme un brief confidentiel et ne doit jamais être recopié dans une image. Le mode « Avec texte » produit seulement une accroche courte originale fondée sur les faits vérifiés.
 - Une génération produit un seul média aux dimensions du format choisi : image JPEG ou vidéo MP4 H.264 de 8, 16 ou 24 secondes.
-- Le texte exact, la voix off Gemini et la musique iNrCy sont optionnels. Une vidéo assemble exclusivement de vrais plans IA Veo natifs de 8 secondes ; l’ancien diaporama de médias existants est supprimé. Les textes et le logo sont ajoutés proprement par le compositeur iNrCy, jamais demandés à Veo dans l’image.
+- Le texte exact, la voix off Gemini et la musique iNrCy sont optionnels. Une vidéo assemble exclusivement de vrais plans IA Omni/Veo natifs de 8 secondes ; l’ancien diaporama de médias existants est supprimé. Les textes et le logo sont ajoutés proprement par le compositeur iNrCy, jamais demandés au moteur dans l’image.
 - Le média n’est enregistré définitivement dans la médiathèque qu’après validation : « Utiliser ce média » dans Booster/iNrSend ou « Enregistrer dans la Médiathèque » depuis le menu.
 - Les médias restent **privés** : bucket privé, chemin sous `users/{accountId}/…` et consultation par URL signée courte. Ne jamais fabriquer d’URL publique permanente.
 - Réutiliser un média déjà présent dans la médiathèque ne lance aucune génération et **ne débite jamais de quota**.
@@ -151,12 +151,14 @@ Les clés Gateway, Gemini et le service role restent exclusivement côté serveu
 ### Fournisseurs et modèles média
 
 - `AI_GATEWAY_IMAGE_MODEL` — surcharge image au format `provider/model` ;
-- `GEMINI_API_KEY` — secret serveur obligatoire pour les vidéos Veo et la voix off Gemini TTS ;
-- `AI_MEDIA_VIDEO_PROVIDER` — surcharge optionnelle, valeur par défaut `google-veo-fast` ;
+- `GEMINI_API_KEY` — secret serveur obligatoire pour les vidéos Omni/Veo et la voix off Gemini TTS ;
+- `AI_MEDIA_VIDEO_PROVIDER` — surcharge optionnelle, valeur par défaut `auto` ; `google-veo-fast` force le moteur historique et constitue le rollback immédiat ;
+- `AI_MEDIA_OMNI_MODEL` — surcharge optionnelle, valeur stable par défaut `gemini-omni-1.1-flash` ;
+- `AI_MEDIA_OMNI_FALLBACK_TO_VEO` — secours par scène activé par défaut ; `false` le désactive ;
 - `AI_MEDIA_VEO_MODEL` — surcharge optionnelle, valeur par défaut `veo-3.1-fast-generate-preview`.
 - `AI_MEDIA_VEO_FALLBACK_MODELS` — chaîne de secours, valeur par défaut `veo-3.1-lite-generate-preview` ; une chaîne vide désactive explicitement le secours.
 
-Sans surcharge, le serveur utilise `openai/gpt-image-2` pour l’image, `veo-3.1-fast-generate-preview` pour les plans vidéo et `gemini-3.1-flash-tts-preview` pour la voix off. Vérifier la tarification officielle des fournisseurs avant chaque promotion ; ne pas remplacer un modèle sans refaire les smokes de format, durée, coût et sécurité.
+Sans surcharge, le serveur utilise `openai/gpt-image-2` pour l’image, `gemini-omni-1.1-flash` pour les plans rapides, `veo-3.1-fast-generate-preview` pour le mode cinématographique et `gemini-3.1-flash-tts-preview` pour la voix off. Veo Standard n’est pas utilisé. Vérifier la tarification officielle des fournisseurs avant chaque promotion ; ne pas remplacer un modèle sans refaire les smokes de format, durée, coût et sécurité.
 
 Le bucket privé et les URL signées protègent la médiathèque iNrCy, mais ne changent pas la politique de conservation du fournisseur IA. Au moment de ce lot, la fiche Gateway de GPT Image 2 n’annonce pas de Zero Data Retention. Valider le cadre contractuel et l’information fournie aux pros avant activation ; le registre iNrCy ne conserve volontairement que la version et l’empreinte SHA-256 du prompt compilé, pas son texte intégral.
 
@@ -166,13 +168,13 @@ Les anciens noms `AI_MEDIA_IMAGE_MODEL` et `AI_MEDIA_VIDEO_MODEL` ne font pas pa
 
 Le runtime possède des valeurs conservatrices par défaut. Les surcharges suivantes ne doivent être utilisées qu’après calibration en Preview :
 
-- `AI_MEDIA_IMAGE_COST_MICRO_USD`, les coûts Veo par modèle (`AI_MEDIA_VEO_FAST_COST_MICRO_USD_PER_SECOND`, `AI_MEDIA_VEO_LITE_COST_MICRO_USD_PER_SECOND`, `AI_MEDIA_VEO_STANDARD_COST_MICRO_USD_PER_SECOND`) et `AI_MEDIA_TTS_COST_MICRO_USD` : réservations de coût estimé pour les garde-fous ; `AI_MEDIA_VEO_COST_MICRO_USD_PER_SECOND` reste l’alias historique du coût Fast ;
+- `AI_MEDIA_IMAGE_COST_MICRO_USD`, `AI_MEDIA_OMNI_COST_MICRO_USD_PER_SECOND`, les coûts Veo par modèle (`AI_MEDIA_VEO_FAST_COST_MICRO_USD_PER_SECOND`, `AI_MEDIA_VEO_LITE_COST_MICRO_USD_PER_SECOND`, `AI_MEDIA_VEO_STANDARD_COST_MICRO_USD_PER_SECOND`) et `AI_MEDIA_TTS_COST_MICRO_USD` : réservations de coût estimé pour les garde-fous ; `AI_MEDIA_VEO_COST_MICRO_USD_PER_SECOND` reste l’alias historique du coût Fast ;
 - `AI_MEDIA_IMAGE_TIMEOUT_MS` et `AI_MEDIA_VIDEO_TIMEOUT_MS` : délais maximums, bornés côté serveur.
-- `AI_MEDIA_VEO_POLL_MS` et `AI_MEDIA_VEO_CONCURRENCY` : polling et concurrence Veo, à calibrer d’abord en Preview ;
+- `AI_MEDIA_OMNI_CONCURRENCY`, `AI_MEDIA_VEO_POLL_MS` et `AI_MEDIA_VEO_CONCURRENCY` : concurrence/polling, à calibrer d’abord en Preview ;
 - `AI_MEDIA_TTS_MODEL`, `AI_MEDIA_TTS_VOICE` et `AI_MEDIA_TTS_TIMEOUT_MS` : réglages optionnels de la voix off.
 - `AI_GATEWAY_MAX_COST_MICRO_USD_PER_ACCOUNT_DAY` : le défaut du code est `20000000`. Toute valeur Vercel existante surcharge ce défaut et doit rester au moins à `20000000` pour ne pas bloquer un Premium qui utilise légitimement 6 vidéos et 30 images le même jour.
 
-Les coûts par défaut sont `100000` micro-USD/s pour Fast, `50000` pour Lite et `400000` pour le modèle standard. Une vidéo Fast de 8, 16 ou 24 secondes coûte donc environ 0,80, 1,60 ou 2,40 USD. Le garde-fou réserve le candidat configuré le plus cher puis comptabilise le modèle réellement utilisé. Une valeur trop basse affaiblit le coupe-circuit économique ; documenter toute modification après contrôle du tarif officiel Google.
+Les coûts par défaut sont `100000` micro-USD/s pour Omni 720p et Fast, `50000` pour Lite et `400000` pour le modèle Standard non utilisé. Une vidéo Omni ou Fast de 8, 16 ou 24 secondes coûte donc environ 0,80, 1,60 ou 2,40 USD. Chaque moteur réserve puis comptabilise uniquement les scènes réellement produites ; aucun second moteur n’est lancé pour remplacer une scène déjà facturable. Une valeur trop basse affaiblit le coupe-circuit économique ; documenter toute modification après contrôle du tarif officiel Google.
 
 ### Portée Vercel
 
@@ -337,7 +339,7 @@ Le rollback privilégié est applicatif et non destructif.
 2. Laisser les tables et le ledger SQL en place. La migration est additive ; les conserver protège l’audit, l’idempotence et les compteurs déjà consommés.
 3. Laisser les médias déjà créés dans la médiathèque privée. Ils appartiennent au pro et leur suppression n’est pas un rollback technique.
 4. Laisser expirer les réservations en cours ou les terminer avec la RPC `fail_ai_media_generation`. Ne jamais décrémenter `reserved_count` manuellement.
-5. Retirer les overrides `AI_GATEWAY_IMAGE_MODEL`, `AI_MEDIA_VIDEO_PROVIDER` et `AI_MEDIA_VEO_MODEL` seulement après retour au build précédent. Ne supprimer ni la clé Gateway ni `GEMINI_API_KEY` si le build restauré les utilise encore.
+5. Pour un rollback moteur immédiat sans changer de build, fixer `AI_MEDIA_VIDEO_PROVIDER=google-veo-fast`, puis redéployer. Pour revenir intégralement à l’état pré-Omni, utiliser la branche `backup-pre-omni-flash-20260902`. Ne supprimer ni la clé Gateway ni `GEMINI_API_KEY` si le build restauré les utilise encore.
 6. Vérifier qu’aucun job n’est bloqué et que les deux requêtes d’intégrité retournent zéro ligne.
 
 Ne pas exécuter de `drop table`, ne pas vider le ledger et ne pas supprimer en masse les objets Storage pendant un incident. Si une suppression définitive du schéma devient juridiquement ou techniquement nécessaire, préparer une migration distincte après export, délai de rétention, analyse des clés étrangères et validation humaine. Ce runbook ne contient volontairement aucun SQL destructif.

@@ -234,7 +234,7 @@ function adultSafePromptText(value: unknown, max: number) {
   );
 }
 
-function safetyFallbackPrompt(prompt: string) {
+export function buildGoogleVideoSafetyFallbackPrompt(prompt: string) {
   const withoutReferenceInstructions = prompt
     .replace(
       /Animate the supplied initial image naturally\.[^.]*\.[^.]*\./i,
@@ -393,7 +393,7 @@ function conciseVisualDirection(
   );
 }
 
-function scenePrompt(
+export function buildGoogleVideoScenePrompt(
   args: AiVideoProviderGenerationArgs,
   index: number,
   durationSeconds: 4 | 6 | 8
@@ -665,14 +665,14 @@ async function generateClip(args: {
             { prompt: args.prompt, inspirationImages },
             { prompt: args.prompt, inspirationImages: [] },
             {
-              prompt: safetyFallbackPrompt(args.prompt),
+              prompt: buildGoogleVideoSafetyFallbackPrompt(args.prompt),
               inspirationImages: [],
             },
           ]
         : [
             { prompt: args.prompt, inspirationImages: [] },
             {
-              prompt: safetyFallbackPrompt(args.prompt),
+              prompt: buildGoogleVideoSafetyFallbackPrompt(args.prompt),
               inspirationImages: [],
             },
           ];
@@ -861,7 +861,7 @@ export const googleVeoVideoProvider: AiVideoProvider = {
             const clip = await generateClip({
               ai,
               models: orderedModels,
-              prompt: scenePrompt(args, index, durationSeconds),
+              prompt: buildGoogleVideoScenePrompt(args, index, durationSeconds),
               durationSeconds,
               aspectRatio: aspectRatio(args.request.format),
               inspirationImages:

@@ -329,10 +329,10 @@ export async function generateAndSaveAiMedia(args: {
       return minimalOverlaysTask;
     };
 
-    // Le chemin critique commence immédiatement : Veo, la voix, la musique et
+    // Le chemin critique commence immédiatement : le moteur vidéo choisi, la voix, la musique et
     // les calques sont indépendants et sont donc préparés en parallèle. La
     // qualité nominale reste identique, mais les temps ne s'additionnent plus.
-    const videoGatewayTask = measure("veo_generation", () =>
+    const videoGatewayTask = measure("video_generation", () =>
       generateOriginalAiVideoClips({
         accountId: args.accountId,
         request: args.request,
@@ -594,6 +594,7 @@ export async function generateAndSaveAiMedia(args: {
           creativity: args.request.creativity,
           use_brand_colors: args.request.useBrandColors,
           logo_mode: args.request.logoMode,
+          video_engine: args.request.videoEngine,
           duration_seconds: args.request.durationSeconds,
           inspiration_image_count: args.request.inspirationImages.length,
           inspiration_image_sha256: args.request.inspirationImages.map((image) =>

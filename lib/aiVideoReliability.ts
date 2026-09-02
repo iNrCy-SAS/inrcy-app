@@ -170,28 +170,28 @@ export function classifyVeoFailure(error: unknown): VeoFailureClassification {
   ) {
     kind = "cancelled";
   } else if (
-    /ai_video_veo_safety_filtered|rai_media|responsible ai|safety filter|blockedreason|content policy|prohibited content/.test(
+    /ai_video_(?:veo|omni)_safety_filtered|rai_media|responsible ai|safety filter|blockedreason|content policy|prohibited content/.test(
       normalized,
     )
   ) {
     kind = "safety";
   } else if (
     status === 401 ||
-    /ai_video_veo_credentials_rejected|unauthenticated|invalid api key|api key not valid|api key was reported as leaked/.test(
+    /ai_video_(?:veo|omni)_credentials_rejected|unauthenticated|invalid api key|api key not valid|api key was reported as leaked/.test(
       normalized,
     )
   ) {
     kind = "authentication";
   } else if (
     status === 403 ||
-    /ai_video_veo_permission_denied|permission_denied|permission denied/.test(
+    /ai_video_(?:veo|omni)_permission_denied|permission_denied|permission denied/.test(
       normalized,
     )
   ) {
     kind = "permission";
   } else if (
     status === 429 ||
-    /ai_video_veo_rate_limited|resource_exhausted|rate.?limit|too many requests/.test(
+    /ai_video_(?:veo|omni)_rate_limited|resource_exhausted|rate.?limit|too many requests/.test(
       normalized,
     )
   ) {
@@ -204,7 +204,7 @@ export function classifyVeoFailure(error: unknown): VeoFailureClassification {
     kind = "timeout";
   } else if (
     status === 404 ||
-    /ai_video_veo_model_unavailable|not_found|not found|model.+(?:does not exist|is not available)/.test(
+    /ai_video_(?:veo|omni)_model_unavailable|not_found|not found|model.+(?:does not exist|is not available)/.test(
       normalized,
     )
   ) {
@@ -212,20 +212,20 @@ export function classifyVeoFailure(error: unknown): VeoFailureClassification {
   } else if (
     status === 400 ||
     status === 422 ||
-    /ai_video_veo_configuration_rejected|invalid_argument|bad request|unsupported parameter|not supported/.test(
+    /ai_video_(?:veo|omni)_configuration_rejected|invalid_argument|bad request|unsupported parameter|not supported/.test(
       normalized,
     )
   ) {
     kind = "invalid_argument";
   } else if (
     [500, 502, 503].includes(status) ||
-    /ai_video_veo_unavailable|\bunavailable\b|internal_server_error|internal error|bad gateway|backend error|service unavailable/.test(
+    /ai_video_(?:veo|omni)_unavailable|\bunavailable\b|internal_server_error|internal error|bad gateway|backend error|service unavailable/.test(
       normalized,
     )
   ) {
     kind = "unavailable";
   } else if (
-    /ai_video_veo_network_failed|fetch failed|network error|econnreset|econnrefused|enotfound|socket hang up|connection reset|connection closed/.test(
+    /ai_video_(?:veo|omni)_network_failed|fetch failed|network error|econnreset|econnrefused|enotfound|socket hang up|connection reset|connection closed/.test(
       normalized,
     )
   ) {

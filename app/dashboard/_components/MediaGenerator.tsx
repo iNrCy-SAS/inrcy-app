@@ -19,6 +19,7 @@ import useMediaGeneration, {
   type MediaGenerationSubjectSource,
   type MediaGenerationTypology,
   type MediaGenerationVideoDuration,
+  type MediaGenerationVideoEngine,
   type MediaGenerationVisualStyle,
 } from "@/app/dashboard/_hooks/useMediaGeneration";
 import MediaSubjectVoiceButton from "./MediaSubjectVoiceButton";
@@ -245,6 +246,8 @@ export default function MediaGenerator({
   const [logoMode, setLogoMode] = useState<MediaGenerationLogoMode>("discreet");
   const [durationSeconds, setDurationSeconds] =
     useState<MediaGenerationVideoDuration>(8);
+  const [videoEngine, setVideoEngine] =
+    useState<MediaGenerationVideoEngine>("omni");
   const [withText, setWithText] = useState(true);
   const [textKeywords, setTextKeywords] = useState<string[]>([]);
   const [textKeywordDraft, setTextKeywordDraft] = useState("");
@@ -400,6 +403,7 @@ export default function MediaGenerator({
         creativity,
         useBrandColors,
         logoMode,
+        videoEngine: kind === "video" ? videoEngine : undefined,
         durationSeconds: kind === "video" ? durationSeconds : undefined,
         inspirationImages: kind === "video" ? inspirationImages : [],
       });
@@ -1113,6 +1117,31 @@ export default function MediaGenerator({
           </button>
           {expandedStep === 6 ? <div className={styles.collapsibleBody}>
             {kind === "video" ? (
+              <div className={styles.videoEngineGroup}>
+                <span>{t("ai_generator_video_engine_title")}</span>
+                <div
+                  className={styles.videoEngineChoices}
+                  role="radiogroup"
+                  aria-label={t("ai_generator_video_engine_title")}
+                >
+                  {(["omni", "veo"] as const).map((engine) => (
+                    <button
+                      key={engine}
+                      type="button"
+                      role="radio"
+                      aria-checked={videoEngine === engine}
+                      className={videoEngine === engine ? styles.compactChoiceActive : ""}
+                      onClick={() => setVideoEngine(engine)}
+                      disabled={operationLocked}
+                    >
+                      <strong>{t(`ai_generator_video_engine_${engine}`)}</strong>
+                      <small>{t(`ai_generator_video_engine_${engine}_hint`)}</small>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {kind === "video" ? (
               <div className={styles.durationChoices} role="radiogroup" aria-label={t("ai_generator_duration_title")}>
                 {([8, 16, 24] as const).map((duration) => {
                   const premiumLocked = duration > videoMaxDurationSeconds;
@@ -1229,6 +1258,15 @@ export default function MediaGenerator({
         </section>
       </div>
 
+      {videoPremiumRequired ? (
+        <div className={styles.warning} role="status">
+          {t("ai_generator_video_premium_required")}
+        </div>
+      ) : exhausted ? (
+        <div className={styles.warning} role="status">{t("ai_generator_quota_reached")}</div>
+      ) : null}
+      {actionError || error ? <div className={styles.error} role="alert">{actionError || error}</div> : null}
+
       <div className={styles.footerBar}>
         <div className={styles.quotaCard}>
           <span>{t(kind === "image" ? "ai_generator_image_quota" : "ai_generator_video_quota")}</span>
@@ -1250,14 +1288,6 @@ export default function MediaGenerator({
         </button>
       </div>
 
-      {videoPremiumRequired ? (
-        <div className={styles.warning} role="status">
-          {t("ai_generator_video_premium_required")}
-        </div>
-      ) : exhausted ? (
-        <div className={styles.warning} role="status">{t("ai_generator_quota_reached")}</div>
-      ) : null}
-      {actionError || error ? <div className={styles.error} role="alert">{actionError || error}</div> : null}
     </div>
   );
 }

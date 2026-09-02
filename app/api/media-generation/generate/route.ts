@@ -109,11 +109,13 @@ function safeFailureDetails(error: unknown) {
 
 function veoSafetyReason(error: unknown) {
   const message = error instanceof Error ? error.message : String(error || "");
-  const marker = "ai_video_veo_safety_filtered:";
-  const markerIndex = message.indexOf(marker);
-  if (markerIndex < 0) return "";
+  const marker = [
+    "ai_video_omni_safety_filtered:",
+    "ai_video_veo_safety_filtered:",
+  ].find((candidate) => message.includes(candidate));
+  if (!marker) return "";
   return message
-    .slice(markerIndex + marker.length)
+    .slice(message.indexOf(marker) + marker.length)
     .replace(/[\u0000-\u001f\u007f]/g, " ")
     .replace(/\s+/g, " ")
     .trim()
@@ -201,6 +203,9 @@ function publicGenerationError(error: unknown) {
   }
   if (
     message.includes("ai_gateway_credentials_missing") ||
+    message.includes("ai_video_omni_credentials_missing") ||
+    message.includes("ai_video_omni_credentials_rejected") ||
+    message.includes("ai_video_omni_permission_denied") ||
     message.includes("ai_video_veo_credentials_missing") ||
     message.includes("ai_video_veo_credentials_rejected") ||
     message.includes("ai_video_veo_permission_denied")
@@ -213,7 +218,10 @@ function publicGenerationError(error: unknown) {
       retryAfterSeconds: 60,
     });
   }
-  if (message.includes("ai_video_veo_rate_limited")) {
+  if (
+    message.includes("ai_video_omni_rate_limited") ||
+    message.includes("ai_video_veo_rate_limited")
+  ) {
     return jsonError({
       status: 429,
       code: "AI_MEDIA_VIDEO_CAPACITY_REACHED",
@@ -226,6 +234,7 @@ function publicGenerationError(error: unknown) {
     message.includes("TimeoutError") ||
     message.includes("AbortError") ||
     message.includes("timed out") ||
+    message.includes("ai_video_omni_timeout") ||
     message.includes("ai_video_veo_timeout")
   ) {
     return jsonError({
@@ -235,14 +244,20 @@ function publicGenerationError(error: unknown) {
       retryAfterSeconds: 30,
     });
   }
-  if (message.includes("ai_video_veo_safety_filtered")) {
+  if (
+    message.includes("ai_video_omni_safety_filtered") ||
+    message.includes("ai_video_veo_safety_filtered")
+  ) {
     return jsonError({
       status: 422,
       code: "AI_MEDIA_VIDEO_SAFETY_FILTERED",
       message: publicVeoSafetyMessage(error),
     });
   }
-  if (message.includes("ai_video_veo_video_missing")) {
+  if (
+    message.includes("ai_video_omni_video_missing") ||
+    message.includes("ai_video_veo_video_missing")
+  ) {
     return jsonError({
       status: 502,
       code: "AI_MEDIA_VIDEO_FILE_MISSING",
@@ -251,6 +266,9 @@ function publicGenerationError(error: unknown) {
     });
   }
   if (
+    message.includes("ai_video_omni_unavailable") ||
+    message.includes("ai_video_omni_network_failed") ||
+    message.includes("ai_video_omni_model_unavailable") ||
     message.includes("ai_video_veo_unavailable") ||
     message.includes("ai_video_veo_network_failed") ||
     message.includes("ai_video_veo_model_unavailable")
@@ -264,6 +282,8 @@ function publicGenerationError(error: unknown) {
     });
   }
   if (
+    message.includes("ai_video_omni_configuration_rejected") ||
+    message.includes("ai_video_omni_model_invalid") ||
     message.includes("ai_video_veo_configuration_rejected") ||
     message.includes("ai_video_veo_model_invalid")
   ) {
@@ -275,6 +295,9 @@ function publicGenerationError(error: unknown) {
     });
   }
   if (
+    message.includes("ai_video_omni_download_failed") ||
+    message.includes("ai_video_omni_clip_not_mp4") ||
+    message.includes("ai_video_omni_clip_too_large") ||
     message.includes("ai_video_veo_download_failed") ||
     message.includes("ai_video_veo_clip_not_mp4") ||
     message.includes("ai_video_veo_clip_too_large")
@@ -287,6 +310,9 @@ function publicGenerationError(error: unknown) {
     });
   }
   if (
+    message.includes("ai_video_omni_clip_empty") ||
+    message.includes("ai_video_omni_interaction_id_missing") ||
+    message.includes("ai_video_omni_clip_set_incomplete") ||
     message.includes("ai_video_veo_clip_empty") ||
     message.includes("ai_video_veo_operation_id_missing") ||
     message.includes("ai_video_veo_clip_set_incomplete") ||
@@ -337,7 +363,7 @@ function inspirationImageSha256(request: AiMediaGenerationRequest) {
 
 function generationFingerprint(request: AiMediaGenerationRequest) {
   return createAiMediaRequestFingerprint({
-    contract: "inrcy-ai-media-generation-v8-veo-controlled-voiceover",
+    contract: "inrcy-ai-media-generation-v9-omni-veo-controlled-voiceover",
     promptVersion: AI_MEDIA_PROMPT_VERSION,
     kind: request.kind,
     subjectSource: request.subjectSource,
@@ -355,6 +381,7 @@ function generationFingerprint(request: AiMediaGenerationRequest) {
     creativity: request.creativity,
     useBrandColors: request.useBrandColors,
     logoMode: request.logoMode,
+    videoEngine: request.videoEngine,
     durationSeconds: request.durationSeconds,
     inspirationImageSha256: inspirationImageSha256(request),
     source: request.source,
@@ -494,6 +521,7 @@ export async function POST(request: Request) {
         creativity: normalizedRequest.creativity,
         use_brand_colors: normalizedRequest.useBrandColors,
         logo_mode: normalizedRequest.logoMode,
+        video_engine: normalizedRequest.videoEngine,
         duration_seconds: normalizedRequest.durationSeconds,
         inspiration_image_count: normalizedRequest.inspirationImages.length,
         inspiration_image_sha256: inspirationImageSha256(normalizedRequest),
