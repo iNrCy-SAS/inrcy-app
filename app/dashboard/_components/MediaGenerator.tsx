@@ -1253,19 +1253,26 @@ export default function MediaGenerator({
       {actionError || error ? <div className={styles.error} role="alert">{actionError || error}</div> : null}
 
       <div className={styles.footerBar}>
-        <div className={styles.quotaCard}>
-          <span>{t(kind === "image" ? "ai_generator_image_quota" : "ai_generator_video_quota")}</span>
-          <strong>{quotaValue}</strong>
-          <small>
-            {videoPremiumRequired
-              ? t("ai_generator_video_premium_required")
-              : quota?.unlimited
-              ? t("ai_generator_unlimited")
-              : counter?.remaining !== null && counter
-              ? t("ai_generator_remaining", { count: counter.remaining })
-              : t("ai_generator_monthly_quota")}
-            {resetDate ? ` · ${t("ai_generator_reset", { date: resetDate })}` : ""}
-          </small>
+        <div className={styles.quotaCard} data-kind={kind}>
+          <span className={styles.quotaIcon} aria-hidden="true">
+            {kind === "image" ? "▣" : "▶"}
+          </span>
+          <div className={styles.quotaCopy}>
+            <div className={styles.quotaHeadline}>
+              <span>{t(kind === "image" ? "ai_generator_image_quota" : "ai_generator_video_quota")}</span>
+              <strong>{quotaValue}</strong>
+            </div>
+            <small>
+              {videoPremiumRequired
+                ? t("ai_generator_video_premium_required")
+                : quota?.unlimited
+                  ? t("ai_generator_unlimited")
+                  : counter?.remaining !== null && counter
+                    ? t("ai_generator_remaining", { count: counter.remaining })
+                    : t("ai_generator_monthly_quota")}
+              {resetDate ? ` · ${t("ai_generator_reset", { date: resetDate })}` : ""}
+            </small>
+          </div>
         </div>
         {kind === "video" ? (
           <div className={styles.footerEnginePicker}>
@@ -1295,7 +1302,7 @@ export default function MediaGenerator({
         ) : null}
         <button type="button" className={styles.generateButton} disabled={disabled} onClick={() => void handleGenerate()}>
           <span aria-hidden="true">✦</span>
-          {t("ai_generator_generate_media")}
+          {t(kind === "image" ? "ai_generator_generate_image" : "ai_generator_generate_video")}
         </button>
       </div>
 

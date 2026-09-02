@@ -406,7 +406,7 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   assert.match(omni, /state === "ACTIVE"/);
   assert.match(omni, /AI_MEDIA_OMNI_FILE_POLL_MS/);
   assert.match(omni, /background: false/);
-  assert.match(omni, /store: false/);
+  assert.match(omni, /store: true/);
   assert.match(omni, /stream: false/);
   assert.match(omni, /DEFAULT_CONCURRENCY = 3/);
   assert.match(omni, /AI_MEDIA_OMNI_CONCURRENCY/);

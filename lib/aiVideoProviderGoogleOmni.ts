@@ -405,7 +405,10 @@ async function generateClip(args: {
                 delivery: "uri",
               },
               background: false,
-              store: false,
+              // Gemini requires stored interactions when a generated video is
+              // delivered through the Files API. Sending `store: false` with
+              // `delivery: "uri"` is rejected with HTTP 400 before generation.
+              store: true,
               stream: false,
             },
             {
@@ -605,6 +608,15 @@ export const googleOmniVideoProvider: AiVideoProvider = {
                   ) || "output_processing_failed"}`,
                 )
               : error;
+            const omniFailure = classifyVeoFailure(effectiveError);
+            console.warn("[ai-media] Omni scene failed", {
+              scene: index + 1,
+              durationSeconds,
+              model,
+              billableOutputExists: sceneBillable,
+              failureKind: omniFailure.kind,
+              details: compact(omniFailure.details, 500),
+            });
             if (
               durationSeconds === 8 &&
               veoFallbackEnabled() &&
@@ -633,6 +645,7 @@ export const googleOmniVideoProvider: AiVideoProvider = {
                 fallbackCostMicroUsd += fallback.estimatedCostMicroUsd;
                 fallbackModels.add(fallback.model);
                 providerWarnings.push(
+                  `omni_scene_failure:${index + 1}:${omniFailure.kind}`,
                   `omni_scene_fallback_to_veo:${index + 1}`,
                   ...fallback.warnings,
                 );
