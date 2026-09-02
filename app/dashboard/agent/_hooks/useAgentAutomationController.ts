@@ -12,6 +12,10 @@ import {
   sanitizeInrAgentSettings,
   type InrAgentSettings,
 } from "@/lib/inrAgentSettings";
+import {
+  inrAgentMonthlyDateCount,
+  normalizeInrAgentMonthDays,
+} from "@/lib/inrAgentMonthSchedule";
 import type {
   AutomationConfig,
   AutomationKey,
@@ -117,12 +121,17 @@ export function useAgentAutomationController({
         frequency,
         scheduleSlots: currentConfig.scheduleSlots?.slice(0, 1),
       });
+      const monthDays = normalizeInrAgentMonthDays(
+        currentConfig.monthDays,
+        frequency,
+      );
       return {
         ...current,
         [key]: {
           ...currentConfig,
           frequency,
           scheduleSlots: normalizedSlots,
+          monthDays,
           day: normalizedSlots[0].day,
           time: normalizedSlots[0].time,
         },
@@ -147,6 +156,36 @@ export function useAgentAutomationController({
           ...currentConfig,
           scheduleSlots: slots,
           ...(index === 0 ? { day: slots[0].day, time: slots[0].time } : {}),
+        },
+      };
+    });
+    setSaveState("idle");
+    setNotice(null);
+  }
+
+  function updateConfigMonthDay(
+    key: AutomationKey,
+    index: number,
+    value: number,
+  ) {
+    setConfigs((current) => {
+      const currentConfig = current[key];
+      const count = inrAgentMonthlyDateCount(currentConfig.frequency);
+      if (!count || index < 0 || index >= count) return current;
+      const monthDays = normalizeInrAgentMonthDays(
+        currentConfig.monthDays,
+        currentConfig.frequency,
+      );
+      const day = Math.min(31, Math.max(1, Math.floor(Number(value)) || 1));
+      if (monthDays.some((candidate, itemIndex) => itemIndex !== index && candidate === day)) {
+        return current;
+      }
+      monthDays[index] = day;
+      return {
+        ...current,
+        [key]: {
+          ...currentConfig,
+          monthDays: monthDays.sort((a, b) => a - b),
         },
       };
     });
@@ -518,6 +557,7 @@ export function useAgentAutomationController({
     updateConfig,
     updateConfigFrequency,
     updateConfigScheduleSlot,
+    updateConfigMonthDay,
     saveSettings,
     testAutomationNow,
     confirmPrepareNowReplacement,

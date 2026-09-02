@@ -6,6 +6,10 @@ import {
   type InrAgentSettings,
   type InrAgentTheme,
 } from "@/lib/inrAgentSettings";
+import {
+  inrAgentMonthlyDateCount,
+  normalizeInrAgentMonthDays,
+} from "@/lib/inrAgentMonthSchedule";
 import type {
   ChannelKey as BoosterChannelKey,
   BoosterCtaMode,
@@ -390,6 +394,10 @@ export function settingsToConfigs(
           source.time || defaults.time,
           frequency,
         ),
+        monthDays: normalizeInrAgentMonthDays(
+          source.metadata?.monthDays,
+          frequency,
+        ),
         channels: orderChannels(
           source.allowedChannels
             .map((channel) => apiToChannel[channel])
@@ -437,6 +445,8 @@ export function configToAutomationSettings(
   const normalizedSlots = normalizeConfigScheduleSlots(config);
   const metadataWithoutScheduleSlots = { ...(existing.metadata || {}) };
   delete metadataWithoutScheduleSlots.scheduleSlots;
+  delete metadataWithoutScheduleSlots.monthDays;
+  const monthlyDateCount = inrAgentMonthlyDateCount(frequency);
   const nextMetadata = {
     ...metadataWithoutScheduleSlots,
     preferredMediaSource: config.preferredMediaSource,
@@ -452,6 +462,11 @@ export function configToAutomationSettings(
           })),
         }
       : {}),
+    ...(monthlyDateCount
+      ? {
+          monthDays: normalizeInrAgentMonthDays(config.monthDays, frequency),
+        }
+      : {}),
   };
 
   return {
@@ -460,7 +475,9 @@ export function configToAutomationSettings(
     frequency,
     dayOfWeek:
       dayToApi[normalizedSlots[0]?.day || config.day] ?? existing.dayOfWeek,
-    time: normalizedSlots[0]?.time || config.time,
+    time: monthlyDateCount
+      ? config.time
+      : normalizedSlots[0]?.time || config.time,
     validationMode: optionValue(
       options.validation,
       config.validation,

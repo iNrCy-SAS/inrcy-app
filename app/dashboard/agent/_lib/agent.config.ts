@@ -388,6 +388,7 @@ export const defaultConfigs: Record<AutomationKey, AutomationConfig> = {
       { day: "Lundi", time: "09:00" },
       { day: "Jeudi", time: "09:00" },
     ],
+    monthDays: [10],
     channels: [
       "siteInrcy",
       "siteWeb",
@@ -415,6 +416,7 @@ export const defaultConfigs: Record<AutomationKey, AutomationConfig> = {
       { day: "Mercredi", time: "10:00" },
       { day: "Samedi", time: "10:00" },
     ],
+    monthDays: [10, 20],
     channels: ["mails"],
     themes: ["Valoriser", "Récolter", "Offrir"],
     validation: "Validation obligatoire avant envoi",
@@ -431,6 +433,7 @@ export const defaultConfigs: Record<AutomationKey, AutomationConfig> = {
       { day: "Vendredi", time: "09:30" },
       { day: "Lundi", time: "09:30" },
     ],
+    monthDays: [10],
     channels: ["mails"],
     themes: ["Informer", "Enquêter", "Suivre"],
     validation: "Validation obligatoire avant envoi",
@@ -447,6 +450,7 @@ export const defaultConfigs: Record<AutomationKey, AutomationConfig> = {
       { day: "Lundi", time: "08:30" },
       { day: "Jeudi", time: "08:30" },
     ],
+    monthDays: [10],
     channels: [],
     themes: [
       "Vue globale",

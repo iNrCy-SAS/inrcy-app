@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 import { buildInternalCronHeaders, getAppOriginFromRequest, isAuthorizedCronRequest } from "@/lib/cronAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import type { InrAgentAutomationKey, InrAgentFrequency } from "@/lib/inrAgentSettings";
+import {
+  inrAgentMonthlyDateCount,
+  inrAgentMonthlyOccurrenceIndex,
+  isInrAgentScheduledMonthDay,
+  normalizeInrAgentMonthDays,
+} from "@/lib/inrAgentMonthSchedule";
 import { getDashboardEditionsForAccountIds } from "@/lib/dashboardEditionServer";
 import { isStandardAgentAutomationKey } from "@/lib/standardAgentPolicy";
 
@@ -153,32 +159,34 @@ function isFirstScheduledWeekdayOfMonth(local: ReturnType<typeof getLocalParts>,
   return local.weekday === dayOfWeek && local.day <= 7;
 }
 
-function isThirdScheduledWeekdayOfMonth(local: ReturnType<typeof getLocalParts>, dayOfWeek: number) {
-  return local.weekday === dayOfWeek && local.day >= 15 && local.day <= 21;
-}
-
-function isSecondScheduledWeekdayOfMonth(local: ReturnType<typeof getLocalParts>, dayOfWeek: number) {
-  return local.weekday === dayOfWeek && local.day >= 8 && local.day <= 14;
-}
-
-function isScheduledDate(local: ReturnType<typeof getLocalParts>, frequency: InrAgentFrequency, dayOfWeek: number) {
+function isScheduledDate(
+  local: ReturnType<typeof getLocalParts>,
+  frequency: InrAgentFrequency,
+  dayOfWeek: number,
+  monthDays: number[],
+) {
+  if (inrAgentMonthlyDateCount(frequency)) {
+    return isInrAgentScheduledMonthDay(local, monthDays);
+  }
   if (frequency === "twice_weekly" || frequency === "three_times_weekly") return local.weekday === dayOfWeek;
-  if (frequency === "biweekly") return isFirstScheduledWeekdayOfMonth(local, dayOfWeek) || isThirdScheduledWeekdayOfMonth(local, dayOfWeek);
-  if (frequency === "three_times_monthly") return isFirstScheduledWeekdayOfMonth(local, dayOfWeek) || isSecondScheduledWeekdayOfMonth(local, dayOfWeek) || isThirdScheduledWeekdayOfMonth(local, dayOfWeek);
-  if (frequency === "monthly") return isFirstScheduledWeekdayOfMonth(local, dayOfWeek);
   if (frequency === "quarterly") return [1, 4, 7, 10].includes(local.month) && isFirstScheduledWeekdayOfMonth(local, dayOfWeek);
   return local.weekday === dayOfWeek;
 }
 
-function localBucket(date: Date, timeZone: string, frequency: InrAgentFrequency) {
+function localBucket(
+  date: Date,
+  timeZone: string,
+  frequency: InrAgentFrequency,
+  monthDays: number[],
+) {
   const local = getLocalParts(date, timeZone);
   const y = String(local.year);
   const m = String(local.month).padStart(2, "0");
   const d = String(local.day).padStart(2, "0");
-  if (frequency === "monthly") return `${y}-${m}`;
+  if (inrAgentMonthlyDateCount(frequency)) {
+    return `${y}-${m}-M${inrAgentMonthlyOccurrenceIndex(local, monthDays) + 1}`;
+  }
   if (frequency === "quarterly") return `${y}-Q${Math.floor((local.month - 1) / 3) + 1}`;
-  if (frequency === "biweekly") return `${y}-${m}-${local.day <= 14 ? "H1" : "H2"}`;
-  if (frequency === "three_times_monthly") return `${y}-${m}-M${local.day <= 7 ? "1" : local.day <= 14 ? "2" : "3"}`;
   return `${y}-${m}-${d}`;
 }
 
@@ -194,6 +202,10 @@ function isDue(row: AutomationRow, now: Date, timeZone: string) {
   if (Number.isFinite(nextRun)) return nextRun <= now.getTime();
 
   const frequency = normalizeFrequency(row.frequency);
+  const monthDays = normalizeInrAgentMonthDays(
+    asRecord(row.metadata).monthDays,
+    frequency,
+  );
   if (frequency === "one_off" && referenceDate(row)) return false;
 
   const local = getLocalParts(now, timeZone);
@@ -202,13 +214,13 @@ function isDue(row: AutomationRow, now: Date, timeZone: string) {
   const matchingSlot = slots.some((slot) => {
     const schedule = timeParts(slot.time);
     const minuteSchedule = schedule.hour * 60 + schedule.minute;
-    return minuteNow >= minuteSchedule && isScheduledDate(local, frequency, slot.dayOfWeek);
+    return minuteNow >= minuteSchedule && isScheduledDate(local, frequency, slot.dayOfWeek, monthDays);
   });
   if (!matchingSlot) return false;
 
   const ref = referenceDate(row);
   if (!ref) return true;
-  return localBucket(ref, timeZone, frequency) !== localBucket(now, timeZone, frequency);
+  return localBucket(ref, timeZone, frequency, monthDays) !== localBucket(now, timeZone, frequency, monthDays);
 }
 
 function computeNextRunAt(row: AutomationRow, after: Date, timeZone: string) {
@@ -217,6 +229,10 @@ function computeNextRunAt(row: AutomationRow, after: Date, timeZone: string) {
 
   const start = getLocalParts(new Date(after.getTime() + 60 * 1000), timeZone);
   const slots = normalizeScheduleSlots(row, frequency);
+  const monthDays = normalizeInrAgentMonthDays(
+    asRecord(row.metadata).monthDays,
+    frequency,
+  );
   for (let offset = 0; offset <= 110; offset += 1) {
     const localDate = addLocalDays(start, offset);
     const candidates = slots
@@ -225,7 +241,7 @@ function computeNextRunAt(row: AutomationRow, after: Date, timeZone: string) {
         const candidateUtc = zonedTimeToUtc({ ...localDate, ...schedule }, timeZone);
         if (candidateUtc.getTime() <= after.getTime()) return null;
         const candidateLocal = getLocalParts(candidateUtc, timeZone);
-        return isScheduledDate(candidateLocal, frequency, slot.dayOfWeek) ? candidateUtc : null;
+        return isScheduledDate(candidateLocal, frequency, slot.dayOfWeek, monthDays) ? candidateUtc : null;
       })
       .filter((candidate): candidate is Date => Boolean(candidate))
       .sort((a, b) => a.getTime() - b.getTime());

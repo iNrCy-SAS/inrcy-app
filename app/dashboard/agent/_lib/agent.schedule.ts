@@ -1,4 +1,9 @@
 import { INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT } from "@/lib/mediaRules";
+import {
+  inrAgentMonthlyDateCount,
+  isInrAgentScheduledMonthDay,
+  normalizeInrAgentMonthDays,
+} from "@/lib/inrAgentMonthSchedule";
 import type {
   ChannelKey as BoosterChannelKey,
   BoosterCtaMode,
@@ -1001,13 +1006,14 @@ export function computeNextOccurrence(config: AutomationConfig): string | null {
           config.frequency === "3 fois par semaine" ? 3 : 2,
         )
       : [{ day: config.day, time: config.time }];
+  const monthlyDateCount = inrAgentMonthlyDateCount(config.frequency);
+  const monthDays = normalizeInrAgentMonthDays(
+    config.monthDays,
+    config.frequency,
+  );
   const now = new Date();
   const isFirstWeekday = (date: Date, targetDay: number) =>
     date.getDay() === targetDay && date.getDate() <= 7;
-  const isThirdWeekday = (date: Date, targetDay: number) =>
-    date.getDay() === targetDay && date.getDate() >= 15 && date.getDate() <= 21;
-  const isSecondWeekday = (date: Date, targetDay: number) =>
-    date.getDay() === targetDay && date.getDate() >= 8 && date.getDate() <= 14;
 
   for (let offset = 0; offset <= 120; offset += 1) {
     const candidates = normalizedSlots
@@ -1022,21 +1028,19 @@ export function computeNextOccurrence(config: AutomationConfig): string | null {
         candidate.setHours(hour, minute, 0, 0);
         if (candidate.getTime() <= now.getTime()) return null;
         const ok =
-          config.frequency === "2 fois par semaine" ||
+          monthlyDateCount > 0
+            ? isInrAgentScheduledMonthDay(
+                {
+                  year: candidate.getFullYear(),
+                  month: candidate.getMonth() + 1,
+                  day: candidate.getDate(),
+                },
+                monthDays,
+              )
+            : config.frequency === "2 fois par semaine" ||
           config.frequency === "3 fois par semaine"
             ? candidate.getDay() === targetDay
-            : config.frequency === "Tous les 15 jours" ||
-                config.frequency === "2 fois par mois"
-              ? isFirstWeekday(candidate, targetDay) ||
-                isThirdWeekday(candidate, targetDay)
-              : config.frequency === "3 fois par mois"
-                ? isFirstWeekday(candidate, targetDay) ||
-                  isSecondWeekday(candidate, targetDay) ||
-                  isThirdWeekday(candidate, targetDay)
-              : config.frequency === "Chaque mois" ||
-                  config.frequency === "1 fois par mois"
-                ? isFirstWeekday(candidate, targetDay)
-                : config.frequency === "Chaque trimestre"
+            : config.frequency === "Chaque trimestre"
                   ? [0, 3, 6, 9].includes(candidate.getMonth()) &&
                     isFirstWeekday(candidate, targetDay)
                   : candidate.getDay() === targetDay;

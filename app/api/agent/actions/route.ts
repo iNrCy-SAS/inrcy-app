@@ -5,6 +5,7 @@ import {
   summarizeInrAgentActions,
 } from "@/lib/inrAgentActions";
 import { requireUser } from "@/lib/requireUser";
+import { buildMediaLibraryContentUrl } from "@/lib/mediaLibraryContentUrl";
 import { buildStorageContentUrl } from "@/lib/storageContentUrl";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { toExactStorageArrayBuffer } from "@/lib/supabaseStorageBinary";
@@ -69,6 +70,8 @@ function isMissingTableError(
 const ACTION_SELECT =
   "id, automation_key, action_type, target_tool, title, summary, preview_text, target_channels, target_themes, recipients, image_assets, payload, validation_required, execution_policy, status, scheduled_for, prepared_at, validated_at, refused_at, completed_at, last_error, created_at, updated_at";
 const IMAGE_BANK_BUCKET = "inrcy-image-bank";
+const MEDIA_LIBRARY_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function withFreshReportDocument(payload: Record<string, unknown>) {
   const reportRecord = asRecord(payload.reportDocument);
@@ -95,33 +98,17 @@ function withFreshReportDocument(payload: Record<string, unknown>) {
 }
 
 async function refreshImageAssetUrls(assets: unknown[]) {
-  return Promise.all(
-    assets.map(async (asset) => {
-      const record =
-        typeof asset === "string" ? { url: asset } : asRecord(asset);
-      if (!record) return asset;
-
-      const storagePath = String(
-        record.storagePath || record.storage_path || record.path || "",
-      ).trim();
-      const bucket = String(record.bucket || IMAGE_BANK_BUCKET).trim();
-
-      if (!storagePath || !bucket) return record;
-
-      return {
-        ...record,
-        bucket,
-        storagePath,
-        url: buildStorageContentUrl(bucket, storagePath) || "",
-      };
-    }),
-  );
+  return Promise.all(assets.map((asset) => refreshPublishMediaUrl(asset)));
 }
 
 function isMediaRecord(value: unknown) {
+  if (typeof value === "string") return Boolean(value.trim());
   const record = asRecord(value);
   if (!record) return false;
   return Boolean(
+    record.id ||
+    record.mediaId ||
+    record.media_id ||
     record.storagePath ||
     record.storage_path ||
     record.path ||
@@ -132,8 +119,49 @@ function isMediaRecord(value: unknown) {
 }
 
 async function refreshPublishMediaUrl(media: unknown) {
-  const record = asRecord(media);
+  const rawString = typeof media === "string" ? media.trim() : "";
+  const record = rawString
+    ? MEDIA_LIBRARY_ID_PATTERN.test(rawString)
+      ? { id: rawString }
+      : { url: rawString }
+    : asRecord(media);
   if (!record) return media;
+
+  const idCandidate = String(
+    record.id || record.mediaId || record.media_id || "",
+  ).trim();
+  const urlCandidate = String(
+    record.url || record.publicUrl || record.src || "",
+  ).trim();
+  const mediaLibraryId = MEDIA_LIBRARY_ID_PATTERN.test(idCandidate)
+    ? idCandidate
+    : MEDIA_LIBRARY_ID_PATTERN.test(urlCandidate)
+      ? urlCandidate
+      : "";
+  if (mediaLibraryId) {
+    const contentUrl = buildMediaLibraryContentUrl(mediaLibraryId) || "";
+    if (contentUrl) {
+      const rawName = String(
+        record.name || record.title || record.filename || "",
+      ).trim();
+      const safeName =
+        rawName && !MEDIA_LIBRARY_ID_PATTERN.test(rawName)
+          ? rawName
+          : String(record.kind || record.mediaType || "")
+                .toLowerCase()
+                .includes("video")
+            ? "Vidéo iNr’Agent"
+            : "Image iNr’Agent";
+      return {
+        ...record,
+        id: mediaLibraryId,
+        name: safeName,
+        title: safeName,
+        url: contentUrl,
+        publicUrl: contentUrl,
+      };
+    }
+  }
 
   const storagePath = String(
     record.storagePath || record.storage_path || record.path || "",
@@ -150,6 +178,66 @@ async function refreshPublishMediaUrl(media: unknown) {
     url,
     publicUrl: url,
   };
+}
+
+async function refreshMediaCollection(value: unknown) {
+  if (!Array.isArray(value)) return value;
+  return Promise.all(
+    value.map((item) =>
+      isMediaRecord(item) ? refreshPublishMediaUrl(item) : item,
+    ),
+  );
+}
+
+async function refreshImagesByChannelMediaUrls(value: unknown) {
+  const imagesByChannel = asRecord(value);
+  if (!imagesByChannel) return value;
+  const entries = await Promise.all(
+    Object.entries(imagesByChannel).map(async ([channel, media]) => [
+      channel,
+      Array.isArray(media)
+        ? await refreshMediaCollection(media)
+        : isMediaRecord(media)
+          ? await refreshPublishMediaUrl(media)
+          : media,
+    ] as const),
+  );
+  return Object.fromEntries(entries);
+}
+
+async function refreshPublishPayloadMediaUrls(
+  source: Record<string, unknown>,
+) {
+  const next = { ...source };
+  for (const key of [
+    "media",
+    "mediaAsset",
+    "image",
+    "imageAsset",
+    "selectedImage",
+    "visual",
+    "cover",
+    "video",
+    "videoAsset",
+  ] as const) {
+    if (isMediaRecord(next[key])) {
+      next[key] = await refreshPublishMediaUrl(next[key]);
+    }
+  }
+  if (Array.isArray(next.images)) {
+    next.images = await refreshMediaCollection(next.images);
+  }
+  if (next.imagesByChannel) {
+    next.imagesByChannel = await refreshImagesByChannelMediaUrls(
+      next.imagesByChannel,
+    );
+  }
+  if (next.postByChannel) {
+    next.postByChannel = await refreshPostByChannelMediaUrls(
+      next.postByChannel,
+    );
+  }
+  return next;
 }
 
 async function refreshPostByChannelMediaUrls(postByChannel: unknown) {
@@ -185,7 +273,13 @@ async function refreshActionImageUrls(
   action: ReturnType<typeof rowToInrAgentAction>,
 ) {
   const imageAssets = await refreshImageAssetUrls(action.imageAssets);
-  let payload = { ...action.payload };
+  let payload = await refreshPublishPayloadMediaUrls({ ...action.payload });
+  const nestedPublishPayload = asRecord(payload.publishPayload);
+  if (nestedPublishPayload) {
+    payload.publishPayload = await refreshPublishPayloadMediaUrls(
+      nestedPublishPayload,
+    );
+  }
   const mediaRecord = asRecord(
     payload.media ||
       payload.mediaAsset ||
@@ -218,11 +312,6 @@ async function refreshActionImageUrls(
       payload.image = freshRecord;
       payload.imageAsset = freshRecord;
     }
-  }
-  if (payload.postByChannel) {
-    payload.postByChannel = await refreshPostByChannelMediaUrls(
-      payload.postByChannel,
-    );
   }
   payload = await withFreshReportDocument(payload);
   return { ...action, imageAssets, payload };

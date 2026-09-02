@@ -26,6 +26,11 @@ import { buildAiLanguageInstruction } from "@/lib/aiWritingProfile";
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import { getDashboardEditionForAccountId } from "@/lib/dashboardEditionServer";
 import type { DashboardEdition } from "@/lib/dashboardEdition";
+import {
+  inrAgentMonthlyDateCount,
+  isInrAgentScheduledMonthDay,
+  normalizeInrAgentMonthDays,
+} from "@/lib/inrAgentMonthSchedule";
 
 export const runtime = "nodejs";
 export const maxDuration = 180;
@@ -1342,15 +1347,24 @@ function computeNextScheduledRun(automation: InrAgentAutomationSettings, after: 
   const scheduleSlots = slotCount > 1 && configuredSlots.length >= slotCount
     ? configuredSlots
     : fallbackSlots;
+  const monthDays = normalizeInrAgentMonthDays(
+    automation.metadata?.monthDays,
+    frequency,
+  );
 
   const isFirstOfMonth = (date: Date, dayOfWeek: number) => date.getDay() === dayOfWeek && date.getDate() <= 7;
-  const isSecondOfMonth = (date: Date, dayOfWeek: number) => date.getDay() === dayOfWeek && date.getDate() >= 8 && date.getDate() <= 14;
-  const isThirdOfMonth = (date: Date, dayOfWeek: number) => date.getDay() === dayOfWeek && date.getDate() >= 15 && date.getDate() <= 21;
   const isScheduledDate = (date: Date, dayOfWeek: number) => {
+    if (inrAgentMonthlyDateCount(frequency)) {
+      return isInrAgentScheduledMonthDay(
+        {
+          year: date.getFullYear(),
+          month: date.getMonth() + 1,
+          day: date.getDate(),
+        },
+        monthDays,
+      );
+    }
     if (frequency === "twice_weekly" || frequency === "three_times_weekly") return date.getDay() === dayOfWeek;
-    if (frequency === "biweekly") return isFirstOfMonth(date, dayOfWeek) || isThirdOfMonth(date, dayOfWeek);
-    if (frequency === "three_times_monthly") return isFirstOfMonth(date, dayOfWeek) || isSecondOfMonth(date, dayOfWeek) || isThirdOfMonth(date, dayOfWeek);
-    if (frequency === "monthly") return isFirstOfMonth(date, dayOfWeek);
     if (frequency === "quarterly") return [0, 3, 6, 9].includes(date.getMonth()) && isFirstOfMonth(date, dayOfWeek);
     return date.getDay() === dayOfWeek;
   };

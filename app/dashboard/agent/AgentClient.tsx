@@ -112,6 +112,10 @@ import {
   sanitizeInrAgentSettings,
   type InrAgentSettings,
 } from "@/lib/inrAgentSettings";
+import {
+  inrAgentMonthlyDateCount,
+  normalizeInrAgentMonthDays,
+} from "@/lib/inrAgentMonthSchedule";
 import { isStandardAgentAutomationKey } from "@/lib/standardAgentPolicy";
 import { useDashboardEdition } from "../_components/DashboardEditionProvider";
 import styles from "./agent.module.css";
@@ -609,6 +613,7 @@ export default function AgentClient() {
     updateConfig,
     updateConfigFrequency,
     updateConfigScheduleSlot,
+    updateConfigMonthDay,
     saveSettings,
     testAutomationNow,
     confirmPrepareNowReplacement,
@@ -769,6 +774,15 @@ export default function AgentClient() {
   );
   const selectedRobotSteps = robotStepsByAutomation[selected.key];
   const settingsConfig = settingsKey ? configs[settingsKey] : null;
+  const settingsMonthlyDateCount = settingsConfig
+    ? inrAgentMonthlyDateCount(settingsConfig.frequency)
+    : 0;
+  const settingsMonthDays = settingsConfig
+    ? normalizeInrAgentMonthDays(
+        settingsConfig.monthDays,
+        settingsConfig.frequency,
+      )
+    : [];
   const settingsAvailableChannels = useMemo(
     () =>
       settingsAutomation
@@ -2848,10 +2862,10 @@ export default function AgentClient() {
     }
 
     if (isScheduledStatsAction(scheduledAction)) {
+      setScheduleOpen(false);
       setValidationChoiceOpen(false);
       setValidationScheduleOpen(false);
-      setScheduleOnlyEditError(null);
-      setScheduleOnlyEdit({ action: scheduledAction, label: i18nT("bilan_inr_stats_d76f9e28") });
+      setSelectedKey("stats");
       return;
     }
 
@@ -3224,9 +3238,53 @@ export default function AgentClient() {
     });
   }
 
-  async function handleScheduleRowModify(item: ScheduleListItem) {
+  function handleScheduleRowOpenContent(item: ScheduleListItem) {
     if (item.source === "manual") {
       openScheduledActionEditor(item.scheduledActionId);
+      return;
+    }
+    if (item.automationKey) {
+      const openContent = () => {
+        setScheduleOpen(false);
+        setValidationChoiceOpen(false);
+        setValidationScheduleOpen(false);
+        setSelectedKey(item.automationKey as AutomationKey);
+      };
+      if (
+        !exitScheduledEditSession({
+          silent: true,
+          onAfterExit: openContent,
+        })
+      )
+        return;
+      openContent();
+    }
+  }
+
+  function handleScheduleRowReschedule(item: ScheduleListItem) {
+    if (item.source === "manual") {
+      const scheduledAction = scheduledActions.find(
+        (action) => action.id === item.scheduledActionId,
+      );
+      if (!scheduledAction) {
+        showNotice(i18nT("scheduled_action_not_found"));
+        return;
+      }
+      const openScheduleEdit = () => {
+        setScheduleOnlyEditError(null);
+        setScheduleOnlyEdit({
+          action: scheduledAction,
+          label: item.action,
+        });
+      };
+      if (
+        !exitScheduledEditSession({
+          silent: true,
+          onAfterExit: openScheduleEdit,
+        })
+      )
+        return;
+      openScheduleEdit();
       return;
     }
     if (item.automationKey) {
@@ -4172,13 +4230,45 @@ export default function AgentClient() {
                             : i18nT("no_publication_prepared")
                         }
                       >
-                        <span className={styles.campaignInfoIcon} aria-hidden>
-                          <ImageMetaIcon />
-                        </span>
-                        <span>
+                        {publishMediaPreview?.items.length ? (
+                          <span
+                            className={styles.publishMediaInfoThumbs}
+                            aria-hidden="true"
+                          >
+                            {publishMediaPreview.items
+                              .slice(0, 3)
+                              .map((media, index) => (
+                                <span
+                                  key={`${media.url}-${index}`}
+                                  className={styles.publishMediaInfoThumb}
+                                >
+                                  {media.kind === "video" ? (
+                                    <video
+                                      src={media.url}
+                                      muted
+                                      playsInline
+                                      preload="metadata"
+                                    />
+                                  ) : (
+                                    <img src={media.url} alt="" />
+                                  )}
+                                </span>
+                              ))}
+                            {publishMediaPreview.items.length > 3 ? (
+                              <em>+{publishMediaPreview.items.length - 3}</em>
+                            ) : null}
+                          </span>
+                        ) : (
+                          <span className={styles.campaignInfoIcon} aria-hidden>
+                            <ImageMetaIcon />
+                          </span>
+                        )}
+                        <span className={styles.publishMediaInfoText}>
                           <small>{i18nT("media_d8a313d3")}</small>
                           <strong>
-                            {publishMediaPreview?.name || i18nT("aucun_b2ed82f1")}
+                            {publishMediaPreview?.count
+                              ? publishMediaPreview.typeLabel
+                              : i18nT("aucun_b2ed82f1")}
                           </strong>
                         </span>
                         <span className={styles.campaignInfoEye} aria-hidden>
@@ -4660,7 +4750,9 @@ export default function AgentClient() {
         open={publishEditChoiceOpen}
         isPublishView={isPublishView}
         hasPreparedAction={Boolean(selectedPreparedAction)}
-        mediaName={publishMediaPreview?.name}
+        mediaName={
+          publishMediaPreview?.count ? publishMediaPreview.typeLabel : undefined
+        }
         onClose={() => setPublishEditChoiceOpen(false)}
         onOpenText={openPublishTextEditor}
         onOpenMedia={openPublishMediaEditor}
@@ -5713,7 +5805,8 @@ export default function AgentClient() {
         items={upcomingScheduleItems}
         mutationState={scheduleMutationState}
         onClose={() => setScheduleOpen(false)}
-        onModify={(item) => void handleScheduleRowModify(item)}
+        onOpenContent={handleScheduleRowOpenContent}
+        onReschedule={handleScheduleRowReschedule}
         onDelete={(item) => void handleScheduleRowDelete(item)}
       />
 
@@ -6006,7 +6099,68 @@ export default function AgentClient() {
                   )}
                 </select>
               </label>
-              {settingsConfig.frequency === "2 fois par semaine" ||
+              {settingsMonthlyDateCount > 0 ? (
+                <>
+                  <div
+                    className={styles.scheduleMonthDayGrid}
+                    data-count={settingsMonthlyDateCount}
+                  >
+                    {settingsMonthDays.map((day, index) => (
+                      <label
+                        key={`${settingsAutomation.key}-month-day-${index}`}
+                      >
+                        <span>
+                          {i18nT("date_eb9a4bc1")}
+                          {settingsMonthlyDateCount > 1 ? ` ${index + 1}` : ""}
+                        </span>
+                        <select
+                          value={day}
+                          onChange={(event) =>
+                            updateConfigMonthDay(
+                              settingsAutomation.key,
+                              index,
+                              Number(event.target.value),
+                            )
+                          }
+                        >
+                          {Array.from({ length: 31 }, (_, optionIndex) => {
+                            const optionDay = optionIndex + 1;
+                            const alreadySelected = settingsMonthDays.some(
+                              (selectedDay, selectedIndex) =>
+                                selectedIndex !== index &&
+                                selectedDay === optionDay,
+                            );
+                            return (
+                              <option
+                                key={optionDay}
+                                value={optionDay}
+                                disabled={alreadySelected}
+                              >
+                                {optionDay}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </label>
+                    ))}
+                  </div>
+                  <label>
+                    <span>{i18nT("horaire_db0addb3")}</span>
+                    <select
+                      value={settingsConfig.time}
+                      onChange={(event) =>
+                        updateConfig(settingsAutomation.key, {
+                          time: event.target.value,
+                        })
+                      }
+                    >
+                      {hourOptions.map((hour) => (
+                        <option key={hour}>{hour}</option>
+                      ))}
+                    </select>
+                  </label>
+                </>
+              ) : settingsConfig.frequency === "2 fois par semaine" ||
               settingsConfig.frequency === "3 fois par semaine" ? (
                 normalizeConfigScheduleSlots(settingsConfig)
                   .slice(

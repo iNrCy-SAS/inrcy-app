@@ -3,13 +3,12 @@
   min-height: 0;
   padding: clamp(14px, 2vw, 28px);
   color: #f8fbff;
-  background:
-    radial-gradient(circle at 18% 0%, rgba(37, 99, 235, 0.22), transparent 34%),
-    radial-gradient(
-      circle at 86% 16%,
-      rgba(168, 85, 247, 0.2),
-      transparent 32%
+  background: radial-gradient(
+      circle at 18% 0%,
+      rgba(37, 99, 235, 0.22),
+      transparent 34%
     ),
+    radial-gradient(circle at 86% 16%, rgba(168, 85, 247, 0.2), transparent 32%),
     radial-gradient(
       circle at 36% 100%,
       rgba(14, 165, 233, 0.12),
@@ -107,11 +106,8 @@
   letter-spacing: -0.01em;
   cursor: pointer;
   backdrop-filter: blur(12px);
-  transition:
-    transform 0.16s ease,
-    border-color 0.16s ease,
-    background 0.16s ease,
-    box-shadow 0.16s ease;
+  transition: transform 0.16s ease, border-color 0.16s ease,
+    background 0.16s ease, box-shadow 0.16s ease;
 }
 
 .headerInrSendButton {
@@ -121,8 +117,7 @@
     rgba(168, 85, 247, 0.22)
   );
   border: 1px solid rgba(148, 163, 255, 0.24);
-  box-shadow:
-    inset 0 0 18px rgba(255, 255, 255, 0.035),
+  box-shadow: inset 0 0 18px rgba(255, 255, 255, 0.035),
     0 12px 28px rgba(0, 0, 0, 0.18);
 }
 
@@ -132,8 +127,7 @@
   padding: 0;
   color: #fde68a;
   border: 1px solid rgba(250, 204, 21, 0.42);
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 28% 22%,
       rgba(255, 255, 255, 0.32),
       transparent 26%
@@ -145,17 +139,14 @@
       rgba(167, 139, 250, 0.12)
     );
   text-shadow: 0 0 14px rgba(250, 204, 21, 0.5);
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.06) inset,
-    0 14px 34px rgba(0, 0, 0, 0.25),
-    0 0 22px rgba(250, 204, 21, 0.16);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06) inset,
+    0 14px 34px rgba(0, 0, 0, 0.25), 0 0 22px rgba(250, 204, 21, 0.16);
 }
 
 .headerCloseButton {
   background: rgba(255, 255, 255, 0.055);
   border: 1px solid rgba(255, 255, 255, 0.13);
-  box-shadow:
-    inset 0 0 18px rgba(255, 255, 255, 0.022),
+  box-shadow: inset 0 0 18px rgba(255, 255, 255, 0.022),
     0 12px 28px rgba(0, 0, 0, 0.16);
 }
 
@@ -221,8 +212,7 @@
   color: #ffffff;
   background: rgba(8, 23, 54, 0.68);
   border: 1px solid rgba(148, 163, 255, 0.24);
-  box-shadow:
-    inset 0 0 34px rgba(255, 255, 255, 0.025),
+  box-shadow: inset 0 0 34px rgba(255, 255, 255, 0.025),
     0 20px 54px rgba(0, 0, 0, 0.2);
 }
 
@@ -258,13 +248,10 @@
     rgba(8, 18, 42, 0.48)
   );
   border: 1px solid rgba(148, 163, 255, 0.17);
-  box-shadow:
-    inset 0 0 34px rgba(255, 255, 255, 0.026),
+  box-shadow: inset 0 0 34px rgba(255, 255, 255, 0.026),
     0 18px 54px rgba(0, 0, 0, 0.16);
   overflow: hidden;
-  transition:
-    transform 0.18s ease,
-    border-color 0.18s ease,
+  transition: transform 0.18s ease, border-color 0.18s ease,
     box-shadow 0.18s ease;
 }
 
@@ -273,8 +260,7 @@
   position: absolute;
   inset: 0;
   opacity: 0;
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 0% 100%,
       rgba(14, 165, 233, 0.23),
       transparent 44%
@@ -291,10 +277,8 @@
 
 .automationCardActive {
   border-color: rgba(104, 211, 255, 0.72);
-  box-shadow:
-    inset 0 0 54px rgba(107, 33, 168, 0.24),
-    0 0 0 1px rgba(168, 85, 247, 0.52),
-    0 0 30px rgba(59, 130, 246, 0.5),
+  box-shadow: inset 0 0 54px rgba(107, 33, 168, 0.24),
+    0 0 0 1px rgba(168, 85, 247, 0.52), 0 0 30px rgba(59, 130, 246, 0.5),
     0 0 42px rgba(217, 70, 239, 0.32);
 }
 
@@ -372,10 +356,7 @@
   border: 0;
   cursor: pointer;
   text-shadow: 0 0 18px rgba(196, 181, 253, 0.72);
-  transition:
-    transform 0.18s ease,
-    color 0.18s ease,
-    filter 0.18s ease;
+  transition: transform 0.18s ease, color 0.18s ease, filter 0.18s ease;
 }
 
 .settingsButton:hover {
@@ -427,8 +408,7 @@
     rgba(6, 18, 42, 0.56)
   );
   border: 1px solid rgba(148, 163, 255, 0.2);
-  box-shadow:
-    inset 0 0 52px rgba(255, 255, 255, 0.026),
+  box-shadow: inset 0 0 52px rgba(255, 255, 255, 0.026),
     0 22px 70px rgba(0, 0, 0, 0.18);
   overflow: hidden;
 }
@@ -449,8 +429,7 @@
   border-radius: 22px 22px 0 0;
   overflow: hidden;
   padding: 0;
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 48% 46%,
       rgba(56, 189, 248, 0.18),
       transparent 38%
@@ -472,8 +451,7 @@
   width: min(275px, 78%);
   aspect-ratio: 1;
   border: 2px solid rgba(52, 211, 255, 0.42);
-  box-shadow:
-    0 0 32px rgba(59, 130, 246, 0.56),
+  box-shadow: 0 0 32px rgba(59, 130, 246, 0.56),
     inset 0 0 28px rgba(168, 85, 247, 0.18);
 }
 
@@ -507,10 +485,8 @@
   height: 4px;
   border-radius: 999px;
   background: rgba(147, 197, 253, 0.9);
-  box-shadow:
-    0 0 14px rgba(96, 165, 250, 0.95),
-    36px 56px 0 rgba(168, 85, 247, 0.75),
-    -54px 84px 0 rgba(59, 130, 246, 0.72);
+  box-shadow: 0 0 14px rgba(96, 165, 250, 0.95),
+    36px 56px 0 rgba(168, 85, 247, 0.75), -54px 84px 0 rgba(59, 130, 246, 0.72);
 }
 
 .starOne {
@@ -611,8 +587,7 @@
   padding: 22px;
   text-align: center;
   border-radius: 20px;
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 50% 0%,
       rgba(59, 130, 246, 0.12),
       transparent 44%
@@ -773,14 +748,10 @@
   cursor: pointer;
   background: rgba(15, 23, 42, 0.56);
   border: 1px solid rgba(148, 163, 255, 0.2);
-  box-shadow:
-    inset 0 0 18px rgba(255, 255, 255, 0.022),
+  box-shadow: inset 0 0 18px rgba(255, 255, 255, 0.022),
     0 8px 18px rgba(0, 0, 0, 0.18);
-  transition:
-    transform 0.16s ease,
-    border-color 0.16s ease,
-    background 0.16s ease,
-    box-shadow 0.16s ease;
+  transition: transform 0.16s ease, border-color 0.16s ease,
+    background 0.16s ease, box-shadow 0.16s ease;
 }
 
 .channelScroller button:hover:not(:disabled) {
@@ -802,8 +773,7 @@
     rgba(37, 99, 235, 0.48),
     rgba(124, 58, 237, 0.38)
   );
-  box-shadow:
-    0 0 22px rgba(59, 130, 246, 0.2),
+  box-shadow: 0 0 22px rgba(59, 130, 246, 0.2),
     inset 0 0 18px rgba(255, 255, 255, 0.055);
 }
 
@@ -815,9 +785,7 @@
   object-fit: contain;
   padding: 3px;
   border: 1px solid rgba(255, 255, 255, 0.55);
-  box-shadow:
-    0 0 16px rgba(96, 165, 250, 0.18),
-    0 8px 16px rgba(0, 0, 0, 0.24);
+  box-shadow: 0 0 16px rgba(96, 165, 250, 0.18), 0 8px 16px rgba(0, 0, 0, 0.24);
 }
 
 .dateItem {
@@ -839,10 +807,7 @@
   font-weight: 710;
   letter-spacing: -0.02em;
   cursor: pointer;
-  transition:
-    transform 0.18s ease,
-    opacity 0.18s ease,
-    box-shadow 0.18s ease,
+  transition: transform 0.18s ease, opacity 0.18s ease, box-shadow 0.18s ease,
     border-color 0.18s ease;
 }
 
@@ -871,8 +836,7 @@
   color: #ffffff;
   background: linear-gradient(135deg, #145bff, #6d28d9 56%, #d926bd);
   border: 1px solid rgba(96, 165, 250, 0.34);
-  box-shadow:
-    0 0 34px rgba(59, 130, 246, 0.26),
+  box-shadow: 0 0 34px rgba(59, 130, 246, 0.26),
     0 0 38px rgba(217, 70, 239, 0.2);
 }
 
@@ -891,8 +855,7 @@
 .validateButton span {
   border: 1px solid rgba(125, 211, 252, 0.58);
   color: #effbff;
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 30% 28%,
       rgba(255, 255, 255, 0.95) 0%,
       rgba(255, 255, 255, 0.18) 26%,
@@ -900,10 +863,8 @@
       rgba(8, 47, 73, 0.88) 100%
     ),
     linear-gradient(135deg, rgba(10, 88, 202, 0.95), rgba(8, 145, 178, 0.92));
-  box-shadow:
-    inset 0 1px 8px rgba(255, 255, 255, 0.22),
-    0 0 18px rgba(34, 211, 238, 0.26),
-    0 10px 20px rgba(14, 116, 144, 0.2);
+  box-shadow: inset 0 1px 8px rgba(255, 255, 255, 0.22),
+    0 0 18px rgba(34, 211, 238, 0.26), 0 10px 20px rgba(14, 116, 144, 0.2);
 }
 
 .refuseButton {
@@ -914,16 +875,14 @@
     rgba(10, 12, 28, 0.94)
   );
   border: 1px solid rgba(244, 63, 94, 0.44);
-  box-shadow:
-    inset 0 0 38px rgba(255, 255, 255, 0.018),
+  box-shadow: inset 0 0 38px rgba(255, 255, 255, 0.018),
     0 0 24px rgba(244, 63, 94, 0.08);
 }
 
 .refuseButton span {
   border: 1px solid rgba(251, 113, 133, 0.58);
   color: #fff4f6;
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 30% 28%,
       rgba(255, 255, 255, 0.92) 0%,
       rgba(255, 255, 255, 0.16) 24%,
@@ -931,10 +890,8 @@
       rgba(76, 5, 25, 0.92) 100%
     ),
     linear-gradient(135deg, rgba(127, 29, 29, 0.92), rgba(190, 24, 93, 0.92));
-  box-shadow:
-    inset 0 1px 8px rgba(255, 255, 255, 0.18),
-    0 0 18px rgba(244, 63, 94, 0.18),
-    0 10px 20px rgba(136, 19, 55, 0.18);
+  box-shadow: inset 0 1px 8px rgba(255, 255, 255, 0.18),
+    0 0 18px rgba(244, 63, 94, 0.18), 0 10px 20px rgba(136, 19, 55, 0.18);
 }
 
 .modalBackdrop {
@@ -956,16 +913,14 @@
   border-radius: 28px;
   padding: clamp(20px, 2vw, 28px);
   color: #ffffff;
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 15% 0%,
       rgba(59, 130, 246, 0.22),
       transparent 36%
     ),
     linear-gradient(135deg, rgba(12, 26, 58, 0.98), rgba(5, 14, 34, 0.98));
   border: 1px solid rgba(148, 163, 255, 0.26);
-  box-shadow:
-    0 34px 110px rgba(0, 0, 0, 0.46),
+  box-shadow: 0 34px 110px rgba(0, 0, 0, 0.46),
     0 0 40px rgba(59, 130, 246, 0.22);
 }
 
@@ -1149,31 +1104,64 @@
   color: #ffffff;
   background: rgba(7, 18, 42, 0.92);
   border: 1px solid rgba(125, 211, 252, 0.34);
-  box-shadow:
-    0 20px 60px rgba(0, 0, 0, 0.32),
-    0 0 24px rgba(34, 211, 238, 0.18);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.32), 0 0 24px rgba(34, 211, 238, 0.18);
   backdrop-filter: blur(14px);
   font-weight: 750;
 }
 
-@media (max-width: 1100px){
-  .modalBackdrop{
-    bottom:var(--inrcy-mobile-bottom-nav-total-height, calc(50px + var(--inrcy-safe-area-bottom)));
-    height:calc(100dvh - var(--inrcy-mobile-bottom-nav-total-height, calc(50px + var(--inrcy-safe-area-bottom))));
-    max-height:calc(100dvh - var(--inrcy-mobile-bottom-nav-total-height, calc(50px + var(--inrcy-safe-area-bottom))));
-    z-index:10050;
-    box-sizing:border-box;
+@media (max-width: 1100px) {
+  .modalBackdrop {
+    bottom: var(
+      --inrcy-mobile-bottom-nav-total-height,
+      calc(50px + var(--inrcy-safe-area-bottom))
+    );
+    height: calc(
+      100dvh -
+        var(
+          --inrcy-mobile-bottom-nav-total-height,
+          calc(50px + var(--inrcy-safe-area-bottom))
+        )
+    );
+    max-height: calc(
+      100dvh -
+        var(
+          --inrcy-mobile-bottom-nav-total-height,
+          calc(50px + var(--inrcy-safe-area-bottom))
+        )
+    );
+    z-index: 10050;
+    box-sizing: border-box;
   }
 
-  .notice{
-    bottom:calc(var(--inrcy-mobile-bottom-nav-total-height, calc(50px + var(--inrcy-safe-area-bottom))) + 12px);
-    z-index:10060;
+  .notice {
+    bottom: calc(
+      var(
+          --inrcy-mobile-bottom-nav-total-height,
+          calc(50px + var(--inrcy-safe-area-bottom))
+        ) + 12px
+    );
+    z-index: 10060;
   }
 
-  .robotPanelBackdrop{
-    bottom:var(--inrcy-mobile-bottom-nav-total-height, calc(50px + var(--inrcy-safe-area-bottom)));
-    height:calc(100dvh - var(--inrcy-mobile-bottom-nav-total-height, calc(50px + var(--inrcy-safe-area-bottom))));
-    max-height:calc(100dvh - var(--inrcy-mobile-bottom-nav-total-height, calc(50px + var(--inrcy-safe-area-bottom))));
+  .robotPanelBackdrop {
+    bottom: var(
+      --inrcy-mobile-bottom-nav-total-height,
+      calc(50px + var(--inrcy-safe-area-bottom))
+    );
+    height: calc(
+      100dvh -
+        var(
+          --inrcy-mobile-bottom-nav-total-height,
+          calc(50px + var(--inrcy-safe-area-bottom))
+        )
+    );
+    max-height: calc(
+      100dvh -
+        var(
+          --inrcy-mobile-bottom-nav-total-height,
+          calc(50px + var(--inrcy-safe-area-bottom))
+        )
+    );
   }
 }
 
@@ -1239,7 +1227,7 @@
   }
 
   .robotCard,
-.previewCard {
+  .previewCard {
     border-radius: 22px;
   }
 
@@ -1270,7 +1258,7 @@
   }
 
   .validateButton,
-.refuseButton {
+  .refuseButton {
     min-height: 60px;
   }
 }
@@ -1354,7 +1342,7 @@
   }
 
   .previewMeta,
-.modalGrid {
+  .modalGrid {
     grid-template-columns: 1fr;
   }
 
@@ -1363,7 +1351,7 @@
   }
 
   .validateButton,
-.refuseButton {
+  .refuseButton {
     min-height: 62px;
   }
 }
@@ -1398,17 +1386,12 @@
 .robotHalo {
   isolation: isolate;
   overflow: hidden;
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 50% 52%,
       rgba(251, 146, 60, 0.12),
       transparent 26%
     ),
-    radial-gradient(
-      circle at 47% 48%,
-      rgba(56, 189, 248, 0.2),
-      transparent 39%
-    ),
+    radial-gradient(circle at 47% 48%, rgba(56, 189, 248, 0.2), transparent 39%),
     radial-gradient(
       circle at 54% 54%,
       rgba(168, 85, 247, 0.16),
@@ -1433,18 +1416,15 @@
   width: min(310px, 82%);
   aspect-ratio: 1;
   border: 2px solid rgba(56, 189, 248, 0.46);
-  box-shadow:
-    0 0 28px rgba(56, 189, 248, 0.42),
-    inset 0 0 30px rgba(56, 189, 248, 0.18),
-    0 0 70px rgba(168, 85, 247, 0.15);
+  box-shadow: 0 0 28px rgba(56, 189, 248, 0.42),
+    inset 0 0 30px rgba(56, 189, 248, 0.18), 0 0 70px rgba(168, 85, 247, 0.15);
 }
 
 .robotHalo::after {
   width: min(380px, 102%);
   aspect-ratio: 1;
   border: 1px solid rgba(251, 146, 60, 0.28);
-  box-shadow:
-    0 0 44px rgba(251, 146, 60, 0.22),
+  box-shadow: 0 0 44px rgba(251, 146, 60, 0.22),
     inset 0 0 40px rgba(217, 70, 239, 0.12);
   background: conic-gradient(
     from 18deg,
@@ -1476,10 +1456,8 @@
 .starThree {
   z-index: 1;
   background: rgba(147, 197, 253, 0.95);
-  box-shadow:
-    0 0 14px rgba(96, 165, 250, 0.95),
-    36px 56px 0 rgba(168, 85, 247, 0.78),
-    -54px 84px 0 rgba(59, 130, 246, 0.75),
+  box-shadow: 0 0 14px rgba(96, 165, 250, 0.95),
+    36px 56px 0 rgba(168, 85, 247, 0.78), -54px 84px 0 rgba(59, 130, 246, 0.75),
     84px -34px 0 rgba(251, 146, 60, 0.68),
     -96px -10px 0 rgba(125, 211, 252, 0.72),
     120px 78px 0 rgba(217, 70, 239, 0.58),
@@ -1506,9 +1484,7 @@
   object-fit: contain;
   padding: 3px;
   border: 1px solid rgba(255, 255, 255, 0.55);
-  box-shadow:
-    0 0 18px rgba(96, 165, 250, 0.18),
-    0 9px 20px rgba(0, 0, 0, 0.26);
+  box-shadow: 0 0 18px rgba(96, 165, 250, 0.18), 0 9px 20px rgba(0, 0, 0, 0.26);
 }
 
 .choiceGrid button img {
@@ -1555,15 +1531,14 @@
 
 .modalGrid select {
   appearance: none;
-  background-image:
-    linear-gradient(45deg, transparent 50%, rgba(226, 242, 255, 0.86) 50%),
+  background-image: linear-gradient(
+      45deg,
+      transparent 50%,
+      rgba(226, 242, 255, 0.86) 50%
+    ),
     linear-gradient(135deg, rgba(226, 242, 255, 0.86) 50%, transparent 50%);
-  background-position:
-    calc(100% - 18px) 50%,
-    calc(100% - 13px) 50%;
-  background-size:
-    5px 5px,
-    5px 5px;
+  background-position: calc(100% - 18px) 50%, calc(100% - 13px) 50%;
+  background-size: 5px 5px, 5px 5px;
   background-repeat: no-repeat;
   padding-right: 32px;
 }
@@ -1644,8 +1619,7 @@
   border-radius: 17px;
   color: rgba(226, 242, 255, 0.78);
   text-align: center;
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 50% 0%,
       rgba(59, 130, 246, 0.13),
       transparent 44%
@@ -1742,9 +1716,7 @@
 .prepareButton:hover:not(:disabled) {
   transform: translateY(-1px);
   border-color: rgba(226, 242, 255, 0.48);
-  box-shadow:
-    0 0 30px rgba(59, 130, 246, 0.3),
-    0 0 36px rgba(217, 70, 239, 0.2),
+  box-shadow: 0 0 30px rgba(59, 130, 246, 0.3), 0 0 36px rgba(217, 70, 239, 0.2),
     inset 0 0 16px rgba(255, 255, 255, 0.1);
 }
 
@@ -1930,7 +1902,7 @@
   }
 
   .channelsItem,
-.dateItem {
+  .dateItem {
     width: 100%;
   }
 
@@ -1963,8 +1935,7 @@
   width: clamp(46px, 3.7vw, 58px);
   height: clamp(46px, 3.7vw, 58px);
   border-radius: 18px;
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 50% 30%,
       rgba(125, 211, 252, 0.22),
       transparent 58%
@@ -1987,26 +1958,22 @@
   height: 38px;
   transform: translateY(-50%);
   color: #e0f2fe;
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 35% 25%,
       rgba(255, 255, 255, 0.18),
       transparent 40%
     ),
     linear-gradient(135deg, rgba(37, 99, 235, 0.34), rgba(168, 85, 247, 0.28));
   border: 1px solid rgba(125, 211, 252, 0.28);
-  box-shadow:
-    inset 0 0 16px rgba(255, 255, 255, 0.06),
-    0 0 22px rgba(59, 130, 246, 0.18),
-    0 10px 26px rgba(0, 0, 0, 0.22);
+  box-shadow: inset 0 0 16px rgba(255, 255, 255, 0.06),
+    0 0 22px rgba(59, 130, 246, 0.18), 0 10px 26px rgba(0, 0, 0, 0.22);
   text-shadow: none;
 }
 
 .settingsButton:hover {
   transform: translateY(-50%) scale(1.05);
   border-color: rgba(226, 242, 255, 0.5);
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 35% 25%,
       rgba(255, 255, 255, 0.24),
       transparent 42%
@@ -2117,8 +2084,7 @@
 
 .settingsButton {
   color: #ffffff;
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 30% 22%,
       rgba(255, 255, 255, 0.32),
       transparent 34%
@@ -2135,17 +2101,14 @@
       rgba(217, 70, 239, 0.66)
     );
   border-color: rgba(125, 211, 252, 0.56);
-  box-shadow:
-    inset 0 0 18px rgba(255, 255, 255, 0.12),
-    0 0 22px rgba(14, 165, 233, 0.38),
-    0 0 30px rgba(217, 70, 239, 0.24),
+  box-shadow: inset 0 0 18px rgba(255, 255, 255, 0.12),
+    0 0 22px rgba(14, 165, 233, 0.38), 0 0 30px rgba(217, 70, 239, 0.24),
     0 10px 26px rgba(0, 0, 0, 0.24);
 }
 
 .settingsButton:hover {
   border-color: rgba(255, 255, 255, 0.72);
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 30% 22%,
       rgba(255, 255, 255, 0.38),
       transparent 36%
@@ -2161,10 +2124,8 @@
       rgba(124, 58, 237, 0.78) 52%,
       rgba(236, 72, 153, 0.78)
     );
-  box-shadow:
-    inset 0 0 20px rgba(255, 255, 255, 0.16),
-    0 0 28px rgba(14, 165, 233, 0.46),
-    0 0 42px rgba(217, 70, 239, 0.32),
+  box-shadow: inset 0 0 20px rgba(255, 255, 255, 0.16),
+    0 0 28px rgba(14, 165, 233, 0.46), 0 0 42px rgba(217, 70, 239, 0.32),
     0 12px 28px rgba(0, 0, 0, 0.26);
 }
 
@@ -2212,18 +2173,14 @@
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.92);
   border: 2px solid rgba(255, 255, 255, 0.46);
-  box-shadow:
-    0 0 14px rgba(96, 165, 250, 0.2),
-    0 8px 14px rgba(0, 0, 0, 0.24);
+  box-shadow: 0 0 14px rgba(96, 165, 250, 0.2), 0 8px 14px rgba(0, 0, 0, 0.24);
 }
 
 .channelScroller button:hover:not(:disabled),
 .channelScroller .channelPillActive {
   border-color: rgba(125, 211, 252, 0.92);
-  box-shadow:
-    0 0 0 2px rgba(59, 130, 246, 0.2),
-    0 0 22px rgba(34, 211, 238, 0.38),
-    0 8px 16px rgba(0, 0, 0, 0.26);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2),
+    0 0 22px rgba(34, 211, 238, 0.38), 0 8px 16px rgba(0, 0, 0, 0.26);
 }
 
 .channelScroller img {
@@ -2302,7 +2259,7 @@
   }
 
   .dateItem,
-.previewActions {
+  .previewActions {
     padding: 10px 0 0;
     border-left: 0;
     border-top: 1px solid rgba(148, 163, 255, 0.18);
@@ -2329,61 +2286,53 @@
 /* Étape 16 — finitions rubriques + footer */
 .automationCard[data-automation="publish"] .cardIcon {
   color: #dbeafe;
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 30% 22%,
       rgba(255, 255, 255, 0.24),
       transparent 35%
     ),
     linear-gradient(135deg, rgba(37, 99, 235, 0.62), rgba(147, 51, 234, 0.42));
   border-color: rgba(125, 211, 252, 0.42);
-  box-shadow:
-    inset 0 0 18px rgba(255, 255, 255, 0.08),
+  box-shadow: inset 0 0 18px rgba(255, 255, 255, 0.08),
     0 0 20px rgba(59, 130, 246, 0.18);
 }
 
 .automationCard[data-automation="grow"] .cardIcon {
   color: #ecfeff;
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 30% 22%,
       rgba(255, 255, 255, 0.24),
       transparent 35%
     ),
     linear-gradient(135deg, rgba(6, 182, 212, 0.62), rgba(59, 130, 246, 0.36));
   border-color: rgba(103, 232, 249, 0.42);
-  box-shadow:
-    inset 0 0 18px rgba(255, 255, 255, 0.08),
+  box-shadow: inset 0 0 18px rgba(255, 255, 255, 0.08),
     0 0 20px rgba(6, 182, 212, 0.18);
 }
 
 .automationCard[data-automation="loyalty"] .cardIcon {
   color: #fff1f2;
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 30% 22%,
       rgba(255, 255, 255, 0.24),
       transparent 35%
     ),
     linear-gradient(135deg, rgba(236, 72, 153, 0.52), rgba(168, 85, 247, 0.36));
   border-color: rgba(244, 114, 182, 0.42);
-  box-shadow:
-    inset 0 0 18px rgba(255, 255, 255, 0.08),
+  box-shadow: inset 0 0 18px rgba(255, 255, 255, 0.08),
     0 0 20px rgba(236, 72, 153, 0.18);
 }
 
 .automationCard[data-automation="stats"] .cardIcon {
   color: #eff6ff;
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 30% 22%,
       rgba(255, 255, 255, 0.24),
       transparent 35%
     ),
     linear-gradient(135deg, rgba(59, 130, 246, 0.46), rgba(99, 102, 241, 0.34));
   border-color: rgba(147, 197, 253, 0.42);
-  box-shadow:
-    inset 0 0 18px rgba(255, 255, 255, 0.08),
+  box-shadow: inset 0 0 18px rgba(255, 255, 255, 0.08),
     0 0 20px rgba(99, 102, 241, 0.18);
 }
 
@@ -2436,10 +2385,8 @@
 .channelScroller .channelPillActive .channelIconWrap {
   transform: translateY(-1px) scale(1.04);
   border-color: rgba(125, 211, 252, 0.95);
-  box-shadow:
-    0 0 0 2px rgba(59, 130, 246, 0.22),
-    0 0 22px rgba(34, 211, 238, 0.42),
-    0 8px 16px rgba(0, 0, 0, 0.26);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.22),
+    0 0 22px rgba(34, 211, 238, 0.42), 0 8px 16px rgba(0, 0, 0, 0.26);
 }
 
 .channelScroller img {
@@ -2546,27 +2493,22 @@
   padding: 0;
   border-radius: 999px;
   overflow: hidden;
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 26% 22%,
       rgba(255, 255, 255, 0.12),
       transparent 38%
     ),
     linear-gradient(180deg, rgba(19, 34, 72, 0.92), rgba(8, 18, 42, 0.96));
   border: 1px solid rgba(148, 163, 255, 0.24);
-  box-shadow:
-    0 0 14px rgba(96, 165, 250, 0.14),
-    0 8px 16px rgba(0, 0, 0, 0.22);
+  box-shadow: 0 0 14px rgba(96, 165, 250, 0.14), 0 8px 16px rgba(0, 0, 0, 0.22);
 }
 
 .channelScroller button:hover:not(:disabled),
 .channelScroller .channelPillActive {
   transform: translateY(-1px) scale(1.03);
   border-color: rgba(125, 211, 252, 0.72);
-  box-shadow:
-    0 0 0 2px rgba(59, 130, 246, 0.16),
-    0 0 18px rgba(34, 211, 238, 0.28),
-    0 8px 16px rgba(0, 0, 0, 0.24);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.16),
+    0 0 18px rgba(34, 211, 238, 0.28), 0 8px 16px rgba(0, 0, 0, 0.24);
 }
 
 .channelScroller img {
@@ -2671,8 +2613,7 @@
     var(--star-color, rgba(147, 197, 253, 0.96)) 48%,
     rgba(255, 255, 255, 0.1) 100%
   );
-  box-shadow:
-    inset 0 0 7px rgba(255, 255, 255, 0.28),
+  box-shadow: inset 0 0 7px rgba(255, 255, 255, 0.28),
     0 0 10px rgba(255, 255, 255, 0.7),
     0 0 24px var(--star-glow, rgba(96, 165, 250, 0.88)),
     0 0 42px var(--star-glow-soft, rgba(59, 130, 246, 0.34));
@@ -2709,8 +2650,7 @@
     var(--mini-color, rgba(255, 255, 255, 0.88)) 62%,
     rgba(255, 255, 255, 0.1) 100%
   );
-  box-shadow:
-    0 0 6px rgba(255, 255, 255, 0.62),
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.62),
     0 0 14px var(--mini-glow, rgba(255, 255, 255, 0.34));
   opacity: 0.78;
 }
@@ -3159,11 +3099,10 @@
 
 @keyframes agentStarTwinkle {
   0%,
-100% {
+  100% {
     opacity: 0.7;
     filter: brightness(0.98);
-    box-shadow:
-      inset 0 0 6px rgba(255, 255, 255, 0.22),
+    box-shadow: inset 0 0 6px rgba(255, 255, 255, 0.22),
       0 0 9px rgba(255, 255, 255, 0.58),
       0 0 18px var(--star-glow, rgba(96, 165, 250, 0.72)),
       0 0 30px var(--star-glow-soft, rgba(59, 130, 246, 0.24));
@@ -3171,8 +3110,7 @@
   50% {
     opacity: 1;
     filter: brightness(1.14);
-    box-shadow:
-      inset 0 0 8px rgba(255, 255, 255, 0.28),
+    box-shadow: inset 0 0 8px rgba(255, 255, 255, 0.28),
       0 0 13px rgba(255, 255, 255, 0.86),
       0 0 26px var(--star-glow, rgba(96, 165, 250, 0.9)),
       0 0 44px var(--star-glow-soft, rgba(59, 130, 246, 0.36));
@@ -3181,7 +3119,7 @@
 
 @keyframes agentHaloPulse {
   0%,
-100% {
+  100% {
     transform: translate(-50%, -50%) scale(0.985);
     opacity: 0.7;
   }
@@ -3193,7 +3131,7 @@
 
 @keyframes agentHaloPulseSecondary {
   0%,
-100% {
+  100% {
     transform: translate(-50%, -50%) scale(1);
     opacity: 0.4;
   }
@@ -3205,16 +3143,16 @@
 
 @media (prefers-reduced-motion: reduce) {
   .starOne,
-.starTwo,
-.starThree,
-.starFour,
-.starFive,
-.starSix,
-.starSeven,
-.starEight,
-.starNine,
-.robotHalo::before,
-.robotHalo::after {
+  .starTwo,
+  .starThree,
+  .starFour,
+  .starFive,
+  .starSix,
+  .starSeven,
+  .starEight,
+  .starNine,
+  .robotHalo::before,
+  .robotHalo::after {
     animation: none !important;
   }
 }
@@ -3227,8 +3165,7 @@
   overflow: hidden;
   border-radius: 24px;
   padding: clamp(16px, 1.55vw, 22px);
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 16% 0%,
       rgba(59, 130, 246, 0.24),
       transparent 34%
@@ -3259,8 +3196,7 @@
   width: 34px;
   height: 34px;
   font-size: 23px;
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 32% 25%,
       rgba(255, 255, 255, 0.16),
       transparent 42%
@@ -3273,8 +3209,7 @@
   margin-bottom: 10px;
   padding: 12px 14px;
   border-radius: 16px;
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 96% 50%,
       rgba(34, 197, 94, 0.12),
       transparent 26%
@@ -3305,12 +3240,9 @@
     rgba(30, 41, 59, 0.8)
   );
   border: 1px solid rgba(148, 163, 255, 0.28);
-  box-shadow:
-    inset 0 0 12px rgba(0, 0, 0, 0.24),
+  box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.24),
     0 0 18px rgba(59, 130, 246, 0.12);
-  transition:
-    background 0.16s ease,
-    border-color 0.16s ease,
+  transition: background 0.16s ease, border-color 0.16s ease,
     box-shadow 0.16s ease;
 }
 
@@ -3328,25 +3260,20 @@
     rgba(226, 242, 255, 0.78) 42%,
     rgba(148, 163, 184, 0.94) 100%
   );
-  box-shadow:
-    0 5px 14px rgba(0, 0, 0, 0.28),
+  box-shadow: 0 5px 14px rgba(0, 0, 0, 0.28),
     inset 0 0 8px rgba(255, 255, 255, 0.24);
-  transition:
-    transform 0.18s ease,
-    background 0.18s ease;
+  transition: transform 0.18s ease, background 0.18s ease;
 }
 
 .settingsModal:not(.helpModal) .switchLine input[type="checkbox"]:checked {
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 78% 50%,
       rgba(255, 255, 255, 0.2),
       transparent 34%
     ),
     linear-gradient(135deg, rgba(34, 197, 94, 0.9), rgba(14, 165, 233, 0.78));
   border-color: rgba(134, 239, 172, 0.62);
-  box-shadow:
-    inset 0 0 14px rgba(255, 255, 255, 0.12),
+  box-shadow: inset 0 0 14px rgba(255, 255, 255, 0.12),
     0 0 22px rgba(34, 197, 94, 0.28);
 }
 
@@ -3371,8 +3298,7 @@
   gap: 6px;
   border-radius: 15px;
   padding: 11px 12px;
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 100% 0%,
       rgba(96, 165, 250, 0.08),
       transparent 34%
@@ -3414,8 +3340,7 @@
   font-size: 13px;
   font-weight: 760;
   border-color: rgba(148, 163, 255, 0.22);
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 24% 18%,
       rgba(255, 255, 255, 0.13),
       transparent 36%
@@ -3470,8 +3395,7 @@
 
 .settingsModal:not(.helpModal) .choiceGrid .choiceActive {
   border-color: rgba(125, 211, 252, 0.62);
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 28% 22%,
       rgba(255, 255, 255, 0.16),
       transparent 38%
@@ -3512,12 +3436,12 @@
   }
 
   .settingsModal:not(.helpModal) .modalGrid label,
-.settingsModal:not(.helpModal) .modalSection {
+  .settingsModal:not(.helpModal) .modalSection {
     padding: 9px 11px;
   }
 
   .settingsModal:not(.helpModal) .modalGrid select,
-.settingsModal:not(.helpModal) .modalGrid input {
+  .settingsModal:not(.helpModal) .modalGrid input {
     min-height: 34px;
   }
 
@@ -3610,7 +3534,7 @@
   }
 
   .headerSyncPill,
-.headerWarningPill {
+  .headerWarningPill {
     display: none;
   }
 
@@ -3659,16 +3583,14 @@
     padding: 0;
     border-radius: 999px;
     overflow: hidden;
-    background:
-      radial-gradient(
+    background: radial-gradient(
         circle at 26% 22%,
         rgba(255, 255, 255, 0.12),
         transparent 38%
       ),
       linear-gradient(180deg, rgba(19, 34, 72, 0.92), rgba(8, 18, 42, 0.96));
     border: 1px solid rgba(148, 163, 255, 0.24);
-    box-shadow:
-      0 0 14px rgba(96, 165, 250, 0.14),
+    box-shadow: 0 0 14px rgba(96, 165, 250, 0.14),
       0 8px 16px rgba(0, 0, 0, 0.22);
   }
 
@@ -3684,8 +3606,8 @@
   }
 
   .settingsModal,
-.settingsModal:not(.helpModal),
-.helpModal {
+  .settingsModal:not(.helpModal),
+  .helpModal {
     width: min(100%, 430px);
     max-height: calc(100svh - 28px);
   }
@@ -3693,17 +3615,14 @@
 
 /* Support visuel commun à toutes les icônes de canaux. */
 .channelScroller button {
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 26% 22%,
       rgba(255, 255, 255, 0.12),
       transparent 38%
     ),
     linear-gradient(180deg, rgba(19, 34, 72, 0.92), rgba(8, 18, 42, 0.96));
   border: 1px solid rgba(148, 163, 255, 0.24);
-  box-shadow:
-    0 0 14px rgba(96, 165, 250, 0.14),
-    0 8px 16px rgba(0, 0, 0, 0.22);
+  box-shadow: 0 0 14px rgba(96, 165, 250, 0.14), 0 8px 16px rgba(0, 0, 0, 0.22);
 }
 
 .channelScroller img {
@@ -3714,17 +3633,14 @@
 .channelScroller .channelPillActive {
   transform: translateY(-1px) scale(1.03);
   border-color: rgba(125, 211, 252, 0.72);
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 28% 22%,
       rgba(255, 255, 255, 0.18),
       transparent 38%
     ),
     linear-gradient(135deg, rgba(37, 99, 235, 0.48), rgba(124, 58, 237, 0.38));
-  box-shadow:
-    0 0 0 2px rgba(59, 130, 246, 0.16),
-    0 0 18px rgba(34, 211, 238, 0.28),
-    0 8px 16px rgba(0, 0, 0, 0.24);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.16),
+    0 0 18px rgba(34, 211, 238, 0.28), 0 8px 16px rgba(0, 0, 0, 0.24);
 }
 
 /* Étapes 39 à 44 nettoyées — robot posé sur le bloc noir */
@@ -3734,8 +3650,7 @@
   position: relative;
   isolation: isolate;
   border: 1px solid rgba(173, 197, 255, 0.34);
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 28% 20%,
       rgba(255, 255, 255, 0.2),
       transparent 34%
@@ -3746,12 +3661,9 @@
       transparent 34%
     ),
     linear-gradient(180deg, rgba(17, 29, 64, 0.98), rgba(7, 16, 39, 0.98));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.14),
-    inset 0 -8px 16px rgba(5, 10, 24, 0.2),
-    0 10px 18px rgba(0, 0, 0, 0.26),
-    0 0 0 1px rgba(255, 255, 255, 0.04),
-    0 0 18px rgba(88, 160, 255, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 -8px 16px rgba(5, 10, 24, 0.2), 0 10px 18px rgba(0, 0, 0, 0.26),
+    0 0 0 1px rgba(255, 255, 255, 0.04), 0 0 18px rgba(88, 160, 255, 0.14);
 }
 
 .channelScroller button::before {
@@ -3775,8 +3687,7 @@
   position: absolute;
   inset: -1px;
   border-radius: inherit;
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08),
     inset 0 0 18px rgba(125, 211, 252, 0.08);
   z-index: 2;
   pointer-events: none;
@@ -3790,8 +3701,7 @@
 .channelScroller button:hover:not(:disabled),
 .channelScroller .channelPillActive {
   border-color: rgba(133, 216, 255, 0.82);
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 28% 20%,
       rgba(255, 255, 255, 0.24),
       transparent 34%
@@ -3802,14 +3712,10 @@
       transparent 34%
     ),
     linear-gradient(180deg, rgba(25, 42, 88, 0.98), rgba(10, 19, 46, 0.98));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.16),
-    inset 0 -10px 18px rgba(8, 14, 34, 0.22),
-    0 12px 20px rgba(0, 0, 0, 0.28),
-    0 0 0 1px rgba(255, 255, 255, 0.05),
-    0 0 0 2px rgba(56, 189, 248, 0.16),
-    0 0 24px rgba(56, 189, 248, 0.24),
-    0 0 34px rgba(167, 139, 250, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -10px 18px rgba(8, 14, 34, 0.22), 0 12px 20px rgba(0, 0, 0, 0.28),
+    0 0 0 1px rgba(255, 255, 255, 0.05), 0 0 0 2px rgba(56, 189, 248, 0.16),
+    0 0 24px rgba(56, 189, 248, 0.24), 0 0 34px rgba(167, 139, 250, 0.14);
 }
 
 .channelScroller button:disabled {
@@ -4523,9 +4429,7 @@
   text-decoration: none;
   background: rgba(9, 19, 42, 0.72);
   border: 1px solid rgba(125, 211, 252, 0.15);
-  transition:
-    transform 0.16s ease,
-    border-color 0.16s ease,
+  transition: transform 0.16s ease, border-color 0.16s ease,
     background 0.16s ease;
 }
 
@@ -4558,7 +4462,6 @@
 }
 
 @media (max-width: 1180px) {
-
   .statsHistoryRow {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -4589,8 +4492,7 @@
     rgba(10, 38, 95, 0.74)
   );
   border: 1px solid rgba(125, 211, 252, 0.16);
-  box-shadow:
-    inset 0 0 28px rgba(255, 255, 255, 0.02),
+  box-shadow: inset 0 0 28px rgba(255, 255, 255, 0.02),
     0 18px 36px rgba(0, 0, 0, 0.16);
 }
 
@@ -4911,8 +4813,7 @@
     rgba(168, 85, 247, 0.28)
   );
   border-color: rgba(139, 92, 246, 0.42);
-  box-shadow:
-    inset 0 0 14px rgba(255, 255, 255, 0.05),
+  box-shadow: inset 0 0 14px rgba(255, 255, 255, 0.05),
     0 0 22px rgba(139, 92, 246, 0.18);
 }
 
@@ -5072,8 +4973,7 @@
   position: relative;
   overflow: hidden;
   isolation: isolate;
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 8% 18%,
       rgba(56, 189, 248, 0.28),
       transparent 28%
@@ -5085,10 +4985,8 @@
     ),
     linear-gradient(135deg, rgba(14, 39, 92, 0.82), rgba(12, 27, 64, 0.56));
   border: 1px solid rgba(147, 197, 253, 0.22);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.1),
-    inset 0 -24px 54px rgba(15, 23, 42, 0.16),
-    0 18px 48px rgba(2, 8, 23, 0.24),
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -24px 54px rgba(15, 23, 42, 0.16), 0 18px 48px rgba(2, 8, 23, 0.24),
     0 0 34px rgba(79, 70, 229, 0.1);
   backdrop-filter: blur(16px);
 }
@@ -5098,8 +4996,7 @@
   position: absolute;
   inset: 0;
   z-index: -1;
-  background:
-    linear-gradient(
+  background: linear-gradient(
       120deg,
       rgba(255, 255, 255, 0.16),
       transparent 22%,
@@ -5129,8 +5026,7 @@
 
 .statsHeadIcon {
   color: #e0f2fe;
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 32% 24%,
       rgba(255, 255, 255, 0.42),
       transparent 24%
@@ -5142,10 +5038,8 @@
       rgba(236, 72, 153, 0.82)
     );
   border: 1px solid rgba(226, 242, 255, 0.32);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.28),
-    inset 0 -10px 22px rgba(15, 23, 42, 0.22),
-    0 0 22px rgba(56, 189, 248, 0.26),
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -10px 22px rgba(15, 23, 42, 0.22), 0 0 22px rgba(56, 189, 248, 0.26),
     0 0 34px rgba(168, 85, 247, 0.24);
 }
 
@@ -5168,14 +5062,12 @@
 .previewMetaStats .dateItem,
 .previewMetaStats .statsFooterNote {
   backdrop-filter: blur(14px);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.075),
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.075),
     0 14px 34px rgba(2, 8, 23, 0.16);
 }
 
 .statsMiniCard {
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 18% 0%,
       rgba(255, 255, 255, 0.085),
       transparent 38%
@@ -5203,40 +5095,32 @@
 }
 
 .statsMiniIcon {
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.16),
-    0 0 20px currentColor;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 0 20px currentColor;
 }
 
 .statsMiniCardGreen .statsMiniIcon {
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16),
     0 0 18px rgba(74, 222, 128, 0.14);
 }
 .statsMiniCardBlue .statsMiniIcon {
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16),
     0 0 18px rgba(125, 211, 252, 0.14);
 }
 .statsMiniCardViolet .statsMiniIcon {
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16),
     0 0 18px rgba(192, 132, 252, 0.16);
 }
 .statsMiniCardSky .statsMiniIcon {
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16),
     0 0 18px rgba(147, 197, 253, 0.14);
 }
 .statsMiniCardPink .statsMiniIcon {
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16),
     0 0 18px rgba(244, 114, 182, 0.16);
 }
 
 .statsHistorySection {
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 15% 0%,
       rgba(56, 189, 248, 0.08),
       transparent 34%
@@ -5259,16 +5143,13 @@
 }
 
 .statsHistoryItem:hover {
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.1),
-    0 16px 34px rgba(2, 8, 23, 0.2),
-    0 0 18px rgba(56, 189, 248, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 16px 34px rgba(2, 8, 23, 0.2), 0 0 18px rgba(56, 189, 248, 0.08);
 }
 
 .previewMetaStats .dateItem,
 .previewMetaStats .statsFooterNote {
-  background:
-    linear-gradient(
+  background: linear-gradient(
       180deg,
       rgba(255, 255, 255, 0.06),
       rgba(255, 255, 255, 0.032)
@@ -5504,16 +5385,14 @@
   color: #ffffff;
   text-align: left;
   text-decoration: none;
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 16% 20%,
       rgba(255, 255, 255, 0.08),
       transparent 30%
     ),
     linear-gradient(135deg, rgba(16, 34, 76, 0.78), rgba(10, 24, 56, 0.58));
   border: 1px solid rgba(148, 163, 255, 0.18);
-  box-shadow:
-    inset 0 0 30px rgba(255, 255, 255, 0.026),
+  box-shadow: inset 0 0 30px rgba(255, 255, 255, 0.026),
     0 12px 28px rgba(0, 0, 0, 0.16);
 }
 
@@ -5521,19 +5400,15 @@ button.campaignInfoCard {
   cursor: pointer;
   font: inherit;
   position: relative;
-  transition:
-    transform 0.16s ease,
-    border-color 0.16s ease,
+  transition: transform 0.16s ease, border-color 0.16s ease,
     box-shadow 0.16s ease;
 }
 
 button.campaignInfoCard:hover {
   transform: translateY(-1px);
   border-color: rgba(125, 211, 252, 0.42);
-  box-shadow:
-    inset 0 0 30px rgba(255, 255, 255, 0.035),
-    0 0 24px rgba(59, 130, 246, 0.16),
-    0 14px 30px rgba(0, 0, 0, 0.18);
+  box-shadow: inset 0 0 30px rgba(255, 255, 255, 0.035),
+    0 0 24px rgba(59, 130, 246, 0.16), 0 14px 30px rgba(0, 0, 0, 0.18);
 }
 
 .campaignInfoIcon {
@@ -5550,8 +5425,7 @@ button.campaignInfoCard:hover {
     rgba(124, 58, 237, 0.62)
   );
   border: 1px solid rgba(226, 242, 255, 0.12);
-  box-shadow:
-    inset 0 0 18px rgba(255, 255, 255, 0.08),
+  box-shadow: inset 0 0 18px rgba(255, 255, 255, 0.08),
     0 0 22px rgba(59, 130, 246, 0.2);
 }
 
@@ -5637,16 +5511,14 @@ button.campaignInfoCard:hover {
   gap: clamp(12px, 1.2vw, 18px);
   padding: clamp(18px, 1.8vw, 26px);
   border-radius: 22px;
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 18% 0%,
       rgba(59, 130, 246, 0.11),
       transparent 42%
     ),
     linear-gradient(135deg, rgba(8, 24, 56, 0.72), rgba(6, 18, 43, 0.52));
   border: 1px solid rgba(148, 163, 255, 0.18);
-  box-shadow:
-    inset 0 0 42px rgba(255, 255, 255, 0.022),
+  box-shadow: inset 0 0 42px rgba(255, 255, 255, 0.022),
     0 16px 38px rgba(0, 0, 0, 0.14);
   overflow: hidden;
 }
@@ -5777,9 +5649,7 @@ button.campaignInfoCard:hover {
   background: rgba(7, 20, 48, 0.58);
   border: 1px solid rgba(148, 163, 255, 0.18);
   box-shadow: inset 0 0 24px rgba(255, 255, 255, 0.022);
-  transition:
-    transform 0.16s ease,
-    border-color 0.16s ease,
+  transition: transform 0.16s ease, border-color 0.16s ease,
     background 0.16s ease;
 }
 
@@ -5909,8 +5779,8 @@ button.campaignInfoCard:hover {
 
 @media (max-width: 760px) {
   .campaignInfoGrid,
-.campaignEditGrid,
-.previewMetaCampaign {
+  .campaignEditGrid,
+  .previewMetaCampaign {
     grid-template-columns: 1fr;
   }
 
@@ -5974,8 +5844,7 @@ button.campaignInfoCard:disabled {
 button.campaignInfoCard:disabled:hover {
   transform: none;
   border-color: rgba(148, 163, 255, 0.18);
-  box-shadow:
-    inset 0 0 30px rgba(255, 255, 255, 0.026),
+  box-shadow: inset 0 0 30px rgba(255, 255, 255, 0.026),
     0 12px 28px rgba(0, 0, 0, 0.16);
 }
 
@@ -6149,10 +6018,10 @@ button.campaignInfoCard:disabled:hover {
   }
 
   .previewMetaCampaign .channelsItem,
-.previewMetaCampaign .dateItem,
-.previewMetaCampaign .modifyCampaignButton,
-.previewMetaCampaign .previewActions .validateButton,
-.previewMetaCampaign .previewActions .refuseButton {
+  .previewMetaCampaign .dateItem,
+  .previewMetaCampaign .modifyCampaignButton,
+  .previewMetaCampaign .previewActions .validateButton,
+  .previewMetaCampaign .previewActions .refuseButton {
     min-height: 52px !important;
     height: 52px !important;
   }
@@ -6331,15 +6200,11 @@ button.campaignInfoCard:disabled:hover {
     rgba(124, 58, 237, 0.24)
   );
   border: 1px solid rgba(125, 211, 252, 0.26);
-  box-shadow:
-    inset 0 0 18px rgba(255, 255, 255, 0.035),
+  box-shadow: inset 0 0 18px rgba(255, 255, 255, 0.035),
     0 12px 28px rgba(0, 0, 0, 0.18);
   backdrop-filter: blur(12px);
-  transition:
-    transform 0.16s ease,
-    border-color 0.16s ease,
-    background 0.16s ease,
-    box-shadow 0.16s ease;
+  transition: transform 0.16s ease, border-color 0.16s ease,
+    background 0.16s ease, box-shadow 0.16s ease;
 }
 
 .headerToolButton:hover {
@@ -6363,8 +6228,7 @@ button.campaignInfoCard:disabled:hover {
   color: #ffffff;
   font-size: 13px;
   font-weight: 950;
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 30% 20%,
       rgba(255, 255, 255, 0.32),
       transparent 28%
@@ -6425,9 +6289,9 @@ button.campaignInfoCard:disabled:hover {
   }
 
   .headerAiButton,
-.headerToolButton,
-.headerInrSendButton,
-.headerCloseButton {
+  .headerToolButton,
+  .headerInrSendButton,
+  .headerCloseButton {
     width: 32px !important;
     min-width: 32px !important;
     max-width: 32px !important;
@@ -6447,7 +6311,7 @@ button.campaignInfoCard:disabled:hover {
   }
 
   .headerToolLetter,
-.headerToolLogo {
+  .headerToolLogo {
     width: 32px !important;
     height: 32px !important;
     flex: 0 0 32px !important;
@@ -6469,63 +6333,51 @@ button.campaignInfoCard:disabled:hover {
 
 /* ===== Correctifs iNrAgent 21/06 : header coloré + stats utiles ===== */
 .headerToolButton[data-automation="publish"] {
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 26% 20%,
       rgba(255, 255, 255, 0.18),
       transparent 30%
     ),
     linear-gradient(135deg, rgba(124, 58, 237, 0.42), rgba(91, 33, 182, 0.34));
   border-color: rgba(196, 181, 253, 0.42);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    0 12px 28px rgba(0, 0, 0, 0.2),
-    0 0 22px rgba(124, 58, 237, 0.2);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 12px 28px rgba(0, 0, 0, 0.2), 0 0 22px rgba(124, 58, 237, 0.2);
 }
 
 .headerToolButton[data-automation="grow"] {
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 26% 20%,
       rgba(255, 255, 255, 0.18),
       transparent 30%
     ),
     linear-gradient(135deg, rgba(14, 165, 233, 0.46), rgba(37, 99, 235, 0.3));
   border-color: rgba(125, 211, 252, 0.44);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    0 12px 28px rgba(0, 0, 0, 0.2),
-    0 0 22px rgba(14, 165, 233, 0.2);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 12px 28px rgba(0, 0, 0, 0.2), 0 0 22px rgba(14, 165, 233, 0.2);
 }
 
 .headerToolButton[data-automation="loyalty"] {
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 26% 20%,
       rgba(255, 255, 255, 0.18),
       transparent 30%
     ),
     linear-gradient(135deg, rgba(236, 72, 153, 0.44), rgba(168, 85, 247, 0.28));
   border-color: rgba(244, 114, 182, 0.42);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    0 12px 28px rgba(0, 0, 0, 0.2),
-    0 0 22px rgba(236, 72, 153, 0.18);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 12px 28px rgba(0, 0, 0, 0.2), 0 0 22px rgba(236, 72, 153, 0.18);
 }
 
 .headerToolButton[data-automation="stats"] {
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 26% 20%,
       rgba(255, 255, 255, 0.18),
       transparent 30%
     ),
     linear-gradient(135deg, rgba(59, 130, 246, 0.38), rgba(124, 58, 237, 0.34));
   border-color: rgba(147, 197, 253, 0.42);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    0 12px 28px rgba(0, 0, 0, 0.2),
-    0 0 22px rgba(59, 130, 246, 0.18);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 12px 28px rgba(0, 0, 0, 0.2), 0 0 22px rgba(59, 130, 246, 0.18);
 }
 
 .headerToolButton[data-automation="publish"] .headerToolLetter {
@@ -6563,10 +6415,8 @@ button.campaignInfoCard:disabled:hover {
 
 .headerToolButton[data-automation]:hover {
   border-color: rgba(255, 255, 255, 0.42);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.16),
-    0 14px 30px rgba(0, 0, 0, 0.22),
-    0 0 28px rgba(168, 85, 247, 0.16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 14px 30px rgba(0, 0, 0, 0.22), 0 0 28px rgba(168, 85, 247, 0.16);
 }
 
 .statsPreview {
@@ -6593,12 +6443,14 @@ button.campaignInfoCard:disabled:hover {
   gap: 14px;
   padding: 14px 16px;
   border-radius: 18px;
-  background:
-    radial-gradient(circle at 10% 0%, rgba(56, 189, 248, 0.1), transparent 36%),
+  background: radial-gradient(
+      circle at 10% 0%,
+      rgba(56, 189, 248, 0.1),
+      transparent 36%
+    ),
     linear-gradient(135deg, rgba(10, 28, 64, 0.72), rgba(8, 20, 50, 0.54));
   border: 1px solid rgba(147, 197, 253, 0.13);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07),
     0 12px 28px rgba(2, 8, 23, 0.14);
   backdrop-filter: blur(14px);
 }
@@ -6709,7 +6561,7 @@ button.campaignInfoCard:disabled:hover {
 
 @media (max-width: 760px) {
   .cardStatus,
-.cardPendingCount + .cardStatus {
+  .cardPendingCount + .cardStatus {
     right: 6px !important;
     bottom: 6px !important;
     width: 5px !important;
@@ -6758,7 +6610,7 @@ button.campaignInfoCard:disabled:hover {
 /* ===== Correctif final Stats 21/06 : responsive + recommandations du dernier bilan ===== */
 @media (max-width: 760px) {
   .cardStatus,
-.cardPendingCount + .cardStatus {
+  .cardPendingCount + .cardStatus {
     right: 9px !important;
     bottom: 8px !important;
     width: 5px !important;
@@ -6900,7 +6752,7 @@ button.campaignInfoCard:disabled:hover {
   }
 
   .statsHeadCard,
-.statsMiniCard {
+  .statsMiniCard {
     min-height: 0 !important;
   }
 
@@ -6924,7 +6776,7 @@ button.campaignInfoCard:disabled:hover {
 /* ===== Correctif final 21/06 — responsive tuiles + stats recommandations propres ===== */
 @media (max-width: 760px) {
   .automationCard .cardStatus,
-.automationCard .cardPendingCount + .cardStatus {
+  .automationCard .cardPendingCount + .cardStatus {
     top: 50% !important;
     right: 38px !important;
     bottom: auto !important;
@@ -7235,7 +7087,7 @@ button.campaignInfoCard:disabled:hover {
 
 @media (max-width: 760px) {
   .automationCard .cardStatus,
-.automationCard .cardPendingCount + .cardStatus {
+  .automationCard .cardPendingCount + .cardStatus {
     top: 50% !important;
     right: 38px !important;
     bottom: auto !important;
@@ -7287,28 +7139,23 @@ button.campaignInfoCard:disabled:hover {
   font-weight: 900;
   letter-spacing: -0.02em;
   cursor: pointer;
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 22% 22%,
       rgba(125, 211, 252, 0.14),
       transparent 36%
     ),
     linear-gradient(135deg, rgba(14, 39, 78, 0.7), rgba(37, 99, 235, 0.22));
   border: 1px solid rgba(125, 211, 252, 0.24);
-  box-shadow:
-    inset 0 0 24px rgba(255, 255, 255, 0.026),
+  box-shadow: inset 0 0 24px rgba(255, 255, 255, 0.026),
     0 12px 28px rgba(0, 0, 0, 0.14);
-  transition:
-    transform 0.16s ease,
-    border-color 0.16s ease,
+  transition: transform 0.16s ease, border-color 0.16s ease,
     background 0.16s ease;
 }
 
 .saveCampaignDraftButton:hover:not(:disabled) {
   transform: translateY(-1px);
   border-color: rgba(125, 211, 252, 0.48);
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 22% 22%,
       rgba(125, 211, 252, 0.22),
       transparent 36%
@@ -7345,8 +7192,7 @@ button.campaignInfoCard:disabled:hover {
   align-items: flex-start;
   padding: 18px;
   border-radius: 20px;
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 10% 0%,
       rgba(125, 211, 252, 0.18),
       transparent 38%
@@ -7425,9 +7271,9 @@ button.campaignInfoCard:disabled:hover {
   }
 
   .previewMetaCampaign .saveCampaignDraftButton,
-.previewMetaCampaign .modifyCampaignButton,
-.previewMetaCampaign .previewActions .validateButton,
-.previewMetaCampaign .previewActions .refuseButton {
+  .previewMetaCampaign .modifyCampaignButton,
+  .previewMetaCampaign .previewActions .validateButton,
+  .previewMetaCampaign .previewActions .refuseButton {
     min-height: 52px !important;
     height: 52px !important;
   }
@@ -7462,8 +7308,7 @@ button.campaignInfoCard:disabled:hover {
     rgba(124, 58, 237, 0.24)
   ) !important;
   border-color: rgba(125, 211, 252, 0.42) !important;
-  box-shadow:
-    inset 0 0 22px rgba(255, 255, 255, 0.045),
+  box-shadow: inset 0 0 22px rgba(255, 255, 255, 0.045),
     0 0 22px rgba(14, 165, 233, 0.14);
 }
 
@@ -7478,19 +7323,15 @@ button.campaignInfoRecipients {
   cursor: pointer;
   font: inherit;
   position: relative;
-  transition:
-    transform 0.16s ease,
-    border-color 0.16s ease,
+  transition: transform 0.16s ease, border-color 0.16s ease,
     box-shadow 0.16s ease;
 }
 
 button.campaignInfoRecipients:hover {
   transform: translateY(-1px);
   border-color: rgba(125, 211, 252, 0.42);
-  box-shadow:
-    inset 0 0 30px rgba(255, 255, 255, 0.035),
-    0 0 24px rgba(59, 130, 246, 0.16),
-    0 14px 30px rgba(0, 0, 0, 0.18);
+  box-shadow: inset 0 0 30px rgba(255, 255, 255, 0.035),
+    0 0 24px rgba(59, 130, 246, 0.16), 0 14px 30px rgba(0, 0, 0, 0.18);
 }
 
 .agentListModal {
@@ -7741,18 +7582,18 @@ button.campaignInfoRecipients:hover {
   }
 
   .agentListModal,
-.recipientsPickerModal {
+  .recipientsPickerModal {
     width: min(430px, calc(100vw - 20px));
     max-height: calc(100dvh - 24px);
   }
 
   .agentListRow,
-.agentSelectableRow {
+  .agentSelectableRow {
     grid-template-columns: auto minmax(0, 1fr);
   }
 
   .agentSelectableRow input,
-.agentListTag {
+  .agentListTag {
     grid-column: 1;
   }
 
@@ -7761,8 +7602,8 @@ button.campaignInfoRecipients:hover {
   }
 
   .agentPickerToolbar,
-.newRecipientBox,
-.attachmentListRow {
+  .newRecipientBox,
+  .attachmentListRow {
     grid-template-columns: 1fr;
   }
 
@@ -7779,8 +7620,7 @@ button.campaignInfoRecipients:hover {
   margin-top: 14px;
   padding: 13px;
   border-radius: 20px;
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 8% 0%,
       rgba(125, 211, 252, 0.08),
       transparent 34%
@@ -7953,13 +7793,13 @@ button.campaignInfoRecipients:hover {
 
 @media (max-width: 760px) {
   .manualRecipientRow,
-.recipientsPickerModal .agentPickerToolbar,
-.agentFiltersPanel {
+  .recipientsPickerModal .agentPickerToolbar,
+  .agentFiltersPanel {
     grid-template-columns: 1fr;
   }
 
   .agentToolbarCount,
-.agentImportantToggle {
+  .agentImportantToggle {
     justify-content: center;
     width: 100%;
   }
@@ -8161,21 +8001,21 @@ button.campaignInfoRecipients:hover {
   }
 
   .recipientsPickerModal .manualRecipientRow,
-.recipientsPickerModal .agentPickerToolbar,
-.recipientsPickerModal .agentFiltersPanel,
-.recipientsPickerModal .newRecipientBox {
+  .recipientsPickerModal .agentPickerToolbar,
+  .recipientsPickerModal .agentFiltersPanel,
+  .recipientsPickerModal .newRecipientBox {
     grid-template-columns: 1fr 1fr;
   }
 
   .recipientsPickerModal .manualRecipientRow input,
-.recipientsPickerModal .agentPickerToolbar input {
+  .recipientsPickerModal .agentPickerToolbar input {
     grid-column: 1 / -1;
   }
 
   .recipientsPickerModal .agentToolbarCount,
-.recipientsPickerModal .agentImportantToggle,
-.recipientsPickerModal .newRecipientBox input,
-.recipientsPickerModal .newRecipientBox button {
+  .recipientsPickerModal .agentImportantToggle,
+  .recipientsPickerModal .newRecipientBox input,
+  .recipientsPickerModal .newRecipientBox button {
     width: 100%;
   }
 
@@ -8231,7 +8071,7 @@ button.campaignInfoRecipients:hover {
   }
 
   .automationCard .cardStatus,
-.automationCard .cardPendingCount + .cardStatus {
+  .automationCard .cardPendingCount + .cardStatus {
     top: 50% !important;
     right: 39px !important;
     bottom: auto !important;
@@ -8285,8 +8125,7 @@ button.campaignInfoRecipients:hover {
   letter-spacing: -0.01em;
   cursor: pointer;
   text-decoration: none;
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 28% 22%,
       rgba(255, 255, 255, 0.24),
       transparent 26%
@@ -8298,15 +8137,11 @@ button.campaignInfoRecipients:hover {
       rgba(124, 58, 237, 0.24)
     );
   border: 1px solid rgba(125, 211, 252, 0.28);
-  box-shadow:
-    inset 0 0 18px rgba(255, 255, 255, 0.035),
+  box-shadow: inset 0 0 18px rgba(255, 255, 255, 0.035),
     0 12px 28px rgba(0, 0, 0, 0.18);
   backdrop-filter: blur(12px);
-  transition:
-    transform 0.16s ease,
-    border-color 0.16s ease,
-    background 0.16s ease,
-    box-shadow 0.16s ease;
+  transition: transform 0.16s ease, border-color 0.16s ease,
+    background 0.16s ease, box-shadow 0.16s ease;
 }
 
 .headerScheduleButton:hover {
@@ -8390,7 +8225,7 @@ button.campaignInfoRecipients:hover {
   }
 
   .moduleSubtitleMobile,
-.moduleSubtitleDesktop {
+  .moduleSubtitleDesktop {
     display: none !important;
   }
 
@@ -8414,7 +8249,7 @@ button.campaignInfoRecipients:hover {
   }
 
   .headerScheduleIcon,
-.headerScheduleIcon svg {
+  .headerScheduleIcon svg {
     width: 20px !important;
     height: 20px !important;
   }
@@ -8482,8 +8317,7 @@ button.campaignInfoRecipients:hover {
   font-weight: 760;
   background: rgba(255, 255, 255, 0.055);
   border: 1px solid rgba(148, 163, 255, 0.15);
-  box-shadow:
-    inset 0 0 22px rgba(255, 255, 255, 0.025),
+  box-shadow: inset 0 0 22px rgba(255, 255, 255, 0.025),
     0 10px 22px rgba(0, 0, 0, 0.12);
 }
 
@@ -8527,7 +8361,6 @@ button.campaignInfoRecipients:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 
 @media (max-width: 760px) {
   .scheduleModal {
@@ -8573,15 +8406,15 @@ button.campaignInfoRecipients:hover {
   }
 
   .scheduleTableRow > span:nth-child(2),
-.scheduleTableRow > span:nth-child(3),
-.scheduleTableRow > span:nth-child(4),
-.scheduleTableRow > span:nth-child(5) {
+  .scheduleTableRow > span:nth-child(3),
+  .scheduleTableRow > span:nth-child(4),
+  .scheduleTableRow > span:nth-child(5) {
     grid-column: 1 / -1;
     font-size: 11px;
   }
 
   .scheduleTableRow > span:nth-child(6),
-.scheduleTableRow > span:nth-child(7) {
+  .scheduleTableRow > span:nth-child(7) {
     min-width: 0;
   }
 }
@@ -8606,9 +8439,9 @@ button.campaignInfoRecipients:hover {
   }
 
   .headerAiButton,
-.headerScheduleButton,
-.headerToolButton,
-.headerCloseButton {
+  .headerScheduleButton,
+  .headerToolButton,
+  .headerCloseButton {
     width: 28px !important;
     min-width: 28px !important;
     max-width: 28px !important;
@@ -8620,14 +8453,14 @@ button.campaignInfoRecipients:hover {
   }
 
   .headerScheduleIcon,
-.headerScheduleIcon svg,
-.headerToolLogo {
+  .headerScheduleIcon svg,
+  .headerToolLogo {
     width: 18px !important;
     height: 18px !important;
   }
 
   .headerToolLabel,
-.headerScheduleLabel {
+  .headerScheduleLabel {
     display: none !important;
   }
 }
@@ -8934,18 +8767,18 @@ button.campaignInfoRecipients:hover {
   }
 
   .scheduleTableRow > span:nth-child(2),
-.scheduleTableRow > span:nth-child(3),
-.scheduleTableRow > span:nth-child(4),
-.scheduleTableRow > span:nth-child(5) {
+  .scheduleTableRow > span:nth-child(3),
+  .scheduleTableRow > span:nth-child(4),
+  .scheduleTableRow > span:nth-child(5) {
     grid-column: 1 / 2 !important;
     font-size: 11px !important;
     color: rgba(226, 242, 255, 0.72);
   }
 
   .scheduleTableRow > span:nth-child(2)::before,
-.scheduleTableRow > span:nth-child(3)::before,
-.scheduleTableRow > span:nth-child(4)::before,
-.scheduleTableRow > span:nth-child(5)::before {
+  .scheduleTableRow > span:nth-child(3)::before,
+  .scheduleTableRow > span:nth-child(4)::before,
+  .scheduleTableRow > span:nth-child(5)::before {
     content: none !important;
   }
 
@@ -8968,9 +8801,9 @@ button.campaignInfoRecipients:hover {
   }
 
   .headerAiButton,
-.headerScheduleButton,
-.headerToolButton,
-.headerCloseButton {
+  .headerScheduleButton,
+  .headerToolButton,
+  .headerCloseButton {
     width: 28px !important;
     min-width: 28px !important;
     max-width: 28px !important;
@@ -9025,10 +8858,10 @@ button.campaignInfoRecipients:hover {
   }
 
   .scheduleTableRow > span:nth-child(1),
-.scheduleTableRow > span:nth-child(2),
-.scheduleTableRow > span:nth-child(4),
-.scheduleTableRow > span:nth-child(5),
-.scheduleTableRow > span:nth-child(6) {
+  .scheduleTableRow > span:nth-child(2),
+  .scheduleTableRow > span:nth-child(4),
+  .scheduleTableRow > span:nth-child(5),
+  .scheduleTableRow > span:nth-child(6) {
     grid-column: 1 / 2 !important;
     font-size: 11px !important;
     color: rgba(226, 242, 255, 0.72) !important;
@@ -9061,7 +8894,7 @@ button.campaignInfoRecipients:hover {
   }
 
   .scheduleTableRow > span:nth-child(1)::after,
-.scheduleTableRow > span:nth-child(2)::after {
+  .scheduleTableRow > span:nth-child(2)::after {
     content: none !important;
   }
 }
@@ -9137,16 +8970,14 @@ button.campaignInfoRecipients:hover {
   gap: clamp(14px, 1.4vw, 20px);
   padding: clamp(18px, 1.8vw, 26px);
   border-radius: 22px;
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 18% 0%,
       rgba(59, 130, 246, 0.11),
       transparent 42%
     ),
     linear-gradient(135deg, rgba(8, 24, 56, 0.72), rgba(6, 18, 43, 0.52));
   border: 1px solid rgba(148, 163, 255, 0.18);
-  box-shadow:
-    inset 0 0 42px rgba(255, 255, 255, 0.022),
+  box-shadow: inset 0 0 42px rgba(255, 255, 255, 0.022),
     0 16px 38px rgba(0, 0, 0, 0.14);
   overflow: hidden;
 }
@@ -9234,7 +9065,7 @@ button.campaignInfoRecipients:hover {
   }
 
   .publishMediaPreview img,
-.publishMediaPreview video {
+  .publishMediaPreview video {
     min-height: 220px;
     max-height: 340px;
   }
@@ -9252,7 +9083,7 @@ button.campaignInfoRecipients:hover {
   }
 
   .publishMediaPreview img,
-.publishMediaPreview video {
+  .publishMediaPreview video {
     min-height: 190px;
     max-height: 260px;
   }
@@ -9387,17 +9218,17 @@ button.campaignInfoRecipients:hover {
   }
 
   .publishTitleLine,
-.publishCtaLine {
+  .publishCtaLine {
     gap: 6px;
   }
 
   .publishTitleLine span,
-.publishCtaLine span {
+  .publishCtaLine span {
     font-size: 13px;
   }
 
   .publishTitleLine strong,
-.publishCtaLine strong {
+  .publishCtaLine strong {
     font-size: 13px;
   }
 
@@ -9413,6 +9244,21 @@ button.campaignInfoRecipients:hover {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+}
+
+.scheduleMonthDayGrid {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.scheduleMonthDayGrid[data-count="1"] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.scheduleMonthDayGrid[data-count="2"] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .previewMetaPublish {
@@ -9547,10 +9393,10 @@ button.campaignInfoRecipients:hover {
   }
 
   .previewMetaPublish .metaItem,
-.previewMetaPublish .saveCampaignDraftButton,
-.previewMetaPublish .modifyCampaignButton,
-.previewMetaPublish .previewActions .validateButton,
-.previewMetaPublish .previewActions .refuseButton {
+  .previewMetaPublish .saveCampaignDraftButton,
+  .previewMetaPublish .modifyCampaignButton,
+  .previewMetaPublish .previewActions .validateButton,
+  .previewMetaPublish .previewActions .refuseButton {
     min-height: 46px !important;
     height: 46px !important;
     border-radius: 14px;
@@ -9602,7 +9448,7 @@ button.campaignInfoRecipients:hover {
   }
 
   .previewMetaPublish .saveCampaignDraftButton span,
-.previewMetaPublish .modifyCampaignButton span {
+  .previewMetaPublish .modifyCampaignButton span {
     font-size: 17px;
   }
 
@@ -9611,14 +9457,14 @@ button.campaignInfoRecipients:hover {
   }
 
   .previewMetaPublish .previewActions .validateButton,
-.previewMetaPublish .previewActions .refuseButton {
+  .previewMetaPublish .previewActions .refuseButton {
     gap: 4px;
     padding: 0 8px;
     font-size: 0;
   }
 
   .previewMetaPublish .previewActions .validateButton span,
-.previewMetaPublish .previewActions .refuseButton span {
+  .previewMetaPublish .previewActions .refuseButton span {
     margin: 0;
   }
 }
@@ -9638,8 +9484,7 @@ button.campaignInfoRecipients:hover {
     rgba(14, 165, 233, 0.12),
     rgba(139, 92, 246, 0.14)
   );
-  box-shadow:
-    inset 0 0 24px rgba(255, 255, 255, 0.035),
+  box-shadow: inset 0 0 24px rgba(255, 255, 255, 0.035),
     0 12px 26px rgba(0, 0, 0, 0.18);
 }
 
@@ -9722,9 +9567,7 @@ button.campaignInfoRecipients:hover {
   cursor: pointer;
   font-size: 14px;
   font-weight: 900;
-  transition:
-    transform 0.16s ease,
-    border-color 0.16s ease,
+  transition: transform 0.16s ease, border-color 0.16s ease,
     background 0.16s ease;
 }
 
@@ -9759,8 +9602,8 @@ button.campaignInfoRecipients:hover {
   }
 
   .robotCard,
-.workColumn,
-.previewCard {
+  .workColumn,
+  .previewCard {
     min-height: 0 !important;
   }
 
@@ -9771,7 +9614,7 @@ button.campaignInfoRecipients:hover {
   }
 
   .workColumn,
-.previewCard {
+  .previewCard {
     overflow: hidden !important;
   }
 
@@ -9785,12 +9628,12 @@ button.campaignInfoRecipients:hover {
   }
 
   .previewBody::-webkit-scrollbar,
-.robotCard::-webkit-scrollbar {
+  .robotCard::-webkit-scrollbar {
     width: 7px;
   }
 
   .previewBody::-webkit-scrollbar-thumb,
-.robotCard::-webkit-scrollbar-thumb {
+  .robotCard::-webkit-scrollbar-thumb {
     border-radius: 999px;
     background: rgba(125, 211, 252, 0.36);
   }
@@ -9812,8 +9655,8 @@ button.campaignInfoRecipients:hover {
   }
 
   .workColumn,
-.previewCard,
-.previewBody {
+  .previewCard,
+  .previewBody {
     overflow: visible !important;
   }
 }
@@ -9823,11 +9666,8 @@ button.campaignInfoRecipients:hover {
   padding: 0;
   cursor: pointer;
   user-select: none;
-  transition:
-    transform 0.16s ease,
-    border-color 0.16s ease,
-    background 0.16s ease,
-    box-shadow 0.16s ease;
+  transition: transform 0.16s ease, border-color 0.16s ease,
+    background 0.16s ease, box-shadow 0.16s ease;
 }
 
 .channelNavArrow:hover:not(:disabled) {
@@ -9939,10 +9779,10 @@ button.campaignInfoRecipients:hover {
   }
 
   .previewMetaPublish .metaItem,
-.previewMetaPublish .saveCampaignDraftButton,
-.previewMetaPublish .modifyCampaignButton,
-.previewMetaPublish .previewActions .validateButton,
-.previewMetaPublish .previewActions .refuseButton {
+  .previewMetaPublish .saveCampaignDraftButton,
+  .previewMetaPublish .modifyCampaignButton,
+  .previewMetaPublish .previewActions .validateButton,
+  .previewMetaPublish .previewActions .refuseButton {
     min-height: 50px !important;
     height: 50px !important;
     border-radius: 15px;
@@ -9971,14 +9811,14 @@ button.campaignInfoRecipients:hover {
   }
 
   .previewMetaPublish .previewActions .validateButton,
-.previewMetaPublish .previewActions .refuseButton {
+  .previewMetaPublish .previewActions .refuseButton {
     gap: 7px;
     padding: 0 10px;
     font-size: 14px;
   }
 
   .previewMetaPublish .previewActions .validateButton span,
-.previewMetaPublish .previewActions .refuseButton span {
+  .previewMetaPublish .previewActions .refuseButton span {
     width: 26px;
     height: 26px;
   }
@@ -9998,13 +9838,13 @@ button.campaignInfoRecipients:hover {
   }
 
   .previewMetaPublish .previewActions .validateButton,
-.previewMetaPublish .previewActions .refuseButton {
+  .previewMetaPublish .previewActions .refuseButton {
     font-size: 0;
     padding: 0 12px;
   }
 
   .previewMetaPublish .previewActions .validateButton span,
-.previewMetaPublish .previewActions .refuseButton span {
+  .previewMetaPublish .previewActions .refuseButton span {
     margin: 0;
   }
 }
@@ -10065,7 +9905,7 @@ button.campaignInfoRecipients:hover {
   }
 
   .previewMetaPublish .previewActions .validateButton,
-.previewMetaPublish .previewActions .refuseButton {
+  .previewMetaPublish .previewActions .refuseButton {
     min-height: 48px !important;
     height: 48px !important;
     gap: 6px;
@@ -10222,7 +10062,7 @@ button.campaignInfoRecipients:hover {
   }
 
   .automationCard .cardStatus,
-.automationCard .cardPendingCount + .cardStatus {
+  .automationCard .cardPendingCount + .cardStatus {
     top: 50% !important;
     right: 34px !important;
     bottom: auto !important;
@@ -10280,7 +10120,7 @@ button.campaignInfoRecipients:hover {
   }
 
   .automationCard .cardStatus,
-.automationCard .cardPendingCount + .cardStatus {
+  .automationCard .cardPendingCount + .cardStatus {
     right: 31px !important;
   }
 }
@@ -10448,7 +10288,7 @@ button.campaignInfoRecipients:hover {
   }
 
   .previewMetaPublish .saveCampaignDraftButton,
-.previewMetaPublish .modifyCampaignButton {
+  .previewMetaPublish .modifyCampaignButton {
     width: 50px !important;
     min-width: 50px !important;
     max-width: 50px !important;
@@ -10473,7 +10313,7 @@ button.campaignInfoRecipients:hover {
   }
 
   .previewMetaPublish .saveCampaignDraftButton,
-.previewMetaPublish .modifyCampaignButton {
+  .previewMetaPublish .modifyCampaignButton {
     width: 50px !important;
     min-width: 50px !important;
     max-width: 50px !important;
@@ -10491,8 +10331,8 @@ button.campaignInfoRecipients:hover {
   }
 
   .publishPostText,
-.publishPostContent,
-.publishPostContent p {
+  .publishPostContent,
+  .publishPostContent p {
     width: 100% !important;
     max-width: none !important;
   }
@@ -10525,7 +10365,7 @@ button.campaignInfoRecipients:hover {
   }
 
   .previewMetaPublish .saveCampaignDraftButton,
-.previewMetaPublish .modifyCampaignButton {
+  .previewMetaPublish .modifyCampaignButton {
     width: 46px !important;
     min-width: 46px !important;
     max-width: 46px !important;
@@ -10536,9 +10376,9 @@ button.campaignInfoRecipients:hover {
   }
 
   .publishCtaGrid,
-.publishCtaGrid[data-mode="call"],
-.publishCtaGrid[data-mode="none"],
-.publishCtaGrid[data-mode="message"] {
+  .publishCtaGrid[data-mode="call"],
+  .publishCtaGrid[data-mode="none"],
+  .publishCtaGrid[data-mode="message"] {
     grid-template-columns: 1fr !important;
   }
 
@@ -10594,13 +10434,13 @@ button.campaignInfoRecipients:hover {
 /* iNrAgent Publier — libellés au survol des boutons icônes du bandeau desktop */
 @media (min-width: 761px) and (hover: hover) and (pointer: fine) {
   .previewMetaPublish .saveCampaignDraftButton,
-.previewMetaPublish .modifyCampaignButton {
+  .previewMetaPublish .modifyCampaignButton {
     position: relative !important;
     overflow: visible !important;
   }
 
   .previewMetaPublish .saveCampaignDraftButton::after,
-.previewMetaPublish .modifyCampaignButton::after {
+  .previewMetaPublish .modifyCampaignButton::after {
     content: attr(data-tooltip);
     position: absolute;
     left: 50%;
@@ -10618,19 +10458,16 @@ button.campaignInfoRecipients:hover {
     white-space: nowrap;
     background: rgba(8, 18, 44, 0.94);
     border: 1px solid rgba(148, 163, 255, 0.26);
-    box-shadow:
-      0 12px 28px rgba(0, 0, 0, 0.26),
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.26),
       0 0 18px rgba(96, 165, 250, 0.18);
     opacity: 0;
     pointer-events: none;
     transform: translate(-50%, 6px) scale(0.98);
-    transition:
-      opacity 0.14s ease,
-      transform 0.14s ease;
+    transition: opacity 0.14s ease, transform 0.14s ease;
   }
 
   .previewMetaPublish .saveCampaignDraftButton::before,
-.previewMetaPublish .modifyCampaignButton::before {
+  .previewMetaPublish .modifyCampaignButton::before {
     content: "";
     position: absolute;
     left: 50%;
@@ -10644,26 +10481,24 @@ button.campaignInfoRecipients:hover {
     opacity: 0;
     pointer-events: none;
     transform: translate(-50%, 6px) rotate(45deg) scale(0.98);
-    transition:
-      opacity 0.14s ease,
-      transform 0.14s ease;
+    transition: opacity 0.14s ease, transform 0.14s ease;
   }
 
   .previewMetaPublish .saveCampaignDraftButton:hover:not(:disabled)::after,
-.previewMetaPublish .modifyCampaignButton:hover:not(:disabled)::after,
-.previewMetaPublish
+  .previewMetaPublish .modifyCampaignButton:hover:not(:disabled)::after,
+  .previewMetaPublish
     .saveCampaignDraftButton:focus-visible:not(:disabled)::after,
-.previewMetaPublish
+  .previewMetaPublish
     .modifyCampaignButton:focus-visible:not(:disabled)::after {
     opacity: 1;
     transform: translate(-50%, 0) scale(1);
   }
 
   .previewMetaPublish .saveCampaignDraftButton:hover:not(:disabled)::before,
-.previewMetaPublish .modifyCampaignButton:hover:not(:disabled)::before,
-.previewMetaPublish
+  .previewMetaPublish .modifyCampaignButton:hover:not(:disabled)::before,
+  .previewMetaPublish
     .saveCampaignDraftButton:focus-visible:not(:disabled)::before,
-.previewMetaPublish
+  .previewMetaPublish
     .modifyCampaignButton:focus-visible:not(:disabled)::before {
     opacity: 1;
     transform: translate(-50%, 0) rotate(45deg) scale(1);
@@ -10675,8 +10510,7 @@ button.campaignInfoCard:hover,
 button.campaignInfoCard:focus-visible {
   transform: none !important;
   border-color: rgba(148, 163, 255, 0.18) !important;
-  box-shadow:
-    inset 0 0 30px rgba(255, 255, 255, 0.026),
+  box-shadow: inset 0 0 30px rgba(255, 255, 255, 0.026),
     0 12px 28px rgba(0, 0, 0, 0.16) !important;
 }
 
@@ -10735,7 +10569,6 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 }
 
 @media (max-width: 760px) {
-
   .publishMediaEmpty {
     min-height: 160px;
     max-height: 220px;
@@ -10757,8 +10590,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   padding: 12px 14px;
   border-radius: 16px;
   border: 1px solid rgba(105, 239, 255, 0.2);
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 0% 0%,
       rgba(105, 239, 255, 0.12),
       transparent 38%
@@ -10861,7 +10693,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   }
 
   .publishMediaActionButtons label,
-.publishMediaActionButtons button {
+  .publishMediaActionButtons button {
     min-height: 40px;
     padding: 0 10px;
     font-size: 12px;
@@ -10911,7 +10743,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   }
 
   .campaignAttachmentActionButtons label,
-.campaignAttachmentActionButtons button {
+  .campaignAttachmentActionButtons button {
     min-height: 40px;
     padding: 0 10px;
     font-size: 12px;
@@ -10929,7 +10761,6 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 .publishVideoAdapterModal .modalClose {
   z-index: 5;
 }
-
 
 .publishMediaModalHeader {
   display: flex;
@@ -10990,8 +10821,11 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   margin: 12px 0;
   padding: 14px;
   border-radius: 24px;
-  background:
-    radial-gradient(circle at 0% 0%, rgba(34, 211, 238, 0.12), transparent 40%),
+  background: radial-gradient(
+      circle at 0% 0%,
+      rgba(34, 211, 238, 0.12),
+      transparent 40%
+    ),
     linear-gradient(135deg, rgba(8, 20, 48, 0.9), rgba(20, 15, 52, 0.72));
   border: 1px solid rgba(148, 163, 255, 0.18);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
@@ -11055,10 +10889,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     rgba(249, 115, 22, 0.9)
   );
   box-shadow: 0 12px 28px rgba(249, 115, 22, 0.18);
-  transition:
-    transform 0.16s ease,
-    filter 0.16s ease,
-    box-shadow 0.16s ease;
+  transition: transform 0.16s ease, filter 0.16s ease, box-shadow 0.16s ease;
 }
 
 .publishMediaRetouchButton:hover:not(:disabled),
@@ -11094,8 +10925,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   margin: 12px 0 14px;
   padding: 14px;
   border-radius: 22px;
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 100% 0%,
       rgba(217, 70, 239, 0.14),
       transparent 42%
@@ -11145,8 +10975,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   padding: 12px 10px;
   border-radius: 18px;
   text-align: center;
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 50% 0%,
       rgba(255, 255, 255, 0.16),
       transparent 42%
@@ -11181,7 +11010,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 
 @media (max-width: 760px) {
   .publishMediaModalHeader,
-.publishMediaSourceHeader {
+  .publishMediaSourceHeader {
     flex-direction: column;
     align-items: flex-start;
   }
@@ -11207,7 +11036,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   }
 
   .publishMediaVisual img,
-.publishMediaVisual video {
+  .publishMediaVisual video {
     width: 100% !important;
     max-width: 100% !important;
     height: auto !important;
@@ -11220,7 +11049,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   }
 
   .publishMediaSourcePanel .publishMediaActionButtons label,
-.publishMediaSourcePanel .publishMediaActionButtons button {
+  .publishMediaSourcePanel .publishMediaActionButtons button {
     min-height: 86px;
   }
 }
@@ -11251,7 +11080,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   }
 
   .publishVideoAdapterModal > div,
-.publishVideoAdapterModal video {
+  .publishVideoAdapterModal video {
     max-width: 100% !important;
   }
 
@@ -11267,8 +11096,12 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   overflow: hidden;
 }
 
-.publishInfoGrid .campaignInfoCard > span:not(.campaignInfoIcon):not(.campaignInfoEye),
-.campaignInfoGrid .campaignInfoCard > span:not(.campaignInfoIcon):not(.campaignInfoEye),
+.publishInfoGrid
+  .campaignInfoCard
+  > span:not(.campaignInfoIcon):not(.campaignInfoEye),
+.campaignInfoGrid
+  .campaignInfoCard
+  > span:not(.campaignInfoIcon):not(.campaignInfoEye),
 .publishInfoGrid .campaignInfoText,
 .campaignInfoGrid .campaignInfoText {
   min-width: 0 !important;
@@ -11313,9 +11146,9 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 
 @media (max-width: 1180px) {
   .publishInfoGrid .campaignInfoCard strong,
-.campaignInfoGrid .campaignInfoCard strong,
-.publishInfoGrid .campaignInfoMailLabel,
-.campaignInfoGrid .campaignInfoMailLabel {
+  .campaignInfoGrid .campaignInfoCard strong,
+  .publishInfoGrid .campaignInfoMailLabel,
+  .campaignInfoGrid .campaignInfoMailLabel {
     font-size: 12px !important;
     line-height: 1.05 !important;
   }
@@ -11339,12 +11172,8 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   font-size: 17px;
   font-weight: 900;
   cursor: pointer;
-  transition:
-    transform 0.18s ease,
-    opacity 0.18s ease,
-    box-shadow 0.18s ease,
-    border-color 0.18s ease,
-    background 0.18s ease;
+  transition: transform 0.18s ease, opacity 0.18s ease, box-shadow 0.18s ease,
+    border-color 0.18s ease, background 0.18s ease;
 }
 
 .modalActionButton {
@@ -11369,15 +11198,6 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   opacity: 0.58;
   transform: none;
 }
-
-
-
-
-
-
-
-
-
 
 @media (max-width: 760px) {
   .modalActionButtonRow {
@@ -11491,7 +11311,6 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   }
 }
 
-
 /* iNrAgent — affichage du menu canaux programmés au-dessus du tableau */
 .scheduleTableRow > .scheduleChannelCell {
   overflow: visible !important;
@@ -11564,7 +11383,8 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   color: rgba(255, 255, 255, 0.92);
   background: rgba(59, 130, 246, 0.12);
   cursor: pointer;
-  transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+  transition: border-color 0.18s ease, background 0.18s ease,
+    transform 0.18s ease;
 }
 
 .scheduleMonthNavigation button {
@@ -11608,8 +11428,13 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 
 .scheduleHalfSwitcher button[data-active="true"] {
   border-color: rgba(103, 232, 249, 0.42);
-  background: linear-gradient(135deg, rgba(14, 165, 233, 0.4), rgba(124, 58, 237, 0.38));
-  box-shadow: 0 7px 18px rgba(37, 99, 235, 0.2), inset 0 0 14px rgba(255, 255, 255, 0.06);
+  background: linear-gradient(
+    135deg,
+    rgba(14, 165, 233, 0.4),
+    rgba(124, 58, 237, 0.38)
+  );
+  box-shadow: 0 7px 18px rgba(37, 99, 235, 0.2),
+    inset 0 0 14px rgba(255, 255, 255, 0.06);
 }
 
 .scheduleVisibleCount {
@@ -11654,18 +11479,25 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   padding: 9px;
   border: 1px solid rgba(148, 163, 255, 0.14);
   border-radius: 17px;
-  background:
-    radial-gradient(circle at 100% 0%, rgba(99, 102, 241, 0.11), transparent 42%),
+  background: radial-gradient(
+      circle at 100% 0%,
+      rgba(99, 102, 241, 0.11),
+      transparent 42%
+    ),
     rgba(255, 255, 255, 0.035);
   box-shadow: inset 0 0 22px rgba(255, 255, 255, 0.018);
 }
 
 .scheduleDayCell[data-today="true"] {
   border-color: rgba(34, 211, 238, 0.54);
-  background:
-    radial-gradient(circle at 100% 0%, rgba(34, 211, 238, 0.16), transparent 46%),
+  background: radial-gradient(
+      circle at 100% 0%,
+      rgba(34, 211, 238, 0.16),
+      transparent 46%
+    ),
     rgba(14, 116, 144, 0.09);
-  box-shadow: 0 0 22px rgba(34, 211, 238, 0.09), inset 0 0 22px rgba(255, 255, 255, 0.025);
+  box-shadow: 0 0 22px rgba(34, 211, 238, 0.09),
+    inset 0 0 22px rgba(255, 255, 255, 0.025);
 }
 
 .scheduleDayEmpty {
@@ -11728,18 +11560,31 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   padding: 8px;
   border: 1px solid rgba(96, 165, 250, 0.2);
   border-radius: 12px;
-  background: linear-gradient(135deg, rgba(37, 99, 235, 0.18), rgba(109, 40, 217, 0.13));
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.13), inset 0 0 16px rgba(255, 255, 255, 0.025);
+  background: linear-gradient(
+    135deg,
+    rgba(37, 99, 235, 0.18),
+    rgba(109, 40, 217, 0.13)
+  );
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.13),
+    inset 0 0 16px rgba(255, 255, 255, 0.025);
 }
 
 .scheduleCalendarCard[data-status="running"] {
   border-color: rgba(251, 191, 36, 0.34);
-  background: linear-gradient(135deg, rgba(251, 191, 36, 0.13), rgba(249, 115, 22, 0.08));
+  background: linear-gradient(
+    135deg,
+    rgba(251, 191, 36, 0.13),
+    rgba(249, 115, 22, 0.08)
+  );
 }
 
 .scheduleCalendarCard[data-status="failed"] {
   border-color: rgba(248, 113, 113, 0.38);
-  background: linear-gradient(135deg, rgba(239, 68, 68, 0.14), rgba(127, 29, 29, 0.08));
+  background: linear-gradient(
+    135deg,
+    rgba(239, 68, 68, 0.14),
+    rgba(127, 29, 29, 0.08)
+  );
 }
 
 .scheduleCalendarCardTopline,
@@ -11900,7 +11745,6 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   }
 }
 
-
 /* Correctif 7G — édition temporaire dans la colonne gauche */
 .scheduledEditCard {
   position: relative;
@@ -11908,13 +11752,19 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   min-height: 100%;
   padding: 0 !important;
   overflow: hidden;
-  background:
-    radial-gradient(circle at 15% 8%, rgba(251, 191, 36, 0.25), transparent 34%),
-    radial-gradient(circle at 82% 78%, rgba(56, 189, 248, 0.16), transparent 38%),
+  background: radial-gradient(
+      circle at 15% 8%,
+      rgba(251, 191, 36, 0.25),
+      transparent 34%
+    ),
+    radial-gradient(
+      circle at 82% 78%,
+      rgba(56, 189, 248, 0.16),
+      transparent 38%
+    ),
     linear-gradient(145deg, rgba(14, 20, 39, 0.98), rgba(7, 14, 30, 0.98)) !important;
   border-color: rgba(251, 191, 36, 0.25) !important;
-  box-shadow:
-    inset 0 0 64px rgba(255, 255, 255, 0.035),
+  box-shadow: inset 0 0 64px rgba(255, 255, 255, 0.035),
     0 24px 80px rgba(0, 0, 0, 0.24) !important;
 }
 
@@ -11927,8 +11777,11 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   gap: 16px;
   padding: clamp(28px, 2.8vw, 40px) clamp(24px, 2.4vw, 34px);
   color: #fff;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.018)),
+  background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.045),
+      rgba(255, 255, 255, 0.018)
+    ),
     rgba(5, 12, 28, 0.92);
 }
 
@@ -11940,8 +11793,11 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   justify-content: center;
   border-radius: 20px;
   color: #dbeafe;
-  background:
-    radial-gradient(circle at 35% 30%, rgba(96, 165, 250, 0.34), transparent 58%),
+  background: radial-gradient(
+      circle at 35% 30%,
+      rgba(96, 165, 250, 0.34),
+      transparent 58%
+    ),
     linear-gradient(135deg, rgba(59, 130, 246, 0.22), rgba(168, 85, 247, 0.18));
   border: 1px solid rgba(147, 197, 253, 0.26);
   box-shadow: 0 16px 32px rgba(0, 0, 0, 0.18);
@@ -12185,10 +12041,13 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     transform: translateY(-50%) !important;
     border-radius: 999px !important;
     color: rgba(255, 255, 255, 0.95) !important;
-    background: linear-gradient(135deg, rgba(59, 130, 246, 0.28), rgba(168, 85, 247, 0.22)) !important;
+    background: linear-gradient(
+      135deg,
+      rgba(59, 130, 246, 0.28),
+      rgba(168, 85, 247, 0.22)
+    ) !important;
     border: 1px solid rgba(147, 197, 253, 0.28) !important;
-    box-shadow:
-      inset 0 0 18px rgba(255, 255, 255, 0.035),
+    box-shadow: inset 0 0 18px rgba(255, 255, 255, 0.035),
       0 0 18px rgba(99, 102, 241, 0.2) !important;
     z-index: 8 !important;
   }
@@ -12212,7 +12071,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   }
 
   .automationCard .cardStatus,
-.automationCard .cardPendingCount + .cardStatus {
+  .automationCard .cardPendingCount + .cardStatus {
     top: 50% !important;
     right: 8px !important;
     bottom: auto !important;
@@ -12270,7 +12129,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   }
 
   .automationCard .cardStatus,
-.automationCard .cardPendingCount + .cardStatus {
+  .automationCard .cardPendingCount + .cardStatus {
     right: 8px !important;
   }
 }
@@ -12456,8 +12315,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     filter: grayscale(1) saturate(0.25) brightness(0.82);
     cursor: not-allowed;
     transform: none !important;
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08),
       0 6px 12px rgba(0, 0, 0, 0.2) !important;
   }
 
@@ -12472,7 +12330,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   }
 
   .previewMetaPublish .saveCampaignDraftButton,
-.previewMetaPublish .modifyCampaignButton {
+  .previewMetaPublish .modifyCampaignButton {
     width: 52px !important;
     min-width: 52px !important;
     max-width: 52px !important;
@@ -12508,7 +12366,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   }
 
   .previewMetaPublish .saveCampaignDraftButton,
-.previewMetaPublish .modifyCampaignButton {
+  .previewMetaPublish .modifyCampaignButton {
     width: 48px !important;
     min-width: 48px !important;
     max-width: 48px !important;
@@ -12646,15 +12504,15 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   }
 
   .previewMetaPublish .dateItem,
-.previewMetaPublish .saveCampaignDraftButton,
-.previewMetaPublish .modifyCampaignButton,
-.previewMetaPublish .previewActions {
+  .previewMetaPublish .saveCampaignDraftButton,
+  .previewMetaPublish .modifyCampaignButton,
+  .previewMetaPublish .previewActions {
     align-self: end !important;
   }
 
   .previewMetaPublish .dateItem,
-.previewMetaPublish .saveCampaignDraftButton,
-.previewMetaPublish .modifyCampaignButton {
+  .previewMetaPublish .saveCampaignDraftButton,
+  .previewMetaPublish .modifyCampaignButton {
     min-height: 52px !important;
     height: 52px !important;
   }
@@ -12665,7 +12523,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   }
 
   .previewMetaPublish .previewActions .validateButton,
-.previewMetaPublish .previewActions .refuseButton {
+  .previewMetaPublish .previewActions .refuseButton {
     min-height: 52px !important;
     height: 52px !important;
   }
@@ -12697,8 +12555,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 .actionProcessingButtonValidated {
   background: linear-gradient(135deg, #145bff, #6d28d9 56%, #d926bd);
   border: 1px solid rgba(96, 165, 250, 0.42);
-  box-shadow:
-    0 0 28px rgba(59, 130, 246, 0.22),
+  box-shadow: 0 0 28px rgba(59, 130, 246, 0.22),
     0 0 30px rgba(217, 70, 239, 0.16);
 }
 
@@ -12709,8 +12566,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     rgba(18, 12, 29, 0.98)
   );
   border: 1px solid rgba(244, 63, 94, 0.5);
-  box-shadow:
-    inset 0 0 28px rgba(255, 255, 255, 0.02),
+  box-shadow: inset 0 0 28px rgba(255, 255, 255, 0.02),
     0 0 24px rgba(244, 63, 94, 0.12);
 }
 
@@ -12800,7 +12656,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   }
 
   .previewMetaPublish .previewActions,
-.previewMetaCampaign .previewActions {
+  .previewMetaCampaign .previewActions {
     overflow: visible;
   }
 }
@@ -12895,14 +12751,14 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   }
 
   .previewCard,
-.previewBody {
+  .previewBody {
     width: 100%;
     overflow-x: hidden !important;
   }
 
   .previewMetaPublish,
-.previewMetaCampaign,
-.previewMetaStats {
+  .previewMetaCampaign,
+  .previewMetaStats {
     max-width: 100%;
   }
 }
@@ -12921,9 +12777,9 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   }
 
   .headerScheduleButton,
-.headerToolButton,
-.headerInrSendButton,
-.headerCloseButton {
+  .headerToolButton,
+  .headerInrSendButton,
+  .headerCloseButton {
     width: 40px;
     min-width: 40px;
     max-width: 40px;
@@ -12934,9 +12790,9 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   }
 
   .headerScheduleLabel,
-.headerToolLabel,
-.headerInrSendLabel,
-.headerCloseLabel {
+  .headerToolLabel,
+  .headerInrSendLabel,
+  .headerCloseLabel {
     display: none;
   }
 
@@ -13061,7 +12917,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   }
 
   .previewMetaPublish .saveCampaignDraftButton,
-.previewMetaPublish .modifyCampaignButton {
+  .previewMetaPublish .modifyCampaignButton {
     width: 48px !important;
     min-width: 48px !important;
     max-width: 48px !important;
@@ -13143,13 +12999,8 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     z-index: 89;
     margin: 0 !important;
     box-sizing: border-box;
-    transition:
-      width 0.22s ease,
-      height 0.22s ease,
-      left 0.22s ease,
-      top 0.22s ease,
-      transform 0.22s ease,
-      border-radius 0.22s ease,
+    transition: width 0.22s ease, height 0.22s ease, left 0.22s ease,
+      top 0.22s ease, transform 0.22s ease, border-radius 0.22s ease,
       box-shadow 0.22s ease;
   }
 
@@ -13164,11 +13015,13 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     font-weight: 900;
     cursor: pointer;
     border: 1px solid rgba(125, 211, 252, 0.26);
-    background:
-      radial-gradient(circle at 20% 10%, rgba(56, 189, 248, 0.24), transparent 34%),
+    background: radial-gradient(
+        circle at 20% 10%,
+        rgba(56, 189, 248, 0.24),
+        transparent 34%
+      ),
       linear-gradient(135deg, rgba(37, 99, 235, 0.3), rgba(126, 34, 206, 0.28));
-    box-shadow:
-      inset 0 0 18px rgba(255, 255, 255, 0.04),
+    box-shadow: inset 0 0 18px rgba(255, 255, 255, 0.04),
       0 0 22px rgba(59, 130, 246, 0.18);
   }
 
@@ -13203,8 +13056,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     transform: translateY(-50%) !important;
     border-left: 0 !important;
     border-radius: 0 20px 20px 0 !important;
-    box-shadow:
-      0 20px 52px rgba(0, 0, 0, 0.34),
+    box-shadow: 0 20px 52px rgba(0, 0, 0, 0.34),
       0 0 28px rgba(59, 130, 246, 0.2) !important;
   }
 
@@ -13250,8 +13102,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     overflow-y: auto !important;
     transform: none !important;
     border-radius: 24px !important;
-    box-shadow:
-      0 30px 90px rgba(0, 0, 0, 0.52),
+    box-shadow: 0 30px 90px rgba(0, 0, 0, 0.52),
       0 0 42px rgba(59, 130, 246, 0.2) !important;
   }
 
@@ -13380,8 +13231,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 
 .publishMediaGalleryItemActive {
   border-color: rgba(34, 211, 238, 0.9);
-  box-shadow:
-    0 0 0 2px rgba(34, 211, 238, 0.18),
+  box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.18),
     0 0 18px rgba(34, 211, 238, 0.28);
 }
 
@@ -13422,4 +13272,1079 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   max-height: none;
   overflow: hidden !important;
   overscroll-behavior: auto;
+}
+
+/* Agenda iNrCy — interface lumineuse, filtres et états de validation. */
+.scheduleModal {
+  position: relative;
+  width: min(1240px, calc(100vw - 28px)) !important;
+  max-height: min(92dvh, 920px) !important;
+  padding: 18px 20px 20px !important;
+  background: radial-gradient(
+      circle at 8% 5%,
+      rgba(14, 165, 233, 0.27),
+      transparent 31%
+    ),
+    radial-gradient(circle at 92% 3%, rgba(217, 70, 239, 0.2), transparent 30%),
+    radial-gradient(
+      circle at 52% 100%,
+      rgba(99, 102, 241, 0.19),
+      transparent 38%
+    ),
+    linear-gradient(145deg, rgba(13, 38, 82, 0.985), rgba(22, 27, 73, 0.985)) !important;
+  border-color: rgba(103, 232, 249, 0.34) !important;
+  box-shadow: 0 30px 90px rgba(2, 6, 23, 0.62), 0 0 48px rgba(59, 130, 246, 0.2),
+    inset 0 0 46px rgba(255, 255, 255, 0.035) !important;
+}
+
+.scheduleModal::before {
+  content: "";
+  position: absolute;
+  inset: 0 54px auto;
+  height: 2px;
+  border-radius: 999px;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    #22d3ee,
+    #818cf8,
+    #f472b6,
+    transparent
+  );
+  filter: drop-shadow(0 0 8px rgba(103, 232, 249, 0.7));
+}
+
+.scheduleModalHeader {
+  align-items: center;
+  padding: 0 2px 2px;
+}
+
+.scheduleModalTitle h2 {
+  margin: 0 !important;
+  color: #fff;
+  font-size: clamp(23px, 2.2vw, 34px);
+  line-height: 1;
+  letter-spacing: -0.045em;
+  text-shadow: 0 5px 18px rgba(34, 211, 238, 0.13);
+}
+
+.scheduleSummaryPill {
+  min-height: 40px;
+  border-color: rgba(165, 180, 252, 0.34);
+  color: rgba(239, 246, 255, 0.88);
+  background: linear-gradient(
+    135deg,
+    rgba(14, 165, 233, 0.24),
+    rgba(139, 92, 246, 0.26)
+  );
+  box-shadow: 0 10px 24px rgba(30, 64, 175, 0.2),
+    inset 0 0 18px rgba(255, 255, 255, 0.07);
+}
+
+.scheduleSummaryPill strong {
+  color: #a5f3fc;
+}
+
+.scheduleCloseButton {
+  min-height: 40px;
+  border-color: rgba(196, 181, 253, 0.3);
+  background: linear-gradient(
+    135deg,
+    rgba(71, 85, 151, 0.5),
+    rgba(88, 52, 143, 0.45)
+  );
+  box-shadow: inset 0 0 18px rgba(255, 255, 255, 0.045);
+}
+
+.scheduleCalendarShell {
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 10px;
+}
+
+.scheduleCalendarToolbar {
+  padding: 2px 4px;
+}
+
+.scheduleMonthNavigation strong {
+  color: #f8fbff;
+  font-size: 18px;
+}
+
+.scheduleMonthNavigation button,
+.scheduleHalfSwitcher button {
+  border-color: rgba(103, 232, 249, 0.3);
+  background: linear-gradient(
+    145deg,
+    rgba(14, 116, 144, 0.2),
+    rgba(79, 70, 229, 0.17)
+  );
+}
+
+.scheduleHalfSwitcher {
+  border-color: rgba(165, 180, 252, 0.28);
+  background: rgba(7, 17, 46, 0.58);
+  box-shadow: inset 0 0 16px rgba(255, 255, 255, 0.035);
+}
+
+.scheduleHalfSwitcher button[data-active="true"] {
+  border-color: rgba(103, 232, 249, 0.56);
+  background: linear-gradient(
+    135deg,
+    rgba(6, 182, 212, 0.68),
+    rgba(124, 58, 237, 0.62)
+  );
+  box-shadow: 0 8px 22px rgba(37, 99, 235, 0.3),
+    inset 0 0 14px rgba(255, 255, 255, 0.12);
+}
+
+.scheduleVisibleCount {
+  color: rgba(224, 242, 254, 0.82);
+}
+
+.scheduleFilters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid rgba(125, 211, 252, 0.2);
+  border-radius: 16px;
+  background: linear-gradient(
+      90deg,
+      rgba(8, 47, 73, 0.26),
+      rgba(49, 46, 129, 0.2)
+    ),
+    rgba(4, 12, 34, 0.4);
+  box-shadow: inset 0 0 24px rgba(255, 255, 255, 0.025);
+}
+
+.scheduleFilter {
+  --schedule-filter-accent: #67e8f9;
+  --schedule-filter-glow: rgba(34, 211, 238, 0.24);
+  position: relative;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 10px 5px 7px;
+  border: 1px solid rgba(148, 163, 255, 0.2);
+  border-radius: 12px;
+  color: rgba(239, 246, 255, 0.92);
+  background: rgba(15, 30, 68, 0.72);
+  cursor: pointer;
+  user-select: none;
+  transition: opacity 0.18s ease, transform 0.18s ease, border-color 0.18s ease,
+    background 0.18s ease;
+}
+
+.scheduleFilter[data-filter="stats"] {
+  --schedule-filter-accent: #c084fc;
+  --schedule-filter-glow: rgba(192, 132, 252, 0.26);
+}
+
+.scheduleFilter[data-filter="campaigns"] {
+  --schedule-filter-accent: #fb923c;
+  --schedule-filter-glow: rgba(251, 146, 60, 0.25);
+}
+
+.scheduleFilter:hover {
+  transform: translateY(-1px);
+}
+
+.scheduleFilter[data-active="true"] {
+  border-color: var(--schedule-filter-accent);
+  background: linear-gradient(
+    135deg,
+    var(--schedule-filter-glow),
+    rgba(49, 46, 129, 0.36)
+  );
+  box-shadow: 0 7px 18px var(--schedule-filter-glow),
+    inset 0 0 15px rgba(255, 255, 255, 0.045);
+}
+
+.scheduleFilter[data-active="false"] {
+  opacity: 0.55;
+}
+
+.scheduleFilter input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.scheduleFilterCheck {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--schedule-filter-accent);
+  border-radius: 7px;
+  color: #071225;
+  background: rgba(2, 8, 23, 0.45);
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.scheduleFilter[data-active="true"] .scheduleFilterCheck {
+  background: var(--schedule-filter-accent);
+  box-shadow: 0 0 12px var(--schedule-filter-glow);
+}
+
+.scheduleFilterDot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  border-radius: 999px;
+  background: var(--schedule-filter-accent);
+  box-shadow: 0 0 9px var(--schedule-filter-accent);
+}
+
+.scheduleFilter strong {
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.scheduleFilter small {
+  min-width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  padding: 0 5px;
+  border-radius: 999px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+  font-size: 9px;
+  font-weight: 950;
+}
+
+.scheduleCalendarViewport {
+  padding: 8px;
+  border: 1px solid rgba(125, 211, 252, 0.17);
+  border-radius: 18px;
+  background: radial-gradient(
+      circle at 50% 0%,
+      rgba(59, 130, 246, 0.09),
+      transparent 48%
+    ),
+    rgba(3, 11, 31, 0.3);
+}
+
+.scheduleCalendar {
+  gap: 9px;
+  padding: 0 2px 4px 0;
+}
+
+.scheduleWeekday {
+  color: rgba(224, 242, 254, 0.76);
+}
+
+.scheduleDayCell {
+  border-color: rgba(125, 211, 252, 0.2);
+  background: radial-gradient(
+      circle at 100% 0%,
+      rgba(129, 140, 248, 0.18),
+      transparent 45%
+    ),
+    linear-gradient(155deg, rgba(31, 63, 116, 0.64), rgba(23, 32, 78, 0.64));
+  box-shadow: inset 0 0 25px rgba(255, 255, 255, 0.035),
+    0 10px 24px rgba(2, 6, 23, 0.12);
+}
+
+.scheduleDayEmpty {
+  opacity: 0.5;
+  background: linear-gradient(
+    155deg,
+    rgba(30, 58, 104, 0.3),
+    rgba(29, 31, 74, 0.25)
+  );
+}
+
+.scheduleDayHeader > span {
+  color: #f8fbff;
+  background: linear-gradient(
+    135deg,
+    rgba(56, 189, 248, 0.18),
+    rgba(129, 140, 248, 0.18)
+  );
+  border: 1px solid rgba(186, 230, 253, 0.14);
+}
+
+.scheduleCalendarCard {
+  border-color: rgba(103, 232, 249, 0.36);
+  background: linear-gradient(
+    135deg,
+    rgba(8, 145, 178, 0.37),
+    rgba(37, 99, 235, 0.26)
+  );
+  box-shadow: 0 9px 20px rgba(2, 6, 23, 0.2),
+    inset 0 0 18px rgba(255, 255, 255, 0.05);
+}
+
+.scheduleCalendarCard[data-category="stats"] {
+  border-color: rgba(216, 180, 254, 0.43);
+  background: linear-gradient(
+    135deg,
+    rgba(126, 34, 206, 0.38),
+    rgba(219, 39, 119, 0.2)
+  );
+}
+
+.scheduleCalendarCard[data-category="campaigns"] {
+  border-color: rgba(253, 186, 116, 0.46);
+  background: linear-gradient(
+    135deg,
+    rgba(234, 88, 12, 0.34),
+    rgba(190, 24, 93, 0.22)
+  );
+}
+
+.scheduleCalendarCardTopline time {
+  color: #cffafe;
+}
+
+.scheduleApprovalIndicator {
+  width: 10px !important;
+  min-width: 10px !important;
+  height: 10px;
+  flex: 0 0 10px;
+  border-radius: 999px;
+  overflow: visible !important;
+}
+
+.scheduleApprovalIndicator[data-state="approved"] {
+  background: #34d399;
+  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.13),
+    0 0 10px rgba(52, 211, 153, 0.82);
+}
+
+.scheduleApprovalIndicator[data-state="pending"] {
+  background: #fb923c;
+  box-shadow: 0 0 0 3px rgba(251, 146, 60, 0.13),
+    0 0 10px rgba(251, 146, 60, 0.84);
+}
+
+.scheduleCalendarCard > strong {
+  color: #fff;
+  font-size: 11px;
+}
+
+.scheduleCalendarCard > small {
+  color: rgba(224, 242, 254, 0.82);
+}
+
+.scheduleCalendarCardFooter em {
+  color: rgba(239, 246, 255, 0.68);
+}
+
+.scheduleCalendarCard .scheduleIconButton {
+  display: inline-grid;
+  place-items: center;
+  color: #cffafe;
+  border-color: rgba(103, 232, 249, 0.35);
+  background: rgba(8, 145, 178, 0.24);
+}
+
+.scheduleCalendarCard .scheduleIconButton svg {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.scheduleCalendarCard .scheduleIconDanger {
+  color: #fecdd3;
+  border-color: rgba(251, 113, 133, 0.3);
+  background: rgba(190, 24, 93, 0.2);
+}
+
+.scheduleFilteredEmpty {
+  min-height: 220px;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  color: rgba(224, 242, 254, 0.74);
+  font-size: 13px;
+  font-weight: 800;
+  text-align: center;
+}
+
+@media (max-width: 760px) {
+  .scheduleModal {
+    padding: 14px 12px 14px !important;
+  }
+
+  .scheduleModalHeader {
+    align-items: flex-start;
+  }
+
+  .scheduleModalHeaderActions {
+    gap: 6px;
+  }
+
+  .scheduleSummaryPill span {
+    display: none;
+  }
+
+  .scheduleSummaryPill,
+  .scheduleCloseButton {
+    min-height: 36px;
+  }
+
+  .scheduleCloseButton {
+    padding: 0 12px;
+  }
+
+  .scheduleFilters {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 5px;
+    padding: 6px;
+  }
+
+  .scheduleFilter {
+    min-width: 0;
+    gap: 5px;
+    padding: 5px 6px;
+  }
+
+  .scheduleFilterDot {
+    display: none;
+  }
+
+  .scheduleFilter strong {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .scheduleFilter small {
+    display: none;
+  }
+}
+
+/* Agenda iNrCy — disposition finale desktop et grille mobile sans défilement horizontal. */
+.scheduleModal {
+  width: min(1680px, calc(100vw - 48px)) !important;
+  height: min(94dvh, 1040px) !important;
+  max-height: min(94dvh, 1040px) !important;
+}
+
+.scheduleModalHeader {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(210px, 1fr) auto minmax(240px, 1fr);
+  align-items: center;
+  gap: 18px;
+}
+
+.scheduleHeaderPeriodControls {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+}
+
+.scheduleModalHeaderActions {
+  min-width: 0;
+  justify-self: end;
+}
+
+.scheduleCalendarShell {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.scheduleCalendarViewport {
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.scheduleCalendar {
+  width: 100%;
+  min-width: 0;
+  grid-template-rows: 28px;
+  grid-auto-rows: 206px;
+  align-content: start;
+}
+
+.scheduleDayCell,
+.scheduleDayEmpty {
+  height: 206px;
+  min-height: 206px;
+  max-height: 206px;
+  overflow: hidden;
+}
+
+.scheduleDayActions {
+  grid-template-columns: minmax(0, 1fr);
+  grid-auto-rows: 140px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.scheduleCalendarCard {
+  height: 140px;
+  min-height: 140px;
+  max-height: 140px;
+  grid-template-rows: 16px 30px minmax(0, 1fr) 20px;
+  gap: 3px;
+  padding: 6px 7px;
+  overflow: visible;
+}
+
+.scheduleCalendarCardTopline {
+  display: contents;
+}
+
+.scheduleCalendarCardTopline time {
+  grid-row: 1;
+}
+
+.scheduleCalendarCardTopline > .scheduleCalendarCardControls {
+  grid-row: 4;
+  width: auto;
+  min-width: 0;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: inherit;
+  overflow: visible;
+}
+
+.scheduleCalendarCard .scheduleIconButton {
+  width: 20px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0;
+}
+
+.scheduleCalendarCard .scheduleIconButton svg {
+  width: 11px;
+  height: 11px;
+}
+
+.scheduleCalendarCard .scheduleApprovalIndicator {
+  width: 8px !important;
+  min-width: 8px !important;
+  height: 8px;
+  flex-basis: 8px;
+  margin-left: 2px;
+}
+
+.scheduleCalendarCard > strong {
+  grid-row: 2;
+  display: -webkit-box;
+  line-height: 14px;
+  overflow: hidden;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.scheduleCalendarCardMeta {
+  grid-row: 3;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 5px;
+}
+
+.scheduleCalendarCardMeta > small,
+.scheduleCalendarCardMeta > em {
+  min-width: 0;
+  color: rgba(224, 242, 254, 0.78);
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 780;
+  line-height: 18px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scheduleCalendarCardMeta > small {
+  width: 100%;
+  flex: 0 1 auto;
+}
+
+.scheduleCalendarCardMeta > em {
+  width: 100%;
+  flex: 0 1 auto;
+  margin-left: 0;
+  color: rgba(239, 246, 255, 0.62);
+}
+
+.scheduleCalendarChannels {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.scheduleCalendarChannels summary {
+  min-width: 0;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  border: 1px solid rgba(103, 232, 249, 0.24);
+  border-radius: 999px;
+  color: #cffafe;
+  background: rgba(8, 145, 178, 0.17);
+  font-size: 9px;
+  font-weight: 850;
+  line-height: 1;
+  list-style: none;
+  cursor: pointer;
+}
+
+.scheduleCalendarChannels summary::-webkit-details-marker {
+  display: none;
+}
+
+.scheduleCalendarChannels summary > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scheduleCalendarChannels summary > span:last-child {
+  flex: 0 0 auto;
+  transition: transform 0.18s ease;
+}
+
+.scheduleCalendarChannels[open] summary > span:last-child {
+  transform: rotate(180deg);
+}
+
+.scheduleCalendarChannels > div {
+  position: absolute;
+  z-index: 80;
+  top: calc(100% + 5px);
+  left: 0;
+  width: max-content;
+  min-width: 150px;
+  max-width: 230px;
+  display: grid;
+  gap: 3px;
+  padding: 7px;
+  border: 1px solid rgba(103, 232, 249, 0.32);
+  border-radius: 11px;
+  background: rgba(5, 14, 40, 0.98);
+  box-shadow: 0 16px 34px rgba(2, 6, 23, 0.54);
+}
+
+.scheduleCalendarChannels > div span {
+  min-width: 0;
+  padding: 3px 5px;
+  border-radius: 7px;
+  color: rgba(239, 246, 255, 0.86);
+  background: rgba(255, 255, 255, 0.045);
+  font-size: 9px;
+  font-weight: 760;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scheduleDayCell:has(.scheduleCalendarChannels[open]),
+.scheduleDayCell:has(.scheduleCalendarChannels[open]) .scheduleDayActions {
+  z-index: 60;
+  overflow: visible;
+}
+
+@media (min-width: 1101px) {
+  .modalBackdrop:has(.scheduleModal) {
+    padding: 8px 14px;
+  }
+
+  .scheduleModal {
+    height: min(calc(100dvh - 16px), 1160px) !important;
+    max-height: min(calc(100dvh - 16px), 1160px) !important;
+  }
+
+  .scheduleModalTitle,
+  .scheduleHeaderPeriodControls,
+  .scheduleModalHeaderActions {
+    grid-row: 1;
+  }
+
+  .scheduleModalTitle {
+    grid-column: 1;
+  }
+
+  .scheduleHeaderPeriodControls {
+    grid-column: 2;
+  }
+
+  .scheduleModalHeaderActions {
+    grid-column: 3;
+  }
+}
+
+@media (min-width: 1101px) {
+  .scheduleDayActions {
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    gap: 6px;
+    padding-bottom: 5px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x proximity;
+  }
+
+  .scheduleDayActions > .scheduleCalendarCard {
+    flex: 0 0 calc((100% - 6px) / 2);
+    scroll-snap-align: start;
+  }
+}
+
+@media (min-width: 761px) and (max-width: 1100px) {
+  .scheduleModal {
+    width: calc(100vw - 32px) !important;
+  }
+
+  .scheduleModalHeader {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px 14px;
+  }
+
+  .scheduleHeaderPeriodControls {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .scheduleModalHeaderActions {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}
+
+@media (max-width: 760px) {
+  .scheduleModal {
+    width: 100% !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    margin: 0 !important;
+    padding: 14px 10px !important;
+  }
+
+  .scheduleModalHeader {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px 8px;
+  }
+
+  .scheduleModalTitle {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .scheduleModalTitle h2 {
+    font-size: clamp(22px, 7.5vw, 28px);
+  }
+
+  .scheduleModalHeaderActions {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .scheduleHeaderPeriodControls {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    width: 100%;
+    justify-content: space-between;
+    gap: 7px;
+  }
+
+  .scheduleMonthNavigation {
+    min-width: 0;
+    flex: 1 1 auto;
+    justify-content: space-between;
+  }
+
+  .scheduleMonthNavigation strong {
+    min-width: 0;
+    font-size: 14px;
+  }
+
+  .scheduleMonthNavigation button {
+    width: 30px;
+    min-width: 30px;
+    height: 34px;
+  }
+
+  .scheduleHalfSwitcher {
+    flex: 0 0 auto;
+  }
+
+  .scheduleHalfSwitcher button {
+    min-width: 63px;
+    padding: 0 7px;
+  }
+
+  .scheduleCalendarViewport {
+    padding: 6px;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .scheduleCalendar {
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: none;
+    grid-auto-rows: 164px;
+    gap: 6px;
+    padding: 0;
+  }
+
+  .scheduleWeekday,
+  .scheduleDayEmpty {
+    display: none;
+  }
+
+  .scheduleDayCell {
+    width: auto;
+    height: 164px;
+    min-height: 164px;
+    max-height: 164px;
+    padding: 6px;
+    border-radius: 14px;
+  }
+
+  .scheduleDayHeader {
+    min-height: 24px;
+  }
+
+  .scheduleDayHeader > span {
+    width: 25px;
+    height: 25px;
+  }
+
+  .scheduleDayActions {
+    gap: 5px;
+  }
+
+  .scheduleCalendarCard {
+    position: relative;
+    height: 56px;
+    min-height: 56px;
+    max-height: 56px;
+    grid-template-rows: 14px 14px 14px;
+    gap: 2px;
+    padding: 4px 5px 4px 7px;
+    border-left-width: 3px;
+  }
+
+  .scheduleCalendarCard[data-category="stats"] {
+    border-left-color: #c084fc;
+  }
+
+  .scheduleCalendarCard[data-category="campaigns"] {
+    border-left-color: #fb923c;
+  }
+
+  .scheduleCalendarCardTopline {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 3px;
+  }
+
+  .scheduleCalendarCardTopline > .scheduleCalendarCardControls {
+    position: static;
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .scheduleCalendarCardTopline time {
+    grid-row: auto;
+  }
+
+  .scheduleCalendarCard .scheduleIconButton {
+    width: 15px;
+    min-width: 15px;
+    height: 15px;
+  }
+
+  .scheduleCalendarCard .scheduleIconButton svg {
+    width: 9px;
+    height: 9px;
+  }
+
+  .scheduleCalendarCard .scheduleApprovalIndicator {
+    width: 7px !important;
+    min-width: 7px !important;
+    height: 7px;
+    flex-basis: 7px;
+    margin: 1px 0 0;
+  }
+
+  .scheduleCalendarCardTopline time,
+  .scheduleCalendarCard > strong {
+    font-size: 9.5px;
+    line-height: 14px;
+  }
+
+  .scheduleCalendarCard > strong {
+    grid-row: auto;
+    display: block;
+    white-space: nowrap;
+  }
+
+  .scheduleCalendarCardMeta {
+    grid-row: auto;
+    flex-direction: row;
+    align-items: center;
+    gap: 3px;
+  }
+
+  .scheduleCalendarCardMeta > small,
+  .scheduleCalendarCardMeta > em {
+    width: auto;
+  }
+
+  .scheduleCalendarCardMeta > em {
+    margin-left: auto;
+  }
+
+  .scheduleCalendarCardMeta > small,
+  .scheduleCalendarCardMeta > em,
+  .scheduleCalendarChannels summary {
+    height: 14px;
+    font-size: 7.5px;
+    line-height: 14px;
+  }
+
+  .scheduleCalendarChannels {
+    width: auto;
+    max-width: 58%;
+  }
+
+  .scheduleCalendarChannels > div {
+    min-width: 120px;
+    max-width: 180px;
+  }
+}
+
+@media (max-width: 390px) {
+  .scheduleModalHeaderActions {
+    gap: 4px;
+  }
+
+  .scheduleSummaryPill,
+  .scheduleCloseButton {
+    min-height: 34px;
+  }
+
+  .scheduleSummaryPill {
+    padding: 4px 8px;
+  }
+
+  .scheduleCloseButton {
+    padding: 0 9px;
+  }
+
+  .scheduleMonthNavigation strong {
+    font-size: 13px;
+  }
+
+  .scheduleHalfSwitcher button {
+    min-width: 58px;
+    padding: 0 5px;
+    font-size: 11px;
+  }
+
+  .scheduleFilter {
+    padding-inline: 5px;
+  }
+
+  .scheduleFilterCheck {
+    width: 18px;
+    height: 18px;
+    flex-basis: 18px;
+  }
+}
+
+/* iNrAgent — miniatures réelles dans le résumé de la publication */
+.publishMediaInfoThumbs {
+  position: relative;
+  min-width: auto !important;
+  flex: 0 0 auto !important;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 0 !important;
+  overflow: visible !important;
+}
+
+.publishMediaInfoThumb {
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  display: block;
+  overflow: hidden;
+  border-radius: 14px;
+  background: rgba(2, 6, 23, 0.72);
+  border: 1px solid rgba(125, 211, 252, 0.46);
+  box-shadow: 0 7px 18px rgba(0, 0, 0, 0.28);
+}
+
+.publishMediaInfoThumb + .publishMediaInfoThumb {
+  margin-left: -22px;
+}
+
+.publishMediaInfoThumb img,
+.publishMediaInfoThumb video {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.publishMediaInfoThumbs > em {
+  min-width: 24px;
+  height: 24px;
+  margin-left: -9px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  color: #fff;
+  background: linear-gradient(135deg, #2563eb, #a855f7);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.publishMediaInfoText {
+  min-width: 0;
+}
+
+@media (max-width: 1180px) {
+  .publishMediaInfoThumb {
+    width: 42px;
+    height: 42px;
+    flex-basis: 42px;
+  }
 }

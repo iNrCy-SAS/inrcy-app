@@ -20,6 +20,11 @@ import { captureApiException } from "@/lib/observability/sentry";
 import { withApi } from "@/lib/observability/withApi";
 import { getDashboardEditionForAuthUser } from "@/lib/dashboardEditionServer";
 import {
+  inrAgentMonthlyDateCount,
+  isInrAgentScheduledMonthDay,
+  normalizeInrAgentMonthDays,
+} from "@/lib/inrAgentMonthSchedule";
+import {
   restrictInrAgentSettingsForStandard,
   standardAgentAutomationKeysForPersistence,
 } from "@/lib/standardAgentPolicy";
@@ -149,19 +154,16 @@ function isFirstScheduledWeekdayOfMonth(local: ReturnType<typeof getLocalParts>,
   return local.weekday === dayOfWeek && local.day <= 7;
 }
 
-function isThirdScheduledWeekdayOfMonth(local: ReturnType<typeof getLocalParts>, dayOfWeek: number) {
-  return local.weekday === dayOfWeek && local.day >= 15 && local.day <= 21;
-}
-
-function isSecondScheduledWeekdayOfMonth(local: ReturnType<typeof getLocalParts>, dayOfWeek: number) {
-  return local.weekday === dayOfWeek && local.day >= 8 && local.day <= 14;
-}
-
-function isScheduledDate(local: ReturnType<typeof getLocalParts>, frequency: InrAgentFrequency, dayOfWeek: number) {
+function isScheduledDate(
+  local: ReturnType<typeof getLocalParts>,
+  frequency: InrAgentFrequency,
+  dayOfWeek: number,
+  monthDays: number[],
+) {
+  if (inrAgentMonthlyDateCount(frequency)) {
+    return isInrAgentScheduledMonthDay(local, monthDays);
+  }
   if (frequency === "twice_weekly" || frequency === "three_times_weekly") return local.weekday === dayOfWeek;
-  if (frequency === "biweekly") return isFirstScheduledWeekdayOfMonth(local, dayOfWeek) || isThirdScheduledWeekdayOfMonth(local, dayOfWeek);
-  if (frequency === "three_times_monthly") return isFirstScheduledWeekdayOfMonth(local, dayOfWeek) || isSecondScheduledWeekdayOfMonth(local, dayOfWeek) || isThirdScheduledWeekdayOfMonth(local, dayOfWeek);
-  if (frequency === "monthly") return isFirstScheduledWeekdayOfMonth(local, dayOfWeek);
   if (frequency === "quarterly") return [1, 4, 7, 10].includes(local.month) && isFirstScheduledWeekdayOfMonth(local, dayOfWeek);
   return local.weekday === dayOfWeek;
 }
@@ -178,6 +180,10 @@ function computeNextRunAt(automation: InrAgentAutomationSettings, after: Date, t
   const start = getLocalParts(new Date(after.getTime() + 60 * 1000), timeZone);
   const dayOfWeek = normalizeDay(automation.dayOfWeek);
   const slots = normalizeScheduleSlots(automation.metadata, frequency, dayOfWeek, normalizeTime(automation.time || "09:00"));
+  const monthDays = normalizeInrAgentMonthDays(
+    automation.metadata?.monthDays,
+    frequency,
+  );
 
   for (let offset = 0; offset <= 110; offset += 1) {
     const localDate = addLocalDays(start, offset);
@@ -186,7 +192,7 @@ function computeNextRunAt(automation: InrAgentAutomationSettings, after: Date, t
         const schedule = timeParts(slot.time);
         const candidateUtc = zonedTimeToUtc({ ...localDate, ...schedule }, timeZone);
         const candidateLocal = getLocalParts(candidateUtc, timeZone);
-        if (!isScheduledDate(candidateLocal, frequency, slot.dayOfWeek)) return null;
+        if (!isScheduledDate(candidateLocal, frequency, slot.dayOfWeek, monthDays)) return null;
         return candidateUtc;
       })
       .filter((candidate): candidate is Date => Boolean(candidate))
@@ -217,6 +223,7 @@ function scheduleSignature(row: Pick<DbAgentAutomationSettingsRow, "enabled" | "
     String(day),
     time,
     JSON.stringify(normalizeScheduleSlots(row?.metadata, frequency, day, time)),
+    JSON.stringify(normalizeInrAgentMonthDays(row?.metadata?.monthDays, frequency)),
   ].join("|");
 }
 
@@ -230,6 +237,7 @@ function automationSignature(automation: InrAgentAutomationSettings) {
     String(day),
     time,
     JSON.stringify(normalizeScheduleSlots(automation.metadata, frequency, day, time)),
+    JSON.stringify(normalizeInrAgentMonthDays(automation.metadata?.monthDays, frequency)),
   ].join("|");
 }
 
