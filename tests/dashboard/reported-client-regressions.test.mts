@@ -68,6 +68,20 @@ test("les pastilles privilégient la connexion confirmée sur un ancien état de
   assert.match(linkedin, /hasCompanyPage\s*\?\s*undefined/);
 });
 
+test("une connexion en cours grise et neutralise le bouton sans seconde animation", () => {
+  const css = read("app/dashboard/dashboard.module.css");
+
+  assert.match(
+    css,
+    /\.connectingActionBtn,[\s\S]*?\.connectingActionBtn:disabled\s*\{[\s\S]*?opacity:\s*0\.48;[\s\S]*?cursor:\s*not-allowed;[\s\S]*?pointer-events:\s*none;[\s\S]*?box-shadow:\s*none;/,
+  );
+  assert.match(css, /\.connectingActionBtn::before\s*\{\s*content:\s*none;/);
+  assert.doesNotMatch(
+    css,
+    /\.connectingActionBtn::before\s*\{[\s\S]*?animation:\s*connectionPillPulse/,
+  );
+});
+
 test("YouTube recharge l'état serveur au retour OAuth", () => {
   const source = read("app/dashboard/settings/_components/YoutubeShortsSettingsContent.tsx");
 
