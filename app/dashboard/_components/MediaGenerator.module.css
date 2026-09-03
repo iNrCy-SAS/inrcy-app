@@ -2146,6 +2146,13 @@ textarea:focus-visible,
   .resultActions { grid-row: 4; }
 }
 
+@media (max-width: 1100px) {
+  .footerBar {
+    position: relative;
+    bottom: auto;
+  }
+}
+
 @media (max-width: 620px) {
   .generator { gap: 10px; }
   .criteriaSection { padding: 12px; border-radius: 16px; }

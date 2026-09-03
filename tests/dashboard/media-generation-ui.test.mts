@@ -330,6 +330,10 @@ test("la fenêtre iNrCy sépare les critères de la création et de la revue", (
   );
   assert.match(
     generatorStyles,
+    /@media \(max-width: 1100px\)[\s\S]*?\.footerBar\s*\{[\s\S]*?position:\s*relative;[\s\S]*?bottom:\s*auto;/
+  );
+  assert.match(
+    generatorStyles,
     /@media \(max-width: 620px\)[\s\S]*?\.footerBar\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\)[\s\S]*?justify-items:\s*center/
   );
   assert.match(
