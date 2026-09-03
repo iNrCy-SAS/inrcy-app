@@ -26,6 +26,7 @@ export const ACTIVITY_SECTOR_OPTIONS = [
   { value: 'medecine_douce', label: 'Médecine douce' },
   { value: 'sante', label: 'Santé' },
   { value: 'securite', label: 'Sécurité' },
+  { value: 'plateformes_numeriques', label: 'Plateformes & services numériques' },
   { value: 'services_entreprises', label: 'Services aux entreprises' },
   { value: 'services_particuliers', label: 'Services aux particuliers' },
   { value: 'transport', label: 'Transport' },
@@ -78,6 +79,7 @@ export function inferSectorCategoryFromProfession(input?: string | null): Activi
   if (/(immobili|diagnostiqueur|promoteur|courtier|syndic|gestion locative|transaction|mandat)/.test(value)) return 'immobilier';
   if (/(ménage|menage|garde d'enfants|aide à domicile|aide a domicile|jardinage|dépannage|depannage|conciergerie|aide ménag|livraison)/.test(value)) return 'services_particuliers';
   if (/(créateur de site|createur de site|création de site|creation de site|site internet|site web|webmaster|imprimeur|imprimerie|enseigniste|enseigne lumineuse|signalétique|signaletique|vitrophanie|photographe professionnel|photographe pro|photo entreprise|portrait professionnel)/.test(value)) return 'communication';
+  if (/(plateforme|marketplace|place de marché|place de marche|mise en relation|intermédiation numérique|intermediation numerique|annuaire en ligne|comparateur en ligne|réservation en ligne|reservation en ligne|matching en ligne|communauté en ligne|communaute en ligne|réseau professionnel en ligne|reseau professionnel en ligne|logiciel saas|solution saas|\bsaas\b|service en ligne|application web|application mobile|application métier|application metier|portail en ligne)/.test(value)) return 'plateformes_numeriques';
   if (/(consult|agence|marketing|formation|informat|b2b|expert-comptable|comptable|rh|recrutement|secrétariat|secretariat|cabinet de conseil)/.test(value)) return 'services_entreprises';
   if (/(communication|community manager|social media|attaché de presse|attache de presse|branding|studio créa|studio crea|graphiste|seo|sea|marketing digital|content manager)/.test(value)) return 'communication';
   if (/(juridique|avocat|notaire|juriste|huissier|commissaire de justice|cabinet juridique|droit)/.test(value)) return 'juridique';

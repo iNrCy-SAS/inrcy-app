@@ -369,6 +369,22 @@ export const ACTIVITY_CATALOG: Record<ActivitySectorCategory, SectorCatalog> = {
     },
   },
 
+  plateformes_numeriques: {
+    label: 'Plateformes & services numériques',
+    jobs: {
+      plateforme_mise_en_relation: { label: 'Plateforme de mise en relation', services: ['Création de profil', 'Recherche ciblée', 'Dépôt d’une demande', 'Mise en relation qualifiée', 'Messagerie sécurisée', 'Demande de devis', 'Prise de rendez-vous', 'Accompagnement utilisateur'] },
+      mise_en_relation_particuliers_pros: { label: 'Plateforme particuliers / professionnels', services: ['Recherche de professionnels', 'Dépôt du besoin', 'Mise en relation locale', 'Demande de devis', 'Comparaison des réponses', 'Prise de rendez-vous', 'Profils vérifiés', 'Support utilisateurs'] },
+      mise_en_relation_b2b: { label: 'Plateforme de mise en relation B2B', services: ['Recherche de partenaires', 'Publication d’un besoin', 'Qualification des demandes', 'Mise en relation B2B', 'Demande de devis', 'Espace professionnel', 'Suivi des échanges', 'Accompagnement entreprises'] },
+      mise_en_relation_particuliers: { label: 'Plateforme entre particuliers', services: ['Création de profil', 'Publication d’une annonce', 'Recherche par critères', 'Mise en relation entre particuliers', 'Messagerie sécurisée', 'Gestion des favoris', 'Signalement / modération', 'Support utilisateurs'] },
+      marketplace_services: { label: 'Marketplace de services', services: ['Catalogue de services', 'Recherche de prestataires', 'Dépôt d’une demande', 'Réservation de service', 'Mise en relation', 'Avis et évaluations', 'Espace prestataire', 'Support utilisateurs'] },
+      annuaire_comparateur: { label: 'Annuaire / comparateur en ligne', services: ['Référencement professionnel', 'Recherche par activité', 'Recherche géolocalisée', 'Fiche professionnelle', 'Demande de contact', 'Demande de devis', 'Avis et recommandations', 'Offres de visibilité'] },
+      plateforme_reservation: { label: 'Plateforme de réservation', services: ['Recherche de disponibilités', 'Réservation en ligne', 'Confirmation automatique', 'Rappels de rendez-vous', 'Gestion des annulations', 'Espace prestataire', 'Planning en ligne', 'Support réservation'] },
+      plateforme_emploi_talents: { label: 'Plateforme emploi / talents', services: ['Publication d’offres', 'Création de profil candidat', 'Recherche de talents', 'Matching candidat / recruteur', 'Gestion des candidatures', 'Prise de rendez-vous', 'Alertes emploi', 'Espace recruteur'] },
+      communaute_reseau: { label: 'Communauté / réseau professionnel', services: ['Création de profil', 'Annuaire des membres', 'Groupes thématiques', 'Mise en relation professionnelle', 'Messagerie', 'Événements communautaires', 'Partage de ressources', 'Animation de communauté'] },
+      logiciel_saas: { label: 'Logiciel / service en ligne (SaaS)', services: ['Création de compte', 'Abonnement en ligne', 'Tableau de bord', 'Automatisation', 'Collaboration en équipe', 'Intégrations', 'Assistance utilisateur', 'Démonstration produit'] },
+    },
+  },
+
   services_entreprises: {
     label: 'Services aux entreprises',
     jobs: {
@@ -453,6 +469,28 @@ const EVENEMENTIEL_JOB_ALIASES: Record<string, string> = {
   'magicien professionnel': 'magicien',
 };
 
+const PLATEFORMES_NUMERIQUES_JOB_ALIASES: Record<string, string> = {
+  'plateforme en ligne': 'plateforme_mise_en_relation',
+  'mise en relation': 'plateforme_mise_en_relation',
+  'site de mise en relation': 'plateforme_mise_en_relation',
+  'intermediaire en ligne': 'plateforme_mise_en_relation',
+  'intermediation numerique': 'plateforme_mise_en_relation',
+  'plateforme de devis': 'mise_en_relation_particuliers_pros',
+  'mise en relation particuliers professionnels': 'mise_en_relation_particuliers_pros',
+  'plateforme b2b': 'mise_en_relation_b2b',
+  'mise en relation entre entreprises': 'mise_en_relation_b2b',
+  'plateforme c2c': 'mise_en_relation_particuliers',
+  'mise en relation entre particuliers': 'mise_en_relation_particuliers',
+  'place de marche de services': 'marketplace_services',
+  'comparateur': 'annuaire_comparateur',
+  'annuaire professionnel': 'annuaire_comparateur',
+  'reservation en ligne': 'plateforme_reservation',
+  'plateforme de recrutement': 'plateforme_emploi_talents',
+  'reseau professionnel': 'communaute_reseau',
+  'saas': 'logiciel_saas',
+  'application web': 'logiciel_saas',
+};
+
 function normalizeJobLabel(value: string) {
   return String(value || '')
     .normalize('NFD')
@@ -495,6 +533,9 @@ export function findJobValueByLabel(sector: string, label: string) {
   }
   if (sector === 'evenementiel') {
     return EVENEMENTIEL_JOB_ALIASES[normalized] || '';
+  }
+  if (sector === 'plateformes_numeriques') {
+    return PLATEFORMES_NUMERIQUES_JOB_ALIASES[normalized] || '';
   }
   return '';
 }

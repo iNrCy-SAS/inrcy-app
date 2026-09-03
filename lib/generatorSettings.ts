@@ -50,6 +50,7 @@ const SECTOR_RECOMMENDATIONS: Record<
   medecine_douce: { avgBasket: 70, conversionRate: 35 },
   sante: { avgBasket: 100, conversionRate: 30 },
   securite: { avgBasket: 1800, conversionRate: 18 },
+  plateformes_numeriques: { avgBasket: 300, conversionRate: 15 },
   services_entreprises: { avgBasket: 1200, conversionRate: 20 },
   services_particuliers: { avgBasket: 180, conversionRate: 30 },
   transport: { avgBasket: 300, conversionRate: 25 },

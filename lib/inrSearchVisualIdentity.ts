@@ -36,7 +36,7 @@ export function hashInrSearchVisualSeed(value: string) {
 export function inferInrSearchVisualTheme(value: string): InrSearchVisualTheme {
   const source = normalize(value);
 
-  if (/communication|digital|informatique|logiciel|marketing|agence|web|media|graphis|technolog/.test(source)) return "digital";
+  if (/communication|digital|informatique|logiciel|marketing|agence|web|media|graphis|technolog|plateforme|marketplace|mise en relation|saas|comparateur/.test(source)) return "digital";
   if (/batiment|construction|couvreur|macon|plomb|electric|artisan|menuis|peintre|chauffag|renov/.test(source)) return "craft";
   if (/restaurant|boulanger|patisser|traiteur|aliment|cuisine|brasserie|cafe|epicer/.test(source)) return "flavour";
   if (/sante|medical|docteur|infirm|therap|bien.?etre|pharma|dentaire|opticien/.test(source)) return "care";

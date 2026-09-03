@@ -74,6 +74,72 @@ const JOB_ALIASES: Partial<
     ],
     formation_code_route: ["code de la route", "formation code", "examen code"],
   },
+  plateformes_numeriques: {
+    plateforme_mise_en_relation: [
+      "plateforme en ligne",
+      "mise en relation",
+      "site de mise en relation",
+      "intermédiaire en ligne",
+      "intermédiation numérique",
+      "matching",
+      "portail en ligne",
+    ],
+    mise_en_relation_particuliers_pros: [
+      "particuliers professionnels",
+      "trouver un professionnel",
+      "trouver un pro",
+      "plateforme de devis",
+      "mise en relation b2c",
+    ],
+    mise_en_relation_b2b: [
+      "plateforme b2b",
+      "mise en relation entreprises",
+      "partenaires professionnels",
+      "réseau d'affaires",
+    ],
+    mise_en_relation_particuliers: [
+      "plateforme c2c",
+      "entre particuliers",
+      "petites annonces",
+    ],
+    marketplace_services: [
+      "marketplace",
+      "place de marché",
+      "place de marché de services",
+      "prestataires en ligne",
+    ],
+    annuaire_comparateur: [
+      "annuaire professionnel",
+      "comparateur",
+      "comparateur en ligne",
+      "répertoire professionnel",
+    ],
+    plateforme_reservation: [
+      "réservation en ligne",
+      "prise de rendez-vous en ligne",
+      "booking",
+    ],
+    plateforme_emploi_talents: [
+      "plateforme emploi",
+      "plateforme de recrutement",
+      "job board",
+      "candidats recruteurs",
+      "freelance",
+    ],
+    communaute_reseau: [
+      "réseau professionnel",
+      "communauté en ligne",
+      "réseau social professionnel",
+    ],
+    logiciel_saas: [
+      "saas",
+      "logiciel en ligne",
+      "service en ligne",
+      "application web",
+      "application métier",
+      "application mobile",
+    ],
+  },
 };
 
 function normalizeSearchText(value: string) {
