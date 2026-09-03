@@ -37,6 +37,7 @@ export function buildDashboardPanelProps(a: any) {
      setSiteWebActusAccent: a.setSiteWebActusAccent,
     siteWebSavedUrl: a.siteWebSavedUrl,
     widgetTokenSiteWeb: a.widgetTokenSiteWeb,
+    requestSiteWebWidgetToken: a.requestSiteWebWidgetToken,
     showSiteWebWidgetCode: a.showSiteWebWidgetCode,
     setShowSiteWebWidgetCode: a.setShowSiteWebWidgetCode,
     saveSiteWebActusWidgetSettings: a.saveSiteWebActusWidgetSettings,

@@ -207,7 +207,7 @@ export function useFacebookChannel({
             pageId: only.id,
             pageName: String(only.name || ""),
           });
-          await triggerChannelRefresh("facebook");
+          void triggerChannelRefresh("facebook");
           setPanelSuccess("Page Facebook enregistrée.");
       return true;
         }
@@ -278,7 +278,7 @@ export function useFacebookChannel({
         pageId: picked.id,
         pageName: String(picked.name || ""),
       });
-      await triggerChannelRefresh("facebook");
+      void triggerChannelRefresh("facebook");
       setPanelSuccess("Page Facebook enregistrée.");
       return true;
     } else {

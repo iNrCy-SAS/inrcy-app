@@ -54,12 +54,14 @@ function originHost(_req: Request): string {
 }
 
 function requestHost(_req: Request): string {
-  const h = (_req.headers.get("x-forwarded-host") || _req.headers.get("host") || "").trim();
-  return h.toLowerCase().replace(/^www\./, "");
-}
-
-function requestProto(_req: Request): string {
-  return (_req.headers.get("x-forwarded-proto") || "https").trim();
+  const forwardedHost = _req.headers.get("x-forwarded-host") || _req.headers.get("host") || "";
+  const h = forwardedHost.split(",")[0]?.trim() || "";
+  if (!h) return "";
+  try {
+    return new URL(`https://${h}`).hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return h.toLowerCase().replace(/^www\./, "").replace(/:\d+$/, "");
+  }
 }
 
 function parseAllowedOrigins(): string[] {
@@ -107,34 +109,27 @@ const handler = async (_req: Request) => {
       return NextResponse.json({ ok: false, error: "La source demandée n'est pas reconnue." }, { status: 400, headers: corsHeaders(null) });
     }
 
-    // CORS hard-binding (widgets) + dashboard allowlist (issuing tokens from app.inrcy.com).
+    // CORS hard-binding for widgets and same-origin dashboard calls.
     // - For embedded widgets: Origin must match the target domain.
-    // - For the dashboard: allow explicit origins from env var INRCY_WIDGET_ALLOWED_ORIGINS.
+    // - For the dashboard: Origin must match the request host (or be explicitly
+    //   trusted through INRCY_WIDGET_ALLOWED_ORIGINS).
     const origin = _req.headers.get("origin");
     const originH = originHost(_req);
     const allowedOrigins = parseAllowedOrigins();
 
-    // Dashboard calls (Origin in allowlist)
-    let allowOrigin: string | null = isAllowedOrigin(origin, allowedOrigins) ? origin! : null;
+    // Dashboard calls are same-origin and remain protected below by the authenticated
+    // account plus the ownership check for the requested domain. The env allowlist is
+    // still supported for additional trusted dashboard origins.
+    const sameOriginDashboardRequest = Boolean(origin && originH && originH === requestHost(_req));
+    let allowOrigin: string | null = isAllowedOrigin(origin, allowedOrigins) || sameOriginDashboardRequest ? origin! : null;
 
     // Widget calls (Origin host matches the domain)
     if (!allowOrigin && origin && originH === domain) {
       allowOrigin = origin;
     }
 
-    // If Origin is missing (e.g., direct navigation or some same-origin calls), allow only if
-    // the request host itself is on the allowlist.
-    if (!allowOrigin && !origin) {
-      const h = requestHost(_req);
-      const proto = requestProto(_req);
-      const effective = h ? `${proto}://${h}` : null;
-      if (isAllowedOrigin(effective, allowedOrigins)) {
-        allowOrigin = null; // Not needed for navigation; keep CORS conservative.
-      } else {
-        return NextResponse.json({ ok: false, error: "Origine non autorisée." }, { status: 403, headers: corsHeaders(null) });
-      }
-    }
-
+    // A same-origin GET can legitimately omit Origin. It proceeds without exposing
+    // a CORS origin; authentication and domain ownership below remain mandatory.
     if (!allowOrigin && origin) {
       return NextResponse.json({ ok: false, error: "Origine non autorisée." }, { status: 403, headers: corsHeaders(null) });
     }

@@ -49,7 +49,9 @@ export default function FacebookPanel(props: any) {
   const facebookPageActivity =
     facebookPageBusy && facebookPageAction === "disconnect"
       ? "disconnecting"
-      : facebookPageBusy
+      : facebookPageConnected
+        ? undefined
+        : facebookPageBusy
         ? "connecting"
         : fbPagesPhase === "searching" || fbPagesLoading
           ? "searching"
@@ -115,7 +117,7 @@ export default function FacebookPanel(props: any) {
   };
 
   return (
-    <div style={{ display: "grid", gap: 14 }}>
+    <div className={styles.facebookConfigPanel}>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
         <span
           style={{
@@ -145,6 +147,7 @@ export default function FacebookPanel(props: any) {
       </div>
 
       <div
+        className={styles.facebookConfigCard}
         style={{
           border: "1px solid rgba(255,255,255,0.12)",
           background: "rgba(255,255,255,0.03)",
@@ -180,7 +183,7 @@ export default function FacebookPanel(props: any) {
           />
         </div>
 
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
+        <div className={styles.facebookConfigButtonRow}>
           {facebookAccountConnected ? (
             <>
               {facebookNeedsUpdate ? (
@@ -204,6 +207,7 @@ export default function FacebookPanel(props: any) {
 
       {facebookAccountConnected ? (
         <div
+          className={styles.facebookConfigCard}
           style={{
             border: "1px solid rgba(255,255,255,0.12)",
             background: "rgba(255,255,255,0.03)",
@@ -224,10 +228,10 @@ export default function FacebookPanel(props: any) {
           </div>
           <div className={styles.blockSub}>{i18nT("choisissez_la_page_facebook_a_analyser_218e2577")}</div>
 
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <div className={styles.facebookConfigResourceRow}>
             <button
               type="button"
-              className={`${styles.actionBtn} ${styles.secondaryBtn} ${fbPagesPhase === "connecting" ? styles.connectingActionBtn : fbPagesPhase === "searching" || fbPagesLoading ? styles.searchingActionBtn : ""}`}
+              className={`${styles.actionBtn} ${styles.secondaryBtn} ${!facebookPageConnected && fbPagesPhase === "connecting" ? styles.connectingActionBtn : !facebookPageConnected && (fbPagesPhase === "searching" || fbPagesLoading) ? styles.searchingActionBtn : ""}`}
               onClick={() => {
                 setFacebookPagePickerUnlocked(true);
                 loadFacebookPages();
@@ -267,7 +271,7 @@ export default function FacebookPanel(props: any) {
               <>
                 <button
                   type="button"
-                  className={`${styles.actionBtn} ${styles.connectBtn} ${facebookPageBusy && facebookPageAction === "connect" ? styles.connectingActionBtn : ""}`}
+                  className={`${styles.actionBtn} ${styles.connectBtn} ${!facebookPageConnected && facebookPageBusy && facebookPageAction === "connect" ? styles.connectingActionBtn : ""}`}
                   onClick={() => void handlePageConnect()}
                   disabled={!canChangeFacebookPage}
                 >
@@ -283,7 +287,7 @@ export default function FacebookPanel(props: any) {
             ) : (
               <button
                 type="button"
-                className={`${styles.actionBtn} ${styles.connectBtn} ${facebookPageBusy && facebookPageAction === "connect" ? styles.connectingActionBtn : ""}`}
+                className={`${styles.actionBtn} ${styles.connectBtn} ${!facebookPageConnected && facebookPageBusy && facebookPageAction === "connect" ? styles.connectingActionBtn : ""}`}
                 onClick={() => void handlePageConnect()}
                 disabled={!canConnectFacebookPage}
               >
@@ -296,6 +300,7 @@ export default function FacebookPanel(props: any) {
       ) : null}
 
       <div
+        className={styles.facebookConfigCard}
         style={{
           border: "1px solid rgba(255,255,255,0.12)",
           background: "rgba(255,255,255,0.03)",
@@ -311,7 +316,7 @@ export default function FacebookPanel(props: any) {
         </div>
         <div className={styles.blockSub}>{i18nT("se_remplit_automatiquement_une_fois_la_4133d66e")}</div>
 
-        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+        <div className={styles.facebookConfigResourceRow}>
           <input
             value={facebookUrl}
             readOnly

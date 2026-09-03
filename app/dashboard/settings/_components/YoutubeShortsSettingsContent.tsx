@@ -263,9 +263,12 @@ export default function YoutubeShortsSettingsContent({ onUnsavedChange }: { onUn
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     if (params.get("linked") !== "youtube_shorts") return;
-    if (params.get("ok") === "1") setNotice(i18nT("chaine_youtube_connectee_29fa0e53"));
+    if (params.get("ok") === "1") {
+      setNotice(i18nT("chaine_youtube_connectee_29fa0e53"));
+      void loadSettings();
+    }
     if (params.get("ok") === "0") setError(params.get("message") || "Connexion YouTube impossible.");
-  }, []);
+  }, [loadSettings]);
 
   const saveSettings = useCallback(async (nextPatch?: Partial<YoutubeShortsSettings>) => {
     const nextSettings = { ...settings, ...(nextPatch ?? {}) };

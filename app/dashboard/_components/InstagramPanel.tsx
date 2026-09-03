@@ -64,7 +64,9 @@ export default function InstagramPanel(props: any) {
   const instagramProfileActivity =
     instagramProfileBusy && instagramProfileAction === "disconnect"
       ? "disconnecting"
-      : instagramProfileBusy
+      : instagramConnected
+        ? undefined
+        : instagramProfileBusy
         ? "connecting"
         : igAccountsPhase === "searching" || igAccountsLoading
           ? "searching"
@@ -238,7 +240,7 @@ export default function InstagramPanel(props: any) {
           <div style={responsiveActionsRow}>
             <button
               type="button"
-              className={`${styles.actionBtn} ${styles.secondaryBtn} ${igAccountsPhase === "connecting" ? styles.connectingActionBtn : igAccountsPhase === "searching" || igAccountsLoading ? styles.searchingActionBtn : ""}`}
+              className={`${styles.actionBtn} ${styles.secondaryBtn} ${!instagramConnected && igAccountsPhase === "connecting" ? styles.connectingActionBtn : !instagramConnected && (igAccountsPhase === "searching" || igAccountsLoading) ? styles.searchingActionBtn : ""}`}
               onClick={() => {
                 setInstagramPickerUnlocked(true);
                 loadInstagramAccounts();
@@ -270,7 +272,7 @@ export default function InstagramPanel(props: any) {
               <>
                 <button
                   type="button"
-                  className={`${styles.actionBtn} ${styles.connectBtn} ${instagramProfileBusy && instagramProfileAction === "connect" ? styles.connectingActionBtn : ""}`}
+                  className={`${styles.actionBtn} ${styles.connectBtn} ${!instagramConnected && instagramProfileBusy && instagramProfileAction === "connect" ? styles.connectingActionBtn : ""}`}
                   onClick={() => void handleProfileConnect()}
                   disabled={!canChangeInstagramProfile}
                   style={{ width: "100%" }}
@@ -288,7 +290,7 @@ export default function InstagramPanel(props: any) {
             ) : (
               <button
                 type="button"
-                className={`${styles.actionBtn} ${styles.connectBtn} ${instagramProfileBusy && instagramProfileAction === "connect" ? styles.connectingActionBtn : ""}`}
+                className={`${styles.actionBtn} ${styles.connectBtn} ${!instagramConnected && instagramProfileBusy && instagramProfileAction === "connect" ? styles.connectingActionBtn : ""}`}
                 onClick={() => void handleProfileConnect()}
                 disabled={!canConnectInstagramProfile}
                 style={{ width: "100%" }}

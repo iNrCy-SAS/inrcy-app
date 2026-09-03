@@ -171,7 +171,7 @@ export function useLinkedinChannel({
       resourceLabel: org.name,
       resourceUrl: nextUrl || null,
     }, { clearData: true });
-    await triggerChannelRefresh("linkedin");
+    void triggerChannelRefresh("linkedin");
     if (!options?.silent) setPanelSuccess(`Page LinkedIn « ${org.name} » connectée.`, 2400);
     return true;
   }, [linkedinDisplayName, linkedinUrl, updateRootSettingsKey, patchChannelConnectionLocally, triggerChannelRefresh, setPanelSuccess, setPanelError]);
@@ -334,7 +334,7 @@ export function useLinkedinChannel({
       resourceLabel: linkedinDisplayName || null,
       resourceUrl: nextUrl || null,
     }, { clearData: true });
-    await triggerChannelRefresh("linkedin");
+    void triggerChannelRefresh("linkedin");
     setPanelSuccess("Profil personnel LinkedIn activé.", 2200);
   }, [linkedinAccountConnected, linkedinDisplayName, linkedinUrl, updateRootSettingsKey, patchChannelConnectionLocally, triggerChannelRefresh, setPanelSuccess, setPanelError]);
 

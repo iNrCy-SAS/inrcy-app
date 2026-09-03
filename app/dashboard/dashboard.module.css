@@ -1935,6 +1935,64 @@
   transform: none;
 }
 
+/* Le panneau Facebook cumule les libellés d'action les plus longs du drawer.
+   Ces garde-fous empêchent leur largeur intrinsèque de pousser le panneau
+   sous le bord droit, notamment avec un zoom navigateur ou un petit écran. */
+.facebookConfigPanel {
+  display: grid;
+  gap: 14px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.facebookConfigCard {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.facebookConfigButtonRow,
+.facebookConfigResourceRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.facebookConfigButtonRow {
+  justify-content: flex-end;
+}
+
+.facebookConfigResourceRow > input,
+.facebookConfigResourceRow > select {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.facebookConfigPanel .actionBtn {
+  max-width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .facebookConfigButtonRow .actionBtn,
+  .facebookConfigResourceRow .actionBtn {
+    flex: 1 1 100%;
+    width: 100%;
+    white-space: normal;
+    text-align: center;
+  }
+}
+
 /* style "voir" */
 .actionView {
   background: rgba(255, 255, 255, 0.04);

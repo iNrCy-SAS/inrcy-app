@@ -85,16 +85,21 @@ export function useSiteWebChannel({
   const [siteWebGa4Connected, setSiteWebGa4Connected] = useState(false);
   const [siteWebGscConnected, setSiteWebGscConnected] = useState(false);
 
-  useEffect(() => {
-    const d = extractDomain(siteWebUrl);
+  const requestSiteWebWidgetToken = useCallback(async () => {
+    const d = extractDomain(siteWebSavedUrl || siteWebUrl);
     if (!d) {
       setWidgetTokenSiteWeb("");
-      return;
+      return "";
     }
-    fetchWidgetToken(d, "site_web")
-      .then((t) => setWidgetTokenSiteWeb(t))
-      .catch(() => setWidgetTokenSiteWeb(""));
-  }, [siteWebUrl, extractDomain, fetchWidgetToken]);
+
+    const nextToken = await fetchWidgetToken(d, "site_web").catch(() => "");
+    setWidgetTokenSiteWeb(nextToken);
+    return nextToken;
+  }, [extractDomain, fetchWidgetToken, siteWebSavedUrl, siteWebUrl]);
+
+  useEffect(() => {
+    void requestSiteWebWidgetToken();
+  }, [requestSiteWebWidgetToken]);
 
   const updateSiteWebSettings = useCallback(
     async (nextSiteWeb: any) => {
@@ -506,6 +511,7 @@ export function useSiteWebChannel({
     setSiteWebGscNotice,
     siteWebUrlNotice,
     widgetTokenSiteWeb,
+    requestSiteWebWidgetToken,
     siteWebActusLayout,
     setSiteWebActusLayout,
     siteWebActusLimit,

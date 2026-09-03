@@ -268,8 +268,7 @@ export function useInstagramChannel({
           pageId: String(only.page_id || ""),
           igId: String(only.ig_id || only.page_id || ""),
         });
-        await triggerChannelRefresh("instagram");
-        await syncInstagramStateFromServer({ preserveSelection: true });
+        void triggerChannelRefresh("instagram");
         setPanelSuccess("Compte Instagram enregistré.");
       return true;
       }
@@ -338,8 +337,7 @@ export function useInstagramChannel({
         pageId: String(picked.page_id || ""),
         igId: String(picked.ig_id || picked.page_id || ""),
       });
-      await triggerChannelRefresh("instagram");
-      await syncInstagramStateFromServer({ preserveSelection: true });
+      void triggerChannelRefresh("instagram");
       setPanelSuccess("Compte Instagram enregistré.");
       return true;
     } else {

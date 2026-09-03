@@ -24,6 +24,7 @@ type PrefRow = {
 
 type UserIdRow = {
   user_id: string;
+  last_active_at: string | null;
 };
 
 type SnapshotRow = {
@@ -46,6 +47,7 @@ type ProfileRow = {
   contact_email?: string | null;
   first_name?: string | null;
   company_legal_name?: string | null;
+  last_active_at?: string | null;
 };
 
 function isAuthorizedCron(req: Request) {
@@ -348,11 +350,14 @@ async function buildInformationNotification(userId: string, digestHours: number)
 async function getProfileEmail(userId: string) {
   const { data: profile } = await supabaseAdmin
     .from("profiles")
-    .select("contact_email, first_name, company_legal_name")
+    .select("contact_email, first_name, company_legal_name, last_active_at")
     .eq("user_id", userId)
     .maybeSingle();
 
   const row = (profile ?? null) as ProfileRow | null;
+  if (!row?.last_active_at) {
+    return { email: null, firstName: row?.first_name ?? null, companyName: row?.company_legal_name ?? null };
+  }
   const email = (row?.contact_email || "").trim();
   if (email) return { email, firstName: row?.first_name ?? null, companyName: row?.company_legal_name ?? null };
 
@@ -394,7 +399,7 @@ export async function GET(req: Request) {
       .select("user_id, in_app_enabled, email_enabled, performance_enabled, action_enabled, information_enabled, digest_every_hours"),
     supabaseAdmin
       .from("profiles")
-      .select("user_id"),
+      .select("user_id, last_active_at"),
   ]);
 
   if (prefError) return NextResponse.json({ error: prefError.message }, { status: 500 });
@@ -407,10 +412,10 @@ export async function GET(req: Request) {
 
   const userIds = new Set<string>();
   for (const row of (profileRows ?? []) as UserIdRow[]) {
-    if (row.user_id) userIds.add(row.user_id);
-  }
-  for (const userId of prefMap.keys()) {
-    userIds.add(userId);
+    // Une invitation crée déjà le profil et ses préférences. Le premier passage
+    // authentifié sur l'application renseigne last_active_at : avant cela, le
+    // compte n'est pas encore activé et ne doit recevoir aucune relance.
+    if (row.user_id && row.last_active_at) userIds.add(row.user_id);
   }
 
   const prefs = Array.from(userIds).map((userId) => {

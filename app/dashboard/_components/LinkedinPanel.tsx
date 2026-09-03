@@ -83,8 +83,12 @@ export default function LinkedinPanel(props: any) {
   const linkedinOrganizationActivity =
     linkedinOrganizationBusy && linkedinOrganizationAction === "disconnect"
       ? "disconnecting"
-      : linkedinOrganizationsPhase === "searching" || linkedinOrganizationsLoading
+      : hasCompanyPage
+        ? undefined
+        : linkedinOrganizationsPhase === "searching" || linkedinOrganizationsLoading
           ? "searching"
+          : linkedinOrganizationsPhase === "connecting"
+            ? "connecting"
           : undefined;
   const linkedinOrganizationActivityLabel =
     linkedinOrganizationDetected && !linkedinOrganizationActivity
@@ -204,7 +208,7 @@ export default function LinkedinPanel(props: any) {
 
               <button
                 type="button"
-                className={`${styles.actionBtn} ${styles.secondaryBtn} ${linkedinOrganizationsPhase === "connecting" ? styles.connectingActionBtn : linkedinOrganizationsPhase === "searching" || linkedinOrganizationsLoading ? styles.searchingActionBtn : ""}`}
+                className={`${styles.actionBtn} ${styles.secondaryBtn} ${!hasCompanyPage && linkedinOrganizationsPhase === "connecting" ? styles.connectingActionBtn : !hasCompanyPage && (linkedinOrganizationsPhase === "searching" || linkedinOrganizationsLoading) ? styles.searchingActionBtn : ""}`}
                 onClick={() => void loadLinkedinOrganizations?.()}
                 disabled={linkedinOrganizationsLoading || linkedinOrganizationsPhase !== "idle" || linkedinOrganizationBusy}
               >
@@ -264,7 +268,7 @@ export default function LinkedinPanel(props: any) {
                 <>
                   <button
                     type="button"
-                    className={`${styles.actionBtn} ${styles.connectBtn} ${linkedinOrganizationsPhase === "connecting" ? styles.connectingActionBtn : ""}`}
+                    className={`${styles.actionBtn} ${styles.connectBtn} ${!hasCompanyPage && linkedinOrganizationsPhase === "connecting" ? styles.connectingActionBtn : ""}`}
                     onClick={() => void selectLinkedinOrganization?.(linkedinPendingOrganizationId)}
                     disabled={!canApplyLinkedinOrganization}
                     style={{ width: "fit-content" }}
@@ -282,7 +286,7 @@ export default function LinkedinPanel(props: any) {
               ) : (
                 <button
                   type="button"
-                  className={`${styles.actionBtn} ${styles.connectBtn} ${linkedinOrganizationsPhase === "connecting" ? styles.connectingActionBtn : ""}`}
+                  className={`${styles.actionBtn} ${styles.connectBtn} ${!hasCompanyPage && linkedinOrganizationsPhase === "connecting" ? styles.connectingActionBtn : ""}`}
                   onClick={() => void selectLinkedinOrganization?.(linkedinPendingOrganizationId)}
                   disabled={!canApplyLinkedinOrganization}
                   style={{ width: "fit-content" }}

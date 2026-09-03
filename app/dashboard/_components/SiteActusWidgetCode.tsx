@@ -25,6 +25,7 @@ type SiteActusWidgetCodeProps = GeneratedActusWidgetConfig & {
   onToggle: () => void;
   onHideCode: () => void;
   onGenerate: () => Promise<boolean> | boolean;
+  onRequestToken?: () => Promise<string>;
 };
 
 const getConfigKey = (config: GeneratedActusWidgetConfig | null) => {
@@ -85,6 +86,7 @@ export default function SiteActusWidgetCode({
   onToggle,
   onHideCode,
   onGenerate,
+  onRequestToken,
 }: SiteActusWidgetCodeProps) {
   const i18nT = useTranslations("shell");
   const [copyNotice, setCopyNotice] = useState<string | null>(null);
@@ -132,17 +134,21 @@ export default function SiteActusWidgetCode({
       setGenerateNotice(i18nT("enregistrez_d_abord_le_lien_du_01d8abe0"));
       return;
     }
-    if (!hasToken) {
-      setGenerateNotice(i18nT("token_du_widget_en_preparation_reessayez_769426a3"));
-      return;
-    }
-
     setIsGenerating(true);
     setCopyNotice(null);
     try {
+      let effectiveToken = token.trim();
+      if (!effectiveToken && onRequestToken) {
+        effectiveToken = (await onRequestToken()).trim();
+      }
+      if (!effectiveToken) {
+        setGenerateNotice(i18nT("token_du_widget_en_preparation_reessayez_769426a3"));
+        return;
+      }
+
       const ok = await onGenerate();
       if (ok === false) return;
-      setGeneratedConfig(currentConfig);
+      setGeneratedConfig({ ...currentConfig, token: effectiveToken });
       onHideCode();
       setGenerateNotice(i18nT("code_genere_avec_succes_vous_pouvez_d4de2c80"));
     } catch {
@@ -156,7 +162,7 @@ export default function SiteActusWidgetCode({
     <div style={{ display: "flex", gap: 10, justifyContent: "space-between", alignItems: "center", flexWrap: "wrap" }}>
       <div className={styles.blockSub}>{i18nT("les_medias_sont_affiches_automatiquement_quand_21342321")}</div>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        <button type="button" className={styles.actionBtn} onClick={handleGenerate} disabled={!hasSavedUrl || !hasToken || isGenerating} style={!hasSavedUrl || !hasToken || isGenerating ? { opacity: 0.5, cursor: "not-allowed" } : undefined}>
+        <button type="button" className={styles.actionBtn} onClick={handleGenerate} disabled={!hasSavedUrl || (!hasToken && !onRequestToken) || isGenerating} style={!hasSavedUrl || (!hasToken && !onRequestToken) || isGenerating ? { opacity: 0.5, cursor: "not-allowed" } : undefined}>
           {isGenerating ? i18nT("enregistrement_e7d5f232") : hasGeneratedCode ? i18nT("reenregistrer_et_regenerer_3c2dcd86") : i18nT("enregistrer_et_generer_le_code_1cb0df54")}
         </button>
         <button type="button" className={styles.actionBtn} onClick={onToggle} disabled={!codeReady} style={!codeReady ? { opacity: 0.5, cursor: "not-allowed" } : undefined}>
