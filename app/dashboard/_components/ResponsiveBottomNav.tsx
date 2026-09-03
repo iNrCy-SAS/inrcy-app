@@ -136,7 +136,6 @@ type MobileMenuActionButtonProps = {
   onClick: () => void;
   warning?: boolean;
   badge?: string;
-  wide?: boolean;
 };
 
 function MobileMenuActionButton({
@@ -145,12 +144,11 @@ function MobileMenuActionButton({
   onClick,
   warning = false,
   badge,
-  wide = false,
 }: MobileMenuActionButtonProps) {
   const i18nT = useTranslations("shell");
   return (
     <button
-      className={`${styles.menuItem} ${wide ? styles.menuItemWide : ""}`}
+      className={styles.menuItem}
       type="button"
       role="menuitem"
       aria-busy={loading || undefined}
@@ -592,13 +590,7 @@ function ResponsiveBottomNavMobile() {
                   label={t.userMenu.profile}
                   loading={isVisible("panel:profil")}
                   onClick={() => openDashboardPanel("profil")}
-                  warning={profileIncomplete}
-                />
-                <MobileMenuActionButton
-                  label={t.userMenu.activity}
-                  loading={isVisible("panel:activite")}
-                  onClick={() => openDashboardPanel("activite")}
-                  warning={activityIncomplete}
+                  warning={profileIncomplete || activityIncomplete}
                 />
                 <MobileMenuActionButton
                   label={t.userMenu.preferences}
@@ -612,7 +604,6 @@ function ResponsiveBottomNavMobile() {
                 />
                 <MobileMenuActionButton
                   label={t.userMenu.mediaGenerator}
-                  wide
                   loading={isVisible(mediaGeneratorActionKey)}
                   onClick={() => navigate(mediaGeneratorHref)}
                 />

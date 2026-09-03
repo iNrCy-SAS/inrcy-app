@@ -348,15 +348,6 @@
     background: rgba(255, 255, 255, 0.10);
   }
 
-  .menuItemWide {
-    grid-column: 1 / -1;
-  }
-
-  .menuItemWide .menuItemText {
-    overflow: visible;
-    text-overflow: clip;
-  }
-
   .menuItemText {
     min-width: 0;
     overflow: hidden;

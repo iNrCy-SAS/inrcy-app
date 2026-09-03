@@ -60,6 +60,25 @@ test("mobile navigation uses the shared 650 ms loading controller", () => {
   assert.match(navigation, /requestDashboardToolWarmup/);
 });
 
+test("the responsive hamburger keeps one unified profile entry and a regular media button", () => {
+  const navigation = read("app/dashboard/_components/ResponsiveBottomNav.tsx");
+  const navigationStyles = read(
+    "app/dashboard/_components/ResponsiveBottomNav.module.css",
+  );
+
+  assert.equal(
+    (navigation.match(/label=\{t\.userMenu\.profile\}/g) || []).length,
+    1,
+  );
+  assert.doesNotMatch(navigation, /label=\{t\.userMenu\.activity\}/);
+  assert.match(
+    navigation,
+    /label=\{t\.userMenu\.profile\}[\s\S]*?warning=\{profileIncomplete \|\| activityIncomplete\}/,
+  );
+  assert.doesNotMatch(navigation, /\bwide\??:/);
+  assert.doesNotMatch(navigationStyles, /\.menuItemWide\b/);
+});
+
 test("dashboard pull-to-refresh is universal and protected by unsaved-change guards", () => {
   const pull = read("app/_components/PullToRefresh.tsx");
   const globalLayout = read("app/layout.tsx");
