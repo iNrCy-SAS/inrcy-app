@@ -181,6 +181,39 @@ test("les filtres restent sûrs et la corbeille retire toute publication éditor
   );
 });
 
+test("une publication éditoriale iNr’Agent peut être reprogrammée sans changer de statut", () => {
+  const client = read("app/dashboard/agent/AgentClient.tsx");
+  const scheduleItems = read(
+    "app/dashboard/agent/_lib/agent.schedule-items.ts"
+  );
+  const actionsRoute = read("app/api/agent/actions/route.ts");
+  const editorialItemSource = scheduleItems.slice(
+    scheduleItems.indexOf("for (const action of editorialActions)"),
+    scheduleItems.indexOf("for (const action of scheduledActions)")
+  );
+  const rescheduleRouteSource = actionsRoute.slice(
+    actionsRoute.indexOf('if (editType === "reschedule_editorial")'),
+    actionsRoute.indexOf('if (editType === "remove_publish_channel")')
+  );
+  const rescheduleUpdateSource = rescheduleRouteSource.slice(
+    rescheduleRouteSource.indexOf(".update({"),
+    rescheduleRouteSource.indexOf('})\n      .eq("id"')
+  );
+
+  assert.match(editorialItemSource, /editable: true/);
+  assert.match(
+    client,
+    /item\.source === "editorial"[\s\S]*?setScheduleOnlyEdit\(\{[\s\S]*?source: "editorial"/,
+  );
+  assert.match(client, /editType: "reschedule_editorial"/);
+  assert.match(rescheduleRouteSource, /scheduled_for: scheduledFor/);
+  assert.match(
+    rescheduleRouteSource,
+    /editorialPlan:\s*\{[\s\S]*?scheduledFor,[\s\S]*?manuallyRescheduledAt/,
+  );
+  assert.doesNotMatch(rescheduleUpdateSource, /\bstatus:/);
+});
+
 test("les libellés de filtres et de validation du planning existent dans toutes les langues", () => {
   const locales = [
     "de-DE",

@@ -345,8 +345,10 @@ export type ScheduledActionEditSession = {
 };
 
 export type ScheduleOnlyEditState = {
-  action: AgentScheduledAction;
+  actionId: string;
   label: string;
+  scheduledAtIso: string | null;
+  source: "manual" | "editorial";
 };
 
 export type AutomationScheduleEditState = {

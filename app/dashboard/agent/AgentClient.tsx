@@ -3392,14 +3392,40 @@ export default function AgentClient() {
     if (!scheduleOnlyEdit) return;
     setScheduleOnlyEditError(null);
     try {
-      const saved = await patchScheduledAction(scheduleOnlyEdit.action.id, {
-        scheduledAt,
-      });
-      setScheduledActions((current) =>
-        current.map((action) => (action.id === saved.id ? saved : action)),
-      );
+      if (scheduleOnlyEdit.source === "editorial") {
+        const response = await fetch("/api/agent/actions", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            actionId: scheduleOnlyEdit.actionId,
+            editType: "reschedule_editorial",
+            scheduledFor: scheduledAt,
+          }),
+        });
+        const payload = (await response.json().catch(() => null)) as {
+          action?: AgentPreparedAction;
+          error?: string;
+        } | null;
+        if (!response.ok || !payload?.action) {
+          throw new Error(payload?.error || i18nT("schedule_update_failed"));
+        }
+        const savedAction = payload.action;
+        setActions((current) =>
+          current.map((action) =>
+            action.id === savedAction.id ? savedAction : action,
+          ),
+        );
+        await refreshActions(true);
+      } else {
+        const saved = await patchScheduledAction(scheduleOnlyEdit.actionId, {
+          scheduledAt,
+        });
+        setScheduledActions((current) =>
+          current.map((action) => (action.id === saved.id ? saved : action)),
+        );
+        await refreshScheduledActions(true);
+      }
       setScheduleOnlyEdit(null);
-      await refreshScheduledActions(true);
       showNotice(i18nT("programmation_mise_a_jour_ea5f575f"));
     } catch (error) {
       const message = i18nT("schedule_update_failed");
@@ -3580,7 +3606,32 @@ export default function AgentClient() {
   }
 
   function handleScheduleRowReschedule(item: ScheduleListItem) {
-    if (item.source === "editorial") return;
+    if (item.source === "editorial") {
+      const actionId = item.preparedActionId;
+      const scheduledAtIso = item.scheduledAtIso;
+      if (!actionId || !scheduledAtIso) {
+        showNotice(i18nT("scheduled_action_not_found"));
+        return;
+      }
+      const openScheduleEdit = () => {
+        setScheduleOnlyEditError(null);
+        setScheduleOnlyEdit({
+          actionId,
+          label: item.action,
+          scheduledAtIso,
+          source: "editorial",
+        });
+      };
+      if (
+        !exitScheduledEditSession({
+          silent: true,
+          onAfterExit: openScheduleEdit,
+        })
+      )
+        return;
+      openScheduleEdit();
+      return;
+    }
     if (item.source === "manual") {
       const scheduledAction = scheduledActions.find(
         (action) => action.id === item.scheduledActionId,
@@ -3592,8 +3643,10 @@ export default function AgentClient() {
       const openScheduleEdit = () => {
         setScheduleOnlyEditError(null);
         setScheduleOnlyEdit({
-          action: scheduledAction,
+          actionId: scheduledAction.id,
           label: item.action,
+          scheduledAtIso: scheduledAction.scheduledAt,
+          source: "manual",
         });
       };
       if (
@@ -6525,7 +6578,7 @@ export default function AgentClient() {
           confirmLabel={i18nT("enregistrer_f7c8bcd8")}
           savingLabel={i18nT("enregistrement_e7d5f232")}
           successMessage={i18nT("programmation_mise_a_jour_ea5f575f")}
-          initialScheduledAt={scheduleOnlyEdit.action.scheduledAt}
+          initialScheduledAt={scheduleOnlyEdit.scheduledAtIso}
           onClose={() => {
             if (scheduleMutationState === "saving") return;
             setScheduleOnlyEdit(null);

@@ -1347,6 +1347,7 @@ export async function PATCH(request: Request) {
     removeMedia?: unknown;
     mediaOperation?: unknown;
     mediaIndex?: unknown;
+    scheduledFor?: unknown;
   } | null;
   const actionId =
     typeof requestBody?.actionId === "string" ? requestBody.actionId : "";
@@ -1399,6 +1400,130 @@ export async function PATCH(request: Request) {
       draftId: result.draftId,
       savedAsDraft: true,
     });
+  }
+
+  if (editType === "reschedule_editorial") {
+    if (!actionId) {
+      return NextResponse.json({ error: "Action invalide" }, { status: 400 });
+    }
+
+    const requestedScheduledFor = cleanText(requestBody?.scheduledFor, 80);
+    const scheduledTimestamp = Date.parse(requestedScheduledFor);
+    if (
+      !requestedScheduledFor ||
+      !Number.isFinite(scheduledTimestamp) ||
+      scheduledTimestamp <= Date.now() + 30_000
+    ) {
+      return NextResponse.json(
+        { error: "Choisissez une date et une heure dans le futur." },
+        { status: 400 },
+      );
+    }
+
+    const { data: currentRow, error: readError } = await supabaseAdmin
+      .from("inr_agent_actions")
+      .select(ACTION_SELECT)
+      .eq("id", actionId)
+      .eq("user_id", activeUserId)
+      .single();
+
+    if (readError || !currentRow) {
+      if (isMissingTableError(readError)) {
+        return NextResponse.json(
+          {
+            error: "La table inr_agent_actions doit être créée dans Supabase.",
+            tableMissing: true,
+          },
+          { status: 500 },
+        );
+      }
+      return NextResponse.json(
+        { error: "Action iNr’Agent introuvable." },
+        { status: 404 },
+      );
+    }
+
+    const currentAction = rowToInrAgentAction(currentRow as any);
+    const currentPayload = currentAction.payload || {};
+    const currentEditorialPlan = asRecord(currentPayload.editorialPlan);
+    if (!isPublishAction(currentAction) || !currentEditorialPlan) {
+      return NextResponse.json(
+        {
+          error:
+            "Cette programmation n’appartient pas à un contenu éditorial iNr’Agent.",
+        },
+        { status: 400 },
+      );
+    }
+    if (
+      ![
+        "prepared",
+        "pending_validation",
+        "pending",
+        "draft",
+        "refused",
+        "executing",
+        "failed",
+      ].includes(currentAction.status)
+    ) {
+      return NextResponse.json(
+        { error: "Cette programmation ne peut plus être modifiée." },
+        { status: 409 },
+      );
+    }
+
+    const scheduledFor = new Date(scheduledTimestamp).toISOString();
+    const updatedAt = new Date().toISOString();
+    const nextPayload = {
+      ...currentPayload,
+      editorialPlan: {
+        ...currentEditorialPlan,
+        scheduledFor,
+        manuallyRescheduledAt: updatedAt,
+      },
+      lastManualEdit: {
+        editType: "reschedule_editorial",
+        editedAt: updatedAt,
+        previousScheduledFor:
+          currentAction.scheduledFor ||
+          cleanText(currentEditorialPlan.scheduledFor, 80) ||
+          null,
+        scheduledFor,
+      },
+    };
+
+    const { data, error } = await supabaseAdmin
+      .from("inr_agent_actions")
+      .update({
+        scheduled_for: scheduledFor,
+        payload: nextPayload,
+        updated_at: updatedAt,
+        last_error: null,
+      })
+      .eq("id", actionId)
+      .eq("user_id", activeUserId)
+      .select(ACTION_SELECT)
+      .single();
+
+    if (error) {
+      if (isMissingTableError(error)) {
+        return NextResponse.json(
+          {
+            error: "La table inr_agent_actions doit être créée dans Supabase.",
+            tableMissing: true,
+          },
+          { status: 500 },
+        );
+      }
+      console.warn("[inr-agent-actions] editorial reschedule failed", error);
+      return NextResponse.json(
+        { error: "Modification de la programmation impossible." },
+        { status: 500 },
+      );
+    }
+
+    const action = await refreshActionImageUrls(rowToInrAgentAction(data));
+    return NextResponse.json({ action, saved: true });
   }
 
   if (editType === "remove_publish_channel") {

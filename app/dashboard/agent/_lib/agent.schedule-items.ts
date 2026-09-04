@@ -161,7 +161,7 @@ export function buildAgentScheduleItems({
       preparedActionId: action.id,
       scheduledAtIso: scheduledFor,
       contentReady,
-      editable: false,
+      editable: true,
       removable: true,
       source: "editorial",
     });
