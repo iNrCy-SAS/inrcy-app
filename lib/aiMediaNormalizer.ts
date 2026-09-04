@@ -27,7 +27,9 @@ export type NormalizedAiMedia = NormalizedAiImage | NormalizedAiVideo;
 /**
  * Contrat de sortie unique pour toutes les images IA. GPT Image a déjà reçu
  * le Profil et le logo officiel ; cette étape ne crée aucun habillage et
- * applique seulement le cadrage universel avant la Médiathèque.
+ * applique seulement le canevas universel avant la Médiathèque. La composition
+ * générée est toujours conservée en entier : aucun bord ne peut être coupé à
+ * cette étape, même lorsque le format fournisseur diffère du format demandé.
  */
 export async function normalizeGeneratedAiImage(
   input: Buffer,
@@ -44,12 +46,9 @@ export async function normalizeGeneratedAiImage(
     .resize({
       width,
       height,
-      fit: "cover",
-      // Le prompt réserve explicitement une zone sûre au centre pour les
-      // formats dont le canvas fournisseur diffère de l'export social. Un
-      // recadrage centré est déterministe et ne peut donc plus déplacer le
-      // texte ou le logo hors champ selon l'heuristique d'attention de Sharp.
+      fit: "contain",
       position: "centre",
+      background: { r: 255, g: 255, b: 255, alpha: 1 },
       withoutEnlargement: false,
     })
     .flatten({ background: { r: 255, g: 255, b: 255 } })

@@ -30,6 +30,10 @@
       "schedule": "*/15 * * * *"
     },
     {
+      "path": "/api/cron/inr-agent-editorial-plan",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/cron/inr-agent-scheduled-actions",
       "schedule": "*/1 * * * *"
     },

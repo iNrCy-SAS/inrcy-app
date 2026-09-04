@@ -13,6 +13,10 @@ import {
   AI_MEDIA_SOUNDTRACKS,
   selectAiMediaSoundtrack,
 } from "../../lib/aiMediaSoundtrackCatalog.ts";
+import {
+  buildAiMediaNarrationFallback,
+  getAiMediaLanguageCopy,
+} from "../../lib/aiMediaLanguage.ts";
 
 const ROOT = process.cwd();
 const read = (relativePath: string) =>
@@ -51,6 +55,7 @@ test("le contrat réduit les options au média demandé", () => {
   ]);
   assert.equal(image.withMusic, false);
   assert.equal(image.withNarration, false);
+  assert.equal(image.narrationVoice, null);
   assert.equal(image.format, "square");
   assert.equal(image.typology, "service");
   assert.equal(image.visualStyle, "brand");
@@ -71,6 +76,7 @@ test("le contrat réduit les options au média demandé", () => {
     withText: true,
     withMusic: true,
     withNarration: true,
+    narrationVoice: "male",
     format: "story",
     typology: "showcase",
     visualStyle: "dynamic",
@@ -91,6 +97,7 @@ test("le contrat réduit les options au média demandé", () => {
   assert.equal(video.withText, true);
   assert.equal(video.withMusic, true);
   assert.equal(video.withNarration, true);
+  assert.equal(video.narrationVoice, "male");
   assert.equal(video.format, "story");
   assert.equal(video.typology, "showcase");
   assert.equal(video.visualStyle, "dynamic");
@@ -115,6 +122,27 @@ test("le contrat réduit les options au média demandé", () => {
     source: "studio",
   });
   assert.equal(veoVideo.videoEngine, "veo");
+  assert.equal(veoVideo.narrationVoice, null);
+  const legacyVoiceVideo = normalizeAiMediaGenerationRequest({
+    requestId: "media-request-default-voice",
+    kind: "video",
+    subjectSource: "profile",
+    withNarration: true,
+    source: "studio",
+  });
+  assert.equal(legacyVoiceVideo.narrationVoice, "female");
+  assert.throws(
+    () =>
+      normalizeAiMediaGenerationRequest({
+        requestId: "media-request-bad-voice",
+        kind: "video",
+        subjectSource: "profile",
+        withNarration: true,
+        narrationVoice: "robot",
+        source: "studio",
+      }),
+    AiMediaRequestValidationError,
+  );
   assert.throws(
     () =>
       normalizeAiMediaGenerationRequest({
@@ -234,7 +262,7 @@ test("les dix bandes-son originales sont déterministes et durent exactement hui
 
 test("le prompt donne à GPT Image le sujet, le profil et le seul logo officiel", () => {
   const source = read("lib/aiMediaGenerationPrompt.ts");
-  assert.match(source, /inrcy-media-v8-brief-copy-separated/);
+  assert.match(source, /inrcy-media-v9-language-locked/);
   assert.match(source, /Palette réelle extraite du logo/);
   assert.match(source, /le seul fichier image fourni qui est le logo officiel/);
   assert.match(source, /Aucune photo de Médiathèque/);
@@ -263,6 +291,45 @@ test("le prompt donne à GPT Image le sujet, le profil et le seul logo officiel"
   );
   assert.doesNotMatch(source, /exactement pensée pour 8 secondes/);
   assert.match(source, /AI_MEDIA_FORMAT_SPECS/);
+});
+
+test("les médias IA verrouillent les textes visibles et la narration dans la langue du profil", () => {
+  const languages = ["fr", "en", "es", "it", "de", "nl", "pt", "th", "zh"] as const;
+  for (const language of languages) {
+    const copy = getAiMediaLanguageCopy(language);
+    assert.ok(copy.headlines.service.length >= 3, `${language}: accroche de secours`);
+    assert.ok(copy.ctas.appeler.length >= 3, `${language}: CTA Appeler`);
+    assert.ok(copy.supportingTitle.length >= 3, `${language}: scène de secours`);
+    const narration = buildAiMediaNarrationFallback({
+      language,
+      company: "iNrCy",
+      location: "Paris",
+    });
+    assert.match(narration, /iNrCy/);
+    assert.match(narration, /Paris/);
+  }
+
+  assert.equal(getAiMediaLanguageCopy("en").ctas.appeler, "Call us");
+  assert.equal(getAiMediaLanguageCopy("es").ctas.devis, "Solicite su presupuesto");
+  assert.equal(getAiMediaLanguageCopy("zh").headlines.recruitment, "加入我们的团队");
+
+  const prompt = read("lib/aiMediaGenerationPrompt.ts");
+  const copywriter = read("lib/aiMediaCopywriter.ts");
+  const creativePlan = read("lib/aiMediaCreativePlan.ts");
+  const narration = read("lib/aiMediaNarration.ts");
+  const server = read("lib/aiMediaGenerationServer.ts");
+
+  assert.match(prompt, /LANGUE DU TEXTE VISIBLE — RÈGLE ABSOLUE/);
+  assert.match(prompt, /getAiLanguageLabel\(profile\)/);
+  assert.match(copywriter, /buildAiLanguageInstruction\(args\.profile\)/);
+  assert.match(copywriter, /hasAiLanguageMismatch\(language, visibleCopy\)/);
+  assert.match(copywriter, /langue_cible: getAiLanguageLabel\(args\.profile\)/);
+  assert.match(creativePlan, /if \(language !== "fr"\)/);
+  assert.match(creativePlan, /getAiMediaLanguageCopy\(language\)/);
+  assert.match(narration, /buildAiMediaNarrationFallback/);
+  assert.match(narration, /speechUnitCount/);
+  assert.match(narration, /hasAiLanguageMismatch\(language, value\)/);
+  assert.match(server, /const creativePlanTask = args\.request\.withText/);
 });
 
 test("chaque critère créatif participe réellement au brief envoyé au moteur", () => {
@@ -495,7 +562,7 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   assert.match(copywriter, /ne les additionne jamais/);
   assert.match(copywriter, /une accroche publicitaire courte, naturelle/i);
   assert.match(copywriter, /mots_a_evoquer: args\.request\.textKeywords/);
-  assert.match(copywriter, /applyHeadline/);
+  assert.match(copywriter, /applyLocalizedCopy/);
   assert.doesNotMatch(copywriter, /\.join\(" \+ "\)/);
   assert.match(composer, /composeOriginalAiVideo/);
   assert.match(composer, /libx264/);
@@ -585,6 +652,10 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   assert.match(server, /AI_MEDIA_NARRATION_AFTER_VIDEO_GRACE_MS/);
   assert.match(narrationAudio, /fetchOptions: \{ signal: args\.signal \}/);
   assert.match(narrationAudio, /if \(args\.signal\?\.aborted\)/);
+  assert.match(narrationAudio, /DEFAULT_TTS_VOICE_FEMALE = "Kore"/);
+  assert.match(narrationAudio, /DEFAULT_TTS_VOICE_MALE = "Charon"/);
+  assert.match(narrationAudio, /AI_MEDIA_TTS_VOICE_MALE/);
+  assert.match(server, /narrationVoice: args\.request\.narrationVoice \|\| "female"/);
   assert.match(veo, /DEFAULT_POLL_MS = 2_500/);
   assert.match(server, /withText: args\.request\.withText/);
   assert.doesNotMatch(server, /prompt_sha256: promptHash,\s*prompt,/);

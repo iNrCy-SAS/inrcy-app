@@ -20,6 +20,8 @@ test("le planning iNrAgent est un calendrier par quinzaine avec les actions cons
 
   assert.match(modal, /function groupScheduleItems/);
   assert.match(modal, /const \[visibleHalf, setVisibleHalf\]/);
+  assert.match(modal, /const justOpened = open && !wasOpenRef\.current/);
+  assert.match(modal, /if \(!justOpened\) return/);
   assert.match(modal, />\s*1–15\s*<\/button>/);
   assert.match(modal, />\s*16–\{calendarModel\.lastDay\}\s*<\/button>/);
   assert.match(modal, /moveMonth\(-1\)/);
@@ -34,10 +36,11 @@ test("le planning iNrAgent est un calendrier par quinzaine avec les actions cons
   assert.match(modal, /data-state=\{approvalState\}/);
   assert.match(
     modal,
-    /if \(scheduleFilterKey\(item\) === "stats"\) return "approved";/
+    /scheduleFilterKey\(item\) === "stats" \|\| item\.source === "manual"/
   );
   assert.match(modal, /<svg\s+viewBox="0 0 24 24"/);
-  assert.match(modal, /\["refused", "cancelled"\]\.includes/);
+  assert.match(modal, /item\.statusKey === "cancelled"/);
+  assert.match(modal, /item\.statusKey === "refused"/);
   assert.match(scheduleModalSource, /scheduleHeaderPeriodControls/);
   assert.match(scheduleModalSource, /scheduleCalendarCardControls/);
   assert.match(scheduleModalSource, /scheduleCalendarCardMeta/);
@@ -67,6 +70,8 @@ test("le planning iNrAgent est un calendrier par quinzaine avec les actions cons
   assert.match(styles, /\.scheduleCalendarCard\[data-category="stats"\]/);
   assert.match(styles, /\.scheduleApprovalIndicator\[data-state="approved"\]/);
   assert.match(styles, /\.scheduleApprovalIndicator\[data-state="pending"\]/);
+  assert.match(styles, /\.scheduleApprovalIndicator\[data-state="refused"\]/);
+  assert.match(styles, /\.scheduleCalendarCard\[data-approval="refused"\]/);
   assert.match(finalScheduleStyles, /width:\s*min\(1680px,/);
   assert.match(finalScheduleStyles, /height:\s*min\(94dvh, 1040px\)/);
   assert.match(finalScheduleStyles, /grid-auto-rows:\s*206px/);
@@ -118,6 +123,30 @@ test("le planning iNrAgent est un calendrier par quinzaine avec les actions cons
   );
 });
 
+test("le rafraîchissement du planning conserve la quinzaine choisie et masque les campagnes en Standard", () => {
+  const modal = read("app/dashboard/agent/_components/AgentActionModals.tsx");
+  const client = read("app/dashboard/agent/AgentClient.tsx");
+  const dashboardPlanning = read(
+    "app/dashboard/agent/_components/DashboardAgentPlanningModal.tsx"
+  );
+  const scheduleModalSource = modal.slice(
+    modal.indexOf("export function AgentScheduleModal"),
+    modal.indexOf("type ValidationChoiceModalProps")
+  );
+
+  assert.match(scheduleModalSource, /const justOpened = open && !wasOpenRef\.current/);
+  assert.match(scheduleModalSource, /if \(!justOpened\) return/);
+  assert.ok(
+    scheduleModalSource.indexOf("if (!justOpened) return") <
+      scheduleModalSource.indexOf("setVisibleHalf("),
+    "la quinzaine ne doit être réinitialisée qu'à l'ouverture de la modale"
+  );
+  assert.match(scheduleModalSource, /showCampaigns = true/);
+  assert.match(scheduleModalSource, /scheduleFilterKey\(item\) !== "campaigns"/);
+  assert.match(client, /showCampaigns=\{!standardMode\}/);
+  assert.match(dashboardPlanning, /showCampaigns=\{false\}/);
+});
+
 test("les libellés de filtres et de validation du planning existent dans toutes les langues", () => {
   const locales = [
     "de-DE",
@@ -138,6 +167,10 @@ test("les libellés de filtres et de validation du planning existent dans toutes
     "planning_filter_empty",
     "planning_status_approved",
     "planning_status_pending",
+    "planning_status_refused",
+    "publication_validation_pending",
+    "previous_publication",
+    "next_publication",
   ];
 
   for (const locale of locales) {
@@ -244,4 +277,26 @@ test("iNrAgent construit seul une publication contextualisée et utilise les quo
   assert.match(mediaGeneration, /idea: args\.idea/);
   assert.match(mediaGeneration, /withText: false/);
   assert.match(mediaGeneration, /source: "inr_agent"/);
+});
+
+test("l'espace Publier garde le média, la navigation et les commandes dans un cockpit lisible", () => {
+  const client = read("app/dashboard/agent/AgentClient.tsx");
+  const styles = read("app/dashboard/agent/agent.module.css");
+
+  assert.match(client, /publicationCarouselActions/);
+  assert.match(client, /startPublicationSwipe/);
+  assert.match(client, /movePublication\(-1\)/);
+  assert.match(client, /movePublication\(1\)/);
+  assert.match(client, /data-has-media=\{Boolean\(publishMediaPreview\?\.url\)\}/);
+  assert.match(client, /className=\{styles\.publishInlineMedia\}/);
+  assert.match(client, /className=\{styles\.publishCtaStandalone\}/);
+  assert.match(client, /className=\{styles\.agentCommandRailIdentity\}/);
+  assert.doesNotMatch(client, /robotStepsByAutomation/);
+  assert.match(
+    styles,
+    /\.publishPostCard\[data-has-media="true"\][\s\S]*?grid-template-columns:\s*minmax\(230px, 34%\) minmax\(0, 1fr\)/,
+  );
+  assert.match(styles, /\.publishInlineMediaStage img,[\s\S]*?object-fit:\s*contain/);
+  assert.match(styles, /\.previewMetaPublish \.channelNavArrow:hover:not\(:disabled\)/);
+  assert.match(styles, /\.automationGridStandard\s*\{\s*grid-template-rows:\s*270px repeat\(2, 68px\)/);
 });

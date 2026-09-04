@@ -541,13 +541,13 @@ export default function PublishIntentPanel({
 
       if (!response.ok) {
         throw new Error(
-          String(json?.user_message || json?.error || "Correction impossible."),
+          String(json?.user_message || json?.error || i18nT("correction_impossible_a95af972")),
         );
       }
 
       const correctedText = String(json?.text || "").trim();
       if (!correctedText) {
-        throw new Error("Aucun texte n’a été détecté dans le vocal.");
+        throw new Error(i18nT("aucun_texte_n_a_ete_detecte_6273e0bf"));
       }
 
       setVoiceTargetText(target, () =>

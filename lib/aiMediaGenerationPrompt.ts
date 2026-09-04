@@ -4,8 +4,9 @@ import {
   type AiMediaGenerationRequest,
   type AiMediaKind,
 } from "@/lib/aiMediaGenerationContracts";
+import { getAiLanguageLabel } from "@/lib/aiWritingProfile";
 
-export const AI_MEDIA_PROMPT_VERSION = "inrcy-media-v8-brief-copy-separated";
+export const AI_MEDIA_PROMPT_VERSION = "inrcy-media-v9-language-locked";
 
 type RecentPublication = {
   title?: string | null;
@@ -193,6 +194,7 @@ export function buildAiMediaPrompt(args: {
 }) {
   const { request, profile } = args;
   const preferences = profile.preferences;
+  const targetLanguage = getAiLanguageLabel(profile);
   const format = AI_MEDIA_FORMAT_SPECS[request.format];
   const palette = (args.brandColors || []).filter(Boolean).slice(0, 4);
   const preferenceLine = [
@@ -239,6 +241,9 @@ export function buildAiMediaPrompt(args: {
       ? "Ce brief pilotera des plans vidéo originaux générés par IA : privilégier une action crédible, cohérente et cinématographique."
       : "Cette image doit être une création originale, cohérente avec le sujet actuel et directement publiable.",
     `Direction de communication : ${preferenceLine}.`,
+    request.withText
+      ? `LANGUE DU TEXTE VISIBLE — RÈGLE ABSOLUE : l'accroche et tout caractère destiné au lecteur doivent être exclusivement en ${targetLanguage}. Le brief, le profil et les consignes techniques peuvent être rédigés dans une autre langue : ne jamais reprendre leur langue par défaut. Les noms propres, marques et le logo officiel restent inchangés.`
+      : `LANGUE DE GÉNÉRATION CONFIGURÉE : ${targetLanguage}. Aucun texte visible ne doit être créé dans le média, quelle que soit la langue du brief, hors texte déjà présent dans le logo officiel.`,
     request.useBrandColors && palette.length
       ? `Palette réelle extraite du logo à harmoniser subtilement : ${palette.join(", ")}.`
       : args.hasLogo

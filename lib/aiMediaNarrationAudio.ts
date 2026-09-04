@@ -9,9 +9,11 @@ import {
   rollbackAiGatewayAccountAttempt,
 } from "@/lib/aiGatewayAccountGuard";
 import type { AiMediaNarration } from "@/lib/aiMediaNarration";
+import type { AiMediaNarrationVoice } from "@/lib/aiMediaGenerationContracts";
 
 const DEFAULT_TTS_MODEL = "gemini-3.1-flash-tts-preview";
-const DEFAULT_TTS_VOICE = "Kore";
+const DEFAULT_TTS_VOICE_FEMALE = "Kore";
+const DEFAULT_TTS_VOICE_MALE = "Charon";
 const DEFAULT_TTS_COST_MICRO_USD = 15_000;
 const DEFAULT_TTS_TIMEOUT_MS = 45_000;
 const MAX_AUDIO_BYTES = 16 * 1024 * 1024;
@@ -64,6 +66,19 @@ function safeIdentifier(value: unknown, fallback: string) {
   return /^[a-z0-9][a-z0-9._-]{1,100}$/i.test(normalized)
     ? normalized
     : fallback;
+}
+
+function narrationVoicePreset(narrationVoice: AiMediaNarrationVoice) {
+  if (narrationVoice === "male") {
+    return safeIdentifier(
+      process.env.AI_MEDIA_TTS_VOICE_MALE,
+      DEFAULT_TTS_VOICE_MALE,
+    );
+  }
+  return safeIdentifier(
+    process.env.AI_MEDIA_TTS_VOICE_FEMALE || process.env.AI_MEDIA_TTS_VOICE,
+    DEFAULT_TTS_VOICE_FEMALE,
+  );
 }
 
 function statusFromError(error: unknown) {
@@ -165,11 +180,12 @@ export async function generateAiMediaNarrationAudio(args: {
   accountId: string;
   narration: AiMediaNarration;
   durationSeconds: 8 | 16 | 24;
+  narrationVoice: AiMediaNarrationVoice;
   signal?: AbortSignal;
 }): Promise<GeneratedAiNarrationAudio> {
   args.signal?.throwIfAborted();
   const model = safeIdentifier(process.env.AI_MEDIA_TTS_MODEL, DEFAULT_TTS_MODEL);
-  const voice = safeIdentifier(process.env.AI_MEDIA_TTS_VOICE, DEFAULT_TTS_VOICE);
+  const voice = narrationVoicePreset(args.narrationVoice);
   const costMicroUsd = positiveInt(
     process.env.AI_MEDIA_TTS_COST_MICRO_USD,
     DEFAULT_TTS_COST_MICRO_USD,
@@ -198,7 +214,7 @@ export async function generateAiMediaNarrationAudio(args: {
             model,
             input: [
               "INSTRUCTION DE JEU — ne prononce pas cette ligne :",
-              `Voix professionnelle, chaleureuse et naturelle. Langue ${language}. Débit fluide adapté à une vidéo de ${args.durationSeconds} secondes, sans chant ni emphase artificielle.`,
+              `Voix ${args.narrationVoice === "male" ? "masculine" : "féminine"}, professionnelle, chaleureuse et naturelle. Langue ${language}. Débit fluide adapté à une vidéo de ${args.durationSeconds} secondes, sans chant ni emphase artificielle.`,
               "TRANSCRIPTION À LIRE MOT POUR MOT :",
               args.narration.script,
             ].join("\n"),

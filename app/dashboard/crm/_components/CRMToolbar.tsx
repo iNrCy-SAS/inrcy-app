@@ -5,6 +5,7 @@ import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS, sanitizeDepartmentFilter } from "
 import type { Category, ContactType, CrmContact } from "../crm.types";
 
 type Props = {
+  documentsEnabled: boolean;
   isResponsive: boolean;
   saving: boolean;
   importing: boolean;
@@ -45,6 +46,7 @@ type Props = {
 };
 
 export default function CRMToolbar({
+  documentsEnabled,
   isResponsive,
   saving,
   selectedCount,
@@ -160,31 +162,35 @@ export default function CRMToolbar({
 
                 <div className={styles.actionsSep} />
 
-                <button
-                  className={styles.actionsItem}
-                  type="button"
-                  onClick={() => {
-                    if (!primaryContact) return;
-                    setActionsOpen(false);
-                    goNewDevis(primaryContact);
-                  }}
-                  disabled={!primaryContact || saving}
-                >
-                  {i18nT("devis_9676cd7e")}{" "}</button>
+                {documentsEnabled ? (
+                  <>
+                    <button
+                      className={styles.actionsItem}
+                      type="button"
+                      onClick={() => {
+                        if (!primaryContact) return;
+                        setActionsOpen(false);
+                        goNewDevis(primaryContact);
+                      }}
+                      disabled={!primaryContact || saving}
+                    >
+                      {i18nT("devis_9676cd7e")}{" "}</button>
 
-                <button
-                  className={styles.actionsItem}
-                  type="button"
-                  onClick={() => {
-                    if (!primaryContact) return;
-                    setActionsOpen(false);
-                    goNewFacture(primaryContact);
-                  }}
-                  disabled={!primaryContact || saving}
-                >
-                  {i18nT("factures_d37c472b")}{" "}</button>
+                    <button
+                      className={styles.actionsItem}
+                      type="button"
+                      onClick={() => {
+                        if (!primaryContact) return;
+                        setActionsOpen(false);
+                        goNewFacture(primaryContact);
+                      }}
+                      disabled={!primaryContact || saving}
+                    >
+                      {i18nT("factures_d37c472b")}{" "}</button>
 
-                <div className={styles.actionsSep} />
+                    <div className={styles.actionsSep} />
+                  </>
+                ) : null}
 
                 <button
                   className={styles.actionsItem}

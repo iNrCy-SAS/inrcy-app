@@ -21,11 +21,20 @@ export function formatActionDate(
   const weekday = new Intl.DateTimeFormat(locale, { weekday: "long" }).format(
     date,
   );
-  const time = new Intl.DateTimeFormat(locale, {
+  const dayAndMonth = new Intl.DateTimeFormat(locale, {
+    day: "2-digit",
+    month: "2-digit",
+  }).format(date);
+  const localizedTime = new Intl.DateTimeFormat(locale, {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
-  return `${weekday.charAt(0).toUpperCase()}${weekday.slice(1)} ${time}`;
+  const french = locale.toLowerCase().startsWith("fr");
+  const time = french
+    ? localizedTime.replace(/\s*h\s*/i, "h").replace(":", "h")
+    : localizedTime;
+  const separator = french ? "à" : "·";
+  return `${weekday.charAt(0).toUpperCase()}${weekday.slice(1)} ${dayAndMonth} ${separator} ${time}`;
 }
 
 export function extractReportDocument(

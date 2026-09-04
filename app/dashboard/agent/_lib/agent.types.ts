@@ -2,6 +2,7 @@ import type { BoosterCtaMode } from "../../booster/publier/publishModal.shared";
 import type {
   InrAgentFrequency,
   InrAgentPreferredMediaSource,
+  InrAgentPlanningHorizonDays,
   InrAgentSettings,
   InrAgentValidationMode,
 } from "@/lib/inrAgentSettings";
@@ -51,6 +52,24 @@ export type AutomationConfig = {
   source: string;
   signatureAutomatic: boolean;
   preferredMediaSource: InrAgentPreferredMediaSource;
+  planningHorizonDays: InrAgentPlanningHorizonDays;
+};
+
+export type EditorialPlanApplyMode = "now" | "next_cycle";
+
+export type EditorialPlanQuotaImpact = {
+  affectedPublications: number;
+  generatedPublications: number;
+  lostImages: number;
+  lostVideos: number;
+  requiredImages: number;
+  requiredVideos: number;
+  availableImages: number | null;
+  availableVideos: number | null;
+  quotaSufficient: boolean;
+  quotaAvailable: boolean;
+  protectedUntil: string | null;
+  horizonDays: 7 | 15 | 30;
 };
 
 export type SelectOption<T extends string> = {
@@ -135,8 +154,11 @@ export type AgentPreparedAction = {
   status: InrAgentActionStatus;
   scheduledFor: string | null;
   preparedAt: string | null;
+  validatedAt?: string | null;
+  refusedAt?: string | null;
   completedAt?: string | null;
   createdAt: string | null;
+  updatedAt?: string | null;
 };
 
 export type AgentReportDocument = {
@@ -361,10 +383,12 @@ export type ScheduleListItem = {
   statusKey?: string;
   automationKey?: AutomationKey | null;
   scheduledActionId?: string | null;
+  preparedActionId?: string | null;
   scheduledAtIso?: string | null;
+  contentReady?: boolean;
   editable: boolean;
   removable: boolean;
-  source: "automatic" | "manual";
+  source: "automatic" | "manual" | "editorial";
 };
 
 export type ConnectedChannelMap = Partial<Record<ChannelKey, boolean>>;

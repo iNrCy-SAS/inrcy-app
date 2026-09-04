@@ -5,7 +5,11 @@ import { useDashboardEdition } from "../_components/DashboardEditionProvider";
 
 export default function MailboxPage() {
   const edition = useDashboardEdition();
-  return <MailboxClient standardMode={edition === "standard"} />;
+  return (
+    <MailboxClient
+      standardMode={edition === "standard"}
+      founderMode={edition === "founder"}
+    />
+  );
 }
-
 

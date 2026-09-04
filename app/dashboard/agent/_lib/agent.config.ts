@@ -221,11 +221,6 @@ export const settingsOptions: Record<AutomationKey, AutomationSettingsOptions> =
     ],
     validation: [
       {
-        value: "validation_required",
-        label: "Validation obligatoire avant publication",
-      },
-      { value: "draft_only", label: "Préparer en brouillon" },
-      {
         value: "notify_before_validation",
         label: "Notification avant validation",
       },
@@ -298,7 +293,17 @@ export const automations: Automation[] = [
     shortTitle: "Publier",
     iconLabel: "Visibilité",
     settingsTitle: "Réglages — Publier",
-    availableThemes: ["Conseils", "Réalisations", "Offres", "Actualités"],
+    availableThemes: [
+      "Conseils",
+      "Réalisations",
+      "Offres",
+      "Actualités",
+      "Coulisses",
+      "Avis clients",
+      "Services",
+      "Questions fréquentes",
+      "Recrutement",
+    ],
     availableChannels: [
       "siteInrcy",
       "siteWeb",
@@ -380,7 +385,7 @@ export const robotStepsByAutomation: Record<AutomationKey, [string, string, stri
 
 export const defaultConfigs: Record<AutomationKey, AutomationConfig> = {
   publish: {
-    enabled: true,
+    enabled: false,
     frequency: "1 fois par semaine",
     day: "Lundi",
     time: "09:00",
@@ -402,10 +407,11 @@ export const defaultConfigs: Record<AutomationKey, AutomationConfig> = {
       "pinterest",
     ],
     themes: ["Conseils", "Réalisations", "Offres"],
-    validation: "Validation obligatoire avant publication",
+    validation: "Notification avant validation",
     source: "Contenus déjà publiés + canaux Booster / Publier connectés",
     signatureAutomatic: true,
     preferredMediaSource: "media_library",
+    planningHorizonDays: 15,
   },
   grow: {
     enabled: false,
@@ -423,6 +429,7 @@ export const defaultConfigs: Record<AutomationKey, AutomationConfig> = {
     source: "Publications déjà faites + rubriques Propulser",
     signatureAutomatic: true,
     preferredMediaSource: "media_library",
+    planningHorizonDays: 15,
   },
   loyalty: {
     enabled: false,
@@ -440,6 +447,7 @@ export const defaultConfigs: Record<AutomationKey, AutomationConfig> = {
     source: "Publications déjà faites + rubriques Fidéliser",
     signatureAutomatic: true,
     preferredMediaSource: "media_library",
+    planningHorizonDays: 15,
   },
   stats: {
     enabled: false,
@@ -464,6 +472,7 @@ export const defaultConfigs: Record<AutomationKey, AutomationConfig> = {
     source: "Rubriques iNr’Stats connectées",
     signatureAutomatic: true,
     preferredMediaSource: "media_library",
+    planningHorizonDays: 15,
   },
 };
 
@@ -514,6 +523,11 @@ export const themeToApi: Record<string, InrAgentTheme> = {
   Réalisations: "realisations",
   Offres: "offres",
   Actualités: "actualites",
+  Coulisses: "coulisses",
+  "Avis clients": "temoignages",
+  Services: "services",
+  "Questions fréquentes": "faq",
+  Recrutement: "recrutement",
   Valoriser: "valoriser",
   Récolter: "recolter",
   Offrir: "offrir",

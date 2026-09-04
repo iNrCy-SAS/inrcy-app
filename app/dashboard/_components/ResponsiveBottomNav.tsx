@@ -33,6 +33,7 @@ import { requestDashboardToolWarmup } from "./DashboardToolWarmup";
 import { useDelayedPendingAction } from "@/hooks/useDelayedPendingAction";
 import { useInrAgentPendingCount } from "../_hooks/useInrAgentPendingCount";
 import { useDashboardEdition } from "./DashboardEditionProvider";
+import { hasAccountingDashboardAccess } from "@/lib/dashboardEdition";
 
 
 type DashboardPanelName =
@@ -176,6 +177,7 @@ function ResponsiveBottomNavMobile() {
   const { requestNavigation } = useDashboardUnsavedNavigation();
   const dashboardEdition = useDashboardEdition();
   const standardMode = dashboardEdition === "standard";
+  const accountingEnabled = hasAccountingDashboardAccess(dashboardEdition);
   const t = useDashboardI18n();
   const { language, setLanguage } = useDashboardLanguage();
   const labels = useMemo(() => compactLabels(t.locale, i18nT), [t.locale, i18nT]);
@@ -209,13 +211,13 @@ function ResponsiveBottomNavMobile() {
   const [shortcuts, setShortcuts] = useState<MobileShortcutId[]>([...DEFAULT_MOBILE_SHORTCUTS]);
   const [isAdmin, setIsAdmin] = useState(false);
   const displayedShortcuts = useMemo(
-    () => standardMode ? [...STANDARD_MOBILE_SHORTCUTS] : shortcuts,
+    () => (standardMode ? [...STANDARD_MOBILE_SHORTCUTS] : shortcuts.filter((id) => id !== "cash")),
     [shortcuts, standardMode],
   );
   const availableShortcutOptions = useMemo(
     () => standardMode
       ? MOBILE_SHORTCUT_OPTIONS.filter((option) => STANDARD_MOBILE_SHORTCUTS.includes(option.id))
-      : MOBILE_SHORTCUT_OPTIONS,
+      : MOBILE_SHORTCUT_OPTIONS.filter((option) => option.id !== "cash"),
     [standardMode],
   );
 
@@ -509,6 +511,7 @@ function ResponsiveBottomNavMobile() {
   const mediaActionKey = resolveHrefDestination("/dashboard/mediatheque").key;
   const mediaGeneratorHref = "/dashboard/generer-media";
   const mediaGeneratorActionKey = resolveHrefDestination(mediaGeneratorHref).key;
+  const cashActionKey = resolveHrefDestination("/dashboard?action=cash").key;
   const gpsActionKey = resolveHrefDestination("/dashboard/gps").key;
   const adminActionKey = resolveHrefDestination("/dashboard/admin").key;
   const publishLoadingVisible = isVisible(publishActionKey);
@@ -612,6 +615,13 @@ function ResponsiveBottomNavMobile() {
                   loading={isVisible(mediaActionKey)}
                   onClick={() => navigate("/dashboard/mediatheque")}
                 />
+                {accountingEnabled ? (
+                  <MobileMenuActionButton
+                    label={t.modules.cashTitle}
+                    loading={isVisible(cashActionKey)}
+                    onClick={() => navigate("/dashboard?action=cash")}
+                  />
+                ) : null}
                 <MobileMenuActionButton
                   label={t.userMenu.subscription}
                   loading={isVisible("panel:abonnement")}

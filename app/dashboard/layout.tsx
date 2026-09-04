@@ -16,6 +16,7 @@ import { ensureProfileRow } from "@/lib/ensureProfileRow";
 import { resolveInrcyAccountScopeForUser } from "@/lib/multicompte/server";
 import ActiveAccountTabSync from "./_components/ActiveAccountTabSync";
 import ResponsiveBottomNav from "./_components/ResponsiveBottomNav";
+import DashboardScrollMemory from "./_components/DashboardScrollMemory";
 import DashboardUnsavedNavigationProvider from "./_components/DashboardUnsavedNavigationProvider";
 import DashboardPullToRefresh from "./_components/DashboardPullToRefresh";
 import SentryUserContext from "./_components/SentryUserContext";
@@ -180,6 +181,7 @@ export default async function DashboardLayout({
 
         <DashboardRequiredSetupBypassProvider enabled={bypassRequiredSetup}>
           <DashboardUnsavedNavigationProvider>
+            <DashboardScrollMemory />
             <DashboardPullToRefresh />
             <DashboardRequiredSetupGate>
               <div className={styles.mobileViewport}>

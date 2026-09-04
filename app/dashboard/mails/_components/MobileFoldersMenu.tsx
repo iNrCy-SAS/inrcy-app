@@ -4,6 +4,7 @@ import styles from "../mails.module.css";
 import { ALL_FOLDERS, folderLabel, folderTheme, type Folder, type FolderCounts } from "../_lib/mailboxPhase1";
 
 type Props = {
+  folders?: readonly Folder[];
   open: boolean;
   folder: Folder;
   counts: FolderCounts;
@@ -12,7 +13,7 @@ type Props = {
   onSelectFolder: (folder: Folder) => void;
 };
 
-export default function MobileFoldersMenu({ open, folder, counts, countsLoading = false, onClose, onSelectFolder }: Props) {
+export default function MobileFoldersMenu({ folders = ALL_FOLDERS, open, folder, counts, countsLoading = false, onClose, onSelectFolder }: Props) {
   const i18nT = useTranslations("mails");
   if (!open) return null;
   return (
@@ -25,7 +26,7 @@ export default function MobileFoldersMenu({ open, folder, counts, countsLoading 
           </button>
         </div>
         <div className={styles.mobileMenuBody}>
-          {ALL_FOLDERS.map((f) => {
+          {folders.map((f) => {
             const active = f === folder;
             return (
               <button

@@ -42,6 +42,7 @@ export type MediaGenerationCreativity = "faithful" | "bold";
 export type MediaGenerationLogoMode = "discreet" | "visible" | "none";
 export type MediaGenerationVideoDuration = 8 | 16 | 24;
 export type MediaGenerationVideoEngine = "omni" | "veo";
+export type MediaGenerationNarrationVoice = "female" | "male";
 export type MediaGenerationVideoEngineResult =
   | "omni"
   | "veo"
@@ -98,6 +99,7 @@ export type MediaGenerationRequest = {
   textKeywords: string[];
   withMusic?: boolean;
   withNarration?: boolean;
+  narrationVoice?: MediaGenerationNarrationVoice;
   format: MediaGenerationFormat;
   typology: MediaGenerationTypology;
   visualStyle: MediaGenerationVisualStyle;
@@ -355,6 +357,10 @@ function buildGenerationAttemptKey(
     textKeywords: request.withText ? request.textKeywords : [],
     withMusic: request.kind === "video" && Boolean(request.withMusic),
     withNarration: request.kind === "video" && Boolean(request.withNarration),
+    narrationVoice:
+      request.kind === "video" && request.withNarration
+        ? request.narrationVoice || "female"
+        : null,
     format: request.format,
     typology: request.typology,
     visualStyle: request.visualStyle,
@@ -666,6 +672,10 @@ export default function useMediaGeneration() {
             withNarration:
               request.kind === "video"
                 ? Boolean(request.withNarration)
+                : undefined,
+            narrationVoice:
+              request.kind === "video" && request.withNarration
+                ? request.narrationVoice || "female"
                 : undefined,
             format: request.format,
             typology: request.typology,

@@ -31,6 +31,8 @@ import {
   useCrmFloatingUiEffects,
   useCrmTableViewportEffects,
 } from "./crm.client-hooks";
+import { hasAccountingDashboardAccess } from "@/lib/dashboardEdition";
+import { useDashboardEdition } from "../_components/DashboardEditionProvider";
 
 type CrmDefaultSnapshot = {
   contacts?: CrmContact[];
@@ -48,6 +50,8 @@ function readInitialCrmSnapshot(): CrmDefaultSnapshot | null {
 
 export default function CRMClient() {
   const i18nT = useTranslations("crm");
+  const dashboardEdition = useDashboardEdition();
+  const documentsEnabled = hasAccountingDashboardAccess(dashboardEdition);
   const [helpOpen, setHelpOpen] = useState(false);
   const router = useRouter();
   const [initialSnapshot] = useState<CrmDefaultSnapshot | null>(() => readInitialCrmSnapshot());
@@ -903,6 +907,7 @@ export default function CRMClient() {
         {success ? <div className={styles.success}>{success}</div> : null}
 
         <CRMToolbar
+          documentsEnabled={documentsEnabled}
           isResponsive={isResponsive}
           saving={saving}
           importing={importing}
@@ -946,6 +951,7 @@ export default function CRMClient() {
 
         <div className={styles.tableWrap} ref={tableWrapRef}>
           <CRMContactsView
+            documentsEnabled={documentsEnabled}
             isResponsive={isResponsive}
             visibleContacts={visibleContacts}
             emptyMessage={emptyMessage}

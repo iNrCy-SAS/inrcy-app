@@ -7,6 +7,13 @@ const STANDARD_PLAN_VALUES = new Set([
   "inrcy_standard",
 ]);
 
+const FOUNDER_PLAN_VALUES = new Set([
+  "founder",
+  "inrcy founder",
+  "inrcy-founder",
+  "inrcy_founder",
+]);
+
 const STANDARD_BLOCKED_DASHBOARD_PREFIXES = [
   "/dashboard/agenda",
   "/dashboard/crm",
@@ -22,6 +29,18 @@ const STANDARD_BLOCKED_DASHBOARD_PANELS = new Set([
   "documents",
   "mails",
 ]);
+
+const FOUNDER_ONLY_DASHBOARD_PREFIXES = [
+  "/dashboard/devis",
+  "/dashboard/factures",
+] as const;
+
+const FOUNDER_ONLY_DASHBOARD_PANELS = new Set(["documents"]);
+
+const FOUNDER_ONLY_API_PREFIXES = [
+  "/api/documents",
+  "/api/factures",
+] as const;
 
 const STANDARD_BLOCKED_API_PREFIXES = [
   "/api/calendar",
@@ -81,11 +100,14 @@ function pathMatches(pathname: string, candidate: string): boolean {
 }
 
 /**
- * Fail-safe commercial mapping: only an explicit Standard value enables the
- * reduced edition. Every historic, empty or unknown value remains Premium.
+ * Fail-safe commercial mapping: explicit Standard and Founder plan names keep
+ * their matching edition. Every empty or unknown historic value remains Premium.
  */
 export function resolveDashboardEditionFromPlan(plan: unknown): DashboardEdition {
-  return STANDARD_PLAN_VALUES.has(normalizePlan(plan)) ? "standard" : "premium";
+  const normalizedPlan = normalizePlan(plan);
+  if (STANDARD_PLAN_VALUES.has(normalizedPlan)) return "standard";
+  if (FOUNDER_PLAN_VALUES.has(normalizedPlan)) return "founder";
+  return "premium";
 }
 
 export function resolveDashboardEditionFromEdition(edition: unknown): DashboardEdition {
@@ -106,6 +128,10 @@ export function isStandardDashboardEdition(edition: DashboardEdition): boolean {
  */
 export function hasPremiumDashboardAccess(edition: DashboardEdition): boolean {
   return edition === "premium" || edition === "founder";
+}
+
+export function hasAccountingDashboardAccess(edition: DashboardEdition): boolean {
+  return edition === "founder";
 }
 
 export function resolveDashboardEdition({
@@ -150,18 +176,37 @@ export function isDashboardDestinationAllowedForEdition(
   destination: string,
   edition: DashboardEdition,
 ): boolean {
-  if (edition !== "standard") return true;
-
   const href = String(destination || "").trim();
   if (!href) return false;
 
   try {
     const url = new URL(href, "https://app.inrcy.local");
     if (!url.pathname.startsWith("/dashboard")) return true;
-    return isStandardDashboardRouteAllowed(url.pathname, url.searchParams);
+    return isDashboardRouteAllowedForEdition(url.pathname, url.searchParams, edition);
   } catch {
     return false;
   }
+}
+
+export function isDashboardRouteAllowedForEdition(
+  pathname: string,
+  searchParams: URLSearchParams | undefined,
+  edition: DashboardEdition,
+): boolean {
+  if (edition === "standard" && !isStandardDashboardRouteAllowed(pathname, searchParams)) {
+    return false;
+  }
+
+  if (edition === "founder") return true;
+  if (FOUNDER_ONLY_DASHBOARD_PREFIXES.some((candidate) => pathMatches(pathname, candidate))) {
+    return false;
+  }
+
+  return !(
+    pathname === "/dashboard" &&
+    (FOUNDER_ONLY_DASHBOARD_PANELS.has(normalizePlan(searchParams?.get("panel"))) ||
+      normalizePlan(searchParams?.get("action")) === "cash")
+  );
 }
 
 export function isPotentialStandardRestrictedApiPath(pathname: string): boolean {
@@ -171,6 +216,13 @@ export function isPotentialStandardRestrictedApiPath(pathname: string): boolean 
     pathname === "/api/inrsend" ||
     pathname.startsWith("/api/inrsend/") ||
     STANDARD_BLOCKED_API_PREFIXES.some((candidate) => pathMatches(pathname, candidate))
+  );
+}
+
+export function isPotentialEditionRestrictedApiPath(pathname: string): boolean {
+  return (
+    isPotentialStandardRestrictedApiPath(pathname) ||
+    FOUNDER_ONLY_API_PREFIXES.some((candidate) => pathMatches(pathname, candidate))
   );
 }
 
@@ -201,4 +253,24 @@ export function isStandardApiRouteAllowed(
   }
 
   return true;
+}
+
+export function isApiRouteAllowedForEdition(
+  pathname: string,
+  searchParams: URLSearchParams | undefined,
+  edition: DashboardEdition,
+): boolean {
+  if (
+    edition !== "founder" &&
+    FOUNDER_ONLY_API_PREFIXES.some((candidate) => pathMatches(pathname, candidate))
+  ) {
+    return false;
+  }
+
+  if (edition !== "founder" && pathname === "/api/inrsend/history") {
+    const folder = normalizePlan(searchParams?.get("folder"));
+    if (folder === "factures" || folder === "devis") return false;
+  }
+
+  return edition !== "standard" || isStandardApiRouteAllowed(pathname, searchParams);
 }

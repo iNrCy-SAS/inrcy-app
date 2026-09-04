@@ -47,6 +47,7 @@ test("Booster utilise le générateur partagé et réinsère le média validé",
     "textKeywords",
     "withMusic",
     "withNarration",
+    "narrationVoice",
     "format",
     "typology",
     "visualStyle",
@@ -181,6 +182,9 @@ test("la fenêtre iNrCy sépare les critères de la création et de la revue", (
     "ai_generator_with_music",
     "ai_generator_video_engine_title",
     "ai_generator_narration",
+    "ai_generator_narration_voice_label",
+    "ai_generator_narration_voice_female",
+    "ai_generator_narration_voice_male",
     "ai_generator_with_narration",
     "ai_generator_unlimited",
   ]) {
@@ -198,6 +202,10 @@ test("la fenêtre iNrCy sépare les critères de la création et de la revue", (
   assert.match(hook, /videoEngineResult: MediaGenerationVideoEngineResult \| null/);
   assert.match(hook, /rawVideoEngineResult === "omni_veo_fallback"/);
   assert.match(generator, /videoEngine: kind === "video" \? videoEngine : undefined/);
+  assert.match(generator, /useState<MediaGenerationNarrationVoice>\("female"\)/);
+  assert.match(generator, /\(\["female", "male"\] as const\)\.map/);
+  assert.match(generator, /narrationVoice:[\s\S]*?withNarration \? narrationVoice : undefined/);
+  assert.match(hook, /narrationVoice\?: MediaGenerationNarrationVoice/);
   assert.match(generator, /duration > videoMaxDurationSeconds/);
   assert.match(generator, /disabled=\{operationLocked \|\| premiumLocked\}/);
   assert.match(generator, /acceptMode === "insert"/);

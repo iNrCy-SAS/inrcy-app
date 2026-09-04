@@ -1279,7 +1279,7 @@ export async function GET() {
     .select(ACTION_SELECT)
     .eq("user_id", activeUserId)
     .order("created_at", { ascending: false })
-    .limit(40);
+    .limit(120);
 
   if (error) {
     if (isMissingTableError(error)) {

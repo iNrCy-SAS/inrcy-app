@@ -100,16 +100,16 @@ const CHANNEL_MIN_CONTENT_LENGTH: Record<BoosterChannels, number> = {
 const CHANNEL_DETAILED_ENRICHMENT_MIN: Record<BoosterChannels, number> = {
   inrcy_site: 1300,
   site_web: 1600,
-  inr_search: 0,
+  inr_search: 190,
   gmb: 650,
   facebook: 750,
-  instagram: 500,
+  instagram: 580,
   linkedin: 900,
-  tiktok: 250,
+  tiktok: 340,
   youtube_shorts: 900,
-  // 280 est le bas de la nouvelle plage Détaillé Pinterest : ne pas
+  // 300 reste légèrement sous la plage Détaillé Pinterest : ne pas
   // déclencher une réparation IA sur un contenu déjà conforme.
-  pinterest: 280,
+  pinterest: 300,
 };
 
 const CHANNEL_DYNAMIC_EMOJI_MIN: Record<BoosterChannels, number> = {
@@ -758,31 +758,36 @@ function computeMaxOutputTokens(
   channels: BoosterChannels[],
   mode: "primary" | "repair" = "primary",
   engine?: string | null,
+  lengthPreference: NormalizedAiGenerationProfile["preferences"]["length"] = "medium",
 ) {
   const uniqueChannels = Array.from(new Set(channels));
   const expectedPerChannel: Record<BoosterChannels, number> = {
     inrcy_site: 950,
     site_web: 1100,
-    inr_search: 220,
+    inr_search: 240,
     gmb: 450,
     facebook: 550,
-    instagram: 450,
+    instagram: 520,
     linkedin: 750,
-    tiktok: 300,
+    tiktok: 380,
     youtube_shorts: 950,
-    pinterest: 350,
+    pinterest: 400,
   };
 
   const contentBudget = uniqueChannels.reduce(
     (sum, channel) => sum + expectedPerChannel[channel],
     mode === "repair" ? 500 : 750,
   );
+  const lengthAdjustedBudget =
+    lengthPreference === "detailed"
+      ? Math.ceil(contentBudget * 1.18)
+      : contentBudget;
 
   // Un seul appel principal peut contenir tous les canaux. Le plafond reste une
   // marge de sortie, pas une dépense automatique : seuls les tokens réellement
   // générés sont consommés. La réparation ne reçoit que les canaux invalides.
   const minimum = uniqueChannels.includes("youtube_shorts") ? 3200 : 2200;
-  const baseBudget = Math.min(10_000, Math.max(minimum, contentBudget));
+  const baseBudget = Math.min(10_000, Math.max(minimum, lengthAdjustedBudget));
   return Math.min(
     10_000,
     applyAiEngineOutputTokenCalibration(baseBudget, engine),
@@ -859,6 +864,7 @@ async function generateVersions(args: {
       args.channels,
       mode,
       args.generationProfile.preferences.engine,
+      args.generationProfile.preferences.length,
     ),
     temperature: getAiEngineTemperature(
       args.generationProfile,

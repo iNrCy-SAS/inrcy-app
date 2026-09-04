@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { buildVideoSettingsByChannel } from "@/lib/boosterVideoSettings";
 import { prepareBoosterImagesByChannelOnServer } from "@/lib/boosterImageServerPreparation";
-import { requireUser } from "@/lib/requireUser";
+import { resolveInrAgentActionRequest } from "@/lib/inrAgentRequest";
 import { rowToInrAgentAction } from "@/lib/inrAgentActions";
 import { buildAbsoluteStorageContentUrl } from "@/lib/storageContentUrl";
 import {
@@ -15,7 +15,7 @@ import { captureApiException } from "@/lib/observability/sentry";
 import { withApi } from "@/lib/observability/withApi";
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import {
-  getDashboardEditionForAuthUser,
+  getDashboardEditionForAccountId,
   premiumRequiredApiResponse,
 } from "@/lib/dashboardEditionServer";
 import { isStandardAgentActionDescriptor } from "@/lib/standardAgentPolicy";
@@ -109,6 +109,13 @@ function sanitizeFutureDate(value: unknown) {
   if (!Number.isFinite(date.getTime()) || date.getTime() <= Date.now() + 30_000)
     return null;
   return date.toISOString();
+}
+
+function sanitizeAutomaticScheduledDate(value: unknown) {
+  const date = new Date(String(value || ""));
+  if (!Number.isFinite(date.getTime())) return null;
+  const minimumDispatchAt = Date.now() + 45_000;
+  return new Date(Math.max(date.getTime(), minimumDispatchAt)).toISOString();
 }
 
 type NormalizedScheduleSelection = {
@@ -348,8 +355,9 @@ function getAgentMediaRecord(payload: JsonRecord) {
 async function buildImagePayloadFromAgentAction(
   payload: JsonRecord,
   actionId: string,
+  mediaOverride?: JsonRecord,
 ) {
-  const media = getAgentMediaRecord(payload);
+  const media = mediaOverride || getAgentMediaRecord(payload);
   if (!media || isVideoMedia(media)) return null;
 
   const bucket =
@@ -412,6 +420,50 @@ async function buildImagePayloadFromAgentAction(
     imageKey: cleanText(media.id || actionId, 120),
     imageMeta: { source: cleanText(media.source, 120) || "inr_agent", title },
   };
+}
+
+async function buildImagePayloadsFromAgentAction(
+  payload: JsonRecord,
+  actionId: string,
+  actionImageAssets: unknown[],
+) {
+  const candidates = [
+    ...(Array.isArray(payload.images) ? payload.images : []),
+    ...(Array.isArray(payload.mediaAssets) ? payload.mediaAssets : []),
+    ...(Array.isArray(actionImageAssets) ? actionImageAssets : []),
+    getAgentMediaRecord(payload),
+  ]
+    .map((item) => asRecord(item))
+    .filter((item): item is JsonRecord => Boolean(item) && !isVideoMedia(item));
+  const seen = new Set<string>();
+  const unique = candidates.filter((media) => {
+    const key = cleanText(
+      media.id ||
+        media.storagePath ||
+        media.storage_path ||
+        media.path ||
+        media.url ||
+        media.publicUrl,
+      2_000,
+    );
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  const images: Array<
+    NonNullable<
+      Awaited<ReturnType<typeof buildImagePayloadFromAgentAction>>
+    >
+  > = [];
+  for (const media of unique.slice(0, 4)) {
+    const image = await buildImagePayloadFromAgentAction(
+      payload,
+      actionId,
+      media,
+    );
+    if (image) images.push(image);
+  }
+  return images;
 }
 
 async function buildVideoPayloadFromAgentAction(payload: JsonRecord) {
@@ -644,10 +696,12 @@ async function buildScheduledPayload(
     const selectedChannels = normalizeBoosterChannels(
       payload.selectedChannels || payload.channels || action.targetChannels,
     );
-    const imagePayload = await buildImagePayloadFromAgentAction(
+    const imagePayloads = await buildImagePayloadsFromAgentAction(
       payload,
       action.id,
+      action.imageAssets,
     );
+    const imagePayload = imagePayloads[0] || null;
     const videoPayload = await buildVideoPayloadFromAgentAction(payload);
     const hasImagePayload = Boolean(imagePayload);
     const hasVideoPayload = Boolean(videoPayload);
@@ -709,10 +763,11 @@ async function buildScheduledPayload(
           })
         : {};
     const preparedImages =
-      activeMediaMode === "images" && imagePayload
-        ? await prepareBoosterImagesByChannelOnServer({
+      activeMediaMode === "images" && imagePayloads.length
+          ? await prepareBoosterImagesByChannelOnServer({
             channels: publishChannels,
-            images: [imagePayload],
+            images: imagePayloads,
+            automaticFit: "contain",
           })
         : { imagesByChannel: {}, imageSettingsByChannel: {}, warnings: [] };
 
@@ -731,7 +786,7 @@ async function buildScheduledPayload(
           mediaType: activeMediaMode === "video" ? "video" : "images",
           mediaModeByChannel,
           videoSettingsByChannel,
-          images: imagePayload ? [imagePayload] : [],
+          images: imagePayloads,
           imagesByChannel: preparedImages.imagesByChannel,
           imageSettingsByChannel: preparedImages.imageSettingsByChannel,
           imagePreparationWarnings: preparedImages.warnings,
@@ -749,26 +804,40 @@ async function buildScheduledPayload(
 }
 
 async function scheduleAgentActionHandler(request: Request) {
-  const { user, errorResponse, authUserId, activeUserId } = await requireUser();
-  if (errorResponse) return errorResponse;
+  const context = await resolveInrAgentActionRequest(request);
+  if (context.errorResponse) return context.errorResponse;
+  const { userId: activeUserId, isCron, body } = context;
   const standardMode =
-    (await getDashboardEditionForAuthUser(authUserId)) === "standard";
+    (await getDashboardEditionForAccountId(activeUserId)) === "standard";
+  const automaticExecution = body?.executionSource === "automatic";
+  if (automaticExecution && !isCron) {
+    return NextResponse.json(
+      { error: "La publication automatique est réservée au moteur iNr’Agent." },
+      { status: 403 },
+    );
+  }
+  if (automaticExecution) {
+    return NextResponse.json(
+      {
+        error:
+          "Cette publication attend la validation du professionnel avant toute programmation.",
+        code: "INR_AGENT_MANUAL_VALIDATION_REQUIRED",
+      },
+      { status: 409 },
+    );
+  }
 
-  const body = (await request.json().catch(() => null)) as {
-    actionId?: unknown;
-    scheduledAt?: unknown;
-    scheduleSelections?: unknown;
-    timezone?: unknown;
-  } | null;
   const actionId = cleanText(body?.actionId, 120);
-  const scheduledAt = sanitizeFutureDate(body?.scheduledAt);
+  let scheduledAt = automaticExecution
+    ? sanitizeAutomaticScheduledDate(body?.scheduledAt)
+    : sanitizeFutureDate(body?.scheduledAt);
   const scheduleSelections = normalizeScheduleSelections(body?.scheduleSelections);
   if (!actionId)
     return NextResponse.json(
       { error: "Action iNr’Agent introuvable." },
       { status: 400 },
     );
-  if (!scheduledAt && !scheduleSelections.length)
+  if (!automaticExecution && !scheduledAt && !scheduleSelections.length)
     return NextResponse.json(
       { error: "Choisissez une date et une heure dans le futur." },
       { status: 400 },
@@ -795,9 +864,53 @@ async function scheduleAgentActionHandler(request: Request) {
       { status: 404 },
     );
 
-  const action = rowToInrAgentAction(actionRow as any);
+  let action = rowToInrAgentAction(actionRow as any);
   if (standardMode && !isStandardAgentActionDescriptor(action)) {
     return premiumRequiredApiResponse();
+  }
+  if (automaticExecution) {
+    const isAutomaticEditorialPublication =
+      action.automationKey === "publish" &&
+      action.actionType === "publication" &&
+      action.targetTool === "booster" &&
+      action.executionPolicy === "automatic_after_settings" &&
+      action.validationRequired === false &&
+      asRecord(action.payload?.editorialPlan) !== null;
+
+    if (!isAutomaticEditorialPublication) {
+      return NextResponse.json(
+        { error: "Cette action n’est pas autorisée en publication automatique." },
+        { status: 400 },
+      );
+    }
+
+    if (action.status === "scheduled") {
+      const { data: existingScheduled } = await supabaseAdmin
+        .from("inr_agent_scheduled_actions")
+        .select(SCHEDULED_ACTION_SELECT)
+        .eq("id", action.id)
+        .eq("user_id", activeUserId)
+        .maybeSingle();
+      if (existingScheduled) {
+        const scheduledAction = rowToInrAgentScheduledAction(existingScheduled);
+        return NextResponse.json({
+          action,
+          scheduledActions: [scheduledAction],
+          scheduledAction,
+          scheduled: true,
+          alreadyScheduled: true,
+          tableMissing: false,
+        });
+      }
+    }
+
+    if (action.status !== "prepared") {
+      return NextResponse.json(
+        { error: "Cette publication automatique n’est plus prête à programmer." },
+        { status: 409 },
+      );
+    }
+    scheduledAt = sanitizeAutomaticScheduledDate(action.scheduledFor);
   }
   if (!schedulableStatuses.has(action.status)) {
     return NextResponse.json(
@@ -807,6 +920,33 @@ async function scheduleAgentActionHandler(request: Request) {
       { status: 400 },
     );
   }
+
+  let automaticClaimed = false;
+  const releaseAutomaticClaim = async () => {
+    if (!automaticClaimed) return;
+    const { data: currentAction } = await supabaseAdmin
+      .from("inr_agent_actions")
+      .select("status,execution_policy")
+      .eq("id", action.id)
+      .eq("user_id", activeUserId)
+      .maybeSingle();
+    const restoredStatus =
+      currentAction?.execution_policy === "draft_only"
+        ? "draft"
+        : currentAction?.execution_policy === "manual_validation"
+          ? "pending_validation"
+          : "prepared";
+    await supabaseAdmin
+      .from("inr_agent_actions")
+      .update({
+        status: restoredStatus,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", action.id)
+      .eq("user_id", activeUserId)
+      .eq("status", "executing");
+    automaticClaimed = false;
+  };
 
   try {
     const scheduledPayload = await buildScheduledPayload(action);
@@ -823,10 +963,13 @@ async function scheduleAgentActionHandler(request: Request) {
       automationKey: action.automationKey,
       actionType: scheduledPayload.actionType,
       targetTool: scheduledPayload.targetTool,
-      source: "manual" as const,
+      source: automaticExecution ? ("automatic" as const) : ("manual" as const),
       title: action.title || "Action iNr’Agent programmée",
       summary:
-        action.summary || "Action validée et programmée depuis iNr’Agent.",
+        action.summary ||
+        (automaticExecution
+          ? "Action programmée automatiquement par iNr’Agent."
+          : "Action validée et programmée depuis iNr’Agent."),
       timezone,
     };
 
@@ -870,6 +1013,7 @@ async function scheduleAgentActionHandler(request: Request) {
         rows.push(
           scheduledActionToDbRow({
             ...baseScheduleArgs,
+            ...(automaticExecution ? { id: action.id } : {}),
             scheduledAt: groupScheduledAt,
             title:
               groupChannels.length > 1
@@ -941,12 +1085,61 @@ async function scheduleAgentActionHandler(request: Request) {
       }
     }
 
-    const { data: scheduledRows, error: insertError } = await supabaseAdmin
-      .from("inr_agent_scheduled_actions")
-      .insert(rows)
-      .select(SCHEDULED_ACTION_SELECT);
+    if (automaticExecution) {
+      const claimNow = new Date().toISOString();
+      const { data: claimedRow, error: claimError } = await supabaseAdmin
+        .from("inr_agent_actions")
+        .update({
+          status: "executing",
+          last_error: null,
+          updated_at: claimNow,
+        })
+        .eq("id", action.id)
+        .eq("user_id", activeUserId)
+        .eq("status", "prepared")
+        .eq("execution_policy", "automatic_after_settings")
+        .eq("validation_required", false)
+        .select(ACTION_SELECT)
+        .maybeSingle();
+      if (claimError) throw claimError;
+      if (!claimedRow) {
+        const { data: existingScheduled } = await supabaseAdmin
+          .from("inr_agent_scheduled_actions")
+          .select(SCHEDULED_ACTION_SELECT)
+          .eq("id", action.id)
+          .eq("user_id", activeUserId)
+          .maybeSingle();
+        if (existingScheduled) {
+          const scheduledAction = rowToInrAgentScheduledAction(existingScheduled);
+          return NextResponse.json({
+            action,
+            scheduledActions: [scheduledAction],
+            scheduledAction,
+            scheduled: true,
+            alreadyScheduled: true,
+            tableMissing: false,
+          });
+        }
+        return NextResponse.json(
+          { error: "La programmation automatique a déjà été prise en charge." },
+          { status: 409 },
+        );
+      }
+      action = rowToInrAgentAction(claimedRow as any);
+      automaticClaimed = true;
+    }
+
+    const scheduledInsert = automaticExecution
+      ? supabaseAdmin
+          .from("inr_agent_scheduled_actions")
+          .upsert(rows, { onConflict: "id" })
+      : supabaseAdmin.from("inr_agent_scheduled_actions").insert(rows);
+    const { data: scheduledRows, error: insertError } = await scheduledInsert.select(
+      SCHEDULED_ACTION_SELECT,
+    );
 
     if (insertError) {
+      await releaseAutomaticClaim();
       if (isMissingTableError(insertError)) {
         return NextResponse.json(
           {
@@ -968,6 +1161,7 @@ async function scheduleAgentActionHandler(request: Request) {
       ? scheduledRows
       : [];
     if (!createdScheduledRows.length) {
+      await releaseAutomaticClaim();
       return NextResponse.json(
         { error: "Aucune action programmée n’a été créée." },
         { status: 500 },
@@ -978,12 +1172,12 @@ async function scheduleAgentActionHandler(request: Request) {
       .map((row) => String(row.scheduled_at || ""))
       .filter(Boolean)
       .sort()[0] || scheduledAt || now;
-    const { data: updatedActionRow, error: updateError } = await supabaseAdmin
+    let actionUpdate = supabaseAdmin
       .from("inr_agent_actions")
       .update({
         status: "scheduled",
         scheduled_for: scheduledFor,
-        validated_at: now,
+        validated_at: automaticExecution ? null : now,
         refused_at: null,
         last_error: null,
         payload: {
@@ -995,17 +1189,39 @@ async function scheduleAgentActionHandler(request: Request) {
               scheduledPayload.actionType === "publication"
                 ? normalizedScheduleSelections
                 : undefined,
+            source: automaticExecution ? "automatic" : "manual",
             createdAt: now,
           },
         },
         updated_at: now,
       })
       .eq("id", action.id)
-      .eq("user_id", activeUserId)
+      .eq("user_id", activeUserId);
+    if (automaticExecution) {
+      actionUpdate = actionUpdate
+        .eq("status", "executing")
+        .eq("execution_policy", "automatic_after_settings")
+        .eq("validation_required", false);
+    }
+    const { data: updatedActionRow, error: updateError } = await actionUpdate
       .select(ACTION_SELECT)
       .single();
 
     if (updateError) {
+      if (automaticExecution) {
+        await supabaseAdmin
+          .from("inr_agent_scheduled_actions")
+          .update({
+            status: "cancelled",
+            last_error:
+              "Le mode de validation iNr’Agent a changé avant la programmation.",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", action.id)
+          .eq("user_id", activeUserId)
+          .eq("status", "scheduled");
+        await releaseAutomaticClaim();
+      }
       return NextResponse.json(
         {
           error:
@@ -1014,6 +1230,8 @@ async function scheduleAgentActionHandler(request: Request) {
         { status: 500 },
       );
     }
+
+    automaticClaimed = false;
 
     return NextResponse.json({
       action: rowToInrAgentAction(updatedActionRow as any),
@@ -1025,6 +1243,7 @@ async function scheduleAgentActionHandler(request: Request) {
       tableMissing: false,
     });
   } catch (error) {
+    await releaseAutomaticClaim();
     captureApiException(request, error, {
       area: "inragent",
       operation: "POST /api/agent/actions/schedule",

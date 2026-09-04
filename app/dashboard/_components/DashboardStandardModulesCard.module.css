@@ -134,6 +134,195 @@
   white-space: nowrap;
 }
 
+.standardActionStack {
+  display: grid;
+  min-width: 0;
+  min-height: 420px;
+  grid-template-rows: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  gap: 14px;
+}
+
+.standardActionStack .panel,
+.standardActionStack .boosterPanel,
+.standardActionStack .boosterContent {
+  min-height: 0;
+}
+
+.standardActionStack .boosterContent {
+  height: 100%;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-content: center;
+  column-gap: 20px;
+  padding: 22px 28px;
+  text-align: left;
+}
+
+.standardActionStack .boosterEyebrow {
+  grid-column: 1 / -1;
+  margin: 0 0 2px;
+  justify-self: center;
+}
+
+.standardActionStack .boosterLogo {
+  width: 76px;
+  height: 76px;
+  border-radius: 22px;
+}
+
+.standardActionStack .boosterCopy h3 {
+  margin-top: 0;
+  font-size: clamp(30px, 3.2vw, 44px);
+}
+
+.standardActionStack .boosterCopy p {
+  margin: 6px 0 12px;
+  font-size: 13px;
+}
+
+.standardActionStack .boosterCopy p strong { font-size: 16px; }
+.standardActionStack .boosterCopy button { min-height: 40px; }
+
+.agentPanel {
+  display: grid;
+  grid-template-columns: 68px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  padding: 18px 22px;
+  isolation: isolate;
+  border-color: rgba(174, 114, 255, 0.42);
+  background:
+    radial-gradient(circle at 9% 16%, rgba(54, 210, 255, 0.22), transparent 38%),
+    radial-gradient(circle at 88% 92%, rgba(255, 77, 185, 0.2), transparent 38%),
+    linear-gradient(130deg, rgba(18, 48, 101, 0.98), rgba(59, 38, 111, 0.97) 58%, rgba(91, 31, 91, 0.95));
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.28), inset 0 1px rgba(255, 255, 255, 0.12);
+}
+
+.agentGlow {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(100deg, rgba(66, 217, 255, 0.09), transparent 42%, rgba(255, 85, 194, 0.1));
+}
+
+.agentMesh {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  opacity: .3;
+  background-image:
+    linear-gradient(rgba(115, 211, 255, .07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(170, 111, 255, .06) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: linear-gradient(90deg, transparent 7%, #000 38%, #000 80%, transparent 100%);
+}
+
+.agentOrbit {
+  position: absolute;
+  z-index: -1;
+  right: 118px;
+  width: 188px;
+  height: 188px;
+  border: 1px solid rgba(122, 215, 255, .17);
+  border-radius: 50%;
+  background: repeating-radial-gradient(circle, transparent 0 31px, rgba(199, 127, 255, .08) 32px 33px);
+  box-shadow: 0 0 46px rgba(90, 132, 255, .12);
+}
+
+.agentNodeOne,
+.agentNodeTwo {
+  position: absolute;
+  z-index: -1;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  box-shadow: 0 0 16px currentColor;
+}
+
+.agentNodeOne { right: 31%; top: 22%; color: #60ddff; background: currentColor; }
+.agentNodeTwo { right: 9%; bottom: 18%; color: #ff66c4; background: currentColor; }
+
+.agentLogo {
+  display: grid;
+  width: 64px;
+  height: 64px;
+  place-items: center;
+  border: 1px solid rgba(101, 224, 255, 0.45);
+  border-radius: 20px;
+  background: rgba(13, 32, 78, 0.56);
+  box-shadow: 0 0 26px rgba(80, 198, 255, 0.18);
+}
+
+.agentLogo img { width: 82%; height: 82%; object-fit: contain; }
+.agentCopy { min-width: 0; }
+.agentCopy > span { color: #7ee8ff; font-size: 9px; font-weight: 950; letter-spacing: .14em; text-transform: uppercase; }
+.agentCopy h3 { margin: 3px 0 2px; color: #fff; font-size: 25px; font-weight: 950; letter-spacing: -.035em; }
+.agentCopy p { margin: 0; color: rgba(232, 239, 255, .76); font-size: 12px; line-height: 1.35; }
+.agentCopy strong { color: #f0c6ff; }
+
+.agentActions {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  min-width: 152px;
+  gap: 8px;
+}
+
+.agentActions > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 17px;
+  border-radius: 999px;
+  color: white;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform 150ms ease, filter 150ms ease, border-color 150ms ease;
+}
+
+.agentActions > button:hover { transform: translateY(-1px); filter: brightness(1.08); }
+.agentActions > button svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+.agentPlanningButton {
+  border: 1px solid rgba(114, 221, 255, .42);
+  background: linear-gradient(110deg, rgba(11, 64, 126, .78), rgba(55, 43, 122, .78));
+  box-shadow: inset 0 1px rgba(255,255,255,.12), 0 8px 18px rgba(27, 108, 213, .15);
+}
+
+.agentPilotButton {
+  border: 1px solid rgba(132, 220, 255, .48);
+  background: linear-gradient(110deg, #127ded, #6e5cf4 58%, #d94aa8);
+  box-shadow: 0 10px 24px rgba(71, 88, 237, .26), inset 0 1px rgba(255,255,255,.22);
+}
+
+.agentCtaLock { position: absolute; z-index: 3; top: 50%; left: 10px; transform: translateY(-50%); }
+.agentActionsLocked > button { padding-left: 45px; opacity: .65; cursor: not-allowed; filter: saturate(.45); }
+
+@media (max-width: 1100px) {
+  .standardActionStack { min-height: 0; grid-template-rows: minmax(300px, auto) minmax(150px, auto); }
+}
+
+@media (max-width: 620px) {
+  .standardActionStack .boosterContent {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    padding: 42px 18px 24px;
+    text-align: center;
+  }
+  .standardActionStack .boosterPanel,
+  .standardActionStack .boosterContent { min-height: 330px; }
+  .agentPanel { grid-template-columns: 56px minmax(0, 1fr); gap: 12px; padding: 16px; }
+  .agentLogo { width: 54px; height: 54px; border-radius: 17px; }
+  .agentActions { grid-column: 1 / -1; justify-self: stretch; width: 100%; }
+  .agentActions > button { width: 100%; }
+  .agentOrbit { right: -28px; }
+}
+
 .sendRow { --tool-accent: 171, 91, 255; border-color: rgba(160, 85, 255, 0.22); }
 .sendRow .toolLogo { border-color: rgba(164, 92, 255, 0.3); background: rgba(88, 40, 143, 0.2); }
 .sendRow button { border-color: rgba(176, 93, 255, 0.38); background: rgba(86, 33, 135, 0.54); color: #ead8ff; }

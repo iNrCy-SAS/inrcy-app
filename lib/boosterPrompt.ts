@@ -171,7 +171,7 @@ const CHANNEL_COMPACT_CONTRACTS: Record<BoosterChannels, string> = {
   site_web:
     "Contenu web durable, crédible et plus riche. SEO local naturel. Titre 45–70. Différent du Site iNrCy. Paragraphes aérés, liste SEO facultative, sans emoji.",
   inr_search:
-    `iNr'Search : titre clair et une seule phrase de contenu courte, utile et directement exploitable. Contenu limité à ${INR_SEARCH_CONTENT_MAX_LENGTH} caractères maximum. Sans emoji ni hashtags.`,
+    `iNr'Search : titre clair et un contenu court, utile et directement exploitable. En mode détaillé, utilise deux phrases complémentaires si elles tiennent naturellement dans la limite. Contenu limité à ${INR_SEARCH_CONTENT_MAX_LENGTH} caractères maximum. Sans emoji ni hashtags.`,
   gmb:
     "Google Business factuel, local, utile et sobre. Titre 40–70. Zéro hashtag, téléphone, email, URL, remise ou promesse invérifiable. CTA neutre seulement si utile.",
   facebook:

@@ -30,7 +30,7 @@ export const DEFAULT_MOBILE_SHORTCUTS: readonly MobileShortcutId[] = [
   "crm",
   "calendar",
   "stats",
-  "cash",
+  "reputation",
 ];
 
 export const MOBILE_SHORTCUT_OPTIONS: readonly MobileShortcutOption[] = [
@@ -45,7 +45,9 @@ export const MOBILE_SHORTCUT_OPTIONS: readonly MobileShortcutOption[] = [
   { id: "reputation", href: "/dashboard/e-reputation", iconSrc: "/mobile-shortcuts/optimized/reputation-shortcut.png" },
 ] as const;
 
-const ALLOWED_IDS = new Set<MobileShortcutId>(MOBILE_SHORTCUT_OPTIONS.map((option) => option.id));
+const ALLOWED_IDS = new Set<MobileShortcutId>(
+  MOBILE_SHORTCUT_OPTIONS.filter((option) => option.id !== "cash").map((option) => option.id),
+);
 const LOCAL_STORAGE_PREFIX = "inrcy_mobile_shortcuts_v1";
 const REMOTE_TABLE = "inrcy_mobile_shortcut_preferences";
 

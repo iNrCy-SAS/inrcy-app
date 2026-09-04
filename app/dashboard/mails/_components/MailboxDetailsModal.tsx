@@ -444,6 +444,16 @@ function formatPublicationStatusCheckedAt(value: string, locale: string) {
   return date.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
+function isAccountingDashboardHref(value: unknown) {
+  const href = String(value || "").trim().toLowerCase();
+  return (
+    href.startsWith("/dashboard/devis") ||
+    href.startsWith("/dashboard/factures") ||
+    href.includes("panel=documents") ||
+    href.includes("action=cash")
+  );
+}
+
 export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
   const i18nT = useTranslations("mails");
   const mediaT = useTranslations("media");
@@ -451,6 +461,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
   const runtimeT = i18nT as unknown as MailsTranslator;
   const {
     open,
+    documentsEnabled = false,
     onClose,
     detailsItem,
     detailsAccountLabel,
@@ -514,6 +525,9 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
     resumeDraft,
   } = props;
   const router = useRouter();
+  const canReopenDetailsItem = Boolean(detailsItem?.reopenHref) && (
+    documentsEnabled || !isAccountingDashboardHref(detailsItem?.reopenHref)
+  );
   const [publicationPreviewOpen, setPublicationPreviewOpen] = React.useState(false);
   const [publicationCameraOpen, setPublicationCameraOpen] = React.useState(false);
   const [publicationMediaLibraryOpen, setPublicationMediaLibraryOpen] = React.useState(false);
@@ -1732,7 +1746,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                   >
                                     {i18nT("reprendre_l_edition_0d6c9774")}{" "}</button>
                                 ) : null}
-                                {detailsItem.reopenHref ? (
+                                {canReopenDetailsItem ? (
                                   <button
                                     type="button"
                                     className={styles.btnGhost}
@@ -1740,7 +1754,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                   >
                                     {i18nT("reouvrir_dans_l_outil_3baa13cd")}{" "}</button>
                                 ) : null}
-                                {(detailsItem as any).raw?.source_doc_type === "devis" && (detailsItem as any).raw?.source_doc_save_id ? (
+                                {documentsEnabled && (detailsItem as any).raw?.source_doc_type === "devis" && (detailsItem as any).raw?.source_doc_save_id ? (
                                   <button
                                     type="button"
                                     className={styles.btnGhost}
@@ -1909,7 +1923,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                 >
                                   {campaignActionBusyId === detailsItem.id ? i18nT("preparation_47305e12") : i18nT("renvoyer_1e73219e")}
                                 </button>
-                                {detailsItem.reopenHref ? (
+                                {canReopenDetailsItem ? (
                                   <button
                                     type="button"
                                     className={styles.btnGhost}

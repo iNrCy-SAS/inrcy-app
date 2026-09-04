@@ -445,6 +445,26 @@ async function processAutomation(args: { row: AutomationRow; origin: string; now
   const { row, now, timeZone } = args;
   const nextRunAt = computeNextRunAt(row, now, timeZone);
 
+  // Publier dispose désormais de son propre planificateur glissant sur 31 jours.
+  // Le cron historique conserve Grow/Loyalty/Stats mais ne doit plus créer une
+  // seconde publication le jour du créneau.
+  if (row.automation_key === "publish") {
+    if (!args.dryRun) {
+      await updateAutomationAfterRun(row, nextRunAt, {
+        lastCronStatus: "editorial_plan_managed",
+        lastCronSkip: "editorial_plan_managed",
+        lastCronSkipAt: now.toISOString(),
+      });
+    }
+    return {
+      userId: row.user_id,
+      automationKey: row.automation_key,
+      status: "skipped",
+      reason: "editorial_plan_managed",
+      nextRunAt,
+    };
+  }
+
   if (!isDue(row, now, timeZone)) {
     if (!args.dryRun && !row.next_run_at && nextRunAt) {
       await updateAutomationAfterRun(row, nextRunAt, {

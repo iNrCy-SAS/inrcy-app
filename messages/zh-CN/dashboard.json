@@ -16,6 +16,12 @@
     "openMenu": "打开菜单",
     "menu": "菜单"
   },
+  "quickNavigation": {
+    "tools": "主要工具",
+    "goToTools": "前往主要工具",
+    "top": "返回生成器",
+    "goToTop": "返回 iNrCy 生成器"
+  },
   "language": {
     "buttonAria": "更改应用程序语言",
     "buttonTitle": "应用语言",
@@ -215,6 +221,16 @@
     "boosterSub": "激活您的渠道",
     "publishTitle": "Booster",
     "publishCta": "发布",
+    "agentTitle": "iNrAgent",
+    "agentSub": "安排您的发布内容",
+    "agentCta": "管理",
+    "campaignsTitle": "营销活动",
+    "campaignsSub": "增长并提升忠诚度",
+    "campaignsCta": "选择",
+    "campaignsModalTitle": "营销活动",
+    "campaignsModalLabel": "获客与忠诚度",
+    "campaignsModalIntroStrong": "选择您的目标。",
+    "campaignsModalIntroText": "增长和忠诚度工具各自保留原有设置与工作方式。",
     "propulserTitle": "推进",
     "propulserSub": "加速您的业务",
     "propulserCta": "开发",
@@ -410,6 +426,11 @@
     "boosterLine2": "只需一个手势即可。",
     "boosterCta": "创建帖子",
     "boosterSummaryAria": "未结资产负债表 Booster",
-    "boosterSummary": "评估"
+    "boosterSummary": "评估",
+    "agentEyebrow": "自主传播",
+    "agentLine1": "安排您的发布内容",
+    "agentLine2": "由您的 AI 智能体协助。",
+    "agentPlanning": "计划",
+    "agentCta": "管理"
   }
 }

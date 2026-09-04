@@ -3,6 +3,7 @@ import type {
   AiMediaGenerationRequest,
   AiMediaTypology,
 } from "@/lib/aiMediaGenerationContracts";
+import { getAiMediaLanguageCopy } from "@/lib/aiMediaLanguage";
 import { getAiMediaVideoSegmentCount } from "@/lib/aiMediaVideoTimeline";
 
 type RecentPublication = {
@@ -135,14 +136,8 @@ function typologyHeadline(args: {
 }
 
 function ctaLabel(profile: NormalizedAiGenerationProfile) {
-  const labels: Record<string, string> = {
-    devis: "Demandez votre devis",
-    contact: "Contactez-nous",
-    reservation: "Réservez votre rendez-vous",
-    site: "Découvrez notre univers",
-    message: "Échangeons sur votre projet",
-  };
-  return labels[profile.preferences.preferredCta] || "Parlons de votre projet";
+  const copy = getAiMediaLanguageCopy(profile.preferences.language);
+  return copy.ctas[profile.preferences.preferredCta] || copy.ctas.none;
 }
 
 function scene(
@@ -170,6 +165,8 @@ export function buildAiMediaCreativePlan(args: {
 }): AiMediaCreativePlan {
   const { request, profile } = args;
   const business = profile.business;
+  const language = profile.preferences.language;
+  const localized = getAiMediaLanguageCopy(language);
   const history = historyText(args.recentPublications || []);
   const variant = variationIndex(request.requestId, 97);
   const service = chooseFresh(business.services, history, variant);
@@ -177,8 +174,50 @@ export function buildAiMediaCreativePlan(args: {
   const audience = chooseFresh(business.customerTypologies, history, variant + 2);
   const zone = chooseFresh(business.interventionZones, history, variant + 3);
   const profession = business.professionLabel || business.sectorLabel;
-  const companyName = business.companyName || "Votre professionnel iNrCy";
+  const companyName = business.companyName || localized.professionalFallback;
   const typology = safeTypology(request);
+  const targetCount = getAiMediaVideoSegmentCount(request.durationSeconds || 16);
+
+  // Le plan français historique reste riche et très contextualisé. Pour toute
+  // autre langue, le plan déterministe de secours n'affiche volontairement que
+  // des formulations déjà localisées et des noms propres vérifiés. Le petit
+  // copywriter média le personnalise ensuite à partir du profil ; s'il tombe,
+  // aucun fragment français du profil ne fuit dans le visuel final.
+  if (language !== "fr") {
+    const headline = localized.headlines[typology];
+    const subline = localized.sublineFallback;
+    const cta = ctaLabel(profile);
+    const idea = request.subjectSource === "profile" ? "" : clean(request.idea, 700);
+    const ideaDirection = idea
+      ? `S'inspirer strictement de cette idée sans la recopier à l'écran : ${idea}`
+      : `Représenter concrètement l'activité ${profession || companyName}.`;
+    const localizedScenes = [
+      scene(companyName, headline, subline, "hero", ideaDirection),
+      scene(
+        localized.supportingEyebrow,
+        localized.supportingTitle,
+        localized.supportingBody,
+        "editorial",
+        `${ideaDirection} Montrer une action professionnelle crédible, sans texte généré dans le décor.`,
+      ),
+      scene(
+        companyName,
+        cta,
+        business.city,
+        "cta",
+        `${ideaDirection} Conclure sur une scène claire et rassurante.`,
+      ),
+    ].filter((value): value is AiMediaCreativeScene => Boolean(value));
+
+    return {
+      headline,
+      subline,
+      companyName,
+      cta,
+      scenes: localizedScenes.slice(0, targetCount),
+    };
+  }
+
   const headline = typologyHeadline({
     typology,
     textKeywords: request.withText ? request.textKeywords : [],
@@ -255,7 +294,6 @@ export function buildAiMediaCreativePlan(args: {
     scene(companyName, cta, business.city, "cta"),
   ].filter((value): value is AiMediaCreativeScene => Boolean(value));
 
-  const targetCount = getAiMediaVideoSegmentCount(request.durationSeconds || 16);
   const fallbackScenes = [
     scene("Votre projet", "Une réponse sur mesure", service || profession, "statement"),
     scene("L’essentiel", "Qualité, écoute, proximité", strength || subline, "editorial"),

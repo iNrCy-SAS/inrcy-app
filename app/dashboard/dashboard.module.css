@@ -5227,6 +5227,57 @@
   }
 }
 
+/* Le bilan de publication défile, mais son bouton de fermeture doit rester
+   dans une couche indépendante du scroll et de tous les décors de blockCard. */
+.publishResultDialogShell {
+  position: relative;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.publishResultScrollCard {
+  min-width: 0;
+  scrollbar-gutter: stable;
+}
+
+.publishResultCloseButton {
+  position: absolute !important;
+  top: 13px;
+  right: 25px;
+  z-index: 40 !important;
+  display: inline-grid;
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  min-height: 40px;
+  place-items: center;
+  padding: 0 !important;
+  border-radius: 999px !important;
+  pointer-events: auto !important;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  isolation: isolate;
+  background: rgba(19, 27, 48, 0.96) !important;
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.publishResultCloseButton:hover,
+.publishResultCloseButton:focus-visible {
+  border-color: rgba(125, 211, 252, 0.48) !important;
+  background: rgba(31, 42, 70, 0.99) !important;
+  outline: none;
+}
+
+@media (max-width: 700px) {
+  .publishResultCloseButton {
+    top: 10px;
+    right: 17px;
+  }
+}
+
 /* =========================================================
    Mobile modal width boost (Booster / Propulser / Fidéliser)
    Objectif : moins de cadres dans les cadres sur téléphone,
@@ -11792,6 +11843,134 @@
     linear-gradient(135deg, rgba(10, 67, 118, 0.99), rgba(43, 67, 142, 0.97) 56%, rgba(116, 54, 171, 0.92));
 }
 
+/* Navigation verticale du cockpit vers les outils principaux. */
+.dashboardToolsAnchor {
+  position: relative;
+  scroll-margin-top: 20px;
+}
+
+.dashboardQuickJumpRow {
+  position: relative;
+  z-index: 8;
+  display: flex;
+  width: min(1220px, 100%);
+  min-height: 46px;
+  margin: -5px auto 4px;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.dashboardQuickJumpReturnRow {
+  margin: 13px auto -5px;
+}
+
+.dashboardQuickJump {
+  position: relative;
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  overflow: hidden;
+  padding: 0 17px;
+  border: 1px solid rgba(100, 224, 255, 0.52);
+  border-radius: 999px;
+  color: rgba(248, 252, 255, 0.98);
+  background:
+    radial-gradient(circle at 18% 12%, rgba(77, 220, 255, 0.34), transparent 43%),
+    linear-gradient(115deg, rgba(14, 71, 143, 0.96), rgba(89, 65, 190, 0.97) 53%, rgba(202, 55, 147, 0.95));
+  box-shadow:
+    0 12px 30px rgba(17, 55, 142, 0.34),
+    0 0 24px rgba(91, 211, 255, 0.16),
+    inset 0 1px rgba(255, 255, 255, 0.22);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: 0.035em;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.dashboardQuickJump::before,
+.dashboardQuickJump::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 44px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(101, 223, 255, 0.72));
+  pointer-events: none;
+}
+
+.dashboardQuickJump::before { right: calc(100% + 10px); }
+.dashboardQuickJump::after {
+  left: calc(100% + 10px);
+  transform: rotate(180deg);
+}
+
+.dashboardQuickJumpShine {
+  position: absolute;
+  inset: -80% auto -80% -35%;
+  width: 36%;
+  transform: rotate(19deg);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.34), transparent);
+  animation: dashboardQuickJumpShine 4.8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.dashboardQuickJump svg {
+  position: relative;
+  width: 19px;
+  height: 19px;
+  flex: 0 0 19px;
+  filter: drop-shadow(0 0 8px rgba(124, 231, 255, 0.72));
+}
+
+.dashboardQuickJump path {
+  stroke: currentColor;
+  stroke-width: 2.25;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.dashboardQuickJumpLabel { position: relative; }
+.dashboardQuickJump:hover {
+  transform: translateY(-2px) scale(1.025);
+  border-color: rgba(255, 149, 222, 0.72);
+  box-shadow: 0 16px 34px rgba(37, 51, 158, 0.42), 0 0 30px rgba(209, 74, 173, 0.2), inset 0 1px rgba(255, 255, 255, 0.26);
+}
+.dashboardQuickJump:focus-visible {
+  outline: 3px solid rgba(111, 224, 255, 0.34);
+  outline-offset: 3px;
+}
+
+@keyframes dashboardQuickJumpShine {
+  0%, 70%, 100% { left: -42%; opacity: 0; }
+  78% { opacity: 0.78; }
+  94% { left: 118%; opacity: 0; }
+}
+
+@media (max-width: 700px) {
+  .dashboardToolsAnchor { scroll-margin-top: 10px; }
+  .dashboardQuickJumpRow { min-height: 40px; margin: -2px auto 5px; }
+  .dashboardQuickJumpReturnRow { margin: 12px auto 0; }
+  .dashboardQuickJump {
+    min-height: 40px;
+    padding: 0 14px;
+    gap: 7px;
+    font-size: 10px;
+  }
+  .dashboardQuickJump::before,
+  .dashboardQuickJump::after { width: 22px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboardQuickJump,
+  .dashboardQuickJumpShine { animation: none; transition: none; }
+}
+
 .lowerRow:not([data-dashboard-standard-lower-blocks="true"]) .gearBtn,
 .lowerRow:not([data-dashboard-standard-lower-blocks="true"]) .gearSettingsBtn {
   border-color: rgba(var(--premium-gear-accent, 125, 211, 252), 0.42);
@@ -12012,5 +12191,13 @@
   .cockpitChevron,
   .cockpitDetails {
     transition: none !important;
+  }
+}
+
+/* Boîte de vitesse Premium : conserver les capsules historiques en zigzag,
+   désormais réparties sur quatre rangées puisqu'il reste quatre outils. */
+@media (min-width: 701px) and (hover: hover) and (pointer: fine) {
+  .gearBlockCard .gearGrid {
+    grid-template-rows: repeat(4, minmax(74px, 1fr));
   }
 }

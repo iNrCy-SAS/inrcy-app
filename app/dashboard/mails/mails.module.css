@@ -4645,7 +4645,7 @@
 @media (min-width: 821px) {
   .folderTabs {
     display: grid;
-    grid-template-columns: repeat(7, minmax(0, 1fr));
+    grid-template-columns: repeat(var(--folder-tab-count, 7), minmax(0, 1fr));
     gap: 10px;
     width: 100%;
     padding: 12px 12px 0;
@@ -4677,7 +4677,7 @@
 @media (min-width: 821px) {
   .folderTabs {
     display: grid;
-    grid-template-columns: repeat(7, minmax(0, 1fr));
+    grid-template-columns: repeat(var(--folder-tab-count, 7), minmax(0, 1fr));
     gap: 6px;
     padding: 12px 12px 0;
     overflow: hidden;

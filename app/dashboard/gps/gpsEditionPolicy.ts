@@ -12,8 +12,9 @@ const PREMIUM_ONLY_SECTION_IDS = new Set([
   "fideliser",
   "crm",
   "agenda",
-  "documents",
 ]);
+
+const FOUNDER_ONLY_SECTION_IDS = new Set(["documents"]);
 
 type GpsArticleOverride = Partial<Omit<GpsArticleSource, "id">>;
 
@@ -185,6 +186,23 @@ const STANDARD_ARTICLE_OVERRIDES: Record<string, GpsArticleOverride> = {
   },
 };
 
+const NON_FOUNDER_ARTICLE_OVERRIDES: Record<string, GpsArticleOverride> = {
+  "demarrer-rangement": STANDARD_ARTICLE_OVERRIDES["demarrer-rangement"],
+  "inrsend-express": {
+    intro: "inr_send_non_founder_intro_2026",
+    steps: [
+      "commencer_par_connecter_les_boites_mail_5706ea9d",
+      "creer_une_signature_inr_send_propre_8f49b1aa",
+      "inr_send_non_founder_history_2026",
+      "reutiliser_modifier_supprimer_ou_revoir_une_21af0177",
+    ],
+    pitfalls: [
+      "inr_send_non_founder_base_2026",
+      "la_banque_de_communication_permet_de_b7a8c19b",
+    ],
+  },
+};
+
 export function isGpsSectionPremiumOnly(sectionId: string): boolean {
   return PREMIUM_ONLY_SECTION_IDS.has(sectionId);
 }
@@ -194,12 +212,24 @@ function applyStandardArticleOverride(article: GpsArticleSource): GpsArticleSour
   return override ? { ...article, ...override } : article;
 }
 
-export function getGpsSectionsForEdition(edition: DashboardEdition): GpsSectionSource[] {
-  if (edition !== "standard") return GPS_SECTIONS;
+function applyNonFounderArticleOverride(article: GpsArticleSource): GpsArticleSource {
+  const override = NON_FOUNDER_ARTICLE_OVERRIDES[article.id];
+  return override ? { ...article, ...override } : article;
+}
 
-  return GPS_SECTIONS.map((section) => ({
-    ...section,
-    description: STANDARD_SECTION_DESCRIPTIONS[section.id] ?? section.description,
-    articles: section.articles.map(applyStandardArticleOverride),
-  }));
+export function getGpsSectionsForEdition(edition: DashboardEdition): GpsSectionSource[] {
+  if (edition === "founder") return GPS_SECTIONS;
+
+  return GPS_SECTIONS
+    .filter((section) => !FOUNDER_ONLY_SECTION_IDS.has(section.id))
+    .map((section) => ({
+      ...section,
+      description:
+        edition === "standard"
+          ? STANDARD_SECTION_DESCRIPTIONS[section.id] ?? section.description
+          : section.description,
+      articles: section.articles
+        .map(applyNonFounderArticleOverride)
+        .map((article) => edition === "standard" ? applyStandardArticleOverride(article) : article),
+    }));
 }

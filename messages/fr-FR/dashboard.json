@@ -16,6 +16,12 @@
     "openMenu": "Ouvrir le menu",
     "menu": "Menu"
   },
+  "quickNavigation": {
+    "tools": "Outils principaux",
+    "goToTools": "Aller aux outils principaux",
+    "top": "Retour Générateur",
+    "goToTop": "Revenir au Générateur iNrCy"
+  },
   "language": {
     "buttonAria": "Changer la langue de l'application",
     "buttonTitle": "Langue de l'application",
@@ -215,6 +221,16 @@
     "boosterSub": "Active vos canaux",
     "publishTitle": "Booster",
     "publishCta": "Publier",
+    "agentTitle": "iNrAgent",
+    "agentSub": "Programmez vos publications",
+    "agentCta": "Piloter",
+    "campaignsTitle": "Campagnes",
+    "campaignsSub": "Développez et fidélisez",
+    "campaignsCta": "Choisir",
+    "campaignsModalTitle": "Campagnes",
+    "campaignsModalLabel": "Acquisition et fidélisation",
+    "campaignsModalIntroStrong": "Choisissez votre objectif.",
+    "campaignsModalIntroText": "Propulser et Fidéliser conservent chacun leurs réglages et leur fonctionnement.",
     "propulserTitle": "Propulser",
     "propulserSub": "Accélère votre activité",
     "propulserCta": "Développer",
@@ -410,6 +426,11 @@
     "boosterLine2": "en un seul geste.",
     "boosterCta": "Créer une publication",
     "boosterSummaryAria": "Ouvrir le bilan Booster",
-    "boosterSummary": "Bilan"
+    "boosterSummary": "Bilan",
+    "agentEyebrow": "Communication autonome",
+    "agentLine1": "Programmez vos publications",
+    "agentLine2": "avec votre agent IA.",
+    "agentPlanning": "Planning",
+    "agentCta": "Pilotage"
   }
 }

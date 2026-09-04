@@ -692,10 +692,13 @@ function automaticTransformForDecision(params: {
   channel: BoosterImageChannel;
   sourceRatio: number;
   targetRatio: number;
+  forceContain?: boolean;
 }): ServerImageTransform {
-  const fit = canUseAutomaticCover(params.sourceRatio, params.targetRatio)
-    ? "cover"
-    : "contain";
+  const fit = params.forceContain
+    ? "contain"
+    : canUseAutomaticCover(params.sourceRatio, params.targetRatio)
+      ? "cover"
+      : "contain";
   return {
     fit,
     zoom: 1,
@@ -826,11 +829,13 @@ async function renderAutomaticAdaptation(params: {
   channel: BoosterImageChannel;
   sourceRatio: number;
   targetRatio: number;
+  forceContain?: boolean;
 }) {
   const transform = automaticTransformForDecision({
     channel: params.channel,
     sourceRatio: params.sourceRatio,
     targetRatio: params.targetRatio,
+    forceContain: params.forceContain,
   });
   const rendered = await renderImageTransform({
     buffer: params.buffer,
@@ -855,6 +860,8 @@ export async function prepareBoosterImagesByChannelOnServer(params: {
   channels: BoosterImageChannel[];
   images: BoosterServerImagePayload[];
   settingsByChannel?: Partial<Record<BoosterImageChannel, unknown>>;
+  /** iNrAgent protège toujours la composition IA complète avant validation. */
+  automaticFit?: "contain";
 }): Promise<BoosterServerImagePreparationResult> {
   const channels = Array.from(new Set(params.channels));
   const sourceImages = params.images.slice(0, 5);
@@ -973,7 +980,12 @@ export async function prepareBoosterImagesByChannelOnServer(params: {
           initialDecision.mode === "original"
             ? originalReferenceTransform()
             : sourceRatio > 0 && targetRatio > 0
-              ? automaticTransformForDecision({ channel, sourceRatio, targetRatio })
+              ? automaticTransformForDecision({
+                  channel,
+                  sourceRatio,
+                  targetRatio,
+                  forceContain: params.automaticFit === "contain",
+                })
               : originalReferenceTransform();
         const currentTransform = normalizeTransform(
           requestedSettings.transforms[entry.imageKey],
@@ -1204,6 +1216,7 @@ export async function prepareBoosterImagesByChannelOnServer(params: {
             channel,
             sourceRatio,
             targetRatio: adaptedTargetRatio,
+            forceContain: params.automaticFit === "contain",
           });
           const nameBase = String(entry.image.name || `image-${entry.imageKey}`).replace(/\.[^.]+$/, "");
           const outputName = `${nameBase}-${channel}-adaptee.jpg`;
@@ -1223,6 +1236,7 @@ export async function prepareBoosterImagesByChannelOnServer(params: {
             channel,
             sourceRatio,
             targetRatio: adaptedTargetRatio,
+            forceContain: params.automaticFit === "contain",
           });
           prepared.push(
             await buildPreparedVariant({

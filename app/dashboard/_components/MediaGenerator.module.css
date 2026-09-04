@@ -453,6 +453,46 @@
   margin-top: 10px;
 }
 
+.narrationControl {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(210px, 0.56fr);
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.narrationVoicePicker {
+  min-height: 56px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  padding: 7px 8px 7px 11px;
+  border: 1px solid rgba(130, 165, 238, 0.15);
+  border-radius: 13px;
+  background:
+    linear-gradient(135deg, rgba(37, 189, 233, 0.07), rgba(211, 67, 160, 0.08)),
+    rgba(12, 25, 56, 0.66);
+}
+
+.narrationVoicePicker > span {
+  color: rgba(218, 230, 251, 0.72);
+  font-size: 9.5px;
+  font-weight: 850;
+}
+
+.narrationVoicePicker .parameterChoices {
+  gap: 6px;
+}
+
+.narrationVoicePicker .parameterChoices button {
+  min-height: 38px;
+  padding: 7px;
+}
+
+.narrationControl + .switchRow {
+  margin-top: 10px;
+}
+
 .collapsibleSection {
   position: relative;
   align-self: start;
@@ -2163,6 +2203,7 @@ textarea:focus-visible,
   .styleChoices { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .parameterChoices { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .parameterChoices.threeChoices { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .narrationControl { grid-template-columns: 1fr; }
   .inspirationPreviews { grid-template-columns: 1fr; }
   .footerBar {
     display: grid;

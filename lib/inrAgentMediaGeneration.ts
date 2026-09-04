@@ -37,8 +37,11 @@ export type InrAgentGeneratedMediaResult = {
 };
 
 function typologyForTheme(theme: InrAgentTheme): AiMediaTypology {
-  if (theme === "realisations") return "showcase";
+  if (["realisations", "temoignages"].includes(theme)) return "showcase";
   if (theme === "offres") return "offer";
+  if (theme === "services") return "service";
+  if (theme === "coulisses") return "behind_scenes";
+  if (theme === "recrutement") return "recruitment";
   if (theme === "actualites") return "event";
   return "advice";
 }
@@ -73,6 +76,7 @@ export async function generateInrAgentMedia(args: {
     textKeywords: [],
     withMusic: args.kind === "video",
     withNarration: args.kind === "video",
+    narrationVoice: args.kind === "video" ? "female" : null,
     format: args.kind === "video" ? "story" : "portrait",
     typology: typologyForTheme(args.theme),
     visualStyle: "brand",

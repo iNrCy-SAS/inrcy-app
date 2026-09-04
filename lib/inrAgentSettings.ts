@@ -9,7 +9,12 @@ export const INR_AGENT_FREQUENCIES = [
   "quarterly",
   "one_off",
 ] as const;
-export const INR_AGENT_VALIDATION_MODES = ["validation_required", "draft_only", "notify_before_validation", "automatic_report"] as const;
+export const INR_AGENT_VALIDATION_MODES = [
+  "validation_required",
+  "draft_only",
+  "notify_before_validation",
+  "automatic_report",
+] as const;
 export const INR_AGENT_GOALS = ["visibility", "acquisition", "loyalty", "stats"] as const;
 export const INR_AGENT_TONES = ["professional", "friendly", "premium", "local", "dynamic"] as const;
 export const INR_AGENT_CHANNELS = ["site_inrcy", "site_web", "gmb", "inr_search", "facebook", "instagram", "linkedin", "tiktok", "youtube", "pinterest", "mails"] as const;
@@ -18,6 +23,11 @@ export const INR_AGENT_THEMES = [
   "realisations",
   "offres",
   "actualites",
+  "coulisses",
+  "temoignages",
+  "services",
+  "faq",
+  "recrutement",
   "valoriser",
   "recolter",
   "offrir",
@@ -45,6 +55,7 @@ export const INR_AGENT_PREFERRED_MEDIA_SOURCES = [
   "image_bank",
   "ai_generation",
 ] as const;
+export const INR_AGENT_PLANNING_HORIZON_DAYS = [7, 15, 30] as const;
 
 export type InrAgentAutomationKey = (typeof INR_AGENT_AUTOMATION_KEYS)[number];
 export type InrAgentFrequency = (typeof INR_AGENT_FREQUENCIES)[number];
@@ -57,6 +68,8 @@ export type InrAgentRecipientScope = (typeof INR_AGENT_RECIPIENT_SCOPES)[number]
 export type InrAgentSourceStrategy = (typeof INR_AGENT_SOURCE_STRATEGIES)[number];
 export type InrAgentPreferredMediaSource =
   (typeof INR_AGENT_PREFERRED_MEDIA_SOURCES)[number];
+export type InrAgentPlanningHorizonDays =
+  (typeof INR_AGENT_PLANNING_HORIZON_DAYS)[number];
 
 // Compat anciens composants / ancien vocabulaire V1.
 export const INR_AGENT_MODES = INR_AGENT_VALIDATION_MODES;
@@ -75,6 +88,7 @@ export type InrAgentAutomationSettings = {
   useImageBank: boolean;
   imageRequired: boolean;
   preferredMediaSource: InrAgentPreferredMediaSource;
+  planningHorizonDays: InrAgentPlanningHorizonDays;
   recipientScope: InrAgentRecipientScope;
   sourceStrategy: InrAgentSourceStrategy;
   lastPreparedAt: string | null;
@@ -104,16 +118,19 @@ export type InrAgentSettings = {
 
 const DEFAULT_AUTOMATIONS: Record<InrAgentAutomationKey, InrAgentAutomationSettings> = {
   publish: {
-    enabled: true,
+    // iNrAgent ne prépare rien tant que le professionnel ne l'a pas
+    // explicitement activé et n'a pas choisi son rythme éditorial.
+    enabled: false,
     frequency: "weekly",
     dayOfWeek: 1,
     time: "09:00",
-    validationMode: "validation_required",
+    validationMode: "notify_before_validation",
     allowedChannels: ["site_inrcy", "site_web", "gmb", "inr_search", "facebook", "instagram", "linkedin", "tiktok", "youtube", "pinterest"],
     allowedThemes: ["conseils", "realisations", "offres", "actualites"],
     useImageBank: true,
     imageRequired: true,
     preferredMediaSource: "media_library",
+    planningHorizonDays: 15,
     recipientScope: "none",
     sourceStrategy: "published_history",
     lastPreparedAt: null,
@@ -132,6 +149,7 @@ const DEFAULT_AUTOMATIONS: Record<InrAgentAutomationKey, InrAgentAutomationSetti
     useImageBank: true,
     imageRequired: false,
     preferredMediaSource: "media_library",
+    planningHorizonDays: 15,
     recipientScope: "all_crm",
     sourceStrategy: "templates",
     lastPreparedAt: null,
@@ -150,6 +168,7 @@ const DEFAULT_AUTOMATIONS: Record<InrAgentAutomationKey, InrAgentAutomationSetti
     useImageBank: true,
     imageRequired: false,
     preferredMediaSource: "media_library",
+    planningHorizonDays: 15,
     recipientScope: "clients",
     sourceStrategy: "templates",
     lastPreparedAt: null,
@@ -168,6 +187,7 @@ const DEFAULT_AUTOMATIONS: Record<InrAgentAutomationKey, InrAgentAutomationSetti
     useImageBank: false,
     imageRequired: false,
     preferredMediaSource: "media_library",
+    planningHorizonDays: 15,
     recipientScope: "none",
     sourceStrategy: "stats_snapshot",
     lastPreparedAt: null,
@@ -187,7 +207,7 @@ export const INR_AGENT_DEFAULT_SETTINGS: InrAgentSettings = {
   frequency: "weekly",
   dayOfWeek: 1,
   time: "09:00",
-  mode: "validation_required",
+  mode: "notify_before_validation",
   goal: "visibility",
   allowedActions: ["publication", "mailing", "review_request", "loyalty"],
   allowedChannels: ["site_inrcy", "site_web", "gmb", "inr_search", "facebook", "instagram", "linkedin", "tiktok", "youtube", "pinterest", "mails"],
@@ -261,6 +281,11 @@ export const INR_AGENT_LABELS = {
     realisations: "Réalisations",
     offres: "Offres",
     actualites: "Actualités",
+    coulisses: "Coulisses",
+    temoignages: "Avis clients",
+    services: "Services",
+    faq: "Questions fréquentes",
+    recrutement: "Recrutement",
     valoriser: "Valoriser",
     recolter: "Récolter",
     offrir: "Offrir",
@@ -353,6 +378,19 @@ function sanitizeMetadata(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+function sanitizePlanningHorizonDays(
+  value: unknown,
+  fallback: InrAgentPlanningHorizonDays,
+): InrAgentPlanningHorizonDays {
+  return Number(value) === 30
+    ? 30
+    : Number(value) === 15
+      ? 15
+      : Number(value) === 7
+        ? 7
+        : fallback;
+}
+
 const INR_SEARCH_PUBLISH_MIGRATION_FLAG = "inrSearchChannelAdded";
 export const INR_AGENT_PINTEREST_PUBLISH_MIGRATION_FLAG = "pinterestChannelAdded";
 
@@ -384,25 +422,40 @@ export function sanitizeInrAgentAutomationSettings(
   )
     ? preferredMediaSourceInput
     : defaults.preferredMediaSource;
+  const planningHorizonDays = sanitizePlanningHorizonDays(
+    source.planningHorizonDays ?? metadata.planningHorizonDays,
+    defaults.planningHorizonDays,
+  );
   const normalizedMetadataBase = shouldMigratePublishChannels
     ? { ...metadata, [INR_SEARCH_PUBLISH_MIGRATION_FLAG]: true }
     : metadata;
   const normalizedMetadata = {
     ...normalizedMetadataBase,
     preferredMediaSource,
+    planningHorizonDays,
   };
+
+  const validationMode =
+    key === "publish"
+      ? "notify_before_validation"
+      : includesValue(INR_AGENT_VALIDATION_MODES, source.validationMode)
+        ? source.validationMode
+        : defaults.validationMode;
 
   return {
     enabled: sanitizeBoolean(source.enabled, defaults.enabled),
     frequency: includesValue(INR_AGENT_FREQUENCIES, source.frequency) ? source.frequency : defaults.frequency,
     dayOfWeek: sanitizeDay(source.dayOfWeek, defaults.dayOfWeek),
     time: sanitizeTime(source.time, defaults.time),
-    validationMode: includesValue(INR_AGENT_VALIDATION_MODES, source.validationMode) ? source.validationMode : defaults.validationMode,
+    // La publication iNrAgent reste toujours sous le contrôle du professionnel.
+    // Les anciennes valeurs `automatic_publish` sont normalisées ici dès la lecture.
+    validationMode,
     allowedChannels: normalizedAllowedChannels,
     allowedThemes: sanitizeMaybeEmptyStringArray(INR_AGENT_THEMES, source.allowedThemes, defaults.allowedThemes),
     useImageBank: sanitizeBoolean(source.useImageBank, defaults.useImageBank),
     imageRequired: sanitizeBoolean(source.imageRequired, defaults.imageRequired),
     preferredMediaSource,
+    planningHorizonDays,
     recipientScope: includesValue(INR_AGENT_RECIPIENT_SCOPES, source.recipientScope) ? source.recipientScope : defaults.recipientScope,
     sourceStrategy: includesValue(INR_AGENT_SOURCE_STRATEGIES, source.sourceStrategy) ? source.sourceStrategy : defaults.sourceStrategy,
     lastPreparedAt: sanitizeNullableString(source.lastPreparedAt) ?? defaults.lastPreparedAt,

@@ -19,6 +19,7 @@ type Props = {
   onOpenSettings: () => void;
   onCloseSettings: () => void;
   standardMode?: boolean;
+  founderMode?: boolean;
 };
 
 export default function MailboxHeader({
@@ -30,6 +31,7 @@ export default function MailboxHeader({
   onOpenSettings,
   onCloseSettings,
   standardMode = false,
+  founderMode = false,
 }: Props) {
   const i18nT = useTranslations("mails");
   const [settingsHasUnsavedChanges, setSettingsHasUnsavedChanges] = useState(false);
@@ -148,8 +150,12 @@ export default function MailboxHeader({
                 <li>{i18nT("propulsions_value_6041847f", { value0: getInrSendRetentionLabel("propulsions") })}</li>
                 <li>{i18nT("fidelisations_value_8453cedc", { value0: getInrSendRetentionLabel("fidelisations") })}</li>
                 <li>{i18nT("mails_value_06a6c395", { value0: getInrSendRetentionLabel("mails") })}</li>
-                <li>{i18nT("devis_value_2759ff13", { value0: getInrSendRetentionLabel("devis") })}</li>
-                <li>{i18nT("factures_value_fd6f4118", { value0: getInrSendRetentionLabel("factures") })}</li>
+                {founderMode ? (
+                  <>
+                    <li>{i18nT("devis_value_2759ff13", { value0: getInrSendRetentionLabel("devis") })}</li>
+                    <li>{i18nT("factures_value_fd6f4118", { value0: getInrSendRetentionLabel("factures") })}</li>
+                  </>
+                ) : null}
               </>
             ) : null}
           </ul>

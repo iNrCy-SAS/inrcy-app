@@ -145,7 +145,7 @@ function readCachedAgentViewSnapshot(): CachedAgentViewSnapshot | null {
       parsed.connectedChannels,
     );
     const actions = Array.isArray(parsed.actions)
-      ? parsed.actions.filter(isCachedPreparedAction).slice(0, 40)
+      ? parsed.actions.filter(isCachedPreparedAction).slice(0, 120)
       : undefined;
     const scheduledActions = Array.isArray(parsed.scheduledActions)
       ? parsed.scheduledActions.filter(isCachedScheduledAction).slice(0, 80)
@@ -190,7 +190,7 @@ export function writeCachedAgentViewSnapshot(
       settings: patch.settings ?? current?.settings,
       connectedChannels:
         patch.connectedChannels ?? current?.connectedChannels,
-      actions: (patch.actions ?? current?.actions ?? []).slice(0, 40),
+      actions: (patch.actions ?? current?.actions ?? []).slice(0, 120),
       scheduledActions: (
         patch.scheduledActions ??
         current?.scheduledActions ??
@@ -529,6 +529,22 @@ export function useAgentRuntimeData({
     void refreshActions();
     void refreshScheduledActions(true);
   }, []);
+
+  useEffect(() => {
+    const hasEditorialPreparation = actions.some((action) => {
+      const editorialPlan = asRecord(action.payload?.editorialPlan);
+      return (
+        action.automationKey === "publish" &&
+        Boolean(editorialPlan) &&
+        ["draft", "executing"].includes(action.status)
+      );
+    });
+    if (!hasEditorialPreparation) return;
+    const interval = window.setInterval(() => {
+      void refreshActions(true);
+    }, 12_000);
+    return () => window.clearInterval(interval);
+  }, [actions]);
 
   return {
     agentSettings,

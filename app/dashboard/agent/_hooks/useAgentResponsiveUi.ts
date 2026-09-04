@@ -17,16 +17,14 @@ export function useAgentResponsiveUi() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const mq = window.matchMedia(
-      "(min-width: 761px) and (max-width: 1700px)",
-    );
-    const closeOutsideCompactLayout = () => {
+    const mq = window.matchMedia("(min-width: 761px)");
+    const closeOutsideDesktopLayout = () => {
       if (!mq.matches) setRobotPanelOpen(false);
     };
-    closeOutsideCompactLayout();
-    mq.addEventListener?.("change", closeOutsideCompactLayout);
+    closeOutsideDesktopLayout();
+    mq.addEventListener?.("change", closeOutsideDesktopLayout);
     return () =>
-      mq.removeEventListener?.("change", closeOutsideCompactLayout);
+      mq.removeEventListener?.("change", closeOutsideDesktopLayout);
   }, []);
 
   useEffect(() => {

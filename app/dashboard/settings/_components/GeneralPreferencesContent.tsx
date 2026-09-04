@@ -491,7 +491,7 @@ export default function GeneralPreferencesContent({ mode = "drawer", onUnsavedCh
               </div>
 
               <div style={{ ...grid2, alignItems: "stretch" }}>
-                {MOBILE_SHORTCUT_OPTIONS.map((option) => {
+                {MOBILE_SHORTCUT_OPTIONS.filter((option) => option.id !== "cash").map((option) => {
                   const checked = mobileShortcuts.includes(option.id);
                   const disabled = !checked && mobileShortcuts.length >= MOBILE_SHORTCUT_MAX;
                   return (

@@ -16,6 +16,12 @@
     "openMenu": "Menü öffnen",
     "menu": "Menu"
   },
+  "quickNavigation": {
+    "tools": "Hauptwerkzeuge",
+    "goToTools": "Zu den Hauptwerkzeugen",
+    "top": "Zurück zum Generator",
+    "goToTop": "Zurück zum iNrCy-Generator"
+  },
   "language": {
     "buttonAria": "App-Sprache ändern",
     "buttonTitle": "App-Sprache",
@@ -215,6 +221,16 @@
     "boosterSub": "Kanäle aktivieren",
     "publishTitle": "Booster",
     "publishCta": "Posten",
+    "agentTitle": "iNrAgent",
+    "agentSub": "Planen Sie Ihre Veröffentlichungen",
+    "agentCta": "Steuern",
+    "campaignsTitle": "Kampagnen",
+    "campaignsSub": "Wachsen und Kunden binden",
+    "campaignsCta": "Auswählen",
+    "campaignsModalTitle": "Kampagnen",
+    "campaignsModalLabel": "Akquise und Kundenbindung",
+    "campaignsModalIntroStrong": "Wählen Sie Ihr Ziel.",
+    "campaignsModalIntroText": "Wachstum und Kundenbindung behalten ihre eigenen Einstellungen und Abläufe.",
     "propulserTitle": "Wachsen",
     "propulserSub": "Aktivität boosten",
     "propulserCta": "Wachsen",
@@ -410,6 +426,11 @@
     "boosterLine2": "in einem Schritt.",
     "boosterCta": "Publikation erstellen",
     "boosterSummaryAria": "Bilanz öffnen Booster",
-    "boosterSummary": "Bilanz"
+    "boosterSummary": "Bilanz",
+    "agentEyebrow": "Autonome Kommunikation",
+    "agentLine1": "Planen Sie Ihre Veröffentlichungen",
+    "agentLine2": "mit Ihrem KI-Agenten.",
+    "agentPlanning": "Planung",
+    "agentCta": "Steuerung"
   }
 }

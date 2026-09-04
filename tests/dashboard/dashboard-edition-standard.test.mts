@@ -36,6 +36,20 @@ const standardModulesSource = readFileSync(
   new URL("../../app/dashboard/_components/DashboardStandardModulesCard.tsx", import.meta.url),
   "utf8",
 );
+const dashboardAgentPlanningSource = readFileSync(
+  new URL(
+    "../../app/dashboard/agent/_components/DashboardAgentPlanningModal.tsx",
+    import.meta.url,
+  ),
+  "utf8",
+);
+const agentActionModalsSource = readFileSync(
+  new URL(
+    "../../app/dashboard/agent/_components/AgentActionModals.tsx",
+    import.meta.url,
+  ),
+  "utf8",
+);
 const connectionBubbleSource = readFileSync(
   new URL("../../app/dashboard/_components/DashboardFluxBubble.tsx", import.meta.url),
   "utf8",
@@ -314,11 +328,13 @@ test("un canal desactive reste gris tandis qu'un canal a connecter garde son eta
   );
 });
 
-test("les blocs inférieurs Standard ne contiennent que Stats, Publications, Réputation et Booster", () => {
+test("les blocs inférieurs Standard conservent Stats, Publications, Réputation, Booster et iNrAgent", () => {
   assert.match(standardModulesSource, /\/dashboard\/stats/);
   assert.match(standardModulesSource, /folder=publications&boxView=sent/);
   assert.match(standardModulesSource, /\/dashboard\/e-reputation/);
   assert.match(standardModulesSource, /t\("boosterCta"\)/);
+  assert.match(standardModulesSource, /data-dashboard-prefetch=\{agentPath\}/);
+  assert.match(standardModulesSource, /standardStyles\.agentPanel/);
   assert.match(dashboardI18nSource, /"boosterCta": "Créer une publication"/);
   assert.doesNotMatch(standardModulesSource, /dashboard\/crm/);
   assert.doesNotMatch(standardModulesSource, /dashboard\/agenda/);
@@ -327,6 +343,24 @@ test("les blocs inférieurs Standard ne contiennent que Stats, Publications, Ré
   assert.match(standardModulesSource, /standardStyles\.boosterPanel/);
   assert.doesNotMatch(standardModulesSource, /gearboxTitle|gearboxSub|boosterStage|boosterCard/);
   assert.match(standardModulesSource, /standardStyles\.toolAction/);
+});
+
+test("le raccourci Planning du bloc iNrAgent réutilise la modale et les données existantes sans copie", () => {
+  assert.match(standardModulesSource, /data-testid="standard-agent-planning"/);
+  assert.match(standardModulesSource, /data-testid="standard-agent-pilotage"/);
+  assert.match(standardModulesSource, /t\("agentPlanning"\)/);
+  assert.match(standardModulesSource, /<DashboardAgentPlanningModal/);
+  assert.match(
+    dashboardAgentPlanningSource,
+    /import \{ AgentScheduleModal \} from "\.\/AgentActionModals"/,
+  );
+  assert.match(dashboardAgentPlanningSource, /<AgentScheduleModal/);
+  assert.match(dashboardAgentPlanningSource, /showCampaigns=\{false\}/);
+  assert.match(dashboardAgentPlanningSource, /buildAgentScheduleItems/);
+  assert.match(agentClientSource, /buildAgentScheduleItems/);
+  assert.match(agentClientSource, /showCampaigns=\{!standardMode\}/);
+  assert.match(agentActionModalsSource, /readOnly = false/);
+  assert.doesNotMatch(dashboardAgentPlanningSource, /role="dialog"/);
 });
 
 test("le CTA Booster Standard reste verrouillé sans ouvrir Mon profil quand la configuration requise est incomplète", () => {

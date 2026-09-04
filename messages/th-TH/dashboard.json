@@ -16,6 +16,12 @@
     "openMenu": "เปิดเมนู",
     "menu": "เมนู"
   },
+  "quickNavigation": {
+    "tools": "เครื่องมือหลัก",
+    "goToTools": "ไปยังเครื่องมือหลัก",
+    "top": "กลับไปที่ตัวสร้าง",
+    "goToTop": "กลับไปที่ตัวสร้าง iNrCy"
+  },
   "language": {
     "buttonAria": "เปลี่ยนภาษาของแอป",
     "buttonTitle": "ภาษาของแอปพลิเคชัน",
@@ -215,6 +221,16 @@
     "boosterSub": "เปิดใช้งานช่องของคุณ",
     "publishTitle": "Booster",
     "publishCta": "เผยแพร่",
+    "agentTitle": "iNrAgent",
+    "agentSub": "กำหนดเวลาเผยแพร่ของคุณ",
+    "agentCta": "จัดการ",
+    "campaignsTitle": "แคมเปญ",
+    "campaignsSub": "เติบโตและสร้างความภักดี",
+    "campaignsCta": "เลือก",
+    "campaignsModalTitle": "แคมเปญ",
+    "campaignsModalLabel": "การหาลูกค้าและความภักดี",
+    "campaignsModalIntroStrong": "เลือกเป้าหมายของคุณ",
+    "campaignsModalIntroText": "เครื่องมือเติบโตและความภักดียังคงมีการตั้งค่าและการทำงานของตนเอง",
     "propulserTitle": "ขับเคลื่อน",
     "propulserSub": "เร่งธุรกิจของคุณ",
     "propulserCta": "พัฒนา",
@@ -410,6 +426,11 @@
     "boosterLine2": "ในท่าทางเดียว",
     "boosterCta": "สร้างโพสต์",
     "boosterSummaryAria": "เปิดงบดุล Booster",
-    "boosterSummary": "การประเมิน"
+    "boosterSummary": "การประเมิน",
+    "agentEyebrow": "การสื่อสารอัตโนมัติ",
+    "agentLine1": "กำหนดเวลาเผยแพร่ของคุณ",
+    "agentLine2": "ด้วยเอเจนต์ AI ของคุณ",
+    "agentPlanning": "แผนงาน",
+    "agentCta": "ควบคุม"
   }
 }

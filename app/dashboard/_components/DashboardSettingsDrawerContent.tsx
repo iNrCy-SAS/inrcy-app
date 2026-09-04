@@ -206,7 +206,9 @@ export default function DashboardSettingsDrawerContent({
         />
       )}
       {panel === "notifications" && <NotificationsSettingsContent />}
-      {panel === "documents" && <DocumentsSettingsContent onUnsavedChange={onUnsavedChange} />}
+      {panel === "documents" && edition === "founder" ? (
+        <DocumentsSettingsContent onUnsavedChange={onUnsavedChange} />
+      ) : null}
       {panel === "youtube_shorts" && <YoutubeShortsSettingsContent onUnsavedChange={onUnsavedChange} />}
       {panel === "pinterest" && pinterestAccessEnabled && <PinterestSettingsContent onUnsavedChange={onUnsavedChange} />}
       {panel === "inr_search" && inrSearchAccessEnabled && (

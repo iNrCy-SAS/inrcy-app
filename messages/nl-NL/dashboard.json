@@ -16,6 +16,12 @@
     "openMenu": "Menu openen",
     "menu": "Menu"
   },
+  "quickNavigation": {
+    "tools": "Belangrijkste tools",
+    "goToTools": "Naar de belangrijkste tools",
+    "top": "Terug naar Generator",
+    "goToTop": "Terug naar de iNrCy-generator"
+  },
   "language": {
     "buttonAria": "Taal wijzigen",
     "buttonTitle": "App-taal",
@@ -215,6 +221,16 @@
     "boosterSub": "Kanalen activeren",
     "publishTitle": "Booster",
     "publishCta": "Posten",
+    "agentTitle": "iNrAgent",
+    "agentSub": "Plan uw publicaties",
+    "agentCta": "Beheren",
+    "campaignsTitle": "Campagnes",
+    "campaignsSub": "Groei en klantenbinding",
+    "campaignsCta": "Kiezen",
+    "campaignsModalTitle": "Campagnes",
+    "campaignsModalLabel": "Acquisitie en loyaliteit",
+    "campaignsModalIntroStrong": "Kies uw doel.",
+    "campaignsModalIntroText": "Groei en Loyaliteit behouden elk hun eigen instellingen en werking.",
     "propulserTitle": "Groeien",
     "propulserSub": "Versnel uw activiteit",
     "propulserCta": "Groeien",
@@ -410,6 +426,11 @@
     "boosterLine2": "in één stap.",
     "boosterCta": "Een publicatie maken",
     "boosterSummaryAria": "De balans openen Booster",
-    "boosterSummary": "Balans"
+    "boosterSummary": "Balans",
+    "agentEyebrow": "Autonome communicatie",
+    "agentLine1": "Plan uw publicaties",
+    "agentLine2": "met uw AI-agent.",
+    "agentPlanning": "Planning",
+    "agentCta": "Beheer"
   }
 }

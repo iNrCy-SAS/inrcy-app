@@ -43,6 +43,7 @@ import {
   type InrAgentChannel,
   type InrAgentPreferredMediaSource,
   type InrAgentTheme,
+  type InrAgentTone,
   type InrAgentValidationMode,
 } from "@/lib/inrAgentSettings";
 import { rowToInrAgentAction } from "@/lib/inrAgentActions";
@@ -55,17 +56,34 @@ import {
   type BoosterAiImage,
 } from "@/lib/boosterPublishGeneration";
 import { generateInrAgentMedia } from "@/lib/inrAgentMediaGeneration";
+import type { BoosterCtaMode } from "@/lib/boosterCta";
+import { applySafePreferredCta } from "@/lib/boosterCtaPreferences";
+import { loadBoosterCtaDefaults } from "@/lib/boosterCtaDefaultsServer";
+import type {
+  InrAgentEditorialMediaKind,
+  InrAgentEditorialSlot,
+} from "@/lib/inrAgentEditorialPlanning";
 
 export const maxDuration = 800;
 export const runtime = "nodejs";
 
 type JsonRecord = Record<string, unknown>;
 
+type EditorialPreparationTarget = {
+  id: string;
+  payload: JsonRecord;
+  metadata: JsonRecord;
+  plan: InrAgentEditorialSlot & { timezone?: string; state?: string };
+};
+
 type ChannelPost = {
   title: string;
   content: string;
   cta: string;
   hashtags: string[];
+  ctaMode?: BoosterCtaMode;
+  ctaUrl?: string;
+  ctaPhone?: string;
 };
 
 type ImageBankAsset = {
@@ -169,6 +187,11 @@ const agentThemeToBoosterTheme: Partial<Record<InrAgentTheme, BoosterTheme>> = {
   realisations: "realisation",
   offres: "promotion",
   actualites: "actualite",
+  coulisses: "realisation",
+  temoignages: "avis_client",
+  services: "information",
+  faq: "conseil",
+  recrutement: "actualite",
 };
 
 const themeLabels: Partial<Record<InrAgentTheme, string>> = {
@@ -176,6 +199,24 @@ const themeLabels: Partial<Record<InrAgentTheme, string>> = {
   realisations: "Réalisation",
   offres: "Offre",
   actualites: "Actualité",
+  coulisses: "Coulisses",
+  temoignages: "Avis client",
+  services: "Service",
+  faq: "Question fréquente",
+  recrutement: "Recrutement",
+};
+
+const agentToneInstructions: Record<InrAgentTone, string> = {
+  professional:
+    "Ton professionnel, clair et crédible, sans jargon inutile ni emphase artificielle.",
+  friendly:
+    "Ton accessible, chaleureux et naturel, tout en restant professionnel.",
+  premium:
+    "Ton premium, sobre et confiant, avec une formulation élégante sans superlatifs creux.",
+  local:
+    "Ton local et proche du terrain, valorisant la proximité sans inventer de lieu ni de fait.",
+  dynamic:
+    "Ton dynamique, direct et rythmé, avec une accroche forte mais jamais agressive.",
 };
 
 const channelLabels: Record<string, string> = {
@@ -342,6 +383,93 @@ function asRecord(value: unknown): JsonRecord {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as JsonRecord)
     : {};
+}
+
+function normalizeAgentTone(value: unknown): InrAgentTone {
+  const tone = cleanText(value, 40) as InrAgentTone;
+  return Object.hasOwn(agentToneInstructions, tone) ? tone : "professional";
+}
+
+function normalizeEditorialPlan(
+  value: unknown,
+): (InrAgentEditorialSlot & { timezone?: string; state?: string }) | null {
+  const record = asRecord(value);
+  const slotKey = cleanText(record.slotKey, 240);
+  const scheduledFor = cleanText(record.scheduledFor, 80);
+  const scheduledAt = Date.parse(scheduledFor);
+  const mediaKind = cleanText(record.mediaKind, 20) as InrAgentEditorialMediaKind;
+  const theme = cleanText(record.theme, 80) as InrAgentTheme;
+  if (
+    !slotKey ||
+    !Number.isFinite(scheduledAt) ||
+    !["image", "video", "existing"].includes(mediaKind)
+  ) {
+    return null;
+  }
+  const channels = (Array.isArray(record.channels) ? record.channels : [])
+    .map((channel) => cleanText(channel, 80) as InrAgentChannel)
+    .filter(Boolean);
+  const rawImageCount = Math.round(Number(record.imageCount) || 0);
+  return {
+    slotKey,
+    scheduledFor: new Date(scheduledAt).toISOString(),
+    sequence: Math.max(1, Math.round(Number(record.sequence) || 1)),
+    totalSlots: Math.max(1, Math.round(Number(record.totalSlots) || 1)),
+    theme,
+    tone: normalizeAgentTone(record.tone),
+    mediaKind,
+    imageCount:
+      mediaKind === "image"
+        ? rawImageCount >= 2
+          ? 2
+          : 1
+        : 0,
+    channels,
+    scheduleSignature: cleanText(record.scheduleSignature, 2_000),
+    criteriaSignature: cleanText(record.criteriaSignature, 2_000),
+    timezone: cleanText(record.timezone, 100) || undefined,
+    state: cleanText(record.state, 40) || undefined,
+  };
+}
+
+async function loadEditorialPreparationTarget(args: {
+  userId: string;
+  isCron: boolean;
+  body: JsonRecord | null;
+}): Promise<EditorialPreparationTarget | null> {
+  const targetActionId = cleanText(args.body?.targetActionId, 120);
+  const triggeredBy = cleanText(args.body?.triggeredBy, 120);
+  if (!targetActionId) return null;
+  if (!args.isCron || triggeredBy !== "inr_agent_editorial_plan") {
+    throw new Error("editorial_preparation_not_authorized");
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("inr_agent_actions")
+    .select("id,status,payload,metadata")
+    .eq("id", targetActionId)
+    .eq("user_id", args.userId)
+    .eq("automation_key", "publish")
+    .maybeSingle();
+  if (error) throw error;
+  const row = asRecord(data);
+  const payload = asRecord(row.payload);
+  const metadata = asRecord(row.metadata);
+  const plan = normalizeEditorialPlan(payload.editorialPlan);
+  if (
+    !row.id ||
+    row.status !== "executing" ||
+    metadata.editorialPlan !== true ||
+    !plan
+  ) {
+    throw new Error("editorial_preparation_target_invalid");
+  }
+  return {
+    id: String(row.id),
+    payload,
+    metadata,
+    plan,
+  };
 }
 
 function normalizeMediaLibrarySource(record: JsonRecord) {
@@ -557,6 +685,11 @@ function chooseTheme(
     realisations: /\b(realisation|chantier|projet|intervention|avant apres|resultat|coulisses)\b/i,
     offres: /\b(offre|promotion|service|prestation|devis|reservation|decouvr|profitez)\b/i,
     actualites: /\b(actualite|nouveaute|saison|evenement|information|agenda|lancement)\b/i,
+    coulisses: /\b(coulisse|equipe|atelier|quotidien|methode|savoir faire|organisation)\b/i,
+    temoignages: /\b(avis|temoignage|client|satisfaction|confiance|recommand)\b/i,
+    services: /\b(service|prestation|solution|accompagnement|expertise|metier)\b/i,
+    faq: /\b(question|reponse|faq|pourquoi|comment|combien|delai)\b/i,
+    recrutement: /\b(recrut|poste|candidat|emploi|equipe|embauche|rejoindre)\b/i,
   };
   const normalizedHistory = recentPublications.slice(0, 5).map((publication) =>
     normalizeCatalogText(
@@ -725,6 +858,26 @@ function buildAgentIdea(args: {
 
   if (args.theme === "actualites") {
     return `Préparer une publication d'actualité locale${companyText} pour un professionnel ${professionLabel || sector}${servicesText}${cityText}${zonesText} : parler d'un sujet utile ou saisonnier en lien avec l'activité, sans inventer d'événement précis.${freshnessInstruction}`;
+  }
+
+  if (args.theme === "coulisses") {
+    return `Préparer une publication dans les coulisses${companyText} pour un professionnel ${professionLabel || sector}${servicesText}${cityText}${zonesText} : expliquer une méthode, une étape de travail, un geste métier ou l'organisation quotidienne de façon humaine et concrète, sans inventer d'équipe, de lieu, de matériel ni d'intervention.${freshnessInstruction}`;
+  }
+
+  if (args.theme === "temoignages") {
+    return `Préparer une publication de preuve sociale${companyText} pour un professionnel ${professionLabel || sector}${servicesText}${cityText}${zonesText} : valoriser la confiance et la satisfaction uniquement à partir des éléments vérifiables fournis. Ne jamais inventer de client, de citation, de note, de chiffre ni de témoignage ; si aucun avis précis n'est fourni, parler de l'importance des retours clients ou inviter naturellement à consulter ou partager un avis.${freshnessInstruction}`;
+  }
+
+  if (args.theme === "services") {
+    return `Préparer une publication de présentation de service${companyText} pour un professionnel ${professionLabel || sector}${servicesText}${cityText}${zonesText} : expliquer clairement un service réellement renseigné, son utilité et à qui il s'adresse, avec un appel à l'action naturel, sans inventer de prix, de délai, de garantie ni de promesse.${freshnessInstruction}`;
+  }
+
+  if (args.theme === "faq") {
+    return `Préparer une publication de type question fréquente${companyText} pour un professionnel ${professionLabel || sector}${servicesText}${cityText}${zonesText} : répondre simplement à une vraie question générale que les clients peuvent se poser sur ce métier, sans inventer de règle, de tarif, de délai ni de condition propre à l'entreprise.${freshnessInstruction}`;
+  }
+
+  if (args.theme === "recrutement") {
+    return `Préparer une publication autour du recrutement ou de la marque employeur${companyText} pour un professionnel ${professionLabel || sector}${servicesText}${cityText}${zonesText}. Ne jamais annoncer un poste, un contrat, un salaire, un avantage ou une embauche sans information explicite fournie ; à défaut, présenter les valeurs, les savoir-faire ou les métiers de l'entreprise sans faire croire qu'une offre est ouverte.${freshnessInstruction}`;
   }
 
   return `Préparer une publication de conseil utile${companyText} pour un professionnel ${professionLabel || sector}${servicesText}${cityText}${zonesText} : donner une astuce simple, concrète et rassurante en lien avec le métier, sans inventer de détail non fourni.${freshnessInstruction}`;
@@ -912,8 +1065,13 @@ async function generateBoosterPosts(args: {
   imagesForAI?: BoosterAiImage[];
   mediaContext?: string;
   accountId: string;
+  agentTone: InrAgentTone;
+  earlierEditorialAngles?: string[];
   skipMediaVisionAnalysis?: boolean;
 }) {
+  const editorialMemory = args.earlierEditorialAngles?.length
+    ? `\nMémoire du mois déjà préparée (ne répète ni ces angles ni leurs accroches) :\n${args.earlierEditorialAngles.join("\n")}`
+    : "";
   const { versions, recoveredChannels } = await generateSharedBoosterPosts({
     idea: args.idea,
     theme: args.theme,
@@ -931,8 +1089,9 @@ async function generateBoosterPosts(args: {
     mediaContext: args.mediaContext,
     extraInstructions: `CONTEXTE iNrAgent : cette génération provient de l'automatisation Publier.
 Objectif : produire exactement la même logique éditoriale que Booster / Publier manuel, avec un contenu réellement adapté à chaque canal.
+TON CHOISI PAR LE PROFESSIONNEL : ${agentToneInstructions[args.agentTone]}
 Ne fournis jamais des copies entre canaux. Adapte réellement l'angle, la profondeur, le vocabulaire et le rythme, sans imposer artificiellement une structure différente à chaque version.
-Préserve la voix native du moteur IA choisi par l'établissement. Le titre et le contenu sont prioritaires ; un CTA séparé reste facultatif lorsqu'il serait artificiel.`,
+Préserve la voix native du moteur IA choisi par l'établissement. Le titre et le contenu sont prioritaires ; un CTA séparé reste facultatif lorsqu'il serait artificiel.${editorialMemory}`,
   });
 
   return { versions, recoveredChannels };
@@ -1021,6 +1180,52 @@ async function loadPublishAutomationSettings(userId: string) {
     .maybeSingle();
 
   return rowToAutomationSettings((data as AutomationDbRow | null) ?? null);
+}
+
+async function loadInrAgentTone(userId: string) {
+  const { data } = await supabaseAdmin
+    .from("inr_agent_settings")
+    .select("tone")
+    .eq("user_id", userId)
+    .maybeSingle();
+  return normalizeAgentTone(data?.tone);
+}
+
+async function loadEarlierEditorialAngles(args: {
+  userId: string;
+  actionId: string;
+  scheduledFor: string;
+}) {
+  const lookupSince = new Date(Date.now() - 86_400_000).toISOString();
+  const { data } = await supabaseAdmin
+    .from("inr_agent_actions")
+    .select(
+      "id,title,preview_text,target_themes,scheduled_for,payload,metadata,status",
+    )
+    .eq("user_id", args.userId)
+    .eq("automation_key", "publish")
+    .gte("scheduled_for", lookupSince)
+    .lt("scheduled_for", args.scheduledFor)
+    .order("scheduled_for", { ascending: true })
+    .limit(24);
+
+  return (Array.isArray(data) ? data : [])
+    .filter((row) => {
+      const metadata = asRecord(row.metadata);
+      const plan = asRecord(asRecord(row.payload).editorialPlan);
+      return (
+        String(row.id || "") !== args.actionId &&
+        metadata.editorialPlan === true &&
+        String(plan.state || metadata.editorialState || "") === "ready"
+      );
+    })
+    .map((row) => {
+      const theme = cleanList(row.target_themes, 1, 50)[0] || "thème libre";
+      const angle = cleanText(row.preview_text || row.title, 260);
+      return angle ? `- ${theme} : ${angle}` : "";
+    })
+    .filter(Boolean)
+    .slice(-12);
 }
 
 async function resolveMediaGenerationActorAuthUserId(args: {
@@ -1500,12 +1705,18 @@ async function pickDiversifiedMedia(args: {
 }
 
 function getExecutionPolicy(validationMode: InrAgentValidationMode) {
-  if (validationMode === "draft_only") return "draft_only";
+  void validationMode;
   return "manual_validation";
 }
 
 function getInitialStatus(validationMode: InrAgentValidationMode) {
-  return validationMode === "draft_only" ? "draft" : "pending_validation";
+  void validationMode;
+  return "pending_validation";
+}
+
+function requiresManualValidation(validationMode: InrAgentValidationMode) {
+  void validationMode;
+  return true;
 }
 
 function hasUsefulContent(post: ChannelPost | undefined) {
@@ -1538,6 +1749,7 @@ function buildPreviewText(
 function buildSummary(
   channels: BoosterChannels[],
   media: ImageBankAsset | null,
+  mediaCount = media ? 1 : 0,
 ) {
   const labels = channels
     .map((channel) => channelLabels[boosterToAgentChannel[channel]] || channel)
@@ -1546,7 +1758,9 @@ function buildSummary(
     media?.source === "ai_media_generation"
       ? media.mediaType === "video" || media.kind === "video"
         ? " Vidéo IA créée et ajoutée à la médiathèque."
-        : " Visuel IA créé et ajouté à la médiathèque."
+        : mediaCount > 1
+          ? ` ${mediaCount} visuels IA complémentaires créés et ajoutés à la médiathèque.`
+          : " Visuel IA créé et ajouté à la médiathèque."
       : media
         ? media.mediaType === "video" || media.kind === "video"
           ? " Vidéo ajoutée depuis la médiathèque du pro."
@@ -1570,7 +1784,23 @@ export async function POST(request: Request) {
   const context = await resolveInrAgentActionRequest(request);
   if (context.errorResponse) return context.errorResponse;
 
-  const { supabase, userId, authUserId, isCron } = context;
+  const { supabase, userId, authUserId, isCron, body } = context;
+  let editorialTarget: EditorialPreparationTarget | null = null;
+  try {
+    editorialTarget = await loadEditorialPreparationTarget({
+      userId,
+      isCron,
+      body,
+    });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error: "Le créneau éditorial à préparer est invalide ou n’est plus disponible.",
+        code: error instanceof Error ? error.message : "editorial_target_invalid",
+      },
+      { status: 409 },
+    );
+  }
   const actorUserId = await resolveMediaGenerationActorAuthUserId({
     accountId: userId,
     requestAuthUserId: authUserId,
@@ -1589,7 +1819,10 @@ export async function POST(request: Request) {
     if (rl) return rl;
   }
 
-  const automation = await loadPublishAutomationSettings(userId);
+  const [automation, storedAgentTone] = await Promise.all([
+    loadPublishAutomationSettings(userId),
+    loadInrAgentTone(userId),
+  ]);
   if (!automation.enabled) {
     return NextResponse.json(
       { error: "L’automatisation Publier est désactivée." },
@@ -1607,15 +1840,50 @@ export async function POST(request: Request) {
     publicationsContextSource = generationContext.cacheSource.publications;
     return generationContext;
   });
+  const earlierEditorialAnglesPromise = editorialTarget
+    ? loadEarlierEditorialAngles({
+        userId,
+        actionId: editorialTarget.id,
+        scheduledFor: editorialTarget.plan.scheduledFor,
+      })
+    : Promise.resolve([] as string[]);
 
-  const [channels, generationContext] = await Promise.all([
-    selectConnectedChannels({
-      supabase,
-      userId,
-      automation,
-    }),
-    generationContextPromise,
-  ]);
+  const [
+    availableChannels,
+    generationContext,
+    earlierEditorialAngles,
+    ctaDefaults,
+  ] =
+    await Promise.all([
+      selectConnectedChannels({
+        supabase,
+        userId,
+        automation,
+      }),
+      generationContextPromise,
+      earlierEditorialAnglesPromise,
+      loadBoosterCtaDefaults({ supabase, userId }),
+    ]);
+  const plannedBoosterChannels = editorialTarget
+    ? editorialTarget.plan.channels
+        .map((channel) => agentToBoosterChannel[channel])
+        .filter((channel): channel is BoosterChannels => Boolean(channel))
+    : [];
+  const channels = (
+    editorialTarget
+      ? availableChannels.filter((channel) =>
+          plannedBoosterChannels.includes(channel),
+        )
+      : availableChannels
+  ).filter(
+    (channel) =>
+      // Double sécurité : même si un ancien plan ou une donnée altérée remet
+      // YouTube dans un créneau image, il ne traversera jamais la préparation.
+      !(
+        editorialTarget?.plan.mediaKind === "image" &&
+        channel === "youtube_shorts"
+      ),
+  );
   if (!channels.length) {
     return NextResponse.json(
       {
@@ -1627,16 +1895,24 @@ export async function POST(request: Request) {
   }
 
   const { profile, business, recentPublications } = generationContext;
+  const agentTone = editorialTarget?.plan.tone || storedAgentTone;
 
   const businessProfession = getBusinessProfession(business);
-  const agentTheme = chooseTheme(automation.allowedThemes, recentPublications);
+  const plannedTheme = editorialTarget?.plan.theme;
+  const agentTheme =
+    plannedTheme && automation.allowedThemes.includes(plannedTheme)
+      ? plannedTheme
+      : chooseTheme(automation.allowedThemes, recentPublications);
   const boosterTheme = agentThemeToBoosterTheme[agentTheme] || "conseil";
-  const idea = buildAgentIdea({
+  const baseIdea = buildAgentIdea({
     business,
     profile,
     theme: agentTheme,
     recentPublications,
   });
+  const idea = editorialTarget
+    ? `${baseIdea}\n\nPLAN ÉDITORIAL : publication ${editorialTarget.plan.sequence}/${editorialTarget.plan.totalSlots} du mois glissant, prévue le ${editorialTarget.plan.scheduledFor}. Choisis un angle concret distinct des autres publications du mois, tout en respectant strictement le thème et les informations vérifiées du profil.`
+    : baseIdea;
   const requiresGeneratedVideo = channels.includes("youtube_shorts");
   const prefersExistingVideo =
     requiresGeneratedVideo || channels.includes("tiktok");
@@ -1673,24 +1949,61 @@ export async function POST(request: Request) {
     automation.preferredMediaSource === "ai_generation" ||
     !fallbackMedia ||
     (requiresGeneratedVideo && fallbackKind !== "video");
-  const generatedKind = requiresGeneratedVideo ? "video" : "image";
-  const generatedMediaResult = shouldGenerateMedia
-    ? await generateInrAgentMedia({
+  const plannedMediaKind = editorialTarget?.plan.mediaKind;
+  const generatedKind =
+    plannedMediaKind === "image" || plannedMediaKind === "video"
+      ? plannedMediaKind
+      : requiresGeneratedVideo
+        ? "video"
+        : "image";
+  const requestedGenerationCount =
+    shouldGenerateMedia && generatedKind === "image"
+      ? editorialTarget?.plan.imageCount === 2
+        ? 2
+        : 1
+      : shouldGenerateMedia
+        ? 1
+        : 0;
+  const generatedMediaResults: Array<
+    Awaited<ReturnType<typeof generateInrAgentMedia>>
+  > = [];
+  for (let index = 0; index < requestedGenerationCount; index += 1) {
+    generatedMediaResults.push(
+      await generateInrAgentMedia({
         supabase: supabaseAdmin,
         accountId: userId,
         actorAuthUserId: actorUserId,
-        idea,
+        idea:
+          index === 0
+            ? idea
+            : `${idea}\n\nCrée une seconde variation visuelle complémentaire : autre cadrage ou autre scène, même identité de marque et même message, sans dupliquer la première image.`,
         theme: agentTheme,
         kind: generatedKind,
         adminUnlimited: isAdmin,
-      })
-    : null;
+      }),
+    );
+  }
+  const generatedMediaResult =
+    generatedMediaResults.find((result) => Boolean(result.item)) ||
+    generatedMediaResults[0] ||
+    null;
+  const generatedMediaAssets = generatedMediaResults.flatMap((result) =>
+    result.item
+      ? [generatedPickerItemToAgentMedia({ item: result.item, business })]
+      : [],
+  );
+  const fallbackMatchesPlan =
+    !editorialTarget ||
+    plannedMediaKind === "existing" ||
+    plannedMediaKind === fallbackKind;
   let media = generatedMediaResult?.item
     ? generatedPickerItemToAgentMedia({
         item: generatedMediaResult.item,
         business,
       })
-    : fallbackMedia;
+    : fallbackMatchesPlan
+      ? fallbackMedia
+      : null;
 
   // Si une génération d'image ne peut pas satisfaire YouTube Shorts, on ne
   // remplace jamais une vidéo existante valide par cette image.
@@ -1702,16 +2015,42 @@ export async function POST(request: Request) {
   ) {
     media = fallbackMedia;
   }
+  const mediaAssets: ImageBankAsset[] = generatedMediaAssets.length
+    ? generatedMediaAssets
+    : media
+      ? [media]
+      : [];
+  if (
+    editorialTarget &&
+    automation.imageRequired &&
+    requestedGenerationCount > 0 &&
+    mediaAssets.length === 0
+  ) {
+    const outcomes = generatedMediaResults.map((result) => result.outcome);
+    const primaryOutcome = outcomes[0] || "generation_failed";
+    return NextResponse.json(
+      {
+        error: `editorial_media_${primaryOutcome}`,
+        code: "editorial_media_required_unavailable",
+        outcomes,
+      },
+      { status: primaryOutcome === "quota_reached" ? 429 : 503 },
+    );
+  }
   mediaSelectionMs = Date.now() - mediaSelectionStartedAt;
-  const generationWarning = generatedMediaResult
-    ? generatedMediaResult.outcome === "quota_reached"
+  const failedGeneratedMediaResult = generatedMediaResults.find(
+    (result) => result.outcome !== "generated",
+  );
+  const generationWarning = failedGeneratedMediaResult
+    ? failedGeneratedMediaResult.outcome === "quota_reached"
       ? "ai_generation_quota_reached_existing_media_fallback_used"
-      : generatedMediaResult.outcome !== "generated"
-        ? `ai_generation_${generatedMediaResult.outcome}_existing_media_fallback_used`
+      : failedGeneratedMediaResult.outcome !== "generated"
+        ? `ai_generation_${failedGeneratedMediaResult.outcome}_existing_media_fallback_used`
         : ""
     : "";
   const mediaSelectionTrace = {
-    policyVersion: "media_selection_v6_preferred_source_ai_generation",
+    policyVersion: "media_selection_v7_monthly_editorial_mix",
+    editorialPlan: editorialTarget?.plan || null,
     triedSources: [
       ...(shouldGenerateMedia ? ["ai_media_generation"] : []),
       ...(automation.useImageBank
@@ -1751,8 +2090,11 @@ export async function POST(request: Request) {
           kind: generatedMediaResult.kind,
           outcome: generatedMediaResult.outcome,
           errorCode: generatedMediaResult.errorCode || null,
+          requestedCount: requestedGenerationCount,
+          generatedCount: generatedMediaAssets.length,
+          outcomes: generatedMediaResults.map((result) => result.outcome),
           consumedSharedStudioQuota:
-            generatedMediaResult.outcome === "generated",
+            generatedMediaResults.some((result) => result.outcome === "generated"),
         }
       : {
           attempted: false,
@@ -1802,8 +2144,14 @@ export async function POST(request: Request) {
     ].filter(Boolean),
   };
   const mediaKind = media?.mediaType || media?.kind || "image";
-  const image = media && mediaKind === "image" ? media : null;
-  const video = media && mediaKind === "video" ? media : null;
+  const images = mediaAssets.filter(
+    (asset) => (asset.mediaType || asset.kind || "image") === "image",
+  );
+  const image = images[0] || null;
+  const video =
+    mediaAssets.find(
+      (asset) => (asset.mediaType || asset.kind || "image") === "video",
+    ) || null;
 
   let quotaReservation: AiCreditReservation | null = null;
   if (!isAdmin) {
@@ -1912,8 +2260,20 @@ export async function POST(request: Request) {
         imagesForAI,
         mediaContext: selectedMediaContext,
         accountId: userId,
+        agentTone,
+        earlierEditorialAngles,
         skipMediaVisionAnalysis: fastMetadataOnlyMedia,
       }));
+      for (const channel of channels) {
+        const post = versions[channel];
+        if (!post) continue;
+        versions[channel] = applySafePreferredCta({
+          channel,
+          post,
+          defaults: ctaDefaults,
+          preserveExplicit: false,
+        });
+      }
     } finally {
       aiGenerationMs = Date.now() - aiGenerationStartedAt;
     }
@@ -1925,6 +2285,14 @@ export async function POST(request: Request) {
     );
     const previewText = buildPreviewText(versions);
     const title = `Publication ${themeLabels[agentTheme] || "iNr’Agent"} prête`;
+    const readyEditorialPlan = editorialTarget
+      ? {
+          ...editorialTarget.plan,
+          state: "ready",
+          generatedAt: now,
+          generatedMediaCount: mediaAssets.length,
+        }
+      : null;
     const payload = {
       version: 1,
       source: "inr_agent_publish_preparer",
@@ -1932,10 +2300,18 @@ export async function POST(request: Request) {
       theme: agentTheme,
       boosterTheme,
       postByChannel: versions,
+      ctaPolicy: {
+        version: 1,
+        source: "booster_preferences",
+        preferredCta: ctaDefaults.preferredCta,
+        hasWebsite: Boolean(ctaDefaults.preferredWebsiteUrl),
+        hasPhone: Boolean(ctaDefaults.phone),
+      },
       selectedChannels: channels,
       targetChannels,
       media,
       mediaAsset: media,
+      mediaAssets,
       mediaSelectionTrace,
       mediaType: media ? mediaKind : "none",
       ...videoAiContextReferenceAliases(videoAiContextRef),
@@ -1958,6 +2334,7 @@ export async function POST(request: Request) {
         : null,
       image,
       imageAsset: image,
+      images,
       video,
       videoAsset: video,
       mediaReadinessByChannel,
@@ -1965,32 +2342,38 @@ export async function POST(request: Request) {
       mediaPolicy: "booster_publish_rules",
       imageRequiredRequested: automation.imageRequired,
       executionTarget: "booster_publish",
+      ...(readyEditorialPlan ? { editorialPlan: readyEditorialPlan } : {}),
     };
 
-    const { data: inserted, error: insertError } = await supabaseAdmin
-      .from("inr_agent_actions")
-      .insert({
+    const actionValues = {
         user_id: userId,
         automation_key: "publish",
         action_type: "publication",
         target_tool: "booster",
         title,
-        summary: buildSummary(channels, media),
+        summary: buildSummary(channels, media, mediaAssets.length),
         preview_text: previewText,
         target_channels: targetChannels,
         target_themes: [agentTheme],
         recipients: [],
-        image_assets: media ? [media] : [],
+        image_assets: mediaAssets,
         payload,
-        validation_required: automation.validationMode !== "draft_only",
+        validation_required: requiresManualValidation(automation.validationMode),
         execution_policy: getExecutionPolicy(automation.validationMode),
         status: getInitialStatus(automation.validationMode),
-        scheduled_for: null,
+        scheduled_for: editorialTarget?.plan.scheduledFor || null,
         prepared_at: now,
         metadata: {
+          ...(editorialTarget?.metadata || {}),
           automationFrequency: automation.frequency,
           preparedManually: !isCron,
           preparedByCron: isCron,
+          editorialPlan: Boolean(editorialTarget),
+          editorialPlanVersion: editorialTarget ? 1 : undefined,
+          editorialState: editorialTarget ? "ready" : undefined,
+          editorialGeneratedAt: editorialTarget ? now : undefined,
+          editorialNextRetryAt: editorialTarget ? null : undefined,
+          editorialLastError: editorialTarget ? null : undefined,
           // Les canaux récupérés le sont désormais exclusivement par une nouvelle passe IA.
           // Aucun texte éditorial générique local n'est injecté.
           aiRecoveredChannels: recoveredChannels.map(
@@ -1999,13 +2382,32 @@ export async function POST(request: Request) {
           fallbackAppliedChannels: [],
           mediaSelectionTrace,
         },
-        created_at: now,
         updated_at: now,
-      })
-      .select(
-        "id, automation_key, action_type, target_tool, title, summary, preview_text, target_channels, target_themes, recipients, image_assets, payload, validation_required, execution_policy, status, scheduled_for, prepared_at, validated_at, refused_at, completed_at, last_error, created_at, updated_at",
-      )
-      .single();
+      };
+    const actionSelect =
+      "id, automation_key, action_type, target_tool, title, summary, preview_text, target_channels, target_themes, recipients, image_assets, payload, validation_required, execution_policy, status, scheduled_for, prepared_at, validated_at, refused_at, completed_at, last_error, created_at, updated_at";
+    let inserted: unknown = null;
+    let insertError: { message?: string } | null = null;
+    if (editorialTarget) {
+      const result = await supabaseAdmin
+        .from("inr_agent_actions")
+        .update(actionValues)
+        .eq("id", editorialTarget.id)
+        .eq("user_id", userId)
+        .eq("status", "executing")
+        .select(actionSelect)
+        .single();
+      inserted = result.data;
+      insertError = result.error;
+    } else {
+      const result = await supabaseAdmin
+        .from("inr_agent_actions")
+        .insert({ ...actionValues, created_at: now })
+        .select(actionSelect)
+        .single();
+      inserted = result.data;
+      insertError = result.error;
+    }
 
     if (insertError) {
       persistenceMs = Date.now() - persistenceStartedAt;
@@ -2049,18 +2451,19 @@ export async function POST(request: Request) {
       .eq("user_id", userId)
       .eq("automation_key", "publish");
 
-    if (media?.id) {
+    for (const usedMedia of mediaAssets) {
+      if (!usedMedia.id) continue;
       try {
         const imageTable =
-          media.librarySource === "pro_media_library" ||
-          media.source === "pro_media_library" ||
-          media.source === "ai_media_generation"
+          usedMedia.librarySource === "pro_media_library" ||
+          usedMedia.source === "pro_media_library" ||
+          usedMedia.source === "ai_media_generation"
             ? "pro_media_library"
             : "inrcy_image_bank";
         const { data: usageRow } = await supabaseAdmin
           .from(imageTable)
           .select("usage_count")
-          .eq("id", media.id)
+          .eq("id", usedMedia.id)
           .maybeSingle();
         const nextUsageCount =
           Number(
@@ -2073,7 +2476,7 @@ export async function POST(request: Request) {
         await supabaseAdmin
           .from(imageTable)
           .update(usagePatch)
-          .eq("id", media.id);
+          .eq("id", usedMedia.id);
       } catch {
         // Non bloquant : la publication préparée reste valide même si le compteur image n'est pas mis à jour.
       }
@@ -2090,7 +2493,7 @@ export async function POST(request: Request) {
       mediaSource: media?.librarySource || media?.source || undefined,
       fastMetadataOnly: fastMetadataOnlyMedia,
       imagesSentToGeneration: imagesForAI.length,
-      validationRequired: automation.validationMode !== "draft_only",
+      validationRequired: requiresManualValidation(automation.validationMode),
       generationContextMs,
       professionalContextSource,
       publicationsContextSource,

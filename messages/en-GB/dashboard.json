@@ -16,6 +16,12 @@
     "openMenu": "Open menu",
     "menu": "Menu"
   },
+  "quickNavigation": {
+    "tools": "Main tools",
+    "goToTools": "Go to the main tools",
+    "top": "Back to Generator",
+    "goToTop": "Return to the iNrCy Generator"
+  },
   "language": {
     "buttonAria": "Change app language",
     "buttonTitle": "App language",
@@ -215,6 +221,16 @@
     "boosterSub": "Activates channels",
     "publishTitle": "Booster",
     "publishCta": "Publish",
+    "agentTitle": "iNrAgent",
+    "agentSub": "Schedule your publications",
+    "agentCta": "Manage",
+    "campaignsTitle": "Campaigns",
+    "campaignsSub": "Grow and build loyalty",
+    "campaignsCta": "Choose",
+    "campaignsModalTitle": "Campaigns",
+    "campaignsModalLabel": "Acquisition and loyalty",
+    "campaignsModalIntroStrong": "Choose your objective.",
+    "campaignsModalIntroText": "Grow and Loyalty each keep their own settings and workflow.",
     "propulserTitle": "Grow",
     "propulserSub": "Grow your activity",
     "propulserCta": "Grow",
@@ -410,6 +426,11 @@
     "boosterLine2": "in a single step.",
     "boosterCta": "Create a post",
     "boosterSummaryAria": "Open report Booster",
-    "boosterSummary": "Report"
+    "boosterSummary": "Report",
+    "agentEyebrow": "Autonomous communication",
+    "agentLine1": "Schedule your publications",
+    "agentLine2": "with your AI agent.",
+    "agentPlanning": "Planning",
+    "agentCta": "Manage"
   }
 }

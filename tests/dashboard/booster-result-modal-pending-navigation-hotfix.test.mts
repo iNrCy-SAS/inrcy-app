@@ -53,9 +53,11 @@ test("closing the publication result also clears the Booster publish layer", () 
   assert.match(boosterLayer, /summary=\{publishSummary\}[\s\S]*?onClose=\{closePublishSuccess\}/);
 });
 
-test("the result X handles touch pointer-up and keeps a click fallback", () => {
-  assert.match(resultModal, /const handleClose = \(event: SyntheticEvent<HTMLButtonElement>\)/);
-  assert.match(resultModal, /onPointerUp=\{handleClose\}/);
-  assert.match(resultModal, /onClick=\{handleClose\}/);
+test("the result X stays outside the scroll surface and handles pointer-down plus keyboard click", () => {
+  assert.match(resultModal, /className=\{styles\.publishResultDialogShell\}/);
+  assert.match(resultModal, /onPointerDown=\{handleClosePointerDown\}/);
+  assert.match(resultModal, /onClick=\{handleCloseClick\}/);
   assert.match(resultModal, /data-testid="publish-result-close"/);
+  assert.match(resultModal, /publishResultCloseButton/);
+  assert.match(resultModal, /publishResultScrollCard/);
 });

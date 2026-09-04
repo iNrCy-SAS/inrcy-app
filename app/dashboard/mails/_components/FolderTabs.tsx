@@ -3,16 +3,20 @@ import styles from "../mails.module.css";
 import { ALL_FOLDERS, folderLabel, folderTheme, type Folder, type FolderCounts } from "../_lib/mailboxPhase1";
 
 type Props = {
+  folders?: readonly Folder[];
   folder: Folder;
   counts: FolderCounts;
   countsLoading?: boolean;
   onSelectFolder: (folder: Folder) => void;
 };
 
-export default function FolderTabs({ folder, counts, countsLoading = false, onSelectFolder }: Props) {
+export default function FolderTabs({ folders = ALL_FOLDERS, folder, counts, countsLoading = false, onSelectFolder }: Props) {
   return (
-    <div className={styles.folderTabs}>
-      {ALL_FOLDERS.map((f) => {
+    <div
+      className={styles.folderTabs}
+      style={{ "--folder-tab-count": folders.length } as React.CSSProperties}
+    >
+      {folders.map((f) => {
         const active = f === folder;
         return (
           <button

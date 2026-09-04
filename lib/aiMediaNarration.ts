@@ -6,6 +6,8 @@ import type { NormalizedAiGenerationProfile } from "@/lib/aiGenerationProfile";
 import type { AiMediaCreativePlan } from "@/lib/aiMediaCreativePlan";
 import type { AiMediaGenerationRequest } from "@/lib/aiMediaGenerationContracts";
 import { aiGenerateJSON } from "@/lib/aiGatewayClient";
+import { hasAiLanguageMismatch } from "@/lib/aiLanguageValidation";
+import { buildAiMediaNarrationFallback } from "@/lib/aiMediaLanguage";
 
 const NARRATION_SCHEMA = {
   name: "inrcy_media_narration",
@@ -61,15 +63,27 @@ function words(value: string) {
   return clean(value).split(/\s+/u).filter(Boolean);
 }
 
-function limitWords(value: string, maximum: number) {
+function speechUnitCount(value: string, language: string) {
+  if (language === "zh") {
+    return Math.ceil((value.match(/\p{Script=Han}/gu)?.length || 0) / 2);
+  }
+  if (language === "th") {
+    return Math.ceil((value.match(/\p{Script=Thai}/gu)?.length || 0) / 4);
+  }
+  return words(value).length;
+}
+
+function limitSpeech(value: string, maximum: number, language: string) {
+  if (language === "zh" || language === "th") {
+    const charactersPerUnit = language === "zh" ? 2.35 : 4.3;
+    const characters = Array.from(clean(value));
+    const maximumCharacters = Math.max(12, Math.floor(maximum * charactersPerUnit));
+    if (characters.length <= maximumCharacters) return clean(value);
+    return `${characters.slice(0, maximumCharacters).join("").replace(/[，、；：,.!?。！？]+$/u, "")}。`;
+  }
   const items = words(value);
   if (items.length <= maximum) return clean(value);
   return `${items.slice(0, maximum).join(" ").replace(/[,;:]$/, "")}.`;
-}
-
-function sentence(value: unknown) {
-  const normalized = clean(value, 180).replace(/[.!?]+$/g, "");
-  return normalized ? `${normalized}.` : "";
 }
 
 function safeFallback(args: {
@@ -79,46 +93,30 @@ function safeFallback(args: {
 }) {
   const business = args.profile.business;
   const duration = args.request.durationSeconds || 8;
+  const language = args.profile.preferences.language || "fr";
   const company = clean(business.companyName || args.plan.companyName, 80);
-  const profession = clean(
-    business.professionLabel || business.sectorLabel || "professionnel",
-    100,
-  );
-  const service = clean(business.services[0] || args.plan.headline, 120);
-  const strength = clean(
-    business.strengths[0] || "une approche attentive et sur mesure",
-    120,
-  );
-  const audience = clean(business.customerTypologies[0], 100);
   const location = clean(business.city || business.interventionZones[0], 80);
-  const idea = clean(args.request.idea, 170);
-  const lines = [
-    sentence(
-      idea
-        ? `${company || profession} donne vie à votre projet autour de ${idea}`
-        : `${company || profession} met ${service || "son savoir-faire"} au service de votre projet`,
-    ),
-    sentence(
-      `${service || profession}, avec ${strength}`,
-    ),
-    audience
-      ? sentence(`Une réponse concrète pensée pour ${audience}`)
-      : sentence("Chaque besoin mérite une réponse claire et personnalisée"),
-    location
-      ? sentence(`Retrouvez cette expertise à ${location}`)
-      : sentence(args.plan.cta || "Échangeons sur votre projet"),
-  ].filter(Boolean);
-  return limitWords(lines.join(" "), WORD_TARGETS[duration].max);
+  const localized = buildAiMediaNarrationFallback({
+    language,
+    company,
+    location,
+  });
+  return limitSpeech(localized, WORD_TARGETS[duration].max, language);
 }
 
-function validGeneratedScript(value: string, duration: 8 | 16 | 24) {
-  const count = words(value).length;
+function validGeneratedScript(
+  value: string,
+  duration: 8 | 16 | 24,
+  language: string,
+) {
+  const count = speechUnitCount(value, language);
   const target = WORD_TARGETS[duration];
   return (
     count >= target.min &&
     count <= target.max + 4 &&
     !/[+·|]/.test(value) &&
-    !/(voici|script|narration|voix off)\s*:/i.test(value)
+    !/(voici|script|narration|voix off)\s*:/i.test(value) &&
+    !hasAiLanguageMismatch(language, value)
   );
 }
 
@@ -189,8 +187,8 @@ export async function writeAiMediaNarration(args: {
       timeoutMs: 20_000,
     });
     const candidate = clean(generated.script);
-    if (validGeneratedScript(candidate, duration)) {
-      script = limitWords(candidate, target.max);
+    if (validGeneratedScript(candidate, duration, languageCode)) {
+      script = limitSpeech(candidate, target.max, languageCode);
       source = "ai";
     }
   } catch {
@@ -202,7 +200,7 @@ export async function writeAiMediaNarration(args: {
   return {
     script,
     language: languageCode,
-    wordCount: words(script).length,
+    wordCount: speechUnitCount(script, languageCode),
     source,
     sha256: createHash("sha256").update(script).digest("hex"),
   };

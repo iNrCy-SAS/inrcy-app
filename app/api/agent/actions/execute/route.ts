@@ -16,6 +16,13 @@ import {
   premiumRequiredApiResponse,
 } from "@/lib/dashboardEditionServer";
 import { isStandardAgentActionDescriptor } from "@/lib/standardAgentPolicy";
+import type { BoosterCtaMode } from "@/lib/boosterCta";
+import {
+  applySafePreferredCta,
+  normalizeCtaPhone,
+  normalizeCtaWebsiteUrl,
+} from "@/lib/boosterCtaPreferences";
+import { loadBoosterCtaDefaults } from "@/lib/boosterCtaDefaultsServer";
 
 export const maxDuration = 180;
 export const runtime = "nodejs";
@@ -38,6 +45,9 @@ type BoosterPost = {
   content: string;
   cta: string;
   hashtags: string[];
+  ctaMode?: BoosterCtaMode;
+  ctaUrl?: string;
+  ctaPhone?: string;
 };
 
 const ACTION_SELECT =
@@ -135,12 +145,30 @@ function normalizePost(raw: unknown, fallback?: BoosterPost): BoosterPost {
   const hashtags = cleanHashtags(record.hashtags).length
     ? cleanHashtags(record.hashtags)
     : fallback?.hashtags || [];
+  const rawCtaMode = cleanText(
+    record.ctaMode ?? record.cta_mode ?? fallback?.ctaMode ?? "",
+    24,
+  );
+  const ctaMode = ["none", "website", "call", "message", "custom"].includes(
+    rawCtaMode,
+  )
+    ? (rawCtaMode as BoosterCtaMode)
+    : undefined;
+  const ctaUrl = normalizeCtaWebsiteUrl(
+    record.ctaUrl ?? record.cta_url ?? fallback?.ctaUrl,
+  );
+  const ctaPhone = normalizeCtaPhone(
+    record.ctaPhone ?? record.cta_phone ?? fallback?.ctaPhone,
+  );
 
   return {
     title,
     content,
     cta,
     hashtags,
+    ...(ctaMode ? { ctaMode } : {}),
+    ...(ctaUrl ? { ctaUrl } : {}),
+    ...(ctaPhone ? { ctaPhone } : {}),
   };
 }
 
@@ -151,10 +179,9 @@ function ensurePublishablePost(
   const fallback =
     cleanText(fallbackText, 1000) || "Publication préparée par iNr’Agent.";
   return {
+    ...post,
     title: post.title,
     content: post.content || post.title || fallback,
-    cta: post.cta,
-    hashtags: post.hashtags,
   };
 }
 
@@ -685,7 +712,8 @@ async function executeCampaignAction(args: {
 }
 
 async function executeAgentActionHandler(request: Request) {
-  const { user, errorResponse, authUserId, activeUserId } = await requireUser();
+  const { supabase, errorResponse, authUserId, activeUserId } =
+    await requireUser();
   if (errorResponse) return errorResponse;
   const standardMode =
     (await getDashboardEditionForAuthUser(authUserId)) === "standard";
@@ -815,6 +843,7 @@ async function executeAgentActionHandler(request: Request) {
   }
 
   const rawPostByChannel = asRecord(payload.postByChannel) || {};
+  const ctaDefaults = await loadBoosterCtaDefaults({ supabase, userId });
   const fallbackText = cleanText(
     action.summary || payload.idea || action.title,
     1000,
@@ -822,10 +851,14 @@ async function executeAgentActionHandler(request: Request) {
   const normalizedPostByChannel = Object.fromEntries(
     publishChannels.map((channel) => [
       channel,
-      ensurePublishablePost(
-        normalizePost(rawPostByChannel[channel]),
-        fallbackText,
-      ),
+      applySafePreferredCta({
+        channel,
+        post: ensurePublishablePost(
+          normalizePost(rawPostByChannel[channel]),
+          fallbackText,
+        ),
+        defaults: ctaDefaults,
+      }),
     ]),
   ) as Record<string, BoosterPost>;
   const firstPost = ensurePublishablePost(
@@ -860,6 +893,7 @@ async function executeAgentActionHandler(request: Request) {
         ? await prepareBoosterImagesByChannelOnServer({
             channels: publishChannels,
             images: [imagePayload],
+            automaticFit: "contain",
           })
         : { imagesByChannel: {}, imageSettingsByChannel: {}, warnings: [] };
 

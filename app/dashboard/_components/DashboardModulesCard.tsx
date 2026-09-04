@@ -11,6 +11,8 @@ import RequiredSetupLock from "./RequiredSetupLock";
 import { useDashboardI18n } from "../_hooks/useDashboardI18n";
 import { requestDashboardToolWarmup } from "./DashboardToolWarmup";
 import { useDelayedPendingAction } from "@/hooks/useDelayedPendingAction";
+import { hasAccountingDashboardAccess } from "@/lib/dashboardEdition";
+import { useDashboardEdition } from "./DashboardEditionProvider";
 
 type DashboardPanelName =
   | "contact"
@@ -53,7 +55,10 @@ export default function DashboardModulesCard({ goToModule, openPanel, requiredSe
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const dashboardEdition = useDashboardEdition();
+  const accountingEnabled = hasAccountingDashboardAccess(dashboardEdition);
   const [cashModalOpen, setCashModalOpen] = useState(false);
+  const [campaignModalOpen, setCampaignModalOpen] = useState(false);
   const {
     pendingKey,
     beginAction,
@@ -94,20 +99,25 @@ export default function DashboardModulesCard({ goToModule, openPanel, requiredSe
       return;
     }
 
+    if (pendingKey === "modal:campaigns" && campaignModalOpen) {
+      completeAction(pendingKey);
+      return;
+    }
+
     if (pendingKey === "modal:publish") {
       if (searchParams.get("action") === "publish" || searchParams.get("panel")) {
         completeAction(pendingKey);
       }
     }
-  }, [cashModalOpen, completeAction, pathname, pendingKey, searchParams]);
+  }, [campaignModalOpen, cashModalOpen, completeAction, pathname, pendingKey, searchParams]);
 
   useEffect(() => {
-    if (searchParams.get("action") === "cash" && requiredSetupAccessAllowed) {
+    if (accountingEnabled && searchParams.get("action") === "cash" && requiredSetupAccessAllowed) {
       setCashModalOpen(true);
       return;
     }
-    if (!requiredSetupAccessAllowed) setCashModalOpen(false);
-  }, [requiredSetupAccessAllowed, searchParams]);
+    if (!accountingEnabled || !requiredSetupAccessAllowed) setCashModalOpen(false);
+  }, [accountingEnabled, requiredSetupAccessAllowed, searchParams]);
 
   const closeCashModal = () => {
     setCashModalOpen(false);
@@ -115,6 +125,8 @@ export default function DashboardModulesCard({ goToModule, openPanel, requiredSe
       router.replace("/dashboard", { scroll: false });
     }
   };
+
+  const closeCampaignModal = () => setCampaignModalOpen(false);
 
   const startModuleNavigation = (path: string, action?: () => void) => {
     const key = `route:${path}`;
@@ -130,9 +142,13 @@ export default function DashboardModulesCard({ goToModule, openPanel, requiredSe
     openPanel(panel);
   };
 
-  const openCashModal = () => {
-    if (!beginAction("modal:cash")) return;
-    setCashModalOpen(true);
+  const openCampaignModal = () => {
+    if (!requiredSetupAccessAllowed) {
+      onRequiredSetupBlocked();
+      return;
+    }
+    if (!beginAction("modal:campaigns")) return;
+    setCampaignModalOpen(true);
   };
 
   const openPublishModal = () => {
@@ -429,82 +445,29 @@ export default function DashboardModulesCard({ goToModule, openPanel, requiredSe
                 <button
                   type="button"
                   className={`${styles.gearCapsule} ${styles.gear_purple}`}
-                  data-dashboard-prefetch="/dashboard/propulser"
-                  onClick={() => startModuleNavigation("/dashboard/propulser")}
-                  disabled={isModuleLoadingVisible("/dashboard/propulser")}
-                  aria-busy={isModuleLoadingVisible("/dashboard/propulser") || undefined}
+                  data-dashboard-prefetch="/dashboard/agent"
+                  onClick={() => startModuleNavigation("/dashboard/agent")}
+                  disabled={isModuleLoadingVisible("/dashboard/agent")}
+                  aria-busy={isModuleLoadingVisible("/dashboard/agent") || undefined}
                 >
                   <div className={styles.gearInner}>
-                    {renderGearTitle(t.modules.propulserTitle)}
-                    <div className={styles.gearSub}>{t.modules.propulserSub}</div>
-                    <div className={styles.gearBtn}>{isModuleLoadingVisible("/dashboard/propulser") ? i18nT("chargement_01cba1df") : t.modules.propulserCta}</div>
+                    {renderGearTitle(t.modules.agentTitle)}
+                    <div className={styles.gearSub}>{t.modules.agentSub}</div>
+                    <div className={styles.gearBtn}>{isModuleLoadingVisible("/dashboard/agent") ? i18nT("chargement_01cba1df") : t.modules.agentCta}</div>
                   </div>
                 </button>
 
                 <button
                   type="button"
-                  className={`${styles.gearCapsule} ${styles.gear_purple}`}
-                  data-dashboard-prefetch="/dashboard/fideliser"
-                  onClick={() => startModuleNavigation("/dashboard/fideliser")}
-                  disabled={isModuleLoadingVisible("/dashboard/fideliser")}
-                  aria-busy={isModuleLoadingVisible("/dashboard/fideliser") || undefined}
-                >
-                  <div className={styles.gearInner}>
-                    {renderGearTitle(t.modules.fideliserTitle)}
-                    <div className={styles.gearSub}>{t.modules.fideliserSub}</div>
-                    <div className={styles.gearBtn}>{isModuleLoadingVisible("/dashboard/fideliser") ? i18nT("chargement_01cba1df") : t.modules.fideliserCta}</div>
-                  </div>
-                </button>
-
-                <button
                   className={`${styles.gearCapsule} ${styles.gear_orange}`}
-                  type="button"
-                  disabled={isVisible("modal:cash")}
-                  aria-busy={isVisible("modal:cash") || undefined}
-                  onClick={() => {
-                    if (!requiredSetupAccessAllowed) {
-                      onRequiredSetupBlocked();
-                      return;
-                    }
-                    openCashModal();
-                  }}
+                  onClick={openCampaignModal}
+                  disabled={isVisible("modal:campaigns")}
+                  aria-busy={isVisible("modal:campaigns") || undefined}
                 >
-                  <span
-                    className={styles.gearSettingsBtn}
-                    role="button"
-                    tabIndex={0}
-                    title={t.modules.cashSettingsTitle}
-                    aria-label={t.modules.cashSettingsTitle}
-                    aria-busy={isPanelLoadingVisible("documents") || undefined}
-                    aria-disabled={isPanelLoadingVisible("documents") || undefined}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      if (isPanelPending("documents")) return;
-                      if (requiredSetupLocked) {
-                        onRequiredSetupBlocked();
-                        return;
-                      }
-                      startPanelOpening("documents");
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        if (isPanelPending("documents")) return;
-                        if (requiredSetupLocked) {
-                          onRequiredSetupBlocked();
-                          return;
-                        }
-                        startPanelOpening("documents");
-                      }
-                    }}
-                  >
-                    <span className={styles.gearSettingsIcon} aria-hidden="true" />
-                  </span>
                   <div className={styles.gearInner}>
-                    {renderGearTitle(t.modules.cashTitle)}
-                    <div className={styles.gearSub}>{t.modules.cashSub}</div>
-                    <div className={styles.gearBtn}>{isVisible("modal:cash") ? i18nT("chargement_01cba1df") : t.modules.cashCta}</div>
+                    {renderGearTitle(t.modules.campaignsTitle)}
+                    <div className={styles.gearSub}>{t.modules.campaignsSub}</div>
+                    <div className={styles.gearBtn}>{isVisible("modal:campaigns") ? i18nT("chargement_01cba1df") : t.modules.campaignsCta}</div>
                   </div>
                 </button>
 
@@ -528,7 +491,52 @@ export default function DashboardModulesCard({ goToModule, openPanel, requiredSe
           </div>
         </div>
 
-        {cashModalOpen ? (
+        {campaignModalOpen ? (
+          <BaseModal
+            title={t.modules.campaignsModalTitle}
+            moduleLabel={t.modules.campaignsModalLabel}
+            compact
+            maxWidth={760}
+            onClose={closeCampaignModal}
+          >
+            <div className={styles.cashModalIntro}>
+              <strong>{t.modules.campaignsModalIntroStrong}</strong>{" "}
+              {t.modules.campaignsModalIntroText}
+            </div>
+
+            <div className={styles.cashChoiceGrid}>
+              <button
+                type="button"
+                className={`${styles.cashChoiceCard} ${styles.cashChoiceInvoice}`}
+                onClick={() => {
+                  setCampaignModalOpen(false);
+                  startModuleNavigation("/dashboard/propulser");
+                }}
+              >
+                <span className={styles.cashChoiceEyebrow}>{t.modules.propulserTitle}</span>
+                <span className={styles.cashChoiceTitle}>{t.modules.propulserSub}</span>
+                <span className={styles.cashChoiceText}>{t.modules.propulserCta}</span>
+                <span className={styles.cashChoiceCta}>{t.modules.propulserCta} →</span>
+              </button>
+
+              <button
+                type="button"
+                className={`${styles.cashChoiceCard} ${styles.cashChoiceQuote}`}
+                onClick={() => {
+                  setCampaignModalOpen(false);
+                  startModuleNavigation("/dashboard/fideliser");
+                }}
+              >
+                <span className={styles.cashChoiceEyebrow}>{t.modules.fideliserTitle}</span>
+                <span className={styles.cashChoiceTitle}>{t.modules.fideliserSub}</span>
+                <span className={styles.cashChoiceText}>{t.modules.fideliserCta}</span>
+                <span className={styles.cashChoiceCta}>{t.modules.fideliserCta} →</span>
+              </button>
+            </div>
+          </BaseModal>
+        ) : null}
+
+        {accountingEnabled && cashModalOpen ? (
           <BaseModal
             title={t.modules.cashModalTitle}
             moduleLabel={t.modules.cashModalLabel}

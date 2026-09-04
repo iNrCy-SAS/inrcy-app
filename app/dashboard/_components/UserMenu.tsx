@@ -2,6 +2,8 @@
 
 import styles from "../dashboard.module.css";
 import { useDashboardI18n } from "../_hooks/useDashboardI18n";
+import { hasAccountingDashboardAccess } from "@/lib/dashboardEdition";
+import { useDashboardEdition } from "./DashboardEditionProvider";
 
 type OpenPanelName =
   | "contact"
@@ -36,6 +38,8 @@ export default function UserMenu(props: {
   onNavigate?: (href: string) => void;
 }) {
   const t = useDashboardI18n();
+  const dashboardEdition = useDashboardEdition();
+  const accountingEnabled = hasAccountingDashboardAccess(dashboardEdition);
 
   const {
     userEmail,
@@ -184,6 +188,16 @@ export default function UserMenu(props: {
           >
             {t.userMenu.referral}
           </button>
+          {accountingEnabled ? (
+            <button
+              type="button"
+              className={styles.userMenuItem}
+              role="menuitem"
+              onClick={() => closeAndNavigate("/dashboard?action=cash")}
+            >
+              {t.modules.cashTitle}
+            </button>
+          ) : null}
           <button
             type="button"
             className={styles.userMenuItem}

@@ -1,3 +1,4 @@
+import { getTranslations } from "next-intl/server";
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/requireUser";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -2650,6 +2651,7 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
   }
 
   async function DELETE(req: Request, context: { params: Promise<{ publicationId: string }> }) {
+  const i18nT = await getTranslations("mails");
     try {
       const { user, activeUserId, errorResponse } = await requireUser();
       if (errorResponse) return errorResponse;
@@ -2678,7 +2680,7 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
             ok: true,
             cancelled: true,
             remote_cancellation_supported: false,
-            message: "Cette publication est déjà annulée dans iNr’Send.",
+            message: i18nT("cette_publication_est_deja_annulee_dans_993af240"),
             payload,
           });
         }
@@ -2698,7 +2700,7 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
           ok: true,
           cancelled: true,
           remote_cancellation_supported: false,
-          message: "Publication annulée dans iNr’Send. Le suivi automatique est arrêté.",
+          message: i18nT("publication_annulee_dans_inr_send_le_696e61b0"),
           payload: nextPayload,
         });
       }

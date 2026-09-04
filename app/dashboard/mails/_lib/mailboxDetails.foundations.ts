@@ -77,6 +77,7 @@ export type PublicationEditVideoState = {
 
 export type MailboxDetailsModalProps = {
   open: boolean;
+  documentsEnabled?: boolean;
   onClose: () => void;
   detailsItem: any | null;
   detailsAccountLabel: string | null;

@@ -26,6 +26,8 @@ import type {
   SaveState,
   StatsProgressState,
   AgentPreparedAction,
+  EditorialPlanApplyMode,
+  EditorialPlanQuotaImpact,
   LoadState,
 } from "../_lib/agent.types";
 import {
@@ -103,6 +105,8 @@ export function useAgentAutomationController({
   const [prepareNowConfirm, setPrepareNowConfirm] =
     useState<PrepareNowConfirmState>(null);
   const [statsProgress, setStatsProgress] = useState<StatsProgressState>(null);
+  const [settingsPlanImpact, setSettingsPlanImpact] =
+    useState<EditorialPlanQuotaImpact | null>(null);
 
   function updateConfig(key: AutomationKey, patch: Partial<AutomationConfig>) {
     setConfigs((current) => ({
@@ -194,9 +198,17 @@ export function useAgentAutomationController({
   }
 
   async function persistSettings(
-    options: { closeModal?: boolean; showSuccess?: boolean } = {},
+    options: {
+      closeModal?: boolean;
+      showSuccess?: boolean;
+      editorialPlanApplyMode?: EditorialPlanApplyMode;
+    } = {},
   ) {
-    const { closeModal = true, showSuccess = true } = options;
+    const {
+      closeModal = true,
+      showSuccess = true,
+      editorialPlanApplyMode,
+    } = options;
     const safeConfigs = agentConnectedChannels
       ? normalizeConfigsForConnectedChannels(configs, agentConnectedChannels)
       : configs;
@@ -209,15 +221,37 @@ export function useAgentAutomationController({
       const response = await fetch("/api/agent/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ settings: nextSettings }),
+        body: JSON.stringify({
+          settings: nextSettings,
+          ...(editorialPlanApplyMode
+            ? { editorialPlanApplyMode }
+            : {}),
+        }),
       });
       const payload = (await response.json().catch(() => null)) as {
         settings?: Partial<InrAgentSettings>;
         error?: string;
+        code?: string;
         tableMissing?: boolean;
+        impact?: EditorialPlanQuotaImpact;
       } | null;
 
       if (!response.ok) {
+        if (
+          (payload?.code ===
+            "EDITORIAL_PLAN_CHANGE_CONFIRMATION_REQUIRED" ||
+            payload?.code === "EDITORIAL_PLAN_QUOTA_INSUFFICIENT") &&
+          payload.impact
+        ) {
+          setSettingsPlanImpact(payload.impact);
+          setSaveState("idle");
+          if (payload.code === "EDITORIAL_PLAN_QUOTA_INSUFFICIENT") {
+            showNotice(
+              "Quotas insuffisants : les publications actuelles ont été conservées.",
+            );
+          }
+          return false;
+        }
         throw new Error(payload?.error || i18nT("agent_settings_save_failed"));
       }
 
@@ -231,6 +265,8 @@ export function useAgentAutomationController({
         settings: savedSettings,
         tableMissing: Boolean(payload?.tableMissing),
       });
+      await refreshActions(true);
+      setSettingsPlanImpact(null);
       setSaveState("saved");
       if (closeModal) setSettingsKey(null);
       if (showSuccess) showNotice(i18nT("agent_settings_saved"));
@@ -244,6 +280,21 @@ export function useAgentAutomationController({
 
   async function saveSettings() {
     await persistSettings();
+  }
+
+  async function confirmEditorialPlanSettings(
+    mode: EditorialPlanApplyMode,
+  ) {
+    const saved = await persistSettings({
+      editorialPlanApplyMode: mode,
+      showSuccess: false,
+    });
+    if (!saved) return;
+    showNotice(
+      mode === "next_cycle"
+        ? "Réglages enregistrés pour le prochain cycle. Les contenus déjà préparés sont conservés."
+        : "Réglages appliqués. Le planning est recalculé avec les quotas vérifiés.",
+    );
   }
 
   async function runAutomationNow(key: AutomationKey) {
@@ -554,11 +605,14 @@ export function useAgentAutomationController({
     prepareNowConfirm,
     setPrepareNowConfirm,
     statsProgress,
+    settingsPlanImpact,
+    setSettingsPlanImpact,
     updateConfig,
     updateConfigFrequency,
     updateConfigScheduleSlot,
     updateConfigMonthDay,
     saveSettings,
+    confirmEditorialPlanSettings,
     testAutomationNow,
     confirmPrepareNowReplacement,
   };

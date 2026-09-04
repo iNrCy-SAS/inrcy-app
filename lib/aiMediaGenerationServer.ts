@@ -243,7 +243,7 @@ export async function generateAndSaveAiMedia(args: {
     profile,
     recentPublications: generationContext.recentPublications,
   });
-  const creativePlanTask = args.request.withText && args.request.textKeywords.length
+  const creativePlanTask = args.request.withText
     ? measure("headline", () =>
         writeAiMediaHeadline({
           accountId: args.accountId,
@@ -373,6 +373,7 @@ export async function generateAndSaveAiMedia(args: {
               accountId: args.accountId,
               narration,
               durationSeconds,
+              narrationVoice: args.request.narrationVoice || "female",
               signal: narrationController.signal,
             }),
           );
@@ -593,6 +594,7 @@ export async function generateAndSaveAiMedia(args: {
           text_keyword_count: args.request.textKeywords.length,
           with_music: args.request.withMusic,
           with_narration: args.request.withNarration,
+          narration_voice: args.request.narrationVoice,
           format: args.request.format,
           typology: args.request.typology,
           visual_style: args.request.visualStyle,

@@ -366,6 +366,47 @@ async function claimAction(row: ScheduledActionCronRow) {
   return data as ScheduledActionCronRow | null;
 }
 
+async function automaticPublicationStillAuthorized(row: ScheduledActionCronRow) {
+  const isAutomaticPublication =
+    row.source === "automatic" &&
+    (row.target_tool === "booster" || row.action_type === "publication");
+  if (!isAutomaticPublication) return true;
+
+  // Politique de sûreté iNrAgent : une publication ne part jamais sans une
+  // validation explicite du professionnel. Les anciens jobs automatiques sont
+  // donc refusés ici, même s'ils existaient déjà avant la migration.
+  return false;
+}
+
+async function syncAutomaticSourceActionOutcome(
+  row: ScheduledActionCronRow,
+  outcome: "completed" | "failed",
+  error?: string | null,
+) {
+  if (row.source !== "automatic") return;
+  const payload = asRecord(row.payload);
+  const publishPayload = asRecord(payload.publishPayload);
+  const sourceActionId = trimDiagnosticText(
+    payload.sourceActionId || publishPayload.inrAgentActionId || row.id,
+    120,
+  );
+  if (!sourceActionId) return;
+  const now = new Date().toISOString();
+  await supabaseAdmin
+    .from("inr_agent_actions")
+    .update({
+      status: outcome,
+      completed_at: outcome === "completed" ? now : null,
+      last_error: outcome === "failed" ? trimDiagnosticText(error, 1_000) : null,
+      updated_at: now,
+    })
+    .eq("id", sourceActionId)
+    .eq("user_id", row.user_id)
+    .eq("status", "scheduled")
+    .eq("execution_policy", "automatic_after_settings")
+    .eq("validation_required", false);
+}
+
 async function markDone(row: ScheduledActionCronRow, execution: Record<string, unknown>) {
   const now = new Date().toISOString();
   const executionStatus = execution.status === "processing" ? "processing" : "done";
@@ -752,6 +793,47 @@ async function processDueScheduledActions(args: { origin: string; maxRows: numbe
       });
       continue;
     }
+    try {
+      const stillAuthorized = await automaticPublicationStillAuthorized(row);
+      if (!stillAuthorized) {
+        if (!args.dryRun) {
+          await supabaseAdmin
+            .from("inr_agent_scheduled_actions")
+            .update({
+              status: "cancelled",
+              last_error:
+                "Publication automatique annulée : le professionnel a modifié ses réglages iNr’Agent.",
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", row.id)
+            .eq("user_id", row.user_id)
+            .eq("status", "scheduled");
+        }
+        results.push({
+          ok: true,
+          status: "skipped",
+          scheduledActionId: row.id,
+          targetTool: String(row.target_tool || "agent"),
+          detail: args.dryRun
+            ? "automatic_authorization_revoked_dry_run"
+            : "automatic_authorization_revoked",
+        });
+        continue;
+      }
+    } catch (authorizationError) {
+      results.push({
+        ok: false,
+        status: "failed",
+        scheduledActionId: row.id,
+        targetTool: String(row.target_tool || "agent"),
+        error:
+          authorizationError instanceof Error
+            ? authorizationError.message
+            : "Vérification du mode automatique impossible.",
+        retriable: true,
+      });
+      continue;
+    }
     if (args.dryRun) {
       results.push({
         ok: true,
@@ -811,6 +893,7 @@ async function processDueScheduledActions(args: { origin: string; maxRows: numbe
           phase: result.phase || null,
         });
         if (transitioned) {
+          await syncAutomaticSourceActionOutcome(claimed, "completed");
           await notifyScheduledActionOutcome(claimed, {
             outcome: result.status === "processing" ? "processing" : "done",
             campaignId: result.campaignId || null,
@@ -846,6 +929,11 @@ async function processDueScheduledActions(args: { origin: string; maxRows: numbe
         if (!failure.updated) {
           result.detail = result.detail || "claim_lost_after_execution";
         } else if (result.status === "failed") {
+          await syncAutomaticSourceActionOutcome(
+            claimed,
+            "failed",
+            result.error || null,
+          );
           await notifyScheduledActionOutcome(claimed, {
             outcome: "failed",
             error: result.error || "Action programmée impossible.",

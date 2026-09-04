@@ -3,7 +3,13 @@
 import { useTranslations } from "next-intl";
 
 
-import { useEffect, useRef, useState, type SyntheticEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 
 import {
   ensureFrenchPublicationErrorMessage,
@@ -95,19 +101,30 @@ export default function PublishExecutionResultModal({
   const tiktokPollInFlightRef = useRef(false);
   const closeTapHandledRef = useRef(false);
 
-  const handleClose = (event: SyntheticEvent<HTMLButtonElement>) => {
-    // Pointer-up is used below for touch WebViews because some Android builds
-    // do not promote a tap on a fixed/scrollable modal to a click reliably.
-    // Keep the click fallback for keyboard and desktop activation, while the
-    // short guard prevents one physical tap from closing twice.
-    event.preventDefault();
-    event.stopPropagation();
+  const requestClose = () => {
     if (closeTapHandledRef.current) return;
     closeTapHandledRef.current = true;
     onClose();
     window.setTimeout(() => {
       closeTapHandledRef.current = false;
-    }, 0);
+    }, 250);
+  };
+
+  const handleClosePointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    requestClose();
+  };
+
+  const handleCloseClick = (event: ReactMouseEvent<HTMLButtonElement>) => {
+    // Le clic reste indispensable pour l'activation clavier. La fermeture
+    // pointeur est volontairement déclenchée dès pointerdown : le X vit au-dessus
+    // d'une surface défilante et certains navigateurs annulent pointerup/click
+    // lorsque cette surface reprend la capture du pointeur.
+    event.preventDefault();
+    event.stopPropagation();
+    requestClose();
   };
 
   useEffect(() => {
@@ -456,6 +473,9 @@ export default function PublishExecutionResultModal({
 
   return (
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={overallTitle}
       className={styles.fullscreenModalOverlay}
       style={{
         position: "fixed",
@@ -463,60 +483,62 @@ export default function PublishExecutionResultModal({
         display: "grid",
         placeItems: "center",
         background: "rgba(3, 8, 20, 0.64)",
-        zIndex: 110,
+        zIndex: 150,
         padding: 16,
         overflowY: "auto",
         overscrollBehavior: "contain",
       }}
     >
       <div
-        className={styles.blockCard}
+        className={styles.publishResultDialogShell}
         style={{
           width: "min(660px, 100%)",
           maxHeight:
             "calc(100dvh - var(--inrcy-mobile-bottom-nav-total-height, calc(50px + var(--inrcy-safe-area-bottom))) - 32px)",
-          overflowY: "auto",
-          textAlign: "left",
           position: "relative",
-          padding: "22px clamp(14px, 3vw, 24px) 20px",
-          boxShadow: hasPublishedChannels
-            ? "0 32px 90px rgba(0,0,0,0.50), 0 0 48px rgba(99,102,241,0.10)"
-            : allFailed
-              ? "0 32px 90px rgba(0,0,0,0.50), 0 0 42px rgba(248,113,113,0.10)"
-              : "0 32px 90px rgba(0,0,0,0.50), 0 0 42px rgba(251,191,36,0.08)",
-          border: `1px solid ${
-            hasPublishedChannels
-              ? "rgba(96,165,250,0.28)"
-              : allFailed
-                ? "rgba(248,113,113,0.34)"
-                : "rgba(251,191,36,0.28)"
-          }`,
-          background:
-            "radial-gradient(circle at 50% 0%, rgba(59,130,246,0.09), transparent 30%), linear-gradient(180deg, rgba(12,18,34,0.99), rgba(8,13,25,0.99))",
+          minWidth: 0,
         }}
       >
         <button
           type="button"
-          onPointerUp={handleClose}
-          onClick={handleClose}
+          onPointerDown={handleClosePointerDown}
+          onClick={handleCloseClick}
           data-testid="publish-result-close"
           aria-label={i18nT("fermer_5ab4ec64")}
-          className={styles.secondaryBtn}
-          style={{
-            position: "absolute",
-            top: 13,
-            right: 13,
-            zIndex: 2,
-            minWidth: 38,
-            minHeight: 34,
-            padding: "0 10px",
-            borderRadius: 999,
-          }}
+          title={i18nT("fermer_5ab4ec64")}
+          className={`${styles.secondaryBtn} ${styles.publishResultCloseButton}`}
         >
           ✕
         </button>
 
-        <header
+        <div
+          role="document"
+          className={`${styles.blockCard} ${styles.publishResultScrollCard}`}
+          style={{
+            width: "100%",
+            maxHeight:
+              "calc(100dvh - var(--inrcy-mobile-bottom-nav-total-height, calc(50px + var(--inrcy-safe-area-bottom))) - 32px)",
+            overflowY: "auto",
+            textAlign: "left",
+            position: "relative",
+            padding: "22px clamp(14px, 3vw, 24px) 20px",
+            boxShadow: hasPublishedChannels
+              ? "0 32px 90px rgba(0,0,0,0.50), 0 0 48px rgba(99,102,241,0.10)"
+              : allFailed
+                ? "0 32px 90px rgba(0,0,0,0.50), 0 0 42px rgba(248,113,113,0.10)"
+                : "0 32px 90px rgba(0,0,0,0.50), 0 0 42px rgba(251,191,36,0.08)",
+            border: `1px solid ${
+              hasPublishedChannels
+                ? "rgba(96,165,250,0.28)"
+                : allFailed
+                  ? "rgba(248,113,113,0.34)"
+                  : "rgba(251,191,36,0.28)"
+            }`,
+            background:
+              "radial-gradient(circle at 50% 0%, rgba(59,130,246,0.09), transparent 30%), linear-gradient(180deg, rgba(12,18,34,0.99), rgba(8,13,25,0.99))",
+          }}
+        >
+          <header
           style={{
             minHeight: 66,
             display: "flex",
@@ -1046,6 +1068,7 @@ export default function PublishExecutionResultModal({
               style={{ width: 23, height: 23, objectFit: "contain" }}
             />
             {i18nT("voir_dans_inr_send_a74cc9ea")}{" "}</button>
+        </div>
         </div>
       </div>
     </div>

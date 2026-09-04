@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { requireUser } from "@/lib/requireUser";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
@@ -19,6 +19,8 @@ import { getInrSearchPublicStatus } from "@/lib/inrSearchPublic";
 import { captureApiException } from "@/lib/observability/sentry";
 import { withApi } from "@/lib/observability/withApi";
 import { getDashboardEditionForAuthUser } from "@/lib/dashboardEditionServer";
+import { getAiMediaQuotaSnapshot } from "@/lib/aiMediaGenerationQuota";
+import { isAdminUserForAi } from "@/lib/aiUsageQuota";
 import {
   inrAgentMonthlyDateCount,
   isInrAgentScheduledMonthDay,
@@ -28,6 +30,16 @@ import {
   restrictInrAgentSettingsForStandard,
   standardAgentAutomationKeysForPersistence,
 } from "@/lib/standardAgentPolicy";
+import { getAppOriginFromRequest } from "@/lib/cronAuth";
+import {
+  analyzeInrAgentEditorialPlanChange,
+  notifyReadyInrAgentEditorialBatch,
+  prepareNextInrAgentEditorialSlot,
+  reconcileInrAgentEditorialPlan,
+} from "@/lib/inrAgentEditorialPlanServer";
+
+export const runtime = "nodejs";
+export const maxDuration = 800;
 
 type DbAgentGlobalSettingsRow = {
   global_enabled?: boolean | null;
@@ -60,10 +72,41 @@ type AutomationScheduleSlot = { dayOfWeek: number; time: string };
 const GLOBAL_SELECT = "global_enabled, tone, timezone, metadata";
 const AUTOMATION_SELECT = "automation_key, enabled, frequency, day_of_week, time, validation_mode, allowed_channels, allowed_themes, use_image_bank, image_required, recipient_scope, source_strategy, last_prepared_at, last_executed_at, next_run_at, metadata";
 const SETTINGS_SCHEDULE_GRACE_MS = 20 * 60 * 1000;
+type EditorialPlanApplyMode = "now" | "next_cycle";
+
+function editorialPlanApplyMode(value: unknown): EditorialPlanApplyMode | null {
+  return value === "now" || value === "next_cycle" ? value : null;
+}
+
+function clearDeferredEditorialMetadata(
+  automation: InrAgentAutomationSettings,
+) {
+  const metadata = { ...(automation.metadata || {}) };
+  delete metadata.pendingEditorialSettings;
+  delete metadata.editorialSettingsEffectiveAt;
+  delete metadata.editorialSettingsDeferredAt;
+  delete metadata.editorialSettingsActiveTone;
+  delete metadata.editorialSettingsActiveTimezone;
+  return sanitizeInrAgentAutomationSettings("publish", {
+    ...automation,
+    metadata,
+  });
+}
 
 function isMissingSchemaError(error: { code?: string; message?: string } | null | undefined) {
   const message = String(error?.message || "").toLowerCase();
   return error?.code === "42P01" || error?.code === "42703" || error?.code === "PGRST205" || message.includes("inr_agent_settings") || message.includes("inr_agent_automation_settings");
+}
+
+function isMissingSettingsTransactionRpc(
+  error: { code?: string; message?: string } | null | undefined,
+) {
+  const message = String(error?.message || "").toLowerCase();
+  return (
+    error?.code === "PGRST202" ||
+    error?.code === "42883" ||
+    message.includes("inrcy_save_inr_agent_settings")
+  );
 }
 
 function normalizeTime(value: unknown) {
@@ -259,8 +302,11 @@ function shouldRecomputeNextRunAt(args: {
   return lastStatus === "failed" && !nextRetry && !args.existing?.last_prepared_at;
 }
 
-function rowToAutomation(row: DbAgentAutomationSettingsRow | null | undefined): Partial<InrAgentAutomationSettings> {
-  return {
+function rowToAutomation(
+  row: DbAgentAutomationSettingsRow | null | undefined,
+  preferPendingEditorialSettings = false,
+): Partial<InrAgentAutomationSettings> {
+  const active: Partial<InrAgentAutomationSettings> = {
     enabled: row?.enabled ?? undefined,
     frequency: row?.frequency as InrAgentAutomationSettings["frequency"],
     dayOfWeek: row?.day_of_week ?? undefined,
@@ -275,6 +321,20 @@ function rowToAutomation(row: DbAgentAutomationSettingsRow | null | undefined): 
     lastPreparedAt: row?.last_prepared_at ?? null,
     lastExecutedAt: row?.last_executed_at ?? null,
     nextRunAt: row?.next_run_at ?? null,
+    metadata: row?.metadata ?? {},
+  };
+  const pending = row?.metadata?.pendingEditorialSettings;
+  if (
+    !preferPendingEditorialSettings ||
+    !pending ||
+    typeof pending !== "object" ||
+    Array.isArray(pending)
+  ) {
+    return active;
+  }
+  return {
+    ...active,
+    ...(pending as Partial<InrAgentAutomationSettings>),
     metadata: row?.metadata ?? {},
   };
 }
@@ -370,11 +430,24 @@ async function applyConnectedChannelFilter(
   );
 }
 
-function rowsToSettings(globalRow: DbAgentGlobalSettingsRow | null | undefined, automationRows: DbAgentAutomationSettingsRow[]): InrAgentSettings {
+function rowsToSettings(
+  globalRow: DbAgentGlobalSettingsRow | null | undefined,
+  automationRows: DbAgentAutomationSettingsRow[],
+  preferPendingEditorialSettings = false,
+): InrAgentSettings {
   const automations = Object.fromEntries(
     INR_AGENT_AUTOMATION_KEYS.map((key) => {
       const row = automationRows.find((item) => item.automation_key === key);
-      return [key, sanitizeInrAgentAutomationSettings(key, rowToAutomation(row))];
+      return [
+        key,
+        sanitizeInrAgentAutomationSettings(
+          key,
+          rowToAutomation(
+            row,
+            preferPendingEditorialSettings && key === "publish",
+          ),
+        ),
+      ];
     }),
   ) as InrAgentSettings["automations"];
 
@@ -436,6 +509,7 @@ async function getAgentSettingsHandler() {
     Array.isArray(automationData)
       ? (automationData as DbAgentAutomationSettingsRow[])
       : [],
+    true,
   );
 
   const connectedSettings = await applyConnectedChannelFilter(
@@ -451,10 +525,10 @@ async function getAgentSettingsHandler() {
 }
 
 async function saveAgentSettingsHandler(request: Request) {
-  const { user, errorResponse, authUserId, activeUserId } = await requireUser();
+  const { errorResponse, authUserId, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
-  const standardMode =
-    (await getDashboardEditionForAuthUser(authUserId)) === "standard";
+  const dashboardEdition = await getDashboardEditionForAuthUser(authUserId);
+  const standardMode = dashboardEdition === "standard";
 
   let body: unknown;
   try {
@@ -463,9 +537,16 @@ async function saveAgentSettingsHandler(request: Request) {
     return NextResponse.json({ error: "Requête invalide" }, { status: 400 });
   }
 
+  const requestBody = body as {
+    settings?: Partial<InrAgentSettings>;
+    editorialPlanApplyMode?: EditorialPlanApplyMode;
+  } | null;
+  const applyMode = editorialPlanApplyMode(
+    requestBody?.editorialPlanApplyMode,
+  );
   let settings = await applyConnectedChannelFilter(
     sanitizeInrAgentSettings(
-      (body as { settings?: Partial<InrAgentSettings> } | null)?.settings,
+      requestBody?.settings,
     ),
     activeUserId,
     { hydrateMissingPublishDefaults: false },
@@ -473,11 +554,191 @@ async function saveAgentSettingsHandler(request: Request) {
   if (standardMode) {
     settings = restrictInrAgentSettingsForStandard(settings);
   }
-  const now = new Date().toISOString();
+  settings = sanitizeInrAgentSettings({
+    ...settings,
+    automations: {
+      ...settings.automations,
+      publish: clearDeferredEditorialMetadata(settings.automations.publish),
+    },
+  });
+  const nowDate = new Date();
+  const now = nowDate.toISOString();
+
+  const [existingGlobalResult, existingAutomationResult] = await Promise.all([
+    supabaseAdmin
+      .from("inr_agent_settings")
+      .select(GLOBAL_SELECT)
+      .eq("user_id", activeUserId)
+      .maybeSingle(),
+    supabaseAdmin
+      .from("inr_agent_automation_settings")
+      .select(AUTOMATION_SELECT)
+      .eq("user_id", activeUserId),
+  ]);
+
+  if (existingGlobalResult.error && !isMissingSchemaError(existingGlobalResult.error)) {
+    console.warn("[inr-agent-settings] current global settings read failed", existingGlobalResult.error);
+    return NextResponse.json(
+      { error: "Lecture des réglages iNr'Agent actuels impossible" },
+      { status: 500 },
+    );
+  }
+  if (existingAutomationResult.error && !isMissingSchemaError(existingAutomationResult.error)) {
+    console.warn("[inr-agent-settings] current automations read failed", existingAutomationResult.error);
+    return NextResponse.json(
+      { error: "Lecture des automatisations iNr'Agent actuelles impossible" },
+      { status: 500 },
+    );
+  }
+
+  const existingRows = Array.isArray(existingAutomationResult.data)
+    ? (existingAutomationResult.data as DbAgentAutomationSettingsRow[])
+    : [];
+  const existingByKey = new Map(existingRows.map((row) => [row.automation_key, row]));
+  const currentSettings = rowsToSettings(
+    existingGlobalResult.data as DbAgentGlobalSettingsRow | null,
+    existingRows,
+  );
+  const currentPublishMetadata =
+    currentSettings.automations.publish.metadata || {};
+  const activeEditorialTone = String(
+    currentPublishMetadata.editorialSettingsActiveTone ||
+      currentSettings.tone ||
+      "professional",
+  );
+  const activeEditorialTimezone = String(
+    currentPublishMetadata.editorialSettingsActiveTimezone ||
+      currentSettings.timezone ||
+      "Europe/Paris",
+  );
+
+  let editorialImpact;
+  try {
+    editorialImpact = await analyzeInrAgentEditorialPlanChange({
+      supabase: supabaseAdmin,
+      userId: activeUserId,
+      currentAutomation: currentSettings.automations.publish,
+      nextAutomation: settings.automations.publish,
+      currentTimezone: activeEditorialTimezone,
+      nextTimezone: settings.timezone || "Europe/Paris",
+      currentTone: activeEditorialTone,
+      nextTone: settings.tone,
+      now: nowDate,
+    });
+  } catch (error) {
+    console.warn("[inr-agent-settings] editorial impact analysis failed", error);
+    return NextResponse.json(
+      {
+        error:
+          "Impossible de vérifier sans risque les publications déjà préparées. Aucun réglage n'a été modifié.",
+        code: "EDITORIAL_PLAN_IMPACT_UNAVAILABLE",
+      },
+      { status: 503 },
+    );
+  }
+
+  let availableImages: number | null = null;
+  let availableVideos: number | null = null;
+  let quotaAvailable =
+    editorialImpact.requiredImages === 0 &&
+    editorialImpact.requiredVideos === 0;
+  let quotaSufficient = quotaAvailable;
+  if (
+    editorialImpact.requiresConfirmation &&
+    (editorialImpact.requiredImages > 0 || editorialImpact.requiredVideos > 0)
+  ) {
+    try {
+      const [quota, unlimited] = await Promise.all([
+        getAiMediaQuotaSnapshot({
+          accountId: activeUserId,
+          actorAuthUserId: authUserId,
+          edition: dashboardEdition,
+        }),
+        isAdminUserForAi(supabaseAdmin, authUserId),
+      ]);
+      availableImages = unlimited ? null : quota.image.remaining;
+      availableVideos = unlimited ? null : quota.video.remaining;
+      quotaAvailable = true;
+      quotaSufficient =
+        unlimited ||
+        (editorialImpact.requiredImages <= quota.image.remaining &&
+          editorialImpact.requiredVideos <= quota.video.remaining);
+    } catch (error) {
+      console.warn("[inr-agent-settings] editorial quota preview failed", error);
+      quotaAvailable = false;
+      quotaSufficient = false;
+    }
+  }
+  const impact = {
+    ...editorialImpact,
+    availableImages,
+    availableVideos,
+    quotaAvailable,
+    quotaSufficient,
+  };
+
+  if (impact.requiresConfirmation && !applyMode) {
+    return NextResponse.json(
+      {
+        error: "Ces réglages modifieraient des publications déjà planifiées.",
+        code: "EDITORIAL_PLAN_CHANGE_CONFIRMATION_REQUIRED",
+        impact,
+      },
+      { status: 409 },
+    );
+  }
+  if (
+    impact.requiresConfirmation &&
+    applyMode === "now" &&
+    (!impact.quotaAvailable || !impact.quotaSufficient)
+  ) {
+    return NextResponse.json(
+      {
+        error:
+          "Les quotas disponibles ne permettent pas de régénérer sans risque tout le planning choisi.",
+        code: "EDITORIAL_PLAN_QUOTA_INSUFFICIENT",
+        impact,
+      },
+      { status: 409 },
+    );
+  }
+
+  const deferEditorialSettings =
+    impact.requiresConfirmation &&
+    applyMode === "next_cycle" &&
+    Boolean(impact.protectedUntil);
+  const requestedPublishAutomation = clearDeferredEditorialMetadata(
+    settings.automations.publish,
+  );
+  const activePublishAutomation = clearDeferredEditorialMetadata(
+    currentSettings.automations.publish,
+  );
+  const persistedPublishAutomation = deferEditorialSettings
+    ? sanitizeInrAgentAutomationSettings("publish", {
+        ...activePublishAutomation,
+        metadata: {
+          ...activePublishAutomation.metadata,
+          pendingEditorialSettings: requestedPublishAutomation,
+          editorialSettingsEffectiveAt: impact.protectedUntil,
+          editorialSettingsDeferredAt: now,
+          editorialSettingsActiveTone: activeEditorialTone,
+          editorialSettingsActiveTimezone: activeEditorialTimezone,
+        },
+      })
+    : requestedPublishAutomation;
+
+  const persistedGlobalEnabled = deferEditorialSettings
+    ? Object.entries(settings.automations).some(([key, automation]) =>
+        key === "publish"
+          ? persistedPublishAutomation.enabled ||
+            requestedPublishAutomation.enabled
+          : automation.enabled,
+      )
+    : settings.globalEnabled;
 
   const globalPayload = {
     user_id: activeUserId,
-    global_enabled: settings.globalEnabled,
+    global_enabled: persistedGlobalEnabled,
     tone: settings.tone,
     timezone: settings.timezone,
     metadata: {
@@ -491,44 +752,24 @@ async function saveAgentSettingsHandler(request: Request) {
     updated_at: now,
   };
 
-  const { error: globalError } = await supabaseAdmin
-    .from("inr_agent_settings")
-    .upsert(globalPayload, { onConflict: "user_id" });
-
-  if (globalError) {
-    if (isMissingSchemaError(globalError)) {
-      return NextResponse.json({ error: "Les tables iNr'Agent V2 doivent être créées dans Supabase avant d'enregistrer.", tableMissing: true }, { status: 500 });
-    }
-    console.warn("[inr-agent-settings] global save failed", globalError);
-    return NextResponse.json({ error: "Enregistrement de la configuration globale iNr'Agent impossible" }, { status: 500 });
-  }
-
-  const { data: existingAutomationData, error: existingAutomationError } = await supabaseAdmin
-    .from("inr_agent_automation_settings")
-    .select(AUTOMATION_SELECT)
-    .eq("user_id", activeUserId);
-
-  if (existingAutomationError && !isMissingSchemaError(existingAutomationError)) {
-    console.warn("[inr-agent-settings] existing automations read failed", existingAutomationError);
-  }
-
-  const existingRows = Array.isArray(existingAutomationData)
-    ? (existingAutomationData as DbAgentAutomationSettingsRow[])
-    : [];
-  const existingByKey = new Map(existingRows.map((row) => [row.automation_key, row]));
-  const nowDate = new Date(now);
-
   const persistedAutomationKeys = standardAgentAutomationKeysForPersistence(
     standardMode,
   );
   const automationPayloads = persistedAutomationKeys.map((key: InrAgentAutomationKey) => {
-    const automation = settings.automations[key];
+    const automation =
+      key === "publish"
+        ? persistedPublishAutomation
+        : settings.automations[key];
     const existing = existingByKey.get(key);
     const row = automationSettingsToDbRow(activeUserId, key, automation);
     const scheduleChanged = scheduleSignature(existing) !== automationSignature(automation);
     const recomputeNextRun = shouldRecomputeNextRunAt({ existing, automation, scheduleChanged });
+    const scheduleTimezone =
+      key === "publish" && deferEditorialSettings
+        ? activeEditorialTimezone
+        : settings.timezone || "Europe/Paris";
     const nextRunAt = recomputeNextRun
-      ? computeNextRunAt(automation, nowDate, settings.timezone || "Europe/Paris")
+      ? computeNextRunAt(automation, nowDate, scheduleTimezone)
       : automation.nextRunAt;
 
     return {
@@ -559,16 +800,91 @@ async function saveAgentSettingsHandler(request: Request) {
     } as InrAgentSettings["automations"],
   });
 
-  const { error: automationError } = await supabaseAdmin
-    .from("inr_agent_automation_settings")
-    .upsert(automationPayloads, { onConflict: "user_id,automation_key" });
+  const { error: saveError } = await supabaseAdmin.rpc(
+    "inrcy_save_inr_agent_settings",
+    {
+      p_global: globalPayload,
+      p_automations: automationPayloads,
+    },
+  );
 
-  if (automationError) {
-    if (isMissingSchemaError(automationError)) {
-      return NextResponse.json({ error: "La table inr_agent_automation_settings doit être créée dans Supabase avant d'enregistrer.", tableMissing: true }, { status: 500 });
+  if (saveError) {
+    if (isMissingSettingsTransactionRpc(saveError)) {
+      return NextResponse.json(
+        {
+          error:
+            "La mise à jour de sécurité iNrAgent doit être appliquée dans Supabase avant d’enregistrer ces réglages. Aucun réglage n’a été modifié.",
+          code: "INR_AGENT_SETTINGS_MIGRATION_REQUIRED",
+          tableMissing: true,
+        },
+        { status: 503 },
+      );
     }
-    console.warn("[inr-agent-settings] automations save failed", automationError);
-    return NextResponse.json({ error: "Enregistrement des automatisations iNr'Agent impossible" }, { status: 500 });
+    if (isMissingSchemaError(saveError)) {
+      return NextResponse.json(
+        {
+          error:
+            "Les tables iNrAgent V2 doivent être créées dans Supabase avant d’enregistrer.",
+          tableMissing: true,
+        },
+        { status: 500 },
+      );
+    }
+    console.warn("[inr-agent-settings] atomic save failed", saveError);
+    return NextResponse.json(
+      {
+        error:
+          "Enregistrement atomique des réglages iNrAgent impossible. Aucun réglage n’a été modifié.",
+      },
+      { status: 500 },
+    );
+  }
+
+  let editorialPlan: Awaited<
+    ReturnType<typeof reconcileInrAgentEditorialPlan>
+  > | null = null;
+  try {
+    editorialPlan = await reconcileInrAgentEditorialPlan({
+      supabase: supabaseAdmin,
+      userId: activeUserId,
+      automation: persistedPublishAutomation,
+      timezone: deferEditorialSettings
+        ? activeEditorialTimezone
+        : savedSettings.timezone || "Europe/Paris",
+      tone: deferEditorialSettings ? activeEditorialTone : savedSettings.tone,
+      now: nowDate,
+    });
+  } catch (error) {
+    // Les réglages restent bien enregistrés même si la préparation éditoriale
+    // doit être reprise par le cron cinq minutes plus tard.
+    console.warn("[inr-agent-settings] editorial plan reconcile failed", error);
+  }
+
+  if (
+    persistedGlobalEnabled &&
+    persistedPublishAutomation.enabled &&
+    editorialPlan?.planned
+  ) {
+    const origin = getAppOriginFromRequest(request);
+    after(async () => {
+      try {
+        await prepareNextInrAgentEditorialSlot({
+          supabase: supabaseAdmin,
+          userId: activeUserId,
+          origin,
+        });
+        await notifyReadyInrAgentEditorialBatch({
+          supabase: supabaseAdmin,
+          userId: activeUserId,
+          horizonDays: persistedPublishAutomation.planningHorizonDays,
+        });
+      } catch (error) {
+        console.warn(
+          "[inr-agent-settings] first editorial preparation failed",
+          error,
+        );
+      }
+    });
   }
 
   return NextResponse.json({
@@ -577,6 +893,9 @@ async function saveAgentSettingsHandler(request: Request) {
       : savedSettings,
     saved: true,
     tableMissing: false,
+    editorialPlan,
+    editorialPlanApplyMode: deferEditorialSettings ? "next_cycle" : "now",
+    editorialImpact: impact,
   });
 }
 

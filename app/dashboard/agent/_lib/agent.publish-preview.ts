@@ -454,6 +454,41 @@ export function getPublishMediaRecords(
   if (video) return [video];
 
   const payload = action.payload || {};
+  const genericImages = [
+    ...(Array.isArray(publishPayloadValue(action, "images"))
+      ? (publishPayloadValue(action, "images") as unknown[])
+      : []),
+    ...(Array.isArray(publishPayloadValue(action, "mediaAssets"))
+      ? (publishPayloadValue(action, "mediaAssets") as unknown[])
+      : []),
+    ...action.imageAssets,
+  ]
+    .map((item) => publishMediaRecord(item))
+    .filter((item): item is Record<string, unknown> => Boolean(item));
+  const uniqueGenericImages = genericImages.filter((item, index, list) => {
+    const key = firstSafeString(
+      item.id,
+      item.storagePath,
+      item.storage_path,
+      item.url,
+      item.publicUrl,
+    );
+    return (
+      Boolean(key) &&
+      list.findIndex(
+        (candidate) =>
+          firstSafeString(
+            candidate.id,
+            candidate.storagePath,
+            candidate.storage_path,
+            candidate.url,
+            candidate.publicUrl,
+          ) === key,
+      ) === index
+    );
+  });
+  if (uniqueGenericImages.length) return uniqueGenericImages;
+
   const post = channelPostRecord(action, channelKey);
   const directCandidates = [
     post?.media,
@@ -483,13 +518,6 @@ export function getPublishMediaRecords(
     .map((candidate) => publishMediaRecord(candidate))
     .find(Boolean);
   if (direct) return [direct];
-
-  const genericImages = Array.isArray(publishPayloadValue(action, "images"))
-    ? (publishPayloadValue(action, "images") as unknown[])
-        .map((item) => publishMediaRecord(item))
-        .filter((item): item is Record<string, unknown> => Boolean(item))
-    : [];
-  if (genericImages.length) return genericImages;
 
   const fallback = extractImageAsset(action);
   const fallbackRecord = publishMediaRecord(fallback);
@@ -732,6 +760,7 @@ export function extractPublishCtaLine(
     payload.buttonText,
   );
   const ctaUrl = firstSafeString(
+    preview?.ctaUrl,
     post?.ctaUrl,
     post?.cta_url,
     post?.buttonUrl,
@@ -745,7 +774,19 @@ export function extractPublishCtaLine(
     payload.link,
     payload.href,
   );
+  const ctaPhone = firstSafeString(
+    preview?.ctaPhone,
+    post?.ctaPhone,
+    post?.cta_phone,
+    post?.phone,
+    post?.phoneNumber,
+    payload.ctaPhone,
+    payload.cta_phone,
+    payload.phone,
+    payload.phoneNumber,
+  );
 
   if (ctaLabel && ctaUrl) return `${ctaLabel} — ${ctaUrl}`;
-  return ctaLabel || ctaUrl || "—";
+  if (ctaLabel && ctaPhone) return `${ctaLabel} — ${ctaPhone}`;
+  return ctaLabel || ctaUrl || ctaPhone || "—";
 }

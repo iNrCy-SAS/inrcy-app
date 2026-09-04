@@ -16,6 +16,12 @@
     "openMenu": "Abrir menú",
     "menu": "Menu"
   },
+  "quickNavigation": {
+    "tools": "Herramientas principales",
+    "goToTools": "Ir a las herramientas principales",
+    "top": "Volver al Generador",
+    "goToTop": "Volver al Generador iNrCy"
+  },
   "language": {
     "buttonAria": "Cambiar idioma",
     "buttonTitle": "Idioma app",
@@ -215,6 +221,16 @@
     "boosterSub": "Activa canales",
     "publishTitle": "Booster",
     "publishCta": "Publicar",
+    "agentTitle": "iNrAgent",
+    "agentSub": "Programa tus publicaciones",
+    "agentCta": "Gestionar",
+    "campaignsTitle": "Campañas",
+    "campaignsSub": "Crece y fideliza",
+    "campaignsCta": "Elegir",
+    "campaignsModalTitle": "Campañas",
+    "campaignsModalLabel": "Captación y fidelización",
+    "campaignsModalIntroStrong": "Elige tu objetivo.",
+    "campaignsModalIntroText": "Impulsar y Fidelizar conservan sus propios ajustes y funcionamiento.",
     "propulserTitle": "Impulsar",
     "propulserSub": "Acelera tu actividad",
     "propulserCta": "Crecer",
@@ -410,6 +426,11 @@
     "boosterLine2": "en un solo paso.",
     "boosterCta": "Crear una publicación",
     "boosterSummaryAria": "Abrir el balance general Booster",
-    "boosterSummary": "Balance general"
+    "boosterSummary": "Balance general",
+    "agentEyebrow": "Comunicación autónoma",
+    "agentLine1": "Programa tus publicaciones",
+    "agentLine2": "con tu agente de IA.",
+    "agentPlanning": "Planificación",
+    "agentCta": "Pilotaje"
   }
 }

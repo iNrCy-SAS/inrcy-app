@@ -93,6 +93,30 @@ export function PencilActionIcon() {
   );
 }
 
+export function SaveActionIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden>
+      <path d="M5 4h11l3 3v13H5V4Z" />
+      <path d="M8 4v6h8V4" />
+      <path d="M8 20v-6h8v6" />
+    </svg>
+  );
+}
+
+export function NavigationChevronIcon({
+  direction,
+}: {
+  direction: "left" | "right";
+}) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden>
+      <path
+        d={direction === "left" ? "m14.5 5-7 7 7 7" : "m9.5 5 7 7-7 7"}
+      />
+    </svg>
+  );
+}
+
 export function ValidateActionIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden>

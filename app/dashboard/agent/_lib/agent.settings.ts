@@ -424,6 +424,7 @@ export function settingsToConfigs(
             ? source.metadata.signatureAutomatic
             : true,
         preferredMediaSource: source.preferredMediaSource,
+        planningHorizonDays: source.planningHorizonDays,
       };
 
       return [automation.key, config];
@@ -450,6 +451,7 @@ export function configToAutomationSettings(
   const nextMetadata = {
     ...metadataWithoutScheduleSlots,
     preferredMediaSource: config.preferredMediaSource,
+    planningHorizonDays: config.planningHorizonDays,
     ...(key === "grow" || key === "loyalty"
       ? { signatureAutomatic: config.signatureAutomatic }
       : {}),
@@ -497,6 +499,10 @@ export function configToAutomationSettings(
       key === "publish"
         ? config.preferredMediaSource
         : (existing.preferredMediaSource as InrAgentPreferredMediaSource),
+    planningHorizonDays:
+      key === "publish"
+        ? config.planningHorizonDays
+        : existing.planningHorizonDays,
     recipientScope:
       key === "grow" ? "all_crm" : key === "loyalty" ? "clients" : "none",
     sourceStrategy:

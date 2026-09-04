@@ -93,6 +93,7 @@ export function rowToInrAgentScheduledAction(row: DbInrAgentScheduledActionRow):
 }
 
 export function scheduledActionToDbRow(args: {
+  id?: string;
   userId: string;
   automationKey?: InrAgentAutomationKey | null;
   actionType?: InrAgentActionType;
@@ -106,6 +107,7 @@ export function scheduledActionToDbRow(args: {
   payload?: InrAgentScheduledActionPayload;
 }) {
   return {
+    ...(args.id ? { id: args.id } : {}),
     user_id: args.userId,
     automation_key: args.automationKey || null,
     action_type: args.actionType || "custom",

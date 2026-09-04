@@ -12,6 +12,7 @@ import useMediaGeneration, {
   type MediaGenerationInspirationImage,
   type MediaGenerationKind,
   type MediaGenerationLogoMode,
+  type MediaGenerationNarrationVoice,
   type MediaGenerationPeopleMode,
   type MediaGenerationResult,
   type MediaGenerationShotType,
@@ -253,6 +254,8 @@ export default function MediaGenerator({
   const [textKeywordDraft, setTextKeywordDraft] = useState("");
   const [withMusic, setWithMusic] = useState(true);
   const [withNarration, setWithNarration] = useState(true);
+  const [narrationVoice, setNarrationVoice] =
+    useState<MediaGenerationNarrationVoice>("female");
   const [inspirationImages, setInspirationImages] =
     useState<MediaGenerationInspirationImage[]>([]);
   const [inspirationBusy, setInspirationBusy] = useState(false);
@@ -394,6 +397,8 @@ export default function MediaGenerator({
         textKeywords: resolvedTextKeywords,
         withMusic: kind === "video" ? withMusic : undefined,
         withNarration: kind === "video" ? withNarration : undefined,
+        narrationVoice:
+          kind === "video" && withNarration ? narrationVoice : undefined,
         format,
         typology,
         visualStyle,
@@ -1114,7 +1119,9 @@ export default function MediaGenerator({
                     duration: durationSeconds,
                     text: t(withText ? "ai_generator_with_text" : "ai_generator_without_text"),
                     music: t(withMusic ? "ai_generator_with_music" : "ai_generator_without_music"),
-                    narration: t(withNarration ? "ai_generator_with_narration" : "ai_generator_without_narration"),
+                    narration: withNarration
+                      ? `${t("ai_generator_with_narration")} · ${t(`ai_generator_narration_voice_${narrationVoice}`)}`
+                      : t("ai_generator_without_narration"),
                   })
                 : withText && resolvedTextKeywords.length
                   ? t("ai_generator_options_summary_text_keywords", {
@@ -1220,14 +1227,42 @@ export default function MediaGenerator({
               </div>
             ) : null}
             {kind === "video" ? (
-              <label className={styles.switchRow}>
-                <span>
-                  <strong>{t("ai_generator_narration")}</strong>
-                  <small>{t("ai_generator_narration_hint")}</small>
-                </span>
-                <input type="checkbox" checked={withNarration} onChange={(event) => setWithNarration(event.target.checked)} />
-                <i aria-hidden="true" />
-              </label>
+              <div className={styles.narrationControl}>
+                <label className={styles.switchRow}>
+                  <span>
+                    <strong>{t("ai_generator_narration")}</strong>
+                    <small>{t("ai_generator_narration_hint")}</small>
+                  </span>
+                  <input type="checkbox" checked={withNarration} onChange={(event) => setWithNarration(event.target.checked)} />
+                  <i aria-hidden="true" />
+                </label>
+                {withNarration ? (
+                  <div className={styles.narrationVoicePicker}>
+                    <span>{t("ai_generator_narration_voice_label")}</span>
+                    <div
+                      className={`${styles.parameterChoices} ${styles.twoChoices}`}
+                      role="radiogroup"
+                      aria-label={t("ai_generator_narration_voice_label")}
+                    >
+                      {(["female", "male"] as const).map((voice) => (
+                        <button
+                          key={voice}
+                          type="button"
+                          role="radio"
+                          aria-checked={narrationVoice === voice}
+                          className={narrationVoice === voice ? styles.compactChoiceActive : ""}
+                          onClick={() => setNarrationVoice(voice)}
+                          disabled={operationLocked}
+                        >
+                          {voice === "female"
+                            ? t("ai_generator_narration_voice_female")
+                            : t("ai_generator_narration_voice_male")}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
             ) : null}
             {kind === "video" ? (
               <label className={styles.switchRow}>

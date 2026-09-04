@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
+import dynamic from "next/dynamic";
+import { useEffect, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 
@@ -9,6 +10,11 @@ import styles from "../dashboard.module.css";
 import RequiredSetupLock from "./RequiredSetupLock";
 import { requestDashboardToolWarmup } from "./DashboardToolWarmup";
 import standardStyles from "./DashboardStandardModulesCard.module.css";
+
+const DashboardAgentPlanningModal = dynamic(
+  () => import("../agent/_components/DashboardAgentPlanningModal"),
+  { ssr: false },
+);
 
 type Props = {
   goToModule: (path: string) => void;
@@ -41,6 +47,16 @@ function BoosterIcon() {
   );
 }
 
+function PlanningIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="3.5" y="5.5" width="17" height="15" rx="3" />
+      <path d="M7.5 3.5v4M16.5 3.5v4M3.5 10h17" />
+      <path d="m8 15 2.2 2.2L16 12.7" />
+    </svg>
+  );
+}
+
 export default function DashboardStandardModulesCard({
   goToModule,
   onOpenStats,
@@ -54,6 +70,7 @@ export default function DashboardStandardModulesCard({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { pendingKey, beginAction, completeAction, isVisible } = useDelayedPendingAction<string>();
+  const [agentPlanningOpen, setAgentPlanningOpen] = useState(false);
   const requiredSetupLocked = requiredSetupLockVisible;
   const requiredSetupLockMessage = modulesT("requiredSetupLocked");
 
@@ -101,6 +118,7 @@ export default function DashboardStandardModulesCard({
   const statsPath = "/dashboard/stats";
   const publicationsPath = "/dashboard/mails?folder=publications&boxView=sent";
   const reputationPath = "/dashboard/e-reputation";
+  const agentPath = "/dashboard/agent";
 
   return (
     <div className={styles.lowerRow} data-dashboard-standard-lower-blocks="true">
@@ -175,6 +193,7 @@ export default function DashboardStandardModulesCard({
         </div>
       </section>
 
+      <div className={standardStyles.standardActionStack}>
       <section className={`${styles.blockCard} ${standardStyles.panel} ${standardStyles.boosterPanel}`}>
         <span className={standardStyles.boosterGrid} aria-hidden="true" />
         <span className={standardStyles.boosterOrbit} aria-hidden="true" />
@@ -225,6 +244,64 @@ export default function DashboardStandardModulesCard({
           <b>{t("boosterSummary")}</b>
         </button>
       </section>
+
+      <section className={`${styles.blockCard} ${standardStyles.panel} ${standardStyles.agentPanel}`}>
+        <span className={standardStyles.agentGlow} aria-hidden="true" />
+        <span className={standardStyles.agentMesh} aria-hidden="true" />
+        <span className={standardStyles.agentOrbit} aria-hidden="true" />
+        <span className={standardStyles.agentNodeOne} aria-hidden="true" />
+        <span className={standardStyles.agentNodeTwo} aria-hidden="true" />
+        <span className={standardStyles.agentLogo} aria-hidden="true">
+          <img src="/icons/inr-agent-header.png" alt="" />
+        </span>
+        <div className={standardStyles.agentCopy}>
+          <span>{t("agentEyebrow")}</span>
+              <h3>{i18nT("inr_agent_e5261e85")}</h3>
+          <p>{t("agentLine1")} <strong>{t("agentLine2")}</strong></p>
+        </div>
+        <span className={`${standardStyles.agentActions} ${requiredSetupLocked ? standardStyles.agentActionsLocked : ""}`.trim()}>
+          {requiredSetupLocked ? (
+            <RequiredSetupLock
+              message={requiredSetupLockMessage}
+              className={standardStyles.agentCtaLock}
+              compact
+            />
+          ) : null}
+          <button
+            className={standardStyles.agentPlanningButton}
+            type="button"
+            data-testid="standard-agent-planning"
+            onClick={requiredSetupLocked ? undefined : () => setAgentPlanningOpen(true)}
+            disabled={requiredSetupLocked}
+            aria-disabled={requiredSetupLocked || undefined}
+            title={requiredSetupLocked ? requiredSetupLockMessage : undefined}
+          >
+            <PlanningIcon /> {t("agentPlanning")}
+          </button>
+          <button
+            className={standardStyles.agentPilotButton}
+            type="button"
+            data-testid="standard-agent-pilotage"
+            data-dashboard-prefetch={agentPath}
+            onClick={requiredSetupLocked ? undefined : () => startModuleNavigation(agentPath)}
+            disabled={requiredSetupLocked || isVisible(`route:${agentPath}`)}
+            aria-disabled={requiredSetupLocked || undefined}
+            aria-busy={!requiredSetupLocked && isVisible(`route:${agentPath}`) ? true : undefined}
+            title={requiredSetupLocked ? requiredSetupLockMessage : undefined}
+          >
+            {!requiredSetupLocked && isVisible(`route:${agentPath}`) ? t("loading") : t("agentCta")} <ArrowIcon />
+          </button>
+        </span>
+      </section>
+
+      {agentPlanningOpen ? (
+        <DashboardAgentPlanningModal
+          open
+          onClose={() => setAgentPlanningOpen(false)}
+          onManage={() => startModuleNavigation(agentPath)}
+        />
+      ) : null}
+      </div>
     </div>
   );
 }

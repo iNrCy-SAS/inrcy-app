@@ -36,7 +36,10 @@ test("the lock only explains the block and never redirects to a settings panel",
 
 test("desktop modules integrate locks into COMS and every gearbox title", () => {
   assert.match(modulesSource, /requiredSetupLockLoopBadge/);
-  assert.equal((modulesSource.match(/renderGearTitle\(t\.modules\./g) || []).length >= 5, true);
+  assert.equal((modulesSource.match(/renderGearTitle\(t\.modules\./g) || []).length, 4);
+  for (const title of ["publishTitle", "agentTitle", "campaignsTitle", "reputationTitle"]) {
+    assert.match(modulesSource, new RegExp(`t\\.modules\\.${title}`));
+  }
   assert.match(modulesSource, /t\.modules\.reputationTitle/);
   assert.match(modulesSource, /t\.modules\.requiredSetupLocked/);
 });

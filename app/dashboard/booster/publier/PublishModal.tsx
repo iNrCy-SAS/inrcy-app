@@ -2173,7 +2173,7 @@ export default function PublishModal({
     ).trim();
     return (
       message ||
-      "La vidéo n’est pas encore prête pour tous les réseaux. Réessayez dans quelques instants."
+      i18nT("la_video_n_est_pas_encore_12c45cc8")
     );
   }
 
@@ -2738,7 +2738,7 @@ export default function PublishModal({
     let cancelled = false;
 
     const loadPublicationDraft = async () => {
-      setDraftMessage("Chargement du brouillon…");
+      setDraftMessage(i18nT("chargement_du_brouillon_4c123bfd"));
       setPublishError("");
       try {
         const response = await fetch(
@@ -3015,7 +3015,7 @@ export default function PublishModal({
         setImageMetaByKey(restoredMeta);
         setChannelImageEditors(nextEditors);
         setLoadedPublicationDraftId(publicationDraftIdParam);
-        setDraftMessage("Brouillon chargé");
+        setDraftMessage(i18nT("brouillon_charge_f9b9174c"));
 
         const imageNames = restoredFiles.map((file) => ({
           name: file.name,
@@ -5729,7 +5729,7 @@ export default function PublishModal({
       }
       setLastPublicationDraftSnapshot(currentPublicationDraftSnapshot);
       onUnsavedChange?.(false);
-      setDraftMessage("Brouillon enregistré");
+      setDraftMessage(i18nT("brouillon_enregistre_5b3c3ae3"));
     } catch (e) {
       setPublishError(
         getSimpleFrenchErrorMessage(e, i18nT("publication_draft_save_failed")),

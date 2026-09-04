@@ -1,5 +1,11 @@
 import { useLocale, useTranslations } from "next-intl";
-import { useEffect, useMemo, useState, type ComponentProps } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentProps,
+} from "react";
 import MediaLibraryPickerModal from "../../_components/MediaLibraryPickerModal";
 import styles from "../agent.module.css";
 import { channelOptions } from "../_lib/agent.config";
@@ -760,7 +766,7 @@ function scheduleDayKey(date: Date) {
 function groupScheduleItems(items: ScheduleListItem[]) {
   const groups = new Map<string, ScheduleCalendarGroup>();
   items.forEach((item) => {
-    if (["refused", "cancelled"].includes(item.statusKey || "")) return;
+    if (item.statusKey === "cancelled") return;
     const date = scheduleItemLocalDate(item);
     if (!date) return;
     const dayKey = scheduleDayKey(date);
@@ -795,14 +801,22 @@ function groupScheduleItems(items: ScheduleListItem[]) {
 }
 
 function scheduleApprovalState(item: ScheduleListItem) {
-  if (scheduleFilterKey(item) === "stats") return "approved";
-  return item.source === "manual" ? "approved" : "pending";
+  if (item.statusKey === "refused") return "refused";
+  if (scheduleFilterKey(item) === "stats" || item.source === "manual") {
+    return "approved";
+  }
+  return ["validated", "completed", "done"].includes(item.statusKey || "")
+    ? "approved"
+    : "pending";
 }
 
 type AgentScheduleModalProps = {
   open: boolean;
   items: ScheduleListItem[];
   mutationState: "idle" | "saving";
+  loading?: boolean;
+  readOnly?: boolean;
+  showCampaigns?: boolean;
   onClose: () => void;
   onOpenContent: (item: ScheduleListItem) => void;
   onReschedule: (item: ScheduleListItem) => void;
@@ -813,6 +827,9 @@ export function AgentScheduleModal({
   open,
   items,
   mutationState,
+  loading = false,
+  readOnly = false,
+  showCampaigns = true,
   onClose,
   onOpenContent,
   onReschedule,
@@ -822,9 +839,16 @@ export function AgentScheduleModal({
   const locale = useLocale();
   const [activeFilters, setActiveFilters] = useState(DEFAULT_SCHEDULE_FILTERS);
   const [nowTimestamp, setNowTimestamp] = useState(() => Date.now());
+  const eligibleItems = useMemo(
+    () =>
+      showCampaigns
+        ? items
+        : items.filter((item) => scheduleFilterKey(item) !== "campaigns"),
+    [items, showCampaigns]
+  );
   const initialMonth = useMemo(() => {
     const now = new Date();
-    const datedItems = items
+    const datedItems = eligibleItems
       .map(scheduleItemLocalDate)
       .filter((value): value is Date => Boolean(value))
       .sort((a, b) => a.getTime() - b.getTime());
@@ -833,7 +857,7 @@ export function AgentScheduleModal({
     );
     const anchor = firstUpcoming || datedItems[0] || now;
     return new Date(anchor.getFullYear(), anchor.getMonth(), 1);
-  }, [items]);
+  }, [eligibleItems]);
   const [visibleMonth, setVisibleMonth] = useState(initialMonth);
   const [visibleHalf, setVisibleHalf] = useState<1 | 2>(() => {
     const now = new Date();
@@ -843,24 +867,25 @@ export function AgentScheduleModal({
       ? 2
       : 1;
   });
+  const wasOpenRef = useRef(false);
   const visiblePeriodItems = useMemo(() => {
     const year = visibleMonth.getFullYear();
     const month = visibleMonth.getMonth();
     const firstDay = visibleHalf === 1 ? 1 : 16;
     const finalDay =
       visibleHalf === 1 ? 15 : new Date(year, month + 1, 0).getDate();
-    return items.filter((item) => {
+    return eligibleItems.filter((item) => {
       const date = scheduleItemLocalDate(item);
       return Boolean(
         date &&
-          date.getTime() >= nowTimestamp &&
+          (date.getTime() >= nowTimestamp || item.statusKey === "refused") &&
           date.getFullYear() === year &&
           date.getMonth() === month &&
           date.getDate() >= firstDay &&
           date.getDate() <= finalDay
       );
     });
-  }, [items, nowTimestamp, visibleHalf, visibleMonth]);
+  }, [eligibleItems, nowTimestamp, visibleHalf, visibleMonth]);
   const filterCounts = useMemo(
     () => ({
       publications: groupScheduleItems(
@@ -892,7 +917,9 @@ export function AgentScheduleModal({
   );
 
   useEffect(() => {
-    if (!open) return;
+    const justOpened = open && !wasOpenRef.current;
+    wasOpenRef.current = open;
+    if (!justOpened) return;
     setNowTimestamp(Date.now());
     setVisibleMonth(initialMonth);
     const now = new Date();
@@ -958,7 +985,9 @@ export function AgentScheduleModal({
   }> = [
     { key: "publications", label: i18nT("planning_filter_publications") },
     { key: "stats", label: i18nT("planning_filter_stats") },
-    { key: "campaigns", label: i18nT("planning_filter_campaigns") },
+    ...(showCampaigns
+      ? [{ key: "campaigns" as const, label: i18nT("planning_filter_campaigns") }]
+      : []),
   ];
 
   const moveMonth = (offset: number) => {
@@ -1042,7 +1071,7 @@ export function AgentScheduleModal({
         </div>
 
         <section className={styles.scheduleSection}>
-          {items.length > 0 ? (
+          {eligibleItems.length > 0 ? (
             <div className={styles.scheduleCalendarShell}>
               <div
                 className={styles.scheduleFilters}
@@ -1132,6 +1161,12 @@ export function AgentScheduleModal({
                               const channels = channelLabels.join(" · ");
                               const category = scheduleFilterKey(item);
                               const approvalState = scheduleApprovalState(item);
+                              const approvalLabelKey =
+                                approvalState === "approved"
+                                  ? "planning_status_approved"
+                                  : approvalState === "refused"
+                                    ? "planning_status_refused"
+                                    : "planning_status_pending";
                               return (
                                 <article
                                   key={group.key}
@@ -1151,82 +1186,96 @@ export function AgentScheduleModal({
                                         styles.scheduleCalendarCardControls
                                       }
                                     >
-                                      <button
-                                        type="button"
-                                        className={styles.scheduleIconButton}
-                                        onClick={() => onOpenContent(item)}
-                                        disabled={mutationState === "saving"}
-                                        aria-label={i18nT("edit_content")}
-                                        title={i18nT("edit_content")}
-                                      >
-                                        <svg
-                                          viewBox="0 0 24 24"
-                                          aria-hidden="true"
-                                        >
-                                          <path d="M4 20h4.2L19 9.2 14.8 5 4 15.8V20Z" />
-                                          <path d="m13.8 6 4.2 4.2" />
-                                        </svg>
-                                      </button>
-                                      <button
-                                        type="button"
-                                        className={styles.scheduleIconButton}
-                                        onClick={() => onReschedule(item)}
-                                        disabled={
-                                          !item.editable ||
-                                          mutationState === "saving"
-                                        }
-                                        aria-label={i18nT(
-                                          "modifier_la_programmation_2bdd7cdc"
-                                        )}
-                                        title={i18nT(
-                                          "modifier_la_programmation_2bdd7cdc"
-                                        )}
-                                      >
-                                        <svg
-                                          viewBox="0 0 24 24"
-                                          aria-hidden="true"
-                                        >
-                                          <circle cx="12" cy="12" r="8" />
-                                          <path d="M12 8v5l3 2" />
-                                        </svg>
-                                      </button>
-                                      <button
-                                        type="button"
-                                        className={`${styles.scheduleIconButton} ${styles.scheduleIconDanger}`}
-                                        onClick={() => onDelete(item)}
-                                        disabled={
-                                          !item.removable ||
-                                          mutationState === "saving"
-                                        }
-                                        aria-label={i18nT("supprimer_1acfc1c7")}
-                                        title={i18nT("supprimer_1acfc1c7")}
-                                      >
-                                        <svg
-                                          viewBox="0 0 24 24"
-                                          aria-hidden="true"
-                                        >
-                                          <path d="M5 7h14" />
-                                          <path d="M9 7V4h6v3" />
-                                          <path d="m7 7 1 13h8l1-13" />
-                                          <path d="M10 11v5M14 11v5" />
-                                        </svg>
-                                      </button>
+                                      {!readOnly ? (
+                                        <>
+                                          <button
+                                            type="button"
+                                            className={styles.scheduleIconButton}
+                                            onClick={() => onOpenContent(item)}
+                                            disabled={
+                                              mutationState === "saving" ||
+                                              (item.source === "editorial" &&
+                                                !item.contentReady)
+                                            }
+                                            aria-label={
+                                              item.source === "editorial" &&
+                                              !item.contentReady
+                                                ? i18nT(
+                                                    "preparation_en_cours_28379fdb"
+                                                  )
+                                                : i18nT("edit_content")
+                                            }
+                                            title={
+                                              item.source === "editorial" &&
+                                              !item.contentReady
+                                                ? i18nT(
+                                                    "preparation_en_cours_28379fdb"
+                                                  )
+                                                : i18nT("edit_content")
+                                            }
+                                          >
+                                            <svg
+                                              viewBox="0 0 24 24"
+                                              aria-hidden="true"
+                                            >
+                                              <path d="M4 20h4.2L19 9.2 14.8 5 4 15.8V20Z" />
+                                              <path d="m13.8 6 4.2 4.2" />
+                                            </svg>
+                                          </button>
+                                          <button
+                                            type="button"
+                                            className={styles.scheduleIconButton}
+                                            onClick={() => onReschedule(item)}
+                                            disabled={
+                                              !item.editable ||
+                                              mutationState === "saving"
+                                            }
+                                            aria-label={i18nT(
+                                              "modifier_la_programmation_2bdd7cdc"
+                                            )}
+                                            title={i18nT(
+                                              "modifier_la_programmation_2bdd7cdc"
+                                            )}
+                                          >
+                                            <svg
+                                              viewBox="0 0 24 24"
+                                              aria-hidden="true"
+                                            >
+                                              <circle cx="12" cy="12" r="8" />
+                                              <path d="M12 8v5l3 2" />
+                                            </svg>
+                                          </button>
+                                          <button
+                                            type="button"
+                                            className={`${styles.scheduleIconButton} ${styles.scheduleIconDanger}`}
+                                            onClick={() => onDelete(item)}
+                                            disabled={
+                                              !item.removable ||
+                                              mutationState === "saving"
+                                            }
+                                            aria-label={i18nT("supprimer_1acfc1c7")}
+                                            title={i18nT("supprimer_1acfc1c7")}
+                                          >
+                                            <svg
+                                              viewBox="0 0 24 24"
+                                              aria-hidden="true"
+                                            >
+                                              <path d="M5 7h14" />
+                                              <path d="M9 7V4h6v3" />
+                                              <path d="m7 7 1 13h8l1-13" />
+                                              <path d="M10 11v5M14 11v5" />
+                                            </svg>
+                                          </button>
+                                        </>
+                                      ) : null}
                                       <span
                                         className={
                                           styles.scheduleApprovalIndicator
                                         }
                                         data-state={approvalState}
                                         role="img"
-                                        aria-label={i18nT(
-                                          approvalState === "approved"
-                                            ? "planning_status_approved"
-                                            : "planning_status_pending"
-                                        )}
-                                        title={i18nT(
-                                          approvalState === "approved"
-                                            ? "planning_status_approved"
-                                            : "planning_status_pending"
-                                        )}
+                                        aria-label={i18nT(approvalLabelKey)}
+                                        title={i18nT(approvalLabelKey)}
                                       />
                                     </span>
                                   </div>
@@ -1279,7 +1328,9 @@ export function AgentScheduleModal({
             </div>
           ) : (
             <p className={styles.scheduleEmpty}>
-              {i18nT("aucune_action_programmee_a_venir_a0bce831")}
+              {loading
+                ? i18nT("synchronisation_60a2d2da")
+                : i18nT("aucune_action_programmee_a_venir_a0bce831")}
             </p>
           )}
         </section>

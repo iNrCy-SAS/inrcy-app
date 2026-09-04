@@ -50,7 +50,7 @@ export const BOOSTER_CHANNEL_CONTENT_RULES: Record<
   inr_search: {
     short: { min: 90, max: 140 },
     medium: { min: 150, max: 210 },
-    detailed: { min: 220, max: 270 },
+    detailed: { min: 230, max: 290 },
     max: 300,
   },
   gmb: {
@@ -68,8 +68,8 @@ export const BOOSTER_CHANNEL_CONTENT_RULES: Record<
   instagram: {
     short: { min: 150, max: 280 },
     medium: { min: 300, max: 500 },
-    detailed: { min: 550, max: 850 },
-    max: 1100,
+    detailed: { min: 620, max: 950 },
+    max: 1200,
   },
   linkedin: {
     short: { min: 350, max: 600 },
@@ -80,8 +80,8 @@ export const BOOSTER_CHANNEL_CONTENT_RULES: Record<
   tiktok: {
     short: { min: 80, max: 150 },
     medium: { min: 160, max: 300 },
-    detailed: { min: 320, max: 550 },
-    max: 700,
+    detailed: { min: 380, max: 650 },
+    max: 800,
   },
   youtube_shorts: {
     short: { min: 300, max: 500 },
@@ -92,8 +92,8 @@ export const BOOSTER_CHANNEL_CONTENT_RULES: Record<
   pinterest: {
     short: { min: 100, max: 160 },
     medium: { min: 180, max: 260 },
-    detailed: { min: 280, max: 360 },
-    max: 400,
+    detailed: { min: 320, max: 460 },
+    max: 520,
   },
 };
 

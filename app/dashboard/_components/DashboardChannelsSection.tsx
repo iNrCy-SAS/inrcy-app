@@ -11,6 +11,11 @@ import DashboardFluxBubble, { type DashboardFluxBubbleData } from "./DashboardFl
 import DashboardModulesCard from "./DashboardModulesCard";
 import DashboardStandardModulesCard from "./DashboardStandardModulesCard";
 import { useDashboardI18n } from "../_hooks/useDashboardI18n";
+import {
+  DASHBOARD_TOOLS_ANCHOR_ID,
+  DASHBOARD_TOP_ANCHOR_ID,
+  scrollToDashboardAnchor,
+} from "../dashboard.scroll";
 
 type DashboardPanelName =
   | "contact"
@@ -704,26 +709,44 @@ export default function DashboardChannelsSection({
         </>
       )}
 
-      {standardMode ? (
-        <DashboardStandardModulesCard
-          goToModule={goToModule}
-          onOpenStats={onOpenStats}
-          onOpenBoosterPublish={onOpenBoosterPublish}
-          onOpenBoosterStats={onOpenBoosterStats}
-          requiredSetupLockVisible={requiredSetupLockVisible}
-        />
-      ) : (
-        <DashboardModulesCard
-          goToModule={goToModule}
-          openPanel={openPanel}
-          requiredSetupAccessAllowed={requiredSetupAccessAllowed}
-          requiredSetupLockVisible={requiredSetupLockVisible}
-          onRequiredSetupBlocked={onRequiredSetupBlocked}
-          onOpenStats={onOpenStats}
-          onOpenBoosterPublish={onOpenBoosterPublish}
-          onOpenBoosterStats={onOpenBoosterStats}
-        />
-      )}
+      <div id={DASHBOARD_TOOLS_ANCHOR_ID} className={styles.dashboardToolsAnchor}>
+        {standardMode ? (
+          <DashboardStandardModulesCard
+            goToModule={goToModule}
+            onOpenStats={onOpenStats}
+            onOpenBoosterPublish={onOpenBoosterPublish}
+            onOpenBoosterStats={onOpenBoosterStats}
+            requiredSetupLockVisible={requiredSetupLockVisible}
+          />
+        ) : (
+          <DashboardModulesCard
+            goToModule={goToModule}
+            openPanel={openPanel}
+            requiredSetupAccessAllowed={requiredSetupAccessAllowed}
+            requiredSetupLockVisible={requiredSetupLockVisible}
+            onRequiredSetupBlocked={onRequiredSetupBlocked}
+            onOpenStats={onOpenStats}
+            onOpenBoosterPublish={onOpenBoosterPublish}
+            onOpenBoosterStats={onOpenBoosterStats}
+          />
+        )}
+
+        <div className={`${styles.dashboardQuickJumpRow} ${styles.dashboardQuickJumpReturnRow}`}>
+          <button
+            type="button"
+            className={`${styles.dashboardQuickJump} ${styles.dashboardQuickJumpUp}`}
+            onClick={() => scrollToDashboardAnchor(DASHBOARD_TOP_ANCHOR_ID)}
+            aria-label={t.quickNavigation.goToTop}
+            title={t.quickNavigation.goToTop}
+          >
+            <span className={styles.dashboardQuickJumpShine} aria-hidden="true" />
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 20V5m0 0-6 6m6-6 6 6" />
+            </svg>
+            <span className={styles.dashboardQuickJumpLabel}>{t.quickNavigation.top}</span>
+          </button>
+        </div>
+      </div>
     </section>
   );
 }

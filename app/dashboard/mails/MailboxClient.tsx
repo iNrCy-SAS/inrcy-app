@@ -217,13 +217,25 @@ function mailboxHistoryCountsKey(context: MailboxHistoryContext) {
   return `account=${encodeURIComponent(context.filterAccountId)}|q=${encodeURIComponent(context.query)}`;
 }
 
-export default function MailboxClient({ standardMode = false }: { standardMode?: boolean }) {
+export default function MailboxClient({
+  standardMode = false,
+  founderMode = false,
+}: {
+  standardMode?: boolean;
+  founderMode?: boolean;
+}) {
   const i18nT = useTranslations("mails");
   const locale = useLocale();
   const [helpOpen, setHelpOpen] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = useMemo(() => createClient(), []);
+  const visibleFolders = useMemo(
+    () => founderMode
+      ? ALL_FOLDERS
+      : ALL_FOLDERS.filter((candidate) => candidate !== "factures" && candidate !== "devis"),
+    [founderMode],
+  );
 
   const [mobileFoldersOpen, setMobileFoldersOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -1087,7 +1099,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
 
     try {
       const nextType: SendType =
-        raw.type === "facture" || raw.type === "devis" ? raw.type : "mail";
+        founderMode && (raw.type === "facture" || raw.type === "devis") ? raw.type : "mail";
       const track = inferTrackFromCampaign(item);
       const recipients =
         mode === "resend"
@@ -1104,9 +1116,9 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
       setDraftId(null);
       setComposeType(nextType);
       setComposeTemplateKey(String(raw.template_key || ""));
-      setComposeSourceDocSaveId(String(raw.source_doc_save_id || ""));
+      setComposeSourceDocSaveId(founderMode ? String(raw.source_doc_save_id || "") : "");
       setComposeSourceDocType(
-        raw.source_doc_type === "facture" || raw.source_doc_type === "devis"
+        founderMode && (raw.source_doc_type === "facture" || raw.source_doc_type === "devis")
           ? raw.source_doc_type
           : "",
       );
@@ -2552,8 +2564,16 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
       suivis: "fidelisations",
       enquetes: "fidelisations",
     };
-    if (q && allowed[q]) setFolder(allowed[q]);
-  }, [searchParams, signatureEnabled, signaturePreview, standardMode]);
+    const nextFolder = q ? allowed[q] : null;
+    if (nextFolder === "factures" || nextFolder === "devis") {
+      if (!founderMode) {
+        setFolder("publications");
+        router.replace("/dashboard/mails?folder=publications", { scroll: false });
+        return;
+      }
+    }
+    if (nextFolder) setFolder(nextFolder);
+  }, [founderMode, router, searchParams, signatureEnabled, signaturePreview, standardMode]);
 
   // Open compose + prefill basic fields from URL params.
   // Used by:
@@ -2650,6 +2670,18 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
     )
       nextType = "facture";
     else if (attachKey.includes("/devis/")) nextType = "devis";
+    if (
+      !founderMode &&
+      (
+        nextType === "facture" ||
+        nextType === "devis" ||
+        sourceDocTypeParam === "facture" ||
+        sourceDocTypeParam === "devis"
+      )
+    ) {
+      router.replace("/dashboard/mails", { scroll: false });
+      return;
+    }
     setComposeType(nextType);
     setComposeSourceDocSaveId(sourceDocSaveIdParam);
     setComposeSourceDocType(
@@ -2756,7 +2788,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
     };
 
     void run();
-  }, [searchParams, signatureEnabled, signaturePreview, standardMode]);
+  }, [founderMode, router, searchParams, signatureEnabled, signaturePreview, standardMode]);
 
   // Prefill compose modal from workflow modules (Booster / Propulser / Fidéliser).
   // Usage:
@@ -3097,6 +3129,13 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
       setBoxView("sent");
       setSelectedId(null);
       router.replace("/dashboard/mails?folder=publications");
+      return;
+    }
+    if (!founderMode && (next === "factures" || next === "devis")) {
+      setFolder("publications");
+      setBoxView("sent");
+      setSelectedId(null);
+      router.replace("/dashboard/mails?folder=publications", { scroll: false });
       return;
     }
     setFolder(next);
@@ -5166,6 +5205,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
       <div className={styles.wrap}>
         <MailboxHeader
           standardMode={standardMode}
+          founderMode={founderMode}
           helpOpen={helpOpen}
           settingsOpen={settingsOpen}
           onOpenHelp={() => setHelpOpen(true)}
@@ -5180,6 +5220,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
 
         {!standardMode ? (
           <MobileFoldersMenu
+            folders={visibleFolders}
             open={mobileFoldersOpen}
             folder={folder}
             counts={counts}
@@ -5193,6 +5234,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
           <div className={`${styles.card} ${styles.listCard}`}>
             {!standardMode ? (
               <FolderTabs
+                folders={visibleFolders}
                 folder={folder}
                 counts={counts}
                 countsLoading={!historyCountsLoadedOnce}
@@ -5253,6 +5295,7 @@ export default function MailboxClient({ standardMode = false }: { standardMode?:
         </div>
 
         <MailboxDetailsModal
+          documentsEnabled={founderMode}
           open={detailsOpen}
           onClose={() => setDetailsOpen(false)}
           detailsItem={detailsItem}

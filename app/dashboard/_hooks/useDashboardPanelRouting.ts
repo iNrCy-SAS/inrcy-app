@@ -35,12 +35,6 @@ export type DashboardPanelName =
 
 const PANEL_RETURN_QUERY_KEYS = ["linked", "ok", "error", "message", "warning", "toast", "activated", "skipped", "panelSource", "profileSection", "premium"];
 
-function rememberDashboardScroll() {
-  try {
-    sessionStorage.setItem("inrcy_dashboard_scrollY", String(window.scrollY ?? 0));
-  } catch {}
-}
-
 export function useDashboardPanelRouting() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -99,8 +93,6 @@ export function useDashboardPanelRouting() {
           params.delete("profileSection");
         }
         markPanelAsExplicitlyOpened(normalizedName);
-        // ✅ En mobile, on garde la position de scroll (pas de jump en haut)
-        rememberDashboardScroll();
         setPanel(normalizedName);
         router.push(`/dashboard?${params.toString()}`, { scroll: false });
       });
@@ -121,8 +113,6 @@ export function useDashboardPanelRouting() {
       sessionStorage.removeItem("inrcy_panel_explicit_open");
       sessionStorage.removeItem("inrcy_last_panel");
     } catch {}
-    // ✅ En mobile, on garde la position de scroll (pas de jump en haut)
-    rememberDashboardScroll();
     setPanel(null);
     router.replace(qs ? `/dashboard?${qs}` : "/dashboard", { scroll: false });
   }, [router, searchParams]);
@@ -144,11 +134,9 @@ export function useDashboardPanelRouting() {
     closePanel();
   }, [panel, closePanel, searchParams]);
 
-  // Preserve dashboard scroll position when leaving the dashboard (vers un module)
   const goToModule = useCallback(
     (path: string) => {
       void requestNavigation(() => {
-        rememberDashboardScroll();
         // IMPORTANT: en allant dans un module, on VEUT arriver en haut de page.
         // On ne désactive donc PAS le scroll automatique de Next ici.
         router.push(path);
@@ -156,18 +144,6 @@ export function useDashboardPanelRouting() {
     },
     [requestNavigation, router]
   );
-
-  useEffect(() => {
-    try {
-      const y = sessionStorage.getItem("inrcy_dashboard_scrollY");
-      if (!y) return;
-      const top = Math.max(0, parseInt(y, 10) || 0);
-      // Let the page paint, then restore
-      requestAnimationFrame(() => window.scrollTo(0, top));
-      setTimeout(() => window.scrollTo(0, top), 60);
-      sessionStorage.removeItem("inrcy_dashboard_scrollY");
-    } catch {}
-  }, [panel]);
 
   return { panel, openPanel, closePanel, goToModule };
 }

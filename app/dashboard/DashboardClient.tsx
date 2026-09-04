@@ -74,6 +74,11 @@ import {
   STANDARD_PUBLICATION_CHANNEL_KEYS,
   isDashboardDestinationAllowedForEdition,
 } from "@/lib/dashboardEdition";
+import {
+  DASHBOARD_TOOLS_ANCHOR_ID,
+  DASHBOARD_TOP_ANCHOR_ID,
+  scrollToDashboardAnchor,
+} from "./dashboard.scroll";
 
 
 import {
@@ -368,10 +373,6 @@ export default function DashboardClient({
 
   const openStatsModule = useCallback(() => {
     void requestNavigation(() => {
-      try {
-        sessionStorage.setItem("inrcy_dashboard_scrollY", String(window.scrollY ?? 0));
-      } catch {}
-
       router.push("/dashboard/stats");
 
       window.setTimeout(() => {
@@ -3870,7 +3871,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
   } = buildDashboardPanelProps(locals);
 
   return (
-    <main className={styles.page}>
+    <main id={DASHBOARD_TOP_ANCHOR_ID} className={styles.page}>
       <DashboardTopbar
         desktopNotificationMenuRef={desktopNotificationMenuRef}
         mobileNotificationMenuRef={mobileNotificationMenuRef}
@@ -3923,6 +3924,22 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
         leadsWeek={leadsWeek}
         leadsMonth={leadsMonth}
       />
+
+      <div className={styles.dashboardQuickJumpRow}>
+        <button
+          type="button"
+          className={`${styles.dashboardQuickJump} ${styles.dashboardQuickJumpDown}`}
+          onClick={() => scrollToDashboardAnchor(DASHBOARD_TOOLS_ANCHOR_ID)}
+          aria-label={dashboardCopy.quickNavigation.goToTools}
+          title={dashboardCopy.quickNavigation.goToTools}
+        >
+          <span className={styles.dashboardQuickJumpShine} aria-hidden="true" />
+          <span className={styles.dashboardQuickJumpLabel}>{dashboardCopy.quickNavigation.tools}</span>
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M12 4v15m0 0-6-6m6 6 6-6" />
+          </svg>
+        </button>
+      </div>
 
       {generatorSettingsOpen ? (
         <GeneratorSettingsModal

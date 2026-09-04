@@ -4,9 +4,9 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { enforceQuota, enforceRateLimit } from "./lib/rateLimit";
 import {
-  isPotentialStandardRestrictedApiPath,
-  isStandardApiRouteAllowed,
-  isStandardDashboardRouteAllowed,
+  isApiRouteAllowedForEdition,
+  isDashboardRouteAllowedForEdition,
+  isPotentialEditionRestrictedApiPath,
   resolveDashboardEdition,
 } from "./lib/dashboardEdition";
 import {
@@ -183,6 +183,18 @@ function premiumRequiredApiResponse(): NextResponse {
       code: "PREMIUM_REQUIRED",
       redirectTo: "/dashboard?panel=contact",
       message: "Cette fonctionnalité est réservée à iNrCy Premium. Contactez-nous pour en parler.",
+    },
+    { status: 403 },
+  );
+}
+
+function founderRequiredApiResponse(): NextResponse {
+  return NextResponse.json(
+    {
+      error: "FOUNDER_REQUIRED",
+      code: "FOUNDER_REQUIRED",
+      redirectTo: "/dashboard",
+      message: "Factures et devis sont réservés à l’édition Founder.",
     },
     { status: 403 },
   );
@@ -732,15 +744,14 @@ export async function proxy(req: NextRequest) {
         plan: currentSubscriptionGate?.plan,
         developmentOverride: process.env.INRCY_DEV_DASHBOARD_EDITION,
       });
-      if (
-        edition === "standard" &&
-        !isStandardDashboardRouteAllowed(pathname, req.nextUrl.searchParams)
-      ) {
+      if (!isDashboardRouteAllowedForEdition(pathname, req.nextUrl.searchParams, edition)) {
         const url = req.nextUrl.clone();
         url.pathname = "/dashboard";
         url.search = "";
-        url.searchParams.set("panel", "contact");
-        url.searchParams.set("premium", "required");
+        if (edition === "standard") {
+          url.searchParams.set("panel", "contact");
+          url.searchParams.set("premium", "required");
+        }
         return applyResponseHeaders(NextResponse.redirect(url, 307));
       }
     }
@@ -764,7 +775,7 @@ export async function proxy(req: NextRequest) {
 
   if (
     req.method.toUpperCase() !== "OPTIONS" &&
-    isPotentialStandardRestrictedApiPath(pathname)
+    isPotentialEditionRestrictedApiPath(pathname)
   ) {
     const currentUserId = await getCurrentUserId();
     const currentSubscriptionGate = currentUserId ? await getCurrentSubscriptionGate() : null;
@@ -776,10 +787,20 @@ export async function proxy(req: NextRequest) {
 
     if (
       currentUserId &&
-      edition === "standard" &&
-      !isStandardApiRouteAllowed(pathname, req.nextUrl.searchParams)
+      !isApiRouteAllowedForEdition(pathname, req.nextUrl.searchParams, edition)
     ) {
-      return applyResponseHeaders(premiumRequiredApiResponse());
+      const accountingRoute =
+        pathname === "/api/documents" ||
+        pathname.startsWith("/api/documents/") ||
+        pathname === "/api/factures" ||
+        pathname.startsWith("/api/factures/") ||
+        (pathname === "/api/inrsend/history" &&
+          ["factures", "devis"].includes(
+            String(req.nextUrl.searchParams.get("folder") || "").toLowerCase(),
+          ));
+      return applyResponseHeaders(
+        accountingRoute ? founderRequiredApiResponse() : premiumRequiredApiResponse(),
+      );
     }
   }
 

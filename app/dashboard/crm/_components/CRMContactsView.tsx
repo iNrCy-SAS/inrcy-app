@@ -14,6 +14,7 @@ import {
 import type { Category, ContactType, CrmContact } from "../crm.types";
 
 type Props = {
+  documentsEnabled: boolean;
   isResponsive: boolean;
   visibleContacts: CrmContact[];
   emptyMessage: string;
@@ -40,6 +41,7 @@ type Props = {
 };
 
 export default function CRMContactsView({
+  documentsEnabled,
   isResponsive,
   visibleContacts,
   emptyMessage,
@@ -148,10 +150,14 @@ export default function CRMContactsView({
                         {i18nT("mail_92379cbb")}{" "}</button>
                       <button type="button" className={styles.smallBtn} onClick={(e) => { e.stopPropagation(); goPlanifierIntervention(c); }}>
                         {i18nT("agenda_891e9d6d")}{" "}</button>
-                      <button type="button" className={styles.smallBtn} onClick={(e) => { e.stopPropagation(); goNewDevis(c); }}>
-                        {i18nT("devis_f7622f90")}{" "}</button>
-                      <button type="button" className={styles.smallBtn} onClick={(e) => { e.stopPropagation(); goNewFacture(c); }}>
-                        {i18nT("facture_3953b9f5")}{" "}</button>
+                      {documentsEnabled ? (
+                        <>
+                          <button type="button" className={styles.smallBtn} onClick={(e) => { e.stopPropagation(); goNewDevis(c); }}>
+                            {i18nT("devis_f7622f90")}{" "}</button>
+                          <button type="button" className={styles.smallBtn} onClick={(e) => { e.stopPropagation(); goNewFacture(c); }}>
+                            {i18nT("facture_3953b9f5")}{" "}</button>
+                        </>
+                      ) : null}
                       <button type="button" className={styles.smallBtn} onClick={(e) => { e.stopPropagation(); startEdit(c); }}>
                         {i18nT("modifier_f260e757")}{" "}</button>
                       <button type="button" className={styles.smallBtn} onClick={(e) => { e.stopPropagation(); toggleImportant(c.id); }}>

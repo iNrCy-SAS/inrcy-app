@@ -31,6 +31,7 @@ export type AiMediaCreativity = "faithful" | "bold";
 export type AiMediaLogoMode = "discreet" | "visible" | "none";
 export type AiMediaVideoDuration = 8 | 16 | 24;
 export type AiMediaVideoEngine = "omni" | "veo";
+export type AiMediaNarrationVoice = "female" | "male";
 export type AiMediaInspirationImage = {
   mimeType: "image/jpeg" | "image/png" | "image/webp";
   /** Octets de l'image encodes en base64, sans prefixe data:. */
@@ -96,6 +97,7 @@ export type AiMediaGenerationRequest = {
   textKeywords: string[];
   withMusic: boolean;
   withNarration: boolean;
+  narrationVoice: AiMediaNarrationVoice | null;
   format: AiMediaOutputFormat;
   typology: AiMediaTypology;
   visualStyle: AiMediaVisualStyle;
@@ -346,6 +348,15 @@ export function normalizeAiMediaGenerationRequest(
   }
 
   const withText = body.withText === true;
+  const withNarration = kind === "video" && body.withNarration === true;
+  const rawNarrationVoice = cleanText(body.narrationVoice, 24) || "female";
+  if (
+    kind === "video" &&
+    withNarration &&
+    !["female", "male"].includes(rawNarrationVoice)
+  ) {
+    throw new AiMediaRequestValidationError("Voix de narration invalide.");
+  }
   const rawVideoEngine = cleanText(body.videoEngine, 24) || "omni";
   if (kind === "video" && !["omni", "veo"].includes(rawVideoEngine)) {
     throw new AiMediaRequestValidationError("Moteur vidéo invalide.");
@@ -359,7 +370,11 @@ export function normalizeAiMediaGenerationRequest(
     withText,
     textKeywords: withText ? normalizeTextKeywords(body.textKeywords) : [],
     withMusic: kind === "video" && body.withMusic === true,
-    withNarration: kind === "video" && body.withNarration === true,
+    withNarration,
+    narrationVoice:
+      kind === "video" && withNarration
+        ? (rawNarrationVoice as AiMediaNarrationVoice)
+        : null,
     format: format as AiMediaOutputFormat,
     typology: typology as AiMediaTypology,
     visualStyle: visualStyle as AiMediaVisualStyle,

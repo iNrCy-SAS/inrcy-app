@@ -9,6 +9,7 @@ import {
 } from "@/lib/browserModuleSnapshotCache";
 import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
 import { useDashboardEdition } from "./DashboardEditionProvider";
+import { hasAccountingDashboardAccess } from "@/lib/dashboardEdition";
 
 export const DASHBOARD_TOOL_WARMUP_EVENT = "inrcy:dashboard-tool-warmup";
 export const DASHBOARD_PREFETCH_ATTRIBUTE = "data-dashboard-prefetch";
@@ -38,6 +39,10 @@ const STANDARD_ROUTES_TO_PREFETCH = [
   "/dashboard/mediatheque",
   "/dashboard/gps",
 ] as const;
+
+const PREMIUM_ROUTES_TO_PREFETCH = ROUTES_TO_PREFETCH.filter(
+  (route) => route !== "/dashboard/factures" && route !== "/dashboard/devis",
+);
 
 const SNAPSHOT_FRESHNESS_MS = 2 * 60 * 1000;
 const MAX_CONCURRENT_WARMUPS = 2;
@@ -103,6 +108,7 @@ export default function DashboardToolWarmup() {
   const router = useRouter();
   const edition = useDashboardEdition();
   const standardMode = edition === "standard";
+  const accountingEnabled = hasAccountingDashboardAccess(edition);
 
   useEffect(() => {
     let cancelled = false;
@@ -297,6 +303,10 @@ export default function DashboardToolWarmup() {
         standardMode &&
         !STANDARD_ROUTES_TO_PREFETCH.includes(normalizedPath(path) as (typeof STANDARD_ROUTES_TO_PREFETCH)[number])
       ) return;
+      if (
+        !accountingEnabled &&
+        (normalizedPath(path) === "/dashboard/factures" || normalizedPath(path) === "/dashboard/devis")
+      ) return;
       prefetchRoute(path, 100);
       enqueueSnapshotForPath(path, 90);
     };
@@ -321,7 +331,11 @@ export default function DashboardToolWarmup() {
     window.addEventListener(DASHBOARD_TOOL_WARMUP_EVENT, onExplicitWarmup as EventListener);
 
     const startProgressiveWarmup = () => {
-      const routes = standardMode ? STANDARD_ROUTES_TO_PREFETCH : ROUTES_TO_PREFETCH;
+      const routes = standardMode
+        ? STANDARD_ROUTES_TO_PREFETCH
+        : accountingEnabled
+          ? ROUTES_TO_PREFETCH
+          : PREMIUM_ROUTES_TO_PREFETCH;
       routes.forEach((route, index) => {
         prefetchRoute(route, 20 - Math.floor(index / 2));
       });
@@ -368,7 +382,7 @@ export default function DashboardToolWarmup() {
       window.removeEventListener(DASHBOARD_TOOL_WARMUP_EVENT, onExplicitWarmup as EventListener);
       window.removeEventListener(ACTIVE_INRCY_ACCOUNT_EVENT, handleAccountChange);
     };
-  }, [router, standardMode]);
+  }, [accountingEnabled, router, standardMode]);
 
   return null;
 }
