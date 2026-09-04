@@ -1088,12 +1088,13 @@ export function AgentScheduleModal({
                     <input
                       type="checkbox"
                       checked={activeFilters[filter.key]}
-                      onChange={(event) =>
+                      onChange={(event) => {
+                        const checked = event.currentTarget.checked;
                         setActiveFilters((current) => ({
                           ...current,
-                          [filter.key]: event.currentTarget.checked,
-                        }))
-                      }
+                          [filter.key]: checked,
+                        }));
+                      }}
                     />
                     <span
                       className={styles.scheduleFilterCheck}
@@ -1276,10 +1277,7 @@ export function AgentScheduleModal({
                                             className={`${styles.scheduleIconButton} ${styles.scheduleIconDanger}`}
                                             data-schedule-action="delete"
                                             onClick={() => onDelete(item)}
-                                            disabled={
-                                              !item.removable ||
-                                              mutationState === "saving"
-                                            }
+                                            disabled={mutationState === "saving"}
                                             aria-label={i18nT("supprimer_1acfc1c7")}
                                             title={i18nT("supprimer_1acfc1c7")}
                                           >

@@ -17337,10 +17337,10 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     .channelScroller
     button[data-channel="linkedin"]
     img.channelLogoLinkedin {
-    width: 18px !important;
-    height: 18px !important;
-    max-width: 18px !important;
-    max-height: 18px !important;
+    width: 32px !important;
+    height: 32px !important;
+    max-width: 32px !important;
+    max-height: 32px !important;
   }
 
   .previewMetaPublish .saveCampaignDraftButton,
@@ -17553,23 +17553,20 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 }
 
 @media (min-width: 761px) {
+  .publishInfoStatus .publishStatusHeading {
+    width: 100%;
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
   .publishStatusCounter {
-    min-width: 48px;
-    height: 24px;
-    display: inline-grid;
-    place-items: center;
-    margin-left: 2px;
-    padding: 0 8px;
-    border: 1px solid rgba(196, 181, 253, 0.28);
-    border-radius: 999px;
-    color: #f8fafc;
-    background: linear-gradient(
-      135deg,
-      rgba(59, 130, 246, 0.24),
-      rgba(168, 85, 247, 0.28)
-    );
-    font-size: 10px;
-    font-weight: 950;
+    display: inline-block;
+    flex: 0 0 auto;
+    color: rgba(237, 244, 255, 0.9);
+    font-size: inherit;
+    font-weight: 850;
     line-height: 1;
     white-space: nowrap;
   }

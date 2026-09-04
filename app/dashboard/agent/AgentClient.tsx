@@ -3442,6 +3442,50 @@ export default function AgentClient() {
     });
   }
 
+  async function performCancelPreparedAction(actionId: string) {
+    setScheduleMutationState("saving");
+    try {
+      const response = await fetch("/api/agent/actions", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actionId, status: "cancelled" }),
+      });
+      const payload = (await response.json().catch(() => null)) as {
+        action?: AgentPreparedAction;
+        error?: string;
+      } | null;
+      if (!response.ok || !payload?.action) {
+        throw new Error(
+          payload?.error || i18nT("scheduled_action_delete_failed"),
+        );
+      }
+      const cancelledAction = payload.action;
+      setActions((current) =>
+        current.map((action) =>
+          action.id === cancelledAction.id ? cancelledAction : action,
+        ),
+      );
+      showNotice(i18nT("scheduled_action_deleted"));
+      await refreshActions(true);
+    } catch (error) {
+      showNotice(i18nT("scheduled_action_delete_failed"));
+    } finally {
+      setScheduleMutationState("idle");
+    }
+  }
+
+  async function cancelPreparedAction(actionId: string | null | undefined) {
+    if (!actionId || scheduleMutationState === "saving") return;
+    openAgentConfirmDialog({
+      title: i18nT("supprimer_cette_action_programmee_01310ea3"),
+      message: i18nT("cette_action_sera_retiree_du_planning_31e5e378"),
+      confirmLabel: i18nT("supprimer_1acfc1c7"),
+      cancelLabel: i18nT("annuler_49ba3292"),
+      tone: "danger",
+      onConfirm: () => performCancelPreparedAction(actionId),
+    });
+  }
+
   async function performDisableAutomationFromSchedule(key: AutomationKey) {
     const nextConfigs = {
       ...configs,
@@ -3577,7 +3621,10 @@ export default function AgentClient() {
   }
 
   async function handleScheduleRowDelete(item: ScheduleListItem) {
-    if (item.source === "editorial") return;
+    if (item.source === "editorial") {
+      await cancelPreparedAction(item.preparedActionId);
+      return;
+    }
     if (item.source === "manual") {
       await cancelScheduledAction(item.scheduledActionId);
       return;
@@ -4583,18 +4630,20 @@ export default function AgentClient() {
                           <ShieldLineIcon />
                         </span>
                         <span>
-                          <small>{i18nT("statut_659499f3")}</small>
-                          <strong className={publishStatusClass}>
-                            {publishValidationLabel}
+                          <small className={styles.publishStatusHeading}>
+                            <span>{i18nT("statut_659499f3")}</span>
                             {publicationCarouselActions.length > 0 ? (
                               <span
                                 className={styles.publishStatusCounter}
                                 aria-live="polite"
                               >
-                                + {Math.max(0, selectedPublicationIndex) + 1} /{" "}
+                                {Math.max(0, selectedPublicationIndex) + 1}/
                                 {publicationCarouselActions.length}
                               </span>
                             ) : null}
+                          </small>
+                          <strong className={publishStatusClass}>
+                            {publishValidationLabel}
                           </strong>
                         </span>
                       </article>

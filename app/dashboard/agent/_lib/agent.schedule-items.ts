@@ -162,7 +162,7 @@ export function buildAgentScheduleItems({
       scheduledAtIso: scheduledFor,
       contentReady,
       editable: false,
-      removable: false,
+      removable: true,
       source: "editorial",
     });
   }

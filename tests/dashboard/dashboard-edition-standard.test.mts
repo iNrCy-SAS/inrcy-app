@@ -604,12 +604,13 @@ test("iNr’Agent retire un canal, refuse le dernier et garde un pupitre respons
 test("le compteur de publication desktop est dans Statut et le pupitre réserve la place à la date", () => {
   assert.match(
     agentClientSource,
-    /styles\.publishInfoStatus[\s\S]*?styles\.publishStatusCounter/,
+    /styles\.publishInfoStatus[\s\S]*?styles\.publishStatusHeading[\s\S]*?styles\.publishStatusCounter[\s\S]*?publishValidationLabel/,
   );
   assert.doesNotMatch(agentClientSource, /styles\.publishPostCounter/);
+  assert.doesNotMatch(agentClientSource, /\+ \{Math\.max\(0, selectedPublicationIndex\)/);
   assert.match(
     agentStylesSource,
-    /\.publishStatusCounter \{[\s\S]*?display: inline-grid;/,
+    /\.publishInfoStatus \.publishStatusHeading \{[\s\S]*?justify-content: space-between;/,
   );
   assert.match(
     agentStylesSource,
@@ -622,6 +623,14 @@ test("le compteur de publication desktop est dans Statut et le pupitre réserve 
   assert.match(
     agentStylesSource,
     /\.automationGrid \.automationCard \.cardPendingCount::after,[\s\S]*?content: none !important;/,
+  );
+  assert.match(
+    agentStylesSource,
+    /button\[data-channel="linkedin"\][\s\S]*?img\.channelLogoLinkedin \{[\s\S]*?width: 32px !important;[\s\S]*?max-height: 32px !important;/,
+  );
+  assert.doesNotMatch(
+    agentStylesSource,
+    /img\.channelLogoLinkedin \{[\s\S]{0,180}?width: 18px !important;/,
   );
 });
 

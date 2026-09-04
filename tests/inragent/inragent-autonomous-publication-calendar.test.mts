@@ -147,6 +147,40 @@ test("le rafraîchissement du planning conserve la quinzaine choisie et masque l
   assert.match(dashboardPlanning, /showCampaigns=\{!standardMode\}/);
 });
 
+test("les filtres restent sûrs et la corbeille retire toute publication éditoriale programmée", () => {
+  const modal = read("app/dashboard/agent/_components/AgentActionModals.tsx");
+  const client = read("app/dashboard/agent/AgentClient.tsx");
+  const scheduleItems = read(
+    "app/dashboard/agent/_lib/agent.schedule-items.ts"
+  );
+  const editorialItemSource = scheduleItems.slice(
+    scheduleItems.indexOf("for (const action of editorialActions)"),
+    scheduleItems.indexOf("for (const action of scheduledActions)")
+  );
+
+  assert.match(
+    modal,
+    /onChange=\{\(event\) => \{\s*const checked = event\.currentTarget\.checked;[\s\S]*?\[filter\.key\]: checked/,
+  );
+  assert.doesNotMatch(
+    modal,
+    /setActiveFilters\(\(current\) => \(\{[\s\S]*?event\.currentTarget\.checked/,
+  );
+  assert.match(editorialItemSource, /removable: true/);
+  assert.match(
+    modal,
+    /data-schedule-action="delete"[\s\S]*?disabled=\{mutationState === "saving"\}/,
+  );
+  assert.match(
+    client,
+    /performCancelPreparedAction[\s\S]*?status: "cancelled"/,
+  );
+  assert.match(
+    client,
+    /item\.source === "editorial"[\s\S]*?cancelPreparedAction\(item\.preparedActionId\)/,
+  );
+});
+
 test("les libellés de filtres et de validation du planning existent dans toutes les langues", () => {
   const locales = [
     "de-DE",
