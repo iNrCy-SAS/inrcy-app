@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
 
 
@@ -13,6 +14,12 @@ import { requestDashboardToolWarmup } from "./DashboardToolWarmup";
 import { useDelayedPendingAction } from "@/hooks/useDelayedPendingAction";
 import { hasAccountingDashboardAccess } from "@/lib/dashboardEdition";
 import { useDashboardEdition } from "./DashboardEditionProvider";
+import { DASHBOARD_GEARBOX_ANCHOR_ID } from "../dashboard.scroll";
+
+const DashboardAgentPlanningModal = dynamic(
+  () => import("../agent/_components/DashboardAgentPlanningModal"),
+  { ssr: false },
+);
 
 type DashboardPanelName =
   | "contact"
@@ -49,8 +56,24 @@ type DashboardModulesCardProps = {
   onOpenBoosterStats?: () => void;
 };
 
+function PlanningIcon() {
+  return (
+    <svg
+      className={styles.gearPlanningIcon}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+    >
+      <rect x="3.5" y="5.5" width="17" height="15" rx="3" />
+      <path d="M7.5 3.5v4M16.5 3.5v4M3.5 10h17" />
+      <path d="m8 15 2.2 2.2L16 12.7" />
+    </svg>
+  );
+}
+
 export default function DashboardModulesCard({ goToModule, openPanel, requiredSetupAccessAllowed, requiredSetupLockVisible, onRequiredSetupBlocked, onOpenStats, onOpenBoosterPublish, onOpenBoosterStats }: DashboardModulesCardProps) {
   const i18nT = useTranslations("shell");
+  const standardT = useTranslations("dashboard.standard");
   const t = useDashboardI18n();
   const router = useRouter();
   const pathname = usePathname();
@@ -59,6 +82,7 @@ export default function DashboardModulesCard({ goToModule, openPanel, requiredSe
   const accountingEnabled = hasAccountingDashboardAccess(dashboardEdition);
   const [cashModalOpen, setCashModalOpen] = useState(false);
   const [campaignModalOpen, setCampaignModalOpen] = useState(false);
+  const [agentPlanningOpen, setAgentPlanningOpen] = useState(false);
   const {
     pendingKey,
     beginAction,
@@ -159,6 +183,14 @@ export default function DashboardModulesCard({ goToModule, openPanel, requiredSe
 
   const openStats = () => {
     startModuleNavigation("/dashboard/stats", onOpenStats);
+  };
+
+  const openAgentPlanning = () => {
+    if (!requiredSetupAccessAllowed) {
+      onRequiredSetupBlocked();
+      return;
+    }
+    setAgentPlanningOpen(true);
   };
 
   const routeKey = (path: string) => `route:${path}`;
@@ -394,7 +426,10 @@ export default function DashboardModulesCard({ goToModule, openPanel, requiredSe
 
           </div>
 
-          <div className={`${styles.blockCard} ${styles.gearBlockCard}`}>
+          <div
+            id={DASHBOARD_GEARBOX_ANCHOR_ID}
+            className={`${styles.blockCard} ${styles.gearBlockCard} ${styles.dashboardGearboxAnchor}`}
+          >
             <div className={styles.blockHead}>
               <h3 className={styles.h3}>{t.modules.gearboxTitle}</h3>
               <span className={styles.smallMuted}>{t.modules.gearboxSub}</span>
@@ -450,6 +485,28 @@ export default function DashboardModulesCard({ goToModule, openPanel, requiredSe
                   disabled={isModuleLoadingVisible("/dashboard/agent")}
                   aria-busy={isModuleLoadingVisible("/dashboard/agent") || undefined}
                 >
+                  <span
+                    className={`${styles.gearSettingsBtn} ${styles.gearPlanningBtn}`}
+                    role="button"
+                    tabIndex={requiredSetupAccessAllowed ? 0 : -1}
+                    data-testid="premium-agent-planning"
+                    title={requiredSetupAccessAllowed ? standardT("agentPlanning") : requiredSetupLockMessage}
+                    aria-label={requiredSetupAccessAllowed ? standardT("agentPlanning") : requiredSetupLockMessage}
+                    aria-disabled={!requiredSetupAccessAllowed || undefined}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      openAgentPlanning();
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        openAgentPlanning();
+                      }
+                    }}
+                  >
+                    <PlanningIcon />
+                  </span>
                   <div className={styles.gearInner}>
                     {renderGearTitle(t.modules.agentTitle)}
                     <div className={styles.gearSub}>{t.modules.agentSub}</div>
@@ -590,6 +647,15 @@ export default function DashboardModulesCard({ goToModule, openPanel, requiredSe
               </button>
             </div>
           </BaseModal>
+        ) : null}
+
+        {agentPlanningOpen ? (
+          <DashboardAgentPlanningModal
+            open
+            standardMode={false}
+            onClose={() => setAgentPlanningOpen(false)}
+            onManage={() => startModuleNavigation("/dashboard/agent")}
+          />
         ) : null}
     </>
 

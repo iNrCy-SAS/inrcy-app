@@ -14,22 +14,25 @@ type DashboardAgentPlanningModalProps = {
   open: boolean;
   onClose: () => void;
   onManage: () => void;
+  standardMode?: boolean;
 };
 
 export default function DashboardAgentPlanningModal({
   open,
   onClose,
   onManage,
+  standardMode = true,
 }: DashboardAgentPlanningModalProps) {
   const i18nT = useTranslations("agent");
   const locale = useLocale();
   const runtimeT = i18nT as unknown as AgentTranslator;
   const visibleAutomations = useMemo(
-    () =>
-      automations.filter((automation) =>
-        isStandardAgentAutomationKey(automation.key),
-      ),
-    [],
+    () => standardMode
+      ? automations.filter((automation) =>
+          isStandardAgentAutomationKey(automation.key),
+        )
+      : automations,
+    [standardMode],
   );
   const {
     configs,
@@ -39,7 +42,7 @@ export default function DashboardAgentPlanningModal({
     actions,
     scheduledActions,
     actionsLoadState,
-  } = useAgentRuntimeData({ standardMode: true });
+  } = useAgentRuntimeData({ standardMode });
   const items = useMemo(
     () =>
       buildAgentScheduleItems({
@@ -77,7 +80,7 @@ export default function DashboardAgentPlanningModal({
         actionsLoadState === "loading"
       }
       readOnly
-      showCampaigns={false}
+      showCampaigns={!standardMode}
       onClose={onClose}
       onOpenContent={openPilotage}
       onReschedule={openPilotage}

@@ -133,7 +133,7 @@ async function findProtectedMediaUsages(
         mediaId,
         source: "inr_agent_action",
         rowId: String(action.id || ""),
-        title: cleanText(action.title || "Action iNrAgent", 160),
+        title: cleanText(action.title || "Action iNr’Agent", 160),
         status: cleanText(action.status, 40) || null,
         scheduledFor: cleanText(action.scheduled_for, 80) || null,
       });
@@ -158,7 +158,7 @@ async function findProtectedMediaUsages(
         mediaId,
         source: "inr_agent_scheduled_action",
         rowId: String(action.id || ""),
-        title: cleanText(action.title || "Programmation iNrAgent", 160),
+        title: cleanText(action.title || "Programmation iNr’Agent", 160),
         status: cleanText(action.status, 40) || null,
         scheduledFor: cleanText(action.scheduled_at, 80) || null,
       });
@@ -491,7 +491,7 @@ export async function DELETE(request: NextRequest) {
       );
     } catch (usageError) {
       return jsonError(
-        "Impossible de vérifier si ce média est utilisé par iNrAgent.",
+        "Impossible de vérifier si ce média est utilisé par iNr’Agent.",
         500,
         usageError instanceof Error ? usageError.message : usageError,
       );
@@ -503,7 +503,7 @@ export async function DELETE(request: NextRequest) {
           ok: false,
           requiresConfirmation: true,
           error:
-            "Ce média est utilisé dans iNrAgent, une programmation, une campagne ou un brouillon. Confirmez la suppression pour continuer.",
+            "Ce média est utilisé dans iNr’Agent, une programmation, une campagne ou un brouillon. Confirmez la suppression pour continuer.",
           usageCount: usages.length,
           usages: usages.slice(0, 20),
         },

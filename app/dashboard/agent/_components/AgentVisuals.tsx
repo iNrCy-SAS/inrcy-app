@@ -103,6 +103,18 @@ export function SaveActionIcon() {
   );
 }
 
+export function TrashActionIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden>
+      <path d="M4.5 7h15" />
+      <path d="M9 7V4.5h6V7" />
+      <path d="m7 7 .8 13h8.4L17 7" />
+      <path d="M10 10.5v6" />
+      <path d="M14 10.5v6" />
+    </svg>
+  );
+}
+
 export function NavigationChevronIcon({
   direction,
 }: {

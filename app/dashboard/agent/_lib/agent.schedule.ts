@@ -23,6 +23,7 @@ import {
   boosterChannelKeyFromAgentChannel,
   boosterDisplayKeyFromAgentChannel,
   canonicalizeRecordForBoosterChannels,
+  channelPayloadLookupKeys,
   firstRecordValueForUiChannels,
   normalizeConfigScheduleSlots,
   normalizeUiChannelKey,
@@ -491,6 +492,109 @@ export function updateScheduledEditPublishText(
     ...action,
     summary: channel === apiChannelToUi[action.targetChannels[0] || ""] ? firstPreview : action.summary,
     previewText: firstPreview,
+    payload: nextPayload,
+  };
+}
+
+export function removeScheduledEditPublishChannel(
+  action: AgentPreparedAction,
+  channel: ChannelKey,
+): AgentPreparedAction {
+  const payload = jsonClone(action.payload || {});
+  const publishPayload = asRecord(payload.publishPayload) || {};
+  const currentChannels = normalizeUiChannels(
+    action.targetChannels,
+    payload.selectedChannels,
+    payload.targetChannels,
+    payload.channels,
+    payload.boosterChannels,
+    publishPayload.channels,
+    publishPayload.selectedChannels,
+  );
+  const remainingChannels = currentChannels.filter(
+    (candidate) => candidate !== channel,
+  );
+  if (
+    !currentChannels.includes(channel) ||
+    remainingChannels.length === 0
+  ) {
+    return action;
+  }
+
+  const channelKeys = new Set(channelPayloadLookupKeys(channel));
+  const channelMapFields = [
+    "postByChannel",
+    "imagesByChannel",
+    "mediaModeByChannel",
+    "mediaReadinessByChannel",
+    "mediaAdaptationByChannel",
+    "videoSettingsByChannel",
+    "videoFormatByChannel",
+    "videoAdaptationModeByChannel",
+    "imageSettingsByChannel",
+  ] as const;
+  const channelListFields = [
+    "selectedChannels",
+    "targetChannels",
+    "channels",
+    "boosterChannels",
+    "uiChannels",
+  ] as const;
+  const withoutChannel = (source: Record<string, unknown>) => {
+    const next = { ...source };
+    for (const field of channelMapFields) {
+      const record = asRecord(next[field]);
+      if (!record) continue;
+      const filteredRecord = { ...record };
+      for (const key of channelKeys) delete filteredRecord[key];
+      next[field] = filteredRecord;
+    }
+    for (const field of channelListFields) {
+      if (!Array.isArray(next[field])) continue;
+      next[field] = (next[field] as unknown[]).filter(
+        (candidate) => normalizeUiChannelKey(candidate) !== channel,
+      );
+    }
+    return next;
+  };
+
+  const boosterChannels = remainingChannels.map(
+    boosterChannelKeyFromAgentChannel,
+  );
+  const nextPublishPayload = withoutChannel(publishPayload);
+  nextPublishPayload.channels = boosterChannels;
+  nextPublishPayload.selectedChannels = boosterChannels;
+  const nextPayload = withoutChannel(payload);
+  nextPayload.selectedChannels = remainingChannels;
+  nextPayload.targetChannels = remainingChannels;
+  nextPayload.channels = remainingChannels;
+  nextPayload.boosterChannels = boosterChannels;
+  if (Object.keys(publishPayload).length) {
+    nextPayload.publishPayload = nextPublishPayload;
+  }
+
+  const nextPostByChannel =
+    asRecord(nextPayload.postByChannel) ||
+    asRecord(nextPublishPayload.postByChannel) ||
+    {};
+  const nextPost = asRecord(
+    firstRecordValueForUiChannels(nextPostByChannel, remainingChannels),
+  );
+  const nextPreview = firstSafeString(
+    nextPost?.content,
+    nextPost?.text,
+    nextPost?.caption,
+    nextPost?.body,
+    nextPost?.message,
+    action.previewText,
+    action.summary,
+  );
+
+  return {
+    ...action,
+    targetChannels: remainingChannels,
+    summary: nextPreview || action.summary,
+    previewText: nextPreview || action.previewText,
     payload: nextPayload,
   };
 }

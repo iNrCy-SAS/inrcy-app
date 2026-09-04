@@ -8,6 +8,7 @@ function read(path: string) {
 
 const dashboard = read("app/dashboard/DashboardClient.tsx");
 const channels = read("app/dashboard/_components/DashboardChannelsSection.tsx");
+const modules = read("app/dashboard/_components/DashboardModulesCard.tsx");
 const boosterLayer = read("app/dashboard/_components/DashboardBoosterModalLayer.tsx");
 const routing = read("app/dashboard/_hooks/useDashboardPanelRouting.ts");
 const layout = read("app/dashboard/layout.tsx");
@@ -17,9 +18,12 @@ const css = read("app/dashboard/dashboard.module.css");
 
 test("le cockpit relie les zones haute et outils par deux commandes accessibles", () => {
   assert.match(dashboard, /id=\{DASHBOARD_TOP_ANCHOR_ID\}/);
-  assert.match(dashboard, /scrollToDashboardAnchor\(DASHBOARD_TOOLS_ANCHOR_ID\)/);
+  assert.match(dashboard, /window\.matchMedia\("\(max-width: 700px\), \(hover: none\) and \(pointer: coarse\)"\)/);
+  assert.match(dashboard, /DASHBOARD_GEARBOX_ANCHOR_ID/);
+  assert.match(dashboard, /scrollToDashboardAnchor\(targetAnchor\)/);
   assert.match(dashboard, /aria-label=\{dashboardCopy\.quickNavigation\.goToTools\}/);
   assert.match(channels, /id=\{DASHBOARD_TOOLS_ANCHOR_ID\}/);
+  assert.match(modules, /id=\{DASHBOARD_GEARBOX_ANCHOR_ID\}/);
   assert.match(channels, /scrollToDashboardAnchor\(DASHBOARD_TOP_ANCHOR_ID\)/);
   assert.match(channels, /aria-label=\{t\.quickNavigation\.goToTop\}/);
   assert.match(css, /@media \(max-width: 700px\)[\s\S]*?\.dashboardQuickJump/);

@@ -75,7 +75,7 @@ function buildMetric(label: string, value: string, background: string, color = "
 export function buildInrAgentCampaignValidationEmail(input: InrAgentCampaignValidationEmailInput) {
   const automationLabel = cleanText(input.automationLabel, 80) || "Campagne";
   const missionLabel = cleanText(input.missionLabel, 80) || "Campagne";
-  const campaignSubject = cleanText(input.campaignSubject, 220) || "Campagne iNrAgent à valider";
+  const campaignSubject = cleanText(input.campaignSubject, 220) || "Campagne iNr’Agent à valider";
   const campaignBody = cleanText(input.campaignBody, 1800);
   const accountLabel = cleanText(input.accountLabel, 140) || "Boîte mail connectée";
   const recipientCount = Math.max(0, Math.round(Number(input.recipientCount) || 0));
@@ -87,7 +87,7 @@ export function buildInrAgentCampaignValidationEmail(input: InrAgentCampaignVali
   const recipientLabel = formatPlural(recipientCount, "destinataire", "destinataires");
   const draftSentence = previousDrafts > 0
     ? `L’ancienne proposition a été conservée automatiquement en brouillon dans iNrSend, pour ne rien perdre.`
-    : `Vous gardez la main : iNrAgent prépare, vous validez avant l’envoi.`;
+    : `Vous gardez la main : iNr’Agent prépare, vous validez avant l’envoi.`;
 
   const html = `<!doctype html>
 <html lang="fr">
@@ -104,11 +104,11 @@ export function buildInrAgentCampaignValidationEmail(input: InrAgentCampaignVali
                     <td style="padding:28px 28px 30px 28px;background:linear-gradient(135deg,#081226 0%,#172554 46%,#312e81 100%);">
                       <img src="cid:${escapeHtml(INRCY_EMAIL_LOGO_CID)}" alt="iNrCy" width="108" height="41" style="display:block;width:108px;max-width:100%;height:auto;border:0;outline:none;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.2;" />
                       <div style="height:20px;line-height:20px;font-size:0;">&nbsp;</div>
-                      <div style="display:inline-block;padding:7px 12px;border-radius:999px;background:#fef3c7;background-color:#fef3c7;color:#92400e;font-family:Arial,Helvetica,sans-serif;font-size:12px;font-weight:900;letter-spacing:.02em;">À VALIDER DANS iNrAgent</div>
+                      <div style="display:inline-block;padding:7px 12px;border-radius:999px;background:#fef3c7;background-color:#fef3c7;color:#92400e;font-family:Arial,Helvetica,sans-serif;font-size:12px;font-weight:900;letter-spacing:.02em;">À VALIDER DANS iNr’Agent</div>
                       <div style="height:16px;line-height:16px;font-size:0;">&nbsp;</div>
                       <div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#dbeafe;">${safeGreeting}</div>
                       <div style="height:8px;line-height:8px;font-size:0;">&nbsp;</div>
-                      <div style="font-family:Arial,Helvetica,sans-serif;font-size:31px;line-height:1.18;color:#ffffff;font-weight:900;max-width:560px;">iNrAgent a préparé une campagne ${escapeHtml(automationLabel)}.</div>
+                      <div style="font-family:Arial,Helvetica,sans-serif;font-size:31px;line-height:1.18;color:#ffffff;font-weight:900;max-width:560px;">iNr’Agent a préparé une campagne ${escapeHtml(automationLabel)}.</div>
                       <div style="height:12px;line-height:12px;font-size:0;">&nbsp;</div>
                       <div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.75;color:#e2e8f0;max-width:590px;">Elle est prête à être relue, modifiée si besoin, puis validée depuis votre espace iNrCy. ${escapeHtml(draftSentence)}</div>
                     </td>
@@ -159,7 +159,7 @@ export function buildInrAgentCampaignValidationEmail(input: InrAgentCampaignVali
                     <td style="padding:24px 24px 24px 24px;font-family:Arial,Helvetica,sans-serif;">
                       <div style="font-size:19px;line-height:1.35;color:#0f172a;font-weight:900;">Que faire maintenant ?</div>
                       <div style="height:9px;line-height:9px;font-size:0;">&nbsp;</div>
-                      <div style="font-size:14px;line-height:1.75;color:#475569;">Ouvrez iNrAgent pour consulter la campagne complète. Vous pourrez la modifier, la valider ou la refuser. Aucun envoi ne part sans validation.</div>
+                      <div style="font-size:14px;line-height:1.75;color:#475569;">Ouvrez iNr’Agent pour consulter la campagne complète. Vous pourrez la modifier, la valider ou la refuser. Aucun envoi ne part sans validation.</div>
                       <div style="height:18px;line-height:18px;font-size:0;">&nbsp;</div>
                       ${buildButton(input.ctaUrl, "Voir et valider dans iNrCy")}
                       <div style="height:14px;line-height:14px;font-size:0;">&nbsp;</div>
@@ -182,8 +182,8 @@ export function buildInrAgentCampaignValidationEmail(input: InrAgentCampaignVali
             </tr>
             <tr>
               <td style="padding:16px 0 0 0;text-align:center;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#94a3b8;line-height:1.7;">
-                iNrCy — notification automatique iNrAgent<br />
-                iNrAgent prépare vos actions. Vous gardez toujours la validation finale.
+                iNrCy — notification automatique iNr’Agent<br />
+                iNr’Agent prépare vos actions. Vous gardez toujours la validation finale.
               </td>
             </tr>
           </table>
@@ -196,7 +196,7 @@ export function buildInrAgentCampaignValidationEmail(input: InrAgentCampaignVali
   const text = [
     greeting(input.firstName, input.companyName),
     "",
-    `iNrAgent a préparé une campagne ${automationLabel} à valider.`,
+    `iNr’Agent a préparé une campagne ${automationLabel} à valider.`,
     `Rubrique : ${missionLabel}`,
     `Objet : ${campaignSubject}`,
     `Destinataires : ${recipientLabel}`,
@@ -211,7 +211,7 @@ export function buildInrAgentCampaignValidationEmail(input: InrAgentCampaignVali
   ].join("\n");
 
   return {
-    subject: `iNrAgent — campagne ${automationLabel} à valider`,
+    subject: `iNr’Agent — campagne ${automationLabel} à valider`,
     html,
     text,
   };

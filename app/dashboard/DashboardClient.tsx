@@ -75,6 +75,7 @@ import {
   isDashboardDestinationAllowedForEdition,
 } from "@/lib/dashboardEdition";
 import {
+  DASHBOARD_GEARBOX_ANCHOR_ID,
   DASHBOARD_TOOLS_ANCHOR_ID,
   DASHBOARD_TOP_ANCHOR_ID,
   scrollToDashboardAnchor,
@@ -3929,7 +3930,16 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
         <button
           type="button"
           className={`${styles.dashboardQuickJump} ${styles.dashboardQuickJumpDown}`}
-          onClick={() => scrollToDashboardAnchor(DASHBOARD_TOOLS_ANCHOR_ID)}
+          onClick={() => {
+            const responsiveDashboard = typeof window !== "undefined" &&
+              window.matchMedia("(max-width: 700px), (hover: none) and (pointer: coarse)").matches;
+            const targetAnchor = responsiveDashboard &&
+              typeof document !== "undefined" &&
+              document.getElementById(DASHBOARD_GEARBOX_ANCHOR_ID)
+              ? DASHBOARD_GEARBOX_ANCHOR_ID
+              : DASHBOARD_TOOLS_ANCHOR_ID;
+            scrollToDashboardAnchor(targetAnchor);
+          }}
           aria-label={dashboardCopy.quickNavigation.goToTools}
           title={dashboardCopy.quickNavigation.goToTools}
         >

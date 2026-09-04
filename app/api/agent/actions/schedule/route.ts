@@ -1143,7 +1143,7 @@ async function scheduleAgentActionHandler(request: Request) {
       if (isMissingTableError(insertError)) {
         return NextResponse.json(
           {
-            error: "La base de programmation iNrAgent doit être initialisée.",
+            error: "La base de programmation iNr’Agent doit être initialisée.",
             tableMissing: true,
           },
           { status: 500 },
@@ -1225,7 +1225,7 @@ async function scheduleAgentActionHandler(request: Request) {
       return NextResponse.json(
         {
           error:
-            "Action programmée créée, mais mise à jour iNrAgent impossible.",
+            "Action programmée créée, mais mise à jour iNr’Agent impossible.",
         },
         { status: 500 },
       );

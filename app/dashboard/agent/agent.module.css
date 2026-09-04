@@ -16988,3 +16988,561 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     background: none;
   }
 }
+
+/* Planning iNrAgent : calendrier complet sur desktop, agenda utile sur mobile. */
+.scheduleDayLabel,
+.scheduleIconButtonLabel {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .scheduleCalendarViewport {
+    padding: 8px;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .scheduleCalendar {
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+    grid-auto-rows: auto;
+    gap: 12px;
+    padding: 0;
+  }
+
+  .scheduleWeekday,
+  .scheduleDayEmpty,
+  .scheduleDayCell[data-has-actions="false"] {
+    display: none;
+  }
+
+  .scheduleDayCell[data-has-actions="true"] {
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    gap: 10px;
+    padding: 12px;
+    border-radius: 20px;
+    overflow: visible;
+    background: radial-gradient(
+        circle at 100% 0%,
+        rgba(56, 189, 248, 0.13),
+        transparent 46%
+      ),
+      linear-gradient(145deg, rgba(15, 54, 105, 0.62), rgba(33, 25, 85, 0.72));
+    box-shadow: 0 14px 30px rgba(2, 6, 23, 0.24),
+      inset 0 0 22px rgba(255, 255, 255, 0.035);
+  }
+
+  .scheduleDayHeader {
+    min-height: 34px;
+    justify-content: flex-start;
+    gap: 10px;
+    padding: 0 2px 10px;
+    border-bottom: 1px solid rgba(125, 211, 252, 0.16);
+  }
+
+  .scheduleDayHeader > span {
+    display: none;
+  }
+
+  .scheduleDayLabel {
+    min-width: 0;
+    flex: 1 1 auto;
+    display: block;
+    color: #f8fbff;
+    font-size: 15px;
+    font-weight: 950;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    text-transform: capitalize;
+  }
+
+  .scheduleDayHeader small {
+    min-width: 28px;
+    height: 26px;
+    padding: 0 9px;
+    font-size: 11px;
+  }
+
+  .scheduleDayActions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-auto-rows: auto;
+    gap: 10px;
+    overflow: visible;
+  }
+
+  .scheduleCalendarCard {
+    position: relative;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto auto;
+    gap: 10px;
+    padding: 12px;
+    border-left-width: 4px;
+    border-radius: 16px;
+    overflow: visible;
+    box-shadow: 0 10px 24px rgba(2, 6, 23, 0.24),
+      inset 0 0 18px rgba(255, 255, 255, 0.04);
+  }
+
+  .scheduleCalendarCard[data-category="stats"] {
+    border-left-color: #c084fc;
+  }
+
+  .scheduleCalendarCard[data-category="campaigns"] {
+    border-left-color: #fb923c;
+  }
+
+  .scheduleCalendarCardTopline {
+    display: contents;
+  }
+
+  .scheduleCalendarCardTopline time {
+    grid-row: 1;
+    justify-self: start;
+    min-height: 28px;
+    display: inline-flex;
+    align-items: center;
+    padding: 0 10px;
+    border: 1px solid rgba(103, 232, 249, 0.25);
+    border-radius: 999px;
+    color: #cffafe;
+    background: rgba(8, 145, 178, 0.16);
+    font-size: 12px;
+    font-weight: 950;
+    line-height: 1;
+  }
+
+  .scheduleCalendarCardTopline > .scheduleCalendarCardControls {
+    position: static;
+    grid-row: 4;
+    width: 100%;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    overflow: visible;
+  }
+
+  .scheduleCalendarCard .scheduleIconButton {
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    height: auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 8px 9px;
+    border-radius: 12px;
+  }
+
+  .scheduleCalendarCard .scheduleIconButton svg {
+    width: 15px;
+    min-width: 15px;
+    height: 15px;
+  }
+
+  .scheduleCalendarCard .scheduleIconDanger {
+    grid-column: 1 / -1;
+  }
+
+  .scheduleIconButtonLabel {
+    min-width: 0;
+    display: inline;
+    font-size: 10px;
+    font-weight: 900;
+    line-height: 1.12;
+    white-space: normal;
+  }
+
+  .scheduleCalendarCard .scheduleApprovalIndicator {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    width: 10px !important;
+    min-width: 10px !important;
+    height: 10px;
+    margin: 0;
+  }
+
+  .scheduleCalendarCard > strong {
+    grid-row: 2;
+    display: block;
+    padding-right: 20px;
+    color: #fff;
+    font-size: 14px;
+    line-height: 1.35;
+    overflow: visible;
+    text-overflow: initial;
+    white-space: normal;
+  }
+
+  .scheduleCalendarCardMeta {
+    grid-row: 3;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 7px;
+  }
+
+  .scheduleCalendarCardMeta > small,
+  .scheduleCalendarCardMeta > em {
+    width: auto;
+    max-width: 100%;
+    min-height: 26px;
+    display: inline-flex;
+    align-items: center;
+    margin: 0;
+    padding: 5px 8px;
+    border: 1px solid rgba(148, 163, 255, 0.16);
+    border-radius: 9px;
+    background: rgba(255, 255, 255, 0.045);
+    font-size: 10px;
+    line-height: 1.25;
+    overflow: visible;
+    text-overflow: initial;
+    white-space: normal;
+  }
+
+  .scheduleCalendarChannels {
+    width: auto;
+    max-width: 100%;
+  }
+
+  .scheduleCalendarChannels summary {
+    min-height: 28px;
+    height: auto;
+    padding: 5px 9px;
+    font-size: 10px;
+    line-height: 1.2;
+  }
+
+  .scheduleCalendarChannels > div {
+    position: relative;
+    top: auto;
+    left: auto;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    margin-top: 6px;
+  }
+
+  .scheduleCalendarChannels[open] {
+    width: 100%;
+  }
+}
+
+/* Pupitre publication : actions par canal et statut mobile explicite. */
+.publishMobileStatus {
+  display: none;
+}
+
+.removePublishChannelButton {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  color: #ffe4e8;
+  border: 1px solid rgba(251, 113, 133, 0.38);
+  background: linear-gradient(
+    145deg,
+    rgba(76, 5, 25, 0.48),
+    rgba(45, 12, 44, 0.42)
+  );
+  cursor: pointer;
+}
+
+.removePublishChannelButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
+}
+
+@media (min-width: 1251px) {
+  .previewMetaPublish {
+    grid-template-columns:
+      minmax(360px, 1.42fr) minmax(165px, 0.66fr)
+      46px 46px 46px minmax(270px, 0.98fr) !important;
+    column-gap: 8px !important;
+  }
+}
+
+@media (min-width: 761px) and (max-width: 1250px) {
+  .previewMetaPublish {
+    grid-template-columns:
+      minmax(0, 1.35fr) minmax(170px, 0.75fr)
+      46px 46px 46px !important;
+    grid-template-areas:
+      "channels date save edit remove"
+      "actions actions actions actions actions" !important;
+  }
+
+  .previewMetaPublish .channelsItem {
+    grid-area: channels !important;
+  }
+
+  .previewMetaPublish .dateItem {
+    grid-area: date !important;
+  }
+
+  .previewMetaPublish .saveCampaignDraftButton {
+    grid-area: save !important;
+  }
+
+  .previewMetaPublish .modifyCampaignButton {
+    grid-area: edit !important;
+  }
+
+  .previewMetaPublish .removePublishChannelButton {
+    grid-area: remove !important;
+  }
+
+  .previewMetaPublish .previewActions {
+    grid-area: actions !important;
+  }
+}
+
+@media (min-width: 761px) {
+  /* Même emboîtement qu'avant : bulle et logo diminuent ensemble. */
+  .previewMetaPublish .channelScroller {
+    gap: 3px !important;
+  }
+
+  .previewMetaPublish .channelScroller button {
+    width: 32px !important;
+    min-width: 32px !important;
+    height: 32px !important;
+    min-height: 32px !important;
+    flex: 0 0 32px !important;
+    padding: 2px !important;
+  }
+
+  .previewMetaPublish .channelScroller button img {
+    width: 27px !important;
+    height: 27px !important;
+    max-width: 27px !important;
+    max-height: 27px !important;
+  }
+
+  .previewMetaPublish
+    .channelScroller
+    button[data-channel="linkedin"]
+    img.channelLogoLinkedin {
+    width: 18px !important;
+    height: 18px !important;
+    max-width: 18px !important;
+    max-height: 18px !important;
+  }
+
+  .previewMetaPublish .saveCampaignDraftButton,
+  .previewMetaPublish .modifyCampaignButton,
+  .previewMetaPublish .removePublishChannelButton {
+    align-self: center !important;
+    width: 42px !important;
+    min-width: 42px !important;
+    max-width: 42px !important;
+    height: 42px !important;
+    min-height: 42px !important;
+    margin-inline: 2px !important;
+    padding: 0 !important;
+    border-radius: 14px !important;
+    font-size: 0 !important;
+  }
+
+  .previewMetaPublish .removePublishChannelButton > span {
+    width: 21px !important;
+    height: 21px !important;
+    display: grid !important;
+    place-items: center !important;
+    margin: 0 !important;
+    color: currentColor !important;
+    line-height: 0 !important;
+  }
+
+  .previewMetaPublish .removePublishChannelButton svg {
+    width: 20px !important;
+    height: 20px !important;
+    fill: none !important;
+    stroke: currentColor !important;
+    stroke-width: 1.9 !important;
+    stroke-linecap: round !important;
+    stroke-linejoin: round !important;
+  }
+
+  .previewMetaPublish .removePublishChannelButton:hover:not(:disabled) {
+    transform: translateY(-1px) !important;
+    color: #fff !important;
+    border-color: rgba(251, 113, 133, 0.72) !important;
+    box-shadow: 0 8px 18px rgba(2, 6, 23, 0.24),
+      0 0 17px rgba(244, 63, 94, 0.18) !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .previewMetaPublish {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    grid-template-areas:
+      "channels channels channels"
+      "save edit remove"
+      "pager pager pager"
+      "date date date"
+      "status status status"
+      "actions actions actions" !important;
+  }
+
+  .previewMetaPublish .saveCampaignDraftButton,
+  .previewMetaPublish .modifyCampaignButton,
+  .previewMetaPublish .removePublishChannelButton {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: 46px !important;
+    min-height: 46px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 5px !important;
+    margin: 0 !important;
+    padding: 5px 6px !important;
+    border-radius: 13px !important;
+    font-size: 9px !important;
+    font-weight: 900 !important;
+    line-height: 1.05 !important;
+    text-align: center !important;
+    white-space: normal !important;
+  }
+
+  .previewMetaPublish .saveCampaignDraftButton {
+    grid-area: save !important;
+  }
+
+  .previewMetaPublish .modifyCampaignButton {
+    grid-area: edit !important;
+  }
+
+  .previewMetaPublish .removePublishChannelButton {
+    grid-area: remove !important;
+  }
+
+  .previewMetaPublish .saveCampaignDraftButton > span,
+  .previewMetaPublish .modifyCampaignButton > span,
+  .previewMetaPublish .removePublishChannelButton > span {
+    width: 18px !important;
+    min-width: 18px !important;
+    height: 18px !important;
+    display: grid !important;
+    place-items: center !important;
+    margin: 0 !important;
+    line-height: 0 !important;
+  }
+
+  .previewMetaPublish .saveCampaignDraftButton svg,
+  .previewMetaPublish .modifyCampaignButton svg,
+  .previewMetaPublish .removePublishChannelButton svg {
+    width: 17px !important;
+    height: 17px !important;
+    fill: none !important;
+    stroke: currentColor !important;
+    stroke-width: 1.9 !important;
+  }
+
+  .previewMetaPublish .dateItem {
+    grid-area: date !important;
+    min-height: 44px !important;
+    height: 44px !important;
+  }
+
+  .publishMobileStatus {
+    grid-area: status !important;
+    width: 100%;
+    min-width: 0;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 12px;
+    border: 1px solid rgba(251, 146, 60, 0.34);
+    border-radius: 13px;
+    color: #f8fbff;
+    background: rgba(65, 33, 18, 0.28);
+    font-size: 12px;
+    line-height: 1.1;
+  }
+
+  .publishMobileStatus span {
+    color: rgba(226, 232, 240, 0.82);
+    font-weight: 800;
+  }
+
+  .publishMobileStatus strong {
+    color: #fdba74;
+    font-weight: 950;
+  }
+
+  .publishMobileStatus[data-validation-state="validated"] {
+    border-color: rgba(52, 211, 153, 0.34);
+    background: rgba(6, 78, 59, 0.24);
+  }
+
+  .publishMobileStatus[data-validation-state="validated"] strong {
+    color: #6ee7b7;
+  }
+
+  .publishMobileStatus[data-validation-state="refused"] {
+    border-color: rgba(251, 113, 133, 0.36);
+    background: rgba(76, 5, 25, 0.26);
+  }
+
+  .publishMobileStatus[data-validation-state="refused"] strong {
+    color: #fda4af;
+  }
+}
+
+/* Réglages d'automatisation mobile : en-tête lisible et fin de page dégagée. */
+@media (max-width: 760px) {
+  .automationSettingsModal {
+    padding-bottom: calc(84px + env(safe-area-inset-bottom)) !important;
+    scroll-padding-bottom: calc(84px + env(safe-area-inset-bottom));
+  }
+
+  .automationSettingsModal .settingsModalHeader {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "heading close"
+      "heading switch";
+    align-items: start !important;
+    gap: 7px 10px !important;
+    margin-bottom: 14px;
+  }
+
+  .automationSettingsModal .settingsModalHeading {
+    grid-area: heading;
+    align-self: start;
+  }
+
+  .automationSettingsModal .settingsModalHeaderActions {
+    display: contents !important;
+  }
+
+  .automationSettingsModal .settingsModalHeader .modalClose {
+    grid-area: close;
+    justify-self: end;
+  }
+
+  .automationSettingsModal .settingsHeaderSwitch {
+    grid-area: switch;
+    justify-self: end;
+    margin: 0;
+  }
+}

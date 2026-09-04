@@ -678,7 +678,7 @@ export function extractPublishMediaAdaptationPreview(
                   : "none",
           note:
             safeString(record.note) ||
-            "iNrAgent prépare automatiquement une version compatible avec le canal.",
+            "iNr’Agent prépare automatiquement une version compatible avec le canal.",
           userEditable: record.userEditable !== false,
         };
       }

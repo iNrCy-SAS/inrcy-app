@@ -1,5 +1,6 @@
 export const DASHBOARD_TOP_ANCHOR_ID = "dashboard-top";
 export const DASHBOARD_TOOLS_ANCHOR_ID = "dashboard-main-tools";
+export const DASHBOARD_GEARBOX_ANCHOR_ID = "dashboard-gearbox";
 
 const DASHBOARD_SCROLL_STORAGE_KEY = "inrcy_dashboard_scrollY";
 

@@ -5545,6 +5545,21 @@
   transform: translateY(-1px);
 }
 
+.gearPlanningBtn:hover,
+.gearPlanningBtn:focus-visible {
+  transform: translateY(-1px);
+}
+
+.gearPlanningIcon {
+  width: 17px;
+  height: 17px;
+  stroke: rgba(255, 255, 255, 0.94);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 7px rgba(167, 139, 250, 0.4));
+}
+
 .gearStatsIcon {
   position: relative;
   display: block;
@@ -11847,6 +11862,10 @@
   scroll-margin-top: 20px;
 }
 
+.dashboardGearboxAnchor {
+  scroll-margin-top: 20px;
+}
+
 .dashboardQuickJumpRow {
   position: relative;
   z-index: 8;
@@ -11952,6 +11971,7 @@
 
 @media (max-width: 700px) {
   .dashboardToolsAnchor { scroll-margin-top: 10px; }
+  .dashboardGearboxAnchor { scroll-margin-top: 10px; }
   .dashboardQuickJumpRow { min-height: 40px; margin: -2px auto 5px; }
   .dashboardQuickJumpReturnRow { margin: 12px auto 0; }
   .dashboardQuickJump {

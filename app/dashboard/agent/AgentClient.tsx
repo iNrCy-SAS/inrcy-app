@@ -157,6 +157,7 @@ import {
   SendPlaneIcon,
   ShieldLineIcon,
   SparkSettingsIcon,
+  TrashActionIcon,
   ValidateActionIcon,
   renderRichInlineText,
 } from "./_components/AgentVisuals";
@@ -276,6 +277,7 @@ import {
   preparedActionDirtySignature,
   scheduledAutomationKey,
   scheduledActionToPreparedAction,
+  removeScheduledEditPublishChannel,
   updateScheduledEditPublishText,
   updateScheduledEditPublishMedia,
   updateScheduledEditCampaign,
@@ -577,6 +579,9 @@ export default function AgentClient() {
   const [publishSaveState, setPublishSaveState] = useState<"idle" | "saving">(
     "idle",
   );
+  const [publishChannelRemoveState, setPublishChannelRemoveState] = useState<
+    "idle" | "removing"
+  >("idle");
 
   const {
     publishBodyEditorRef,
@@ -2879,6 +2884,115 @@ export default function AgentClient() {
     }
   }
 
+  async function performRemovePublishChannel(channel: ChannelKey) {
+    if (
+      !selectedPreparedAction ||
+      publishChannelRemoveState === "removing"
+    ) {
+      return;
+    }
+    if (preparedChannels.length <= 1) {
+      await updateActionStatus("refused");
+      return;
+    }
+
+    const actionId = selectedPreparedAction.id;
+    const channelLabel = agentChannelLabel(channel, runtimeT);
+    setPublishChannelRemoveState("removing");
+    setNotice(null);
+
+    try {
+      let updatedAction: AgentPreparedAction;
+      if (scheduledEditSession) {
+        updatedAction = removeScheduledEditPublishChannel(
+          scheduledEditSession.action,
+          channel,
+        );
+        updateScheduledEditAction(() => updatedAction);
+      } else {
+        const response = await fetch("/api/agent/actions", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            actionId,
+            editType: "remove_publish_channel",
+            channel: boosterChannelKeyFromAgentChannel(channel),
+          }),
+        });
+        const payload = (await response.json().catch(() => null)) as {
+          action?: AgentPreparedAction;
+          error?: string;
+        } | null;
+        if (!response.ok || !payload?.action) {
+          throw new Error(
+            payload?.error || i18nT("remove_publication_channel_failed"),
+          );
+        }
+        updatedAction = payload.action;
+        setActions((current) =>
+          current.map((action) =>
+            action.id === updatedAction.id ? updatedAction : action,
+          ),
+        );
+      }
+
+      const nextChannels = orderChannels(
+        channelsForAction(updatedAction, selectedConfigChannels),
+        selectedAvailableChannels,
+      );
+      const nextChannel = nextChannels[0] || null;
+      setSelectedChannelByAction((current) => {
+        const next = { ...current };
+        if (nextChannel) next[updatedAction.id] = nextChannel;
+        else delete next[updatedAction.id];
+        return next;
+      });
+      setPublishMediaActiveIndex(0);
+      showNotice(
+        i18nT("remove_publication_channel_success", {
+          channel: channelLabel,
+        }),
+      );
+    } catch (error) {
+      showNotice(i18nT("remove_publication_channel_failed"));
+    } finally {
+      setPublishChannelRemoveState("idle");
+    }
+  }
+
+  function requestRemoveActivePublishChannel() {
+    if (!activePreviewChannel || !selectedPreparedAction) return;
+    const channel = activePreviewChannel;
+    const channelLabel = agentChannelLabel(channel, runtimeT);
+    if (preparedChannels.length <= 1) {
+      openAgentConfirmDialog({
+        title: i18nT("remove_publication_channel_confirm_title", {
+          channel: channelLabel,
+        }),
+        message: i18nT("remove_publication_last_channel", {
+          channel: channelLabel,
+        }),
+        confirmLabel: i18nT("refuser_62897154"),
+        cancelLabel: i18nT("annuler_49ba3292"),
+        tone: "danger",
+        onConfirm: () => performRemovePublishChannel(channel),
+      });
+      return;
+    }
+    openAgentConfirmDialog({
+      title: i18nT("remove_publication_channel_confirm_title", {
+        channel: channelLabel,
+      }),
+      message: i18nT("remove_publication_channel_confirm_message", {
+        channel: channelLabel,
+      }),
+      confirmLabel: i18nT("remove_publication_channel_title"),
+      cancelLabel: i18nT("annuler_49ba3292"),
+      tone: "danger",
+      onConfirm: () => performRemovePublishChannel(channel),
+    });
+  }
+
   function updateScheduledEditAction(
     updater: (action: AgentPreparedAction) => AgentPreparedAction,
   ) {
@@ -3367,7 +3481,7 @@ export default function AgentClient() {
     if (!key || scheduleMutationState === "saving") return;
     const automation = visibleAutomations.find((item) => item.key === key);
     openAgentConfirmDialog({
-      title: i18nT("desactiver_l_automatisation_value_16e4507f", { value0: automation?.title || "iNrAgent" }),
+      title: i18nT("desactiver_l_automatisation_value_16e4507f", { value0: automation?.title || "iNr’Agent" }),
       message: i18nT("les_prochaines_actions_automatiques_de_cette_10b200ec"),
       confirmLabel: i18nT("desactiver_d2839748"),
       cancelLabel: i18nT("annuler_49ba3292"),
@@ -4939,6 +5053,16 @@ export default function AgentClient() {
                     <strong>{footerDateLabel}</strong>
                   </span>
                 </div>
+                {isPublishView && selectedPreparedAction ? (
+                  <div
+                    className={styles.publishMobileStatus}
+                    data-validation-state={selectedPublicationValidationState}
+                    aria-label={`${i18nT("statut_659499f3")} : ${publishValidationLabel}`}
+                  >
+                    <span>{i18nT("statut_659499f3")} :</span>
+                    <strong>{publishValidationLabel}</strong>
+                  </div>
+                ) : null}
                 {selected.key === "stats" ? (
                   <div className={styles.statsFooterNote}>
                     <small>{i18nT("validation_non_requise_72a87029")}</small>
@@ -5033,6 +5157,34 @@ export default function AgentClient() {
                       >
                         <span aria-hidden><PencilActionIcon /></span>
                         {i18nT("modifier_f260e757")}{" "}</button>
+                    )}
+                    {isPublishView && (
+                      <button
+                        type="button"
+                        className={styles.removePublishChannelButton}
+                        aria-label={i18nT("remove_publication_channel_title")}
+                        title={i18nT("remove_publication_channel_title")}
+                        data-tooltip={i18nT("remove_publication_channel_title")}
+                        aria-busy={publishChannelRemoveState === "removing"}
+                        disabled={
+                          !hasPreparedAction ||
+                          !canReviewSelectedAction ||
+                          actionMutationState === "saving" ||
+                          publishChannelRemoveState === "removing"
+                        }
+                        onClick={requestRemoveActivePublishChannel}
+                      >
+                        <span aria-hidden>
+                          {publishChannelRemoveState === "removing" ? (
+                            "…"
+                          ) : (
+                            <TrashActionIcon />
+                          )}
+                        </span>
+                        {publishChannelRemoveState === "removing"
+                          ? i18nT("removing_publication_channel")
+                          : i18nT("remove_publication_channel")}
+                      </button>
                     )}
                     <div className={styles.previewActions}>
                       {actionMutationState === "saving" ? (
@@ -6399,7 +6551,7 @@ export default function AgentClient() {
           onClick={() => setSettingsKey(null)}
         >
           <section
-            className={styles.settingsModal}
+            className={`${styles.settingsModal} ${styles.automationSettingsModal}`}
             role="dialog"
             aria-modal="true"
             aria-label={agentAutomationSettingsTitle(settingsAutomation.key, runtimeT)}

@@ -813,7 +813,7 @@ async function saveAgentSettingsHandler(request: Request) {
       return NextResponse.json(
         {
           error:
-            "La mise à jour de sécurité iNrAgent doit être appliquée dans Supabase avant d’enregistrer ces réglages. Aucun réglage n’a été modifié.",
+            "La mise à jour de sécurité iNr’Agent doit être appliquée dans Supabase avant d’enregistrer ces réglages. Aucun réglage n’a été modifié.",
           code: "INR_AGENT_SETTINGS_MIGRATION_REQUIRED",
           tableMissing: true,
         },
@@ -824,7 +824,7 @@ async function saveAgentSettingsHandler(request: Request) {
       return NextResponse.json(
         {
           error:
-            "Les tables iNrAgent V2 doivent être créées dans Supabase avant d’enregistrer.",
+            "Les tables iNr’Agent V2 doivent être créées dans Supabase avant d’enregistrer.",
           tableMissing: true,
         },
         { status: 500 },
@@ -834,7 +834,7 @@ async function saveAgentSettingsHandler(request: Request) {
     return NextResponse.json(
       {
         error:
-          "Enregistrement atomique des réglages iNrAgent impossible. Aucun réglage n’a été modifié.",
+          "Enregistrement atomique des réglages iNr’Agent impossible. Aucun réglage n’a été modifié.",
       },
       { status: 500 },
     );

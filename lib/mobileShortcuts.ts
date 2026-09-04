@@ -70,14 +70,14 @@ export function getMobileShortcutOption(id: MobileShortcutId): MobileShortcutOpt
 export function getMobileShortcutLabel(id: MobileShortcutId, locale = "fr-FR"): string {
   const language = String(locale || "fr").slice(0, 2).toLowerCase();
   const labels: Record<string, Partial<Record<MobileShortcutId, string>>> = {
-    fr: { agent: "iNrAgent", inrsend: "iNrSend", crm: "iNrCRM", calendar: "iNrCalendar", stats: "iNrStats", cash: "Encaisser", propulser: "Propulser", fideliser: "Fidéliser", reputation: "E-réputation" },
-    en: { agent: "iNrAgent", inrsend: "iNrSend", crm: "iNrCRM", calendar: "iNrCalendar", stats: "iNrStats", cash: "Payments", propulser: "Grow", fideliser: "Loyalty", reputation: "E-reputation" },
-    es: { agent: "iNrAgent", inrsend: "iNrSend", crm: "iNrCRM", calendar: "iNrCalendar", stats: "iNrStats", cash: "Cobrar", propulser: "Impulsar", fideliser: "Fidelizar", reputation: "E-reputación" },
-    it: { agent: "iNrAgent", inrsend: "iNrSend", crm: "iNrCRM", calendar: "iNrCalendar", stats: "iNrStats", cash: "Incassare", propulser: "Crescita", fideliser: "Fidelizzare", reputation: "E-reputazione" },
-    de: { agent: "iNrAgent", inrsend: "iNrSend", crm: "iNrCRM", calendar: "iNrCalendar", stats: "iNrStats", cash: "Kassieren", propulser: "Wachstum", fideliser: "Bindung", reputation: "E-Reputation" },
-    pt: { agent: "iNrAgent", inrsend: "iNrSend", crm: "iNrCRM", calendar: "iNrCalendar", stats: "iNrStats", cash: "Receber", propulser: "Impulsionar", fideliser: "Fidelizar", reputation: "E-reputação" },
-    th: { agent: "iNrAgent", inrsend: "iNrSend", crm: "iNrCRM", calendar: "iNrCalendar", stats: "iNrStats", cash: "รับชำระเงิน", propulser: "เติบโต", fideliser: "สร้างความภักดี", reputation: "ชื่อเสียงออนไลน์" },
-    zh: { agent: "iNrAgent", inrsend: "iNrSend", crm: "iNrCRM", calendar: "iNrCalendar", stats: "iNrStats", cash: "收款", propulser: "增长", fideliser: "客户忠诚", reputation: "在线口碑" },
+    fr: { agent: "iNr’Agent", inrsend: "iNrSend", crm: "iNrCRM", calendar: "iNrCalendar", stats: "iNrStats", cash: "Encaisser", propulser: "Propulser", fideliser: "Fidéliser", reputation: "E-réputation" },
+    en: { agent: "iNr’Agent", inrsend: "iNrSend", crm: "iNrCRM", calendar: "iNrCalendar", stats: "iNrStats", cash: "Payments", propulser: "Grow", fideliser: "Loyalty", reputation: "E-reputation" },
+    es: { agent: "iNr’Agent", inrsend: "iNrSend", crm: "iNrCRM", calendar: "iNrCalendar", stats: "iNrStats", cash: "Cobrar", propulser: "Impulsar", fideliser: "Fidelizar", reputation: "E-reputación" },
+    it: { agent: "iNr’Agent", inrsend: "iNrSend", crm: "iNrCRM", calendar: "iNrCalendar", stats: "iNrStats", cash: "Incassare", propulser: "Crescita", fideliser: "Fidelizzare", reputation: "E-reputazione" },
+    de: { agent: "iNr’Agent", inrsend: "iNrSend", crm: "iNrCRM", calendar: "iNrCalendar", stats: "iNrStats", cash: "Kassieren", propulser: "Wachstum", fideliser: "Bindung", reputation: "E-Reputation" },
+    pt: { agent: "iNr’Agent", inrsend: "iNrSend", crm: "iNrCRM", calendar: "iNrCalendar", stats: "iNrStats", cash: "Receber", propulser: "Impulsionar", fideliser: "Fidelizar", reputation: "E-reputação" },
+    th: { agent: "iNr’Agent", inrsend: "iNrSend", crm: "iNrCRM", calendar: "iNrCalendar", stats: "iNrStats", cash: "รับชำระเงิน", propulser: "เติบโต", fideliser: "สร้างความภักดี", reputation: "ชื่อเสียงออนไลน์" },
+    zh: { agent: "iNr’Agent", inrsend: "iNrSend", crm: "iNrCRM", calendar: "iNrCalendar", stats: "iNrStats", cash: "收款", propulser: "增长", fideliser: "客户忠诚", reputation: "在线口碑" },
   };
   return labels[language]?.[id] || labels.fr[id] || id;
 }

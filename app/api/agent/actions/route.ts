@@ -48,6 +48,7 @@ import {
   publishChannelRequiresVideo,
   readPublishChannelValue,
   readPublishPost,
+  removePublishChannelValue,
   type PublishChannelKey,
   type PublishDraftMedia,
 } from "./actionPublishDraft.foundations";
@@ -474,7 +475,7 @@ async function readAgentMediaBuffer(media: NonNullable<PublishDraftMedia>) {
       .from(bucket)
       .download(storagePath);
     if (downloaded.error || !downloaded.data) {
-      throw new Error("Média iNrAgent supprimé ou indisponible dans le stockage.");
+      throw new Error("Média iNr’Agent supprimé ou indisponible dans le stockage.");
     }
     return {
       buffer: Buffer.from(await downloaded.data.arrayBuffer()),
@@ -488,10 +489,10 @@ async function readAgentMediaBuffer(media: NonNullable<PublishDraftMedia>) {
   }
 
   const url = cleanText(media.url || media.publicUrl, 2000);
-  if (!url) throw new Error("Média iNrAgent indisponible.");
+  if (!url) throw new Error("Média iNr’Agent indisponible.");
   const response = await fetch(url);
   if (!response.ok) {
-    throw new Error("Média iNrAgent indisponible.");
+    throw new Error("Média iNr’Agent indisponible.");
   }
   return {
     buffer: Buffer.from(await response.arrayBuffer()),
@@ -1397,6 +1398,228 @@ export async function PATCH(request: Request) {
       action: result.action,
       draftId: result.draftId,
       savedAsDraft: true,
+    });
+  }
+
+  if (editType === "remove_publish_channel") {
+    if (!actionId) {
+      return NextResponse.json({ error: "Action invalide" }, { status: 400 });
+    }
+
+    const channel = cleanPublishChannel(requestBody?.channel);
+    if (!channel) {
+      return NextResponse.json(
+        { error: "Canal de publication invalide." },
+        { status: 400 },
+      );
+    }
+
+    const { data: currentRow, error: readError } = await supabaseAdmin
+      .from("inr_agent_actions")
+      .select(ACTION_SELECT)
+      .eq("id", actionId)
+      .eq("user_id", activeUserId)
+      .single();
+
+    if (readError || !currentRow) {
+      if (isMissingTableError(readError)) {
+        return NextResponse.json(
+          {
+            error: "La table inr_agent_actions doit être créée dans Supabase.",
+            tableMissing: true,
+          },
+          { status: 500 },
+        );
+      }
+      return NextResponse.json(
+        { error: "Action iNr’Agent introuvable." },
+        { status: 404 },
+      );
+    }
+
+    const currentAction = rowToInrAgentAction(currentRow as any);
+    if (!isPublishAction(currentAction)) {
+      return NextResponse.json(
+        {
+          error:
+            "Cette modification est réservée aux publications Booster préparées par iNr’Agent.",
+        },
+        { status: 400 },
+      );
+    }
+
+    const currentPayload = currentAction.payload || {};
+    const currentPublishPayload = asRecord(currentPayload.publishPayload) || {};
+    const arrayValue = (value: unknown) => (Array.isArray(value) ? value : []);
+    const currentChannels = normalizePublishChannels([
+      ...currentAction.targetChannels,
+      ...arrayValue(currentPayload.selectedChannels),
+      ...arrayValue(currentPayload.targetChannels),
+      ...arrayValue(currentPayload.channels),
+      ...arrayValue(currentPayload.boosterChannels),
+      ...arrayValue(currentPublishPayload.channels),
+      ...arrayValue(currentPublishPayload.selectedChannels),
+    ]);
+
+    if (!currentChannels.includes(channel)) {
+      return NextResponse.json(
+        { error: "Ce canal ne fait plus partie de cette publication." },
+        { status: 409 },
+      );
+    }
+    if (currentChannels.length <= 1) {
+      const refusedAt = new Date().toISOString();
+      const { data, error } = await supabaseAdmin
+        .from("inr_agent_actions")
+        .update({
+          status: "refused",
+          refused_at: refusedAt,
+          updated_at: refusedAt,
+          last_error: null,
+        })
+        .eq("id", actionId)
+        .eq("user_id", activeUserId)
+        .select(ACTION_SELECT)
+        .single();
+
+      if (error) {
+        if (isMissingTableError(error)) {
+          return NextResponse.json(
+            {
+              error: "La table inr_agent_actions doit être créée dans Supabase.",
+              tableMissing: true,
+            },
+            { status: 500 },
+          );
+        }
+        console.warn(
+          "[inr-agent-actions] last publish channel refusal failed",
+          error,
+        );
+        return NextResponse.json(
+          { error: "Refus de la publication impossible." },
+          { status: 500 },
+        );
+      }
+
+      const action = await refreshActionImageUrls(rowToInrAgentAction(data));
+      return NextResponse.json({
+        action,
+        removedChannel: channel,
+        remainingChannels: [],
+        publicationRefused: true,
+        saved: true,
+      });
+    }
+
+    const remainingChannels = currentChannels.filter(
+      (candidate) => candidate !== channel,
+    );
+    const rawTargetSource = currentAction.targetChannels.length
+      ? currentAction.targetChannels
+      : arrayValue(currentPayload.targetChannels).length
+        ? arrayValue(currentPayload.targetChannels)
+        : arrayValue(currentPayload.selectedChannels);
+    const remainingTargetChannels = rawTargetSource
+      .filter((candidate) => cleanPublishChannel(candidate) !== channel)
+      .map((candidate) => cleanText(candidate, 80))
+      .filter(Boolean);
+
+    const channelMapFields = [
+      "postByChannel",
+      "imagesByChannel",
+      "mediaModeByChannel",
+      "mediaReadinessByChannel",
+      "mediaAdaptationByChannel",
+      "videoSettingsByChannel",
+      "videoFormatByChannel",
+      "videoAdaptationModeByChannel",
+      "imageSettingsByChannel",
+    ] as const;
+    const channelListFields = [
+      "selectedChannels",
+      "targetChannels",
+      "channels",
+      "boosterChannels",
+      "uiChannels",
+    ] as const;
+    const withoutChannel = (source: Record<string, unknown>) => {
+      const next = { ...source };
+      for (const field of channelMapFields) {
+        const record = asRecord(next[field]);
+        if (record) next[field] = removePublishChannelValue(record, channel);
+      }
+      for (const field of channelListFields) {
+        if (!Array.isArray(next[field])) continue;
+        next[field] = (next[field] as unknown[]).filter(
+          (candidate) => cleanPublishChannel(candidate) !== channel,
+        );
+      }
+      return next;
+    };
+
+    const editedAt = new Date().toISOString();
+    const nextPublishPayload = withoutChannel(currentPublishPayload);
+    const nextPayload = withoutChannel(currentPayload);
+    if (Object.keys(currentPublishPayload).length) {
+      nextPayload.publishPayload = nextPublishPayload;
+    }
+    nextPayload.lastManualEdit = {
+      channel,
+      editedAt,
+      editType: "remove_publish_channel",
+    };
+    const nextPostByChannel =
+      asRecord(nextPayload.postByChannel) ||
+      asRecord(nextPublishPayload.postByChannel) ||
+      {};
+    const nextPreviewText = buildPublishPreviewTextFromPosts(
+      nextPostByChannel,
+      cleanText(
+        currentAction.previewText || currentAction.summary || currentAction.title,
+        1200,
+      ),
+    );
+
+    const { data, error } = await supabaseAdmin
+      .from("inr_agent_actions")
+      .update({
+        target_channels: remainingTargetChannels.length
+          ? remainingTargetChannels
+          : remainingChannels,
+        payload: nextPayload,
+        preview_text: nextPreviewText,
+        updated_at: editedAt,
+        last_error: null,
+      })
+      .eq("id", actionId)
+      .eq("user_id", activeUserId)
+      .select(ACTION_SELECT)
+      .single();
+
+    if (error) {
+      if (isMissingTableError(error)) {
+        return NextResponse.json(
+          {
+            error: "La table inr_agent_actions doit être créée dans Supabase.",
+            tableMissing: true,
+          },
+          { status: 500 },
+        );
+      }
+      console.warn("[inr-agent-actions] publish channel removal failed", error);
+      return NextResponse.json(
+        { error: "Suppression du canal impossible." },
+        { status: 500 },
+      );
+    }
+
+    const action = await refreshActionImageUrls(rowToInrAgentAction(data));
+    return NextResponse.json({
+      action,
+      removedChannel: channel,
+      remainingChannels,
+      saved: true,
     });
   }
 

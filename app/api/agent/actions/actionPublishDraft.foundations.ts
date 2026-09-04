@@ -29,7 +29,8 @@ export type PublishChannelKey =
   | "instagram"
   | "linkedin"
   | "tiktok"
-  | "youtube_shorts";
+  | "youtube_shorts"
+  | "pinterest";
 
 const publishChannelAliases: Record<string, PublishChannelKey> = {
   inrcy_site: "inrcy_site",
@@ -47,6 +48,7 @@ const publishChannelAliases: Record<string, PublishChannelKey> = {
   tiktok: "tiktok",
   youtube: "youtube_shorts",
   youtube_shorts: "youtube_shorts",
+  pinterest: "pinterest",
 };
 
 const publishChannelReadAliases: Record<PublishChannelKey, string[]> = {
@@ -59,6 +61,7 @@ const publishChannelReadAliases: Record<PublishChannelKey, string[]> = {
   linkedin: ["linkedin"],
   tiktok: ["tiktok"],
   youtube_shorts: ["youtube_shorts", "youtube"],
+  pinterest: ["pinterest"],
 };
 
 export function cleanPublishChannel(value: unknown): PublishChannelKey | null {
@@ -121,6 +124,17 @@ export function readPublishChannelValue(
   return undefined;
 }
 
+export function removePublishChannelValue(
+  valuesByChannel: Record<string, unknown>,
+  channel: PublishChannelKey,
+) {
+  const nextValues = { ...valuesByChannel };
+  for (const key of publishChannelReadAliases[channel]) {
+    delete nextValues[key];
+  }
+  return nextValues;
+}
+
 export function buildPublishPreviewTextFromPosts(
   postByChannel: Record<string, unknown>,
   fallback: string,
@@ -146,7 +160,8 @@ export function publishChannelRequiresMedia(channel: PublishChannelKey) {
   return (
     channel === "instagram" ||
     channel === "tiktok" ||
-    channel === "youtube_shorts"
+    channel === "youtube_shorts" ||
+    channel === "pinterest"
   );
 }
 
@@ -319,7 +334,7 @@ export function buildPublishMediaAdaptation(
       mediaType: "video",
       strategy: "booster_video_format",
       userEditable: true,
-      note: "iNrAgent garde la vidéo source et Booster prépare le format compatible au moment de publier.",
+      note: "iNr’Agent garde la vidéo source et Booster prépare le format compatible au moment de publier.",
     };
   }
 
@@ -329,7 +344,7 @@ export function buildPublishMediaAdaptation(
     mediaType: "image",
     strategy: "booster_image_adapter",
     userEditable: true,
-    note: "iNrAgent garde l’image source et Booster génère une version adaptée au canal sans modifier l’original.",
+    note: "iNr’Agent garde l’image source et Booster génère une version adaptée au canal sans modifier l’original.",
   };
 }
 

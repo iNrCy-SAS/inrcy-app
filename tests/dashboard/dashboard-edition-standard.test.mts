@@ -50,6 +50,10 @@ const agentActionModalsSource = readFileSync(
   ),
   "utf8",
 );
+const agentStylesSource = readFileSync(
+  new URL("../../app/dashboard/agent/agent.module.css", import.meta.url),
+  "utf8",
+);
 const connectionBubbleSource = readFileSync(
   new URL("../../app/dashboard/_components/DashboardFluxBubble.tsx", import.meta.url),
   "utf8",
@@ -96,6 +100,14 @@ const adminUsersClientSource = readFileSync(
 );
 const agentClientSource = readFileSync(
   new URL("../../app/dashboard/agent/AgentClient.tsx", import.meta.url),
+  "utf8",
+);
+const agentActionsApiSource = readFileSync(
+  new URL("../../app/api/agent/actions/route.ts", import.meta.url),
+  "utf8",
+);
+const agentScheduleSource = readFileSync(
+  new URL("../../app/dashboard/agent/_lib/agent.schedule.ts", import.meta.url),
   "utf8",
 );
 const agentSettingsApiSource = readFileSync(
@@ -355,12 +367,22 @@ test("le raccourci Planning du bloc iNrAgent réutilise la modale et les donnée
     /import \{ AgentScheduleModal \} from "\.\/AgentActionModals"/,
   );
   assert.match(dashboardAgentPlanningSource, /<AgentScheduleModal/);
-  assert.match(dashboardAgentPlanningSource, /showCampaigns=\{false\}/);
+  assert.match(dashboardAgentPlanningSource, /standardMode = true/);
+  assert.match(dashboardAgentPlanningSource, /showCampaigns=\{!standardMode\}/);
   assert.match(dashboardAgentPlanningSource, /buildAgentScheduleItems/);
   assert.match(agentClientSource, /buildAgentScheduleItems/);
   assert.match(agentClientSource, /showCampaigns=\{!standardMode\}/);
   assert.match(agentActionModalsSource, /readOnly = false/);
   assert.doesNotMatch(dashboardAgentPlanningSource, /role="dialog"/);
+});
+
+test("le planning responsive masque les jours vides et affiche chaque action sur une ligne lisible", () => {
+  assert.match(agentActionModalsSource, /data-has-actions=\{dayGroups\.length > 0\}/);
+  assert.match(agentActionModalsSource, /styles\.scheduleDayLabel/);
+  assert.match(agentActionModalsSource, /styles\.scheduleIconButtonLabel/);
+  assert.match(agentStylesSource, /\.scheduleDayCell\[data-has-actions="false"\]\s*\{\s*display:\s*none/);
+  assert.match(agentStylesSource, /grid-template-columns:\s*minmax\(0, 1fr\)/);
+  assert.match(agentStylesSource, /\.scheduleCalendarCard \.scheduleIconButton[\s\S]*?min-height:\s*44px/);
 });
 
 test("le CTA Booster Standard reste verrouillé sans ouvrir Mon profil quand la configuration requise est incomplète", () => {
@@ -541,6 +563,48 @@ test("iNrAgent Standard ne conserve que Publications et Statistiques", () => {
   assert.match(agentSettingsApiSource, /standardAgentAutomationKeysForPersistence/);
   assert.match(agentCronSource, /reason: "premium_required"/);
   assert.match(scheduledAgentCronSource, /status: "cancelled"/);
+});
+
+test("iNr’Agent retire un canal, refuse le dernier et garde un pupitre responsive lisible", () => {
+  assert.match(agentClientSource, /editType: "remove_publish_channel"/);
+  assert.match(agentClientSource, /styles\.removePublishChannelButton/);
+  assert.match(agentClientSource, /styles\.publishMobileStatus/);
+  assert.match(agentClientSource, /remove_publication_last_channel/);
+  assert.match(
+    agentClientSource,
+    /if \(preparedChannels\.length <= 1\) \{\s*await updateActionStatus\("refused"\);/,
+  );
+  assert.match(agentScheduleSource, /removeScheduledEditPublishChannel/);
+
+  assert.match(agentActionsApiSource, /editType === "remove_publish_channel"/);
+  assert.match(agentActionsApiSource, /\.eq\("user_id", activeUserId\)/);
+  assert.match(agentActionsApiSource, /currentChannels\.length <= 1/);
+  assert.match(agentActionsApiSource, /status: "refused"/);
+  assert.match(agentActionsApiSource, /publicationRefused: true/);
+  assert.match(agentActionsApiSource, /target_channels: remainingTargetChannels/);
+
+  assert.match(agentStylesSource, /"save edit remove"/);
+  assert.match(agentStylesSource, /"status status status"/);
+  assert.match(
+    agentStylesSource,
+    /\.previewMetaPublish \.channelScroller button \{[\s\S]*?width: 32px !important;/,
+  );
+});
+
+test("les réglages iNr’Agent restent entièrement accessibles sur mobile", () => {
+  assert.match(agentClientSource, /styles\.automationSettingsModal/);
+  assert.match(
+    agentStylesSource,
+    /\.automationSettingsModal \{[\s\S]*?padding-bottom: calc\(84px \+ env\(safe-area-inset-bottom\)\)/,
+  );
+  assert.match(
+    agentStylesSource,
+    /grid-template-areas:\s*"heading close"\s*"heading switch"/,
+  );
+  assert.match(
+    agentStylesSource,
+    /\.automationSettingsModal \.settingsModalHeaderActions \{\s*display: contents !important;/,
+  );
 });
 
 test("iNrStats Standard exclut les données Mails de l'interface et des bilans iNrAgent", () => {

@@ -1024,11 +1024,11 @@ function buildAgentSelectedMediaContext(
   ].filter(Boolean);
 
   return [
-    `MÉDIA SÉLECTIONNÉ PAR iNrAgent : ${mediaKind}.`,
+    `MÉDIA SÉLECTIONNÉ PAR iNr’Agent : ${mediaKind}.`,
     metadata.length ? `Métadonnées internes factuelles : ${metadata.join(" | ")}.` : "",
     mediaKind === "image"
       ? fastMetadataOnly
-        ? "Mode rapide iNrAgent : l'image n'est pas transmise à l'analyse visuelle IA. Utilise uniquement la phrase libre et les métadonnées internes factuelles ; n'invente aucun détail visuel non fourni."
+        ? "Mode rapide iNr’Agent : l'image n'est pas transmise à l'analyse visuelle IA. Utilise uniquement la phrase libre et les métadonnées internes factuelles ; n'invente aucun détail visuel non fourni."
         : aiImageAvailable
           ? "L'image est effectivement transmise à l'analyse IA : utilise uniquement les éléments raisonnablement visibles, sans inventer."
           : "L'image n'a pas pu être chargée pour analyse visuelle : n'invente aucun détail visuel à partir du seul nom du fichier."
@@ -1087,7 +1087,7 @@ async function generateBoosterPosts(args: {
     accountId: args.accountId,
     skipMediaVisionAnalysis: args.skipMediaVisionAnalysis,
     mediaContext: args.mediaContext,
-    extraInstructions: `CONTEXTE iNrAgent : cette génération provient de l'automatisation Publier.
+    extraInstructions: `CONTEXTE iNr’Agent : cette génération provient de l'automatisation Publier.
 Objectif : produire exactement la même logique éditoriale que Booster / Publier manuel, avec un contenu réellement adapté à chaque canal.
 TON CHOISI PAR LE PROFESSIONNEL : ${agentToneInstructions[args.agentTone]}
 Ne fournis jamais des copies entre canaux. Adapte réellement l'angle, la profondeur, le vocabulaire et le rythme, sans imposer artificiellement une structure différente à chaque version.
@@ -2571,7 +2571,7 @@ function channelMediaAdaptation(
       mediaType: "video",
       strategy: "booster_video_format",
       userEditable: true,
-      note: "iNrAgent transmet la vidéo source à Booster. Le format vidéo sera préparé selon les règles du canal avant publication.",
+      note: "iNr’Agent transmet la vidéo source à Booster. Le format vidéo sera préparé selon les règles du canal avant publication.",
     };
   }
 
@@ -2581,6 +2581,6 @@ function channelMediaAdaptation(
     mediaType: "image",
     strategy: "booster_image_adapter",
     userEditable: true,
-    note: "iNrAgent transmet l’image source à Booster. Une version compatible avec le canal sera préparée sans modifier l’original.",
+    note: "iNr’Agent transmet l’image source à Booster. Une version compatible avec le canal sera préparée sans modifier l’original.",
   };
 }

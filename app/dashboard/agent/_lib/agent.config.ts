@@ -111,6 +111,7 @@ export const channelOrderRank = Object.fromEntries(
 ) as Record<ChannelKey, number>;
 
 export const apiChannelToUi: Record<string, ChannelKey> = {
+  inrcy_site: "siteInrcy",
   site_inrcy: "siteInrcy",
   siteInrcy: "siteInrcy",
   site_web: "siteWeb",

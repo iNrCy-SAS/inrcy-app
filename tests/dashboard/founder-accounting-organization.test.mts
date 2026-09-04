@@ -73,6 +73,9 @@ test("la boîte de vitesse Premium expose exactement Booster, iNrAgent, Campagne
   assert.match(source, /startModuleNavigation\("\/dashboard\/propulser"\)/);
   assert.match(source, /startModuleNavigation\("\/dashboard\/fideliser"\)/);
   assert.match(source, /accountingEnabled && cashModalOpen/);
+  assert.match(source, /data-testid="premium-agent-planning"/);
+  assert.match(source, /<DashboardAgentPlanningModal/);
+  assert.match(source, /standardMode=\{false\}/);
   assert.match(styles, /\.gearBlockCard \.gearGrid\s*\{\s*grid-template-rows:\s*repeat\(4, minmax\(74px, 1fr\)\)/);
   assert.doesNotMatch(styles, /\.gearBlockCard \.gearGrid\s*>\s*\.gearCapsule\s*\{\s*grid-column:\s*auto/);
 });

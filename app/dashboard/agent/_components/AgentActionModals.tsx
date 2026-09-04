@@ -1143,10 +1143,18 @@ export function AgentScheduleModal({
                           key={dayKey}
                           className={styles.scheduleDayCell}
                           data-today={dayKey === todayKey}
+                          data-has-actions={dayGroups.length > 0}
                           role="gridcell"
                         >
                           <div className={styles.scheduleDayHeader}>
                             <span>{date.getDate()}</span>
+                            <strong className={styles.scheduleDayLabel}>
+                              {new Intl.DateTimeFormat(locale, {
+                                weekday: "long",
+                                day: "numeric",
+                                month: "long",
+                              }).format(date)}
+                            </strong>
                             {dayGroups.length > 0 ? (
                               <small>{dayGroups.length}</small>
                             ) : null}
@@ -1221,6 +1229,13 @@ export function AgentScheduleModal({
                                               <path d="M4 20h4.2L19 9.2 14.8 5 4 15.8V20Z" />
                                               <path d="m13.8 6 4.2 4.2" />
                                             </svg>
+                                            <span
+                                              className={
+                                                styles.scheduleIconButtonLabel
+                                              }
+                                            >
+                                              {i18nT("edit_content")}
+                                            </span>
                                           </button>
                                           <button
                                             type="button"
@@ -1244,6 +1259,15 @@ export function AgentScheduleModal({
                                               <circle cx="12" cy="12" r="8" />
                                               <path d="M12 8v5l3 2" />
                                             </svg>
+                                            <span
+                                              className={
+                                                styles.scheduleIconButtonLabel
+                                              }
+                                            >
+                                              {i18nT(
+                                                "modifier_la_programmation_2bdd7cdc"
+                                              )}
+                                            </span>
                                           </button>
                                           <button
                                             type="button"
@@ -1265,6 +1289,13 @@ export function AgentScheduleModal({
                                               <path d="m7 7 1 13h8l1-13" />
                                               <path d="M10 11v5M14 11v5" />
                                             </svg>
+                                            <span
+                                              className={
+                                                styles.scheduleIconButtonLabel
+                                              }
+                                            >
+                                              {i18nT("supprimer_1acfc1c7")}
+                                            </span>
                                           </button>
                                         </>
                                       ) : null}
