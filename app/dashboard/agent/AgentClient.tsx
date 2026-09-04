@@ -5924,12 +5924,6 @@ export default function AgentClient() {
             <div className={styles.modalActions}>
               <button
                 type="button"
-                onClick={() => setPublishMediaPreviewOpen(false)}
-                disabled={publishMediaUploadState === "saving"}
-              >
-                {i18nT("fermer_5ab4ec64")}{" "}</button>
-              <button
-                type="button"
                 onClick={removePublishMedia}
                 disabled={
                   publishMediaUploadState === "saving" ||

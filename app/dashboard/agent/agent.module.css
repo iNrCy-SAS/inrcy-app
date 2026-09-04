@@ -16967,7 +16967,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     padding: 2px 0 !important;
   }
 
-  /* Les actions restent dans la zone utile, au-dessus du bandeau de navigation. */
+  /* Le contenu défile dans la zone utile, au-dessus du bandeau de navigation. */
   .publishMediaModal {
     max-height: calc(
       100dvh -
@@ -16977,20 +16977,14 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
         ) -
         28px
     ) !important;
-    padding-bottom: 12px !important;
-    scroll-padding-bottom: 76px;
+    padding-bottom: 24px !important;
+    scroll-padding-bottom: 24px;
   }
 
   .publishMediaModal .modalActions {
-    position: sticky;
-    z-index: 8;
-    bottom: 0;
-    margin: 14px -2px -2px !important;
-    padding: 10px 2px 2px;
-    background: linear-gradient(
-      180deg,
-      rgba(5, 14, 34, 0),
-      rgba(5, 14, 34, 0.98) 24%
-    );
+    position: static;
+    margin: 16px 0 0 !important;
+    padding: 0;
+    background: none;
   }
 }
