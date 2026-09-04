@@ -144,7 +144,7 @@ test("le rafraîchissement du planning conserve la quinzaine choisie et masque l
   assert.match(scheduleModalSource, /showCampaigns = true/);
   assert.match(scheduleModalSource, /scheduleFilterKey\(item\) !== "campaigns"/);
   assert.match(client, /showCampaigns=\{!standardMode\}/);
-  assert.match(dashboardPlanning, /showCampaigns=\{false\}/);
+  assert.match(dashboardPlanning, /showCampaigns=\{!standardMode\}/);
 });
 
 test("les libellés de filtres et de validation du planning existent dans toutes les langues", () => {

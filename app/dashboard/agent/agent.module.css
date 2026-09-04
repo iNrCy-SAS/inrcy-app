@@ -17546,3 +17546,102 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     margin: 0;
   }
 }
+
+/* Ajustements finaux du pupitre desktop et des compteurs d'action. */
+.publishStatusCounter {
+  display: none;
+}
+
+@media (min-width: 761px) {
+  .publishStatusCounter {
+    min-width: 48px;
+    height: 24px;
+    display: inline-grid;
+    place-items: center;
+    margin-left: 2px;
+    padding: 0 8px;
+    border: 1px solid rgba(196, 181, 253, 0.28);
+    border-radius: 999px;
+    color: #f8fafc;
+    background: linear-gradient(
+      135deg,
+      rgba(59, 130, 246, 0.24),
+      rgba(168, 85, 247, 0.28)
+    );
+    font-size: 10px;
+    font-weight: 950;
+    line-height: 1;
+    white-space: nowrap;
+  }
+}
+
+@media (min-width: 1101px) {
+  /* Une seule copie du chiffre, centrée dans sa pastille. */
+  .automationGrid .automationCard .cardPendingCount,
+  .automationGridStandard .automationCard .cardPendingCount {
+    display: grid !important;
+    place-items: center !important;
+    text-align: center !important;
+    line-height: 1 !important;
+  }
+
+  .automationGrid .automationCard .cardPendingCount::before,
+  .automationGridStandard .automationCard .cardPendingCount::before {
+    content: attr(data-count) !important;
+    width: 100% !important;
+    height: 100% !important;
+    display: grid !important;
+    place-items: center !important;
+    color: #fff !important;
+    font-size: 10px !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+    text-align: center !important;
+  }
+
+  .automationGrid .automationCard .cardPendingCount::after,
+  .automationGridStandard .automationCard .cardPendingCount::after {
+    content: none !important;
+    display: none !important;
+  }
+}
+
+@media (min-width: 1251px) {
+  .previewMetaPublish {
+    grid-template-columns:
+      minmax(370px, 1.2fr) minmax(195px, 0.82fr)
+      46px 46px 46px minmax(250px, 0.98fr) !important;
+  }
+
+  .previewMetaPublish .channelsItem {
+    justify-content: flex-start !important;
+    padding-right: 6px !important;
+    padding-left: 0 !important;
+  }
+
+  .previewMetaPublish .channelScrollerWrapPublish {
+    width: min(100%, 380px) !important;
+    min-width: 0 !important;
+    justify-self: start !important;
+    grid-template-columns: 28px minmax(0, 1fr) 28px !important;
+    gap: 3px !important;
+  }
+
+  .previewMetaPublish .channelScroller {
+    width: 100% !important;
+    min-width: 0 !important;
+    gap: 3px !important;
+  }
+
+  .previewMetaPublish .channelNavArrow {
+    width: 28px !important;
+    min-width: 28px !important;
+    height: 34px !important;
+    min-height: 34px !important;
+  }
+
+  .previewMetaPublish .channelNavArrow svg {
+    width: 17px !important;
+    height: 17px !important;
+  }
+}

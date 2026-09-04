@@ -4586,6 +4586,15 @@ export default function AgentClient() {
                           <small>{i18nT("statut_659499f3")}</small>
                           <strong className={publishStatusClass}>
                             {publishValidationLabel}
+                            {publicationCarouselActions.length > 0 ? (
+                              <span
+                                className={styles.publishStatusCounter}
+                                aria-live="polite"
+                              >
+                                + {Math.max(0, selectedPublicationIndex) + 1} /{" "}
+                                {publicationCarouselActions.length}
+                              </span>
+                            ) : null}
                           </strong>
                         </span>
                       </article>
@@ -4745,15 +4754,6 @@ export default function AgentClient() {
                             <span>{i18nT("cta_4f4f1f7e")}</span>
                             <strong>{publishCtaLine}</strong>
                           </div>
-                          {publicationCarouselActions.length > 0 ? (
-                            <span
-                              className={styles.publishPostCounter}
-                              aria-live="polite"
-                            >
-                              {Math.max(0, selectedPublicationIndex) + 1} /{" "}
-                              {publicationCarouselActions.length}
-                            </span>
-                          ) : null}
                         </div>
                       </div>
                       <button

@@ -385,6 +385,16 @@ test("le planning responsive masque les jours vides et affiche chaque action sur
   assert.match(agentStylesSource, /\.scheduleCalendarCard \.scheduleIconButton[\s\S]*?min-height:\s*44px/);
 });
 
+test("le planning conserve Modifier et Reprogrammer dans la vue de consultation", () => {
+  assert.match(dashboardAgentPlanningSource, /readOnly/);
+  assert.match(
+    agentActionModalsSource,
+    /data-schedule-action="edit"[\s\S]*?data-schedule-action="reschedule"[\s\S]*?\{!readOnly \? \([\s\S]*?data-schedule-action="delete"/,
+  );
+  assert.match(agentActionModalsSource, /onClick=\{\(\) => onOpenContent\(item\)\}/);
+  assert.match(agentActionModalsSource, /onClick=\{\(\) => onReschedule\(item\)\}/);
+});
+
 test("le CTA Booster Standard reste verrouillé sans ouvrir Mon profil quand la configuration requise est incomplète", () => {
   assert.match(
     channelsSectionSource,
@@ -588,6 +598,30 @@ test("iNr’Agent retire un canal, refuse le dernier et garde un pupitre respons
   assert.match(
     agentStylesSource,
     /\.previewMetaPublish \.channelScroller button \{[\s\S]*?width: 32px !important;/,
+  );
+});
+
+test("le compteur de publication desktop est dans Statut et le pupitre réserve la place à la date", () => {
+  assert.match(
+    agentClientSource,
+    /styles\.publishInfoStatus[\s\S]*?styles\.publishStatusCounter/,
+  );
+  assert.doesNotMatch(agentClientSource, /styles\.publishPostCounter/);
+  assert.match(
+    agentStylesSource,
+    /\.publishStatusCounter \{[\s\S]*?display: inline-grid;/,
+  );
+  assert.match(
+    agentStylesSource,
+    /\.previewMetaPublish \.channelScrollerWrapPublish \{[\s\S]*?width: min\(100%, 380px\) !important;/,
+  );
+  assert.match(
+    agentStylesSource,
+    /\.previewMetaPublish \.channelNavArrow \{[\s\S]*?width: 28px !important;/,
+  );
+  assert.match(
+    agentStylesSource,
+    /\.automationGrid \.automationCard \.cardPendingCount::after,[\s\S]*?content: none !important;/,
   );
 });
 

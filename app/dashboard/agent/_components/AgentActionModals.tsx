@@ -1194,84 +1194,87 @@ export function AgentScheduleModal({
                                         styles.scheduleCalendarCardControls
                                       }
                                     >
-                                      {!readOnly ? (
-                                        <>
-                                          <button
-                                            type="button"
-                                            className={styles.scheduleIconButton}
-                                            onClick={() => onOpenContent(item)}
-                                            disabled={
-                                              mutationState === "saving" ||
-                                              (item.source === "editorial" &&
-                                                !item.contentReady)
-                                            }
-                                            aria-label={
-                                              item.source === "editorial" &&
-                                              !item.contentReady
-                                                ? i18nT(
-                                                    "preparation_en_cours_28379fdb"
-                                                  )
-                                                : i18nT("edit_content")
-                                            }
-                                            title={
-                                              item.source === "editorial" &&
-                                              !item.contentReady
-                                                ? i18nT(
-                                                    "preparation_en_cours_28379fdb"
-                                                  )
-                                                : i18nT("edit_content")
+                                      <>
+                                        <button
+                                          type="button"
+                                          className={styles.scheduleIconButton}
+                                          data-schedule-action="edit"
+                                          onClick={() => onOpenContent(item)}
+                                          disabled={
+                                            mutationState === "saving" ||
+                                            (item.source === "editorial" &&
+                                              !item.contentReady)
+                                          }
+                                          aria-label={
+                                            item.source === "editorial" &&
+                                            !item.contentReady
+                                              ? i18nT(
+                                                  "preparation_en_cours_28379fdb"
+                                                )
+                                              : i18nT("edit_content")
+                                          }
+                                          title={
+                                            item.source === "editorial" &&
+                                            !item.contentReady
+                                              ? i18nT(
+                                                  "preparation_en_cours_28379fdb"
+                                                )
+                                              : i18nT("edit_content")
+                                          }
+                                        >
+                                          <svg
+                                            viewBox="0 0 24 24"
+                                            aria-hidden="true"
+                                          >
+                                            <path d="M4 20h4.2L19 9.2 14.8 5 4 15.8V20Z" />
+                                            <path d="m13.8 6 4.2 4.2" />
+                                          </svg>
+                                          <span
+                                            className={
+                                              styles.scheduleIconButtonLabel
                                             }
                                           >
-                                            <svg
-                                              viewBox="0 0 24 24"
-                                              aria-hidden="true"
-                                            >
-                                              <path d="M4 20h4.2L19 9.2 14.8 5 4 15.8V20Z" />
-                                              <path d="m13.8 6 4.2 4.2" />
-                                            </svg>
-                                            <span
-                                              className={
-                                                styles.scheduleIconButtonLabel
-                                              }
-                                            >
-                                              {i18nT("edit_content")}
-                                            </span>
-                                          </button>
-                                          <button
-                                            type="button"
-                                            className={styles.scheduleIconButton}
-                                            onClick={() => onReschedule(item)}
-                                            disabled={
-                                              !item.editable ||
-                                              mutationState === "saving"
-                                            }
-                                            aria-label={i18nT(
-                                              "modifier_la_programmation_2bdd7cdc"
-                                            )}
-                                            title={i18nT(
-                                              "modifier_la_programmation_2bdd7cdc"
-                                            )}
+                                            {i18nT("edit_content")}
+                                          </span>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className={styles.scheduleIconButton}
+                                          data-schedule-action="reschedule"
+                                          onClick={() => onReschedule(item)}
+                                          disabled={
+                                            !item.editable ||
+                                            mutationState === "saving"
+                                          }
+                                          aria-label={i18nT(
+                                            "modifier_la_programmation_2bdd7cdc"
+                                          )}
+                                          title={i18nT(
+                                            "modifier_la_programmation_2bdd7cdc"
+                                          )}
+                                        >
+                                          <svg
+                                            viewBox="0 0 24 24"
+                                            aria-hidden="true"
                                           >
-                                            <svg
-                                              viewBox="0 0 24 24"
-                                              aria-hidden="true"
-                                            >
-                                              <circle cx="12" cy="12" r="8" />
-                                              <path d="M12 8v5l3 2" />
-                                            </svg>
-                                            <span
-                                              className={
-                                                styles.scheduleIconButtonLabel
-                                              }
-                                            >
-                                              {i18nT(
-                                                "modifier_la_programmation_2bdd7cdc"
-                                              )}
-                                            </span>
-                                          </button>
+                                            <circle cx="12" cy="12" r="8" />
+                                            <path d="M12 8v5l3 2" />
+                                          </svg>
+                                          <span
+                                            className={
+                                              styles.scheduleIconButtonLabel
+                                            }
+                                          >
+                                            {i18nT(
+                                              "modifier_la_programmation_2bdd7cdc"
+                                            )}
+                                          </span>
+                                        </button>
+                                        {!readOnly ? (
                                           <button
                                             type="button"
                                             className={`${styles.scheduleIconButton} ${styles.scheduleIconDanger}`}
+                                            data-schedule-action="delete"
                                             onClick={() => onDelete(item)}
                                             disabled={
                                               !item.removable ||
@@ -1297,8 +1300,8 @@ export function AgentScheduleModal({
                                               {i18nT("supprimer_1acfc1c7")}
                                             </span>
                                           </button>
-                                        </>
-                                      ) : null}
+                                        ) : null}
+                                      </>
                                       <span
                                         className={
                                           styles.scheduleApprovalIndicator
