@@ -16944,3 +16944,53 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   overflow: hidden !important;
   overscroll-behavior: auto;
 }
+
+/* iNrAgent mobile : tous les canaux restent visibles sur deux rangées. */
+@media (max-width: 760px) {
+  .previewMetaPublish .channelsItem {
+    height: 76px !important;
+    min-height: 76px !important;
+  }
+
+  .previewMetaPublish .channelScrollerWrapPublish {
+    height: 76px !important;
+    min-height: 76px !important;
+  }
+
+  .previewMetaPublish .channelScroller {
+    height: 68px !important;
+    max-height: 68px !important;
+    flex-wrap: wrap !important;
+    align-content: center !important;
+    justify-content: center !important;
+    overflow: hidden !important;
+    padding: 2px 0 !important;
+  }
+
+  /* Les actions restent dans la zone utile, au-dessus du bandeau de navigation. */
+  .publishMediaModal {
+    max-height: calc(
+      100dvh -
+        var(
+          --inrcy-mobile-bottom-nav-total-height,
+          calc(50px + var(--inrcy-safe-area-bottom))
+        ) -
+        28px
+    ) !important;
+    padding-bottom: 12px !important;
+    scroll-padding-bottom: 76px;
+  }
+
+  .publishMediaModal .modalActions {
+    position: sticky;
+    z-index: 8;
+    bottom: 0;
+    margin: 14px -2px -2px !important;
+    padding: 10px 2px 2px;
+    background: linear-gradient(
+      180deg,
+      rgba(5, 14, 34, 0),
+      rgba(5, 14, 34, 0.98) 24%
+    );
+  }
+}

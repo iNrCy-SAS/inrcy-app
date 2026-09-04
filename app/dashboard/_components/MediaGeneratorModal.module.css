@@ -1,15 +1,18 @@
 .layer {
   position: fixed;
   inset: 0;
-  z-index: 10060;
+  z-index: 2147483002;
   display: grid;
   place-items: center;
   padding: clamp(10px, 1.6vw, 24px);
+  isolation: isolate;
+  pointer-events: auto;
 }
 
 .backdrop {
   position: absolute;
   inset: 0;
+  z-index: 0;
   width: 100%;
   height: 100%;
   border: 0;
@@ -22,6 +25,8 @@
 
 .dialog {
   position: relative;
+  z-index: 1;
+  pointer-events: auto;
   width: min(1600px, 100%);
   height: calc(100dvh - clamp(20px, 3.2vw, 48px));
   max-height: 980px;
@@ -42,7 +47,7 @@
 .header {
   position: sticky;
   top: 0;
-  z-index: 2;
+  z-index: 10;
   min-height: 72px;
   display: grid;
   grid-template-columns: minmax(210px, 1fr) minmax(190px, auto) minmax(410px, 1fr);
@@ -94,6 +99,8 @@
 }
 
 .headerActions {
+  position: relative;
+  z-index: 11;
   min-width: 0;
   display: flex;
   align-items: center;
@@ -171,6 +178,10 @@
 }
 
 .close {
+  position: relative;
+  z-index: 12;
+  pointer-events: auto;
+  touch-action: manipulation;
   min-width: 74px;
   min-height: 36px;
   display: inline-flex;

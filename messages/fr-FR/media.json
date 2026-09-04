@@ -223,7 +223,7 @@
   "ai_generator_video_engine_veo_hint": "Veo Fast privilégie une mise en scène plus libre et cinématographique.",
   "ai_generator_video_format": "8, 16 ou 24 secondes · format au choix",
   "ai_generator_video_options_hint": "Durée, voix off et bande-son iNrCy.",
-  "ai_generator_video_premium_required": "Standard inclut 5 vidéos de 8 s par mois. Les formats 16 et 24 s sont réservés à Premium et Founder.",
+  "ai_generator_video_premium_required": "Standard inclut 5 vidéos de 8 s par mois. Les formats 16 et 24 s sont réservés à Premium.",
   "ai_generator_video_quota": "Vidéos générées ce mois",
   "ai_generator_video_ready_title": "Votre vidéo est prête",
   "ai_generator_video_timing_hint": "Temps indicatif : iNrCy analyse le profil, construit les scènes puis réalise le montage. La durée dépend du format choisi.",

@@ -17,6 +17,8 @@ import {
 
 const execFileAsync = promisify(execFile);
 const MAX_GOOGLE_BUSINESS_VIDEO_BYTES = 74 * 1024 * 1024;
+const NARRATION_END_GUARD_SECONDS = 1;
+const NARRATION_TIMING_MARGIN_SECONDS = 0.2;
 
 function compactError(error: unknown) {
   const source = error as { stderr?: unknown; message?: unknown } | null;
@@ -24,6 +26,69 @@ function compactError(error: unknown) {
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 2_000);
+}
+
+function parseMediaDurationSeconds(stderr: string) {
+  const match = stderr.match(
+    /Duration:\s*(\d{1,2}):(\d{2}):(\d{2}(?:\.\d+)?)/i,
+  );
+  if (!match) return 0;
+  return Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3]);
+}
+
+async function probeNarrationDurationSeconds(args: {
+  ffmpegPath: string;
+  inputPath: string;
+  signal?: AbortSignal;
+}) {
+  let stderr = "";
+  try {
+    const result = await execFileAsync(
+      args.ffmpegPath,
+      [
+        "-hide_banner",
+        "-nostdin",
+        "-i",
+        args.inputPath,
+        "-map",
+        "0:a:0",
+        "-t",
+        "0.05",
+        "-f",
+        "null",
+        "-",
+      ],
+      {
+        timeout: 30_000,
+        maxBuffer: 4 * 1024 * 1024,
+        windowsHide: true,
+        signal: args.signal,
+      },
+    );
+    stderr = String(result.stderr || "");
+  } catch (error) {
+    stderr = String((error as { stderr?: unknown })?.stderr || "");
+  }
+  const durationSeconds = parseMediaDurationSeconds(stderr);
+  if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+    throw new Error("ai_narration_duration_unavailable");
+  }
+  return durationSeconds;
+}
+
+function narrationTempoFilters(args: {
+  narrationDurationSeconds: number;
+  targetVoiceSeconds: number;
+}) {
+  let tempo = args.narrationDurationSeconds / args.targetVoiceSeconds;
+  if (!Number.isFinite(tempo) || tempo <= 1) return [];
+  const filters: string[] = [];
+  while (tempo > 2) {
+    filters.push("atempo=2");
+    tempo /= 2;
+  }
+  filters.push(`atempo=${tempo.toFixed(6)}`);
+  return filters;
 }
 
 function buildFilter(args: {
@@ -34,6 +99,7 @@ function buildFilter(args: {
   hasNativeAudio: boolean;
   soundtrackInputIndex: number | null;
   narrationInputIndex: number | null;
+  narrationDurationSeconds: number | null;
 }) {
   const filters: string[] = [];
   for (let index = 0; index < args.clipDurations.length; index += 1) {
@@ -66,9 +132,34 @@ function buildFilter(args: {
     );
   }
   if (args.narrationInputIndex !== null) {
-    const voiceFadeOutStart = Math.max(0, args.durationSeconds - 0.35);
+    if (args.narrationDurationSeconds === null) {
+      throw new Error("ai_narration_duration_unavailable");
+    }
+    const maximumVoiceSeconds = Math.max(
+      0.5,
+      args.durationSeconds - NARRATION_END_GUARD_SECONDS,
+    );
+    const targetVoiceSeconds = Math.max(
+      0.4,
+      maximumVoiceSeconds - NARRATION_TIMING_MARGIN_SECONDS,
+    );
+    const tempoFilters = narrationTempoFilters({
+      narrationDurationSeconds: args.narrationDurationSeconds,
+      targetVoiceSeconds,
+    });
+    const voiceFilters = [
+      "aresample=48000",
+      "aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo",
+      "asetpts=PTS-STARTPTS",
+      "afade=t=in:st=0:d=0.08",
+      ...tempoFilters,
+      `atrim=duration=${maximumVoiceSeconds}`,
+      `apad=pad_dur=${args.durationSeconds}`,
+      `atrim=duration=${args.durationSeconds}`,
+      "volume=1.0",
+    ];
     filters.push(
-      `[${args.narrationInputIndex}:a]aresample=48000,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,asetpts=PTS-STARTPTS,afade=t=in:st=0:d=0.12,afade=t=out:st=${voiceFadeOutStart}:d=0.35,apad=pad_dur=${args.durationSeconds},atrim=duration=${args.durationSeconds},volume=1.0[voice]`,
+      `[${args.narrationInputIndex}:a]${voiceFilters.join(",")}[voice]`,
     );
   }
 
@@ -155,12 +246,18 @@ export async function composeOriginalAiVideo(args: {
     const narrationInputIndex = args.narration
       ? clipPaths.length + overlayPaths.length + (args.soundtrack ? 1 : 0)
       : null;
+    let narrationDurationSeconds: number | null = null;
     if (args.narration) {
       const narrationPath = path.join(
         temporaryDirectory,
         `narration.${args.narration.extension}`,
       );
       await writeFile(narrationPath, args.narration.buffer);
+      narrationDurationSeconds = await probeNarrationDurationSeconds({
+        ffmpegPath,
+        inputPath: narrationPath,
+        signal: args.signal,
+      });
       command.push("-i", narrationPath);
     }
 
@@ -174,6 +271,7 @@ export async function composeOriginalAiVideo(args: {
         hasNativeAudio,
         soundtrackInputIndex,
         narrationInputIndex,
+        narrationDurationSeconds,
       }),
       "-map",
       "[video]",

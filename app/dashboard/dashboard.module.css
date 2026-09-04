@@ -11099,8 +11099,7 @@
   background:
     radial-gradient(circle at 16% 12%, rgba(var(--cockpit-cyan), 0.1) 0 2px, transparent 3px),
     radial-gradient(circle at 83% 26%, rgba(var(--cockpit-violet), 0.12) 0 2px, transparent 3px),
-    radial-gradient(circle at 22% 58%, rgba(var(--cockpit-pink), 0.1) 0 2px, transparent 3px),
-    radial-gradient(circle at 78% 84%, rgba(var(--cockpit-orange), 0.1) 0 2px, transparent 3px);
+    radial-gradient(circle at 22% 58%, rgba(var(--cockpit-pink), 0.1) 0 2px, transparent 3px);
   filter: drop-shadow(0 0 6px rgba(var(--cockpit-cyan), 0.2));
   pointer-events: none;
 }
@@ -11128,8 +11127,7 @@
   background:
     radial-gradient(circle, rgba(125, 211, 252, 0.92) 0 2px, transparent 3px) 19% 14% / 12px 12px no-repeat,
     radial-gradient(circle, rgba(167, 139, 250, 0.88) 0 2px, transparent 3px) 79% 30% / 12px 12px no-repeat,
-    radial-gradient(circle, rgba(244, 114, 182, 0.84) 0 2px, transparent 3px) 22% 58% / 12px 12px no-repeat,
-    radial-gradient(circle, rgba(251, 146, 60, 0.84) 0 2px, transparent 3px) 78% 79% / 12px 12px no-repeat;
+    radial-gradient(circle, rgba(244, 114, 182, 0.84) 0 2px, transparent 3px) 22% 58% / 12px 12px no-repeat;
   filter: drop-shadow(0 0 7px rgba(125, 211, 252, 0.38));
   pointer-events: none;
 }

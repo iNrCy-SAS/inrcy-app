@@ -112,10 +112,12 @@ export default function SettingsDrawer({
         height: drawerHeight,
         maxHeight: drawerHeight,
         background: "rgba(0,0,0,0.55)",
-        zIndex: 10050,
+        zIndex: 2147483001,
         display: "flex",
         justifyContent: isPhone ? "stretch" : "flex-end",
         overflow: "hidden",
+        isolation: "isolate",
+        pointerEvents: "auto",
         padding: 0,
         boxSizing: "border-box",
       }}
@@ -146,6 +148,9 @@ export default function SettingsDrawer({
           overscrollBehavior: "contain",
           WebkitOverflowScrolling: "touch",
           scrollPaddingBottom: 24,
+          position: "relative",
+          zIndex: 1,
+          pointerEvents: "auto",
         }}
       >
         <div
@@ -188,6 +193,9 @@ export default function SettingsDrawer({
               flexWrap: "wrap",
               justifyContent: "flex-end",
               maxWidth: "100%",
+              position: "relative",
+              zIndex: 2,
+              pointerEvents: "auto",
             }}
           >
             {headerActions}
@@ -201,6 +209,10 @@ export default function SettingsDrawer({
                 borderRadius: 10,
                 padding: "8px 10px",
                 cursor: "pointer",
+                position: "relative",
+                zIndex: 3,
+                pointerEvents: "auto",
+                touchAction: "manipulation",
               }}
             >
               {t.drawer.close}
