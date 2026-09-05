@@ -16,6 +16,10 @@ export type AiMediaCreativeScene = {
   eyebrow: string;
   title: string;
   body: string;
+  /** Phrase courte réellement prononcée lorsque le personnage parle. */
+  spokenLine: string;
+  /** Réponse éventuelle du second personnage dans une scène d'équipe. */
+  spokenReply: string;
   visualBrief: string;
   layout: "hero" | "editorial" | "statement" | "cta";
 };
@@ -153,6 +157,11 @@ function scene(
     eyebrow: clean(eyebrow, 38),
     title: safeTitle,
     body: clean(body, 150),
+    // Secours local immédiatement prononçable. Le copywriter média remplace
+    // ces formulations par des répliques contextualisées quand les
+    // personnages doivent parler.
+    spokenLine: clean(safeTitle, 96),
+    spokenReply: clean(body, 96) || clean(safeTitle, 96),
     visualBrief: clean(visualBrief, 700),
     layout,
   };

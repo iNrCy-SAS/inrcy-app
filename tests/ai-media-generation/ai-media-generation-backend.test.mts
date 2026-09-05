@@ -531,7 +531,7 @@ test("le prompt donne à GPT Image le sujet, l’ADN, l’identité autorisée e
   const dna = read("lib/aiMediaBusinessDna.ts");
   assert.match(
     source,
-    /AI_MEDIA_PROMPT_VERSION = "inrcy-media-v14-team-speech"/,
+    /AI_MEDIA_PROMPT_VERSION = "inrcy-media-v15-contextual-speech-framing"/,
   );
   assert.match(source, /buildAiMediaBusinessDnaPayload/);
   assert.match(source, /ADN PROFESSIONNEL AUTORISÉ/);
@@ -606,7 +606,10 @@ test("les médias IA verrouillent les textes visibles et la narration dans la la
   assert.match(narration, /buildAiMediaNarrationFallback/);
   assert.match(narration, /speechUnitCount/);
   assert.match(narration, /hasAiLanguageMismatch\(language, value\)/);
-  assert.match(server, /const creativePlanTask = providerRequest\.withText/);
+  assert.match(
+    server,
+    /const creativePlanTask =\s*providerRequest\.withText \|\|[\s\S]*?teamVideoSpeechMode === "characters"/,
+  );
 });
 
 test("chaque critère créatif participe réellement au brief envoyé au moteur", () => {

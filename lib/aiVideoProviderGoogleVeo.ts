@@ -403,9 +403,9 @@ const TEAM_DIALOGUE_LINES: Record<
   ReadonlyArray<readonly [string, string]>
 > = {
   fr: [
-    ["On s’y met ?", "Avec plaisir."],
-    ["On avance bien.", "Exactement."],
-    ["C’est prêt.", "Parfait."],
+    ["Votre projet mérite toute notre attention.", "Nous le construisons avec vous."],
+    ["Notre expertise accompagne votre projet.", "Chaque détail compte vraiment."],
+    ["Nous avançons avec une méthode claire.", "Votre besoin reste notre priorité."],
   ],
   en: [
     ["Shall we get started?", "Absolutely."],
@@ -449,6 +449,36 @@ const TEAM_DIALOGUE_LINES: Record<
   ],
 };
 
+function exactSpokenLine(value: unknown, fallback: string) {
+  const normalized = adultSafePromptText(value, 96)
+    .replace(/^[\s"'«»]+|[\s"'«»]+$/g, "")
+    .replace(/\s*[|·]+\s*/g, ", ")
+    .replace(/[…]+$/u, "")
+    .trim();
+  const safe = normalized || fallback;
+  return /[.!?。！？]$/u.test(safe) ? safe : `${safe}.`;
+}
+
+export function buildGoogleVideoFramingDirection(
+  request: AiVideoProviderGenerationArgs["request"],
+) {
+  const identityIsAnimated =
+    request.teamVideoMode === "cinematic" &&
+    request.inspirationImages.length > 0;
+  if (!identityIsAnimated) {
+    return "Keep every face, head and important subject fully inside frame with comfortable margins.";
+  }
+  const common =
+    "Use a stable medium shot rather than an extreme close-up. Keep the complete hairline, entire head, chin, shoulders and upper torso visible at all times, with generous clean headroom. Never crop a forehead, face or chin, including during camera movement";
+  if (request.format === "square") {
+    return `FINAL 1:1 SAFE FRAME — the vertical source is cropped to a square by iNrCy. ${common}. Keep the speaking person in the upper-centre square-safe area and leave enough space below for the text overlay`;
+  }
+  if (request.format === "portrait") {
+    return `FINAL 4:5 SAFE FRAME — the vertical source is cropped by iNrCy. ${common}. Keep the person centred inside the 4:5 safe area`;
+  }
+  return `${common}. Keep the person away from every edge of the final frame`;
+}
+
 export function buildGoogleVideoTeamSpeechDirection(
   args: AiVideoProviderGenerationArgs,
   index: number,
@@ -477,11 +507,21 @@ export function buildGoogleVideoTeamSpeechDirection(
 
   const language = String(args.contentLanguage || "fr").toLowerCase();
   const scripts = TEAM_DIALOGUE_LINES[language] || TEAM_DIALOGUE_LINES.fr;
-  const [firstLine, secondLine] = scripts[index % scripts.length]!;
+  const [fallbackLine, fallbackReply] = scripts[index % scripts.length]!;
+  const scene = args.plan.scenes[index];
+  const firstLine = exactSpokenLine(
+    scene?.spokenLine || scene?.body || scene?.title || args.plan.headline,
+    fallbackLine,
+  );
+  const secondLine = exactSpokenLine(
+    scene?.spokenReply || scene?.body || args.plan.subline,
+    fallbackReply,
+  );
   if (args.request.identityMode !== "reference_team") {
     return [
       "NATIVE CHARACTER DIALOGUE, never voice-over",
       `the single recurring on-screen character says exactly “${firstLine}”`,
+      "the spoken line must stay word-for-word exact and connected to the current professional subject; never prepend, append, rephrase or improvise generic small talk",
       "precise lip-sync, breathing, facial expression and natural full-body movement",
       "keep one coherent synthetic adult voice tied to the same face across shots",
       "use a synthetic feminine, masculine or neutral adult timbre suited to the scene; never clone a real voice, infer or state real gender identity",
@@ -494,6 +534,7 @@ export function buildGoogleVideoTeamSpeechDirection(
   return [
     "NATIVE CHARACTER DIALOGUE, never voice-over",
     `people are numbered left-to-right; Person ${firstSpeaker} says exactly “${firstLine}”, then Person ${secondSpeaker} says exactly “${secondLine}”`,
+    "both lines must stay word-for-word exact and form one coherent exchange about the current professional subject; never prepend, append, rephrase or improvise generic small talk",
     "one speaker at a time with precise lip-sync, breathing, expression and body language; others listen and react",
     "keep a distinct adult voice tied to each face across shots",
     "use distinct synthetic feminine, masculine or neutral adult timbres suited to the scene; never clone a real voice, infer or state real gender identity, or swap speakers during a shot",
@@ -641,6 +682,7 @@ export function buildGoogleVideoScenePrompt(
     220,
   );
   const speechDirection = buildGoogleVideoTeamSpeechDirection(args, index);
+  const framingDirection = buildGoogleVideoFramingDirection(args.request);
   return compact(
     [
       `Create one original ${durationSeconds}-second cinematic business shot ${
@@ -648,6 +690,7 @@ export function buildGoogleVideoScenePrompt(
       }/${args.plan.scenes.length}.`,
       identityDirection ? `${identityDirection}.` : "",
       speechDirection ? `${speechDirection}.` : "",
+      framingDirection ? `${framingDirection}.` : "",
       args.request.peopleMode === "none"
         ? "Do not show any person, human silhouette or face."
         : "Every visible person must be unmistakably adult and at least 25 years old; no younger-looking person may appear.",

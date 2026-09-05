@@ -262,7 +262,10 @@ export async function generateAndSaveAiMedia(args: {
     profile,
     recentPublications: generationContext.recentPublications,
   });
-  const creativePlanTask = providerRequest.withText
+  const creativePlanTask =
+    providerRequest.withText ||
+    (providerRequest.kind === "video" &&
+      providerRequest.teamVideoSpeechMode === "characters")
     ? measure("headline", () =>
         writeAiMediaHeadline({
           accountId: args.accountId,

@@ -105,11 +105,21 @@ function buildFilter(args: {
   nativeAudioMode: AiMediaNativeAudioMode;
 }) {
   const filters: string[] = [];
+  // Omni/Veo génèrent actuellement les sorties carrées sur une source 9:16.
+  // Un crop vertical centré supprimait alors souvent le haut d'un visage.
+  // Pour le carré, on ancre le recadrage en haut ; pour le 4:5, on conserve
+  // une légère marge haute. Les formats sans crop gardent naturellement 0.
+  const verticalCropY =
+    args.width === args.height
+      ? "0"
+      : args.height > args.width
+        ? "(in_h-out_h)*0.16"
+        : "(in_h-out_h)/2";
   for (let index = 0; index < args.clipDurations.length; index += 1) {
     const clipSeconds = args.clipDurations[index];
     const overlayIndex = args.clipDurations.length + index;
     filters.push(
-      `[${index}:v]scale=${args.width}:${args.height}:force_original_aspect_ratio=increase,crop=${args.width}:${args.height},fps=30,setsar=1,format=yuv420p[base${index}]`,
+      `[${index}:v]scale=${args.width}:${args.height}:force_original_aspect_ratio=increase,crop=${args.width}:${args.height}:(in_w-out_w)/2:${verticalCropY},fps=30,setsar=1,format=yuv420p[base${index}]`,
       `[base${index}][${overlayIndex}:v]overlay=0:0:shortest=1,tpad=stop_mode=clone:stop_duration=${clipSeconds},trim=duration=${clipSeconds},setpts=PTS-STARTPTS[v${index}]`,
     );
     if (args.hasNativeAudio) {

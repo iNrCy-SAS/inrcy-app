@@ -190,6 +190,9 @@ test("Veo sépare strictement les dialogues natifs et la voix off sans inférer 
   assert.match(contracts, /teamVideoSpeechMode: AiMediaTeamVideoSpeechMode/);
   assert.match(contracts, /teamVideoSpeechMode !== "characters"/);
   assert.match(veo, /buildGoogleVideoTeamSpeechDirection/);
+  assert.match(veo, /scene\?\.spokenLine/);
+  assert.match(veo, /connected to the current professional subject/);
+  assert.doesNotMatch(veo, /\["On s’y met \?", "Avec plaisir\."\]/);
   assert.match(veo, /VOICE-OVER MODE — every on-screen person stays silent/);
   assert.match(veo, /no dialogue, speech, lip-sync or vocalisation/);
   assert.match(veo, /NATIVE CHARACTER DIALOGUE, never voice-over/);
@@ -211,6 +214,21 @@ test("Veo sépare strictement les dialogues natifs et la voix off sans inférer 
   assert.ok(identityPosition > 0, "verrou d’identité présent");
   assert.ok(speechPosition > identityPosition, "dialogue après le verrou d’identité");
   assert.ok(subjectPosition > speechPosition, "instructions critiques avant le contexte tronquable");
+});
+
+test("le cadrage vidéo protège la tête lors du recadrage carré", () => {
+  const veo = read("lib/aiVideoProviderGoogleVeo.ts");
+  const composer = read("lib/aiMediaGeneratedVideo.ts");
+  const copywriter = read("lib/aiMediaCopywriter.ts");
+
+  assert.match(veo, /buildGoogleVideoFramingDirection/);
+  assert.match(veo, /complete hairline, entire head, chin, shoulders and upper torso/);
+  assert.match(veo, /FINAL 1:1 SAFE FRAME/);
+  assert.match(composer, /args\.width === args\.height[\s\S]*?\? "0"/);
+  assert.match(composer, /crop=\$\{args\.width\}:\$\{args\.height\}:\(in_w-out_w\)\/2:\$\{verticalCropY\}/);
+  assert.match(copywriter, /spokenLine/);
+  assert.match(copywriter, /spokenReply/);
+  assert.match(copywriter, /directement liée au sujet professionnel vérifié/);
 });
 
 test("le montage audio préserve le dialogue natif et retombe sans double parole", () => {

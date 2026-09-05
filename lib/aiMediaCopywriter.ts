@@ -29,8 +29,10 @@ const MEDIA_COPY_SCHEMA = {
             eyebrow: { type: "string", minLength: 1, maxLength: 38 },
             title: { type: "string", minLength: 2, maxLength: 86 },
             body: { type: "string", minLength: 0, maxLength: 150 },
+            spokenLine: { type: "string", minLength: 2, maxLength: 96 },
+            spokenReply: { type: "string", minLength: 2, maxLength: 96 },
           },
-          required: ["eyebrow", "title", "body"],
+          required: ["eyebrow", "title", "body", "spokenLine", "spokenReply"],
         },
       },
     },
@@ -45,6 +47,8 @@ type GeneratedMediaCopy = {
     eyebrow?: unknown;
     title?: unknown;
     body?: unknown;
+    spokenLine?: unknown;
+    spokenReply?: unknown;
   }>;
 };
 
@@ -105,12 +109,20 @@ function applyLocalizedCopy(
           ? headline
           : compactCopy(candidate.title, 86) || scene.title,
       body: compactCopy(candidate.body, 150),
+      spokenLine: compactCopy(candidate.spokenLine, 96) || scene.spokenLine,
+      spokenReply: compactCopy(candidate.spokenReply, 96) || scene.spokenReply,
     };
   });
   const visibleCopy = [
     headline,
     cta,
-    ...scenes.flatMap((scene) => [scene.eyebrow, scene.title, scene.body]),
+    ...scenes.flatMap((scene) => [
+      scene.eyebrow,
+      scene.title,
+      scene.body,
+      scene.spokenLine,
+      scene.spokenReply,
+    ]),
   ].join(" ");
   if (hasAiLanguageMismatch(language, visibleCopy)) return plan;
 
@@ -133,7 +145,10 @@ export async function writeAiMediaHeadline(args: {
   profile: NormalizedAiGenerationProfile;
   plan: AiMediaCreativePlan;
 }): Promise<AiMediaCreativePlan> {
-  if (!args.request.withText) return args.plan;
+  const characterDialogueRequested =
+    args.request.kind === "video" &&
+    args.request.teamVideoSpeechMode === "characters";
+  if (!args.request.withText && !characterDialogueRequested) return args.plan;
 
   const languageCode = args.profile.preferences.language;
   // Le plan français est déjà publiable sans appel supplémentaire. Une saisie
@@ -163,6 +178,10 @@ export async function writeAiMediaHeadline(args: {
         "Les mots-clés sont des idées sémantiques à intégrer intelligemment dans le sens d'une phrase : ne les additionne jamais, ne les liste jamais et n'utilise jamais +, ·, / ou des hashtags.",
         "L'idée du professionnel sert d'inspiration et ne doit pas être recopiée mot pour mot.",
         "La consigne ponctuelle sert uniquement à orienter cette génération. Applique son intention lorsqu'elle est compatible avec l'ADN et la sécurité, sans jamais la citer ni la recopier.",
+        "Pour chaque scène, spokenLine est une phrase orale naturelle de 5 à 12 mots, directement liée au sujet professionnel vérifié de la scène.",
+        "spokenReply est une réponse très courte qui poursuit naturellement spokenLine pour une éventuelle seconde personne.",
+        "Les répliques ne doivent jamais être vagues ou passe-partout : interdiction d'écrire « On s'y met ? », « On avance bien », « C'est prêt », « Exactement » ou une variante.",
+        "Aucun libellé de dialogue, guillemet, nom de locuteur ni question adressée à un interlocuteur indéfini dans spokenLine ou spokenReply.",
         "L'accroche contient au maximum 58 caractères. Aucun guillemet, emoji ou promesse inventée.",
         "Utilise uniquement les faits fournis et n'ajoute ni prix, promotion, certification, adresse, délai ni résultat garanti.",
       ].join(" "),
@@ -180,6 +199,8 @@ export async function writeAiMediaHeadline(args: {
             eyebrow: scene.eyebrow,
             title: scene.title,
             body: scene.body,
+            spokenLine: scene.spokenLine,
+            spokenReply: scene.spokenReply,
           })),
         },
       }),
@@ -190,7 +211,12 @@ export async function writeAiMediaHeadline(args: {
       timeoutMs: 18_000,
     });
     const headline = compactHeadline(generated.headline);
-    if (!isNaturalHeadline(headline, args.request.textKeywords)) return args.plan;
+    if (
+      args.request.withText &&
+      !isNaturalHeadline(headline, args.request.textKeywords)
+    ) {
+      return args.plan;
+    }
     return applyLocalizedCopy(args.plan, generated, languageCode);
   } catch {
     return args.plan;
