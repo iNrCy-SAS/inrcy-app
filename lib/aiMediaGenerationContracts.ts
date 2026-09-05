@@ -125,8 +125,8 @@ export type AiMediaGenerationRequest = {
   /** Accord ponctuel, jamais réutilisé pour une autre génération. */
   identityConsent: boolean;
   /**
-   * Rendu demandé pour une équipe de référence. `cinematic` autorise un vrai
-   * image-to-video uniquement si le consentement Google ponctuel est présent.
+   * Rendu demandé pour une identité de référence. `cinematic` demande de vrais
+   * mouvements ; une équipe exige en plus le consentement Google ponctuel.
    */
   teamVideoMode: AiMediaTeamVideoMode;
   /**
@@ -456,17 +456,22 @@ export function normalizeAiMediaGenerationRequest(
   }
   const rawTeamVideoMode = cleanText(body.teamVideoMode, 24) || "montage";
   if (!["cinematic", "montage"].includes(rawTeamVideoMode)) {
-    throw new AiMediaRequestValidationError("Mode d’animation d’équipe invalide.");
+    throw new AiMediaRequestValidationError("Mode d’animation des personnages invalide.");
   }
+  const identityAnimationSupported =
+    inspirationImages.length > 0 &&
+    (identityMode === "professional" ||
+      identityMode === "brand_avatar" ||
+      identityMode === "reference_team");
   const teamVideoMode =
-    kind === "video" && identityMode === "reference_team"
+    kind === "video" && identityAnimationSupported
       ? (rawTeamVideoMode as AiMediaTeamVideoMode)
       : "montage";
   const rawTeamVideoSpeechMode =
     cleanText(body.teamVideoSpeechMode, 24) || "voiceover";
   if (!["voiceover", "characters"].includes(rawTeamVideoSpeechMode)) {
     throw new AiMediaRequestValidationError(
-      "Mode vocal de l’équipe animée invalide.",
+      "Mode vocal des personnages animés invalide.",
     );
   }
   const teamVideoSpeechMode =
@@ -482,7 +487,9 @@ export function normalizeAiMediaGenerationRequest(
   // cette destination. Un booléen isolé sur une image ou un autre mode ne peut
   // jamais ouvrir un egress Google par accident.
   const teamVideoVeoConsent =
-    teamVideoMode === "cinematic" && body.teamVideoVeoConsent === true;
+    identityMode === "reference_team" &&
+    teamVideoMode === "cinematic" &&
+    body.teamVideoVeoConsent === true;
 
   return {
     requestId,

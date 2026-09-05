@@ -454,8 +454,13 @@ export function buildGoogleVideoTeamSpeechDirection(
   index: number,
 ) {
   if (
-    args.request.identityMode !== "reference_team" ||
-    args.request.teamVideoMode !== "cinematic"
+    args.request.teamVideoMode !== "cinematic" ||
+    ![
+      "professional",
+      "brand_avatar",
+      "reference_team",
+    ].includes(args.request.identityMode) ||
+    args.request.inspirationImages.length === 0
   ) {
     return "Natural location ambience only; no dialogue, voice-over, lyrics or music. iNrCy adds exact branding, copy and final audio.";
   }
@@ -473,6 +478,16 @@ export function buildGoogleVideoTeamSpeechDirection(
   const language = String(args.contentLanguage || "fr").toLowerCase();
   const scripts = TEAM_DIALOGUE_LINES[language] || TEAM_DIALOGUE_LINES.fr;
   const [firstLine, secondLine] = scripts[index % scripts.length]!;
+  if (args.request.identityMode !== "reference_team") {
+    return [
+      "NATIVE CHARACTER DIALOGUE, never voice-over",
+      `the single recurring on-screen character says exactly “${firstLine}”`,
+      "precise lip-sync, breathing, facial expression and natural full-body movement",
+      "keep one coherent synthetic adult voice tied to the same face across shots",
+      "use a synthetic feminine, masculine or neutral adult timbre suited to the scene; never clone a real voice, infer or state real gender identity",
+      "no narrator, lyrics or music; clean location ambience",
+    ].join("; ");
+  }
   const teamSize = args.identityTeamMemberCount === 3 ? 3 : 2;
   const firstSpeaker = (index % teamSize) + 1;
   const secondSpeaker = (firstSpeaker % teamSize) + 1;
@@ -517,6 +532,7 @@ export function buildGoogleVideoIdentityDirection(
         } to preserve the same clearly adult professional in every shot`,
         `render that recognisable identity faithfully in the selected ${request.imageStyle} medium`,
         "preserve stable facial features, hair, build and distinctive visual cues",
+        "create real facial and full-body motion, gestures, actions and camera movement; never present the references as a slideshow or static portrait montage",
         "never replace the professional with a generic or different person",
       ].join(" "),
       390,
@@ -531,6 +547,7 @@ export function buildGoogleVideoIdentityDirection(
               referenceCount === 1 ? "" : "s"
             } to derive one recurring, recognisable illustrated brand avatar`,
             `keep the same avatar identity and signature visual cues in every shot while respecting the selected ${request.imageStyle} medium`,
+            "animate the avatar with real expressions, gestures, actions and camera movement; never present the references as a slideshow or static portrait montage",
             "never switch to an unrelated character",
           ].join(" ")
         : [

@@ -9,14 +9,14 @@ import {
 
 const read = (relativePath: string) => readFileSync(relativePath, "utf8");
 
-test("le bloc 5 propose l'animation cinématographique uniquement pour une équipe vidéo", () => {
+test("le bloc 5 propose l'animation réelle au professionnel, à l'avatar et à l'équipe", () => {
   const generator = read("app/dashboard/_components/MediaGenerator.tsx");
   const styles = read("app/dashboard/_components/MediaGenerator.module.css");
 
-  assert.match(
-    generator,
-    /kind === "video" && videoCharacterMode === "reference_team"[\s\S]*?ai_generator_team_animation_label/,
-  );
+  assert.match(generator, /const ANIMATABLE_IDENTITY_MODES = new Set/);
+  assert.match(generator, /"professional"[\s\S]*?"brand_avatar"[\s\S]*?"reference_team"/);
+  assert.match(generator, /const identityAnimationAvailable =[\s\S]*?ANIMATABLE_IDENTITY_MODES\.has\(videoCharacterMode\)/);
+  assert.match(generator, /\{identityAnimationAvailable \? \([\s\S]*?ai_generator_team_animation_label/);
   assert.match(generator, /data-team-video-mode=\{teamVideoMode\}/);
   assert.match(generator, /event\.target\.checked \? "cinematic" : "montage"/);
   assert.match(generator, /teamVideoMode === "cinematic"[\s\S]*?ai_generator_team_animation_hint_cinematic/);
@@ -36,11 +36,11 @@ test("le bloc 5 distingue la voix off des personnages parlants sans mélanger le
     generator,
     /teamVideoMode === "cinematic"[\s\S]*?\(\["voiceover", "characters"\] as const\)\.map/,
   );
-  assert.match(generator, /const teamCharactersSpeak =[\s\S]*?teamVideoSpeechMode === "characters"/);
-  assert.match(generator, /const effectiveWithNarration =[\s\S]*?!teamCharactersSpeak && withNarration/);
+  assert.match(generator, /const animatedCharactersSpeak =[\s\S]*?teamVideoSpeechMode === "characters"/);
+  assert.match(generator, /const effectiveWithNarration =[\s\S]*?!animatedCharactersSpeak && withNarration/);
   assert.match(generator, /withNarration: kind === "video" \? effectiveWithNarration : undefined/);
-  assert.match(generator, /teamVideoSpeechMode: teamCinematicRequested[\s\S]*?teamVideoSpeechMode/);
-  assert.match(generator, /disabled=\{operationLocked \|\| teamCharactersSpeak\}/);
+  assert.match(generator, /teamVideoSpeechMode: identityCinematicRequested[\s\S]*?teamVideoSpeechMode/);
+  assert.match(generator, /disabled=\{operationLocked \|\| animatedCharactersSpeak\}/);
   assert.match(generator, /ai_generator_team_speech_narration_disabled_hint/);
   assert.match(generator, /ai_generator_team_speech_gender_hint/);
   assert.match(hook, /teamVideoSpeechMode\?: MediaGenerationTeamVideoSpeechMode/);
@@ -55,7 +55,7 @@ test("le consentement Google\/Veo est demandé à chaque génération et transmi
   const generator = read("app/dashboard/_components/MediaGenerator.tsx");
   const hook = read("app/dashboard/_hooks/useMediaGeneration.ts");
 
-  assert.match(generator, /teamCinematicRequested[\s\S]*?setTeamVideoConsentOpen\(true\)/);
+  assert.match(generator, /teamCinematicConsentRequired[\s\S]*?setTeamVideoConsentOpen\(true\)/);
   assert.match(generator, /handleConfirmTeamVideoConsent[\s\S]*?performGeneration\(true\)/);
   assert.match(generator, /role="dialog"[\s\S]*?ai_generator_team_video_consent_checkbox/);
   assert.match(generator, /setTeamVideoVeoConsent\(false\)/);
@@ -63,6 +63,29 @@ test("le consentement Google\/Veo est demandé à chaque génération et transmi
   assert.match(hook, /teamVideoVeoConsent\?: boolean/);
   assert.match(hook, /teamVideoMode:[\s\S]*?request\.teamVideoMode \|\| "montage"/);
   assert.match(hook, /teamVideoVeoConsent:[\s\S]*?Boolean\(request\.teamVideoVeoConsent\)/);
+});
+
+test("les six en-têtes du studio gardent la même géométrie et le titre ne casse plus la grille", () => {
+  const generator = read("app/dashboard/_components/MediaGenerator.tsx");
+  const styles = read("app/dashboard/_components/MediaGenerator.module.css");
+
+  assert.equal((generator.match(/className=\{styles\.collapsibleHeader\}/g) || []).length, 6);
+  assert.match(
+    styles,
+    /\.collapsibleToggle\s*\{[\s\S]*?height:\s*66px;[\s\S]*?grid-template-columns:\s*auto minmax\(145px, 1fr\) minmax\(0, 235px\) auto/,
+  );
+  assert.match(
+    styles,
+    /\.collapsibleTitle strong\s*\{[\s\S]*?text-overflow:\s*ellipsis;[\s\S]*?white-space:\s*nowrap/,
+  );
+  assert.match(
+    styles,
+    /@media \(min-width: 1101px\)[\s\S]*?\.collapsibleToggle\s*\{[\s\S]*?height:\s*58px/,
+  );
+  assert.match(
+    styles,
+    /@media \(max-width: 620px\)[\s\S]*?\.collapsibleToggle\s*\{[\s\S]*?height:\s*78px/,
+  );
 });
 
 test("seul le choix cinématographique peut être mémorisé, jamais le consentement", () => {

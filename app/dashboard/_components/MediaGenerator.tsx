@@ -91,6 +91,11 @@ const VIDEO_CHARACTER_MODES: MediaGenerationVideoCharacterMode[] = [
   "brand_avatar",
   "reference_team",
 ];
+const ANIMATABLE_IDENTITY_MODES = new Set<MediaGenerationVideoCharacterMode>([
+  "professional",
+  "brand_avatar",
+  "reference_team",
+]);
 const CREATIVITY_LEVELS: MediaGenerationCreativity[] = ["faithful", "bold"];
 const LOGO_MODES: MediaGenerationLogoMode[] = ["discreet", "visible", "none"];
 const MAX_TEXT_KEYWORDS = 6;
@@ -314,7 +319,7 @@ export default function MediaGenerator({
     useState<MediaGenerationVideoCharacterMode>("auto");
   const [identityConsent, setIdentityConsent] = useState(false);
   const [teamVideoMode, setTeamVideoMode] =
-    useState<MediaGenerationTeamVideoMode>("montage");
+    useState<MediaGenerationTeamVideoMode>("cinematic");
   const [teamVideoSpeechMode, setTeamVideoSpeechMode] =
     useState<MediaGenerationTeamVideoSpeechMode>("voiceover");
   const [teamVideoVeoConsent, setTeamVideoVeoConsent] = useState(false);
@@ -487,15 +492,19 @@ export default function MediaGenerator({
     kind === "video" && videoMaxDurationSeconds < 24;
   const videoPremiumRequired =
     kind === "video" && durationSeconds > videoMaxDurationSeconds;
-  const teamCinematicRequested =
+  const identityAnimationAvailable =
     kind === "video" &&
     peopleMode !== "none" &&
-    videoCharacterMode === "reference_team" &&
+    ANIMATABLE_IDENTITY_MODES.has(videoCharacterMode);
+  const identityCinematicRequested =
+    identityAnimationAvailable &&
     teamVideoMode === "cinematic";
-  const teamCharactersSpeak =
-    teamCinematicRequested && teamVideoSpeechMode === "characters";
+  const animatedCharactersSpeak =
+    identityCinematicRequested && teamVideoSpeechMode === "characters";
+  const teamCinematicConsentRequired =
+    identityCinematicRequested && videoCharacterMode === "reference_team";
   const effectiveWithNarration =
-    kind === "video" && !teamCharactersSpeak && withNarration;
+    kind === "video" && !animatedCharactersSpeak && withNarration;
   const characterReferenceMissing =
     peopleMode !== "none" &&
     ((videoCharacterMode === "professional" ||
@@ -539,7 +548,7 @@ export default function MediaGenerator({
               )
             : t(
                 kind === "video"
-                  ? teamCinematicRequested
+                  ? identityCinematicRequested
                     ? "ai_generator_stage_team_animation"
                     : "ai_generator_stage_render"
                   : "ai_generator_stage_finish",
@@ -697,14 +706,11 @@ export default function MediaGenerator({
         useBrandColors,
         logoMode,
         videoEngine: kind === "video" ? videoEngine : undefined,
-        teamVideoMode:
-          kind === "video" && videoCharacterMode === "reference_team"
-            ? teamVideoMode
-            : undefined,
-        teamVideoSpeechMode: teamCinematicRequested
+        teamVideoMode: identityAnimationAvailable ? teamVideoMode : undefined,
+        teamVideoSpeechMode: identityCinematicRequested
           ? teamVideoSpeechMode
           : undefined,
-        teamVideoVeoConsent: teamCinematicRequested
+        teamVideoVeoConsent: teamCinematicConsentRequired
           ? veoConsentForAttempt
           : false,
         durationSeconds: kind === "video" ? durationSeconds : undefined,
@@ -733,7 +739,7 @@ export default function MediaGenerator({
 
   const handleGenerate = async () => {
     if (!subjectReady) return;
-    if (teamCinematicRequested) {
+    if (teamCinematicConsentRequired) {
       setTeamVideoVeoConsent(false);
       setTeamVideoConsentOpen(true);
       return;
@@ -849,7 +855,7 @@ export default function MediaGenerator({
           </h3>
           <p id="ai-media-team-video-consent-description">
             {t(
-              teamCharactersSpeak
+              animatedCharactersSpeak
                 ? "ai_generator_team_video_consent_description_characters"
                 : "ai_generator_team_video_consent_description",
             )}
@@ -864,7 +870,7 @@ export default function MediaGenerator({
           />
           <span>
             {t(
-              teamCharactersSpeak
+              animatedCharactersSpeak
                 ? "ai_generator_team_video_consent_checkbox_characters"
                 : "ai_generator_team_video_consent_checkbox",
             )}
@@ -1458,7 +1464,7 @@ export default function MediaGenerator({
                     {t(`ai_generator_video_character_${videoCharacterMode}`)} · {inspirationImages.length
                       ? t("ai_generator_reference_summary", { count: inspirationImages.length })
                       : t(`ai_generator_people_${peopleMode}`)}
-                    {kind === "video" && videoCharacterMode === "reference_team"
+                    {identityAnimationAvailable
                       ? ` · ${t(
                           teamVideoMode === "cinematic"
                             ? "ai_generator_team_animation_summary_cinematic"
@@ -1665,7 +1671,7 @@ export default function MediaGenerator({
                       ) : null}
                     </div>
                   ) : null}
-                  {kind === "video" && videoCharacterMode === "reference_team" ? (
+                  {identityAnimationAvailable ? (
                     <div className={styles.teamAnimationGroup}>
                       <label
                         className={`${styles.switchRow} ${styles.teamAnimationToggle}`}
@@ -1810,7 +1816,7 @@ export default function MediaGenerator({
                       duration: durationSeconds,
                       text: t(withText ? "ai_generator_with_text" : "ai_generator_without_text"),
                       music: t(withMusic ? "ai_generator_with_music" : "ai_generator_without_music"),
-                      narration: teamCharactersSpeak
+                      narration: animatedCharactersSpeak
                         ? t("ai_generator_team_speech_finish_summary")
                         : effectiveWithNarration
                         ? `${t("ai_generator_with_narration")} · ${t(`ai_generator_narration_voice_${narrationVoice}`)}`
@@ -1933,13 +1939,13 @@ export default function MediaGenerator({
               <div className={styles.narrationControl}>
                 <label
                   className={styles.switchRow}
-                  data-disabled-by-team-speech={teamCharactersSpeak ? "true" : "false"}
+                  data-disabled-by-team-speech={animatedCharactersSpeak ? "true" : "false"}
                 >
                   <span>
                     <strong>{t("ai_generator_narration")}</strong>
                     <small>
                       {t(
-                        teamCharactersSpeak
+                        animatedCharactersSpeak
                           ? "ai_generator_team_speech_narration_disabled_hint"
                           : "ai_generator_narration_hint",
                       )}
@@ -1948,12 +1954,12 @@ export default function MediaGenerator({
                   <input
                     type="checkbox"
                     checked={effectiveWithNarration}
-                    disabled={operationLocked || teamCharactersSpeak}
+                    disabled={operationLocked || animatedCharactersSpeak}
                     onChange={(event) => setWithNarration(event.target.checked)}
                   />
                   <i aria-hidden="true" />
                 </label>
-                {teamCharactersSpeak ? (
+                {animatedCharactersSpeak ? (
                   <div className={styles.teamSpeechFinishNotice} role="note">
                     <strong>{t("ai_generator_team_speech_finish_title")}</strong>
                     <small>{t("ai_generator_team_speech_finish_hint")}</small>

@@ -475,6 +475,31 @@ export async function generateAndSaveAiMedia(args: {
     // les calques sont indépendants et sont donc préparés en parallèle. La
     // qualité nominale reste identique, mais les temps ne s'additionnent plus.
     const videoGatewayTask = measure("video_generation", async () => {
+      if (
+        providerRequest.identityMode !== "auto" &&
+        providerRequest.identityMode !== "reference_team" &&
+        preparedIdentityReferences.buffers.length > 0 &&
+        providerRequest.teamVideoMode === "montage"
+      ) {
+        localFallbackUsed = true;
+        const montage = await getLocalFallbackFrame(false);
+        const motion = await createAiMediaFallbackVideo({
+          montage,
+          width: format.width,
+          height: format.height,
+          durationSeconds,
+          signal: args.signal,
+        });
+        return {
+          ...motion,
+          warnings: Array.from(
+            new Set([
+              ...motion.warnings,
+              "identity_reference_local_motion_selected",
+            ]),
+          ),
+        };
+      }
       if (providerRequest.identityMode === "reference_team") {
         try {
           teamPrecompositionGateway = await measure(
@@ -744,7 +769,6 @@ export async function generateAndSaveAiMedia(args: {
     args.signal?.throwIfAborted();
 
     const characterDialogueRequested =
-      providerRequest.identityMode === "reference_team" &&
       providerRequest.teamVideoMode === "cinematic" &&
       providerRequest.teamVideoSpeechMode === "characters";
     const characterDialogueProviderFallback =

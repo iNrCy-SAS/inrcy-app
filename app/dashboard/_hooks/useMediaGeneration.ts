@@ -62,6 +62,16 @@ export type MediaGenerationInspirationImage = {
   name: string;
 };
 
+function supportsIdentityAnimation(
+  mode: MediaGenerationIdentityMode | undefined,
+) {
+  return (
+    mode === "professional" ||
+    mode === "brand_avatar" ||
+    mode === "reference_team"
+  );
+}
+
 export type MediaGenerationQuotaCounter = {
   limit: number | null;
   used: number;
@@ -393,12 +403,16 @@ function buildGenerationAttemptKey(
       request.kind === "video" ? request.videoEngine || "omni" : null,
     teamVideoMode:
       request.kind === "video" &&
-      (request.identityMode || request.videoCharacterMode) === "reference_team"
+      supportsIdentityAnimation(
+        request.identityMode || request.videoCharacterMode,
+      )
         ? request.teamVideoMode || "montage"
         : null,
     teamVideoSpeechMode:
       request.kind === "video" &&
-      (request.identityMode || request.videoCharacterMode) === "reference_team" &&
+      supportsIdentityAnimation(
+        request.identityMode || request.videoCharacterMode,
+      ) &&
       request.teamVideoMode === "cinematic"
         ? request.teamVideoSpeechMode || "voiceover"
         : null,
@@ -736,12 +750,16 @@ export default function useMediaGeneration() {
                 : undefined,
             teamVideoMode:
               request.kind === "video" &&
-              (request.identityMode || request.videoCharacterMode) === "reference_team"
+              supportsIdentityAnimation(
+                request.identityMode || request.videoCharacterMode,
+              )
                 ? request.teamVideoMode || "montage"
                 : undefined,
             teamVideoSpeechMode:
               request.kind === "video" &&
-              (request.identityMode || request.videoCharacterMode) === "reference_team" &&
+              supportsIdentityAnimation(
+                request.identityMode || request.videoCharacterMode,
+              ) &&
               request.teamVideoMode === "cinematic"
                 ? request.teamVideoSpeechMode || "voiceover"
                 : undefined,

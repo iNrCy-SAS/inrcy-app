@@ -25,6 +25,27 @@ async function expectSettingsPanelUrl(page: Page, panel: string) {
     });
 }
 
+async function expectProfileWorkspaceUrl(
+  page: Page,
+  section: 'activity' | null = null,
+) {
+  await expect
+    .poll(
+      () => {
+        const url = new URL(page.url());
+        return {
+          pathname: url.pathname,
+          section: url.searchParams.get('section'),
+        };
+      },
+      { timeout: 30_000 },
+    )
+    .toEqual({
+      pathname: '/dashboard/mon-profil',
+      section,
+    });
+}
+
 test.describe('settings pages', () => {
   test.skip(!email || !password, 'E2E_EMAIL et E2E_PASSWORD sont requis');
 
@@ -34,7 +55,7 @@ test.describe('settings pages', () => {
     await login(page);
     await page.goto('/dashboard/settings/profil', { waitUntil: 'domcontentloaded' });
 
-    await expectSettingsPanelUrl(page, 'profil');
+    await expectProfileWorkspaceUrl(page);
     await expect(page.getByText(/Mon profil/i).first()).toBeVisible({ timeout: 20_000 });
 
     await runtime.expectNoErrors();
@@ -60,7 +81,7 @@ test.describe('settings pages', () => {
     await login(page);
     await page.goto('/dashboard/settings/activite', { waitUntil: 'domcontentloaded' });
 
-    await expectSettingsPanelUrl(page, 'profil');
+    await expectProfileWorkspaceUrl(page, 'activity');
     await expect(page.getByText(/Mon profil/i).first()).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText(/Mon activité/i).first()).toBeVisible({ timeout: 20_000 });
 

@@ -226,7 +226,7 @@ test("le contrat réduit les options au média demandé", () => {
   );
 });
 
-test("le mode cinématique est borné à la vidéo d’une équipe et exige un consentement Veo ponctuel", () => {
+test("le mode cinématique anime toute identité référencée et protège l’egress d’équipe", () => {
   const inspirationData = Buffer.alloc(96, 17).toString("base64");
   const references = [
     { mimeType: "image/jpeg", data: inspirationData },
@@ -300,6 +300,25 @@ test("le mode cinématique est borné à la vidéo d’une équipe et exige un c
   assert.equal(image.teamVideoMode, "montage");
   assert.equal(image.teamVideoSpeechMode, "voiceover");
   assert.equal(image.teamVideoVeoConsent, false);
+
+  const professionalCinematic = normalizeAiMediaGenerationRequest({
+    requestId: "media-professional-cinematic",
+    kind: "video",
+    subjectSource: "profile",
+    peopleMode: "solo",
+    identityMode: "professional",
+    identityConsent: true,
+    teamVideoMode: "cinematic",
+    teamVideoSpeechMode: "characters",
+    teamVideoVeoConsent: true,
+    withNarration: true,
+    inspirationImages: [references[0]],
+    source: "studio",
+  });
+  assert.equal(professionalCinematic.teamVideoMode, "cinematic");
+  assert.equal(professionalCinematic.teamVideoSpeechMode, "characters");
+  assert.equal(professionalCinematic.teamVideoVeoConsent, false);
+  assert.equal(professionalCinematic.withNarration, false);
 
   const nonTeamVideo = normalizeAiMediaGenerationRequest({
     requestId: "media-non-team-cinematic-ignored",
