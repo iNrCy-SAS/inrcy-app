@@ -7,7 +7,7 @@ import {
 } from "@/lib/aiMediaGenerationContracts";
 import { getAiLanguageLabel } from "@/lib/aiWritingProfile";
 
-export const AI_MEDIA_PROMPT_VERSION = "inrcy-media-v15-contextual-speech-framing";
+export const AI_MEDIA_PROMPT_VERSION = "inrcy-media-v16-image-driven-animation";
 export const AI_MEDIA_COMPILED_PROMPT_MAX_CHARS = 11_800;
 
 type RecentPublication = {

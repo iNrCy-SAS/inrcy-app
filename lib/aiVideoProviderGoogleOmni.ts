@@ -187,7 +187,8 @@ function preservesIdentityReferences(
 ) {
   return (
     request.inspirationImages.length > 0 &&
-    (request.videoCharacterMode === "professional" ||
+    (request.teamVideoMode === "cinematic" ||
+      request.videoCharacterMode === "professional" ||
       request.videoCharacterMode === "brand_avatar" ||
       request.videoCharacterMode === "reference_team")
   );

@@ -16,6 +16,9 @@ test("le prompt vidéo distingue le professionnel, l’avatar et le mode génér
   assert.match(veo, /buildGoogleVideoIdentityDirection/);
   assert.match(veo, /IDENTITY LOCK — APPROVED REAL PROFESSIONAL/);
   assert.match(veo, /IDENTITY LOCK — APPROVED BRAND AVATAR/);
+  assert.match(veo, /SOURCE IMAGE ANIMATION — APPROVED REFERENCE/);
+  assert.match(veo, /animate the subject shown in the/);
+  assert.match(veo, /never render a still-photo slideshow/);
   assert.match(veo, /general visual inspiration only/);
   assert.match(
     veo,
@@ -30,6 +33,7 @@ test("les références d’identité restent actives sur chaque segment et chaqu
 
   for (const provider of [veo, omni]) {
     assert.match(provider, /preserveIdentityReferences \|\| index === 0/);
+    assert.match(provider, /request\.teamVideoMode === "cinematic"/);
     assert.match(provider, /videoCharacterMode === "professional"/);
     assert.match(provider, /videoCharacterMode === "brand_avatar"/);
     assert.match(provider, /videoCharacterMode === "reference_team"/);

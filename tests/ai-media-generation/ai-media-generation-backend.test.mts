@@ -320,6 +320,24 @@ test("le mode cinématique anime toute identité référencée et protège l’e
   assert.equal(professionalCinematic.teamVideoVeoConsent, false);
   assert.equal(professionalCinematic.withNarration, false);
 
+  const genericImageCinematic = normalizeAiMediaGenerationRequest({
+    requestId: "media-generic-image-cinematic",
+    kind: "video",
+    subjectSource: "profile",
+    peopleMode: "solo",
+    identityMode: "auto",
+    identityConsent: true,
+    teamVideoMode: "cinematic",
+    teamVideoSpeechMode: "characters",
+    withNarration: true,
+    inspirationImages: [references[0]],
+    source: "studio",
+  });
+  assert.equal(genericImageCinematic.identityMode, "auto");
+  assert.equal(genericImageCinematic.teamVideoMode, "cinematic");
+  assert.equal(genericImageCinematic.teamVideoSpeechMode, "characters");
+  assert.equal(genericImageCinematic.withNarration, false);
+
   const nonTeamVideo = normalizeAiMediaGenerationRequest({
     requestId: "media-non-team-cinematic-ignored",
     kind: "video",
@@ -531,7 +549,7 @@ test("le prompt donne à GPT Image le sujet, l’ADN, l’identité autorisée e
   const dna = read("lib/aiMediaBusinessDna.ts");
   assert.match(
     source,
-    /AI_MEDIA_PROMPT_VERSION = "inrcy-media-v15-contextual-speech-framing"/,
+    /AI_MEDIA_PROMPT_VERSION = "inrcy-media-v16-image-driven-animation"/,
   );
   assert.match(source, /buildAiMediaBusinessDnaPayload/);
   assert.match(source, /ADN PROFESSIONNEL AUTORISÉ/);

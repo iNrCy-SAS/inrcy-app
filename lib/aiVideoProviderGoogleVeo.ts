@@ -485,11 +485,6 @@ export function buildGoogleVideoTeamSpeechDirection(
 ) {
   if (
     args.request.teamVideoMode !== "cinematic" ||
-    ![
-      "professional",
-      "brand_avatar",
-      "reference_team",
-    ].includes(args.request.identityMode) ||
     args.request.inspirationImages.length === 0
   ) {
     return "Natural location ambience only; no dialogue, voice-over, lyrics or music. iNrCy adds exact branding, copy and final audio.";
@@ -600,6 +595,17 @@ export function buildGoogleVideoIdentityDirection(
       390,
     );
   }
+  if (referenceCount && request.teamVideoMode === "cinematic") {
+    return compact(
+      [
+        "SOURCE IMAGE ANIMATION — APPROVED REFERENCE:",
+        `animate the subject shown in the ${referenceCount} supplied authorised reference image${referenceCount === 1 ? "" : "s"} as a genuinely living continuous scene`,
+        "preserve the recognisable subject, composition and distinctive visual cues instead of replacing them with a generic person or unrelated scene",
+        "create natural facial motion, breathing, gestures, actions and camera movement; never render a still-photo slideshow, pan-and-zoom montage or frozen portrait",
+      ].join(" "),
+      430,
+    );
+  }
   if (request.peopleMode === "none") {
     return "No character identity is required; keep the complete scene people-free.";
   }
@@ -613,7 +619,8 @@ function preservesIdentityReferences(
 ) {
   return (
     request.inspirationImages.length > 0 &&
-    (request.videoCharacterMode === "professional" ||
+    (request.teamVideoMode === "cinematic" ||
+      request.videoCharacterMode === "professional" ||
       request.videoCharacterMode === "brand_avatar" ||
       request.videoCharacterMode === "reference_team")
   );

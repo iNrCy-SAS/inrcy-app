@@ -458,11 +458,9 @@ export function normalizeAiMediaGenerationRequest(
   if (!["cinematic", "montage"].includes(rawTeamVideoMode)) {
     throw new AiMediaRequestValidationError("Mode d’animation des personnages invalide.");
   }
-  const identityAnimationSupported =
-    inspirationImages.length > 0 &&
-    (identityMode === "professional" ||
-      identityMode === "brand_avatar" ||
-      identityMode === "reference_team");
+  // Le geste explicite « animer » porte sur l'image ajoutée, quel que soit le
+  // libellé d'identité choisi dans l'interface (générique, pro, avatar, équipe).
+  const identityAnimationSupported = inspirationImages.length > 0;
   const teamVideoMode =
     kind === "video" && identityAnimationSupported
       ? (rawTeamVideoMode as AiMediaTeamVideoMode)

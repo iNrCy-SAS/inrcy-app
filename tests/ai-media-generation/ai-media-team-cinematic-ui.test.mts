@@ -9,22 +9,43 @@ import {
 
 const read = (relativePath: string) => readFileSync(relativePath, "utf8");
 
-test("le bloc 5 propose l'animation réelle au professionnel, à l'avatar et à l'équipe", () => {
+test("le bloc 5 propose l'animation dès qu'une image vidéo est ajoutée", () => {
   const generator = read("app/dashboard/_components/MediaGenerator.tsx");
+  const hook = read("app/dashboard/_hooks/useMediaGeneration.ts");
   const styles = read("app/dashboard/_components/MediaGenerator.module.css");
 
-  assert.match(generator, /const ANIMATABLE_IDENTITY_MODES = new Set/);
-  assert.match(generator, /"professional"[\s\S]*?"brand_avatar"[\s\S]*?"reference_team"/);
-  assert.match(generator, /const identityAnimationAvailable =[\s\S]*?ANIMATABLE_IDENTITY_MODES\.has\(videoCharacterMode\)/);
+  assert.doesNotMatch(generator, /ANIMATABLE_IDENTITY_MODES/);
+  assert.match(
+    generator,
+    /const identityAnimationAvailable =\s*kind === "video" && inspirationImages\.length > 0/,
+  );
   assert.match(generator, /\{identityAnimationAvailable \? \([\s\S]*?ai_generator_team_animation_label/);
   assert.match(generator, /data-team-video-mode=\{teamVideoMode\}/);
   assert.match(generator, /event\.target\.checked \? "cinematic" : "montage"/);
   assert.match(generator, /teamVideoMode === "cinematic"[\s\S]*?ai_generator_team_animation_hint_cinematic/);
+  assert.match(hook, /function hasAnimationSourceImage\(/);
+  assert.match(hook, /return kind === "video" && Boolean\(images\?\.length\)/);
   assert.match(styles, /\.teamAnimationToggle\s*\{/);
   assert.match(
     styles,
     /@media \(max-width: 620px\)[\s\S]*?\.teamAnimationToggle\s*\{/,
   );
+});
+
+test("les règles des photos restent dans le flux et ne passent sous aucun bandeau fixe", () => {
+  const styles = read("app/dashboard/_components/MediaGenerator.module.css");
+  const pickerRow = styles.match(/\.inspirationPickerRow\s*\{([^}]*)\}/)?.[1] || "";
+  const infoButton = styles.match(/\.inspirationInfoButton\s*\{([^}]*)\}/)?.[1] || "";
+  const infoBubble = styles.match(/\.inspirationInfoBubble\s*\{([^}]*)\}/)?.[1] || "";
+
+  assert.match(pickerRow, /position:\s*relative/);
+  assert.match(pickerRow, /display:\s*grid/);
+  assert.match(infoButton, /top:\s*22px/);
+  assert.doesNotMatch(infoButton, /top:\s*50%/);
+  assert.match(infoBubble, /position:\s*relative/);
+  assert.match(infoBubble, /width:\s*100%/);
+  assert.match(infoBubble, /box-sizing:\s*border-box/);
+  assert.doesNotMatch(infoBubble, /position:\s*absolute/);
 });
 
 test("le bloc 5 distingue la voix off des personnages parlants sans mélanger les deux", () => {

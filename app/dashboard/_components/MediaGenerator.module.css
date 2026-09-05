@@ -932,6 +932,8 @@
 
 .inspirationPickerRow {
   position: relative;
+  display: grid;
+  gap: 7px;
 }
 
 .inspirationPicker {
@@ -1276,7 +1278,7 @@
 .inspirationInfoButton {
   position: absolute;
   z-index: 4;
-  top: 50%;
+  top: 22px;
   right: 10px;
   width: 25px;
   height: 25px;
@@ -1303,11 +1305,10 @@
 }
 
 .inspirationInfoBubble {
-  position: absolute;
-  z-index: 18;
-  top: calc(100% + 7px);
-  right: 0;
-  width: min(390px, 100%);
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  box-sizing: border-box;
   display: grid;
   gap: 5px;
   padding: 11px 12px;

@@ -91,11 +91,6 @@ const VIDEO_CHARACTER_MODES: MediaGenerationVideoCharacterMode[] = [
   "brand_avatar",
   "reference_team",
 ];
-const ANIMATABLE_IDENTITY_MODES = new Set<MediaGenerationVideoCharacterMode>([
-  "professional",
-  "brand_avatar",
-  "reference_team",
-]);
 const CREATIVITY_LEVELS: MediaGenerationCreativity[] = ["faithful", "bold"];
 const LOGO_MODES: MediaGenerationLogoMode[] = ["discreet", "visible", "none"];
 const MAX_TEXT_KEYWORDS = 6;
@@ -493,9 +488,7 @@ export default function MediaGenerator({
   const videoPremiumRequired =
     kind === "video" && durationSeconds > videoMaxDurationSeconds;
   const identityAnimationAvailable =
-    kind === "video" &&
-    peopleMode !== "none" &&
-    ANIMATABLE_IDENTITY_MODES.has(videoCharacterMode);
+    kind === "video" && inspirationImages.length > 0;
   const identityCinematicRequested =
     identityAnimationAvailable &&
     teamVideoMode === "cinematic";

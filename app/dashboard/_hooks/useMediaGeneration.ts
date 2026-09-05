@@ -62,14 +62,11 @@ export type MediaGenerationInspirationImage = {
   name: string;
 };
 
-function supportsIdentityAnimation(
-  mode: MediaGenerationIdentityMode | undefined,
+function hasAnimationSourceImage(
+  kind: MediaGenerationKind,
+  images: MediaGenerationInspirationImage[] | undefined,
 ) {
-  return (
-    mode === "professional" ||
-    mode === "brand_avatar" ||
-    mode === "reference_team"
-  );
+  return kind === "video" && Boolean(images?.length);
 }
 
 export type MediaGenerationQuotaCounter = {
@@ -401,18 +398,14 @@ function buildGenerationAttemptKey(
     logoMode: request.logoMode,
     videoEngine:
       request.kind === "video" ? request.videoEngine || "omni" : null,
-    teamVideoMode:
-      request.kind === "video" &&
-      supportsIdentityAnimation(
-        request.identityMode || request.videoCharacterMode,
-      )
-        ? request.teamVideoMode || "montage"
-        : null,
+    teamVideoMode: hasAnimationSourceImage(
+      request.kind,
+      request.inspirationImages,
+    )
+      ? request.teamVideoMode || "montage"
+      : null,
     teamVideoSpeechMode:
-      request.kind === "video" &&
-      supportsIdentityAnimation(
-        request.identityMode || request.videoCharacterMode,
-      ) &&
+      hasAnimationSourceImage(request.kind, request.inspirationImages) &&
       request.teamVideoMode === "cinematic"
         ? request.teamVideoSpeechMode || "voiceover"
         : null,
@@ -748,18 +741,14 @@ export default function useMediaGeneration() {
               request.kind === "video"
                 ? request.videoEngine || "omni"
                 : undefined,
-            teamVideoMode:
-              request.kind === "video" &&
-              supportsIdentityAnimation(
-                request.identityMode || request.videoCharacterMode,
-              )
-                ? request.teamVideoMode || "montage"
-                : undefined,
+            teamVideoMode: hasAnimationSourceImage(
+              request.kind,
+              request.inspirationImages,
+            )
+              ? request.teamVideoMode || "montage"
+              : undefined,
             teamVideoSpeechMode:
-              request.kind === "video" &&
-              supportsIdentityAnimation(
-                request.identityMode || request.videoCharacterMode,
-              ) &&
+              hasAnimationSourceImage(request.kind, request.inspirationImages) &&
               request.teamVideoMode === "cinematic"
                 ? request.teamVideoSpeechMode || "voiceover"
                 : undefined,
