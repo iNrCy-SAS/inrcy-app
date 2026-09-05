@@ -343,16 +343,15 @@ export async function createAiMediaFallbackVideo(args: {
     const imagePath = path.join(temporaryDirectory, "frame.webp");
     await writeFile(imagePath, args.montage);
     const ffmpegPath = await resolveVideoNormalizationFfmpegPath();
-    const clips: AiVideoProviderResult["clips"] = [];
-    // Exécution séquentielle : sur les petites instances Vercel, trois FFmpeg
-    // 1080p simultanés peuvent épuiser la mémoire et transformer le filet de
-    // sécurité en nouvelle panne.
-    for (const [index, durationSeconds] of durations.entries()) {
-        args.signal?.throwIfAborted();
-        const outputPath = path.join(temporaryDirectory, `motion-${index}.mp4`);
-        const frameCount = durationSeconds * 30;
-        const zoomStep = index % 2 === 0 ? "0.00032" : "0.00024";
-        const command = [
+    // Le filet de sécurité doit lui aussi raconter une seule histoire. Un
+    // unique mouvement de 16/24 s est rendu, puis présenté au compositeur en
+    // tranches logiques de huit secondes afin de conserver les overlays sans
+    // réinitialiser le cadrage à chaque acte.
+    args.signal?.throwIfAborted();
+    const outputPath = path.join(temporaryDirectory, "motion-continuous.mp4");
+    const frameCount = args.durationSeconds * 30;
+    const zoomStep = (0.075 / frameCount).toFixed(8);
+    const command = [
           "-hide_banner",
           "-nostdin",
           "-y",
@@ -387,44 +386,51 @@ export async function createAiMediaFallbackVideo(args: {
           "-1",
           outputPath,
         ];
-        await execFileAsync(ffmpegPath, command, {
-          timeout: 180_000,
-          maxBuffer: 8 * 1024 * 1024,
-          windowsHide: true,
-          signal: args.signal,
-        });
-        const [buffer, metadata, outputStats] = await Promise.all([
-          readFile(outputPath),
-          probeVideoSource({
-            ffmpegPath,
-            inputPath: outputPath,
-            timeoutMs: 45_000,
-          }),
-          stat(outputPath),
-        ]);
-        if (
-          !buffer.byteLength ||
-          outputStats.size > MAX_FALLBACK_CLIP_BYTES ||
-          metadata.orientedWidth !== args.width ||
-          metadata.orientedHeight !== args.height ||
-          Math.abs(metadata.durationSeconds - durationSeconds) > 0.35 ||
-          !["h264", "avc1"].includes(String(metadata.videoCodec).toLowerCase())
-        ) {
-          throw new Error("ai_reference_team_fallback_clip_invalid");
-        }
-        clips.push({
-          buffer,
-          mediaType: "video/mp4",
-          durationSeconds,
-          requestId: `local-media-fallback-${index + 1}`,
-          model: "inrcy/local-motion-v1",
-          warnings: ["provider_unavailable_local_motion_fallback"],
-        });
+    await execFileAsync(ffmpegPath, command, {
+      timeout: 180_000,
+      maxBuffer: 8 * 1024 * 1024,
+      windowsHide: true,
+      signal: args.signal,
+    });
+    const [buffer, metadata, outputStats] = await Promise.all([
+      readFile(outputPath),
+      probeVideoSource({
+        ffmpegPath,
+        inputPath: outputPath,
+        timeoutMs: 45_000,
+      }),
+      stat(outputPath),
+    ]);
+    if (
+      !buffer.byteLength ||
+      outputStats.size > MAX_FALLBACK_CLIP_BYTES ||
+      metadata.orientedWidth !== args.width ||
+      metadata.orientedHeight !== args.height ||
+      Math.abs(metadata.durationSeconds - args.durationSeconds) > 0.35 ||
+      !["h264", "avc1"].includes(String(metadata.videoCodec).toLowerCase())
+    ) {
+      throw new Error("ai_reference_team_fallback_clip_invalid");
     }
+    let sourceStartSeconds = 0;
+    const clips: AiVideoProviderResult["clips"] = durations.map(
+      (durationSeconds, index) => {
+        const clip = {
+          buffer,
+          mediaType: "video/mp4" as const,
+          durationSeconds,
+          sourceStartSeconds,
+          requestId: `local-media-fallback-${index + 1}`,
+          model: "inrcy/local-motion-v2-continuous",
+          warnings: ["provider_unavailable_local_motion_fallback"],
+        };
+        sourceStartSeconds += durationSeconds;
+        return clip;
+      },
+    );
     args.signal?.throwIfAborted();
     return {
       provider: "inrcy-local-motion",
-      model: "inrcy/local-motion-v1",
+      model: "inrcy/local-motion-v2-continuous",
       clips,
       estimatedCostMicroUsd: 0,
       warnings: ["provider_unavailable_local_motion_fallback"],

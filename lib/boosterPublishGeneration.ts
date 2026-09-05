@@ -1560,7 +1560,7 @@ export async function generateSharedBoosterPosts(args: GenerateSharedBoosterPost
   // dépasserait la fenêtre de sortie du moteur, les lots indépendants sont lancés
   // en parallèle. Cela évite une coupure JSON silencieuse sans rallonger le chemin
   // critique ni diminuer la qualité des canaux Approfondi.
-  let rawVersions: Partial<Record<BoosterChannels, Partial<ChannelPost>>> = {};
+  const rawVersions: Partial<Record<BoosterChannels, Partial<ChannelPost>>> = {};
   const primaryGenerationStartedAt = Date.now();
   try {
     const primaryResults = await Promise.allSettled(

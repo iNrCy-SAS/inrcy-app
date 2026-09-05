@@ -95,6 +95,7 @@ function narrationTempoFilters(args: {
 
 function buildFilter(args: {
   clipDurations: readonly number[];
+  clipSourceStarts: readonly number[];
   width: number;
   height: number;
   durationSeconds: number;
@@ -117,14 +118,15 @@ function buildFilter(args: {
         : "(in_h-out_h)/2";
   for (let index = 0; index < args.clipDurations.length; index += 1) {
     const clipSeconds = args.clipDurations[index];
+    const sourceStartSeconds = Math.max(0, args.clipSourceStarts[index] || 0);
     const overlayIndex = args.clipDurations.length + index;
     filters.push(
-      `[${index}:v]scale=${args.width}:${args.height}:force_original_aspect_ratio=increase,crop=${args.width}:${args.height}:(in_w-out_w)/2:${verticalCropY},fps=30,setsar=1,format=yuv420p[base${index}]`,
+      `[${index}:v]trim=start=${sourceStartSeconds}:duration=${clipSeconds},setpts=PTS-STARTPTS,scale=${args.width}:${args.height}:force_original_aspect_ratio=increase,crop=${args.width}:${args.height}:(in_w-out_w)/2:${verticalCropY},fps=30,setsar=1,format=yuv420p[base${index}]`,
       `[base${index}][${overlayIndex}:v]overlay=0:0:shortest=1,tpad=stop_mode=clone:stop_duration=${clipSeconds},trim=duration=${clipSeconds},setpts=PTS-STARTPTS[v${index}]`,
     );
     if (args.hasNativeAudio) {
       filters.push(
-        `[${index}:a]aresample=48000,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,apad=pad_dur=${clipSeconds},atrim=duration=${clipSeconds},asetpts=PTS-STARTPTS[a${index}]`,
+        `[${index}:a]atrim=start=${sourceStartSeconds}:duration=${clipSeconds},asetpts=PTS-STARTPTS,aresample=48000,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,apad=pad_dur=${clipSeconds},atrim=duration=${clipSeconds}[a${index}]`,
       );
     }
   }
@@ -210,7 +212,11 @@ function buildFilter(args: {
  * le logo et les textes exacts sans demander au modèle de les redessiner.
  */
 export async function composeOriginalAiVideo(args: {
-  clips: Array<{ buffer: Buffer; durationSeconds: 4 | 6 | 8 }>;
+  clips: Array<{
+    buffer: Buffer;
+    durationSeconds: 4 | 6 | 8;
+    sourceStartSeconds?: number;
+  }>;
   overlays: Buffer[];
   width: number;
   height: number;
@@ -242,10 +248,20 @@ export async function composeOriginalAiVideo(args: {
   const outputPath = path.join(temporaryDirectory, "inrcy-original-video.mp4");
   try {
     args.signal?.throwIfAborted();
-    const clipPaths = await Promise.all(args.clips.map(async (clip, index) => {
-      const clipPath = path.join(temporaryDirectory, `clip-${String(index).padStart(2, "0")}.mp4`);
-      await writeFile(clipPath, clip.buffer);
-      return clipPath;
+    // Une extension Omni cumulative est exposée sous forme de tranches
+    // logiques qui partagent le même Buffer final. Ne pas recopier ce MP4 de
+    // 16/24 s trois fois sur le disque éphémère de la fonction serveur.
+    const clipFileByBuffer = new Map<Buffer, Promise<string>>();
+    const clipPaths = await Promise.all(args.clips.map((clip, index) => {
+      const existing = clipFileByBuffer.get(clip.buffer);
+      if (existing) return existing;
+      const clipPath = path.join(
+        temporaryDirectory,
+        `clip-${String(index).padStart(2, "0")}.mp4`,
+      );
+      const written = writeFile(clipPath, clip.buffer).then(() => clipPath);
+      clipFileByBuffer.set(clip.buffer, written);
+      return written;
     }));
     const overlayPaths = await Promise.all(args.overlays.map(async (buffer, index) => {
       const overlayPath = path.join(temporaryDirectory, `overlay-${String(index).padStart(2, "0")}.png`);
@@ -258,7 +274,10 @@ export async function composeOriginalAiVideo(args: {
     ));
     args.signal?.throwIfAborted();
     if (probes.some((probe, index) =>
-      probe.durationSeconds < args.clips[index].durationSeconds - 0.35 ||
+      probe.durationSeconds <
+        (args.clips[index].sourceStartSeconds || 0) +
+          args.clips[index].durationSeconds -
+          0.35 ||
       probe.orientedWidth < 320 ||
       probe.orientedHeight < 320
     )) {
@@ -301,6 +320,9 @@ export async function composeOriginalAiVideo(args: {
       "-filter_complex",
       buildFilter({
         clipDurations: args.clips.map((clip) => clip.durationSeconds),
+        clipSourceStarts: args.clips.map(
+          (clip) => clip.sourceStartSeconds || 0,
+        ),
         width: args.width,
         height: args.height,
         durationSeconds: args.durationSeconds,

@@ -5,6 +5,12 @@ export type AiVideoProviderClip = {
   buffer: Buffer;
   mediaType: string;
   durationSeconds: 4 | 6 | 8;
+  /**
+   * Logical start inside a cumulative continuation output. This lets the
+   * compositor reuse one seamless 16/24 s MP4 while keeping one overlay per
+   * eight-second narrative act.
+   */
+  sourceStartSeconds?: number;
   requestId: string;
   model: string;
   warnings: string[];

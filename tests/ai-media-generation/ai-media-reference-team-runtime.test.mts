@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import test from "node:test";
 
 import sharp from "sharp";
@@ -32,7 +35,11 @@ type RuntimeModule = {
   }) => Promise<{
     provider: string;
     model: string;
-    clips: Array<{ buffer: Buffer; durationSeconds: number }>;
+    clips: Array<{
+      buffer: Buffer;
+      durationSeconds: number;
+      sourceStartSeconds?: number;
+    }>;
     warnings: string[];
   }>;
 };
@@ -167,3 +174,45 @@ test("le dernier recours équipe produit réellement un MP4 H264 exploitable", a
   ]);
 });
 
+test("le dernier recours 16 secondes garde un mouvement continu et expose deux tranches", async () => {
+  const runtime = loadRuntime();
+  const montage = await syntheticPortrait(
+    { r: 24, g: 52, b: 92 },
+    { r: 224, g: 231, b: 255 },
+  );
+  const result = await runtime.createReferenceTeamFallbackVideo({
+    montage,
+    width: 320,
+    height: 320,
+    durationSeconds: 16,
+  });
+  assert.equal(result.clips.length, 2);
+  assert.deepEqual(
+    result.clips.map((clip) => clip.durationSeconds),
+    [8, 8],
+  );
+  assert.deepEqual(
+    result.clips.map((clip) => clip.sourceStartSeconds),
+    [0, 8],
+  );
+  assert.strictEqual(
+    result.clips[0]?.buffer,
+    result.clips[1]?.buffer,
+    "les deux actes découpent le même MP4 continu",
+  );
+  const temporaryDirectory = await mkdtemp(
+    path.join(tmpdir(), "inrcy-continuation-fallback-test-"),
+  );
+  const temporaryPath = path.join(temporaryDirectory, "fallback.mp4");
+  try {
+    await writeFile(temporaryPath, result.clips[0]!.buffer);
+    const metadata = await probeVideoSource({
+      ffmpegPath: await resolveVideoNormalizationFfmpegPath(),
+      inputPath: temporaryPath,
+      timeoutMs: 45_000,
+    });
+    assert.ok(Math.abs(metadata.durationSeconds - 16) <= 0.35);
+  } finally {
+    await rm(temporaryDirectory, { recursive: true, force: true });
+  }
+});

@@ -3,6 +3,10 @@ import type {
   AiMediaGenerationRequest,
   AiMediaTypology,
 } from "@/lib/aiMediaGenerationContracts";
+import {
+  aiMediaDialogueSignature,
+  selectAiMediaDialogueLine,
+} from "@/lib/aiMediaDialogue";
 import { getAiMediaLanguageCopy } from "@/lib/aiMediaLanguage";
 import { getAiMediaVideoSegmentCount } from "@/lib/aiMediaVideoTimeline";
 
@@ -167,6 +171,59 @@ function scene(
   };
 }
 
+function sceneTitleSignature(value: unknown) {
+  return clean(value, 100)
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+}
+
+/**
+ * Veo/Omni receive one scene per eight-second act. Duplicate headings used to
+ * make two acts restart from the same idea. Keep each act semantically unique
+ * and make the local dialogue fallback usable even when the copywriter is
+ * unavailable.
+ */
+function finalizeScenes(args: {
+  candidates: readonly AiMediaCreativeScene[];
+  fallbacks?: readonly AiMediaCreativeScene[];
+  targetCount: number;
+  language: string;
+}) {
+  const selected: AiMediaCreativeScene[] = [];
+  const usedTitles = new Set<string>();
+  for (const candidate of [...args.candidates, ...(args.fallbacks || [])]) {
+    const signature = sceneTitleSignature(candidate.title);
+    if (!signature || usedTitles.has(signature)) continue;
+    usedTitles.add(signature);
+    selected.push(candidate);
+    if (selected.length === args.targetCount) break;
+  }
+
+  const usedDialogue = new Set<string>();
+  return selected.map((candidate, sceneIndex) => {
+    const spokenLine = selectAiMediaDialogueLine({
+      value: candidate.spokenLine,
+      language: args.language,
+      sceneIndex,
+      speaker: "lead",
+      usedSignatures: usedDialogue,
+    });
+    usedDialogue.add(aiMediaDialogueSignature(spokenLine));
+    const spokenReply = selectAiMediaDialogueLine({
+      value: candidate.spokenReply,
+      language: args.language,
+      sceneIndex,
+      speaker: "reply",
+      usedSignatures: usedDialogue,
+    });
+    usedDialogue.add(aiMediaDialogueSignature(spokenReply));
+    return { ...candidate, spokenLine, spokenReply };
+  });
+}
+
 export function buildAiMediaCreativePlan(args: {
   request: AiMediaGenerationRequest;
   profile: NormalizedAiGenerationProfile;
@@ -227,7 +284,11 @@ export function buildAiMediaCreativePlan(args: {
       subline,
       companyName,
       cta,
-      scenes: localizedScenes.slice(0, targetCount),
+      scenes: finalizeScenes({
+        candidates: localizedScenes,
+        targetCount,
+        language,
+      }),
     };
   }
 
@@ -312,15 +373,16 @@ export function buildAiMediaCreativePlan(args: {
     scene("L’essentiel", "Qualité, écoute, proximité", strength || subline, "editorial"),
     scene(companyName, cta, business.city, "cta"),
   ].filter((value): value is AiMediaCreativeScene => Boolean(value));
-  while (candidates.length < targetCount) {
-    candidates.splice(Math.max(1, candidates.length - 1), 0, fallbackScenes[candidates.length % fallbackScenes.length]);
-  }
-
   return {
     headline,
     subline,
     companyName,
     cta,
-    scenes: candidates.slice(0, targetCount),
+    scenes: finalizeScenes({
+      candidates,
+      fallbacks: fallbackScenes,
+      targetCount,
+      language,
+    }),
   };
 }

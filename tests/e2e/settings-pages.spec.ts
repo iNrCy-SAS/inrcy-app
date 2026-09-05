@@ -83,7 +83,7 @@ test.describe('settings pages', () => {
 
     await expectProfileWorkspaceUrl(page, 'activity');
     await expect(page.getByText(/Mon profil/i).first()).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByText(/Mon activité/i).first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('[data-profile-segment="activity"]')).toBeVisible({ timeout: 20_000 });
 
     await runtime.expectNoErrors();
   });

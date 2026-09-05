@@ -39,6 +39,12 @@ function configuredProvider(): AiVideoProvider | null {
 }
 
 function resolveProvider(args?: AiVideoProviderGenerationArgs): AiVideoProvider {
+  // A 16/24 s render is one story, not two or three unrelated generations.
+  // Omni carries the preceding video state through previous_interaction_id;
+  // the Veo multi-clip path cannot offer that exact continuity contract.
+  if ((args?.request.durationSeconds || 8) > 8) {
+    return googleOmniVideoProvider;
+  }
   const forced = configuredProvider();
   if (forced) return forced;
   return args?.request.videoEngine === "veo"

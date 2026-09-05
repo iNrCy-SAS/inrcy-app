@@ -926,6 +926,16 @@ export default function MediaLibraryClient() {
             >
               ?
             </button>
+            <Link
+              href="/dashboard/generer-media"
+              className={styles.studioButton}
+              aria-label={`${i18nT("ai_generator_made_inrcy")} — ${i18nT("ai_generator_generate_media")}`}
+            >
+              <span className={styles.studioButtonIcon} aria-hidden="true">
+                ✦
+              </span>
+              <span>{i18nT("ai_generator_made_inrcy")}</span>
+            </Link>
             <button
               type="button"
               className={styles.ghostButton}

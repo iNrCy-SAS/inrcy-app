@@ -4,6 +4,10 @@ import type { NormalizedAiGenerationProfile } from "@/lib/aiGenerationProfile";
 import type { AiMediaCreativePlan } from "@/lib/aiMediaCreativePlan";
 import type { AiMediaGenerationRequest } from "@/lib/aiMediaGenerationContracts";
 import { buildAiMediaBusinessDnaPayload } from "@/lib/aiMediaBusinessDna";
+import {
+  aiMediaDialogueSignature,
+  selectAiMediaDialogueLine,
+} from "@/lib/aiMediaDialogue";
 import { aiGenerateJSON } from "@/lib/aiGatewayClient";
 import { hasAiLanguageMismatch } from "@/lib/aiLanguageValidation";
 import {
@@ -96,21 +100,62 @@ function applyLocalizedCopy(
   if (!headline || !cta) return plan;
 
   const generatedScenes = Array.isArray(generated.scenes) ? generated.scenes : [];
+  const usedDialogue = new Set<string>();
+  const usedTitles = new Set<string>();
   const scenes = plan.scenes.map((scene, index) => {
     const candidate = generatedScenes[index];
+    const generatedTitle =
+      index === 0
+        ? headline
+        : compactCopy(candidate?.title, 86) || scene.title;
+    const titleSignature = aiMediaDialogueSignature(generatedTitle);
+    const title =
+      titleSignature && !usedTitles.has(titleSignature)
+        ? generatedTitle
+        : scene.title;
+    usedTitles.add(aiMediaDialogueSignature(title));
     if (!candidate) {
-      return index === 0 ? { ...scene, title: headline } : scene;
+      const spokenLine = selectAiMediaDialogueLine({
+        value: scene.spokenLine,
+        language,
+        sceneIndex: index,
+        speaker: "lead",
+        usedSignatures: usedDialogue,
+      });
+      usedDialogue.add(aiMediaDialogueSignature(spokenLine));
+      const spokenReply = selectAiMediaDialogueLine({
+        value: scene.spokenReply,
+        language,
+        sceneIndex: index,
+        speaker: "reply",
+        usedSignatures: usedDialogue,
+      });
+      usedDialogue.add(aiMediaDialogueSignature(spokenReply));
+      return { ...scene, title, spokenLine, spokenReply };
     }
+    const spokenLine = selectAiMediaDialogueLine({
+      value: candidate.spokenLine,
+      language,
+      sceneIndex: index,
+      speaker: "lead",
+      usedSignatures: usedDialogue,
+    });
+    usedDialogue.add(aiMediaDialogueSignature(spokenLine));
+    const spokenReply = selectAiMediaDialogueLine({
+      value: candidate.spokenReply,
+      language,
+      sceneIndex: index,
+      speaker: "reply",
+      usedSignatures: usedDialogue,
+    });
+    usedDialogue.add(aiMediaDialogueSignature(spokenReply));
     return {
       ...scene,
       eyebrow: compactCopy(candidate.eyebrow, 38) || scene.eyebrow,
-      title:
-        index === 0
-          ? headline
-          : compactCopy(candidate.title, 86) || scene.title,
+      title,
       body: compactCopy(candidate.body, 150),
-      spokenLine: compactCopy(candidate.spokenLine, 96) || scene.spokenLine,
-      spokenReply: compactCopy(candidate.spokenReply, 96) || scene.spokenReply,
+      spokenLine,
+      spokenReply,
     };
   });
   const visibleCopy = [
@@ -158,7 +203,8 @@ export async function writeAiMediaHeadline(args: {
     languageCode === "fr" &&
     !args.request.textKeywords.length &&
     !args.request.aiInstruction &&
-    args.request.subjectSource !== "profile"
+    args.request.subjectSource !== "profile" &&
+    !characterDialogueRequested
   ) {
     return args.plan;
   }
@@ -180,6 +226,7 @@ export async function writeAiMediaHeadline(args: {
         "La consigne ponctuelle sert uniquement à orienter cette génération. Applique son intention lorsqu'elle est compatible avec l'ADN et la sécurité, sans jamais la citer ni la recopier.",
         "Pour chaque scène, spokenLine est une phrase orale naturelle de 5 à 12 mots, directement liée au sujet professionnel vérifié de la scène.",
         "spokenReply est une réponse très courte qui poursuit naturellement spokenLine pour une éventuelle seconde personne.",
+        "Chaque réplique doit être différente de toutes les répliques des autres scènes : ne répète jamais une phrase, une accroche ou une question déjà utilisée.",
         "Les répliques ne doivent jamais être vagues ou passe-partout : interdiction d'écrire « On s'y met ? », « On avance bien », « C'est prêt », « Exactement » ou une variante.",
         "Aucun libellé de dialogue, guillemet, nom de locuteur ni question adressée à un interlocuteur indéfini dans spokenLine ou spokenReply.",
         "L'accroche contient au maximum 58 caractères. Aucun guillemet, emoji ou promesse inventée.",

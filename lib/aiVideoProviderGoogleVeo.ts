@@ -33,6 +33,10 @@ import {
   type AiVideoProviderGenerationArgs,
   type AiVideoProviderResult,
 } from "@/lib/aiVideoProviderTypes";
+import {
+  aiMediaDialogueSignature,
+  selectAiMediaDialogueLine,
+} from "@/lib/aiMediaDialogue";
 
 const PROVIDER_ID = "google-gemini";
 const DEFAULT_FAST_COST_MICRO_USD_PER_SECOND = 100_000;
@@ -96,6 +100,29 @@ function compact(value: unknown, max = 400) {
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, max);
+}
+
+function promptSnippet(value: unknown, max: number) {
+  const normalized = compact(value, max + 32);
+  const cropped =
+    normalized.length <= max
+      ? normalized
+      : normalized.slice(0, max + 1).replace(/\s+\S*$/u, "");
+  return cropped
+    .replace(/[\s.,;:—-]+$/u, "")
+    .trim();
+}
+
+function joinCompletePromptSections(
+  sections: readonly string[],
+  maximum = MAX_VEO_PROMPT_CHARS,
+) {
+  let prompt = "";
+  for (const section of sections.map((value) => compact(value, maximum)).filter(Boolean)) {
+    const candidate = prompt ? `${prompt} ${section}` : section;
+    if (candidate.length <= maximum) prompt = candidate;
+  }
+  return prompt;
 }
 
 function apiKey() {
@@ -398,57 +425,6 @@ function conciseVisualDirection(
   );
 }
 
-const TEAM_DIALOGUE_LINES: Record<
-  string,
-  ReadonlyArray<readonly [string, string]>
-> = {
-  fr: [
-    ["Votre projet mérite toute notre attention.", "Nous le construisons avec vous."],
-    ["Notre expertise accompagne votre projet.", "Chaque détail compte vraiment."],
-    ["Nous avançons avec une méthode claire.", "Votre besoin reste notre priorité."],
-  ],
-  en: [
-    ["Shall we get started?", "Absolutely."],
-    ["We’re making good progress.", "Exactly."],
-    ["It’s ready.", "Perfect."],
-  ],
-  es: [
-    ["¿Empezamos?", "Claro."],
-    ["Avanzamos bien.", "Exacto."],
-    ["Ya está listo.", "Perfecto."],
-  ],
-  it: [
-    ["Cominciamo?", "Volentieri."],
-    ["Stiamo andando bene.", "Esatto."],
-    ["È pronto.", "Perfetto."],
-  ],
-  de: [
-    ["Fangen wir an?", "Sehr gern."],
-    ["Wir kommen gut voran.", "Genau."],
-    ["Es ist fertig.", "Perfekt."],
-  ],
-  nl: [
-    ["Zullen we beginnen?", "Graag."],
-    ["We gaan goed vooruit.", "Precies."],
-    ["Het is klaar.", "Perfect."],
-  ],
-  pt: [
-    ["Começamos?", "Com certeza."],
-    ["Estamos a avançar bem.", "Exatamente."],
-    ["Está pronto.", "Perfeito."],
-  ],
-  th: [
-    ["เริ่มกันเลยไหม", "ได้เลย"],
-    ["ไปได้ดีมาก", "ใช่เลย"],
-    ["พร้อมแล้ว", "เยี่ยมเลย"],
-  ],
-  zh: [
-    ["我们开始吧？", "当然。"],
-    ["进展很顺利。", "没错。"],
-    ["准备好了。", "太好了。"],
-  ],
-};
-
 function exactSpokenLine(value: unknown, fallback: string) {
   const normalized = adultSafePromptText(value, 96)
     .replace(/^[\s"'«»]+|[\s"'«»]+$/g, "")
@@ -469,12 +445,12 @@ export function buildGoogleVideoFramingDirection(
     return "Keep every face, head and important subject fully inside frame with comfortable margins.";
   }
   const common =
-    "Use a stable medium shot rather than an extreme close-up. Keep the complete hairline, entire head, chin, shoulders and upper torso visible at all times, with generous clean headroom. Never crop a forehead, face or chin, including during camera movement";
+    "Stable medium-wide shot, never extreme close-up; keep complete hairline, entire head, chin, shoulders and upper torso in frame with headroom";
   if (request.format === "square") {
-    return `FINAL 1:1 SAFE FRAME — the vertical source is cropped to a square by iNrCy. ${common}. Keep the speaking person in the upper-centre square-safe area and leave enough space below for the text overlay`;
+    return `FINAL 1:1 SAFE FRAME — ${common}; keep speakers upper-centre and leave clean space below`;
   }
   if (request.format === "portrait") {
-    return `FINAL 4:5 SAFE FRAME — the vertical source is cropped by iNrCy. ${common}. Keep the person centred inside the 4:5 safe area`;
+    return `FINAL 4:5 SAFE FRAME — ${common}; keep speakers centred in the safe area`;
   }
   return `${common}. Keep the person away from every edge of the final frame`;
 }
@@ -501,40 +477,80 @@ export function buildGoogleVideoTeamSpeechDirection(
   }
 
   const language = String(args.contentLanguage || "fr").toLowerCase();
-  const scripts = TEAM_DIALOGUE_LINES[language] || TEAM_DIALOGUE_LINES.fr;
-  const [fallbackLine, fallbackReply] = scripts[index % scripts.length]!;
   const scene = args.plan.scenes[index];
+  const usedDialogue = new Set<string>();
+  for (const previous of args.plan.scenes.slice(0, index)) {
+    usedDialogue.add(aiMediaDialogueSignature(previous.spokenLine));
+    usedDialogue.add(aiMediaDialogueSignature(previous.spokenReply));
+  }
+  const selectedFirstLine = selectAiMediaDialogueLine({
+    value: scene?.spokenLine || scene?.body || scene?.title || args.plan.headline,
+    language,
+    sceneIndex: index,
+    speaker: "lead",
+    usedSignatures: usedDialogue,
+  });
+  usedDialogue.add(aiMediaDialogueSignature(selectedFirstLine));
   const firstLine = exactSpokenLine(
-    scene?.spokenLine || scene?.body || scene?.title || args.plan.headline,
-    fallbackLine,
-  );
-  const secondLine = exactSpokenLine(
-    scene?.spokenReply || scene?.body || args.plan.subline,
-    fallbackReply,
+    selectedFirstLine,
+    selectedFirstLine,
   );
   if (args.request.identityMode !== "reference_team") {
     return [
       "NATIVE CHARACTER DIALOGUE, never voice-over",
-      `the single recurring on-screen character says exactly “${firstLine}”`,
-      "the spoken line must stay word-for-word exact and connected to the current professional subject; never prepend, append, rephrase or improvise generic small talk",
-      "precise lip-sync, breathing, facial expression and natural full-body movement",
-      "keep one coherent synthetic adult voice tied to the same face across shots",
-      "use a synthetic feminine, masculine or neutral adult timbre suited to the scene; never clone a real voice, infer or state real gender identity",
-      "no narrator, lyrics or music; clean location ambience",
+      `the recurring character says exactly “${promptSnippet(firstLine, 72)}” ONCE ONLY with exact lip-sync`,
+      "after speaking close the mouth and react silently",
+      "never repeat, restart, loop or reuse earlier-scene dialogue",
+      "keep one synthetic adult feminine, masculine or neutral voice fixed to the face",
+      "never clone a real voice, infer identity or gender, add a narrator or music",
     ].join("; ");
   }
   const teamSize = args.identityTeamMemberCount === 3 ? 3 : 2;
   const firstSpeaker = (index % teamSize) + 1;
-  const secondSpeaker = (firstSpeaker % teamSize) + 1;
   return [
     "NATIVE CHARACTER DIALOGUE, never voice-over",
-    `people are numbered left-to-right; Person ${firstSpeaker} says exactly “${firstLine}”, then Person ${secondSpeaker} says exactly “${secondLine}”`,
-    "both lines must stay word-for-word exact and form one coherent exchange about the current professional subject; never prepend, append, rephrase or improvise generic small talk",
-    "one speaker at a time with precise lip-sync, breathing, expression and body language; others listen and react",
-    "keep a distinct adult voice tied to each face across shots",
-    "use distinct synthetic feminine, masculine or neutral adult timbres suited to the scene; never clone a real voice, infer or state real gender identity, or swap speakers during a shot",
-    "no narrator, lyrics or music; clean location ambience",
+    `left-to-right Person ${firstSpeaker} says exactly “${promptSnippet(firstLine, 64)}” ONCE ONLY with exact lip-sync`,
+    "after speaking close the mouth and react silently",
+    "never repeat, restart, loop or reuse earlier-scene dialogue",
+    "fixed distinct synthetic adult voice per face (feminine, masculine or neutral)",
+    "never clone voices, infer identity/gender, swap speakers or add narrator/music",
   ].join("; ");
+}
+
+export function buildGoogleVideoSequenceDirection(
+  index: number,
+  total: number,
+) {
+  if (index <= 0) {
+    return "ACT 1 — OPENING: hook the exact subject; begin one concrete task; medium-wide; no static talking head";
+  }
+  if (index >= total - 1) {
+    return "FINAL ACT — CONCLUSION: finish the task and reveal its result in a wider pullback; never replay an earlier pose or framing";
+  }
+  return "MIDDLE ACT — DEMONSTRATION/PROOF: show a new concrete step; never replay the opening pose, framing or gesture";
+}
+
+function buildGoogleVideoLongIdentityDirection(
+  request: AiVideoProviderGenerationArgs["request"],
+  identityTeamMemberCount?: 2 | 3,
+) {
+  const teamSize = identityTeamMemberCount === 3 ? 3 : 2;
+  if (request.videoCharacterMode === "reference_team") {
+    return `IDENTITY LOCK — exactly ${teamSize} approved adults; preserve supplied faces/hair; never omit, merge, duplicate, swap or replace; living motion, no collage/slideshow/Ken Burns; safe medium-wide, full heads with headroom`;
+  }
+  if (request.videoCharacterMode === "professional") {
+    return "IDENTITY LOCK — same approved adult professional; preserve face, hair and build across all acts; never replace, duplicate or show a slideshow; safe medium-wide, full head with headroom";
+  }
+  if (request.videoCharacterMode === "brand_avatar") {
+    return "IDENTITY LOCK — same approved brand avatar face and design across all acts; living motion; never replace, duplicate or show a slideshow; safe medium-wide, full head with headroom";
+  }
+  if (request.inspirationImages.length > 0 && request.teamVideoMode === "cinematic") {
+    return "IDENTITY LOCK — animate the approved reference subject continuously; preserve face and visual cues; never replace it or show a slideshow; safe medium-wide, full head with headroom";
+  }
+  return promptSnippet(
+    buildGoogleVideoIdentityDirection(request, identityTeamMemberCount),
+    170,
+  );
 }
 
 /**
@@ -550,13 +566,10 @@ export function buildGoogleVideoIdentityDirection(
   if (request.videoCharacterMode === "reference_team") {
     return compact(
       [
-        "IDENTITY LOCK — PRECOMPOSED APPROVED TEAM:",
-        `animate the single group frame as one continuous scene with exactly ${identityTeamMemberCount === 3 ? 3 : 2} adults`,
-        "never use collage, split-screen, portrait cards, slideshow, still-photo pan, zoom or Ken Burns",
-        "create real facial and full-body motion, gestures, steps, interaction and camera movement",
-        "show each person once; preserve every face and hairstyle; never invent, remove, fuse, duplicate, swap or replace anyone",
+        `IDENTITY LOCK — exactly ${identityTeamMemberCount === 3 ? 3 : 2} approved adults from group image; keep every face and hairstyle once;`,
+        "never invent, omit, fuse, duplicate, swap or replace; living motion; no collage, slideshow or Ken Burns",
       ].join(" "),
-      460,
+      205,
     );
   }
   if (request.videoCharacterMode === "professional") {
@@ -646,6 +659,7 @@ export function buildGoogleVideoScenePrompt(
   args: AiVideoProviderGenerationArgs,
   index: number,
   durationSeconds: 4 | 6 | 8,
+  options: { continuation?: boolean } = {},
 ) {
   const scene = args.plan.scenes[index];
   const colors = args.brandColors.filter(Boolean).slice(0, 5).join(", ");
@@ -669,7 +683,7 @@ export function buildGoogleVideoScenePrompt(
     exactIdea
       ? `${exactIdea}; professional activity: ${professionalActivity}`
       : professionalActivity,
-    240,
+    160,
   );
   const visualEvidence = subjectVisualEvidence(rawContext);
   const digitalDirection = subjectDigitalDirection(rawContext);
@@ -677,7 +691,7 @@ export function buildGoogleVideoScenePrompt(
   const businessContext = adultSafePromptText(args.creativeBrief, 90);
   const sceneDirection = adultSafePromptText(
     [scene?.visualBrief, scene?.title, scene?.body].filter(Boolean).join(" "),
-    160,
+    120,
   );
   const visualDirection = conciseVisualDirection(args.request);
   const identityDirection = buildGoogleVideoIdentityDirection(
@@ -690,20 +704,73 @@ export function buildGoogleVideoScenePrompt(
   );
   const speechDirection = buildGoogleVideoTeamSpeechDirection(args, index);
   const framingDirection = buildGoogleVideoFramingDirection(args.request);
+  const sequenceDirection = buildGoogleVideoSequenceDirection(
+    index,
+    args.plan.scenes.length,
+  );
+  const sequenceHeader = options.continuation
+    ? `[# Sources <PREVIOUS_VIDEO>@Video1] Extend this video immediately by ${durationSeconds} seconds from its final frame; same people, faces, clothing, voices, workplace, light and motion; no new intro, reset, recap or repeated event; single unbroken continuous shot with no scene cuts.`
+    : `Create one original ${durationSeconds}-second cinematic business shot ${index + 1}/${args.plan.scenes.length}; single unbroken continuous shot with no scene cuts.`;
+  const adultSafety =
+    args.request.peopleMode === "none"
+      ? "Do not show any person, human silhouette or face."
+      : "Every visible person must be unmistakably adult (25+); no minors.";
+
+  // Long videos are stateful Omni continuations. Keep every section complete
+  // under the 1 400-character model budget: an arbitrary final slice used to
+  // cut dialogue/safety mid-sentence and made later acts restart generically.
+  if (args.plan.scenes.length > 1) {
+    const requiredSections = [
+      sequenceHeader,
+      `${buildGoogleVideoLongIdentityDirection(
+        args.request,
+        args.identityTeamMemberCount,
+      )}.`,
+      adultSafety,
+      `PRIMARY SUBJECT — visually unmistakable: ${promptSnippet(
+        exactIdea || professionalActivity,
+        112,
+      )}.`,
+      `REQUIRED VISUAL PROOF: ${promptSnippet(visualEvidence, 66)}.`,
+      sceneDirection
+        ? `ACT ACTION: ${promptSnippet(
+            scene?.visualBrief || sceneDirection,
+            60,
+          )}.`
+        : "",
+      `SEQUENCE ROLE: ${sequenceDirection}.`,
+      speechDirection ? `${speechDirection}.` : "",
+    ]
+      .filter(Boolean);
+    const requiredPrompt = requiredSections.join(" ");
+    if (requiredPrompt.length > MAX_VEO_PROMPT_CHARS) {
+      throw new Error(
+        `ai_video_veo_required_prompt_budget_exceeded:${requiredPrompt.length}:${requiredSections
+          .map((section) => section.length)
+          .join(",")}`,
+      );
+    }
+    return joinCompletePromptSections([
+      requiredPrompt,
+      punctualInstruction
+        ? `USER DIRECTION: ${promptSnippet(punctualInstruction, 72)}.`
+        : "",
+      "No readable text, logos, captions or watermarks.",
+      safetyDirection ? `SAFETY: ${promptSnippet(safetyDirection, 76)}.` : "",
+      framingDirection ? `${framingDirection}.` : "",
+    ]);
+  }
   return compact(
     [
-      `Create one original ${durationSeconds}-second cinematic business shot ${
-        index + 1
-      }/${args.plan.scenes.length}.`,
+      sequenceHeader,
       identityDirection ? `${identityDirection}.` : "",
+      adultSafety,
+      `SEQUENCE ROLE: ${sequenceDirection}.`,
       speechDirection ? `${speechDirection}.` : "",
-      framingDirection ? `${framingDirection}.` : "",
-      args.request.peopleMode === "none"
-        ? "Do not show any person, human silhouette or face."
-        : "Every visible person must be unmistakably adult and at least 25 years old; no younger-looking person may appear.",
       `PRIMARY SUBJECT — visually unmistakable: ${primarySubject}.`,
-      `REQUIRED VISUAL PROOF: ${visualEvidence}.`,
       sceneDirection ? `Shot action: ${sceneDirection}.` : "",
+      framingDirection ? `${framingDirection}.` : "",
+      `REQUIRED VISUAL PROOF: ${visualEvidence}.`,
       args.request.inspirationImages.length &&
       (preservesIdentityReferences(args.request) || index === 0)
         ? preservesIdentityReferences(args.request)

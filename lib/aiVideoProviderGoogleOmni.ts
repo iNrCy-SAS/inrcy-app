@@ -1,5 +1,9 @@
 import "server-only";
 
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { GoogleGenAI } from "@google/genai";
 
 import {
@@ -17,6 +21,10 @@ import {
 } from "@/lib/aiVideoProviderGoogleVeo";
 import { classifyVeoFailure } from "@/lib/aiVideoReliability";
 import {
+  probeVideoSource,
+  resolveVideoNormalizationFfmpegPath,
+} from "@/lib/mediaVideoNormalizer";
+import {
   assertAiVideoReferenceTeamGoogleEgress,
   type AiVideoProvider,
   type AiVideoProviderClip,
@@ -31,10 +39,8 @@ const DEFAULT_TIMEOUT_MS = 420_000;
 const DEFAULT_GENERATION_ATTEMPTS = 3;
 const DEFAULT_DOWNLOAD_ATTEMPTS = 3;
 const DEFAULT_FILE_POLL_MS = 2_000;
-// An 8/16/24 s request contains at most three independent 8 s shots. Omni is
-// synchronous, so launching all three is the shortest 24 s path. Transient
-// quota errors are retried with jitter and the provider-level Veo fallback is
-// still available if no Omni output has been billed.
+// Independent videos may run concurrently, but every 16/24 s request is now a
+// stateful continuation chain and therefore intentionally runs sequentially.
 const DEFAULT_CONCURRENCY = 3;
 const MAX_CLIP_BYTES = 128 * 1024 * 1024;
 
@@ -369,6 +375,29 @@ async function readOutputVideo(args: {
   throw uriError || new Error("ai_video_omni_video_missing");
 }
 
+async function probeDownloadedVideoDuration(args: {
+  buffer: Buffer;
+  signal?: AbortSignal;
+}) {
+  const directory = await mkdtemp(join(tmpdir(), "inrcy-omni-probe-"));
+  const inputPath = join(directory, "continuation.mp4");
+  try {
+    args.signal?.throwIfAborted();
+    await writeFile(inputPath, args.buffer);
+    const ffmpegPath = await resolveVideoNormalizationFfmpegPath();
+    const metadata = await probeVideoSource({
+      ffmpegPath,
+      inputPath,
+      timeoutMs: 60_000,
+    });
+    return metadata.durationSeconds;
+  } finally {
+    await rm(directory, { recursive: true, force: true }).catch(
+      () => undefined,
+    );
+  }
+}
+
 async function generateClip(args: {
   ai: GoogleGenAI;
   key: string;
@@ -379,6 +408,7 @@ async function generateClip(args: {
   aspectRatio: "16:9" | "9:16";
   inspirationImages: AiVideoProviderGenerationArgs["request"]["inspirationImages"];
   preserveIdentityReferences: boolean;
+  previousInteractionId?: string;
   timeoutMs: number;
   onBillable: () => void;
 }): Promise<AiVideoProviderClip> {
@@ -396,7 +426,7 @@ async function generateClip(args: {
 
   try {
     const contentAttempts =
-      args.inspirationImages.length && args.preserveIdentityReferences
+      args.preserveIdentityReferences
         ? [
             {
               prompt: args.prompt,
@@ -458,6 +488,9 @@ async function generateClip(args: {
             {
               model: args.model,
               input,
+              ...(args.previousInteractionId
+                ? { previous_interaction_id: args.previousInteractionId }
+                : {}),
               response_format: {
                 type: "video",
                 aspect_ratio: args.aspectRatio,
@@ -547,7 +580,6 @@ async function generateClip(args: {
       const nextAttempt = contentAttempts[contentIndex + 1];
       if (
         args.preserveIdentityReferences &&
-        contentAttempt.images.length > 0 &&
         (failure.kind === "invalid_argument" || failure.kind === "safety")
       ) {
         throw isIdentityReferenceRejected(lastError)
@@ -605,6 +637,7 @@ export const googleOmniVideoProvider: AiVideoProvider = {
     if (args.plan.scenes.length !== durations.length) {
       throw new Error("ai_video_omni_scene_count_invalid");
     }
+    const continuationMode = durations.length > 1;
     let actualCostMicroUsd = 0;
     let fallbackCostMicroUsd = 0;
     const fallbackModels = new Set<string>();
@@ -617,12 +650,21 @@ export const googleOmniVideoProvider: AiVideoProvider = {
       let cursor = 0;
       let stopped = false;
       let firstError: unknown = null;
+      let previousInteractionId: string | undefined;
       const worker = async () => {
         while (!stopped && cursor < durations.length) {
           throwIfAborted(args.signal);
           const index = cursor;
           cursor += 1;
           const durationSeconds = durations[index];
+          const isContinuation = continuationMode && index > 0;
+          if (isContinuation && !previousInteractionId) {
+            stopped = true;
+            firstError ||= new Error(
+              "ai_video_omni_continuation_context_missing",
+            );
+            continue;
+          }
           const sceneCostMicroUsd = durationSeconds * costMicroUsdPerSecond();
           let sceneReservation: Awaited<
             ReturnType<typeof reserveAiGatewayAccountAttempt>
@@ -641,19 +683,26 @@ export const googleOmniVideoProvider: AiVideoProvider = {
                 estimatedCostMicroUsd: sceneCostMicroUsd,
               },
             );
-            clips[index] = await generateClip({
+            const clip = await generateClip({
               ai,
               key,
               model,
               generationArgs: args,
-              prompt: buildGoogleVideoScenePrompt(args, index, durationSeconds),
+              prompt: buildGoogleVideoScenePrompt(
+                args,
+                index,
+                durationSeconds,
+                { continuation: isContinuation },
+              ),
               durationSeconds,
               aspectRatio: aspectRatio(args.request.format),
               inspirationImages:
-                preserveIdentityReferences || index === 0
+                !isContinuation &&
+                (preserveIdentityReferences || index === 0)
                   ? args.request.inspirationImages
                   : [],
               preserveIdentityReferences,
+              previousInteractionId,
               timeoutMs,
               onBillable: () => {
                 if (sceneBillable) return;
@@ -661,6 +710,8 @@ export const googleOmniVideoProvider: AiVideoProvider = {
                 actualCostMicroUsd += sceneCostMicroUsd;
               },
             });
+            clips[index] = clip;
+            if (continuationMode) previousInteractionId = clip.requestId;
             await commitAiGatewayAccountAttempt({
               reservation: sceneReservation,
               feature: "media.video",
@@ -704,6 +755,7 @@ export const googleOmniVideoProvider: AiVideoProvider = {
               details: redactAiMediaSensitiveText(omniFailure.details, 500),
             });
             if (
+              !continuationMode &&
               durationSeconds === 8 &&
               veoFallbackEnabled() &&
               mayUseVeoFallback(effectiveError, args.signal)
@@ -749,13 +801,77 @@ export const googleOmniVideoProvider: AiVideoProvider = {
           }
         }
       };
-      const concurrency = Math.min(configuredConcurrency, durations.length);
+      const concurrency = continuationMode
+        ? 1
+        : Math.min(configuredConcurrency, durations.length);
       await Promise.all(Array.from({ length: concurrency }, () => worker()));
       if (firstError) throw firstError;
       if (clips.some((clip) => !clip)) {
         throw new Error("ai_video_omni_clip_set_incomplete");
       }
-      const completedClips = clips as AiVideoProviderClip[];
+      let completedClips = clips as AiVideoProviderClip[];
+      if (continuationMode) {
+        // Omni may return either the complete extended timeline or only the
+        // newly appended delta, depending on the serving route. Probe instead
+        // of guessing: a cumulative result is sliced logically for the
+        // existing per-act overlays; delta results are concatenated directly.
+        const finalClip = completedClips[completedClips.length - 1]!;
+        const totalDurationSeconds = durations.reduce(
+          (total, duration) => total + duration,
+          0,
+        );
+        const finalDurationSeconds = await probeDownloadedVideoDuration({
+          buffer: finalClip.buffer,
+          signal: args.signal,
+        });
+        if (finalDurationSeconds >= totalDurationSeconds - 0.35) {
+          let sourceStartSeconds = 0;
+          completedClips = completedClips.map((clip, index) => {
+            const logicalClip: AiVideoProviderClip = {
+              ...finalClip,
+              durationSeconds: durations[index],
+              sourceStartSeconds,
+              requestId: clip.requestId,
+              warnings: Array.from(
+                new Set([
+                  ...finalClip.warnings,
+                  "omni_stateful_continuation",
+                  "omni_cumulative_continuation_output",
+                ]),
+              ),
+            };
+            sourceStartSeconds += durations[index];
+            return logicalClip;
+          });
+        } else {
+          const measuredDurations = await Promise.all(
+            completedClips.map((clip) =>
+              probeDownloadedVideoDuration({
+                buffer: clip.buffer,
+                signal: args.signal,
+              }),
+            ),
+          );
+          if (
+            measuredDurations.some(
+              (measured, index) => measured < durations[index] - 0.35,
+            )
+          ) {
+            throw new Error("ai_video_omni_continuation_duration_invalid");
+          }
+          completedClips = completedClips.map((clip) => ({
+            ...clip,
+            sourceStartSeconds: 0,
+            warnings: Array.from(
+              new Set([
+                ...clip.warnings,
+                "omni_stateful_continuation",
+                "omni_delta_continuation_output",
+              ]),
+            ),
+          }));
+        }
+      }
       const usedFallbackModels = Array.from(fallbackModels);
       return {
         provider: usedFallbackModels.length

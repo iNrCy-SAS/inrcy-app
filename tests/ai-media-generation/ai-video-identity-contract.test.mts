@@ -46,7 +46,7 @@ test("les références d’identité restent actives sur chaque segment et chaqu
   );
   assert.match(
     omni,
-    /args\.inspirationImages\.length && args\.preserveIdentityReferences[\s\S]*?images: args\.inspirationImages/
+    /args\.preserveIdentityReferences[\s\S]*?images: args\.inspirationImages/
   );
 });
 
@@ -176,13 +176,18 @@ test("la direction Veo impose une scène animée continue sans diaporama ni alt�
   const veo = read("lib/aiVideoProviderGoogleVeo.ts");
   const server = read("lib/aiMediaGenerationServer.ts");
 
-  assert.match(veo, /one continuous scene/);
-  assert.match(veo, /never use collage, split-screen, portrait cards, slideshow/);
-  assert.match(veo, /Ken Burns/);
-  assert.match(veo, /real facial and full-body motion/);
-  assert.match(veo, /gestures, steps, interaction and camera movement/);
-  assert.match(veo, /exactly \$\{identityTeamMemberCount === 3 \? 3 : 2\} adults/);
-  assert.match(veo, /never invent, remove, fuse, duplicate, swap or replace anyone/);
+  assert.match(veo, /single unbroken continuous shot with no scene cuts/);
+  assert.match(veo, /living motion; no collage, slideshow or Ken Burns/);
+  assert.match(veo, /exactly \$\{identityTeamMemberCount === 3 \? 3 : 2\} approved adults/);
+  assert.match(veo, /never invent, omit, fuse, duplicate, swap or replace/);
+  assert.match(veo, /safe medium-wide, full heads with headroom/);
+  assert.match(veo, /ACT 1 — OPENING:[\s\S]*?no static talking head/);
+  assert.match(veo, /MIDDLE ACT — DEMONSTRATION\/PROOF:[\s\S]*?new concrete step/);
+  assert.match(veo, /FINAL ACT — CONCLUSION:[\s\S]*?never replay an earlier pose or framing/);
+  assert.match(
+    veo,
+    /Extend this video immediately[\s\S]*?no new intro, reset, recap or repeated event/,
+  );
   assert.match(server, /jamais un collage, un écran partagé, des cartes portrait ni un diaporama/);
   assert.match(server, /regards, expressions, gestes, pas, interactions et mouvements de caméra naturels/);
 });
@@ -195,26 +200,38 @@ test("Veo sépare strictement les dialogues natifs et la voix off sans inférer 
   assert.match(contracts, /teamVideoSpeechMode !== "characters"/);
   assert.match(veo, /buildGoogleVideoTeamSpeechDirection/);
   assert.match(veo, /scene\?\.spokenLine/);
-  assert.match(veo, /connected to the current professional subject/);
+  assert.match(veo, /selectAiMediaDialogueLine/);
+  assert.match(veo, /usedSignatures: usedDialogue/);
   assert.doesNotMatch(veo, /\["On s’y met \?", "Avec plaisir\."\]/);
   assert.match(veo, /VOICE-OVER MODE — every on-screen person stays silent/);
   assert.match(veo, /no dialogue, speech, lip-sync or vocalisation/);
   assert.match(veo, /NATIVE CHARACTER DIALOGUE, never voice-over/);
-  assert.match(veo, /says exactly “\$\{firstLine\}”/);
-  assert.match(veo, /precise lip-sync, breathing, expression and body language/);
-  assert.match(veo, /distinct synthetic feminine, masculine or neutral adult timbres/);
-  assert.match(veo, /never clone a real voice, infer or state real gender identity/);
-  assert.match(veo, /never voice-over/);
+  assert.match(veo, /says exactly “\$\{promptSnippet\(firstLine, 64\)\}” ONCE ONLY/);
+  assert.match(veo, /exact lip-sync/);
+  assert.match(veo, /never repeat, restart, loop or reuse earlier-scene dialogue/);
+  assert.match(veo, /synthetic adult feminine, masculine or neutral voice fixed to the face/);
+  assert.match(veo, /distinct synthetic adult voice per face \(feminine, masculine or neutral\)/);
+  assert.match(veo, /never clone a real voice, infer identity or gender/);
+  assert.match(veo, /never clone voices, infer identity\/gender, swap speakers/);
+  assert.match(veo, /add narrator\/music/);
 
+  const singleScenePromptPosition = veo.indexOf(
+    "return compact(",
+    veo.indexOf("export function buildGoogleVideoScenePrompt"),
+  );
   const identityPosition = veo.indexOf(
     "identityDirection ? `${identityDirection}.` : \"\"",
+    singleScenePromptPosition,
   );
   const speechPosition = veo.indexOf(
     "speechDirection ? `${speechDirection}.` : \"\"",
+    singleScenePromptPosition,
   );
   const subjectPosition = veo.indexOf(
     "`PRIMARY SUBJECT — visually unmistakable: ${primarySubject}.`",
+    singleScenePromptPosition,
   );
+  assert.ok(singleScenePromptPosition > 0, "assemblage du prompt court présent");
   assert.ok(identityPosition > 0, "verrou d’identité présent");
   assert.ok(speechPosition > identityPosition, "dialogue après le verrou d’identité");
   assert.ok(subjectPosition > speechPosition, "instructions critiques avant le contexte tronquable");
@@ -226,6 +243,7 @@ test("le cadrage vidéo protège la tête lors du recadrage carré", () => {
   const copywriter = read("lib/aiMediaCopywriter.ts");
 
   assert.match(veo, /buildGoogleVideoFramingDirection/);
+  assert.match(veo, /Stable medium-wide shot, never extreme close-up/);
   assert.match(veo, /complete hairline, entire head, chin, shoulders and upper torso/);
   assert.match(veo, /FINAL 1:1 SAFE FRAME/);
   assert.match(composer, /args\.width === args\.height[\s\S]*?\? "0"/);

@@ -545,9 +545,9 @@ export async function generateAndSaveAiMedia(args: {
                 accountId: args.accountId,
                 request: {
                   ...providerRequest,
-                  // Le mode cinématique d'équipe est explicitement un flux
-                  // Veo image-to-video, indépendamment du moteur rapide choisi
-                  // pour les autres vidéos du studio.
+                  // La préférence Veo reste respectée pour un rendu de 8 s.
+                  // Pour 16/24 s, le routeur impose Omni afin de prolonger la
+                  // même interaction au lieu de redémarrer 2–3 clips isolés.
                   videoEngine: "veo",
                   inspirationImages: [groupImage],
                 },
@@ -594,7 +594,7 @@ export async function generateAndSaveAiMedia(args: {
           return {
             ...motion,
             provider: "inrcy-team-ai-frame-local-motion",
-            model: `${teamPrecompositionGateway.model}+inrcy/local-motion-v1`,
+            model: `${teamPrecompositionGateway.model}+inrcy/local-motion-v2-continuous`,
             warnings: [
               "identity_team_ai_group_frame_local_motion",
               "identity_team_similarity_review_required",
@@ -835,6 +835,7 @@ export async function generateAndSaveAiMedia(args: {
     const clips = videoGateway.clips.map((clip) => ({
       buffer: clip.buffer,
       durationSeconds: clip.durationSeconds,
+      sourceStartSeconds: clip.sourceStartSeconds,
     }));
     try {
       normalized = await measure("video_composition", () =>
