@@ -16,11 +16,12 @@ import {
   googleVeoVideoProvider,
 } from "@/lib/aiVideoProviderGoogleVeo";
 import { classifyVeoFailure } from "@/lib/aiVideoReliability";
-import type {
-  AiVideoProvider,
-  AiVideoProviderClip,
-  AiVideoProviderGenerationArgs,
-  AiVideoProviderResult,
+import {
+  assertAiVideoReferenceTeamGoogleEgress,
+  type AiVideoProvider,
+  type AiVideoProviderClip,
+  type AiVideoProviderGenerationArgs,
+  type AiVideoProviderResult,
 } from "@/lib/aiVideoProviderTypes";
 
 const PROVIDER_ID = "google-gemini-omni";
@@ -580,15 +581,7 @@ export const googleOmniVideoProvider: AiVideoProvider = {
   },
   async generate(args): Promise<AiVideoProviderResult> {
     throwIfAborted(args.signal);
-    if (
-      args.request.identityMode === "reference_team" &&
-      !args.identityTeamPrecomposed
-    ) {
-      // Un fournisseur vidéo ne reçoit jamais directement plusieurs portraits
-      // distincts. Le serveur doit d'abord créer une seule composition de
-      // groupe autorisée, ou utiliser le motion local exact-photo.
-      throw new Error("ai_video_reference_team_precomposition_required");
-    }
+    assertAiVideoReferenceTeamGoogleEgress(args);
     const key = apiKey();
     const ai = new GoogleGenAI({ apiKey: key });
     const model = modelId();

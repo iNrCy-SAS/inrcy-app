@@ -239,6 +239,8 @@ test("les préférences ne sérialisent jamais photo, consentement ou identifian
   assert.deepEqual(normalized.blocks[5].defaults, {
     peopleMode: "solo",
     identityMode: "professional",
+    teamVideoMode: "montage",
+    teamVideoSpeechMode: "voiceover",
   });
   assert.doesNotMatch(serialized, /identityConsent|identityReferenceSetId|inspirationImages/);
   assert.equal(serialized.includes(marker), false);

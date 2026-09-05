@@ -92,6 +92,25 @@
   font-weight: 900;
 }
 
+.studioWordmark {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 1px;
+  letter-spacing: -0.035em;
+}
+
+.studioWordmark span {
+  color: #f7fbff;
+}
+
+.studioWordmark b {
+  background: linear-gradient(92deg, #65e7ff, #aa78ff 52%, #ff75b8);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  font-weight: 950;
+}
+
 .moduleIdentity p {
   color: rgba(205, 219, 246, 0.64);
   font-size: 9.5px;
@@ -143,6 +162,9 @@
 }
 
 .icon {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   width: 40px;
   height: 40px;
   flex: 0 0 auto;
@@ -154,6 +176,24 @@
   box-shadow: 0 8px 25px rgba(136, 72, 235, 0.3);
   color: #fff;
   font-size: 18px;
+}
+
+.icon::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -30%;
+  background: conic-gradient(from 15deg, transparent, rgba(255, 255, 255, 0.36), transparent 28%);
+  transform: rotate(-12deg);
+}
+
+.icon::after {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  z-index: -1;
+  border: 1px solid rgba(255, 255, 255, 0.17);
+  border-radius: 8px;
 }
 
 .heading {
@@ -424,14 +464,27 @@
   }
 
   .header {
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-columns: minmax(118px, 1fr) auto;
     min-height: 60px;
     padding: 10px 11px;
   }
 
-  .moduleIdentity > div,
-  .profileSignals b {
+  .moduleIdentity > div {
+    display: grid;
+  }
+
+  .moduleIdentity p,
+  .profileSignals b,
+  .heading {
     display: none;
+  }
+
+  .moduleIdentity {
+    gap: 7px;
+  }
+
+  .studioWordmark {
+    font-size: 13px;
   }
 
   .headerActions {

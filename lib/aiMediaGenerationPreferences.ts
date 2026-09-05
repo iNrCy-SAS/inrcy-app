@@ -44,6 +44,8 @@ export type AiMediaGeneratorBlockDefaults = {
       | "professional"
       | "brand_avatar"
       | "reference_team";
+    teamVideoMode: "cinematic" | "montage";
+    teamVideoSpeechMode: "voiceover" | "characters";
   };
   6: {
     durationSeconds: 8 | 16 | 24;
@@ -123,7 +125,12 @@ const DEFAULT_BLOCKS: AiMediaGeneratorPreferences["blocks"] = {
   },
   5: {
     saved: false,
-    defaults: { peopleMode: "auto", identityMode: "auto" },
+    defaults: {
+      peopleMode: "auto",
+      identityMode: "auto",
+      teamVideoMode: "montage",
+      teamVideoSpeechMode: "voiceover",
+    },
   },
   6: {
     saved: false,
@@ -291,10 +298,28 @@ function parseStrictBlockDefaults<K extends AiMediaGeneratorPreferenceBlockId>(
           ["auto", "professional", "brand_avatar", "reference_team"] as const,
           "Le mode d’identité",
         );
+      const teamVideoMode =
+        input.teamVideoMode === undefined
+          ? "montage"
+          : requiredEnum(
+              input.teamVideoMode,
+              ["cinematic", "montage"] as const,
+              "Le mode d’animation d’équipe",
+            );
+      const teamVideoSpeechMode =
+        input.teamVideoSpeechMode === undefined
+          ? "voiceover"
+          : requiredEnum(
+              input.teamVideoSpeechMode,
+              ["voiceover", "characters"] as const,
+              "Le mode vocal de l’équipe animée",
+            );
       return {
         peopleMode:
           normalizedIdentityMode === "reference_team" ? "team" : peopleMode,
         identityMode: normalizedIdentityMode,
+        teamVideoMode,
+        teamVideoSpeechMode,
       } as AiMediaGeneratorBlockDefaults[K];
     }
     case 6: {
@@ -441,6 +466,16 @@ export function sanitizeAiMediaGeneratorBlockDefaults<K extends AiMediaGenerator
         peopleMode:
           normalizedIdentityMode === "reference_team" ? "team" : peopleMode,
         identityMode: normalizedIdentityMode,
+        teamVideoMode: enumValue(
+          input.teamVideoMode,
+          ["cinematic", "montage"] as const,
+          "montage",
+        ),
+        teamVideoSpeechMode: enumValue(
+          input.teamVideoSpeechMode,
+          ["voiceover", "characters"] as const,
+          "voiceover",
+        ),
       } as AiMediaGeneratorBlockDefaults[K];
     }
     case 6:

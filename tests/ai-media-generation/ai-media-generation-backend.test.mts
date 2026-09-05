@@ -69,6 +69,9 @@ test("le contrat réduit les options au média demandé", () => {
   assert.equal(image.aiInstruction, "");
   assert.equal(image.videoCharacterMode, "auto");
   assert.equal(image.identityConsent, false);
+  assert.equal(image.teamVideoMode, "montage");
+  assert.equal(image.teamVideoSpeechMode, "voiceover");
+  assert.equal(image.teamVideoVeoConsent, false);
   assert.deepEqual(image.inspirationImages, []);
 
   const video = normalizeAiMediaGenerationRequest({
@@ -114,6 +117,9 @@ test("le contrat réduit les options au média demandé", () => {
   assert.equal(video.videoEngine, "omni");
   assert.equal(video.videoCharacterMode, "auto");
   assert.equal(video.identityConsent, true);
+  assert.equal(video.teamVideoMode, "montage");
+  assert.equal(video.teamVideoSpeechMode, "voiceover");
+  assert.equal(video.teamVideoVeoConsent, false);
   assert.equal(video.durationSeconds, 24);
   assert.equal(video.inspirationImages.length, 3);
   assert.deepEqual(
@@ -217,6 +223,135 @@ test("le contrat réduit les options au média demandé", () => {
         idea: "x",
       }),
     AiMediaRequestValidationError
+  );
+});
+
+test("le mode cinématique est borné à la vidéo d’une équipe et exige un consentement Veo ponctuel", () => {
+  const inspirationData = Buffer.alloc(96, 17).toString("base64");
+  const references = [
+    { mimeType: "image/jpeg", data: inspirationData },
+    { mimeType: "image/png", data: inspirationData },
+  ];
+
+  const withoutGoogleConsent = normalizeAiMediaGenerationRequest({
+    requestId: "media-team-cinematic-without-google-consent",
+    kind: "video",
+    subjectSource: "profile",
+    identityMode: "reference_team",
+    identityConsent: true,
+    teamVideoMode: "cinematic",
+    inspirationImages: references,
+    source: "studio",
+  });
+  assert.equal(withoutGoogleConsent.teamVideoMode, "cinematic");
+  assert.equal(withoutGoogleConsent.teamVideoSpeechMode, "voiceover");
+  assert.equal(withoutGoogleConsent.teamVideoVeoConsent, false);
+
+  const cinematic = normalizeAiMediaGenerationRequest({
+    requestId: "media-team-cinematic-with-google-consent",
+    kind: "video",
+    subjectSource: "profile",
+    identityMode: "reference_team",
+    identityConsent: true,
+    teamVideoMode: "cinematic",
+    teamVideoSpeechMode: "characters",
+    teamVideoVeoConsent: true,
+    withNarration: true,
+    narrationVoice: "male",
+    inspirationImages: references,
+    source: "studio",
+  });
+  assert.equal(cinematic.teamVideoMode, "cinematic");
+  assert.equal(cinematic.teamVideoSpeechMode, "characters");
+  assert.equal(cinematic.teamVideoVeoConsent, true);
+  assert.equal(cinematic.withNarration, false);
+  assert.equal(cinematic.narrationVoice, null);
+
+  const cinematicVoiceover = normalizeAiMediaGenerationRequest({
+    requestId: "media-team-cinematic-voiceover",
+    kind: "video",
+    subjectSource: "profile",
+    identityMode: "reference_team",
+    identityConsent: true,
+    teamVideoMode: "cinematic",
+    teamVideoSpeechMode: "voiceover",
+    teamVideoVeoConsent: true,
+    withNarration: true,
+    narrationVoice: "male",
+    inspirationImages: references,
+    source: "studio",
+  });
+  assert.equal(cinematicVoiceover.teamVideoSpeechMode, "voiceover");
+  assert.equal(cinematicVoiceover.withNarration, true);
+  assert.equal(cinematicVoiceover.narrationVoice, "male");
+
+  const image = normalizeAiMediaGenerationRequest({
+    requestId: "media-team-image-cinematic-ignored",
+    kind: "image",
+    subjectSource: "profile",
+    identityMode: "reference_team",
+    identityConsent: true,
+    teamVideoMode: "cinematic",
+    teamVideoSpeechMode: "characters",
+    teamVideoVeoConsent: true,
+    inspirationImages: references,
+    source: "studio",
+  });
+  assert.equal(image.teamVideoMode, "montage");
+  assert.equal(image.teamVideoSpeechMode, "voiceover");
+  assert.equal(image.teamVideoVeoConsent, false);
+
+  const nonTeamVideo = normalizeAiMediaGenerationRequest({
+    requestId: "media-non-team-cinematic-ignored",
+    kind: "video",
+    subjectSource: "profile",
+    teamVideoMode: "cinematic",
+    teamVideoSpeechMode: "characters",
+    teamVideoVeoConsent: true,
+    source: "studio",
+  });
+  assert.equal(nonTeamVideo.teamVideoMode, "montage");
+  assert.equal(nonTeamVideo.teamVideoSpeechMode, "voiceover");
+  assert.equal(nonTeamVideo.teamVideoVeoConsent, false);
+
+  const montage = normalizeAiMediaGenerationRequest({
+    requestId: "media-team-montage-characters-ignored",
+    kind: "video",
+    subjectSource: "profile",
+    identityMode: "reference_team",
+    identityConsent: true,
+    teamVideoMode: "montage",
+    teamVideoSpeechMode: "characters",
+    inspirationImages: references,
+    source: "studio",
+  });
+  assert.equal(montage.teamVideoSpeechMode, "voiceover");
+
+  assert.throws(
+    () =>
+      normalizeAiMediaGenerationRequest({
+        requestId: "media-team-invalid-animation-mode",
+        kind: "video",
+        subjectSource: "profile",
+        teamVideoMode: "faceswap",
+        source: "studio",
+      }),
+    AiMediaRequestValidationError,
+  );
+  assert.throws(
+    () =>
+      normalizeAiMediaGenerationRequest({
+        requestId: "media-team-invalid-speech-mode",
+        kind: "video",
+        subjectSource: "profile",
+        identityMode: "reference_team",
+        identityConsent: true,
+        teamVideoMode: "cinematic",
+        teamVideoSpeechMode: "voice-clone",
+        inspirationImages: references,
+        source: "studio",
+      }),
+    AiMediaRequestValidationError,
   );
 });
 
@@ -375,7 +510,10 @@ test("les dix bandes-son originales sont déterministes et durent exactement hui
 test("le prompt donne à GPT Image le sujet, l’ADN, l’identité autorisée et le logo officiel", () => {
   const source = read("lib/aiMediaGenerationPrompt.ts");
   const dna = read("lib/aiMediaBusinessDna.ts");
-  assert.match(source, /inrcy-media-v13-reference-team/);
+  assert.match(
+    source,
+    /AI_MEDIA_PROMPT_VERSION = "inrcy-media-v14-team-speech"/,
+  );
   assert.match(source, /buildAiMediaBusinessDnaPayload/);
   assert.match(source, /ADN PROFESSIONNEL AUTORISÉ/);
   assert.match(source, /Palette réelle extraite du logo/);
@@ -699,7 +837,11 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   assert.match(composer, /narration\?: GeneratedAiNarrationAudio/);
   assert.match(
     composer,
-    /args\.narrationInputIndex === null \? "0\.16" : "0\.08"/
+    /const soundtrackVolume =[\s\S]*?args\.nativeAudioMode === "dialogue"[\s\S]*?\? "0\.035"/,
+  );
+  assert.match(
+    composer,
+    /const soundtrackVolume =[\s\S]*?args\.narrationInputIndex === null[\s\S]*?\? "0\.16"[\s\S]*?: "0\.08"/,
   );
   assert.match(composer, /\[voice\]/);
   assert.match(narration, /idee_du_professionnel/);
@@ -766,10 +908,13 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   assert.match(server, /video_enhancements_unavailable_video_continued/);
   assert.match(server, /soundtrack:\s*null/);
   assert.match(server, /narration:\s*null/);
-  assert.equal((server.match(/generateOriginalAiVideoClips/g) || []).length, 2);
+  assert.equal((server.match(/generateOriginalAiVideoClips/g) || []).length, 3);
   assert.match(server, /const durationSeconds = providerRequest\.durationSeconds \|\| 8/);
   assert.match(server, /const videoGatewayTask = measure\("video_generation"/);
-  assert.match(server, /const narrationTask = measure\("narration_pipeline"/);
+  assert.match(
+    server,
+    /const narrationTask =[\s\S]*?measure\("narration_pipeline"/,
+  );
   assert.match(server, /const soundtrackTask = measure\("soundtrack"/);
   assert.match(server, /const overlaysTask = measure\("video_overlays"/);
   assert.match(server, /videoGateway = await videoGatewayTask/);

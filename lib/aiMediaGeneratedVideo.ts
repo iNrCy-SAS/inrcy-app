@@ -20,6 +20,8 @@ const MAX_GOOGLE_BUSINESS_VIDEO_BYTES = 74 * 1024 * 1024;
 const NARRATION_END_GUARD_SECONDS = 1;
 const NARRATION_TIMING_MARGIN_SECONDS = 0.2;
 
+export type AiMediaNativeAudioMode = "ambience" | "dialogue" | "mute";
+
 function compactError(error: unknown) {
   const source = error as { stderr?: unknown; message?: unknown } | null;
   return String(source?.stderr || source?.message || error || "ffmpeg_failed")
@@ -100,6 +102,7 @@ function buildFilter(args: {
   soundtrackInputIndex: number | null;
   narrationInputIndex: number | null;
   narrationDurationSeconds: number | null;
+  nativeAudioMode: AiMediaNativeAudioMode;
 }) {
   const filters: string[] = [];
   for (let index = 0; index < args.clipDurations.length; index += 1) {
@@ -121,14 +124,26 @@ function buildFilter(args: {
   );
 
   if (args.hasNativeAudio) {
+    const nativeVolume =
+      args.nativeAudioMode === "dialogue"
+        ? "1.0"
+        : args.narrationInputIndex === null
+          ? "0.42"
+          : "0.14";
     filters.push(
-      `${Array.from({ length: args.clipDurations.length }, (_, index) => `[a${index}]`).join("")}concat=n=${args.clipDurations.length}:v=0:a=1,atrim=duration=${args.durationSeconds},asetpts=PTS-STARTPTS,volume=${args.narrationInputIndex === null ? "0.42" : "0.14"}[native]`,
+      `${Array.from({ length: args.clipDurations.length }, (_, index) => `[a${index}]`).join("")}concat=n=${args.clipDurations.length}:v=0:a=1,atrim=duration=${args.durationSeconds},asetpts=PTS-STARTPTS,volume=${nativeVolume}[native]`,
     );
   }
   if (args.soundtrackInputIndex !== null) {
     const fadeOutStart = Math.max(0, args.durationSeconds - 1.1);
+    const soundtrackVolume =
+      args.nativeAudioMode === "dialogue"
+        ? "0.035"
+        : args.narrationInputIndex === null
+          ? "0.16"
+          : "0.08";
     filters.push(
-      `[${args.soundtrackInputIndex}:a]aresample=48000,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,atrim=duration=${args.durationSeconds},asetpts=PTS-STARTPTS,afade=t=in:st=0:d=0.4,afade=t=out:st=${fadeOutStart}:d=1.1,volume=${args.narrationInputIndex === null ? "0.16" : "0.08"}[music]`,
+      `[${args.soundtrackInputIndex}:a]aresample=48000,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,atrim=duration=${args.durationSeconds},asetpts=PTS-STARTPTS,afade=t=in:st=0:d=0.4,afade=t=out:st=${fadeOutStart}:d=1.1,volume=${soundtrackVolume}[music]`,
     );
   }
   if (args.narrationInputIndex !== null) {
@@ -192,9 +207,14 @@ export async function composeOriginalAiVideo(args: {
   durationSeconds: AiMediaVideoDuration;
   soundtrack?: LoadedAiMediaSoundtrack | null;
   narration?: GeneratedAiNarrationAudio | null;
+  /** Préserve les dialogues/lip-sync natifs à leur niveau de parole. */
+  nativeAudioMode?: AiMediaNativeAudioMode;
   signal?: AbortSignal;
 }): Promise<NormalizedAiVideo> {
   args.signal?.throwIfAborted();
+  if (args.nativeAudioMode === "dialogue" && args.narration) {
+    throw new Error("ai_original_video_dialogue_narration_conflict");
+  }
   const clipDurationTotal = args.clips.reduce(
     (total, clip) => total + clip.durationSeconds,
     0,
@@ -234,7 +254,13 @@ export async function composeOriginalAiVideo(args: {
     )) {
       throw new Error("ai_original_video_clip_contract_failed");
     }
-    const hasNativeAudio = probes.every((probe) => probe.hasAudio);
+    const nativeAudioMode = args.nativeAudioMode || "ambience";
+    const sourceHasNativeAudio = probes.every((probe) => probe.hasAudio);
+    if (nativeAudioMode === "dialogue" && !sourceHasNativeAudio) {
+      throw new Error("ai_original_video_native_dialogue_missing");
+    }
+    const hasNativeAudio =
+      nativeAudioMode !== "mute" && sourceHasNativeAudio;
 
     const command = ["-hide_banner", "-nostdin", "-y"];
     for (const clipPath of clipPaths) command.push("-i", clipPath);
@@ -272,6 +298,7 @@ export async function composeOriginalAiVideo(args: {
         soundtrackInputIndex,
         narrationInputIndex,
         narrationDurationSeconds,
+        nativeAudioMode,
       }),
       "-map",
       "[video]",

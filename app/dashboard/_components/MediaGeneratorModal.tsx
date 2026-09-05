@@ -66,6 +66,7 @@ export default function MediaGeneratorModal({
   const currentResultRef = useRef<MediaGenerationResult | null>(null);
   const closeInFlightRef = useRef(false);
   const hasResult = Boolean(currentResult);
+  const studioWordmark = t("ai_generator_made_inrcy");
 
   useEffect(() => setMounted(true), []);
 
@@ -227,7 +228,13 @@ export default function MediaGeneratorModal({
           <div className={styles.moduleIdentity}>
             <span className={styles.icon} aria-hidden="true">✦</span>
             <div>
-              <strong>{t("ai_generator_made_inrcy")}</strong>
+              <strong
+                className={styles.studioWordmark}
+                aria-label={studioWordmark}
+              >
+                <span>{studioWordmark.slice(0, 4)}</span>
+                <b>{studioWordmark.slice(4)}</b>
+              </strong>
               <p>{t("ai_generator_made_inrcy_hint")}</p>
             </div>
           </div>

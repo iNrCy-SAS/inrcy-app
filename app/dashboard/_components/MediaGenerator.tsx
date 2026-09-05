@@ -22,6 +22,8 @@ import useMediaGeneration, {
   type MediaGenerationVideoDuration,
   type MediaGenerationVideoCharacterMode,
   type MediaGenerationVideoEngine,
+  type MediaGenerationTeamVideoMode,
+  type MediaGenerationTeamVideoSpeechMode,
   type MediaGenerationVisualStyle,
 } from "@/app/dashboard/_hooks/useMediaGeneration";
 import useAiMediaGeneratorPreferences from "@/app/dashboard/_hooks/useAiMediaGeneratorPreferences";
@@ -311,6 +313,12 @@ export default function MediaGenerator({
   const [videoCharacterMode, setVideoCharacterMode] =
     useState<MediaGenerationVideoCharacterMode>("auto");
   const [identityConsent, setIdentityConsent] = useState(false);
+  const [teamVideoMode, setTeamVideoMode] =
+    useState<MediaGenerationTeamVideoMode>("montage");
+  const [teamVideoSpeechMode, setTeamVideoSpeechMode] =
+    useState<MediaGenerationTeamVideoSpeechMode>("voiceover");
+  const [teamVideoVeoConsent, setTeamVideoVeoConsent] = useState(false);
+  const [teamVideoConsentOpen, setTeamVideoConsentOpen] = useState(false);
   const [creativity, setCreativity] = useState<MediaGenerationCreativity>("faithful");
   const [useBrandColors, setUseBrandColors] = useState(true);
   const [logoMode, setLogoMode] = useState<MediaGenerationLogoMode>("discreet");
@@ -356,6 +364,8 @@ export default function MediaGenerator({
     setTextKeywordDraft("");
     setInspirationImages([]);
     setIdentityConsent(false);
+    setTeamVideoVeoConsent(false);
+    setTeamVideoConsentOpen(false);
     identityReferenceSetIdRef.current = createIdentityReferenceSetId();
   }, [preferencesAccountEpoch]);
 
@@ -405,6 +415,8 @@ export default function MediaGenerator({
           ? "auto"
           : block5.defaults.identityMode,
       );
+      setTeamVideoMode(block5.defaults.teamVideoMode);
+      setTeamVideoSpeechMode(block5.defaults.teamVideoSpeechMode);
     }
 
     const block6 = savedPreferences.blocks[6];
@@ -475,6 +487,15 @@ export default function MediaGenerator({
     kind === "video" && videoMaxDurationSeconds < 24;
   const videoPremiumRequired =
     kind === "video" && durationSeconds > videoMaxDurationSeconds;
+  const teamCinematicRequested =
+    kind === "video" &&
+    peopleMode !== "none" &&
+    videoCharacterMode === "reference_team" &&
+    teamVideoMode === "cinematic";
+  const teamCharactersSpeak =
+    teamCinematicRequested && teamVideoSpeechMode === "characters";
+  const effectiveWithNarration =
+    kind === "video" && !teamCharactersSpeak && withNarration;
   const characterReferenceMissing =
     peopleMode !== "none" &&
     ((videoCharacterMode === "professional" ||
@@ -516,7 +537,13 @@ export default function MediaGenerator({
                     : "ai_generator_stage_storyboard"
                   : "ai_generator_stage_image",
               )
-            : t(kind === "video" ? "ai_generator_stage_render" : "ai_generator_stage_finish");
+            : t(
+                kind === "video"
+                  ? teamCinematicRequested
+                    ? "ai_generator_stage_team_animation"
+                    : "ai_generator_stage_render"
+                  : "ai_generator_stage_finish",
+              );
 
   const quotaValue =
     quotaLoading && !counter
@@ -590,6 +617,8 @@ export default function MediaGenerator({
           peopleMode:
             videoCharacterMode === "reference_team" ? "team" : peopleMode,
           identityMode: peopleMode === "none" ? "auto" : videoCharacterMode,
+          teamVideoMode,
+          teamVideoSpeechMode,
         };
         void savePreferenceBlock(5, checked, defaults);
         return;
@@ -607,7 +636,7 @@ export default function MediaGenerator({
     }
   };
 
-  const handleGenerate = async () => {
+  const performGeneration = async (veoConsentForAttempt: boolean) => {
     if (!subjectReady) return;
     const sequence = generationSequenceRef.current + 1;
     generationSequenceRef.current = sequence;
@@ -621,8 +650,14 @@ export default function MediaGenerator({
         await discardDraft(generationResult);
         onResultChange?.(null);
       } catch (caught) {
-        if (sequence !== generationSequenceRef.current) return;
+        if (sequence !== generationSequenceRef.current) {
+          setTeamVideoVeoConsent(false);
+          setTeamVideoConsentOpen(false);
+          return;
+        }
         setActionError(caught instanceof Error ? caught.message : t("ai_generator_error"));
+        setTeamVideoVeoConsent(false);
+        setTeamVideoConsentOpen(false);
         return;
       } finally {
         setDiscarding(false);
@@ -639,9 +674,9 @@ export default function MediaGenerator({
         withText,
         textKeywords: resolvedTextKeywords,
         withMusic: kind === "video" ? withMusic : undefined,
-        withNarration: kind === "video" ? withNarration : undefined,
+        withNarration: kind === "video" ? effectiveWithNarration : undefined,
         narrationVoice:
-          kind === "video" && withNarration ? narrationVoice : undefined,
+          kind === "video" && effectiveWithNarration ? narrationVoice : undefined,
         format,
         typology,
         visualStyle,
@@ -662,6 +697,16 @@ export default function MediaGenerator({
         useBrandColors,
         logoMode,
         videoEngine: kind === "video" ? videoEngine : undefined,
+        teamVideoMode:
+          kind === "video" && videoCharacterMode === "reference_team"
+            ? teamVideoMode
+            : undefined,
+        teamVideoSpeechMode: teamCinematicRequested
+          ? teamVideoSpeechMode
+          : undefined,
+        teamVideoVeoConsent: teamCinematicRequested
+          ? veoConsentForAttempt
+          : false,
         durationSeconds: kind === "video" ? durationSeconds : undefined,
         inspirationImages:
           peopleMode !== "none" ? inspirationImages : [],
@@ -681,7 +726,30 @@ export default function MediaGenerator({
       // L'accord porte sur un essai de génération précis. Une nouvelle
       // tentative, réussie ou non, exige donc une confirmation fraîche.
       if (inspirationImages.length > 0) setIdentityConsent(false);
+      setTeamVideoVeoConsent(false);
+      setTeamVideoConsentOpen(false);
     }
+  };
+
+  const handleGenerate = async () => {
+    if (!subjectReady) return;
+    if (teamCinematicRequested) {
+      setTeamVideoVeoConsent(false);
+      setTeamVideoConsentOpen(true);
+      return;
+    }
+    await performGeneration(false);
+  };
+
+  const handleConfirmTeamVideoConsent = async () => {
+    if (!teamVideoVeoConsent) return;
+    setTeamVideoConsentOpen(false);
+    await performGeneration(true);
+  };
+
+  const handleCancelTeamVideoConsent = () => {
+    setTeamVideoVeoConsent(false);
+    setTeamVideoConsentOpen(false);
   };
 
   const handleRequestGenerationStop = () => {
@@ -764,6 +832,70 @@ export default function MediaGenerator({
     },
   ];
 
+  const teamVideoConsentDialog = teamVideoConsentOpen ? (
+    <div className={styles.teamVideoConsentBackdrop}>
+      <div
+        className={styles.teamVideoConsentDialog}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="ai-media-team-video-consent-title"
+        aria-describedby="ai-media-team-video-consent-description"
+      >
+        <span className={styles.teamVideoConsentIcon} aria-hidden="true">▶</span>
+        <div className={styles.teamVideoConsentHeading}>
+          <small>{t("ai_generator_team_video_consent_eyebrow")}</small>
+          <h3 id="ai-media-team-video-consent-title">
+            {t("ai_generator_team_video_consent_title")}
+          </h3>
+          <p id="ai-media-team-video-consent-description">
+            {t(
+              teamCharactersSpeak
+                ? "ai_generator_team_video_consent_description_characters"
+                : "ai_generator_team_video_consent_description",
+            )}
+          </p>
+        </div>
+        <label className={styles.teamVideoConsentCheck}>
+          <input
+            type="checkbox"
+            autoFocus
+            checked={teamVideoVeoConsent}
+            onChange={(event) => setTeamVideoVeoConsent(event.target.checked)}
+          />
+          <span>
+            {t(
+              teamCharactersSpeak
+                ? "ai_generator_team_video_consent_checkbox_characters"
+                : "ai_generator_team_video_consent_checkbox",
+            )}
+          </span>
+        </label>
+        {!teamVideoVeoConsent ? (
+          <p className={styles.teamVideoConsentRequired} role="status">
+            {t("ai_generator_team_video_consent_required")}
+          </p>
+        ) : null}
+        <div className={styles.teamVideoConsentActions}>
+          <button
+            type="button"
+            className={styles.teamVideoConsentCancel}
+            onClick={handleCancelTeamVideoConsent}
+          >
+            {t("ai_generator_team_video_consent_cancel")}
+          </button>
+          <button
+            type="button"
+            className={styles.teamVideoConsentConfirm}
+            disabled={!teamVideoVeoConsent}
+            onClick={() => void handleConfirmTeamVideoConsent()}
+          >
+            {t("ai_generator_team_video_consent_confirm")}
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
   if (creationScreen) {
     return (
       <div className={styles.creationWorkspace} data-origin={origin} data-media-kind={kind}>
@@ -772,6 +904,8 @@ export default function MediaGenerator({
           <span />
           <span />
         </div>
+
+        {teamVideoConsentDialog}
 
         {operationLocked && !generationResult ? (
           <div className={styles.creationProgress} role="status" aria-live="polite">
@@ -784,7 +918,9 @@ export default function MediaGenerator({
               {t(
                 kind === "video"
                   ? videoCharacterMode === "reference_team"
-                    ? "ai_generator_video_creation_detail_team"
+                    ? teamVideoMode === "cinematic"
+                      ? "ai_generator_video_creation_detail_team_cinematic"
+                      : "ai_generator_video_creation_detail_team"
                     : "ai_generator_video_creation_detail"
                   : "ai_generator_image_creation_detail",
                 { duration: durationSeconds },
@@ -922,6 +1058,7 @@ export default function MediaGenerator({
 
   return (
     <div className={styles.generator} data-origin={origin}>
+      {teamVideoConsentDialog}
       <div className={styles.criteriaGrid}>
         <section className={`${styles.criteriaSection} ${styles.collapsibleSection}`}>
           <div className={styles.collapsibleHeader}>
@@ -971,6 +1108,8 @@ export default function MediaGenerator({
                     onClick={() => {
                       clearTransientState();
                       setIdentityConsent(false);
+                      setTeamVideoVeoConsent(false);
+                      setTeamVideoConsentOpen(false);
                       setKind(option);
                     }}
                   >
@@ -981,7 +1120,9 @@ export default function MediaGenerator({
                         option === "image"
                           ? "ai_generator_kind_image_hint"
                           : videoCharacterMode === "reference_team"
-                            ? "ai_generator_kind_video_hint_team"
+                            ? teamVideoMode === "cinematic"
+                              ? "ai_generator_kind_video_hint_team_cinematic"
+                              : "ai_generator_kind_video_hint_team"
                             : "ai_generator_kind_video_hint",
                       )}
                     </small>
@@ -1317,6 +1458,21 @@ export default function MediaGenerator({
                     {t(`ai_generator_video_character_${videoCharacterMode}`)} · {inspirationImages.length
                       ? t("ai_generator_reference_summary", { count: inspirationImages.length })
                       : t(`ai_generator_people_${peopleMode}`)}
+                    {kind === "video" && videoCharacterMode === "reference_team"
+                      ? ` · ${t(
+                          teamVideoMode === "cinematic"
+                            ? "ai_generator_team_animation_summary_cinematic"
+                            : "ai_generator_team_animation_summary_montage",
+                        )}${
+                          teamVideoMode === "cinematic"
+                            ? ` · ${t(
+                                teamVideoSpeechMode === "characters"
+                                  ? "ai_generator_team_speech_summary_characters"
+                                  : "ai_generator_team_speech_summary_voiceover",
+                              )}`
+                            : ""
+                        }`
+                      : ""}
                   </>
                 ) : t(`ai_generator_people_${peopleMode}`)}
               </span>
@@ -1348,6 +1504,8 @@ export default function MediaGenerator({
                       if (option === "none") {
                         setVideoCharacterMode("auto");
                         setIdentityConsent(false);
+                        setTeamVideoVeoConsent(false);
+                        setTeamVideoConsentOpen(false);
                         setInspirationImages([]);
                         identityReferenceSetIdRef.current = createIdentityReferenceSetId();
                       } else if (
@@ -1356,6 +1514,8 @@ export default function MediaGenerator({
                       ) {
                         setVideoCharacterMode("auto");
                         setIdentityConsent(false);
+                        setTeamVideoVeoConsent(false);
+                        setTeamVideoConsentOpen(false);
                       }
                     }}
                     disabled={operationLocked}
@@ -1381,6 +1541,8 @@ export default function MediaGenerator({
                           setVideoCharacterMode(option);
                           if (option === "reference_team") setPeopleMode("team");
                           setIdentityConsent(false);
+                          setTeamVideoVeoConsent(false);
+                          setTeamVideoConsentOpen(false);
                           if (actionError || error) clearTransientState();
                         }}
                         disabled={operationLocked}
@@ -1434,6 +1596,8 @@ export default function MediaGenerator({
                               );
                               identityReferenceSetIdRef.current = createIdentityReferenceSetId();
                               setIdentityConsent(false);
+                              setTeamVideoVeoConsent(false);
+                              setTeamVideoConsentOpen(false);
                               if (actionError || error) clearTransientState();
                             }}
                           >
@@ -1472,6 +1636,8 @@ export default function MediaGenerator({
                                 );
                                 identityReferenceSetIdRef.current = createIdentityReferenceSetId();
                                 setIdentityConsent(false);
+                                setTeamVideoVeoConsent(false);
+                                setTeamVideoConsentOpen(false);
                               })
                               .catch((caught) =>
                                 setActionError(
@@ -1499,6 +1665,75 @@ export default function MediaGenerator({
                       ) : null}
                     </div>
                   ) : null}
+                  {kind === "video" && videoCharacterMode === "reference_team" ? (
+                    <div className={styles.teamAnimationGroup}>
+                      <label
+                        className={`${styles.switchRow} ${styles.teamAnimationToggle}`}
+                        data-team-video-mode={teamVideoMode}
+                      >
+                        <span>
+                          <strong>{t("ai_generator_team_animation_label")}</strong>
+                          <small>
+                            {t(
+                              teamVideoMode === "cinematic"
+                                ? "ai_generator_team_animation_hint_cinematic"
+                                : "ai_generator_team_animation_hint_montage",
+                            )}
+                          </small>
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={teamVideoMode === "cinematic"}
+                          disabled={operationLocked}
+                          onChange={(event) => {
+                            setTeamVideoMode(event.target.checked ? "cinematic" : "montage");
+                            setTeamVideoVeoConsent(false);
+                            setTeamVideoConsentOpen(false);
+                            if (actionError || error) clearTransientState();
+                          }}
+                        />
+                        <i aria-hidden="true" />
+                      </label>
+                      {teamVideoMode === "cinematic" ? (
+                        <div className={styles.teamSpeechMode}>
+                          <span className={styles.teamSpeechModeTitle}>
+                            {t("ai_generator_team_speech_title")}
+                          </span>
+                          <div
+                            className={styles.teamSpeechChoices}
+                            role="radiogroup"
+                            aria-label={t("ai_generator_team_speech_title")}
+                          >
+                            {(["voiceover", "characters"] as const).map((mode) => (
+                              <button
+                                key={mode}
+                                type="button"
+                                role="radio"
+                                aria-checked={teamVideoSpeechMode === mode}
+                                data-active={teamVideoSpeechMode === mode ? "true" : "false"}
+                                onClick={() => {
+                                  setTeamVideoSpeechMode(mode);
+                                  setTeamVideoVeoConsent(false);
+                                  setTeamVideoConsentOpen(false);
+                                  if (actionError || error) clearTransientState();
+                                }}
+                                disabled={operationLocked}
+                              >
+                                <span aria-hidden="true">{mode === "voiceover" ? "◉" : "◖"}</span>
+                                <span>
+                                  <strong>{t(`ai_generator_team_speech_${mode}`)}</strong>
+                                  <small>{t(`ai_generator_team_speech_${mode}_hint`)}</small>
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                          <p className={styles.teamSpeechNote}>
+                            {t("ai_generator_team_speech_gender_hint")}
+                          </p>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
                   {characterReferenceMissing ? (
                     <p className={styles.identityRequirement} role="alert">
                       {t(
@@ -1518,6 +1753,8 @@ export default function MediaGenerator({
                         disabled={operationLocked}
                         onChange={(event) => {
                           setIdentityConsent(event.target.checked);
+                          setTeamVideoVeoConsent(false);
+                          setTeamVideoConsentOpen(false);
                           if (actionError || error) clearTransientState();
                         }}
                       />
@@ -1532,7 +1769,9 @@ export default function MediaGenerator({
                         <small>
                           {t(
                             videoCharacterMode === "reference_team" && kind === "video"
-                              ? "ai_generator_identity_consent_hint_team_video"
+                              ? teamVideoMode === "cinematic"
+                                ? "ai_generator_identity_consent_hint_team_video_cinematic"
+                                : "ai_generator_identity_consent_hint_team_video"
                               : kind === "image"
                               ? "ai_generator_identity_consent_hint_image"
                               : "ai_generator_identity_consent_hint_video",
@@ -1571,7 +1810,9 @@ export default function MediaGenerator({
                       duration: durationSeconds,
                       text: t(withText ? "ai_generator_with_text" : "ai_generator_without_text"),
                       music: t(withMusic ? "ai_generator_with_music" : "ai_generator_without_music"),
-                      narration: withNarration
+                      narration: teamCharactersSpeak
+                        ? t("ai_generator_team_speech_finish_summary")
+                        : effectiveWithNarration
                         ? `${t("ai_generator_with_narration")} · ${t(`ai_generator_narration_voice_${narrationVoice}`)}`
                         : t("ai_generator_without_narration"),
                     })
@@ -1690,15 +1931,34 @@ export default function MediaGenerator({
             ) : null}
             {kind === "video" ? (
               <div className={styles.narrationControl}>
-                <label className={styles.switchRow}>
+                <label
+                  className={styles.switchRow}
+                  data-disabled-by-team-speech={teamCharactersSpeak ? "true" : "false"}
+                >
                   <span>
                     <strong>{t("ai_generator_narration")}</strong>
-                    <small>{t("ai_generator_narration_hint")}</small>
+                    <small>
+                      {t(
+                        teamCharactersSpeak
+                          ? "ai_generator_team_speech_narration_disabled_hint"
+                          : "ai_generator_narration_hint",
+                      )}
+                    </small>
                   </span>
-                  <input type="checkbox" checked={withNarration} onChange={(event) => setWithNarration(event.target.checked)} />
+                  <input
+                    type="checkbox"
+                    checked={effectiveWithNarration}
+                    disabled={operationLocked || teamCharactersSpeak}
+                    onChange={(event) => setWithNarration(event.target.checked)}
+                  />
                   <i aria-hidden="true" />
                 </label>
-                {withNarration ? (
+                {teamCharactersSpeak ? (
+                  <div className={styles.teamSpeechFinishNotice} role="note">
+                    <strong>{t("ai_generator_team_speech_finish_title")}</strong>
+                    <small>{t("ai_generator_team_speech_finish_hint")}</small>
+                  </div>
+                ) : effectiveWithNarration ? (
                   <div className={styles.narrationVoicePicker}>
                     <span>{t("ai_generator_narration_voice_label")}</span>
                     <div

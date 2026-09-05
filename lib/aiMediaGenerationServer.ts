@@ -349,7 +349,7 @@ export async function generateAndSaveAiMedia(args: {
           recentPublications: generationContext.recentPublications,
           brandColors: providerRequest.useBrandColors ? brandKit.colors : [],
           hasLogo: false,
-        })}\n\nIMAGE MAÎTRE ÉPHÉMÈRE POUR ANIMATION : réunir les ${preparedIdentityReferences.buffers.length} adultes autorisés dans une seule scène cohérente. Image 1 = personne 1, image 2 = personne 2${preparedIdentityReferences.buffers.length === 3 ? ", image 3 = personne 3" : ""}. Chaque personne apparaît exactement une fois, reste distincte et reconnaissable ; aucune fusion, permutation, duplication, omission ni substitution générique. Garder tous les visages clairement visibles, une posture naturelle propice à une animation légère et aucun texte ni logo.`
+        })}\n\nIMAGE MAÎTRE ÉPHÉMÈRE POUR ANIMATION : réunir les ${preparedIdentityReferences.buffers.length} adultes autorisés dans une seule scène continue, plein cadre et cinématographique — jamais un collage, un écran partagé, des cartes portrait ni un diaporama. Image 1 = personne 1, image 2 = personne 2${preparedIdentityReferences.buffers.length === 3 ? ", image 3 = personne 3" : ""}. Chaque personne apparaît exactement une fois, reste distincte et reconnaissable ; aucune fusion, permutation, duplication, omission ni substitution générique. Garder tous les visages clairement visibles ainsi que suffisamment de corps et d’espace autour de chaque personne pour permettre regards, expressions, gestes, pas, interactions et mouvements de caméra naturels.${providerRequest.teamVideoSpeechMode === "characters" ? " Les disposer dans une interaction conversationnelle crédible, avec les bouches bien visibles pour permettre une future synchronisation labiale naturelle." : " Préserver des expressions naturelles sans posture de parole imposée."} Aucun texte ni logo.`
       : "";
 
   let normalized: NormalizedAiMedia;
@@ -505,6 +505,56 @@ export async function generateAndSaveAiMedia(args: {
                 teamPrecompositionGateway!.buffer,
               ),
           );
+          if (
+            providerRequest.teamVideoMode === "cinematic" &&
+            providerRequest.teamVideoVeoConsent
+          ) {
+            try {
+              // Google ne reçoit jamais les 2–3 portraits d'origine. La seule
+              // référence transmise est l'image de groupe éphémère, assainie
+              // et composée auparavant par GPT-Image-2.
+              return await generateOriginalAiVideoClips({
+                accountId: args.accountId,
+                request: {
+                  ...providerRequest,
+                  // Le mode cinématique d'équipe est explicitement un flux
+                  // Veo image-to-video, indépendamment du moteur rapide choisi
+                  // pour les autres vidéos du studio.
+                  videoEngine: "veo",
+                  inspirationImages: [groupImage],
+                },
+                plan: creativePlan,
+                creativeBrief: buildAiMediaVideoDnaBrief(profile),
+                brandColors: effectiveColors,
+                profession:
+                  profile.business.professionLabel ||
+                  profile.business.sectorLabel ||
+                  creativePlan.companyName,
+                contentLanguage: profile.preferences.language,
+                identityTeamPrecomposed: true,
+                identityTeamMemberCount:
+                  preparedIdentityReferences.buffers.length as 2 | 3,
+                identityTeamGoogleEgressConsent: true,
+                signal: args.signal,
+              });
+            } catch {
+              args.signal?.throwIfAborted();
+              // Le rendu local clôt la même tentative sans nouvel appel
+              // externe et sans rendre l'échec du provider visible au pro.
+              pipelineWarnings.push(
+                "identity_team_cinematic_unavailable_local_motion",
+              );
+              if (providerRequest.teamVideoSpeechMode === "characters") {
+                pipelineWarnings.push(
+                  "identity_team_character_dialogue_unavailable_local_motion",
+                );
+              }
+            }
+          } else if (providerRequest.teamVideoMode === "cinematic") {
+            pipelineWarnings.push(
+              "identity_team_google_consent_missing_local_motion",
+            );
+          }
           localFallbackUsed = true;
           const motion = await createAiMediaFallbackVideo({
             montage: Buffer.from(groupImage.data, "base64"),
@@ -520,12 +570,18 @@ export async function generateAndSaveAiMedia(args: {
             warnings: [
               "identity_team_ai_group_frame_local_motion",
               "identity_team_similarity_review_required",
+              ...pipelineWarnings.filter((warning) =>
+                warning.startsWith("identity_team_"),
+              ),
             ],
             clips: motion.clips.map((clip) => ({
               ...clip,
               warnings: [
                 "identity_team_ai_group_frame_local_motion",
                 "identity_team_similarity_review_required",
+                ...pipelineWarnings.filter((warning) =>
+                  warning.startsWith("identity_team_"),
+                ),
               ],
             })),
           };
@@ -553,6 +609,7 @@ export async function generateAndSaveAiMedia(args: {
             profile.business.professionLabel ||
             profile.business.sectorLabel ||
             creativePlan.companyName,
+          contentLanguage: profile.preferences.language,
           signal: args.signal,
         });
       } catch {
@@ -568,31 +625,32 @@ export async function generateAndSaveAiMedia(args: {
         });
       }
     });
-    const narrationTask = measure("narration_pipeline", async () => {
+    const emptyNarrationResult = () => ({
+      narration: null,
+      audio: null,
+      warnings: [] as string[],
+    });
+    const generateNarrationResult = async (
+      narrationRequest: AiMediaGenerationRequest,
+    ) => {
       try {
         const narration = await measure("narration_copy", () =>
           writeAiMediaNarration({
             accountId: args.accountId,
-            request: providerRequest,
+            request: narrationRequest,
             profile,
             plan: creativePlan,
           }),
         );
         args.signal?.throwIfAborted();
-        if (!narration) {
-          return {
-            narration: null,
-            audio: null,
-            warnings: [] as string[],
-          };
-        }
+        if (!narration) return emptyNarrationResult();
         try {
           const audio = await measure("narration_audio", () =>
             generateAiMediaNarrationAudio({
               accountId: args.accountId,
               narration,
               durationSeconds,
-              narrationVoice: providerRequest.narrationVoice || "female",
+              narrationVoice: narrationRequest.narrationVoice || "female",
               signal: narrationController.signal,
             }),
           );
@@ -613,7 +671,13 @@ export async function generateAndSaveAiMedia(args: {
           warnings: ["narration_unavailable_video_continued"],
         };
       }
-    });
+    };
+    const narrationTask =
+      providerRequest.teamVideoSpeechMode === "characters"
+        ? Promise.resolve(emptyNarrationResult())
+        : measure("narration_pipeline", () =>
+            generateNarrationResult(providerRequest),
+          );
     const soundtrackTask = measure("soundtrack", async () => {
       if (!providerRequest.withMusic) {
         return { value: null, warnings: [] as string[] };
@@ -679,22 +743,45 @@ export async function generateAndSaveAiMedia(args: {
     }
     args.signal?.throwIfAborted();
 
+    const characterDialogueRequested =
+      providerRequest.identityMode === "reference_team" &&
+      providerRequest.teamVideoMode === "cinematic" &&
+      providerRequest.teamVideoSpeechMode === "characters";
+    const characterDialogueProviderFallback =
+      characterDialogueRequested && videoGateway.provider.startsWith("inrcy-");
+    const fallbackVoiceoverRequest: AiMediaGenerationRequest = {
+      ...providerRequest,
+      teamVideoSpeechMode: "voiceover",
+      withNarration: true,
+      narrationVoice: providerRequest.narrationVoice || "female",
+    };
     const narrationJoinStartedAt = performance.now();
-    const narrationResult = await waitForOptionalTaskWithinGrace({
-      task: narrationTask,
-      graceMs: positiveInt(
-        process.env.AI_MEDIA_NARRATION_AFTER_VIDEO_GRACE_MS,
-        DEFAULT_NARRATION_AFTER_VIDEO_GRACE_MS,
-        20_000,
-      ),
-      signal: args.signal,
-    });
+    const narrationResult = characterDialogueProviderFallback
+      ? await measure("character_dialogue_fallback_narration", () =>
+          generateNarrationResult(fallbackVoiceoverRequest),
+        )
+      : await waitForOptionalTaskWithinGrace({
+          task: narrationTask,
+          graceMs: positiveInt(
+            process.env.AI_MEDIA_NARRATION_AFTER_VIDEO_GRACE_MS,
+            DEFAULT_NARRATION_AFTER_VIDEO_GRACE_MS,
+            20_000,
+          ),
+          signal: args.signal,
+        });
     pipelineTimingsMs.narration_join_after_veo = roundedDurationMs(
       narrationJoinStartedAt,
     );
     if (!narrationResult) {
       narrationController.abort(new Error("ai_media_narration_deadline"));
       pipelineWarnings.push("narration_slow_video_continued");
+    }
+    if (characterDialogueProviderFallback) {
+      pipelineWarnings.push(
+        narrationResult?.audio
+          ? "identity_team_character_dialogue_fallback_voiceover"
+          : "identity_team_character_dialogue_fallback_silent_motion",
+      );
     }
     args.signal?.removeEventListener("abort", abortNarrationFromCaller);
 
@@ -715,6 +802,8 @@ export async function generateAndSaveAiMedia(args: {
     let overlays = overlaysResult.value;
     let narration = narrationResult?.narration || null;
     let narrationAudio = narrationResult?.audio || null;
+    let nativeCharacterDialoguePreserved =
+      characterDialogueRequested && !characterDialogueProviderFallback;
 
     const clips = videoGateway.clips.map((clip) => ({
       buffer: clip.buffer,
@@ -730,31 +819,116 @@ export async function generateAndSaveAiMedia(args: {
           durationSeconds,
           soundtrack,
           narration: narrationAudio,
+          nativeAudioMode: nativeCharacterDialoguePreserved
+            ? "dialogue"
+            : "ambience",
           signal: args.signal,
         }),
       );
-    } catch {
+    } catch (compositionError) {
       args.signal?.throwIfAborted();
       // Les pistes audio et l'habillage sont facultatifs. Si FFmpeg refuse
-      // l'un de ces actifs, réassembler une seule fois les mêmes clips en mode
-      // minimal évite de rappeler Veo et préserve le rendu déjà payé.
+      // l'un de ces actifs, réassembler les mêmes clips en mode minimal évite
+      // de rappeler Veo et préserve le rendu déjà payé.
       overlays = await renderMinimalOverlays();
       soundtrack = null;
-      narration = null;
-      narrationAudio = null;
       pipelineWarnings.push("video_enhancements_unavailable_video_continued");
-      normalized = await measure("video_composition_fallback", () =>
-        composeOriginalAiVideo({
-          clips,
-          overlays,
-          width: format.width,
-          height: format.height,
-          durationSeconds,
-          soundtrack: null,
-          narration: null,
-          signal: args.signal,
-        }),
-      );
+      const nativeDialogueMissing = String(
+        (compositionError as { message?: unknown })?.message || compositionError,
+      ).includes("ai_original_video_native_dialogue_missing");
+      let minimalNativeDialogueSucceeded = false;
+
+      // Si seuls la musique ou l'habillage ont cassé, garder d'abord le vrai
+      // dialogue Veo payé plutôt que de le remplacer inutilement par un TTS.
+      if (nativeCharacterDialoguePreserved && !nativeDialogueMissing) {
+        try {
+          normalized = await measure(
+            "video_composition_minimal_native_dialogue",
+            () =>
+              composeOriginalAiVideo({
+                clips,
+                overlays,
+                width: format.width,
+                height: format.height,
+                durationSeconds,
+                soundtrack: null,
+                narration: null,
+                nativeAudioMode: "dialogue",
+                signal: args.signal,
+              }),
+          );
+          minimalNativeDialogueSucceeded = true;
+        } catch {
+          args.signal?.throwIfAborted();
+        }
+      }
+
+      if (!minimalNativeDialogueSucceeded) {
+        if (nativeCharacterDialoguePreserved) {
+          const fallbackNarration = await measure(
+            "character_dialogue_audio_fallback",
+            () => generateNarrationResult(fallbackVoiceoverRequest),
+          );
+          narration = fallbackNarration.narration;
+          narrationAudio = fallbackNarration.audio;
+          pipelineWarnings.push(
+            ...fallbackNarration.warnings,
+            narrationAudio
+              ? "identity_team_character_dialogue_fallback_voiceover"
+              : "identity_team_character_dialogue_fallback_silent_motion",
+          );
+        } else if (!characterDialogueProviderFallback) {
+          // Pour une vidéo classique, une narration potentiellement malformée
+          // reste un embellissement facultatif et ne doit pas casser le rendu.
+          narration = null;
+          narrationAudio = null;
+        }
+        // En repli équipe, une voix off déjà créée après l'échec provider est
+        // conservée. L'audio natif est alors coupé pour éviter deux paroles.
+        nativeCharacterDialoguePreserved = false;
+        try {
+          normalized = await measure("video_composition_fallback", () =>
+            composeOriginalAiVideo({
+              clips,
+              overlays,
+              width: format.width,
+              height: format.height,
+              durationSeconds,
+              soundtrack: null,
+              narration: narrationAudio,
+              nativeAudioMode: narrationAudio ? "mute" : "ambience",
+              signal: args.signal,
+            }),
+          );
+        } catch (fallbackCompositionError) {
+          args.signal?.throwIfAborted();
+          if (!characterDialogueRequested || !narrationAudio) {
+            throw fallbackCompositionError;
+          }
+          // Dernier repli honnête : le mouvement H264 reste livré même si la
+          // piste TTS est invalide. Toute parole native est coupée pour ne pas
+          // produire un mélange incohérent ou partiel.
+          narration = null;
+          narrationAudio = null;
+          pipelineWarnings.push(
+            "identity_team_character_dialogue_fallback_silent_motion",
+            "video_audio_unavailable_video_continued",
+          );
+          normalized = await measure("video_composition_silent_fallback", () =>
+            composeOriginalAiVideo({
+              clips,
+              overlays,
+              width: format.width,
+              height: format.height,
+              durationSeconds,
+              soundtrack: null,
+              narration: null,
+              nativeAudioMode: "mute",
+              signal: args.signal,
+            }),
+          );
+        }
+      }
     }
     model = [
       teamPrecompositionModel,
@@ -779,6 +953,8 @@ export async function generateAndSaveAiMedia(args: {
         new Set([...videoGateway.warnings, ...pipelineWarnings]),
       ),
       team_precomposition: teamPrecompositionMetadata,
+      team_video_speech_mode: providerRequest.teamVideoSpeechMode,
+      native_character_dialogue_preserved: nativeCharacterDialoguePreserved,
       narration: narration && narrationAudio
         ? {
             enabled: true,
@@ -833,6 +1009,8 @@ export async function generateAndSaveAiMedia(args: {
           use_brand_colors: providerRequest.useBrandColors,
           logo_mode: providerRequest.logoMode,
           video_engine: providerRequest.videoEngine,
+          team_video_mode: providerRequest.teamVideoMode,
+          team_video_speech_mode: providerRequest.teamVideoSpeechMode,
           identity_mode: providerRequest.identityMode,
           video_character_mode: providerRequest.videoCharacterMode,
           identity_consent: providerRequest.identityConsent

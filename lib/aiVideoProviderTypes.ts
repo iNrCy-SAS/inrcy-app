@@ -25,6 +25,8 @@ export type AiVideoProviderGenerationArgs = {
   creativeBrief: string;
   brandColors: readonly string[];
   profession: string;
+  /** Langue configurée pour les éventuels dialogues natifs du plan. */
+  contentLanguage?: string;
   /**
    * Marqueur interne exclusivement positionné par le serveur après avoir
    * transformé 2–3 portraits distincts en une seule composition de groupe.
@@ -32,6 +34,13 @@ export type AiVideoProviderGenerationArgs = {
    * appel direct ne puisse leur transmettre les portraits séparément.
    */
   identityTeamPrecomposed?: boolean;
+  /** Nombre d'adultes réunis dans l'image de groupe, sans autre attribut. */
+  identityTeamMemberCount?: 2 | 3;
+  /**
+   * Consentement Google ponctuel, transmis séparément du consentement général
+   * d’identité. Les providers le vérifient avant de créer leur client réseau.
+   */
+  identityTeamGoogleEgressConsent?: boolean;
   /**
    * Best-effort cancellation propagated from the browser request. Veo does not
    * expose an operation-cancel method in the Gemini Developer API SDK, but the
@@ -39,6 +48,31 @@ export type AiVideoProviderGenerationArgs = {
    */
   signal?: AbortSignal;
 };
+
+/**
+ * Garde réseau commune aux providers Google. Elle doit être appelée avant la
+ * création de leur client afin qu'une équipe ne puisse quitter iNrCy qu'après
+ * précomposition et consentement explicite pour cette tentative.
+ */
+export function assertAiVideoReferenceTeamGoogleEgress(
+  args: Pick<
+    AiVideoProviderGenerationArgs,
+    | "request"
+    | "identityTeamPrecomposed"
+    | "identityTeamGoogleEgressConsent"
+  >,
+) {
+  if (args.request.identityMode !== "reference_team") return;
+  if (!args.identityTeamPrecomposed) {
+    throw new Error("ai_video_reference_team_precomposition_required");
+  }
+  if (!args.identityTeamGoogleEgressConsent) {
+    throw new Error("ai_video_reference_team_google_consent_required");
+  }
+  if (args.request.inspirationImages.length !== 1) {
+    throw new Error("ai_video_reference_team_single_group_image_required");
+  }
+}
 
 export interface AiVideoProvider {
   readonly id: string;

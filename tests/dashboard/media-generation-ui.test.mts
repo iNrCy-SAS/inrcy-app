@@ -204,7 +204,10 @@ test("la fenêtre iNrCy sépare les critères de la création et de la revue", (
   assert.match(generator, /videoEngine: kind === "video" \? videoEngine : undefined/);
   assert.match(generator, /useState<MediaGenerationNarrationVoice>\("female"\)/);
   assert.match(generator, /\(\["female", "male"\] as const\)\.map/);
-  assert.match(generator, /narrationVoice:[\s\S]*?withNarration \? narrationVoice : undefined/);
+  assert.match(
+    generator,
+    /narrationVoice:[\s\S]*?effectiveWithNarration \? narrationVoice : undefined/,
+  );
   assert.match(hook, /narrationVoice\?: MediaGenerationNarrationVoice/);
   assert.match(generator, /duration > videoMaxDurationSeconds/);
   assert.match(generator, /disabled=\{operationLocked \|\| premiumLocked\}/);
@@ -453,6 +456,7 @@ test("le Menu ouvre directement la même modale sans ancien grand studio", () =>
   const requiredSetup = read("lib/dashboardRequiredSetupAccess.ts");
   const desktopMenu = read("app/dashboard/_components/UserMenu.tsx");
   const mobileMenu = read("app/dashboard/_components/ResponsiveBottomNav.tsx");
+  const dashboardFr = JSON.parse(read("messages/fr-FR/dashboard.json"));
 
   assert.match(studio, /<MediaGeneratorModal/);
   assert.match(studio, /source="studio"/);
@@ -467,6 +471,11 @@ test("le Menu ouvre directement la même modale sans ancien grand studio", () =>
   }
   assert.match(desktopMenu, /mediaGenerator/);
   assert.match(mobileMenu, /mediaGenerator/);
+  assert.equal(
+    dashboardFr.userMenu.mediaGenerator,
+    "Générer un média",
+    "la marque iNr’Studio ne doit jamais renommer l’entrée du menu global",
+  );
 });
 
 test("Booster garde le même ordre d'actions en haut et dans Médias", () => {

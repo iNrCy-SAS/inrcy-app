@@ -25,6 +25,7 @@ test("les réglages média persistants sont limités à des valeurs structurées
         { mimeType: "image/jpeg", data: "base64-photo-du-pro" },
       ],
       identityConsent: true,
+      teamVideoVeoConsent: true,
       aiInstruction: "consigne ponctuelle",
       customIdea: "sujet ponctuel",
       textKeywords: ["ponctuel"],
@@ -37,6 +38,8 @@ test("les réglages média persistants sont limités à des valeurs structurées
     defaults: {
       peopleMode: "solo",
       identityMode: "professional",
+      teamVideoMode: "montage",
+      teamVideoSpeechMode: "voiceover",
     },
   });
 
@@ -45,6 +48,7 @@ test("les réglages média persistants sont limités à des valeurs structurées
   );
   assert.equal(serialized.includes("base64-photo-du-pro"), false);
   assert.equal(serialized.includes("identityConsent"), false);
+  assert.equal(serialized.includes("teamVideoVeoConsent"), false);
   assert.equal(serialized.includes("aiInstruction"), false);
   assert.equal(serialized.includes("customIdea"), false);
   assert.equal(serialized.includes("textKeywords"), false);
@@ -201,7 +205,7 @@ test("la route est authentifiée, atomique, limitée au compte actif et non mise
   assert.match(source, /\.eq\("user_id", activeUserId\)/);
   assert.match(
     source,
-    /\.rpc\([\s\S]*?"inrcy_patch_ai_media_generator_preferences"/,
+    /\.rpc\([\s\S]*?"inrcy_patch_ai_media_generator_preferences_v2"/,
   );
   assert.match(source, /p_account_id: activeUserId/);
   assert.match(source, /parseAiMediaGeneratorPreferencesPatch\(body\)/);
@@ -238,4 +242,77 @@ test("la migration sérialise les PATCH concurrents et ne modifie qu’un bloc J
   assert.match(migration, /AI_MEDIA_PREFERENCES_SETTINGS_INVALID/);
   assert.match(migration, /from public, anon, authenticated, service_role/);
   assert.match(migration, /to authenticated/);
+});
+
+test("le mode vidéo d’équipe est rétrocompatible et le consentement Veo reste strictement ponctuel", () => {
+  const legacy = patchAiMediaGeneratorPreferences({}, {
+    blockId: 5,
+    saved: true,
+    defaults: {
+      peopleMode: "team",
+      identityMode: "reference_team",
+    },
+  });
+  assert.deepEqual(legacy.blocks[5], {
+    saved: true,
+    defaults: {
+      peopleMode: "team",
+      identityMode: "reference_team",
+      teamVideoMode: "montage",
+      teamVideoSpeechMode: "voiceover",
+    },
+  });
+
+  const cinematic = patchAiMediaGeneratorPreferences(legacy, {
+    blockId: 5,
+    saved: true,
+    defaults: {
+      peopleMode: "team",
+      identityMode: "reference_team",
+      teamVideoMode: "cinematic",
+      teamVideoSpeechMode: "characters",
+      teamVideoVeoConsent: true,
+    },
+  });
+  assert.equal(cinematic.blocks[5].defaults.teamVideoMode, "cinematic");
+  assert.equal(
+    cinematic.blocks[5].defaults.teamVideoSpeechMode,
+    "characters",
+  );
+  assert.equal(
+    JSON.stringify(serializeAiMediaGeneratorPreferences(cinematic)).includes(
+      "teamVideoVeoConsent",
+    ),
+    false,
+  );
+});
+
+test("la migration v2 est additive, atomique et n’autorise que le mode non sensible", () => {
+  const migration = readFileSync(
+    path.join(
+      ROOT,
+      "ops/sql/2026-09-05_ai_media_generator_team_video_mode.sql",
+    ),
+    "utf8",
+  );
+
+  assert.match(
+    migration,
+    /create or replace function public\.inrcy_patch_ai_media_generator_preferences_v2/,
+  );
+  assert.match(migration, /security invoker/i);
+  assert.doesNotMatch(migration, /security definer/i);
+  assert.match(
+    migration,
+    /public\.inrcy_patch_ai_media_generator_preferences\([\s\S]*?p_account_id/,
+  );
+  assert.match(migration, /jsonb_build_object\([\s\S]*?'peopleMode'[\s\S]*?'identityMode'/);
+  assert.match(migration, /jsonb_set\([\s\S]*?teamVideoMode/);
+  assert.match(migration, /jsonb_set\([\s\S]*?teamVideoSpeechMode/);
+  assert.match(migration, /voiceover[\s\S]*?characters/);
+  assert.match(migration, /forbidden|ACCOUNT_FORBIDDEN/i);
+  assert.match(migration, /from public, anon, authenticated, service_role/);
+  assert.match(migration, /to authenticated/);
+  assert.doesNotMatch(migration, /teamVideoVeoConsent/);
+  assert.doesNotMatch(migration, /identityConsent|inspirationImages|referenceSetId/);
 });

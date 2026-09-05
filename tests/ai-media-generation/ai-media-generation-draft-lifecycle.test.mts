@@ -114,8 +114,8 @@ test("la fermeture et la regeneration detruisent le brouillon avant de continuer
   const modal = read("app/dashboard/_components/MediaGeneratorModal.tsx");
   const regenerate = section(
     generator,
+    "const performGeneration = async (veoConsentForAttempt: boolean) =>",
     "const handleGenerate = async () =>",
-    "const handleConfirm = async () =>",
   );
   const confirm = section(
     generator,

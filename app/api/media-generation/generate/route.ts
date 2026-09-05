@@ -407,6 +407,8 @@ function generationFingerprint(request: AiMediaGenerationRequest) {
     identityMode: request.identityMode,
     videoCharacterMode: request.videoCharacterMode,
     identityConsent: request.identityConsent,
+    teamVideoMode: request.teamVideoMode,
+    teamVideoSpeechMode: request.teamVideoSpeechMode,
     identityReferenceSetId: request.identityReferenceSetId,
     durationSeconds: request.durationSeconds,
     // Ne jamais persister une empreinte dérivée des photos. Ces descripteurs
@@ -439,6 +441,9 @@ function assertDraftContractVersion(value: unknown): Record<string, unknown> {
       videoCharacterMode: "auto",
       inspirationImages: [],
       identityConsent: false,
+      teamVideoMode: "montage",
+      teamVideoSpeechMode: "voiceover",
+      teamVideoVeoConsent: false,
       identityReferenceSetId: "",
     };
   }
@@ -597,6 +602,8 @@ export async function POST(request: Request) {
               version: "inrcy-media-identity-consent-v1",
             }
           : null,
+        team_video_mode: normalizedRequest.teamVideoMode,
+        team_video_speech_mode: normalizedRequest.teamVideoSpeechMode,
         duration_seconds: normalizedRequest.durationSeconds,
         inspiration_image_count: normalizedRequest.inspirationImages.length,
       },

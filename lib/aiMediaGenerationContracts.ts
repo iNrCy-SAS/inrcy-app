@@ -31,6 +31,8 @@ export type AiMediaCreativity = "faithful" | "bold";
 export type AiMediaLogoMode = "discreet" | "visible" | "none";
 export type AiMediaVideoDuration = 8 | 16 | 24;
 export type AiMediaVideoEngine = "omni" | "veo";
+export type AiMediaTeamVideoMode = "cinematic" | "montage";
+export type AiMediaTeamVideoSpeechMode = "voiceover" | "characters";
 export type AiMediaNarrationVoice = "female" | "male";
 export type AiMediaIdentityMode =
   | "auto"
@@ -122,6 +124,18 @@ export type AiMediaGenerationRequest = {
   videoCharacterMode: AiMediaVideoCharacterMode;
   /** Accord ponctuel, jamais réutilisé pour une autre génération. */
   identityConsent: boolean;
+  /**
+   * Rendu demandé pour une équipe de référence. `cinematic` autorise un vrai
+   * image-to-video uniquement si le consentement Google ponctuel est présent.
+   */
+  teamVideoMode: AiMediaTeamVideoMode;
+  /**
+   * `characters` conserve les dialogues natifs synchronisés du moteur vidéo.
+   * `voiceover` garde les personnes silencieuses et autorise la narration iNrCy.
+   */
+  teamVideoSpeechMode: AiMediaTeamVideoSpeechMode;
+  /** Accord ponctuel pour transmettre à Google la seule image de groupe déjà composée. */
+  teamVideoVeoConsent: boolean;
   /** Identifiant aléatoire du jeu de références, jamais dérivé de leur contenu. */
   identityReferenceSetId: string;
   durationSeconds: AiMediaVideoDuration | null;
@@ -369,11 +383,11 @@ export function normalizeAiMediaGenerationRequest(
   }
 
   const withText = body.withText === true;
-  const withNarration = kind === "video" && body.withNarration === true;
+  const requestedWithNarration = kind === "video" && body.withNarration === true;
   const rawNarrationVoice = cleanText(body.narrationVoice, 24) || "female";
   if (
     kind === "video" &&
-    withNarration &&
+    requestedWithNarration &&
     !["female", "male"].includes(rawNarrationVoice)
   ) {
     throw new AiMediaRequestValidationError("Voix de narration invalide.");
@@ -440,6 +454,35 @@ export function normalizeAiMediaGenerationRequest(
       "Confirmez que vous êtes cette personne ou que vous avez son autorisation.",
     );
   }
+  const rawTeamVideoMode = cleanText(body.teamVideoMode, 24) || "montage";
+  if (!["cinematic", "montage"].includes(rawTeamVideoMode)) {
+    throw new AiMediaRequestValidationError("Mode d’animation d’équipe invalide.");
+  }
+  const teamVideoMode =
+    kind === "video" && identityMode === "reference_team"
+      ? (rawTeamVideoMode as AiMediaTeamVideoMode)
+      : "montage";
+  const rawTeamVideoSpeechMode =
+    cleanText(body.teamVideoSpeechMode, 24) || "voiceover";
+  if (!["voiceover", "characters"].includes(rawTeamVideoSpeechMode)) {
+    throw new AiMediaRequestValidationError(
+      "Mode vocal de l’équipe animée invalide.",
+    );
+  }
+  const teamVideoSpeechMode =
+    teamVideoMode === "cinematic"
+      ? (rawTeamVideoSpeechMode as AiMediaTeamVideoSpeechMode)
+      : "voiceover";
+  // Les dialogues natifs Veo et une voix off synthétique ne doivent jamais se
+  // superposer. En mode personnages, l'audio applicatif est neutralisé au
+  // contrat, avant même de démarrer le pipeline de narration.
+  const withNarration =
+    requestedWithNarration && teamVideoSpeechMode !== "characters";
+  // Le consentement est volontairement lié à cette requête, à ce mode et à
+  // cette destination. Un booléen isolé sur une image ou un autre mode ne peut
+  // jamais ouvrir un egress Google par accident.
+  const teamVideoVeoConsent =
+    teamVideoMode === "cinematic" && body.teamVideoVeoConsent === true;
 
   return {
     requestId,
@@ -470,6 +513,9 @@ export function normalizeAiMediaGenerationRequest(
     videoCharacterMode: identityMode,
     identityConsent:
       inspirationImages.length > 0 && body.identityConsent === true,
+    teamVideoMode,
+    teamVideoSpeechMode,
+    teamVideoVeoConsent,
     identityReferenceSetId: inspirationImages.length
       ? cleanText(body.identityReferenceSetId, 120) || `legacy:${requestId}`
       : "",

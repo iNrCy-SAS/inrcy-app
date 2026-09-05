@@ -84,7 +84,9 @@ test("la préférence mémorise l'équipe, la normalise et exclut photos et cons
     defaults: {
       peopleMode: "solo",
       identityMode: "reference_team",
+      teamVideoMode: "cinematic",
       identityConsent: true,
+      teamVideoVeoConsent: true,
       inspirationImages: [photo(9), photo(10)],
     },
   });
@@ -94,10 +96,13 @@ test("la préférence mémorise l'équipe, la normalise et exclut photos et cons
     defaults: {
       peopleMode: "team",
       identityMode: "reference_team",
+      teamVideoMode: "cinematic",
+      teamVideoSpeechMode: "voiceover",
     },
   });
   const serialized = JSON.stringify(serializeAiMediaGeneratorPreferences(preferences));
   assert.equal(serialized.includes("identityConsent"), false);
+  assert.equal(serialized.includes("teamVideoVeoConsent"), false);
   assert.equal(serialized.includes("inspirationImages"), false);
   assert.equal(serialized.includes(photo(9).data), false);
 });

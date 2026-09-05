@@ -26,11 +26,12 @@ import {
   selectVeoInspirationMode,
   supportsVeoReferenceImages,
 } from "@/lib/aiVideoReliability";
-import type {
-  AiVideoProvider,
-  AiVideoProviderClip,
-  AiVideoProviderGenerationArgs,
-  AiVideoProviderResult,
+import {
+  assertAiVideoReferenceTeamGoogleEgress,
+  type AiVideoProvider,
+  type AiVideoProviderClip,
+  type AiVideoProviderGenerationArgs,
+  type AiVideoProviderResult,
 } from "@/lib/aiVideoProviderTypes";
 
 const PROVIDER_ID = "google-gemini";
@@ -397,6 +398,94 @@ function conciseVisualDirection(
   );
 }
 
+const TEAM_DIALOGUE_LINES: Record<
+  string,
+  ReadonlyArray<readonly [string, string]>
+> = {
+  fr: [
+    ["On s’y met ?", "Avec plaisir."],
+    ["On avance bien.", "Exactement."],
+    ["C’est prêt.", "Parfait."],
+  ],
+  en: [
+    ["Shall we get started?", "Absolutely."],
+    ["We’re making good progress.", "Exactly."],
+    ["It’s ready.", "Perfect."],
+  ],
+  es: [
+    ["¿Empezamos?", "Claro."],
+    ["Avanzamos bien.", "Exacto."],
+    ["Ya está listo.", "Perfecto."],
+  ],
+  it: [
+    ["Cominciamo?", "Volentieri."],
+    ["Stiamo andando bene.", "Esatto."],
+    ["È pronto.", "Perfetto."],
+  ],
+  de: [
+    ["Fangen wir an?", "Sehr gern."],
+    ["Wir kommen gut voran.", "Genau."],
+    ["Es ist fertig.", "Perfekt."],
+  ],
+  nl: [
+    ["Zullen we beginnen?", "Graag."],
+    ["We gaan goed vooruit.", "Precies."],
+    ["Het is klaar.", "Perfect."],
+  ],
+  pt: [
+    ["Começamos?", "Com certeza."],
+    ["Estamos a avançar bem.", "Exatamente."],
+    ["Está pronto.", "Perfeito."],
+  ],
+  th: [
+    ["เริ่มกันเลยไหม", "ได้เลย"],
+    ["ไปได้ดีมาก", "ใช่เลย"],
+    ["พร้อมแล้ว", "เยี่ยมเลย"],
+  ],
+  zh: [
+    ["我们开始吧？", "当然。"],
+    ["进展很顺利。", "没错。"],
+    ["准备好了。", "太好了。"],
+  ],
+};
+
+export function buildGoogleVideoTeamSpeechDirection(
+  args: AiVideoProviderGenerationArgs,
+  index: number,
+) {
+  if (
+    args.request.identityMode !== "reference_team" ||
+    args.request.teamVideoMode !== "cinematic"
+  ) {
+    return "Natural location ambience only; no dialogue, voice-over, lyrics or music. iNrCy adds exact branding, copy and final audio.";
+  }
+
+  if (args.request.teamVideoSpeechMode !== "characters") {
+    return [
+      "VOICE-OVER MODE — every on-screen person stays silent",
+      "no dialogue, speech, lip-sync or vocalisation",
+      "mouths remain naturally closed except for non-verbal expressions",
+      "natural location ambience only; no native voice-over, lyrics or music",
+      "iNrCy adds the separate off-screen narration",
+    ].join("; ");
+  }
+
+  const language = String(args.contentLanguage || "fr").toLowerCase();
+  const scripts = TEAM_DIALOGUE_LINES[language] || TEAM_DIALOGUE_LINES.fr;
+  const [firstLine, secondLine] = scripts[index % scripts.length]!;
+  const teamSize = args.identityTeamMemberCount === 3 ? 3 : 2;
+  const firstSpeaker = (index % teamSize) + 1;
+  const secondSpeaker = (firstSpeaker % teamSize) + 1;
+  return [
+    "NATIVE CHARACTER DIALOGUE, never voice-over",
+    `people are numbered left-to-right; Person ${firstSpeaker} says exactly “${firstLine}”, then Person ${secondSpeaker} says exactly “${secondLine}”`,
+    "one speaker at a time with precise lip-sync, breathing, expression and body language; others listen and react",
+    "keep a distinct adult voice tied to each face across shots",
+    "use distinct synthetic feminine, masculine or neutral adult timbres suited to the scene; never clone a real voice, infer or state real gender identity, or swap speakers during a shot",
+    "no narrator, lyrics or music; clean location ambience",
+  ].join("; ");
+}
+
 /**
  * Keep identity semantics explicit and independent from the rendering medium.
  * A professional may therefore be rendered as a photo, illustration, 3D or
@@ -404,17 +493,19 @@ function conciseVisualDirection(
  */
 export function buildGoogleVideoIdentityDirection(
   request: AiVideoProviderGenerationArgs["request"],
+  identityTeamMemberCount?: 2 | 3,
 ) {
   const referenceCount = request.inspirationImages.length;
   if (request.videoCharacterMode === "reference_team") {
     return compact(
       [
         "IDENTITY LOCK — PRECOMPOSED APPROVED TEAM:",
-        "animate the single supplied group composition without inventing, removing, duplicating or swapping any person",
-        "preserve every visible adult face, hairstyle and distinctive cue throughout the shot",
-        "never replace a team member with a generic person",
+        `animate the single group frame as one continuous scene with exactly ${identityTeamMemberCount === 3 ? 3 : 2} adults`,
+        "never use collage, split-screen, portrait cards, slideshow, still-photo pan, zoom or Ken Burns",
+        "create real facial and full-body motion, gestures, steps, interaction and camera movement",
+        "show each person once; preserve every face and hairstyle; never invent, remove, fuse, duplicate, swap or replace anyone",
       ].join(" "),
-      390,
+      460,
     );
   }
   if (request.videoCharacterMode === "professional") {
@@ -524,20 +615,28 @@ export function buildGoogleVideoScenePrompt(
     160,
   );
   const visualDirection = conciseVisualDirection(args.request);
-  const identityDirection = buildGoogleVideoIdentityDirection(args.request);
+  const identityDirection = buildGoogleVideoIdentityDirection(
+    args.request,
+    args.identityTeamMemberCount,
+  );
   const punctualInstruction = adultSafePromptText(
     args.request.aiInstruction,
     220,
   );
+  const speechDirection = buildGoogleVideoTeamSpeechDirection(args, index);
   return compact(
     [
       `Create one original ${durationSeconds}-second cinematic business shot ${
         index + 1
       }/${args.plan.scenes.length}.`,
+      identityDirection ? `${identityDirection}.` : "",
+      speechDirection ? `${speechDirection}.` : "",
+      args.request.peopleMode === "none"
+        ? "Do not show any person, human silhouette or face."
+        : "Every visible person must be unmistakably adult and at least 25 years old; no younger-looking person may appear.",
       `PRIMARY SUBJECT — visually unmistakable: ${primarySubject}.`,
       `REQUIRED VISUAL PROOF: ${visualEvidence}.`,
       sceneDirection ? `Shot action: ${sceneDirection}.` : "",
-      identityDirection ? `${identityDirection}.` : "",
       args.request.inspirationImages.length &&
       (preservesIdentityReferences(args.request) || index === 0)
         ? preservesIdentityReferences(args.request)
@@ -548,16 +647,12 @@ export function buildGoogleVideoScenePrompt(
         ? `PUNCTUAL USER DIRECTION FOR THIS GENERATION ONLY: ${punctualInstruction}. Apply it when compatible with verified facts and safety; never display or recite the instruction itself.`
         : "",
       "Keep every named trade, product, animal, object, action or place central; never switch category or use generic corporate imagery.",
-      args.request.peopleMode === "none"
-        ? "Do not show any person, human silhouette or face."
-        : "Every visible person must be unmistakably adult and at least 25 years old; no younger-looking person may appear.",
       servesMinorAudience
         ? "This business serves a family audience. Represent that safely through the venue, equipment, animals, products and clearly adult staff only."
         : "",
       safetyDirection ? `PROFESSIONAL SAFETY FRAMING: ${safetyDirection}.` : "",
       digitalDirection ? `${digitalDirection}.` : "",
       "No readable text, letters, numbers, captions, signs, logos, watermarks, fake writing, posters, slides or borders.",
-      "Natural location ambience only; no dialogue, voice-over, lyrics or music. iNrCy adds exact branding, copy and final audio.",
       businessContext ? `Verified business context: ${businessContext}.` : "",
       visualDirection ? `Visual direction: ${visualDirection}.` : "",
       colors
@@ -922,14 +1017,9 @@ export const googleVeoVideoProvider: AiVideoProvider = {
   },
   async generate(args): Promise<AiVideoProviderResult> {
     throwIfAborted(args.signal);
-    if (
-      args.request.identityMode === "reference_team" &&
-      !args.identityTeamPrecomposed
-    ) {
-      // Veo reference assets represent one subject. Distinct team portraits
-      // must be precomposed server-side before any animation request.
-      throw new Error("ai_video_reference_team_precomposition_required");
-    }
+    // Défense en profondeur : même avec les marqueurs internes, Google ne peut
+    // recevoir ni les portraits bruts ni un mélange de références.
+    assertAiVideoReferenceTeamGoogleEgress(args);
     const ai = new GoogleGenAI({ apiKey: apiKey() });
     const preserveIdentityReferences = preservesIdentityReferences(
       args.request,

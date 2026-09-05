@@ -64,7 +64,7 @@ test("la mémorisation UI ne sérialise aucune donnée libre, photo ou consentem
   const remembered = sourceSection(
     generator,
     "const handleRememberPreference",
-    "const handleGenerate",
+    "const performGeneration",
   );
 
   for (const forbidden of [

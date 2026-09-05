@@ -551,6 +551,37 @@
   margin-top: 10px;
 }
 
+.narrationControl .switchRow[data-disabled-by-team-speech="true"] {
+  border-color: rgba(197, 119, 255, 0.2);
+  background:
+    linear-gradient(120deg, rgba(122, 75, 213, 0.1), rgba(226, 77, 166, 0.08)),
+    rgba(10, 23, 52, 0.7);
+}
+
+.teamSpeechFinishNotice {
+  min-height: 56px;
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  padding: 9px 11px;
+  border: 1px solid rgba(195, 112, 255, 0.22);
+  border-radius: 13px;
+  background:
+    linear-gradient(130deg, rgba(107, 77, 223, 0.13), rgba(219, 69, 156, 0.1)),
+    rgba(10, 23, 52, 0.7);
+}
+
+.teamSpeechFinishNotice strong {
+  color: #f6efff;
+  font-size: 9.5px;
+}
+
+.teamSpeechFinishNotice small {
+  color: rgba(221, 211, 248, 0.66);
+  font-size: 8.5px;
+  line-height: 1.4;
+}
+
 .collapsibleSection {
   position: relative;
   align-self: start;
@@ -979,6 +1010,260 @@
   background: rgba(130, 76, 13, 0.16);
   font-size: 8.5px !important;
   font-weight: 750;
+}
+
+.teamAnimationGroup {
+  display: grid;
+  gap: 8px;
+  margin-top: 9px;
+}
+
+.teamAnimationToggle {
+  min-height: 50px;
+  margin-top: 0;
+  border-color: rgba(213, 104, 255, 0.24);
+  background:
+    linear-gradient(120deg, rgba(37, 181, 229, 0.09), rgba(190, 72, 218, 0.12)),
+    rgba(8, 25, 53, 0.74);
+}
+
+.teamAnimationToggle strong::before {
+  content: "▶";
+  margin-right: 7px;
+  color: #73e5ff;
+  font-size: 9px;
+}
+
+.teamSpeechMode {
+  display: grid;
+  gap: 7px;
+  padding: 10px;
+  border: 1px solid rgba(116, 205, 255, 0.15);
+  border-radius: 13px;
+  background: rgba(6, 19, 45, 0.58);
+}
+
+.teamSpeechModeTitle {
+  color: rgba(226, 237, 255, 0.78);
+  font-size: 9.5px;
+  font-weight: 900;
+}
+
+.teamSpeechChoices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.teamSpeechChoices button {
+  min-width: 0;
+  min-height: 56px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 8px 9px;
+  border: 1px solid rgba(128, 158, 222, 0.17);
+  border-radius: 11px;
+  color: rgba(230, 238, 252, 0.8);
+  background: rgba(12, 27, 59, 0.72);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.teamSpeechChoices button:hover:not(:disabled) {
+  border-color: rgba(100, 220, 255, 0.38);
+  background: rgba(25, 52, 95, 0.72);
+}
+
+.teamSpeechChoices button[data-active="true"] {
+  border-color: rgba(98, 225, 255, 0.55);
+  color: #fff;
+  background:
+    linear-gradient(120deg, rgba(40, 184, 229, 0.2), rgba(167, 78, 225, 0.22)),
+    rgba(14, 34, 72, 0.82);
+  box-shadow: inset 0 0 18px rgba(91, 205, 255, 0.08);
+}
+
+.teamSpeechChoices button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.teamSpeechChoices button > span:first-child {
+  width: 23px;
+  height: 23px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  color: #98edff;
+  background: rgba(45, 169, 224, 0.15);
+  font-size: 10px;
+}
+
+.teamSpeechChoices button > span:last-child {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.teamSpeechChoices strong {
+  color: inherit;
+  font-size: 9px;
+  line-height: 1.25;
+}
+
+.teamSpeechChoices small {
+  color: rgba(205, 220, 245, 0.58);
+  font-size: 8px;
+  line-height: 1.3;
+}
+
+.teamSpeechNote {
+  margin: 0 !important;
+  color: rgba(150, 222, 246, 0.72) !important;
+  font-size: 8px !important;
+  line-height: 1.35 !important;
+}
+
+.teamVideoConsentBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(1, 6, 21, 0.84);
+  backdrop-filter: blur(12px);
+}
+
+.teamVideoConsentDialog {
+  width: min(560px, 100%);
+  max-height: calc(100dvh - 36px);
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px 13px;
+  padding: 24px;
+  border: 1px solid rgba(102, 218, 255, 0.26);
+  border-radius: 21px;
+  color: #f5f9ff;
+  background:
+    radial-gradient(circle at 0 0, rgba(31, 190, 231, 0.18), transparent 38%),
+    radial-gradient(circle at 100% 0, rgba(213, 74, 194, 0.19), transparent 40%),
+    linear-gradient(145deg, rgba(10, 29, 65, 0.99), rgba(30, 20, 63, 0.99));
+  box-shadow: 0 30px 96px rgba(0, 0, 0, 0.62);
+}
+
+.teamVideoConsentIcon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(103, 225, 255, 0.35);
+  border-radius: 13px;
+  color: #baf6ff;
+  background: linear-gradient(135deg, rgba(30, 182, 227, 0.28), rgba(133, 77, 226, 0.28));
+  font-size: 15px;
+}
+
+.teamVideoConsentHeading {
+  min-width: 0;
+}
+
+.teamVideoConsentHeading small {
+  display: block;
+  margin-bottom: 4px;
+  color: #7eeaff;
+  font-size: 9px;
+  font-weight: 950;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.teamVideoConsentHeading h3 {
+  margin: 0;
+  color: #fff;
+  font-size: 21px;
+  line-height: 1.15;
+}
+
+.teamVideoConsentHeading p {
+  margin: 8px 0 0;
+  color: rgba(218, 232, 251, 0.7);
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+.teamVideoConsentCheck {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(109, 220, 255, 0.2);
+  border-radius: 13px;
+  background: rgba(5, 17, 42, 0.66);
+  cursor: pointer;
+}
+
+.teamVideoConsentCheck input {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  margin: 1px 0 0;
+  accent-color: #45d8f5;
+}
+
+.teamVideoConsentCheck span {
+  color: rgba(243, 248, 255, 0.92);
+  font-size: 10px;
+  font-weight: 760;
+  line-height: 1.45;
+}
+
+.teamVideoConsentRequired {
+  grid-column: 1 / -1;
+  margin: -6px 2px 0;
+  color: #ffd698;
+  font-size: 9px;
+}
+
+.teamVideoConsentActions {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.teamVideoConsentActions button {
+  min-height: 43px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font: inherit;
+  font-size: 10.5px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.teamVideoConsentCancel {
+  border: 1px solid rgba(155, 180, 226, 0.2);
+  color: rgba(230, 239, 253, 0.78);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.teamVideoConsentConfirm {
+  border: 1px solid rgba(92, 222, 255, 0.28);
+  color: #fff;
+  background: linear-gradient(100deg, #20b9e5, #7259e9 56%, #df4e98);
+  box-shadow: 0 12px 28px rgba(80, 79, 220, 0.22);
+}
+
+.teamVideoConsentConfirm:disabled {
+  cursor: not-allowed;
+  filter: saturate(0.35);
+  opacity: 0.45;
 }
 
 .inspirationInfoButton {
@@ -2488,6 +2773,26 @@ textarea:focus-visible,
   .parameterChoices.identityModeChoices { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .narrationControl { grid-template-columns: 1fr; }
   .inspirationPreviews { grid-template-columns: 1fr; }
+  .teamAnimationToggle {
+    min-height: 54px;
+    padding: 9px 10px;
+  }
+  .teamSpeechChoices { grid-template-columns: 1fr; }
+  .teamSpeechChoices button { min-height: 52px; }
+  .teamVideoConsentBackdrop { padding: 10px; }
+  .teamVideoConsentDialog {
+    grid-template-columns: 1fr;
+    gap: 11px;
+    padding: 18px 14px;
+    border-radius: 17px;
+  }
+  .teamVideoConsentIcon { width: 38px; height: 38px; }
+  .teamVideoConsentHeading h3 { font-size: 18px; }
+  .teamVideoConsentHeading p { font-size: 10px; }
+  .teamVideoConsentCheck,
+  .teamVideoConsentRequired,
+  .teamVideoConsentActions { grid-column: 1; }
+  .teamVideoConsentActions { grid-template-columns: 1fr; }
   .footerBar {
     display: grid;
     grid-template-columns: minmax(0, 1fr);

@@ -7,7 +7,7 @@ import {
 } from "@/lib/aiMediaGenerationContracts";
 import { getAiLanguageLabel } from "@/lib/aiWritingProfile";
 
-export const AI_MEDIA_PROMPT_VERSION = "inrcy-media-v13-reference-team";
+export const AI_MEDIA_PROMPT_VERSION = "inrcy-media-v14-team-speech";
 export const AI_MEDIA_COMPILED_PROMPT_MAX_CHARS = 11_800;
 
 type RecentPublication = {

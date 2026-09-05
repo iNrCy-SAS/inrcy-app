@@ -42,6 +42,8 @@ export type MediaGenerationCreativity = "faithful" | "bold";
 export type MediaGenerationLogoMode = "discreet" | "visible" | "none";
 export type MediaGenerationVideoDuration = 8 | 16 | 24;
 export type MediaGenerationVideoEngine = "omni" | "veo";
+export type MediaGenerationTeamVideoMode = "cinematic" | "montage";
+export type MediaGenerationTeamVideoSpeechMode = "voiceover" | "characters";
 export type MediaGenerationNarrationVoice = "female" | "male";
 export type MediaGenerationIdentityMode =
   | "auto"
@@ -118,6 +120,10 @@ export type MediaGenerationRequest = {
   useBrandColors: boolean;
   logoMode: MediaGenerationLogoMode;
   videoEngine?: MediaGenerationVideoEngine;
+  teamVideoMode?: MediaGenerationTeamVideoMode;
+  teamVideoSpeechMode?: MediaGenerationTeamVideoSpeechMode;
+  /** Consentement ponctuel Veo : il ne doit jamais être mémorisé. */
+  teamVideoVeoConsent?: boolean;
   identityMode?: MediaGenerationIdentityMode;
   videoCharacterMode?: MediaGenerationVideoCharacterMode;
   identityConsent?: boolean;
@@ -385,6 +391,22 @@ function buildGenerationAttemptKey(
     logoMode: request.logoMode,
     videoEngine:
       request.kind === "video" ? request.videoEngine || "omni" : null,
+    teamVideoMode:
+      request.kind === "video" &&
+      (request.identityMode || request.videoCharacterMode) === "reference_team"
+        ? request.teamVideoMode || "montage"
+        : null,
+    teamVideoSpeechMode:
+      request.kind === "video" &&
+      (request.identityMode || request.videoCharacterMode) === "reference_team" &&
+      request.teamVideoMode === "cinematic"
+        ? request.teamVideoSpeechMode || "voiceover"
+        : null,
+    teamVideoVeoConsent:
+      request.kind === "video" &&
+      (request.identityMode || request.videoCharacterMode) === "reference_team" &&
+      request.teamVideoMode === "cinematic" &&
+      Boolean(request.teamVideoVeoConsent),
     identityMode:
       request.peopleMode !== "none"
         ? request.identityMode || request.videoCharacterMode || "auto"
@@ -711,6 +733,23 @@ export default function useMediaGeneration() {
             videoEngine:
               request.kind === "video"
                 ? request.videoEngine || "omni"
+                : undefined,
+            teamVideoMode:
+              request.kind === "video" &&
+              (request.identityMode || request.videoCharacterMode) === "reference_team"
+                ? request.teamVideoMode || "montage"
+                : undefined,
+            teamVideoSpeechMode:
+              request.kind === "video" &&
+              (request.identityMode || request.videoCharacterMode) === "reference_team" &&
+              request.teamVideoMode === "cinematic"
+                ? request.teamVideoSpeechMode || "voiceover"
+                : undefined,
+            teamVideoVeoConsent:
+              request.kind === "video" &&
+              (request.identityMode || request.videoCharacterMode) === "reference_team" &&
+              request.teamVideoMode === "cinematic"
+                ? Boolean(request.teamVideoVeoConsent)
                 : undefined,
             identityMode:
               request.peopleMode !== "none"

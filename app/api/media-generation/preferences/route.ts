@@ -145,7 +145,7 @@ async function patchMediaGenerationPreferences(req: Request) {
   }
 
   const { data, error } = await supabase.rpc(
-    "inrcy_patch_ai_media_generator_preferences",
+    "inrcy_patch_ai_media_generator_preferences_v2",
     {
       p_account_id: activeUserId,
       p_block_id: patch.blockId,
