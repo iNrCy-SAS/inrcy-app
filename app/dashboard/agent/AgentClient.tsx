@@ -3998,7 +3998,7 @@ export default function AgentClient() {
               aria-label={dashboardT("aiMemory.openTitle")}
               title={dashboardT("aiMemory.openTitle")}
             >
-              <BusinessDnaIcon size={25} />
+              <BusinessDnaIcon size={26} className={styles.headerDnaIcon} />
             </button>
             <button
               type="button"

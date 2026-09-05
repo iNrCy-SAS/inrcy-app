@@ -18,6 +18,7 @@ import {
 } from "@/lib/aiGeneratedMediaRegistry";
 import { getBoosterGenerationContext } from "@/lib/boosterGenerationContext";
 import {
+  AiMediaRequestValidationError,
   buildAiMediaTitle,
   AI_MEDIA_FORMAT_SPECS,
   type AiMediaGenerationRequest,
@@ -30,6 +31,18 @@ import {
   type AiMediaGatewayResult,
 } from "@/lib/aiMediaGateway";
 import { composeOriginalAiVideo } from "@/lib/aiMediaGeneratedVideo";
+import {
+  AiMediaIdentityReferenceValidationError,
+  prepareAiMediaIdentityReferences,
+} from "@/lib/aiMediaIdentityReferences";
+import {
+  createAiMediaFallbackVideo,
+  createBrandMotionFrame,
+  prepareReferenceTeamCompositionForAnimation,
+  createReferenceIdentityMontage,
+  createReferenceTeamFallbackVideo,
+  createReferenceTeamMontage,
+} from "@/lib/aiMediaReferenceTeam";
 import { writeAiMediaNarration } from "@/lib/aiMediaNarration";
 import { generateAiMediaNarrationAudio } from "@/lib/aiMediaNarrationAudio";
 import {
@@ -113,11 +126,26 @@ function promptSha256(prompt: string) {
 }
 
 function cleanProviderMetadata(gateway: AiMediaGatewayResult) {
+  const hasIdentityReferences = gateway.identityReferenceImagesCount > 0;
+  const hasGenericReferences = gateway.genericReferenceImagesCount > 0;
   return {
     model: gateway.model,
     provider_media_type: gateway.mediaType,
     reference_images_count: gateway.referenceImagesCount,
-    reference_policy: "official_logo_only",
+    identity_reference_images_count: gateway.identityReferenceImagesCount,
+    generic_reference_images_count: gateway.genericReferenceImagesCount,
+    official_logo_included: gateway.officialLogoIncluded,
+    reference_policy: hasIdentityReferences
+      ? gateway.officialLogoIncluded
+        ? "authorized_identity_and_official_logo"
+        : "authorized_identity_only"
+      : hasGenericReferences
+        ? gateway.officialLogoIncluded
+          ? "generic_inspiration_and_official_logo"
+          : "generic_inspiration_only"
+      : gateway.officialLogoIncluded
+        ? "official_logo_only"
+        : "none",
     warnings: gateway.warnings,
     usage: gateway.usage,
   };
@@ -187,6 +215,28 @@ export async function generateAndSaveAiMedia(args: {
     };
   }
 
+  let preparedIdentityReferences: Awaited<
+    ReturnType<typeof prepareAiMediaIdentityReferences>
+  >;
+  try {
+    preparedIdentityReferences = await measure(
+      "identity_reference_normalization",
+      () => prepareAiMediaIdentityReferences(args.request.inspirationImages),
+    );
+  } catch (error) {
+    if (error instanceof AiMediaIdentityReferenceValidationError) {
+      throw new AiMediaRequestValidationError(error.message);
+    }
+    throw error;
+  }
+  // À partir d'ici, seules les références décodées, validées, réorientées et
+  // réencodées sans métadonnées peuvent atteindre un fournisseur, image ou
+  // vidéo. Les octets bruts reçus par la route ne quittent jamais ce point.
+  const providerRequest: AiMediaGenerationRequest = {
+    ...args.request,
+    inspirationImages: preparedIdentityReferences.providerImages,
+  };
+
   const brandKitTask = measure("brand_kit", () =>
     loadAiMediaBrandKit({
       accountId: args.accountId,
@@ -196,11 +246,11 @@ export async function generateAndSaveAiMedia(args: {
   const profile = buildNormalizedAiGenerationProfile({
     profile: generationContext.profile,
     business: generationContext.business,
-    idea: args.request.idea,
-    theme: args.request.idea,
+    idea: providerRequest.idea,
+    theme: providerRequest.idea,
     style: "",
     media: {
-      type: args.request.kind === "video" ? "video" : "images",
+      type: providerRequest.kind === "video" ? "video" : "images",
       count: 1,
       hasVisualContext: false,
       hasAudioTranscript: false,
@@ -208,15 +258,15 @@ export async function generateAndSaveAiMedia(args: {
     },
   });
   const initialCreativePlan = buildAiMediaCreativePlan({
-    request: args.request,
+    request: providerRequest,
     profile,
     recentPublications: generationContext.recentPublications,
   });
-  const creativePlanTask = args.request.withText
+  const creativePlanTask = providerRequest.withText
     ? measure("headline", () =>
         writeAiMediaHeadline({
           accountId: args.accountId,
-          request: args.request,
+          request: providerRequest,
           profile,
           plan: initialCreativePlan,
         }),
@@ -227,53 +277,173 @@ export async function generateAndSaveAiMedia(args: {
     creativePlanTask,
   ]);
   args.signal?.throwIfAborted();
-  const officialLogo = args.request.logoMode === "none" ? null : brandKit.logo;
-  const effectiveColors = args.request.useBrandColors
+  const officialLogo = providerRequest.logoMode === "none" ? null : brandKit.logo;
+  const effectiveColors = providerRequest.useBrandColors
     ? brandKit.colors
-    : FREE_STYLE_PALETTES[args.request.visualStyle];
+    : FREE_STYLE_PALETTES[providerRequest.visualStyle];
   const prompt = buildAiMediaPrompt({
-    request: args.request,
+    request: providerRequest,
     profile,
     recentPublications: generationContext.recentPublications,
-    brandColors: args.request.useBrandColors ? brandKit.colors : [],
+    brandColors: providerRequest.useBrandColors ? brandKit.colors : [],
     hasLogo: Boolean(officialLogo),
     copy: creativePlan,
   });
   const promptHash = promptSha256(prompt);
-  const format = AI_MEDIA_FORMAT_SPECS[args.request.format];
+  const format = AI_MEDIA_FORMAT_SPECS[providerRequest.format];
+  const localFallbackFrameTasks = new Map<string, Promise<Buffer>>();
+  const getLocalFallbackFrame = (includeLogo = providerRequest.kind === "image") => {
+    const cacheKey = includeLogo ? "with-logo" : "without-logo";
+    const cached = localFallbackFrameTasks.get(cacheKey);
+    if (cached) return cached;
+    const task = (async () => {
+      const referenceArgs = {
+        references: preparedIdentityReferences.buffers,
+        width: format.width,
+        height: format.height,
+        brandColors: effectiveColors,
+        officialLogo: includeLogo ? officialLogo : null,
+      };
+      if (preparedIdentityReferences.buffers.length) {
+        try {
+          return providerRequest.identityMode === "reference_team"
+            ? await createReferenceTeamMontage(referenceArgs)
+            : await createReferenceIdentityMontage(referenceArgs);
+        } catch {
+          // Un logo historique non décodable ne doit pas empêcher le secours
+          // exact-photo. Les références, déjà assainies, restent prioritaires.
+          const withoutLogo = { ...referenceArgs, officialLogo: null };
+          return providerRequest.identityMode === "reference_team"
+            ? await createReferenceTeamMontage(withoutLogo)
+            : await createReferenceIdentityMontage(withoutLogo);
+        }
+      }
+      return await createBrandMotionFrame({
+        width: format.width,
+        height: format.height,
+        brandColors: effectiveColors,
+        officialLogo: includeLogo ? officialLogo : null,
+        companyName: creativePlan.companyName,
+        headline: providerRequest.withText ? creativePlan.headline : "",
+      });
+    })();
+    localFallbackFrameTasks.set(cacheKey, task);
+    return task;
+  };
+  const referenceTeamPrecompositionPrompt =
+    providerRequest.identityMode === "reference_team"
+      ? `${buildAiMediaPrompt({
+          request: {
+            ...providerRequest,
+            kind: "image",
+            withText: false,
+            textKeywords: [],
+            withMusic: false,
+            withNarration: false,
+            narrationVoice: null,
+            videoEngine: null,
+            durationSeconds: null,
+            logoMode: "none",
+          },
+          profile,
+          recentPublications: generationContext.recentPublications,
+          brandColors: providerRequest.useBrandColors ? brandKit.colors : [],
+          hasLogo: false,
+        })}\n\nIMAGE MAÎTRE ÉPHÉMÈRE POUR ANIMATION : réunir les ${preparedIdentityReferences.buffers.length} adultes autorisés dans une seule scène cohérente. Image 1 = personne 1, image 2 = personne 2${preparedIdentityReferences.buffers.length === 3 ? ", image 3 = personne 3" : ""}. Chaque personne apparaît exactement une fois, reste distincte et reconnaissable ; aucune fusion, permutation, duplication, omission ni substitution générique. Garder tous les visages clairement visibles, une posture naturelle propice à une animation légère et aucun texte ni logo.`
+      : "";
 
   let normalized: NormalizedAiMedia;
   let soundtrack: Awaited<ReturnType<typeof loadAiMediaSoundtrack>> | null = null;
   let model = "";
   let providerMetadata: Record<string, unknown>;
   let videoEngineResult: AiMediaGenerationServerResult["videoEngineResult"] = null;
+  let localFallbackUsed = false;
+  let teamPrecompositionGateway: AiMediaGatewayResult | null = null;
+  let teamPrecompositionModel = "";
+  let teamPrecompositionMetadata: Record<string, unknown> | null = null;
 
-  if (args.request.kind === "image") {
+  if (providerRequest.kind === "image") {
     args.signal?.throwIfAborted();
-    const gateway: AiMediaGatewayResult = await measure("image_provider", () =>
-      generateAiMediaImage({
-        accountId: args.accountId,
-        prompt,
-        officialLogo,
-        size: format.generationSize,
-        signal: args.signal,
-      }),
-    );
-    // Sujet, profil et logo ont déjà guidé GPT Image. Cette étape ne dessine
-    // rien : elle garantit uniquement le cadrage et le JPEG universel.
-    normalized = await measure("image_normalization", () =>
-      normalizeGeneratedAiImage(gateway.buffer, {
-        width: format.width,
-        height: format.height,
-      }),
-    );
+    let imageBuffer: Buffer;
+    let gateway: AiMediaGatewayResult | null = null;
+    try {
+      gateway = await measure("image_provider", () =>
+        generateAiMediaImage({
+          accountId: args.accountId,
+          prompt,
+          identityMode: providerRequest.identityMode,
+          identityReferences: preparedIdentityReferences.buffers,
+          officialLogo,
+          size: format.generationSize,
+          signal: args.signal,
+        }),
+      );
+      imageBuffer = gateway.buffer;
+    } catch {
+      args.signal?.throwIfAborted();
+      localFallbackUsed = true;
+      imageBuffer = await measure("image_local_fallback", () =>
+        getLocalFallbackFrame(true),
+      );
+    }
+    // Cette étape garantit le cadrage et le JPEG universel, aussi bien pour le
+    // fournisseur nominal que pour le motion-graphic local de secours.
+    try {
+      normalized = await measure("image_normalization", () =>
+        normalizeGeneratedAiImage(imageBuffer, {
+          width: format.width,
+          height: format.height,
+        }),
+      );
+    } catch {
+      args.signal?.throwIfAborted();
+      if (!gateway) throw new Error("ai_image_local_fallback_invalid");
+      // Aucun second appel payant : si les octets fournisseur ne sont pas
+      // décodables, la composition locale fidèle clôt la même tentative.
+      gateway = null;
+      localFallbackUsed = true;
+      imageBuffer = await measure(
+        "image_local_fallback_after_normalization",
+        () => getLocalFallbackFrame(true),
+      );
+      normalized = await measure("image_local_fallback_normalization", () =>
+        normalizeGeneratedAiImage(imageBuffer, {
+          width: format.width,
+          height: format.height,
+        }),
+      );
+    }
     args.signal?.throwIfAborted();
-    model = gateway.model;
-    providerMetadata = cleanProviderMetadata(gateway);
+    model = gateway?.model || (providerRequest.identityMode === "reference_team"
+      ? "inrcy/reference-team-composer-v1"
+      : "inrcy/local-brand-composer-v1");
+    providerMetadata = gateway
+      ? cleanProviderMetadata(gateway)
+      : {
+          provider: "inrcy-local-composer",
+          model,
+          reference_images_count: preparedIdentityReferences.buffers.length,
+          identity_reference_images_count:
+            providerRequest.identityMode === "auto"
+              ? 0
+              : preparedIdentityReferences.buffers.length,
+          generic_reference_images_count:
+            providerRequest.identityMode === "auto"
+              ? preparedIdentityReferences.buffers.length
+              : 0,
+          official_logo_included: Boolean(officialLogo),
+          estimated_cost_micro_usd: 0,
+          warnings: [
+            providerRequest.identityMode === "reference_team"
+              ? "identity_team_exact_photo_local_composition"
+              : "image_provider_unavailable_local_composition",
+          ],
+          usage: null,
+        };
   } else {
     args.signal?.throwIfAborted();
     const pipelineWarnings: string[] = [];
-    const durationSeconds = args.request.durationSeconds || 8;
+    const durationSeconds = providerRequest.durationSeconds || 8;
     const narrationController = new AbortController();
     const abortNarrationFromCaller = () =>
       narrationController.abort(args.signal?.reason);
@@ -290,7 +460,7 @@ export async function generateAndSaveAiMedia(args: {
             logo: null,
             colors: effectiveColors,
             companyName: creativePlan.companyName,
-            visualStyle: args.request.visualStyle,
+            visualStyle: providerRequest.visualStyle,
             logoMode: "none",
             withText: false,
             width: format.width,
@@ -304,26 +474,106 @@ export async function generateAndSaveAiMedia(args: {
     // Le chemin critique commence immédiatement : le moteur vidéo choisi, la voix, la musique et
     // les calques sont indépendants et sont donc préparés en parallèle. La
     // qualité nominale reste identique, mais les temps ne s'additionnent plus.
-    const videoGatewayTask = measure("video_generation", () =>
-      generateOriginalAiVideoClips({
-        accountId: args.accountId,
-        request: args.request,
-        plan: creativePlan,
-        creativeBrief: buildAiMediaVideoDnaBrief(profile),
-        brandColors: effectiveColors,
-        profession:
-          profile.business.professionLabel ||
-          profile.business.sectorLabel ||
-          creativePlan.companyName,
-        signal: args.signal,
-      }),
-    );
+    const videoGatewayTask = measure("video_generation", async () => {
+      if (providerRequest.identityMode === "reference_team") {
+        try {
+          teamPrecompositionGateway = await measure(
+            "video_team_precomposition",
+            () =>
+              generateAiMediaImage({
+                accountId: args.accountId,
+                prompt: referenceTeamPrecompositionPrompt,
+                identityMode: "reference_team",
+                identityReferences: preparedIdentityReferences.buffers,
+                // Le logo exact est ajouté une seule fois par le compositeur
+                // vidéo ; il ne surcharge pas les références d'identité.
+                officialLogo: null,
+                size: format.generationSize,
+                signal: args.signal,
+              }),
+          );
+          teamPrecompositionModel = teamPrecompositionGateway.model;
+          teamPrecompositionMetadata = {
+            ...cleanProviderMetadata(teamPrecompositionGateway),
+            stage: "ephemeral_group_frame",
+            persisted: false,
+          };
+          const groupImage = await measure(
+            "video_team_precomposition_normalization",
+            () =>
+              prepareReferenceTeamCompositionForAnimation(
+                teamPrecompositionGateway!.buffer,
+              ),
+          );
+          localFallbackUsed = true;
+          const motion = await createAiMediaFallbackVideo({
+            montage: Buffer.from(groupImage.data, "base64"),
+            width: format.width,
+            height: format.height,
+            durationSeconds,
+            signal: args.signal,
+          });
+          return {
+            ...motion,
+            provider: "inrcy-team-ai-frame-local-motion",
+            model: `${teamPrecompositionGateway.model}+inrcy/local-motion-v1`,
+            warnings: [
+              "identity_team_ai_group_frame_local_motion",
+              "identity_team_similarity_review_required",
+            ],
+            clips: motion.clips.map((clip) => ({
+              ...clip,
+              warnings: [
+                "identity_team_ai_group_frame_local_motion",
+                "identity_team_similarity_review_required",
+              ],
+            })),
+          };
+        } catch {
+          args.signal?.throwIfAborted();
+          localFallbackUsed = true;
+          const montage = await getLocalFallbackFrame(false);
+          return await createReferenceTeamFallbackVideo({
+            montage,
+            width: format.width,
+            height: format.height,
+            durationSeconds,
+            signal: args.signal,
+          });
+        }
+      }
+      try {
+        return await generateOriginalAiVideoClips({
+          accountId: args.accountId,
+          request: providerRequest,
+          plan: creativePlan,
+          creativeBrief: buildAiMediaVideoDnaBrief(profile),
+          brandColors: effectiveColors,
+          profession:
+            profile.business.professionLabel ||
+            profile.business.sectorLabel ||
+            creativePlan.companyName,
+          signal: args.signal,
+        });
+      } catch {
+        args.signal?.throwIfAborted();
+        localFallbackUsed = true;
+        const fallbackFrame = await getLocalFallbackFrame(false);
+        return await createAiMediaFallbackVideo({
+          montage: fallbackFrame,
+          width: format.width,
+          height: format.height,
+          durationSeconds,
+          signal: args.signal,
+        });
+      }
+    });
     const narrationTask = measure("narration_pipeline", async () => {
       try {
         const narration = await measure("narration_copy", () =>
           writeAiMediaNarration({
             accountId: args.accountId,
-            request: args.request,
+            request: providerRequest,
             profile,
             plan: creativePlan,
           }),
@@ -342,7 +592,7 @@ export async function generateAndSaveAiMedia(args: {
               accountId: args.accountId,
               narration,
               durationSeconds,
-              narrationVoice: args.request.narrationVoice || "female",
+              narrationVoice: providerRequest.narrationVoice || "female",
               signal: narrationController.signal,
             }),
           );
@@ -365,12 +615,12 @@ export async function generateAndSaveAiMedia(args: {
       }
     });
     const soundtrackTask = measure("soundtrack", async () => {
-      if (!args.request.withMusic) {
+      if (!providerRequest.withMusic) {
         return { value: null, warnings: [] as string[] };
       }
       try {
         const value = await loadAiMediaSoundtrack(
-          args.request.idea ||
+          providerRequest.idea ||
             `${creativePlan.companyName} ${creativePlan.headline}`,
         );
         return { value, warnings: [] as string[] };
@@ -393,9 +643,9 @@ export async function generateAndSaveAiMedia(args: {
               logo: officialLogo,
               colors: effectiveColors,
               companyName: creativePlan.companyName,
-              visualStyle: args.request.visualStyle,
-              logoMode: args.request.logoMode,
-              withText: args.request.withText,
+              visualStyle: providerRequest.visualStyle,
+              logoMode: providerRequest.logoMode,
+              withText: providerRequest.withText,
               width: format.width,
               height: format.height,
             }),
@@ -507,11 +757,14 @@ export async function generateAndSaveAiMedia(args: {
       );
     }
     model = [
+      teamPrecompositionModel,
       videoGateway.model,
       narrationAudio?.model,
       "inrcy/video-composer-v4-controlled-audio",
     ].filter(Boolean).join("+");
-    videoEngineResult = videoGateway.provider.includes("+")
+    videoEngineResult = videoGateway.provider.startsWith("inrcy-")
+      ? null
+      : videoGateway.provider.includes("+")
       ? "omni_veo_fallback"
       : videoGateway.provider === "google-gemini-omni"
         ? "omni"
@@ -525,6 +778,7 @@ export async function generateAndSaveAiMedia(args: {
       warnings: Array.from(
         new Set([...videoGateway.warnings, ...pipelineWarnings]),
       ),
+      team_precomposition: teamPrecompositionMetadata,
       narration: narration && narrationAudio
         ? {
             enabled: true,
@@ -546,43 +800,55 @@ export async function generateAndSaveAiMedia(args: {
       accountId: args.accountId,
       authUserId: args.authUserId,
       jobId: args.jobId,
-      // Le brief libre sert uniquement au prompt en mémoire. Il n'est ni
-      // conservé dans les métadonnées, ni réutilisé comme titre Médiathèque.
-      title: buildAiMediaTitle("", args.request.kind),
+      // Le brief et la consigne ponctuelle servent uniquement au prompt en
+      // mémoire. Leur texte n'est ni conservé dans les métadonnées, ni
+      // réutilisé comme titre Médiathèque.
+      title: buildAiMediaTitle("", providerRequest.kind),
       media: normalized,
       metadata: {
         provenance: {
-          source: args.request.kind === "video"
-            ? "inrcy_original_ai_video_engine"
-            : "inrcy_brand_image_engine",
-          surface: args.request.source,
+          source: localFallbackUsed
+            ? "inrcy_local_media_fallback"
+            : providerRequest.kind === "video"
+              ? "inrcy_original_ai_video_engine"
+              : "inrcy_brand_image_engine",
+          surface: providerRequest.source,
           prompt_version: AI_MEDIA_PROMPT_VERSION,
           prompt_sha256: promptHash,
-          subject_source: args.request.subjectSource,
-          with_text: args.request.withText,
-          text_keyword_count: args.request.textKeywords.length,
-          with_music: args.request.withMusic,
-          with_narration: args.request.withNarration,
-          narration_voice: args.request.narrationVoice,
-          format: args.request.format,
-          typology: args.request.typology,
-          visual_style: args.request.visualStyle,
-          image_style: args.request.imageStyle,
-          shot_type: args.request.shotType,
-          people_mode: args.request.peopleMode,
-          creativity: args.request.creativity,
-          use_brand_colors: args.request.useBrandColors,
-          logo_mode: args.request.logoMode,
-          video_engine: args.request.videoEngine,
-          duration_seconds: args.request.durationSeconds,
-          inspiration_image_count: args.request.inspirationImages.length,
-          inspiration_image_sha256: args.request.inspirationImages.map((image) =>
-            createHash("sha256").update(image.data).digest("hex"),
-          ),
+          subject_source: providerRequest.subjectSource,
+          ai_instruction_present: Boolean(providerRequest.aiInstruction),
+          ai_instruction_char_count: providerRequest.aiInstruction.length,
+          with_text: providerRequest.withText,
+          text_keyword_count: providerRequest.textKeywords.length,
+          with_music: providerRequest.withMusic,
+          with_narration: providerRequest.withNarration,
+          narration_voice: providerRequest.narrationVoice,
+          format: providerRequest.format,
+          typology: providerRequest.typology,
+          visual_style: providerRequest.visualStyle,
+          image_style: providerRequest.imageStyle,
+          shot_type: providerRequest.shotType,
+          people_mode: providerRequest.peopleMode,
+          creativity: providerRequest.creativity,
+          use_brand_colors: providerRequest.useBrandColors,
+          logo_mode: providerRequest.logoMode,
+          video_engine: providerRequest.videoEngine,
+          identity_mode: providerRequest.identityMode,
+          video_character_mode: providerRequest.videoCharacterMode,
+          identity_consent: providerRequest.identityConsent
+            ? {
+                granted: true,
+                recorded_at: generatedAt,
+                version: "inrcy-media-identity-consent-v1",
+              }
+            : null,
+          duration_seconds: providerRequest.durationSeconds,
+          inspiration_image_count: providerRequest.inspirationImages.length,
           exact_logo_applied: Boolean(officialLogo),
-          brand_palette_applied: args.request.useBrandColors ? brandKit.colors : [],
+          brand_palette_applied: providerRequest.useBrandColors ? brandKit.colors : [],
           professional_library_images_used: 0,
-          original_ai_video: args.request.kind === "video",
+          original_ai_video:
+            providerRequest.kind === "video" && !localFallbackUsed,
           recent_publications_analyzed:
             generationContext.recentPublications.length,
           generated_at: generatedAt,
@@ -590,7 +856,7 @@ export async function generateAndSaveAiMedia(args: {
           actor_auth_user_id: args.authUserId,
           context_cache_source: generationContext.cacheSource,
         },
-        output_spec: getAiMediaPromptOutputSpec(args.request),
+        output_spec: getAiMediaPromptOutputSpec(providerRequest),
         gateway: providerMetadata,
         soundtrack: soundtrack
           ? {
@@ -612,8 +878,8 @@ export async function generateAndSaveAiMedia(args: {
   console.info("[ai-media] generation pipeline completed", {
     accountId: args.accountId,
     jobId: args.jobId,
-    kind: args.request.kind,
-    durationSeconds: args.request.durationSeconds || null,
+    kind: providerRequest.kind,
+    durationSeconds: providerRequest.durationSeconds || null,
     timingsMs: completedPipelineTimings,
   });
 

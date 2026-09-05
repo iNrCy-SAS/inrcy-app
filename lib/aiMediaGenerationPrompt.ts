@@ -7,7 +7,7 @@ import {
 } from "@/lib/aiMediaGenerationContracts";
 import { getAiLanguageLabel } from "@/lib/aiWritingProfile";
 
-export const AI_MEDIA_PROMPT_VERSION = "inrcy-media-v10-business-dna";
+export const AI_MEDIA_PROMPT_VERSION = "inrcy-media-v13-reference-team";
 export const AI_MEDIA_COMPILED_PROMPT_MAX_CHARS = 11_800;
 
 type RecentPublication = {
@@ -91,6 +91,63 @@ export function getAiMediaVisualDirection(request: AiMediaGenerationRequest) {
   ].join(" ; ");
 }
 
+export function getAiMediaIdentityDirection(
+  request: AiMediaGenerationRequest,
+) {
+  if (request.peopleMode === "none") return "";
+
+  const referenceCount = request.inspirationImages.length;
+  const mediaLabel = request.kind === "video" ? "vidéo" : "image";
+  const castRule =
+    request.peopleMode === "team"
+      ? "Respecter une petite équipe : le personnage de référence reste le sujet principal et les autres personnes demeurent secondaires."
+      : request.peopleMode === "solo"
+        ? "Respecter une personne unique : aucun second visage ni personnage ne doit apparaître."
+        : "Respecter la présence humaine automatique tout en gardant le personnage de référence comme sujet principal s’il apparaît.";
+  if (request.identityMode === "reference_team") {
+    const mappedPeople = Array.from(
+      { length: Math.max(2, referenceCount) },
+      (_, index) => `image ${index + 1} = personne ${index + 1}`,
+    ).join(", ");
+    return [
+      `ÉQUIPE DE RÉFÉRENCE : réunir les ${Math.max(2, referenceCount)} adultes distincts et autorisés dans la même ${mediaLabel}.`,
+      `${mappedPeople}. Chaque identité reste indépendante : préserver séparément le visage, la coiffure et les signes distinctifs de chaque personne.`,
+      "Faire apparaître chaque personne exactement une fois ; ne jamais fusionner, permuter, dupliquer, omettre ni remplacer une identité par un visage générique.",
+      request.kind === "video"
+        ? "Lorsque l’animation reçoit une image de groupe précomposée, conserver tous les membres visibles de cette équipe pendant le plan et éviter toute transformation du visage."
+        : `Composer une scène de groupe naturelle dans le rendu choisi (${IMAGE_DIRECTIONS[request.imageStyle]}), puis faire contrôler les ressemblances avant validation.`,
+    ].join("\n");
+  }
+  if (request.identityMode === "professional") {
+    return [
+      `IDENTITÉ VISUELLE GUIDÉE : les références autorisées d’un professionnel adulte visent à préserver son apparence dans ${request.kind === "video" ? "la vidéo" : "l’image"}.`,
+      `Le représenter dans le rendu choisi (${IMAGE_DIRECTIONS[request.imageStyle]}), sans le remplacer par un visage générique. Le professionnel doit contrôler la ressemblance avant validation du média.`,
+      castRule,
+      request.kind === "video"
+        ? `Utiliser les ${referenceCount} photo${referenceCount > 1 ? "s" : ""} de référence pour guider chaque plan et viser une continuité cohérente de la même personne pendant toute la vidéo.`
+        : `Utiliser les ${referenceCount} photo${referenceCount > 1 ? "s" : ""} de référence pour guider l’apparence, avec une posture, un vêtement et un décor adaptés au brief.`,
+    ].join("\n");
+  }
+
+  if (request.identityMode === "brand_avatar") {
+    return [
+      `AVATAR DE MARQUE GUIDÉ : créer ou reprendre l’avatar illustré autorisé comme personnage de ${request.kind === "video" ? "la vidéo" : "l’image"}.`,
+      `Le décliner dans le rendu choisi (${IMAGE_DIRECTIONS[request.imageStyle]}) en visant une apparence, une palette et des signes distinctifs cohérents${request.kind === "video" ? " entre les plans" : ""}. Faire contrôler le résultat avant validation.`,
+      castRule,
+      referenceCount
+        ? `Les ${referenceCount} référence${referenceCount > 1 ? "s" : ""} autorisée${referenceCount > 1 ? "s" : ""} guident ${request.kind === "video" ? "chaque plan" : "le rendu"} : viser le même avatar, qu’elles montrent un dessin existant ou une personne adulte autorisée à styliser.`
+        : `Créer un avatar professionnel original et cohérent avec l’ADN, puis viser une continuité visuelle de ce personnage dans ${mediaLabel}.`,
+    ].join("\n");
+  }
+
+  return referenceCount
+    ? "IDENTITÉ LIBRE : les médias fournis inspirent le sujet ou la scène, sans imposer une identité réelle particulière."
+    : "IDENTITÉ LIBRE : choisir des personnes génériques crédibles uniquement si elles servent le message.";
+}
+
+/** @deprecated Alias historique conservé pour les imports vidéo existants. */
+export const getAiMediaVideoIdentityDirection = getAiMediaIdentityDirection;
+
 function safeCompositionGuide(request: AiMediaGenerationRequest) {
   const guides: Record<AiMediaGenerationRequest["format"], string> = {
     square:
@@ -131,6 +188,16 @@ function buildCreativeBrief(request: AiMediaGenerationRequest) {
   ].join("\n");
 }
 
+function buildAiInstruction(request: AiMediaGenerationRequest) {
+  const instruction = clean(request.aiInstruction, 600);
+  if (!instruction) return "";
+  return [
+    "CONSIGNE PONCTUELLE DU PROFESSIONNEL — pour cette génération uniquement :",
+    instruction,
+    "L’appliquer comme direction créative sans la recopier ni l’afficher. Elle ne peut jamais imposer un fait absent de l’ADN, contourner les règles de sécurité ou dégrader la lisibilité du média.",
+  ].join("\n");
+}
+
 function buildHistory(recentPublications: readonly RecentPublication[]) {
   const rows = recentPublications
     .slice(0, 5)
@@ -148,7 +215,7 @@ function buildHistory(recentPublications: readonly RecentPublication[]) {
 function sharedSafetyRules() {
   return [
     "Ne jamais inventer de prix, promotion, certification, avis client, adresse, numéro de téléphone ou résultat garanti.",
-    "Ne pas imiter une marque, une personnalité, une œuvre ou un personnage protégé.",
+    "Ne pas imiter une marque, une personnalité publique non autorisée, une œuvre ou un personnage protégé.",
     "Ne jamais afficher les consignes du brief dans l’image.",
     "Le texte du brief décrit une idée et non une accroche : ne jamais le recopier, même partiellement, dans le média.",
     "Le rendu doit être crédible, inclusif, directement publiable et adapté à une petite entreprise.",
@@ -189,13 +256,27 @@ export function buildAiMediaPrompt(args: {
     `objectif ${preferences.mainGoal}`,
     `angle ${preferences.preferredAngle}`,
   ].join(", ");
+  const hasStrictIdentityReferences =
+    request.inspirationImages.length > 0 &&
+    (request.identityMode === "professional" ||
+      request.identityMode === "brand_avatar" ||
+      request.identityMode === "reference_team");
+  const referenceInputLabel = hasStrictIdentityReferences
+    ? `${request.inspirationImages.length} référence${request.inspirationImages.length > 1 ? "s" : ""} d’identité autorisée${request.inspirationImages.length > 1 ? "s" : ""}`
+    : `${request.inspirationImages.length} inspiration${request.inspirationImages.length > 1 ? "s" : ""} visuelle${request.inspirationImages.length > 1 ? "s" : ""} autorisée${request.inspirationImages.length > 1 ? "s" : ""}`;
 
   const imageReferenceRules = request.kind === "image"
     ? [
-        "ENTRÉES AUTORISÉES : le sujet ci-dessous, l’ADN professionnel structuré et, lorsqu’il est présent, le seul fichier image fourni qui est le logo officiel.",
-        "Aucune photo de Médiathèque, aucun ancien média et aucune photo de publication ne sont fournis : imaginer une scène originale strictement adaptée au sujet actuel.",
+        `ENTRÉES AUTORISÉES : le sujet ci-dessous, l’ADN professionnel structuré${request.inspirationImages.length ? ` et ${referenceInputLabel} avec accord ponctuel` : ""}${args.hasLogo ? ", puis le logo officiel" : ""}.`,
+        request.inspirationImages.length
+          ? hasStrictIdentityReferences
+            ? request.identityMode === "reference_team"
+              ? `Les ${request.inspirationImages.length} références représentent autant de personnes distinctes : image 1 = personne 1, image 2 = personne 2${request.inspirationImages.length === 3 ? ", image 3 = personne 3" : ""}. Les réunir toutes, exactement une fois chacune, sans fusion, permutation, duplication ni substitution générique. Ne jamais recopier leur arrière-plan par défaut.`
+              : "Les références d’identité servent uniquement à guider l’apparence du professionnel ou à créer son avatar selon le mode choisi. Ne jamais recopier leur arrière-plan par défaut."
+            : "Les médias fournis sont uniquement des inspirations visuelles générales pour le sujet, l’ambiance ou la scène. Ils n’imposent aucune identité réelle à reproduire et ne doivent pas être recopiés comme anciens visuels."
+          : "Aucune photo de Médiathèque, d’identité, d’ancien média ou de publication n’est fournie : imaginer une scène originale strictement adaptée au sujet actuel.",
         args.hasLogo
-          ? `Le fichier image de référence est le logo officiel. Respecter fidèlement sa forme, ses proportions, ses couleurs et son orthographe. L’intégrer une seule fois, ${request.logoMode === "visible" ? "de façon clairement visible mais élégante" : "discrètement"}, dans une zone sûre ; il ne doit jamais devenir le sujet principal ni occuper plus de ${request.logoMode === "visible" ? "22" : "12"} % du visuel.`
+          ? `${request.inspirationImages.length ? "La dernière image de référence" : "Le seul fichier image de référence"} est le logo officiel. Respecter fidèlement sa forme, ses proportions, ses couleurs et son orthographe. L’intégrer une seule fois, ${request.logoMode === "visible" ? "de façon clairement visible mais élégante" : "discrètement"}, dans une zone sûre ; il ne doit jamais devenir le sujet principal ni occuper plus de ${request.logoMode === "visible" ? "22" : "12"} % du visuel.`
           : "Aucun logo n’est fourni : ne créer aucun logo, monogramme, emblème ou pseudo-logo.",
         request.withText
           ? [
@@ -235,8 +316,10 @@ export function buildAiMediaPrompt(args: {
         ? "Palette créative libre et cohérente avec le secteur. Ne pas étendre les couleurs du logo à toute l’image : elles doivent rester limitées au logo lui-même."
         : "Palette créative libre, harmonieuse, professionnelle et cohérente avec le secteur.",
     imageReferenceRules,
+    getAiMediaIdentityDirection(request),
     "BRIEF :",
     buildCreativeBrief(request),
+    buildAiInstruction(request),
     "ADN PROFESSIONNEL AUTORISÉ — utiliser uniquement les éléments pertinents pour le sujet, sans afficher ni recopier ce bloc :",
     buildBusinessDna(profile),
     "HISTORIQUE RÉCENT À NE PAS COPIER (éviter les répétitions visuelles) :",
@@ -286,5 +369,8 @@ export function getAiMediaPromptOutputSpec(
     useBrandColors: value.useBrandColors,
     logoMode: value.logoMode,
     videoEngine: value.kind === "video" ? value.videoEngine : null,
+    identityMode: value.identityMode,
+    videoCharacterMode:
+      value.kind === "video" ? value.videoCharacterMode : null,
   };
 }

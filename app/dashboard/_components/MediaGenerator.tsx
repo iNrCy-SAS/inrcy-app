@@ -20,9 +20,15 @@ import useMediaGeneration, {
   type MediaGenerationSubjectSource,
   type MediaGenerationTypology,
   type MediaGenerationVideoDuration,
+  type MediaGenerationVideoCharacterMode,
   type MediaGenerationVideoEngine,
   type MediaGenerationVisualStyle,
 } from "@/app/dashboard/_hooks/useMediaGeneration";
+import useAiMediaGeneratorPreferences from "@/app/dashboard/_hooks/useAiMediaGeneratorPreferences";
+import type {
+  AiMediaGeneratorBlockDefaults,
+  AiMediaGeneratorPreferenceBlockId,
+} from "@/lib/aiMediaGenerationPreferences";
 import MediaSubjectVoiceButton from "./MediaSubjectVoiceButton";
 
 import styles from "./MediaGenerator.module.css";
@@ -77,6 +83,12 @@ const IMAGE_STYLES: MediaGenerationImageStyle[] = [
 ];
 const SHOT_TYPES: MediaGenerationShotType[] = ["auto", "close", "medium", "wide"];
 const PEOPLE_MODES: MediaGenerationPeopleMode[] = ["auto", "none", "solo", "team"];
+const VIDEO_CHARACTER_MODES: MediaGenerationVideoCharacterMode[] = [
+  "auto",
+  "professional",
+  "brand_avatar",
+  "reference_team",
+];
 const CREATIVITY_LEVELS: MediaGenerationCreativity[] = ["faithful", "bold"];
 const LOGO_MODES: MediaGenerationLogoMode[] = ["discreet", "visible", "none"];
 const MAX_TEXT_KEYWORDS = 6;
@@ -84,6 +96,43 @@ const MAX_INSPIRATION_SOURCE_BYTES = 12 * 1024 * 1024;
 const MAX_INSPIRATION_OUTPUT_BYTES = 560_000;
 const MAX_INSPIRATION_DIMENSION = 1_280;
 const MAX_INSPIRATION_IMAGES = 3;
+
+type RememberPreferenceControlProps = {
+  checked: boolean;
+  disabled: boolean;
+  saving: boolean;
+  label: string;
+  savingLabel: string;
+  blockTitle: string;
+  onChange: (checked: boolean) => void;
+};
+
+function RememberPreferenceControl({
+  checked,
+  disabled,
+  saving,
+  label,
+  savingLabel,
+  blockTitle,
+  onChange,
+}: RememberPreferenceControlProps) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={`${label} — ${blockTitle}`}
+      className={styles.rememberPreference}
+      data-checked={checked ? "true" : "false"}
+      data-saving={saving ? "true" : "false"}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+    >
+      <span aria-hidden="true" />
+      <small>{saving ? savingLabel : label}</small>
+    </button>
+  );
+}
 
 function canvasBlob(
   canvas: HTMLCanvasElement,
@@ -180,6 +229,13 @@ async function prepareInspirationImage(
   }
 }
 
+function createIdentityReferenceSetId() {
+  if (typeof globalThis.crypto?.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+  return `identity-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
 function normalizeTextKeywordValues(values: readonly string[]) {
   const normalized: string[] = [];
   const seen = new Set<string>();
@@ -230,11 +286,21 @@ export default function MediaGenerator({
     discardDraft,
     reset,
   } = useMediaGeneration();
+  const {
+    preferences: savedPreferences,
+    loaded: preferencesLoaded,
+    loading: preferencesLoading,
+    error: preferencesError,
+    savingBlockIds,
+    accountEpoch: preferencesAccountEpoch,
+    saveBlock: savePreferenceBlock,
+  } = useAiMediaGeneratorPreferences();
 
   const [subjectSource, setSubjectSource] = useState<MediaGenerationSubjectSource>(
     publicationAvailable ? "publication" : "profile",
   );
   const [customIdea, setCustomIdea] = useState("");
+  const [aiInstruction, setAiInstruction] = useState("");
   const [kind, setKind] = useState<MediaGenerationKind>("image");
   const [format, setFormat] = useState<MediaGenerationFormat>("square");
   const [typology, setTypology] = useState<MediaGenerationTypology>("service");
@@ -242,6 +308,9 @@ export default function MediaGenerator({
   const [imageStyle, setImageStyle] = useState<MediaGenerationImageStyle>("photo");
   const [shotType, setShotType] = useState<MediaGenerationShotType>("auto");
   const [peopleMode, setPeopleMode] = useState<MediaGenerationPeopleMode>("auto");
+  const [videoCharacterMode, setVideoCharacterMode] =
+    useState<MediaGenerationVideoCharacterMode>("auto");
+  const [identityConsent, setIdentityConsent] = useState(false);
   const [creativity, setCreativity] = useState<MediaGenerationCreativity>("faithful");
   const [useBrandColors, setUseBrandColors] = useState(true);
   const [logoMode, setLogoMode] = useState<MediaGenerationLogoMode>("discreet");
@@ -267,10 +336,93 @@ export default function MediaGenerator({
   const [discarding, setDiscarding] = useState(false);
   const [actionError, setActionError] = useState("");
   const [cancelConfirmationOpen, setCancelConfirmationOpen] = useState(false);
+  const appliedPreferencesEpochRef = useRef(-1);
+  const clearedSensitiveStateEpochRef = useRef(0);
   const generationSequenceRef = useRef(0);
+  const identityReferenceSetIdRef = useRef("");
+  if (!identityReferenceSetIdRef.current) {
+    identityReferenceSetIdRef.current = createIdentityReferenceSetId();
+  }
   const acceptInFlightRef = useRef(false);
   const busy = generationBusy || discarding;
   const operationLocked = busy || finishing || voiceBusy || inspirationBusy;
+
+  useEffect(() => {
+    if (clearedSensitiveStateEpochRef.current === preferencesAccountEpoch) return;
+    clearedSensitiveStateEpochRef.current = preferencesAccountEpoch;
+    setCustomIdea("");
+    setAiInstruction("");
+    setTextKeywords([]);
+    setTextKeywordDraft("");
+    setInspirationImages([]);
+    setIdentityConsent(false);
+    identityReferenceSetIdRef.current = createIdentityReferenceSetId();
+  }, [preferencesAccountEpoch]);
+
+  useEffect(() => {
+    if (!preferencesLoaded) return;
+    if (appliedPreferencesEpochRef.current === preferencesAccountEpoch) return;
+
+    const block1 = savedPreferences.blocks[1];
+    if (block1.saved) {
+      setKind(block1.defaults.kind);
+      setSubjectSource(
+        block1.defaults.subjectSource === "publication" && !publicationAvailable
+          ? "profile"
+          : block1.defaults.subjectSource,
+      );
+    }
+
+    const block2 = savedPreferences.blocks[2];
+    if (block2.saved) {
+      setTypology(block2.defaults.typology);
+      setFormat(block2.defaults.format);
+    }
+
+    const block3 = savedPreferences.blocks[3];
+    if (block3.saved) {
+      setVisualStyle(block3.defaults.visualStyle);
+      setCreativity(block3.defaults.creativity);
+      setUseBrandColors(block3.defaults.useBrandColors);
+      setLogoMode(block3.defaults.logoMode);
+    }
+
+    const block4 = savedPreferences.blocks[4];
+    if (block4.saved) {
+      setImageStyle(block4.defaults.imageStyle);
+      setShotType(block4.defaults.shotType);
+    }
+
+    const block5 = savedPreferences.blocks[5];
+    if (block5.saved) {
+      setPeopleMode(
+        block5.defaults.identityMode === "reference_team"
+          ? "team"
+          : block5.defaults.peopleMode,
+      );
+      setVideoCharacterMode(
+        block5.defaults.peopleMode === "none"
+          ? "auto"
+          : block5.defaults.identityMode,
+      );
+    }
+
+    const block6 = savedPreferences.blocks[6];
+    if (block6.saved) {
+      setDurationSeconds(block6.defaults.durationSeconds);
+      setWithText(block6.defaults.withText);
+      setWithMusic(block6.defaults.withMusic);
+      setWithNarration(block6.defaults.withNarration);
+      setNarrationVoice(block6.defaults.narrationVoice);
+    }
+
+    appliedPreferencesEpochRef.current = preferencesAccountEpoch;
+  }, [
+    preferencesAccountEpoch,
+    preferencesLoaded,
+    publicationAvailable,
+    savedPreferences,
+  ]);
 
   useEffect(() => {
     void loadQuota();
@@ -311,12 +463,36 @@ export default function MediaGenerator({
   const counter = quota?.[kind] || null;
   const exhausted = quota?.unlimited ? false : counter?.remaining === 0;
   const videoMaxDurationSeconds = quota?.videoMaxDurationSeconds ?? 24;
+
+  useEffect(() => {
+    if (!quota) return;
+    setDurationSeconds((current) =>
+      current > videoMaxDurationSeconds ? videoMaxDurationSeconds : current,
+    );
+  }, [quota, videoMaxDurationSeconds]);
+
   const videoDurationRestricted =
     kind === "video" && videoMaxDurationSeconds < 24;
   const videoPremiumRequired =
     kind === "video" && durationSeconds > videoMaxDurationSeconds;
+  const characterReferenceMissing =
+    peopleMode !== "none" &&
+    ((videoCharacterMode === "professional" ||
+      videoCharacterMode === "brand_avatar")
+      ? inspirationImages.length === 0
+      : videoCharacterMode === "reference_team"
+        ? inspirationImages.length < 2 || inspirationImages.length > 3
+        : false);
+  const identityConsentRequired =
+    peopleMode !== "none" && inspirationImages.length > 0;
+  const identityConsentMissing = identityConsentRequired && !identityConsent;
   const disabled =
-    operationLocked || !subjectReady || Boolean(exhausted) || videoPremiumRequired;
+    operationLocked ||
+    !subjectReady ||
+    Boolean(exhausted) ||
+    videoPremiumRequired ||
+    characterReferenceMissing ||
+    identityConsentMissing;
 
   const resetDate = useMemo(() => {
     if (!quota?.resetAt) return "";
@@ -333,7 +509,13 @@ export default function MediaGenerator({
         : progress < 42
           ? t("ai_generator_stage_brand")
           : progress < 72
-            ? t(kind === "video" ? "ai_generator_stage_storyboard" : "ai_generator_stage_image")
+            ? t(
+                kind === "video"
+                  ? videoCharacterMode === "reference_team"
+                    ? "ai_generator_stage_team_composition"
+                    : "ai_generator_stage_storyboard"
+                  : "ai_generator_stage_image",
+              )
             : t(kind === "video" ? "ai_generator_stage_render" : "ai_generator_stage_finish");
 
   const quotaValue =
@@ -365,6 +547,66 @@ export default function MediaGenerator({
     if (actionError || error) clearTransientState();
   };
 
+  const handleRememberPreference = (
+    blockId: AiMediaGeneratorPreferenceBlockId,
+    checked: boolean,
+  ) => {
+    switch (blockId) {
+      case 1: {
+        const defaults: AiMediaGeneratorBlockDefaults[1] = {
+          kind,
+          // A free subject is one-shot. Choosing it never makes its text, or
+          // even the empty custom editor, the next generation's default.
+          subjectSource: subjectSource === "publication" ? "publication" : "profile",
+        };
+        void savePreferenceBlock(1, checked, defaults);
+        return;
+      }
+      case 2: {
+        const defaults: AiMediaGeneratorBlockDefaults[2] = { typology, format };
+        void savePreferenceBlock(2, checked, defaults);
+        return;
+      }
+      case 3: {
+        const defaults: AiMediaGeneratorBlockDefaults[3] = {
+          visualStyle,
+          creativity,
+          useBrandColors,
+          logoMode,
+        };
+        void savePreferenceBlock(3, checked, defaults);
+        return;
+      }
+      case 4: {
+        const defaults: AiMediaGeneratorBlockDefaults[4] = {
+          imageStyle,
+          shotType,
+        };
+        void savePreferenceBlock(4, checked, defaults);
+        return;
+      }
+      case 5: {
+        const defaults: AiMediaGeneratorBlockDefaults[5] = {
+          peopleMode:
+            videoCharacterMode === "reference_team" ? "team" : peopleMode,
+          identityMode: peopleMode === "none" ? "auto" : videoCharacterMode,
+        };
+        void savePreferenceBlock(5, checked, defaults);
+        return;
+      }
+      case 6: {
+        const defaults: AiMediaGeneratorBlockDefaults[6] = {
+          durationSeconds,
+          withText,
+          withMusic,
+          withNarration,
+          narrationVoice,
+        };
+        void savePreferenceBlock(6, checked, defaults);
+      }
+    }
+  };
+
   const handleGenerate = async () => {
     if (!subjectReady) return;
     const sequence = generationSequenceRef.current + 1;
@@ -393,6 +635,7 @@ export default function MediaGenerator({
         kind,
         subjectSource,
         idea: resolvedIdea,
+        aiInstruction: aiInstruction.trim(),
         withText,
         textKeywords: resolvedTextKeywords,
         withMusic: kind === "video" ? withMusic : undefined,
@@ -405,12 +648,23 @@ export default function MediaGenerator({
         imageStyle,
         shotType,
         peopleMode,
+        identityMode:
+          peopleMode !== "none" ? videoCharacterMode : "auto",
+        videoCharacterMode:
+          peopleMode !== "none" ? videoCharacterMode : "auto",
+        identityConsent:
+          peopleMode !== "none" ? identityConsent : false,
+        identityReferenceSetId:
+          peopleMode !== "none" && inspirationImages.length
+            ? identityReferenceSetIdRef.current
+            : undefined,
         creativity,
         useBrandColors,
         logoMode,
         videoEngine: kind === "video" ? videoEngine : undefined,
         durationSeconds: kind === "video" ? durationSeconds : undefined,
-        inspirationImages: kind === "video" ? inspirationImages : [],
+        inspirationImages:
+          peopleMode !== "none" ? inspirationImages : [],
       });
     } catch (caught) {
       if (sequence !== generationSequenceRef.current) return;
@@ -423,6 +677,10 @@ export default function MediaGenerator({
         return;
       }
       setActionError(caught instanceof Error ? caught.message : t("ai_generator_error"));
+    } finally {
+      // L'accord porte sur un essai de génération précis. Une nouvelle
+      // tentative, réussie ou non, exige donc une confirmation fraîche.
+      if (inspirationImages.length > 0) setIdentityConsent(false);
     }
   };
 
@@ -523,9 +781,14 @@ export default function MediaGenerator({
             <p className={styles.creationEyebrow}>{t("ai_generator_creation_eyebrow")}</p>
             <h3>{progressLabel}</h3>
             <p>
-              {t(kind === "video" ? "ai_generator_video_creation_detail" : "ai_generator_image_creation_detail", {
-                duration: durationSeconds,
-              })}
+              {t(
+                kind === "video"
+                  ? videoCharacterMode === "reference_team"
+                    ? "ai_generator_video_creation_detail_team"
+                    : "ai_generator_video_creation_detail"
+                  : "ai_generator_image_creation_detail",
+                { duration: durationSeconds },
+              )}
             </p>
             <div className={styles.largeProgressTrack} aria-hidden="true">
               <span style={{ width: `${Math.max(4, progress)}%` }} />
@@ -661,27 +924,38 @@ export default function MediaGenerator({
     <div className={styles.generator} data-origin={origin}>
       <div className={styles.criteriaGrid}>
         <section className={`${styles.criteriaSection} ${styles.collapsibleSection}`}>
-          <button
-            type="button"
-            className={styles.collapsibleToggle}
-            aria-expanded={expandedStep === 1}
-            onClick={() => setExpandedStep((current) => current === 1 ? null : 1)}
-          >
-            <span className={styles.stepBadge}>1</span>
-            <span className={styles.collapsibleTitle}>
-              <strong>{t("ai_generator_group_creation_title")}</strong>
-              <small>{t("ai_generator_group_creation_hint")}</small>
-            </span>
-            <span className={styles.sectionSelection}>
-              {t(kind === "image" ? "image_50e19fda" : "video_304f6ca4")} · {t(`ai_generator_subject_${subjectSource}`)}
-              {kind === "video" && inspirationImages.length
-                ? t("ai_generator_inspiration_summary", {
-                    count: inspirationImages.length,
-                  })
-                : ""}
-            </span>
-            <i aria-hidden="true">⌄</i>
-          </button>
+          <div className={styles.collapsibleHeader}>
+            <button
+              type="button"
+              className={styles.collapsibleToggle}
+              aria-expanded={expandedStep === 1}
+              onClick={() => setExpandedStep((current) => current === 1 ? null : 1)}
+            >
+              <span className={styles.stepBadge}>1</span>
+              <span className={styles.collapsibleTitle}>
+                <strong>{t("ai_generator_group_creation_title")}</strong>
+                <small>{t("ai_generator_group_creation_hint")}</small>
+              </span>
+              <span className={styles.sectionSelection}>
+                {t(kind === "image" ? "image_50e19fda" : "video_304f6ca4")} · {t(`ai_generator_subject_${subjectSource}`)}
+                {inspirationImages.length
+                  ? t("ai_generator_inspiration_summary", {
+                      count: inspirationImages.length,
+                    })
+                  : ""}
+              </span>
+              <i aria-hidden="true">⌄</i>
+            </button>
+            <RememberPreferenceControl
+              checked={savedPreferences.blocks[1].saved}
+              disabled={preferencesLoading || savingBlockIds.has(1)}
+              saving={savingBlockIds.has(1)}
+              label={t("ai_generator_remember_settings")}
+              savingLabel={t("ai_generator_preferences_saving")}
+              blockTitle={t("ai_generator_group_creation_title")}
+              onChange={(checked) => handleRememberPreference(1, checked)}
+            />
+          </div>
           {expandedStep === 1 ? <div className={styles.collapsibleBody}>
             <div className={styles.combinedSubsection}>
               <strong className={styles.combinedSectionTitle}>{t("ai_generator_step_kind")}</strong>
@@ -696,12 +970,21 @@ export default function MediaGenerator({
                     disabled={operationLocked}
                     onClick={() => {
                       clearTransientState();
+                      setIdentityConsent(false);
                       setKind(option);
                     }}
                   >
                     <span aria-hidden="true">{option === "image" ? "✦" : "▶"}</span>
                     <strong>{t(option === "image" ? "image_50e19fda" : "video_304f6ca4")}</strong>
-                    <small>{t(option === "image" ? "ai_generator_kind_image_hint" : "ai_generator_kind_video_hint")}</small>
+                    <small>
+                      {t(
+                        option === "image"
+                          ? "ai_generator_kind_image_hint"
+                          : videoCharacterMode === "reference_team"
+                            ? "ai_generator_kind_video_hint_team"
+                            : "ai_generator_kind_video_hint",
+                      )}
+                    </small>
                   </button>
                 ))}
               </div>
@@ -758,132 +1041,61 @@ export default function MediaGenerator({
                 {customIdea.trim().length > 0 && customIdea.trim().length < 3 ? <small>{t("ai_generator_custom_too_short")}</small> : null}
                 </div>
               ) : null}
-              {kind === "video" ? (
-                <div className={styles.inspirationSection}>
-                  <strong className={styles.combinedSectionTitle}>
-                    {t("ai_generator_inspiration_title")}
-                  </strong>
-                  <p>{t("ai_generator_inspiration_hint")}</p>
-                  {inspirationImages.length ? (
-                    <div className={styles.inspirationPreviews}>
-                      {inspirationImages.map((image, index) => (
-                        <div
-                          key={`${image.name}-${index}`}
-                          className={styles.inspirationPreview}
-                        >
-                          <img
-                            src={`data:${image.mimeType};base64,${image.data}`}
-                            alt=""
-                          />
-                          <span>
-                            <strong>{image.name}</strong>
-                            <small>{t("ai_generator_inspiration_ready")}</small>
-                          </span>
-                          <button
-                            type="button"
-                            disabled={operationLocked}
-                            aria-label={t("ai_generator_inspiration_remove")}
-                            onClick={() => {
-                              setInspirationImages((current) =>
-                                current.filter((_, itemIndex) => itemIndex !== index),
-                              );
-                              if (actionError || error) clearTransientState();
-                            }}
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-                  {inspirationImages.length < MAX_INSPIRATION_IMAGES ? (
-                    <div className={styles.inspirationPickerRow}>
-                      <label className={styles.inspirationPicker}>
-                        <span aria-hidden="true">＋</span>
-                        <strong>
-                          {inspirationBusy
-                            ? t("ai_generator_inspiration_preparing")
-                            : t("ai_generator_inspiration_add")}
-                        </strong>
-                        <small>
-                          {inspirationImages.length} / {MAX_INSPIRATION_IMAGES}
-                        </small>
-                        <input
-                          type="file"
-                          multiple
-                          accept="image/jpeg,image/png,image/webp"
-                          disabled={operationLocked}
-                          onChange={(event) => {
-                            const remaining =
-                              MAX_INSPIRATION_IMAGES - inspirationImages.length;
-                            const files = Array.from(event.currentTarget.files || []).slice(
-                              0,
-                              remaining,
-                            );
-                            event.currentTarget.value = "";
-                            if (!files.length) return;
-                            setInspirationBusy(true);
-                            setActionError("");
-                            void Promise.all(files.map(prepareInspirationImage))
-                              .then((prepared) =>
-                                setInspirationImages((current) =>
-                                  [...current, ...prepared].slice(
-                                    0,
-                                    MAX_INSPIRATION_IMAGES,
-                                  ),
-                                ),
-                              )
-                              .catch((caught) =>
-                                setActionError(
-                                  caught instanceof Error
-                                    ? caught.message
-                                    : t("ai_generator_error"),
-                                ),
-                              )
-                              .finally(() => setInspirationBusy(false));
-                          }}
-                        />
-                      </label>
-                      <button
-                        type="button"
-                        className={styles.inspirationInfoButton}
-                        aria-label={t("ai_generator_inspiration_rules_title")}
-                        aria-expanded={inspirationRulesOpen}
-                        onClick={() => setInspirationRulesOpen((current) => !current)}
-                      >
-                        i
-                      </button>
-                      {inspirationRulesOpen ? (
-                        <aside className={styles.inspirationInfoBubble} role="note">
-                          <strong>{t("ai_generator_inspiration_rules_title")}</strong>
-                          <p>{t("ai_generator_inspiration_rules_body")}</p>
-                        </aside>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
+              <div className={styles.aiInstructionField}>
+                <label htmlFor="ai-media-instruction">
+                  {t("ai_generator_instruction_label")}
+                  <small>{t("ai_generator_instruction_optional")}</small>
+                </label>
+                <textarea
+                  id="ai-media-instruction"
+                  value={aiInstruction}
+                  onChange={(event) => {
+                    setAiInstruction(event.target.value);
+                    if (actionError || error) clearTransientState();
+                  }}
+                  placeholder={t("ai_generator_instruction_placeholder")}
+                  maxLength={600}
+                  disabled={operationLocked}
+                  rows={2}
+                  aria-describedby="ai-media-instruction-hint"
+                />
+                <span id="ai-media-instruction-hint">
+                  {t("ai_generator_instruction_hint")}
+                  {aiInstruction.length ? ` · ${aiInstruction.length}/600` : ""}
+                </span>
+              </div>
             </div>
           </div> : null}
         </section>
 
         <section className={`${styles.criteriaSection} ${styles.collapsibleSection} ${styles.contentCriteriaSection}`}>
-          <button
-            type="button"
-            className={styles.collapsibleToggle}
-            aria-expanded={expandedStep === 2}
-            onClick={() => setExpandedStep((current) => current === 2 ? null : 2)}
-          >
-            <span className={styles.stepBadge}>2</span>
-            <span className={styles.collapsibleTitle}>
-              <strong>{t("ai_generator_group_content_title")}</strong>
-              <small>{t("ai_generator_group_content_hint")}</small>
-            </span>
-            <span className={styles.sectionSelection}>
-              {t(`ai_generator_typology_${typology}`)} · {FORMATS.find((item) => item.id === format)?.ratio}
-            </span>
-            <i aria-hidden="true">⌄</i>
-          </button>
+          <div className={styles.collapsibleHeader}>
+            <button
+              type="button"
+              className={styles.collapsibleToggle}
+              aria-expanded={expandedStep === 2}
+              onClick={() => setExpandedStep((current) => current === 2 ? null : 2)}
+            >
+              <span className={styles.stepBadge}>2</span>
+              <span className={styles.collapsibleTitle}>
+                <strong>{t("ai_generator_group_content_title")}</strong>
+                <small>{t("ai_generator_group_content_hint")}</small>
+              </span>
+              <span className={styles.sectionSelection}>
+                {t(`ai_generator_typology_${typology}`)} · {FORMATS.find((item) => item.id === format)?.ratio}
+              </span>
+              <i aria-hidden="true">⌄</i>
+            </button>
+            <RememberPreferenceControl
+              checked={savedPreferences.blocks[2].saved}
+              disabled={preferencesLoading || savingBlockIds.has(2)}
+              saving={savingBlockIds.has(2)}
+              label={t("ai_generator_remember_settings")}
+              savingLabel={t("ai_generator_preferences_saving")}
+              blockTitle={t("ai_generator_group_content_title")}
+              onChange={(checked) => handleRememberPreference(2, checked)}
+            />
+          </div>
           {expandedStep === 2 ? <div className={styles.collapsibleBody}>
             <div className={styles.combinedSubsection}>
               <strong className={styles.combinedSectionTitle}>{t("ai_generator_typology_title")}</strong>
@@ -928,20 +1140,33 @@ export default function MediaGenerator({
         </section>
 
         <section className={`${styles.criteriaSection} ${styles.collapsibleSection}`}>
-          <button
-            type="button"
-            className={styles.collapsibleToggle}
-            aria-expanded={expandedStep === 3}
-            onClick={() => setExpandedStep((current) => current === 3 ? null : 3)}
-          >
-            <span className={styles.stepBadge}>3</span>
-            <span className={styles.collapsibleTitle}>
-              <strong>{t("ai_generator_group_art_title")}</strong>
-              <small>{t("ai_generator_group_art_hint")}</small>
-            </span>
-            <span className={styles.sectionSelection}>{t(`ai_generator_style_${visualStyle}`)}</span>
-            <i aria-hidden="true">⌄</i>
-          </button>
+          <div className={styles.collapsibleHeader}>
+            <button
+              type="button"
+              className={styles.collapsibleToggle}
+              aria-expanded={expandedStep === 3}
+              onClick={() => setExpandedStep((current) => current === 3 ? null : 3)}
+            >
+              <span className={styles.stepBadge}>3</span>
+              <span className={styles.collapsibleTitle}>
+                <strong>{t("ai_generator_group_art_title")}</strong>
+                <small>{t("ai_generator_group_art_hint")}</small>
+              </span>
+              <span className={styles.sectionSelection}>
+                {t(`ai_generator_style_${visualStyle}`)} · {t(`ai_generator_creativity_${creativity}`)} · {t(`ai_generator_logo_${logoMode}`)}
+              </span>
+              <i aria-hidden="true">⌄</i>
+            </button>
+            <RememberPreferenceControl
+              checked={savedPreferences.blocks[3].saved}
+              disabled={preferencesLoading || savingBlockIds.has(3)}
+              saving={savingBlockIds.has(3)}
+              label={t("ai_generator_remember_settings")}
+              savingLabel={t("ai_generator_preferences_saving")}
+              blockTitle={t("ai_generator_group_art_title")}
+              onChange={(checked) => handleRememberPreference(3, checked)}
+            />
+          </div>
           {expandedStep === 3 ? <div className={styles.collapsibleBody}>
             <div className={styles.styleChoices} role="radiogroup" aria-label={t("ai_generator_style_title")}>
               {VISUAL_STYLES.map((option) => (
@@ -957,102 +1182,6 @@ export default function MediaGenerator({
                   {t(`ai_generator_style_${option}`)}
                 </button>
               ))}
-            </div>
-          </div> : null}
-        </section>
-
-        <section className={`${styles.criteriaSection} ${styles.collapsibleSection}`}>
-          <button
-            type="button"
-            className={styles.collapsibleToggle}
-            aria-expanded={expandedStep === 4}
-            onClick={() => setExpandedStep((current) => current === 4 ? null : 4)}
-          >
-            <span className={styles.stepBadge}>4</span>
-            <span className={styles.collapsibleTitle}>
-              <strong>{t("ai_generator_group_composition_title")}</strong>
-              <small>{t("ai_generator_group_composition_hint")}</small>
-            </span>
-            <span className={styles.sectionSelection}>
-              {t(`ai_generator_render_${imageStyle}`)} · {t(`ai_generator_shot_${shotType}`)}
-            </span>
-            <i aria-hidden="true">⌄</i>
-          </button>
-          {expandedStep === 4 ? <div className={styles.collapsibleBody}>
-            <div className={styles.parameterGroup}>
-              <span>{t("ai_generator_render_label")}</span>
-              <div className={styles.parameterChoices} role="radiogroup" aria-label={t("ai_generator_render_label")}>
-                {IMAGE_STYLES.map((option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    role="radio"
-                    aria-checked={imageStyle === option}
-                    className={imageStyle === option ? styles.compactChoiceActive : ""}
-                    onClick={() => setImageStyle(option)}
-                    disabled={operationLocked}
-                  >
-                    {t(`ai_generator_render_${option}`)}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className={styles.parameterGroup}>
-              <span>{t("ai_generator_shot_label")}</span>
-              <div className={styles.parameterChoices} role="radiogroup" aria-label={t("ai_generator_shot_label")}>
-                {SHOT_TYPES.map((option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    role="radio"
-                    aria-checked={shotType === option}
-                    className={shotType === option ? styles.compactChoiceActive : ""}
-                    onClick={() => setShotType(option)}
-                    disabled={operationLocked}
-                  >
-                    {t(`ai_generator_shot_${option}`)}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div> : null}
-        </section>
-
-        <section className={`${styles.criteriaSection} ${styles.collapsibleSection}`}>
-          <button
-            type="button"
-            className={styles.collapsibleToggle}
-            aria-expanded={expandedStep === 5}
-            onClick={() => setExpandedStep((current) => current === 5 ? null : 5)}
-          >
-            <span className={styles.stepBadge}>5</span>
-            <span className={styles.collapsibleTitle}>
-              <strong>{t("ai_generator_group_identity_title")}</strong>
-              <small>{t("ai_generator_group_identity_hint")}</small>
-            </span>
-            <span className={styles.sectionSelection}>
-              {t(`ai_generator_people_${peopleMode}`)} · {t(`ai_generator_logo_${logoMode}`)}
-            </span>
-            <i aria-hidden="true">⌄</i>
-          </button>
-          {expandedStep === 5 ? <div className={styles.collapsibleBody}>
-            <div className={styles.parameterGroup}>
-              <span>{t("ai_generator_people_label")}</span>
-              <div className={styles.parameterChoices} role="radiogroup" aria-label={t("ai_generator_people_label")}>
-                {PEOPLE_MODES.map((option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    role="radio"
-                    aria-checked={peopleMode === option}
-                    className={peopleMode === option ? styles.compactChoiceActive : ""}
-                    onClick={() => setPeopleMode(option)}
-                    disabled={operationLocked}
-                  >
-                    {t(`ai_generator_people_${option}`)}
-                  </button>
-                ))}
-              </div>
             </div>
             <div className={styles.parameterGroup}>
               <span>{t("ai_generator_creativity_label")}</span>
@@ -1101,37 +1230,370 @@ export default function MediaGenerator({
           </div> : null}
         </section>
 
+        <section className={`${styles.criteriaSection} ${styles.collapsibleSection}`}>
+          <div className={styles.collapsibleHeader}>
+            <button
+              type="button"
+              className={styles.collapsibleToggle}
+              aria-expanded={expandedStep === 4}
+              onClick={() => setExpandedStep((current) => current === 4 ? null : 4)}
+            >
+              <span className={styles.stepBadge}>4</span>
+              <span className={styles.collapsibleTitle}>
+                <strong>{t("ai_generator_group_composition_title")}</strong>
+                <small>{t("ai_generator_group_composition_hint")}</small>
+              </span>
+              <span className={styles.sectionSelection}>
+                {t(`ai_generator_render_${imageStyle}`)} · {t(`ai_generator_shot_${shotType}`)}
+              </span>
+              <i aria-hidden="true">⌄</i>
+            </button>
+            <RememberPreferenceControl
+              checked={savedPreferences.blocks[4].saved}
+              disabled={preferencesLoading || savingBlockIds.has(4)}
+              saving={savingBlockIds.has(4)}
+              label={t("ai_generator_remember_settings")}
+              savingLabel={t("ai_generator_preferences_saving")}
+              blockTitle={t("ai_generator_group_composition_title")}
+              onChange={(checked) => handleRememberPreference(4, checked)}
+            />
+          </div>
+          {expandedStep === 4 ? <div className={styles.collapsibleBody}>
+            <div className={styles.parameterGroup}>
+              <span>{t("ai_generator_render_label")}</span>
+              <div className={styles.parameterChoices} role="radiogroup" aria-label={t("ai_generator_render_label")}>
+                {IMAGE_STYLES.map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    role="radio"
+                    aria-checked={imageStyle === option}
+                    className={imageStyle === option ? styles.compactChoiceActive : ""}
+                    onClick={() => setImageStyle(option)}
+                    disabled={operationLocked}
+                  >
+                    {t(`ai_generator_render_${option}`)}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className={styles.parameterGroup}>
+              <span>{t("ai_generator_shot_label")}</span>
+              <div className={styles.parameterChoices} role="radiogroup" aria-label={t("ai_generator_shot_label")}>
+                {SHOT_TYPES.map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    role="radio"
+                    aria-checked={shotType === option}
+                    className={shotType === option ? styles.compactChoiceActive : ""}
+                    onClick={() => setShotType(option)}
+                    disabled={operationLocked}
+                  >
+                    {t(`ai_generator_shot_${option}`)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div> : null}
+        </section>
+
+        <section className={`${styles.criteriaSection} ${styles.collapsibleSection}`}>
+          <div className={styles.collapsibleHeader}>
+            <button
+              type="button"
+              className={styles.collapsibleToggle}
+              aria-expanded={expandedStep === 5}
+              onClick={() => setExpandedStep((current) => current === 5 ? null : 5)}
+            >
+              <span className={styles.stepBadge}>5</span>
+              <span className={styles.collapsibleTitle}>
+                <strong>{t("ai_generator_group_identity_title")}</strong>
+                <small>{t("ai_generator_group_identity_hint")}</small>
+              </span>
+              <span className={styles.sectionSelection}>
+                {peopleMode !== "none" ? (
+                  <>
+                    {t(`ai_generator_video_character_${videoCharacterMode}`)} · {inspirationImages.length
+                      ? t("ai_generator_reference_summary", { count: inspirationImages.length })
+                      : t(`ai_generator_people_${peopleMode}`)}
+                  </>
+                ) : t(`ai_generator_people_${peopleMode}`)}
+              </span>
+              <i aria-hidden="true">⌄</i>
+            </button>
+            <RememberPreferenceControl
+              checked={savedPreferences.blocks[5].saved}
+              disabled={preferencesLoading || savingBlockIds.has(5)}
+              saving={savingBlockIds.has(5)}
+              label={t("ai_generator_remember_settings")}
+              savingLabel={t("ai_generator_preferences_saving")}
+              blockTitle={t("ai_generator_group_identity_title")}
+              onChange={(checked) => handleRememberPreference(5, checked)}
+            />
+          </div>
+          {expandedStep === 5 ? <div className={styles.collapsibleBody}>
+            <div className={styles.parameterGroup}>
+              <span>{t("ai_generator_people_label")}</span>
+              <div className={styles.parameterChoices} role="radiogroup" aria-label={t("ai_generator_people_label")}>
+                {PEOPLE_MODES.map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    role="radio"
+                    aria-checked={peopleMode === option}
+                    className={peopleMode === option ? styles.compactChoiceActive : ""}
+                    onClick={() => {
+                      setPeopleMode(option);
+                      if (option === "none") {
+                        setVideoCharacterMode("auto");
+                        setIdentityConsent(false);
+                        setInspirationImages([]);
+                        identityReferenceSetIdRef.current = createIdentityReferenceSetId();
+                      } else if (
+                        videoCharacterMode === "reference_team" &&
+                        option !== "team"
+                      ) {
+                        setVideoCharacterMode("auto");
+                        setIdentityConsent(false);
+                      }
+                    }}
+                    disabled={operationLocked}
+                  >
+                    {t(`ai_generator_people_${option}`)}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {peopleMode !== "none" ? (
+              <>
+                <div className={styles.parameterGroup}>
+                  <span>{t("ai_generator_video_character_label")}</span>
+                  <div className={`${styles.parameterChoices} ${styles.identityModeChoices}`} role="radiogroup" aria-label={t("ai_generator_video_character_label")}>
+                    {VIDEO_CHARACTER_MODES.map((option) => (
+                      <button
+                        key={option}
+                        type="button"
+                        role="radio"
+                        aria-checked={videoCharacterMode === option}
+                        className={videoCharacterMode === option ? styles.compactChoiceActive : ""}
+                        onClick={() => {
+                          setVideoCharacterMode(option);
+                          if (option === "reference_team") setPeopleMode("team");
+                          setIdentityConsent(false);
+                          if (actionError || error) clearTransientState();
+                        }}
+                        disabled={operationLocked}
+                      >
+                        {t(`ai_generator_video_character_${option}`)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className={styles.inspirationSection}>
+                  <strong className={styles.combinedSectionTitle}>
+                    {t(
+                      videoCharacterMode === "professional"
+                        ? "ai_generator_professional_photos_title"
+                        : videoCharacterMode === "brand_avatar"
+                          ? "ai_generator_avatar_reference_title"
+                          : videoCharacterMode === "reference_team"
+                            ? "ai_generator_reference_team_title"
+                          : kind === "video"
+                            ? "ai_generator_media_to_animate_title"
+                            : "ai_generator_identity_reference_title",
+                    )}
+                  </strong>
+                  <p>
+                    {t(
+                      videoCharacterMode === "professional"
+                        ? "ai_generator_reference_professional_hint"
+                        : videoCharacterMode === "brand_avatar"
+                          ? "ai_generator_reference_avatar_hint"
+                          : videoCharacterMode === "reference_team"
+                            ? "ai_generator_reference_team_hint"
+                          : "ai_generator_reference_generic_hint",
+                    )}
+                  </p>
+                  {inspirationImages.length ? (
+                    <div className={styles.inspirationPreviews}>
+                      {inspirationImages.map((image, index) => (
+                        <div key={`${image.name}-${index}`} className={styles.inspirationPreview}>
+                          <img src={`data:${image.mimeType};base64,${image.data}`} alt="" />
+                          <span>
+                            <strong>{image.name}</strong>
+                            <small>{t("ai_generator_inspiration_ready")}</small>
+                          </span>
+                          <button
+                            type="button"
+                            disabled={operationLocked}
+                            aria-label={t("ai_generator_inspiration_remove")}
+                            onClick={() => {
+                              setInspirationImages((current) =>
+                                current.filter((_, itemIndex) => itemIndex !== index),
+                              );
+                              identityReferenceSetIdRef.current = createIdentityReferenceSetId();
+                              setIdentityConsent(false);
+                              if (actionError || error) clearTransientState();
+                            }}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                  {inspirationImages.length < MAX_INSPIRATION_IMAGES ? (
+                    <div className={styles.inspirationPickerRow}>
+                      <label className={styles.inspirationPicker}>
+                        <span aria-hidden="true">＋</span>
+                        <strong>
+                          {inspirationBusy
+                            ? t("ai_generator_inspiration_preparing")
+                            : t("ai_generator_inspiration_add")}
+                        </strong>
+                        <small>{inspirationImages.length} / {MAX_INSPIRATION_IMAGES}</small>
+                        <input
+                          type="file"
+                          multiple
+                          accept="image/jpeg,image/png,image/webp"
+                          disabled={operationLocked}
+                          onChange={(event) => {
+                            const remaining = MAX_INSPIRATION_IMAGES - inspirationImages.length;
+                            const files = Array.from(event.currentTarget.files || []).slice(0, remaining);
+                            event.currentTarget.value = "";
+                            if (!files.length) return;
+                            setInspirationBusy(true);
+                            setActionError("");
+                            void Promise.all(files.map(prepareInspirationImage))
+                              .then((prepared) => {
+                                setInspirationImages((current) =>
+                                  [...current, ...prepared].slice(0, MAX_INSPIRATION_IMAGES),
+                                );
+                                identityReferenceSetIdRef.current = createIdentityReferenceSetId();
+                                setIdentityConsent(false);
+                              })
+                              .catch((caught) =>
+                                setActionError(
+                                  caught instanceof Error ? caught.message : t("ai_generator_error"),
+                                ),
+                              )
+                              .finally(() => setInspirationBusy(false));
+                          }}
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        className={styles.inspirationInfoButton}
+                        aria-label={t("ai_generator_inspiration_rules_title")}
+                        aria-expanded={inspirationRulesOpen}
+                        onClick={() => setInspirationRulesOpen((current) => !current)}
+                      >
+                        i
+                      </button>
+                      {inspirationRulesOpen ? (
+                        <aside className={styles.inspirationInfoBubble} role="note">
+                          <strong>{t("ai_generator_inspiration_rules_title")}</strong>
+                          <p>{t("ai_generator_inspiration_rules_body")}</p>
+                        </aside>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {characterReferenceMissing ? (
+                    <p className={styles.identityRequirement} role="alert">
+                      {t(
+                        videoCharacterMode === "reference_team"
+                          ? "ai_generator_video_character_reference_team_required"
+                          : videoCharacterMode === "brand_avatar"
+                            ? "ai_generator_video_character_avatar_reference_required"
+                            : "ai_generator_video_character_professional_photo_required",
+                      )}
+                    </p>
+                  ) : null}
+                  {identityConsentRequired ? (
+                    <label className={styles.identityConsent}>
+                      <input
+                        type="checkbox"
+                        checked={identityConsent}
+                        disabled={operationLocked}
+                        onChange={(event) => {
+                          setIdentityConsent(event.target.checked);
+                          if (actionError || error) clearTransientState();
+                        }}
+                      />
+                      <span>
+                        <strong>
+                          {t(
+                            videoCharacterMode === "reference_team"
+                              ? "ai_generator_reference_team_consent_label"
+                              : "ai_generator_video_character_consent_label",
+                          )}
+                        </strong>
+                        <small>
+                          {t(
+                            videoCharacterMode === "reference_team" && kind === "video"
+                              ? "ai_generator_identity_consent_hint_team_video"
+                              : kind === "image"
+                              ? "ai_generator_identity_consent_hint_image"
+                              : "ai_generator_identity_consent_hint_video",
+                          )}
+                        </small>
+                      </span>
+                    </label>
+                  ) : null}
+                  {identityConsentMissing ? (
+                    <p className={styles.identityRequirement} role="alert">
+                      {t("ai_generator_video_character_consent_required")}
+                    </p>
+                  ) : null}
+                </div>
+              </>
+            ) : null}
+          </div> : null}
+        </section>
+
         <section className={`${styles.criteriaSection} ${styles.optionsSection} ${styles.collapsibleSection}`}>
-          <button
-            type="button"
-            className={styles.collapsibleToggle}
-            aria-expanded={expandedStep === 6}
-            onClick={() => setExpandedStep((current) => current === 6 ? null : 6)}
-          >
-            <span className={styles.stepBadge}>6</span>
-            <span className={styles.collapsibleTitle}>
-              <strong>{t("ai_generator_group_finish_title")}</strong>
-              <small>{t("ai_generator_group_finish_hint")}</small>
-            </span>
-            <span className={styles.sectionSelection}>
-              {kind === "video"
-                ? t("ai_generator_options_summary_video", {
-                    duration: durationSeconds,
-                    text: t(withText ? "ai_generator_with_text" : "ai_generator_without_text"),
-                    music: t(withMusic ? "ai_generator_with_music" : "ai_generator_without_music"),
-                    narration: withNarration
-                      ? `${t("ai_generator_with_narration")} · ${t(`ai_generator_narration_voice_${narrationVoice}`)}`
-                      : t("ai_generator_without_narration"),
-                  })
-                : withText && resolvedTextKeywords.length
-                  ? t("ai_generator_options_summary_text_keywords", {
-                      text: t("ai_generator_with_text"),
-                      count: resolvedTextKeywords.length,
+          <div className={styles.collapsibleHeader}>
+            <button
+              type="button"
+              className={styles.collapsibleToggle}
+              aria-expanded={expandedStep === 6}
+              onClick={() => setExpandedStep((current) => current === 6 ? null : 6)}
+            >
+              <span className={styles.stepBadge}>6</span>
+              <span className={styles.collapsibleTitle}>
+                <strong>{t("ai_generator_group_finish_title")}</strong>
+                <small>{t("ai_generator_group_finish_hint")}</small>
+              </span>
+              <span className={styles.sectionSelection}>
+                {kind === "video"
+                  ? t("ai_generator_options_summary_video", {
+                      duration: durationSeconds,
+                      text: t(withText ? "ai_generator_with_text" : "ai_generator_without_text"),
+                      music: t(withMusic ? "ai_generator_with_music" : "ai_generator_without_music"),
+                      narration: withNarration
+                        ? `${t("ai_generator_with_narration")} · ${t(`ai_generator_narration_voice_${narrationVoice}`)}`
+                        : t("ai_generator_without_narration"),
                     })
-                  : t(withText ? "ai_generator_with_text" : "ai_generator_without_text")}
-            </span>
-            <i aria-hidden="true">⌄</i>
-          </button>
+                  : withText && resolvedTextKeywords.length
+                    ? t("ai_generator_options_summary_text_keywords", {
+                        text: t("ai_generator_with_text"),
+                        count: resolvedTextKeywords.length,
+                      })
+                    : t(withText ? "ai_generator_with_text" : "ai_generator_without_text")}
+              </span>
+              <i aria-hidden="true">⌄</i>
+            </button>
+            <RememberPreferenceControl
+              checked={savedPreferences.blocks[6].saved}
+              disabled={preferencesLoading || savingBlockIds.has(6)}
+              saving={savingBlockIds.has(6)}
+              label={t("ai_generator_remember_settings")}
+              savingLabel={t("ai_generator_preferences_saving")}
+              blockTitle={t("ai_generator_group_finish_title")}
+              onChange={(checked) => handleRememberPreference(6, checked)}
+            />
+          </div>
           {expandedStep === 6 ? <div className={styles.collapsibleBody}>
             {kind === "video" ? (
               <div className={styles.durationChoices} role="radiogroup" aria-label={t("ai_generator_duration_title")}>
@@ -1277,6 +1739,16 @@ export default function MediaGenerator({
           </div> : null}
         </section>
       </div>
+
+      {preferencesError ? (
+        <div className={styles.preferencesError} role="alert">
+          {t(
+            preferencesError === "load"
+              ? "ai_generator_preferences_load_error"
+              : "ai_generator_preferences_save_error",
+          )}
+        </div>
+      ) : null}
 
       {videoPremiumRequired ? (
         <div className={styles.warning} role="status">

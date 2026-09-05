@@ -144,6 +144,17 @@
 }
 
 .headerAiButton.headerDnaButton {
+  width: 38px;
+  min-width: 38px;
+  max-width: 38px;
+  height: 36px;
+  min-height: 36px;
+  max-height: 36px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
   border-color: rgba(56, 189, 248, 0.42);
   background: radial-gradient(
       circle at 28% 22%,
@@ -157,15 +168,32 @@
       rgba(236, 72, 153, 0.14)
     );
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06) inset,
-    0 14px 34px rgba(0, 0, 0, 0.25), 0 0 22px rgba(56, 189, 248, 0.14);
+    0 14px 34px rgba(0, 0, 0, 0.3), 0 0 22px rgba(56, 189, 248, 0.14);
   text-shadow: none;
+}
+
+.headerDnaIcon {
+  width: 26px !important;
+  height: 26px !important;
+  display: block;
+  object-fit: contain;
 }
 
 .headerAiButton.headerDnaButton:hover {
   border-color: rgba(125, 211, 252, 0.68);
-  background: rgba(56, 189, 248, 0.1);
+  background: radial-gradient(
+      circle at 28% 22%,
+      rgba(255, 255, 255, 0.28),
+      transparent 30%
+    ),
+    linear-gradient(
+      135deg,
+      rgba(14, 165, 233, 0.28),
+      rgba(124, 58, 237, 0.26),
+      rgba(236, 72, 153, 0.2)
+    );
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08) inset,
-    0 16px 38px rgba(0, 0, 0, 0.3), 0 0 28px rgba(56, 189, 248, 0.22);
+    0 16px 38px rgba(0, 0, 0, 0.34), 0 0 28px rgba(56, 189, 248, 0.22);
 }
 
 .headerCloseButton {
@@ -17298,6 +17326,22 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
       minmax(360px, 1.42fr) minmax(165px, 0.66fr)
       46px 46px 46px minmax(270px, 0.98fr) !important;
     column-gap: 8px !important;
+  }
+}
+
+/* Le raccourci ADN garde le même rendu que Booster tout en restant lisible
+   dans le pupitre mobile plus dense d'iNr'Agent. */
+@media (max-width: 760px) {
+  .headerDnaIcon {
+    width: 22px !important;
+    height: 22px !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .headerDnaIcon {
+    width: 20px !important;
+    height: 20px !important;
   }
 }
 

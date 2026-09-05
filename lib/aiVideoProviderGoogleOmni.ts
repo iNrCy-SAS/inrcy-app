@@ -9,6 +9,7 @@ import {
   rollbackAiGatewayAccountAttempt,
 } from "@/lib/aiGatewayAccountGuard";
 import { getAiMediaVideoSegmentDurations } from "@/lib/aiMediaVideoTimeline";
+import { redactAiMediaSensitiveText } from "@/lib/aiMediaSensitiveText";
 import {
   buildGoogleVideoSafetyFallbackPrompt,
   buildGoogleVideoScenePrompt,
@@ -53,7 +54,9 @@ function positiveInt(value: unknown, fallback: number, maximum: number) {
 
 function apiKey() {
   const value = String(
-    process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || "",
+    process.env.GEMINI_API_KEY ||
+      process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
+      "",
   ).trim();
   if (!value) throw new Error("ai_video_omni_credentials_missing");
   return value;
@@ -151,9 +154,10 @@ function normalizedProviderError(error: unknown) {
 }
 
 function isSafetyFiltered(error: unknown) {
-  return compact(error instanceof Error ? error.message : error, 1_000).includes(
-    "ai_video_omni_safety_filtered",
-  );
+  return compact(
+    error instanceof Error ? error.message : error,
+    1_000,
+  ).includes("ai_video_omni_safety_filtered");
 }
 
 function veoFallbackEnabled() {
@@ -164,8 +168,10 @@ function veoFallbackEnabled() {
 
 function mayUseVeoFallback(error: unknown, signal?: AbortSignal) {
   if (signal?.aborted) return false;
-  const details = compact(error instanceof Error ? error.message : error, 1_000)
-    .toLowerCase();
+  const details = compact(
+    error instanceof Error ? error.message : error,
+    1_000,
+  ).toLowerCase();
   return !(
     details.includes("ai_media_generation_cancelled") ||
     details.includes("aborterror") ||
@@ -173,6 +179,33 @@ function mayUseVeoFallback(error: unknown, signal?: AbortSignal) {
     details.includes("ai_video_omni_credentials") ||
     details.includes("ai_video_omni_permission")
   );
+}
+
+function preservesIdentityReferences(
+  request: AiVideoProviderGenerationArgs["request"],
+) {
+  return (
+    request.inspirationImages.length > 0 &&
+    (request.videoCharacterMode === "professional" ||
+      request.videoCharacterMode === "brand_avatar" ||
+      request.videoCharacterMode === "reference_team")
+  );
+}
+
+function identityReferenceRejectedError(error: unknown) {
+  const details = compact(classifyVeoFailure(error).details, 620);
+  return new Error(
+    details
+      ? `ai_video_identity_reference_rejected:${details}`
+      : "ai_video_identity_reference_rejected",
+  );
+}
+
+function isIdentityReferenceRejected(error: unknown) {
+  return compact(
+    error instanceof Error ? error.message : error,
+    1_000,
+  ).includes("ai_video_identity_reference_rejected");
 }
 
 function assertMp4Clip(buffer: Buffer) {
@@ -205,7 +238,9 @@ async function downloadVideoUri(args: {
       if (!response.ok) {
         throw new Error(`omni_download_http_${response.status}`);
       }
-      const declaredLength = Number(response.headers.get("content-length") || 0);
+      const declaredLength = Number(
+        response.headers.get("content-length") || 0,
+      );
       if (declaredLength > MAX_CLIP_BYTES) {
         throw new Error("ai_video_omni_clip_too_large");
       }
@@ -272,11 +307,17 @@ async function waitForVideoFile(args: {
       await delay(pollMs, args.signal);
     } catch (error) {
       throwIfAborted(args.signal);
-      const message = compact(error instanceof Error ? error.message : error, 900);
+      const message = compact(
+        error instanceof Error ? error.message : error,
+        900,
+      );
       if (message.includes("ai_video_omni_file_failed")) throw error;
       const failure = classifyVeoFailure(error);
       transientFailures += 1;
-      if (!failure.retryable || transientFailures >= DEFAULT_DOWNLOAD_ATTEMPTS) {
+      if (
+        !failure.retryable ||
+        transientFailures >= DEFAULT_DOWNLOAD_ATTEMPTS
+      ) {
         throw error;
       }
       await delay(retryDelayMs(error, transientFailures - 1), args.signal);
@@ -335,6 +376,7 @@ async function generateClip(args: {
   durationSeconds: 4 | 6 | 8;
   aspectRatio: "16:9" | "9:16";
   inspirationImages: AiVideoProviderGenerationArgs["request"]["inspirationImages"];
+  preserveIdentityReferences: boolean;
   timeoutMs: number;
   onBillable: () => void;
 }): Promise<AiVideoProviderClip> {
@@ -351,38 +393,55 @@ async function generateClip(args: {
   }, args.timeoutMs);
 
   try {
-    const contentAttempts = args.inspirationImages.length
-      ? [
-          {
-            prompt: args.prompt,
-            images: args.inspirationImages,
-            warning: "",
-          },
-          {
-            prompt: args.prompt,
-            images: [],
-            warning: "omni_inspiration_downgraded",
-          },
-          {
-            prompt: buildGoogleVideoSafetyFallbackPrompt(args.prompt),
-            images: [],
-            warning: "omni_safety_prompt_recovery",
-          },
-        ]
-      : [
-          { prompt: args.prompt, images: [], warning: "" },
-          {
-            prompt: buildGoogleVideoSafetyFallbackPrompt(args.prompt),
-            images: [],
-            warning: "omni_safety_prompt_recovery",
-          },
-        ];
+    const contentAttempts =
+      args.inspirationImages.length && args.preserveIdentityReferences
+        ? [
+            {
+              prompt: args.prompt,
+              images: args.inspirationImages,
+              warning: "",
+            },
+          ]
+        : args.inspirationImages.length
+        ? [
+            {
+              prompt: args.prompt,
+              images: args.inspirationImages,
+              warning: "",
+            },
+            {
+              prompt: args.prompt,
+              images: [],
+              warning: "omni_inspiration_downgraded",
+            },
+            {
+              prompt: buildGoogleVideoSafetyFallbackPrompt(args.prompt),
+              images: [],
+              warning: "omni_safety_prompt_recovery",
+            },
+          ]
+        : [
+            { prompt: args.prompt, images: [], warning: "" },
+            {
+              prompt: buildGoogleVideoSafetyFallbackPrompt(args.prompt),
+              images: [],
+              warning: "omni_safety_prompt_recovery",
+            },
+          ];
     const warnings: string[] = [];
     let lastError: unknown = null;
 
-    for (let contentIndex = 0; contentIndex < contentAttempts.length; contentIndex += 1) {
+    for (
+      let contentIndex = 0;
+      contentIndex < contentAttempts.length;
+      contentIndex += 1
+    ) {
       const contentAttempt = contentAttempts[contentIndex];
-      for (let transientAttempt = 0; transientAttempt < DEFAULT_GENERATION_ATTEMPTS; transientAttempt += 1) {
+      for (
+        let transientAttempt = 0;
+        transientAttempt < DEFAULT_GENERATION_ATTEMPTS;
+        transientAttempt += 1
+      ) {
         let billableOutputExists = false;
         try {
           const input = [
@@ -461,7 +520,9 @@ async function generateClip(args: {
               700,
             );
             throw new Error(
-              `ai_video_omni_clip_billable_failure:${details || "output_processing_failed"}`,
+              `ai_video_omni_clip_billable_failure:${
+                details || "output_processing_failed"
+              }`,
             );
           }
           lastError = normalizedProviderError(error);
@@ -470,7 +531,10 @@ async function generateClip(args: {
             transientAttempt < DEFAULT_GENERATION_ATTEMPTS - 1 &&
             failure.retryable
           ) {
-            await delay(retryDelayMs(lastError, transientAttempt), controller.signal);
+            await delay(
+              retryDelayMs(lastError, transientAttempt),
+              controller.signal,
+            );
             continue;
           }
           break;
@@ -479,7 +543,17 @@ async function generateClip(args: {
 
       const failure = classifyVeoFailure(lastError);
       const nextAttempt = contentAttempts[contentIndex + 1];
+      if (
+        args.preserveIdentityReferences &&
+        contentAttempt.images.length > 0 &&
+        (failure.kind === "invalid_argument" || failure.kind === "safety")
+      ) {
+        throw isIdentityReferenceRejected(lastError)
+          ? lastError
+          : identityReferenceRejectedError(lastError);
+      }
       const canDropInspiration =
+        !args.preserveIdentityReferences &&
         contentAttempt.images.length > 0 &&
         (failure.kind === "invalid_argument" || failure.kind === "safety");
       const canUseSafetyPrompt =
@@ -506,6 +580,15 @@ export const googleOmniVideoProvider: AiVideoProvider = {
   },
   async generate(args): Promise<AiVideoProviderResult> {
     throwIfAborted(args.signal);
+    if (
+      args.request.identityMode === "reference_team" &&
+      !args.identityTeamPrecomposed
+    ) {
+      // Un fournisseur vidéo ne reçoit jamais directement plusieurs portraits
+      // distincts. Le serveur doit d'abord créer une seule composition de
+      // groupe autorisée, ou utiliser le motion local exact-photo.
+      throw new Error("ai_video_reference_team_precomposition_required");
+    }
     const key = apiKey();
     const ai = new GoogleGenAI({ apiKey: key });
     const model = modelId();
@@ -519,6 +602,9 @@ export const googleOmniVideoProvider: AiVideoProvider = {
       DEFAULT_CONCURRENCY,
       4,
     );
+    const preserveIdentityReferences = preservesIdentityReferences(
+      args.request,
+    );
     const durations: Array<4 | 6 | 8> = [
       ...getAiMediaVideoSegmentDurations(args.request.durationSeconds || 16),
     ];
@@ -531,7 +617,9 @@ export const googleOmniVideoProvider: AiVideoProvider = {
     const providerWarnings: string[] = [];
 
     try {
-      const clips = new Array<AiVideoProviderClip | undefined>(durations.length);
+      const clips = new Array<AiVideoProviderClip | undefined>(
+        durations.length,
+      );
       let cursor = 0;
       let stopped = false;
       let firstError: unknown = null;
@@ -541,8 +629,7 @@ export const googleOmniVideoProvider: AiVideoProvider = {
           const index = cursor;
           cursor += 1;
           const durationSeconds = durations[index];
-          const sceneCostMicroUsd =
-            durationSeconds * costMicroUsdPerSecond();
+          const sceneCostMicroUsd = durationSeconds * costMicroUsdPerSecond();
           let sceneReservation: Awaited<
             ReturnType<typeof reserveAiGatewayAccountAttempt>
           > | null = null;
@@ -569,7 +656,10 @@ export const googleOmniVideoProvider: AiVideoProvider = {
               durationSeconds,
               aspectRatio: aspectRatio(args.request.format),
               inspirationImages:
-                index === 0 ? args.request.inspirationImages : [],
+                preserveIdentityReferences || index === 0
+                  ? args.request.inspirationImages
+                  : [],
+              preserveIdentityReferences,
               timeoutMs,
               onBillable: () => {
                 if (sceneBillable) return;
@@ -602,10 +692,12 @@ export const googleOmniVideoProvider: AiVideoProvider = {
             }
             const effectiveError = sceneBillable
               ? new Error(
-                  `ai_video_omni_clip_billable_failure:${compact(
-                    error instanceof Error ? error.message : error,
-                    700,
-                  ) || "output_processing_failed"}`,
+                  `ai_video_omni_clip_billable_failure:${
+                    compact(
+                      error instanceof Error ? error.message : error,
+                      700,
+                    ) || "output_processing_failed"
+                  }`,
                 )
               : error;
             const omniFailure = classifyVeoFailure(effectiveError);
@@ -615,7 +707,7 @@ export const googleOmniVideoProvider: AiVideoProvider = {
               model,
               billableOutputExists: sceneBillable,
               failureKind: omniFailure.kind,
-              details: compact(omniFailure.details, 500),
+              details: redactAiMediaSensitiveText(omniFailure.details, 500),
             });
             if (
               durationSeconds === 8 &&
@@ -630,7 +722,9 @@ export const googleOmniVideoProvider: AiVideoProvider = {
                     videoEngine: "veo",
                     durationSeconds,
                     inspirationImages:
-                      index === 0 ? args.request.inspirationImages : [],
+                      preserveIdentityReferences || index === 0
+                        ? args.request.inspirationImages
+                        : [],
                   },
                   plan: {
                     ...args.plan,
@@ -690,9 +784,14 @@ export const googleOmniVideoProvider: AiVideoProvider = {
         model,
       }).catch(() => undefined);
       if (actualCostMicroUsd > 0) {
-        const details = compact(error instanceof Error ? error.message : error, 700);
+        const details = compact(
+          error instanceof Error ? error.message : error,
+          700,
+        );
         throw new Error(
-          `ai_video_omni_billable_failure:${details || "output_processing_failed"}`,
+          `ai_video_omni_billable_failure:${
+            details || "output_processing_failed"
+          }`,
         );
       }
       throw error;

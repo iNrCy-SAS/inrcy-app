@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { createHash } from "node:crypto";
 
 import {
   AiGatewayAccountLimitError,
@@ -28,6 +27,7 @@ import {
 } from "@/lib/aiMediaQuotaPresentation";
 import { isAdminUserForAi } from "@/lib/aiUsageQuota";
 import { generateAndSaveAiMedia } from "@/lib/aiMediaGenerationServer";
+import { safeAiMediaErrorMessage } from "@/lib/aiMediaSensitiveText";
 import {
   getExistingGeneratedAiMedia,
   getPersistedGeneratedAiMediaId,
@@ -52,6 +52,8 @@ const NO_STORE_HEADERS = { "Cache-Control": "private, no-store, max-age=0" };
 // Trois images encodées en base64, le brief et l'enveloppe JSON restent ainsi
 // sous cette limite, avant tout appel payant.
 const MAX_BODY_BYTES = 3 * 1024 * 1024;
+const IDENTITY_REFERENCE_SET_ID_PATTERN =
+  /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|identity-\d{10,16}-[a-z0-9]{8,16})$/i;
 
 function serverTimingHeader(timings: Record<string, number>) {
   return Object.entries(timings)
@@ -96,19 +98,19 @@ function jsonError(args: {
 }
 
 function safeFailureDetails(error: unknown) {
-  const raw = error instanceof Error ? error.message : String(error || "");
+  const raw = safeAiMediaErrorMessage(error, 1_000);
   const code = raw
     .split(":", 1)[0]
     .replace(/[^a-z0-9_-]/gi, "_")
     .slice(0, 120) || "ai_media_generation_failed";
   return {
     code,
-    message: raw.replace(/\s+/g, " ").slice(0, 1_000),
+    message: raw,
   };
 }
 
 function veoSafetyReason(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error || "");
+  const message = safeAiMediaErrorMessage(error, 1_000);
   const marker = [
     "ai_video_omni_safety_filtered:",
     "ai_video_veo_safety_filtered:",
@@ -188,7 +190,7 @@ function publicGenerationError(error: unknown) {
     });
   }
 
-  const message = error instanceof Error ? error.message : "";
+  const message = safeAiMediaErrorMessage(error, 1_000);
   const errorName = error instanceof Error ? error.name : "";
   if (
     message.includes("ai_media_generation_cancelled") ||
@@ -199,6 +201,22 @@ function publicGenerationError(error: unknown) {
       code: "AI_MEDIA_GENERATION_CANCELLED",
       message:
         "Génération arrêtée à votre demande. Le quota iNrCy a été libéré.",
+    });
+  }
+  if (message.includes("ai_image_identity_not_generated")) {
+    return jsonError({
+      status: 422,
+      code: "AI_MEDIA_IMAGE_IDENTITY_REFERENCE_REJECTED",
+      message:
+        "Le moteur d’image n’a pas pu respecter les références d’identité fournies. Aucun visage générique n’a été substitué : ajustez les photos puis réessayez.",
+    });
+  }
+  if (message.includes("ai_image_identity_model_unsupported")) {
+    return jsonError({
+      status: 422,
+      code: "AI_MEDIA_IMAGE_IDENTITY_MODEL_UNSUPPORTED",
+      message:
+        "Le modèle d’image configuré ne peut pas recevoir les références d’identité en toute sécurité. Aucun repli sans référence n’a été effectué.",
     });
   }
   if (
@@ -242,6 +260,14 @@ function publicGenerationError(error: unknown) {
       code: "AI_MEDIA_GENERATION_TIMEOUT",
       message: "La génération a pris trop de temps. Aucun quota iNrCy n’a été consommé.",
       retryAfterSeconds: 30,
+    });
+  }
+  if (message.includes("ai_video_identity_reference_rejected")) {
+    return jsonError({
+      status: 422,
+      code: "AI_MEDIA_VIDEO_IDENTITY_REFERENCE_REJECTED",
+      message:
+        "Le moteur vidéo n’a pas pu préserver l’identité à partir des photos fournies. Aucune personne générique n’a été substituée : ajustez les photos de référence puis réessayez.",
     });
   }
   if (
@@ -355,19 +381,14 @@ async function readRequestBody(request: Request) {
   }
 }
 
-function inspirationImageSha256(request: AiMediaGenerationRequest) {
-  return request.inspirationImages.map((image) =>
-    createHash("sha256").update(image.data).digest("hex"),
-  );
-}
-
 function generationFingerprint(request: AiMediaGenerationRequest) {
   return createAiMediaRequestFingerprint({
-    contract: "inrcy-ai-media-generation-v9-omni-veo-controlled-voiceover",
+    contract: "inrcy-ai-media-generation-v11-shared-identity",
     promptVersion: AI_MEDIA_PROMPT_VERSION,
     kind: request.kind,
     subjectSource: request.subjectSource,
     idea: request.idea,
+    aiInstruction: request.aiInstruction,
     withText: request.withText,
     textKeywords: request.textKeywords,
     withMusic: request.withMusic,
@@ -383,22 +404,53 @@ function generationFingerprint(request: AiMediaGenerationRequest) {
     useBrandColors: request.useBrandColors,
     logoMode: request.logoMode,
     videoEngine: request.videoEngine,
+    identityMode: request.identityMode,
+    videoCharacterMode: request.videoCharacterMode,
+    identityConsent: request.identityConsent,
+    identityReferenceSetId: request.identityReferenceSetId,
     durationSeconds: request.durationSeconds,
-    inspirationImageSha256: inspirationImageSha256(request),
+    // Ne jamais persister une empreinte dérivée des photos. Ces descripteurs
+    // non biométriques suffisent au contrôle de forme de l'idempotence.
+    inspirationImages: request.inspirationImages.map((image) => ({
+      mimeType: image.mimeType,
+      encodedLength: image.data.length,
+    })),
     source: request.source,
   });
 }
 
-function assertDraftContractVersion(value: unknown) {
+function assertDraftContractVersion(value: unknown): Record<string, unknown> {
   const body =
     value && typeof value === "object" && !Array.isArray(value)
       ? (value as Record<string, unknown>)
       : null;
-  if (!body || body.contractVersion !== 3) {
+  if (!body || (body.contractVersion !== 3 && body.contractVersion !== 4)) {
     throw new AiMediaRequestValidationError(
       "Cette version de l’outil média n’est plus compatible. Actualisez la page avant de relancer.",
     );
   }
+  if (body.contractVersion === 3) {
+    // Un ancien onglet v3 ne possède ni l'attestation ni l'identifiant opaque
+    // du contrat actuel. Ses références sont donc toujours ignorées, même si
+    // un booléen historique `identityConsent` est présent.
+    return {
+      ...body,
+      identityMode: "auto",
+      videoCharacterMode: "auto",
+      inspirationImages: [],
+      identityConsent: false,
+      identityReferenceSetId: "",
+    };
+  }
+  if (Array.isArray(body.inspirationImages) && body.inspirationImages.length) {
+    const referenceSetId = String(body.identityReferenceSetId || "").trim();
+    if (!IDENTITY_REFERENCE_SET_ID_PATTERN.test(referenceSetId)) {
+      throw new AiMediaRequestValidationError(
+        "Le jeu de références d’identité est invalide. Retirez puis ajoutez de nouveau les médias avant de relancer.",
+      );
+    }
+  }
+  return body;
 }
 
 export async function POST(request: Request) {
@@ -458,8 +510,10 @@ export async function POST(request: Request) {
     const requestBody = await readRequestBody(request);
     // Le contrat v1 sauvegardait immédiatement le résultat. Le refuser avant
     // toute réservation empêche un ancien onglet de contourner la validation.
-    assertDraftContractVersion(requestBody);
-    const normalizedRequest = normalizeAiMediaGenerationRequest(requestBody);
+    const compatibleRequestBody = assertDraftContractVersion(requestBody);
+    const normalizedRequest = normalizeAiMediaGenerationRequest(
+      compatibleRequestBody,
+    );
     context.requestId = normalizedRequest.requestId;
 
     // Une image n'a aucune durée vidéo à autoriser. Éviter cette lecture
@@ -497,6 +551,9 @@ export async function POST(request: Request) {
           : undefined,
       });
     }
+    const identityConsentRecordedAt = normalizedRequest.identityConsent
+      ? new Date().toISOString()
+      : null;
     const reservation = await reserveAiMediaGeneration({
       accountId: context.accountId,
       actorAuthUserId: context.authUserId,
@@ -514,6 +571,8 @@ export async function POST(request: Request) {
         source: normalizedRequest.source,
         prompt_version: AI_MEDIA_PROMPT_VERSION,
         subject_source: normalizedRequest.subjectSource,
+        ai_instruction_present: Boolean(normalizedRequest.aiInstruction),
+        ai_instruction_char_count: normalizedRequest.aiInstruction.length,
         with_text: normalizedRequest.withText,
         text_keyword_count: normalizedRequest.textKeywords.length,
         with_music: normalizedRequest.withMusic,
@@ -529,9 +588,17 @@ export async function POST(request: Request) {
         use_brand_colors: normalizedRequest.useBrandColors,
         logo_mode: normalizedRequest.logoMode,
         video_engine: normalizedRequest.videoEngine,
+        identity_mode: normalizedRequest.identityMode,
+        video_character_mode: normalizedRequest.videoCharacterMode,
+        identity_consent: normalizedRequest.identityConsent
+          ? {
+              granted: true,
+              recorded_at: identityConsentRecordedAt,
+              version: "inrcy-media-identity-consent-v1",
+            }
+          : null,
         duration_seconds: normalizedRequest.durationSeconds,
         inspiration_image_count: normalizedRequest.inspirationImages.length,
-        inspiration_image_sha256: inspirationImageSha256(normalizedRequest),
       },
     });
 
@@ -824,10 +891,7 @@ export async function POST(request: Request) {
           accountId: context.accountId,
           jobId: context.jobId,
           mediaId: persistedMediaId,
-          error:
-            finalizationError instanceof Error
-              ? finalizationError.message
-              : String(finalizationError),
+          error: safeAiMediaErrorMessage(finalizationError),
         });
         return jsonError({
           status: 503,
@@ -851,10 +915,7 @@ export async function POST(request: Request) {
         console.error("[ai-media] quota release failed", {
           accountId: context.accountId,
           jobId: context.jobId,
-          error:
-            releaseError instanceof Error
-              ? releaseError.message
-              : String(releaseError),
+          error: safeAiMediaErrorMessage(releaseError),
         });
       });
     }
@@ -862,7 +923,7 @@ export async function POST(request: Request) {
       accountId: context.accountId || null,
       jobId: context.jobId,
       requestId: context.requestId,
-      error: error instanceof Error ? error.message : String(error),
+      error: safeAiMediaErrorMessage(error),
     });
     return publicGenerationError(error);
   }

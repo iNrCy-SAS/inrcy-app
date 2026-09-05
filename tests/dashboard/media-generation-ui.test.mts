@@ -272,8 +272,35 @@ test("la fenêtre iNrCy sépare les critères de la création et de la revue", (
   assertOrdered(creationBody, [
     't("ai_generator_step_kind")',
     't("ai_generator_step_subject")',
-    'styles.inspirationSection',
+    'styles.aiInstructionField',
   ]);
+  assert.doesNotMatch(creationBody, /styles\.inspirationSection/);
+  const artBody = sourceSection(
+    generator,
+    '<strong>{t("ai_generator_group_art_title")}</strong>',
+    "</section>"
+  );
+  assertOrdered(artBody, [
+    "styles.styleChoices",
+    't("ai_generator_creativity_label")',
+    't("ai_generator_brand_colors")',
+    't("ai_generator_logo_label")',
+  ]);
+  const identityBody = sourceSection(
+    generator,
+    '<strong>{t("ai_generator_group_identity_title")}</strong>',
+    "</section>"
+  );
+  assertOrdered(identityBody, [
+    't("ai_generator_people_label")',
+    't("ai_generator_video_character_label")',
+    "styles.inspirationSection",
+    "styles.identityConsent",
+  ]);
+  assert.match(generator, /maxLength=\{600\}/);
+  assert.match(generator, /aiInstruction: aiInstruction\.trim\(\)/);
+  assert.match(generator, /videoCharacterMode:/);
+  assert.match(generator, /identityConsent:/);
   assert.match(generator, /styles\.contentCriteriaSection/);
   assert.match(generator, /styles\.inspirationInfoButton/);
   assert.match(generator, /styles\.inspirationInfoBubble/);
@@ -512,6 +539,14 @@ test("toutes les langues contiennent la copie complète de la modale", () => {
     "ai_generator_group_identity_hint",
     "ai_generator_group_finish_title",
     "ai_generator_group_finish_hint",
+    "ai_generator_instruction_label",
+    "ai_generator_instruction_optional",
+    "ai_generator_instruction_placeholder",
+    "ai_generator_instruction_hint",
+    "ai_generator_remember_settings",
+    "ai_generator_preferences_saving",
+    "ai_generator_preferences_load_error",
+    "ai_generator_preferences_save_error",
     "ai_generator_step_subject",
     "ai_generator_subject_publication",
     "ai_generator_subject_publication_unavailable",
@@ -544,6 +579,22 @@ test("toutes les langues contiennent la copie complète de la modale", () => {
     "ai_generator_with_music",
     "ai_generator_inspiration_rules_title",
     "ai_generator_inspiration_rules_body",
+    "ai_generator_video_character_label",
+    "ai_generator_video_character_auto",
+    "ai_generator_video_character_professional",
+    "ai_generator_video_character_brand_avatar",
+    "ai_generator_video_character_professional_photo_required",
+    "ai_generator_video_character_avatar_reference_required",
+    "ai_generator_video_character_consent_label",
+    "ai_generator_video_character_consent_hint",
+    "ai_generator_video_character_consent_required",
+    "ai_generator_reference_summary",
+    "ai_generator_media_to_animate_title",
+    "ai_generator_professional_photos_title",
+    "ai_generator_avatar_reference_title",
+    "ai_generator_reference_generic_hint",
+    "ai_generator_reference_professional_hint",
+    "ai_generator_reference_avatar_hint",
     "ai_generator_unlimited",
     "ai_generator_duration_8",
     "ai_generator_duration_16",

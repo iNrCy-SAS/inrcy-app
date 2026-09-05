@@ -43,6 +43,13 @@ export type MediaGenerationLogoMode = "discreet" | "visible" | "none";
 export type MediaGenerationVideoDuration = 8 | 16 | 24;
 export type MediaGenerationVideoEngine = "omni" | "veo";
 export type MediaGenerationNarrationVoice = "female" | "male";
+export type MediaGenerationIdentityMode =
+  | "auto"
+  | "professional"
+  | "brand_avatar"
+  | "reference_team";
+/** @deprecated Alias conservé pour les anciens écrans vidéo. */
+export type MediaGenerationVideoCharacterMode = MediaGenerationIdentityMode;
 export type MediaGenerationVideoEngineResult =
   | "omni"
   | "veo"
@@ -95,6 +102,7 @@ export type MediaGenerationRequest = {
   kind: MediaGenerationKind;
   subjectSource: MediaGenerationSubjectSource;
   idea: string;
+  aiInstruction?: string;
   withText?: boolean;
   textKeywords: string[];
   withMusic?: boolean;
@@ -110,6 +118,10 @@ export type MediaGenerationRequest = {
   useBrandColors: boolean;
   logoMode: MediaGenerationLogoMode;
   videoEngine?: MediaGenerationVideoEngine;
+  identityMode?: MediaGenerationIdentityMode;
+  videoCharacterMode?: MediaGenerationVideoCharacterMode;
+  identityConsent?: boolean;
+  identityReferenceSetId?: string;
   durationSeconds?: MediaGenerationVideoDuration;
   inspirationImages?: MediaGenerationInspirationImage[];
   source: MediaGenerationSource;
@@ -353,6 +365,7 @@ function buildGenerationAttemptKey(
     kind: request.kind,
     subjectSource: request.subjectSource,
     idea,
+    aiInstruction: String(request.aiInstruction || "").trim(),
     withText: Boolean(request.withText),
     textKeywords: request.withText ? request.textKeywords : [],
     withMusic: request.kind === "video" && Boolean(request.withMusic),
@@ -372,15 +385,23 @@ function buildGenerationAttemptKey(
     logoMode: request.logoMode,
     videoEngine:
       request.kind === "video" ? request.videoEngine || "omni" : null,
+    identityMode:
+      request.peopleMode !== "none"
+        ? request.identityMode || request.videoCharacterMode || "auto"
+        : "auto",
+    identityConsent:
+      request.peopleMode !== "none" && Boolean(request.identityConsent),
+    identityReferenceSetId:
+      request.peopleMode !== "none" && request.inspirationImages?.length
+        ? request.identityReferenceSetId || ""
+        : "",
     durationSeconds:
       request.kind === "video" ? request.durationSeconds || 16 : null,
     inspirationImages:
-      request.kind === "video"
+      request.peopleMode !== "none"
         ? (request.inspirationImages || []).map((image) => ({
             mimeType: image.mimeType,
             length: image.data.length,
-            start: image.data.slice(0, 32),
-            end: image.data.slice(-32),
           }))
         : [],
     source: request.source,
@@ -660,11 +681,12 @@ export default function useMediaGeneration() {
           headers: { "content-type": "application/json" },
           signal: controller.signal,
           body: JSON.stringify({
-            contractVersion: 3,
+            contractVersion: 4,
             requestId,
             kind: request.kind,
             subjectSource: request.subjectSource,
             idea,
+            aiInstruction: String(request.aiInstruction || "").trim(),
             withText: Boolean(request.withText),
             textKeywords: request.withText ? request.textKeywords : [],
             withMusic:
@@ -690,12 +712,29 @@ export default function useMediaGeneration() {
               request.kind === "video"
                 ? request.videoEngine || "omni"
                 : undefined,
+            identityMode:
+              request.peopleMode !== "none"
+                ? request.identityMode || request.videoCharacterMode || "auto"
+                : "auto",
+            // Alias envoyé pendant la transition pour les serveurs vidéo plus anciens.
+            videoCharacterMode:
+              request.kind === "video"
+                ? request.identityMode || request.videoCharacterMode || "auto"
+                : undefined,
+            identityConsent:
+              request.peopleMode !== "none"
+                ? Boolean(request.identityConsent)
+                : undefined,
+            identityReferenceSetId:
+              request.peopleMode !== "none" && request.inspirationImages?.length
+                ? request.identityReferenceSetId
+                : undefined,
             durationSeconds:
               request.kind === "video"
                 ? request.durationSeconds || 16
                 : undefined,
             inspirationImages:
-              request.kind === "video"
+              request.peopleMode !== "none"
                 ? (request.inspirationImages || []).map((image) => ({
                     mimeType: image.mimeType,
                     data: image.data,

@@ -41,6 +41,11 @@ test("iNrAgent exposes the same ADN component beside IA and preserves its edit g
   assert.match(agent, /exitScheduledEditSession\(\{ silent: true, onAfterExit: openBusinessDna \}\)/);
   assert.match(agent, /aria-label=\{dashboardT\("aiMemory\.openTitle"\)\}/);
   assert.match(agent, /styles\.headerAiButton[\s\S]*styles\.headerDnaButton/);
+  assert.match(agent, /<BusinessDnaIcon size=\{26\} className=\{styles\.headerDnaIcon\} \/>/);
+  assert.match(agentCss, /\.headerAiButton\.headerDnaButton \{[\s\S]*width: 38px;[\s\S]*height: 36px;[\s\S]*display: inline-flex;[\s\S]*align-items: center;[\s\S]*justify-content: center;/);
+  assert.match(agentCss, /\.headerDnaIcon \{[\s\S]*width: 26px !important;[\s\S]*height: 26px !important;/);
+  assert.match(agentCss, /@media \(max-width: 760px\) \{[\s\S]*\.headerDnaIcon \{[\s\S]*width: 22px !important;/);
+  assert.match(agentCss, /@media \(max-width: 420px\) \{[\s\S]*\.headerDnaIcon \{[\s\S]*width: 20px !important;/);
   assert.match(agentCss, /@media \(max-width: 420px\)[\s\S]*\.headerAiButton/);
 });
 

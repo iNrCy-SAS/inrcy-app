@@ -12,7 +12,7 @@ type SentryLikeEvent = {
     data?: unknown;
   };
   exception?: { values?: Array<{ type?: string; value?: string; mechanism?: { handled?: boolean; type?: string } }> };
-  breadcrumbs?: Array<{ message?: string }>;
+  breadcrumbs?: Array<{ message?: string; data?: Record<string, unknown> }>;
   extra?: Record<string, unknown>;
 };
 
@@ -26,6 +26,21 @@ function compactLower(value: unknown): string {
   return String(value || "").toLowerCase().trim();
 }
 
+const IMAGE_DATA_URL_RE = /data:image\/[a-z0-9.+-]+;base64,[a-z0-9+/=\s]+/gi;
+const LONG_BASE64_RE = /(?:[a-z0-9+/]{256,}={0,2})/gi;
+
+/**
+ * Provider errors and browser breadcrumbs must never turn an uploaded image
+ * into observability data. Keep the useful error text while removing binary
+ * payloads, including bare base64 strings without a data-URL prefix.
+ */
+function scrubBinaryPayloads(value: unknown): unknown {
+  if (typeof value !== "string" || !value) return value;
+  return value
+    .replace(IMAGE_DATA_URL_RE, "[Filtered image]")
+    .replace(LONG_BASE64_RE, "[Filtered binary]");
+}
+
 const SENSITIVE_QUERY_KEYS = /^(code|state|token|access_token|refresh_token|id_token|key|secret|password|signature|sig)$/i;
 
 function scrubUrl(value: unknown): unknown {
@@ -36,15 +51,19 @@ function scrubUrl(value: unknown): unknown {
     for (const key of Array.from(url.searchParams.keys())) {
       if (SENSITIVE_QUERY_KEYS.test(key)) url.searchParams.set(key, "[Filtered]");
     }
-    return url.toString();
+    return scrubBinaryPayloads(url.toString());
   } catch {
-    return value.replace(/([?&](?:code|state|token|access_token|refresh_token|id_token|key|secret|password|signature|sig)=)[^&]*/gi, "$1[Filtered]");
+    return scrubBinaryPayloads(
+      value.replace(/([?&](?:code|state|token|access_token|refresh_token|id_token|key|secret|password|signature|sig)=)[^&]*/gi, "$1[Filtered]"),
+    );
   }
 }
 
 function scrubQueryString(value: unknown): unknown {
   if (typeof value !== "string") return value;
-  return value.replace(/(^|&)(code|state|token|access_token|refresh_token|id_token|key|secret|password|signature|sig)=[^&]*/gi, "$1$2=[Filtered]");
+  return scrubBinaryPayloads(
+    value.replace(/(^|&)(code|state|token|access_token|refresh_token|id_token|key|secret|password|signature|sig)=[^&]*/gi, "$1$2=[Filtered]"),
+  );
 }
 
 
@@ -137,10 +156,29 @@ export function filterSentryEvent<T>(event: T, options: FilterOptions = {}): T |
     delete mutableEvent.request.data;
   }
 
+  mutableEvent.message = scrubBinaryPayloads(mutableEvent.message) as string | undefined;
+  for (const item of mutableEvent.exception?.values || []) {
+    item.value = scrubBinaryPayloads(item.value) as string | undefined;
+  }
+  for (const breadcrumb of mutableEvent.breadcrumbs || []) {
+    breadcrumb.message = scrubBinaryPayloads(breadcrumb.message) as string | undefined;
+    if (breadcrumb.data) {
+      for (const key of Object.keys(breadcrumb.data)) {
+        if (/(body|payload|form|content|html|token|secret|password)/i.test(key)) {
+          delete breadcrumb.data[key];
+        } else if (typeof breadcrumb.data[key] === "string") {
+          breadcrumb.data[key] = scrubBinaryPayloads(breadcrumb.data[key]);
+        }
+      }
+    }
+  }
+
   if (mutableEvent.extra) {
     for (const key of Object.keys(mutableEvent.extra)) {
       if (/(body|payload|form|email|phone|content|html|token|secret|password)/i.test(key)) {
         delete mutableEvent.extra[key];
+      } else if (typeof mutableEvent.extra[key] === "string") {
+        mutableEvent.extra[key] = scrubBinaryPayloads(mutableEvent.extra[key]);
       }
     }
   }

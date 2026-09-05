@@ -32,6 +32,13 @@ export type AiMediaLogoMode = "discreet" | "visible" | "none";
 export type AiMediaVideoDuration = 8 | 16 | 24;
 export type AiMediaVideoEngine = "omni" | "veo";
 export type AiMediaNarrationVoice = "female" | "male";
+export type AiMediaIdentityMode =
+  | "auto"
+  | "professional"
+  | "brand_avatar"
+  | "reference_team";
+/** @deprecated Nom historique conservé pour les anciens appelants vidéo. */
+export type AiMediaVideoCharacterMode = AiMediaIdentityMode;
 export type AiMediaInspirationImage = {
   mimeType: "image/jpeg" | "image/png" | "image/webp";
   /** Octets de l'image encodes en base64, sans prefixe data:. */
@@ -93,6 +100,8 @@ export type AiMediaGenerationRequest = {
   kind: AiMediaKind;
   subjectSource: AiMediaSubjectSource;
   idea: string;
+  /** Consigne ponctuelle facultative, appliquée à cette génération uniquement. */
+  aiInstruction: string;
   withText: boolean;
   textKeywords: string[];
   withMusic: boolean;
@@ -108,6 +117,13 @@ export type AiMediaGenerationRequest = {
   useBrandColors: boolean;
   logoMode: AiMediaLogoMode;
   videoEngine: AiMediaVideoEngine | null;
+  identityMode: AiMediaIdentityMode;
+  /** @deprecated Alias de compatibilité pour les anciennes générations vidéo. */
+  videoCharacterMode: AiMediaVideoCharacterMode;
+  /** Accord ponctuel, jamais réutilisé pour une autre génération. */
+  identityConsent: boolean;
+  /** Identifiant aléatoire du jeu de références, jamais dérivé de leur contenu. */
+  identityReferenceSetId: string;
   durationSeconds: AiMediaVideoDuration | null;
   inspirationImages: AiMediaInspirationImage[];
   source: AiMediaSurface;
@@ -152,6 +168,16 @@ function cleanText(value: unknown, max: number) {
     .slice(0, max);
 }
 
+function normalizeAiInstruction(value: unknown) {
+  return String(value ?? "")
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "")
+    .replace(/\r\n?/g, "\n")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
+    .slice(0, 600);
+}
+
 function readRequestId(value: unknown) {
   const id = cleanText(value, 180);
   if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{7,179}$/.test(id)) {
@@ -185,10 +211,7 @@ function normalizeTextKeywords(value: unknown) {
   return keywords;
 }
 
-function normalizeInspirationImages(
-  value: unknown,
-  kind: AiMediaKind,
-): AiMediaInspirationImage[] {
+function normalizeInspirationImages(value: unknown): AiMediaInspirationImage[] {
   if (
     value === null ||
     typeof value === "undefined" ||
@@ -196,11 +219,6 @@ function normalizeInspirationImages(
     (Array.isArray(value) && value.length === 0)
   ) {
     return [];
-  }
-  if (kind !== "video") {
-    throw new AiMediaRequestValidationError(
-      "Le fichier d’inspiration est disponible uniquement pour une vidéo.",
-    );
   }
   const values = Array.isArray(value) ? value : [value];
   if (!values.length || values.length > AI_MEDIA_INSPIRATION_MAX_COUNT) {
@@ -247,6 +265,8 @@ export function normalizeAiMediaGenerationRequest(
     throw new AiMediaRequestValidationError("Demande de média invalide.");
   }
 
+  const requestId = readRequestId(body.requestId);
+
   const kind = body.kind === "image" || body.kind === "video" ? body.kind : null;
   if (!kind) {
     throw new AiMediaRequestValidationError("Type de média invalide.");
@@ -277,6 +297,7 @@ export function normalizeAiMediaGenerationRequest(
       "Décrivez votre idée en quelques mots avant de générer le média.",
     );
   }
+  const aiInstruction = normalizeAiInstruction(body.aiInstruction);
 
   const format = cleanText(body.format, 30) || "square";
   if (!(format in AI_MEDIA_FORMAT_SPECS)) {
@@ -361,12 +382,71 @@ export function normalizeAiMediaGenerationRequest(
   if (kind === "video" && !["omni", "veo"].includes(rawVideoEngine)) {
     throw new AiMediaRequestValidationError("Moteur vidéo invalide.");
   }
+  const rawIdentityMode =
+    cleanText(body.identityMode ?? body.videoCharacterMode, 32) || "auto";
+  if (
+    !["auto", "professional", "brand_avatar", "reference_team"].includes(
+      rawIdentityMode,
+    )
+  ) {
+    throw new AiMediaRequestValidationError("Mode d’identité invalide.");
+  }
+  const requestedIdentityMode = rawIdentityMode as AiMediaIdentityMode;
+  const identityMode =
+    requestedIdentityMode === "reference_team"
+      ? "reference_team"
+      : peopleMode !== "none"
+        ? requestedIdentityMode
+        : "auto";
+  // Une équipe de référence décrit plusieurs adultes distincts : ce mode est
+  // toujours ramené à une scène d'équipe, même si un ancien client envoie
+  // encore `auto` ou `solo` pour la présence humaine.
+  const normalizedPeopleMode =
+    identityMode === "reference_team" ? "team" : peopleMode;
+  const identityEnabled = normalizedPeopleMode !== "none";
+  const normalizedInspirationImages = normalizeInspirationImages(
+    body.inspirationImages,
+  );
+  const inspirationImages = identityEnabled ? normalizedInspirationImages : [];
+  if (
+    identityMode === "professional" &&
+    inspirationImages.length === 0
+  ) {
+    throw new AiMediaRequestValidationError(
+      "Ajoutez au moins une photo du professionnel pour guider son identité.",
+    );
+  }
+  if (
+    identityMode === "brand_avatar" &&
+    inspirationImages.length === 0
+  ) {
+    throw new AiMediaRequestValidationError(
+      "Ajoutez au moins un dessin d’avatar ou une photo autorisée à transformer.",
+    );
+  }
+  if (
+    identityMode === "reference_team" &&
+    (inspirationImages.length < 2 || inspirationImages.length > 3)
+  ) {
+    throw new AiMediaRequestValidationError(
+      "Ajoutez deux ou trois photos, avec une personne adulte distincte et autorisée par image.",
+    );
+  }
+  // Toute image d'identité peut contenir un visage : l'accord est requis
+  // même en mode automatique, pour une image comme pour une vidéo.
+  const identityReferenceRequested = inspirationImages.length > 0;
+  if (identityReferenceRequested && body.identityConsent !== true) {
+    throw new AiMediaRequestValidationError(
+      "Confirmez que vous êtes cette personne ou que vous avez son autorisation.",
+    );
+  }
 
   return {
-    requestId: readRequestId(body.requestId),
+    requestId,
     kind,
     subjectSource,
     idea,
+    aiInstruction,
     withText,
     textKeywords: withText ? normalizeTextKeywords(body.textKeywords) : [],
     withMusic: kind === "video" && body.withMusic === true,
@@ -380,15 +460,22 @@ export function normalizeAiMediaGenerationRequest(
     visualStyle: visualStyle as AiMediaVisualStyle,
     imageStyle: imageStyle as AiMediaImageStyle,
     shotType: shotType as AiMediaShotType,
-    peopleMode: peopleMode as AiMediaPeopleMode,
+    peopleMode: normalizedPeopleMode as AiMediaPeopleMode,
     creativity: creativity as AiMediaCreativity,
     useBrandColors: body.useBrandColors !== false,
     logoMode: logoMode as AiMediaLogoMode,
     videoEngine:
       kind === "video" ? (rawVideoEngine as AiMediaVideoEngine) : null,
+    identityMode,
+    videoCharacterMode: identityMode,
+    identityConsent:
+      inspirationImages.length > 0 && body.identityConsent === true,
+    identityReferenceSetId: inspirationImages.length
+      ? cleanText(body.identityReferenceSetId, 120) || `legacy:${requestId}`
+      : "",
     durationSeconds:
       kind === "video" ? (requestedDuration as AiMediaVideoDuration) : null,
-    inspirationImages: normalizeInspirationImages(body.inspirationImages, kind),
+    inspirationImages,
     source,
   };
 }

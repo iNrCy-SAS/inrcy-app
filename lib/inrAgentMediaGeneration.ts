@@ -70,6 +70,7 @@ export async function generateInrAgentMedia(args: {
     kind: args.kind,
     subjectSource: "custom",
     idea: args.idea,
+    aiInstruction: "",
     // Le texte social sera ecrit par Booster. Le laisser dans l'image ou dans
     // les plans Veo augmenterait le risque de faux caracteres.
     withText: false,
@@ -87,6 +88,10 @@ export async function generateInrAgentMedia(args: {
     useBrandColors: true,
     logoMode: "discreet",
     videoEngine: args.kind === "video" ? "omni" : null,
+    identityMode: "auto",
+    videoCharacterMode: "auto",
+    identityConsent: false,
+    identityReferenceSetId: "",
     durationSeconds: args.kind === "video" ? 8 : null,
     inspirationImages: [],
     source: "booster",

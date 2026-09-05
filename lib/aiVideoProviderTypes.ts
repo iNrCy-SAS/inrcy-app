@@ -26,6 +26,13 @@ export type AiVideoProviderGenerationArgs = {
   brandColors: readonly string[];
   profession: string;
   /**
+   * Marqueur interne exclusivement positionné par le serveur après avoir
+   * transformé 2–3 portraits distincts en une seule composition de groupe.
+   * Sans ce marqueur, les providers refusent `reference_team` afin qu'aucun
+   * appel direct ne puisse leur transmettre les portraits séparément.
+   */
+  identityTeamPrecomposed?: boolean;
+  /**
    * Best-effort cancellation propagated from the browser request. Veo does not
    * expose an operation-cancel method in the Gemini Developer API SDK, but the
    * signal still stops submission, polling and download as early as possible.

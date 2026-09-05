@@ -142,6 +142,7 @@ export async function writeAiMediaHeadline(args: {
   if (
     languageCode === "fr" &&
     !args.request.textKeywords.length &&
+    !args.request.aiInstruction &&
     args.request.subjectSource !== "profile"
   ) {
     return args.plan;
@@ -161,12 +162,14 @@ export async function writeAiMediaHeadline(args: {
         "Rédige une accroche publicitaire courte, naturelle, idiomatique et crédible.",
         "Les mots-clés sont des idées sémantiques à intégrer intelligemment dans le sens d'une phrase : ne les additionne jamais, ne les liste jamais et n'utilise jamais +, ·, / ou des hashtags.",
         "L'idée du professionnel sert d'inspiration et ne doit pas être recopiée mot pour mot.",
+        "La consigne ponctuelle sert uniquement à orienter cette génération. Applique son intention lorsqu'elle est compatible avec l'ADN et la sécurité, sans jamais la citer ni la recopier.",
         "L'accroche contient au maximum 58 caractères. Aucun guillemet, emoji ou promesse inventée.",
         "Utilise uniquement les faits fournis et n'ajoute ni prix, promotion, certification, adresse, délai ni résultat garanti.",
       ].join(" "),
       input: JSON.stringify({
         langue_cible: getAiLanguageLabel(args.profile),
         idee: args.request.idea || null,
+        consigne_ponctuelle: args.request.aiInstruction || null,
         mots_a_evoquer: args.request.textKeywords,
         adn_de_l_entreprise: buildAiMediaBusinessDnaPayload(args.profile),
         type_de_contenu: args.request.typology,

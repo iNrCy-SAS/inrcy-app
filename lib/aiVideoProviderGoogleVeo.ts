@@ -24,6 +24,7 @@ import {
   nextVeoInspirationMode,
   resolveVeoModelCandidates,
   selectVeoInspirationMode,
+  supportsVeoReferenceImages,
 } from "@/lib/aiVideoReliability";
 import type {
   AiVideoProvider,
@@ -98,7 +99,9 @@ function compact(value: unknown, max = 400) {
 
 function apiKey() {
   const value = String(
-    process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || ""
+    process.env.GEMINI_API_KEY ||
+      process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
+      "",
   ).trim();
   if (!value) throw new Error("ai_video_veo_credentials_missing");
   return value;
@@ -116,7 +119,7 @@ function modelId() {
 }
 
 function aspectRatio(
-  format: AiVideoProviderGenerationArgs["request"]["format"]
+  format: AiVideoProviderGenerationArgs["request"]["format"],
 ) {
   return format === "landscape" ? "16:9" : "9:16";
 }
@@ -154,12 +157,12 @@ function isExplicitlyRetryable(error: unknown) {
 function retryDelayMs(error: unknown, attempt: number) {
   const message = classifyVeoFailure(error).details;
   const explicitSeconds = message.match(
-    /(?:retry(?:Delay)?|retry\s+in)[^0-9]{0,24}(\d+(?:\.\d+)?)\s*s/i
+    /(?:retry(?:Delay)?|retry\s+in)[^0-9]{0,24}(\d+(?:\.\d+)?)\s*s/i,
   );
   if (explicitSeconds) {
     return Math.min(
       60_000,
-      Math.max(2_000, Number(explicitSeconds[1]) * 1_000)
+      Math.max(2_000, Number(explicitSeconds[1]) * 1_000),
     );
   }
   const schedule = [1_000, 2_500, 6_000, 12_000] as const;
@@ -202,23 +205,24 @@ function safetyFilteredError(reasons: unknown) {
   const details = compact(
     values
       .map((reason) =>
-        typeof reason === "string" ? reason : JSON.stringify(reason)
+        typeof reason === "string" ? reason : JSON.stringify(reason),
       )
       .filter(Boolean)
       .join(" | "),
-    600
+    600,
   );
   return new Error(
     details && details !== "undefined"
       ? `ai_video_veo_safety_filtered:${details}`
-      : "ai_video_veo_safety_filtered"
+      : "ai_video_veo_safety_filtered",
   );
 }
 
 function isSafetyFiltered(error: unknown) {
-  return compact(error instanceof Error ? error.message : error, 1_000).includes(
-    "ai_video_veo_safety_filtered"
-  );
+  return compact(
+    error instanceof Error ? error.message : error,
+    1_000,
+  ).includes("ai_video_veo_safety_filtered");
 }
 
 function mentionsMinorAudience(value: unknown) {
@@ -230,7 +234,7 @@ function adultSafePromptText(value: unknown, max: number) {
   MINOR_SUBJECT_PATTERN.lastIndex = 0;
   return compact(
     String(value ?? "").replace(MINOR_SUBJECT_PATTERN, "public familial"),
-    max
+    max,
   );
 }
 
@@ -238,18 +242,18 @@ export function buildGoogleVideoSafetyFallbackPrompt(prompt: string) {
   const withoutReferenceInstructions = prompt
     .replace(
       /Animate the supplied initial image naturally\.[^.]*\.[^.]*\./i,
-      "Create a fresh original scene faithful to the requested business subject and visual direction."
+      "Create a fresh original scene faithful to the requested business subject and visual direction.",
     )
     .replace(
       /Use every supplied asset reference[^.]*\.[^.]*\./i,
-      "Create a fresh original scene faithful to the requested business subject and visual direction."
+      "Create a fresh original scene faithful to the requested business subject and visual direction.",
     );
   return compact(
     [
       "SAFETY RECOVERY: create a new scene without copying any recognizable real person's face or identity. Only unmistakably mature adults aged 25 or older may be visible.",
       withoutReferenceInstructions,
     ].join(" "),
-    MAX_VEO_PROMPT_CHARS
+    MAX_VEO_PROMPT_CHARS,
   );
 }
 
@@ -284,47 +288,47 @@ function subjectVisualEvidence(value: string) {
 
   if (
     /\b(application|appli|app|mobile|smartphone|telephone|tablette)\b/.test(
-      normalized
+      normalized,
     )
   ) {
     evidence.push(
-      "Keep a smartphone, tablet or laptop in the foreground and show a real person tapping, swiping or using the digital product"
+      "Keep a smartphone, tablet or laptop in the foreground and show a real person tapping, swiping or using the digital product",
     );
   }
   if (
     /\b(logiciel|plateforme|saas|dashboard|site web|site internet|numerique|digital)\b/.test(
-      normalized
+      normalized,
     )
   ) {
     evidence.push(
-      "Make the software workflow visible through a clean unlabeled interface made only of cards, icons, images and motion"
+      "Make the software workflow visible through a clean unlabeled interface made only of cards, icons, images and motion",
     );
   }
   if (
     /\b(media|medias|image|images|video|videos|contenu|publication|communication|reseaux sociaux|ia|intelligence artificielle)\b/.test(
-      normalized
+      normalized,
     )
   ) {
     evidence.push(
-      "Show visual content being created, previewed or published through recognizable photo and video thumbnails"
+      "Show visual content being created, previewed or published through recognizable photo and video thumbnails",
     );
   }
   if (
     /\b(maconnerie|macon|construction|batiment|chantier|renovation|brique|beton)\b/.test(
-      normalized
+      normalized,
     )
   ) {
     evidence.push(
-      "Show an unmistakable masonry or construction site with the relevant craftsperson, tools and materials such as bricks, mortar, concrete or a trowel"
+      "Show an unmistakable masonry or construction site with the relevant craftsperson, tools and materials such as bricks, mortar, concrete or a trowel",
     );
   }
   if (
     /\b(cheval|chevaux|equitation|equestre|equine|ecurie|poney|poneys)\b/.test(
-      normalized
+      normalized,
     )
   ) {
     evidence.push(
-      "Show real horses as central subjects in a credible stable, paddock or riding environment with the requested human action"
+      "Show real horses as central subjects in a credible stable, paddock or riding environment with the requested human action",
     );
   }
 
@@ -332,7 +336,7 @@ function subjectVisualEvidence(value: string) {
     evidence.length
       ? evidence.join(". ")
       : "Show tangible objects, gestures and actions explicitly connected to the primary subject",
-    180
+    180,
   );
 }
 
@@ -356,21 +360,21 @@ function subjectSafetyDirection(value: string) {
 
   if (
     /\b(massage|massages|spa|bien[- ]etre|relaxation|soin du corps|soins du corps|therapie manuelle)\b/.test(
-      normalized
+      normalized,
     )
   ) {
     return "Professional wellness service only: show a clearly adult client modestly covered by towels or sheets, with only shoulders, upper back, hands or lower legs visible; the adult practitioner wears professional clothing; calm non-sexual care, no intimate body area";
   }
   if (
     /\b(esthetique|beaute|institut|visage|coiffure|barbier|onglerie|manucure|pedicure)\b/.test(
-      normalized
+      normalized,
     )
   ) {
     return "Professional beauty service only: clearly adult client and practitioner, normal salon clothing or modest treatment coverage, no intimate body area and no sexualized pose";
   }
   if (
     /\b(medecin|medical|sante|clinique|cabinet|kine|physiotherapie|osteopath|dentiste|infirmier)\b/.test(
-      normalized
+      normalized,
     )
   ) {
     return "Professional healthcare context only: clearly adult patient and qualified adult professional, modest clothing, non-graphic routine care, no injury detail, blood or invasive procedure";
@@ -379,7 +383,7 @@ function subjectSafetyDirection(value: string) {
 }
 
 function conciseVisualDirection(
-  request: AiVideoProviderGenerationArgs["request"]
+  request: AiVideoProviderGenerationArgs["request"],
 ) {
   return compact(
     [
@@ -389,19 +393,109 @@ function conciseVisualDirection(
       `people ${request.peopleMode}`,
       `creativity ${request.creativity}`,
     ].join("; "),
-    140
+    140,
   );
+}
+
+/**
+ * Keep identity semantics explicit and independent from the rendering medium.
+ * A professional may therefore be rendered as a photo, illustration, 3D or
+ * graphic scene without silently becoming an unrelated generic character.
+ */
+export function buildGoogleVideoIdentityDirection(
+  request: AiVideoProviderGenerationArgs["request"],
+) {
+  const referenceCount = request.inspirationImages.length;
+  if (request.videoCharacterMode === "reference_team") {
+    return compact(
+      [
+        "IDENTITY LOCK — PRECOMPOSED APPROVED TEAM:",
+        "animate the single supplied group composition without inventing, removing, duplicating or swapping any person",
+        "preserve every visible adult face, hairstyle and distinctive cue throughout the shot",
+        "never replace a team member with a generic person",
+      ].join(" "),
+      390,
+    );
+  }
+  if (request.videoCharacterMode === "professional") {
+    return compact(
+      [
+        "IDENTITY LOCK — APPROVED REAL PROFESSIONAL:",
+        `use all ${referenceCount} authorised reference photo${
+          referenceCount === 1 ? "" : "s"
+        } to preserve the same clearly adult professional in every shot`,
+        `render that recognisable identity faithfully in the selected ${request.imageStyle} medium`,
+        "preserve stable facial features, hair, build and distinctive visual cues",
+        "never replace the professional with a generic or different person",
+      ].join(" "),
+      390,
+    );
+  }
+  if (request.videoCharacterMode === "brand_avatar") {
+    return compact(
+      referenceCount
+        ? [
+            "IDENTITY LOCK — APPROVED BRAND AVATAR:",
+            `use all ${referenceCount} authorised reference photo${
+              referenceCount === 1 ? "" : "s"
+            } to derive one recurring, recognisable illustrated brand avatar`,
+            `keep the same avatar identity and signature visual cues in every shot while respecting the selected ${request.imageStyle} medium`,
+            "never switch to an unrelated character",
+          ].join(" ")
+        : [
+            "BRAND AVATAR:",
+            "create one original recurring illustrated brand avatar from the verified business context",
+            `keep exactly the same character design and signature visual cues in every shot while respecting the selected ${request.imageStyle} medium`,
+            "do not imitate a real person's likeness",
+          ].join(" "),
+      390,
+    );
+  }
+  if (request.peopleMode === "none") {
+    return "No character identity is required; keep the complete scene people-free.";
+  }
+  return referenceCount
+    ? "The supplied images are general visual inspiration only: use their mood, pose or styling without reproducing or claiming a real person's identity."
+    : "Use a credible generic adult cast appropriate to the business; do not imply that a generated person is the real professional.";
+}
+
+function preservesIdentityReferences(
+  request: AiVideoProviderGenerationArgs["request"],
+) {
+  return (
+    request.inspirationImages.length > 0 &&
+    (request.videoCharacterMode === "professional" ||
+      request.videoCharacterMode === "brand_avatar" ||
+      request.videoCharacterMode === "reference_team")
+  );
+}
+
+function identityReferenceRejectedError(error: unknown) {
+  const details = compact(classifyVeoFailure(error).details, 620);
+  return new Error(
+    details
+      ? `ai_video_identity_reference_rejected:${details}`
+      : "ai_video_identity_reference_rejected",
+  );
+}
+
+function isIdentityReferenceRejected(error: unknown) {
+  return compact(
+    error instanceof Error ? error.message : error,
+    1_000,
+  ).includes("ai_video_identity_reference_rejected");
 }
 
 export function buildGoogleVideoScenePrompt(
   args: AiVideoProviderGenerationArgs,
   index: number,
-  durationSeconds: 4 | 6 | 8
+  durationSeconds: 4 | 6 | 8,
 ) {
   const scene = args.plan.scenes[index];
   const colors = args.brandColors.filter(Boolean).slice(0, 5).join(", ");
   const rawContext = [
     args.request.idea,
+    args.request.aiInstruction,
     args.creativeBrief,
     scene?.visualBrief,
     scene?.title,
@@ -427,9 +521,14 @@ export function buildGoogleVideoScenePrompt(
   const businessContext = adultSafePromptText(args.creativeBrief, 90);
   const sceneDirection = adultSafePromptText(
     [scene?.visualBrief, scene?.title, scene?.body].filter(Boolean).join(" "),
-    160
+    160,
   );
   const visualDirection = conciseVisualDirection(args.request);
+  const identityDirection = buildGoogleVideoIdentityDirection(args.request);
+  const punctualInstruction = adultSafePromptText(
+    args.request.aiInstruction,
+    220,
+  );
   return compact(
     [
       `Create one original ${durationSeconds}-second cinematic business shot ${
@@ -438,10 +537,15 @@ export function buildGoogleVideoScenePrompt(
       `PRIMARY SUBJECT — visually unmistakable: ${primarySubject}.`,
       `REQUIRED VISUAL PROOF: ${visualEvidence}.`,
       sceneDirection ? `Shot action: ${sceneDirection}.` : "",
-      args.request.inspirationImages.length && index === 0
-        ? args.request.inspirationImages.length === 1
-          ? "Animate the supplied initial image naturally. Preserve its principal subject, composition, colors and visual identity; do not replace it with an unrelated scene."
-          : "Use every supplied asset reference to preserve the appearance of the referenced person, character, product or object. Keep the result coherent with the exact business subject."
+      identityDirection ? `${identityDirection}.` : "",
+      args.request.inspirationImages.length &&
+      (preservesIdentityReferences(args.request) || index === 0)
+        ? preservesIdentityReferences(args.request)
+          ? "Every supplied authorised identity reference is attached to this shot and must remain active; do not ignore, drop or substitute those references."
+          : "Use the supplied assets as general visual inspiration for this first shot without reproducing a real person's identity."
+        : "",
+      punctualInstruction
+        ? `PUNCTUAL USER DIRECTION FOR THIS GENERATION ONLY: ${punctualInstruction}. Apply it when compatible with verified facts and safety; never display or recite the instruction itself.`
         : "",
       "Keep every named trade, product, animal, object, action or place central; never switch category or use generic corporate imagery.",
       args.request.peopleMode === "none"
@@ -459,14 +563,14 @@ export function buildGoogleVideoScenePrompt(
       colors
         ? `Use these brand colors subtly in lighting or decor: ${compact(
             colors,
-            50
+            50,
           )}.`
         : "Use a refined palette appropriate to the professional activity.",
       "Credible action, natural motion and anatomy, clean framing, consistent cast, light and color across shots.",
     ]
       .filter(Boolean)
       .join(" "),
-    MAX_VEO_PROMPT_CHARS
+    MAX_VEO_PROMPT_CHARS,
   );
 }
 
@@ -477,6 +581,7 @@ async function submitOperation(args: {
   durationSeconds: 4 | 6 | 8;
   aspectRatio: "16:9" | "9:16";
   inspirationImages?: AiVideoProviderGenerationArgs["request"]["inspirationImages"];
+  preserveIdentityReferences: boolean;
   signal: AbortSignal;
 }) {
   let lastError: unknown = null;
@@ -532,10 +637,14 @@ async function submitOperation(args: {
     } catch (error) {
       lastError = error;
       const failure = classifyVeoFailure(error);
-      // Inspiration is optional. A parameter incompatibility is corrected
-      // immediately and does not consume the transient retry budget.
+      // Generic inspiration is optional. Approved identity references are a
+      // hard contract: never downgrade them to a source-only or text-only
+      // request, because that would silently substitute another person.
       const nextMode = nextVeoInspirationMode(inspirationMode);
       if (failure.kind === "invalid_argument" && nextMode) {
+        if (args.preserveIdentityReferences) {
+          throw identityReferenceRejectedError(error);
+        }
         warnings.push(
           inspirationMode === "references"
             ? "veo_inspiration_references_downgraded"
@@ -625,7 +734,7 @@ async function downloadVideo(args: {
     );
   } finally {
     await rm(directory, { recursive: true, force: true }).catch(
-      () => undefined
+      () => undefined,
     );
   }
 }
@@ -637,6 +746,7 @@ async function generateClip(args: {
   durationSeconds: 4 | 6 | 8;
   aspectRatio: "16:9" | "9:16";
   inspirationImages?: AiVideoProviderGenerationArgs["request"]["inspirationImages"];
+  preserveIdentityReferences: boolean;
   timeoutMs: number;
   pollMs: number;
   onBillable: (model: string) => void;
@@ -645,8 +755,7 @@ async function generateClip(args: {
   throwIfAborted(args.signal);
   const controller = new AbortController();
   let timedOut = false;
-  const abortFromCaller = () =>
-    controller.abort(generationCancelledError());
+  const abortFromCaller = () => controller.abort(generationCancelledError());
   args.signal?.addEventListener("abort", abortFromCaller, { once: true });
   const timeout = setTimeout(() => {
     timedOut = true;
@@ -660,22 +769,25 @@ async function generateClip(args: {
       const model = args.models[modelIndex];
       let billableOutputExists = false;
       const inspirationImages = args.inspirationImages || [];
-      const contentAttempts = inspirationImages.length
-        ? [
-            { prompt: args.prompt, inspirationImages },
-            { prompt: args.prompt, inspirationImages: [] },
-            {
-              prompt: buildGoogleVideoSafetyFallbackPrompt(args.prompt),
-              inspirationImages: [],
-            },
-          ]
-        : [
-            { prompt: args.prompt, inspirationImages: [] },
-            {
-              prompt: buildGoogleVideoSafetyFallbackPrompt(args.prompt),
-              inspirationImages: [],
-            },
-          ];
+      const contentAttempts =
+        inspirationImages.length && args.preserveIdentityReferences
+          ? [{ prompt: args.prompt, inspirationImages }]
+          : inspirationImages.length
+          ? [
+              { prompt: args.prompt, inspirationImages },
+              { prompt: args.prompt, inspirationImages: [] },
+              {
+                prompt: buildGoogleVideoSafetyFallbackPrompt(args.prompt),
+                inspirationImages: [],
+              },
+            ]
+          : [
+              { prompt: args.prompt, inspirationImages: [] },
+              {
+                prompt: buildGoogleVideoSafetyFallbackPrompt(args.prompt),
+                inspirationImages: [],
+              },
+            ];
 
       for (
         let attemptIndex = 0;
@@ -689,6 +801,7 @@ async function generateClip(args: {
             model,
             prompt: attempt.prompt,
             inspirationImages: attempt.inspirationImages,
+            preserveIdentityReferences: args.preserveIdentityReferences,
             signal: controller.signal,
           });
           accumulatedWarnings.push(...submitted.warnings);
@@ -738,10 +851,20 @@ async function generateClip(args: {
           lastError = error;
           if (billableOutputExists) throw error;
           const failure = classifyVeoFailure(error);
-          const canRetryWithoutInspiration =
+          if (
+            args.preserveIdentityReferences &&
             attempt.inspirationImages.length > 0 &&
-            (failure.kind === "invalid_argument" ||
-              failure.kind === "safety");
+            (failure.kind === "invalid_argument" || failure.kind === "safety")
+          ) {
+            lastError = isIdentityReferenceRejected(error)
+              ? error
+              : identityReferenceRejectedError(error);
+            break;
+          }
+          const canRetryWithoutInspiration =
+            !args.preserveIdentityReferences &&
+            attempt.inspirationImages.length > 0 &&
+            (failure.kind === "invalid_argument" || failure.kind === "safety");
           if (canRetryWithoutInspiration) {
             accumulatedWarnings.push(
               failure.kind === "safety"
@@ -752,8 +875,7 @@ async function generateClip(args: {
           }
           const nextAttempt = contentAttempts[attemptIndex + 1];
           const canRetryAfterSafety =
-            isSafetyFiltered(error) &&
-            nextAttempt?.prompt !== attempt.prompt;
+            isSafetyFiltered(error) && nextAttempt?.prompt !== attempt.prompt;
           if (canRetryAfterSafety) {
             accumulatedWarnings.push("veo_safety_prompt_recovery");
             continue;
@@ -763,12 +885,17 @@ async function generateClip(args: {
       }
 
       const failure = classifyVeoFailure(lastError);
-      const missingNonBillableOutput = /ai_video_veo_(?:video|operation_id)_missing/.test(
-        compact(lastError instanceof Error ? lastError.message : lastError, 400),
-      );
+      const missingNonBillableOutput =
+        /ai_video_veo_(?:video|operation_id)_missing/.test(
+          compact(
+            lastError instanceof Error ? lastError.message : lastError,
+            400,
+          ),
+        );
       const canUseFallback =
         modelIndex < args.models.length - 1 &&
         !timedOut &&
+        !isIdentityReferenceRejected(lastError) &&
         (failure.modelFallbackEligible || missingNonBillableOutput);
       if (!canUseFallback) throw lastError;
       accumulatedWarnings.push(
@@ -795,29 +922,53 @@ export const googleVeoVideoProvider: AiVideoProvider = {
   },
   async generate(args): Promise<AiVideoProviderResult> {
     throwIfAborted(args.signal);
+    if (
+      args.request.identityMode === "reference_team" &&
+      !args.identityTeamPrecomposed
+    ) {
+      // Veo reference assets represent one subject. Distinct team portraits
+      // must be precomposed server-side before any animation request.
+      throw new Error("ai_video_reference_team_precomposition_required");
+    }
     const ai = new GoogleGenAI({ apiKey: apiKey() });
-    const models = modelCandidates();
+    const preserveIdentityReferences = preservesIdentityReferences(
+      args.request,
+    );
+    const configuredModels = modelCandidates();
+    // More than one identity photo requires Veo's referenceImages contract.
+    // Do not fall back to a model that would only accept and retain the first
+    // photo: all authorised references must stay active for every shot.
+    const models =
+      preserveIdentityReferences && args.request.inspirationImages.length > 1
+        ? configuredModels.filter(supportsVeoReferenceImages)
+        : configuredModels;
+    if (!models.length) {
+      throw new Error(
+        "ai_video_identity_reference_rejected:no_compatible_reference_model",
+      );
+    }
     const primaryModel = models[0];
     const timeoutMs = positiveInt(
       process.env.AI_MEDIA_VIDEO_TIMEOUT_MS,
       DEFAULT_TIMEOUT_MS,
-      600_000
+      600_000,
     );
     const pollMs = positiveInt(
       process.env.AI_MEDIA_VEO_POLL_MS,
       DEFAULT_POLL_MS,
-      15_000
+      15_000,
     );
     const configuredConcurrency = positiveInt(
       process.env.AI_MEDIA_VEO_CONCURRENCY,
       DEFAULT_CONCURRENCY,
-      4
+      4,
     );
     const requestedDurations = getAiMediaVideoSegmentDurations(
-      args.request.durationSeconds || 16
+      args.request.durationSeconds || 16,
     );
-    // Preserve the exact commercial duration. Multiple reference images are
-    // only sent for native 8s clips; 4s/6s clips animate the first image.
+    // Preserve the exact commercial duration. Approved identity references
+    // are sent to every native segment; generic inspiration remains limited
+    // to the opening shot to avoid accidental identity claims.
     const durations: Array<4 | 6 | 8> = [...requestedDurations];
     if (args.plan.scenes.length !== durations.length) {
       throw new Error("ai_video_veo_scene_count_invalid");
@@ -831,8 +982,7 @@ export const googleVeoVideoProvider: AiVideoProvider = {
     const reservedCostPerSecond = Math.max(
       ...models.map((model) => costMicroUsdPerSecond(model)),
     );
-    const estimatedCostMicroUsd =
-      totalDurationSeconds * reservedCostPerSecond;
+    const estimatedCostMicroUsd = totalDurationSeconds * reservedCostPerSecond;
     const reservation = await reserveAiGatewayAccountAttempt(args.accountId, {
       estimatedInputTokens: 0,
       reservedOutputTokens: 0,
@@ -842,7 +992,7 @@ export const googleVeoVideoProvider: AiVideoProvider = {
     const billableModels = new Set<string>();
     try {
       const clips = new Array<AiVideoProviderClip | undefined>(
-        durations.length
+        durations.length,
       );
       let cursor = 0;
       let stopped = false;
@@ -865,7 +1015,10 @@ export const googleVeoVideoProvider: AiVideoProvider = {
               durationSeconds,
               aspectRatio: aspectRatio(args.request.format),
               inspirationImages:
-                index === 0 ? args.request.inspirationImages : [],
+                preserveIdentityReferences || index === 0
+                  ? args.request.inspirationImages
+                  : [],
+              preserveIdentityReferences,
               timeoutMs,
               pollMs,
               signal: args.signal,
@@ -925,7 +1078,7 @@ export const googleVeoVideoProvider: AiVideoProvider = {
         }).catch(() => undefined);
       } else {
         await rollbackAiGatewayAccountAttempt(reservation).catch(
-          () => undefined
+          () => undefined,
         );
       }
       await recordAiGatewayAccountFailure({

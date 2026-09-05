@@ -177,6 +177,10 @@ export function buildAiMediaCreativePlan(args: {
   const companyName = business.companyName || localized.professionalFallback;
   const typology = safeTypology(request);
   const targetCount = getAiMediaVideoSegmentCount(request.durationSeconds || 16);
+  const oneShotInstruction = clean(request.aiInstruction, 600);
+  const instructionDirection = oneShotInstruction
+    ? ` Consigne ponctuelle à appliquer sans l'afficher ni la recopier : ${oneShotInstruction}`
+    : "";
 
   // Le plan français historique reste riche et très contextualisé. Pour toute
   // autre langue, le plan déterministe de secours n'affiche volontairement que
@@ -188,9 +192,9 @@ export function buildAiMediaCreativePlan(args: {
     const subline = localized.sublineFallback;
     const cta = ctaLabel(profile);
     const idea = request.subjectSource === "profile" ? "" : clean(request.idea, 700);
-    const ideaDirection = idea
+    const ideaDirection = (idea
       ? `S'inspirer strictement de cette idée sans la recopier à l'écran : ${idea}`
-      : `Représenter concrètement l'activité ${profession || companyName}.`;
+      : `Représenter concrètement l'activité ${profession || companyName}.`) + instructionDirection;
     const localizedScenes = [
       scene(companyName, headline, subline, "hero", ideaDirection),
       scene(
@@ -234,9 +238,9 @@ export function buildAiMediaCreativePlan(args: {
   );
   const cta = ctaLabel(profile);
   const idea = request.subjectSource === "profile" ? "" : clean(request.idea, 700);
-  const ideaDirection = idea
+  const ideaDirection = (idea
     ? `S'inspirer strictement de cette idee sans la recopier a l'ecran : ${idea}`
-    : `Representer concretement l'activite ${profession || companyName}.`;
+    : `Representer concretement l'activite ${profession || companyName}.`) + instructionDirection;
 
   const candidates = [
     scene(companyName, headline, subline, "hero", ideaDirection),
