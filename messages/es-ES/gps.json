@@ -617,5 +617,18 @@
   "youtube_d5244a33": "YouTube",
   "inr_send_non_founder_intro_2026": "iNr’Send reúne correos, publicaciones Booster, campañas de captación y fidelización en un historial común.",
   "inr_send_non_founder_history_2026": "Consulta el historial simplificado: Correos, Publicaciones, Captación y Fidelización.",
-  "inr_send_non_founder_base_2026": "iNr’Send es la base de tus campañas, publicaciones y seguimientos."
+  "inr_send_non_founder_base_2026": "iNr’Send es la base de tus campañas, publicaciones y seguimientos.",
+  "startup_intro_business_dna_20260905": "Sigue este recorrido una vez para dar a iNrCy una base profesional fiable antes de cualquier generación.",
+  "startup_step_profile_20260905": "Completar **Mi perfil**: identidad, datos de contacto, empresa, sector y profesión.",
+  "startup_step_channels_20260905": "Conectar los **canales** útiles desde el panel y comprobar que sus indicadores están encendidos.",
+  "startup_step_analyze_20260905": "Abrir **ADN de la empresa → Análisis de canales** e iniciar el análisis. Un canal inaccesible no bloquea a los demás.",
+  "startup_step_complete_dna_20260905": "Revisar y completar el **ADN de la empresa**: actividad, clientes, zonas, identidad, valores, vocabulario y ofertas.",
+  "startup_step_configure_ai_20260905": "Terminar con **Configuración IA** para definir estilo, forma de hablar, longitudes e instrucciones.",
+  "startup_check_profile_20260905": "Mi perfil contiene la información esencial y la profesión correcta.",
+  "startup_check_channels_20260905": "Los canales utilizables aparecen conectados en el panel.",
+  "startup_check_analysis_20260905": "El análisis finaliza con todas las fuentes accesibles aunque falle un canal.",
+  "startup_check_dna_ai_20260905": "El ADN y la Configuración IA reflejan fielmente la empresa.",
+  "startup_reflex_partial_analysis_20260905": "Empieza por las fuentes ya conectadas: una fuente no disponible nunca debe bloquear el recorrido.",
+  "startup_reflex_validate_20260905": "Revisa la información propuesta por la IA antes de usarla para generar contenidos.",
+  "startup_link_business_dna_20260905": "Analizar y completar el ADN"
 }

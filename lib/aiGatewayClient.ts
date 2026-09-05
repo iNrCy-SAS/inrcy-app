@@ -37,6 +37,7 @@ import {
   extractAiGatewayResponseText,
   parseAiGatewayJsonObject,
 } from "@/lib/aiGatewayResponse";
+import { assertAiJsonMatchesSchema } from "@/lib/aiJsonSchemaValidation";
 import { recordAiGatewayOperationCall } from "@/lib/aiGatewayOperationTelemetry";
 import {
   attachAiGenerationFallbackInfo,
@@ -630,7 +631,11 @@ async function executeAiJsonAttempt<T extends AiResponseJSON>(args: {
   }
 
   try {
-    return parseAiGatewayJsonObject<T>(contentText);
+    const parsed = parseAiGatewayJsonObject<T>(contentText);
+    if (opts.responseSchema) {
+      assertAiJsonMatchesSchema(parsed, opts.responseSchema.schema);
+    }
+    return parsed;
   } catch (error) {
     console.error("[ai-generation] invalid structured output", {
       feature: opts.feature,

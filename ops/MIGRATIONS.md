@@ -9,6 +9,18 @@
 3. **Clean-up last**
    - Drop old columns only after you’re sure no deployment needs them.
 
+## 2026-09-05 — Quota d’analyse ADN
+
+Exécuter après `2026-09-04_ai_memory_and_channel_lengths.sql` :
+
+```text
+ops/sql/2026-09-05_business_dna_quota_period_start_ambiguity.sql
+```
+
+Ce correctif remplace uniquement la fonction atomique de consommation du
+quota. Il ne modifie aucune donnée ni aucun plafond et supprime l’ambiguïté
+PL/pgSQL entre la colonne de retour `period_start` et la colonne de la table.
+
 ## Safe migration patterns
 
 ### Add a column
@@ -183,4 +195,3 @@ de déploiement sont décrits dans :
 ```text
 docs/MEDIA_PIPELINE_STEP10_FINAL_HARDENING_2026-07-30.md
 ```
-

@@ -38,10 +38,13 @@ import {
   combineOpeningSchedule,
   normalizeOpeningScheduleText,
 } from "@/lib/openingSchedule";
+import { resolveLegacyBusinessActivityValues } from "@/lib/legacyProfessionalWorkspace";
 import EditableTags from "./EditableTags";
 
 type Props = {
   mode?: "page" | "drawer";
+  /** Mon profil ne conserve que le socle métier et les horaires. */
+  contentScope?: "all" | "profile-core";
   onActivitySaved?: () => unknown | Promise<unknown>;
   onActivityReset?: () => unknown | Promise<unknown>;
   onCloseDrawer?: () => unknown | Promise<unknown>;
@@ -72,6 +75,7 @@ const TABLE = "business_profiles";
 const ActivityContent = forwardRef<ActivityContentHandle, Props>(function ActivityContent(
   {
     mode = "page",
+    contentScope = "all",
     onActivitySaved,
     onActivityReset,
     onCloseDrawer,
@@ -106,6 +110,8 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
   const [jobSearchOpen, setJobSearchOpen] = useState(false);
   const [manualSelectionOpen, setManualSelectionOpen] = useState(false);
   const activityBaselineRef = useRef("");
+  const loadSucceededRef = useRef(false);
+  const isProfileCore = contentScope === "profile-core";
 
   const activitySnapshot = (value: BusinessActivityForm) => JSON.stringify(value);
 
@@ -154,7 +160,8 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
   const sectionCard: React.CSSProperties = {
     ...card,
     display: "grid",
-    gap: 16,
+    gap: isProfileCore ? 12 : 16,
+    padding: isProfileCore ? 13 : card.padding,
     border: "1px solid rgba(125,211,252,0.16)",
     background:
       "linear-gradient(145deg, rgba(14,31,58,0.7), rgba(35,25,64,0.54))",
@@ -254,13 +261,14 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
     const load = async () => {
       setLoading(true);
       setError("");
+      loadSucceededRef.current = false;
       try {
         const supabase = createClient();
         const { data: authData, error: authErr } =
           await supabase.auth.getUser();
         if (authErr) throw new Error(authErr.message);
         const user = authData?.user;
-        if (!user) return;
+        if (!user) throw new Error(i18nT("user_not_authenticated"));
 
         const { data, error: dbErr } = await supabase
           .from(TABLE)
@@ -269,14 +277,14 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
           .maybeSingle();
 
         if (dbErr) throw new Error(dbErr.message);
-        if (!data) return;
+        if (!data) {
+          loadSucceededRef.current = true;
+          return;
+        }
 
         const decodedSector = decodeBusinessSector(data.sector ?? "");
-        const rawServices = Array.isArray(data.services)
-          ? data.services
-              .map((s: unknown) => String(s || "").trim())
-              .filter(Boolean)
-          : normalizeLines(data.services_text ?? "");
+        const legacyValues = resolveLegacyBusinessActivityValues(data);
+        const rawServices = legacyValues.services;
         const normalizedProfession =
           decodedSector.sectorCategory === "autre"
             ? decodedSector.profession
@@ -303,35 +311,26 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
         setForm({
           sectorCategory: decodedSector.sectorCategory,
           sector: normalizedProfession,
-          activityDescription:
-            data.business_description ?? data.activity_description ?? "",
+          activityDescription: legacyValues.activityDescription,
           services,
-          interventionZones: Array.isArray(data.intervention_zones)
-            ? data.intervention_zones
-                .map((item: unknown) => String(item || "").trim())
-                .filter(Boolean)
-            : normalizeCommaList(data.intervention_zones_text ?? ""),
+          interventionZones: legacyValues.interventionZones,
           openingSchedule: combineOpeningSchedule(
             data.opening_days,
             data.opening_hours,
           ),
-          strengths: Array.isArray(data.strengths)
-            ? data.strengths
-                .map((item: unknown) => String(item || "").trim())
-                .filter(Boolean)
-            : normalizeLines(data.strengths_text ?? ""),
-          customerTypes: Array.isArray(data.customer_typologies)
-            ? data.customer_typologies
-                .map((item: unknown) => String(item || ""))
-                .filter(Boolean)
-            : [],
+          strengths: legacyValues.strengths,
+          customerTypes: legacyValues.customerTypes,
         });
         setJobSearch(
           getJobLabel(decodedSector.sectorCategory, normalizedProfession) ||
             normalizedProfession,
         );
+        loadSucceededRef.current = true;
       } catch (e: unknown) {
         console.error(e);
+        setError(
+          getClientUserFacingErrorMessage(e, i18nT("profile_load_failed")),
+        );
       } finally {
         setLoading(false);
       }
@@ -439,21 +438,31 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
     }));
   };
 
-  function normalizeLines(v: string) {
-    return String(v || "")
-      .split("\n")
-      .map((s) => s.trim())
-      .filter(Boolean);
-  }
-
-  const normalizeCommaList = (v: string) =>
-    v
-      .split(/,|;|\n/)
-      .map((s) => s.trim())
-      .filter(Boolean);
-
   const save = async (): Promise<boolean> => {
     if (saving || loading) return false;
+    if (!loadSucceededRef.current) {
+      setSaved(false);
+      setError(i18nT("profile_load_failed"));
+      return false;
+    }
+
+    const missingRequiredFields: string[] = [];
+    if (!form.sectorCategory.trim()) {
+      missingRequiredFields.push(i18nT("secteur_d_activite_04b6a420"));
+    }
+    if (!form.sector.trim()) {
+      missingRequiredFields.push(i18nT("metier_96ffe41e"));
+    }
+    if (missingRequiredFields.length > 0) {
+      setSaved(false);
+      setError(
+        i18nT("pour_continuer_completez_value_ad238d6f", {
+          value0: missingRequiredFields.join(" / "),
+        }),
+      );
+      return false;
+    }
+
     setSaving(true);
     setSaved(false);
     setError("");
@@ -473,10 +482,14 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
         services: allSelectedServices,
         business_description: form.activityDescription.trim(),
         intervention_zones: form.interventionZones,
-        // Compatibilité sans migration SQL : le nouveau champ unifié est stocké
-        // dans opening_hours et l’ancien opening_days est vidé à la sauvegarde.
-        opening_days: "",
-        opening_hours: normalizeOpeningScheduleText(form.openingSchedule),
+        // Dans Mon profil, les horaires appartiennent désormais à l'ADN : ils
+        // sont volontairement omis afin de préserver le planning structuré.
+        ...(!isProfileCore
+          ? {
+              opening_days: "",
+              opening_hours: normalizeOpeningScheduleText(form.openingSchedule),
+            }
+          : {}),
         strengths: form.strengths,
         customer_typologies: form.customerTypes,
         updated_at: new Date().toISOString(),
@@ -496,12 +509,7 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
 
       const isComplete =
         form.sectorCategory.trim().length > 0 &&
-        form.sector.trim().length > 0 &&
-        allSelectedServices.length > 0 &&
-        form.interventionZones.length > 0 &&
-        normalizeOpeningScheduleText(form.openingSchedule).length > 0 &&
-        form.strengths.length > 0 &&
-        form.customerTypes.length > 0;
+        form.sector.trim().length > 0;
 
       if (isComplete) {
         try {
@@ -560,13 +568,21 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
       });
       if (!ok) return false;
     }
-    setForm(initial);
+    const resetValue = isProfileCore
+      ? {
+          ...form,
+          sectorCategory: "",
+          sector: "",
+          services: [],
+        }
+      : initial;
+    setForm(resetValue);
     setJobSearch("");
     setJobSearchOpen(false);
     setManualSelectionOpen(false);
     setSaved(false);
     setError("");
-    activityBaselineRef.current = activitySnapshot(initial);
+    activityBaselineRef.current = activitySnapshot(resetValue);
     onUnsavedChange?.(false);
     await onActivityReset?.();
     return true;
@@ -584,7 +600,7 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
         display: "grid",
         gap: 12,
         color: "rgba(255,255,255,0.92)",
-        paddingBottom: "max(24px, var(--inrcy-safe-area-bottom))",
+        paddingBottom: isProfileCore ? 0 : "max(24px, var(--inrcy-safe-area-bottom))",
       }}
     >
       {showIntro ? (
@@ -628,10 +644,16 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
         {loading ? (
           <div style={{ opacity: 0.75 }}>{i18nT("chargement_01cba1df")}</div>
         ) : (
-          <div style={{ display: "grid", gap: 14 }}>
+          <div
+            data-activity-sections={isProfileCore ? "profile-core" : "full"}
+            style={{
+              display: "grid",
+              gap: 14,
+            }}
+          >
             <section data-activity-section="identity" style={sectionCard}>
               <div style={sectionHeader}>
-                <span style={sectionBubble}>1</span>
+                {!isProfileCore ? <span style={sectionBubble}>1</span> : null}
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 15, fontWeight: 950 }}>
                     {sectionT("activityIdentityTitle")}
@@ -941,7 +963,7 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
               </div>
             ) : null}
 
-            <label style={label}>
+            {!isProfileCore ? <label style={label}>
               <span style={labelTitle}>{i18nT("presentation_courte_de_l_activite_3ea5cb74")}</span>
               <textarea
                 style={{ ...input, minHeight: 96, resize: "vertical" }}
@@ -951,9 +973,9 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
               />
               <span style={hint}>
                 {i18nT("optionnel_mais_tres_utile_pour_que_0af0d364")}{" "}</span>
-            </label>
+            </label> : null}
 
-            <div style={label}>
+            {!isProfileCore ? <div style={label}>
               <span style={labelTitle}>{i18nT("prestations_principales_5eb72f11")}</span>
               <EditableTags
                 values={form.services}
@@ -969,11 +991,11 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
               />
               <span style={hint}>
                 {i18nT("inrcy_propose_automatiquement_les_prestations_li_7e2f1891")}{" "}</span>
-            </div>
+            </div> : null}
 
             </section>
 
-            <section data-activity-section="reach" style={sectionCard}>
+            {!isProfileCore ? <section data-activity-section="reach" style={sectionCard}>
               <div style={sectionHeader}>
                 <span style={sectionBubble}>2</span>
                 <div style={{ minWidth: 0 }}>
@@ -1010,9 +1032,9 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
               <span style={hint}>{i18nT("une_ligne_par_jour_est_recommandee_d8baf034")}</span>
             </label>
 
-            </section>
+            </section> : null}
 
-            <section data-activity-section="positioning" style={sectionCard}>
+            {!isProfileCore ? <section data-activity-section="positioning" style={sectionCard}>
               <div style={sectionHeader}>
                 <span style={sectionBubble}>3</span>
                 <div style={{ minWidth: 0 }}>
@@ -1070,7 +1092,7 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
                 {i18nT("aide_l_ia_a_adapter_les_35ed6a9c")}{" "}</span>
             </div>
 
-            </section>
+            </section> : null}
 
             {error ? (
               <div style={{ color: "rgba(248,113,113,0.95)", fontWeight: 800 }}>
@@ -1134,8 +1156,16 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
       </div>
       <style jsx>{`
         @media (max-width: 620px) {
+          div[data-activity-sections="profile-core"] {
+            grid-template-columns: 1fr !important;
+          }
           div[data-activity-actions] {
             grid-template-columns: minmax(0, 1.28fr) minmax(0, 0.72fr) !important;
+          }
+        }
+        @media (min-width: 621px) and (max-width: 1040px) {
+          div[data-activity-sections="profile-core"] {
+            grid-template-columns: 1fr !important;
           }
         }
       `}</style>

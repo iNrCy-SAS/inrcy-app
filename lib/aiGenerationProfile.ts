@@ -9,6 +9,12 @@ import {
 } from "@/lib/aiEnginePreference";
 import { asRecord } from "@/lib/tsSafe";
 import { combineOpeningSchedule } from "@/lib/openingSchedule";
+import {
+  enforceAiContentLengthForEdition,
+  normalizeAiContentLength,
+  type AiContentLength,
+} from "@/lib/aiContentLength";
+import { normalizeAiMemory, type AiMemory } from "@/lib/aiMemory";
 
 export type AiLanguageCode = "fr" | "en" | "es" | "it" | "de" | "nl" | "pt" | "th" | "zh";
 export type AiTone = "serious" | "warm" | "fun" | "premium" | "direct";
@@ -20,31 +26,39 @@ export type AiCommunicationStyle =
   | "local_humain"
   | "premium";
 export type AiCreativity = "classic" | "balanced" | "creative";
-export type AiLength = "short" | "medium" | "detailed";
+export type AiLength = AiContentLength;
 export type AiEmojiLevel = "none" | "light" | "dynamic";
 export type AiVoice = "je" | "nous" | "vous" | "neutral";
 export type AiAddressMode = "vous" | "tu";
 export type AiCommercialLevel = "discreet" | "balanced" | "direct";
+export type AiTechnicalityLevel = "accessible" | "balanced" | "expert";
+export type AiHumorLevel = "none" | "light" | "present";
 export type AiMainGoal = "visibility" | "contacts" | "reassure" | "offer";
 export type AiPreferredAngle = "local" | "quality" | "price" | "speed" | "trust";
 export type AiPreferredCta = "none" | "site" | "devis" | "appeler" | "message" | "custom";
 export type AiGenerationMediaType = "none" | "images" | "video" | "attachments";
 
 export type AiGenerationPreferences = {
+  premiumEnabled: boolean;
   engine: AiPreferredEngine;
   language: AiLanguageCode;
   tone: AiTone;
   communicationStyle: AiCommunicationStyle;
   creativity: AiCreativity;
   length: AiLength;
+  webLength: AiLength;
+  socialLength: AiLength;
   emojiLevel: AiEmojiLevel;
   voice: AiVoice;
   addressMode: AiAddressMode;
   commercialLevel: AiCommercialLevel;
+  technicalityLevel: AiTechnicalityLevel;
+  humorLevel: AiHumorLevel;
   mainGoal: AiMainGoal;
   preferredAngle: AiPreferredAngle;
   preferredCta: AiPreferredCta;
   likedExample: string;
+  likedExample2: string;
   customInstructions: string;
 };
 
@@ -87,6 +101,7 @@ export type NormalizedAiGenerationProfile = {
   version: 1;
   preferences: AiGenerationPreferences;
   business: AiGenerationBusinessContext;
+  memory: AiMemory;
   request: AiGenerationRequestContext;
 };
 
@@ -204,17 +219,6 @@ const CREATIVITY_ALIASES: Record<string, AiCreativity> = {
   créative: "creative",
 };
 
-const LENGTH_ALIASES: Record<string, AiLength> = {
-  short: "short",
-  court: "short",
-  medium: "medium",
-  moyen: "medium",
-  detailed: "detailed",
-  detaille: "detailed",
-  détaillé: "detailed",
-  long: "detailed",
-};
-
 const EMOJI_ALIASES: Record<string, AiEmojiLevel> = {
   none: "none",
   aucun: "none",
@@ -254,6 +258,30 @@ const COMMERCIAL_ALIASES: Record<string, AiCommercialLevel> = {
   equilibre: "balanced",
   équilibré: "balanced",
   direct: "direct",
+};
+
+const TECHNICALITY_ALIASES: Record<string, AiTechnicalityLevel> = {
+  accessible: "accessible",
+  simple: "accessible",
+  beginner: "accessible",
+  balanced: "balanced",
+  equilibre: "balanced",
+  équilibré: "balanced",
+  expert: "expert",
+  technical: "expert",
+  technique: "expert",
+};
+
+const HUMOR_ALIASES: Record<string, AiHumorLevel> = {
+  none: "none",
+  aucun: "none",
+  no: "none",
+  light: "light",
+  leger: "light",
+  léger: "light",
+  present: "present",
+  présent: "present",
+  visible: "present",
 };
 
 const GOAL_ALIASES: Record<string, AiMainGoal> = {
@@ -328,12 +356,63 @@ export function isNormalizedAiGenerationProfile(
   );
 }
 
+function upgradeNormalizedAiGenerationProfile(
+  profile: NormalizedAiGenerationProfile,
+): NormalizedAiGenerationProfile {
+  const rawPreferences = asRecord(profile.preferences);
+  const premiumEnabled = rawPreferences.premiumEnabled === true;
+  const length = enforceAiContentLengthForEdition(
+    normalizeAiContentLength(rawPreferences.length, "medium"),
+    premiumEnabled ? "premium" : "standard",
+  );
+  return {
+    ...profile,
+    preferences: {
+      ...profile.preferences,
+      premiumEnabled,
+      length,
+      webLength: enforceAiContentLengthForEdition(
+        normalizeAiContentLength(rawPreferences.webLength, length),
+        premiumEnabled ? "premium" : "standard",
+        length,
+      ),
+      socialLength: enforceAiContentLengthForEdition(
+        normalizeAiContentLength(rawPreferences.socialLength, length),
+        premiumEnabled ? "premium" : "standard",
+        length,
+      ),
+      technicalityLevel: normalizeFromMap(
+        rawPreferences.technicalityLevel,
+        TECHNICALITY_ALIASES,
+        "balanced",
+      ),
+      humorLevel: normalizeFromMap(
+        rawPreferences.humorLevel,
+        HUMOR_ALIASES,
+        "none",
+      ),
+      likedExample: cleanText(rawPreferences.likedExample, 1200),
+      likedExample2: cleanText(rawPreferences.likedExample2, 1200),
+      customInstructions: cleanText(rawPreferences.customInstructions, 1200),
+    },
+    memory: normalizeAiMemory(asRecord(profile).memory, {
+      includePremium: premiumEnabled,
+    }),
+  };
+}
+
 export function buildNormalizedAiGenerationProfile(
   args: BuildNormalizedAiGenerationProfileArgs = {},
 ): NormalizedAiGenerationProfile {
-  if (isNormalizedAiGenerationProfile(args.business)) return args.business;
-  if (isNormalizedAiGenerationProfile(args.profile)) return args.profile;
-  if (isNormalizedAiGenerationProfile(args.preferences)) return args.preferences;
+  if (isNormalizedAiGenerationProfile(args.business)) {
+    return upgradeNormalizedAiGenerationProfile(args.business);
+  }
+  if (isNormalizedAiGenerationProfile(args.profile)) {
+    return upgradeNormalizedAiGenerationProfile(args.profile);
+  }
+  if (isNormalizedAiGenerationProfile(args.preferences)) {
+    return upgradeNormalizedAiGenerationProfile(args.preferences);
+  }
 
   const profile = asRecord(args.profile);
   const business = asRecord(args.business);
@@ -371,11 +450,42 @@ export function buildNormalizedAiGenerationProfile(
           ? "attachments"
           : "none";
   const mediaCount = Math.max(0, Math.min(10, Number(args.media?.count || 0) || 0));
+  const lengthEdition =
+    firstValue(preferenceSources, ["ai_premium_enabled", "premium_enabled"]) === true ||
+    ["premium", "founder"].includes(
+      cleanText(firstValue(preferenceSources, ["dashboard_edition", "edition"]), 30).toLowerCase(),
+    )
+      ? "premium"
+      : "standard";
+  const generalLength = enforceAiContentLengthForEdition(
+    normalizeAiContentLength(
+      firstValue(preferenceSources, ["ai_length", "ai_content_length", "content_length"]),
+      "medium",
+    ),
+    lengthEdition,
+  );
+  const webLength = enforceAiContentLengthForEdition(
+    normalizeAiContentLength(
+      firstValue(preferenceSources, ["ai_web_length", "web_length"]),
+      generalLength,
+    ),
+    lengthEdition,
+    generalLength,
+  );
+  const socialLength = enforceAiContentLengthForEdition(
+    normalizeAiContentLength(
+      firstValue(preferenceSources, ["ai_social_length", "social_length"]),
+      generalLength,
+    ),
+    lengthEdition,
+    generalLength,
+  );
 
   return {
     kind: "inrcy.ai-generation-profile",
     version: 1,
     preferences: {
+      premiumEnabled: lengthEdition === "premium",
       engine: normalizeAiPreferredEngine(
         firstValue(preferenceSources, ["ai_preferred_engine", "preferred_engine", "engine"]),
       ),
@@ -402,11 +512,9 @@ export function buildNormalizedAiGenerationProfile(
         CREATIVITY_ALIASES,
         "balanced",
       ),
-      length: normalizeFromMap(
-        firstValue(preferenceSources, ["ai_length", "ai_content_length", "content_length"]),
-        LENGTH_ALIASES,
-        "medium",
-      ),
+      length: generalLength,
+      webLength,
+      socialLength,
       emojiLevel: normalizeFromMap(
         firstValue(preferenceSources, ["emoji_level", "ai_emoji_level", "emojis"]),
         EMOJI_ALIASES,
@@ -431,6 +539,16 @@ export function buildNormalizedAiGenerationProfile(
         COMMERCIAL_ALIASES,
         "balanced",
       ),
+      technicalityLevel: normalizeFromMap(
+        firstValue(preferenceSources, ["ai_technicality_level", "technicality_level", "technicality"]),
+        TECHNICALITY_ALIASES,
+        "balanced",
+      ),
+      humorLevel: normalizeFromMap(
+        firstValue(preferenceSources, ["ai_humor_level", "humor_level", "humour_level", "humor", "humour"]),
+        HUMOR_ALIASES,
+        "none",
+      ),
       mainGoal: normalizeFromMap(
         firstValue(preferenceSources, ["ai_main_goal", "main_goal", "goal"]),
         GOAL_ALIASES,
@@ -452,6 +570,10 @@ export function buildNormalizedAiGenerationProfile(
       ),
       likedExample: cleanText(
         firstValue(preferenceSources, ["ai_liked_example", "liked_example"]),
+        1200,
+      ),
+      likedExample2: cleanText(
+        firstValue(preferenceSources, ["ai_liked_example_2", "liked_example_2"]),
         1200,
       ),
       customInstructions: cleanText(
@@ -521,6 +643,10 @@ export function buildNormalizedAiGenerationProfile(
         8,
       ),
     },
+    memory: normalizeAiMemory(
+      firstValue([business, profile], ["ai_memory", "memory"]),
+      { includePremium: lengthEdition === "premium" },
+    ),
     request: {
       idea: cleanText(args.idea, 4000),
       theme: cleanText(args.theme, 120),
@@ -542,6 +668,6 @@ export function buildNormalizedAiGenerationProfile(
  * d'un contexte de requête complet.
  */
 export function normalizeAiGenerationSource(source: unknown) {
-  if (isNormalizedAiGenerationProfile(source)) return source;
+  if (isNormalizedAiGenerationProfile(source)) return upgradeNormalizedAiGenerationProfile(source);
   return buildNormalizedAiGenerationProfile({ business: source });
 }

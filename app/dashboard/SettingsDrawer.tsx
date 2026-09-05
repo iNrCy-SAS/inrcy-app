@@ -34,7 +34,7 @@ export default function SettingsDrawer({
   const t = useDashboardI18n();
   const titleId = useId();
   // Valeurs stables côté serveur/client au premier rendu : évite les erreurs React #418
-  // quand le drawer est ouvert directement via /dashboard?panel=ia sur mobile.
+  // quand le drawer est ouvert directement depuis une URL sur mobile.
   const [portalReady, setPortalReady] = useState(false);
   const [viewportWidth, setViewportWidth] = useState<number>(1440);
   const [viewportHeight, setViewportHeight] = useState<number | null>(null);

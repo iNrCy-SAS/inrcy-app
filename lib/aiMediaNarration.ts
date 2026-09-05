@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 import type { NormalizedAiGenerationProfile } from "@/lib/aiGenerationProfile";
 import type { AiMediaCreativePlan } from "@/lib/aiMediaCreativePlan";
 import type { AiMediaGenerationRequest } from "@/lib/aiMediaGenerationContracts";
+import { buildAiMediaBusinessDnaPayload } from "@/lib/aiMediaBusinessDna";
 import { aiGenerateJSON } from "@/lib/aiGatewayClient";
 import { hasAiLanguageMismatch } from "@/lib/aiLanguageValidation";
 import { buildAiMediaNarrationFallback } from "@/lib/aiMediaLanguage";
@@ -121,8 +122,8 @@ function validGeneratedScript(
 }
 
 /**
- * Écrit une voix off courte à partir des seules informations vérifiées du
- * profil. Le sujet donne la direction éditoriale ; il n'est jamais récité
+ * Écrit une voix off courte à partir des seules informations vérifiées de
+ * l'ADN de l'entreprise. Le sujet donne la direction éditoriale ; il n'est jamais récité
  * comme une consigne. Le secours local reste utilisable si le copywriter est
  * momentanément indisponible, avant tout appel vidéo coûteux.
  */
@@ -158,17 +159,7 @@ export async function writeAiMediaNarration(args: {
       ].join(" "),
       input: JSON.stringify({
         idee_du_professionnel: args.request.idea || null,
-        entreprise: args.profile.business.companyName || null,
-        metier:
-          args.profile.business.professionLabel ||
-          args.profile.business.sectorLabel ||
-          null,
-        presentation: args.profile.business.description || null,
-        prestations: args.profile.business.services.slice(0, 6),
-        forces: args.profile.business.strengths.slice(0, 4),
-        clientele: args.profile.business.customerTypologies.slice(0, 4),
-        ville: args.profile.business.city || null,
-        zone: args.profile.business.interventionZones.slice(0, 3),
+        adn_de_l_entreprise: buildAiMediaBusinessDnaPayload(args.profile),
         type_de_contenu: args.request.typology,
         ton: args.profile.preferences.tone,
         style: args.profile.preferences.communicationStyle,

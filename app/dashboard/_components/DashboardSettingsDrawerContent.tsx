@@ -1,8 +1,6 @@
 import ContactContent from "../settings/_components/ContactContent";
 import AccountContent from "../settings/_components/AccountContent";
-import ProfileAndActivityContent from "../settings/_components/ProfileAndActivityContent";
 import GeneralPreferencesContent from "../settings/_components/GeneralPreferencesContent";
-import AiConfigurationContent from "../settings/_components/AiConfigurationContent";
 import AbonnementContent from "../settings/_components/AbonnementContent";
 import LegalContent from "../settings/_components/LegalContent";
 import RgpdContent from "../settings/_components/RgpdContent";
@@ -36,6 +34,7 @@ type DashboardPanelName =
   | "compte"
   | "activite"
   | "ia"
+  | "ai_memory"
   | "abonnement"
   | "mails"
   | "agenda"
@@ -60,15 +59,9 @@ type DashboardPanelName =
 type DashboardSettingsDrawerContentProps = {
   edition?: DashboardEdition;
   panel: string | null;
-  profileInitialSection?: "identity" | "activity" | null;
   onUnsavedChange?: (hasUnsavedChanges: boolean) => void;
-  onProfileSaved: () => unknown | Promise<unknown>;
-  onProfileReset: () => unknown | Promise<unknown>;
-  onActivitySaved: () => unknown | Promise<unknown>;
-  onActivityReset: () => unknown | Promise<unknown>;
   inertiaSnapshot: any;
   openPanel: (name: DashboardPanelName) => void;
-  onCloseDrawer: () => void;
   referralName: string;
   referralPhone: string;
   referralEmail: string;
@@ -97,17 +90,11 @@ type DashboardSettingsDrawerContentProps = {
 };
 
 export default function DashboardSettingsDrawerContent({
-  edition = "premium",
+  edition = "standard",
   panel,
-  profileInitialSection = null,
   onUnsavedChange,
-  onProfileSaved,
-  onProfileReset,
-  onActivitySaved,
-  onActivityReset,
   inertiaSnapshot,
   openPanel,
-  onCloseDrawer,
   referralName,
   referralPhone,
   referralEmail,
@@ -146,25 +133,8 @@ export default function DashboardSettingsDrawerContent({
           onUnsavedChange={onUnsavedChange}
         />
       )}
-      {(panel === "profil" || panel === "activite") && (
-        <ProfileAndActivityContent
-          initialSection={panel === "activite" ? "activity" : profileInitialSection}
-          onProfileSaved={onProfileSaved}
-          onProfileReset={onProfileReset}
-          onActivitySaved={onActivitySaved}
-          onActivityReset={onActivityReset}
-          onCloseDrawer={onCloseDrawer}
-          onUnsavedChange={onUnsavedChange}
-        />
-      )}
       {panel === "preferences" && <GeneralPreferencesContent mode="drawer" onUnsavedChange={onUnsavedChange} />}
       {panel === "inrbadge" && <InrBadgeSettingsContent {...inrBadgeSettingsProps} />}
-      {panel === "ia" && (
-        <AiConfigurationContent
-          onSaved={onCloseDrawer}
-          onUnsavedChange={onUnsavedChange}
-        />
-      )}
       {panel === "abonnement" && (
         edition === "standard"
           ? <StandardSubscriptionContent onOpenContact={() => openPanel("contact")} />

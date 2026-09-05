@@ -3,182 +3,415 @@
 import { useTranslations } from "next-intl";
 
 
-import { resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
+import {
+  readAccountCacheValue,
+  resolveActiveBrowserUserId,
+  writeAccountCacheValue,
+} from "@/lib/browserAccountCache";
 import { invalidateBoosterGenerationContextClient } from "@/lib/boosterGenerationContextClient";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { createClient } from "@/lib/supabaseClient";
 import { APP_LANGUAGE_OPTIONS, APP_LANGUAGE_STORAGE_KEY, type AppLanguageCode, normalizeAppLanguage } from "@/lib/appLanguage";
 import { getClientUserFacingErrorMessage } from "@/lib/userFacingErrors";
 import {
   AI_ENGINE_OPTIONS,
-  DEFAULT_AI_PREFERRED_ENGINE,
   getAiEngineOption,
-  normalizeAiPreferredEngine,
-  type AiPreferredEngine,
 } from "@/lib/aiEnginePreference";
 import {
   BOOSTER_PREFERRED_CTA_OPTIONS,
-  normalizeBoosterPreferredCta,
-  type BoosterPreferredCta,
 } from "../../booster/publier/publishModal.shared";
 import AiEngineInfoModal from "../../_components/AiEngineInfoModal";
+import {
+  enforceAiContentLengthForEdition,
+  type AiContentLength,
+} from "@/lib/aiContentLength";
+import { hasPremiumDashboardAccess, type DashboardEdition } from "@/lib/dashboardEdition";
+import { confirmInrcy } from "@/lib/inrcyDialog";
+import {
+  DEFAULT_AI_CONFIGURATION_FORM,
+  resolveCompatibleAiConfiguration,
+  selectAiConfigurationCache,
+  type AiConfigurationFormValues,
+} from "@/lib/aiConfigurationCompatibility";
 
 type Props = {
+  edition?: DashboardEdition;
+  onOpenAiMemory?: () => void;
   onSaved?: () => void | Promise<void>;
   onUnsavedChange?: (hasUnsavedChanges: boolean) => void;
+  hideAiMemoryShortcut?: boolean;
+  workspaceMode?: boolean;
 };
 
-type AiConfigForm = {
-  preferredEngine: AiPreferredEngine;
-  tone: "serious" | "warm" | "fun" | "premium";
-  textStyle: "simple" | "dynamic" | "expert" | "coulisses";
-  originality: "classic" | "balanced" | "creative";
-  length: "short" | "medium" | "detailed";
-  emojiLevel: "none" | "light" | "dynamic";
-  pronoun: "je" | "nous" | "vous" | "neutral";
-  addressMode: "vous" | "tu";
-  commercialLevel: "discreet" | "balanced" | "direct";
-  mainGoal: "visibility" | "contacts" | "reassure" | "offer";
-  preferredAngle: "local" | "quality" | "price" | "speed" | "trust";
-  preferredCta: BoosterPreferredCta;
-  language: AppLanguageCode;
-  likedExample: string;
-  forbiddenStyle: string;
+type AiConfigurationTab = "parameters" | "instructions";
+
+function configurationSignature(form: AiConfigForm) {
+  return JSON.stringify(form);
+}
+
+type AiConfigForm = AiConfigurationFormValues;
+
+type ContentLengthSelectProps = {
+  value: AiContentLength;
+  onChange: (value: AiContentLength) => void;
+  premiumAccess: boolean;
+  ariaLabel: string;
+  premiumLabel: string;
+  labels: Record<AiContentLength, string>;
+  controlStyle: React.CSSProperties;
 };
+
+const CONTENT_LENGTH_VALUES: AiContentLength[] = ["adapted", "short", "medium", "long", "deep"];
+
+function ContentLengthSelect({
+  value,
+  onChange,
+  premiumAccess,
+  ariaLabel,
+  premiumLabel,
+  labels,
+  controlStyle,
+}: ContentLengthSelectProps) {
+  const [open, setOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<React.CSSProperties | null>(null);
+  const listboxId = useId();
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (!rootRef.current?.contains(target) && !menuRef.current?.contains(target)) setOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setMenuPosition(null);
+      return;
+    }
+
+    const updatePosition = () => {
+      const trigger = triggerRef.current;
+      if (!trigger) return;
+      const rect = trigger.getBoundingClientRect();
+      const estimatedMenuHeight = 208;
+      const openAbove = window.innerHeight - rect.bottom < estimatedMenuHeight + 14 && rect.top > estimatedMenuHeight + 14;
+      setMenuPosition({
+        left: rect.left,
+        top: openAbove ? rect.top - 6 : rect.bottom + 6,
+        width: rect.width,
+        transform: openAbove ? "translateY(-100%)" : undefined,
+      });
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [open]);
+
+  return (
+    <div
+      ref={rootRef}
+      data-content-length-select
+      data-open={open ? "true" : "false"}
+      style={{ position: "relative", zIndex: open ? 60 : 1, minWidth: 0 }}
+    >
+      <button
+        ref={triggerRef}
+        type="button"
+        role="combobox"
+        aria-label={ariaLabel}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={listboxId}
+        onClick={() => setOpen((current) => !current)}
+        style={{
+          ...controlStyle,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 10,
+          textAlign: "left",
+          cursor: "pointer",
+        }}
+      >
+        <span>{labels[value]}</span>
+        <span aria-hidden style={{ color: "rgba(255,255,255,.72)", fontSize: 12 }}>{open ? "⌃" : "⌄"}</span>
+      </button>
+      {open && menuPosition && typeof document !== "undefined" ? createPortal(
+        <div
+          ref={menuRef}
+          id={listboxId}
+          role="listbox"
+          aria-label={ariaLabel}
+          style={{ ...contentLengthMenuStyle, ...menuPosition }}
+        >
+          {CONTENT_LENGTH_VALUES.map((optionValue) => {
+            const premiumOption = optionValue === "deep";
+            const locked = premiumOption && !premiumAccess;
+            const selected = optionValue === value;
+            return (
+              <button
+                key={optionValue}
+                type="button"
+                role="option"
+                aria-selected={selected}
+                aria-disabled={locked || undefined}
+                disabled={locked}
+                onClick={() => {
+                  if (locked) return;
+                  onChange(optionValue);
+                  setOpen(false);
+                }}
+                style={{
+                  ...contentLengthOptionStyle,
+                  ...(selected ? contentLengthSelectedOptionStyle : {}),
+                  ...(locked ? contentLengthLockedOptionStyle : {}),
+                }}
+              >
+                <span>{labels[optionValue]}</span>
+                {premiumOption ? <span style={contentLengthPremiumPillStyle}>{premiumLabel}</span> : null}
+              </button>
+            );
+          })}
+        </div>,
+        document.body,
+      ) : null}
+    </div>
+  );
+}
 
 const TABLE = "business_profiles";
 const STORAGE_KEY = "inrcy_ai_configuration";
 const AI_LANGUAGE_CUSTOM_STORAGE_KEY = "inrcy_ai_language_custom_v1";
 
-const initialForm: AiConfigForm = {
-  preferredEngine: DEFAULT_AI_PREFERRED_ENGINE,
-  tone: "serious",
-  textStyle: "simple",
-  originality: "balanced",
-  length: "medium",
-  emojiLevel: "light",
-  pronoun: "nous",
-  addressMode: "vous",
-  commercialLevel: "balanced",
-  mainGoal: "contacts",
-  preferredAngle: "trust",
-  preferredCta: "devis",
-  language: "fr",
-  likedExample: "",
-  forbiddenStyle: "",
+const initialForm: AiConfigForm = DEFAULT_AI_CONFIGURATION_FORM;
+
+const selectOption: React.CSSProperties = { color: "#f8fafc", background: "#111831" };
+const configurationTabsStyle: React.CSSProperties = {
+  position: "sticky",
+  top: 55,
+  zIndex: 15,
+  display: "grid",
+  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+  gap: 8,
+  padding: 7,
+  borderRadius: 17,
+  border: "1px solid rgba(255,255,255,0.10)",
+  background: "rgba(5,13,28,0.94)",
+  boxShadow: "0 12px 34px rgba(0,0,0,0.25)",
+  backdropFilter: "blur(18px)",
 };
-
-const selectOption: React.CSSProperties = { color: "#0b1020", background: "#ffffff" };
-
-const normalizeTone = (value: unknown): AiConfigForm["tone"] => {
-  const raw = String(value || "").trim();
-  if (raw === "fun") return "fun";
-  if (raw === "premium") return "premium";
-  if (["friendly", "warm", "chaleureux"].includes(raw)) return "warm";
-  return "serious";
+const configurationTabStyle: React.CSSProperties = {
+  minWidth: 0,
+  display: "flex",
+  justifyContent: "center",
+  alignItems: "center",
+  gap: 8,
+  borderRadius: 11,
+  border: "1px solid transparent",
+  background: "transparent",
+  color: "rgba(255,255,255,0.68)",
+  padding: "10px 8px",
+  cursor: "pointer",
+  fontSize: 13,
+  fontWeight: 900,
 };
-
-const normalizeTextStyle = (value: unknown): AiConfigForm["textStyle"] => {
-  const raw = String(value || "").trim();
-  if (["dynamic", "dynamique", "moderne"].includes(raw)) return "dynamic";
-  if (["expert", "professionnel"].includes(raw)) return "expert";
-  if (["coulisses", "histoire"].includes(raw)) return "coulisses";
-  return "simple";
+const activeConfigurationTabStyle: React.CSSProperties = {
+  border: "1px solid rgba(251,191,36,0.30)",
+  background: "linear-gradient(135deg, rgba(251,191,36,0.13), rgba(124,58,237,0.17))",
+  color: "#fef3c7",
+  boxShadow: "0 7px 22px rgba(251,191,36,0.08)",
 };
-
-const normalizeOriginality = (value: unknown): AiConfigForm["originality"] => {
-  const raw = String(value || "").trim();
-  if (["classic", "classique", "stable"].includes(raw)) return "classic";
-  if (["creative", "creatif"].includes(raw)) return "creative";
-  return "balanced";
+const workspaceConfigurationTabsStyle: React.CSSProperties = {
+  position: "relative",
+  top: "auto",
+  zIndex: 2,
+  padding: 6,
+  boxShadow: "0 10px 28px rgba(0,0,0,0.18)",
 };
-
-const normalizeLength = (value: unknown): AiConfigForm["length"] => {
-  const raw = String(value || "").trim();
-  if (raw === "short") return "short";
-  if (raw === "detailed") return "detailed";
-  return "medium";
+const defaultParametersGridStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 14,
 };
-
-const normalizeEmojiLevel = (value: unknown): AiConfigForm["emojiLevel"] => {
-  const raw = String(value || "").trim();
-  if (raw === "none") return "none";
-  if (["dynamic", "many"].includes(raw)) return "dynamic";
-  return "light";
+const workspaceParametersGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+  gridAutoRows: "1fr",
+  alignItems: "stretch",
+  gap: 17,
 };
-
-const normalizePronoun = (value: unknown): AiConfigForm["pronoun"] => {
-  const raw = String(value || "").trim();
-  if (raw === "je") return "je";
-  if (raw === "vous") return "vous";
-  if (raw === "neutral") return "neutral";
-  return "nous";
+const workspaceVoiceGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+  alignItems: "start",
+  gap: "14px 16px",
+  minWidth: 0,
 };
-
-const normalizeAddressMode = (value: unknown): AiConfigForm["addressMode"] => {
-  const raw = String(value || "").trim();
-  if (raw === "tu") return "tu";
-  return "vous";
+const defaultActionsStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 10,
+  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 180px), 1fr))",
+  minWidth: 0,
+  maxWidth: "100%",
 };
-
-const normalizeCommercialLevel = (value: unknown): AiConfigForm["commercialLevel"] => {
-  const raw = String(value || "").trim();
-  if (["discreet", "discret"].includes(raw)) return "discreet";
-  if (raw === "direct") return "direct";
-  return "balanced";
+const workspaceActionsStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "minmax(105px, 145px) minmax(210px, 300px)",
+  justifyContent: "end",
+  gap: 9,
+  minWidth: 0,
+  maxWidth: "100%",
 };
-
-const normalizeMainGoal = (value: unknown): AiConfigForm["mainGoal"] => {
-  const raw = String(value || "").trim();
-  if (["visibility", "visible"].includes(raw)) return "visibility";
-  if (["reassure", "rassurer"].includes(raw)) return "reassure";
-  if (["offer", "offre"].includes(raw)) return "offer";
-  return "contacts";
+const contentLengthMenuStyle: React.CSSProperties = {
+  position: "fixed",
+  zIndex: 10000,
+  display: "grid",
+  gap: 3,
+  padding: 6,
+  borderRadius: 13,
+  border: "1px solid rgba(148,163,184,.24)",
+  background: "#090f25",
+  boxShadow: "0 18px 42px rgba(0,0,0,.45)",
+  maxHeight: "min(250px, calc(100dvh - 24px))",
+  overflowY: "auto",
 };
-
-const normalizePreferredAngle = (value: unknown): AiConfigForm["preferredAngle"] => {
-  const raw = String(value || "").trim();
-  if (raw === "local") return "local";
-  if (["quality", "qualite"].includes(raw)) return "quality";
-  if (["price", "prix"].includes(raw)) return "price";
-  if (["speed", "rapidite"].includes(raw)) return "speed";
-  return "trust";
+const contentLengthOptionStyle: React.CSSProperties = {
+  width: "100%",
+  minHeight: 34,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 10,
+  padding: "7px 9px",
+  borderRadius: 9,
+  border: "1px solid transparent",
+  background: "#101831",
+  color: "rgba(255,255,255,.88)",
+  cursor: "pointer",
+  fontSize: 12,
+  fontWeight: 750,
+  textAlign: "left",
 };
-
-const normalizeLanguage = (value: unknown): AiConfigForm["language"] => normalizeAppLanguage(value);
+const contentLengthSelectedOptionStyle: React.CSSProperties = {
+  border: "1px solid rgba(125,211,252,.22)",
+  background: "#202451",
+  color: "white",
+};
+const contentLengthLockedOptionStyle: React.CSSProperties = {
+  color: "rgba(203,213,225,.46)",
+  background: "#11162b",
+  cursor: "not-allowed",
+};
+const contentLengthPremiumPillStyle: React.CSSProperties = {
+  flex: "0 0 auto",
+  borderRadius: 999,
+  border: "1px solid rgba(251,191,36,.42)",
+  background: "rgba(251,191,36,.12)",
+  color: "#fde68a",
+  padding: "2px 6px",
+  fontSize: 8.5,
+  fontWeight: 950,
+  letterSpacing: ".045em",
+  textTransform: "uppercase",
+};
+const styleSecondaryFieldsStyle: React.CSSProperties = {
+  gridColumn: "1 / -1",
+  display: "grid",
+  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+  alignItems: "start",
+  gap: 16,
+  minWidth: 0,
+};
+const styleSecondaryFieldStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateRows: "auto auto auto",
+  alignContent: "start",
+  gap: 6,
+  minWidth: 0,
+};
+const instructionExamplesGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+  alignItems: "stretch",
+  gap: 16,
+  minWidth: 0,
+};
+const instructionPanelStyle: React.CSSProperties = {
+  minWidth: 0,
+  padding: 14,
+  borderRadius: 14,
+  border: "1px solid rgba(125,211,252,0.13)",
+  background: "#101831",
+};
 
 const hasLanguageValue = (value: unknown): boolean => String(value ?? "").trim().length > 0;
 
 function readDefaultAppLanguage(): AppLanguageCode {
   if (typeof window === "undefined") return initialForm.language;
   try {
-    return normalizeLanguage(window.localStorage.getItem(APP_LANGUAGE_STORAGE_KEY));
+    return normalizeAppLanguage(window.localStorage.getItem(APP_LANGUAGE_STORAGE_KEY));
   } catch {
     return initialForm.language;
   }
 }
 
-function readAiLanguageIsCustom(local: Partial<Record<string, unknown>>): boolean {
+function readAiLanguageIsCustom(
+  local: Partial<Record<string, unknown>>,
+  activeUserId: string | null,
+  authUserId: string | null,
+): boolean {
   if (typeof window === "undefined") return hasLanguageValue(local.language);
-  try {
-    return window.localStorage.getItem(AI_LANGUAGE_CUSTOM_STORAGE_KEY) === "1" || hasLanguageValue(local.language);
-  } catch {
-    return hasLanguageValue(local.language);
-  }
+  let legacyGlobalValue: string | null = null;
+  try { legacyGlobalValue = window.localStorage.getItem(AI_LANGUAGE_CUSTOM_STORAGE_KEY); } catch {}
+  const selected = selectAiConfigurationCache({
+    scopedValue: activeUserId
+      ? readAccountCacheValue(AI_LANGUAGE_CUSTOM_STORAGE_KEY, activeUserId)
+      : null,
+    legacyGlobalValue,
+    activeUserId,
+    authUserId,
+  });
+  return selected.rawValue === "1" || hasLanguageValue(local.language);
 }
 
-function markAiLanguageCustom() {
-  if (typeof window === "undefined") return;
-  try { window.localStorage.setItem(AI_LANGUAGE_CUSTOM_STORAGE_KEY, "1"); } catch {}
+function markAiLanguageCustom(activeUserId: string | null) {
+  if (!activeUserId) return;
+  writeAccountCacheValue(AI_LANGUAGE_CUSTOM_STORAGE_KEY, "1", activeUserId);
 }
 
 export default function AiConfigurationContent({
+  edition = "standard",
+  onOpenAiMemory,
   onSaved,
   onUnsavedChange,
+  hideAiMemoryShortcut = false,
+  workspaceMode = false,
 }: Props) {
   const i18nT = useTranslations("settings");
   const sectionT = useTranslations("dashboard.settingsSections");
+  const memoryT = useTranslations("dashboard.aiMemory");
+  const configurationT = useTranslations("dashboard.aiConfiguration");
+  const premiumAccess = hasPremiumDashboardAccess(edition);
+  const [activeTab, setActiveTab] = useState<AiConfigurationTab>("parameters");
   const [form, setForm] = useState<AiConfigForm>(initialForm);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -186,6 +419,8 @@ export default function AiConfigurationContent({
   const [error, setError] = useState("");
   const [engineInfoOpen, setEngineInfoOpen] = useState(false);
   const savedFormSignatureRef = useRef("");
+  const loadSucceededRef = useRef(false);
+  const activeUserIdRef = useRef<string | null>(null);
   const selectedEngineOption = getAiEngineOption(form.preferredEngine);
 
   useEffect(() => {
@@ -194,7 +429,7 @@ export default function AiConfigurationContent({
       return;
     }
     onUnsavedChange?.(
-      savedFormSignatureRef.current !== "" && savedFormSignatureRef.current !== JSON.stringify(form),
+      savedFormSignatureRef.current !== "" && savedFormSignatureRef.current !== configurationSignature(form),
     );
   }, [form, loading, onUnsavedChange]);
 
@@ -203,13 +438,13 @@ export default function AiConfigurationContent({
     maxWidth: "100%",
     minWidth: 0,
     boxSizing: "border-box",
-    padding: "clamp(12px, 3.6vw, 16px)",
+    padding: workspaceMode ? "clamp(16px, 1.35vw, 21px)" : "clamp(12px, 3.6vw, 16px)",
     borderRadius: 16,
     border: "1px solid rgba(255,255,255,0.10)",
     background: "rgba(255,255,255,0.045)",
     backdropFilter: "blur(10px)",
     WebkitBackdropFilter: "blur(10px)",
-  }), []);
+  }), [workspaceMode]);
 
   const signatureCard: React.CSSProperties = useMemo(() => ({
     ...card,
@@ -223,19 +458,21 @@ export default function AiConfigurationContent({
 
   const configurationCard: React.CSSProperties = useMemo(() => ({
     ...card,
+    position: "relative",
+    overflow: "visible",
     display: "grid",
-    gap: 18,
+    gap: workspaceMode ? 16 : 18,
     border: "1px solid rgba(125,211,252,0.16)",
     background:
       "linear-gradient(145deg, rgba(14,31,58,0.7), rgba(35,25,64,0.54))",
     boxShadow: "0 16px 42px rgba(0,0,0,0.18)",
-  }), [card]);
+  }), [card, workspaceMode]);
 
   const configurationHeader: React.CSSProperties = {
     display: "flex",
     alignItems: "center",
     gap: 11,
-    paddingBottom: 12,
+    paddingBottom: workspaceMode ? 12 : 12,
     borderBottom: "1px solid rgba(255,255,255,0.08)",
   };
 
@@ -264,31 +501,32 @@ export default function AiConfigurationContent({
     width: "100%",
     maxWidth: "100%",
     minWidth: 0,
-    minHeight: 44,
+    minHeight: workspaceMode ? 38 : 44,
     boxSizing: "border-box",
     fontSize: 15,
     lineHeight: 1.35,
     borderRadius: 12,
     border: "1px solid rgba(255,255,255,0.14)",
-    background: "rgba(255,255,255,0.04)",
-    padding: "10px 12px",
+    background: "#171d38",
+    padding: workspaceMode ? "8px 10px" : "10px 12px",
     color: "white",
     outline: "none",
-  }), []);
+  }), [workspaceMode]);
 
-  const label: React.CSSProperties = { display: "grid", gap: 8, minWidth: 0, maxWidth: "100%" };
+  const label: React.CSSProperties = { display: "grid", gap: workspaceMode ? 5 : 8, minWidth: 0, maxWidth: "100%" };
   const labelTitle: React.CSSProperties = { color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 800, lineHeight: 1.25 };
-  const hint: React.CSSProperties = { color: "rgba(255,255,255,0.65)", fontSize: 12, lineHeight: 1.35 };
+  const hint: React.CSSProperties = { color: "rgba(255,255,255,0.65)", fontSize: workspaceMode ? 11 : 12, lineHeight: 1.35 };
   const grid2: React.CSSProperties = { display: "grid", gap: 14, gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 220px), 1fr))", minWidth: 0, maxWidth: "100%" };
   const primaryBtn: React.CSSProperties = {
     border: "1px solid rgba(255,255,255,0.18)",
     background: "linear-gradient(135deg, rgba(251,191,36,.35), rgba(97,87,255,.28), rgba(0,200,255,.22))",
     color: "white",
     borderRadius: 14,
-    padding: "10px 12px",
+    minHeight: workspaceMode ? 38 : 44,
+    padding: workspaceMode ? "8px 11px" : "10px 12px",
     cursor: saving ? "default" : "pointer",
     fontWeight: 900,
-    fontSize: 16,
+    fontSize: workspaceMode ? 12.5 : 16,
     width: "100%",
     opacity: saving ? 0.7 : 1,
   };
@@ -297,74 +535,72 @@ export default function AiConfigurationContent({
     const load = async () => {
       setLoading(true);
       setError("");
+      loadSucceededRef.current = false;
       try {
-        let local: Partial<Record<keyof AiConfigForm | "communicationStyle" | "creativity" | "aiVoice" | "customInstructions", unknown>> = {};
-        try {
-          local = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}") || {};
-        } catch {}
-
         const supabase = createClient();
         const { data: authData, error: authErr } = await supabase.auth.getUser();
         if (authErr) throw new Error(authErr.message);
         const user = authData?.user;
+        const activeUserId = user ? resolveActiveBrowserUserId(user.id) : null;
+        activeUserIdRef.current = activeUserId;
+
+        let legacyGlobalValue: string | null = null;
+        try { legacyGlobalValue = localStorage.getItem(STORAGE_KEY); } catch {}
+        const cacheSelection = selectAiConfigurationCache({
+          scopedValue: activeUserId
+            ? readAccountCacheValue(STORAGE_KEY, activeUserId)
+            : null,
+          legacyGlobalValue,
+          activeUserId,
+          authUserId: user?.id || null,
+        });
+        let local: Record<string, unknown> = {};
+        let validLocalCache = false;
+        try {
+          const parsed = JSON.parse(cacheSelection.rawValue || "{}");
+          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            local = parsed as Record<string, unknown>;
+            validLocalCache = true;
+          }
+        } catch {}
+        if (cacheSelection.source === "legacy-global" && activeUserId && validLocalCache) {
+          // Migration douce : on garde la clé historique mais toutes les
+          // prochaines lectures de ce compte passent par sa clé dédiée.
+          writeAccountCacheValue(STORAGE_KEY, JSON.stringify(local), activeUserId);
+        }
 
         const appDefaultLanguage = readDefaultAppLanguage();
-        const aiLanguageIsCustom = readAiLanguageIsCustom(local);
-        let dbTone: Partial<AiConfigForm> = {};
+        const aiLanguageIsCustom = readAiLanguageIsCustom(local, activeUserId, user?.id || null);
+        let businessProfile: Record<string, unknown> | null = null;
+        let useDbLanguage = false;
         if (user) {
           const { data, error: dbErr } = await supabase
             .from(TABLE)
             .select("*")
-            .eq("user_id", resolveActiveBrowserUserId(user.id))
+            .eq("user_id", activeUserId)
             .maybeSingle();
           if (dbErr) throw new Error(dbErr.message);
-          const dbLanguage = hasLanguageValue(data?.ai_language) ? normalizeLanguage(data?.ai_language) : undefined;
-          const shouldUseDbLanguage = Boolean(dbLanguage && (aiLanguageIsCustom || dbLanguage !== initialForm.language));
-          dbTone = {
-            preferredEngine: normalizeAiPreferredEngine(data?.ai_preferred_engine),
-            tone: normalizeTone(data?.tone),
-            textStyle: normalizeTextStyle(data?.communication_style),
-            originality: normalizeOriginality(data?.ai_creativity),
-            length: normalizeLength(data?.ai_length),
-            emojiLevel: normalizeEmojiLevel(data?.emoji_level),
-            pronoun: normalizePronoun(data?.ai_voice),
-            addressMode: normalizeAddressMode(data?.address_mode),
-            commercialLevel: normalizeCommercialLevel(data?.ai_commercial_level),
-            mainGoal: normalizeMainGoal(data?.ai_main_goal),
-            preferredAngle: normalizePreferredAngle(data?.ai_preferred_angle),
-            preferredCta: normalizeBoosterPreferredCta(data?.preferred_cta || initialForm.preferredCta),
-            ...(shouldUseDbLanguage && dbLanguage ? { language: dbLanguage } : {}),
-            likedExample: String(data?.ai_liked_example || initialForm.likedExample).slice(0, 1200),
-            forbiddenStyle: String(data?.ai_custom_instructions || initialForm.forbiddenStyle).slice(0, 700),
-          };
+          businessProfile = data as Record<string, unknown> | null;
+          const dbLanguage = hasLanguageValue(data?.ai_language)
+            ? normalizeAppLanguage(data?.ai_language)
+            : undefined;
+          useDbLanguage = Boolean(
+            dbLanguage && (aiLanguageIsCustom || dbLanguage !== initialForm.language),
+          );
         }
 
-        const migratedLocal: Partial<AiConfigForm> = {
-          preferredEngine: normalizeAiPreferredEngine(local.preferredEngine),
-          tone: normalizeTone(local.tone),
-          textStyle: normalizeTextStyle(local.textStyle ?? local.communicationStyle),
-          originality: normalizeOriginality(local.originality ?? local.creativity),
-          length: normalizeLength(local.length),
-          emojiLevel: normalizeEmojiLevel(local.emojiLevel),
-          pronoun: normalizePronoun(local.pronoun ?? local.aiVoice),
-          addressMode: normalizeAddressMode(local.addressMode),
-          commercialLevel: normalizeCommercialLevel(local.commercialLevel),
-          mainGoal: normalizeMainGoal(local.mainGoal),
-          preferredAngle: normalizePreferredAngle(local.preferredAngle),
-          preferredCta: normalizeBoosterPreferredCta(local.preferredCta || initialForm.preferredCta),
-          ...(hasLanguageValue(local.language) ? { language: normalizeLanguage(local.language) } : {}),
-          likedExample: String(local.likedExample || "").slice(0, 1200),
-          forbiddenStyle: String(local.forbiddenStyle ?? local.customInstructions ?? "").slice(0, 700),
-        };
-
-        const merged = { ...initialForm, language: appDefaultLanguage, ...migratedLocal, ...dbTone } as AiConfigForm;
-        const nextForm = {
-          ...merged,
-          preferredCta: normalizeBoosterPreferredCta(merged.preferredCta),
-        } as AiConfigForm;
+        const nextForm = resolveCompatibleAiConfiguration({
+          local,
+          businessProfile,
+          edition,
+          appDefaultLanguage,
+          useDbLanguage,
+        });
         setForm(nextForm);
-        savedFormSignatureRef.current = JSON.stringify(nextForm);
+        savedFormSignatureRef.current = configurationSignature(nextForm);
+        loadSucceededRef.current = true;
       } catch (e) {
+        loadSucceededRef.current = false;
         setError(getClientUserFacingErrorMessage(e, i18nT("ai_configuration_load_failed")));
       } finally {
         setLoading(false);
@@ -380,46 +616,74 @@ export default function AiConfigurationContent({
   };
 
   const setGenerationLanguage = (value: AiConfigForm["language"]) => {
-    markAiLanguageCustom();
+    markAiLanguageCustom(activeUserIdRef.current);
     set("language", value);
   };
 
   const save = async () => {
     if (saving) return;
+    if (!loadSucceededRef.current) {
+      setError(i18nT("ai_configuration_load_failed"));
+      return;
+    }
     setSaving(true);
     setSaved(false);
     setError("");
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(form));
-      markAiLanguageCustom();
-
+      const safeWebLength = enforceAiContentLengthForEdition(form.webLength, edition);
+      const safeSocialLength = enforceAiContentLengthForEdition(form.socialLength, edition);
+      const safeForm = {
+        ...form,
+        webLength: safeWebLength,
+        socialLength: safeSocialLength,
+      };
       const supabase = createClient();
       const { data: authData, error: authErr } = await supabase.auth.getUser();
       if (authErr) throw new Error(authErr.message);
       const user = authData?.user;
+      const activeUserId = user ? resolveActiveBrowserUserId(user.id) : activeUserIdRef.current;
+      activeUserIdRef.current = activeUserId;
+      if (activeUserId) {
+        writeAccountCacheValue(STORAGE_KEY, JSON.stringify(safeForm), activeUserId);
+        markAiLanguageCustom(activeUserId);
+      }
       if (user) {
-        const { error: upErr } = await supabase.from(TABLE).upsert(
-          {
-            user_id: resolveActiveBrowserUserId(user.id),
-            ai_preferred_engine: form.preferredEngine,
-            tone: form.tone,
-            preferred_cta: form.preferredCta,
-            communication_style: form.textStyle,
-            emoji_level: form.emojiLevel,
-            ai_length: form.length,
-            address_mode: form.addressMode,
-            ai_voice: form.pronoun,
-            ai_creativity: form.originality,
-            ai_commercial_level: form.commercialLevel,
-            ai_main_goal: form.mainGoal,
-            ai_preferred_angle: form.preferredAngle,
-            ai_language: form.language,
-            ai_liked_example: form.likedExample.trim(),
-            ai_custom_instructions: form.forbiddenStyle.trim(),
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "user_id" }
+        const basePayload = {
+          user_id: activeUserId,
+          ai_preferred_engine: form.preferredEngine,
+          tone: form.tone,
+          preferred_cta: form.preferredCta,
+          communication_style: form.textStyle,
+          emoji_level: form.emojiLevel,
+          // Compatibilité descendante : les anciens clients continuent à
+          // comprendre ai_length jusqu'à leur migration complète.
+          ai_length: safeSocialLength === "long" || safeSocialLength === "deep"
+            ? "detailed"
+            : safeSocialLength === "adapted"
+              ? "medium"
+              : safeSocialLength,
+          ai_web_length: safeWebLength,
+          ai_social_length: safeSocialLength,
+          address_mode: form.addressMode,
+          ai_voice: form.pronoun,
+          ai_creativity: form.originality,
+          ai_commercial_level: form.commercialLevel,
+          ai_technicality_level: form.technicalityLevel,
+          ai_humor_level: form.humorLevel,
+          ai_main_goal: form.mainGoal,
+          ai_preferred_angle: form.preferredAngle,
+          ai_language: form.language,
+          ai_liked_example: form.likedExample.trim(),
+          ai_custom_instructions: form.forbiddenStyle.trim(),
+          updated_at: new Date().toISOString(),
+        };
+        let { error: upErr } = await supabase.from(TABLE).upsert(
+          { ...basePayload, ai_liked_example_2: form.likedExample2.trim() },
+          { onConflict: "user_id" },
         );
+        if (upErr && /ai_liked_example_2|schema cache|column/i.test(upErr.message)) {
+          ({ error: upErr } = await supabase.from(TABLE).upsert(basePayload, { onConflict: "user_id" }));
+        }
         if (upErr) throw new Error(upErr.message);
         await invalidateBoosterGenerationContextClient("professional");
       }
@@ -427,14 +691,19 @@ export default function AiConfigurationContent({
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("inrcy:ai-configuration-updated", {
           detail: {
-            aiPreferredEngine: form.preferredEngine,
-            aiLanguage: form.language,
-            preferredCta: form.preferredCta,
+              aiPreferredEngine: form.preferredEngine,
+              aiLanguage: form.language,
+              preferredCta: form.preferredCta,
+              aiWebLength: safeWebLength,
+              aiSocialLength: safeSocialLength,
           },
         }));
       }
 
-      savedFormSignatureRef.current = JSON.stringify(form);
+      if (safeWebLength !== form.webLength || safeSocialLength !== form.socialLength) {
+        setForm(safeForm);
+      }
+      savedFormSignatureRef.current = configurationSignature(safeForm);
       // The saved signature changes without changing `form`, so the dirty
       // effect does not necessarily rerun. Clear the parent guard immediately
       // before the drawer's delayed close callback executes.
@@ -449,7 +718,7 @@ export default function AiConfigurationContent({
       }
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
-      if (/ai_preferred_engine|ai_commercial_level|ai_main_goal|ai_preferred_angle|ai_liked_example|ai_language/i.test(message)) {
+      if (/ai_preferred_engine|ai_commercial_level|ai_technicality_level|ai_humor_level|ai_main_goal|ai_preferred_angle|ai_liked_example|ai_language|ai_web_length|ai_social_length/i.test(message)) {
         setError(i18nT("il_faut_d_abord_executer_le_eaabb47e"));
       } else {
         setError(getClientUserFacingErrorMessage(e, i18nT("ai_configuration_save_failed")));
@@ -459,19 +728,32 @@ export default function AiConfigurationContent({
     }
   };
 
-  const reset = () => {
+  const reset = async () => {
+    const confirmed = await confirmInrcy({
+      title: configurationT("resetTitle"),
+      message: configurationT("resetMessage"),
+      confirmLabel: configurationT("resetConfirm"),
+      variant: "warning",
+    });
+    if (!confirmed) return;
     setForm({ ...initialForm, language: readDefaultAppLanguage() });
     setSaved(false);
     setError("");
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-      localStorage.removeItem(AI_LANGUAGE_CUSTOM_STORAGE_KEY);
-    } catch {}
+    const activeUserId = activeUserIdRef.current;
+    if (activeUserId) {
+      // La valeur scopée vide empêche l'ancienne clé globale d'être réimportée
+      // après une réinitialisation volontaire.
+      writeAccountCacheValue(STORAGE_KEY, "{}", activeUserId);
+      writeAccountCacheValue(AI_LANGUAGE_CUSTOM_STORAGE_KEY, "0", activeUserId);
+    }
   };
 
   return (
-    <div style={{ display: "grid", gap: 16, minWidth: 0, maxWidth: "100%", overflowX: "hidden" }}>
-      <div style={signatureCard}>
+    <div
+      data-ai-configuration-workspace={workspaceMode ? "true" : "false"}
+      style={{ display: "grid", gap: workspaceMode ? 13 : 16, minWidth: 0, maxWidth: "100%", overflow: "visible" }}
+    >
+      {!workspaceMode ? <div style={signatureCard}>
         <div
           aria-hidden
           style={{
@@ -489,14 +771,81 @@ export default function AiConfigurationContent({
           {i18nT("votre_signature_ia_329379e6")}{" "}</div>
         <div style={{ color: "rgba(255,255,255,0.78)", fontSize: 13, lineHeight: 1.55, maxWidth: 560, overflowWrap: "break-word" }}>
           {i18nT("reglez_une_fois_votre_facon_de_4a141f29")}{" "}</div>
-      </div>
+      </div> : null}
+
+      {!hideAiMemoryShortcut ? (
+        <button
+          type="button"
+          onClick={onOpenAiMemory}
+          style={{
+            ...card,
+            display: "grid",
+            gridTemplateColumns: "auto minmax(0, 1fr) auto",
+            alignItems: "center",
+            gap: 12,
+            textAlign: "left",
+            color: "white",
+            cursor: "pointer",
+            border: "1px solid rgba(167,139,250,0.34)",
+            background: "linear-gradient(135deg, rgba(124,58,237,0.19), rgba(14,165,233,0.12))",
+          }}
+        >
+          <span aria-hidden style={{ fontSize: 24 }}>🧠</span>
+          <span style={{ display: "grid", gap: 3, minWidth: 0 }}>
+            <strong style={{ fontSize: 14 }}>{memoryT("openTitle")}</strong>
+            <span style={hint}>{memoryT("openDescription")}</span>
+          </span>
+          <span aria-hidden style={{ color: "#c4b5fd", fontSize: 20 }}>›</span>
+        </button>
+      ) : null}
+
+      <nav
+        aria-label={configurationT("tabsLabel")}
+        role="tablist"
+        style={{
+          ...configurationTabsStyle,
+          ...(workspaceMode ? workspaceConfigurationTabsStyle : {}),
+        }}
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "parameters"}
+          onClick={() => setActiveTab("parameters")}
+          style={{
+            ...configurationTabStyle,
+            ...(activeTab === "parameters" ? activeConfigurationTabStyle : {}),
+          }}
+        >
+          <span aria-hidden>⚙️</span>
+          <span>{configurationT("tabParameters")}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "instructions"}
+          onClick={() => setActiveTab("instructions")}
+          style={{
+            ...configurationTabStyle,
+            ...(activeTab === "instructions" ? activeConfigurationTabStyle : {}),
+          }}
+        >
+          <span aria-hidden>🧭</span>
+          <span>{configurationT("tabInstructions")}</span>
+        </button>
+      </nav>
 
       <div style={loading ? card : { display: "grid", gap: 12 }}>
         {loading ? (
           <div style={{ color: "rgba(255,255,255,0.72)", fontSize: 13 }}>{i18nT("chargement_01cba1df")}</div>
         ) : (
-          <div style={{ display: "grid", gap: 14 }}>
-            <section data-ai-section="foundation" style={configurationCard}>
+          <div style={{ display: "grid", gap: workspaceMode ? 14 : 14 }}>
+            {activeTab === "parameters" ? (
+              <div
+                data-ai-parameters-grid={workspaceMode ? "workspace" : "default"}
+                style={workspaceMode ? workspaceParametersGridStyle : defaultParametersGridStyle}
+              >
+            <section data-ai-section="foundation" style={workspaceMode ? { ...configurationCard, height: "100%" } : configurationCard}>
               <div style={configurationHeader}>
                 <span style={configurationBubble}>1</span>
                 <div style={{ minWidth: 0 }}>
@@ -565,20 +914,18 @@ export default function AiConfigurationContent({
               </label>
             </section>
 
-            <section data-ai-section="voice" style={configurationCard}>
+            <section data-ai-section="style" style={workspaceMode ? { ...configurationCard, height: "100%", zIndex: 4 } : configurationCard}>
               <div style={configurationHeader}>
                 <span style={configurationBubble}>2</span>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 15, fontWeight: 950 }}>
-                    {sectionT("aiVoiceTitle")}
+                    {i18nT("style_des_contenus_c6452c23")}
                   </div>
                   <div style={hint}>{sectionT("aiVoiceDescription")}</div>
                 </div>
               </div>
 
-            <div style={{ display: "grid", gap: 12 }}>
-              <div style={sectionTitle}>{i18nT("style_des_contenus_c6452c23")}</div>
-              <div style={grid2}>
+              <div data-ai-card-fields style={workspaceMode ? workspaceVoiceGridStyle : grid2}>
                 <label style={label}>
                   <span style={labelTitle}>{i18nT("ton_du_contenu_10a3083a")}</span>
                   <select style={input} value={form.tone} onChange={(e) => set("tone", e.target.value as AiConfigForm["tone"])}>
@@ -593,8 +940,10 @@ export default function AiConfigurationContent({
                   <span style={labelTitle}>{i18nT("style_du_texte_0187c8e2")}</span>
                   <select style={input} value={form.textStyle} onChange={(e) => set("textStyle", e.target.value as AiConfigForm["textStyle"])}>
                     <option value="simple" style={selectOption}>{i18nT("simple_et_clair_72318cdd")}</option>
+                    <option value="local_humain" style={selectOption}>{configurationT("styleLocalHuman")}</option>
                     <option value="dynamic" style={selectOption}>{i18nT("dynamique_8773c690")}</option>
                     <option value="expert" style={selectOption}>{i18nT("conseil_d_expert_69d781fc")}</option>
+                    <option value="premium" style={selectOption}>{configurationT("stylePremium")}</option>
                     <option value="coulisses" style={selectOption}>{i18nT("coulisses_histoire_7ac223f9")}</option>
                   </select>
                 </label>
@@ -608,33 +957,83 @@ export default function AiConfigurationContent({
                   </select>
                 </label>
 
-                <label style={label}>
-                  <span style={labelTitle}>{i18nT("longueur_26218b9b")}</span>
-                  <select style={input} value={form.length} onChange={(e) => set("length", e.target.value as AiConfigForm["length"])}>
-                    <option value="short" style={selectOption}>{i18nT("court_65dfd1c0")}</option>
-                    <option value="medium" style={selectOption}>{i18nT("moyen_de03c108")}</option>
-                    <option value="detailed" style={selectOption}>{i18nT("detaille_6a3d00d4")}</option>
-                  </select>
-                </label>
+                <div
+                  data-content-length-group
+                  data-content-length-fields
+                  data-style-secondary-fields
+                  style={styleSecondaryFieldsStyle}
+                >
+                  <div style={styleSecondaryFieldStyle}>
+                    <span style={labelTitle}>{memoryT("contentLengthTitle")}</span>
+                    <ContentLengthSelect
+                      value={form.webLength}
+                      onChange={(next) => set("webLength", next)}
+                      premiumAccess={premiumAccess}
+                      ariaLabel={`${memoryT("contentLengthTitle")} — ${memoryT("webLengthLabel")}`}
+                      premiumLabel={memoryT("premiumBadge")}
+                      labels={{
+                        adapted: memoryT("lengthAdapted"),
+                        short: memoryT("lengthShort"),
+                        medium: memoryT("lengthMedium"),
+                        long: memoryT("lengthLong"),
+                        deep: memoryT("lengthDeepPremium").split("—")[0]?.trim() || memoryT("lengthDeepPremium"),
+                      }}
+                      controlStyle={input}
+                    />
+                    <span style={hint}>{memoryT("webLengthLabel")}</span>
+                  </div>
 
-                <label style={label}>
-                  <span style={labelTitle}>{i18nT("emojis_ac171aac")}</span>
-                  <select style={input} value={form.emojiLevel} onChange={(e) => set("emojiLevel", e.target.value as AiConfigForm["emojiLevel"])}>
-                    <option value="none" style={selectOption}>{i18nT("aucun_b2ed82f1")}</option>
-                    <option value="light" style={selectOption}>{i18nT("leger_8ad52b02")}</option>
-                    <option value="dynamic" style={selectOption}>{i18nT("beaucoup_32bb785f")}</option>
-                  </select>
-                </label>
+                  <div style={styleSecondaryFieldStyle}>
+                    <span style={labelTitle}>{memoryT("contentLengthTitle")}</span>
+                    <ContentLengthSelect
+                      value={form.socialLength}
+                      onChange={(next) => set("socialLength", next)}
+                      premiumAccess={premiumAccess}
+                      ariaLabel={`${memoryT("contentLengthTitle")} — ${memoryT("socialLengthLabel")}`}
+                      premiumLabel={memoryT("premiumBadge")}
+                      labels={{
+                        adapted: memoryT("lengthAdapted"),
+                        short: memoryT("lengthShort"),
+                        medium: memoryT("lengthMedium"),
+                        long: memoryT("lengthLong"),
+                        deep: memoryT("lengthDeepPremium").split("—")[0]?.trim() || memoryT("lengthDeepPremium"),
+                      }}
+                      controlStyle={input}
+                    />
+                    <span style={hint}>{memoryT("socialLengthLabel")}</span>
+                  </div>
+
+                  <label style={styleSecondaryFieldStyle}>
+                    <span style={labelTitle}>{i18nT("emojis_ac171aac")}</span>
+                    <select style={input} value={form.emojiLevel} onChange={(e) => set("emojiLevel", e.target.value as AiConfigForm["emojiLevel"])}>
+                      <option value="none" style={selectOption}>{i18nT("aucun_b2ed82f1")}</option>
+                      <option value="light" style={selectOption}>{i18nT("leger_8ad52b02")}</option>
+                      <option value="dynamic" style={selectOption}>{i18nT("beaucoup_32bb785f")}</option>
+                    </select>
+                    <span style={hint}>{configurationT("emojiHint")}</span>
+                  </label>
+                </div>
 
               </div>
-            </div>
 
-            <div style={{ display: "grid", gap: 12 }}>
-              <div style={sectionTitle}>{i18nT("facon_de_parler_aa932a4e")}</div>
-              <div style={grid2}>
+            </section>
+
+            <section data-ai-section="voice" style={workspaceMode ? { ...configurationCard, height: "100%" } : configurationCard}>
+              <div style={configurationHeader}>
+                <span style={configurationBubble}>3</span>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 15, fontWeight: 950 }}>
+                    {i18nT("facon_de_parler_aa932a4e")}
+                  </div>
+                  <div style={hint}>{configurationT("voiceCardDescription")}</div>
+                </div>
+              </div>
+
+              <div data-ai-card-fields style={workspaceMode ? workspaceVoiceGridStyle : grid2}>
                 <label style={label}>
                   <span style={labelTitle}>{i18nT("pronom_utilise_70514e6c")}</span>
                   <select style={input} value={form.pronoun} onChange={(e) => set("pronoun", e.target.value as AiConfigForm["pronoun"])}>
+                    <option value="auto" style={selectOption}>{configurationT("voiceAutomatic")}</option>
                     <option value="je" style={selectOption}>{i18nT("je_a207fb96")}</option>
                     <option value="nous" style={selectOption}>{i18nT("nous_1a432a70")}</option>
                     <option value="vous" style={selectOption}>{i18nT("vous_ac3daf66")}</option>
@@ -658,14 +1057,31 @@ export default function AiConfigurationContent({
                     <option value="direct" style={selectOption}>{i18nT("direct_bc81524a")}</option>
                   </select>
                 </label>
+
+                <label style={label}>
+                  <span style={labelTitle}>{configurationT("technicalityLabel")}</span>
+                  <select style={input} value={form.technicalityLevel} onChange={(e) => set("technicalityLevel", e.target.value as AiConfigForm["technicalityLevel"])}>
+                    <option value="accessible" style={selectOption}>{configurationT("technicalityAccessible")}</option>
+                    <option value="balanced" style={selectOption}>{configurationT("technicalityBalanced")}</option>
+                    <option value="expert" style={selectOption}>{configurationT("technicalityExpert")}</option>
+                  </select>
+                </label>
+
+                <label style={label}>
+                  <span style={labelTitle}>{configurationT("humorLabel")}</span>
+                  <select style={input} value={form.humorLevel} onChange={(e) => set("humorLevel", e.target.value as AiConfigForm["humorLevel"])}>
+                    <option value="none" style={selectOption}>{configurationT("humorNone")}</option>
+                    <option value="light" style={selectOption}>{configurationT("humorLight")}</option>
+                    <option value="present" style={selectOption}>{configurationT("humorPresent")}</option>
+                  </select>
+                </label>
               </div>
-            </div>
 
             </section>
 
-            <section data-ai-section="goals" style={configurationCard}>
+            <section data-ai-section="goals" style={workspaceMode ? { ...configurationCard, height: "100%" } : configurationCard}>
               <div style={configurationHeader}>
-                <span style={configurationBubble}>3</span>
+                <span style={configurationBubble}>4</span>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 15, fontWeight: 950 }}>
                     {sectionT("aiGoalsTitle")}
@@ -711,49 +1127,114 @@ export default function AiConfigurationContent({
               </div>
             </div>
 
-            <div style={{ display: "grid", gap: 12 }}>
-              <div style={sectionTitle}>{i18nT("inspiration_limites_9c94746f")}</div>
-              <label style={label}>
-                <span style={labelTitle}>{i18nT("exemple_de_contenu_que_vous_aimez_1b4d869b")}</span>
-                <textarea
-                  style={{ ...input, minHeight: 112, resize: "vertical", lineHeight: 1.45 }}
-                  value={form.likedExample}
-                  maxLength={1200}
-                  onChange={(e) => set("likedExample", e.target.value.slice(0, 1200))}
-                  placeholder={i18nT("collez_ici_une_publication_que_vous_8dbef14d")}
-                />
-                <span style={hint}>{i18nT("optionnel_mais_tres_puissant_pour_obtenir_2bd4cf4f")}</span>
-              </label>
-
-              <label style={label}>
-                <span style={labelTitle}>{i18nT("a_eviter_absolument_81a0d9e0")}</span>
-                <textarea
-                  style={{ ...input, minHeight: 96, resize: "vertical", lineHeight: 1.45 }}
-                  value={form.forbiddenStyle}
-                  maxLength={700}
-                  onChange={(e) => set("forbiddenStyle", e.target.value.slice(0, 700))}
-                  placeholder={i18nT("ex_eviter_un_ton_trop_commercial_e0c64d10")}
-                />
-                <span style={hint}>{i18nT("mots_promesses_ou_tournures_qui_ne_e49a83bd")}</span>
-              </label>
-            </div>
-
             </section>
+              </div>
+            ) : null}
+
+            {activeTab === "instructions" ? (
+              <section
+                data-ai-section="instructions"
+                style={configurationCard}
+              >
+                <div style={configurationHeader}>
+                  <span style={configurationBubble}>🧭</span>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 15, fontWeight: 950 }}>
+                      {configurationT("instructionsTitle")}
+                    </div>
+                    <div style={hint}>{configurationT("instructionsDescription")}</div>
+                  </div>
+                </div>
+
+                <div data-instruction-examples style={instructionExamplesGridStyle}>
+                  <label style={{ ...label, ...instructionPanelStyle }}>
+                    <span style={labelTitle}>{configurationT("likedContent1Label")}</span>
+                    <textarea
+                      style={{ ...input, minHeight: workspaceMode ? 150 : 165, resize: "vertical", lineHeight: 1.45 }}
+                      value={form.likedExample}
+                      maxLength={1200}
+                      onChange={(e) => set("likedExample", e.target.value.slice(0, 1200))}
+                      placeholder={configurationT("likedContentPlaceholder")}
+                    />
+                    <span style={hint}>{configurationT("likedContentHint")}</span>
+                  </label>
+
+                  <label style={{ ...label, ...instructionPanelStyle }}>
+                    <span style={labelTitle}>{configurationT("likedContent2Label")}</span>
+                    <textarea
+                      style={{ ...input, minHeight: workspaceMode ? 150 : 165, resize: "vertical", lineHeight: 1.45 }}
+                      value={form.likedExample2}
+                      maxLength={1200}
+                      onChange={(e) => set("likedExample2", e.target.value.slice(0, 1200))}
+                      placeholder={configurationT("likedContentPlaceholder")}
+                    />
+                    <span style={hint}>{configurationT("likedContentHint")}</span>
+                  </label>
+                </div>
+
+                <label data-custom-instructions style={{ ...label, ...instructionPanelStyle }}>
+                  <span style={labelTitle}>{configurationT("customInstructionsLabel")}</span>
+                  <textarea
+                    style={{ ...input, minHeight: workspaceMode ? 190 : 210, resize: "vertical", lineHeight: 1.45 }}
+                    value={form.forbiddenStyle}
+                    maxLength={700}
+                    onChange={(e) => set("forbiddenStyle", e.target.value.slice(0, 700))}
+                    placeholder={configurationT("customInstructionsPlaceholder")}
+                  />
+                  <span style={hint}>{configurationT("customInstructionsHint")}</span>
+                </label>
+              </section>
+            ) : null}
 
             {error ? <div style={{ color: "rgba(248,113,113,0.95)", fontWeight: 800 }}>{error}</div> : null}
             {saved ? <div style={{ color: "rgba(34,197,94,0.95)", fontWeight: 900 }}>{i18nT("configuration_ia_enregistree_1ad4bba6")}</div> : null}
 
-            <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 180px), 1fr))", minWidth: 0, maxWidth: "100%" }}>
-              <button type="button" style={primaryBtn} disabled={saving} onClick={() => void save()}>{saving ? i18nT("enregistrement_e7d5f232") : i18nT("enregistrer_f7c8bcd8")}</button>
-              <button type="button" disabled={saving} onClick={reset} style={{ border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.05)", color: "white", borderRadius: 14, padding: "10px 12px", cursor: saving ? "default" : "pointer", fontWeight: 900, fontSize: 16 }}>
+            <div
+              data-ai-configuration-actions
+              style={workspaceMode ? workspaceActionsStyle : defaultActionsStyle}
+            >
+              <button type="button" disabled={saving} onClick={() => void reset()} style={{ minHeight: workspaceMode ? 38 : 44, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.05)", color: "white", borderRadius: workspaceMode ? 11 : 14, padding: workspaceMode ? "8px 10px" : "10px 12px", cursor: saving ? "default" : "pointer", fontWeight: 850, fontSize: workspaceMode ? 12 : 16 }}>
                 {i18nT("reinitialiser_e0e2ad54")}{" "}</button>
+              <button type="button" style={primaryBtn} disabled={saving || !loadSucceededRef.current} onClick={() => void save()}>{saving ? i18nT("enregistrement_e7d5f232") : i18nT("enregistrer_f7c8bcd8")}</button>
             </div>
           </div>
         )}
       </div>
 
-      <div style={{ ...card, color: "rgba(255,255,255,0.62)", fontSize: 12, lineHeight: 1.45 }}>
-        {i18nT("astuce_plus_mon_activite_et_votre_9776da1b")}{" "}</div>
+      {!workspaceMode ? (
+        <div style={{ ...card, color: "rgba(255,255,255,0.62)", fontSize: 12, lineHeight: 1.45 }}>
+          {i18nT("astuce_plus_mon_activite_et_votre_9776da1b")}{" "}
+        </div>
+      ) : null}
+      <style jsx>{`
+        @media (max-width: 1120px) {
+          div[data-ai-parameters-grid="workspace"] {
+            grid-template-columns: 1fr !important;
+            grid-auto-rows: auto !important;
+          }
+        }
+        @media (max-width: 760px) {
+          [data-ai-card-fields] {
+            grid-template-columns: 1fr !important;
+          }
+          [data-content-length-group] {
+            grid-column: 1 !important;
+          }
+          section[data-ai-section="instructions"] {
+            grid-template-columns: 1fr !important;
+          }
+          [data-instruction-examples],
+          [data-style-secondary-fields] {
+            grid-template-columns: 1fr !important;
+          }
+          [data-content-length-fields] {
+            grid-template-columns: 1fr !important;
+          }
+          div[data-ai-configuration-actions] {
+            grid-template-columns: minmax(0, .75fr) minmax(0, 1.25fr) !important;
+          }
+        }
+      `}</style>
       <AiEngineInfoModal
         open={engineInfoOpen}
         activeEngine={form.preferredEngine}

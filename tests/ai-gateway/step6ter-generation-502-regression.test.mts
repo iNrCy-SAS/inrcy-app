@@ -36,7 +36,8 @@ test("Booster bounds media context and keeps the root failure visible after the 
   const generation = read("lib/boosterPublishGeneration.ts");
   assert.match(generation, /MAX_BOOSTER_EXTRA_INSTRUCTIONS_CHARS = 8_000/);
   assert.match(generation, /compactPromptContext\(args\.mediaContext\)/);
-  assert.match(generation, /stage: "primary-single-pass"/);
+  assert.match(generation, /stage: "primary-output-safe-batch"/);
+  assert.match(generation, /stage: "primary-output-safe-orchestrator"/);
   assert.match(generation, /stage: "targeted-repair-once"/);
   assert.match(generation, /if \(initialGenerationError && unsafeChannels\.length === channels\.length\)/);
   assert.match(generation, /generation attempt failed/);

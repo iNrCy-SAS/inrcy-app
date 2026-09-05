@@ -106,7 +106,8 @@ export default function PublishAiConfigurationDrawer({
               color: "white",
             }}
           >
-            {i18nT("configuration_ia_f620c8d8")}{" "}</h2>
+            {i18nT("configuration_ia_f620c8d8")}{" "}
+          </h2>
           <button
             type="button"
             onClick={() => void confirmExit()}

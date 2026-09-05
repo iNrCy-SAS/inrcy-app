@@ -20,7 +20,8 @@ test("V2 step 2 sends editorial contracts only for requested channels", () => {
   const prompt = read("lib/boosterPrompt.ts");
 
   assert.match(prompt, /CONTRATS DES SEULS CANAUX DEMANDÉS/);
-  assert.match(prompt, /formatCompactChannelContracts\(args\.channels, preferences\.length\)/);
+  assert.match(prompt, /formatCompactChannelContracts\(args\.channels\)/);
+  assert.match(prompt, /buildBoosterLengthDirective\(preferences, args\.channels\)/);
   assert.match(prompt, /Array\.from\(new Set\(channels\)\)/);
   assert.doesNotMatch(prompt, /CHANNEL_EDITORIAL_PLAYBOOKS/);
   assert.doesNotMatch(prompt, /CHANNEL_EDITORIAL_SPECS/);
@@ -43,7 +44,8 @@ test("V2 step 2 keeps professional preferences and native engine personality wit
     "objectif",
     "angle_prefere",
     "cta_prefere",
-    "exemple_aime",
+    "contenu_apprecie_1",
+    "contenu_apprecie_2",
     "a_eviter",
   ]) {
     assert.match(prompt, new RegExp(`\\b${key}\\b`), key);

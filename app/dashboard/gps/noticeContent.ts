@@ -16,6 +16,7 @@ type GpsArticleShape<Text extends string> = {
   links?: Array<{ label: Text; href: string }>;
   duration?: Text;
   goal?: Text;
+  maxSteps?: number;
 };
 
 type GpsSectionShape<Text extends string, Article> = {
@@ -45,28 +46,30 @@ export const GPS_SECTIONS: GpsSectionSource[] = [
         keywords: ["demarrer_89394c01", "premiere_fois_26b2be94", "mon_activite_6c9c1750", "mon_profil_d592bf4e", "configuration_ia_c88868d8", "reglages_du_generateur_52677517", "panier_moyen_5471fcdd", "taux_de_transformation_7bfc4dfa"],
         duration: "5_min_b45ebd80",
         goal: "ia_utile_13a1f789",
-        intro:
-          "avant_de_publier_ou_d_envoyer_622660b3",
+        intro: "startup_intro_business_dna_20260905",
         steps: [
-          "remplir_mon_activite_metier_prestations_speciali_47667b2a",
-          "completer_mon_profil_identite_coordonnees_nom_98951160",
-          "personnaliser_configuration_ia_ton_style_facon_2fcb8d45",
-          "ajuster_si_necessaire_le_panier_moyen_4544cbeb",
+          "startup_step_profile_20260905",
+          "startup_step_channels_20260905",
+          "startup_step_analyze_20260905",
+          "startup_step_complete_dna_20260905",
+          "startup_step_configure_ai_20260905",
         ],
+        maxSteps: 5,
         checks: [
-          "mon_activite_est_precise_et_a_08276404",
-          "mon_profil_contient_les_bonnes_coordonnees_72b49b03",
-          "configuration_ia_reflete_bien_le_style_b90fdac8",
-          "les_reglages_du_generateur_correspondent_a_d8b3881a",
+          "startup_check_profile_20260905",
+          "startup_check_channels_20260905",
+          "startup_check_analysis_20260905",
+          "startup_check_dna_ai_20260905",
         ],
         pitfalls: [
-          "donner_les_bonnes_informations_a_l_c83ea9d9",
-          "une_ia_bien_configuree_produit_des_05c34800",
+          "startup_reflex_partial_analysis_20260905",
+          "startup_reflex_validate_20260905",
         ],
         links: [
-          { label: "ouvrir_mon_activite_2786763e", href: "/dashboard?panel=profil&profileSection=activity&panelSource=gps" },
-          { label: "ouvrir_mon_profil_15991b97", href: "/dashboard?panel=profil&panelSource=gps" },
-          { label: "configuration_ia_f620c8d8", href: "/dashboard?panel=ia&panelSource=gps" },
+          { label: "ouvrir_mon_profil_15991b97", href: "/dashboard/mon-profil" },
+          { label: "ouvrir_les_canaux_9322102a", href: "/dashboard" },
+          { label: "startup_link_business_dna_20260905", href: "/dashboard/adn-entreprise" },
+          { label: "configuration_ia_f620c8d8", href: "/dashboard/configuration-ia" },
         ],
       },
       {
@@ -93,8 +96,8 @@ export const GPS_SECTIONS: GpsSectionSource[] = [
           "les_valeurs_proposees_par_secteur_restent_74cbdf72",
         ],
         links: [
-          { label: "mon_profil_faa6d321", href: "/dashboard?panel=profil&panelSource=gps" },
-          { label: "mon_activite_7732bf80", href: "/dashboard?panel=profil&profileSection=activity&panelSource=gps" },
+          { label: "mon_profil_faa6d321", href: "/dashboard/mon-profil" },
+          { label: "mon_activite_7732bf80", href: "/dashboard/mon-profil?section=activity" },
           { label: "reglages_encaisser_ef086133", href: "/dashboard?panel=documents&panelSource=gps" },
         ],
       },

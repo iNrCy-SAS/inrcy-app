@@ -43,6 +43,8 @@ import {
   makeAttachmentPath,
 } from "@/app/dashboard/mails/_lib/mailboxPhase25";
 import HelpButton from "../_components/HelpButton";
+import AiConfigurationIcon from "../_components/AiConfigurationIcon";
+import BusinessDnaIcon from "../_components/BusinessDnaIcon";
 import {
   useUnsavedExitGuard,
 } from "../_hooks/useUnsavedExitGuard";
@@ -384,6 +386,7 @@ function publicationActionSortGroup(action: AgentPreparedAction) {
 export default function AgentClient() {
   const i18nT = useTranslations("agent");
   const boosterT = useTranslations("booster");
+  const dashboardT = useTranslations("dashboard");
   const boosterRuntimeT = boosterT as unknown as (
     key: string,
     values?: Record<string, string | number>,
@@ -3982,7 +3985,21 @@ export default function AgentClient() {
               aria-label={i18nT("configuration_ia_f620c8d8")}
               title={i18nT("configurer_le_style_des_contenus_generes_c780a7a6")}
             >
-              {i18nT("ia_d41daf59")}{" "}</button>
+              <AiConfigurationIcon size={21} />
+            </button>
+            <button
+              type="button"
+              className={`${styles.headerAiButton} ${styles.headerDnaButton}`}
+              onClick={() => {
+                const openBusinessDna = () => router.push("/dashboard/adn-entreprise");
+                if (!exitScheduledEditSession({ silent: true, onAfterExit: openBusinessDna })) return;
+                openBusinessDna();
+              }}
+              aria-label={dashboardT("aiMemory.openTitle")}
+              title={dashboardT("aiMemory.openTitle")}
+            >
+              <BusinessDnaIcon size={25} />
+            </button>
             <button
               type="button"
               className={styles.headerScheduleButton}

@@ -25,7 +25,6 @@ import DashboardRequiredSetupGate from "./_components/DashboardRequiredSetupGate
 import DashboardToolWarmup from "./_components/DashboardToolWarmup";
 import { DashboardRequiredSetupBypassProvider } from "./_components/DashboardRequiredSetupBypassProvider";
 import { isRequiredSetupE2EBypassEnabled } from "@/lib/e2eServerFlags";
-import { DASHBOARD_BUBBLE_ICON_PRELOADS } from "./dashboard.constants";
 import DashboardPersistentImageCache from "./_components/DashboardPersistentImageCache";
 import DashboardEditionProvider from "./_components/DashboardEditionProvider";
 import DashboardIntlProvider from "./_components/DashboardIntlProvider";
@@ -75,16 +74,6 @@ function hasDashboardAccess(subscription?: SubscriptionGateRow | null) {
   const status = normalizeSubscriptionStatus(subscription?.status);
   return status === "active" || isTrialStillValid(subscription);
 }
-
-const DASHBOARD_SECONDARY_IMAGE_PRELOADS = [
-  "/logo-inrcy.png",
-  "/agent/inr-agent-robot-cutout.webp",
-  "/icons/inr-agent-header.png",
-  "/inrcalendar-logo.png",
-  "/inrstats-logo.png",
-  "/inrcrm-logo.png",
-  "/inrsend-logo.png",
-];
 
 export default async function DashboardLayout({
   children,
@@ -138,16 +127,6 @@ export default async function DashboardLayout({
     tryNormalizeAppLocale(languageProfile?.app_language) ||
     normalizeAppLocale(requestLocale);
   const dashboardMessages = await loadAppMessages(dashboardLocale);
-  const secondaryImagePreloads = dashboardEdition === "standard"
-    ? [
-        "/logo-inrcy.png",
-        "/agent/inr-agent-robot-cutout.webp",
-        "/icons/inr-agent-header.png",
-        "/inrstats-logo.png",
-        "/inrsend-logo.png",
-      ]
-    : DASHBOARD_SECONDARY_IMAGE_PRELOADS;
-
   // Vérifie l'état maintenance
   const maintenance = await getMaintenanceState();
 
@@ -161,12 +140,6 @@ export default async function DashboardLayout({
 
   return (
     <div className={`${styles.shell} inrcy-dashboard-shell`}>
-      {DASHBOARD_BUBBLE_ICON_PRELOADS.map((src) => (
-        <link key={src} rel="preload" as="image" href={src} fetchPriority="high" />
-      ))}
-      {secondaryImagePreloads.map((src) => (
-        <link key={src} rel="preload" as="image" href={src} />
-      ))}
       <DashboardIntlProvider locale={dashboardLocale} messages={dashboardMessages}>
       <DashboardEditionProvider edition={dashboardEdition}>
         <DashboardPersistentImageCache />

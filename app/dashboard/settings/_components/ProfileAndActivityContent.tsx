@@ -10,11 +10,12 @@ import ProfilContent, { type ProfilContentHandle } from "./ProfilContent";
 type Props = {
   initialSection?: "identity" | "activity" | null;
   onUnsavedChange?: (hasUnsavedChanges: boolean) => void;
-  onProfileSaved: () => unknown | Promise<unknown>;
-  onProfileReset: () => unknown | Promise<unknown>;
-  onActivitySaved: () => unknown | Promise<unknown>;
-  onActivityReset: () => unknown | Promise<unknown>;
-  onCloseDrawer: () => unknown | Promise<unknown>;
+  onProfileSaved?: () => unknown | Promise<unknown>;
+  onProfileReset?: () => unknown | Promise<unknown>;
+  onActivitySaved?: () => unknown | Promise<unknown>;
+  onActivityReset?: () => unknown | Promise<unknown>;
+  onCloseDrawer?: () => unknown | Promise<unknown>;
+  onOpenAiMemory: () => void;
 };
 
 export default function ProfileAndActivityContent({
@@ -25,12 +26,13 @@ export default function ProfileAndActivityContent({
   onActivitySaved,
   onActivityReset,
   onCloseDrawer,
+  onOpenAiMemory,
 }: Props) {
   const t = useTranslations("dashboard.profilePanel");
   const profileRef = useRef<ProfilContentHandle | null>(null);
   const activityRef = useRef<ActivityContentHandle | null>(null);
-  const identityBlockRef = useRef<HTMLElement | null>(null);
-  const activityBlockRef = useRef<HTMLElement | null>(null);
+  const identityBlockRef = useRef<HTMLDivElement | null>(null);
+  const activityBlockRef = useRef<HTMLDivElement | null>(null);
   const [profileDirty, setProfileDirty] = useState(false);
   const [activityDirty, setActivityDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -76,9 +78,13 @@ export default function ProfileAndActivityContent({
       setProfileDirty(false);
       setActivityDirty(false);
       setSaved(true);
-      window.setTimeout(() => {
-        void onCloseDrawer();
-      }, 850);
+      if (onCloseDrawer) {
+        window.setTimeout(() => {
+          void onCloseDrawer();
+        }, 850);
+      } else {
+        window.setTimeout(() => setSaved(false), 2500);
+      }
     } finally {
       setSaving(false);
     }
@@ -107,65 +113,75 @@ export default function ProfileAndActivityContent({
 
   return (
     <div data-combined-profile-panel style={panelStyle}>
-      <section ref={identityBlockRef} data-profile-block="identity" style={grandBlockStyle}>
-        <BlockHeader
-          number="1"
-          title={t("identityTitle")}
-          description={t("identityDescription")}
-        />
-        <ProfilContent
-          ref={profileRef}
-          mode="page"
-          showIntro={false}
-          showActions={false}
-          onProfileSaved={onProfileSaved}
-          onProfileReset={onProfileReset}
-          onUnsavedChange={setProfileDirty}
-        />
-      </section>
+      <section data-profile-block="general" style={grandBlockStyle}>
+        <div ref={identityBlockRef} data-profile-segment="identity">
+          <ProfilContent
+            ref={profileRef}
+            mode="page"
+            showIntro={false}
+            showActions={false}
+            workspaceCompact
+            onProfileSaved={onProfileSaved}
+            onProfileReset={onProfileReset}
+            onUnsavedChange={setProfileDirty}
+          />
+        </div>
 
-      <section ref={activityBlockRef} data-profile-block="activity" style={grandBlockStyle}>
-        <BlockHeader
-          number="2"
-          title={t("activityTitle")}
-          description={t("activityDescription")}
-        />
-        <ActivityContent
-          ref={activityRef}
-          mode="page"
-          showIntro={false}
-          showActions={false}
-          onActivitySaved={onActivitySaved}
-          onActivityReset={onActivityReset}
-          onUnsavedChange={setActivityDirty}
-        />
+        <div ref={activityBlockRef} data-profile-segment="activity" style={professionSegmentStyle}>
+          <ActivityContent
+            ref={activityRef}
+            mode="page"
+            contentScope="profile-core"
+            showIntro={false}
+            showActions={false}
+            onActivitySaved={onActivitySaved}
+            onActivityReset={onActivityReset}
+            onUnsavedChange={setActivityDirty}
+          />
+        </div>
       </section>
 
       {saveError ? <div style={errorStyle}>{saveError}</div> : null}
       {saved ? <div style={successStyle}>{t("saved")}</div> : null}
 
-      <div data-combined-profile-actions style={actionsStyle}>
-        <button
-          type="button"
-          disabled={saving}
-          onClick={() => void handleResetAll()}
-          style={secondaryButtonStyle}
-        >
-          {t("reset")}
+      <div data-profile-workspace-footer style={profileFooterStyle}>
+        <button type="button" onClick={onOpenAiMemory} style={memoryButtonStyle}>
+          <span aria-hidden style={{ fontSize: 24 }}>🧬</span>
+          <span style={{ display: "grid", gap: 2, minWidth: 0, textAlign: "left" }}>
+            <strong style={{ fontSize: 13.5 }}>{t("memoryTitle")}</strong>
+            <span style={{ color: "rgba(255,255,255,0.66)", fontSize: 11.5, lineHeight: 1.35 }}>
+              {t("memoryDescription")}
+            </span>
+          </span>
+          <span aria-hidden style={{ color: "#c4b5fd", fontSize: 20 }}>›</span>
         </button>
-        <button
-          type="button"
-          disabled={saving}
-          aria-busy={saving}
-          onClick={() => void handleSaveAll()}
-          style={{ ...primaryButtonStyle, opacity: saving ? 0.7 : 1 }}
-        >
-          {saving ? t("saving") : t("save")}
-        </button>
+
+        <div data-combined-profile-actions style={actionsStyle}>
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => void handleResetAll()}
+            style={secondaryButtonStyle}
+          >
+            {t("reset")}
+          </button>
+          <button
+            type="button"
+            disabled={saving}
+            aria-busy={saving}
+            onClick={() => void handleSaveAll()}
+            style={{ ...primaryButtonStyle, opacity: saving ? 0.7 : 1 }}
+          >
+            {saving ? t("saving") : t("save")}
+          </button>
+        </div>
       </div>
 
       <style jsx>{`
         @media (max-width: 620px) {
+          div[data-profile-workspace-footer] {
+            grid-template-columns: 1fr !important;
+          }
           div[data-combined-profile-actions] {
             grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.28fr) !important;
           }
@@ -175,36 +191,16 @@ export default function ProfileAndActivityContent({
   );
 }
 
-function BlockHeader({
-  number,
-  title,
-  description,
-}: {
-  number: string;
-  title: string;
-  description: string;
-}) {
-  return (
-    <header style={blockHeaderStyle}>
-      <span aria-hidden="true" style={blockNumberStyle}>{number}</span>
-      <div style={{ minWidth: 0 }}>
-        <h3 style={blockTitleStyle}>{title}</h3>
-        <p style={blockDescriptionStyle}>{description}</p>
-      </div>
-    </header>
-  );
-}
-
 const panelStyle: CSSProperties = {
   display: "grid",
-  gap: 18,
-  paddingBottom: "max(24px, var(--inrcy-safe-area-bottom))",
+  gap: 14,
+  paddingBottom: "max(14px, var(--inrcy-safe-area-bottom))",
 };
 
 const grandBlockStyle: CSSProperties = {
   display: "grid",
   gap: 14,
-  padding: 14,
+  padding: 15,
   borderRadius: 20,
   border: "1px solid rgba(125,211,252,0.18)",
   background: "linear-gradient(145deg, rgba(11,27,52,0.82), rgba(31,23,58,0.72))",
@@ -212,50 +208,38 @@ const grandBlockStyle: CSSProperties = {
   scrollMarginTop: 12,
 };
 
-const blockHeaderStyle: CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 12,
-  paddingBottom: 12,
-  borderBottom: "1px solid rgba(255,255,255,0.10)",
-};
-
-const blockNumberStyle: CSSProperties = {
-  width: 34,
-  height: 34,
-  display: "grid",
-  placeItems: "center",
-  flex: "0 0 auto",
-  borderRadius: 999,
-  border: "1px solid rgba(56,189,248,0.38)",
-  background: "rgba(56,189,248,0.14)",
-  color: "#bae6fd",
-  fontWeight: 950,
-};
-
-const blockTitleStyle: CSSProperties = {
-  margin: 0,
-  color: "white",
-  fontSize: 17,
-  fontWeight: 950,
-};
-
-const blockDescriptionStyle: CSSProperties = {
-  margin: "3px 0 0",
-  color: "rgba(255,255,255,0.64)",
-  fontSize: 12,
-  lineHeight: 1.4,
+const professionSegmentStyle: CSSProperties = {
+  paddingTop: 14,
+  borderTop: "1px solid rgba(255,255,255,0.09)",
+  scrollMarginTop: 76,
 };
 
 const actionsStyle: CSSProperties = {
-  position: "sticky",
-  bottom: 0,
-  zIndex: 9,
   display: "grid",
-  gridTemplateColumns: "auto minmax(190px, 1fr)",
+  gridTemplateColumns: "minmax(112px, .72fr) minmax(180px, 1.28fr)",
+  gap: 9,
+  alignSelf: "stretch",
+};
+
+const profileFooterStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "minmax(0, 1.15fr) minmax(330px, .85fr)",
+  alignItems: "stretch",
   gap: 10,
-  padding: "14px 0 max(4px, var(--inrcy-safe-area-bottom))",
-  background: "linear-gradient(180deg, rgba(6,16,31,0), rgba(6,16,31,0.98) 30%)",
+};
+
+const memoryButtonStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "auto minmax(0, 1fr) auto",
+  alignItems: "center",
+  gap: 11,
+  width: "100%",
+  borderRadius: 16,
+  border: "1px solid rgba(167,139,250,0.32)",
+  background: "linear-gradient(135deg, rgba(124,58,237,0.18), rgba(14,165,233,0.10))",
+  color: "white",
+  padding: "10px 12px",
+  cursor: "pointer",
 };
 
 const secondaryButtonStyle: CSSProperties = {

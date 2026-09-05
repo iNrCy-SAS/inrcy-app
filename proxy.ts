@@ -194,7 +194,7 @@ function founderRequiredApiResponse(): NextResponse {
       error: "FOUNDER_REQUIRED",
       code: "FOUNDER_REQUIRED",
       redirectTo: "/dashboard",
-      message: "Factures et devis sont réservés à l’édition Founder.",
+      message: "Factures et devis sont réservés à l’offre partenaire historique.",
     },
     { status: 403 },
   );

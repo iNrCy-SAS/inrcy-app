@@ -8,6 +8,7 @@ import { normalizeMailSubject } from "@/lib/mailEncoding";
 import { stripTemplateSignatureBlock } from "@/lib/mailTemplateCleanup";
 import { buildAiLanguageInstruction, buildAiWritingProfilePromptSection, buildAiWritingProfileRules, getAiEngineTemperature } from "@/lib/aiWritingProfile";
 import { buildNormalizedAiGenerationProfile } from "@/lib/aiGenerationProfile";
+import { getAiProfessionalGenerationContext } from "@/lib/aiProfessionalGenerationContext";
 import { parseMailAttachmentRefs } from "@/lib/mailAttachmentRefs";
 import { buildMailAttachmentAiPromptSection } from "@/lib/aiAttachmentContext";
 import {
@@ -94,13 +95,12 @@ export async function POST(req: Request) {
       quotaReservation = quota.reservation;
     }
 
-    const [profileRes, businessRes] = await Promise.all([
-      supabase.from("profiles").select("*").eq("user_id", userId).maybeSingle(),
-      supabase.from("business_profiles").select("*").eq("user_id", userId).order("updated_at", { ascending: false }).limit(1).maybeSingle(),
-    ]);
-
-    const profile = asRecord(profileRes.data);
-    const business = asRecord(businessRes.data);
+    const professionalContext = await getAiProfessionalGenerationContext({
+      supabase,
+      userId,
+    });
+    const profile = asRecord(professionalContext.profile);
+    const business = asRecord(professionalContext.business);
     const generationProfile = buildNormalizedAiGenerationProfile({
       profile,
       business,

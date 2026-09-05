@@ -11,6 +11,7 @@ type OpenPanelName =
   | "preferences"
   | "compte"
   | "ia"
+  | "ai_memory"
   | "abonnement"
   | "mails"
   | "site_inrcy"
@@ -106,6 +107,14 @@ export default function UserMenu(props: {
           </button>
           <button
             type="button"
+            className={styles.userMenuItem}
+            role="menuitem"
+            onClick={() => closeAndOpen("preferences")}
+          >
+            {t.userMenu.preferences}
+          </button>
+          <button
+            type="button"
             className={`${styles.userMenuItem} ${hasCompletionWarning ? styles.userMenuItemWithWarning : ""}`}
             role="menuitem"
             onClick={() => closeAndOpen("profil")}
@@ -119,17 +128,17 @@ export default function UserMenu(props: {
             type="button"
             className={styles.userMenuItem}
             role="menuitem"
-            onClick={() => closeAndOpen("preferences")}
+            onClick={() => closeAndOpen("ia")}
           >
-            {t.userMenu.preferences}
+            {t.userMenu.ai}
           </button>
           <button
             type="button"
             className={styles.userMenuItem}
             role="menuitem"
-            onClick={() => closeAndOpen("ia")}
+            onClick={() => closeAndOpen("ai_memory")}
           >
-            {t.userMenu.ai}
+            {t.userMenu.aiMemory}
           </button>
           <button
             type="button"

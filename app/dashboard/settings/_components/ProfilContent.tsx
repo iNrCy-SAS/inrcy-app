@@ -33,6 +33,7 @@ type Props = {
   onUnsavedChange?: (hasUnsavedChanges: boolean) => void;
   showIntro?: boolean;
   showActions?: boolean;
+  workspaceCompact?: boolean;
 };
 
 export type ProfilContentHandle = {
@@ -72,6 +73,7 @@ const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilCont
     onUnsavedChange,
     showIntro = true,
     showActions = true,
+    workspaceCompact = false,
   },
   ref,
 ) {
@@ -93,6 +95,7 @@ const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilCont
   );
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const baselineRef = useRef("");
+  const loadSucceededRef = useRef(false);
   const [form, setForm] = useState<ProfileForm>(initial);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -104,6 +107,7 @@ const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilCont
   useEffect(() => {
     let active = true;
     const load = async () => {
+      loadSucceededRef.current = false;
       try {
         const supabase = createClient();
         const { data: authData, error: authError } = await supabase.auth.getUser();
@@ -141,6 +145,7 @@ const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilCont
         };
         setForm(next);
         baselineRef.current = profileSnapshot(next);
+        loadSucceededRef.current = true;
       } catch (error) {
         console.error(error);
         if (active) {
@@ -258,6 +263,10 @@ const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilCont
 
   const handleSave = async (): Promise<boolean> => {
     if (saving || loading) return false;
+    if (!loadSucceededRef.current) {
+      setGlobalError(i18nT("profile_load_failed"));
+      return false;
+    }
     setGlobalError("");
     setSaved(false);
     if (!validate()) {
@@ -401,7 +410,7 @@ const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilCont
         display: "grid",
         gap: 12,
         color: "rgba(255,255,255,0.94)",
-        paddingBottom: "max(24px, var(--inrcy-safe-area-bottom))",
+        paddingBottom: workspaceCompact ? 0 : "max(24px, var(--inrcy-safe-area-bottom))",
       }}
     >
       {showIntro ? (
@@ -411,11 +420,14 @@ const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilCont
         </section>
       ) : null}
 
-      <section style={cardStyle}>
+      <section data-profile-identity-form style={workspaceCompact ? compactCardStyle : cardStyle}>
         {loading ? (
           <div style={{ color: "rgba(255,255,255,0.68)" }}>{i18nT("chargement_01cba1df")}</div>
         ) : (
-          <div style={{ display: "grid", gap: 13 }}>
+          <div
+            data-profile-form-grid={workspaceCompact ? "compact" : "default"}
+            style={workspaceCompact ? compactProfileGridStyle : defaultProfileGridStyle}
+          >
             <label style={labelStyle}>
               <span style={labelTextStyle}>{i18nT("nom_de_l_entreprise_299b652c")}</span>
               <input
@@ -592,12 +604,20 @@ const ProfilContent = forwardRef<ProfilContentHandle, Props>(function ProfilCont
 
       <style jsx>{`
         @media (max-width: 620px) {
+          div[data-profile-form-grid="compact"] {
+            grid-template-columns: 1fr !important;
+          }
           div[data-profile-grid="two"],
           div[data-profile-grid="location"] {
             grid-template-columns: 1fr !important;
           }
           div[data-profile-actions] {
             grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.28fr) !important;
+          }
+        }
+        @media (min-width: 621px) and (max-width: 920px) {
+          div[data-profile-form-grid="compact"] {
+            grid-template-columns: 1fr !important;
           }
         }
       `}</style>
@@ -626,6 +646,26 @@ const cardStyle: React.CSSProperties = {
   background:
     "linear-gradient(145deg, rgba(14,31,58,0.72), rgba(35,25,64,0.58))",
   boxShadow: "0 16px 44px rgba(0,0,0,0.20)",
+};
+
+const compactCardStyle: React.CSSProperties = {
+  padding: 0,
+  border: 0,
+  borderRadius: 0,
+  background: "transparent",
+  boxShadow: "none",
+};
+
+const defaultProfileGridStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 13,
+};
+
+const compactProfileGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+  alignItems: "start",
+  gap: "12px 14px",
 };
 
 const introStyle: React.CSSProperties = {

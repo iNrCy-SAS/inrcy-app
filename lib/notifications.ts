@@ -83,7 +83,7 @@ function getWelcomeNotificationSeeds(): WelcomeNotificationSeed[] {
       title: "Complétez votre profil",
       body: "Ajoutez vos informations clés pour personnaliser iNrCy, fiabiliser vos communications et poser de bonnes bases dès le démarrage.",
       cta_label: "Ouvrir mon profil",
-      cta_url: "/dashboard?panel=profil",
+      cta_url: "/dashboard/mon-profil",
       meta: { source: "onboarding", step: "profil" },
     },
     {
@@ -92,7 +92,7 @@ function getWelcomeNotificationSeeds(): WelcomeNotificationSeed[] {
       title: "Complétez votre profil",
       body: "Renseignez votre métier, vos services et votre zone d'action pour générer des contenus et recommandations plus utiles.",
       cta_label: "Ouvrir mon profil",
-      cta_url: "/dashboard?panel=profil&profileSection=activity",
+      cta_url: "/dashboard/mon-profil?section=activity",
       meta: { source: "onboarding", step: "activite" },
     },
     {
@@ -211,7 +211,7 @@ export function toNotificationPayload(row: NotificationRow) {
     ? {
         title: "Complétez votre profil",
         cta_label: "Ouvrir mon profil",
-        cta_url: "/dashboard?panel=profil&profileSection=activity",
+        cta_url: "/dashboard/mon-profil?section=activity",
       }
     : null;
 

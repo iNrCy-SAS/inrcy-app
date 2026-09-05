@@ -490,7 +490,7 @@ export async function POST(request: Request) {
             : "AI_MEDIA_VIDEO_DURATION_NOT_ALLOWED",
         message:
           edition === "standard" && videoMaxDurationSeconds === 8
-            ? "Les vidéos de 16 et 24 secondes sont réservées aux offres Premium et Founder. Votre offre Standard inclut 5 vidéos de 8 secondes par mois."
+            ? "Les vidéos de 16 et 24 secondes sont réservées aux offres Premium. Votre offre Standard inclut 5 vidéos de 8 secondes par mois."
             : `Cet établissement autorise actuellement les vidéos jusqu’à ${videoMaxDurationSeconds} secondes.`,
         quota: quota
           ? presentAiMediaQuota(quota, false, videoMaxDurationSeconds)
@@ -668,6 +668,7 @@ export async function POST(request: Request) {
       accountId: context.accountId,
       authUserId: context.authUserId,
       jobId: context.jobId,
+      edition: accountEdition || undefined,
       request: normalizedRequest,
       signal: request.signal,
     });

@@ -617,5 +617,18 @@
   "youtube_d5244a33": "YouTube",
   "inr_send_non_founder_intro_2026": "iNr’Send riunisce email, pubblicazioni Booster, campagne di crescita e fidelizzazione in uno storico comune.",
   "inr_send_non_founder_history_2026": "Consulta lo storico semplificato: Email, Pubblicazioni, Crescita e Fidelizzazione.",
-  "inr_send_non_founder_base_2026": "iNr’Send è la base di campagne, pubblicazioni e follow-up."
+  "inr_send_non_founder_base_2026": "iNr’Send è la base di campagne, pubblicazioni e follow-up.",
+  "startup_intro_business_dna_20260905": "Segui questo percorso una sola volta per dare a iNrCy una base professionale affidabile prima di ogni generazione.",
+  "startup_step_profile_20260905": "Completa **Il mio profilo**: identità, contatti, azienda, settore e professione.",
+  "startup_step_channels_20260905": "Collega i **canali** utili dalla dashboard e verifica che i relativi indicatori siano accesi.",
+  "startup_step_analyze_20260905": "Apri **DNA aziendale → Analisi dei canali** e avvia l’analisi. Un canale non disponibile non blocca gli altri.",
+  "startup_step_complete_dna_20260905": "Rivedi e completa il **DNA aziendale**: attività, clienti, aree, identità, valori, vocabolario e offerte.",
+  "startup_step_configure_ai_20260905": "Termina con **Configurazione IA** per impostare stile, modo di parlare, lunghezze e istruzioni.",
+  "startup_check_profile_20260905": "Il mio profilo contiene le informazioni essenziali e la professione corretta.",
+  "startup_check_channels_20260905": "I canali utilizzabili risultano collegati nella dashboard.",
+  "startup_check_analysis_20260905": "L’analisi termina con tutte le fonti accessibili anche se un canale fallisce.",
+  "startup_check_dna_ai_20260905": "DNA aziendale e Configurazione IA riflettono fedelmente l’azienda.",
+  "startup_reflex_partial_analysis_20260905": "Inizia dalle fonti già collegate: una fonte non disponibile non deve mai bloccare il percorso.",
+  "startup_reflex_validate_20260905": "Controlla le informazioni proposte dall’IA prima di usarle per generare contenuti.",
+  "startup_link_business_dna_20260905": "Analizza e completa il DNA"
 }

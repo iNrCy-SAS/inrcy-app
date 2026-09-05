@@ -2196,6 +2196,40 @@ textarea:focus-visible,
 @media (max-width: 620px) {
   .generator { gap: 10px; }
   .criteriaSection { padding: 12px; border-radius: 16px; }
+  .collapsibleToggle {
+    min-height: 78px;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    column-gap: 9px;
+    row-gap: 6px;
+    padding: 11px 12px;
+  }
+  .collapsibleToggle .stepBadge {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    align-self: center;
+  }
+  .collapsibleToggle .collapsibleTitle {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .collapsibleToggle .sectionSelection {
+    grid-column: 2;
+    grid-row: 2;
+    width: fit-content;
+    max-width: 100%;
+    box-sizing: border-box;
+    justify-self: start;
+    overflow: visible;
+    line-height: 1.25;
+    text-overflow: clip;
+    white-space: normal;
+  }
+  .collapsibleToggle > i {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+    align-self: center;
+  }
   .subjectChoices { grid-template-columns: 1fr; }
   .subjectChoices button { min-height: 68px; }
   .typologyChoices { grid-template-columns: repeat(2, minmax(0, 1fr)); }

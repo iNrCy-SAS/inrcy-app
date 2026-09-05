@@ -716,6 +716,13 @@ async function buildScheduledPayload(
       if (isImageRequiredChannel(channel)) return hasImagePayload;
       return canPublishWithoutMedia(channel) || hasImagePayload;
     });
+    const blockedChannels = selectedChannels.filter(
+      (channel) => !publishChannels.includes(channel),
+    );
+    if (blockedChannels.length)
+      throw new Error(
+        `Programmation complète impossible : média requis pour ${blockedChannels.join(", ")}. Ajoutez le média attendu puis relancez.`,
+      );
     if (!publishChannels.length)
       throw new Error(
         "Aucun canal prêt à programmer. Les canaux sélectionnés nécessitent un média ou une vidéo.",

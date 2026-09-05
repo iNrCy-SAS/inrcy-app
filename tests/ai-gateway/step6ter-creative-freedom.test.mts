@@ -93,20 +93,22 @@ test("engine preference is passed into shared writing-freedom rules across writi
   }
 });
 
-test("token budgets stay unchanged while generated channel ceilings are centralized", () => {
-  assert.equal(AI_FEATURE_POLICIES["booster.publish"].maxOutputTokens, 10_000);
-  assert.equal(AI_FEATURE_POLICIES["agent.publish"].maxOutputTokens, 10_000);
+test("token budgets keep safe headroom while generated channel ceilings stay centralized", () => {
+  assert.equal(AI_FEATURE_POLICIES["booster.publish"].maxOutputTokens, 12_000);
+  assert.equal(AI_FEATURE_POLICIES["agent.publish"].maxOutputTokens, 12_000);
   assert.equal(AI_FEATURE_POLICIES["templates.generate"].maxOutputTokens, 3000);
 
   const generation = read("lib/boosterPublishGeneration.ts");
   const channelRules = read("lib/boosterChannelRules.ts");
   assert.match(generation, /limitBoosterGeneratedContent/);
-  assert.match(channelRules, /inrcy_site:[\s\S]*?max:\s*2600/);
-  assert.match(channelRules, /site_web:[\s\S]*?max:\s*2600/);
-  assert.match(channelRules, /pinterest:[\s\S]*?max:\s*400/);
-  assert.match(generation, /youtube_shorts:\s*950/);
-  assert.match(generation, /site_web:\s*1100/);
-  assert.match(generation, /Math\.min\(10_000, Math\.max\(minimum, contentBudget\)\)/);
+  assert.match(channelRules, /inrcy_site:[\s\S]*?max:\s*4200/);
+  assert.match(channelRules, /site_web:[\s\S]*?max:\s*5000/);
+  assert.match(channelRules, /pinterest:[\s\S]*?max:\s*500/);
+  assert.match(generation, /getBoosterContentLengthForChannel/);
+  assert.match(generation, /Math\.ceil\(rule\.max \/ estimatedCharsPerToken\) \+ 260/);
+  assert.match(generation, /languageCode === "zh"[\s\S]*?1\.15[\s\S]*?languageCode === "th"[\s\S]*?1\.6/);
+  assert.match(generation, /Math\.max\(baseBudget, applyAiEngineOutputTokenCalibration\(baseBudget, engine\)\)/);
+  assert.match(generation, /Math\.min\(12_000, getAiEngineOutputTokenLimit\(engine\)\)/);
 });
 
 test("iNrAgent publishing explicitly preserves the selected engine's native voice", () => {
@@ -130,17 +132,18 @@ test("creative synonym reformulations and normal same-topic overlap are advisory
 });
 
 
-test("detailed Booster length is a strong editorial target but never a final 502 condition", () => {
+test("long and deep Booster lengths are strong editorial targets but never final 502 conditions", () => {
   const prompt = read("lib/boosterPrompt.ts");
   const generation = read("lib/boosterPublishGeneration.ts");
   const channelRules = read("lib/boosterChannelRules.ts");
 
-  assert.match(prompt, /detailed: "DÉTAILLÉ"/i);
+  assert.match(prompt, /long: "LONG"/i);
+  assert.match(prompt, /deep: "APPROFONDI PREMIUM"/i);
   assert.match(prompt, /PRIORITÉ ÉDITORIALE/i);
   assert.match(prompt, /formatBoosterGeneratedContentRule/);
   assert.match(prompt, /maximum absolu propre à chaque canal/i);
-  assert.match(channelRules, /site_web:[\s\S]*?detailed:\s*\{ min:\s*1800, max:\s*2400 \}[\s\S]*?max:\s*2600/i);
-  assert.match(channelRules, /youtube_shorts:[\s\S]*?detailed:\s*\{ min:\s*1000, max:\s*1600 \}[\s\S]*?max:\s*2000/i);
+  assert.match(channelRules, /site_web:[\s\S]*?long:\s*\{ min:\s*1800, max:\s*2800 \}[\s\S]*?deep:\s*\{ min:\s*3000, max:\s*4500 \}[\s\S]*?max:\s*5000/i);
+  assert.match(channelRules, /youtube_shorts:[\s\S]*?long:\s*\{ min:\s*1000, max:\s*1700 \}[\s\S]*?deep:\s*\{ min:\s*1700, max:\s*2500 \}[\s\S]*?max:\s*2800/i);
   assert.match(prompt, /Les plages ci-dessous concernent exclusivement le champ content/i);
 
   assert.match(generation, /CHANNEL_DETAILED_ENRICHMENT_MIN/);

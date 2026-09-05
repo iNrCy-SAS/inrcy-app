@@ -282,10 +282,18 @@ async function markVariantsProcessing(job: ClaimedImageJob, variants: VariantRow
 }
 
 async function downloadSourceToTemp(media: MediaRow, jobId: string) {
-  const expectedPrefix = `users/${media.user_id}/workspace-source/`;
+  // `loadMedia` scopes the registry row to job.account_id before this point.
+  // Keep the Storage allow-list just as strict: only the account-owned upload
+  // workspace or the account-owned output of the AI media studio may be read.
+  const allowedPrefixes = [
+    `users/${media.user_id}/workspace-source/`,
+    `users/${media.user_id}/ai-generated/image/`,
+  ];
   if (
     media.bucket_name !== "inrcy-pro-media" ||
-    !String(media.storage_path || "").startsWith(expectedPrefix)
+    !allowedPrefixes.some((prefix) =>
+      String(media.storage_path || "").startsWith(prefix),
+    )
   ) {
     throw new ImageNormalizationError(
       "image_source_scope_invalid",

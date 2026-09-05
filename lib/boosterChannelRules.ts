@@ -1,3 +1,8 @@
+import {
+  normalizeAiContentLength,
+  type AiContentLength,
+} from "./aiContentLength.ts";
+
 export type BoosterChannelKey =
   | "inrcy_site"
   | "site_web"
@@ -10,7 +15,7 @@ export type BoosterChannelKey =
   | "youtube_shorts"
   | "pinterest";
 
-export type BoosterContentLengthPreference = "short" | "medium" | "detailed";
+export type BoosterContentLengthPreference = AiContentLength | "detailed";
 
 type BoosterContentLengthRange = {
   min: number;
@@ -18,8 +23,12 @@ type BoosterContentLengthRange = {
 };
 
 type BoosterChannelContentRule = {
+  adapted: BoosterContentLengthRange;
   short: BoosterContentLengthRange;
   medium: BoosterContentLengthRange;
+  long: BoosterContentLengthRange;
+  deep: BoosterContentLengthRange;
+  /** Alias de lecture pour les anciens tests, caches et appels historiques. */
   detailed: BoosterContentLengthRange;
   max: number;
 };
@@ -36,64 +45,94 @@ export const BOOSTER_CHANNEL_CONTENT_RULES: Record<
   BoosterChannelContentRule
 > = {
   inrcy_site: {
-    short: { min: 700, max: 1000 },
+    adapted: { min: 1000, max: 1900 },
+    short: { min: 600, max: 950 },
     medium: { min: 1100, max: 1700 },
+    long: { min: 1800, max: 2600 },
+    deep: { min: 2700, max: 3800 },
     detailed: { min: 1800, max: 2400 },
-    max: 2600,
+    max: 4200,
   },
   site_web: {
-    short: { min: 700, max: 1000 },
+    adapted: { min: 1100, max: 2100 },
+    short: { min: 600, max: 950 },
     medium: { min: 1100, max: 1700 },
+    long: { min: 1800, max: 2800 },
+    deep: { min: 3000, max: 4500 },
     detailed: { min: 1800, max: 2400 },
-    max: 2600,
+    max: 5000,
   },
   inr_search: {
+    adapted: { min: 140, max: 240 },
     short: { min: 90, max: 140 },
     medium: { min: 150, max: 210 },
+    long: { min: 220, max: 275 },
+    deep: { min: 275, max: 300 },
     detailed: { min: 230, max: 290 },
     max: 300,
   },
   gmb: {
+    adapted: { min: 350, max: 750 },
     short: { min: 220, max: 350 },
     medium: { min: 400, max: 650 },
+    long: { min: 700, max: 1050 },
+    deep: { min: 1000, max: 1400 },
     detailed: { min: 700, max: 1000 },
-    max: 1200,
+    max: 1500,
   },
   facebook: {
+    adapted: { min: 350, max: 900 },
     short: { min: 220, max: 400 },
     medium: { min: 450, max: 750 },
+    long: { min: 800, max: 1300 },
+    deep: { min: 1300, max: 2000 },
     detailed: { min: 800, max: 1200 },
-    max: 1400,
+    max: 2200,
   },
   instagram: {
+    adapted: { min: 260, max: 650 },
     short: { min: 150, max: 280 },
     medium: { min: 300, max: 500 },
+    long: { min: 620, max: 1000 },
+    deep: { min: 1000, max: 1800 },
     detailed: { min: 620, max: 950 },
-    max: 1200,
+    max: 2200,
   },
   linkedin: {
+    adapted: { min: 550, max: 1100 },
     short: { min: 350, max: 600 },
     medium: { min: 650, max: 1000 },
+    long: { min: 1100, max: 1800 },
+    deep: { min: 1800, max: 2700 },
     detailed: { min: 1100, max: 1700 },
-    max: 2000,
+    max: 3000,
   },
   tiktok: {
+    adapted: { min: 140, max: 360 },
     short: { min: 80, max: 150 },
     medium: { min: 160, max: 300 },
+    long: { min: 380, max: 700 },
+    deep: { min: 700, max: 1050 },
     detailed: { min: 380, max: 650 },
-    max: 800,
+    max: 1200,
   },
   youtube_shorts: {
+    adapted: { min: 500, max: 1100 },
     short: { min: 300, max: 500 },
     medium: { min: 600, max: 950 },
+    long: { min: 1000, max: 1700 },
+    deep: { min: 1700, max: 2500 },
     detailed: { min: 1000, max: 1600 },
-    max: 2000,
+    max: 2800,
   },
   pinterest: {
+    adapted: { min: 160, max: 300 },
     short: { min: 100, max: 160 },
     medium: { min: 180, max: 260 },
+    long: { min: 320, max: 460 },
+    deep: { min: 440, max: 500 },
     detailed: { min: 320, max: 460 },
-    max: 520,
+    max: 500,
   },
 };
 
@@ -105,10 +144,36 @@ export function getBoosterGeneratedContentRule(
   length: BoosterContentLengthPreference,
 ) {
   const channelRule = BOOSTER_CHANNEL_CONTENT_RULES[channel];
+  const normalizedLength = length === "detailed"
+    ? "long"
+    : normalizeAiContentLength(length);
   return {
-    ...channelRule[length],
+    ...channelRule[normalizedLength],
     absoluteMax: channelRule.max,
   };
+}
+
+export function isBoosterWebChannel(channel: BoosterChannelKey) {
+  return channel === "inrcy_site" || channel === "site_web" || channel === "inr_search";
+}
+
+export function getBoosterContentLengthForChannel(
+  preferences: {
+    length?: BoosterContentLengthPreference;
+    webLength?: BoosterContentLengthPreference;
+    socialLength?: BoosterContentLengthPreference;
+  },
+  channel: BoosterChannelKey,
+): AiContentLength {
+  const fallback = preferences.length === "detailed"
+    ? "long"
+    : normalizeAiContentLength(preferences.length, "medium");
+  const selected = isBoosterWebChannel(channel)
+    ? preferences.webLength
+    : preferences.socialLength;
+  return selected === "detailed"
+    ? "long"
+    : normalizeAiContentLength(selected, fallback);
 }
 
 export function formatBoosterGeneratedContentRule(

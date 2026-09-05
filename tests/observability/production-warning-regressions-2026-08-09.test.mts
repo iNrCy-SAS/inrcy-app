@@ -99,6 +99,31 @@ test("les refus OAuth LinkedIn récupérables restent hors de Sentry", () => {
     /unable to retrieve access token: appid\/redirect uri\/code verifier does not match authorization code/,
   );
   assert.match(oauth, /external member binding exists/);
+  assert.match(oauth, /permissions error/);
+  assert.match(oauth, /google_permissions_incomplete/);
+  assert.match(oauth, /input\.outcome === 'failed' && isUserResolvableOAuthInput\(input\)/);
+  assert.match(oauth, /isUserResolvableOAuthInput\(input\)[\s\S]*?return false/);
+  assert.match(oauth, /const logLevel = isUserResolvableOAuthException\(message\) \? 'warn' : 'error'/);
+});
+
+test("les confirmations Agenda journalisent le résultat du fallback sans données client", () => {
+  const calendar = read("app/api/calendar/events/route.ts");
+
+  assert.match(calendar, /calendar_confirmation_fallback_delivered/);
+  assert.match(calendar, /calendar_confirmation_delivery_unavailable/);
+  assert.match(calendar, /calendar_confirmation_send_failed/);
+  assert.doesNotMatch(calendar, /confirmation integration delivery failed, fallback to iNrCy/);
+
+  const confirmationFunction = calendar.slice(
+    calendar.indexOf("async function sendAgendaConfirmationEmails"),
+    calendar.indexOf("async function getCalendarEventsHandler"),
+  );
+  const emittedLogs = [...confirmationFunction.matchAll(/log\.(?:info|warn|error)\([\s\S]*?\n\s*\}\);/g)]
+    .map((match) => match[0])
+    .join("\n");
+  assert.doesNotMatch(emittedLogs, /recipient\.email/);
+  assert.doesNotMatch(emittedLogs, /selectedMailAccountId/);
+  assert.doesNotMatch(emittedLogs, /error:\s*(?:integrationError|mailError)/);
 });
 
 test("les invitations évitent les appels Auth déjà connus comme doublons", () => {

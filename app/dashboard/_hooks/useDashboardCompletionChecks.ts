@@ -72,7 +72,9 @@ const BYPASSED_COMPLETION_STATE: DashboardCompletionState = {
 };
 
 
-const COMPLETION_CACHE_KEY = "inrcy_dashboard_completion_state_v1";
+// Bump this key whenever the required-field contract changes. Reusing an
+// older ready state can redirect a newly valid account before revalidation.
+const COMPLETION_CACHE_KEY = "inrcy_dashboard_completion_state_v2";
 
 function readCachedCompletionState(): DashboardCompletionState | null {
   try {

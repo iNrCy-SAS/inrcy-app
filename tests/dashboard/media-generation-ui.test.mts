@@ -284,6 +284,10 @@ test("la fenêtre iNrCy sépare les critères de la création et de la revue", (
   assert.match(generatorStyles, /\.collapsibleToggle/);
   assert.match(generatorStyles, /\.footerEnginePicker/);
   assert.match(generatorStyles, /\.footerEngineChoices/);
+  assert.match(
+    generatorStyles,
+    /@media \(max-width: 620px\)[\s\S]*?\.collapsibleToggle \.sectionSelection[\s\S]*?grid-row:\s*2[\s\S]*?white-space:\s*normal/
+  );
   assert.match(generatorStyles, /\.engineResultBadge\[data-fallback="true"\]/);
   assert.doesNotMatch(generatorStyles, /\.videoEngineChoices/);
   assert.match(generatorStyles, /\.combinedSubsection/);
@@ -611,7 +615,7 @@ test("les temps indicatifs français restent courts et explicites", () => {
   );
   assert.equal(
     media.ai_generator_video_timing_hint,
-    "Temps indicatif : iNrCy analyse le profil, construit les scènes puis réalise le montage. La durée dépend du format choisi."
+    "Temps indicatif : iNrCy lit l’ADN de votre entreprise, construit les scènes puis réalise le montage. La durée dépend du format choisi."
   );
   assert.equal(
     media.ai_generator_custom_placeholder,

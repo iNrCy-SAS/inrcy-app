@@ -38,6 +38,8 @@ test("le healthcheck interne certifie flags, tables, buckets et files", () => {
   assert.match(health, /bucket_inrcy_pro_media_must_be_private/);
   assert.match(health, /expired_processing_jobs/);
   assert.match(health, /stale_publishing_workspaces/);
+  assert.match(health, /failedJobCount/);
+  assert.match(health, /job\(s\) échoué\(s\) sur les dernières 24 h/);
   assert.match(cron, /report\.checks\.media_pipeline/);
 });
 

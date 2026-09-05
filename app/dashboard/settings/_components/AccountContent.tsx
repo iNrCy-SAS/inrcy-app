@@ -58,7 +58,7 @@ function accountPlanPresentation(
     edition === "standard"
       ? i18nT("inrcy_standard_1dd18060")
       : edition === "founder"
-        ? "iNrCy Founder"
+        ? `iNrCy ${i18nT("partenaire_fondateur_7857c49b")}`
         : i18nT("inrcy_premium_4c7d39c1");
   const description =
     edition === "standard"

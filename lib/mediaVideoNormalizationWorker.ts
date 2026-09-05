@@ -400,7 +400,12 @@ async function downloadSourceToTemp(
   media: MediaRow,
   jobId: string,
 ) {
-  const expectedPrefix = `users/${media.user_id}/workspace-source/`;
+  // `loadMedia` already proves that the registry row belongs to the job
+  // account. Storage remains allow-listed to the account-owned paths only.
+  const allowedPrivatePrefixes = [
+    `users/${media.user_id}/workspace-source/`,
+    `users/${media.user_id}/ai-generated/video/`,
+  ];
   const boosterAccount = String(media.user_id || "").replace(/\./g, "-");
   const boosterPath = String(media.storage_path || "");
   const ownedBoosterSource =
@@ -411,7 +416,9 @@ async function downloadSourceToTemp(
   if (
     !(
       (media.bucket_name === "inrcy-pro-media" &&
-        String(media.storage_path || "").startsWith(expectedPrefix)) ||
+        allowedPrivatePrefixes.some((prefix) =>
+          String(media.storage_path || "").startsWith(prefix),
+        )) ||
       ownedBoosterSource
     )
   ) {

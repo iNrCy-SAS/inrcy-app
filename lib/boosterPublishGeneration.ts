@@ -29,13 +29,18 @@ import {
   applyAiEngineOutputTokenCalibration,
   applyAiEngineTimeoutCalibration,
 } from "@/lib/aiEngineCalibration";
-import type { AiPreferredEngine } from "@/lib/aiEnginePreference";
+import {
+  getAiEngineOutputTokenLimit,
+  type AiPreferredEngine,
+} from "@/lib/aiEnginePreference";
 import {
   sanitizeBoosterSiteText,
   stripSiteTextFormatting,
   stripSiteTextFormattingPreserveLayout,
 } from "@/lib/boosterFormatting";
 import {
+  getBoosterContentLengthForChannel,
+  getBoosterGeneratedContentRule,
   limitBoosterGeneratedContent,
 } from "@/lib/boosterChannelRules";
 import {
@@ -754,43 +759,124 @@ function buildLanguageRetryInstructions(languageCode: string, channels: BoosterC
 }
 
 
+const BOOSTER_OUTPUT_BUDGET_SAFETY_RATIO = 0.94;
+
+function estimateMaxOutputTokens(
+  channels: BoosterChannels[],
+  mode: "primary" | "repair" = "primary",
+  preferences?: NormalizedAiGenerationProfile["preferences"],
+) {
+  const uniqueChannels = Array.from(new Set(channels));
+  const fallbackPreferences = preferences || {
+    length: "medium" as const,
+    webLength: "medium" as const,
+    socialLength: "medium" as const,
+  };
+  const languageCode = preferences?.language || "fr";
+  // Le français et les autres langues latines tournent autour de trois
+  // caractères par token sur ces contenus. Le chinois et le thaï sont plus
+  // denses en tokens : leur réserver davantage évite une coupure JSON alors
+  // que la longueur demandée est parfaitement valide.
+  const estimatedCharsPerToken = languageCode === "zh"
+    ? 1.15
+    : languageCode === "th"
+      ? 1.6
+      : 3;
+  const contentBudget = uniqueChannels.reduce((sum, channel) => {
+    const selectedLength = getBoosterContentLengthForChannel(
+      fallbackPreferences,
+      channel,
+    );
+    const rule = getBoosterGeneratedContentRule(channel, selectedLength);
+    // Estimation volontairement généreuse : caractères UTF-8, JSON, titre,
+    // CTA, hashtags et échappements sont tous couverts avant la marge finale.
+    return sum + Math.ceil(rule.max / estimatedCharsPerToken) + 260;
+  }, mode === "repair" ? 700 : 1_000);
+  return Math.ceil(contentBudget * 1.35);
+}
+
+function getBoosterOutputTokenHardLimit(engine?: string | null) {
+  return Math.min(12_000, getAiEngineOutputTokenLimit(engine));
+}
+
 function computeMaxOutputTokens(
   channels: BoosterChannels[],
   mode: "primary" | "repair" = "primary",
   engine?: string | null,
-  lengthPreference: NormalizedAiGenerationProfile["preferences"]["length"] = "medium",
+  preferences?: NormalizedAiGenerationProfile["preferences"],
 ) {
   const uniqueChannels = Array.from(new Set(channels));
-  const expectedPerChannel: Record<BoosterChannels, number> = {
-    inrcy_site: 950,
-    site_web: 1100,
-    inr_search: 240,
-    gmb: 450,
-    facebook: 550,
-    instagram: 520,
-    linkedin: 750,
-    tiktok: 380,
-    youtube_shorts: 950,
-    pinterest: 400,
-  };
-
-  const contentBudget = uniqueChannels.reduce(
-    (sum, channel) => sum + expectedPerChannel[channel],
-    mode === "repair" ? 500 : 750,
+  const lengthAdjustedBudget = estimateMaxOutputTokens(
+    uniqueChannels,
+    mode,
+    preferences,
   );
-  const lengthAdjustedBudget =
-    lengthPreference === "detailed"
-      ? Math.ceil(contentBudget * 1.18)
-      : contentBudget;
 
   // Un seul appel principal peut contenir tous les canaux. Le plafond reste une
   // marge de sortie, pas une dépense automatique : seuls les tokens réellement
   // générés sont consommés. La réparation ne reçoit que les canaux invalides.
-  const minimum = uniqueChannels.includes("youtube_shorts") ? 3200 : 2200;
-  const baseBudget = Math.min(10_000, Math.max(minimum, lengthAdjustedBudget));
+  const minimum = uniqueChannels.includes("youtube_shorts") ? 3_600 : 2_600;
+  const hardLimit = getBoosterOutputTokenHardLimit(engine);
+  const baseBudget = Math.min(hardLimit, Math.max(minimum, lengthAdjustedBudget));
+  // Une calibration issue de la QA peut ajouter de la marge, jamais retirer
+  // celle calculée à partir des longueurs réellement demandées.
   return Math.min(
-    10_000,
-    applyAiEngineOutputTokenCalibration(baseBudget, engine),
+    hardLimit,
+    Math.max(baseBudget, applyAiEngineOutputTokenCalibration(baseBudget, engine)),
+  );
+}
+
+/**
+ * Une sortie JSON ne peut pas utiliser plus que le plafond du moteur. Les
+ * profils Approfondi et les langues denses peuvent donc nécessiter plusieurs
+ * appels même si le parcours standard reste en un seul appel. Chaque lot garde
+ * une réserve de 6 % pour les échappements JSON et les variations du tokenizer.
+ */
+export function buildOutputSafeChannelBatches(
+  channels: BoosterChannels[],
+  mode: "primary" | "repair",
+  engine: string | null | undefined,
+  preferences: NormalizedAiGenerationProfile["preferences"],
+) {
+  const uniqueChannels = Array.from(new Set(channels));
+  const hardLimit = getBoosterOutputTokenHardLimit(engine);
+  const safeLimit = Math.max(2_600, Math.floor(hardLimit * BOOSTER_OUTPUT_BUDGET_SAFETY_RATIO));
+  const batches: BoosterChannels[][] = [];
+  let current: BoosterChannels[] = [];
+
+  for (const channel of uniqueChannels) {
+    const candidate = [...current, channel];
+    if (
+      current.length > 0 &&
+      estimateMaxOutputTokens(candidate, mode, preferences) > safeLimit
+    ) {
+      batches.push(current);
+      current = [channel];
+    } else {
+      current = candidate;
+    }
+  }
+
+  if (current.length > 0) batches.push(current);
+  return batches;
+}
+
+function outputBudgetForBatches(args: {
+  batches: BoosterChannels[][];
+  mode: "primary" | "repair";
+  engine?: string | null;
+  preferences: NormalizedAiGenerationProfile["preferences"];
+}) {
+  return args.batches.reduce(
+    (total, batch) =>
+      total +
+      computeMaxOutputTokens(
+        batch,
+        args.mode,
+        args.engine,
+        args.preferences,
+      ),
+    0,
   );
 }
 
@@ -864,7 +950,7 @@ async function generateVersions(args: {
       args.channels,
       mode,
       args.generationProfile.preferences.engine,
-      args.generationProfile.preferences.length,
+      args.generationProfile.preferences,
     ),
     temperature: getAiEngineTemperature(
       args.generationProfile,
@@ -925,7 +1011,7 @@ function collectChannelQualityIssues(args: {
   versions: Partial<Record<BoosterChannels, ChannelPost>>;
   ideaKeywords: string[];
   languageCode: string;
-  lengthPreference: NormalizedAiGenerationProfile["preferences"]["length"];
+  preferences: NormalizedAiGenerationProfile["preferences"];
   emojiLevel: NormalizedAiGenerationProfile["preferences"]["emojiLevel"];
 }) {
   const duplicateChannels = new Set(findOverSimilarChannels(args.channels, args.versions));
@@ -943,10 +1029,19 @@ function collectChannelQualityIssues(args: {
     if (hasEditorialMetaLeak(post)) channelIssues.push("meta_leak");
     if (hasLanguageMismatch(args.languageCode, post)) channelIssues.push("language_mismatch");
     if (duplicateChannels.has(channel)) channelIssues.push("too_similar");
+    const selectedLength = getBoosterContentLengthForChannel(args.preferences, channel);
+    const editorialMinimum = selectedLength === "deep"
+      ? Math.max(
+          CHANNEL_DETAILED_ENRICHMENT_MIN[channel],
+          Math.floor(getBoosterGeneratedContentRule(channel, "deep").min * 0.78),
+        )
+      : selectedLength === "long"
+        ? CHANNEL_DETAILED_ENRICHMENT_MIN[channel]
+        : 0;
     if (
-      args.lengthPreference === "detailed" &&
+      editorialMinimum > 0 &&
       hasCorePublishableContent(channel, post) &&
-      (post?.content?.trim().length || 0) < CHANNEL_DETAILED_ENRICHMENT_MIN[channel]
+      (post?.content?.trim().length || 0) < editorialMinimum
     ) {
       channelIssues.push("too_short_editorial");
     }
@@ -973,6 +1068,7 @@ function buildSingleRepairInstructions(args: {
   idea: string;
   languageCode: string;
   validVersions: Partial<Record<BoosterChannels, ChannelPost>>;
+  preferences: NormalizedAiGenerationProfile["preferences"];
 }) {
   const reasonLabels: Record<ChannelQualityIssue, string> = {
     missing: "contenu manquant ou inexploitable",
@@ -980,7 +1076,7 @@ function buildSingleRepairInstructions(args: {
     meta_leak: "commentaire éditorial/méta visible",
     language_mismatch: "mauvaise langue",
     too_similar: "trop proche d'un autre canal",
-    too_short_editorial: "contenu trop court pour la préférence Détaillé",
+    too_short_editorial: "contenu trop court pour la préférence Long ou Approfondi",
     emoji_under_target: "pas assez d'emojis pour le niveau Beaucoup",
   };
 
@@ -1006,10 +1102,16 @@ function buildSingleRepairInstructions(args: {
   );
   const detailedLengthTargets = args.channels
     .filter((channel) => args.issues.get(channel)?.includes("too_short_editorial"))
-    .map(
-      (channel) =>
-        `- ${CHANNEL_LABELS[channel]} : au moins ${CHANNEL_DETAILED_ENRICHMENT_MIN[channel]} caractères de contenu utile`,
-    )
+    .map((channel) => {
+      const selectedLength = getBoosterContentLengthForChannel(args.preferences, channel);
+      const target = selectedLength === "deep"
+        ? Math.max(
+            CHANNEL_DETAILED_ENRICHMENT_MIN[channel],
+            Math.floor(getBoosterGeneratedContentRule(channel, "deep").min * 0.78),
+          )
+        : CHANNEL_DETAILED_ENRICHMENT_MIN[channel];
+      return `- ${CHANNEL_LABELS[channel]} : au moins ${target} caractères de contenu utile`;
+    })
     .join("\n");
   const dynamicEmojiTargets = args.channels
     .filter((channel) => args.issues.get(channel)?.includes("emoji_under_target"))
@@ -1026,7 +1128,7 @@ function buildSingleRepairInstructions(args: {
     `Diagnostics locaux à corriger :\n${diagnostics}`,
     buildLanguageRetryInstructions(args.languageCode, languageMismatchChannels),
     detailedLengthTargets
-      ? `ENRICHISSEMENT DE LONGUEUR — préférence DÉTAILLÉ :\n${detailedLengthTargets}\nDéveloppe avec contexte, explication, bénéfice, méthode, étapes ou portée du sujet selon le canal. Ne remplis pas artificiellement et n'invente aucun fait.`
+      ? `ENRICHISSEMENT DE LONGUEUR — préférence LONG ou APPROFONDI :\n${detailedLengthTargets}\nDéveloppe avec contexte, explication, bénéfice, méthode, étapes ou portée du sujet selon le canal. Ne remplis pas artificiellement et n'invente aucun fait.`
       : "",
     dynamicEmojiTargets
       ? `RENFORCEMENT EMOJIS — niveau BEAUCOUP :\n${dynamicEmojiTargets}\nAjoute de vrais emojis pertinents pour le métier, le sujet et le canal. Ne les regroupe pas tous à la fin ; fais-les vivre dans le texte. Ne mets aucun emoji sur les canaux site.`
@@ -1097,6 +1199,7 @@ async function repairChannelsOnce(args: {
         idea: args.idea,
         languageCode: args.languageCode,
         validVersions: args.versions,
+        preferences: args.generationProfile.preferences,
       }),
     ].filter(Boolean).join("\n\n"),
   });
@@ -1216,10 +1319,16 @@ function detectPublicationInstructionLength(
     return "short";
   }
   if (
-    /\b(?:texte|contenu|publication|format|version)\s+(?:tres\s+)?(?:detaille|detaillee|developpe|developpee|approfondi|approfondie|long|longue)\b/.test(value) ||
-    /\b(?:redige|ecris|produis|genere|fais)\b[^.!?;]{0,28}\b(?:detaille|detaillee|developpe|developpee|approfondi|approfondie|long|longue)\b/.test(value)
+    /\b(?:texte|contenu|publication|format|version)\s+(?:tres\s+detaille|tres\s+detaillee|approfondi|approfondie)\b/.test(value) ||
+    /\b(?:redige|ecris|produis|genere|fais)\b[^.!?;]{0,28}\b(?:tres\s+detaille|tres\s+detaillee|approfondi|approfondie)\b/.test(value)
   ) {
-    return "detailed";
+    return "deep";
+  }
+  if (
+    /\b(?:texte|contenu|publication|format|version)\s+(?:detaille|detaillee|developpe|developpee|long|longue)\b/.test(value) ||
+    /\b(?:redige|ecris|produis|genere|fais)\b[^.!?;]{0,28}\b(?:detaille|detaillee|developpe|developpee|long|longue)\b/.test(value)
+  ) {
+    return "long";
   }
   if (/\b(?:longueur|format)\s+moyen(?:ne)?\b/.test(value)) {
     return "medium";
@@ -1267,13 +1376,21 @@ function applyPublicationInstructionOverrides(
   const length = detectPublicationInstructionLength(instruction);
   const emojiLevel = detectPublicationInstructionEmojiLevel(instruction);
   if (!language && !length && !emojiLevel) return profile;
+  const effectiveLength =
+    length === "deep" && !profile.preferences.premiumEnabled ? "long" : length;
 
   return {
     ...profile,
     preferences: {
       ...profile.preferences,
       ...(language ? { language } : {}),
-      ...(length ? { length } : {}),
+      ...(effectiveLength
+        ? {
+            length: effectiveLength,
+            webLength: effectiveLength,
+            socialLength: effectiveLength,
+          }
+        : {}),
       ...(emojiLevel ? { emojiLevel } : {}),
     },
   };
@@ -1287,16 +1404,6 @@ export async function generateSharedBoosterPosts(args: GenerateSharedBoosterPost
     repairMs: 0,
   };
   const aiFeature = args.aiFeature || "booster.publish";
-  const budget = createAiOperationBudget(aiFeature);
-  // Deadline absolue partagée entre préanalyse média, appel principal, retry réseau
-  // et éventuelle réparation. La route Vercel garde ainsi une marge de fermeture.
-  const requestedDeadlineAt = Number(args.deadlineAt || 0);
-  const operationDeadlineAt = Math.min(
-    budget.startedAt + budget.maxDurationMs,
-    Number.isFinite(requestedDeadlineAt) && requestedDeadlineAt > 0
-      ? requestedDeadlineAt
-      : Number.POSITIVE_INFINITY,
-  );
   const style = args.style || "equilibre";
   const baseGenerationProfile = buildNormalizedAiGenerationProfile({
     profile: args.profile,
@@ -1335,6 +1442,50 @@ export async function generateSharedBoosterPosts(args: GenerateSharedBoosterPost
   if (!channels.length) {
     return { versions: {}, recoveredChannels: [] };
   }
+
+  const primaryBatches = buildOutputSafeChannelBatches(
+    channels,
+    "primary",
+    instructionAdjustedGenerationProfile.preferences.engine,
+    instructionAdjustedGenerationProfile.preferences,
+  );
+  // La réparation ne sera exécutée que pour les canaux invalides. On réserve
+  // néanmoins sa borne haute dès le départ : un profil Approfondi ne doit pas
+  // échouer à mi-parcours parce que son budget avait été dimensionné comme un
+  // parcours court historique.
+  const maximumRepairBatches = buildOutputSafeChannelBatches(
+    channels,
+    "repair",
+    instructionAdjustedGenerationProfile.preferences.engine,
+    instructionAdjustedGenerationProfile.preferences,
+  );
+  const maximumReservedOutputTokens =
+    outputBudgetForBatches({
+      batches: primaryBatches,
+      mode: "primary",
+      engine: instructionAdjustedGenerationProfile.preferences.engine,
+      preferences: instructionAdjustedGenerationProfile.preferences,
+    }) +
+    outputBudgetForBatches({
+      batches: maximumRepairBatches,
+      mode: "repair",
+      engine: instructionAdjustedGenerationProfile.preferences.engine,
+      preferences: instructionAdjustedGenerationProfile.preferences,
+    });
+  const budget = createAiOperationBudget(aiFeature, {
+    maxCalls: primaryBatches.length + maximumRepairBatches.length,
+    maxReservedOutputTokens: maximumReservedOutputTokens,
+  });
+  // Deadline absolue partagée entre préanalyse média, appels principaux
+  // parallèles, retries fournisseur et éventuelle réparation. La route garde
+  // ainsi la même marge de fermeture qu'avant le découpage output-safe.
+  const requestedDeadlineAt = Number(args.deadlineAt || 0);
+  const operationDeadlineAt = Math.min(
+    budget.startedAt + budget.maxDurationMs,
+    Number.isFinite(requestedDeadlineAt) && requestedDeadlineAt > 0
+      ? requestedDeadlineAt
+      : Number.POSITIVE_INFINITY,
+  );
 
   // V2 Étape 4 : le moteur choisi reste toujours l'auteur final.
   // Pour un moteur sans vision (ex. DeepSeek), une passe visuelle neutre extrait
@@ -1405,37 +1556,64 @@ export async function generateSharedBoosterPosts(args: GenerateSharedBoosterPost
   let aiFallback: AiGenerationFallbackInfo | undefined;
   let initialGenerationError: unknown = null;
 
-  // V2 Étape 3 : 1 appel principal quel que soit le nombre de canaux sélectionnés.
-  // Le schéma JSON dynamique contient exactement ces canaux.
+  // Le parcours standard reste un appel. Quand la somme des longueurs demandées
+  // dépasserait la fenêtre de sortie du moteur, les lots indépendants sont lancés
+  // en parallèle. Cela évite une coupure JSON silencieuse sans rallonger le chemin
+  // critique ni diminuer la qualité des canaux Approfondi.
   let rawVersions: Partial<Record<BoosterChannels, Partial<ChannelPost>>> = {};
   const primaryGenerationStartedAt = Date.now();
   try {
-    const out = await generateVersions({
-      idea: args.idea,
-      publicationInstruction: args.publicationInstruction,
-      theme: args.theme,
-      style,
-      channels,
-      profile: args.profile,
-      business: args.business,
-      generationProfile,
-      recentPublications: args.recentPublications,
-      hiddenAngle: operationHiddenAngle,
-      imagesForAI: preparedMedia.imagesForWriter,
-      mediaContext: preparedMedia.writerContext,
-      extraInstructions: args.extraInstructions,
-      aiFeature,
-      accountId: args.accountId,
-      budget,
-      deadlineAt: operationDeadlineAt,
-      mode: "primary",
-    });
-    aiFallback = getAiGenerationFallbackInfo(out) || aiFallback;
-    rawVersions = out?.versions && typeof out.versions === "object" ? out.versions : {};
+    const primaryResults = await Promise.allSettled(
+      primaryBatches.map((batch) =>
+        generateVersions({
+          idea: args.idea,
+          publicationInstruction: args.publicationInstruction,
+          theme: args.theme,
+          style,
+          channels: batch,
+          profile: args.profile,
+          business: args.business,
+          generationProfile,
+          recentPublications: args.recentPublications,
+          hiddenAngle: operationHiddenAngle,
+          imagesForAI: preparedMedia.imagesForWriter,
+          mediaContext: preparedMedia.writerContext,
+          extraInstructions: args.extraInstructions,
+          aiFeature,
+          accountId: args.accountId,
+          budget,
+          deadlineAt: operationDeadlineAt,
+          mode: "primary",
+        }),
+      ),
+    );
+
+    for (const [batchIndex, result] of primaryResults.entries()) {
+      const batch = primaryBatches[batchIndex] || [];
+      if (result.status === "fulfilled") {
+        const out = result.value;
+        aiFallback = getAiGenerationFallbackInfo(out) || aiFallback;
+        if (out?.versions && typeof out.versions === "object") {
+          Object.assign(rawVersions, out.versions);
+        }
+        continue;
+      }
+
+      initialGenerationError ||= result.reason;
+      logGenerationAttemptFailure({
+        stage: "primary-output-safe-batch",
+        channels: batch,
+        aiFeature,
+        accountId: args.accountId,
+        durationMs: elapsedMs(primaryGenerationStartedAt),
+        error: result.reason,
+      });
+      rethrowIfRecoveryMustStop(result.reason);
+    }
   } catch (error) {
-    initialGenerationError = error;
+    initialGenerationError ||= error;
     logGenerationAttemptFailure({
-      stage: "primary-single-pass",
+      stage: "primary-output-safe-orchestrator",
       channels,
       aiFeature,
       accountId: args.accountId,
@@ -1443,7 +1621,6 @@ export async function generateSharedBoosterPosts(args: GenerateSharedBoosterPost
       error,
     });
     rethrowIfRecoveryMustStop(error);
-    rawVersions = {};
   } finally {
     timing.primaryGenerationMs = elapsedMs(primaryGenerationStartedAt);
   }
@@ -1463,7 +1640,7 @@ export async function generateSharedBoosterPosts(args: GenerateSharedBoosterPost
     versions: safeVersions,
     ideaKeywords,
     languageCode,
-    lengthPreference: generationProfile.preferences.length,
+    preferences: generationProfile.preferences,
     emojiLevel: generationProfile.preferences.emojiLevel,
   });
   const repairChannels = channels.filter((channel) =>
@@ -1493,35 +1670,54 @@ export async function generateSharedBoosterPosts(args: GenerateSharedBoosterPost
     aiFallbackModel: aiFallback?.finalModel,
   });
 
-  // Une seule réparation ciblée, regroupée dans un unique appel. Jamais de boucle
-  // canal par canal, jamais de lots de 3, jamais de rescue YouTube séparé.
+  // Une seule phase de réparation ciblée. Comme le primaire, elle ne se divise
+  // que lorsque le plafond de sortie du moteur l'impose ; ses lots indépendants
+  // restent parallèles et il n'existe aucune boucle de reprise canal par canal.
   if (repairChannels.length) {
     const repairStartedAt = Date.now();
     try {
-      const repaired = await repairChannelsOnce({
-        channels: repairChannels,
-        issues: repairIssues,
-        versions: safeVersions,
-        idea: args.idea,
-        publicationInstruction: args.publicationInstruction,
-        theme: args.theme,
-        style,
-        profile: args.profile,
-        business: args.business,
-        generationProfile,
-        recentPublications: args.recentPublications,
-        hiddenAngle: operationHiddenAngle,
-        imagesForAI: preparedMedia.imagesForWriter,
-        mediaContext: preparedMedia.writerContext,
-        extraInstructions: args.extraInstructions,
-        languageCode,
-        aiFeature,
-        accountId: args.accountId,
-        budget,
-        deadlineAt: operationDeadlineAt,
-      });
-      aiFallback = repaired.aiFallback || aiFallback;
-      repaired.recoveredChannels.forEach((channel) => recoveredChannels.add(channel));
+      const repairBatches = buildOutputSafeChannelBatches(
+        repairChannels,
+        "repair",
+        generationProfile.preferences.engine,
+        generationProfile.preferences,
+      );
+      const repairResults = await Promise.allSettled(
+        repairBatches.map((batch) =>
+          repairChannelsOnce({
+            channels: batch,
+            issues: repairIssues,
+            versions: safeVersions,
+            idea: args.idea,
+            publicationInstruction: args.publicationInstruction,
+            theme: args.theme,
+            style,
+            profile: args.profile,
+            business: args.business,
+            generationProfile,
+            recentPublications: args.recentPublications,
+            hiddenAngle: operationHiddenAngle,
+            imagesForAI: preparedMedia.imagesForWriter,
+            mediaContext: preparedMedia.writerContext,
+            extraInstructions: args.extraInstructions,
+            languageCode,
+            aiFeature,
+            accountId: args.accountId,
+            budget,
+            deadlineAt: operationDeadlineAt,
+          }),
+        ),
+      );
+      for (const result of repairResults) {
+        if (result.status === "rejected") {
+          rethrowIfRecoveryMustStop(result.reason);
+          continue;
+        }
+        aiFallback = result.value.aiFallback || aiFallback;
+        result.value.recoveredChannels.forEach((channel) =>
+          recoveredChannels.add(channel),
+        );
+      }
     } catch (error) {
       logGenerationAttemptFailure({
         stage: "targeted-repair-once",

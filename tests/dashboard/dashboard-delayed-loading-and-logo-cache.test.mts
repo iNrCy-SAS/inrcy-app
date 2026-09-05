@@ -57,9 +57,9 @@ test("bubble logos use immutable static assets and stay mounted in the dashboard
   assert.match(constants, /DASHBOARD_BUBBLE_ICON_PRELOADS/);
   assert.match(constants, /moduleIcon\.src|inrcyBubbleIcon\.src/);
   assert.match(layout, /DashboardPersistentImageCache/);
-  assert.match(layout, /fetchPriority="high"/);
   assert.match(persistentCache, /data-dashboard-persistent-image-cache/);
   assert.match(persistentCache, /loading="eager"/);
+  assert.match(persistentCache, /fetchPriority="high"/);
   assert.match(persistentCache, /DASHBOARD_BUBBLE_ICON_PRELOADS\.map/);
   assert.match(bubble, /loading="eager"/);
   assert.match(bubble, /fetchPriority="high"/);

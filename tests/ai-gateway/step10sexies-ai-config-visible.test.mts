@@ -40,10 +40,11 @@ test("Step 10 sexies gives Booster a real non-blocking emoji policy per requeste
   assert.match(prompt, /canaux site restent strictement sans emoji/i);
 });
 
-test("Step 10 sexies keeps the full liked-example allowance in the compact Booster payload", () => {
+test("Step 10 sexies keeps both full liked-example allowances in the compact Booster payload", () => {
   const prompt = read("lib/boosterPrompt.ts");
-  assert.match(prompt, /exemple_aime: cleanText\(preferences\.likedExample, 1200\)/);
-  assert.doesNotMatch(prompt, /exemple_aime: cleanText\(preferences\.likedExample, 700\)/);
+  assert.match(prompt, /contenu_apprecie_1: cleanText\(preferences\.likedExample, 1200\)/);
+  assert.match(prompt, /contenu_apprecie_2: cleanText\(preferences\.likedExample2, 1200\)/);
+  assert.doesNotMatch(prompt, /contenu_apprecie_[12]: cleanText\(preferences\.likedExample2?, 700\)/);
 });
 
 test("Step 10 sexies keeps soft style preferences out of repair triggers while allowing targeted dynamic emoji repair", () => {
@@ -61,11 +62,13 @@ test("Step 10 sexies keeps soft style preferences out of repair triggers while a
   assert.match(generation, /niveau emoji Beaucoup déclenchent[\s\S]*seulement un enrichissement non bloquant/i);
 });
 
-test("Step 10 sexies keeps engine info and AI configuration drawers above the mobile dock", () => {
+test("Step 10 sexies keeps engine info and AI configuration surfaces above the mobile dock", () => {
   const infoModal = read("app/dashboard/_components/AiEngineInfoModal.tsx");
   const aiConfig = read("app/dashboard/settings/_components/AiConfigurationContent.tsx");
   const publishDrawer = read("app/dashboard/booster/publier/components/PublishAiConfigurationDrawer.tsx");
   const dashboardDrawer = read("app/dashboard/_components/DashboardSettingsDrawerContent.tsx");
+  const configurationPage = read("app/dashboard/configuration-ia/page.tsx");
+  const workspaceHeader = read("app/dashboard/_components/DashboardWorkspaceHeader.tsx");
 
   assert.match(infoModal, /MOBILE_DOCK_HEIGHT/);
   assert.match(infoModal, /bottom:\s*MOBILE_DOCK_HEIGHT/);
@@ -80,9 +83,10 @@ test("Step 10 sexies keeps engine info and AI configuration drawers above the mo
     /onSaved=\{\(\) => \{[\s\S]*setHasUnsavedChanges\(false\);[\s\S]*onClose\(\);[\s\S]*\}\}/,
   );
   assert.match(publishDrawer, /onUnsavedChange=\{setHasUnsavedChanges\}/);
-  assert.match(
-    dashboardDrawer,
-    /onSaved=\{onCloseDrawer\}/,
-  );
+  assert.match(configurationPage, /data-ai-configuration-page/);
+  assert.match(configurationPage, /<AiConfigurationContent/);
+  assert.match(configurationPage, /onUnsavedChange=\{setHasUnsavedChanges\}/);
+  assert.match(workspaceHeader, /max\(90px, calc\(34px \+ var\(--inrcy-safe-area-bottom\)\)\)/);
+  assert.doesNotMatch(dashboardDrawer, /<AiConfigurationContent/);
   assert.doesNotMatch(dashboardDrawer, /guidedOnboarding|onOnboarding/);
 });

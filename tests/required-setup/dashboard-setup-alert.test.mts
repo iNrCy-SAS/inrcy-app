@@ -55,26 +55,26 @@ test("the first dashboard arrival shows one account-scoped setup alert", () => {
 });
 
 test("profile and activity saves clear their warning immediately then revalidate", () => {
-  const dashboard = read("app/dashboard/DashboardClient.tsx");
+  const profilePage = read("app/dashboard/mon-profil/page.tsx");
   const completionHook = read(
     "app/dashboard/_hooks/useDashboardCompletionChecks.ts",
   );
-  const drawerContent = read(
-    "app/dashboard/_components/DashboardSettingsDrawerContent.tsx",
+  const combinedProfile = read(
+    "app/dashboard/settings/_components/ProfileAndActivityContent.tsx",
   );
 
   assert.match(
-    dashboard,
+    profilePage,
     /markProfileCompleted\(\);[\s\S]*?void checkProfile\(\);/,
   );
   assert.match(
-    dashboard,
+    profilePage,
     /markActivityCompleted\(\);[\s\S]*?void checkActivity\(\);/,
   );
   assert.match(completionHook, /const markProfileCompleted = useCallback/);
   assert.match(completionHook, /const markActivityCompleted = useCallback/);
-  assert.match(drawerContent, /onProfileSaved=\{onProfileSaved\}/);
-  assert.match(drawerContent, /onActivitySaved=\{onActivitySaved\}/);
+  assert.match(combinedProfile, /onProfileSaved=\{onProfileSaved\}/);
+  assert.match(combinedProfile, /onActivitySaved=\{onActivitySaved\}/);
 });
 
 test("account creation and password completion no longer create launch state", () => {

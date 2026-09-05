@@ -23,6 +23,7 @@ test("V2 step 1 centralizes professional preferences, activity, request and medi
     "preferredAngle",
     "preferredCta",
     "likedExample",
+    "likedExample2",
     "customInstructions",
   ]) {
     assert.match(source, new RegExp(`\\b${field}\\b`), field);

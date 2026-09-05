@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function ProfilPage() {
-  redirect("/dashboard?panel=profil&panelSource=settings");
+  redirect("/dashboard/mon-profil");
 }

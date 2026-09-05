@@ -139,6 +139,7 @@ export async function generateInrAgentMedia(args: {
       accountId: args.accountId,
       authUserId: args.actorAuthUserId,
       jobId: reservation.jobId,
+      edition,
       request,
     });
     mediaPersisted = true;

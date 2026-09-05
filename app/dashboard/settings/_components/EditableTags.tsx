@@ -12,6 +12,7 @@ type EditableTagsProps = {
   placeholder: string;
   emptyText?: string;
   maxItems?: number;
+  inlineAdd?: boolean;
 };
 
 function cleanTag(value: string) {
@@ -38,6 +39,7 @@ export default function EditableTags({
   placeholder,
   emptyText,
   maxItems = 30,
+  inlineAdd = false,
 }: EditableTagsProps) {
   const i18nT = useTranslations("settings");
   const [adding, setAdding] = useState(false);
@@ -120,6 +122,16 @@ export default function EditableTags({
             {emptyText}
           </span>
         ) : null}
+
+        {inlineAdd && !adding && values.length < maxItems ? (
+          <button
+            type="button"
+            onClick={() => setAdding(true)}
+            style={addButtonStyle}
+          >
+            + {addLabel}
+          </button>
+        ) : null}
       </div>
 
       {adding ? (
@@ -176,21 +188,11 @@ export default function EditableTags({
           >
             {i18nT("ajouter_87c57ed1")}{" "}</button>
         </div>
-      ) : values.length < maxItems ? (
+      ) : !inlineAdd && values.length < maxItems ? (
         <button
           type="button"
           onClick={() => setAdding(true)}
-          style={{
-            justifySelf: "start",
-            borderRadius: 999,
-            border: "1px dashed rgba(125,211,252,0.38)",
-            background: "rgba(56,189,248,0.07)",
-            color: "#bae6fd",
-            padding: "7px 11px",
-            cursor: "pointer",
-            fontSize: 12.5,
-            fontWeight: 850,
-          }}
+          style={addButtonStyle}
         >
           + {addLabel}
         </button>
@@ -198,3 +200,15 @@ export default function EditableTags({
     </div>
   );
 }
+
+const addButtonStyle = {
+  justifySelf: "start",
+  borderRadius: 999,
+  border: "1px dashed rgba(125,211,252,0.38)",
+  background: "rgba(56,189,248,0.07)",
+  color: "#bae6fd",
+  padding: "7px 11px",
+  cursor: "pointer",
+  fontSize: 12.5,
+  fontWeight: 850,
+} as const;

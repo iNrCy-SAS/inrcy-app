@@ -617,5 +617,18 @@
   "votre_assistant_virtuel_pour_preparer_automatise_b019fa3d": "Votre assistant virtuel pour préparer, automatiser et programmer vos actions de communication.",
   "webm_eefaed0d": "webm",
   "wifi_86a28d88": "wifi",
-  "youtube_d5244a33": "youtube"
+  "youtube_d5244a33": "youtube",
+  "startup_intro_business_dna_20260905": "Suivez ce parcours une seule fois pour donner à iNrCy une base professionnelle fiable avant toute génération.",
+  "startup_step_profile_20260905": "Compléter **Mon profil** : identité, coordonnées, entreprise, secteur et métier.",
+  "startup_step_channels_20260905": "Connecter les **canaux** utiles depuis le tableau de bord et vérifier que leurs pastilles sont allumées.",
+  "startup_step_analyze_20260905": "Ouvrir **ADN de l’entreprise → Analyse des canaux**, puis lancer l’analyse. Un canal inaccessible n’empêche pas les autres d’être analysés.",
+  "startup_step_complete_dna_20260905": "Relire et compléter **l’ADN de l’entreprise** : activité, clients, zones, identité, valeurs, vocabulaire et offres.",
+  "startup_step_configure_ai_20260905": "Terminer par **Configuration IA** pour régler le style, la façon de parler, les longueurs et les consignes.",
+  "startup_check_profile_20260905": "Mon profil contient les informations essentielles et le bon métier.",
+  "startup_check_channels_20260905": "Les canaux exploitables apparaissent connectés sur le tableau de bord.",
+  "startup_check_analysis_20260905": "L’analyse se termine avec toutes les sources accessibles, même si un canal échoue.",
+  "startup_check_dna_ai_20260905": "L’ADN et la Configuration IA reflètent fidèlement l’entreprise.",
+  "startup_reflex_partial_analysis_20260905": "Commencer par les sources déjà connectées : une source indisponible ne doit jamais bloquer le parcours.",
+  "startup_reflex_validate_20260905": "Relire les informations proposées par l’IA avant de les utiliser pour générer des contenus.",
+  "startup_link_business_dna_20260905": "Analyser et compléter l’ADN"
 }

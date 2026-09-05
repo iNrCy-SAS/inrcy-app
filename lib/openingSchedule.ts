@@ -1,3 +1,5 @@
+import { isEncodedBusinessWeeklySchedule } from "./businessWeeklySchedule.ts";
+
 export type OpeningHoursSpecification = {
   "@type": "OpeningHoursSpecification";
   dayOfWeek: string[];
@@ -36,7 +38,9 @@ export function normalizeOpeningScheduleText(value: unknown) {
 }
 
 export function combineOpeningSchedule(openingDays: unknown, openingHours: unknown) {
-  const days = normalizeOpeningScheduleText(openingDays);
+  const days = isEncodedBusinessWeeklySchedule(openingDays)
+    ? ""
+    : normalizeOpeningScheduleText(openingDays);
   const hours = normalizeOpeningScheduleText(openingHours);
 
   if (!days) return hours;

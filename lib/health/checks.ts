@@ -206,12 +206,16 @@ async function checkMediaPipeline(): Promise<HealthCheckResult> {
 
     const expiredJobCount = expiredJobs.count || 0;
     const stalePublishingCount = stalePublishing.count || 0;
+    const failedJobCount = failedJobs.count || 0;
     const warningParts = [...snapshot.warnings];
     if (expiredJobCount > 0) {
       warningParts.push(`${expiredJobCount} job(s) avec lease expirée`);
     }
     if (stalePublishingCount > 0) {
       warningParts.push(`${stalePublishingCount} workspace(s) publishing depuis plus de 30 min`);
+    }
+    if (failedJobCount > 0) {
+      warningParts.push(`${failedJobCount} job(s) échoué(s) sur les dernières 24 h`);
     }
 
     return {
@@ -224,7 +228,7 @@ async function checkMediaPipeline(): Promise<HealthCheckResult> {
         full_cutover: snapshot.fullCutoverEnabled,
         expired_processing_jobs: expiredJobCount,
         stale_publishing_workspaces: stalePublishingCount,
-        failed_jobs_24h: failedJobs.count || 0,
+        failed_jobs_24h: failedJobCount,
       },
     };
   } catch (error) {

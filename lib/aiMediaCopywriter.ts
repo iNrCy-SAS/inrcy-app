@@ -3,6 +3,7 @@ import "server-only";
 import type { NormalizedAiGenerationProfile } from "@/lib/aiGenerationProfile";
 import type { AiMediaCreativePlan } from "@/lib/aiMediaCreativePlan";
 import type { AiMediaGenerationRequest } from "@/lib/aiMediaGenerationContracts";
+import { buildAiMediaBusinessDnaPayload } from "@/lib/aiMediaBusinessDna";
 import { aiGenerateJSON } from "@/lib/aiGatewayClient";
 import { hasAiLanguageMismatch } from "@/lib/aiLanguageValidation";
 import {
@@ -136,11 +137,16 @@ export async function writeAiMediaHeadline(args: {
 
   const languageCode = args.profile.preferences.language;
   // Le plan français est déjà publiable sans appel supplémentaire. Une saisie
-  // de mots-clés ou toute langue étrangère passe par le copywriter afin que le
-  // texte visible soit adapté, et pas simplement copié depuis le profil.
-  if (languageCode === "fr" && !args.request.textKeywords.length) return args.plan;
+  // de mots-clés, toute langue étrangère ou le mode ADN passe par le copywriter
+  // afin que le texte visible exploite réellement le contexte professionnel.
+  if (
+    languageCode === "fr" &&
+    !args.request.textKeywords.length &&
+    args.request.subjectSource !== "profile"
+  ) {
+    return args.plan;
+  }
 
-  const business = args.profile.business;
   try {
     const generated = await aiGenerateJSON<GeneratedMediaCopy>({
       feature: args.request.kind === "video" ? "media.video" : "media.image",
@@ -150,7 +156,7 @@ export async function writeAiMediaHeadline(args: {
         "Tu es le directeur éditorial multilingue du studio média iNrCy.",
         buildAiLanguageInstruction(args.profile),
         `Tous les textes réellement visibles dans le média doivent être en ${getAiLanguageLabel(args.profile)} : headline, cta, eyebrow, title et body de chaque scène.`,
-        "Adapte ou traduis les informations du profil dans cette langue sans traduire les noms propres, marques, villes, URL, emails ou numéros.",
+        "Adapte ou traduis les informations utiles de l’ADN de l’entreprise dans cette langue sans traduire les noms propres, marques ou villes.",
         "Retourne exactement le même nombre de scènes et conserve leur ordre.",
         "Rédige une accroche publicitaire courte, naturelle, idiomatique et crédible.",
         "Les mots-clés sont des idées sémantiques à intégrer intelligemment dans le sens d'une phrase : ne les additionne jamais, ne les liste jamais et n'utilise jamais +, ·, / ou des hashtags.",
@@ -162,11 +168,7 @@ export async function writeAiMediaHeadline(args: {
         langue_cible: getAiLanguageLabel(args.profile),
         idee: args.request.idea || null,
         mots_a_evoquer: args.request.textKeywords,
-        entreprise: business.companyName || null,
-        metier: business.professionLabel || business.sectorLabel || null,
-        prestations: business.services.slice(0, 6),
-        forces: business.strengths.slice(0, 4),
-        clientele: business.customerTypologies.slice(0, 4),
+        adn_de_l_entreprise: buildAiMediaBusinessDnaPayload(args.profile),
         type_de_contenu: args.request.typology,
         copie_visible_de_secours: {
           headline: args.plan.headline,

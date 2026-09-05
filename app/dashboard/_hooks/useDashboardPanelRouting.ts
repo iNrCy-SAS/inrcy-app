@@ -12,6 +12,7 @@ export type DashboardPanelName =
   | "compte"
   | "activite"
   | "ia"
+  | "ai_memory"
   | "abonnement"
   | "mails"
   | "agenda"
@@ -42,8 +43,8 @@ export function useDashboardPanelRouting() {
   const rawPanel = searchParams.get("panel");
   const urlPanel = rawPanel === "trustpilot"
     ? "inr_search"
-    : rawPanel === "activite"
-      ? "profil"
+    : rawPanel === "profil" || rawPanel === "activite" || rawPanel === "ai_memory" || rawPanel === "ia"
+      ? null
       : rawPanel;
   // Le panneau visible doit changer dans le même rendu que l'action de
   // navigation. `window.history.replaceState` met bien l'URL à jour, mais
@@ -57,19 +58,22 @@ export function useDashboardPanelRouting() {
   }, [urlPanel]);
 
   useEffect(() => {
-    if (rawPanel !== "trustpilot" && rawPanel !== "activite") return;
-    const params = new URLSearchParams(searchParams.toString());
-    if (rawPanel === "trustpilot") {
-      params.set("panel", "inr_search");
-    } else {
-      params.set("panel", "profil");
-      params.set("profileSection", "activity");
-      if (!params.has("panelSource")) params.set("panelSource", "activity");
-      try {
-        sessionStorage.setItem("inrcy_panel_explicit_open", "1");
-        sessionStorage.setItem("inrcy_last_panel", "profil");
-      } catch {}
+    if (rawPanel === "profil" || rawPanel === "activite" || rawPanel === "ai_memory" || rawPanel === "ia") {
+      router.replace(
+        rawPanel === "profil"
+          ? "/dashboard/mon-profil"
+          : rawPanel === "activite"
+            ? "/dashboard/mon-profil?section=activity"
+            : rawPanel === "ia"
+              ? "/dashboard/configuration-ia"
+              : "/dashboard/adn-entreprise",
+        { scroll: false },
+      );
+      return;
     }
+    if (rawPanel !== "trustpilot") return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("panel", "inr_search");
     router.replace(`/dashboard?${params.toString()}`, { scroll: false });
   }, [rawPanel, router, searchParams]);
 
@@ -84,14 +88,23 @@ export function useDashboardPanelRouting() {
   const openPanel = useCallback(
     (name: DashboardPanelName) => {
       void requestNavigation(() => {
-        const normalizedName = name === "activite" ? "profil" : name;
+        if (name === "profil" || name === "activite" || name === "ai_memory" || name === "ia") {
+          markPanelAsExplicitlyOpened(name);
+          setPanel(null);
+          router.push(
+            name === "profil"
+              ? "/dashboard/mon-profil"
+              : name === "activite"
+                ? "/dashboard/mon-profil?section=activity"
+                : name === "ia"
+                  ? "/dashboard/configuration-ia"
+                  : "/dashboard/adn-entreprise",
+          );
+          return;
+        }
+        const normalizedName = name;
         const params = new URLSearchParams(searchParams.toString());
         params.set("panel", normalizedName);
-        if (name === "activite") {
-          params.set("profileSection", "activity");
-        } else if (normalizedName === "profil") {
-          params.delete("profileSection");
-        }
         markPanelAsExplicitlyOpened(normalizedName);
         setPanel(normalizedName);
         router.push(`/dashboard?${params.toString()}`, { scroll: false });
@@ -117,11 +130,11 @@ export function useDashboardPanelRouting() {
     router.replace(qs ? `/dashboard?${qs}` : "/dashboard", { scroll: false });
   }, [router, searchParams]);
 
-  // ✅ Sécurité UX: si l'URL arrive avec ?panel=profil (ou compte) sans action explicite
+  // ✅ Sécurité UX: si l'URL arrive avec ?panel=compte sans action explicite
   // (cas observé: refresh/connexion + ancienne URL), on ferme automatiquement.
   // ⚠️ On ne touche PAS aux panels utilisés comme retours OAuth/Stripe (abonnement, mails, etc.).
   useEffect(() => {
-    if (panel !== "profil" && panel !== "compte") return;
+    if (panel !== "compte") return;
     const panelSource = searchParams.get("panelSource");
     if (panelSource === "gps" || panelSource === "settings") return;
     try {

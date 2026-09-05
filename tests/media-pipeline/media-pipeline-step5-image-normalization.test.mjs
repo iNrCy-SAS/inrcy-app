@@ -74,6 +74,12 @@ test("le worker ne reçoit aucun binaire navigateur et utilise la source privée
   assert.match(worker, /canonical_bucket_name/);
   assert.match(worker, /failed_retryable/);
   assert.match(worker, /retry_wait/);
+  assert.match(
+    worker,
+    /`users\/\$\{media\.user_id\}\/ai-generated\/image\/`/,
+  );
+  assert.match(worker, /media\.bucket_name !== "inrcy-pro-media"/);
+  assert.match(worker, /\.eq\("user_id", job\.account_id\)/);
   assert.doesNotMatch(cron, /\.formData\s*\(/);
   assert.doesNotMatch(cron, /\.arrayBuffer\s*\(/);
 });

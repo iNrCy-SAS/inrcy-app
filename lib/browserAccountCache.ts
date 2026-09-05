@@ -29,6 +29,7 @@ const ACCOUNT_CACHE_BASE_KEYS = [
   "inrcy_dashboard_notifications_v1",
   "inrcy_inr_agent_pending_count_v1",
   "inrcy_dashboard_completion_state_v1",
+  "inrcy_dashboard_completion_state_v2",
 ] as const;
 
 const ACCOUNT_CACHE_PREFIXES = [
@@ -38,6 +39,8 @@ const ACCOUNT_CACHE_PREFIXES = [
   "inrcy_stats_mail_snapshot_v2:",
   "inrcy_stats_mail_snapshot_v3:",
   "inrcy_module_snapshot_v1:",
+  "inrcy_ai_configuration:uid:",
+  "inrcy_ai_language_custom_v1:uid:",
 ] as const;
 
 function canUseWindow() {

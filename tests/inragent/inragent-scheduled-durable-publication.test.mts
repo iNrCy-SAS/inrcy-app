@@ -18,6 +18,8 @@ const executeNowRoute = read(
 );
 const cronRoute = read("app/api/cron/inr-agent-scheduled-actions/route.ts");
 const historyRoute = read("app/api/inrsend/history/route.ts");
+const agentScheduleRoute = read("app/api/agent/actions/schedule/route.ts");
+const agentExecuteRoute = read("app/api/agent/actions/execute/route.ts");
 
 test("a mixed schedule keeps five image channels and five video channels intact", () => {
   const imageChannels = [
@@ -188,4 +190,12 @@ test("iNrSend shows the durable parent while processing and the terminal aggrega
   assert.match(historyRoute, /executionStatus === "processing" \|\| execution\.entrusted === true/);
   assert.match(historyRoute, /\.in\("type", \[[\s\S]{0,120}"publish_async_job"/);
   assert.doesNotMatch(historyRoute, /MAX_ITERATIONS = 5000|fetchAllRows/);
+});
+
+test("iNrAgent refuses a silent partial publication when a selected channel lacks media", () => {
+  assert.match(agentScheduleRoute, /const blockedChannels = selectedChannels\.filter/);
+  assert.match(agentScheduleRoute, /Programmation complète impossible : média requis/);
+  assert.match(agentExecuteRoute, /const blockedChannels = selectedChannels\.filter/);
+  assert.match(agentExecuteRoute, /INR_AGENT_PUBLICATION_MEDIA_REQUIRED/);
+  assert.match(agentExecuteRoute, /status: 409/);
 });

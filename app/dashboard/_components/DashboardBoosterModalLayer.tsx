@@ -26,6 +26,8 @@ import { mergePreflightFailuresIntoPublicationSummary } from "@/lib/boosterPubli
 import { useUnsavedExitGuard } from "../_hooks/useUnsavedExitGuard";
 import PublishModal from "../booster/publier/PublishModal";
 import PublishExecutionResultModal from "./PublishExecutionResultModal";
+import AiConfigurationIcon from "./AiConfigurationIcon";
+import BusinessDnaIcon from "./BusinessDnaIcon";
 
 type DashboardBoosterModalMode = "publish" | "stats" | null;
 
@@ -54,6 +56,7 @@ export default function DashboardBoosterModalLayer({
   initialConnectedChannels?: Partial<Record<"inrcy_site" | "site_web" | "inr_search" | "gmb" | "facebook" | "instagram" | "linkedin" | "tiktok" | "youtube_shorts" | "pinterest", boolean>>;
 }) {
   const i18nT = useTranslations("booster");
+  const dashboardT = useTranslations("dashboard");
   const router = useRouter();
   const [publishSuccessOpen, setPublishSuccessOpen] = useState(false);
   const [publishSummary, setPublishSummary] = useState<any>(null);
@@ -239,7 +242,7 @@ export default function DashboardBoosterModalLayer({
     return () => window.clearTimeout(timer);
   }, [mode, publishDraftHeaderState.draftMessage]);
 
-  useUnsavedExitGuard({
+  const { confirmExit: confirmPublishExit } = useUnsavedExitGuard({
     active: mode === "publish",
     shouldBlock: mode === "publish" && publishHasUnsavedChanges,
     onConfirmExit: closePublishModal,
@@ -250,6 +253,16 @@ export default function DashboardBoosterModalLayer({
     confirmLabel: i18nT("quitter_3e4126f5"),
     variant: "danger",
   });
+
+  const openBusinessDna = useCallback(async () => {
+    if (!(await confirmPublishExit())) return;
+    router.push("/dashboard/adn-entreprise");
+  }, [confirmPublishExit, router]);
+
+  const openInrAgent = useCallback(async () => {
+    if (!(await confirmPublishExit())) return;
+    router.push("/dashboard/agent");
+  }, [confirmPublishExit, router]);
 
   const trackEvent = useCallback(
     async (type: "publish", payload: Record<string, any>) => {
@@ -497,7 +510,32 @@ export default function DashboardBoosterModalLayer({
                 title={i18nT("configuration_ia_f620c8d8")}
                 aria-label={i18nT("configuration_ia_f620c8d8")}
               >
-                IA
+                <AiConfigurationIcon size={22} />
+              </button>
+              <button
+                type="button"
+                className={`${styles.secondaryBtn} ${styles.aiHeaderBtn} ${styles.dnaHeaderBtn}`}
+                onClick={() => void openBusinessDna()}
+                title={dashboardT("aiMemory.openTitle")}
+                aria-label={dashboardT("aiMemory.openTitle")}
+              >
+                <BusinessDnaIcon size={26} />
+              </button>
+              <button
+                type="button"
+                className={`${styles.secondaryBtn} ${styles.aiHeaderBtn} ${styles.agentHeaderBtn}`}
+                onClick={() => void openInrAgent()}
+                title={dashboardT("topbar.inrAgentOpen")}
+                aria-label={dashboardT("topbar.inrAgentOpen")}
+              >
+                <img
+                  data-inr-agent-header-shortcut
+                  src="/icons/inr-agent-header.png"
+                  alt=""
+                  aria-hidden="true"
+                  width={26}
+                  height={26}
+                />
               </button>
               <button
                 type="button"

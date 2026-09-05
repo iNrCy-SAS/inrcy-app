@@ -26,22 +26,41 @@ type DashboardMessages = {
 };
 
 type MediaMessages = {
+  ai_generator_made_inrcy_hint: string;
+  ai_generator_signal_profile: string;
+  ai_generator_stage_profile: string;
+  ai_generator_video_creation_detail: string;
+  ai_generator_image_creation_detail: string;
   ai_generator_subject_profile: string;
   ai_generator_subject_profile_hint: string;
   ai_generator_booster_context: string;
   ai_generator_booster_activity_context: string;
+  ai_generator_narration_hint: string;
+  ai_generator_video_timing_hint: string;
 };
 
-const profileSubjectByLocale: Record<string, string> = {
-  "de-DE": "Profil",
-  "en-GB": "Profile",
-  "es-ES": "Perfil",
-  "fr-FR": "Profil",
-  "it-IT": "Profilo",
-  "nl-NL": "Profiel",
-  "pt-PT": "Perfil",
-  "th-TH": "โปรไฟล์",
-  "zh-CN": "个人资料",
+const businessDnaSubjectByLocale: Record<string, string> = {
+  "de-DE": "Unternehmens-DNA",
+  "en-GB": "Business DNA",
+  "es-ES": "ADN de la empresa",
+  "fr-FR": "ADN de l’entreprise",
+  "it-IT": "DNA aziendale",
+  "nl-NL": "Bedrijfs-DNA",
+  "pt-PT": "ADN da empresa",
+  "th-TH": "DNA ของธุรกิจ",
+  "zh-CN": "企业 DNA",
+};
+
+const legacyProfileWordByLocale: Record<string, RegExp> = {
+  "de-DE": /\bProfile?s?\b/i,
+  "en-GB": /\bprofiles?\b/i,
+  "es-ES": /\bperfiles?\b/i,
+  "fr-FR": /\bprofils?\b/i,
+  "it-IT": /\bprofil[oi]\b/i,
+  "nl-NL": /\bprofiel(?:en)?\b/i,
+  "pt-PT": /\bperfil\b|\bperfis\b/i,
+  "th-TH": /โปรไฟล์/,
+  "zh-CN": /个人资料/,
 };
 
 const legacyActivityLabelByLocale: Record<string, RegExp> = {
@@ -57,7 +76,7 @@ const legacyActivityLabelByLocale: Record<string, RegExp> = {
 };
 
 test("all dashboard entry points expose one Profile destination", () => {
-  assert.deepEqual(locales, Object.keys(profileSubjectByLocale).sort());
+  assert.deepEqual(locales, Object.keys(businessDnaSubjectByLocale).sort());
 
   for (const locale of locales) {
     const dashboard = readJson<DashboardMessages>(`messages/${locale}/dashboard.json`);
@@ -73,16 +92,32 @@ test("all dashboard entry points expose one Profile destination", () => {
   }
 });
 
-test("media generation consistently uses the unified profile", () => {
+test("media generation consistently presents the professional source as Business DNA", () => {
   for (const locale of locales) {
     const media = readJson<MediaMessages>(`messages/${locale}/media.json`);
-    assert.equal(media.ai_generator_subject_profile, profileSubjectByLocale[locale], `${locale}: media subject`);
+    assert.equal(
+      media.ai_generator_subject_profile,
+      businessDnaSubjectByLocale[locale],
+      `${locale}: media subject`,
+    );
 
     const visibleCopy = [
+      media.ai_generator_made_inrcy_hint,
+      media.ai_generator_signal_profile,
+      media.ai_generator_stage_profile,
+      media.ai_generator_video_creation_detail,
+      media.ai_generator_image_creation_detail,
       media.ai_generator_subject_profile_hint,
       media.ai_generator_booster_context,
       media.ai_generator_booster_activity_context,
+      media.ai_generator_narration_hint,
+      media.ai_generator_video_timing_hint,
     ].join(" ");
+    assert.doesNotMatch(
+      visibleCopy,
+      legacyProfileWordByLocale[locale],
+      `${locale}: legacy Profile wording`,
+    );
     assert.doesNotMatch(visibleCopy, legacyActivityLabelByLocale[locale], `${locale}: legacy media wording`);
   }
 });

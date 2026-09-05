@@ -43,6 +43,7 @@ type DashboardPanelName =
   | "activite"
   | "preferences"
   | "ia"
+  | "ai_memory"
   | "abonnement"
   | "inertie"
   | "boutique"
@@ -590,20 +591,25 @@ function ResponsiveBottomNavMobile() {
                   onClick={() => openDashboardPanel("compte")}
                 />
                 <MobileMenuActionButton
+                  label={t.userMenu.preferences}
+                  loading={isVisible("panel:preferences")}
+                  onClick={() => openDashboardPanel("preferences")}
+                />
+                <MobileMenuActionButton
                   label={t.userMenu.profile}
                   loading={isVisible("panel:profil")}
                   onClick={() => openDashboardPanel("profil")}
                   warning={profileIncomplete || activityIncomplete}
                 />
                 <MobileMenuActionButton
-                  label={t.userMenu.preferences}
-                  loading={isVisible("panel:preferences")}
-                  onClick={() => openDashboardPanel("preferences")}
-                />
-                <MobileMenuActionButton
                   label={t.userMenu.ai}
                   loading={isVisible("panel:ia")}
                   onClick={() => openDashboardPanel("ia")}
+                />
+                <MobileMenuActionButton
+                  label={t.userMenu.aiMemory}
+                  loading={isVisible("panel:ai_memory")}
+                  onClick={() => openDashboardPanel("ai_memory")}
                 />
                 <MobileMenuActionButton
                   label={t.userMenu.mediaGenerator}

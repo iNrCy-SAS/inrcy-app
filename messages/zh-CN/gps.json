@@ -617,5 +617,18 @@
   "youtube_d5244a33": "YouTube",
   "inr_send_non_founder_intro_2026": "iNr’Send 将邮件、Booster 发布、增长活动和忠诚度活动集中到同一历史记录中。",
   "inr_send_non_founder_history_2026": "查看简化历史：邮件、发布、增长活动和忠诚度活动。",
-  "inr_send_non_founder_base_2026": "iNr’Send 是营销活动、发布和跟进的基础。"
+  "inr_send_non_founder_base_2026": "iNr’Send 是营销活动、发布和跟进的基础。",
+  "startup_intro_business_dna_20260905": "只需按此流程设置一次，即可在生成任何内容前为 iNrCy 提供可靠的专业基础。",
+  "startup_step_profile_20260905": "完善**我的资料**：身份、联系方式、企业、行业和职业。",
+  "startup_step_channels_20260905": "从仪表板连接有用的**渠道**，并确认其状态指示已亮起。",
+  "startup_step_analyze_20260905": "打开**企业 DNA → 渠道分析**并启动分析。某个渠道不可用时，不会阻止其他渠道。",
+  "startup_step_complete_dna_20260905": "检查并完善**企业 DNA**：业务、客户、区域、身份、价值观、词汇和优惠。",
+  "startup_step_configure_ai_20260905": "最后进入**AI 配置**，设置风格、表达方式、篇幅和指令。",
+  "startup_check_profile_20260905": "我的资料包含必要信息和正确职业。",
+  "startup_check_channels_20260905": "可用渠道在仪表板中显示为已连接。",
+  "startup_check_analysis_20260905": "即使某个渠道失败，分析也会使用所有可访问来源完成。",
+  "startup_check_dna_ai_20260905": "企业 DNA 和 AI 配置准确反映企业情况。",
+  "startup_reflex_partial_analysis_20260905": "从已连接的来源开始：不可用来源绝不能阻塞整个流程。",
+  "startup_reflex_validate_20260905": "在使用 AI 建议的信息生成内容前，请先进行核对。",
+  "startup_link_business_dna_20260905": "分析并完善企业 DNA"
 }

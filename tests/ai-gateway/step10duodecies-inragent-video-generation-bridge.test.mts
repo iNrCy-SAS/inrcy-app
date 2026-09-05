@@ -27,7 +27,7 @@ test("le contexte média reste séparé des instructions d'exécution jusqu'au p
 
 test("iNrAgent transmet le contexte vidéo structuré et garde ses consignes techniques à part", () => {
   assert.match(agentRoute, /mediaContext: args\.mediaContext/);
-  assert.match(agentRoute, /extraInstructions: `CONTEXTE iNrAgent/);
+  assert.match(agentRoute, /extraInstructions: `CONTEXTE iNr(?:’)?Agent/);
   assert.match(agentRoute, /mediaContext: selectedMediaContext/);
   assert.doesNotMatch(
     agentRoute,

@@ -30,6 +30,7 @@ import {
 import { useUnsavedExitGuard } from "@/app/dashboard/_hooks/useUnsavedExitGuard";
 import TemplateSubjectInlineEditor from "@/app/dashboard/_components/TemplateSubjectInlineEditor";
 import CampaignScheduleModal from "@/app/dashboard/_components/CampaignScheduleModal";
+import AiConfigurationIcon from "@/app/dashboard/_components/AiConfigurationIcon";
 
 type MailboxComposeModalProps = {
   open: boolean;
@@ -647,7 +648,8 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
                 aria-label={i18nT("configuration_ia_f620c8d8")}
                 title={i18nT("configuration_ia_f620c8d8")}
               >
-                {i18nT("ia_d41daf59")}{" "}</button>
+                <AiConfigurationIcon size={22} />
+              </button>
             ) : null}
             <button
               className={`${styles.btnGhost} ${styles.composeHeaderIconBtn}`}

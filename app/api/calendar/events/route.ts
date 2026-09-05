@@ -6,6 +6,7 @@ import { optionalEnv } from "@/lib/env";
 import { sendTxMail } from "@/lib/txMailer";
 import { sendMailFromIntegration } from "@/lib/inrsend/sendMailFromIntegration";
 import { withApi } from "@/lib/observability/withApi";
+import { log } from "@/lib/observability/logger";
 import { insertNotificationOnce } from "@/lib/notificationWriter";
 import {
   buildClientExchangePreferences,
@@ -719,6 +720,7 @@ async function sendAgendaConfirmationEmails(args: {
 
     try {
       let sent = false;
+      let integrationDeliveryFailed = false;
 
       if (selectedMailAccountId) {
         try {
@@ -733,23 +735,33 @@ async function sendAgendaConfirmationEmails(args: {
             preserveHtml: true,
           });
           sent = true;
-        } catch (integrationError) {
-          console.error("[calendar-events] confirmation integration delivery failed, fallback to iNrCy", {
-            recipient: recipient.email,
-            accountId: selectedMailAccountId,
-            error: integrationError,
-          });
+        } catch {
+          integrationDeliveryFailed = true;
         }
       }
 
       if (!sent && smtpConfigured) {
         await sendTxMail({ to: recipient.email, subject: mail.subject, text: mail.text, html: mail.html });
+        sent = true;
+        if (integrationDeliveryFailed) {
+          log.info("calendar_confirmation_fallback_delivered", {
+            mode: args.mode,
+            fallback_channel: "inrcy_smtp",
+          });
+        }
+      }
+
+      if (!sent && integrationDeliveryFailed) {
+        log.warn("calendar_confirmation_delivery_unavailable", {
+          mode: args.mode,
+          integration_delivery_failed: true,
+          smtp_configured: false,
+        });
       }
     } catch (mailError) {
-      console.error("[calendar-events] confirmation send failed", {
-        recipient: recipient.email,
+      log.error("calendar_confirmation_send_failed", {
         mode: args.mode,
-        error: mailError,
+        error_name: mailError instanceof Error ? mailError.name : "unknown_error",
       });
     }
   }

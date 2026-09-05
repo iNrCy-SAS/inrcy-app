@@ -15,6 +15,7 @@ import {
   buildAiWritingProfileRules,
 } from "@/lib/aiWritingProfile";
 import { buildNormalizedAiGenerationProfile } from "@/lib/aiGenerationProfile";
+import { getAiProfessionalGenerationContext } from "@/lib/aiProfessionalGenerationContext";
 import { normalizeAiPreferredEngine } from "@/lib/aiEnginePreference";
 import { parseMailAttachmentRefs } from "@/lib/mailAttachmentRefs";
 import { buildMailAttachmentAiPromptSection } from "@/lib/aiAttachmentContext";
@@ -162,9 +163,8 @@ export async function generateTemplateAiContent(args: {
     quotaReservation = quota.reservation;
   }
 
-  const [profileRes, businessRes, inrcyCfgRes, proCfgRes, integrationsRes] = await Promise.all([
-    supabase.from("profiles").select("*").eq("user_id", userId).maybeSingle(),
-    supabase.from("business_profiles").select("*").eq("user_id", userId).order("updated_at", { ascending: false }).limit(1).maybeSingle(),
+  const [professionalContext, inrcyCfgRes, proCfgRes, integrationsRes] = await Promise.all([
+    getAiProfessionalGenerationContext({ supabase, userId }),
     supabase.from("inrcy_site_configs").select("site_url").eq("user_id", userId).maybeSingle(),
     supabase.from("pro_tools_configs").select("settings").eq("user_id", userId).maybeSingle(),
     supabase
@@ -174,8 +174,8 @@ export async function generateTemplateAiContent(args: {
       .in("provider", ["google", "facebook"]),
   ]);
 
-  const profile = asRecord(profileRes.data);
-  const business = asRecord(businessRes.data);
+  const profile = asRecord(professionalContext.profile);
+  const business = asRecord(professionalContext.business);
   const generationProfile = buildNormalizedAiGenerationProfile({
     profile,
     business,

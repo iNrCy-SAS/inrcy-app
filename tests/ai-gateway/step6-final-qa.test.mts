@@ -54,7 +54,8 @@ test("Booster uses JSON Schema structured output instead of provider-specific lo
   assert.match(client, /schema:\s*opts\.responseSchema\.schema/);
   assert.match(booster, /responseSchema:\s*buildBoosterResponseSchema\(args\.channels\)/);
   assert.doesNotMatch(booster, /buildFlatChannelPostResponseSchema/);
-  assert.match(booster, /1 appel principal quel que soit le nombre de canaux sélectionnés/);
+  assert.match(booster, /Le parcours standard reste un appel/);
+  assert.match(booster, /buildOutputSafeChannelBatches/);
 });
 
 test("AI generation does not retry 429 immediately and Booster stops recovery storms", () => {
@@ -105,9 +106,9 @@ test("Booster prompt explicitly requires airy paragraphs for every channel", () 
   assert.match(prompt, /ne jamais les supprimer/i);
 });
 
-test("Step 6 does not reduce previous text-generation capacities", () => {
-  assert.equal(AI_FEATURE_POLICIES["booster.publish"].maxOutputTokens, 10_000);
-  assert.equal(AI_FEATURE_POLICIES["agent.publish"].maxOutputTokens, 10_000);
+test("the per-channel length grid raises capacity with a bounded safety margin", () => {
+  assert.equal(AI_FEATURE_POLICIES["booster.publish"].maxOutputTokens, 12_000);
+  assert.equal(AI_FEATURE_POLICIES["agent.publish"].maxOutputTokens, 12_000);
   assert.equal(AI_FEATURE_POLICIES["templates.generate"].maxOutputTokens, 3000);
 
   const boosterGeneration = read("lib/boosterPublishGeneration.ts");
@@ -116,16 +117,18 @@ test("Step 6 does not reduce previous text-generation capacities", () => {
     boosterGeneration,
     /content:\s*limitBoosterGeneratedContent\([\s\S]*?channel,[\s\S]*?siteChannel/,
   );
-  assert.match(channelRules, /inrcy_site:\s*\{[\s\S]*?max:\s*2600/);
-  assert.match(channelRules, /site_web:\s*\{[\s\S]*?max:\s*2600/);
+  assert.match(channelRules, /inrcy_site:\s*\{[\s\S]*?deep:\s*\{ min:\s*2700, max:\s*3800 \}[\s\S]*?max:\s*4200/);
+  assert.match(channelRules, /site_web:\s*\{[\s\S]*?deep:\s*\{ min:\s*3000, max:\s*4500 \}[\s\S]*?max:\s*5000/);
   assert.match(channelRules, /inr_search:\s*\{[\s\S]*?max:\s*300/);
   assert.match(
     channelRules,
     /return truncateAtNaturalBoundary\([\s\S]*?BOOSTER_CHANNEL_CONTENT_RULES\[channel\]\.max/,
   );
-  assert.match(boosterGeneration, /youtube_shorts:\s*950/);
-  assert.match(boosterGeneration, /site_web:\s*1100/);
-  assert.match(boosterGeneration, /Math\.min\(10_000, Math\.max\(minimum, contentBudget\)\)/);
+  assert.match(boosterGeneration, /getBoosterContentLengthForChannel/);
+  assert.match(boosterGeneration, /Math\.ceil\(rule\.max \/ estimatedCharsPerToken\) \+ 260/);
+  assert.match(boosterGeneration, /languageCode === "zh"[\s\S]*?languageCode === "th"/);
+  assert.match(boosterGeneration, /Math\.max\(baseBudget, applyAiEngineOutputTokenCalibration\(baseBudget, engine\)\)/);
+  assert.match(boosterGeneration, /return Math\.min\(12_000, getAiEngineOutputTokenLimit\(engine\)\)/);
 });
 
 test("all eight engines keep explicit model, vision and JSON-mode contracts", () => {

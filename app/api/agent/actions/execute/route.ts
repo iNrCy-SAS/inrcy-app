@@ -831,6 +831,20 @@ async function executeAgentActionHandler(request: Request) {
     return canPublishWithoutMedia(channel) || hasImagePayload;
   });
   const publishChannelSet = new Set<BoosterChannel>(publishChannels);
+  const blockedChannels = selectedChannels.filter(
+    (channel) => !publishChannelSet.has(channel),
+  );
+
+  if (blockedChannels.length) {
+    return NextResponse.json(
+      {
+        error: `Publication complète impossible : média requis pour ${blockedChannels.join(", ")}. Ajoutez le média attendu puis relancez.`,
+        code: "INR_AGENT_PUBLICATION_MEDIA_REQUIRED",
+        blockedChannels,
+      },
+      { status: 409 },
+    );
+  }
 
   if (!publishChannels.length) {
     return NextResponse.json(

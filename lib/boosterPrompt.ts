@@ -8,9 +8,11 @@ import {
 } from "@/lib/aiGenerationProfile";
 import {
   formatBoosterGeneratedContentRule,
+  getBoosterContentLengthForChannel,
   INR_SEARCH_CONTENT_MAX_LENGTH,
   type BoosterChannelKey,
 } from "@/lib/boosterChannelRules";
+import { buildAiMemoryPromptPayload } from "@/lib/aiMemory";
 
 export type BoosterChannels = BoosterChannelKey;
 
@@ -191,9 +193,10 @@ const CHANNEL_COMPACT_CONTRACTS: Record<BoosterChannels, string> = {
 type BoosterLengthPreference = NormalizedAiGenerationProfile["preferences"]["length"];
 
 function getChannelLengthTarget(
-  length: BoosterLengthPreference,
+  preferences: NormalizedAiGenerationProfile["preferences"],
   channel: BoosterChannels,
 ) {
+  const length = getBoosterContentLengthForChannel(preferences, channel);
   return formatBoosterGeneratedContentRule(channel, length);
 }
 
@@ -265,29 +268,39 @@ function buildBoosterEmojiDirective(
 }
 
 function buildBoosterLengthDirective(
-  length: BoosterLengthPreference,
+  preferences: NormalizedAiGenerationProfile["preferences"],
   channels: BoosterChannels[],
 ) {
   const labels: Record<BoosterLengthPreference, string> = {
+    adapted: "ADAPTÉ",
     short: "COURT",
     medium: "MOYEN",
-    detailed: "DÉTAILLÉ",
+    long: "LONG",
+    deep: "APPROFONDI PREMIUM",
   };
-  const targets = Array.from(new Set(channels))
-    .map(
-      (channel) =>
-        `- ${CHANNEL_LABELS[channel]} : ${getChannelLengthTarget(length, channel)}`,
-    )
+  const uniqueChannels = Array.from(new Set(channels));
+  const selectedLengths = uniqueChannels.map((channel) =>
+    getBoosterContentLengthForChannel(preferences, channel),
+  );
+  const targets = uniqueChannels
+    .map((channel) => {
+      const length = getBoosterContentLengthForChannel(preferences, channel);
+      return `- ${CHANNEL_LABELS[channel]} — ${labels[length]} : ${getChannelLengthTarget(preferences, channel)}`;
+    })
     .join("\n");
 
   const priority =
-    length === "detailed"
-      ? "Consigne éditoriale forte : développe réellement le sujet, apporte du contexte, de la matière utile et plusieurs idées distinctes. Ne résume pas en 2–3 phrases. Vise au minimum le bas de chaque plage sans inventer de faits."
-      : length === "short"
+    selectedLengths.includes("deep")
+      ? "Consigne éditoriale Premium forte : approfondis réellement le sujet avec contexte, méthode, bénéfices, nuances et matière utile. Ne résume pas en quelques phrases et n'invente aucun fait."
+      : selectedLengths.includes("long")
+        ? "Consigne éditoriale forte : développe réellement le sujet, apporte du contexte et plusieurs idées distinctes. Vise le bas de chaque plage sans inventer de faits."
+        : selectedLengths.every((length) => length === "short")
         ? "Reste volontairement concis tout en conservant un contenu complet et publiable."
-        : "Produis un contenu suffisamment développé, sans remplissage ni résumé excessif.";
+        : selectedLengths.includes("adapted")
+          ? "Adapte intelligemment la densité au sujet et à chaque canal à l'intérieur de sa plage : plus de matière si elle est utile, plus de concision si le message est simple."
+          : "Produis un contenu suffisamment développé, sans remplissage ni résumé excessif.";
 
-  return `LONGUEUR ${labels[length]} — PRIORITÉ ÉDITORIALE\n${priority}\nLes plages ci-dessous concernent exclusivement le champ content : title, cta et hashtags sont séparés. Elles pilotent réellement la quantité de texte attendue et ne sont pas décoratives. Le maximum absolu propre à chaque canal est un plafond technique iNrCy confortable : ne le dépasse jamais, même en mode DÉTAILLÉ ou si une consigne ponctuelle demande un texte plus long. Si le contexte factuel est limité, développe l'explication, le bénéfice, la méthode ou le contexte sans inventer de faits.\n${targets}`;
+  return `LONGUEURS PAR FAMILLE DE CANAUX — PRIORITÉ ÉDITORIALE\n${priority}\nLes plages ci-dessous concernent exclusivement le champ content : title, cta et hashtags sont séparés. Elles pilotent réellement la quantité de texte attendue et ne sont pas décoratives. Le maximum absolu propre à chaque canal est un plafond technique iNrCy confortable : ne le dépasse jamais, même en mode APPROFONDI ou si une consigne ponctuelle demande un texte plus long. Si le contexte factuel est limité, développe l'explication, le bénéfice, la méthode ou le contexte sans inventer de faits.\n${targets}`;
 }
 
 function compactRecord(record: Record<string, unknown>) {
@@ -338,22 +351,25 @@ function buildCompactPreferencePayload(profile: NormalizedAiGenerationProfile) {
     ton: preferences.tone,
     style_communication: preferences.communicationStyle,
     creativite: preferences.creativity,
-    longueur: preferences.length,
+    longueur_sites_et_inrsearch: preferences.webLength,
+    longueur_reseaux_et_google_business: preferences.socialLength,
     emojis: preferences.emojiLevel,
     voix: preferences.voice,
     relation_lecteur: preferences.addressMode,
     intensite_commerciale: preferences.commercialLevel,
+    niveau_technicite: preferences.technicalityLevel,
+    humour: preferences.humorLevel,
     objectif: preferences.mainGoal,
     angle_prefere: preferences.preferredAngle,
     cta_prefere: preferences.preferredCta,
-    exemple_aime: cleanText(preferences.likedExample, 1200),
+    contenu_apprecie_1: cleanText(preferences.likedExample, 1200),
+    contenu_apprecie_2: cleanText(preferences.likedExample2, 1200),
     a_eviter: cleanText(preferences.customInstructions, 700),
   });
 }
 
 function formatCompactChannelContracts(
   channels: BoosterChannels[],
-  _length: BoosterLengthPreference,
 ) {
   // La grille de longueur est détaillée une seule fois dans POLITIQUE DE LONGUEUR
   // afin de ne pas alourdir le prompt ni le temps de génération.
@@ -432,6 +448,7 @@ export function boosterUserPrompt(args: {
   const recentPublicationMemory = formatRecentPublications(args.recentPublications);
   const businessPayload = buildCompactBusinessPayload(generationProfile);
   const preferencePayload = buildCompactPreferencePayload(generationProfile);
+  const memoryPayload = buildAiMemoryPromptPayload(generationProfile.memory);
   const engineDirective = buildCompactAiWritingDirective(
     generationProfile,
     preferences.engine,
@@ -483,11 +500,14 @@ ${JSON.stringify(preferencePayload)}
 CONTEXTE ENTREPRISE — utiliser seulement si pertinent, ne rien inventer
 ${JSON.stringify(businessPayload)}
 
+MÉMOIRE IA DU PRO — source de personnalisation factuelle, jamais une raison d'inventer
+${Object.keys(memoryPayload).length ? JSON.stringify(memoryPayload) : "Aucune information complémentaire enregistrée."}
+
 CONTRATS DES SEULS CANAUX DEMANDÉS
-${formatCompactChannelContracts(args.channels, preferences.length)}
+${formatCompactChannelContracts(args.channels)}
 
 POLITIQUE DE LONGUEUR
-${buildBoosterLengthDirective(preferences.length, args.channels)}
+${buildBoosterLengthDirective(preferences, args.channels)}
 
 POLITIQUE EMOJIS
 ${buildBoosterEmojiDirective(preferences.emojiLevel, args.channels)}

@@ -47,8 +47,8 @@ const STANDARD_ARTICLE_OVERRIDES: Record<string, GpsArticleOverride> = {
       "les_informations_indispensables_a_booster_et_25d1d45d",
     ],
     links: [
-      { label: "mon_profil_faa6d321", href: "/dashboard?panel=profil&panelSource=gps" },
-      { label: "mon_activite_7732bf80", href: "/dashboard?panel=profil&profileSection=activity&panelSource=gps" },
+      { label: "mon_profil_faa6d321", href: "/dashboard/mon-profil" },
+      { label: "mon_activite_7732bf80", href: "/dashboard/mon-profil?section=activity" },
     ],
   },
   "canaux-express": {

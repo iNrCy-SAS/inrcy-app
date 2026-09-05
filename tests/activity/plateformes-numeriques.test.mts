@@ -176,14 +176,20 @@ test('le Générateur, iNrSearch et les prompts IA reçoivent le nouveau context
     new URL('../../lib/aiMediaGenerationPrompt.ts', import.meta.url),
     'utf8',
   );
+  const mediaBusinessDna = readFileSync(
+    new URL('../../lib/aiMediaBusinessDna.ts', import.meta.url),
+    'utf8',
+  );
   const sectorTemplateIndex = readFileSync(
     new URL('../../lib/templates/sectors/index.ts', import.meta.url),
     'utf8',
   );
   assert.match(generationProfile, /getJobLabel\(decodedSector\.sectorCategory, professionCode\)/);
   assert.match(generationProfile, /\["services", "services_text"\]/);
-  assert.match(mediaPrompt, /business\.professionLabel \|\| business\.sectorLabel/);
-  assert.match(mediaPrompt, /compactList\(business\.services\)/);
+  assert.match(mediaPrompt, /buildAiMediaBusinessDnaPayload\(profile\)/);
+  assert.match(mediaBusinessDna, /secteur: cleanText\(business\.sectorLabel/);
+  assert.match(mediaBusinessDna, /metier: cleanText\(business\.professionLabel/);
+  assert.match(mediaBusinessDna, /prestations: cleanList\(business\.services/);
   assert.match(
     sectorTemplateIndex,
     /plateformes_numeriques: plateformes_numeriquesTemplates/,

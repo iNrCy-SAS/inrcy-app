@@ -18,6 +18,7 @@ import {
 } from "@/lib/inrAgentSettings";
 import { rowToInrAgentAction } from "@/lib/inrAgentActions";
 import { generateTemplateAiContent, TemplateAiGenerationError } from "@/lib/templateAiGeneration";
+import { getAiProfessionalGenerationContext } from "@/lib/aiProfessionalGenerationContext";
 import { buildInrAgentCampaignValidationEmail } from "@/lib/inrAgentCampaignValidationEmail";
 import { getInrcyBrandInlineAttachments } from "@/lib/txEmailAssets";
 import { sendTxMail } from "@/lib/txMailer";
@@ -744,9 +745,12 @@ export async function POST(request: Request) {
     );
   }
 
-  const [profileRes, businessRes, mailAccount] = await Promise.all([
-    supabase.from("profiles").select("*").eq("user_id", userId).maybeSingle(),
-    supabase.from("business_profiles").select("*").eq("user_id", userId).order("updated_at", { ascending: false }).limit(1).maybeSingle(),
+  const [professionalContext, mailAccount] = await Promise.all([
+    getAiProfessionalGenerationContext({
+      supabase,
+      userId,
+      edition,
+    }),
     fetchMailAccount(userId),
   ]);
 
@@ -760,12 +764,12 @@ export async function POST(request: Request) {
     );
   }
 
-  const business = asRecord(businessRes.data);
+  const business = asRecord(professionalContext.business);
   const decodedSector = decodeBusinessSector(String(business?.sector || ""));
   const professionLabel =
     getJobLabel(decodedSector.sectorCategory, decodedSector.profession) ||
     decodedSector.profession;
-  const profile = asRecord(profileRes.data);
+  const profile = asRecord(professionalContext.profile);
 
   const theme = chooseTheme(automationKey, automation.allowedThemes);
   const themeConfig = getCampaignThemeConfig(automationKey, theme);

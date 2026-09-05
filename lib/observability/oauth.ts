@@ -23,28 +23,6 @@ type OAuthEventInput = {
   [k: string]: unknown;
 };
 
-function levelForOutcome(outcome: OAuthOutcome): 'info' | 'warn' | 'error' {
-  if (outcome === 'success' || outcome === 'started') return 'info';
-  if (outcome === 'cancelled' || outcome === 'state_invalid' || outcome === 'not_authenticated') return 'warn';
-  return 'error';
-}
-
-function sentryLevelForOutcome(outcome: OAuthOutcome): 'info' | 'warning' | 'error' {
-  if (outcome === 'success' || outcome === 'started') return 'info';
-  if (outcome === 'cancelled' || outcome === 'state_invalid' || outcome === 'not_authenticated') return 'warning';
-  return 'error';
-}
-
-function shouldCaptureOAuthInSentry(input: OAuthEventInput): boolean {
-  if (!input.capture_in_sentry) return false;
-  // Les retours OAuth expirés/refusés et les mauvais comptes sont des cas terrain normaux.
-  // Ils restent dans les logs métier, mais ne doivent pas polluer Sentry comme des bugs techniques.
-  if (input.outcome === 'cancelled' || input.outcome === 'state_invalid' || input.outcome === 'not_authenticated') return false;
-  const statusCode = typeof input.status_code === 'number' ? input.status_code : null;
-  if (input.outcome === 'failed') return statusCode !== null && statusCode >= 500;
-  return true;
-}
-
 function isUserResolvableOAuthException(message: string): boolean {
   const raw = String(message || '').toLowerCase();
   return [
@@ -64,14 +42,56 @@ function isUserResolvableOAuthException(message: string): boolean {
     'unable to retrieve access token: appid/redirect uri/code verifier does not match authorization code',
     'authorization code expired',
     'external member binding exists',
+    'permissions error',
+    'permission error',
+    'google_permissions_incomplete',
   ].some((needle) => raw.includes(needle));
+}
+
+function isUserResolvableOAuthInput(input: OAuthEventInput): boolean {
+  return isUserResolvableOAuthException(`${String(input.error || '')} ${String(input.message || '')}`);
+}
+
+function levelForOAuthEvent(input: OAuthEventInput): 'info' | 'warn' | 'error' {
+  if (input.outcome === 'success' || input.outcome === 'started') return 'info';
+  if (
+    input.outcome === 'cancelled' ||
+    input.outcome === 'state_invalid' ||
+    input.outcome === 'not_authenticated' ||
+    (input.outcome === 'failed' && isUserResolvableOAuthInput(input))
+  ) {
+    return 'warn';
+  }
+  return 'error';
+}
+
+function sentryLevelForOAuthEvent(input: OAuthEventInput): 'info' | 'warning' | 'error' {
+  const level = levelForOAuthEvent(input);
+  return level === 'warn' ? 'warning' : level;
+}
+
+function shouldCaptureOAuthInSentry(input: OAuthEventInput): boolean {
+  if (!input.capture_in_sentry) return false;
+  // Les retours OAuth expirés/refusés et les mauvais comptes sont des cas terrain normaux.
+  // Ils restent dans les logs métier, mais ne doivent pas polluer Sentry comme des bugs techniques.
+  if (
+    input.outcome === 'cancelled' ||
+    input.outcome === 'state_invalid' ||
+    input.outcome === 'not_authenticated' ||
+    isUserResolvableOAuthInput(input)
+  ) {
+    return false;
+  }
+  const statusCode = typeof input.status_code === 'number' ? input.status_code : null;
+  if (input.outcome === 'failed') return statusCode !== null && statusCode >= 500;
+  return true;
 }
 
 export function oauthCallbackEvent(req: Request, input: OAuthEventInput) {
   const request_id = getRequestId(req);
   const meta = getRequestMeta(req);
-  const level = levelForOutcome(input.outcome);
-  const sentryLevel = sentryLevelForOutcome(input.outcome);
+  const level = levelForOAuthEvent(input);
+  const sentryLevel = sentryLevelForOAuthEvent(input);
   const payload = {
     request_id,
     route: meta.pathname,
@@ -113,7 +133,8 @@ export function oauthCallbackException(
   const meta = getRequestMeta(req);
   const message = error instanceof Error ? error.message : String(error);
 
-  log.error('oauth_callback_exception', {
+  const logLevel = isUserResolvableOAuthException(message) ? 'warn' : 'error';
+  log[logLevel]('oauth_callback_exception', {
     request_id,
     route: meta.pathname,
     method: meta.method,

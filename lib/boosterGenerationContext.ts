@@ -4,6 +4,9 @@ import { Redis } from "@upstash/redis";
 import { requireEnv } from "@/lib/env";
 import { shouldBypassUpstashInCurrentEnv } from "@/lib/upstashMode";
 import type { BoosterRecentPublication } from "@/lib/boosterPrompt";
+import { normalizeAiMemory } from "@/lib/aiMemory";
+import { hasPremiumDashboardAccess, type DashboardEdition } from "@/lib/dashboardEdition";
+import { getDashboardEditionForAccountId } from "@/lib/dashboardEditionServer";
 
 type JsonRecord = Record<string, unknown>;
 type SupabaseLike = { from: (table: string) => any };
@@ -23,12 +26,17 @@ export type BoosterGenerationContext = ProfessionalContext & {
   };
 };
 
+export type AiProfessionalGenerationContext = ProfessionalContext & {
+  edition: DashboardEdition;
+  cacheSource: CacheSource;
+};
+
 export type BoosterGenerationContextScope =
   | "all"
   | "professional"
   | "publications";
 
-const CACHE_VERSION = "v1";
+const CACHE_VERSION = "v2-ai-memory";
 const PROFESSIONAL_CACHE_TTL_SECONDS = 24 * 60 * 60;
 const PUBLICATIONS_CACHE_TTL_SECONDS = 6 * 60 * 60;
 
@@ -50,8 +58,8 @@ function getRedis(): Redis | null {
   }
 }
 
-function professionalCacheKey(userId: string) {
-  return `inrcy:booster:generation-context:${CACHE_VERSION}:professional:${userId}`;
+function professionalCacheKey(userId: string, edition: DashboardEdition) {
+  return `inrcy:booster:generation-context:${CACHE_VERSION}:professional:${edition}:${userId}`;
 }
 
 function publicationsCacheKey(userId: string) {
@@ -114,9 +122,10 @@ function normalizeRecentPublications(value: unknown): BoosterRecentPublication[]
 async function readProfessionalCache(
   redis: Redis,
   userId: string,
+  edition: DashboardEdition,
 ): Promise<ProfessionalContext | null> {
   try {
-    const cached = await redis.get(professionalCacheKey(userId));
+    const cached = await redis.get(professionalCacheKey(userId, edition));
     return parseProfessionalContext(cached);
   } catch {
     return null;
@@ -151,8 +160,9 @@ async function writeCache(
 async function loadProfessionalContextFromDatabase(
   supabase: SupabaseLike,
   userId: string,
+  edition: DashboardEdition,
 ): Promise<{ context: ProfessionalContext; cacheable: boolean }> {
-  const [profileResult, businessResult] = await Promise.all([
+  const [profileResult, businessResult, memoryResult] = await Promise.all([
     Promise.resolve(
       supabase.from("profiles").select("*").eq("user_id", userId).maybeSingle(),
     ).catch(() => ({ data: null, error: true })),
@@ -165,14 +175,36 @@ async function loadProfessionalContextFromDatabase(
         .limit(1)
         .maybeSingle(),
     ).catch(() => ({ data: null, error: true })),
+    Promise.resolve(
+      supabase
+        .from("business_ai_memories")
+        .select("memory,completion_score")
+        .eq("account_id", userId)
+        .maybeSingle(),
+    ).catch(() => ({ data: null, error: true })),
   ]);
+
+  const rawBusiness = asRecord(businessResult?.data);
+  const rawMemoryRow = asRecord(memoryResult?.data);
+  const memory = normalizeAiMemory(rawMemoryRow?.memory, {
+    includePremium: hasPremiumDashboardAccess(edition),
+  });
+  const business = rawBusiness || {};
 
   return {
     context: {
       profile: asRecord(profileResult?.data),
-      business: asRecord(businessResult?.data),
+      business: {
+        ...business,
+        ai_memory: memory,
+        ai_memory_completion_score: Number(rawMemoryRow?.completion_score || 0),
+        ai_premium_enabled: hasPremiumDashboardAccess(edition),
+        dashboard_edition: edition,
+      },
     },
-    cacheable: !profileResult?.error && !businessResult?.error,
+    // Avant application de la migration, la génération reste fonctionnelle et
+    // sans mémoire. On évite simplement de mettre ce résultat incomplet en cache.
+    cacheable: !profileResult?.error && !businessResult?.error && !memoryResult?.error,
   };
 }
 
@@ -205,21 +237,23 @@ async function loadRecentPublicationsFromDatabase(
 async function getProfessionalContext(args: {
   supabase: SupabaseLike;
   userId: string;
+  edition: DashboardEdition;
 }): Promise<ProfessionalContext & { source: CacheSource }> {
   const redis = getRedis();
   if (redis) {
-    const cached = await readProfessionalCache(redis, args.userId);
+    const cached = await readProfessionalCache(redis, args.userId, args.edition);
     if (cached) return { ...cached, source: "hit" };
   }
 
   const loaded = await loadProfessionalContextFromDatabase(
     args.supabase,
     args.userId,
+    args.edition,
   );
   if (redis && loaded.cacheable) {
     await writeCache(
       redis,
-      professionalCacheKey(args.userId),
+      professionalCacheKey(args.userId, args.edition),
       loaded.context,
       PROFESSIONAL_CACHE_TTL_SECONDS,
     );
@@ -260,12 +294,33 @@ async function getRecentPublications(args: {
   };
 }
 
+/**
+ * Contexte professionnel partagé par les générations multicanales Booster,
+ * iNrAgent et média. La Mémoire IA y est filtrée serveur selon l'édition active.
+ */
+export async function getAiProfessionalGenerationContext(args: {
+  supabase: SupabaseLike;
+  userId: string;
+  edition?: DashboardEdition;
+}): Promise<AiProfessionalGenerationContext> {
+  const edition = args.edition || await getDashboardEditionForAccountId(args.userId);
+  const professional = await getProfessionalContext({ ...args, edition });
+
+  return {
+    profile: professional.profile,
+    business: professional.business,
+    edition,
+    cacheSource: professional.source,
+  };
+}
+
 export async function getBoosterGenerationContext(args: {
   supabase: SupabaseLike;
   userId: string;
+  edition?: DashboardEdition;
 }): Promise<BoosterGenerationContext> {
   const [professional, publications] = await Promise.all([
-    getProfessionalContext(args),
+    getAiProfessionalGenerationContext(args),
     getRecentPublications(args),
   ]);
 
@@ -274,7 +329,7 @@ export async function getBoosterGenerationContext(args: {
     business: professional.business,
     recentPublications: publications.publications,
     cacheSource: {
-      professional: professional.source,
+      professional: professional.cacheSource,
       publications: publications.source,
     },
   };
@@ -289,7 +344,11 @@ export async function invalidateBoosterGenerationContext(
 
   const keys: string[] = [];
   if (scope === "all" || scope === "professional") {
-    keys.push(professionalCacheKey(userId));
+    keys.push(
+      professionalCacheKey(userId, "standard"),
+      professionalCacheKey(userId, "premium"),
+      professionalCacheKey(userId, "founder"),
+    );
   }
   if (scope === "all" || scope === "publications") {
     keys.push(publicationsCacheKey(userId));

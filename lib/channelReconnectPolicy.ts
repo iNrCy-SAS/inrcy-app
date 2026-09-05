@@ -33,7 +33,7 @@ const APPLICATION_SESSION_USER_MESSAGE_RE =
 const PROVIDER_TOKEN_FAILURE_RE =
   /(?:\binvalid[_\s-]*grant\b|\binvalid[_\s-]*token\b|\baccess[_\s-]*token[_\s-]*(?:invalid|expired|revoked|unavailable)\b|\b(?:invalid|expired|revoked|missing)\s+(?:oauth\s+)?access\s+token\b|\baccess\s+token\b.{0,80}\b(?:invalid|expired|revoked|missing)\b|\btoken\s+(?:has\s+been\s+|is\s+)?(?:expired|revoked|invalid)\b|\brefresh\s+token\b.{0,80}\b(?:expired|revoked|invalid|missing)\b|\b(?:expired|revoked|invalid)\b.{0,40}\brefresh\s+token\b|\bmissing[_\s-]*(?:or[_\s-]*expired[_\s-]*)?(?:access[_\s-]*)?token\b|\baccess[_\s-]*token[_\s-]*unavailable\b|\btoken[_\s-]*expired\b|\bscope[_\s-]*not[_\s-]*authori[sz]ed\b|\binsufficient\s+authentication\s+scopes?\b|\binvalid\s+authentication\s+credentials?\b|\boauth\b.{0,80}\b(?:invalid|expired|revoked)\b|\b(?:code|error)[\s"':=]*(?:190)\b|\(#?190\))/i;
 const PROVIDER_PERMISSION_FAILURE_RE =
-  /(?:\bnot\s+authori[sz]ed\b|\bunauthori[sz]ed\b|\bauthori[sz]ation\s+(?:failed|denied|required)\b|\baccess\s+denied\b|\binsufficient\s+(?:permission|scope)s?\b|\bpermission\s+denied\b)/i;
+  /(?:\bnot\s+authori[sz]ed\b|\bunauthori[sz]ed\b|\bauthori[sz]ation\s+(?:failed|denied|required)\b|\baccess\s+denied\b|\binsufficient\s+(?:permission|scope)s?\b|\bpermission\s+denied\b|\bcaller\s+does\s+not\s+have\s+permission\b)/i;
 const PROVIDER_SESSION_FAILURE_RE =
   /(?:\bsession\s+has\s+expired\b|\bauthentication[_\s-]*failed\b)/i;
 const STATUS_401_RE =
@@ -119,7 +119,7 @@ export function isProviderAuthenticationFailure(params: {
     "finalize",
     "upload",
     "poll",
-  ].includes(stage);
+  ].includes(stage) || stage.includes("provider metrics");
   if (
     PROVIDER_SESSION_FAILURE_RE.test(normalizedRaw) &&
     (providerContext || providerStage)
@@ -128,7 +128,11 @@ export function isProviderAuthenticationFailure(params: {
   }
   if (
     PROVIDER_PERMISSION_FAILURE_RE.test(normalizedRaw) &&
-    (providerContext || /\b(?:token|oauth|scope|credential)s?\b/i.test(normalizedRaw))
+    (
+      providerContext ||
+      providerStage ||
+      /\b(?:token|oauth|scope|credential)s?\b/i.test(normalizedRaw)
+    )
   ) {
     return true;
   }

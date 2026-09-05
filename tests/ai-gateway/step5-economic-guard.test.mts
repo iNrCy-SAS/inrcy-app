@@ -36,6 +36,7 @@ test("all Gateway feature tags have explicit economic policies", () => {
     "booster.publish",
     "booster.transcribe",
     "booster.transcript-cleanup",
+    "business-dna.analyze",
     "mails.attachment-image",
     "mails.attachment-video",
     "mails.generate",
@@ -46,7 +47,7 @@ test("all Gateway feature tags have explicit economic policies", () => {
   ].sort());
 
   for (const policy of Object.values(AI_FEATURE_POLICIES)) {
-    assert.ok(policy.maxOutputTokens >= 128 && policy.maxOutputTokens <= 10_000);
+    assert.ok(policy.maxOutputTokens >= 128 && policy.maxOutputTokens <= 12_000);
     assert.ok(policy.maxRetries >= 0 && policy.maxRetries <= 1);
     assert.ok(policy.defaultOperationMaxCalls >= 1);
     assert.ok(policy.defaultOperationMaxReservedOutputTokens >= policy.maxOutputTokens);

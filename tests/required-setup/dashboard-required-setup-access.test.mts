@@ -13,6 +13,7 @@ const protectedDestinations = [
   "/dashboard?draftId=abc",
   "/dashboard?action=cash",
   "/dashboard/booster",
+  "/dashboard/generer-media",
   "/dashboard/agent",
   "/dashboard/mails",
   "/dashboard/propulser",
@@ -32,6 +33,8 @@ const allowedDestinations = [
   "/dashboard?panel=profil",
   "/dashboard?panel=activite",
   "/dashboard?panel=ia",
+  "/dashboard/mon-profil",
+  "/dashboard/mon-profil?section=activity",
   "/dashboard/stats",
   "/dashboard/crm",
   "/dashboard/agenda",
@@ -124,7 +127,7 @@ test("protected pages are also rejected server-side", () => {
   assert.match(serverGuardSource, /redirect\("\/dashboard"\)/);
   assert.match(dashboardPageSource, /requireDashboardRequiredSetupCompleted/);
 
-  for (const directory of ["agent", "mails", "propulser", "fideliser", "booster", "factures", "devis", "e-reputation"]) {
+  for (const directory of ["agent", "mails", "propulser", "fideliser", "booster", "generer-media", "factures", "devis", "e-reputation"]) {
     const source = readFileSync(
       new URL(`../../app/dashboard/${directory}/layout.tsx`, import.meta.url),
       "utf8",

@@ -249,10 +249,6 @@ export default function DashboardClient({
     completionCheckReady,
     requiredSetupCompleted,
     requiredSetupIncomplete,
-    checkProfile,
-    checkActivity,
-    markProfileCompleted,
-    markActivityCompleted,
   } = useDashboardCompletionChecks();
   // Les boutons restent immédiatement cliquables pendant la vérification.
   // Seul un état incomplet déjà confirmé bloque réellement la destination.
@@ -266,8 +262,8 @@ export default function DashboardClient({
     onOpenProfile: openCombinedProfilePanel,
   });
   const [settingsDrawerHasUnsavedChanges, setSettingsDrawerHasUnsavedChanges] = useState(false);
-  const settingsDrawerGuardActive = panel === "ia" || panel === "preferences" || panel === "documents" || panel === "mails" || panel === "compte" || panel === "parrainage" || panel === "profil" || panel === "activite" || panel === "youtube_shorts" || panel === "pinterest";
-  const settingsDrawerRequiresExplicitClose = settingsDrawerGuardActive || panel === "profil" || panel === "activite";
+  const settingsDrawerGuardActive = panel === "preferences" || panel === "documents" || panel === "mails" || panel === "compte" || panel === "parrainage" || panel === "youtube_shorts" || panel === "pinterest";
+  const settingsDrawerRequiresExplicitClose = settingsDrawerGuardActive;
 
   useEffect(() => {
     setSettingsDrawerHasUnsavedChanges(false);
@@ -309,16 +305,6 @@ export default function DashboardClient({
     setSettingsDrawerHasUnsavedChanges(hasUnsavedChanges);
   }, []);
 
-
-  const handleProfileSaved = useCallback(() => {
-    markProfileCompleted();
-    void checkProfile();
-  }, [checkProfile, markProfileCompleted]);
-
-  const handleActivitySaved = useCallback(() => {
-    markActivityCompleted();
-    void checkActivity();
-  }, [checkActivity, markActivityCompleted]);
 
   const openRequiredSetupPanel = useCallback(() => {
     openPanel(profileIncomplete ? "profil" : activityIncomplete ? "activite" : "profil");
@@ -4031,15 +4017,9 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
         <DashboardSettingsDrawerContent
             edition={dashboardEdition}
             panel={panel}
-            profileInitialSection={searchParams.get("profileSection") === "activity" ? "activity" : "identity"}
             onUnsavedChange={handleSettingsDrawerUnsavedChange}
-            onProfileSaved={handleProfileSaved}
-            onProfileReset={checkProfile}
-            onActivitySaved={handleActivitySaved}
-            onActivityReset={checkActivity}
             inertiaSnapshot={inertiaSnapshot}
             openPanel={openPanel}
-            onCloseDrawer={requestCloseSettingsDrawer}
             referralName={referralName}
             referralPhone={referralPhone}
             referralEmail={referralEmail}

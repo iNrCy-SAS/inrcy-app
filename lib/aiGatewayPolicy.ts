@@ -9,6 +9,7 @@ export type AiGenerationFeature =
   | "mails.attachment-image"
   | "mails.attachment-video"
   | "reviews.google"
+  | "business-dna.analyze"
   | "agent.stats-report"
   | "booster.transcript-cleanup"
   | "booster.transcribe"
@@ -49,7 +50,7 @@ const DEFAULT_ALLOWED_AI_GATEWAY_TRANSCRIPTION_MODELS = [
 
 export const AI_FEATURE_POLICIES: Readonly<Record<AiGenerationFeature, AiFeaturePolicy>> = {
   "booster.publish": {
-    maxOutputTokens: 10_000,
+    maxOutputTokens: 12_000,
     maxRetries: 1,
     maxTimeoutMs: 70_000,
     // Le Prompt Compiler V2 compacte fortement le contexte. 72k reste un dernier
@@ -60,7 +61,7 @@ export const AI_FEATURE_POLICIES: Readonly<Record<AiGenerationFeature, AiFeature
     // V2 Étape 3 : un appel principal pour tous les canaux, puis au maximum
     // une réparation ciblée unique. Le nombre de canaux ne multiplie plus les appels.
     defaultOperationMaxCalls: 2,
-    defaultOperationMaxReservedOutputTokens: 20_000,
+    defaultOperationMaxReservedOutputTokens: 24_000,
     // 30 s reste la cible UX. Ce budget laisse toutefois une vraie place au
     // basculement fournisseur, afin qu'une première latence ne force jamais le
     // professionnel à cliquer une seconde fois.
@@ -89,7 +90,7 @@ export const AI_FEATURE_POLICIES: Readonly<Record<AiGenerationFeature, AiFeature
     defaultOperationMaxDurationMs: 35_000,
   },
   "agent.publish": {
-    maxOutputTokens: 10_000,
+    maxOutputTokens: 12_000,
     maxRetries: 1,
     maxTimeoutMs: 72_000,
     // iNrAgent réutilise le même Prompt Compiler et le même orchestrateur Booster.
@@ -98,7 +99,7 @@ export const AI_FEATURE_POLICIES: Readonly<Record<AiGenerationFeature, AiFeature
     maxImageDataChars: 40 * MB_AS_DATA_URL_CHARS,
     // iNrAgent réutilise le même orchestrateur 1 appel + 1 réparation max.
     defaultOperationMaxCalls: 2,
-    defaultOperationMaxReservedOutputTokens: 20_000,
+    defaultOperationMaxReservedOutputTokens: 24_000,
     defaultOperationMaxDurationMs: 110_000,
   },
   "templates.generate": {
@@ -166,6 +167,20 @@ export const AI_FEATURE_POLICIES: Readonly<Record<AiGenerationFeature, AiFeature
     defaultOperationMaxCalls: 1,
     defaultOperationMaxReservedOutputTokens: 1000,
     defaultOperationMaxDurationMs: 50_000,
+  },
+  "business-dna.analyze": {
+    // Une sortie structurée complète peut contenir les trois blocs Premium.
+    // Le plafond garde une vraie marge pour éviter une coupure en fin de JSON ;
+    // il ne constitue jamais une taille cible ni une dépense automatique.
+    maxOutputTokens: 8_000,
+    maxRetries: 1,
+    maxTimeoutMs: 72_000,
+    maxInputChars: 68_000,
+    maxImages: 0,
+    maxImageDataChars: 0,
+    defaultOperationMaxCalls: 1,
+    defaultOperationMaxReservedOutputTokens: 8_000,
+    defaultOperationMaxDurationMs: 95_000,
   },
   "agent.stats-report": {
     maxOutputTokens: 1800,

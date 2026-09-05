@@ -1,5 +1,4 @@
-import { decodeBusinessSector } from "@/lib/activitySectors";
-import { combineOpeningSchedule } from "@/lib/openingSchedule";
+import { decodeBusinessSector } from "./activitySectors.ts";
 
 export const DASHBOARD_PROFILE_COMPLETION_FIELDS = [
   "first_name",
@@ -11,22 +10,15 @@ export const DASHBOARD_PROFILE_COMPLETION_FIELDS = [
   "hq_city",
 ] as const;
 
-export const DASHBOARD_ACTIVITY_COMPLETION_FIELDS = [
-  "services",
-  "intervention_zones",
-  "strengths",
-  "customer_typologies",
-] as const;
+// Le parcours obligatoire reste volontairement court : secteur et métier.
+// Les horaires, prestations, zones, forces et cibles enrichissent désormais
+// l'ADN de l'entreprise sans bloquer l'accès à l'application.
+export const DASHBOARD_ACTIVITY_COMPLETION_FIELDS = [] as const;
 
 export const DASHBOARD_PROFILE_COMPLETION_SELECT =
   DASHBOARD_PROFILE_COMPLETION_FIELDS.join(",");
 
-export const DASHBOARD_ACTIVITY_COMPLETION_SELECT = [
-  "sector",
-  "opening_days",
-  "opening_hours",
-  ...DASHBOARD_ACTIVITY_COMPLETION_FIELDS,
-].join(",");
+export const DASHBOARD_ACTIVITY_COMPLETION_SELECT = ["sector", ...DASHBOARD_ACTIVITY_COMPLETION_FIELDS].join(",");
 
 export type DashboardProfileCompletionField =
   (typeof DASHBOARD_PROFILE_COMPLETION_FIELDS)[number];
@@ -34,8 +26,7 @@ export type DashboardProfileCompletionField =
 export type DashboardActivityCompletionField =
   | (typeof DASHBOARD_ACTIVITY_COMPLETION_FIELDS)[number]
   | "sector_category"
-  | "profession"
-  | "opening_schedule";
+  | "profession";
 
 export type DashboardCompletionSection = "profile" | "activity";
 
@@ -80,12 +71,6 @@ export function evaluateDashboardActivityCompletion(
 
   if (!decodedSector.sectorCategory) missingFields.push("sector_category");
   if (!decodedSector.profession.trim()) missingFields.push("profession");
-
-  const openingSchedule = combineOpeningSchedule(
-    business?.opening_days,
-    business?.opening_hours,
-  );
-  if (!openingSchedule.trim()) missingFields.push("opening_schedule");
 
   for (const field of DASHBOARD_ACTIVITY_COMPLETION_FIELDS) {
     if (!isFilled(business?.[field])) missingFields.push(field);

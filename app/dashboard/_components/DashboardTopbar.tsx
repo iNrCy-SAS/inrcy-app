@@ -24,6 +24,7 @@ type DashboardPanelName =
   | "compte"
   | "activite"
   | "ia"
+  | "ai_memory"
   | "abonnement"
   | "mails"
   | "agenda"

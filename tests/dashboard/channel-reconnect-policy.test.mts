@@ -32,6 +32,17 @@ test("real provider OAuth failures require reconnection on every publication cha
   }
 });
 
+test("a Google Business metrics permission loss stops repeated provider refreshes", () => {
+  assert.equal(
+    isProviderReconnectRequired({
+      channel: "gmb",
+      error: "HTTP 403: The caller does not have permission",
+      stage: "stats_provider_metrics",
+    }),
+    true,
+  );
+});
+
 test("an inRcy session failure never expires any provider channel", () => {
   for (const channel of OAUTH_PUBLICATION_CHANNELS) {
     for (const error of [

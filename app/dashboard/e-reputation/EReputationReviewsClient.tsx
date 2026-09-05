@@ -9,6 +9,7 @@ import { createPortal } from "react-dom";
 import { confirmInrcy } from "@/lib/inrcyDialog";
 import EmojiPickerButton from "@/app/dashboard/_components/EmojiPickerButton";
 import AiContentReportButton from "@/app/dashboard/_components/AiContentReportButton";
+import AiConfigurationIcon from "@/app/dashboard/_components/AiConfigurationIcon";
 import PublishAiConfigurationDrawer from "@/app/dashboard/booster/publier/components/PublishAiConfigurationDrawer";
 import { MODULE_SNAPSHOT_KEYS, readModuleSnapshot, writeModuleSnapshot } from "@/lib/browserModuleSnapshotCache";
 import styles from "./eReputation.module.css";
@@ -1339,7 +1340,8 @@ export default function EReputationReviewsClient(props: Props) {
                         aria-label={i18nT("ouvrir_la_configuration_ia_a4ecd6d4")}
                         title={i18nT("configuration_ia_f620c8d8")}
                       >
-                        {i18nT("ia_d41daf59")}{" "}</button>
+                        <AiConfigurationIcon size={18} />
+                      </button>
                     </div>
                     <div className={styles.replyHeaderTitleLine}>
                       <h3>{selectedAlreadyAnswered ? i18nT("modifier_la_reponse_46c5f616") : i18nT("preparer_la_reponse_4df89405")}</h3>

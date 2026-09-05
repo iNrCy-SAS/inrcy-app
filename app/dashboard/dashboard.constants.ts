@@ -252,11 +252,8 @@ export const fluxModules: Module[] = [
 export const DRAWER_TITLES = {
   contact: "Nous contacter",
   compte: "Compte iNrCytizen",
-  profil: "Mon profil",
   preferences: "Préférences générales",
   inrbadge: "Réglages iNr'Badge",
-  activite: "Mon profil",
-  ia: "Configuration IA",
   abonnement: "Mon abonnement",
   legal: "Informations légales",
   rgpd: "Mes données (RGPD)",

@@ -4,8 +4,8 @@ import { createHash } from "node:crypto";
 
 import {
   buildNormalizedAiGenerationProfile,
-  type NormalizedAiGenerationProfile,
 } from "@/lib/aiGenerationProfile";
+import { buildAiMediaVideoDnaBrief } from "@/lib/aiMediaBusinessDna";
 import { loadAiMediaBrandKit } from "@/lib/aiMediaBrandKit";
 import {
   renderAiMediaVideoOverlay,
@@ -43,6 +43,7 @@ import {
   type NormalizedAiMedia,
 } from "@/lib/aiMediaNormalizer";
 import { generateOriginalAiVideoClips } from "@/lib/aiVideoProvider";
+import type { DashboardEdition } from "@/lib/dashboardEdition";
 
 type SupabaseLike = Parameters<typeof getBoosterGenerationContext>[0]["supabase"];
 
@@ -133,40 +134,6 @@ const FREE_STYLE_PALETTES: Record<AiMediaVisualStyle, [string, string, string]> 
   colorful: ["#f97316", "#ec4899", "#2563eb"],
 };
 
-function compactVideoValue(value: unknown, maximum = 260) {
-  return String(value ?? "")
-    .replace(/\u0000/g, "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, maximum);
-}
-
-/**
- * Veo accepte un contexte court. Ce brief dédié conserve les faits décisifs
- * du profil sans lui renvoyer le long prompt image, l'historique ou les règles
- * déjà répétées dans chaque plan.
- */
-function buildConciseVideoProfileBrief(
-  profile: NormalizedAiGenerationProfile,
-) {
-  const business = profile.business;
-  const rows = [
-    ["Entreprise", business.companyName],
-    ["Métier", business.professionLabel || business.sectorLabel],
-    ["Présentation", compactVideoValue(business.description, 360)],
-    ["Prestations", business.services.slice(0, 5).join(", ")],
-    ["Forces", business.strengths.slice(0, 4).join(", ")],
-    ["Clientèle", business.customerTypologies.slice(0, 3).join(", ")],
-    ["Localisation", [business.city, ...business.interventionZones.slice(0, 3)].filter(Boolean).join(", ")],
-  ]
-    .map(([label, value]) => {
-      const normalized = compactVideoValue(value, 360);
-      return normalized ? `${label}: ${normalized}` : "";
-    })
-    .filter(Boolean);
-  return compactVideoValue(rows.join(". "), 1_600);
-}
-
 /**
  * Génère et normalise un média, puis l'inscrit comme brouillon temporaire et
  * invisible. `accountId` ne doit provenir que du scope serveur multicompte.
@@ -176,6 +143,7 @@ export async function generateAndSaveAiMedia(args: {
   accountId: string;
   authUserId: string;
   jobId: string;
+  edition?: DashboardEdition;
   request: AiMediaGenerationRequest;
   signal?: AbortSignal;
 }): Promise<AiMediaGenerationServerResult> {
@@ -202,6 +170,7 @@ export async function generateAndSaveAiMedia(args: {
       getBoosterGenerationContext({
         supabase: args.supabase,
         userId: args.accountId,
+        edition: args.edition,
       }),
     ),
   ]);
@@ -340,7 +309,7 @@ export async function generateAndSaveAiMedia(args: {
         accountId: args.accountId,
         request: args.request,
         plan: creativePlan,
-        creativeBrief: buildConciseVideoProfileBrief(profile),
+        creativeBrief: buildAiMediaVideoDnaBrief(profile),
         brandColors: effectiveColors,
         profession:
           profile.business.professionLabel ||

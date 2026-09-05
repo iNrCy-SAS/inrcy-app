@@ -260,9 +260,12 @@ test("les dix bandes-son originales sont déterministes et durent exactement hui
   }
 });
 
-test("le prompt donne à GPT Image le sujet, le profil et le seul logo officiel", () => {
+test("le prompt donne à GPT Image le sujet, l’ADN et le seul logo officiel", () => {
   const source = read("lib/aiMediaGenerationPrompt.ts");
-  assert.match(source, /inrcy-media-v9-language-locked/);
+  const dna = read("lib/aiMediaBusinessDna.ts");
+  assert.match(source, /inrcy-media-v10-business-dna/);
+  assert.match(source, /buildAiMediaBusinessDnaPayload/);
+  assert.match(source, /ADN PROFESSIONNEL AUTORISÉ/);
   assert.match(source, /Palette réelle extraite du logo/);
   assert.match(source, /le seul fichier image fourni qui est le logo officiel/);
   assert.match(source, /Aucune photo de Médiathèque/);
@@ -278,9 +281,13 @@ test("le prompt donne à GPT Image le sujet, le profil et le seul logo officiel"
   assert.match(source, /Interdiction de recopier cette phrase/);
   assert.match(source, /request\.textKeywords/);
   assert.match(source, /HISTORIQUE RÉCENT À NE PAS COPIER/);
-  assert.match(source, /interventionZones/);
-  assert.match(source, /customerTypologies/);
-  assert.match(source, /openingHours/);
+  assert.match(dna, /interventionZones/);
+  assert.match(dna, /customerTypologies/);
+  assert.match(dna, /openingHours/);
+  assert.match(dna, /preferredVocabulary/);
+  assert.match(dna, /technicalityLevel/);
+  assert.match(dna, /humorLevel/);
+  assert.doesNotMatch(dna, /business\.phone|business\.email/);
   assert.match(source, /Ne jamais inventer de prix, promotion, certification/);
   assert.match(source, /DIRECTION ARTISTIQUE DÉTAILLÉE/);
   assert.match(source, /CADRAGE ET ZONES SÛRES/);
@@ -413,6 +420,7 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   const normalizer = read("lib/aiMediaNormalizer.ts");
   const registry = read("lib/aiGeneratedMediaRegistry.ts");
   const server = read("lib/aiMediaGenerationServer.ts");
+  const dnaHelper = read("lib/aiMediaBusinessDna.ts");
   const brandKit = read("lib/aiMediaBrandKit.ts");
   const renderer = read("lib/aiMediaBrandRenderer.ts");
   const provider = read("lib/aiVideoProvider.ts");
@@ -562,6 +570,7 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   assert.match(copywriter, /ne les additionne jamais/);
   assert.match(copywriter, /une accroche publicitaire courte, naturelle/i);
   assert.match(copywriter, /mots_a_evoquer: args\.request\.textKeywords/);
+  assert.match(copywriter, /adn_de_l_entreprise: buildAiMediaBusinessDnaPayload/);
   assert.match(copywriter, /applyLocalizedCopy/);
   assert.doesNotMatch(copywriter, /\.join\(" \+ "\)/);
   assert.match(composer, /composeOriginalAiVideo/);
@@ -581,7 +590,8 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   );
   assert.match(composer, /\[voice\]/);
   assert.match(narration, /idee_du_professionnel/);
-  assert.match(narration, /prestations: args\.profile\.business\.services/);
+  assert.match(narration, /adn_de_l_entreprise: buildAiMediaBusinessDnaPayload/);
+  assert.match(server, /creativeBrief: buildAiMediaVideoDnaBrief\(profile\)/);
   assert.match(narration, /N'invente aucun prix, résultat, certification/);
   assert.match(narration, /WORD_TARGETS/);
   assert.match(narrationAudio, /gemini-3\.1-flash-tts-preview/);
@@ -629,9 +639,9 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   assert.match(server, /generateOriginalAiVideoClips/);
   assert.match(
     server,
-    /creativeBrief: buildConciseVideoProfileBrief\(profile\)/
+    /creativeBrief: buildAiMediaVideoDnaBrief\(profile\)/
   );
-  assert.match(server, /business\.services\.slice\(0, 5\)/);
+  assert.match(dnaHelper, /\["Prestation", first\(business\.services, 120\)\]/);
   assert.match(veo, /adultSafePromptText\(args\.creativeBrief, 90\)/);
   assert.doesNotMatch(veo, /compact\(args\.creativeBrief, 6_000\)/);
   assert.match(server, /writeAiMediaHeadline/);

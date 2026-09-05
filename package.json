@@ -2,6 +2,7 @@
   "name": "inrcy-app",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "node --use-system-ca node_modules/next/dist/bin/next dev",
     "build": "next build",
@@ -39,6 +40,7 @@
     "qa:pinterest": "node scripts/qa-pinterest-standard.mjs && npm run test:pinterest && npm run verify:pinterest-env",
     "audit:ai-gateway": "node scripts/audit-ai-gateway.mjs",
     "test:ai-gateway": "node --test --experimental-strip-types tests/ai-gateway/*.test.mts",
+    "test:ai-memory": "node --test --experimental-strip-types tests/ai-memory/*.test.mts tests/booster-content-length/*.test.mts",
     "qa:ai-gateway": "npm run audit:ai-gateway && npm run test:ai-gateway && npm run typecheck",
     "test:ai-media-generation": "node --test --experimental-strip-types tests/ai-media-generation/*.test.mts tests/media-generation/*.test.mts tests/dashboard/media-generation-ui.test.mts",
     "qa:ai-media-generation": "npm run test:ai-media-generation && npm run typecheck",

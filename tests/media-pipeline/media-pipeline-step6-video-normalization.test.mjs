@@ -115,6 +115,12 @@ test("le worker télécharge la source privée et conserve l'original", () => {
   assert.match(worker, /keys:\s*pendingVariants\.map/);
   assert.match(worker, /failed_retryable/);
   assert.match(worker, /retry_wait/);
+  assert.match(
+    worker,
+    /`users\/\$\{media\.user_id\}\/ai-generated\/video\/`/,
+  );
+  assert.match(worker, /media\.bucket_name === "inrcy-pro-media"/);
+  assert.match(worker, /\.eq\("user_id", job\.account_id\)/);
   assert.doesNotMatch(worker, /\.remove\(\[media\.storage_path\]\)/);
   assert.doesNotMatch(cron, /\.formData\s*\(/);
   assert.doesNotMatch(cron, /\.arrayBuffer\s*\(/);

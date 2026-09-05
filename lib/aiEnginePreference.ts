@@ -157,6 +157,25 @@ export function getAiEngineOption(value: unknown): AiEngineOption {
   return AI_ENGINE_OPTIONS.find((option) => option.value === engine) || AI_ENGINE_OPTIONS[0];
 }
 
+const AI_ENGINE_OUTPUT_TOKEN_LIMITS: Record<AiPreferredEngine, number> = {
+  openai: 16_000,
+  anthropic: 16_000,
+  google: 16_000,
+  mistral: 12_000,
+  xai: 12_000,
+  perplexity: 8_000,
+  deepseek: 12_000,
+  meta: 8_000,
+};
+
+/**
+ * Plafond de requête prudent par moteur. Il laisse une large marge à la sortie
+ * sans envoyer une valeur supérieure aux capacités des moteurs les plus courts.
+ */
+export function getAiEngineOutputTokenLimit(value: unknown) {
+  return AI_ENGINE_OUTPUT_TOKEN_LIMITS[normalizeAiPreferredEngine(value)];
+}
+
 /**
  * Moteur utilisé pour l'unique nouvelle tentative automatique côté client.
  * La préférence enregistrée du professionnel n'est jamais modifiée : cette

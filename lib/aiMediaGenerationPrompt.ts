@@ -1,4 +1,5 @@
 import type { NormalizedAiGenerationProfile } from "@/lib/aiGenerationProfile";
+import { buildAiMediaBusinessDnaPayload } from "@/lib/aiMediaBusinessDna";
 import {
   AI_MEDIA_FORMAT_SPECS,
   type AiMediaGenerationRequest,
@@ -6,7 +7,8 @@ import {
 } from "@/lib/aiMediaGenerationContracts";
 import { getAiLanguageLabel } from "@/lib/aiWritingProfile";
 
-export const AI_MEDIA_PROMPT_VERSION = "inrcy-media-v9-language-locked";
+export const AI_MEDIA_PROMPT_VERSION = "inrcy-media-v10-business-dna";
+export const AI_MEDIA_COMPILED_PROMPT_MAX_CHARS = 11_800;
 
 type RecentPublication = {
   title?: string | null;
@@ -103,40 +105,11 @@ function safeCompositionGuide(request: AiMediaGenerationRequest) {
   return guides[request.format];
 }
 
-function compactList(values: readonly string[], max = 8) {
-  return values.map((value) => clean(value, 140)).filter(Boolean).slice(0, max);
-}
-
-function fact(label: string, value: unknown, max = 500) {
-  const normalized = clean(value, max);
-  return normalized ? `- ${label} : ${normalized}` : "";
-}
-
-function buildBusinessFacts(profile: NormalizedAiGenerationProfile) {
-  const business = profile.business;
-  const facts = [
-    fact("Entreprise", business.companyName, 120),
-    fact("Activité", business.professionLabel || business.sectorLabel, 160),
-    fact("Ville", business.city, 100),
-    fact("Description", business.description, 700),
-    fact("Prestations", compactList(business.services).join(", "), 700),
-    fact(
-      "Zones d’intervention",
-      compactList(business.interventionZones).join(", "),
-      500,
-    ),
-    fact("Horaires", business.openingHours, 300),
-    fact("Forces", compactList(business.strengths).join(", "), 500),
-    fact(
-      "Clientèle",
-      compactList(business.customerTypologies).join(", "),
-      500,
-    ),
-  ].filter(Boolean);
-
-  return facts.length
-    ? facts.join("\n")
-    : "- Profil encore peu renseigné : créer un rendu professionnel générique sans inventer de faits.";
+function buildBusinessDna(profile: NormalizedAiGenerationProfile) {
+  const dna = buildAiMediaBusinessDnaPayload(profile);
+  return Object.keys(dna).length
+    ? JSON.stringify(dna, null, 2)
+    : "ADN encore peu renseigné : créer un rendu professionnel générique sans inventer de faits.";
 }
 
 function buildCreativeBrief(request: AiMediaGenerationRequest) {
@@ -152,9 +125,9 @@ function buildCreativeBrief(request: AiMediaGenerationRequest) {
     ].join("\n");
   }
   return [
-    "Brief automatique à partir du profil professionnel.",
-    "Choisir une scène crédible qui représente l’activité ou une prestation réelle du profil.",
-    "Ne créer ni promotion, ni événement, ni information ponctuelle absente du profil.",
+    "Brief automatique à partir de l’ADN de l’entreprise.",
+    "Choisir une scène crédible qui représente l’activité, une prestation ou un repère réel de cet ADN.",
+    "Ne créer ni promotion, ni événement, ni information ponctuelle absente de l’ADN.",
   ].join("\n");
 }
 
@@ -182,6 +155,18 @@ function sharedSafetyRules() {
   ].join("\n");
 }
 
+function fitCompiledMediaPrompt(value: string) {
+  if (value.length <= AI_MEDIA_COMPILED_PROMPT_MAX_CHARS) return value;
+  const marker =
+    "\n\n[… contexte ADN compacté automatiquement par iNrCy …]\n\n";
+  const available = AI_MEDIA_COMPILED_PROMPT_MAX_CHARS - marker.length;
+  // Le début conserve mission, cadrage et brief ; la fin conserve historique
+  // anti-répétition et règles de sécurité. Seul le milieu contextuel est réduit.
+  const headLength = Math.ceil(available * 0.72);
+  const tailLength = Math.max(0, available - headLength);
+  return `${value.slice(0, headLength)}${marker}${value.slice(-tailLength)}`;
+}
+
 export function buildAiMediaPrompt(args: {
   request: AiMediaGenerationRequest;
   profile: NormalizedAiGenerationProfile;
@@ -207,7 +192,7 @@ export function buildAiMediaPrompt(args: {
 
   const imageReferenceRules = request.kind === "image"
     ? [
-        "ENTRÉES AUTORISÉES : le sujet ci-dessous, les faits du profil et, lorsqu’il est présent, le seul fichier image fourni qui est le logo officiel.",
+        "ENTRÉES AUTORISÉES : le sujet ci-dessous, l’ADN professionnel structuré et, lorsqu’il est présent, le seul fichier image fourni qui est le logo officiel.",
         "Aucune photo de Médiathèque, aucun ancien média et aucune photo de publication ne sont fournis : imaginer une scène originale strictement adaptée au sujet actuel.",
         args.hasLogo
           ? `Le fichier image de référence est le logo officiel. Respecter fidèlement sa forme, ses proportions, ses couleurs et son orthographe. L’intégrer une seule fois, ${request.logoMode === "visible" ? "de façon clairement visible mais élégante" : "discrètement"}, dans une zone sûre ; il ne doit jamais devenir le sujet principal ni occuper plus de ${request.logoMode === "visible" ? "22" : "12"} % du visuel.`
@@ -218,7 +203,7 @@ export function buildAiMediaPrompt(args: {
               `Accroche originale sélectionnée par iNrCy, distincte du brief, à afficher exactement : « ${clean(args.copy?.headline, 110)} ».`,
               request.textKeywords.length
                 ? `Les mots-clés facultatifs demandés dans le bloc Texte ont guidé cette accroche : ${request.textKeywords.map((value) => clean(value, 48)).join(", ")}.`
-                : "Aucun mot-clé de texte n’a été imposé : l’accroche provient du profil et du type de contenu.",
+                : "Aucun mot-clé de texte n’a été imposé : l’accroche provient de l’ADN et du type de contenu.",
               "Ne jamais ajouter de sous-titre, de paragraphe, de CTA ni d’autre texte. Chaque lettre doit être parfaitement lisible, sans coupure et éloignée des bords.",
             ].join("\n")
           : "Ne placer aucun texte hors celui qui appartient déjà au logo officiel.",
@@ -228,7 +213,7 @@ export function buildAiMediaPrompt(args: {
         "Ne produire aucun logo ni pseudo-logo : l’habillage vidéo exact sera appliqué ensuite par iNrCy.",
       ].join("\n");
 
-  return [
+  const compiledPrompt = [
     `Version : ${AI_MEDIA_PROMPT_VERSION}.`,
     request.kind === "image"
       ? `Créer un média professionnel entièrement composé au format ${format.aspectRatio} (${format.label}), sans bordure.`
@@ -242,7 +227,7 @@ export function buildAiMediaPrompt(args: {
       : "Cette image doit être une création originale, cohérente avec le sujet actuel et directement publiable.",
     `Direction de communication : ${preferenceLine}.`,
     request.withText
-      ? `LANGUE DU TEXTE VISIBLE — RÈGLE ABSOLUE : l'accroche et tout caractère destiné au lecteur doivent être exclusivement en ${targetLanguage}. Le brief, le profil et les consignes techniques peuvent être rédigés dans une autre langue : ne jamais reprendre leur langue par défaut. Les noms propres, marques et le logo officiel restent inchangés.`
+      ? `LANGUE DU TEXTE VISIBLE — RÈGLE ABSOLUE : l'accroche et tout caractère destiné au lecteur doivent être exclusivement en ${targetLanguage}. Le brief, l’ADN et les consignes techniques peuvent être rédigés dans une autre langue : ne jamais reprendre leur langue par défaut. Les noms propres, marques et le logo officiel restent inchangés.`
       : `LANGUE DE GÉNÉRATION CONFIGURÉE : ${targetLanguage}. Aucun texte visible ne doit être créé dans le média, quelle que soit la langue du brief, hors texte déjà présent dans le logo officiel.`,
     request.useBrandColors && palette.length
       ? `Palette réelle extraite du logo à harmoniser subtilement : ${palette.join(", ")}.`
@@ -252,13 +237,14 @@ export function buildAiMediaPrompt(args: {
     imageReferenceRules,
     "BRIEF :",
     buildCreativeBrief(request),
-    "FAITS PROFESSIONNELS AUTORISÉS :",
-    buildBusinessFacts(profile),
+    "ADN PROFESSIONNEL AUTORISÉ — utiliser uniquement les éléments pertinents pour le sujet, sans afficher ni recopier ce bloc :",
+    buildBusinessDna(profile),
     "HISTORIQUE RÉCENT À NE PAS COPIER (éviter les répétitions visuelles) :",
     buildHistory(args.recentPublications || []),
     "RÈGLES IMPÉRATIVES :",
     sharedSafetyRules(),
   ].join("\n\n");
+  return fitCompiledMediaPrompt(compiledPrompt);
 }
 
 export function getAiMediaPromptOutputSpec(

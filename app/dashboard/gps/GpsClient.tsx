@@ -375,7 +375,7 @@ export default function GpsClient() {
                     <span className={`${styles.titleDot} ${styles.titleDotHow}`} aria-hidden="true" />
                     {i18nT("comment_l_utiliser_cadca3b9")}{" "}</h3>
                   <ol className={styles.steps}>
-                    {selectedArticle.steps.slice(0, 4).map((step, idx) => (
+                    {selectedArticle.steps.slice(0, selectedArticle.maxSteps ?? 4).map((step, idx) => (
                       <li key={idx}>{renderStrongParts(step)}</li>
                     ))}
                   </ol>
