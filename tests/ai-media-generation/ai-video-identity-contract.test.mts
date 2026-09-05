@@ -45,6 +45,11 @@ test("les références d’identité restent actives sur chaque segment et chaqu
     /inspirationImages\.length && args\.preserveIdentityReferences[\s\S]*?\[\{ prompt: args\.prompt, inspirationImages \}\]/
   );
   assert.match(
+    veo,
+    /preserveIdentityReferences && args\.request\.inspirationImages\.length > 0[\s\S]*?configuredModels\.filter\(supportsVeoReferenceImages\)/,
+  );
+  assert.match(veo, /personGeneration: "allow_adult"/);
+  assert.match(
     omni,
     /args\.preserveIdentityReferences[\s\S]*?images: args\.inspirationImages/
   );
@@ -70,16 +75,25 @@ test("un fournisseur qui refuse l’identité échoue explicitement sans rendu g
   assert.match(route, /Aucune personne générique n’a été substituée/);
 });
 
-test("l’équipe cinématique n’envoie à Veo qu’une composition de groupe consentie et retombe toujours en local", () => {
+test("l’équipe cinématique conserve le moteur choisi, tente Omni après Veo puis retombe en local", () => {
   const server = read("lib/aiMediaGenerationServer.ts");
   const route = read("app/api/media-generation/generate/route.ts");
 
   assert.match(server, /providerRequest\.teamVideoMode === "cinematic"/);
   assert.match(server, /providerRequest\.teamVideoVeoConsent/);
-  assert.match(server, /videoEngine: "veo"/);
+  assert.match(server, /videoEngine: providerRequest\.videoEngine/);
+  assert.doesNotMatch(
+    server,
+    /request:\s*\{[\s\S]{0,500}?\.\.\.providerRequest[\s\S]{0,500}?videoEngine: "veo"/,
+  );
   assert.match(server, /inspirationImages: \[groupImage\]/);
   assert.match(server, /identityTeamPrecomposed: true/);
   assert.match(server, /identityTeamGoogleEgressConsent: true/);
+  assert.match(server, /if \(request\.videoEngine !== "veo"\) throw primaryError/);
+  assert.match(server, /request: \{ \.\.\.request, videoEngine: "omni" \}/);
+  assert.match(server, /veo_fallback_to_omni/);
+  assert.match(server, /video_engine_\$\{failureArgs\.engine\}_failure_\$\{failure\.kind\}/);
+  assert.match(server, /redactAiMediaSensitiveText\(failure\.details, 500\)/);
   assert.match(
     server,
     /identity_team_cinematic_unavailable_local_motion[\s\S]*?createAiMediaFallbackVideo/,

@@ -476,6 +476,8 @@ export async function POST(request: Request) {
     | "omni"
     | "veo"
     | "omni_veo_fallback"
+    | "veo_omni_fallback"
+    | "local_fallback"
     | null = null;
   let accountEdition: DashboardEdition | null = null;
   let videoMaxDurationSeconds: AiMediaVideoDurationLimit = 24;

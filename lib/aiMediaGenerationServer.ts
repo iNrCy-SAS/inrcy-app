@@ -55,7 +55,13 @@ import {
   normalizeGeneratedAiImage,
   type NormalizedAiMedia,
 } from "@/lib/aiMediaNormalizer";
+import { redactAiMediaSensitiveText } from "@/lib/aiMediaSensitiveText";
 import { generateOriginalAiVideoClips } from "@/lib/aiVideoProvider";
+import { classifyVeoFailure } from "@/lib/aiVideoReliability";
+import type {
+  AiVideoProviderGenerationArgs,
+  AiVideoProviderResult,
+} from "@/lib/aiVideoProviderTypes";
 import type { DashboardEdition } from "@/lib/dashboardEdition";
 
 type SupabaseLike = Parameters<typeof getBoosterGenerationContext>[0]["supabase"];
@@ -64,7 +70,13 @@ export type AiMediaGenerationServerResult = {
   item: AiMediaLibraryPickerItem;
   soundtrack: AiMediaSoundtrackResponse | null;
   model: string;
-  videoEngineResult: "omni" | "veo" | "omni_veo_fallback" | null;
+  videoEngineResult:
+    | "omni"
+    | "veo"
+    | "omni_veo_fallback"
+    | "veo_omni_fallback"
+    | "local_fallback"
+    | null;
   promptVersion: string;
   promptSha256: string;
   pipelineTimingsMs: Record<string, number>;
@@ -474,6 +486,86 @@ export async function generateAndSaveAiMedia(args: {
       return minimalOverlaysTask;
     };
 
+    type VideoProviderOverrides = Pick<
+      AiVideoProviderGenerationArgs,
+      | "identityTeamPrecomposed"
+      | "identityTeamMemberCount"
+      | "identityTeamGoogleEgressConsent"
+    >;
+    const recordVideoEngineFailure = (failureArgs: {
+      engine: NonNullable<AiMediaGenerationRequest["videoEngine"]>;
+      stage: "primary" | "cross_engine";
+      error: unknown;
+    }) => {
+      const failure = classifyVeoFailure(failureArgs.error);
+      pipelineWarnings.push(
+        `video_engine_${failureArgs.engine}_failure_${failure.kind}`,
+      );
+      // Ne jamais journaliser les prompts complets ni les images encodées. Ce
+      // diagnostic court permet cependant de distinguer quota, sécurité,
+      // configuration et panne réseau lors d'un canari réel.
+      console.warn("[ai-media] video engine attempt failed", {
+        accountId: args.accountId,
+        jobId: args.jobId,
+        engine: failureArgs.engine,
+        stage: failureArgs.stage,
+        durationSeconds,
+        identityMode: providerRequest.identityMode,
+        failureKind: failure.kind,
+        status: failure.status || null,
+        details: redactAiMediaSensitiveText(failure.details, 500),
+      });
+    };
+    const generateProviderVideo = async (
+      request: AiMediaGenerationRequest,
+      overrides: Partial<VideoProviderOverrides> = {},
+    ): Promise<AiVideoProviderResult> => {
+      const providerArgs: AiVideoProviderGenerationArgs = {
+        accountId: args.accountId,
+        request,
+        plan: creativePlan,
+        creativeBrief: buildAiMediaVideoDnaBrief(profile),
+        brandColors: effectiveColors,
+        profession:
+          profile.business.professionLabel ||
+          profile.business.sectorLabel ||
+          creativePlan.companyName,
+        contentLanguage: profile.preferences.language,
+        ...overrides,
+        signal: args.signal,
+      };
+      try {
+        return await generateOriginalAiVideoClips(providerArgs);
+      } catch (primaryError) {
+        args.signal?.throwIfAborted();
+        recordVideoEngineFailure({
+          engine: request.videoEngine || "omni",
+          stage: "primary",
+          error: primaryError,
+        });
+        // Omni possède déjà son repli interne scène par scène vers Veo. Quand
+        // Veo est choisi et échoue, tenter Omni avec exactement le même plan et
+        // les mêmes références avant le mouvement local évite une fausse
+        // "animation réelle" presque fixe.
+        if (request.videoEngine !== "veo") throw primaryError;
+        pipelineWarnings.push("veo_fallback_to_omni");
+        try {
+          return await generateOriginalAiVideoClips({
+            ...providerArgs,
+            request: { ...request, videoEngine: "omni" },
+          });
+        } catch (fallbackError) {
+          args.signal?.throwIfAborted();
+          recordVideoEngineFailure({
+            engine: "omni",
+            stage: "cross_engine",
+            error: fallbackError,
+          });
+          throw fallbackError;
+        }
+      }
+    };
+
     // Le chemin critique commence immédiatement : le moteur vidéo choisi, la voix, la musique et
     // les calques sont indépendants et sont donc préparés en parallèle. La
     // qualité nominale reste identique, mais les temps ne s'additionnent plus.
@@ -541,30 +633,22 @@ export async function generateAndSaveAiMedia(args: {
               // Google ne reçoit jamais les 2–3 portraits d'origine. La seule
               // référence transmise est l'image de groupe éphémère, assainie
               // et composée auparavant par GPT-Image-2.
-              return await generateOriginalAiVideoClips({
-                accountId: args.accountId,
-                request: {
+              return await generateProviderVideo(
+                {
                   ...providerRequest,
-                  // La préférence Veo reste respectée pour un rendu de 8 s.
-                  // Pour 16/24 s, le routeur impose Omni afin de prolonger la
-                  // même interaction au lieu de redémarrer 2–3 clips isolés.
-                  videoEngine: "veo",
+                  // L'image de groupe assainie est compatible avec les deux
+                  // moteurs Google. Conserver le choix explicite du pro : le
+                  // mode rapide reste Omni et le mode cinématique reste Veo.
+                  videoEngine: providerRequest.videoEngine,
                   inspirationImages: [groupImage],
                 },
-                plan: creativePlan,
-                creativeBrief: buildAiMediaVideoDnaBrief(profile),
-                brandColors: effectiveColors,
-                profession:
-                  profile.business.professionLabel ||
-                  profile.business.sectorLabel ||
-                  creativePlan.companyName,
-                contentLanguage: profile.preferences.language,
-                identityTeamPrecomposed: true,
-                identityTeamMemberCount:
-                  preparedIdentityReferences.buffers.length as 2 | 3,
-                identityTeamGoogleEgressConsent: true,
-                signal: args.signal,
-              });
+                {
+                  identityTeamPrecomposed: true,
+                  identityTeamMemberCount:
+                    preparedIdentityReferences.buffers.length as 2 | 3,
+                  identityTeamGoogleEgressConsent: true,
+                },
+              );
             } catch {
               args.signal?.throwIfAborted();
               // Le rendu local clôt la même tentative sans nouvel appel
@@ -627,19 +711,7 @@ export async function generateAndSaveAiMedia(args: {
         }
       }
       try {
-        return await generateOriginalAiVideoClips({
-          accountId: args.accountId,
-          request: providerRequest,
-          plan: creativePlan,
-          creativeBrief: buildAiMediaVideoDnaBrief(profile),
-          brandColors: effectiveColors,
-          profession:
-            profile.business.professionLabel ||
-            profile.business.sectorLabel ||
-            creativePlan.companyName,
-          contentLanguage: profile.preferences.language,
-          signal: args.signal,
-        });
+        return await generateProviderVideo(providerRequest);
       } catch {
         args.signal?.throwIfAborted();
         localFallbackUsed = true;
@@ -965,12 +1037,15 @@ export async function generateAndSaveAiMedia(args: {
       "inrcy/video-composer-v4-controlled-audio",
     ].filter(Boolean).join("+");
     videoEngineResult = videoGateway.provider.startsWith("inrcy-")
-      ? null
-      : videoGateway.provider.includes("+")
-      ? "omni_veo_fallback"
-      : videoGateway.provider === "google-gemini-omni"
-        ? "omni"
-        : "veo";
+      ? "local_fallback"
+      : providerRequest.videoEngine === "veo" &&
+          videoGateway.provider.includes("google-gemini-omni")
+        ? "veo_omni_fallback"
+        : videoGateway.provider.includes("+")
+          ? "omni_veo_fallback"
+          : videoGateway.provider === "google-gemini-omni"
+            ? "omni"
+            : "veo";
     providerMetadata = {
       provider: videoGateway.provider,
       model: videoGateway.model,

@@ -995,17 +995,36 @@ export default function MediaGenerator({
                 {kind === "video" && generationResult.videoEngineResult ? (
                   <span
                     className={styles.engineResultBadge}
-                    data-fallback={generationResult.videoEngineResult === "omni_veo_fallback"}
+                    data-fallback={generationResult.videoEngineResult.includes("fallback")}
                   >
                     {t(`ai_generator_video_engine_result_${generationResult.videoEngineResult}`)}
                   </span>
                 ) : null}
               </div>
             </div>
-            <div className={styles.previewFrame} data-format={format}>
+            <div
+              className={styles.previewFrame}
+              data-format={format}
+              style={{ position: "relative" }}
+            >
               {generationResult.item.signed_url ? (
                 generationResult.item.media_type === "video" ? (
-                  <video src={generationResult.item.signed_url} controls playsInline preload="metadata" />
+                  <video
+                    src={generationResult.item.signed_url}
+                    controls
+                    playsInline
+                    preload="metadata"
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      width: "100%",
+                      height: "100%",
+                      minWidth: "100%",
+                      minHeight: "100%",
+                      objectFit: "cover",
+                      objectPosition: "center",
+                    }}
+                  />
                 ) : (
                   <img src={generationResult.item.signed_url} alt={generationResult.item.title || t("ai_generator_preview_alt")} />
                 )

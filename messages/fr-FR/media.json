@@ -284,6 +284,8 @@
   "ai_generator_video_engine_omni_hint": "Omni Flash comprend finement le thème et privilégie la rapidité.",
   "ai_generator_video_engine_result_omni": "Généré avec Omni",
   "ai_generator_video_engine_result_omni_veo_fallback": "Omni indisponible · repli Veo Fast utilisé",
+  "ai_generator_video_engine_result_veo_omni_fallback": "Veo indisponible · repli Omni utilisé",
+  "ai_generator_video_engine_result_local_fallback": "Rendu animé local",
   "ai_generator_video_engine_result_veo": "Généré avec Veo Fast",
   "ai_generator_video_engine_title": "Moteur de création vidéo",
   "ai_generator_video_engine_veo": "Créatif et cinématique",

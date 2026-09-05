@@ -201,6 +201,9 @@ test("la fenêtre iNrCy sépare les critères de la création et de la revue", (
   assert.match(generator, /ai_generator_video_engine_result_\$\{generationResult\.videoEngineResult\}/);
   assert.match(hook, /videoEngineResult: MediaGenerationVideoEngineResult \| null/);
   assert.match(hook, /rawVideoEngineResult === "omni_veo_fallback"/);
+  assert.match(hook, /rawVideoEngineResult === "veo_omni_fallback"/);
+  assert.match(hook, /rawVideoEngineResult === "local_fallback"/);
+  assert.match(generator, /videoEngineResult\.includes\("fallback"\)/);
   assert.match(generator, /videoEngine: kind === "video" \? videoEngine : undefined/);
   assert.match(generator, /useState<MediaGenerationNarrationVoice>\("female"\)/);
   assert.match(generator, /\(\["female", "male"\] as const\)\.map/);
@@ -418,6 +421,23 @@ test("la fenêtre iNrCy sépare les critères de la création et de la revue", (
   assert.doesNotMatch(generator, /className=\{styles\.introCard\}/);
 });
 
+test("la revue vidéo remplit son cadre sans bande noire sur desktop et mobile", () => {
+  const generatorStyles = read("app/dashboard/_components/MediaGenerator.module.css");
+
+  assert.match(
+    generatorStyles,
+    /\.previewFrame\s*\{[\s\S]*?position:\s*relative;/
+  );
+  assert.match(
+    generatorStyles,
+    /\.previewFrame video\s*\{[\s\S]*?position:\s*absolute;[\s\S]*?inset:\s*0;[\s\S]*?min-width:\s*100%;[\s\S]*?min-height:\s*100%;[\s\S]*?object-fit:\s*cover;[\s\S]*?object-position:\s*50% 50%;/
+  );
+  assert.match(
+    generatorStyles,
+    /@media \(max-width: 900px\)[\s\S]*?\.previewFrame\s*\{[\s\S]*?grid-column:\s*1;[\s\S]*?grid-row:\s*2;/
+  );
+});
+
 test("fermer toute revue exige une confirmation, y compris depuis le Menu", () => {
   const modal = read("app/dashboard/_components/MediaGeneratorModal.tsx");
   const requestClose = sourceSection(
@@ -616,6 +636,8 @@ test("toutes les langues contiennent la copie complète de la modale", () => {
     "ai_generator_video_engine_result_omni",
     "ai_generator_video_engine_result_veo",
     "ai_generator_video_engine_result_omni_veo_fallback",
+    "ai_generator_video_engine_result_veo_omni_fallback",
+    "ai_generator_video_engine_result_local_fallback",
     "ai_generator_stage_profile",
     "ai_generator_stage_brand",
     "ai_generator_stage_storyboard",

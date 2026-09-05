@@ -72,6 +72,10 @@ function loadVeoPromptBuilder() {
       "@/lib/aiMediaDialogue",
       { aiMediaDialogueSignature, selectAiMediaDialogueLine },
     ],
+    [
+      "@/lib/aiMediaSensitiveText",
+      { redactAiMediaSensitiveText: (value: unknown) => String(value ?? "") },
+    ],
   ]);
   const localRequire = (specifier: string) => {
     if (stubs.has(specifier)) return stubs.get(specifier);
@@ -103,9 +107,153 @@ function loadVeoPromptBuilder() {
   ) => string;
 }
 
-test("Omni enchaîne res1 vers res2 puis res3 avec previous_interaction_id", () => {
+function loadVideoProviderRouter() {
+  const source = read("lib/aiVideoProvider.ts");
+  const transpiled = ts.transpileModule(source, {
+    compilerOptions: {
+      esModuleInterop: true,
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2022,
+    },
+    fileName: "aiVideoProvider.ts",
+  }).outputText;
+  const calls: Array<{
+    durationSeconds: number;
+    provider: "google-gemini-omni" | "google-veo-fast";
+    videoEngine: "omni" | "veo";
+  }> = [];
+  const provider = (
+    id: "google-gemini-omni" | "google-veo-fast",
+    model: string,
+  ) => ({
+    id,
+    model,
+    generate: async (args: {
+      request: {
+        durationSeconds: number;
+        videoEngine: "omni" | "veo";
+      };
+    }) => {
+      calls.push({
+        durationSeconds: args.request.durationSeconds,
+        provider: id,
+        videoEngine: args.request.videoEngine,
+      });
+      return { clips: [], model, provider: id, warnings: [] };
+    },
+  });
+  const stubs = new Map<string, unknown>([
+    ["server-only", {}],
+    [
+      "@/lib/aiVideoProviderGoogleOmni",
+      { googleOmniVideoProvider: provider("google-gemini-omni", "omni-test") },
+    ],
+    [
+      "@/lib/aiVideoProviderGoogleVeo",
+      { googleVeoVideoProvider: provider("google-veo-fast", "veo-test") },
+    ],
+    ["@/lib/aiVideoProviderTypes", {}],
+  ]);
+  const localRequire = (specifier: string) => {
+    if (stubs.has(specifier)) return stubs.get(specifier);
+    throw new Error(`unexpected_test_dependency:${specifier}`);
+  };
+  const routerCommonJsModule = { exports: {} as Record<string, unknown> };
+  const factory = vm.runInThisContext(
+    `(function (exports, require, module, __filename, __dirname) {${transpiled}\n})`,
+    { filename: "aiVideoProvider.runtime.cjs" },
+  ) as (
+    exports: Record<string, unknown>,
+    require: (specifier: string) => unknown,
+    commonJsModule: { exports: Record<string, unknown> },
+    filename: string,
+    dirname: string,
+  ) => void;
+  factory(
+    routerCommonJsModule.exports,
+    localRequire,
+    routerCommonJsModule,
+    path.join(ROOT, "lib/aiVideoProvider.ts"),
+    path.join(ROOT, "lib"),
+  );
+  return {
+    calls,
+    generate: routerCommonJsModule.exports.generateOriginalAiVideoClips as (
+      args: Record<string, unknown>,
+    ) => Promise<Record<string, unknown>>,
+  };
+}
+
+test("le routeur respecte Veo ou Omni pour les vidéos de 8, 16 et 24 secondes", async () => {
+  const { calls, generate } = loadVideoProviderRouter();
+  const configuredProvider = process.env.AI_MEDIA_VIDEO_PROVIDER;
+  delete process.env.AI_MEDIA_VIDEO_PROVIDER;
+
+  try {
+    for (const durationSeconds of [8, 16, 24]) {
+      for (const videoEngine of ["veo", "omni"] as const) {
+        await generate({ request: { durationSeconds, videoEngine } });
+      }
+    }
+  } finally {
+    if (configuredProvider === undefined) {
+      delete process.env.AI_MEDIA_VIDEO_PROVIDER;
+    } else {
+      process.env.AI_MEDIA_VIDEO_PROVIDER = configuredProvider;
+    }
+  }
+
+  assert.deepEqual(calls, [
+    { durationSeconds: 8, provider: "google-veo-fast", videoEngine: "veo" },
+    { durationSeconds: 8, provider: "google-gemini-omni", videoEngine: "omni" },
+    { durationSeconds: 16, provider: "google-veo-fast", videoEngine: "veo" },
+    { durationSeconds: 16, provider: "google-gemini-omni", videoEngine: "omni" },
+    { durationSeconds: 24, provider: "google-veo-fast", videoEngine: "veo" },
+    { durationSeconds: 24, provider: "google-gemini-omni", videoEngine: "omni" },
+  ]);
+  assert.deepEqual(getAiMediaVideoSegmentDurations(16), [8, 8]);
+  assert.deepEqual(getAiMediaVideoSegmentDurations(24), [8, 8, 8]);
+});
+
+test("Omni long reste parallèle par défaut, avec les références sur chaque acte", () => {
   const omni = read("lib/aiVideoProviderGoogleOmni.ts");
 
+  assert.match(omni, /const DEFAULT_CONCURRENCY = 3/);
+  assert.match(
+    omni,
+    /const continuationMode =\s*durations\.length > 1 && statefulContinuationEnabled\(\)/,
+  );
+  assert.match(
+    omni,
+    /const concurrency = continuationMode\s*\? 1\s*: Math\.min\(configuredConcurrency, durations\.length\)/,
+  );
+  assert.match(
+    omni,
+    /const isContinuation = continuationMode && index > 0/,
+  );
+  assert.match(
+    omni,
+    /inspirationImages:\s*!isContinuation &&\s*\(preserveIdentityReferences \|\| index === 0\)\s*\? args\.request\.inspirationImages\s*: \[\]/,
+    "sans continuation, preserveIdentityReferences garde les images sur tous les actes",
+  );
+  assert.match(
+    omni,
+    /if \(continuationMode\) previousInteractionId = clip\.requestId/,
+    "sans opt-in, aucun previous_interaction_id n’est mémorisé",
+  );
+});
+
+test("l’opt-in Omni enchaîne res1 vers res2 puis res3 et n’envoie les images qu’au premier tour", () => {
+  const omni = read("lib/aiVideoProviderGoogleOmni.ts");
+
+  assert.match(
+    omni,
+    /process\.env\.AI_MEDIA_OMNI_STATEFUL_CONTINUATION_ENABLED/,
+  );
+  assert.match(
+    omni,
+    /\["1", "true", "on", "yes"\]\.includes\([\s\S]*?AI_MEDIA_OMNI_STATEFUL_CONTINUATION_ENABLED/,
+  );
   assert.match(omni, /previousInteractionId\?: string/);
   assert.match(
     omni,
@@ -134,11 +282,6 @@ test("Omni enchaîne res1 vers res2 puis res3 avec previous_interaction_id", () 
     stateHandoff > previousIdInput && stateHandoff < loopEnd,
     "res1 devient le parent de res2, puis res2 celui de res3",
   );
-});
-
-test("la chaîne longue est séquentielle, n’envoie les images qu’au premier tour et ne mélange jamais Veo", () => {
-  const omni = read("lib/aiVideoProviderGoogleOmni.ts");
-
   assert.match(
     omni,
     /const concurrency = continuationMode\s*\? 1\s*: Math\.min\(configuredConcurrency, durations\.length\)/,
@@ -160,34 +303,6 @@ test("la chaîne longue est séquentielle, n’envoie les images qu’au premier
     omni,
     /stopped = true;\s*firstError \|\|= effectiveError/,
     "une continuation en échec remonte au fallback local du serveur",
-  );
-});
-
-test("8 secondes conserve le choix Veo tandis que 16 et 24 secondes utilisent obligatoirement Omni", () => {
-  const provider = read("lib/aiVideoProvider.ts");
-
-  assert.deepEqual(getAiMediaVideoSegmentDurations(8), [8]);
-  assert.deepEqual(getAiMediaVideoSegmentDurations(16), [8, 8]);
-  assert.deepEqual(getAiMediaVideoSegmentDurations(24), [8, 8, 8]);
-  assert.match(
-    provider,
-    /if \(\(args\?\.request\.durationSeconds \|\| 8\) > 8\) \{\s*return googleOmniVideoProvider;\s*\}/,
-  );
-  assert.match(
-    provider,
-    /return args\?\.request\.videoEngine === "veo"\s*\? googleVeoVideoProvider\s*: googleOmniVideoProvider/,
-  );
-
-  const longFormGuard = provider.indexOf(
-    "if ((args?.request.durationSeconds || 8) > 8)",
-  );
-  const configuredChoice = provider.indexOf(
-    "const forced = configuredProvider()",
-    longFormGuard,
-  );
-  assert.ok(
-    longFormGuard >= 0 && configuredChoice > longFormGuard,
-    "même une configuration Veo ne peut produire des segments longs indépendants",
   );
 });
 
@@ -369,6 +484,37 @@ test("le prompt reference_team de 24 secondes conserve ses contraintes critiques
       actPrompt,
       /safe medium-wide, full heads with headroom/i,
       `acte ${index + 1}: aucun visage ne doit être coupé`,
+    );
+  }
+
+  const parallelActPrompts = [0, 1, 2].map((index) =>
+    buildGoogleVideoScenePrompt(generationArgs, index, 8),
+  );
+  const expectedParallelRoles = [
+    /ACT 1 — OPENING/,
+    /MIDDLE ACT — DEMONSTRATION\/PROOF/,
+    /FINAL ACT — CONCLUSION/,
+  ];
+  for (const [index, actPrompt] of parallelActPrompts.entries()) {
+    assert.match(
+      actPrompt,
+      /ONE FILM STORY:/,
+      `acte parallèle ${index + 1}: l'arc commun doit être transmis`,
+    );
+    assert.match(
+      actPrompt,
+      expectedParallelRoles[index]!,
+      `acte parallèle ${index + 1}: le rôle narratif doit rester distinct`,
+    );
+    assert.match(
+      actPrompt,
+      /ONE FILM STORY: 1:.* -> 2:.* -> 3:/,
+      `acte parallèle ${index + 1}: l'arc doit conserver les trois actes`,
+    );
+    assert.match(
+      actPrompt,
+      new RegExp(`ACT ACTION:.*distincte ${index + 1}`),
+      `acte parallèle ${index + 1}: l'action propre à l'acte ne doit pas être tronquée`,
     );
   }
 });

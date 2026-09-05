@@ -140,7 +140,7 @@ export function selectVeoInspirationMode(args: {
 }): VeoInspirationMode {
   if (args.imageCount <= 0) return "none";
   if (
-    args.imageCount > 1 &&
+    args.imageCount >= 1 &&
     args.durationSeconds === 8 &&
     supportsVeoReferenceImages(args.model)
   ) {

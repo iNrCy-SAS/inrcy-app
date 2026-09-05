@@ -2335,6 +2335,7 @@
 .previewFrame {
   grid-column: 1;
   grid-row: 1 / 4;
+  position: relative;
   width: min(100%, 72dvh, 780px);
   height: auto;
   aspect-ratio: 1 / 1;
@@ -2372,6 +2373,22 @@
   display: block;
   object-fit: contain;
   background: #020611;
+}
+
+/*
+ * Le fichier final est déjà normalisé au ratio demandé. On verrouille donc le
+ * lecteur sur toute la surface du cadre : certains moteurs de rendu Chromium
+ * peuvent sinon conserver une boîte intrinsèque de remplacement et afficher
+ * une grande zone noire au-dessus de la vidéo, surtout pendant le chargement
+ * des métadonnées ou après un changement de critères responsive.
+ */
+.previewFrame video {
+  position: absolute;
+  inset: 0;
+  min-width: 100%;
+  min-height: 100%;
+  object-fit: cover;
+  object-position: 50% 50%;
 }
 
 .previewFrame > span {

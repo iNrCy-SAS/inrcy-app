@@ -619,6 +619,16 @@ test("les médias IA verrouillent les textes visibles et la narration dans la la
   assert.match(copywriter, /buildAiLanguageInstruction\(args\.profile\)/);
   assert.match(copywriter, /hasAiLanguageMismatch\(language, visibleCopy\)/);
   assert.match(copywriter, /langue_cible: getAiLanguageLabel\(args\.profile\)/);
+  assert.match(
+    copywriter,
+    /!args\.request\.idea[\s\S]*?args\.request\.subjectSource !== "profile"/,
+  );
+  assert.match(
+    copywriter,
+    /timeoutMs: args\.request\.idea \? 5_000 : 18_000/,
+  );
+  assert.match(copywriter, /deadlineAt: args\.request\.idea \? Date\.now\(\) \+ 5_900/);
+  assert.match(copywriter, /headlineRespectsIdea\(value, idea, language === "fr"\)/);
   assert.match(creativePlan, /if \(language !== "fr"\)/);
   assert.match(creativePlan, /getAiMediaLanguageCopy\(language\)/);
   assert.match(narration, /buildAiMediaNarrationFallback/);
@@ -789,6 +799,11 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   assert.match(omni, /buildGoogleVideoSafetyFallbackPrompt/);
   assert.match(server, /videoEngineResult/);
   assert.match(server, /omni_veo_fallback/);
+  assert.match(server, /veo_omni_fallback/);
+  assert.match(server, /local_fallback/);
+  assert.match(server, /veo_fallback_to_omni/);
+  assert.match(server, /video engine attempt failed/);
+  assert.match(server, /redactAiMediaSensitiveText\(failure\.details, 500\)/);
   assert.match(veo, /DEFAULT_VEO_MODEL/);
   assert.match(veo, /AI_MEDIA_VEO_FALLBACK_MODELS/);
   assert.match(veo, /process\.env\.GEMINI_API_KEY/);
@@ -801,7 +816,9 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   assert.doesNotMatch(veo, /enhancePrompt/);
   assert.doesNotMatch(veo, /negativePrompt/);
   assert.doesNotMatch(veo, /numberOfVideos/);
-  assert.doesNotMatch(veo, /personGeneration\s*:/);
+  assert.match(veo, /personGeneration: "allow_adult"/);
+  assert.match(veo, /Veo scene failed/);
+  assert.match(veo, /redactAiMediaSensitiveText\(failure\.details, 500\)/);
   assert.match(veo, /classifyVeoFailure/);
   assert.match(veo, /nextVeoInspirationMode/);
   assert.match(veo, /Every visible person must be unmistakably adult/);
@@ -907,8 +924,11 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   assert.match(nextConfig, /Geist-Regular\.ttf/);
   assert.match(
     renderer,
-    /\.trim\(\{ background: "#ffffff", threshold: 10 \}\)/
+    /background: \{ r: 0, g: 0, b: 0, alpha: 0 \}/,
   );
+  assert.match(renderer, /width \* \(visible \? 0\.16 : 0\.12\)/);
+  assert.match(renderer, /args\.width - safeMarginX - preparedLogo\.width/);
+  assert.doesNotMatch(renderer, /brandPlateSvg|fill="#ffffff" fill-opacity/);
   assert.doesNotMatch(renderer, /renderAiMediaVideoScenes/);
 
   assert.match(registry, /const BUCKET = "inrcy-pro-media"/);

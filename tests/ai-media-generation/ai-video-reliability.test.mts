@@ -59,6 +59,14 @@ test("les images d'inspiration se dégradent sans bloquer la vidéo", () => {
     selectVeoInspirationMode({
       model: "veo-3.1-fast-generate-preview",
       durationSeconds: 8,
+      imageCount: 1,
+    }),
+    "references",
+  );
+  assert.equal(
+    selectVeoInspirationMode({
+      model: "veo-3.1-fast-generate-preview",
+      durationSeconds: 8,
       imageCount: 3,
     }),
     "references",

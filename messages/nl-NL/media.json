@@ -78,6 +78,8 @@
   "ai_generator_video_engine_result_omni": "Generated with Omni",
   "ai_generator_video_engine_result_veo": "Generated with Veo Fast",
   "ai_generator_video_engine_result_omni_veo_fallback": "Omni unavailable · Veo Fast fallback used",
+  "ai_generator_video_engine_result_veo_omni_fallback": "Veo unavailable · Omni fallback used",
+  "ai_generator_video_engine_result_local_fallback": "Local animated render",
   "ai_generator_duration_8": "Express format",
   "ai_generator_duration_16": "Standard format",
   "ai_generator_duration_24": "Complete format",

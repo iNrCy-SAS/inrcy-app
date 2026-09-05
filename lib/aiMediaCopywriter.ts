@@ -79,7 +79,54 @@ function compactCopy(value: unknown, maximum: number) {
     .slice(0, maximum);
 }
 
-function isNaturalHeadline(value: string, keywords: readonly string[]) {
+function normalizedWords(value: unknown) {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+const IDEA_STOP_WORDS = new Set([
+  "avec", "cette", "dans", "faire", "image", "mettre", "montrer",
+  "notre", "pour", "publication", "quand", "quelque", "video", "votre",
+]);
+
+function headlineRespectsIdea(
+  headline: string,
+  idea: string,
+  requireLexicalAnchor: boolean,
+) {
+  const normalizedHeadline = normalizedWords(headline);
+  const normalizedIdea = normalizedWords(idea);
+  if (!normalizedIdea) return true;
+  // Une consigne entière collée derrière un préfixe éditorial reste une
+  // recopie brute, même si la chaîne n'est pas strictement égale.
+  if (normalizedIdea.length >= 12 && normalizedHeadline.includes(normalizedIdea)) {
+    return false;
+  }
+  // Une traduction idiomatique ne partage pas nécessairement les mêmes mots.
+  // L'ancrage lexical strict ne s'applique donc qu'au chemin français ; la
+  // protection anti-recopie ci-dessus reste active dans toutes les langues.
+  if (!requireLexicalAnchor) return true;
+  const headlineTokens = normalizedHeadline.split(" ").filter(Boolean);
+  const ideaTokens = normalizedIdea
+    .split(" ")
+    .filter((token) => token.length >= 5 && !IDEA_STOP_WORDS.has(token));
+  if (!ideaTokens.length) return true;
+  return ideaTokens.some((ideaToken) => {
+    const stem = ideaToken.slice(0, Math.min(6, ideaToken.length));
+    return headlineTokens.some((headlineToken) => headlineToken.startsWith(stem));
+  });
+}
+
+function isNaturalHeadline(
+  value: string,
+  keywords: readonly string[],
+  idea: string,
+  language: NormalizedAiGenerationProfile["preferences"]["language"],
+) {
   if (value.length < 3 || /[+·|]/.test(value)) return false;
   if (keywords.length > 1 && value.split(/\s+/).length < 4) return false;
   const rawList = keywords
@@ -87,7 +134,10 @@ function isNaturalHeadline(value: string, keywords: readonly string[]) {
     .filter(Boolean)
     .join(" ")
     .toLocaleLowerCase();
-  return value.toLocaleLowerCase() !== rawList;
+  return (
+    value.toLocaleLowerCase() !== rawList &&
+    headlineRespectsIdea(value, idea, language === "fr")
+  );
 }
 
 function applyLocalizedCopy(
@@ -203,6 +253,7 @@ export async function writeAiMediaHeadline(args: {
     languageCode === "fr" &&
     !args.request.textKeywords.length &&
     !args.request.aiInstruction &&
+    !args.request.idea &&
     args.request.subjectSource !== "profile" &&
     !characterDialogueRequested
   ) {
@@ -255,12 +306,23 @@ export async function writeAiMediaHeadline(args: {
       maxOutputTokens: 512,
       temperature: args.request.creativity === "bold" ? 0.85 : 0.45,
       retries: 0,
-      timeoutMs: 18_000,
+      // Une idée libre doit être reformulée, mais cette touche éditoriale
+      // ne doit pas ralentir sensiblement le lancement du moteur vidéo. Le
+      // plan local, déjà ancré dans l'idée, prend le relais après une seule
+      // tentative bornée. La deadline courte empêche les 2 fournisseurs de
+      // secours de rejouer un JSON tronqué avant de lancer le rendu média.
+      timeoutMs: args.request.idea ? 5_000 : 18_000,
+      deadlineAt: args.request.idea ? Date.now() + 5_900 : undefined,
     });
     const headline = compactHeadline(generated.headline);
     if (
       args.request.withText &&
-      !isNaturalHeadline(headline, args.request.textKeywords)
+      !isNaturalHeadline(
+        headline,
+        args.request.textKeywords,
+        args.request.idea,
+        languageCode,
+      )
     ) {
       return args.plan;
     }

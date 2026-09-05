@@ -216,25 +216,27 @@ export const AI_FEATURE_POLICIES: Readonly<Record<AiGenerationFeature, AiFeature
     defaultOperationMaxDurationMs: 110_000,
   },
   "media.image": {
-    maxOutputTokens: 128,
+    // Le mini-copywriter retourne une accroche + la copie structurée de chaque
+    // scène. 128 tokens tronquait régulièrement le JSON avant sa fermeture.
+    maxOutputTokens: 512,
     maxRetries: 0,
     maxTimeoutMs: 300_000,
     maxInputChars: 12_000,
     maxImages: 0,
     maxImageDataChars: 0,
     defaultOperationMaxCalls: 1,
-    defaultOperationMaxReservedOutputTokens: 128,
+    defaultOperationMaxReservedOutputTokens: 512,
     defaultOperationMaxDurationMs: 300_000,
   },
   "media.video": {
-    maxOutputTokens: 128,
+    maxOutputTokens: 512,
     maxRetries: 0,
     maxTimeoutMs: 900_000,
     maxInputChars: 12_000,
     maxImages: 0,
     maxImageDataChars: 0,
     defaultOperationMaxCalls: 1,
-    defaultOperationMaxReservedOutputTokens: 128,
+    defaultOperationMaxReservedOutputTokens: 512,
     defaultOperationMaxDurationMs: 900_000,
   },
 };

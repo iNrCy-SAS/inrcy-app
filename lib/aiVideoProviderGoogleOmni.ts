@@ -39,8 +39,10 @@ const DEFAULT_TIMEOUT_MS = 420_000;
 const DEFAULT_GENERATION_ATTEMPTS = 3;
 const DEFAULT_DOWNLOAD_ATTEMPTS = 3;
 const DEFAULT_FILE_POLL_MS = 2_000;
-// Independent videos may run concurrently, but every 16/24 s request is now a
-// stateful continuation chain and therefore intentionally runs sequentially.
+// Independent eight-second acts run concurrently by default. Stateful video
+// continuation is kept behind an explicit opt-in until the serving route is
+// reliable enough to avoid turning a fast 16/24 s render into a long local
+// fallback after one failed continuation turn.
 const DEFAULT_CONCURRENCY = 3;
 const MAX_CLIP_BYTES = 128 * 1024 * 1024;
 
@@ -170,6 +172,15 @@ function isSafetyFiltered(error: unknown) {
 function veoFallbackEnabled() {
   return !["0", "false", "off", "no"].includes(
     compact(process.env.AI_MEDIA_OMNI_FALLBACK_TO_VEO, 16).toLowerCase(),
+  );
+}
+
+function statefulContinuationEnabled() {
+  return ["1", "true", "on", "yes"].includes(
+    compact(
+      process.env.AI_MEDIA_OMNI_STATEFUL_CONTINUATION_ENABLED,
+      16,
+    ).toLowerCase(),
   );
 }
 
@@ -637,7 +648,8 @@ export const googleOmniVideoProvider: AiVideoProvider = {
     if (args.plan.scenes.length !== durations.length) {
       throw new Error("ai_video_omni_scene_count_invalid");
     }
-    const continuationMode = durations.length > 1;
+    const continuationMode =
+      durations.length > 1 && statefulContinuationEnabled();
     let actualCostMicroUsd = 0;
     let fallbackCostMicroUsd = 0;
     const fallbackModels = new Set<string>();

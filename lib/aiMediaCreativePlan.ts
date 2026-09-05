@@ -52,6 +52,81 @@ function compactHeadline(value: string, max = 58) {
   return `${words || normalized.slice(0, max - 1).trim()}…`;
 }
 
+function lowerFirst(value: string) {
+  const normalized = clean(value, 80);
+  return normalized
+    ? `${normalized.charAt(0).toLocaleLowerCase()}${normalized.slice(1)}`
+    : "";
+}
+
+/**
+ * Une idée libre est souvent une petite scène ("un artisan reçoit...") et non
+ * un groupe nominal. Lui préfixer "Cap sur" produit une phrase cassée. Cette
+ * reformulation locale couvre les verbes les plus fréquents sans inventer de
+ * fait et reste disponible lorsque le copywriter distant expire.
+ */
+function narrativeIdeaHeadline(value: string, variant: number) {
+  const clause = value.match(
+    /^(.{2,34}?)\s+(reçoit|reçoivent|a reçu|ont reçu)\s+(.{3,58})$/i,
+  );
+  if (clause) {
+    const actor = lowerFirst(clause[1]);
+    const object = lowerFirst(clause[3]);
+    const plural = /^(?:reçoivent|ont reçu)$/i.test(clause[2]);
+    const candidates = [
+      `${capitalize(object)} : ${actor} en action`,
+      `Face à ${object}, ${actor} ${plural ? "passent" : "passe"} à l’action`,
+    ];
+    return compactHeadline(candidates[variant % candidates.length]);
+  }
+
+  const actionClause = value.match(
+    /^(.{2,34}?)\s+(?:crée|créent|prépare|préparent|réalise|réalisent|lance|lancent|organise|organisent|accompagne|accompagnent|transforme|transforment|rénove|rénovent|répare|réparent|présente|présentent|dévoile|dévoilent|développe|développent|installe|installent|construit|construisent|livre|livrent|accueille|accueillent)\s+(.{3,58})$/i,
+  );
+  if (!actionClause) return "";
+  const actor = lowerFirst(actionClause[1]);
+  const object = lowerFirst(actionClause[2]);
+  return compactHeadline(
+    variant % 2 === 0
+      ? `${capitalize(object)} prend forme`
+      : `${capitalize(actor)}, au cœur de l’action`,
+  );
+}
+
+/**
+ * Build a fast, deterministic fallback from a free-form idea without ever
+ * exposing the instruction verbatim. The AI copywriter can improve it, but a
+ * short timeout must not make the visible copy unrelated to the chosen topic.
+ */
+function ideaHeadline(value: string, variant: number) {
+  const original = clean(value, 140).replace(/[.!?]+$/g, "").trim();
+  const firstBeat =
+    original.split(/\s*(?:,|;|→|->|\bpuis\b|\bensuite\b|\bafin de\b)\s*/i)[0] ||
+    original;
+  const subject = clean(
+    firstBeat
+      .replace(
+        /^(?:je\s+(?:veux|souhaite|voudrais)\s+(?:une?\s+)?(?:image|vid[eé]o|publication|contenu)?\s*(?:qui|sur|pour|de)?\s*)/i,
+        "",
+      )
+      .replace(
+        /^(?:(?:mettre\s+en\s+avant|cr[eé]er|faire|montrer|pr[eé]senter|illustrer|raconter|expliquer|valoriser|animer|filmer)\s+|partir\s+(?:d['’]|de\s+|du\s+|des\s+|avec\s+)|parler\s+de\s+)/i,
+        "",
+      ),
+    42,
+  );
+  const topic = subject || clean(firstBeat, 42) || "votre projet";
+  const narrativeHeadline = narrativeIdeaHeadline(topic, variant);
+  if (narrativeHeadline) return narrativeHeadline;
+  const lowerTopic = `${topic.charAt(0).toLocaleLowerCase()}${topic.slice(1)}`;
+  const candidates = [
+    `${capitalize(topic)} prend vie`,
+    `Cap sur ${lowerTopic}`,
+    `${capitalize(topic)}, autrement`,
+  ];
+  return compactHeadline(candidates[variant % candidates.length]);
+}
+
 function capitalize(value: string) {
   const normalized = clean(value, 48);
   return normalized
@@ -192,14 +267,46 @@ function finalizeScenes(args: {
   targetCount: number;
   language: string;
 }) {
+  const pool = [...args.candidates, ...(args.fallbacks || [])];
+  // Dès qu'un film comporte plusieurs actes, son dernier acte doit être une
+  // vraie conclusion. Prendre simplement les N premières propositions
+  // transformait parfois la scène 2/2 ou 3/3 en une prestation intermédiaire
+  // alors que les moteurs la recevaient comme FINAL ACT.
+  const conclusion =
+    args.targetCount > 1
+      ? [...pool].reverse().find((candidate) => candidate.layout === "cta")
+      : undefined;
+  const contentTarget = Math.max(
+    0,
+    args.targetCount - (conclusion ? 1 : 0),
+  );
   const selected: AiMediaCreativeScene[] = [];
   const usedTitles = new Set<string>();
-  for (const candidate of [...args.candidates, ...(args.fallbacks || [])]) {
+  for (const candidate of pool) {
+    if (candidate === conclusion) continue;
     const signature = sceneTitleSignature(candidate.title);
     if (!signature || usedTitles.has(signature)) continue;
     usedTitles.add(signature);
     selected.push(candidate);
+    if (selected.length === contentTarget) break;
+  }
+  if (conclusion) {
+    const signature = sceneTitleSignature(conclusion.title);
+    // Le CTA reste le dernier acte même si son libellé est aussi celui d'une
+    // prestation. Une collision de titre ne doit jamais supprimer la fin du
+    // film ni transformer 16/24 s en suite sans conclusion.
+    if (signature) usedTitles.add(signature);
+    selected.push(conclusion);
+  }
+  // Garde la durée contractuelle même si un CTA historique porte
+  // exceptionnellement le même titre qu'une autre scène.
+  for (const candidate of pool) {
     if (selected.length === args.targetCount) break;
+    if (selected.includes(candidate)) continue;
+    const signature = sceneTitleSignature(candidate.title);
+    if (!signature || usedTitles.has(signature)) continue;
+    usedTitles.add(signature);
+    selected.splice(Math.max(0, selected.length - (conclusion ? 1 : 0)), 0, candidate);
   }
 
   const usedDialogue = new Set<string>();
@@ -275,7 +382,7 @@ export function buildAiMediaCreativePlan(args: {
         cta,
         business.city,
         "cta",
-        `${ideaDirection} Conclure sur une scène claire et rassurante.`,
+        `Conclure la même histoire sur un résultat clair et rassurant. ${ideaDirection}`,
       ),
     ].filter((value): value is AiMediaCreativeScene => Boolean(value));
 
@@ -292,14 +399,20 @@ export function buildAiMediaCreativePlan(args: {
     };
   }
 
-  const headline = typologyHeadline({
-    typology,
-    textKeywords: request.withText ? request.textKeywords : [],
-    service,
-    profession,
-    company: business.companyName,
-    variant,
-  });
+  const idea = request.subjectSource === "profile" ? "" : clean(request.idea, 700);
+  // Le copywriter reformule normalement cette base. Si son appel très court
+  // expire, le secours local reste lié au vrai sujet sans jamais recopier la
+  // consigne brute ou simplement la tronquer à l'écran.
+  const headline = idea
+    ? ideaHeadline(idea, variant)
+    : typologyHeadline({
+        typology,
+        textKeywords: request.withText ? request.textKeywords : [],
+        service,
+        profession,
+        company: business.companyName,
+        variant,
+      });
   const subline = clean(
     business.description ||
       [profession, business.city].filter(Boolean).join(" à ") ||
@@ -307,7 +420,6 @@ export function buildAiMediaCreativePlan(args: {
     145,
   );
   const cta = ctaLabel(profile);
-  const idea = request.subjectSource === "profile" ? "" : clean(request.idea, 700);
   const ideaDirection = (idea
     ? `S'inspirer strictement de cette idee sans la recopier a l'ecran : ${idea}`
     : `Representer concretement l'activite ${profession || companyName}.`) + instructionDirection;
@@ -365,13 +477,25 @@ export function buildAiMediaCreativePlan(args: {
     business.services[2]
       ? scene("Une solution complète", business.services[2], strength, "editorial")
       : null,
-    scene(companyName, cta, business.city, "cta"),
+    scene(
+      companyName,
+      cta,
+      business.city,
+      "cta",
+      `Conclure la même histoire en montrant le résultat concret obtenu et une prochaine étape naturelle. ${ideaDirection}`,
+    ),
   ].filter((value): value is AiMediaCreativeScene => Boolean(value));
 
   const fallbackScenes = [
     scene("Votre projet", "Une réponse sur mesure", service || profession, "statement"),
     scene("L’essentiel", "Qualité, écoute, proximité", strength || subline, "editorial"),
-    scene(companyName, cta, business.city, "cta"),
+    scene(
+      companyName,
+      cta,
+      business.city,
+      "cta",
+      `Conclure la même histoire en montrant le résultat concret obtenu et une prochaine étape naturelle. ${ideaDirection}`,
+    ),
   ].filter((value): value is AiMediaCreativeScene => Boolean(value));
   return {
     headline,

@@ -54,6 +54,16 @@ test("all Gateway feature tags have explicit economic policies", () => {
   }
 });
 
+test("media copywriting reserves enough output for a complete multi-scene JSON", () => {
+  for (const feature of ["media.image", "media.video"] as const) {
+    assert.equal(AI_FEATURE_POLICIES[feature].maxOutputTokens, 512);
+    assert.equal(
+      AI_FEATURE_POLICIES[feature].defaultOperationMaxReservedOutputTokens,
+      512,
+    );
+  }
+});
+
 test("the model allowlist exactly covers the eight selectable engine models", () => {
   const allowed = getDefaultAllowedAiGatewayModels();
   assert.deepEqual(

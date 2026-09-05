@@ -37,6 +37,7 @@ import {
   aiMediaDialogueSignature,
   selectAiMediaDialogueLine,
 } from "@/lib/aiMediaDialogue";
+import { redactAiMediaSensitiveText } from "@/lib/aiMediaSensitiveText";
 
 const PROVIDER_ID = "google-gemini";
 const DEFAULT_FAST_COST_MICRO_USD_PER_SECOND = 100_000;
@@ -536,7 +537,7 @@ function buildGoogleVideoLongIdentityDirection(
 ) {
   const teamSize = identityTeamMemberCount === 3 ? 3 : 2;
   if (request.videoCharacterMode === "reference_team") {
-    return `IDENTITY LOCK — exactly ${teamSize} approved adults; preserve supplied faces/hair; never omit, merge, duplicate, swap or replace; living motion, no collage/slideshow/Ken Burns; safe medium-wide, full heads with headroom`;
+    return `IDENTITY LOCK — exactly ${teamSize} approved adults; preserve faces/hair; never omit, merge, duplicate, swap or replace; motion, no collage/slideshow/Ken Burns; safe medium-wide, full heads with headroom`;
   }
   if (request.videoCharacterMode === "professional") {
     return "IDENTITY LOCK — same approved adult professional; preserve face, hair and build across all acts; never replace, duplicate or show a slideshow; safe medium-wide, full head with headroom";
@@ -708,6 +709,25 @@ export function buildGoogleVideoScenePrompt(
     index,
     args.plan.scenes.length,
   );
+  const storyArc = args.plan.scenes
+    .map((plannedScene, plannedIndex) => {
+      const beat = promptSnippet(
+        plannedScene.title ||
+          plannedScene.body ||
+          plannedScene.visualBrief ||
+          args.request.idea,
+        22,
+      );
+      return `${plannedIndex + 1}:${beat}`;
+    })
+    .join(" -> ");
+  // Les briefs de scène répètent volontairement le sujet global pour
+  // rester autonomes. Le titre distinct doit donc passer en premier : sinon
+  // une troncature à 60 caractères envoyait pratiquement la même action aux
+  // trois générations parallèles.
+  const actAction = [scene?.title, scene?.visualBrief, scene?.body]
+    .filter(Boolean)
+    .join(" — ");
   const sequenceHeader = options.continuation
     ? `[# Sources <PREVIOUS_VIDEO>@Video1] Extend this video immediately by ${durationSeconds} seconds from its final frame; same people, faces, clothing, voices, workplace, light and motion; no new intro, reset, recap or repeated event; single unbroken continuous shot with no scene cuts.`
     : `Create one original ${durationSeconds}-second cinematic business shot ${index + 1}/${args.plan.scenes.length}; single unbroken continuous shot with no scene cuts.`;
@@ -716,9 +736,10 @@ export function buildGoogleVideoScenePrompt(
       ? "Do not show any person, human silhouette or face."
       : "Every visible person must be unmistakably adult (25+); no minors.";
 
-  // Long videos are stateful Omni continuations. Keep every section complete
-  // under the 1 400-character model budget: an arbitrary final slice used to
-  // cut dialogue/safety mid-sentence and made later acts restart generically.
+  // Long videos use independent eight-second acts by default so 16/24 s can
+  // render in parallel. Every act receives the complete story arc: the shots
+  // therefore advance one film instead of restarting the subject three times.
+  // Keep each section complete under the 1 400-character model budget.
   if (args.plan.scenes.length > 1) {
     const requiredSections = [
       sequenceHeader,
@@ -732,11 +753,11 @@ export function buildGoogleVideoScenePrompt(
         112,
       )}.`,
       `REQUIRED VISUAL PROOF: ${promptSnippet(visualEvidence, 66)}.`,
-      sceneDirection
-        ? `ACT ACTION: ${promptSnippet(
-            scene?.visualBrief || sceneDirection,
-            60,
-          )}.`
+      !options.continuation
+        ? `ONE FILM STORY: ${promptSnippet(storyArc, 88)}; advance it without restart, recap or contradiction.`
+        : "",
+      actAction
+        ? `ACT ACTION: ${promptSnippet(actAction, 64)}.`
         : "",
       `SEQUENCE ROLE: ${sequenceDirection}.`,
       speechDirection ? `${speechDirection}.` : "",
@@ -846,9 +867,12 @@ async function submitOperation(args: {
           abortSignal: args.signal,
           durationSeconds: args.durationSeconds,
           aspectRatio: args.aspectRatio,
-          // Intentionally omit personGeneration. Google currently rejects
-          // allow_adult on some Veo 3/3.1 routes with INVALID_ARGUMENT.
-          // Person safety remains enforced by the prompt and Google's filters.
+          // Les routes Veo 3/3.1 européennes n'acceptent que allow_adult pour
+          // les personnes. L'expliciter avec une référence évite que le visage
+          // adulte autorisé soit rejeté selon le défaut régional du projet.
+          ...(args.inspirationImages?.length
+            ? { personGeneration: "allow_adult" }
+            : {}),
           ...(inspirationMode === "references" && args.inspirationImages
             ? {
                 referenceImages: args.inspirationImages.map((image) => ({
@@ -1159,11 +1183,12 @@ export const googleVeoVideoProvider: AiVideoProvider = {
       args.request,
     );
     const configuredModels = modelCandidates();
-    // More than one identity photo requires Veo's referenceImages contract.
-    // Do not fall back to a model that would only accept and retain the first
-    // photo: all authorised references must stay active for every shot.
+    // Toute identité autorisée utilise le contrat referenceImages Veo 3.1,
+    // même avec un seul portrait. Ne jamais retomber sur Lite/source-image :
+    // la photo guide l'identité dans chaque acte, sans devenir une simple
+    // première image figée.
     const models =
-      preserveIdentityReferences && args.request.inspirationImages.length > 1
+      preserveIdentityReferences && args.request.inspirationImages.length > 0
         ? configuredModels.filter(supportsVeoReferenceImages)
         : configuredModels;
     if (!models.length) {
@@ -1228,10 +1253,10 @@ export const googleVeoVideoProvider: AiVideoProvider = {
           const index = cursor;
           cursor += 1;
           const durationSeconds = durations[index];
+          const orderedModels = Array.from(
+            new Set([preferredModel, ...models]),
+          );
           try {
-            const orderedModels = Array.from(
-              new Set([preferredModel, ...models]),
-            );
             const clip = await generateClip({
               ai,
               models: orderedModels,
@@ -1257,6 +1282,15 @@ export const googleVeoVideoProvider: AiVideoProvider = {
             // there instead of repeating a known failing primary route.
             preferredModel = clip.model;
           } catch (error) {
+            const failure = classifyVeoFailure(error);
+            console.warn("[ai-media] Veo scene failed", {
+              scene: index + 1,
+              durationSeconds,
+              requestedModel: orderedModels[0] || primaryModel,
+              failureKind: failure.kind,
+              status: failure.status || null,
+              details: redactAiMediaSensitiveText(failure.details, 500),
+            });
             stopped = true;
             firstError ||= error;
           }

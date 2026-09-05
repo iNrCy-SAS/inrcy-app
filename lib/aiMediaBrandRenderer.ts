@@ -54,24 +54,31 @@ function safeOverlayText(value: string) {
     .trim();
 }
 
-function wrapText(value: string, maxCharacters: number, maxLines: number) {
+export function wrapAiMediaOverlayText(
+  value: string,
+  maxCharacters: number,
+  maxLines: number,
+) {
   const normalized = safeOverlayText(value);
   const words = normalized.split(/\s+/).filter(Boolean);
   const lines: string[] = [];
   let current = "";
+  let consumedWords = 0;
   for (const word of words) {
+    if (lines.length >= maxLines) break;
     const candidate = current ? `${current} ${word}` : word;
     if (candidate.length <= maxCharacters || !current) {
       current = candidate;
+      consumedWords += 1;
       continue;
     }
     lines.push(current);
+    if (lines.length >= maxLines) break;
     current = word;
-    if (lines.length >= maxLines - 1) break;
+    consumedWords += 1;
   }
   if (current && lines.length < maxLines) lines.push(current);
-  const consumed = lines.join(" ").length;
-  if (consumed < normalized.length && lines.length) {
+  if (consumedWords < words.length && lines.length) {
     lines[lines.length - 1] = `${lines[lines.length - 1].replace(/[.,;:!?…]+$/g, "")}…`;
   }
   return lines;
@@ -120,6 +127,106 @@ function styleOverlayOpacity(style: AiMediaVisualStyle) {
   return 0.76;
 }
 
+function isNearWhiteCanvasPixel(
+  data: Buffer,
+  offset: number,
+  minimumChannel = 208,
+  maximumChroma = 48,
+) {
+  const red = data[offset] || 0;
+  const green = data[offset + 1] || 0;
+  const blue = data[offset + 2] || 0;
+  const alpha = data[offset + 3] || 0;
+  const minimum = Math.min(red, green, blue);
+  const chroma = Math.max(red, green, blue) - minimum;
+  return alpha >= 16 && minimum >= minimumChannel && chroma <= maximumChroma;
+}
+
+/**
+ * Les anciens logos JPEG/PNG ont parfois été enregistrés sur un rectangle
+ * blanc. On ne le détoure que lorsque le bord de l'image prouve qu'il s'agit
+ * bien d'un canvas blanc opaque. Un logo blanc dont le bord est transparent
+ * ne déclenche donc jamais ce traitement.
+ */
+async function removeOpaqueNearWhiteEdgeCanvas(input: Buffer) {
+  const decoded = await sharp(input, {
+    failOn: "none",
+    pages: 1,
+    limitInputPixels: 16_000_000,
+  })
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const { width, height, channels } = decoded.info;
+  if (width < 3 || height < 3 || channels !== 4) return input;
+
+  const border = new Set<number>();
+  for (let x = 0; x < width; x += 1) {
+    border.add(x);
+    border.add((height - 1) * width + x);
+  }
+  for (let y = 1; y < height - 1; y += 1) {
+    border.add(y * width);
+    border.add(y * width + width - 1);
+  }
+  let opaqueWhiteBorderPixels = 0;
+  for (const index of border) {
+    const offset = index * 4;
+    const alpha = decoded.data[offset + 3] || 0;
+    if (
+      alpha >= 224 &&
+      isNearWhiteCanvasPixel(decoded.data, offset, 234, 24)
+    ) {
+      opaqueWhiteBorderPixels += 1;
+    }
+  }
+  if (opaqueWhiteBorderPixels / border.size < 0.68) return input;
+
+  const visited = new Uint8Array(width * height);
+  const queue = new Uint32Array(width * height);
+  let head = 0;
+  let tail = 0;
+  const enqueue = (index: number) => {
+    if (visited[index]) return;
+    if (!isNearWhiteCanvasPixel(decoded.data, index * 4)) return;
+    visited[index] = 1;
+    queue[tail] = index;
+    tail += 1;
+  };
+  for (const index of border) enqueue(index);
+
+  while (head < tail) {
+    const index = queue[head] || 0;
+    head += 1;
+    const x = index % width;
+    const y = Math.floor(index / width);
+    const offset = index * 4;
+    const red = decoded.data[offset] || 0;
+    const green = decoded.data[offset + 1] || 0;
+    const blue = decoded.data[offset + 2] || 0;
+    const alpha = decoded.data[offset + 3] || 0;
+    const minimum = Math.min(red, green, blue);
+    const chroma = Math.max(red, green, blue) - minimum;
+    // Le coeur blanc devient transparent ; la frange quasi blanche garde une
+    // fraction d'alpha pour un contour antialiasé sans halo dur.
+    const luminanceStrength = Math.max(0, Math.min(1, (minimum - 208) / 38));
+    const neutralityStrength = Math.max(0, Math.min(1, 1 - chroma / 48));
+    decoded.data[offset + 3] = Math.round(
+      alpha * (1 - luminanceStrength * neutralityStrength),
+    );
+    if (x > 0) enqueue(index - 1);
+    if (x + 1 < width) enqueue(index + 1);
+    if (y > 0) enqueue(index - width);
+    if (y + 1 < height) enqueue(index + width);
+  }
+
+  return await sharp(decoded.data, {
+    raw: { width, height, channels: 4 },
+  })
+    .png({ compressionLevel: 9, adaptiveFiltering: true })
+    .toBuffer();
+}
+
 async function prepareLogo(
   logo: Buffer | null,
   width: number,
@@ -129,17 +236,38 @@ async function prepareLogo(
   if (!logo) return null;
   const visible = logoMode === "visible";
   try {
-    const rendered = await sharp(logo, {
+    const orientedLogo = await sharp(logo, {
       failOn: "none",
       pages: 1,
       density: 220,
       limitInputPixels: 40_000_000,
     })
       .rotate()
-      .trim({ background: "#ffffff", threshold: 10 })
       .resize({
-        width: Math.round(width * (visible ? 0.26 : 0.17)),
-        height: Math.round(height * (visible ? 0.095 : 0.062)),
+        width: 1_600,
+        height: 1_600,
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .png({ compressionLevel: 9, adaptiveFiltering: true })
+      .toBuffer();
+    const transparentLogo = await removeOpaqueNearWhiteEdgeCanvas(orientedLogo);
+    const rendered = await sharp(transparentLogo, {
+      failOn: "none",
+      pages: 1,
+      limitInputPixels: 16_000_000,
+    })
+      // Ne jamais fabriquer de fond : un logo PNG/WebP transparent reste
+      // transparent jusque dans le calque vidéo final. On retire uniquement
+      // les marges alpha réellement vides, sans effacer les éléments blancs
+      // qui peuvent faire partie du logo officiel.
+      .trim({
+        background: { r: 0, g: 0, b: 0, alpha: 0 },
+        threshold: 8,
+      })
+      .resize({
+        width: Math.round(width * (visible ? 0.16 : 0.12)),
+        height: Math.round(height * (visible ? 0.06 : 0.048)),
         fit: "inside",
         withoutEnlargement: true,
       })
@@ -155,23 +283,6 @@ async function prepareLogo(
   }
 }
 
-function brandPlateSvg(args: {
-  width: number;
-  height: number;
-  plateWidth: number;
-  plateHeight: number;
-}) {
-  const x = Math.round(args.width * 0.055);
-  const y = Math.round(args.height * 0.045);
-  const radius = Math.round(args.plateHeight * 0.27);
-  return Buffer.from(`
-    <svg width="${args.width}" height="${args.height}" xmlns="http://www.w3.org/2000/svg">
-      <defs><filter id="shadow"><feDropShadow dx="0" dy="7" stdDeviation="12" flood-opacity="0.24"/></filter></defs>
-      <rect x="${x}" y="${y}" width="${args.plateWidth}" height="${args.plateHeight}" rx="${radius}" fill="#ffffff" fill-opacity="0.94" filter="url(#shadow)"/>
-    </svg>
-  `);
-}
-
 function sceneCopyBackdropSvg(args: RenderBaseArgs & { scene: AiMediaCreativeScene }) {
   const margin = Math.round(args.width * 0.065);
   const titleSize = Math.max(48, Math.min(94, Math.round(args.width * 0.065)));
@@ -179,8 +290,16 @@ function sceneCopyBackdropSvg(args: RenderBaseArgs & { scene: AiMediaCreativeSce
   const eyebrowSize = Math.max(20, Math.min(31, Math.round(args.width * 0.022)));
   const statement = args.scene.layout === "statement" || args.scene.layout === "cta";
   const shadeOpacity = statement ? 0.86 : styleOverlayOpacity(args.visualStyle);
-  const titleLines = wrapText(args.scene.title, args.width > args.height ? 37 : 24, 3);
-  const bodyLines = wrapText(args.scene.body, args.width > args.height ? 64 : 43, 2);
+  const titleLines = wrapAiMediaOverlayText(
+    args.scene.title,
+    args.width > args.height ? 37 : 24,
+    3,
+  );
+  const bodyLines = wrapAiMediaOverlayText(
+    args.scene.body,
+    args.width > args.height ? 64 : 43,
+    2,
+  );
   const titleLineHeight = Math.round(titleSize * 1.05);
   const bodyLineHeight = Math.round(bodySize * 1.25);
   const safeBottom = args.height - margin - 22;
@@ -215,8 +334,16 @@ async function renderSceneCopyOverlay(
   const titleSize = Math.max(48, Math.min(94, Math.round(args.width * 0.065)));
   const bodySize = Math.max(25, Math.min(40, Math.round(args.width * 0.028)));
   const eyebrowSize = Math.max(20, Math.min(31, Math.round(args.width * 0.022)));
-  const titleLines = wrapText(args.scene.title, args.width > args.height ? 37 : 24, 3);
-  const bodyLines = wrapText(args.scene.body, args.width > args.height ? 64 : 43, 2);
+  const titleLines = wrapAiMediaOverlayText(
+    args.scene.title,
+    args.width > args.height ? 37 : 24,
+    3,
+  );
+  const bodyLines = wrapAiMediaOverlayText(
+    args.scene.body,
+    args.width > args.height ? 64 : 43,
+    2,
+  );
   const titleLineHeight = Math.round(titleSize * 1.05);
   const bodyLineHeight = Math.round(bodySize * 1.25);
   const safeBottom = args.height - margin - 22;
@@ -287,44 +414,19 @@ async function buildBrandOverlays(args: RenderBaseArgs & {
     args.height,
     args.logoMode,
   );
-  const logoPaddingX = Math.max(22, Math.round(args.width * 0.026));
-  const logoPaddingY = Math.max(14, Math.round(args.height * 0.014));
-  const plateHeight = preparedLogo
-    ? Math.max(72, Math.min(Math.round(args.height * 0.13), preparedLogo.height + logoPaddingY * 2))
-    : Math.max(72, Math.round(args.height * 0.075));
-  const plateWidth = preparedLogo
-    ? Math.max(
-        Math.round(args.width * 0.14),
-        Math.min(Math.round(args.width * 0.36), preparedLogo.width + logoPaddingX * 2),
-      )
-    : Math.min(Math.round(args.width * 0.48), Math.max(Math.round(args.width * 0.22), args.companyName.length * Math.round(args.height * 0.014)));
-  const x = Math.round(args.width * 0.055);
-  const y = Math.round(args.height * 0.045);
-  const plate = brandPlateSvg({
-    width: args.width,
-    height: args.height,
-    plateWidth,
-    plateHeight,
+  if (!preparedLogo) return overlays;
+
+  // La copie éditoriale occupe la zone basse. Le logo reste donc dans le
+  // coin supérieur droit, à taille discrète et avec une marge sûre de 4,5 %.
+  // Il est posé directement avec son alpha : aucune pastille blanche n'est
+  // ajoutée et le sujet central demeure dégagé.
+  const safeMarginX = Math.max(18, Math.round(args.width * 0.045));
+  const safeMarginY = Math.max(18, Math.round(args.height * 0.045));
+  overlays.push({
+    input: preparedLogo.buffer,
+    left: Math.max(0, args.width - safeMarginX - preparedLogo.width),
+    top: safeMarginY,
   });
-  overlays.push({ input: plate, top: 0, left: 0 });
-  if (preparedLogo) {
-    overlays.push({
-      input: preparedLogo.buffer,
-      left: x + Math.round((plateWidth - preparedLogo.width) / 2),
-      top: y + Math.round((plateHeight - preparedLogo.height) / 2),
-    });
-  } else {
-    const companyName = await rasterTextLayer({
-      text: args.companyName,
-      fontSize: Math.max(22, Math.round(args.height * 0.024)),
-      fontWeight: 700,
-      color: "#101827",
-      left: x + Math.round(plateHeight * 0.32),
-      top: y + Math.round(plateHeight * 0.28),
-      maxWidth: Math.max(1, plateWidth - Math.round(plateHeight * 0.52)),
-    });
-    if (companyName) overlays.push(companyName);
-  }
   return overlays;
 }
 

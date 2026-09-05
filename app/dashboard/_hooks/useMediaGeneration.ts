@@ -55,7 +55,9 @@ export type MediaGenerationVideoCharacterMode = MediaGenerationIdentityMode;
 export type MediaGenerationVideoEngineResult =
   | "omni"
   | "veo"
-  | "omni_veo_fallback";
+  | "omni_veo_fallback"
+  | "veo_omni_fallback"
+  | "local_fallback";
 export type MediaGenerationInspirationImage = {
   mimeType: "image/jpeg" | "image/png" | "image/webp";
   data: string;
@@ -867,7 +869,9 @@ export default function useMediaGeneration() {
         const videoEngineResult: MediaGenerationVideoEngineResult | null =
           rawVideoEngineResult === "omni" ||
           rawVideoEngineResult === "veo" ||
-          rawVideoEngineResult === "omni_veo_fallback"
+          rawVideoEngineResult === "omni_veo_fallback" ||
+          rawVideoEngineResult === "veo_omni_fallback" ||
+          rawVideoEngineResult === "local_fallback"
             ? rawVideoEngineResult
             : null;
         const nextResult: MediaGenerationResult = {
