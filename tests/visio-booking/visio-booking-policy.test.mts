@@ -61,6 +61,37 @@ test("les week-ends, horaires hors grille et délais trop courts sont refusés",
   );
 });
 
+test("un créneau le jour même et le lendemain est permis avec deux heures de préavis", () => {
+  const mondayMorning = new Date("2026-09-07T06:00:00.000Z");
+  assert.equal(
+    isAllowedVisioStart({
+      start: new Date("2026-09-07T12:00:00.000Z"),
+      now: mondayMorning,
+      horizonDays: 21,
+      minimumLeadHours: 2,
+    }),
+    true,
+  );
+  assert.equal(
+    isAllowedVisioStart({
+      start: new Date("2026-09-08T07:00:00.000Z"),
+      now: mondayMorning,
+      horizonDays: 21,
+      minimumLeadHours: 2,
+    }),
+    true,
+  );
+  assert.equal(
+    isAllowedVisioStart({
+      start: new Date("2026-09-07T07:00:00.000Z"),
+      now: new Date("2026-09-06T18:30:00.000Z"),
+      horizonDays: 21,
+      minimumLeadHours: 2,
+    }),
+    true,
+  );
+});
+
 test("un rendez-vous existant dans la fenêtre de deux heures bloque la personne", () => {
   const start = new Date("2026-09-07T07:00:00.000Z");
   assert.equal(

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: iNrCy — Rendez-vous visio après inscription
  * Description: Propose un créneau Google Meet après une inscription Elementor réussie.
- * Version: 1.1.0
+ * Version: 1.2.0
  * Author: iNrCy
  */
 
@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('INRCY_VISIO_BOOKING_VERSION', '1.1.0');
+define('INRCY_VISIO_BOOKING_VERSION', '1.2.0');
 define('INRCY_VISIO_BOOKING_FORM_ID', '405c24a');
 define('INRCY_VISIO_BOOKING_FORM_NAME', 'essai_inrcy_30j');
 define('INRCY_VISIO_BOOKING_PUBLIC_OPTION', 'inrcy_visio_booking_public_enabled');
@@ -188,6 +188,7 @@ function inrcy_visio_booking_enqueue_assets() {
     wp_localize_script('inrcy-visio-booking', 'inrcyVisioBookingConfig', array(
         'availabilityUrl' => 'https://app.inrcy.com/api/public/visio-booking/availability',
         'bookingUrl' => 'https://app.inrcy.com/api/public/visio-booking/book',
+        'logoUrl' => 'https://app.inrcy.com/logo-inrcy.png',
         'mode' => inrcy_visio_booking_is_test_request() ? 'test' : 'public',
     ));
 }

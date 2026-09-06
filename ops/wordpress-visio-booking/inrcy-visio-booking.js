@@ -7,6 +7,8 @@
   var previouslyFocused = null;
   var selectedStart = "";
   var availability = [];
+  var currentWeekPage = 0;
+  var DAYS_PER_WEEK = 7;
 
   function escapeHtml(value) {
     return String(value == null ? "" : value)
@@ -57,7 +59,7 @@
       '<div class="inrcy-visio-orbit inrcy-visio-orbit-one"></div>',
       '<div class="inrcy-visio-orbit inrcy-visio-orbit-two"></div>',
       '<button class="inrcy-visio-close" type="button" aria-label="Fermer">×</button>',
-      '<div class="inrcy-visio-brand"><span class="inrcy-visio-spark">✦</span><span>iNrCy</span></div>',
+      '<div class="inrcy-visio-brand"><img src="' + escapeHtml(config.logoUrl || "https://app.inrcy.com/logo-inrcy.png") + '" alt="iNrCy"></div>',
       '<div class="inrcy-visio-progress" aria-hidden="true">',
       '<span class="' + (opts.step >= 1 ? 'is-active' : '') + '"></span>',
       '<span class="' + (opts.step >= 2 ? 'is-active' : '') + '"></span>',
@@ -79,6 +81,7 @@
     currentToken = token;
     selectedStart = "";
     availability = [];
+    currentWeekPage = 0;
     previouslyFocused = document.activeElement;
     dialogRoot = document.createElement("div");
     dialogRoot.className = "inrcy-visio-overlay";
@@ -135,19 +138,16 @@
       return;
     }
 
-    var dayButtons = availability.map(function (day, index) {
-      var date = new Date(day.slots[0].start);
-      var shortWeekday = new Intl.DateTimeFormat("fr-FR", { weekday: "short", timeZone: "Europe/Paris" }).format(date).replace(".", "");
-      var dayNumber = new Intl.DateTimeFormat("fr-FR", { day: "numeric", timeZone: "Europe/Paris" }).format(date);
-      var month = new Intl.DateTimeFormat("fr-FR", { month: "short", timeZone: "Europe/Paris" }).format(date).replace(".", "");
-      return '<button type="button" class="inrcy-visio-day ' + (index === 0 ? 'is-selected' : '') + '" data-day="' + index + '"><small>' + escapeHtml(shortWeekday) + '</small><b>' + escapeHtml(dayNumber) + '</b><span>' + escapeHtml(month) + '</span></button>';
-    }).join("");
-
     setDialog([
       '<p class="inrcy-visio-eyebrow">CHOISISSEZ VOTRE CRÉNEAU</p>',
       '<h2 id="inrcy-visio-title">Quand souhaitez-vous échanger&nbsp;?</h2>',
-      '<p class="inrcy-visio-lead inrcy-visio-lead-compact">Les créneaux durent 1 heure. Une marge est conservée pour que l’échange puisse se prolonger sereinement.</p>',
-      '<div class="inrcy-visio-days" role="tablist" aria-label="Jours disponibles">' + dayButtons + '</div>',
+      '<p class="inrcy-visio-lead inrcy-visio-lead-compact">Prévoyez au moins une heure pour découvrir iNrCy, échanger sur vos besoins et profiter de la <strong>création offerte de vos canaux</strong>.</p>',
+      '<div class="inrcy-visio-week-nav" aria-label="Changer de semaine">',
+      '<button class="inrcy-visio-week-arrow" data-action="week-prev" type="button" aria-label="Semaine précédente">‹</button>',
+      '<strong class="inrcy-visio-week-label" aria-live="polite"></strong>',
+      '<button class="inrcy-visio-week-arrow" data-action="week-next" type="button" aria-label="Semaine suivante">›</button>',
+      '</div>',
+      '<div class="inrcy-visio-days" role="tablist" aria-label="Jours disponibles"></div>',
       '<div class="inrcy-visio-time-heading"><span>Horaires disponibles</span><small>Heure de Paris</small></div>',
       '<div class="inrcy-visio-times" role="group" aria-label="Horaires disponibles"></div>',
       '<p class="inrcy-visio-selection" aria-live="polite"></p>',
@@ -156,15 +156,48 @@
       '<button class="inrcy-visio-secondary" data-action="back" type="button">Retour</button>',
       '</div>',
     ].join(""), { step: 2 });
-    renderTimes(0);
+    var previousWeek = dialogRoot.querySelector("[data-action='week-prev']");
+    var nextWeek = dialogRoot.querySelector("[data-action='week-next']");
+    previousWeek.addEventListener("click", function () { renderWeek(currentWeekPage - 1); });
+    nextWeek.addEventListener("click", function () { renderWeek(currentWeekPage + 1); });
+    renderWeek(0);
+  }
 
-    dialogRoot.querySelectorAll(".inrcy-visio-day").forEach(function (button) {
+  function renderWeek(pageIndex) {
+    if (!dialogRoot || !availability.length) return;
+    var totalWeeks = Math.ceil(availability.length / DAYS_PER_WEEK);
+    currentWeekPage = Math.max(0, Math.min(pageIndex, totalWeeks - 1));
+    var firstDayIndex = currentWeekPage * DAYS_PER_WEEK;
+    var visibleDays = availability.slice(firstDayIndex, firstDayIndex + DAYS_PER_WEEK);
+    var days = dialogRoot.querySelector(".inrcy-visio-days");
+    var label = dialogRoot.querySelector(".inrcy-visio-week-label");
+    var previousWeek = dialogRoot.querySelector("[data-action='week-prev']");
+    var nextWeek = dialogRoot.querySelector("[data-action='week-next']");
+
+    label.textContent = "Semaine " + (currentWeekPage + 1) + " / " + totalWeeks;
+    previousWeek.disabled = currentWeekPage === 0;
+    nextWeek.disabled = currentWeekPage === totalWeeks - 1;
+    days.innerHTML = visibleDays.map(function (day, index) {
+      var absoluteIndex = firstDayIndex + index;
+      var date = new Date(day.slots[0].start);
+      var shortWeekday = new Intl.DateTimeFormat("fr-FR", { weekday: "short", timeZone: "Europe/Paris" }).format(date).replace(".", "");
+      var dayNumber = new Intl.DateTimeFormat("fr-FR", { day: "numeric", timeZone: "Europe/Paris" }).format(date);
+      var month = new Intl.DateTimeFormat("fr-FR", { month: "short", timeZone: "Europe/Paris" }).format(date).replace(".", "");
+      return '<button type="button" role="tab" aria-selected="' + (index === 0 ? 'true' : 'false') + '" class="inrcy-visio-day ' + (index === 0 ? 'is-selected' : '') + '" data-day="' + absoluteIndex + '"><small>' + escapeHtml(shortWeekday) + '</small><b>' + escapeHtml(dayNumber) + '</b><span>' + escapeHtml(month) + '</span></button>';
+    }).join("");
+
+    days.querySelectorAll(".inrcy-visio-day").forEach(function (button) {
       button.addEventListener("click", function () {
-        dialogRoot.querySelectorAll(".inrcy-visio-day").forEach(function (item) { item.classList.remove("is-selected"); });
+        days.querySelectorAll(".inrcy-visio-day").forEach(function (item) {
+          item.classList.remove("is-selected");
+          item.setAttribute("aria-selected", "false");
+        });
         button.classList.add("is-selected");
+        button.setAttribute("aria-selected", "true");
         renderTimes(Number(button.getAttribute("data-day") || 0));
       });
     });
+    renderTimes(firstDayIndex);
   }
 
   function renderTimes(dayIndex) {

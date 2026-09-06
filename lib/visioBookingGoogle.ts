@@ -86,7 +86,7 @@ export function getVisioBookingHorizonDays() {
 }
 
 export function getVisioBookingMinimumLeadHours() {
-  return boundedInteger("INRCY_VISIO_MINIMUM_LEAD_HOURS", 24, 1, 168);
+  return boundedInteger("INRCY_VISIO_MINIMUM_LEAD_HOURS", 2, 1, 168);
 }
 
 export function getVisioTeamMembers(): VisioTeamMember[] {

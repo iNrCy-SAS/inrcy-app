@@ -38,6 +38,7 @@ test("la réservation impose capacité deux, Meet et invitations", () => {
 test("la modale contient les deux choix et le parcours de confirmation", () => {
   const plugin = read("ops/wordpress-visio-booking/inrcy-visio-booking.php");
   const script = read("ops/wordpress-visio-booking/inrcy-visio-booking.js");
+  const styles = read("ops/wordpress-visio-booking/inrcy-visio-booking.css");
   assert.match(plugin, /INRCY_VISIO_BOOKING_PUBLIC_OPTION/);
   assert.match(plugin, /inrcy_visio_booking_frontend_enabled/);
   assert.match(plugin, /inrcy_visio_test/);
@@ -45,5 +46,17 @@ test("la modale contient les deux choix et le parcours de confirmation", () => {
   assert.match(script, /Choisir mon créneau/);
   assert.match(script, /Non, continuer sans rendez-vous/);
   assert.match(script, /Confirmer ce rendez-vous/);
+  assert.match(script, /DAYS_PER_WEEK\s*=\s*7/);
+  assert.match(script, /data-action="week-prev"/);
+  assert.match(script, /data-action="week-next"/);
+  assert.match(script, /Prévoyez au moins une heure/);
+  assert.match(plugin, /logoUrl.*logo-inrcy\.png/);
+  assert.match(styles, /grid-template-columns:\s*repeat\(7,\s*minmax\(0,\s*1fr\)\)/);
+  assert.match(styles, /\.inrcy-visio-dialog\s*\{[\s\S]*?overflow:\s*hidden/);
   assert.match(script, /submit_success\.inrcyVisioBooking/);
+});
+
+test("le préavis par défaut autorise les réservations le jour même", () => {
+  const backend = read("lib/visioBookingGoogle.ts");
+  assert.match(backend, /INRCY_VISIO_MINIMUM_LEAD_HOURS",\s*2,/);
 });
