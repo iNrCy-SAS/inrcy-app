@@ -36,7 +36,12 @@ test("la réservation impose capacité deux, Meet et invitations", () => {
 });
 
 test("la modale contient les deux choix et le parcours de confirmation", () => {
+  const plugin = read("ops/wordpress-visio-booking/inrcy-visio-booking.php");
   const script = read("ops/wordpress-visio-booking/inrcy-visio-booking.js");
+  assert.match(plugin, /INRCY_VISIO_BOOKING_PUBLIC_OPTION/);
+  assert.match(plugin, /inrcy_visio_booking_frontend_enabled/);
+  assert.match(plugin, /inrcy_visio_test/);
+  assert.match(plugin, /current_user_can\('manage_options'\)/);
   assert.match(script, /Choisir mon créneau/);
   assert.match(script, /Non, continuer sans rendez-vous/);
   assert.match(script, /Confirmer ce rendez-vous/);

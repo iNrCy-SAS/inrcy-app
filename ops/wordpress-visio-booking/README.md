@@ -14,6 +14,8 @@ Le bouton « Non, continuer sans rendez-vous » ferme simplement la modale. Le c
 
 ## Installation
 
-Créer une archive contenant le dossier `inrcy-visio-booking`, puis l’installer dans **Extensions > Ajouter une extension > Téléverser une extension**. Activer ensuite **iNrCy — Rendez-vous visio après inscription**.
+Créer une archive contenant le dossier de l’extension, puis l’installer dans **Extensions > Ajouter une extension > Téléverser une extension**. Activer ensuite **iNrCy — Rendez-vous visio après inscription**.
 
-L’activation sur le site public doit uniquement être faite après que les variables Vercel, l’agenda partagé et la connexion Google privée ont été validés.
+À l’installation, l’affichage public est désactivé. Dans **Réglages > Rendez-vous visio iNrCy**, le bouton de test ouvre le formulaire avec la modale uniquement pour un administrateur WordPress connecté. Les autres visiteurs conservent le parcours actuel.
+
+Après un essai complet réussi, cocher **Proposer le rendez-vous à tous les professionnels après une inscription réussie** sur cette même page pour ouvrir le parcours au public.
