@@ -23,6 +23,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { ensureTrialSubscription } from "@/lib/trialSubscription";
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import { buildSupabaseEmailRedirectUrl } from "@/lib/authEmailLinks";
+import { createVisioBookingToken } from "@/lib/visioBookingToken";
 import {
   hasKnownInrcyAccountForEmail,
   isExistingAuthUserError,
@@ -658,12 +659,18 @@ export async function POST(req: Request) {
         .join(" | "),
     }).catch(() => null);
 
+    const bookingToken = createVisioBookingToken({
+      userId,
+      email: payload.email,
+    });
+
     return jsonResponse({
       ok: true,
       user_id: userId,
       app_edition: edition,
       trial_days: trialDays,
       trial_end_at: end.toISOString(),
+      booking_token: bookingToken,
       message: "Invitation envoyée. Le professionnel peut créer son mot de passe depuis l'email reçu.",
     });
   } catch (error: unknown) {

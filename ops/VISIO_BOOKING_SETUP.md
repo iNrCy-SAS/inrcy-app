@@ -1,0 +1,46 @@
+# Prise de rendez-vous visio après inscription
+
+Ce module est indépendant de l’ancien connecteur Google Agenda d’iNrCalendar. Les routes `app/api/integrations/google-calendar/*` restent volontairement supprimées (`410`) et ne sont pas utilisées.
+
+## Variables de production
+
+Obligatoires :
+
+- `INRCY_VISIO_BOOKING_SECRET` : secret aléatoire dédié aux jetons éphémères. À défaut, le code sait utiliser `INRCY_TRIAL_SIGNUP_SECRET`, mais un secret distinct est recommandé.
+- `INRCY_VISIO_SHARED_CALENDAR_ID` : identifiant de l’agenda « Agenda partagé iNrCy ».
+- `INRCY_VISIO_GOOGLE_REDIRECT_URI` : `https://app.inrcy.com/api/admin/visio-booking/google/callback`.
+- `INRCY_VISIO_GOOGLE_ACCOUNT_EMAIL` : compte Google interne autorisé à gérer l’agenda partagé.
+- `KV_REST_API_URL` et `KV_REST_API_TOKEN` : verrou distribué obligatoire en production.
+- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` et `INRCY_CREDENTIALS_SECRET` : infrastructure OAuth/chiffrement existante.
+
+Recommandées :
+
+- `INRCY_VISIO_BOOKING_ALERT_EMAIL=compte@inrcy.com`
+- `INRCY_VISIO_PENDING_COLOR_ID=5` pour la couleur jaune.
+- `INRCY_VISIO_HORIZON_DAYS=21`
+- `INRCY_VISIO_MINIMUM_LEAD_HOURS=24`
+- `INRCY_VISIO_ALLOWED_ORIGINS=https://inrcy.com,https://www.inrcy.com`
+
+Les identifiants d’agenda d’Océane, Apolline et Jimmy ont des valeurs par défaut conformes aux comptes actuels. Ils peuvent être surchargés avec `INRCY_VISIO_OCEANE_CALENDAR_ID`, `INRCY_VISIO_APOLLINE_CALENDAR_ID` et `INRCY_VISIO_JIMMY_CALENDAR_ID`.
+
+## Google Workspace
+
+1. Ajouter l’URI de redirection ci-dessus au client OAuth existant.
+2. Le compte interne connecté doit avoir accès aux disponibilités des trois agendas et le droit de créer des événements dans « Agenda partagé iNrCy ».
+3. Ouvrir `/api/admin/visio-booking/google/start` avec la session admin iNrCy et accepter uniquement les droits Agenda demandés.
+4. Vérifier `/api/admin/visio-booking/google/status`.
+
+## WordPress
+
+Installer puis activer le dossier `ops/wordpress-visio-booking` sous forme d’extension. Le plugin observe la réponse de l’appel d’inscription existant : il ne crée jamais une seconde inscription.
+
+## Règles métier verrouillées
+
+- jours ouvrés du lundi au vendredi ;
+- horaires 9h, 11h, 14h, 16h et 18h, heure de Paris ;
+- événement créé pour 1 heure ;
+- fenêtre de disponibilité conservée pendant 2 heures ;
+- deux rendez-vous simultanés maximum ;
+- attribution automatique à la personne disponible ayant reçu le moins de rendez-vous ;
+- création Google Meet, invitation du professionnel et du membre affecté ;
+- copie visible dans l’agenda partagé et alerte à `compte@inrcy.com`.
