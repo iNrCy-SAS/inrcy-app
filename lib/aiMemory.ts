@@ -29,8 +29,16 @@ export type AiMemory = {
   preferredVocabulary: string[];
   forbiddenVocabulary: string[];
   offersAndArguments: string;
+  keyArguments: string;
   proofsAndObjections: string;
+  objectionResponses: string;
   editorialStrategy: string;
+  campaignCalendar: string;
+  recentNewsItems: string[];
+  recentNewsUpdatedAt: string;
+  recentNewsWindowStart: string;
+  recentNewsWindowEnd: string;
+  recentNewsSourceKeys: string[];
   richText: BusinessDnaRichText;
 };
 
@@ -68,8 +76,16 @@ export const EMPTY_AI_MEMORY: AiMemory = {
   preferredVocabulary: [],
   forbiddenVocabulary: [],
   offersAndArguments: "",
+  keyArguments: "",
   proofsAndObjections: "",
+  objectionResponses: "",
   editorialStrategy: "",
+  campaignCalendar: "",
+  recentNewsItems: [],
+  recentNewsUpdatedAt: "",
+  recentNewsWindowStart: "",
+  recentNewsWindowEnd: "",
+  recentNewsSourceKeys: [],
   richText: EMPTY_BUSINESS_DNA_RICH_TEXT,
 };
 
@@ -84,8 +100,11 @@ export const EMPTY_AI_BUSINESS_KNOWLEDGE: AiBusinessKnowledge = {
 
 export const AI_MEMORY_PREMIUM_FIELDS = [
   "offersAndArguments",
+  "keyArguments",
   "proofsAndObjections",
+  "objectionResponses",
   "editorialStrategy",
+  "campaignCalendar",
 ] as const satisfies readonly (keyof AiMemory)[];
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -122,6 +141,13 @@ function cleanList(value: unknown, maxItems = 16, maxItemLength = 140) {
   return result;
 }
 
+function cleanIsoDate(value: unknown) {
+  const raw = cleanText(value, 40);
+  if (!raw) return "";
+  const timestamp = Date.parse(raw);
+  return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : "";
+}
+
 export function normalizeAiMemory(
   value: unknown,
   options: { includePremium?: boolean } = {},
@@ -135,11 +161,20 @@ export function normalizeAiMemory(
   const rawOffersAndArguments = includePremium
     ? cleanText(source.offersAndArguments ?? source.offers_and_arguments, 5_000)
     : "";
+  const rawKeyArguments = includePremium
+    ? cleanText(source.keyArguments ?? source.key_arguments, 3_000)
+    : "";
   const rawProofsAndObjections = includePremium
     ? cleanText(source.proofsAndObjections ?? source.proofs_and_objections, 5_000)
     : "";
+  const rawObjectionResponses = includePremium
+    ? cleanText(source.objectionResponses ?? source.objection_responses, 3_000)
+    : "";
   const rawEditorialStrategy = includePremium
     ? cleanText(source.editorialStrategy ?? source.editorial_strategy, 5_000)
+    : "";
+  const rawCampaignCalendar = includePremium
+    ? cleanText(source.campaignCalendar ?? source.campaign_calendar, 3_000)
     : "";
   const richText = normalizeBusinessDnaRichText(source.richText ?? source.rich_text, {
     detailedDescription: rawDetailedDescription,
@@ -166,8 +201,35 @@ export function normalizeAiMemory(
     preferredVocabulary: cleanList(source.preferredVocabulary ?? source.preferred_vocabulary),
     forbiddenVocabulary: cleanList(source.forbiddenVocabulary ?? source.forbidden_vocabulary),
     offersAndArguments: normalizeBusinessDnaPlainText(rawOffersAndArguments, 5_000),
+    keyArguments: normalizeBusinessDnaPlainText(rawKeyArguments, 3_000),
     proofsAndObjections: normalizeBusinessDnaPlainText(rawProofsAndObjections, 5_000),
+    objectionResponses: normalizeBusinessDnaPlainText(rawObjectionResponses, 3_000),
     editorialStrategy: normalizeBusinessDnaPlainText(rawEditorialStrategy, 5_000),
+    campaignCalendar: normalizeBusinessDnaPlainText(rawCampaignCalendar, 3_000),
+    recentNewsItems: cleanList(
+      source.recentNewsItems ?? source.recent_news_items ?? [
+        source.recentCompanyNews ?? source.recent_company_news,
+        source.recentOffersHighlights ?? source.recent_offers_highlights,
+        source.recentAchievements ?? source.recent_achievements,
+        source.recentPriorities ?? source.recent_priorities,
+      ],
+      4,
+      2_000,
+    ),
+    recentNewsUpdatedAt: cleanIsoDate(
+      source.recentNewsUpdatedAt ?? source.recent_news_updated_at,
+    ),
+    recentNewsWindowStart: cleanIsoDate(
+      source.recentNewsWindowStart ?? source.recent_news_window_start,
+    ),
+    recentNewsWindowEnd: cleanIsoDate(
+      source.recentNewsWindowEnd ?? source.recent_news_window_end,
+    ),
+    recentNewsSourceKeys: cleanList(
+      source.recentNewsSourceKeys ?? source.recent_news_source_keys,
+      12,
+      60,
+    ),
     richText: includePremium
       ? richText
       : {
@@ -242,8 +304,16 @@ export function mergeAiMemoryUpdate(
     ["preferredVocabulary", ["preferredVocabulary", "preferred_vocabulary"]],
     ["forbiddenVocabulary", ["forbiddenVocabulary", "forbidden_vocabulary"]],
     ["offersAndArguments", ["offersAndArguments", "offers_and_arguments"]],
+    ["keyArguments", ["keyArguments", "key_arguments"]],
     ["proofsAndObjections", ["proofsAndObjections", "proofs_and_objections"]],
+    ["objectionResponses", ["objectionResponses", "objection_responses"]],
     ["editorialStrategy", ["editorialStrategy", "editorial_strategy"]],
+    ["campaignCalendar", ["campaignCalendar", "campaign_calendar"]],
+    ["recentNewsItems", ["recentNewsItems", "recent_news_items"]],
+    ["recentNewsUpdatedAt", ["recentNewsUpdatedAt", "recent_news_updated_at"]],
+    ["recentNewsWindowStart", ["recentNewsWindowStart", "recent_news_window_start"]],
+    ["recentNewsWindowEnd", ["recentNewsWindowEnd", "recent_news_window_end"]],
+    ["recentNewsSourceKeys", ["recentNewsSourceKeys", "recent_news_source_keys"]],
   ];
 
   const changedPlainRichFields = new Set<keyof BusinessDnaRichText>();
@@ -331,8 +401,11 @@ export function mergeAiMemoryPremiumFields(
   return {
     ...core,
     offersAndArguments: premium.offersAndArguments,
+    keyArguments: premium.keyArguments,
     proofsAndObjections: premium.proofsAndObjections,
+    objectionResponses: premium.objectionResponses,
     editorialStrategy: premium.editorialStrategy,
+    campaignCalendar: premium.campaignCalendar,
     richText: {
       ...core.richText,
       offersAndArguments: premium.richText.offersAndArguments,
@@ -366,6 +439,7 @@ export function mergeAiBusinessDnaAnalysis(
   const currentBusiness = normalizeAiBusinessKnowledge(currentBusinessKnowledge);
   const suggested = normalizeAiMemory(suggestedMemory, { includePremium });
   const suggestedBusiness = normalizeAiBusinessKnowledge(suggestedBusinessKnowledge);
+  const hasFreshNewsSnapshot = Boolean(suggested.recentNewsUpdatedAt);
 
   const businessKnowledge = normalizeAiBusinessKnowledge({
     description: currentBusiness.description || suggestedBusiness.description || suggested.detailedDescription,
@@ -400,12 +474,36 @@ export function mergeAiBusinessDnaAnalysis(
     offersAndArguments: includePremium
       ? current.offersAndArguments || suggested.offersAndArguments
       : current.offersAndArguments,
+    keyArguments: includePremium
+      ? current.keyArguments || suggested.keyArguments
+      : current.keyArguments,
     proofsAndObjections: includePremium
       ? current.proofsAndObjections || suggested.proofsAndObjections
       : current.proofsAndObjections,
+    objectionResponses: includePremium
+      ? current.objectionResponses || suggested.objectionResponses
+      : current.objectionResponses,
     editorialStrategy: includePremium
       ? current.editorialStrategy || suggested.editorialStrategy
       : current.editorialStrategy,
+    campaignCalendar: includePremium
+      ? current.campaignCalendar || suggested.campaignCalendar
+      : current.campaignCalendar,
+    recentNewsItems: hasFreshNewsSnapshot
+      ? suggested.recentNewsItems
+      : current.recentNewsItems,
+    recentNewsUpdatedAt: hasFreshNewsSnapshot
+      ? suggested.recentNewsUpdatedAt
+      : current.recentNewsUpdatedAt,
+    recentNewsWindowStart: hasFreshNewsSnapshot
+      ? suggested.recentNewsWindowStart
+      : current.recentNewsWindowStart,
+    recentNewsWindowEnd: hasFreshNewsSnapshot
+      ? suggested.recentNewsWindowEnd
+      : current.recentNewsWindowEnd,
+    recentNewsSourceKeys: hasFreshNewsSnapshot
+      ? suggested.recentNewsSourceKeys
+      : current.recentNewsSourceKeys,
   });
 
   const changedFields: string[] = [];
@@ -437,8 +535,12 @@ export function mergeAiBusinessDnaAnalysis(
   compareList("preferredVocabulary", current.preferredVocabulary, memory.preferredVocabulary);
   compareList("forbiddenVocabulary", current.forbiddenVocabulary, memory.forbiddenVocabulary);
   compareText("offersAndArguments", current.offersAndArguments, memory.offersAndArguments);
+  compareText("keyArguments", current.keyArguments, memory.keyArguments);
   compareText("proofsAndObjections", current.proofsAndObjections, memory.proofsAndObjections);
+  compareText("objectionResponses", current.objectionResponses, memory.objectionResponses);
   compareText("editorialStrategy", current.editorialStrategy, memory.editorialStrategy);
+  compareText("campaignCalendar", current.campaignCalendar, memory.campaignCalendar);
+  compareList("recentNewsItems", current.recentNewsItems, memory.recentNewsItems);
 
   return { memory, businessKnowledge, changedFields, addedItems };
 }
@@ -465,8 +567,11 @@ export function getAiMemoryCompletionScore(
     ? []
     : [
         normalized.offersAndArguments.length >= 40,
+        normalized.keyArguments.length >= 30,
         normalized.proofsAndObjections.length >= 40,
+        normalized.objectionResponses.length >= 30,
         normalized.editorialStrategy.length >= 40,
+        normalized.campaignCalendar.length >= 30,
       ];
   const checks = [...coreChecks, ...premiumChecks];
   return Math.round((checks.filter(Boolean).length / checks.length) * 100);
@@ -500,8 +605,11 @@ export function getAiWorkspaceCompletionScore(
     ? []
     : [
         normalized.offersAndArguments.length >= 40,
+        normalized.keyArguments.length >= 30,
         normalized.proofsAndObjections.length >= 40,
+        normalized.objectionResponses.length >= 30,
         normalized.editorialStrategy.length >= 40,
+        normalized.campaignCalendar.length >= 30,
       ];
   const checks = [...coreChecks, ...premiumChecks];
   return Math.round((checks.filter(Boolean).length / checks.length) * 100);
@@ -510,7 +618,14 @@ export function getAiWorkspaceCompletionScore(
 export function hasAiMemoryContent(memory: unknown) {
   const normalized = normalizeAiMemory(memory);
   return Object.entries(normalized).some(([key, value]) => {
-    if (key === "schemaVersion" || key === "richText") return false;
+    if (
+      key === "schemaVersion" ||
+      key === "richText" ||
+      key === "recentNewsUpdatedAt" ||
+      key === "recentNewsWindowStart" ||
+      key === "recentNewsWindowEnd" ||
+      key === "recentNewsSourceKeys"
+    ) return false;
     return Array.isArray(value) ? value.length > 0 : Boolean(value);
   });
 }
@@ -541,8 +656,12 @@ export function buildAiMemoryPromptPayload(
     vocabulaire_a_privilegier: cleanList(value.preferredVocabulary, 12, 100),
     vocabulaire_interdit: cleanList(value.forbiddenVocabulary, 12, 100),
     offres_et_arguments: cleanText(value.offersAndArguments, 2_200),
+    arguments_commerciaux: cleanText(value.keyArguments, 1_500),
     preuves_objections_garanties: cleanText(value.proofsAndObjections, 2_200),
+    reponses_aux_objections: cleanText(value.objectionResponses, 1_500),
     strategie_editoriale: cleanText(value.editorialStrategy, 2_200),
+    calendrier_de_campagnes: cleanText(value.campaignCalendar, 1_500),
+    actualites_recentes_30_jours: cleanList(value.recentNewsItems, 4, 1_300),
   };
 
   const payload = Object.fromEntries(

@@ -7,15 +7,22 @@ export function getCronSecret() {
 }
 
 export function isAuthorizedCronRequest(req: Request) {
-  const cronSecret = getCronSecret();
-  if (!cronSecret) return false;
+  const cronSecrets = [process.env.VERCEL_CRON_SECRET, process.env.CRON_SECRET]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+  if (cronSecrets.length === 0) return false;
 
   const auth = req.headers.get("authorization") || "";
   const bearer = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
   const headerSecret = (req.headers.get("x-cron-secret") || "").trim();
   const querySecret = new URL(req.url).searchParams.get("secret") || "";
 
-  return bearer === cronSecret || headerSecret === cronSecret || querySecret === cronSecret;
+  return cronSecrets.some(
+    (cronSecret) =>
+      bearer === cronSecret ||
+      headerSecret === cronSecret ||
+      querySecret === cronSecret,
+  );
 }
 
 export function getCronUserIdFromRequest(req: Request, body?: Record<string, unknown> | null) {

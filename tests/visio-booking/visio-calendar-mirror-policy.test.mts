@@ -1,0 +1,143 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import {
+  TEAM_CALENDAR_MIRROR_KEY,
+  TEAM_CALENDAR_MIRROR_VALUE,
+  buildTeamCalendarMirrorBody,
+  shouldMirrorTeamCalendarEvent,
+  teamCalendarMirrorSourceKey,
+  type TeamCalendarEvent,
+  type TeamCalendarMember,
+} from "../../lib/visioCalendarMirrorPolicy.ts";
+
+const member: TeamCalendarMember = {
+  id: "apolline",
+  name: "Apolline",
+  email: "apolline.benedyczak@inrcy.com",
+  calendarId: "apolline.benedyczak@inrcy.com",
+};
+const sharedCalendarId = "shared@group.calendar.google.com";
+
+function sourceEvent(overrides: TeamCalendarEvent = {}): TeamCalendarEvent {
+  return {
+    id: "event-123",
+    status: "confirmed",
+    summary: "Présentation client",
+    description: "Détails internes",
+    location: "Google Meet",
+    htmlLink: "https://calendar.google.com/event?eid=source",
+    hangoutLink: "https://meet.google.com/abc-defg-hij",
+    start: { dateTime: "2026-09-08T09:00:00.000Z" },
+    end: { dateTime: "2026-09-08T10:00:00.000Z" },
+    organizer: { email: member.email },
+    ...overrides,
+  };
+}
+
+test("un rendez-vous personnel éligible est reflété", () => {
+  assert.equal(
+    shouldMirrorTeamCalendarEvent({
+      event: sourceEvent(),
+      memberEmail: member.email,
+      sharedCalendarId,
+    }),
+    true,
+  );
+  assert.notEqual(
+    teamCalendarMirrorSourceKey(member.calendarId, "event-123"),
+    teamCalendarMirrorSourceKey(member.calendarId, "event-124"),
+  );
+});
+
+test("les copies du partagé, annulations, refus et emplacements de travail sont exclus", () => {
+  const cases: TeamCalendarEvent[] = [
+    sourceEvent({ status: "cancelled" }),
+    sourceEvent({ organizer: { email: sharedCalendarId } }),
+    sourceEvent({ eventType: "workingLocation" }),
+    sourceEvent({
+      attendees: [{ email: member.email, self: true, responseStatus: "declined" }],
+    }),
+    sourceEvent({
+      extendedProperties: {
+        private: { [TEAM_CALENDAR_MIRROR_KEY]: TEAM_CALENDAR_MIRROR_VALUE },
+      },
+    }),
+  ];
+  for (const event of cases) {
+    assert.equal(
+      shouldMirrorTeamCalendarEvent({
+        event,
+        memberEmail: member.email,
+        sharedCalendarId,
+      }),
+      false,
+    );
+  }
+});
+
+test("le miroir est interne, sans invité ni nouvelle conférence, et conserve le lien Meet", () => {
+  const body = buildTeamCalendarMirrorBody({
+    event: sourceEvent({
+      extendedProperties: {
+        private: {
+          inrcyBooking: "signup-visio",
+          bookingNonce: "nonce",
+          prospectUserId: "user-id",
+        },
+      },
+    }),
+    member,
+    sharedCalendarId,
+    mirrorEventId: "tm123",
+    fingerprint: "fingerprint",
+  });
+  assert.equal(body.summary, "[Apolline] Présentation client");
+  assert.match(body.description, /Responsable iNrCy : Apolline/);
+  assert.match(body.description, /https:\/\/meet\.google\.com\/abc-defg-hij/);
+  assert.equal("attendees" in body, false);
+  assert.equal("conferenceData" in body, false);
+  assert.equal(body.reminders.useDefault, false);
+  assert.equal(body.extendedProperties.private.inrcyBooking, "signup-visio");
+  assert.equal(body.extendedProperties.private.sourceFingerprint, "fingerprint");
+});
+
+test("un événement privé n'expose pas son titre ni sa description", () => {
+  const body = buildTeamCalendarMirrorBody({
+    event: sourceEvent({ visibility: "private", summary: "Sujet confidentiel" }),
+    member,
+    sharedCalendarId,
+    mirrorEventId: "tm-private",
+    fingerprint: "private-fingerprint",
+  });
+  assert.equal(body.summary, "Indisponible — Apolline");
+  assert.doesNotMatch(body.description, /Sujet confidentiel|Détails internes/);
+});
+
+test("les événements confidentiels ou issus de Gmail restent masqués", () => {
+  for (const event of [
+    sourceEvent({ visibility: "confidential" }),
+    sourceEvent({ eventType: "fromGmail" }),
+  ]) {
+    const body = buildTeamCalendarMirrorBody({
+      event: { ...event, summary: "Détail sensible", description: "Secret" },
+      member,
+      sharedCalendarId,
+      mirrorEventId: "tm-sensitive",
+      fingerprint: "sensitive-fingerprint",
+    });
+    assert.equal(body.summary, "Indisponible — Apolline");
+    assert.doesNotMatch(body.description, /Détail sensible|Secret/);
+  }
+});
+
+test("un événement sans fin exploitable n'est pas reflété", () => {
+  assert.equal(
+    shouldMirrorTeamCalendarEvent({
+      event: sourceEvent({ end: undefined }),
+      memberEmail: member.email,
+      sharedCalendarId,
+    }),
+    false,
+  );
+});

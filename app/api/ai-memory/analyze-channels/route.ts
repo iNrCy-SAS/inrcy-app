@@ -34,6 +34,7 @@ import { enforceRateLimit } from "@/lib/rateLimit";
 import { requireUser } from "@/lib/requireUser";
 import { asRecord, asString } from "@/lib/tsSafe";
 import { decodeBusinessWeeklySchedule } from "@/lib/businessWeeklySchedule";
+import { buildBusinessDnaRecentWindow } from "@/lib/businessDnaRecentNews";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -88,8 +89,16 @@ const ANALYSIS_RESPONSE_SCHEMA = {
           preferredVocabulary: { type: "array", maxItems: 16, items: { type: "string", maxLength: 140 } },
           forbiddenVocabulary: { type: "array", maxItems: 16, items: { type: "string", maxLength: 140 } },
           offersAndArguments: { type: "string", maxLength: 5_000 },
+          keyArguments: { type: "string", maxLength: 3_000 },
           proofsAndObjections: { type: "string", maxLength: 5_000 },
+          objectionResponses: { type: "string", maxLength: 3_000 },
           editorialStrategy: { type: "string", maxLength: 5_000 },
+          campaignCalendar: { type: "string", maxLength: 3_000 },
+          recentNewsItems: {
+            type: "array",
+            maxItems: 4,
+            items: { type: "string", maxLength: 2_000 },
+          },
         },
         required: [
           "detailedDescription",
@@ -104,8 +113,12 @@ const ANALYSIS_RESPONSE_SCHEMA = {
           "preferredVocabulary",
           "forbiddenVocabulary",
           "offersAndArguments",
+          "keyArguments",
           "proofsAndObjections",
+          "objectionResponses",
           "editorialStrategy",
+          "campaignCalendar",
+          "recentNewsItems",
         ],
       },
     },
@@ -266,6 +279,7 @@ export async function POST() {
     if (toolsResult.error) throw toolsResult.error;
 
     const premiumEnabled = hasPremiumDashboardAccess(edition);
+    const recentWindow = buildBusinessDnaRecentWindow();
     const quotaContext = {
       accountId: activeUserId,
       actorAuthUserId: authUserId,
@@ -341,11 +355,15 @@ Règles absolues :
 - customerTypes ne peut contenir que particuliers, professionnels et/ou collectivites ;
 - weeklySchedule doit reprendre uniquement des horaires explicitement visibles ; laisse tous les jours fermés et notes vide si aucun horaire fiable n’est fourni ;
 - mission, brandPersonality et commitments doivent provenir de formulations ou de faits réellement observables dans les sources ; ne déduis pas des valeurs génériques ;
-- ${premiumEnabled ? "renseigne les trois blocs stratégiques Premium uniquement avec des éléments étayés" : "laisse obligatoirement vides offersAndArguments, proofsAndObjections et editorialStrategy"}.
+- recentNewsItems forme un instantané distinct de quatre actualités au maximum entre ${recentWindow.start} et ${recentWindow.end} ;
+- pour recentNewsItems, utilise exclusivement les publications portant une date comprise dans cette période ; n’utilise ni profil statique, ni page de site, ni avis client pour inventer une actualité ;
+- sélectionne les quatre faits distincts les plus récents et utiles, sans imposer de catégorie : si les quatre concernent des réalisations, conserve quatre réalisations ; une actualité autonome et concise par élément, sans doublon, dans l’ordre du plus récent au plus ancien ;
+- remplis autant d’éléments que les sources permettent réellement d’en prouver, jusqu’à quatre, et n’invente jamais pour compléter la liste ;
+- ${premiumEnabled ? "renseigne les six leviers Premium uniquement avec des éléments étayés : offres, arguments, preuves, réponses aux objections, piliers éditoriaux et calendrier de campagnes" : "laisse obligatoirement vides offersAndArguments, keyArguments, proofsAndObjections, objectionResponses, editorialStrategy et campaignCalendar"}.
 
 Réponds uniquement selon le schéma JSON demandé.`;
     const sourceIntroduction = "Voici les sources professionnelles lues avec l’autorisation du compte :\n";
-    const finalInstruction = "\n\nConstruis une proposition d’enrichissement précise. La description doit expliquer concrètement l’activité, les clients servis, le territoire et la manière de travailler quand ces informations sont prouvées.";
+    const finalInstruction = "\n\nConstruis une proposition d’enrichissement précise. La description doit expliquer concrètement l’activité, les clients servis, le territoire et la manière de travailler quand ces informations sont prouvées. recentNewsItems doit contenir jusqu’à quatre actualités autonomes, factuelles et issues uniquement des publications datées des 30 derniers jours, quel que soit leur thème.";
     const contextIntroduction = "Voici les informations déjà validées. Elles servent à éviter les répétitions, mais ne doivent pas être considérées comme une preuve supplémentaire :\n";
     // Les moteurs prompt-only reçoivent aussi le schéma JSON dans leur message
     // système (y compris lors d'un fallback). Cette réserve est calculée sur le
@@ -386,7 +404,16 @@ Réponds uniquement selon le schéma JSON demandé.`;
     });
 
     const suggestedBusinessKnowledge = normalizeAiBusinessKnowledge(generated.businessKnowledge);
-    const suggestedMemory = normalizeAiMemory(generated.memory, { includePremium: premiumEnabled });
+    const recentNewsSourceKeys = sources
+      .filter((source) => source.status === "analyzed" && source.recentItemCount > 0)
+      .map((source) => source.key);
+    const suggestedMemory = normalizeAiMemory({
+      ...asRecord(generated.memory),
+      recentNewsUpdatedAt: recentWindow.end,
+      recentNewsWindowStart: recentWindow.start,
+      recentNewsWindowEnd: recentWindow.end,
+      recentNewsSourceKeys,
+    }, { includePremium: premiumEnabled });
     consumedQuotaContext = null;
 
     return NextResponse.json(

@@ -135,17 +135,15 @@ export function buildAiMediaBusinessDnaPayload(
       ),
       vocabulaire_interdit: cleanList(memory.forbiddenVocabulary, 12, 100),
     },
+    actualites_recentes: cleanList(memory.recentNewsItems, 4, 900),
     offres_et_strategie_premium: preferences.premiumEnabled
       ? {
-          offres_arguments: cleanText(memory.offersAndArguments, 1_800),
-          preuves_objections_garanties: cleanText(
-            memory.proofsAndObjections,
-            1_800,
-          ),
-          strategie_editoriale_saisonnalite: cleanText(
-            memory.editorialStrategy,
-            1_800,
-          ),
+          offres_prioritaires: cleanText(memory.offersAndArguments, 1_200),
+          arguments_et_benefices: cleanText(memory.keyArguments, 1_000),
+          preuves_et_garanties: cleanText(memory.proofsAndObjections, 1_200),
+          reponses_aux_objections: cleanText(memory.objectionResponses, 1_000),
+          piliers_editoriaux: cleanText(memory.editorialStrategy, 1_200),
+          calendrier_de_campagnes: cleanText(memory.campaignCalendar, 1_000),
         }
       : undefined,
     configuration_ia: {
@@ -205,6 +203,9 @@ export function buildAiMediaBusinessDnaPayload(
         2,
         64,
       ),
+    },
+    actualites_recentes: {
+      actualite_principale: cleanText(memory.recentNewsItems[0], 150),
     },
     configuration_ia: {
       langue: preferences.language,
@@ -270,9 +271,22 @@ export function buildAiMediaVideoDnaBrief(
     ["Valeur", first(memory.values, 90)],
     ["Personnalité", first(memory.brandPersonality, 90)],
     ["Engagement", first(memory.commitments, 110)],
+    [
+      "Actualité",
+      cleanText(memory.recentNewsItems[0], 180),
+    ],
     ["Direction", `${preferences.tone}, ${preferences.communicationStyle}`],
     preferences.premiumEnabled
-      ? ["Stratégie", cleanText(memory.editorialStrategy || memory.offersAndArguments, 160)]
+      ? [
+          "Stratégie",
+          cleanText(
+            memory.editorialStrategy ||
+              memory.campaignCalendar ||
+              memory.keyArguments ||
+              memory.offersAndArguments,
+            160,
+          ),
+        ]
       : ["Stratégie", ""],
   ];
 

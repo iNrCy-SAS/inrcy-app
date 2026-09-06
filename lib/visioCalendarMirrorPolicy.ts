@@ -1,0 +1,192 @@
+export const TEAM_CALENDAR_MIRROR_KEY = "inrcyTeamMirror";
+export const TEAM_CALENDAR_MIRROR_VALUE = "v1";
+
+export type TeamCalendarMember = {
+  id: string;
+  name: string;
+  email: string;
+  calendarId: string;
+};
+
+export type TeamCalendarDate = {
+  dateTime?: string;
+  date?: string;
+  timeZone?: string;
+};
+
+export type TeamCalendarEvent = {
+  id?: string;
+  status?: string;
+  summary?: string;
+  description?: string;
+  location?: string;
+  visibility?: string;
+  transparency?: string;
+  eventType?: string;
+  updated?: string;
+  htmlLink?: string;
+  hangoutLink?: string;
+  colorId?: string;
+  start?: TeamCalendarDate;
+  end?: TeamCalendarDate;
+  originalStartTime?: TeamCalendarDate;
+  organizer?: { email?: string; self?: boolean };
+  attendees?: Array<{
+    email?: string;
+    self?: boolean;
+    responseStatus?: string;
+  }>;
+  conferenceData?: {
+    entryPoints?: Array<{ entryPointType?: string; uri?: string }>;
+  };
+  extendedProperties?: {
+    private?: Record<string, string>;
+  };
+};
+
+export type TeamCalendarMirrorInput = {
+  event: TeamCalendarEvent;
+  member: TeamCalendarMember;
+  sharedCalendarId: string;
+  mirrorEventId: string;
+  fingerprint: string;
+};
+
+function normalized(value: unknown) {
+  return String(value || "").trim().toLowerCase();
+}
+
+export function teamCalendarMirrorSourceKey(calendarId: string, eventId: string) {
+  return `${calendarId.trim()}\n${eventId.trim()}`;
+}
+
+export function teamCalendarEventMeetUrl(event: TeamCalendarEvent) {
+  return String(
+    event.hangoutLink ||
+      event.conferenceData?.entryPoints?.find(
+        (entry) => entry.entryPointType === "video",
+      )?.uri ||
+      event.extendedProperties?.private?.sourceMeetUrl ||
+      "",
+  ).trim();
+}
+
+export function isTeamCalendarEventDeclined(
+  event: TeamCalendarEvent,
+  memberEmail: string,
+) {
+  const email = normalized(memberEmail);
+  return Boolean(
+    event.attendees?.some(
+      (attendee) =>
+        (attendee.self || normalized(attendee.email) === email) &&
+        attendee.responseStatus === "declined",
+    ),
+  );
+}
+
+export function shouldMirrorTeamCalendarEvent(input: {
+  event: TeamCalendarEvent;
+  memberEmail: string;
+  sharedCalendarId: string;
+}) {
+  const { event } = input;
+  if (!event.id || event.status === "cancelled") return false;
+  if (event.extendedProperties?.private?.[TEAM_CALENDAR_MIRROR_KEY]) return false;
+  if (normalized(event.organizer?.email) === normalized(input.sharedCalendarId)) {
+    return false;
+  }
+  if (isTeamCalendarEventDeclined(event, input.memberEmail)) return false;
+  if (["birthday", "workingLocation"].includes(String(event.eventType || ""))) {
+    return false;
+  }
+  const hasStart = Boolean(
+    event.start?.dateTime ||
+      event.start?.date ||
+      event.originalStartTime?.dateTime ||
+      event.originalStartTime?.date,
+  );
+  const hasEnd = Boolean(
+    event.end?.dateTime ||
+      event.end?.date ||
+      event.originalStartTime?.dateTime ||
+      event.originalStartTime?.date,
+  );
+  return hasStart && hasEnd;
+}
+
+export function teamCalendarMirrorContentSignature(event: TeamCalendarEvent) {
+  const properties = event.extendedProperties?.private || {};
+  return JSON.stringify({
+    summary: event.summary || "",
+    description: event.description || "",
+    location: event.location || "",
+    colorId: event.colorId || "",
+    visibility: event.visibility || "",
+    transparency: event.transparency || "",
+    start: event.start || null,
+    end: event.end || null,
+    mirrorVersion: properties[TEAM_CALENDAR_MIRROR_KEY] || "",
+    sourceCalendarId: properties.sourceCalendarId || "",
+    sourceEventId: properties.sourceEventId || "",
+    sourceFingerprint: properties.sourceFingerprint || "",
+    assignedMemberId: properties.assignedMemberId || "",
+  });
+}
+
+export function buildTeamCalendarMirrorBody(input: TeamCalendarMirrorInput) {
+  const { event, member, sharedCalendarId, mirrorEventId, fingerprint } = input;
+  const sourcePrivate = event.extendedProperties?.private || {};
+  const isPrivate =
+    event.visibility === "private" ||
+    event.visibility === "confidential" ||
+    event.eventType === "fromGmail";
+  const meetUrl = teamCalendarEventMeetUrl(event);
+  const sourceSummary = String(event.summary || "Rendez-vous").trim();
+  const sourceDescription = isPrivate ? "" : String(event.description || "").trim();
+  const details = [
+    `Responsable iNrCy : ${member.name}`,
+    "Vue synchronisée : modifiez le rendez-vous dans l’agenda du responsable.",
+    sourceDescription,
+    meetUrl ? `Google Meet : ${meetUrl}` : "",
+  ].filter(Boolean);
+
+  return {
+    id: mirrorEventId,
+    status: "confirmed",
+    summary: isPrivate
+      ? `Indisponible — ${member.name}`
+      : `[${member.name}] ${sourceSummary}`,
+    description: details.join("\n\n"),
+    location: isPrivate ? "" : String(event.location || "").trim(),
+    colorId: event.colorId,
+    visibility: "private",
+    transparency: event.transparency || "opaque",
+    start: event.start || event.originalStartTime,
+    end: event.end || event.originalStartTime,
+    reminders: { useDefault: false, overrides: [] },
+    extendedProperties: {
+      private: {
+        ...(sourcePrivate.inrcyBooking
+          ? { inrcyBooking: sourcePrivate.inrcyBooking }
+          : {}),
+        ...(sourcePrivate.bookingNonce
+          ? { bookingNonce: sourcePrivate.bookingNonce }
+          : {}),
+        ...(sourcePrivate.prospectUserId
+          ? { prospectUserId: sourcePrivate.prospectUserId }
+          : {}),
+        [TEAM_CALENDAR_MIRROR_KEY]: TEAM_CALENDAR_MIRROR_VALUE,
+        sourceCalendarId: member.calendarId,
+        sourceEventId: String(event.id || ""),
+        sourceEventUpdated: String(event.updated || ""),
+        sourceFingerprint: fingerprint,
+        sourceHtmlLink: String(event.htmlLink || ""),
+        sourceMeetUrl: meetUrl,
+        assignedMemberId: member.id,
+        assignedMemberEmail: member.email,
+        sharedCalendarId,
+      },
+    },
+  };
+}

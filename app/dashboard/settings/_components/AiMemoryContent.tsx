@@ -36,14 +36,28 @@ import BusinessScheduleEditor from "./BusinessScheduleEditor";
 import EditableTags from "./EditableTags";
 
 type ProfileFoundation = { sector: string; profession: string };
-type WorkspaceTab = "analysis" | "activity" | "audience" | "local" | "identity" | "strategy";
+type WorkspaceTab =
+  | "analysis"
+  | "activity"
+  | "audience"
+  | "local"
+  | "identity"
+  | "news"
+  | "strategy";
 type VoiceTarget =
   | "detailedDescription"
   | "mission"
   | "scheduleNotes"
   | "offersAndArguments"
+  | "keyArguments"
   | "proofsAndObjections"
-  | "editorialStrategy";
+  | "objectionResponses"
+  | "editorialStrategy"
+  | "campaignCalendar"
+  | "recentNewsItem0"
+  | "recentNewsItem1"
+  | "recentNewsItem2"
+  | "recentNewsItem3";
 type AnalysisSource = {
   key: string;
   label: string;
@@ -62,6 +76,17 @@ type AnalysisQuota = {
   used: number;
   remaining: number;
   resetAt: string;
+};
+
+const RECENT_NEWS_SOURCE_LABELS: Record<string, string> = {
+  google_business: "Google Business",
+  facebook: "Facebook",
+  instagram: "Instagram",
+  linkedin: "LinkedIn",
+  tiktok: "TikTok",
+  youtube: "YouTube",
+  pinterest: "Pinterest",
+  inrcy_publications: "iNrCy",
 };
 
 type Props = {
@@ -306,6 +331,15 @@ export default function AiMemoryContent({
     if (key === "strengths") {
       updateMemory((current) => ({ ...current, differentiators: value as string[] }));
     }
+  };
+
+  const setRecentNewsItem = (index: number, value: string) => {
+    const nextItems = Array.from(
+      { length: Math.max(4, memoryRef.current.recentNewsItems.length) },
+      (_, itemIndex) => memoryRef.current.recentNewsItems[itemIndex] || "",
+    );
+    nextItems[index] = value.slice(0, 2_000);
+    setField("recentNewsItems", nextItems);
   };
 
   const setRichDescription = (next: { text: string; html: string }) => {
@@ -553,12 +587,24 @@ export default function AiMemoryContent({
     />
   );
 
+  const recentNewsSourceLabels = memory.recentNewsSourceKeys
+    .map((key) => RECENT_NEWS_SOURCE_LABELS[key])
+    .filter((label, index, labels): label is string => Boolean(label) && labels.indexOf(label) === index);
+  const recentNewsUpdatedLabel = memory.recentNewsUpdatedAt
+    ? new Date(memory.recentNewsUpdatedAt).toLocaleDateString(undefined, {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      })
+    : "";
+
   const tabs: Array<{ key: WorkspaceTab; icon: string; label: string; premium?: boolean }> = [
     { key: "analysis", icon: "✦", label: t("tabAnalysis") },
     { key: "activity", icon: "🏢", label: t("tabActivity") },
     { key: "audience", icon: "🎯", label: t("tabAudience") },
     { key: "local", icon: "📍", label: t("tabLocal") },
     { key: "identity", icon: "🧭", label: t("tabIdentity") },
+    { key: "news", icon: "⚡", label: t("tabNews") },
     { key: "strategy", icon: "💎", label: t("tabStrategy"), premium: true },
   ];
   const activeTabIndex = Math.max(0, tabs.findIndex((tab) => tab.key === activeTab));
@@ -1092,9 +1138,55 @@ export default function AiMemoryContent({
               </div>
             ) : null}
 
+            {activeTab === "news" ? (
+              <section data-ai-memory-tab="news" style={{ ...cardStyle, ...newsCardStyle }}>
+                <SectionHeader
+                  icon="⚡"
+                  title={t("newsTitle")}
+                  description={t("newsDescription")}
+                  trailing={<span style={newsWindowBadgeStyle}>{t("newsWindowBadge")}</span>}
+                />
+                <div data-ai-memory-news-status style={newsStatusStyle}>
+                  <span style={newsStatusCopyStyle}>
+                    <strong>{t("newsAutomaticTitle")}</strong>
+                    <span>{t("newsAutomaticHint")}</span>
+                  </span>
+                  <span style={newsSourceRailStyle}>
+                    {recentNewsSourceLabels.length ? recentNewsSourceLabels.map((label) => (
+                      <span key={label} style={newsSourcePillStyle}>{label}</span>
+                    )) : <span style={newsEmptySourceStyle}>{t("newsNoSources")}</span>}
+                  </span>
+                  {recentNewsUpdatedLabel ? (
+                    <span style={newsUpdatedStyle}>
+                      {t("newsLastUpdated", { date: recentNewsUpdatedLabel })}
+                    </span>
+                  ) : null}
+                </div>
+                <div data-ai-memory-news-rows style={newsGridStyle}>
+                  {([0, 1, 2, 3] as const).map((index) => {
+                    const target = `recentNewsItem${index}` as const;
+                    return (
+                      <div key={target} data-ai-memory-news-row style={newsItemCardStyle}>
+                        <span aria-hidden style={newsItemNumberStyle}>{index + 1}</span>
+                        <MemoryVoiceTextarea
+                          label={t("newsItemLabel", { number: index + 1 })}
+                          placeholder={t("newsItemPlaceholder")}
+                          value={memory.recentNewsItems[index] || ""}
+                          disabled={voiceDisabledFor(target)}
+                          maxLength={2000}
+                          onVoiceBusyChange={(busy) => handleVoiceBusyChange(target, busy)}
+                          onChange={(next) => setRecentNewsItem(index, next)}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            ) : null}
+
             {activeTab === "strategy" ? (
               <section data-ai-memory-tab="strategy" style={{ ...cardStyle, ...premiumCardStyle }}>
-                <div style={sectionHeadingRowStyle}>
+                <div data-ai-memory-premium-heading style={sectionHeadingRowStyle}>
                   <SectionHeader
                     icon="💎"
                     title={t("premiumTitle")}
@@ -1104,34 +1196,79 @@ export default function AiMemoryContent({
                   <span style={premiumBadgeStyle}>{t("premiumBadge")}</span>
                 </div>
                 {!premiumEnabled ? <div style={lockedNoticeStyle}>🔒 {t("premiumLocked")}</div> : null}
-                <div style={premiumGridStyle}>
-                  <PremiumTextarea
-                    label={t("offersLabel")}
-                    placeholder={t("offersPlaceholder")}
-                    value={memory.offersAndArguments}
-                    html={memory.richText.offersAndArguments}
-                    disabled={!premiumEnabled || voiceDisabledFor("offersAndArguments")}
-                    onVoiceBusyChange={(busy) => handleVoiceBusyChange("offersAndArguments", busy)}
-                    onChange={(next) => setPremiumRichField("offersAndArguments", next)}
-                  />
-                  <PremiumTextarea
-                    label={t("proofsLabel")}
-                    placeholder={t("proofsPlaceholder")}
-                    value={memory.proofsAndObjections}
-                    html={memory.richText.proofsAndObjections}
-                    disabled={!premiumEnabled || voiceDisabledFor("proofsAndObjections")}
-                    onVoiceBusyChange={(busy) => handleVoiceBusyChange("proofsAndObjections", busy)}
-                    onChange={(next) => setPremiumRichField("proofsAndObjections", next)}
-                  />
-                  <PremiumTextarea
-                    label={t("editorialLabel")}
-                    placeholder={t("editorialPlaceholder")}
-                    value={memory.editorialStrategy}
-                    html={memory.richText.editorialStrategy}
-                    disabled={!premiumEnabled || voiceDisabledFor("editorialStrategy")}
-                    onVoiceBusyChange={(busy) => handleVoiceBusyChange("editorialStrategy", busy)}
-                    onChange={(next) => setPremiumRichField("editorialStrategy", next)}
-                  />
+                <div data-ai-memory-premium-rows style={premiumGridStyle}>
+                  <div data-ai-memory-premium-row style={premiumFieldCardStyle}>
+                    <span aria-hidden style={premiumFieldNumberStyle}>1</span>
+                    <PremiumTextarea
+                      label={t("offersLabel")}
+                      placeholder={t("offersPlaceholder")}
+                      value={memory.offersAndArguments}
+                      html={memory.richText.offersAndArguments}
+                      disabled={!premiumEnabled || voiceDisabledFor("offersAndArguments")}
+                      onVoiceBusyChange={(busy) => handleVoiceBusyChange("offersAndArguments", busy)}
+                      onChange={(next) => setPremiumRichField("offersAndArguments", next)}
+                    />
+                  </div>
+                  <div data-ai-memory-premium-row style={premiumFieldCardStyle}>
+                    <span aria-hidden style={premiumFieldNumberStyle}>2</span>
+                    <MemoryVoiceTextarea
+                      label={t("argumentsLabel")}
+                      placeholder={t("argumentsPlaceholder")}
+                      value={memory.keyArguments}
+                      disabled={!premiumEnabled || voiceDisabledFor("keyArguments")}
+                      maxLength={3000}
+                      onVoiceBusyChange={(busy) => handleVoiceBusyChange("keyArguments", busy)}
+                      onChange={(next) => setField("keyArguments", next.slice(0, 3000))}
+                    />
+                  </div>
+                  <div data-ai-memory-premium-row style={premiumFieldCardStyle}>
+                    <span aria-hidden style={premiumFieldNumberStyle}>3</span>
+                    <PremiumTextarea
+                      label={t("proofsLabel")}
+                      placeholder={t("proofsPlaceholder")}
+                      value={memory.proofsAndObjections}
+                      html={memory.richText.proofsAndObjections}
+                      disabled={!premiumEnabled || voiceDisabledFor("proofsAndObjections")}
+                      onVoiceBusyChange={(busy) => handleVoiceBusyChange("proofsAndObjections", busy)}
+                      onChange={(next) => setPremiumRichField("proofsAndObjections", next)}
+                    />
+                  </div>
+                  <div data-ai-memory-premium-row style={premiumFieldCardStyle}>
+                    <span aria-hidden style={premiumFieldNumberStyle}>4</span>
+                    <MemoryVoiceTextarea
+                      label={t("objectionsLabel")}
+                      placeholder={t("objectionsPlaceholder")}
+                      value={memory.objectionResponses}
+                      disabled={!premiumEnabled || voiceDisabledFor("objectionResponses")}
+                      maxLength={3000}
+                      onVoiceBusyChange={(busy) => handleVoiceBusyChange("objectionResponses", busy)}
+                      onChange={(next) => setField("objectionResponses", next.slice(0, 3000))}
+                    />
+                  </div>
+                  <div data-ai-memory-premium-row style={premiumFieldCardStyle}>
+                    <span aria-hidden style={premiumFieldNumberStyle}>5</span>
+                    <PremiumTextarea
+                      label={t("editorialLabel")}
+                      placeholder={t("editorialPlaceholder")}
+                      value={memory.editorialStrategy}
+                      html={memory.richText.editorialStrategy}
+                      disabled={!premiumEnabled || voiceDisabledFor("editorialStrategy")}
+                      onVoiceBusyChange={(busy) => handleVoiceBusyChange("editorialStrategy", busy)}
+                      onChange={(next) => setPremiumRichField("editorialStrategy", next)}
+                    />
+                  </div>
+                  <div data-ai-memory-premium-row style={premiumFieldCardStyle}>
+                    <span aria-hidden style={premiumFieldNumberStyle}>6</span>
+                    <MemoryVoiceTextarea
+                      label={t("campaignCalendarLabel")}
+                      placeholder={t("campaignCalendarPlaceholder")}
+                      value={memory.campaignCalendar}
+                      disabled={!premiumEnabled || voiceDisabledFor("campaignCalendar")}
+                      maxLength={3000}
+                      onVoiceBusyChange={(busy) => handleVoiceBusyChange("campaignCalendar", busy)}
+                      onChange={(next) => setField("campaignCalendar", next.slice(0, 3000))}
+                    />
+                  </div>
                 </div>
               </section>
             ) : null}
@@ -1306,10 +1443,21 @@ export default function AiMemoryContent({
         @keyframes dnaParticles { 0% { transform: translate3d(0,0,0); opacity: .18; } 55% { opacity: .36; } 100% { transform: translate3d(18px,-14px,0); opacity: .24; } }
         @keyframes dnaProgressSweep { to { transform: translateX(100%); } }
         @media (min-width: 721px) and (max-width: 1180px) {
-          nav[role="tablist"] {
-            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-            overflow: visible !important;
+          nav[data-ai-memory-desktop-tabs] {
+            grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+            gap: 3px !important;
+            overflow: hidden !important;
           }
+          nav[data-ai-memory-desktop-tabs] button {
+            gap: 4px !important;
+            padding-inline: 3px !important;
+            font-size: 10px !important;
+          }
+        }
+        nav[data-ai-memory-desktop-tabs] button > span:nth-child(2) {
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
         @media (max-width: 720px) {
           nav[data-ai-memory-desktop-tabs] { display: none !important; }
@@ -1351,6 +1499,33 @@ export default function AiMemoryContent({
             animation: aiMemoryMobileTabEnter .22s ease both;
             touch-action: pan-y;
           }
+          section[data-ai-memory-tab="news"],
+          section[data-ai-memory-tab="strategy"] {
+            gap: 14px !important;
+            padding: 14px 11px !important;
+          }
+          section[data-ai-memory-tab="news"] > header {
+            align-items: flex-start !important;
+          }
+          div[data-ai-memory-news-status] {
+            align-items: flex-start !important;
+          }
+          div[data-ai-memory-news-status] > span:nth-child(2) {
+            flex: 1 1 100% !important;
+            justify-content: flex-start !important;
+          }
+          div[data-ai-memory-premium-heading] {
+            grid-template-columns: minmax(0, 1fr) !important;
+          }
+          div[data-ai-memory-premium-heading] > span:last-child {
+            justify-self: start;
+          }
+          div[data-ai-memory-news-row],
+          div[data-ai-memory-premium-row] {
+            grid-template-columns: 34px minmax(0, 1fr) !important;
+            gap: 10px !important;
+            padding: 11px !important;
+          }
         }
         @keyframes aiMemoryMobileTabEnter {
           from { opacity: .55; transform: translateY(5px); }
@@ -1386,6 +1561,55 @@ function CompletionPill({ label, score }: { label: string; score: number }) {
       <span aria-hidden style={completionPillSparkStyle}>✦</span>
       <strong>{score}%</strong>
     </span>
+  );
+}
+
+function MemoryVoiceTextarea({
+  label,
+  placeholder,
+  value,
+  disabled,
+  maxLength,
+  onVoiceBusyChange,
+  onChange,
+}: {
+  label: string;
+  placeholder: string;
+  value: string;
+  disabled: boolean;
+  maxLength: number;
+  onVoiceBusyChange: (busy: boolean) => void;
+  onChange: (next: string) => void;
+}) {
+  return (
+    <div style={{ ...voiceTextareaFieldStyle, opacity: disabled ? 0.56 : 1 }}>
+      <span style={voiceTextareaHeadingStyle}>
+        <span style={labelStyle}>{label}</span>
+        <span style={identityMissionActionsStyle}>
+          <MediaSubjectVoiceButton
+            disabled={disabled}
+            value={value}
+            contextLabel={label}
+            onChange={onChange}
+            onBusyChange={onVoiceBusyChange}
+            purpose="content"
+            placement="inline"
+            mergeMode="paragraph"
+            maxLength={maxLength}
+          />
+          <span style={identityCounterStyle}>{value.length}/{maxLength}</span>
+        </span>
+      </span>
+      <textarea
+        value={value}
+        readOnly={disabled}
+        onChange={(event) => onChange(event.target.value.slice(0, maxLength))}
+        maxLength={maxLength}
+        rows={5}
+        placeholder={placeholder}
+        style={voiceTextareaInputStyle}
+      />
+    </div>
   );
 }
 
@@ -1459,8 +1683,8 @@ const analysisErrorStyle: CSSProperties = { borderRadius: 11, border: "1px solid
 const scoreStyle: CSSProperties = { minWidth: 38, color: "#ddd6fe", fontSize: 12, textAlign: "right" };
 const progressTrackStyle: CSSProperties = { height: 5, overflow: "hidden", borderRadius: 999, background: "rgba(255,255,255,0.09)" };
 const progressValueStyle: CSSProperties = { display: "block", height: "100%", minWidth: 4, borderRadius: 999, background: "linear-gradient(90deg, #38bdf8, #8b5cf6 58%, #ec4899)", boxShadow: "0 0 18px rgba(139,92,246,.42)", transition: "width .25s ease" };
-const tabListStyle: CSSProperties = { position: "relative", zIndex: 2, display: "grid", gridTemplateColumns: "repeat(6, minmax(0, 1fr))", gap: 7, padding: 6, overflowX: "auto", scrollSnapType: "x proximity", borderRadius: 16, border: "1px solid rgba(255,255,255,0.10)", background: "rgba(5,13,28,0.94)", boxShadow: "0 12px 34px rgba(0,0,0,0.20)", backdropFilter: "blur(18px)" };
-const tabButtonStyle: CSSProperties = { minWidth: 0, display: "flex", justifyContent: "center", alignItems: "center", gap: 7, borderRadius: 11, border: "1px solid transparent", background: "transparent", color: "rgba(255,255,255,0.66)", padding: "9px 7px", cursor: "pointer", fontSize: 12.5, fontWeight: 850, whiteSpace: "nowrap" };
+const tabListStyle: CSSProperties = { position: "relative", zIndex: 2, display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 5, padding: 6, overflow: "hidden", borderRadius: 16, border: "1px solid rgba(255,255,255,0.10)", background: "rgba(5,13,28,0.94)", boxShadow: "0 12px 34px rgba(0,0,0,0.20)", backdropFilter: "blur(18px)" };
+const tabButtonStyle: CSSProperties = { minWidth: 0, display: "flex", justifyContent: "center", alignItems: "center", gap: 6, borderRadius: 11, border: "1px solid transparent", background: "transparent", color: "rgba(255,255,255,0.66)", padding: "9px 5px", cursor: "pointer", fontSize: 11.5, fontWeight: 850, whiteSpace: "nowrap", overflow: "hidden" };
 const activeTabButtonStyle: CSSProperties = { border: "1px solid rgba(125,211,252,0.28)", background: "linear-gradient(135deg, rgba(14,165,233,0.18), rgba(124,58,237,0.18))", color: "white", boxShadow: "0 7px 22px rgba(14,165,233,0.10)" };
 const mobileTabNavigatorStyle: CSSProperties = { position: "relative", zIndex: 3, display: "none", gridTemplateColumns: "42px minmax(0, 1fr) 42px", alignItems: "stretch", gap: 7, padding: 7, borderRadius: 16, border: "1px solid rgba(125,211,252,.20)", background: "linear-gradient(135deg, rgba(4,18,38,.98), rgba(25,16,54,.98))", boxShadow: "0 13px 34px rgba(0,0,0,.24)" };
 const mobileTabArrowStyle: CSSProperties = { minWidth: 0, minHeight: 48, display: "grid", placeItems: "center", borderRadius: 11, border: "1px solid rgba(125,211,252,.18)", background: "rgba(56,189,248,.08)", color: "rgba(240,249,255,.92)", fontSize: 19, fontWeight: 900, cursor: "pointer" };
@@ -1480,7 +1704,7 @@ const foundationCompactLabelStyle: CSSProperties = { color: "#67e8f9", fontSize:
 const foundationCompactDividerStyle: CSSProperties = { width: 1, height: 15, background: "rgba(255,255,255,.15)" };
 const foundationCompactHintStyle: CSSProperties = { color: "rgba(203,213,225,.60)", fontSize: 10.5, lineHeight: 1.35 };
 const sectionHeadingRowStyle: CSSProperties = { display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", alignItems: "start", gap: 12 };
-const sectionHeaderStyle: CSSProperties = { display: "flex", alignItems: "center", gap: 11, paddingBottom: 12, borderBottom: "1px solid rgba(255,255,255,0.09)" };
+const sectionHeaderStyle: CSSProperties = { display: "flex", flexWrap: "wrap", alignItems: "center", gap: 11, paddingBottom: 12, borderBottom: "1px solid rgba(255,255,255,0.09)" };
 const sectionIconStyle: CSSProperties = { width: 36, height: 36, flex: "0 0 auto", display: "grid", placeItems: "center", borderRadius: 11, border: "1px solid rgba(125,211,252,0.22)", background: "rgba(56,189,248,0.10)" };
 const completionPillStyle: CSSProperties = { minWidth: 61, height: 31, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "0 9px", borderRadius: 999, border: "1px solid rgba(196,181,253,0.25)", background: "linear-gradient(135deg, rgba(14,165,233,0.12), rgba(124,58,237,0.18))", color: "#ddd6fe", fontSize: 11.5, boxShadow: "0 7px 22px rgba(76,29,149,0.13)" };
 const completionPillSparkStyle: CSSProperties = { color: "#67e8f9", fontSize: 10, textShadow: "0 0 10px rgba(103,232,249,.72)" };
@@ -1498,6 +1722,9 @@ const identityTagLabelStyle: CSSProperties = { flex: "1 1 180px", maxWidth: 235,
 const identityTagContentStyle: CSSProperties = { flex: "5 1 560px", minWidth: 0 };
 const identityTextareaStyle: CSSProperties = { width: "100%", minHeight: 104, resize: "vertical", borderRadius: 13, border: "1px solid rgba(255,255,255,0.13)", background: "rgba(3,10,30,0.52)", color: "white", padding: "11px 12px", font: "inherit", fontSize: 12.5, lineHeight: 1.5, outline: "none" };
 const identityCounterStyle: CSSProperties = { flex: "0 0 auto", color: "rgba(255,255,255,0.42)", fontSize: 10.5 };
+const voiceTextareaFieldStyle: CSSProperties = { display: "grid", alignContent: "start", gap: 9, minWidth: 0, width: "100%", height: "100%" };
+const voiceTextareaHeadingStyle: CSSProperties = { display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: "8px 12px", minWidth: 0 };
+const voiceTextareaInputStyle: CSSProperties = { ...identityTextareaStyle, minHeight: 104, height: "100%" };
 const identityVocabularySectionStyle: CSSProperties = { display: "grid", gap: 14, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,0.09)" };
 const identityVocabularyHeadingStyle: CSSProperties = { display: "grid", gap: 3 };
 const identityVocabularyTitleStyle: CSSProperties = { color: "white", fontSize: 14.5, lineHeight: 1.3 };
@@ -1508,8 +1735,21 @@ const localScheduleCardStyle: CSSProperties = { display: "grid", alignContent: "
 const checkboxGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 210px), 1fr))", gap: 9 };
 const choiceStyle: CSSProperties = { display: "flex", alignItems: "center", gap: 9, padding: "10px 12px", borderRadius: 12, border: "1px solid rgba(255,255,255,0.10)", background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.88)" };
 const selectedChoiceStyle: CSSProperties = { border: "1px solid rgba(56,189,248,0.34)", background: "rgba(56,189,248,0.10)" };
+const newsCardStyle: CSSProperties = { border: "1px solid rgba(56,189,248,0.26)", background: "radial-gradient(circle at 100% 0, rgba(236,72,153,.12), transparent 34%), linear-gradient(145deg, rgba(8,47,73,.38), rgba(37,21,69,.72))" };
+const newsWindowBadgeStyle: CSSProperties = { display: "inline-flex", alignItems: "center", minHeight: 28, padding: "5px 10px", borderRadius: 999, border: "1px solid rgba(103,232,249,.30)", background: "rgba(8,145,178,.13)", color: "#a5f3fc", fontSize: 10.5, fontWeight: 900, whiteSpace: "nowrap" };
+const newsStatusStyle: CSSProperties = { display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px 12px", padding: "11px 13px", borderRadius: 15, border: "1px solid rgba(167,139,250,.16)", background: "rgba(5,13,35,.48)" };
+const newsStatusCopyStyle: CSSProperties = { flex: "1 1 330px", display: "grid", gap: 3, minWidth: 0, color: "white", fontSize: 12, lineHeight: 1.4 };
+const newsSourceRailStyle: CSSProperties = { display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end", gap: 5 };
+const newsSourcePillStyle: CSSProperties = { display: "inline-flex", alignItems: "center", minHeight: 24, padding: "4px 8px", borderRadius: 999, border: "1px solid rgba(103,232,249,.22)", background: "rgba(14,165,233,.09)", color: "rgba(224,242,254,.86)", fontSize: 9.5, fontWeight: 850 };
+const newsEmptySourceStyle: CSSProperties = { color: "rgba(203,213,225,.58)", fontSize: 10.5, fontWeight: 750 };
+const newsUpdatedStyle: CSSProperties = { flex: "0 0 100%", color: "rgba(196,181,253,.66)", fontSize: 10, fontWeight: 750 };
+const newsGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "minmax(0, 1fr)", alignItems: "stretch", gap: 11 };
+const newsItemCardStyle: CSSProperties = { minWidth: 0, display: "grid", gridTemplateColumns: "40px minmax(0, 1fr)", alignItems: "start", gap: 13, padding: 14, borderRadius: 17, border: "1px solid rgba(103,232,249,.18)", background: "linear-gradient(115deg, rgba(8,47,73,.34), rgba(23,26,66,.48) 56%, rgba(60,24,75,.34))", boxShadow: "inset 0 1px 0 rgba(255,255,255,.025), 0 10px 28px rgba(0,0,0,.10)" };
+const newsItemNumberStyle: CSSProperties = { width: 38, height: 38, display: "grid", placeItems: "center", borderRadius: 12, border: "1px solid rgba(103,232,249,.28)", background: "linear-gradient(145deg, rgba(14,165,233,.20), rgba(124,58,237,.18))", color: "#a5f3fc", fontSize: 12, fontWeight: 950, boxShadow: "0 8px 20px rgba(14,165,233,.10)" };
 const premiumCardStyle: CSSProperties = { border: "1px solid rgba(251,191,36,0.28)", background: "linear-gradient(145deg, rgba(92,55,7,0.20), rgba(49,24,71,0.66))" };
-const premiumGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "1fr", gap: 14 };
+const premiumGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "minmax(0, 1fr)", alignItems: "stretch", gap: 11 };
+const premiumFieldCardStyle: CSSProperties = { minWidth: 0, display: "grid", gridTemplateColumns: "40px minmax(0, 1fr)", alignItems: "start", gap: 13, padding: 14, borderRadius: 17, border: "1px solid rgba(251,191,36,.17)", background: "linear-gradient(115deg, rgba(92,55,7,.17), rgba(42,23,67,.48) 58%, rgba(76,29,70,.28))", boxShadow: "inset 0 1px 0 rgba(255,255,255,.025), 0 10px 28px rgba(0,0,0,.10)" };
+const premiumFieldNumberStyle: CSSProperties = { width: 38, height: 38, display: "grid", placeItems: "center", borderRadius: 12, border: "1px solid rgba(251,191,36,.28)", background: "linear-gradient(145deg, rgba(245,158,11,.18), rgba(168,85,247,.18))", color: "#fde68a", fontSize: 12, fontWeight: 950, boxShadow: "0 8px 20px rgba(146,64,14,.10)" };
 const premiumBadgeStyle: CSSProperties = { flex: "0 0 auto", borderRadius: 999, border: "1px solid rgba(251,191,36,0.38)", background: "rgba(251,191,36,0.13)", color: "#fde68a", padding: "5px 9px", fontSize: 10.5, fontWeight: 950, textTransform: "uppercase", letterSpacing: ".06em" };
 const lockedNoticeStyle: CSSProperties = { borderRadius: 12, border: "1px solid rgba(251,191,36,0.20)", background: "rgba(120,53,15,0.16)", color: "#fde68a", padding: "10px 11px", fontSize: 12, lineHeight: 1.4, fontWeight: 800 };
 const actionsStyle: CSSProperties = { position: "relative", zIndex: 2, display: "grid", gridTemplateColumns: "minmax(105px, 130px) minmax(135px, 175px) minmax(220px, 310px)", justifyContent: "end", gap: 8, padding: "2px 0 0", background: "transparent" };

@@ -29,10 +29,52 @@ test("le nouveau OAuth visio reste séparé de l'ancien connecteur iNrCalendar s
 test("la réservation impose capacité deux, Meet et invitations", () => {
   const backend = read("lib/visioBookingGoogle.ts");
   assert.match(backend, /VISIO_BOOKING_MAX_CONCURRENT/);
+  assert.match(backend, /listAllBookingEvents\(rangeStart, rangeEnd\)/);
+  assert.match(backend, /listAllBookingEvents\(loadRangeStart, loadRangeEnd\)/);
   assert.match(backend, /conferenceDataVersion=1&sendUpdates=all/);
   assert.match(backend, /conferenceSolutionKey:\s*\{ type: "hangoutsMeet" \}/);
   assert.match(backend, /assignedMemberId/);
   assert.match(backend, /INRCY_VISIO_SHARED_CALENDAR_ID/);
+});
+
+test("les nouveaux rendez-vous sont organisés par le membre puis reflétés sans invitation", () => {
+  const backend = read("lib/visioBookingGoogle.ts");
+  const mirror = read("lib/visioCalendarMirrorPolicy.ts");
+  assert.match(
+    backend,
+    /encodeCalendarId\(input\.member\.calendarId\)[\s\S]*?conferenceDataVersion=1&sendUpdates=all/,
+  );
+  assert.match(backend, /attendees:\s*\[\{ email: prospect\.email/);
+  assert.match(backend, /upsertTeamMirrorEvent/);
+  assert.match(backend, /sendUpdates=none/);
+  assert.match(backend, /getExistingBooking\(eventId\)/);
+  assert.match(backend, /for \(const member of getVisioTeamMembers\(\)\)/);
+  assert.match(backend, /if \(event && event\.status !== "cancelled"\) return event/);
+  assert.match(backend, /acquireBookingLock\(`identity:\$\{eventId\}`\)/);
+  assert.match(backend, /acquireBookingLock\(`slot:\$\{start\.toISOString\(\)\}`\)/);
+  assert.match(backend, /BOOKING_LOCK_TTL_SECONDS\s*=\s*120/);
+  assert.match(backend, /REDIS_COMPARE_DELETE_SCRIPT/);
+  assert.match(backend, /visio_booking_cancelled/);
+  assert.match(backend, /properties\.bookingNonce !== input\.claims\.nonce/);
+  assert.doesNotMatch(mirror, /attendees\s*:/);
+  assert.doesNotMatch(mirror, /conferenceData\s*:/);
+});
+
+test("le calendrier partagé global est synchronisé par un cron protégé et idempotent", () => {
+  const backend = read("lib/visioBookingGoogle.ts");
+  const route = read("app/api/cron/visio-calendar-sync/route.ts");
+  const vercel = read("vercel.json");
+  assert.match(route, /isAuthorizedCronRequest/);
+  assert.match(route, /hasHeaderCredential/);
+  assert.match(route, /status:\s*result\.ok \? 200 : 503/);
+  assert.match(route, /syncVisioTeamCalendarsToShared/);
+  assert.match(vercel, /\/api\/cron\/visio-calendar-sync/);
+  assert.match(vercel, /"schedule": "\*\/5 \* \* \* \*"/);
+  assert.match(backend, /inrcy:visio-booking:team-calendar-sync/);
+  assert.match(backend, /sourceFingerprint/);
+  assert.match(backend, /showDeleted:\s*true/);
+  assert.match(backend, /cancelTeamMirrorEvent/);
+  assert.match(backend, /getVisioSharedCalendarAccess/);
 });
 
 test("la modale contient les deux choix et le parcours de confirmation", () => {

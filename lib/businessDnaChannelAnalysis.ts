@@ -41,6 +41,11 @@ import {
   BUSINESS_DNA_MAX_WEBSITE_SOURCE_CHARS,
   buildBalancedBusinessDnaWebsiteContent,
 } from "@/lib/businessDnaWebsiteBudget";
+import {
+  buildBusinessDnaRecentWindow,
+  isBusinessDnaPublicationInWindow,
+  type BusinessDnaRecentWindow,
+} from "@/lib/businessDnaRecentNews";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -73,6 +78,7 @@ export type BusinessDnaSourceResult = BusinessDnaBudgetSource & {
   status: BusinessDnaSourceStatus;
   url: string | null;
   itemCount: number;
+  recentItemCount: number;
   contentChars: number;
   message: string | null;
   /** Données compactes envoyées à l'IA. Cette propriété ne doit jamais revenir au navigateur. */
@@ -435,7 +441,11 @@ function compactGoogleBusinessDetails(value: unknown, fallbackTitle: string | nu
   };
 }
 
-async function collectGoogleBusiness(supabase: unknown, userId: string) {
+async function collectGoogleBusiness(
+  supabase: unknown,
+  userId: string,
+  recentWindow: BusinessDnaRecentWindow,
+) {
   const token = await getGmbToken({ supabase, userId });
   if (!token?.accessToken) throw new Error("Autorisation Google Business indisponible.");
   const target = getGmbReviewTargetFromRow(token.row);
@@ -512,16 +522,17 @@ async function collectGoogleBusiness(supabase: unknown, userId: string) {
           topicType: asString(record.topicType),
           createTime: asString(record.createTime),
         };
-      })
+      }).filter((post) => isBusinessDnaPublicationInWindow(post.createTime, recentWindow))
     : [];
 
   return {
     content: compactJson({ details, reviews, localPosts }),
     itemCount: 1 + (reviews?.reviews.length || 0) + localPosts.length,
+    recentItemCount: localPosts.length,
   };
 }
 
-async function collectFacebook(row: IntegrationRow) {
+async function collectFacebook(row: IntegrationRow, recentWindow: BusinessDnaRecentWindow) {
   const pageId = asString(row.resource_id);
   if (!pageId) throw new Error("Page Facebook non sélectionnée.");
   const decryptedTokens = extractFacebookUserTokens(row.meta, row.access_token_enc)
@@ -540,7 +551,9 @@ async function collectFacebook(row: IntegrationRow) {
   });
   const postsQuery = new URLSearchParams({
     fields: "message,created_time,permalink_url",
-    limit: "15",
+    limit: "50",
+    since: String(Math.floor(Date.parse(recentWindow.start) / 1_000)),
+    until: String(Math.floor(Date.parse(recentWindow.end) / 1_000)),
   });
   const requestInit = { headers: { Authorization: `Bearer ${accessToken}` } };
   const [profileResult, postsResult] = await Promise.allSettled([
@@ -555,14 +568,16 @@ async function collectFacebook(row: IntegrationRow) {
   const profile = profileResult.status === "fulfilled" ? asRecord(profileResult.value) : {};
   const postPayload = postsResult.status === "fulfilled" ? asRecord(postsResult.value) : {};
   const posts = Array.isArray(postPayload.data)
-    ? postPayload.data.slice(0, 15).map((item) => {
+    ? postPayload.data.slice(0, 50).map((item) => {
         const post = asRecord(item);
         return {
           message: clampText(post.message, 2_000),
           publishedAt: asString(post.created_time),
           publicUrl: asString(post.permalink_url),
         };
-      }).filter((post) => post.message)
+      }).filter((post) =>
+        post.message && isBusinessDnaPublicationInWindow(post.publishedAt, recentWindow)
+      )
     : [];
   const location = asRecord(profile.location);
   const publicProfile = {
@@ -582,10 +597,14 @@ async function collectFacebook(row: IntegrationRow) {
       country: asString(location.country),
     },
   };
-  return { content: compactJson({ profile: publicProfile, posts }), itemCount: posts.length + 1 };
+  return {
+    content: compactJson({ profile: publicProfile, posts }),
+    itemCount: posts.length + 1,
+    recentItemCount: posts.length,
+  };
 }
 
-async function collectInstagram(row: IntegrationRow) {
+async function collectInstagram(row: IntegrationRow, recentWindow: BusinessDnaRecentWindow) {
   const profileId = asString(row.resource_id);
   const accessToken = tryDecryptToken(row.access_token_enc) || "";
   if (!profileId || !accessToken) throw new Error("Compte Instagram incomplet.");
@@ -594,7 +613,9 @@ async function collectInstagram(row: IntegrationRow) {
   });
   const mediaQuery = new URLSearchParams({
     fields: "caption,timestamp,permalink,media_type",
-    limit: "18",
+    limit: "50",
+    since: String(Math.floor(Date.parse(recentWindow.start) / 1_000)),
+    until: String(Math.floor(Date.parse(recentWindow.end) / 1_000)),
   });
   const requestInit = { headers: { Authorization: `Bearer ${accessToken}` } };
   const [profileResult, mediaResult] = await Promise.allSettled([
@@ -609,7 +630,7 @@ async function collectInstagram(row: IntegrationRow) {
   const profile = profileResult.status === "fulfilled" ? asRecord(profileResult.value) : {};
   const mediaPayload = mediaResult.status === "fulfilled" ? asRecord(mediaResult.value) : {};
   const media = Array.isArray(mediaPayload.data)
-    ? mediaPayload.data.slice(0, 18).map((item) => {
+    ? mediaPayload.data.slice(0, 50).map((item) => {
         const publication = asRecord(item);
         return {
           caption: clampText(publication.caption, 2_000),
@@ -617,7 +638,10 @@ async function collectInstagram(row: IntegrationRow) {
           publicUrl: asString(publication.permalink),
           mediaType: asString(publication.media_type),
         };
-      }).filter((publication) => publication.caption)
+      }).filter((publication) =>
+        publication.caption &&
+        isBusinessDnaPublicationInWindow(publication.publishedAt, recentWindow)
+      )
     : [];
   return {
     content: compactJson({
@@ -630,10 +654,11 @@ async function collectInstagram(row: IntegrationRow) {
       media,
     }),
     itemCount: 1 + media.length,
+    recentItemCount: media.length,
   };
 }
 
-async function collectLinkedIn(userId: string) {
+async function collectLinkedIn(userId: string, recentWindow: BusinessDnaRecentWindow) {
   const auth = await getLinkedInAccessToken({ userId });
   if (!auth.accessToken || !auth.row) throw new Error(auth.error || "Autorisation LinkedIn indisponible.");
   const row = asRecord(auth.row);
@@ -665,14 +690,17 @@ async function collectLinkedIn(userId: string) {
       });
       const elements = asRecord(posts).elements;
       context.posts = Array.isArray(elements)
-        ? elements.slice(0, 20).map((item) => {
+        ? elements.slice(0, 50).map((item) => {
             const post = asRecord(item);
             return {
               commentary: clampText(post.commentary, 2_000),
               publishedAt: asString(post.publishedAt) || asString(post.createdAt),
               lastModifiedAt: asString(post.lastModifiedAt),
             };
-          }).filter((post) => post.commentary)
+          }).filter((post) =>
+            post.commentary &&
+            isBusinessDnaPublicationInWindow(post.publishedAt, recentWindow)
+          )
         : [];
     } catch (error) {
       if (isBusinessDnaReconnectError(error)) throw error;
@@ -683,6 +711,7 @@ async function collectLinkedIn(userId: string) {
   return {
     content: compactJson(context),
     itemCount: 1 + (Array.isArray(postElements) ? postElements.length : 0),
+    recentItemCount: Array.isArray(postElements) ? postElements.length : 0,
   };
 }
 
@@ -709,7 +738,11 @@ async function refreshAndPersistTiktokToken(row: IntegrationRow, userId: string)
   return accessToken;
 }
 
-async function collectTiktok(row: IntegrationRow, userId: string) {
+async function collectTiktok(
+  row: IntegrationRow,
+  userId: string,
+  recentWindow: BusinessDnaRecentWindow,
+) {
   let accessToken = tryDecryptToken(row.access_token_enc) || "";
   if (!accessToken || isExpired(row.expires_at)) {
     accessToken = await refreshAndPersistTiktokToken(row, userId);
@@ -752,11 +785,15 @@ async function collectTiktok(row: IntegrationRow, userId: string) {
           publishedAt: video.create_time,
           publicUrl: asString(video.share_url),
         };
-      }).filter((video) => video.title || video.description)
+      }).filter((video) =>
+        (video.title || video.description) &&
+        isBusinessDnaPublicationInWindow(video.publishedAt, recentWindow)
+      )
     : [];
   return {
     content: compactJson({ user, videos: videoItems }),
     itemCount: 1 + videoItems.length,
+    recentItemCount: videoItems.length,
   };
 }
 
@@ -781,7 +818,11 @@ async function refreshAndPersistYoutubeToken(row: IntegrationRow, userId: string
   return accessToken;
 }
 
-async function collectYoutube(row: IntegrationRow, userId: string) {
+async function collectYoutube(
+  row: IntegrationRow,
+  userId: string,
+  recentWindow: BusinessDnaRecentWindow,
+) {
   let accessToken = tryDecryptToken(row.access_token_enc) || "";
   if (!accessToken || isExpired(row.expires_at)) {
     accessToken = await refreshAndPersistYoutubeToken(row, userId);
@@ -797,7 +838,9 @@ async function collectYoutube(row: IntegrationRow, userId: string) {
         channelId: channel.channelId,
         type: "video",
         order: "date",
-        maxResults: "20",
+        maxResults: "50",
+        publishedAfter: recentWindow.start,
+        publishedBefore: recentWindow.end,
         fields: "items(id/videoId,snippet(title,description,publishedAt))",
       }).toString()}`, {
         headers: { Authorization: `Bearer ${accessToken}` },
@@ -808,14 +851,17 @@ async function collectYoutube(row: IntegrationRow, userId: string) {
   }
   const rawVideoItems = asRecord(videos).items;
   const videoItems = Array.isArray(rawVideoItems)
-    ? rawVideoItems.slice(0, 20).map((item) => {
+    ? rawVideoItems.slice(0, 50).map((item) => {
         const snippet = asRecord(asRecord(item).snippet);
         return {
           title: clampText(snippet.title, 500),
           description: clampText(snippet.description, 2_000),
           publishedAt: asString(snippet.publishedAt),
         };
-      }).filter((video) => video.title || video.description)
+      }).filter((video) =>
+        (video.title || video.description) &&
+        isBusinessDnaPublicationInWindow(video.publishedAt, recentWindow)
+      )
     : [];
   return {
     content: compactJson({
@@ -828,10 +874,11 @@ async function collectYoutube(row: IntegrationRow, userId: string) {
       videos: videoItems,
     }),
     itemCount: 1 + videoItems.length,
+    recentItemCount: videoItems.length,
   };
 }
 
-async function collectPinterest(userId: string) {
+async function collectPinterest(userId: string, recentWindow: BusinessDnaRecentWindow) {
   const accessToken = await getPinterestAccessToken(userId);
   if (!accessToken) throw new Error("Autorisation Pinterest indisponible.");
   const [accountResult, boardsResult, pinsResult] = await Promise.allSettled([
@@ -882,8 +929,12 @@ async function collectPinterest(userId: string) {
           description: clampText(pin.description, 2_000),
           altText: clampText(pin.alt_text, 1_000),
           publicUrl: asString(pin.link),
+          publishedAt: asString(pin.created_at),
         };
-      }).filter((pin) => pin.title || pin.description || pin.altText)
+      }).filter((pin) =>
+        (pin.title || pin.description || pin.altText) &&
+        isBusinessDnaPublicationInWindow(pin.publishedAt, recentWindow)
+      )
     : [];
   return {
     content: compactJson({
@@ -898,6 +949,44 @@ async function collectPinterest(userId: string) {
       pins,
     }),
     itemCount: (account ? 1 : 0) + boards.length + pins.length,
+    recentItemCount: pins.length,
+  };
+}
+
+async function collectInrcyRecentPublications(
+  supabase: unknown,
+  userId: string,
+  recentWindow: BusinessDnaRecentWindow,
+) {
+  const client = supabase as { from: (table: string) => any };
+  const { data, error } = await client
+    .from("publications")
+    .select("title,content,cta,idea,created_at")
+    .eq("user_id", userId)
+    .gte("created_at", recentWindow.start)
+    .lte("created_at", recentWindow.end)
+    .order("created_at", { ascending: false })
+    .limit(100);
+  if (error) throw error;
+  const publications = (Array.isArray(data) ? data : [])
+    .map((item) => {
+      const publication = asRecord(item);
+      return {
+        title: clampText(publication.title, 500),
+        content: clampText(publication.content, 2_000),
+        cta: clampText(publication.cta, 300),
+        idea: clampText(publication.idea, 800),
+        publishedAt: asString(publication.created_at),
+      };
+    })
+    .filter((publication) =>
+      (publication.title || publication.content || publication.idea || publication.cta) &&
+      isBusinessDnaPublicationInWindow(publication.publishedAt, recentWindow)
+    );
+  return {
+    content: compactJson({ publications }),
+    itemCount: publications.length,
+    recentItemCount: publications.length,
   };
 }
 
@@ -925,7 +1014,12 @@ async function executeSource(args: {
   oauthProtected?: boolean;
   requiresUpdate?: boolean;
   url?: string | null;
-  collect: () => Promise<{ content: string; itemCount: number; finalUrl?: string }>;
+  collect: () => Promise<{
+    content: string;
+    itemCount: number;
+    recentItemCount?: number;
+    finalUrl?: string;
+  }>;
 }): Promise<BusinessDnaSourceResult> {
   if (!canCollectBusinessDnaSource(args)) {
     return {
@@ -934,6 +1028,7 @@ async function executeSource(args: {
       status: args.requiresUpdate ? "needs_reconnect" : "not_connected",
       url: args.url || null,
       itemCount: 0,
+      recentItemCount: 0,
       contentChars: 0,
       message: args.requiresUpdate ? "Reconnectez ce canal pour l’analyser." : null,
       content: "",
@@ -961,6 +1056,7 @@ async function executeSource(args: {
       status: "analyzed",
       url: result.finalUrl || args.url || null,
       itemCount: Math.max(1, Math.floor(result.itemCount || 1)),
+      recentItemCount: Math.max(0, Math.floor(result.recentItemCount || 0)),
       contentChars: content.length,
       message: null,
       content,
@@ -977,6 +1073,7 @@ async function executeSource(args: {
       status: needsReconnect ? "needs_reconnect" : "failed",
       url: args.url || null,
       itemCount: 0,
+      recentItemCount: 0,
       contentChars: 0,
       message: needsReconnect
         ? "Reconnectez ce canal pour renouveler son autorisation."
@@ -992,6 +1089,7 @@ export async function collectBusinessDnaChannelSources(args: {
   businessProfile: unknown;
   proToolsConfig: unknown;
 }) {
+  const recentWindow = buildBusinessDnaRecentWindow();
   const [states, integrationsResult] = await Promise.all([
     getChannelConnectionStates(args.supabase, args.userId),
     supabaseAdmin
@@ -1028,7 +1126,7 @@ export async function collectBusinessDnaChannelSources(args: {
       oauthProtected: true,
       requiresUpdate: states.gmb.requiresUpdate,
       url: states.gmb.url,
-      collect: async () => collectGoogleBusiness(args.supabase, args.userId),
+      collect: async () => collectGoogleBusiness(args.supabase, args.userId, recentWindow),
     }),
     executeSource({
       key: "facebook",
@@ -1037,7 +1135,7 @@ export async function collectBusinessDnaChannelSources(args: {
       oauthProtected: true,
       requiresUpdate: states.facebook.requiresUpdate,
       url: states.facebook.page_url,
-      collect: async () => collectFacebook(facebookRow || {}),
+      collect: async () => collectFacebook(facebookRow || {}, recentWindow),
     }),
     executeSource({
       key: "instagram",
@@ -1046,7 +1144,7 @@ export async function collectBusinessDnaChannelSources(args: {
       oauthProtected: true,
       requiresUpdate: states.instagram.requiresUpdate,
       url: states.instagram.profile_url,
-      collect: async () => collectInstagram(instagramRow || {}),
+      collect: async () => collectInstagram(instagramRow || {}, recentWindow),
     }),
     executeSource({
       key: "linkedin",
@@ -1055,7 +1153,7 @@ export async function collectBusinessDnaChannelSources(args: {
       oauthProtected: true,
       requiresUpdate: states.linkedin.requiresUpdate,
       url: states.linkedin.organization_url || states.linkedin.profile_url,
-      collect: async () => collectLinkedIn(args.userId),
+      collect: async () => collectLinkedIn(args.userId, recentWindow),
     }),
     executeSource({
       key: "tiktok",
@@ -1064,7 +1162,7 @@ export async function collectBusinessDnaChannelSources(args: {
       oauthProtected: true,
       requiresUpdate: states.tiktok.requiresUpdate,
       url: states.tiktok.profile_url,
-      collect: async () => collectTiktok(tiktokRow || {}, args.userId),
+      collect: async () => collectTiktok(tiktokRow || {}, args.userId, recentWindow),
     }),
     executeSource({
       key: "youtube",
@@ -1073,7 +1171,7 @@ export async function collectBusinessDnaChannelSources(args: {
       oauthProtected: true,
       requiresUpdate: states.youtube_shorts.requiresUpdate,
       url: states.youtube_shorts.channel_url,
-      collect: async () => collectYoutube(youtubeRow || {}, args.userId),
+      collect: async () => collectYoutube(youtubeRow || {}, args.userId, recentWindow),
     }),
     executeSource({
       key: "pinterest",
@@ -1082,7 +1180,7 @@ export async function collectBusinessDnaChannelSources(args: {
       oauthProtected: true,
       requiresUpdate: states.pinterest.requiresUpdate,
       url: states.pinterest.profile_url,
-      collect: async () => collectPinterest(args.userId),
+      collect: async () => collectPinterest(args.userId, recentWindow),
     }),
     executeSource({
       key: "inr_search",
@@ -1093,6 +1191,16 @@ export async function collectBusinessDnaChannelSources(args: {
         content: buildInrSearchContent(args.businessProfile, args.proToolsConfig),
         itemCount: 1,
       }),
+    }),
+    executeSource({
+      key: "inrcy_publications",
+      label: "Publications iNrCy",
+      connected: true,
+      collect: async () => collectInrcyRecentPublications(
+        args.supabase,
+        args.userId,
+        recentWindow,
+      ),
     }),
   ]);
 

@@ -165,7 +165,7 @@ test("le composant partagé borne les champs et interdit deux sessions vocales c
   );
 });
 
-test("iNrADN équipe ses six champs libres avec le micro corrigé partagé", () => {
+test("iNrADN équipe tous ses champs libres avec le micro corrigé partagé", () => {
   assert.match(
     aiMemoryContent,
     /import MediaSubjectVoiceButton from "\.\.\/\.\.\/_components\/MediaSubjectVoiceButton"/,
@@ -186,7 +186,7 @@ test("iNrADN équipe ses six champs libres avec le micro corrigé partagé", () 
   assert.equal(
     richVoiceButtons.length,
     1,
-    "l'éditeur riche commun doit fournir le micro à la présentation et aux trois blocs Premium",
+    "l'éditeur riche commun doit fournir le micro à la présentation et aux trois champs Premium enrichis",
   );
   const richVoiceButton = elementWithValue(richVoiceButtons, "value");
   assert.match(richVoiceButton, /disabled=\{disabled\}/);
@@ -272,14 +272,37 @@ test("iNrADN équipe ses six champs libres avec le micro corrigé partagé", () 
     );
   }
 
+  const plainTextareas = jsxElements(aiMemoryContent, "MemoryVoiceTextarea");
+  assert.equal(
+    plainTextareas.length,
+    4,
+    "le renderer vocal commun doit servir les actualités et les trois nouveaux leviers Premium",
+  );
+  for (const field of ["keyArguments", "objectionResponses", "campaignCalendar"] as const) {
+    const textarea = elementWithValue(plainTextareas, `memory.${field}`);
+    assert.match(
+      textarea,
+      new RegExp(
+        `disabled=\{!premiumEnabled \|\| voiceDisabledFor\("${field}"\)\}`,
+      ),
+    );
+    assert.match(textarea, /maxLength=\{3000\}/);
+  }
+  const newsTextarea = elementWithValue(
+    plainTextareas,
+    'memory.recentNewsItems[index] || ""',
+  );
+  assert.match(newsTextarea, /label=\{t\("newsItemLabel", \{ number: index \+ 1 \}\)\}/);
+  assert.match(newsTextarea, /maxLength=\{2000\}/);
+
   const aiMemoryVoiceButtons = jsxElements(
     aiMemoryContent,
     "MediaSubjectVoiceButton",
   );
   assert.equal(
     aiMemoryVoiceButtons.length,
-    1,
-    "la mission est le seul champ vocal direct hors éditeurs spécialisés",
+    2,
+    "la mission et le renderer des zones de texte utilisent directement le micro partagé",
   );
   const missionButton = elementWithValue(aiMemoryVoiceButtons, "memory.mission");
   assert.match(missionButton, /disabled=\{voiceDisabledFor\("mission"\)\}/);
@@ -296,6 +319,12 @@ test("iNrADN équipe ses six champs libres avec le micro corrigé partagé", () 
     missionButton,
     /onBusyChange=\{\(busy\) => handleVoiceBusyChange\("mission", busy\)\}/,
   );
+  const reusableTextButton = elementWithValue(aiMemoryVoiceButtons, "value");
+  assert.match(reusableTextButton, /contextLabel=\{label\}/);
+  assert.match(reusableTextButton, /purpose="content"/);
+  assert.match(reusableTextButton, /placement="inline"/);
+  assert.match(reusableTextButton, /mergeMode="paragraph"/);
+  assert.match(reusableTextButton, /maxLength=\{maxLength\}/);
   const missionTextarea = elementWithValue(
     jsxElements(aiMemoryContent, "textarea"),
     "memory.mission",
@@ -353,8 +382,15 @@ test("iNrADN verrouille la page pendant la dictée et délègue toute capture au
     "mission",
     "scheduleNotes",
     "offersAndArguments",
+    "keyArguments",
     "proofsAndObjections",
+    "objectionResponses",
     "editorialStrategy",
+    "campaignCalendar",
+    "recentNewsItem0",
+    "recentNewsItem1",
+    "recentNewsItem2",
+    "recentNewsItem3",
   ]) {
     assert.match(aiMemoryContent, new RegExp(`\\| "${target}"|= "${target}"`));
   }

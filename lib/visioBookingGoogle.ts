@@ -9,6 +9,16 @@ import { optionalEnv, requireEnv } from "@/lib/env";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendMonitoringMail } from "@/lib/txMailer";
 import {
+  TEAM_CALENDAR_MIRROR_KEY,
+  TEAM_CALENDAR_MIRROR_VALUE,
+  buildTeamCalendarMirrorBody,
+  shouldMirrorTeamCalendarEvent,
+  teamCalendarEventMeetUrl,
+  teamCalendarMirrorContentSignature,
+  teamCalendarMirrorSourceKey,
+  type TeamCalendarEvent,
+} from "@/lib/visioCalendarMirrorPolicy";
+import {
   VISIO_BOOKING_DURATION_MINUTES,
   VISIO_BOOKING_MAX_CONCURRENT,
   VISIO_BOOKING_SPACING_MINUTES,
@@ -32,6 +42,11 @@ const INTEGRATION_SOURCE = "internal_staff";
 const INTEGRATION_PRODUCT = "visio_booking";
 const PRIVATE_BOOKING_KEY = "inrcyBooking";
 const PRIVATE_BOOKING_VALUE = "signup-visio";
+const TEAM_MIRROR_DEFAULT_PAST_DAYS = 30;
+const TEAM_MIRROR_DEFAULT_FUTURE_DAYS = 365;
+const BOOKING_LOCK_TTL_SECONDS = 120;
+const REDIS_COMPARE_DELETE_SCRIPT =
+  "if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]); end; return 0;";
 
 type GoogleIntegrationRow = {
   id: string;
@@ -42,21 +57,7 @@ type GoogleIntegrationRow = {
   status: string | null;
 };
 
-type GoogleCalendarEvent = {
-  id?: string;
-  status?: string;
-  htmlLink?: string;
-  hangoutLink?: string;
-  summary?: string;
-  start?: { dateTime?: string; date?: string };
-  end?: { dateTime?: string; date?: string };
-  conferenceData?: {
-    entryPoints?: Array<{ entryPointType?: string; uri?: string }>;
-  };
-  extendedProperties?: {
-    private?: Record<string, string>;
-  };
-};
+type GoogleCalendarEvent = TeamCalendarEvent;
 
 export type VisioAvailabilityDay = {
   date: string;
@@ -72,6 +73,32 @@ export type VisioBookingConfirmation = {
   assignedTo: string;
   meetUrl: string;
   calendarUrl: string;
+};
+
+export type VisioCalendarAccess = {
+  id: string;
+  name: string;
+  email: string;
+  calendarId: string;
+  readable: boolean;
+  accessRole: string | null;
+  writable: boolean;
+  error?: string;
+};
+
+export type VisioTeamCalendarSyncResult = {
+  ok: boolean;
+  startedAt: string;
+  finishedAt: string;
+  range: { timeMin: string; timeMax: string };
+  scanned: number;
+  created: number;
+  updated: number;
+  cancelled: number;
+  unchanged: number;
+  skipped: number;
+  locked: boolean;
+  errors: Array<{ memberId: string; code: string }>;
 };
 
 function boundedInteger(name: string, fallback: number, min: number, max: number) {
@@ -204,7 +231,8 @@ async function getGoogleAccessToken(forceRefresh = false) {
 async function googleCalendarRequest<T>(
   path: string,
   init?: RequestInit,
-  retry = true,
+  retryUnauthorized = true,
+  transientAttempt = 0,
 ): Promise<T> {
   const accessToken = await getGoogleAccessToken(false);
   const response = await fetch(`${GOOGLE_CALENDAR_API}${path}`, {
@@ -218,21 +246,26 @@ async function googleCalendarRequest<T>(
     cache: "no-store",
   });
 
-  if (response.status === 401 && retry) {
-    const refreshed = await getGoogleAccessToken(true);
-    const retried = await fetch(`${GOOGLE_CALENDAR_API}${path}`, {
-      ...init,
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${refreshed}`,
-        ...(init?.body ? { "Content-Type": "application/json" } : {}),
-        ...(init?.headers || {}),
-      },
-      cache: "no-store",
-    });
-    if (retried.ok) return (await retried.json()) as T;
-    const detail = await retried.text().catch(() => "");
-    throw new Error(`visio_google_api_failed:${retried.status}:${detail.slice(0, 240)}`);
+  if (response.status === 401 && retryUnauthorized) {
+    await getGoogleAccessToken(true);
+    return googleCalendarRequest<T>(path, init, false, transientAttempt);
+  }
+
+  if (
+    [429, 500, 502, 503, 504].includes(response.status) &&
+    transientAttempt < 2
+  ) {
+    const retryAfterSeconds = Number(response.headers.get("retry-after") || 0);
+    const delayMs = retryAfterSeconds > 0
+      ? Math.min(3_000, retryAfterSeconds * 1_000)
+      : [300, 900][transientAttempt];
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+    return googleCalendarRequest<T>(
+      path,
+      init,
+      retryUnauthorized,
+      transientAttempt + 1,
+    );
   }
 
   if (!response.ok) {
@@ -240,6 +273,431 @@ async function googleCalendarRequest<T>(
     throw new Error(`visio_google_api_failed:${response.status}:${detail.slice(0, 240)}`);
   }
   return (await response.json()) as T;
+}
+
+function visioGoogleErrorCode(error: unknown) {
+  const message = error instanceof Error ? error.message : "unknown_error";
+  const match = message.match(/^visio_google_api_failed:(\d{3}):/);
+  if (match) return `google_${match[1]}`;
+  return message.split(":")[0].slice(0, 80) || "unknown_error";
+}
+
+async function listGoogleCalendarEvents(input: {
+  calendarId: string;
+  timeMin: Date;
+  timeMax: Date;
+  privateExtendedProperty?: string;
+  showDeleted?: boolean;
+}) {
+  const events: GoogleCalendarEvent[] = [];
+  let pageToken = "";
+  do {
+    const params = new URLSearchParams({
+      timeMin: input.timeMin.toISOString(),
+      timeMax: input.timeMax.toISOString(),
+      singleEvents: "true",
+      showDeleted: input.showDeleted ? "true" : "false",
+      maxResults: "2500",
+      orderBy: "startTime",
+      timeZone: VISIO_BOOKING_TIMEZONE,
+    });
+    if (input.privateExtendedProperty) {
+      params.set("privateExtendedProperty", input.privateExtendedProperty);
+    }
+    if (pageToken) params.set("pageToken", pageToken);
+    const payload = await googleCalendarRequest<{
+      items?: GoogleCalendarEvent[];
+      nextPageToken?: string;
+    }>(
+      `/calendars/${encodeCalendarId(input.calendarId)}/events?${params.toString()}`,
+    );
+    events.push(
+      ...(input.showDeleted
+        ? payload.items || []
+        : (payload.items || []).filter((event) => event.status !== "cancelled")),
+    );
+    pageToken = String(payload.nextPageToken || "");
+  } while (pageToken);
+  return events;
+}
+
+async function readCalendarAccessRole(calendarId: string) {
+  const params = new URLSearchParams({
+    timeMin: new Date(Date.now() - 24 * 60 * 60_000).toISOString(),
+    singleEvents: "true",
+    showDeleted: "false",
+    maxResults: "1",
+  });
+  const entry = await googleCalendarRequest<{ accessRole?: string }>(
+    `/calendars/${encodeCalendarId(calendarId)}/events?${params.toString()}`,
+  );
+  return String(entry.accessRole || "") || null;
+}
+
+export async function getVisioTeamCalendarAccess() {
+  const members = getVisioTeamMembers();
+
+  return Promise.all(
+    members.map(async (member): Promise<VisioCalendarAccess> => {
+      try {
+        const accessRole = await readCalendarAccessRole(member.calendarId);
+        return {
+          ...member,
+          readable: true,
+          accessRole,
+          writable: accessRole === "owner" || accessRole === "writer",
+        };
+      } catch (error) {
+        return {
+          ...member,
+          readable: false,
+          accessRole: null,
+          writable: false,
+          error: visioGoogleErrorCode(error),
+        };
+      }
+    }),
+  );
+}
+
+export async function getVisioSharedCalendarAccess(): Promise<VisioCalendarAccess> {
+  const calendarId = getVisioSharedCalendarId();
+  try {
+    const accessRole = await readCalendarAccessRole(calendarId);
+    return {
+      id: "shared",
+      name: "Agenda partagé iNrCy",
+      email: "",
+      calendarId,
+      readable: true,
+      accessRole,
+      writable: accessRole === "owner" || accessRole === "writer",
+    };
+  } catch (error) {
+    return {
+      id: "shared",
+      name: "Agenda partagé iNrCy",
+      email: "",
+      calendarId,
+      readable: false,
+      accessRole: null,
+      writable: false,
+      error: visioGoogleErrorCode(error),
+    };
+  }
+}
+
+function teamMirrorEventId(calendarId: string, eventId: string) {
+  return `tm${createHash("sha256")
+    .update(teamCalendarMirrorSourceKey(calendarId, eventId), "utf8")
+    .digest("hex")
+    .slice(0, 40)}`;
+}
+
+function teamMirrorEventIdForSource(
+  member: VisioTeamMember,
+  event: GoogleCalendarEvent,
+) {
+  return teamMirrorEventId(member.calendarId, String(event.id || ""));
+}
+
+async function releaseRedisLock(redis: Redis, key: string, value: string) {
+  await redis.eval(REDIS_COMPARE_DELETE_SCRIPT, [key], [value]);
+}
+
+function teamMirrorFingerprint(event: GoogleCalendarEvent, member: VisioTeamMember) {
+  return createHash("sha256")
+    .update(
+      JSON.stringify({
+        memberId: member.id,
+        summary: event.summary || "",
+        description: event.description || "",
+        location: event.location || "",
+        visibility: event.visibility || "",
+        transparency: event.transparency || "",
+        colorId: event.colorId || "",
+        start: event.start || null,
+        end: event.end || null,
+        meetUrl: teamCalendarEventMeetUrl(event),
+      }),
+      "utf8",
+    )
+    .digest("hex");
+}
+
+function mirrorSourceKey(event: GoogleCalendarEvent) {
+  const properties = event.extendedProperties?.private || {};
+  const calendarId = String(properties.sourceCalendarId || "");
+  const eventId = String(properties.sourceEventId || "");
+  return calendarId && eventId
+    ? teamCalendarMirrorSourceKey(calendarId, eventId)
+    : "";
+}
+
+async function listTeamMirrorEvents(timeMin: Date, timeMax: Date) {
+  return listGoogleCalendarEvents({
+    calendarId: getVisioSharedCalendarId(),
+    timeMin,
+    timeMax,
+    showDeleted: true,
+    privateExtendedProperty: `${TEAM_CALENDAR_MIRROR_KEY}=${TEAM_CALENDAR_MIRROR_VALUE}`,
+  });
+}
+
+async function upsertTeamMirrorEvent(input: {
+  event: GoogleCalendarEvent;
+  member: VisioTeamMember;
+  existing?: GoogleCalendarEvent;
+  mirrorEventId?: string;
+}) {
+  if (!input.event.id) throw new Error("visio_team_mirror_source_id_missing");
+  const sharedCalendarId = getVisioSharedCalendarId();
+  const fingerprint = teamMirrorFingerprint(input.event, input.member);
+  const existingFingerprint =
+    input.existing?.extendedProperties?.private?.sourceFingerprint || "";
+  const mirrorEventId =
+    input.existing?.id ||
+    input.mirrorEventId ||
+    teamMirrorEventIdForSource(input.member, input.event);
+  const body = buildTeamCalendarMirrorBody({
+    event: input.event,
+    member: input.member,
+    sharedCalendarId,
+    mirrorEventId,
+    fingerprint,
+  });
+  if (
+    input.existing?.id &&
+    input.existing.status !== "cancelled" &&
+    existingFingerprint === fingerprint &&
+    teamCalendarMirrorContentSignature(input.existing) ===
+      teamCalendarMirrorContentSignature(body)
+  ) {
+    return "unchanged" as const;
+  }
+
+  if (input.existing?.id) {
+    await googleCalendarRequest<GoogleCalendarEvent>(
+      `/calendars/${encodeCalendarId(sharedCalendarId)}/events/${encodeURIComponent(input.existing.id)}?sendUpdates=none`,
+      { method: "PATCH", body: JSON.stringify(body) },
+    );
+    return "updated" as const;
+  }
+
+  try {
+    await googleCalendarRequest<GoogleCalendarEvent>(
+      `/calendars/${encodeCalendarId(sharedCalendarId)}/events?sendUpdates=none`,
+      { method: "POST", body: JSON.stringify(body) },
+    );
+    return "created" as const;
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message.startsWith("visio_google_api_failed:409:")
+    ) {
+      const existing = await googleCalendarRequest<GoogleCalendarEvent>(
+        `/calendars/${encodeCalendarId(sharedCalendarId)}/events/${encodeURIComponent(mirrorEventId)}`,
+      );
+      const properties = existing.extendedProperties?.private || {};
+      if (
+        properties[TEAM_CALENDAR_MIRROR_KEY] !== TEAM_CALENDAR_MIRROR_VALUE ||
+        properties.sourceCalendarId !== input.member.calendarId ||
+        properties.sourceEventId !== input.event.id
+      ) {
+        throw new Error("visio_team_mirror_id_conflict");
+      }
+      await googleCalendarRequest<GoogleCalendarEvent>(
+        `/calendars/${encodeCalendarId(sharedCalendarId)}/events/${encodeURIComponent(mirrorEventId)}?sendUpdates=none`,
+        { method: "PATCH", body: JSON.stringify(body) },
+      );
+      return existing.status === "cancelled" ? "created" as const : "updated" as const;
+    }
+    throw error;
+  }
+}
+
+async function cancelTeamMirrorEvent(event: GoogleCalendarEvent) {
+  if (!event.id || event.status === "cancelled") return false;
+  await googleCalendarRequest<GoogleCalendarEvent>(
+    `/calendars/${encodeCalendarId(getVisioSharedCalendarId())}/events/${encodeURIComponent(event.id)}?sendUpdates=none`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ status: "cancelled" }),
+    },
+  );
+  return true;
+}
+
+type TeamCalendarSyncLock = {
+  acquired: boolean;
+  release: () => Promise<void>;
+};
+
+async function acquireTeamCalendarSyncLock(): Promise<TeamCalendarSyncLock> {
+  const redis = getBookingRedis();
+  const key = "inrcy:visio-booking:team-calendar-sync";
+  const value = randomUUID();
+  if (!redis) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("visio_team_calendar_sync_lock_unavailable");
+    }
+    const globalCache = globalThis as typeof globalThis & {
+      __inrcy_visio_team_sync_lock?: { value: string; expiresAt: number };
+    };
+    if (
+      globalCache.__inrcy_visio_team_sync_lock &&
+      globalCache.__inrcy_visio_team_sync_lock.expiresAt > Date.now()
+    ) {
+      return { acquired: false, release: async () => undefined };
+    }
+    globalCache.__inrcy_visio_team_sync_lock = {
+      value,
+      expiresAt: Date.now() + 240_000,
+    };
+    return {
+      acquired: true,
+      release: async () => {
+        if (globalCache.__inrcy_visio_team_sync_lock?.value === value) {
+          delete globalCache.__inrcy_visio_team_sync_lock;
+        }
+      },
+    };
+  }
+
+  const acquired = (await redis.set(key, value, { nx: true, ex: 240 })) === "OK";
+  return {
+    acquired,
+    release: async () => {
+      if (acquired) await releaseRedisLock(redis, key, value);
+    },
+  };
+}
+
+export async function syncVisioTeamCalendarsToShared(input?: {
+  now?: Date;
+  pastDays?: number;
+  futureDays?: number;
+}): Promise<VisioTeamCalendarSyncResult> {
+  const startedAt = new Date();
+  const now = input?.now || startedAt;
+  const pastDays = Math.min(
+    365,
+    Math.max(1, input?.pastDays ?? TEAM_MIRROR_DEFAULT_PAST_DAYS),
+  );
+  const futureDays = Math.min(
+    730,
+    Math.max(7, input?.futureDays ?? TEAM_MIRROR_DEFAULT_FUTURE_DAYS),
+  );
+  const timeMin = new Date(now.getTime() - pastDays * 24 * 60 * 60_000);
+  const timeMax = new Date(now.getTime() + futureDays * 24 * 60 * 60_000);
+  const result: VisioTeamCalendarSyncResult = {
+    ok: true,
+    startedAt: startedAt.toISOString(),
+    finishedAt: "",
+    range: { timeMin: timeMin.toISOString(), timeMax: timeMax.toISOString() },
+    scanned: 0,
+    created: 0,
+    updated: 0,
+    cancelled: 0,
+    unchanged: 0,
+    skipped: 0,
+    locked: false,
+    errors: [],
+  };
+
+  const syncLock = await acquireTeamCalendarSyncLock();
+  if (!syncLock.acquired) {
+    result.locked = true;
+    result.finishedAt = new Date().toISOString();
+    return result;
+  }
+
+  try {
+    const mirrors = await listTeamMirrorEvents(timeMin, timeMax);
+    const mirrorBySource = new Map(
+      mirrors
+        .map((event) => [mirrorSourceKey(event), event] as const)
+        .filter(([key]) => Boolean(key)),
+    );
+    const sharedCalendarId = getVisioSharedCalendarId();
+
+    for (const member of getVisioTeamMembers()) {
+      let sourceEvents: GoogleCalendarEvent[];
+      try {
+        sourceEvents = await listGoogleCalendarEvents({
+          calendarId: member.calendarId,
+          timeMin,
+          timeMax,
+          showDeleted: true,
+        });
+      } catch (error) {
+        result.errors.push({ memberId: member.id, code: visioGoogleErrorCode(error) });
+        continue;
+      }
+
+      const seenSourceKeys = new Set<string>();
+      for (const event of sourceEvents) {
+        result.scanned += 1;
+        const sourceKey = event.id
+          ? teamCalendarMirrorSourceKey(member.calendarId, event.id)
+          : "";
+        if (sourceKey) seenSourceKeys.add(sourceKey);
+        const existingMirror = sourceKey ? mirrorBySource.get(sourceKey) : undefined;
+        if (
+          !shouldMirrorTeamCalendarEvent({
+            event,
+            memberEmail: member.email,
+            sharedCalendarId,
+          })
+        ) {
+          try {
+            if (existingMirror && (await cancelTeamMirrorEvent(existingMirror))) {
+              result.cancelled += 1;
+            } else {
+              result.skipped += 1;
+            }
+          } catch (error) {
+            result.errors.push({
+              memberId: member.id,
+              code: visioGoogleErrorCode(error),
+            });
+          }
+          continue;
+        }
+
+        try {
+          const outcome = await upsertTeamMirrorEvent({
+            event,
+            member,
+            existing: existingMirror,
+          });
+          result[outcome] += 1;
+        } catch (error) {
+          result.errors.push({ memberId: member.id, code: visioGoogleErrorCode(error) });
+        }
+      }
+
+      for (const mirror of mirrors) {
+        const properties = mirror.extendedProperties?.private || {};
+        if (properties.assignedMemberId !== member.id || mirror.status === "cancelled") {
+          continue;
+        }
+        const sourceKey = mirrorSourceKey(mirror);
+        if (!sourceKey || seenSourceKeys.has(sourceKey)) continue;
+        try {
+          if (await cancelTeamMirrorEvent(mirror)) result.cancelled += 1;
+        } catch (error) {
+          result.errors.push({ memberId: member.id, code: visioGoogleErrorCode(error) });
+        }
+      }
+    }
+
+    result.ok = result.errors.length === 0;
+    result.finishedAt = new Date().toISOString();
+    return result;
+  } finally {
+    await syncLock.release().catch(() => undefined);
+  }
 }
 
 async function readFreeBusy(
@@ -271,27 +729,48 @@ async function readFreeBusy(
 }
 
 async function listBookingEvents(timeMin: Date, timeMax: Date) {
-  const calendarId = getVisioSharedCalendarId();
-  const events: GoogleCalendarEvent[] = [];
-  let pageToken = "";
-  do {
-    const params = new URLSearchParams({
-      timeMin: timeMin.toISOString(),
-      timeMax: timeMax.toISOString(),
-      singleEvents: "true",
-      showDeleted: "false",
-      maxResults: "2500",
-      privateExtendedProperty: `${PRIVATE_BOOKING_KEY}=${PRIVATE_BOOKING_VALUE}`,
-    });
-    if (pageToken) params.set("pageToken", pageToken);
-    const payload = await googleCalendarRequest<{
-      items?: GoogleCalendarEvent[];
-      nextPageToken?: string;
-    }>(`/calendars/${encodeCalendarId(calendarId)}/events?${params.toString()}`);
-    events.push(...(payload.items || []).filter((event) => event.status !== "cancelled"));
-    pageToken = String(payload.nextPageToken || "");
-  } while (pageToken);
-  return events;
+  return listGoogleCalendarEvents({
+    calendarId: getVisioSharedCalendarId(),
+    timeMin,
+    timeMax,
+    privateExtendedProperty: `${PRIVATE_BOOKING_KEY}=${PRIVATE_BOOKING_VALUE}`,
+  });
+}
+
+async function listAllBookingEvents(timeMin: Date, timeMax: Date) {
+  const members = getVisioTeamMembers();
+  const [memberEventLists, sharedEvents] = await Promise.all([
+    Promise.all(
+      members.map((member) =>
+        listGoogleCalendarEvents({
+          calendarId: member.calendarId,
+          timeMin,
+          timeMax,
+          privateExtendedProperty: `${PRIVATE_BOOKING_KEY}=${PRIVATE_BOOKING_VALUE}`,
+        }).catch((error: unknown) => {
+          throw new Error(
+            `visio_member_booking_list_failed:${member.id}:${visioGoogleErrorCode(error)}`,
+          );
+        }),
+      ),
+    ),
+    listBookingEvents(timeMin, timeMax),
+  ]);
+
+  const unique = new Map<string, GoogleCalendarEvent>();
+  for (const event of memberEventLists.flat()) {
+    const key = String(
+      event.extendedProperties?.private?.bookingNonce || event.id || randomUUID(),
+    );
+    unique.set(key, event);
+  }
+  for (const event of sharedEvents) {
+    const key = String(
+      event.extendedProperties?.private?.bookingNonce || event.id || randomUUID(),
+    );
+    if (!unique.has(key)) unique.set(key, event);
+  }
+  return [...unique.values()];
 }
 
 function eventStartMs(event: GoogleCalendarEvent) {
@@ -390,7 +869,7 @@ export async function getVisioAvailability(now = new Date()) {
   );
   const [busyByCalendar, events] = await Promise.all([
     readFreeBusy(members, rangeStart, rangeEnd),
-    listBookingEvents(rangeStart, rangeEnd),
+    listAllBookingEvents(rangeStart, rangeEnd),
   ]);
 
   const effectiveBusy = addInternalBookingsToBusyPeriods(
@@ -429,13 +908,7 @@ function conferenceRequestId(nonce: string) {
 }
 
 function getMeetUrl(event: GoogleCalendarEvent) {
-  return String(
-    event.hangoutLink ||
-      event.conferenceData?.entryPoints?.find(
-        (entry) => entry.entryPointType === "video",
-      )?.uri ||
-      "",
-  );
+  return teamCalendarEventMeetUrl(event);
 }
 
 function confirmationFromEvent(
@@ -454,21 +927,59 @@ function confirmationFromEvent(
     timeLabel: formatFrenchTime(start),
     assignedTo,
     meetUrl: getMeetUrl(event),
-    calendarUrl: String(event.htmlLink || ""),
+    calendarUrl: String(
+      event.extendedProperties?.private?.sourceHtmlLink || event.htmlLink || "",
+    ),
   };
 }
 
-async function getExistingBooking(eventId: string) {
+async function getCalendarEvent(calendarId: string, eventId: string) {
   try {
     return await googleCalendarRequest<GoogleCalendarEvent>(
-      `/calendars/${encodeCalendarId(getVisioSharedCalendarId())}/events/${encodeURIComponent(eventId)}`,
+      `/calendars/${encodeCalendarId(calendarId)}/events/${encodeURIComponent(eventId)}`,
     );
   } catch (error) {
-    if (error instanceof Error && error.message.startsWith("visio_google_api_failed:404:")) {
+    if (
+      error instanceof Error &&
+      (error.message.startsWith("visio_google_api_failed:404:") ||
+        error.message.startsWith("visio_google_api_failed:410:"))
+    ) {
       return null;
     }
     throw error;
   }
+}
+
+async function getExistingBooking(eventId: string) {
+  for (const member of getVisioTeamMembers()) {
+    try {
+      const event = await getCalendarEvent(member.calendarId, eventId);
+      if (event && event.status !== "cancelled") return event;
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        (error.message.startsWith("visio_google_api_failed:403:") ||
+          error.message.startsWith("visio_google_api_failed:404:"))
+      ) {
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  const sharedEvent = await getCalendarEvent(getVisioSharedCalendarId(), eventId);
+  if (!sharedEvent || sharedEvent.status === "cancelled") return null;
+  const sourceCalendarId = String(
+    sharedEvent.extendedProperties?.private?.sourceCalendarId || "",
+  );
+  const sourceEventId = String(
+    sharedEvent.extendedProperties?.private?.sourceEventId || "",
+  );
+  if (sourceCalendarId && sourceEventId) {
+    const sourceEvent = await getCalendarEvent(sourceCalendarId, sourceEventId);
+    return sourceEvent && sourceEvent.status !== "cancelled" ? sourceEvent : null;
+  }
+  return sharedEvent;
 }
 
 type BookingLock = { release: () => Promise<void> };
@@ -484,16 +995,19 @@ function getBookingRedis() {
   return globalCache.__inrcy_visio_redis;
 }
 
-async function acquireBookingLock(start: Date): Promise<BookingLock> {
-  const key = `inrcy:visio-booking:slot-lock:${start.toISOString()}`;
+async function acquireBookingLock(lockKey: string): Promise<BookingLock> {
+  const key = `inrcy:visio-booking:${lockKey}`;
   const value = randomUUID();
   const redis = getBookingRedis();
   if (redis) {
-    const result = await redis.set(key, value, { nx: true, ex: 30 });
+    const result = await redis.set(key, value, {
+      nx: true,
+      ex: BOOKING_LOCK_TTL_SECONDS,
+    });
     if (result !== "OK") throw new Error("visio_slot_busy");
     return {
       release: async () => {
-        if ((await redis.get<string>(key)) === value) await redis.del(key);
+        await releaseRedisLock(redis, key, value);
       },
     };
   }
@@ -508,7 +1022,7 @@ async function acquireBookingLock(start: Date): Promise<BookingLock> {
   globalCache.__inrcy_visio_local_locks = locks;
   const existing = locks.get(key) || 0;
   if (existing > Date.now()) throw new Error("visio_slot_busy");
-  locks.set(key, Date.now() + 30_000);
+  locks.set(key, Date.now() + BOOKING_LOCK_TTL_SECONDS * 1_000);
   return {
     release: async () => {
       locks.delete(key);
@@ -555,56 +1069,131 @@ async function createGoogleBookingEvent(input: {
     "Source : inscription validée sur inrcy.com",
   ].filter(Boolean);
 
-  const event = await googleCalendarRequest<GoogleCalendarEvent>(
-    `/calendars/${encodeCalendarId(getVisioSharedCalendarId())}/events?conferenceDataVersion=1&sendUpdates=all`,
-    {
-      method: "POST",
-      body: JSON.stringify({
-        id: input.eventId,
-        summary: `Présentation iNrCy — ${prospect.company || prospect.name}`,
-        description: contactLines.join("\n"),
-        location: "Google Meet",
-        colorId: optionalEnv("INRCY_VISIO_PENDING_COLOR_ID", "5"),
-        visibility: "private",
-        guestsCanInviteOthers: false,
-        guestsCanModify: false,
-        start: {
-          dateTime: input.start.toISOString(),
-          timeZone: VISIO_BOOKING_TIMEZONE,
-        },
-        end: {
-          dateTime: end.toISOString(),
-          timeZone: VISIO_BOOKING_TIMEZONE,
-        },
-        attendees: [
-          { email: input.member.email, displayName: input.member.name },
-          { email: prospect.email, displayName: prospect.name },
-        ],
-        conferenceData: {
-          createRequest: {
-            requestId: conferenceRequestId(input.claims.nonce),
-            conferenceSolutionKey: { type: "hangoutsMeet" },
-          },
-        },
-        reminders: {
-          useDefault: false,
-          overrides: [
-            { method: "email", minutes: 24 * 60 },
-            { method: "popup", minutes: 60 },
-          ],
-        },
-        extendedProperties: {
-          private: {
-            [PRIVATE_BOOKING_KEY]: PRIVATE_BOOKING_VALUE,
-            bookingNonce: input.claims.nonce,
-            prospectUserId: input.claims.sub,
-            assignedMemberId: input.member.id,
-            assignedMemberEmail: input.member.email,
-          },
-        },
-      }),
+  const baseBody = {
+    id: input.eventId,
+    summary: `Présentation iNrCy — ${prospect.company || prospect.name}`,
+    description: contactLines.join("\n"),
+    location: "Google Meet",
+    colorId: optionalEnv("INRCY_VISIO_PENDING_COLOR_ID", "5"),
+    visibility: "private",
+    guestsCanInviteOthers: false,
+    guestsCanModify: false,
+    start: {
+      dateTime: input.start.toISOString(),
+      timeZone: VISIO_BOOKING_TIMEZONE,
     },
-  );
+    end: {
+      dateTime: end.toISOString(),
+      timeZone: VISIO_BOOKING_TIMEZONE,
+    },
+    conferenceData: {
+      createRequest: {
+        requestId: conferenceRequestId(input.claims.nonce),
+        conferenceSolutionKey: { type: "hangoutsMeet" },
+      },
+    },
+    reminders: {
+      useDefault: false,
+      overrides: [
+        { method: "email", minutes: 24 * 60 },
+        { method: "popup", minutes: 60 },
+      ],
+    },
+    extendedProperties: {
+      private: {
+        [PRIVATE_BOOKING_KEY]: PRIVATE_BOOKING_VALUE,
+        bookingNonce: input.claims.nonce,
+        prospectUserId: input.claims.sub,
+        assignedMemberId: input.member.id,
+        assignedMemberEmail: input.member.email,
+      },
+    },
+  };
+
+  let event: GoogleCalendarEvent;
+  let createdOnMemberCalendar = false;
+  try {
+    event = await googleCalendarRequest<GoogleCalendarEvent>(
+      `/calendars/${encodeCalendarId(input.member.calendarId)}/events?conferenceDataVersion=1&sendUpdates=all`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          ...baseBody,
+          attendees: [{ email: prospect.email, displayName: prospect.name }],
+        }),
+      },
+    );
+    createdOnMemberCalendar = true;
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message.startsWith("visio_google_api_failed:409:")
+    ) {
+      try {
+        event = await googleCalendarRequest<GoogleCalendarEvent>(
+          `/calendars/${encodeCalendarId(input.member.calendarId)}/events/${encodeURIComponent(input.eventId)}`,
+        );
+      } catch (collisionReadError) {
+        if (
+          collisionReadError instanceof Error &&
+          (collisionReadError.message.startsWith("visio_google_api_failed:404:") ||
+            collisionReadError.message.startsWith("visio_google_api_failed:410:"))
+        ) {
+          throw new Error("visio_booking_cancelled");
+        }
+        throw collisionReadError;
+      }
+      const properties = event.extendedProperties?.private || {};
+      if (
+        event.status === "cancelled" ||
+        properties[PRIVATE_BOOKING_KEY] !== PRIVATE_BOOKING_VALUE ||
+        properties.bookingNonce !== input.claims.nonce ||
+        properties.prospectUserId !== input.claims.sub
+      ) {
+        throw new Error(
+          event.status === "cancelled"
+            ? "visio_booking_cancelled"
+            : "visio_booking_id_conflict",
+        );
+      }
+      createdOnMemberCalendar = true;
+    } else if (
+      error instanceof Error &&
+      (error.message.startsWith("visio_google_api_failed:403:") ||
+        error.message.startsWith("visio_google_api_failed:404:"))
+    ) {
+      console.warn(
+        `[visio-booking] agenda personnel ${input.member.id} non modifiable; repli sur l’agenda partagé`,
+      );
+      event = await googleCalendarRequest<GoogleCalendarEvent>(
+        `/calendars/${encodeCalendarId(getVisioSharedCalendarId())}/events?conferenceDataVersion=1&sendUpdates=all`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            ...baseBody,
+            attendees: [
+              { email: input.member.email, displayName: input.member.name },
+              { email: prospect.email, displayName: prospect.name },
+            ],
+          }),
+        },
+      );
+    } else {
+      throw error;
+    }
+  }
+
+  if (createdOnMemberCalendar) {
+    await upsertTeamMirrorEvent({
+      event,
+      member: input.member,
+    }).catch((error: unknown) => {
+      console.error(
+        "[visio-booking][team-mirror]",
+        error instanceof Error ? error.message : "mirror_failed",
+      );
+    });
+  }
 
   const confirmation = confirmationFromEvent(event, input.start, input.member.name);
   const alertDestination = optionalEnv(
@@ -643,62 +1232,87 @@ export async function bookVisioSlot(
   }
 
   const eventId = bookingEventId(claims.nonce);
-  const existing = await getExistingBooking(eventId);
-  if (existing) {
-    const memberId = eventMemberId(existing);
-    const member = getVisioTeamMembers().find((candidate) => candidate.id === memberId);
-    return confirmationFromEvent(existing, start, member?.name || "l’équipe iNrCy");
-  }
-
-  const lock = await acquireBookingLock(start);
+  const identityLock = await acquireBookingLock(`identity:${eventId}`);
   try {
     const members = getVisioTeamMembers();
-    const spacingEnd = new Date(
-      start.getTime() + VISIO_BOOKING_SPACING_MINUTES * 60_000,
-    );
-    const loadRangeStart = new Date(now.getTime() - 30 * 24 * 60 * 60_000);
-    const loadRangeEnd = new Date(
-      now.getTime() + (horizonDays + 2) * 24 * 60 * 60_000,
-    );
-    const [busyByCalendar, events] = await Promise.all([
-      readFreeBusy(members, start, spacingEnd),
-      listBookingEvents(loadRangeStart, loadRangeEnd),
-    ]);
-
-    if (countEventsAtStart(events, start) >= VISIO_BOOKING_MAX_CONCURRENT) {
-      throw new Error("visio_slot_unavailable");
+    const existing = await getExistingBooking(eventId);
+    if (existing) {
+      const existingMemberId = eventMemberId(existing);
+      const existingMember = members.find((candidate) => candidate.id === existingMemberId);
+      return confirmationFromEvent(
+        existing,
+        start,
+        existingMember?.name || "l’équipe iNrCy",
+      );
     }
-    const member = chooseBalancedMember({
-      members,
-      busyByCalendar: addInternalBookingsToBusyPeriods(
-        members,
-        busyByCalendar,
-        events,
-      ),
-      bookingCountByMember: countEventsByMember(events),
-      start,
-    });
-    if (!member) throw new Error("visio_slot_unavailable");
-
+    const slotLock = await acquireBookingLock(`slot:${start.toISOString()}`);
     try {
-      return await createGoogleBookingEvent({ eventId, start, member, claims });
-    } catch (error) {
-      if (error instanceof Error && error.message.startsWith("visio_google_api_failed:409:")) {
-        const racedEvent = await getExistingBooking(eventId);
-        if (racedEvent) {
-          const racedMemberId = eventMemberId(racedEvent);
-          const racedMember = members.find((candidate) => candidate.id === racedMemberId);
-          return confirmationFromEvent(
-            racedEvent,
-            start,
-            racedMember?.name || "l’équipe iNrCy",
-          );
-        }
+      const existingAfterLock = await getExistingBooking(eventId);
+      if (existingAfterLock) {
+        const existingMemberId = eventMemberId(existingAfterLock);
+        const existingMember = members.find(
+          (candidate) => candidate.id === existingMemberId,
+        );
+        return confirmationFromEvent(
+          existingAfterLock,
+          start,
+          existingMember?.name || "l’équipe iNrCy",
+        );
       }
-      throw error;
+      const spacingEnd = new Date(
+        start.getTime() + VISIO_BOOKING_SPACING_MINUTES * 60_000,
+      );
+      const loadRangeStart = new Date(now.getTime() - 30 * 24 * 60 * 60_000);
+      const loadRangeEnd = new Date(
+        now.getTime() + (horizonDays + 2) * 24 * 60 * 60_000,
+      );
+      const [busyByCalendar, events] = await Promise.all([
+        readFreeBusy(members, start, spacingEnd),
+        listAllBookingEvents(loadRangeStart, loadRangeEnd),
+      ]);
+
+      if (countEventsAtStart(events, start) >= VISIO_BOOKING_MAX_CONCURRENT) {
+        throw new Error("visio_slot_unavailable");
+      }
+      const member = chooseBalancedMember({
+        members,
+        busyByCalendar: addInternalBookingsToBusyPeriods(
+          members,
+          busyByCalendar,
+          events,
+        ),
+        bookingCountByMember: countEventsByMember(events),
+        start,
+      });
+      if (!member) throw new Error("visio_slot_unavailable");
+
+      try {
+        return await createGoogleBookingEvent({ eventId, start, member, claims });
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          error.message.startsWith("visio_google_api_failed:409:")
+        ) {
+          const racedEvent = await getExistingBooking(eventId);
+          if (racedEvent) {
+            const racedMemberId = eventMemberId(racedEvent);
+            const racedMember = members.find(
+              (candidate) => candidate.id === racedMemberId,
+            );
+            return confirmationFromEvent(
+              racedEvent,
+              start,
+              racedMember?.name || "l’équipe iNrCy",
+            );
+          }
+        }
+        throw error;
+      }
+    } finally {
+      await slotLock.release().catch(() => undefined);
     }
   } finally {
-    await lock.release().catch(() => undefined);
+    await identityLock.release().catch(() => undefined);
   }
 }
 

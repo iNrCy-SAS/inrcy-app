@@ -34,18 +34,24 @@ test("AI Memory sanitizes, deduplicates and bounds professional data", () => {
   assert.deepEqual(memory.forbiddenVocabulary, ["leader"]);
 });
 
-test("Standard never exposes the three Premium memory blocks", () => {
+test("Standard never exposes the six Premium memory blocks", () => {
   const memory = normalizeAiMemory({
     detailedDescription: "Contexte commun",
     offersAndArguments: "Offre Premium",
+    keyArguments: "Arguments Premium",
     proofsAndObjections: "Preuves Premium",
+    objectionResponses: "Réponses Premium",
     editorialStrategy: "Stratégie Premium",
+    campaignCalendar: "Calendrier Premium",
   }, { includePremium: false });
 
   assert.equal(memory.detailedDescription, "Contexte commun");
   assert.equal(memory.offersAndArguments, "");
+  assert.equal(memory.keyArguments, "");
   assert.equal(memory.proofsAndObjections, "");
+  assert.equal(memory.objectionResponses, "");
   assert.equal(memory.editorialStrategy, "");
+  assert.equal(memory.campaignCalendar, "");
 });
 
 test("a temporary Standard period preserves previously saved Premium blocks", () => {
@@ -54,14 +60,65 @@ test("a temporary Standard period preserves previously saved Premium blocks", ()
   });
   const merged = mergeAiMemoryPremiumFields(commonUpdate, {
     offersAndArguments: "Offre conservée",
+    keyArguments: "Arguments conservés",
     proofsAndObjections: "Preuve conservée",
+    objectionResponses: "Réponses conservées",
     editorialStrategy: "Stratégie conservée",
+    campaignCalendar: "Calendrier conservé",
   });
 
   assert.equal(merged.detailedDescription, "Nouvelle présentation");
   assert.equal(merged.offersAndArguments, "Offre conservée");
+  assert.equal(merged.keyArguments, "Arguments conservés");
   assert.equal(merged.proofsAndObjections, "Preuve conservée");
+  assert.equal(merged.objectionResponses, "Réponses conservées");
   assert.equal(merged.editorialStrategy, "Stratégie conservée");
+  assert.equal(merged.campaignCalendar, "Calendrier conservé");
+});
+
+test("recent news keeps four independent facts regardless of their theme", () => {
+  const memory = normalizeAiMemory({
+    recentNewsItems: [
+      "Réalisation A",
+      "Réalisation B",
+      "Réalisation C",
+      "Réalisation D",
+      "Réalisation E ignorée",
+    ],
+  });
+
+  assert.deepEqual(memory.recentNewsItems, [
+    "Réalisation A",
+    "Réalisation B",
+    "Réalisation C",
+    "Réalisation D",
+  ]);
+});
+
+test("a fresh channel analysis replaces the previous 30-day news snapshot", () => {
+  const result = mergeAiBusinessDnaAnalysis(
+    {
+      recentNewsItems: ["Ancienne actualité"],
+      recentNewsUpdatedAt: "2026-08-01T00:00:00.000Z",
+    },
+    {},
+    {
+      recentNewsItems: ["Réalisation 1", "Réalisation 2", "Réalisation 3", "Réalisation 4"],
+      recentNewsUpdatedAt: "2026-09-07T00:00:00.000Z",
+      recentNewsWindowStart: "2026-08-08T00:00:00.000Z",
+      recentNewsWindowEnd: "2026-09-07T00:00:00.000Z",
+      recentNewsSourceKeys: ["instagram"],
+    },
+    {},
+  );
+
+  assert.deepEqual(result.memory.recentNewsItems, [
+    "Réalisation 1",
+    "Réalisation 2",
+    "Réalisation 3",
+    "Réalisation 4",
+  ]);
+  assert.ok(result.changedFields.includes("recentNewsItems"));
 });
 
 test("a partial memory save preserves every omitted historical field", () => {

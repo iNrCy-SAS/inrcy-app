@@ -232,12 +232,13 @@ export default function BusinessDnaRichTextEditor({
 
 const toolbarStyle: CSSProperties = {
   display: "flex",
+  flexWrap: "wrap",
   alignItems: "center",
   justifyContent: "space-between",
-  gap: 5,
+  gap: "7px 10px",
 };
 const toolbarActionsStyle: CSSProperties = { display: "inline-flex", alignItems: "center", justifyContent: "flex-end", gap: 5 };
-const editorLabelStyle: CSSProperties = { minWidth: 0, color: "rgba(255,255,255,0.88)", fontSize: 12.5, fontWeight: 850, lineHeight: 1.35 };
+const editorLabelStyle: CSSProperties = { flex: "1 1 190px", minWidth: 0, color: "rgba(255,255,255,0.88)", fontSize: 12.5, fontWeight: 850, lineHeight: 1.35 };
 const toolbarButtonStyle: CSSProperties = {
   width: 29,
   height: 27,

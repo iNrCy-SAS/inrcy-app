@@ -69,8 +69,16 @@ function buildProfile(premiumEnabled: boolean): MediaDnaProfile {
       preferredVocabulary: ["fait pour durer"],
       forbiddenVocabulary: ["prix cassé"],
       offersAndArguments: "Collections sur mesure et accompagnement de la conception à la pose.",
+      keyArguments: "Une conception adaptée à chaque usage et une fabrication locale.",
       proofsAndObjections: "Quinze ans d’expérience et garantie atelier.",
+      objectionResponses: "Le devis détaille chaque étape et chaque matière avant validation.",
       editorialStrategy: "Mettre en avant les étapes de fabrication et les matières de saison.",
+      campaignCalendar: "Présenter les aménagements intérieurs avant la rentrée.",
+      recentNewsItems: ["Livraison d’une bibliothèque en chêne à Lille en septembre."],
+      recentNewsUpdatedAt: "2026-09-07T10:00:00.000Z",
+      recentNewsWindowStart: "2026-08-08T10:00:00.000Z",
+      recentNewsWindowEnd: "2026-09-07T10:00:00.000Z",
+      recentNewsSourceKeys: ["instagram"],
       richText: {
         detailedDescription: "",
         offersAndArguments: "",
@@ -102,6 +110,7 @@ test("le payload média couvre l’ADN professionnel et la configuration IA sans
     "clients_et_positionnement",
     "zones_et_horaires",
     "identite_valeurs_vocabulaire",
+    "actualites_recentes",
     "configuration_ia",
   ]) {
     assert.ok(section in payload, `${section} doit alimenter le générateur média`);
@@ -115,6 +124,7 @@ test("le payload média couvre l’ADN professionnel et la configuration IA sans
     "Durabilité",
     "fait pour durer",
     "prix cassé",
+    "Livraison d’une bibliothèque en chêne",
     "expert",
     "light",
   ]) {
@@ -131,8 +141,11 @@ test("la stratégie média reste absente en Standard et apparaît uniquement en 
 
   for (const premiumFact of [
     "Collections sur mesure",
+    "conception adaptée à chaque usage",
     "Quinze ans d’expérience",
+    "Le devis détaille chaque étape",
     "matières de saison",
+    "avant la rentrée",
   ]) {
     assert.equal(standard.includes(premiumFact), false, `${premiumFact}: Standard`);
     assert.equal(premium.includes(premiumFact), true, `${premiumFact}: Premium`);
@@ -216,8 +229,15 @@ test("un ADN maximal reste sous budget sans perdre les repères prioritaires", (
     ...Array.from({ length: 20 }, (_, index) => escaped(`interdit-${index}`, 120)),
   ];
   profile.memory.offersAndArguments = escaped("offres");
+  profile.memory.keyArguments = escaped("arguments");
   profile.memory.proofsAndObjections = escaped("preuves");
+  profile.memory.objectionResponses = escaped("objections");
   profile.memory.editorialStrategy = escaped("strategie");
+  profile.memory.campaignCalendar = escaped("calendrier");
+  profile.memory.recentNewsItems = [
+    "ACTUALITE_PRIORITAIRE",
+    ...Array.from({ length: 4 }, (_, index) => escaped(`actualite-${index}`, 2_100)),
+  ];
   profile.preferences.language = "th";
   profile.preferences.tone = "warm";
   profile.preferences.communicationStyle = "expert";
@@ -235,6 +255,7 @@ test("un ADN maximal reste sous budget sans perdre les repères prioritaires", (
     "DIFFERENCE_PRIORITAIRE",
     "ZONE_PRIORITAIRE",
     "INTERDIT_PRIORITAIRE",
+    "ACTUALITE_PRIORITAIRE",
     "CONSIGNE_INTERDITE_PRIORITAIRE",
     '"langue":"th"',
     '"ton":"warm"',
