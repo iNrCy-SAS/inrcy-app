@@ -36,10 +36,27 @@ type Props = {
   value: string;
   onChange: (value: string) => void;
   onBusyChange?: (busy: boolean) => void;
+  contextLabel?: string;
+  purpose?: "subject" | "instruction" | "title" | "content" | "cta" | "hashtags";
+  placement?: "overlay" | "inline";
+  mergeMode?: "paragraph" | "space" | "replace";
+  maxLength?: number;
 };
 
-type VoiceState = "idle" | "recording" | "transcribing";
+type VoiceState = "idle" | "requesting" | "recording" | "transcribing";
 type RecordingMode = "media" | "liveOnly" | null;
+
+type ActiveVoiceSession = {
+  id: symbol;
+  cancel: () => void;
+};
+
+type VoiceTextMerge = {
+  text: string;
+  truncated: boolean;
+};
+
+let activeVoiceSession: ActiveVoiceSession | null = null;
 
 const MAX_SECONDS = 90;
 const MIN_AUDIO_BYTES = 900;
@@ -93,15 +110,62 @@ function extensionForMime(mimeType: string) {
 }
 
 function normalizeTranscript(value: string) {
-  return value.replace(/\s+/g, " ").trim().slice(0, 1_400);
+  return value.replace(/\s+/g, " ").trim().slice(0, 2_000);
 }
 
-function appendVoiceText(current: string, next: string) {
+function clipVoiceTextAtBoundary(value: string, maxLength: number) {
+  if (value.length <= maxLength) return value;
+  const clipped = value.slice(0, Math.max(0, maxLength));
+  for (let index = clipped.length - 1; index > 0; index -= 1) {
+    const character = clipped[index];
+    if (/\s/.test(character)) return clipped.slice(0, index).trimEnd();
+    if (/[,.!?;:]/.test(character)) {
+      return clipped.slice(0, index + 1).trimEnd();
+    }
+  }
+  return "";
+}
+
+function appendVoiceText(
+  current: string,
+  next: string,
+  mergeMode: "paragraph" | "space" | "replace",
+  maxLength?: number,
+): VoiceTextMerge {
   const cleanCurrent = current.trim();
   const cleanNext = next.trim();
-  if (!cleanCurrent) return cleanNext;
-  if (!cleanNext) return cleanCurrent;
-  return `${cleanCurrent}\n${cleanNext}`;
+  const separator = mergeMode === "space" ? " " : "\n";
+  const merged = mergeMode === "replace"
+    ? cleanNext
+    : !cleanCurrent
+    ? cleanNext
+    : !cleanNext
+      ? cleanCurrent
+      : `${cleanCurrent}${separator}${cleanNext}`;
+
+  if (typeof maxLength !== "number" || maxLength <= 0 || merged.length <= maxLength) {
+    return { text: merged, truncated: false };
+  }
+
+  if (mergeMode === "replace" || !cleanCurrent) {
+    return {
+      text: clipVoiceTextAtBoundary(merged, maxLength),
+      truncated: true,
+    };
+  }
+
+  if (cleanCurrent.length >= maxLength) {
+    return { text: cleanCurrent.slice(0, maxLength), truncated: true };
+  }
+
+  const available = maxLength - cleanCurrent.length - separator.length;
+  if (available <= 0) return { text: cleanCurrent, truncated: true };
+
+  const safeNext = clipVoiceTextAtBoundary(cleanNext, available);
+  return {
+    text: safeNext ? `${cleanCurrent}${separator}${safeNext}` : cleanCurrent,
+    truncated: true,
+  };
 }
 
 function voicePlatformInfo() {
@@ -169,6 +233,11 @@ export default function MediaSubjectVoiceButton({
   value,
   onChange,
   onBusyChange,
+  contextLabel,
+  purpose = "subject",
+  placement = "overlay",
+  mergeMode = "paragraph",
+  maxLength,
 }: Props) {
   const t = useTranslations("booster");
   const locale = useLocale();
@@ -188,6 +257,7 @@ export default function MediaSubjectVoiceButton({
   const timeoutRef = useRef<number | null>(null);
   const transcriptionAbortRef = useRef<AbortController | null>(null);
   const mountedRef = useRef(true);
+  const currentSessionIdRef = useRef<symbol | null>(null);
 
   const setVoiceState = (next: VoiceState) => {
     setState(next);
@@ -230,28 +300,103 @@ export default function MediaSubjectVoiceButton({
     hasLiveDraftRef.current = false;
   };
 
-  const finish = () => {
+  const restoreLiveDraft = () => {
+    if (!mountedRef.current || !hasLiveDraftRef.current) return;
+    onChange(baseTextRef.current);
+  };
+
+  const ownsVoiceSession = (sessionId: symbol | null) =>
+    Boolean(
+      sessionId &&
+        currentSessionIdRef.current === sessionId &&
+        activeVoiceSession?.id === sessionId,
+    );
+
+  const finish = (sessionId: symbol | null = currentSessionIdRef.current) => {
+    if (!ownsVoiceSession(sessionId)) return;
     clearTimers();
     stopStream();
     recordingModeRef.current = null;
-    setSeconds(0);
-    setVoiceState("idle");
+    activeVoiceSession = null;
+    currentSessionIdRef.current = null;
+    if (mountedRef.current) {
+      setSeconds(0);
+      setVoiceState("idle");
+    } else {
+      onBusyChange?.(false);
+    }
   };
 
-  const startTimer = (stop: () => void) => {
+  const cancelSession = (sessionId: symbol | null = currentSessionIdRef.current) => {
+    if (!ownsVoiceSession(sessionId)) return;
+    transcriptionAbortRef.current?.abort();
+    transcriptionAbortRef.current = null;
+    clearTimers();
+    stopSpeechCapture();
+    restoreLiveDraft();
+    resetLiveDraft();
+    const recorder = recorderRef.current;
+    recorderRef.current = null;
+    if (recorder) {
+      recorder.ondataavailable = null;
+      recorder.onerror = null;
+      recorder.onstop = null;
+      if (recorder.state !== "inactive") {
+        try {
+          recorder.stop();
+        } catch {
+          // Best-effort cleanup only.
+        }
+      }
+    }
+    chunksRef.current = [];
+    finish(sessionId);
+  };
+
+  const claimVoiceSession = () => {
+    activeVoiceSession?.cancel();
+    const sessionId = Symbol("inrcy-voice-dictation-session");
+    currentSessionIdRef.current = sessionId;
+    activeVoiceSession = {
+      id: sessionId,
+      cancel: () => cancelSession(sessionId),
+    };
+    return sessionId;
+  };
+
+  const isCurrentVoiceSession = (sessionId: symbol | null) =>
+    mountedRef.current && ownsVoiceSession(sessionId);
+
+  const startTimer = (stop: () => void, sessionId: symbol | null) => {
     setSeconds(0);
     intervalRef.current = window.setInterval(() => {
+      if (!isCurrentVoiceSession(sessionId)) return;
       setSeconds((current) => Math.min(MAX_SECONDS, current + 1));
     }, 1_000);
-    timeoutRef.current = window.setTimeout(stop, MAX_SECONDS * 1_000);
+    timeoutRef.current = window.setTimeout(() => {
+      if (isCurrentVoiceSession(sessionId)) stop();
+    }, MAX_SECONDS * 1_000);
   };
 
-  const submitLiveTextForCorrection = async () => {
+  const applyVoiceText = (
+    baseText: string,
+    transcript: string,
+    sessionId: symbol | null,
+  ) => {
+    if (!isCurrentVoiceSession(sessionId)) return false;
+    const merged = appendVoiceText(baseText, transcript, mergeMode, maxLength);
+    onChange(merged.text);
+    setError(merged.truncated ? t("voice_text_truncated") : "");
+    return true;
+  };
+
+  const submitLiveTextForCorrection = async (sessionId: symbol | null) => {
+    if (!isCurrentVoiceSession(sessionId)) return;
     const liveTranscript = normalizeTranscript(liveTextRef.current);
     if (!liveTranscript) {
       setError(t("aucun_texte_n_a_ete_detecte_7c72cc50"));
       resetLiveDraft();
-      finish();
+      finish(sessionId);
       return;
     }
 
@@ -269,36 +414,39 @@ export default function MediaSubjectVoiceButton({
         signal: abortController.signal,
       });
       const payload = await response.json().catch(() => ({}));
+      if (!isCurrentVoiceSession(sessionId)) return;
       if (!response.ok) {
         throw new Error(responseMessage(payload, t("voice_correction_failed_live_kept")));
       }
 
       const correctedText = String(payload?.text || "").trim();
       if (!correctedText) throw new Error(t("aucun_texte_n_a_ete_detecte_7c72cc50"));
-      onChange(appendVoiceText(baseTextRef.current, correctedText));
-      setError("");
+      applyVoiceText(baseTextRef.current, correctedText, sessionId);
     } catch (caught) {
-      if (abortController.signal.aborted || !mountedRef.current) return;
+      if (abortController.signal.aborted || !isCurrentVoiceSession(sessionId)) return;
       const message = caught instanceof Error ? caught.message : "";
       setError(message || t("voice_correction_failed_live_kept"));
     } finally {
       if (transcriptionAbortRef.current === abortController) {
         transcriptionAbortRef.current = null;
       }
-      resetLiveDraft();
-      if (mountedRef.current) finish();
+      if (isCurrentVoiceSession(sessionId)) {
+        resetLiveDraft();
+        finish(sessionId);
+      }
     }
   };
 
-  const submitAudio = async (blob: Blob) => {
+  const submitAudio = async (blob: Blob, sessionId: symbol | null) => {
+    if (!isCurrentVoiceSession(sessionId)) return;
     if (!blob.size || blob.size < MIN_AUDIO_BYTES) {
-      setError(
-        hasLiveDraftRef.current
-          ? t("voice_too_short_live_kept")
-          : t("voice_too_short"),
-      );
+      if (hasLiveDraftRef.current && liveTextRef.current.trim()) {
+        await submitLiveTextForCorrection(sessionId);
+        return;
+      }
+      setError(t("voice_too_short"));
       resetLiveDraft();
-      finish();
+      finish(sessionId);
       return;
     }
 
@@ -320,16 +468,16 @@ export default function MediaSubjectVoiceButton({
         signal: abortController.signal,
       });
       const payload = await response.json().catch(() => ({}));
+      if (!isCurrentVoiceSession(sessionId)) return;
       if (!response.ok) {
         throw new Error(responseMessage(payload, t("voice_transcription_failed")));
       }
 
       const transcript = String(payload?.text || "").trim();
       if (!transcript) throw new Error(t("aucun_texte_n_a_ete_detecte_7c72cc50"));
-      onChange(appendVoiceText(baseTextRef.current || value, transcript));
-      setError("");
+      applyVoiceText(baseTextRef.current || value, transcript, sessionId);
     } catch (caught) {
-      if (abortController.signal.aborted || !mountedRef.current) return;
+      if (abortController.signal.aborted || !isCurrentVoiceSession(sessionId)) return;
       const liveDraftKept = hasLiveDraftRef.current && liveTextRef.current.trim();
       const message = caught instanceof Error ? caught.message : "";
       setError(
@@ -341,12 +489,19 @@ export default function MediaSubjectVoiceButton({
       if (transcriptionAbortRef.current === abortController) {
         transcriptionAbortRef.current = null;
       }
-      resetLiveDraft();
-      if (mountedRef.current) finish();
+      if (isCurrentVoiceSession(sessionId)) {
+        resetLiveDraft();
+        finish(sessionId);
+      }
     }
   };
 
-  const startSpeechCapture = (baseText: string, liveOnly: boolean) => {
+  const startSpeechCapture = (
+    baseText: string,
+    liveOnly: boolean,
+    sessionId: symbol | null,
+  ) => {
+    if (!isCurrentVoiceSession(sessionId)) return false;
     const SpeechRecognition = speechRecognitionConstructor();
     if (!SpeechRecognition) return false;
 
@@ -361,6 +516,7 @@ export default function MediaSubjectVoiceButton({
       baseTextRef.current = baseText;
 
       recognition.onresult = (event) => {
+        if (!isCurrentVoiceSession(sessionId)) return;
         const results = event.results;
         if (!results?.length) return;
         let transcript = "";
@@ -371,25 +527,33 @@ export default function MediaSubjectVoiceButton({
         if (!normalized) return;
         liveTextRef.current = normalized;
         hasLiveDraftRef.current = true;
-        onChange(appendVoiceText(baseTextRef.current, normalized));
+        applyVoiceText(baseTextRef.current, normalized, sessionId);
       };
 
       recognition.onerror = () => {
         recognitionRef.current = null;
+        if (!isCurrentVoiceSession(sessionId)) return;
         if (recordingModeRef.current === "liveOnly") {
           liveOnlyUnavailableRef.current = true;
-          setError(t("voice_live_unavailable"));
-          resetLiveDraft();
-          finish();
+          clearTimers();
+          recordingModeRef.current = null;
+          if (hasLiveDraftRef.current && liveTextRef.current.trim()) {
+            void submitLiveTextForCorrection(sessionId);
+          } else {
+            setError(t("voice_live_unavailable"));
+            resetLiveDraft();
+            finish(sessionId);
+          }
         }
       };
 
       recognition.onend = () => {
         recognitionRef.current = null;
+        if (!isCurrentVoiceSession(sessionId)) return;
         if (recordingModeRef.current === "liveOnly") {
           clearTimers();
           recordingModeRef.current = null;
-          void submitLiveTextForCorrection();
+          void submitLiveTextForCorrection(sessionId);
         }
       };
 
@@ -404,42 +568,55 @@ export default function MediaSubjectVoiceButton({
   };
 
   const stopRecording = () => {
+    const sessionId = currentSessionIdRef.current;
+    if (!isCurrentVoiceSession(sessionId)) return;
     if (recordingModeRef.current === "liveOnly") {
       clearTimers();
       stopSpeechCapture();
       recordingModeRef.current = null;
-      void submitLiveTextForCorrection();
+      void submitLiveTextForCorrection(sessionId);
       return;
     }
 
     stopSpeechCapture();
     const recorder = recorderRef.current;
     if (recorder && recorder.state !== "inactive") {
+      setVoiceState("transcribing");
       recorder.stop();
       return;
     }
-    finish();
+    finish(sessionId);
   };
 
-  const startLiveOnlyRecording = () => {
-    if (!startSpeechCapture(value, true)) {
+  const startLiveOnlyRecording = (sessionId: symbol | null) => {
+    if (!startSpeechCapture(value, true, sessionId)) {
       liveOnlyUnavailableRef.current = true;
       return false;
     }
     setVoiceState("recording");
-    startTimer(stopRecording);
+    startTimer(stopRecording, sessionId);
     return true;
   };
 
-  const startMediaRecording = async (allowLivePreview: boolean) => {
+  const startMediaRecording = async (
+    allowLivePreview: boolean,
+    sessionId: symbol | null,
+  ) => {
+    if (!isCurrentVoiceSession(sessionId)) return;
     if (!navigator.mediaDevices?.getUserMedia || typeof window.MediaRecorder === "undefined") {
       setError(t("voice_recording_unsupported"));
+      finish(sessionId);
       return;
     }
 
     try {
       await warmupMicrophoneIfNeeded();
+      if (!isCurrentVoiceSession(sessionId)) return;
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (!isCurrentVoiceSession(sessionId)) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
       streamRef.current = stream;
       const mimeType = preferredMimeType();
       const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
@@ -449,18 +626,27 @@ export default function MediaSubjectVoiceButton({
       baseTextRef.current = value;
 
       recorder.ondataavailable = (event) => {
+        if (!isCurrentVoiceSession(sessionId)) return;
         if (event.data?.size) chunksRef.current.push(event.data);
       };
       recorder.onerror = () => {
-        setError(t("voice_micro_recording_error"));
+        if (!isCurrentVoiceSession(sessionId)) return;
+        recorder.onstop = null;
         clearTimers();
         stopSpeechCapture();
-        resetLiveDraft();
         stopStream();
         recorderRef.current = null;
-        finish();
+        recordingModeRef.current = null;
+        if (hasLiveDraftRef.current && liveTextRef.current.trim()) {
+          void submitLiveTextForCorrection(sessionId);
+        } else {
+          setError(t("voice_micro_recording_error"));
+          resetLiveDraft();
+          finish(sessionId);
+        }
       };
       recorder.onstop = () => {
+        if (!isCurrentVoiceSession(sessionId)) return;
         clearTimers();
         stopSpeechCapture();
         stopStream();
@@ -471,16 +657,24 @@ export default function MediaSubjectVoiceButton({
         recorderRef.current = null;
         recordingModeRef.current = null;
         chunksRef.current = [];
-        void submitAudio(blob);
+        void submitAudio(blob, sessionId);
       };
 
       recorder.start();
-      if (allowLivePreview) startSpeechCapture(value, false);
+      if (allowLivePreview) startSpeechCapture(value, false, sessionId);
       setVoiceState("recording");
-      startTimer(stopRecording);
+      startTimer(stopRecording, sessionId);
     } catch (caught) {
+      if (!isCurrentVoiceSession(sessionId)) return;
+      const recorder = recorderRef.current;
+      if (recorder) {
+        recorder.ondataavailable = null;
+        recorder.onerror = null;
+        recorder.onstop = null;
+      }
+      recorderRef.current = null;
+      chunksRef.current = [];
       stopSpeechCapture();
-      resetLiveDraft();
       stopStream();
       recordingModeRef.current = null;
       const name = caught instanceof DOMException ? caught.name : "";
@@ -488,12 +682,16 @@ export default function MediaSubjectVoiceButton({
         setError(t("voice_micro_permission_denied"));
       } else if (name === "NotFoundError" || name === "DevicesNotFoundError") {
         setError(t("voice_micro_not_found"));
-      } else if (voicePlatformInfo().hasSpeechRecognition && startLiveOnlyRecording()) {
+      } else if (
+        voicePlatformInfo().hasSpeechRecognition &&
+        startLiveOnlyRecording(sessionId)
+      ) {
         return;
       } else {
         setError(t("voice_micro_activation_failed"));
       }
-      finish();
+      resetLiveDraft();
+      finish(sessionId);
     }
   };
 
@@ -502,9 +700,12 @@ export default function MediaSubjectVoiceButton({
     stopSpeechCapture();
     resetLiveDraft();
     recordingModeRef.current = null;
+    const sessionId = claimVoiceSession();
+    setVoiceState("requesting");
 
     if (!window.isSecureContext && window.location.hostname !== "localhost") {
       setError(t("voice_https_required"));
+      finish(sessionId);
       return;
     }
 
@@ -512,55 +713,75 @@ export default function MediaSubjectVoiceButton({
     if (
       platform.shouldUseLiveOnly &&
       !liveOnlyUnavailableRef.current &&
-      startLiveOnlyRecording()
+      startLiveOnlyRecording(sessionId)
     ) {
       return;
     }
-    await startMediaRecording(platform.canUseLivePreview);
+    await startMediaRecording(platform.canUseLivePreview, sessionId);
   };
 
   useEffect(() => {
     mountedRef.current = true;
     return () => {
+      restoreLiveDraft();
       mountedRef.current = false;
       transcriptionAbortRef.current?.abort();
       transcriptionAbortRef.current = null;
-      clearTimers();
-      stopSpeechCapture();
-      stopStream();
-      recordingModeRef.current = null;
-      const recorder = recorderRef.current;
-      recorderRef.current = null;
-      if (recorder?.state === "recording") recorder.stop();
-      onBusyChange?.(false);
+      cancelSession(currentSessionIdRef.current);
     };
   }, []);
 
   const recording = state === "recording";
+  const titleKey =
+    purpose === "instruction"
+      ? "voice_instruction_title"
+      : purpose === "title"
+        ? "voice_title_title"
+        : purpose === "content"
+          ? "voice_content_title"
+          : purpose === "cta"
+            ? "voice_cta_title"
+            : purpose === "hashtags"
+              ? "voice_hashtags_title"
+              : "voice_subject_title";
   const label = recording
     ? t("arreter_le_vocal_value_aace3fb5", { value0: formatDuration(seconds) })
-    : state === "transcribing"
+    : state === "requesting" || state === "transcribing"
       ? t("correction_du_vocal_en_cours_2a811504")
-      : t("dicter_le_sujet_f14f51b5");
+      : t(titleKey);
+  const accessibleLabel = contextLabel ? `${label} — ${contextLabel}` : label;
 
-  return (
+  const button = (
+    <button
+      type="button"
+      className={styles.voiceButton}
+      data-recording={recording ? "true" : undefined}
+      disabled={disabled || state === "requesting" || state === "transcribing"}
+      aria-label={accessibleLabel}
+      aria-busy={state === "requesting" || state === "transcribing"}
+      aria-pressed={recording}
+      title={contextLabel ? `${t(titleKey)} — ${contextLabel}` : t(titleKey)}
+      onClick={() => (recording ? stopRecording() : void startRecording())}
+    >
+      {recording ? `■ ${formatDuration(seconds)}` : state === "idle" ? "🎙️" : "…"}
+    </button>
+  );
+
+  const errorMessage = error ? (
+    <span className={styles.voiceError} role="alert">
+      {error}
+    </span>
+  ) : null;
+
+  return placement === "inline" ? (
+    <span className={styles.voiceInlineControl}>
+      {button}
+      {errorMessage}
+    </span>
+  ) : (
     <>
-      <button
-        type="button"
-        className={styles.voiceButton}
-        data-recording={recording ? "true" : undefined}
-        disabled={disabled || state === "transcribing"}
-        aria-label={label}
-        title={t("voice_subject_title")}
-        onClick={() => (recording ? stopRecording() : void startRecording())}
-      >
-        {recording ? `■ ${formatDuration(seconds)}` : state === "transcribing" ? "…" : "🎙️"}
-      </button>
-      {error ? (
-        <span className={styles.voiceError} role="alert">
-          {error}
-        </span>
-      ) : null}
+      {button}
+      {errorMessage}
     </>
   );
 }

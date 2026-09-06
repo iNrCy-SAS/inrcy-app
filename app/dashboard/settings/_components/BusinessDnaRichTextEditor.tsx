@@ -8,6 +8,7 @@ import {
   businessDnaTextToHtml,
   sanitizeBusinessDnaRichHtml,
 } from "@/lib/businessDnaRichText";
+import MediaSubjectVoiceButton from "../../_components/MediaSubjectVoiceButton";
 
 type Props = {
   label?: string;
@@ -18,6 +19,7 @@ type Props = {
   maxLength?: number;
   minHeight?: number;
   disabled?: boolean;
+  onVoiceBusyChange?: (busy: boolean) => void;
 };
 
 export default function BusinessDnaRichTextEditor({
@@ -29,12 +31,17 @@ export default function BusinessDnaRichTextEditor({
   maxLength = 5_000,
   minHeight = 165,
   disabled = false,
+  onVoiceBusyChange,
 }: Props) {
   const t = useTranslations("dashboard.aiMemory");
   const editorRef = useRef<HTMLDivElement | null>(null);
   const lastHtmlRef = useRef("");
   const selectionRef = useRef<Range | null>(null);
+  const voiceBaseRef = useRef<{ text: string; html: string } | null>(null);
+  const voiceActiveRef = useRef(false);
   const [empty, setEmpty] = useState(!value.trim());
+  const [voiceBusy, setVoiceBusy] = useState(false);
+  const editorLocked = disabled || voiceBusy;
 
   useEffect(() => {
     const editor = editorRef.current;
@@ -65,6 +72,7 @@ export default function BusinessDnaRichTextEditor({
   };
 
   const emitChange = () => {
+    if (editorLocked) return;
     const editor = editorRef.current;
     if (!editor) return;
     let nextHtml = sanitizeBusinessDnaRichHtml(editor.innerHTML);
@@ -79,13 +87,57 @@ export default function BusinessDnaRichTextEditor({
     onChange({ text: nextText, html: nextHtml });
   };
 
+  const applyVoiceChange = (nextValue: string) => {
+    const base = voiceBaseRef.current || {
+      text: value.trim(),
+      html: sanitizeBusinessDnaRichHtml(html || businessDnaTextToHtml(value)),
+    };
+    const nextText = nextValue.trim().slice(0, maxLength);
+    let nextHtml = "";
+
+    if (!base.text) {
+      nextHtml = businessDnaTextToHtml(nextText);
+    } else if (nextText === base.text) {
+      nextHtml = base.html;
+    } else {
+      const appendedText = nextText.startsWith(`${base.text}\n`)
+        ? nextText.slice(base.text.length + 1).trim()
+        : nextText.startsWith(`${base.text} `)
+          ? nextText.slice(base.text.length + 1).trim()
+          : "";
+      nextHtml = appendedText
+        ? sanitizeBusinessDnaRichHtml(`${base.html}${businessDnaTextToHtml(appendedText)}`)
+        : businessDnaTextToHtml(nextText);
+    }
+
+    const synchronizedText = businessDnaHtmlToPlainText(nextHtml).slice(0, maxLength);
+    const editor = editorRef.current;
+    if (editor) editor.innerHTML = nextHtml;
+    lastHtmlRef.current = nextHtml;
+    setEmpty(!synchronizedText);
+    onChange({ text: synchronizedText, html: nextHtml });
+  };
+
+  const handleVoiceBusyChange = (busy: boolean) => {
+    if (busy && !voiceActiveRef.current) {
+      voiceBaseRef.current = {
+        text: value.trim(),
+        html: sanitizeBusinessDnaRichHtml(html || businessDnaTextToHtml(value)),
+      };
+    }
+    voiceActiveRef.current = busy;
+    setVoiceBusy(busy);
+    onVoiceBusyChange?.(busy);
+    if (!busy) voiceBaseRef.current = null;
+  };
+
   const keepSelection = (event: MouseEvent<HTMLButtonElement>) => {
     saveSelection();
     event.preventDefault();
   };
 
   const applyCommand = (command: "bold" | "italic" | "formatBlock" | "insertUnorderedList" | "removeFormat", value?: string) => {
-    if (disabled) return;
+    if (editorLocked) return;
     const editor = editorRef.current;
     if (!editor) return;
     try {
@@ -114,20 +166,31 @@ export default function BusinessDnaRichTextEditor({
       <div style={toolbarStyle}>
         {label ? <span style={editorLabelStyle}>{label}</span> : null}
         <span style={toolbarActionsStyle}>
-        {toolbarButtons.map((button) => (
-          <button
-            key={button.key}
-            type="button"
+          <MediaSubjectVoiceButton
             disabled={disabled}
-            aria-label={button.label}
-            title={button.label}
-            onMouseDown={keepSelection}
-            onClick={() => applyCommand(button.command, "value" in button ? button.value : undefined)}
-            style={{ ...toolbarButtonStyle, cursor: disabled ? "not-allowed" : "pointer" }}
-          >
-            {button.content}
-          </button>
-        ))}
+            value={value}
+            contextLabel={label || placeholder}
+            onChange={applyVoiceChange}
+            onBusyChange={handleVoiceBusyChange}
+            purpose="content"
+            placement="inline"
+            mergeMode="paragraph"
+            maxLength={maxLength}
+          />
+          {toolbarButtons.map((button) => (
+            <button
+              key={button.key}
+              type="button"
+              disabled={editorLocked}
+              aria-label={button.label}
+              title={button.label}
+              onMouseDown={keepSelection}
+              onClick={() => applyCommand(button.command, "value" in button ? button.value : undefined)}
+              style={{ ...toolbarButtonStyle, cursor: editorLocked ? "not-allowed" : "pointer" }}
+            >
+              {button.content}
+            </button>
+          ))}
         </span>
       </div>
 
@@ -135,11 +198,13 @@ export default function BusinessDnaRichTextEditor({
         {empty ? <span style={placeholderStyle}>{placeholder}</span> : null}
         <div
           ref={editorRef}
-          contentEditable={!disabled}
+          contentEditable={!editorLocked}
           suppressContentEditableWarning
           role="textbox"
+          aria-label={label || placeholder}
           aria-multiline="true"
-          aria-disabled={disabled}
+          aria-disabled={editorLocked}
+          aria-readonly={editorLocked}
           onInput={emitChange}
           onBlur={emitChange}
           onKeyUp={saveSelection}
@@ -156,7 +221,7 @@ export default function BusinessDnaRichTextEditor({
             ...editorStyle,
             minHeight,
             opacity: disabled ? 0.62 : 1,
-            cursor: disabled ? "not-allowed" : "text",
+            cursor: editorLocked ? "not-allowed" : "text",
           }}
         />
       </div>

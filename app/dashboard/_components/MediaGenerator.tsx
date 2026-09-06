@@ -1084,6 +1084,7 @@ export default function MediaGenerator({
               type="button"
               className={styles.collapsibleToggle}
               aria-expanded={expandedStep === 1}
+              disabled={voiceBusy}
               onClick={() => setExpandedStep((current) => current === 1 ? null : 1)}
             >
               <span className={styles.stepBadge}>1</span>
@@ -1185,11 +1186,13 @@ export default function MediaGenerator({
                     placeholder={t("ai_generator_custom_placeholder")}
                     maxLength={1_600}
                     disabled={busy || finishing}
+                    readOnly={voiceBusy}
                     rows={3}
                   />
                   <MediaSubjectVoiceButton
                     disabled={busy || finishing}
                     value={customIdea}
+                    maxLength={1_600}
                     onBusyChange={setVoiceBusy}
                     onChange={(nextValue) => {
                       setCustomIdea(nextValue);
@@ -1205,19 +1208,32 @@ export default function MediaGenerator({
                   {t("ai_generator_instruction_label")}
                   <small>{t("ai_generator_instruction_optional")}</small>
                 </label>
-                <textarea
-                  id="ai-media-instruction"
-                  value={aiInstruction}
-                  onChange={(event) => {
-                    setAiInstruction(event.target.value);
-                    if (actionError || error) clearTransientState();
-                  }}
-                  placeholder={t("ai_generator_instruction_placeholder")}
-                  maxLength={600}
-                  disabled={operationLocked}
-                  rows={2}
-                  aria-describedby="ai-media-instruction-hint"
-                />
+                <div className={styles.customTextareaWrap}>
+                  <textarea
+                    id="ai-media-instruction"
+                    value={aiInstruction}
+                    onChange={(event) => {
+                      setAiInstruction(event.target.value);
+                      if (actionError || error) clearTransientState();
+                    }}
+                    placeholder={t("ai_generator_instruction_placeholder")}
+                    maxLength={600}
+                    disabled={operationLocked}
+                    rows={2}
+                    aria-describedby="ai-media-instruction-hint"
+                  />
+                  <MediaSubjectVoiceButton
+                    purpose="instruction"
+                    disabled={busy || finishing}
+                    value={aiInstruction}
+                    maxLength={600}
+                    onBusyChange={setVoiceBusy}
+                    onChange={(nextValue) => {
+                      setAiInstruction(nextValue);
+                      if (actionError || error) clearTransientState();
+                    }}
+                  />
+                </div>
                 <span id="ai-media-instruction-hint">
                   {t("ai_generator_instruction_hint")}
                   {aiInstruction.length ? ` · ${aiInstruction.length}/600` : ""}
@@ -1233,6 +1249,7 @@ export default function MediaGenerator({
               type="button"
               className={styles.collapsibleToggle}
               aria-expanded={expandedStep === 2}
+              disabled={voiceBusy}
               onClick={() => setExpandedStep((current) => current === 2 ? null : 2)}
             >
               <span className={styles.stepBadge}>2</span>
@@ -1304,6 +1321,7 @@ export default function MediaGenerator({
               type="button"
               className={styles.collapsibleToggle}
               aria-expanded={expandedStep === 3}
+              disabled={voiceBusy}
               onClick={() => setExpandedStep((current) => current === 3 ? null : 3)}
             >
               <span className={styles.stepBadge}>3</span>
@@ -1395,6 +1413,7 @@ export default function MediaGenerator({
               type="button"
               className={styles.collapsibleToggle}
               aria-expanded={expandedStep === 4}
+              disabled={voiceBusy}
               onClick={() => setExpandedStep((current) => current === 4 ? null : 4)}
             >
               <span className={styles.stepBadge}>4</span>
@@ -1463,6 +1482,7 @@ export default function MediaGenerator({
               type="button"
               className={styles.collapsibleToggle}
               aria-expanded={expandedStep === 5}
+              disabled={voiceBusy}
               onClick={() => setExpandedStep((current) => current === 5 ? null : 5)}
             >
               <span className={styles.stepBadge}>5</span>
@@ -1815,6 +1835,7 @@ export default function MediaGenerator({
               type="button"
               className={styles.collapsibleToggle}
               aria-expanded={expandedStep === 6}
+              disabled={voiceBusy}
               onClick={() => setExpandedStep((current) => current === 6 ? null : 6)}
             >
               <span className={styles.stepBadge}>6</span>

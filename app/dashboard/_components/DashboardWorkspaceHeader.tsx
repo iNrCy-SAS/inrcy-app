@@ -6,6 +6,7 @@ type WorkspaceHeaderAction = {
   label: string;
   onClick: () => void;
   tone?: "cyan" | "violet" | "neutral";
+  disabled?: boolean;
 };
 
 type Props = {
@@ -39,8 +40,14 @@ export default function DashboardWorkspaceHeader({
           <button
             key={action.label}
             type="button"
+            disabled={action.disabled}
             onClick={action.onClick}
-            style={{ ...headerButtonBase, ...buttonToneStyles[action.tone || "neutral"] }}
+            style={{
+              ...headerButtonBase,
+              ...buttonToneStyles[action.tone || "neutral"],
+              cursor: action.disabled ? "not-allowed" : "pointer",
+              opacity: action.disabled ? 0.52 : 1,
+            }}
           >
             {action.label}
           </button>

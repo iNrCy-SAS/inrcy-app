@@ -458,6 +458,9 @@ export default function PublishModal({
   const [generationMediaWarning, setGenerationMediaWarning] = useState("");
   const [publishError, setPublishError] = useState("");
   const [draftSaving, setDraftSaving] = useState(false);
+  const [contentVoiceBusy, setContentVoiceBusy] = useState(false);
+  const [intentVoiceBusy, setIntentVoiceBusy] = useState(false);
+  const voiceInputBusy = contentVoiceBusy || intentVoiceBusy;
   const [draftMessage, setDraftMessage] = useState("");
   const [lastPublicationDraftSnapshot, setLastPublicationDraftSnapshot] =
     useState<string | null>(null);
@@ -4690,7 +4693,12 @@ export default function PublishModal({
     suppressPublishSuccess?: boolean;
     throwOnError?: boolean;
   }) => {
-    if (saving || draftSaving || publishStartGuardRef.current) return;
+    if (
+      saving ||
+      draftSaving ||
+      voiceInputBusy ||
+      publishStartGuardRef.current
+    ) return;
     const publishStartedAt = Date.now();
     const preparedPostsByChannel =
       options?.preparedPostsByChannel || buildPreparedPostsByChannel();
@@ -5573,7 +5581,7 @@ export default function PublishModal({
   };
 
   const onSavePublicationDraft = async () => {
-    if (saving || draftSaving) return;
+    if (saving || draftSaving || voiceInputBusy) return;
 
     setPublishError("");
     setDraftMessage("");
@@ -5750,7 +5758,7 @@ export default function PublishModal({
   }, [saveDraftActionRef, onSavePublicationDraft]);
 
   const openSchedulePublicationModal = () => {
-    if (saving || draftSaving || scheduleSaving) return;
+    if (saving || draftSaving || scheduleSaving || voiceInputBusy) return;
     const preparedPostsByChannel = buildPreparedPostsByChannel();
     setPublishError("");
     setScheduleError("");
@@ -5801,6 +5809,7 @@ export default function PublishModal({
       saving ||
       draftSaving ||
       scheduleSaving ||
+      voiceInputBusy ||
       scheduleStartGuardRef.current
     ) {
       return;
@@ -6319,7 +6328,7 @@ export default function PublishModal({
   };
 
   const onPublish = async () => {
-    if (saving || draftSaving || scheduleSaving) return;
+    if (saving || draftSaving || scheduleSaving || voiceInputBusy) return;
     const preparedPostsByChannel = buildPreparedPostsByChannel();
     setPublishError("");
     setDraftMessage("");
@@ -6968,7 +6977,13 @@ export default function PublishModal({
         styles={styles}
         isMobile={isMobile}
         mode={creationMode}
-        disabled={generating || saving || draftSaving || scheduleSaving}
+        disabled={
+          generating ||
+          saving ||
+          draftSaving ||
+          scheduleSaving ||
+          voiceInputBusy
+        }
         selectedChannelCount={selectedChannels.length}
         error={creationModeError}
         showReset={hasDraftablePublicationContent}
@@ -7034,6 +7049,7 @@ export default function PublishModal({
             }
             onGenerate={onGenerate}
             onOpenAiConfiguration={() => setAiConfigurationOpen(true)}
+            onVoiceBusyChange={setIntentVoiceBusy}
           />
         </div>
       ) : null}
@@ -7069,6 +7085,7 @@ export default function PublishModal({
               pinterestBoardsLoading={pinterestBoardsLoading}
               pinterestBoardsError={pinterestBoardsError}
               onPinterestBoardChange={onPinterestBoardChange}
+              onVoiceBusyChange={setContentVoiceBusy}
             />
 
             <PublishImagesPanel
@@ -7319,6 +7336,7 @@ export default function PublishModal({
             saving={saving}
             scheduling={scheduleSaving}
             draftSaving={draftSaving}
+            voiceBusy={voiceInputBusy}
             publishProgress={publishProgress}
             publishProgressLabel={publishProgressLabel}
             publishProgressPhaseIndex={publishProgressPhaseIndex}

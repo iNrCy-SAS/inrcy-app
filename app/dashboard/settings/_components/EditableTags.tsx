@@ -13,6 +13,7 @@ type EditableTagsProps = {
   emptyText?: string;
   maxItems?: number;
   inlineAdd?: boolean;
+  disabled?: boolean;
 };
 
 function cleanTag(value: string) {
@@ -40,12 +41,14 @@ export default function EditableTags({
   emptyText,
   maxItems = 30,
   inlineAdd = false,
+  disabled = false,
 }: EditableTagsProps) {
   const i18nT = useTranslations("settings");
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState("");
 
   const commit = () => {
+    if (disabled) return;
     const next = draft
       .split(/[,;\n]+/)
       .map(cleanTag)
@@ -93,6 +96,7 @@ export default function EditableTags({
             </span>
             <button
               type="button"
+              disabled={disabled}
               aria-label={i18nT("retirer_value_c04cdfcb", { value0: value })}
               title={i18nT("retirer_value_c04cdfcb", { value0: value })}
               onClick={() => onChange(values.filter((item) => item !== value))}
@@ -107,7 +111,8 @@ export default function EditableTags({
                 border: "1px solid rgba(255,255,255,0.13)",
                 background: "rgba(4,10,24,0.42)",
                 color: "rgba(255,255,255,0.76)",
-                cursor: "pointer",
+                cursor: disabled ? "not-allowed" : "pointer",
+                opacity: disabled ? 0.55 : 1,
                 fontSize: 14,
                 lineHeight: 1,
               }}
@@ -126,8 +131,9 @@ export default function EditableTags({
         {inlineAdd && !adding && values.length < maxItems ? (
           <button
             type="button"
+            disabled={disabled}
             onClick={() => setAdding(true)}
-            style={addButtonStyle}
+            style={{ ...addButtonStyle, cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.55 : 1 }}
           >
             + {addLabel}
           </button>
@@ -145,8 +151,12 @@ export default function EditableTags({
           <input
             autoFocus
             value={draft}
-            onChange={(event) => setDraft(event.target.value)}
+            readOnly={disabled}
+            onChange={(event) => {
+              if (!disabled) setDraft(event.target.value);
+            }}
             onKeyDown={(event) => {
+              if (disabled) return;
               if (event.key === "Enter" || event.key === "," || event.key === ";") {
                 event.preventDefault();
                 commit();
@@ -157,6 +167,7 @@ export default function EditableTags({
               }
             }}
             onBlur={() => {
+              if (disabled) return;
               if (draft.trim()) commit();
             }}
             placeholder={placeholder}
@@ -174,6 +185,7 @@ export default function EditableTags({
           />
           <button
             type="button"
+            disabled={disabled}
             onMouseDown={(event) => event.preventDefault()}
             onClick={commit}
             style={{
@@ -182,7 +194,8 @@ export default function EditableTags({
               background: "rgba(56,189,248,0.14)",
               color: "white",
               padding: "8px 12px",
-              cursor: "pointer",
+              cursor: disabled ? "not-allowed" : "pointer",
+              opacity: disabled ? 0.55 : 1,
               fontWeight: 850,
             }}
           >
@@ -191,8 +204,9 @@ export default function EditableTags({
       ) : !inlineAdd && values.length < maxItems ? (
         <button
           type="button"
+          disabled={disabled}
           onClick={() => setAdding(true)}
-          style={addButtonStyle}
+          style={{ ...addButtonStyle, cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.55 : 1 }}
         >
           + {addLabel}
         </button>

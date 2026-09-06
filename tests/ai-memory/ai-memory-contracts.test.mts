@@ -33,7 +33,14 @@ test("Premium memory is gated on the server and hidden from Standard prompts", (
   assert.match(context, /includePremium: hasPremiumDashboardAccess\(edition\)/);
   assert.match(profile, /includePremium: lengthEdition === "premium"/);
   assert.match(memoryUi, /edition = "standard"/);
-  assert.equal((memoryUi.match(/disabled=\{!premiumEnabled\}/g) || []).length, 3);
+  assert.equal(
+    (
+      memoryUi.match(
+        /disabled=\{!premiumEnabled \|\| voiceDisabledFor\("(?:offersAndArguments|proofsAndObjections|editorialStrategy)"\)\}/g,
+      ) || []
+    ).length,
+    3,
+  );
   assert.doesNotMatch(memoryUi, /customInstructions/);
   assert.match(configurationUi, /edition = "standard"/);
   assert.match(configurationUi, /ai_custom_instructions: form\.forbiddenStyle\.trim\(\)/);

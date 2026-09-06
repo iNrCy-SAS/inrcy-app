@@ -38,10 +38,19 @@ test("Booster records a portable audio file first and keeps live dictation as fa
   const panel = read(
     "app/dashboard/booster/publier/components/PublishIntentPanel.tsx",
   );
-  assert.match(panel, /const shouldUseLiveOnly = hasSpeechRecognition && !hasMediaRecording/);
-  assert.match(panel, /recorder\.start\(\);/);
-  assert.match(panel, /normalizeRecordedVoiceMimeType/);
-  assert.match(panel, /startLiveOnlyVoiceRecording\(target\)/);
+  const sharedVoiceButton = read(
+    "app/dashboard/_components/MediaSubjectVoiceButton.tsx",
+  );
+
+  assert.match(panel, /import MediaSubjectVoiceButton/);
+  assert.doesNotMatch(panel, /\bMediaRecorder\b|\bgetUserMedia\b/);
+  assert.match(
+    sharedVoiceButton,
+    /shouldUseLiveOnly:\s*hasSpeechRecognition && !hasMediaRecording/,
+  );
+  assert.match(sharedVoiceButton, /recorder\.start\(\);/);
+  assert.match(sharedVoiceButton, /normalizeRecordedMimeType/);
+  assert.match(sharedVoiceButton, /startLiveOnlyRecording\(sessionId\)/);
 });
 
 test("transcription keeps a quality-first model with a Whisper fallback", () => {

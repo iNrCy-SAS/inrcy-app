@@ -106,7 +106,7 @@ async function downloadTemporaryAudio(storagePath: string, userId: string) {
   });
 }
 
-function cleanTranscriptText(value: unknown, maxLength = 1400) {
+function cleanTranscriptText(value: unknown, maxLength = 2000) {
   return String(value || "")
     .replace(/[ \t]+/g, " ")
     .replace(/\n{3,}/g, "\n\n")
@@ -174,7 +174,7 @@ Garde un texte naturel, clair et exploitable comme contexte IA.
 
 Texte transcrit :
 ${fallback}`,
-      maxOutputTokens: 450,
+      maxOutputTokens: 650,
       temperature: 0.1,
     });
 
@@ -210,7 +210,7 @@ const handler = async (request: Request) => {
     const rateLimit = await enforceRateLimit({
       name: "booster_transcribe",
       identifier: activeUserId,
-      limit: 12,
+      limit: 40,
       window: "10 m",
     });
     if (rateLimit) return rateLimit;

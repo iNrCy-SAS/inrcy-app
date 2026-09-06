@@ -1,7 +1,7 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
-import type { CSSProperties } from "react";
+import { useState, type CSSProperties } from "react";
 
 import {
   BUSINESS_WEEK_DAY_KEYS,
@@ -11,10 +11,13 @@ import {
   type BusinessWeekDayKey,
   type BusinessWeeklySchedule,
 } from "@/lib/businessWeeklySchedule";
+import MediaSubjectVoiceButton from "../../_components/MediaSubjectVoiceButton";
 
 type Props = {
   value: BusinessWeeklySchedule;
   onChange: (value: BusinessWeeklySchedule) => void;
+  disabled?: boolean;
+  onVoiceBusyChange?: (busy: boolean) => void;
 };
 
 const DEFAULT_SLOTS: BusinessScheduleSlot[] = [
@@ -30,9 +33,16 @@ function capitalize(value: string) {
   return value ? `${value[0].toLocaleUpperCase()}${value.slice(1)}` : value;
 }
 
-export default function BusinessScheduleEditor({ value, onChange }: Props) {
+export default function BusinessScheduleEditor({
+  value,
+  onChange,
+  disabled = false,
+  onVoiceBusyChange,
+}: Props) {
   const locale = useLocale();
   const t = useTranslations("dashboard.aiMemory");
+  const [voiceBusy, setVoiceBusy] = useState(false);
+  const controlsLocked = disabled || voiceBusy;
   const schedule = normalizeBusinessWeeklySchedule(value);
   const days = BUSINESS_WEEK_DAY_KEYS.map((key, index) => ({
     key,
@@ -43,12 +53,14 @@ export default function BusinessScheduleEditor({ value, onChange }: Props) {
 
   const emit = (next: BusinessWeeklySchedule) => onChange(normalizeBusinessWeeklySchedule(next));
   const updateDay = (key: BusinessWeekDayKey, updater: (day: BusinessScheduleDay) => BusinessScheduleDay) => {
+    if (controlsLocked) return;
     const next = cloneSchedule(schedule);
     next.days[key] = updater(next.days[key]);
     emit(next);
   };
 
   const applyEveryDay = () => {
+    if (controlsLocked) return;
     const next = cloneSchedule(schedule);
     for (const key of BUSINESS_WEEK_DAY_KEYS) {
       const current = next.days[key];
@@ -60,6 +72,7 @@ export default function BusinessScheduleEditor({ value, onChange }: Props) {
   };
 
   const applyAroundTheClock = () => {
+    if (controlsLocked) return;
     const next = cloneSchedule(schedule);
     for (const key of BUSINESS_WEEK_DAY_KEYS) {
       next.days[key] = { open: true, allDay: true, slots: [] };
@@ -72,6 +85,7 @@ export default function BusinessScheduleEditor({ value, onChange }: Props) {
       <div style={presetsStyle}>
         <button
           type="button"
+          disabled={controlsLocked}
           aria-pressed={everyDay}
           onClick={applyEveryDay}
           style={{ ...presetButtonStyle, ...(everyDay ? activePresetStyle : {}) }}
@@ -81,6 +95,7 @@ export default function BusinessScheduleEditor({ value, onChange }: Props) {
         </button>
         <button
           type="button"
+          disabled={controlsLocked}
           aria-pressed={aroundTheClock}
           onClick={applyAroundTheClock}
           style={{ ...presetButtonStyle, ...(aroundTheClock ? activePresetStyle : {}) }}
@@ -99,6 +114,7 @@ export default function BusinessScheduleEditor({ value, onChange }: Props) {
                 <strong style={dayNameStyle}>{label}</strong>
                 <button
                   type="button"
+                  disabled={controlsLocked}
                   aria-pressed={day.open}
                   onClick={() => updateDay(key, (current) => current.open
                     ? { open: false, allDay: false, slots: [] }
@@ -115,6 +131,7 @@ export default function BusinessScheduleEditor({ value, onChange }: Props) {
                   <label style={allDayLabelStyle}>
                     <input
                       type="checkbox"
+                      disabled={controlsLocked}
                       checked={day.allDay}
                       onChange={(event) => updateDay(key, (current) => ({
                         ...current,
@@ -132,6 +149,7 @@ export default function BusinessScheduleEditor({ value, onChange }: Props) {
                         <div key={`${key}-${slotIndex}`} style={slotRowStyle}>
                           <input
                             type="time"
+                            disabled={controlsLocked}
                             aria-label={`${label} ${t("scheduleStart")}`}
                             value={slot.start}
                             onChange={(event) => updateDay(key, (current) => ({
@@ -143,6 +161,7 @@ export default function BusinessScheduleEditor({ value, onChange }: Props) {
                           <span aria-hidden style={timeSeparatorStyle}>→</span>
                           <input
                             type="time"
+                            disabled={controlsLocked}
                             aria-label={`${label} ${t("scheduleEnd")}`}
                             value={slot.end}
                             onChange={(event) => updateDay(key, (current) => ({
@@ -154,6 +173,7 @@ export default function BusinessScheduleEditor({ value, onChange }: Props) {
                           {day.slots.length > 1 ? (
                             <button
                               type="button"
+                              disabled={controlsLocked}
                               aria-label={t("scheduleRemoveSlot")}
                               onClick={() => updateDay(key, (current) => ({
                                 ...current,
@@ -169,6 +189,7 @@ export default function BusinessScheduleEditor({ value, onChange }: Props) {
                       {day.slots.length < 2 ? (
                         <button
                           type="button"
+                          disabled={controlsLocked}
                           onClick={() => updateDay(key, (current) => ({
                             ...current,
                             slots: [...current.slots, { start: "14:00", end: "18:00" }].slice(0, 2),
@@ -187,16 +208,35 @@ export default function BusinessScheduleEditor({ value, onChange }: Props) {
         })}
       </div>
 
-      <label style={notesLabelStyle}>
-        <span style={notesTitleStyle}>{t("scheduleNotes")}</span>
+      <div style={notesLabelStyle}>
+        <span style={notesHeadingStyle}>
+          <label htmlFor="business-dna-schedule-notes" style={notesTitleStyle}>{t("scheduleNotes")}</label>
+          <MediaSubjectVoiceButton
+            disabled={disabled}
+            value={schedule.notes}
+            contextLabel={t("scheduleNotes")}
+            onChange={(notes) => emit({ ...cloneSchedule(schedule), notes })}
+            onBusyChange={(busy) => {
+              setVoiceBusy(busy);
+              onVoiceBusyChange?.(busy);
+            }}
+            purpose="content"
+            placement="inline"
+            mergeMode="paragraph"
+            maxLength={500}
+          />
+        </span>
         <textarea
+          id="business-dna-schedule-notes"
           value={schedule.notes}
           maxLength={500}
+          readOnly={controlsLocked}
+          aria-busy={voiceBusy}
           onChange={(event) => emit({ ...cloneSchedule(schedule), notes: event.target.value })}
           placeholder={t("scheduleNotesPlaceholder")}
           style={notesInputStyle}
         />
-      </label>
+      </div>
 
       <style jsx>{`
         @media (max-width: 760px) {
@@ -233,5 +273,6 @@ const timeSeparatorStyle: CSSProperties = { color: "rgba(196,181,253,0.72)", fon
 const removeSlotStyle: CSSProperties = { width: 25, height: 25, borderRadius: 8, border: "1px solid rgba(248,113,113,0.18)", background: "rgba(127,29,29,0.12)", color: "#fca5a5", cursor: "pointer", fontSize: 16, lineHeight: 1 };
 const addSlotStyle: CSSProperties = { justifySelf: "start", border: 0, background: "transparent", color: "#c4b5fd", padding: "1px 0", cursor: "pointer", fontSize: 10.5, fontWeight: 850 };
 const notesLabelStyle: CSSProperties = { display: "grid", gap: 5 };
+const notesHeadingStyle: CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 };
 const notesTitleStyle: CSSProperties = { color: "rgba(255,255,255,0.82)", fontSize: 11.5, fontWeight: 850 };
 const notesInputStyle: CSSProperties = { width: "100%", minHeight: 46, maxHeight: 76, resize: "vertical", boxSizing: "border-box", padding: "8px 9px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.11)", background: "rgba(3,9,23,0.30)", color: "white", lineHeight: 1.35, fontSize: 11.5, outline: "none" };

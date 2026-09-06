@@ -30,12 +30,20 @@ import {
 import { hasPremiumDashboardAccess, type DashboardEdition } from "@/lib/dashboardEdition";
 import { confirmInrcy } from "@/lib/inrcyDialog";
 import { refreshPublicProfileDependents } from "@/lib/publicProfileRefreshClient";
+import MediaSubjectVoiceButton from "../../_components/MediaSubjectVoiceButton";
 import BusinessDnaRichTextEditor from "./BusinessDnaRichTextEditor";
 import BusinessScheduleEditor from "./BusinessScheduleEditor";
 import EditableTags from "./EditableTags";
 
 type ProfileFoundation = { sector: string; profession: string };
 type WorkspaceTab = "analysis" | "activity" | "audience" | "local" | "identity" | "strategy";
+type VoiceTarget =
+  | "detailedDescription"
+  | "mission"
+  | "scheduleNotes"
+  | "offersAndArguments"
+  | "proofsAndObjections"
+  | "editorialStrategy";
 type AnalysisSource = {
   key: string;
   label: string;
@@ -59,6 +67,7 @@ type AnalysisQuota = {
 type Props = {
   edition?: DashboardEdition;
   onUnsavedChange?: (hasUnsavedChanges: boolean) => void;
+  onVoiceBusyChange?: (busy: boolean) => void;
 };
 
 function apiErrorMessage(payload: unknown, fallback: string) {
@@ -119,6 +128,7 @@ function parseAnalysisChannels(value: unknown): BusinessDnaDashboardChannelAvail
 export default function AiMemoryContent({
   edition = "standard",
   onUnsavedChange,
+  onVoiceBusyChange,
 }: Props) {
   const t = useTranslations("dashboard.aiMemory");
   const moduleT = useTranslations("dashboard.moduleCards");
@@ -137,6 +147,7 @@ export default function AiMemoryContent({
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
+  const [voiceTarget, setVoiceTarget] = useState<VoiceTarget | null>(null);
   const [analysisProgress, setAnalysisProgress] = useState(0);
   const [analysisError, setAnalysisError] = useState("");
   const [analysisSummary, setAnalysisSummary] = useState<AnalysisSummary | null>(null);
@@ -150,6 +161,7 @@ export default function AiMemoryContent({
   );
   const analysisProgressTimerRef = useRef<number | null>(null);
   const tabSwipeStartRef = useRef<{ x: number; y: number; enabled: boolean } | null>(null);
+  const voiceTargetRef = useRef<VoiceTarget | null>(null);
 
   const updateMemory = useCallback((update: SetStateAction<AiMemory>) => {
     const nextMemory = typeof update === "function" ? update(memoryRef.current) : update;
@@ -175,6 +187,22 @@ export default function AiMemoryContent({
   const completionScore = getAiWorkspaceCompletionScore(memory, businessKnowledge, {
     includePremium: premiumEnabled,
   });
+  const voiceBusy = voiceTarget !== null;
+  const voiceOperationsLocked = saving || analyzing || loading || !loaded;
+  const voiceDisabledFor = (target: VoiceTarget) =>
+    voiceOperationsLocked || (voiceTarget !== null && voiceTarget !== target);
+  const handleVoiceBusyChange = (target: VoiceTarget, busy: boolean) => {
+    const current = voiceTargetRef.current;
+    const next = busy ? target : current === target ? null : current;
+    voiceTargetRef.current = next;
+    setVoiceTarget(next);
+    if (next === null) {
+      onUnsavedChange?.(
+        workspaceSignature(memoryRef.current, businessKnowledgeRef.current) !== savedSignatureRef.current,
+      );
+    }
+    onVoiceBusyChange?.(next !== null);
+  };
 
   useEffect(() => {
     if (loading) {
@@ -189,6 +217,11 @@ export default function AiMemoryContent({
       window.clearInterval(analysisProgressTimerRef.current);
     }
   }, []);
+
+  useEffect(() => () => {
+    voiceTargetRef.current = null;
+    onVoiceBusyChange?.(false);
+  }, [onVoiceBusyChange]);
 
   useEffect(() => {
     let active = true;
@@ -308,7 +341,7 @@ export default function AiMemoryContent({
   };
 
   const save = async () => {
-    if (saving || !loaded) return;
+    if (saving || !loaded || voiceTargetRef.current) return;
     setSaving(true);
     setSaved(false);
     setError("");
@@ -357,7 +390,7 @@ export default function AiMemoryContent({
   };
 
   const cancelChanges = async () => {
-    if (signature === savedSignatureRef.current) return;
+    if (voiceTargetRef.current || signature === savedSignatureRef.current) return;
     const confirmed = await confirmInrcy({
       title: t("cancelTitle"),
       message: t("cancelMessage"),
@@ -385,6 +418,7 @@ export default function AiMemoryContent({
   };
 
   const resetWorkspace = async () => {
+    if (voiceTargetRef.current) return;
     const confirmed = await confirmInrcy({
       title: t("resetTitle"),
       message: t("resetMessage"),
@@ -400,7 +434,7 @@ export default function AiMemoryContent({
   };
 
   const analyzeChannels = async () => {
-    if (analyzing || loading || !loaded) return;
+    if (analyzing || loading || !loaded || voiceTargetRef.current) return;
     setAnalyzing(true);
     setAnalysisProgress(4);
     if (analysisProgressTimerRef.current !== null) {
@@ -510,6 +544,7 @@ export default function AiMemoryContent({
     <EditableTags
       values={memory[key]}
       onChange={(values) => setField(key, values)}
+      disabled={voiceBusy}
       addLabel={addLabel}
       placeholder={placeholder}
       emptyText={t("tagsEmpty")}
@@ -529,6 +564,7 @@ export default function AiMemoryContent({
   const activeTabIndex = Math.max(0, tabs.findIndex((tab) => tab.key === activeTab));
   const activeTabDefinition = tabs[activeTabIndex] ?? tabs[0];
   const selectTabAt = (index: number) => {
+    if (voiceTargetRef.current) return;
     const next = tabs[index];
     if (next) setActiveTab(next.key);
   };
@@ -542,6 +578,7 @@ export default function AiMemoryContent({
             <button
               key={tab.key}
               type="button"
+              disabled={voiceBusy}
               role="tab"
               aria-selected={active}
               onClick={() => setActiveTab(tab.key)}
@@ -564,7 +601,7 @@ export default function AiMemoryContent({
       <nav data-ai-memory-mobile-tabs aria-label={t("title")} style={mobileTabNavigatorStyle}>
         <button
           type="button"
-          disabled={activeTabIndex === 0}
+          disabled={voiceBusy || activeTabIndex === 0}
           aria-label={activeTabIndex > 0 ? tabs[activeTabIndex - 1].label : activeTabDefinition.label}
           onClick={() => selectTabAt(activeTabIndex - 1)}
           style={mobileTabArrowStyle}
@@ -584,7 +621,7 @@ export default function AiMemoryContent({
         </div>
         <button
           type="button"
-          disabled={activeTabIndex === tabs.length - 1}
+          disabled={voiceBusy || activeTabIndex === tabs.length - 1}
           aria-label={activeTabIndex < tabs.length - 1 ? tabs[activeTabIndex + 1].label : activeTabDefinition.label}
           onClick={() => selectTabAt(activeTabIndex + 1)}
           style={mobileTabArrowStyle}
@@ -615,7 +652,7 @@ export default function AiMemoryContent({
               ? {
                   x: touch.clientX,
                   y: touch.clientY,
-                  enabled: !target?.closest("input, textarea, select, button, [contenteditable='true']"),
+                  enabled: !voiceBusy && !target?.closest("input, textarea, select, button, [contenteditable='true']"),
                 }
               : null;
           }}
@@ -766,13 +803,13 @@ export default function AiMemoryContent({
                 <div style={analysisActionGroupStyle}>
                   <button
                     type="button"
-                    disabled={analyzing || analysisQuota?.remaining === 0}
+                    disabled={voiceBusy || analyzing || analysisQuota?.remaining === 0}
                     aria-busy={analyzing}
                     onClick={() => void analyzeChannels()}
                     style={{
                       ...analysisButtonStyle,
-                      opacity: analyzing || analysisQuota?.remaining === 0 ? 0.58 : 1,
-                      cursor: analyzing || analysisQuota?.remaining === 0 ? "default" : "pointer",
+                      opacity: voiceBusy || analyzing || analysisQuota?.remaining === 0 ? 0.58 : 1,
+                      cursor: voiceBusy || analyzing || analysisQuota?.remaining === 0 ? "default" : "pointer",
                     }}
                   >
                     {analyzing
@@ -831,6 +868,8 @@ export default function AiMemoryContent({
                       value={businessKnowledge.description}
                       html={memory.richText.detailedDescription}
                       maxLength={5000}
+                      disabled={voiceDisabledFor("detailedDescription")}
+                      onVoiceBusyChange={(busy) => handleVoiceBusyChange("detailedDescription", busy)}
                       onChange={setRichDescription}
                       placeholder={t("detailedDescriptionPlaceholder")}
                       minHeight={165}
@@ -841,6 +880,7 @@ export default function AiMemoryContent({
                     <EditableTags
                       values={businessKnowledge.services}
                       onChange={(values) => setBusinessField("services", values)}
+                      disabled={voiceBusy}
                       addLabel={settingsT("ajouter_une_prestation_f819082b")}
                       placeholder={settingsT("ex_intervention_week_end_931e57fb")}
                       emptyText={t("baseServicesEmpty")}
@@ -907,6 +947,7 @@ export default function AiMemoryContent({
                     <EditableTags
                       values={businessKnowledge.interventionZones}
                       onChange={(values) => setBusinessField("interventionZones", values)}
+                      disabled={voiceBusy}
                       addLabel={settingsT("ajouter_une_zone_85f56481")}
                       placeholder={settingsT("ex_arras_c3287f39")}
                       emptyText={settingsT("ajoutez_les_villes_secteurs_ou_rayons_dc934f3a")}
@@ -921,6 +962,8 @@ export default function AiMemoryContent({
                     </div>
                     <BusinessScheduleEditor
                       value={businessKnowledge.weeklySchedule}
+                      disabled={voiceDisabledFor("scheduleNotes")}
+                      onVoiceBusyChange={(busy) => handleVoiceBusyChange("scheduleNotes", busy)}
                       onChange={(value) => setBusinessField("weeklySchedule", value)}
                     />
                   </div>
@@ -938,20 +981,36 @@ export default function AiMemoryContent({
                     trailing={<CompletionPill label={t("completion")} score={completionScore} />}
                   />
                   <div style={identityCoreGridStyle}>
-                    <label style={identityMissionCardStyle}>
+                    <div style={identityMissionCardStyle}>
                       <span style={identityMissionHeadingStyle}>
-                        <span style={labelStyle}>{t("missionLabel")}</span>
-                        <span style={identityCounterStyle}>{memory.mission.length}/800</span>
+                        <label htmlFor="business-dna-mission" style={labelStyle}>{t("missionLabel")}</label>
+                        <span style={identityMissionActionsStyle}>
+                          <MediaSubjectVoiceButton
+                            disabled={voiceDisabledFor("mission")}
+                            value={memory.mission}
+                            contextLabel={t("missionLabel")}
+                            onChange={(next) => setField("mission", next.slice(0, 800))}
+                            onBusyChange={(busy) => handleVoiceBusyChange("mission", busy)}
+                            purpose="content"
+                            placement="inline"
+                            mergeMode="paragraph"
+                            maxLength={800}
+                          />
+                          <span style={identityCounterStyle}>{memory.mission.length}/800</span>
+                        </span>
                       </span>
                       <textarea
+                        id="business-dna-mission"
                         value={memory.mission}
+                        readOnly={voiceOperationsLocked || voiceBusy}
+                        aria-busy={voiceTarget === "mission"}
                         onChange={(event) => setField("mission", event.target.value.slice(0, 800))}
                         maxLength={800}
                         rows={3}
                         placeholder={t("missionPlaceholder")}
                         style={identityTextareaStyle}
                       />
-                    </label>
+                    </div>
                     <div style={identityTagRowsStyle}>
                       <div style={identityTagRowStyle}>
                         <span style={identityTagLabelStyle}>{settingsT("vos_forces_29964107")}</span>
@@ -959,6 +1018,7 @@ export default function AiMemoryContent({
                         <EditableTags
                           values={businessKnowledge.strengths}
                           onChange={(values) => setBusinessField("strengths", values)}
+                          disabled={voiceBusy}
                           addLabel={settingsT("ajouter_une_force_58699841")}
                           placeholder={settingsT("ex_intervention_rapide_e8d23c44")}
                           emptyText={settingsT("ajoutez_3_a_6_forces_qui_c9dbc997")}
@@ -1045,9 +1105,33 @@ export default function AiMemoryContent({
                 </div>
                 {!premiumEnabled ? <div style={lockedNoticeStyle}>🔒 {t("premiumLocked")}</div> : null}
                 <div style={premiumGridStyle}>
-                  <PremiumTextarea label={t("offersLabel")} placeholder={t("offersPlaceholder")} value={memory.offersAndArguments} html={memory.richText.offersAndArguments} disabled={!premiumEnabled} onChange={(next) => setPremiumRichField("offersAndArguments", next)} />
-                  <PremiumTextarea label={t("proofsLabel")} placeholder={t("proofsPlaceholder")} value={memory.proofsAndObjections} html={memory.richText.proofsAndObjections} disabled={!premiumEnabled} onChange={(next) => setPremiumRichField("proofsAndObjections", next)} />
-                  <PremiumTextarea label={t("editorialLabel")} placeholder={t("editorialPlaceholder")} value={memory.editorialStrategy} html={memory.richText.editorialStrategy} disabled={!premiumEnabled} onChange={(next) => setPremiumRichField("editorialStrategy", next)} />
+                  <PremiumTextarea
+                    label={t("offersLabel")}
+                    placeholder={t("offersPlaceholder")}
+                    value={memory.offersAndArguments}
+                    html={memory.richText.offersAndArguments}
+                    disabled={!premiumEnabled || voiceDisabledFor("offersAndArguments")}
+                    onVoiceBusyChange={(busy) => handleVoiceBusyChange("offersAndArguments", busy)}
+                    onChange={(next) => setPremiumRichField("offersAndArguments", next)}
+                  />
+                  <PremiumTextarea
+                    label={t("proofsLabel")}
+                    placeholder={t("proofsPlaceholder")}
+                    value={memory.proofsAndObjections}
+                    html={memory.richText.proofsAndObjections}
+                    disabled={!premiumEnabled || voiceDisabledFor("proofsAndObjections")}
+                    onVoiceBusyChange={(busy) => handleVoiceBusyChange("proofsAndObjections", busy)}
+                    onChange={(next) => setPremiumRichField("proofsAndObjections", next)}
+                  />
+                  <PremiumTextarea
+                    label={t("editorialLabel")}
+                    placeholder={t("editorialPlaceholder")}
+                    value={memory.editorialStrategy}
+                    html={memory.richText.editorialStrategy}
+                    disabled={!premiumEnabled || voiceDisabledFor("editorialStrategy")}
+                    onVoiceBusyChange={(busy) => handleVoiceBusyChange("editorialStrategy", busy)}
+                    onChange={(next) => setPremiumRichField("editorialStrategy", next)}
+                  />
                 </div>
               </section>
             ) : null}
@@ -1059,9 +1143,9 @@ export default function AiMemoryContent({
 
       {!loading && loaded && (activeTab !== "analysis" || signature !== savedSignatureRef.current) ? (
         <div data-ai-memory-actions style={actionsStyle}>
-          <button type="button" disabled={saving} onClick={() => void resetWorkspace()} style={dangerButtonStyle}>{t("reset")}</button>
-          <button type="button" disabled={saving || signature === savedSignatureRef.current} onClick={() => void cancelChanges()} style={secondaryButtonStyle}>{t("cancelChanges")}</button>
-          <button type="button" disabled={saving} aria-busy={saving} onClick={() => void save()} style={{ ...primaryButtonStyle, opacity: saving ? 0.7 : 1 }}>{saving ? t("saving") : t("save")}</button>
+          <button type="button" disabled={saving || voiceBusy} onClick={() => void resetWorkspace()} style={dangerButtonStyle}>{t("reset")}</button>
+          <button type="button" disabled={saving || voiceBusy || signature === savedSignatureRef.current} onClick={() => void cancelChanges()} style={secondaryButtonStyle}>{t("cancelChanges")}</button>
+          <button type="button" disabled={saving || voiceBusy} aria-busy={saving} onClick={() => void save()} style={{ ...primaryButtonStyle, opacity: saving || voiceBusy ? 0.7 : 1 }}>{saving ? t("saving") : t("save")}</button>
         </div>
       ) : null}
 
@@ -1305,10 +1389,36 @@ function CompletionPill({ label, score }: { label: string; score: number }) {
   );
 }
 
-function PremiumTextarea({ label, placeholder, value, html, disabled, onChange }: { label: string; placeholder: string; value: string; html: string; disabled: boolean; onChange: (next: { text: string; html: string }) => void }) {
+function PremiumTextarea({
+  label,
+  placeholder,
+  value,
+  html,
+  disabled,
+  onVoiceBusyChange,
+  onChange,
+}: {
+  label: string;
+  placeholder: string;
+  value: string;
+  html: string;
+  disabled: boolean;
+  onVoiceBusyChange: (busy: boolean) => void;
+  onChange: (next: { text: string; html: string }) => void;
+}) {
   return (
     <div style={{ ...fieldStyle, opacity: disabled ? 0.56 : 1 }}>
-      <BusinessDnaRichTextEditor label={label} value={value} html={html} disabled={disabled} maxLength={5000} minHeight={112} onChange={onChange} placeholder={placeholder} />
+      <BusinessDnaRichTextEditor
+        label={label}
+        value={value}
+        html={html}
+        disabled={disabled}
+        maxLength={5000}
+        minHeight={112}
+        onVoiceBusyChange={onVoiceBusyChange}
+        onChange={onChange}
+        placeholder={placeholder}
+      />
     </div>
   );
 }
@@ -1381,6 +1491,7 @@ const twoColumnsStyle: CSSProperties = { display: "grid", gridTemplateColumns: "
 const identityCoreGridStyle: CSSProperties = { display: "grid", gap: 12, minWidth: 0 };
 const identityMissionCardStyle: CSSProperties = { display: "grid", gap: 8, minWidth: 0, padding: 13, borderRadius: 16, border: "1px solid rgba(56,189,248,0.18)", background: "linear-gradient(145deg, rgba(8,47,73,.28), rgba(20,20,54,.38))" };
 const identityMissionHeadingStyle: CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 };
+const identityMissionActionsStyle: CSSProperties = { display: "inline-flex", alignItems: "center", justifyContent: "flex-end", gap: 8 };
 const identityTagRowsStyle: CSSProperties = { display: "grid", gap: 8, minWidth: 0 };
 const identityTagRowStyle: CSSProperties = { display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: "8px 18px", minWidth: 0, padding: "10px 12px", borderRadius: 14, border: "1px solid rgba(167,139,250,0.14)", background: "linear-gradient(145deg, rgba(30,41,79,.34), rgba(41,23,70,.25))" };
 const identityTagLabelStyle: CSSProperties = { flex: "1 1 180px", maxWidth: 235, paddingTop: 9, color: "rgba(255,255,255,0.88)", fontSize: 12.5, fontWeight: 850, lineHeight: 1.35 };

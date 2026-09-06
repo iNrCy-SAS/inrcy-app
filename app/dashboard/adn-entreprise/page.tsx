@@ -21,10 +21,11 @@ export default function BusinessDnaPage() {
   const edition = useDashboardEdition();
   const { requestNavigation } = useDashboardUnsavedNavigation();
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [voiceBusy, setVoiceBusy] = useState(false);
 
   useUnsavedExitGuard({
     active: true,
-    shouldBlock: hasUnsavedChanges,
+    shouldBlock: hasUnsavedChanges || voiceBusy,
     onConfirmExit: () => router.push("/dashboard"),
     eyebrow: settingsDrawerT("settings"),
     title: settingsDrawerT("exitWithoutSavingTitle"),
@@ -39,15 +40,19 @@ export default function BusinessDnaPage() {
   }, [requestNavigation, router]);
 
   return (
-    <main data-business-dna-page style={dashboardWorkspacePageStyle}>
+    <main
+      data-business-dna-page
+      data-disable-pull-refresh={voiceBusy ? "true" : undefined}
+      style={dashboardWorkspacePageStyle}
+    >
       <DashboardWorkspaceHeader
         logoSrc="/icons/business-dna.svg"
         title={copy.aiMemory.title}
         subtitle={copy.aiMemory.openDescription}
         actions={[
-          { label: copy.userMenu.profile, onClick: () => navigate("/dashboard/mon-profil"), tone: "cyan" },
-          { label: copy.userMenu.ai, onClick: () => navigate("/dashboard/configuration-ia"), tone: "violet" },
-          { label: copy.drawer.close, onClick: () => navigate("/dashboard"), tone: "neutral" },
+          { label: copy.userMenu.profile, onClick: () => navigate("/dashboard/mon-profil"), tone: "cyan", disabled: voiceBusy },
+          { label: copy.userMenu.ai, onClick: () => navigate("/dashboard/configuration-ia"), tone: "violet", disabled: voiceBusy },
+          { label: copy.drawer.close, onClick: () => navigate("/dashboard"), tone: "neutral", disabled: voiceBusy },
         ]}
       />
 
@@ -55,6 +60,7 @@ export default function BusinessDnaPage() {
         <AiMemoryContent
           edition={edition}
           onUnsavedChange={setHasUnsavedChanges}
+          onVoiceBusyChange={setVoiceBusy}
         />
       </section>
     </main>

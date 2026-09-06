@@ -5,12 +5,13 @@ import type {
   MutableRefObject,
   SetStateAction,
 } from "react";
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { BoosterCreationMode } from "@/lib/boosterCreationMode";
 import { editableHtmlToSiteText, stripSiteTextFormatting } from "@/lib/boosterFormatting";
 import { readSanitizedElementHtml } from "@/lib/sanitizeHtml";
 import EmojiPickerButton from "@/app/dashboard/_components/EmojiPickerButton";
 import AiContentReportButton from "@/app/dashboard/_components/AiContentReportButton";
+import MediaSubjectVoiceButton from "@/app/dashboard/_components/MediaSubjectVoiceButton";
 import {
   BOOSTER_PREFERRED_CTA_OPTIONS,
   CHANNEL_TEXT_GUIDELINES,
@@ -23,6 +24,7 @@ import {
   getPreferredCtaChoiceFromPost,
   getWebsiteUrlForChannel,
   isSiteDisplayKey,
+  parseInstagramHashtagsInput,
   renderLimitCounter,
   type BoosterCtaDefaults,
   type BoosterPreferredCta,
@@ -47,6 +49,15 @@ type DuplicateFeedback = {
   kind: "success" | "error";
   message: string;
 } | null;
+
+type ManualVoiceField = "title" | "content" | "cta" | "hashtags";
+
+type ManualVoiceTarget = {
+  channel: DisplayKey;
+  field: ManualVoiceField;
+};
+
+const INSTAGRAM_HASHTAGS_INPUT_MAX_LENGTH = 20 * (40 + 2);
 
 type PublishContentEditorPanelProps = {
   styles: PublishModalStyles;
@@ -80,6 +91,7 @@ type PublishContentEditorPanelProps = {
   pinterestBoardsLoading: boolean;
   pinterestBoardsError: string;
   onPinterestBoardChange: (boardId: string) => void;
+  onVoiceBusyChange?: (busy: boolean) => void;
 };
 
 export default function PublishContentEditorPanel({
@@ -107,11 +119,45 @@ export default function PublishContentEditorPanel({
   pinterestBoardsLoading,
   pinterestBoardsError,
   onPinterestBoardChange,
+  onVoiceBusyChange,
 }: PublishContentEditorPanelProps) {
   const i18nT = useTranslations("booster");
   const runtimeT = i18nT as unknown as (key: string) => string;
   const siteEmojiSelectionRef = useRef<Range | null>(null);
   const plainEmojiSelectionRef = useRef<{ start: number; end: number } | null>(null);
+  const [activeVoiceTarget, setActiveVoiceTarget] =
+    useState<ManualVoiceTarget | null>(null);
+  const voiceBusy = activeVoiceTarget !== null;
+
+  useEffect(() => {
+    onVoiceBusyChange?.(voiceBusy);
+  }, [onVoiceBusyChange, voiceBusy]);
+
+  useEffect(
+    () => () => {
+      onVoiceBusyChange?.(false);
+    },
+    [onVoiceBusyChange],
+  );
+
+  const handleVoiceBusyChange = (
+    channel: DisplayKey,
+    field: ManualVoiceField,
+    busy: boolean,
+  ) => {
+    setActiveVoiceTarget((current) => {
+      if (busy) return { channel, field };
+      if (current?.channel === channel && current.field === field) return null;
+      return current;
+    });
+  };
+
+  const isVoiceTargetDisabled = (
+    channel: DisplayKey,
+    field: ManualVoiceField,
+  ) =>
+    activeVoiceTarget !== null &&
+    (activeVoiceTarget.channel !== channel || activeVoiceTarget.field !== field);
 
   const keepEditorTypingInsideField = (
     event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -184,6 +230,23 @@ export default function PublishContentEditorPanel({
     });
   };
 
+  const activePost = getDisplayPost(activeCard);
+  const activeTextGuidelines = CHANNEL_TEXT_GUIDELINES[activeCard];
+  const titleVoiceMaxLength = Math.max(
+    activePost.title.length,
+    activeTextGuidelines.title,
+  );
+  const contentFormattingLength = isSiteDisplayKey(activeCard)
+    ? Math.max(
+        0,
+        activePost.content.length - stripSiteTextFormatting(activePost.content).length,
+      )
+    : 0;
+  const contentVoiceMaxLength = Math.max(
+    activePost.content.length,
+    activeTextGuidelines.content + contentFormattingLength,
+  );
+
   return (
     <div
       className={styles.blockCard}
@@ -242,6 +305,7 @@ export default function PublishContentEditorPanel({
                   key={key}
                   type="button"
                   onClick={() => setSynchronizedActiveChannel(key)}
+                  disabled={voiceBusy}
                   title={hasText ? i18nT("content_text_present") : i18nT("content_text_to_review")}
                   style={{
                     ...pillBtn,
@@ -269,6 +333,8 @@ export default function PublishContentEditorPanel({
                     textOverflow: isMobile ? "clip" : "ellipsis",
                     fontSize: isMobile ? "clamp(10px, 3.1vw, 13px)" : "clamp(8px, 0.78vw, 13px)",
                     lineHeight: isMobile ? 1.18 : 1.1,
+                    cursor: voiceBusy ? "not-allowed" : "pointer",
+                    opacity: voiceBusy && activeCard !== key ? 0.58 : 1,
                   }}
                 >
                   {getLocalizedChannelLabel(key, runtimeT)}
@@ -346,11 +412,40 @@ export default function PublishContentEditorPanel({
             ) : null}
             <div style={{ display: "grid", gap: 10 }}>
               <div>
-                <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 6 }}>
-                  {i18nT("titre_eb97899a")}{" "}</div>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 8,
+                    marginBottom: 6,
+                  }}
+                >
+                  <div style={{ fontSize: 12, opacity: 0.85 }}>
+                    {i18nT("titre_eb97899a")}{" "}
+                  </div>
+                  {creationMode === "manual" ? (
+                    <MediaSubjectVoiceButton
+                      key={`manual-voice:${activeCard}:title`}
+                      purpose="title"
+                      placement="inline"
+                      mergeMode="space"
+                      maxLength={titleVoiceMaxLength}
+                      value={activePost.title}
+                      disabled={isVoiceTargetDisabled(activeCard, "title")}
+                      onBusyChange={(busy) =>
+                        handleVoiceBusyChange(activeCard, "title", busy)
+                      }
+                      onChange={(title) =>
+                        updatePost(activeCard, { title }, { sanitize: false })
+                      }
+                    />
+                  ) : null}
+                </div>
                 {isMobile ? (
                   <textarea
-                    value={getDisplayPost(activeCard).title}
+                    value={activePost.title}
+                    readOnly={voiceBusy}
                     onKeyDown={keepEditorTypingInsideField}
                     onChange={(e) =>
                       updatePost(
@@ -374,7 +469,8 @@ export default function PublishContentEditorPanel({
                   />
                 ) : (
                   <input
-                    value={getDisplayPost(activeCard).title}
+                    value={activePost.title}
+                    readOnly={voiceBusy}
                     onKeyDown={keepEditorTypingInsideField}
                     onChange={(e) =>
                       updatePost(
@@ -443,7 +539,7 @@ export default function PublishContentEditorPanel({
                             : i18nT("format_site_only")
                         }
                         aria-label={title}
-                        disabled={!isSiteDisplayKey(activeCard)}
+                        disabled={!isSiteDisplayKey(activeCard) || voiceBusy}
                         onMouseDown={(event) => {
                           if (event.cancelable) event.preventDefault();
                           applySiteContentFormat(kind);
@@ -466,8 +562,11 @@ export default function PublishContentEditorPanel({
                           textDecoration:
                             kind === "underline" ? "underline" : "none",
                           cursor: isSiteDisplayKey(activeCard)
-                            ? "pointer"
+                            ? voiceBusy
+                              ? "not-allowed"
+                              : "pointer"
                             : "not-allowed",
+                          opacity: voiceBusy ? 0.56 : 1,
                         }}
                       >
                         {label}
@@ -476,6 +575,7 @@ export default function PublishContentEditorPanel({
                     <EmojiPickerButton
                       onBeforeOpen={saveEmojiSelection}
                       onSelect={insertEmoji}
+                      disabled={voiceBusy}
                       buttonStyle={{
                         minWidth: 32,
                         height: 30,
@@ -484,25 +584,54 @@ export default function PublishContentEditorPanel({
                         background: "rgba(76,195,255,0.12)",
                         color: "#eaf7ff",
                         fontSize: 16,
-                        cursor: "pointer",
+                        cursor: voiceBusy ? "not-allowed" : "pointer",
+                        opacity: voiceBusy ? 0.56 : 1,
                       }}
                     />
+                    {creationMode === "manual" ? (
+                      <MediaSubjectVoiceButton
+                        key={`manual-voice:${activeCard}:content`}
+                        purpose="content"
+                        placement="inline"
+                        mergeMode="paragraph"
+                        maxLength={contentVoiceMaxLength}
+                        value={activePost.content}
+                        disabled={isVoiceTargetDisabled(activeCard, "content")}
+                        onBusyChange={(busy) =>
+                          handleVoiceBusyChange(activeCard, "content", busy)
+                        }
+                        onChange={(content) =>
+                          updatePost(
+                            activeCard,
+                            { content },
+                            isSiteDisplayKey(activeCard)
+                              ? undefined
+                              : { sanitize: false },
+                          )
+                        }
+                      />
+                    ) : null}
                   </div>
                 </div>
                 {isSiteDisplayKey(activeCard) ? (
                   <RichSiteContentEditor
-                    value={getDisplayPost(activeCard).content}
+                    value={activePost.content}
                     onChange={(content) => updatePost(activeCard, { content })}
                     minHeight={280}
                     editorRef={siteContentEditorRef}
-                    style={textAreaStyle}
+                    style={{
+                      ...textAreaStyle,
+                      pointerEvents: voiceBusy ? "none" : "auto",
+                      opacity: voiceBusy ? 0.76 : 1,
+                    }}
                   />
                 ) : (
                   <textarea
                     ref={(element) => {
                       contentTextAreaRef.current = element;
                     }}
-                    value={getDisplayPost(activeCard).content}
+                    value={activePost.content}
+                    readOnly={voiceBusy}
                     onKeyDown={keepEditorTypingInsideField}
                     onChange={(e) => {
                       updatePost(
@@ -550,6 +679,25 @@ export default function PublishContentEditorPanel({
                     currentPost,
                   );
                   const updateTarget = activeCard;
+                  const ctaVoiceMaxLength = Math.max(
+                    currentPost.cta.length,
+                    CHANNEL_TEXT_GUIDELINES[activeCard].cta,
+                  );
+                  const ctaVoiceControl = creationMode === "manual" ? (
+                    <MediaSubjectVoiceButton
+                      key={`manual-voice:${activeCard}:cta:${ctaMode}`}
+                      purpose="cta"
+                      placement="inline"
+                      mergeMode="replace"
+                      maxLength={ctaVoiceMaxLength}
+                      value={currentPost.cta}
+                      disabled={isVoiceTargetDisabled(activeCard, "cta")}
+                      onBusyChange={(busy) =>
+                        handleVoiceBusyChange(activeCard, "cta", busy)
+                      }
+                      onChange={(cta) => updatePost(updateTarget, { cta })}
+                    />
+                  ) : null;
                   const activeWebsiteUrl = getWebsiteUrlForChannel(
                     activeCard,
                     ctaDefaults,
@@ -593,6 +741,7 @@ export default function PublishContentEditorPanel({
                             {i18nT("bouton_fd5aea71")}{" "}</div>
                           <select
                             value={ctaChoice}
+                            disabled={voiceBusy}
                             onChange={(e) =>
                               applyPreferredCtaPrefill(
                                 activeCard,
@@ -625,6 +774,7 @@ export default function PublishContentEditorPanel({
                                 {i18nT("url_de_destination_f11980ae")}{" "}</div>
                               <input
                                 value={currentPost.ctaUrl || ""}
+                                readOnly={voiceBusy}
                                 onChange={(e) =>
                                   updatePost(updateTarget, {
                                     ctaUrl: e.target.value,
@@ -652,6 +802,7 @@ export default function PublishContentEditorPanel({
                                     <button
                                       key={choice.label}
                                       type="button"
+                                      disabled={voiceBusy}
                                       onClick={() =>
                                         updatePost(updateTarget, {
                                           ctaUrl: choice.url,
@@ -683,14 +834,21 @@ export default function PublishContentEditorPanel({
                             <div>
                               <div
                                 style={{
-                                  fontSize: 12,
-                                  opacity: 0.85,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "space-between",
+                                  gap: 8,
                                   marginBottom: 6,
                                 }}
                               >
-                                {i18nT("texte_du_bouton_5bc213b4")}{" "}</div>
+                                <span style={{ fontSize: 12, opacity: 0.85 }}>
+                                  {i18nT("texte_du_bouton_5bc213b4")}{" "}
+                                </span>
+                                {ctaVoiceControl}
+                              </div>
                               <input
                                 value={currentPost.cta}
+                                readOnly={voiceBusy}
                                 onChange={(e) =>
                                   updatePost(updateTarget, {
                                     cta: e.target.value,
@@ -714,6 +872,7 @@ export default function PublishContentEditorPanel({
                               {i18nT("telephone_d3b023ea")}{" "}</div>
                             <input
                               value={currentPost.ctaPhone || ""}
+                              readOnly={voiceBusy}
                               onChange={(e) =>
                                 updatePost(updateTarget, {
                                   ctaPhone: e.target.value,
@@ -741,6 +900,7 @@ export default function PublishContentEditorPanel({
                                 {i18nT("url_de_destination_f11980ae")}{" "}</div>
                               <input
                                 value={currentPost.ctaUrl || ""}
+                                readOnly={voiceBusy}
                                 onChange={(e) =>
                                   updatePost(updateTarget, {
                                     ctaUrl: e.target.value,
@@ -753,14 +913,21 @@ export default function PublishContentEditorPanel({
                             <div>
                               <div
                                 style={{
-                                  fontSize: 12,
-                                  opacity: 0.85,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "space-between",
+                                  gap: 8,
                                   marginBottom: 6,
                                 }}
                               >
-                                {i18nT("texte_du_bouton_5bc213b4")}{" "}</div>
+                                <span style={{ fontSize: 12, opacity: 0.85 }}>
+                                  {i18nT("texte_du_bouton_5bc213b4")}{" "}
+                                </span>
+                                {ctaVoiceControl}
+                              </div>
                               <input
                                 value={currentPost.cta}
+                                readOnly={voiceBusy}
                                 onChange={(e) =>
                                   updatePost(updateTarget, {
                                     cta: e.target.value,
@@ -834,10 +1001,52 @@ export default function PublishContentEditorPanel({
               </div>
               {activeCard === "instagram" ? (
                 <div>
-                  <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 6 }}>
-                    {i18nT("hashtags_338da6e1")}{" "}</div>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 8,
+                      marginBottom: 6,
+                    }}
+                  >
+                    <div style={{ fontSize: 12, opacity: 0.85 }}>
+                      {i18nT("hashtags_338da6e1")}{" "}
+                    </div>
+                    {creationMode === "manual" ? (
+                      <MediaSubjectVoiceButton
+                        key="manual-voice:instagram:hashtags"
+                        purpose="hashtags"
+                        placement="inline"
+                        mergeMode="space"
+                        maxLength={Math.max(
+                          instagramHashtagsInput.length,
+                          INSTAGRAM_HASHTAGS_INPUT_MAX_LENGTH,
+                        )}
+                        value={instagramHashtagsInput}
+                        disabled={isVoiceTargetDisabled(
+                          "instagram",
+                          "hashtags",
+                        )}
+                        onBusyChange={(busy) =>
+                          handleVoiceBusyChange(
+                            "instagram",
+                            "hashtags",
+                            busy,
+                          )
+                        }
+                        onChange={(nextInput) => {
+                          setInstagramHashtagsInput(nextInput);
+                          updatePost("instagram", {
+                            hashtags: parseInstagramHashtagsInput(nextInput),
+                          });
+                        }}
+                      />
+                    ) : null}
+                  </div>
                   <input
                     value={instagramHashtagsInput}
+                    readOnly={voiceBusy}
                     onChange={(e) => setInstagramHashtagsInput(e.target.value)}
                     onBlur={() =>
                       updatePost("instagram", {
@@ -900,7 +1109,7 @@ export default function PublishContentEditorPanel({
               type="button"
               className={styles.secondaryBtn}
               onClick={onDuplicateContentToAllChannels}
-              disabled={displayCards.length < 2}
+              disabled={displayCards.length < 2 || voiceBusy}
               style={{ marginLeft: "auto" }}
             >
               {i18nT("dupliquer_ce_contenu_sur_tous_les_464b623c")}{" "}</button>

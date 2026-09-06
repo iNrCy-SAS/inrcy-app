@@ -11,6 +11,7 @@ type PublishFooterActionsProps = {
   saving: boolean;
   scheduling: boolean;
   draftSaving: boolean;
+  voiceBusy?: boolean;
   publishProgress: number;
   publishProgressLabel: string;
   publishProgressPhaseIndex?: number;
@@ -27,6 +28,7 @@ export default function PublishFooterActions({
   saving,
   scheduling,
   draftSaving,
+  voiceBusy = false,
   publishProgress,
   publishProgressLabel,
   publishProgressPhaseIndex,
@@ -57,10 +59,10 @@ export default function PublishFooterActions({
               type="button"
               className={`${styles.secondaryBtn} ${styles.publishScheduleButton}`}
               onClick={onSchedule}
-              disabled={draftSaving}
+              disabled={draftSaving || voiceBusy}
               style={{
-                opacity: draftSaving ? 0.64 : 1,
-                cursor: draftSaving ? "wait" : "pointer",
+                opacity: draftSaving || voiceBusy ? 0.64 : 1,
+                cursor: draftSaving || voiceBusy ? "wait" : "pointer",
               }}
             >
               {i18nT("programmer_ad97007f")}{" "}</button>
@@ -68,10 +70,10 @@ export default function PublishFooterActions({
               type="button"
               className={`${styles.primaryBtn} ${styles.publishConfirmButton}`}
               onClick={onPublish}
-              disabled={draftSaving}
+              disabled={draftSaving || voiceBusy}
               style={{
-                opacity: draftSaving ? 0.64 : 1,
-                cursor: draftSaving ? "wait" : "pointer",
+                opacity: draftSaving || voiceBusy ? 0.64 : 1,
+                cursor: draftSaving || voiceBusy ? "wait" : "pointer",
               }}
             >
               {i18nT("verifier_et_publier_8f73de05")}{" "}</button>

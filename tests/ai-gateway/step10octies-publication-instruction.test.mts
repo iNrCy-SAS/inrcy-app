@@ -37,13 +37,24 @@ test("Step 10 octies gives both subject and publication instruction their own mi
   const panel = read(
     "app/dashboard/booster/publier/components/PublishIntentPanel.tsx",
   );
+  const sharedVoiceButton = read(
+    "app/dashboard/_components/MediaSubjectVoiceButton.tsx",
+  );
 
   assert.match(panel, /type VoiceTarget = "idea" \| "instruction"/);
   assert.match(panel, /target: "idea"/);
   assert.match(panel, /target: "instruction"/);
-  assert.match(panel, /i18nT\("dicter_le_sujet_f14f51b5"\)/);
-  assert.match(panel, /i18nT\("dicter_la_consigne_ponctuelle_312b62b3"\)/);
-  assert.match(panel, /setVoiceTargetText/);
+  assert.match(panel, /import MediaSubjectVoiceButton/);
+  assert.match(
+    panel,
+    /purpose=\{args\.target === "idea" \? "subject" : "instruction"\}/,
+  );
+  assert.match(panel, /onBusyChange=\{\(busy\) =>[\s\S]*?handleVoiceBusyChange/);
+  assert.match(sharedVoiceButton, /purpose === "instruction"/);
+  assert.match(sharedVoiceButton, /voice_instruction_title/);
+  assert.match(sharedVoiceButton, /voice_subject_title/);
+  assert.doesNotMatch(panel, /\bMediaRecorder\b|\bgetUserMedia\b/);
+  assert.doesNotMatch(panel, /fetch\([\s\S]*?\/api\/booster\/transcribe/);
 });
 
 test("Step 10 octies saves, restores, resets and submits the one-publication instruction", () => {
