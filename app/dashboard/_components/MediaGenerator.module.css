@@ -2403,19 +2403,23 @@
 }
 
 /*
- * Le fichier final est déjà normalisé au ratio demandé. On verrouille donc le
- * lecteur sur toute la surface du cadre : certains moteurs de rendu Chromium
- * peuvent sinon conserver une boîte intrinsèque de remplacement et afficher
- * une grande zone noire au-dessus de la vidéo, surtout pendant le chargement
- * des métadonnées ou après un changement de critères responsive.
+ * Le lecteur ne doit jamais rogner le média. Cette règle s'applique aussi
+ * lorsque le navigateur mobile ouvre son propre lecteur plein écran sans
+ * exposer correctement :fullscreen (cas observé sur Chromium Android).
+ * Le ratio du cadre correspond déjà au format choisi : `contain` remplit donc
+ * l'aperçu normal et ajoute seulement des bandes neutres si l'écran plein
+ * écran possède un ratio différent.
  */
 .previewFrame video {
   position: absolute;
   inset: 0;
-  min-width: 100%;
-  min-height: 100%;
-  object-fit: cover;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  object-fit: contain !important;
   object-position: 50% 50%;
+  background: #000;
 }
 
 /*
@@ -2426,7 +2430,9 @@
  * pas. Les deux pseudo-classes couvrent Chromium/Android et WebKit/iOS.
  */
 .previewFrame video:fullscreen,
-.previewFrame video:-webkit-full-screen {
+.previewFrame video:-webkit-full-screen,
+.previewFrame:fullscreen video,
+.previewFrame:-webkit-full-screen video {
   position: fixed !important;
   inset: 0 !important;
   width: 100vw !important;

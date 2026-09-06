@@ -430,7 +430,8 @@ test("la fenêtre iNrCy sépare les critères de la création et de la revue", (
   assert.doesNotMatch(generator, /className=\{styles\.introCard\}/);
 });
 
-test("la revue vidéo remplit son aperçu mais reste entière en plein écran mobile", () => {
+test("la revue vidéo reste entière dans l'aperçu et en plein écran mobile", () => {
+  const generator = read("app/dashboard/_components/MediaGenerator.tsx");
   const generatorStyles = read("app/dashboard/_components/MediaGenerator.module.css");
 
   assert.match(
@@ -439,11 +440,13 @@ test("la revue vidéo remplit son aperçu mais reste entière en plein écran mo
   );
   assert.match(
     generatorStyles,
-    /\.previewFrame video\s*\{[\s\S]*?position:\s*absolute;[\s\S]*?inset:\s*0;[\s\S]*?min-width:\s*100%;[\s\S]*?min-height:\s*100%;[\s\S]*?object-fit:\s*cover;[\s\S]*?object-position:\s*50% 50%;/
+    /\.previewFrame video\s*\{[\s\S]*?position:\s*absolute;[\s\S]*?inset:\s*0;[\s\S]*?min-width:\s*0;[\s\S]*?min-height:\s*0;[\s\S]*?object-fit:\s*contain\s*!important;[\s\S]*?object-position:\s*50% 50%;/
   );
+  assert.match(generator, /<video[\s\S]*?objectFit:\s*"contain"/);
+  assert.doesNotMatch(generator, /<video[\s\S]*?objectFit:\s*"cover"/);
   assert.match(
     generatorStyles,
-    /\.previewFrame video:fullscreen,\s*\.previewFrame video:-webkit-full-screen\s*\{[\s\S]*?width:\s*100vw\s*!important;[\s\S]*?height:\s*100vh\s*!important;[\s\S]*?min-width:\s*0\s*!important;[\s\S]*?min-height:\s*0\s*!important;[\s\S]*?object-fit:\s*contain\s*!important;[\s\S]*?object-position:\s*50% 50%\s*!important;[\s\S]*?background:\s*#000\s*!important;/
+    /\.previewFrame video:fullscreen,\s*\.previewFrame video:-webkit-full-screen,\s*\.previewFrame:fullscreen video,\s*\.previewFrame:-webkit-full-screen video\s*\{[\s\S]*?width:\s*100vw\s*!important;[\s\S]*?height:\s*100vh\s*!important;[\s\S]*?min-width:\s*0\s*!important;[\s\S]*?min-height:\s*0\s*!important;[\s\S]*?object-fit:\s*contain\s*!important;[\s\S]*?object-position:\s*50% 50%\s*!important;[\s\S]*?background:\s*#000\s*!important;/
   );
   assert.match(
     generatorStyles,
