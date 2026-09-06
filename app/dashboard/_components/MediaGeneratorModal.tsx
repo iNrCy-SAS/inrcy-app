@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import {
   useCallback,
@@ -243,11 +244,24 @@ export default function MediaGeneratorModal({
             <p>{t("ai_generator_modal_subtitle")}</p>
           </div>
           <div className={styles.headerActions}>
-            <div className={styles.profileSignals} aria-label={t("ai_generator_made_inrcy_hint")}>
-              <span title={t("ai_generator_signal_profile")}><i aria-hidden="true">✓</i><b>{t("ai_generator_signal_profile")}</b></span>
-              <span title={t("ai_generator_signal_brand")}><i aria-hidden="true">✓</i><b>{t("ai_generator_signal_brand")}</b></span>
-              <span title={t("ai_generator_signal_history")}><i aria-hidden="true">✓</i><b>{t("ai_generator_signal_history")}</b></span>
-            </div>
+            <Link
+              href="/dashboard/mediatheque"
+              className={styles.mediaLibraryLink}
+              aria-label={t("mediatheque_inrcy_a885e19e")}
+              title={t("mediatheque_inrcy_a885e19e")}
+              aria-disabled={locked || undefined}
+              tabIndex={locked ? -1 : undefined}
+              onClick={(event) => {
+                if (locked) event.preventDefault();
+              }}
+            >
+              <svg aria-hidden="true" viewBox="0 0 24 24">
+                <path d="M4.75 5.75h14.5v12.5H4.75z" />
+                <path d="m7.25 15 3.15-3.15 2.35 2.35 1.65-1.65 2.35 2.45" />
+                <circle cx="15.5" cy="9" r="1.35" />
+              </svg>
+              <span>{t("mediatheque_e4fa8e31")}</span>
+            </Link>
             <button
               ref={closeButtonRef}
               type="button"

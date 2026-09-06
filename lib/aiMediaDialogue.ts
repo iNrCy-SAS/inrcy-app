@@ -115,15 +115,200 @@ const DIALOGUE_FALLBACKS: Record<
 const GENERIC_DIALOGUE_PATTERN =
   /^(?:on s['’]y met|on avance bien|c['’]est pr[eê]t|exactement|shall we get started|we(?:'|’)re making good progress|it(?:'|’)s ready|absolutely|perfect|empezamos|claro|exacto|cominciamo|esatto|perfetto|fangen wir an|genau|zullen we beginnen|precies|come[cç]amos|exatamente)[.!?\s]*$/iu;
 
+const MAX_NATIVE_DIALOGUE_CHARACTERS = 60;
+
+const DANGLING_SPEECH_ENDINGS: Readonly<Record<string, ReadonlySet<string>>> = {
+  fr: new Set([
+    "a",
+    "afin",
+    "au",
+    "aux",
+    "avec",
+    "car",
+    "ce",
+    "ces",
+    "cet",
+    "cette",
+    "d",
+    "dans",
+    "de",
+    "des",
+    "du",
+    "et",
+    "la",
+    "le",
+    "les",
+    "mais",
+    "ou",
+    "par",
+    "pour",
+    "que",
+    "qui",
+    "sans",
+    "si",
+    "sous",
+    "sur",
+    "un",
+    "une",
+    "vers",
+  ]),
+  en: new Set([
+    "a",
+    "an",
+    "and",
+    "as",
+    "at",
+    "because",
+    "but",
+    "by",
+    "for",
+    "from",
+    "if",
+    "in",
+    "into",
+    "of",
+    "on",
+    "or",
+    "the",
+    "to",
+    "with",
+    "without",
+  ]),
+  es: new Set([
+    "a", "al", "con", "de", "del", "el", "en", "la", "las", "los", "o",
+    "para", "por", "que", "sin", "un", "una", "y",
+  ]),
+  it: new Set([
+    "a", "al", "alla", "con", "da", "di", "e", "il", "in", "la", "le",
+    "o", "per", "senza", "un", "una",
+  ]),
+  de: new Set([
+    "aber", "am", "an", "auf", "aus", "bei", "das", "dem", "den", "der",
+    "die", "ein", "eine", "für", "in", "mit", "oder", "ohne", "und", "von",
+    "zu", "zum", "zur",
+  ]),
+  nl: new Set([
+    "aan", "als", "bij", "de", "een", "en", "in", "met", "naar", "of", "om",
+    "op", "voor", "van", "zonder",
+  ]),
+  pt: new Set([
+    "a", "ao", "com", "da", "de", "do", "e", "em", "o", "ou", "para", "por",
+    "que", "sem", "um", "uma",
+  ]),
+};
+
+function normalizedLanguage(language: string) {
+  return String(language || "fr").toLowerCase().split(/[-_]/u)[0] || "fr";
+}
+
+function normalizedLastWord(value: string) {
+  const words = value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase()
+    .match(/[\p{L}\p{N}]+/gu);
+  return words?.at(-1) || "";
+}
+
+/**
+ * Détecte les fins orales qui ne peuvent pas être livrées telles quelles.
+ * La ponctuation seule n'est pas une preuve : « parler de. » reste une phrase
+ * coupée. Ce garde-fou est partagé par la voix off et le dialogue natif Veo.
+ */
+export function hasCompleteAiMediaSpeechEnding(
+  value: unknown,
+  language: string,
+) {
+  const line = String(value ?? "").replace(/\s+/g, " ").trim();
+  if (!line || /(?:\.{3}|…|[,;:—-])\s*$/u.test(line)) return false;
+  const dangling = DANGLING_SPEECH_ENDINGS[normalizedLanguage(language)];
+  return !dangling?.has(normalizedLastWord(line));
+}
+
+export function completeAiMediaSpeechSentence(
+  value: unknown,
+  language: string,
+) {
+  const line = String(value ?? "")
+    .replace(/\u0000/g, "")
+    .replace(/^[\s"'«»*-]+/g, "")
+    .replace(/[\s"'«»*]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!hasCompleteAiMediaSpeechEnding(line, language)) return "";
+  return /[.!?。！？]$/u.test(line) ? line : `${line}.`;
+}
+
+function spokenUnitCount(value: string, language: string) {
+  const normalized = normalizedLanguage(language);
+  if (normalized === "zh") {
+    return Math.ceil((value.match(/\p{Script=Han}/gu)?.length || 0) / 2);
+  }
+  if (normalized === "th") {
+    return Math.ceil((value.match(/\p{Script=Thai}/gu)?.length || 0) / 4);
+  }
+  return value.split(/\s+/u).filter(Boolean).length;
+}
+
+function dialogueSpokenUnitCount(value: string, language: string) {
+  if (["zh", "th"].includes(normalizedLanguage(language))) {
+    return Array.from(value.replace(/[^\p{L}\p{N}]/gu, "")).length;
+  }
+  return spokenUnitCount(value, language);
+}
+
+/**
+ * Raccourcit uniquement à une frontière de phrase complète. Si aucune phrase
+ * entière ne tient, renvoie une chaîne vide afin que l'appelant utilise son
+ * texte de secours plutôt que de couper une proposition en plein milieu.
+ */
+export function fitAiMediaSpeechToCompleteSentences(args: {
+  value: unknown;
+  language: string;
+  maximumUnits: number;
+}) {
+  const normalized = String(args.value ?? "")
+    .replace(/\u0000/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const complete = completeAiMediaSpeechSentence(normalized, args.language);
+  if (
+    complete &&
+    spokenUnitCount(complete, args.language) <= args.maximumUnits
+  ) {
+    return complete;
+  }
+
+  const sentences = normalized.match(/[^.!?。！？]+[.!?。！？]+/gu) || [];
+  let fitted = "";
+  for (const sentence of sentences) {
+    const candidateSentence = completeAiMediaSpeechSentence(
+      sentence,
+      args.language,
+    );
+    if (!candidateSentence) continue;
+    const candidate = [fitted, candidateSentence].filter(Boolean).join(" ");
+    if (spokenUnitCount(candidate, args.language) > args.maximumUnits) {
+      if (fitted) break;
+      continue;
+    }
+    fitted = candidate;
+  }
+  return fitted;
+}
+
 export function compactAiMediaDialogue(value: unknown, maximum = 96) {
-  return String(value ?? "")
+  const normalized = String(value ?? "")
     .replace(/\u0000/g, "")
     .replace(/^[\s"'«»]+|[\s"'«»]+$/g, "")
     .replace(/\s*[|·]+\s*/g, ", ")
-    .replace(/[…]+$/u, "")
     .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, maximum);
+    .trim();
+  if (normalized.length <= maximum) return normalized;
+  return normalized
+    .slice(0, maximum + 1)
+    .replace(/\s+\S*$/u, "")
+    .trim();
 }
 
 export function aiMediaDialogueSignature(value: unknown) {
@@ -135,13 +320,6 @@ export function aiMediaDialogueSignature(value: unknown) {
     .trim();
 }
 
-function spokenUnitCount(value: string, language: string) {
-  if (["zh", "th"].includes(language)) {
-    return Array.from(value.replace(/[^\p{L}\p{N}]/gu, "")).length;
-  }
-  return value.split(/\s+/u).filter(Boolean).length;
-}
-
 export function isQualityAiMediaDialogueLine(
   value: unknown,
   language: string,
@@ -151,16 +329,19 @@ export function isQualityAiMediaDialogueLine(
   const signature = aiMediaDialogueSignature(line);
   if (!line || !signature || usedSignatures.has(signature)) return false;
   if (GENERIC_DIALOGUE_PATTERN.test(line)) return false;
-  const count = spokenUnitCount(line, language);
-  return ["zh", "th"].includes(language)
+  if (line.length > MAX_NATIVE_DIALOGUE_CHARACTERS) return false;
+  if (!hasCompleteAiMediaSpeechEnding(line, language)) return false;
+  const count = dialogueSpokenUnitCount(line, language);
+  return ["zh", "th"].includes(normalizedLanguage(language))
     ? count >= 8 && count <= 42
-    : count >= 5 && count <= 12;
+    : count >= 5 && count <= 10;
 }
 
 export function selectAiMediaDialogueLine(args: {
   value: unknown;
   language: string;
   sceneIndex: number;
+  sceneCount?: number;
   speaker: "lead" | "reply";
   usedSignatures?: ReadonlySet<string>;
 }) {
@@ -171,12 +352,20 @@ export function selectAiMediaDialogueLine(args: {
 
   const fallbacks = DIALOGUE_FALLBACKS[language] || DIALOGUE_FALLBACKS.fr;
   const speakerIndex = args.speaker === "lead" ? 0 : 1;
+  const fallbackIndex =
+    args.sceneCount && args.sceneCount > 1
+      ? args.sceneIndex <= 0
+        ? 0
+        : args.sceneIndex >= args.sceneCount - 1
+          ? fallbacks.length - 1
+          : Math.min(1, fallbacks.length - 1)
+      : args.sceneIndex % fallbacks.length;
   for (let offset = 0; offset < fallbacks.length; offset += 1) {
-    const pair = fallbacks[(args.sceneIndex + offset) % fallbacks.length]!;
+    const pair = fallbacks[(fallbackIndex + offset) % fallbacks.length]!;
     const fallback = pair[speakerIndex];
     if (isQualityAiMediaDialogueLine(fallback, language, used)) return fallback;
   }
-  return fallbacks[args.sceneIndex % fallbacks.length]![speakerIndex];
+  return fallbacks[fallbackIndex]![speakerIndex];
 }
 
 export function getAiMediaDialogueFallbackPair(

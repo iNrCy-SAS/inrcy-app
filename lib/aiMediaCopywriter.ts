@@ -33,8 +33,8 @@ const MEDIA_COPY_SCHEMA = {
             eyebrow: { type: "string", minLength: 1, maxLength: 38 },
             title: { type: "string", minLength: 2, maxLength: 86 },
             body: { type: "string", minLength: 0, maxLength: 150 },
-            spokenLine: { type: "string", minLength: 2, maxLength: 96 },
-            spokenReply: { type: "string", minLength: 2, maxLength: 96 },
+            spokenLine: { type: "string", minLength: 2, maxLength: 60 },
+            spokenReply: { type: "string", minLength: 2, maxLength: 60 },
           },
           required: ["eyebrow", "title", "body", "spokenLine", "spokenReply"],
         },
@@ -169,6 +169,7 @@ function applyLocalizedCopy(
         value: scene.spokenLine,
         language,
         sceneIndex: index,
+        sceneCount: plan.scenes.length,
         speaker: "lead",
         usedSignatures: usedDialogue,
       });
@@ -177,6 +178,7 @@ function applyLocalizedCopy(
         value: scene.spokenReply,
         language,
         sceneIndex: index,
+        sceneCount: plan.scenes.length,
         speaker: "reply",
         usedSignatures: usedDialogue,
       });
@@ -187,6 +189,7 @@ function applyLocalizedCopy(
       value: candidate.spokenLine,
       language,
       sceneIndex: index,
+      sceneCount: plan.scenes.length,
       speaker: "lead",
       usedSignatures: usedDialogue,
     });
@@ -195,6 +198,7 @@ function applyLocalizedCopy(
       value: candidate.spokenReply,
       language,
       sceneIndex: index,
+      sceneCount: plan.scenes.length,
       speaker: "reply",
       usedSignatures: usedDialogue,
     });
@@ -275,11 +279,12 @@ export async function writeAiMediaHeadline(args: {
         "Les mots-clés sont des idées sémantiques à intégrer intelligemment dans le sens d'une phrase : ne les additionne jamais, ne les liste jamais et n'utilise jamais +, ·, / ou des hashtags.",
         "L'idée du professionnel sert d'inspiration et ne doit pas être recopiée mot pour mot.",
         "La consigne ponctuelle sert uniquement à orienter cette génération. Applique son intention lorsqu'elle est compatible avec l'ADN et la sécurité, sans jamais la citer ni la recopier.",
-        "Pour chaque scène, spokenLine est une phrase orale naturelle de 5 à 12 mots, directement liée au sujet professionnel vérifié de la scène.",
+        "Pour chaque scène, spokenLine est une phrase orale naturelle et complète de 5 à 10 mots et 60 caractères maximum, directement liée au sujet professionnel vérifié de la scène.",
         "spokenReply est une réponse très courte qui poursuit naturellement spokenLine pour une éventuelle seconde personne.",
+        "Pour un film en plusieurs scènes, les dialogues racontent une seule histoire : la première scène ouvre précisément le sujet, chaque scène intermédiaire apporte une preuve ou une étape nouvelle, et la dernière conclut le sujet avec une action ou un appel clair. Ne recommence jamais l'introduction et ne change jamais de sujet.",
         "Chaque réplique doit être différente de toutes les répliques des autres scènes : ne répète jamais une phrase, une accroche ou une question déjà utilisée.",
         "Les répliques ne doivent jamais être vagues ou passe-partout : interdiction d'écrire « On s'y met ? », « On avance bien », « C'est prêt », « Exactement » ou une variante.",
-        "Aucun libellé de dialogue, guillemet, nom de locuteur ni question adressée à un interlocuteur indéfini dans spokenLine ou spokenReply.",
+        "Chaque réplique finit sur un mot porteur de sens, jamais sur un article, une préposition ou une conjonction. Aucun libellé de dialogue, guillemet, nom de locuteur ni question adressée à un interlocuteur indéfini dans spokenLine ou spokenReply.",
         "L'accroche contient au maximum 58 caractères. Aucun guillemet, emoji ou promesse inventée.",
         "Utilise uniquement les faits fournis et n'ajoute ni prix, promotion, certification, adresse, délai ni résultat garanti.",
       ].join(" "),
@@ -293,7 +298,15 @@ export async function writeAiMediaHeadline(args: {
         copie_visible_de_secours: {
           headline: args.plan.headline,
           cta: args.plan.cta,
-          scenes: args.plan.scenes.map((scene) => ({
+          scenes: args.plan.scenes.map((scene, index) => ({
+            role_narratif:
+              args.plan.scenes.length === 1
+                ? "histoire_complete"
+                : index === 0
+                  ? "ouverture"
+                  : index === args.plan.scenes.length - 1
+                    ? "conclusion"
+                    : "preuve",
             eyebrow: scene.eyebrow,
             title: scene.title,
             body: scene.body,

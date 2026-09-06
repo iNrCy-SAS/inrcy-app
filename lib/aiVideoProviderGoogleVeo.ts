@@ -27,7 +27,9 @@ import {
   supportsVeoReferenceImages,
 } from "@/lib/aiVideoReliability";
 import {
+  AiVideoProviderBillableFailure,
   assertAiVideoReferenceTeamGoogleEgress,
+  isAiVideoProviderBillableFailure,
   type AiVideoProvider,
   type AiVideoProviderClip,
   type AiVideoProviderGenerationArgs,
@@ -488,6 +490,7 @@ export function buildGoogleVideoTeamSpeechDirection(
     value: scene?.spokenLine || scene?.body || scene?.title || args.plan.headline,
     language,
     sceneIndex: index,
+    sceneCount: args.plan.scenes.length,
     speaker: "lead",
     usedSignatures: usedDialogue,
   });
@@ -499,22 +502,22 @@ export function buildGoogleVideoTeamSpeechDirection(
   if (args.request.identityMode !== "reference_team") {
     return [
       "NATIVE CHARACTER DIALOGUE, never voice-over",
-      `the recurring character says exactly “${promptSnippet(firstLine, 72)}” ONCE ONLY with exact lip-sync`,
-      "after speaking close the mouth and react silently",
+      `ONCE ONLY: the recurring character says exactly “${firstLine}” with exact lip-sync`,
+      "start <0.8s; finish all words by 5.5s; after speaking close the mouth and react silently",
+      "otherwise stay silent",
       "never repeat, restart, loop or reuse earlier-scene dialogue",
-      "keep one synthetic adult feminine, masculine or neutral voice fixed to the face",
-      "never clone a real voice, infer identity or gender, add a narrator or music",
+      "one synthetic adult voice fixed to face; no cloning, gender/identity inference, narrator/music",
     ].join("; ");
   }
   const teamSize = args.identityTeamMemberCount === 3 ? 3 : 2;
   const firstSpeaker = (index % teamSize) + 1;
   return [
     "NATIVE CHARACTER DIALOGUE, never voice-over",
-    `left-to-right Person ${firstSpeaker} says exactly “${promptSnippet(firstLine, 64)}” ONCE ONLY with exact lip-sync`,
-    "after speaking close the mouth and react silently",
+    `ONCE ONLY: left-to-right Person ${firstSpeaker} says exactly “${firstLine}” with exact lip-sync`,
+    "start <0.8s; finish all words by 5.5s; after speaking close the mouth and react silently",
+    "otherwise stay silent",
     "never repeat, restart, loop or reuse earlier-scene dialogue",
-    "fixed distinct synthetic adult voice per face (feminine, masculine or neutral)",
-    "never clone voices, infer identity/gender, swap speakers or add narrator/music",
+    "distinct synthetic adult voice/face; no cloning, gender/identity inference, swaps, narrator/music",
   ].join("; ");
 }
 
@@ -523,12 +526,12 @@ export function buildGoogleVideoSequenceDirection(
   total: number,
 ) {
   if (index <= 0) {
-    return "ACT 1 — OPENING: hook the exact subject; begin one concrete task; medium-wide; no static talking head";
+    return "ACT 1 — OPENING: begin the exact task; medium-wide; no static talking head";
   }
   if (index >= total - 1) {
-    return "FINAL ACT — CONCLUSION: finish the task and reveal its result in a wider pullback; never replay an earlier pose or framing";
+    return "FINAL ACT — CONCLUSION: finish the task and reveal its result; never replay an earlier pose or framing";
   }
-  return "MIDDLE ACT — DEMONSTRATION/PROOF: show a new concrete step; never replay the opening pose, framing or gesture";
+  return "MIDDLE ACT — DEMONSTRATION/PROOF: new concrete step; never replay the opening pose, framing or gesture";
 }
 
 function buildGoogleVideoLongIdentityDirection(
@@ -552,6 +555,57 @@ function buildGoogleVideoLongIdentityDirection(
     buildGoogleVideoIdentityDirection(request, identityTeamMemberCount),
     170,
   );
+}
+
+function buildGoogleVideoContinuityCast(
+  request: AiVideoProviderGenerationArgs["request"],
+  identityTeamMemberCount?: 2 | 3,
+) {
+  return promptSnippet(
+    buildGoogleVideoLongIdentityDirection(
+      request,
+      identityTeamMemberCount,
+    ),
+    50,
+  );
+}
+
+/**
+ * Deterministic film bible repeated verbatim in every independently rendered
+ * act. It costs no network round-trip and keeps the parallel 16/24 s path,
+ * while giving both Gemini Omni and Veo the same immutable visual anchors.
+ */
+export function buildGoogleVideoContinuityBible(
+  args: AiVideoProviderGenerationArgs,
+) {
+  const firstScene = args.plan.scenes[0];
+  const finalScene = args.plan.scenes.at(-1);
+  const place = promptSnippet(
+    args.profession || args.plan.companyName || "professional",
+    18,
+  );
+  const palette = args.brandColors.filter(Boolean).slice(0, 3).join(", ");
+  const startState = promptSnippet(
+    firstScene?.title || firstScene?.visualBrief || args.request.idea,
+    14,
+  );
+  const endState = promptSnippet(
+    finalScene?.title || finalScene?.visualBrief || args.plan.cta,
+    14,
+  );
+  return [
+    `CAST: ${buildGoogleVideoContinuityCast(
+      args.request,
+      args.identityTeamMemberCount,
+    )}`,
+    "LOOK/VOICE: same clothes and synthetic voice per face",
+    `PLACE: same ${place || "professional"} location`,
+    "LIGHT: same",
+    `PALETTE: ${palette || "one refined stable palette"}`,
+    "CAMERA: safe medium-wide, full heads with headroom; same lens/height",
+    `START STATE: ${startState || "task begins"}`,
+    `END STATE: ${endState || "task completed"}`,
+  ].join("; ");
 }
 
 /**
@@ -729,12 +783,12 @@ export function buildGoogleVideoScenePrompt(
     .filter(Boolean)
     .join(" — ");
   const sequenceHeader = options.continuation
-    ? `[# Sources <PREVIOUS_VIDEO>@Video1] Extend this video immediately by ${durationSeconds} seconds from its final frame; same people, faces, clothing, voices, workplace, light and motion; no new intro, reset, recap or repeated event; single unbroken continuous shot with no scene cuts.`
+    ? "[# Sources <PREVIOUS_VIDEO>@Video1] Extend this video immediately; same people, faces, clothing, voices, workplace, light and motion; no new intro, reset, recap or repeated event; single unbroken continuous shot with no scene cuts."
     : `Create one original ${durationSeconds}-second cinematic business shot ${index + 1}/${args.plan.scenes.length}; single unbroken continuous shot with no scene cuts.`;
   const adultSafety =
     args.request.peopleMode === "none"
       ? "Do not show any person, human silhouette or face."
-      : "Every visible person must be unmistakably adult (25+); no minors.";
+      : "Adults only (25+); no minors.";
 
   // Long videos use independent eight-second acts by default so 16/24 s can
   // render in parallel. Every act receives the complete story arc: the shots
@@ -743,23 +797,20 @@ export function buildGoogleVideoScenePrompt(
   if (args.plan.scenes.length > 1) {
     const requiredSections = [
       sequenceHeader,
-      `${buildGoogleVideoLongIdentityDirection(
-        args.request,
-        args.identityTeamMemberCount,
-      )}.`,
+      `CONTINUITY BIBLE — ${buildGoogleVideoContinuityBible(args)}.`,
       adultSafety,
       `PRIMARY SUBJECT — visually unmistakable: ${promptSnippet(
         exactIdea || professionalActivity,
         112,
       )}.`,
-      `REQUIRED VISUAL PROOF: ${promptSnippet(visualEvidence, 66)}.`,
+      `REQUIRED VISUAL PROOF: ${promptSnippet(visualEvidence, 36)}.`,
       !options.continuation
-        ? `ONE FILM STORY: ${promptSnippet(storyArc, 88)}; advance it without restart, recap or contradiction.`
+        ? `ONE FILM STORY: ${promptSnippet(storyArc, 72)}; advance it without restart, recap or contradiction.`
         : "",
       actAction
-        ? `ACT ACTION: ${promptSnippet(actAction, 64)}.`
+        ? `ACT ACTION: ${promptSnippet(actAction, 40)}.`
         : "",
-      `SEQUENCE ROLE: ${sequenceDirection}.`,
+      `${sequenceDirection}.`,
       speechDirection ? `${speechDirection}.` : "",
     ]
       .filter(Boolean);
@@ -1226,10 +1277,15 @@ export const googleVeoVideoProvider: AiVideoProvider = {
       (total, duration) => total + duration,
       0,
     );
+    // A commercial 16/24 s film must never change renderer between acts.
+    // Model fallback remains useful for a single 8 s clip, but a long film
+    // locks its primary model and lets the server recover locally if that
+    // model cannot deliver the complete set.
+    const filmModels = durations.length > 1 ? [primaryModel] : models;
     // Reserve the most expensive configured candidate so a model fallback can
     // never make the actual charge exceed the economic guard reservation.
     const reservedCostPerSecond = Math.max(
-      ...models.map((model) => costMicroUsdPerSecond(model)),
+      ...filmModels.map((model) => costMicroUsdPerSecond(model)),
     );
     const estimatedCostMicroUsd = totalDurationSeconds * reservedCostPerSecond;
     const reservation = await reserveAiGatewayAccountAttempt(args.accountId, {
@@ -1253,9 +1309,10 @@ export const googleVeoVideoProvider: AiVideoProvider = {
           const index = cursor;
           cursor += 1;
           const durationSeconds = durations[index];
-          const orderedModels = Array.from(
-            new Set([preferredModel, ...models]),
-          );
+          const orderedModels =
+            durations.length > 1
+              ? filmModels
+              : Array.from(new Set([preferredModel, ...filmModels]));
           try {
             const clip = await generateClip({
               ai,
@@ -1306,6 +1363,9 @@ export const googleVeoVideoProvider: AiVideoProvider = {
       const usedModels = Array.from(
         new Set(completedClips.map((clip) => clip.model)),
       );
+      if (durations.length > 1 && usedModels.length !== 1) {
+        throw new Error("ai_video_veo_film_model_mixed");
+      }
       const accountingModel = usedModels.join("+") || primaryModel;
       await commitAiGatewayAccountAttempt({
         reservation,
@@ -1344,6 +1404,19 @@ export const googleVeoVideoProvider: AiVideoProvider = {
         feature: "media.video",
         model: accountingModel,
       }).catch(() => undefined);
+      if (actualCostMicroUsd > 0) {
+        if (isAiVideoProviderBillableFailure(error)) throw error;
+        throw new AiVideoProviderBillableFailure({
+          provider: PROVIDER_ID,
+          model: accountingModel,
+          stage: "film_incomplete",
+          details: redactAiMediaSensitiveText(
+            error instanceof Error ? error.message : error,
+            700,
+          ),
+          cause: error,
+        });
+      }
       throw error;
     }
   },

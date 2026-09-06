@@ -14,6 +14,11 @@ import {
   selectAiMediaDialogueLine,
 } from "../../lib/aiMediaDialogue.ts";
 import { getAiMediaVideoSegmentDurations } from "../../lib/aiMediaVideoTimeline.ts";
+import {
+  AI_VIDEO_BILLABLE_FAILURE_CODE,
+  AiVideoProviderBillableFailure,
+  isAiVideoProviderBillableFailure,
+} from "../../lib/aiVideoProviderTypes.ts";
 
 const ROOT = process.cwd();
 const read = (relativePath: string) =>
@@ -241,6 +246,38 @@ test("Omni long reste parallèle par défaut, avec les références sur chaque a
     /if \(continuationMode\) previousInteractionId = clip\.requestId/,
     "sans opt-in, aucun previous_interaction_id n’est mémorisé",
   );
+  assert.match(omni, /durations\.length === 1 &&\s*!continuationMode/);
+  assert.match(omni, /ai_video_omni_film_model_mixed/);
+});
+
+test("un film long verrouille son provider et son modèle après tout coût facturable", () => {
+  const veo = read("lib/aiVideoProviderGoogleVeo.ts");
+  const omni = read("lib/aiVideoProviderGoogleOmni.ts");
+  const server = read("lib/aiMediaGenerationServer.ts");
+
+  assert.match(veo, /const filmModels = durations\.length > 1 \? \[primaryModel\] : models/);
+  assert.match(veo, /ai_video_veo_film_model_mixed/);
+  assert.match(omni, /ai_video_omni_film_model_mixed/);
+  assert.match(veo, /new AiVideoProviderBillableFailure/);
+  assert.match(omni, /new AiVideoProviderBillableFailure/);
+
+  const billableGuard = server.indexOf(
+    "if (isAiVideoProviderBillableFailure(primaryError))",
+  );
+  const crossProviderFallback = server.indexOf(
+    'pipelineWarnings.push("veo_fallback_to_omni")',
+  );
+  assert.ok(billableGuard > 0 && crossProviderFallback > billableGuard);
+
+  const error = new AiVideoProviderBillableFailure({
+    provider: "google-gemini",
+    model: "veo-test",
+    stage: "film_incomplete",
+    details: "download failed",
+  });
+  assert.equal(error.code, AI_VIDEO_BILLABLE_FAILURE_CODE);
+  assert.equal(isAiVideoProviderBillableFailure(error), true);
+  assert.equal(isAiVideoProviderBillableFailure(new Error("ordinary")), false);
 });
 
 test("l’opt-in Omni enchaîne res1 vers res2 puis res3 et n’envoie les images qu’au premier tour", () => {
@@ -292,7 +329,7 @@ test("l’opt-in Omni enchaîne res1 vers res2 puis res3 et n’envoie les image
   );
   assert.match(
     omni,
-    /if \(\s*!continuationMode &&\s*durationSeconds === 8[\s\S]*?googleVeoVideoProvider\.generate/,
+    /if \(\s*durations\.length === 1 &&\s*!continuationMode &&\s*durationSeconds === 8[\s\S]*?googleVeoVideoProvider\.generate/,
   );
   assert.equal(
     (omni.match(/googleVeoVideoProvider\.generate/g) || []).length,
@@ -459,7 +496,7 @@ test("le prompt reference_team de 24 secondes conserve ses contraintes critiques
   assert.match(prompt, /ONCE ONLY/);
   assert.match(prompt, /never repeat, restart, loop or reuse/);
   assert.match(prompt, /single unbroken continuous shot with no scene cuts/);
-  assert.match(prompt, /Every visible person must be unmistakably adult/);
+  assert.match(prompt, /Adults only \(25\+\); no minors/);
 
   const actPrompts = [0, 1, 2].map((index) =>
     buildGoogleVideoScenePrompt(
@@ -490,6 +527,19 @@ test("le prompt reference_team de 24 secondes conserve ses contraintes critiques
   const parallelActPrompts = [0, 1, 2].map((index) =>
     buildGoogleVideoScenePrompt(generationArgs, index, 8),
   );
+  const continuityBibles = parallelActPrompts.map(
+    (actPrompt) =>
+      actPrompt.match(/CONTINUITY BIBLE — ([\s\S]*?)\. Adults only/)?.[1],
+  );
+  assert.equal(new Set(continuityBibles).size, 1);
+  assert.match(continuityBibles[0] || "", /CAST:/);
+  assert.match(continuityBibles[0] || "", /LOOK\/VOICE: same clothes and synthetic voice per face/);
+  assert.match(continuityBibles[0] || "", /PLACE:/);
+  assert.match(continuityBibles[0] || "", /LIGHT:/);
+  assert.match(continuityBibles[0] || "", /PALETTE:/);
+  assert.match(continuityBibles[0] || "", /CAMERA:/);
+  assert.match(continuityBibles[0] || "", /START STATE:/);
+  assert.match(continuityBibles[0] || "", /END STATE:/);
   const expectedParallelRoles = [
     /ACT 1 — OPENING/,
     /MIDDLE ACT — DEMONSTRATION\/PROOF/,
@@ -556,4 +606,29 @@ test("les dialogues de 24 secondes sont assez longs, significatifs et tous uniqu
   assert.match(veo, /args\.plan\.scenes\.slice\(0, index\)/);
   assert.match(veo, /usedDialogue\.add\(aiMediaDialogueSignature\(previous\.spokenLine\)\)/);
   assert.match(veo, /usedDialogue\.add\(aiMediaDialogueSignature\(selectedFirstLine\)\)/);
+});
+
+test("le secours dialogue d’un film 16 s suit ouverture puis conclusion", () => {
+  const opening = selectAiMediaDialogueLine({
+    value: "On s’y met ?",
+    language: "fr",
+    sceneIndex: 0,
+    sceneCount: 2,
+    speaker: "lead",
+  });
+  const conclusion = selectAiMediaDialogueLine({
+    value: "C’est prêt",
+    language: "fr",
+    sceneIndex: 1,
+    sceneCount: 2,
+    speaker: "lead",
+  });
+  assert.equal(opening, getAiMediaDialogueFallbackPair("fr", 0)[0]);
+  assert.equal(conclusion, getAiMediaDialogueFallbackPair("fr", 2)[0]);
+
+  const copywriter = read("lib/aiMediaCopywriter.ts");
+  assert.match(copywriter, /role_narratif:/);
+  assert.match(copywriter, /\? "ouverture"/);
+  assert.match(copywriter, /\? "conclusion"/);
+  assert.match(copywriter, /: "preuve"/);
 });

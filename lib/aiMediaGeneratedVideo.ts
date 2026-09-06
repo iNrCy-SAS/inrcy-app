@@ -19,6 +19,7 @@ const execFileAsync = promisify(execFile);
 const MAX_GOOGLE_BUSINESS_VIDEO_BYTES = 74 * 1024 * 1024;
 const NARRATION_END_GUARD_SECONDS = 1;
 const NARRATION_TIMING_MARGIN_SECONDS = 0.2;
+const NARRATION_DECODE_TOLERANCE_SECONDS = 0.16;
 
 export type AiMediaNativeAudioMode = "ambience" | "dialogue" | "mute";
 
@@ -82,7 +83,13 @@ function narrationTempoFilters(args: {
   narrationDurationSeconds: number;
   targetVoiceSeconds: number;
 }) {
-  let tempo = args.narrationDurationSeconds / args.targetVoiceSeconds;
+  // La durée annoncée par un conteneur compressé peut être légèrement plus
+  // courte que les échantillons effectivement décodés. Cette petite tolérance
+  // fait finir la voix avant la zone de sécurité sans ajouter de seconde passe
+  // FFmpeg ni ralentir la génération.
+  let tempo =
+    (args.narrationDurationSeconds + NARRATION_DECODE_TOLERANCE_SECONDS) /
+    args.targetVoiceSeconds;
   if (!Number.isFinite(tempo) || tempo <= 1) return [];
   const filters: string[] = [];
   while (tempo > 2) {
@@ -180,7 +187,9 @@ function buildFilter(args: {
       "asetpts=PTS-STARTPTS",
       "afade=t=in:st=0:d=0.08",
       ...tempoFilters,
-      `atrim=duration=${maximumVoiceSeconds}`,
+      // Ne jamais couper la voix à 7/15/23 s : l'atempo la fait déjà tenir
+      // avant cette borne. Le seul trim restant intervient à la durée totale,
+      // après au moins une seconde de silence de sécurité.
       `apad=pad_dur=${args.durationSeconds}`,
       `atrim=duration=${args.durationSeconds}`,
       "volume=1.0",

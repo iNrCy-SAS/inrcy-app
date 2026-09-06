@@ -9,6 +9,24 @@
 3. **Clean-up last**
    - Drop old columns only after you’re sure no deployment needs them.
 
+## 2026-09-06 — Plafond Premium d’analyse ADN
+
+Exécuter après les migrations de quota ADN des 4 et 5 septembre :
+
+```text
+ops/sql/2026-09-06_business_dna_premium_monthly_limit_5.sql
+```
+
+Cette migration fait passer uniquement le plafond Premium de 16 à 5 analyses
+multicanales par mois. Elle ne modifie ni le compteur mensuel déjà consommé,
+ni les plafonds Standard (4) et Fondateur (16).
+
+Vérification strictement en lecture seule :
+
+```text
+ops/sql/2026-09-06_business_dna_premium_monthly_limit_5_postflight_read_only.sql
+```
+
 ## 2026-09-05 — Quota d’analyse ADN
 
 Exécuter après `2026-09-04_ai_memory_and_channel_lengths.sql` :

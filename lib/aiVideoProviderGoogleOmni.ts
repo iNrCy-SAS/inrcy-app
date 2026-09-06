@@ -25,7 +25,9 @@ import {
   resolveVideoNormalizationFfmpegPath,
 } from "@/lib/mediaVideoNormalizer";
 import {
+  AiVideoProviderBillableFailure,
   assertAiVideoReferenceTeamGoogleEgress,
+  isAiVideoProviderBillableFailure,
   type AiVideoProvider,
   type AiVideoProviderClip,
   type AiVideoProviderGenerationArgs,
@@ -767,6 +769,7 @@ export const googleOmniVideoProvider: AiVideoProvider = {
               details: redactAiMediaSensitiveText(omniFailure.details, 500),
             });
             if (
+              durations.length === 1 &&
               !continuationMode &&
               durationSeconds === 8 &&
               veoFallbackEnabled() &&
@@ -822,6 +825,12 @@ export const googleOmniVideoProvider: AiVideoProvider = {
         throw new Error("ai_video_omni_clip_set_incomplete");
       }
       let completedClips = clips as AiVideoProviderClip[];
+      if (
+        durations.length > 1 &&
+        completedClips.some((clip) => clip.model !== model)
+      ) {
+        throw new Error("ai_video_omni_film_model_mixed");
+      }
       if (continuationMode) {
         // Omni may return either the complete extended timeline or only the
         // newly appended delta, depending on the serving route. Probe instead
@@ -906,15 +915,17 @@ export const googleOmniVideoProvider: AiVideoProvider = {
         model,
       }).catch(() => undefined);
       if (actualCostMicroUsd > 0) {
-        const details = compact(
-          error instanceof Error ? error.message : error,
-          700,
-        );
-        throw new Error(
-          `ai_video_omni_billable_failure:${
-            details || "output_processing_failed"
-          }`,
-        );
+        if (isAiVideoProviderBillableFailure(error)) throw error;
+        throw new AiVideoProviderBillableFailure({
+          provider: PROVIDER_ID,
+          model,
+          stage: "film_incomplete",
+          details: redactAiMediaSensitiveText(
+            error instanceof Error ? error.message : error,
+            700,
+          ),
+          cause: error,
+        });
       }
       throw error;
     }

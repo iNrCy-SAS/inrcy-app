@@ -821,7 +821,7 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   assert.match(veo, /redactAiMediaSensitiveText\(failure\.details, 500\)/);
   assert.match(veo, /classifyVeoFailure/);
   assert.match(veo, /nextVeoInspirationMode/);
-  assert.match(veo, /Every visible person must be unmistakably adult/);
+  assert.match(veo, /Adults only \(25\+\); no minors/);
   assert.match(veo, /This business serves a family audience/);
   assert.match(veo, /buildGoogleVideoSafetyFallbackPrompt/);
   assert.match(veo, /canRetryAfterSafety/);

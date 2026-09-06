@@ -105,6 +105,12 @@ test("channel analysis is private, bounded, cumulative and monthly limited", () 
   const budget = read("lib/businessDnaSourceBudget.ts");
   const policy = read("lib/aiGatewayPolicy.ts");
   const migration = read("ops/sql/2026-09-04_ai_memory_and_channel_lengths.sql");
+  const premiumLimitPatch = read(
+    "ops/sql/2026-09-06_business_dna_premium_monthly_limit_5.sql",
+  );
+  const premiumLimitPostflight = read(
+    "ops/sql/2026-09-06_business_dna_premium_monthly_limit_5_postflight_read_only.sql",
+  );
   const ui = read("app/dashboard/settings/_components/AiMemoryContent.tsx");
 
   assert.match(route, /collectBusinessDnaChannelSources/);
@@ -122,6 +128,17 @@ test("channel analysis is private, bounded, cumulative and monthly limited", () 
   assert.match(policy, /"business-dna\.analyze"[\s\S]*maxOutputTokens: 8_000/);
   assert.match(migration, /\('standard', 4\)/);
   assert.match(migration, /\('premium', 16\)/);
+  assert.match(migration, /\('founder', 16\)/);
+  assert.match(premiumLimitPatch, /values \('premium', 5\)/);
+  assert.match(premiumLimitPatch, /edition = 'standard' and monthly_limit = 4/);
+  assert.match(premiumLimitPatch, /edition = 'premium' and monthly_limit = 5/);
+  assert.match(premiumLimitPatch, /edition = 'founder' and monthly_limit = 16/);
+  assert.doesNotMatch(
+    premiumLimitPatch,
+    /business_dna_analysis_monthly_usage\s+(?:set|values|delete|truncate)/i,
+  );
+  assert.match(premiumLimitPostflight, /begin transaction read only;/i);
+  assert.match(premiumLimitPostflight, /edition = 'premium' and monthly_limit = 5/);
   assert.match(migration, /for update/);
   assert.match(
     migration,

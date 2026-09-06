@@ -416,7 +416,16 @@ test("la fenêtre iNrCy sépare les critères de la création et de la revue", (
   assert.match(modal, /createPortal/);
   assert.match(modal, /role="dialog"/);
   assert.match(modal, /className=\{styles\.moduleIdentity\}/);
-  assert.match(modal, /className=\{styles\.profileSignals\}/);
+  assert.doesNotMatch(modal, /className=\{styles\.profileSignals\}/);
+  assert.doesNotMatch(modal, /ai_generator_signal_(profile|brand|history)/);
+  assert.match(modal, /href="\/dashboard\/mediatheque"/);
+  assert.match(modal, /className=\{styles\.mediaLibraryLink\}/);
+  assert.match(modal, /mediatheque_inrcy_a885e19e/);
+  assert.match(modal, /mediatheque_e4fa8e31/);
+  assert.match(
+    modalStyles,
+    /@media \(max-width: 620px\)[\s\S]*?\.mediaLibraryLink\s*\{[^}]*min-height:\s*35px/,
+  );
   assert.match(modal, /ai_generator_made_inrcy_hint/);
   assert.doesNotMatch(generator, /className=\{styles\.introCard\}/);
 });

@@ -9,6 +9,11 @@ import { buildAiMediaBusinessDnaPayload } from "@/lib/aiMediaBusinessDna";
 import { aiGenerateJSON } from "@/lib/aiGatewayClient";
 import { hasAiLanguageMismatch } from "@/lib/aiLanguageValidation";
 import { buildAiMediaNarrationFallback } from "@/lib/aiMediaLanguage";
+import {
+  completeAiMediaSpeechSentence,
+  fitAiMediaSpeechToCompleteSentences,
+  hasCompleteAiMediaSpeechEnding,
+} from "@/lib/aiMediaDialogue";
 
 const NARRATION_SCHEMA = {
   name: "inrcy_media_narration",
@@ -28,6 +33,18 @@ const WORD_TARGETS = {
   16: { min: 27, target: 32, max: 37 },
   24: { min: 41, target: 47, max: 52 },
 } as const;
+
+const LAST_RESORT_SENTENCES: Readonly<Record<string, string>> = {
+  fr: "Découvrez notre expertise dès aujourd’hui.",
+  en: "Discover our expertise today.",
+  es: "Descubra hoy nuestra experiencia.",
+  it: "Scopri oggi la nostra esperienza.",
+  de: "Entdecken Sie heute unsere Expertise.",
+  nl: "Ontdek vandaag onze expertise.",
+  pt: "Descubra hoje a nossa experiência.",
+  zh: "立即了解我们的专业服务。",
+  th: "ค้นพบบริการระดับมืออาชีพของเราวันนี้。",
+};
 
 const LANGUAGE_NAMES: Record<string, string> = {
   fr: "français naturel de France",
@@ -74,19 +91,6 @@ function speechUnitCount(value: string, language: string) {
   return words(value).length;
 }
 
-function limitSpeech(value: string, maximum: number, language: string) {
-  if (language === "zh" || language === "th") {
-    const charactersPerUnit = language === "zh" ? 2.35 : 4.3;
-    const characters = Array.from(clean(value));
-    const maximumCharacters = Math.max(12, Math.floor(maximum * charactersPerUnit));
-    if (characters.length <= maximumCharacters) return clean(value);
-    return `${characters.slice(0, maximumCharacters).join("").replace(/[，、；：,.!?。！？]+$/u, "")}。`;
-  }
-  const items = words(value);
-  if (items.length <= maximum) return clean(value);
-  return `${items.slice(0, maximum).join(" ").replace(/[,;:]$/, "")}.`;
-}
-
 function safeFallback(args: {
   request: AiMediaGenerationRequest;
   profile: NormalizedAiGenerationProfile;
@@ -102,7 +106,25 @@ function safeFallback(args: {
     company,
     location,
   });
-  return limitSpeech(localized, WORD_TARGETS[duration].max, language);
+  const fitted = fitAiMediaSpeechToCompleteSentences({
+    value: localized,
+    language,
+    maximumUnits: WORD_TARGETS[duration].max,
+  });
+  if (fitted) return fitted;
+
+  // Un nom d'entreprise exceptionnellement long ne doit jamais forcer une
+  // coupe en plein milieu. La conclusion validée du plan reste une phrase de
+  // secours courte et contextualisée.
+  for (const candidate of [args.plan.cta, args.plan.headline]) {
+    const safeCandidate = fitAiMediaSpeechToCompleteSentences({
+      value: clean(candidate, 120),
+      language,
+      maximumUnits: WORD_TARGETS[duration].max,
+    });
+    if (safeCandidate) return safeCandidate;
+  }
+  return LAST_RESORT_SENTENCES[language] || LAST_RESORT_SENTENCES.fr;
 }
 
 function validGeneratedScript(
@@ -114,9 +136,10 @@ function validGeneratedScript(
   const target = WORD_TARGETS[duration];
   return (
     count >= target.min &&
-    count <= target.max + 4 &&
+    count <= target.max &&
     !/[+·|]/.test(value) &&
     !/(voici|script|narration|voix off)\s*:/i.test(value) &&
+    hasCompleteAiMediaSpeechEnding(value, language) &&
     !hasAiLanguageMismatch(language, value)
   );
 }
@@ -156,6 +179,7 @@ export async function writeAiMediaNarration(args: {
         "La consigne ponctuelle oriente la création mais ne doit jamais être récitée, citée ou présentée comme une instruction.",
         "Utilise uniquement les faits fournis. N'invente aucun prix, résultat, certification, promotion, délai, adresse ou témoignage.",
         "Aucune liste, addition de mots-clés, hashtag, emoji, titre, label, URL ou indication de mise en scène.",
+        "Termine par une phrase complète et ponctuée. Ne commence jamais une dernière proposition que la limite de mots t'empêcherait de finir.",
         "Le résultat doit être immédiatement prononçable, humain, crédible et cohérent avec toutes les scènes.",
       ].join(" "),
       input: JSON.stringify({
@@ -181,7 +205,7 @@ export async function writeAiMediaNarration(args: {
     });
     const candidate = clean(generated.script);
     if (validGeneratedScript(candidate, duration, languageCode)) {
-      script = limitSpeech(candidate, target.max, languageCode);
+      script = completeAiMediaSpeechSentence(candidate, languageCode);
       source = "ai";
     }
   } catch {

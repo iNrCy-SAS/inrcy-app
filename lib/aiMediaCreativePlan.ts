@@ -315,6 +315,7 @@ function finalizeScenes(args: {
       value: candidate.spokenLine,
       language: args.language,
       sceneIndex,
+      sceneCount: selected.length,
       speaker: "lead",
       usedSignatures: usedDialogue,
     });
@@ -323,6 +324,7 @@ function finalizeScenes(args: {
       value: candidate.spokenReply,
       language: args.language,
       sceneIndex,
+      sceneCount: selected.length,
       speaker: "reply",
       usedSignatures: usedDialogue,
     });

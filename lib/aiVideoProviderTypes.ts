@@ -24,6 +24,66 @@ export type AiVideoProviderResult = {
   warnings: string[];
 };
 
+export const AI_VIDEO_BILLABLE_FAILURE_CODE =
+  "ai_video_provider_billable_failure" as const;
+
+/**
+ * A provider has already returned at least one chargeable video asset, but the
+ * complete film could not be delivered. Callers may still use a local,
+ * non-billable recovery, but must never start another video provider: doing so
+ * would silently charge the professional twice for the same generation.
+ */
+export class AiVideoProviderBillableFailure extends Error {
+  readonly code = AI_VIDEO_BILLABLE_FAILURE_CODE;
+  readonly billable = true;
+  readonly provider: string;
+  readonly model: string;
+  readonly stage: string;
+
+  constructor(args: {
+    provider: string;
+    model: string;
+    stage: string;
+    details?: string;
+    cause?: unknown;
+  }) {
+    const details = String(args.details || "output_processing_failed")
+      .replace(/\u0000/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 700);
+    super(
+      `${AI_VIDEO_BILLABLE_FAILURE_CODE}:${args.provider}:${args.stage}:${
+        details || "output_processing_failed"
+      }`,
+      { cause: args.cause },
+    );
+    this.name = "AiVideoProviderBillableFailure";
+    this.provider = args.provider;
+    this.model = args.model;
+    this.stage = args.stage;
+  }
+}
+
+export function isAiVideoProviderBillableFailure(
+  error: unknown,
+): error is AiVideoProviderBillableFailure {
+  if (error instanceof AiVideoProviderBillableFailure) return true;
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as {
+    billable?: unknown;
+    code?: unknown;
+    message?: unknown;
+  };
+  return (
+    candidate.billable === true &&
+    (candidate.code === AI_VIDEO_BILLABLE_FAILURE_CODE ||
+      String(candidate.message || "").startsWith(
+        `${AI_VIDEO_BILLABLE_FAILURE_CODE}:`,
+      ))
+  );
+}
+
 export type AiVideoProviderGenerationArgs = {
   accountId: string;
   request: AiMediaGenerationRequest;

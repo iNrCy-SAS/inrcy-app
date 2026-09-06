@@ -45,6 +45,7 @@ import {
 } from "@/lib/aiMediaReferenceTeam";
 import { writeAiMediaNarration } from "@/lib/aiMediaNarration";
 import { generateAiMediaNarrationAudio } from "@/lib/aiMediaNarrationAudio";
+import { auditAiMediaNativeDialogueWithGoogle } from "@/lib/aiMediaNativeDialogueQaGoogle";
 import {
   AI_MEDIA_PROMPT_VERSION,
   buildAiMediaPrompt,
@@ -58,9 +59,10 @@ import {
 import { redactAiMediaSensitiveText } from "@/lib/aiMediaSensitiveText";
 import { generateOriginalAiVideoClips } from "@/lib/aiVideoProvider";
 import { classifyVeoFailure } from "@/lib/aiVideoReliability";
-import type {
-  AiVideoProviderGenerationArgs,
-  AiVideoProviderResult,
+import {
+  isAiVideoProviderBillableFailure,
+  type AiVideoProviderGenerationArgs,
+  type AiVideoProviderResult,
 } from "@/lib/aiVideoProviderTypes";
 import type { DashboardEdition } from "@/lib/dashboardEdition";
 
@@ -543,8 +545,16 @@ export async function generateAndSaveAiMedia(args: {
           stage: "primary",
           error: primaryError,
         });
-        // Omni possède déjà son repli interne scène par scène vers Veo. Quand
-        // Veo est choisi et échoue, tenter Omni avec exactement le même plan et
+        // The selected provider already returned a chargeable asset. A local
+        // recovery may still finish the request, but invoking another remote
+        // video engine would create an invisible second bill for the same
+        // film and could mix its cast/model between acts.
+        if (isAiVideoProviderBillableFailure(primaryError)) {
+          throw primaryError;
+        }
+        // Omni conserve un repli Veo uniquement pour un clip isolé de 8 s.
+        // Quand Veo est choisi et échoue avant tout résultat facturable, tenter
+        // Omni avec exactement le même plan et
         // les mêmes références avant le mouvement local évite une fausse
         // "animation réelle" presque fixe.
         if (request.videoEngine !== "veo") throw primaryError;
@@ -848,6 +858,29 @@ export async function generateAndSaveAiMedia(args: {
       providerRequest.teamVideoSpeechMode === "characters";
     const characterDialogueProviderFallback =
       characterDialogueRequested && videoGateway.provider.startsWith("inrcy-");
+    const nativeDialogueQa =
+      characterDialogueRequested && !characterDialogueProviderFallback
+        ? await measure("native_character_dialogue_qa", () =>
+            auditAiMediaNativeDialogueWithGoogle({
+              accountId: args.accountId,
+              language: profile.preferences.language,
+              signal: args.signal,
+              clips: videoGateway.clips.map((clip, index) => ({
+                sceneIndex: index,
+                buffer: clip.buffer,
+                mediaType: clip.mediaType,
+                durationSeconds: clip.durationSeconds,
+                sourceStartSeconds: clip.sourceStartSeconds,
+                expectedLine: creativePlan.scenes[index]?.spokenLine || "",
+              })),
+            }),
+          )
+        : null;
+    const characterDialogueQualityFallback =
+      characterDialogueRequested &&
+      Boolean(nativeDialogueQa && nativeDialogueQa.status !== "passed");
+    const characterDialogueFallbackRequired =
+      characterDialogueProviderFallback || characterDialogueQualityFallback;
     const fallbackVoiceoverRequest: AiMediaGenerationRequest = {
       ...providerRequest,
       teamVideoSpeechMode: "voiceover",
@@ -855,7 +888,7 @@ export async function generateAndSaveAiMedia(args: {
       narrationVoice: providerRequest.narrationVoice || "female",
     };
     const narrationJoinStartedAt = performance.now();
-    const narrationResult = characterDialogueProviderFallback
+    const narrationResult = characterDialogueFallbackRequired
       ? await measure("character_dialogue_fallback_narration", () =>
           generateNarrationResult(fallbackVoiceoverRequest),
         )
@@ -875,7 +908,16 @@ export async function generateAndSaveAiMedia(args: {
       narrationController.abort(new Error("ai_media_narration_deadline"));
       pipelineWarnings.push("narration_slow_video_continued");
     }
-    if (characterDialogueProviderFallback) {
+    if (characterDialogueFallbackRequired) {
+      if (nativeDialogueQa?.status === "rejected") {
+        pipelineWarnings.push(
+          "native_character_dialogue_qa_rejected_fallback_voiceover",
+        );
+      } else if (nativeDialogueQa?.status === "unavailable") {
+        pipelineWarnings.push(
+          "native_character_dialogue_qa_unavailable_fallback_voiceover",
+        );
+      }
       pipelineWarnings.push(
         narrationResult?.audio
           ? "identity_team_character_dialogue_fallback_voiceover"
@@ -902,7 +944,7 @@ export async function generateAndSaveAiMedia(args: {
     let narration = narrationResult?.narration || null;
     let narrationAudio = narrationResult?.audio || null;
     let nativeCharacterDialoguePreserved =
-      characterDialogueRequested && !characterDialogueProviderFallback;
+      characterDialogueRequested && !characterDialogueFallbackRequired;
 
     const clips = videoGateway.clips.map((clip) => ({
       buffer: clip.buffer,
@@ -921,7 +963,9 @@ export async function generateAndSaveAiMedia(args: {
           narration: narrationAudio,
           nativeAudioMode: nativeCharacterDialoguePreserved
             ? "dialogue"
-            : "ambience",
+            : characterDialogueRequested
+              ? "mute"
+              : "ambience",
           signal: args.signal,
         }),
       );
@@ -977,7 +1021,7 @@ export async function generateAndSaveAiMedia(args: {
               ? "identity_team_character_dialogue_fallback_voiceover"
               : "identity_team_character_dialogue_fallback_silent_motion",
           );
-        } else if (!characterDialogueProviderFallback) {
+        } else if (!characterDialogueRequested) {
           // Pour une vidéo classique, une narration potentiellement malformée
           // reste un embellissement facultatif et ne doit pas casser le rendu.
           narration = null;
@@ -996,13 +1040,17 @@ export async function generateAndSaveAiMedia(args: {
               durationSeconds,
               soundtrack: null,
               narration: narrationAudio,
-              nativeAudioMode: narrationAudio ? "mute" : "ambience",
+              nativeAudioMode: characterDialogueRequested
+                ? "mute"
+                : narrationAudio
+                  ? "mute"
+                  : "ambience",
               signal: args.signal,
             }),
           );
         } catch (fallbackCompositionError) {
           args.signal?.throwIfAborted();
-          if (!characterDialogueRequested || !narrationAudio) {
+          if (!characterDialogueRequested) {
             throw fallbackCompositionError;
           }
           // Dernier repli honnête : le mouvement H264 reste livré même si la
@@ -1030,6 +1078,15 @@ export async function generateAndSaveAiMedia(args: {
         }
       }
     }
+    // Le compositeur a déjà décodé, recadré et normalisé chaque piste. Une
+    // seconde lecture FFmpeg purement consultative ajoutait jusqu'à 4 s sans
+    // pouvoir réparer le média : les scans lourds restent disponibles pour
+    // les canaris/tests, hors du chemin critique payé par le professionnel.
+    const finalVideoQa = {
+      version: 1,
+      status: "compositor_validated" as const,
+      checks: ["duration", "full_frame_crop", "audio_policy"] as const,
+    };
     model = [
       teamPrecompositionModel,
       videoGateway.model,
@@ -1058,6 +1115,17 @@ export async function generateAndSaveAiMedia(args: {
       team_precomposition: teamPrecompositionMetadata,
       team_video_speech_mode: providerRequest.teamVideoSpeechMode,
       native_character_dialogue_preserved: nativeCharacterDialoguePreserved,
+      quality_assurance: {
+        native_dialogue: characterDialogueRequested
+          ? nativeDialogueQa || {
+              version: 1,
+              status: "unavailable",
+              reason: "provider_fallback",
+              clips: [],
+            }
+          : { version: 1, status: "not_requested" },
+        final_video: finalVideoQa,
+      },
       narration: narration && narrationAudio
         ? {
             enabled: true,

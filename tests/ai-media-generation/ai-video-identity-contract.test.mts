@@ -220,14 +220,17 @@ test("Veo sépare strictement les dialogues natifs et la voix off sans inférer 
   assert.match(veo, /VOICE-OVER MODE — every on-screen person stays silent/);
   assert.match(veo, /no dialogue, speech, lip-sync or vocalisation/);
   assert.match(veo, /NATIVE CHARACTER DIALOGUE, never voice-over/);
-  assert.match(veo, /says exactly “\$\{promptSnippet\(firstLine, 64\)\}” ONCE ONLY/);
+  assert.doesNotMatch(veo, /promptSnippet\(firstLine, (?:64|72)\)/);
+  assert.match(veo, /ONCE ONLY: .* says exactly “\$\{firstLine\}”/);
   assert.match(veo, /exact lip-sync/);
+  assert.match(veo, /finish all words by 5\.5s/);
+  assert.match(veo, /after speaking close the mouth and react silently/);
+  assert.match(veo, /otherwise stay silent/);
   assert.match(veo, /never repeat, restart, loop or reuse earlier-scene dialogue/);
-  assert.match(veo, /synthetic adult feminine, masculine or neutral voice fixed to the face/);
-  assert.match(veo, /distinct synthetic adult voice per face \(feminine, masculine or neutral\)/);
-  assert.match(veo, /never clone a real voice, infer identity or gender/);
-  assert.match(veo, /never clone voices, infer identity\/gender, swap speakers/);
-  assert.match(veo, /add narrator\/music/);
+  assert.match(veo, /one synthetic adult voice fixed to face/);
+  assert.match(veo, /distinct synthetic adult voice\/face/);
+  assert.match(veo, /no cloning, gender\/identity inference/);
+  assert.match(veo, /narrator\/music/);
 
   const singleScenePromptPosition = veo.indexOf(
     "return compact(",
@@ -278,11 +281,22 @@ test("le montage audio préserve le dialogue natif et retombe sans double parole
   assert.match(composer, /ai_original_video_native_dialogue_missing/);
   assert.match(server, /character_dialogue_fallback_narration/);
   assert.match(server, /identity_team_character_dialogue_fallback_voiceover/);
+  assert.match(server, /auditAiMediaNativeDialogueWithGoogle/);
+  assert.match(server, /nativeDialogueQa\.status !== "passed"/);
+  assert.match(server, /native_character_dialogue_qa_rejected_fallback_voiceover/);
+  assert.match(server, /native_character_dialogue_qa_unavailable_fallback_voiceover/);
   assert.match(server, /minimalNativeDialogueSucceeded/);
   assert.match(server, /video_composition_minimal_native_dialogue/);
-  assert.match(server, /else if \(!characterDialogueProviderFallback\)/);
-  assert.match(server, /nativeAudioMode: narrationAudio \? "mute" : "ambience"/);
+  assert.match(server, /else if \(!characterDialogueRequested\)/);
+  assert.match(
+    server,
+    /nativeAudioMode: characterDialogueRequested[\s\S]*?\? "mute"/,
+  );
   assert.match(server, /video_composition_silent_fallback/);
   assert.match(server, /nativeAudioMode: "mute"/);
   assert.match(server, /native_character_dialogue_preserved/);
+  assert.match(server, /quality_assurance/);
+  assert.match(server, /status: "compositor_validated"/);
+  assert.match(server, /"full_frame_crop"/);
+  assert.doesNotMatch(server, /await measure\("video_local_quality_check"/);
 });
