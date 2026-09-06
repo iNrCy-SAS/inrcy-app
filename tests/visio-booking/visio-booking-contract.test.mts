@@ -56,7 +56,7 @@ test("la modale contient les deux choix et le parcours de confirmation", () => {
   assert.match(script, /submit_success\.inrcyVisioBooking/);
 });
 
-test("le préavis par défaut autorise les réservations le jour même", () => {
+test("le délai par défaut autorise les réservations dès le lendemain", () => {
   const backend = read("lib/visioBookingGoogle.ts");
-  assert.match(backend, /INRCY_VISIO_MINIMUM_LEAD_HOURS",\s*2,/);
+  assert.match(backend, /INRCY_VISIO_MINIMUM_LEAD_DAYS",\s*1,/);
 });

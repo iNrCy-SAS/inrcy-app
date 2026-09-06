@@ -138,7 +138,7 @@ export function isAllowedVisioStart(input: {
   start: Date;
   now: Date;
   horizonDays: number;
-  minimumLeadHours: number;
+  minimumLeadDays: number;
 }) {
   if (!Number.isFinite(input.start.getTime())) return false;
   const local = getLocalDateTimeParts(input.start);
@@ -149,7 +149,9 @@ export function isAllowedVisioStart(input: {
   ) {
     return false;
   }
-  const earliest = input.now.getTime() + input.minimumLeadHours * 60 * 60_000;
+  const earliestLocalDate = localDateKey(
+    addLocalDays(getLocalDateTimeParts(input.now), input.minimumLeadDays),
+  );
   const latest = input.now.getTime() + input.horizonDays * 24 * 60 * 60_000;
-  return input.start.getTime() >= earliest && input.start.getTime() <= latest;
+  return localDateKey(local) >= earliestLocalDate && input.start.getTime() <= latest;
 }

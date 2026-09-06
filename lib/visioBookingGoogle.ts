@@ -85,8 +85,8 @@ export function getVisioBookingHorizonDays() {
   return boundedInteger("INRCY_VISIO_HORIZON_DAYS", 21, 7, 60);
 }
 
-export function getVisioBookingMinimumLeadHours() {
-  return boundedInteger("INRCY_VISIO_MINIMUM_LEAD_HOURS", 2, 1, 168);
+export function getVisioBookingMinimumLeadDays() {
+  return boundedInteger("INRCY_VISIO_MINIMUM_LEAD_DAYS", 1, 1, 7);
 }
 
 export function getVisioTeamMembers(): VisioTeamMember[] {
@@ -368,7 +368,7 @@ function formatFrenchTime(start: Date) {
 export async function getVisioAvailability(now = new Date()) {
   const members = getVisioTeamMembers();
   const horizonDays = getVisioBookingHorizonDays();
-  const minimumLeadHours = getVisioBookingMinimumLeadHours();
+  const minimumLeadDays = getVisioBookingMinimumLeadDays();
   const localNow = getLocalDateTimeParts(now);
   const candidates: Array<{ date: string; start: Date }> = [];
 
@@ -376,7 +376,7 @@ export async function getVisioAvailability(now = new Date()) {
     const date = addLocalDays(localNow, offset);
     for (const hour of VISIO_BOOKING_START_HOURS) {
       const start = zonedDateTimeToUtc({ ...date, hour });
-      if (isAllowedVisioStart({ start, now, horizonDays, minimumLeadHours })) {
+      if (isAllowedVisioStart({ start, now, horizonDays, minimumLeadDays })) {
         candidates.push({ date: localDateKey(date), start });
       }
     }
@@ -637,8 +637,8 @@ export async function bookVisioSlot(
 ) {
   const start = new Date(String(startValue || ""));
   const horizonDays = getVisioBookingHorizonDays();
-  const minimumLeadHours = getVisioBookingMinimumLeadHours();
-  if (!isAllowedVisioStart({ start, now, horizonDays, minimumLeadHours })) {
+  const minimumLeadDays = getVisioBookingMinimumLeadDays();
+  if (!isAllowedVisioStart({ start, now, horizonDays, minimumLeadDays })) {
     throw new Error("visio_slot_invalid");
   }
 

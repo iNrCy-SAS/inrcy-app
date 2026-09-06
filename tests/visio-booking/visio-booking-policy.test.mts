@@ -30,14 +30,14 @@ test("une heure locale de Paris est convertie correctement avant et après le ch
   assert.equal(getLocalDateTimeParts(summer).hour, 9);
 });
 
-test("les dimanches, horaires hors grille et délais trop courts sont refusés", () => {
+test("les dimanches, horaires hors grille et délais calendaires trop courts sont refusés", () => {
   const now = new Date("2026-09-04T08:00:00.000Z");
   assert.equal(
     isAllowedVisioStart({
       start: new Date("2026-09-06T07:00:00.000Z"),
       now,
       horizonDays: 21,
-      minimumLeadHours: 1,
+      minimumLeadDays: 1,
     }),
     false,
   );
@@ -46,7 +46,7 @@ test("les dimanches, horaires hors grille et délais trop courts sont refusés",
       start: new Date("2026-09-07T08:00:00.000Z"),
       now,
       horizonDays: 21,
-      minimumLeadHours: 1,
+      minimumLeadDays: 1,
     }),
     false,
   );
@@ -55,7 +55,7 @@ test("les dimanches, horaires hors grille et délais trop courts sont refusés",
       start: new Date("2026-09-07T07:00:00.000Z"),
       now,
       horizonDays: 21,
-      minimumLeadHours: 96,
+      minimumLeadDays: 4,
     }),
     false,
   );
@@ -67,29 +67,51 @@ test("les rendez-vous du samedi restent disponibles", () => {
       start: new Date("2026-09-05T07:00:00.000Z"),
       now: new Date("2026-09-04T08:00:00.000Z"),
       horizonDays: 21,
-      minimumLeadHours: 2,
+      minimumLeadDays: 1,
     }),
     true,
   );
 });
 
-test("un créneau le jour même et le lendemain est permis avec deux heures de préavis", () => {
+test("une réservation faite le samedi commence au plus tôt le lundi", () => {
+  const saturday = new Date("2026-09-05T10:00:00.000Z");
+  assert.equal(
+    isAllowedVisioStart({
+      start: new Date("2026-09-06T07:00:00.000Z"),
+      now: saturday,
+      horizonDays: 21,
+      minimumLeadDays: 1,
+    }),
+    false,
+  );
+  assert.equal(
+    isAllowedVisioStart({
+      start: new Date("2026-09-07T07:00:00.000Z"),
+      now: saturday,
+      horizonDays: 21,
+      minimumLeadDays: 1,
+    }),
+    true,
+  );
+});
+
+test("le jour même est refusé mais tous les horaires du lendemain sont permis", () => {
   const mondayMorning = new Date("2026-09-07T06:00:00.000Z");
   assert.equal(
     isAllowedVisioStart({
       start: new Date("2026-09-07T12:00:00.000Z"),
       now: mondayMorning,
       horizonDays: 21,
-      minimumLeadHours: 2,
+      minimumLeadDays: 1,
     }),
-    true,
+    false,
   );
   assert.equal(
     isAllowedVisioStart({
       start: new Date("2026-09-08T07:00:00.000Z"),
       now: mondayMorning,
       horizonDays: 21,
-      minimumLeadHours: 2,
+      minimumLeadDays: 1,
     }),
     true,
   );
@@ -98,7 +120,7 @@ test("un créneau le jour même et le lendemain est permis avec deux heures de p
       start: new Date("2026-09-07T07:00:00.000Z"),
       now: new Date("2026-09-06T18:30:00.000Z"),
       horizonDays: 21,
-      minimumLeadHours: 2,
+      minimumLeadDays: 1,
     }),
     true,
   );

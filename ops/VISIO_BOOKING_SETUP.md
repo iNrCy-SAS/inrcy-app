@@ -18,7 +18,7 @@ Recommandées :
 - `INRCY_VISIO_BOOKING_ALERT_EMAIL=compte@inrcy.com`
 - `INRCY_VISIO_PENDING_COLOR_ID=5` pour la couleur jaune.
 - `INRCY_VISIO_HORIZON_DAYS=21`
-- `INRCY_VISIO_MINIMUM_LEAD_HOURS=2` pour autoriser un créneau le jour même avec deux heures de préavis et, sinon, dès le lendemain.
+- `INRCY_VISIO_MINIMUM_LEAD_DAYS=1` pour proposer les rendez-vous dès le lendemain, sans imposer 24 heures glissantes.
 - `INRCY_VISIO_ALLOWED_ORIGINS=https://inrcy.com,https://www.inrcy.com`
 
 Les identifiants d’agenda d’Océane, Apolline et Jimmy ont des valeurs par défaut conformes aux comptes actuels. Ils peuvent être surchargés avec `INRCY_VISIO_OCEANE_CALENDAR_ID`, `INRCY_VISIO_APOLLINE_CALENDAR_ID` et `INRCY_VISIO_JIMMY_CALENDAR_ID`.
@@ -38,7 +38,7 @@ Installer puis activer le dossier `ops/wordpress-visio-booking` sous forme d’e
 
 - rendez-vous du lundi au samedi, dimanche exclu ;
 - horaires 9h, 11h, 14h, 16h et 18h, heure de Paris ;
-- réservation possible le jour même avec deux heures de préavis, puis dès le lendemain ;
+- réservation possible dès le lendemain, jamais le jour même et sans décalage automatique à J+2 ;
 - événement créé pour 1 heure ;
 - fenêtre de disponibilité conservée pendant 2 heures ;
 - deux rendez-vous simultanés maximum ;
