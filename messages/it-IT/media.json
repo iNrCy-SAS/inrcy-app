@@ -157,7 +157,7 @@
   "ai_generator_team_speech_finish_hint": "La voce fuori campo viene disattivata automaticamente; le persone parlano direttamente nella scena.",
   "ai_generator_team_speech_finish_summary": "Persone che parlano · senza voce fuori campo",
   "ai_generator_team_speech_finish_title": "Dialogo dei personaggi attivato",
-  "ai_generator_team_speech_gender_hint": "iNrCy mira a creare voci sintetiche distinte e coerenti per i personaggi (femminili, maschili o neutre, secondo la scena). Nessuna clonazione vocale. Se il dialogo non è disponibile, iNrCy fornisce una voce fuori campo di riserva.",
+  "ai_generator_team_speech_gender_hint": "iNrCy mira a creare voci sintetiche distinte e coerenti per i personaggi (femminili, maschili o neutre, secondo la scena). Nessuna clonazione vocale. La voce resta quella generata insieme ai movimenti delle labbra; se la traccia manca, la scena rimane muta invece di risultare fuori sincrono.",
   "ai_generator_team_speech_narration_disabled_hint": "Disattivata automaticamente: i personaggi parlano direttamente nella scena.",
   "ai_generator_team_speech_summary_characters": "Persone che parlano",
   "ai_generator_team_speech_summary_voiceover": "Voce fuori campo",

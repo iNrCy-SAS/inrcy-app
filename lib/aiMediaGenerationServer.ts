@@ -876,31 +876,16 @@ export async function generateAndSaveAiMedia(args: {
             }),
           )
         : null;
-    const characterDialogueQualityFallback =
-      characterDialogueRequested &&
-      Boolean(nativeDialogueQa && nativeDialogueQa.status !== "passed");
-    const characterDialogueFallbackRequired =
-      characterDialogueProviderFallback || characterDialogueQualityFallback;
-    const fallbackVoiceoverRequest: AiMediaGenerationRequest = {
-      ...providerRequest,
-      teamVideoSpeechMode: "voiceover",
-      withNarration: true,
-      narrationVoice: providerRequest.narrationVoice || "female",
-    };
     const narrationJoinStartedAt = performance.now();
-    const narrationResult = characterDialogueFallbackRequired
-      ? await measure("character_dialogue_fallback_narration", () =>
-          generateNarrationResult(fallbackVoiceoverRequest),
-        )
-      : await waitForOptionalTaskWithinGrace({
-          task: narrationTask,
-          graceMs: positiveInt(
-            process.env.AI_MEDIA_NARRATION_AFTER_VIDEO_GRACE_MS,
-            DEFAULT_NARRATION_AFTER_VIDEO_GRACE_MS,
-            20_000,
-          ),
-          signal: args.signal,
-        });
+    const narrationResult = await waitForOptionalTaskWithinGrace({
+      task: narrationTask,
+      graceMs: positiveInt(
+        process.env.AI_MEDIA_NARRATION_AFTER_VIDEO_GRACE_MS,
+        DEFAULT_NARRATION_AFTER_VIDEO_GRACE_MS,
+        20_000,
+      ),
+      signal: args.signal,
+    });
     pipelineTimingsMs.narration_join_after_veo = roundedDurationMs(
       narrationJoinStartedAt,
     );
@@ -908,20 +893,23 @@ export async function generateAndSaveAiMedia(args: {
       narrationController.abort(new Error("ai_media_narration_deadline"));
       pipelineWarnings.push("narration_slow_video_continued");
     }
-    if (characterDialogueFallbackRequired) {
-      if (nativeDialogueQa?.status === "rejected") {
-        pipelineWarnings.push(
-          "native_character_dialogue_qa_rejected_fallback_voiceover",
-        );
-      } else if (nativeDialogueQa?.status === "unavailable") {
-        pipelineWarnings.push(
-          "native_character_dialogue_qa_unavailable_fallback_voiceover",
-        );
-      }
+    // La piste audio native et les mouvements de bouche sont produits ensemble
+    // par le moteur vidéo. Un échec (ou une indisponibilité) du contrôle de
+    // transcription ne doit jamais remplacer cette piste par un TTS : les
+    // lèvres resteraient animées pour la voix d'origine et seraient donc
+    // nécessairement désynchronisées avec la nouvelle voix.
+    if (nativeDialogueQa?.status === "rejected") {
       pipelineWarnings.push(
-        narrationResult?.audio
-          ? "identity_team_character_dialogue_fallback_voiceover"
-          : "identity_team_character_dialogue_fallback_silent_motion",
+        "native_character_dialogue_qa_rejected_native_audio_preserved_for_lip_sync",
+      );
+    } else if (nativeDialogueQa?.status === "unavailable") {
+      pipelineWarnings.push(
+        "native_character_dialogue_qa_unavailable_native_audio_preserved",
+      );
+    }
+    if (characterDialogueProviderFallback) {
+      pipelineWarnings.push(
+        "identity_team_character_dialogue_unavailable_silent_motion",
       );
     }
     args.signal?.removeEventListener("abort", abortNarrationFromCaller);
@@ -944,7 +932,7 @@ export async function generateAndSaveAiMedia(args: {
     let narration = narrationResult?.narration || null;
     let narrationAudio = narrationResult?.audio || null;
     let nativeCharacterDialoguePreserved =
-      characterDialogueRequested && !characterDialogueFallbackRequired;
+      characterDialogueRequested && !characterDialogueProviderFallback;
 
     const clips = videoGateway.clips.map((clip) => ({
       buffer: clip.buffer,
@@ -1008,27 +996,22 @@ export async function generateAndSaveAiMedia(args: {
       }
 
       if (!minimalNativeDialogueSucceeded) {
-        if (nativeCharacterDialoguePreserved) {
-          const fallbackNarration = await measure(
-            "character_dialogue_audio_fallback",
-            () => generateNarrationResult(fallbackVoiceoverRequest),
-          );
-          narration = fallbackNarration.narration;
-          narrationAudio = fallbackNarration.audio;
+        if (characterDialogueRequested) {
+          // Sans piste native exploitable, un repli TTS sur une bouche déjà
+          // animée serait trompeur et fatalement hors synchronisation. Livrer
+          // le mouvement sans parole reste le seul repli audiovisuel honnête.
+          narration = null;
+          narrationAudio = null;
           pipelineWarnings.push(
-            ...fallbackNarration.warnings,
-            narrationAudio
-              ? "identity_team_character_dialogue_fallback_voiceover"
-              : "identity_team_character_dialogue_fallback_silent_motion",
+            "identity_team_character_dialogue_unavailable_silent_motion",
+            "video_audio_unavailable_video_continued",
           );
-        } else if (!characterDialogueRequested) {
+        } else {
           // Pour une vidéo classique, une narration potentiellement malformée
           // reste un embellissement facultatif et ne doit pas casser le rendu.
           narration = null;
           narrationAudio = null;
         }
-        // En repli équipe, une voix off déjà créée après l'échec provider est
-        // conservée. L'audio natif est alors coupé pour éviter deux paroles.
         nativeCharacterDialoguePreserved = false;
         try {
           normalized = await measure("video_composition_fallback", () =>
@@ -1053,9 +1036,9 @@ export async function generateAndSaveAiMedia(args: {
           if (!characterDialogueRequested) {
             throw fallbackCompositionError;
           }
-          // Dernier repli honnête : le mouvement H264 reste livré même si la
-          // piste TTS est invalide. Toute parole native est coupée pour ne pas
-          // produire un mélange incohérent ou partiel.
+          // Dernier repli honnête : le mouvement H264 reste livré. Toute parole
+          // native inutilisable est coupée, sans lui substituer un TTS qui ne
+          // pourrait pas suivre les mouvements de bouche déjà générés.
           narration = null;
           narrationAudio = null;
           pipelineWarnings.push(

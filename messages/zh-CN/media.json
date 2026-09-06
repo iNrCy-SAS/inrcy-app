@@ -157,7 +157,7 @@
   "ai_generator_team_speech_finish_hint": "旁白会自动关闭，人物将在场景中直接说话。",
   "ai_generator_team_speech_finish_summary": "人物说话 · 无旁白",
   "ai_generator_team_speech_finish_title": "已启用人物对白",
-  "ai_generator_team_speech_gender_hint": "iNrCy 会尽力为角色生成独特且协调的合成声音（根据场景使用女性、男性或中性声音）。不会克隆真人声音。若对白不可用，iNrCy 会提供备用旁白。",
+  "ai_generator_team_speech_gender_hint": "iNrCy 会尽力为角色生成独特且协调的合成声音（根据场景使用女性、男性或中性声音）。不会克隆真人声音。系统始终保留与口型同时生成的声音；若该音轨缺失，场景会保持静音，而不会使用不同步的替代配音。",
   "ai_generator_team_speech_narration_disabled_hint": "已自动关闭：人物会在场景中自行说话。",
   "ai_generator_team_speech_summary_characters": "人物说话",
   "ai_generator_team_speech_summary_voiceover": "旁白",

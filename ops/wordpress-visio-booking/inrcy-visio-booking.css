@@ -65,16 +65,26 @@
 .inrcy-visio-brand {
   display: inline-flex;
   align-items: center;
-  width: 122px;
-  height: 43px;
+  gap: 9px;
+  width: auto;
+  height: 44px;
+  color: #fff;
+  font-size: 25px;
+  font-weight: 950;
+  line-height: 1;
+  letter-spacing: -.8px;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, .28);
 }
 .inrcy-visio-brand img {
   display: block;
-  width: 122px;
-  height: auto;
-  max-height: 43px;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
   object-fit: contain;
-  object-position: left center;
+}
+.inrcy-visio-brand span {
+  display: block;
+  white-space: nowrap;
 }
 
 .inrcy-visio-close {
@@ -271,7 +281,8 @@
   .inrcy-visio-dialog { width: 100%; max-height: calc(100dvh - 6px); border-radius: 27px 27px 0 0; padding: 20px 14px max(20px, env(safe-area-inset-bottom)); }
   .inrcy-visio-close { top: 16px; right: 16px; width: 39px; height: 39px; }
   .inrcy-visio-progress { top: 31px; }
-  .inrcy-visio-brand, .inrcy-visio-brand img { width: 104px; height: auto; max-height: 37px; }
+  .inrcy-visio-brand { height: 38px; gap: 8px; font-size: 22px; }
+  .inrcy-visio-brand img { width: 38px; height: 38px; flex-basis: 38px; }
   .inrcy-visio-content { margin-top: 16px; }
   .inrcy-visio-success-icon { width: 58px; height: 58px; margin-bottom: 12px; border-radius: 19px; font-size: 30px; }
   .inrcy-visio-dialog h2 { font-size: 27px !important; }
@@ -294,7 +305,8 @@
 @media (max-height: 760px) {
   .inrcy-visio-overlay { padding: 6px; }
   .inrcy-visio-dialog { max-height: calc(100dvh - 8px); padding-top: 18px; padding-bottom: 18px; }
-  .inrcy-visio-brand, .inrcy-visio-brand img { width: 100px; height: auto; max-height: 35px; }
+  .inrcy-visio-brand { height: 36px; gap: 7px; font-size: 21px; }
+  .inrcy-visio-brand img { width: 36px; height: 36px; flex-basis: 36px; }
   .inrcy-visio-close { top: 14px; right: 14px; width: 36px; height: 36px; }
   .inrcy-visio-progress { top: 28px; }
   .inrcy-visio-content { margin-top: 12px; }

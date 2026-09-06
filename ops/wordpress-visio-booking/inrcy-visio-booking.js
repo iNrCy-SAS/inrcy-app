@@ -59,7 +59,7 @@
       '<div class="inrcy-visio-orbit inrcy-visio-orbit-one"></div>',
       '<div class="inrcy-visio-orbit inrcy-visio-orbit-two"></div>',
       '<button class="inrcy-visio-close" type="button" aria-label="Fermer">×</button>',
-      '<div class="inrcy-visio-brand"><img src="' + escapeHtml(config.logoUrl || "https://app.inrcy.com/logo-inrcy.png") + '" alt="iNrCy"></div>',
+      '<div class="inrcy-visio-brand"><img src="' + escapeHtml(config.logoUrl || "") + '" alt=""><span>iNrCy</span></div>',
       '<div class="inrcy-visio-progress" aria-hidden="true">',
       '<span class="' + (opts.step >= 1 ? 'is-active' : '') + '"></span>',
       '<span class="' + (opts.step >= 2 ? 'is-active' : '') + '"></span>',
@@ -94,7 +94,7 @@
       '<h2 id="inrcy-visio-title">Votre inscription est validée&nbsp;! <span aria-hidden="true">🎉</span></h2>',
       '<p class="inrcy-visio-lead">Souhaitez-vous programmer une présentation en visio avec iNrCy et profiter de la <strong>création offerte de vos canaux</strong>&nbsp;?</p>',
       '<div class="inrcy-visio-benefits">',
-      '<span><b>60 min</b><small>avec un expert iNrCy</small></span>',
+      '<span><b>60 min</b><small>avec un membre de l’équipe iNrCy</small></span>',
       '<span><b>Google Meet</b><small>lien envoyé par e-mail</small></span>',
       '</div>',
       '<div class="inrcy-visio-actions">',
@@ -262,7 +262,7 @@
       '<div class="inrcy-visio-confirm-card">',
       '<span aria-hidden="true">📅</span><div><b>' + escapeHtml(booking.dateLabel || '') + '</b><strong>' + escapeHtml(booking.timeLabel || '') + ' – 1 heure</strong></div>',
       '</div>',
-      '<p class="inrcy-visio-lead inrcy-visio-lead-compact">Votre rendez-vous sera préparé par <strong>' + escapeHtml(booking.assignedTo || 'l’équipe iNrCy') + '</strong>. L’invitation Google Agenda et le lien Meet vous sont envoyés par e-mail.</p>',
+      '<p class="inrcy-visio-lead inrcy-visio-lead-compact">Votre rendez-vous aura lieu avec <strong>un membre de l’équipe iNrCy</strong>. L’invitation Google Agenda et le lien Meet vous sont envoyés par e-mail.</p>',
       '<div class="inrcy-visio-actions">' + meetButton + '<button class="inrcy-visio-secondary" data-action="skip" type="button">Terminer</button></div>',
     ].join(""), { step: 3 });
   }

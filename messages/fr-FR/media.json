@@ -122,7 +122,7 @@
   "ai_generator_team_speech_finish_hint": "La voix off est coupée automatiquement ; les personnes parlent directement dans la scène.",
   "ai_generator_team_speech_finish_summary": "Personnes parlantes · sans voix off",
   "ai_generator_team_speech_finish_title": "Dialogues des personnages activés",
-  "ai_generator_team_speech_gender_hint": "iNrCy vise des voix synthétiques distinctes et cohérentes pour les personnages (voix féminines, masculines ou neutres selon la scène). Aucun clonage vocal. Si le dialogue n’est pas disponible, iNrCy livre une voix off de secours.",
+  "ai_generator_team_speech_gender_hint": "iNrCy vise des voix synthétiques distinctes et cohérentes pour les personnages (voix féminines, masculines ou neutres selon la scène). Aucun clonage vocal. La voix reste celle générée avec les mouvements de bouche ; si cette piste manque, la scène reste muette plutôt que désynchronisée.",
   "ai_generator_team_speech_narration_disabled_hint": "Désactivée automatiquement : les personnages parlent eux-mêmes dans la scène.",
   "ai_generator_team_speech_summary_characters": "Personnes parlantes",
   "ai_generator_team_speech_summary_voiceover": "Voix off",

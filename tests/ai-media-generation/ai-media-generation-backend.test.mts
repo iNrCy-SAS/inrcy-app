@@ -984,7 +984,11 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   assert.match(narrationAudio, /DEFAULT_TTS_VOICE_FEMALE = "Kore"/);
   assert.match(narrationAudio, /DEFAULT_TTS_VOICE_MALE = "Charon"/);
   assert.match(narrationAudio, /AI_MEDIA_TTS_VOICE_MALE/);
-  assert.match(server, /narrationVoice: providerRequest\.narrationVoice \|\| "female"/);
+  assert.match(
+    server,
+    /providerRequest\.teamVideoSpeechMode === "characters"[\s\S]*?Promise\.resolve\(emptyNarrationResult\(\)\)/,
+  );
+  assert.doesNotMatch(server, /character_dialogue_fallback_narration/);
   assert.match(veo, /DEFAULT_POLL_MS = 2_500/);
   assert.match(server, /withText: providerRequest\.withText/);
   assert.doesNotMatch(server, /prompt_sha256: promptHash,\s*prompt,/);

@@ -270,7 +270,7 @@ test("le cadrage vidéo protège la tête lors du recadrage carré", () => {
   assert.match(copywriter, /directement liée au sujet professionnel vérifié/);
 });
 
-test("le montage audio préserve le dialogue natif et retombe sans double parole", () => {
+test("le montage audio préserve le dialogue natif sans jamais recoller un TTS sur les lèvres", () => {
   const composer = read("lib/aiMediaGeneratedVideo.ts");
   const server = read("lib/aiMediaGenerationServer.ts");
 
@@ -279,15 +279,26 @@ test("le montage audio préserve le dialogue natif et retombe sans double parole
   assert.match(composer, /args\.nativeAudioMode === "dialogue"[\s\S]*?"0\.035"/);
   assert.match(composer, /ai_original_video_dialogue_narration_conflict/);
   assert.match(composer, /ai_original_video_native_dialogue_missing/);
-  assert.match(server, /character_dialogue_fallback_narration/);
-  assert.match(server, /identity_team_character_dialogue_fallback_voiceover/);
   assert.match(server, /auditAiMediaNativeDialogueWithGoogle/);
-  assert.match(server, /nativeDialogueQa\.status !== "passed"/);
-  assert.match(server, /native_character_dialogue_qa_rejected_fallback_voiceover/);
-  assert.match(server, /native_character_dialogue_qa_unavailable_fallback_voiceover/);
+  assert.match(
+    server,
+    /native_character_dialogue_qa_rejected_native_audio_preserved_for_lip_sync/,
+  );
+  assert.match(
+    server,
+    /native_character_dialogue_qa_unavailable_native_audio_preserved/,
+  );
+  assert.match(
+    server,
+    /characterDialogueRequested && !characterDialogueProviderFallback/,
+  );
+  assert.doesNotMatch(server, /character_dialogue_fallback_narration/);
+  assert.doesNotMatch(server, /character_dialogue_audio_fallback/);
+  assert.doesNotMatch(server, /identity_team_character_dialogue_fallback_voiceover/);
+  assert.doesNotMatch(server, /nativeDialogueQa\.status !== "passed"/);
   assert.match(server, /minimalNativeDialogueSucceeded/);
   assert.match(server, /video_composition_minimal_native_dialogue/);
-  assert.match(server, /else if \(!characterDialogueRequested\)/);
+  assert.match(server, /identity_team_character_dialogue_unavailable_silent_motion/);
   assert.match(
     server,
     /nativeAudioMode: characterDialogueRequested[\s\S]*?\? "mute"/,

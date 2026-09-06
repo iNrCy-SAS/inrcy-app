@@ -157,7 +157,7 @@
   "ai_generator_team_speech_finish_hint": "De voice-over wordt automatisch uitgeschakeld; de personen spreken rechtstreeks in de scène.",
   "ai_generator_team_speech_finish_summary": "Sprekende personen · zonder voice-over",
   "ai_generator_team_speech_finish_title": "Dialogen van personages ingeschakeld",
-  "ai_generator_team_speech_gender_hint": "iNrCy streeft naar afzonderlijke, passende synthetische stemmen voor de personages (vrouwelijk, mannelijk of neutraal, afhankelijk van de scène). Geen stemkloning. Als dialoog niet beschikbaar is, levert iNrCy een reservevoice-over.",
+  "ai_generator_team_speech_gender_hint": "iNrCy streeft naar afzonderlijke, passende synthetische stemmen voor de personages (vrouwelijk, mannelijk of neutraal, afhankelijk van de scène). Geen stemkloning. De stem blijft de audiotrack die samen met de lipbewegingen is gegenereerd; ontbreekt die track, dan blijft de scène stil in plaats van uit de pas te lopen.",
   "ai_generator_team_speech_narration_disabled_hint": "Automatisch uitgeschakeld: de personages spreken zelf in de scène.",
   "ai_generator_team_speech_summary_characters": "Sprekende personen",
   "ai_generator_team_speech_summary_voiceover": "Voice-over",

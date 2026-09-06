@@ -50,7 +50,10 @@ test("la modale contient les deux choix et le parcours de confirmation", () => {
   assert.match(script, /data-action="week-prev"/);
   assert.match(script, /data-action="week-next"/);
   assert.match(script, /Prévoyez au moins une heure/);
-  assert.match(plugin, /logoUrl.*logo-inrcy\.png/);
+  assert.match(plugin, /logoUrl.*logo-inrcy-transparent\.png/);
+  assert.match(script, /inrcy-visio-brand[^\n]+<span>iNrCy<\/span>/);
+  assert.match(script, /rendez-vous aura lieu avec <strong>un membre de l’équipe iNrCy<\/strong>/);
+  assert.doesNotMatch(script, /booking\.assignedTo/);
   assert.match(styles, /grid-template-columns:\s*repeat\(7,\s*minmax\(0,\s*1fr\)\)/);
   assert.match(styles, /\.inrcy-visio-dialog\s*\{[\s\S]*?overflow:\s*hidden/);
   assert.match(script, /submit_success\.inrcyVisioBooking/);

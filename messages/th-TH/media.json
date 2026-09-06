@@ -157,7 +157,7 @@
   "ai_generator_team_speech_finish_hint": "ระบบจะปิดเสียงบรรยายอัตโนมัติ และให้บุคคลพูดในฉากโดยตรง",
   "ai_generator_team_speech_finish_summary": "บุคคลพูด · ไม่มีเสียงบรรยาย",
   "ai_generator_team_speech_finish_title": "เปิดใช้บทสนทนาของตัวละครแล้ว",
-  "ai_generator_team_speech_gender_hint": "iNrCy มุ่งสร้างเสียงสังเคราะห์ที่แตกต่างและสอดคล้องกันให้ตัวละคร (เสียงผู้หญิง ผู้ชาย หรือเป็นกลางตามฉาก) ไม่มีการโคลนเสียง หากสร้างบทสนทนาไม่ได้ iNrCy จะใช้เสียงบรรยายสำรอง",
+  "ai_generator_team_speech_gender_hint": "iNrCy มุ่งสร้างเสียงสังเคราะห์ที่แตกต่างและสอดคล้องกันให้ตัวละคร (เสียงผู้หญิง ผู้ชาย หรือเป็นกลางตามฉาก) ไม่มีการโคลนเสียง ระบบจะใช้เสียงที่สร้างมาพร้อมกับการขยับริมฝีปากเสมอ หากแทร็กนั้นหายไป ฉากจะไม่มีเสียงแทนที่จะปล่อยให้ภาพและเสียงไม่ตรงกัน",
   "ai_generator_team_speech_narration_disabled_hint": "ปิดอัตโนมัติ: ตัวละครพูดเองในฉาก",
   "ai_generator_team_speech_summary_characters": "บุคคลพูด",
   "ai_generator_team_speech_summary_voiceover": "เสียงบรรยาย",

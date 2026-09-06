@@ -188,7 +188,9 @@ test("les neuf langues couvrent le mode, le consentement et l'utilisation automa
   );
   assert.match(fr.ai_generator_team_speech_gender_hint, /féminines, masculines ou neutres/i);
   assert.match(fr.ai_generator_team_speech_gender_hint, /Aucun clonage vocal/i);
-  assert.match(fr.ai_generator_team_speech_gender_hint, /voix off de secours/i);
+  assert.match(fr.ai_generator_team_speech_gender_hint, /mouvements de bouche/i);
+  assert.match(fr.ai_generator_team_speech_gender_hint, /reste muette plutôt que désynchronisée/i);
+  assert.doesNotMatch(fr.ai_generator_team_speech_gender_hint, /voix off de secours/i);
   assert.match(fr.ai_generator_team_video_consent_description_characters, /voix.*ne clonent pas/i);
 });
 

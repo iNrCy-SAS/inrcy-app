@@ -157,7 +157,7 @@
   "ai_generator_team_speech_finish_hint": "Voice-over is switched off automatically; people speak directly in the scene.",
   "ai_generator_team_speech_finish_summary": "People speaking · no voice-over",
   "ai_generator_team_speech_finish_title": "Character dialogue enabled",
-  "ai_generator_team_speech_gender_hint": "iNrCy aims for distinct, coherent synthetic voices for the characters (feminine, masculine or neutral, depending on the scene). No voice cloning. If dialogue is unavailable, iNrCy delivers a back-up voice-over.",
+  "ai_generator_team_speech_gender_hint": "iNrCy aims for distinct, coherent synthetic voices for the characters (feminine, masculine or neutral, depending on the scene). No voice cloning. The voice remains the one generated with the lip movements; if that track is missing, the scene stays silent rather than becoming out of sync.",
   "ai_generator_team_speech_narration_disabled_hint": "Switched off automatically: the characters speak for themselves in the scene.",
   "ai_generator_team_speech_summary_characters": "People speaking",
   "ai_generator_team_speech_summary_voiceover": "Voice-over",
