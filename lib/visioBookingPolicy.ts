@@ -145,8 +145,7 @@ export function isAllowedVisioStart(input: {
   if (
     !VISIO_BOOKING_START_HOURS.includes(local.hour as (typeof VISIO_BOOKING_START_HOURS)[number]) ||
     local.minute !== 0 ||
-    local.weekday === 0 ||
-    local.weekday === 6
+    local.weekday === 0
   ) {
     return false;
   }

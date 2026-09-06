@@ -30,11 +30,11 @@ test("une heure locale de Paris est convertie correctement avant et après le ch
   assert.equal(getLocalDateTimeParts(summer).hour, 9);
 });
 
-test("les week-ends, horaires hors grille et délais trop courts sont refusés", () => {
+test("les dimanches, horaires hors grille et délais trop courts sont refusés", () => {
   const now = new Date("2026-09-04T08:00:00.000Z");
   assert.equal(
     isAllowedVisioStart({
-      start: new Date("2026-09-05T07:00:00.000Z"),
+      start: new Date("2026-09-06T07:00:00.000Z"),
       now,
       horizonDays: 21,
       minimumLeadHours: 1,
@@ -58,6 +58,18 @@ test("les week-ends, horaires hors grille et délais trop courts sont refusés",
       minimumLeadHours: 96,
     }),
     false,
+  );
+});
+
+test("les rendez-vous du samedi restent disponibles", () => {
+  assert.equal(
+    isAllowedVisioStart({
+      start: new Date("2026-09-05T07:00:00.000Z"),
+      now: new Date("2026-09-04T08:00:00.000Z"),
+      horizonDays: 21,
+      minimumLeadHours: 2,
+    }),
+    true,
   );
 });
 

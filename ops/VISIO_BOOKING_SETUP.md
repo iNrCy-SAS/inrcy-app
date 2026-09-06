@@ -36,7 +36,7 @@ Installer puis activer le dossier `ops/wordpress-visio-booking` sous forme d’e
 
 ## Règles métier verrouillées
 
-- jours ouvrés du lundi au vendredi ;
+- rendez-vous du lundi au samedi, dimanche exclu ;
 - horaires 9h, 11h, 14h, 16h et 18h, heure de Paris ;
 - réservation possible le jour même avec deux heures de préavis, puis dès le lendemain ;
 - événement créé pour 1 heure ;

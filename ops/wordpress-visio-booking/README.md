@@ -10,7 +10,7 @@ Extension WordPress autonome pour le formulaire Elementor `essai_inrcy_30j` (`40
 4. La réservation crée un événement d’une heure et conserve deux heures dans le contrôle de disponibilité.
 5. Google Meet et les invitations sont créés automatiquement.
 
-La sélection affiche sept jours disponibles à la fois, avec des flèches pour passer à la semaine suivante ou précédente. Un créneau peut être réservé le jour même s’il reste au moins deux heures de préavis, sinon dès le lendemain.
+La sélection affiche sept jours disponibles à la fois, avec des flèches pour passer à la semaine suivante ou précédente. Les rendez-vous sont proposés du lundi au samedi, jamais le dimanche. Un créneau peut être réservé le jour même s’il reste au moins deux heures de délai, sinon dès le lendemain.
 
 Le bouton « Non, continuer sans rendez-vous » ferme simplement la modale. Le consentement téléphonique et le parcours actuel restent inchangés.
 
