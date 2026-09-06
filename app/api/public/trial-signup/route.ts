@@ -56,6 +56,9 @@ export const runtime = "nodejs";
 
 type LooseRecord = Record<string, unknown>;
 
+const EXISTING_ACCOUNT_MESSAGE =
+  "Cette adresse e-mail est déjà utilisée. Connectez-vous ou utilisez une autre adresse.";
+
 type SignupPayload = {
   email: string;
   firstName: string;
@@ -510,8 +513,9 @@ export async function POST(req: Request) {
     if (await hasKnownInrcyAccountForEmail(payload.email)) {
       return jsonResponse(
         {
-          error:
-            "Un compte existe déjà avec cet email. Le professionnel peut se connecter directement ou utiliser “Mot de passe oublié”.",
+          code: "email_already_used",
+          error: EXISTING_ACCOUNT_MESSAGE,
+          message: EXISTING_ACCOUNT_MESSAGE,
         },
         409,
       );
@@ -546,8 +550,9 @@ export async function POST(req: Request) {
       if (isExistingAuthUserError(inviteError)) {
         return jsonResponse(
           {
-            error:
-              "Un compte existe déjà avec cet email. Le professionnel peut se connecter directement ou utiliser “Mot de passe oublié”.",
+            code: "email_already_used",
+            error: EXISTING_ACCOUNT_MESSAGE,
+            message: EXISTING_ACCOUNT_MESSAGE,
           },
           409
         );

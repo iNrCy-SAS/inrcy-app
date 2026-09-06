@@ -177,6 +177,14 @@ test("seuls les vrais doublons Auth deviennent des 409 métier", () => {
   }
 });
 
+test("un e-mail déjà utilisé reçoit un message explicite et exploitable par WordPress", () => {
+  const route = readFileSync("app/api/public/trial-signup/route.ts", "utf8");
+
+  assert.match(route, /code: "email_already_used"/);
+  assert.match(route, /Cette adresse e-mail est déjà utilisée/);
+  assert.match(route, /message: EXISTING_ACCOUNT_MESSAGE/);
+});
+
 test("la route câble l'alerte uniquement dans son catch technique", () => {
   const route = readFileSync("app/api/public/trial-signup/route.ts", "utf8");
   const helper = readFileSync("lib/signupFailureAlert.ts", "utf8");
