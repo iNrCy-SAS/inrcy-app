@@ -2,8 +2,11 @@ import { NextResponse } from "next/server";
 
 import { requireAdminApi } from "@/lib/adminSecurity";
 import { requireUser } from "@/lib/requireUser";
-import { makeOAuthState } from "@/lib/security";
 import { VISIO_BOOKING_GOOGLE_SCOPES } from "@/lib/visioBookingGoogle";
+import {
+  createVisioBookingOAuthState,
+  getVisioBookingOAuthStateSecret,
+} from "@/lib/visioBookingOAuthState";
 
 export const runtime = "nodejs";
 
@@ -25,11 +28,10 @@ export async function GET(request: Request) {
   const redirectUri =
     process.env.INRCY_VISIO_GOOGLE_REDIRECT_URI ||
     `${origin}/api/admin/visio-booking/google/callback`;
-  const { stateB64, cookieValue, cookieName } = makeOAuthState(
-    "visio_booking_google",
-    "/dashboard?visio_booking_google=connected",
-    { adminUserId: session.authUserId },
-  );
+  const oauthState = createVisioBookingOAuthState({
+    adminUserId: session.authUserId,
+    secret: getVisioBookingOAuthStateSecret(),
+  });
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri,
@@ -37,22 +39,14 @@ export async function GET(request: Request) {
     scope: VISIO_BOOKING_GOOGLE_SCOPES.join(" "),
     access_type: "offline",
     prompt: "consent",
-    state: stateB64,
+    state: oauthState,
   });
   const loginHint = String(process.env.INRCY_VISIO_GOOGLE_ACCOUNT_EMAIL || "")
     .trim()
     .toLowerCase();
   if (loginHint) params.set("login_hint", loginHint);
 
-  const response = NextResponse.redirect(
+  return NextResponse.redirect(
     `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`,
   );
-  response.cookies.set(cookieName, cookieValue, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production" || origin.startsWith("https://"),
-    sameSite: "lax",
-    path: "/",
-    maxAge: 10 * 60,
-  });
-  return response;
 }

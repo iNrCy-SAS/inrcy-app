@@ -19,8 +19,10 @@ test("le nouveau OAuth visio reste séparé de l'ancien connecteur iNrCalendar s
   const oldStart = read("app/api/integrations/google-calendar/start/route.ts");
   const start = read("app/api/admin/visio-booking/google/start/route.ts");
   assert.match(oldStart, /status:\s*410/);
-  assert.match(start, /visio_booking_google/);
   assert.match(start, /VISIO_BOOKING_GOOGLE_SCOPES/);
+  assert.match(start, /createVisioBookingOAuthState/);
+  assert.match(start, /state:\s*oauthState/);
+  assert.doesNotMatch(start, /makeOAuthState/);
   assert.doesNotMatch(start, /\/api\/integrations\/google-calendar/);
 });
 

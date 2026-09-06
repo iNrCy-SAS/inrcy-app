@@ -3,12 +3,15 @@ import { NextResponse } from "next/server";
 import { requireAdminApi } from "@/lib/adminSecurity";
 import { encryptToken } from "@/lib/oauthCrypto";
 import { requireUser } from "@/lib/requireUser";
-import { verifyOAuthState } from "@/lib/security";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
   VISIO_BOOKING_GOOGLE_SCOPES,
   VISIO_BOOKING_INTEGRATION,
 } from "@/lib/visioBookingGoogle";
+import {
+  getVisioBookingOAuthStateSecret,
+  verifyVisioBookingOAuthState,
+} from "@/lib/visioBookingOAuthState";
 
 export const runtime = "nodejs";
 
@@ -31,36 +34,25 @@ function redirectResult(origin: string, ok: boolean, error = "") {
 export async function GET(request: Request) {
   const origin = new URL(request.url).origin;
   const url = new URL(request.url);
-  const state = verifyOAuthState<{ adminUserId?: string }>(
-    request,
-    "visio_booking_google",
-    url.searchParams.get("state"),
-  );
-  const finish = (response: NextResponse) => {
-    response.cookies.set(state.cookieName, "", {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production" || origin.startsWith("https://"),
-      sameSite: "lax",
-      path: "/",
-      maxAge: 0,
-    });
-    return response;
-  };
+  const state = verifyVisioBookingOAuthState({
+    token: url.searchParams.get("state"),
+    secret: getVisioBookingOAuthStateSecret(),
+  });
 
-  if (!state.ok) return finish(redirectResult(origin, false, "invalid_state"));
+  if (!state.ok) return redirectResult(origin, false, state.reason);
   const admin = await requireAdminApi();
-  if (!admin.ok) return finish(redirectResult(origin, false, "admin_required"));
+  if (!admin.ok) return redirectResult(origin, false, "admin_required");
   const session = await requireUser();
   if (session.errorResponse) {
-    return finish(redirectResult(origin, false, "auth_required"));
+    return redirectResult(origin, false, "auth_required");
   }
   if (state.state.adminUserId !== session.authUserId) {
-    return finish(redirectResult(origin, false, "account_mismatch"));
+    return redirectResult(origin, false, "account_mismatch");
   }
 
   const code = url.searchParams.get("code");
   if (url.searchParams.get("error") || !code) {
-    return finish(redirectResult(origin, false, url.searchParams.get("error") || "missing_code"));
+    return redirectResult(origin, false, url.searchParams.get("error") || "missing_code");
   }
 
   try {
@@ -159,18 +151,16 @@ export async function GET(request: Request) {
       const { error } = await supabaseAdmin.from("integrations").insert(payload);
       if (error) throw error;
     }
-    return finish(redirectResult(origin, true));
+    return redirectResult(origin, true);
   } catch (error) {
     console.error(
       "[visio-booking][google-callback]",
       error instanceof Error ? error.message : "oauth_failed",
     );
-    return finish(
-      redirectResult(
-        origin,
-        false,
-        error instanceof Error ? error.message.slice(0, 80) : "oauth_failed",
-      ),
+    return redirectResult(
+      origin,
+      false,
+      error instanceof Error ? error.message.slice(0, 80) : "oauth_failed",
     );
   }
 }
