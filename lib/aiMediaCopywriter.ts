@@ -31,8 +31,8 @@ const MEDIA_COPY_SCHEMA = {
           additionalProperties: false,
           properties: {
             eyebrow: { type: "string", minLength: 1, maxLength: 38 },
-            title: { type: "string", minLength: 2, maxLength: 86 },
-            body: { type: "string", minLength: 0, maxLength: 150 },
+            title: { type: "string", minLength: 2, maxLength: 58 },
+            body: { type: "string", minLength: 0, maxLength: 78 },
             spokenLine: { type: "string", minLength: 2, maxLength: 60 },
             spokenReply: { type: "string", minLength: 2, maxLength: 60 },
           },
@@ -56,27 +56,107 @@ type GeneratedMediaCopy = {
   }>;
 };
 
-function compactHeadline(value: unknown) {
-  const normalized = String(value ?? "")
-    .replace(/\u0000/g, "")
-    .replace(/^[\s"'«»]+|[\s"'«»]+$/g, "")
-    .replace(/[+·|/]+/g, " ")
-    .replace(/[#*_`<>]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-  if (normalized.length <= 58) return normalized;
-  const words = normalized.slice(0, 59).replace(/\s+\S*$/, "").trim();
-  return `${words || normalized.slice(0, 57).trim()}…`;
-}
+const DANGLING_VISIBLE_WORDS = new Set([
+  "a", "afin", "au", "aux", "avec", "car", "ce", "ces", "chez", "comme",
+  "dans", "de", "des", "du", "en", "et", "la", "le", "les", "mais", "notre",
+  "ou", "par", "pour", "que", "qui", "sans", "sur", "un", "une", "vers", "votre",
+  "an", "and", "at", "by", "for", "from", "in", "of", "on", "or", "the", "to", "with",
+  "con", "del", "el", "las", "los", "para", "por", "una", "y",
+  "da", "della", "di", "e", "il", "per",
+  "am", "an", "auf", "der", "die", "das", "ein", "eine", "für", "im", "mit", "und", "von", "zu",
+]);
 
-function compactCopy(value: unknown, maximum: number) {
+function normalizeVisibleCopy(value: unknown) {
   return String(value ?? "")
     .replace(/\u0000/g, "")
     .replace(/^[\s"'«»]+|[\s"'«»]+$/g, "")
     .replace(/[#*_`<>]/g, "")
     .replace(/\s+/g, " ")
+    .trim();
+}
+
+function visibleWordSignature(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase()
+    .replace(/[^a-z]/g, "");
+}
+
+function trimDanglingVisibleEnding(value: string) {
+  const words = value
+    .replace(/(?:\.{3}|…)+$/g, "")
+    .replace(/[,:;\-–—]+$/g, "")
     .trim()
-    .slice(0, maximum);
+    .split(/\s+/)
+    .filter(Boolean);
+  while (
+    words.length > 1 &&
+    DANGLING_VISIBLE_WORDS.has(visibleWordSignature(words.at(-1) || ""))
+  ) {
+    words.pop();
+  }
+  return words.join(" ").replace(/[,:;\-–—]+$/g, "").trim();
+}
+
+function hasDanglingVisibleEnding(value: string) {
+  const lastWord = value
+    .replace(/[.,;:!?…\-–—]+$/g, "")
+    .trim()
+    .split(/\s+/)
+    .at(-1);
+  return DANGLING_VISIBLE_WORDS.has(visibleWordSignature(lastWord || ""));
+}
+
+function longestCompleteVisibleSentence(value: string, maximum: number) {
+  const sentenceEnd = /[.!?]+(?=\s|$)/g;
+  let match: RegExpExecArray | null;
+  let best = "";
+  while ((match = sentenceEnd.exec(value))) {
+    if (match[0].length >= 3) continue;
+    const candidate = value.slice(0, match.index + match[0].length).trim();
+    if (candidate.length > maximum) break;
+    if (hasDanglingVisibleEnding(candidate)) continue;
+    best = candidate;
+  }
+  return best;
+}
+
+function compactCopy(value: unknown, maximum: number) {
+  const normalized = normalizeVisibleCopy(value);
+  if (
+    normalized.length <= maximum &&
+    !/(?:\.{3}|…)\s*$/.test(normalized) &&
+    !hasDanglingVisibleEnding(normalized)
+  ) {
+    return normalized;
+  }
+  const completeSentence = longestCompleteVisibleSentence(normalized, maximum);
+  if (completeSentence) return completeSentence;
+  const wordBoundary = normalized
+    .slice(0, maximum + 1)
+    .replace(/\s+\S*$/, "")
+    .trim();
+  return trimDanglingVisibleEnding(wordBoundary);
+}
+
+function compactCompleteBody(value: unknown, maximum = 78) {
+  const normalized = normalizeVisibleCopy(value);
+  if (
+    normalized.length <= maximum &&
+    !/(?:\.{3}|…)\s*$/.test(normalized) &&
+    !hasDanglingVisibleEnding(normalized)
+  ) {
+    return normalized;
+  }
+  return longestCompleteVisibleSentence(normalized, maximum);
+}
+
+function compactHeadline(value: unknown) {
+  return compactCopy(
+    normalizeVisibleCopy(value).replace(/[+·|/]+/g, " "),
+    58,
+  );
 }
 
 function normalizedWords(value: unknown) {
@@ -157,12 +237,12 @@ function applyLocalizedCopy(
     const generatedTitle =
       index === 0
         ? headline
-        : compactCopy(candidate?.title, 86) || scene.title;
+        : compactCopy(candidate?.title, 58) || compactCopy(scene.title, 58);
     const titleSignature = aiMediaDialogueSignature(generatedTitle);
     const title =
       titleSignature && !usedTitles.has(titleSignature)
         ? generatedTitle
-        : scene.title;
+        : compactCopy(scene.title, 58);
     usedTitles.add(aiMediaDialogueSignature(title));
     if (!candidate) {
       const spokenLine = selectAiMediaDialogueLine({
@@ -183,7 +263,13 @@ function applyLocalizedCopy(
         usedSignatures: usedDialogue,
       });
       usedDialogue.add(aiMediaDialogueSignature(spokenReply));
-      return { ...scene, title, spokenLine, spokenReply };
+      return {
+        ...scene,
+        title,
+        body: compactCompleteBody(scene.body),
+        spokenLine,
+        spokenReply,
+      };
     }
     const spokenLine = selectAiMediaDialogueLine({
       value: candidate.spokenLine,
@@ -207,7 +293,9 @@ function applyLocalizedCopy(
       ...scene,
       eyebrow: compactCopy(candidate.eyebrow, 38) || scene.eyebrow,
       title,
-      body: compactCopy(candidate.body, 150),
+      body:
+        compactCompleteBody(candidate.body) ||
+        compactCompleteBody(scene.body),
       spokenLine,
       spokenReply,
     };
@@ -279,6 +367,8 @@ export async function writeAiMediaHeadline(args: {
         "Les mots-clés sont des idées sémantiques à intégrer intelligemment dans le sens d'une phrase : ne les additionne jamais, ne les liste jamais et n'utilise jamais +, ·, / ou des hashtags.",
         "L'idée du professionnel sert d'inspiration et ne doit pas être recopiée mot pour mot.",
         "La consigne ponctuelle sert uniquement à orienter cette génération. Applique son intention lorsqu'elle est compatible avec l'ADN et la sécurité, sans jamais la citer ni la recopier.",
+        "Chaque title visible est une accroche autonome de 58 caractères maximum. Chaque body visible est vide ou forme une seule phrase autonome et grammaticalement complète de 78 caractères maximum.",
+        "RÈGLE ABSOLUE : aucun texte visible ne doit être tronqué, finir par des points de suspension, ni se terminer par un article, une préposition ou une conjonction. Si aucune phrase body utile ne tient, retourne une chaîne vide.",
         "Pour chaque scène, spokenLine est une phrase orale naturelle et complète de 5 à 10 mots et 60 caractères maximum, directement liée au sujet professionnel vérifié de la scène.",
         "spokenReply est une réponse très courte qui poursuit naturellement spokenLine pour une éventuelle seconde personne.",
         "Pour un film en plusieurs scènes, les dialogues racontent une seule histoire : la première scène ouvre précisément le sujet, chaque scène intermédiaire apporte une preuve ou une étape nouvelle, et la dernière conclut le sujet avec une action ou un appel clair. Ne recommence jamais l'introduction et ne change jamais de sujet.",

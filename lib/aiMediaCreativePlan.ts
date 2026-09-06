@@ -45,11 +45,72 @@ function clean(value: unknown, max = 160) {
     .slice(0, max);
 }
 
+const DANGLING_VISIBLE_WORDS = new Set([
+  "a", "afin", "au", "aux", "avec", "car", "ce", "ces", "chez", "comme",
+  "dans", "de", "des", "du", "en", "et", "la", "le", "les", "mais", "notre",
+  "ou", "par", "pour", "que", "qui", "sans", "sur", "un", "une", "vers", "votre",
+]);
+
+function visibleWordSignature(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase()
+    .replace(/[^a-z]/g, "");
+}
+
+function trimDanglingVisibleEnding(value: string) {
+  const words = value
+    .replace(/(?:\.{3}|…)+$/g, "")
+    .replace(/[,:;\-–—]+$/g, "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  while (
+    words.length > 1 &&
+    DANGLING_VISIBLE_WORDS.has(visibleWordSignature(words.at(-1) || ""))
+  ) {
+    words.pop();
+  }
+  return words.join(" ").replace(/[,:;\-–—]+$/g, "").trim();
+}
+
+function hasDanglingVisibleEnding(value: string) {
+  const lastWord = value
+    .replace(/[.,;:!?…\-–—]+$/g, "")
+    .trim()
+    .split(/\s+/)
+    .at(-1);
+  return DANGLING_VISIBLE_WORDS.has(visibleWordSignature(lastWord || ""));
+}
+
 function compactHeadline(value: string, max = 58) {
   const normalized = clean(value, 140);
-  if (normalized.length <= max) return normalized;
+  if (normalized.length <= max) return trimDanglingVisibleEnding(normalized);
   const words = normalized.slice(0, max + 1).replace(/\s+\S*$/, "").trim();
-  return `${words || normalized.slice(0, max - 1).trim()}…`;
+  return trimDanglingVisibleEnding(words || normalized.slice(0, max).trim());
+}
+
+function compactVisibleBody(value: string, max = 78) {
+  const normalized = clean(value, 300);
+  if (
+    normalized.length <= max &&
+    !/(?:\.{3}|…)\s*$/.test(normalized) &&
+    !hasDanglingVisibleEnding(normalized)
+  ) {
+    return normalized;
+  }
+  const sentenceEnd = /[.!?]+(?=\s|$)/g;
+  let match: RegExpExecArray | null;
+  let best = "";
+  while ((match = sentenceEnd.exec(normalized))) {
+    if (match[0].length >= 3) continue;
+    const candidate = normalized.slice(0, match.index + match[0].length).trim();
+    if (candidate.length > max) break;
+    if (hasDanglingVisibleEnding(candidate)) continue;
+    best = candidate;
+  }
+  return best;
 }
 
 function lowerFirst(value: string) {
@@ -230,17 +291,18 @@ function scene(
   layout: AiMediaCreativeScene["layout"],
   visualBrief = "",
 ): AiMediaCreativeScene | null {
-  const safeTitle = clean(title, 86);
+  const safeTitle = compactHeadline(title, 58);
   if (!safeTitle) return null;
+  const safeBody = compactVisibleBody(body);
   return {
     eyebrow: clean(eyebrow, 38),
     title: safeTitle,
-    body: clean(body, 150),
+    body: safeBody,
     // Secours local immédiatement prononçable. Le copywriter média remplace
     // ces formulations par des répliques contextualisées quand les
     // personnages doivent parler.
     spokenLine: clean(safeTitle, 96),
-    spokenReply: clean(body, 96) || clean(safeTitle, 96),
+    spokenReply: safeBody || clean(safeTitle, 96),
     visualBrief: clean(visualBrief, 700),
     layout,
   };

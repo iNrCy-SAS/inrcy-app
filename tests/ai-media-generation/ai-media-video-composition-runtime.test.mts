@@ -40,6 +40,11 @@ type BrandRendererModule = {
     maxCharacters: number,
     maxLines: number,
   ) => string[];
+  wrapAiMediaOverlayBodyText: (
+    value: string,
+    maxCharacters: number,
+    maxLines: number,
+  ) => string[];
   renderAiMediaVideoOverlay: (args: {
     width: number;
     height: number;
@@ -70,6 +75,50 @@ test("l’accroche utilise entièrement sa dernière ligne avant de l’abréger
     ),
     ["Face à une demande", "urgente, un artisan", "passe à l’action"],
   );
+});
+
+test("un texte secondaire trop long conserve une phrase entière ou disparaît", () => {
+  const runtime = transpileRuntimeModule<BrandRendererModule>(
+    "../../lib/aiMediaBrandRenderer.ts",
+  );
+  assert.deepEqual(
+    runtime.wrapAiMediaOverlayBodyText(
+      "Une solution simple et rapide. Elle centralise toutes vos publications sur chaque canal.",
+      24,
+      2,
+    ),
+    ["Une solution simple et", "rapide."],
+  );
+  assert.deepEqual(
+    runtime.wrapAiMediaOverlayBodyText(
+      "On peut prendre rendez-vous et parler de votre communication digitale avec notre équipe",
+      24,
+      2,
+    ),
+    [],
+  );
+  assert.deepEqual(
+    runtime.wrapAiMediaOverlayBodyText(
+      "On peut prendre rendez-vous et parler de",
+      43,
+      2,
+    ),
+    [],
+  );
+});
+
+test("une accroche raccourcie ne finit jamais par des points de suspension ni un mot pendant", () => {
+  const runtime = transpileRuntimeModule<BrandRendererModule>(
+    "../../lib/aiMediaBrandRenderer.ts",
+  );
+  const lines = runtime.wrapAiMediaOverlayText(
+    "Développez votre visibilité avec une communication pensée pour votre entreprise et",
+    24,
+    2,
+  );
+  const visible = lines.join(" ");
+  assert.doesNotMatch(visible, /(?:…|\.{3})$/);
+  assert.doesNotMatch(visible, /\b(?:avec|de|des|du|et|pour|sur|un|une)$/i);
 });
 
 function transpileRuntimeModule<T>(relativePath: string): T {

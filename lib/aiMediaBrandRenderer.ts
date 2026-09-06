@@ -60,12 +60,97 @@ export function wrapAiMediaOverlayText(
   maxLines: number,
 ) {
   const normalized = safeOverlayText(value);
+  const wrapped = wrapNormalizedOverlayText(normalized, maxCharacters, maxLines);
+  const explicitlyIncomplete = /(?:\.{3}|…)\s*$/.test(normalized);
+  if (
+    !explicitlyIncomplete &&
+    !hasDanglingOverlayEnding(normalized) &&
+    wrapped.consumedWords === wrapped.wordCount
+  ) {
+    return wrapped.lines;
+  }
+
+  const completeSentence = longestCompleteOverlaySentence(
+    normalized,
+    maxCharacters,
+    maxLines,
+  );
+  if (completeSentence.length) return completeSentence;
+
+  // Un titre peut rester une accroche nominale, mais jamais se terminer par
+  // des points de suspension, un article ou une préposition laissée seule.
+  // Le corps de texte utilise la variante stricte ci-dessous et disparaît si
+  // aucune phrase complète ne tient dans l'espace disponible.
+  const visiblePrefix = trimDanglingOverlayEnding(
+    wrapped.lines.join(" ").replace(/(?:\.{3}|…)+$/g, ""),
+  );
+  return wrapNormalizedOverlayText(
+    visiblePrefix,
+    maxCharacters,
+    maxLines,
+  ).lines;
+}
+
+type WrappedOverlayText = {
+  lines: string[];
+  consumedWords: number;
+  wordCount: number;
+};
+
+const DANGLING_OVERLAY_WORDS = new Set([
+  // Français
+  "a", "afin", "au", "aux", "avec", "car", "ce", "ces", "chez", "comme",
+  "dans", "de", "des", "du", "en", "et", "la", "le", "les", "mais", "notre",
+  "ou", "par", "pour", "que", "qui", "sans", "sur", "un", "une", "vers", "votre",
+  // Anglais, espagnol, italien, allemand et portugais les plus fréquents.
+  "a", "an", "and", "at", "by", "for", "from", "in", "of", "on", "or", "the", "to", "with",
+  "con", "de", "del", "el", "en", "la", "las", "los", "para", "por", "un", "una", "y",
+  "con", "da", "del", "della", "di", "e", "il", "in", "la", "per", "un", "una",
+  "am", "an", "auf", "der", "die", "das", "ein", "eine", "für", "im", "in", "mit", "und", "von", "zu",
+]);
+
+function overlayWordSignature(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase()
+    .replace(/[^a-z]/g, "");
+}
+
+function trimDanglingOverlayEnding(value: string) {
+  const words = safeOverlayText(value)
+    .replace(/[,:;\-–—]+$/g, "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  while (
+    words.length > 1 &&
+    DANGLING_OVERLAY_WORDS.has(overlayWordSignature(words.at(-1) || ""))
+  ) {
+    words.pop();
+  }
+  return words.join(" ").replace(/[,:;\-–—]+$/g, "").trim();
+}
+
+function hasDanglingOverlayEnding(value: string) {
+  const lastWord = safeOverlayText(value)
+    .replace(/[.,;:!?…\-–—]+$/g, "")
+    .trim()
+    .split(/\s+/)
+    .at(-1);
+  return DANGLING_OVERLAY_WORDS.has(overlayWordSignature(lastWord || ""));
+}
+
+function wrapNormalizedOverlayText(
+  normalized: string,
+  maxCharacters: number,
+  maxLines: number,
+): WrappedOverlayText {
   const words = normalized.split(/\s+/).filter(Boolean);
   const lines: string[] = [];
   let current = "";
   let consumedWords = 0;
   for (const word of words) {
-    if (lines.length >= maxLines) break;
     const candidate = current ? `${current} ${word}` : word;
     if (candidate.length <= maxCharacters || !current) {
       current = candidate;
@@ -73,15 +158,58 @@ export function wrapAiMediaOverlayText(
       continue;
     }
     lines.push(current);
-    if (lines.length >= maxLines) break;
+    if (lines.length >= maxLines) {
+      current = "";
+      break;
+    }
     current = word;
     consumedWords += 1;
   }
   if (current && lines.length < maxLines) lines.push(current);
-  if (consumedWords < words.length && lines.length) {
-    lines[lines.length - 1] = `${lines[lines.length - 1].replace(/[.,;:!?…]+$/g, "")}…`;
+  return { lines, consumedWords, wordCount: words.length };
+}
+
+function longestCompleteOverlaySentence(
+  value: string,
+  maxCharacters: number,
+  maxLines: number,
+) {
+  const normalized = safeOverlayText(value);
+  const sentenceEnd = /[.!?]+(?=\s|$)/g;
+  let match: RegExpExecArray | null;
+  let best: string[] = [];
+  while ((match = sentenceEnd.exec(normalized))) {
+    // Trois points indiquent précisément une phrase interrompue : ils ne
+    // doivent jamais être pris pour une fin de phrase valide.
+    if (match[0].length >= 3) continue;
+    const candidate = normalized.slice(0, match.index + match[0].length).trim();
+    if (hasDanglingOverlayEnding(candidate)) continue;
+    const wrapped = wrapNormalizedOverlayText(candidate, maxCharacters, maxLines);
+    if (wrapped.consumedWords !== wrapped.wordCount) break;
+    best = wrapped.lines;
   }
-  return lines;
+  return best;
+}
+
+export function wrapAiMediaOverlayBodyText(
+  value: string,
+  maxCharacters: number,
+  maxLines: number,
+) {
+  const normalized = safeOverlayText(value);
+  const wrapped = wrapNormalizedOverlayText(normalized, maxCharacters, maxLines);
+  const explicitlyIncomplete = /(?:\.{3}|…)\s*$/.test(normalized);
+  if (
+    !explicitlyIncomplete &&
+    !hasDanglingOverlayEnding(normalized) &&
+    wrapped.consumedWords === wrapped.wordCount
+  ) {
+    return wrapped.lines;
+  }
+  // Pour un texte secondaire, mieux vaut ne rien afficher que publier un
+  // début de phrase. Une phrase complète antérieure est conservée si elle
+  // tient entièrement dans les deux lignes prévues.
+  return longestCompleteOverlaySentence(normalized, maxCharacters, maxLines);
 }
 
 async function rasterTextLayer(args: {
@@ -295,7 +423,7 @@ function sceneCopyBackdropSvg(args: RenderBaseArgs & { scene: AiMediaCreativeSce
     args.width > args.height ? 37 : 24,
     3,
   );
-  const bodyLines = wrapAiMediaOverlayText(
+  const bodyLines = wrapAiMediaOverlayBodyText(
     args.scene.body,
     args.width > args.height ? 64 : 43,
     2,
@@ -339,7 +467,7 @@ async function renderSceneCopyOverlay(
     args.width > args.height ? 37 : 24,
     3,
   );
-  const bodyLines = wrapAiMediaOverlayText(
+  const bodyLines = wrapAiMediaOverlayBodyText(
     args.scene.body,
     args.width > args.height ? 64 : 43,
     2,
