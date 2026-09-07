@@ -14,6 +14,8 @@ export type PublishScheduleItem = {
   channel: ChannelKey;
   label: string;
   mediaLabel: string;
+  details?: string[];
+  warnings?: string[];
   blockers: string[];
 };
 
@@ -258,6 +260,12 @@ export default function PublishScheduleModal({
     timeByChannel[channel] || defaultDateTime.time;
   const busy = saving || submitting;
   const blockedItems = items.filter((item) => item.blockers.length > 0);
+  const reviewDetails = Array.from(
+    new Set(items.flatMap((item) => item.details || [])),
+  );
+  const reviewWarnings = Array.from(
+    new Set(items.flatMap((item) => item.warnings || [])),
+  );
 
   const activateGeneralMode = () => {
     if (busy || !publishableItems.length) return;
@@ -387,12 +395,13 @@ export default function PublishScheduleModal({
       <div
         className={styles.blockCard}
         style={{
-          width: "min(780px, 100%)",
+          width: isMobile ? "min(780px, 100%)" : "min(1080px, 100%)",
           maxHeight:
             "calc(100dvh - var(--inrcy-mobile-bottom-nav-total-height, calc(50px + var(--inrcy-safe-area-bottom))) - 32px)",
           overflowY: "auto",
           display: "grid",
-          gap: 14,
+          gap: isMobile ? 14 : 20,
+          padding: isMobile ? 14 : 24,
           background: "#111827",
           backgroundImage: "none",
           border: "1px solid rgba(148, 163, 184, 0.28)",
@@ -432,6 +441,49 @@ export default function PublishScheduleModal({
             {i18nT("schedule_close")}
           </button>
         </div>
+
+        {reviewDetails.length || reviewWarnings.length ? (
+          <div style={{ display: "grid", gap: 8 }}>
+            {reviewDetails.map((detail) => (
+              <div
+                key={detail}
+                style={{
+                  borderRadius: 14,
+                  padding: "11px 13px",
+                  background: "rgba(56,189,248,0.09)",
+                  border: "1px solid rgba(56,189,248,0.24)",
+                  color: "#bae6fd",
+                  fontSize: 13,
+                  lineHeight: 1.45,
+                }}
+              >
+                <span
+                  style={{ display: "flex", alignItems: "flex-start", gap: 6 }}
+                >
+                  <span aria-hidden>{String.fromCodePoint(0x2139, 0xfe0f)}</span>
+                  <span>{detail}</span>
+                </span>
+              </div>
+            ))}
+            {reviewWarnings.map((warning) => (
+              <div
+                key={warning}
+                style={{
+                  borderRadius: 14,
+                  padding: "11px 13px",
+                  background: "rgba(251,191,36,0.10)",
+                  border: "1px solid rgba(251,191,36,0.30)",
+                  color: "#fde68a",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  lineHeight: 1.45,
+                }}
+              >
+                ⚠️ {warning}
+              </div>
+            ))}
+          </div>
+        ) : null}
 
         <div style={{ display: "grid", gap: 10 }}>
           <section

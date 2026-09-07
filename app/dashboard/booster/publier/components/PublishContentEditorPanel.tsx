@@ -7,6 +7,7 @@ import type {
 } from "react";
 import { useEffect, useRef, useState } from "react";
 import type { BoosterCreationMode } from "@/lib/boosterCreationMode";
+import type { InstagramPublicationPreferences } from "@/lib/instagramPublicationPreferences";
 import {
   buildBoosterWhatsAppUrl,
   getBoosterWhatsAppPhoneFromUrl,
@@ -99,6 +100,7 @@ type PublishContentEditorPanelProps = {
   pinterestBoardsError: string;
   onPinterestBoardChange: (boardId: string) => void;
   instagramPublicationPlacement: InstagramPublicationPlacement;
+  instagramPublicationPreferences: InstagramPublicationPreferences;
   instagramMediaMode: ChannelMediaMode;
   onInstagramPublicationPlacementChange: (
     placement: InstagramPublicationPlacement,
@@ -132,6 +134,7 @@ export default function PublishContentEditorPanel({
   pinterestBoardsError,
   onPinterestBoardChange,
   instagramPublicationPlacement,
+  instagramPublicationPreferences,
   instagramMediaMode,
   onInstagramPublicationPlacementChange,
   onVoiceBusyChange,
@@ -247,7 +250,8 @@ export default function PublishContentEditorPanel({
 
   const activePost = getDisplayPost(activeCard);
   const instagramMediaOnly =
-    activeCard === "instagram" && instagramMediaMode !== "none";
+    activeCard === "instagram" &&
+    instagramPublicationPlacement !== "classic";
   const activeTextGuidelines = CHANNEL_TEXT_GUIDELINES[activeCard];
   const titleVoiceMaxLength = Math.max(
     activePost.title.length,
@@ -303,7 +307,8 @@ export default function PublishContentEditorPanel({
             {displayCards.map((key) => {
               const post = getDisplayPost(key);
               const hasText =
-                (key === "instagram" && instagramMediaMode !== "none") ||
+                (key === "instagram" &&
+                  instagramPublicationPlacement !== "classic") ||
                 !!(
                   String(post.title || "").trim() ||
                   String(post.content || "").trim()
@@ -418,7 +423,7 @@ export default function PublishContentEditorPanel({
                   ))}
                 </select>
               ) : null}
-              {activeCard === "instagram" && instagramMediaMode !== "none" ? (
+              {activeCard === "instagram" ? (
                 <select
                   value={instagramPublicationPlacement}
                   onChange={(event) =>
@@ -437,12 +442,19 @@ export default function PublishContentEditorPanel({
                     flex: "0 1 auto",
                   }}
                 >
+                  <option value="classic" style={darkOptionStyle}>
+                    {i18nT("instagram_classic")}
+                  </option>
+                  {instagramPublicationPreferences.reelsEnabled ? (
                   <option value="reel" style={darkOptionStyle}>
                     {i18nT("instagram_reels")}
                   </option>
+                  ) : null}
+                  {instagramPublicationPreferences.storiesEnabled ? (
                   <option value="story" style={darkOptionStyle}>
                     {i18nT("instagram_stories")}
                   </option>
+                  ) : null}
                 </select>
               ) : null}
             </div>

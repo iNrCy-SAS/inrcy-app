@@ -5,6 +5,11 @@ import { getClientUserFacingApiError as getSimpleFrenchApiError, getClientUserFa
 import type { ConnectionDisplayStatus } from "@/lib/connectionVersions";
 import type { DashboardChannelKey } from "@/lib/dashboardChannels";
 import type { InrstatsChannelBlock } from "@/lib/inrstats/channelBlocks";
+import {
+  DEFAULT_INSTAGRAM_PUBLICATION_PREFERENCES,
+  normalizeInstagramPublicationPreferences,
+  type InstagramPublicationPreferences,
+} from "@/lib/instagramPublicationPreferences";
 import type { ChannelResourcePhase } from "./channelResourcePhase";
 
 type PatchChannelConnectionLocally = (
@@ -59,6 +64,21 @@ export function useInstagramChannel({
   const [instagramUsername, setInstagramUsername] = useState<string>(() => typeof initialState?.instagramUsername === "string" ? initialState.instagramUsername : "");
   const [instagramUrlNotice, setInstagramUrlNotice] = useState<string | null>(null);
   const [instagramUrlError, setInstagramUrlError] = useState<string | null>(null);
+  const [instagramPublicationPreferences, setInstagramPublicationPreferences] =
+    useState<InstagramPublicationPreferences>(() =>
+      normalizeInstagramPublicationPreferences(
+        initialState?.instagramPublicationPreferences ||
+          DEFAULT_INSTAGRAM_PUBLICATION_PREFERENCES,
+      ),
+    );
+  const [instagramPublicationPreferencesLoading, setInstagramPublicationPreferencesLoading] =
+    useState(false);
+  const [instagramPublicationPreferencesSaving, setInstagramPublicationPreferencesSaving] =
+    useState(false);
+  const [instagramPublicationPreferencesNotice, setInstagramPublicationPreferencesNotice] =
+    useState<string | null>(null);
+  const [instagramPublicationPreferencesError, setInstagramPublicationPreferencesError] =
+    useState<string | null>(null);
 
   const [igAccounts, setIgAccounts] = useState<Array<{ page_id: string; page_name?: string; ig_id: string; username?: string; page_access_token?: string }>>([]);
   const [igAccountsLoading, setIgAccountsLoading] = useState(false);
@@ -85,6 +105,96 @@ export function useInstagramChannel({
     setInstagramUrlError(clean);
     window.setTimeout(clearPanelNotices, timeout);
   }, [clearPanelNotices]);
+
+  const loadInstagramPublicationPreferences = useCallback(async () => {
+    setInstagramPublicationPreferencesLoading(true);
+    setInstagramPublicationPreferencesError(null);
+    try {
+      const response = await fetch(
+        "/api/integrations/instagram/publication-preferences",
+        { cache: "no-store", credentials: "include" },
+      );
+      if (!response.ok) {
+        throw new Error(
+          await getSimpleFrenchApiError(
+            response,
+            "Impossible de charger les formats Instagram.",
+          ),
+        );
+      }
+      const payload = await response.json().catch(() => null);
+      setInstagramPublicationPreferences(
+        normalizeInstagramPublicationPreferences(payload?.preferences),
+      );
+    } catch (error) {
+      setInstagramPublicationPreferencesError(
+        getSimpleFrenchErrorMessage(
+          error,
+          "Impossible de charger les formats Instagram.",
+        ),
+      );
+    } finally {
+      setInstagramPublicationPreferencesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (panel !== "instagram") return;
+    void loadInstagramPublicationPreferences();
+  }, [panel, loadInstagramPublicationPreferences]);
+
+  const updateInstagramPublicationPreferences = useCallback(
+    (patch: Partial<InstagramPublicationPreferences>) => {
+      setInstagramPublicationPreferences((current) =>
+        normalizeInstagramPublicationPreferences({ ...current, ...patch }),
+      );
+      setInstagramPublicationPreferencesNotice(null);
+      setInstagramPublicationPreferencesError(null);
+    },
+    [],
+  );
+
+  const saveInstagramPublicationPreferences = useCallback(async () => {
+    if (instagramPublicationPreferencesSaving) return false;
+    setInstagramPublicationPreferencesSaving(true);
+    setInstagramPublicationPreferencesNotice(null);
+    setInstagramPublicationPreferencesError(null);
+    try {
+      const response = await fetch(
+        "/api/integrations/instagram/publication-preferences",
+        {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(instagramPublicationPreferences),
+        },
+      );
+      if (!response.ok) {
+        throw new Error(
+          await getSimpleFrenchApiError(
+            response,
+            "Impossible d’enregistrer les formats Instagram.",
+          ),
+        );
+      }
+      const payload = await response.json().catch(() => null);
+      setInstagramPublicationPreferences(
+        normalizeInstagramPublicationPreferences(payload?.preferences),
+      );
+      setInstagramPublicationPreferencesNotice("Formats Instagram enregistrés.");
+      return true;
+    } catch (error) {
+      setInstagramPublicationPreferencesError(
+        getSimpleFrenchErrorMessage(
+          error,
+          "Impossible d’enregistrer les formats Instagram.",
+        ),
+      );
+      return false;
+    } finally {
+      setInstagramPublicationPreferencesSaving(false);
+    }
+  }, [instagramPublicationPreferences, instagramPublicationPreferencesSaving]);
 
   const syncInstagramStateFromServer = useCallback(async (options?: { preserveSelection?: boolean }) => {
     try {
@@ -363,6 +473,13 @@ export function useInstagramChannel({
     setInstagramUsername,
     instagramUrlNotice,
     instagramUrlError,
+    instagramPublicationPreferences,
+    instagramPublicationPreferencesLoading,
+    instagramPublicationPreferencesSaving,
+    instagramPublicationPreferencesNotice,
+    instagramPublicationPreferencesError,
+    updateInstagramPublicationPreferences,
+    saveInstagramPublicationPreferences,
     igAccounts,
     setIgAccounts,
     igAccountsLoading,

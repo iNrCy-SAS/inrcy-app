@@ -7,6 +7,7 @@ export type PublishFinalReviewItem = {
   mediaType: PublicationMediaType;
   mediaLabel: string;
   imageCount: number;
+  details?: string[];
   warnings: string[];
   blockers: string[];
   publishable?: boolean;
@@ -66,12 +67,13 @@ export default function PublishFinalReviewModal({
       <div
         className={styles.blockCard}
         style={{
-          width: "min(760px, 100%)",
+          width: isMobile ? "min(760px, 100%)" : "min(1080px, 100%)",
           maxHeight:
             "calc(100dvh - var(--inrcy-mobile-bottom-nav-total-height, calc(50px + var(--inrcy-safe-area-bottom))) - 32px)",
           overflowY: "auto",
           display: "grid",
-          gap: 16,
+          gap: isMobile ? 16 : 22,
+          padding: isMobile ? 14 : 24,
           background: "#111827",
           backgroundImage: "none",
           border: "1px solid rgba(148, 163, 184, 0.28)",
@@ -129,9 +131,11 @@ export default function PublishFinalReviewModal({
             {i18nT("site_inrcy_et_site_web_ont_8098e8ca")}{" "}</div>
         ) : null}
 
-        <div style={{ display: "grid", gap: 10 }}>
+        <div style={{ display: "grid", gap: isMobile ? 10 : 14 }}>
           {items.map((item) => {
-            const hasMessages = item.warnings.length || item.blockers.length;
+            const details = item.details || [];
+            const hasMessages =
+              details.length || item.warnings.length || item.blockers.length;
             return (
               <div
                 key={item.channel}
@@ -139,11 +143,11 @@ export default function PublishFinalReviewModal({
                   display: "grid",
                   gridTemplateColumns: isMobile
                     ? "1fr"
-                    : "minmax(150px, 0.85fr) minmax(190px, 0.9fr) minmax(0, 1.05fr)",
-                  gap: 10,
+                    : "minmax(150px, 0.75fr) minmax(170px, 0.85fr) minmax(0, 1.4fr)",
+                  gap: isMobile ? 10 : 18,
                   alignItems: "center",
                   borderRadius: 16,
-                  padding: 12,
+                  padding: isMobile ? 12 : 16,
                   background: "rgba(255,255,255,0.04)",
                   border: item.blockers.length
                     ? "1px solid rgba(248,113,113,0.34)"
@@ -192,7 +196,7 @@ export default function PublishFinalReviewModal({
                   style={{
                     display: "flex",
                     gap: 8,
-                    flexWrap: isMobile ? "wrap" : "nowrap",
+                    flexWrap: "wrap",
                     alignItems: "center",
                     minWidth: 0,
                   }}
@@ -241,6 +245,15 @@ export default function PublishFinalReviewModal({
                     <span style={{ color: "#bbf7d0" }}>
                       {i18nT("parametres_tiktok_valides_aab3d118")}{" "}</span>
                   ) : null}
+                  {details.map((detail) => (
+                    <span
+                      key={detail}
+                      style={{ display: "flex", gap: 6, color: "#bae6fd" }}
+                    >
+                      <span aria-hidden>{String.fromCodePoint(0x2139, 0xfe0f)}</span>
+                      <span>{detail}</span>
+                    </span>
+                  ))}
                   {item.warnings.map((warning) => (
                     <span key={warning} style={{ color: "#fde68a" }}>
                       ⚠️ {warning}

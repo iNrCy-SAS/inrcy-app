@@ -243,6 +243,11 @@ export function normalizeInstagramPublicationSettings(
   const requested = String(raw.placement || raw.mode || "")
     .trim()
     .toLowerCase();
+  // The classic feed follows the historical publication path. Returning null
+  // prevents accidental media-only/Reels treatment from direct API callers.
+  if (["classic", "classique", "normal", "feed"].includes(requested)) {
+    return null;
+  }
   if (!["reel", "reels", "story", "stories"].includes(requested)) {
     return null;
   }

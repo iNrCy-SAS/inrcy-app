@@ -576,19 +576,39 @@ const updateRootSettingsKey = useCallback(
     const { data: authData } = await supabase.auth.getUser();
     const user = authData?.user;
     if (!user) return;
+    const scopedUserId = resolveActiveBrowserUserId(user.id);
 
     const { data: row, error: readErr } = await supabase
       .from("pro_tools_configs")
       .select("settings")
-      .eq("user_id", resolveActiveBrowserUserId(user.id))
+      .eq("user_id", scopedUserId)
       .maybeSingle();
 
     if (readErr) return;
 
     const current = (row as any)?.settings ?? {};
-    const merged = { ...(current ?? {}), [key]: nextObj ?? {} };
+    const currentChannel =
+      current?.[key] &&
+      typeof current[key] === "object" &&
+      !Array.isArray(current[key])
+        ? current[key]
+        : {};
+    const nextChannel =
+      nextObj && typeof nextObj === "object" && !Array.isArray(nextObj)
+        ? nextObj
+        : {};
+    const preservedInstagramPreferences =
+      key === "instagram" &&
+      currentChannel.publicationPreferences !== undefined &&
+      nextChannel.publicationPreferences === undefined
+        ? { publicationPreferences: currentChannel.publicationPreferences }
+        : {};
+    const merged = {
+      ...(current ?? {}),
+      [key]: { ...preservedInstagramPreferences, ...nextChannel },
+    };
 
-    await supabase.from("pro_tools_configs").upsert({ user_id: resolveActiveBrowserUserId(user.id), settings: merged }, { onConflict: "user_id" });
+    await supabase.from("pro_tools_configs").upsert({ user_id: scopedUserId, settings: merged }, { onConflict: "user_id" });
   },
   []
 );
@@ -764,6 +784,13 @@ const {
   setInstagramUsername,
   instagramUrlNotice,
   instagramUrlError,
+  instagramPublicationPreferences,
+  instagramPublicationPreferencesLoading,
+  instagramPublicationPreferencesSaving,
+  instagramPublicationPreferencesNotice,
+  instagramPublicationPreferencesError,
+  updateInstagramPublicationPreferences,
+  saveInstagramPublicationPreferences,
   igAccounts,
   igAccountsLoading,
   igAccountsPhase,

@@ -57,6 +57,12 @@ import {
   getPreferredWebsiteUrlForChannel,
   getSupportedPreferredCtasForChannel,
 } from "@/lib/boosterCtaPreferences";
+export {
+  normalizeInstagramPublicationPlacement,
+} from "@/lib/instagramPublicationPreferences";
+export type {
+  InstagramPublicationPlacement,
+} from "@/lib/instagramPublicationPreferences";
 export type { BoosterCtaMode } from "@/lib/boosterCta";
 
 export type ChannelKey =
@@ -589,13 +595,6 @@ export type {
 
 export type PublicationMediaType = "images" | "video";
 export type ChannelMediaMode = "video" | "images" | "none";
-export type InstagramPublicationPlacement = "reel" | "story";
-
-export function normalizeInstagramPublicationPlacement(
-  value: unknown,
-): InstagramPublicationPlacement {
-  return value === "story" || value === "stories" ? "story" : "reel";
-}
 
 export function channelSupportsImages(channel: ChannelKey) {
   return channel !== "youtube_shorts";
@@ -948,8 +947,22 @@ export function getChannelPublicationRequirements({
   if (!hasContent) addWarning("Contenu vide", "content_empty");
   if (!hasTitle) addWarning("Titre vide", "title_empty");
 
+  const instagramMediaMissing =
+    channel === "instagram" &&
+    (mediaMode === "none" ||
+      (mediaMode === "images" && !hasImage) ||
+      (mediaMode === "video" && !hasVideo));
+  if (instagramMediaMissing) {
+    addMediaBlocker(
+      "Instagram nécessite une vidéo ou au moins 1 image.",
+      "instagram_media_required",
+    );
+  }
+
   if (mediaMode === "video") {
-    if (!hasVideo) addMediaBlocker("Ajoutez une vidéo.", "video_required");
+    if (!hasVideo && channel !== "instagram") {
+      addMediaBlocker("Ajoutez une vidéo.", "video_required");
+    }
     let videoDurationIsValid = true;
 
     if (hasVideo) {
@@ -1018,12 +1031,7 @@ export function getChannelPublicationRequirements({
     }
   } else if (mediaMode === "images") {
     if (!hasImage) {
-      if (channel === "instagram") {
-        addMediaBlocker(
-          "Instagram nécessite au moins 1 image.",
-          "instagram_image_required",
-        );
-      } else if (channel === "tiktok") {
+      if (channel === "tiktok") {
         addMediaBlocker(
           "TikTok nécessite au moins 1 photo ou 1 vidéo.",
           "tiktok_photo_or_video_required",
@@ -1035,7 +1043,7 @@ export function getChannelPublicationRequirements({
           "Pinterest nécessite au moins 1 image.",
           "pinterest_image_required",
         );
-      } else if (channel !== "gmb") {
+      } else if (channel !== "gmb" && channel !== "instagram") {
         addWarning("Aucune image sélectionnée.", "no_image_selected");
       }
     }
@@ -1068,12 +1076,7 @@ export function getChannelPublicationRequirements({
       );
     }
   } else {
-    if (channel === "instagram") {
-      addMediaBlocker(
-        "Instagram nécessite une vidéo ou au moins 1 image.",
-        "instagram_media_required",
-      );
-    } else if (channel === "tiktok") {
+    if (channel === "tiktok") {
       addMediaBlocker(
         "TikTok nécessite une vidéo ou au moins 1 photo.",
         "tiktok_photo_or_video_required",

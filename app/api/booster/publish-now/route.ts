@@ -208,6 +208,10 @@ import {
   isOfficialPublicationChannelConnected,
   publicationChannelRequiresReconnect,
 } from "@/lib/publicationChannelAvailability";
+import {
+  isInstagramPublicationPlacementEnabled,
+  normalizeInstagramPublicationPreferences,
+} from "@/lib/instagramPublicationPreferences";
 
 import {
   EMPTY_IMAGE_FORMATS,
@@ -308,6 +312,52 @@ function getPublicationChannelState(
       throw new Error(`Canal de publication inconnu: ${unsupportedChannel}`);
     }
   }
+}
+
+async function getInstagramPlacementPreflightFailure(args: {
+  userId: string;
+  placement: "reel" | "story";
+}): Promise<JsonRecord | null> {
+  const { data, error } = await supabaseAdmin
+    .from("pro_tools_configs")
+    .select("settings")
+    .eq("user_id", args.userId)
+    .maybeSingle();
+
+  if (error) {
+    return {
+      ok: false,
+      code: "instagram_publication_preferences_unavailable",
+      retryable: true,
+      source: "server_preflight",
+      placement: args.placement,
+      error:
+        "Les formats de publication Instagram ne peuvent pas être vérifiés pour le moment.",
+    };
+  }
+
+  const rootSettings = asRecord(data?.settings);
+  const instagramSettings = asRecord(rootSettings.instagram);
+  const preferences = normalizeInstagramPublicationPreferences(
+    instagramSettings.publicationPreferences,
+  );
+  if (
+    isInstagramPublicationPlacementEnabled(args.placement, preferences)
+  ) {
+    return null;
+  }
+
+  return {
+    ok: false,
+    code: "instagram_publication_mode_disabled",
+    retryable: false,
+    source: "server_preflight",
+    placement: args.placement,
+    error:
+      args.placement === "story"
+        ? "Le format Story Instagram est désactivé dans les réglages du compte."
+        : "Le format Reel Instagram est désactivé dans les réglages du compte.",
+  };
 }
 
 async function publishNowHandler(req: Request) {
@@ -458,11 +508,29 @@ async function publishNowHandler(req: Request) {
         { status: 400 },
       );
     }
+    const requestedInstagramPublicationSettings = selected.includes(
+      "instagram",
+    )
+      ? normalizeInstagramPublicationSettings(body.instagramPublicationSettings)
+      : null;
     const clientPreflightFailuresByChannel =
       normalizeClientPreflightFailuresByChannel(
         body.clientPreflightFailuresByChannel,
         selected,
       );
+    if (
+      requestedInstagramPublicationSettings &&
+      !clientPreflightFailuresByChannel.instagram
+    ) {
+      const instagramPreflightFailure =
+        await getInstagramPlacementPreflightFailure({
+          userId,
+          placement: requestedInstagramPublicationSettings.placement,
+        });
+      if (instagramPreflightFailure) {
+        clientPreflightFailuresByChannel.instagram = instagramPreflightFailure;
+      }
+    }
     const dispatchableSelected = selected.filter(
       (channel) => !clientPreflightFailuresByChannel[channel],
     );
@@ -927,8 +995,7 @@ async function publishNowHandler(req: Request) {
     const tiktokPublicationSettings = normalizeTiktokPublicationSettings(
       body.tiktokPublicationSettings,
     );
-    const instagramPublicationSettings =
-      normalizeInstagramPublicationSettings(body.instagramPublicationSettings);
+    const instagramPublicationSettings = requestedInstagramPublicationSettings;
     const pinterestPublicationSettings = asRecord(
       body.pinterestPublicationSettings,
     );

@@ -7,6 +7,10 @@ import { useEffect, useState } from "react";
 import styles from "../dashboard.module.css";
 import ConnectionPill from "./ConnectionPill";
 import StatusMessage from "./StatusMessage";
+import {
+  DEFAULT_INSTAGRAM_PUBLICATION_PREFERENCES,
+  type InstagramPublicationPlacement,
+} from "@/lib/instagramPublicationPreferences";
 
 export default function InstagramPanel(props: any) {
   const i18nT = useTranslations("shell");
@@ -33,6 +37,14 @@ export default function InstagramPanel(props: any) {
     instagramAccountBusy,
     instagramProfileBusy,
     instagramProfileAction,
+    instagramPublicationPreferences =
+      DEFAULT_INSTAGRAM_PUBLICATION_PREFERENCES,
+    instagramPublicationPreferencesLoading = false,
+    instagramPublicationPreferencesSaving = false,
+    instagramPublicationPreferencesNotice,
+    instagramPublicationPreferencesError,
+    updateInstagramPublicationPreferences,
+    saveInstagramPublicationPreferences,
   } = props;
 
   const startStandard = () => {
@@ -354,6 +366,211 @@ export default function InstagramPanel(props: any) {
 
         {instagramUrlNotice && <StatusMessage variant="success">{instagramUrlNotice}</StatusMessage>}
         {instagramUrlError && <StatusMessage variant="error">{instagramUrlError}</StatusMessage>}
+      </div>
+
+      <div
+        style={{
+          border: "1px solid rgba(76,195,255,0.24)",
+          background:
+            "linear-gradient(135deg, rgba(14,165,233,0.08), rgba(168,85,247,0.08))",
+          borderRadius: 14,
+          padding: 12,
+          display: "grid",
+          gap: 12,
+        }}
+      >
+        <div style={{ display: "grid", gap: 4 }}>
+          <div className={styles.blockTitle}>
+            {i18nT("instagram_publication_modes_title")}
+          </div>
+          <div className={styles.blockSub}>
+            {i18nT("instagram_publication_modes_help")}
+          </div>
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns:
+              "repeat(auto-fit, minmax(min(210px, 100%), 1fr))",
+            gap: 10,
+          }}
+        >
+          <label
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              gap: 10,
+              padding: 11,
+              borderRadius: 12,
+              border: "1px solid rgba(34,197,94,0.26)",
+              background: "rgba(34,197,94,0.08)",
+              cursor: "default",
+            }}
+          >
+            <input type="checkbox" checked disabled style={{ marginTop: 3 }} />
+            <span style={{ display: "grid", gap: 3 }}>
+              <strong>{i18nT("instagram_classic_mode")}</strong>
+              <span style={{ fontSize: 12, opacity: 0.72, lineHeight: 1.4 }}>
+                {i18nT("instagram_classic_mode_help")}
+              </span>
+            </span>
+          </label>
+
+          <label
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              gap: 10,
+              padding: 11,
+              borderRadius: 12,
+              border: instagramPublicationPreferences.reelsEnabled
+                ? "1px solid rgba(76,195,255,0.30)"
+                : "1px solid rgba(255,255,255,0.10)",
+              background: instagramPublicationPreferences.reelsEnabled
+                ? "rgba(76,195,255,0.08)"
+                : "rgba(255,255,255,0.025)",
+              cursor:
+                instagramPublicationPreferencesLoading ||
+                instagramPublicationPreferencesSaving
+                  ? "wait"
+                  : "pointer",
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={instagramPublicationPreferences.reelsEnabled}
+              disabled={
+                instagramPublicationPreferencesLoading ||
+                instagramPublicationPreferencesSaving
+              }
+              onChange={(event) =>
+                updateInstagramPublicationPreferences?.({
+                  reelsEnabled: event.target.checked,
+                  ...(instagramPublicationPreferences.defaultMode === "reel" &&
+                  !event.target.checked
+                    ? { defaultMode: "classic" }
+                    : {}),
+                })
+              }
+              style={{ marginTop: 3 }}
+            />
+            <span style={{ display: "grid", gap: 3 }}>
+              <strong>{i18nT("instagram_reels_mode")}</strong>
+              <span style={{ fontSize: 12, opacity: 0.72, lineHeight: 1.4 }}>
+                {i18nT("instagram_reels_mode_help")}
+              </span>
+            </span>
+          </label>
+
+          <label
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              gap: 10,
+              padding: 11,
+              borderRadius: 12,
+              border: instagramPublicationPreferences.storiesEnabled
+                ? "1px solid rgba(168,85,247,0.30)"
+                : "1px solid rgba(255,255,255,0.10)",
+              background: instagramPublicationPreferences.storiesEnabled
+                ? "rgba(168,85,247,0.08)"
+                : "rgba(255,255,255,0.025)",
+              cursor:
+                instagramPublicationPreferencesLoading ||
+                instagramPublicationPreferencesSaving
+                  ? "wait"
+                  : "pointer",
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={instagramPublicationPreferences.storiesEnabled}
+              disabled={
+                instagramPublicationPreferencesLoading ||
+                instagramPublicationPreferencesSaving
+              }
+              onChange={(event) =>
+                updateInstagramPublicationPreferences?.({
+                  storiesEnabled: event.target.checked,
+                  ...(instagramPublicationPreferences.defaultMode === "story" &&
+                  !event.target.checked
+                    ? { defaultMode: "classic" }
+                    : {}),
+                })
+              }
+              style={{ marginTop: 3 }}
+            />
+            <span style={{ display: "grid", gap: 3 }}>
+              <strong>{i18nT("instagram_stories_mode")}</strong>
+              <span style={{ fontSize: 12, opacity: 0.72, lineHeight: 1.4 }}>
+                {i18nT("instagram_stories_mode_help")}
+              </span>
+            </span>
+          </label>
+        </div>
+
+        <div style={responsiveActionsRow}>
+          <label style={{ display: "grid", gap: 6, minWidth: 0 }}>
+            <strong style={{ fontSize: 13 }}>
+              {i18nT("instagram_default_publication_mode")}
+            </strong>
+            <select
+              value={instagramPublicationPreferences.defaultMode}
+              disabled={
+                instagramPublicationPreferencesLoading ||
+                instagramPublicationPreferencesSaving
+              }
+              onChange={(event) =>
+                updateInstagramPublicationPreferences?.({
+                  defaultMode: event.target
+                    .value as InstagramPublicationPlacement,
+                })
+              }
+              style={{ ...singleFieldStyle, cursor: "pointer" }}
+            >
+              <option value="classic">
+                {i18nT("instagram_classic_mode")}
+              </option>
+              {instagramPublicationPreferences.reelsEnabled ? (
+                <option value="reel">
+                  {i18nT("instagram_reels_mode")}
+                </option>
+              ) : null}
+              {instagramPublicationPreferences.storiesEnabled ? (
+                <option value="story">
+                  {i18nT("instagram_stories_mode")}
+                </option>
+              ) : null}
+            </select>
+          </label>
+
+          <button
+            type="button"
+            className={`${styles.actionBtn} ${styles.connectBtn}`}
+            disabled={
+              instagramPublicationPreferencesLoading ||
+              instagramPublicationPreferencesSaving
+            }
+            onClick={() => void saveInstagramPublicationPreferences?.()}
+            style={{ width: "100%", alignSelf: "end" }}
+          >
+            {instagramPublicationPreferencesSaving
+              ? i18nT("instagram_publication_modes_saving")
+              : i18nT("instagram_publication_modes_save")}
+          </button>
+        </div>
+
+        {instagramPublicationPreferencesNotice ? (
+          <StatusMessage variant="success">
+            {instagramPublicationPreferencesNotice}
+          </StatusMessage>
+        ) : null}
+        {instagramPublicationPreferencesError ? (
+          <StatusMessage variant="error">
+            {instagramPublicationPreferencesError}
+          </StatusMessage>
+        ) : null}
       </div>
     </div>
   );

@@ -176,6 +176,19 @@ export function buildDashboardPanelProps(a: any) {
     instagramUrl: a.instagramUrl,
     instagramUrlNotice: a.instagramUrlNotice,
     instagramUrlError: a.instagramUrlError,
+    instagramPublicationPreferences: a.instagramPublicationPreferences,
+    instagramPublicationPreferencesLoading:
+      a.instagramPublicationPreferencesLoading,
+    instagramPublicationPreferencesSaving:
+      a.instagramPublicationPreferencesSaving,
+    instagramPublicationPreferencesNotice:
+      a.instagramPublicationPreferencesNotice,
+    instagramPublicationPreferencesError:
+      a.instagramPublicationPreferencesError,
+    updateInstagramPublicationPreferences:
+      a.updateInstagramPublicationPreferences,
+    saveInstagramPublicationPreferences:
+      a.saveInstagramPublicationPreferences,
     disconnectInstagramProfile: a.disconnectInstagramProfileFromDrawer,
   };
 

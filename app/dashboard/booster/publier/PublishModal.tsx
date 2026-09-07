@@ -221,6 +221,12 @@ import {
   shouldRetryVideoVariantGeneration,
 } from "@/lib/boosterVideoPreparationRecovery";
 import {
+  CLASSIC_ONLY_INSTAGRAM_PUBLICATION_PREFERENCES,
+  coerceInstagramPublicationPlacement,
+  normalizeInstagramPublicationPreferences,
+  type InstagramPublicationPreferences,
+} from "@/lib/instagramPublicationPreferences";
+import {
   loadMediaPublicationWorkspace,
   type MediaWorkspaceMediaSummary,
 } from "@/lib/mediaWorkspaceClient";
@@ -511,7 +517,18 @@ export default function PublishModal({
     useState<AiPreferredEngine>(DEFAULT_AI_PREFERRED_ENGINE);
   const [instagramHashtagsInput, setInstagramHashtagsInput] = useState("");
   const [instagramPublicationPlacement, setInstagramPublicationPlacement] =
-    useState<InstagramPublicationPlacement>("reel");
+    useState<InstagramPublicationPlacement>("classic");
+  const [instagramPublicationPreferences, setInstagramPublicationPreferences] =
+    useState<InstagramPublicationPreferences>(
+      CLASSIC_ONLY_INSTAGRAM_PUBLICATION_PREFERENCES,
+    );
+  const instagramPublicationPreferencesRef =
+    useRef<InstagramPublicationPreferences>(
+      CLASSIC_ONLY_INSTAGRAM_PUBLICATION_PREFERENCES,
+    );
+  const instagramPlacementTouchedRef = useRef(
+    Boolean(publicationDraftIdParam),
+  );
   const [emptyContentWarningChannels, setEmptyContentWarningChannels] =
     useState<ChannelKey[]>([]);
   const [emptyContentWarningIndex, setEmptyContentWarningIndex] = useState(0);
@@ -540,6 +557,42 @@ export default function PublishModal({
   >(null);
   const [tiktokPublicationSettings, setTiktokPublicationSettings] =
     useState<TiktokPublicationSettings | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadInstagramPreferences = async () => {
+      try {
+        const response = await fetch(
+          "/api/integrations/instagram/publication-preferences",
+          { cache: "no-store", credentials: "include" },
+        );
+        if (!response.ok) return;
+        const payload = await response.json().catch(() => null);
+        if (cancelled) return;
+        const preferences = normalizeInstagramPublicationPreferences(
+          payload?.preferences,
+        );
+        instagramPublicationPreferencesRef.current = preferences;
+        setInstagramPublicationPreferences(preferences);
+        setInstagramPublicationPlacement((current) => {
+          if (
+            !publicationDraftIdParam &&
+            !instagramPlacementTouchedRef.current
+          ) {
+            return preferences.defaultMode;
+          }
+          return coerceInstagramPublicationPlacement(current, preferences);
+        });
+      } catch {
+        // Fail closed: Classique reste le seul format disponible tant que les
+        // préférences du compte ne peuvent pas être confirmées.
+      }
+    };
+    void loadInstagramPreferences();
+    return () => {
+      cancelled = true;
+    };
+  }, [publicationDraftIdParam]);
 
   const applyDefaultAiPreferredEngine = useCallback((value: unknown) => {
     const next = normalizeAiPreferredEngine(value);
@@ -2958,9 +3011,12 @@ export default function PublishModal({
             ? (nextPostsByChannel as any).instagram.hashtags.join(" ")
             : "");
         const nextInstagramPublicationPlacement =
-          normalizeInstagramPublicationPlacement(
-            payload.instagramPublicationPlacement ||
-              payload.instagramPublicationSettings?.placement,
+          coerceInstagramPublicationPlacement(
+            normalizeInstagramPublicationPlacement(
+              payload.instagramPublicationPlacement ||
+                payload.instagramPublicationSettings?.placement,
+            ),
+            instagramPublicationPreferencesRef.current,
           );
         const nextPinterestBoardId = String(
           payload.pinterestBoardId || "",
@@ -2996,6 +3052,7 @@ export default function PublishModal({
         setChannels(nextChannels);
         setPostsByChannel(nextPostsByChannel);
         setInstagramHashtagsInput(nextInstagramHashtags);
+        instagramPlacementTouchedRef.current = true;
         setInstagramPublicationPlacement(nextInstagramPublicationPlacement);
         setPinterestBoardId(nextPinterestBoardId);
         setPinterestBoardName(nextPinterestBoardName);
@@ -3216,7 +3273,10 @@ export default function PublishModal({
   const clearChannelCreationWork = () => {
     setPostsByChannel({});
     setInstagramHashtagsInput("");
-    setInstagramPublicationPlacement("reel");
+    instagramPlacementTouchedRef.current = false;
+    setInstagramPublicationPlacement(
+      instagramPublicationPreferencesRef.current.defaultMode,
+    );
     closeEmptyContentWarnings();
     setDuplicateFeedback(null);
     setFinalReviewOpen(false);
@@ -4907,7 +4967,11 @@ export default function PublishModal({
 
     const missingContentChannels = publishableChannels.filter(
       (ch) =>
-        !(ch === "instagram" && resolveChannelMediaMode(ch) !== "none") &&
+        !(
+          ch === "instagram" &&
+          instagramPublicationPlacement !== "classic" &&
+          resolveChannelMediaMode(ch) !== "none"
+        ) &&
         !String(preparedPostsByChannel[ch]?.content || "").trim(),
     );
     if (missingContentChannels.length && !options?.skipEmptyContentWarnings) {
@@ -5375,7 +5439,7 @@ export default function PublishModal({
           : null,
         instagramPublicationSettings: publishTargetChannels.includes(
           "instagram",
-        )
+        ) && instagramPublicationPlacement !== "classic"
           ? { placement: instagramPublicationPlacement }
           : null,
         pinterestPublicationSettings: publishTargetChannels.includes("pinterest")
@@ -6229,7 +6293,7 @@ export default function PublishModal({
                   : null,
                 instagramPublicationSettings: groupChannels.includes(
                   "instagram",
-                )
+                ) && instagramPublicationPlacement !== "classic"
                   ? { placement: instagramPublicationPlacement }
                   : null,
                 pinterestPublicationSettings: groupChannels.includes(
@@ -6427,7 +6491,8 @@ export default function PublishModal({
       const hasTitle = !!String(post?.title || "").trim();
       const hasContent = !!String(post?.content || "").trim();
       const instagramMediaOnly =
-        channel === "instagram" && resolveChannelMediaMode(channel) !== "none";
+        channel === "instagram" &&
+        instagramPublicationPlacement !== "classic";
       const hasText = instagramMediaOnly || hasTitle || hasContent;
       const hasImage = imageKeysToPublish.length > 0;
       const mode = resolveChannelMediaMode(channel);
@@ -6506,7 +6571,32 @@ export default function PublishModal({
                 })
               : i18nT("media_label_text_only"),
         imageCount: imageKeysToPublish.length,
-        warnings: requirements.warningCodes.map(localizeRequirement),
+        warnings: [
+          ...requirements.warningCodes.map(localizeRequirement),
+          ...(instagramMediaOnly
+            ? [
+                i18nT("instagram_review_media_only_warning", {
+                  mode:
+                    instagramPublicationPlacement === "story"
+                      ? i18nT("instagram_stories")
+                      : i18nT("instagram_reels"),
+                }),
+              ]
+            : []),
+        ],
+        details:
+          channel === "pinterest" && pinterestBoardId
+            ? [
+                i18nT("pinterest_review_board", {
+                  board:
+                    pinterestBoardName ||
+                    pinterestBoards.find(
+                      (board) => board.id === pinterestBoardId,
+                    )?.name ||
+                    pinterestBoardId,
+                }),
+              ]
+            : [],
         blockers,
         blockerCodes,
         mediaBlockers: mediaBlockerCodes.map(localizeRequirement),
@@ -7116,12 +7206,17 @@ export default function PublishModal({
               pinterestBoardsError={pinterestBoardsError}
               onPinterestBoardChange={onPinterestBoardChange}
               instagramPublicationPlacement={instagramPublicationPlacement}
+              instagramPublicationPreferences={instagramPublicationPreferences}
               instagramMediaMode={resolveChannelMediaMode("instagram")}
-              onInstagramPublicationPlacementChange={(placement) =>
+              onInstagramPublicationPlacementChange={(placement) => {
+                instagramPlacementTouchedRef.current = true;
                 setInstagramPublicationPlacement(
-                  normalizeInstagramPublicationPlacement(placement),
-                )
-              }
+                  coerceInstagramPublicationPlacement(
+                    normalizeInstagramPublicationPlacement(placement),
+                    instagramPublicationPreferencesRef.current,
+                  ),
+                );
+              }}
               onVoiceBusyChange={setContentVoiceBusy}
             />
 
