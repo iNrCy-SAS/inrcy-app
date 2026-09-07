@@ -90,6 +90,16 @@
     background-color: rgba(16, 23, 49, 0.995);
   }
 
+  /*
+    Entre 769 px et 1100 px, les actions partagées avec le header desktop
+    peuvent encore recevoir un `order`. Dans ce dock, l'ordre du DOM fait
+    partie de la mise en page : Publier doit toujours occuper la 3e colonne,
+    exactement au centre, sur téléphone comme sur tablette.
+  */
+  .bar > * {
+    order: 0 !important;
+  }
+
   .item,
 .publishItem {
     position: relative;

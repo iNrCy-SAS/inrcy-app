@@ -79,6 +79,29 @@ test("the responsive hamburger keeps one unified profile entry and a regular med
   assert.doesNotMatch(navigationStyles, /\.menuItemWide\b/);
 });
 
+test("the tablet bottom dock keeps Publier in its centered grid column", () => {
+  const navigation = read("app/dashboard/_components/ResponsiveBottomNav.tsx");
+  const navigationStyles = read(
+    "app/dashboard/_components/ResponsiveBottomNav.module.css",
+  );
+
+  assert.match(
+    navigation,
+    /<EstablishmentMenu[\s\S]*?<button[\s\S]*?className=\{`\$\{styles\.publishItem\}/,
+    "the establishment selector must remain before Publier in DOM order",
+  );
+  assert.match(
+    navigationStyles,
+    /\.bar\s*>\s*\*\s*\{\s*order:\s*0\s*!important;/,
+    "desktop header ordering must never reorder tablet dock items",
+  );
+  assert.match(
+    navigationStyles,
+    /grid-template-columns:\s*42px\s*42px\s*minmax\(104px,\s*118px\)\s*42px\s*42px;/,
+    "Publier must keep the central third track",
+  );
+});
+
 test("dashboard pull-to-refresh is universal and protected by unsaved-change guards", () => {
   const pull = read("app/_components/PullToRefresh.tsx");
   const globalLayout = read("app/layout.tsx");
