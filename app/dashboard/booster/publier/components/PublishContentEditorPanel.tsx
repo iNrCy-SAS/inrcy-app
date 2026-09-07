@@ -17,7 +17,6 @@ import EmojiPickerButton from "@/app/dashboard/_components/EmojiPickerButton";
 import AiContentReportButton from "@/app/dashboard/_components/AiContentReportButton";
 import MediaSubjectVoiceButton from "@/app/dashboard/_components/MediaSubjectVoiceButton";
 import {
-  BOOSTER_PREFERRED_CTA_OPTIONS,
   CHANNEL_TEXT_GUIDELINES,
   getLocalizedChannelDefaultCtaLabel,
   getLocalizedChannelLabel,
@@ -25,7 +24,9 @@ import {
   getLocalizedCtaModeHelp,
   getLocalizedPreferredCtaLabel,
   getLocalizedWebsiteSourceLabelForChannel,
+  getPreferredCtaOptionsForChannel,
   getPreferredCtaChoiceFromPost,
+  getCtaModeForPreferredChoice,
   getWebsiteUrlForChannel,
   isSiteDisplayKey,
   parseInstagramHashtagsInput,
@@ -54,7 +55,7 @@ type DuplicateFeedback = {
   message: string;
 } | null;
 
-type ManualVoiceField = "title" | "content" | "cta" | "hashtags";
+type ManualVoiceField = "title" | "content" | "hashtags";
 
 type ManualVoiceTarget = {
   channel: DisplayKey;
@@ -677,31 +678,12 @@ export default function PublishContentEditorPanel({
               <div>
                 {(() => {
                   const currentPost = getDisplayPost(activeCard);
-                  const ctaMode = currentPost.ctaMode || "none";
                   const ctaChoice = getPreferredCtaChoiceFromPost(
                     activeCard,
                     currentPost,
                   );
+                  const ctaMode = getCtaModeForPreferredChoice(ctaChoice);
                   const updateTarget = activeCard;
-                  const ctaVoiceMaxLength = Math.max(
-                    currentPost.cta.length,
-                    CHANNEL_TEXT_GUIDELINES[activeCard].cta,
-                  );
-                  const ctaVoiceControl = creationMode === "manual" ? (
-                    <MediaSubjectVoiceButton
-                      key={`manual-voice:${activeCard}:cta:${ctaMode}`}
-                      purpose="cta"
-                      placement="inline"
-                      mergeMode="replace"
-                      maxLength={ctaVoiceMaxLength}
-                      value={currentPost.cta}
-                      disabled={isVoiceTargetDisabled(activeCard, "cta")}
-                      onBusyChange={(busy) =>
-                        handleVoiceBusyChange(activeCard, "cta", busy)
-                      }
-                      onChange={(cta) => updatePost(updateTarget, { cta })}
-                    />
-                  ) : null;
                   const activeWebsiteUrl = getWebsiteUrlForChannel(
                     activeCard,
                     ctaDefaults,
@@ -754,7 +736,7 @@ export default function PublishContentEditorPanel({
                             }
                             style={darkSelectStyle}
                           >
-                            {BOOSTER_PREFERRED_CTA_OPTIONS.map((option) => (
+                            {getPreferredCtaOptionsForChannel(activeCard).map((option) => (
                               <option
                                 key={option.value}
                                 value={option.value}
@@ -838,17 +820,12 @@ export default function PublishContentEditorPanel({
                             <div>
                               <div
                                 style={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  justifyContent: "space-between",
-                                  gap: 8,
+                                  fontSize: 12,
+                                  opacity: 0.85,
                                   marginBottom: 6,
                                 }}
                               >
-                                <span style={{ fontSize: 12, opacity: 0.85 }}>
-                                  {i18nT("texte_du_bouton_5bc213b4")}{" "}
-                                </span>
-                                {ctaVoiceControl}
+                                {i18nT("texte_du_bouton_5bc213b4")}{" "}
                               </div>
                               <input
                                 value={currentPost.cta}
@@ -951,17 +928,12 @@ export default function PublishContentEditorPanel({
                             <div>
                               <div
                                 style={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  justifyContent: "space-between",
-                                  gap: 8,
+                                  fontSize: 12,
+                                  opacity: 0.85,
                                   marginBottom: 6,
                                 }}
                               >
-                                <span style={{ fontSize: 12, opacity: 0.85 }}>
-                                  {i18nT("texte_du_bouton_5bc213b4")}{" "}
-                                </span>
-                                {ctaVoiceControl}
+                                {i18nT("texte_du_bouton_5bc213b4")}{" "}
                               </div>
                               <input
                                 value={currentPost.cta}

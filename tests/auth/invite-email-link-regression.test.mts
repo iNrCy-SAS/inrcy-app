@@ -121,10 +121,9 @@ test("public email images opt out of the application same-origin resource policy
 
 test("new registration alerts default to the account mailbox", () => {
   const source = readFileSync("app/api/admin/new-user-alert/route.ts", "utf8");
-  assert.match(
-    source,
-    /process\.env\.INRCY_NEW_USER_ALERT_EMAIL \|\| "compte@inrcy\.com"/,
-  );
+  assert.match(source, /REQUIRED_SIGNUP_ALERT_EMAIL = "compte@inrcy\.com"/);
+  assert.match(source, /process\.env\.INRCY_NEW_USER_ALERT_EMAIL \|\| ""/);
+  assert.match(source, /new Set\(\[REQUIRED_SIGNUP_ALERT_EMAIL, \.\.\.configuredRecipients\]\)/);
   assert.doesNotMatch(source, /contact@inrcy\.com/);
 });
 

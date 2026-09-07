@@ -31,6 +31,7 @@ import {
   buildBoosterInstagramCaption,
   buildBoosterMessage,
   getCtaMode,
+  getSupportedBoosterCtaModesForChannel,
   isBoosterWhatsAppUrl,
   type BoosterCtaMode,
 } from "@/lib/boosterCta";
@@ -51,7 +52,11 @@ import {
 } from "@/lib/mediaUploadPolicy";
 import { MEDIA_LIBRARY_VIDEO_SOURCE_MAX_MB_LABEL } from "@/lib/mediaLibraryOptimizationPolicy";
 import { BOOSTER_ASIAN_CTA_LABELS } from "@/lib/boosterAsianCtaLabels";
-import { buildSafePreferredCtaPatch } from "@/lib/boosterCtaPreferences";
+import {
+  buildSafePreferredCtaPatch,
+  getPreferredWebsiteUrlForChannel,
+  getSupportedPreferredCtasForChannel,
+} from "@/lib/boosterCtaPreferences";
 export type { BoosterCtaMode } from "@/lib/boosterCta";
 
 export type ChannelKey =
@@ -144,6 +149,13 @@ export const BOOSTER_PREFERRED_CTA_OPTIONS: Array<{
   { value: "whatsapp", label: "Écrire sur WhatsApp" },
   { value: "custom", label: "Lien personnalisé" },
 ];
+
+export function getPreferredCtaOptionsForChannel(channel: DisplayKey) {
+  const supported = new Set(getSupportedPreferredCtasForChannel(channel));
+  return BOOSTER_PREFERRED_CTA_OPTIONS.filter((option) =>
+    supported.has(option.value),
+  );
+}
 
 const BOOSTER_PREFERRED_CTA_MESSAGE_KEYS = {
   none: "aucun_bouton_fd9e05c4",
@@ -288,29 +300,45 @@ export function getPreferredCtaChoiceFromPost(
 ): BoosterPreferredCta {
   const normalized = normalizePost(post);
   const mode = normalized.ctaMode || "none";
-  if (mode === "none") return "none";
-  if (mode === "call") return "appeler";
-  if (mode === "message") return "message";
-  if (mode === "custom") {
-    if (
+  let choice: BoosterPreferredCta = "devis";
+  if (mode === "none") choice = "none";
+  else if (mode === "call") choice = "appeler";
+  else if (mode === "message") choice = "message";
+  else if (mode === "custom") {
+    choice =
       isBoosterWhatsAppUrl(normalized.ctaUrl) ||
       /whats\s*app/i.test(String(normalized.cta || ""))
-    ) {
-      return "whatsapp";
-    }
-    return "custom";
-  }
-  if (mode === "website") {
+        ? "whatsapp"
+        : "custom";
+  } else if (mode === "website") {
     const label = String(normalized.cta || "")
       .trim()
       .toLowerCase();
-    if (label.includes("devis")) return "devis";
-    if (label.includes("voir") || label.includes("site")) return "site";
-    return channel === "inrcy_site" || channel === "site_web"
-      ? "devis"
-      : "site";
+    if (label.includes("devis")) choice = "devis";
+    else if (label.includes("voir") || label.includes("site")) choice = "site";
+    else {
+      choice =
+        channel === "inrcy_site" || channel === "site_web"
+          ? "devis"
+          : "site";
+    }
   }
-  return "devis";
+
+  const supported = new Set(getSupportedPreferredCtasForChannel(channel));
+  if (supported.has(choice)) return choice;
+  if (supported.has("site")) return "site";
+  if (supported.has("message")) return "message";
+  return "none";
+}
+
+export function getCtaModeForPreferredChoice(
+  choice: BoosterPreferredCta,
+): BoosterCtaMode {
+  if (choice === "none") return "none";
+  if (choice === "appeler") return "call";
+  if (choice === "message") return "message";
+  if (choice === "whatsapp" || choice === "custom") return "custom";
+  return "website";
 }
 
 export type ImagePayload = {
@@ -1266,77 +1294,24 @@ export const CHANNEL_TEXT_GUIDELINES: Record<
 export const CTA_MODE_OPTIONS: Record<
   DisplayKey,
   Array<{ value: BoosterCtaMode; label: string }>
-> = {
-  inrcy_site: [
-    { value: "none", label: "Aucun bouton" },
-    { value: "website", label: "Voir le site" },
-    { value: "call", label: "Appeler" },
-    { value: "message", label: "Envoyer un message" },
-    { value: "custom", label: "Lien personnalisé" },
-  ],
-  site_web: [
-    { value: "none", label: "Aucun bouton" },
-    { value: "website", label: "Voir le site" },
-    { value: "call", label: "Appeler" },
-    { value: "message", label: "Envoyer un message" },
-    { value: "custom", label: "Lien personnalisé" },
-  ],
-  inr_search: [
-    { value: "none", label: "Aucun bouton" },
-    { value: "website", label: "Voir le site" },
-    { value: "call", label: "Appeler" },
-    { value: "message", label: "Envoyer un message" },
-    { value: "custom", label: "Lien personnalisé" },
-  ],
-  gmb: [
-    { value: "none", label: "Aucun bouton" },
-    { value: "website", label: "Voir le site" },
-    { value: "call", label: "Appeler" },
-    { value: "custom", label: "Lien personnalisé" },
-  ],
-  facebook: [
-    { value: "none", label: "Aucun bouton" },
-    { value: "website", label: "Voir le site" },
-    { value: "call", label: "Appeler" },
-    { value: "message", label: "Envoyer un message" },
-    { value: "custom", label: "Lien personnalisé" },
-  ],
-  instagram: [
-    { value: "none", label: "Aucun bouton" },
-    { value: "website", label: "Voir le site" },
-    { value: "call", label: "Appeler" },
-    { value: "message", label: "Envoyer un message" },
-    { value: "custom", label: "Lien personnalisé" },
-  ],
-  linkedin: [
-    { value: "none", label: "Aucun bouton" },
-    { value: "website", label: "Voir le site" },
-    { value: "call", label: "Appeler" },
-    { value: "message", label: "Envoyer un message" },
-    { value: "custom", label: "Lien personnalisé" },
-  ],
-  tiktok: [
-    { value: "none", label: "Aucun bouton" },
-    { value: "website", label: "Voir le site" },
-    { value: "call", label: "Appeler" },
-    { value: "message", label: "Envoyer un message" },
-    { value: "custom", label: "Lien personnalisé" },
-  ],
-  youtube_shorts: [
-    { value: "none", label: "Aucun bouton" },
-    { value: "website", label: "Voir le site" },
-    { value: "call", label: "Appeler" },
-    { value: "message", label: "Envoyer un message" },
-    { value: "custom", label: "Lien personnalisé" },
-  ],
-  pinterest: [
-    { value: "none", label: "Aucun bouton" },
-    { value: "website", label: "Voir le site" },
-    { value: "call", label: "Appeler" },
-    { value: "message", label: "Envoyer un message" },
-    { value: "custom", label: "Lien personnalisé" },
-  ],
-};
+> = Object.fromEntries(
+  BOOSTER_CHANNEL_ORDER.map((channel) => [
+    channel,
+    getSupportedBoosterCtaModesForChannel(channel).map((value) => ({
+      value,
+      label:
+        value === "none"
+          ? "Aucun bouton"
+          : value === "website"
+            ? "Voir le site"
+            : value === "call"
+              ? "Appeler"
+              : value === "message"
+                ? "Envoyer un message"
+                : "Lien personnalisé",
+    })),
+  ]),
+) as Record<DisplayKey, Array<{ value: BoosterCtaMode; label: string }>>;
 
 export function getCtaModeHelp(
   channel: DisplayKey,
@@ -1446,16 +1421,7 @@ export function getWebsiteUrlForChannel(
   channel: DisplayKey,
   defaults: BoosterCtaDefaults | null,
 ) {
-  if (!defaults) return "";
-  const siteWebUrl = String(defaults.siteWebUrl || "").trim();
-  const inrcySiteUrl = String(defaults.inrcySiteUrl || "").trim();
-
-  if (channel === "inrcy_site") return inrcySiteUrl || siteWebUrl || "";
-  if (channel === "site_web") return siteWebUrl || inrcySiteUrl || "";
-
-  if (siteWebUrl && !inrcySiteUrl) return siteWebUrl;
-  if (inrcySiteUrl && !siteWebUrl) return inrcySiteUrl;
-  return "";
+  return getPreferredWebsiteUrlForChannel(channel, defaults);
 }
 
 export function getWebsiteSourceLabelForChannel(
@@ -1507,27 +1473,11 @@ export function getDefaultCtaModeForChannel(
   channel: DisplayKey,
   defaults: BoosterCtaDefaults | null,
 ): BoosterCtaMode {
-  const preferred = normalizeBoosterPreferredCta(
-    defaults?.preferredCta || "devis",
-  );
-
-  if (preferred === "none") return "none";
-  if (preferred === "custom" || preferred === "whatsapp") return "custom";
-
-  if (preferred === "appeler") {
-    if (defaults?.phone) return "call";
-    return getWebsiteUrlForChannel(channel, defaults) ? "website" : "none";
-  }
-
-  if (preferred === "message") {
-    const supportsPrivateMessage = CTA_MODE_OPTIONS[channel].some(
-      (option) => option.value === "message",
-    );
-    if (supportsPrivateMessage) return "message";
-    return getWebsiteUrlForChannel(channel, defaults) ? "website" : "none";
-  }
-
-  return getWebsiteUrlForChannel(channel, defaults) ? "website" : "none";
+  return buildSafePreferredCtaPatch({
+    channel,
+    choice: defaults?.preferredCta || "devis",
+    defaults,
+  }).ctaMode;
 }
 
 export function buildPreferredCtaPatch(
@@ -1543,6 +1493,7 @@ export function buildPreferredCtaPatch(
     post,
     defaults,
     language,
+    allowIncompleteInput: true,
   });
 }
 

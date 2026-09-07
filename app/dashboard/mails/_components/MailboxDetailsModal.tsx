@@ -24,12 +24,13 @@ import {
   BOOSTER_IMAGE_ACCEPT,
   BOOSTER_MAX_IMAGE_BYTES,
   BOOSTER_MAX_VIDEO_BYTES,
-  BOOSTER_PREFERRED_CTA_OPTIONS,
   BOOSTER_VIDEO_ACCEPT,
   CHANNEL_TEXT_GUIDELINES,
   getChannelDefaultCtaLabel,
   getCtaModeHelp,
   getPreferredCtaChoiceFromPost,
+  getCtaModeForPreferredChoice,
+  getPreferredCtaOptionsForChannel,
   getVideoFormatLabel,
   getVideoPreviewAspectRatio,
   getVideoPreviewFitMode,
@@ -2393,16 +2394,16 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                         </div>
                                         <div>
                                           {(() => {
-                                            const ctaMode = (publicationEditForm.ctaMode || "none") as BoosterCtaMode;
                                             const publicationCtaPost: Partial<ChannelPost> = {
                                               title: publicationEditForm.title,
                                               content: publicationEditForm.content,
                                               cta: publicationEditForm.cta,
-                                              ctaMode,
+                                              ctaMode: (publicationEditForm.ctaMode || "none") as BoosterCtaMode,
                                               ctaUrl: publicationEditForm.ctaUrl,
                                               ctaPhone: publicationEditForm.ctaPhone,
                                             };
                                             const ctaChoice = getPreferredCtaChoiceFromPost(publicationDisplayKey, publicationCtaPost);
+                                            const ctaMode = getCtaModeForPreferredChoice(ctaChoice);
                                             const activeWebsiteUrl = getWebsiteUrlForChannel(publicationDisplayKey, publicationCtaDefaults);
                                             const activeWebsiteSourceLabel = getWebsiteSourceLabelForChannel(publicationDisplayKey, publicationCtaDefaults);
                                             const websiteChoices = [
@@ -2431,7 +2432,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                                       style={darkSelectStyle}
                                                       disabled={detailsActionBusy}
                                                     >
-                                                      {BOOSTER_PREFERRED_CTA_OPTIONS.map((option) => (
+                                                      {getPreferredCtaOptionsForChannel(publicationDisplayKey).map((option) => (
                                                         <option key={option.value} value={option.value} style={darkOptionStyle}>
                                                           {option.label}
                                                         </option>

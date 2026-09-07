@@ -538,13 +538,13 @@ test("Booster Générer expose exactement deux champs vocaux via le composant pa
   assert.doesNotMatch(publishIntentPanel, /fetch\([\s\S]*?\/api\/booster\/transcribe/);
 });
 
-test("Booster manuel équipe titre, contenu, CTA et hashtags avec le micro partagé", () => {
+test("Booster manuel équipe les champs longs sans dupliquer le micro sur le CTA", () => {
   assert.match(
     contentEditor,
     /import MediaSubjectVoiceButton from "@\/app\/dashboard\/_components\/MediaSubjectVoiceButton"/,
   );
   const voiceButtons = jsxElements(contentEditor, "MediaSubjectVoiceButton");
-  assert.equal(voiceButtons.length, 4);
+  assert.equal(voiceButtons.length, 3);
 
   const titleButton = elementWithValue(voiceButtons, "activePost.title");
   assert.match(titleButton, /purpose="title"/);
@@ -565,13 +565,9 @@ test("Booster manuel équipe titre, contenu, CTA et hashtags avec le micro parta
   assert.match(contentButton, /handleVoiceBusyChange\(activeCard, "content", busy\)/);
   assert.match(contentButton, /isSiteDisplayKey\(activeCard\)/);
 
-  const ctaButton = elementWithValue(voiceButtons, "currentPost.cta");
-  assert.match(ctaButton, /purpose="cta"/);
-  assert.match(ctaButton, /placement="inline"/);
-  assert.match(ctaButton, /mergeMode="replace"/);
-  assert.match(ctaButton, /maxLength=\{ctaVoiceMaxLength\}/);
-  assert.match(ctaButton, /handleVoiceBusyChange\(activeCard, "cta", busy\)/);
-  assert.match(ctaButton, /updatePost\(updateTarget, \{ cta \}\)/);
+  assert.doesNotMatch(contentEditor, /manual-voice:[^\n]*:cta/);
+  assert.doesNotMatch(contentEditor, /purpose="cta"/);
+  assert.doesNotMatch(contentEditor, /ctaVoice(?:Control|MaxLength)/);
 
   const hashtagsButton = elementWithValue(
     voiceButtons,

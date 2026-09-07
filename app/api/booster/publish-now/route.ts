@@ -76,9 +76,14 @@ import {
   buildBoosterInstagramCaption,
   buildBoosterMessage,
   buildCtaTextForChannel,
+  getBoosterCtaDestinationUrlForChannel,
   getBoosterGmbCallToAction,
   sanitizeBoosterPostForStructuredCta,
 } from "@/lib/boosterCta";
+import {
+  getPreferredWebsiteUrlForChannel,
+  type BoosterCtaDefaults,
+} from "@/lib/boosterCtaPreferences";
 import { getLinkedInAccessToken } from "@/lib/linkedinOAuth";
 import { normalizeTiktokSettings } from "@/lib/tiktokSettings";
 import { isTiktokIntegrationActive } from "@/lib/tiktokRouteStorage";
@@ -2669,14 +2674,17 @@ async function publishNowHandler(req: Request) {
           : Promise.resolve(null),
       ]);
 
-    // Internal URLs/phone are only needed by website, Meta, Pinterest and GMB.
-    // LinkedIn, TikTok and YouTube workers no longer pay three unrelated reads.
+    // Le garde-fou CTA final doit disposer des coordonnées réelles quel que soit
+    // le canal afin de convertir une préférence incompatible sans faux bouton.
     const needsInternalPublishingContext = selected.some((channel) =>
       [
         "inrcy_site",
         "site_web",
         "facebook",
         "instagram",
+        "linkedin",
+        "tiktok",
+        "youtube_shorts",
         "pinterest",
         "gmb",
       ].includes(channel),
@@ -2718,6 +2726,20 @@ async function publishNowHandler(req: Request) {
     const businessPhone = String(profile["phone"] ?? "").trim();
     const inrcySiteUrl = String(inrcyCfg["site_url"] ?? "").trim();
     const siteWebUrl = String(proSiteWeb["url"] ?? "").trim();
+    const publicationCtaDefaults: BoosterCtaDefaults = {
+      preferredWebsiteUrl: siteWebUrl || inrcySiteUrl,
+      preferredWebsiteLabel: siteWebUrl
+        ? "Site web connecté"
+        : inrcySiteUrl
+          ? "Site iNrCy"
+          : "",
+      siteWebUrl,
+      inrcySiteUrl,
+      phone: businessPhone,
+      preferredCta: "site",
+    };
+    const getPublicationWebsiteUrl = (channel: ChannelKey) =>
+      getPreferredWebsiteUrlForChannel(channel, publicationCtaDefaults);
 
     const {
       externalImageUrls,
@@ -3495,7 +3517,7 @@ async function publishNowHandler(req: Request) {
 
         const channelPost = getChannelPost(ch);
         const canonMessage = buildBoosterMessage(ch, channelPost, {
-          websiteUrl: siteWebUrl || inrcySiteUrl,
+          websiteUrl: getPublicationWebsiteUrl(ch),
           phone: businessPhone,
         });
         const channelVideo =
@@ -3585,7 +3607,7 @@ async function publishNowHandler(req: Request) {
               title: channelPost.title,
               content: channelPost.content,
               cta: buildCtaTextForChannel(ch, channelPost, {
-                websiteUrl: siteWebUrl || inrcySiteUrl,
+                websiteUrl: getPublicationWebsiteUrl(ch),
                 phone: businessPhone,
               }),
               hashtags: channelPost.hashtags,
@@ -3851,7 +3873,7 @@ async function publishNowHandler(req: Request) {
           }
 
           const instagramCaption = buildBoosterInstagramCaption(channelPost, {
-            websiteUrl: siteWebUrl || inrcySiteUrl,
+            websiteUrl: getPublicationWebsiteUrl("instagram"),
             phone: businessPhone,
           });
           const instagramTokenCandidates = buildInstagramPublishTokenCandidates(
@@ -5204,7 +5226,7 @@ async function publishNowHandler(req: Request) {
           const pinterestPost = sanitizeBoosterPostForStructuredCta(
             channelPost,
             {
-              websiteUrl: siteWebUrl || inrcySiteUrl,
+              websiteUrl: getPublicationWebsiteUrl("pinterest"),
               phone: businessPhone,
             },
           );
@@ -5223,7 +5245,7 @@ async function publishNowHandler(req: Request) {
           }
 
           const pinterestCta = buildCtaTextForChannel("pinterest", pinterestPost, {
-            websiteUrl: siteWebUrl || inrcySiteUrl,
+            websiteUrl: getPublicationWebsiteUrl("pinterest"),
             phone: businessPhone,
           });
           const pinterestTagLine = buildBoosterHashtagLine(
@@ -5238,9 +5260,14 @@ async function publishNowHandler(req: Request) {
             if (candidate.length <= 500) description = candidate;
           }
           const pinterestLink =
-            normalizePublicHttpUrl(channelPost.ctaUrl) ||
-            normalizePublicHttpUrl(siteWebUrl) ||
-            normalizePublicHttpUrl(inrcySiteUrl);
+            getBoosterCtaDestinationUrlForChannel(
+              "pinterest",
+              pinterestPost,
+              {
+                websiteUrl: getPublicationWebsiteUrl("pinterest"),
+                phone: businessPhone,
+              },
+            ) || null;
 
           if (mediaModeByChannel[ch] === "video") {
             const pinterestVideoUrl = String(
@@ -5906,11 +5933,11 @@ async function publishNowHandler(req: Request) {
           }
 
           const gmbSummary = buildBoosterGmbSummary(channelPost, {
-            websiteUrl: siteWebUrl || inrcySiteUrl,
+            websiteUrl: getPublicationWebsiteUrl("gmb"),
             phone: businessPhone,
           });
           const gmbCallToAction = getBoosterGmbCallToAction(channelPost, {
-            websiteUrl: siteWebUrl || inrcySiteUrl,
+            websiteUrl: getPublicationWebsiteUrl("gmb"),
             phone: businessPhone,
           });
           let gmbResp: any = null;

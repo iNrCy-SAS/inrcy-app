@@ -81,7 +81,6 @@ import {
   detectUniversalUploadMediaType,
 } from "@/lib/mediaUploadPolicy";
 import {
-  BOOSTER_PREFERRED_CTA_OPTIONS,
   CHANNEL_PRESETS,
   buildPreferredCtaPatch,
   computePreviewLayout,
@@ -97,6 +96,8 @@ import {
   getChannelSafetyBackgroundMode,
   getOptimizedTransform,
   getPreferredCtaChoiceFromPost,
+  getCtaModeForPreferredChoice,
+  getPreferredCtaOptionsForChannel,
   getWebsiteUrlForChannel,
   normalizeBoosterAiLanguage,
   normalizeBoosterPreferredCta,
@@ -5534,7 +5535,7 @@ export default function AgentClient() {
                     ? { label: i18nT("site_web_7e78af33"), url: publishCtaDefaults.siteWebUrl }
                     : null,
                 ].filter(Boolean) as Array<{ label: string; url: string }>;
-                const ctaMode = publishTextDraft.ctaMode || "none";
+                const ctaMode = getCtaModeForPreferredChoice(ctaChoice);
                 return (
                   <>
                     <div className={styles.publishCtaGrid} data-mode={ctaMode}>
@@ -5548,7 +5549,7 @@ export default function AgentClient() {
                             )
                           }
                         >
-                          {BOOSTER_PREFERRED_CTA_OPTIONS.map((option) => (
+                          {getPreferredCtaOptionsForChannel(displayKey).map((option) => (
                             <option key={option.value} value={option.value}>
                               {getLocalizedPreferredCtaLabel(
                                 option.value,

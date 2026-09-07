@@ -160,7 +160,10 @@ test("Configuration IA blocks persistence after a failed or incomplete load", ()
   const upsertIndex = source.indexOf(".upsert", saveIndex);
   assert.ok(saveIndex >= 0 && guardIndex > saveIndex);
   assert.ok(upsertIndex > guardIndex, "the load guard must run before Supabase persistence");
-  assert.match(source, /disabled=\{saving \|\| !loadSucceededRef\.current\}/);
+  assert.match(
+    source,
+    /disabled=\{saving \|\| voiceBusy \|\| !loadSucceededRef\.current\}/,
+  );
 });
 
 test("Config IA keeps old readers and a pre-migration schema safe on save", () => {

@@ -75,10 +75,12 @@ test("les notifications utilisateurs et les alertes internes ont des identités 
 
   assert.match(mailer, /`MONITORING_\$\{suffix\}`/);
   assert.match(mailer, /export async function sendMonitoringMail/);
-  for (const internalAlert of [health, signup, subscriptions]) {
+  for (const internalAlert of [health, subscriptions]) {
     assert.match(internalAlert, /sendMonitoringMail\(/);
     assert.doesNotMatch(internalAlert, /sendTxMail\(/);
   }
+  assert.match(signup, /sendMonitoringMailWithResult\(/);
+  assert.doesNotMatch(signup, /sendTxMail\(/);
   assert.match(reminders, /sendTxMail\(/);
 });
 

@@ -23,7 +23,11 @@ import {
 import { optimizeForGoogleBusiness, optimizeForInstagram, optimizeForSiteCard, optimizeForSocialFeed } from "@/lib/imageOptimizer";
 import { createHash, randomUUID } from "crypto";
 import { jsonUserFacingError } from "@/lib/apiUserFacingErrors";
-import { buildBoosterGmbSummary, buildBoosterHashtagLine, buildBoosterInstagramCaption, buildBoosterMessage, buildCtaTextForChannel, getBoosterGmbCallToAction } from "@/lib/boosterCta";
+import { buildBoosterGmbSummary, buildBoosterHashtagLine, buildBoosterInstagramCaption, buildBoosterMessage, buildCtaTextForChannel, getBoosterCtaDestinationUrlForChannel, getBoosterGmbCallToAction } from "@/lib/boosterCta";
+import {
+  getPreferredWebsiteUrlForChannel,
+  type BoosterCtaDefaults,
+} from "@/lib/boosterCtaPreferences";
 import { log } from "@/lib/observability/logger";
 import { captureApiException } from "@/lib/observability/sentry";
 import { getLinkedInAccessToken } from "@/lib/linkedinOAuth";
@@ -1220,8 +1224,25 @@ async function replaceChannelDelivery(params: {
   const proCfg = asRecord(proCfgRes.data);
   const proSettings = asRecord(proCfg.settings);
   const proSiteWeb = asRecord(proSettings.site_web);
-  const websiteUrl = String(proSiteWeb.url ?? inrcyCfg.site_url ?? "").trim();
+  const siteWebUrl = String(proSiteWeb.url || "").trim();
+  const inrcySiteUrl = String(inrcyCfg.site_url || "").trim();
   const phone = String(profile.phone ?? "").trim();
+  const publicationCtaDefaults: BoosterCtaDefaults = {
+    preferredWebsiteUrl: siteWebUrl || inrcySiteUrl,
+    preferredWebsiteLabel: siteWebUrl
+      ? "Site web connecté"
+      : inrcySiteUrl
+        ? "Site iNrCy"
+        : "",
+    siteWebUrl,
+    inrcySiteUrl,
+    phone,
+    preferredCta: "site",
+  };
+  const websiteUrl = getPreferredWebsiteUrlForChannel(
+    channel,
+    publicationCtaDefaults,
+  );
 
   const canonMessage = buildBoosterMessage(channel, nextPost, { websiteUrl, phone });
 
@@ -1990,7 +2011,11 @@ async function replaceChannelDelivery(params: {
 
     const tagLine = buildBoosterHashtagLine(nextPost, canonMessage, 8);
     const description = [canonMessage, tagLine].filter(Boolean).join("\n\n").slice(0, 500);
-    const link = normalizePublicHttpUrl(nextPost.ctaUrl) || normalizePublicHttpUrl(websiteUrl) || null;
+    const link =
+      getBoosterCtaDestinationUrlForChannel("pinterest", nextPost, {
+        websiteUrl,
+        phone,
+      }) || null;
 
     if (isVideoPublication && videoUrl && video) {
       const created = await createPinterestVideoPin({

@@ -221,7 +221,10 @@ test("les CTA iNrAgent restent structurés et possèdent une destination réelle
   assert.match(ctaPreferences, /if \(phone\) \{/);
   assert.match(ctaPreferences, /ctaMode: "call"/);
   assert.match(ctaPreferences, /ctaPhone: phone/);
-  assert.match(ctaPreferences, /if \(!customUrl\) return emptyCta\(\);/);
+  assert.match(
+    ctaPreferences,
+    /if \(!customUrl && args\.allowIncompleteInput !== true\) return emptyCta\(\);/,
+  );
   assert.match(ctaDefaults, /\.from\("profiles"\)[\s\S]*?\.select\("phone"\)/);
   assert.match(ctaDefaults, /\.from\("inrcy_site_configs"\)[\s\S]*?\.select\("site_url"\)/);
   assert.match(prepare, /applySafePreferredCta\(\{/);
