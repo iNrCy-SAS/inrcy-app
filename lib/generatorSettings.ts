@@ -37,6 +37,7 @@ const SECTOR_RECOMMENDATIONS: Record<
   commerce_boutique: { avgBasket: 65, conversionRate: 30 },
   communication: { avgBasket: 950, conversionRate: 20 },
   education_enfance: { avgBasket: 350, conversionRate: 25 },
+  economie_sociale_solidaire: { avgBasket: 150, conversionRate: 20 },
   formation_enseignement: { avgBasket: 700, conversionRate: 22 },
   evenementiel: { avgBasket: 1500, conversionRate: 18 },
   exterieur_jardin: { avgBasket: 850, conversionRate: 25 },

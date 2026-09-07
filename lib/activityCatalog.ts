@@ -369,6 +369,24 @@ export const ACTIVITY_CATALOG: Record<ActivitySectorCategory, SectorCatalog> = {
     },
   },
 
+  economie_sociale_solidaire: {
+    label: 'Économie sociale & solidaire (ESS)',
+    jobs: {
+      association_interet_general: { label: 'Association / organisme d’intérêt général', services: ['Adhésion', 'Bénévolat', 'Accompagnement des bénéficiaires', 'Actions de terrain', 'Événements solidaires', 'Collecte de dons', 'Partenariats', 'Information / orientation'] },
+      cooperative_scop_scic: { label: 'Coopérative / SCOP / SCIC', services: ['Adhésion au sociétariat', 'Produits / services coopératifs', 'Vie coopérative', 'Gouvernance participative', 'Assemblées de sociétaires', 'Projets collectifs', 'Partenariats territoriaux', 'Information des sociétaires'] },
+      entreprise_sociale_esus: { label: 'Entreprise sociale / ESUS', services: ['Solutions à impact', 'Accompagnement', 'Présentation de l’impact', 'Offre aux particuliers', 'Offre aux entreprises', 'Partenariats', 'Mesure d’impact', 'Prise de contact'] },
+      fintech_finance_solidaire_mutualiste: { label: 'Fintech / finance solidaire & mutualiste', services: ['Solutions fintech à impact', 'Financement mutualiste', 'Inclusion financière', 'Économie locale solidaire', 'Financement du sport', 'Structuration d’écosystèmes', 'Partenariats stratégiques', 'Relations investisseurs'] },
+      structure_insertion_siae: { label: 'Structure d’insertion / SIAE', services: ['Accompagnement socioprofessionnel', 'Mise en situation de travail', 'Parcours d’insertion', 'Formation', 'Recrutement en insertion', 'Prestations aux entreprises', 'Partenariats employeurs', 'Orientation / candidature'] },
+      esat_entreprise_adaptee: { label: 'ESAT / entreprise adaptée', services: ['Accompagnement médico-social', 'Activités professionnelles adaptées', 'Prestations aux entreprises', 'Sous-traitance', 'Mise à disposition', 'Développement des compétences', 'Découverte des ateliers', 'Demande de devis'] },
+      mutuelle_protection_sociale: { label: 'Mutuelle / protection sociale', services: ['Protection santé', 'Prévoyance', 'Action sociale', 'Prévention', 'Accompagnement des adhérents', 'Aides et services', 'Information sur les garanties', 'Adhésion'] },
+      fondation_fonds_dotation: { label: 'Fondation / fonds de dotation', services: ['Présentation des causes', 'Appel à projets', 'Soutien aux associations', 'Mécénat', 'Collecte de dons', 'Partenariats entreprises', 'Suivi des projets', 'Mesure d’impact'] },
+      ressourcerie_recyclerie: { label: 'Ressourcerie / recyclerie', services: ['Collecte d’objets', 'Réemploi', 'Boutique solidaire', 'Réparation / valorisation', 'Sensibilisation', 'Ateliers pratiques', 'Dons d’objets', 'Insertion professionnelle'] },
+      centre_social_tiers_lieu: { label: 'Centre social / tiers-lieu solidaire', services: ['Accueil et orientation', 'Ateliers collectifs', 'Accompagnement des familles', 'Accès aux droits', 'Médiation numérique', 'Événements de quartier', 'Mise à disposition d’espaces', 'Bénévolat / participation'] },
+      ong_solidarite_internationale: { label: 'ONG / solidarité internationale', services: ['Programmes humanitaires', 'Missions de terrain', 'Aide d’urgence', 'Collecte de dons', 'Parrainage', 'Bénévolat', 'Sensibilisation', 'Partenariats'] },
+      reseau_accompagnement_ess: { label: 'Réseau / accompagnement de l’ESS', services: ['Diagnostic de structure', 'Accompagnement de projet', 'Formation', 'Incubation', 'Mise en réseau', 'Orientation vers les financements', 'Événements professionnels', 'Ressources pratiques'] },
+    },
+  },
+
   plateformes_numeriques: {
     label: 'Plateformes & services numériques',
     jobs: {
@@ -491,6 +509,51 @@ const PLATEFORMES_NUMERIQUES_JOB_ALIASES: Record<string, string> = {
   'application web': 'logiciel_saas',
 };
 
+const ECONOMIE_SOCIALE_SOLIDAIRE_JOB_ALIASES: Record<string, string> = {
+  'association': 'association_interet_general',
+  'association loi 1901': 'association_interet_general',
+  'association d interet general': 'association_interet_general',
+  'organisme d interet general': 'association_interet_general',
+  'cooperative': 'cooperative_scop_scic',
+  'scop': 'cooperative_scop_scic',
+  'scic': 'cooperative_scop_scic',
+  'entreprise sociale': 'entreprise_sociale_esus',
+  'entreprise solidaire': 'entreprise_sociale_esus',
+  'esus': 'entreprise_sociale_esus',
+  'fintech mutualiste': 'fintech_finance_solidaire_mutualiste',
+  'holding fintech mutualiste': 'fintech_finance_solidaire_mutualiste',
+  'fintech a impact': 'fintech_finance_solidaire_mutualiste',
+  'finance solidaire': 'fintech_finance_solidaire_mutualiste',
+  'finance a impact': 'fintech_finance_solidaire_mutualiste',
+  'financement mutualiste': 'fintech_finance_solidaire_mutualiste',
+  'inclusion financiere': 'fintech_finance_solidaire_mutualiste',
+  'investissement a impact': 'fintech_finance_solidaire_mutualiste',
+  'impact investing': 'fintech_finance_solidaire_mutualiste',
+  'infrastructure mutualiste': 'fintech_finance_solidaire_mutualiste',
+  'siae': 'structure_insertion_siae',
+  'entreprise d insertion': 'structure_insertion_siae',
+  'atelier chantier d insertion': 'structure_insertion_siae',
+  'association intermediaire': 'structure_insertion_siae',
+  'esat': 'esat_entreprise_adaptee',
+  'entreprise adaptee': 'esat_entreprise_adaptee',
+  'mutuelle': 'mutuelle_protection_sociale',
+  'fondation': 'fondation_fonds_dotation',
+  'fonds de dotation': 'fondation_fonds_dotation',
+  'ressourcerie': 'ressourcerie_recyclerie',
+  'recyclerie': 'ressourcerie_recyclerie',
+  'centre social': 'centre_social_tiers_lieu',
+  'tiers lieu solidaire': 'centre_social_tiers_lieu',
+  'ong': 'ong_solidarite_internationale',
+  'solidarite internationale': 'ong_solidarite_internationale',
+  'economie sociale et solidaire': 'reseau_accompagnement_ess',
+  'ess': 'reseau_accompagnement_ess',
+  'accompagnement ess': 'reseau_accompagnement_ess',
+  'reseau ess': 'reseau_accompagnement_ess',
+  'cress': 'reseau_accompagnement_ess',
+  'ptce': 'reseau_accompagnement_ess',
+  'incubateur ess': 'reseau_accompagnement_ess',
+};
+
 function normalizeJobLabel(value: string) {
   return String(value || '')
     .normalize('NFD')
@@ -536,6 +599,9 @@ export function findJobValueByLabel(sector: string, label: string) {
   }
   if (sector === 'plateformes_numeriques') {
     return PLATEFORMES_NUMERIQUES_JOB_ALIASES[normalized] || '';
+  }
+  if (sector === 'economie_sociale_solidaire') {
+    return ECONOMIE_SOCIALE_SOLIDAIRE_JOB_ALIASES[normalized] || '';
   }
   return '';
 }

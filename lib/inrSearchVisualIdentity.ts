@@ -42,6 +42,7 @@ export function inferInrSearchVisualTheme(value: string): InrSearchVisualTheme {
   if (/sante|medical|docteur|infirm|therap|bien.?etre|pharma|dentaire|opticien/.test(source)) return "care";
   if (/beaute|coiff|esthet|cosmet|mode|spa|massage|ongler|maquill/.test(source)) return "beauty";
   if (/paysag|jardin|agric|forest|bois|nature|fleur|animal|ecolog/.test(source)) return "nature";
+  if (/economie.?sociale|solidaire|association|fondation|mutuelle|cooperativ|insertion|esat|ong|humanitaire/.test(source)) return "care";
   if (/transport|automobile|garage|moto|logist|taxi|mobilite|livraison|formation_enseignement|auto.?ecole|ecole de conduite|bateau.?ecole|permis|code de la route|securite routiere/.test(source)) return "motion";
   if (/architect|immobilier|bureau.?etude|geometre|urbanis|interieur/.test(source)) return "structure";
   if (/commerce|boutique|magasin|retail|vente|concept.?store|bijout/.test(source)) return "retail";

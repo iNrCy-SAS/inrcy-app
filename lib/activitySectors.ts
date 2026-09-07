@@ -13,6 +13,7 @@ export const ACTIVITY_SECTOR_OPTIONS = [
   { value: 'commerce_boutique', label: 'Commerce / Boutique' },
   { value: 'communication', label: 'Communication' },
   { value: 'education_enfance', label: 'Éducation / Enfance' },
+  { value: 'economie_sociale_solidaire', label: 'Économie sociale & solidaire (ESS)' },
   { value: 'formation_enseignement', label: 'Formation & Enseignement' },
   { value: 'evenementiel', label: 'Événementiel' },
   { value: 'exterieur_jardin', label: 'Extérieur / Jardin' },
@@ -56,6 +57,7 @@ export function inferSectorCategoryFromProfession(input?: string | null): Activi
   const value = String(input || '').toLowerCase();
   if (!value) return DEFAULT_ACTIVITY_SECTOR;
 
+  if (/(économie sociale et solidaire|economie sociale et solidaire|économie sociale & solidaire|economie sociale & solidaire|\bess\b|association loi 1901|association d’intérêt général|association d'interet general|organisme d’intérêt général|organisme d'interet general|coopérative|cooperative|\bscop\b|\bscic\b|entreprise sociale|entreprise solidaire|\besus\b|utilité sociale|utilite sociale|fintech mutualiste|holding fintech mutualiste|finance solidaire|finance à impact|finance a impact|financement mutualiste|inclusion financière|inclusion financiere|investissement à impact|investissement a impact|impact investing|infrastructure mutualiste|structure d’insertion|structure d'insertion|\bsiae\b|atelier chantier d’insertion|atelier chantier d'insertion|entreprise d’insertion|entreprise d'insertion|association intermédiaire|association intermediaire|\besat\b|entreprise adaptée|entreprise adaptee|mutuelle|fondation|fonds de dotation|ressourcerie|recyclerie|centre social|tiers[- ]lieu solidaire|\bong\b|solidarité internationale|solidarite internationale)/.test(value) || /^\s*association\s*$/.test(value)) return 'economie_sociale_solidaire';
   if (/(bois de chauffage|bûche|buche|stère|stere|granulé|granule|exploitant forestier|exploitation forestière|exploitation forestiere|travaux forestiers|débardage|debardage|scierie|négoce de bois|negoce de bois|bois sur pied|coupe forestière|coupe forestiere)/.test(value)) return 'bois_foret';
   if (/(architecte d’intérieur|architecte d'interieur|architecte interieur|architecte|décorateur d’intérieur|decorateur d'interieur|decorateur interieur|déco intérieur|deco interieur|maître d’œuvre|maitre d'oeuvre|maitre oeuvre|bureau d’études bâtiment|bureau d'etudes batiment|bureau etudes batiment|design intérieur|design interieur)/.test(value)) return 'architecture_design';
   if (/(agricult|producteur local|ferme|vente directe|maraîcher|maraicher|apiculteur|miel|pépiniériste|pepinieriste|viticulteur|domaine viticole|vigneron|produits locaux|panier local)/.test(value)) return 'agriculture_producteurs';

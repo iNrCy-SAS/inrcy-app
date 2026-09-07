@@ -21,6 +21,7 @@ import { services_particuliersTemplates, buildServicesParticuliersJobTemplates }
 import { services_entreprisesTemplates, buildServicesEntreprisesJobTemplates } from './services_entreprises';
 import { communicationTemplates, buildCommunicationJobTemplates } from './communication';
 import { education_enfanceTemplates, buildEducationEnfanceJobTemplates } from './education_enfance';
+import { economie_sociale_solidaireTemplates, buildEconomieSocialeSolidaireJobTemplates } from './economie_sociale_solidaire';
 import { formation_enseignementTemplates, buildFormationEnseignementJobTemplates } from './formation_enseignement';
 import { industrieTemplates, buildIndustrieJobTemplates } from './industrie';
 import { juridiqueTemplates, buildJuridiqueJobTemplates } from './juridique';
@@ -57,6 +58,7 @@ export const SECTOR_TEMPLATE_DEFINITIONS: Record<string, SectorTemplateDefinitio
   services_entreprises: services_entreprisesTemplates,
   communication: communicationTemplates,
   education_enfance: education_enfanceTemplates,
+  economie_sociale_solidaire: economie_sociale_solidaireTemplates,
   formation_enseignement: formation_enseignementTemplates,
   juridique: juridiqueTemplates,
   loisirs_sport: loisirs_sportTemplates,
@@ -136,6 +138,9 @@ export function buildSectorTemplates(): TemplateDef[] {
         break;
       case 'education_enfance':
         out.push(...buildEducationEnfanceJobTemplates());
+        break;
+      case 'economie_sociale_solidaire':
+        out.push(...buildEconomieSocialeSolidaireJobTemplates());
         break;
       case 'formation_enseignement':
         out.push(...buildFormationEnseignementJobTemplates());
