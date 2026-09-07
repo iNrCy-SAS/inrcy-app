@@ -196,7 +196,10 @@ export function buildTeamCalendarMirrorBody(input: TeamCalendarMirrorInput) {
     description: details.join("\n\n"),
     location: isPrivate ? "" : String(event.location || "").trim(),
     colorId: event.colorId,
-    visibility: "private",
+    // A normal source event must keep its details visible to readers of the
+    // shared team calendar. Sensitive source events are still redacted above
+    // and remain private.
+    visibility: isPrivate ? "private" : "default",
     transparency: event.transparency || "opaque",
     start: event.start || event.originalStartTime,
     end: event.end || event.originalStartTime,

@@ -95,6 +95,7 @@ test("le miroir est interne, sans invité ni nouvelle conférence, et conserve l
     fingerprint: "fingerprint",
   });
   assert.equal(body.summary, "[Apolline] Présentation client");
+  assert.equal(body.visibility, "default");
   assert.match(body.description, /Responsable iNrCy : Apolline/);
   assert.match(body.description, /https:\/\/meet\.google\.com\/abc-defg-hij/);
   assert.equal("attendees" in body, false);
@@ -113,6 +114,7 @@ test("un événement privé n'expose pas son titre ni sa description", () => {
     fingerprint: "private-fingerprint",
   });
   assert.equal(body.summary, "Indisponible — Apolline");
+  assert.equal(body.visibility, "private");
   assert.doesNotMatch(body.description, /Sujet confidentiel|Détails internes/);
 });
 
