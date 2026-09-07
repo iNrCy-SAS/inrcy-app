@@ -110,6 +110,7 @@ import {
   isBoosterVideoFile,
   isSiteDisplayKey,
   normalizeBoosterAiLanguage,
+  normalizeInstagramPublicationPlacement,
   normalizePost,
   normalizePublicationMediaType,
   normalizeVideoAdaptationMode,
@@ -130,6 +131,7 @@ import {
   type DisplayKey,
   type ImageMeta,
   type ImagePayload,
+  type InstagramPublicationPlacement,
   type PublicationMediaType,
   type StyleKey,
   type ThemeKey,
@@ -508,6 +510,8 @@ export default function PublishModal({
   const [selectedAiPreferredEngine, setSelectedAiPreferredEngine] =
     useState<AiPreferredEngine>(DEFAULT_AI_PREFERRED_ENGINE);
   const [instagramHashtagsInput, setInstagramHashtagsInput] = useState("");
+  const [instagramPublicationPlacement, setInstagramPublicationPlacement] =
+    useState<InstagramPublicationPlacement>("reel");
   const [emptyContentWarningChannels, setEmptyContentWarningChannels] =
     useState<ChannelKey[]>([]);
   const [emptyContentWarningIndex, setEmptyContentWarningIndex] = useState(0);
@@ -2621,6 +2625,7 @@ export default function PublishModal({
       channels: selectedChannels,
       postsByChannel,
       instagramHashtagsInput,
+      instagramPublicationPlacement,
       pinterestBoardId,
       pinterestBoardName,
       imageNames,
@@ -2646,6 +2651,7 @@ export default function PublishModal({
     selectedChannels,
     postsByChannel,
     instagramHashtagsInput,
+    instagramPublicationPlacement,
     pinterestBoardId,
     pinterestBoardName,
     images,
@@ -2951,6 +2957,11 @@ export default function PublishModal({
           (Array.isArray((nextPostsByChannel as any)?.instagram?.hashtags)
             ? (nextPostsByChannel as any).instagram.hashtags.join(" ")
             : "");
+        const nextInstagramPublicationPlacement =
+          normalizeInstagramPublicationPlacement(
+            payload.instagramPublicationPlacement ||
+              payload.instagramPublicationSettings?.placement,
+          );
         const nextPinterestBoardId = String(
           payload.pinterestBoardId || "",
         ).trim();
@@ -2985,6 +2996,7 @@ export default function PublishModal({
         setChannels(nextChannels);
         setPostsByChannel(nextPostsByChannel);
         setInstagramHashtagsInput(nextInstagramHashtags);
+        setInstagramPublicationPlacement(nextInstagramPublicationPlacement);
         setPinterestBoardId(nextPinterestBoardId);
         setPinterestBoardName(nextPinterestBoardName);
         const effectiveMediaType = restoredVideo.file ? "video" : nextMediaType;
@@ -3050,6 +3062,8 @@ export default function PublishModal({
             channels: selectedDraftChannels,
             postsByChannel: nextPostsByChannel,
             instagramHashtagsInput: nextInstagramHashtags,
+            instagramPublicationPlacement:
+              nextInstagramPublicationPlacement,
             pinterestBoardId: nextPinterestBoardId,
             pinterestBoardName: nextPinterestBoardName,
             imageNames,
@@ -3202,6 +3216,7 @@ export default function PublishModal({
   const clearChannelCreationWork = () => {
     setPostsByChannel({});
     setInstagramHashtagsInput("");
+    setInstagramPublicationPlacement("reel");
     closeEmptyContentWarnings();
     setDuplicateFeedback(null);
     setFinalReviewOpen(false);
@@ -4891,7 +4906,9 @@ export default function PublishModal({
     }
 
     const missingContentChannels = publishableChannels.filter(
-      (ch) => !String(preparedPostsByChannel[ch]?.content || "").trim(),
+      (ch) =>
+        !(ch === "instagram" && resolveChannelMediaMode(ch) !== "none") &&
+        !String(preparedPostsByChannel[ch]?.content || "").trim(),
     );
     if (missingContentChannels.length && !options?.skipEmptyContentWarnings) {
       setPostsByChannel(preparedPostsByChannel);
@@ -5356,6 +5373,11 @@ export default function PublishModal({
         tiktokPublicationSettings: publishTargetChannels.includes("tiktok")
           ? options?.tiktokPublicationSettings || tiktokPublicationSettings
           : null,
+        instagramPublicationSettings: publishTargetChannels.includes(
+          "instagram",
+        )
+          ? { placement: instagramPublicationPlacement }
+          : null,
         pinterestPublicationSettings: publishTargetChannels.includes("pinterest")
           ? { boardId: pinterestBoardId, boardName: pinterestBoardName }
           : null,
@@ -5686,6 +5708,7 @@ export default function PublishModal({
             useImagesForAI,
             imageSettingsByChannel: getDraftImageSettingsByChannel(),
             instagramHashtagsInput,
+            instagramPublicationPlacement,
             pinterestBoardId,
             pinterestBoardName,
             saved_at: new Date().toISOString(),
@@ -6204,6 +6227,11 @@ export default function PublishModal({
                 tiktokPublicationSettings: groupChannels.includes("tiktok")
                   ? tiktokSettingsForSchedule
                   : null,
+                instagramPublicationSettings: groupChannels.includes(
+                  "instagram",
+                )
+                  ? { placement: instagramPublicationPlacement }
+                  : null,
                 pinterestPublicationSettings: groupChannels.includes(
                   "pinterest",
                 )
@@ -6398,7 +6426,9 @@ export default function PublishModal({
       const imageKeysToPublish = getPublishImageKeysForChannel(channel);
       const hasTitle = !!String(post?.title || "").trim();
       const hasContent = !!String(post?.content || "").trim();
-      const hasText = hasTitle || hasContent;
+      const instagramMediaOnly =
+        channel === "instagram" && resolveChannelMediaMode(channel) !== "none";
+      const hasText = instagramMediaOnly || hasTitle || hasContent;
       const hasImage = imageKeysToPublish.length > 0;
       const mode = resolveChannelMediaMode(channel);
       const hasVideo = mode === "video" && !!videoFile;
@@ -6417,8 +6447,8 @@ export default function PublishModal({
         hasImage,
         imageCount: imageKeysToPublish.length,
         hasText,
-        hasTitle,
-        hasContent,
+        hasTitle: instagramMediaOnly || hasTitle,
+        hasContent: instagramMediaOnly || hasContent,
       });
       const videoPreparationState = videoVariantPreparationByChannel[channel];
       const requestedVideoFormat =
@@ -6484,8 +6514,8 @@ export default function PublishModal({
         publishable: blockers.length === 0,
         tiktokParametersValidated:
           channel === "tiktok" && Boolean(tiktokPublicationSettings),
-        hasContent,
-        hasTitle,
+        hasContent: instagramMediaOnly || hasContent,
+        hasTitle: instagramMediaOnly || hasTitle,
         hasText,
         hasImage,
       };
@@ -7085,6 +7115,13 @@ export default function PublishModal({
               pinterestBoardsLoading={pinterestBoardsLoading}
               pinterestBoardsError={pinterestBoardsError}
               onPinterestBoardChange={onPinterestBoardChange}
+              instagramPublicationPlacement={instagramPublicationPlacement}
+              instagramMediaMode={resolveChannelMediaMode("instagram")}
+              onInstagramPublicationPlacementChange={(placement) =>
+                setInstagramPublicationPlacement(
+                  normalizeInstagramPublicationPlacement(placement),
+                )
+              }
               onVoiceBusyChange={setContentVoiceBusy}
             />
 

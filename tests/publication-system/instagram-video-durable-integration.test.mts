@@ -101,13 +101,13 @@ test("durable Instagram identity is independent from expiring signed URLs", () =
   ]);
   assert.match(
     instagramBranch,
-    /bucket:\s*channelVideo\.bucket[\s\S]*storagePath:\s*channelVideo\.storagePath/,
+    /bucket:\s*instagramPublishVideo\.bucket[\s\S]*storagePath:\s*instagramPublishVideo\.storagePath/,
   );
   assert.match(
     instagramBranch,
     /expectedRequestFingerprint,[\s\S]*compatibleRequestFingerprints/,
   );
-  assert.match(phases, /const INSTAGRAM_VIDEO_CHECKPOINT_VERSION = 2 as const/);
+  assert.match(phases, /const INSTAGRAM_VIDEO_CHECKPOINT_VERSION = 3 as const/);
   assert.match(phases, /checkpoint\.version === 1/);
   assert.match(
     phases,

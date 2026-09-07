@@ -168,6 +168,14 @@ function getChannelMediaSignature(payload: unknown, channel: BoosterChannel) {
   const videoByChannel = asRecord(publishPayload.videoByChannel);
   const mediaKeys = new Set<string>();
 
+  if (channel === "instagram") {
+    const settings = asRecord(publishPayload.instagramPublicationSettings);
+    const placement = cleanText(settings?.placement || settings?.mode, 20);
+    if (["reel", "reels", "story", "stories"].includes(placement)) {
+      mediaKeys.add(`instagram-placement:${placement.startsWith("stor") ? "story" : "reel"}`);
+    }
+  }
+
   if (mediaMode === "video") {
     getMediaIdentities(videoByChannel?.[channel]).forEach((key) => mediaKeys.add(key));
     getMediaIdentities(publishPayload.video).forEach((key) => mediaKeys.add(key));

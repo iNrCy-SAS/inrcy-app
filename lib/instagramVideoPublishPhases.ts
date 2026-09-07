@@ -3,7 +3,7 @@ import { createHash } from "crypto";
 import { buildMetaGraphUrl } from "@/lib/metaGraphApi";
 import { isMetaAuthorizationError } from "@/lib/metaGraphErrorClassification";
 
-const INSTAGRAM_VIDEO_CHECKPOINT_VERSION = 2 as const;
+const INSTAGRAM_VIDEO_CHECKPOINT_VERSION = 3 as const;
 const INSTAGRAM_VIDEO_DEFAULT_RETRY_AFTER_MS = 3_000;
 // Status reads are cheap and safe to retry. Container creation and publication
 // are mutations: Meta can legitimately need longer to acknowledge them and an
@@ -29,8 +29,10 @@ export type InstagramVideoCheckpointState =
   | "failed"
   | "publish_unknown";
 
+export type InstagramVideoMediaType = "REELS" | "STORIES";
+
 export type InstagramVideoPublishCheckpoint = {
-  version: 1 | typeof INSTAGRAM_VIDEO_CHECKPOINT_VERSION;
+  version: 1 | 2 | typeof INSTAGRAM_VIDEO_CHECKPOINT_VERSION;
   containerId: string;
   igUserId: string;
   requestFingerprint: string;
@@ -42,6 +44,7 @@ export type InstagramVideoPublishCheckpoint = {
   lastStatus: string | null;
   mediaId: string | null;
   tokenSource: string | null;
+  mediaType: InstagramVideoMediaType;
 };
 
 export type InstagramVideoPhaseDependencies = {
@@ -98,7 +101,7 @@ type InstagramVideoPublishSuccess = {
   outcome: "published";
   checkpoint: InstagramVideoPublishCheckpoint;
   mediaId: string;
-  mediaType: "REELS";
+  mediaType: InstagramVideoMediaType;
   diagnostics?: InstagramVideoPhaseDiagnostics;
 };
 
@@ -116,6 +119,12 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 function cleanString(value: unknown) {
   return String(value || "").trim();
+}
+
+function normalizeInstagramVideoMediaType(
+  value: unknown,
+): InstagramVideoMediaType {
+  return cleanString(value).toUpperCase() === "STORIES" ? "STORIES" : "REELS";
 }
 
 function nowIso(dependencies: InstagramVideoPhaseDependencies) {
@@ -147,9 +156,10 @@ export function parseInstagramVideoPublishCheckpoint(
   const pollCount = Number(record.pollCount);
   const mediaId = cleanString(record.mediaId) || null;
   const tokenSource = cleanString(record.tokenSource) || null;
+  const mediaType = normalizeInstagramVideoMediaType(record.mediaType);
 
   if (
-    (version !== 1 && version !== INSTAGRAM_VIDEO_CHECKPOINT_VERSION) ||
+    (version !== 1 && version !== 2 && version !== INSTAGRAM_VIDEO_CHECKPOINT_VERSION) ||
     !containerId ||
     !igUserId ||
     !/^[a-f0-9]{64}$/.test(requestFingerprint) ||
@@ -160,7 +170,9 @@ export function parseInstagramVideoPublishCheckpoint(
     pollCount < 0 ||
     !Number.isFinite(Date.parse(createdAt)) ||
     !Number.isFinite(Date.parse(updatedAt)) ||
-    (state === "published" && !mediaId)
+    (state === "published" && !mediaId) ||
+    (version === INSTAGRAM_VIDEO_CHECKPOINT_VERSION &&
+      !["REELS", "STORIES"].includes(cleanString(record.mediaType).toUpperCase()))
   ) {
     return null;
   }
@@ -178,6 +190,7 @@ export function parseInstagramVideoPublishCheckpoint(
     lastStatus: cleanString(record.lastStatus) || null,
     mediaId,
     tokenSource,
+    mediaType,
   };
 }
 
@@ -225,8 +238,12 @@ export function buildInstagramVideoRequestFingerprint(params: {
   videoSourceIdentity?: string;
   caption: string;
   shareToFeed?: boolean;
+  mediaType?: InstagramVideoMediaType;
 }) {
   const videoSourceIdentity = cleanString(params.videoSourceIdentity);
+  const mediaType = normalizeInstagramVideoMediaType(params.mediaType);
+  const mediaTypeIdentity =
+    mediaType === "STORIES" ? { mediaType: "STORIES" as const } : {};
   const canonicalRequest = JSON.stringify(
     videoSourceIdentity
       ? {
@@ -234,6 +251,7 @@ export function buildInstagramVideoRequestFingerprint(params: {
           videoSourceIdentity,
           caption: String(params.caption || ""),
           shareToFeed: params.shareToFeed !== false,
+          ...mediaTypeIdentity,
         }
       : {
           // Preserve the exact v1 canonical request for rolling compatibility.
@@ -241,6 +259,7 @@ export function buildInstagramVideoRequestFingerprint(params: {
           videoUrl: cleanString(params.videoUrl),
           caption: String(params.caption || ""),
           shareToFeed: params.shareToFeed !== false,
+          ...mediaTypeIdentity,
         },
   );
   return createHash("sha256").update(canonicalRequest).digest("hex");
@@ -361,7 +380,7 @@ function validateExpectedFingerprint(
   if (!expected && compatible.length === 0) return true;
   if (expected === checkpoint.requestFingerprint) return true;
 
-  // A v2 checkpoint must only match its durable-source fingerprint. A v1
+  // A durable-source checkpoint (v2+) must only match its durable-source fingerprint. A v1
   // checkpoint may additionally match the exact historical URL fingerprint,
   // which keeps stable public-URL jobs resumable during a rolling deployment.
   return (
@@ -378,6 +397,7 @@ export async function instagramCreateVideoCheckpoint(
     videoUrl: string;
     videoSourceIdentity?: string;
     shareToFeed?: boolean;
+    mediaType?: InstagramVideoMediaType;
     tokenSource?: string;
   },
   dependencies: InstagramVideoPhaseDependencies = {},
@@ -400,13 +420,19 @@ export async function instagramCreateVideoCheckpoint(
   const videoSourceIdentity =
     cleanString(params.videoSourceIdentity) ||
     buildInstagramVideoSourceIdentity({ videoUrl });
+  const mediaType = normalizeInstagramVideoMediaType(params.mediaType);
 
   const createParams = new URLSearchParams({
-    media_type: "REELS",
+    media_type: mediaType,
     video_url: videoUrl,
     access_token: accessToken,
-    share_to_feed: params.shareToFeed === false ? "false" : "true",
   });
+  if (mediaType === "REELS") {
+    createParams.set(
+      "share_to_feed",
+      params.shareToFeed === false ? "false" : "true",
+    );
+  }
   if (params.caption) createParams.set("caption", params.caption);
   const createUrl = `${buildMetaGraphUrl(`${encodeURIComponent(igUserId)}/media`)}?${createParams.toString()}`;
   const fetchImpl = dependencies.fetchImpl || globalThis.fetch.bind(globalThis);
@@ -482,6 +508,7 @@ export async function instagramCreateVideoCheckpoint(
       videoSourceIdentity,
       caption: params.caption,
       shareToFeed: params.shareToFeed,
+      mediaType,
     }),
     state: "created",
     createdAt,
@@ -491,6 +518,7 @@ export async function instagramCreateVideoCheckpoint(
     lastStatus: null,
     mediaId: null,
     tokenSource: cleanString(params.tokenSource) || null,
+    mediaType,
   };
   return {
     ok: true,
@@ -510,6 +538,7 @@ export async function instagramCreateVideoCheckpointWithTokenFallback(
     videoUrl: string;
     videoSourceIdentity?: string;
     shareToFeed?: boolean;
+    mediaType?: InstagramVideoMediaType;
   },
   dependencies: InstagramVideoPhaseDependencies = {},
 ) {
@@ -882,7 +911,7 @@ export async function instagramPublishVideoCheckpoint(
       outcome: "published",
       checkpoint,
       mediaId: checkpoint.mediaId,
-      mediaType: "REELS",
+      mediaType: checkpoint.mediaType,
     };
   }
   if (checkpoint.state === "publish_unknown") {
@@ -1020,7 +1049,7 @@ export async function instagramPublishVideoCheckpoint(
     outcome: "published",
     checkpoint: publishedCheckpoint,
     mediaId,
-    mediaType: "REELS",
+    mediaType: checkpoint.mediaType,
     diagnostics: { httpStatus: response.status, response: data },
   };
 }

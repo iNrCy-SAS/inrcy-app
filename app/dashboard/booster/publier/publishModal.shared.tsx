@@ -589,6 +589,13 @@ export type {
 
 export type PublicationMediaType = "images" | "video";
 export type ChannelMediaMode = "video" | "images" | "none";
+export type InstagramPublicationPlacement = "reel" | "story";
+
+export function normalizeInstagramPublicationPlacement(
+  value: unknown,
+): InstagramPublicationPlacement {
+  return value === "story" || value === "stories" ? "story" : "reel";
+}
 
 export function channelSupportsImages(channel: ChannelKey) {
   return channel !== "youtube_shorts";

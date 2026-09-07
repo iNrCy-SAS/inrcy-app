@@ -34,8 +34,10 @@ import {
   type BoosterCtaDefaults,
   type BoosterPreferredCta,
   type ChannelKey,
+  type ChannelMediaMode,
   type ChannelPost,
   type DisplayKey,
+  type InstagramPublicationPlacement,
 } from "../publishModal.shared";
 import {
   darkOptionStyle,
@@ -96,6 +98,11 @@ type PublishContentEditorPanelProps = {
   pinterestBoardsLoading: boolean;
   pinterestBoardsError: string;
   onPinterestBoardChange: (boardId: string) => void;
+  instagramPublicationPlacement: InstagramPublicationPlacement;
+  instagramMediaMode: ChannelMediaMode;
+  onInstagramPublicationPlacementChange: (
+    placement: InstagramPublicationPlacement,
+  ) => void;
   onVoiceBusyChange?: (busy: boolean) => void;
 };
 
@@ -124,6 +131,9 @@ export default function PublishContentEditorPanel({
   pinterestBoardsLoading,
   pinterestBoardsError,
   onPinterestBoardChange,
+  instagramPublicationPlacement,
+  instagramMediaMode,
+  onInstagramPublicationPlacementChange,
   onVoiceBusyChange,
 }: PublishContentEditorPanelProps) {
   const i18nT = useTranslations("booster");
@@ -236,6 +246,8 @@ export default function PublishContentEditorPanel({
   };
 
   const activePost = getDisplayPost(activeCard);
+  const instagramMediaOnly =
+    activeCard === "instagram" && instagramMediaMode !== "none";
   const activeTextGuidelines = CHANNEL_TEXT_GUIDELINES[activeCard];
   const titleVoiceMaxLength = Math.max(
     activePost.title.length,
@@ -290,10 +302,12 @@ export default function PublishContentEditorPanel({
           >
             {displayCards.map((key) => {
               const post = getDisplayPost(key);
-              const hasText = !!(
-                String(post.title || "").trim() ||
-                String(post.content || "").trim()
-              );
+              const hasText =
+                (key === "instagram" && instagramMediaMode !== "none") ||
+                !!(
+                  String(post.title || "").trim() ||
+                  String(post.content || "").trim()
+                );
               const statusStyle = hasText
                 ? {
                     border: "1px solid rgba(34,197,94,0.34)",
@@ -404,6 +418,33 @@ export default function PublishContentEditorPanel({
                   ))}
                 </select>
               ) : null}
+              {activeCard === "instagram" && instagramMediaMode !== "none" ? (
+                <select
+                  value={instagramPublicationPlacement}
+                  onChange={(event) =>
+                    onInstagramPublicationPlacementChange(
+                      event.target.value as InstagramPublicationPlacement,
+                    )
+                  }
+                  disabled={voiceBusy}
+                  aria-label={i18nT("instagram_publication_format")}
+                  title={i18nT("instagram_publication_format")}
+                  style={{
+                    ...darkSelectStyle,
+                    width: isMobile ? "min(58vw, 220px)" : "min(360px, 45%)",
+                    minWidth: isMobile ? 150 : 200,
+                    maxWidth: "100%",
+                    flex: "0 1 auto",
+                  }}
+                >
+                  <option value="reel" style={darkOptionStyle}>
+                    {i18nT("instagram_reels")}
+                  </option>
+                  <option value="story" style={darkOptionStyle}>
+                    {i18nT("instagram_stories")}
+                  </option>
+                </select>
+              ) : null}
             </div>
             {activeCard === "pinterest" && pinterestBoardsError ? (
               <div style={{ marginBottom: 8, fontSize: 12, color: "#fecaca" }}>
@@ -415,7 +456,38 @@ export default function PublishContentEditorPanel({
               <div style={{ marginBottom: 8, fontSize: 12, opacity: 0.72 }}>
                 {i18nT("aucun_tableau_disponible_creez_en_un_fdb1c0ea")}{" "}</div>
             ) : null}
-            <div style={{ display: "grid", gap: 10 }}>
+            {instagramMediaOnly ? (
+              <div
+                role="status"
+                style={{
+                  marginBottom: 10,
+                  padding: "10px 12px",
+                  borderRadius: 12,
+                  border: "1px solid rgba(76,195,255,0.28)",
+                  background: "rgba(76,195,255,0.08)",
+                  color: "rgba(226,247,255,0.92)",
+                  fontSize: 12,
+                  lineHeight: 1.45,
+                }}
+              >
+                {instagramMediaMode === "images"
+                  ? i18nT("instagram_image_motion_notice")
+                  : i18nT("instagram_media_only_notice")}
+              </div>
+            ) : null}
+            <fieldset
+              disabled={instagramMediaOnly}
+              style={{
+                display: "grid",
+                gap: 10,
+                minWidth: 0,
+                margin: 0,
+                padding: 0,
+                border: 0,
+                opacity: instagramMediaOnly ? 0.42 : 1,
+                transition: "opacity 160ms ease",
+              }}
+            >
               <div>
                 <div
                   style={{
@@ -1097,7 +1169,7 @@ export default function PublishContentEditorPanel({
                   )}
                 </div>
               ) : null}
-            </div>
+            </fieldset>
           </div>
           <div
             style={{

@@ -19,6 +19,7 @@ type PhaseResult = {
   authorizationError?: boolean;
   checkpoint?: UnknownRecord;
   mediaId?: string;
+  mediaType?: "REELS" | "STORIES";
   diagnostics?: UnknownRecord;
 };
 type PhaseFunction = (
@@ -162,6 +163,7 @@ test("Instagram video create, checkpoint, poll and publish are short resumable p
   assert.equal(created.checkpoint?.containerId, "ig-container-1");
   assert.equal(created.checkpoint?.requestFingerprint, expectedFingerprint);
   assert.equal(created.checkpoint?.state, "created");
+  assert.equal(created.checkpoint?.mediaType, "REELS");
   assert.equal(createCalls, 1);
   assert.equal(pollCalls, 0);
   assert.equal(publishCalls, 0);
@@ -230,6 +232,87 @@ test("Instagram video create, checkpoint, poll and publish are short resumable p
     "ig-container-1",
     "ig-container-1",
   ]);
+});
+
+test("Instagram Stories use the durable video protocol without caption or feed sharing", async () => {
+  let publishCalls = 0;
+  const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(String(input));
+    const method = init?.method || "GET";
+    if (url.pathname.endsWith("/ig-user-1/media") && method === "POST") {
+      assert.equal(url.searchParams.get("media_type"), "STORIES");
+      assert.equal(url.searchParams.get("caption"), null);
+      assert.equal(url.searchParams.get("share_to_feed"), null);
+      return jsonResponse({ id: "ig-story-container" });
+    }
+    if (url.pathname.endsWith("/ig-story-container") && method === "GET") {
+      return jsonResponse({ status_code: "FINISHED", status: "Finished" });
+    }
+    if (
+      url.pathname.endsWith("/ig-user-1/media_publish") &&
+      method === "POST"
+    ) {
+      publishCalls += 1;
+      assert.equal(url.searchParams.get("creation_id"), "ig-story-container");
+      return jsonResponse({ id: "ig-story-media" });
+    }
+    throw new Error(`Unexpected request ${method} ${url}`);
+  }) as typeof fetch;
+  const dependencies = fixedDependencies(fetchImpl);
+  const storyInput = createInput({
+    caption: "",
+    mediaType: "STORIES",
+    shareToFeed: false,
+  });
+  const sourceIdentity = buildInstagramVideoSourceIdentity({
+    videoUrl: storyInput.videoUrl,
+  });
+  const storyFingerprint = buildInstagramVideoRequestFingerprint({
+    ...storyInput,
+    videoSourceIdentity: sourceIdentity,
+  });
+  const reelFingerprint = buildInstagramVideoRequestFingerprint(
+    createInput({
+      caption: "",
+      mediaType: "REELS",
+      shareToFeed: false,
+      videoSourceIdentity: sourceIdentity,
+    }),
+  );
+  assert.notEqual(storyFingerprint, reelFingerprint);
+
+  const created = await instagramCreateVideoCheckpoint(
+    storyInput,
+    dependencies,
+  );
+  assert.equal(created.ok, true);
+  assert.equal(created.checkpoint?.version, 3);
+  assert.equal(created.checkpoint?.mediaType, "STORIES");
+
+  const ready = await instagramPollVideoCheckpoint(
+    {
+      checkpoint: created.checkpoint,
+      accessToken: "token-primary",
+      expectedRequestFingerprint: storyFingerprint,
+    },
+    dependencies,
+  );
+  assert.equal(ready.ok, true);
+  assert.equal(ready.outcome, "ready");
+
+  const published = await instagramPublishVideoCheckpoint(
+    {
+      checkpoint: ready.checkpoint,
+      igUserId: "ig-user-1",
+      accessToken: "token-primary",
+      expectedRequestFingerprint: storyFingerprint,
+    },
+    dependencies,
+  );
+  assert.equal(published.ok, true);
+  assert.equal(published.mediaId, "ig-story-media");
+  assert.equal(published.mediaType, "STORIES");
+  assert.equal(publishCalls, 1);
 });
 
 test("a private Supabase video resumes after its signed delivery URL changes", async () => {
@@ -306,7 +389,7 @@ test("a private Supabase video resumes after its signed delivery URL changes", a
     dependencies,
   );
   assert.equal(created.ok, true);
-  assert.equal(created.checkpoint?.version, 2);
+  assert.equal(created.checkpoint?.version, 3);
   const restartedCheckpoint = JSON.parse(
     JSON.stringify(created.checkpoint),
   ) as UnknownRecord;

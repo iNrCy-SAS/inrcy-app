@@ -55,10 +55,13 @@ test("Site web and Site iNrCy persist the resolved channel content verbatim", ()
   assert.match(publishRoute, /content: channelPost\.content/);
 });
 
-test("Facebook, Instagram and LinkedIn receive the preserved channel message", () => {
+test("Facebook and LinkedIn preserve the message while Instagram media-only suppresses it", () => {
   assert.match(publishRoute, /description: canonMessage/);
   assert.match(publishRoute, /message: canonMessage/);
-  assert.match(publishRoute, /const instagramCaption = buildBoosterInstagramCaption\(channelPost/);
+  assert.match(
+    publishRoute,
+    /const instagramCaption = instagramPublicationSettings\s*\? ""\s*:\s*buildBoosterInstagramCaption\(channelPost/,
+  );
   assert.match(publishRoute, /caption: instagramCaption/);
   assert.match(publishRoute, /text: canonMessage/);
 });

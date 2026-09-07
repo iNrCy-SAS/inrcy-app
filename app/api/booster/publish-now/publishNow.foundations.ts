@@ -172,6 +172,15 @@ export type PublicationMediaType = "images" | "video";
 
 export type ChannelMediaMode = "video" | "images" | "none";
 
+export type InstagramPublicationPlacement = "reel" | "story";
+
+export type InstagramPublicationSettings = {
+  placement: InstagramPublicationPlacement;
+  mediaType: "REELS" | "STORIES";
+  shareToFeed: boolean;
+  mediaOnly: true;
+};
+
 export type VideoPayload = {
   name?: string;
   type?: string;
@@ -225,6 +234,25 @@ export function normalizeChannelMediaMode(
   return value === "video" || value === "images" || value === "none"
     ? value
     : fallback;
+}
+
+export function normalizeInstagramPublicationSettings(
+  value: unknown,
+): InstagramPublicationSettings | null {
+  const raw = asRecord(value);
+  const requested = String(raw.placement || raw.mode || "")
+    .trim()
+    .toLowerCase();
+  if (!["reel", "reels", "story", "stories"].includes(requested)) {
+    return null;
+  }
+  const story = requested === "story" || requested === "stories";
+  return {
+    placement: story ? "story" : "reel",
+    mediaType: story ? "STORIES" : "REELS",
+    shareToFeed: !story,
+    mediaOnly: true,
+  };
 }
 
 export function normalizeTiktokPublicationSettings(

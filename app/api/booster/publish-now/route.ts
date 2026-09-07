@@ -33,6 +33,7 @@ import {
   type InstagramVideoPhaseResult,
   type InstagramVideoPublishCheckpoint,
 } from "@/lib/instagramVideoPublishPhases";
+import { createInstagramImageMotionVideo } from "@/lib/instagramImageMotionVideo";
 import {
   linkedinPublishImage,
   linkedinPublishMultiImage,
@@ -230,6 +231,7 @@ import {
   normalizeHashtag,
   normalizePublicationMediaType,
   normalizePublicHttpUrl,
+  normalizeInstagramPublicationSettings,
   normalizeTiktokPublicationSettings,
   slugify,
   type ChannelKey,
@@ -925,6 +927,8 @@ async function publishNowHandler(req: Request) {
     const tiktokPublicationSettings = normalizeTiktokPublicationSettings(
       body.tiktokPublicationSettings,
     );
+    const instagramPublicationSettings =
+      normalizeInstagramPublicationSettings(body.instagramPublicationSettings);
     const pinterestPublicationSettings = asRecord(
       body.pinterestPublicationSettings,
     );
@@ -2247,6 +2251,7 @@ async function publishNowHandler(req: Request) {
           ...(origin ? { origin, source: origin.source } : {}),
           mediaType,
           mediaModeByChannel,
+          instagramPublicationSettings,
           videoSettingsByChannel,
           video: hasAnyVideoChannel ? publicationVideo : null,
           videoByChannel: publicationVideoByChannel,
@@ -2350,6 +2355,9 @@ async function publishNowHandler(req: Request) {
             },
             ...(channel === "tiktok"
               ? { tiktokPublicationSettings }
+              : {}),
+            ...(channel === "instagram" && instagramPublicationSettings
+              ? { instagramPublicationSettings }
               : {}),
             ...(channel === "pinterest"
               ? { pinterestPublicationSettings }
@@ -3872,34 +3880,103 @@ async function publishNowHandler(req: Request) {
             continue;
           }
 
-          const instagramCaption = buildBoosterInstagramCaption(channelPost, {
-            websiteUrl: getPublicationWebsiteUrl("instagram"),
-            phone: businessPhone,
-          });
+          const instagramCaption = instagramPublicationSettings
+            ? ""
+            : buildBoosterInstagramCaption(channelPost, {
+                websiteUrl: getPublicationWebsiteUrl("instagram"),
+                phone: businessPhone,
+              });
           const instagramTokenCandidates = buildInstagramPublishTokenCandidates(
             ig,
             fbRow,
           );
-          if (mediaModeByChannel[ch] === "video" && channelVideo) {
+          let instagramPublishVideo = channelVideo;
+          if (
+            instagramPublicationSettings &&
+            mediaModeByChannel[ch] === "images"
+          ) {
+            const instagramImageSet = getChannelImageSet(ch);
+            const instagramSourceStoragePaths = (
+              instagramImageSet.publishableStoragePaths.length
+                ? instagramImageSet.publishableStoragePaths
+                : instagramImageSet.storagePaths
+            )
+              .map((value) => String(value || "").trim())
+              .filter(Boolean)
+              .slice(0, 5);
+
+            try {
+              instagramPublishVideo = await createInstagramImageMotionVideo({
+                accountId: userId,
+                publicationId,
+                imageStoragePaths: instagramSourceStoragePaths,
+                placement: instagramPublicationSettings.placement,
+                soundtrackPrompt: [
+                  idea,
+                  channelPost.title,
+                  channelPost.content,
+                  channelPost.cta,
+                ]
+                  .map((value) => String(value || "").trim())
+                  .filter(Boolean)
+                  .join(" — "),
+              });
+            } catch (error) {
+              const rawError =
+                error instanceof Error ? error.message : String(error || "");
+              const instagramUserError =
+                "La mini-vidéo Instagram n’a pas pu être préparée. Réessayez sans changer vos médias.";
+              console.error("[Booster] Instagram image motion failed", {
+                userId,
+                publicationId,
+                placement: instagramPublicationSettings.placement,
+                imageCount: instagramSourceStoragePaths.length,
+                error: rawError,
+              });
+              await setDelivery(ch, {
+                status: "failed",
+                error: instagramUserError,
+              });
+              results[ch] = {
+                ok: false,
+                error: instagramUserError,
+                raw_error: rawError,
+                code: "instagram_image_motion_preparation_failed",
+                retryable: true,
+              };
+              continue;
+            }
+          }
+
+          if (
+            instagramPublishVideo &&
+            (mediaModeByChannel[ch] === "video" ||
+              (instagramPublicationSettings &&
+                mediaModeByChannel[ch] === "images"))
+          ) {
             const videoSourceIdentity = buildInstagramVideoSourceIdentity({
-              bucket: channelVideo.bucket,
-              storagePath: channelVideo.storagePath,
-              videoUrl: channelVideo.publicUrl,
+              bucket: instagramPublishVideo.bucket,
+              storagePath: instagramPublishVideo.storagePath,
+              videoUrl: instagramPublishVideo.publicUrl,
             });
             const expectedRequestFingerprint =
               buildInstagramVideoRequestFingerprint({
                 igUserId,
-                videoUrl: channelVideo.publicUrl,
+                videoUrl: instagramPublishVideo.publicUrl,
                 videoSourceIdentity,
                 caption: instagramCaption,
-                shareToFeed: true,
+                mediaType: instagramPublicationSettings?.mediaType || "REELS",
+                shareToFeed:
+                  instagramPublicationSettings?.shareToFeed ?? true,
               });
             const compatibleRequestFingerprints = [
               buildInstagramVideoRequestFingerprint({
                 igUserId,
-                videoUrl: channelVideo.publicUrl,
+                videoUrl: instagramPublishVideo.publicUrl,
                 caption: instagramCaption,
-                shareToFeed: true,
+                mediaType: instagramPublicationSettings?.mediaType || "REELS",
+                shareToFeed:
+                  instagramPublicationSettings?.shareToFeed ?? true,
               }),
             ];
             const rawCheckpoint = internalAsyncDispatch
@@ -3944,9 +4021,12 @@ async function publishNowHandler(req: Request) {
                   accessToken: igToken,
                   tokenCandidates: instagramTokenCandidates,
                   caption: instagramCaption,
-                  videoUrl: channelVideo.publicUrl,
+                  videoUrl: instagramPublishVideo.publicUrl,
                   videoSourceIdentity,
-                  shareToFeed: true,
+                  mediaType:
+                    instagramPublicationSettings?.mediaType || "REELS",
+                  shareToFeed:
+                    instagramPublicationSettings?.shareToFeed ?? true,
                 });
             } else if (
               ["ready", "published", "publish_unknown"].includes(
@@ -4042,7 +4122,7 @@ async function publishNowHandler(req: Request) {
               results[ch] = {
                 ok: true,
                 external_id: videoPhaseResult.mediaId,
-                instagram_media_type: "REELS",
+                instagram_media_type: videoPhaseResult.checkpoint.mediaType,
                 instagram_parent_media_id: videoPhaseResult.mediaId,
                 instagram_child_media_ids: [],
                 diagnostics: videoPhaseResult,
