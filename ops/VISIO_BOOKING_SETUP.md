@@ -16,6 +16,7 @@ Obligatoires :
 Recommandées :
 
 - `INRCY_VISIO_BOOKING_ALERT_EMAIL=compte@inrcy.com`
+- `INRCY_VISIO_PUBLIC_CALENDAR_ID=contact@admin-inrcy.com` : agenda principal du compte affiché comme « Équipe iNrCy », seul expéditeur des invitations externes. Ne pas utiliser ici l’identifiant technique `c_...@group.calendar.google.com` de l’agenda partagé.
 - `INRCY_VISIO_BOOKED_COLOR_ID=9` pour la couleur bleue des rendez-vous réservés.
 - `INRCY_VISIO_HORIZON_DAYS=21`
 - `INRCY_VISIO_MINIMUM_LEAD_DAYS=1` pour proposer les rendez-vous dès le lendemain, sans imposer 24 heures glissantes.
@@ -26,7 +27,7 @@ Les identifiants d’agenda d’Océane, Apolline et Jimmy ont des valeurs par d
 ## Google Workspace
 
 1. Ajouter l’URI de redirection ci-dessus au client OAuth existant.
-2. Le compte interne connecté doit avoir accès aux disponibilités des trois agendas et le droit de créer des événements dans « Agenda partagé iNrCy ».
+2. Le compte interne connecté doit avoir accès aux disponibilités des trois agendas, pouvoir écrire dans l’agenda public « Équipe iNrCy » et dans « Agenda partagé iNrCy ».
 3. Ouvrir `/api/admin/visio-booking/google/start` avec la session admin iNrCy et accepter uniquement les droits Agenda demandés.
 4. Vérifier `/api/admin/visio-booking/google/status`.
 
@@ -44,5 +45,6 @@ Installer puis activer le dossier `ops/wordpress-visio-booking` sous forme d’e
 - retrait automatique du rappel orange correspondant dès qu'un rendez-vous est confirmé ;
 - deux rendez-vous simultanés maximum ;
 - attribution automatique à la personne disponible ayant reçu le moins de rendez-vous ;
-- création Google Meet, invitation du professionnel et du membre affecté ;
-- copie visible dans l’agenda partagé et alerte à `compte@inrcy.com`.
+- création Google Meet sur l’agenda du membre affecté ;
+- invitation du professionnel envoyée uniquement par le vrai compte public « Équipe iNrCy », jamais par l’identifiant technique de l’agenda partagé ;
+- copie interne sans notification visible dans l’agenda partagé et alerte à `compte@inrcy.com`.

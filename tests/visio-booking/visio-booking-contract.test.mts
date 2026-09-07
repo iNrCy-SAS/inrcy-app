@@ -44,7 +44,7 @@ test("la réservation impose capacité deux, Meet et invitations", () => {
   assert.match(backend, /pendingSignupReminderProspectUserId/);
 });
 
-test("le membre héberge le Meet mais seule l'équipe iNrCy invite le prospect", () => {
+test("le membre héberge le Meet mais le compte public iNrCy invite le prospect", () => {
   const backend = read("lib/visioBookingGoogle.ts");
   const mirror = read("lib/visioCalendarMirrorPolicy.ts");
   assert.match(
@@ -53,10 +53,12 @@ test("le membre héberge le Meet mais seule l'équipe iNrCy invite le prospect",
   );
   assert.match(
     backend,
-    /encodeCalendarId\(getVisioSharedCalendarId\(\)\)[\s\S]*?conferenceDataVersion=1&sendUpdates=all/,
+    /encodeCalendarId\(publicCalendarId\)[\s\S]*?conferenceDataVersion=1&sendUpdates=all/,
   );
-  assert.match(backend, /conferenceData:\s*memberEvent\.conferenceData/);
-  assert.match(backend, /attendees:\s*\[\{ email: prospect\.email/);
+  assert.match(backend, /INRCY_VISIO_PUBLIC_CALENDAR_ID/);
+  assert.match(backend, /conferenceData:\s*memberEvent\?\.conferenceData/);
+  assert.match(backend, /email:\s*prospect\.email/);
+  assert.match(backend, /upsertTeamMirrorEvent\(\{/);
   assert.match(backend, /PRIVATE_BOOKING_COMPANION_KEY/);
   assert.match(backend, /PRIVATE_BOOKING_COMPANION_VALUE/);
   assert.match(backend, /sendUpdates=none/);
