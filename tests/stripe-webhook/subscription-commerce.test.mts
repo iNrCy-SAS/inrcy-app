@@ -198,6 +198,26 @@ test("le rappel annuel conserve TTC en legacy et affiche HT pour la tarification
   assert.match(billingCron, /€ \$\{renewalTaxLabel\}/);
 });
 
+test("le récapitulatif Premium suit la cohorte et ne force plus le libellé TTC", () => {
+  const subscriptionUi = source(
+    "app/dashboard/settings/_components/AbonnementContent.tsx",
+  );
+  assert.match(
+    subscriptionUi,
+    /pricingVersionForAccountCreatedAt\(accountCreatedAt\)/,
+  );
+  assert.match(subscriptionUi, /pricePeriodLabel:/);
+  assert.match(subscriptionUi, /standard_tax_exclusive_short/);
+  assert.match(
+    subscriptionUi,
+    /storedPrice \?\? defaultCommercialOffer\?\.monthlyPriceEur/,
+  );
+  assert.doesNotMatch(
+    subscriptionUi,
+    /computed\.annualPayment\s*\?\s*i18nT\("ttc_an_7615e4f3"\)/,
+  );
+});
+
 test("le webhook est idempotent, compatible Basil et ne rétrograde jamais Founder", () => {
   const webhook = source("app/api/stripe/webhook/route.ts");
   assert.match(webhook, /claimStripeWebhookEvent/);

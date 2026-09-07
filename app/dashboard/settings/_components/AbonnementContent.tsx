@@ -11,6 +11,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   PREMIUM_SUBSCRIPTION_OFFER,
   PREMIUM_SUBSCRIPTION_OFFER_V2,
+  pricingVersionForAccountCreatedAt,
   STANDARD_SUBSCRIPTION_OFFER,
   STANDARD_SUBSCRIPTION_OFFER_V2,
 } from "@/lib/subscriptionOffers";
@@ -191,6 +192,7 @@ export default function AbonnementContent({ mode: _mode = "page", onOpenContact 
   const checkoutBilling = searchParams.get("billing"); // monthly | yearly | null
   const [loading, setLoading] = useState(true);
   const [sub, setSub] = useState<SubData | null>(null);
+  const [accountCreatedAt, setAccountCreatedAt] = useState<string | null>(null);
   const [err, setErr] = useState("");
   const [billingBusy, setBillingBusy] = useState(false);
   const [portalBusy, setPortalBusy] = useState(false);
@@ -203,6 +205,7 @@ const fetchSubscription = async () => {
     const { data: authData } = await supabase.auth.getUser();
     const user = authData?.user;
     if (!user) return;
+    setAccountCreatedAt(user.created_at ?? null);
 
     const { data } = await supabase
       .from("subscriptions")
@@ -231,6 +234,7 @@ useEffect(() => {
           setSub(null);
           return;
         }
+        setAccountCreatedAt(user.created_at ?? null);
 
         const { data, error } = await supabase
           .from("subscriptions")
@@ -346,20 +350,33 @@ useEffect(() => {
     const storedPrice = storedPriceRaw != null && Number.isFinite(storedPriceRaw) && storedPriceRaw >= 0
       ? storedPriceRaw
       : null;
+    const pricingVersion = pricingVersionForAccountCreatedAt(accountCreatedAt);
+    const usesV2CommercialPricing =
+      pricingVersion === "international_ht_v2" &&
+      (planNormalized === "Standard" || planNormalized === "Premium");
+    const defaultCommercialOffer = planNormalized === "Standard"
+      ? pricingVersion === "international_ht_v2"
+        ? STANDARD_SUBSCRIPTION_OFFER_V2
+        : STANDARD_SUBSCRIPTION_OFFER
+      : planNormalized === "Premium"
+        ? pricingVersion === "international_ht_v2"
+          ? PREMIUM_SUBSCRIPTION_OFFER_V2
+          : PREMIUM_SUBSCRIPTION_OFFER
+        : null;
 
     // Source de vérité : subscriptions.monthly_price_eur.
     // Cela s'applique aussi aux abonnements déjà en cours et aux tarifs négociés saisis manuellement.
     // Le tarif du plan ne sert que de secours si la colonne DB est réellement absente/invalide.
     const monthlyPriceTtc = planNormalized === "Trial"
       ? 0
-      : storedPrice ?? monthlyPriceTtcFromPlan(planNormalized);
+      : storedPrice ?? defaultCommercialOffer?.monthlyPriceEur ?? monthlyPriceTtcFromPlan(planNormalized);
     const displayedPriceTtc = annualPayment
       ? planNormalized === "Standard"
-        ? monthlyPriceTtc === STANDARD_SUBSCRIPTION_OFFER_V2.monthlyPriceEur
+        ? pricingVersion === "international_ht_v2"
           ? STANDARD_SUBSCRIPTION_OFFER_V2.yearlyPriceEur
           : STANDARD_SUBSCRIPTION_OFFER.yearlyPriceEur
         : planNormalized === "Premium"
-          ? monthlyPriceTtc === PREMIUM_SUBSCRIPTION_OFFER_V2.monthlyPriceEur
+          ? pricingVersion === "international_ht_v2"
             ? PREMIUM_SUBSCRIPTION_OFFER_V2.yearlyPriceEur
             : PREMIUM_SUBSCRIPTION_OFFER.yearlyPriceEur
           : monthlyPriceTtc
@@ -375,6 +392,11 @@ useEffect(() => {
       cancellationScheduled,
       monthlyNoticeCancellation,
       priceLabel: `${displayedPriceTtc} €`,
+      pricePeriodLabel: `${i18nT(
+        usesV2CommercialPricing
+          ? "standard_tax_exclusive_short"
+          : "standard_tax_inclusive_short",
+      )} / ${i18nT(annualPayment ? "standard_per_year" : "standard_per_month")}`,
       annualPayment,
       statusText: isTrialPlan ? i18nT("essai_21_jours_3095df3f") : statusLabel(statusNorm, i18nT),
       hasStripeSub: hasScheduledSubscription,
@@ -382,7 +404,7 @@ useEffect(() => {
       planNormalized,
       trialEndsWithinStripeMinimum,
     };
-  }, [sub, checkoutState, locale, i18nT]);
+  }, [sub, checkoutState, locale, i18nT, accountCreatedAt]);
 
   const shell: React.CSSProperties = {
     borderRadius: 16,
@@ -595,7 +617,7 @@ useEffect(() => {
           <div style={{ textAlign: "right", flexShrink: 0 }}>
             <div style={{ opacity: 0.85, fontSize: 12, fontWeight: 900, letterSpacing: 0.4 }}>PRIX</div>
             <div style={{ fontSize: 26, fontWeight: 950, marginTop: 4, lineHeight: 1 }}>{computed.priceLabel}</div>
-            <div style={{ opacity: 0.75, fontSize: 12, marginTop: 6 }}>{computed.annualPayment ? i18nT("ttc_an_7615e4f3") : i18nT("ttc_par_mois_e7babfcd")}</div>
+            <div style={{ opacity: 0.75, fontSize: 12, marginTop: 6 }}>{computed.pricePeriodLabel}</div>
           </div>
         </div>
       </div>
