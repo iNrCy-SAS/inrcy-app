@@ -32,10 +32,13 @@ postérieure au cutover, cette date ne doit plus jamais être déplacée ni supp
 2. Vérifier Stripe Tax et le calcul automatique selon pays/adresse/statut fiscal.
 3. Renseigner les quatre variables `STRIPE_PRICE_*HT_*_ID` documentées dans
    `docs/ENVIRONMENT_CHECKLIST.md`, en conservant toutes les variables historiques.
-4. Choisir un cutover futur, renseigner sa valeur UTC dans Vercel, puis redéployer.
-5. Avant le cutover, tester un compte créé avant la date (ancien Price) et un compte
-   de test créé après une date de Preview dédiée (nouveau Price + taxe dynamique).
-6. Synchroniser au cutover les textes du site marketing externe vers 58 € HT et
+4. Au moment de l'activation, enregistrer l'instant UTC courant comme cutover
+   technique immuable dans Vercel, puis redéployer immédiatement. Il ne s'agit pas
+   d'une date commerciale planifiée : elle sert uniquement à protéger les comptes
+   déjà créés.
+5. Tester un compte créé avant cet instant (ancien Price) et un compte de test créé
+   après cet instant (nouveau Price + taxe dynamique).
+6. Synchroniser lors de l'activation les textes du site marketing externe vers 58 € HT et
    108 € HT. Aucun changement WordPress n'est effectué par ce dépôt.
 
 ## Repli
