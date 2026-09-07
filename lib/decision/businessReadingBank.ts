@@ -68,6 +68,12 @@ const CHANNEL_COPY: Record<ChannelKey, {
     boosterAngle: "publier une prise de parole pro pour créer de la confiance",
     templateAngle: "suivre les prospects et relations utiles depuis le CRM",
   },
+  x: {
+    name: "X",
+    angle: "prise de parole courte et conversationnelle",
+    boosterAngle: "publier une idée concise et actuelle pour rejoindre les conversations utiles",
+    templateAngle: "réactiver les contacts issus de vos prises de parole professionnelles",
+  },
   tiktok: {
     name: "TikTok",
     angle: "visibilité vidéo et photo courte",

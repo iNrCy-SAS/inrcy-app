@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/requireUser";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
   INR_AGENT_PINTEREST_PUBLISH_MIGRATION_FLAG,
+  INR_AGENT_X_PUBLISH_MIGRATION_FLAG,
   INR_AGENT_AUTOMATION_KEYS,
   automationSettingsToDbRow,
   sanitizeInrAgentAutomationSettings,
@@ -348,6 +349,7 @@ function connectedInrAgentChannels(states: Awaited<ReturnType<typeof getChannelC
   if (states.facebook.connected && !states.facebook.requiresUpdate) channels.add("facebook");
   if (states.instagram.connected && !states.instagram.requiresUpdate) channels.add("instagram");
   if (states.linkedin.connected && !states.linkedin.requiresUpdate) channels.add("linkedin");
+  if (states.x.connected && !states.x.requiresUpdate) channels.add("x");
   if (states.tiktok.connected && !states.tiktok.requiresUpdate) channels.add("tiktok");
   if (states.youtube_shorts.connected && !states.youtube_shorts.requiresUpdate) channels.add("youtube");
   if (states.pinterest.connected && !states.pinterest.requiresUpdate) channels.add("pinterest");
@@ -387,6 +389,27 @@ function filterSettingsByConnectedChannels(
         metadata = {
           ...metadata,
           [INR_AGENT_PINTEREST_PUBLISH_MIGRATION_FLAG]: true,
+        };
+      }
+    }
+
+    if (
+      key === "publish" &&
+      connectedChannels.has("x") &&
+      !allowedChannels.includes("x")
+    ) {
+      const xAlreadyCustomized =
+        metadata[INR_AGENT_X_PUBLISH_MIGRATION_FLAG] === true;
+      if (hydrateMissingPublishDefaults && !xAlreadyCustomized) {
+        allowedChannels = [...allowedChannels, "x"];
+        metadata = {
+          ...metadata,
+          [INR_AGENT_X_PUBLISH_MIGRATION_FLAG]: true,
+        };
+      } else if (!hydrateMissingPublishDefaults) {
+        metadata = {
+          ...metadata,
+          [INR_AGENT_X_PUBLISH_MIGRATION_FLAG]: true,
         };
       }
     }

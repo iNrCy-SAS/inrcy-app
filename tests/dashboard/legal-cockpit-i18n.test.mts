@@ -35,8 +35,8 @@ test("les trois documents légaux utilisent un catalogue complet dans les neuf l
 test("les dates légales de la modale Réglages existent dans chaque langue", () => {
   for (const locale of locales) {
     const settings = JSON.parse(read(`messages/${locale}/settings.json`)) as Record<string, string>;
-    assert.ok(settings.derniere_mise_a_jour_08_08_f576f6f7, locale);
-    assert.ok(settings.version_du_08_08_2026_1465b7bb, locale);
+    assert.ok(settings.derniere_mise_a_jour_07_09_2026_7a4f81d2, locale);
+    assert.ok(settings.version_du_07_09_2026_51f2b1b8, locale);
   }
 
   const modal = read("app/dashboard/settings/_components/LegalDocumentsModal.tsx");

@@ -19,13 +19,14 @@ test("un résultat n'est récupéré que pour son reçu exact", () => {
     postByChannel: {
       facebook: { title: "Titre", content: "Contenu" },
       pinterest: { title: "Épingle", content: "Description" },
+      x: { content: "Contenu X" },
       canal_inconnu: { content: "Ne doit pas sortir" },
     },
     boosterGenerationReceipt: {
       requestId,
       status: "ready",
       generatedAt: "2026-08-07T15:15:45.000Z",
-      recoveredChannels: ["facebook", "canal_inconnu"],
+      recoveredChannels: ["facebook", "x", "canal_inconnu"],
       aiFallback: { used: true, finalEngineLabel: "ChatGPT" },
     },
   };
@@ -35,8 +36,8 @@ test("un résultat n'est récupéré que pour son reçu exact", () => {
     requestId,
   );
   assert.ok(recovered);
-  assert.deepEqual(Object.keys(recovered.versions), ["facebook", "pinterest"]);
-  assert.deepEqual(recovered.recoveredChannels, ["facebook"]);
+  assert.deepEqual(Object.keys(recovered.versions), ["facebook", "pinterest", "x"]);
+  assert.deepEqual(recovered.recoveredChannels, ["facebook", "x"]);
   assert.equal(recovered.aiFallback?.used, true);
   assert.equal(
     readBoosterGenerationRecoveryPayload(generatedContent, `${requestId}_old`),

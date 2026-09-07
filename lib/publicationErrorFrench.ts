@@ -6,6 +6,7 @@ export type PublicationErrorProvider =
   | "tiktok"
   | "youtube_shorts"
   | "pinterest"
+  | "x"
   | "inrcy_site"
   | "site_web"
   | "inr_search";
@@ -186,6 +187,42 @@ export function getProviderPublicationErrorMessage(
   if (provider === "youtube_shorts") {
     if (message.includes("upload") && message.includes("failed")) {
       return "YouTube n’a pas pu recevoir la vidéo. Réessayez dans quelques instants.";
+    }
+  }
+
+  if (provider === "x") {
+    if (
+      message.includes("duplicate content") ||
+      message.includes("duplicate post")
+    ) {
+      return "X a refusé ce contenu car une publication identique existe déjà.";
+    }
+    if (
+      message.includes("media type unrecognized") ||
+      message.includes("unsupported media") ||
+      message.includes("invalid media")
+    ) {
+      return "X a refusé le format du média. iNrCy doit utiliser une variante compatible.";
+    }
+    if (
+      message.includes("rate limit") ||
+      message.includes("too many requests") ||
+      message.includes("usage cap") ||
+      message.includes("quota")
+    ) {
+      return "X limite temporairement les publications. Réessayez dans quelques minutes.";
+    }
+    if (
+      message.includes("unauthorized") ||
+      message.includes("forbidden") ||
+      message.includes("access token") ||
+      message.includes("oauth") ||
+      message.includes("scope")
+    ) {
+      return "X à reconnecter. Rendez-vous dans Canaux.";
+    }
+    if (message.includes("provider_status_unknown")) {
+      return "X n’a pas confirmé le résultat de l’envoi. Vérifiez iNr’Send avant de réessayer afin d’éviter un doublon.";
     }
   }
 

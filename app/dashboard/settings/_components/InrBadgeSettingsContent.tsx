@@ -31,6 +31,7 @@ type InrBadgeSettingsChannels = {
   facebook: InrBadgeChannelStatus;
   instagram: InrBadgeChannelStatus;
   linkedin: InrBadgeChannelStatus;
+  x?: InrBadgeChannelStatus;
   pinterest?: InrBadgeChannelStatus;
   mails: InrBadgeChannelStatus;
   tiktok: InrBadgeChannelStatus;
@@ -516,6 +517,7 @@ export default function InrBadgeSettingsContent({
     { key: "facebook", label: i18nT("facebook_82da67b2"), connected: canShareChannel(channels.facebook), helper: i18nT("disponible_si_la_page_facebook_est_8a5a0eb7") },
     { key: "instagram", label: i18nT("instagram_5721bbef"), connected: canShareChannel(channels.instagram), helper: i18nT("disponible_si_instagram_est_connecte_avec_8ba9a12c") },
     { key: "linkedin", label: i18nT("linkedin_6b6390a4"), connected: canShareChannel(channels.linkedin), helper: i18nT("disponible_si_linkedin_est_connecte_avec_c95a8863") },
+    { key: "x", label: "X", connected: canShareChannel(channels.x || { connected: false }), helper: i18nT("disponible_si_linkedin_est_connecte_avec_c95a8863").replace(/LinkedIn/gi, "X") },
     { key: "pinterest", label: i18nT("pinterest_a45a7994"), connected: canShareChannel(channels.pinterest || { connected: false }), helper: i18nT("disponible_si_pinterest_est_connecte_avec_df07a312") },
     { key: "tiktok", label: i18nT("tiktok_fc49f156"), connected: canShareChannel(channels.tiktok), helper: i18nT("disponible_si_tiktok_est_connecte_avec_b74a1d82") },
     { key: "youtubeShorts", label: i18nT("youtube_558865a1"), connected: canShareChannel(channels.youtubeShorts || { connected: false }), helper: i18nT("disponible_si_youtube_est_configure_avec_c9a7a776") },

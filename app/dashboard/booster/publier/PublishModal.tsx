@@ -64,8 +64,13 @@ import { confirmInrcy } from "@/lib/inrcyDialog";
 import { INR_SEARCH_CONTENT_MAX_LENGTH } from "@/lib/boosterChannelRules";
 import {
   buildCtaTextForChannel,
+  buildBoosterXPostText,
   sanitizeBoosterPostForStructuredCta,
 } from "@/lib/boosterCta";
+import {
+  X_POST_WEIGHTED_LENGTH_MAX,
+  getXPostTextMetrics,
+} from "@/lib/xChannel";
 import {
   editableHtmlToSiteText,
   stripSiteTextFormatting,
@@ -905,6 +910,7 @@ export default function PublishModal({
     facebook: !!initialConnectedChannels?.facebook,
     instagram: !!initialConnectedChannels?.instagram,
     linkedin: !!initialConnectedChannels?.linkedin,
+    x: !!initialConnectedChannels?.x,
     tiktok: !!initialConnectedChannels?.tiktok,
     youtube_shorts: !!initialConnectedChannels?.youtube_shorts,
     pinterest: !!initialConnectedChannels?.pinterest,
@@ -1556,6 +1562,7 @@ export default function PublishModal({
         "facebook",
         "instagram",
         "linkedin",
+        "x",
         "tiktok",
         "youtube_shorts",
         "pinterest",
@@ -4596,6 +4603,10 @@ export default function PublishModal({
           structuredSafePost.content || "",
         ),
         cta: stripSiteTextFormatting(structuredSafePost.cta || ""),
+        hashtags:
+          key === "x"
+            ? (structuredSafePost.hashtags || []).slice(0, 2)
+            : structuredSafePost.hashtags,
       });
     }
 
@@ -6606,6 +6617,26 @@ export default function PublishModal({
       const hasImage = imageKeysToPublish.length > 0;
       const mode = resolveChannelMediaMode(channel);
       const hasVideo = mode === "video" && !!videoFile;
+      const imageKeySet = new Set(imageKeysToPublish);
+      const xGifCount =
+        channel === "x" && mode === "images"
+          ? images.filter((image) => {
+              if (!imageKeySet.has(makeImageKey(image))) return false;
+              return (
+                String(image.type || "").toLowerCase() === "image/gif" ||
+                String(image.name || "").toLowerCase().endsWith(".gif")
+              );
+            }).length
+          : 0;
+      const xPostText =
+        channel === "x"
+          ? buildBoosterXPostText(post, {
+              websiteUrl: getWebsiteUrlForChannel(channel, ctaDefaults),
+              phone: ctaDefaults?.phone || "",
+            })
+          : "";
+      const xTextMetrics =
+        channel === "x" ? getXPostTextMetrics(xPostText) : null;
       const effectiveVideoDuration = Number(
         videoDurationSeconds ?? videoSourceMetadata?.duration ?? 0,
       );
@@ -6635,6 +6666,8 @@ export default function PublishModal({
         hasText,
         hasTitle: activeMediaOnly || hasTitle,
         hasContent: activeMediaOnly || hasContent,
+        xTextWeightedLength: xTextMetrics?.weightedLength ?? null,
+        xGifCount,
       });
       const videoPreparationState = videoVariantPreparationByChannel[channel];
       const requestedVideoFormat =
@@ -6739,7 +6772,15 @@ export default function PublishModal({
                     pinterestBoardId,
                 }),
               ]
-            : [],
+            : channel === "x" && xTextMetrics
+              ? [
+                  `Post X : ${xTextMetrics.weightedLength}/${X_POST_WEIGHTED_LENGTH_MAX} caractères pondérés.`,
+                  ...(xGifCount > 0 ? ["GIF X : publié seul, conformément aux règles du canal."] : []),
+                  ...(post.ctaMode && post.ctaMode !== "none"
+                    ? ["X n’affiche pas de bouton natif : le CTA est intégré au texte du post."]
+                    : []),
+                ]
+              : [],
         blockers,
         blockerCodes,
         mediaBlockers: mediaBlockerCodes.map(localizeRequirement),

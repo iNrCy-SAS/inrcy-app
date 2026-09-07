@@ -2,7 +2,17 @@ import { readAccountCacheValue, writeAccountCacheValue } from "@/lib/browserAcco
 import { getDefaultSnapshotDate } from "@/lib/stats/snapshotWindow";
 import type { InrstatsChannelBlocksByChannel } from "@/lib/inrstats/channelBlocks";
 
-export type CubeKey = "site_inrcy" | "site_web" | "gmb" | "facebook" | "instagram" | "linkedin";
+export type CubeKey =
+  | "site_inrcy"
+  | "site_web"
+  | "gmb"
+  | "facebook"
+  | "instagram"
+  | "linkedin"
+  | "x"
+  | "tiktok"
+  | "youtube_shorts"
+  | "pinterest";
 
 export type DailyRefreshBulkPayload = {
   period: number;

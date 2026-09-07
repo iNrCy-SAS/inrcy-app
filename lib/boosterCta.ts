@@ -17,7 +17,7 @@ export {
   normalizeBoosterWhatsAppPhone,
 } from "@/lib/boosterWhatsappCta";
 
-export type BoosterChannelKey = "inrcy_site" | "site_web" | "inr_search" | "gmb" | "facebook" | "instagram" | "linkedin" | "tiktok" | "youtube_shorts" | "pinterest";
+export type BoosterChannelKey = "inrcy_site" | "site_web" | "inr_search" | "gmb" | "facebook" | "instagram" | "linkedin" | "x" | "tiktok" | "youtube_shorts" | "pinterest";
 export type BoosterCtaMode = "none" | "website" | "call" | "message" | "custom";
 
 export type BoosterPostLike = {
@@ -57,6 +57,9 @@ export const BOOSTER_CTA_MODES_BY_CHANNEL: Record<
   // Instagram et TikTok ne rendent pas les URL de légende cliquables via nos API.
   instagram: ["none", "message"],
   linkedin: ["none", "website", "custom"],
+  // X n'expose pas de bouton natif dans une publication : les destinations
+  // sont rendues explicitement dans le texte final.
+  x: ["none", "website", "call", "message", "custom"],
   tiktok: ["none", "message"],
   // Les liens sont placés dans la description YouTube.
   youtube_shorts: ["none", "website", "custom"],
@@ -341,6 +344,13 @@ export function buildBoosterInstagramCaption(post: Partial<BoosterPostLike> | nu
   const base = buildBoosterMessage("instagram", post, context);
   const tagLine = buildBoosterHashtagLine(post, base, 8);
   return (tagLine ? `${base}\n\n${tagLine}` : base).trim().slice(0, 2200);
+}
+
+/** Texte exact envoyé à X, CTA et hashtags inclus. */
+export function buildBoosterXPostText(post: Partial<BoosterPostLike> | null | undefined, context?: BoosterCtaContext) {
+  const base = buildBoosterMessage("x", post, context);
+  const tagLine = buildBoosterHashtagLine(post, base, 2);
+  return [base, tagLine].filter(Boolean).join("\n\n").trim();
 }
 
 export function buildBoosterGmbSummary(post: Partial<BoosterPostLike> | null | undefined, context?: BoosterCtaContext) {

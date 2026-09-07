@@ -47,6 +47,7 @@ const TOOL_LABELS: Record<AppBubbleKey, { label: string; group: string; descript
   facebook: { label: "Facebook", group: "Réseaux", description: "Page Facebook.", default_enabled: APP_BUBBLE_DEFAULT_ACCESS.facebook },
   instagram: { label: "Instagram", group: "Réseaux", description: "Compte Instagram.", default_enabled: APP_BUBBLE_DEFAULT_ACCESS.instagram },
   linkedin: { label: "LinkedIn", group: "Réseaux", description: "Page ou profil LinkedIn.", default_enabled: APP_BUBBLE_DEFAULT_ACCESS.linkedin },
+  x: { label: "X", group: "Réseaux", description: "Publications et statistiques du compte X.", default_enabled: APP_BUBBLE_DEFAULT_ACCESS.x },
   tiktok: { label: "TikTok", group: "Réseaux", description: "Publication TikTok.", default_enabled: APP_BUBBLE_DEFAULT_ACCESS.tiktok },
   youtube_shorts: { label: "YouTube", group: "Réseaux", description: "Publication YouTube.", default_enabled: APP_BUBBLE_DEFAULT_ACCESS.youtube_shorts },
   pinterest: { label: "Pinterest", group: "Réseaux", description: "Visibilité inspirationnelle, photos et vidéos.", default_enabled: APP_BUBBLE_DEFAULT_ACCESS.pinterest },

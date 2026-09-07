@@ -482,6 +482,7 @@ export const PUBLICATION_CHANNEL_PRESETS: Record<string, PublicationImageRenderP
   facebook: { width: 1200, height: 1200, defaultFit: "contain", defaultBlurBackground: false },
   instagram: { width: 1080, height: 1350, defaultFit: "contain", defaultBlurBackground: false },
   linkedin: { width: 1200, height: 1200, defaultFit: "contain", defaultBlurBackground: false },
+  x: { width: 1200, height: 675, defaultFit: "contain", defaultBlurBackground: false },
   tiktok: { width: 1080, height: 1920, defaultFit: "contain", defaultBlurBackground: false },
   pinterest: { width: 1000, height: 1500, defaultFit: "contain", defaultBlurBackground: false },
 };
@@ -1087,6 +1088,8 @@ export function normalizeChannelKey(channel: string): string {
       return "gmb";
     case "linked in":
       return "linkedin";
+    case "twitter":
+      return "x";
     default:
       return normalized;
   }
@@ -1109,6 +1112,8 @@ export function formatChannelLabel(channel: string): string {
       return "Instagram";
     case "linkedin":
       return "LinkedIn";
+    case "x":
+      return "X";
     case "tiktok":
       return "TikTok";
     case "youtube_shorts":
@@ -1137,6 +1142,8 @@ export function channelApiPath(channel: string): string {
       return "instagram";
     case "linkedin":
       return "linkedin";
+    case "x":
+      return "x";
     case "tiktok":
       return "tiktok";
     case "pinterest":
@@ -1189,7 +1196,7 @@ export function isCancelledChannelResult(result: any): boolean {
 }
 
 export function orderChannelKeys(channels: string[]): string[] {
-  const priority = ["inrcy_site", "site_web", "inr_search", "gmb", "facebook", "instagram", "linkedin", "tiktok", "youtube_shorts", "pinterest"];
+  const priority = ["inrcy_site", "site_web", "inr_search", "gmb", "facebook", "instagram", "linkedin", "x", "tiktok", "youtube_shorts", "pinterest"];
   const normalizedUnique = Array.from(new Set(channels.map((channel) => normalizeChannelKey(channel)).filter(Boolean)));
   return normalizedUnique.sort((a, b) => {
     const indexA = priority.indexOf(a);

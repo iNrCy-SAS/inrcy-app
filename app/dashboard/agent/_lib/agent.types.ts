@@ -22,6 +22,7 @@ export type ChannelKey =
   | "facebook"
   | "instagram"
   | "linkedin"
+  | "x"
   | "tiktok"
   | "youtube"
   | "pinterest"

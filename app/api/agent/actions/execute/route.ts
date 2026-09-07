@@ -41,7 +41,8 @@ type BoosterChannel =
   | "linkedin"
   | "tiktok"
   | "youtube_shorts"
-  | "pinterest";
+  | "pinterest"
+  | "x";
 
 type BoosterPost = {
   title: string;
@@ -76,10 +77,11 @@ const allowedBoosterChannels = new Set<BoosterChannel>([
   "tiktok",
   "youtube_shorts",
   "pinterest",
+  "x",
 ]);
 
 function canPublishWithoutMedia(channel: BoosterChannel) {
-  return ["inrcy_site", "site_web", "inr_search", "gmb", "facebook", "linkedin"].includes(
+  return ["inrcy_site", "site_web", "inr_search", "gmb", "facebook", "linkedin", "x"].includes(
     channel,
   );
 }
@@ -108,6 +110,8 @@ const agentToBoosterChannel: Record<string, BoosterChannel> = {
   youtube: "youtube_shorts",
   youtube_shorts: "youtube_shorts",
   pinterest: "pinterest",
+  x: "x",
+  twitter: "x",
 };
 
 function asRecord(value: unknown): JsonRecord | null {
@@ -218,6 +222,7 @@ function getFirstPost(
     "inr_search",
     "tiktok",
     "youtube_shorts",
+    "x",
   ];
   const ordered = [...preferred, ...channels];
   return (

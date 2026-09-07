@@ -271,6 +271,7 @@ const BOOSTER_PUBLICATION_CHANNELS = new Set<BoosterAsyncChannelKey>([
   "facebook",
   "instagram",
   "linkedin",
+  "x",
   "tiktok",
   "youtube_shorts",
   "pinterest",

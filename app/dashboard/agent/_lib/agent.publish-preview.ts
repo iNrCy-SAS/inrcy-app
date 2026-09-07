@@ -303,7 +303,7 @@ export function channelRequiresVideo(channelKey: ChannelKey | null): boolean {
 export function channelSupportsHashtags(channelKey: ChannelKey | null): boolean {
   return Boolean(
     channelKey &&
-    ["facebook", "instagram", "linkedin", "tiktok", "youtube"].includes(
+    ["facebook", "instagram", "linkedin", "x", "tiktok", "youtube"].includes(
       channelKey,
     ),
   );

@@ -143,6 +143,17 @@ export type ChannelStates = {
     default_board_id: string | null;
     default_board_name: string | null;
   };
+  x: {
+    accountConnected: boolean;
+    connected: boolean;
+    expired: boolean;
+    requiresUpdate: boolean;
+    connection_status: ConnectionDisplayStatus;
+    resource_id: string | null;
+    username: string | null;
+    display_name: string | null;
+    profile_url: string | null;
+  };
   inr_search: {
     accountConnected: boolean;
     connected: boolean;
@@ -452,6 +463,36 @@ export async function getChannelConnectionStates(
   const pinterestDefaultBoardId = asString(pinterestSettings.defaultBoardId) || null;
   const pinterestDefaultBoardName = asString(pinterestSettings.defaultBoardName) || null;
 
+  const x = latestIntegration(rows, "x", "x", "x");
+  const xSettings = asRecord(settings.x);
+  const xMeta = asRecord(x.meta);
+  const xHasAccessToken = hasTruthyString(x.access_token_enc);
+  const xHasRefreshToken = hasTruthyString(x.refresh_token_enc);
+  const xHasUsableRefreshToken = hasUsableRefreshCredential(
+    xHasRefreshToken,
+    xMeta.refresh_expires_at,
+  );
+  const xExpired = isExpired(x.expires_at) && !xHasUsableRefreshToken;
+  const xStatus = asString(x.status);
+  const xResourceId = asString(x.resource_id) || asString(x.provider_account_id) || null;
+  const xUsername = asString(x.resource_label) || asString(xMeta.username) || asString(xSettings.username) || null;
+  const xConnected = Boolean(
+    hasIntegrationRecord(x) &&
+      (xStatus === "connected" || xStatus === "account_connected") &&
+      (xHasAccessToken || xHasUsableRefreshToken) &&
+      xResourceId &&
+      !xExpired,
+  );
+  const xConnectionStatus = xExpired
+    ? "needs_update"
+    : getConnectionDisplayStatus(xConnected, "channel:x", xMeta);
+  const xRequiresUpdate = xConnectionStatus === "needs_update";
+  const xProfileUrl =
+    asString(xMeta.profile_url) ||
+    asString(xSettings.profileUrl) ||
+    asString(xSettings.url) ||
+    (xUsername ? `https://x.com/${encodeURIComponent(xUsername.replace(/^@/, ""))}` : null);
+
   // iNr'Search est une page publique gérée par iNrCy, pas une connexion OAuth tierce.
   const inrSearchSettings = asRecord(settings.inrSearch);
   const inrSearchSlug = asString(inrSearchSettings.slug);
@@ -599,6 +640,17 @@ export async function getChannelConnectionStates(
       profile_url: asString(pinterestSettings.publicProfileUrl) || null,
       default_board_id: pinterestDefaultBoardId,
       default_board_name: pinterestDefaultBoardName,
+    },
+    x: {
+      accountConnected: xConnected,
+      connected: xConnected,
+      expired: xExpired,
+      requiresUpdate: xRequiresUpdate,
+      connection_status: xConnectionStatus,
+      resource_id: xResourceId,
+      username: xUsername,
+      display_name: asString(x.display_name) || asString(xMeta.name) || asString(xSettings.displayName) || null,
+      profile_url: xProfileUrl,
     },
     inr_search: {
       accountConnected: inrSearchEnabled,

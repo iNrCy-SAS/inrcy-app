@@ -367,6 +367,7 @@ export function buildAsyncPreparedImagePayloads(
   const usesSocialDerivative = [
     "facebook",
     "linkedin",
+    "x",
     "tiktok",
     "pinterest",
   ].includes(channel);
@@ -524,6 +525,7 @@ export function getRequiredImageFormatsForChannel(
   if (
     channel === "facebook" ||
     channel === "linkedin" ||
+    channel === "x" ||
     channel === "tiktok" ||
     channel === "pinterest"
   ) {

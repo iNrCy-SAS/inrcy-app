@@ -48,10 +48,11 @@ test("the three app legal documents share the current date and no longer expose 
   const publicMessages = JSON.parse(read("messages/fr-FR/public.json")) as Record<string, string>;
   const legalMessages = JSON.parse(read("messages/fr-FR/legal.json")) as Record<string, string>;
 
-  assert.equal((docs.match(/derniere_mise_a_jour_08_08_f576f6f7/g) ?? []).length, 2);
-  assert.equal((docs.match(/version_du_08_08_2026_1465b7bb/g) ?? []).length, 1);
-  assert.equal(publicMessages.derniere_mise_a_jour_08_08_f576f6f7, "Dernière mise à jour : 08/08/2026");
-  assert.equal(publicMessages.version_du_08_08_2026_1465b7bb, "Version du 08/08/2026");
+  assert.equal((docs.match(/derniere_mise_a_jour_07_09_2026_7a4f81d2/g) ?? []).length, 2);
+  assert.equal((docs.match(/version_du_07_09_2026_51f2b1b8/g) ?? []).length, 1);
+  assert.equal(publicMessages.derniere_mise_a_jour_07_09_2026_7a4f81d2, "Dernière mise à jour : 07/09/2026");
+  assert.equal(publicMessages.version_du_07_09_2026_51f2b1b8, "Version du 07/09/2026");
+  assert.match(shell, /version_juridique_synchronisee_le_07_09_2026_68a90e11/);
   assert.match(shell, /subtitle/);
   assert.ok(Object.values(legalMessages).some((message) => message.includes("1 vidéo source jusqu’à 300 Mo")));
   assert.match(legalText, /useTranslations\("legal"\)/);

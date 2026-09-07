@@ -6,6 +6,7 @@ export const OAUTH_PUBLICATION_CHANNELS = [
   "tiktok",
   "youtube_shorts",
   "pinterest",
+  "x",
 ] as const;
 
 export type OAuthPublicationChannel =
@@ -21,6 +22,7 @@ const CHANNEL_ALIASES: Record<OAuthPublicationChannel, string[]> = {
   tiktok: ["tiktok"],
   youtube_shorts: ["youtube", "youtube shorts"],
   pinterest: ["pinterest"],
+  x: ["x", "twitter", "api.x.com", "api.twitter.com"],
 };
 
 const STRONG_APPLICATION_SESSION_RE =

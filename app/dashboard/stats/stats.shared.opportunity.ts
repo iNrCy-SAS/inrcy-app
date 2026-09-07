@@ -255,7 +255,7 @@ function computeOpportunityPerDaySocial(cubeKey: CubeKey, ov: Overview): number 
 
   if (!connected) return 0;
 
-  const coldStartBaseline = cubeKey === "instagram" ? 0.18 : cubeKey === "linkedin" ? 0 : (cubeKey === "tiktok" || cubeKey === "youtube_shorts" || cubeKey === "pinterest") ? 0.18 : 0.2;
+  const coldStartBaseline = cubeKey === "instagram" ? 0.18 : cubeKey === "linkedin" ? 0 : (cubeKey === "x" || cubeKey === "tiktok" || cubeKey === "youtube_shorts" || cubeKey === "pinterest") ? 0.18 : 0.2;
   if (!m) return coldStartBaseline;
 
   const audienceTotal =
@@ -406,7 +406,7 @@ function computeOpportunityPerDaySocial(cubeKey: CubeKey, ov: Overview): number 
   const refs =
     cubeKey === "instagram"
       ? { imp: 2500, eng: 120, cta: 6, aud: 3000 }
-      : (cubeKey === "tiktok" || cubeKey === "youtube_shorts" || cubeKey === "pinterest")
+      : (cubeKey === "x" || cubeKey === "tiktok" || cubeKey === "youtube_shorts" || cubeKey === "pinterest")
         ? { imp: 3200, eng: 160, cta: 5, aud: 2500 }
         : { imp: 3000, eng: 90, cta: 5, aud: 5000 };
 
@@ -456,7 +456,7 @@ export function computeOpportunity30(cubeKey: CubeKey, ov: Overview) {
     return Math.max(0, Math.round(base + contactsPotential + activityPotential));
   }
 
-  if (cubeKey === "facebook" || cubeKey === "instagram" || cubeKey === "linkedin" || cubeKey === "tiktok" || cubeKey === "youtube_shorts" || cubeKey === "pinterest") {
+  if (cubeKey === "facebook" || cubeKey === "instagram" || cubeKey === "linkedin" || cubeKey === "x" || cubeKey === "tiktok" || cubeKey === "youtube_shorts" || cubeKey === "pinterest") {
     const perDay = computeOpportunityPerDaySocial(cubeKey, ov);
     return Math.max(0, Math.round(perDay * 30));
   }

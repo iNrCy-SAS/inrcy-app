@@ -6,6 +6,7 @@ export const DASHBOARD_OAUTH_CHANNELS = [
   "tiktok",
   "youtube_shorts",
   "pinterest",
+  "x",
 ] as const;
 
 export type DashboardOAuthChannel = (typeof DASHBOARD_OAUTH_CHANNELS)[number];
@@ -32,6 +33,8 @@ const OFFICIAL_DASHBOARD_BOOLEAN_FIELDS = [
   "youtubeShortsRequiresUpdate",
   "pinterestConnected",
   "pinterestRequiresUpdate",
+  "xConnected",
+  "xRequiresUpdate",
   "mailAccountsRequireUpdate",
 ] as const;
 
@@ -40,6 +43,7 @@ const OFFICIAL_DASHBOARD_STATUS_FIELDS = [
   "facebookConnectionStatus",
   "instagramConnectionStatus",
   "linkedinConnectionStatus",
+  "xConnectionStatus",
 ] as const;
 
 /**
@@ -90,9 +94,11 @@ export function buildOfficialDashboardChannelState(payload: unknown): OfficialDa
   const tiktok = states.tiktok;
   const youtube = states.youtube_shorts;
   const pinterest = states.pinterest;
+  const x = states.x;
   const tiktokRequiresUpdate = Boolean(tiktok.requiresUpdate || canonicalStatus(tiktok) === "needs_update");
   const youtubeRequiresUpdate = Boolean(youtube.requiresUpdate || canonicalStatus(youtube) === "needs_update");
   const pinterestRequiresUpdate = Boolean(pinterest.requiresUpdate || canonicalStatus(pinterest) === "needs_update");
+  const xRequiresUpdate = Boolean(x.requiresUpdate || canonicalStatus(x) === "needs_update");
   const linkedinOrganizationId = String(linkedin.organization_id || "");
 
   return {
@@ -137,6 +143,12 @@ export function buildOfficialDashboardChannelState(payload: unknown): OfficialDa
     pinterestConnected: Boolean(pinterest.connected && !pinterestRequiresUpdate),
     pinterestRequiresUpdate,
     pinterestUrl: String(pinterest.profile_url || ""),
+    xConnected: Boolean(x.connected && !xRequiresUpdate),
+    xRequiresUpdate,
+    xConnectionStatus: canonicalStatus(x),
+    xUsername: String(x.username || ""),
+    xDisplayName: String(x.display_name || ""),
+    xProfileUrl: String(x.profile_url || ""),
     mailAccountsConnectedCount: sanitizeConnectedMailCount(states.mails.connectedCount),
     mailAccountsRequireUpdate: Boolean(states.mails.requiresUpdate),
   };

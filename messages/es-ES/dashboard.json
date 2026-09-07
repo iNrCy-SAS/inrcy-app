@@ -86,6 +86,7 @@
       "site_web": "Configuración — Sitio web",
       "instagram": "Configuración — Instagram",
       "linkedin": "Configuración — LinkedIn",
+      "x": "Configuración — X",
       "gmb": "Configuración — Perfil de Empresa en Google",
       "inr_search": "Configuración — iNr’Search",
       "facebook": "Configuración — Facebook",
@@ -315,6 +316,12 @@
       "description": "Da credibilidad 💼",
       "view": "Ver cuenta",
       "connect": "Vincular LinkedIn"
+    },
+    "x": {
+      "name": "X",
+      "description": "Difunde tus novedades en tiempo real 𝕏",
+      "view": "Ver perfil",
+      "connect": "Configurar"
     },
     "tiktok": {
       "name": "TikTok",

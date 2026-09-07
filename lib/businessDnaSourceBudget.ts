@@ -30,6 +30,7 @@ export function buildBusinessDnaAnalysisSourcePayload(
     "facebook",
     "instagram",
     "linkedin",
+    "x",
     "youtube",
     "tiktok",
     "pinterest",

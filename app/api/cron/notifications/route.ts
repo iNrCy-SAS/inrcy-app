@@ -143,7 +143,7 @@ async function buildPerformanceNotification(userId: string, digestHours: number)
   const previousDemandes = toInt(previous?.demandes_captees_total);
   const opportunities = toInt(latest.opportunites_activables_total);
   const deltaDemandes = latestDemandes - previousDemandes;
-  const topOpportunityChannel = ["gmb", "site_web", "site_inrcy", "facebook", "instagram", "linkedin"]
+  const topOpportunityChannel = ["gmb", "site_web", "site_inrcy", "facebook", "instagram", "linkedin", "x"]
     .map((channel) => ({
       channel,
       value: toInt(safeObj(safeObj(latest.details)[channel]).opportunites_activables),
@@ -161,7 +161,7 @@ async function buildPerformanceNotification(userId: string, digestHours: number)
   if (opportunities >= 8) {
     title = `+ ${opportunities} opportunités activables : on se lance ?`;
     body = topOpportunityChannel?.value
-      ? `Le canal ${topOpportunityChannel.channel === 'gmb' ? 'Google Business' : topOpportunityChannel.channel.replace('_', ' ')} concentre à lui seul ${topOpportunityChannel.value} opportunités activables. Lancez une action simple cette semaine pour transformer ce potentiel en demandes.`
+      ? `Le canal ${topOpportunityChannel.channel === 'gmb' ? 'Google Business' : topOpportunityChannel.channel === 'x' ? 'X' : topOpportunityChannel.channel.replace('_', ' ')} concentre à lui seul ${topOpportunityChannel.value} opportunités activables. Lancez une action simple cette semaine pour transformer ce potentiel en demandes.`
       : `Vos canaux ont encore du potentiel. Activez un mouvement simple cette semaine pour transformer ${opportunities} opportunités en demandes concrètes.`;
     ctaLabel = "Ouvrir Booster";
     ctaUrl = "/dashboard?action=publish";

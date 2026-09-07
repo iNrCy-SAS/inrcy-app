@@ -718,6 +718,10 @@ export const LEGAL_DOCUMENT_BLOCKS = {
       "key": "confidentialite_0002_1e60c02c"
     },
     {
+      "kind": "paragraph",
+      "key": "confidentialite_0601_revision_20260907"
+    },
+    {
       "kind": "heading",
       "key": "confidentialite_0003_62496532"
     },
@@ -2125,6 +2129,90 @@ export const LEGAL_DOCUMENT_BLOCKS = {
     },
     {
       "kind": "heading",
+      "key": "confidentialite_0602_x"
+    },
+    {
+      "kind": "paragraph",
+      "key": "confidentialite_0603_x_oauth"
+    },
+    {
+      "kind": "paragraph",
+      "key": "confidentialite_0604_x_data"
+    },
+    {
+      "kind": "paragraph",
+      "key": "confidentialite_0605_x_use"
+    },
+    {
+      "kind": "paragraph",
+      "key": "confidentialite_0606_x_control"
+    },
+    {
+      "kind": "heading",
+      "key": "confidentialite_0607_meta_formats"
+    },
+    {
+      "kind": "paragraph",
+      "key": "confidentialite_0608_meta_transfer"
+    },
+    {
+      "kind": "paragraph",
+      "key": "confidentialite_0609_meta_transform"
+    },
+    {
+      "kind": "heading",
+      "key": "confidentialite_0610_studio"
+    },
+    {
+      "kind": "paragraph",
+      "key": "confidentialite_0611_studio_inputs"
+    },
+    {
+      "kind": "paragraph",
+      "key": "confidentialite_0612_studio_voice_qa"
+    },
+    {
+      "kind": "paragraph",
+      "key": "confidentialite_0613_studio_review"
+    },
+    {
+      "kind": "heading",
+      "key": "confidentialite_0614_dictation"
+    },
+    {
+      "kind": "paragraph",
+      "key": "confidentialite_0615_dictation_flow"
+    },
+    {
+      "kind": "paragraph",
+      "key": "confidentialite_0616_dictation_retention"
+    },
+    {
+      "kind": "heading",
+      "key": "confidentialite_0617_dna_news"
+    },
+    {
+      "kind": "paragraph",
+      "key": "confidentialite_0618_dna_sources"
+    },
+    {
+      "kind": "paragraph",
+      "key": "confidentialite_0619_dna_reuse"
+    },
+    {
+      "kind": "heading",
+      "key": "confidentialite_0620_cta_widget"
+    },
+    {
+      "kind": "paragraph",
+      "key": "confidentialite_0621_whatsapp"
+    },
+    {
+      "kind": "paragraph",
+      "key": "confidentialite_0622_widget"
+    },
+    {
+      "kind": "heading",
       "key": "confidentialite_0597_11fea964"
     },
     {
@@ -2141,6 +2229,10 @@ export const LEGAL_DOCUMENT_BLOCKS = {
     }
   ],
   "cga": [
+    {
+      "kind": "paragraph",
+      "key": "cga_0436_revision_20260907"
+    },
     {
       "kind": "heading",
       "key": "cga_0001_07cc4bf9"
@@ -3407,6 +3499,74 @@ export const LEGAL_DOCUMENT_BLOCKS = {
     {
       "kind": "paragraph",
       "key": "cga_0427_8f4c4870"
+    },
+    {
+      "kind": "heading",
+      "key": "cga_0437_x"
+    },
+    {
+      "kind": "paragraph",
+      "key": "cga_0438_x_authorization"
+    },
+    {
+      "kind": "paragraph",
+      "key": "cga_0439_x_duties"
+    },
+    {
+      "kind": "heading",
+      "key": "cga_0440_meta_formats"
+    },
+    {
+      "kind": "paragraph",
+      "key": "cga_0441_meta_media"
+    },
+    {
+      "kind": "paragraph",
+      "key": "cga_0442_meta_limits"
+    },
+    {
+      "kind": "heading",
+      "key": "cga_0443_studio"
+    },
+    {
+      "kind": "paragraph",
+      "key": "cga_0444_studio_output"
+    },
+    {
+      "kind": "paragraph",
+      "key": "cga_0445_studio_rights"
+    },
+    {
+      "kind": "heading",
+      "key": "cga_0446_dictation"
+    },
+    {
+      "kind": "paragraph",
+      "key": "cga_0447_dictation_review"
+    },
+    {
+      "kind": "heading",
+      "key": "cga_0448_dna_news"
+    },
+    {
+      "kind": "paragraph",
+      "key": "cga_0449_dna_scope"
+    },
+    {
+      "kind": "paragraph",
+      "key": "cga_0450_dna_validation"
+    },
+    {
+      "kind": "heading",
+      "key": "cga_0451_cta_widget"
+    },
+    {
+      "kind": "paragraph",
+      "key": "cga_0452_whatsapp"
+    },
+    {
+      "kind": "paragraph",
+      "key": "cga_0453_widget"
     },
     {
       "kind": "heading",

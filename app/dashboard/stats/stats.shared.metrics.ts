@@ -73,7 +73,7 @@ export function hasTikTokStatsSignal(metrics: any) {
 }
 
 
-const INRCY_ACTIVITY_CUBE_KEYS = new Set<CubeKey>(["site_inrcy", "site_web", "gmb", "facebook", "instagram", "linkedin", "tiktok", "youtube_shorts", "pinterest"]);
+const INRCY_ACTIVITY_CUBE_KEYS = new Set<CubeKey>(["site_inrcy", "site_web", "gmb", "facebook", "instagram", "linkedin", "x", "tiktok", "youtube_shorts", "pinterest"]);
 
 function normalizeInrcyActivityCount(value: any): InrcyActivityCount {
   return {
@@ -219,6 +219,15 @@ export function buildVisibilityStats(cubeKey: CubeKey, ov: Overview, locale: str
     return firstFour(items);
   }
 
+  if (cubeKey === "x") {
+    if (!ov?.sources?.x?.connected) return [];
+    const m = ov?.sources?.x?.metrics;
+    pushMetric(t("publications_0855684c"), safeNum(m?.totals?.inrcy_posts) || safeNum(m?.totals?.postsPublishedLocal), { available: !!m, keepZero: true });
+    pushMetric(t("photos_c8b2e864"), safeNum(m?.totals?.inrcy_photos), { available: !!m, keepZero: true });
+    pushMetric(t("videos_ea129238"), safeNum(m?.totals?.inrcy_video_posts), { available: !!m, keepZero: true });
+    return firstFour(items);
+  }
+
   if (cubeKey === "tiktok") {
     if (!ov?.sources?.tiktok?.connected) return [];
     return tikTokMetricItems(ov?.sources?.tiktok?.metrics, "visibility", locale, t);
@@ -329,6 +338,15 @@ export function buildActionStats(cubeKey: CubeKey, ov: Overview, locale: string,
     pushMetric(t("metric_messages"), messages, { available: metricKeyExists(m, ["text_message_clicks", "replies"]) });
     pushMetric(t("metric_calls"), calls, { available: metricKeyExists(m, ["phone_call_clicks"]) });
     pushMetric(t("metric_directions"), directions, { available: metricKeyExists(m, ["get_directions_clicks", "get_direction_clicks"]) });
+    return firstFour(items);
+  }
+
+  if (cubeKey === "x") {
+    if (!ov?.sources?.x?.connected) return [];
+    const m = ov?.sources?.x?.metrics;
+    pushMetric(t("publications_0855684c"), safeNum(m?.totals?.inrcy_posts) || safeNum(m?.totals?.postsPublishedLocal), { available: !!m, keepZero: true });
+    pushMetric(t("photos_c8b2e864"), safeNum(m?.totals?.inrcy_photo_posts), { available: !!m, keepZero: true });
+    pushMetric(t("videos_ea129238"), safeNum(m?.totals?.inrcy_video_posts), { available: !!m, keepZero: true });
     return firstFour(items);
   }
 

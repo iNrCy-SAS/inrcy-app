@@ -37,7 +37,8 @@ type BoosterChannel =
   | "linkedin"
   | "tiktok"
   | "youtube_shorts"
-  | "pinterest";
+  | "pinterest"
+  | "x";
 
 type BoosterPost = {
   title: string;
@@ -78,10 +79,12 @@ const agentToBoosterChannel: Record<string, BoosterChannel> = {
   youtube: "youtube_shorts",
   youtube_shorts: "youtube_shorts",
   pinterest: "pinterest",
+  x: "x",
+  twitter: "x",
 };
 
 function canPublishWithoutMedia(channel: BoosterChannel) {
-  return ["inrcy_site", "site_web", "inr_search", "gmb", "facebook", "linkedin"].includes(
+  return ["inrcy_site", "site_web", "inr_search", "gmb", "facebook", "linkedin", "x"].includes(
     channel,
   );
 }
@@ -282,6 +285,8 @@ function normalizeBoosterChannels(input: unknown): BoosterChannel[] {
               "linkedin",
               "tiktok",
               "youtube_shorts",
+              "pinterest",
+              "x",
             ].includes(channel),
           ),
         ),

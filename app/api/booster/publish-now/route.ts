@@ -56,6 +56,7 @@ import {
   failExecutionIdempotencyLock,
 } from "@/lib/executionIdempotency";
 import { jsonUserFacingError } from "@/lib/apiUserFacingErrors";
+import { getFrenchPublicationErrorMessage } from "@/lib/publicationErrorFrench";
 import { captureApiException } from "@/lib/observability/sentry";
 import { withApi } from "@/lib/observability/withApi";
 import { invalidateBoosterGenerationContext } from "@/lib/boosterGenerationContext";
@@ -88,6 +89,13 @@ import {
   type BoosterCtaDefaults,
 } from "@/lib/boosterCtaPreferences";
 import { getLinkedInAccessToken } from "@/lib/linkedinOAuth";
+import { getXAccessToken } from "@/lib/xOAuth";
+import {
+  XPublishError,
+  createXPost,
+  uploadXImage,
+  uploadXVideoFromUrl,
+} from "@/lib/xPublish";
 import { normalizeTiktokSettings } from "@/lib/tiktokSettings";
 import { isTiktokIntegrationActive } from "@/lib/tiktokRouteStorage";
 import { buildTiktokMediaProxyUrl } from "@/lib/tiktokMediaUrl";
@@ -281,6 +289,7 @@ const PUBLICATION_BUBBLE_KEYS: Record<ChannelKey, AppBubbleKey> = {
   facebook: "facebook",
   instagram: "instagram",
   linkedin: "linkedin",
+  x: "x",
   tiktok: "tiktok",
   youtube_shorts: "youtube_shorts",
   pinterest: "pinterest",
@@ -294,6 +303,7 @@ const PUBLICATION_CHANNEL_LABELS: Record<ChannelKey, string> = {
   facebook: "Facebook",
   instagram: "Instagram",
   linkedin: "LinkedIn",
+  x: "X",
   tiktok: "TikTok",
   youtube_shorts: "YouTube",
   pinterest: "Pinterest",
@@ -311,6 +321,7 @@ function getPublicationChannelState(
     case "facebook": return states.facebook;
     case "instagram": return states.instagram;
     case "linkedin": return states.linkedin;
+    case "x": return states.x;
     case "tiktok": return states.tiktok;
     case "youtube_shorts": return states.youtube_shorts;
     case "pinterest": return states.pinterest;
@@ -2833,6 +2844,7 @@ async function publishNowHandler(req: Request) {
         "facebook",
         "instagram",
         "linkedin",
+        "x",
         "tiktok",
         "youtube_shorts",
         "pinterest",
@@ -3813,6 +3825,238 @@ async function publishNowHandler(req: Request) {
             external_id: articleId,
             external_url: externalUrl,
           };
+          continue;
+        }
+
+        if (ch === "x") {
+          const xAuth = await getXAccessToken({ userId });
+          if (!xAuth.accessToken) {
+            const xUserError =
+              xAuth.error || "X à reconnecter. Rendez-vous dans Canaux.";
+            await markPublishChannelReconnectRequired({
+              channel: "x",
+              userId,
+              stage: "precheck",
+              attemptStartedAt: publicationAttemptStartedAt,
+              error: xAuth.error || "x_access_token_missing",
+              userMessage: xUserError,
+            });
+            await setDelivery(ch, { status: "failed", error: xUserError });
+            results[ch] = {
+              ok: false,
+              error: xUserError,
+              code: "channel_requires_reconnect",
+              retryable: false,
+            };
+            continue;
+          }
+
+          try {
+            const xMediaIds: string[] = [];
+            const xRawImages = (
+              Array.isArray(imagesByChannel.x)
+                ? imagesByChannel.x
+                : images
+            ).slice(0, 4);
+            const xRegistryMediaIds = xRawImages
+              .map((image) => String(image.mediaId || "").trim())
+              .filter(Boolean);
+            const xProvenance = [
+              requestedOriginSource,
+              String(body.origin?.source || ""),
+              String(body.origin?.workflowAction || ""),
+              ...xRawImages.map((image) =>
+                JSON.stringify(asRecord(image.imageMeta)).slice(0, 2_000),
+              ),
+              JSON.stringify(asRecord(channelVideo?.sourceMetadata)).slice(
+                0,
+                2_000,
+              ),
+            ]
+              .join(" ")
+              .toLowerCase();
+            let xMadeWithAi =
+              body.madeWithAi === true ||
+              body.made_with_ai === true ||
+              /ai_media_generation|ai-generator|ai_generator|inr.?studio/.test(
+                xProvenance,
+              );
+            if (!xMadeWithAi && xRegistryMediaIds.length) {
+              const { data: xRegistryRows } = await supabaseAdmin
+                .from("pro_media_library")
+                .select("id,source")
+                .eq("user_id", userId)
+                .in("id", xRegistryMediaIds);
+              xMadeWithAi = (Array.isArray(xRegistryRows)
+                ? xRegistryRows
+                : []
+              ).some((row) =>
+                ["ai_media_generation", "ai_media_generation_draft"].includes(
+                  String(asRecord(row).source || ""),
+                ),
+              );
+            }
+
+            if (mediaModeByChannel[ch] === "images") {
+              const expectedCount = getExpectedChannelImageCount(ch);
+              if (expectedCount > 4) {
+                throw new XPublishError(
+                  "X accepte au maximum 4 photos par publication.",
+                  { code: "x_media_count_invalid", retryable: false },
+                );
+              }
+              const xImageUrls = pickCompleteChannelImageUrls({
+                channel: ch,
+                candidates: [
+                  "socialFeedPublishableUrls",
+                  "publishableUrls",
+                  "images",
+                ],
+                legacyFallback: socialFeedImageUrls,
+                limit: 4,
+              });
+              if (expectedCount > 0 && !xImageUrls.length) {
+                throw new XPublishError(
+                  "Les images X n'ont pas pu être préparées sans modifier le rendu.",
+                  { code: "x_image_preparation_failed", retryable: true },
+                );
+              }
+
+              const downloadedImages: Array<{
+                bytes: Uint8Array;
+                mimeType: string;
+              }> = [];
+              for (let index = 0; index < xImageUrls.length; index += 1) {
+                const response = await fetch(xImageUrls[index], {
+                  cache: "no-store",
+                });
+                if (!response.ok) {
+                  throw new XPublishError(
+                    `L'image ${index + 1} est temporairement indisponible.`,
+                    { code: "x_image_source_unavailable", retryable: true },
+                  );
+                }
+                const declaredType = String(
+                  response.headers.get("content-type") ||
+                    xRawImages[index]?.type ||
+                    "image/jpeg",
+                )
+                  .split(";", 1)[0]
+                  .trim()
+                  .toLowerCase();
+                const bytes = new Uint8Array(await response.arrayBuffer());
+                downloadedImages.push({ bytes, mimeType: declaredType });
+              }
+              const gifCount = downloadedImages.filter(
+                (image) => image.mimeType === "image/gif",
+              ).length;
+              if (gifCount && downloadedImages.length !== 1) {
+                throw new XPublishError(
+                  "Sur X, un GIF animé doit être publié seul.",
+                  { code: "x_gif_combination_invalid", retryable: false },
+                );
+              }
+              for (const image of downloadedImages) {
+                const uploaded = await uploadXImage({
+                  accessToken: xAuth.accessToken,
+                  bytes: image.bytes,
+                  mimeType: image.mimeType,
+                  animatedGif: image.mimeType === "image/gif",
+                });
+                xMediaIds.push(uploaded.mediaId);
+              }
+            } else if (mediaModeByChannel[ch] === "video") {
+              if (!channelVideo) {
+                throw new XPublishError("Ajoutez une vidéo pour publier sur X.", {
+                  code: "video_required",
+                  retryable: false,
+                });
+              }
+              const uploaded = await uploadXVideoFromUrl({
+                accessToken: xAuth.accessToken,
+                sourceUrl: channelVideo.publicUrl,
+                totalBytes: channelVideo.size,
+                mimeType: channelVideo.type,
+                durationSeconds: channelVideo.duration,
+              });
+              xMediaIds.push(uploaded.mediaId);
+            }
+
+            const response = await createXPost({
+              accessToken: xAuth.accessToken,
+              username: xAuth.username,
+              text: canonMessage,
+              mediaIds: xMediaIds,
+              madeWithAi: xMadeWithAi,
+            });
+            await setDelivery(ch, { status: "delivered", error: null });
+            results[ch] = {
+              ok: true,
+              external_id: response.postId,
+              external_url: response.url,
+              media_count: xMediaIds.length,
+              made_with_ai: xMadeWithAi && xMediaIds.length > 0,
+            };
+          } catch (error) {
+            const xError =
+              error instanceof XPublishError
+                ? error
+                : new XPublishError(
+                    error instanceof Error
+                      ? error.message
+                      : "La publication X a échoué.",
+                    { code: "x_publish_failed", retryable: true },
+                  );
+            const reconnectRequired = [
+              "x_auth_invalid",
+              "x_permission_denied",
+            ].includes(xError.code);
+            const xUserError = reconnectRequired
+              ? "X à reconnecter. Rendez-vous dans Canaux."
+              : xError.deliveryUnknown
+                ? "X n'a pas confirmé le résultat. Vérifiez le compte avant toute nouvelle tentative."
+                : getFrenchPublicationErrorMessage(
+                    "x",
+                    xError.message,
+                    "La publication X n'a pas pu aboutir. Merci de réessayer.",
+                  );
+            logPublishChannelFailure({
+              route: "booster_publish_now",
+              channel: ch,
+              userId,
+              publicationId,
+              stage: "publish",
+              error: xError,
+              userMessage: xUserError,
+              diagnostics: {
+                code: xError.code,
+                status: xError.status,
+                retryable: xError.retryable,
+                deliveryUnknown: xError.deliveryUnknown,
+              },
+            });
+            if (reconnectRequired) {
+              await markPublishChannelReconnectRequired({
+                channel: "x",
+                userId,
+                stage: "publish",
+                attemptStartedAt: publicationAttemptStartedAt,
+                error: xError,
+                userMessage: xUserError,
+              });
+            }
+            await setDelivery(ch, { status: "failed", error: xUserError });
+            results[ch] = {
+              ok: false,
+              error: xUserError,
+              raw_error: xError.message,
+              code: xError.code,
+              retryable: xError.retryable,
+              ...(xError.deliveryUnknown
+                ? { delivery_unknown: true }
+                : {}),
+            };
+          }
           continue;
         }
 

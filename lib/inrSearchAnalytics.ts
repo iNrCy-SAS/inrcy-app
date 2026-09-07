@@ -36,6 +36,7 @@ const ALLOWED_ACTION_KEYS = new Set([
   "facebook",
   "instagram",
   "linkedin",
+  "x",
   "tiktok",
   "youtube",
   "pinterest",

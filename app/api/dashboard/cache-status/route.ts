@@ -25,6 +25,8 @@ const INCLUDE_TO_CHANNEL: Record<string, DashboardChannelKey> = {
   facebook: "facebook",
   instagram: "instagram",
   linkedin: "linkedin",
+  x: "x",
+  twitter: "x",
   tiktok: "tiktok",
 };
 

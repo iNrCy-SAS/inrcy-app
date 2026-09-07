@@ -58,6 +58,8 @@ const CHANNEL_LOGO_BY_KEY: Readonly<Record<string, string>> = {
   facebook: "/icons/facebook.png",
   instagram: "/icons/instagram.jpg",
   linkedin: "/icons/linkedin.png",
+  x: "/icons/x.svg",
+  twitter: "/icons/x.svg",
   tiktok: "/icons/tiktok.png",
   youtube: "/icons/youtube-shorts.png",
   youtube_shorts: "/icons/youtube-shorts.png",

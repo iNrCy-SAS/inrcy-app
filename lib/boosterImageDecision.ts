@@ -14,6 +14,7 @@ export type BoosterImageChannel =
   | "facebook"
   | "instagram"
   | "linkedin"
+  | "x"
   | "tiktok"
   | "youtube_shorts"
   | "pinterest";
@@ -31,6 +32,7 @@ const BOOSTER_IMAGE_SAFETY_BACKGROUND_BY_CHANNEL: Readonly<
   facebook: "black",
   instagram: "black",
   linkedin: "black",
+  x: "black",
   tiktok: "black",
   youtube_shorts: "black",
   pinterest: "black",
@@ -172,6 +174,7 @@ export const BOOSTER_IMAGE_CHANNEL_POLICIES: Readonly<
     tooWideTargetRatio: INSTAGRAM_MAX_RATIO,
   },
   linkedin: { supportsImages: true },
+  x: { supportsImages: true },
   tiktok: { supportsImages: true },
   youtube_shorts: { supportsImages: false },
   pinterest: {
@@ -543,4 +546,3 @@ export function getBoosterImageDisplayPlan(params: Parameters<typeof getBoosterI
     preserveSourceComposition: false,
   };
 }
-

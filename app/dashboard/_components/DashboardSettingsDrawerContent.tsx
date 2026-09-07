@@ -20,6 +20,7 @@ import FacebookPanelBlock from "./FacebookPanelBlock";
 import TiktokPanelBlock from "./TiktokPanelBlock";
 import YoutubeShortsSettingsContent from "../settings/_components/YoutubeShortsSettingsContent";
 import PinterestSettingsContent from "../settings/_components/PinterestSettingsContent";
+import XSettingsContent from "../settings/_components/XSettingsContent";
 import InrSearchSettingsContent from "../settings/_components/InrSearchSettingsContent";
 import InrBadgeSettingsContent from "../settings/_components/InrBadgeSettingsContent";
 import StandardSubscriptionContent from "../settings/_components/StandardSubscriptionContent";
@@ -42,6 +43,7 @@ type DashboardPanelName =
   | "site_web"
   | "instagram"
   | "linkedin"
+  | "x"
   | "gmb"
   | "inr_search"
   | "facebook"
@@ -83,6 +85,7 @@ type DashboardSettingsDrawerContentProps = {
   tiktokPanelProps: any;
   inrBadgeSettingsProps: any;
   pinterestAccessEnabled?: boolean;
+  xAccessEnabled?: boolean;
   inrSearchAccessEnabled?: boolean;
   inrSearchConnected?: boolean | null;
   inrSearchUrl?: string;
@@ -116,6 +119,7 @@ export default function DashboardSettingsDrawerContent({
   tiktokPanelProps,
   inrBadgeSettingsProps,
   pinterestAccessEnabled = true,
+  xAccessEnabled = false,
   inrSearchAccessEnabled = false,
   inrSearchConnected = null,
   inrSearchUrl = "",
@@ -181,6 +185,7 @@ export default function DashboardSettingsDrawerContent({
       ) : null}
       {panel === "youtube_shorts" && <YoutubeShortsSettingsContent onUnsavedChange={onUnsavedChange} />}
       {panel === "pinterest" && pinterestAccessEnabled && <PinterestSettingsContent onUnsavedChange={onUnsavedChange} />}
+      {panel === "x" && xAccessEnabled && <XSettingsContent />}
       {panel === "inr_search" && inrSearchAccessEnabled && (
         <InrSearchSettingsContent
           initialConnected={inrSearchConnected}

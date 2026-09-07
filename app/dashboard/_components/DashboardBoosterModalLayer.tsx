@@ -53,7 +53,7 @@ export default function DashboardBoosterModalLayer({
 }: {
   mode: DashboardBoosterModalMode;
   onClose: () => void;
-  initialConnectedChannels?: Partial<Record<"inrcy_site" | "site_web" | "inr_search" | "gmb" | "facebook" | "instagram" | "linkedin" | "tiktok" | "youtube_shorts" | "pinterest", boolean>>;
+  initialConnectedChannels?: Partial<Record<"inrcy_site" | "site_web" | "inr_search" | "gmb" | "facebook" | "instagram" | "linkedin" | "x" | "tiktok" | "youtube_shorts" | "pinterest", boolean>>;
 }) {
   const i18nT = useTranslations("booster");
   const dashboardT = useTranslations("dashboard");
@@ -387,6 +387,7 @@ export default function DashboardBoosterModalLayer({
         { name: "Facebook", value: pc("facebook") },
         { name: "Instagram", value: pc("instagram") },
         { name: "LinkedIn", value: pc("linkedin") },
+        { name: "X", value: pc("x") },
       ],
       tips: [
         { left: "1 publication / semaine", right: "minimum" },

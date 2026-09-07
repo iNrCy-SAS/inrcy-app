@@ -17,11 +17,11 @@ import { getVariantForChannel } from "../../lib/boosterVideoTransforms.ts";
 
 const broadImageChannels: BoosterImageChannel[] = [
   "inrcy_site", "site_web", "inr_search", "gmb", "facebook",
-  "linkedin", "tiktok",
+  "linkedin", "x", "tiktok",
 ];
 const videoChannels: BoosterVideoChannelKey[] = [
   "inrcy_site", "site_web", "inr_search", "gmb", "facebook",
-  "instagram", "linkedin", "tiktok", "youtube_shorts", "pinterest",
+  "instagram", "linkedin", "x", "tiktok", "youtube_shorts", "pinterest",
 ];
 
 test("portrait, square and landscape remain original on channels that accept them", () => {
@@ -69,6 +69,7 @@ test("safety backgrounds are solid or transparent, never blurred", () => {
   assert.equal(getBoosterImageSafetyBackgroundMode("site_web"), "transparent");
   assert.equal(getBoosterImageSafetyBackgroundMode("gmb"), "white");
   assert.equal(getBoosterImageSafetyBackgroundMode("instagram"), "black");
+  assert.equal(getBoosterImageSafetyBackgroundMode("x"), "black");
   assert.equal(getBoosterImageSafetyBackgroundMode("pinterest"), "black");
 });
 

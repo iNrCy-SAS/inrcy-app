@@ -8,6 +8,7 @@ export const DASHBOARD_CHANNEL_KEYS = [
   'tiktok',
   'youtube_shorts',
   'pinterest',
+  'x',
 ] as const;
 
 export type DashboardChannelKey = (typeof DASHBOARD_CHANNEL_KEYS)[number];
@@ -22,6 +23,7 @@ export const DASHBOARD_CHANNEL_LABELS: Record<DashboardChannelKey, string> = {
   tiktok: 'TikTok',
   youtube_shorts: 'YouTube',
   pinterest: 'Pinterest',
+  x: 'X',
 };
 
 export function isDashboardChannelKey(value: unknown): value is DashboardChannelKey {

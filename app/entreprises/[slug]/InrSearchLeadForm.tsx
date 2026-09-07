@@ -61,7 +61,7 @@ function detectSource() {
   if (/copilot|bing\.com\/chat/.test(haystack)) return "copilot";
   if (/google\./.test(haystack)) return "google";
   if (/bing\./.test(haystack)) return "bing";
-  if (/facebook|instagram|linkedin|tiktok|youtube|pinterest/.test(haystack)) return "social";
+  if (/facebook|instagram|linkedin|x\.com|twitter\.com|tiktok|youtube|pinterest/.test(haystack)) return "social";
   if (!document.referrer && !explicit) return "direct";
   return "other";
 }

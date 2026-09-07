@@ -73,6 +73,7 @@ const CHANNEL_RENDER_BASE: Record<BoosterImageChannel, { width: number; height: 
   facebook: { width: 1200, height: 1200 },
   instagram: { width: 1080, height: 1350 },
   linkedin: { width: 1200, height: 1200 },
+  x: { width: 1200, height: 675 },
   tiktok: { width: 1080, height: 1920 },
   youtube_shorts: { width: 1080, height: 1920 },
   pinterest: { width: 1000, height: 1500 },
@@ -547,6 +548,7 @@ const ORIGINAL_IMAGE_MIME_TYPES_BY_CHANNEL: Record<
   facebook: new Set(["image/jpeg", "image/png"]),
   instagram: new Set(["image/jpeg"]),
   linkedin: new Set(["image/jpeg", "image/png"]),
+  x: new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]),
   // TikTok always goes through a channel variant, including the visual
   // "Originale" mode. A declared MIME type cannot prove that JPEG bytes are
   // baseline, sRGB and 4:2:0, so bypassing the byte guard is unsafe.

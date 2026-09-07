@@ -47,6 +47,10 @@ import {
   hasAiGeneratedCitationArtifacts,
   sanitizeAiGeneratedEditorialText,
 } from "@/lib/aiGeneratedTextSafety";
+import {
+  X_POST_WEIGHTED_LENGTH_MAX,
+  getXPostTextMetrics,
+} from "@/lib/xChannel";
 
 export type JsonRecord = Record<string, unknown>;
 
@@ -74,6 +78,7 @@ const allowedChannels: BoosterChannels[] = [
   "facebook",
   "instagram",
   "linkedin",
+  "x",
   "tiktok",
   "youtube_shorts",
   "pinterest",
@@ -92,6 +97,7 @@ const CHANNEL_MIN_CONTENT_LENGTH: Record<BoosterChannels, number> = {
   facebook: 100,
   instagram: 80,
   linkedin: 120,
+  x: 40,
   tiktok: 45,
   youtube_shorts: 120,
   pinterest: 70,
@@ -110,6 +116,7 @@ const CHANNEL_DETAILED_ENRICHMENT_MIN: Record<BoosterChannels, number> = {
   facebook: 750,
   instagram: 580,
   linkedin: 900,
+  x: 80,
   tiktok: 340,
   youtube_shorts: 900,
   // 300 reste légèrement sous la plage Détaillé Pinterest : ne pas
@@ -125,6 +132,7 @@ const CHANNEL_DYNAMIC_EMOJI_MIN: Record<BoosterChannels, number> = {
   facebook: 6,
   instagram: 8,
   linkedin: 2,
+  x: 3,
   tiktok: 8,
   youtube_shorts: 4,
   pinterest: 4,
@@ -138,6 +146,7 @@ const CHANNEL_LABELS: Record<BoosterChannels, string> = {
   facebook: "Facebook",
   instagram: "Instagram",
   linkedin: "LinkedIn",
+  x: "X",
   tiktok: "TikTok",
   youtube_shorts: "YouTube",
   pinterest: "Pinterest",
@@ -386,6 +395,109 @@ function cleanHashtags(channel: BoosterChannels, input: unknown) {
     : [];
 }
 
+// Réserve suffisante pour qu'un CTA choisi dans Booster puisse encore ajouter
+// une URL t.co (23 caractères pondérés) sans transformer une génération X
+// valide en brouillon bloqué. Cet ajustement est purement local et instantané.
+const X_GENERATED_POST_WEIGHTED_TARGET = X_POST_WEIGHTED_LENGTH_MAX - 28;
+
+function trimXGeneratedField(value: string, maxWeightedLength: number) {
+  const normalized = String(value || "").replace(/\s+/g, " ").trim();
+  if (getXPostTextMetrics(normalized).weightedLength <= maxWeightedLength) {
+    return normalized;
+  }
+
+  const characters = Array.from(normalized);
+  for (let length = characters.length - 1; length > 0; length -= 1) {
+    const rawCandidate = characters.slice(0, length).join("").trimEnd();
+    const lastSpace = rawCandidate.lastIndexOf(" ");
+    const candidate =
+      lastSpace >= Math.floor(rawCandidate.length * 0.55)
+        ? rawCandidate.slice(0, lastSpace).trimEnd()
+        : rawCandidate;
+    if (
+      candidate &&
+      getXPostTextMetrics(candidate).weightedLength <= maxWeightedLength
+    ) {
+      return candidate;
+    }
+  }
+  return "";
+}
+
+function renderGeneratedXPost(post: ChannelPost) {
+  const hashtagLine = post.hashtags
+    .map((tag) => `#${String(tag || "").replace(/^#+/, "")}`)
+    .filter((tag) => tag.length > 1)
+    .join(" ");
+  return [post.title, post.content, post.cta, hashtagLine]
+    .filter(Boolean)
+    .join("\n\n")
+    .trim();
+}
+
+function ensureGeneratedSentenceEnding(value: string) {
+  const normalized = value.trim().replace(/[,:;\-–—]+$/u, "").trim();
+  if (!normalized) return "";
+  return /[.!?…][\)\]"'»”]*$/u.test(normalized)
+    ? normalized
+    : `${normalized}.`;
+}
+
+function fitGeneratedXContent(post: ChannelPost) {
+  if (
+    getXPostTextMetrics(renderGeneratedXPost(post)).weightedLength <=
+    X_GENERATED_POST_WEIGHTED_TARGET
+  ) {
+    return post;
+  }
+
+  const content = String(post.content || "").trim();
+  const sentenceEnds: number[] = [];
+  const sentencePattern = /[.!?…](?:["'»”\)]*)?(?=\s|$)/gu;
+  let sentenceMatch: RegExpExecArray | null;
+  while ((sentenceMatch = sentencePattern.exec(content))) {
+    sentenceEnds.push(sentenceMatch.index + sentenceMatch[0].length);
+  }
+  for (const end of sentenceEnds.reverse()) {
+    const candidate = { ...post, content: content.slice(0, end).trim() };
+    if (
+      getXPostTextMetrics(renderGeneratedXPost(candidate)).weightedLength <=
+      X_GENERATED_POST_WEIGHTED_TARGET
+    ) {
+      return candidate;
+    }
+  }
+
+  const words = content.split(/\s+/g).filter(Boolean);
+  for (let length = words.length; length > 0; length -= 1) {
+    const candidate = {
+      ...post,
+      content: ensureGeneratedSentenceEnding(words.slice(0, length).join(" ")),
+    };
+    if (
+      getXPostTextMetrics(renderGeneratedXPost(candidate)).weightedLength <=
+      X_GENERATED_POST_WEIGHTED_TARGET
+    ) {
+      return candidate;
+    }
+  }
+
+  return { ...post, content: "" };
+}
+
+function fitGeneratedXPost(post: ChannelPost): ChannelPost {
+  const normalized: ChannelPost = {
+    title: trimXGeneratedField(post.title, 54),
+    content: post.content,
+    cta: trimXGeneratedField(post.cta, 40),
+    hashtags: post.hashtags
+      .slice(0, 2)
+      .map((tag) => trimXGeneratedField(String(tag || "").replace(/^#+/, ""), 24))
+      .filter(Boolean),
+  };
+  return fitGeneratedXContent(normalized);
+}
+
 function normalizePost(channel: BoosterChannels, raw: Partial<ChannelPost> | undefined): ChannelPost {
   const generatedTitle = sanitizeAiGeneratedEditorialText(raw?.title);
   const generatedContent = sanitizeAiGeneratedEditorialText(raw?.content);
@@ -408,7 +520,7 @@ function normalizePost(channel: BoosterChannels, raw: Partial<ChannelPost> | und
 
   const siteChannel = siteChannels.has(channel);
 
-  return {
+  const normalized = {
     title: (siteChannel ? sanitizeBoosterSiteText(generatedTitle) : stripSiteTextFormatting(generatedTitle)).slice(0, 90),
     content: limitBoosterGeneratedContent(
       channel,
@@ -419,6 +531,7 @@ function normalizePost(channel: BoosterChannels, raw: Partial<ChannelPost> | und
     cta: stripSiteTextFormatting(generatedCta).slice(0, 180),
     hashtags: cleanHashtags(channel, raw?.hashtags),
   };
+  return channel === "x" ? fitGeneratedXPost(normalized) : normalized;
 }
 
 
@@ -431,6 +544,7 @@ const CHANNEL_OUTPUT_ALIASES: Record<BoosterChannels, string[]> = {
   facebook: ["facebook", "fb"],
   instagram: ["instagram", "insta"],
   linkedin: ["linkedin", "linked_in"],
+  x: ["x", "twitter", "twitter_x", "x_twitter"],
   tiktok: ["tiktok", "tik_tok"],
   youtube_shorts: [
     "youtube_shorts",

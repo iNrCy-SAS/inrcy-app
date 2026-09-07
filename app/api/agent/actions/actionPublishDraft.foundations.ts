@@ -30,7 +30,8 @@ export type PublishChannelKey =
   | "linkedin"
   | "tiktok"
   | "youtube_shorts"
-  | "pinterest";
+  | "pinterest"
+  | "x";
 
 const publishChannelAliases: Record<string, PublishChannelKey> = {
   inrcy_site: "inrcy_site",
@@ -49,6 +50,8 @@ const publishChannelAliases: Record<string, PublishChannelKey> = {
   youtube: "youtube_shorts",
   youtube_shorts: "youtube_shorts",
   pinterest: "pinterest",
+  x: "x",
+  twitter: "x",
 };
 
 const publishChannelReadAliases: Record<PublishChannelKey, string[]> = {
@@ -62,6 +65,7 @@ const publishChannelReadAliases: Record<PublishChannelKey, string[]> = {
   tiktok: ["tiktok"],
   youtube_shorts: ["youtube_shorts", "youtube"],
   pinterest: ["pinterest"],
+  x: ["x", "twitter"],
 };
 
 export function cleanPublishChannel(value: unknown): PublishChannelKey | null {
@@ -352,7 +356,7 @@ export function buildPublishMediaAdaptation(
 export type PublishDraftMedia = ReturnType<typeof cleanPublishMedia>;
 
 export function publishCanRunWithoutMedia(channel: PublishChannelKey) {
-  return ["inrcy_site", "site_web", "inr_search", "gmb", "facebook", "linkedin"].includes(
+  return ["inrcy_site", "site_web", "inr_search", "gmb", "facebook", "linkedin", "x"].includes(
     channel,
   );
 }

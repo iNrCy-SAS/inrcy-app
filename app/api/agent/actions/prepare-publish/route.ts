@@ -180,6 +180,7 @@ const boosterToAgentChannel: Record<BoosterChannels, string> = {
   tiktok: "tiktok",
   youtube_shorts: "youtube_shorts",
   pinterest: "pinterest",
+  x: "x",
 };
 
 const agentThemeToBoosterTheme: Partial<Record<InrAgentTheme, BoosterTheme>> = {
@@ -230,6 +231,7 @@ const channelLabels: Record<string, string> = {
   tiktok: "TikTok",
   youtube_shorts: "YouTube",
   pinterest: "Pinterest",
+  x: "X",
 };
 
 const siteChannels = new Set<BoosterChannels>(["inrcy_site", "site_web", "inr_search"]);
@@ -244,6 +246,7 @@ const allowedBoosterChannels = new Set<BoosterChannels>([
   "tiktok",
   "youtube_shorts",
   "pinterest",
+  "x",
 ]);
 
 const mediaRequiredChannels = new Set<BoosterChannels>([
@@ -1140,6 +1143,7 @@ async function selectConnectedChannels(args: {
     tiktok: "tiktok",
     youtube_shorts: "youtube_shorts",
     pinterest: "pinterest",
+    x: "x",
   };
 
   const connected: Record<BoosterChannels, boolean> = {
@@ -1157,6 +1161,7 @@ async function selectConnectedChannels(args: {
     pinterest:
       isOfficialPublicationChannelConnected(states.pinterest) &&
       Boolean(states.pinterest.default_board_id),
+    x: isOfficialPublicationChannelConnected(states.x),
   };
 
   const uniqueChannels: BoosterChannels[] = Array.from(

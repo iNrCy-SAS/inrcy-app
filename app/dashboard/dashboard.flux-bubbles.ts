@@ -41,6 +41,11 @@ type BuildFluxBubbleItemsArgs = {
   linkedinConnected: boolean;
   linkedinConnectionStatus: ConnectionDisplayStatus;
   linkedinUrl: string | null | undefined;
+  xConnected: boolean;
+  xConnectionStatus: ConnectionDisplayStatus;
+  xRequiresUpdate?: boolean;
+  xStatusReady: boolean;
+  xUrl: string | null | undefined;
   mailAccountsConnectedCount: number;
   mailAccountsRequireUpdate?: boolean;
   tiktokConnected: boolean;
@@ -92,6 +97,11 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
     linkedinConnected,
     linkedinConnectionStatus,
     linkedinUrl,
+    xConnected,
+    xConnectionStatus,
+    xRequiresUpdate = false,
+    xStatusReady,
+    xUrl,
     mailAccountsConnectedCount,
     mailAccountsRequireUpdate = false,
     tiktokConnected,
@@ -136,6 +146,8 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
             ? { connected: linkedinConnected, connectionStatus: linkedinConnectionStatus }
             : m.key === "tiktok"
               ? { connected: tiktokConnected, requiresUpdate: tiktokRequiresUpdate }
+              : m.key === "x"
+                ? { connected: xConnected, connectionStatus: xConnectionStatus, requiresUpdate: xRequiresUpdate }
               : m.key === "youtube_shorts"
                 ? { connected: youtubeShortsConnected, requiresUpdate: youtubeShortsRequiresUpdate }
                 : m.key === "pinterest"
@@ -167,6 +179,8 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
       ? getSiteBubbleProgress("site_inrcy")
       : (m.key === "site_web")
         ? getSiteBubbleProgress("site_web")
+        : m.key === "x" && !xStatusReady
+          ? { status: "available" as ModuleStatus, text: copy.status.syncing }
         : officialConnection && !officialChannelStatesReady
           ? { status: "available" as ModuleStatus, text: copy.status.syncing }
         : officialBubbleStatus
@@ -226,6 +240,8 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
           ? (normalizeExternalHref(instagramUrl) || "#")
           : m.key === "linkedin"
             ? (normalizeExternalHref(linkedinUrl) || "#")
+            : m.key === "x"
+              ? (normalizeExternalHref(xUrl) || "#")
             : m.key === "gmb"
               ? (normalizeExternalHref(gmbUrl) || "#")
               : m.key === "facebook"
@@ -243,7 +259,7 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
     const specialViewLabel = m.key === "inrbadge"
       ? moduleCopy?.view
       : specialViewHref
-        ? moduleCopy?.view
+        ? moduleCopy?.view || viewAction?.label
         : undefined;
 
     const canViewSpecial = m.key === "inrbadge"
@@ -256,6 +272,8 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
           ? Boolean(instagramUrl)
           : m.key === "linkedin"
             ? Boolean(linkedinUrl)
+            : m.key === "x"
+              ? Boolean(xUrl)
             : m.key === "gmb"
               ? Boolean(gmbUrl)
               : m.key === "facebook"
@@ -283,6 +301,10 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
       }
       if (m.key === "tiktok") {
         openPanel("tiktok");
+        return;
+      }
+      if (m.key === "x") {
+        openPanel("x");
         return;
       }
       if (m.key === "youtube_shorts") {

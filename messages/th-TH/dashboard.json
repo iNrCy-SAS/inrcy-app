@@ -86,6 +86,7 @@
       "site_web": "การกำหนดค่า — เว็บไซต์",
       "instagram": "การกำหนดค่า — Instagram",
       "linkedin": "การกำหนดค่า — LinkedIn",
+      "x": "การกำหนดค่า — X",
       "gmb": "การกำหนดค่า — Google Business",
       "inr_search": "ตั้งค่า — iNr’Search",
       "facebook": "การกำหนดค่า — Facebook",
@@ -315,6 +316,12 @@
       "description": "ให้ความน่าเชื่อถือกับความเชี่ยวชาญของคุณ 💼",
       "view": "ดูบัญชี",
       "connect": "เข้าสู่ระบบ LinkedIn"
+    },
+    "x": {
+      "name": "X",
+      "description": "เผยแพร่ข่าวสารของคุณแบบเรียลไทม์ 𝕏",
+      "view": "ดูโปรไฟล์",
+      "connect": "ตั้งค่า"
     },
     "tiktok": {
       "name": "TikTok",

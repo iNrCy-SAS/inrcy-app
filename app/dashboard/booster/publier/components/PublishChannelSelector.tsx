@@ -50,6 +50,7 @@ const CHANNEL_ICON_SRC: Record<ChannelKey, string> = {
   facebook: "/icons/facebook.png",
   instagram: "/icons/instagram.jpg",
   linkedin: "/icons/linkedin.png",
+  x: "/icons/x.svg",
   tiktok: "/icons/tiktok.png",
   youtube_shorts: "/icons/youtube-shorts.png",
   pinterest: "/icons/pinterest-logo-128.png",

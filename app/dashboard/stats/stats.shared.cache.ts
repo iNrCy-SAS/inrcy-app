@@ -26,7 +26,7 @@ export function removeUiCacheValue(key: string) {
   removeAccountCacheValue(key);
 }
 
-const CUBE_KEYS: CubeKey[] = ["inrbadge", "inr_search", "mails", "site_inrcy", "site_web", "gmb", "facebook", "instagram", "linkedin", "tiktok", "youtube_shorts", "pinterest"];
+const CUBE_KEYS: CubeKey[] = ["inrbadge", "inr_search", "mails", "site_inrcy", "site_web", "gmb", "facebook", "instagram", "linkedin", "x", "tiktok", "youtube_shorts", "pinterest"];
 const REMOTE_STATS_CUBE_KEYS: CubeKey[] = CUBE_KEYS.filter((key) => key !== "mails" && key !== "inrbadge" && key !== "inr_search");
 
 export function hasCapturedLeadsBlocks(blocks: Partial<Record<CubeKey, InrstatsChannelBlock>> | undefined) {
@@ -143,6 +143,7 @@ export function emptyCubeState(): Record<CubeKey, CubeState> {
     facebook: { ov: null, loading: true, capturedLeads: { week: 0, month: 0 } },
     instagram: { ov: null, loading: true, capturedLeads: { week: 0, month: 0 } },
     linkedin: { ov: null, loading: true, capturedLeads: { week: 0, month: 0 } },
+    x: { ov: null, loading: true, capturedLeads: { week: 0, month: 0 } },
     mails: { ov: null, loading: false, capturedLeads: { week: 0, month: 0 } },
     tiktok: { ov: null, loading: true, capturedLeads: { week: 0, month: 0 } },
     youtube_shorts: { ov: null, loading: false, capturedLeads: { week: 0, month: 0 } },

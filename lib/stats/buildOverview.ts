@@ -36,6 +36,7 @@ import {
   mergeCachedSourcesWithLiveState,
   mergePinterestLocalPublicationStats,
   mergeTiktokLocalPublicationStats,
+  mergeXLocalPublicationStats,
   resolveRequestedCube,
   safeJsonParse,
   shouldCacheLinkedInMetrics,
@@ -54,6 +55,7 @@ import type {
   SiteSettings,
   SourcesStatus,
   TiktokLocalPublicationStats,
+  XLocalPublicationStats,
   YoutubeShortsLocalPublicationStats,
 } from "@/lib/stats/buildOverview.shared";
 
@@ -110,6 +112,14 @@ export async function buildStatsOverview(args: {
     photoPosts: pinterestActivity?.photoPosts.month || 0,
     photos: pinterestActivity?.photos.month || 0,
     latestAt: pinterestActivity?.latestAt || null,
+  };
+  const xActivity = inrcyPublishedActivityStats.x;
+  const xLocalPublicationStats: XLocalPublicationStats = {
+    posts: xActivity?.publications.month || 0,
+    videoPosts: xActivity?.videos.month || 0,
+    photoPosts: xActivity?.photoPosts.month || 0,
+    photos: xActivity?.photos.month || 0,
+    latestAt: xActivity?.latestAt || null,
   };
 
   // Lazy-import server helpers inside the request scope to avoid Next.js request-scope errors.
@@ -630,6 +640,7 @@ export async function buildStatsOverview(args: {
     facebook: { connected: false, metrics: null },
     instagram: { connected: false, metrics: null },
     linkedin: { connected: false, metrics: null },
+    x: { connected: false, metrics: null },
     tiktok: { connected: false, metrics: null },
     youtube_shorts: { connected: false, metrics: null },
     pinterest: { connected: false, metrics: null },
@@ -644,6 +655,7 @@ export async function buildStatsOverview(args: {
   };
   sourcesStatus.youtube_shorts.connected = isStatsActiveConnection(channelStates.youtube_shorts);
   sourcesStatus.pinterest.connected = isStatsActiveConnection(channelStates.pinterest);
+  sourcesStatus.x.connected = isStatsActiveConnection(channelStates.x);
 
   sourcesStatus.site_web.connected = {
     ga4: channelStates.site_web.ga4,
@@ -897,6 +909,16 @@ export async function buildStatsOverview(args: {
         ? mergeTiktokLocalPublicationStats({}, tiktokLocalPublicationStats)
         : null;
     }
+  } catch {}
+
+  // X: suivi local des publications iNrCy uniquement. Aucun appel analytics X
+  // n'est déclenché ici afin de préserver le quota et d'éviter un endpoint non documenté.
+  try {
+    sourcesStatus.x.connected = isStatsActiveConnection(channelStates.x);
+    const includeX = includeAll || includeSet.has("x");
+    sourcesStatus.x.metrics = includeX && (sourcesStatus.x.connected || xLocalPublicationStats.posts > 0)
+      ? mergeXLocalPublicationStats({}, xLocalPublicationStats)
+      : null;
   } catch {}
 
   // Pinterest: analytics réelles lues en direct, sans persistance des données API Pinterest.
@@ -1588,6 +1610,12 @@ export async function buildStatsOverview(args: {
             ? channelStates.linkedin.organization_url
             : channelStates.linkedin.profile_url,
         },
+        x: {
+          label: channelStates.x.username
+            ? `@${String(channelStates.x.username).replace(/^@+/, "")}`
+            : channelStates.x.display_name || null,
+          url: channelStates.x.profile_url || null,
+        },
         tiktok: {
           label: channelStates.tiktok.username || null,
           url: channelStates.tiktok.profile_url || null,
@@ -1620,7 +1648,7 @@ export async function buildStatsOverview(args: {
       },
       sources: sourcesStatus,
       inrcyActivity: inrcyPublishedActivityStats,
-      note: "Sources connectées: site iNrCy (GA4/GSC), site web (GA4/GSC), GMB, Facebook, Instagram, LinkedIn, TikTok, YouTube, Pinterest.",
+      note: "Sources connectées: site iNrCy (GA4/GSC), site web (GA4/GSC), GMB, Facebook, Instagram, LinkedIn, X, TikTok, YouTube, Pinterest.",
       meta: {
         generatedAt,
         snapshotDate: dateWindow.snapshotDate,

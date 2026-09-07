@@ -129,7 +129,40 @@ const STANDARD_DASHBOARD_BUBBLE_KEYS = new Set<string>([
   ...STANDARD_PUBLICATION_CHANNEL_KEYS,
   ...STANDARD_BONUS_CHANNEL_KEYS,
   "mails",
+  "x",
 ]);
+
+type XDashboardConnection = {
+  connected: boolean;
+  requiresUpdate: boolean;
+  connectionStatus: ConnectionDisplayStatus;
+  username: string;
+  displayName: string;
+  profileUrl: string;
+};
+
+function normalizeXDashboardConnection(value: unknown): XDashboardConnection {
+  const source = value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+  const requiresUpdate = Boolean(
+    source.requiresUpdate ||
+    source.expired ||
+    source.connection_status === "needs_update" ||
+    source.connectionStatus === "needs_update",
+  );
+  const connected = Boolean(source.connected ?? source.accountConnected) && !requiresUpdate;
+  const username = String(source.username || "").trim().replace(/^@/, "");
+  return {
+    connected,
+    requiresUpdate,
+    connectionStatus: requiresUpdate ? "needs_update" : connected ? "connected" : "disconnected",
+    username,
+    displayName: String(source.display_name || source.displayName || "").trim(),
+    profileUrl: String(source.profile_url || source.profileUrl || "").trim() ||
+      (username ? `https://x.com/${encodeURIComponent(username)}` : ""),
+  };
+}
 
 type DashboardClientProps = {
   isAdmin?: boolean;
@@ -207,6 +240,17 @@ export default function DashboardClient({
       ? initialDashboardChannelState.pinterestUrl
       : readCachedDashboardString("pinterestUrl")
   ));
+  const [xConnected, setXConnected] = useState(() => initialDashboardChannelState?.xConnected === true);
+  const [xRequiresUpdate, setXRequiresUpdate] = useState(() => initialDashboardChannelState?.xRequiresUpdate === true);
+  const [xConnectionStatus, setXConnectionStatus] = useState<ConnectionDisplayStatus>(() => (
+    isConnectionStatus(initialDashboardChannelState?.xConnectionStatus)
+      ? initialDashboardChannelState.xConnectionStatus
+      : initialDashboardChannelState?.xConnected
+        ? "connected"
+        : "disconnected"
+  ));
+  const [xProfileUrl, setXProfileUrl] = useState(() => String(initialDashboardChannelState?.xProfileUrl || initialDashboardChannelState?.xUrl || ""));
+  const [xStatusReady, setXStatusReady] = useState(() => typeof initialDashboardChannelState?.xConnected === "boolean");
   const [tiktokRequiresUpdate, setTiktokRequiresUpdate] = useState(() => (
     typeof initialDashboardChannelState?.tiktokRequiresUpdate === "boolean"
       ? initialDashboardChannelState.tiktokRequiresUpdate
@@ -557,7 +601,49 @@ const [bubbleAccessMap, setBubbleAccessMap] = useState<AppBubbleAccessMap>(() =>
 const canAccessSiteInrcy = isBubbleEnabled(bubbleAccessMap, "site_inrcy");
 const canAccessInrAgent = isBubbleEnabled(bubbleAccessMap, "inr_agent");
 const canAccessPinterest = isBubbleEnabled(bubbleAccessMap, "pinterest");
+const canAccessX = isBubbleEnabled(bubbleAccessMap, "x");
 const canAccessInrSearch = isBubbleEnabled(bubbleAccessMap, "inr_search");
+
+const applyXConnectionState = useCallback((value: unknown) => {
+  const next = normalizeXDashboardConnection(value);
+  setXConnected(next.connected);
+  setXRequiresUpdate(next.requiresUpdate);
+  setXConnectionStatus(next.connectionStatus);
+  setXProfileUrl(next.profileUrl);
+  setXStatusReady(true);
+}, []);
+
+useEffect(() => {
+  if (!canAccessX) {
+    applyXConnectionState(null);
+    return;
+  }
+
+  let cancelled = false;
+  setXStatusReady(false);
+
+  const onSettingsUpdated = (event: Event) => {
+    const detail = (event as CustomEvent).detail;
+    applyXConnectionState(detail);
+  };
+  window.addEventListener("inrcy:x-settings-updated", onSettingsUpdated);
+
+  void fetch("/api/integrations/x/status", { cache: "no-store" })
+    .then(async (response) => {
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(String(payload?.error || "x_status_failed"));
+      if (!cancelled) applyXConnectionState(payload);
+    })
+    .catch((error) => {
+      console.warn("[x] dashboard status failed", error);
+      if (!cancelled) setXStatusReady(true);
+    });
+
+  return () => {
+    cancelled = true;
+    window.removeEventListener("inrcy:x-settings-updated", onSettingsUpdated);
+  };
+}, [applyXConnectionState, canAccessX]);
 
 const patchChannelConnectionLocallyProxy = useCallback((
   channel: DashboardChannelKey,
@@ -1019,6 +1105,16 @@ const applyDashboardChannelState = useCallback((state: Record<string, any> | nul
   if (typeof state.pinterestConnected === "boolean") setPinterestConnected(state.pinterestConnected);
   if (typeof state.pinterestRequiresUpdate === "boolean") setPinterestRequiresUpdate(state.pinterestRequiresUpdate);
   if (typeof state.pinterestUrl === "string") setPinterestUrl(state.pinterestUrl);
+  if (typeof state.xConnected === "boolean") {
+    applyXConnectionState({
+      connected: state.xConnected,
+      requiresUpdate: Boolean(state.xRequiresUpdate),
+      connectionStatus: state.xConnectionStatus,
+      username: state.xUsername,
+      displayName: state.xDisplayName,
+      profileUrl: state.xProfileUrl || state.xUrl,
+    });
+  }
   if (typeof state.tiktokRequiresUpdate === "boolean") setTiktokRequiresUpdate(state.tiktokRequiresUpdate);
   if (typeof state.inrSearchConnected === "boolean") setInrSearchConnected(state.inrSearchConnected);
   if (typeof state.inrSearchUrl === "string") setInrSearchUrl(state.inrSearchUrl);
@@ -1061,7 +1157,7 @@ const applyDashboardChannelState = useCallback((state: Record<string, any> | nul
   setSiteWebActusLimit, setSiteWebActusDesign, setSiteWebActusTheme, setSiteWebActusAccent, setSiteWebGa4Connected, setSiteWebGa4MeasurementId,
   setSiteWebGa4PropertyId, setSiteWebGscConnected, setSiteWebGscProperty, setSiteWebSavedUrl,
   setSiteWebSettingsError, setSiteWebSettingsText, setSiteWebUrl, setMailAccountsConnectedCount, setMailAccountsRequireUpdate,
-  setYoutubeShortsConnected, setYoutubeShortsRequiresUpdate, setYoutubeShortsUrl, setPinterestConnected, setPinterestRequiresUpdate, setPinterestUrl, setTiktokRequiresUpdate, setInrSearchConnected, setInrSearchUrl, setInrSearchDirectoryEnabled,
+  setYoutubeShortsConnected, setYoutubeShortsRequiresUpdate, setYoutubeShortsUrl, setPinterestConnected, setPinterestRequiresUpdate, setPinterestUrl, setTiktokRequiresUpdate, setInrSearchConnected, setInrSearchUrl, setInrSearchDirectoryEnabled, applyXConnectionState,
   applyTiktokConnectionState,
 ]);
 
@@ -1392,7 +1488,7 @@ const setPanelError = useCallback((kind: "facebook" | "instagram" | "linkedin" |
   setGmbPanelError(input, fallback, timeout);
 }, [setFacebookPanelError, setInstagramPanelError, setLinkedinPanelError, setGmbPanelError]);
 
-  // ✅ Unités d'Inertie : multiplicateur basé sur les 6 canaux connectés.
+  // ✅ Unités d'Inertie : multiplicateur basé sur les 9 canaux connectés.
   // Calculé ici (dans le composant) pour être réutilisé dans le KPI + le drawer.
   const inertiaSnapshot = useMemo(
     () =>
@@ -1409,6 +1505,7 @@ const setPanelError = useCallback((kind: "facebook" | "instagram" | "linkedin" |
           // Instagram : compte + page/profil (resource) sélectionné.
           instagram: Boolean(instagramAccountConnected && instagramConnected && instagramConnectionStatus !== "needs_update"),
           linkedin: Boolean(linkedinAccountConnected && linkedinConnectionStatus !== "needs_update"),
+          x: Boolean(canAccessX && xConnected && xConnectionStatus !== "needs_update"),
           // TikTok est compté uniquement quand la vraie connexion OAuth est active.
           tiktok: Boolean(tiktokConnected),
           youtube_shorts: Boolean(youtubeShortsConnected),
@@ -1434,6 +1531,9 @@ const setPanelError = useCallback((kind: "facebook" | "instagram" | "linkedin" |
       instagramConnectionStatus,
       linkedinAccountConnected,
       linkedinConnectionStatus,
+      canAccessX,
+      xConnected,
+      xConnectionStatus,
       tiktokConnected,
       youtubeShortsConnected,
       gmbConnectionStatus,
@@ -3564,6 +3664,10 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
       pinterestConnected,
       pinterestRequiresUpdate,
       pinterestUrl,
+      xConnected,
+      xRequiresUpdate,
+      xConnectionStatus,
+      xProfileUrl,
       inrSearchConnected,
       inrSearchUrl,
       gmbUrl,
@@ -3650,6 +3754,11 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     linkedinConnected,
     linkedinConnectionStatus,
     linkedinUrl,
+    xConnected,
+    xConnectionStatus,
+    xRequiresUpdate,
+    xStatusReady,
+    xUrl: xProfileUrl,
     mailAccountsConnectedCount,
     mailAccountsRequireUpdate,
     tiktokConnected,
@@ -3700,6 +3809,11 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     linkedinConnected,
     linkedinConnectionStatus,
     linkedinUrl,
+    xConnected,
+    xConnectionStatus,
+    xRequiresUpdate,
+    xStatusReady,
+    xProfileUrl,
     mailAccountsConnectedCount,
     mailAccountsRequireUpdate,
     tiktokConnected,
@@ -3760,6 +3874,10 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
         connected: Boolean(linkedinConnected && linkedinUrl),
         url: linkedinUrl,
       },
+      x: {
+        connected: Boolean(canAccessX && xConnected && xProfileUrl),
+        url: canAccessX ? xProfileUrl : null,
+      },
       pinterest: {
         connected: Boolean(canAccessPinterest && pinterestConnected),
         url: canAccessPinterest ? pinterestUrl : null,
@@ -3799,6 +3917,9 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     instagramUrl,
     linkedinConnected,
     linkedinUrl,
+    canAccessX,
+    xConnected,
+    xProfileUrl,
     mailAccountsConnectedCount,
     tiktokConnected,
     tiktokProfileUrl,
@@ -4003,6 +4124,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
           facebook: Boolean(facebookAccountConnected && facebookPageConnected && facebookConnectionStatus !== "needs_update"),
           instagram: Boolean(instagramAccountConnected && instagramConnected && instagramConnectionStatus !== "needs_update"),
           linkedin: Boolean(linkedinAccountConnected && linkedinConnectionStatus !== "needs_update"),
+          x: Boolean(canAccessX && xConnected && xConnectionStatus !== "needs_update"),
           // TikTok suit maintenant le même état hydraté que les autres canaux.
           // Si l'OAuth réel est actif, la bulle Booster est allumée dès l'ouverture.
           tiktok: Boolean(tiktokConnected),
@@ -4075,6 +4197,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
             tiktokPanelProps={tiktokPanelProps}
             inrBadgeSettingsProps={inrBadgeSettingsProps}
             pinterestAccessEnabled={canAccessPinterest}
+            xAccessEnabled={canAccessX}
             inrSearchAccessEnabled={canAccessInrSearch}
             inrSearchConnected={inrSearchConnected}
             inrSearchUrl={inrSearchUrl}

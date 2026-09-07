@@ -87,7 +87,7 @@ export default function PublishPreviewPanel({
               display: "grid",
               gridTemplateColumns: isMobile
                 ? "repeat(2, minmax(0, 1fr))"
-                : "repeat(10, minmax(0, 1fr))",
+                : `repeat(${Math.max(1, previewReadinessTabs.length)}, minmax(0, 1fr))`,
               gap: isMobile ? 8 : 6,
               width: "100%",
               maxWidth: "100%",

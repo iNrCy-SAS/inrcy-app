@@ -34,7 +34,6 @@ import type {
 import {
   INR_MEDIA_IMAGE_FORMATS_LABEL,
   INR_MEDIA_IMAGE_MAX_MB_LABEL,
-  INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT,
   INR_MEDIA_VIDEO_FORMATS_LABEL,
   INR_MEDIA_VIDEO_SOURCE_MAX_MB_LABEL,
   isInrMediaImageFile,
@@ -112,6 +111,7 @@ import {
   getLocalizedVideoAdaptationModeLabel,
   getLocalizedVideoFormatLabel,
   getLocalizedWebsiteSourceLabelForChannel,
+  getBoosterMaxImageCountForChannel,
   getDefaultTransform,
   getEffectiveTransformZoom,
   getChannelSafetyBackgroundMode,
@@ -1089,10 +1089,14 @@ export default function AgentClient() {
     publishMediaPreview?.kind === "image" ||
       publishMediaPreview?.kind === "video",
   );
+  const publishBoosterChannel =
+    boosterChannelKeyFromAgentChannel(activePreviewChannel);
+  const publishImageMaxCount =
+    getBoosterMaxImageCountForChannel(publishBoosterChannel);
   const publishImageCount =
     publishMediaPreview?.kind === "image" ? publishMediaPreview.count : 0;
   const publishImageLimitReached =
-    publishImageCount >= INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT;
+    publishImageCount >= publishImageMaxCount;
   const publishMediaAdaptationPreview = isPublishView
     ? extractPublishMediaAdaptationPreview(
         selectedPreparedAction,
@@ -1112,8 +1116,6 @@ export default function AgentClient() {
       : publishMediaPreview?.kind === "image"
         ? "🪄"
         : "✨";
-  const publishBoosterChannel =
-    boosterChannelKeyFromAgentChannel(activePreviewChannel);
   const publishImageAdapterPreset = CHANNEL_PRESETS[publishBoosterChannel];
   const publishImageAdapterTransformSafe =
     publishImageAdapterTransform || getDefaultTransform(publishBoosterChannel);
@@ -1697,7 +1699,7 @@ export default function AgentClient() {
     }
     if (item.media_type === "image" && publishImageLimitReached) {
       showNotice(
-        i18nT("max_images_channel", { count: INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT }),
+        i18nT("max_images_channel", { count: publishImageMaxCount }),
       );
       return false;
     }
@@ -1710,7 +1712,7 @@ export default function AgentClient() {
         setPublishMediaActiveIndex(
           Math.min(
             publishImageCount,
-            INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT - 1,
+            publishImageMaxCount - 1,
           ),
         );
         showNotice(i18nT("publish_image_added"));
@@ -2262,7 +2264,7 @@ export default function AgentClient() {
       publishImageLimitReached
     ) {
       showNotice(
-        i18nT("max_images_channel", { count: INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT }),
+        i18nT("max_images_channel", { count: publishImageMaxCount }),
       );
       return;
     }
@@ -2396,7 +2398,7 @@ export default function AgentClient() {
         setPublishMediaActiveIndex(
           Math.min(
             publishImageCount,
-            INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT - 1,
+            publishImageMaxCount - 1,
           ),
         );
       } else if (mediaKind === "video") {
@@ -6364,16 +6366,16 @@ export default function AgentClient() {
                     ? publishImageLimitReached
                       ? i18nT("media_images_saved_max", {
                           count: publishImageCount,
-                          max: INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT,
+                          max: publishImageMaxCount,
                         })
                       : publishImageCount === 1
                         ? i18nT("media_image_saved_channel", {
                             count: publishImageCount,
-                            max: INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT,
+                            max: publishImageMaxCount,
                           })
                         : i18nT("media_images_saved_channel", {
                             count: publishImageCount,
-                            max: INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT,
+                            max: publishImageMaxCount,
                           })
                     : publishMediaPreview?.kind === "video"
                       ? i18nT("video_preparee_pour_ce_canal_4350728f")
@@ -6432,7 +6434,7 @@ export default function AgentClient() {
                   title={
                     publishImageLimitReached
                       ? i18nT("maximum_de_value_images_atteint_af483c3f", {
-                          value0: INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT,
+                          value0: publishImageMaxCount,
                         })
                       : i18nT("add_image_to_publication")
                   }
@@ -6444,7 +6446,7 @@ export default function AgentClient() {
                   <strong>{i18nT("ajouter_une_image_762947a7")}</strong>
                   <small>
                     {publishImageLimitReached
-                      ? i18nT("maximum_de_value_images_atteint_af483c3f", { value0: INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT })
+                      ? i18nT("maximum_de_value_images_atteint_af483c3f", { value0: publishImageMaxCount })
                       : INR_MEDIA_IMAGE_FORMATS_LABEL}
                   </small>
                 </label>
@@ -6474,7 +6476,7 @@ export default function AgentClient() {
                   title={
                     publishImageLimitReached
                       ? i18nT("maximum_de_value_images_atteint_af483c3f", {
-                          value0: INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT,
+                          value0: publishImageMaxCount,
                         })
                       : isMobileHeader
                       ? i18nT("take_photo_in_inrcy")
@@ -6512,7 +6514,7 @@ export default function AgentClient() {
               selectedHint={
                 publishImageLimitReached
                   ? i18nT("media_picker_image_limit", {
-                      max: INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT,
+                      max: publishImageMaxCount,
                     })
                   : i18nT("media_picker_hint")
               }

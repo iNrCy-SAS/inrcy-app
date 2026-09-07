@@ -26,6 +26,7 @@ export type InrBadgeActionBreakdown = {
   facebook: InrBadgeStatsPeriod;
   instagram: InrBadgeStatsPeriod;
   linkedin: InrBadgeStatsPeriod;
+  x: InrBadgeStatsPeriod;
   tiktok: InrBadgeStatsPeriod;
   youtube_shorts: InrBadgeStatsPeriod;
   other: InrBadgeStatsPeriod;
@@ -58,6 +59,7 @@ const ACTION_KEYS = [
   "facebook",
   "instagram",
   "linkedin",
+  "x",
   "tiktok",
   "youtube_shorts",
   "other",
@@ -122,6 +124,7 @@ function zeroActions(): InrBadgeActionBreakdown {
     facebook: zeroPeriod(),
     instagram: zeroPeriod(),
     linkedin: zeroPeriod(),
+    x: zeroPeriod(),
     tiktok: zeroPeriod(),
     youtube_shorts: zeroPeriod(),
     other: zeroPeriod(),

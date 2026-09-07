@@ -11,6 +11,7 @@ export type BoosterChannelKey =
   | "facebook"
   | "instagram"
   | "linkedin"
+  | "x"
   | "tiktok"
   | "youtube_shorts"
   | "pinterest";
@@ -106,6 +107,18 @@ export const BOOSTER_CHANNEL_CONTENT_RULES: Record<
     deep: { min: 1800, max: 2700 },
     detailed: { min: 1100, max: 1700 },
     max: 3000,
+  },
+  x: {
+    // La limite X de 280 caractères pondérés concerne le post complet
+    // (titre, contenu, CTA, URL et hashtags). Le corps reste volontairement
+    // plus court pour réserver de la place aux autres éléments et à une URL.
+    adapted: { min: 60, max: 120 },
+    short: { min: 40, max: 75 },
+    medium: { min: 65, max: 110 },
+    long: { min: 90, max: 135 },
+    deep: { min: 100, max: 150 },
+    detailed: { min: 90, max: 130 },
+    max: 160,
   },
   tiktok: {
     adapted: { min: 140, max: 360 },

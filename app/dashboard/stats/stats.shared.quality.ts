@@ -132,6 +132,16 @@ export function buildProvenance(cubeKey: CubeKey, ov: Overview, t: StatsTranslat
     ];
   }
 
+  if (cubeKey === "x") {
+    const m = ov?.sources?.x?.metrics;
+    const publications = safeNum(m?.totals?.inrcy_posts) || safeNum(m?.totals?.postsPublishedLocal);
+    const media = safeNum(m?.totals?.inrcy_photo_posts) + safeNum(m?.totals?.inrcy_video_posts);
+    return [
+      { label: t("publications_0855684c"), value: publications, colorVar: "--cSocial" },
+      { label: t("photos_c8b2e864"), value: media, colorVar: "--cGoogle" },
+    ];
+  }
+
   if (cubeKey === "tiktok") {
     const m = ov?.sources?.tiktok?.metrics;
     const audience = safeNum(m?.totals?.video_views) + safeNum(m?.totals?.views) + safeNum(m?.totals?.profile_views) + safeNum(m?.totals?.followers);
@@ -213,7 +223,7 @@ export function computeQuality(cubeKey: CubeKey, ov: Overview, t: StatsTranslato
     return { score, ...localizedQualityLabel(score, t) };
   }
 
-  if (cubeKey === "facebook" || cubeKey === "instagram" || cubeKey === "linkedin" || cubeKey === "tiktok" || cubeKey === "youtube_shorts" || cubeKey === "pinterest") {
+  if (cubeKey === "facebook" || cubeKey === "instagram" || cubeKey === "linkedin" || cubeKey === "x" || cubeKey === "tiktok" || cubeKey === "youtube_shorts" || cubeKey === "pinterest") {
     return computeSocialQuality(cubeKey, ov, t);
   }
 
@@ -242,12 +252,14 @@ export function computeQuality(cubeKey: CubeKey, ov: Overview, t: StatsTranslato
   return { score, ...localizedQualityLabel(score, t) };
 }
 
-export function getSocialMetrics(cubeKey: "facebook" | "instagram" | "linkedin" | "tiktok" | "youtube_shorts" | "pinterest", ov: Overview) {
+export function getSocialMetrics(cubeKey: "facebook" | "instagram" | "linkedin" | "x" | "tiktok" | "youtube_shorts" | "pinterest", ov: Overview) {
   const m =
     cubeKey === "facebook"
       ? ov?.sources?.facebook?.metrics
       : cubeKey === "instagram"
         ? ov?.sources?.instagram?.metrics
+        : cubeKey === "x"
+          ? ov?.sources?.x?.metrics
         : cubeKey === "tiktok"
           ? ov?.sources?.tiktok?.metrics
           : cubeKey === "youtube_shorts"
@@ -261,6 +273,8 @@ export function getSocialMetrics(cubeKey: "facebook" | "instagram" | "linkedin" 
       ? safeNum(m?.totals?.fan_count) + safeNum(m?.totals?.followers_count) + bestMetricValue(m, ["page_total_media_view_unique", "post_total_media_view_unique_sum", "reach", "page_impressions_unique", "post_impressions_unique_sum"])
       : cubeKey === "instagram"
         ? latestDailyMetricValue(m, "follower_count") + safeNum(m?.totals?.reach) + safeNum(m?.totals?.profile_views)
+        : cubeKey === "x"
+          ? 0
         : cubeKey === "tiktok"
           ? safeNum(m?.totals?.followers) + safeNum(m?.totals?.profile_views) + safeNum(m?.totals?.video_views)
           : cubeKey === "youtube_shorts"
@@ -280,6 +294,8 @@ export function getSocialMetrics(cubeKey: "facebook" | "instagram" | "linkedin" 
       ? safeNum(m?.totals?.page_engaged_users) + safeNum(m?.totals?.post_engaged_users_sum) + safeNum(m?.totals?.reactions) + safeNum(m?.totals?.comments) + safeNum(m?.totals?.shares)
       : cubeKey === "instagram"
         ? safeNum(m?.totals?.likes) + safeNum(m?.totals?.comments) + safeNum(m?.totals?.shares) + safeNum(m?.totals?.replies) + safeNum(m?.totals?.saves)
+        : cubeKey === "x"
+          ? 0
         : cubeKey === "tiktok"
           ? safeNum(m?.totals?.engagements) + safeNum(m?.totals?.likes) + safeNum(m?.totals?.comments) + safeNum(m?.totals?.shares) + safeNum(m?.totals?.saves)
           : cubeKey === "youtube_shorts"
@@ -293,6 +309,8 @@ export function getSocialMetrics(cubeKey: "facebook" | "instagram" | "linkedin" 
       ? safeNum(m?.totals?.page_website_clicks_logged_in_unique) + safeNum(m?.totals?.page_call_phone_clicks_logged_in_unique) + safeNum(m?.totals?.page_get_directions_clicks_logged_in_unique)
       : cubeKey === "instagram"
         ? safeNum(m?.totals?.profile_links_taps) + safeNum(m?.totals?.website_clicks) + safeNum(m?.totals?.phone_call_clicks) + safeNum(m?.totals?.email_contacts) + safeNum(m?.totals?.text_message_clicks) + safeNum(m?.totals?.get_directions_clicks) + safeNum(m?.totals?.get_direction_clicks)
+        : cubeKey === "x"
+          ? 0
         : cubeKey === "tiktok"
           ? safeNum(m?.totals?.website_clicks) + safeNum(m?.totals?.profile_views) + safeNum(m?.totals?.messages)
           : cubeKey === "youtube_shorts"
@@ -306,6 +324,8 @@ export function getSocialMetrics(cubeKey: "facebook" | "instagram" | "linkedin" 
       ? bestMetricValue(m, ["page_media_view", "post_media_view_sum", "views", "page_impressions", "post_impressions_sum", "impressions"])
       : cubeKey === "instagram"
         ? safeNum(m?.totals?.impressions) + safeNum(m?.totals?.reach)
+        : cubeKey === "x"
+          ? safeNum(m?.totals?.inrcy_posts) || safeNum(m?.totals?.postsPublishedLocal)
         : cubeKey === "tiktok"
           ? safeNum(m?.totals?.impressions) + safeNum(m?.totals?.video_views) + safeNum(m?.totals?.views)
           : cubeKey === "youtube_shorts"
@@ -317,12 +337,14 @@ export function getSocialMetrics(cubeKey: "facebook" | "instagram" | "linkedin" 
   return { audience, engagement, conversions, visibility };
 }
 
-function computeSocialQuality(cubeKey: "facebook" | "instagram" | "linkedin" | "tiktok" | "youtube_shorts" | "pinterest", ov: Overview, t: StatsTranslator) {
+function computeSocialQuality(cubeKey: "facebook" | "instagram" | "linkedin" | "x" | "tiktok" | "youtube_shorts" | "pinterest", ov: Overview, t: StatsTranslator) {
   const connected =
     cubeKey === "facebook"
       ? !!ov?.sources?.facebook?.connected
       : cubeKey === "instagram"
         ? !!ov?.sources?.instagram?.connected
+        : cubeKey === "x"
+          ? !!ov?.sources?.x?.connected
         : cubeKey === "tiktok"
           ? !!ov?.sources?.tiktok?.connected
           : cubeKey === "youtube_shorts"
@@ -334,9 +356,9 @@ function computeSocialQuality(cubeKey: "facebook" | "instagram" | "linkedin" | "
 
   const { audience, engagement, conversions, visibility } = getSocialMetrics(cubeKey, ov);
   const exposureBase =
-    cubeKey === "instagram" ? 2500 : cubeKey === "linkedin" ? 1200 : (cubeKey === "tiktok" || cubeKey === "youtube_shorts" || cubeKey === "pinterest") ? 3200 : 3000;
+    cubeKey === "x" ? 12 : cubeKey === "instagram" ? 2500 : cubeKey === "linkedin" ? 1200 : (cubeKey === "tiktok" || cubeKey === "youtube_shorts" || cubeKey === "pinterest") ? 3200 : 3000;
   const engagementBase =
-    cubeKey === "instagram" ? 120 : cubeKey === "linkedin" ? 45 : (cubeKey === "tiktok" || cubeKey === "youtube_shorts" || cubeKey === "pinterest") ? 160 : 90;
+    cubeKey === "x" ? 5 : cubeKey === "instagram" ? 120 : cubeKey === "linkedin" ? 45 : (cubeKey === "tiktok" || cubeKey === "youtube_shorts" || cubeKey === "pinterest") ? 160 : 90;
   const conversionBase =
     cubeKey === "instagram" ? 6 : cubeKey === "linkedin" ? 3 : 5;
 

@@ -334,6 +334,7 @@ function getFallbackChannelAccountHref(channel: string, result: any): string {
     .replace(/^@+/, "");
   if (!username) return "";
   if (channel === "instagram") return `https://www.instagram.com/${encodeURIComponent(username)}/`;
+  if (channel === "x") return `https://x.com/${encodeURIComponent(username)}`;
   if (channel === "tiktok") return `https://www.tiktok.com/@${encodeURIComponent(username)}`;
   if (channel === "pinterest") return `https://www.pinterest.fr/${encodeURIComponent(username)}/`;
   return "";
@@ -1067,7 +1068,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
 
   const publicationDisplayKey = React.useMemo<DisplayKey>(() => {
     const key = String(activePublicationEditChannelKey || "");
-    if (["inrcy_site", "site_web", "inr_search", "gmb", "facebook", "instagram", "linkedin", "tiktok", "youtube_shorts", "pinterest"].includes(key)) {
+    if (["inrcy_site", "site_web", "inr_search", "gmb", "facebook", "instagram", "linkedin", "x", "tiktok", "youtube_shorts", "pinterest"].includes(key)) {
       return key as DisplayKey;
     }
     return "facebook";
@@ -1546,6 +1547,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                       ? i18nT("mail_action_failed")
                       : "";
                   const isTiktokPublicationEntry = activePublicationEntry?.key === "tiktok";
+                  const isXPublicationEntry = activePublicationEntry?.key === "x";
                   const isYoutubeShortsPublicationEntry = activePublicationEntry?.key === "youtube_shorts";
                   const isExternalVideoPublicationEntry = isTiktokPublicationEntry || isYoutubeShortsPublicationEntry;
                   const tiktokPublishId = isTiktokPublicationEntry ? getTiktokPublishId(activePublicationResult) : "";
@@ -1579,6 +1581,13 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                           activePublicationResult?.post_url ||
                           activePublicationResult?.video_url ||
                           activePublicationResult?.external_url,
+                      )
+                    : "";
+                  const xDirectPublicationHref = isXPublicationEntry
+                    ? normalizeExternalHref(
+                        activePublicationResult?.external_url ||
+                          activePublicationResult?.post_url ||
+                          activePublicationResult?.url,
                       )
                     : "";
                   const activeParts = activePublicationEntry?.parts || defaultParts;
@@ -2037,7 +2046,20 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                       {activeChannelAccountActionLabel}
                                     </a>
                                   ) : null}
-                                  {isTiktokPublicationEntry && !isDraftItem ? (
+                                  {isXPublicationEntry && !isDraftItem ? (
+                                    xDirectPublicationHref && xDirectPublicationHref !== activeChannelAccountHref ? (
+                                      <a
+                                        className={styles.btnPrimary}
+                                        href={xDirectPublicationHref}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        title="Ouvrir la publication X"
+                                        style={{ textDecoration: "none" }}
+                                      >
+                                        {i18nT("voir_la_publication_d6d6819f")}
+                                      </a>
+                                    ) : null
+                                  ) : isTiktokPublicationEntry && !isDraftItem ? (
                                     <>
                                       {!tiktokStatusMeta?.cancelled ? (
                                         <button

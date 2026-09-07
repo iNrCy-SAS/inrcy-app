@@ -27,8 +27,8 @@ const channelPublishDiagnostics = read("lib/channelPublishDiagnostics.ts");
 const channelReconnectPolicy = read("lib/channelReconnectPolicy.ts");
 const googleStats = read("lib/googleStats.ts");
 
-test("the runtime channel policy accepts only the ten supported channels", () => {
-  assert.equal(BOOSTER_PUBLICATION_CHANNELS.length, 10);
+test("the runtime channel policy accepts only the eleven supported channels", () => {
+  assert.equal(BOOSTER_PUBLICATION_CHANNELS.length, 11);
   assert.deepEqual(
     normalizeBoosterPublicationChannels([
       " facebook ",

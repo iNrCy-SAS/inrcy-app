@@ -86,6 +86,7 @@
       "site_web": "Definições — Site",
       "instagram": "Definições — Instagram",
       "linkedin": "Definições — LinkedIn",
+      "x": "Definições — X",
       "gmb": "Definições — Perfil de Empresa no Google",
       "inr_search": "Definições — iNr’Search",
       "facebook": "Definições — Facebook",
@@ -315,6 +316,12 @@
       "description": "Dá credibilidade 💼",
       "view": "Ver conta",
       "connect": "Ligar LinkedIn"
+    },
+    "x": {
+      "name": "X",
+      "description": "Divulga as suas novidades em tempo real 𝕏",
+      "view": "Ver perfil",
+      "connect": "Configurar"
     },
     "tiktok": {
       "name": "TikTok",

@@ -30,12 +30,18 @@ import {
   buildBoosterHashtagLine,
   buildBoosterInstagramCaption,
   buildBoosterMessage,
+  buildBoosterXPostText,
   getCtaMode,
   getSupportedBoosterCtaModesForChannel,
   isBoosterWhatsAppUrl,
   type BoosterCtaMode,
 } from "@/lib/boosterCta";
 import { INR_SEARCH_CONTENT_MAX_LENGTH } from "@/lib/boosterChannelRules";
+import {
+  X_POST_MAX_IMAGES,
+  X_POST_WEIGHTED_LENGTH_MAX,
+  getXPostTextMetrics,
+} from "@/lib/xChannel";
 import {
   getYoutubePublicationTypeForDuration,
   validateVideoDurationForChannel,
@@ -79,6 +85,7 @@ export type ChannelKey =
   | "facebook"
   | "instagram"
   | "linkedin"
+  | "x"
   | "tiktok"
   | "youtube_shorts"
   | "pinterest";
@@ -93,6 +100,7 @@ export const BOOSTER_CHANNEL_ORDER: ChannelKey[] = [
   "facebook",
   "instagram",
   "linkedin",
+  "x",
   "tiktok",
   "youtube_shorts",
   "pinterest",
@@ -476,6 +484,7 @@ export const DISPLAY_LABELS: Record<DisplayKey, string> = {
   facebook: "Facebook",
   instagram: "Instagram",
   linkedin: "LinkedIn",
+  x: "X",
   tiktok: "TikTok",
   youtube_shorts: "YouTube",
   pinterest: "Pinterest",
@@ -489,6 +498,7 @@ export const CHANNEL_LABELS: Record<ChannelKey, string> = {
   facebook: "Facebook",
   instagram: "Instagram",
   linkedin: "LinkedIn",
+  x: "X",
   tiktok: "TikTok",
   youtube_shorts: "YouTube",
   pinterest: "Pinterest",
@@ -547,6 +557,12 @@ export const CHANNEL_PRESETS: Record<ChannelKey, RenderPreset> = {
   linkedin: {
     width: 1200,
     height: 1200,
+    defaultFit: "cover",
+    defaultBlurBackground: false,
+  },
+  x: {
+    width: 1200,
+    height: 675,
     defaultFit: "cover",
     defaultBlurBackground: false,
   },
@@ -658,6 +674,10 @@ export function getLocalizedUnavailableMediaModeMessage(
 }
 
 export const BOOSTER_MAX_IMAGE_COUNT = INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT;
+
+export function getBoosterMaxImageCountForChannel(channel: ChannelKey) {
+  return channel === "x" ? X_POST_MAX_IMAGES : BOOSTER_MAX_IMAGE_COUNT;
+}
 export const BOOSTER_IMAGE_ACCEPT = [
   ...INR_MEDIA_ALLOWED_IMAGE_MIME_TYPES,
   ...INR_MEDIA_ALLOWED_IMAGE_EXTENSIONS.map((extension) => `.${extension}`),
@@ -809,6 +829,8 @@ export type ChannelPublicationRequirementInput = {
   hasText: boolean;
   hasTitle: boolean;
   hasContent: boolean;
+  xTextWeightedLength?: number | null;
+  xGifCount?: number;
 };
 
 export type ChannelPublicationRequirements = {
@@ -868,6 +890,15 @@ export function getLocalizedChannelPublicationRequirement(
       count: Math.min(imageCount, BOOSTER_MAX_IMAGE_COUNT),
     });
   }
+  if (code === "x_image_count_invalid") {
+    return `X accepte au maximum ${X_POST_MAX_IMAGES} images.`;
+  }
+  if (code === "x_gif_combination_invalid") {
+    return "Sur X, un GIF animé doit être publié seul.";
+  }
+  if (code === "x_text_too_long") {
+    return `Le post X dépasse la limite de ${X_POST_WEIGHTED_LENGTH_MAX} caractères pondérés.`;
+  }
   if (code === "video_duration_unknown") {
     return translate("requirement_video_duration_unknown", { channel: channelLabel });
   }
@@ -914,6 +945,8 @@ export function getChannelPublicationRequirements({
   hasText,
   hasTitle,
   hasContent,
+  xTextWeightedLength,
+  xGifCount = 0,
 }: ChannelPublicationRequirementInput): ChannelPublicationRequirements {
   const warnings: string[] = [];
   const warningCodes: string[] = [];
@@ -952,6 +985,29 @@ export function getChannelPublicationRequirements({
 
   if (!hasContent) addWarning("Contenu vide", "content_empty");
   if (!hasTitle) addWarning("Titre vide", "title_empty");
+
+  if (channel === "x" && imageCount > X_POST_MAX_IMAGES) {
+    addMediaBlocker(
+      `X accepte au maximum ${X_POST_MAX_IMAGES} images.`,
+      "x_image_count_invalid",
+    );
+  }
+  if (channel === "x" && xGifCount > 0 && imageCount !== 1) {
+    addMediaBlocker(
+      "Sur X, un GIF animé doit être publié seul.",
+      "x_gif_combination_invalid",
+    );
+  }
+  if (
+    channel === "x" &&
+    Number.isFinite(Number(xTextWeightedLength)) &&
+    Number(xTextWeightedLength) > X_POST_WEIGHTED_LENGTH_MAX
+  ) {
+    addBlocker(
+      `Le post X dépasse la limite de ${X_POST_WEIGHTED_LENGTH_MAX} caractères pondérés.`,
+      "x_text_too_long",
+    );
+  }
 
   const instagramMediaMissing =
     channel === "instagram" &&
@@ -1266,6 +1322,16 @@ export const CHANNEL_TEXT_GUIDELINES: Record<
     content: 3000,
     cta: 180,
   },
+  x: {
+    title: 70,
+    content: 220,
+    cta: 90,
+    hashtags: 2,
+    totalLabel: "Post X final",
+    totalMax: X_POST_WEIGHTED_LENGTH_MAX,
+    totalValue: (post) =>
+      getXPostTextMetrics(buildBoosterXPostText(post)).weightedLength,
+  },
   tiktok: {
     title: 90,
     content: 2200,
@@ -1341,9 +1407,18 @@ export function getCtaModeHelp(
       return "Le clic sur l’épingle ouvrira directement la conversation WhatsApp.";
     if (["instagram", "tiktok", "youtube_shorts"].includes(channel))
       return "Le lien WhatsApp sera ajouté à la légende. Selon le réseau, il peut être affiché comme texte non cliquable.";
+    if (channel === "x")
+      return "X n’affiche pas de bouton natif : le lien WhatsApp sera ajouté proprement dans le texte du post.";
     return "Un lien WhatsApp sécurisé sera ajouté à la publication.";
   }
   if (mode === "none") return "Aucun bouton ne sera ajouté à la fin du texte.";
+  if (channel === "x") {
+    if (mode === "website" || mode === "custom")
+      return "X n’affiche pas de bouton natif : le libellé et l’URL seront ajoutés proprement dans le texte du post.";
+    if (mode === "call")
+      return "X n’affiche pas de bouton natif : le libellé et le numéro seront ajoutés proprement dans le texte du post.";
+    return "Une phrase naturelle d’invitation au message privé sera ajoutée au texte du post.";
+  }
   if (mode === "website")
     return channel === "gmb"
       ? "Un vrai bouton Google Business sera utilisé quand une URL de site est disponible."
@@ -1371,9 +1446,18 @@ export function getLocalizedCtaModeHelp(
     if (["instagram", "tiktok", "youtube_shorts"].includes(channel)) {
       return translate("cta_help_whatsapp_caption");
     }
+    if (channel === "x")
+      return "X n’affiche pas de bouton natif : le lien WhatsApp sera ajouté proprement dans le texte du post.";
     return translate("cta_help_whatsapp");
   }
   if (mode === "none") return translate("cta_help_none");
+  if (channel === "x") {
+    if (mode === "website" || mode === "custom")
+      return "X n’affiche pas de bouton natif : le libellé et l’URL seront ajoutés proprement dans le texte du post.";
+    if (mode === "call")
+      return "X n’affiche pas de bouton natif : le libellé et le numéro seront ajoutés proprement dans le texte du post.";
+    return "Une phrase naturelle d’invitation au message privé sera ajoutée au texte du post.";
+  }
   if (mode === "website") {
     return translate(channel === "gmb" ? "cta_help_gmb_website" : "cta_help_website");
   }
@@ -1481,6 +1565,7 @@ export function getLocalizedChannelTotalLabel(
   channel: DisplayKey,
   translate: (key: string) => string,
 ) {
+  if (channel === "x") return "Post X final";
   const key = CHANNEL_TOTAL_LABEL_MESSAGE_KEYS[channel];
   return key ? translate(key) : "";
 }
@@ -2830,7 +2915,7 @@ export function syncChannelImageEditors(params: {
       previousSelectedKeys: prevState?.imageKeys,
       previousAvailableKeys: prevState?.synchronizedImageKeys,
       supportsImages,
-    });
+    }).slice(0, getBoosterMaxImageCountForChannel(channel));
     const transforms: Record<string, ImageTransform> = {};
     if (channelSupportsImages(channel)) {
       for (const key of imageKeys) {

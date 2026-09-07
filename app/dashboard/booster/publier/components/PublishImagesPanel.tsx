@@ -21,6 +21,7 @@ import {
   getLocalizedBoosterVideoLimits,
   getLocalizedChannelLabel,
   getLocalizedUnavailableMediaModeMessage,
+  getBoosterMaxImageCountForChannel,
   CHANNEL_PRESETS,
   channelSupportsImages,
   channelSupportsTextOnly,
@@ -278,6 +279,18 @@ export default function PublishImagesPanel({
   );
   const activeMediaBlockers = activeMediaTab?.blockers || [];
   const activeImageEditor = channelImageEditors[activeImageChannel];
+  const activeXGifCount =
+    activeImageChannel === "x"
+      ? (activeImageEditor?.imageKeys || []).filter((key) => {
+          const imageIndex = imageKeys.indexOf(key);
+          const image = imageIndex >= 0 ? images[imageIndex] : null;
+          return Boolean(
+            image &&
+              (String(image.type || "").toLowerCase() === "image/gif" ||
+                String(image.name || "").toLowerCase().endsWith(".gif")),
+          );
+        }).length
+      : 0;
   const activeImageFirstKey = activeImageEditor?.imageKeys?.[0] || "";
   const activeImageSequenceTargetRatio = getBoosterImageSequenceTargetRatio({
     channel: activeImageChannel,
@@ -575,7 +588,7 @@ export default function PublishImagesPanel({
               display: "grid",
               gridTemplateColumns: isMobile
                 ? "repeat(2, minmax(0, 1fr))"
-                : "repeat(10, minmax(0, 1fr))",
+                : `repeat(${Math.max(1, selectedChannels.length)}, minmax(0, 1fr))`,
               gap: isMobile ? 8 : 6,
               width: "100%",
               minWidth: 0,
@@ -772,6 +785,28 @@ export default function PublishImagesPanel({
             )}
             {mediaModeButton("none", i18nT("media_none"), !channelSupportsTextOnly(activeImageChannel))}
           </div>
+
+          {activeImageChannel === "x" && activeMode === "images" ? (
+            <div
+              role="note"
+              style={{
+                borderRadius: 13,
+                padding: "9px 11px",
+                border: "1px solid rgba(96,165,250,0.28)",
+                background: "rgba(59,130,246,0.09)",
+                color: "#dbeafe",
+                fontSize: 12,
+                lineHeight: 1.4,
+              }}
+            >
+              X accepte jusqu’à {getBoosterMaxImageCountForChannel("x")} images,
+              ou un GIF animé publié seul.
+              {activeXGifCount > 0 &&
+              (activeImageEditor?.imageKeys.length || 0) !== 1
+                ? " Retirez les autres images avant de publier ce GIF."
+                : ""}
+            </div>
+          ) : null}
 
           {activeMediaBlockers.length ? (
             <div

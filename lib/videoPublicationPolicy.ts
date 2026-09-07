@@ -73,6 +73,7 @@ export const VIDEO_CHANNEL_LABELS: Record<BoosterVideoChannelKey, string> = {
   facebook: "Facebook",
   instagram: "Instagram",
   linkedin: "LinkedIn",
+  x: "X",
   tiktok: "TikTok",
   youtube_shorts: "YouTube",
   pinterest: "Pinterest",
@@ -138,6 +139,7 @@ export const VIDEO_PUBLICATION_POLICY_BY_CHANNEL: Record<
     minDurationSeconds: 3,
     maxDurationSeconds: 30 * 60,
   },
+  x: { channel: "x", ...DEFAULT_POLICY },
   tiktok: {
     channel: "tiktok",
     ...DEFAULT_POLICY,

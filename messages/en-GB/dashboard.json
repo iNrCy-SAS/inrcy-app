@@ -86,6 +86,7 @@
       "site_web": "Settings — Website",
       "instagram": "Settings — Instagram",
       "linkedin": "Settings — LinkedIn",
+      "x": "Settings — X",
       "gmb": "Settings — Google Business Profile",
       "inr_search": "Settings — iNr’Search",
       "facebook": "Settings — Facebook",
@@ -315,6 +316,12 @@
       "description": "Boosts credibility 💼",
       "view": "View account",
       "connect": "Link LinkedIn"
+    },
+    "x": {
+      "name": "X",
+      "description": "Shares your news in real time 𝕏",
+      "view": "View profile",
+      "connect": "Set up"
     },
     "tiktok": {
       "name": "TikTok",

@@ -38,6 +38,7 @@ import {
   getBackgroundFill,
   getBackgroundMode,
   getEffectiveTransformZoom,
+  getBoosterMaxImageCountForChannel,
   getOptimizedTransform,
   isBoosterImageFile,
   makeImageKey,
@@ -572,7 +573,9 @@ export default function usePublishImageController({
           const preservedKeys = (
             prev[channel]?.imageKeys ||
             (channelSupportsImages(channel) ? previousPoolKeys : [])
-          ).filter((key) => previousPoolKeys.includes(key));
+          )
+            .filter((key) => previousPoolKeys.includes(key))
+            .slice(0, getBoosterMaxImageCountForChannel(channel));
           next = setImageKeysForChannel(next, channel, preservedKeys, {
             fallback: { imageKeys: [], transforms: {} },
             patch: { synchronizedImageKeys: [...nextPoolKeys] },
@@ -584,7 +587,7 @@ export default function usePublishImageController({
             previousPoolKeys.includes(key),
           ),
           ...newKeys,
-        ];
+        ].slice(0, getBoosterMaxImageCountForChannel(targetChannel));
         next = setImageKeysForChannel(next, targetChannel, targetKeys, {
           fallback: { imageKeys: [], transforms: {} },
           patch: { synchronizedImageKeys: [...nextPoolKeys] },
@@ -603,12 +606,17 @@ export default function usePublishImageController({
           const selectedKeys =
             images.length === 0
               ? channelSupportsImages(channel)
-                ? nextPoolKeys
+                ? nextPoolKeys.slice(
+                    0,
+                    getBoosterMaxImageCountForChannel(channel),
+                  )
                 : []
               : (
                   prev[channel]?.imageKeys ||
                   (channelSupportsImages(channel) ? previousPoolKeys : [])
-                ).filter((key) => previousPoolKeys.includes(key));
+                )
+                  .filter((key) => previousPoolKeys.includes(key))
+                  .slice(0, getBoosterMaxImageCountForChannel(channel));
           next = setImageKeysForChannel(next, channel, selectedKeys, {
             fallback: { imageKeys: [], transforms: {} },
             patch: { synchronizedImageKeys: [...nextPoolKeys] },
@@ -643,7 +651,11 @@ export default function usePublishImageController({
             getOptimizedTransform(channel, imageMetaByKey[key]),
         ]),
       );
-      return setImageKeysForChannel(prev, channel, imageKeys, {
+      const selectedImageKeys = imageKeys.slice(
+        0,
+        getBoosterMaxImageCountForChannel(channel),
+      );
+      return setImageKeysForChannel(prev, channel, selectedImageKeys, {
         fallback: { imageKeys: [], transforms: {} },
         patch: {
           transforms,
@@ -759,7 +771,10 @@ export default function usePublishImageController({
         acc[channel] = {
           imageKeys: !channelSupportsImages(channel)
             ? []
-            : imageKeysForChannel.slice(0, BOOSTER_MAX_IMAGE_COUNT),
+            : imageKeysForChannel.slice(
+                0,
+                getBoosterMaxImageCountForChannel(channel),
+              ),
           transforms: Object.fromEntries(
             Object.entries(editor.transforms || {})
               .filter(([key]) => imageKeysForChannel.includes(key))
@@ -1026,7 +1041,10 @@ export default function usePublishImageController({
       const exists = current.imageKeys.includes(imageKey);
       const nextKeys = exists
         ? current.imageKeys.filter((key) => key !== imageKey)
-        : [...current.imageKeys, imageKey].slice(0, BOOSTER_MAX_IMAGE_COUNT);
+        : [...current.imageKeys, imageKey].slice(
+            0,
+            getBoosterMaxImageCountForChannel(channel),
+          );
       const next = { ...prev };
       for (const targetChannel of impactedChannels) {
         const currentTarget = next[targetChannel] || {
@@ -1220,7 +1238,7 @@ export default function usePublishImageController({
             ? current.imageKeys
             : [...current.imageKeys, activeEditorImageKey].slice(
                 0,
-                BOOSTER_MAX_IMAGE_COUNT,
+                getBoosterMaxImageCountForChannel(channel),
               ),
           transforms: {
             ...current.transforms,
@@ -1302,7 +1320,7 @@ export default function usePublishImageController({
         requestedImageKeys: editor.imageKeys,
         transforms: editor.transforms,
         customizedImageKeys: editor.customizedImageKeys,
-        maxImages: BOOSTER_MAX_IMAGE_COUNT,
+        maxImages: getBoosterMaxImageCountForChannel(channel),
         fallbackToAvailableWhenSelectionEmpty: false,
       });
       const imageKeysToRender = customizationScope.imageKeys;
@@ -1387,7 +1405,10 @@ export default function usePublishImageController({
     const totalRenders = selectedChannels.reduce((sum, channel) => {
       if (!channelSupportsImages(channel)) return sum;
       const editor = getEditorForPublish(channel);
-      const keys = editor.imageKeys.slice(0, BOOSTER_MAX_IMAGE_COUNT);
+      const keys = editor.imageKeys.slice(
+        0,
+        getBoosterMaxImageCountForChannel(channel),
+      );
       return sum + keys.length;
     }, 0);
     let doneRenders = 0;
@@ -1409,7 +1430,7 @@ export default function usePublishImageController({
         requestedImageKeys: editor.imageKeys,
         transforms: editor.transforms,
         customizedImageKeys: editor.customizedImageKeys,
-        maxImages: BOOSTER_MAX_IMAGE_COUNT,
+        maxImages: getBoosterMaxImageCountForChannel(channel),
         fallbackToAvailableWhenSelectionEmpty: false,
       });
       const renderList: ImagePayload[] = [];
@@ -1530,7 +1551,7 @@ export default function usePublishImageController({
   const getPublishImageKeysForChannel = (channel: ChannelKey) => {
     if (!channelSupportsImages(channel)) return [];
     const keys = channelImageEditors[channel]?.imageKeys || [];
-    return keys.slice(0, BOOSTER_MAX_IMAGE_COUNT);
+    return keys.slice(0, getBoosterMaxImageCountForChannel(channel));
   };
 
   return {

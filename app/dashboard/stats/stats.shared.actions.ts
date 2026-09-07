@@ -11,6 +11,7 @@ function decisionProvenanceLabel(cubeKey: CubeKey, index: number) {
     facebook: ["audience", "interaction"],
     instagram: ["audience", "engagement"],
     linkedin: ["impressions", "click"],
+    x: ["publication", "media"],
     tiktok: ["audience", "engagement"],
     youtube_shorts: ["audience", "engagement"],
     pinterest: ["audience", "engagement"],
@@ -29,13 +30,15 @@ export function getDecisionInput(
   capturedLeads: CapturedLeads,
 ) {
 
-  if (cubeKey === "facebook" || cubeKey === "instagram" || cubeKey === "linkedin" || cubeKey === "tiktok" || cubeKey === "youtube_shorts" || cubeKey === "pinterest") {
+  if (cubeKey === "facebook" || cubeKey === "instagram" || cubeKey === "linkedin" || cubeKey === "x" || cubeKey === "tiktok" || cubeKey === "youtube_shorts" || cubeKey === "pinterest") {
     const metrics = getSocialMetrics(cubeKey, ov);
     const connected =
       cubeKey === "facebook"
         ? !!ov?.sources?.facebook?.connected
         : cubeKey === "instagram"
           ? !!ov?.sources?.instagram?.connected
+          : cubeKey === "x"
+            ? !!ov?.sources?.x?.connected
           : cubeKey === "tiktok"
           ? !!ov?.sources?.tiktok?.connected
           : cubeKey === "youtube_shorts"
@@ -258,6 +261,16 @@ export function recommendAction(cubeKey: CubeKey, ov: Overview, qualityScore: nu
     };
   }
 
+  if (cubeKey === "x" && !ov?.sources?.x?.connected) {
+    return {
+      key: "connect",
+      title: "Connecter X",
+      detail: t("stats_connect_channel_to_activate"),
+      href: "/dashboard?panel=x",
+      pill: t("connexion_a33c58f5"),
+    };
+  }
+
   if (cubeKey === "tiktok" && !ov?.sources?.tiktok?.connected) {
     return {
       key: "connect",
@@ -437,6 +450,13 @@ export function buildInsights(cubeKey: CubeKey, ov: Overview, qualityScore: numb
   if (cubeKey === "facebook") {
     if (!ov?.sources?.facebook?.connected) {
       return [t("insight_channel_disconnected"), t("insight_connect_facebook")];
+    }
+    return [t("insight_social_ready"), t("insight_prioritize_consistency")];
+  }
+
+  if (cubeKey === "x") {
+    if (!ov?.sources?.x?.connected) {
+      return [t("insight_channel_disconnected"), t("stats_connect_channel_to_activate")];
     }
     return [t("insight_social_ready"), t("insight_prioritize_consistency")];
   }

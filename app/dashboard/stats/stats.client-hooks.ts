@@ -349,6 +349,7 @@ export function useStatsDataController({
             facebook: safeNum(cachedSummary.byCube?.facebook),
             instagram: safeNum(cachedSummary.byCube?.instagram),
             linkedin: safeNum(cachedSummary.byCube?.linkedin),
+            x: safeNum(cachedSummary.byCube?.x),
             mails: 0,
             tiktok: safeNum(cachedSummary.byCube?.tiktok),
             youtube_shorts: safeNum(cachedSummary.byCube?.youtube_shorts),
@@ -368,6 +369,7 @@ export function useStatsDataController({
           facebook: safeNum(cachedSummary.estimatedByCube?.facebook),
           instagram: safeNum(cachedSummary.estimatedByCube?.instagram),
           linkedin: safeNum(cachedSummary.estimatedByCube?.linkedin),
+          x: safeNum(cachedSummary.estimatedByCube?.x),
           mails: 0,
           tiktok: safeNum(cachedSummary.estimatedByCube?.tiktok),
           youtube_shorts: safeNum(cachedSummary.estimatedByCube?.youtube_shorts),
@@ -384,6 +386,7 @@ export function useStatsDataController({
             facebook: safeNum(cachedSummary.byCube?.facebook),
             instagram: safeNum(cachedSummary.byCube?.instagram),
             linkedin: safeNum(cachedSummary.byCube?.linkedin),
+            x: safeNum(cachedSummary.byCube?.x),
             tiktok: safeNum(cachedSummary.byCube?.tiktok),
             youtube_shorts: safeNum(cachedSummary.byCube?.youtube_shorts),
             pinterest: safeNum(cachedSummary.byCube?.pinterest),
@@ -395,6 +398,7 @@ export function useStatsDataController({
             facebook: safeNum(cachedSummary.estimatedByCube?.facebook),
             instagram: safeNum(cachedSummary.estimatedByCube?.instagram),
             linkedin: safeNum(cachedSummary.estimatedByCube?.linkedin),
+            x: safeNum(cachedSummary.estimatedByCube?.x),
             tiktok: safeNum(cachedSummary.estimatedByCube?.tiktok),
             youtube_shorts: safeNum(cachedSummary.estimatedByCube?.youtube_shorts),
           pinterest: safeNum(cachedSummary.estimatedByCube?.pinterest),
@@ -485,6 +489,7 @@ export function useStatsDataController({
             facebook: safeNum(payload?.opportunities?.byCube?.facebook),
             instagram: safeNum(payload?.opportunities?.byCube?.instagram),
             linkedin: safeNum(payload?.opportunities?.byCube?.linkedin),
+            x: safeNum(payload?.opportunities?.byCube?.x),
             mails: 0,
             tiktok: safeNum(payload?.opportunities?.byCube?.tiktok),
             youtube_shorts: safeNum(payload?.opportunities?.byCube?.youtube_shorts),
@@ -504,6 +509,7 @@ export function useStatsDataController({
           facebook: safeNum(payload?.estimatedByCube?.facebook),
           instagram: safeNum(payload?.estimatedByCube?.instagram),
           linkedin: safeNum(payload?.estimatedByCube?.linkedin),
+          x: safeNum(payload?.estimatedByCube?.x),
           mails: 0,
           tiktok: safeNum(payload?.estimatedByCube?.tiktok),
           youtube_shorts: safeNum(payload?.estimatedByCube?.youtube_shorts),
@@ -785,6 +791,7 @@ export function useStatsDataController({
         facebook: safeNum(byCubePartial.facebook),
         instagram: safeNum(byCubePartial.instagram),
         linkedin: safeNum(byCubePartial.linkedin),
+        x: safeNum(byCubePartial.x),
           mails: 0,
           tiktok: safeNum(byCubePartial.tiktok),
           youtube_shorts: safeNum(byCubePartial.youtube_shorts),
@@ -804,6 +811,7 @@ export function useStatsDataController({
       facebook: safeNum(estimatedByCubePartial.facebook),
       instagram: safeNum(estimatedByCubePartial.instagram),
       linkedin: safeNum(estimatedByCubePartial.linkedin),
+      x: safeNum(estimatedByCubePartial.x),
         mails: 0,
         tiktok: safeNum(estimatedByCubePartial.tiktok),
         youtube_shorts: safeNum(estimatedByCubePartial.youtube_shorts),
@@ -839,6 +847,7 @@ export function useStatsDataController({
           facebook: safeNum(byCubePartial.facebook),
           instagram: safeNum(byCubePartial.instagram),
           linkedin: safeNum(byCubePartial.linkedin),
+          x: safeNum(byCubePartial.x),
           mails: 0,
           tiktok: safeNum(byCubePartial.tiktok),
           youtube_shorts: safeNum(byCubePartial.youtube_shorts),
@@ -858,6 +867,7 @@ export function useStatsDataController({
         facebook: safeNum(json?.estimatedByCube?.facebook),
         instagram: safeNum(json?.estimatedByCube?.instagram),
         linkedin: safeNum(json?.estimatedByCube?.linkedin),
+        x: safeNum(json?.estimatedByCube?.x),
         mails: 0,
         tiktok: safeNum(json?.estimatedByCube?.tiktok),
         youtube_shorts: safeNum(json?.estimatedByCube?.youtube_shorts),
@@ -923,7 +933,7 @@ export function useStatsDataController({
   useEffect(() => {
   if (!dailyBootReady) return;
   let cancelled = false;
-  const keys: CubeKey[] = ["site_inrcy", "site_web", "gmb", "facebook", "instagram", "linkedin", "tiktok", "youtube_shorts", "pinterest"];
+  const keys: CubeKey[] = ["site_inrcy", "site_web", "gmb", "facebook", "instagram", "linkedin", "x", "tiktok", "youtube_shorts", "pinterest"];
 
   (async () => {
     // Fast path: cached data for this period
@@ -980,6 +990,7 @@ export function useStatsDataController({
           facebook: safeNum(cachedSummary.byCube?.facebook),
           instagram: safeNum(cachedSummary.byCube?.instagram),
           linkedin: safeNum(cachedSummary.byCube?.linkedin),
+          x: safeNum(cachedSummary.byCube?.x),
           mails: 0,
           tiktok: safeNum(cachedSummary.byCube?.tiktok),
           youtube_shorts: safeNum(cachedSummary.byCube?.youtube_shorts),
@@ -999,6 +1010,7 @@ export function useStatsDataController({
         facebook: safeNum(cachedSummary.estimatedByCube?.facebook),
         instagram: safeNum(cachedSummary.estimatedByCube?.instagram),
         linkedin: safeNum(cachedSummary.estimatedByCube?.linkedin),
+        x: safeNum(cachedSummary.estimatedByCube?.x),
         mails: 0,
         tiktok: safeNum(cachedSummary.estimatedByCube?.tiktok),
         youtube_shorts: safeNum(cachedSummary.estimatedByCube?.youtube_shorts),

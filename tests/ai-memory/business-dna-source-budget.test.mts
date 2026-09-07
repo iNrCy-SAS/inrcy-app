@@ -13,6 +13,7 @@ const SOURCE_KEYS = [
   "facebook",
   "instagram",
   "linkedin",
+  "x",
   "youtube",
   "tiktok",
   "pinterest",

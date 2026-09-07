@@ -57,6 +57,7 @@ export async function GET(request: Request) {
 
     const instagramUsername = clean(states.instagram.username).replace(/^@+/, "");
     const tiktokUsername = clean(states.tiktok.username).replace(/^@+/, "");
+    const xUsername = clean(states.x.username).replace(/^@+/, "");
 
     return NextResponse.json({
       ok: true,
@@ -70,6 +71,7 @@ export async function GET(request: Request) {
         tiktok: states.tiktok.connected && tiktokUsername ? `@${tiktokUsername}` : "",
         youtube_shorts: states.youtube_shorts.connected ? clean(states.youtube_shorts.channel_name) : "",
         pinterest: states.pinterest.connected ? pinterestLabel : "",
+        x: states.x.connected ? (xUsername ? `@${xUsername}` : clean(states.x.display_name)) : "",
       },
       urls: {
         site_inrcy: clean(states.site_inrcy.url),
@@ -81,6 +83,7 @@ export async function GET(request: Request) {
         tiktok: clean(states.tiktok.profile_url),
         youtube_shorts: clean(states.youtube_shorts.channel_url),
         pinterest: pinterestUrl,
+        x: clean(states.x.profile_url),
       },
     });
   } catch {

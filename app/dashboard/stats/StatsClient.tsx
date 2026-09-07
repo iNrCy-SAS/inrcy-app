@@ -102,7 +102,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
   const [summaryOpp, setSummaryOpp] = useState<{ loading: boolean; total: number; byCube: Record<CubeKey, number> }>({
     loading: true,
     total: 0,
-    byCube: { inrbadge: 0, inr_search: 0, site_inrcy: 0, site_web: 0, gmb: 0, facebook: 0, instagram: 0, linkedin: 0, mails: 0, tiktok: 0, youtube_shorts: 0, pinterest: 0 },
+    byCube: { inrbadge: 0, inr_search: 0, site_inrcy: 0, site_web: 0, gmb: 0, facebook: 0, instagram: 0, linkedin: 0, x: 0, mails: 0, tiktok: 0, youtube_shorts: 0, pinterest: 0 },
   });
   const [summaryProfile, setSummaryProfile] = useState<{ lead_conversion_rate: number; avg_basket: number }>({ lead_conversion_rate: 0, avg_basket: 0 });
   const [summaryEstimatedByCube, setSummaryEstimatedByCube] = useState<Record<CubeKey, number>>({
@@ -114,6 +114,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
     facebook: 0,
     instagram: 0,
     linkedin: 0,
+    x: 0,
     mails: 0,
     tiktok: 0,
     youtube_shorts: 0,
@@ -208,6 +209,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
           facebook: safeNum(byCubePartial.facebook),
           instagram: safeNum(byCubePartial.instagram),
           linkedin: safeNum(byCubePartial.linkedin),
+          x: safeNum(byCubePartial.x),
           mails: 0,
           tiktok: safeNum(byCubePartial.tiktok),
           youtube_shorts: safeNum(byCubePartial.youtube_shorts),
@@ -227,6 +229,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
         facebook: safeNum(estimatedByCubePartial.facebook),
         instagram: safeNum(estimatedByCubePartial.instagram),
         linkedin: safeNum(estimatedByCubePartial.linkedin),
+        x: safeNum(estimatedByCubePartial.x),
         mails: 0,
         tiktok: safeNum(estimatedByCubePartial.tiktok),
         youtube_shorts: safeNum(estimatedByCubePartial.youtube_shorts),
@@ -303,6 +306,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
       buildCubeModel("facebook", i18nT("facebook_82da67b2"), i18nT("subtitle_social_visibility"), period, dataByCube.facebook, centralByCube, officialChannelConnectionStatuses.facebook, locale, runtimeT),
       buildCubeModel("instagram", i18nT("instagram_5721bbef"), i18nT("subtitle_brand_visibility"), period, dataByCube.instagram, centralByCube, officialChannelConnectionStatuses.instagram, locale, runtimeT),
       buildCubeModel("linkedin", i18nT("linkedin_6b6390a4"), i18nT("subtitle_professional_visibility"), period, dataByCube.linkedin, centralByCube, officialChannelConnectionStatuses.linkedin, locale, runtimeT),
+      buildCubeModel("x", "X", i18nT("subtitle_social_visibility"), period, dataByCube.x, centralByCube, officialChannelConnectionStatuses.x, locale, runtimeT),
       buildCubeModel("tiktok", i18nT("tiktok_fc49f156"), i18nT("subtitle_short_photos_videos"), period, dataByCube.tiktok, centralByCube, officialChannelConnectionStatuses.tiktok, locale, runtimeT),
       buildCubeModel("youtube_shorts", i18nT("youtube_558865a1"), i18nT("subtitle_short_long_videos"), period, dataByCube.youtube_shorts, centralByCube, officialChannelConnectionStatuses.youtube_shorts, locale, runtimeT),
       buildCubeModel("pinterest", i18nT("title_pinterest"), i18nT("subtitle_inspiration_ideas"), period, dataByCube.pinterest, centralByCube, officialChannelConnectionStatuses.pinterest, locale, runtimeT),
@@ -392,6 +396,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
       facebook: estimate(centralByCube.facebook),
       instagram: estimate(centralByCube.instagram),
       linkedin: estimate(centralByCube.linkedin),
+      x: estimate(centralByCube.x),
       mails: standardMode ? 0 : estimate(centralByCube.mails),
       tiktok: estimate(centralByCube.tiktok),
       youtube_shorts: estimate(centralByCube.youtube_shorts),

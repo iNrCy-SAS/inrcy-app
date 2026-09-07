@@ -86,6 +86,7 @@
       "site_web": "Instellingen — Website",
       "instagram": "Instellingen — Instagram",
       "linkedin": "Instellingen — LinkedIn",
+      "x": "Instellingen — X",
       "gmb": "Instellingen — Google-bedrijfsprofiel",
       "inr_search": "Instellingen — iNr’Search",
       "facebook": "Instellingen — Facebook",
@@ -315,6 +316,12 @@
       "description": "Versterkt expertise 💼",
       "view": "Account bekijken",
       "connect": "LinkedIn koppelen"
+    },
+    "x": {
+      "name": "X",
+      "description": "Deelt uw nieuws in realtime 𝕏",
+      "view": "Profiel bekijken",
+      "connect": "Instellen"
     },
     "tiktok": {
       "name": "TikTok",

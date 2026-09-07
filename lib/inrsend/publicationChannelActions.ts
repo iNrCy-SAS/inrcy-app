@@ -53,9 +53,13 @@ import {
 } from "@/lib/publicationChannelAvailability";
 import { getAppBubbleAccessMapForUser } from "@/lib/appBubbleAccessServer";
 import { isBubbleEnabled, type AppBubbleKey } from "@/lib/bubbleAccess";
+import { getXAccessToken } from "@/lib/xOAuth";
+import { deleteXPost } from "@/lib/xPublish";
 const LINKEDIN_VERSION = "202603";
 const TIKTOK_INRSEND_EXTERNAL_ACTION_MESSAGE =
   "TikTok ne permet pas la modification ou la suppression réelle depuis iNrCy. Ouvrez TikTok pour gérer cette publication.";
+const X_INRSEND_EDIT_UNSUPPORTED_MESSAGE =
+  "X ne permet pas de modifier une publication déjà envoyée. Supprimez-la puis republiez-la depuis Booster si nécessaire.";
 const GMB_WITHOUT_CTA_WARNING_MESSAGE =
   "Google Business a publié le média sans bouton CTA.";
 
@@ -63,7 +67,7 @@ function gmbAcceptedImageCount(accepted: number, expected: number) {
   return `Google Business a publié ${accepted} image(s) conforme(s) sur ${expected}.`;
 }
 
-export type ChannelKey = "inrcy_site" | "site_web" | "inr_search" | "gmb" | "facebook" | "instagram" | "linkedin" | "tiktok" | "pinterest";
+export type ChannelKey = "inrcy_site" | "site_web" | "inr_search" | "gmb" | "facebook" | "instagram" | "linkedin" | "x" | "tiktok" | "pinterest";
 type JsonRecord = Record<string, unknown>;
 
 const CHANNEL_BUBBLE_KEYS: Record<ChannelKey, AppBubbleKey> = {
@@ -74,6 +78,7 @@ const CHANNEL_BUBBLE_KEYS: Record<ChannelKey, AppBubbleKey> = {
   facebook: "facebook",
   instagram: "instagram",
   linkedin: "linkedin",
+  x: "x",
   tiktok: "tiktok",
   pinterest: "pinterest",
 };
@@ -86,6 +91,7 @@ const CHANNEL_LABELS: Record<ChannelKey, string> = {
   facebook: "Facebook",
   instagram: "Instagram",
   linkedin: "LinkedIn",
+  x: "X",
   tiktok: "TikTok",
   pinterest: "Pinterest",
 };
@@ -2000,6 +2006,12 @@ async function replaceChannelDelivery(params: {
     throw new Error(TIKTOK_INRSEND_EXTERNAL_ACTION_MESSAGE);
   }
 
+  if (channel === "x") {
+    // Le PATCH est bloqué avant d'entrer ici. Ce garde maintient également un
+    // contrat de retour strict si la fonction est appelée depuis un autre chemin.
+    throw new Error(X_INRSEND_EDIT_UNSUPPORTED_MESSAGE);
+  }
+
   if (channel === "pinterest") {
     const accessToken = await getPinterestAccessToken(userId);
     if (!accessToken) throw new Error("Pinterest à reconnecter. Rendez-vous dans Canaux.");
@@ -2196,6 +2208,18 @@ async function removeChannelDelivery(params: {
     if (!accessToken) throw new Error("Pinterest à reconnecter. Rendez-vous dans Canaux.");
     if (!previousExternalId) throw new Error("Épingle Pinterest introuvable dans l’historique iNr’Send.");
     await deletePinterestPin(accessToken, previousExternalId);
+    return;
+  }
+
+  if (channel === "x") {
+    const auth = await getXAccessToken({ userId });
+    if (!auth.accessToken) {
+      throw new Error(auth.error || "Votre compte X doit être reconnecté dans Canaux.");
+    }
+    if (!previousExternalId) {
+      throw new Error("Publication X introuvable dans l’historique iNr’Send.");
+    }
+    await deleteXPost({ accessToken: auth.accessToken, postId: previousExternalId });
     return;
   }
 
@@ -2515,6 +2539,12 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
 
       if (channel === "tiktok") {
         return jsonUserFacingError(TIKTOK_INRSEND_EXTERNAL_ACTION_MESSAGE, { status: 409, code: "tiktok_external_action_required" });
+      }
+      if (channel === "x") {
+        return jsonUserFacingError(X_INRSEND_EDIT_UNSUPPORTED_MESSAGE, {
+          status: 409,
+          code: "x_edit_unsupported",
+        });
       }
       const body = (await req.json().catch(() => null)) as JsonRecord | null;
       if (!body) return jsonUserFacingError("Bad payload", { status: 400, code: "invalid_payload" });

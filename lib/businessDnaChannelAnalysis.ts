@@ -46,6 +46,7 @@ import {
   isBusinessDnaPublicationInWindow,
   type BusinessDnaRecentWindow,
 } from "@/lib/businessDnaRecentNews";
+import { getXAccessToken, X_API_ORIGIN } from "@/lib/xOAuth";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -715,6 +716,60 @@ async function collectLinkedIn(userId: string, recentWindow: BusinessDnaRecentWi
   };
 }
 
+async function collectX(userId: string, recentWindow: BusinessDnaRecentWindow) {
+  const auth = await getXAccessToken({ userId });
+  if (!auth.accessToken || !auth.userId) {
+    throw new Error(auth.error || "Autorisation X indisponible.");
+  }
+  const row = asRecord(auth.row);
+  const meta = asRecord(row.meta);
+  const query = new URLSearchParams({
+    max_results: "20",
+    start_time: recentWindow.start,
+    end_time: recentWindow.end,
+    exclude: "retweets,replies",
+    "tweet.fields": "created_at,text,lang,public_metrics",
+  });
+  const payload = await fetchJson(
+    `${X_API_ORIGIN}/2/users/${encodeURIComponent(auth.userId)}/tweets?${query.toString()}`,
+    { headers: { Authorization: `Bearer ${auth.accessToken}` } },
+  );
+  const tweets = Array.isArray(asRecord(payload).data)
+    ? (asRecord(payload).data as unknown[])
+        .slice(0, 20)
+        .map((item) => {
+          const tweet = asRecord(item);
+          return {
+            text: clampText(tweet.text, 2_000),
+            publishedAt: asString(tweet.created_at),
+            lang: asString(tweet.lang),
+            publicMetrics: asRecord(tweet.public_metrics),
+          };
+        })
+        .filter(
+          (tweet) =>
+            tweet.text &&
+            isBusinessDnaPublicationInWindow(tweet.publishedAt, recentWindow),
+        )
+    : [];
+
+  return {
+    content: compactJson({
+      profile: {
+        username: auth.username,
+        name: asString(row.display_name) || asString(meta.name),
+        description: clampText(meta.description, 2_000),
+        location: asString(meta.location),
+        website: asString(meta.website_url),
+        profileUrl: asString(meta.profile_url),
+      },
+      posts: tweets,
+    }),
+    itemCount: 1 + tweets.length,
+    recentItemCount: tweets.length,
+  };
+}
+
 async function refreshAndPersistTiktokToken(row: IntegrationRow, userId: string) {
   const refreshToken = tryDecryptToken(row.refresh_token_enc) || "";
   if (!refreshToken) return "";
@@ -1154,6 +1209,15 @@ export async function collectBusinessDnaChannelSources(args: {
       requiresUpdate: states.linkedin.requiresUpdate,
       url: states.linkedin.organization_url || states.linkedin.profile_url,
       collect: async () => collectLinkedIn(args.userId, recentWindow),
+    }),
+    executeSource({
+      key: "x",
+      label: "X",
+      connected: states.x.connected,
+      oauthProtected: true,
+      requiresUpdate: states.x.requiresUpdate,
+      url: states.x.profile_url,
+      collect: async () => collectX(args.userId, recentWindow),
     }),
     executeSource({
       key: "tiktok",

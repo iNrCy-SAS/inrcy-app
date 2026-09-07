@@ -12,6 +12,8 @@ const BOOSTER_CHANNELS = [
   "linkedin",
   "tiktok",
   "youtube_shorts",
+  "pinterest",
+  "x",
 ] as const;
 
 type JsonRecord = Record<string, unknown>;
@@ -45,6 +47,9 @@ const agentToBoosterChannel: Record<string, BoosterChannel> = {
   tiktok: "tiktok",
   youtube: "youtube_shorts",
   youtube_shorts: "youtube_shorts",
+  pinterest: "pinterest",
+  x: "x",
+  twitter: "x",
 };
 
 function asRecord(value: unknown): JsonRecord | null {

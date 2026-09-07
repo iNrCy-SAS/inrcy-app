@@ -213,7 +213,7 @@ export function shouldUseLinkedInStatsFallback(params: {
 
 function recomputeOpportunityTotals(opportunities: AnyRec) {
   const byCube = asRecord(opportunities.byCube) as Partial<Record<CubeKey, number>>;
-  const total = (["site_inrcy", "site_web", "gmb", "facebook", "instagram", "linkedin"] as CubeKey[])
+  const total = (["site_inrcy", "site_web", "gmb", "facebook", "instagram", "linkedin", "x"] as CubeKey[])
     .reduce((sum, cube) => sum + toNonNegativeInt(byCube[cube]), 0);
   const baseDays = Math.max(1, toNonNegativeInt(opportunities.baseDays) || 30);
 

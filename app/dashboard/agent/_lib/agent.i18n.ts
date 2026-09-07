@@ -50,6 +50,7 @@ const CHANNEL_BRAND_LABELS: Record<ChannelKey, string> = {
   facebook: "Facebook",
   instagram: "Instagram",
   linkedin: "LinkedIn",
+  x: "X",
   tiktok: "TikTok",
   youtube: "YouTube",
   pinterest: "Pinterest",

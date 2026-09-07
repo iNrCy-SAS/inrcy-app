@@ -17,7 +17,7 @@ export const INR_AGENT_VALIDATION_MODES = [
 ] as const;
 export const INR_AGENT_GOALS = ["visibility", "acquisition", "loyalty", "stats"] as const;
 export const INR_AGENT_TONES = ["professional", "friendly", "premium", "local", "dynamic"] as const;
-export const INR_AGENT_CHANNELS = ["site_inrcy", "site_web", "gmb", "inr_search", "facebook", "instagram", "linkedin", "tiktok", "youtube", "pinterest", "mails"] as const;
+export const INR_AGENT_CHANNELS = ["site_inrcy", "site_web", "gmb", "inr_search", "facebook", "instagram", "linkedin", "x", "tiktok", "youtube", "pinterest", "mails"] as const;
 export const INR_AGENT_THEMES = [
   "conseils",
   "realisations",
@@ -44,6 +44,7 @@ export const INR_AGENT_THEMES = [
   "facebook",
   "instagram",
   "linkedin",
+  "x",
   "tiktok",
   "youtube",
   "pinterest",
@@ -125,7 +126,7 @@ const DEFAULT_AUTOMATIONS: Record<InrAgentAutomationKey, InrAgentAutomationSetti
     dayOfWeek: 1,
     time: "09:00",
     validationMode: "notify_before_validation",
-    allowedChannels: ["site_inrcy", "site_web", "gmb", "inr_search", "facebook", "instagram", "linkedin", "tiktok", "youtube", "pinterest"],
+    allowedChannels: ["site_inrcy", "site_web", "gmb", "inr_search", "facebook", "instagram", "linkedin", "x", "tiktok", "youtube", "pinterest"],
     allowedThemes: ["conseils", "realisations", "offres", "actualites"],
     useImageBank: true,
     imageRequired: true,
@@ -183,7 +184,7 @@ const DEFAULT_AUTOMATIONS: Record<InrAgentAutomationKey, InrAgentAutomationSetti
     time: "08:30",
     validationMode: "automatic_report",
     allowedChannels: [],
-    allowedThemes: ["vue_globale", "site_inrcy", "site_web", "gmb", "inr_search", "facebook", "instagram", "linkedin", "tiktok", "youtube", "pinterest", "mails", "inrbadge"],
+    allowedThemes: ["vue_globale", "site_inrcy", "site_web", "gmb", "inr_search", "facebook", "instagram", "linkedin", "x", "tiktok", "youtube", "pinterest", "mails", "inrbadge"],
     useImageBank: false,
     imageRequired: false,
     preferredMediaSource: "media_library",
@@ -210,7 +211,7 @@ export const INR_AGENT_DEFAULT_SETTINGS: InrAgentSettings = {
   mode: "notify_before_validation",
   goal: "visibility",
   allowedActions: ["publication", "mailing", "review_request", "loyalty"],
-  allowedChannels: ["site_inrcy", "site_web", "gmb", "inr_search", "facebook", "instagram", "linkedin", "tiktok", "youtube", "pinterest", "mails"],
+  allowedChannels: ["site_inrcy", "site_web", "gmb", "inr_search", "facebook", "instagram", "linkedin", "x", "tiktok", "youtube", "pinterest", "mails"],
   useMediaLibrary: true,
   allowAiImages: false,
 };
@@ -271,6 +272,7 @@ export const INR_AGENT_LABELS = {
     facebook: "Facebook",
     instagram: "Instagram",
     linkedin: "LinkedIn",
+    x: "X",
     tiktok: "TikTok",
     youtube: "YouTube",
     pinterest: "Pinterest",
@@ -302,6 +304,7 @@ export const INR_AGENT_LABELS = {
     facebook: "Facebook",
     instagram: "Instagram",
     linkedin: "LinkedIn",
+    x: "X",
     tiktok: "TikTok",
     youtube: "YouTube",
     pinterest: "Pinterest",
@@ -393,6 +396,7 @@ function sanitizePlanningHorizonDays(
 
 const INR_SEARCH_PUBLISH_MIGRATION_FLAG = "inrSearchChannelAdded";
 export const INR_AGENT_PINTEREST_PUBLISH_MIGRATION_FLAG = "pinterestChannelAdded";
+export const INR_AGENT_X_PUBLISH_MIGRATION_FLAG = "xChannelAdded";
 
 export function sanitizeInrAgentAutomationSettings(
   key: InrAgentAutomationKey,

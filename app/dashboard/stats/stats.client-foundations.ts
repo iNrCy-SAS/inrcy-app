@@ -220,6 +220,7 @@ export const FAIL_CLOSED_STATS_CHANNEL_KEYS: readonly CubeKey[] = [
   "facebook",
   "instagram",
   "linkedin",
+  "x",
   "mails",
   "tiktok",
   "youtube_shorts",
@@ -263,6 +264,7 @@ export function readCachedDashboardChannelIdentityHints(): ChannelIdentityHints 
     if (!state) return {};
 
     const instagramUsername = cleanChannelIdentityHint(state.instagramUsername).replace(/^@+/, "");
+    const xUsername = cleanChannelIdentityHint(state.xUsername || state.xDisplayName).replace(/^@+/, "");
     const hints: ChannelIdentityHints = {
       site_inrcy: cleanChannelIdentityHint(state.siteInrcySavedUrl || state.siteInrcyUrl),
       site_web: cleanChannelIdentityHint(state.siteWebSavedUrl || state.siteWebUrl),
@@ -270,6 +272,7 @@ export function readCachedDashboardChannelIdentityHints(): ChannelIdentityHints 
       facebook: state.facebookPageConnected ? cleanChannelIdentityHint(state.fbSelectedPageName) : "",
       instagram: state.instagramConnected && instagramUsername ? `@${instagramUsername}` : "",
       linkedin: state.linkedinConnected ? cleanChannelIdentityHint(state.linkedinSelectedOrganizationName || state.linkedinDisplayName) : "",
+      x: state.xConnected && xUsername ? `@${xUsername}` : "",
       tiktok: state.tiktokConnected ? cleanChannelIdentityHint(state.tiktokUsername) : "",
       youtube_shorts: state.youtubeShortsConnected ? cleanChannelIdentityHint(state.youtubeShortsChannelName || state.youtubeShortsUrl) : "",
       pinterest: state.pinterestConnected ? cleanChannelIdentityHint(state.pinterestAccountName || state.pinterestUrl) : "",
@@ -297,6 +300,7 @@ export function readCachedDashboardChannelConnectivity(): CachedChannelConnectiv
       facebook: Boolean(state.facebookPageConnected && state.facebookConnectionStatus !== "needs_update"),
       instagram: Boolean(state.instagramConnected && state.instagramConnectionStatus !== "needs_update"),
       linkedin: Boolean(state.linkedinConnected && state.linkedinConnectionStatus !== "needs_update"),
+      x: Boolean(state.xConnected && state.xConnectionStatus !== "needs_update"),
       mails: clampMailAccountCount(state.mailAccountsConnectedCount) > 0,
       tiktok: Boolean(state.tiktokConnected),
       youtube_shorts: Boolean(state.youtubeShortsConnected),
@@ -325,6 +329,7 @@ export function channelConnectivityFromStates(payload: unknown): CachedChannelCo
     facebook: isUsable("facebook"),
     instagram: isUsable("instagram"),
     linkedin: isUsable("linkedin"),
+    x: isUsable("x"),
     mails: isUsable("mails"),
     tiktok: isUsable("tiktok"),
     youtube_shorts: isUsable("youtube_shorts"),
@@ -351,6 +356,7 @@ export function channelConnectionStatusesFromStates(payload: unknown): OfficialC
     facebook: normalize("facebook"),
     instagram: normalize("instagram"),
     linkedin: normalize("linkedin"),
+    x: normalize("x"),
     mails: normalize("mails"),
     tiktok: normalize("tiktok"),
     youtube_shorts: normalize("youtube_shorts"),

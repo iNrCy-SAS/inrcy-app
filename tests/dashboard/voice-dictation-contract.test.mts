@@ -544,7 +544,7 @@ test("Booster manuel équipe les champs longs sans dupliquer le micro sur le CTA
     /import MediaSubjectVoiceButton from "@\/app\/dashboard\/_components\/MediaSubjectVoiceButton"/,
   );
   const voiceButtons = jsxElements(contentEditor, "MediaSubjectVoiceButton");
-  assert.equal(voiceButtons.length, 3);
+  assert.equal(voiceButtons.length, 4);
 
   const titleButton = elementWithValue(voiceButtons, "activePost.title");
   assert.match(titleButton, /purpose="title"/);
@@ -582,6 +582,13 @@ test("Booster manuel équipe les champs longs sans dupliquer le micro sur le CTA
     hashtagsButton,
     /hashtags: parseInstagramHashtagsInput\(nextInput\)/,
   );
+
+  const xHashtagsButton = elementWithValue(voiceButtons, "xHashtagsInput");
+  assert.match(xHashtagsButton, /purpose="hashtags"/);
+  assert.match(xHashtagsButton, /placement="inline"/);
+  assert.match(xHashtagsButton, /mergeMode="space"/);
+  assert.match(xHashtagsButton, /X_HASHTAGS_INPUT_MAX_LENGTH/);
+  assert.match(xHashtagsButton, /setXHashtagsInput\(nextInput\)/);
 
   assert.match(
     contentEditor,

@@ -29,6 +29,7 @@ const ALLOWED_CHANNELS = new Set<BoosterChannels>([
   "tiktok",
   "youtube_shorts",
   "pinterest",
+  "x",
 ]);
 
 const TEST_ENGINES = new Set<AiPreferredEngine>(

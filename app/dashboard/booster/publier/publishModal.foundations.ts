@@ -47,6 +47,7 @@ export const EMPTY_CHANNEL_DETAILS: Record<ChannelKey, ChannelConnectionDetail> 
   facebook: { type: "page", label: null, href: null },
   instagram: { type: "account", label: null, href: null },
   linkedin: { type: "profile", label: null, href: null },
+  x: { type: "account", label: null, href: null },
   tiktok: { type: "account", label: null, href: null },
   youtube_shorts: { type: "channel", label: null, href: null },
   pinterest: { type: "board", label: null, href: null },
@@ -223,7 +224,7 @@ export function cleanChannelHandleLabel(input: unknown) {
 export function simplifyChannelDetail(key: ChannelKey, value: unknown) {
   const raw = decodeChannelDisplayText(value);
   if (!raw) return "";
-  if (key === "instagram" || key === "tiktok") {
+  if (key === "instagram" || key === "x" || key === "tiktok") {
     return cleanChannelHandleLabel(raw) || cleanChannelBusinessLabel(raw);
   }
   return cleanChannelBusinessLabel(raw);
@@ -256,7 +257,7 @@ export function sanitizePatchForEditor(
               .trim(),
           )
           .filter(Boolean)
-          .slice(0, 20)
+          .slice(0, channel === "x" ? 2 : 20)
       : [];
   }
   return next;

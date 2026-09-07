@@ -5,7 +5,7 @@ import { buildStatsOverview, type OverviewPayload } from '@/lib/stats/buildOverv
 import { INRCY_STATS_CACHE_SCHEMA_VERSION } from '@/lib/stats/cacheSchema';
 
 export type Period = 7 | 30 | 60 | 90;
-export type CubeKey = 'site_inrcy' | 'site_web' | 'gmb' | 'facebook' | 'instagram' | 'linkedin' | 'tiktok' | 'youtube_shorts' | 'pinterest';
+export type CubeKey = 'site_inrcy' | 'site_web' | 'gmb' | 'facebook' | 'instagram' | 'linkedin' | 'x' | 'tiktok' | 'youtube_shorts' | 'pinterest';
 
 export type Overview = {
   days: number;
@@ -50,7 +50,7 @@ export type HistorySnapshot = {
   model: string;
 };
 
-export const CUBES: CubeKey[] = ['site_inrcy', 'site_web', 'gmb', 'facebook', 'instagram', 'linkedin', 'tiktok', 'youtube_shorts', 'pinterest'];
+export const CUBES: CubeKey[] = ['site_inrcy', 'site_web', 'gmb', 'facebook', 'instagram', 'linkedin', 'x', 'tiktok', 'youtube_shorts', 'pinterest'];
 
 export const EMPTY_CUBE_RECORD: Record<CubeKey, number> = {
   site_inrcy: 0,
@@ -59,6 +59,7 @@ export const EMPTY_CUBE_RECORD: Record<CubeKey, number> = {
   facebook: 0,
   instagram: 0,
   linkedin: 0,
+  x: 0,
   tiktok: 0,
   youtube_shorts: 0,
   pinterest: 0,
@@ -71,6 +72,7 @@ export const INCLUDE_BY_CUBE: Record<CubeKey, string> = {
   facebook: 'facebook',
   instagram: 'instagram',
   linkedin: 'linkedin',
+  x: 'x',
   tiktok: 'tiktok',
   youtube_shorts: 'youtube_shorts',
   pinterest: 'pinterest',
@@ -228,7 +230,7 @@ export function computeCapturedForCube(cube: CubeKey, ov: Overview): number {
     return roundNonNeg(estimate);
   }
 
-  if (cube === 'facebook' || cube === 'instagram' || cube === 'linkedin' || cube === 'tiktok' || cube === 'youtube_shorts' || cube === 'pinterest') {
+  if (cube === 'facebook' || cube === 'instagram' || cube === 'linkedin' || cube === 'x' || cube === 'tiktok' || cube === 'youtube_shorts' || cube === 'pinterest') {
     const socialNode = safeObj(sources[cube]);
     const m = socialNode.metrics;
     const messages = getTotalMetric(m, [
@@ -386,7 +388,7 @@ export function computeOpportunityPerDaySocial(cubeKey: CubeKey, ov: Overview): 
 
   // LinkedIn doit garder un potentiel minimum quand le canal est connecté,
   // même si l'API ne remonte pas encore de signaux exploitables.
-  const coldStartBaseline = cubeKey === 'instagram' ? 0.18 : cubeKey === 'linkedin' ? 0.14 : (cubeKey === 'tiktok' || cubeKey === 'youtube_shorts' || cubeKey === 'pinterest') ? 0.18 : 0.20;
+  const coldStartBaseline = cubeKey === 'instagram' ? 0.18 : cubeKey === 'linkedin' ? 0.14 : (cubeKey === 'x' || cubeKey === 'tiktok' || cubeKey === 'youtube_shorts' || cubeKey === 'pinterest') ? 0.18 : 0.20;
   if (!m) return coldStartBaseline;
 
   const audienceTotal = getTotalMetric(m, ['followers', 'followerCount', 'memberFollowersCount', 'organicFollowerCount', 'paidFollowerCount', 'follower_count', 'followers_count', 'fans', 'fanCount', 'fan_count', 'audience', 'subscribers']) || 0;
@@ -464,7 +466,7 @@ export function computeOpportunityPerDaySocial(cubeKey: CubeKey, ov: Overview): 
 
   const refs = cubeKey === 'instagram'
     ? { imp: 2500, eng: 120, cta: 6, aud: 3000 }
-    : (cubeKey === 'tiktok' || cubeKey === 'youtube_shorts' || cubeKey === 'pinterest')
+    : (cubeKey === 'x' || cubeKey === 'tiktok' || cubeKey === 'youtube_shorts' || cubeKey === 'pinterest')
       ? { imp: 3200, eng: 160, cta: 5, aud: 2500 }
       : { imp: 3000, eng: 90, cta: 5, aud: 5000 };
 
@@ -569,7 +571,7 @@ export function computeOpportunity30(cubeKey: CubeKey, ov: Overview) {
 
     return Math.max(0, Math.round(clamp(baseline + intentOpportunity + visibilityOpportunity, 0, 80)));
   }
-  if (cubeKey === 'facebook' || cubeKey === 'instagram' || cubeKey === 'linkedin' || cubeKey === 'tiktok' || cubeKey === 'youtube_shorts' || cubeKey === 'pinterest') {
+  if (cubeKey === 'facebook' || cubeKey === 'instagram' || cubeKey === 'linkedin' || cubeKey === 'x' || cubeKey === 'tiktok' || cubeKey === 'youtube_shorts' || cubeKey === 'pinterest') {
     return Math.max(0, Math.round(computeOpportunityPerDaySocial(cubeKey, ov) * 30));
   }
   return Math.max(0, Math.round(computeOpportunityPerDayWeb(ov) * 30));

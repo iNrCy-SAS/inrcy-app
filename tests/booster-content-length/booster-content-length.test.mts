@@ -72,6 +72,15 @@ test("Booster uses the validated SEO length table for every channel", () => {
       detailed: { min: 1100, max: 1700 },
       max: 3000,
     },
+    x: {
+      adapted: { min: 60, max: 120 },
+      short: { min: 40, max: 75 },
+      medium: { min: 65, max: 110 },
+      long: { min: 90, max: 135 },
+      deep: { min: 100, max: 150 },
+      detailed: { min: 90, max: 130 },
+      max: 160,
+    },
     tiktok: {
       adapted: { min: 140, max: 360 },
       short: { min: 80, max: 150 },

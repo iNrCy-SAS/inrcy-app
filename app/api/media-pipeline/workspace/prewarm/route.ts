@@ -39,6 +39,7 @@ const ALLOWED_CHANNELS = new Set<BoosterVideoChannelKey>([
   "facebook",
   "instagram",
   "linkedin",
+  "x",
   "tiktok",
   "youtube_shorts",
   "pinterest",

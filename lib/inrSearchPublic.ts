@@ -1188,6 +1188,7 @@ async function loadInrSearchPublicPageUncached(slug: string): Promise<InrSearchP
     { key: "facebook", label: "Facebook", url: normalizeExternalUrl(channelStates.facebook.page_url) },
     { key: "instagram", label: "Instagram", url: normalizeExternalUrl(channelStates.instagram.profile_url) },
     { key: "linkedin", label: "LinkedIn", url: normalizeExternalUrl(channelStates.linkedin.organization_url || channelStates.linkedin.profile_url) },
+    { key: "x", label: "X", url: normalizeExternalUrl(channelStates.x.profile_url) },
     { key: "tiktok", label: "TikTok", url: normalizeExternalUrl(channelStates.tiktok.profile_url) },
     { key: "youtube", label: "YouTube", url: normalizeExternalUrl(channelStates.youtube_shorts.channel_url) },
     { key: "pinterest", label: "Pinterest", url: normalizeExternalUrl(channelStates.pinterest.profile_url) },

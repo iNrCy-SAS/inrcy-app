@@ -8,6 +8,7 @@ const RECOVERABLE_CHANNELS = new Set([
   "facebook",
   "instagram",
   "linkedin",
+  "x",
   "tiktok",
   "youtube_shorts",
   "pinterest",

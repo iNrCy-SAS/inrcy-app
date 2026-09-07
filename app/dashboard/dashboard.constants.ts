@@ -5,6 +5,7 @@ import googleBusinessBubbleIcon from "../../public/icons/google.jpg";
 import inrSearchBubbleIcon from "../../public/icons/inr-search-bubble-128.png";
 import instagramBubbleIcon from "../../public/icons/instagram.jpg";
 import linkedinBubbleIcon from "../../public/icons/linkedin.png";
+import xBubbleIcon from "../../public/icons/x.svg";
 import mailsBubbleIcon from "../../public/icons/mails-inrcy-dashboard-v2.png";
 import tiktokBubbleIcon from "../../public/icons/tiktok.png";
 import youtubeBubbleIcon from "../../public/icons/youtube-shorts.png";
@@ -22,6 +23,7 @@ export const MODULE_ICONS: Record<string, { src: string; alt: string }> = {
   inr_search: { src: inrSearchBubbleIcon.src, alt: "iNr'Search" },
   instagram: { src: instagramBubbleIcon.src, alt: "Instagram" },
   linkedin: { src: linkedinBubbleIcon.src, alt: "LinkedIn" },
+  x: { src: xBubbleIcon.src, alt: "X" },
   mails: { src: mailsBubbleIcon.src, alt: "Mails iNrCy" },
   tiktok: { src: tiktokBubbleIcon.src, alt: "TikTok" },
   youtube_shorts: { src: youtubeBubbleIcon.src, alt: "YouTube" },
@@ -152,6 +154,22 @@ export const fluxModules: Module[] = [
     ],
   },
   {
+    key: "x",
+    name: "X",
+    description: "Diffuse vos actualités en temps réel 𝕏",
+    status: "available",
+    accent: "cyan",
+    actions: [
+      { key: "view", label: "Voir le profil", variant: "view", href: "#" },
+      {
+        key: "connect",
+        label: "Configurer",
+        variant: "connect",
+        onClick: () => {},
+      },
+    ],
+  },
+  {
     key: "tiktok",
     name: "TikTok",
     description: "Développe votre audience 🎬",
@@ -263,6 +281,7 @@ export const DRAWER_TITLES = {
   site_web: "Configuration — Site web",
   instagram: "Configuration — Instagram",
   linkedin: "Configuration — LinkedIn",
+  x: "Configuration — X",
   gmb: "Configuration — Google Business",
   inr_search: "Configuration — iNr'Search",
   facebook: "Configuration — Facebook",

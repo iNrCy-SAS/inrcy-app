@@ -96,6 +96,10 @@ export function createOverviewLiveSourceTools({
         connected: isStatsActiveConnection(states.linkedin),
         metrics: null,
       },
+      x: {
+        connected: isStatsActiveConnection(states.x),
+        metrics: null,
+      },
       tiktok: {
         connected: isStatsActiveConnection(states.tiktok),
         metrics: null,

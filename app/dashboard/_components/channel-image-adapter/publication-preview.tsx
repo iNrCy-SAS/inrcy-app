@@ -449,10 +449,11 @@ function InstagramPreviewCard({
   );
 }
 
-function FeedPreviewCard({ mode, channel, title, content, cta, hashtags = [], images, video, onOpen }: { mode: "desktop" | "mobile"; channel: "facebook" | "linkedin" | "tiktok" | "youtube_shorts"; title: string; content: string; cta: string; hashtags?: string[]; images: PreviewImage[]; video?: PreviewVideo | null; onOpen: (index: number) => void }) {
+function FeedPreviewCard({ mode, channel, title, content, cta, hashtags = [], images, video, onOpen }: { mode: "desktop" | "mobile"; channel: "facebook" | "linkedin" | "x" | "tiktok" | "youtube_shorts"; title: string; content: string; cta: string; hashtags?: string[]; images: PreviewImage[]; video?: PreviewVideo | null; onOpen: (index: number) => void }) {
   const i18nT = useTranslations("shell");
   const isMobile = mode === "mobile";
   const isLinkedin = channel === "linkedin";
+  const isX = channel === "x";
   const isTiktok = channel === "tiktok";
   const isYoutubeShorts = channel === "youtube_shorts";
   const normalizedVideoAspect = String(video?.aspectRatio || "").replace(/\s+/g, "");
@@ -461,7 +462,7 @@ function FeedPreviewCard({ mode, channel, title, content, cta, hashtags = [], im
   const videoDuration = Number(video?.duration || 0);
   const isLikelyYoutubeShort = isYoutubeShorts && (isVerticalVideo || isSquareVideo) && (!Number.isFinite(videoDuration) || videoDuration <= 0 || videoDuration <= 180);
   const isShortVideoChannel = isTiktok || isLikelyYoutubeShort;
-  const label = isYoutubeShorts ? "YouTube" : isTiktok ? "TikTok" : isLinkedin ? "LinkedIn" : "Facebook";
+  const label = isYoutubeShorts ? "YouTube" : isTiktok ? "TikTok" : isX ? "X" : isLinkedin ? "LinkedIn" : "Facebook";
   const maxWidth = isShortVideoChannel
     ? (isMobile ? 230 : 260)
     : isVerticalVideo
@@ -483,10 +484,10 @@ function FeedPreviewCard({ mode, channel, title, content, cta, hashtags = [], im
         <div style={{ fontSize: isShortVideoChannel ? (isMobile ? 11.5 : 12.5) : (isMobile ? 13 : 14), lineHeight: isShortVideoChannel ? 1.45 : 1.55, whiteSpace: "pre-wrap", color: "#111827" }}>
           <div style={{ fontWeight: 900, marginBottom: isShortVideoChannel ? 5 : 8 }}>{title}</div>
           <div style={{ display: "-webkit-box", WebkitLineClamp: isShortVideoChannel ? (isMobile ? 3 : 4) : (isMobile ? 5 : 7), WebkitBoxOrient: "vertical", overflow: "hidden" }}>{content}</div>
-          {cta ? <div style={{ marginTop: isShortVideoChannel ? 6 : 10, fontWeight: 800, color: isShortVideoChannel ? "#111827" : isLinkedin ? "#0a66c2" : "#1877f2" }}>{cta}</div> : null}
-          {hashtags.length ? <div style={{ marginTop: isShortVideoChannel ? 5 : 8, fontWeight: 800, color: isShortVideoChannel ? "#111827" : isLinkedin ? "#0a66c2" : "#1877f2" }}>{hashtags.map((tag) => `#${tag}`).join(" ")}</div> : null}
+          {cta ? <div style={{ marginTop: isShortVideoChannel ? 6 : 10, fontWeight: 800, color: isShortVideoChannel || isX ? "#111827" : isLinkedin ? "#0a66c2" : "#1877f2" }}>{cta}</div> : null}
+          {hashtags.length ? <div style={{ marginTop: isShortVideoChannel ? 5 : 8, fontWeight: 800, color: isShortVideoChannel || isX ? "#111827" : isLinkedin ? "#0a66c2" : "#1877f2" }}>{hashtags.map((tag) => `#${tag}`).join(" ")}</div> : null}
         </div>
-        {video?.previewUrl ? <div style={{ borderRadius: isTiktok ? 14 : 18, overflow: "hidden", background: isShortVideoChannel ? "#000" : undefined }}><VideoPreviewFrame video={video} aspectRatio={isShortVideoChannel ? (video.aspectRatio || "9 / 16") : (video.aspectRatio || "1 / 1")} badge={`Vidéo ${label}`} /></div> : <StackedImageGridPreview images={images} aspectRatio={isShortVideoChannel ? "9 / 16" : "1 / 1"} fallbackMode={isShortVideoChannel ? "black" : "color"} onOpen={onOpen} />}
+        {video?.previewUrl ? <div style={{ borderRadius: isTiktok ? 14 : 18, overflow: "hidden", background: isShortVideoChannel || isX ? "#000" : undefined }}><VideoPreviewFrame video={video} aspectRatio={isShortVideoChannel ? (video.aspectRatio || "9 / 16") : isX ? (video.aspectRatio || "16 / 9") : (video.aspectRatio || "1 / 1")} badge={`Vidéo ${label}`} /></div> : <StackedImageGridPreview images={images} aspectRatio={isShortVideoChannel ? "9 / 16" : isX ? "16 / 9" : "1 / 1"} fallbackMode={isShortVideoChannel || isX ? "black" : "color"} onOpen={onOpen} />}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: isShortVideoChannel ? 7 : 10, paddingTop: 4, borderTop: "1px solid #e5e7eb", color: "#6b7280", fontSize: isShortVideoChannel ? 10.5 : 12, flexWrap: "wrap" }}>
           <div>{video?.previewUrl ? i18nT("1_video_33cad806") : images.length > 1 ? i18nT("value_photos_cliquez_pour_ouvrir_e8f5fc98", { value0: images.length }) : i18nT("1_photo_cliquez_pour_ouvrir_0db64f1f")}</div>
           <div style={{ display: "flex", gap: 12 }}>
@@ -505,6 +506,7 @@ export function ChannelPublicationPreview({ preview }: { preview: PublicationPre
   const isSite = key === "inrcy_site" || key === "site_web" || key === "site";
   const isInstagram = key === "instagram";
   const isLinkedin = key === "linkedin";
+  const isX = key === "x";
   const isTiktok = key === "tiktok";
   const normalizedKey = key.replace(/[\s-]+/g, "_");
   const isYoutubeShorts = normalizedKey === "youtube_shorts" || normalizedKey === "youtube" || normalizedKey === "youtube_short";
@@ -517,7 +519,7 @@ export function ChannelPublicationPreview({ preview }: { preview: PublicationPre
   const content = contentValue || "Le contenu apparaîtra ici.";
   const cta = isSite ? cleanText(preview.cta) : cleanNetworkText(preview.cta);
   const hashtags = (preview.hashtags || []).map((tag) => String(tag || "").replace(/^#+/, "").trim()).filter(Boolean).slice(0, 8);
-  const fallbackPreset = isSite ? { width: 1440, height: 900 } : (isTiktok || isYoutubeShorts) ? { width: 1080, height: 1920 } : isInstagram ? { width: 1080, height: 1350 } : isGmb ? { width: 1200, height: 900 } : { width: 1200, height: 1200 };
+  const fallbackPreset = isSite ? { width: 1440, height: 900 } : (isTiktok || isYoutubeShorts) ? { width: 1080, height: 1920 } : isInstagram ? { width: 1080, height: 1350 } : isGmb ? { width: 1200, height: 900 } : isX ? { width: 1200, height: 675 } : { width: 1200, height: 1200 };
   const rawImages = (preview.images || []).filter((item) => item?.previewUrl);
   const image = preview.image ? { ...preview.image, preset: preview.image.preset || fallbackPreset } : null;
   const images = (rawImages.length ? rawImages : image ? [image] : []).map((item) => ({ ...item, preset: item.preset || fallbackPreset }));
@@ -599,17 +601,24 @@ export function ChannelPublicationPreview({ preview }: { preview: PublicationPre
     );
   }
 
-  const networkLabel = isLinkedin ? "LinkedIn" : "Facebook";
-  const feedChannel = isLinkedin ? "linkedin" : "facebook";
+  const networkLabel = isLinkedin ? "LinkedIn" : isX ? "X" : "Facebook";
+  const feedChannel = isLinkedin ? "linkedin" : isX ? "x" : "facebook";
+  const feedNote = isX
+    ? hasVideo
+      ? "X : aperçu du post avec texte et lecteur vidéo."
+      : "X : aperçu du post. Jusqu’à 4 images, ou 1 GIF animé seul."
+    : hasVideo
+      ? `${networkLabel} : aperçu vertical avec texte et lecteur vidéo.`
+      : `${networkLabel} : aperçu vertical photos/vidéo. Clic sur les photos = carousel.`;
   return (
     <>
-      <PreviewBlockShell eyebrow={preview.formatLabel || "image finale"} title={preview.channelLabel} note={hasVideo ? `${networkLabel} : aperçu vertical avec texte et lecteur vidéo.` : `${networkLabel} : aperçu vertical photos/vidéo. Clic sur les photos = carousel.`}>
+      <PreviewBlockShell eyebrow={preview.formatLabel || "image finale"} title={preview.channelLabel} note={feedNote}>
         <DevicePreviewSwitcher
           desktop={<FeedPreviewCard mode="desktop" channel={feedChannel} title={title} content={content} cta={cta} hashtags={hashtags} images={images} video={video} onOpen={openLightbox} />}
           mobile={<FeedPreviewCard mode="mobile" channel={feedChannel} title={title} content={content} cta={cta} hashtags={hashtags} images={images} video={video} onOpen={openLightbox} />}
         />
       </PreviewBlockShell>
-      {!hasVideo ? <PublicationPreviewLightbox open={lightboxIndex !== null} images={images} initialIndex={lightboxIndex || 0} aspectRatio="1 / 1" fallbackMode="color" onClose={closeLightbox} /> : null}
+      {!hasVideo ? <PublicationPreviewLightbox open={lightboxIndex !== null} images={images} initialIndex={lightboxIndex || 0} aspectRatio={isX ? "16 / 9" : "1 / 1"} fallbackMode={isX ? "black" : "color"} onClose={closeLightbox} /> : null}
     </>
   );
 }

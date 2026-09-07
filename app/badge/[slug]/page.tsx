@@ -384,6 +384,7 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
     (instagramUsername ? `https://www.instagram.com/${instagramUsername}/` : ""),
   );
   const linkedinUrl = normalizeUrl(channelStates.linkedin.organization_url || channelStates.linkedin.profile_url || linkedinSettings.orgUrl || linkedinSettings.profileUrl || linkedinSettings.url);
+  const xUrl = normalizeUrl(channelStates.x.profile_url);
   let pinterestUrl = normalizeUrl(channelStates.pinterest.profile_url || pinterestSettings.publicProfileUrl || pinterestSettings.profileUrl || pinterestSettings.url);
   if (shareSettings.pinterest && channelStates.pinterest.connected && !pinterestUrl) {
     const pinterestAccessToken = await getPinterestAccessToken(userId).catch(() => "");
@@ -410,6 +411,7 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
     facebook: Boolean(channelStates.facebook.connected && facebookUrl),
     instagram: Boolean(channelStates.instagram.connected && instagramUrl),
     linkedin: Boolean(channelStates.linkedin.connected && linkedinUrl),
+    x: Boolean(channelStates.x.connected && xUrl),
     pinterest: Boolean(channelStates.pinterest.connected && pinterestUrl),
     tiktok: Boolean(channelStates.tiktok.connected && tiktokUrl),
     youtubeShorts: Boolean(channelStates.youtube_shorts.connected && youtubeShortsUrl),
@@ -466,6 +468,7 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
     shareSettings.siteWeb && publicChannelCanShare.siteWeb ? { href: siteWebUrl, label: i18nT("site_web_7e78af33"), iconSrc: siteWebIcon.src, tone: "site" as ActionTone, trackingAction: "site_web" } : null,
     shareSettings.googleBusiness && publicChannelCanShare.googleBusiness ? { href: gmbUrl, label: i18nT("google_business_a605b655"), iconSrc: googleBusinessIcon.src, tone: "google" as ActionTone, trackingAction: "google_business" } : null,
     shareSettings.linkedin && publicChannelCanShare.linkedin ? { href: linkedinUrl, label: i18nT("linkedin_6b6390a4"), iconSrc: linkedinIcon.src, tone: "linkedin" as ActionTone, trackingAction: "linkedin" } : null,
+    shareSettings.x && publicChannelCanShare.x ? { href: xUrl, label: "X", iconSrc: "/icons/x.svg", tone: "neutral" as ActionTone, trackingAction: "x" } : null,
     shareSettings.pinterest && publicChannelCanShare.pinterest ? { href: pinterestUrl, label: i18nT("pinterest_a45a7994"), iconSrc: pinterestIcon.src, tone: "neutral" as ActionTone, trackingAction: "pinterest" } : null,
     shareSettings.instagram && publicChannelCanShare.instagram ? { href: instagramUrl, label: i18nT("instagram_5721bbef"), iconSrc: instagramIcon.src, tone: "instagram" as ActionTone, trackingAction: "instagram" } : null,
     shareSettings.facebook && publicChannelCanShare.facebook ? { href: facebookUrl, label: i18nT("facebook_82da67b2"), iconSrc: facebookIcon.src, tone: "facebook" as ActionTone, trackingAction: "facebook" } : null,

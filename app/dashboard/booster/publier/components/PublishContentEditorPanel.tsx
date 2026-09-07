@@ -9,6 +9,8 @@ import { useEffect, useRef, useState } from "react";
 import type { BoosterCreationMode } from "@/lib/boosterCreationMode";
 import type { InstagramPublicationPreferences } from "@/lib/instagramPublicationPreferences";
 import type { FacebookPublicationPreferences } from "@/lib/facebookPublicationPreferences";
+import { buildBoosterXPostText } from "@/lib/boosterCta";
+import { getXPostTextMetrics } from "@/lib/xChannel";
 import {
   buildBoosterWhatsAppUrl,
   getBoosterWhatsAppPhoneFromUrl,
@@ -69,6 +71,7 @@ type ManualVoiceTarget = {
 };
 
 const INSTAGRAM_HASHTAGS_INPUT_MAX_LENGTH = 20 * (40 + 2);
+const X_HASHTAGS_INPUT_MAX_LENGTH = 2 * (40 + 2);
 
 type PublishContentEditorPanelProps = {
   styles: PublishModalStyles;
@@ -158,6 +161,7 @@ export default function PublishContentEditorPanel({
   const plainEmojiSelectionRef = useRef<{ start: number; end: number } | null>(null);
   const [activeVoiceTarget, setActiveVoiceTarget] =
     useState<ManualVoiceTarget | null>(null);
+  const [xHashtagsInput, setXHashtagsInput] = useState("");
   const voiceBusy = activeVoiceTarget !== null;
 
   useEffect(() => {
@@ -262,6 +266,21 @@ export default function PublishContentEditorPanel({
   };
 
   const activePost = getDisplayPost(activeCard);
+  const xHashtagsSignature =
+    activeCard === "x" ? (activePost.hashtags || []).join("|") : "";
+
+  useEffect(() => {
+    if (activeCard !== "x") return;
+    setXHashtagsInput(
+      (activePost.hashtags || [])
+        .slice(0, 2)
+        .map((tag) => `#${String(tag || "").replace(/^#+/, "")}`)
+        .join(" "),
+    );
+  }, [activeCard, xHashtagsSignature]);
+
+  const getLiveXHashtags = () =>
+    parseInstagramHashtagsInput(xHashtagsInput).slice(0, 2);
   const instagramMediaOnly =
     activeCard === "instagram" &&
     instagramPublicationPlacement !== "classic";
@@ -326,7 +345,7 @@ export default function PublishContentEditorPanel({
               display: "grid",
               gridTemplateColumns: isMobile
                 ? "repeat(2, minmax(0, 1fr))"
-                : "repeat(10, minmax(0, 1fr))",
+                : `repeat(${Math.max(1, displayCards.length)}, minmax(0, 1fr))`,
               gap: isMobile ? 8 : 6,
               marginBottom: 12,
               minWidth: 0,
@@ -873,7 +892,9 @@ export default function PublishContentEditorPanel({
                               marginBottom: 6,
                             }}
                           >
-                            {i18nT("bouton_fd5aea71")}{" "}</div>
+                            {activeCard === "x"
+                              ? "CTA intégré au texte"
+                              : i18nT("bouton_fd5aea71")}{" "}</div>
                           <select
                             value={ctaChoice}
                             disabled={voiceBusy}
@@ -974,7 +995,9 @@ export default function PublishContentEditorPanel({
                                   marginBottom: 6,
                                 }}
                               >
-                                {i18nT("texte_du_bouton_5bc213b4")}{" "}
+                                {activeCard === "x"
+                                  ? "Texte du CTA"
+                                  : i18nT("texte_du_bouton_5bc213b4")}{" "}
                               </div>
                               <input
                                 value={currentPost.cta}
@@ -1082,7 +1105,9 @@ export default function PublishContentEditorPanel({
                                   marginBottom: 6,
                                 }}
                               >
-                                {i18nT("texte_du_bouton_5bc213b4")}{" "}
+                                {activeCard === "x"
+                                  ? "Texte du CTA"
+                                  : i18nT("texte_du_bouton_5bc213b4")}{" "}
                               </div>
                               <input
                                 value={currentPost.cta}
@@ -1155,7 +1180,9 @@ export default function PublishContentEditorPanel({
                       ) : null}
                       {ctaMode === "website" || ctaMode === "custom"
                         ? renderLimitCounter(
-                            i18nT("bouton_fd5aea71"),
+                            activeCard === "x"
+                              ? "CTA"
+                              : i18nT("bouton_fd5aea71"),
                             currentPost.cta.length,
                             CHANNEL_TEXT_GUIDELINES[activeCard].cta,
                           )
@@ -1228,20 +1255,94 @@ export default function PublishContentEditorPanel({
                   )}
                 </div>
               ) : null}
+              {activeCard === "x" ? (
+                <div>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 8,
+                      marginBottom: 6,
+                    }}
+                  >
+                    <div style={{ fontSize: 12, opacity: 0.85 }}>
+                      {i18nT("hashtags_338da6e1")} — 2 maximum
+                    </div>
+                    {creationMode === "manual" ? (
+                      <MediaSubjectVoiceButton
+                        key="manual-voice:x:hashtags"
+                        purpose="hashtags"
+                        placement="inline"
+                        mergeMode="space"
+                        maxLength={Math.max(
+                          xHashtagsInput.length,
+                          X_HASHTAGS_INPUT_MAX_LENGTH,
+                        )}
+                        value={xHashtagsInput}
+                        disabled={isVoiceTargetDisabled("x", "hashtags")}
+                        onBusyChange={(busy) =>
+                          handleVoiceBusyChange("x", "hashtags", busy)
+                        }
+                        onChange={(nextInput) => {
+                          setXHashtagsInput(nextInput);
+                          updatePost("x", {
+                            hashtags: parseInstagramHashtagsInput(nextInput).slice(
+                              0,
+                              2,
+                            ),
+                          });
+                        }}
+                      />
+                    ) : null}
+                  </div>
+                  <input
+                    value={xHashtagsInput}
+                    readOnly={voiceBusy}
+                    onChange={(event) => setXHashtagsInput(event.target.value)}
+                    onBlur={() =>
+                      updatePost("x", { hashtags: getLiveXHashtags() })
+                    }
+                    style={inputStyle}
+                    placeholder={i18nT("local_metier_fb03ef96")}
+                  />
+                  {renderLimitCounter(
+                    i18nT("hashtags_338da6e1"),
+                    getLiveXHashtags().length,
+                    CHANNEL_TEXT_GUIDELINES.x.hashtags || 2,
+                  )}
+                </div>
+              ) : null}
               {CHANNEL_TEXT_GUIDELINES[activeCard].totalLabel &&
               CHANNEL_TEXT_GUIDELINES[activeCard].totalMax &&
               CHANNEL_TEXT_GUIDELINES[activeCard].totalValue ? (
                 <div style={{ marginTop: 2 }}>
                   {renderLimitCounter(
                     getLocalizedChannelTotalLabel(activeCard, runtimeT),
-                    CHANNEL_TEXT_GUIDELINES[activeCard].totalValue!(
-                      activeCard === "instagram"
-                        ? {
-                            ...getDisplayPost(activeCard),
-                            hashtags: getLiveInstagramHashtags(),
-                          }
-                        : getDisplayPost(activeCard),
-                    ),
+                    activeCard === "x"
+                      ? getXPostTextMetrics(
+                          buildBoosterXPostText(
+                            {
+                              ...getDisplayPost(activeCard),
+                              hashtags: getLiveXHashtags(),
+                            },
+                            {
+                              websiteUrl: getWebsiteUrlForChannel(
+                                activeCard,
+                                ctaDefaults,
+                              ),
+                              phone: ctaDefaults?.phone || "",
+                            },
+                          ),
+                        ).weightedLength
+                      : CHANNEL_TEXT_GUIDELINES[activeCard].totalValue!(
+                          activeCard === "instagram"
+                            ? {
+                                ...getDisplayPost(activeCard),
+                                hashtags: getLiveInstagramHashtags(),
+                              }
+                            : getDisplayPost(activeCard),
+                        ),
                     CHANNEL_TEXT_GUIDELINES[activeCard].totalMax!,
                   )}
                 </div>

@@ -32,6 +32,7 @@ type DashboardPanelName =
   | "site_web"
   | "instagram"
   | "linkedin"
+  | "x"
   | "gmb"
   | "inr_search"
   | "facebook"
@@ -57,6 +58,7 @@ const INR_AGENT_PRELOAD_ASSETS = [
   "/icons/facebook.png",
   "/icons/instagram.jpg",
   "/icons/linkedin.png",
+  "/icons/x.svg",
   "/icons/tiktok.png",
   "/icons/youtube-shorts.png",
   "/icons/mails-inrcy-dashboard-v2.png",

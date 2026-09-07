@@ -18,7 +18,18 @@ import {
   isProviderReconnectRequired,
 } from "@/lib/channelReconnectPolicy";
 
-export type PublishDiagnosticChannel = "facebook" | "instagram" | "linkedin" | "gmb" | "inrcy_site" | "site_web" | "inr_search" | "tiktok" | "youtube_shorts" | "pinterest";
+export type PublishDiagnosticChannel =
+  | "facebook"
+  | "instagram"
+  | "linkedin"
+  | "gmb"
+  | "inrcy_site"
+  | "site_web"
+  | "inr_search"
+  | "tiktok"
+  | "youtube_shorts"
+  | "pinterest"
+  | "x";
 
 const CHANNEL_LABELS: Record<PublishDiagnosticChannel, string> = {
   inrcy_site: "Site iNrCy",
@@ -31,6 +42,7 @@ const CHANNEL_LABELS: Record<PublishDiagnosticChannel, string> = {
   tiktok: "TikTok",
   youtube_shorts: "YouTube",
   pinterest: "Pinterest",
+  x: "X",
 };
 
 const CHANNEL_FALLBACKS: Record<PublishDiagnosticChannel, string> = {
@@ -44,6 +56,7 @@ const CHANNEL_FALLBACKS: Record<PublishDiagnosticChannel, string> = {
   tiktok: "TikTok n'a pas pu publier. Merci de réessayer.",
   youtube_shorts: "YouTube n'a pas pu publier. Merci de réessayer.",
   pinterest: "Pinterest n'a pas pu publier. Merci de réessayer.",
+  x: "X n'a pas pu publier. Merci de réessayer.",
 };
 
 const CHANNEL_RECONNECTS: Partial<Record<PublishDiagnosticChannel, string>> = {
@@ -54,6 +67,7 @@ const CHANNEL_RECONNECTS: Partial<Record<PublishDiagnosticChannel, string>> = {
   tiktok: "TikTok à reconnecter. Rendez-vous dans Canaux.",
   youtube_shorts: "YouTube à reconnecter. Rendez-vous dans Canaux.",
   pinterest: "Pinterest à reconnecter. Rendez-vous dans Canaux.",
+  x: "X à reconnecter. Rendez-vous dans Canaux.",
 };
 
 function stringifyError(input: unknown): string {
@@ -74,6 +88,7 @@ const RECONNECT_INTEGRATION_KEYS: Partial<Record<PublishDiagnosticChannel, { pro
   tiktok: { provider: "tiktok", source: "tiktok", product: "tiktok" },
   youtube_shorts: { provider: "youtube", source: "youtube_shorts", product: "youtube_shorts" },
   pinterest: { provider: "pinterest", source: "pinterest", product: "pinterest" },
+  x: { provider: "x", source: "x", product: "x" },
 };
 
 export function isPublishReconnectRequiredError(

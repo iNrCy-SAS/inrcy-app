@@ -86,6 +86,7 @@
       "site_web": "Einstellungen — Website",
       "instagram": "Einstellungen — Instagram",
       "linkedin": "Einstellungen — LinkedIn",
+      "x": "Einstellungen — X",
       "gmb": "Einstellungen — Google Unternehmensprofil",
       "inr_search": "Einstellungen — iNr’Search",
       "facebook": "Einstellungen — Facebook",
@@ -315,6 +316,12 @@
       "description": "Stärkt Expertise 💼",
       "view": "Konto ansehen",
       "connect": "LinkedIn verbinden"
+    },
+    "x": {
+      "name": "X",
+      "description": "Teilt Ihre Neuigkeiten in Echtzeit 𝕏",
+      "view": "Profil ansehen",
+      "connect": "Einrichten"
     },
     "tiktok": {
       "name": "TikTok",

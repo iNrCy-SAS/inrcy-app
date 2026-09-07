@@ -6,6 +6,7 @@ export type BoosterVideoChannelKey =
   | "facebook"
   | "instagram"
   | "linkedin"
+  | "x"
   | "tiktok"
   | "youtube_shorts"
   | "pinterest";
@@ -66,6 +67,7 @@ export const VIDEO_RECOMMENDED_FORMAT_BY_CHANNEL: Record<BoosterVideoChannelKey,
   facebook: "16_9",
   instagram: "16_9",
   linkedin: "16_9",
+  x: "16_9",
   tiktok: "9_16",
   youtube_shorts: "9_16",
   pinterest: "1_1",
@@ -79,13 +81,14 @@ export const VIDEO_FORMAT_OPTIONS_BY_CHANNEL: Record<BoosterVideoChannelKey, Vid
   facebook: ["9_16", "1_1", "16_9", "original"],
   instagram: ["9_16", "1_1", "16_9", "original"],
   linkedin: ["1_1", "16_9", "9_16", "original"],
+  x: ["16_9", "1_1", "9_16", "original"],
   tiktok: ["9_16", "1_1", "16_9", "original"],
   youtube_shorts: ["9_16", "1_1", "16_9", "original"],
   pinterest: ["1_1", "9_16", "16_9", "original"],
 };
 
 export function isBoosterVideoChannelKey(value: unknown): value is BoosterVideoChannelKey {
-  return ["inrcy_site", "site_web", "inr_search", "gmb", "facebook", "instagram", "linkedin", "tiktok", "youtube_shorts", "pinterest"].includes(String(value || ""));
+  return ["inrcy_site", "site_web", "inr_search", "gmb", "facebook", "instagram", "linkedin", "x", "tiktok", "youtube_shorts", "pinterest"].includes(String(value || ""));
 }
 
 export function normalizeVideoFormat(channel: BoosterVideoChannelKey, value: unknown): VideoFormat {

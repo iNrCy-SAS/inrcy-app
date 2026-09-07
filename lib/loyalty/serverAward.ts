@@ -112,6 +112,7 @@ async function getTurboMultiplier(userId: string) {
       facebook: states.facebook.connected && !states.facebook.requiresUpdate,
       instagram: states.instagram.connected && !states.instagram.requiresUpdate,
       linkedin: states.linkedin.connected && !states.linkedin.requiresUpdate,
+      x: states.x.connected && !states.x.requiresUpdate,
       tiktok: states.tiktok.connected && !states.tiktok.requiresUpdate,
       youtube_shorts: states.youtube_shorts.connected && !states.youtube_shorts.requiresUpdate,
     }, { maxMultiplier: 7 });

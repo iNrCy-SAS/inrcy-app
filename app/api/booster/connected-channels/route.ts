@@ -174,6 +174,7 @@ export async function GET() {
       tiktok: isBubbleEnabled(bubbleAccess, "tiktok"),
       youtube_shorts: isBubbleEnabled(bubbleAccess, "youtube_shorts"),
       pinterest: isBubbleEnabled(bubbleAccess, "pinterest"),
+      x: isBubbleEnabled(bubbleAccess, "x"),
     } as const;
     const inrSearchEnabled = channelEnabled.inr_search;
     const inrSearchStatus = inrSearchEnabled
@@ -195,6 +196,7 @@ export async function GET() {
         tiktok: channelEnabled.tiktok && isOfficialPublicationChannelConnected(states.tiktok),
         youtube_shorts: channelEnabled.youtube_shorts && isOfficialPublicationChannelConnected(states.youtube_shorts),
         pinterest: channelEnabled.pinterest && isOfficialPublicationChannelConnected(states.pinterest),
+        x: channelEnabled.x && isOfficialPublicationChannelConnected(states.x),
       },
       channelDetails: {
         inrcy_site: {
@@ -305,6 +307,18 @@ export async function GET() {
           connectionStatus: states.pinterest.connection_status,
           requiresReconnect: publicationChannelRequiresReconnect(states.pinterest),
           disabled: !channelEnabled.pinterest,
+        },
+        x: {
+          type: "account",
+          label: firstCleanLabel(
+            [states.x.username, states.x.display_name, states.x.profile_url],
+            "Compte X connecté",
+            cleanSocialHandle,
+          ),
+          href: states.x.profile_url,
+          connectionStatus: states.x.connection_status,
+          requiresReconnect: publicationChannelRequiresReconnect(states.x),
+          disabled: !channelEnabled.x,
         },
       },
     });

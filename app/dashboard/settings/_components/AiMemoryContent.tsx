@@ -83,6 +83,8 @@ const RECENT_NEWS_SOURCE_LABELS: Record<string, string> = {
   facebook: "Facebook",
   instagram: "Instagram",
   linkedin: "LinkedIn",
+  x: "X",
+  twitter: "X",
   tiktok: "TikTok",
   youtube: "YouTube",
   pinterest: "Pinterest",

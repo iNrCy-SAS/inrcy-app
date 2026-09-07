@@ -56,6 +56,7 @@ function channelMapFromConnectionStates(payload: unknown): ConnectedChannelMap {
     facebook: isUsable("facebook"),
     instagram: isUsable("instagram"),
     linkedin: isUsable("linkedin"),
+    x: isUsable("x"),
     tiktok: isUsable("tiktok"),
     youtube: isUsable("youtube_shorts"),
     pinterest: isUsable("pinterest"),
@@ -84,6 +85,7 @@ function readCachedAgentConnectedChannels(): ConnectedChannelMap | null {
       "facebookPageConnected",
       "instagramConnected",
       "linkedinConnected",
+      "xConnected",
       "tiktokConnected",
       "youtubeShortsConnected",
       "pinterestConnected",
@@ -109,6 +111,11 @@ function readCachedAgentConnectedChannels(): ConnectedChannelMap | null {
       linkedin: Boolean(
         state.linkedinConnected &&
           state.linkedinConnectionStatus !== "needs_update",
+      ),
+      x: Boolean(
+        state.xConnected &&
+          state.xConnectionStatus !== "needs_update" &&
+          state.xRequiresUpdate !== true,
       ),
       tiktok: Boolean(state.tiktokConnected),
       youtube: Boolean(state.youtubeShortsConnected),

@@ -171,6 +171,13 @@ La clé directe reste exclusivement côté serveur. Elle ne contourne jamais les
 - [ ] `LINKEDIN_API_VERSION`
 - [ ] `LINKEDIN_SCOPE_OVERRIDES`
 
+## X
+
+- [ ] `X_CLIENT_ID`
+- [ ] `X_CLIENT_SECRET`
+- [ ] `X_REDIRECT_URI` — optionnel en local ; en Production, fixer `https://app.inrcy.com/api/integrations/x/callback`
+- [ ] `X_OAUTH_SCOPES` — optionnel ; le socle requis (`tweet.read`, `users.read`, `tweet.write`, `media.write`, `offline.access`) reste toujours ajouté par le serveur
+
 ## Microsoft / Outlook
 
 - [ ] `MICROSOFT_CLIENT_ID`

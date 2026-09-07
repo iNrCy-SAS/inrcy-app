@@ -172,6 +172,7 @@ export type SourcesStatus = {
   facebook: { connected: boolean; metrics: unknown | null };
   instagram: { connected: boolean; metrics: unknown | null };
   linkedin: { connected: boolean; metrics: unknown | null };
+  x: { connected: boolean; metrics: unknown | null };
   tiktok: { connected: boolean; metrics: unknown | null };
   youtube_shorts: { connected: boolean; metrics: unknown | null };
   pinterest: { connected: boolean; metrics: unknown | null };
@@ -184,6 +185,7 @@ export type LiveSourcesSnapshot = {
   facebook: { connected: boolean; metrics: unknown | null };
   instagram: { connected: boolean; metrics: unknown | null };
   linkedin: { connected: boolean; metrics: unknown | null };
+  x: { connected: boolean; metrics: unknown | null };
   tiktok: { connected: boolean; metrics: unknown | null };
   youtube_shorts: { connected: boolean; metrics: unknown | null };
   pinterest: { connected: boolean; metrics: unknown | null };
@@ -196,6 +198,7 @@ export type OverviewCubeKey =
   | "facebook"
   | "instagram"
   | "linkedin"
+  | "x"
   | "tiktok"
   | "youtube_shorts"
   | "pinterest";
@@ -271,6 +274,7 @@ export function resolveRequestedCube(
   if (normalized === "facebook") return "facebook";
   if (normalized === "instagram") return "instagram";
   if (normalized === "linkedin") return "linkedin";
+  if (normalized === "x") return "x";
   if (normalized === "tiktok") return "tiktok";
   if (normalized === "youtube_shorts") return "youtube_shorts";
   if (normalized === "pinterest") return "pinterest";
@@ -431,6 +435,8 @@ export type TiktokLocalPublicationStats = {
   latestAt: string | null;
 };
 
+export type XLocalPublicationStats = TiktokLocalPublicationStats;
+
 export type PinterestLocalPublicationStats = {
   posts: number;
   photoPosts: number;
@@ -452,6 +458,7 @@ export const INRCY_PUBLISHABLE_CHANNELS: OverviewCubeKey[] = [
   "facebook",
   "instagram",
   "linkedin",
+  "x",
   "tiktok",
   "youtube_shorts",
   "pinterest",
@@ -655,6 +662,13 @@ export function mergeTiktokLocalPublicationStats(
       },
     },
   };
+}
+
+export function mergeXLocalPublicationStats(
+  metrics: unknown,
+  local: XLocalPublicationStats,
+) {
+  return mergeTiktokLocalPublicationStats(metrics, local);
 }
 
 export function mergePinterestLocalPublicationStats(

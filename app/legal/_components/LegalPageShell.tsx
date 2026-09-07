@@ -35,7 +35,7 @@ export default function LegalPageShell(props: {
           <div style={{ marginTop: 14 }}>{props.children}</div>
 
           <p className={styles.small} style={{ marginTop: 18 }}>
-            {i18nT("version_juridique_synchronisee_le_08_08_858fc0cc")}{" "}</p>
+            {i18nT("version_juridique_synchronisee_le_07_09_2026_68a90e11")}{" "}</p>
 
         </div>
       </div>

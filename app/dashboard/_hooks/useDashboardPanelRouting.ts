@@ -20,6 +20,7 @@ export type DashboardPanelName =
   | "site_web"
   | "instagram"
   | "linkedin"
+  | "x"
   | "gmb"
   | "inr_search"
   | "facebook"

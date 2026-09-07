@@ -39,6 +39,7 @@ export function buildCubeModel(
         facebook: { connected: false },
         instagram: { connected: false },
         linkedin: { connected: false },
+        x: { connected: false },
         tiktok: { connected: false },
         youtube_shorts: { connected: false },
         pinterest: { connected: false },
@@ -63,7 +64,9 @@ export function buildCubeModel(
             ? { main: !!ov.sources?.facebook?.connected }
             : key === "instagram"
               ? { main: !!ov.sources?.instagram?.connected }
-              : key === "tiktok"
+              : key === "x"
+                ? { main: !!ov.sources?.x?.connected }
+                : key === "tiktok"
                   ? { main: !!ov.sources?.tiktok?.connected }
                   : key === "youtube_shorts"
                     ? { main: !!ov.sources?.youtube_shorts?.connected }
@@ -214,6 +217,7 @@ export function buildSummaryActionItems({
     facebook: !!models.find((m) => m.key === "facebook")?.connections.main,
     instagram: !!models.find((m) => m.key === "instagram")?.connections.main,
     linkedin: !!models.find((m) => m.key === "linkedin")?.connections.main,
+    x: !!models.find((m) => m.key === "x")?.connections.main,
     mails: !!models.find((m) => m.key === "mails")?.connections.main,
     tiktok: !!models.find((m) => m.key === "tiktok")?.connections.main,
     youtube_shorts: !!models.find((m) => m.key === "youtube_shorts")?.connections.main,
@@ -231,6 +235,7 @@ export function buildSummaryActionItems({
     facebook: "booster",
     instagram: "booster",
     linkedin: "booster",
+    x: "booster",
     mails: "fideliser",
     tiktok: "booster",
     youtube_shorts: "booster",
@@ -245,6 +250,7 @@ export function buildSummaryActionItems({
     facebook: "/dashboard?action=publish",
     instagram: "/dashboard?action=publish",
     linkedin: "/dashboard?action=publish",
+    x: "/dashboard?action=publish",
     mails: "/dashboard/fideliser",
     tiktok: "/dashboard?action=publish",
     youtube_shorts: "/dashboard?action=publish",
@@ -280,6 +286,12 @@ export function buildSummaryActionItems({
       label: t("utiliser_booster_6138c57d"),
       kicker: t("renforcez_votre_credibilite_pro_a7ed6a65"),
       motive: t("booster_vous_aide_a_prendre_la_12591d89"),
+      badge: t("booster_8e4caec0"),
+    },
+    x: {
+      label: t("utiliser_booster_6138c57d"),
+      kicker: t("relancez_votre_visibilite_locale_b7d7ba45"),
+      motive: t("booster_permet_de_publier_rapidement_pour_c5c61333"),
       badge: t("booster_8e4caec0"),
     },
     mails: {
@@ -357,6 +369,12 @@ export function buildSummaryActionItems({
       motive: t("reliez_linkedin_pour_publier_facilement_et_8c294ad0"),
       badge: t("connexion_a33c58f5"),
     },
+    x: {
+      label: "Connecter X",
+      kicker: t("activez_un_levier_social_local_ed260a0f"),
+      motive: t("stats_connect_channel_to_activate"),
+      badge: t("connexion_a33c58f5"),
+    },
     mails: {
       label: t("connecter_une_boite_mail_f120289b"),
       kicker: t("activez_vos_campagnes_8670f54d"),
@@ -410,6 +428,7 @@ export function buildSummaryActionItems({
     { key: "facebook" as CubeKey, opportunities: centralByCube.facebook, revenue: computedEstimatedByCube.facebook || summaryEstimatedByCube.facebook },
     { key: "instagram" as CubeKey, opportunities: centralByCube.instagram, revenue: computedEstimatedByCube.instagram || summaryEstimatedByCube.instagram },
     { key: "linkedin" as CubeKey, opportunities: centralByCube.linkedin, revenue: computedEstimatedByCube.linkedin || summaryEstimatedByCube.linkedin },
+    { key: "x" as CubeKey, opportunities: centralByCube.x, revenue: computedEstimatedByCube.x || summaryEstimatedByCube.x },
     { key: "mails" as CubeKey, opportunities: centralByCube.mails, revenue: computedEstimatedByCube.mails || summaryEstimatedByCube.mails },
     { key: "tiktok" as CubeKey, opportunities: centralByCube.tiktok, revenue: computedEstimatedByCube.tiktok || summaryEstimatedByCube.tiktok },
     { key: "youtube_shorts" as CubeKey, opportunities: centralByCube.youtube_shorts, revenue: computedEstimatedByCube.youtube_shorts || summaryEstimatedByCube.youtube_shorts },

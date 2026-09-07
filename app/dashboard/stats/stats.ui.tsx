@@ -307,6 +307,10 @@ export function SummaryBar({
           <span>{i18nT("linkedin_6b6390a4")}</span>
           <b>{summaryDisplayReady ? `+${formatInt(centralByCube.linkedin)}` : "—"}</b>
         </button>
+        <button type="button" className={styles.summaryItem} onClick={() => onScrollTo("x")}>
+          <span>X</span>
+          <b>{summaryDisplayReady ? `+${formatInt(centralByCube.x)}` : "—"}</b>
+        </button>
         <button type="button" className={styles.summaryItem} onClick={() => onScrollTo("tiktok")}>
           <span>{i18nT("tiktok_fc49f156")}</span>
           <b>{summaryDisplayReady ? `+${formatInt(centralByCube.tiktok)}` : "—"}</b>

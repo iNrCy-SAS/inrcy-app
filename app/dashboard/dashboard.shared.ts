@@ -19,6 +19,7 @@ export function getBubbleViewHrefFromBlock(
     channel === "facebook" ||
     channel === "instagram" ||
     channel === "linkedin" ||
+    channel === "x" ||
     channel === "tiktok" ||
     channel === "youtube_shorts" ||
     channel === "site_inrcy" ||
@@ -54,6 +55,7 @@ export function getChannelsFromSettingsDiff(previousSettings: unknown, nextSetti
     ["facebook", "facebook"],
     ["instagram", "instagram"],
     ["linkedin", "linkedin"],
+    ["x", "x"],
     ["tiktok", "tiktok"],
     ["youtube_shorts", "youtube_shorts"],
   ];
@@ -104,6 +106,11 @@ export function inferChannelsFromRealtimePayload(payload: any): DashboardChannel
     const source = typeof row?.source === "string" ? row.source : "";
     const provider = typeof row?.provider === "string" ? row.provider : "";
 
+    if (source === "twitter") {
+      impacted.add("x");
+      continue;
+    }
+
     if (
       source === "site_inrcy" ||
       source === "site_web" ||
@@ -111,6 +118,7 @@ export function inferChannelsFromRealtimePayload(payload: any): DashboardChannel
       source === "facebook" ||
       source === "instagram" ||
       source === "linkedin" ||
+      source === "x" ||
       source === "tiktok" ||
       source === "youtube_shorts" ||
       source === "pinterest"
@@ -121,6 +129,7 @@ export function inferChannelsFromRealtimePayload(payload: any): DashboardChannel
 
     if (provider === "facebook") impacted.add("facebook");
     if (provider === "linkedin") impacted.add("linkedin");
+    if (provider === "x" || provider === "twitter") impacted.add("x");
     if (provider === "tiktok") impacted.add("tiktok");
     if (provider === "youtube_shorts" || provider === "youtube") impacted.add("youtube_shorts");
     if (provider === "pinterest") impacted.add("pinterest");
@@ -134,7 +143,8 @@ export function inferChannelsFromSearchParams(
   linked: string | null,
   targetPanel: string | null,
 ): DashboardChannelKey[] {
-  if (linked === "gmb" || linked === "facebook" || linked === "instagram" || linked === "linkedin" || linked === "tiktok" || linked === "youtube_shorts" || linked === "pinterest") {
+  if (linked === "twitter") return ["x"];
+  if (linked === "gmb" || linked === "facebook" || linked === "instagram" || linked === "linkedin" || linked === "x" || linked === "tiktok" || linked === "youtube_shorts" || linked === "pinterest") {
     return [linked];
   }
 
@@ -149,12 +159,15 @@ export function inferChannelsFromSearchParams(
     targetPanel === "facebook" ||
     targetPanel === "instagram" ||
     targetPanel === "linkedin" ||
+    targetPanel === "x" ||
     targetPanel === "tiktok" ||
     targetPanel === "youtube_shorts" ||
     targetPanel === "pinterest"
   ) {
     return [targetPanel];
   }
+
+  if (targetPanel === "twitter") return ["x"];
 
   return [];
 }

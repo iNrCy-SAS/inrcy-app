@@ -84,6 +84,7 @@ export const STANDARD_PUBLICATION_CHANNEL_KEYS = [
   "tiktok",
   "youtube_shorts",
   "pinterest",
+  "x",
 ] as const;
 
 export const STANDARD_BONUS_CHANNEL_KEYS = ["inrbadge"] as const;
