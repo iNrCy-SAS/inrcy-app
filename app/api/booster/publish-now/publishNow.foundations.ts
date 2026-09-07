@@ -357,11 +357,20 @@ export function buildAsyncPreparedImagePayloads(
             : imageSet.images;
   const preferredStoragePaths = usesSocialDerivative
     ? imageSet.socialFeedStoragePaths
-    : usesInstagramDerivative || usesGmbDerivative
-      ? []
-      : imageSet.publishableStoragePaths.length
+    : usesInstagramDerivative
+      // Keep the stable source object beside the Instagram delivery URL.
+      // Reel/Story continuations turn that image into an MP4 more than once
+      // while Meta processes its container. Dropping the path here forced
+      // every continuation to upload a new UUID, changing the video
+      // fingerprint and invalidating the durable Meta checkpoint.
+      ? imageSet.publishableStoragePaths.length
         ? imageSet.publishableStoragePaths
-        : imageSet.storagePaths;
+        : imageSet.storagePaths
+      : usesGmbDerivative
+        ? []
+        : imageSet.publishableStoragePaths.length
+          ? imageSet.publishableStoragePaths
+          : imageSet.storagePaths;
 
   return preferredUrls.slice(0, 5).map((url, index) => {
     const raw = rawImages[index] || ({} as ImagePayload);

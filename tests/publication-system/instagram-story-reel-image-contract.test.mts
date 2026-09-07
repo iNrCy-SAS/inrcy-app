@@ -333,3 +333,22 @@ test("an Instagram image is converted to a real vertical MP4 and never falls bac
   assert.match(motion, /loadAiMediaSoundtrack/);
   assert.match(motion, /upsert: false/);
 });
+
+test("Instagram image jobs keep one stable storage source across Reel and Story continuations", () => {
+  assert.match(
+    foundations,
+    /usesInstagramDerivative[\s\S]*?\? imageSet\.publishableStoragePaths\.length[\s\S]*?\? imageSet\.publishableStoragePaths[\s\S]*?: imageSet\.storagePaths/,
+  );
+  assert.match(
+    foundations,
+    /storagePath:\s*storagePath \|\| undefined[\s\S]*?publicationReady:\s*Boolean\(storagePath\)/,
+  );
+  assert.match(
+    route,
+    /selected[\s\S]*?\.filter\(\(channel\) => mediaModeByChannel\[channel\] === "images"\)[\s\S]*?buildAsyncPreparedImagePayloads\([\s\S]*?channel,[\s\S]*?rawChannelImages,[\s\S]*?imageSet/,
+  );
+  assert.match(
+    route,
+    /instagramSourceStoragePaths[\s\S]*?createInstagramImageMotionVideo\([\s\S]*?imageStoragePaths:\s*instagramSourceStoragePaths/,
+  );
+});
