@@ -35,6 +35,13 @@ test("la réservation impose capacité deux, Meet et invitations", () => {
   assert.match(backend, /conferenceSolutionKey:\s*\{ type: "hangoutsMeet" \}/);
   assert.match(backend, /assignedMemberId/);
   assert.match(backend, /INRCY_VISIO_SHARED_CALENDAR_ID/);
+  assert.match(backend, /INRCY_VISIO_BOOKED_COLOR_ID",\s*"9"/);
+  assert.match(backend, /PUBLIC_BOOKING_ASSIGNEE\s*=\s*"Équipe iNrCy"/);
+  assert.match(backend, /Interlocuteur iNrCy : \$\{PUBLIC_BOOKING_ASSIGNEE\}/);
+  assert.match(backend, /guestsCanSeeOtherGuests:\s*false/);
+  assert.doesNotMatch(backend, /Rendez-vous attribué à : \$\{input\.member\.name\}/);
+  assert.match(backend, /removePendingSignupRemindersForProspect/);
+  assert.match(backend, /pendingSignupReminderProspectUserId/);
 });
 
 test("les nouveaux rendez-vous sont organisés par le membre puis reflétés sans invitation", () => {
@@ -73,7 +80,7 @@ test("le calendrier partagé global est synchronisé par un cron protégé et id
   assert.match(backend, /inrcy:visio-booking:team-calendar-sync/);
   assert.match(backend, /sourceFingerprint/);
   assert.match(backend, /showDeleted:\s*true/);
-  assert.match(backend, /cancelTeamMirrorEvent/);
+  assert.match(backend, /cancelSharedCalendarEvent/);
   assert.match(backend, /getVisioSharedCalendarAccess/);
 });
 
@@ -91,13 +98,17 @@ test("la modale contient les deux choix et le parcours de confirmation", () => {
   assert.match(script, /DAYS_PER_WEEK\s*=\s*7/);
   assert.match(script, /data-action="week-prev"/);
   assert.match(script, /data-action="week-next"/);
-  assert.match(script, /Prévoyez au moins une heure/);
+  assert.match(script, /Prévoyez environ une heure/);
   assert.match(plugin, /logoUrl.*logo-inrcy-transparent\.png/);
   assert.match(script, /inrcy-visio-brand[^\n]+<span>iNrCy<\/span>/);
   assert.match(script, /rendez-vous aura lieu avec <strong>un membre de l’équipe iNrCy<\/strong>/);
   assert.doesNotMatch(script, /booking\.assignedTo/);
   assert.match(styles, /grid-template-columns:\s*repeat\(7,\s*minmax\(0,\s*1fr\)\)/);
   assert.match(styles, /\.inrcy-visio-dialog\s*\{[\s\S]*?overflow:\s*hidden/);
+  assert.match(
+    styles,
+    /@media \(max-width: 620px\)[\s\S]*?\.inrcy-visio-overlay\s*\{[\s\S]*?align-items:\s*center/,
+  );
   assert.match(script, /submit_success\.inrcyVisioBooking/);
 });
 

@@ -16,7 +16,7 @@ Obligatoires :
 Recommandées :
 
 - `INRCY_VISIO_BOOKING_ALERT_EMAIL=compte@inrcy.com`
-- `INRCY_VISIO_PENDING_COLOR_ID=5` pour la couleur jaune.
+- `INRCY_VISIO_BOOKED_COLOR_ID=9` pour la couleur bleue des rendez-vous réservés.
 - `INRCY_VISIO_HORIZON_DAYS=21`
 - `INRCY_VISIO_MINIMUM_LEAD_DAYS=1` pour proposer les rendez-vous dès le lendemain, sans imposer 24 heures glissantes.
 - `INRCY_VISIO_ALLOWED_ORIGINS=https://inrcy.com,https://www.inrcy.com`
@@ -39,8 +39,9 @@ Installer puis activer le dossier `ops/wordpress-visio-booking` sous forme d’e
 - rendez-vous du lundi au samedi, dimanche exclu ;
 - horaires 9h, 11h, 14h, 16h et 18h, heure de Paris ;
 - réservation possible dès le lendemain, jamais le jour même et sans décalage automatique à J+2 ;
-- événement créé pour 1 heure ;
-- fenêtre de disponibilité conservée pendant 2 heures ;
+- événement réservé créé en bleu pour 1 heure, avec une fenêtre interne de disponibilité de 2 heures ;
+- rappel orange d'inscription conservé 1 heure uniquement si aucun rendez-vous n'est réservé ;
+- retrait automatique du rappel orange correspondant dès qu'un rendez-vous est confirmé ;
 - deux rendez-vous simultanés maximum ;
 - attribution automatique à la personne disponible ayant reçu le moins de rendez-vous ;
 - création Google Meet, invitation du professionnel et du membre affecté ;

@@ -141,7 +141,7 @@
     setDialog([
       '<p class="inrcy-visio-eyebrow">CHOISISSEZ VOTRE CRÉNEAU</p>',
       '<h2 id="inrcy-visio-title">Quand souhaitez-vous échanger&nbsp;?</h2>',
-      '<p class="inrcy-visio-lead inrcy-visio-lead-compact">Prévoyez au moins une heure pour découvrir iNrCy, échanger sur vos besoins et profiter de la <strong>création offerte de vos canaux</strong>.</p>',
+      '<p class="inrcy-visio-lead inrcy-visio-lead-compact">Prévoyez environ une heure pour découvrir iNrCy, échanger sur vos besoins et profiter de la <strong>création offerte de vos canaux</strong>.</p>',
       '<div class="inrcy-visio-week-nav" aria-label="Changer de semaine">',
       '<button class="inrcy-visio-week-arrow" data-action="week-prev" type="button" aria-label="Semaine précédente">‹</button>',
       '<strong class="inrcy-visio-week-label" aria-live="polite"></strong>',

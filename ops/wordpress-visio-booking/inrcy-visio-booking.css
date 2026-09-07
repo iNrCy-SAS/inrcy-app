@@ -277,8 +277,12 @@
 .inrcy-visio-dialog a:focus-visible { outline: 3px solid #73e4ff !important; outline-offset: 3px; }
 
 @media (max-width: 620px) {
-  .inrcy-visio-overlay { align-items: end; padding: 0; }
-  .inrcy-visio-dialog { width: 100%; max-height: calc(100dvh - 6px); border-radius: 27px 27px 0 0; padding: 20px 14px max(20px, env(safe-area-inset-bottom)); }
+  .inrcy-visio-overlay {
+    align-items: center;
+    justify-items: center;
+    padding: max(10px, env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom));
+  }
+  .inrcy-visio-dialog { width: 100%; max-height: calc(100dvh - 20px); border-radius: 25px; padding: 20px 14px; }
   .inrcy-visio-close { top: 16px; right: 16px; width: 39px; height: 39px; }
   .inrcy-visio-progress { top: 31px; }
   .inrcy-visio-brand { height: 38px; gap: 8px; font-size: 22px; }

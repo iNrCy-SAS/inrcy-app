@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  VISIO_BOOKING_DURATION_MINUTES,
+  VISIO_BOOKING_SPACING_MINUTES,
   VISIO_BOOKING_START_HOURS,
   chooseBalancedMember,
   getLocalDateTimeParts,
@@ -19,6 +21,8 @@ const members: VisioTeamMember[] = [
 
 test("les cinq horaires attendus sont proposés", () => {
   assert.deepEqual([...VISIO_BOOKING_START_HOURS], [9, 11, 14, 16, 18]);
+  assert.equal(VISIO_BOOKING_DURATION_MINUTES, 60);
+  assert.equal(VISIO_BOOKING_SPACING_MINUTES, 120);
 });
 
 test("une heure locale de Paris est convertie correctement avant et après le changement d'heure", () => {

@@ -1,5 +1,6 @@
 export const TEAM_CALENDAR_MIRROR_KEY = "inrcyTeamMirror";
 export const TEAM_CALENDAR_MIRROR_VALUE = "v1";
+export const PENDING_SIGNUP_REMINDER_SUMMARY = "inscription a traiter";
 
 export type TeamCalendarMember = {
   id: string;
@@ -54,6 +55,41 @@ export type TeamCalendarMirrorInput = {
 
 function normalized(value: unknown) {
   return String(value || "").trim().toLowerCase();
+}
+
+function normalizedCalendarLabel(value: unknown) {
+  return normalized(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+export function pendingSignupReminderProspectUserId(event: TeamCalendarEvent) {
+  if (
+    event.status === "cancelled" ||
+    normalizedCalendarLabel(event.summary) !== PENDING_SIGNUP_REMINDER_SUMMARY ||
+    event.extendedProperties?.private?.inrcyBooking ||
+    event.extendedProperties?.private?.[TEAM_CALENDAR_MIRROR_KEY]
+  ) {
+    return "";
+  }
+
+  const match = String(event.description || "").match(
+    /(?:^|\r?\n)\s*User ID\s*:\s*([^\r\n]+?)\s*(?=\r?\n|$)/i,
+  );
+  return String(match?.[1] || "").trim();
+}
+
+export function isPendingSignupReminderForProspect(
+  event: TeamCalendarEvent,
+  prospectUserId: string,
+) {
+  const eventProspectUserId = pendingSignupReminderProspectUserId(event);
+  return Boolean(
+    eventProspectUserId &&
+      eventProspectUserId === String(prospectUserId || "").trim(),
+  );
 }
 
 export function teamCalendarMirrorSourceKey(calendarId: string, eventId: string) {

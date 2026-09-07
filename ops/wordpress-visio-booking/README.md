@@ -7,7 +7,7 @@ Extension WordPress autonome pour le formulaire Elementor `essai_inrcy_30j` (`40
 1. L’inscription est validée normalement.
 2. La modale propose un rendez-vous de présentation iNrCy.
 3. Si le professionnel accepte, les disponibilités réelles de l’équipe sont chargées.
-4. La réservation crée un événement d’une heure et conserve deux heures dans le contrôle de disponibilité.
+4. La réservation crée un rendez-vous bleu d’une heure dans l’agenda du membre attribué et dans la vue partagée, tout en réservant deux heures dans le calcul interne des disponibilités.
 5. Google Meet et les invitations sont créés automatiquement.
 
 La sélection affiche sept jours disponibles à la fois, avec des flèches pour passer à la semaine suivante ou précédente. Les rendez-vous sont proposés du lundi au samedi, jamais le dimanche. Le premier jour réservable est toujours le lendemain, sans délai glissant de 24 heures qui repousserait certains horaires à J+2.

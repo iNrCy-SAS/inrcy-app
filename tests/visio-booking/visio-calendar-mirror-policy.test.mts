@@ -5,6 +5,8 @@ import {
   TEAM_CALENDAR_MIRROR_KEY,
   TEAM_CALENDAR_MIRROR_VALUE,
   buildTeamCalendarMirrorBody,
+  isPendingSignupReminderForProspect,
+  pendingSignupReminderProspectUserId,
   shouldMirrorTeamCalendarEvent,
   teamCalendarMirrorSourceKey,
   type TeamCalendarEvent,
@@ -139,5 +141,66 @@ test("un événement sans fin exploitable n'est pas reflété", () => {
       sharedCalendarId,
     }),
     false,
+  );
+});
+
+test("le rappel orange d'inscription est identifié uniquement par son User ID", () => {
+  const reminder = sourceEvent({
+    summary: "Inscription - A traiter",
+    description: [
+      "STATUT : A traiter",
+      "Nouvelle inscription iNrCy",
+      "User ID : 4b6eceb7-d627-4447-b453-4f5e1e749272",
+      "Provider : email",
+    ].join("\n"),
+    colorId: "5",
+    organizer: { email: sharedCalendarId },
+  });
+
+  assert.equal(
+    pendingSignupReminderProspectUserId(reminder),
+    "4b6eceb7-d627-4447-b453-4f5e1e749272",
+  );
+  assert.equal(
+    isPendingSignupReminderForProspect(
+      reminder,
+      "4b6eceb7-d627-4447-b453-4f5e1e749272",
+    ),
+    true,
+  );
+  assert.equal(
+    isPendingSignupReminderForProspect(reminder, "un-autre-utilisateur"),
+    false,
+  );
+});
+
+test("un vrai rendez-vous ou un rappel sans identifiant n'est jamais supprimable", () => {
+  assert.equal(
+    pendingSignupReminderProspectUserId(
+      sourceEvent({
+        summary: "Présentation iNrCy",
+        description: "User ID : prospect-123",
+      }),
+    ),
+    "",
+  );
+  assert.equal(
+    pendingSignupReminderProspectUserId(
+      sourceEvent({
+        summary: "Inscription - A traiter",
+        description: "E-mail : prospect@example.com",
+      }),
+    ),
+    "",
+  );
+  assert.equal(
+    pendingSignupReminderProspectUserId(
+      sourceEvent({
+        summary: "Inscription - A traiter",
+        description: "User ID : prospect-123",
+        extendedProperties: { private: { inrcyBooking: "signup-visio" } },
+      }),
+    ),
+    "",
   );
 });
