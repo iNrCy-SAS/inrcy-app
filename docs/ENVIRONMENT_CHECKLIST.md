@@ -78,6 +78,11 @@ Limites optionnelles :
 - [ ] `STRIPE_PRICE_ACCEL_YEARLY_ID`
 - [ ] `STRIPE_PRICE_SPEED_ID`
 - [ ] `STRIPE_PRICE_FULL_ID`
+- [ ] `STRIPE_PRICE_STANDARD_MONTHLY_ID` et `STRIPE_PRICE_STANDARD_YEARLY_ID` — tarifs historiques, à conserver
+- [ ] `STRIPE_PRICE_PREMIUM_MONTHLY_ID` et `STRIPE_PRICE_PREMIUM_YEARLY_ID` — tarifs historiques, à conserver
+- [ ] `STRIPE_PRICE_STANDARD_58HT_MONTHLY_ID` et `STRIPE_PRICE_STANDARD_58HT_YEARLY_ID`
+- [ ] `STRIPE_PRICE_PREMIUM_108HT_MONTHLY_ID` et `STRIPE_PRICE_PREMIUM_108HT_YEARLY_ID`
+- [ ] `NEXT_PUBLIC_INRCY_PRICING_V2_CUTOVER_AT` — date UTC ISO du basculement ; les comptes créés avant restent aux tarifs historiques
 
 ## Mails transactionnels / iNrSend
 

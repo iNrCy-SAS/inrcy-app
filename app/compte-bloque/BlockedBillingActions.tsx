@@ -1,11 +1,14 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 
 import { useState } from "react";
 import type { DashboardEdition } from "@/lib/dashboardEdition";
-import type { BillingCycle } from "@/lib/subscriptionOffers";
+import {
+  standardSubscriptionOfferForAccountCreatedAt,
+  type BillingCycle,
+} from "@/lib/subscriptionOffers";
 import { startStandardSubscriptionCheckout } from "@/lib/clientSubscriptionBilling";
 import styles from "./compte-bloque.module.css";
 
@@ -14,6 +17,7 @@ type Props = {
   edition: DashboardEdition;
   hasStripeCustomer: boolean;
   contactHref: string;
+  accountCreatedAt: string | null;
 };
 
 async function apiError(response: Response, fallback: string): Promise<string> {
@@ -21,8 +25,9 @@ async function apiError(response: Response, fallback: string): Promise<string> {
   return body?.error || fallback;
 }
 
-export default function BlockedBillingActions({ status, edition, hasStripeCustomer, contactHref }: Props) {
+export default function BlockedBillingActions({ status, edition, hasStripeCustomer, contactHref, accountCreatedAt }: Props) {
   const i18nT = useTranslations("public");
+  const locale = useLocale();
   const [cycle, setCycle] = useState<BillingCycle>("monthly");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -32,6 +37,18 @@ export default function BlockedBillingActions({ status, edition, hasStripeCustom
     ["trial_expired", "trial-expired", "canceled", "cancelled", "incomplete_expired"].includes(normalizedStatus);
   const canOpenPortal =
     hasStripeCustomer && ["past_due", "unpaid", "incomplete"].includes(normalizedStatus);
+  const offer = standardSubscriptionOfferForAccountCreatedAt(accountCreatedAt);
+  const taxLabel = i18nT(
+    offer.taxBehavior === "exclusive"
+      ? "standard_tax_exclusive_short"
+      : "standard_tax_inclusive_short",
+  );
+  const formatEur = (value: number) => new Intl.NumberFormat(locale, {
+    minimumFractionDigits: Number.isInteger(value) ? 0 : 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+  const monthlyLabel = formatEur(offer.monthlyPriceEur) + " € " + taxLabel + " / " + i18nT("standard_per_month");
+  const yearlyLabel = formatEur(offer.yearlyPriceEur) + " € " + taxLabel + " / " + i18nT("standard_per_year");
 
   async function startCheckout() {
     setBusy(true);
@@ -73,15 +90,18 @@ export default function BlockedBillingActions({ status, edition, hasStripeCustom
               onClick={() => setCycle("monthly")}
               disabled={busy}
             >
-              {i18nT("mensuel_69_ttc_6c947c24")}{" "}</button>
+              {monthlyLabel}{" "}</button>
             <button
               type="button"
               className={cycle === "yearly" ? styles.cycleActive : styles.cycleButton}
               onClick={() => setCycle("yearly")}
               disabled={busy}
             >
-              {i18nT("annuel_730_ttc_12_a1b5098f")}{" "}</button>
+              {yearlyLabel} · −{offer.annualSavingPercent} %{" "}</button>
           </div>
+          {offer.taxBehavior === "exclusive" ? (
+            <div className={styles.recoveryHint}>{i18nT("standard_taxes_checkout")}</div>
+          ) : null}
           <button type="button" className={styles.primaryBtn} onClick={startCheckout} disabled={busy}>
             {busy ? i18nT("ouverture_3333ad14") : i18nT("reactiver_avec_inrcy_standard_fa0d9b86")}
           </button>

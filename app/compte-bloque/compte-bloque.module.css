@@ -181,6 +181,12 @@
   font-weight: 750;
 }
 
+.recoveryHint {
+  color: rgba(229, 236, 255, 0.72);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .primaryBtn,
 .secondaryBtn {
   min-height: 46px;

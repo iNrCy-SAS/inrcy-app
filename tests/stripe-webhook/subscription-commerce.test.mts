@@ -4,7 +4,10 @@ import { readFileSync } from "node:fs";
 
 import {
   PREMIUM_SUBSCRIPTION_OFFER,
+  PREMIUM_SUBSCRIPTION_OFFER_V2,
   STANDARD_SUBSCRIPTION_OFFER,
+  STANDARD_SUBSCRIPTION_OFFER_V2,
+  pricingVersionForAccountCreatedAt,
 } from "../../lib/subscriptionOffers.ts";
 import {
   stripeSubscriptionPeriodEndIso,
@@ -18,13 +21,15 @@ import {
 const source = (relativePath: string) =>
   readFileSync(new URL(relativePath, new URL("../../", import.meta.url)), "utf8");
 
-test("les offres commerciales publiques gardent les quatre montants valides", () => {
+test("les offres historiques restent intactes et les offres HT v2 sont versionnées", () => {
   assert.deepEqual(STANDARD_SUBSCRIPTION_OFFER, {
     edition: "standard",
     plan: "Standard",
     monthlyPriceEur: 69,
     yearlyPriceEur: 730,
     annualSavingPercent: 12,
+    pricingVersion: "legacy_ttc_v1",
+    taxBehavior: "inclusive",
   });
   assert.deepEqual(PREMIUM_SUBSCRIPTION_OFFER, {
     edition: "premium",
@@ -32,10 +37,49 @@ test("les offres commerciales publiques gardent les quatre montants valides", ()
     monthlyPriceEur: 129,
     yearlyPriceEur: 1390,
     annualSavingPercent: 10,
+    pricingVersion: "legacy_ttc_v1",
+    taxBehavior: "inclusive",
+  });
+  assert.deepEqual(STANDARD_SUBSCRIPTION_OFFER_V2, {
+    edition: "standard",
+    plan: "Standard",
+    monthlyPriceEur: 58,
+    yearlyPriceEur: 612.48,
+    annualSavingPercent: 12,
+    pricingVersion: "international_ht_v2",
+    taxBehavior: "exclusive",
+  });
+  assert.deepEqual(PREMIUM_SUBSCRIPTION_OFFER_V2, {
+    edition: "premium",
+    plan: "Premium",
+    monthlyPriceEur: 108,
+    yearlyPriceEur: 1163.72,
+    annualSavingPercent: 10.21,
+    pricingVersion: "international_ht_v2",
+    taxBehavior: "exclusive",
   });
 
   assert.ok(1 - 730 / (69 * 12) > 0.118);
   assert.ok(1 - 1390 / (129 * 12) > 0.10);
+  assert.equal(STANDARD_SUBSCRIPTION_OFFER_V2.yearlyPriceEur, 58 * 12 * 0.88);
+  assert.equal(
+    PREMIUM_SUBSCRIPTION_OFFER_V2.yearlyPriceEur,
+    Math.round(108 * 12 * (1390 / (129 * 12)) * 100) / 100,
+  );
+});
+
+test("la cohorte tarifaire est figée par la création du compte et échoue vers le legacy", () => {
+  const cutover = "2026-09-08T08:00:00.000Z";
+  assert.equal(
+    pricingVersionForAccountCreatedAt("2026-09-08T07:59:59.999Z", cutover),
+    "legacy_ttc_v1",
+  );
+  assert.equal(
+    pricingVersionForAccountCreatedAt("2026-09-08T08:00:00.000Z", cutover),
+    "international_ht_v2",
+  );
+  assert.equal(pricingVersionForAccountCreatedAt(null, cutover), "legacy_ttc_v1");
+  assert.equal(pricingVersionForAccountCreatedAt("2026-09-09T00:00:00Z", null), "legacy_ttc_v1");
 });
 
 test("la date de renouvellement Stripe Basil vient des postes d'abonnement", () => {
@@ -113,8 +157,10 @@ test("le Checkout reste Standard en libre-service et Premium reste accompagné",
   const managedSubscriptionUi = source(
     "app/dashboard/settings/_components/AbonnementContent.tsx",
   );
-  assert.match(checkout, /configuredStandardPriceId\("monthly"\)/);
-  assert.match(checkout, /configuredStandardPriceId\("yearly"\)/);
+  assert.match(checkout, /configuredStandardPriceId\("monthly", pricingVersion\)/);
+  assert.match(checkout, /configuredStandardPriceId\("yearly", pricingVersion\)/);
+  assert.match(checkout, /pricingVersionForAccountCreatedAt\(user\.created_at\)/);
+  assert.match(checkout, /metadata\[pricing_version\]/);
   assert.match(checkout, /PREMIUM_CONTACT_REQUIRED/);
   assert.match(checkout, /automatic_tax\[enabled\]/);
   assert.match(checkout, /tax_id_collection\[enabled\]/);
@@ -124,6 +170,32 @@ test("le Checkout reste Standard en libre-service et Premium reste accompagné",
   assert.match(checkout, /sessionParams\.set\("client_reference_id", userId\)/);
   assert.match(managedSubscriptionUi, /i18nT\("les_forfaits_premium_et_founder_sont_374bb1ec"\)/);
   assert.doesNotMatch(managedSubscriptionUi, /CHECKOUT_OFFERS/);
+});
+
+test("le catalogue Stripe reconnaît les huit Price IDs legacy et HT", () => {
+  const catalog = source("lib/billingCatalog.ts");
+  for (const key of [
+    "STRIPE_PRICE_STANDARD_MONTHLY_ID",
+    "STRIPE_PRICE_STANDARD_YEARLY_ID",
+    "STRIPE_PRICE_PREMIUM_MONTHLY_ID",
+    "STRIPE_PRICE_PREMIUM_YEARLY_ID",
+    "STRIPE_PRICE_STANDARD_58HT_MONTHLY_ID",
+    "STRIPE_PRICE_STANDARD_58HT_YEARLY_ID",
+    "STRIPE_PRICE_PREMIUM_108HT_MONTHLY_ID",
+    "STRIPE_PRICE_PREMIUM_108HT_YEARLY_ID",
+  ]) {
+    assert.match(catalog, new RegExp(key));
+  }
+  assert.match(catalog, /pricingVersion: offer\.pricingVersion/);
+});
+
+test("le rappel annuel conserve TTC en legacy et affiche HT pour la tarification v2", () => {
+  const billingCron = source("app/api/cron/billing/route.ts");
+  assert.match(
+    billingCron,
+    /commercialPrice\?\.pricingVersion === "international_ht_v2"[\s\S]*\? "HT"[\s\S]*: "TTC"/,
+  );
+  assert.match(billingCron, /€ \$\{renewalTaxLabel\}/);
 });
 
 test("le webhook est idempotent, compatible Basil et ne rétrograde jamais Founder", () => {

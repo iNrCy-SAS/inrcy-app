@@ -474,9 +474,12 @@ export async function GET(req: Request) {
       const renewalAmount = commercialPrice?.billingCycle === "yearly"
         ? commercialPrice.chargeAmountEur
         : Number(s.monthly_price_eur || 690);
+      const renewalTaxLabel = commercialPrice?.pricingVersion === "international_ht_v2"
+        ? "HT"
+        : "TTC";
       const amountLabel = `${renewalAmount.toLocaleString("fr-FR", {
         maximumFractionDigits: 2,
-      })} € TTC`;
+      })} € ${renewalTaxLabel}`;
       const { html, text } = buildAnnualRenewalReminderEmail({
         renewalDateFr: frDate(renewalDate),
         ctaUrl,

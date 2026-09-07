@@ -10,7 +10,9 @@ import { createClient } from "@/lib/supabaseClient";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   PREMIUM_SUBSCRIPTION_OFFER,
+  PREMIUM_SUBSCRIPTION_OFFER_V2,
   STANDARD_SUBSCRIPTION_OFFER,
+  STANDARD_SUBSCRIPTION_OFFER_V2,
 } from "@/lib/subscriptionOffers";
 
 
@@ -353,9 +355,13 @@ useEffect(() => {
       : storedPrice ?? monthlyPriceTtcFromPlan(planNormalized);
     const displayedPriceTtc = annualPayment
       ? planNormalized === "Standard"
-        ? STANDARD_SUBSCRIPTION_OFFER.yearlyPriceEur
+        ? monthlyPriceTtc === STANDARD_SUBSCRIPTION_OFFER_V2.monthlyPriceEur
+          ? STANDARD_SUBSCRIPTION_OFFER_V2.yearlyPriceEur
+          : STANDARD_SUBSCRIPTION_OFFER.yearlyPriceEur
         : planNormalized === "Premium"
-          ? PREMIUM_SUBSCRIPTION_OFFER.yearlyPriceEur
+          ? monthlyPriceTtc === PREMIUM_SUBSCRIPTION_OFFER_V2.monthlyPriceEur
+            ? PREMIUM_SUBSCRIPTION_OFFER_V2.yearlyPriceEur
+            : PREMIUM_SUBSCRIPTION_OFFER.yearlyPriceEur
           : monthlyPriceTtc
       : monthlyPriceTtc;
 

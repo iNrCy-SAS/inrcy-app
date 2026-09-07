@@ -4,7 +4,10 @@ import { resolveDashboardEdition } from "@/lib/dashboardEdition";
 import { requireUser } from "@/lib/requireUser";
 import { getAppUrl, stripeGet, stripePost } from "@/lib/stripeRest";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { type BillingCycle } from "@/lib/subscriptionOffers";
+import {
+  pricingVersionForAccountCreatedAt,
+  type BillingCycle,
+} from "@/lib/subscriptionOffers";
 import { computeTrialDatesFromStartDate, getTrialDays } from "@/lib/trialSubscription";
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 
@@ -65,17 +68,18 @@ async function findLiveStripeSubscription(customerId: string) {
 
 export async function POST(req: Request) {
   try {
-    const monthlyPriceId = configuredStandardPriceId("monthly");
-    const yearlyPriceId = configuredStandardPriceId("yearly");
+    const { supabase, user, errorResponse } = await requireUser();
+    if (errorResponse) return errorResponse;
+
+    const pricingVersion = pricingVersionForAccountCreatedAt(user.created_at);
+    const monthlyPriceId = configuredStandardPriceId("monthly", pricingVersion);
+    const yearlyPriceId = configuredStandardPriceId("yearly", pricingVersion);
     if (!process.env.STRIPE_SECRET_KEY || !monthlyPriceId || !yearlyPriceId) {
       return NextResponse.json(
         { error: "Le paiement n’est pas disponible pour le moment." },
         { status: 503 },
       );
     }
-
-    const { supabase, user, errorResponse } = await requireUser();
-    if (errorResponse) return errorResponse;
 
     const body: unknown = await req.json().catch(() => ({}));
     const requestedPlan = (body as { plan?: unknown } | null)?.plan;
@@ -275,10 +279,12 @@ export async function POST(req: Request) {
     sessionParams.set("metadata[plan]", "Standard");
     sessionParams.set("metadata[app_edition]", "standard");
     sessionParams.set("metadata[billing_cycle]", billingCycle);
+    sessionParams.set("metadata[pricing_version]", pricingVersion);
     sessionParams.set("subscription_data[metadata][user_id]", userId);
     sessionParams.set("subscription_data[metadata][plan]", "Standard");
     sessionParams.set("subscription_data[metadata][app_edition]", "standard");
     sessionParams.set("subscription_data[metadata][billing_cycle]", billingCycle);
+    sessionParams.set("subscription_data[metadata][pricing_version]", pricingVersion);
     sessionParams.set(
       "subscription_data[metadata][trial_behavior]",
       effectiveTrialEndUnix

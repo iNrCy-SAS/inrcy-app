@@ -242,6 +242,7 @@ export default async function BlockedAccountPage() {
                   edition={edition}
                   hasStripeCustomer={Boolean(subscription?.stripe_customer_id)}
                   contactHref={contactHref}
+                  accountCreatedAt={user.created_at ?? null}
                 />
 
                 <form action="/api/auth/sign-out" method="post">

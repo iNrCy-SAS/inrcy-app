@@ -7,7 +7,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
 import {
-  STANDARD_SUBSCRIPTION_OFFER,
+  premiumSubscriptionOfferForAccountCreatedAt,
+  standardSubscriptionOfferForAccountCreatedAt,
   type BillingCycle,
 } from "@/lib/subscriptionOffers";
 import { startStandardSubscriptionCheckout } from "@/lib/clientSubscriptionBilling";
@@ -60,6 +61,13 @@ function formatDate(value: string | null | undefined, locale: string): string | 
   });
 }
 
+function formatEur(value: number, locale: string): string {
+  return new Intl.NumberFormat(locale, {
+    minimumFractionDigits: Number.isInteger(value) ? 0 : 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
 function statusPresentation(subscription: SubscriptionData | null, i18nT: (key: string) => string) {
   const status = normalizeStatus(subscription?.status);
   if (status === "trialing") return { label: i18nT("essai_21_jours_3095df3f"), color: "#8feaff" };
@@ -82,6 +90,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
   const searchParams = useSearchParams();
   const checkoutState = searchParams.get("checkout");
   const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
+  const [accountCreatedAt, setAccountCreatedAt] = useState<string | null>(null);
   const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
   const [loading, setLoading] = useState(true);
   const [busyAction, setBusyAction] = useState<"checkout" | "portal" | "cancel" | "uncancel" | null>(null);
@@ -93,6 +102,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
     const { data: authData, error: authError } = await supabase.auth.getUser();
     if (authError) throw authError;
     if (!authData.user) return;
+    setAccountCreatedAt(authData.user.created_at ?? null);
     const { data, error: queryError } = await supabase
       .from("subscriptions")
       .select(SUBSCRIPTION_SELECT)
@@ -161,6 +171,29 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
       presentation: statusPresentation(subscription, i18nT),
     };
   }, [subscription, locale, i18nT]);
+
+  const standardOffer = useMemo(
+    () => standardSubscriptionOfferForAccountCreatedAt(accountCreatedAt),
+    [accountCreatedAt],
+  );
+  const premiumOffer = useMemo(
+    () => premiumSubscriptionOfferForAccountCreatedAt(accountCreatedAt),
+    [accountCreatedAt],
+  );
+  const standardTaxLabel = i18nT(
+    standardOffer.taxBehavior === "exclusive"
+      ? "standard_tax_exclusive_short"
+      : "standard_tax_inclusive_short",
+  );
+  const premiumTaxLabel = i18nT(
+    premiumOffer.taxBehavior === "exclusive"
+      ? "standard_tax_exclusive_short"
+      : "standard_tax_inclusive_short",
+  );
+  const standardMonthlyLabel = `${formatEur(standardOffer.monthlyPriceEur, locale)} € ${standardTaxLabel} / ${i18nT("standard_per_month")}`;
+  const standardYearlyLabel = `${formatEur(standardOffer.yearlyPriceEur, locale)} € ${standardTaxLabel} / ${i18nT("standard_per_year")}`;
+  const premiumMonthlyLabel = `${formatEur(premiumOffer.monthlyPriceEur, locale)} € ${premiumTaxLabel} / ${i18nT("standard_per_month")}`;
+  const premiumYearlyLabel = `${formatEur(premiumOffer.yearlyPriceEur, locale)} € ${premiumTaxLabel} / ${i18nT("standard_per_year")}`;
 
   async function openPortal() {
     setError("");
@@ -325,7 +358,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
                   background: billingCycle === "monthly" ? "rgba(24,145,220,.18)" : "rgba(255,255,255,.04)",
                 }}
               >
-                <strong>{i18nT("mensuel_69_ttc_6c947c24")}</strong><br />
+                <strong>{standardMonthlyLabel}</strong><br />
                 <span style={{ fontSize: 12, opacity: 0.72 }}>{i18nT("par_mois_5f10ecc3")}</span>
               </button>
               <button
@@ -338,17 +371,22 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
                   background: billingCycle === "yearly" ? "rgba(150,72,220,.17)" : "rgba(255,255,255,.04)",
                 }}
               >
-                <strong>{i18nT("annuel_730_ttc_19db2ae7")}</strong><br />
-                <span style={{ fontSize: 12, color: "#f3b0ff" }}>−{STANDARD_SUBSCRIPTION_OFFER.annualSavingPercent} %</span>
+                <strong>{standardYearlyLabel}</strong><br />
+                <span style={{ fontSize: 12, color: "#f3b0ff" }}>−{formatEur(standardOffer.annualSavingPercent, locale)} %</span>
               </button>
             </div>
             <button type="button" onClick={startCheckout} style={primaryButton} disabled={busyAction !== null}>
               {busyAction === "checkout"
                 ? i18nT("ouverture_du_paiement_147e6d80")
-                : billingCycle === "yearly"
-                  ? i18nT("s_abonner_730_ttc_an_32c8d758")
-                  : i18nT("s_abonner_69_ttc_mois_095d3d9f")}
+                : i18nT("standard_subscribe_price", {
+                    price: billingCycle === "yearly" ? standardYearlyLabel : standardMonthlyLabel,
+                  })}
             </button>
+            {standardOffer.taxBehavior === "exclusive" ? (
+              <div style={{ fontSize: 11, opacity: 0.68, textAlign: "center" }}>
+                {i18nT("standard_taxes_checkout")}
+              </div>
+            ) : null}
             <div style={{ fontSize: 11, opacity: 0.62, textAlign: "center" }}>
               {i18nT("pendant_l_essai_aucun_debit_avant_c17dea44")}{" "}</div>
           </div>
@@ -419,9 +457,14 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
           ))}
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12, fontSize: 12 }}>
-          <span style={{ padding: "6px 10px", borderRadius: 999, background: "rgba(255,255,255,.06)" }}>{i18nT("129_ttc_mois_8db9d0a4")}</span>
-          <span style={{ padding: "6px 10px", borderRadius: 999, background: "rgba(255,255,255,.06)" }}>{i18nT("1_390_ttc_an_10_d7b3747d")}</span>
+          <span style={{ padding: "6px 10px", borderRadius: 999, background: "rgba(255,255,255,.06)" }}>{premiumMonthlyLabel}</span>
+          <span style={{ padding: "6px 10px", borderRadius: 999, background: "rgba(255,255,255,.06)" }}>{premiumYearlyLabel} · −{formatEur(premiumOffer.annualSavingPercent, locale)} %</span>
         </div>
+        {premiumOffer.taxBehavior === "exclusive" ? (
+          <p style={{ margin: "-4px 0 12px", fontSize: 11, opacity: 0.68 }}>
+            {i18nT("standard_taxes_checkout")}
+          </p>
+        ) : null}
         <button type="button" onClick={onOpenContact} style={{ ...primaryButton, width: "100%" }}>
           {i18nT("nous_contacter_pour_premium_149750a6")}{" "}</button>
         <p style={{ margin: "10px 0 0", textAlign: "center", fontSize: 11, opacity: 0.58 }}>
