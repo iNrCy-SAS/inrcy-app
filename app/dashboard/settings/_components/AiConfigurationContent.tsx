@@ -23,6 +23,7 @@ import {
   BOOSTER_PREFERRED_CTA_OPTIONS,
 } from "../../booster/publier/publishModal.shared";
 import AiEngineInfoModal from "../../_components/AiEngineInfoModal";
+import MediaSubjectVoiceButton from "../../_components/MediaSubjectVoiceButton";
 import {
   enforceAiContentLengthForEdition,
   type AiContentLength,
@@ -46,6 +47,7 @@ type Props = {
 };
 
 type AiConfigurationTab = "parameters" | "instructions";
+type AiConfigurationVoiceTarget = "likedExample" | "likedExample2" | "forbiddenStyle";
 
 function configurationSignature(form: AiConfigForm) {
   return JSON.stringify(form);
@@ -362,6 +364,27 @@ const instructionPanelStyle: React.CSSProperties = {
   border: "1px solid rgba(125,211,252,0.13)",
   background: "#101831",
 };
+const voiceFieldHeadingStyle: React.CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "8px 12px",
+  minWidth: 0,
+};
+const voiceFieldActionsStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "flex-end",
+  gap: 8,
+  flex: "0 0 auto",
+};
+const voiceCounterStyle: React.CSSProperties = {
+  color: "rgba(191,219,254,.76)",
+  fontSize: 10.5,
+  fontWeight: 800,
+  fontVariantNumeric: "tabular-nums",
+};
 
 const hasLanguageValue = (value: unknown): boolean => String(value ?? "").trim().length > 0;
 
@@ -418,10 +441,14 @@ export default function AiConfigurationContent({
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
   const [engineInfoOpen, setEngineInfoOpen] = useState(false);
+  const [voiceTarget, setVoiceTarget] = useState<AiConfigurationVoiceTarget | null>(null);
+  const voiceFieldIdPrefix = useId();
   const savedFormSignatureRef = useRef("");
   const loadSucceededRef = useRef(false);
   const activeUserIdRef = useRef<string | null>(null);
+  const voiceTargetRef = useRef<AiConfigurationVoiceTarget | null>(null);
   const selectedEngineOption = getAiEngineOption(form.preferredEngine);
+  const voiceBusy = voiceTarget !== null;
 
   useEffect(() => {
     if (loading) {
@@ -524,11 +551,11 @@ export default function AiConfigurationContent({
     borderRadius: 14,
     minHeight: workspaceMode ? 38 : 44,
     padding: workspaceMode ? "8px 11px" : "10px 12px",
-    cursor: saving ? "default" : "pointer",
+    cursor: saving || voiceBusy ? "default" : "pointer",
     fontWeight: 900,
     fontSize: workspaceMode ? 12.5 : 16,
     width: "100%",
-    opacity: saving ? 0.7 : 1,
+    opacity: saving || voiceBusy ? 0.7 : 1,
   };
 
   useEffect(() => {
@@ -615,13 +642,23 @@ export default function AiConfigurationContent({
     setForm((current) => ({ ...current, [key]: value }));
   };
 
+  const voiceDisabledFor = (target: AiConfigurationVoiceTarget) =>
+    loading || saving || !loadSucceededRef.current || (voiceTarget !== null && voiceTarget !== target);
+
+  const handleVoiceBusyChange = (target: AiConfigurationVoiceTarget, busy: boolean) => {
+    const current = voiceTargetRef.current;
+    const next = busy ? target : current === target ? null : current;
+    voiceTargetRef.current = next;
+    setVoiceTarget(next);
+  };
+
   const setGenerationLanguage = (value: AiConfigForm["language"]) => {
     markAiLanguageCustom(activeUserIdRef.current);
     set("language", value);
   };
 
   const save = async () => {
-    if (saving) return;
+    if (saving || voiceBusy) return;
     if (!loadSucceededRef.current) {
       setError(i18nT("ai_configuration_load_failed"));
       return;
@@ -729,6 +766,7 @@ export default function AiConfigurationContent({
   };
 
   const reset = async () => {
+    if (voiceBusy) return;
     const confirmed = await confirmInrcy({
       title: configurationT("resetTitle"),
       message: configurationT("resetMessage"),
@@ -751,6 +789,7 @@ export default function AiConfigurationContent({
   return (
     <div
       data-ai-configuration-workspace={workspaceMode ? "true" : "false"}
+      aria-busy={voiceBusy}
       style={{ display: "grid", gap: workspaceMode ? 13 : 16, minWidth: 0, maxWidth: "100%", overflow: "visible" }}
     >
       {!workspaceMode ? <div style={signatureCard}>
@@ -776,6 +815,7 @@ export default function AiConfigurationContent({
       {!hideAiMemoryShortcut ? (
         <button
           type="button"
+          disabled={voiceBusy}
           onClick={onOpenAiMemory}
           style={{
             ...card,
@@ -811,6 +851,7 @@ export default function AiConfigurationContent({
           type="button"
           role="tab"
           aria-selected={activeTab === "parameters"}
+          disabled={voiceBusy}
           onClick={() => setActiveTab("parameters")}
           style={{
             ...configurationTabStyle,
@@ -824,6 +865,7 @@ export default function AiConfigurationContent({
           type="button"
           role="tab"
           aria-selected={activeTab === "instructions"}
+          disabled={voiceBusy}
           onClick={() => setActiveTab("instructions")}
           style={{
             ...configurationTabStyle,
@@ -1147,42 +1189,105 @@ export default function AiConfigurationContent({
                 </div>
 
                 <div data-instruction-examples style={instructionExamplesGridStyle}>
-                  <label style={{ ...label, ...instructionPanelStyle }}>
-                    <span style={labelTitle}>{configurationT("likedContent1Label")}</span>
+                  <div style={{ ...label, ...instructionPanelStyle }}>
+                    <span style={voiceFieldHeadingStyle}>
+                      <label htmlFor={`${voiceFieldIdPrefix}-liked-1`} style={labelTitle}>
+                        {configurationT("likedContent1Label")}
+                      </label>
+                      <span style={voiceFieldActionsStyle}>
+                        <MediaSubjectVoiceButton
+                          disabled={voiceDisabledFor("likedExample")}
+                          value={form.likedExample}
+                          contextLabel={configurationT("likedContent1Label")}
+                          onChange={(next) => set("likedExample", next.slice(0, 1200))}
+                          onBusyChange={(busy) => handleVoiceBusyChange("likedExample", busy)}
+                          purpose="content"
+                          placement="inline"
+                          mergeMode="paragraph"
+                          maxLength={1200}
+                        />
+                        <span style={voiceCounterStyle}>{form.likedExample.length}/1200</span>
+                      </span>
+                    </span>
                     <textarea
+                      id={`${voiceFieldIdPrefix}-liked-1`}
                       style={{ ...input, minHeight: workspaceMode ? 150 : 165, resize: "vertical", lineHeight: 1.45 }}
                       value={form.likedExample}
                       maxLength={1200}
+                      readOnly={voiceBusy}
+                      aria-busy={voiceTarget === "likedExample"}
                       onChange={(e) => set("likedExample", e.target.value.slice(0, 1200))}
                       placeholder={configurationT("likedContentPlaceholder")}
                     />
                     <span style={hint}>{configurationT("likedContentHint")}</span>
-                  </label>
+                  </div>
 
-                  <label style={{ ...label, ...instructionPanelStyle }}>
-                    <span style={labelTitle}>{configurationT("likedContent2Label")}</span>
+                  <div style={{ ...label, ...instructionPanelStyle }}>
+                    <span style={voiceFieldHeadingStyle}>
+                      <label htmlFor={`${voiceFieldIdPrefix}-liked-2`} style={labelTitle}>
+                        {configurationT("likedContent2Label")}
+                      </label>
+                      <span style={voiceFieldActionsStyle}>
+                        <MediaSubjectVoiceButton
+                          disabled={voiceDisabledFor("likedExample2")}
+                          value={form.likedExample2}
+                          contextLabel={configurationT("likedContent2Label")}
+                          onChange={(next) => set("likedExample2", next.slice(0, 1200))}
+                          onBusyChange={(busy) => handleVoiceBusyChange("likedExample2", busy)}
+                          purpose="content"
+                          placement="inline"
+                          mergeMode="paragraph"
+                          maxLength={1200}
+                        />
+                        <span style={voiceCounterStyle}>{form.likedExample2.length}/1200</span>
+                      </span>
+                    </span>
                     <textarea
+                      id={`${voiceFieldIdPrefix}-liked-2`}
                       style={{ ...input, minHeight: workspaceMode ? 150 : 165, resize: "vertical", lineHeight: 1.45 }}
                       value={form.likedExample2}
                       maxLength={1200}
+                      readOnly={voiceBusy}
+                      aria-busy={voiceTarget === "likedExample2"}
                       onChange={(e) => set("likedExample2", e.target.value.slice(0, 1200))}
                       placeholder={configurationT("likedContentPlaceholder")}
                     />
                     <span style={hint}>{configurationT("likedContentHint")}</span>
-                  </label>
+                  </div>
                 </div>
 
-                <label data-custom-instructions style={{ ...label, ...instructionPanelStyle }}>
-                  <span style={labelTitle}>{configurationT("customInstructionsLabel")}</span>
+                <div data-custom-instructions style={{ ...label, ...instructionPanelStyle }}>
+                  <span style={voiceFieldHeadingStyle}>
+                    <label htmlFor={`${voiceFieldIdPrefix}-instructions`} style={labelTitle}>
+                      {configurationT("customInstructionsLabel")}
+                    </label>
+                    <span style={voiceFieldActionsStyle}>
+                      <MediaSubjectVoiceButton
+                        disabled={voiceDisabledFor("forbiddenStyle")}
+                        value={form.forbiddenStyle}
+                        contextLabel={configurationT("customInstructionsLabel")}
+                        onChange={(next) => set("forbiddenStyle", next.slice(0, 700))}
+                        onBusyChange={(busy) => handleVoiceBusyChange("forbiddenStyle", busy)}
+                        purpose="instruction"
+                        placement="inline"
+                        mergeMode="paragraph"
+                        maxLength={700}
+                      />
+                      <span style={voiceCounterStyle}>{form.forbiddenStyle.length}/700</span>
+                    </span>
+                  </span>
                   <textarea
+                    id={`${voiceFieldIdPrefix}-instructions`}
                     style={{ ...input, minHeight: workspaceMode ? 190 : 210, resize: "vertical", lineHeight: 1.45 }}
                     value={form.forbiddenStyle}
                     maxLength={700}
+                    readOnly={voiceBusy}
+                    aria-busy={voiceTarget === "forbiddenStyle"}
                     onChange={(e) => set("forbiddenStyle", e.target.value.slice(0, 700))}
                     placeholder={configurationT("customInstructionsPlaceholder")}
                   />
                   <span style={hint}>{configurationT("customInstructionsHint")}</span>
-                </label>
+                </div>
               </section>
             ) : null}
 
@@ -1193,9 +1298,9 @@ export default function AiConfigurationContent({
               data-ai-configuration-actions
               style={workspaceMode ? workspaceActionsStyle : defaultActionsStyle}
             >
-              <button type="button" disabled={saving} onClick={() => void reset()} style={{ minHeight: workspaceMode ? 38 : 44, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.05)", color: "white", borderRadius: workspaceMode ? 11 : 14, padding: workspaceMode ? "8px 10px" : "10px 12px", cursor: saving ? "default" : "pointer", fontWeight: 850, fontSize: workspaceMode ? 12 : 16 }}>
+              <button type="button" disabled={saving || voiceBusy} onClick={() => void reset()} style={{ minHeight: workspaceMode ? 38 : 44, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.05)", color: "white", borderRadius: workspaceMode ? 11 : 14, padding: workspaceMode ? "8px 10px" : "10px 12px", cursor: saving || voiceBusy ? "default" : "pointer", fontWeight: 850, fontSize: workspaceMode ? 12 : 16 }}>
                 {i18nT("reinitialiser_e0e2ad54")}{" "}</button>
-              <button type="button" style={primaryBtn} disabled={saving || !loadSucceededRef.current} onClick={() => void save()}>{saving ? i18nT("enregistrement_e7d5f232") : i18nT("enregistrer_f7c8bcd8")}</button>
+              <button type="button" style={primaryBtn} disabled={saving || voiceBusy || !loadSucceededRef.current} onClick={() => void save()}>{saving ? i18nT("enregistrement_e7d5f232") : i18nT("enregistrer_f7c8bcd8")}</button>
             </div>
           </div>
         )}

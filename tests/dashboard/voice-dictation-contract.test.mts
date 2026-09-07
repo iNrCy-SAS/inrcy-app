@@ -42,6 +42,9 @@ const businessDnaPage = read("app/dashboard/adn-entreprise/page.tsx");
 const aiMemoryContent = read(
   "app/dashboard/settings/_components/AiMemoryContent.tsx",
 );
+const aiConfigurationContent = read(
+  "app/dashboard/settings/_components/AiConfigurationContent.tsx",
+);
 const businessDnaRichTextEditor = read(
   "app/dashboard/settings/_components/BusinessDnaRichTextEditor.tsx",
 );
@@ -163,6 +166,40 @@ test("le composant partagé borne les champs et interdit deux sessions vocales c
     sharedVoiceButton,
     /if \(recorder && recorder\.state !== "inactive"\) \{\s*setVoiceState\("transcribing"\);\s*recorder\.stop\(\);/,
   );
+});
+
+test("Configuration IA équipe ses exemples et ses consignes avec le micro corrigé partagé", () => {
+  assert.match(
+    aiConfigurationContent,
+    /import MediaSubjectVoiceButton from "\.\.\/\.\.\/_components\/MediaSubjectVoiceButton"/,
+  );
+
+  const voiceButtons = jsxElements(aiConfigurationContent, "MediaSubjectVoiceButton");
+  assert.equal(voiceButtons.length, 3);
+
+  const expected = [
+    { value: "form.likedExample", target: "likedExample", purpose: "content", maxLength: 1200 },
+    { value: "form.likedExample2", target: "likedExample2", purpose: "content", maxLength: 1200 },
+    { value: "form.forbiddenStyle", target: "forbiddenStyle", purpose: "instruction", maxLength: 700 },
+  ] as const;
+
+  for (const field of expected) {
+    const button = elementWithValue(voiceButtons, field.value);
+    assert.match(button, new RegExp(`disabled=\\{voiceDisabledFor\\("${field.target}"\\)\\}`));
+    assert.match(
+      button,
+      new RegExp(`onBusyChange=\\{\\(busy\\) => handleVoiceBusyChange\\("${field.target}", busy\\)\\}`),
+    );
+    assert.match(button, new RegExp(`purpose="${field.purpose}"`));
+    assert.match(button, /placement="inline"/);
+    assert.match(button, /mergeMode="paragraph"/);
+    assert.match(button, new RegExp(`maxLength=\\{${field.maxLength}\\}`));
+  }
+
+  assert.match(aiConfigurationContent, /const \[voiceTarget, setVoiceTarget\] = useState/);
+  assert.match(aiConfigurationContent, /const voiceDisabledFor = \(target: AiConfigurationVoiceTarget\)/);
+  assert.match(aiConfigurationContent, /readOnly=\{voiceBusy\}/);
+  assert.match(aiConfigurationContent, /disabled=\{saving \|\| voiceBusy \|\| !loadSucceededRef\.current\}/);
 });
 
 test("iNrADN équipe tous ses champs libres avec le micro corrigé partagé", () => {
