@@ -16,6 +16,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
   facebookPublishToPage,
   facebookPublishVideoToPage,
+  facebookPublishVerticalVideoToPage,
 } from "@/lib/facebookPublish";
 import {
   instagramPublishCarouselWithTokenFallback,
@@ -34,6 +35,7 @@ import {
   type InstagramVideoPublishCheckpoint,
 } from "@/lib/instagramVideoPublishPhases";
 import { createInstagramImageMotionVideo } from "@/lib/instagramImageMotionVideo";
+import { createFacebookImageMotionVideo } from "@/lib/facebookImageMotionVideo";
 import {
   linkedinPublishImage,
   linkedinPublishMultiImage,
@@ -209,6 +211,10 @@ import {
   publicationChannelRequiresReconnect,
 } from "@/lib/publicationChannelAvailability";
 import {
+  isFacebookPublicationPlacementEnabled,
+  normalizeFacebookPublicationPreferences,
+} from "@/lib/facebookPublicationPreferences";
+import {
   isInstagramPublicationPlacementEnabled,
   normalizeInstagramPublicationPreferences,
 } from "@/lib/instagramPublicationPreferences";
@@ -236,6 +242,7 @@ import {
   normalizePublicationMediaType,
   normalizePublicHttpUrl,
   normalizeInstagramPublicationSettings,
+  normalizeFacebookPublicationSettings,
   normalizeTiktokPublicationSettings,
   slugify,
   type ChannelKey,
@@ -357,6 +364,47 @@ async function getInstagramPlacementPreflightFailure(args: {
       args.placement === "story"
         ? "Le format Story Instagram est désactivé dans les réglages du compte."
         : "Le format Reel Instagram est désactivé dans les réglages du compte.",
+  };
+}
+
+async function getFacebookPlacementPreflightFailure(args: {
+  userId: string;
+  placement: "reel" | "story";
+}): Promise<JsonRecord | null> {
+  const { data, error } = await supabaseAdmin
+    .from("pro_tools_configs")
+    .select("settings")
+    .eq("user_id", args.userId)
+    .maybeSingle();
+  if (error) {
+    return {
+      ok: false,
+      code: "facebook_publication_preferences_unavailable",
+      retryable: true,
+      source: "server_preflight",
+      placement: args.placement,
+      error:
+        "Les formats de publication Facebook ne peuvent pas être vérifiés pour le moment.",
+    };
+  }
+  const rootSettings = asRecord(data?.settings);
+  const facebookSettings = asRecord(rootSettings.facebook);
+  const preferences = normalizeFacebookPublicationPreferences(
+    facebookSettings.publicationPreferences,
+  );
+  if (isFacebookPublicationPlacementEnabled(args.placement, preferences)) {
+    return null;
+  }
+  return {
+    ok: false,
+    code: "facebook_publication_mode_disabled",
+    retryable: false,
+    source: "server_preflight",
+    placement: args.placement,
+    error:
+      args.placement === "story"
+        ? "Le format Story Facebook est désactivé dans les réglages du compte."
+        : "Le format Reel Facebook est désactivé dans les réglages du compte.",
   };
 }
 
@@ -513,6 +561,9 @@ async function publishNowHandler(req: Request) {
     )
       ? normalizeInstagramPublicationSettings(body.instagramPublicationSettings)
       : null;
+    const requestedFacebookPublicationSettings = selected.includes("facebook")
+      ? normalizeFacebookPublicationSettings(body.facebookPublicationSettings)
+      : null;
     const clientPreflightFailuresByChannel =
       normalizeClientPreflightFailuresByChannel(
         body.clientPreflightFailuresByChannel,
@@ -529,6 +580,19 @@ async function publishNowHandler(req: Request) {
         });
       if (instagramPreflightFailure) {
         clientPreflightFailuresByChannel.instagram = instagramPreflightFailure;
+      }
+    }
+    if (
+      requestedFacebookPublicationSettings &&
+      !clientPreflightFailuresByChannel.facebook
+    ) {
+      const facebookPreflightFailure =
+        await getFacebookPlacementPreflightFailure({
+          userId,
+          placement: requestedFacebookPublicationSettings.placement,
+        });
+      if (facebookPreflightFailure) {
+        clientPreflightFailuresByChannel.facebook = facebookPreflightFailure;
       }
     }
     const dispatchableSelected = selected.filter(
@@ -992,10 +1056,17 @@ async function publishNowHandler(req: Request) {
       videoFormatByChannel: body.videoFormatByChannel,
       videoAdaptationModeByChannel: body.videoAdaptationModeByChannel,
     });
+    if (requestedFacebookPublicationSettings) {
+      videoSettingsByChannel.facebook = {
+        format: "9_16",
+        adaptationMode: "safe_frame",
+      };
+    }
     const tiktokPublicationSettings = normalizeTiktokPublicationSettings(
       body.tiktokPublicationSettings,
     );
     const instagramPublicationSettings = requestedInstagramPublicationSettings;
+    const facebookPublicationSettings = requestedFacebookPublicationSettings;
     const pinterestPublicationSettings = asRecord(
       body.pinterestPublicationSettings,
     );
@@ -2319,6 +2390,7 @@ async function publishNowHandler(req: Request) {
           mediaType,
           mediaModeByChannel,
           instagramPublicationSettings,
+          facebookPublicationSettings,
           videoSettingsByChannel,
           video: hasAnyVideoChannel ? publicationVideo : null,
           videoByChannel: publicationVideoByChannel,
@@ -2425,6 +2497,9 @@ async function publishNowHandler(req: Request) {
               : {}),
             ...(channel === "instagram" && instagramPublicationSettings
               ? { instagramPublicationSettings }
+              : {}),
+            ...(channel === "facebook" && facebookPublicationSettings
+              ? { facebookPublicationSettings }
               : {}),
             ...(channel === "pinterest"
               ? { pinterestPublicationSettings }
@@ -3796,6 +3871,41 @@ async function publishNowHandler(req: Request) {
             limit: 5,
           });
           if (
+            facebookPublicationSettings &&
+            mediaModeByChannel[ch] === "none"
+          ) {
+            const facebookUserError =
+              "Ajoutez une image ou une vidéo pour publier ce format Facebook.";
+            await setDelivery(ch, { status: "failed", error: facebookUserError });
+            results[ch] = { ok: false, error: facebookUserError };
+            continue;
+          }
+          if (
+            facebookPublicationSettings &&
+            mediaModeByChannel[ch] === "video" &&
+            channelVideo
+          ) {
+            const duration = Number(channelVideo.duration || 0);
+            const maximumDuration =
+              facebookPublicationSettings.placement === "story" ? 60 : 90;
+            if (
+              Number.isFinite(duration) &&
+              duration > 0 &&
+              (duration < 3 || duration > maximumDuration)
+            ) {
+              const facebookUserError =
+                facebookPublicationSettings.placement === "story"
+                  ? "Une Story Facebook doit durer entre 3 et 60 secondes."
+                  : "Un Reel Facebook doit durer entre 3 et 90 secondes.";
+              await setDelivery(ch, {
+                status: "failed",
+                error: facebookUserError,
+              });
+              results[ch] = { ok: false, error: facebookUserError };
+              continue;
+            }
+          }
+          if (
             mediaModeByChannel[ch] === "images" &&
             getExpectedChannelImageCount(ch) > 0 &&
             !facebookImageUrls.length
@@ -3811,8 +3921,70 @@ async function publishNowHandler(req: Request) {
           }
 
           let facebookWarning: { code: string; message: string } | null = null;
-          const resp =
-            mediaModeByChannel[ch] === "video" && channelVideo
+          let facebookPublishVideo = channelVideo;
+          if (
+            facebookPublicationSettings &&
+            mediaModeByChannel[ch] === "images"
+          ) {
+            const facebookImageSet = getChannelImageSet(ch);
+            const facebookSourceStoragePaths = (
+              facebookImageSet.socialFeedStoragePaths.length
+                ? facebookImageSet.socialFeedStoragePaths
+                : facebookImageSet.publishableStoragePaths.length
+                  ? facebookImageSet.publishableStoragePaths
+                  : facebookImageSet.storagePaths
+            )
+              .map((value) => String(value || "").trim())
+              .filter(Boolean)
+              .slice(0, 5);
+            try {
+              facebookPublishVideo = await createFacebookImageMotionVideo({
+                accountId: userId,
+                publicationId,
+                imageStoragePaths: facebookSourceStoragePaths,
+                placement: facebookPublicationSettings.placement,
+                soundtrackPrompt: [
+                  idea,
+                  channelPost.title,
+                  channelPost.content,
+                  channelPost.cta,
+                ]
+                  .map((value) => String(value || "").trim())
+                  .filter(Boolean)
+                  .join(" — "),
+              });
+            } catch (error) {
+              const rawError =
+                error instanceof Error ? error.message : String(error || "");
+              const facebookUserError =
+                "La mini-vidéo Facebook n’a pas pu être préparée. Réessayez sans changer vos médias.";
+              console.error("[Booster] Facebook image motion failed", {
+                userId,
+                publicationId,
+                placement: facebookPublicationSettings.placement,
+                imageCount: facebookSourceStoragePaths.length,
+                error: rawError,
+              });
+              await setDelivery(ch, { status: "failed", error: facebookUserError });
+              results[ch] = {
+                ok: false,
+                error: facebookUserError,
+                raw_error: rawError,
+                code: "facebook_image_motion_preparation_failed",
+                retryable: true,
+              };
+              continue;
+            }
+          }
+
+          const resp = facebookPublicationSettings && facebookPublishVideo
+            ? await facebookPublishVerticalVideoToPage({
+                pageId,
+                pageAccessToken: pageToken,
+                videoUrl: facebookPublishVideo.publicUrl,
+                placement: facebookPublicationSettings.placement,
+              })
+            : mediaModeByChannel[ch] === "video" && channelVideo
               ? await facebookPublishVideoToPage({
                   pageId,
                   pageAccessToken: pageToken,

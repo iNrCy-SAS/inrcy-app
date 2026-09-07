@@ -4,6 +4,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getClientUserFacingApiError as getSimpleFrenchApiError, getClientUserFacingErrorMessage as getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import type { DashboardChannelKey } from "@/lib/dashboardChannels";
 import type { InrstatsChannelBlock } from "@/lib/inrstats/channelBlocks";
+import {
+  DEFAULT_FACEBOOK_PUBLICATION_PREFERENCES,
+  normalizeFacebookPublicationPreferences,
+  type FacebookPublicationPreferences,
+} from "@/lib/facebookPublicationPreferences";
 import type { ChannelResourcePhase } from "./channelResourcePhase";
 
 type PatchChannelConnectionLocally = (
@@ -46,6 +51,21 @@ export function useFacebookChannel({
   const [facebookAccountEmail, setFacebookAccountEmail] = useState<string>(() => typeof initialState?.facebookAccountEmail === "string" ? initialState.facebookAccountEmail : "");
   const [facebookUrlNotice, setFacebookUrlNotice] = useState<string | null>(null);
   const [facebookUrlError, setFacebookUrlError] = useState<string | null>(null);
+  const [facebookPublicationPreferences, setFacebookPublicationPreferences] =
+    useState<FacebookPublicationPreferences>(() =>
+      normalizeFacebookPublicationPreferences(
+        initialState?.facebookPublicationPreferences ||
+          DEFAULT_FACEBOOK_PUBLICATION_PREFERENCES,
+      ),
+    );
+  const [facebookPublicationPreferencesLoading, setFacebookPublicationPreferencesLoading] =
+    useState(false);
+  const [facebookPublicationPreferencesSaving, setFacebookPublicationPreferencesSaving] =
+    useState(false);
+  const [facebookPublicationPreferencesNotice, setFacebookPublicationPreferencesNotice] =
+    useState<string | null>(null);
+  const [facebookPublicationPreferencesError, setFacebookPublicationPreferencesError] =
+    useState<string | null>(null);
 
   const [fbPages, setFbPages] = useState<Array<{ id: string; name?: string; access_token?: string }>>([]);
   const [fbPagesLoading, setFbPagesLoading] = useState(false);
@@ -73,6 +93,96 @@ export function useFacebookChannel({
     setFacebookUrlError(clean);
     window.setTimeout(clearPanelNotices, timeout);
   }, [clearPanelNotices]);
+
+  const loadFacebookPublicationPreferences = useCallback(async () => {
+    setFacebookPublicationPreferencesLoading(true);
+    setFacebookPublicationPreferencesError(null);
+    try {
+      const response = await fetch(
+        "/api/integrations/facebook/publication-preferences",
+        { cache: "no-store", credentials: "include" },
+      );
+      if (!response.ok) {
+        throw new Error(
+          await getSimpleFrenchApiError(
+            response,
+            "Impossible de charger les formats Facebook.",
+          ),
+        );
+      }
+      const payload = await response.json().catch(() => null);
+      setFacebookPublicationPreferences(
+        normalizeFacebookPublicationPreferences(payload?.preferences),
+      );
+    } catch (error) {
+      setFacebookPublicationPreferencesError(
+        getSimpleFrenchErrorMessage(
+          error,
+          "Impossible de charger les formats Facebook.",
+        ),
+      );
+    } finally {
+      setFacebookPublicationPreferencesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (panel !== "facebook") return;
+    void loadFacebookPublicationPreferences();
+  }, [panel, loadFacebookPublicationPreferences]);
+
+  const updateFacebookPublicationPreferences = useCallback(
+    (patch: Partial<FacebookPublicationPreferences>) => {
+      setFacebookPublicationPreferences((current) =>
+        normalizeFacebookPublicationPreferences({ ...current, ...patch }),
+      );
+      setFacebookPublicationPreferencesNotice(null);
+      setFacebookPublicationPreferencesError(null);
+    },
+    [],
+  );
+
+  const saveFacebookPublicationPreferences = useCallback(async () => {
+    if (facebookPublicationPreferencesSaving) return false;
+    setFacebookPublicationPreferencesSaving(true);
+    setFacebookPublicationPreferencesNotice(null);
+    setFacebookPublicationPreferencesError(null);
+    try {
+      const response = await fetch(
+        "/api/integrations/facebook/publication-preferences",
+        {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(facebookPublicationPreferences),
+        },
+      );
+      if (!response.ok) {
+        throw new Error(
+          await getSimpleFrenchApiError(
+            response,
+            "Impossible d’enregistrer les formats Facebook.",
+          ),
+        );
+      }
+      const payload = await response.json().catch(() => null);
+      setFacebookPublicationPreferences(
+        normalizeFacebookPublicationPreferences(payload?.preferences),
+      );
+      setFacebookPublicationPreferencesNotice("Formats Facebook enregistrés.");
+      return true;
+    } catch (error) {
+      setFacebookPublicationPreferencesError(
+        getSimpleFrenchErrorMessage(
+          error,
+          "Impossible d’enregistrer les formats Facebook.",
+        ),
+      );
+      return false;
+    } finally {
+      setFacebookPublicationPreferencesSaving(false);
+    }
+  }, [facebookPublicationPreferences, facebookPublicationPreferencesSaving]);
 
   const connectFacebookAccount = useCallback(async () => {
     const returnTo = encodeURIComponent("/dashboard?panel=facebook");
@@ -300,6 +410,13 @@ export function useFacebookChannel({
     setFacebookAccountEmail,
     facebookUrlNotice,
     facebookUrlError,
+    facebookPublicationPreferences,
+    facebookPublicationPreferencesLoading,
+    facebookPublicationPreferencesSaving,
+    facebookPublicationPreferencesNotice,
+    facebookPublicationPreferencesError,
+    updateFacebookPublicationPreferences,
+    saveFacebookPublicationPreferences,
     fbPages,
     setFbPages,
     fbPagesLoading,

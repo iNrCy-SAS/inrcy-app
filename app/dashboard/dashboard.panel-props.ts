@@ -215,6 +215,19 @@ export function buildDashboardPanelProps(a: any) {
     facebookUrl: a.facebookUrl,
     facebookUrlNotice: a.facebookUrlNotice,
     facebookUrlError: a.facebookUrlError,
+    facebookPublicationPreferences: a.facebookPublicationPreferences,
+    facebookPublicationPreferencesLoading:
+      a.facebookPublicationPreferencesLoading,
+    facebookPublicationPreferencesSaving:
+      a.facebookPublicationPreferencesSaving,
+    facebookPublicationPreferencesNotice:
+      a.facebookPublicationPreferencesNotice,
+    facebookPublicationPreferencesError:
+      a.facebookPublicationPreferencesError,
+    updateFacebookPublicationPreferences:
+      a.updateFacebookPublicationPreferences,
+    saveFacebookPublicationPreferences:
+      a.saveFacebookPublicationPreferences,
     disconnectFacebookPage: a.disconnectFacebookPageFromDrawer,
   };
 

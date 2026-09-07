@@ -19,6 +19,9 @@ import {
   premiumRequiredApiResponse,
 } from "@/lib/dashboardEditionServer";
 import { isStandardAgentActionDescriptor } from "@/lib/standardAgentPolicy";
+import {
+  publicationSettingsForInrAgentChannel,
+} from "@/lib/inrAgentPublicationPlacement";
 
 export const runtime = "nodejs";
 export const maxDuration = 90;
@@ -155,6 +158,43 @@ function publicationPayloadForChannels(
   channels: BoosterChannel[],
 ): JsonRecord {
   const publishPayload = asRecord(payload.publishPayload) || {};
+  const nextPublishPayload: JsonRecord = {
+    ...publishPayload,
+    channels,
+    postByChannel: filterRecordByChannels(publishPayload.postByChannel, channels),
+    mediaModeByChannel: filterRecordByChannels(
+      publishPayload.mediaModeByChannel,
+      channels,
+    ),
+    videoSettingsByChannel: filterRecordByChannels(
+      publishPayload.videoSettingsByChannel,
+      channels,
+    ),
+    videoFormatByChannel: filterRecordByChannels(
+      publishPayload.videoFormatByChannel,
+      channels,
+    ),
+    videoAdaptationModeByChannel: filterRecordByChannels(
+      publishPayload.videoAdaptationModeByChannel,
+      channels,
+    ),
+    imageSettingsByChannel: filterRecordByChannels(
+      publishPayload.imageSettingsByChannel,
+      channels,
+    ),
+    imagesByChannel: filterRecordByChannels(
+      publishPayload.imagesByChannel,
+      channels,
+    ),
+  };
+  if (!channels.includes("instagram")) {
+    delete nextPublishPayload.instagramPublicationSettings;
+    delete nextPublishPayload.instagramPublicationPlacement;
+  }
+  if (!channels.includes("facebook")) {
+    delete nextPublishPayload.facebookPublicationSettings;
+    delete nextPublishPayload.facebookPublicationPlacement;
+  }
   return {
     ...payload,
     scheduleGrouping: {
@@ -162,35 +202,7 @@ function publicationPayloadForChannels(
       channelCount: channels.length,
       createdFrom: "agent_action_schedule",
     },
-    publishPayload: {
-      ...publishPayload,
-      channels,
-      postByChannel: filterRecordByChannels(publishPayload.postByChannel, channels),
-      mediaModeByChannel: filterRecordByChannels(
-        publishPayload.mediaModeByChannel,
-        channels,
-      ),
-      videoSettingsByChannel: filterRecordByChannels(
-        publishPayload.videoSettingsByChannel,
-        channels,
-      ),
-      videoFormatByChannel: filterRecordByChannels(
-        publishPayload.videoFormatByChannel,
-        channels,
-      ),
-      videoAdaptationModeByChannel: filterRecordByChannels(
-        publishPayload.videoAdaptationModeByChannel,
-        channels,
-      ),
-      imageSettingsByChannel: filterRecordByChannels(
-        publishPayload.imageSettingsByChannel,
-        channels,
-      ),
-      imagesByChannel: filterRecordByChannels(
-        publishPayload.imagesByChannel,
-        channels,
-      ),
-    },
+    publishPayload: nextPublishPayload,
   };
 }
 
@@ -368,6 +380,23 @@ async function buildImagePayloadFromAgentAction(
   );
   const title = cleanText(media.title || media.name || "image-iNrAgent", 120);
 
+  const dataUrl = cleanText(media.dataUrl || media.data_url, 20_000_000);
+  if (dataUrl.startsWith("data:image/")) {
+    const mime =
+      cleanText(media.type || media.mimeType || media.mime_type, 120) ||
+      dataUrl.slice(5, dataUrl.indexOf(";")) ||
+      "image/jpeg";
+    return {
+      ...media,
+      name: cleanText(media.name, 180) || `${title}.jpg`,
+      type: mime,
+      dataUrl,
+      originalName: cleanText(media.originalName, 180) || title,
+      originalType: cleanText(media.originalType, 120) || mime,
+      imageKey: cleanText(media.imageKey || media.id || actionId, 120),
+    };
+  }
+
   if (storagePath) {
     const download = await supabaseAdmin.storage
       .from(bucket)
@@ -422,13 +451,25 @@ async function buildImagePayloadFromAgentAction(
   };
 }
 
+function imageCandidatesFromChannelMap(value: unknown) {
+  const record = asRecord(value);
+  if (!record) return [];
+  return Object.values(record).flatMap((item) =>
+    Array.isArray(item) ? item : item ? [item] : [],
+  );
+}
+
 async function buildImagePayloadsFromAgentAction(
   payload: JsonRecord,
   actionId: string,
   actionImageAssets: unknown[],
 ) {
+  const publishPayload = asRecord(payload.publishPayload) || {};
   const candidates = [
+    ...imageCandidatesFromChannelMap(payload.imagesByChannel),
+    ...imageCandidatesFromChannelMap(publishPayload.imagesByChannel),
     ...(Array.isArray(payload.images) ? payload.images : []),
+    ...(Array.isArray(publishPayload.images) ? publishPayload.images : []),
     ...(Array.isArray(payload.mediaAssets) ? payload.mediaAssets : []),
     ...(Array.isArray(actionImageAssets) ? actionImageAssets : []),
     getAgentMediaRecord(payload),
@@ -443,8 +484,9 @@ async function buildImagePayloadsFromAgentAction(
         media.storage_path ||
         media.path ||
         media.url ||
-        media.publicUrl,
-      2_000,
+        media.publicUrl ||
+        media.dataUrl,
+      20_000_000,
     );
     if (!key || seen.has(key)) return false;
     seen.add(key);
@@ -455,7 +497,7 @@ async function buildImagePayloadsFromAgentAction(
       Awaited<ReturnType<typeof buildImagePayloadFromAgentAction>>
     >
   > = [];
-  for (const media of unique.slice(0, 4)) {
+  for (const media of unique.slice(0, 5)) {
     const image = await buildImagePayloadFromAgentAction(
       payload,
       actionId,
@@ -710,9 +752,18 @@ async function buildScheduledPayload(
       : hasImagePayload
         ? "images"
         : "none";
+    const instagramPublicationSettings = selectedChannels.includes("instagram")
+      ? publicationSettingsForInrAgentChannel(payload, "instagram")
+      : null;
+    const facebookPublicationSettings = selectedChannels.includes("facebook")
+      ? publicationSettingsForInrAgentChannel(payload, "facebook")
+      : null;
     const publishChannels = selectedChannels.filter((channel) => {
       if (activeMediaMode === "video") return true;
       if (isVideoOnlyChannel(channel)) return false;
+      if (channel === "facebook" && facebookPublicationSettings) {
+        return hasImagePayload;
+      }
       if (isImageRequiredChannel(channel)) return hasImagePayload;
       return canPublishWithoutMedia(channel) || hasImagePayload;
     });
@@ -777,7 +828,6 @@ async function buildScheduledPayload(
             automaticFit: "contain",
           })
         : { imagesByChannel: {}, imageSettingsByChannel: {}, warnings: [] };
-
     return {
       actionType: "publication" as const,
       targetTool: "booster" as const,
@@ -798,6 +848,12 @@ async function buildScheduledPayload(
           imageSettingsByChannel: preparedImages.imageSettingsByChannel,
           imagePreparationWarnings: preparedImages.warnings,
           video: videoPayload,
+          ...(instagramPublicationSettings
+            ? { instagramPublicationSettings }
+            : {}),
+          ...(facebookPublicationSettings
+            ? { facebookPublicationSettings }
+            : {}),
           workflowTool: "booster",
           workflowAction: "publier",
           source: "inr_agent",

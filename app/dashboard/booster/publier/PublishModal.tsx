@@ -111,6 +111,7 @@ import {
   isSiteDisplayKey,
   normalizeBoosterAiLanguage,
   normalizeInstagramPublicationPlacement,
+  normalizeFacebookPublicationPlacement,
   normalizePost,
   normalizePublicationMediaType,
   normalizeVideoAdaptationMode,
@@ -132,6 +133,7 @@ import {
   type ImageMeta,
   type ImagePayload,
   type InstagramPublicationPlacement,
+  type FacebookPublicationPlacement,
   type PublicationMediaType,
   type StyleKey,
   type ThemeKey,
@@ -226,6 +228,12 @@ import {
   normalizeInstagramPublicationPreferences,
   type InstagramPublicationPreferences,
 } from "@/lib/instagramPublicationPreferences";
+import {
+  CLASSIC_ONLY_FACEBOOK_PUBLICATION_PREFERENCES,
+  coerceFacebookPublicationPlacement,
+  normalizeFacebookPublicationPreferences,
+  type FacebookPublicationPreferences,
+} from "@/lib/facebookPublicationPreferences";
 import {
   loadMediaPublicationWorkspace,
   type MediaWorkspaceMediaSummary,
@@ -529,6 +537,17 @@ export default function PublishModal({
   const instagramPlacementTouchedRef = useRef(
     Boolean(publicationDraftIdParam),
   );
+  const [facebookPublicationPlacement, setFacebookPublicationPlacement] =
+    useState<FacebookPublicationPlacement>("classic");
+  const [facebookPublicationPreferences, setFacebookPublicationPreferences] =
+    useState<FacebookPublicationPreferences>(
+      CLASSIC_ONLY_FACEBOOK_PUBLICATION_PREFERENCES,
+    );
+  const facebookPublicationPreferencesRef =
+    useRef<FacebookPublicationPreferences>(
+      CLASSIC_ONLY_FACEBOOK_PUBLICATION_PREFERENCES,
+    );
+  const facebookPlacementTouchedRef = useRef(Boolean(publicationDraftIdParam));
   const [emptyContentWarningChannels, setEmptyContentWarningChannels] =
     useState<ChannelKey[]>([]);
   const [emptyContentWarningIndex, setEmptyContentWarningIndex] = useState(0);
@@ -589,6 +608,39 @@ export default function PublishModal({
       }
     };
     void loadInstagramPreferences();
+    return () => {
+      cancelled = true;
+    };
+  }, [publicationDraftIdParam]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadFacebookPreferences = async () => {
+      try {
+        const response = await fetch(
+          "/api/integrations/facebook/publication-preferences",
+          { cache: "no-store", credentials: "include" },
+        );
+        if (!response.ok) return;
+        const payload = await response.json().catch(() => null);
+        if (cancelled) return;
+        const preferences = normalizeFacebookPublicationPreferences(
+          payload?.preferences,
+        );
+        facebookPublicationPreferencesRef.current = preferences;
+        setFacebookPublicationPreferences(preferences);
+        setFacebookPublicationPlacement((current) => {
+          if (!publicationDraftIdParam && !facebookPlacementTouchedRef.current) {
+            return preferences.defaultMode;
+          }
+          return coerceFacebookPublicationPlacement(current, preferences);
+        });
+      } catch {
+        // Fail closed: le flux classique reste disponible si la préférence
+        // liée au compte ne peut pas être confirmée.
+      }
+    };
+    void loadFacebookPreferences();
     return () => {
       cancelled = true;
     };
@@ -2679,6 +2731,7 @@ export default function PublishModal({
       postsByChannel,
       instagramHashtagsInput,
       instagramPublicationPlacement,
+      facebookPublicationPlacement,
       pinterestBoardId,
       pinterestBoardName,
       imageNames,
@@ -2705,6 +2758,7 @@ export default function PublishModal({
     postsByChannel,
     instagramHashtagsInput,
     instagramPublicationPlacement,
+    facebookPublicationPlacement,
     pinterestBoardId,
     pinterestBoardName,
     images,
@@ -3018,6 +3072,14 @@ export default function PublishModal({
             ),
             instagramPublicationPreferencesRef.current,
           );
+        const nextFacebookPublicationPlacement =
+          coerceFacebookPublicationPlacement(
+            normalizeFacebookPublicationPlacement(
+              payload.facebookPublicationPlacement ||
+                payload.facebookPublicationSettings?.placement,
+            ),
+            facebookPublicationPreferencesRef.current,
+          );
         const nextPinterestBoardId = String(
           payload.pinterestBoardId || "",
         ).trim();
@@ -3054,6 +3116,8 @@ export default function PublishModal({
         setInstagramHashtagsInput(nextInstagramHashtags);
         instagramPlacementTouchedRef.current = true;
         setInstagramPublicationPlacement(nextInstagramPublicationPlacement);
+        facebookPlacementTouchedRef.current = true;
+        setFacebookPublicationPlacement(nextFacebookPublicationPlacement);
         setPinterestBoardId(nextPinterestBoardId);
         setPinterestBoardName(nextPinterestBoardName);
         const effectiveMediaType = restoredVideo.file ? "video" : nextMediaType;
@@ -3121,6 +3185,8 @@ export default function PublishModal({
             instagramHashtagsInput: nextInstagramHashtags,
             instagramPublicationPlacement:
               nextInstagramPublicationPlacement,
+            facebookPublicationPlacement:
+              nextFacebookPublicationPlacement,
             pinterestBoardId: nextPinterestBoardId,
             pinterestBoardName: nextPinterestBoardName,
             imageNames,
@@ -3276,6 +3342,10 @@ export default function PublishModal({
     instagramPlacementTouchedRef.current = false;
     setInstagramPublicationPlacement(
       instagramPublicationPreferencesRef.current.defaultMode,
+    );
+    facebookPlacementTouchedRef.current = false;
+    setFacebookPublicationPlacement(
+      facebookPublicationPreferencesRef.current.defaultMode,
     );
     closeEmptyContentWarnings();
     setDuplicateFeedback(null);
@@ -4972,6 +5042,11 @@ export default function PublishModal({
           instagramPublicationPlacement !== "classic" &&
           resolveChannelMediaMode(ch) !== "none"
         ) &&
+        !(
+          ch === "facebook" &&
+          facebookPublicationPlacement !== "classic" &&
+          resolveChannelMediaMode(ch) !== "none"
+        ) &&
         !String(preparedPostsByChannel[ch]?.content || "").trim(),
     );
     if (missingContentChannels.length && !options?.skipEmptyContentWarnings) {
@@ -5000,6 +5075,26 @@ export default function PublishModal({
         return;
       }
       if (instagramMode === "video" && !videoFile) {
+        setImgError(i18nT("veuillez_ajouter_une_video_pour_publier_9e530780"));
+        return;
+      }
+    }
+
+    if (
+      publishableChannels.includes("facebook") &&
+      facebookPublicationPlacement !== "classic"
+    ) {
+      const facebookMode = publishMediaModeByChannel.facebook || "none";
+      const facebookImages = channelImageEditors.facebook?.imageKeys || [];
+      if (facebookMode === "none") {
+        setImgError(i18nT("instagram_necessite_une_video_ou_au_dc42bf8d"));
+        return;
+      }
+      if (facebookMode === "images" && !facebookImages.length) {
+        setImgError(i18nT("veuillez_ajouter_au_moins_1_image_2804ca41"));
+        return;
+      }
+      if (facebookMode === "video" && !videoFile) {
         setImgError(i18nT("veuillez_ajouter_une_video_pour_publier_9e530780"));
         return;
       }
@@ -5442,6 +5537,11 @@ export default function PublishModal({
         ) && instagramPublicationPlacement !== "classic"
           ? { placement: instagramPublicationPlacement }
           : null,
+        facebookPublicationSettings: publishTargetChannels.includes(
+          "facebook",
+        ) && facebookPublicationPlacement !== "classic"
+          ? { placement: facebookPublicationPlacement }
+          : null,
         pinterestPublicationSettings: publishTargetChannels.includes("pinterest")
           ? { boardId: pinterestBoardId, boardName: pinterestBoardName }
           : null,
@@ -5773,6 +5873,7 @@ export default function PublishModal({
             imageSettingsByChannel: getDraftImageSettingsByChannel(),
             instagramHashtagsInput,
             instagramPublicationPlacement,
+            facebookPublicationPlacement,
             pinterestBoardId,
             pinterestBoardName,
             saved_at: new Date().toISOString(),
@@ -6296,6 +6397,11 @@ export default function PublishModal({
                 ) && instagramPublicationPlacement !== "classic"
                   ? { placement: instagramPublicationPlacement }
                   : null,
+                facebookPublicationSettings: groupChannels.includes(
+                  "facebook",
+                ) && facebookPublicationPlacement !== "classic"
+                  ? { placement: facebookPublicationPlacement }
+                  : null,
                 pinterestPublicationSettings: groupChannels.includes(
                   "pinterest",
                 )
@@ -6493,10 +6599,25 @@ export default function PublishModal({
       const instagramMediaOnly =
         channel === "instagram" &&
         instagramPublicationPlacement !== "classic";
-      const hasText = instagramMediaOnly || hasTitle || hasContent;
+      const facebookMediaOnly =
+        channel === "facebook" && facebookPublicationPlacement !== "classic";
+      const activeMediaOnly = instagramMediaOnly || facebookMediaOnly;
+      const hasText = activeMediaOnly || hasTitle || hasContent;
       const hasImage = imageKeysToPublish.length > 0;
       const mode = resolveChannelMediaMode(channel);
       const hasVideo = mode === "video" && !!videoFile;
+      const effectiveVideoDuration = Number(
+        videoDurationSeconds ?? videoSourceMetadata?.duration ?? 0,
+      );
+      const facebookMaximumDuration =
+        facebookPublicationPlacement === "story" ? 60 : 90;
+      const facebookVerticalDurationInvalid =
+        facebookMediaOnly &&
+        hasVideo &&
+        Number.isFinite(effectiveVideoDuration) &&
+        effectiveVideoDuration > 0 &&
+        (effectiveVideoDuration < 3 ||
+          effectiveVideoDuration > facebookMaximumDuration);
       const requirements = getChannelPublicationRequirements({
         channel,
         connected: connected[channel],
@@ -6512,8 +6633,8 @@ export default function PublishModal({
         hasImage,
         imageCount: imageKeysToPublish.length,
         hasText,
-        hasTitle: instagramMediaOnly || hasTitle,
-        hasContent: instagramMediaOnly || hasContent,
+        hasTitle: activeMediaOnly || hasTitle,
+        hasContent: activeMediaOnly || hasContent,
       });
       const videoPreparationState = videoVariantPreparationByChannel[channel];
       const requestedVideoFormat =
@@ -6545,6 +6666,12 @@ export default function PublishModal({
         ...(channel === "pinterest" && !pinterestBoardId
           ? ["pinterest_board_required"]
           : []),
+        ...(facebookMediaOnly && !hasImage && !hasVideo
+          ? ["facebook_vertical_media_required"]
+          : []),
+        ...(facebookVerticalDurationInvalid
+          ? ["facebook_vertical_duration_invalid"]
+          : []),
       ];
       const mediaBlockerCodes = [
         ...requirements.mediaBlockerCodes,
@@ -6552,10 +6679,16 @@ export default function PublishModal({
         ...(hasMediaUploadBlocker ? ["media_upload_pending"] : []),
       ];
       const localizeRequirement = (code: string) =>
-        getLocalizedChannelPublicationRequirement(
-          { code, channel, imageCount: imageKeysToPublish.length },
-          runtimeT,
-        );
+        code === "facebook_vertical_media_required"
+          ? "Facebook Reel/Story nécessite une image ou une vidéo."
+          : code === "facebook_vertical_duration_invalid"
+            ? facebookPublicationPlacement === "story"
+              ? "Une Story Facebook doit durer entre 3 et 60 secondes."
+              : "Un Reel Facebook doit durer entre 3 et 90 secondes."
+          : getLocalizedChannelPublicationRequirement(
+              { code, channel, imageCount: imageKeysToPublish.length },
+              runtimeT,
+            );
       const blockers = blockerCodes.map(localizeRequirement);
 
       return {
@@ -6583,6 +6716,16 @@ export default function PublishModal({
                 }),
               ]
             : []),
+          ...(facebookMediaOnly
+            ? [
+                i18nT("instagram_review_media_only_warning", {
+                  mode:
+                    facebookPublicationPlacement === "story"
+                      ? i18nT("instagram_stories")
+                      : i18nT("instagram_reels"),
+                }),
+              ]
+            : []),
         ],
         details:
           channel === "pinterest" && pinterestBoardId
@@ -6604,8 +6747,8 @@ export default function PublishModal({
         publishable: blockers.length === 0,
         tiktokParametersValidated:
           channel === "tiktok" && Boolean(tiktokPublicationSettings),
-        hasContent: instagramMediaOnly || hasContent,
-        hasTitle: instagramMediaOnly || hasTitle,
+        hasContent: activeMediaOnly || hasContent,
+        hasTitle: activeMediaOnly || hasTitle,
         hasText,
         hasImage,
       };
@@ -7214,6 +7357,18 @@ export default function PublishModal({
                   coerceInstagramPublicationPlacement(
                     normalizeInstagramPublicationPlacement(placement),
                     instagramPublicationPreferencesRef.current,
+                  ),
+                );
+              }}
+              facebookPublicationPlacement={facebookPublicationPlacement}
+              facebookPublicationPreferences={facebookPublicationPreferences}
+              facebookMediaMode={resolveChannelMediaMode("facebook")}
+              onFacebookPublicationPlacementChange={(placement) => {
+                facebookPlacementTouchedRef.current = true;
+                setFacebookPublicationPlacement(
+                  coerceFacebookPublicationPlacement(
+                    normalizeFacebookPublicationPlacement(placement),
+                    facebookPublicationPreferencesRef.current,
                   ),
                 );
               }}

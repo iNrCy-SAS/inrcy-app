@@ -5,6 +5,7 @@ import {
   type PublicationPreview,
 } from "@/app/dashboard/_components/ChannelImageAdapterTool";
 import { pillBtn } from "../publishModal.styles";
+import ChannelNavigationRail from "./ChannelNavigationRail";
 import type { ChannelKey } from "../publishModal.shared";
 import PublishStepTitle from "./PublishStepTitle";
 
@@ -75,9 +76,14 @@ export default function PublishPreviewPanel({
             }}
           >
             {i18nT("apercu_f0f53004")}{" "}</PublishStepTitle>
-          <div
-            className={styles.subtitle}
-            style={{
+          <ChannelNavigationRail
+            items={previewReadinessTabs.map((tab) => tab.key)}
+            activeItem={activeImageChannel}
+            onSelect={setSynchronizedActiveChannel}
+            navigationLabel={i18nT("apercu_f0f53004")}
+            trackClassName={styles.subtitle}
+            rootStyle={{ gridColumn: "1 / -1", gridRow: 2 }}
+            trackStyle={{
               display: "grid",
               gridTemplateColumns: isMobile
                 ? "repeat(2, minmax(0, 1fr))"
@@ -88,8 +94,6 @@ export default function PublishPreviewPanel({
               paddingBottom: 2,
               marginBottom: 0,
               minWidth: 0,
-              gridColumn: "1 / -1",
-              gridRow: 2,
             }}
           >
             {previewReadinessTabs.map((tab) => {
@@ -161,7 +165,7 @@ export default function PublishPreviewPanel({
                 </button>
               );
             })}
-          </div>
+          </ChannelNavigationRail>
         </div>
         <button
           type="button"

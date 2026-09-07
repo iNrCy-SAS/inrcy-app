@@ -99,6 +99,7 @@ function buildDurablePreparationInput(body: JsonRecord) {
     imageSettingsByChannel: body.imageSettingsByChannel,
     tiktokPublicationSettings: body.tiktokPublicationSettings,
     instagramPublicationSettings: body.instagramPublicationSettings,
+    facebookPublicationSettings: body.facebookPublicationSettings,
     pinterestPublicationSettings: body.pinterestPublicationSettings,
     skipScheduledDuplicateCheck: body.skipScheduledDuplicateCheck,
     allowDuplicateImmediatePublish: body.allowDuplicateImmediatePublish,

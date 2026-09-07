@@ -181,6 +181,13 @@ export type InstagramPublicationSettings = {
   mediaOnly: true;
 };
 
+export type FacebookPublicationPlacement = "reel" | "story";
+
+export type FacebookPublicationSettings = {
+  placement: FacebookPublicationPlacement;
+  mediaOnly: true;
+};
+
 export type VideoPayload = {
   name?: string;
   type?: string;
@@ -256,6 +263,26 @@ export function normalizeInstagramPublicationSettings(
     placement: story ? "story" : "reel",
     mediaType: story ? "STORIES" : "REELS",
     shareToFeed: !story,
+    mediaOnly: true,
+  };
+}
+
+export function normalizeFacebookPublicationSettings(
+  value: unknown,
+): FacebookPublicationSettings | null {
+  const raw = asRecord(value);
+  const requested = String(raw.placement || raw.mode || "")
+    .trim()
+    .toLowerCase();
+  if (["classic", "classique", "normal", "feed"].includes(requested)) {
+    return null;
+  }
+  if (!["reel", "reels", "story", "stories"].includes(requested)) {
+    return null;
+  }
+  return {
+    placement:
+      requested === "story" || requested === "stories" ? "story" : "reel",
     mediaOnly: true,
   };
 }

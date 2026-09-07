@@ -282,3 +282,115 @@ export async function facebookPublishVideoToPage(params: {
     };
   }
 }
+
+export type FacebookVerticalVideoPlacement = "reel" | "story";
+
+/** Publie un média vertical natif sur une Page Facebook, sans texte ni CTA. */
+export async function facebookPublishVerticalVideoToPage(params: {
+  pageId: string;
+  pageAccessToken: string;
+  videoUrl: string;
+  placement: FacebookVerticalVideoPlacement;
+}): Promise<PublishResult> {
+  const { pageId, pageAccessToken, videoUrl, placement } = params;
+  if (!pageId || !pageAccessToken) {
+    return {
+      ok: false,
+      error: "Facebook à connecter. Rendez-vous dans Canaux.",
+      safeTextFallback: true,
+    };
+  }
+  const hostedVideoUrl = normalizeHostedFacebookVideoUrl(videoUrl);
+  if (!hostedVideoUrl) {
+    return {
+      ok: false,
+      error: "Le média Facebook doit d’abord être préparé dans la médiathèque.",
+      safeTextFallback: true,
+    };
+  }
+
+  const resource = placement === "story" ? "video_stories" : "video_reels";
+  const endpoint = buildMetaGraphUrl(
+    `${encodeURIComponent(pageId)}/${resource}`,
+  );
+
+  try {
+    const start = new FormData();
+    start.append("access_token", pageAccessToken);
+    start.append("upload_phase", "start");
+    const startResponse = await fetch(endpoint, { method: "POST", body: start });
+    const startJson: any = await startResponse.json().catch(() => ({}));
+    if (!startResponse.ok) {
+      return {
+        ok: false,
+        error:
+          startJson?.error?.message ||
+          `Impossible de préparer ${placement === "story" ? "la Story" : "le Reel"} Facebook.`,
+        ...getProviderCreateFailureSafety({ httpStatus: startResponse.status }),
+      };
+    }
+
+    const videoId = String(startJson?.video_id || "").trim();
+    const uploadUrl = normalizeHostedFacebookVideoUrl(startJson?.upload_url || "");
+    if (!videoId || !uploadUrl) {
+      return {
+        ok: false,
+        error: "Facebook n’a pas renvoyé les informations de transfert vidéo.",
+        ...getProviderCreateFailureSafety({ successResponseMissingId: true }),
+      };
+    }
+
+    const transferResponse = await fetch(uploadUrl, {
+      method: "POST",
+      headers: {
+        Authorization: `OAuth ${pageAccessToken}`,
+        file_url: hostedVideoUrl,
+      },
+    });
+    const transferJson: any = await transferResponse.json().catch(() => ({}));
+    if (!transferResponse.ok || transferJson?.success !== true) {
+      return {
+        ok: false,
+        error:
+          transferJson?.error?.message ||
+          "Facebook n’a pas pu récupérer la vidéo préparée.",
+        ...getProviderCreateFailureSafety({ httpStatus: transferResponse.status }),
+      };
+    }
+
+    const finish = new FormData();
+    finish.append("access_token", pageAccessToken);
+    finish.append("upload_phase", "finish");
+    finish.append("video_id", videoId);
+    if (placement === "reel") finish.append("video_state", "PUBLISHED");
+    const finishResponse = await fetch(endpoint, {
+      method: "POST",
+      body: finish,
+    });
+    const finishJson: any = await finishResponse.json().catch(() => ({}));
+    if (!finishResponse.ok || finishJson?.success === false) {
+      return {
+        ok: false,
+        error:
+          finishJson?.error?.message ||
+          `Impossible de publier ${placement === "story" ? "la Story" : "le Reel"} Facebook.`,
+        ...getProviderCreateFailureSafety({ httpStatus: finishResponse.status }),
+      };
+    }
+
+    return {
+      ok: true,
+      postId: String(finishJson?.post_id || videoId),
+      uploadedImages: 0,
+      failedImages: 0,
+    };
+  } catch (error: any) {
+    return {
+      ok: false,
+      error:
+        error?.message ||
+        `Impossible de publier ${placement === "story" ? "la Story" : "le Reel"} Facebook.`,
+      ...getProviderCreateFailureSafety({ requestThrew: true }),
+    };
+  }
+}

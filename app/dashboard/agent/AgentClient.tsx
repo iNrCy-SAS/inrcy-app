@@ -72,6 +72,27 @@ import {
   getMediaLibraryOptimizationRequirements,
 } from "@/lib/mediaLibraryOptimizationPolicy";
 import {
+  CLASSIC_ONLY_INSTAGRAM_PUBLICATION_PREFERENCES,
+  getEnabledInstagramPublicationPlacements,
+  isInstagramPublicationPlacementEnabled,
+  normalizeInstagramPublicationPreferences,
+  type InstagramPublicationPlacement,
+  type InstagramPublicationPreferences,
+} from "@/lib/instagramPublicationPreferences";
+import {
+  CLASSIC_ONLY_FACEBOOK_PUBLICATION_PREFERENCES,
+  getEnabledFacebookPublicationPlacements,
+  isFacebookPublicationPlacementEnabled,
+  normalizeFacebookPublicationPreferences,
+  type FacebookPublicationPlacement,
+  type FacebookPublicationPreferences,
+} from "@/lib/facebookPublicationPreferences";
+import {
+  isInrAgentMetaChannel,
+  readInrAgentPublicationPlacement,
+  type InrAgentPublicationPlacement,
+} from "@/lib/inrAgentPublicationPlacement";
+import {
   buildBoosterWhatsAppUrl,
   getBoosterWhatsAppPhoneFromUrl,
 } from "@/lib/boosterWhatsappCta";
@@ -287,6 +308,7 @@ import {
   removeScheduledEditPublishChannel,
   updateScheduledEditPublishText,
   updateScheduledEditPublishMedia,
+  updateScheduledEditPublishPlacement,
   updateScheduledEditCampaign,
   scheduledEditUpdateFromAction,
   computeNextOccurrence,
@@ -584,6 +606,17 @@ export default function AgentClient() {
   });
   const [publishCtaDefaults, setPublishCtaDefaults] =
     useState<BoosterCtaDefaults | null>(null);
+  const [instagramPublicationPreferences, setInstagramPublicationPreferences] =
+    useState<InstagramPublicationPreferences>(
+      CLASSIC_ONLY_INSTAGRAM_PUBLICATION_PREFERENCES,
+    );
+  const [facebookPublicationPreferences, setFacebookPublicationPreferences] =
+    useState<FacebookPublicationPreferences>(
+      CLASSIC_ONLY_FACEBOOK_PUBLICATION_PREFERENCES,
+    );
+  const [publishPlacementSaveState, setPublishPlacementSaveState] = useState<
+    "idle" | "saving"
+  >("idle");
   const [publishSaveState, setPublishSaveState] = useState<"idle" | "saving">(
     "idle",
   );
@@ -672,6 +705,47 @@ export default function AgentClient() {
         "inrcy:ai-configuration-updated",
         handleAiConfigurationUpdated,
       );
+    };
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+
+    async function loadMetaPublicationPreferences() {
+      const [instagramResult, facebookResult] = await Promise.allSettled([
+        fetch("/api/integrations/instagram/publication-preferences", {
+          cache: "no-store",
+        }),
+        fetch("/api/integrations/facebook/publication-preferences", {
+          cache: "no-store",
+        }),
+      ]);
+      if (!alive) return;
+
+      if (
+        instagramResult.status === "fulfilled" &&
+        instagramResult.value.ok
+      ) {
+        const payload = await instagramResult.value.json().catch(() => ({}));
+        if (alive) {
+          setInstagramPublicationPreferences(
+            normalizeInstagramPublicationPreferences(payload?.preferences),
+          );
+        }
+      }
+      if (facebookResult.status === "fulfilled" && facebookResult.value.ok) {
+        const payload = await facebookResult.value.json().catch(() => ({}));
+        if (alive) {
+          setFacebookPublicationPreferences(
+            normalizeFacebookPublicationPreferences(payload?.preferences),
+          );
+        }
+      }
+    }
+
+    loadMetaPublicationPreferences().catch(() => undefined);
+    return () => {
+      alive = false;
     };
   }, []);
 
@@ -974,6 +1048,47 @@ export default function AgentClient() {
         publishMediaActiveIndex,
       )
     : null;
+  const activeMetaPublicationChannel = isInrAgentMetaChannel(
+    activePreviewChannel,
+  )
+    ? activePreviewChannel
+    : null;
+  const publishPlacement: InrAgentPublicationPlacement =
+    selectedPreparedAction && activeMetaPublicationChannel
+      ? readInrAgentPublicationPlacement(
+          selectedPreparedAction.payload,
+          activeMetaPublicationChannel,
+        )
+      : "classic";
+  const publishPlacementOptions: InrAgentPublicationPlacement[] =
+    activeMetaPublicationChannel === "instagram"
+      ? getEnabledInstagramPublicationPlacements(
+          instagramPublicationPreferences,
+        )
+      : activeMetaPublicationChannel === "facebook"
+        ? getEnabledFacebookPublicationPlacements(
+            facebookPublicationPreferences,
+          )
+        : ["classic"];
+  const publishPlacementEnabled =
+    activeMetaPublicationChannel === "instagram"
+      ? isInstagramPublicationPlacementEnabled(
+          publishPlacement as InstagramPublicationPlacement,
+          instagramPublicationPreferences,
+        )
+      : activeMetaPublicationChannel === "facebook"
+        ? isFacebookPublicationPlacementEnabled(
+            publishPlacement as FacebookPublicationPlacement,
+            facebookPublicationPreferences,
+          )
+        : publishPlacement === "classic";
+  const publishMediaOnly = Boolean(
+    activeMetaPublicationChannel && publishPlacement !== "classic",
+  );
+  const publishHasUsableMedia = Boolean(
+    publishMediaPreview?.kind === "image" ||
+      publishMediaPreview?.kind === "video",
+  );
   const publishImageCount =
     publishMediaPreview?.kind === "image" ? publishMediaPreview.count : 0;
   const publishImageLimitReached =
@@ -1078,19 +1193,50 @@ export default function AgentClient() {
           selectedPreparedAction,
           channel,
         );
+        const metaChannel = isInrAgentMetaChannel(channel) ? channel : null;
+        const placement = metaChannel
+          ? readInrAgentPublicationPlacement(
+              selectedPreparedAction.payload,
+              metaChannel,
+            )
+          : "classic";
+        const mediaOnly = Boolean(metaChannel && placement !== "classic");
+        const placementAllowed =
+          metaChannel === "instagram"
+            ? isInstagramPublicationPlacementEnabled(
+                placement as InstagramPublicationPlacement,
+                instagramPublicationPreferences,
+              )
+            : metaChannel === "facebook"
+              ? isFacebookPublicationPlacementEnabled(
+                  placement as FacebookPublicationPlacement,
+                  facebookPublicationPreferences,
+                )
+              : true;
         const hasText = Boolean(
-          preview?.title ||
-          preview?.body ||
-          preview?.cta ||
-          preview?.hashtags.length ||
-          selectedPreparedAction.summary,
+          !mediaOnly &&
+            (preview?.title ||
+              preview?.body ||
+              preview?.cta ||
+              preview?.hashtags.length ||
+              selectedPreparedAction.summary),
         );
         const blockers: string[] = [];
         if (media.statusTone === "blocked" && media.statusLabel) {
           blockers.push(agentMediaStatusLabel(media.statusLabel, runtimeT));
         }
-        if (!hasText && media.kind === "none") {
+        if (!mediaOnly && !hasText && media.kind === "none") {
           blockers.push(i18nT("publish_requires_content"));
+        }
+        if (mediaOnly && media.kind === "none") {
+          blockers.push(i18nT("publication_mode_requires_media"));
+        }
+        if (mediaOnly && !placementAllowed) {
+          blockers.push(
+            placement === "story"
+              ? i18nT("publication_mode_story_disabled")
+              : i18nT("publication_mode_reel_disabled"),
+          );
         }
         if (channel === "youtube" && media.kind !== "video") {
           blockers.push(i18nT("youtube_requires_video"));
@@ -1112,12 +1258,21 @@ export default function AgentClient() {
         return {
           channel: boosterChannel,
           label: agentChannelLabel(channel, runtimeT),
-          mediaLabel: agentContentKindLabel(media.kind, hasText, runtimeT),
+          mediaLabel: mediaOnly
+            ? `${placement === "story" ? i18nT("publication_mode_story") : i18nT("publication_mode_reel")} · ${i18nT("publication_mode_media_only")}`
+            : agentContentKindLabel(media.kind, hasText, runtimeT),
           blockers: Array.from(new Set(blockers)),
         } satisfies PublishScheduleItem;
       })
       .filter((item): item is PublishScheduleItem => Boolean(item));
-  }, [i18nT, isPublishView, preparedChannels, selectedPreparedAction]);
+  }, [
+    facebookPublicationPreferences,
+    i18nT,
+    instagramPublicationPreferences,
+    isPublishView,
+    preparedChannels,
+    selectedPreparedAction,
+  ]);
   const publishCtaLine = isPublishView
     ? (() => {
         const preview = preparedChannelPreview;
@@ -1995,6 +2150,75 @@ export default function AgentClient() {
         action.id === updatedAction.id ? updatedAction : action,
       ),
     );
+  }
+
+  async function savePublishPlacement(
+    nextPlacement: InrAgentPublicationPlacement,
+  ) {
+    if (
+      !selectedPreparedAction ||
+      !activeMetaPublicationChannel ||
+      publishPlacementSaveState === "saving"
+    ) {
+      return;
+    }
+    if (nextPlacement !== "classic" && !publishHasUsableMedia) {
+      showNotice(i18nT("publication_mode_requires_media"));
+      return;
+    }
+
+    setPublishPlacementSaveState("saving");
+    setNotice(null);
+    try {
+      if (scheduledEditSession) {
+        updateScheduledEditAction((action) =>
+          updateScheduledEditPublishPlacement(
+            action,
+            activeMetaPublicationChannel,
+            nextPlacement,
+          ),
+        );
+      } else {
+        const response = await fetch("/api/agent/actions", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            actionId: selectedPreparedAction.id,
+            editType: "publish_channel_placement",
+            channel: activeMetaPublicationChannel,
+            placement: nextPlacement,
+          }),
+        });
+        const payload = (await response.json().catch(() => null)) as {
+          action?: AgentPreparedAction;
+          error?: string;
+        } | null;
+        if (!response.ok || !payload?.action) {
+          throw new Error(
+            payload?.error || i18nT("publication_mode_update_failed"),
+          );
+        }
+        const updatedAction = payload.action;
+        setActions((current) =>
+          current.map((action) =>
+            action.id === updatedAction.id ? updatedAction : action,
+          ),
+        );
+      }
+      showNotice(
+        nextPlacement === "classic"
+          ? i18nT("publication_mode_classic_saved")
+          : i18nT("publication_mode_media_only_saved"),
+      );
+    } catch (error) {
+      showNotice(
+        error instanceof Error
+          ? error.message
+          : i18nT("publication_mode_update_failed"),
+      );
+    } finally {
+      setPublishPlacementSaveState("idle");
+    }
   }
 
   async function uploadPublishMedia(
@@ -4606,9 +4830,49 @@ export default function AgentClient() {
                         <span className={styles.campaignInfoIcon} aria-hidden>
                           <AutomationIcon type="publish" />
                         </span>
-                        <span>
+                        <span className={styles.publishChannelCardMain}>
                           <small>{i18nT("canal_61f21e6f")}</small>
                           <strong>{activePreviewChannelLabel}</strong>
+                          <select
+                            className={styles.publishPlacementSelect}
+                            value={publishPlacement}
+                            onChange={(event) => {
+                              void savePublishPlacement(
+                                event.target.value as InrAgentPublicationPlacement,
+                              );
+                            }}
+                            disabled={
+                              !selectedPreparedAction ||
+                              !activeMetaPublicationChannel ||
+                              !canReviewSelectedAction ||
+                              actionMutationState === "saving" ||
+                              publishPlacementSaveState === "saving"
+                            }
+                            aria-label={i18nT("publication_mode_label")}
+                            title={
+                              activeMetaPublicationChannel
+                                ? i18nT("publication_mode_help")
+                                : i18nT("publication_mode_classic_only")
+                            }
+                          >
+                            {!publishPlacementEnabled &&
+                            publishPlacement !== "classic" ? (
+                              <option value={publishPlacement} disabled>
+                                {publishPlacement === "reel"
+                                  ? i18nT("publication_mode_reel_disabled")
+                                  : i18nT("publication_mode_story_disabled")}
+                              </option>
+                            ) : null}
+                            {publishPlacementOptions.map((placement) => (
+                              <option key={placement} value={placement}>
+                                {placement === "reel"
+                                  ? i18nT("publication_mode_reel")
+                                  : placement === "story"
+                                    ? i18nT("publication_mode_story")
+                                    : i18nT("publication_mode_classic")}
+                              </option>
+                            ))}
+                          </select>
                         </span>
                       </article>
                       <button
@@ -4617,12 +4881,15 @@ export default function AgentClient() {
                         onClick={openPublishTextEditor}
                         disabled={
                           !selectedPreparedAction ||
+                          publishMediaOnly ||
                           !canReviewSelectedAction ||
                           actionMutationState === "saving"
                         }
                         title={
                           selectedPreparedAction
-                            ? i18nT("edit_content")
+                            ? publishMediaOnly
+                              ? i18nT("publication_mode_media_only_help")
+                              : i18nT("edit_content")
                             : i18nT("no_publication_prepared")
                         }
                       >
@@ -4631,7 +4898,11 @@ export default function AgentClient() {
                         </span>
                         <span>
                           <small>{i18nT("contenu_f3cb82af")}</small>
-                          <strong>{publishContentKind}</strong>
+                          <strong>
+                            {publishMediaOnly
+                              ? i18nT("publication_mode_media_only")
+                              : publishContentKind}
+                          </strong>
                         </span>
                         <span className={styles.campaignInfoEye} aria-hidden>
                           👁
@@ -4749,6 +5020,7 @@ export default function AgentClient() {
                         <article
                           className={styles.publishPostCard}
                           data-has-media={Boolean(publishMediaPreview?.url)}
+                          data-media-only={publishMediaOnly}
                         >
                           {publishMediaPreview?.url ? (
                             <section
@@ -4823,6 +5095,17 @@ export default function AgentClient() {
                               ) : null}
                             </section>
                           ) : null}
+                          {publishMediaOnly ? (
+                            <div className={styles.publishMediaOnlyNotice}>
+                              <span aria-hidden>🎬</span>
+                              <strong>
+                                {publishPlacement === "story"
+                                  ? i18nT("publication_mode_story")
+                                  : i18nT("publication_mode_reel")}
+                              </strong>
+                              <p>{i18nT("publication_mode_media_only_help")}</p>
+                            </div>
+                          ) : (
                           <div className={styles.publishPostText}>
                             <div className={styles.publishTitleLine}>
                               <span>{i18nT("titre_d03e0c7c")}</span>
@@ -4872,13 +5155,27 @@ export default function AgentClient() {
                               ) : null}
                             </div>
                           </div>
+                          )}
                         </article>
-                        <div className={styles.publishCtaStandalone}>
-                          <div className={styles.publishCtaLine}>
-                            <span>{i18nT("cta_4f4f1f7e")}</span>
-                            <strong>{publishCtaLine}</strong>
+                        {publishMediaOnly ? (
+                          <div
+                            className={`${styles.publishCtaStandalone} ${styles.publishCtaDisabled}`}
+                          >
+                            <div className={styles.publishCtaLine}>
+                              <span>{i18nT("cta_4f4f1f7e")}</span>
+                              <strong>
+                                {i18nT("publication_mode_cta_disabled")}
+                              </strong>
+                            </div>
                           </div>
-                        </div>
+                        ) : (
+                          <div className={styles.publishCtaStandalone}>
+                            <div className={styles.publishCtaLine}>
+                              <span>{i18nT("cta_4f4f1f7e")}</span>
+                              <strong>{publishCtaLine}</strong>
+                            </div>
+                          </div>
+                        )}
                       </div>
                       <button
                         type="button"

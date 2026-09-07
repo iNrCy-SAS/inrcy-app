@@ -63,6 +63,12 @@ export {
 export type {
   InstagramPublicationPlacement,
 } from "@/lib/instagramPublicationPreferences";
+export {
+  normalizeFacebookPublicationPlacement,
+} from "@/lib/facebookPublicationPreferences";
+export type {
+  FacebookPublicationPlacement,
+} from "@/lib/facebookPublicationPreferences";
 export type { BoosterCtaMode } from "@/lib/boosterCta";
 
 export type ChannelKey =

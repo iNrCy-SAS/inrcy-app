@@ -9167,6 +9167,48 @@ button.campaignInfoRecipients:hover {
   gap: clamp(12px, 1.2vw, 18px);
 }
 
+.publishChannelCardMain {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: 3px;
+}
+
+.publishPlacementSelect {
+  width: min(100%, 154px);
+  min-width: 0;
+  height: 27px;
+  margin-top: 3px;
+  padding: 0 27px 0 10px;
+  border: 1px solid rgba(125, 211, 252, 0.3);
+  border-radius: 999px;
+  color: rgba(247, 250, 255, 0.96);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 850;
+  line-height: 1;
+  text-overflow: ellipsis;
+  background: rgba(7, 23, 56, 0.9);
+  box-shadow: inset 0 0 14px rgba(56, 189, 248, 0.06);
+  cursor: pointer;
+  outline: none;
+}
+
+.publishPlacementSelect:focus-visible {
+  border-color: rgba(125, 211, 252, 0.85);
+  box-shadow:
+    0 0 0 2px rgba(56, 189, 248, 0.16),
+    inset 0 0 14px rgba(56, 189, 248, 0.1);
+}
+
+.publishPlacementSelect:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
 .publishInfoChannel .campaignInfoIcon {
   background: linear-gradient(
     135deg,
@@ -9259,6 +9301,41 @@ button.campaignInfoRecipients:hover {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   gap: 14px;
+}
+
+.publishMediaOnlyNotice {
+  min-width: 0;
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  padding: clamp(18px, 2vw, 32px);
+  border: 1px solid rgba(125, 211, 252, 0.2);
+  border-radius: 18px;
+  color: rgba(226, 242, 255, 0.78);
+  text-align: center;
+  background:
+    radial-gradient(circle at 50% 25%, rgba(56, 189, 248, 0.13), transparent 42%),
+    rgba(7, 20, 48, 0.28);
+}
+
+.publishMediaOnlyNotice > span {
+  font-size: clamp(28px, 2.5vw, 42px);
+  filter: drop-shadow(0 0 16px rgba(56, 189, 248, 0.28));
+}
+
+.publishMediaOnlyNotice strong {
+  color: #f8fbff;
+  font-size: clamp(18px, 1.4vw, 24px);
+  font-weight: 950;
+}
+
+.publishMediaOnlyNotice p {
+  max-width: 420px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 .publishPostContent {
@@ -14826,6 +14903,22 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   white-space: normal;
 }
 
+.publishCtaDisabled {
+  border-color: rgba(250, 204, 21, 0.22);
+  background:
+    radial-gradient(circle at 4% 50%, rgba(250, 204, 21, 0.08), transparent 30%),
+    linear-gradient(135deg, rgba(19, 28, 52, 0.88), rgba(31, 24, 52, 0.86));
+  opacity: 0.82;
+}
+
+.publishCtaDisabled .publishCtaLine span {
+  color: rgba(250, 204, 21, 0.86);
+}
+
+.publishCtaDisabled .publishCtaLine strong {
+  color: rgba(226, 232, 240, 0.76);
+}
+
 .publishCtaStandalone .publishPostCounter {
   position: static;
   left: auto;
@@ -17709,5 +17802,250 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   .previewMetaPublish .channelNavArrow svg {
     width: 17px !important;
     height: 17px !important;
+  }
+}
+
+/* iNrAgent Publier — rail de canaux uniforme et stable au zoom. */
+.previewMetaPublish .channelScroller button {
+  box-sizing: border-box !important;
+  display: grid !important;
+  place-items: center !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  isolation: isolate !important;
+  padding: 3px !important;
+  border: 1px solid rgba(173, 216, 255, 0.52) !important;
+  border-radius: 50% !important;
+  outline: none !important;
+  background:
+    radial-gradient(circle at 32% 22%, rgba(255, 255, 255, 0.18), transparent 38%),
+    linear-gradient(155deg, rgba(22, 48, 96, 0.98), rgba(13, 23, 58, 0.98)) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -5px 10px rgba(2, 6, 23, 0.2),
+    0 3px 8px rgba(2, 6, 23, 0.24) !important;
+  transform: none !important;
+}
+
+.previewMetaPublish .channelScroller button::before {
+  inset: 1px !important;
+  border-radius: 50% !important;
+}
+
+.previewMetaPublish .channelScroller button::after {
+  inset: 0 !important;
+  border-radius: 50% !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08) !important;
+}
+
+.previewMetaPublish .channelScroller button img {
+  position: absolute !important;
+  z-index: 1 !important;
+  inset: auto !important;
+  top: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: 50% !important;
+  display: block !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 50% !important;
+  object-fit: contain !important;
+  object-position: 50% 50% !important;
+  clip-path: none !important;
+  background: rgba(255, 255, 255, 0.98) !important;
+  transform: translate(-50%, -50%) !important;
+  pointer-events: none !important;
+}
+
+.previewMetaPublish .channelScroller button:hover:not(:disabled),
+.previewMetaPublish .channelScroller button.channelPillActive {
+  border-color: rgba(125, 225, 255, 0.92) !important;
+  background:
+    radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.24), transparent 38%),
+    linear-gradient(145deg, rgba(33, 92, 172, 0.98), rgba(94, 52, 173, 0.96)) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    inset 0 0 0 1px rgba(125, 211, 252, 0.18),
+    0 0 0 1px rgba(56, 189, 248, 0.18),
+    0 4px 9px rgba(2, 6, 23, 0.26) !important;
+  transform: none !important;
+}
+
+.previewMetaPublish .channelScroller button:focus-visible {
+  border-color: #f8fbff !important;
+  box-shadow:
+    inset 0 0 0 2px rgba(125, 211, 252, 0.9),
+    0 3px 8px rgba(2, 6, 23, 0.24) !important;
+}
+
+.previewMetaPublish .channelScroller button:disabled {
+  transform: none !important;
+}
+
+@media (min-width: 761px) {
+  .previewMetaPublish .channelScroller {
+    gap: 3px !important;
+    padding-inline: 2px !important;
+  }
+
+  .previewMetaPublish .channelScroller button {
+    width: 32px !important;
+    min-width: 32px !important;
+    max-width: 32px !important;
+    height: 32px !important;
+    min-height: 32px !important;
+    max-height: 32px !important;
+    flex: 0 0 32px !important;
+  }
+
+  .previewMetaPublish .channelScroller button img {
+    width: 24px !important;
+    height: 24px !important;
+    max-width: 24px !important;
+    max-height: 24px !important;
+    clip-path: none !important;
+  }
+
+  .previewMetaPublish .channelScroller button[data-channel="siteInrcy"] img {
+    width: 24px !important;
+    height: 24px !important;
+    max-width: 24px !important;
+    max-height: 24px !important;
+    transform: translate(-50%, -50%) !important;
+  }
+
+  .previewMetaPublish .channelScroller button[data-channel="gmb"] img {
+    width: 24px !important;
+    height: 24px !important;
+    max-width: 24px !important;
+    max-height: 24px !important;
+    object-fit: contain !important;
+    transform: translate(-50%, -50%) !important;
+  }
+
+  .previewMetaPublish
+    .channelScroller
+    button[data-channel="linkedin"]
+    img.channelLogoLinkedin {
+    width: 24px !important;
+    height: 24px !important;
+    max-width: 24px !important;
+    max-height: 24px !important;
+    clip-path: none !important;
+    transform: translate(-50%, -50%) !important;
+  }
+}
+
+@media (min-width: 1251px) and (max-width: 1500px) {
+  .previewMetaPublish .channelScroller {
+    gap: 3px !important;
+  }
+
+  .previewMetaPublish .channelScroller button {
+    width: 30px !important;
+    min-width: 30px !important;
+    max-width: 30px !important;
+    height: 30px !important;
+    min-height: 30px !important;
+    max-height: 30px !important;
+    flex: 0 0 30px !important;
+  }
+
+  .previewMetaPublish .channelScroller button img,
+  .previewMetaPublish .channelScroller button[data-channel="siteInrcy"] img,
+  .previewMetaPublish .channelScroller button[data-channel="gmb"] img,
+  .previewMetaPublish
+    .channelScroller
+    button[data-channel="linkedin"]
+    img.channelLogoLinkedin {
+    width: 22px !important;
+    height: 22px !important;
+    max-width: 22px !important;
+    max-height: 22px !important;
+  }
+}
+
+@media (min-width: 761px) and (max-width: 1000px) {
+  .previewMetaPublish .channelScroller {
+    gap: 3px !important;
+  }
+
+  .previewMetaPublish .channelScroller button {
+    width: 24px !important;
+    min-width: 24px !important;
+    max-width: 24px !important;
+    height: 24px !important;
+    min-height: 24px !important;
+    max-height: 24px !important;
+    flex: 0 0 24px !important;
+    padding: 2px !important;
+  }
+
+  .previewMetaPublish .channelScroller button img,
+  .previewMetaPublish .channelScroller button[data-channel="siteInrcy"] img,
+  .previewMetaPublish .channelScroller button[data-channel="gmb"] img,
+  .previewMetaPublish
+    .channelScroller
+    button[data-channel="linkedin"]
+    img.channelLogoLinkedin {
+    width: 20px !important;
+    height: 20px !important;
+    max-width: 20px !important;
+    max-height: 20px !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .previewMetaPublish .channelScroller {
+    gap: 4px !important;
+  }
+
+  .previewMetaPublish .channelScroller button {
+    width: 28px !important;
+    min-width: 28px !important;
+    max-width: 28px !important;
+    height: 28px !important;
+    min-height: 28px !important;
+    max-height: 28px !important;
+    flex: 0 0 28px !important;
+  }
+
+  .previewMetaPublish .channelScroller button img {
+    width: 22px !important;
+    height: 22px !important;
+    max-width: 22px !important;
+    max-height: 22px !important;
+    clip-path: none !important;
+  }
+
+  .previewMetaPublish .channelScroller button[data-channel="siteInrcy"] img {
+    width: 22px !important;
+    height: 22px !important;
+    max-width: 22px !important;
+    max-height: 22px !important;
+    transform: translate(-50%, -50%) !important;
+  }
+
+  .previewMetaPublish .channelScroller button[data-channel="gmb"] img {
+    width: 22px !important;
+    height: 22px !important;
+    max-width: 22px !important;
+    max-height: 22px !important;
+    object-fit: contain !important;
+    transform: translate(-50%, -50%) !important;
+  }
+
+  .previewMetaPublish
+    .channelScroller
+    button[data-channel="linkedin"]
+    img.channelLogoLinkedin {
+    width: 22px !important;
+    height: 22px !important;
+    max-width: 22px !important;
+    max-height: 22px !important;
+    clip-path: none !important;
+    transform: translate(-50%, -50%) !important;
   }
 }

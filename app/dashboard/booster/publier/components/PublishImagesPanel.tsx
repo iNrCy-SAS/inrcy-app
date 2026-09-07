@@ -38,6 +38,7 @@ import {
 import { pillBtn, pillBtnActive } from "../publishModal.styles";
 import { getImageChannelAction } from "../imageChannelAssignment";
 import { getVideoChannelAction } from "../videoChannelAssignment";
+import ChannelNavigationRail from "./ChannelNavigationRail";
 import PublishStepTitle from "./PublishStepTitle";
 
 type PublishModalStyles = Readonly<Record<string, string>>;
@@ -565,8 +566,12 @@ export default function PublishImagesPanel({
 
       {selectedChannels.length ? (
         <div style={{ display: "grid", gap: 12 }}>
-          <div
-            style={{
+          <ChannelNavigationRail
+            items={selectedChannels}
+            activeItem={activeImageChannel}
+            onSelect={setSynchronizedActiveChannel}
+            navigationLabel={i18nT("medias_de_la_publication_12d110a4")}
+            trackStyle={{
               display: "grid",
               gridTemplateColumns: isMobile
                 ? "repeat(2, minmax(0, 1fr))"
@@ -699,7 +704,7 @@ export default function PublishImagesPanel({
                 </button>
               );
             })}
-          </div>
+          </ChannelNavigationRail>
 
           <div
             role="status"

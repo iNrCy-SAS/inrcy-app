@@ -597,15 +597,15 @@ const updateRootSettingsKey = useCallback(
       nextObj && typeof nextObj === "object" && !Array.isArray(nextObj)
         ? nextObj
         : {};
-    const preservedInstagramPreferences =
-      key === "instagram" &&
+    const preservedPublicationPreferences =
+      (key === "instagram" || key === "facebook") &&
       currentChannel.publicationPreferences !== undefined &&
       nextChannel.publicationPreferences === undefined
         ? { publicationPreferences: currentChannel.publicationPreferences }
         : {};
     const merged = {
       ...(current ?? {}),
-      [key]: { ...preservedInstagramPreferences, ...nextChannel },
+      [key]: { ...preservedPublicationPreferences, ...nextChannel },
     };
 
     await supabase.from("pro_tools_configs").upsert({ user_id: scopedUserId, settings: merged }, { onConflict: "user_id" });
@@ -746,6 +746,13 @@ const {
   setFacebookAccountEmail,
   facebookUrlNotice,
   facebookUrlError,
+  facebookPublicationPreferences,
+  facebookPublicationPreferencesLoading,
+  facebookPublicationPreferencesSaving,
+  facebookPublicationPreferencesNotice,
+  facebookPublicationPreferencesError,
+  updateFacebookPublicationPreferences,
+  saveFacebookPublicationPreferences,
   fbPages,
   fbPagesLoading,
   fbPagesPhase,

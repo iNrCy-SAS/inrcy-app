@@ -23,6 +23,9 @@ import {
   normalizeCtaWebsiteUrl,
 } from "@/lib/boosterCtaPreferences";
 import { loadBoosterCtaDefaults } from "@/lib/boosterCtaDefaultsServer";
+import {
+  publicationSettingsForInrAgentChannel,
+} from "@/lib/inrAgentPublicationPlacement";
 
 export const maxDuration = 180;
 export const runtime = "nodejs";
@@ -293,8 +296,9 @@ function getAgentMediaRecord(payload: JsonRecord) {
 async function buildImagePayloadFromAgentAction(
   payload: JsonRecord,
   actionId: string,
+  mediaOverride?: JsonRecord,
 ) {
-  const media = getAgentMediaRecord(payload);
+  const media = mediaOverride || getAgentMediaRecord(payload);
   if (!media || isVideoMedia(media)) return null;
 
   const bucket =
@@ -304,6 +308,23 @@ async function buildImagePayloadFromAgentAction(
     800,
   );
   const title = cleanText(media.title || media.name || "image-iNrAgent", 120);
+
+  const dataUrl = cleanText(media.dataUrl || media.data_url, 20_000_000);
+  if (dataUrl.startsWith("data:image/")) {
+    const mime =
+      cleanText(media.type || media.mimeType || media.mime_type, 120) ||
+      dataUrl.slice(5, dataUrl.indexOf(";")) ||
+      "image/jpeg";
+    return {
+      ...media,
+      name: cleanText(media.name, 180) || `${title}.jpg`,
+      type: mime,
+      dataUrl,
+      originalName: cleanText(media.originalName, 180) || title,
+      originalType: cleanText(media.originalType, 120) || mime,
+      imageKey: cleanText(media.imageKey || media.id || actionId, 120),
+    };
+  }
 
   if (storagePath) {
     const download = await supabaseAdmin.storage
@@ -359,6 +380,62 @@ async function buildImagePayloadFromAgentAction(
     imageKey: cleanText(media.id || actionId, 120),
     imageMeta: { source: cleanText(media.source, 120) || "inr_agent", title },
   };
+}
+
+function imageCandidatesFromChannelMap(value: unknown) {
+  const record = asRecord(value);
+  if (!record) return [];
+  return Object.values(record).flatMap((item) =>
+    Array.isArray(item) ? item : item ? [item] : [],
+  );
+}
+
+async function buildImagePayloadsFromAgentAction(
+  payload: JsonRecord,
+  actionId: string,
+  actionImageAssets: unknown[],
+) {
+  const publishPayload = asRecord(payload.publishPayload) || {};
+  const candidates = [
+    ...imageCandidatesFromChannelMap(payload.imagesByChannel),
+    ...imageCandidatesFromChannelMap(publishPayload.imagesByChannel),
+    ...(Array.isArray(payload.images) ? payload.images : []),
+    ...(Array.isArray(publishPayload.images) ? publishPayload.images : []),
+    ...(Array.isArray(payload.mediaAssets) ? payload.mediaAssets : []),
+    ...(Array.isArray(actionImageAssets) ? actionImageAssets : []),
+    getAgentMediaRecord(payload),
+  ]
+    .map((item) => asRecord(item))
+    .filter((item): item is JsonRecord => Boolean(item) && !isVideoMedia(item));
+  const seen = new Set<string>();
+  const unique = candidates.filter((media) => {
+    const key = cleanText(
+      media.imageKey ||
+        media.id ||
+        media.storagePath ||
+        media.storage_path ||
+        media.path ||
+        media.url ||
+        media.publicUrl ||
+        media.dataUrl,
+      20_000_000,
+    );
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  const images: Array<
+    NonNullable<Awaited<ReturnType<typeof buildImagePayloadFromAgentAction>>>
+  > = [];
+  for (const media of unique.slice(0, 5)) {
+    const image = await buildImagePayloadFromAgentAction(
+      payload,
+      actionId,
+      media,
+    );
+    if (image) images.push(image);
+  }
+  return images;
 }
 
 async function buildVideoPayloadFromAgentAction(payload: JsonRecord) {
@@ -812,10 +889,12 @@ async function executeAgentActionHandler(request: Request) {
     : normalizeBoosterChannels(
         payload.selectedChannels || payload.channels || action.targetChannels,
       );
-  const imagePayload = await buildImagePayloadFromAgentAction(
+  const imagePayloads = await buildImagePayloadsFromAgentAction(
     payload,
     actionId,
+    action.imageAssets,
   );
+  const imagePayload = imagePayloads[0] || null;
   const videoPayload = await buildVideoPayloadFromAgentAction(payload);
   const hasImagePayload = Boolean(imagePayload);
   const hasVideoPayload = Boolean(videoPayload);
@@ -824,9 +903,18 @@ async function executeAgentActionHandler(request: Request) {
     : hasImagePayload
       ? "images"
       : "none";
+  const instagramPublicationSettings = selectedChannels.includes("instagram")
+    ? publicationSettingsForInrAgentChannel(payload, "instagram")
+    : null;
+  const facebookPublicationSettings = selectedChannels.includes("facebook")
+    ? publicationSettingsForInrAgentChannel(payload, "facebook")
+    : null;
   const publishChannels = selectedChannels.filter((channel) => {
     if (activeMediaMode === "video") return true;
     if (isVideoOnlyChannel(channel)) return false;
+    if (channel === "facebook" && facebookPublicationSettings) {
+      return hasImagePayload;
+    }
     if (isImageRequiredChannel(channel)) return hasImagePayload;
     return canPublishWithoutMedia(channel) || hasImagePayload;
   });
@@ -903,10 +991,10 @@ async function executeAgentActionHandler(request: Request) {
           })
         : {};
     const preparedImages =
-      activeMediaMode === "images" && imagePayload
+      activeMediaMode === "images" && imagePayloads.length
         ? await prepareBoosterImagesByChannelOnServer({
             channels: publishChannels,
-            images: [imagePayload],
+            images: imagePayloads,
             automaticFit: "contain",
           })
         : { imagesByChannel: {}, imageSettingsByChannel: {}, warnings: [] };
@@ -919,11 +1007,15 @@ async function executeAgentActionHandler(request: Request) {
       mediaType: activeMediaMode === "video" ? "video" : "images",
       mediaModeByChannel,
       videoSettingsByChannel,
-      images: imagePayload ? [imagePayload] : [],
+      images: imagePayloads,
       imagesByChannel: preparedImages.imagesByChannel,
       imageSettingsByChannel: preparedImages.imageSettingsByChannel,
       imagePreparationWarnings: preparedImages.warnings,
       video: videoPayload,
+      ...(instagramPublicationSettings
+        ? { instagramPublicationSettings }
+        : {}),
+      ...(facebookPublicationSettings ? { facebookPublicationSettings } : {}),
       workflowTool: "booster",
       workflowAction: "publier",
       source: "inr_agent",

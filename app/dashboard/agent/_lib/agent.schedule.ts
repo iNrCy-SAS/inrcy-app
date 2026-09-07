@@ -4,6 +4,11 @@ import {
   isInrAgentScheduledMonthDay,
   normalizeInrAgentMonthDays,
 } from "@/lib/inrAgentMonthSchedule";
+import {
+  applyInrAgentPublicationPlacement,
+  type InrAgentMetaChannel,
+  type InrAgentPublicationPlacement,
+} from "@/lib/inrAgentPublicationPlacement";
 import type {
   ChannelKey as BoosterChannelKey,
   BoosterCtaMode,
@@ -496,6 +501,29 @@ export function updateScheduledEditPublishText(
   };
 }
 
+export function updateScheduledEditPublishPlacement(
+  action: AgentPreparedAction,
+  channel: InrAgentMetaChannel,
+  placement: InrAgentPublicationPlacement,
+): AgentPreparedAction {
+  const payload = jsonClone(action.payload || {});
+  const nextPayload = applyInrAgentPublicationPlacement(
+    payload,
+    channel,
+    placement,
+  );
+  nextPayload.lastManualEdit = {
+    channel,
+    placement,
+    editedAt: new Date().toISOString(),
+    editType: "publish_channel_placement",
+  };
+  return {
+    ...action,
+    payload: nextPayload,
+  };
+}
+
 export function removeScheduledEditPublishChannel(
   action: AgentPreparedAction,
   channel: ChannelKey,
@@ -940,7 +968,7 @@ export function scheduledEditUpdateFromAction(
         ? publishPayload.images
         : [];
     const video = asRecord(payload.video) || asRecord(publishPayload.video) || null;
-    const nextPublishPayload = {
+    const nextPublishPayload: Record<string, unknown> = {
       ...publishPayload,
       channels,
       post: firstPost,
@@ -987,6 +1015,14 @@ export function scheduledEditUpdateFromAction(
         action.id,
       ),
     };
+    if (!channels.includes("instagram")) {
+      delete nextPublishPayload.instagramPublicationSettings;
+      delete nextPublishPayload.instagramPublicationPlacement;
+    }
+    if (!channels.includes("facebook")) {
+      delete nextPublishPayload.facebookPublicationSettings;
+      delete nextPublishPayload.facebookPublicationPlacement;
+    }
 
     return {
       title: action.title || "Publication programmée",

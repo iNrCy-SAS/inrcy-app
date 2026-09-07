@@ -176,6 +176,16 @@ function getChannelMediaSignature(payload: unknown, channel: BoosterChannel) {
     }
   }
 
+  if (channel === "facebook") {
+    const settings = asRecord(publishPayload.facebookPublicationSettings);
+    const placement = cleanText(settings?.placement || settings?.mode, 20);
+    if (["reel", "reels", "story", "stories"].includes(placement)) {
+      mediaKeys.add(
+        `facebook-placement:${placement.startsWith("stor") ? "story" : "reel"}`,
+      );
+    }
+  }
+
   if (mediaMode === "video") {
     getMediaIdentities(videoByChannel?.[channel]).forEach((key) => mediaKeys.add(key));
     getMediaIdentities(publishPayload.video).forEach((key) => mediaKeys.add(key));

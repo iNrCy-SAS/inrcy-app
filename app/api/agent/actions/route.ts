@@ -23,6 +23,19 @@ import {
   INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT,
 } from "@/lib/mediaRules";
 import {
+  isInstagramPublicationPlacementEnabled,
+  normalizeInstagramPublicationPreferences,
+} from "@/lib/instagramPublicationPreferences";
+import {
+  isFacebookPublicationPlacementEnabled,
+  normalizeFacebookPublicationPreferences,
+} from "@/lib/facebookPublicationPreferences";
+import {
+  applyInrAgentPublicationPlacement,
+  isInrAgentMetaChannel,
+  normalizeInrAgentPublicationPlacement,
+} from "@/lib/inrAgentPublicationPlacement";
+import {
   getDashboardEditionForAuthUser,
   premiumRequiredApiResponse,
 } from "@/lib/dashboardEditionServer";
@@ -1336,6 +1349,7 @@ export async function PATCH(request: Request) {
     accountId?: unknown;
     attachments?: unknown;
     channel?: unknown;
+    placement?: unknown;
     title?: unknown;
     content?: unknown;
     cta?: unknown;
@@ -1746,6 +1760,206 @@ export async function PATCH(request: Request) {
       remainingChannels,
       saved: true,
     });
+  }
+
+  if (editType === "publish_channel_placement") {
+    if (!actionId) {
+      return NextResponse.json({ error: "Action invalide" }, { status: 400 });
+    }
+
+    const channel = cleanPublishChannel(requestBody?.channel);
+    if (!isInrAgentMetaChannel(channel)) {
+      return NextResponse.json(
+        {
+          error:
+            "Les formats Classique, Reel et Story sont réservés à Facebook et Instagram.",
+        },
+        { status: 400 },
+      );
+    }
+    const placement = normalizeInrAgentPublicationPlacement(
+      requestBody?.placement,
+    );
+
+    const { data: currentRow, error: readError } = await supabaseAdmin
+      .from("inr_agent_actions")
+      .select(ACTION_SELECT)
+      .eq("id", actionId)
+      .eq("user_id", activeUserId)
+      .single();
+
+    if (readError || !currentRow) {
+      if (isMissingTableError(readError)) {
+        return NextResponse.json(
+          {
+            error: "La table inr_agent_actions doit être créée dans Supabase.",
+            tableMissing: true,
+          },
+          { status: 500 },
+        );
+      }
+      return NextResponse.json(
+        { error: "Action iNr’Agent introuvable." },
+        { status: 404 },
+      );
+    }
+
+    const currentAction = rowToInrAgentAction(currentRow as any);
+    if (!isPublishAction(currentAction)) {
+      return NextResponse.json(
+        {
+          error:
+            "Cette modification est réservée aux publications Booster préparées par iNr’Agent.",
+        },
+        { status: 400 },
+      );
+    }
+
+    const currentPayload = currentAction.payload || {};
+    const currentPublishPayload = asRecord(currentPayload.publishPayload) || {};
+    const currentChannels = normalizePublishChannels([
+      ...currentAction.targetChannels,
+      ...(Array.isArray(currentPayload.selectedChannels)
+        ? currentPayload.selectedChannels
+        : []),
+      ...(Array.isArray(currentPayload.channels)
+        ? currentPayload.channels
+        : []),
+      ...(Array.isArray(currentPublishPayload.channels)
+        ? currentPublishPayload.channels
+        : []),
+    ]);
+    if (!currentChannels.includes(channel)) {
+      return NextResponse.json(
+        { error: "Ce canal ne fait plus partie de cette publication." },
+        { status: 409 },
+      );
+    }
+
+    if (placement !== "classic") {
+      const { data: configRow, error: configError } = await supabaseAdmin
+        .from("pro_tools_configs")
+        .select("settings")
+        .eq("user_id", activeUserId)
+        .maybeSingle();
+      if (configError) {
+        return NextResponse.json(
+          {
+            error:
+              "Impossible de vérifier les formats autorisés pour ce compte.",
+          },
+          { status: 503 },
+        );
+      }
+      const rootSettings = asRecord(configRow?.settings) || {};
+      const platformSettings = asRecord(rootSettings[channel]) || {};
+      const enabled =
+        channel === "instagram"
+          ? isInstagramPublicationPlacementEnabled(
+              placement,
+              normalizeInstagramPublicationPreferences(
+                platformSettings.publicationPreferences,
+              ),
+            )
+          : isFacebookPublicationPlacementEnabled(
+              placement,
+              normalizeFacebookPublicationPreferences(
+                platformSettings.publicationPreferences,
+              ),
+            );
+      if (!enabled) {
+        return NextResponse.json(
+          {
+            error: `Le format ${placement === "reel" ? "Reel" : "Story"} est désactivé dans la configuration ${channel === "instagram" ? "Instagram" : "Facebook"}.`,
+            code: "INR_AGENT_PUBLICATION_PLACEMENT_DISABLED",
+          },
+          { status: 409 },
+        );
+      }
+
+      const imagesByChannel =
+        asRecord(currentPayload.imagesByChannel) ||
+        asRecord(currentPublishPayload.imagesByChannel) ||
+        {};
+      const channelImages = readPublishChannelValue(imagesByChannel, channel);
+      const postByChannel =
+        asRecord(currentPayload.postByChannel) ||
+        asRecord(currentPublishPayload.postByChannel) ||
+        {};
+      const post = readPublishPost(postByChannel, channel);
+      const media = cleanPublishMedia(
+        post.media ||
+          post.mediaAsset ||
+          post.image ||
+          post.imageAsset ||
+          post.video ||
+          post.videoAsset ||
+          currentPayload.media ||
+          currentPayload.mediaAsset ||
+          currentPayload.image ||
+          currentPayload.imageAsset ||
+          currentPayload.video ||
+          currentPayload.videoAsset,
+      );
+      const hasMedia =
+        (Array.isArray(channelImages) && channelImages.length > 0) ||
+        Boolean(media);
+      if (!hasMedia) {
+        return NextResponse.json(
+          {
+            error:
+              "Ajoutez une image ou une vidéo avant de choisir Reel ou Story.",
+            code: "INR_AGENT_PUBLICATION_MEDIA_REQUIRED",
+          },
+          { status: 409 },
+        );
+      }
+    }
+
+    const editedAt = new Date().toISOString();
+    const nextPayload = applyInrAgentPublicationPlacement(
+      currentPayload,
+      channel,
+      placement,
+    );
+    nextPayload.lastManualEdit = {
+      channel,
+      placement,
+      editedAt,
+      editType: "publish_channel_placement",
+    };
+
+    const { data, error } = await supabaseAdmin
+      .from("inr_agent_actions")
+      .update({
+        payload: nextPayload,
+        updated_at: editedAt,
+        last_error: null,
+      })
+      .eq("id", actionId)
+      .eq("user_id", activeUserId)
+      .select(ACTION_SELECT)
+      .single();
+
+    if (error) {
+      if (isMissingTableError(error)) {
+        return NextResponse.json(
+          {
+            error: "La table inr_agent_actions doit être créée dans Supabase.",
+            tableMissing: true,
+          },
+          { status: 500 },
+        );
+      }
+      console.warn("[inr-agent-actions] publish placement update failed", error);
+      return NextResponse.json(
+        { error: "Modification du format de publication impossible." },
+        { status: 500 },
+      );
+    }
+
+    const action = await refreshActionImageUrls(rowToInrAgentAction(data));
+    return NextResponse.json({ action, saved: true });
   }
 
   if (editType === "publish_channel_text") {

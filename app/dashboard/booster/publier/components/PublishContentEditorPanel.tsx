@@ -8,6 +8,7 @@ import type {
 import { useEffect, useRef, useState } from "react";
 import type { BoosterCreationMode } from "@/lib/boosterCreationMode";
 import type { InstagramPublicationPreferences } from "@/lib/instagramPublicationPreferences";
+import type { FacebookPublicationPreferences } from "@/lib/facebookPublicationPreferences";
 import {
   buildBoosterWhatsAppUrl,
   getBoosterWhatsAppPhoneFromUrl,
@@ -39,6 +40,7 @@ import {
   type ChannelPost,
   type DisplayKey,
   type InstagramPublicationPlacement,
+  type FacebookPublicationPlacement,
 } from "../publishModal.shared";
 import {
   darkOptionStyle,
@@ -49,6 +51,7 @@ import {
   textAreaStyle,
 } from "../publishModal.styles";
 import RichSiteContentEditor from "./RichSiteContentEditor";
+import ChannelNavigationRail from "./ChannelNavigationRail";
 import PublishStepTitle from "./PublishStepTitle";
 
 type PublishModalStyles = Readonly<Record<string, string>>;
@@ -105,6 +108,12 @@ type PublishContentEditorPanelProps = {
   onInstagramPublicationPlacementChange: (
     placement: InstagramPublicationPlacement,
   ) => void;
+  facebookPublicationPlacement: FacebookPublicationPlacement;
+  facebookPublicationPreferences: FacebookPublicationPreferences;
+  facebookMediaMode: ChannelMediaMode;
+  onFacebookPublicationPlacementChange: (
+    placement: FacebookPublicationPlacement,
+  ) => void;
   onVoiceBusyChange?: (busy: boolean) => void;
 };
 
@@ -137,6 +146,10 @@ export default function PublishContentEditorPanel({
   instagramPublicationPreferences,
   instagramMediaMode,
   onInstagramPublicationPlacementChange,
+  facebookPublicationPlacement,
+  facebookPublicationPreferences,
+  facebookMediaMode,
+  onFacebookPublicationPlacementChange,
   onVoiceBusyChange,
 }: PublishContentEditorPanelProps) {
   const i18nT = useTranslations("booster");
@@ -252,6 +265,12 @@ export default function PublishContentEditorPanel({
   const instagramMediaOnly =
     activeCard === "instagram" &&
     instagramPublicationPlacement !== "classic";
+  const facebookMediaOnly =
+    activeCard === "facebook" && facebookPublicationPlacement !== "classic";
+  const activeMediaOnly = instagramMediaOnly || facebookMediaOnly;
+  const activeMediaMode = instagramMediaOnly
+    ? instagramMediaMode
+    : facebookMediaMode;
   const activeTextGuidelines = CHANNEL_TEXT_GUIDELINES[activeCard];
   const titleVoiceMaxLength = Math.max(
     activePost.title.length,
@@ -292,8 +311,18 @@ export default function PublishContentEditorPanel({
       </div>
       {displayCards.length ? (
         <>
-          <div
-            style={{
+          <ChannelNavigationRail
+            items={displayCards}
+            activeItem={activeCard}
+            onSelect={(channel) => setSynchronizedActiveChannel(channel)}
+            disabled={voiceBusy}
+            navigationLabel={
+              creationMode === "manual"
+                ? i18nT("textes_par_canal_bf3c7397")
+                : i18nT("contenus_generes_par_canal_5197ef4e")
+            }
+            rootStyle={{ marginBottom: 12 }}
+            trackStyle={{
               display: "grid",
               gridTemplateColumns: isMobile
                 ? "repeat(2, minmax(0, 1fr))"
@@ -309,6 +338,8 @@ export default function PublishContentEditorPanel({
               const hasText =
                 (key === "instagram" &&
                   instagramPublicationPlacement !== "classic") ||
+                (key === "facebook" &&
+                  facebookPublicationPlacement !== "classic") ||
                 !!(
                   String(post.title || "").trim() ||
                   String(post.content || "").trim()
@@ -365,7 +396,7 @@ export default function PublishContentEditorPanel({
                 </button>
               );
             })}
-          </div>
+          </ChannelNavigationRail>
           <div
             style={{
               border: "1px solid rgba(255,255,255,0.10)",
@@ -457,6 +488,40 @@ export default function PublishContentEditorPanel({
                   ) : null}
                 </select>
               ) : null}
+              {activeCard === "facebook" ? (
+                <select
+                  value={facebookPublicationPlacement}
+                  onChange={(event) =>
+                    onFacebookPublicationPlacementChange(
+                      event.target.value as FacebookPublicationPlacement,
+                    )
+                  }
+                  disabled={voiceBusy}
+                  aria-label={i18nT("facebook_publication_format")}
+                  title={i18nT("facebook_publication_format")}
+                  style={{
+                    ...darkSelectStyle,
+                    width: isMobile ? "min(58vw, 220px)" : "min(360px, 45%)",
+                    minWidth: isMobile ? 150 : 200,
+                    maxWidth: "100%",
+                    flex: "0 1 auto",
+                  }}
+                >
+                  <option value="classic" style={darkOptionStyle}>
+                    {i18nT("instagram_classic")}
+                  </option>
+                  {facebookPublicationPreferences.reelsEnabled ? (
+                    <option value="reel" style={darkOptionStyle}>
+                      {i18nT("instagram_reels")}
+                    </option>
+                  ) : null}
+                  {facebookPublicationPreferences.storiesEnabled ? (
+                    <option value="story" style={darkOptionStyle}>
+                      {i18nT("instagram_stories")}
+                    </option>
+                  ) : null}
+                </select>
+              ) : null}
             </div>
             {activeCard === "pinterest" && pinterestBoardsError ? (
               <div style={{ marginBottom: 8, fontSize: 12, color: "#fecaca" }}>
@@ -468,7 +533,7 @@ export default function PublishContentEditorPanel({
               <div style={{ marginBottom: 8, fontSize: 12, opacity: 0.72 }}>
                 {i18nT("aucun_tableau_disponible_creez_en_un_fdb1c0ea")}{" "}</div>
             ) : null}
-            {instagramMediaOnly ? (
+            {activeMediaOnly ? (
               <div
                 role="status"
                 style={{
@@ -482,13 +547,13 @@ export default function PublishContentEditorPanel({
                   lineHeight: 1.45,
                 }}
               >
-                {instagramMediaMode === "images"
+                {activeMediaMode === "images"
                   ? i18nT("instagram_image_motion_notice")
                   : i18nT("instagram_media_only_notice")}
               </div>
             ) : null}
             <fieldset
-              disabled={instagramMediaOnly}
+              disabled={activeMediaOnly}
               style={{
                 display: "grid",
                 gap: 10,
@@ -496,7 +561,7 @@ export default function PublishContentEditorPanel({
                 margin: 0,
                 padding: 0,
                 border: 0,
-                opacity: instagramMediaOnly ? 0.42 : 1,
+                opacity: activeMediaOnly ? 0.42 : 1,
                 transition: "opacity 160ms ease",
               }}
             >

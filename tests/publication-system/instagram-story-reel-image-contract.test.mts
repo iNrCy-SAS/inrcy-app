@@ -58,8 +58,8 @@ test("Instagram always exposes Classic, Reel and Story, including before media s
     editor,
     /const instagramMediaOnly =[\s\S]*?instagramMediaMode !== "none";/,
   );
-  assert.match(editor, /disabled=\{instagramMediaOnly\}/);
-  assert.match(editor, /instagramMediaMode === "images"[\s\S]*?instagram_image_motion_notice/);
+  assert.match(editor, /disabled=\{activeMediaOnly\}/);
+  assert.match(editor, /activeMediaMode === "images"[\s\S]*?instagram_image_motion_notice/);
   assert.doesNotMatch(
     editor,
     /activeCard === "instagram" && instagramMediaMode === "video"/,
@@ -172,7 +172,7 @@ test("Instagram mode preferences are account-scoped, preserved and atomic", () =
   );
   assert.match(
     dashboardClient,
-    /key === "instagram"[\s\S]*?currentChannel\.publicationPreferences[\s\S]*?preservedInstagramPreferences/,
+    /key === "instagram" \|\| key === "facebook"[\s\S]*?currentChannel\.publicationPreferences[\s\S]*?preservedPublicationPreferences/,
   );
   assert.doesNotMatch(
     dashboardClient,
