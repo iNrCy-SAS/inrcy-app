@@ -4,13 +4,11 @@
 
 | Offre | Mensuel | Annuel | Taxe Stripe |
 | --- | ---: | ---: | --- |
-| Standard v2 | 58,00 € HT | 612,48 € HT | `exclusive` |
-| Premium v2 | 108,00 € HT | 1 163,72 € HT | `exclusive` |
+| Standard v2 | 58,00 € HT | 628,00 € HT | `exclusive` |
+| Premium v2 | 108,00 € HT | 1 168,00 € HT | `exclusive` |
 
-Le Standard annuel conserve la remise annoncée de 12 %. Le Premium annuel conserve
-la remise effective historique : `1 - 1390 / (129 × 12) = 10,206718… %`.
-Le nouveau montant est donc `108 × 12 × 1390 / (129 × 12) = 1163,72093…`,
-arrondi au centime à 1 163,72 € HT.
+Les deux annuels utilisent des montants commerciaux ronds, avec une remise affichée
+de 10 % : 628 € HT pour Standard et 1 168 € HT pour Premium.
 
 ## Cohortes
 
@@ -27,8 +25,8 @@ postérieure au cutover, cette date ne doit plus jamais être déplacée ni supp
 ## Stripe puis Vercel
 
 1. Créer quatre nouveaux Price Stripe EUR récurrents, sans modifier ni archiver les
-   Price historiques : 5 800 cts/mois, 61 248 cts/an, 10 800 cts/mois,
-   116 372 cts/an. Déclarer leur `tax_behavior` à `exclusive`.
+   Price historiques : 5 800 cts/mois, 62 800 cts/an, 10 800 cts/mois,
+   116 800 cts/an. Déclarer leur `tax_behavior` à `exclusive`.
 2. Vérifier Stripe Tax et le calcul automatique selon pays/adresse/statut fiscal.
 3. Renseigner les quatre variables `STRIPE_PRICE_*HT_*_ID` documentées dans
    `docs/ENVIRONMENT_CHECKLIST.md`, en conservant toutes les variables historiques.

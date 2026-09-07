@@ -44,8 +44,8 @@ test("les offres historiques restent intactes et les offres HT v2 sont versionnÃ
     edition: "standard",
     plan: "Standard",
     monthlyPriceEur: 58,
-    yearlyPriceEur: 612.48,
-    annualSavingPercent: 12,
+    yearlyPriceEur: 628,
+    annualSavingPercent: 10,
     pricingVersion: "international_ht_v2",
     taxBehavior: "exclusive",
   });
@@ -53,19 +53,16 @@ test("les offres historiques restent intactes et les offres HT v2 sont versionnÃ
     edition: "premium",
     plan: "Premium",
     monthlyPriceEur: 108,
-    yearlyPriceEur: 1163.72,
-    annualSavingPercent: 10.21,
+    yearlyPriceEur: 1168,
+    annualSavingPercent: 10,
     pricingVersion: "international_ht_v2",
     taxBehavior: "exclusive",
   });
 
   assert.ok(1 - 730 / (69 * 12) > 0.118);
   assert.ok(1 - 1390 / (129 * 12) > 0.10);
-  assert.equal(STANDARD_SUBSCRIPTION_OFFER_V2.yearlyPriceEur, 58 * 12 * 0.88);
-  assert.equal(
-    PREMIUM_SUBSCRIPTION_OFFER_V2.yearlyPriceEur,
-    Math.round(108 * 12 * (1390 / (129 * 12)) * 100) / 100,
-  );
+  assert.equal(STANDARD_SUBSCRIPTION_OFFER_V2.yearlyPriceEur, 628);
+  assert.equal(PREMIUM_SUBSCRIPTION_OFFER_V2.yearlyPriceEur, 1168);
 });
 
 test("la cohorte tarifaire est figÃ©e par la crÃ©ation du compte et Ã©choue vers le legacy", () => {

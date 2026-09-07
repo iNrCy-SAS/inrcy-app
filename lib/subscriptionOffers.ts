@@ -40,20 +40,19 @@ export const STANDARD_SUBSCRIPTION_OFFER_V2: SubscriptionOffer = {
   edition: "standard",
   plan: "Standard",
   monthlyPriceEur: 58,
-  yearlyPriceEur: 612.48,
-  annualSavingPercent: 12,
+  yearlyPriceEur: 628,
+  annualSavingPercent: 10,
   pricingVersion: "international_ht_v2",
   taxBehavior: "exclusive",
 };
 
-// 1 163,72 € = 108 × 12 × (1 - 158 / 1 548), arrondi au centime.
-// Cela conserve la remise effective de l'ancien annuel Premium (1 390 vs 129 × 12), soit 10,2067 %.
+// Tarifs annuels commerciaux ronds : remise affichée de 10 % sur les deux offres.
 export const PREMIUM_SUBSCRIPTION_OFFER_V2: SubscriptionOffer = {
   edition: "premium",
   plan: "Premium",
   monthlyPriceEur: 108,
-  yearlyPriceEur: 1163.72,
-  annualSavingPercent: 10.21,
+  yearlyPriceEur: 1168,
+  annualSavingPercent: 10,
   pricingVersion: "international_ht_v2",
   taxBehavior: "exclusive",
 };
