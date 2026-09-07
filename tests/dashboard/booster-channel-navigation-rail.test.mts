@@ -60,8 +60,12 @@ test("le nouveau rendu est strictement réservé au desktop", () => {
   // La grille historique mobile/tablette reste fournie telle quelle aux trois rails.
   for (const source of [contentPanel, mediaPanel, previewPanel]) {
     assert.match(source, /isMobile\s*\?\s*"repeat\(2, minmax\(0, 1fr\)\)"/);
-    assert.match(source, /"repeat\(10, minmax\(0, 1fr\)\)"/);
   }
+  // Le fallback hors mobile suit le nombre réel de canaux ; il reste donc juste
+  // quand X ou de futurs canaux portent le rail à 10, 11 ou 12 éléments.
+  assert.match(contentPanel, /displayCards\.length/);
+  assert.match(mediaPanel, /selectedChannels\.length/);
+  assert.match(previewPanel, /previewReadinessTabs\.length/);
 });
 
 test("le rail adapte sa densité jusqu'à douze canaux sans colonnes figées", () => {

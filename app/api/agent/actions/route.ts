@@ -36,6 +36,11 @@ import {
   normalizeInrAgentPublicationPlacement,
 } from "@/lib/inrAgentPublicationPlacement";
 import {
+  applyInrAgentPinterestBoardSelection,
+  normalizeInrAgentPinterestBoardSelection,
+  readInrAgentPinterestBoardSelection,
+} from "@/lib/inrAgentPinterestBoard";
+import {
   getDashboardEditionForAuthUser,
   premiumRequiredApiResponse,
 } from "@/lib/dashboardEditionServer";
@@ -1350,6 +1355,8 @@ export async function PATCH(request: Request) {
     attachments?: unknown;
     channel?: unknown;
     placement?: unknown;
+    boardId?: unknown;
+    boardName?: unknown;
     title?: unknown;
     content?: unknown;
     cta?: unknown;
@@ -1960,6 +1967,89 @@ export async function PATCH(request: Request) {
 
     const action = await refreshActionImageUrls(rowToInrAgentAction(data));
     return NextResponse.json({ action, saved: true });
+  }
+
+  if (editType === "publish_pinterest_board") {
+    if (!actionId) {
+      return NextResponse.json({ error: "Action invalide" }, { status: 400 });
+    }
+    const selection = normalizeInrAgentPinterestBoardSelection({
+      boardId: requestBody?.boardId,
+      boardName: requestBody?.boardName,
+    });
+    if (!selection) {
+      return NextResponse.json(
+        { error: "Choisissez un tableau Pinterest." },
+        { status: 400 },
+      );
+    }
+
+    const { data: currentRow, error: readError } = await supabaseAdmin
+      .from("inr_agent_actions")
+      .select(ACTION_SELECT)
+      .eq("id", actionId)
+      .eq("user_id", activeUserId)
+      .single();
+    if (readError || !currentRow) {
+      return NextResponse.json(
+        { error: "Action iNr’Agent introuvable." },
+        { status: 404 },
+      );
+    }
+
+    const currentAction = rowToInrAgentAction(currentRow as any);
+    const currentPayload = currentAction.payload || {};
+    const currentPublishPayload = asRecord(currentPayload.publishPayload) || {};
+    const currentChannels = normalizePublishChannels([
+      ...currentAction.targetChannels,
+      ...(Array.isArray(currentPayload.selectedChannels)
+        ? currentPayload.selectedChannels
+        : []),
+      ...(Array.isArray(currentPayload.channels) ? currentPayload.channels : []),
+      ...(Array.isArray(currentPublishPayload.channels)
+        ? currentPublishPayload.channels
+        : []),
+    ]);
+    if (!isPublishAction(currentAction) || !currentChannels.includes("pinterest")) {
+      return NextResponse.json(
+        { error: "Pinterest ne fait pas partie de cette publication." },
+        { status: 409 },
+      );
+    }
+
+    const editedAt = new Date().toISOString();
+    const nextPayload = applyInrAgentPinterestBoardSelection(
+      currentPayload,
+      selection,
+    );
+    nextPayload.lastManualEdit = {
+      channel: "pinterest",
+      boardId: selection.boardId,
+      editedAt,
+      editType: "publish_pinterest_board",
+    };
+
+    const { data, error } = await supabaseAdmin
+      .from("inr_agent_actions")
+      .update({ payload: nextPayload, updated_at: editedAt, last_error: null })
+      .eq("id", actionId)
+      .eq("user_id", activeUserId)
+      .select(ACTION_SELECT)
+      .single();
+    if (error) {
+      console.warn("[inr-agent-actions] Pinterest board update failed", error);
+      return NextResponse.json(
+        { error: "Modification du tableau Pinterest impossible." },
+        { status: 500 },
+      );
+    }
+    const action = await refreshActionImageUrls(rowToInrAgentAction(data));
+    return NextResponse.json({
+      action,
+      pinterestPublicationSettings:
+        readInrAgentPinterestBoardSelection(nextPayload),
+      saved: true,
+    });
   }
 
   if (editType === "publish_channel_text") {

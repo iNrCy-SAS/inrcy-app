@@ -8,9 +8,10 @@ import {
   isBubbleEnabled,
 } from "../../lib/bubbleAccess.ts";
 
-test("TikTok et Pinterest sont actifs par défaut tandis que Site iNrCy reste en opt-in", () => {
+test("TikTok, Pinterest et X sont actifs par défaut tandis que Site iNrCy reste en opt-in", () => {
   assert.equal(APP_BUBBLE_DEFAULT_ACCESS.tiktok, true);
   assert.equal(APP_BUBBLE_DEFAULT_ACCESS.pinterest, true);
+  assert.equal(APP_BUBBLE_DEFAULT_ACCESS.x, true);
   assert.equal(APP_BUBBLE_DEFAULT_ACCESS.site_inrcy, false);
 
   const rows = createDefaultBubbleAccessRows("00000000-0000-0000-0000-000000000001");

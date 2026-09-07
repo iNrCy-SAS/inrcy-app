@@ -53,7 +53,7 @@ export const APP_BUBBLE_DEFAULT_ACCESS: AppBubbleAccessMap = {
   linkedin: true,
   // X reste en pilote tant que les clés, crédits et coûts par compte ne sont
   // pas certifiés. L'admin peut l'activer compte par compte via Bubble Access.
-  x: false,
+  x: true,
   tiktok: true,
   youtube_shorts: true,
   pinterest: true,

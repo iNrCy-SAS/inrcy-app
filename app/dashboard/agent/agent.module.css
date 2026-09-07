@@ -9209,6 +9209,14 @@ button.campaignInfoRecipients:hover {
   opacity: 0.62;
 }
 
+.publishPlacementError {
+  display: block;
+  max-width: 154px;
+  color: #fecaca;
+  font-size: 9px;
+  line-height: 1.2;
+}
+
 .publishInfoChannel .campaignInfoIcon {
   background: linear-gradient(
     135deg,

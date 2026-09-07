@@ -9,6 +9,10 @@ import {
   type InrAgentMetaChannel,
   type InrAgentPublicationPlacement,
 } from "@/lib/inrAgentPublicationPlacement";
+import {
+  applyInrAgentPinterestBoardSelection,
+  type InrAgentPinterestBoardSelection,
+} from "@/lib/inrAgentPinterestBoard";
 import type {
   ChannelKey as BoosterChannelKey,
   BoosterCtaMode,
@@ -528,6 +532,27 @@ export function updateScheduledEditPublishPlacement(
   };
 }
 
+export function updateScheduledEditPinterestBoard(
+  action: AgentPreparedAction,
+  selection: InrAgentPinterestBoardSelection,
+): AgentPreparedAction {
+  const payload = jsonClone(action.payload || {});
+  const nextPayload = applyInrAgentPinterestBoardSelection(
+    payload,
+    selection,
+  );
+  nextPayload.lastManualEdit = {
+    channel: "pinterest",
+    boardId: selection.boardId,
+    editedAt: new Date().toISOString(),
+    editType: "publish_pinterest_board",
+  };
+  return {
+    ...action,
+    payload: nextPayload,
+  };
+}
+
 export function removeScheduledEditPublishChannel(
   action: AgentPreparedAction,
   channel: ChannelKey,
@@ -1026,6 +1051,9 @@ export function scheduledEditUpdateFromAction(
     if (!channels.includes("facebook")) {
       delete nextPublishPayload.facebookPublicationSettings;
       delete nextPublishPayload.facebookPublicationPlacement;
+    }
+    if (!channels.includes("pinterest")) {
+      delete nextPublishPayload.pinterestPublicationSettings;
     }
 
     return {

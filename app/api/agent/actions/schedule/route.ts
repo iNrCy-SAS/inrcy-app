@@ -22,6 +22,7 @@ import { isStandardAgentActionDescriptor } from "@/lib/standardAgentPolicy";
 import {
   publicationSettingsForInrAgentChannel,
 } from "@/lib/inrAgentPublicationPlacement";
+import { readInrAgentPinterestBoardSelection } from "@/lib/inrAgentPinterestBoard";
 
 export const runtime = "nodejs";
 export const maxDuration = 90;
@@ -763,6 +764,9 @@ async function buildScheduledPayload(
     const facebookPublicationSettings = selectedChannels.includes("facebook")
       ? publicationSettingsForInrAgentChannel(payload, "facebook")
       : null;
+    const pinterestPublicationSettings = selectedChannels.includes("pinterest")
+      ? readInrAgentPinterestBoardSelection(payload)
+      : null;
     const publishChannels = selectedChannels.filter((channel) => {
       if (activeMediaMode === "video") return true;
       if (isVideoOnlyChannel(channel)) return false;
@@ -858,6 +862,9 @@ async function buildScheduledPayload(
             : {}),
           ...(facebookPublicationSettings
             ? { facebookPublicationSettings }
+            : {}),
+          ...(pinterestPublicationSettings
+            ? { pinterestPublicationSettings }
             : {}),
           workflowTool: "booster",
           workflowAction: "publier",

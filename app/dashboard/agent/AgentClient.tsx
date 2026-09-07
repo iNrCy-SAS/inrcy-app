@@ -91,6 +91,12 @@ import {
   readInrAgentPublicationPlacement,
   type InrAgentPublicationPlacement,
 } from "@/lib/inrAgentPublicationPlacement";
+import { readInrAgentPinterestBoardSelection } from "@/lib/inrAgentPinterestBoard";
+import {
+  readPinterestBoardUiCache,
+  writePinterestBoardUiCache,
+  type PinterestUiBoard,
+} from "@/lib/pinterestUiSessionCache";
 import {
   buildBoosterWhatsAppUrl,
   getBoosterWhatsAppPhoneFromUrl,
@@ -309,6 +315,7 @@ import {
   updateScheduledEditPublishText,
   updateScheduledEditPublishMedia,
   updateScheduledEditPublishPlacement,
+  updateScheduledEditPinterestBoard,
   updateScheduledEditCampaign,
   scheduledEditUpdateFromAction,
   computeNextOccurrence,
@@ -615,6 +622,21 @@ export default function AgentClient() {
       CLASSIC_ONLY_FACEBOOK_PUBLICATION_PREFERENCES,
     );
   const [publishPlacementSaveState, setPublishPlacementSaveState] = useState<
+    "idle" | "saving"
+  >("idle");
+  const initialPinterestBoardCache = useMemo(
+    () => readPinterestBoardUiCache(),
+    [],
+  );
+  const [pinterestBoards, setPinterestBoards] = useState<PinterestUiBoard[]>(
+    () => initialPinterestBoardCache?.boards || [],
+  );
+  const [pinterestDefaultBoardId, setPinterestDefaultBoardId] = useState(
+    () => initialPinterestBoardCache?.defaultBoardId || "",
+  );
+  const [pinterestBoardsLoading, setPinterestBoardsLoading] = useState(false);
+  const [pinterestBoardsError, setPinterestBoardsError] = useState("");
+  const [pinterestBoardSaveState, setPinterestBoardSaveState] = useState<
     "idle" | "saving"
   >("idle");
   const [publishSaveState, setPublishSaveState] = useState<"idle" | "saving">(
@@ -1085,6 +1107,66 @@ export default function AgentClient() {
   const publishMediaOnly = Boolean(
     activeMetaPublicationChannel && publishPlacement !== "classic",
   );
+  const savedPinterestBoard = selectedPreparedAction
+    ? readInrAgentPinterestBoardSelection(selectedPreparedAction.payload)
+    : null;
+  const activePinterestBoardId =
+    savedPinterestBoard?.boardId || pinterestDefaultBoardId;
+
+  useEffect(() => {
+    if (!isPublishView || activePreviewChannel !== "pinterest") return;
+    let cancelled = false;
+    setPinterestBoardsLoading(true);
+    setPinterestBoardsError("");
+    void fetch("/api/integrations/pinterest/boards", { cache: "no-store" })
+      .then(async (response) => {
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload?.ok) {
+          throw new Error(
+            String(
+              payload?.error ||
+                boosterRuntimeT("pinterest_boards_load_failed"),
+            ),
+          );
+        }
+        const boards = (Array.isArray(payload.boards) ? payload.boards : [])
+          .map((value: unknown): PinterestUiBoard | null => {
+            const record = asRecord(value);
+            const id = String(record?.id || "").trim();
+            if (!id) return null;
+            return {
+              id,
+              name:
+                String(record?.name || "Tableau Pinterest").trim() ||
+                "Tableau Pinterest",
+            };
+          })
+          .filter(
+            (value: PinterestUiBoard | null): value is PinterestUiBoard =>
+              Boolean(value),
+          );
+        if (cancelled) return;
+        const defaultBoardId = String(payload.defaultBoardId || "").trim();
+        setPinterestBoards(boards);
+        setPinterestDefaultBoardId(defaultBoardId);
+        writePinterestBoardUiCache(boards, defaultBoardId);
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setPinterestBoardsError(
+            error instanceof Error
+              ? error.message
+              : boosterRuntimeT("pinterest_boards_load_failed"),
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setPinterestBoardsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activePreviewChannel, boosterRuntimeT, isPublishView]);
   const publishHasUsableMedia = Boolean(
     publishMediaPreview?.kind === "image" ||
       publishMediaPreview?.kind === "video",
@@ -2220,6 +2302,67 @@ export default function AgentClient() {
       );
     } finally {
       setPublishPlacementSaveState("idle");
+    }
+  }
+
+  async function savePublishPinterestBoard(nextBoardId: string) {
+    if (
+      !selectedPreparedAction ||
+      activePreviewChannel !== "pinterest" ||
+      pinterestBoardSaveState === "saving"
+    ) {
+      return;
+    }
+    const board = pinterestBoards.find((candidate) => candidate.id === nextBoardId);
+    if (!board) return;
+
+    setPinterestBoardSaveState("saving");
+    setPinterestBoardsError("");
+    try {
+      if (scheduledEditSession) {
+        updateScheduledEditAction((action) =>
+          updateScheduledEditPinterestBoard(action, {
+            boardId: board.id,
+            boardName: board.name,
+          }),
+        );
+      } else {
+        const response = await fetch("/api/agent/actions", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            actionId: selectedPreparedAction.id,
+            editType: "publish_pinterest_board",
+            channel: "pinterest",
+            boardId: board.id,
+            boardName: board.name,
+          }),
+        });
+        const payload = (await response.json().catch(() => null)) as {
+          action?: AgentPreparedAction;
+          error?: string;
+        } | null;
+        if (!response.ok || !payload?.action) {
+          throw new Error(
+            payload?.error || "Modification du tableau Pinterest impossible.",
+          );
+        }
+        const updatedAction = payload.action;
+        setActions((current) =>
+          current.map((action) =>
+            action.id === updatedAction.id ? updatedAction : action,
+          ),
+        );
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Modification du tableau Pinterest impossible.";
+      setPinterestBoardsError(message);
+      showNotice(message);
+    } finally {
+      setPinterestBoardSaveState("idle");
     }
   }
 
@@ -4835,46 +4978,88 @@ export default function AgentClient() {
                         <span className={styles.publishChannelCardMain}>
                           <small>{i18nT("canal_61f21e6f")}</small>
                           <strong>{activePreviewChannelLabel}</strong>
-                          <select
-                            className={styles.publishPlacementSelect}
-                            value={publishPlacement}
-                            onChange={(event) => {
-                              void savePublishPlacement(
-                                event.target.value as InrAgentPublicationPlacement,
-                              );
-                            }}
-                            disabled={
-                              !selectedPreparedAction ||
-                              !activeMetaPublicationChannel ||
-                              !canReviewSelectedAction ||
-                              actionMutationState === "saving" ||
-                              publishPlacementSaveState === "saving"
-                            }
-                            aria-label={i18nT("publication_mode_label")}
-                            title={
-                              activeMetaPublicationChannel
-                                ? i18nT("publication_mode_help")
-                                : i18nT("publication_mode_classic_only")
-                            }
-                          >
-                            {!publishPlacementEnabled &&
-                            publishPlacement !== "classic" ? (
-                              <option value={publishPlacement} disabled>
-                                {publishPlacement === "reel"
-                                  ? i18nT("publication_mode_reel_disabled")
-                                  : i18nT("publication_mode_story_disabled")}
-                              </option>
-                            ) : null}
-                            {publishPlacementOptions.map((placement) => (
-                              <option key={placement} value={placement}>
-                                {placement === "reel"
-                                  ? i18nT("publication_mode_reel")
-                                  : placement === "story"
-                                    ? i18nT("publication_mode_story")
-                                    : i18nT("publication_mode_classic")}
-                              </option>
-                            ))}
-                          </select>
+                          {activeMetaPublicationChannel ? (
+                            <select
+                              className={styles.publishPlacementSelect}
+                              value={publishPlacement}
+                              onChange={(event) => {
+                                void savePublishPlacement(
+                                  event.target.value as InrAgentPublicationPlacement,
+                                );
+                              }}
+                              disabled={
+                                !selectedPreparedAction ||
+                                !canReviewSelectedAction ||
+                                actionMutationState === "saving" ||
+                                publishPlacementSaveState === "saving"
+                              }
+                              aria-label={i18nT("publication_mode_label")}
+                              title={i18nT("publication_mode_help")}
+                            >
+                              {!publishPlacementEnabled &&
+                              publishPlacement !== "classic" ? (
+                                <option value={publishPlacement} disabled>
+                                  {publishPlacement === "reel"
+                                    ? i18nT("publication_mode_reel_disabled")
+                                    : i18nT("publication_mode_story_disabled")}
+                                </option>
+                              ) : null}
+                              {publishPlacementOptions.map((placement) => (
+                                <option key={placement} value={placement}>
+                                  {placement === "reel"
+                                    ? i18nT("publication_mode_reel")
+                                    : placement === "story"
+                                      ? i18nT("publication_mode_story")
+                                      : i18nT("publication_mode_classic")}
+                                </option>
+                              ))}
+                            </select>
+                          ) : activePreviewChannel === "pinterest" ? (
+                            <select
+                              className={styles.publishPlacementSelect}
+                              value={activePinterestBoardId}
+                              onChange={(event) => {
+                                void savePublishPinterestBoard(event.target.value);
+                              }}
+                              disabled={
+                                !selectedPreparedAction ||
+                                !canReviewSelectedAction ||
+                                actionMutationState === "saving" ||
+                                pinterestBoardsLoading ||
+                                pinterestBoardSaveState === "saving" ||
+                                pinterestBoards.length === 0
+                              }
+                              aria-label={boosterRuntimeT(
+                                "tableau_pinterest_1af82867",
+                              )}
+                              title={boosterRuntimeT(
+                                "tableau_pinterest_1af82867",
+                              )}
+                            >
+                              {pinterestBoards.length === 0 ? (
+                                <option value="">
+                                  {pinterestBoardsLoading
+                                    ? boosterRuntimeT("chargement_01cba1df")
+                                    : boosterRuntimeT("aucun_tableau_d327ddcf")}
+                                </option>
+                              ) : !activePinterestBoardId ? (
+                                <option value="">
+                                  {boosterRuntimeT("choisir_un_tableau_77f9de39")}
+                                </option>
+                              ) : null}
+                              {pinterestBoards.map((board) => (
+                                <option key={board.id} value={board.id}>
+                                  {board.name}
+                                </option>
+                              ))}
+                            </select>
+                          ) : null}
+                          {activePreviewChannel === "pinterest" &&
+                          pinterestBoardsError ? (
+                            <small className={styles.publishPlacementError}>
+                              {pinterestBoardsError}
+                            </small>
+                          ) : null}
                         </span>
                       </article>
                       <button

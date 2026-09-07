@@ -13,7 +13,7 @@ test("X is a first-class Dashboard bubble gated by Bubble Access", () => {
   assert.match(constants, /import xBubbleIcon from "\.\.\/\.\.\/public\/icons\/x\.svg"/);
   assert.match(constants, /key: "x",[\s\S]*?name: "X"/);
   assert.match(constants, /x: "Configuration — X"/);
-  assert.match(access, /x: false/);
+  assert.match(access, /x: true/);
   assert.match(bubbles, /isBubbleEnabled\(bubbleAccessMap, bubbleKey\)/);
   assert.match(bubbles, /m\.key === "x"[\s\S]*?xConnected/);
   assert.match(client, /const canAccessX = isBubbleEnabled\(bubbleAccessMap, "x"\)/);
