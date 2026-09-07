@@ -107,6 +107,8 @@
   "cliquez_sur_les_boutons_de_connexion_9ec2513b": "Klicken Sie auf die Verbindungsschaltflächen, um Google Analytics und Search Console automatisch zu verknüpfen und Statistiken abzurufen. Diese Tools müssen in Ihrem Google-Konto registriert sein.",
   "code_copie_cdc31064": "Code kopiert",
   "code_du_widget_cbab80cb": "Widget-Code",
+  "format_d_installation_du_widget_actus_f3d70fa2": "Installationsformat",
+  "installation_react_next_du_widget_actus_a6940a61": "Erstellen Sie die Datei components/InrcyActus.tsx mit diesem Code, importieren Sie <InrcyActus /> in die gewünschte Seite und stellen Sie die Site anschließend bereit. Wenn Ihre Site eine CSP verwendet, erlauben Sie frame-src https://app.inrcy.com.",
   "code_genere_avec_succes_vous_pouvez_d4de2c80": "✅ Code erfolgreich generiert. Sie können ihn anzeigen oder kopieren.",
   "code_hexadecimal_de_la_couleur_de_7bd2fad5": "Hexadezimalcode für die iFrame-Farbe:",
   "collez_ce_code_iframe_dans_votre_81743f90": "Fügen Sie diesen iFrame-Code in Ihre Website (WordPress, Wix, Webflow, HTML usw.) ein, um Ihre neuesten, von Booster veröffentlichten Nachrichten automatisch anzuzeigen.",

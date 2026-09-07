@@ -125,6 +125,8 @@
   "cliquez_sur_les_boutons_de_connexion_9ec2513b": "Cliquez sur les boutons de connexion pour relier automatiquement Google Analytics et Search Console pour remonter les statistiques. Ces outils doivent évidemment être enregistrés sur votre compte Google.",
   "code_copie_cdc31064": "Code copié",
   "code_du_widget_cbab80cb": "Code du widget",
+  "format_d_installation_du_widget_actus_f3d70fa2": "Format d’installation",
+  "installation_react_next_du_widget_actus_a6940a61": "Créez le fichier components/InrcyActus.tsx avec ce code, importez <InrcyActus /> dans la page souhaitée, puis déployez. Si votre site utilise une CSP, autorisez frame-src https://app.inrcy.com.",
   "code_genere_avec_succes_vous_pouvez_d4de2c80": "✅ Code généré avec succès. Vous pouvez l’afficher ou le copier.",
   "code_hexadecimal_de_la_couleur_de_7bd2fad5": "Code hexadécimal de la couleur de l'iFrame",
   "collez_ce_code_iframe_dans_votre_81743f90": "Collez ce code iframe dans votre site (WordPress, Wix, Webflow, HTML…) pour afficher automatiquement vos dernières actus publiées depuis Booster.",

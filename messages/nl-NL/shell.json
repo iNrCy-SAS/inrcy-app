@@ -107,6 +107,8 @@
   "cliquez_sur_les_boutons_de_connexion_9ec2513b": "Klik op de verbindingsknoppen om Google Analytics en Search Console automatisch te koppelen en statistieken op te halen. Deze tools moeten geregistreerd zijn op uw Google-account.",
   "code_copie_cdc31064": "Code gekopieerd",
   "code_du_widget_cbab80cb": "Widgetcode",
+  "format_d_installation_du_widget_actus_f3d70fa2": "Installatieformaat",
+  "installation_react_next_du_widget_actus_a6940a61": "Maak het bestand components/InrcyActus.tsx met deze code, importeer <InrcyActus /> op de gewenste pagina en implementeer de site. Als uw site een CSP gebruikt, sta dan frame-src https://app.inrcy.com toe.",
   "code_genere_avec_succes_vous_pouvez_d4de2c80": "✅ Code succesvol gegenereerd. U kunt deze bekijken of kopiëren.",
   "code_hexadecimal_de_la_couleur_de_7bd2fad5": "Hexadecimale code voor de iframe-kleur",
   "collez_ce_code_iframe_dans_votre_81743f90": "Plak deze iframe-code in uw website (WordPress, Wix, Webflow, HTML, enz.) om automatisch uw laatste nieuwsberichten van Booster weer te geven.",

@@ -107,6 +107,8 @@
   "cliquez_sur_les_boutons_de_connexion_9ec2513b": "Haz clic en los botones de conexión para vincular automáticamente Google Analytics y Search Console para obtener estadísticas. Estas herramientas deben estar registradas en su cuenta Google.",
   "code_copie_cdc31064": "Código copiado",
   "code_du_widget_cbab80cb": "Código del widget",
+  "format_d_installation_du_widget_actus_f3d70fa2": "Formato de instalación",
+  "installation_react_next_du_widget_actus_a6940a61": "Cree el archivo components/InrcyActus.tsx con este código, importe <InrcyActus /> en la página deseada y despliegue el sitio. Si utiliza una CSP, permita frame-src https://app.inrcy.com.",
   "code_genere_avec_succes_vous_pouvez_d4de2c80": "✅ Código generado correctamente. Puedes verlo o copiarlo.",
   "code_hexadecimal_de_la_couleur_de_7bd2fad5": "Código hexadecimal para el color del iframe",
   "collez_ce_code_iframe_dans_votre_81743f90": "Pega este código de iframe en tu sitio web (WordPress, Wix, Webflow, HTML…) para mostrar automáticamente las últimas noticias publicadas por Booster.",

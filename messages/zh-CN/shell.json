@@ -107,6 +107,8 @@
   "cliquez_sur_les_boutons_de_connexion_9ec2513b": "单击连接按钮可自动链接 Google Analytics 和 Search Console 以报告统计信息。显然，这些工具必须在您的 Google 帐户上注册。",
   "code_copie_cdc31064": "复制代码",
   "code_du_widget_cbab80cb": "小工具代码",
+  "format_d_installation_du_widget_actus_f3d70fa2": "安装格式",
+  "installation_react_next_du_widget_actus_a6940a61": "使用此代码创建 components/InrcyActus.tsx 文件，在所需页面中导入 <InrcyActus />，然后部署。如果网站使用 CSP，请允许 frame-src https://app.inrcy.com。",
   "code_genere_avec_succes_vous_pouvez_d4de2c80": "✅ 代码生成成功。您可以查看或复制它。",
   "code_hexadecimal_de_la_couleur_de_7bd2fad5": "iFrame 颜色的十六进制代码",
   "collez_ce_code_iframe_dans_votre_81743f90": "将此 iframe 代码粘贴到您的网站（WordPress、Wix、Webflow、HTML 等）中，即可自动显示从 Booster 发布的最新新闻。",

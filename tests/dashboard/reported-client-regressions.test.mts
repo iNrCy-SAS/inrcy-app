@@ -30,6 +30,22 @@ test("le bouton du widget Site web peut redemander son jeton au clic", () => {
   assert.match(panel, /onRequestToken=\{requestSiteWebWidgetToken\}/);
 });
 
+test("le widget Actus propose un composant React et Next.js auto-redimensionné", () => {
+  const component = read("app/dashboard/_components/SiteActusWidgetCode.tsx");
+  const messages = read("messages/fr-FR/shell.json");
+
+  assert.match(component, /type WidgetInstallTarget = "html" \| "react_next"/);
+  assert.match(component, /const buildReactNextSnippet/);
+  assert.match(component, /return `"use client";/);
+  assert.match(component, /useRef<HTMLIFrameElement \| null>/);
+  assert.match(component, /event\.source !== iframe\.contentWindow/);
+  assert.match(component, /data\.source !== "inrcy-embed"/);
+  assert.match(component, /window\.removeEventListener\("message", onMessage\)/);
+  assert.match(component, /<section id="actualites"/);
+  assert.match(component, /\["react_next", "React \/ Next\.js"\]/);
+  assert.match(messages, /frame-src https:\/\/app\.inrcy\.com/);
+});
+
 test("l'émission d'un jeton accepte le dashboard same-origin sans affaiblir l'authentification", () => {
   const route = read("app/api/widgets/issue-token/route.ts");
 

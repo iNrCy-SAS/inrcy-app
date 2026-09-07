@@ -107,6 +107,8 @@
   "cliquez_sur_les_boutons_de_connexion_9ec2513b": "คลิกปุ่มการเชื่อมต่อเพื่อเชื่อมโยง Google Analytics และ Search Console เพื่อรายงานสถิติโดยอัตโนมัติ เครื่องมือเหล่านี้จะต้องลงทะเบียนในบัญชี Google ของคุณอย่างชัดเจน",
   "code_copie_cdc31064": "คัดลอกรหัสแล้ว",
   "code_du_widget_cbab80cb": "รหัสวิดเจ็ต",
+  "format_d_installation_du_widget_actus_f3d70fa2": "รูปแบบการติดตั้ง",
+  "installation_react_next_du_widget_actus_a6940a61": "สร้างไฟล์ components/InrcyActus.tsx ด้วยโค้ดนี้ นำเข้า <InrcyActus /> ในหน้าที่ต้องการ แล้วจึง deploy หากเว็บไซต์ใช้ CSP ให้อนุญาต frame-src https://app.inrcy.com",
   "code_genere_avec_succes_vous_pouvez_d4de2c80": "✅ สร้างรหัสสำเร็จ คุณสามารถดูหรือคัดลอกได้",
   "code_hexadecimal_de_la_couleur_de_7bd2fad5": "รหัสเลขฐานสิบหกสำหรับสี iFrame",
   "collez_ce_code_iframe_dans_votre_81743f90": "วางโค้ด iframe นี้ลงในเว็บไซต์ของคุณ (WordPress, Wix, Webflow, HTML ฯลฯ) เพื่อแสดงข่าวสารล่าสุดของคุณที่เผยแพร่จาก Booster โดยอัตโนมัติ",
