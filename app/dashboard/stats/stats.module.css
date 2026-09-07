@@ -7607,6 +7607,13 @@
     width: 100% !important;
     min-width: 0 !important;
   }
+
+  .channelStatsPanel .lectureBusinessGoButton,
+  .channelStatsPanel .actionBtn.lectureBusinessGoButton {
+    justify-self: center !important;
+    align-self: center !important;
+    margin-inline: auto !important;
+  }
 }
 
 @container channelStats (max-width: 560px) {

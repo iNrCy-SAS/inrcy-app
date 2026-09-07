@@ -112,5 +112,9 @@ test("iNrStats channel panels use the global column width while zoom reflow stay
     /\.statsWorkspaceChannel \.channelStatsPanel \.detailTopRow,[\s\S]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\) !important/,
   );
   assert.match(css, /@container channelStats \(max-width: 800px\)/);
+  assert.match(
+    css,
+    /@container channelStats \(max-width: 800px\)[\s\S]*?\.channelStatsPanel \.actionBtn\.lectureBusinessGoButton[\s\S]*?justify-self: center !important;[\s\S]*?margin-inline: auto !important;/,
+  );
   assert.match(css, /overflow-x: hidden !important;[\s\S]*?overflow-y: visible !important/);
 });
