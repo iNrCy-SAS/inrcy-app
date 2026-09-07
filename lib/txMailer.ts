@@ -115,7 +115,7 @@ async function sendSmtpMail(mail: TxMail, config: TxSmtpConfig) {
   });
 
   try {
-    await transporter.sendMail({
+    const delivery = await transporter.sendMail({
       from: config.from,
       to: mail.to,
       subject: mail.subject,
@@ -130,6 +130,7 @@ async function sendSmtpMail(mail: TxMail, config: TxSmtpConfig) {
       })),
     });
     await clearTxSmtpCircuit(identity);
+    return delivery;
   } catch (error) {
     await openTxSmtpCircuit(error, identity);
     throw error;
@@ -142,5 +143,10 @@ export async function sendTxMail(mail: TxMail) {
 
 /** Low-volume internal alerts, isolated from user-facing notifications. */
 export async function sendMonitoringMail(mail: TxMail) {
+  await sendSmtpMail(mail, loadSmtpConfig("monitoring"));
+}
+
+/** Monitoring mail variant used when the caller must verify SMTP recipients. */
+export async function sendMonitoringMailWithResult(mail: TxMail) {
   return sendSmtpMail(mail, loadSmtpConfig("monitoring"));
 }

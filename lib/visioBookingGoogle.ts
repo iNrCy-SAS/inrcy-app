@@ -44,7 +44,10 @@ const INTEGRATION_SOURCE = "internal_staff";
 const INTEGRATION_PRODUCT = "visio_booking";
 const PRIVATE_BOOKING_KEY = "inrcyBooking";
 const PRIVATE_BOOKING_VALUE = "signup-visio";
+const PRIVATE_BOOKING_COMPANION_KEY = "inrcyBookingCompanion";
+const PRIVATE_BOOKING_COMPANION_VALUE = "assigned-member";
 const PUBLIC_BOOKING_ASSIGNEE = "Équipe iNrCy";
+const REQUIRED_INTERNAL_ALERT_EMAIL = "compte@inrcy.com";
 const TEAM_MIRROR_DEFAULT_PAST_DAYS = 30;
 const TEAM_MIRROR_DEFAULT_FUTURE_DAYS = 365;
 const BOOKING_LOCK_TTL_SECONDS = 120;
@@ -705,6 +708,24 @@ export async function syncVisioTeamCalendarsToShared(input?: {
         if (sourceKey) seenSourceKeys.add(sourceKey);
         const existingMirror = sourceKey ? mirrorBySource.get(sourceKey) : undefined;
         if (
+          privateProperties[PRIVATE_BOOKING_COMPANION_KEY] ===
+          PRIVATE_BOOKING_COMPANION_VALUE
+        ) {
+          try {
+            if (existingMirror && (await cancelSharedCalendarEvent(existingMirror))) {
+              result.cancelled += 1;
+            } else {
+              result.skipped += 1;
+            }
+          } catch (error) {
+            result.errors.push({
+              memberId: member.id,
+              code: visioGoogleErrorCode(error),
+            });
+          }
+          continue;
+        }
+        if (
           !shouldMirrorTeamCalendarEvent({
             event,
             memberEmail: member.email,
@@ -1021,10 +1042,20 @@ async function getCalendarEvent(calendarId: string, eventId: string) {
 }
 
 async function getExistingBooking(eventId: string) {
+  const sharedEvent = await getCalendarEvent(getVisioSharedCalendarId(), eventId);
+  if (sharedEvent && sharedEvent.status !== "cancelled") return sharedEvent;
+
   for (const member of getVisioTeamMembers()) {
     try {
       const event = await getCalendarEvent(member.calendarId, eventId);
-      if (event && event.status !== "cancelled") return event;
+      if (
+        event &&
+        event.status !== "cancelled" &&
+        event.extendedProperties?.private?.[PRIVATE_BOOKING_COMPANION_KEY] !==
+          PRIVATE_BOOKING_COMPANION_VALUE
+      ) {
+        return event;
+      }
     } catch (error) {
       if (
         error instanceof Error &&
@@ -1037,19 +1068,7 @@ async function getExistingBooking(eventId: string) {
     }
   }
 
-  const sharedEvent = await getCalendarEvent(getVisioSharedCalendarId(), eventId);
-  if (!sharedEvent || sharedEvent.status === "cancelled") return null;
-  const sourceCalendarId = String(
-    sharedEvent.extendedProperties?.private?.sourceCalendarId || "",
-  );
-  const sourceEventId = String(
-    sharedEvent.extendedProperties?.private?.sourceEventId || "",
-  );
-  if (sourceCalendarId && sourceEventId) {
-    const sourceEvent = await getCalendarEvent(sourceCalendarId, sourceEventId);
-    return sourceEvent && sourceEvent.status !== "cancelled" ? sourceEvent : null;
-  }
-  return sharedEvent;
+  return null;
 }
 
 type BookingLock = { release: () => Promise<void> };
@@ -1120,6 +1139,55 @@ async function readProspect(claims: VisioBookingClaims) {
   };
 }
 
+function getInternalAlertRecipients(environmentName: string) {
+  const configuredRecipients = optionalEnv(environmentName, "")
+    .split(/[;,]/)
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+  return Array.from(
+    new Set([REQUIRED_INTERNAL_ALERT_EMAIL, ...configuredRecipients]),
+  ).join(", ");
+}
+
+function assertMatchingBookingEvent(
+  event: GoogleCalendarEvent,
+  claims: VisioBookingClaims,
+) {
+  const properties = event.extendedProperties?.private || {};
+  if (
+    event.status === "cancelled" ||
+    properties[PRIVATE_BOOKING_KEY] !== PRIVATE_BOOKING_VALUE ||
+    properties.bookingNonce !== claims.nonce ||
+    properties.prospectUserId !== claims.sub
+  ) {
+    throw new Error(
+      event.status === "cancelled"
+        ? "visio_booking_cancelled"
+        : "visio_booking_id_conflict",
+    );
+  }
+}
+
+async function waitForMeetConference(
+  calendarId: string,
+  eventId: string,
+  initialEvent: GoogleCalendarEvent,
+) {
+  let event = initialEvent;
+  for (const delayMs of [0, 250, 500, 1_000, 1_500]) {
+    if (event.conferenceData && getMeetUrl(event)) return event;
+    if (delayMs) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+    const refreshed = await getCalendarEvent(calendarId, eventId);
+    if (!refreshed || refreshed.status === "cancelled") {
+      throw new Error("visio_booking_cancelled");
+    }
+    event = refreshed;
+  }
+  throw new Error("visio_meet_conference_pending");
+}
+
 async function createGoogleBookingEvent(input: {
   eventId: string;
   start: Date;
@@ -1139,6 +1207,14 @@ async function createGoogleBookingEvent(input: {
     "Source : inscription validée sur inrcy.com",
   ].filter(Boolean);
 
+  const privateProperties = {
+    [PRIVATE_BOOKING_KEY]: PRIVATE_BOOKING_VALUE,
+    bookingNonce: input.claims.nonce,
+    prospectUserId: input.claims.sub,
+    assignedMemberId: input.member.id,
+    assignedMemberEmail: input.member.email,
+  };
+
   const baseBody = {
     id: input.eventId,
     summary: `Présentation iNrCy — ${prospect.company || prospect.name}`,
@@ -1157,12 +1233,6 @@ async function createGoogleBookingEvent(input: {
       dateTime: end.toISOString(),
       timeZone: VISIO_BOOKING_TIMEZONE,
     },
-    conferenceData: {
-      createRequest: {
-        requestId: conferenceRequestId(input.claims.nonce),
-        conferenceSolutionKey: { type: "hangoutsMeet" },
-      },
-    },
     reminders: {
       useDefault: false,
       overrides: [
@@ -1171,63 +1241,87 @@ async function createGoogleBookingEvent(input: {
       ],
     },
     extendedProperties: {
-      private: {
-        [PRIVATE_BOOKING_KEY]: PRIVATE_BOOKING_VALUE,
-        bookingNonce: input.claims.nonce,
-        prospectUserId: input.claims.sub,
-        assignedMemberId: input.member.id,
-        assignedMemberEmail: input.member.email,
-      },
+      private: privateProperties,
     },
   };
 
   let event: GoogleCalendarEvent;
-  let createdOnMemberCalendar = false;
+  let createdPublicEvent = true;
   try {
+    let memberEvent: GoogleCalendarEvent;
+    try {
+      memberEvent = await googleCalendarRequest<GoogleCalendarEvent>(
+        `/calendars/${encodeCalendarId(input.member.calendarId)}/events?conferenceDataVersion=1&sendUpdates=none`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            ...baseBody,
+            description: [
+              ...contactLines,
+              `Responsable interne : ${input.member.name}`,
+            ].join("\n"),
+            conferenceData: {
+              createRequest: {
+                requestId: conferenceRequestId(input.claims.nonce),
+                conferenceSolutionKey: { type: "hangoutsMeet" },
+              },
+            },
+            extendedProperties: {
+              private: {
+                ...privateProperties,
+                [PRIVATE_BOOKING_COMPANION_KEY]:
+                  PRIVATE_BOOKING_COMPANION_VALUE,
+              },
+            },
+          }),
+        },
+      );
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message.startsWith("visio_google_api_failed:409:")
+      ) {
+        const existingMemberEvent = await getCalendarEvent(
+          input.member.calendarId,
+          input.eventId,
+        );
+        if (!existingMemberEvent) throw new Error("visio_booking_cancelled");
+        assertMatchingBookingEvent(existingMemberEvent, input.claims);
+        memberEvent = existingMemberEvent;
+      } else {
+        throw error;
+      }
+    }
+
+    memberEvent = await waitForMeetConference(
+      input.member.calendarId,
+      input.eventId,
+      memberEvent,
+    );
     event = await googleCalendarRequest<GoogleCalendarEvent>(
-      `/calendars/${encodeCalendarId(input.member.calendarId)}/events?conferenceDataVersion=1&sendUpdates=all`,
+      `/calendars/${encodeCalendarId(getVisioSharedCalendarId())}/events?conferenceDataVersion=1&sendUpdates=all`,
       {
         method: "POST",
         body: JSON.stringify({
           ...baseBody,
+          conferenceData: memberEvent.conferenceData,
           attendees: [{ email: prospect.email, displayName: prospect.name }],
         }),
       },
     );
-    createdOnMemberCalendar = true;
   } catch (error) {
     if (
       error instanceof Error &&
       error.message.startsWith("visio_google_api_failed:409:")
     ) {
-      try {
-        event = await googleCalendarRequest<GoogleCalendarEvent>(
-          `/calendars/${encodeCalendarId(input.member.calendarId)}/events/${encodeURIComponent(input.eventId)}`,
-        );
-      } catch (collisionReadError) {
-        if (
-          collisionReadError instanceof Error &&
-          (collisionReadError.message.startsWith("visio_google_api_failed:404:") ||
-            collisionReadError.message.startsWith("visio_google_api_failed:410:"))
-        ) {
-          throw new Error("visio_booking_cancelled");
-        }
-        throw collisionReadError;
-      }
-      const properties = event.extendedProperties?.private || {};
-      if (
-        event.status === "cancelled" ||
-        properties[PRIVATE_BOOKING_KEY] !== PRIVATE_BOOKING_VALUE ||
-        properties.bookingNonce !== input.claims.nonce ||
-        properties.prospectUserId !== input.claims.sub
-      ) {
-        throw new Error(
-          event.status === "cancelled"
-            ? "visio_booking_cancelled"
-            : "visio_booking_id_conflict",
-        );
-      }
-      createdOnMemberCalendar = true;
+      const existingSharedEvent = await getCalendarEvent(
+        getVisioSharedCalendarId(),
+        input.eventId,
+      );
+      if (!existingSharedEvent) throw new Error("visio_booking_cancelled");
+      assertMatchingBookingEvent(existingSharedEvent, input.claims);
+      event = existingSharedEvent;
+      createdPublicEvent = false;
     } else if (
       error instanceof Error &&
       (error.message.startsWith("visio_google_api_failed:403:") ||
@@ -1242,6 +1336,12 @@ async function createGoogleBookingEvent(input: {
           method: "POST",
           body: JSON.stringify({
             ...baseBody,
+            conferenceData: {
+              createRequest: {
+                requestId: conferenceRequestId(input.claims.nonce),
+                conferenceSolutionKey: { type: "hangoutsMeet" },
+              },
+            },
             attendees: [
               { email: input.member.email, displayName: PUBLIC_BOOKING_ASSIGNEE },
               { email: prospect.email, displayName: prospect.name },
@@ -1254,39 +1354,25 @@ async function createGoogleBookingEvent(input: {
     }
   }
 
-  if (createdOnMemberCalendar) {
-    await upsertTeamMirrorEvent({
-      event,
-      member: input.member,
+  const confirmation = confirmationFromEvent(event, input.start);
+  if (createdPublicEvent) {
+    await sendMonitoringMail({
+      to: getInternalAlertRecipients("INRCY_VISIO_BOOKING_ALERT_EMAIL"),
+      subject: `Nouveau rendez-vous visio iNrCy — ${prospect.company || prospect.name}`,
+      text: [
+        "Un rendez-vous de présentation a été réservé après une inscription.",
+        `Date : ${confirmation.dateLabel} à ${confirmation.timeLabel}`,
+        `Attribué à : ${input.member.name}`,
+        ...contactLines.slice(0, 4),
+        confirmation.meetUrl ? `Google Meet : ${confirmation.meetUrl}` : "",
+      ].filter(Boolean).join("\n"),
     }).catch((error: unknown) => {
       console.error(
-        "[visio-booking][team-mirror]",
-        error instanceof Error ? error.message : "mirror_failed",
+        "[visio-booking][monitoring-mail]",
+        error instanceof Error ? error.message : "send_failed",
       );
     });
   }
-
-  const confirmation = confirmationFromEvent(event, input.start);
-  const alertDestination = optionalEnv(
-    "INRCY_VISIO_BOOKING_ALERT_EMAIL",
-    "compte@inrcy.com",
-  );
-  await sendMonitoringMail({
-    to: alertDestination,
-    subject: `Nouveau rendez-vous visio iNrCy — ${prospect.company || prospect.name}`,
-    text: [
-      "Un rendez-vous de présentation a été réservé après une inscription.",
-      `Date : ${confirmation.dateLabel} à ${confirmation.timeLabel}`,
-      `Attribué à : ${input.member.name}`,
-      ...contactLines.slice(0, 4),
-      confirmation.meetUrl ? `Google Meet : ${confirmation.meetUrl}` : "",
-    ].filter(Boolean).join("\n"),
-  }).catch((error: unknown) => {
-    console.error(
-      "[visio-booking][monitoring-mail]",
-      error instanceof Error ? error.message : "send_failed",
-    );
-  });
   return confirmation;
 }
 

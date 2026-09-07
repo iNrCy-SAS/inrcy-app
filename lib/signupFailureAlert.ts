@@ -27,6 +27,21 @@ type LocalClaimState = {
 
 const CLAIM_TTL_SECONDS = 120;
 const DEFAULT_DEDUPE_SECONDS = 15 * 60;
+const REQUIRED_SIGNUP_ALERT_EMAIL = "compte@inrcy.com";
+
+function getSignupFailureAlertRecipients() {
+  const configuredRecipients = optionalEnv(
+    "INRCY_SIGNUP_FAILURE_ALERT_EMAIL",
+    optionalEnv("INRCY_NEW_USER_ALERT_EMAIL", "compte@inrcy.com"),
+  )
+    .split(/[;,]/)
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+
+  return Array.from(
+    new Set([REQUIRED_SIGNUP_ALERT_EMAIL, ...configuredRecipients]),
+  ).join(", ");
+}
 
 function getLocalClaims() {
   const globalCache = globalThis as GlobalWithSignupFailureAlert;
@@ -178,10 +193,7 @@ async function releaseAlert(claim: SignupFailureAlertClaim) {
 
 export async function sendSignupFailureAlert(input: SignupFailureAlertInput) {
   return deliverSignupFailureAlert(input, {
-    destination: optionalEnv(
-      "INRCY_SIGNUP_FAILURE_ALERT_EMAIL",
-      optionalEnv("INRCY_NEW_USER_ALERT_EMAIL", "compte@inrcy.com"),
-    ),
+    destination: getSignupFailureAlertRecipients(),
     claim: claimAlert,
     commit: commitAlert,
     release: releaseAlert,

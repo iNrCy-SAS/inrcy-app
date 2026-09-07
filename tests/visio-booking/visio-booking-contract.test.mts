@@ -44,25 +44,34 @@ test("la réservation impose capacité deux, Meet et invitations", () => {
   assert.match(backend, /pendingSignupReminderProspectUserId/);
 });
 
-test("les nouveaux rendez-vous sont organisés par le membre puis reflétés sans invitation", () => {
+test("le membre héberge le Meet mais seule l'équipe iNrCy invite le prospect", () => {
   const backend = read("lib/visioBookingGoogle.ts");
   const mirror = read("lib/visioCalendarMirrorPolicy.ts");
   assert.match(
     backend,
-    /encodeCalendarId\(input\.member\.calendarId\)[\s\S]*?conferenceDataVersion=1&sendUpdates=all/,
+    /encodeCalendarId\(input\.member\.calendarId\)[\s\S]*?conferenceDataVersion=1&sendUpdates=none/,
   );
+  assert.match(
+    backend,
+    /encodeCalendarId\(getVisioSharedCalendarId\(\)\)[\s\S]*?conferenceDataVersion=1&sendUpdates=all/,
+  );
+  assert.match(backend, /conferenceData:\s*memberEvent\.conferenceData/);
   assert.match(backend, /attendees:\s*\[\{ email: prospect\.email/);
-  assert.match(backend, /upsertTeamMirrorEvent/);
+  assert.match(backend, /PRIVATE_BOOKING_COMPANION_KEY/);
+  assert.match(backend, /PRIVATE_BOOKING_COMPANION_VALUE/);
   assert.match(backend, /sendUpdates=none/);
   assert.match(backend, /getExistingBooking\(eventId\)/);
   assert.match(backend, /for \(const member of getVisioTeamMembers\(\)\)/);
-  assert.match(backend, /if \(event && event\.status !== "cancelled"\) return event/);
+  assert.match(
+    backend,
+    /const sharedEvent = await getCalendarEvent\(getVisioSharedCalendarId\(\), eventId\)/,
+  );
   assert.match(backend, /acquireBookingLock\(`identity:\$\{eventId\}`\)/);
   assert.match(backend, /acquireBookingLock\(`slot:\$\{start\.toISOString\(\)\}`\)/);
   assert.match(backend, /BOOKING_LOCK_TTL_SECONDS\s*=\s*120/);
   assert.match(backend, /REDIS_COMPARE_DELETE_SCRIPT/);
   assert.match(backend, /visio_booking_cancelled/);
-  assert.match(backend, /properties\.bookingNonce !== input\.claims\.nonce/);
+  assert.match(backend, /properties\.bookingNonce !== claims\.nonce/);
   assert.doesNotMatch(mirror, /attendees\s*:/);
   assert.doesNotMatch(mirror, /conferenceData\s*:/);
 });

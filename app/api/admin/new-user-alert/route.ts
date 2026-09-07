@@ -8,10 +8,12 @@ import {
   getSignupCampaignLabel,
   readSignupAttributionSnapshot,
 } from "@/lib/signupAttribution";
-import { sendMonitoringMail } from "@/lib/txMailer";
+import { sendMonitoringMailWithResult } from "@/lib/txMailer";
 import { isTxSmtpCircuitOpenError } from "@/lib/txSmtpCircuit";
 
 export const runtime = "nodejs";
+
+const REQUIRED_SIGNUP_ALERT_EMAIL = "compte@inrcy.com";
 
 type SupabaseAuthWebhookPayload = {
   type?: string;
@@ -53,6 +55,35 @@ function emailRow(label: string, value: string, emphasis = false) {
   `;
 }
 
+function getSignupAlertRecipients() {
+  const configuredRecipients = (process.env.INRCY_NEW_USER_ALERT_EMAIL || "")
+    .split(/[;,]/)
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+
+  return Array.from(
+    new Set([REQUIRED_SIGNUP_ALERT_EMAIL, ...configuredRecipients]),
+  );
+}
+
+function getSignupAlertSubject(input: {
+  companyName: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  userId: string;
+}) {
+  const namedIdentity = [input.firstName, input.lastName]
+    .filter((value) => value && value !== "Non renseigné")
+    .join(" ");
+  const identity =
+    input.companyName !== "Non renseigné"
+      ? input.companyName
+      : namedIdentity || input.email || "Nouvelle inscription";
+
+  return `Nouvelle inscription iNrCy — ${identity} — ${input.userId.slice(0, 8)}`;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const secret = requireSecretHeader(req, "x-inrcy-webhook-secret", process.env.SUPABASE_NEW_USER_WEBHOOK_SECRET);
@@ -83,9 +114,8 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const alertTo = (
-      process.env.INRCY_NEW_USER_ALERT_EMAIL || "compte@inrcy.com"
-    ).trim();
+    const alertRecipients = getSignupAlertRecipients();
+    const alertTo = alertRecipients.join(", ");
     const smtpHost = process.env.MONITORING_SMTP_HOST || process.env.TX_SMTP_HOST;
     const smtpUser = process.env.MONITORING_SMTP_USER || process.env.TX_SMTP_USER;
     const smtpPass = process.env.MONITORING_SMTP_PASS || process.env.TX_SMTP_PASS;
@@ -128,9 +158,17 @@ export async function POST(req: NextRequest) {
 
     const emailConfirmed = record.email_confirmed_at ? "Oui" : "Non";
 
-    await sendMonitoringMail({
+    const subject = getSignupAlertSubject({
+      companyName,
+      firstName,
+      lastName,
+      email,
+      userId: String(userId),
+    });
+
+    const delivery = await sendMonitoringMailWithResult({
       to: alertTo,
-      subject: "Nouvelle inscription iNrCy",
+      subject,
       text: [
         "Nouvelle inscription iNrCy",
         "",
@@ -222,6 +260,30 @@ export async function POST(req: NextRequest) {
           </div>
         </div>
       `,
+    });
+
+    const acceptedRecipients = Array.isArray(delivery.accepted)
+      ? delivery.accepted.map((value) => String(value).trim().toLowerCase())
+      : [];
+    if (!acceptedRecipients.includes(REQUIRED_SIGNUP_ALERT_EMAIL)) {
+      console.error("[new-user-alert] required recipient rejected", {
+        requiredRecipient: REQUIRED_SIGNUP_ALERT_EMAIL,
+        accepted: acceptedRecipients,
+        rejected: Array.isArray(delivery.rejected)
+          ? delivery.rejected.map(String)
+          : [],
+        userId,
+      });
+      return NextResponse.json(
+        { ok: false, error: "Required signup alert recipient rejected" },
+        { status: 502 },
+      );
+    }
+
+    console.info("[new-user-alert] delivered", {
+      requiredRecipient: REQUIRED_SIGNUP_ALERT_EMAIL,
+      messageId: delivery.messageId,
+      userId,
     });
 
     return NextResponse.json({ ok: true });
