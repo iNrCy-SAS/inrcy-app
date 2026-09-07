@@ -85,7 +85,7 @@ const buildHtmlSnippet = (config: GeneratedActusWidgetConfig) => {
   var ready=false;
   function applyHeight(value){ var h=parseInt(value,10); if(!h||h<140)return; if(Math.abs(h-lastHeight)<2)return; lastHeight=h; iframe.style.height=h+"px"; iframe.setAttribute("height",String(h)); }
   function send(type){ if(!iframe.contentWindow)return; iframe.contentWindow.postMessage({source:"inrcy-host",type:type,frameId:"${iframeId}"},"${publicAppOrigin}"); }
-  function onMessage(event){ if(event.origin!=="${publicAppOrigin}")return; if(event.source!==iframe.contentWindow)return; var data=event.data||{}; if(data.source!=="inrcy-embed"||data.frameId!=="${iframeId}")return; if(data.type==="inrcy:embed-ready"){ ready=true; applyHeight(data.height); send("inrcy:embed-init"); return; } if(data.type!=="inrcy:embed-resize")return; applyHeight(data.height); }
+  function onMessage(event){ if(event.origin!=="${publicAppOrigin}")return; if(event.source!==iframe.contentWindow)return; var data=event.data||{}; if(data.frameId!=="${iframeId}")return; if(data.source&&data.source!=="inrcy-embed")return; if(data.type==="inrcy:embed-ready"){ ready=true; applyHeight(data.height); send("inrcy:embed-init"); return; } if(data.type!=="inrcy:embed-resize")return; applyHeight(data.height); }
   window.addEventListener("message",onMessage,false);
   iframe.addEventListener("load",function(){ send("inrcy:embed-init"); });
   setTimeout(function(){ send("inrcy:embed-ping"); },120);
@@ -142,7 +142,8 @@ export default function InrcyActus() {
         frameId?: string;
         height?: unknown;
       } | null;
-      if (!data || data.source !== "inrcy-embed" || data.frameId !== FRAME_ID) return;
+      if (!data || data.frameId !== FRAME_ID) return;
+      if (data.source && data.source !== "inrcy-embed") return;
       if (data.type === "inrcy:embed-ready") {
         ready = true;
         applyHeight(data.height);
@@ -190,6 +191,7 @@ export default function InrcyActus() {
         }}
         loading="lazy"
         referrerPolicy="strict-origin-when-cross-origin"
+        scrolling="no"
         title="Actualités iNrCy"
       />
     </section>

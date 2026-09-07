@@ -32,6 +32,7 @@ test("le bouton du widget Site web peut redemander son jeton au clic", () => {
 
 test("le widget Actus propose un composant React et Next.js auto-redimensionné", () => {
   const component = read("app/dashboard/_components/SiteActusWidgetCode.tsx");
+  const embed = read("app/embed/actus/_lib/render.ts");
   const messages = read("messages/fr-FR/shell.json");
 
   assert.match(component, /type WidgetInstallTarget = "html" \| "react_next"/);
@@ -39,7 +40,9 @@ test("le widget Actus propose un composant React et Next.js auto-redimensionné"
   assert.match(component, /return `"use client";/);
   assert.match(component, /useRef<HTMLIFrameElement \| null>/);
   assert.match(component, /event\.source !== iframe\.contentWindow/);
-  assert.match(component, /data\.source !== "inrcy-embed"/);
+  assert.match(component, /if \(data\.source && data\.source !== "inrcy-embed"\) return/);
+  assert.match(component, /scrolling="no"/);
+  assert.match(embed, /source:'inrcy-embed'/);
   assert.match(component, /window\.removeEventListener\("message", onMessage\)/);
   assert.match(component, /<section id="actualites"/);
   assert.match(component, /\["react_next", "React \/ Next\.js"\]/);
