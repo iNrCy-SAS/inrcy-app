@@ -233,6 +233,7 @@ export async function createBrandMotionFrame(args: {
   officialLogo?: Buffer | null;
   companyName?: string;
   headline?: string;
+  phone?: string;
 }): Promise<Buffer> {
   const width = Math.max(320, Math.min(2_048, Math.trunc(args.width)));
   const height = Math.max(320, Math.min(2_048, Math.trunc(args.height)));
@@ -249,6 +250,20 @@ export async function createBrandMotionFrame(args: {
         `<text x="${Math.round(width * 0.08)}" y="${textTop + index * lineHeight}" font-family="Arial,Helvetica,sans-serif" font-size="${fontSize}" font-weight="700" fill="#fff">${escapeXml(line)}</text>`,
     )
     .join("");
+  const phone = String(args.phone || "")
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const phoneFontSize = Math.max(22, Math.round(fontSize * 0.43));
+  const phonePillHeight = Math.round(phoneFontSize * 1.9);
+  const phonePillWidth = Math.min(
+    Math.round(width * 0.72),
+    Math.round((phone.length + 5) * phoneFontSize * 0.62 + phoneFontSize * 1.8),
+  );
+  const phoneTop = Math.round(height * 0.75);
+  const phoneSvg = phone
+    ? `<rect x="${Math.round(width * 0.08)}" y="${phoneTop}" width="${phonePillWidth}" height="${phonePillHeight}" rx="${Math.round(phonePillHeight / 2)}" fill="#020617" opacity=".72" stroke="#fff" stroke-opacity=".24"/><text x="${Math.round(width * 0.08) + Math.round(phoneFontSize * 0.9)}" y="${phoneTop + Math.round(phonePillHeight * 0.66)}" font-family="Arial,Helvetica,sans-serif" font-size="${phoneFontSize}" font-weight="700" fill="#fff">${escapeXml(`TEL  ${phone}`)}</text>`
+    : "";
   const svg = Buffer.from(
     `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
       <defs>
@@ -259,6 +274,7 @@ export async function createBrandMotionFrame(args: {
       <circle cx="${Math.round(width * 0.78)}" cy="${Math.round(height * 0.22)}" r="${Math.round(Math.min(width, height) * 0.45)}" fill="url(#g)"/>
       <path d="M0 ${Math.round(height * 0.82)} C ${Math.round(width * 0.28)} ${Math.round(height * 0.62)}, ${Math.round(width * 0.64)} ${Math.round(height * 1.05)}, ${width} ${Math.round(height * 0.72)} L ${width} ${height} L0 ${height} Z" fill="#fff" opacity=".08"/>
       ${headlineSvg}
+      ${phoneSvg}
       ${args.companyName ? `<text x="${Math.round(width * 0.08)}" y="${Math.round(height * 0.88)}" font-family="Arial,Helvetica,sans-serif" font-size="${Math.max(22, Math.round(fontSize * 0.46))}" font-weight="600" fill="#fff" opacity=".84">${escapeXml(String(args.companyName).slice(0, 80))}</text>` : ""}
     </svg>`,
   );

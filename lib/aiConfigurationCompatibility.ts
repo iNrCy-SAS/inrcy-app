@@ -11,7 +11,7 @@ import {
 } from "./aiContentLength.ts";
 import type { DashboardEdition } from "./dashboardEdition.ts";
 
-type BoosterPreferredCta = "none" | "site" | "devis" | "appeler" | "message" | "custom";
+type BoosterPreferredCta = "none" | "site" | "devis" | "appeler" | "message" | "whatsapp" | "custom";
 
 const PREFERRED_CTA_VALUES = new Set<BoosterPreferredCta>([
   "none",
@@ -19,6 +19,7 @@ const PREFERRED_CTA_VALUES = new Set<BoosterPreferredCta>([
   "devis",
   "appeler",
   "message",
+  "whatsapp",
   "custom",
 ]);
 

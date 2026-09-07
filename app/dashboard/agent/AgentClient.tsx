@@ -72,6 +72,10 @@ import {
   getMediaLibraryOptimizationRequirements,
 } from "@/lib/mediaLibraryOptimizationPolicy";
 import {
+  buildBoosterWhatsAppUrl,
+  getBoosterWhatsAppPhoneFromUrl,
+} from "@/lib/boosterWhatsappCta";
+import {
   UNIVERSAL_MEDIA_VIDEO_EXTENSIONS,
   UNIVERSAL_MEDIA_VIDEO_MIME_TYPES,
   detectUniversalUploadMediaType,
@@ -5555,7 +5559,8 @@ export default function AgentClient() {
                         </select>
                       </label>
 
-                      {(ctaMode === "website" || ctaMode === "custom") && (
+                      {(ctaMode === "website" ||
+                        (ctaMode === "custom" && ctaChoice !== "whatsapp")) && (
                         <label>
                           <span>{i18nT("url_de_destination_f11980ae")}</span>
                           <input
@@ -5602,6 +5607,35 @@ export default function AgentClient() {
                         </label>
                       )}
 
+                      {ctaChoice === "whatsapp" && (
+                        <label>
+                          <span>{i18nT("telephone_d3b023ea")}</span>
+                          <input
+                            inputMode="tel"
+                            value={
+                              publishTextDraft.ctaPhone ||
+                              getBoosterWhatsAppPhoneFromUrl(
+                                publishTextDraft.ctaUrl,
+                              )
+                            }
+                            onChange={(event) =>
+                              updatePublishCtaDraft({
+                                ctaPhone: event.target.value,
+                                ctaUrl: buildBoosterWhatsAppUrl(
+                                  event.target.value,
+                                ),
+                              })
+                            }
+                            maxLength={40}
+                            placeholder={
+                              publishCtaDefaults?.phone
+                                ? i18nT("phone_prefilled_placeholder")
+                                : i18nT("telephone_d3b023ea")
+                            }
+                          />
+                        </label>
+                      )}
+
                       {(ctaMode === "website" || ctaMode === "custom") && (
                         <label>
                           <span>{i18nT("texte_du_bouton_5bc213b4")}</span>
@@ -5645,6 +5679,7 @@ export default function AgentClient() {
                         displayKey,
                         ctaMode,
                         boosterRuntimeT,
+                        ctaChoice,
                       )}
                     </small>
                     {ctaMode === "website" && activeWebsiteUrl && (
@@ -5654,7 +5689,8 @@ export default function AgentClient() {
                         {activeWebsiteUrl}
                       </small>
                     )}
-                    {ctaMode === "call" && publishCtaDefaults?.phone && (
+                    {(ctaMode === "call" || ctaChoice === "whatsapp") &&
+                      publishCtaDefaults?.phone && (
                       <small className={styles.publishCtaHelp}>
                         {i18nT("valeur_par_defaut_disponible_depuis_mon_841d60a8")}{" "}
                         {publishCtaDefaults.phone}

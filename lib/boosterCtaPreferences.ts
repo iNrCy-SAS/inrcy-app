@@ -4,6 +4,11 @@ import type {
   BoosterCtaMode,
   BoosterPostLike,
 } from "@/lib/boosterCta";
+import {
+  buildBoosterWhatsAppUrl,
+  getBoosterWhatsAppPhoneFromUrl,
+  isBoosterWhatsAppUrl,
+} from "@/lib/boosterWhatsappCta";
 
 export type BoosterPreferredCta =
   | "none"
@@ -11,6 +16,7 @@ export type BoosterPreferredCta =
   | "devis"
   | "appeler"
   | "message"
+  | "whatsapp"
   | "custom";
 
 export type BoosterAiLanguage =
@@ -47,6 +53,7 @@ const PREFERRED_CTA_VALUES = new Set<BoosterPreferredCta>([
   "devis",
   "appeler",
   "message",
+  "whatsapp",
   "custom",
 ]);
 
@@ -72,6 +79,7 @@ const CTA_LABELS_BY_LANGUAGE: Record<
     devis: "Demander un devis",
     appeler: "Appeler",
     message: "Envoyer un message",
+    whatsapp: "Écrire sur WhatsApp",
     custom: "",
   },
   en: {
@@ -80,6 +88,7 @@ const CTA_LABELS_BY_LANGUAGE: Record<
     devis: "Request a quote",
     appeler: "Call",
     message: "Send a message",
+    whatsapp: "Message us on WhatsApp",
     custom: "",
   },
   es: {
@@ -88,6 +97,7 @@ const CTA_LABELS_BY_LANGUAGE: Record<
     devis: "Solicitar presupuesto",
     appeler: "Llamar",
     message: "Enviar mensaje",
+    whatsapp: "Escribir por WhatsApp",
     custom: "",
   },
   it: {
@@ -96,6 +106,7 @@ const CTA_LABELS_BY_LANGUAGE: Record<
     devis: "Richiedi un preventivo",
     appeler: "Chiama",
     message: "Invia un messaggio",
+    whatsapp: "Scrivici su WhatsApp",
     custom: "",
   },
   de: {
@@ -104,6 +115,7 @@ const CTA_LABELS_BY_LANGUAGE: Record<
     devis: "Angebot anfordern",
     appeler: "Anrufen",
     message: "Nachricht senden",
+    whatsapp: "Über WhatsApp schreiben",
     custom: "",
   },
   nl: {
@@ -112,6 +124,7 @@ const CTA_LABELS_BY_LANGUAGE: Record<
     devis: "Offerte aanvragen",
     appeler: "Bellen",
     message: "Bericht sturen",
+    whatsapp: "Stuur een WhatsApp-bericht",
     custom: "",
   },
   pt: {
@@ -120,6 +133,7 @@ const CTA_LABELS_BY_LANGUAGE: Record<
     devis: "Pedir orçamento",
     appeler: "Ligar",
     message: "Enviar mensagem",
+    whatsapp: "Enviar mensagem no WhatsApp",
     custom: "",
   },
   th: BOOSTER_ASIAN_CTA_LABELS.th,
@@ -235,7 +249,7 @@ export function buildSafePreferredCtaPatch(args: {
     args.defaults,
   );
   const phone = normalizeCtaPhone(
-    args.defaults?.phone || args.post?.ctaPhone,
+    args.post?.ctaPhone || args.defaults?.phone,
   );
 
   if (choice === "none") return emptyCta();
@@ -283,6 +297,21 @@ export function buildSafePreferredCtaPatch(args: {
       cta: getPreferredCtaLabel("site", language),
       ctaUrl: websiteUrl,
       ctaPhone: "",
+    };
+  }
+
+  if (choice === "whatsapp") {
+    const existingUrl = normalizeCtaWebsiteUrl(args.post?.ctaUrl);
+    const existingWhatsAppPhone = getBoosterWhatsAppPhoneFromUrl(existingUrl);
+    const whatsappPhone = phone || existingWhatsAppPhone;
+    const whatsappUrl = isBoosterWhatsAppUrl(existingUrl)
+      ? existingUrl
+      : buildBoosterWhatsAppUrl(whatsappPhone);
+    return {
+      ctaMode: "custom",
+      cta: getPreferredCtaLabel("whatsapp", language),
+      ctaUrl: whatsappUrl,
+      ctaPhone: whatsappPhone,
     };
   }
 

@@ -204,3 +204,43 @@ test("une idée formulée comme une action devient une accroche française natur
     assert.equal(plan.headline.includes("…"), false);
   }
 });
+
+test("le secours local conserve les noms propres entiers et corrige le sujet peinture", () => {
+  const buildAiMediaCreativePlan = loadCreativePlanBuilder();
+  const idea = "peinture réalisées dans une école à Guyancourt";
+  const profile = {
+    preferences: { language: "fr", preferredCta: "appeler" },
+    business: {
+      companyName: "Agira Bâtiments",
+      professionLabel: "Entreprise de peinture",
+      sectorLabel: "Bâtiment",
+      description: "Travaux de peinture pour les professionnels.",
+      services: ["Peinture intérieure"],
+      strengths: [],
+      customerTypologies: ["Écoles"],
+      interventionZones: ["Guyancourt"],
+      city: "Guyancourt",
+      openingHours: "",
+    },
+  };
+
+  for (let index = 0; index < 12; index += 1) {
+    const plan = buildAiMediaCreativePlan({
+      request: {
+        requestId: `guyancourt-${index}`,
+        durationSeconds: 8,
+        subjectSource: "custom",
+        idea,
+        aiInstruction: "",
+        withText: true,
+        textKeywords: [],
+        typology: "service",
+      },
+      profile,
+      recentPublications: [],
+    });
+    assert.match(plan.headline, /Guyancourt/);
+    assert.doesNotMatch(plan.headline, /Guyanc(?:\s|$|[,.!?])/);
+    assert.doesNotMatch(plan.headline, /peinture réalisées/i);
+  }
+});

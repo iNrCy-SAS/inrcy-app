@@ -374,11 +374,15 @@
 }
 
 .hasEventsDot{
+  position: absolute;
+  top: 10px;
+  right: 10px;
   width: 6px;
   height: 6px;
   border-radius: 999px;
   background: rgba(56, 189, 248, 0.95);
   box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.10);
+  pointer-events: none;
 }
 
 .pillToday {
@@ -542,23 +546,15 @@
   .chips{ display:none; }
 }
 
-  /* Mobile: la bille "événements" ne doit plus décaler la grille */
-  .dayNumRow{
-    position: relative;
-    gap: 0; /* on supprime l'espace réservé à la bille */
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  /* Mobile: la bille se place DANS la bulle, sous le nombre */
+/* Tablette et mobile : le point reste dans l'angle de la case, loin du chiffre. */
+@media (max-width: 980px) {
   .hasEventsDot{
-    position: absolute;
-    left: 50%;
-    bottom: 6px;              /* ajuste si tu la veux plus haut/bas */
-    transform: translateX(-50%);
-    pointer-events: none;
+    top: 5px;
+    right: 5px;
+    width: 5px;
+    height: 5px;
   }
+}
 
 
 /* --- RDV modal form helpers --- */

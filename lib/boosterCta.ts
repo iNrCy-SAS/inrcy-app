@@ -10,6 +10,12 @@ import {
   sanitizeBoosterPostForStructuredCta as sanitizeStructuredCtaPost,
   sanitizeGoogleBusinessPublicationText,
 } from "@/lib/boosterPublicationSafety";
+export {
+  buildBoosterWhatsAppUrl,
+  getBoosterWhatsAppPhoneFromUrl,
+  isBoosterWhatsAppUrl,
+  normalizeBoosterWhatsAppPhone,
+} from "@/lib/boosterWhatsappCta";
 
 export type BoosterChannelKey = "inrcy_site" | "site_web" | "inr_search" | "gmb" | "facebook" | "instagram" | "linkedin" | "tiktok" | "youtube_shorts" | "pinterest";
 export type BoosterCtaMode = "none" | "website" | "call" | "message" | "custom";
@@ -29,10 +35,10 @@ export type BoosterCtaContext = {
   phone?: string | null;
 };
 
-export type BoosterGmbCallToAction = {
-  actionType: "LEARN_MORE" | "CALL";
-  url: string;
-} | null;
+export type BoosterGmbCallToAction =
+  | { actionType: "LEARN_MORE"; url: string }
+  | { actionType: "CALL" }
+  | null;
 
 const VALID_MODES: BoosterCtaMode[] = ["none", "website", "call", "message", "custom"];
 
@@ -59,13 +65,6 @@ function normalizePhone(input: string) {
     .trim()
     .replace(/[^\d+]/g, "")
     .slice(0, 24);
-}
-
-function phoneToTelUrl(input: string) {
-  const phone = normalizePhone(input);
-  if (!phone) return "";
-  const normalized = phone.startsWith("+") ? `+${phone.slice(1).replace(/\+/g, "")}` : phone;
-  return `tel:${normalized}`;
 }
 
 export function inferLegacyCtaMode(text: string): BoosterCtaMode {
@@ -218,9 +217,9 @@ export function getBoosterGmbCallToAction(post: Partial<BoosterPostLike> | null 
     return { actionType: "LEARN_MORE", url };
   }
   if (mode === "call") {
-    const telUrl = phoneToTelUrl(getCtaPhone(post, context));
-    if (!telUrl) return null;
-    return { actionType: "CALL", url: telUrl };
+    if (!getCtaPhone(post, context)) return null;
+    // Google Business déduit le numéro de la fiche et refuse une URL sur CALL.
+    return { actionType: "CALL" };
   }
   if (mode === "custom") {
     const url = ensureUrl(String(post?.ctaUrl || ""));

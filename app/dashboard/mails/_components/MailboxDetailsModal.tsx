@@ -3,6 +3,10 @@ import React from "react";
 import { useRouter } from "next/navigation";
 import { readSanitizedElementHtml, sanitizeHtml } from "@/lib/sanitizeHtml";
 import { editableHtmlToSiteText, renderBoosterSiteContentHtml, renderBoosterSiteInlineHtml, stripSiteTextFormatting } from "@/lib/boosterFormatting";
+import {
+  buildBoosterWhatsAppUrl,
+  getBoosterWhatsAppPhoneFromUrl,
+} from "@/lib/boosterWhatsappCta";
 import styles from "../mails.module.css";
 import { ChannelImageAdapterCardsPanel, ChannelPublicationPreview } from "@/app/dashboard/_components/ChannelImageAdapterTool";
 import InrcyCameraCaptureModal from "@/app/dashboard/_components/InrcyCameraCaptureModal";
@@ -2514,16 +2518,38 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
 
                                                   {ctaMode === "custom" ? (
                                                     <>
-                                                      <div>
-                                                        <div className={styles.publicationLabel}>{i18nT("url_de_destination_f11980ae")}</div>
-                                                        <input
-                                                          value={publicationEditForm.ctaUrl || ""}
-                                                          onChange={(e) => updatePublicationEdit({ ctaUrl: e.target.value })}
-                                                          style={lightFieldStyle}
-                                                          placeholder={i18nT("url_personnalisee_optionnel_49f1857f")}
-                                                          disabled={detailsActionBusy}
-                                                        />
-                                                      </div>
+                                                      {ctaChoice === "whatsapp" ? (
+                                                        <div>
+                                                          <div className={styles.publicationLabel}>{i18nT("telephone_d3b023ea")}</div>
+                                                          <input
+                                                            inputMode="tel"
+                                                            value={
+                                                              publicationEditForm.ctaPhone ||
+                                                              getBoosterWhatsAppPhoneFromUrl(publicationEditForm.ctaUrl)
+                                                            }
+                                                            onChange={(e) =>
+                                                              updatePublicationEdit({
+                                                                ctaPhone: e.target.value,
+                                                                ctaUrl: buildBoosterWhatsAppUrl(e.target.value),
+                                                              })
+                                                            }
+                                                            style={lightFieldStyle}
+                                                            placeholder={i18nT("telephone_d3b023ea")}
+                                                            disabled={detailsActionBusy}
+                                                          />
+                                                        </div>
+                                                      ) : (
+                                                        <div>
+                                                          <div className={styles.publicationLabel}>{i18nT("url_de_destination_f11980ae")}</div>
+                                                          <input
+                                                            value={publicationEditForm.ctaUrl || ""}
+                                                            onChange={(e) => updatePublicationEdit({ ctaUrl: e.target.value })}
+                                                            style={lightFieldStyle}
+                                                            placeholder={i18nT("url_personnalisee_optionnel_49f1857f")}
+                                                            disabled={detailsActionBusy}
+                                                          />
+                                                        </div>
+                                                      )}
                                                       <div>
                                                         <div className={styles.publicationLabel}>{i18nT("texte_du_bouton_5bc213b4")}</div>
                                                         <input
@@ -2538,7 +2564,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                                   ) : null}
                                                 </div>
                                                 <div style={{ fontSize: 11, marginTop: 6, color: "rgba(255,255,255,0.62)", lineHeight: 1.45 }}>
-                                                  {getCtaModeHelp(publicationDisplayKey, ctaMode)}
+                                                  {getCtaModeHelp(publicationDisplayKey, ctaMode, ctaChoice)}
                                                 </div>
                                                 {ctaMode === "website" && activeWebsiteUrl ? (
                                                   <div style={{ fontSize: 11, marginTop: 8, color: "rgba(255,255,255,0.62)", lineHeight: 1.45 }}>
@@ -2547,7 +2573,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                                   <div style={{ fontSize: 11, marginTop: 8, color: "rgba(255,255,255,0.62)", lineHeight: 1.45 }}>
                                                     {i18nT("deux_sites_sont_connectes_choisissez_le_ec7d3ccc")}{" "}</div>
                                                 ) : null}
-                                                {ctaMode === "call" && publicationCtaDefaults?.phone ? (
+                                                {(ctaMode === "call" || ctaChoice === "whatsapp") && publicationCtaDefaults?.phone ? (
                                                   <div style={{ fontSize: 11, marginTop: 8, color: "rgba(255,255,255,0.62)", lineHeight: 1.45 }}>
                                                     {i18nT("valeur_par_defaut_disponible_depuis_mon_38837a44", { value0: publicationCtaDefaults.phone })}</div>
                                                 ) : null}

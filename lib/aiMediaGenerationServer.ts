@@ -10,6 +10,7 @@ import { loadAiMediaBrandKit } from "@/lib/aiMediaBrandKit";
 import {
   renderAiMediaVideoOverlay,
 } from "@/lib/aiMediaBrandRenderer";
+import { composeAiMediaContactImage } from "@/lib/aiMediaImageContactComposer";
 import { buildAiMediaCreativePlan } from "@/lib/aiMediaCreativePlan";
 import { writeAiMediaHeadline } from "@/lib/aiMediaCopywriter";
 import {
@@ -57,6 +58,10 @@ import {
   type NormalizedAiMedia,
 } from "@/lib/aiMediaNormalizer";
 import { redactAiMediaSensitiveText } from "@/lib/aiMediaSensitiveText";
+import {
+  cleanAiMediaProfilePhone,
+  isAiMediaProfilePhoneDisplayRequested,
+} from "@/lib/aiMediaVisibleContact";
 import { generateOriginalAiVideoClips } from "@/lib/aiVideoProvider";
 import { classifyVeoFailure } from "@/lib/aiVideoReliability";
 import {
@@ -271,6 +276,17 @@ export async function generateAndSaveAiMedia(args: {
       context: "",
     },
   });
+  const profilePhoneDisplayRequested =
+    providerRequest.kind === "image" &&
+    isAiMediaProfilePhoneDisplayRequested(providerRequest.aiInstruction);
+  const profilePhone = profilePhoneDisplayRequested
+    ? cleanAiMediaProfilePhone(profile.business.phone)
+    : "";
+  // Lorsqu'un téléphone est demandé, le moteur crée uniquement le fond. Le
+  // texte, le logo et le numéro exact sont composés localement : aucune donnée
+  // de contact n'est transmise au fournisseur et aucun chiffre ne peut être
+  // halluciné dans le rendu final.
+  const useExactContactComposition = profilePhoneDisplayRequested;
   const initialCreativePlan = buildAiMediaCreativePlan({
     request: providerRequest,
     profile,
@@ -303,7 +319,8 @@ export async function generateAndSaveAiMedia(args: {
     profile,
     recentPublications: generationContext.recentPublications,
     brandColors: providerRequest.useBrandColors ? brandKit.colors : [],
-    hasLogo: Boolean(officialLogo),
+    hasLogo: Boolean(officialLogo) && !useExactContactComposition,
+    deferVisibleElementsToComposer: useExactContactComposition,
     copy: creativePlan,
   });
   const promptHash = promptSha256(prompt);
@@ -319,7 +336,8 @@ export async function generateAndSaveAiMedia(args: {
         width: format.width,
         height: format.height,
         brandColors: effectiveColors,
-        officialLogo: includeLogo ? officialLogo : null,
+        officialLogo:
+          includeLogo && !useExactContactComposition ? officialLogo : null,
       };
       if (preparedIdentityReferences.buffers.length) {
         try {
@@ -339,9 +357,13 @@ export async function generateAndSaveAiMedia(args: {
         width: format.width,
         height: format.height,
         brandColors: effectiveColors,
-        officialLogo: includeLogo ? officialLogo : null,
+        officialLogo:
+          includeLogo && !useExactContactComposition ? officialLogo : null,
         companyName: creativePlan.companyName,
-        headline: providerRequest.withText ? creativePlan.headline : "",
+        headline:
+          providerRequest.withText && !useExactContactComposition
+            ? creativePlan.headline
+            : "",
       });
     })();
     localFallbackFrameTasks.set(cacheKey, task);
@@ -375,6 +397,7 @@ export async function generateAndSaveAiMedia(args: {
   let providerMetadata: Record<string, unknown>;
   let videoEngineResult: AiMediaGenerationServerResult["videoEngineResult"] = null;
   let localFallbackUsed = false;
+  let exactContactCompositionApplied = false;
   let teamPrecompositionGateway: AiMediaGatewayResult | null = null;
   let teamPrecompositionModel = "";
   let teamPrecompositionMetadata: Record<string, unknown> | null = null;
@@ -390,7 +413,7 @@ export async function generateAndSaveAiMedia(args: {
           prompt,
           identityMode: providerRequest.identityMode,
           identityReferences: preparedIdentityReferences.buffers,
-          officialLogo,
+          officialLogo: useExactContactComposition ? null : officialLogo,
           size: format.generationSize,
           signal: args.signal,
         }),
@@ -430,13 +453,74 @@ export async function generateAndSaveAiMedia(args: {
         }),
       );
     }
+    if (useExactContactComposition) {
+      try {
+        const composedBuffer = await measure("image_exact_contact_composition", () =>
+          composeAiMediaContactImage({
+            input: normalized.buffer,
+            width: format.width,
+            height: format.height,
+            headline: providerRequest.withText ? creativePlan.headline : "",
+            phone: profilePhone,
+            officialLogo,
+            logoMode: providerRequest.logoMode,
+            brandColors: effectiveColors,
+          }),
+        );
+        normalized = { ...normalized, buffer: composedBuffer };
+        exactContactCompositionApplied = true;
+      } catch {
+        args.signal?.throwIfAborted();
+        // Le fournisseur ne reçoit jamais une seconde requête payante. Si la
+        // composition sur son fond échoue, le motion-graphic local garantit
+        // malgré tout une accroche entière et le numéro exact du profil.
+        gateway = null;
+        localFallbackUsed = true;
+        const safeContactFrame = await measure(
+          "image_exact_contact_local_fallback",
+          () =>
+            createBrandMotionFrame({
+              width: format.width,
+              height: format.height,
+              brandColors: effectiveColors,
+              officialLogo,
+              companyName: creativePlan.companyName,
+              headline: providerRequest.withText ? creativePlan.headline : "",
+              phone: profilePhone,
+            }),
+        );
+        normalized = await measure(
+          "image_exact_contact_local_fallback_normalization",
+          () =>
+            normalizeGeneratedAiImage(safeContactFrame, {
+              width: format.width,
+              height: format.height,
+            }),
+        );
+        exactContactCompositionApplied = true;
+      }
+    }
     args.signal?.throwIfAborted();
     model = gateway?.model || (providerRequest.identityMode === "reference_team"
       ? "inrcy/reference-team-composer-v1"
       : "inrcy/local-brand-composer-v1");
-    providerMetadata = gateway
-      ? cleanProviderMetadata(gateway)
-      : {
+    const contactWarnings =
+      profilePhoneDisplayRequested && !profilePhone
+        ? ["profile_phone_unavailable_omitted"]
+        : [];
+    if (gateway) {
+      const cleanGatewayMetadata = cleanProviderMetadata(gateway);
+      providerMetadata = {
+        ...cleanGatewayMetadata,
+        warnings: Array.from(
+          new Set([...cleanGatewayMetadata.warnings, ...contactWarnings]),
+        ),
+        exact_contact_composition_applied: exactContactCompositionApplied,
+        profile_phone_requested: profilePhoneDisplayRequested,
+        profile_phone_applied: Boolean(profilePhone),
+      };
+    } else {
+      providerMetadata = {
           provider: "inrcy-local-composer",
           model,
           reference_images_count: preparedIdentityReferences.buffers.length,
@@ -454,9 +538,14 @@ export async function generateAndSaveAiMedia(args: {
             providerRequest.identityMode === "reference_team"
               ? "identity_team_exact_photo_local_composition"
               : "image_provider_unavailable_local_composition",
+            ...contactWarnings,
           ],
+          exact_contact_composition_applied: exactContactCompositionApplied,
+          profile_phone_requested: profilePhoneDisplayRequested,
+          profile_phone_applied: Boolean(profilePhone),
           usage: null,
         };
+    }
   } else {
     args.signal?.throwIfAborted();
     const pipelineWarnings: string[] = [];
@@ -1177,6 +1266,9 @@ export async function generateAndSaveAiMedia(args: {
           duration_seconds: providerRequest.durationSeconds,
           inspiration_image_count: providerRequest.inspirationImages.length,
           exact_logo_applied: Boolean(officialLogo),
+          exact_contact_composition_applied: exactContactCompositionApplied,
+          profile_phone_display_requested: profilePhoneDisplayRequested,
+          profile_phone_display_applied: Boolean(profilePhone),
           brand_palette_applied: providerRequest.useBrandColors ? brandKit.colors : [],
           professional_library_images_used: 0,
           original_ai_video:

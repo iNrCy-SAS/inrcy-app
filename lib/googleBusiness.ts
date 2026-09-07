@@ -417,7 +417,10 @@ export async function gmbCreateLocalPost(args: {
   imageUrls?: string[];
   videoUrls?: string[];
   languageCode?: string; // default fr-FR
-  callToAction?: { actionType: "LEARN_MORE" | "CALL"; url: string } | null;
+  callToAction?:
+    | { actionType: "LEARN_MORE"; url: string }
+    | { actionType: "CALL" }
+    | null;
 }) {
   const { accessToken, accountName, locationName } = args;
 
@@ -443,11 +446,10 @@ export async function gmbCreateLocalPost(args: {
     payload.media = media;
   }
 
-  if (args.callToAction?.actionType && args.callToAction?.url) {
-    payload.callToAction = {
-      actionType: args.callToAction.actionType,
-      url: args.callToAction.url,
-    };
+  if (args.callToAction?.actionType === "CALL") {
+    payload.callToAction = { actionType: "CALL" };
+  } else if (args.callToAction?.actionType === "LEARN_MORE" && args.callToAction.url) {
+    payload.callToAction = args.callToAction;
   }
 
   return await postGoogleBusinessLocalPost({
@@ -508,7 +510,10 @@ export async function gmbPatchLocalPost(args: {
   localPostName: string;
   summary: string;
   languageCode?: string;
-  callToAction?: { actionType: "LEARN_MORE" | "CALL"; url: string } | null;
+  callToAction?:
+    | { actionType: "LEARN_MORE"; url: string }
+    | { actionType: "CALL" }
+    | null;
 }) {
   const localPostName = normalizeGoogleBusinessLocalPostName(args.localPostName);
   const endpoint = new URL(
@@ -521,7 +526,9 @@ export async function gmbPatchLocalPost(args: {
     summary: args.summary,
     topicType: "STANDARD",
   };
-  if (args.callToAction?.actionType && args.callToAction?.url) {
+  if (args.callToAction?.actionType === "CALL") {
+    payload.callToAction = { actionType: "CALL" };
+  } else if (args.callToAction?.actionType === "LEARN_MORE" && args.callToAction.url) {
     payload.callToAction = args.callToAction;
   }
 

@@ -5,6 +5,7 @@ export const BOOSTER_ASIAN_CTA_LABELS = {
     devis: "ขอใบเสนอราคา",
     appeler: "โทร",
     message: "ส่งข้อความ",
+    whatsapp: "ส่งข้อความทาง WhatsApp",
     custom: "",
   },
   zh: {
@@ -13,6 +14,7 @@ export const BOOSTER_ASIAN_CTA_LABELS = {
     devis: "索取报价",
     appeler: "致电",
     message: "发送消息",
+    whatsapp: "通过 WhatsApp 联系",
     custom: "",
   },
 } as const;

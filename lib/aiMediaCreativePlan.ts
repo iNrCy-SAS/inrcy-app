@@ -45,6 +45,22 @@ function clean(value: unknown, max = 160) {
     .slice(0, max);
 }
 
+/**
+ * Les textes visibles ne doivent jamais subir le `slice` technique de
+ * `clean()`: il transformait par exemple "Guyancourt" en "Guyanc" dans le
+ * secours déterministe. On préfère retirer le dernier mot entier si la limite
+ * est atteinte.
+ */
+function compactAtWordBoundary(value: unknown, max: number) {
+  const normalized = clean(value, Math.max(300, max + 80));
+  if (normalized.length <= max) return normalized;
+  const candidate = normalized
+    .slice(0, max + 1)
+    .replace(/\s+\S*$/, "")
+    .trim();
+  return candidate || normalized;
+}
+
 const DANGLING_VISIBLE_WORDS = new Set([
   "a", "afin", "au", "aux", "avec", "car", "ce", "ces", "chez", "comme",
   "dans", "de", "des", "du", "en", "et", "la", "le", "les", "mais", "notre",
@@ -88,7 +104,7 @@ function compactHeadline(value: string, max = 58) {
   const normalized = clean(value, 140);
   if (normalized.length <= max) return trimDanglingVisibleEnding(normalized);
   const words = normalized.slice(0, max + 1).replace(/\s+\S*$/, "").trim();
-  return trimDanglingVisibleEnding(words || normalized.slice(0, max).trim());
+  return trimDanglingVisibleEnding(words || normalized.split(/\s+/)[0] || "");
 }
 
 function compactVisibleBody(value: string, max = 78) {
@@ -114,10 +130,17 @@ function compactVisibleBody(value: string, max = 78) {
 }
 
 function lowerFirst(value: string) {
-  const normalized = clean(value, 80);
+  const normalized = compactAtWordBoundary(value, 80);
   return normalized
     ? `${normalized.charAt(0).toLocaleLowerCase()}${normalized.slice(1)}`
     : "";
+}
+
+function normalizeFrenchIdeaTopic(value: string) {
+  return value.replace(
+    /^(?:(?:des?|les)\s+)?(?:travaux\s+de\s+)?peintures?\s+r[ée]alis(?:é|ée|és|ées)\s+/i,
+    "la peinture ",
+  );
 }
 
 /**
@@ -164,8 +187,9 @@ function ideaHeadline(value: string, variant: number) {
   const firstBeat =
     original.split(/\s*(?:,|;|→|->|\bpuis\b|\bensuite\b|\bafin de\b)\s*/i)[0] ||
     original;
-  const subject = clean(
-    firstBeat
+  const subject = compactAtWordBoundary(
+    normalizeFrenchIdeaTopic(
+      firstBeat
       .replace(
         /^(?:je\s+(?:veux|souhaite|voudrais)\s+(?:une?\s+)?(?:image|vid[eé]o|publication|contenu)?\s*(?:qui|sur|pour|de)?\s*)/i,
         "",
@@ -174,9 +198,13 @@ function ideaHeadline(value: string, variant: number) {
         /^(?:(?:mettre\s+en\s+avant|cr[eé]er|faire|montrer|pr[eé]senter|illustrer|raconter|expliquer|valoriser|animer|filmer)\s+|partir\s+(?:d['’]|de\s+|du\s+|des\s+|avec\s+)|parler\s+de\s+)/i,
         "",
       ),
-    42,
+    ),
+    80,
   );
-  const topic = subject || clean(firstBeat, 42) || "votre projet";
+  const topic =
+    subject ||
+    compactAtWordBoundary(normalizeFrenchIdeaTopic(firstBeat), 80) ||
+    "votre projet";
   const narrativeHeadline = narrativeIdeaHeadline(topic, variant);
   if (narrativeHeadline) return narrativeHeadline;
   const lowerTopic = `${topic.charAt(0).toLocaleLowerCase()}${topic.slice(1)}`;
@@ -189,7 +217,7 @@ function ideaHeadline(value: string, variant: number) {
 }
 
 function capitalize(value: string) {
-  const normalized = clean(value, 48);
+  const normalized = compactAtWordBoundary(value, 80);
   return normalized
     ? `${normalized.charAt(0).toLocaleUpperCase()}${normalized.slice(1)}`
     : "";
@@ -276,7 +304,7 @@ function typologyHeadline(args: {
     recruitment: ["Rejoignez notre aventure", "Construisons la suite ensemble", "Votre talent a sa place ici"],
   };
   const candidates = templates[args.typology];
-  return clean(candidates[args.variant % candidates.length], 58);
+  return compactHeadline(candidates[args.variant % candidates.length], 58);
 }
 
 function ctaLabel(profile: NormalizedAiGenerationProfile) {
@@ -295,14 +323,14 @@ function scene(
   if (!safeTitle) return null;
   const safeBody = compactVisibleBody(body);
   return {
-    eyebrow: clean(eyebrow, 38),
+    eyebrow: compactAtWordBoundary(eyebrow, 38),
     title: safeTitle,
     body: safeBody,
     // Secours local immédiatement prononçable. Le copywriter média remplace
     // ces formulations par des répliques contextualisées quand les
     // personnages doivent parler.
-    spokenLine: clean(safeTitle, 96),
-    spokenReply: safeBody || clean(safeTitle, 96),
+    spokenLine: compactAtWordBoundary(safeTitle, 96),
+    spokenReply: safeBody || compactAtWordBoundary(safeTitle, 96),
     visualBrief: clean(visualBrief, 700),
     layout,
   };

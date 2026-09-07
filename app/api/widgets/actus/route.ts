@@ -208,7 +208,7 @@ export async function GET(req: Request) {
     // 2) Fetch articles
     const { data: articles, error: artErr } = await supabase
       .from("site_articles")
-      .select("id, created_at, title, content, images, media_type, video_url, video_path, video_mime, video_size, video_duration_seconds, video_thumbnail_url, media_metadata")
+      .select("id, created_at, title, content, cta, images, media_type, video_url, video_path, video_mime, video_size, video_duration_seconds, video_thumbnail_url, media_metadata")
       .eq("user_id", userId)
       .eq("source", source)
       .order("created_at", { ascending: false })

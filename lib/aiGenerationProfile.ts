@@ -35,7 +35,7 @@ export type AiTechnicalityLevel = "accessible" | "balanced" | "expert";
 export type AiHumorLevel = "none" | "light" | "present";
 export type AiMainGoal = "visibility" | "contacts" | "reassure" | "offer";
 export type AiPreferredAngle = "local" | "quality" | "price" | "speed" | "trust";
-export type AiPreferredCta = "none" | "site" | "devis" | "appeler" | "message" | "custom";
+export type AiPreferredCta = "none" | "site" | "devis" | "appeler" | "message" | "whatsapp" | "custom";
 export type AiGenerationMediaType = "none" | "images" | "video" | "attachments";
 
 export type AiGenerationPreferences = {
@@ -324,6 +324,8 @@ const CTA_ALIASES: Record<string, AiPreferredCta> = {
   call: "appeler",
   message: "message",
   contact: "message",
+  whatsapp: "whatsapp",
+  whats_app: "whatsapp",
   custom: "custom",
   personnalise: "custom",
   personnalisé: "custom",

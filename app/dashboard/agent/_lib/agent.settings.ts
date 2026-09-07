@@ -165,6 +165,7 @@ export function inferPreferredCtaChoiceFromLabel(
     return "devis";
   if (/(appeler|call|llamar|chiama|anrufen|bellen|ligar)/i.test(normalized))
     return "appeler";
+  if (/whats\s*app/i.test(normalized)) return "whatsapp";
   if (/(message|mensaje|messaggio|nachricht|bericht)/i.test(normalized))
     return "message";
   if (/(site|website|web|sitio)/i.test(normalized)) return "site";

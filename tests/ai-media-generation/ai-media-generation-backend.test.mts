@@ -549,7 +549,7 @@ test("le prompt donne à GPT Image le sujet, l’ADN, l’identité autorisée e
   const dna = read("lib/aiMediaBusinessDna.ts");
   assert.match(
     source,
-    /AI_MEDIA_PROMPT_VERSION = "inrcy-media-v16-image-driven-animation"/,
+    /AI_MEDIA_PROMPT_VERSION = "inrcy-media-v17-exact-contact-composition"/,
   );
   assert.match(source, /buildAiMediaBusinessDnaPayload/);
   assert.match(source, /ADN PROFESSIONNEL AUTORISÉ/);
@@ -586,6 +586,23 @@ test("le prompt donne à GPT Image le sujet, l’ADN, l’identité autorisée e
   );
   assert.doesNotMatch(source, /exactement pensée pour 8 secondes/);
   assert.match(source, /AI_MEDIA_FORMAT_SPECS/);
+});
+
+test("une demande de téléphone utilise le profil local sans exposer ses coordonnées au moteur", () => {
+  const prompt = read("lib/aiMediaGenerationPrompt.ts");
+  const server = read("lib/aiMediaGenerationServer.ts");
+  const detector = read("lib/aiMediaVisibleContact.ts");
+  const composer = read("lib/aiMediaImageContactComposer.ts");
+
+  assert.match(server, /cleanAiMediaProfilePhone\(profile\.business\.phone\)/);
+  assert.match(server, /officialLogo: useExactContactComposition \? null : officialLogo/);
+  assert.match(server, /profile_phone_display_applied/);
+  assert.match(detector, /isAiMediaProfilePhoneDisplayRequested/);
+  assert.match(detector, /Retourne uniquement le numéro réellement enregistré/);
+  assert.match(prompt, /produire exclusivement le fond sans texte, chiffre, téléphone/);
+  assert.doesNotMatch(prompt, /profile\.business\.phone/);
+  assert.match(composer, /wrapWholeWords/);
+  assert.match(composer, /TEL  \$\{phone\}/);
 });
 
 test("les médias IA verrouillent les textes visibles et la narration dans la langue du profil", () => {

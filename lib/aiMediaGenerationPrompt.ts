@@ -7,7 +7,7 @@ import {
 } from "@/lib/aiMediaGenerationContracts";
 import { getAiLanguageLabel } from "@/lib/aiWritingProfile";
 
-export const AI_MEDIA_PROMPT_VERSION = "inrcy-media-v16-image-driven-animation";
+export const AI_MEDIA_PROMPT_VERSION = "inrcy-media-v17-exact-contact-composition";
 export const AI_MEDIA_COMPILED_PROMPT_MAX_CHARS = 11_800;
 
 type RecentPublication = {
@@ -240,6 +240,8 @@ export function buildAiMediaPrompt(args: {
   recentPublications?: readonly RecentPublication[];
   brandColors?: readonly string[];
   hasLogo?: boolean;
+  /** Le texte, le téléphone et le logo exacts seront posés localement. */
+  deferVisibleElementsToComposer?: boolean;
   copy?: {
     headline?: string;
   };
@@ -278,7 +280,15 @@ export function buildAiMediaPrompt(args: {
         args.hasLogo
           ? `${request.inspirationImages.length ? "La dernière image de référence" : "Le seul fichier image de référence"} est le logo officiel. Respecter fidèlement sa forme, ses proportions, ses couleurs et son orthographe. L’intégrer une seule fois, ${request.logoMode === "visible" ? "de façon clairement visible mais élégante" : "discrètement"}, dans une zone sûre ; il ne doit jamais devenir le sujet principal ni occuper plus de ${request.logoMode === "visible" ? "22" : "12"} % du visuel.`
           : "Aucun logo n’est fourni : ne créer aucun logo, monogramme, emblème ou pseudo-logo.",
-        request.withText
+        args.deferVisibleElementsToComposer
+          ? [
+              "Créer uniquement un fond visuel premium, sans aucun texte, lettre, chiffre, numéro, coordonnées, logo, monogramme ni pseudo-logo.",
+              request.format === "portrait" || request.format === "story"
+                ? "Réserver une zone visuellement calme dans la partie inférieure et garder le sujet principal dans la moitié supérieure : iNrCy y composera ensuite l’accroche et les coordonnées exactes."
+                : "Réserver une zone visuellement calme sur la moitié gauche et placer le sujet principal dans la moitié droite : iNrCy y composera ensuite l’accroche et les coordonnées exactes.",
+              "Ne jamais tenter d’interpréter, de deviner ou de redessiner le téléphone demandé dans la consigne ponctuelle.",
+            ].join("\n")
+          : request.withText
           ? [
               "Créer un visuel social finalisé avec une hiérarchie typographique professionnelle et des marges généreuses.",
               `Accroche originale sélectionnée par iNrCy, distincte du brief, à afficher exactement : « ${clean(args.copy?.headline, 110)} ».`,
@@ -297,7 +307,9 @@ export function buildAiMediaPrompt(args: {
   const compiledPrompt = [
     `Version : ${AI_MEDIA_PROMPT_VERSION}.`,
     request.kind === "image"
-      ? `Créer un média professionnel entièrement composé au format ${format.aspectRatio} (${format.label}), sans bordure.`
+      ? args.deferVisibleElementsToComposer
+        ? `Créer le fond photographique ou illustré d’un média professionnel au format ${format.aspectRatio} (${format.label}), sans bordure.`
+        : `Créer un média professionnel entièrement composé au format ${format.aspectRatio} (${format.label}), sans bordure.`
       : `Créer la photographie ou l’illustration de fond d’un média professionnel au format ${format.aspectRatio} (${format.label}), sans bordure.`,
     `Typologie : ${request.typology}. Direction visuelle : ${request.visualStyle}.`,
     `DIRECTION ARTISTIQUE DÉTAILLÉE : ${getAiMediaVisualDirection(request)}.`,
@@ -307,7 +319,9 @@ export function buildAiMediaPrompt(args: {
       ? "Ce brief pilotera des plans vidéo originaux générés par IA : privilégier une action crédible, cohérente et cinématographique."
       : "Cette image doit être une création originale, cohérente avec le sujet actuel et directement publiable.",
     `Direction de communication : ${preferenceLine}.`,
-    request.withText
+    args.deferVisibleElementsToComposer
+      ? `LANGUE DE GÉNÉRATION CONFIGURÉE : ${targetLanguage}. Le fournisseur crée uniquement le fond : aucun texte ni caractère visible, quelle que soit la langue du brief.`
+      : request.withText
       ? `LANGUE DU TEXTE VISIBLE — RÈGLE ABSOLUE : l'accroche et tout caractère destiné au lecteur doivent être exclusivement en ${targetLanguage}. Le brief, l’ADN et les consignes techniques peuvent être rédigés dans une autre langue : ne jamais reprendre leur langue par défaut. Les noms propres, marques et le logo officiel restent inchangés.`
       : `LANGUE DE GÉNÉRATION CONFIGURÉE : ${targetLanguage}. Aucun texte visible ne doit être créé dans le média, quelle que soit la langue du brief, hors texte déjà présent dans le logo officiel.`,
     request.useBrandColors && palette.length
@@ -326,6 +340,9 @@ export function buildAiMediaPrompt(args: {
     buildHistory(args.recentPublications || []),
     "RÈGLES IMPÉRATIVES :",
     sharedSafetyRules(),
+    args.deferVisibleElementsToComposer
+      ? "COMPOSITION EXACTE PRISE EN CHARGE PAR iNrCy APRÈS GÉNÉRATION — RÈGLE FINALE PRIORITAIRE : produire exclusivement le fond sans texte, chiffre, téléphone, coordonnées ni logo. La consigne ponctuelle peut demander leur présence, mais le fournisseur ne doit jamais les dessiner : iNrCy appliquera ensuite les valeurs exactes du profil sans les transmettre au moteur."
+      : "",
   ].join("\n\n");
   return fitCompiledMediaPrompt(compiledPrompt);
 }

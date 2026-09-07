@@ -98,6 +98,7 @@ const CTA_LABELS: Record<string, string> = {
   devis: "Demander un devis",
   appeler: "Appeler",
   message: "Envoyer un message",
+  whatsapp: "Écrire sur WhatsApp",
   custom: "Lien personnalisé",
 };
 
@@ -182,6 +183,7 @@ const CTA_EXECUTION_DIRECTIVES: Record<string, string> = {
   devis: "CTA : si une action est pertinente, orienter clairement vers une demande de devis.",
   appeler: "CTA : si une action est pertinente, favoriser la prise de contact par appel.",
   message: "CTA : si une action est pertinente, favoriser l'envoi d'un message.",
+  whatsapp: "CTA : si une action est pertinente, inviter clairement à poursuivre l’échange sur WhatsApp ; ne jamais inventer de numéro ni recopier une URL dans le corps si l’application l’ajoute déjà.",
   custom: "CTA : si une action est pertinente, respecter l'intention du lien personnalisé fourni par l'application.",
 };
 

@@ -7,6 +7,10 @@ import type {
 } from "react";
 import { useEffect, useRef, useState } from "react";
 import type { BoosterCreationMode } from "@/lib/boosterCreationMode";
+import {
+  buildBoosterWhatsAppUrl,
+  getBoosterWhatsAppPhoneFromUrl,
+} from "@/lib/boosterWhatsappCta";
 import { editableHtmlToSiteText, stripSiteTextFormatting } from "@/lib/boosterFormatting";
 import { readSanitizedElementHtml } from "@/lib/sanitizeHtml";
 import EmojiPickerButton from "@/app/dashboard/_components/EmojiPickerButton";
@@ -889,27 +893,61 @@ export default function PublishContentEditorPanel({
                         ) : null}
                         {ctaMode === "custom" ? (
                           <>
-                            <div>
-                              <div
-                                style={{
-                                  fontSize: 12,
-                                  opacity: 0.85,
-                                  marginBottom: 6,
-                                }}
-                              >
-                                {i18nT("url_de_destination_f11980ae")}{" "}</div>
-                              <input
-                                value={currentPost.ctaUrl || ""}
-                                readOnly={voiceBusy}
-                                onChange={(e) =>
-                                  updatePost(updateTarget, {
-                                    ctaUrl: e.target.value,
-                                  })
-                                }
-                                style={lightFieldStyle}
-                                placeholder={i18nT("url_personnalisee_optionnel_49f1857f")}
-                              />
-                            </div>
+                            {ctaChoice === "whatsapp" ? (
+                              <div>
+                                <div
+                                  style={{
+                                    fontSize: 12,
+                                    opacity: 0.85,
+                                    marginBottom: 6,
+                                  }}
+                                >
+                                  {i18nT("telephone_d3b023ea")}{" "}
+                                </div>
+                                <input
+                                  inputMode="tel"
+                                  value={
+                                    currentPost.ctaPhone ||
+                                    getBoosterWhatsAppPhoneFromUrl(currentPost.ctaUrl)
+                                  }
+                                  readOnly={voiceBusy}
+                                  onChange={(e) =>
+                                    updatePost(updateTarget, {
+                                      ctaPhone: e.target.value,
+                                      ctaUrl: buildBoosterWhatsAppUrl(e.target.value),
+                                    })
+                                  }
+                                  style={lightFieldStyle}
+                                  placeholder={
+                                    ctaDefaults?.phone
+                                      ? i18nT("phone_prefilled_from_profile")
+                                      : i18nT("phone_optional")
+                                  }
+                                />
+                              </div>
+                            ) : (
+                              <div>
+                                <div
+                                  style={{
+                                    fontSize: 12,
+                                    opacity: 0.85,
+                                    marginBottom: 6,
+                                  }}
+                                >
+                                  {i18nT("url_de_destination_f11980ae")}{" "}</div>
+                                <input
+                                  value={currentPost.ctaUrl || ""}
+                                  readOnly={voiceBusy}
+                                  onChange={(e) =>
+                                    updatePost(updateTarget, {
+                                      ctaUrl: e.target.value,
+                                    })
+                                  }
+                                  style={lightFieldStyle}
+                                  placeholder={i18nT("url_personnalisee_optionnel_49f1857f")}
+                                />
+                              </div>
+                            )}
                             <div>
                               <div
                                 style={{
@@ -948,7 +986,12 @@ export default function PublishContentEditorPanel({
                           lineHeight: 1.45,
                         }}
                       >
-                        {getLocalizedCtaModeHelp(activeCard, ctaMode, runtimeT)}
+                        {getLocalizedCtaModeHelp(
+                          activeCard,
+                          ctaMode,
+                          runtimeT,
+                          ctaChoice,
+                        )}
                       </div>
                       {ctaMode === "website" && activeWebsiteUrl ? (
                         <div
@@ -975,7 +1018,8 @@ export default function PublishContentEditorPanel({
                         >
                           {i18nT("deux_sites_sont_connectes_choisissez_le_ec7d3ccc")}{" "}</div>
                       ) : null}
-                      {ctaMode === "call" && ctaDefaults?.phone ? (
+                      {(ctaMode === "call" || ctaChoice === "whatsapp") &&
+                      ctaDefaults?.phone ? (
                         <div
                           style={{
                             fontSize: 11,

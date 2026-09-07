@@ -25,11 +25,10 @@ export type NormalizedAiVideo = {
 export type NormalizedAiMedia = NormalizedAiImage | NormalizedAiVideo;
 
 /**
- * Contrat de sortie unique pour toutes les images IA. GPT Image a déjà reçu
- * le Profil et le logo officiel ; cette étape ne crée aucun habillage et
- * applique seulement le canevas universel avant la Médiathèque. La composition
- * générée est toujours conservée en entier : aucun bord ne peut être coupé à
- * cette étape, même lorsque le format fournisseur diffère du format demandé.
+ * Contrat de sortie unique pour toutes les images IA. Cette étape applique le
+ * canevas universel avant l'éventuelle composition locale des éléments exacts
+ * (logo, accroche et coordonnées). Le rendu fournisseur est conservé en entier
+ * : aucun bord ne peut être coupé lorsque son format diffère du format demandé.
  */
 export async function normalizeGeneratedAiImage(
   input: Buffer,

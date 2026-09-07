@@ -3584,7 +3584,10 @@ async function publishNowHandler(req: Request) {
               source: ch,
               title: channelPost.title,
               content: channelPost.content,
-              cta: channelPost.cta,
+              cta: buildCtaTextForChannel(ch, channelPost, {
+                websiteUrl: siteWebUrl || inrcySiteUrl,
+                phone: businessPhone,
+              }),
               hashtags: channelPost.hashtags,
               // For website embeds, keep the channel-specific prepared source.
               // Never borrow another channel's crop/ratio as a fallback.

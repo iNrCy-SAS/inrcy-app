@@ -31,6 +31,7 @@ import {
   buildBoosterInstagramCaption,
   buildBoosterMessage,
   getCtaMode,
+  isBoosterWhatsAppUrl,
   type BoosterCtaMode,
 } from "@/lib/boosterCta";
 import { INR_SEARCH_CONTENT_MAX_LENGTH } from "@/lib/boosterChannelRules";
@@ -116,6 +117,7 @@ export type BoosterPreferredCta =
   | "devis"
   | "appeler"
   | "message"
+  | "whatsapp"
   | "custom";
 
 export type BoosterAiLanguage = "fr" | "en" | "es" | "it" | "de" | "nl" | "pt" | "th" | "zh";
@@ -139,6 +141,7 @@ export const BOOSTER_PREFERRED_CTA_OPTIONS: Array<{
   { value: "devis", label: "Demander un devis" },
   { value: "appeler", label: "Appeler" },
   { value: "message", label: "Envoyer un message" },
+  { value: "whatsapp", label: "Écrire sur WhatsApp" },
   { value: "custom", label: "Lien personnalisé" },
 ];
 
@@ -148,6 +151,7 @@ const BOOSTER_PREFERRED_CTA_MESSAGE_KEYS = {
   devis: "demander_un_devis_8a1f1c6c",
   appeler: "appeler_de49ee03",
   message: "envoyer_un_message_c211810b",
+  whatsapp: "whatsapp_cta_label",
   custom: "lien_personnalise_d1d21cea",
 } as const satisfies Record<BoosterPreferredCta, string>;
 
@@ -180,6 +184,7 @@ const CTA_LABELS_BY_LANGUAGE: Record<
     devis: "Demander un devis",
     appeler: "Appeler",
     message: "Envoyer un message",
+    whatsapp: "Écrire sur WhatsApp",
     custom: "",
   },
   en: {
@@ -188,6 +193,7 @@ const CTA_LABELS_BY_LANGUAGE: Record<
     devis: "Request a quote",
     appeler: "Call",
     message: "Send a message",
+    whatsapp: "Message us on WhatsApp",
     custom: "",
   },
   es: {
@@ -196,6 +202,7 @@ const CTA_LABELS_BY_LANGUAGE: Record<
     devis: "Solicitar presupuesto",
     appeler: "Llamar",
     message: "Enviar mensaje",
+    whatsapp: "Escribir por WhatsApp",
     custom: "",
   },
   it: {
@@ -204,6 +211,7 @@ const CTA_LABELS_BY_LANGUAGE: Record<
     devis: "Richiedi un preventivo",
     appeler: "Chiama",
     message: "Invia un messaggio",
+    whatsapp: "Scrivici su WhatsApp",
     custom: "",
   },
   de: {
@@ -212,6 +220,7 @@ const CTA_LABELS_BY_LANGUAGE: Record<
     devis: "Angebot anfordern",
     appeler: "Anrufen",
     message: "Nachricht senden",
+    whatsapp: "Über WhatsApp schreiben",
     custom: "",
   },
   nl: {
@@ -220,6 +229,7 @@ const CTA_LABELS_BY_LANGUAGE: Record<
     devis: "Offerte aanvragen",
     appeler: "Bellen",
     message: "Bericht sturen",
+    whatsapp: "Stuur een WhatsApp-bericht",
     custom: "",
   },
   pt: {
@@ -228,6 +238,7 @@ const CTA_LABELS_BY_LANGUAGE: Record<
     devis: "Pedir orçamento",
     appeler: "Ligar",
     message: "Enviar mensagem",
+    whatsapp: "Enviar mensagem no WhatsApp",
     custom: "",
   },
   th: BOOSTER_ASIAN_CTA_LABELS.th,
@@ -280,7 +291,15 @@ export function getPreferredCtaChoiceFromPost(
   if (mode === "none") return "none";
   if (mode === "call") return "appeler";
   if (mode === "message") return "message";
-  if (mode === "custom") return "custom";
+  if (mode === "custom") {
+    if (
+      isBoosterWhatsAppUrl(normalized.ctaUrl) ||
+      /whats\s*app/i.test(String(normalized.cta || ""))
+    ) {
+      return "whatsapp";
+    }
+    return "custom";
+  }
   if (mode === "website") {
     const label = String(normalized.cta || "")
       .trim()
@@ -1319,7 +1338,20 @@ export const CTA_MODE_OPTIONS: Record<
   ],
 };
 
-export function getCtaModeHelp(channel: DisplayKey, mode: BoosterCtaMode) {
+export function getCtaModeHelp(
+  channel: DisplayKey,
+  mode: BoosterCtaMode,
+  preferredChoice?: BoosterPreferredCta,
+) {
+  if (preferredChoice === "whatsapp") {
+    if (channel === "gmb")
+      return "Google Business affichera un bouton « En savoir plus » qui ouvrira WhatsApp.";
+    if (channel === "pinterest")
+      return "Le clic sur l’épingle ouvrira directement la conversation WhatsApp.";
+    if (["instagram", "tiktok", "youtube_shorts"].includes(channel))
+      return "Le lien WhatsApp sera ajouté à la légende. Selon le réseau, il peut être affiché comme texte non cliquable.";
+    return "Un lien WhatsApp sécurisé sera ajouté à la publication.";
+  }
   if (mode === "none") return "Aucun bouton ne sera ajouté à la fin du texte.";
   if (mode === "website")
     return channel === "gmb"
@@ -1340,7 +1372,16 @@ export function getLocalizedCtaModeHelp(
   channel: DisplayKey,
   mode: BoosterCtaMode,
   translate: (key: string) => string,
+  preferredChoice?: BoosterPreferredCta,
 ) {
+  if (preferredChoice === "whatsapp") {
+    if (channel === "gmb") return translate("cta_help_whatsapp_gmb");
+    if (channel === "pinterest") return translate("cta_help_whatsapp_pinterest");
+    if (["instagram", "tiktok", "youtube_shorts"].includes(channel)) {
+      return translate("cta_help_whatsapp_caption");
+    }
+    return translate("cta_help_whatsapp");
+  }
   if (mode === "none") return translate("cta_help_none");
   if (mode === "website") {
     return translate(channel === "gmb" ? "cta_help_gmb_website" : "cta_help_website");
@@ -1471,7 +1512,7 @@ export function getDefaultCtaModeForChannel(
   );
 
   if (preferred === "none") return "none";
-  if (preferred === "custom") return "custom";
+  if (preferred === "custom" || preferred === "whatsapp") return "custom";
 
   if (preferred === "appeler") {
     if (defaults?.phone) return "call";

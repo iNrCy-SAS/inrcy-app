@@ -23,7 +23,7 @@ import {
 import { optimizeForGoogleBusiness, optimizeForInstagram, optimizeForSiteCard, optimizeForSocialFeed } from "@/lib/imageOptimizer";
 import { createHash, randomUUID } from "crypto";
 import { jsonUserFacingError } from "@/lib/apiUserFacingErrors";
-import { buildBoosterGmbSummary, buildBoosterHashtagLine, buildBoosterInstagramCaption, buildBoosterMessage, getBoosterGmbCallToAction } from "@/lib/boosterCta";
+import { buildBoosterGmbSummary, buildBoosterHashtagLine, buildBoosterInstagramCaption, buildBoosterMessage, buildCtaTextForChannel, getBoosterGmbCallToAction } from "@/lib/boosterCta";
 import { log } from "@/lib/observability/logger";
 import { captureApiException } from "@/lib/observability/sentry";
 import { getLinkedInAccessToken } from "@/lib/linkedinOAuth";
@@ -1248,7 +1248,7 @@ async function replaceChannelDelivery(params: {
       .update({
         title: nextPost.title,
         content: nextPost.content,
-        cta: nextPost.cta,
+        cta: buildCtaTextForChannel(channel, nextPost, { websiteUrl, phone }),
         hashtags: nextPost.hashtags,
         images: isVideoPublication ? [] : (siteCardImageUrls.length ? siteCardImageUrls : images),
         ...(isVideoPublication && video ? {
