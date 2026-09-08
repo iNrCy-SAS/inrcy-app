@@ -182,6 +182,12 @@ function rint(min: number, max: number) {
   return Math.round(rand(min, max));
 }
 
+function resolvePostLoginHref(fallback: string) {
+  if (typeof window === "undefined") return fallback;
+  const requestedNext = new URLSearchParams(window.location.search).get("next");
+  return requestedNext === "/equipe/agenda" ? requestedNext : fallback;
+}
+
 export default function LoginPage() {
   const locale = useLocale();
   const t = useTranslations("auth.login");
@@ -317,7 +323,7 @@ export default function LoginPage() {
       redirectingToDashboardRef.current = true;
       setRedirectingToDashboard(true);
       setCheckingSession(true);
-      window.location.replace(localizedDashboardHref);
+      window.location.replace(resolvePostLoginHref(localizedDashboardHref));
     };
 
     const ensureExistingSession = async () => {
@@ -472,7 +478,7 @@ export default function LoginPage() {
           : `/auth/finish-invite/${appLanguage}`;
       const targetParams = new URLSearchParams({
         source: "session",
-        next: localizedDashboardHref,
+        next: resolvePostLoginHref(localizedDashboardHref),
       });
       const verifiedEmail = String(userData?.user?.email || "").trim().toLowerCase();
       if (verifiedEmail) targetParams.set("email", verifiedEmail);
@@ -664,7 +670,7 @@ export default function LoginPage() {
 
       // Redirection complète uniquement après confirmation que la session est
       // lisible côté serveur. Cela évite un rebond /dashboard -> /login.
-      window.location.replace(localizedDashboardHref);
+      window.location.replace(resolvePostLoginHref(localizedDashboardHref));
     } catch (err: unknown) {
       setError(
         friendlyLoginError(err, t("errors.defaultLogin")),

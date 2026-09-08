@@ -17,6 +17,7 @@ import {
   getContactOptionLabel,
   getEventAccentClass,
   isDraftEvent,
+  isGoogleSyncedEvent,
   getEventWhenLabel,
   keyOf,
   type ContactCategory,
@@ -231,10 +232,14 @@ type AgendaHeaderProps = {
   setShowMobileSearch: React.Dispatch<React.SetStateAction<boolean>>;
   appointmentRequestsCount: number;
   onOpenAppointmentRequests: () => void;
+  canManageTeamAppointments: boolean;
+  onOpenTeamAppointments: () => void;
+  canOpenGoogleAgenda: boolean;
+  onOpenGoogleAgenda: () => void;
   onClose: () => void;
 };
 
-export function AgendaHeader({ helpOpen, setHelpOpen, settingsOpen, onOpenSettings, onCloseSettings, query, setQuery, showMobileSearch, setShowMobileSearch, appointmentRequestsCount, onOpenAppointmentRequests, onClose }: AgendaHeaderProps) {
+export function AgendaHeader({ helpOpen, setHelpOpen, settingsOpen, onOpenSettings, onCloseSettings, query, setQuery, showMobileSearch, setShowMobileSearch, appointmentRequestsCount, onOpenAppointmentRequests, canManageTeamAppointments, onOpenTeamAppointments, canOpenGoogleAgenda, onOpenGoogleAgenda, onClose }: AgendaHeaderProps) {
   const i18nT = useTranslations("agenda");
   const hasRequests = appointmentRequestsCount > 0;
   return (
@@ -275,6 +280,22 @@ export function AgendaHeader({ helpOpen, setHelpOpen, settingsOpen, onOpenSettin
             />
 
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              {canOpenGoogleAgenda ? (
+                <ResponsiveActionButton
+                  desktopLabel="Google Agenda"
+                  mobileIcon="🗓️"
+                  onClick={onOpenGoogleAgenda}
+                  title="Ouvrir Google Agenda"
+                />
+              ) : null}
+              {canManageTeamAppointments ? (
+                <ResponsiveActionButton
+                  desktopLabel="Attribution équipe"
+                  mobileIcon="👥"
+                  onClick={onOpenTeamAppointments}
+                  title="Attribuer les rendez-vous à l’équipe iNrCy"
+                />
+              ) : null}
               <button
                 type="button"
                 className={`${styles.btnGhost} ${styles.iconOnlyBtn} ${styles.requestAgendaBtn}`}
@@ -310,6 +331,22 @@ export function AgendaHeader({ helpOpen, setHelpOpen, settingsOpen, onOpenSettin
             </button>
 
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              {canOpenGoogleAgenda ? (
+                <ResponsiveActionButton
+                  desktopLabel="Google Agenda"
+                  mobileIcon="🗓️"
+                  onClick={onOpenGoogleAgenda}
+                  title="Ouvrir Google Agenda"
+                />
+              ) : null}
+              {canManageTeamAppointments ? (
+                <ResponsiveActionButton
+                  desktopLabel="Attribution équipe"
+                  mobileIcon="👥"
+                  onClick={onOpenTeamAppointments}
+                  title="Attribuer les rendez-vous à l’équipe iNrCy"
+                />
+              ) : null}
               {hasRequests ? (
                 <button
                   type="button"
@@ -628,7 +665,7 @@ export function AgendaSidebar({
                     event={ev}
                     meta={meta}
                     onClick={() => onOpenEvent(ev)}
-                    onDelete={async () => {
+                    onDelete={isGoogleSyncedEvent(ev) ? undefined : async () => {
                       const ok = await confirmInrcy({
                         title: i18nT("supprimer_l_evenement_a6ec62d8"),
                         message: i18nT("cette_action_supprimera_definitivement_cet_evene_866eadd0"),

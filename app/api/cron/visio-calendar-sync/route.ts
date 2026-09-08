@@ -1,11 +1,18 @@
 import { NextResponse } from "next/server";
 
 import { isAuthorizedCronRequest } from "@/lib/cronAuth";
+import { syncVisioSharedCalendarToInrCalendar } from "@/lib/inrCalendarGoogleSync";
 import { syncVisioTeamCalendarsToShared } from "@/lib/visioBookingGoogle";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
+
+function syncErrorCode(error: unknown) {
+  return error instanceof Error
+    ? error.message.split(":")[0].slice(0, 100)
+    : "unknown_sync_error";
+}
 
 export async function GET(request: Request) {
   const hasHeaderCredential =
@@ -16,12 +23,27 @@ export async function GET(request: Request) {
   }
 
   try {
-    const result = await syncVisioTeamCalendarsToShared();
-    if (!result.ok) {
-      console.error("[visio-calendar-sync][partial]", result.errors);
+    let teamCalendar:
+      | Awaited<ReturnType<typeof syncVisioTeamCalendarsToShared>>
+      | { ok: false; errors: Array<{ memberId: "system"; code: string }> };
+    try {
+      teamCalendar = await syncVisioTeamCalendarsToShared();
+    } catch (error) {
+      teamCalendar = {
+        ok: false,
+        errors: [{ memberId: "system", code: syncErrorCode(error) }],
+      };
     }
-    return NextResponse.json(result, {
-      status: result.ok ? 200 : 503,
+    const inrCalendar = await syncVisioSharedCalendarToInrCalendar();
+    const ok = teamCalendar.ok && inrCalendar.ok;
+    if (!ok) {
+      console.error("[visio-calendar-sync][partial]", {
+        teamCalendar: teamCalendar.errors,
+        inrCalendar: inrCalendar.errors,
+      });
+    }
+    return NextResponse.json({ ok, teamCalendar, inrCalendar }, {
+      status: ok ? 200 : 503,
       headers: { "Cache-Control": "no-store" },
     });
   } catch (error) {

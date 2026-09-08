@@ -80,12 +80,14 @@ test("le membre héberge le Meet mais le compte public iNrCy invite le prospect"
 
 test("le calendrier partagé global est synchronisé par un cron protégé et idempotent", () => {
   const backend = read("lib/visioBookingGoogle.ts");
+  const inrCalendarSync = read("lib/inrCalendarGoogleSync.ts");
   const route = read("app/api/cron/visio-calendar-sync/route.ts");
   const vercel = read("vercel.json");
   assert.match(route, /isAuthorizedCronRequest/);
   assert.match(route, /hasHeaderCredential/);
-  assert.match(route, /status:\s*result\.ok \? 200 : 503/);
+  assert.match(route, /status:\s*ok \? 200 : 503/);
   assert.match(route, /syncVisioTeamCalendarsToShared/);
+  assert.match(route, /syncVisioSharedCalendarToInrCalendar/);
   assert.match(vercel, /\/api\/cron\/visio-calendar-sync/);
   assert.match(vercel, /"schedule": "\*\/5 \* \* \* \*"/);
   assert.match(backend, /inrcy:visio-booking:team-calendar-sync/);
@@ -93,6 +95,24 @@ test("le calendrier partagé global est synchronisé par un cron protégé et id
   assert.match(backend, /showDeleted:\s*true/);
   assert.match(backend, /cancelSharedCalendarEvent/);
   assert.match(backend, /getVisioSharedCalendarAccess/);
+  assert.match(inrCalendarSync, /INR_CALENDAR_GOOGLE_SOURCE/);
+  assert.match(inrCalendarSync, /\.upsert\(batch, \{ onConflict: "id", ignoreDuplicates: false \}\)/);
+  assert.match(inrCalendarSync, /\.contains\("meta", \{ source: INR_CALENDAR_GOOGLE_SOURCE \}\)/);
+  assert.match(inrCalendarSync, /staleIds/);
+});
+
+test("le compte admin ouvre Google Agenda et les copies Google restent en lecture seule", () => {
+  const page = read("app/dashboard/agenda/page.tsx");
+  const client = read("app/dashboard/agenda/AgendaClient.tsx");
+  const ui = read("app/dashboard/agenda/agenda.ui.tsx");
+  const eventsRoute = read("app/api/calendar/events/route.ts");
+
+  assert.match(page, /canOpenGoogleAgenda=\{role\.isAdmin\}/);
+  assert.match(ui, /desktopLabel="Google Agenda"/);
+  assert.match(client, /https:\/\/calendar\.google\.com\/calendar\/u\/0\/r/);
+  assert.match(client, /isGoogleSyncedEvent\(event\)/);
+  assert.match(eventsRoute, /Modifiez-le dans Google Agenda/);
+  assert.match(eventsRoute, /Supprimez-le dans Google Agenda/);
 });
 
 test("la modale contient les deux choix et le parcours de confirmation", () => {
@@ -126,4 +146,25 @@ test("la modale contient les deux choix et le parcours de confirmation", () => {
 test("le délai par défaut autorise les réservations dès le lendemain", () => {
   const backend = read("lib/visioBookingGoogle.ts");
   assert.match(backend, /INRCY_VISIO_MINIMUM_LEAD_DAYS",\s*1,/);
+});
+
+test("l’attribution équipe est privée, auditée et silencieuse pour le professionnel", () => {
+  const backend = read("lib/visioBookingGoogle.ts");
+  const access = read("lib/visioTeamAccess.ts");
+  const route = read("app/api/internal/visio-booking/appointments/route.ts");
+  const page = read("app/equipe/agenda/TeamAgendaClient.tsx");
+
+  assert.match(access, /getVisioTeamAllowedEmails/);
+  assert.match(access, /ADMIN_USER_IDS/);
+  assert.match(access, /Accès réservé à l’équipe iNrCy/);
+  assert.match(route, /requireVisioTeamApi/);
+  assert.match(route, /sec-fetch-site/);
+  assert.match(route, /reassignVisioTeamAppointment/);
+  assert.match(backend, /moveCalendarEventWithoutUpdates/);
+  assert.match(backend, /sendUpdates:\s*"none"/);
+  assert.match(backend, /publicOrganizerPreserved:\s*isBooking/);
+  assert.match(backend, /notificationsSent:\s*false/);
+  assert.match(backend, /type:\s*"appointment_reassigned"/);
+  assert.match(page, /Jimmy|member\.name/);
+  assert.match(page, /Le professionnel ne recevra aucune notification/);
 });

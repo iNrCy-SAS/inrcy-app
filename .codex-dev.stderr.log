@@ -1,0 +1,15 @@
+npm notice run inrcy-app@0.1.0 dev
+npm notice run node --use-system-ca node_modules/next/dist/bin/next dev
+Error: spawn EPERM
+    at ChildProcess.spawn (node:internal/child_process:458:11)
+    at spawn (node:child_process:813:9)
+    at fork (node:child_process:174:10)
+    at C:\Users\jimmy\Desktop\Application iNrCy\inrcy-app\node_modules\next\dist\cli\next-dev.js:253:45
+    at new Promise (<anonymous>)
+    at startServer (C:\Users\jimmy\Desktop\Application iNrCy\inrcy-app\node_modules\next\dist\cli\next-dev.js:221:16)
+    at runDevServer (C:\Users\jimmy\Desktop\Application iNrCy\inrcy-app\node_modules\next\dist\cli\next-dev.js:355:23)
+    at Module.nextDev (C:\Users\jimmy\Desktop\Application iNrCy\inrcy-app\node_modules\next\dist\cli\next-dev.js:363:11) {
+  errno: -4048,
+  code: 'EPERM',
+  syscall: 'spawn'
+}

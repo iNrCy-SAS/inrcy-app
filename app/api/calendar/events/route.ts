@@ -8,6 +8,7 @@ import { sendMailFromIntegration } from "@/lib/inrsend/sendMailFromIntegration";
 import { withApi } from "@/lib/observability/withApi";
 import { log } from "@/lib/observability/logger";
 import { insertNotificationOnce } from "@/lib/notificationWriter";
+import { INR_CALENDAR_GOOGLE_SOURCE } from "@/lib/inrCalendarGoogleSyncConstants";
 import {
   buildClientExchangePreferences,
   DEFAULT_CLIENT_EXCHANGE_PREFERENCES,
@@ -158,15 +159,24 @@ function isDraftAgendaEvent(metaInput: unknown) {
   return String(meta.status || "").toLowerCase() === "draft";
 }
 
+function isGoogleSyncedAgendaEvent(metaInput: unknown) {
+  const meta = safeObj(metaInput);
+  return (
+    String(meta.source || "").toLowerCase() === INR_CALENDAR_GOOGLE_SOURCE &&
+    meta.readOnly === true
+  );
+}
 
 function mapAgendaRowToClientEvent(e: Record<string, unknown>) {
+  const meta = safeObj(e.meta);
+  const google = safeObj(meta.google);
   return {
     id: e.id,
     summary: e.title ?? "(Sans titre)",
     start: e.all_day ? (e.start_at ? String(e.start_at).slice(0, 10) : null) : e.start_at,
     end: e.all_day ? (e.end_at ? String(e.end_at).slice(0, 10) : null) : e.end_at,
     location: e.location ?? null,
-    htmlLink: null,
+    htmlLink: cleanString(google.htmlLink) || null,
     description: e.description ?? null,
     inrcy: e.meta ?? null,
   };
@@ -902,6 +912,12 @@ async function updateCalendarEventHandler(req: Request) {
 
   if (currentError) return jsonUserFacingError(currentError, { status: 500, extra: { ok: false } });
   if (!current) return bad("Rendez-vous introuvable", 404);
+  if (isGoogleSyncedAgendaEvent(current.meta)) {
+    return bad(
+      "Ce rendez-vous est synchronisé depuis Google Agenda. Modifiez-le dans Google Agenda.",
+      409,
+    );
+  }
 
   let startAt: string;
   let endAt: string;
@@ -998,6 +1014,21 @@ async function deleteCalendarEventHandler(req: Request) {
   const { searchParams } = new URL(req.url);
   const id = searchParams.get("id");
   if (!id) return bad("id requis");
+
+  const { data: current, error: currentError } = await supabase
+    .from("agenda_events")
+    .select("meta")
+    .eq("id", id)
+    .eq("user_id", activeUserId)
+    .maybeSingle();
+  if (currentError) return jsonUserFacingError(currentError, { status: 500, extra: { ok: false } });
+  if (!current) return bad("Rendez-vous introuvable", 404);
+  if (isGoogleSyncedAgendaEvent(current.meta)) {
+    return bad(
+      "Ce rendez-vous est synchronisé depuis Google Agenda. Supprimez-le dans Google Agenda.",
+      409,
+    );
+  }
 
   const { error } = await supabase.from("agenda_events").delete().eq("id", id).eq("user_id", activeUserId);
   if (error) return jsonUserFacingError(error, { status: 500, extra: { ok: false } });

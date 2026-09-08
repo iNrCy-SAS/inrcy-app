@@ -1,3 +1,5 @@
+import { INR_CALENDAR_GOOGLE_SOURCE } from "@/lib/inrCalendarGoogleSyncConstants";
+
 export type ContactCategory = "particulier" | "professionnel" | "collectivite_publique";
 export type ContactType = "prospect" | "client" | "fournisseur" | "partenaire" | "autre";
 export type RdvMode = "create" | "edit" | "request";
@@ -221,6 +223,15 @@ export function getInrcyStatus(event: EventItem | DayEvent | null | undefined) {
 
 export function isDraftEvent(event: EventItem | DayEvent | null | undefined) {
   return getInrcyStatus(event) === "draft";
+}
+
+export function isGoogleSyncedEvent(event: EventItem | DayEvent | null | undefined) {
+  const meta = event?.inrcy && typeof event.inrcy === "object" ? event.inrcy : {};
+  return (
+    String((meta as Record<string, unknown>).source || "").toLowerCase() ===
+      INR_CALENDAR_GOOGLE_SOURCE &&
+    (meta as Record<string, unknown>).readOnly === true
+  );
 }
 
 export function getEventAccentClass(accent: ReturnType<typeof accentFor>, styles: Record<string, string>) {

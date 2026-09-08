@@ -19,6 +19,7 @@ import {
   endOfMonth,
   getContactOptionLabel,
   isDraftEvent,
+  isGoogleSyncedEvent,
   endOfWeekSunday,
   isDateOnly,
   keyOf,
@@ -183,7 +184,13 @@ function readInitialAgendaMonthSnapshot(date: Date) {
   )?.data ?? null;
 }
 
-export default function AgendaClient() {
+export default function AgendaClient({
+  canManageTeamAppointments = false,
+  canOpenGoogleAgenda = false,
+}: {
+  canManageTeamAppointments?: boolean;
+  canOpenGoogleAgenda?: boolean;
+}) {
   const i18nT = useTranslations("agenda");
   const [initialMonth] = useState(() => startOfMonth(new Date()));
   const [initialAgendaSnapshot] = useState<AgendaMonthSnapshot | null>(() => readInitialAgendaMonthSnapshot(initialMonth));
@@ -739,6 +746,15 @@ export default function AgendaClient() {
   }
 
   function openEditRdv(event: DayEvent) {
+    if (isGoogleSyncedEvent(event)) {
+      window.open(
+        event.htmlLink || "https://calendar.google.com/calendar/u/0/r",
+        "_blank",
+        "noopener,noreferrer",
+      );
+      return;
+    }
+
     setRdvMode("edit");
     setRdvEventId(event.id);
 
@@ -1451,6 +1467,16 @@ export default function AgendaClient() {
           setShowMobileSearch={setShowMobileSearch}
           appointmentRequestsCount={normalizedAppointmentRequests.length}
           onOpenAppointmentRequests={() => openAppointmentRequestAt(Math.min(activeRequestIndex, Math.max(0, normalizedAppointmentRequests.length - 1)))}
+          canManageTeamAppointments={canManageTeamAppointments}
+          onOpenTeamAppointments={() => router.push("/equipe/agenda")}
+          canOpenGoogleAgenda={canOpenGoogleAgenda}
+          onOpenGoogleAgenda={() =>
+            window.open(
+              "https://calendar.google.com/calendar/u/0/r",
+              "_blank",
+              "noopener,noreferrer",
+            )
+          }
           onClose={() => router.push("/dashboard")}
         />
 
