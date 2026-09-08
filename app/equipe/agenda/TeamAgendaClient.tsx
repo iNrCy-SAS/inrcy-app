@@ -168,8 +168,8 @@ export default function TeamAgendaClient({
               <p className={styles.eyebrow}>OUTIL INTERNE</p>
               <h1>Attribution des rendez-vous</h1>
               <p className={styles.subtitle}>
-                Toute l’équipe voit les rendez-vous. Un clic change le responsable interne,
-                sans prévenir le professionnel.
+                Tous les rendez-vous positionnés, toutes catégories confondues :
+                7 jours d’historique et 14 jours à venir.
               </p>
             </div>
           </div>
@@ -204,7 +204,7 @@ export default function TeamAgendaClient({
         {loading ? (
           <div className={styles.stateCard}>Synchronisation des agendas en cours…</div>
         ) : groupedAppointments.length === 0 ? (
-          <div className={styles.stateCard}>Aucun rendez-vous à venir.</div>
+          <div className={styles.stateCard}>Aucun rendez-vous positionné sur cette période.</div>
         ) : (
           <div className={styles.days}>
             {groupedAppointments.map(([key, items]) => (

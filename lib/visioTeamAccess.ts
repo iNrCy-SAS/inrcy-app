@@ -37,7 +37,16 @@ export async function getVisioTeamActor(): Promise<VisioTeamActor | null> {
 
   const email = normalizeEmail(user.email);
   const isHardAdmin = ADMIN_USER_IDS.includes(user.id as (typeof ADMIN_USER_IDS)[number]);
-  if (!isHardAdmin && (!email || !getVisioTeamAllowedEmails().has(email))) {
+  const { data: profile } = isHardAdmin
+    ? { data: null }
+    : await supabase
+        .from("profiles")
+        .select("role")
+        .eq("user_id", user.id)
+        .maybeSingle();
+  const isAppAdmin = isHardAdmin || profile?.role === "admin";
+
+  if (!isAppAdmin && (!email || !getVisioTeamAllowedEmails().has(email))) {
     return null;
   }
 
@@ -47,7 +56,7 @@ export async function getVisioTeamActor(): Promise<VisioTeamActor | null> {
   return {
     userId: user.id,
     email,
-    name: member?.name || (isHardAdmin ? "Jimmy" : email),
+    name: member?.name || (isAppAdmin ? "Admin iNrCy" : email),
   };
 }
 
@@ -64,4 +73,3 @@ export async function requireVisioTeamApi() {
   }
   return { ok: true as const, actor };
 }
-

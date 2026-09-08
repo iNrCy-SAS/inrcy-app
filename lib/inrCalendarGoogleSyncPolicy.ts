@@ -1,6 +1,9 @@
 import { createHash } from "node:crypto";
 
-import { INR_CALENDAR_GOOGLE_SOURCE } from "./inrCalendarGoogleSyncConstants.ts";
+import {
+  INR_CALENDAR_GOOGLE_GUEST_EMAILS_PROPERTY,
+  INR_CALENDAR_GOOGLE_SOURCE,
+} from "./inrCalendarGoogleSyncConstants.ts";
 
 export type InrCalendarGoogleEvent = {
   id?: string;
@@ -12,6 +15,14 @@ export type InrCalendarGoogleEvent = {
   htmlLink?: string;
   hangoutLink?: string;
   colorId?: string;
+  organizer?: { email?: string; displayName?: string; self?: boolean };
+  attendees?: Array<{
+    email?: string;
+    displayName?: string;
+    organizer?: boolean;
+    self?: boolean;
+    responseStatus?: string;
+  }>;
   start?: { dateTime?: string; date?: string; timeZone?: string };
   end?: { dateTime?: string; date?: string; timeZone?: string };
   conferenceData?: {
@@ -36,6 +47,106 @@ export type InrCalendarGoogleRow = {
 
 function cleanString(value: unknown) {
   return String(value ?? "").trim();
+}
+
+function safeObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function normalizeEmail(value: unknown) {
+  const email = cleanString(value).toLowerCase();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : "";
+}
+
+function parsedMirroredGuestEmails(value: unknown) {
+  try {
+    const parsed = JSON.parse(cleanString(value));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function bookingEmailFromDescription(event: InrCalendarGoogleEvent) {
+  const isBooking = cleanString(event.extendedProperties?.private?.inrcyBooking);
+  if (!isBooking) return "";
+  return normalizeEmail(
+    cleanString(event.description).match(
+      /(?:^|\r?\n)\s*E-mail\s*:\s*([^\s\r\n]+)\s*(?=\r?\n|$)/i,
+    )?.[1],
+  );
+}
+
+function googleReminderGuests(input: {
+  event: InrCalendarGoogleEvent;
+  calendarId: string;
+  internalEmails?: string[];
+}) {
+  const privateProperties = input.event.extendedProperties?.private || {};
+  const internal = new Set(
+    [
+      input.calendarId,
+      privateProperties.sourceCalendarId,
+      privateProperties.assignedMemberEmail,
+      ...(input.internalEmails || []),
+    ]
+      .map(normalizeEmail)
+      .filter(Boolean),
+  );
+  const candidates = [
+    {
+      email: input.event.organizer?.email,
+      displayName: input.event.organizer?.displayName,
+      declined: false,
+      self: input.event.organizer?.self,
+    },
+    ...(input.event.attendees || []).map((attendee) => ({
+      email: attendee.email,
+      displayName: attendee.displayName,
+      declined: String(attendee.responseStatus || "").toLowerCase() === "declined",
+      self: attendee.self,
+    })),
+    ...parsedMirroredGuestEmails(
+      privateProperties[INR_CALENDAR_GOOGLE_GUEST_EMAILS_PROPERTY],
+    ).map((email) => ({ email, displayName: "", declined: false, self: false })),
+    {
+      email: bookingEmailFromDescription(input.event),
+      displayName: "",
+      declined: false,
+      self: false,
+    },
+  ];
+  const guests = new Map<string, { email: string; display_name?: string }>();
+
+  for (const candidate of candidates) {
+    const email = normalizeEmail(candidate.email);
+    if (
+      !email ||
+      candidate.self ||
+      candidate.declined ||
+      internal.has(email) ||
+      email.endsWith("@inrcy.com") ||
+      email.endsWith("@admin-inrcy.com") ||
+      email.endsWith("@group.calendar.google.com") ||
+      email.endsWith("@resource.calendar.google.com")
+    ) {
+      continue;
+    }
+    const displayName = cleanString(candidate.displayName);
+    const previous = guests.get(email);
+    guests.set(email, {
+      email,
+      ...(displayName || previous?.display_name
+        ? { display_name: displayName || previous?.display_name }
+        : {}),
+    });
+  }
+
+  return Array.from(guests.values()).sort((left, right) =>
+    left.email.localeCompare(right.email),
+  );
 }
 
 function strictDateOnly(value: unknown) {
@@ -107,6 +218,12 @@ export function buildInrCalendarGoogleRow(input: {
   event: InrCalendarGoogleEvent;
   calendarId: string;
   adminUserId: string;
+  internalEmails?: string[];
+  previous?: {
+    start_at?: string | null;
+    end_at?: string | null;
+    meta?: unknown;
+  } | null;
 }): InrCalendarGoogleRow | null {
   const calendarId = cleanString(input.calendarId);
   const adminUserId = cleanString(input.adminUserId);
@@ -126,6 +243,19 @@ export function buildInrCalendarGoogleRow(input: {
   const privateProperties = input.event.extendedProperties?.private || {};
   const htmlLink = cleanString(input.event.htmlLink);
   const meetUrl = eventMeetUrl(input.event);
+  const previousMeta = safeObject(input.previous?.meta);
+  const previousReminders = safeObject(previousMeta.reminders);
+  const previousGoogle = safeObject(previousMeta.google);
+  const timeChanged = Boolean(
+    input.previous &&
+      (cleanString(input.previous.start_at) !== range.startAt ||
+        cleanString(input.previous.end_at) !== range.endAt),
+  );
+  const guests = googleReminderGuests({
+    event: input.event,
+    calendarId,
+    internalEmails: input.internalEmails,
+  });
 
   return {
     id: buildInrCalendarGoogleEventId(calendarId, eventId),
@@ -137,20 +267,37 @@ export function buildInrCalendarGoogleRow(input: {
     end_at: range.endAt,
     all_day: range.allDay,
     meta: {
+      ...previousMeta,
       source: INR_CALENDAR_GOOGLE_SOURCE,
       status: "confirmed",
       kind: "agenda",
       readOnly: true,
+      guests,
       reminders: {
-        enabled: false,
-        inAppMinutesBefore: 120,
-        emailMinutesBefore: 1440,
-        mailAccountId: null,
-        lastInAppReminderAt: null,
-        lastEmailReminderAt: null,
-        emailSentAtByRecipient: {},
+        ...previousReminders,
+        enabled: guests.length > 0,
+        inAppMinutesBefore: Number(previousReminders.inAppMinutesBefore ?? 120),
+        emailMinutesBefore: Number(previousReminders.emailMinutesBefore ?? 1440),
+        mailAccountId:
+          typeof previousReminders.mailAccountId === "string"
+            ? previousReminders.mailAccountId
+            : null,
+        lastInAppReminderAt: timeChanged
+          ? null
+          : typeof previousReminders.lastInAppReminderAt === "string"
+            ? previousReminders.lastInAppReminderAt
+            : null,
+        lastEmailReminderAt: timeChanged
+          ? null
+          : typeof previousReminders.lastEmailReminderAt === "string"
+            ? previousReminders.lastEmailReminderAt
+            : null,
+        emailSentAtByRecipient: timeChanged
+          ? {}
+          : safeObject(previousReminders.emailSentAtByRecipient),
       },
       google: {
+        ...previousGoogle,
         provider: "google",
         calendarId,
         eventId,
@@ -168,4 +315,3 @@ export function buildInrCalendarGoogleRow(input: {
     },
   };
 }
-

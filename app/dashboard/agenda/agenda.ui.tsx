@@ -236,11 +236,18 @@ type AgendaHeaderProps = {
   onOpenTeamAppointments: () => void;
   canOpenGoogleAgenda: boolean;
   onOpenGoogleAgenda: () => void;
+  cursorMonth: Date;
+  loading: boolean;
+  onPrev: () => void;
+  onToday: () => void;
+  onNext: () => void;
+  onRefresh: () => void;
   onClose: () => void;
 };
 
-export function AgendaHeader({ helpOpen, setHelpOpen, settingsOpen, onOpenSettings, onCloseSettings, query, setQuery, showMobileSearch, setShowMobileSearch, appointmentRequestsCount, onOpenAppointmentRequests, canManageTeamAppointments, onOpenTeamAppointments, canOpenGoogleAgenda, onOpenGoogleAgenda, onClose }: AgendaHeaderProps) {
+export function AgendaHeader({ helpOpen, setHelpOpen, settingsOpen, onOpenSettings, onCloseSettings, query, setQuery, showMobileSearch, setShowMobileSearch, appointmentRequestsCount, onOpenAppointmentRequests, canManageTeamAppointments, onOpenTeamAppointments, canOpenGoogleAgenda, onOpenGoogleAgenda, cursorMonth, loading, onPrev, onToday, onNext, onRefresh, onClose }: AgendaHeaderProps) {
   const i18nT = useTranslations("agenda");
+  const locale = useLocale();
   const hasRequests = appointmentRequestsCount > 0;
   return (
     <>
@@ -268,6 +275,31 @@ export function AgendaHeader({ helpOpen, setHelpOpen, settingsOpen, onOpenSettin
           </div>
         </div>
 
+        <div className={`${styles.desktopCalendarNav} ${styles.desktopOnly}`} aria-label="Navigation du calendrier">
+          <button className={styles.btnIcon} onClick={onPrev} aria-label={i18nT("mois_precedent_535707c7")} title={i18nT("mois_precedent_535707c7")}>
+            ‹
+          </button>
+          <div className={styles.desktopMonthBlock}>
+            <span className={styles.desktopMonthLabel}>{formatMonthLabel(cursorMonth, locale)}</span>
+            <span className={styles.desktopMonthHint}>Vue mensuelle</span>
+          </div>
+          <button className={styles.btnIcon} onClick={onToday} aria-label={i18nT("aujourd_hui_ba0603b4")} title={i18nT("aujourd_hui_ba0603b4")}>
+            ●
+          </button>
+          <button className={styles.btnIcon} onClick={onNext} aria-label={i18nT("mois_suivant_7b08eaec")} title={i18nT("mois_suivant_7b08eaec")}>
+            ›
+          </button>
+          <button
+            className={styles.btnIcon}
+            onClick={onRefresh}
+            disabled={loading}
+            aria-label={i18nT("actualiser_9d3b2a7d")}
+            title={i18nT("actualiser_9d3b2a7d")}
+          >
+            {loading ? "…" : "↻"}
+          </button>
+        </div>
+
         <div className={styles.headerActions}>
           <div className={`${styles.headerSearch} ${styles.desktopOnly}`}>
             <HelpButton onClick={() => setHelpOpen(true)} title={i18nT("aide_inr_calendar_d2a0e2ca")} />
@@ -281,20 +313,15 @@ export function AgendaHeader({ helpOpen, setHelpOpen, settingsOpen, onOpenSettin
 
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               {canOpenGoogleAgenda ? (
-                <ResponsiveActionButton
-                  desktopLabel="Google Agenda"
-                  mobileIcon="🗓️"
+                <button
+                  type="button"
+                  className={`${styles.btnGhost} ${styles.iconOnlyBtn}`}
                   onClick={onOpenGoogleAgenda}
                   title="Ouvrir Google Agenda"
-                />
-              ) : null}
-              {canManageTeamAppointments ? (
-                <ResponsiveActionButton
-                  desktopLabel="Attribution équipe"
-                  mobileIcon="👥"
-                  onClick={onOpenTeamAppointments}
-                  title="Attribuer les rendez-vous à l’équipe iNrCy"
-                />
+                  aria-label="Ouvrir Google Agenda"
+                >
+                  <span className={styles.googleAgendaIcon} aria-hidden>G</span>
+                </button>
               ) : null}
               <button
                 type="button"
@@ -307,12 +334,15 @@ export function AgendaHeader({ helpOpen, setHelpOpen, settingsOpen, onOpenSettin
                 <span className={styles.requestAgendaIcon} aria-hidden>📅</span>
                 {hasRequests ? <span className={styles.requestBellBadge}>{appointmentRequestsCount}</span> : null}
               </button>
-              <ResponsiveActionButton
-                desktopLabel={i18nT("reglages_00d63297")}
-                mobileIcon="⚙️"
+              <button
+                type="button"
+                className={`${styles.btnGhost} ${styles.iconOnlyBtn}`}
                 onClick={onOpenSettings}
                 title={i18nT("reglages_inr_calendar_cdc58ac4")}
-              />
+                aria-label={i18nT("reglages_inr_calendar_cdc58ac4")}
+              >
+                <span className={styles.headerActionIcon} aria-hidden>⚙️</span>
+              </button>
               <ResponsiveActionButton desktopLabel={i18nT("fermer_5ab4ec64")} mobileIcon="✕" onClick={onClose} />
             </div>
           </div>
@@ -440,8 +470,8 @@ export function AgendaCalendarCard({
   const i18nT = useTranslations("agenda");
   const locale = useLocale();
   return (
-    <div className={styles.card}>
-      <div className={styles.cardHeader}>
+    <div className={`${styles.card} ${styles.calendarCard}`}>
+      <div className={`${styles.cardHeader} ${styles.calendarCardHeader}`}>
         <div className={styles.monthLabel} style={{ textTransform: "capitalize" }}>
           {formatMonthLabel(cursorMonth, locale)}
         </div>
@@ -551,6 +581,22 @@ type AgendaSidebarProps = {
   onJumpToEvent: (event: DayEvent) => void;
 };
 
+function getEventRecipientEmail(event: DayEvent) {
+  const meta = event.inrcy && typeof event.inrcy === "object"
+    ? (event.inrcy as Record<string, unknown>)
+    : {};
+  const contact = meta.contact && typeof meta.contact === "object"
+    ? (meta.contact as Record<string, unknown>)
+    : {};
+  const guests = Array.isArray(meta.guests) ? meta.guests : [];
+  const guest = guests.find((item) => {
+    if (!item || typeof item !== "object") return false;
+    return Boolean(String((item as Record<string, unknown>).email || "").trim());
+  }) as Record<string, unknown> | undefined;
+
+  return String(contact.email || guest?.email || "").trim().toLowerCase();
+}
+
 function AgendaEventRow({
   event,
   meta,
@@ -622,8 +668,56 @@ export function AgendaSidebar({
 }: AgendaSidebarProps) {
   const i18nT = useTranslations("agenda");
   const locale = useLocale();
+  const searching = Boolean(query.trim());
+  const activeEvents = searching ? globalMatches : selectedEvents;
+  const desktopPageSize = 6;
+  const desktopPageCount = Math.max(1, Math.ceil(activeEvents.length / desktopPageSize));
+  const [desktopPage, setDesktopPage] = useState(0);
+
+  useEffect(() => {
+    setDesktopPage(0);
+  }, [query, selectedDate]);
+
+  useEffect(() => {
+    setDesktopPage((current) => Math.min(current, desktopPageCount - 1));
+  }, [desktopPageCount]);
+
+  const desktopEvents = activeEvents.slice(
+    desktopPage * desktopPageSize,
+    desktopPage * desktopPageSize + desktopPageSize,
+  );
+
+  const renderEvent = (event: DayEvent, scope: string) => {
+    const when = getEventWhenLabel(event, locale, i18nT("toute_la_journee_c51ef82d"));
+    const dayLabel = searching && event.startDate ? formatDayLabel(event.startDate, locale) : "";
+    const recipientEmail = getEventRecipientEmail(event);
+    const meta = `${dayLabel}${dayLabel && when ? " • " : ""}${when}${event.location ? ` • ${event.location}` : ""}${recipientEmail ? ` • ${recipientEmail}` : ""}`;
+
+    return (
+      <AgendaEventRow
+        key={`${scope}-${event.id}`}
+        event={event}
+        meta={meta}
+        onClick={() => searching ? onJumpToEvent(event) : onOpenEvent(event)}
+        onDelete={searching || isGoogleSyncedEvent(event) ? undefined : async () => {
+          const ok = await confirmInrcy({
+            title: i18nT("supprimer_l_evenement_a6ec62d8"),
+            message: i18nT("cette_action_supprimera_definitivement_cet_evene_866eadd0"),
+            confirmLabel: i18nT("supprimer_1acfc1c7"),
+            variant: "danger",
+          });
+          if (ok) onDeleteEvent(event.id);
+        }}
+      />
+    );
+  };
+
+  const emptyMessage = searching
+    ? i18nT("aucun_resultat_53a595bf")
+    : i18nT("aucun_evenement_ce_jour_la_fd881b07");
+
   return (
-    <div className={styles.card}>
+    <div className={`${styles.card} ${styles.sidebarCard}`}>
       <div className={styles.sideHeaderCentered}>
         <div className={styles.sideDate}>{formatDayLabel(selectedDate, locale)}</div>
         <div className={styles.sideEventsCount}>
@@ -636,51 +730,39 @@ export function AgendaSidebar({
 
       <div className={styles.sidebarBody}>
         <div className={styles.sideTitle}>{i18nT("details_du_jour_2ed84093")}</div>
-        {query.trim() ? (
-          <div className={styles.list}>
-            {globalMatches.length === 0 && (loading ? <div className={styles.empty}>{i18nT("chargement_des_evenements_b328ea39")}</div> : <div className={styles.empty}>{i18nT("aucun_resultat_53a595bf")}</div>)}
-            {globalMatches.map((ev) => {
-              const when = getEventWhenLabel(ev, locale, i18nT("toute_la_journee_c51ef82d"));
-              const dayLabel = ev.startDate ? formatDayLabel(ev.startDate, locale) : "";
-              const meta = `${dayLabel}${when ? ` • ${when}` : ""}${ev.location ? ` • ${ev.location}` : ""}`;
-              return (
-                <React.Fragment key={ev.id}>
-                  <AgendaEventRow
-                    event={ev}
-                    meta={meta}
-                    onClick={() => onJumpToEvent(ev)}
-                  />
-                </React.Fragment>
-              );
-            })}
+        <div className={`${styles.list} ${styles.desktopEventList}`}>
+          {activeEvents.length === 0 && (loading ? <div className={styles.empty}>{i18nT("chargement_des_evenements_b328ea39")}</div> : <div className={styles.empty}>{emptyMessage}</div>)}
+          {desktopEvents.map((event) => renderEvent(event, "desktop"))}
+        </div>
+
+        {activeEvents.length > desktopPageSize ? (
+          <div className={styles.desktopEventPager} aria-label="Navigation des rendez-vous">
+            <button
+              type="button"
+              className={styles.btnIcon}
+              onClick={() => setDesktopPage((current) => Math.max(0, current - 1))}
+              disabled={desktopPage === 0}
+              aria-label="Rendez-vous précédents"
+            >
+              ‹
+            </button>
+            <span>{desktopPage + 1} / {desktopPageCount}</span>
+            <button
+              type="button"
+              className={styles.btnIcon}
+              onClick={() => setDesktopPage((current) => Math.min(desktopPageCount - 1, current + 1))}
+              disabled={desktopPage >= desktopPageCount - 1}
+              aria-label="Rendez-vous suivants"
+            >
+              ›
+            </button>
           </div>
-        ) : (
-          <div className={styles.list}>
-            {selectedEvents.length === 0 && (loading ? <div className={styles.empty}>{i18nT("chargement_des_evenements_b328ea39")}</div> : <div className={styles.empty}>{i18nT("aucun_evenement_ce_jour_la_fd881b07")}</div>)}
-            {selectedEvents.map((ev) => {
-              const when = getEventWhenLabel(ev, locale, i18nT("toute_la_journee_c51ef82d"));
-              const meta = `${when}${ev.location ? ` • ${ev.location}` : ""}`;
-              return (
-                <React.Fragment key={ev.id}>
-                  <AgendaEventRow
-                    event={ev}
-                    meta={meta}
-                    onClick={() => onOpenEvent(ev)}
-                    onDelete={isGoogleSyncedEvent(ev) ? undefined : async () => {
-                      const ok = await confirmInrcy({
-                        title: i18nT("supprimer_l_evenement_a6ec62d8"),
-                        message: i18nT("cette_action_supprimera_definitivement_cet_evene_866eadd0"),
-                        confirmLabel: i18nT("supprimer_1acfc1c7"),
-                        variant: "danger",
-                      });
-                      if (ok) onDeleteEvent(ev.id);
-                    }}
-                  />
-                </React.Fragment>
-              );
-            })}
-          </div>
-        )}
+        ) : null}
+
+        <div className={`${styles.list} ${styles.nonDesktopEventList}`}>
+          {activeEvents.length === 0 && (loading ? <div className={styles.empty}>{i18nT("chargement_des_evenements_b328ea39")}</div> : <div className={styles.empty}>{emptyMessage}</div>)}
+          {activeEvents.map((event) => renderEvent(event, "responsive"))}
+        </div>
       </div>
     </div>
   );

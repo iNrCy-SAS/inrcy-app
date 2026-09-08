@@ -10,7 +10,9 @@ import {
 import { ADMIN_USER_IDS } from "@/lib/roles";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
+  getVisioPublicCalendarId,
   getVisioSharedCalendarId,
+  getVisioTeamMembers,
   listVisioSharedCalendarEvents,
 } from "@/lib/visioBookingGoogle";
 
@@ -20,6 +22,9 @@ const DATABASE_BATCH_SIZE = 200;
 
 type ExistingGoogleRow = {
   id: string;
+  start_at: string | null;
+  end_at: string | null;
+  meta: unknown;
 };
 
 export type InrCalendarGoogleSyncResult = {
@@ -135,7 +140,7 @@ export async function syncVisioSharedCalendarToInrCalendar(input?: {
 
     const { data: existing, error: existingError } = await supabaseAdmin
       .from("agenda_events")
-      .select("id")
+      .select("id,start_at,end_at,meta")
       .eq("user_id", adminUserId)
       .contains("meta", { source: INR_CALENDAR_GOOGLE_SOURCE })
       .lt("start_at", timeMax.toISOString())
@@ -146,6 +151,14 @@ export async function syncVisioSharedCalendarToInrCalendar(input?: {
     }
 
     const rows: InrCalendarGoogleRow[] = [];
+    const existingById = new Map(
+      ((existing || []) as ExistingGoogleRow[]).map((row) => [String(row.id), row]),
+    );
+    const internalEmails = [
+      getVisioPublicCalendarId(),
+      calendarId,
+      ...getVisioTeamMembers().flatMap((member) => [member.email, member.calendarId]),
+    ];
     const activeIds = new Set<string>();
     const cancelledIds: string[] = [];
     for (const event of googleEvents) {
@@ -159,7 +172,13 @@ export async function syncVisioSharedCalendarToInrCalendar(input?: {
         cancelledIds.push(importedId);
         continue;
       }
-      const row = buildInrCalendarGoogleRow({ event, calendarId, adminUserId });
+      const row = buildInrCalendarGoogleRow({
+        event,
+        calendarId,
+        adminUserId,
+        internalEmails,
+        previous: existingById.get(importedId) || null,
+      });
       if (!row) {
         result.skipped += 1;
         continue;

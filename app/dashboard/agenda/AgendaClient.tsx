@@ -1477,6 +1477,12 @@ export default function AgendaClient({
               "noopener,noreferrer",
             )
           }
+          cursorMonth={cursorMonth}
+          loading={loading}
+          onPrev={goPrev}
+          onToday={goToday}
+          onNext={goNext}
+          onRefresh={() => loadEventsForMonth(cursorMonth)}
           onClose={() => router.push("/dashboard")}
         />
 

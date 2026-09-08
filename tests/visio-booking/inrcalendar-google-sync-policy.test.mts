@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { INR_CALENDAR_GOOGLE_SOURCE } from "../../lib/inrCalendarGoogleSyncConstants.ts";
+import {
+  INR_CALENDAR_GOOGLE_GUEST_EMAILS_PROPERTY,
+  INR_CALENDAR_GOOGLE_SOURCE,
+} from "../../lib/inrCalendarGoogleSyncConstants.ts";
 import {
   buildInrCalendarGoogleEventId,
   buildInrCalendarGoogleRow,
@@ -74,6 +77,99 @@ test("un rendez-vous Google devient un événement iNrCalendar admin en lecture 
   );
 });
 
+test("les participants externes Google deviennent des invités avec rappels iNrCy", () => {
+  const row = buildInrCalendarGoogleRow({
+    event: event({
+      organizer: { email: "apolline.benedyczak@inrcy.com" },
+      attendees: [
+        { email: "apolline.benedyczak@inrcy.com", self: true, responseStatus: "accepted" },
+        { email: "PRO@EXAMPLE.COM", displayName: "Jean Pro", responseStatus: "accepted" },
+        { email: "refus@example.com", responseStatus: "declined" },
+      ],
+    }),
+    calendarId,
+    adminUserId,
+    internalEmails: ["apolline.benedyczak@inrcy.com"],
+  });
+
+  assert.ok(row);
+  assert.deepEqual(row.meta.guests, [
+    { email: "pro@example.com", display_name: "Jean Pro" },
+  ]);
+  assert.equal((row.meta.reminders as Record<string, unknown>).enabled, true);
+});
+
+test("les invités transportés par le miroir Google activent les rappels", () => {
+  const row = buildInrCalendarGoogleRow({
+    event: event({
+      extendedProperties: {
+        private: {
+          sourceCalendarId: "apolline.benedyczak@inrcy.com",
+          assignedMemberEmail: "apolline.benedyczak@inrcy.com",
+          [INR_CALENDAR_GOOGLE_GUEST_EMAILS_PROPERTY]: JSON.stringify([
+            "client@example.com",
+            "compte@inrcy.com",
+          ]),
+        },
+      },
+    }),
+    calendarId,
+    adminUserId,
+  });
+
+  assert.ok(row);
+  assert.deepEqual(row.meta.guests, [{ email: "client@example.com" }]);
+  assert.equal((row.meta.reminders as Record<string, unknown>).enabled, true);
+});
+
+test("la resynchronisation conserve l'historique d'envoi et un déplacement le réinitialise", () => {
+  const previous = {
+    start_at: "2026-09-09T08:00:00.000Z",
+    end_at: "2026-09-09T09:00:00.000Z",
+    meta: {
+      reminders: {
+        enabled: true,
+        lastInAppReminderAt: "2026-09-08T06:00:00.000Z",
+        lastEmailReminderAt: "2026-09-08T06:00:00.000Z",
+        emailSentAtByRecipient: {
+          "guest:client@example.com": { "1440": "2026-09-08T06:00:00.000Z" },
+        },
+      },
+    },
+  };
+  const sameSlot = buildInrCalendarGoogleRow({
+    event: event({ attendees: [{ email: "client@example.com" }] }),
+    calendarId,
+    adminUserId,
+    previous,
+  });
+  const moved = buildInrCalendarGoogleRow({
+    event: event({
+      attendees: [{ email: "client@example.com" }],
+      start: { dateTime: "2026-09-10T08:00:00.000Z" },
+      end: { dateTime: "2026-09-10T09:00:00.000Z" },
+    }),
+    calendarId,
+    adminUserId,
+    previous,
+  });
+
+  assert.ok(sameSlot);
+  assert.ok(moved);
+  assert.deepEqual(
+    (sameSlot.meta.reminders as Record<string, unknown>).emailSentAtByRecipient,
+    (previous.meta.reminders as Record<string, unknown>).emailSentAtByRecipient,
+  );
+  assert.deepEqual(
+    (moved.meta.reminders as Record<string, unknown>).emailSentAtByRecipient,
+    {},
+  );
+  assert.equal(
+    (moved.meta.reminders as Record<string, unknown>).lastEmailReminderAt,
+    null,
+  );
+});
+
 test("les événements sur toute la journée conservent la fin exclusive Google", () => {
   assert.deepEqual(
     getInrCalendarGoogleEventRange(
@@ -108,4 +204,3 @@ test("un événement annulé ou sans plage valide n'est pas importé", () => {
     null,
   );
 });
-

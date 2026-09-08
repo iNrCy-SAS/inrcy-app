@@ -1,3 +1,5 @@
+import { INR_CALENDAR_GOOGLE_GUEST_EMAILS_PROPERTY } from "./inrCalendarGoogleSyncConstants.ts";
+
 export const TEAM_CALENDAR_MIRROR_KEY = "inrcyTeamMirror";
 export const TEAM_CALENDAR_MIRROR_VALUE = "v1";
 export const PENDING_SIGNUP_REMINDER_SUMMARY = "inscription a traiter";
@@ -31,9 +33,11 @@ export type TeamCalendarEvent = {
   start?: TeamCalendarDate;
   end?: TeamCalendarDate;
   originalStartTime?: TeamCalendarDate;
-  organizer?: { email?: string; self?: boolean };
+  organizer?: { email?: string; displayName?: string; self?: boolean };
   attendees?: Array<{
     email?: string;
+    displayName?: string;
+    organizer?: boolean;
     self?: boolean;
     responseStatus?: string;
   }>;
@@ -55,6 +59,55 @@ export type TeamCalendarMirrorInput = {
 
 function normalized(value: unknown) {
   return String(value || "").trim().toLowerCase();
+}
+
+function validEmail(value: unknown) {
+  const email = normalized(value);
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : "";
+}
+
+export function teamCalendarSourceGuestEmails(
+  event: TeamCalendarEvent,
+  internalEmails: string[] = [],
+) {
+  const seen = new Set<string>();
+  const internal = new Set(internalEmails.map(validEmail).filter(Boolean));
+  const emails: string[] = [];
+  const candidates = [
+    event.organizer?.email,
+    ...(event.attendees || [])
+      .filter(
+        (attendee) =>
+          !attendee.self &&
+          String(attendee.responseStatus || "").toLowerCase() !== "declined",
+      )
+      .map((attendee) => attendee.email),
+  ];
+
+  for (const candidate of candidates) {
+    const email = validEmail(candidate);
+    if (
+      !email ||
+      seen.has(email) ||
+      internal.has(email) ||
+      email.endsWith("@inrcy.com") ||
+      email.endsWith("@admin-inrcy.com") ||
+      email.endsWith("@group.calendar.google.com") ||
+      email.endsWith("@resource.calendar.google.com")
+    ) {
+      continue;
+    }
+    seen.add(email);
+    emails.push(email);
+  }
+
+  return emails.sort();
+}
+
+function serializedSourceGuestEmails(event: TeamCalendarEvent, internalEmails: string[]) {
+  const emails = teamCalendarSourceGuestEmails(event, internalEmails);
+  while (emails.length > 0 && JSON.stringify(emails).length > 900) emails.pop();
+  return emails.length > 0 ? JSON.stringify(emails) : "";
 }
 
 function normalizedCalendarLabel(value: unknown) {
@@ -167,6 +220,7 @@ export function teamCalendarMirrorContentSignature(event: TeamCalendarEvent) {
     sourceEventId: properties.sourceEventId || "",
     sourceFingerprint: properties.sourceFingerprint || "",
     assignedMemberId: properties.assignedMemberId || "",
+    guestEmails: properties[INR_CALENDAR_GOOGLE_GUEST_EMAILS_PROPERTY] || "",
   });
 }
 
@@ -180,6 +234,13 @@ export function buildTeamCalendarMirrorBody(input: TeamCalendarMirrorInput) {
   const meetUrl = teamCalendarEventMeetUrl(event);
   const sourceSummary = String(event.summary || "Rendez-vous").trim();
   const sourceDescription = isPrivate ? "" : String(event.description || "").trim();
+  const sourceGuestEmails = isPrivate
+    ? ""
+    : serializedSourceGuestEmails(event, [
+        member.email,
+        member.calendarId,
+        sharedCalendarId,
+      ]);
   const details = [
     `Responsable iNrCy : ${member.name}`,
     "Vue synchronisée : modifiez le rendez-vous dans l’agenda du responsable.",
@@ -214,6 +275,9 @@ export function buildTeamCalendarMirrorBody(input: TeamCalendarMirrorInput) {
           : {}),
         ...(sourcePrivate.prospectUserId
           ? { prospectUserId: sourcePrivate.prospectUserId }
+          : {}),
+        ...(sourceGuestEmails
+          ? { [INR_CALENDAR_GOOGLE_GUEST_EMAILS_PROPERTY]: sourceGuestEmails }
           : {}),
         [TEAM_CALENDAR_MIRROR_KEY]: TEAM_CALENDAR_MIRROR_VALUE,
         sourceCalendarId: member.calendarId,

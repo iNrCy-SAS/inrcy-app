@@ -18,6 +18,7 @@ import {
   teamCalendarEventMeetUrl,
   teamCalendarMirrorContentSignature,
   teamCalendarMirrorSourceKey,
+  teamCalendarSourceGuestEmails,
   type TeamCalendarEvent,
 } from "@/lib/visioCalendarMirrorPolicy";
 import {
@@ -460,6 +461,11 @@ function teamMirrorFingerprint(event: GoogleCalendarEvent, member: VisioTeamMemb
         start: event.start || null,
         end: event.end || null,
         meetUrl: teamCalendarEventMeetUrl(event),
+        guestEmails: teamCalendarSourceGuestEmails(event, [
+          member.email,
+          member.calendarId,
+          getVisioSharedCalendarId(),
+        ]),
       }),
       "utf8",
     )
@@ -1594,14 +1600,31 @@ function teamAppointmentFromMirror(event: GoogleCalendarEvent): VisioTeamAppoint
   const start = appointmentDateValue(event, "start");
   const end = appointmentDateValue(event, "end");
   if (!start || !end) return null;
+  const allDay = Boolean(event.start?.date && !event.start?.dateTime);
+  const title = cleanAppointmentTitle(event.summary);
+  const normalizedTitle = title
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]+/g, " ")
+    .trim()
+    .toLowerCase();
+  if (
+    allDay ||
+    event.visibility === "private" ||
+    event.visibility === "confidential" ||
+    normalizedTitle === "inscription a traiter" ||
+    normalizedTitle.startsWith("indisponible ")
+  ) {
+    return null;
+  }
   const member = memberForMirrorEvent(event);
   const properties = event.extendedProperties?.private || {};
   return {
     id: event.id,
-    title: cleanAppointmentTitle(event.summary),
+    title,
     start,
     end,
-    allDay: Boolean(event.start?.date && !event.start?.dateTime),
+    allDay,
     meetUrl: teamCalendarEventMeetUrl(event),
     calendarUrl: String(properties.sourceHtmlLink || event.htmlLink || "").trim(),
     currentMemberId: member?.id || "",

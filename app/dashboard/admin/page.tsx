@@ -52,9 +52,17 @@ const tools = [
     status: "Actif",
     ready: true,
   },
+  {
+    href: "/equipe/agenda",
+    icon: "👥",
+    title: "Attribution des rendez-vous",
+    description: "Répartir les rendez-vous entre Jimmy, Apolline et Océane.",
+    status: "Actif",
+    ready: true,
+  },
 ];
 
-const upcomingTools = Array.from({ length: 6 }, (_, index) => ({
+const upcomingTools = Array.from({ length: 5 }, (_, index) => ({
   href: "#",
   icon: "＋",
   title: `Emplacement ${index + 1}`,
@@ -89,10 +97,10 @@ export default async function AdminHomePage() {
         </section>
 
         <section className={styles.statsGrid} aria-label="Résumé admin">
-          <article className={styles.statCard}><div className={styles.statContent}><span className={styles.statLabel}>Outils</span><strong className={styles.statValue}>6</strong><small className={styles.statSub}>pages</small></div></article>
+          <article className={styles.statCard}><div className={styles.statContent}><span className={styles.statLabel}>Outils</span><strong className={styles.statValue}>7</strong><small className={styles.statSub}>pages</small></div></article>
           <article className={styles.statCard}><div className={styles.statContent}><span className={styles.statLabel}>Accès</span><strong className={styles.statValue}>Admin</strong><small className={styles.statSub}>uniquement</small></div></article>
-          <article className={styles.statCard}><div className={styles.statContent}><span className={styles.statLabel}>Actifs</span><strong className={styles.statValue}>6</strong><small className={styles.statSub}>branchés</small></div></article>
-          <article className={styles.statCard}><div className={styles.statContent}><span className={styles.statLabel}>À venir</span><strong className={styles.statValue}>6</strong><small className={styles.statSub}>emplacements</small></div></article>
+          <article className={styles.statCard}><div className={styles.statContent}><span className={styles.statLabel}>Actifs</span><strong className={styles.statValue}>7</strong><small className={styles.statSub}>branchés</small></div></article>
+          <article className={styles.statCard}><div className={styles.statContent}><span className={styles.statLabel}>À venir</span><strong className={styles.statValue}>5</strong><small className={styles.statSub}>emplacements</small></div></article>
         </section>
 
         <section className={styles.toolsGrid} aria-label="Outils admin">

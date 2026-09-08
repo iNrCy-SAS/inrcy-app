@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { INR_CALENDAR_GOOGLE_GUEST_EMAILS_PROPERTY } from "../../lib/inrCalendarGoogleSyncConstants.ts";
 import {
   TEAM_CALENDAR_MIRROR_KEY,
   TEAM_CALENDAR_MIRROR_VALUE,
@@ -81,6 +82,10 @@ test("les copies du partagé, annulations, refus et emplacements de travail sont
 test("le miroir est interne, sans invité ni nouvelle conférence, et conserve le lien Meet", () => {
   const body = buildTeamCalendarMirrorBody({
     event: sourceEvent({
+      attendees: [
+        { email: member.email, self: true, responseStatus: "accepted" },
+        { email: "pro@example.com", displayName: "Le pro", responseStatus: "accepted" },
+      ],
       extendedProperties: {
         private: {
           inrcyBooking: "signup-visio",
@@ -103,6 +108,10 @@ test("le miroir est interne, sans invité ni nouvelle conférence, et conserve l
   assert.equal(body.reminders.useDefault, false);
   assert.equal(body.extendedProperties.private.inrcyBooking, "signup-visio");
   assert.equal(body.extendedProperties.private.sourceFingerprint, "fingerprint");
+  assert.equal(
+    body.extendedProperties.private[INR_CALENDAR_GOOGLE_GUEST_EMAILS_PROPERTY],
+    JSON.stringify(["pro@example.com"]),
+  );
 });
 
 test("un événement privé n'expose pas son titre ni sa description", () => {
@@ -116,6 +125,10 @@ test("un événement privé n'expose pas son titre ni sa description", () => {
   assert.equal(body.summary, "Indisponible — Apolline");
   assert.equal(body.visibility, "private");
   assert.doesNotMatch(body.description, /Sujet confidentiel|Détails internes/);
+  assert.equal(
+    INR_CALENDAR_GOOGLE_GUEST_EMAILS_PROPERTY in body.extendedProperties.private,
+    false,
+  );
 });
 
 test("les événements confidentiels ou issus de Gmail restent masqués", () => {

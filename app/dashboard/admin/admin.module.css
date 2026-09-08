@@ -328,6 +328,37 @@
   line-height: 1.5;
 }
 
+@media (min-width: 1051px) {
+  .card {
+    padding: 10px 12px;
+  }
+
+  .card h2 {
+    margin-top: 8px;
+    font-size: 20px;
+  }
+
+  .card p {
+    margin-top: 4px;
+    line-height: 1.25;
+  }
+
+  .cardFooter {
+    padding-top: 6px;
+    justify-content: flex-end;
+    flex: 0 0 auto;
+  }
+
+  .cardLink {
+    min-height: 34px;
+    padding: 7px 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    align-self: flex-end;
+  }
+}
+
 @media (max-width: 1050px) {
   .statsGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));

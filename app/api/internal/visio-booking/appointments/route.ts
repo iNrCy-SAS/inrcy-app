@@ -58,10 +58,10 @@ export async function GET() {
 
   try {
     const appointments = await listVisioTeamAppointments({
-      // Keep appointments from the previous day visible so an in-progress or
-      // just-finished meeting does not disappear from the assignment screen.
-      pastDays: 1,
-      futureDays: 90,
+      // The team screen is a focused operational history: one week behind,
+      // then the two coming weeks, whatever the appointment category.
+      pastDays: 7,
+      futureDays: 14,
       refresh: true,
     });
     return NextResponse.json({

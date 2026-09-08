@@ -153,13 +153,17 @@ test("l’attribution équipe est privée, auditée et silencieuse pour le profe
   const access = read("lib/visioTeamAccess.ts");
   const route = read("app/api/internal/visio-booking/appointments/route.ts");
   const page = read("app/equipe/agenda/TeamAgendaClient.tsx");
+  const adminHome = read("app/dashboard/admin/page.tsx");
 
   assert.match(access, /getVisioTeamAllowedEmails/);
   assert.match(access, /ADMIN_USER_IDS/);
+  assert.match(access, /profile\?\.role === "admin"/);
   assert.match(access, /Accès réservé à l’équipe iNrCy/);
   assert.match(route, /requireVisioTeamApi/);
   assert.match(route, /sec-fetch-site/);
   assert.match(route, /reassignVisioTeamAppointment/);
+  assert.match(route, /pastDays:\s*7/);
+  assert.match(route, /futureDays:\s*14/);
   assert.match(backend, /moveCalendarEventWithoutUpdates/);
   assert.match(backend, /sendUpdates:\s*"none"/);
   assert.match(backend, /publicOrganizerPreserved:\s*isBooking/);
@@ -167,4 +171,7 @@ test("l’attribution équipe est privée, auditée et silencieuse pour le profe
   assert.match(backend, /type:\s*"appointment_reassigned"/);
   assert.match(page, /Jimmy|member\.name/);
   assert.match(page, /Le professionnel ne recevra aucune notification/);
+  assert.match(page, /7 jours d’historique et 14 jours à venir/);
+  assert.match(adminHome, /href:\s*"\/equipe\/agenda"/);
+  assert.match(adminHome, /Attribution des rendez-vous/);
 });
