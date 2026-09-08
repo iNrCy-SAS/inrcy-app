@@ -717,7 +717,6 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
                 </button>
 
                 <div className={styles.channelStatsTitleBlock}>
-                  <div className={styles.allStatsEyebrow}>{i18nT("canal_actif_09801074")}</div>
                   <h2 className={styles.allStatsTitle}>{activeModel.title}</h2>
                   <span className={styles.channelStatsTitleIconBubble} aria-hidden="true">
                     <Image
@@ -756,6 +755,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
                 hideDetailsToggle
                 estimatedRevenue={summaryEstimatedByCube[activeModel.key] || computedEstimatedByCube[activeModel.key] || 0}
                 statsReady={opportunityReadyByCube[activeModel.key] && bulkStatsReady}
+                channelIconSrc={STATS_CHANNEL_ICON_SRC[activeModel.key]}
               />
             </section>
           ) : null}

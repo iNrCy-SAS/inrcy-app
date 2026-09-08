@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { useLocale, useTranslations } from "next-intl";
 import React, { useState } from "react";
 import styles from "./stats.module.css";
@@ -492,6 +493,7 @@ export function Cube({
   hideDetailsToggle = false,
   estimatedRevenue = 0,
   statsReady = true,
+  channelIconSrc,
 }: {
   model: CubeModel;
   onNavigate: (href: string) => void;
@@ -499,6 +501,7 @@ export function Cube({
   hideDetailsToggle?: boolean;
   estimatedRevenue?: number;
   statsReady?: boolean;
+  channelIconSrc?: string;
 }) {
   const locale = useLocale();
   const i18nT = useTranslations("stats");
@@ -586,8 +589,14 @@ export function Cube({
 
       {hideDetailsToggle ? (
         <div className={styles.mobileChannelHero}>
-          <div className={styles.mobileChannelEyebrow}>{i18nT("canal_actif_09801074")}</div>
-          <h2 className={styles.mobileChannelTitle}>{model.title}</h2>
+          <div className={styles.mobileChannelTitleRow}>
+            <h2 className={styles.mobileChannelTitle}>{model.title}</h2>
+            {channelIconSrc ? (
+              <span className={styles.mobileChannelTitleIconBubble} aria-hidden="true">
+                <Image src={channelIconSrc} alt="" width={28} height={28} />
+              </span>
+            ) : null}
+          </div>
           <p className={styles.mobileChannelSub}>{model.subtitle}</p>
 
           {mobileChannelAccountLabel ? (

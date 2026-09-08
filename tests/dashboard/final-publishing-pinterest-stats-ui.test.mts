@@ -231,7 +231,7 @@ test("iNrStats keeps its taller global summary and all channel rows compact with
   );
 });
 
-test("iNrStats detail keeps the direct back action, centered title and KPIs on one desktop header row", () => {
+test("iNrStats detail keeps the direct back action, prominent channel title and KPIs on one desktop header row", () => {
   const client = read("app/dashboard/stats/StatsClient.tsx");
   const css = read("app/dashboard/stats/stats.module.css");
 
@@ -243,6 +243,11 @@ test("iNrStats detail keeps the direct back action, centered title and KPIs on o
     client,
     /<div className=\{styles\.channelStatsTitleBlock\}>[\s\S]*?<h2 className=\{styles\.allStatsTitle\}>\{activeModel\.title\}<\/h2>[\s\S]*?<\/div>\s*<div className=\{`\$\{styles\.allStatsKpis\} \$\{styles\.channelStatsKpis\}/,
   );
+  const titleBlockStart = client.indexOf('<div className={styles.channelStatsTitleBlock}>');
+  const titleBlockEnd = client.indexOf('</div>', titleBlockStart);
+  const titleBlock = client.slice(titleBlockStart, titleBlockEnd);
+  assert.doesNotMatch(titleBlock, /canal_actif_09801074|allStatsEyebrow/);
+  assert.match(titleBlock, /activeModel\.title[\s\S]*?channelStatsTitleIconBubble/);
 
   const headerGrid = lastCssDeclaration(
     css,

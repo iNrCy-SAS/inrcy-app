@@ -9063,3 +9063,60 @@
     border-radius: 50% !important;
   }
 }
+
+/* Fiche canal — un seul vrai titre : nom + logo, grands et alignés. */
+@media (min-width: 901px) {
+  .statsWorkspaceChannel .channelStatsHeader > .channelStatsTitleBlock {
+    max-width: min(34vw, 420px) !important;
+    gap: 10px !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsHeader > .channelStatsTitleBlock > .allStatsTitle {
+    flex: 0 1 auto !important;
+    margin: 0 !important;
+    color: #ffffff !important;
+    font-size: clamp(22px, 1.45vw, 28px) !important;
+    line-height: 1 !important;
+    font-weight: 950 !important;
+    letter-spacing: -0.025em !important;
+    text-align: left !important;
+    white-space: nowrap !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsTitleIconBubble {
+    flex: 0 0 30px !important;
+    width: 30px !important;
+    height: 30px !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .mobileChannelTitleRow {
+    display: inline-flex;
+    max-width: 100%;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+  }
+
+  .mobileChannelTitleIconBubble {
+    display: inline-grid;
+    place-items: center;
+    flex: 0 0 28px;
+    width: 28px;
+    height: 28px;
+    overflow: hidden;
+    border: 1px solid rgba(125, 211, 252, 0.28);
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.72);
+    box-shadow: 0 4px 12px rgba(56, 189, 248, 0.12);
+  }
+
+  .mobileChannelTitleIconBubble img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: inherit;
+  }
+}
