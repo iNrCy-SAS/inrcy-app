@@ -260,11 +260,7 @@ export default function DashboardChannelsSection({
   );
   const availableChannelsCount = summaryModules.length;
 
-  const channelPillRows = useMemo(() => {
-    if (baseModules.length <= 7) return [baseModules];
-    const firstRowCount = baseModules.length >= 11 ? 7 : Math.ceil(baseModules.length / 2);
-    return [baseModules.slice(0, firstRowCount), baseModules.slice(firstRowCount)].filter((row) => row.length > 0);
-  }, [baseModules]);
+  const channelPillRows = useMemo(() => [baseModules], [baseModules]);
 
   const normalizeIndex = useCallback((index: number) => {
     if (!baseModules.length) return 0;

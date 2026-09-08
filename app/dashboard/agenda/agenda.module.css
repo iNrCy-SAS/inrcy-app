@@ -341,7 +341,8 @@
 
 .dayCompact .chip{
   font-size: 11px;
-  padding: 6px 7px;
+  height: 40px;
+  padding: 4px 7px;
 }
 
 .day:hover {
@@ -404,28 +405,46 @@
 
 .chips {
   margin-top: 8px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  grid-auto-flow: row;
-  align-content: start;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
   gap: 6px;
 }
 
 .chip {
   display: flex;
+  flex-direction: column;
   width: 100%;
   min-width: 0;
-  height: 32px;
-  align-items: center;
+  height: 44px;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
   box-sizing: border-box;
   font-size: 12px;
   cursor: pointer;
   user-select: none;
   line-height: 1.2;
-  padding: 7px 8px;
+  padding: 5px 8px;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+.chipTime {
+  display: block;
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.chipTitle {
+  display: block;
+  width: 100%;
+  min-width: 0;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;

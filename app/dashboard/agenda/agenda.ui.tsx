@@ -514,8 +514,8 @@ export function AgendaCalendarCard({
                     const draft = isDraftEvent(ev);
                     const accentClass = draft ? styles.accentDraft : getEventAccentClass(accentFor(ev.id), styles);
                     const time = !ev.allDay && ev.startDate ? formatTime(ev.startDate, locale) : "";
-                    const baseLabel = ev.allDay ? ev.summary : `${time} — ${ev.summary}`;
-                    const label = draft ? `Brouillon · ${baseLabel}` : baseLabel;
+                    const title = draft ? `Brouillon · ${ev.summary}` : ev.summary;
+                    const label = ev.allDay ? title : `${time} — ${title}`;
 
                     return (
                       <div
@@ -523,7 +523,8 @@ export function AgendaCalendarCard({
                         className={`${styles.chip} ${ev.allDay ? styles.chipAllDay : ""} ${draft ? styles.chipDraft : ""} ${accentClass}`}
                         title={label}
                       >
-                        {label}
+                        {time ? <span className={styles.chipTime}>{time}</span> : null}
+                        <span className={styles.chipTitle}>{title}</span>
                       </div>
                     );
                   })}

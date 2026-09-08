@@ -6489,8 +6489,14 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.channelPillRow::-webkit-scrollbar {
+  display: none;
 }
 
 .channelPill {
@@ -6516,6 +6522,8 @@
     opacity 0.16s ease;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
   -webkit-tap-highlight-color: transparent;
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .channelPillX {

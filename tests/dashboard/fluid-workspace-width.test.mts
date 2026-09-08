@@ -48,15 +48,30 @@ test("desktop workspaces use all of the available width", () => {
   }
 });
 
-test("calendar appointments stack as equal-width, equal-height rows", () => {
+test("calendar appointments stack as equal-width vertical cards", () => {
   const css = read("app/dashboard/agenda/agenda.module.css");
+  const ui = read("app/dashboard/agenda/agenda.ui.tsx");
   const chips = css.match(/^\.chips\s*\{[\s\S]*?\}/m)?.[0] ?? "";
   const chip = css.match(/^\.chip\s*\{[\s\S]*?\}/m)?.[0] ?? "";
 
-  assert.match(chips, /grid-template-columns:\s*minmax\(0,\s*1fr\)/);
-  assert.match(chips, /grid-auto-flow:\s*row/);
+  assert.match(chips, /display:\s*flex/);
+  assert.match(chips, /flex-direction:\s*column/);
+  assert.match(chips, /align-items:\s*stretch/);
   assert.match(chip, /width:\s*100%/);
-  assert.match(chip, /height:\s*32px/);
+  assert.match(chip, /height:\s*44px/);
+  assert.match(chip, /flex-direction:\s*column/);
+  assert.match(ui, /styles\.chipTime/);
+  assert.match(ui, /styles\.chipTitle/);
+});
+
+test("desktop dashboard channels stay on one row", () => {
+  const section = read("app/dashboard/_components/DashboardChannelsSection.tsx");
+  const css = read("app/dashboard/dashboard.module.css");
+  const row = css.match(/^\.channelPillRow\s*\{[\s\S]*?\}/m)?.[0] ?? "";
+
+  assert.match(section, /const channelPillRows = useMemo\(\(\) => \[baseModules\]/);
+  assert.match(row, /flex-wrap:\s*nowrap/);
+  assert.match(row, /overflow-x:\s*auto/);
 });
 
 test("shared workspace shells no longer impose a fixed desktop width", () => {
