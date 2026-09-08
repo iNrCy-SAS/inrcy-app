@@ -12293,7 +12293,7 @@
 /* Desktop uniquement — bulles de la Boîte de vitesse légèrement agrandies. */
 @media (min-width: 1101px) and (hover: hover) and (pointer: fine) {
   .gearBlockCard .gearCapsule {
-    width: min(306px, calc(100% - 8px));
-    height: 106px;
+    width: min(330px, calc(100% - 8px));
+    height: 112px;
   }
 }
