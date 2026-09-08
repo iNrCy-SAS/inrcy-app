@@ -264,7 +264,7 @@
   "moduleCards": {
     "inrbadge": {
       "name": "iNr'Badge",
-      "description": "Firma als QR-Code",
+      "description": "Firma als QR-Code 🪪",
       "view": "Badge ansehen",
       "connect": "Einrichten"
     },
@@ -319,7 +319,7 @@
     },
     "x": {
       "name": "X",
-      "description": "Beteiligen Sie sich an Gesprächen, die zählen ⚡",
+      "description": "Veröffentlichen Sie am Puls der Zeit 📡",
       "view": "Profil ansehen",
       "connect": "Einrichten"
     },

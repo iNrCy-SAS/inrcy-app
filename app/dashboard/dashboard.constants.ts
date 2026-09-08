@@ -38,7 +38,7 @@ export const fluxModules: Module[] = [
   {
     key: "inrbadge",
     name: "iNr'Badge",
-    description: "Mon entreprise en QR Code",
+    description: "Mon entreprise en QR Code 🪪",
     status: "available",
     accent: "purple",
     actions: [
@@ -209,7 +209,7 @@ export const fluxModules: Module[] = [
   {
     key: "x",
     name: "X",
-    description: "Prenez part aux conversations qui comptent ⚡",
+    description: "Publiez au rythme de l’actualité 📡",
     status: "available",
     accent: "cyan",
     actions: [

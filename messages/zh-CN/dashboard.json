@@ -264,7 +264,7 @@
   "moduleCards": {
     "inrbadge": {
       "name": "iNr'Badge",
-      "description": "我的二维码业务",
+      "description": "我的二维码业务 🪪",
       "view": "查看我的徽章",
       "connect": "配置"
     },
@@ -319,7 +319,7 @@
     },
     "x": {
       "name": "X",
-      "description": "参与重要话题的讨论 ⚡",
+      "description": "紧跟热点，实时发布 📡",
       "view": "查看个人资料",
       "connect": "配置"
     },
