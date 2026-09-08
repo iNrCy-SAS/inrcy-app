@@ -87,6 +87,20 @@ const STATS_CHANNEL_ICON_SRC: Record<CubeKey, string> = {
   pinterest: "/icons/pinterest-logo-128.png",
 };
 
+function isStatsModelConnectionPending(model: CubeModel) {
+  return model.connectionStatus === "unavailable" ||
+    (model.key === "mails" && !!model.connectionPending) ||
+    (model.key === "inr_search" && model.loading);
+}
+
+function isStatsModelConnected(model: CubeModel) {
+  if (isStatsModelConnectionPending(model)) return false;
+  const isSite = model.key === "site_inrcy" || model.key === "site_web";
+  return isSite
+    ? !!model.connections.ga4 || !!model.connections.gsc
+    : !!model.connections.main;
+}
+
 export default function StatsClient({ initialInrSearch }: StatsClientProps) {
   const locale = useLocale();
   const i18nT = useTranslations("stats");
@@ -394,11 +408,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
   }, [summaryActionItems]);
 
   const connectedChannelsCount = useMemo(() => {
-    return models.reduce((total, model) => {
-      const isSite = model.key === "site_inrcy" || model.key === "site_web";
-      const connected = isSite ? !!model.connections.ga4 || !!model.connections.gsc : !!model.connections.main || !!model.connectionPending;
-      return total + (connected ? 1 : 0);
-    }, 0);
+    return models.reduce((total, model) => total + (isStatsModelConnected(model) ? 1 : 0), 0);
   }, [models]);
 
   const totalCapturedLeads30 = useMemo(() => {
@@ -408,6 +418,15 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
   const activeModel = activeStatsPanel === "all"
     ? null
     : models.find((model) => model.key === activeStatsPanel) ?? models[0] ?? null;
+  const activeModelIndex = activeModel
+    ? models.findIndex((model) => model.key === activeModel.key)
+    : -1;
+  const previousModel = activeModelIndex >= 0 && models.length > 0
+    ? models[(activeModelIndex - 1 + models.length) % models.length]
+    : null;
+  const nextModel = activeModelIndex >= 0 && models.length > 0
+    ? models[(activeModelIndex + 1) % models.length]
+    : null;
 
   const navigateFromStats = (href: string) => {
     if (/^https?:\/\//i.test(href)) window.open(href, "_blank", "noopener,noreferrer");
@@ -547,9 +566,8 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
               </button>
 
               {models.map((model) => {
-                const isSite = model.key === "site_inrcy" || model.key === "site_web";
-                const connectionPending = model.connectionStatus === "unavailable" || (model.key === "mails" && !!model.connectionPending) || (model.key === "inr_search" && model.loading);
-                const connected = !connectionPending && (isSite ? !!model.connections.ga4 || !!model.connections.gsc : !!model.connections.main);
+                const connectionPending = isStatsModelConnectionPending(model);
+                const connected = isStatsModelConnected(model);
                 const reconnectRequired = model.connectionStatus === "needs_update";
                 const isActive = activeStatsPanel === model.key;
 
@@ -603,7 +621,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
                   </div>
                   <div className={`${styles.allStatsKpi} ${styles.kpiToneSlate}`}>
                     <span>{i18nT("canaux_27cb4473")}</span>
-                    <b>{models.length}</b>
+                    <b>{allStatsNumbersReady ? `${connectedChannelsCount} / ${models.length}` : `— / ${models.length}`}</b>
                   </div>
                 </div>
 
@@ -627,9 +645,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
                   const revenue = summaryEstimatedByCube[model.key] || computedEstimatedByCube[model.key] || actionItem?.revenue || 0;
                   const opportunityReady = opportunityReadyByCube[model.key];
                   const revenueReady = opportunityReady && bulkStatsReady;
-                  const isSite = model.key === "site_inrcy" || model.key === "site_web";
-                  const connectionPending = model.connectionStatus === "unavailable" || (model.key === "mails" && !!model.connectionPending) || (model.key === "inr_search" && model.loading);
-                  const connected = !connectionPending && (isSite ? !!model.connections.ga4 || !!model.connections.gsc : !!model.connections.main);
+                  const connected = isStatsModelConnected(model);
                   const displayedTool = actionItem?.badge ?? model.action.pill;
                   const premiumLocked = standardMode && connected && isPremiumStatsRecommendedTool(actionItem?.recommendedTool);
                   const actionHref = premiumLocked ? "" : actionItem?.actionHref || model.action.href || "#";
@@ -645,9 +661,9 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
                       className={`${styles.allStatsActionCard} ${connected ? styles.allStatsActionCardConnected : styles.allStatsActionCardOff}`}
                       aria-busy={!revenueReady}
                     >
-                      <button type="button" className={styles.allStatsChannelButton} onClick={() => scrollTo(model.key)}>
+                      <div className={styles.allStatsChannelButton}>
                         <span className={styles.allStatsChannelName}>{model.title}</span>
-                      </button>
+                      </div>
 
                       <div className={styles.allStatsMetrics}>
                         <span>
@@ -717,20 +733,44 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
                 </button>
 
                 <div className={styles.channelStatsTitleBlock}>
-                  <h2 className={styles.allStatsTitle}>{activeModel.title}</h2>
-                  <span className={styles.channelStatsTitleIconBubble} aria-hidden="true">
-                    <Image
-                      className={styles.channelStatsTitleIcon}
-                      src={STATS_CHANNEL_ICON_SRC[activeModel.key]}
-                      alt=""
-                      width={16}
-                      height={16}
-                    />
-                  </span>
+                  {previousModel ? (
+                    <button
+                      type="button"
+                      className={styles.channelStatsCycleButton}
+                      onClick={() => selectStatsPanel(previousModel.key)}
+                      aria-label={`${i18nT("canal_precedent_65f40ce6")} : ${previousModel.title}`}
+                      title={`${i18nT("canal_precedent_65f40ce6")} : ${previousModel.title}`}
+                    >
+                      <span aria-hidden="true">‹</span>
+                    </button>
+                  ) : null}
+                  <div className={styles.channelStatsTitleIdentity}>
+                    <h2 className={styles.allStatsTitle}>{activeModel.title}</h2>
+                    <span className={styles.channelStatsTitleIconBubble} aria-hidden="true">
+                      <Image
+                        className={styles.channelStatsTitleIcon}
+                        src={STATS_CHANNEL_ICON_SRC[activeModel.key]}
+                        alt=""
+                        width={16}
+                        height={16}
+                      />
+                    </span>
+                  </div>
+                  {nextModel ? (
+                    <button
+                      type="button"
+                      className={styles.channelStatsCycleButton}
+                      onClick={() => selectStatsPanel(nextModel.key)}
+                      aria-label={`${i18nT("canal_suivant_7b81611d")} : ${nextModel.title}`}
+                      title={`${i18nT("canal_suivant_7b81611d")} : ${nextModel.title}`}
+                    >
+                      <span aria-hidden="true">›</span>
+                    </button>
+                  ) : null}
                   <p className={styles.allStatsText}>{activeModel.subtitle}</p>
                 </div>
 
-                <div className={`${styles.allStatsKpis} ${styles.channelStatsKpis} ${activeModel.key === "mails" ? styles.channelStatsKpisMail : ""}`}>
+                <div className={`${styles.allStatsKpis} ${styles.channelStatsKpis}`}>
                   <div className={`${styles.allStatsKpi} ${styles.kpiToneBlue}`}>
                     <span>{i18nT("opportunites_0dbfa3c5")}</span>
                     <b>{stableOpportunity(activeModel.opportunity30, opportunityReadyByCube[activeModel.key])}</b>
@@ -739,12 +779,14 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
                     <span>{i18nT("ca_potentiel_fc9eeae4")}</span>
                     <b>{stableRevenue(summaryEstimatedByCube[activeModel.key] || computedEstimatedByCube[activeModel.key] || 0, opportunityReadyByCube[activeModel.key] && bulkStatsReady)}</b>
                   </div>
-                  {activeModel.key !== "mails" ? (
-                    <div className={`${styles.allStatsKpi} ${styles.kpiToneGreen} ${styles.channelDemandesKpi}`}>
-                      <span className={styles.channelDemandesKpiLabel}>{i18nT("demandes_captees_7j_30j_d1d1b0de")}</span>
-                      <b>{activeModel.capturedLeadsUnavailable || !opportunityReadyByCube[activeModel.key] ? "—" : `${formatInt(activeModel.capturedLeads.week)} / ${formatInt(activeModel.capturedLeads.month)}`}</b>
-                    </div>
-                  ) : null}
+                  <div className={`${styles.allStatsKpi} ${styles.kpiToneGreen} ${styles.channelDemandesKpi}`}>
+                    <span className={styles.channelDemandesKpiLabel}>
+                      {i18nT(activeModel.key === "mails"
+                        ? "demandes_estimees_7j_30j_f40eb8d9"
+                        : "demandes_captees_7j_30j_d1d1b0de")}
+                    </span>
+                    <b>{activeModel.capturedLeadsUnavailable || !opportunityReadyByCube[activeModel.key] ? "—" : `${formatInt(activeModel.capturedLeads.week)} / ${formatInt(activeModel.capturedLeads.month)}`}</b>
+                  </div>
                 </div>
               </div>
 

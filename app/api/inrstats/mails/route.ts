@@ -13,6 +13,10 @@ import {
 import { getConnectionDisplayStatus, mailConnectionKind } from "@/lib/connectionVersions";
 import { captureApiException } from "@/lib/observability/sentry";
 import { withApi } from "@/lib/observability/withApi";
+import {
+  estimateMailCapturedDemands,
+  MAIL_CAPTURED_MODEL_VERSION,
+} from "@/lib/inrstats/mailCapturedDemandEstimate";
 
 export const runtime = "nodejs";
 
@@ -57,8 +61,15 @@ function countRecipientsFromString(value: unknown) {
 
 function campaignRecipientCount(row: Record<string, unknown>) {
   const sent = Math.max(0, Math.round(safeNum(row.sent_count)));
+  if (sent > 0) return sent;
+  const status = cleanString(row.status).toLowerCase();
+  if (status !== "completed") return 0;
   const total = Math.max(0, Math.round(safeNum(row.total_count)));
-  return sent || total;
+  return total;
+}
+
+function isSentMailItem(row: Record<string, unknown>) {
+  return cleanString(row.status).toLowerCase() === "sent";
 }
 
 function getFolder(row: Record<string, unknown>) {
@@ -106,10 +117,6 @@ function incrementBreakdown(breakdown: MailStatsBreakdown, row: Record<string, u
   breakdown.mailsSimples += 1;
 }
 
-function isDeletedStatus(value: unknown) {
-  return cleanString(value).toLowerCase() === "deleted";
-}
-
 function countAgendaReminderEmails(metaInput: unknown, cutoffTime = 0) {
   const meta = safeObj(metaInput);
   const reminders = safeObj(meta.reminders);
@@ -149,12 +156,13 @@ async function inrStatsMailsHandler(req: Request) {
     userId = await resolveActiveInrcyAccountId(supabase, userData.user.id);
   }
   const now = Date.now();
+  const cutoff7Time = now - 7 * 24 * 60 * 60 * 1000;
   const cutoffTime = now - 30 * 24 * 60 * 60 * 1000;
   const cutoffIso = new Date(cutoffTime).toISOString();
   const agendaHorizonIso = new Date(now + 60 * 24 * 60 * 60 * 1000).toISOString();
 
   try {
-    const [accountsResult, contactCountResult, campaignResult, campaignAllResult, sendItemsResult, sendItemsAllResult, docItemsResult, docItemsAllResult, agendaResult, agendaAllResult] = await Promise.all([
+    const [accountsResult, contactCountResult, campaignResult, campaignAllResult, sendItemsResult, sendItemsAllResult, docItemsResult, docItemsAllResult, agendaResult, agendaAllResult, profileResult] = await Promise.all([
       supabase
         .from("integrations")
         .select("id, provider, settings, status, created_at")
@@ -225,6 +233,11 @@ async function inrStatsMailsHandler(req: Request) {
         .lte("start_at", agendaHorizonIso)
         .order("start_at", { ascending: false })
         .limit(5000),
+      supabase
+        .from("profiles")
+        .select("lead_conversion_rate")
+        .eq("user_id", userId)
+        .maybeSingle(),
     ]);
 
     if (accountsResult.error) throw accountsResult.error;
@@ -237,6 +250,7 @@ async function inrStatsMailsHandler(req: Request) {
     if (docItemsAllResult.error) throw docItemsAllResult.error;
     if (agendaResult.error) throw agendaResult.error;
     if (agendaAllResult.error) throw agendaAllResult.error;
+    if (profileResult.error) throw profileResult.error;
 
     const mailAccounts = Array.isArray(accountsResult.data) ? accountsResult.data : [];
     const connectedCount = Math.max(0, Math.min(MAX_MAIL_ACCOUNTS, mailAccounts.filter((account: Record<string, unknown>) => {
@@ -255,32 +269,47 @@ async function inrStatsMailsHandler(req: Request) {
     };
 
     let destinataires30 = 0;
+    let destinataires7 = 0;
     let destinatairesTotal = 0;
     let campagnes30 = 0;
+    let campagnes7 = 0;
     let campagnesTotal = 0;
 
     for (const campaign of campaignResult.data ?? []) {
-      if (isDeletedStatus((campaign as any).status)) continue;
+      const recipientCount = campaignRecipientCount(campaign as Record<string, unknown>);
+      if (recipientCount <= 0) continue;
       campagnes30 += 1;
-      destinataires30 += campaignRecipientCount(campaign as Record<string, unknown>);
+      destinataires30 += recipientCount;
+      const createdAt = Date.parse(cleanString((campaign as any).created_at));
+      if (Number.isFinite(createdAt) && createdAt >= cutoff7Time) {
+        campagnes7 += 1;
+        destinataires7 += recipientCount;
+      }
       incrementBreakdown(breakdown, campaign as Record<string, unknown>);
     }
 
     for (const item of sendItemsResult.data ?? []) {
-      if (isDeletedStatus((item as any).status) || cleanString((item as any).status).toLowerCase() === "draft") continue;
+      if (!isSentMailItem(item as Record<string, unknown>)) continue;
+      const recipientCount = countRecipientsFromString((item as any).to_emails) || 1;
       campagnes30 += 1;
-      destinataires30 += countRecipientsFromString((item as any).to_emails) || 1;
+      destinataires30 += recipientCount;
+      const createdAt = Date.parse(cleanString((item as any).created_at));
+      if (Number.isFinite(createdAt) && createdAt >= cutoff7Time) {
+        campagnes7 += 1;
+        destinataires7 += recipientCount;
+      }
       incrementBreakdown(breakdown, item as Record<string, unknown>);
     }
 
     for (const campaign of campaignAllResult.data ?? []) {
-      if (isDeletedStatus((campaign as any).status)) continue;
+      const recipientCount = campaignRecipientCount(campaign as Record<string, unknown>);
+      if (recipientCount <= 0) continue;
       campagnesTotal += 1;
-      destinatairesTotal += campaignRecipientCount(campaign as Record<string, unknown>);
+      destinatairesTotal += recipientCount;
     }
 
     for (const item of sendItemsAllResult.data ?? []) {
-      if (isDeletedStatus((item as any).status) || cleanString((item as any).status).toLowerCase() === "draft") continue;
+      if (!isSentMailItem(item as Record<string, unknown>)) continue;
       campagnesTotal += 1;
       destinatairesTotal += countRecipientsFromString((item as any).to_emails) || 1;
     }
@@ -298,6 +327,19 @@ async function inrStatsMailsHandler(req: Request) {
     }, 0);
 
     const contactsEmail = Math.max(0, Math.round(safeNum(contactCountResult.count)));
+    const leadConversionRate = Math.max(0, safeNum(profileResult.data?.lead_conversion_rate));
+    const capturedLeads = {
+      week: estimateMailCapturedDemands({
+        campaigns: campagnes7,
+        recipients: destinataires7,
+        leadConversionRate,
+      }),
+      month: estimateMailCapturedDemands({
+        campaigns: campagnes30,
+        recipients: destinataires30,
+        leadConversionRate,
+      }),
+    };
 
     return NextResponse.json({
       ok: true,
@@ -306,10 +348,16 @@ async function inrStatsMailsHandler(req: Request) {
       maxAccounts: MAX_MAIL_ACCOUNTS,
       contactsEmail,
       contactsCrm: contactsEmail,
+      campagnes7,
       campagnes30,
       campagnesTotal: Math.max(campagnes30, campagnesTotal),
+      destinataires7,
       destinataires30,
       destinatairesTotal: Math.max(destinataires30, destinatairesTotal),
+      capturedLeads,
+      capturedLeadsEstimated: true,
+      capturedLeadsModel: MAIL_CAPTURED_MODEL_VERSION,
+      leadConversionRate,
       agendaReminders30,
       agendaRemindersTotal: Math.max(agendaReminders30, agendaRemindersTotal),
       factures30,

@@ -68,6 +68,7 @@ import {
   buildOfficialDashboardChannelState,
   createLatestChannelResponseGate,
   hasCompleteOfficialDashboardChannelState,
+  mergeDashboardHydrationState,
 } from "@/lib/dashboardChannelSync";
 import {
   STANDARD_BONUS_CHANNEL_KEYS,
@@ -104,8 +105,6 @@ import {
   readCachedGeneratorPowerPercent,
   readCachedGeneratorPowerSnapshot,
   readCachedInrBadgeProfile,
-  readCachedInrSearchConnected,
-  readCachedInrSearchDirectoryEnabled,
   readCachedMailAccountsConnectedCount,
   readCachedSiteBubbleProgress,
   readCachedSiteInrcyDisplayAccess,
@@ -167,11 +166,13 @@ function normalizeXDashboardConnection(value: unknown): XDashboardConnection {
 type DashboardClientProps = {
   isAdmin?: boolean;
   initialOfficialChannelStates?: unknown;
+  initialOfficialChannelStatesUserId?: string | null;
 };
 
 export default function DashboardClient({
   isAdmin = false,
   initialOfficialChannelStates = null,
+  initialOfficialChannelStatesUserId = null,
 }: DashboardClientProps) {
   const i18nT = useTranslations("shell");
   const commonT = useTranslations("common");
@@ -180,10 +181,11 @@ export default function DashboardClient({
     buildOfficialDashboardChannelState(initialOfficialChannelStates)
   ));
   const [initialDashboardChannelState] = useState<Record<string, any> | null>(() => {
-    const cached = readCachedDashboardChannelState();
-    return initialServerOfficialDashboardState
-      ? { ...(cached ?? {}), ...initialServerOfficialDashboardState }
-      : cached;
+    const browserAccountId = getActiveBrowserUserId();
+    const cached = !initialOfficialChannelStatesUserId || browserAccountId === initialOfficialChannelStatesUserId
+      ? readCachedDashboardChannelState()
+      : null;
+    return mergeDashboardHydrationState(cached, initialServerOfficialDashboardState);
   });
   const [helpGeneratorOpen, setHelpGeneratorOpen] = useState(false);
   const [generatorSettingsOpen, setGeneratorSettingsOpen] = useState(false);
@@ -250,15 +252,26 @@ export default function DashboardClient({
         : "disconnected"
   ));
   const [xProfileUrl, setXProfileUrl] = useState(() => String(initialDashboardChannelState?.xProfileUrl || initialDashboardChannelState?.xUrl || ""));
-  const [xStatusReady, setXStatusReady] = useState(() => typeof initialDashboardChannelState?.xConnected === "boolean");
   const [tiktokRequiresUpdate, setTiktokRequiresUpdate] = useState(() => (
     typeof initialDashboardChannelState?.tiktokRequiresUpdate === "boolean"
       ? initialDashboardChannelState.tiktokRequiresUpdate
       : readCachedDashboardBoolean("tiktokRequiresUpdate")
   ));
-  const [inrSearchConnected, setInrSearchConnected] = useState<boolean | null>(() => readCachedInrSearchConnected());
-  const [inrSearchUrl, setInrSearchUrl] = useState(() => readCachedDashboardString("inrSearchUrl"));
-  const [inrSearchDirectoryEnabled, setInrSearchDirectoryEnabled] = useState<boolean | null>(() => readCachedInrSearchDirectoryEnabled());
+  const [inrSearchConnected, setInrSearchConnected] = useState<boolean | null>(() => (
+    typeof initialDashboardChannelState?.inrSearchConnected === "boolean"
+      ? initialDashboardChannelState.inrSearchConnected
+      : null
+  ));
+  const [inrSearchUrl, setInrSearchUrl] = useState(() => (
+    typeof initialDashboardChannelState?.inrSearchUrl === "string"
+      ? initialDashboardChannelState.inrSearchUrl
+      : ""
+  ));
+  const [inrSearchDirectoryEnabled, setInrSearchDirectoryEnabled] = useState<boolean | null>(() => (
+    typeof initialDashboardChannelState?.inrSearchDirectoryEnabled === "boolean"
+      ? initialDashboardChannelState.inrSearchDirectoryEnabled
+      : null
+  ));
   const [inrBadgeProfile, setInrBadgeProfile] = useState<InrBadgeProfileSummary>(() => readCachedInrBadgeProfile());
   const [lastKnownInrBadgeProfileReady, setLastKnownInrBadgeProfileReady] = useState<boolean | null>(
     () => readCachedDashboardOptionalBoolean("inrBadgeProfileReady"),
@@ -610,40 +623,28 @@ const applyXConnectionState = useCallback((value: unknown) => {
   setXRequiresUpdate(next.requiresUpdate);
   setXConnectionStatus(next.connectionStatus);
   setXProfileUrl(next.profileUrl);
-  setXStatusReady(true);
 }, []);
 
 useEffect(() => {
-  if (!canAccessX) {
-    applyXConnectionState(null);
-    return;
-  }
-
-  let cancelled = false;
-  setXStatusReady(false);
-
   const onSettingsUpdated = (event: Event) => {
     const detail = (event as CustomEvent).detail;
     applyXConnectionState(detail);
+    const next = normalizeXDashboardConnection(detail);
+    mergeCachedDashboardChannelState({
+      xConnected: next.connected,
+      xRequiresUpdate: next.requiresUpdate,
+      xConnectionStatus: next.connectionStatus,
+      xUsername: next.username,
+      xDisplayName: next.displayName,
+      xProfileUrl: next.profileUrl,
+    });
   };
   window.addEventListener("inrcy:x-settings-updated", onSettingsUpdated);
 
-  void fetch("/api/integrations/x/status", { cache: "no-store" })
-    .then(async (response) => {
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(String(payload?.error || "x_status_failed"));
-      if (!cancelled) applyXConnectionState(payload);
-    })
-    .catch((error) => {
-      console.warn("[x] dashboard status failed", error);
-      if (!cancelled) setXStatusReady(true);
-    });
-
   return () => {
-    cancelled = true;
     window.removeEventListener("inrcy:x-settings-updated", onSettingsUpdated);
   };
-}, [applyXConnectionState, canAccessX]);
+}, [applyXConnectionState]);
 
 const patchChannelConnectionLocallyProxy = useCallback((
   channel: DashboardChannelKey,
@@ -1244,6 +1245,12 @@ const resetAccountScopedDashboardState = useCallback(() => {
     pinterestConnected: false,
     pinterestRequiresUpdate: false,
     pinterestUrl: "",
+    xConnected: false,
+    xRequiresUpdate: false,
+    xConnectionStatus: "disconnected",
+    xUsername: "",
+    xDisplayName: "",
+    xProfileUrl: "",
     mailAccountsConnectedCount: 0,
     mailAccountsRequireUpdate: false,
   });
@@ -1469,7 +1476,6 @@ useBrowserLayoutEffect(() => {
     setOfficialChannelStatesReady(true);
     if (initialServerOfficialDashboardState) {
       canonicalChannelStatesReadyRef.current = true;
-      writeCachedDashboardChannelState(initialDashboardChannelState);
     }
   }
 }, [applyDashboardChannelState, initialDashboardChannelState, initialServerOfficialDashboardState]);
@@ -1590,16 +1596,26 @@ const setPanelError = useCallback((kind: "facebook" | "instagram" | "linkedin" |
     const supabase = createClient();
     let cancelled = false;
 
-    const hydrateActiveAccountCaches = () => {
+    const hydrateActiveAccountCaches = (activeAccountId: string) => {
       // Les useState initiaux peuvent s'exécuter avant que le compte actif soit
       // restauré après un retour OAuth. On relit alors immédiatement le cache
       // du bon compte pour conserver la dernière puissance confirmée.
       const cachedChannelState = readCachedDashboardChannelState();
-      const hasDisplaySnapshot = hasCompleteOfficialDashboardChannelState(cachedChannelState);
-      canonicalChannelStatesReadyRef.current = false;
+      const scopedInitialServerState = initialServerOfficialDashboardState && (
+        !initialOfficialChannelStatesUserId || initialOfficialChannelStatesUserId === activeAccountId
+      )
+        ? initialServerOfficialDashboardState
+        : null;
+      const hydrationState = mergeDashboardHydrationState(cachedChannelState, scopedInitialServerState);
+      const hasDisplaySnapshot = hasCompleteOfficialDashboardChannelState(hydrationState);
+      canonicalChannelStatesReadyRef.current = Boolean(scopedInitialServerState);
       setOfficialChannelStatesReady(hasDisplaySnapshot);
-      if (!applyDashboardChannelState(cachedChannelState)) {
+      if (!applyDashboardChannelState(hydrationState)) {
         resetAccountScopedDashboardState();
+      } else if (scopedInitialServerState && hydrationState) {
+        // Persist the canonical projection in the newly resolved account scope.
+        // A legacy/stale cache can enrich it, but can never override it.
+        writeCachedDashboardChannelState(hydrationState);
       }
       const cachedPower = readCachedGeneratorPowerPercent();
       if (cachedPower !== null) setDisplayedGeneratorPower(cachedPower);
@@ -1627,7 +1643,7 @@ const setPanelError = useCallback((kind: "facebook" | "instagram" | "linkedin" |
             purgeAllBrowserAccountCaches();
           }
           setActiveBrowserUserId(activeUserId);
-          hydrateActiveAccountCaches();
+          hydrateActiveAccountCaches(activeUserId);
           return;
         }
       } catch {
@@ -1635,8 +1651,9 @@ const setPanelError = useCallback((kind: "facebook" | "instagram" | "linkedin" |
       }
 
       if (!cancelled && !getActiveBrowserUserId()) {
-        setActiveBrowserUserId(authUserId);
-        hydrateActiveAccountCaches();
+        const fallbackAccountId = initialOfficialChannelStatesUserId || authUserId;
+        setActiveBrowserUserId(fallbackAccountId);
+        hydrateActiveAccountCaches(fallbackAccountId);
       }
     };
 
@@ -1675,7 +1692,12 @@ const setPanelError = useCallback((kind: "facebook" | "instagram" | "linkedin" |
       cancelled = true;
       authListener.subscription.unsubscribe();
     };
-  }, [applyDashboardChannelState, resetAccountScopedDashboardState]);
+  }, [
+    applyDashboardChannelState,
+    initialOfficialChannelStatesUserId,
+    initialServerOfficialDashboardState,
+    resetAccountScopedDashboardState,
+  ]);
 
 
   // =============================
@@ -3757,7 +3779,6 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     xConnected,
     xConnectionStatus,
     xRequiresUpdate,
-    xStatusReady,
     xUrl: xProfileUrl,
     mailAccountsConnectedCount,
     mailAccountsRequireUpdate,
@@ -3812,7 +3833,6 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     xConnected,
     xConnectionStatus,
     xRequiresUpdate,
-    xStatusReady,
     xProfileUrl,
     mailAccountsConnectedCount,
     mailAccountsRequireUpdate,

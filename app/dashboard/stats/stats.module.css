@@ -4792,28 +4792,11 @@
   }
 }
 
-/* iNrStats — Mails : header canal sans KPI demandes captées */
+/* iNrStats — action Mail simple */
 .action_mail_simple {
   background: linear-gradient(135deg, rgba(56, 189, 248, 0.24), rgba(20, 184, 166, 0.16));
   border-color: rgba(56, 189, 248, 0.42);
   color: rgba(240, 249, 255, 0.96);
-}
-
-@media (min-width: 901px) {
-  .channelStatsKpisMail,
-  .channelStatsHeader .channelStatsKpisMail,
-  .channelStatsHeader .allStatsKpis.channelStatsKpisMail {
-    grid-template-columns: 160px 160px !important;
-    min-width: 334px !important;
-  }
-}
-
-@media (max-width: 900px) {
-  .channelStatsKpisMail,
-  .channelStatsHeader .channelStatsKpisMail,
-  .channelStatsHeader .allStatsKpis.channelStatsKpisMail {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  }
 }
 
 /* iNrStats — lecture Mails spécifique (canal différent des réseaux/sites) */
@@ -7773,10 +7756,6 @@
     gap: 6px !important;
   }
 
-  .statsWorkspaceChannel .channelStatsHeader .channelStatsKpisMail {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  }
-
   .statsWorkspaceChannel .channelStatsHeader .allStatsKpi {
     min-height: 48px !important;
     padding: 6px 8px !important;
@@ -8287,15 +8266,6 @@
     align-self: center !important;
   }
 
-  .statsWorkspaceChannel .channelStatsKpisMail,
-  .statsWorkspaceChannel .channelStatsHeader .channelStatsKpisMail,
-  .statsWorkspaceChannel .channelStatsHeader .allStatsKpis.channelStatsKpisMail {
-    width: min(360px, 32vw) !important;
-    min-width: 0 !important;
-    max-width: 360px !important;
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  }
-
   .statsWorkspaceChannel .channelStatsKpis .allStatsKpi,
   .statsWorkspaceChannel .channelStatsHeader .allStatsKpis .allStatsKpi {
     width: auto !important;
@@ -8356,10 +8326,7 @@
 @container channelStats (max-width: 560px) {
   .statsWorkspaceChannel .channelStatsKpis,
   .statsWorkspaceChannel .channelStatsHeader .channelStatsKpis,
-  .statsWorkspaceChannel .channelStatsHeader .allStatsKpis,
-  .statsWorkspaceChannel .channelStatsKpisMail,
-  .statsWorkspaceChannel .channelStatsHeader .channelStatsKpisMail,
-  .statsWorkspaceChannel .channelStatsHeader .allStatsKpis.channelStatsKpisMail {
+  .statsWorkspaceChannel .channelStatsHeader .allStatsKpis {
     grid-template-columns: minmax(0, 1fr) !important;
   }
 }
@@ -9118,5 +9085,152 @@
     height: 100%;
     object-fit: cover;
     border-radius: inherit;
+  }
+}
+
+/* iNrStats — seules les vraies actions de navigation ressortent.
+   Le gabarit reste strictement identique : aucune hauteur n'est ajoutée. */
+.allStatsActionCard {
+  cursor: default !important;
+}
+
+.allStatsActionCard:hover {
+  transform: none !important;
+}
+
+.allStatsDetailsButton,
+.channelStatsBackButton,
+.statsWorkspace[data-stats-view="global"] .allStatsDetailsButton {
+  border-color: rgba(253, 186, 116, 0.82) !important;
+  background: linear-gradient(135deg, #f59e0b 0%, #ec4899 48%, #7c3aed 100%) !important;
+  color: #ffffff !important;
+  text-shadow: 0 1px 1px rgba(49, 18, 78, 0.32);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.30),
+    0 6px 18px rgba(236, 72, 153, 0.24),
+    0 0 0 1px rgba(192, 38, 211, 0.10) !important;
+}
+
+.allStatsDetailsButton:hover,
+.channelStatsBackButton:hover,
+.statsWorkspace[data-stats-view="global"] .allStatsDetailsButton:hover {
+  transform: translateY(-1px) !important;
+  border-color: rgba(254, 215, 170, 0.96) !important;
+  background: linear-gradient(135deg, #fbbf24 0%, #f472b6 47%, #8b5cf6 100%) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.38),
+    0 9px 24px rgba(236, 72, 153, 0.34),
+    0 0 0 2px rgba(251, 191, 36, 0.12) !important;
+}
+
+/* Jusqu'à six métriques fiables tiennent sur deux rangées, sans agrandir
+   les fiches canal ni réintroduire le scroll desktop. */
+@media (min-width: 901px) {
+  .statsWorkspaceChannel .channelStatsPanel .metricMiniGrid.metricMiniGridDense {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    grid-template-rows: repeat(2, minmax(0, 1fr)) !important;
+    grid-auto-rows: minmax(0, 1fr) !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsPanel .metricMiniGridDense .metricMiniCard span {
+    overflow: hidden;
+    font-size: 9px !important;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .statsWorkspaceChannel .channelStatsPanel .metricMiniGridDense .metricMiniCard b {
+    font-size: 14.5px !important;
+  }
+}
+
+/* Fiche canal — navigation circulaire entre les 13 canaux. */
+.channelStatsCycleButton {
+  display: none;
+}
+
+@media (min-width: 901px) {
+  .statsWorkspaceChannel .channelStatsHeader > .channelStatsTitleBlock {
+    display: grid !important;
+    grid-template-columns: 30px minmax(0, 1fr) 30px !important;
+    align-items: center !important;
+    width: min(34vw, 420px) !important;
+    max-width: min(34vw, 420px) !important;
+    column-gap: 10px !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsTitleIdentity {
+    grid-column: 2;
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: nowrap;
+    gap: 10px;
+    white-space: nowrap;
+  }
+
+  .statsWorkspaceChannel .channelStatsTitleIdentity > .allStatsTitle {
+    flex: 0 1 auto !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    overflow: hidden !important;
+    color: #ffffff !important;
+    font-size: clamp(22px, 1.45vw, 28px) !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+    letter-spacing: -0.025em !important;
+    text-align: center !important;
+    text-overflow: clip !important;
+    white-space: nowrap !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsTitleIdentity > .channelStatsTitleIconBubble {
+    flex: 0 0 30px !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsTitleBlock > .channelStatsCycleButton:first-child {
+    grid-column: 1;
+  }
+
+  .statsWorkspaceChannel .channelStatsTitleIdentity + .channelStatsCycleButton {
+    grid-column: 3;
+  }
+
+  .statsWorkspaceChannel .channelStatsCycleButton {
+    display: inline-grid !important;
+    place-items: center !important;
+    flex: 0 0 30px !important;
+    width: 30px !important;
+    min-width: 30px !important;
+    height: 30px !important;
+    padding: 0 0 2px !important;
+    border: 1px solid rgba(125, 211, 252, 0.64) !important;
+    border-radius: 999px !important;
+    background: linear-gradient(145deg, rgba(14, 165, 233, 0.38), rgba(124, 58, 237, 0.50)) !important;
+    color: #ffffff !important;
+    font: inherit;
+    font-size: 25px !important;
+    font-weight: 850 !important;
+    line-height: 1 !important;
+    cursor: pointer;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.25),
+      0 5px 14px rgba(56, 189, 248, 0.18) !important;
+    transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease, filter 160ms ease;
+  }
+
+  .statsWorkspaceChannel .channelStatsCycleButton:hover {
+    transform: translateY(-1px) scale(1.05);
+    border-color: rgba(253, 186, 116, 0.9) !important;
+    filter: brightness(1.14);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.34),
+      0 7px 18px rgba(168, 85, 247, 0.3) !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsCycleButton:focus-visible {
+    outline: 3px solid rgba(251, 191, 36, 0.38);
+    outline-offset: 2px;
   }
 }

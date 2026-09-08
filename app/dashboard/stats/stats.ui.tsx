@@ -143,7 +143,13 @@ function MiniMetricGrid({ items }: { items: Array<{ label: string; value: string
   }
 
   const densityClass =
-    items.length === 1 ? styles.metricMiniGridSingle : items.length === 2 ? styles.metricMiniGridTwo : "";
+    items.length === 1
+      ? styles.metricMiniGridSingle
+      : items.length === 2
+        ? styles.metricMiniGridTwo
+        : items.length >= 5
+          ? styles.metricMiniGridDense
+          : "";
 
   return (
     <div className={`${styles.metricMiniGrid} ${densityClass}`}>

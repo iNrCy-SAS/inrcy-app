@@ -22,11 +22,19 @@ function toURLSearchParams(input: DashboardPageSearchParams) {
   return params;
 }
 
-async function loadInitialOfficialChannelStates(): Promise<ChannelStates | null> {
+type InitialOfficialChannelSnapshot = {
+  activeUserId: string;
+  states: ChannelStates;
+};
+
+async function loadInitialOfficialChannelStates(): Promise<InitialOfficialChannelSnapshot | null> {
   try {
     const current = await getCurrentInrcyAccountScope();
     if (!current) return null;
-    return await getChannelConnectionStates(current.supabase, current.scope.activeUserId);
+    return {
+      activeUserId: current.scope.activeUserId,
+      states: await getChannelConnectionStates(current.supabase, current.scope.activeUserId),
+    };
   } catch {
     // The account-scoped browser snapshot keeps the last confirmed colours.
     // DashboardClient continues revalidating the canonical state in background.
@@ -52,7 +60,7 @@ export default async function Page({
   const [
     { isAdmin },
     t,
-    initialOfficialChannelStates,
+    initialOfficialChannelSnapshot,
   ] = await Promise.all([
     getMyRole(),
     getTranslations("common"),
@@ -64,7 +72,8 @@ export default async function Page({
       <ClientHydrationGate label={t("dashboardBoot")}>
         <DashboardClient
           isAdmin={isAdmin}
-          initialOfficialChannelStates={initialOfficialChannelStates}
+          initialOfficialChannelStates={initialOfficialChannelSnapshot?.states ?? null}
+          initialOfficialChannelStatesUserId={initialOfficialChannelSnapshot?.activeUserId ?? null}
         />
       </ClientHydrationGate>
     </Suspense>

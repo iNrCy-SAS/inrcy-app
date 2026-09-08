@@ -164,6 +164,7 @@ export type ChannelStates = {
     business_name: string | null;
     profile_url: string | null;
     review_invite_url: string | null;
+    directory_enabled: boolean;
   };
 };
 
@@ -500,6 +501,7 @@ export async function getChannelConnectionStates(
   const inrSearchOrigin = ((process.env.NEXT_PUBLIC_INRSEARCH_PUBLIC_ORIGIN || "https://app.inrcy.com").replace(/\/$/, "") === "https://inrcy.com" ? "https://app.inrcy.com" : (process.env.NEXT_PUBLIC_INRSEARCH_PUBLIC_ORIGIN || "https://app.inrcy.com").replace(/\/$/, ""));
   const inrSearchProfileUrl = inrSearchEnabled ? `${inrSearchOrigin}/entreprises/${inrSearchSlug}` : null;
   const inrSearchBusinessName = asString(inrSearchSettings.pageTitle) || null;
+  const inrSearchDirectoryEnabled = Boolean(inrSearchEnabled && inrSearchSettings.directoryEnabled);
 
   const gmb = latestIntegration(rows, "google", "gmb", "gmb");
   const gmbSettings = asRecord(settings.gmb);
@@ -662,6 +664,7 @@ export async function getChannelConnectionStates(
       business_name: inrSearchBusinessName,
       profile_url: inrSearchProfileUrl,
       review_invite_url: null,
+      directory_enabled: inrSearchDirectoryEnabled,
     },
   };
 }

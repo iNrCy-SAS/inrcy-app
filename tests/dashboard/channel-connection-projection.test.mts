@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  DASHBOARD_BOOT_CHANNELS,
   DASHBOARD_OAUTH_CHANNELS,
   buildOfficialDashboardChannelState,
   hasCompleteOfficialDashboardChannelState,
+  mergeDashboardHydrationState,
   projectCanonicalChannelConnection,
 } from "../../lib/dashboardChannelSync.ts";
 
@@ -16,7 +18,13 @@ const completePayload = () => ({
   tiktok: { connected: true, connection_status: "connected", username: "demo" },
   youtube_shorts: { connected: true, connection_status: "connected", channel_url: "https://youtube.test/channel/1" },
   pinterest: { connected: true, connection_status: "connected" },
+  x: { connected: true, connection_status: "connected", username: "inrcy", profile_url: "https://x.com/inrcy" },
+  inr_search: { connected: true, connection_status: "connected", profile_url: "https://app.inrcy.test/entreprises/inrcy", directory_enabled: true },
   mails: { connectedCount: 1, requiresUpdate: false },
+});
+
+test("the first-paint projection covers every dashboard boot channel", () => {
+  assert.deepEqual(DASHBOARD_BOOT_CHANNELS, [...DASHBOARD_OAUTH_CHANNELS, "inr_search"]);
 });
 
 for (const channel of DASHBOARD_OAUTH_CHANNELS) {
@@ -83,7 +91,33 @@ test("the complete canonical payload updates every dashboard channel in one atom
   assert.equal(projected.tiktokConnected, true);
   assert.equal(projected.youtubeShortsConnected, true);
   assert.equal(projected.pinterestConnected, true);
+  assert.equal(projected.xConnected, true);
+  assert.equal(projected.xProfileUrl, "https://x.com/inrcy");
+  assert.equal(projected.inrSearchConnected, true);
+  assert.equal(projected.inrSearchUrl, "https://app.inrcy.test/entreprises/inrcy");
+  assert.equal(projected.inrSearchDirectoryEnabled, true);
   assert.equal(projected.mailAccountsConnectedCount, 1);
+});
+
+test("server-confirmed boot state wins over a stale browser snapshot for every channel", () => {
+  const official = buildOfficialDashboardChannelState(completePayload());
+  assert.ok(official);
+  const stale = Object.fromEntries(Object.entries(official).map(([key, value]) => {
+    if (typeof value === "boolean") return [key, !value];
+    if (typeof value === "number") return [key, value + 1];
+    return [key, `stale:${String(value)}`];
+  }));
+  const hydrated = mergeDashboardHydrationState({
+    ...stale,
+    localDisplayPreference: "preserved",
+  }, official);
+
+  for (const [key, value] of Object.entries(official)) {
+    assert.equal(hydrated?.[key], value, `${key} must come from the server projection`);
+  }
+  assert.equal(hydrated?.xConnected, true, "X is server-confirmed on first paint");
+  assert.equal(hydrated?.inrSearchConnected, true, "iNrSearch is server-confirmed on first paint");
+  assert.equal(hydrated?.localDisplayPreference, "preserved");
 });
 
 test("only a complete last-known snapshot may drive the first dashboard paint", () => {
@@ -93,6 +127,8 @@ test("only a complete last-known snapshot may drive the first dashboard paint", 
   const partial = { ...projected };
   delete partial.facebookConnectionStatus;
   assert.equal(hasCompleteOfficialDashboardChannelState(partial), false);
+  assert.equal(hasCompleteOfficialDashboardChannelState({ ...projected, inrSearchConnected: undefined }), false);
+  assert.equal(hasCompleteOfficialDashboardChannelState({ ...projected, inrSearchDirectoryEnabled: undefined }), false);
   assert.equal(hasCompleteOfficialDashboardChannelState({ ...projected, mailAccountsConnectedCount: 99 }), false);
 });
 

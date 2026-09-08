@@ -17,9 +17,26 @@ function formatSecondsToLabel(value: number) {
   return seconds > 0 ? `${minutes} min ${seconds}s` : `${minutes} min`;
 }
 
+function formatMinutesToLabel(value: number) {
+  const totalMinutes = Math.max(0, Math.round(Number.isFinite(value) ? value : 0));
+  if (totalMinutes < 60) return `${totalMinutes} min`;
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return minutes > 0 ? `${hours} h ${minutes} min` : `${hours} h`;
+}
+
 function metricKeyExists(metrics: any, keys: string[]) {
   const totals = safeObj(safeObj(metrics).totals);
   return keys.some((key) => Object.prototype.hasOwnProperty.call(totals, key));
+}
+
+function youtubeReportHasMetric(metrics: any, key: string) {
+  const raw = safeObj(safeObj(metrics).raw);
+  const requested = String(raw.totalsMetrics || "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  return requested.includes(key) || safeNum(safeObj(safeObj(metrics).totals)[key]) !== 0;
 }
 
 function gmbMetricSeriesExists(metrics: any, metricNames: string[]) {
@@ -191,6 +208,10 @@ function firstFour(items: CubeMetricItem[]) {
   return items.slice(0, 4);
 }
 
+function firstSix(items: CubeMetricItem[]) {
+  return items.slice(0, 6);
+}
+
 function isWebsiteConnected(cubeKey: CubeKey, ov: Overview) {
   if (cubeKey === "site_inrcy") {
     return !!ov?.sources?.site_inrcy?.connected?.ga4 || !!ov?.sources?.site_inrcy?.connected?.gsc;
@@ -257,11 +278,13 @@ export function buildVisibilityStats(cubeKey: CubeKey, ov: Overview, locale: str
     ]);
     const audience = Math.max(safeNum(m?.totals?.fan_count), safeNum(m?.totals?.followers_count));
     const pageViews = safeNum(m?.totals?.page_views_total);
+    const newFollowers = safeNum(m?.totals?.page_fan_adds) || safeNum(m?.totals?.new_like_count);
     pushMetric(t("vues_ff576f2b"), views, { available: metricKeyExists(m, ["page_media_view", "post_media_view_sum", "views", "page_impressions", "post_impressions_sum", "impressions"]) });
     pushMetric(t("metric_unique_viewers"), uniqueViewers, { available: metricKeyExists(m, ["page_total_media_view_unique", "post_total_media_view_unique_sum", "reach", "page_impressions_unique", "post_impressions_unique_sum"]) });
     pushMetric(t("audience_51d99345"), audience, { available: metricKeyExists(m, ["fan_count", "followers_count"]) });
     pushMetric(t("metric_page_views"), pageViews, { available: metricKeyExists(m, ["page_views_total"]) });
-    return firstFour(items);
+    pushMetric(t("metric_new_followers"), newFollowers, { available: metricKeyExists(m, ["page_fan_adds", "new_like_count"]) });
+    return firstSix(items);
   }
 
   if (cubeKey === "instagram") {
@@ -296,7 +319,17 @@ export function buildVisibilityStats(cubeKey: CubeKey, ov: Overview, locale: str
     pushMetric(t("metric_channel_views"), safeNum(m?.totals?.channel_views_total), { available: metricKeyExists(m, ["channel_views_total"]), keepZero: true });
     pushMetric(t("abonnes_fa75b9d9"), safeNum(m?.totals?.subscribers) || safeNum(m?.totals?.followers), { available: metricKeyExists(m, ["subscribers", "followers"]), keepZero: true });
     pushMetric(t("metric_channel_videos"), safeNum(m?.totals?.video_count) || safeNum(m?.totals?.shorts_count), { available: metricKeyExists(m, ["video_count", "shorts_count"]), keepZero: true });
-    return firstFour(items);
+    pushMetric(t("metric_watch_time"), safeNum(m?.totals?.estimatedMinutesWatched), {
+      available: youtubeReportHasMetric(m, "estimatedMinutesWatched"),
+      keepZero: true,
+      formatter: formatMinutesToLabel,
+    });
+    pushMetric(t("metric_average_duration"), safeNum(m?.totals?.averageViewDuration), {
+      available: youtubeReportHasMetric(m, "averageViewDuration"),
+      keepZero: true,
+      formatter: formatSecondsToLabel,
+    });
+    return firstSix(items);
   }
 
   if (cubeKey === "pinterest") {
@@ -325,11 +358,13 @@ export function buildVisibilityStats(cubeKey: CubeKey, ov: Overview, locale: str
     const uniqueImpressions = safeNum(m?.totals?.uniqueImpressionsCount);
     const pageViews = bestMetricValue(m, ["pageViews", "profileViews"]);
     const followers = bestMetricValue(m, ["followers", "followerCount", "memberFollowersCount"]);
+    const newFollowers = bestMetricValue(m, ["newFollowers", "followerGainedFromContentCount", "organicFollowerCount", "paidFollowerCount"]);
     pushMetric(t("impressions_b5fb66f6"), impressions, { available: metricKeyExists(m, ["impressionCount", "impressions"]) });
     pushMetric(t("metric_unique_impressions"), uniqueImpressions, { available: metricKeyExists(m, ["uniqueImpressionsCount"]) });
     pushMetric(t("metric_page_views"), pageViews, { available: metricKeyExists(m, ["pageViews", "profileViews"]) });
     pushMetric(t("abonnes_fa75b9d9"), followers, { available: metricKeyExists(m, ["followers", "followerCount", "memberFollowersCount"]) });
-    return firstFour(items);
+    pushMetric(t("metric_new_followers"), newFollowers, { available: metricKeyExists(m, ["newFollowers", "followerGainedFromContentCount", "organicFollowerCount", "paidFollowerCount"]) });
+    return firstSix(items);
   }
 
   if (!isWebsiteConnected(cubeKey, ov)) return [];
@@ -343,11 +378,12 @@ export function buildVisibilityStats(cubeKey: CubeKey, ov: Overview, locale: str
   if (ga4Connected) {
     pushMetric(t("metric_sessions"), safeNum(totals.sessions), { available: true });
     pushMetric(t("metric_pages_viewed"), safeNum(totals.pageviews), { available: true });
+    pushMetric(t("metric_users"), safeNum(totals.users), { available: true });
   }
-  if (items.length < 4 && gscConnected && safeNum(totals.ctr) > 0) {
-    pushMetric(t("metric_google_ctr"), safeNum(totals.ctr) * 100, { formatter: (value) => formatPercent(value, locale) });
+  if (gscConnected) {
+    pushMetric(t("metric_google_ctr"), safeNum(totals.ctr) * 100, { available: true, keepZero: true, formatter: (value) => formatPercent(value, locale) });
   }
-  return firstFour(items);
+  return firstSix(items);
 }
 
 export function buildActionStats(cubeKey: CubeKey, ov: Overview, locale: string, t: StatsTranslator): CubeMetricItem[] {
@@ -396,7 +432,7 @@ export function buildActionStats(cubeKey: CubeKey, ov: Overview, locale: string,
     pushMetric(t("clics_6e92c5b0"), safeNum(m?.totals?.clicks) || safeNum(m?.totals?.post_clicks_sum), {
       available: metricKeyExists(m, ["clicks", "post_clicks_sum"]),
     });
-    return firstFour(items);
+    return firstSix(items);
   }
 
   if (cubeKey === "instagram") {
@@ -407,6 +443,7 @@ export function buildActionStats(cubeKey: CubeKey, ov: Overview, locale: string,
     const messages = sumMetricValues(m, ["text_message_clicks", "replies"]);
     const calls = safeNum(m?.totals?.phone_call_clicks);
     const directions = safeNum(m?.totals?.get_directions_clicks) + safeNum(m?.totals?.get_direction_clicks);
+    const emailContacts = safeNum(m?.totals?.email_contacts);
     pushMetric(t("metric_link_clicks"), linkClicks, { available: metricKeyExists(m, ["profile_links_taps", "website_clicks"]) });
     pushMetric(t("interactions_0b3583ec"), interactions, {
       available: metricKeyExists(m, ["total_interactions", "accounts_engaged", "likes", "comments", "shares", "replies", "saves"]),
@@ -414,7 +451,8 @@ export function buildActionStats(cubeKey: CubeKey, ov: Overview, locale: string,
     pushMetric(t("metric_messages"), messages, { available: metricKeyExists(m, ["text_message_clicks", "replies"]) });
     pushMetric(t("metric_calls"), calls, { available: metricKeyExists(m, ["phone_call_clicks"]) });
     pushMetric(t("metric_directions"), directions, { available: metricKeyExists(m, ["get_directions_clicks", "get_direction_clicks"]) });
-    return firstFour(items);
+    pushMetric(t("contacts_email_90f13253"), emailContacts, { available: metricKeyExists(m, ["email_contacts"]) });
+    return firstSix(items);
   }
 
   if (cubeKey === "x") {
@@ -439,8 +477,15 @@ export function buildActionStats(cubeKey: CubeKey, ov: Overview, locale: string,
     pushMetric(t("j_aime_b75f4622"), safeNum(m?.totals?.likes), { available: metricKeyExists(m, ["likes"]) });
     pushMetric(t("commentaires_dbdeccaf"), safeNum(m?.totals?.comments), { available: metricKeyExists(m, ["comments"]) });
     pushMetric(t("partages_18ab80f0"), safeNum(m?.totals?.shares), { available: metricKeyExists(m, ["shares"]) });
-    pushMetric(t("videos_ea129238"), safeNum(m?.totals?.postsPublished) || safeNum(m?.totals?.video_count), { available: metricKeyExists(m, ["postsPublished", "video_count"]) });
-    return firstFour(items);
+    pushMetric(t("metric_new_followers"), safeNum(m?.totals?.subscribersGained), {
+      available: youtubeReportHasMetric(m, "subscribersGained"),
+      keepZero: true,
+    });
+    pushMetric(t("metric_subscriber_net"), safeNum(m?.totals?.subscribersNet), {
+      available: youtubeReportHasMetric(m, "subscribersGained") && youtubeReportHasMetric(m, "subscribersLost"),
+      keepZero: true,
+    });
+    return firstSix(items);
   }
 
   if (cubeKey === "pinterest") {
@@ -478,11 +523,15 @@ export function buildActionStats(cubeKey: CubeKey, ov: Overview, locale: string,
     const reactions = bestMetricValue(m, ["reactionCount", "likeCount", "likes"]);
     const comments = bestMetricValue(m, ["commentCount", "comments"]);
     const shares = bestMetricValue(m, ["shareCount", "shares"]);
+    const saves = safeNum(m?.totals?.postSaveCount);
+    const sends = safeNum(m?.totals?.postSendCount);
     pushMetric(t("clics_6e92c5b0"), clicks, { available: metricKeyExists(m, ["clickCount", "clicks", "linkClickCount", "pageClicks", "premiumCtaClickCount"]) });
     pushMetric(t("metric_reactions"), reactions, { available: metricKeyExists(m, ["reactionCount", "likeCount", "likes"]) });
     pushMetric(t("commentaires_dbdeccaf"), comments, { available: metricKeyExists(m, ["commentCount", "comments"]) });
     pushMetric(t("partages_18ab80f0"), shares, { available: metricKeyExists(m, ["shareCount", "shares"]) });
-    return firstFour(items);
+    pushMetric(t("metric_saves"), saves, { available: metricKeyExists(m, ["postSaveCount"]) });
+    pushMetric(t("metric_post_sends"), sends, { available: metricKeyExists(m, ["postSendCount"]) });
+    return firstSix(items);
   }
 
   if (!isWebsiteConnected(cubeKey, ov)) return [];

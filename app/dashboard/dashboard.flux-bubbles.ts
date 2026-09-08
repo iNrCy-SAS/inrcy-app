@@ -44,7 +44,6 @@ type BuildFluxBubbleItemsArgs = {
   xConnected: boolean;
   xConnectionStatus: ConnectionDisplayStatus;
   xRequiresUpdate?: boolean;
-  xStatusReady: boolean;
   xUrl: string | null | undefined;
   mailAccountsConnectedCount: number;
   mailAccountsRequireUpdate?: boolean;
@@ -100,7 +99,6 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
     xConnected,
     xConnectionStatus,
     xRequiresUpdate = false,
-    xStatusReady,
     xUrl,
     mailAccountsConnectedCount,
     mailAccountsRequireUpdate = false,
@@ -179,8 +177,6 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
       ? getSiteBubbleProgress("site_inrcy")
       : (m.key === "site_web")
         ? getSiteBubbleProgress("site_web")
-        : m.key === "x" && !xStatusReady
-          ? { status: "available" as ModuleStatus, text: copy.status.syncing }
         : officialConnection && !officialChannelStatesReady
           ? { status: "available" as ModuleStatus, text: copy.status.syncing }
         : officialBubbleStatus

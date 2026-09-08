@@ -26,9 +26,15 @@ export type MailStatsSnapshot = {
   syncedAt?: number;
   connectedCount: number;
   maxAccounts: number;
+  campagnes7: number;
   campagnes30: number;
   campagnesTotal: number;
+  destinataires7: number;
   destinataires30: number;
+  capturedLeads: CapturedLeads;
+  capturedLeadsEstimated: boolean;
+  capturedLeadsModel?: string;
+  leadConversionRate: number;
   contactsCrm: number;
   contactsEmail: number;
   propulsions30: number;
@@ -52,9 +58,14 @@ export const EMPTY_MAIL_STATS: MailStatsSnapshot = {
   loading: true,
   connectedCount: 0,
   maxAccounts: 4,
+  campagnes7: 0,
   campagnes30: 0,
   campagnesTotal: 0,
+  destinataires7: 0,
   destinataires30: 0,
+  capturedLeads: { week: 0, month: 0 },
+  capturedLeadsEstimated: true,
+  leadConversionRate: 0,
   contactsCrm: 0,
   contactsEmail: 0,
   propulsions30: 0,
@@ -366,27 +377,40 @@ export function channelConnectionStatusesFromStates(payload: unknown): OfficialC
 }
 
 export function mailStatsSessionKey(period: Period) {
-  return `inrcy_stats_mail_snapshot_v3:${period}`;
+  return `inrcy_stats_mail_snapshot_v4:${period}`;
 }
 
 function legacyMailStatsSessionKeys(period: Period) {
   return [
     mailStatsSessionKey(period),
+    `inrcy_stats_mail_snapshot_v3:${period}`,
     `inrcy_stats_mail_snapshot_v2:${period}`,
     `inrcy_stats_mail_snapshot_v1:${period}`,
   ];
 }
 
 export function normalizeMailStatsSnapshot(value: unknown, syncedAt?: number): MailStatsSnapshot {
-  const raw = value && typeof value === "object" ? (value as Partial<MailStatsSnapshot>) : {};
+  const raw = value && typeof value === "object"
+    ? (value as Partial<MailStatsSnapshot> & { capturedLeads7?: number; capturedLeads30?: number })
+    : {};
+  const capturedLeads = normalizeCapturedLeads(raw.capturedLeads, {
+    week: Math.max(0, Math.round(safeNum(raw.capturedLeads7))),
+    month: Math.max(0, Math.round(safeNum(raw.capturedLeads30))),
+  });
   return {
     loading: false,
     error: typeof raw.error === "string" ? raw.error : undefined,
     connectedCount: clampMailAccountCount(raw.connectedCount),
     maxAccounts: Math.max(1, Math.round(safeNum(raw.maxAccounts, 4)) || 4),
+    campagnes7: Math.max(0, Math.round(safeNum(raw.campagnes7))),
     campagnes30: Math.max(0, Math.round(safeNum(raw.campagnes30))),
     campagnesTotal: Math.max(0, Math.round(safeNum(raw.campagnesTotal, safeNum(raw.campagnes30)))),
+    destinataires7: Math.max(0, Math.round(safeNum(raw.destinataires7))),
     destinataires30: Math.max(0, Math.round(safeNum(raw.destinataires30))),
+    capturedLeads,
+    capturedLeadsEstimated: raw.capturedLeadsEstimated !== false,
+    capturedLeadsModel: typeof raw.capturedLeadsModel === "string" ? raw.capturedLeadsModel : undefined,
+    leadConversionRate: Math.max(0, safeNum(raw.leadConversionRate)),
     contactsCrm: Math.max(0, Math.round(safeNum(raw.contactsCrm))),
     contactsEmail: Math.max(0, Math.round(safeNum(raw.contactsEmail, safeNum(raw.contactsCrm)))),
     propulsions30: Math.max(0, Math.round(safeNum(raw.propulsions30))),
@@ -594,8 +618,11 @@ export function buildMailCubeModel(stats: MailStatsSnapshot, period: Period, loc
         : connected
           ? t("opportunity_to_develop")
           : t("a_activer_15406658"),
-    capturedLeads: { week: 0, month: 0 },
-    capturedLeadsUnavailable: true,
+    capturedLeads: {
+      week: connected ? stats.capturedLeads.week : 0,
+      month: connected ? stats.capturedLeads.month : 0,
+    },
+    capturedLeadsUnavailable: !connected,
     capturedLeadsHint: connected
       ? t("mail_measurement_hint")
       : t("mail_connect_hint"),
@@ -613,9 +640,9 @@ export function buildMailCubeModel(stats: MailStatsSnapshot, period: Period, loc
         ]
       : [],
     inrcyActivityStats: {
-      publications: { week: 0, month: Math.max(0, stats.campagnes30), year: Math.max(0, stats.campagnesTotal), total: Math.max(0, stats.campagnesTotal) },
+      publications: { week: Math.max(0, stats.campagnes7), month: Math.max(0, stats.campagnes30), year: Math.max(0, stats.campagnesTotal), total: Math.max(0, stats.campagnesTotal) },
       photos: { week: 0, month: Math.max(0, stats.mailsSimples30), year: Math.max(0, stats.mailsSimples30), total: Math.max(0, stats.mailsSimples30) },
-      videos: { week: 0, month: Math.max(0, stats.destinataires30), year: Math.max(0, stats.destinatairesTotal), total: Math.max(0, stats.destinatairesTotal) },
+      videos: { week: Math.max(0, stats.destinataires7), month: Math.max(0, stats.destinataires30), year: Math.max(0, stats.destinatairesTotal), total: Math.max(0, stats.destinatairesTotal) },
     },
     qualityScore,
     qualityLabel,

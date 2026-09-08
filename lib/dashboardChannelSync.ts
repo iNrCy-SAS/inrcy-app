@@ -9,6 +9,11 @@ export const DASHBOARD_OAUTH_CHANNELS = [
   "x",
 ] as const;
 
+export const DASHBOARD_BOOT_CHANNELS = [
+  ...DASHBOARD_OAUTH_CHANNELS,
+  "inr_search",
+] as const;
+
 export type DashboardOAuthChannel = (typeof DASHBOARD_OAUTH_CHANNELS)[number];
 export type CanonicalConnectionStatus = "connected" | "disconnected" | "needs_update";
 export type CanonicalBubbleStatus = "connected" | "available" | "reconnect";
@@ -21,6 +26,26 @@ export type CanonicalChannelConnection = {
 };
 
 export type OfficialDashboardChannelState = Record<string, unknown>;
+
+function asDashboardStateRecord(value: unknown): OfficialDashboardChannelState | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as OfficialDashboardChannelState
+    : null;
+}
+
+/**
+ * Restores one account-scoped dashboard snapshot without allowing an older
+ * browser cache to overwrite the server-confirmed connection state.
+ */
+export function mergeDashboardHydrationState(
+  cachedState: unknown,
+  officialState: unknown,
+): OfficialDashboardChannelState | null {
+  const cached = asDashboardStateRecord(cachedState);
+  const official = asDashboardStateRecord(officialState);
+  if (!cached && !official) return null;
+  return { ...(cached ?? {}), ...(official ?? {}) };
+}
 
 const OFFICIAL_DASHBOARD_BOOLEAN_FIELDS = [
   "gmbConnected",
@@ -35,6 +60,8 @@ const OFFICIAL_DASHBOARD_BOOLEAN_FIELDS = [
   "pinterestRequiresUpdate",
   "xConnected",
   "xRequiresUpdate",
+  "inrSearchConnected",
+  "inrSearchDirectoryEnabled",
   "mailAccountsRequireUpdate",
 ] as const;
 
@@ -82,10 +109,10 @@ function sanitizeConnectedMailCount(value: unknown) {
 export function buildOfficialDashboardChannelState(payload: unknown): OfficialDashboardChannelState | null {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
   const states = payload as Record<string, any>;
-  const hasEveryOAuthChannel = DASHBOARD_OAUTH_CHANNELS.every((channel) => (
+  const hasEveryBootChannel = DASHBOARD_BOOT_CHANNELS.every((channel) => (
     states[channel] && typeof states[channel] === "object" && !Array.isArray(states[channel])
   ));
-  if (!hasEveryOAuthChannel || !states.mails || typeof states.mails !== "object") return null;
+  if (!hasEveryBootChannel || !states.mails || typeof states.mails !== "object") return null;
 
   const gmb = states.gmb;
   const facebook = states.facebook;
@@ -95,6 +122,7 @@ export function buildOfficialDashboardChannelState(payload: unknown): OfficialDa
   const youtube = states.youtube_shorts;
   const pinterest = states.pinterest;
   const x = states.x;
+  const inrSearch = states.inr_search;
   const tiktokRequiresUpdate = Boolean(tiktok.requiresUpdate || canonicalStatus(tiktok) === "needs_update");
   const youtubeRequiresUpdate = Boolean(youtube.requiresUpdate || canonicalStatus(youtube) === "needs_update");
   const pinterestRequiresUpdate = Boolean(pinterest.requiresUpdate || canonicalStatus(pinterest) === "needs_update");
@@ -149,6 +177,9 @@ export function buildOfficialDashboardChannelState(payload: unknown): OfficialDa
     xUsername: String(x.username || ""),
     xDisplayName: String(x.display_name || ""),
     xProfileUrl: String(x.profile_url || ""),
+    inrSearchConnected: Boolean(inrSearch.connected),
+    inrSearchUrl: String(inrSearch.profile_url || ""),
+    inrSearchDirectoryEnabled: Boolean(inrSearch.connected && inrSearch.directory_enabled),
     mailAccountsConnectedCount: sanitizeConnectedMailCount(states.mails.connectedCount),
     mailAccountsRequireUpdate: Boolean(states.mails.requiresUpdate),
   };
