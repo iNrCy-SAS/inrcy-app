@@ -55,9 +55,10 @@
 }
 
 .wrap {
-  max-width: 1240px;
+  width: 100%;
+  max-width: none;
   height: 100%;
-  margin: 0 auto;
+  margin: 0;
   color: var(--admin-text);
   display: flex;
   flex-direction: column;

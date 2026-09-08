@@ -41,8 +41,9 @@
 }
 
 .wrap {
-  max-width: 1220px;
-  margin: 0 auto;
+  width: 100%;
+  max-width: none;
+  margin: 0;
 
   /* Important pour le scroll indépendant */
   flex: 1;
@@ -3011,10 +3012,11 @@
 
 /* 3) au cas où tu utilises encore ces variantes */
 
-/* carte principale inchangée */
+/* Le cadre principal suit toute la largeur disponible. */
 .wrap {
-  max-width: 1220px;
-  margin: 0 auto;
+  width: 100%;
+  max-width: none;
+  margin: 0;
 }
 
 /* 🔧 FIX : le bloc messages doit s'étirer */

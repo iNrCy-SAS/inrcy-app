@@ -19,9 +19,10 @@
 }
 
 .agentCanvas {
-  width: min(1540px, 100%);
+  width: 100%;
+  max-width: none;
   height: 100%;
-  margin: 0 auto;
+  margin: 0;
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr) auto;
   gap: clamp(12px, 1.45vw, 20px);

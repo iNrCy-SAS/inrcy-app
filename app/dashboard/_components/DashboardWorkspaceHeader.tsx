@@ -102,16 +102,17 @@ export const dashboardWorkspacePageStyle: CSSProperties = {
 
 export const dashboardWorkspaceContentStyle: CSSProperties = {
   width: "100%",
-  maxWidth: 1380,
-  margin: "0 auto",
+  maxWidth: "none",
+  margin: 0,
 };
 
 const headerStyle: CSSProperties = {
   position: "sticky",
   top: 0,
   zIndex: 40,
-  maxWidth: 1460,
-  margin: "0 auto 14px",
+  width: "100%",
+  maxWidth: "none",
+  margin: "0 0 14px",
   padding: "9px 11px",
   display: "flex",
   alignItems: "center",

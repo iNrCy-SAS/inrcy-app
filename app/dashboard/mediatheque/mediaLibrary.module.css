@@ -25,8 +25,9 @@
 .wrap{
   position:relative;
   z-index:1;
-  width:min(1440px, calc(100vw - 44px));
-  margin:0 auto;
+  width:100%;
+  max-width:none;
+  margin:0;
 }
 
 .heroCard,

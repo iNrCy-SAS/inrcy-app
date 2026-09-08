@@ -34,8 +34,9 @@
   flex-direction: column;
   overflow: hidden;
   padding: 24px 18px 18px;
-  max-width: 1180px;
-  margin: 0 auto;
+  width: 100%;
+  max-width: none;
+  margin: 0;
   position: relative;
 }
 

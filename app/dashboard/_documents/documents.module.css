@@ -4,8 +4,9 @@
   grid-template-columns: 1fr;
   gap: 18px;
   padding: 18px 16px 24px;
-  max-width: 1200px;
-  margin: 0 auto;
+  width: 100%;
+  max-width: none;
+  margin: 0;
   align-items: start;
   box-sizing: border-box;
 }

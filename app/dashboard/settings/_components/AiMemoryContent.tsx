@@ -1649,7 +1649,7 @@ function PremiumTextarea({
   );
 }
 
-const pageStyle: CSSProperties = { display: "grid", gap: 11, width: "100%", maxWidth: 1380, margin: "0 auto", paddingBottom: "max(14px, var(--inrcy-safe-area-bottom))" };
+const pageStyle: CSSProperties = { display: "grid", gap: 11, width: "100%", maxWidth: "none", margin: 0, paddingBottom: "max(14px, var(--inrcy-safe-area-bottom))" };
 const cardStyle: CSSProperties = { display: "grid", gap: 18, padding: "clamp(14px, 2.2vw, 22px)", borderRadius: 20, border: "1px solid rgba(125,211,252,0.17)", background: "linear-gradient(145deg, rgba(11,27,52,0.82), rgba(31,23,58,0.70))", boxShadow: "0 16px 44px rgba(0,0,0,0.18)", minWidth: 0 };
 const analysisLandingStyle: CSSProperties = { position: "relative", isolation: "isolate", overflow: "hidden", height: "clamp(610px, calc(100svh - 245px), 780px)", minHeight: 0, display: "grid", justifyItems: "center", alignContent: "center", gap: "clamp(15px, 1.8vh, 22px)", padding: "clamp(24px, 3vw, 40px) clamp(14px, 3vw, 34px)", borderRadius: 22, border: "1px solid rgba(125,211,252,0.20)", background: "radial-gradient(circle at 50% 28%, rgba(79,70,229,0.22), transparent 31%), radial-gradient(circle at 15% 15%, rgba(6,182,212,0.10), transparent 28%), radial-gradient(circle at 88% 86%, rgba(236,72,153,0.10), transparent 29%), linear-gradient(145deg, rgba(5,18,39,0.96), rgba(24,11,48,0.93))", boxShadow: "0 24px 68px rgba(0,0,0,0.24)", textAlign: "center" };
 const analysisOrbStageStyle: CSSProperties = { position: "relative", width: "min(530px, 92vw)", height: 285, display: "grid", placeItems: "center", perspective: 760 };

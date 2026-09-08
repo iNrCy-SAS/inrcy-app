@@ -7,8 +7,9 @@
 .generator {
   display: grid;
   gap: 16px;
-  max-width: 1320px;
-  margin: 0 auto;
+  width: 100%;
+  max-width: none;
+  margin: 0;
   padding-bottom: 8px;
 }
 

@@ -45,8 +45,9 @@
    Topbar
 ========================= */
 .topbar {
-  max-width: 1220px;
-  margin: 0 auto 14px;
+  width: 100%;
+  max-width: none;
+  margin: 0 0 14px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -568,8 +569,9 @@
    Hero
 ========================= */
 .hero {
-  max-width: 1220px;
-  margin: 0 auto 14px;
+  width: 100%;
+  max-width: none;
+  margin: 0 0 14px;
   display: grid;
   grid-template-columns: 1.05fr 0.95fr;
   gap: 14px;
@@ -1601,8 +1603,9 @@
    Content
 ========================= */
 .contentFull {
-  max-width: 1220px;
-  margin: 0 auto;
+  width: 100%;
+  max-width: none;
+  margin: 0;
   overflow: visible;
 }
 
@@ -2450,8 +2453,9 @@
 
 /* footer */
 .footer {
-  max-width: 1220px;
-  margin: 14px auto 0;
+  width: 100%;
+  max-width: none;
+  margin: 14px 0 0;
   display: flex;
   justify-content: space-between;
   gap: 14px;
@@ -4329,8 +4333,9 @@
 ========================= */
 
 .hubHero {
-  max-width: 1220px;
-  margin: 0 auto 14px;
+  width: 100%;
+  max-width: none;
+  margin: 0 0 14px;
   display: grid;
   grid-template-columns: 1.15fr 0.85fr;
   gap: 14px;
@@ -4437,8 +4442,9 @@
 }
 
 .hubSection {
-  max-width: 1220px;
-  margin: 0 auto;
+  width: 100%;
+  max-width: none;
+  margin: 0;
   padding-top: 6px;
 }
 

@@ -18,8 +18,9 @@
 }
 
 .wrap {
-  max-width: 1220px;
-  margin: 0 auto;
+  width: 100%;
+  max-width: none;
+  margin: 0;
 }
 
 /* Header aligned with other iNrCy modules */
@@ -307,7 +308,7 @@
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -404,10 +405,19 @@
 .chips {
   margin-top: 8px;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-auto-flow: row;
+  align-content: start;
   gap: 6px;
 }
 
 .chip {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  align-items: center;
+  box-sizing: border-box;
   font-size: 12px;
   cursor: pointer;
   user-select: none;
