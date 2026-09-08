@@ -9,6 +9,7 @@ import {
   isPendingSignupReminderForProspect,
   pendingSignupReminderProspectUserId,
   shouldMirrorTeamCalendarEvent,
+  teamCalendarExternalAttendees,
   teamCalendarMirrorSourceKey,
   type TeamCalendarEvent,
   type TeamCalendarMember,
@@ -79,6 +80,64 @@ test("les copies du partagé, annulations, refus et emplacements de travail sont
   }
 });
 
+test("la copie invitée d'un autre organisateur iNrCy n'est jamais reflétée", () => {
+  const oceaneEmail = "oceane.pinceloup@inrcy.com";
+  assert.equal(
+    shouldMirrorTeamCalendarEvent({
+      event: sourceEvent({
+        organizer: { email: oceaneEmail },
+        attendees: [
+          { email: oceaneEmail, organizer: true, responseStatus: "accepted" },
+          { email: member.email, self: true, responseStatus: "accepted" },
+        ],
+      }),
+      memberEmail: member.email,
+      memberCalendarId: member.calendarId,
+      managedCalendarIds: [member.email, member.calendarId, oceaneEmail],
+      sharedCalendarId,
+    }),
+    false,
+  );
+});
+
+test("une invitation organisée à l'extérieur reste visible dans l'agenda du membre", () => {
+  assert.equal(
+    shouldMirrorTeamCalendarEvent({
+      event: sourceEvent({ organizer: { email: "client@example.com" } }),
+      memberEmail: member.email,
+      memberCalendarId: member.calendarId,
+      managedCalendarIds: [member.email, member.calendarId],
+      sharedCalendarId,
+    }),
+    true,
+  );
+});
+
+test("un transfert conserve les invités externes et retire toutes les adresses iNrCy", () => {
+  assert.deepEqual(
+    teamCalendarExternalAttendees(
+      sourceEvent({
+        attendees: [
+          { email: "oceane.pinceloup@inrcy.com", responseStatus: "accepted" },
+          { email: "contact@admin-inrcy.com", responseStatus: "accepted" },
+          {
+            email: "PRO@example.com",
+            displayName: "Le pro",
+            responseStatus: "accepted",
+            self: true,
+          },
+        ],
+      }),
+      ["apolline.benedyczak@inrcy.com", "contact@admin-inrcy.com"],
+    ),
+    [{
+      email: "pro@example.com",
+      displayName: "Le pro",
+      responseStatus: "accepted",
+    }],
+  );
+});
+
 test("le miroir est interne, sans invité ni nouvelle conférence, et conserve le lien Meet", () => {
   const body = buildTeamCalendarMirrorBody({
     event: sourceEvent({
@@ -108,6 +167,11 @@ test("le miroir est interne, sans invité ni nouvelle conférence, et conserve l
   assert.equal(body.reminders.useDefault, false);
   assert.equal(body.extendedProperties.private.inrcyBooking, "signup-visio");
   assert.equal(body.extendedProperties.private.sourceFingerprint, "fingerprint");
+  assert.equal(
+    body.extendedProperties.private.sourceOrganizerEmail,
+    member.email,
+  );
+  assert.equal(body.extendedProperties.private.sourceCalendarIsOrganizer, "true");
   assert.equal(
     body.extendedProperties.private[INR_CALENDAR_GOOGLE_GUEST_EMAILS_PROPERTY],
     JSON.stringify(["pro@example.com"]),

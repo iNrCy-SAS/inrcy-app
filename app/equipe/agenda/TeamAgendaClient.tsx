@@ -79,7 +79,10 @@ export default function TeamAgendaClient({
     else setLoading(true);
     setError("");
     try {
-      const response = await fetch("/api/internal/visio-booking/appointments", {
+      const endpoint = manual
+        ? "/api/internal/visio-booking/appointments?refresh=1"
+        : "/api/internal/visio-booking/appointments";
+      const response = await fetch(endpoint, {
         cache: "no-store",
         credentials: "same-origin",
       });
@@ -113,14 +116,20 @@ export default function TeamAgendaClient({
     target: TeamMember,
   ) => {
     if (appointment.currentMemberId === target.id || assigningId) return;
-    const accepted = window.confirm(
-      `Attribuer « ${appointment.title} » à ${target.name} ?\n\nLe professionnel ne recevra aucune notification.`,
-    );
-    if (!accepted) return;
-
+    const previousMemberId = appointment.currentMemberId;
+    const previousMemberName = appointment.currentMemberName;
     setAssigningId(appointment.id);
     setError("");
     setSuccess("");
+    setAppointments((current) => current.map((item) =>
+      item.id === appointment.id
+        ? {
+            ...item,
+            currentMemberId: target.id,
+            currentMemberName: target.name,
+          }
+        : item,
+    ));
     try {
       const response = await fetch("/api/internal/visio-booking/appointments", {
         method: "POST",
@@ -139,10 +148,23 @@ export default function TeamAgendaClient({
         throw new Error(payload.error || "La réattribution a échoué.");
       }
       setAppointments((current) => current.map((item) =>
-        item.id === appointment.id ? payload.appointment as TeamAppointment : item,
+        item.id === appointment.id || item.id === payload.appointment?.id
+          ? payload.appointment as TeamAppointment
+          : item,
       ));
-      setSuccess(`${appointment.title} est maintenant attribué à ${target.name}.`);
+      setSuccess(
+        `${appointment.title} est maintenant attribué uniquement à ${target.name}.`,
+      );
     } catch (assignmentError) {
+      setAppointments((current) => current.map((item) =>
+        item.id === appointment.id
+          ? {
+              ...item,
+              currentMemberId: previousMemberId,
+              currentMemberName: previousMemberName,
+            }
+          : item,
+      ));
       setError(assignmentError instanceof Error ? assignmentError.message : "La réattribution a échoué.");
     } finally {
       setAssigningId("");
@@ -182,7 +204,7 @@ export default function TeamAgendaClient({
               type="button"
               className={styles.refreshButton}
               onClick={() => void loadAppointments(true)}
-              disabled={refreshing}
+              disabled={refreshing || Boolean(assigningId)}
             >
               {refreshing ? "Actualisation…" : "Actualiser"}
             </button>
@@ -194,7 +216,10 @@ export default function TeamAgendaClient({
           <span className={styles.reassuranceIcon}>✓</span>
           <div>
             <strong>Identité publique conservée</strong>
-            <p>Les réservations automatiques restent envoyées par Équipe iNrCy. Aucun e-mail de changement n’est envoyé.</p>
+            <p>
+              Les réservations automatiques restent envoyées par Équipe iNrCy.
+              Un seul responsable interne est conservé. Aucun e-mail de changement n’est envoyé.
+            </p>
           </div>
         </div>
 
@@ -202,7 +227,7 @@ export default function TeamAgendaClient({
         {success ? <div className={styles.success} role="status">{success}</div> : null}
 
         {loading ? (
-          <div className={styles.stateCard}>Synchronisation des agendas en cours…</div>
+          <div className={styles.stateCard}>Chargement des rendez-vous…</div>
         ) : groupedAppointments.length === 0 ? (
           <div className={styles.stateCard}>Aucun rendez-vous positionné sur cette période.</div>
         ) : (
@@ -244,10 +269,10 @@ export default function TeamAgendaClient({
                                 key={member.id}
                                 type="button"
                                 className={active ? styles.memberButtonActive : styles.memberButton}
-                                disabled={active || Boolean(assigningId)}
+                                disabled={active || Boolean(assigningId) || refreshing}
                                 onClick={() => void reassign(appointment, member)}
                               >
-                                {pending && !active ? "…" : active ? `✓ ${member.name}` : member.name}
+                                {pending && active ? "Mise à jour…" : active ? `✓ ${member.name}` : member.name}
                               </button>
                             );
                           })}

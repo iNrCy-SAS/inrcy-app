@@ -23,6 +23,15 @@ function assignmentErrorResponse(error: unknown) {
       { status: 409 },
     );
   }
+  if (code === "visio_team_assignment_sync_busy") {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "Une synchronisation Google est en cours. Réessayez dans quelques secondes.",
+      },
+      { status: 409 },
+    );
+  }
   if (
     code === "visio_team_assignment_invalid" ||
     code === "visio_team_assignment_mirror_missing" ||
@@ -52,17 +61,20 @@ function assignmentErrorResponse(error: unknown) {
   );
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const authorization = await requireVisioTeamApi();
   if (!authorization.ok) return authorization.response;
 
   try {
+    const refresh = new URL(request.url).searchParams.get("refresh") === "1";
     const appointments = await listVisioTeamAppointments({
       // The team screen is a focused operational history: one week behind,
       // then the two coming weeks, whatever the appointment category.
       pastDays: 7,
       futureDays: 14,
-      refresh: true,
+      // The cron keeps the shared calendar synchronized. A full Google refresh
+      // is only requested explicitly from the team screen.
+      refresh,
     });
     return NextResponse.json({
       ok: true,

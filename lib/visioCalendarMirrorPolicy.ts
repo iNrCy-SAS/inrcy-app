@@ -40,6 +40,10 @@ export type TeamCalendarEvent = {
     organizer?: boolean;
     self?: boolean;
     responseStatus?: string;
+    optional?: boolean;
+    resource?: boolean;
+    additionalGuests?: number;
+    comment?: string;
   }>;
   conferenceData?: {
     entryPoints?: Array<{ entryPointType?: string; uri?: string }>;
@@ -174,15 +178,73 @@ export function isTeamCalendarEventDeclined(
   );
 }
 
+export function teamCalendarExternalAttendees(
+  event: TeamCalendarEvent,
+  internalEmails: string[] = [],
+) {
+  const internal = new Set(internalEmails.map(validEmail).filter(Boolean));
+  const seen = new Set<string>();
+
+  return (event.attendees || []).flatMap((attendee) => {
+    const email = validEmail(attendee.email);
+    if (
+      !email ||
+      seen.has(email) ||
+      internal.has(email) ||
+      email.endsWith("@inrcy.com") ||
+      email.endsWith("@admin-inrcy.com")
+    ) {
+      return [];
+    }
+    seen.add(email);
+    return [{
+      email,
+      ...(attendee.displayName ? { displayName: attendee.displayName } : {}),
+      ...(attendee.responseStatus
+        ? { responseStatus: attendee.responseStatus }
+        : {}),
+      ...(typeof attendee.optional === "boolean"
+        ? { optional: attendee.optional }
+        : {}),
+      ...(typeof attendee.resource === "boolean"
+        ? { resource: attendee.resource }
+        : {}),
+      ...(typeof attendee.additionalGuests === "number"
+        ? { additionalGuests: attendee.additionalGuests }
+        : {}),
+      ...(attendee.comment ? { comment: attendee.comment } : {}),
+    }];
+  });
+}
+
 export function shouldMirrorTeamCalendarEvent(input: {
   event: TeamCalendarEvent;
   memberEmail: string;
+  memberCalendarId?: string;
+  managedCalendarIds?: string[];
   sharedCalendarId: string;
 }) {
   const { event } = input;
   if (!event.id || event.status === "cancelled") return false;
   if (event.extendedProperties?.private?.[TEAM_CALENDAR_MIRROR_KEY]) return false;
   if (normalized(event.organizer?.email) === normalized(input.sharedCalendarId)) {
+    return false;
+  }
+  const organizerEmail = normalized(event.organizer?.email);
+  const currentMemberAddresses = new Set(
+    [input.memberEmail, input.memberCalendarId].map(normalized).filter(Boolean),
+  );
+  const managedCalendarIds = new Set(
+    (input.managedCalendarIds || []).map(normalized).filter(Boolean),
+  );
+  // Google exposes the same event in every attendee's calendar. When another
+  // managed team member is the organizer, that attendee copy must not create a
+  // second shared mirror with a false owner.
+  if (
+    organizerEmail &&
+    managedCalendarIds.has(organizerEmail) &&
+    !currentMemberAddresses.has(organizerEmail)
+  ) {
     return false;
   }
   if (isTeamCalendarEventDeclined(event, input.memberEmail)) return false;
@@ -219,6 +281,8 @@ export function teamCalendarMirrorContentSignature(event: TeamCalendarEvent) {
     sourceCalendarId: properties.sourceCalendarId || "",
     sourceEventId: properties.sourceEventId || "",
     sourceFingerprint: properties.sourceFingerprint || "",
+    sourceOrganizerEmail: properties.sourceOrganizerEmail || "",
+    sourceCalendarIsOrganizer: properties.sourceCalendarIsOrganizer || "",
     assignedMemberId: properties.assignedMemberId || "",
     guestEmails: properties[INR_CALENDAR_GOOGLE_GUEST_EMAILS_PROPERTY] || "",
   });
@@ -232,6 +296,11 @@ export function buildTeamCalendarMirrorBody(input: TeamCalendarMirrorInput) {
     event.visibility === "confidential" ||
     event.eventType === "fromGmail";
   const meetUrl = teamCalendarEventMeetUrl(event);
+  const sourceOrganizerEmail = validEmail(event.organizer?.email);
+  const sourceCalendarIsOrganizer = [member.email, member.calendarId]
+    .map(normalized)
+    .filter(Boolean)
+    .includes(sourceOrganizerEmail);
   const sourceSummary = String(event.summary || "Rendez-vous").trim();
   const sourceDescription = isPrivate ? "" : String(event.description || "").trim();
   const sourceGuestEmails = isPrivate
@@ -284,6 +353,8 @@ export function buildTeamCalendarMirrorBody(input: TeamCalendarMirrorInput) {
         sourceEventId: String(event.id || ""),
         sourceEventUpdated: String(event.updated || ""),
         sourceFingerprint: fingerprint,
+        sourceOrganizerEmail,
+        sourceCalendarIsOrganizer: sourceCalendarIsOrganizer ? "true" : "false",
         sourceHtmlLink: String(event.htmlLink || ""),
         sourceMeetUrl: meetUrl,
         assignedMemberId: member.id,
