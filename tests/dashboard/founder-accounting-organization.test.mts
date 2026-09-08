@@ -77,6 +77,10 @@ test("la boîte de vitesse Premium expose exactement Booster, iNrAgent, Campagne
   assert.match(source, /<DashboardAgentPlanningModal/);
   assert.match(source, /standardMode=\{false\}/);
   assert.match(styles, /\.gearBlockCard \.gearGrid\s*\{\s*grid-template-rows:\s*repeat\(4, minmax\(74px, 1fr\)\)/);
+  assert.match(
+    styles,
+    /@media \(min-width: 1101px\)[\s\S]*?\.gearBlockCard \.gearCapsule\s*\{\s*width:\s*min\(306px, calc\(100% - 8px\)\);\s*height:\s*106px;/,
+  );
   assert.doesNotMatch(styles, /\.gearBlockCard \.gearGrid\s*>\s*\.gearCapsule\s*\{\s*grid-column:\s*auto/);
 });
 

@@ -12289,3 +12289,11 @@
     grid-template-rows: repeat(4, minmax(74px, 1fr));
   }
 }
+
+/* Desktop uniquement — bulles de la Boîte de vitesse légèrement agrandies. */
+@media (min-width: 1101px) and (hover: hover) and (pointer: fine) {
+  .gearBlockCard .gearCapsule {
+    width: min(306px, calc(100% - 8px));
+    height: 106px;
+  }
+}
