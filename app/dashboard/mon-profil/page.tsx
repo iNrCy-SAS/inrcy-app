@@ -71,7 +71,6 @@ export default function ProfileWorkspacePage() {
             markActivityCompleted();
             void checkActivity();
           }}
-          onOpenAiMemory={() => navigate("/dashboard/adn-entreprise")}
         />
       </section>
     </main>

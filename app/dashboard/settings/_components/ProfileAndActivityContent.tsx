@@ -15,7 +15,6 @@ type Props = {
   onActivitySaved?: () => unknown | Promise<unknown>;
   onActivityReset?: () => unknown | Promise<unknown>;
   onCloseDrawer?: () => unknown | Promise<unknown>;
-  onOpenAiMemory: () => void;
 };
 
 export default function ProfileAndActivityContent({
@@ -26,7 +25,6 @@ export default function ProfileAndActivityContent({
   onActivitySaved,
   onActivityReset,
   onCloseDrawer,
-  onOpenAiMemory,
 }: Props) {
   const t = useTranslations("dashboard.profilePanel");
   const profileRef = useRef<ProfilContentHandle | null>(null);
@@ -145,17 +143,6 @@ export default function ProfileAndActivityContent({
       {saved ? <div style={successStyle}>{t("saved")}</div> : null}
 
       <div data-profile-workspace-footer style={profileFooterStyle}>
-        <button type="button" onClick={onOpenAiMemory} style={memoryButtonStyle}>
-          <span aria-hidden style={{ fontSize: 24 }}>🧬</span>
-          <span style={{ display: "grid", gap: 2, minWidth: 0, textAlign: "left" }}>
-            <strong style={{ fontSize: 13.5 }}>{t("memoryTitle")}</strong>
-            <span style={{ color: "rgba(255,255,255,0.66)", fontSize: 11.5, lineHeight: 1.35 }}>
-              {t("memoryDescription")}
-            </span>
-          </span>
-          <span aria-hidden style={{ color: "#c4b5fd", fontSize: 20 }}>›</span>
-        </button>
-
         <div data-combined-profile-actions style={actionsStyle}>
           <button
             type="button"
@@ -219,27 +206,13 @@ const actionsStyle: CSSProperties = {
   gridTemplateColumns: "minmax(112px, .72fr) minmax(180px, 1.28fr)",
   gap: 9,
   alignSelf: "stretch",
+  width: "min(100%, 700px)",
 };
 
 const profileFooterStyle: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "minmax(0, 1.15fr) minmax(330px, .85fr)",
+  display: "flex",
+  justifyContent: "flex-end",
   alignItems: "stretch",
-  gap: 10,
-};
-
-const memoryButtonStyle: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "auto minmax(0, 1fr) auto",
-  alignItems: "center",
-  gap: 11,
-  width: "100%",
-  borderRadius: 16,
-  border: "1px solid rgba(167,139,250,0.32)",
-  background: "linear-gradient(135deg, rgba(124,58,237,0.18), rgba(14,165,233,0.10))",
-  color: "white",
-  padding: "10px 12px",
-  cursor: "pointer",
 };
 
 const secondaryButtonStyle: CSSProperties = {
