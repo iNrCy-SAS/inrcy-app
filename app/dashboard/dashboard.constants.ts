@@ -209,7 +209,7 @@ export const fluxModules: Module[] = [
   {
     key: "x",
     name: "X",
-    description: "Réagissez à l’actualité en temps réel ⚡",
+    description: "Prenez part aux conversations qui comptent ⚡",
     status: "available",
     accent: "cyan",
     actions: [
