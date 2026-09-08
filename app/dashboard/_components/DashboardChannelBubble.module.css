@@ -418,15 +418,6 @@
   filter: drop-shadow(0 28px 56px rgba(0, 0, 0, 0.38));
 }
 
-.desktopCenterFeatured {
-  width: 360px;
-  height: 360px;
-}
-
-.desktopCenterFeatured > .card {
-  width: 360px;
-}
-
 .desktopSide {
   width: 255px;
   height: 255px;
@@ -452,11 +443,6 @@
     width: min(62vw, 344px);
     height: auto;
     aspect-ratio: 1;
-  }
-
-  .desktopCenterFeatured,
-  .desktopCenterFeatured > .card {
-    width: min(62vw, 344px);
   }
 }
 

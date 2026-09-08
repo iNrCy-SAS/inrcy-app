@@ -659,7 +659,7 @@ export default function DashboardChannelsSection({
               )}
 
               {desktopActiveItem && (
-                <div className={`${bubbleStyles.desktopItem} ${bubbleStyles.desktopCenter} ${desktopActiveItem.key === "x" ? bubbleStyles.desktopCenterFeatured : ""}`}>
+                <div className={`${bubbleStyles.desktopItem} ${bubbleStyles.desktopCenter}`}>
                   {renderFluxBubble(desktopActiveItem, `${desktopActiveItem.key}_desktop_active`)}
                 </div>
               )}
