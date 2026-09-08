@@ -74,10 +74,12 @@ test("iNrAgent keeps X URL-free without blocking the other publication channels"
   );
 });
 
-test("the desktop iNrAgent channel rail reserves space for every bubble and both arrows", () => {
-  assert.match(agentStyles, /@media \(min-width: 1251px\)[\s\S]*?minmax\(500px, 1\.55fr\)/);
-  assert.match(agentStyles, /channelScrollerWrapPublish[\s\S]*?min-width:\s*500px/);
-  assert.match(agentStyles, /grid-template-columns:\s*30px minmax\(0, 1fr\) 30px/);
+test("the desktop iNrAgent channel rail hugs every bubble and both arrows", () => {
+  assert.match(agentStyles, /@media \(min-width: 1251px\)[\s\S]*?max-content minmax\(165px, 0\.68fr\)/);
+  assert.match(agentStyles, /channelScrollerWrapPublish[\s\S]*?width:\s*max-content/);
+  assert.match(agentStyles, /channelScrollerWrapPublish[\s\S]*?max-width:\s*430px/);
+  assert.match(agentStyles, /grid-template-columns:\s*28px max-content 28px/);
+  assert.match(agentStyles, /channelScroller button[\s\S]*?flex:\s*0 0 28px/);
 });
 
 test("X connection state hydrates live and cached iNrAgent channel lists", () => {

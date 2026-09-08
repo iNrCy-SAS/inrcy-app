@@ -18074,29 +18074,50 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 @media (min-width: 1251px) {
   .previewMetaPublish {
     grid-template-columns:
-      minmax(500px, 1.55fr) minmax(165px, 0.68fr)
-      44px 44px 44px minmax(220px, 0.84fr) !important;
+      max-content minmax(165px, 0.68fr)
+      44px 44px 44px minmax(260px, 1fr) !important;
   }
 
   .previewMetaPublish .channelsItem {
-    min-width: 500px !important;
-    padding-inline: 4px !important;
+    width: max-content !important;
+    min-width: 0 !important;
+    padding-inline: 0 !important;
+    justify-self: start !important;
     overflow: visible !important;
   }
 
   .previewMetaPublish .channelScrollerWrapPublish {
-    width: 500px !important;
-    min-width: 500px !important;
-    max-width: 500px !important;
-    grid-template-columns: 30px minmax(0, 1fr) 30px !important;
-    gap: 5px !important;
+    width: max-content !important;
+    min-width: 0 !important;
+    max-width: 430px !important;
+    grid-template-columns: 28px max-content 28px !important;
+    gap: 2px !important;
     overflow: visible !important;
   }
 
   .previewMetaPublish .channelScroller {
-    justify-content: center !important;
-    gap: 4px !important;
-    padding-inline: 3px !important;
-    overflow: hidden !important;
+    width: max-content !important;
+    flex: 0 0 auto !important;
+    justify-content: flex-start !important;
+    gap: 2px !important;
+    padding-inline: 0 !important;
+    overflow: visible !important;
+  }
+
+  .previewMetaPublish .channelScroller button {
+    width: 28px !important;
+    min-width: 28px !important;
+    max-width: 28px !important;
+    height: 28px !important;
+    min-height: 28px !important;
+    max-height: 28px !important;
+    flex: 0 0 28px !important;
+  }
+
+  .previewMetaPublish .channelNavArrow {
+    width: 28px !important;
+    min-width: 28px !important;
+    height: 28px !important;
+    min-height: 28px !important;
   }
 }
