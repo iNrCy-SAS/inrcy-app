@@ -3,6 +3,7 @@ import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { buildSnapshotWindow } from '@/lib/stats/snapshotWindow';
 import { buildStatsConnectionSignature } from '@/lib/stats/connectionSignature';
+import { createInrcyPublishedActivityLoader } from '@/lib/stats/buildOverview.activity';
 import { hasUsableLinkedInFallbackBlock, readLastGoodLinkedInGeneratorBlock, shouldUseLinkedInStatsFallback } from '@/lib/linkedinStatsFallback';
 import { buildGeneratorChannelBlocks, summarizeGeneratorChannelBlocks, type GeneratorChannelBlocksByChannel } from '@/lib/generator/channelBlocks';
 import {
@@ -234,6 +235,7 @@ export async function buildMetricsSummary(args: {
     } catch {}
   }
 
+  const inrcyPublishedActivityLoader = createInrcyPublishedActivityLoader({ supabase, userId });
   const [profile, monthOverviews, weekOverviews] = await Promise.all([
     profileOverride
       ? Promise.resolve(profileOverride)
@@ -243,10 +245,10 @@ export async function buildMetricsSummary(args: {
         }),
     monthOverviewsOverride
       ? Promise.resolve(monthOverviewsOverride)
-      : safe('overviews_30d', () => fetchCubeOverviews({ origin, days: monthDays, getHeaders, bypassCache: fresh, supabase, userId, snapshotDate: dateWindow.snapshotDate }), {}),
+      : safe('overviews_30d', () => fetchCubeOverviews({ origin, days: monthDays, getHeaders, bypassCache: fresh, supabase, userId, snapshotDate: dateWindow.snapshotDate, inrcyPublishedActivityLoader }), {}),
     weekOverviewsOverride
       ? Promise.resolve(weekOverviewsOverride)
-      : safe('overviews_7d', () => fetchCubeOverviews({ origin, days: weekDays, getHeaders, bypassCache: fresh, supabase, userId, snapshotDate: dateWindow.snapshotDate }), {}),
+      : safe('overviews_7d', () => fetchCubeOverviews({ origin, days: weekDays, getHeaders, bypassCache: fresh, supabase, userId, snapshotDate: dateWindow.snapshotDate, inrcyPublishedActivityLoader }), {}),
   ]);
 
   const [oppResolved, history30Resolved, history7Resolved] = await Promise.all([

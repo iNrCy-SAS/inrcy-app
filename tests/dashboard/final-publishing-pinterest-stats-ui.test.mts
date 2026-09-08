@@ -7,6 +7,44 @@ const ROOT = process.cwd();
 const read = (relativePath: string) =>
   readFileSync(path.join(ROOT, relativePath), "utf8");
 
+const escapeRegExp = (value: string) =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const cssDeclarations = (
+  source: string,
+  selector: string,
+  property: string,
+) => {
+  const rulePattern = /([^{}]+)\{([^{}]*)\}/g;
+  const declarationPattern = new RegExp(
+    `${escapeRegExp(property)}\\s*:\\s*([^;]+);`,
+    "g",
+  );
+  const values: string[] = [];
+  const sourceWithoutComments = source.replace(/\/\*[\s\S]*?\*\//g, "");
+
+  for (const rule of sourceWithoutComments.matchAll(rulePattern)) {
+    const selectors = rule[1].split(",").map((value) => value.trim());
+    if (!selectors.includes(selector)) continue;
+
+    for (const declaration of rule[2].matchAll(declarationPattern)) {
+      values.push(declaration[1].trim());
+    }
+  }
+
+  assert.ok(
+    values.length > 0,
+    `Expected ${selector} to declare ${property}`,
+  );
+  return values;
+};
+
+const lastCssDeclaration = (
+  source: string,
+  selector: string,
+  property: string,
+) => cssDeclarations(source, selector, property).at(-1)!;
+
 test("Booster explains the 300 Mo source ceiling and the automatic optimization thresholds", () => {
   const shared = read("app/dashboard/booster/publier/publishModal.shared.tsx");
   const intent = read(
@@ -131,5 +169,113 @@ test("iNrStats uses a full-width master/detail table on desktop", () => {
   assert.match(
     css,
     /\.allStatsActionCard \{[\s\S]*?grid-template-columns:[\s\S]*?minmax\(116px, 0\.58fr\)[\s\S]*?minmax\(58px, 0\.3fr\) !important;/,
+  );
+});
+
+test("iNrStats keeps its taller global summary and all channel rows compact without desktop overflow", () => {
+  const client = read("app/dashboard/stats/StatsClient.tsx");
+  const css = read("app/dashboard/stats/stats.module.css");
+  const globalWorkspace = '.statsWorkspace[data-stats-view="global"]';
+  const globalHero = `${globalWorkspace} .allStatsHero`;
+  const globalActions = `${globalWorkspace} .allStatsActions`;
+  const globalRow = `${globalWorkspace} .allStatsActionCard`;
+
+  assert.match(client, /className=\{styles\.allStatsTitle\}>\{i18nT\("vue_globale_08073c33"\)\}/);
+  assert.match(client, /<div className=\{styles\.allStatsKpis\}>[\s\S]*?<button[\s\S]*?className=\{styles\.allStatsReportButton\}/);
+
+  const heroHeight = Number.parseFloat(
+    lastCssDeclaration(css, globalHero, "min-height"),
+  );
+  assert.ok(
+    heroHeight >= 56,
+    `Expected the final desktop hero to be at least 56px high, got ${heroHeight}px`,
+  );
+
+  const rowGrid = lastCssDeclaration(
+    css,
+    globalRow,
+    "grid-template-columns",
+  );
+  const fixedFirstTrack = rowGrid.match(/^(\d+(?:\.\d+)?)px\b/);
+  const flexibleFirstTrack = rowGrid.match(
+    /^minmax\((\d+(?:\.\d+)?)px,\s*(\d+(?:\.\d+)?)fr\)/,
+  );
+  assert.ok(
+    fixedFirstTrack || flexibleFirstTrack,
+    "Expected the desktop channel row to start with a fixed or minmax() pixel track",
+  );
+  const firstTrackPixels = Number(
+    fixedFirstTrack?.[1] ?? flexibleFirstTrack?.[1],
+  );
+  const firstTrackFraction = Number(flexibleFirstTrack?.[2] ?? 0);
+  assert.ok(
+    firstTrackPixels <= 160 && firstTrackFraction <= 0.9,
+    `Expected a tightened first track (at most 160px / 0.9fr), got ${fixedFirstTrack?.[0] ?? flexibleFirstTrack?.[0]}`,
+  );
+  assert.equal(
+    rowGrid.replace(/\s*!important$/, "").match(/minmax\([^)]*\)|auto|\d+(?:\.\d+)?px/g)?.length,
+    5,
+    "Expected the compact desktop channel row to retain its five columns",
+  );
+
+  assert.match(lastCssDeclaration(css, ".page", "overflow"), /^hidden\b/);
+  assert.match(lastCssDeclaration(css, globalWorkspace, "overflow-x"), /^hidden\b/);
+  assert.match(lastCssDeclaration(css, globalWorkspace, "overflow-y"), /^hidden\b/);
+  assert.match(lastCssDeclaration(css, globalActions, "overflow-x"), /^hidden\b/);
+  assert.match(lastCssDeclaration(css, globalActions, "overflow-y"), /^hidden\b/);
+  assert.ok(
+    cssDeclarations(css, globalActions, "grid-auto-rows").some((value) =>
+      /^minmax\(44px,\s*1fr\)/.test(value),
+    ),
+    "Expected the normal desktop rows to retain their compact 44px floor",
+  );
+});
+
+test("iNrStats detail keeps the direct back action, centered title and KPIs on one desktop header row", () => {
+  const client = read("app/dashboard/stats/StatsClient.tsx");
+  const css = read("app/dashboard/stats/stats.module.css");
+
+  assert.match(
+    client,
+    /<div className=\{styles\.channelStatsHeader\}>\s*<button[\s\S]*?className=\{styles\.channelStatsBackButton\}[\s\S]*?onClick=\{\(\) => selectStatsPanel\("all"\)\}[\s\S]*?<\/button>\s*<div className=\{styles\.channelStatsTitleBlock\}>/,
+  );
+  assert.match(
+    client,
+    /<div className=\{styles\.channelStatsTitleBlock\}>[\s\S]*?<h2 className=\{styles\.allStatsTitle\}>\{activeModel\.title\}<\/h2>[\s\S]*?<\/div>\s*<div className=\{`\$\{styles\.allStatsKpis\} \$\{styles\.channelStatsKpis\}/,
+  );
+
+  const headerGrid = lastCssDeclaration(
+    css,
+    ".statsWorkspaceChannel .channelStatsHeader",
+    "grid-template-columns",
+  );
+  assert.match(
+    headerGrid,
+    /^(?:auto|minmax\([^)]*\))\s+(?:auto|minmax\([^)]*\))\s+(?:auto|minmax\([^)]*\))\s*!important$/,
+    "Expected the final desktop detail header to keep back, title and KPIs on three columns",
+  );
+  assert.match(
+    lastCssDeclaration(
+      css,
+      ".statsWorkspaceChannel .channelStatsHeader > .channelStatsTitleBlock",
+      "grid-column",
+    ),
+    /^2\b/,
+  );
+  assert.match(
+    lastCssDeclaration(
+      css,
+      ".statsWorkspaceChannel .channelStatsHeader > .channelStatsTitleBlock",
+      "text-align",
+    ),
+    /^center\b/,
+  );
+  assert.match(
+    lastCssDeclaration(
+      css,
+      ".statsWorkspaceChannel .channelStatsHeader .channelStatsKpis",
+      "grid-column",
+    ),
+    /^3\b/,
   );
 });

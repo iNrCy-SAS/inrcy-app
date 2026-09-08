@@ -4,8 +4,33 @@ import {
   INRCY_PUBLISHABLE_CHANNELS,
   asRecord,
 } from "@/lib/stats/buildOverview.shared";
-import type { InrcyActivityStatsByChannel } from "@/lib/stats/buildOverview.shared";
+import type {
+  InrcyActivityStatsByChannel,
+  InrcyPublicationType,
+  InrcyWindowCount,
+} from "@/lib/stats/buildOverview.shared";
 import { INRCY_STATS_CACHE_SCHEMA_VERSION } from "@/lib/stats/cacheSchema";
+
+const INRCY_PUBLICATION_TYPE_KEYS = [
+  "text",
+  "image",
+  "video",
+  "classic",
+  "reel",
+  "story",
+  "short",
+  "pin",
+  "unknown",
+] as const satisfies readonly InrcyPublicationType[];
+
+function windowCountFingerprint(value: InrcyWindowCount | undefined) {
+  return [
+    value?.week ?? 0,
+    value?.month ?? 0,
+    value?.year ?? 0,
+    value?.total ?? 0,
+  ].join(",");
+}
 
 export async function buildOverviewConnectionsKey({
   integrationsAll,
@@ -71,24 +96,28 @@ export async function buildOverviewConnectionsKey({
 
   keyParts.push(`inrcyTrackingEnabled:${inrcyTrackingEnabled ? "1" : "0"}`);
   keyParts.push(`business:sector=${sectorCategory}:profession=${profession}`);
-  keyParts.push("statsVersion:inrcyPublishedActivityV1");
+  keyParts.push("statsVersion:inrcyPublishedActivityV2");
   keyParts.push(
     `inrcyActivity:${INRCY_PUBLISHABLE_CHANNELS.map((channel) => {
       const stats = inrcyPublishedActivityStats[channel];
+      const publicationTypes = stats?.publicationTypes;
+      const publicationTypesFingerprint = INRCY_PUBLICATION_TYPE_KEYS.map(
+        (type) => `${type}=${windowCountFingerprint(publicationTypes?.[type])}`,
+      ).join(",");
+      const historyCompleteness = stats
+        ? stats.publicationHistoryComplete
+          ? "complete"
+          : "truncated"
+        : "unavailable";
       return [
         channel,
-        stats?.publications.week || 0,
-        stats?.publications.month || 0,
-        stats?.publications.total || 0,
-        stats?.photoPosts.week || 0,
-        stats?.photoPosts.month || 0,
-        stats?.photoPosts.total || 0,
-        stats?.photos.week || 0,
-        stats?.photos.month || 0,
-        stats?.photos.total || 0,
-        stats?.videos.week || 0,
-        stats?.videos.month || 0,
-        stats?.videos.total || 0,
+        stats ? "available" : "unavailable",
+        `publications=${windowCountFingerprint(stats?.publications)}`,
+        `photoPosts=${windowCountFingerprint(stats?.photoPosts)}`,
+        `photos=${windowCountFingerprint(stats?.photos)}`,
+        `videos=${windowCountFingerprint(stats?.videos)}`,
+        `types=${publicationTypes ? "available" : "unavailable"}:${publicationTypesFingerprint}`,
+        `history=${historyCompleteness}`,
         stats?.latestAt || "none",
       ].join(":");
     }).join("|")}`,

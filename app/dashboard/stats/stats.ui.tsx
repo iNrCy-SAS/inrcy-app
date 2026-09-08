@@ -1,7 +1,7 @@
 import { useLocale, useTranslations } from "next-intl";
 import React, { useState } from "react";
 import styles from "./stats.module.css";
-import { fmtInt, type CubeModel } from "./stats.shared";
+import { fmtInt, type CubeModel, type InrcyPublicationType } from "./stats.shared";
 
 function Donut({ segments }: { segments: Array<{ label: string; value: number; colorVar: string }> }) {
   const total = segments.reduce((sum, segment) => sum + Math.max(0, segment.value), 0);
@@ -167,6 +167,100 @@ function InrcyActivityBlock({ model }: { model: CubeModel }) {
   const formatInt = (value: number) => fmtInt(value, locale);
   const stats = model.inrcyActivityStats;
   if (!stats) return null;
+
+  if (stats.publicationTrackingAvailable !== undefined) {
+    const trackingAvailable = stats.publicationTrackingAvailable;
+    const typeLabelKeys: Record<Exclude<InrcyPublicationType, "unknown">, string> = {
+      text: "publication_type_text",
+      image: "publication_type_image",
+      video: "publication_type_video",
+      classic: "publication_type_classic",
+      reel: "publication_type_reel",
+      story: "publication_type_story",
+      short: "publication_type_short",
+      pin: "publication_type_pin",
+    };
+    const typeOrder: Array<Exclude<InrcyPublicationType, "unknown">> = [
+      "classic",
+      "text",
+      "image",
+      "video",
+      "reel",
+      "story",
+      "short",
+      "pin",
+    ];
+    const types = trackingAvailable ? typeOrder
+      .map((type) => ({
+        type,
+        label: i18nT(typeLabelKeys[type]),
+        value: Math.max(0, stats.publicationTypes?.[type]?.year || 0),
+      }))
+      .filter((item) => item.value > 0) : [];
+    const unknownCount = trackingAvailable ? Math.max(0, stats.publicationTypes?.unknown?.year || 0) : 0;
+    const noPublications = trackingAvailable && stats.publications.year <= 0;
+    const formatPublicationCount = (value: number) => trackingAvailable ? formatInt(value) : "—";
+
+    return (
+      <div className={`${styles.block} ${styles.inrcyActivityBlock} ${styles.publicationsActivityBlock}`}>
+        <div className={styles.inrcyActivityTitle}>{i18nT("publications_completed")}</div>
+        <div className={styles.publicationsActivityLayout}>
+          <div className={styles.publicationWindowGrid} aria-label={i18nT("publication_volume")}>
+            <div className={styles.publicationWindowCard}>
+              <b>{formatPublicationCount(stats.publications.week)}</b>
+              <small>{i18nT("7j_bf2371a9")}</small>
+            </div>
+            <div className={styles.publicationWindowCard}>
+              <b>{formatPublicationCount(stats.publications.month)}</b>
+              <small>{i18nT("30j_30690e0d")}</small>
+            </div>
+            <div className={styles.publicationWindowCard}>
+              <b>{formatPublicationCount(stats.publications.year)}</b>
+              <small>{i18nT("12_months_short")}</small>
+            </div>
+          </div>
+
+          <div className={styles.publicationTypesPanel}>
+            <span className={styles.publicationTypesLabel}>{i18nT("publication_types_12m")}</span>
+            {!trackingAvailable ? (
+              <span className={styles.publicationTypesEmpty}>
+                {i18nT("publication_tracking_unavailable")}
+              </span>
+            ) : types.length > 0 ? (
+              <div className={styles.publicationTypeChips}>
+                {types.map((item) => (
+                  <span key={item.type} className={`${styles.publicationTypeChip} ${styles[`publicationType_${item.type}`]}`}>
+                    <span>{item.label}</span>
+                    <b>{formatInt(item.value)}</b>
+                  </span>
+                ))}
+                {unknownCount > 0 ? (
+                  <small className={styles.publicationTypesNote}>
+                    {i18nT("publication_type_unknown_count", { count: formatInt(unknownCount) })}
+                  </small>
+                ) : null}
+              </div>
+            ) : unknownCount > 0 ? (
+              <div className={styles.publicationTypeChips}>
+                <small className={styles.publicationTypesNote}>
+                  {i18nT("publication_type_unknown_count", { count: formatInt(unknownCount) })}
+                </small>
+              </div>
+            ) : (
+              <span className={styles.publicationTypesEmpty}>
+                {noPublications
+                  ? i18nT("publications_none_12m")
+                  : i18nT("publication_types_unavailable")}
+              </span>
+            )}
+            {trackingAvailable && stats.publicationHistoryComplete === false ? (
+              <small className={styles.publicationHistoryNote}>{i18nT("publication_history_partial")}</small>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const title = model.key === "inrbadge"
     ? i18nT("activity_inrbadge")
@@ -397,12 +491,14 @@ export function Cube({
   forceOpen = false,
   hideDetailsToggle = false,
   estimatedRevenue = 0,
+  statsReady = true,
 }: {
   model: CubeModel;
   onNavigate: (href: string) => void;
   forceOpen?: boolean;
   hideDetailsToggle?: boolean;
   estimatedRevenue?: number;
+  statsReady?: boolean;
 }) {
   const locale = useLocale();
   const i18nT = useTranslations("stats");
@@ -512,21 +608,21 @@ export function Cube({
           <div className={styles.mobileChannelMetricGrid}>
             <div>
               <span>{i18nT("opportunites_0dbfa3c5")}</span>
-              <b>+{formatInt(model.opportunity30)}</b>
+              <b>{statsReady ? `+${formatInt(model.opportunity30)}` : "—"}</b>
             </div>
             <div>
               <span>{i18nT("ca_potentiel_fc9eeae4")}</span>
-              <b>+{formatInt(estimatedRevenue)} €</b>
+              <b>{statsReady ? `+${formatInt(estimatedRevenue)} €` : "—"}</b>
             </div>
             {model.key !== "mails" ? (
               <>
                 <div>
                   <span>{i18nT("demandes_captees_7j_15a42cdd")}</span>
-                  <b>{model.capturedLeadsUnavailable ? "—" : formatInt(model.capturedLeads.week)}</b>
+                  <b>{model.capturedLeadsUnavailable || !statsReady ? "—" : formatInt(model.capturedLeads.week)}</b>
                 </div>
                 <div>
                   <span>{i18nT("demandes_captees_30j_0cdf7d86")}</span>
-                  <b>{model.capturedLeadsUnavailable ? "—" : formatInt(model.capturedLeads.month)}</b>
+                  <b>{model.capturedLeadsUnavailable || !statsReady ? "—" : formatInt(model.capturedLeads.month)}</b>
                 </div>
               </>
             ) : null}
@@ -569,7 +665,7 @@ export function Cube({
         </div>
       ) : null}
 
-      {detailsOpen ? (
+      {detailsOpen && statsReady ? (
         <div className={`${styles.cubeBody} ${model.inrcyActivityStats ? styles.cubeBodyWithInrcyActivity : ""}`}>
           <div className={styles.detailTopRow}>
             <div className={`${styles.block} ${styles.metricOverviewBlock}`}>

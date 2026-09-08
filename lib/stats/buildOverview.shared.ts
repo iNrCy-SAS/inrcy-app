@@ -414,18 +414,34 @@ export function shouldCacheLinkedInMetrics(metrics: unknown) {
 export type InrcyWindowCount = {
   week: number;
   month: number;
+  year: number;
   total: number;
 };
+
+export type InrcyPublicationType =
+  | "text"
+  | "image"
+  | "video"
+  | "classic"
+  | "reel"
+  | "story"
+  | "short"
+  | "pin"
+  | "unknown";
+
+export type InrcyActivityChannelKey = OverviewCubeKey | "inr_search";
 
 export type InrcyChannelActivityStats = {
   publications: InrcyWindowCount;
   photoPosts: InrcyWindowCount;
   photos: InrcyWindowCount;
   videos: InrcyWindowCount;
+  publicationTypes: Partial<Record<InrcyPublicationType, InrcyWindowCount>>;
+  publicationHistoryComplete: boolean;
   latestAt: string | null;
 };
 
-export type InrcyActivityStatsByChannel = Partial<Record<OverviewCubeKey, InrcyChannelActivityStats>>;
+export type InrcyActivityStatsByChannel = Partial<Record<InrcyActivityChannelKey, InrcyChannelActivityStats>>;
 
 export type TiktokLocalPublicationStats = {
   posts: number;
@@ -451,9 +467,10 @@ export type YoutubeShortsLocalPublicationStats = {
   latestAt: string | null;
 };
 
-export const INRCY_PUBLISHABLE_CHANNELS: OverviewCubeKey[] = [
+export const INRCY_PUBLISHABLE_CHANNELS: InrcyActivityChannelKey[] = [
   "site_inrcy",
   "site_web",
+  "inr_search",
   "gmb",
   "facebook",
   "instagram",
@@ -465,7 +482,7 @@ export const INRCY_PUBLISHABLE_CHANNELS: OverviewCubeKey[] = [
 ];
 
 export function emptyWindowCount(): InrcyWindowCount {
-  return { week: 0, month: 0, total: 0 };
+  return { week: 0, month: 0, year: 0, total: 0 };
 }
 
 export function emptyInrcyChannelActivityStats(): InrcyChannelActivityStats {
@@ -474,6 +491,8 @@ export function emptyInrcyChannelActivityStats(): InrcyChannelActivityStats {
     photoPosts: emptyWindowCount(),
     photos: emptyWindowCount(),
     videos: emptyWindowCount(),
+    publicationTypes: {},
+    publicationHistoryComplete: true,
     latestAt: null,
   };
 }
@@ -485,20 +504,51 @@ export function emptyInrcyActivityStatsByChannel(): InrcyActivityStatsByChannel 
 }
 
 
+function normalizeInrcyActivityChannel(value: unknown): string {
+  const channel = String(value || "").trim().toLowerCase();
+  return channel === "inrcy_site" ? "site_inrcy" : channel;
+}
+
+export function inrcyActivityPayloadChannelKeys(
+  channel: InrcyActivityChannelKey,
+): string[] {
+  return channel === "site_inrcy" ? ["site_inrcy", "inrcy_site"] : [channel];
+}
+
+function payloadChannelValue(
+  container: Record<string, unknown>,
+  channel: InrcyActivityChannelKey,
+): unknown {
+  for (const key of inrcyActivityPayloadChannelKeys(channel)) {
+    if (Object.prototype.hasOwnProperty.call(container, key)) return container[key];
+  }
+  return undefined;
+}
+
+function payloadChannelRecord(
+  container: Record<string, unknown>,
+  channel: InrcyActivityChannelKey,
+): Record<string, unknown> {
+  return asRecord(payloadChannelValue(container, channel));
+}
+
 export function normalizePayloadChannels(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value
-    .map((entry) => String(entry || "").trim().toLowerCase())
+    .map(normalizeInrcyActivityChannel)
     .filter(Boolean);
 }
 
-export function payloadSucceededForChannel(payload: Record<string, unknown>, channel: OverviewCubeKey) {
+export function payloadSucceededForChannel(
+  payload: Record<string, unknown>,
+  channel: InrcyActivityChannelKey,
+) {
   const summary = asRecord(payload["summary"]);
   const successChannels = normalizePayloadChannels(summary["successChannels"]);
   if (successChannels.includes(channel)) return true;
 
   const results = asRecord(payload["results"]);
-  const channelResult = asRecord(results[channel]);
+  const channelResult = payloadChannelRecord(results, channel);
   if (Object.keys(channelResult).length) return channelResult["ok"] !== false;
 
   const channels = normalizePayloadChannels(payload["channels"]);
@@ -507,36 +557,45 @@ export function payloadSucceededForChannel(payload: Record<string, unknown>, cha
 
 export function inferPayloadMediaKindForChannel(
   payload: Record<string, unknown>,
-  channel: OverviewCubeKey,
+  channel: InrcyActivityChannelKey,
 ): "video" | "photos" | "none" | "unknown" {
   const results = asRecord(payload["results"]);
-  const channelResult = asRecord(results[channel]);
+  const channelResult = payloadChannelRecord(results, channel);
   const diagnostics = asRecord(channelResult["diagnostics"]);
   const modeByChannel = asRecord(payload["mediaModeByChannel"]);
   const postByChannel = asRecord(payload["postByChannel"]);
-  const channelPost = asRecord(postByChannel[channel]);
+  const channelPost = payloadChannelRecord(postByChannel, channel);
   const candidates = [
     channelResult["tiktok_media_type"],
     channelResult["media_type"],
     channelResult["mediaType"],
+    channelResult["instagram_media_type"],
     diagnostics["mediaType"],
-    modeByChannel[channel],
+    diagnostics["media_type"],
+    payloadChannelValue(modeByChannel, channel),
     channelPost["mediaMode"],
+    channelPost["mediaType"],
     payload["mediaType"],
   ];
 
   for (const candidate of candidates) {
     const value = String(candidate || "").trim().toLowerCase();
     if (!value) continue;
-    if (value === "none") return "none";
+    if (value === "none" || value === "text" || value === "text_only") return "none";
     if (value.includes("video")) return "video";
-    if (value.includes("photo") || value.includes("image") || value.includes("images")) return "photos";
+    if (
+      value.includes("photo") ||
+      value.includes("image") ||
+      value.includes("carousel")
+    ) return "photos";
   }
 
   return "unknown";
 }
 
-export function inferYoutubeVideoPublicationKind(payload: Record<string, unknown>): "short" | "long" {
+function inferYoutubePublicationType(
+  payload: Record<string, unknown>,
+): "short" | "video" | null {
   const results = asRecord(payload["results"]);
   const channelResult = asRecord(results["youtube_shorts"]);
   const diagnostics = asRecord(channelResult["diagnostics"]);
@@ -544,41 +603,129 @@ export function inferYoutubeVideoPublicationKind(payload: Record<string, unknown
   const youtubeVideo = asRecord(videoByChannel["youtube_shorts"]);
   const videoSettingsByChannel = asRecord(payload["videoSettingsByChannel"]);
   const youtubeSettings = asRecord(videoSettingsByChannel["youtube_shorts"]);
+  const postByChannel = asRecord(payload["postByChannel"]);
+  const youtubePost = asRecord(postByChannel["youtube_shorts"]);
 
   const explicitType = String(
     channelResult["youtube_publication_type"] ||
       channelResult["youtubePublicationType"] ||
       diagnostics["publicationType"] ||
       diagnostics["youtube_publication_type"] ||
+      youtubePost["youtube_publication_type"] ||
+      youtubePost["youtubePublicationType"] ||
+      youtubeSettings["publicationType"] ||
       "",
   ).trim().toLowerCase();
   if (explicitType === "short" || explicitType === "shorts") return "short";
-  if (explicitType === "video" || explicitType === "long" || explicitType === "classic") return "long";
+  if (explicitType === "video" || explicitType === "long" || explicitType === "classic") return "video";
 
   const duration = Number(
     channelResult["youtube_duration_seconds"] ??
       youtubeVideo["duration"] ??
-      asRecord(payload["video"])["duration"] ??
-      0,
+      asRecord(payload["video"])["duration"],
   );
   const format = String(
     channelResult["youtube_format"] ||
       youtubeSettings["format"] ||
       asRecord(asRecord(youtubeVideo["transformedVariant"]).target)["format"] ||
-      "",
+    "",
   ).trim();
 
-  if (Number.isFinite(duration) && duration > 180) return "long";
-  if (format === "16_9") return "long";
-  return "short";
+  if (Number.isFinite(duration) && duration > 180) return "video";
+  if (format === "16_9") return "video";
+  if (Number.isFinite(duration) && duration > 0 && duration <= 180) return "short";
+  return null;
 }
 
-export function inferPhotoCountForChannel(payload: Record<string, unknown>, channel: OverviewCubeKey) {
+export function inferYoutubeVideoPublicationKind(
+  payload: Record<string, unknown>,
+): "short" | "long" | "unknown" {
+  const publicationType = inferYoutubePublicationType(payload);
+  if (publicationType === "video") return "long";
+  if (publicationType === "short") return "short";
+  return "unknown";
+}
+
+function normalizeMetaPlacement(value: unknown): "classic" | "reel" | "story" | null {
+  const placement = String(value || "").trim().toLowerCase();
+  if (placement === "reel" || placement === "reels") return "reel";
+  if (placement === "story" || placement === "stories") return "story";
+  if (
+    placement === "classic" ||
+    placement === "feed" ||
+    placement === "post" ||
+    placement === "timeline"
+  ) return "classic";
+  return null;
+}
+
+function inferExplicitMetaPlacement(
+  payload: Record<string, unknown>,
+  channel: "facebook" | "instagram",
+): "classic" | "reel" | "story" | null {
   const results = asRecord(payload["results"]);
-  const channelResult = asRecord(results[channel]);
+  const channelResult = payloadChannelRecord(results, channel);
+  const diagnostics = asRecord(channelResult["diagnostics"]);
+  const settingsByChannel = asRecord(payload["publicationSettingsByChannel"]);
+  const channelSettings = payloadChannelRecord(settingsByChannel, channel);
+  const rootSettings = asRecord(payload[`${channel}PublicationSettings`]);
+  const postByChannel = asRecord(payload["postByChannel"]);
+  const channelPost = payloadChannelRecord(postByChannel, channel);
+  const postSettings = asRecord(channelPost["publicationSettings"]);
+
+  const candidates = [
+    channelResult["publication_placement"],
+    channelResult["publicationPlacement"],
+    channelResult["placement"],
+    diagnostics["publication_placement"],
+    diagnostics["publicationPlacement"],
+    diagnostics["placement"],
+    rootSettings["placement"],
+    channelSettings["placement"],
+    channelPost["placement"],
+    postSettings["placement"],
+    channel === "instagram" ? channelResult["instagram_media_type"] : null,
+    channel === "instagram" ? diagnostics["mediaType"] : null,
+  ];
+
+  for (const candidate of candidates) {
+    const placement = normalizeMetaPlacement(candidate);
+    if (placement) return placement;
+  }
+  return null;
+}
+
+export function inferPublicationTypeForChannel(
+  payload: Record<string, unknown>,
+  channel: InrcyActivityChannelKey,
+): InrcyPublicationType {
+  if (channel === "pinterest") return "pin";
+
+  if (channel === "youtube_shorts") {
+    return inferYoutubePublicationType(payload) || "unknown";
+  }
+
+  if (channel === "facebook" || channel === "instagram") {
+    const placement = inferExplicitMetaPlacement(payload, channel);
+    if (placement) return placement;
+  }
+
+  const mediaKind = inferPayloadMediaKindForChannel(payload, channel);
+  if (mediaKind === "none") return "text";
+  if (mediaKind === "photos") return "image";
+  if (mediaKind === "video") return "video";
+  return "unknown";
+}
+
+export function inferPhotoCountForChannel(
+  payload: Record<string, unknown>,
+  channel: InrcyActivityChannelKey,
+) {
+  const results = asRecord(payload["results"]);
+  const channelResult = payloadChannelRecord(results, channel);
   const diagnostics = asRecord(channelResult["diagnostics"]);
   const postByChannel = asRecord(payload["postByChannel"]);
-  const channelPost = asRecord(postByChannel[channel]);
+  const channelPost = payloadChannelRecord(postByChannel, channel);
 
   const explicitCount = Number(
     channelResult["media_count"] ??
@@ -628,9 +775,11 @@ export function incrementWindowCount(
   const deltaMs = Number.isFinite(createdAtMs) ? nowMs - createdAtMs : Number.POSITIVE_INFINITY;
   const weekMs = 7 * 24 * 60 * 60 * 1000;
   const monthMs = 30 * 24 * 60 * 60 * 1000;
+  const yearMs = 365 * 24 * 60 * 60 * 1000;
   counter.total += amount;
   if (deltaMs >= 0 && deltaMs <= weekMs) counter.week += amount;
   if (deltaMs >= 0 && deltaMs <= monthMs) counter.month += amount;
+  if (deltaMs >= 0 && deltaMs <= yearMs) counter.year += amount;
 }
 
 export function mergeTiktokLocalPublicationStats(

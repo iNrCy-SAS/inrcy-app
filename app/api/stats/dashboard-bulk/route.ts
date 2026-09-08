@@ -8,6 +8,7 @@ import { isAuthorizedCronRequest, getCronUserIdFromRequest } from '@/lib/cronAut
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { getChannelConnectionStates } from '@/lib/channelConnectionState';
 import { buildStatsConnectionSignature } from '@/lib/stats/connectionSignature';
+import { createInrcyPublishedActivityLoader } from '@/lib/stats/buildOverview.activity';
 import { applyLinkedInFallbackToStatsRecords, readLastGoodLinkedInGeneratorBlock } from '@/lib/linkedinStatsFallback';
 import { buildChannelBlocks, type InrstatsChannelBlocksByChannel } from '@/lib/inrstats/channelBlocks';
 import { DASHBOARD_CHANNEL_KEYS } from '@/lib/dashboardChannels';
@@ -71,6 +72,7 @@ async function dashboardStatsBulkHandler(req: Request) {
     const fresh = searchParams.get('fresh') === '1';
     const snapshotDate = (searchParams.get('snapshotDate') || '').trim() || null;
     const cookie = req.headers.get('cookie') || '';
+    const inrcyPublishedActivityLoader = createInrcyPublishedActivityLoader({ supabase, userId });
 
     const overviews = await fetchCubeOverviews({
       origin,
@@ -80,6 +82,7 @@ async function dashboardStatsBulkHandler(req: Request) {
       supabase,
       userId,
       snapshotDate,
+      inrcyPublishedActivityLoader,
     });
 
     const opportunities = toInrstatsSnapshot(computeOpportunitiesFromOverviews(overviews, period));
@@ -95,6 +98,7 @@ async function dashboardStatsBulkHandler(req: Request) {
             supabase,
             userId,
             snapshotDate,
+            inrcyPublishedActivityLoader,
           }),
       period === 30
         ? Promise.resolve(overviews)
@@ -106,6 +110,7 @@ async function dashboardStatsBulkHandler(req: Request) {
             supabase,
             userId,
             snapshotDate,
+            inrcyPublishedActivityLoader,
           }),
     ]);
 

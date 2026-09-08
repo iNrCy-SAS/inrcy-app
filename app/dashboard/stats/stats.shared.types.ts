@@ -127,13 +127,28 @@ export type CubeMetricItem = {
 export type InrcyActivityCount = {
   week: number;
   month: number;
+  year: number;
   total: number;
 };
+
+export type InrcyPublicationType =
+  | "text"
+  | "image"
+  | "video"
+  | "classic"
+  | "reel"
+  | "story"
+  | "short"
+  | "pin"
+  | "unknown";
 
 export type InrcyActivityStats = {
   publications: InrcyActivityCount;
   photos: InrcyActivityCount;
   videos: InrcyActivityCount;
+  publicationTypes?: Partial<Record<InrcyPublicationType, InrcyActivityCount>>;
+  publicationTrackingAvailable?: boolean;
+  publicationHistoryComplete?: boolean;
 };
 
 export type CubeModel = {

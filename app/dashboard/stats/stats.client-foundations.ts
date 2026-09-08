@@ -7,6 +7,7 @@ import {
   type CapturedLeads,
   type CubeKey,
   type CubeModel,
+  type InrcyActivityStats,
   type Period,
   type StatsTranslator,
 } from "./stats.shared";
@@ -612,9 +613,9 @@ export function buildMailCubeModel(stats: MailStatsSnapshot, period: Period, loc
         ]
       : [],
     inrcyActivityStats: {
-      publications: { week: 0, month: Math.max(0, stats.campagnes30), total: Math.max(0, stats.campagnesTotal) },
-      photos: { week: 0, month: Math.max(0, stats.mailsSimples30), total: Math.max(0, stats.mailsSimples30) },
-      videos: { week: 0, month: Math.max(0, stats.destinataires30), total: Math.max(0, stats.destinatairesTotal) },
+      publications: { week: 0, month: Math.max(0, stats.campagnes30), year: Math.max(0, stats.campagnesTotal), total: Math.max(0, stats.campagnesTotal) },
+      photos: { week: 0, month: Math.max(0, stats.mailsSimples30), year: Math.max(0, stats.mailsSimples30), total: Math.max(0, stats.mailsSimples30) },
+      videos: { week: 0, month: Math.max(0, stats.destinataires30), year: Math.max(0, stats.destinatairesTotal), total: Math.max(0, stats.destinatairesTotal) },
     },
     qualityScore,
     qualityLabel,
@@ -701,9 +702,9 @@ export function buildInrBadgeCubeModel(
         : null,
     ].filter((item): item is NonNullable<typeof item> => item !== null),
     inrcyActivityStats: {
-      publications: views,
-      photos: qrScans,
-      videos: actions,
+      publications: { ...views, year: views.total },
+      photos: { ...qrScans, year: qrScans.total },
+      videos: { ...actions, year: actions.total },
     },
     qualityScore,
     qualityLabel,
@@ -750,7 +751,13 @@ export function buildInrSearchOpportunity30(stats: InrSearchStatsSnapshot) {
   return Math.max(directContacts, Math.round(qualityBase + visibilityPotential + intentPotential));
 }
 
-export function buildInrSearchCubeModel(period: Period, stats: InrSearchStatsSnapshot, locale: string, t: StatsTranslator): CubeModel {
+export function buildInrSearchCubeModel(
+  period: Period,
+  stats: InrSearchStatsSnapshot,
+  locale: string,
+  t: StatsTranslator,
+  publicationActivityStats?: InrcyActivityStats | null,
+): CubeModel {
   const formatInt = (value: number) => fmtInt(value, locale);
   const actions = (key: string) => Math.max(0, Math.round(safeNum(stats.actionsByKey[key])));
   const engines = Math.max(0, Math.round(safeNum(stats.sources.google) + safeNum(stats.sources.bing)));
@@ -813,12 +820,13 @@ export function buildInrSearchCubeModel(period: Period, stats: InrSearchStatsSna
       { label: t("ouvertures_inr_badge_30j_ae971174"), value: formatInt(actions("inrbadge")) },
       { label: t("itineraires_30j_4bd37286"), value: formatInt(actions("directions")) },
     ],
-    inrcyActivityStats: {
-      publications: stats.views,
-      photos: stats.actions,
+    inrcyActivityStats: publicationActivityStats || {
+      publications: { ...stats.views, year: stats.views.total },
+      photos: { ...stats.actions, year: stats.actions.total },
       videos: {
         week: Math.max(0, Math.round(safeNum(stats.contactActions.week))),
         month: opportunity30,
+        year: Math.max(0, Math.round(safeNum(stats.contactActions.month))),
         total: Math.max(0, Math.round(safeNum(stats.contactActions.month))),
       },
     },

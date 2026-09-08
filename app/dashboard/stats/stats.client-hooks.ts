@@ -56,6 +56,7 @@ import {
   normalizeMailStatsSnapshot,
   readCachedDashboardChannelConnectivity,
   readCachedDashboardChannelIdentityHints,
+  readCachedMailStats,
   unavailableOfficialChannelConnectivity,
   unavailableOfficialChannelStatuses,
   writeCachedMailStats,
@@ -66,6 +67,7 @@ import {
   type MailStatsSnapshot,
   type OfficialChannelConnectionStatuses,
 } from "./stats.client-foundations";
+import { hasCommittedStatsSnapshot, isLatestStatsRequest } from "./stats.client-stability";
 
 type StateSetter<T> = Dispatch<SetStateAction<T>>;
 
@@ -86,6 +88,19 @@ const INR_SEARCH_ANALYTICS_POLL_MS = 120_000;
 // Fallback léger uniquement pour l'état de connexion (aucun appel aux métriques
 // Google/Meta). L'ouverture, le focus et Actualiser restent immédiats.
 const CHANNEL_CONNECTION_STATE_POLL_MS = 60_000;
+
+function isCurrentStatsResponse(
+  requestSeq: number,
+  latestRequestSeq: number,
+  requestAccountScope: string | null,
+) {
+  return isLatestStatsRequest({
+    requestSeq,
+    latestRequestSeq,
+    requestAccountScope,
+    activeAccountScope: getActiveBrowserUserId(),
+  });
+}
 
 type UseStatsChannelIdentitySyncArgs = {
   refreshNonce: number;
@@ -215,7 +230,6 @@ type UseStatsDataControllerArgs = {
   setMailStats: StateSetter<MailStatsSnapshot>;
   setInrBadgeStats: StateSetter<InrBadgeStatsSnapshot>;
   setInrSearchStats: StateSetter<InrSearchStatsSnapshot>;
-  hydrateMailStatsFromCache: (targetPeriod: Period) => boolean;
   includeMailStats: boolean;
 };
 
@@ -242,10 +256,17 @@ export function useStatsDataController({
   setMailStats,
   setInrBadgeStats,
   setInrSearchStats,
-  hydrateMailStatsFromCache,
   includeMailStats,
 }: UseStatsDataControllerArgs) {
-  const inrSearchStatsRequestRef = useRef<Promise<void> | null>(null);
+  const inrBadgeStatsRequestSeqRef = useRef(0);
+  const inrSearchStatsRequestSeqRef = useRef(0);
+  const mailStatsRequestSeqRef = useRef(0);
+
+  useEffect(() => () => {
+    inrBadgeStatsRequestSeqRef.current += 1;
+    inrSearchStatsRequestSeqRef.current += 1;
+    mailStatsRequestSeqRef.current += 1;
+  }, []);
 
   const applyBulkPayload = useCallback((targetPeriod: Period, next: BulkFetchResult, syncedAt: number) => {
     const snap = next.overviews as Record<CubeKey, Overview>;
@@ -616,14 +637,22 @@ export function useStatsDataController({
   }, [applyBootstrapPayload, syncFromServerCacheIfNeeded]);
 
   const refreshInrBadgeStats = useCallback(async () => {
-    setInrBadgeStats((prev) => ({ ...prev, loading: true, error: undefined }));
+    const requestSeq = ++inrBadgeStatsRequestSeqRef.current;
+    const requestAccountScope = getActiveBrowserUserId();
+    setInrBadgeStats((prev) => ({
+      ...prev,
+      loading: !hasCommittedStatsSnapshot(prev),
+      error: undefined,
+    }));
     try {
       const res = await fetch("/api/inrstats/inrbadge", { cache: "no-store", credentials: "include" });
       if (!res.ok) throw new Error(await getSimpleFrenchApiError(res));
       const json = await res.json().catch(() => ({}));
+      if (!isCurrentStatsResponse(requestSeq, inrBadgeStatsRequestSeqRef.current, requestAccountScope)) return;
       const syncedAt = Number.isFinite(Number(json?.syncedAt)) ? Number(json.syncedAt) : Date.now();
       setInrBadgeStats(normalizeInrBadgeStatsSnapshot({ ...json, loading: false }, syncedAt));
     } catch (error) {
+      if (!isCurrentStatsResponse(requestSeq, inrBadgeStatsRequestSeqRef.current, requestAccountScope)) return;
       setInrBadgeStats((prev) => ({
         ...prev,
         loading: false,
@@ -632,46 +661,44 @@ export function useStatsDataController({
     }
   }, []);
 
-  const refreshInrSearchStats = useCallback(() => {
-    const existingRequest = inrSearchStatsRequestRef.current;
-    if (existingRequest) return existingRequest;
-
-    const job = (async () => {
+  const refreshInrSearchStats = useCallback(async () => {
+    const requestSeq = ++inrSearchStatsRequestSeqRef.current;
+    const requestAccountScope = getActiveBrowserUserId();
+    setInrSearchStats((prev) => ({
+      ...prev,
+      loading: !hasCommittedStatsSnapshot(prev),
+      error: undefined,
+    }));
+    try {
+      const res = await fetch("/api/inr-search/analytics", { cache: "no-store", credentials: "include" });
+      if (!res.ok) throw new Error(await getSimpleFrenchApiError(res));
+      const json = await res.json().catch(() => ({}));
+      if (!isCurrentStatsResponse(requestSeq, inrSearchStatsRequestSeqRef.current, requestAccountScope)) return;
+      setInrSearchStats(normalizeInrSearchStatsSnapshot(json));
+    } catch (error) {
+      if (!isCurrentStatsResponse(requestSeq, inrSearchStatsRequestSeqRef.current, requestAccountScope)) return;
       setInrSearchStats((prev) => ({
         ...prev,
-        loading: prev.enabled ? false : true,
-        error: undefined,
+        loading: false,
+        error: getSimpleFrenchErrorMessage(error, "Impossible de charger les données iNr'Search pour le moment."),
       }));
-      try {
-        const res = await fetch("/api/inr-search/analytics", { cache: "no-store", credentials: "include" });
-        if (!res.ok) throw new Error(await getSimpleFrenchApiError(res));
-        const json = await res.json().catch(() => ({}));
-        setInrSearchStats(normalizeInrSearchStatsSnapshot(json));
-      } catch (error) {
-        setInrSearchStats((prev) => ({
-          ...prev,
-          loading: false,
-          error: getSimpleFrenchErrorMessage(error, "Impossible de charger les données iNr'Search pour le moment."),
-        }));
-      }
-    })();
-
-    inrSearchStatsRequestRef.current = job;
-    void job.finally(() => {
-      if (inrSearchStatsRequestRef.current === job) {
-        inrSearchStatsRequestRef.current = null;
-      }
-    });
-    return job;
+    }
   }, []);
 
   const refreshMailStats = useCallback(async () => {
     if (!includeMailStats) return;
-    setMailStats((prev) => ({ ...prev, loading: true, error: undefined }));
+    const requestSeq = ++mailStatsRequestSeqRef.current;
+    const requestAccountScope = getActiveBrowserUserId();
+    setMailStats((prev) => ({
+      ...prev,
+      loading: !hasCommittedStatsSnapshot(prev),
+      error: undefined,
+    }));
     try {
       const res = await fetch("/api/inrstats/mails", { cache: "no-store", credentials: "include" });
       if (!res.ok) throw new Error(await getSimpleFrenchApiError(res));
       const json = await res.json().catch(() => ({}));
+      if (!isCurrentStatsResponse(requestSeq, mailStatsRequestSeqRef.current, requestAccountScope)) return;
 
       const syncedAt = Number.isFinite(Number(json?.syncedAt)) ? Number(json.syncedAt) : Date.now();
       const nextMailStats = normalizeMailStatsSnapshot({
@@ -681,11 +708,12 @@ export function useStatsDataController({
       writeCachedMailStats(period, nextMailStats, syncedAt);
       setMailStats(nextMailStats);
     } catch (error) {
-      setMailStats((prev) => ({
-        ...prev,
-        loading: false,
-        error: getSimpleFrenchErrorMessage(error, "Impossible de charger les données Mails pour le moment."),
-      }));
+      if (!isCurrentStatsResponse(requestSeq, mailStatsRequestSeqRef.current, requestAccountScope)) return;
+      const message = getSimpleFrenchErrorMessage(error, "Impossible de charger les données Mails pour le moment.");
+      const cachedMail = readCachedMailStats(period);
+      setMailStats((prev) => cachedMail && !hasCommittedStatsSnapshot(prev)
+        ? { ...cachedMail.stats, loading: false, error: message, syncedAt: cachedMail.syncedAt }
+        : { ...prev, loading: false, error: message });
     }
   }, [includeMailStats, period, setMailStats]);
 
@@ -750,7 +778,6 @@ export function useStatsDataController({
 
 
   const hydrateFromSessionCache = useCallback((targetPeriod: Period) => {
-    if (includeMailStats) hydrateMailStatsFromCache(targetPeriod);
     const lastChannelSyncAt = getStatsLastChannelSyncAt();
     const cachedCube = parseCachedCubeSnapshot(readUiCacheValue(cubeSessionKey(targetPeriod)));
     const cachedSummary = parseCachedSummarySnapshot(readUiCacheValue(summarySessionKey(targetPeriod)));
@@ -818,7 +845,7 @@ export function useStatsDataController({
       pinterest: safeNum(estimatedByCubePartial.pinterest),
     });
     return true;
-  }, [hydrateMailStatsFromCache, includeMailStats]);
+  }, []);
 
 
   const fetchBulkStats = async (period: Period, forceFresh = false): Promise<BulkFetchResult> => {
@@ -936,95 +963,16 @@ export function useStatsDataController({
   const keys: CubeKey[] = ["site_inrcy", "site_web", "gmb", "facebook", "instagram", "linkedin", "x", "tiktok", "youtube_shorts", "pinterest"];
 
   (async () => {
-    // Fast path: cached data for this period
-    const cached = periodCacheRef.current.get(period);
-    const cachedCubeSnapshot = parseCachedCubeSnapshot(readUiCacheValue(cubeSessionKey(period)));
-    const lastChannelSyncAt = getStatsLastChannelSyncAt();
-    const cachedSummary = parseCachedSummarySnapshot(readUiCacheValue(summarySessionKey(period)));
-    const hasFreshCachedSummary = !!cachedSummary && cachedSummary.syncedAt >= lastChannelSyncAt && cachedSummary.snapshotDate === expectedUiSnapshotDate();
-    const hasFreshCapturedLeads = hasCapturedLeadsBlocks(cachedCubeSnapshot?.blocks);
-    if (cached && hasFreshCachedSummary && hasFreshCapturedLeads) {
-      setDataByCube((prev) => {
-        const next: any = { ...prev };
-        for (const k of Object.keys(cached) as CubeKey[]) {
-          const block = cachedCubeSnapshot?.blocks?.[k];
-          next[k] = {
-            ov: block ? ((block.overview as Overview | null | undefined) ?? null) : (cached as any)[k],
-            loading: false,
-            error: block?.error ?? undefined,
-            capturedLeads: normalizeCapturedLeads(block?.capturedLeads, prev[k]?.capturedLeads),
-            connectionStatus: block?.connection?.connectionStatus,
-          };
-        }
-        return next;
-      });
-      return;
-    }
-    if (hydrateFromSessionCache(period)) {
-      return;
-    }
-    if (cached && cachedSummary && hasFreshCapturedLeads) {
-      setDataByCube((prev) => {
-        const next: any = { ...prev };
-        for (const k of Object.keys(cached) as CubeKey[]) {
-          const block = cachedCubeSnapshot?.blocks?.[k];
-          next[k] = {
-            ov: block ? ((block.overview as Overview | null | undefined) ?? null) : (cached as any)[k],
-            loading: false,
-            error: block?.error ?? undefined,
-            capturedLeads: normalizeCapturedLeads(block?.capturedLeads, prev[k]?.capturedLeads),
-            connectionStatus: block?.connection?.connectionStatus,
-          };
-        }
-        return next;
-      });
-      setSummaryOpp({
-        loading: false,
-        total: safeNum(cachedSummary.total),
-        byCube: {
-          inrbadge: 0,
-          inr_search: 0,
-          site_inrcy: safeNum(cachedSummary.byCube?.site_inrcy),
-          site_web: safeNum(cachedSummary.byCube?.site_web),
-          gmb: safeNum(cachedSummary.byCube?.gmb),
-          facebook: safeNum(cachedSummary.byCube?.facebook),
-          instagram: safeNum(cachedSummary.byCube?.instagram),
-          linkedin: safeNum(cachedSummary.byCube?.linkedin),
-          x: safeNum(cachedSummary.byCube?.x),
-          mails: 0,
-          tiktok: safeNum(cachedSummary.byCube?.tiktok),
-          youtube_shorts: safeNum(cachedSummary.byCube?.youtube_shorts),
-            pinterest: safeNum(cachedSummary.byCube?.pinterest),
-        },
-      });
-      setSummaryProfile({
-        lead_conversion_rate: safeNum(cachedSummary.profile?.lead_conversion_rate),
-        avg_basket: safeNum(cachedSummary.profile?.avg_basket),
-      });
-      setSummaryEstimatedByCube({
-        inrbadge: 0,
-        inr_search: 0,
-        site_inrcy: safeNum(cachedSummary.estimatedByCube?.site_inrcy),
-        site_web: safeNum(cachedSummary.estimatedByCube?.site_web),
-        gmb: safeNum(cachedSummary.estimatedByCube?.gmb),
-        facebook: safeNum(cachedSummary.estimatedByCube?.facebook),
-        instagram: safeNum(cachedSummary.estimatedByCube?.instagram),
-        linkedin: safeNum(cachedSummary.estimatedByCube?.linkedin),
-        x: safeNum(cachedSummary.estimatedByCube?.x),
-        mails: 0,
-        tiktok: safeNum(cachedSummary.estimatedByCube?.tiktok),
-        youtube_shorts: safeNum(cachedSummary.estimatedByCube?.youtube_shorts),
-          pinterest: safeNum(cachedSummary.estimatedByCube?.pinterest),
-      });
-      return;
-    }
+    // Only a complete snapshot for the current day may reach the UI. Older
+    // storage entries are ignored so they cannot flash before the authoritative
+    // bulk request answers.
+    if (hydrateFromSessionCache(period)) return;
 
     setDataByCube((prev) => {
       const next: any = { ...prev };
       for (const k of keys) next[k] = { ...next[k], loading: true, error: undefined };
       return next;
     });
-    setSummaryOpp((prev) => ({ ...prev, loading: true }));
 
     try {
       const next = await fetchBulkStats(period, refreshNonce > 0);

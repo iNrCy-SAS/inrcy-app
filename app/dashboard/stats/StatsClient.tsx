@@ -1,9 +1,10 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
+import Image from "next/image";
 
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import styles from "./stats.module.css";
 import { useRouter } from "next/navigation";
 import ResponsiveActionButton from "../_components/ResponsiveActionButton";
@@ -12,16 +13,11 @@ import HelpModal from "../_components/HelpModal";
 import {
   applyStatsEditionActionPolicy,
   buildCubeModel,
+  buildInrcyActivityStats,
   buildSummaryActionItems,
-  cubeSessionKey,
   emptyCubeState,
   fmtInt,
-  hasCapturedLeadsBlocks,
-  parseCachedCubeSnapshot,
-  parseCachedSummarySnapshot,
-  readUiCacheValue,
   safeNum,
-  summarySessionKey,
   isPremiumStatsRecommendedTool,
   type CubeKey,
   type CubeModel,
@@ -33,16 +29,13 @@ import {
 import {
   EMPTY_INRBADGE_STATS,
   EMPTY_INR_SEARCH_STATS,
+  EMPTY_MAIL_STATS,
   buildInrBadgeCubeModel,
   buildInrSearchCubeModel,
   buildInrSearchOpportunity30,
-  buildInitialMailStatsSnapshot,
   buildMailCubeModel,
   buildMailOpportunity30,
   cleanChannelIdentityHint,
-  normalizeCapturedLeads,
-  readCachedDashboardChannelConnectivity,
-  readCachedMailStats,
   type CachedChannelConnectivity,
   type ChannelIdentityHints,
   type InrBadgeStatsSnapshot,
@@ -51,10 +44,9 @@ import {
   type OfficialChannelConnectionStatuses,
 } from "./stats.client-foundations";
 import { useStatsChannelIdentitySync, useStatsDataController } from "./stats.client-hooks";
+import { formatStableStatsValue, hasCommittedStatsSnapshot } from "./stats.client-stability";
 import { Cube } from "./stats.ui";
 import { useDashboardEdition } from "@/app/dashboard/_components/DashboardEditionProvider";
-
-const useBrowserLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 type StatsPanelKey = "all" | CubeKey;
 
@@ -77,6 +69,22 @@ type StatsClientProps = {
     publicUrl: string;
     pageTitle: string;
   };
+};
+
+const STATS_CHANNEL_ICON_SRC: Record<CubeKey, string> = {
+  inrbadge: "/icons/inrbadge-dashboard.png",
+  inr_search: "/icons/inr-search-bubble-128.png",
+  site_inrcy: "/logo-appli-inrcy.png",
+  site_web: "/icons/site-web.jpg",
+  gmb: "/icons/google.jpg",
+  facebook: "/icons/facebook.png",
+  instagram: "/icons/instagram.jpg",
+  linkedin: "/icons/linkedin.png",
+  x: "/icons/x.svg",
+  mails: "/icons/mails-inrcy-dashboard-v2.png",
+  tiktok: "/icons/tiktok.png",
+  youtube_shorts: "/icons/youtube-shorts.png",
+  pinterest: "/icons/pinterest-logo-128.png",
 };
 
 export default function StatsClient({ initialInrSearch }: StatsClientProps) {
@@ -120,22 +128,21 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
     youtube_shorts: 0,
     pinterest: 0,
   });
-  const [, setSummaryHydrated] = useState(false);
+  const [summaryHydrated, setSummaryHydrated] = useState(false);
   const [activeStatsPanel, setActiveStatsPanel] = useState<StatsPanelKey>("all");
   const [statsMenuOpen, setStatsMenuOpen] = useState(false);
   const [dailyBootReady, setDailyBootReady] = useState(false);
-  const [mailStats, setMailStats] = useState<MailStatsSnapshot>(() => buildInitialMailStatsSnapshot(period));
+  const [mailStats, setMailStats] = useState<MailStatsSnapshot>(EMPTY_MAIL_STATS);
   const [inrBadgeStats, setInrBadgeStats] = useState<InrBadgeStatsSnapshot>(EMPTY_INRBADGE_STATS);
   const [inrSearchStats, setInrSearchStats] = useState<InrSearchStatsSnapshot>(() => ({
     ...EMPTY_INR_SEARCH_STATS,
-    loading: false,
     enabled: Boolean(initialInrSearch?.published),
     slug: String(initialInrSearch?.slug || ""),
     publicUrl: String(initialInrSearch?.publicUrl || ""),
     pageTitle: String(initialInrSearch?.pageTitle || ""),
   }));
   const [channelIdentityHints, setChannelIdentityHints] = useState<ChannelIdentityHints>({});
-  const [cachedChannelConnectivity, setCachedChannelConnectivity] = useState<CachedChannelConnectivity>(() => readCachedDashboardChannelConnectivity());
+  const [cachedChannelConnectivity, setCachedChannelConnectivity] = useState<CachedChannelConnectivity>({});
   const [officialChannelConnectionStatuses, setOfficialChannelConnectionStatuses] = useState<OfficialChannelConnectionStatuses>({});
 
   const scrollTo = (key: CubeKey) => {
@@ -158,85 +165,6 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
     setCachedChannelConnectivity,
     setOfficialChannelConnectionStatuses,
   });
-
-  const hydrateMailStatsFromCache = useCallback((targetPeriod: Period) => {
-    if (standardMode) return false;
-    const cachedMail = readCachedMailStats(targetPeriod);
-    if (!cachedMail) return false;
-    setMailStats((prev) => {
-      if (safeNum(prev.syncedAt) > cachedMail.syncedAt) return prev;
-      return { ...cachedMail.stats, loading: false, error: undefined, syncedAt: cachedMail.syncedAt };
-    });
-    return true;
-  }, [standardMode]);
-
-  useBrowserLayoutEffect(() => {
-    const cachedCube = parseCachedCubeSnapshot(readUiCacheValue(cubeSessionKey(period)));
-    const cachedSummary = parseCachedSummarySnapshot(readUiCacheValue(summarySessionKey(period)));
-    hydrateMailStatsFromCache(period);
-
-    if (cachedCube?.overviews && hasCapturedLeadsBlocks(cachedCube.blocks)) {
-      periodCacheRef.current.set(period, cachedCube.overviews);
-      setDataByCube((prev) => {
-        const next: typeof prev = { ...prev };
-        for (const k of Object.keys(cachedCube.overviews) as CubeKey[]) {
-          const cachedBlock = cachedCube.blocks?.[k];
-          const hasAuthoritativeOverview = Boolean(cachedBlock && Object.prototype.hasOwnProperty.call(cachedBlock, "overview"));
-          next[k] = {
-            ov: hasAuthoritativeOverview ? (cachedBlock?.overview as Overview | null | undefined) ?? null : cachedCube.overviews[k] ?? null,
-            loading: false,
-            error: cachedBlock?.error || undefined,
-            capturedLeads: normalizeCapturedLeads(cachedCube.blocks?.[k]?.capturedLeads, prev[k]?.capturedLeads),
-          };
-        }
-        return next;
-      });
-    }
-
-    if (cachedSummary) {
-      const byCubePartial = cachedSummary.byCube || {};
-      const estimatedByCubePartial = cachedSummary.estimatedByCube || {};
-      setSummaryHydrated(true);
-      setSummaryOpp({
-        loading: false,
-        total: safeNum(cachedSummary.total),
-        byCube: {
-          inrbadge: 0,
-          inr_search: 0,
-          site_inrcy: safeNum(byCubePartial.site_inrcy),
-          site_web: safeNum(byCubePartial.site_web),
-          gmb: safeNum(byCubePartial.gmb),
-          facebook: safeNum(byCubePartial.facebook),
-          instagram: safeNum(byCubePartial.instagram),
-          linkedin: safeNum(byCubePartial.linkedin),
-          x: safeNum(byCubePartial.x),
-          mails: 0,
-          tiktok: safeNum(byCubePartial.tiktok),
-          youtube_shorts: safeNum(byCubePartial.youtube_shorts),
-          pinterest: safeNum(byCubePartial.pinterest),
-        },
-      });
-      setSummaryProfile({
-        lead_conversion_rate: safeNum(cachedSummary.profile?.lead_conversion_rate),
-        avg_basket: safeNum(cachedSummary.profile?.avg_basket),
-      });
-      setSummaryEstimatedByCube({
-        inrbadge: 0,
-        inr_search: 0,
-        site_inrcy: safeNum(estimatedByCubePartial.site_inrcy),
-        site_web: safeNum(estimatedByCubePartial.site_web),
-        gmb: safeNum(estimatedByCubePartial.gmb),
-        facebook: safeNum(estimatedByCubePartial.facebook),
-        instagram: safeNum(estimatedByCubePartial.instagram),
-        linkedin: safeNum(estimatedByCubePartial.linkedin),
-        x: safeNum(estimatedByCubePartial.x),
-        mails: 0,
-        tiktok: safeNum(estimatedByCubePartial.tiktok),
-        youtube_shorts: safeNum(estimatedByCubePartial.youtube_shorts),
-      pinterest: safeNum(estimatedByCubePartial.pinterest),
-      });
-    }
-  }, [hydrateMailStatsFromCache, period]);
 
   const { handleSharedStatsRefresh } = useStatsDataController({
     period,
@@ -261,17 +189,57 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
     setMailStats,
     setInrBadgeStats,
     setInrSearchStats,
-    hydrateMailStatsFromCache,
     includeMailStats: !standardMode,
   });
 
+  const bulkStatsReady = summaryHydrated && !summaryOpp.loading;
+  const inrBadgeStatsReady = hasCommittedStatsSnapshot(inrBadgeStats);
+  const inrSearchStatsReady = hasCommittedStatsSnapshot(inrSearchStats);
+  const mailStatsReady = standardMode || hasCommittedStatsSnapshot(mailStats);
+  const opportunityReadyByCube = useMemo<Record<CubeKey, boolean>>(() => ({
+    inrbadge: inrBadgeStatsReady,
+    inr_search: inrSearchStatsReady,
+    site_inrcy: bulkStatsReady,
+    site_web: bulkStatsReady,
+    gmb: bulkStatsReady,
+    facebook: bulkStatsReady,
+    instagram: bulkStatsReady,
+    linkedin: bulkStatsReady,
+    x: bulkStatsReady,
+    mails: mailStatsReady,
+    tiktok: bulkStatsReady,
+    youtube_shorts: bulkStatsReady,
+    pinterest: bulkStatsReady,
+  }), [bulkStatsReady, inrBadgeStatsReady, inrSearchStatsReady, mailStatsReady]);
+  const allStatsNumbersReady = bulkStatsReady && inrBadgeStatsReady && inrSearchStatsReady && mailStatsReady;
+  const stableCount = (value: number, ready: boolean) => formatStableStatsValue({
+    ready,
+    value: formatInt(value),
+  });
+  const stableOpportunity = (value: number, ready: boolean) => formatStableStatsValue({
+    ready,
+    value: formatInt(value),
+    prefix: "+",
+  });
+  const stableRevenue = (value: number, ready: boolean) => formatStableStatsValue({
+    ready,
+    value: formatInt(value),
+    prefix: "+",
+    suffix: " €",
+  });
 
   const mailOpportunity30 = useMemo(
-    () => (standardMode ? 0 : buildMailOpportunity30(mailStats)),
-    [mailStats, standardMode],
+    () => (standardMode || !mailStatsReady ? 0 : buildMailOpportunity30(mailStats)),
+    [mailStats, mailStatsReady, standardMode],
   );
-  const inrBadgeOpportunity30 = useMemo(() => Math.max(0, Math.round(safeNum(inrBadgeStats.opportunity30))), [inrBadgeStats.opportunity30]);
-  const inrSearchOpportunity30 = useMemo(() => buildInrSearchOpportunity30(inrSearchStats), [inrSearchStats]);
+  const inrBadgeOpportunity30 = useMemo(
+    () => inrBadgeStatsReady ? Math.max(0, Math.round(safeNum(inrBadgeStats.opportunity30))) : 0,
+    [inrBadgeStats.opportunity30, inrBadgeStatsReady],
+  );
+  const inrSearchOpportunity30 = useMemo(
+    () => inrSearchStatsReady ? buildInrSearchOpportunity30(inrSearchStats) : 0,
+    [inrSearchStats, inrSearchStatsReady],
+  );
 
   const centralByCube = useMemo<Record<CubeKey, number>>(() => {
     const next: Record<CubeKey, number> = {
@@ -296,20 +264,29 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
   );
 
   const models: CubeModel[] = useMemo(() => {
+    const cachedOverviews = periodCacheRef.current.get(period);
+    const sharedActivityOverview = (
+      (cachedOverviews ? Object.values(cachedOverviews) : []).find((overview) => overview?.inrcyActivity) ||
+      Object.values(dataByCube).map((state) => state?.ov).find((overview) => overview?.inrcyActivity) ||
+      null
+    ) as Overview | null;
+    const inrSearchPublicationActivity = sharedActivityOverview
+      ? buildInrcyActivityStats("inr_search", sharedActivityOverview)
+      : null;
     const baseModels: CubeModel[] = [
       buildInrBadgeCubeModel(period, inrBadgeStats, { appointmentsEnabled: !standardMode }, locale, runtimeT),
-      buildInrSearchCubeModel(period, inrSearchStats, locale, runtimeT),
-      ...(!standardMode ? [buildMailCubeModel(mailStats, period, locale, runtimeT)] : []),
-      buildCubeModel("site_inrcy", i18nT("site_inrcy_57016d6f"), i18nT("subtitle_optimized_for_conversion"), period, dataByCube.site_inrcy, centralByCube, officialChannelConnectionStatuses.site_inrcy, locale, runtimeT),
       buildCubeModel("site_web", i18nT("site_web_c72c13ef"), i18nT("subtitle_your_image"), period, dataByCube.site_web, centralByCube, officialChannelConnectionStatuses.site_web, locale, runtimeT),
       buildCubeModel("gmb", i18nT("google_business_a605b655"), i18nT("visibilite_locale_afa9cdc9"), period, dataByCube.gmb, centralByCube, officialChannelConnectionStatuses.gmb, locale, runtimeT),
+      buildInrSearchCubeModel(period, inrSearchStats, locale, runtimeT, inrSearchPublicationActivity),
       buildCubeModel("facebook", i18nT("facebook_82da67b2"), i18nT("subtitle_social_visibility"), period, dataByCube.facebook, centralByCube, officialChannelConnectionStatuses.facebook, locale, runtimeT),
       buildCubeModel("instagram", i18nT("instagram_5721bbef"), i18nT("subtitle_brand_visibility"), period, dataByCube.instagram, centralByCube, officialChannelConnectionStatuses.instagram, locale, runtimeT),
       buildCubeModel("linkedin", i18nT("linkedin_6b6390a4"), i18nT("subtitle_professional_visibility"), period, dataByCube.linkedin, centralByCube, officialChannelConnectionStatuses.linkedin, locale, runtimeT),
-      buildCubeModel("x", "X", i18nT("subtitle_social_visibility"), period, dataByCube.x, centralByCube, officialChannelConnectionStatuses.x, locale, runtimeT),
       buildCubeModel("tiktok", i18nT("tiktok_fc49f156"), i18nT("subtitle_short_photos_videos"), period, dataByCube.tiktok, centralByCube, officialChannelConnectionStatuses.tiktok, locale, runtimeT),
       buildCubeModel("youtube_shorts", i18nT("youtube_558865a1"), i18nT("subtitle_short_long_videos"), period, dataByCube.youtube_shorts, centralByCube, officialChannelConnectionStatuses.youtube_shorts, locale, runtimeT),
       buildCubeModel("pinterest", i18nT("title_pinterest"), i18nT("subtitle_inspiration_ideas"), period, dataByCube.pinterest, centralByCube, officialChannelConnectionStatuses.pinterest, locale, runtimeT),
+      buildCubeModel("x", "X", i18nT("subtitle_social_visibility"), period, dataByCube.x, centralByCube, officialChannelConnectionStatuses.x, locale, runtimeT),
+      ...(!standardMode ? [buildMailCubeModel(mailStats, period, locale, runtimeT)] : []),
+      buildCubeModel("site_inrcy", i18nT("site_inrcy_57016d6f"), i18nT("subtitle_optimized_for_conversion"), period, dataByCube.site_inrcy, centralByCube, officialChannelConnectionStatuses.site_inrcy, locale, runtimeT),
     ];
 
     return baseModels.map((model) => {
@@ -566,7 +543,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
                   <b>{i18nT("tous_b97ae3b4")}</b>
                   <small>{i18nT("vue_globale_08073c33")}</small>
                 </span>
-                <span className={styles.statsRailValue}>+{formatInt(centralPotential30)}</span>
+                <span className={styles.statsRailValue}>{stableOpportunity(centralPotential30, allStatsNumbersReady)}</span>
               </button>
 
               {models.map((model) => {
@@ -588,7 +565,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
                       <b>{model.title}</b>
                       <small>{reconnectRequired ? i18nT("a_reconnecter_bb56a9d2") : model.key === "inr_search" ? (connectionPending ? i18nT("synchronisation_cc8ad3ae") : connected ? i18nT("page_publiee_1916dffd") : i18nT("page_indisponible_1d78169a")) : connectionPending ? i18nT("verification_bb27abfb") : connected ? i18nT("connecte_ce09957c") : i18nT("deconnecte_3a67fd80")}</small>
                     </span>
-                    <span className={styles.statsRailValue}>+{formatInt(model.opportunity30)}</span>
+                    <span className={styles.statsRailValue}>{stableOpportunity(model.opportunity30, opportunityReadyByCube[model.key])}</span>
                   </button>
                 );
               })}
@@ -603,24 +580,10 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
       >
         <main className={styles.statsPanel}>
           {activeStatsPanel === "all" ? (
-            <section className={styles.allStatsPanel} aria-label={i18nT("vue_globale_inr_stats_db5feb84")}>
+            <section className={styles.allStatsPanel} aria-label={i18nT("vue_globale_inr_stats_db5feb84")} aria-busy={!allStatsNumbersReady}>
               <div className={styles.allStatsHero}>
                 <div className={styles.allStatsHeaderMain}>
-                  <div className={styles.allStatsHeadingRow}>
-                    <h2 className={styles.allStatsTitle}>{i18nT("vue_globale_tous_vos_canaux_en_60fb6351")}</h2>
-                    <button
-                      type="button"
-                      className={styles.allStatsReportButton}
-                      onClick={() => {
-                        void generateStatsReportNow();
-                      }}
-                      disabled={isGeneratingReport}
-                      aria-label={i18nT("generer_un_bilan_inr_stats_manuel_30ea8535")}
-                      title={i18nT("creer_et_envoyer_un_bilan_manuel_f462a5fc")}
-                    >
-                      {isGeneratingReport ? i18nT("generation_du_bilan_9b3321bd") : i18nT("generer_un_bilan_77d1d8d2")}
-                    </button>
-                  </div>
+                  <h2 className={styles.allStatsTitle}>{i18nT("vue_globale_08073c33")}</h2>
                   <p className={styles.allStatsText}>
                     {i18nT("synthese_par_canal_opportunites_activables_ca_7b735b50")}{" "}</p>
                 </div>
@@ -628,27 +591,42 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
                 <div className={styles.allStatsKpis}>
                   <div className={`${styles.allStatsKpi} ${styles.kpiToneBlue}`}>
                     <span>{i18nT("opportunites_0dbfa3c5")}</span>
-                    <b>+{formatInt(centralPotential30)}</b>
+                    <b>{stableOpportunity(centralPotential30, allStatsNumbersReady)}</b>
                   </div>
                   <div className={`${styles.allStatsKpi} ${styles.kpiTonePurple}`}>
                     <span>{i18nT("ca_potentiel_fc9eeae4")}</span>
-                    <b>+{formatInt(summaryActionItems.reduce((total, item) => total + safeNum(item.revenue), 0))} €</b>
+                    <b>{stableRevenue(summaryActionItems.reduce((total, item) => total + safeNum(item.revenue), 0), allStatsNumbersReady)}</b>
                   </div>
                   <div className={`${styles.allStatsKpi} ${styles.kpiToneGreen}`}>
                     <span>{i18nT("demandes_captees_30_j_a45db939")}</span>
-                    <b>{formatInt(totalCapturedLeads30)}</b>
+                    <b>{stableCount(totalCapturedLeads30, allStatsNumbersReady)}</b>
                   </div>
                   <div className={`${styles.allStatsKpi} ${styles.kpiToneSlate}`}>
                     <span>{i18nT("canaux_27cb4473")}</span>
                     <b>{models.length}</b>
                   </div>
                 </div>
+
+                <button
+                  type="button"
+                  className={styles.allStatsReportButton}
+                  onClick={() => {
+                    void generateStatsReportNow();
+                  }}
+                  disabled={isGeneratingReport}
+                  aria-label={i18nT("generer_un_bilan_inr_stats_manuel_30ea8535")}
+                  title={i18nT("creer_et_envoyer_un_bilan_manuel_f462a5fc")}
+                >
+                  {isGeneratingReport ? i18nT("generation_du_bilan_9b3321bd") : i18nT("generer_un_bilan_77d1d8d2")}
+                </button>
               </div>
 
               <div className={styles.allStatsActions}>
                 {models.map((model) => {
                   const actionItem = summaryActionByChannel.get(model.key);
                   const revenue = summaryEstimatedByCube[model.key] || computedEstimatedByCube[model.key] || actionItem?.revenue || 0;
+                  const opportunityReady = opportunityReadyByCube[model.key];
+                  const revenueReady = opportunityReady && bulkStatsReady;
                   const isSite = model.key === "site_inrcy" || model.key === "site_web";
                   const connectionPending = model.connectionStatus === "unavailable" || (model.key === "mails" && !!model.connectionPending) || (model.key === "inr_search" && model.loading);
                   const connected = !connectionPending && (isSite ? !!model.connections.ga4 || !!model.connections.gsc : !!model.connections.main);
@@ -665,6 +643,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
                     <article
                       key={model.key}
                       className={`${styles.allStatsActionCard} ${connected ? styles.allStatsActionCardConnected : styles.allStatsActionCardOff}`}
+                      aria-busy={!revenueReady}
                     >
                       <button type="button" className={styles.allStatsChannelButton} onClick={() => scrollTo(model.key)}>
                         <span className={styles.allStatsChannelName}>{model.title}</span>
@@ -673,11 +652,11 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
                       <div className={styles.allStatsMetrics}>
                         <span>
                           <small>{i18nT("opportunites_0dbfa3c5")}</small>
-                          <b>+{formatInt(model.opportunity30)}</b>
+                          <b>{stableOpportunity(model.opportunity30, opportunityReady)}</b>
                         </span>
                         <span>
                           <small>{i18nT("ca_potentiel_fc9eeae4")}</small>
-                          <b>+{formatInt(revenue)} €</b>
+                          <b>{stableRevenue(revenue, revenueReady)}</b>
                         </span>
                       </div>
 
@@ -726,35 +705,45 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
               </div>
             </section>
           ) : activeModel ? (
-            <section className={styles.channelStatsPanel} aria-label={i18nT("donnees_value_9d3b1503", { value0: activeModel.title })}>
+            <section className={styles.channelStatsPanel} aria-label={i18nT("donnees_value_9d3b1503", { value0: activeModel.title })} aria-busy={!(opportunityReadyByCube[activeModel.key] && bulkStatsReady)}>
               <div className={styles.channelStatsHeader}>
+                <button
+                  type="button"
+                  className={styles.channelStatsBackButton}
+                  onClick={() => selectStatsPanel("all")}
+                >
+                  <span aria-hidden="true">←</span>
+                  <span>{i18nT("vue_globale_08073c33")}</span>
+                </button>
+
                 <div className={styles.channelStatsTitleBlock}>
-                  <button
-                    type="button"
-                    className={styles.channelStatsBackButton}
-                    onClick={() => selectStatsPanel("all")}
-                  >
-                    <span aria-hidden="true">←</span>
-                    <span>{i18nT("vue_globale_08073c33")}</span>
-                  </button>
                   <div className={styles.allStatsEyebrow}>{i18nT("canal_actif_09801074")}</div>
                   <h2 className={styles.allStatsTitle}>{activeModel.title}</h2>
+                  <span className={styles.channelStatsTitleIconBubble} aria-hidden="true">
+                    <Image
+                      className={styles.channelStatsTitleIcon}
+                      src={STATS_CHANNEL_ICON_SRC[activeModel.key]}
+                      alt=""
+                      width={16}
+                      height={16}
+                    />
+                  </span>
                   <p className={styles.allStatsText}>{activeModel.subtitle}</p>
                 </div>
 
                 <div className={`${styles.allStatsKpis} ${styles.channelStatsKpis} ${activeModel.key === "mails" ? styles.channelStatsKpisMail : ""}`}>
                   <div className={`${styles.allStatsKpi} ${styles.kpiToneBlue}`}>
                     <span>{i18nT("opportunites_0dbfa3c5")}</span>
-                    <b>+{formatInt(activeModel.opportunity30)}</b>
+                    <b>{stableOpportunity(activeModel.opportunity30, opportunityReadyByCube[activeModel.key])}</b>
                   </div>
                   <div className={`${styles.allStatsKpi} ${styles.kpiTonePurple}`}>
                     <span>{i18nT("ca_potentiel_fc9eeae4")}</span>
-                    <b>+{formatInt(summaryEstimatedByCube[activeModel.key] || computedEstimatedByCube[activeModel.key] || 0)} €</b>
+                    <b>{stableRevenue(summaryEstimatedByCube[activeModel.key] || computedEstimatedByCube[activeModel.key] || 0, opportunityReadyByCube[activeModel.key] && bulkStatsReady)}</b>
                   </div>
                   {activeModel.key !== "mails" ? (
                     <div className={`${styles.allStatsKpi} ${styles.kpiToneGreen} ${styles.channelDemandesKpi}`}>
                       <span className={styles.channelDemandesKpiLabel}>{i18nT("demandes_captees_7j_30j_d1d1b0de")}</span>
-                      <b>{activeModel.capturedLeadsUnavailable ? "—" : `${formatInt(activeModel.capturedLeads.week)} / ${formatInt(activeModel.capturedLeads.month)}`}</b>
+                      <b>{activeModel.capturedLeadsUnavailable || !opportunityReadyByCube[activeModel.key] ? "—" : `${formatInt(activeModel.capturedLeads.week)} / ${formatInt(activeModel.capturedLeads.month)}`}</b>
                     </div>
                   ) : null}
                 </div>
@@ -766,6 +755,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
                 forceOpen
                 hideDetailsToggle
                 estimatedRevenue={summaryEstimatedByCube[activeModel.key] || computedEstimatedByCube[activeModel.key] || 0}
+                statsReady={opportunityReadyByCube[activeModel.key] && bulkStatsReady}
               />
             </section>
           ) : null}

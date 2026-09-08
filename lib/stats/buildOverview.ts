@@ -15,7 +15,10 @@ import { refreshTiktokAccessToken } from "@/lib/tiktokOAuth";
 import { fetchTiktokAnalyticsSnapshot } from "@/lib/tiktokAnalytics";
 import { fetchYoutubeMineChannel, refreshYoutubeShortsAccessToken } from "@/lib/youtubeShortsOAuth";
 import { fetchYoutubeShortsAnalyticsSnapshot, mergeYoutubeShortsLocalPublicationStats } from "@/lib/youtubeShortsAnalytics";
-import { loadInrcyPublishedActivityStats } from "@/lib/stats/buildOverview.activity";
+import {
+  loadInrcyPublishedActivityStats,
+  type InrcyPublishedActivityLoader,
+} from "@/lib/stats/buildOverview.activity";
 import { buildOverviewConnectionsKey } from "@/lib/stats/buildOverview.connections";
 import { createIntegrationResolvers } from "@/lib/stats/buildOverview.integrations";
 import { createLinkedInOverviewCache } from "@/lib/stats/buildOverview.linkedinCache";
@@ -68,6 +71,7 @@ export async function buildStatsOverview(args: {
   includeRaw?: string;
   fresh?: boolean;
   snapshotDate?: string | null;
+  inrcyPublishedActivityLoader?: InrcyPublishedActivityLoader;
 }): Promise<OverviewPayload> {
   const { supabase, userId, fresh = false } = args;
   const days = Math.min(Math.max(Number(args.days || 28), 7), 90);
@@ -87,10 +91,10 @@ export async function buildStatsOverview(args: {
     fresh,
     snapshotDate: args.snapshotDate,
   });
-  const inrcyPublishedActivityStats = await loadInrcyPublishedActivityStats({
-    supabase,
-    userId,
-  });
+  const inrcyPublishedActivityStats = await (
+    args.inrcyPublishedActivityLoader?.() ||
+    loadInrcyPublishedActivityStats({ supabase, userId })
+  );
   const tiktokActivity = inrcyPublishedActivityStats.tiktok;
   const tiktokLocalPublicationStats: TiktokLocalPublicationStats = {
     posts: tiktokActivity?.publications.month || 0,

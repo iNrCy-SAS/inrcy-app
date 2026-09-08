@@ -7616,6 +7616,207 @@
   }
 }
 
+/* iNrStats — vue desktop finale : une seule hauteur d’écran, sans barres
+   parasites, avec une navigation canal plus compacte et les fiches détail
+   entièrement lisibles sur une page. */
+@media (min-width: 901px) {
+  .page {
+    box-sizing: border-box !important;
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+    max-height: 100dvh !important;
+    padding-top: 18px !important;
+    padding-bottom: 12px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+  }
+
+  .header {
+    flex: 0 0 auto !important;
+    margin-bottom: 0 !important;
+  }
+
+  .statsWorkspace,
+  .statsWorkspaceChannel {
+    flex: 1 1 auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin-top: 14px !important;
+    overflow: hidden !important;
+  }
+
+  .statsPanel {
+    height: 100% !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .allStatsPanel {
+    height: 100% !important;
+    min-height: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+  }
+
+  .allStatsHero {
+    min-height: 56px !important;
+    padding-block: 3px 8px !important;
+  }
+
+  .allStatsActions {
+    flex: 1 1 auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: 0 !important;
+    overflow-x: hidden !important;
+    overflow-y: hidden !important;
+    scrollbar-width: none !important;
+  }
+
+  .allStatsActions::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .allStatsActionCard {
+    grid-template-columns:
+      minmax(160px, 0.9fr)
+      minmax(300px, 1.3fr)
+      minmax(100px, 0.55fr)
+      minmax(150px, 0.7fr)
+      minmax(64px, 0.3fr) !important;
+    column-gap: 14px !important;
+    overflow: hidden !important;
+  }
+
+  .allStatsChannelButton,
+  .allStatsMetrics,
+  .allStatsRecommendedAction,
+  .allStatsDetailsButton,
+  .allStatsGoButton {
+    min-width: 0 !important;
+  }
+
+  .channelStatsPanel {
+    box-sizing: border-box !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    padding: 10px 12px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsHeader {
+    flex: 0 0 auto !important;
+    width: 100% !important;
+    min-height: 58px !important;
+    padding: 0 4px 8px !important;
+    display: grid !important;
+    grid-template-columns: auto minmax(180px, 0.72fr) minmax(540px, 1.8fr) !important;
+    align-items: center !important;
+    gap: 14px !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsBackButton {
+    grid-column: 1 !important;
+    margin: 0 !important;
+    align-self: center !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsTitleBlock {
+    grid-column: 2 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    display: grid !important;
+    justify-items: center !important;
+    align-content: center !important;
+    gap: 2px !important;
+    text-align: center !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsTitleBlock .allStatsEyebrow {
+    font-size: 9px !important;
+    line-height: 1 !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsTitleBlock .allStatsTitle {
+    width: 100% !important;
+    margin: 0 !important;
+    font-size: 18px !important;
+    line-height: 1 !important;
+    text-align: center !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsTitleBlock .allStatsText {
+    width: 100% !important;
+    margin: 0 !important;
+    font-size: 10px !important;
+    line-height: 1.1 !important;
+    text-align: center !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsHeader .channelStatsKpis {
+    grid-column: 3 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 6px !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsHeader .channelStatsKpisMail {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsHeader .allStatsKpi {
+    min-height: 48px !important;
+    padding: 6px 8px !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsPanel .cube {
+    flex: 0 1 auto !important;
+    width: 100% !important;
+    min-height: 0 !important;
+    margin-top: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsPanel .cubeTopCompact {
+    min-height: 44px !important;
+    padding: 7px 10px !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsPanel .cubeBody {
+    min-height: 0 !important;
+    gap: 7px !important;
+    padding: 7px 9px 9px !important;
+    overflow: hidden !important;
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1180px) {
+  .statsWorkspaceChannel .channelStatsHeader {
+    grid-template-columns: auto minmax(150px, 0.65fr) minmax(430px, 1.55fr) !important;
+    gap: 10px !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .channelStatsHeader > .channelStatsBackButton {
+    justify-self: start;
+    margin-bottom: 4px;
+  }
+}
+
 @container channelStats (max-width: 560px) {
   .channelStatsPanel .channelStatsHeader {
     grid-template-columns: minmax(0, 1fr) !important;
@@ -7651,6 +7852,160 @@
 
   .channelStatsPanel .channelInlineActionStack {
     grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+/* iNrStats — synthèse desktop sur une seule ligne et 13 canaux sans scroll. */
+@media (min-width: 901px) {
+  .allStatsPanel {
+    padding: 10px !important;
+  }
+
+  .allStatsHero {
+    flex: 0 0 auto !important;
+    width: 100% !important;
+    min-height: 48px !important;
+    padding: 0 3px 7px !important;
+    display: grid !important;
+    grid-template-columns: minmax(190px, 0.75fr) minmax(500px, 1.65fr) auto !important;
+    align-items: center !important;
+    gap: 10px !important;
+  }
+
+  .allStatsHeaderMain {
+    min-width: 0 !important;
+    display: grid !important;
+    align-content: center !important;
+    gap: 2px !important;
+  }
+
+  .allStatsHeaderMain .allStatsTitle {
+    margin: 0 !important;
+    font-size: 18px !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+  }
+
+  .allStatsHeaderMain .allStatsText {
+    margin: 0 !important;
+    font-size: 10.5px !important;
+    line-height: 1.1 !important;
+    white-space: nowrap !important;
+  }
+
+  .allStatsHero > .allStatsKpis {
+    width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 6px !important;
+    flex-wrap: nowrap !important;
+  }
+
+  .allStatsHero > .allStatsKpis .allStatsKpi {
+    width: auto !important;
+    min-width: 0 !important;
+    min-height: 40px !important;
+    padding: 5px 8px !important;
+    display: grid !important;
+    align-content: center !important;
+    text-align: center !important;
+  }
+
+  .allStatsHero > .allStatsKpis .allStatsKpi span {
+    margin-bottom: 2px !important;
+    font-size: 8.6px !important;
+    line-height: 1 !important;
+  }
+
+  .allStatsHero > .allStatsKpis .allStatsKpi b {
+    font-size: 15.5px !important;
+    line-height: 1 !important;
+  }
+
+  .allStatsHero > .allStatsReportButton {
+    position: static !important;
+    transform: none !important;
+    justify-self: end !important;
+    align-self: center !important;
+    min-width: 150px !important;
+    min-height: 36px !important;
+    margin: 0 !important;
+    padding: 8px 13px !important;
+    font-size: 11px !important;
+    white-space: nowrap !important;
+  }
+
+  .allStatsActions {
+    grid-auto-rows: minmax(44px, 1fr) !important;
+    gap: 6px !important;
+    overflow-y: hidden !important;
+    padding-right: 0 !important;
+  }
+
+  .allStatsActionCard {
+    min-height: 44px !important;
+    padding: 5px 10px !important;
+    gap: 8px !important;
+    border-radius: 14px !important;
+  }
+
+  .allStatsMetrics {
+    gap: 5px !important;
+  }
+
+  .allStatsMetrics span {
+    height: 34px !important;
+    min-height: 34px !important;
+    padding: 3px 8px !important;
+    border-radius: 11px !important;
+  }
+
+  .allStatsMetrics small {
+    font-size: 8.8px !important;
+  }
+
+  .allStatsMetrics b {
+    font-size: 14.5px !important;
+  }
+
+  .allStatsToolBadge {
+    min-height: 30px !important;
+    padding: 5px 9px !important;
+    font-size: 10.5px !important;
+  }
+
+  .allStatsDetailsButton,
+  .allStatsGoButton {
+    height: 34px !important;
+    min-height: 34px !important;
+    padding-block: 6px !important;
+  }
+
+  .allStatsDetailsButton {
+    font-size: 11.5px !important;
+  }
+
+  .allStatsGoButton {
+    font-size: 11.5px !important;
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1180px) {
+  .allStatsHero {
+    grid-template-columns: minmax(160px, 0.65fr) minmax(430px, 1.5fr) auto !important;
+  }
+
+  .allStatsHero > .allStatsReportButton {
+    min-width: 132px !important;
+    padding-inline: 10px !important;
+  }
+}
+
+@media (min-width: 901px) and (max-height: 720px) {
+  .allStatsActions {
+    overflow-y: auto !important;
   }
 }
 
@@ -7833,11 +8188,9 @@
   box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.08), 0 16px 44px rgba(0, 0, 0, 0.2) !important;
 }
 
-/* iNr'Stats — gabarit canal aligné sur la vue globale.
-   La vue globale reste inchangée. Sur desktop, la fiche d'un canal reprend
-   exactement toute la colonne disponible : titre, KPI et cartes internes ont
-   une largeur commune. Les container queries ci-dessus gardent le repli
-   vertical lorsque le zoom réduit réellement la largeur du panneau. */
+/* iNr'Stats — gabarit final des fiches canal sur desktop.
+   Retour, identité du canal et KPI partagent une seule ligne ; la carte utilise
+   toute la hauteur disponible sous cet en-tête. */
 @media (min-width: 901px) {
   .statsWorkspaceChannel,
   .statsWorkspaceChannel .statsPanel,
@@ -7850,44 +8203,96 @@
     box-sizing: border-box !important;
   }
 
+  .statsWorkspaceChannel .statsPanel,
+  .statsWorkspaceChannel .channelStatsPanel {
+    height: 100% !important;
+    min-height: 0 !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsPanel {
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+  }
+
   .statsWorkspaceChannel .channelStatsHeader {
+    flex: 0 0 auto !important;
     width: 100% !important;
     display: grid !important;
-    grid-template-columns: minmax(0, 1fr) !important;
-    align-items: stretch !important;
-    gap: 10px !important;
+    grid-template-columns: auto minmax(0, 1fr) auto !important;
+    align-items: center !important;
+    column-gap: 14px !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsHeader > .channelStatsBackButton {
+    grid-column: 1 !important;
+    justify-self: start !important;
+    align-self: center !important;
+    margin: 0 !important;
   }
 
   .statsWorkspaceChannel .channelStatsHeader > .channelStatsTitleBlock {
-    width: 100% !important;
-    max-width: none !important;
+    grid-column: 2 !important;
+    width: max-content !important;
+    max-width: min(30vw, 330px) !important;
     min-width: 0 !important;
+    display: inline-flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    gap: 5px !important;
+    justify-self: start !important;
+    align-self: center !important;
+    align-items: center !important;
+    text-align: center !important;
   }
 
-  .statsWorkspaceChannel .channelStatsHeader > .channelStatsTitleBlock > .allStatsTitle,
+  .statsWorkspaceChannel .channelStatsHeader > .channelStatsTitleBlock > .allStatsEyebrow {
+    display: inline-flex !important;
+    align-items: center !important;
+    flex: 0 0 auto !important;
+    width: auto !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    white-space: nowrap !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsHeader > .channelStatsTitleBlock > .allStatsEyebrow::after {
+    content: " :";
+  }
+
+  .statsWorkspaceChannel .channelStatsHeader > .channelStatsTitleBlock > .allStatsTitle {
+    flex: 0 1 auto !important;
+    width: auto !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    text-align: center !important;
+  }
+
   .statsWorkspaceChannel .channelStatsHeader > .channelStatsTitleBlock > .allStatsText {
-    width: 100% !important;
-    max-width: none !important;
+    display: none !important;
   }
 
   .statsWorkspaceChannel .channelStatsKpis,
   .statsWorkspaceChannel .channelStatsHeader .channelStatsKpis,
   .statsWorkspaceChannel .channelStatsHeader .allStatsKpis {
-    width: 100% !important;
+    grid-column: 3 !important;
+    width: min(540px, 42vw) !important;
     min-width: 0 !important;
-    max-width: none !important;
+    max-width: 540px !important;
     margin: 0 !important;
     display: grid !important;
     grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
     gap: 6px !important;
-    justify-self: stretch !important;
+    justify-self: end !important;
+    align-self: center !important;
   }
 
   .statsWorkspaceChannel .channelStatsKpisMail,
   .statsWorkspaceChannel .channelStatsHeader .channelStatsKpisMail,
   .statsWorkspaceChannel .channelStatsHeader .allStatsKpis.channelStatsKpisMail {
-    width: 100% !important;
+    width: min(360px, 32vw) !important;
     min-width: 0 !important;
+    max-width: 360px !important;
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
 
@@ -7897,6 +8302,31 @@
     min-width: 0 !important;
     max-width: none !important;
     flex: initial !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsPanel .cube {
+    flex: 1 1 auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsPanel .cubeTop,
+  .statsWorkspaceChannel .channelStatsPanel .cubeTopCompact {
+    flex: 0 0 auto !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsPanel .cubeBody,
+  .statsWorkspaceChannel .channelStatsPanel .cubeBodyWithInrcyActivity,
+  .statsWorkspaceChannel .channelStatsPanel .cubeBody:not(.cubeBodyWithInrcyActivity) {
+    flex: 1 1 auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: hidden !important;
   }
 
   .statsWorkspaceChannel .channelStatsPanel .detailTopRow,
@@ -7931,5 +8361,705 @@
   .statsWorkspaceChannel .channelStatsHeader .channelStatsKpisMail,
   .statsWorkspaceChannel .channelStatsHeader .allStatsKpis.channelStatsKpisMail {
     grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+/* iNrStats — verrou final des fiches canal desktop.
+   L'identité est centrée dans la zone libre entre le retour et les KPI, et le
+   contenu de chaque bloc exploite toute la hauteur offerte par la grille. */
+@media (min-width: 901px) {
+  .statsWorkspaceChannel .channelStatsHeader {
+    grid-template-columns: auto minmax(0, 1fr) auto !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsHeader > .channelStatsTitleBlock {
+    justify-self: center !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsPanel .cubeBody .metricOverviewBlock,
+  .statsWorkspaceChannel .channelStatsPanel .cubeBody .provenanceCompactBlock,
+  .statsWorkspaceChannel .channelStatsPanel .cubeBody .blockRow > .block {
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsPanel .cubeBody .metricOverviewBlock > .metricMiniGrid:not(.metricMiniGridSingle) {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    grid-auto-rows: minmax(0, 1fr) !important;
+    align-content: stretch !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsPanel .cubeBody .metricMiniGrid:not(.metricMiniGridSingle) > .metricMiniCard {
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    justify-content: center !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsPanel .cubeBody .provenanceCompactBlock > .donutWrap,
+  .statsWorkspaceChannel .channelStatsPanel .cubeBody .qualityRow {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    align-items: center !important;
+    align-content: center !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsPanel .cubeBody .inrcyActivityBlock,
+  .statsWorkspaceChannel .channelStatsPanel .cubeBody .inrcyActivityItems {
+    height: 100% !important;
+    min-height: 0 !important;
+    align-items: stretch !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsPanel .cubeBody .inrcyActivityItem {
+    height: 100% !important;
+    min-height: 0 !important;
+    align-self: stretch !important;
+  }
+}
+
+/* iNrStats — contrat final de la Vue globale desktop.
+   Ce bloc reste volontairement après les fiches canal : la colonne Canal est
+   compacte, chaque cellule est centrée et aucun scroll interne ne réapparaît. */
+@media (min-width: 901px) {
+  .statsWorkspace[data-stats-view="global"],
+  .statsWorkspace[data-stats-view="global"] .statsPanel,
+  .statsWorkspace[data-stats-view="global"] .allStatsPanel,
+  .statsWorkspace[data-stats-view="global"] .allStatsActions {
+    min-width: 0 !important;
+    overflow-x: hidden !important;
+    overflow-y: hidden !important;
+  }
+
+  .statsWorkspace[data-stats-view="global"] .allStatsPanel {
+    border-color: rgba(103, 232, 249, 0.42) !important;
+    background:
+      radial-gradient(circle at 6% -4%, rgba(34, 211, 238, 0.27), transparent 35%),
+      radial-gradient(circle at 97% -2%, rgba(192, 38, 211, 0.23), transparent 39%),
+      linear-gradient(145deg, rgba(10, 45, 67, 0.96), rgba(34, 27, 78, 0.95)) !important;
+    box-shadow:
+      0 28px 90px rgba(0, 0, 0, 0.34),
+      0 0 38px rgba(34, 211, 238, 0.07),
+      inset 0 1px 0 rgba(255, 255, 255, 0.14) !important;
+  }
+
+  .statsWorkspace[data-stats-view="global"] .allStatsHero {
+    flex: 0 0 56px !important;
+    min-height: 56px !important;
+    padding-block: 3px 8px !important;
+    border-radius: 12px !important;
+    background: linear-gradient(90deg, rgba(34, 211, 238, 0.055), rgba(99, 102, 241, 0.04) 56%, rgba(192, 38, 211, 0.065)) !important;
+    box-shadow: inset 0 -1px 0 rgba(125, 211, 252, 0.16) !important;
+  }
+
+  .statsWorkspace[data-stats-view="global"] .allStatsHero > .allStatsHeaderMain {
+    justify-items: start !important;
+    text-align: left !important;
+  }
+
+  .statsWorkspace[data-stats-view="global"] .allStatsActions {
+    grid-auto-rows: minmax(44px, 1fr) !important;
+    gap: 6px !important;
+    padding-right: 0 !important;
+    scrollbar-width: none !important;
+  }
+
+  .statsWorkspace[data-stats-view="global"] .allStatsActions::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .statsWorkspace[data-stats-view="global"] .allStatsActionCard {
+    grid-template-columns:
+      154px
+      minmax(260px, 1.25fr)
+      minmax(100px, 0.5fr)
+      minmax(150px, 0.75fr)
+      minmax(58px, 0.3fr) !important;
+    column-gap: 24px !important;
+    min-width: 0 !important;
+    align-items: center !important;
+    overflow: hidden !important;
+  }
+
+  .statsWorkspace[data-stats-view="global"] .allStatsActionCardConnected {
+    border-color: rgba(52, 211, 153, 0.42) !important;
+    background:
+      radial-gradient(circle at 0% 50%, rgba(34, 197, 94, 0.3), transparent 42%),
+      linear-gradient(110deg, rgba(13, 148, 136, 0.2), rgba(14, 116, 144, 0.17) 52%, rgba(124, 58, 237, 0.22)) !important;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.13),
+      0 5px 18px rgba(6, 182, 212, 0.08) !important;
+  }
+
+  .statsWorkspace[data-stats-view="global"] .allStatsActionCardOff {
+    border-color: rgba(251, 146, 60, 0.32) !important;
+    background:
+      radial-gradient(circle at 0% 50%, rgba(251, 146, 60, 0.13), transparent 34%),
+      linear-gradient(110deg, rgba(30, 41, 59, 0.68), rgba(49, 46, 129, 0.2), rgba(88, 28, 135, 0.2)) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09) !important;
+  }
+
+  .statsWorkspace[data-stats-view="global"] .allStatsChannelButton {
+    width: 100% !important;
+    height: 100% !important;
+    justify-items: center !important;
+    align-content: center !important;
+    text-align: center !important;
+  }
+
+  .statsWorkspace[data-stats-view="global"] .allStatsChannelName {
+    width: 100% !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+  }
+
+  .statsWorkspace[data-stats-view="global"] .allStatsMetrics {
+    align-self: center !important;
+  }
+
+  .statsWorkspace[data-stats-view="global"] .allStatsMetrics span {
+    justify-items: center !important;
+    align-content: center !important;
+    text-align: center !important;
+    border-color: rgba(125, 211, 252, 0.24) !important;
+    background: linear-gradient(135deg, rgba(8, 47, 73, 0.72), rgba(49, 46, 129, 0.38)) !important;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.1),
+      0 4px 14px rgba(15, 23, 42, 0.14) !important;
+  }
+
+  .statsWorkspace[data-stats-view="global"] .allStatsRecommendedAction {
+    width: 100% !important;
+    height: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .statsWorkspace[data-stats-view="global"] .allStatsToolBadge {
+    box-sizing: border-box !important;
+    width: min(100%, 144px) !important;
+    justify-self: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+    border-color: rgba(125, 211, 252, 0.44) !important;
+    background: linear-gradient(135deg, rgba(14, 165, 233, 0.36), rgba(124, 58, 237, 0.34)) !important;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.13),
+      0 5px 16px rgba(56, 189, 248, 0.1) !important;
+  }
+
+  .statsWorkspace[data-stats-view="global"] .allStatsDetailsButton,
+  .statsWorkspace[data-stats-view="global"] .allStatsGoButton {
+    width: 100% !important;
+    min-width: 0 !important;
+    justify-self: stretch !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+  }
+
+  .statsWorkspace[data-stats-view="global"] .allStatsDetailsButton {
+    border-color: rgba(125, 211, 252, 0.4) !important;
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.3), rgba(124, 58, 237, 0.35)) !important;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.12),
+      0 5px 16px rgba(99, 102, 241, 0.1) !important;
+  }
+
+  .statsWorkspace[data-stats-view="global"] .allStatsGoButtonOn {
+    border-color: rgba(103, 232, 249, 0.46) !important;
+    background: linear-gradient(135deg, rgba(14, 165, 233, 0.48), rgba(124, 58, 237, 0.48)) !important;
+  }
+
+  .statsWorkspace[data-stats-view="global"] .allStatsGoButtonConnect {
+    border-color: rgba(251, 191, 36, 0.58) !important;
+    background: linear-gradient(135deg, rgba(249, 115, 22, 0.48), rgba(180, 83, 9, 0.46), rgba(124, 58, 237, 0.32)) !important;
+  }
+
+  .statsWorkspace[data-stats-view="global"] .allStatsKpi {
+    border-color: rgba(255, 255, 255, 0.16) !important;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.14),
+      0 7px 20px rgba(2, 6, 23, 0.18) !important;
+  }
+
+  .statsWorkspace[data-stats-view="global"] .allStatsKpi.kpiToneBlue {
+    border-color: rgba(56, 189, 248, 0.38) !important;
+    background: linear-gradient(135deg, rgba(14, 165, 233, 0.27), rgba(30, 64, 175, 0.2)) !important;
+  }
+
+  .statsWorkspace[data-stats-view="global"] .allStatsKpi.kpiTonePurple {
+    border-color: rgba(216, 180, 254, 0.32) !important;
+    background: linear-gradient(135deg, rgba(147, 51, 234, 0.27), rgba(88, 28, 135, 0.22)) !important;
+  }
+
+  .statsWorkspace[data-stats-view="global"] .allStatsKpi.kpiToneGreen {
+    border-color: rgba(52, 211, 153, 0.34) !important;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.24), rgba(13, 148, 136, 0.18)) !important;
+  }
+
+  .statsWorkspace[data-stats-view="global"] .allStatsKpi.kpiToneSlate {
+    border-color: rgba(165, 180, 252, 0.32) !important;
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.23), rgba(71, 85, 105, 0.2)) !important;
+  }
+}
+
+/* Même à faible hauteur desktop, conserver les 13 canaux sans barre interne. */
+@media (min-width: 901px) and (max-height: 720px) {
+  .statsWorkspace[data-stats-view="global"] .allStatsActions {
+    grid-auto-rows: minmax(0, 1fr) !important;
+    gap: 4px !important;
+  }
+
+  .statsWorkspace[data-stats-view="global"] .allStatsActionCard {
+    min-height: 0 !important;
+    padding-block: 2px !important;
+  }
+
+  .statsWorkspace[data-stats-view="global"] .allStatsMetrics span,
+  .statsWorkspace[data-stats-view="global"] .allStatsDetailsButton,
+  .statsWorkspace[data-stats-view="global"] .allStatsGoButton {
+    height: 30px !important;
+    min-height: 30px !important;
+  }
+
+  .statsWorkspace[data-stats-view="global"] .allStatsToolBadge {
+    min-height: 28px !important;
+    padding-block: 4px !important;
+  }
+}
+
+.channelStatsTitleIcon,
+.channelStatsTitleIconBubble {
+  display: none;
+}
+
+/* iNrStats — profondeur et repères couleur des fiches canal desktop.
+   Les teintes restent contenues dans le thème sombre et ne changent aucune
+   dimension du gabarit validé ci-dessus. */
+@media (min-width: 901px) {
+  .statsWorkspaceChannel .channelStatsTitleIconBubble {
+    display: inline-grid !important;
+    place-items: center !important;
+    flex: 0 0 24px !important;
+    width: 24px !important;
+    height: 24px !important;
+    overflow: hidden !important;
+    border: 1px solid rgba(125, 211, 252, 0.28) !important;
+    border-radius: 999px !important;
+    background: rgba(15, 23, 42, 0.72) !important;
+    box-shadow:
+      0 4px 12px rgba(56, 189, 248, 0.12) !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsTitleIcon {
+    display: block !important;
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+    border-radius: inherit !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsPanel {
+    border-color: rgba(103, 232, 249, 0.30) !important;
+    background:
+      radial-gradient(circle at 4% 0%, rgba(14, 165, 233, 0.17), transparent 34%),
+      radial-gradient(circle at 96% 2%, rgba(168, 85, 247, 0.16), transparent 36%),
+      linear-gradient(145deg, rgba(13, 31, 52, 0.94), rgba(24, 22, 53, 0.92)) !important;
+    box-shadow:
+      0 28px 80px rgba(0, 0, 0, 0.34),
+      inset 0 1px 0 rgba(255, 255, 255, 0.10),
+      0 0 0 1px rgba(56, 189, 248, 0.035) !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsPanel .cube {
+    border-color: rgba(125, 211, 252, 0.26) !important;
+    background:
+      radial-gradient(circle at 1% 0%, rgba(14, 165, 233, 0.12), transparent 38%),
+      radial-gradient(circle at 99% 4%, rgba(45, 212, 191, 0.09), transparent 38%),
+      linear-gradient(145deg, rgba(16, 36, 60, 0.94), rgba(21, 27, 52, 0.95)) !important;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      0 18px 44px rgba(0, 0, 0, 0.24) !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsPanel .cubeTopCompact {
+    border-bottom-color: rgba(125, 211, 252, 0.16) !important;
+    background: linear-gradient(90deg, rgba(14, 165, 233, 0.07), rgba(139, 92, 246, 0.06), rgba(45, 212, 191, 0.06)) !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsHeader .allStatsKpi:nth-child(1) {
+    border-color: rgba(56, 189, 248, 0.30) !important;
+    background: linear-gradient(145deg, rgba(14, 165, 233, 0.16), rgba(30, 64, 175, 0.10)) !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsHeader .allStatsKpi:nth-child(2) {
+    border-color: rgba(167, 139, 250, 0.30) !important;
+    background: linear-gradient(145deg, rgba(139, 92, 246, 0.16), rgba(91, 33, 182, 0.10)) !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsHeader .allStatsKpi:nth-child(3) {
+    border-color: rgba(74, 222, 128, 0.28) !important;
+    background: linear-gradient(145deg, rgba(16, 185, 129, 0.15), rgba(6, 95, 70, 0.10)) !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsPanel .cubeBody .detailTopRow > .block:first-child {
+    border-color: rgba(56, 189, 248, 0.27) !important;
+    background:
+      radial-gradient(circle at 4% 0%, rgba(56, 189, 248, 0.13), transparent 52%),
+      linear-gradient(145deg, rgba(25, 65, 91, 0.43), rgba(22, 39, 67, 0.52)) !important;
+    box-shadow: inset 0 1px 0 rgba(224, 242, 254, 0.06), 0 8px 24px rgba(14, 165, 233, 0.045) !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsPanel .cubeBody .detailTopRow > .provenanceCompactBlock {
+    border-color: rgba(52, 211, 153, 0.25) !important;
+    background:
+      radial-gradient(circle at 96% 4%, rgba(45, 212, 191, 0.12), transparent 50%),
+      linear-gradient(145deg, rgba(20, 61, 69, 0.42), rgba(25, 43, 65, 0.52)) !important;
+    box-shadow: inset 0 1px 0 rgba(209, 250, 229, 0.055), 0 8px 24px rgba(16, 185, 129, 0.04) !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsPanel .cubeBody .blockRow > .block:first-child {
+    border-color: rgba(129, 140, 248, 0.27) !important;
+    background:
+      radial-gradient(circle at 0% 100%, rgba(99, 102, 241, 0.12), transparent 50%),
+      linear-gradient(145deg, rgba(35, 48, 83, 0.52), rgba(31, 34, 65, 0.54)) !important;
+    box-shadow: inset 0 1px 0 rgba(224, 231, 255, 0.055), 0 8px 24px rgba(99, 102, 241, 0.04) !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsPanel .cubeBody .blockRow > .metricOverviewBlock:last-child {
+    border-color: rgba(45, 212, 191, 0.26) !important;
+    background:
+      radial-gradient(circle at 100% 0%, rgba(34, 197, 94, 0.10), transparent 48%),
+      linear-gradient(145deg, rgba(20, 66, 70, 0.42), rgba(24, 43, 66, 0.52)) !important;
+    box-shadow: inset 0 1px 0 rgba(204, 251, 241, 0.055), 0 8px 24px rgba(20, 184, 166, 0.04) !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsPanel .cubeBody .detailTopRow > .metricOverviewBlock .metricMiniCard {
+    border-color: rgba(125, 211, 252, 0.20) !important;
+    background: linear-gradient(145deg, rgba(14, 116, 144, 0.16), rgba(30, 58, 138, 0.13)) !important;
+    box-shadow: inset 0 1px 0 rgba(224, 242, 254, 0.045) !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsPanel .cubeBody .blockRow > .metricOverviewBlock .metricMiniCard {
+    border-color: rgba(94, 234, 212, 0.20) !important;
+    background: linear-gradient(145deg, rgba(13, 148, 136, 0.15), rgba(6, 95, 70, 0.12)) !important;
+    box-shadow: inset 0 1px 0 rgba(204, 251, 241, 0.045) !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsPanel .cubeBody .inrcyActivityBlock {
+    border-color: rgba(167, 139, 250, 0.27) !important;
+    background:
+      linear-gradient(110deg, rgba(14, 165, 233, 0.13), rgba(99, 102, 241, 0.15) 48%, rgba(168, 85, 247, 0.13)),
+      rgba(25, 34, 68, 0.54) !important;
+    box-shadow: inset 0 1px 0 rgba(237, 233, 254, 0.06), 0 8px 24px rgba(139, 92, 246, 0.045) !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsPanel .cubeBody .inrcyActivityItem:nth-child(1) {
+    border-color: rgba(56, 189, 248, 0.20) !important;
+    background: linear-gradient(145deg, rgba(14, 165, 233, 0.13), rgba(30, 64, 175, 0.10)) !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsPanel .cubeBody .inrcyActivityItem:nth-child(2) {
+    border-color: rgba(167, 139, 250, 0.20) !important;
+    background: linear-gradient(145deg, rgba(139, 92, 246, 0.13), rgba(91, 33, 182, 0.10)) !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsPanel .cubeBody .inrcyActivityItem:nth-child(3) {
+    border-color: rgba(74, 222, 128, 0.20) !important;
+    background: linear-gradient(145deg, rgba(16, 185, 129, 0.13), rgba(6, 95, 70, 0.10)) !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsPanel .cubeBody > .lectureBusinessActionBlock,
+  .statsWorkspaceChannel .channelStatsPanel .cubeBody > .block:last-child {
+    border-color: rgba(147, 197, 253, 0.24) !important;
+    background:
+      radial-gradient(circle at 92% 100%, rgba(168, 85, 247, 0.10), transparent 42%),
+      linear-gradient(145deg, rgba(27, 50, 82, 0.50), rgba(34, 31, 67, 0.54)) !important;
+    box-shadow: inset 0 1px 0 rgba(219, 234, 254, 0.055), 0 8px 24px rgba(59, 130, 246, 0.04) !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsPanel .cubeBody .blockTitle {
+    color: rgba(239, 246, 255, 0.88) !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsPanel .cubeBody .metricMiniCard span,
+  .statsWorkspaceChannel .channelStatsPanel .cubeBody .qualitySub,
+  .statsWorkspaceChannel .channelStatsPanel .cubeBody .provenanceHint {
+    color: rgba(226, 240, 251, 0.72) !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsPanel .cubeBody .bullets {
+    color: rgba(239, 246, 255, 0.82) !important;
+  }
+}
+
+/* iNrStats — centrage du CTA détail sur la largeur de la carte mobile. */
+@media (max-width: 900px) {
+  .statsWorkspace[data-stats-view="global"] .allStatsActionCard > .allStatsDetailsButton {
+    grid-column: 1 / -1 !important;
+    justify-self: center !important;
+    margin-inline: auto !important;
+  }
+}
+
+/* Fiches canal — publications réellement enregistrées dans iNrSend.
+   La bande existante est réutilisée afin de conserver le gabarit one-screen. */
+.publicationsActivityLayout {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(260px, 0.84fr) minmax(340px, 1.16fr);
+  align-items: stretch;
+  gap: 9px;
+}
+
+.publicationWindowGrid {
+  min-width: 0;
+  height: 100%;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 7px;
+}
+
+.publicationWindowCard {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 7px 8px;
+  border: 1px solid rgba(103, 232, 249, 0.20);
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(56, 189, 248, 0.14), transparent 72%),
+    linear-gradient(145deg, rgba(14, 116, 144, 0.15), rgba(30, 64, 175, 0.13));
+  box-shadow: inset 0 1px 0 rgba(224, 242, 254, 0.045);
+}
+
+.publicationWindowCard:nth-child(2) {
+  border-color: rgba(129, 140, 248, 0.22);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(129, 140, 248, 0.14), transparent 72%),
+    linear-gradient(145deg, rgba(67, 56, 202, 0.14), rgba(30, 64, 175, 0.12));
+}
+
+.publicationWindowCard:nth-child(3) {
+  border-color: rgba(192, 132, 252, 0.22);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(192, 132, 252, 0.14), transparent 72%),
+    linear-gradient(145deg, rgba(126, 34, 206, 0.13), rgba(49, 46, 129, 0.12));
+}
+
+.publicationWindowCard b {
+  color: #f8fafc;
+  font-size: 20px;
+  line-height: 1;
+  font-weight: 950;
+  letter-spacing: -0.025em;
+}
+
+.publicationWindowCard small {
+  color: rgba(226, 232, 240, 0.62);
+  font-size: 9px;
+  line-height: 1;
+  font-weight: 950;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.publicationTypesPanel {
+  min-width: 0;
+  min-height: 34px;
+  display: grid;
+  grid-template-columns: minmax(82px, auto) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 7px 11px;
+  border-radius: 12px;
+  border: 1px solid rgba(167, 139, 250, 0.24);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(168, 85, 247, 0.13), transparent 58%),
+    linear-gradient(145deg, rgba(99, 102, 241, 0.15), rgba(88, 28, 135, 0.11));
+  box-shadow: inset 0 1px 0 rgba(237, 233, 254, 0.05);
+}
+
+.publicationTypesLabel {
+  color: rgba(255, 255, 255, 0.66);
+  font-size: 9.5px;
+  line-height: 1.15;
+  font-weight: 950;
+  text-transform: uppercase;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.publicationTypeChips {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-evenly;
+  align-content: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.publicationTypeChip {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  border: 1px solid rgba(125, 211, 252, 0.20);
+  border-radius: 999px;
+  color: rgba(239, 246, 255, 0.88);
+  background: rgba(14, 116, 144, 0.14);
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.publicationTypeChip b {
+  color: #f8fafc;
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 950;
+}
+
+.publicationType_reel,
+.publicationType_story {
+  border-color: rgba(244, 114, 182, 0.28);
+  background: rgba(190, 24, 93, 0.16);
+}
+
+.publicationType_short,
+.publicationType_video {
+  border-color: rgba(129, 140, 248, 0.28);
+  background: rgba(79, 70, 229, 0.16);
+}
+
+.publicationType_image,
+.publicationType_pin {
+  border-color: rgba(52, 211, 153, 0.26);
+  background: rgba(5, 150, 105, 0.15);
+}
+
+.publicationTypesEmpty,
+.publicationTypesNote {
+  min-width: 0;
+  color: rgba(226, 232, 240, 0.62);
+  font-size: 10px;
+  line-height: 1.2;
+  font-weight: 750;
+  text-align: center;
+}
+
+.publicationTypesEmpty {
+  justify-self: center;
+}
+
+.publicationTypesNote {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 4px 8px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 999px;
+  background: rgba(30, 41, 59, 0.28);
+  white-space: nowrap;
+}
+
+.publicationHistoryNote {
+  grid-column: 1 / -1;
+  justify-self: center;
+  min-width: 0;
+  color: rgba(253, 230, 138, 0.78);
+  font-size: 9px;
+  line-height: 1.1;
+  font-weight: 750;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (min-width: 901px) {
+  .statsWorkspaceChannel .channelStatsPanel .publicationsActivityBlock {
+    grid-template-columns: 172px minmax(0, 1fr) !important;
+    align-items: stretch !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsPanel .publicationsActivityBlock > .inrcyActivityTitle {
+    justify-content: flex-start !important;
+    padding-left: 2px !important;
+  }
+
+  .statsWorkspaceChannel .channelStatsPanel .publicationsActivityLayout,
+  .statsWorkspaceChannel .channelStatsPanel .publicationWindowGrid,
+  .statsWorkspaceChannel .channelStatsPanel .publicationTypesPanel {
+    height: 100% !important;
+    min-height: 0 !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .channelStatsPanel .publicationsActivityBlock {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 7px !important;
+  }
+
+  .channelStatsPanel .publicationsActivityLayout {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .channelStatsPanel .publicationWindowGrid {
+    min-height: 66px !important;
+  }
+
+  .channelStatsPanel .publicationTypesPanel {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 6px !important;
+  }
+
+  .channelStatsPanel .publicationHistoryNote {
+    grid-column: 1 / -1 !important;
+    white-space: normal !important;
+  }
+
+  .channelStatsPanel .publicationTypeChips {
+    justify-content: flex-start !important;
+  }
+}
+
+/* Vue globale desktop — repère Canal fixe : pastilles et libellés partent
+   tous du même axe, sans modifier le centrage des autres colonnes. */
+@media (min-width: 901px) {
+  .statsWorkspace[data-stats-view="global"] .allStatsChannelButton {
+    box-sizing: border-box !important;
+    justify-items: start !important;
+    padding-inline: 4px !important;
+    text-align: left !important;
+  }
+
+  .statsWorkspace[data-stats-view="global"] .allStatsChannelName {
+    justify-content: flex-start !important;
+    text-align: left !important;
+  }
+
+  .statsWorkspace[data-stats-view="global"] .allStatsChannelName::before {
+    box-sizing: border-box !important;
+    flex: 0 0 8px !important;
+    width: 8px !important;
+    min-width: 8px !important;
+    height: 8px !important;
+    border-radius: 50% !important;
   }
 }

@@ -6,6 +6,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getDefaultSnapshotDate } from "@/lib/stats/snapshotWindow";
 import { buildMetricsSummary } from "@/lib/metrics/summary";
 import { buildStatsConnectionSignature } from "@/lib/stats/connectionSignature";
+import { createInrcyPublishedActivityLoader } from "@/lib/stats/buildOverview.activity";
 import { applyLinkedInFallbackToStatsRecords, readLastGoodLinkedInGeneratorBlock, type LinkedInStatsFallback } from "@/lib/linkedinStatsFallback";
 import { getChannelConnectionStates } from "@/lib/channelConnectionState";
 import { buildChannelBlocks, type InrstatsChannelBlocksByChannel } from "@/lib/inrstats/channelBlocks";
@@ -233,6 +234,10 @@ async function handler(req: Request) {
 
     try {
       const headers = () => (cookie ? { cookie } : undefined);
+      const inrcyPublishedActivityLoader = createInrcyPublishedActivityLoader({
+        supabase,
+        userId: activeUserId,
+      });
       const profileStarted = nowMs();
       const profilePromise = fetchProfileMetrics(supabase, activeUserId);
       const monthStarted = nowMs();
@@ -244,6 +249,7 @@ async function handler(req: Request) {
         supabase,
         userId: activeUserId,
         snapshotDate,
+        inrcyPublishedActivityLoader,
       });
       const weekStarted = nowMs();
       const weekPromise = fetchCubeOverviews({
@@ -254,6 +260,7 @@ async function handler(req: Request) {
         supabase,
         userId: activeUserId,
         snapshotDate,
+        inrcyPublishedActivityLoader,
       });
 
       const [profile, monthOverviews, weekOverviews, connectionSignature] = await Promise.all([

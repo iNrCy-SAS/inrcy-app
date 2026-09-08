@@ -1,4 +1,4 @@
-import { type CubeKey, type CubeMetricItem, type InrcyActivityCount, type InrcyActivityStats, type Overview, type StatsTranslator } from "./stats.shared.types";
+import { type CubeKey, type CubeMetricItem, type InrcyActivityCount, type InrcyActivityStats, type InrcyPublicationType, type Overview, type StatsTranslator } from "./stats.shared.types";
 import { bestMetricValue, fmtInt, latestDailyMetricValue, safeNum, safeObj, sumMetricValues } from "./stats.shared.core";
 import { getGmbTotals, gmbMetricSeriesTotal, isIntentQuery, pageKind } from "./stats.shared.opportunity";
 import { isLinkedInStatsPartial } from "./stats.shared.quality";
@@ -20,6 +20,24 @@ function formatSecondsToLabel(value: number) {
 function metricKeyExists(metrics: any, keys: string[]) {
   const totals = safeObj(safeObj(metrics).totals);
   return keys.some((key) => Object.prototype.hasOwnProperty.call(totals, key));
+}
+
+function gmbMetricSeriesExists(metrics: any, metricNames: string[]) {
+  const rawSeries = Array.isArray(metrics?.raw?.multiDailyMetricTimeSeries)
+    ? metrics.raw.multiDailyMetricTimeSeries
+    : Array.isArray(metrics?.multiDailyMetricTimeSeries)
+      ? metrics.multiDailyMetricTimeSeries
+      : [];
+  return rawSeries.some((group: any) => {
+    const series = Array.isArray(group?.dailyMetricTimeSeries)
+      ? group.dailyMetricTimeSeries
+      : [group];
+    return series.some((entry: any) => metricNames.includes(String(entry?.dailyMetric || "")));
+  });
+}
+
+function gmbMetricAvailable(metrics: any, totalKeys: string[], metricNames = totalKeys) {
+  return metricKeyExists(metrics, totalKeys) || gmbMetricSeriesExists(metrics, metricNames);
 }
 
 export function readMetricError(metrics: any) {
@@ -73,22 +91,24 @@ export function hasTikTokStatsSignal(metrics: any) {
 }
 
 
-const INRCY_ACTIVITY_CUBE_KEYS = new Set<CubeKey>(["site_inrcy", "site_web", "gmb", "facebook", "instagram", "linkedin", "x", "tiktok", "youtube_shorts", "pinterest"]);
+const INRCY_ACTIVITY_CUBE_KEYS = new Set<CubeKey>(["inr_search", "site_inrcy", "site_web", "gmb", "facebook", "instagram", "linkedin", "x", "tiktok", "youtube_shorts", "pinterest"]);
 
 function normalizeInrcyActivityCount(value: any): InrcyActivityCount {
   return {
     week: Math.max(0, Math.round(safeNum(value?.week))),
     month: Math.max(0, Math.round(safeNum(value?.month))),
+    year: Math.max(0, Math.round(safeNum(value?.year))),
     total: Math.max(0, Math.round(safeNum(value?.total))),
   };
 }
 
 function emptyInrcyActivityStats(): InrcyActivityStats {
-  const empty = { week: 0, month: 0, total: 0 };
+  const empty = { week: 0, month: 0, year: 0, total: 0 };
   return {
     publications: { ...empty },
     photos: { ...empty },
     videos: { ...empty },
+    publicationTrackingAvailable: false,
   };
 }
 
@@ -96,10 +116,27 @@ export function buildInrcyActivityStats(cubeKey: CubeKey, ov: Overview): InrcyAc
   if (!INRCY_ACTIVITY_CUBE_KEYS.has(cubeKey)) return null;
   const raw = (ov as any)?.inrcyActivity?.[cubeKey];
   if (!raw || typeof raw !== "object") return emptyInrcyActivityStats();
+  const rawPublicationTypes = (raw as any).publicationTypes;
+  const publicationTypes = rawPublicationTypes && typeof rawPublicationTypes === "object"
+    ? Object.fromEntries(
+        Object.entries(rawPublicationTypes)
+          .filter(([type]) => ["text", "image", "video", "classic", "reel", "story", "short", "pin", "unknown"].includes(type))
+          .map(([type, count]) => [type, normalizeInrcyActivityCount(count)]),
+      ) as Partial<Record<InrcyPublicationType, InrcyActivityCount>>
+    : undefined;
+  const publications = normalizeInrcyActivityCount((raw as any).publications);
   return {
-    publications: normalizeInrcyActivityCount((raw as any).publications),
+    publications,
     photos: normalizeInrcyActivityCount((raw as any).photos),
     videos: normalizeInrcyActivityCount((raw as any).videos),
+    publicationTypes,
+    publicationTrackingAvailable:
+      Object.prototype.hasOwnProperty.call((raw as any).publications || {}, "year") &&
+      Object.prototype.hasOwnProperty.call(raw, "publicationTypes"),
+    publicationHistoryComplete:
+      typeof (raw as any).publicationHistoryComplete === "boolean"
+        ? (raw as any).publicationHistoryComplete
+        : undefined,
   };
 }
 
@@ -144,7 +181,9 @@ function pushNumberMetric(
   const n = Number.isFinite(value) ? value : 0;
   const available = options.available ?? n > 0;
   if (!available) return;
-  if (!options.keepZero && n <= 0) return;
+  // Une clé explicitement exposée par le fournisseur vaut réellement zéro.
+  // L'absence de clé, elle, reste une donnée indisponible et n'ajoute pas de carte.
+  if (!options.keepZero && options.available === undefined && n <= 0) return;
   items.push({ label, value: options.formatter ? options.formatter(n) : fmtInt(n, locale) });
 }
 
@@ -171,9 +210,26 @@ export function buildVisibilityStats(cubeKey: CubeKey, ov: Overview, locale: str
     if (!ov?.sources?.gmb?.connected) return [];
     const metrics = ov?.sources?.gmb?.metrics;
     const totals = getGmbTotals(metrics);
-    pushMetric(t("impressions_b5fb66f6"), totals.impressions, { available: !!metrics && totals.impressions > 0 });
-    pushMetric(t("metric_map_views"), totals.mapsImpressions, { available: !!metrics && totals.mapsImpressions > 0 });
-    pushMetric(t("metric_search_views"), totals.searchImpressions, { available: !!metrics && totals.searchImpressions > 0 });
+    pushMetric(t("impressions_b5fb66f6"), totals.impressions, {
+      available: gmbMetricAvailable(metrics, ["impressions", "BUSINESS_IMPRESSIONS"], [
+        "BUSINESS_IMPRESSIONS_DESKTOP_MAPS",
+        "BUSINESS_IMPRESSIONS_MOBILE_MAPS",
+        "BUSINESS_IMPRESSIONS_DESKTOP_SEARCH",
+        "BUSINESS_IMPRESSIONS_MOBILE_SEARCH",
+      ]),
+    });
+    pushMetric(t("metric_map_views"), totals.mapsImpressions, {
+      available: gmbMetricAvailable(metrics, ["BUSINESS_IMPRESSIONS_DESKTOP_MAPS", "BUSINESS_IMPRESSIONS_MOBILE_MAPS"], [
+        "BUSINESS_IMPRESSIONS_DESKTOP_MAPS",
+        "BUSINESS_IMPRESSIONS_MOBILE_MAPS",
+      ]),
+    });
+    pushMetric(t("metric_search_views"), totals.searchImpressions, {
+      available: gmbMetricAvailable(metrics, ["BUSINESS_IMPRESSIONS_DESKTOP_SEARCH", "BUSINESS_IMPRESSIONS_MOBILE_SEARCH"], [
+        "BUSINESS_IMPRESSIONS_DESKTOP_SEARCH",
+        "BUSINESS_IMPRESSIONS_MOBILE_SEARCH",
+      ]),
+    });
     pushMetric(t("vues_fiche_6d715930"), safeNum(metrics?.totals?.views) || safeNum(metrics?.totals?.BUSINESS_PROFILE_VIEWS), {
       available: metricKeyExists(metrics, ["views", "BUSINESS_PROFILE_VIEWS"]),
     });
@@ -243,6 +299,15 @@ export function buildVisibilityStats(cubeKey: CubeKey, ov: Overview, locale: str
     return firstFour(items);
   }
 
+  if (cubeKey === "pinterest") {
+    if (!ov?.sources?.pinterest?.connected) return [];
+    const m = ov?.sources?.pinterest?.metrics;
+    pushMetric(t("impressions_b5fb66f6"), safeNum(m?.totals?.impressions) || safeNum(m?.totals?.impressionCount), {
+      available: metricKeyExists(m, ["impressions", "impressionCount"]),
+    });
+    return firstFour(items);
+  }
+
   if (cubeKey === "mails") {
     if (!ov?.sources?.mails?.connected) return [];
     const m = ov?.sources?.mails?.metrics;
@@ -272,12 +337,12 @@ export function buildVisibilityStats(cubeKey: CubeKey, ov: Overview, locale: str
   const gscConnected = cubeKey === "site_inrcy" ? !!ov.sources?.site_inrcy?.connected?.gsc : !!ov.sources?.site_web?.connected?.gsc;
   const ga4Connected = cubeKey === "site_inrcy" ? !!ov.sources?.site_inrcy?.connected?.ga4 : !!ov.sources?.site_web?.connected?.ga4;
   if (gscConnected) {
-    pushMetric(t("metric_google_impressions"), safeNum(totals.impressions));
-    pushMetric(t("metric_google_clicks"), safeNum(totals.clicks));
+    pushMetric(t("metric_google_impressions"), safeNum(totals.impressions), { available: true });
+    pushMetric(t("metric_google_clicks"), safeNum(totals.clicks), { available: true });
   }
   if (ga4Connected) {
-    pushMetric(t("metric_sessions"), safeNum(totals.sessions));
-    pushMetric(t("metric_pages_viewed"), safeNum(totals.pageviews));
+    pushMetric(t("metric_sessions"), safeNum(totals.sessions), { available: true });
+    pushMetric(t("metric_pages_viewed"), safeNum(totals.pageviews), { available: true });
   }
   if (items.length < 4 && gscConnected && safeNum(totals.ctr) > 0) {
     pushMetric(t("metric_google_ctr"), safeNum(totals.ctr) * 100, { formatter: (value) => formatPercent(value, locale) });
@@ -295,10 +360,18 @@ export function buildActionStats(cubeKey: CubeKey, ov: Overview, locale: string,
     const metrics = ov?.sources?.gmb?.metrics;
     const totals = getGmbTotals(metrics);
     const conversations = safeNum(metrics?.totals?.conversations) || safeNum(metrics?.totals?.BUSINESS_CONVERSATIONS) || gmbMetricSeriesTotal(metrics, ["BUSINESS_CONVERSATIONS"]);
-    pushMetric(t("metric_calls"), totals.callClicks, { available: !!metrics && totals.callClicks > 0 });
-    pushMetric(t("metric_directions"), totals.directionRequests, { available: !!metrics && totals.directionRequests > 0 });
-    pushMetric(t("metric_website_clicks"), totals.websiteClicks, { available: !!metrics && totals.websiteClicks > 0 });
-    pushMetric(t("metric_messages"), conversations, { available: !!metrics && conversations > 0 });
+    pushMetric(t("metric_calls"), totals.callClicks, {
+      available: gmbMetricAvailable(metrics, ["callClicks", "call_clicks", "CALL_CLICKS"], ["CALL_CLICKS"]),
+    });
+    pushMetric(t("metric_directions"), totals.directionRequests, {
+      available: gmbMetricAvailable(metrics, ["directionRequests", "direction_requests", "DIRECTION_REQUESTS", "BUSINESS_DIRECTION_REQUESTS"], ["DIRECTION_REQUESTS", "BUSINESS_DIRECTION_REQUESTS"]),
+    });
+    pushMetric(t("metric_website_clicks"), totals.websiteClicks, {
+      available: gmbMetricAvailable(metrics, ["websiteClicks", "website_clicks", "WEBSITE_CLICKS"], ["WEBSITE_CLICKS"]),
+    });
+    pushMetric(t("metric_messages"), conversations, {
+      available: gmbMetricAvailable(metrics, ["conversations", "BUSINESS_CONVERSATIONS"], ["BUSINESS_CONVERSATIONS"]),
+    });
     return firstFour(items);
   }
 
@@ -319,6 +392,9 @@ export function buildActionStats(cubeKey: CubeKey, ov: Overview, locale: string,
     });
     pushMetric(t("metric_directions"), safeNum(m?.totals?.page_get_directions_clicks_logged_in_unique), {
       available: metricKeyExists(m, ["page_get_directions_clicks_logged_in_unique"]),
+    });
+    pushMetric(t("clics_6e92c5b0"), safeNum(m?.totals?.clicks) || safeNum(m?.totals?.post_clicks_sum), {
+      available: metricKeyExists(m, ["clicks", "post_clicks_sum"]),
     });
     return firstFour(items);
   }
@@ -367,6 +443,24 @@ export function buildActionStats(cubeKey: CubeKey, ov: Overview, locale: string,
     return firstFour(items);
   }
 
+  if (cubeKey === "pinterest") {
+    if (!ov?.sources?.pinterest?.connected) return [];
+    const m = ov?.sources?.pinterest?.metrics;
+    pushMetric(t("metric_outbound_clicks"), safeNum(m?.totals?.outbound_clicks) || safeNum(m?.totals?.pageClicks), {
+      available: metricKeyExists(m, ["outbound_clicks", "pageClicks"]),
+    });
+    pushMetric(t("clics_6e92c5b0"), safeNum(m?.totals?.pin_clicks) || safeNum(m?.totals?.clickCount), {
+      available: metricKeyExists(m, ["pin_clicks", "clickCount"]),
+    });
+    pushMetric(t("metric_saves"), safeNum(m?.totals?.saves), {
+      available: metricKeyExists(m, ["saves"]),
+    });
+    pushMetric(t("engagement_4b1f1c7b"), safeNum(m?.totals?.engagements) || safeNum(m?.totals?.engagementCount), {
+      available: metricKeyExists(m, ["engagements", "engagementCount"]),
+    });
+    return firstFour(items);
+  }
+
   if (cubeKey === "mails") {
     if (!ov?.sources?.mails?.connected) return [];
     const m = ov?.sources?.mails?.metrics;
@@ -397,9 +491,11 @@ export function buildActionStats(cubeKey: CubeKey, ov: Overview, locale: string,
   const topPages = Array.isArray(ov.topPages) ? ov.topPages : [];
   const intentQueryCount = queries.filter((q) => isIntentQuery(q.query) && (safeNum(q.clicks) > 0 || safeNum(q.impressions) > 0)).length;
   const contactViews = topPages.filter((page) => pageKind(page.path) === "contact").reduce((sum, page) => sum + safeNum(page.views), 0);
-  pushMetric(t("metric_contact_pages"), contactViews);
-  pushMetric(t("metric_intent_queries"), intentQueryCount);
-  pushMetric(t("engagement_4b1f1c7b"), safeNum(totals.engagementRate) * 100, { formatter: (value) => formatPercent(value, locale) });
-  pushMetric(t("metric_average_duration"), safeNum(totals.avgSessionDuration), { formatter: (value) => formatSecondsToLabel(value) });
+  const gscConnected = cubeKey === "site_inrcy" ? !!ov.sources?.site_inrcy?.connected?.gsc : !!ov.sources?.site_web?.connected?.gsc;
+  const ga4Connected = cubeKey === "site_inrcy" ? !!ov.sources?.site_inrcy?.connected?.ga4 : !!ov.sources?.site_web?.connected?.ga4;
+  pushMetric(t("metric_contact_pages"), contactViews, { available: ga4Connected });
+  pushMetric(t("metric_intent_queries"), intentQueryCount, { available: gscConnected });
+  pushMetric(t("engagement_4b1f1c7b"), safeNum(totals.engagementRate) * 100, { available: ga4Connected, formatter: (value) => formatPercent(value, locale) });
+  pushMetric(t("metric_average_duration"), safeNum(totals.avgSessionDuration), { available: ga4Connected, formatter: (value) => formatSecondsToLabel(value) });
   return firstFour(items);
 }
