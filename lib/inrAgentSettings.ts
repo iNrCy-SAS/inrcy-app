@@ -17,7 +17,7 @@ export const INR_AGENT_VALIDATION_MODES = [
 ] as const;
 export const INR_AGENT_GOALS = ["visibility", "acquisition", "loyalty", "stats"] as const;
 export const INR_AGENT_TONES = ["professional", "friendly", "premium", "local", "dynamic"] as const;
-export const INR_AGENT_CHANNELS = ["site_inrcy", "site_web", "gmb", "inr_search", "facebook", "instagram", "linkedin", "x", "tiktok", "youtube", "pinterest", "mails"] as const;
+export const INR_AGENT_CHANNELS = ["site_inrcy", "site_web", "gmb", "inr_search", "facebook", "instagram", "linkedin", "tiktok", "youtube", "pinterest", "mails", "x"] as const;
 export const INR_AGENT_THEMES = [
   "conseils",
   "realisations",
@@ -44,10 +44,10 @@ export const INR_AGENT_THEMES = [
   "facebook",
   "instagram",
   "linkedin",
-  "x",
   "tiktok",
   "youtube",
   "pinterest",
+  "x",
 ] as const;
 export const INR_AGENT_RECIPIENT_SCOPES = ["none", "all_crm", "clients", "prospects", "recent_contacts", "inactive_contacts", "manual_selection"] as const;
 export const INR_AGENT_SOURCE_STRATEGIES = ["published_history", "templates", "stats_snapshot", "mixed"] as const;
@@ -126,7 +126,7 @@ const DEFAULT_AUTOMATIONS: Record<InrAgentAutomationKey, InrAgentAutomationSetti
     dayOfWeek: 1,
     time: "09:00",
     validationMode: "notify_before_validation",
-    allowedChannels: ["site_inrcy", "site_web", "gmb", "inr_search", "facebook", "instagram", "linkedin", "x", "tiktok", "youtube", "pinterest"],
+    allowedChannels: ["site_inrcy", "site_web", "gmb", "inr_search", "facebook", "instagram", "linkedin", "tiktok", "youtube", "pinterest", "x"],
     allowedThemes: ["conseils", "realisations", "offres", "actualites"],
     useImageBank: true,
     imageRequired: true,
@@ -184,7 +184,7 @@ const DEFAULT_AUTOMATIONS: Record<InrAgentAutomationKey, InrAgentAutomationSetti
     time: "08:30",
     validationMode: "automatic_report",
     allowedChannels: [],
-    allowedThemes: ["vue_globale", "site_inrcy", "site_web", "gmb", "inr_search", "facebook", "instagram", "linkedin", "x", "tiktok", "youtube", "pinterest", "mails", "inrbadge"],
+    allowedThemes: ["vue_globale", "site_inrcy", "site_web", "gmb", "inr_search", "facebook", "instagram", "linkedin", "tiktok", "youtube", "pinterest", "mails", "inrbadge", "x"],
     useImageBank: false,
     imageRequired: false,
     preferredMediaSource: "media_library",
@@ -211,7 +211,7 @@ export const INR_AGENT_DEFAULT_SETTINGS: InrAgentSettings = {
   mode: "notify_before_validation",
   goal: "visibility",
   allowedActions: ["publication", "mailing", "review_request", "loyalty"],
-  allowedChannels: ["site_inrcy", "site_web", "gmb", "inr_search", "facebook", "instagram", "linkedin", "x", "tiktok", "youtube", "pinterest", "mails"],
+  allowedChannels: ["site_inrcy", "site_web", "gmb", "inr_search", "facebook", "instagram", "linkedin", "tiktok", "youtube", "pinterest", "mails", "x"],
   useMediaLibrary: true,
   allowAiImages: false,
 };

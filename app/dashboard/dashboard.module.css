@@ -6512,6 +6512,11 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+.channelPillX {
+  min-width: 76px;
+  justify-content: center;
+}
+
 .channelPill:hover {
   transform: translateY(-1px);
   color: rgba(255, 255, 255, 0.96);

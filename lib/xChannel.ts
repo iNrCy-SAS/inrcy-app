@@ -3,6 +3,8 @@ import twitterText from "twitter-text";
 export const X_CHANNEL_KEY = "x" as const;
 export const X_POST_WEIGHTED_LENGTH_MAX = 280;
 export const X_POST_MAX_IMAGES = 4;
+export const X_FORBIDDEN_URL_ERROR =
+  "Les liens et URL ne sont pas autorisés sur X. Supprimez le lien pour publier.";
 
 export const X_CHANNEL_CAPABILITIES = {
   key: X_CHANNEL_KEY,
@@ -34,6 +36,180 @@ function normalizeXText(value: unknown) {
     .trim();
 }
 
+const X_LONG_TLDS = [
+  "academy",
+  "agency",
+  "app",
+  "art",
+  "asia",
+  "biz",
+  "blog",
+  "business",
+  "club",
+  "cloud",
+  "co",
+  "com",
+  "company",
+  "dev",
+  "digital",
+  "edu",
+  "email",
+  "expert",
+  "finance",
+  "fr",
+  "fun",
+  "gov",
+  "info",
+  "io",
+  "link",
+  "live",
+  "ly",
+  "me",
+  "media",
+  "mobi",
+  "net",
+  "news",
+  "online",
+  "org",
+  "pro",
+  "shop",
+  "site",
+  "space",
+  "store",
+  "studio",
+  "tech",
+  "to",
+  "travel",
+  "tv",
+  "website",
+  "wiki",
+  "world",
+  "xyz",
+] as const;
+
+const X_LONG_TLD_PATTERN = X_LONG_TLDS.join("|");
+const X_DOMAIN_LABEL = String.raw`[\p{L}\p{N}](?:[\p{L}\p{N}-]{0,61}[\p{L}\p{N}])?`;
+// Tous les ccTLD ASCII à deux lettres, les TLD usuels plus longs, les TLD
+// punycode et les TLD Unicode sont couverts. Limiter les TLD ASCII longs à
+// une liste connue évite de prendre une phrase comme « exemple.fin » pour un
+// lien, tout en bloquant les domaines réellement utilisés par les pros.
+const X_DOMAIN_PATTERN = new RegExp(
+  String.raw`(?:${X_DOMAIN_LABEL}\.)+(?:[a-z]{2}|(?:${X_LONG_TLD_PATTERN})|xn--[a-z0-9-]{2,59}|(?=[\p{L}-]{2,63}(?:\b|$))(?=[^\s./]*[^\x00-\x7f])[\p{L}-]{2,63})(?![\p{L}\p{N}-])(?::\d{1,5})?(?:[/?#][^\s<>"']*)?`,
+  "giu",
+);
+
+const X_SCHEME_PATTERN =
+  /\b(?:https?|hxxps?|ftp|ftps|mailto|tel)\s*(?::|\[\s*:\s*\]|\(\s*:\s*\)|\s+colon\s+)(?:\s*[\\/]\s*){0,2}[^\s<>"']+/giu;
+const X_WWW_PATTERN = /\b(?:w\s*){3}\.[^\s<>"']+/giu;
+const X_IPV4_PATTERN =
+  /(?:^|[^\d])((?:\d{1,3}\.){3}\d{1,3}(?::\d{1,5})?(?:[/?#][^\s<>"']*)?)/gu;
+
+function normalizeXUrlDetectionText(value: unknown) {
+  let text = String(value ?? "")
+    .normalize("NFKC")
+    .replace(/[\u200B-\u200F\u202A-\u202E\u2060\u2066-\u2069\uFEFF]/g, "")
+    .replace(/[\u3002\uFF0E\uFF61\u2024]/g, ".")
+    .replace(/\b(hxxps?)\b/giu, (match) =>
+      match.toLowerCase() === "hxxps" ? "https" : "http",
+    )
+    .replace(/\[\s*:\s*\]|\(\s*:\s*\)/g, ":")
+    .replace(/\s+colon\s+/giu, ":")
+    .replace(/\b(?:w\s+){2}w(?=\s*(?:\.|\[|\(|\{|dot\b|point\b))/giu, "www");
+
+  // Les séparateurs déguisés peuvent se suivre (`www dot exemple dot fr`).
+  // Plusieurs passes évitent qu'un remplacement consommant ses deux labels
+  // masque le séparateur suivant.
+  const disguisedDot =
+    /([\p{L}\p{N}])\s*(?:[\[({]\s*(?:\.|dot|point|punto|ponto|punkt)\s*[\])}]|\b(?:dot|point|punto|ponto|punkt)\b)\s*([\p{L}\p{N}])/giu;
+  for (let pass = 0; pass < 6; pass += 1) {
+    const next = text.replace(disguisedDot, "$1.$2");
+    if (next === text) break;
+    text = next;
+  }
+  return text;
+}
+
+function firstPatternMatch(text: string, pattern: RegExp) {
+  pattern.lastIndex = 0;
+  const match = pattern.exec(text);
+  pattern.lastIndex = 0;
+  return match?.[0]?.trim() || null;
+}
+
+/**
+ * Retourne le premier lien détecté dans un texte destiné à X.
+ *
+ * La détection couvre les schémas explicites, `www`, domaines nus, IDN,
+ * punycode, raccourcisseurs (qui sont des domaines) et écritures couramment
+ * déguisées (`[.]`, `(dot)`, « point », caractères invisibles). Un numéro de
+ * téléphone et une adresse e-mail simple restent autorisés ; `tel:` et
+ * `mailto:` sont en revanche des URL et sont refusés.
+ */
+export function findForbiddenXUrl(value: unknown): string | null {
+  const text = normalizeXUrlDetectionText(value);
+  if (!text) return null;
+
+  const scheme = firstPatternMatch(text, X_SCHEME_PATTERN);
+  if (scheme) return scheme;
+
+  // La bibliothèque officielle X maintient la liste complète des domaines
+  // publics et applique exactement les règles d'auto-linkification du canal.
+  const providerUrls = twitterText.extractUrlsWithIndices(text, {
+    extractUrlsWithoutProtocol: true,
+  });
+  const providerUrl = providerUrls[0]?.url?.trim();
+  if (providerUrl) return providerUrl;
+
+  const www = firstPatternMatch(text, X_WWW_PATTERN);
+  if (www) return www;
+
+  X_DOMAIN_PATTERN.lastIndex = 0;
+  for (const match of text.matchAll(X_DOMAIN_PATTERN)) {
+    const candidate = match[0]?.trim();
+    if (!candidate) continue;
+    const start = match.index || 0;
+    // Ne pas confondre l'hôte d'une adresse e-mail simple avec une URL nue.
+    if (start > 0 && text[start - 1] === "@") continue;
+    X_DOMAIN_PATTERN.lastIndex = 0;
+    return candidate;
+  }
+  X_DOMAIN_PATTERN.lastIndex = 0;
+
+  X_IPV4_PATTERN.lastIndex = 0;
+  for (const match of text.matchAll(X_IPV4_PATTERN)) {
+    const candidate = match[1]?.trim();
+    if (!candidate) continue;
+    const host = candidate.split(/[/:?#]/, 1)[0] || "";
+    const octets = host.split(".").map(Number);
+    if (octets.length !== 4 || octets.some((octet) => octet < 0 || octet > 255)) {
+      continue;
+    }
+    // Les téléphones ponctués commençant par 0 restent permis. Les IP privées
+    // ou publiques usuelles (ex. 192.168.1.1) sont bien refusées.
+    if (host.startsWith("0") && !/[/:?#]/.test(candidate)) continue;
+    X_IPV4_PATTERN.lastIndex = 0;
+    return candidate;
+  }
+  X_IPV4_PATTERN.lastIndex = 0;
+  return null;
+}
+
+export function containsForbiddenXUrl(value: unknown) {
+  return findForbiddenXUrl(value) !== null;
+}
+
+export function validateXUrlFreeText(value: unknown) {
+  const match = findForbiddenXUrl(value);
+  return match
+    ? {
+        valid: false as const,
+        code: "x_url_forbidden" as const,
+        error: X_FORBIDDEN_URL_ERROR,
+        match,
+      }
+    : { valid: true as const, code: null, error: null, match: null };
+}
+
 export function getXPostTextMetrics(value: unknown) {
   const text = normalizeXText(value);
   const parsed = twitterText.parseTweet(text);
@@ -49,6 +225,15 @@ export function validateXPostText(value: unknown) {
   const metrics = getXPostTextMetrics(value);
   if (!metrics.text) {
     return { ...metrics, code: "x_text_required" as const, error: "Ajoutez un texte pour X." };
+  }
+  const urlValidation = validateXUrlFreeText(metrics.text);
+  if (!urlValidation.valid) {
+    return {
+      ...metrics,
+      valid: false,
+      code: urlValidation.code,
+      error: urlValidation.error,
+    };
   }
   if (!metrics.valid) {
     return {

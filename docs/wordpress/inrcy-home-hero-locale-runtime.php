@@ -21,7 +21,7 @@ function inrcy_home_hero_locale_runtime() {
       edit: 'Modifier', remove: 'Supprimer', views: 'VUES', interactions: 'INTERACTIONS', clicks: 'CLICS',
       progress: 'Diffusion multicanale', posts: 'Mes publications', postsSub: 'Modifiez ou supprimez vos contenus en quelques clics',
       performance: 'Performance globale', performanceSub: 'Tous vos canaux réunis dans un seul tableau de bord',
-      titles: ['Guidez iNrCy', 'iNrCy adapte le contenu à chaque canal', 'Diffusez sur 12 canaux', 'Suivez les performances et modifiez vos contenus à tout moment'],
+      titles: ['Guidez iNrCy', 'iNrCy adapte le contenu à chaque canal', 'Diffusez sur 13 canaux', 'Suivez les performances et modifiez vos contenus à tout moment'],
       descriptions: ['Une photo, une vidéo ou quelques mots suffisent pour démarrer.', '12 contenus uniques et intelligents, pensés pour chaque plateforme.', 'Publiez vos contenus sur tous les canaux sélectionnés.', 'Analysez vos résultats et gérez vos publications directement depuis iNrCy.']
     },
     en: {
@@ -30,8 +30,8 @@ function inrcy_home_hero_locale_runtime() {
       edit: 'Edit', remove: 'Delete', views: 'VIEWS', interactions: 'INTERACTIONS', clicks: 'CLICKS',
       progress: 'Multi-channel publishing', posts: 'My posts', postsSub: 'Edit or delete your content in just a few clicks',
       performance: 'Overall performance', performanceSub: 'All your channels brought together in one dashboard',
-      titles: ['Share your idea with iNrCy', 'iNrCy tailors content to each channel', 'Publish across 12 channels', 'Track performance and edit your content anytime'],
-      descriptions: ['A photo, a video or a few words are enough to get started.', '12 unique, intelligent pieces of content designed for every platform.', 'Publish your content across all selected channels.', 'Analyse your results and manage your posts directly from iNrCy.']
+      titles: ['Share your idea with iNrCy', 'iNrCy tailors content to each channel', 'Publish across 13 channels', 'Track performance and edit your content anytime'],
+      descriptions: ['A photo, a video or a few words are enough to get started.', '13 unique, intelligent pieces of content designed for every platform.', 'Publish your content across all selected channels.', 'Analyse your results and manage your posts directly from iNrCy.']
     },
     es: {
       channels: ['Facebook', 'Instagram', 'LinkedIn', 'TikTok', 'YouTube', 'Google Business', 'Sitio web', 'Email', 'Pinterest', 'Tarjeta de visita', 'Sitio web iNrCy', 'iNr’Search'],
@@ -39,7 +39,7 @@ function inrcy_home_hero_locale_runtime() {
       edit: 'Editar', remove: 'Eliminar', views: 'VISTAS', interactions: 'INTERACCIONES', clicks: 'CLICS',
       progress: 'Publicación multicanal', posts: 'Mis publicaciones', postsSub: 'Edita o elimina tus contenidos en unos pocos clics',
       performance: 'Rendimiento global', performanceSub: 'Todos tus canales reunidos en un único panel',
-      titles: ['Comparte tu idea con iNrCy', 'iNrCy adapta el contenido a cada canal', 'Publica en 12 canales', 'Sigue el rendimiento y edita tus contenidos cuando quieras'],
+      titles: ['Comparte tu idea con iNrCy', 'iNrCy adapta el contenido a cada canal', 'Publica en 13 canales', 'Sigue el rendimiento y edita tus contenidos cuando quieras'],
       descriptions: ['Una foto, un vídeo o unas palabras bastan para empezar.', '12 contenidos únicos e inteligentes, diseñados para cada plataforma.', 'Publica tus contenidos en todos los canales seleccionados.', 'Analiza tus resultados y gestiona tus publicaciones directamente desde iNrCy.']
     },
     it: {
@@ -48,7 +48,7 @@ function inrcy_home_hero_locale_runtime() {
       edit: 'Modifica', remove: 'Elimina', views: 'VISUALIZZAZIONI', interactions: 'INTERAZIONI', clicks: 'CLIC',
       progress: 'Pubblicazione multicanale', posts: 'Le mie pubblicazioni', postsSub: 'Modifica o elimina i tuoi contenuti in pochi clic',
       performance: 'Prestazioni complessive', performanceSub: 'Tutti i tuoi canali riuniti in un’unica dashboard',
-      titles: ['Condividi la tua idea con iNrCy', 'iNrCy adatta il contenuto a ogni canale', 'Pubblica su 12 canali', 'Monitora le prestazioni e modifica i contenuti in qualsiasi momento'],
+      titles: ['Condividi la tua idea con iNrCy', 'iNrCy adatta il contenuto a ogni canale', 'Pubblica su 13 canali', 'Monitora le prestazioni e modifica i contenuti in qualsiasi momento'],
       descriptions: ['Una foto, un video o poche parole sono sufficienti per iniziare.', '12 contenuti unici e intelligenti, pensati per ogni piattaforma.', 'Pubblica i tuoi contenuti su tutti i canali selezionati.', 'Analizza i risultati e gestisci le pubblicazioni direttamente da iNrCy.']
     },
     de: {
@@ -57,7 +57,7 @@ function inrcy_home_hero_locale_runtime() {
       edit: 'Bearbeiten', remove: 'Löschen', views: 'AUFRUFE', interactions: 'INTERAKTIONEN', clicks: 'KLICKS',
       progress: 'Veröffentlichung auf mehreren Kanälen', posts: 'Meine Beiträge', postsSub: 'Bearbeiten oder löschen Sie Ihre Inhalte mit wenigen Klicks',
       performance: 'Gesamtleistung', performanceSub: 'Alle Ihre Kanäle in einem einzigen Dashboard',
-      titles: ['Teilen Sie Ihre Idee mit iNrCy', 'iNrCy passt Inhalte an jeden Kanal an', 'Auf 12 Kanälen veröffentlichen', 'Leistung verfolgen und Inhalte jederzeit bearbeiten'],
+      titles: ['Teilen Sie Ihre Idee mit iNrCy', 'iNrCy passt Inhalte an jeden Kanal an', 'Auf 13 Kanälen veröffentlichen', 'Leistung verfolgen und Inhalte jederzeit bearbeiten'],
       descriptions: ['Ein Foto, ein Video oder wenige Worte genügen für den Einstieg.', '12 einzigartige, intelligente Inhalte, passend für jede Plattform.', 'Veröffentlichen Sie Ihre Inhalte auf allen ausgewählten Kanälen.', 'Analysieren Sie Ihre Ergebnisse und verwalten Sie Ihre Beiträge direkt in iNrCy.']
     },
     nl: {
@@ -66,7 +66,7 @@ function inrcy_home_hero_locale_runtime() {
       edit: 'Bewerken', remove: 'Verwijderen', views: 'WEERGAVEN', interactions: 'INTERACTIES', clicks: 'KLIKS',
       progress: 'Publicatie via meerdere kanalen', posts: 'Mijn publicaties', postsSub: 'Bewerk of verwijder uw content in enkele klikken',
       performance: 'Totale prestaties', performanceSub: 'Al uw kanalen samengebracht in één dashboard',
-      titles: ['Deel uw idee met iNrCy', 'iNrCy stemt content af op elk kanaal', 'Publiceer op 12 kanalen', 'Volg de prestaties en bewerk uw content wanneer u wilt'],
+      titles: ['Deel uw idee met iNrCy', 'iNrCy stemt content af op elk kanaal', 'Publiceer op 13 kanalen', 'Volg de prestaties en bewerk uw content wanneer u wilt'],
       descriptions: ['Een foto, video of enkele woorden zijn genoeg om te beginnen.', '12 unieke, intelligente contentstukken, afgestemd op elk platform.', 'Publiceer uw content op alle geselecteerde kanalen.', 'Analyseer uw resultaten en beheer uw publicaties rechtstreeks vanuit iNrCy.']
     },
     pt: {
@@ -75,7 +75,7 @@ function inrcy_home_hero_locale_runtime() {
       edit: 'Editar', remove: 'Eliminar', views: 'VISUALIZAÇÕES', interactions: 'INTERAÇÕES', clicks: 'CLIQUES',
       progress: 'Publicação multicanal', posts: 'As minhas publicações', postsSub: 'Edite ou elimine os seus conteúdos em poucos cliques',
       performance: 'Desempenho global', performanceSub: 'Todos os seus canais reunidos num único painel',
-      titles: ['Partilhe a sua ideia com a iNrCy', 'A iNrCy adapta o conteúdo a cada canal', 'Publique em 12 canais', 'Acompanhe o desempenho e edite os conteúdos a qualquer momento'],
+      titles: ['Partilhe a sua ideia com a iNrCy', 'A iNrCy adapta o conteúdo a cada canal', 'Publique em 13 canais', 'Acompanhe o desempenho e edite os conteúdos a qualquer momento'],
       descriptions: ['Uma fotografia, um vídeo ou algumas palavras são suficientes para começar.', '12 conteúdos únicos e inteligentes, pensados para cada plataforma.', 'Publique os seus conteúdos em todos os canais selecionados.', 'Analise os seus resultados e gira as publicações diretamente na iNrCy.']
     },
     th: {
@@ -84,7 +84,7 @@ function inrcy_home_hero_locale_runtime() {
       edit: 'แก้ไข', remove: 'ลบ', views: 'ยอดดู', interactions: 'การโต้ตอบ', clicks: 'คลิก',
       progress: 'เผยแพร่หลายช่องทาง', posts: 'โพสต์ของฉัน', postsSub: 'แก้ไขหรือลบเนื้อหาได้ในไม่กี่คลิก',
       performance: 'ประสิทธิภาพโดยรวม', performanceSub: 'รวมทุกช่องทางไว้ในแดชบอร์ดเดียว',
-      titles: ['บอกไอเดียของคุณกับ iNrCy', 'iNrCy ปรับเนื้อหาให้เหมาะกับแต่ละช่องทาง', 'เผยแพร่ผ่าน 12 ช่องทาง', 'ติดตามผลและแก้ไขเนื้อหาได้ทุกเมื่อ'],
+      titles: ['บอกไอเดียของคุณกับ iNrCy', 'iNrCy ปรับเนื้อหาให้เหมาะกับแต่ละช่องทาง', 'เผยแพร่ผ่าน 13 ช่องทาง', 'ติดตามผลและแก้ไขเนื้อหาได้ทุกเมื่อ'],
       descriptions: ['เพียงรูปภาพ วิดีโอ หรือข้อความไม่กี่คำก็เริ่มต้นได้', 'เนื้อหาอัจฉริยะที่ไม่ซ้ำกัน 12 ชิ้น ออกแบบสำหรับแต่ละแพลตฟอร์ม', 'เผยแพร่เนื้อหาไปยังทุกช่องทางที่เลือก', 'วิเคราะห์ผลลัพธ์และจัดการโพสต์ได้โดยตรงจาก iNrCy']
     },
     zh: {

@@ -475,6 +475,7 @@ export default function DashboardChannelsSection({
                     key={item.key}
                     className={[
                       styles.channelPill,
+                      item.key === "x" ? styles.channelPillX : "",
                       tone === "connected"
                         ? styles.channelPillConnected
                         : tone === "warning"
@@ -658,7 +659,7 @@ export default function DashboardChannelsSection({
               )}
 
               {desktopActiveItem && (
-                <div className={`${bubbleStyles.desktopItem} ${bubbleStyles.desktopCenter}`}>
+                <div className={`${bubbleStyles.desktopItem} ${bubbleStyles.desktopCenter} ${desktopActiveItem.key === "x" ? bubbleStyles.desktopCenterFeatured : ""}`}>
                   {renderFluxBubble(desktopActiveItem, `${desktopActiveItem.key}_desktop_active`)}
                 </div>
               )}

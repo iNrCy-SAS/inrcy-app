@@ -5,10 +5,13 @@ import test from "node:test";
 import {
   X_CHANNEL_CAPABILITIES,
   X_POST_MAX_IMAGES,
+  containsForbiddenXUrl,
+  findForbiddenXUrl,
   getXPostTextMetrics,
   normalizeXChannelKey,
   shortenGeneratedXPost,
   validateXPostText,
+  validateXUrlFreeText,
 } from "../../lib/xChannel.ts";
 
 function read(relativePath: string) {
@@ -34,6 +37,50 @@ test("X text validation uses the official weighted counter", () => {
   assert.equal(tooLong.code, "x_text_too_long");
 });
 
+test("X refuses explicit, bare, IDN, shortened and disguised URLs", () => {
+  const forbidden = [
+    "https://example.com/offre",
+    "HTTP://EXAMPLE.FR",
+    "www.example.com",
+    "example.fr",
+    "example.photography",
+    "bit.ly/offre",
+    "https://xn--caf-dma.fr",
+    "café.fr",
+    "例子.中国",
+    "example[.]com",
+    "example (dot) com",
+    "example point fr",
+    "hxxps[:]//example.com",
+    "w w w dot example dot com",
+    "https://exa\u200Bmple.com",
+    "192.168.1.1",
+    "tel:+33622082179",
+  ];
+  for (const value of forbidden) {
+    assert.equal(containsForbiddenXUrl(value), true, value);
+    assert.ok(findForbiddenXUrl(value), value);
+    assert.equal(validateXUrlFreeText(value).code, "x_url_forbidden", value);
+    assert.equal(validateXPostText(value).code, "x_url_forbidden", value);
+  }
+});
+
+test("X keeps plain telephone numbers and simple e-mail addresses valid", () => {
+  const allowed = [
+    "Appelez-nous au 06 22 08 21 79.",
+    "Téléphone : +33 (0)6 22 08 21 79",
+    "Standard : 06.22.08.21.79",
+    "Écrivez à contact@example.com",
+    "Une phrase normale. Merci pour votre confiance.",
+    "Notre service est simple. Pro et accessible.",
+  ];
+  for (const value of allowed) {
+    assert.equal(findForbiddenXUrl(value), null, value);
+    assert.equal(validateXUrlFreeText(value).valid, true, value);
+    assert.equal(validateXPostText(value).valid, true, value);
+  }
+});
+
 test("generated X copy is shortened at a complete sentence boundary", () => {
   const first = "Une première phrase utile et complète.";
   const result = shortenGeneratedXPost(`${first} ${"Une suite beaucoup trop longue ".repeat(30)}`);
@@ -56,6 +103,9 @@ test("X publishing foundation is fail-closed and exposes the provider contract",
     publishNow,
     /getFrenchPublicationErrorMessage\(\s*"x",\s*xError\.message,/,
   );
+  const xBranch = publishNow.slice(publishNow.indexOf('if (ch === "x")'));
+  assert.ok(xBranch.indexOf("validateXUrlFreeText") < xBranch.indexOf("getXAccessToken"));
+  assert.match(xBranch, /code:\s*xUrlValidation\.code[\s\S]*?continue;/);
 });
 
 test("OAuth X binds the PKCE verifier to the exact state", () => {

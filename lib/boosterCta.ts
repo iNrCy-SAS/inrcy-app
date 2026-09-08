@@ -57,9 +57,9 @@ export const BOOSTER_CTA_MODES_BY_CHANNEL: Record<
   // Instagram et TikTok ne rendent pas les URL de légende cliquables via nos API.
   instagram: ["none", "message"],
   linkedin: ["none", "website", "custom"],
-  // X n'expose pas de bouton natif dans une publication : les destinations
-  // sont rendues explicitement dans le texte final.
-  x: ["none", "website", "call", "message", "custom"],
+  // X n'expose pas de bouton natif et notre intégration refuse toute URL.
+  // Seules les invitations textuelles sans lien restent proposées.
+  x: ["none", "call", "message"],
   tiktok: ["none", "message"],
   // Les liens sont placés dans la description YouTube.
   youtube_shorts: ["none", "website", "custom"],

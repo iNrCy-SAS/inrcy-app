@@ -14,6 +14,17 @@ const namespaces = fs.readdirSync(path.join(root, "messages", "fr-FR"))
   .sort();
 const leakedLanguageLabelSuffix = /\s*(?:Italiano|Español|Deutsch|Nederlands|Português|English|Français):\s*$/u;
 
+// Les identifiants historiques restent stables pour ne casser aucune référence
+// applicative, mais leur texte doit suivre le contrat commercial courant :
+// 11 destinations en Standard (X inclus) et 13 canaux en Premium.
+const currentChannelCountReplacements = new Map([
+  ["booster_sur_10_canaux_inr_apos_38a43414", ["10", "11"]],
+  ["choisir_parmi_les_10_destinations_standard_b90526d3", ["10", "11"]],
+  ["comprendre_les_12_canaux_inrcy_qui_0734ffce", ["12", "13"]],
+  ["l_edition_standard_reunit_10_destinations_fc40dfbd", ["10", "11"]],
+  ["relier_les_10_destinations_de_publication_e63b94e4", ["10", "11"]],
+]);
+
 const brandReplacements = [
   [/\binr\s*['’]\s*[cç]y\b/giu, "iNrCy"],
   [/(?<![.@-])\binrcy\b(?![.@-])/giu, "iNrCy"],
@@ -389,7 +400,7 @@ const localeOverrides = new Map([
   ["es-ES:booster.video_format_active_for_publication", "Formato activo para tu publicación"],
   ["es-ES:booster.video_variant_required_before_publish", "La versión para la red debe estar lista antes de publicar."],
   ["es-ES:mails.verifiez_les_destinataires_l_objet_et_111a6b88", "Comprueba los destinatarios, el asunto y el mensaje preparado desde {value0}; después, envíalo desde tu cuenta de correo conectada."],
-  ["es-ES:gps.comprendre_les_12_canaux_inrcy_qui_0734ffce", "Descubre los 12 canales de iNrCy que impulsan tu visibilidad, difusión y reputación online."],
+  ["es-ES:gps.comprendre_les_12_canaux_inrcy_qui_0734ffce", "Descubre los 13 canales de iNrCy que impulsan tu visibilidad, difusión y reputación online."],
   ["es-ES:gps.utiliser_les_contacts_du_crm_ou_677522b3", "Usa los contactos de tu **CRM** o selecciona los destinatarios adecuados."],
   ["es-ES:gps.utiliser_mon_activite_pour_le_metier_9afc1af8", "Usa **Mi actividad** para configurar tu profesión, servicios, especialidades, puntos fuertes, clientela y horarios."],
   ["es-ES:gps.utiliser_mon_profil_pour_l_identite_ad8f2074", "Usa **Mi perfil** para configurar tu identidad, datos de contacto, empresa, ciudad y logotipo."],
@@ -503,7 +514,7 @@ const localeOverrides = new Map([
   ["pt-PT:stats.mails_analyse_vos_usages_fideliser_propulser_37166dba", "O módulo E-mails analisa a utilização de Fidelizar, Propulser e dos e-mails simples para transformar os dados do CRM em ações concretas."],
   ["pt-PT:stats.relancez_votre_visibilite_locale_b7d7ba45", "Reforce a sua visibilidade local."],
   ["pt-PT:gps.les_sauvegardes_conservent_le_travail_pour_b190d8ce", "As cópias guardadas preservam o seu trabalho para que possa retomá-lo mais tarde."],
-  ["pt-PT:gps.comprendre_les_12_canaux_inrcy_qui_0734ffce", "Conheça os 12 canais da iNrCy que impulsionam a sua visibilidade, divulgação e reputação online."],
+  ["pt-PT:gps.comprendre_les_12_canaux_inrcy_qui_0734ffce", "Conheça os 13 canais da iNrCy que impulsionam a sua visibilidade, divulgação e reputação online."],
   ["pt-PT:gps.propulser_regroupe_les_actions_guidees_pour_9ae39667", "Propulser reúne ações guiadas para desenvolver a atividade. O profissional escolhe entre Valorizar, Recolher ou Oferecer, consoante as necessidades atuais."],
   ["pt-PT:mails.toutes_vos_communications_depuis_une_seule_eecb4544", "Todas as suas comunicações num único dispositivo."],
   ["pt-PT:booster.images_total_too_large", "As suas imagens excedem o limite total de {limit}. Reduza o número ou o tamanho das fotografias."],
@@ -572,12 +583,12 @@ const validationOverrides = new Map([
   ["pt-PT:public.vous_etes_a_value_presentez_votre_30978146", "Est\u00e1 em {value0}? Envie o seu pedido para {value1} para verificar a disponibilidade e organizar os pr\u00f3ximos passos."],
   ["en-GB:settings.a_quoi_sert_inr_apos_search_c32318a6", "What is iNr&apos;Search used for?"],
   ["en-GB:settings.aucun_tableau_disponible_creez_votre_premier_36cf04bd", "No board available. Create your first Pinterest board."],
-  ["en-GB:settings.booster_sur_10_canaux_inr_apos_38a43414", "Booster on 10 channels, iNr&apos;Agent Posts + Statistics, iNr&apos;Badge included, iNr&apos;Stats, iNr&apos;Send history, and Reputation."],
+  ["en-GB:settings.booster_sur_10_canaux_inr_apos_38a43414", "Booster on 11 channels, iNr&apos;Agent Posts + Statistics, iNr&apos;Badge included, iNr&apos;Stats, iNr&apos;Send history, and Reputation."],
   ["en-GB:settings.deconnecter_votre_page_inr_apos_search_c5a16ef8", "Disconnect your iNr&apos;Search page?"],
   ["en-GB:settings.inr_apos_search_transforme_automatiquement_les_99deb0af", "iNr&apos;Search automatically transforms the information already saved in iNrCy into a public professional page designed for internet users, Google, Bing, and AI answer engines."],
   ["en-GB:settings.page_publique_inr_apos_search_31dc348f", "iNr&apos;Search public page"],
   ["es-ES:settings.booster_est_votre_mission_active_les_93914a0a", "Booster es tu misi\u00f3n activa. Las dem\u00e1s misiones se muestran como una vista previa Premium."],
-  ["es-ES:settings.booster_sur_10_canaux_inr_apos_38a43414", "Booster en 10 canales, publicaciones y estad\u00edsticas de iNr&apos;Agent, iNr&apos;Badge incluido, iNr&apos;Stats, historial de iNr&apos;Send y Reputaci\u00f3n."],
+  ["es-ES:settings.booster_sur_10_canaux_inr_apos_38a43414", "Booster en 11 canales, publicaciones y estad\u00edsticas de iNr&apos;Agent, iNr&apos;Badge incluido, iNr&apos;Stats, historial de iNr&apos;Send y Reputaci\u00f3n."],
   ["it-IT:settings.boosts_a_faire_cette_semaine_a0a21688", "Attivit\u00e0 da completare questa settimana"],
   ["pt-PT:settings.angle_prefere_082c1a4d", "Orienta\u00e7\u00e3o preferida"],
   ["pt-PT:settings.notifications_inrcy_d6daa4eb", "Notifica\u00e7\u00f5es iNrCy"],
@@ -713,10 +724,10 @@ const validationOverrides = new Map([
   ["de-DE:settings.page_publique_inr_apos_search_31dc348f", "Öffentliche iNr’Search-Seite"],
   ["nl-NL:settings.page_publique_inr_apos_search_31dc348f", "Openbare iNr’Search-pagina"],
   ["pt-PT:settings.page_publique_inr_apos_search_31dc348f", "Página pública do iNr’Search"],
-  ["it-IT:settings.booster_sur_10_canaux_inr_apos_38a43414", "Booster su 10 canali, pubblicazioni e statistiche di iNr’Agent, iNr’Badge incluso, iNr’Stats, cronologia iNr’Send e Reputazione."],
-  ["de-DE:settings.booster_sur_10_canaux_inr_apos_38a43414", "Booster über 10 Kanäle, iNr’Agent-Veröffentlichungen + Statistiken, iNr’Badge inklusive, iNr’Stats, iNr’Send-Verlauf und Reputation."],
-  ["nl-NL:settings.booster_sur_10_canaux_inr_apos_38a43414", "Booster op 10 kanalen, iNr’Agent-publicaties + statistieken, iNr’Badge inbegrepen, iNr’Stats, iNr’Send-geschiedenis en Reputatie."],
-  ["pt-PT:settings.booster_sur_10_canaux_inr_apos_38a43414", "Booster em 10 canais, publicações e estatísticas do iNr’Agent, iNr’Badge incluído, iNr’Stats, histórico do iNr’Send e Reputação."],
+  ["it-IT:settings.booster_sur_10_canaux_inr_apos_38a43414", "Booster su 11 canali, pubblicazioni e statistiche di iNr’Agent, iNr’Badge incluso, iNr’Stats, cronologia iNr’Send e Reputazione."],
+  ["de-DE:settings.booster_sur_10_canaux_inr_apos_38a43414", "Booster über 11 Kanäle, iNr’Agent-Veröffentlichungen + Statistiken, iNr’Badge inklusive, iNr’Stats, iNr’Send-Verlauf und Reputation."],
+  ["nl-NL:settings.booster_sur_10_canaux_inr_apos_38a43414", "Booster op 11 kanalen, iNr’Agent-publicaties + statistieken, iNr’Badge inbegrepen, iNr’Stats, iNr’Send-geschiedenis en Reputatie."],
+  ["pt-PT:settings.booster_sur_10_canaux_inr_apos_38a43414", "Booster em 11 canais, publicações e estatísticas do iNr’Agent, iNr’Badge incluído, iNr’Stats, histórico do iNr’Send e Reputação."],
 ]);
 
 const ptReplacements = [
@@ -976,7 +987,11 @@ function posteditValue(locale, namespace, key, value) {
     ?? localeOverrides.get(`${locale}:${namespace}.${key}`)
     ?? (locale === "en-GB" ? englishOverrides.get(`${namespace}.${key}`) : undefined)
     ?? output;
-  return normalizeBrands(decodeHtmlEntities(normalizeModuleTerminology(locale, namespace, key, edited)));
+  const channelCountReplacement = currentChannelCountReplacements.get(key);
+  const countSafe = channelCountReplacement
+    ? edited.replace(new RegExp(`\\b${channelCountReplacement[0]}\\b`, "gu"), channelCountReplacement[1])
+    : edited;
+  return normalizeBrands(decodeHtmlEntities(normalizeModuleTerminology(locale, namespace, key, countSafe)));
 }
 
 function restorePlaceholderWhitespace(source, translation) {

@@ -31,11 +31,11 @@ export const channelOptions: Record<ChannelKey, { name: string; src: string }> =
   facebook: { name: "Facebook", src: "/icons/facebook.png" },
   instagram: { name: "Instagram", src: "/icons/instagram.jpg" },
   linkedin: { name: "LinkedIn", src: "/icons/linkedin.png" },
-  x: { name: "X", src: "/icons/x.svg" },
   tiktok: { name: "TikTok", src: "/icons/tiktok.png" },
   youtube: { name: "YouTube", src: "/icons/youtube-shorts.png" },
   pinterest: { name: "Pinterest", src: "/icons/pinterest-logo-128.png" },
   mails: { name: "Mails", src: "/icons/mails-inrcy-dashboard-v2.png" },
+  x: { name: "X", src: "/icons/x.svg" },
 };
 
 export const statsRubriqueOptions: Record<
@@ -101,11 +101,11 @@ export const channelOrder: ChannelKey[] = [
   "facebook",
   "instagram",
   "linkedin",
-  "x",
   "tiktok",
   "youtube",
   "pinterest",
   "mails",
+  "x",
 ];
 
 export const channelOrderRank = Object.fromEntries(
@@ -321,10 +321,10 @@ export const automations: Automation[] = [
       "facebook",
       "instagram",
       "linkedin",
-      "x",
       "tiktok",
       "youtube",
       "pinterest",
+      "x",
     ],
   },
   {
@@ -412,10 +412,10 @@ export const defaultConfigs: Record<AutomationKey, AutomationConfig> = {
       "facebook",
       "instagram",
       "linkedin",
-      "x",
       "tiktok",
       "youtube",
       "pinterest",
+      "x",
     ],
     themes: ["Conseils", "Réalisations", "Offres"],
     validation: "Notification avant validation",

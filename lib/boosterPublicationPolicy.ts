@@ -6,10 +6,10 @@ export const BOOSTER_PUBLICATION_CHANNELS = [
   "facebook",
   "instagram",
   "linkedin",
-  "x",
   "tiktok",
   "youtube_shorts",
   "pinterest",
+  "x",
 ] as const;
 
 export type BoosterPublicationChannelKey =

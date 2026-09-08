@@ -3,6 +3,7 @@ import {
   X_POST_MAX_IMAGES,
   getXPostUrl,
   validateXPostText,
+  validateXUrlFreeText,
 } from "./xChannel.ts";
 
 const X_API_ORIGIN = "https://api.x.com";
@@ -550,6 +551,17 @@ export async function createXPost(params: {
   }
   const text = String(params.text || "").trim();
   if (text) {
+    // Dernière barrière avant POST /2/tweets. Elle reste volontairement
+    // explicite ici même si validateXPostText applique déjà la même politique :
+    // une régression du compteur ou d'un composeur ne doit jamais laisser une
+    // URL atteindre l'API facturée de X.
+    const urlValidation = validateXUrlFreeText(text);
+    if (!urlValidation.valid) {
+      throw new XPublishError(urlValidation.error, {
+        code: urlValidation.code,
+        retryable: false,
+      });
+    }
     const validation = validateXPostText(text);
     if (!validation.valid) {
       throw new XPublishError(validation.error || "Le texte X est invalide.", {

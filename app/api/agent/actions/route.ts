@@ -48,6 +48,7 @@ import {
   filterStandardAgentItems,
   isStandardAgentActionDescriptor,
 } from "@/lib/standardAgentPolicy";
+import { validateXUrlFreeText } from "@/lib/xChannel";
 import {
   asRecord,
   buildPublishMediaAdaptation,
@@ -2077,6 +2078,21 @@ export async function PATCH(request: Request) {
     const ctaUrl = cleanText(requestBody?.ctaUrl, 320);
     const ctaPhone = cleanText(requestBody?.ctaPhone, 60);
     const hashtags = cleanPublishHashtags(requestBody?.hashtags);
+
+    if (channel === "x") {
+      const xUrlValidation = validateXUrlFreeText(
+        [title, content, cta, ctaUrl, hashtags.join(" ")].join("\n"),
+      );
+      if (!xUrlValidation.valid) {
+        return NextResponse.json(
+          {
+            error: xUrlValidation.error,
+            code: xUrlValidation.code,
+          },
+          { status: 400 },
+        );
+      }
+    }
 
     if (!content) {
       return NextResponse.json(

@@ -55,6 +55,10 @@ import { useUnsavedExitGuard } from "@/app/dashboard/_hooks/useUnsavedExitGuard"
 import { detectUniversalUploadMediaType } from "@/lib/mediaUploadPolicy";
 import { getMediaLibraryOptimizationRequirements } from "@/lib/mediaLibraryOptimizationPolicy";
 import {
+  containsForbiddenXUrl,
+  X_FORBIDDEN_URL_ERROR,
+} from "@/lib/xChannel";
+import {
   MAILBOX_RECIPIENTS_PAGE_SIZE,
   type CampaignRecipientsFilterId,
   type PublicationEditForm,
@@ -1073,6 +1077,15 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
     }
     return "facebook";
   }, [activePublicationEditChannelKey]);
+  const publicationEditHasForbiddenXUrl =
+    activePublicationEditChannelKey === "x" &&
+    [
+      publicationEditForm.title,
+      publicationEditForm.content,
+      publicationEditForm.cta,
+      publicationEditForm.ctaUrl,
+      publicationEditForm.hashtags,
+    ].some(containsForbiddenXUrl);
 
   const markPublicationEditDirty = React.useCallback(() => {
     setPublicationEditDirty(true);
@@ -2133,7 +2146,10 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                       type="button"
                                       className={styles.btnPrimary}
                                       onClick={saveChannelPublication}
-                                      disabled={detailsActionBusy}
+                                      disabled={
+                                        detailsActionBusy ||
+                                        publicationEditHasForbiddenXUrl
+                                      }
                                     >
                                       {detailsActionBusy ? i18nT("enregistrement_e7d5f232") : i18nT("enregistrer_f7c8bcd8")}
                                     </button>
@@ -2308,7 +2324,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                             (() => {
                               const parts = activeParts;
                               const isSitePublication = activePublicationEntry.key === "inrcy_site" || activePublicationEntry.key === "site_web" || activePublicationEntry.key === "site";
-                              const showInstagramHashtags = activePublicationEntry.key === "instagram" || activePublicationEntry.key === "tiktok";
+                              const showInstagramHashtags = activePublicationEntry.key === "instagram" || activePublicationEntry.key === "tiktok" || activePublicationEntry.key === "x";
                               const deletedAt = activePublicationResult?.deleted_at ? new Date(String(activePublicationResult.deleted_at)).toLocaleString(locale) : null;
                               const hasAny = !!(parts.title || parts.content || parts.cta || (showInstagramHashtags && parts.hashtags?.length));
                               if (!hasAny && showFallbackMessage) {
@@ -2608,7 +2624,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                             );
                                           })()}
                                         </div>
-                                        {activePublicationEntry.key === "instagram" || activePublicationEntry.key === "tiktok" ? (
+                                        {activePublicationEntry.key === "instagram" || activePublicationEntry.key === "tiktok" || activePublicationEntry.key === "x" ? (
                                           <div>
                                             <div className={styles.publicationLabel}>{i18nT("hashtags_338da6e1")}</div>
                                             <input
@@ -2619,6 +2635,14 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                               placeholder={i18nT("maconnerie_lens_btp_6517298b")}
                                               disabled={detailsActionBusy}
                                             />
+                                          </div>
+                                        ) : null}
+                                        {publicationEditHasForbiddenXUrl ? (
+                                          <div
+                                            role="alert"
+                                            className={styles.detailsError}
+                                          >
+                                            {X_FORBIDDEN_URL_ERROR}
                                           </div>
                                         ) : null}
                                       </>
@@ -2660,7 +2684,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                             <div className={styles.publicationCtaBox}>{stripSiteTextFormatting(parts.cta)}</div>
                                           </div>
                                         ) : null}
-                                        {(activePublicationEntry.key === "instagram" || activePublicationEntry.key === "tiktok") && parts.hashtags && parts.hashtags.length ? (
+                                        {(activePublicationEntry.key === "instagram" || activePublicationEntry.key === "tiktok" || activePublicationEntry.key === "x") && parts.hashtags && parts.hashtags.length ? (
                                           <div>
                                             <div className={styles.publicationLabel}>{i18nT("hashtags_338da6e1")}</div>
                                             <div className={styles.publicationTagRow}>

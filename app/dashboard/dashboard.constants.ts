@@ -154,22 +154,6 @@ export const fluxModules: Module[] = [
     ],
   },
   {
-    key: "x",
-    name: "X",
-    description: "Diffuse vos actualités en temps réel 𝕏",
-    status: "available",
-    accent: "cyan",
-    actions: [
-      { key: "view", label: "Voir le profil", variant: "view", href: "#" },
-      {
-        key: "connect",
-        label: "Configurer",
-        variant: "connect",
-        onClick: () => {},
-      },
-    ],
-  },
-  {
     key: "tiktok",
     name: "TikTok",
     description: "Développe votre audience 🎬",
@@ -214,6 +198,22 @@ export const fluxModules: Module[] = [
     accent: "pink",
     actions: [
       { key: "view", label: "Voir le compte", variant: "view", href: "#" },
+      {
+        key: "connect",
+        label: "Configurer",
+        variant: "connect",
+        onClick: () => {},
+      },
+    ],
+  },
+  {
+    key: "x",
+    name: "X",
+    description: "Prenez la parole au bon moment ⚡",
+    status: "available",
+    accent: "cyan",
+    actions: [
+      { key: "view", label: "Voir le profil", variant: "view", href: "#" },
       {
         key: "connect",
         label: "Configurer",

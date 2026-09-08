@@ -50,7 +50,7 @@ export type HistorySnapshot = {
   model: string;
 };
 
-export const CUBES: CubeKey[] = ['site_inrcy', 'site_web', 'gmb', 'facebook', 'instagram', 'linkedin', 'x', 'tiktok', 'youtube_shorts', 'pinterest'];
+export const CUBES: CubeKey[] = ['site_inrcy', 'site_web', 'gmb', 'facebook', 'instagram', 'linkedin', 'tiktok', 'youtube_shorts', 'pinterest', 'x'];
 
 export const EMPTY_CUBE_RECORD: Record<CubeKey, number> = {
   site_inrcy: 0,

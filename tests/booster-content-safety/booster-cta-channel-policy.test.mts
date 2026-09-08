@@ -16,6 +16,7 @@ test("each publication channel has an explicit CTA capability policy", () => {
   assert.match(cta, /facebook: \["none", "website", "message", "custom"\]/);
   assert.match(cta, /instagram: \["none", "message"\]/);
   assert.match(cta, /linkedin: \["none", "website", "custom"\]/);
+  assert.match(cta, /x: \["none", "call", "message"\]/);
   assert.match(cta, /tiktok: \["none", "message"\]/);
   assert.match(cta, /youtube_shorts: \["none", "website", "custom"\]/);
   assert.match(cta, /pinterest: \["none", "website", "custom"\]/);

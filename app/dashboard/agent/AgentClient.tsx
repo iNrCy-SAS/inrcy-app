@@ -107,6 +107,10 @@ import {
   detectUniversalUploadMediaType,
 } from "@/lib/mediaUploadPolicy";
 import {
+  containsForbiddenXUrl,
+  X_FORBIDDEN_URL_ERROR,
+} from "@/lib/xChannel";
+import {
   CHANNEL_PRESETS,
   buildPreferredCtaPatch,
   computePreviewLayout,
@@ -178,6 +182,7 @@ import {
   CampaignMailTextModal,
   RecipientsPickerModal,
 } from "./_components/AgentCampaignEditors";
+
 import {
   AutomationIcon,
   AutomationSettingsIcon,
@@ -340,6 +345,21 @@ import {
   agentWeekdayLabel,
   type AgentTranslator,
 } from "./_lib/agent.i18n";
+
+function agentXPostContainsForbiddenUrl(post: {
+  title?: unknown;
+  body?: unknown;
+  cta?: unknown;
+  ctaUrl?: unknown;
+  hashtags?: unknown;
+}) {
+  const hashtags = Array.isArray(post.hashtags)
+    ? post.hashtags.join(" ")
+    : post.hashtags;
+  return [post.title, post.body, post.cta, post.ctaUrl, hashtags].some(
+    containsForbiddenXUrl,
+  );
+}
 
 const AGENT_VIDEO_OPTIMIZER_ACCEPT = [
   ...UNIVERSAL_MEDIA_VIDEO_MIME_TYPES,
@@ -611,6 +631,9 @@ export default function AgentClient() {
     ctaPhone: "",
     hashtags: "",
   });
+  const publishTextDraftHasForbiddenXUrl =
+    publishTextDraft.channel === "x" &&
+    agentXPostContainsForbiddenUrl(publishTextDraft);
   const [publishCtaDefaults, setPublishCtaDefaults] =
     useState<BoosterCtaDefaults | null>(null);
   const [instagramPublicationPreferences, setInstagramPublicationPreferences] =
@@ -1338,6 +1361,18 @@ export default function AgentClient() {
           media.kind !== "video"
         ) {
           blockers.push(i18nT("tiktok_requires_media"));
+        }
+        if (
+          channel === "x" &&
+          agentXPostContainsForbiddenUrl({
+            title: preview.title,
+            body: preview.body,
+            cta: preview.cta,
+            ctaUrl: preview.ctaUrl,
+            hashtags: preview.hashtags,
+          })
+        ) {
+          blockers.push(X_FORBIDDEN_URL_ERROR);
         }
         return {
           channel: boosterChannel,
@@ -2635,6 +2670,13 @@ export default function AgentClient() {
       showNotice(i18nT("le_contenu_de_la_publication_est_d18cf916"));
       return;
     }
+    if (
+      channel === "x" &&
+      agentXPostContainsForbiddenUrl(publishTextDraft)
+    ) {
+      showNotice(X_FORBIDDEN_URL_ERROR);
+      return;
+    }
 
     if (scheduledEditSession) {
       updateScheduledEditAction((action) =>
@@ -2695,7 +2737,11 @@ export default function AgentClient() {
       setPublishEditOpen(false);
       showNotice(i18nT("publication_mise_a_jour_de5f8c83"));
     } catch (error) {
-      showNotice(i18nT("modification_de_la_publication_impossible_e4568d66"));
+      showNotice(
+        error instanceof Error && error.message
+          ? error.message
+          : i18nT("modification_de_la_publication_impossible_e4568d66"),
+      );
     } finally {
       setPublishSaveState("idle");
     }
@@ -6201,6 +6247,11 @@ export default function AgentClient() {
                 />
               </label>
             )}
+            {publishTextDraftHasForbiddenXUrl && (
+              <p className={styles.publishTextUrlError} role="alert">
+                {X_FORBIDDEN_URL_ERROR}
+              </p>
+            )}
             <p className={styles.campaignEditHint}>
               {i18nT("la_modification_s_applique_uniquement_au_ad6a3c95")}{" "}</p>
             <div className={styles.modalActions}>
@@ -6213,7 +6264,10 @@ export default function AgentClient() {
               <button
                 type="button"
                 onClick={savePublishText}
-                disabled={publishSaveState === "saving"}
+                disabled={
+                  publishSaveState === "saving" ||
+                  publishTextDraftHasForbiddenXUrl
+                }
               >
                 {publishSaveState === "saving"
                   ? i18nT("enregistrement_9bf1058a")

@@ -100,10 +100,10 @@ export const BOOSTER_CHANNEL_ORDER: ChannelKey[] = [
   "facebook",
   "instagram",
   "linkedin",
-  "x",
   "tiktok",
   "youtube_shorts",
   "pinterest",
+  "x",
 ];
 
 export type ThemeKey =
@@ -1408,13 +1408,13 @@ export function getCtaModeHelp(
     if (["instagram", "tiktok", "youtube_shorts"].includes(channel))
       return "Le lien WhatsApp sera ajouté à la légende. Selon le réseau, il peut être affiché comme texte non cliquable.";
     if (channel === "x")
-      return "X n’affiche pas de bouton natif : le lien WhatsApp sera ajouté proprement dans le texte du post.";
+      return "WhatsApp n’est pas proposé sur X, car les liens y sont interdits par iNrCy.";
     return "Un lien WhatsApp sécurisé sera ajouté à la publication.";
   }
   if (mode === "none") return "Aucun bouton ne sera ajouté à la fin du texte.";
   if (channel === "x") {
     if (mode === "website" || mode === "custom")
-      return "X n’affiche pas de bouton natif : le libellé et l’URL seront ajoutés proprement dans le texte du post.";
+      return "Les CTA avec lien ne sont pas proposés sur X.";
     if (mode === "call")
       return "X n’affiche pas de bouton natif : le libellé et le numéro seront ajoutés proprement dans le texte du post.";
     return "Une phrase naturelle d’invitation au message privé sera ajoutée au texte du post.";
@@ -1447,13 +1447,13 @@ export function getLocalizedCtaModeHelp(
       return translate("cta_help_whatsapp_caption");
     }
     if (channel === "x")
-      return "X n’affiche pas de bouton natif : le lien WhatsApp sera ajouté proprement dans le texte du post.";
+      return "WhatsApp n’est pas proposé sur X, car les liens y sont interdits par iNrCy.";
     return translate("cta_help_whatsapp");
   }
   if (mode === "none") return translate("cta_help_none");
   if (channel === "x") {
     if (mode === "website" || mode === "custom")
-      return "X n’affiche pas de bouton natif : le libellé et l’URL seront ajoutés proprement dans le texte du post.";
+      return "Les CTA avec lien ne sont pas proposés sur X.";
     if (mode === "call")
       return "X n’affiche pas de bouton natif : le libellé et le numéro seront ajoutés proprement dans le texte du post.";
     return "Une phrase naturelle d’invitation au message privé sera ajoutée au texte du post.";

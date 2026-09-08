@@ -55,6 +55,7 @@ import { getAppBubbleAccessMapForUser } from "@/lib/appBubbleAccessServer";
 import { isBubbleEnabled, type AppBubbleKey } from "@/lib/bubbleAccess";
 import { getXAccessToken } from "@/lib/xOAuth";
 import { deleteXPost } from "@/lib/xPublish";
+import { validateXUrlFreeText } from "@/lib/xChannel";
 const LINKEDIN_VERSION = "202603";
 const TIKTOK_INRSEND_EXTERNAL_ACTION_MESSAGE =
   "TikTok ne permet pas la modification ou la suppression réelle depuis iNrCy. Ouvrez TikTok pour gérer cette publication.";
@@ -2540,14 +2541,28 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
       if (channel === "tiktok") {
         return jsonUserFacingError(TIKTOK_INRSEND_EXTERNAL_ACTION_MESSAGE, { status: 409, code: "tiktok_external_action_required" });
       }
+      const body = (await req.json().catch(() => null)) as JsonRecord | null;
+      if (!body) return jsonUserFacingError("Bad payload", { status: 400, code: "invalid_payload" });
       if (channel === "x") {
+        const hashtags = Array.isArray(body.hashtags)
+          ? body.hashtags.map((value) => String(value || "")).join(" ")
+          : String(body.hashtags || "");
+        const xUrlValidation = validateXUrlFreeText(
+          [body.title, body.content, body.cta, body.ctaUrl, hashtags]
+            .map((value) => String(value || ""))
+            .join("\n"),
+        );
+        if (!xUrlValidation.valid) {
+          return jsonUserFacingError(xUrlValidation.error, {
+            status: 400,
+            code: xUrlValidation.code,
+          });
+        }
         return jsonUserFacingError(X_INRSEND_EDIT_UNSUPPORTED_MESSAGE, {
           status: 409,
           code: "x_edit_unsupported",
         });
       }
-      const body = (await req.json().catch(() => null)) as JsonRecord | null;
-      if (!body) return jsonUserFacingError("Bad payload", { status: 400, code: "invalid_payload" });
 
       const ctx = await loadPublicationContext(activeUserId, publicationId);
       if (!ctx) return jsonUserFacingError("Publication introuvable.", { status: 404, code: "publication_not_found" });

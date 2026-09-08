@@ -245,8 +245,8 @@ test("l'aperçu local ne peut jamais forcer Standard en production", () => {
   }), "premium");
 });
 
-test("Standard contient exactement dix destinations de publication et iNrBadge en bonus", () => {
-  assert.equal(STANDARD_PUBLICATION_CHANNEL_KEYS.length, 10);
+test("Standard contient exactement onze destinations de publication et iNrBadge en bonus", () => {
+  assert.equal(STANDARD_PUBLICATION_CHANNEL_KEYS.length, 11);
   assert.deepEqual(STANDARD_BONUS_CHANNEL_KEYS, ["inrbadge"]);
   assert.equal(STANDARD_PUBLICATION_CHANNEL_KEYS.includes("inrbadge" as never), false);
   assert.equal(STANDARD_PUBLICATION_CHANNEL_KEYS.includes("mails" as never), false);

@@ -184,7 +184,7 @@ const CHANNEL_COMPACT_CONTRACTS: Record<BoosterChannels, string> = {
   linkedin:
     "LinkedIn professionnel, humain et crédible. Titre 45–90. Expertise, méthode, recul ou retour terrain. Peu d’emojis, pas de ton vendeur artificiel.",
   x:
-    "X direct, clair et conversationnel. Le post final complet (titre, contenu, CTA, URL et hashtags) doit rester sous 280 caractères pondérés. Une idée forte, phrases courtes, 0 à 2 hashtags utiles. Aucun bouton natif : toute URL ou tout téléphone doit être lisible dans le texte.",
+    "X direct, clair et conversationnel. Le post final complet (titre, contenu, CTA et hashtags) doit rester sous 280 caractères pondérés. Une idée forte, phrases courtes, 0 à 2 hashtags utiles. RÈGLE ABSOLUE : aucune URL ni aucun lien dans title, content, cta ou hashtags, même si le contexte ou la consigne en fournit. Ne propose jamais de CTA Site, Lien personnalisé ou WhatsApp ; seuls Aucun CTA, Appeler et Envoyer un message sont autorisés.",
   tiktok:
     "TikTok direct, vivant et concret. Titre 30–70. Pensé pour accompagner vidéo/photos. Hashtags ciblés si utiles. Éviter le ton institutionnel.",
   youtube_shorts:
@@ -471,6 +471,9 @@ export function boosterUserPrompt(args: {
       : "",
     channelSet.has("gmb")
       ? "- Google Business : reste strictement factuel et sans coordonnées, URL, hashtag ni promotion agressive ; CTA neutre seulement si utile."
+      : "",
+    channelSet.has("x")
+      ? "- X — RÈGLE TECHNIQUE PRIORITAIRE : ne recopie et ne génère aucun lien ni aucune URL dans title, content, cta ou hashtags, même si la phrase libre, la consigne, le profil ou un média en contient. N'utilise jamais de CTA Site, Lien personnalisé ou WhatsApp pour X ; utilise seulement Aucun CTA, Appeler ou Envoyer un message."
       : "",
     channelSet.has("inrcy_site") || channelSet.has("site_web") || channelSet.has("inr_search")
       ? "- Canaux site : zéro emoji ; SEO local naturel uniquement avec les faits réellement fournis."

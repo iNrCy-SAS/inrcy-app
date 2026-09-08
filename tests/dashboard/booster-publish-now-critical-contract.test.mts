@@ -63,7 +63,7 @@ test("strict media cutover consumes the workspace and never silently falls back"
   assert.match(route, /consumptionSource:\s*strictMediaCutover\s*\?\s*"workspace_cutover_v1"/);
 });
 
-test("server image preparation covers 1-10 channels with one shared call", () => {
+test("server image preparation covers 1-11 channels with one shared call", () => {
   assert.match(route, /prepareBoosterImagesByChannelOnServer\(/);
   assert.equal(
     (route.match(/prepareBoosterImagesByChannelOnServer\(/g) || []).length,

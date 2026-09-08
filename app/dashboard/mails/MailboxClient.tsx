@@ -20,6 +20,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import styles from "./mails.module.css";
 import { createClient } from "@/lib/supabaseClient";
 import { getClientUserFacingErrorMessage } from "@/lib/userFacingErrors";
+import {
+  containsForbiddenXUrl,
+  X_FORBIDDEN_URL_ERROR,
+} from "@/lib/xChannel";
 import { requestBoosterVideoTransforms } from "@/lib/boosterVideoTransformClient";
 import {
   buildVideoTransformSignature,
@@ -4680,6 +4684,20 @@ export default function MailboxClient({
     if (!publicationId || !channel) return;
 
     const normalizedChannel = normalizeChannelKey(channel);
+    if (
+      normalizedChannel === "x" &&
+      [
+        publicationEditForm.title,
+        publicationEditForm.content,
+        publicationEditForm.cta,
+        publicationEditForm.ctaUrl,
+        publicationEditForm.hashtags,
+      ].some(containsForbiddenXUrl)
+    ) {
+      setDetailsActionSuccess(null);
+      setDetailsActionError(X_FORBIDDEN_URL_ERROR);
+      return;
+    }
     if (normalizedChannel === "instagram") {
       const confirmed = await confirmInrcy({
         title: i18nT("instagram_business_edit_warning_title"),

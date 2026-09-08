@@ -72,6 +72,10 @@ import {
   getXPostTextMetrics,
 } from "@/lib/xChannel";
 import {
+  getBoosterXForbiddenUrlFields,
+  getBoosterXUrlBlockerMessage,
+} from "@/lib/boosterXUrlPolicy";
+import {
   editableHtmlToSiteText,
   stripSiteTextFormatting,
   stripSiteTextFormattingPreserveLayout,
@@ -529,6 +533,7 @@ export default function PublishModal({
   const [selectedAiPreferredEngine, setSelectedAiPreferredEngine] =
     useState<AiPreferredEngine>(DEFAULT_AI_PREFERRED_ENGINE);
   const [instagramHashtagsInput, setInstagramHashtagsInput] = useState("");
+  const [xHashtagsInput, setXHashtagsInput] = useState("");
   const [instagramPublicationPlacement, setInstagramPublicationPlacement] =
     useState<InstagramPublicationPlacement>("classic");
   const [instagramPublicationPreferences, setInstagramPublicationPreferences] =
@@ -3346,6 +3351,7 @@ export default function PublishModal({
   const clearChannelCreationWork = () => {
     setPostsByChannel({});
     setInstagramHashtagsInput("");
+    setXHashtagsInput("");
     instagramPlacementTouchedRef.current = false;
     setInstagramPublicationPlacement(
       instagramPublicationPreferencesRef.current.defaultMode,
@@ -4585,13 +4591,15 @@ export default function PublishModal({
     };
     for (const key of CHANNEL_KEYS) {
       if (!prepared[key]) continue;
-      const structuredSafePost = sanitizeBoosterPostForStructuredCta(
-        prepared[key],
-        {
-          websiteUrl: getWebsiteUrlForChannel(key, ctaDefaults),
-          phone: ctaDefaults?.phone || "",
-        },
-      );
+      // Une URL saisie pour X doit rester visible et bloquante jusqu'à sa
+      // correction explicite. Ne jamais la retirer silencieusement ici.
+      const structuredSafePost =
+        key === "x"
+          ? normalizePost(prepared[key])
+          : sanitizeBoosterPostForStructuredCta(prepared[key], {
+              websiteUrl: getWebsiteUrlForChannel(key, ctaDefaults),
+              phone: ctaDefaults?.phone || "",
+            });
       if (isSiteDisplayKey(key)) {
         prepared[key] = normalizePost(structuredSafePost);
         continue;
@@ -6637,6 +6645,12 @@ export default function PublishModal({
           : "";
       const xTextMetrics =
         channel === "x" ? getXPostTextMetrics(xPostText) : null;
+      const xForbiddenUrlFields =
+        channel === "x"
+          ? getBoosterXForbiddenUrlFields(post, {
+              hashtagsInput: xHashtagsInput,
+            })
+          : [];
       const effectiveVideoDuration = Number(
         videoDurationSeconds ?? videoSourceMetadata?.duration ?? 0,
       );
@@ -6699,6 +6713,7 @@ export default function PublishModal({
         ...(channel === "pinterest" && !pinterestBoardId
           ? ["pinterest_board_required"]
           : []),
+        ...(xForbiddenUrlFields.length ? ["x_url_forbidden"] : []),
         ...(facebookMediaOnly && !hasImage && !hasVideo
           ? ["facebook_vertical_media_required"]
           : []),
@@ -6712,7 +6727,9 @@ export default function PublishModal({
         ...(hasMediaUploadBlocker ? ["media_upload_pending"] : []),
       ];
       const localizeRequirement = (code: string) =>
-        code === "facebook_vertical_media_required"
+        code === "x_url_forbidden"
+          ? getBoosterXUrlBlockerMessage(xForbiddenUrlFields)
+          : code === "facebook_vertical_media_required"
           ? "Facebook Reel/Story nécessite une image ou une vidéo."
           : code === "facebook_vertical_duration_invalid"
             ? facebookPublicationPlacement === "story"
@@ -6777,7 +6794,7 @@ export default function PublishModal({
                   `Post X : ${xTextMetrics.weightedLength}/${X_POST_WEIGHTED_LENGTH_MAX} caractères pondérés.`,
                   ...(xGifCount > 0 ? ["GIF X : publié seul, conformément aux règles du canal."] : []),
                   ...(post.ctaMode && post.ctaMode !== "none"
-                    ? ["X n’affiche pas de bouton natif : le CTA est intégré au texte du post."]
+                    ? ["X n’affiche pas de bouton natif : le CTA sans lien est intégré au texte du post."]
                     : []),
                 ]
               : [],
@@ -7382,6 +7399,8 @@ export default function PublishModal({
               instagramHashtagsInput={instagramHashtagsInput}
               setInstagramHashtagsInput={setInstagramHashtagsInput}
               getLiveInstagramHashtags={getLiveInstagramHashtags}
+              xHashtagsInput={xHashtagsInput}
+              setXHashtagsInput={setXHashtagsInput}
               duplicateFeedback={duplicateFeedback}
               onDuplicateContentToAllChannels={onDuplicateContentToAllChannels}
               pinterestBoards={pinterestBoards}

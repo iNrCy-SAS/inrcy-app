@@ -12,6 +12,10 @@ import type { FacebookPublicationPreferences } from "@/lib/facebookPublicationPr
 import { buildBoosterXPostText } from "@/lib/boosterCta";
 import { getXPostTextMetrics } from "@/lib/xChannel";
 import {
+  getBoosterXForbiddenUrlFields,
+  getBoosterXUrlBlockerMessage,
+} from "@/lib/boosterXUrlPolicy";
+import {
   buildBoosterWhatsAppUrl,
   getBoosterWhatsAppPhoneFromUrl,
 } from "@/lib/boosterWhatsappCta";
@@ -98,6 +102,8 @@ type PublishContentEditorPanelProps = {
   instagramHashtagsInput: string;
   setInstagramHashtagsInput: Dispatch<SetStateAction<string>>;
   getLiveInstagramHashtags: () => string[];
+  xHashtagsInput: string;
+  setXHashtagsInput: Dispatch<SetStateAction<string>>;
   duplicateFeedback: DuplicateFeedback;
   onDuplicateContentToAllChannels: () => void;
   pinterestBoards: Array<{ id: string; name: string }>;
@@ -138,6 +144,8 @@ export default function PublishContentEditorPanel({
   instagramHashtagsInput,
   setInstagramHashtagsInput,
   getLiveInstagramHashtags,
+  xHashtagsInput,
+  setXHashtagsInput,
   duplicateFeedback,
   onDuplicateContentToAllChannels,
   pinterestBoards,
@@ -161,7 +169,6 @@ export default function PublishContentEditorPanel({
   const plainEmojiSelectionRef = useRef<{ start: number; end: number } | null>(null);
   const [activeVoiceTarget, setActiveVoiceTarget] =
     useState<ManualVoiceTarget | null>(null);
-  const [xHashtagsInput, setXHashtagsInput] = useState("");
   const voiceBusy = activeVoiceTarget !== null;
 
   useEffect(() => {
@@ -271,16 +278,35 @@ export default function PublishContentEditorPanel({
 
   useEffect(() => {
     if (activeCard !== "x") return;
-    setXHashtagsInput(
-      (activePost.hashtags || [])
+    setXHashtagsInput((currentInput) => {
+      // Conserver une URL saisie tant que le pro ne la corrige pas lui-même :
+      // changer de canal ne doit jamais masquer ni effacer silencieusement l'erreur.
+      if (
+        getBoosterXForbiddenUrlFields(
+          { hashtags: [] },
+          { hashtagsInput: currentInput },
+        ).length
+      ) {
+        return currentInput;
+      }
+      return (activePost.hashtags || [])
         .slice(0, 2)
         .map((tag) => `#${String(tag || "").replace(/^#+/, "")}`)
-        .join(" "),
-    );
-  }, [activeCard, xHashtagsSignature]);
+        .join(" ");
+    });
+  }, [activeCard, activePost.hashtags, setXHashtagsInput, xHashtagsSignature]);
 
   const getLiveXHashtags = () =>
     parseInstagramHashtagsInput(xHashtagsInput).slice(0, 2);
+  const xForbiddenUrlFields =
+    activeCard === "x"
+      ? getBoosterXForbiddenUrlFields(activePost, {
+          hashtagsInput: xHashtagsInput,
+        })
+      : [];
+  const xForbiddenCtaUrlFields = xForbiddenUrlFields.filter((field) =>
+    ["cta", "ctaUrl", "ctaPhone"].includes(field.field),
+  );
   const instagramMediaOnly =
     activeCard === "instagram" &&
     instagramPublicationPlacement !== "classic";
@@ -354,6 +380,12 @@ export default function PublishContentEditorPanel({
           >
             {displayCards.map((key) => {
               const post = getDisplayPost(key);
+              const xUrlBlocked =
+                key === "x" &&
+                getBoosterXForbiddenUrlFields(
+                  post,
+                  { hashtagsInput: xHashtagsInput },
+                ).length > 0;
               const hasText =
                 (key === "instagram" &&
                   instagramPublicationPlacement !== "classic") ||
@@ -363,7 +395,13 @@ export default function PublishContentEditorPanel({
                   String(post.title || "").trim() ||
                   String(post.content || "").trim()
                 );
-              const statusStyle = hasText
+              const statusStyle = xUrlBlocked
+                ? {
+                    border: "1px solid rgba(248,113,113,0.48)",
+                    color: "#fecaca",
+                    background: "rgba(248,113,113,0.12)",
+                  }
+                : hasText
                 ? {
                     border: "1px solid rgba(34,197,94,0.34)",
                     color: "#bbf7d0",
@@ -380,18 +418,28 @@ export default function PublishContentEditorPanel({
                   type="button"
                   onClick={() => setSynchronizedActiveChannel(key)}
                   disabled={voiceBusy}
-                  title={hasText ? i18nT("content_text_present") : i18nT("content_text_to_review")}
+                  title={
+                    xUrlBlocked
+                      ? "X est bloqué : retirez le lien détecté."
+                      : hasText
+                        ? i18nT("content_text_present")
+                        : i18nT("content_text_to_review")
+                  }
                   style={{
                     ...pillBtn,
                     ...statusStyle,
                     ...(activeCard === key
                       ? {
-                          border: hasText
-                            ? "2px solid rgba(74,222,128,0.90)"
-                            : "2px solid rgba(250,204,21,0.92)",
-                          boxShadow: hasText
-                            ? "0 0 0 1px rgba(74,222,128,0.26) inset, 0 0 0 1px rgba(74,222,128,0.20), 0 0 18px rgba(74,222,128,0.20)"
-                            : "0 0 0 1px rgba(250,204,21,0.26) inset, 0 0 0 1px rgba(250,204,21,0.20), 0 0 18px rgba(250,204,21,0.16)",
+                          border: xUrlBlocked
+                            ? "2px solid rgba(248,113,113,0.92)"
+                            : hasText
+                              ? "2px solid rgba(74,222,128,0.90)"
+                              : "2px solid rgba(250,204,21,0.92)",
+                          boxShadow: xUrlBlocked
+                            ? "0 0 0 1px rgba(248,113,113,0.28) inset, 0 0 0 1px rgba(248,113,113,0.22), 0 0 18px rgba(248,113,113,0.20)"
+                            : hasText
+                              ? "0 0 0 1px rgba(74,222,128,0.26) inset, 0 0 0 1px rgba(74,222,128,0.20), 0 0 18px rgba(74,222,128,0.20)"
+                              : "0 0 0 1px rgba(250,204,21,0.26) inset, 0 0 0 1px rgba(250,204,21,0.20), 0 0 18px rgba(250,204,21,0.16)",
                         }
                       : {}),
                     width: "100%",
@@ -569,6 +617,61 @@ export default function PublishContentEditorPanel({
                 {activeMediaMode === "images"
                   ? i18nT("instagram_image_motion_notice")
                   : i18nT("instagram_media_only_notice")}
+              </div>
+            ) : null}
+            {activeCard === "x" && xForbiddenUrlFields.length ? (
+              <div
+                role="alert"
+                data-x-url-blocker="true"
+                style={{
+                  marginBottom: 10,
+                  padding: "10px 12px",
+                  borderRadius: 12,
+                  border: "1px solid rgba(248,113,113,0.42)",
+                  background: "rgba(248,113,113,0.12)",
+                  color: "#fecaca",
+                  fontSize: 12,
+                  lineHeight: 1.45,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 10,
+                  flexWrap: "wrap",
+                }}
+              >
+                <span>{getBoosterXUrlBlockerMessage(xForbiddenUrlFields)}</span>
+                {xForbiddenCtaUrlFields.length ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const invalidFields = new Set(
+                        xForbiddenCtaUrlFields.map((field) => field.field),
+                      );
+                      updatePost(
+                        "x",
+                        {
+                          ...(invalidFields.has("cta") ? { cta: "" } : {}),
+                          ...(invalidFields.has("ctaUrl")
+                            ? { ctaUrl: "" }
+                            : {}),
+                          ...(invalidFields.has("ctaPhone")
+                            ? { ctaPhone: "" }
+                            : {}),
+                        },
+                        { sanitize: false },
+                      );
+                    }}
+                    style={{
+                      ...pillBtn,
+                      border: "1px solid rgba(248,113,113,0.44)",
+                      background: "rgba(127,29,29,0.34)",
+                      color: "#fee2e2",
+                      flex: "0 0 auto",
+                    }}
+                  >
+                    Retirer le lien du CTA
+                  </button>
+                ) : null}
               </div>
             ) : null}
             <fieldset
@@ -1286,12 +1389,17 @@ export default function PublishContentEditorPanel({
                         }
                         onChange={(nextInput) => {
                           setXHashtagsInput(nextInput);
-                          updatePost("x", {
-                            hashtags: parseInstagramHashtagsInput(nextInput).slice(
-                              0,
-                              2,
-                            ),
-                          });
+                          if (!getBoosterXForbiddenUrlFields(
+                            { hashtags: [] },
+                            { hashtagsInput: nextInput },
+                          ).length) {
+                            updatePost("x", {
+                              hashtags: parseInstagramHashtagsInput(nextInput).slice(
+                                0,
+                                2,
+                              ),
+                            });
+                          }
                         }}
                       />
                     ) : null}
@@ -1300,9 +1408,17 @@ export default function PublishContentEditorPanel({
                     value={xHashtagsInput}
                     readOnly={voiceBusy}
                     onChange={(event) => setXHashtagsInput(event.target.value)}
-                    onBlur={() =>
-                      updatePost("x", { hashtags: getLiveXHashtags() })
-                    }
+                    onBlur={() => {
+                      if (
+                        getBoosterXForbiddenUrlFields(
+                          { hashtags: [] },
+                          { hashtagsInput: xHashtagsInput },
+                        ).length
+                      ) {
+                        return;
+                      }
+                      updatePost("x", { hashtags: getLiveXHashtags() });
+                    }}
                     style={inputStyle}
                     placeholder={i18nT("local_metier_fb03ef96")}
                   />

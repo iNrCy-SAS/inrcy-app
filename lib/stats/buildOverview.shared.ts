@@ -458,10 +458,10 @@ export const INRCY_PUBLISHABLE_CHANNELS: OverviewCubeKey[] = [
   "facebook",
   "instagram",
   "linkedin",
-  "x",
   "tiktok",
   "youtube_shorts",
   "pinterest",
+  "x",
 ];
 
 export function emptyWindowCount(): InrcyWindowCount {

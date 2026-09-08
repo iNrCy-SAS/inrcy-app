@@ -224,3 +224,30 @@ test("createXPost accepts at most four unique numeric media ids", async () => {
   );
   assert.equal(calls, 0);
 });
+
+test("createXPost rejects every URL before calling the X API", async () => {
+  for (const text of [
+    "Voir https://example.com",
+    "Voir example.fr",
+    "Voir example [.] com",
+    "Voir bit.ly/offre",
+  ]) {
+    let calls = 0;
+    await assert.rejects(
+      createXPost({
+        accessToken: "token",
+        text,
+        mediaIds: ["1880028106020515840"],
+        fetchImpl: asFetch(async () => {
+          calls += 1;
+          return jsonResponse({ data: { id: "1880028106020515841" } });
+        }),
+      }),
+      (error: unknown) =>
+        error instanceof XPublishError &&
+        error.code === "x_url_forbidden" &&
+        error.retryable === false,
+    );
+    assert.equal(calls, 0, text);
+  }
+});

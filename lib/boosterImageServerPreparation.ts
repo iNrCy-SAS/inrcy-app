@@ -916,7 +916,7 @@ export async function prepareBoosterImagesByChannelOnServer(params: {
 
   // Les canaux sont indépendants mais partagent les mêmes promesses de
   // téléchargement et le même chargement de cache. On conserve ainsi un temps
-  // proche entre 1 et 10 canaux sans télécharger/décoder la source dix fois.
+  // proche entre 1 et 11 canaux sans télécharger/décoder la source onze fois.
   await Promise.all(channels.map(async (channel) => {
     if (channel === "youtube_shorts" || !valid.length) {
       imagesByChannel[channel] = [];

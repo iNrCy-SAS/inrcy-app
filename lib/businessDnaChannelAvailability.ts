@@ -7,8 +7,8 @@ export const BUSINESS_DNA_DASHBOARD_CHANNELS = [
   { key: "tiktok", analyzable: true },
   { key: "youtube_shorts", analyzable: true },
   { key: "pinterest", analyzable: true },
-  { key: "x", analyzable: true },
   { key: "site_inrcy", analyzable: true },
+  { key: "x", analyzable: true },
 ] as const;
 
 export type BusinessDnaDashboardChannelKey =

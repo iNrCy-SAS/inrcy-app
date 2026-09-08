@@ -1377,6 +1377,18 @@
   }
 }
 
+.publishTextUrlError {
+  margin: 2px 0 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(248, 113, 113, 0.46);
+  border-radius: 12px;
+  color: #fecaca;
+  background: rgba(127, 29, 29, 0.24);
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.4;
+}
+
 /* Ajustements V2 — iNrAgent automatisations */
 
 .automationCard {
@@ -12495,7 +12507,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   }
 }
 
-/* Correctif iNrAgent Publier — 10 canaux visibles entre les flèches */
+/* Correctif iNrAgent Publier — 11 canaux visibles entre les flèches */
 @media (min-width: 761px) {
   .previewMetaPublish {
     grid-template-columns:
@@ -12715,7 +12727,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   }
 }
 
-/* Correctif iNrAgent Publier — responsive : 10 canaux en 2 lignes de 5 */
+/* Correctif iNrAgent Publier — responsive : 11 canaux répartis sur 2 lignes */
 @media (max-width: 760px) {
   .previewMetaPublish {
     grid-template-columns: 1fr 1fr 46px 46px !important;
@@ -18055,5 +18067,36 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     max-height: 22px !important;
     clip-path: none !important;
     transform: translate(-50%, -50%) !important;
+  }
+}
+
+/* Dernière règle du fichier : elle ne peut pas être écrasée par les anciens paliers desktop. */
+@media (min-width: 1251px) {
+  .previewMetaPublish {
+    grid-template-columns:
+      minmax(500px, 1.55fr) minmax(165px, 0.68fr)
+      44px 44px 44px minmax(220px, 0.84fr) !important;
+  }
+
+  .previewMetaPublish .channelsItem {
+    min-width: 500px !important;
+    padding-inline: 4px !important;
+    overflow: visible !important;
+  }
+
+  .previewMetaPublish .channelScrollerWrapPublish {
+    width: 500px !important;
+    min-width: 500px !important;
+    max-width: 500px !important;
+    grid-template-columns: 30px minmax(0, 1fr) 30px !important;
+    gap: 5px !important;
+    overflow: visible !important;
+  }
+
+  .previewMetaPublish .channelScroller {
+    justify-content: center !important;
+    gap: 4px !important;
+    padding-inline: 3px !important;
+    overflow: hidden !important;
   }
 }

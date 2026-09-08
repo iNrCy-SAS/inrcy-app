@@ -233,16 +233,6 @@ export default function XSettingsContent() {
         </div>
       </section>
 
-      <section style={{ ...cardStyle, borderColor: "rgba(250, 204, 21, 0.28)" }}>
-        <div className={styles.blockTitle}>Publication et coût X</div>
-        <StatusMessage variant="warning" style={{ margin: 0 }}>
-          X facture son API à l'usage. Une publication contenant un lien peut coûter nettement plus cher qu'une publication sans lien ; les tarifs affichés dans la console développeur X font foi.
-        </StatusMessage>
-        <div className={styles.blockSub}>
-          iNrCy bloquera l'envoi si l'autorisation a expiré et demandera une reconnexion. Aucun contenu n'est publié depuis ce panneau.
-        </div>
-      </section>
-
       {error ? <StatusMessage variant="error">{error}</StatusMessage> : null}
       {notice ? <StatusMessage variant="success">{notice}</StatusMessage> : null}
     </div>

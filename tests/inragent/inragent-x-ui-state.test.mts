@@ -20,6 +20,9 @@ const agentRuntime = read("app/dashboard/agent/_hooks/useAgentRuntimeData.ts");
 const agentSchedule = read("app/dashboard/agent/_lib/agent.schedule.ts");
 const agentClient = read("app/dashboard/agent/AgentClient.tsx");
 const agentSettingsApi = read("app/api/agent/settings/route.ts");
+const agentActionsApi = read("app/api/agent/actions/route.ts");
+const agentPrepareApi = read("app/api/agent/actions/prepare-publish/route.ts");
+const agentStyles = read("app/dashboard/agent/agent.module.css");
 
 test("X is a first-class iNrAgent publication channel", () => {
   assert.ok(INR_AGENT_CHANNELS.includes("x"));
@@ -47,6 +50,34 @@ test("the Agent UI maps X aliases, icon and Booster channel consistently", () =>
   assert.match(agentConfig, /x:\s*\["x",\s*"twitter",\s*"twitter_x",\s*"x_twitter"\]/);
   assert.match(agentConfig, /agentChannelToBoosterDisplay[\s\S]*?x:\s*"x"/);
   assert.match(agentConfig, /channelToApi[\s\S]*?x:\s*"x"/);
+  assert.match(
+    agentConfig,
+    /channelOrder[\s\S]*?"pinterest",\s*"mails",\s*"x",\s*\]/,
+  );
+  assert.match(
+    agentConfig,
+    /availableChannels:\s*\[[\s\S]*?"pinterest",\s*"x",\s*\]/,
+  );
+});
+
+test("iNrAgent keeps X URL-free without blocking the other publication channels", () => {
+  assert.match(agentPrepareApi, /RÈGLE ABSOLUE POUR X[\s\S]*?aucun lien ni aucune URL/);
+  assert.match(agentActionsApi, /channel === "x"[\s\S]*?validateXUrlFreeText/);
+  assert.match(agentActionsApi, /code:\s*xUrlValidation\.code/);
+  assert.match(agentClient, /agentXPostContainsForbiddenUrl/);
+  assert.match(agentClient, /blockers\.push\(X_FORBIDDEN_URL_ERROR\)/);
+  assert.match(agentClient, /publishTextDraftHasForbiddenXUrl/);
+  assert.match(agentClient, /showNotice\(X_FORBIDDEN_URL_ERROR\)/);
+  assert.match(
+    agentClient,
+    /publishSaveState === "saving" \|\|\s*publishTextDraftHasForbiddenXUrl/,
+  );
+});
+
+test("the desktop iNrAgent channel rail reserves space for every bubble and both arrows", () => {
+  assert.match(agentStyles, /@media \(min-width: 1251px\)[\s\S]*?minmax\(500px, 1\.55fr\)/);
+  assert.match(agentStyles, /channelScrollerWrapPublish[\s\S]*?min-width:\s*500px/);
+  assert.match(agentStyles, /grid-template-columns:\s*30px minmax\(0, 1fr\) 30px/);
 });
 
 test("X connection state hydrates live and cached iNrAgent channel lists", () => {

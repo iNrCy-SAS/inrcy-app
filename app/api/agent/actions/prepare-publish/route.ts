@@ -1075,6 +1075,9 @@ async function generateBoosterPosts(args: {
   const editorialMemory = args.earlierEditorialAngles?.length
     ? `\nMémoire du mois déjà préparée (ne répète ni ces angles ni leurs accroches) :\n${args.earlierEditorialAngles.join("\n")}`
     : "";
+  const xUrlInstruction = args.channels.includes("x")
+    ? "\nRÈGLE ABSOLUE POUR X : n'écris aucun lien ni aucune URL dans le titre, le contenu, les hashtags ou le CTA. N'écris pas non plus de domaine nu, de lien raccourci ou d'adresse commençant par www. Invite à contacter l'entreprise sans ajouter de lien."
+    : "";
   const { versions, recoveredChannels } = await generateSharedBoosterPosts({
     idea: args.idea,
     theme: args.theme,
@@ -1094,7 +1097,7 @@ async function generateBoosterPosts(args: {
 Objectif : produire exactement la même logique éditoriale que Booster / Publier manuel, avec un contenu réellement adapté à chaque canal.
 TON CHOISI PAR LE PROFESSIONNEL : ${agentToneInstructions[args.agentTone]}
 Ne fournis jamais des copies entre canaux. Adapte réellement l'angle, la profondeur, le vocabulaire et le rythme, sans imposer artificiellement une structure différente à chaque version.
-Préserve la voix native du moteur IA choisi par l'établissement. Le titre et le contenu sont prioritaires ; un CTA séparé reste facultatif lorsqu'il serait artificiel.${editorialMemory}`,
+Préserve la voix native du moteur IA choisi par l'établissement. Le titre et le contenu sont prioritaires ; un CTA séparé reste facultatif lorsqu'il serait artificiel.${xUrlInstruction}${editorialMemory}`,
   });
 
   return { versions, recoveredChannels };

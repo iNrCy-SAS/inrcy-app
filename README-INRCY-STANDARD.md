@@ -18,9 +18,9 @@ Le tableau de bord Standard reprend volontairement le dashboard iNrCy actuel : m
 
 - à gauche : une « Boîte de pilotage » avec iNr’Stats, iNr’Send limité aux Publications et Réputation ; chaque ligne aligne l’icône, les informations et son action ;
 - à droite : Booster occupe tout le cadre et constitue l’appel à l’action principal, sans carte imbriquée ni ancien libellé « Boîte de vitesse / Conversion » ;
-- 10 canaux de publication : Site iNrCy, Site web, Google Business, iNr’Search, Facebook, Instagram, LinkedIn, TikTok, YouTube et Pinterest ;
+- 11 canaux de publication : Site iNrCy, Site web, Google Business, iNr’Search, Facebook, Instagram, LinkedIn, TikTok, YouTube, Pinterest et X ;
 - les vraies bulles de connexion sont conservées avec leur état, « Voir » et « Configurer » ;
-- iNr’Badge reste une vraie bulle interactive, incluse comme bonus et non comptée parmi les 10 canaux ;
+- iNr’Badge reste une vraie bulle interactive, incluse comme bonus et non comptée parmi les 11 canaux ;
 
 En Standard, iNr’Badge reste une fiche publique et un QR Code complets : téléphone, mail, vCard, formulaire de contact, liens vers les canaux et statistiques. Le bouton Mail utilise exclusivement l’adresse renseignée dans « Mon profil ». Le formulaire transmet les coordonnées à cette adresse et les comptabilise dans iNr’Stats, sans renvoyer l’utilisateur Standard vers le CRM.
 
@@ -33,6 +33,8 @@ Tout le reste conserve le graphisme actuel. Le menu général reste disponible, 
 ## Premium
 
 L’expérience Premium existante n’a pas été redessinée ni réduite. Elle conserve l’architecture et les outils actuels.
+
+Le contrat commercial courant propose 11 canaux actifs en Standard et 13 canaux actifs en Premium.
 
 Dans le compte Standard, l’offre Premium est présentée avec un bouton de contact. Aucun passage autonome ni paiement Premium n’est autorisé pour le moment.
 

@@ -90,6 +90,7 @@ import {
 } from "@/lib/boosterCtaPreferences";
 import { getLinkedInAccessToken } from "@/lib/linkedinOAuth";
 import { getXAccessToken } from "@/lib/xOAuth";
+import { validateXUrlFreeText } from "@/lib/xChannel";
 import {
   XPublishError,
   createXPost,
@@ -3829,6 +3830,37 @@ async function publishNowHandler(req: Request) {
         }
 
         if (ch === "x") {
+          // Garde strict mais local au canal : X est refusé avant toute requête
+          // fournisseur, tandis que les autres canaux de la campagne continuent.
+          // Les champs sources sont contrôlés en plus du rendu final afin que
+          // les hashtags et toute future évolution du composeur restent sûrs.
+          const xFinalCta = buildCtaTextForChannel("x", channelPost, {
+            websiteUrl: getPublicationWebsiteUrl(ch),
+            phone: businessPhone,
+          });
+          const xUrlValidation = validateXUrlFreeText([
+            channelPost.title,
+            channelPost.content,
+            ...(Array.isArray(channelPost.hashtags)
+              ? channelPost.hashtags
+              : []),
+            xFinalCta,
+            canonMessage,
+          ].filter(Boolean).join("\n"));
+          if (!xUrlValidation.valid) {
+            await setDelivery(ch, {
+              status: "failed",
+              error: xUrlValidation.error,
+            });
+            results[ch] = {
+              ok: false,
+              error: xUrlValidation.error,
+              code: xUrlValidation.code,
+              retryable: false,
+            };
+            continue;
+          }
+
           const xAuth = await getXAccessToken({ userId });
           if (!xAuth.accessToken) {
             const xUserError =

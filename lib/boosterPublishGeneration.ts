@@ -1071,7 +1071,7 @@ async function generateVersions(args: {
       args.generationProfile.preferences.engine,
       "content",
     ),
-    // Étape 3 V2 : un appel principal pour 1 à 10 canaux, puis au maximum
+    // Étape 3 V2 : un appel principal pour 1 à 11 canaux, puis au maximum
     // une réparation ciblée. Les délais restent sous la fenêtre de route de 120 s.
     timeoutMs: computeGenerationTimeoutMs({
       mode,
