@@ -601,45 +601,6 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
         className={`${styles.statsWorkspace} ${activeStatsPanel === "all" ? "" : styles.statsWorkspaceChannel}`}
         data-stats-view={activeStatsPanel === "all" ? "global" : "channel"}
       >
-        <aside className={styles.statsRail} aria-label={i18nT("canaux_inr_stats_d37cba0f")}>
-          <button
-            type="button"
-            className={`${styles.statsRailItem} ${styles.statsRailItemGlobal} ${connectedChannelsCount > 0 ? styles.statsRailItemConnected : styles.statsRailItemOff} ${activeStatsPanel === "all" ? styles.statsRailItemActive : ""}`}
-            onClick={() => selectStatsPanel("all")}
-          >
-            <span className={styles.statsRailDot} aria-hidden />
-            <span className={styles.statsRailText}>
-              <b>{i18nT("tous_b97ae3b4")}</b>
-              <small>{i18nT("vue_globale_08073c33")}</small>
-            </span>
-            <span className={styles.statsRailValue}>+{formatInt(centralPotential30)}</span>
-          </button>
-
-          {models.map((model) => {
-            const isSite = model.key === "site_inrcy" || model.key === "site_web";
-            const connectionPending = model.connectionStatus === "unavailable" || (model.key === "mails" && !!model.connectionPending) || (model.key === "inr_search" && model.loading);
-            const connected = !connectionPending && (isSite ? !!model.connections.ga4 || !!model.connections.gsc : !!model.connections.main);
-            const reconnectRequired = model.connectionStatus === "needs_update";
-            const isActive = activeStatsPanel === model.key;
-
-            return (
-              <button
-                key={model.key}
-                type="button"
-                className={`${styles.statsRailItem} ${isActive ? styles.statsRailItemActive : ""} ${reconnectRequired ? styles.statsRailItemReconnect : connected ? styles.statsRailItemConnected : styles.statsRailItemOff}`}
-                onClick={() => selectStatsPanel(model.key)}
-              >
-                <span className={styles.statsRailDot} aria-hidden />
-                <span className={styles.statsRailText}>
-                  <b>{model.title}</b>
-                  <small>{reconnectRequired ? i18nT("a_reconnecter_bb56a9d2") : model.key === "inr_search" ? (connectionPending ? i18nT("synchronisation_cc8ad3ae") : connected ? i18nT("page_publiee_1916dffd") : i18nT("page_indisponible_1d78169a")) : connectionPending ? i18nT("verification_bb27abfb") : connected ? i18nT("connecte_ce09957c") : i18nT("deconnecte_3a67fd80")}</small>
-                </span>
-                <span className={styles.statsRailValue}>+{formatInt(model.opportunity30)}</span>
-              </button>
-            );
-          })}
-        </aside>
-
         <main className={styles.statsPanel}>
           {activeStatsPanel === "all" ? (
             <section className={styles.allStatsPanel} aria-label={i18nT("vue_globale_inr_stats_db5feb84")}>
@@ -705,16 +666,6 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
                       key={model.key}
                       className={`${styles.allStatsActionCard} ${connected ? styles.allStatsActionCardConnected : styles.allStatsActionCardOff}`}
                     >
-                      <button
-                        type="button"
-                        className={styles.allStatsDetailArrow}
-                        onClick={() => scrollTo(model.key)}
-                        aria-label={i18nT("voir_le_detail_value_ba79238d", { value0: model.title })}
-                        title={i18nT("voir_le_detail_c6565c15")}
-                      >
-                        ↗
-                      </button>
-
                       <button type="button" className={styles.allStatsChannelButton} onClick={() => scrollTo(model.key)}>
                         <span className={styles.allStatsChannelName}>{model.title}</span>
                       </button>
@@ -743,6 +694,16 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
 
                       <button
                         type="button"
+                        className={styles.allStatsDetailsButton}
+                        onClick={() => selectStatsPanel(model.key)}
+                        aria-label={i18nT("voir_le_detail_value_ba79238d", { value0: model.title })}
+                      >
+                        <span>{i18nT("voir_le_detail_c6565c15")}</span>
+                        <span aria-hidden="true">→</span>
+                      </button>
+
+                      <button
+                        type="button"
                         className={`${styles.allStatsGoButton} ${connected ? styles.allStatsGoButtonOn : styles.allStatsGoButtonConnect} ${premiumLocked ? styles.allStatsGoButtonDisabled : ""}`}
                         onClick={() => {
                           if (premiumLocked) return;
@@ -768,6 +729,14 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
             <section className={styles.channelStatsPanel} aria-label={i18nT("donnees_value_9d3b1503", { value0: activeModel.title })}>
               <div className={styles.channelStatsHeader}>
                 <div className={styles.channelStatsTitleBlock}>
+                  <button
+                    type="button"
+                    className={styles.channelStatsBackButton}
+                    onClick={() => selectStatsPanel("all")}
+                  >
+                    <span aria-hidden="true">←</span>
+                    <span>{i18nT("vue_globale_08073c33")}</span>
+                  </button>
                   <div className={styles.allStatsEyebrow}>{i18nT("canal_actif_09801074")}</div>
                   <h2 className={styles.allStatsTitle}>{activeModel.title}</h2>
                   <p className={styles.allStatsText}>{activeModel.subtitle}</p>

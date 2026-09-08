@@ -118,3 +118,18 @@ test("iNrStats channel panels use the global column width while zoom reflow stay
   );
   assert.match(css, /overflow-x: hidden !important;[\s\S]*?overflow-y: visible !important/);
 });
+
+test("iNrStats uses a full-width master/detail table on desktop", () => {
+  const client = read("app/dashboard/stats/StatsClient.tsx");
+  const css = read("app/dashboard/stats/stats.module.css");
+
+  assert.doesNotMatch(client, /<aside className=\{styles\.statsRail\}/);
+  assert.match(client, /className=\{styles\.allStatsDetailsButton\}[\s\S]*?selectStatsPanel\(model\.key\)/);
+  assert.match(client, /className=\{styles\.channelStatsBackButton\}[\s\S]*?selectStatsPanel\("all"\)/);
+  assert.match(css, /\.statsRail \{[\s\S]*?display: none !important;/);
+  assert.match(css, /max-width: 1480px !important;/);
+  assert.match(
+    css,
+    /\.allStatsActionCard \{[\s\S]*?grid-template-columns:[\s\S]*?minmax\(116px, 0\.58fr\)[\s\S]*?minmax\(58px, 0\.3fr\) !important;/,
+  );
+});
