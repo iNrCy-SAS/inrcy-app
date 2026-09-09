@@ -26,6 +26,7 @@ const fluidCssWorkspaces = [
   ["Banque d'images admin", "app/dashboard/admin/image-bank/imageBank.module.css", ".wrap"],
   ["Diagnostics admin", "app/dashboard/admin/diagnostics/diagnostics.module.css", ".wrap"],
   ["Réglages admin", "app/dashboard/admin/settings/settings.module.css", ".wrap"],
+  ["Attribution des rendez-vous", "app/equipe/agenda/teamAgenda.module.css", ".shell"],
 ] as const;
 
 test("desktop workspaces use all of the available width", () => {
@@ -81,4 +82,22 @@ test("shared workspace shells no longer impose a fixed desktop width", () => {
   assert.match(sharedHeader, /dashboardWorkspaceContentStyle[\s\S]*?maxWidth:\s*"none"/);
   assert.match(sharedHeader, /const headerStyle[\s\S]*?width:\s*"100%"[\s\S]*?maxWidth:\s*"none"/);
   assert.match(aiMemory, /const pageStyle:[\s\S]*?width:\s*"100%"[\s\S]*?maxWidth:\s*"none"/);
+});
+
+test("team agenda keeps the page fixed and scrolls only its appointment list on desktop", () => {
+  const css = read("app/equipe/agenda/teamAgenda.module.css");
+  const ui = read("app/equipe/agenda/TeamAgendaClient.tsx");
+
+  assert.match(css, /\.page\s*\{[\s\S]*?height:\s*100dvh;[\s\S]*?overflow:\s*hidden;/);
+  assert.match(css, /\.days\s*\{[\s\S]*?flex:\s*1 1 auto;[\s\S]*?overflow-y:\s*auto;/);
+  assert.match(ui, /href="\/dashboard\/admin"[^>]*className=\{styles\.closeButton\}>Fermer<\/Link>/);
+  assert.doesNotMatch(ui, /styles\.reassurance/);
+});
+
+test("admin cards reserve a visible desktop row for their action", () => {
+  const css = read("app/dashboard/admin/admin.module.css");
+
+  assert.match(css, /grid-template-rows:\s*auto auto minmax\(0, 1fr\) 32px/);
+  assert.match(css, /\.cardFooter\s*\{[\s\S]*?min-height:\s*32px;[\s\S]*?overflow:\s*visible;/);
+  assert.match(css, /\.cardLink\s*\{[\s\S]*?height:\s*30px;[\s\S]*?min-height:\s*30px\s*!important;/);
 });

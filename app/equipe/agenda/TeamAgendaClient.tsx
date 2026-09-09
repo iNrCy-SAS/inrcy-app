@@ -181,18 +181,23 @@ export default function TeamAgendaClient({
             <Image
               src="/logo-inrcy.png"
               alt="iNrCy"
-              width={124}
-              height={48}
+              width={92}
+              height={36}
               className={styles.logo}
               priority
             />
-            <div>
+            <div className={styles.headerCopy}>
               <p className={styles.eyebrow}>OUTIL INTERNE</p>
               <h1>Attribution des rendez-vous</h1>
-              <p className={styles.subtitle}>
-                Tous les rendez-vous positionnés, toutes catégories confondues :
-                7 jours d’historique et 14 jours à venir.
-              </p>
+              <div className={styles.headerMeta}>
+                <span className={styles.period}>7 jours d’historique et 14 jours à venir</span>
+                <span
+                  className={styles.safetyChip}
+                  title="Les réservations automatiques restent envoyées par Équipe iNrCy. Un seul responsable interne est conservé. Aucun e-mail de changement n’est envoyé."
+                >
+                  ✓ Attribution privée
+                </span>
+              </div>
             </div>
           </div>
           <div className={styles.headerActions}>
@@ -209,22 +214,14 @@ export default function TeamAgendaClient({
               {refreshing ? "Actualisation…" : "Actualiser"}
             </button>
             <Link href="/dashboard/agenda" className={styles.backLink}>iNrCalendar</Link>
+            <Link href="/dashboard/admin" className={styles.closeButton}>Fermer</Link>
           </div>
         </header>
 
-        <div className={styles.reassurance}>
-          <span className={styles.reassuranceIcon}>✓</span>
-          <div>
-            <strong>Identité publique conservée</strong>
-            <p>
-              Les réservations automatiques restent envoyées par Équipe iNrCy.
-              Un seul responsable interne est conservé. Aucun e-mail de changement n’est envoyé.
-            </p>
-          </div>
+        <div className={styles.toastStack} aria-live="polite">
+          {error ? <div className={styles.error} role="alert">{error}</div> : null}
+          {success ? <div className={styles.success} role="status">{success}</div> : null}
         </div>
-
-        {error ? <div className={styles.error} role="alert">{error}</div> : null}
-        {success ? <div className={styles.success} role="status">{success}</div> : null}
 
         {loading ? (
           <div className={styles.stateCard}>Chargement des rendez-vous…</div>
