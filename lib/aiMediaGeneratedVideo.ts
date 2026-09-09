@@ -119,10 +119,9 @@ function buildFilter(args: {
 }) {
   const filters: string[] = [];
   const layout = resolveAiMediaVideoLayout(args);
-  // Omni/Veo génèrent actuellement les sorties carrées sur une source 9:16.
-  // Un crop vertical centré supprimait alors souvent le haut d'un visage.
-  // Pour le carré, on ancre le recadrage en haut ; pour le 4:5, on conserve
-  // une légère marge haute. Les formats sans crop gardent naturellement 0.
+  // Un ancien rendu carré pouvait encore recevoir une source 9:16. On garde
+  // donc un ancrage haut pour protéger les visages lors du recadrage. Les
+  // nouvelles générations carrées demandent désormais une source 16:9.
   const verticalCropY =
     args.width === args.height
       ? "0"
@@ -133,11 +132,12 @@ function buildFilter(args: {
     const clipSeconds = args.clipDurations[index];
     const sourceStartSeconds = Math.max(0, args.clipSourceStarts[index] || 0);
     const overlayIndex = args.clipDurations.length + index;
-    // A reserved caption band must never hide a mouth or crop a face. Fit the
-    // entire source inside the remaining region, then pad to the final frame.
-    // The legacy/no-text path intentionally retains its edge-to-edge framing.
+    // Le plan remplit toujours sa zone. `decrease + pad` conservait certes le
+    // plan entier, mais gravait de larges piliers noirs autour des sources
+    // verticales. La composition du prompt protège déjà le sujet dans la zone
+    // sûre ; le crop est donc préférable à une vidéo visuellement réduite.
     const framing = layout.caption.height > 0
-      ? `scale=${layout.content.width}:${layout.content.height}:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=${layout.content.width}:${layout.content.height}:(ow-iw)/2:(oh-ih)/2:color=0x020617,pad=${args.width}:${args.height}:0:0:color=0x020617`
+      ? `scale=${layout.content.width}:${layout.content.height}:force_original_aspect_ratio=increase:force_divisible_by=2,crop=${layout.content.width}:${layout.content.height}:(in_w-out_w)/2:${verticalCropY},pad=${args.width}:${args.height}:0:0:color=0x020617`
       : `scale=${args.width}:${args.height}:force_original_aspect_ratio=increase,crop=${args.width}:${args.height}:(in_w-out_w)/2:${verticalCropY}`;
     filters.push(
       `[${index}:v]trim=start=${sourceStartSeconds}:duration=${clipSeconds},setpts=PTS-STARTPTS,${framing},fps=30,setsar=1,format=yuv420p[base${index}]`,

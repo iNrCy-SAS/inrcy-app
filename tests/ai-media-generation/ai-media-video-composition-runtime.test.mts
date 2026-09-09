@@ -286,17 +286,16 @@ test("le mode sans texte ignore la bande et conserve le calque transparent", asy
   assert.equal(alpha.channels[0]!.max, 0);
 });
 
-test("la composition avec bande conserve les quatre bords du plan source", async () => {
+test("la composition avec bande remplit le cadre même depuis un plan vertical", async () => {
   const runtime = transpileRuntimeModule<ComposerModule>("../../lib/aiMediaGeneratedVideo.ts");
-  const directory = await mkdtemp(path.join(tmpdir(), "inrcy-caption-contain-test-"));
+  const directory = await mkdtemp(path.join(tmpdir(), "inrcy-caption-cover-test-"));
   const sourcePath = path.join(directory, "source.mp4");
   const outputPath = path.join(directory, "output.mp4");
   const framePath = path.join(directory, "frame.png");
   const ffmpegPath = await resolveVideoNormalizationFfmpegPath();
   try {
     await execFileAsync(ffmpegPath, [
-      "-hide_banner", "-nostdin", "-y", "-f", "lavfi", "-i", "color=c=0xed2945:s=640x360:r=30:d=8",
-      "-vf", "drawbox=x=0:y=0:w=35:h=ih:color=0x00ff00:t=fill,drawbox=x=iw-35:y=0:w=35:h=ih:color=0x0000ff:t=fill,drawbox=x=35:y=0:w=iw-70:h=30:color=0xffff00:t=fill,drawbox=x=35:y=ih-30:w=iw-70:h=30:color=0xff00ff:t=fill",
+      "-hide_banner", "-nostdin", "-y", "-f", "lavfi", "-i", "color=c=0xed2945:s=320x568:r=30:d=8",
       "-c:v", "libx264", "-pix_fmt", "yuv420p", "-an", sourcePath,
     ], { timeout: 45_000, windowsHide: true });
     const overlay = await sharp({ create: { width: 320, height: 320, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).png().toBuffer();
@@ -304,19 +303,15 @@ test("la composition avec bande conserve les quatre bords du plan source", async
     await writeFile(outputPath, composed.buffer);
     await execFileAsync(ffmpegPath, ["-hide_banner", "-nostdin", "-y", "-ss", "2", "-i", outputPath, "-frames:v", "1", framePath], { timeout: 30_000, windowsHide: true });
     const { content } = videoLayout.resolveAiMediaVideoLayout({ width: 320, height: 320, captionLayout: "caption-band" });
-    const imageTop = (content.height - 180) / 2;
     const pixelAt = async (left: number, top: number) => {
       const { data } = await sharp(framePath).extract({ left, top, width: 4, height: 4 }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
       return [data[0]!, data[1]!, data[2]!];
     };
-    const left = await pixelAt(4, imageTop + 70);
-    const right = await pixelAt(310, imageTop + 70);
-    const top = await pixelAt(150, imageTop + 4);
-    const bottom = await pixelAt(150, imageTop + 170);
-    assert.ok(left[1]! > 170 && left[0]! < 80, "bord gauche vert conservé");
-    assert.ok(right[2]! > 170 && right[0]! < 80, "bord droit bleu conservé");
-    assert.ok(top[0]! > 170 && top[1]! > 170, "bord supérieur jaune conservé");
-    assert.ok(bottom[0]! > 170 && bottom[2]! > 170, "bord inférieur magenta conservé");
+    for (const [left, top] of [[4, 20], [310, 20], [4, content.height - 20], [310, content.height - 20]]) {
+      const pixel = await pixelAt(left!, top!);
+      assert.ok(pixel[0]! > 170, `plan visible jusqu'au bord à ${left},${top}`);
+      assert.ok(pixel[1]! < 100 && pixel[2]! < 120, `aucun pilier noir à ${left},${top}`);
+    }
     const captionPixel = await pixelAt(150, content.height + 20);
     assert.ok(Math.max(...captionPixel) < 40, "aucun pixel source dans la bande réservée");
   } finally {

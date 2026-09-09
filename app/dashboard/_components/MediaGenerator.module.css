@@ -2536,6 +2536,11 @@
   box-shadow: 0 28px 90px rgba(0, 0, 0, 0.48), 0 0 70px rgba(66, 94, 226, 0.12);
 }
 
+.previewFrame[data-format="square"] {
+  width: min(100%, 72dvh, 780px);
+  aspect-ratio: 1 / 1;
+}
+
 .previewFrame[data-format="portrait"] {
   width: min(100%, 57.6dvh, 624px);
   aspect-ratio: 4 / 5;

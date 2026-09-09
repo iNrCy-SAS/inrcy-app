@@ -409,6 +409,10 @@ test("la fenêtre iNrCy sépare les critères de la création et de la revue", (
   );
   assert.match(
     generatorStyles,
+    /\.previewFrame\[data-format="square"\]\s*\{[\s\S]*?aspect-ratio:\s*1 \/ 1/
+  );
+  assert.match(
+    generatorStyles,
     /\.previewFrame\[data-format="portrait"\]\s*\{[\s\S]*?aspect-ratio:\s*4 \/ 5/
   );
   assert.match(
@@ -441,6 +445,9 @@ test("la revue vidéo reste entière dans l'aperçu et en plein écran mobile", 
   const generator = read("app/dashboard/_components/MediaGenerator.tsx");
   const generatorStyles = read("app/dashboard/_components/MediaGenerator.module.css");
 
+  assert.match(generator, /resolveAiMediaPreviewFormat\(\{/);
+  assert.match(generator, /fallback:\s*generationResult\.format/);
+  assert.match(generator, /data-format=\{resultPreviewFormat\}/);
   assert.match(
     generatorStyles,
     /\.previewFrame\s*\{[\s\S]*?position:\s*relative;/

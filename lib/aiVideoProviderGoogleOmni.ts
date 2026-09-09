@@ -22,6 +22,7 @@ import {
   buildGoogleVideoSafetyFallbackPrompt,
   buildGoogleVideoScenePrompt,
   googleVeoVideoProvider,
+  resolveGoogleVideoAspectRatio,
 } from "@/lib/aiVideoProviderGoogleVeo";
 import { classifyVeoFailure } from "@/lib/aiVideoReliability";
 import {
@@ -85,12 +86,6 @@ function costMicroUsdPerSecond() {
     DEFAULT_COST_MICRO_USD_PER_SECOND,
     1_000_000,
   );
-}
-
-function aspectRatio(
-  format: AiVideoProviderGenerationArgs["request"]["format"],
-): "16:9" | "9:16" {
-  return format === "landscape" ? "16:9" : "9:16";
 }
 
 function generationCancelledError() {
@@ -728,7 +723,9 @@ export const googleOmniVideoProvider: AiVideoProvider = {
                 { continuation: isContinuation, continuationFrame: Boolean(continuityFrame), firstFrameTag: true },
               ),
               durationSeconds,
-              aspectRatio: aspectRatio(args.request.format),
+              aspectRatio: resolveGoogleVideoAspectRatio(
+                args.request.format,
+              ),
               inspirationImages:
                 index === 0 || (!connectScenes && preserveIdentityReferences)
                   ? args.request.inspirationImages

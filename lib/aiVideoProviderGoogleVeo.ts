@@ -172,10 +172,15 @@ function modelId() {
   return modelCandidates()[0];
 }
 
-function aspectRatio(
+/**
+ * Veo/Omni n'acceptent que 16:9 ou 9:16. Pour une sortie carrée avec un
+ * bandeau éditorial, une source 16:9 est la plus proche de la zone d'image
+ * finale et évite de transformer le plan en petite vidéo verticale centrée.
+ */
+export function resolveGoogleVideoAspectRatio(
   format: AiVideoProviderGenerationArgs["request"]["format"],
-) {
-  return format === "landscape" ? "16:9" : "9:16";
+): "16:9" | "9:16" {
+  return format === "portrait" || format === "story" ? "9:16" : "16:9";
 }
 
 function generationCancelledError() {
@@ -1335,7 +1340,9 @@ export const googleVeoVideoProvider: AiVideoProvider = {
                 continuationFrame: Boolean(continuityFrame),
               }),
               durationSeconds,
-              aspectRatio: aspectRatio(args.request.format),
+              aspectRatio: resolveGoogleVideoAspectRatio(
+                args.request.format,
+              ),
               inspirationImages:
                 index === 0 || (!connectScenes && preserveIdentityReferences)
                   ? args.request.inspirationImages

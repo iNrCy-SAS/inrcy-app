@@ -47,6 +47,7 @@ function loadPromptRuntime() {
     buildGoogleVideoFramingDirection: typeof import("../../lib/aiVideoProviderGoogleVeo.ts").buildGoogleVideoFramingDirection;
     buildGoogleVideoContinuityContract: typeof import("../../lib/aiVideoProviderGoogleVeo.ts").buildGoogleVideoContinuityContract;
     buildGoogleVideoParameterContract: typeof import("../../lib/aiVideoProviderGoogleVeo.ts").buildGoogleVideoParameterContract;
+    resolveGoogleVideoAspectRatio: typeof import("../../lib/aiVideoProviderGoogleVeo.ts").resolveGoogleVideoAspectRatio;
   };
 }
 
@@ -55,6 +56,13 @@ const languages = ["fr", "en", "es", "it", "de", "nl", "pt", "th", "zh"] as cons
 const identities = ["auto", "professional", "brand_avatar", "reference_team"] as const;
 const formats = ["square", "portrait", "story", "landscape"] as const;
 const speechModes = ["characters", "voiceover"] as const;
+
+test("le fournisseur choisit une source adaptée au cadre final", () => {
+  assert.equal(runtime.resolveGoogleVideoAspectRatio("square"), "16:9");
+  assert.equal(runtime.resolveGoogleVideoAspectRatio("landscape"), "16:9");
+  assert.equal(runtime.resolveGoogleVideoAspectRatio("portrait"), "9:16");
+  assert.equal(runtime.resolveGoogleVideoAspectRatio("story"), "9:16");
+});
 
 function longBrief(language: string, identity: typeof identities[number], format: typeof formats[number], speech: typeof speechModes[number]) {
   return {

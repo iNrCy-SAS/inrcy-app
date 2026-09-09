@@ -1,4 +1,4 @@
-/** Shared by the PNG renderer and FFmpeg: copy never covers generated pixels. */
+/** Shared by the PNG renderer and FFmpeg so the reserved caption geometry matches. */
 export type AiMediaVideoCaptionLayout = "overlay" | "caption-band";
 
 export function resolveAiMediaVideoLayout(args: {

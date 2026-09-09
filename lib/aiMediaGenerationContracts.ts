@@ -97,6 +97,33 @@ export const AI_MEDIA_FORMAT_SPECS: Record<
   },
 };
 
+/**
+ * Choisit le cadre d'aperçu qui correspond au fichier réellement produit.
+ * Le format demandé reste le repli autoritaire lorsque les dimensions ne sont
+ * pas encore disponibles (ancien média, métadonnées en cours d'extraction).
+ */
+export function resolveAiMediaPreviewFormat(args: {
+  width: number | null | undefined;
+  height: number | null | undefined;
+  fallback: AiMediaOutputFormat;
+}): AiMediaOutputFormat {
+  const width = Number(args.width);
+  const height = Number(args.height);
+  if (!Number.isFinite(width) || width <= 0 || !Number.isFinite(height) || height <= 0) {
+    return args.fallback;
+  }
+
+  const measuredRatio = width / height;
+  const formats = Object.values(AI_MEDIA_FORMAT_SPECS);
+  return formats.reduce((closest, candidate) => {
+    const closestRatio = closest.width / closest.height;
+    const candidateRatio = candidate.width / candidate.height;
+    const closestDistance = Math.abs(Math.log(measuredRatio / closestRatio));
+    const candidateDistance = Math.abs(Math.log(measuredRatio / candidateRatio));
+    return candidateDistance < closestDistance ? candidate : closest;
+  }, AI_MEDIA_FORMAT_SPECS[args.fallback]).format;
+}
+
 export type AiMediaGenerationRequest = {
   requestId: string;
   kind: AiMediaKind;

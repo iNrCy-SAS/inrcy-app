@@ -109,6 +109,8 @@ export type MediaGenerationSoundtrack = {
 
 export type MediaGenerationResult = {
   item: MediaLibraryPickerItem;
+  /** Format demandé, figé avec ce résultat pour que sa revue garde le bon cadre. */
+  format: MediaGenerationFormat;
   quota: MediaGenerationQuota;
   soundtrack: MediaGenerationSoundtrack | null;
   videoEngineResult: MediaGenerationVideoEngineResult | null;
@@ -884,6 +886,7 @@ export default function useMediaGeneration() {
             : null;
         const nextResult: MediaGenerationResult = {
           item: data.item as MediaLibraryPickerItem,
+          format: request.format,
           quota: normalizedQuota,
           soundtrack,
           videoEngineResult,

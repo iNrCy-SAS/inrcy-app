@@ -31,7 +31,10 @@ import type {
   AiMediaGeneratorBlockDefaults,
   AiMediaGeneratorPreferenceBlockId,
 } from "@/lib/aiMediaGenerationPreferences";
-import { shouldConnectAiMediaVideoScenes } from "@/lib/aiMediaGenerationContracts";
+import {
+  resolveAiMediaPreviewFormat,
+  shouldConnectAiMediaVideoScenes,
+} from "@/lib/aiMediaGenerationContracts";
 import MediaSubjectVoiceButton from "./MediaSubjectVoiceButton";
 
 import styles from "./MediaGenerator.module.css";
@@ -540,6 +543,13 @@ export default function MediaGenerator({
   const counter = quota?.[kind] || null;
   const exhausted = quota?.unlimited ? false : counter?.remaining === 0;
   const videoMaxDurationSeconds = quota?.videoMaxDurationSeconds ?? 24;
+  const resultPreviewFormat = generationResult
+    ? resolveAiMediaPreviewFormat({
+        width: generationResult.item.width,
+        height: generationResult.item.height,
+        fallback: generationResult.format,
+      })
+    : format;
 
   useEffect(() => {
     if (!quota) return;
@@ -1068,7 +1078,7 @@ export default function MediaGenerator({
                 <h3>{t(kind === "video" ? "ai_generator_video_ready_title" : "ai_generator_image_ready_title")}</h3>
               </div>
               <div className={styles.reviewBadges}>
-                <span>{FORMATS.find((item) => item.id === format)?.ratio}</span>
+                <span>{FORMATS.find((item) => item.id === resultPreviewFormat)?.ratio}</span>
                 {kind === "video" && generationResult.videoEngineResult ? (
                   <span
                     className={styles.engineResultBadge}
@@ -1081,7 +1091,7 @@ export default function MediaGenerator({
             </div>
             <div
               className={styles.previewFrame}
-              data-format={format}
+              data-format={resultPreviewFormat}
               style={{ position: "relative" }}
             >
               {generationResult.item.signed_url ? (
