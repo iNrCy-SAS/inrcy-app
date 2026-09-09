@@ -260,11 +260,13 @@ export function useStatsDataController({
 }: UseStatsDataControllerArgs) {
   const inrBadgeStatsRequestSeqRef = useRef(0);
   const inrSearchStatsRequestSeqRef = useRef(0);
+  const inrSearchStatsRequestRef = useRef<Promise<void> | null>(null);
   const mailStatsRequestSeqRef = useRef(0);
 
   useEffect(() => () => {
     inrBadgeStatsRequestSeqRef.current += 1;
     inrSearchStatsRequestSeqRef.current += 1;
+    inrSearchStatsRequestRef.current = null;
     mailStatsRequestSeqRef.current += 1;
   }, []);
 
@@ -661,28 +663,47 @@ export function useStatsDataController({
     }
   }, []);
 
-  const refreshInrSearchStats = useCallback(async () => {
-    const requestSeq = ++inrSearchStatsRequestSeqRef.current;
-    const requestAccountScope = getActiveBrowserUserId();
-    setInrSearchStats((prev) => ({
-      ...prev,
-      loading: !hasCommittedStatsSnapshot(prev),
-      error: undefined,
-    }));
-    try {
-      const res = await fetch("/api/inr-search/analytics", { cache: "no-store", credentials: "include" });
-      if (!res.ok) throw new Error(await getSimpleFrenchApiError(res));
-      const json = await res.json().catch(() => ({}));
-      if (!isCurrentStatsResponse(requestSeq, inrSearchStatsRequestSeqRef.current, requestAccountScope)) return;
-      setInrSearchStats(normalizeInrSearchStatsSnapshot(json));
-    } catch (error) {
-      if (!isCurrentStatsResponse(requestSeq, inrSearchStatsRequestSeqRef.current, requestAccountScope)) return;
+  const refreshInrSearchStats = useCallback(() => {
+    const existingRequest = inrSearchStatsRequestRef.current;
+    if (existingRequest) return existingRequest;
+
+    const request = (async () => {
+      const requestSeq = ++inrSearchStatsRequestSeqRef.current;
+      const requestAccountScope = getActiveBrowserUserId();
       setInrSearchStats((prev) => ({
         ...prev,
-        loading: false,
-        error: getSimpleFrenchErrorMessage(error, "Impossible de charger les données iNr'Search pour le moment."),
+        loading: !hasCommittedStatsSnapshot(prev),
+        error: undefined,
       }));
-    }
+      try {
+        const res = await fetch("/api/inr-search/analytics", { cache: "no-store", credentials: "include" });
+        if (!res.ok) throw new Error(await getSimpleFrenchApiError(res));
+        const json = await res.json().catch(() => ({}));
+        if (!isCurrentStatsResponse(requestSeq, inrSearchStatsRequestSeqRef.current, requestAccountScope)) return;
+        setInrSearchStats(normalizeInrSearchStatsSnapshot(json));
+      } catch (error) {
+        if (!isCurrentStatsResponse(requestSeq, inrSearchStatsRequestSeqRef.current, requestAccountScope)) return;
+        setInrSearchStats((prev) => ({
+          ...prev,
+          loading: false,
+          error: getSimpleFrenchErrorMessage(error, "Impossible de charger les données iNr'Search pour le moment."),
+        }));
+      }
+    })();
+    inrSearchStatsRequestRef.current = request;
+    void request.then(
+      () => {
+        if (inrSearchStatsRequestRef.current === request) {
+          inrSearchStatsRequestRef.current = null;
+        }
+      },
+      () => {
+        if (inrSearchStatsRequestRef.current === request) {
+          inrSearchStatsRequestRef.current = null;
+        }
+      },
+    );
+    return request;
   }, []);
 
   const refreshMailStats = useCallback(async () => {

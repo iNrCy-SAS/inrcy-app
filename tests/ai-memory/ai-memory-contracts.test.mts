@@ -81,7 +81,9 @@ test("profile, Business DNA and AI settings are three real full-page tools", () 
   assert.match(configurationPage, /<AiConfigurationIcon/);
   assert.doesNotMatch(configurationPage, /ai-configuration\.svg/);
   assert.match(configurationPage, /<AiConfigurationContent/);
-  assert.match(profile, /onOpenAiMemory/);
+  assert.doesNotMatch(profile, /onOpenAiMemory/);
+  assert.match(profilePage, /navigate\("\/dashboard\/adn-entreprise"\)/);
+  assert.match(profilePage, /navigate\("\/dashboard\/configuration-ia"\)/);
   assert.match(configuration, /tabParameters/);
   assert.match(configuration, /tabInstructions/);
   assert.doesNotMatch(read("app/dashboard/settings/_components/AiMemoryContent.tsx"), /<AiConfigurationContent/);

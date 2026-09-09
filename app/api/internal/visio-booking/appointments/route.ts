@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { syncVisioSharedCalendarToInrCalendar } from "@/lib/inrCalendarGoogleSync";
 import { requireVisioTeamApi } from "@/lib/visioTeamAccess";
 import {
   getVisioTeamMembers,
@@ -76,9 +77,13 @@ export async function GET(request: Request) {
       // is only requested explicitly from the team screen.
       refresh,
     });
+    const inrCalendarSync = refresh
+      ? await syncVisioSharedCalendarToInrCalendar({ pastDays: 30, futureDays: 365 })
+      : null;
     return NextResponse.json({
       ok: true,
       appointments,
+      inrCalendarSynced: inrCalendarSync?.ok ?? null,
       members: getVisioTeamMembers().map(({ id, name }) => ({ id, name })),
       viewer: {
         email: authorization.actor.email,
@@ -99,12 +104,18 @@ export async function POST(request: Request) {
 
   const body = await request.json().catch(() => null) as {
     mirrorEventId?: unknown;
+    appointmentIdentity?: unknown;
+    appointmentStart?: unknown;
     targetMemberId?: unknown;
   } | null;
   const mirrorEventId = String(body?.mirrorEventId || "").trim();
+  const appointmentIdentity = String(body?.appointmentIdentity || "").trim();
+  const appointmentStart = String(body?.appointmentStart || "").trim();
   const targetMemberId = String(body?.targetMemberId || "").trim();
   if (
     !/^[a-zA-Z0-9_-]{5,1024}$/.test(mirrorEventId) ||
+    (appointmentIdentity && appointmentIdentity.length > 2048) ||
+    (appointmentStart && !Number.isFinite(new Date(appointmentStart).getTime())) ||
     !getVisioTeamMembers().some((member) => member.id === targetMemberId)
   ) {
     return NextResponse.json({ ok: false, error: "Demande invalide." }, { status: 400 });
@@ -113,10 +124,32 @@ export async function POST(request: Request) {
   try {
     const result = await reassignVisioTeamAppointment({
       mirrorEventId,
+      appointmentIdentity,
+      appointmentStart,
       targetMemberId,
       actor: authorization.actor,
     });
-    return NextResponse.json({ ok: true, ...result });
+    const inrCalendarSync = await syncVisioSharedCalendarToInrCalendar({
+      pastDays: 30,
+      futureDays: 365,
+    }).catch((error: unknown) => {
+      console.error(
+        "[visio-booking][inrcalendar-sync-after-reassignment]",
+        error instanceof Error ? error.message : "unknown_error",
+      );
+      return null;
+    });
+    if (inrCalendarSync && !inrCalendarSync.ok) {
+      console.error(
+        "[visio-booking][inrcalendar-sync-after-reassignment]",
+        inrCalendarSync.errors.join(",") || "sync_failed",
+      );
+    }
+    return NextResponse.json({
+      ok: true,
+      ...result,
+      inrCalendarSynced: inrCalendarSync?.ok ?? false,
+    });
   } catch (error) {
     return assignmentErrorResponse(error);
   }

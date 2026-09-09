@@ -186,7 +186,7 @@ test("une publication éditoriale iNr’Agent peut être reprogrammée sans chan
   const scheduleItems = read(
     "app/dashboard/agent/_lib/agent.schedule-items.ts"
   );
-  const actionsRoute = read("app/api/agent/actions/route.ts");
+  const actionsRoute = read("app/api/agent/actions/route.ts").replace(/\r\n/g, "\n");
   const editorialItemSource = scheduleItems.slice(
     scheduleItems.indexOf("for (const action of editorialActions)"),
     scheduleItems.indexOf("for (const action of scheduledActions)")

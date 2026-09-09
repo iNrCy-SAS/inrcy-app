@@ -7,10 +7,10 @@ import {
   buildInrCalendarGoogleRow,
   type InrCalendarGoogleRow,
 } from "@/lib/inrCalendarGoogleSyncPolicy";
-import { ADMIN_USER_IDS } from "@/lib/roles";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
   getVisioPublicCalendarId,
+  getVisioBookingIntegrationAccountId,
   getVisioSharedCalendarId,
   getVisioTeamMembers,
   listVisioSharedCalendarEvents,
@@ -48,12 +48,24 @@ function boundedInteger(name: string, fallback: number, min: number, max: number
     : fallback;
 }
 
-function getInrCalendarAdminUserId() {
-  const userId = optionalEnv("INRCY_ADMIN_USER_ID", ADMIN_USER_IDS[0]).trim();
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(userId)) {
-    throw new Error("inrcalendar_google_admin_user_id_invalid");
+async function getInrCalendarAdminAccountId() {
+  const configuredAccountId = optionalEnv("INRCY_INRCALENDAR_ACCOUNT_ID").trim();
+  const accountId = configuredAccountId || (await getVisioBookingIntegrationAccountId());
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(accountId)) {
+    throw new Error("inrcalendar_google_admin_account_id_invalid");
   }
-  return userId;
+
+  // agenda_events.user_id references inrcy_accounts.id, not the Supabase Auth user id.
+  const { data, error } = await supabaseAdmin
+    .from("inrcy_accounts")
+    .select("id")
+    .eq("id", accountId)
+    .maybeSingle();
+  if (error) {
+    throw new Error(`inrcalendar_google_admin_account_read_failed:${error.message}`);
+  }
+  if (!data) throw new Error("inrcalendar_google_admin_account_missing");
+  return accountId;
 }
 
 function batches<T>(values: T[], size = DATABASE_BATCH_SIZE) {
@@ -119,7 +131,7 @@ export async function syncVisioSharedCalendarToInrCalendar(input?: {
   const timeMin = new Date(now.getTime() - pastDays * 24 * 60 * 60_000);
   const timeMax = new Date(now.getTime() + futureDays * 24 * 60 * 60_000);
   const calendarId = getVisioSharedCalendarId();
-  const adminUserId = getInrCalendarAdminUserId();
+  const adminUserId = await getInrCalendarAdminAccountId();
   const result: InrCalendarGoogleSyncResult = {
     ok: true,
     startedAt: startedAt.toISOString(),

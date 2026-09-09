@@ -112,6 +112,7 @@ export type VisioTeamCalendarSyncResult = {
 
 export type VisioTeamAppointment = {
   id: string;
+  identity: string;
   title: string;
   start: string;
   end: string;
@@ -218,6 +219,11 @@ async function readGoogleIntegration() {
   if (error) throw new Error(`visio_google_integration_read_failed:${error.message}`);
   if (!data) throw new Error("visio_google_not_connected");
   return data as GoogleIntegrationRow;
+}
+
+export async function getVisioBookingIntegrationAccountId() {
+  const integration = await readGoogleIntegration();
+  return String(integration.user_id || "").trim();
 }
 
 async function refreshGoogleAccessToken(row: GoogleIntegrationRow) {
@@ -1676,6 +1682,7 @@ function teamAppointmentFromMirror(event: GoogleCalendarEvent): VisioTeamAppoint
   const properties = event.extendedProperties?.private || {};
   return {
     id: event.id,
+    identity: appointmentIdentity(event),
     title,
     start,
     end,
@@ -1689,6 +1696,52 @@ function teamAppointmentFromMirror(event: GoogleCalendarEvent): VisioTeamAppoint
         ? "booking"
         : "calendar",
   };
+}
+
+function isActiveTeamAppointmentMirror(
+  event: GoogleCalendarEvent | null,
+): event is GoogleCalendarEvent {
+  return Boolean(
+    event?.id &&
+      event.status !== "cancelled" &&
+      event.extendedProperties?.private?.[TEAM_CALENDAR_MIRROR_KEY] ===
+        TEAM_CALENDAR_MIRROR_VALUE,
+  );
+}
+
+async function resolveActiveTeamAppointmentMirror(input: {
+  mirrorEventId: string;
+  identity?: string;
+  start?: string;
+}) {
+  const exactMirror = await getCalendarEvent(
+    getVisioSharedCalendarId(),
+    input.mirrorEventId,
+  );
+  if (isActiveTeamAppointmentMirror(exactMirror)) return exactMirror;
+
+  const identity = String(input.identity || "").trim();
+  const startMs = new Date(String(input.start || "")).getTime();
+  if (!identity || !Number.isFinite(startMs)) return null;
+
+  const nearbyMirrors = await listVisioSharedCalendarEvents(
+    new Date(startMs - 24 * 60 * 60_000),
+    new Date(startMs + 24 * 60 * 60_000),
+    false,
+  );
+  let recovered: GoogleCalendarEvent | null = null;
+  for (const event of nearbyMirrors) {
+    if (
+      !isActiveTeamAppointmentMirror(event) ||
+      appointmentIdentity(event) !== identity
+    ) {
+      continue;
+    }
+    if (!recovered || shouldPreferAppointmentMirror(event, recovered)) {
+      recovered = event;
+    }
+  }
+  return recovered;
 }
 
 function shouldPreferAppointmentMirror(
@@ -2056,31 +2109,81 @@ async function reassignCalendarAppointment(input: {
 }) {
   const properties = input.mirror.extendedProperties?.private || {};
   let sourceCalendarId = String(properties.sourceCalendarId || "").trim();
-  const sourceEventId = String(properties.sourceEventId || "").trim();
+  let sourceEventId = String(properties.sourceEventId || "").trim();
   if (!sourceCalendarId || !sourceEventId) {
     throw new Error("visio_team_assignment_source_missing");
   }
 
   let sourceEvent = await getCalendarEvent(sourceCalendarId, sourceEventId);
-  if (!sourceEvent || sourceEvent.status === "cancelled") {
-    throw new Error("visio_team_assignment_source_missing");
+  if (sourceEvent && sourceEvent.status !== "cancelled") {
+    const organizerCalendarId = String(sourceEvent.organizer?.email || "").trim();
+    const organizerMember = managedMemberForAddress(organizerCalendarId);
+    if (
+      organizerMember &&
+      normalizedCalendarId(organizerMember.calendarId) !==
+        normalizedCalendarId(sourceCalendarId)
+    ) {
+      const organizerEvent = await getCalendarEvent(
+        organizerMember.calendarId,
+        sourceEventId,
+      );
+      if (organizerEvent && organizerEvent.status !== "cancelled") {
+        sourceCalendarId = organizerMember.calendarId;
+        sourceEventId = String(organizerEvent.id || sourceEventId);
+        sourceEvent = organizerEvent;
+      } else {
+        // The attendee copy still exists but the former source reference no
+        // longer points at the organizer copy. Fall back to the stable
+        // appointment identity below instead of trying to move an attendee.
+        sourceEvent = null;
+      }
+    } else if (organizerCalendarId && !organizerMember) {
+      throw new Error("visio_team_assignment_external_organizer");
+    }
   }
 
-  const organizerCalendarId = String(sourceEvent.organizer?.email || "").trim();
-  const organizerMember = managedMemberForAddress(organizerCalendarId);
-  if (
-    organizerMember &&
-    normalizedCalendarId(organizerMember.calendarId) !==
-      normalizedCalendarId(sourceCalendarId)
-  ) {
-    const organizerEvent = await getCalendarEvent(
-      organizerMember.calendarId,
-      sourceEventId,
-    );
-    if (organizerEvent && organizerEvent.status !== "cancelled") {
-      sourceCalendarId = organizerMember.calendarId;
-      sourceEvent = organizerEvent;
+  if (!sourceEvent || sourceEvent.status === "cancelled") {
+    const referenceIdentity = appointmentIdentity(input.mirror);
+    const startMs = eventStartMs(input.mirror);
+    if (startMs) {
+      for (const member of getVisioTeamMembers()) {
+        let candidates: GoogleCalendarEvent[] = [];
+        try {
+          candidates = await listGoogleCalendarEvents({
+            calendarId: member.calendarId,
+            timeMin: new Date(startMs - 24 * 60 * 60_000),
+            timeMax: new Date(startMs + 24 * 60 * 60_000),
+            showDeleted: false,
+          });
+        } catch (error) {
+          if (
+            error instanceof Error &&
+            (error.message.startsWith("visio_google_api_failed:403:") ||
+              error.message.startsWith("visio_google_api_failed:404:"))
+          ) {
+            continue;
+          }
+          throw error;
+        }
+        const recovered = candidates.find(
+          (event) =>
+            Boolean(event.id) &&
+            event.status !== "cancelled" &&
+            eventOrganizerMatchesMember(event, member) &&
+            appointmentIdentity(event) === referenceIdentity,
+        );
+        if (recovered?.id) {
+          sourceCalendarId = member.calendarId;
+          sourceEventId = recovered.id;
+          sourceEvent = recovered;
+          break;
+        }
+      }
     }
+  }
+
+  if (!sourceEvent || sourceEvent.status === "cancelled") {
+    throw new Error("visio_team_assignment_source_missing");
   }
 
   const sourceMember = managedMemberForAddress(sourceCalendarId);
@@ -2169,6 +2272,8 @@ async function recordVisioTeamReassignment(input: {
 
 export async function reassignVisioTeamAppointment(input: {
   mirrorEventId: string;
+  appointmentIdentity?: string;
+  appointmentStart?: string;
   targetMemberId: string;
   actor: VisioTeamReassignmentActor;
 }): Promise<VisioTeamReassignmentResult> {
@@ -2185,17 +2290,21 @@ export async function reassignVisioTeamAppointment(input: {
     throw new Error("visio_team_assignment_sync_busy");
   }
   try {
-    const lock = await acquireBookingLock(`reassign:${mirrorEventId}`);
+    const mirror = await resolveActiveTeamAppointmentMirror({
+      mirrorEventId,
+      identity: input.appointmentIdentity,
+      start: input.appointmentStart,
+    });
+    if (!mirror?.id) {
+      throw new Error("visio_team_assignment_mirror_missing");
+    }
+    const activeMirrorEventId = mirror.id;
+    const lockIdentity = createHash("sha256")
+      .update(String(input.appointmentIdentity || activeMirrorEventId), "utf8")
+      .digest("hex")
+      .slice(0, 32);
+    const lock = await acquireBookingLock(`reassign:${lockIdentity}`);
     try {
-      const mirror = await getCalendarEvent(getVisioSharedCalendarId(), mirrorEventId);
-      if (
-        !mirror ||
-        mirror.status === "cancelled" ||
-        mirror.extendedProperties?.private?.[TEAM_CALENDAR_MIRROR_KEY] !==
-          TEAM_CALENDAR_MIRROR_VALUE
-      ) {
-        throw new Error("visio_team_assignment_mirror_missing");
-      }
       const previousMemberId = memberForMirrorEvent(mirror)?.id || "";
       const isBooking =
         mirror.extendedProperties?.private?.[PRIVATE_BOOKING_KEY] ===
@@ -2208,7 +2317,7 @@ export async function reassignVisioTeamAppointment(input: {
 
       await recordVisioTeamReassignment({
         actor: input.actor,
-        mirrorId: mirrorEventId,
+        mirrorId: activeMirrorEventId,
         previousMemberId,
         targetMemberId: targetMember.id,
         sourceType: isBooking ? "booking" : "calendar",

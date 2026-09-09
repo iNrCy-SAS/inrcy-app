@@ -96,6 +96,9 @@ test("le calendrier partagé global est synchronisé par un cron protégé et id
   assert.match(backend, /cancelSharedCalendarEvent/);
   assert.match(backend, /getVisioSharedCalendarAccess/);
   assert.match(inrCalendarSync, /INR_CALENDAR_GOOGLE_SOURCE/);
+  assert.match(inrCalendarSync, /getVisioBookingIntegrationAccountId/);
+  assert.match(inrCalendarSync, /\.from\("inrcy_accounts"\)/);
+  assert.doesNotMatch(inrCalendarSync, /INRCY_ADMIN_USER_ID/);
   assert.match(inrCalendarSync, /\.upsert\(batch, \{ onConflict: "id", ignoreDuplicates: false \}\)/);
   assert.match(inrCalendarSync, /\.contains\("meta", \{ source: INR_CALENDAR_GOOGLE_SOURCE \}\)/);
   assert.match(inrCalendarSync, /staleIds/);
@@ -109,7 +112,10 @@ test("le compte admin ouvre Google Agenda et les copies Google restent en lectur
 
   assert.match(page, /canOpenGoogleAgenda=\{role\.isAdmin\}/);
   assert.match(ui, /desktopLabel="Google Agenda"/);
+  assert.match(ui, /Admin — Attribution des rendez-vous/);
+  assert.match(ui, /onClick=\{onOpenTeamAppointments\}/);
   assert.match(client, /https:\/\/calendar\.google\.com\/calendar\/u\/0\/r/);
+  assert.match(client, /refreshGoogle/);
   assert.match(client, /isGoogleSyncedEvent\(event\)/);
   assert.match(eventsRoute, /Modifiez-le dans Google Agenda/);
   assert.match(eventsRoute, /Supprimez-le dans Google Agenda/);
@@ -162,11 +168,20 @@ test("l’attribution équipe est privée, auditée et silencieuse pour le profe
   assert.match(route, /requireVisioTeamApi/);
   assert.match(route, /sec-fetch-site/);
   assert.match(route, /reassignVisioTeamAppointment/);
+  assert.match(route, /appointmentIdentity/);
+  assert.match(route, /appointmentStart/);
+  assert.match(route, /syncVisioSharedCalendarToInrCalendar/);
+  assert.match(route, /inrCalendarSynced/);
   assert.match(route, /pastDays:\s*7/);
   assert.match(route, /futureDays:\s*14/);
   assert.match(route, /searchParams\.get\("refresh"\) === "1"/);
   assert.match(route, /refresh,/);
   assert.match(backend, /moveCalendarEventWithoutUpdates/);
+  assert.match(backend, /identity: appointmentIdentity\(event\)/);
+  assert.match(backend, /resolveActiveTeamAppointmentMirror/);
+  assert.match(backend, /appointmentIdentity\(event\) !== identity/);
+  assert.match(backend, /eventOrganizerMatchesMember\(event, member\)/);
+  assert.match(backend, /appointmentIdentity\(event\) === referenceIdentity/);
   assert.match(backend, /findBookingCompanions/);
   assert.match(backend, /cancelCalendarEventWithoutUpdates/);
   assert.match(backend, /targetUsesPublicCalendar/);
@@ -183,6 +198,8 @@ test("l’attribution équipe est privée, auditée et silencieuse pour le profe
   assert.match(page, /7 jours d’historique et 14 jours à venir/);
   assert.match(page, /appointments\?refresh=1/);
   assert.match(page, /currentMemberId:\s*target\.id/);
+  assert.match(page, /appointmentIdentity: appointment\.identity/);
+  assert.match(page, /appointmentStart: appointment\.start/);
   assert.doesNotMatch(page, /window\.confirm/);
   assert.match(adminHome, /href:\s*"\/equipe\/agenda"/);
   assert.match(adminHome, /Attribution des rendez-vous/);

@@ -24,7 +24,7 @@ test("desktop calendar header and day details remain usable without internal scr
   assert.match(ui, /const desktopPageSize = 6/);
   assert.match(ui, /styles\.desktopEventPager/);
   assert.match(css, /\.desktopEventList\s*\{[\s\S]*?grid-template-rows:\s*repeat\(6, minmax\(0, 1fr\)\)[\s\S]*?overflow:\s*hidden/);
-  assert.match(client, /cursorMonth=\{cursorMonth\}[\s\S]*?onRefresh=\{\(\) => loadEventsForMonth\(cursorMonth\)\}/);
+  assert.match(client, /cursorMonth=\{cursorMonth\}[\s\S]*?onRefresh=\{\(\) => loadEventsForMonth\(cursorMonth, \{ refreshGoogle: true \}\)\}/);
 });
 
 test("desktop branding keeps the iNrCalendar slogan beside the logo", () => {

@@ -14,7 +14,7 @@ const dashboardCssSource = read("../../app/dashboard/dashboard.module.css");
 const bubbleAccessSource = read("../../lib/bubbleAccess.ts");
 const adminToolsApiSource = read("../../app/api/admin/tools/route.ts");
 
-test("les dix canaux Standard précèdent Mails et Site iNrCy", () => {
+test("les onze canaux Standard précèdent Mails et Site iNrCy", () => {
   const moduleBlock = fluxConstantsSource.slice(
     fluxConstantsSource.indexOf("export const fluxModules"),
     fluxConstantsSource.indexOf("export const DRAWER_TITLES"),
@@ -32,6 +32,7 @@ test("les dix canaux Standard précèdent Mails et Site iNrCy", () => {
     "tiktok",
     "youtube_shorts",
     "pinterest",
+    "x",
     "mails",
     "site_inrcy",
   ]);

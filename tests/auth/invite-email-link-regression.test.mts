@@ -23,10 +23,10 @@ test("every site language survives login and authenticated redirects", () => {
 
   const loginPage = readFileSync("app/login/page.tsx", "utf8");
   assert.equal(
-    loginPage.match(/window\.location\.replace\(localizedDashboardHref\)/g)?.length,
+    loginPage.match(/window\.location\.replace\(resolvePostLoginHref\(localizedDashboardHref\)\)/g)?.length,
     2,
   );
-  assert.match(loginPage, /next:\s*localizedDashboardHref/);
+  assert.match(loginPage, /next:\s*resolvePostLoginHref\(localizedDashboardHref\)/);
   assert.doesNotMatch(loginPage, /window\.location\.replace\("\/dashboard"\)/);
 });
 

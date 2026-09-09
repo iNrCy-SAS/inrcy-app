@@ -180,7 +180,9 @@ test("profile and activity are grouped into one dedicated full-page profile tool
   assert.match(combined, /data-profile-segment="identity"/);
   assert.match(combined, /data-profile-segment="activity"/);
   assert.ok(combined.indexOf('data-profile-segment="identity"') < combined.indexOf('data-profile-segment="activity"'));
-  assert.ok(combined.indexOf('data-profile-segment="activity"') < combined.indexOf('onClick={onOpenAiMemory}'));
+  assert.doesNotMatch(combined, /onOpenAiMemory/);
+  assert.match(page, /navigate\("\/dashboard\/adn-entreprise"\)/);
+  assert.match(page, /navigate\("\/dashboard\/configuration-ia"\)/);
   assert.match(combined, /<ProfilContent[\s\S]*showActions=\{false\}/);
   assert.match(combined, /<ActivityContent[\s\S]*showActions=\{false\}/);
   assert.match(combined, /handleSaveAll/);

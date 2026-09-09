@@ -233,6 +233,15 @@ export default function XSettingsContent() {
         </div>
       </section>
 
+      <section style={cardStyle} aria-label="Informations tarifaires X">
+        <div>
+          <div className={styles.blockTitle}>Publication et coût X</div>
+          <div className={styles.blockSub}>
+            {"X facture son API à l'usage. Une publication contenant un lien peut coûter nettement plus cher qu'une publication sans lien ; les tarifs affichés dans la console développeur X font foi."}
+          </div>
+        </div>
+      </section>
+
       {error ? <StatusMessage variant="error">{error}</StatusMessage> : null}
       {notice ? <StatusMessage variant="success">{notice}</StatusMessage> : null}
     </div>

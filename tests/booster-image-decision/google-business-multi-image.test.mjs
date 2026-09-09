@@ -16,7 +16,7 @@ test("Google Business keeps up to five images through Booster publication", asyn
 
   assert.doesNotMatch(controller, /channel === "gmb"[^\n]*slice\(0,\s*1\)/);
   assert.doesNotMatch(controller, /channel === "gmb"[\s\S]{0,120}\[imageKey\]/);
-  assert.match(controller, /return keys\.slice\(0, BOOSTER_MAX_IMAGE_COUNT\)/);
+  assert.match(controller, /return keys\.slice\(0, getBoosterMaxImageCountForChannel\(channel\)\)/);
   assert.match(serverPreparation, /channel === "gmb" \? exactChannelSources\.slice\(0, 5\)/);
   assert.match(publishRoute, /legacyFallback: gmbImageUrls,[\s\S]{0,80}limit: 5/);
   assert.doesNotMatch(publishRoute, /channel === "gmb" \? raw(?:ChannelImages)?\.slice\(0, 1\)/);

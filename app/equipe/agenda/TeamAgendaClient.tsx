@@ -9,6 +9,7 @@ import styles from "./teamAgenda.module.css";
 type TeamMember = { id: string; name: string };
 type TeamAppointment = {
   id: string;
+  identity: string;
   title: string;
   start: string;
   end: string;
@@ -137,6 +138,8 @@ export default function TeamAgendaClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mirrorEventId: appointment.id,
+          appointmentIdentity: appointment.identity,
+          appointmentStart: appointment.start,
           targetMemberId: target.id,
         }),
       });

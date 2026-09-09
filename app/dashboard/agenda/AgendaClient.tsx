@@ -1231,14 +1231,17 @@ export default function AgendaClient({
     }
   }
 
-  async function loadEventsForMonth(monthDate: Date, options?: { silent?: boolean }) {
+  async function loadEventsForMonth(
+    monthDate: Date,
+    options?: { silent?: boolean; refreshGoogle?: boolean },
+  ) {
     const snapshotKey = MODULE_SNAPSHOT_KEYS.agendaMonth(monthDate.getFullYear(), monthDate.getMonth());
     const cached = readModuleSnapshot<AgendaMonthSnapshot>(snapshotKey)?.data ?? null;
     if (cached) {
       setEvents(Array.isArray(cached.events) ? cached.events : []);
       setAppointmentRequests(Array.isArray(cached.appointmentRequests) ? cached.appointmentRequests : []);
     }
-    if (!options?.silent && !cached) setLoading(true);
+    if (!options?.silent && (!cached || options?.refreshGoogle)) setLoading(true);
     else setLoading(false);
     setError(null);
     try {
@@ -1249,9 +1252,12 @@ export default function AgendaClient({
       const timeMin = new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate(), 0, 0, 0, 0);
       const timeMax = addDays(new Date(gridEnd.getFullYear(), gridEnd.getMonth(), gridEnd.getDate(), 0, 0, 0, 0), 1);
 
-      const response = await fetch(
-        `/api/calendar/events?timeMin=${encodeURIComponent(timeMin.toISOString())}&timeMax=${encodeURIComponent(timeMax.toISOString())}`
-      );
+      const params = new URLSearchParams({
+        timeMin: timeMin.toISOString(),
+        timeMax: timeMax.toISOString(),
+      });
+      if (options?.refreshGoogle) params.set("refreshGoogle", "1");
+      const response = await fetch(`/api/calendar/events?${params.toString()}`);
 
       if (!response.ok) {
         setError(await getSimpleFrenchApiError(response, "Impossible de charger l’agenda."));
@@ -1269,6 +1275,9 @@ export default function AgendaClient({
       setEvents(nextEvents);
       setAppointmentRequests(nextAppointmentRequests);
       writeModuleSnapshot(snapshotKey, { ok: true, events: nextEvents, appointmentRequests: nextAppointmentRequests });
+      if (options?.refreshGoogle && json.googleSyncOk === false) {
+        setError("La synchronisation Google Agenda n’a pas abouti. Réessayez dans quelques instants.");
+      }
     } catch (e: any) {
       setError(getSimpleFrenchErrorMessage(e, "Impossible de charger l’agenda."));
     } finally {
@@ -1482,7 +1491,7 @@ export default function AgendaClient({
           onPrev={goPrev}
           onToday={goToday}
           onNext={goNext}
-          onRefresh={() => loadEventsForMonth(cursorMonth)}
+          onRefresh={() => loadEventsForMonth(cursorMonth, { refreshGoogle: true })}
           onClose={() => router.push("/dashboard")}
         />
 
@@ -1501,7 +1510,7 @@ export default function AgendaClient({
             onPrev={goPrev}
             onToday={goToday}
             onNext={goNext}
-            onRefresh={() => loadEventsForMonth(cursorMonth)}
+            onRefresh={() => loadEventsForMonth(cursorMonth, { refreshGoogle: true })}
           />
 
           <AgendaSidebar

@@ -145,7 +145,8 @@ test("reuse and removal mutate only the selected channel and never sync the pool
     "const assignExistingImagesToChannel",
     "const removeImagesFromChannel",
   );
-  assert.match(assign, /setImageKeysForChannel\(prev, channel, imageKeys/);
+  assert.match(assign, /setImageKeysForChannel\(prev, channel, selectedImageKeys/);
+  assert.match(assign, /getBoosterMaxImageCountForChannel\(channel\)/);
   assert.match(assign, /\[channel\]: "images"/);
   assert.doesNotMatch(assign, /syncPersistentWorkspaceImages/);
   assert.doesNotMatch(assign, /fileInputRef\.current/);

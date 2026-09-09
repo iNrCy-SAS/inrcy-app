@@ -9,6 +9,8 @@ import { withApi } from "@/lib/observability/withApi";
 import { log } from "@/lib/observability/logger";
 import { insertNotificationOnce } from "@/lib/notificationWriter";
 import { INR_CALENDAR_GOOGLE_SOURCE } from "@/lib/inrCalendarGoogleSyncConstants";
+import { syncVisioSharedCalendarToInrCalendar } from "@/lib/inrCalendarGoogleSync";
+import { getVisioTeamActor } from "@/lib/visioTeamAccess";
 import {
   buildClientExchangePreferences,
   DEFAULT_CLIENT_EXCHANGE_PREFERENCES,
@@ -784,6 +786,7 @@ async function getCalendarEventsHandler(req: Request) {
   const { searchParams } = new URL(req.url);
   const qTimeMin = searchParams.get("timeMin");
   const qTimeMax = searchParams.get("timeMax");
+  const refreshGoogle = searchParams.get("refreshGoogle") === "1";
 
   if (!qTimeMin || !qTimeMax) return bad("timeMin et timeMax sont requis");
   if (!assertIsoDateTime(qTimeMin) || !assertIsoDateTime(qTimeMax)) return bad("Range invalide");
@@ -791,6 +794,26 @@ async function getCalendarEventsHandler(req: Request) {
   const timeMin = new Date(qTimeMin);
   const timeMax = new Date(qTimeMax);
   if (timeMax <= timeMin) return bad("Range invalide");
+
+  let googleSyncOk: boolean | null = null;
+  if (refreshGoogle) {
+    const actor = await getVisioTeamActor();
+    if (actor) {
+      const syncResult = await syncVisioSharedCalendarToInrCalendar({
+        pastDays: 30,
+        futureDays: 365,
+      }).catch((syncError: unknown) => {
+        console.error(
+          "[calendar-events][google-sync]",
+          syncError instanceof Error ? syncError.message : "unknown_error",
+        );
+        return null;
+      });
+      googleSyncOk = syncResult?.ok ?? false;
+    } else {
+      googleSyncOk = false;
+    }
+  }
 
   const { data, error } = await supabase
     .from("agenda_events")
@@ -827,6 +850,7 @@ async function getCalendarEventsHandler(req: Request) {
     timeMax: timeMax.toISOString(),
     events,
     appointmentRequests,
+    googleSyncOk,
   });
 }
 

@@ -259,7 +259,7 @@ test("sites et iNrSearch ne copient pas le master : ils conservent ses référen
   );
   const siteBranch = publishNow.slice(
     siteAt,
-    publishNow.indexOf('if (ch === "facebook")', siteAt),
+    publishNow.indexOf('if (ch === "x")', siteAt),
   );
   assert.match(siteBranch, /video_url:\s*channelVideo\.publicUrl/);
   assert.match(siteBranch, /video_path:\s*channelVideo\.storagePath/);

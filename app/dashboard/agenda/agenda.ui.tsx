@@ -323,6 +323,17 @@ export function AgendaHeader({ helpOpen, setHelpOpen, settingsOpen, onOpenSettin
                   <span className={styles.googleAgendaIcon} aria-hidden>G</span>
                 </button>
               ) : null}
+              {canManageTeamAppointments ? (
+                <button
+                  type="button"
+                  className={`${styles.btnGhost} ${styles.iconOnlyBtn}`}
+                  onClick={onOpenTeamAppointments}
+                  title="Admin — Attribution des rendez-vous"
+                  aria-label="Ouvrir l’attribution des rendez-vous"
+                >
+                  <span className={styles.headerActionIcon} aria-hidden>👥</span>
+                </button>
+              ) : null}
               <button
                 type="button"
                 className={`${styles.btnGhost} ${styles.iconOnlyBtn} ${styles.requestAgendaBtn}`}

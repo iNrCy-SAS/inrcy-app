@@ -28,7 +28,7 @@ test("Business DNA projects the canonical Dashboard connection states", () => {
   );
 });
 
-test("the DNA availability response exposes the nine requested analysis channels in order", () => {
+test("the DNA availability response exposes the ten requested analysis channels in order", () => {
   const channelStates = Object.fromEntries(
     BUSINESS_DNA_DASHBOARD_CHANNELS
       .map(({ key }, index) => [key, { connected: index % 2 === 0 }]),
@@ -47,17 +47,18 @@ test("the DNA availability response exposes the nine requested analysis channels
       "youtube_shorts",
       "pinterest",
       "site_inrcy",
+      "x",
     ],
   );
-  assert.equal(result.length, 9);
+  assert.equal(result.length, 10);
   assert.equal(result.every(({ analyzable }) => analyzable), true);
 });
 
-test("the nine pills remain present when every channel is disconnected", () => {
+test("the ten pills remain present when every channel is disconnected", () => {
   const result = buildBusinessDnaDashboardChannelAvailability({ channelStates: {} });
   const visibleKeys: readonly string[] = result.map(({ key }) => key);
 
-  assert.equal(result.length, 9);
+  assert.equal(result.length, 10);
   assert.equal(result.every(({ status }) => status === "not_connected"), true);
   assert.equal(visibleKeys.includes("inrbadge"), false);
   assert.equal(visibleKeys.includes("inr_search"), false);
