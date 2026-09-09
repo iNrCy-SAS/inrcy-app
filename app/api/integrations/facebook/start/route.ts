@@ -34,20 +34,25 @@ export async function GET(request: Request) {
     redirect_uri: redirectUri,
     response_type: "code",
     state: stateB64,
-    // NOTE: Facebook expects comma-separated scopes.
-    // Keep this minimal so the OAuth flow always succeeds.
-    // Page permissions (pages_show_list, ...) require advanced access / review for a SaaS.
-    scope: [
-      "public_profile",
-      "email",
-      "pages_show_list",
-      "pages_manage_posts",
-      "pages_read_engagement",
-      "read_insights",      
-    ].join(","),
   });
 
-  if (mode === "business" && configId) params.set("config_id", configId);
+  // A Business Login configuration defines its own asset and permission set.
+  // For system-user tokens, Meta requires config_id to replace scope.
+  if (mode === "business" && configId) {
+    params.set("config_id", configId);
+  } else {
+    params.set(
+      "scope",
+      [
+        "public_profile",
+        "email",
+        "pages_show_list",
+        "pages_manage_posts",
+        "pages_read_engagement",
+        "read_insights",
+      ].join(","),
+    );
+  }
 
   const url = `${buildMetaOAuthUrl("dialog/oauth")}?${params.toString()}`;
   const res = NextResponse.redirect(url);
