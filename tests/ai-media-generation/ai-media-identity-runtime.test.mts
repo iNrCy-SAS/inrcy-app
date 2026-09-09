@@ -53,7 +53,7 @@ async function encodedImage(
   };
 }
 
-test("le contrat exécutable impose consentement, mode et limite de trois références", async () => {
+test("le contrat impose le consentement aux identités strictes sans bloquer les inspirations ordinaires", async () => {
   const reference = await encodedImage("jpeg");
   const referenceSetId = "identity-1757023445123-abcdefghij";
 
@@ -136,8 +136,8 @@ test("le contrat exécutable impose consentement, mode et limite de trois réfé
   });
   assert.equal(withoutPeople.identityMode, "auto");
   assert.equal(withoutPeople.identityConsent, false);
-  assert.equal(withoutPeople.identityReferenceSetId, "");
-  assert.deepEqual(withoutPeople.inspirationImages, []);
+  assert.equal(withoutPeople.identityReferenceSetId, referenceSetId);
+  assert.equal(withoutPeople.inspirationImages.length, 1);
 });
 
 test("Sharp valide les vrais octets, borne les dimensions et retire EXIF/GPS", async () => {

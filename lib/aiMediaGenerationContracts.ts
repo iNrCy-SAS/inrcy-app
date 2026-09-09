@@ -417,11 +417,12 @@ export function normalizeAiMediaGenerationRequest(
   // encore `auto` ou `solo` pour la présence humaine.
   const normalizedPeopleMode =
     identityMode === "reference_team" ? "team" : peopleMode;
-  const identityEnabled = normalizedPeopleMode !== "none";
-  const normalizedInspirationImages = normalizeInspirationImages(
+  // Les médias ajoutés peuvent servir de source ou d'inspiration sans être
+  // des références biométriques. Ils restent donc valides même lorsque la
+  // création ne comporte aucune personne.
+  const inspirationImages = normalizeInspirationImages(
     body.inspirationImages,
   );
-  const inspirationImages = identityEnabled ? normalizedInspirationImages : [];
   if (
     identityMode === "professional" &&
     inspirationImages.length === 0
@@ -446,10 +447,12 @@ export function normalizeAiMediaGenerationRequest(
       "Ajoutez deux ou trois photos, avec une personne adulte distincte et autorisée par image.",
     );
   }
-  // Toute image d'identité peut contenir un visage : l'accord est requis
-  // même en mode automatique, pour une image comme pour une vidéo.
-  const identityReferenceRequested = inspirationImages.length > 0;
-  if (identityReferenceRequested && body.identityConsent !== true) {
+  // L'accord biométrique ne concerne que les modes qui demandent réellement
+  // de préserver l'identité d'une personne. Une image de décor, de produit ou
+  // d'ambiance en mode automatique reste une inspiration visuelle ordinaire.
+  const strictIdentityReferenceRequested =
+    identityMode !== "auto" && inspirationImages.length > 0;
+  if (strictIdentityReferenceRequested && body.identityConsent !== true) {
     throw new AiMediaRequestValidationError(
       "Confirmez que vous êtes cette personne ou que vous avez son autorisation.",
     );
@@ -517,7 +520,7 @@ export function normalizeAiMediaGenerationRequest(
     identityMode,
     videoCharacterMode: identityMode,
     identityConsent:
-      inspirationImages.length > 0 && body.identityConsent === true,
+      strictIdentityReferenceRequested && body.identityConsent === true,
     teamVideoMode,
     teamVideoSpeechMode,
     teamVideoVeoConsent,

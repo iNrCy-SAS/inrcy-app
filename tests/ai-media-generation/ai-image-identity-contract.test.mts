@@ -7,25 +7,27 @@ const ROOT = process.cwd();
 const read = (relativePath: string) =>
   readFileSync(path.join(ROOT, relativePath), "utf8");
 
-test("l'identité autorisée est disponible pour une image comme pour une vidéo", () => {
+test("les médias source restent distincts des références d'identité strictes", () => {
   const contracts = read("lib/aiMediaGenerationContracts.ts");
   const generator = read("app/dashboard/_components/MediaGenerator.tsx");
   const hook = read("app/dashboard/_hooks/useMediaGeneration.ts");
 
-  assert.match(
-    contracts,
-    /const identityEnabled = normalizedPeopleMode !== "none"/,
-  );
-  assert.match(contracts, /const identityReferenceRequested = inspirationImages\.length > 0/);
+  assert.match(contracts, /const inspirationImages = normalizeInspirationImages/);
+  assert.match(contracts, /const strictIdentityReferenceRequested =/);
+  assert.match(contracts, /identityMode !== "auto" && inspirationImages\.length > 0/);
   assert.doesNotMatch(contracts, /kind !== "video"[\s\S]{0,180}inspiration/);
+  assert.match(generator, /const strictIdentityReferenceMode =/);
+  assert.match(generator, /data-reference-purpose=\{strictIdentityReferenceMode \? "identity" : "visual"\}/);
   assert.match(generator, /identityMode:[\s\S]*?peopleMode !== "none"/);
-  assert.match(generator, /inspirationImages:[\s\S]*?peopleMode !== "none"/);
+  assert.match(generator, /\n\s*inspirationImages,\n/);
   assert.doesNotMatch(
     generator,
     /kind === "video" && peopleMode !== "none" \? \(\s*<>[\s\S]{0,200}ai_generator_video_character_label/,
   );
+  assert.match(hook, /function hasStrictIdentityReferences/);
   assert.match(hook, /identityMode:[\s\S]*?request\.peopleMode !== "none"/);
-  assert.match(hook, /inspirationImages:[\s\S]*?request\.peopleMode !== "none"/);
+  assert.match(hook, /inspirationImages: request\.inspirationImages\?\.length/);
+  assert.doesNotMatch(hook, /request\.peopleMode !== "none" \? request\.inspirationImages/);
 });
 
 test("GPT Image reçoit les références d'identité sans repli silencieux", () => {

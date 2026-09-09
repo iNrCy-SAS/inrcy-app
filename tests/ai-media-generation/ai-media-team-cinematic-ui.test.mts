@@ -9,7 +9,7 @@ import {
 
 const read = (relativePath: string) => readFileSync(relativePath, "utf8");
 
-test("le bloc 5 propose l'animation dès qu'une image vidéo est ajoutée", () => {
+test("le bloc 1 propose l'animation dès qu'une image vidéo est ajoutée", () => {
   const generator = read("app/dashboard/_components/MediaGenerator.tsx");
   const hook = read("app/dashboard/_hooks/useMediaGeneration.ts");
   const styles = read("app/dashboard/_components/MediaGenerator.module.css");
@@ -17,9 +17,9 @@ test("le bloc 5 propose l'animation dès qu'une image vidéo est ajoutée", () =
   assert.doesNotMatch(generator, /ANIMATABLE_IDENTITY_MODES/);
   assert.match(
     generator,
-    /const identityAnimationAvailable =\s*kind === "video" && inspirationImages\.length > 0/,
+    /const referenceAnimationAvailable =\s*kind === "video" && inspirationImages\.length > 0/,
   );
-  assert.match(generator, /\{identityAnimationAvailable \? \([\s\S]*?ai_generator_team_animation_label/);
+  assert.match(generator, /\{referenceAnimationAvailable \? \([\s\S]*?ai_generator_team_animation_label/);
   assert.match(generator, /data-team-video-mode=\{teamVideoMode\}/);
   assert.match(generator, /event\.target\.checked \? "cinematic" : "montage"/);
   assert.match(generator, /teamVideoMode === "cinematic"[\s\S]*?ai_generator_team_animation_hint_cinematic/);
@@ -48,7 +48,7 @@ test("les règles des photos restent dans le flux et ne passent sous aucun bande
   assert.doesNotMatch(infoBubble, /position:\s*absolute/);
 });
 
-test("le bloc 5 distingue la voix off des personnages parlants sans mélanger les deux", () => {
+test("le bloc 1 distingue la voix off des personnages parlants sans mélanger les deux", () => {
   const generator = read("app/dashboard/_components/MediaGenerator.tsx");
   const hook = read("app/dashboard/_hooks/useMediaGeneration.ts");
   const styles = read("app/dashboard/_components/MediaGenerator.module.css");
@@ -60,7 +60,7 @@ test("le bloc 5 distingue la voix off des personnages parlants sans mélanger le
   assert.match(generator, /const animatedCharactersSpeak =[\s\S]*?teamVideoSpeechMode === "characters"/);
   assert.match(generator, /const effectiveWithNarration =[\s\S]*?!animatedCharactersSpeak && withNarration/);
   assert.match(generator, /withNarration: kind === "video" \? effectiveWithNarration : undefined/);
-  assert.match(generator, /teamVideoSpeechMode: identityCinematicRequested[\s\S]*?teamVideoSpeechMode/);
+  assert.match(generator, /teamVideoSpeechMode: referenceCinematicRequested[\s\S]*?teamVideoSpeechMode/);
   assert.match(generator, /disabled=\{operationLocked \|\| animatedCharactersSpeak\}/);
   assert.match(generator, /ai_generator_team_speech_narration_disabled_hint/);
   assert.match(generator, /ai_generator_team_speech_gender_hint/);
@@ -86,11 +86,11 @@ test("le consentement Google\/Veo est demandé à chaque génération et transmi
   assert.match(hook, /teamVideoVeoConsent:[\s\S]*?Boolean\(request\.teamVideoVeoConsent\)/);
 });
 
-test("les six en-têtes du studio gardent la même géométrie et le titre ne casse plus la grille", () => {
+test("les quatre en-têtes du studio gardent la même géométrie et le titre ne casse plus la grille", () => {
   const generator = read("app/dashboard/_components/MediaGenerator.tsx");
   const styles = read("app/dashboard/_components/MediaGenerator.module.css");
 
-  assert.equal((generator.match(/className=\{styles\.collapsibleHeader\}/g) || []).length, 6);
+  assert.equal((generator.match(/className=\{styles\.collapsibleHeader\}/g) || []).length, 4);
   assert.match(
     styles,
     /\.collapsibleToggle\s*\{[\s\S]*?height:\s*66px;[\s\S]*?grid-template-columns:\s*auto minmax\(145px, 1fr\) minmax\(0, 235px\) auto/,

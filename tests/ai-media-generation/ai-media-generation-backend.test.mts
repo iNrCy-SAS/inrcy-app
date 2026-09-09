@@ -116,7 +116,7 @@ test("le contrat réduit les options au média demandé", () => {
   assert.equal(video.logoMode, "visible");
   assert.equal(video.videoEngine, "omni");
   assert.equal(video.videoCharacterMode, "auto");
-  assert.equal(video.identityConsent, true);
+  assert.equal(video.identityConsent, false);
   assert.equal(video.teamVideoMode, "montage");
   assert.equal(video.teamVideoSpeechMode, "voiceover");
   assert.equal(video.teamVideoVeoConsent, false);
@@ -166,17 +166,16 @@ test("le contrat réduit les options au média demandé", () => {
       }),
     AiMediaRequestValidationError,
   );
-  assert.throws(
-    () =>
-      normalizeAiMediaGenerationRequest({
-        requestId: "media-request-image-ref",
-        kind: "image",
-        subjectSource: "profile",
-        inspirationImages: [{ mimeType: "image/jpeg", data: inspirationData }],
-        source: "studio",
-      }),
-    AiMediaRequestValidationError,
-  );
+  const genericImageReference = normalizeAiMediaGenerationRequest({
+    requestId: "media-request-image-ref",
+    kind: "image",
+    subjectSource: "profile",
+    inspirationImages: [{ mimeType: "image/jpeg", data: inspirationData }],
+    source: "studio",
+  });
+  assert.equal(genericImageReference.identityMode, "auto");
+  assert.equal(genericImageReference.identityConsent, false);
+  assert.equal(genericImageReference.inspirationImages.length, 1);
   assert.throws(
     () =>
       normalizeAiMediaGenerationRequest({
@@ -468,7 +467,8 @@ test("la consigne ponctuelle et l'identité image/vidéo sont normalisées sans 
   assert.equal(noPeople.videoCharacterMode, "auto");
   assert.equal(noPeople.identityMode, "auto");
   assert.equal(noPeople.identityConsent, false);
-  assert.deepEqual(noPeople.inspirationImages, []);
+  assert.equal(noPeople.inspirationImages.length, 1);
+  assert.equal(noPeople.identityReferenceSetId, "legacy:media-no-people-identity");
 
   assert.throws(
     () => normalizeAiMediaGenerationRequest({

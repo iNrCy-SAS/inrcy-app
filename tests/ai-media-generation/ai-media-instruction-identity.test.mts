@@ -36,7 +36,9 @@ test("l'identité vidéo est consentie, auditée et indépendante du rendu", () 
   assert.match(generator, /professionalPhoto|required|characterReferenceMissing/);
   assert.match(generator, /ai_generator_video_character_avatar_reference_required/);
   assert.match(generator, /setIdentityConsent\(false\)/);
-  assert.match(generator, /peopleMode !== "none" \? inspirationImages : \[\]/);
+  assert.match(generator, /const strictIdentityReferenceMode =/);
+  assert.match(generator, /identityConsent: identityConsentRequired \? identityConsent : false/);
+  assert.match(generator, /\n\s*inspirationImages,\n/);
   assert.match(prompt, /getAiMediaVideoIdentityDirection/);
   assert.match(prompt, /sans le remplacer par un visage générique/);
   assert.match(prompt, /dans le rendu choisi/);

@@ -71,6 +71,15 @@ function hasAnimationSourceImage(
   return kind === "video" && Boolean(images?.length);
 }
 
+function hasStrictIdentityReferences(request: MediaGenerationRequest) {
+  const identityMode = request.identityMode || request.videoCharacterMode || "auto";
+  return (
+    request.peopleMode !== "none" &&
+    identityMode !== "auto" &&
+    Boolean(request.inspirationImages?.length)
+  );
+}
+
 export type MediaGenerationQuotaCounter = {
   limit: number | null;
   used: number;
@@ -421,20 +430,17 @@ function buildGenerationAttemptKey(
         ? request.identityMode || request.videoCharacterMode || "auto"
         : "auto",
     identityConsent:
-      request.peopleMode !== "none" && Boolean(request.identityConsent),
+      hasStrictIdentityReferences(request) && Boolean(request.identityConsent),
     identityReferenceSetId:
-      request.peopleMode !== "none" && request.inspirationImages?.length
+      request.inspirationImages?.length
         ? request.identityReferenceSetId || ""
         : "",
     durationSeconds:
       request.kind === "video" ? request.durationSeconds || 16 : null,
-    inspirationImages:
-      request.peopleMode !== "none"
-        ? (request.inspirationImages || []).map((image) => ({
-            mimeType: image.mimeType,
-            length: image.data.length,
-          }))
-        : [],
+    inspirationImages: (request.inspirationImages || []).map((image) => ({
+      mimeType: image.mimeType,
+      length: image.data.length,
+    })),
     source: request.source,
   });
 }
@@ -769,25 +775,23 @@ export default function useMediaGeneration() {
               request.kind === "video"
                 ? request.identityMode || request.videoCharacterMode || "auto"
                 : undefined,
-            identityConsent:
-              request.peopleMode !== "none"
-                ? Boolean(request.identityConsent)
-                : undefined,
+            identityConsent: hasStrictIdentityReferences(request)
+              ? Boolean(request.identityConsent)
+              : undefined,
             identityReferenceSetId:
-              request.peopleMode !== "none" && request.inspirationImages?.length
+              request.inspirationImages?.length
                 ? request.identityReferenceSetId
                 : undefined,
             durationSeconds:
               request.kind === "video"
                 ? request.durationSeconds || 16
                 : undefined,
-            inspirationImages:
-              request.peopleMode !== "none"
-                ? (request.inspirationImages || []).map((image) => ({
-                    mimeType: image.mimeType,
-                    data: image.data,
-                  }))
-                : undefined,
+            inspirationImages: request.inspirationImages?.length
+              ? request.inspirationImages.map((image) => ({
+                  mimeType: image.mimeType,
+                  data: image.data,
+                }))
+              : undefined,
             source: request.source,
           }),
         });

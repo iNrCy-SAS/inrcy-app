@@ -165,7 +165,6 @@ test("la fenêtre iNrCy sépare les critères de la création et de la revue", (
     "ai_generator_group_art_title",
     "ai_generator_group_art_hint",
     "ai_generator_group_composition_title",
-    "ai_generator_group_composition_hint",
     "ai_generator_group_identity_title",
     "ai_generator_group_identity_hint",
     "ai_generator_group_finish_title",
@@ -263,24 +262,30 @@ test("la fenêtre iNrCy sépare les critères de la création et de la revue", (
   assert.match(generator, /expandedStep/);
   assert.match(
     generator,
-    /useState<1 \| 2 \| 3 \| 4 \| 5 \| 6 \| null>\(null\)/
+    /useState<1 \| 2 \| 3 \| 4 \| null>\(null\)/
   );
   assert.match(generator, /aria-expanded=\{expandedStep === 1\}/);
   assert.match(generator, /aria-expanded=\{expandedStep === 3\}/);
-  assert.match(generator, /aria-expanded=\{expandedStep === 6\}/);
-  assert.doesNotMatch(generator, /expandedStep === [7-8]/);
-  assert.equal((generator.match(/<section className=/g) || []).length, 6);
+  assert.match(generator, /aria-expanded=\{expandedStep === 4\}/);
+  assert.doesNotMatch(generator, /expandedStep === [5-8]/);
+  assert.equal((generator.match(/<section className=/g) || []).length, 4);
   const creationBody = sourceSection(
     generator,
-    "{expandedStep === 1 ? <div className={styles.collapsibleBody}>",
+    "{expandedStep === 1 ? (",
     "</section>"
   );
   assertOrdered(creationBody, [
     't("ai_generator_step_kind")',
     't("ai_generator_step_subject")',
     'styles.aiInstructionField',
+    't("ai_generator_group_identity_title")',
+    't("ai_generator_people_label")',
+    't("ai_generator_video_character_label")',
+    "styles.inspirationSection",
+    "styles.identityConsent",
   ]);
-  assert.doesNotMatch(creationBody, /styles\.inspirationSection/);
+  assert.match(creationBody, /data-reference-purpose=\{strictIdentityReferenceMode \? "identity" : "visual"\}/);
+  assert.doesNotMatch(creationBody, /setInspirationImages\(\[\]\)/);
   const artBody = sourceSection(
     generator,
     '<strong>{t("ai_generator_group_art_title")}</strong>',
@@ -291,17 +296,9 @@ test("la fenêtre iNrCy sépare les critères de la création et de la revue", (
     't("ai_generator_creativity_label")',
     't("ai_generator_brand_colors")',
     't("ai_generator_logo_label")',
-  ]);
-  const identityBody = sourceSection(
-    generator,
-    '<strong>{t("ai_generator_group_identity_title")}</strong>',
-    "</section>"
-  );
-  assertOrdered(identityBody, [
-    't("ai_generator_people_label")',
-    't("ai_generator_video_character_label")',
-    "styles.inspirationSection",
-    "styles.identityConsent",
+    't("ai_generator_group_composition_title")',
+    't("ai_generator_render_label")',
+    't("ai_generator_shot_label")',
   ]);
   assert.match(generator, /maxLength=\{600\}/);
   assert.match(generator, /aiInstruction: aiInstruction\.trim\(\)/);
@@ -326,7 +323,17 @@ test("la fenêtre iNrCy sépare les critères de la création et de la revue", (
   assert.match(generatorStyles, /\.combinedSubsection/);
   assert.match(
     generatorStyles,
-    /\.criteriaGrid\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/
+    /\.criteriaGrid\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\)/
+  );
+  assert.match(generatorStyles, /\.creationBodyGrid/);
+  assert.match(generatorStyles, /\.twoColumnBody/);
+  assert.match(
+    generatorStyles,
+    /@media \(min-width: 1101px\)[\s\S]*?\.creationBodyGrid\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 0\.96fr\) minmax\(0, 1\.04fr\)/
+  );
+  assert.match(
+    generatorStyles,
+    /@media \(min-width: 1101px\)[\s\S]*?\.twoColumnBody\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/
   );
   assert.match(
     generatorStyles,

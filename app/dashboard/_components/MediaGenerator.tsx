@@ -337,7 +337,7 @@ export default function MediaGenerator({
     useState<MediaGenerationInspirationImage[]>([]);
   const [inspirationBusy, setInspirationBusy] = useState(false);
   const [inspirationRulesOpen, setInspirationRulesOpen] = useState(false);
-  const [expandedStep, setExpandedStep] = useState<1 | 2 | 3 | 4 | 5 | 6 | null>(null);
+  const [expandedStep, setExpandedStep] = useState<1 | 2 | 3 | 4 | null>(null);
   const [voiceBusy, setVoiceBusy] = useState(false);
   const [creationScreen, setCreationScreen] = useState(false);
   const [finishing, setFinishing] = useState(false);
@@ -487,15 +487,19 @@ export default function MediaGenerator({
     kind === "video" && videoMaxDurationSeconds < 24;
   const videoPremiumRequired =
     kind === "video" && durationSeconds > videoMaxDurationSeconds;
-  const identityAnimationAvailable =
+  const strictIdentityReferenceMode =
+    peopleMode !== "none" && videoCharacterMode !== "auto";
+  const referenceAnimationAvailable =
     kind === "video" && inspirationImages.length > 0;
-  const identityCinematicRequested =
-    identityAnimationAvailable &&
+  const referenceCinematicRequested =
+    referenceAnimationAvailable &&
     teamVideoMode === "cinematic";
   const animatedCharactersSpeak =
-    identityCinematicRequested && teamVideoSpeechMode === "characters";
+    referenceCinematicRequested &&
+    peopleMode !== "none" &&
+    teamVideoSpeechMode === "characters";
   const teamCinematicConsentRequired =
-    identityCinematicRequested && videoCharacterMode === "reference_team";
+    referenceCinematicRequested && videoCharacterMode === "reference_team";
   const effectiveWithNarration =
     kind === "video" && !animatedCharactersSpeak && withNarration;
   const characterReferenceMissing =
@@ -507,7 +511,7 @@ export default function MediaGenerator({
         ? inspirationImages.length < 2 || inspirationImages.length > 3
         : false);
   const identityConsentRequired =
-    peopleMode !== "none" && inspirationImages.length > 0;
+    strictIdentityReferenceMode && inspirationImages.length > 0;
   const identityConsentMissing = identityConsentRequired && !identityConsent;
   const disabled =
     operationLocked ||
@@ -541,7 +545,7 @@ export default function MediaGenerator({
               )
             : t(
                 kind === "video"
-                  ? identityCinematicRequested
+                  ? referenceCinematicRequested
                     ? "ai_generator_stage_team_animation"
                     : "ai_generator_stage_render"
                   : "ai_generator_stage_finish",
@@ -689,26 +693,24 @@ export default function MediaGenerator({
           peopleMode !== "none" ? videoCharacterMode : "auto",
         videoCharacterMode:
           peopleMode !== "none" ? videoCharacterMode : "auto",
-        identityConsent:
-          peopleMode !== "none" ? identityConsent : false,
+        identityConsent: identityConsentRequired ? identityConsent : false,
         identityReferenceSetId:
-          peopleMode !== "none" && inspirationImages.length
+          inspirationImages.length
             ? identityReferenceSetIdRef.current
             : undefined,
         creativity,
         useBrandColors,
         logoMode,
         videoEngine: kind === "video" ? videoEngine : undefined,
-        teamVideoMode: identityAnimationAvailable ? teamVideoMode : undefined,
-        teamVideoSpeechMode: identityCinematicRequested
+        teamVideoMode: referenceAnimationAvailable ? teamVideoMode : undefined,
+        teamVideoSpeechMode: referenceCinematicRequested
           ? teamVideoSpeechMode
           : undefined,
         teamVideoVeoConsent: teamCinematicConsentRequired
           ? veoConsentForAttempt
           : false,
         durationSeconds: kind === "video" ? durationSeconds : undefined,
-        inspirationImages:
-          peopleMode !== "none" ? inspirationImages : [],
+        inspirationImages,
       });
     } catch (caught) {
       if (sequence !== generationSequenceRef.current) return;
@@ -724,7 +726,7 @@ export default function MediaGenerator({
     } finally {
       // L'accord porte sur un essai de génération précis. Une nouvelle
       // tentative, réussie ou non, exige donc une confirmation fraîche.
-      if (inspirationImages.length > 0) setIdentityConsent(false);
+      if (identityConsentRequired) setIdentityConsent(false);
       setTeamVideoVeoConsent(false);
       setTeamVideoConsentOpen(false);
     }
@@ -1100,20 +1102,26 @@ export default function MediaGenerator({
                       count: inspirationImages.length,
                     })
                   : ""}
+                {` · ${t(`ai_generator_people_${peopleMode}`)}`}
               </span>
               <i aria-hidden="true">⌄</i>
             </button>
             <RememberPreferenceControl
-              checked={savedPreferences.blocks[1].saved}
-              disabled={preferencesLoading || savingBlockIds.has(1)}
-              saving={savingBlockIds.has(1)}
+              checked={savedPreferences.blocks[1].saved && savedPreferences.blocks[5].saved}
+              disabled={preferencesLoading || savingBlockIds.has(1) || savingBlockIds.has(5)}
+              saving={savingBlockIds.has(1) || savingBlockIds.has(5)}
               label={t("ai_generator_remember_settings")}
               savingLabel={t("ai_generator_preferences_saving")}
               blockTitle={t("ai_generator_group_creation_title")}
-              onChange={(checked) => handleRememberPreference(1, checked)}
+              onChange={(checked) => {
+                handleRememberPreference(1, checked);
+                handleRememberPreference(5, checked);
+              }}
             />
           </div>
-          {expandedStep === 1 ? <div className={styles.collapsibleBody}>
+          {expandedStep === 1 ? (
+            <div className={`${styles.collapsibleBody} ${styles.creationBodyGrid}`}>
+              <div className={styles.creationCoreColumn}>
             <div className={styles.combinedSubsection}>
               <strong className={styles.combinedSectionTitle}>{t("ai_generator_step_kind")}</strong>
               <div className={styles.kindChoices} role="radiogroup" aria-label={t("ai_generator_kind_label")}>
@@ -1241,381 +1249,111 @@ export default function MediaGenerator({
                 </span>
               </div>
             </div>
-          </div> : null}
-        </section>
+              </div>
 
-        <section className={`${styles.criteriaSection} ${styles.collapsibleSection} ${styles.contentCriteriaSection}`}>
-          <div className={styles.collapsibleHeader}>
-            <button
-              type="button"
-              className={styles.collapsibleToggle}
-              aria-expanded={expandedStep === 2}
-              disabled={voiceBusy}
-              onClick={() => setExpandedStep((current) => current === 2 ? null : 2)}
-            >
-              <span className={styles.stepBadge}>2</span>
-              <span className={styles.collapsibleTitle}>
-                <strong>{t("ai_generator_group_content_title")}</strong>
-                <small>{t("ai_generator_group_content_hint")}</small>
-              </span>
-              <span className={styles.sectionSelection}>
-                {t(`ai_generator_typology_${typology}`)} · {FORMATS.find((item) => item.id === format)?.ratio}
-              </span>
-              <i aria-hidden="true">⌄</i>
-            </button>
-            <RememberPreferenceControl
-              checked={savedPreferences.blocks[2].saved}
-              disabled={preferencesLoading || savingBlockIds.has(2)}
-              saving={savingBlockIds.has(2)}
-              label={t("ai_generator_remember_settings")}
-              savingLabel={t("ai_generator_preferences_saving")}
-              blockTitle={t("ai_generator_group_content_title")}
-              onChange={(checked) => handleRememberPreference(2, checked)}
-            />
-          </div>
-          {expandedStep === 2 ? <div className={styles.collapsibleBody}>
-            <div className={styles.combinedSubsection}>
-              <strong className={styles.combinedSectionTitle}>{t("ai_generator_typology_title")}</strong>
-              <div className={styles.typologyChoices} role="radiogroup" aria-label={t("ai_generator_typology_title")}>
-              {TYPOLOGIES.map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={typology === option.id}
-                  className={typology === option.id ? styles.compactChoiceActive : ""}
-                  onClick={() => setTypology(option.id)}
-                  disabled={operationLocked}
-                >
-                  <span aria-hidden="true">{option.icon}</span>
-                  {t(`ai_generator_typology_${option.id}`)}
-                </button>
-              ))}
-              </div>
-            </div>
-            <div className={styles.combinedSubsection}>
-              <strong className={styles.combinedSectionTitle}>{t("ai_generator_format_title")}</strong>
-              <div className={styles.formatChoices} role="radiogroup" aria-label={t("ai_generator_format_title")}>
-              {FORMATS.map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={format === option.id}
-                  className={format === option.id ? styles.compactChoiceActive : ""}
-                  onClick={() => setFormat(option.id)}
-                  disabled={operationLocked}
-                >
-                  <span aria-hidden="true">{option.icon}</span>
-                  <strong>{t(`ai_generator_format_${option.id}`)}</strong>
-                  <small>{option.ratio}</small>
-                </button>
-              ))}
-              </div>
-            </div>
-          </div> : null}
-        </section>
+              <div className={styles.creationMediaColumn}>
+                <div className={styles.creationColumnHeading}>
+                  <strong>{t("ai_generator_group_identity_title")}</strong>
+                  <small>{t("ai_generator_group_identity_hint")}</small>
+                </div>
 
-        <section className={`${styles.criteriaSection} ${styles.collapsibleSection}`}>
-          <div className={styles.collapsibleHeader}>
-            <button
-              type="button"
-              className={styles.collapsibleToggle}
-              aria-expanded={expandedStep === 3}
-              disabled={voiceBusy}
-              onClick={() => setExpandedStep((current) => current === 3 ? null : 3)}
-            >
-              <span className={styles.stepBadge}>3</span>
-              <span className={styles.collapsibleTitle}>
-                <strong>{t("ai_generator_group_art_title")}</strong>
-                <small>{t("ai_generator_group_art_hint")}</small>
-              </span>
-              <span className={styles.sectionSelection}>
-                {t(`ai_generator_style_${visualStyle}`)} · {t(`ai_generator_creativity_${creativity}`)} · {t(`ai_generator_logo_${logoMode}`)}
-              </span>
-              <i aria-hidden="true">⌄</i>
-            </button>
-            <RememberPreferenceControl
-              checked={savedPreferences.blocks[3].saved}
-              disabled={preferencesLoading || savingBlockIds.has(3)}
-              saving={savingBlockIds.has(3)}
-              label={t("ai_generator_remember_settings")}
-              savingLabel={t("ai_generator_preferences_saving")}
-              blockTitle={t("ai_generator_group_art_title")}
-              onChange={(checked) => handleRememberPreference(3, checked)}
-            />
-          </div>
-          {expandedStep === 3 ? <div className={styles.collapsibleBody}>
-            <div className={styles.styleChoices} role="radiogroup" aria-label={t("ai_generator_style_title")}>
-              {VISUAL_STYLES.map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  role="radio"
-                  aria-checked={visualStyle === option}
-                  className={visualStyle === option ? styles.compactChoiceActive : ""}
-                  onClick={() => setVisualStyle(option)}
-                  disabled={operationLocked}
-                >
-                  {t(`ai_generator_style_${option}`)}
-                </button>
-              ))}
-            </div>
-            <div className={styles.parameterGroup}>
-              <span>{t("ai_generator_creativity_label")}</span>
-              <div className={`${styles.parameterChoices} ${styles.twoChoices}`} role="radiogroup" aria-label={t("ai_generator_creativity_label")}>
-                {CREATIVITY_LEVELS.map((option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    role="radio"
-                    aria-checked={creativity === option}
-                    className={creativity === option ? styles.compactChoiceActive : ""}
-                    onClick={() => setCreativity(option)}
-                    disabled={operationLocked}
-                  >
-                    {t(`ai_generator_creativity_${option}`)}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <label className={styles.switchRow}>
-              <span>
-                <strong>{t("ai_generator_brand_colors")}</strong>
-                <small>{t("ai_generator_brand_colors_hint")}</small>
-              </span>
-              <input type="checkbox" checked={useBrandColors} onChange={(event) => setUseBrandColors(event.target.checked)} />
-              <i aria-hidden="true" />
-            </label>
-            <div className={styles.parameterGroup}>
-              <span>{t("ai_generator_logo_label")}</span>
-              <div className={`${styles.parameterChoices} ${styles.threeChoices}`} role="radiogroup" aria-label={t("ai_generator_logo_label")}>
-                {LOGO_MODES.map((option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    role="radio"
-                    aria-checked={logoMode === option}
-                    className={logoMode === option ? styles.compactChoiceActive : ""}
-                    onClick={() => setLogoMode(option)}
-                    disabled={operationLocked}
-                  >
-                    {t(`ai_generator_logo_${option}`)}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div> : null}
-        </section>
-
-        <section className={`${styles.criteriaSection} ${styles.collapsibleSection}`}>
-          <div className={styles.collapsibleHeader}>
-            <button
-              type="button"
-              className={styles.collapsibleToggle}
-              aria-expanded={expandedStep === 4}
-              disabled={voiceBusy}
-              onClick={() => setExpandedStep((current) => current === 4 ? null : 4)}
-            >
-              <span className={styles.stepBadge}>4</span>
-              <span className={styles.collapsibleTitle}>
-                <strong>{t("ai_generator_group_composition_title")}</strong>
-                <small>{t("ai_generator_group_composition_hint")}</small>
-              </span>
-              <span className={styles.sectionSelection}>
-                {t(`ai_generator_render_${imageStyle}`)} · {t(`ai_generator_shot_${shotType}`)}
-              </span>
-              <i aria-hidden="true">⌄</i>
-            </button>
-            <RememberPreferenceControl
-              checked={savedPreferences.blocks[4].saved}
-              disabled={preferencesLoading || savingBlockIds.has(4)}
-              saving={savingBlockIds.has(4)}
-              label={t("ai_generator_remember_settings")}
-              savingLabel={t("ai_generator_preferences_saving")}
-              blockTitle={t("ai_generator_group_composition_title")}
-              onChange={(checked) => handleRememberPreference(4, checked)}
-            />
-          </div>
-          {expandedStep === 4 ? <div className={styles.collapsibleBody}>
-            <div className={styles.parameterGroup}>
-              <span>{t("ai_generator_render_label")}</span>
-              <div className={styles.parameterChoices} role="radiogroup" aria-label={t("ai_generator_render_label")}>
-                {IMAGE_STYLES.map((option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    role="radio"
-                    aria-checked={imageStyle === option}
-                    className={imageStyle === option ? styles.compactChoiceActive : ""}
-                    onClick={() => setImageStyle(option)}
-                    disabled={operationLocked}
-                  >
-                    {t(`ai_generator_render_${option}`)}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className={styles.parameterGroup}>
-              <span>{t("ai_generator_shot_label")}</span>
-              <div className={styles.parameterChoices} role="radiogroup" aria-label={t("ai_generator_shot_label")}>
-                {SHOT_TYPES.map((option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    role="radio"
-                    aria-checked={shotType === option}
-                    className={shotType === option ? styles.compactChoiceActive : ""}
-                    onClick={() => setShotType(option)}
-                    disabled={operationLocked}
-                  >
-                    {t(`ai_generator_shot_${option}`)}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div> : null}
-        </section>
-
-        <section className={`${styles.criteriaSection} ${styles.collapsibleSection}`}>
-          <div className={styles.collapsibleHeader}>
-            <button
-              type="button"
-              className={styles.collapsibleToggle}
-              aria-expanded={expandedStep === 5}
-              disabled={voiceBusy}
-              onClick={() => setExpandedStep((current) => current === 5 ? null : 5)}
-            >
-              <span className={styles.stepBadge}>5</span>
-              <span className={styles.collapsibleTitle}>
-                <strong>{t("ai_generator_group_identity_title")}</strong>
-                <small>{t("ai_generator_group_identity_hint")}</small>
-              </span>
-              <span className={styles.sectionSelection}>
-                {peopleMode !== "none" ? (
-                  <>
-                    {t(`ai_generator_video_character_${videoCharacterMode}`)} · {inspirationImages.length
-                      ? t("ai_generator_reference_summary", { count: inspirationImages.length })
-                      : t(`ai_generator_people_${peopleMode}`)}
-                    {identityAnimationAvailable
-                      ? ` · ${t(
-                          teamVideoMode === "cinematic"
-                            ? "ai_generator_team_animation_summary_cinematic"
-                            : "ai_generator_team_animation_summary_montage",
-                        )}${
-                          teamVideoMode === "cinematic"
-                            ? ` · ${t(
-                                teamVideoSpeechMode === "characters"
-                                  ? "ai_generator_team_speech_summary_characters"
-                                  : "ai_generator_team_speech_summary_voiceover",
-                              )}`
-                            : ""
-                        }`
-                      : ""}
-                  </>
-                ) : t(`ai_generator_people_${peopleMode}`)}
-              </span>
-              <i aria-hidden="true">⌄</i>
-            </button>
-            <RememberPreferenceControl
-              checked={savedPreferences.blocks[5].saved}
-              disabled={preferencesLoading || savingBlockIds.has(5)}
-              saving={savingBlockIds.has(5)}
-              label={t("ai_generator_remember_settings")}
-              savingLabel={t("ai_generator_preferences_saving")}
-              blockTitle={t("ai_generator_group_identity_title")}
-              onChange={(checked) => handleRememberPreference(5, checked)}
-            />
-          </div>
-          {expandedStep === 5 ? <div className={styles.collapsibleBody}>
-            <div className={styles.parameterGroup}>
-              <span>{t("ai_generator_people_label")}</span>
-              <div className={styles.parameterChoices} role="radiogroup" aria-label={t("ai_generator_people_label")}>
-                {PEOPLE_MODES.map((option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    role="radio"
-                    aria-checked={peopleMode === option}
-                    className={peopleMode === option ? styles.compactChoiceActive : ""}
-                    onClick={() => {
-                      setPeopleMode(option);
-                      if (option === "none") {
-                        setVideoCharacterMode("auto");
-                        setIdentityConsent(false);
-                        setTeamVideoVeoConsent(false);
-                        setTeamVideoConsentOpen(false);
-                        setInspirationImages([]);
-                        identityReferenceSetIdRef.current = createIdentityReferenceSetId();
-                      } else if (
-                        videoCharacterMode === "reference_team" &&
-                        option !== "team"
-                      ) {
-                        setVideoCharacterMode("auto");
-                        setIdentityConsent(false);
-                        setTeamVideoVeoConsent(false);
-                        setTeamVideoConsentOpen(false);
-                      }
-                    }}
-                    disabled={operationLocked}
-                  >
-                    {t(`ai_generator_people_${option}`)}
-                  </button>
-                ))}
-              </div>
-            </div>
-            {peopleMode !== "none" ? (
-              <>
                 <div className={styles.parameterGroup}>
-                  <span>{t("ai_generator_video_character_label")}</span>
-                  <div className={`${styles.parameterChoices} ${styles.identityModeChoices}`} role="radiogroup" aria-label={t("ai_generator_video_character_label")}>
-                    {VIDEO_CHARACTER_MODES.map((option) => (
+                  <span>{t("ai_generator_people_label")}</span>
+                  <div className={styles.parameterChoices} role="radiogroup" aria-label={t("ai_generator_people_label")}>
+                    {PEOPLE_MODES.map((option) => (
                       <button
                         key={option}
                         type="button"
                         role="radio"
-                        aria-checked={videoCharacterMode === option}
-                        className={videoCharacterMode === option ? styles.compactChoiceActive : ""}
+                        aria-checked={peopleMode === option}
+                        className={peopleMode === option ? styles.compactChoiceActive : ""}
                         onClick={() => {
-                          setVideoCharacterMode(option);
-                          if (option === "reference_team") setPeopleMode("team");
-                          setIdentityConsent(false);
-                          setTeamVideoVeoConsent(false);
-                          setTeamVideoConsentOpen(false);
+                          setPeopleMode(option);
+                          if (option === "none") {
+                            setVideoCharacterMode("auto");
+                            setIdentityConsent(false);
+                            setTeamVideoVeoConsent(false);
+                            setTeamVideoConsentOpen(false);
+                          } else if (
+                            videoCharacterMode === "reference_team" &&
+                            option !== "team"
+                          ) {
+                            setVideoCharacterMode("auto");
+                            setIdentityConsent(false);
+                            setTeamVideoVeoConsent(false);
+                            setTeamVideoConsentOpen(false);
+                          }
                           if (actionError || error) clearTransientState();
                         }}
                         disabled={operationLocked}
                       >
-                        {t(`ai_generator_video_character_${option}`)}
+                        {t(`ai_generator_people_${option}`)}
                       </button>
                     ))}
                   </div>
                 </div>
-                <div className={styles.inspirationSection}>
+
+                {peopleMode !== "none" ? (
+                  <div className={styles.parameterGroup}>
+                    <span>{t("ai_generator_video_character_label")}</span>
+                    <div
+                      className={`${styles.parameterChoices} ${styles.identityModeChoices}`}
+                      role="radiogroup"
+                      aria-label={t("ai_generator_video_character_label")}
+                    >
+                      {VIDEO_CHARACTER_MODES.map((option) => (
+                        <button
+                          key={option}
+                          type="button"
+                          role="radio"
+                          aria-checked={videoCharacterMode === option}
+                          className={videoCharacterMode === option ? styles.compactChoiceActive : ""}
+                          onClick={() => {
+                            setVideoCharacterMode(option);
+                            if (option === "reference_team") setPeopleMode("team");
+                            setIdentityConsent(false);
+                            setTeamVideoVeoConsent(false);
+                            setTeamVideoConsentOpen(false);
+                            if (actionError || error) clearTransientState();
+                          }}
+                          disabled={operationLocked}
+                        >
+                          {t(`ai_generator_video_character_${option}`)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                <div
+                  className={styles.inspirationSection}
+                  data-reference-purpose={strictIdentityReferenceMode ? "identity" : "visual"}
+                >
                   <strong className={styles.combinedSectionTitle}>
                     {t(
-                      videoCharacterMode === "professional"
-                        ? "ai_generator_professional_photos_title"
-                        : videoCharacterMode === "brand_avatar"
-                          ? "ai_generator_avatar_reference_title"
-                          : videoCharacterMode === "reference_team"
-                            ? "ai_generator_reference_team_title"
-                          : kind === "video"
-                            ? "ai_generator_media_to_animate_title"
-                            : "ai_generator_identity_reference_title",
+                      strictIdentityReferenceMode
+                        ? videoCharacterMode === "professional"
+                          ? "ai_generator_professional_photos_title"
+                          : videoCharacterMode === "brand_avatar"
+                            ? "ai_generator_avatar_reference_title"
+                            : "ai_generator_reference_team_title"
+                        : kind === "video"
+                          ? "ai_generator_media_to_animate_title"
+                          : "ai_generator_identity_reference_title",
                     )}
                   </strong>
                   <p>
                     {t(
-                      videoCharacterMode === "professional"
-                        ? "ai_generator_reference_professional_hint"
-                        : videoCharacterMode === "brand_avatar"
-                          ? "ai_generator_reference_avatar_hint"
-                          : videoCharacterMode === "reference_team"
-                            ? "ai_generator_reference_team_hint"
-                          : "ai_generator_reference_generic_hint",
+                      strictIdentityReferenceMode
+                        ? videoCharacterMode === "professional"
+                          ? "ai_generator_reference_professional_hint"
+                          : videoCharacterMode === "brand_avatar"
+                            ? "ai_generator_reference_avatar_hint"
+                            : "ai_generator_reference_team_hint"
+                        : "ai_generator_reference_generic_hint",
                     )}
                   </p>
+
                   {inspirationImages.length ? (
                     <div className={styles.inspirationPreviews}>
                       {inspirationImages.map((image, index) => (
@@ -1646,6 +1384,7 @@ export default function MediaGenerator({
                       ))}
                     </div>
                   ) : null}
+
                   {inspirationImages.length < MAX_INSPIRATION_IMAGES ? (
                     <div className={styles.inspirationPickerRow}>
                       <label className={styles.inspirationPicker}>
@@ -1704,14 +1443,21 @@ export default function MediaGenerator({
                       ) : null}
                     </div>
                   ) : null}
-                  {identityAnimationAvailable ? (
+
+                  {referenceAnimationAvailable ? (
                     <div className={styles.teamAnimationGroup}>
                       <label
                         className={`${styles.switchRow} ${styles.teamAnimationToggle}`}
                         data-team-video-mode={teamVideoMode}
                       >
                         <span>
-                          <strong>{t("ai_generator_team_animation_label")}</strong>
+                          <strong>
+                            {t(
+                              strictIdentityReferenceMode
+                                ? "ai_generator_team_animation_label"
+                                : "ai_generator_media_to_animate_title",
+                            )}
+                          </strong>
                           <small>
                             {t(
                               teamVideoMode === "cinematic"
@@ -1733,7 +1479,8 @@ export default function MediaGenerator({
                         />
                         <i aria-hidden="true" />
                       </label>
-                      {teamVideoMode === "cinematic" ? (
+
+                      {teamVideoMode === "cinematic" && peopleMode !== "none" ? (
                         <div className={styles.teamSpeechMode}>
                           <span className={styles.teamSpeechModeTitle}>
                             {t("ai_generator_team_speech_title")}
@@ -1773,6 +1520,7 @@ export default function MediaGenerator({
                       ) : null}
                     </div>
                   ) : null}
+
                   {characterReferenceMissing ? (
                     <p className={styles.identityRequirement} role="alert">
                       {t(
@@ -1784,6 +1532,7 @@ export default function MediaGenerator({
                       )}
                     </p>
                   ) : null}
+
                   {identityConsentRequired ? (
                     <label className={styles.identityConsent}>
                       <input
@@ -1812,21 +1561,232 @@ export default function MediaGenerator({
                                 ? "ai_generator_identity_consent_hint_team_video_cinematic"
                                 : "ai_generator_identity_consent_hint_team_video"
                               : kind === "image"
-                              ? "ai_generator_identity_consent_hint_image"
-                              : "ai_generator_identity_consent_hint_video",
+                                ? "ai_generator_identity_consent_hint_image"
+                                : "ai_generator_identity_consent_hint_video",
                           )}
                         </small>
                       </span>
                     </label>
                   ) : null}
+
                   {identityConsentMissing ? (
                     <p className={styles.identityRequirement} role="alert">
                       {t("ai_generator_video_character_consent_required")}
                     </p>
                   ) : null}
                 </div>
-              </>
-            ) : null}
+              </div>
+            </div>
+          ) : null}
+        </section>
+
+        <section className={`${styles.criteriaSection} ${styles.collapsibleSection} ${styles.contentCriteriaSection}`}>
+          <div className={styles.collapsibleHeader}>
+            <button
+              type="button"
+              className={styles.collapsibleToggle}
+              aria-expanded={expandedStep === 2}
+              disabled={voiceBusy}
+              onClick={() => setExpandedStep((current) => current === 2 ? null : 2)}
+            >
+              <span className={styles.stepBadge}>2</span>
+              <span className={styles.collapsibleTitle}>
+                <strong>{t("ai_generator_group_content_title")}</strong>
+                <small>{t("ai_generator_group_content_hint")}</small>
+              </span>
+              <span className={styles.sectionSelection}>
+                {t(`ai_generator_typology_${typology}`)} · {FORMATS.find((item) => item.id === format)?.ratio}
+              </span>
+              <i aria-hidden="true">⌄</i>
+            </button>
+            <RememberPreferenceControl
+              checked={savedPreferences.blocks[2].saved}
+              disabled={preferencesLoading || savingBlockIds.has(2)}
+              saving={savingBlockIds.has(2)}
+              label={t("ai_generator_remember_settings")}
+              savingLabel={t("ai_generator_preferences_saving")}
+              blockTitle={t("ai_generator_group_content_title")}
+              onChange={(checked) => handleRememberPreference(2, checked)}
+            />
+          </div>
+          {expandedStep === 2 ? <div className={`${styles.collapsibleBody} ${styles.twoColumnBody}`}>
+            <div className={styles.combinedSubsection}>
+              <strong className={styles.combinedSectionTitle}>{t("ai_generator_typology_title")}</strong>
+              <div className={styles.typologyChoices} role="radiogroup" aria-label={t("ai_generator_typology_title")}>
+              {TYPOLOGIES.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={typology === option.id}
+                  className={typology === option.id ? styles.compactChoiceActive : ""}
+                  onClick={() => setTypology(option.id)}
+                  disabled={operationLocked}
+                >
+                  <span aria-hidden="true">{option.icon}</span>
+                  {t(`ai_generator_typology_${option.id}`)}
+                </button>
+              ))}
+              </div>
+            </div>
+            <div className={styles.combinedSubsection}>
+              <strong className={styles.combinedSectionTitle}>{t("ai_generator_format_title")}</strong>
+              <div className={styles.formatChoices} role="radiogroup" aria-label={t("ai_generator_format_title")}>
+              {FORMATS.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={format === option.id}
+                  className={format === option.id ? styles.compactChoiceActive : ""}
+                  onClick={() => setFormat(option.id)}
+                  disabled={operationLocked}
+                >
+                  <span aria-hidden="true">{option.icon}</span>
+                  <strong>{t(`ai_generator_format_${option.id}`)}</strong>
+                  <small>{option.ratio}</small>
+                </button>
+              ))}
+              </div>
+            </div>
+          </div> : null}
+        </section>
+
+        <section className={`${styles.criteriaSection} ${styles.collapsibleSection}`}>
+          <div className={styles.collapsibleHeader}>
+            <button
+              type="button"
+              className={styles.collapsibleToggle}
+              aria-expanded={expandedStep === 3}
+              disabled={voiceBusy}
+              onClick={() => setExpandedStep((current) => current === 3 ? null : 3)}
+            >
+              <span className={styles.stepBadge}>3</span>
+              <span className={styles.collapsibleTitle}>
+                <strong>{t("ai_generator_group_art_title")}</strong>
+                <small>{t("ai_generator_group_art_hint")}</small>
+              </span>
+              <span className={styles.sectionSelection}>
+                {t(`ai_generator_style_${visualStyle}`)} · {t(`ai_generator_render_${imageStyle}`)} · {t(`ai_generator_shot_${shotType}`)}
+              </span>
+              <i aria-hidden="true">⌄</i>
+            </button>
+            <RememberPreferenceControl
+              checked={savedPreferences.blocks[3].saved && savedPreferences.blocks[4].saved}
+              disabled={preferencesLoading || savingBlockIds.has(3) || savingBlockIds.has(4)}
+              saving={savingBlockIds.has(3) || savingBlockIds.has(4)}
+              label={t("ai_generator_remember_settings")}
+              savingLabel={t("ai_generator_preferences_saving")}
+              blockTitle={t("ai_generator_group_art_title")}
+              onChange={(checked) => {
+                handleRememberPreference(3, checked);
+                handleRememberPreference(4, checked);
+              }}
+            />
+          </div>
+          {expandedStep === 3 ? <div className={`${styles.collapsibleBody} ${styles.twoColumnBody}`}>
+            <div className={styles.combinedSubsection}>
+              <strong className={styles.combinedSectionTitle}>{t("ai_generator_style_title")}</strong>
+              <div className={styles.styleChoices} role="radiogroup" aria-label={t("ai_generator_style_title")}>
+                {VISUAL_STYLES.map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    role="radio"
+                    aria-checked={visualStyle === option}
+                    className={visualStyle === option ? styles.compactChoiceActive : ""}
+                    onClick={() => setVisualStyle(option)}
+                    disabled={operationLocked}
+                  >
+                    {t(`ai_generator_style_${option}`)}
+                  </button>
+                ))}
+              </div>
+              <div className={styles.parameterGroup}>
+                <span>{t("ai_generator_creativity_label")}</span>
+                <div className={`${styles.parameterChoices} ${styles.twoChoices}`} role="radiogroup" aria-label={t("ai_generator_creativity_label")}>
+                  {CREATIVITY_LEVELS.map((option) => (
+                    <button
+                      key={option}
+                      type="button"
+                      role="radio"
+                      aria-checked={creativity === option}
+                      className={creativity === option ? styles.compactChoiceActive : ""}
+                      onClick={() => setCreativity(option)}
+                      disabled={operationLocked}
+                    >
+                      {t(`ai_generator_creativity_${option}`)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <label className={styles.switchRow}>
+                <span>
+                  <strong>{t("ai_generator_brand_colors")}</strong>
+                  <small>{t("ai_generator_brand_colors_hint")}</small>
+                </span>
+                <input type="checkbox" checked={useBrandColors} onChange={(event) => setUseBrandColors(event.target.checked)} />
+                <i aria-hidden="true" />
+              </label>
+              <div className={styles.parameterGroup}>
+                <span>{t("ai_generator_logo_label")}</span>
+                <div className={`${styles.parameterChoices} ${styles.threeChoices}`} role="radiogroup" aria-label={t("ai_generator_logo_label")}>
+                  {LOGO_MODES.map((option) => (
+                    <button
+                      key={option}
+                      type="button"
+                      role="radio"
+                      aria-checked={logoMode === option}
+                      className={logoMode === option ? styles.compactChoiceActive : ""}
+                      onClick={() => setLogoMode(option)}
+                      disabled={operationLocked}
+                    >
+                      {t(`ai_generator_logo_${option}`)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className={styles.combinedSubsection}>
+              <strong className={styles.combinedSectionTitle}>{t("ai_generator_group_composition_title")}</strong>
+              <div className={styles.parameterGroup}>
+                <span>{t("ai_generator_render_label")}</span>
+                <div className={styles.parameterChoices} role="radiogroup" aria-label={t("ai_generator_render_label")}>
+                  {IMAGE_STYLES.map((option) => (
+                    <button
+                      key={option}
+                      type="button"
+                      role="radio"
+                      aria-checked={imageStyle === option}
+                      className={imageStyle === option ? styles.compactChoiceActive : ""}
+                      onClick={() => setImageStyle(option)}
+                      disabled={operationLocked}
+                    >
+                      {t(`ai_generator_render_${option}`)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className={styles.parameterGroup}>
+                <span>{t("ai_generator_shot_label")}</span>
+                <div className={styles.parameterChoices} role="radiogroup" aria-label={t("ai_generator_shot_label")}>
+                  {SHOT_TYPES.map((option) => (
+                    <button
+                      key={option}
+                      type="button"
+                      role="radio"
+                      aria-checked={shotType === option}
+                      className={shotType === option ? styles.compactChoiceActive : ""}
+                      onClick={() => setShotType(option)}
+                      disabled={operationLocked}
+                    >
+                      {t(`ai_generator_shot_${option}`)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div> : null}
         </section>
 
@@ -1835,11 +1795,11 @@ export default function MediaGenerator({
             <button
               type="button"
               className={styles.collapsibleToggle}
-              aria-expanded={expandedStep === 6}
+              aria-expanded={expandedStep === 4}
               disabled={voiceBusy}
-              onClick={() => setExpandedStep((current) => current === 6 ? null : 6)}
+              onClick={() => setExpandedStep((current) => current === 4 ? null : 4)}
             >
-              <span className={styles.stepBadge}>6</span>
+              <span className={styles.stepBadge}>4</span>
               <span className={styles.collapsibleTitle}>
                 <strong>{t("ai_generator_group_finish_title")}</strong>
                 <small>{t("ai_generator_group_finish_hint")}</small>
@@ -1875,7 +1835,7 @@ export default function MediaGenerator({
               onChange={(checked) => handleRememberPreference(6, checked)}
             />
           </div>
-          {expandedStep === 6 ? <div className={styles.collapsibleBody}>
+          {expandedStep === 4 ? <div className={styles.collapsibleBody}>
             {kind === "video" ? (
               <div className={styles.durationChoices} role="radiogroup" aria-label={t("ai_generator_duration_title")}>
                 {([8, 16, 24] as const).map((duration) => {

@@ -12,24 +12,24 @@ function sourceSection(source: string, startToken: string, endToken: string) {
   return source.slice(start, end);
 }
 
-test("les six blocs proposent une mémorisation accessible et responsive", () => {
+test("les quatre rubriques visuelles mémorisent les six blocs compatibles", () => {
   const generator = read("app/dashboard/_components/MediaGenerator.tsx");
   const styles = read("app/dashboard/_components/MediaGenerator.module.css");
 
   assert.equal(
     (generator.match(/<RememberPreferenceControl/g) || []).length,
-    6,
+    4,
   );
   for (const blockId of [1, 2, 3, 4, 5, 6]) {
-    assert.match(
-      generator,
-      new RegExp(`checked=\\{savedPreferences\\.blocks\\[${blockId}\\]\\.saved\\}`),
-    );
     assert.match(
       generator,
       new RegExp(`handleRememberPreference\\(${blockId}, checked\\)`),
     );
   }
+  assert.match(generator, /checked=\{savedPreferences\.blocks\[1\]\.saved && savedPreferences\.blocks\[5\]\.saved\}/);
+  assert.match(generator, /checked=\{savedPreferences\.blocks\[2\]\.saved\}/);
+  assert.match(generator, /checked=\{savedPreferences\.blocks\[3\]\.saved && savedPreferences\.blocks\[4\]\.saved\}/);
+  assert.match(generator, /checked=\{savedPreferences\.blocks\[6\]\.saved\}/);
   assert.match(generator, /role="switch"/);
   assert.match(generator, /aria-checked=\{checked\}/);
   assert.match(generator, /ai_generator_remember_settings/);
