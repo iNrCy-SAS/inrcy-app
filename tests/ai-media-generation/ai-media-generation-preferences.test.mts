@@ -61,6 +61,8 @@ test("le sujet personnalisé reste ponctuel lorsqu'on mémorise le bloc 1", () =
     defaults: {
       kind: "video",
       subjectSource: "custom",
+      durationSeconds: 24,
+      connectScenes: true,
       customIdea: "une opération commerciale privée",
       aiInstruction: "une autre consigne privée",
     },
@@ -89,6 +91,7 @@ test("chaque bloc mémorisé est normalisé et peut être désactivé isolément
     saved: true,
     defaults: {
       durationSeconds: 24,
+      connectScenes: true,
       withText: false,
       withMusic: false,
       withNarration: true,
@@ -106,6 +109,7 @@ test("chaque bloc mémorisé est normalisé et peut être désactivé isolément
     saved: true,
     defaults: {
       durationSeconds: 24,
+      connectScenes: true,
       withText: false,
       withMusic: false,
       withNarration: true,
@@ -117,6 +121,117 @@ test("chaque bloc mémorisé est normalisé et peut être désactivé isolément
   const storedBlocks = (stored.blocks ?? {}) as Record<string, unknown>;
   assert.equal(Object.hasOwn(storedBlocks, "3"), false);
   assert.equal(Object.hasOwn(storedBlocks, "6"), true);
+});
+
+function finishingDefaults(overrides: Record<string, unknown> = {}) {
+  return {
+    durationSeconds: 24,
+    withText: false,
+    withMusic: false,
+    withNarration: true,
+    narrationVoice: "male",
+    ...overrides,
+  };
+}
+
+test("le raccord est mémorisé explicitement dans le bloc 6 avec les réglages de durée existants", () => {
+  for (const connectScenes of [true, false]) {
+    const preferences = patchAiMediaGeneratorPreferences({}, {
+      blockId: 6,
+      saved: true,
+      defaults: finishingDefaults({ connectScenes }),
+    });
+    const stored = serializeAiMediaGeneratorPreferences(preferences);
+    const restored = normalizeAiMediaGeneratorPreferences(JSON.parse(JSON.stringify(stored)));
+    assert.deepEqual(restored.blocks[6], {
+      saved: true,
+      defaults: finishingDefaults({ connectScenes }),
+    });
+    assert.deepEqual(restored.blocks[1], normalizeAiMediaGeneratorPreferences({}).blocks[1]);
+    assert.deepEqual(Object.keys(stored.blocks as Record<string, unknown>), ["6"]);
+  }
+});
+
+test("les anciens réglages et PATCH sans raccord restent valides et désactivent cette option", () => {
+  const legacyDefaults = finishingDefaults();
+  const legacy = normalizeAiMediaGeneratorPreferences({
+    version: 1,
+    blocks: { 6: { saved: true, defaults: legacyDefaults } },
+  });
+  const oldClientPatch = patchAiMediaGeneratorPreferences({}, {
+    blockId: 6,
+    saved: true,
+    defaults: legacyDefaults,
+  });
+  const expected = {
+    saved: true,
+    defaults: finishingDefaults({ connectScenes: false }),
+  };
+  assert.deepEqual(legacy.blocks[6], expected);
+  assert.deepEqual(oldClientPatch.blocks[6], expected);
+  assert.equal(normalizeAiMediaGeneratorPreferences({}).blocks[6].defaults.connectScenes, false);
+  assert.deepEqual(
+    normalizeAiMediaGeneratorPreferences(serializeAiMediaGeneratorPreferences(legacy)).blocks[6],
+    expected,
+  );
+});
+
+test("un PATCH de raccord refuse les booléens implicites, y compris null", () => {
+  for (const connectScenes of [null, "true", "false", "", 0, 1, [], {}]) {
+    assert.throws(
+      () => patchAiMediaGeneratorPreferences({}, {
+        blockId: 6,
+        saved: true,
+        defaults: finishingDefaults({ connectScenes }),
+      }),
+      AiMediaGeneratorPreferencesValidationError,
+    );
+  }
+});
+
+test("mémoriser le raccord n'élargit pas la liste des informations persistables du bloc 6", () => {
+  const preferences = patchAiMediaGeneratorPreferences({}, {
+    blockId: 6,
+    saved: true,
+    defaults: finishingDefaults({
+      connectScenes: true,
+      inspirationImages: [{ mimeType: "image/jpeg", data: "private-reference-bytes" }],
+      identityConsent: true,
+      teamVideoVeoConsent: true,
+      identityReferenceSetId: "private-reference-set",
+      aiInstruction: "private-instruction",
+      customIdea: "private-idea",
+      textKeywords: ["private-keyword"],
+      spokenLine: "private-script",
+      connectScenesPrompt: "private-continuity-instruction",
+    }),
+  });
+  const stored = serializeAiMediaGeneratorPreferences(preferences);
+  assert.deepEqual(stored.blocks, {
+    6: { saved: true, defaults: finishingDefaults({ connectScenes: true }) },
+  });
+  assert.equal(JSON.stringify(stored).includes("private-"), false);
+});
+
+test("désactiver la mémorisation du bloc 6 supprime le raccord enregistré sans modifier les autres blocs", () => {
+  const withCreation = patchAiMediaGeneratorPreferences({}, {
+    blockId: 1,
+    saved: true,
+    defaults: { kind: "video", subjectSource: "publication" },
+  });
+  const withFinishing = patchAiMediaGeneratorPreferences(withCreation, {
+    blockId: 6,
+    saved: true,
+    defaults: finishingDefaults({ connectScenes: true }),
+  });
+  const disabled = patchAiMediaGeneratorPreferences(withFinishing, { blockId: 6, saved: false });
+  assert.deepEqual(disabled.blocks[6], normalizeAiMediaGeneratorPreferences({}).blocks[6]);
+  assert.equal(disabled.blocks[6].defaults.connectScenes, false);
+  assert.deepEqual(disabled.blocks[1], withCreation.blocks[1]);
+  const storedBlocks = serializeAiMediaGeneratorPreferences(disabled).blocks as Record<string, unknown>;
+  assert.equal(Object.hasOwn(storedBlocks, "6"), false);
+  assert.equal(Object.hasOwn(storedBlocks, "1"), true);
+  assert.equal(withFinishing.blocks[6].defaults.connectScenes, true, "le snapshot précédent n'est pas muté");
 });
 
 test("un PATCH invalide est refusé", () => {

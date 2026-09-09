@@ -8,6 +8,10 @@ import type {
   AiMediaLogoMode,
   AiMediaVisualStyle,
 } from "@/lib/aiMediaGenerationContracts";
+import {
+  resolveAiMediaVideoLayout,
+  type AiMediaVideoCaptionLayout,
+} from "@/lib/aiMediaVideoLayout";
 
 type RenderBaseArgs = {
   width: number;
@@ -558,6 +562,121 @@ async function buildBrandOverlays(args: RenderBaseArgs & {
   return overlays;
 }
 
+async function renderVideoCaptionBand(
+  args: RenderBaseArgs & { scene: AiMediaCreativeScene },
+) {
+  const { caption } = resolveAiMediaVideoLayout({
+    ...args,
+    captionLayout: "caption-band",
+  });
+  const unit = Math.min(args.width, args.height);
+  const padding = Math.max(8, Math.round(unit * 0.02));
+  const titleSize = Math.max(11, Math.round(unit * 0.035));
+  const bodySize = Math.max(9, Math.round(unit * 0.021));
+  const eyebrowSize = Math.max(8, Math.round(unit * 0.017));
+  const gap = Math.max(3, Math.round(unit * 0.008));
+  const preparedLogo = args.logoMode === "none"
+    ? null
+    : await prepareLogo(args.logo, args.width, args.height, args.logoMode);
+  const fittedLogo = preparedLogo
+    ? await sharp(preparedLogo.buffer)
+        .resize({
+          width: preparedLogo.width,
+          height: caption.height - padding * 2,
+          fit: "inside",
+          withoutEnlargement: true,
+        })
+        .png().toBuffer({ resolveWithObject: true })
+    : null;
+  const logo = fittedLogo
+    ? {
+        buffer: fittedLogo.data,
+        width: fittedLogo.info.width,
+        height: fittedLogo.info.height,
+      }
+    : null;
+  const textWidth = args.width - padding * 2 - (logo ? logo.width + padding : 0);
+  const layers: Array<{ input: Buffer; left: number; top: number }> = [];
+
+  // Render exact copy with the bundled font. A long title wraps and shrinks
+  // inside its own box instead of spilling onto the video or being cut off.
+  const textBoxes = [
+    {
+      text: args.scene.eyebrow.toLocaleUpperCase(),
+      size: eyebrowSize,
+      weight: 700,
+      color: "#b8c8e1",
+      height: Math.ceil(eyebrowSize * 1.2),
+    },
+    {
+      text: args.scene.title,
+      size: titleSize,
+      weight: 800,
+      color: "#ffffff",
+      height: Math.ceil(titleSize * 2.25),
+    },
+    {
+      text: wrapAiMediaOverlayBodyText(
+        args.scene.body,
+        Math.floor(textWidth / (bodySize * 0.54)),
+        1,
+      ).join(" "),
+      size: bodySize,
+      weight: 500,
+      color: "#dbe3f0",
+      height: Math.ceil(bodySize * 1.25),
+    },
+  ].filter((box) => safeOverlayText(box.text));
+  const rendered = await Promise.all(textBoxes.map(async (box) => {
+    const raster = await sharp({
+      text: {
+        text: `<span foreground="${box.color}" weight="${box.weight}">${escapeXml(safeOverlayText(box.text))}</span>`,
+        font: `Geist ${box.size}`,
+        fontfile: OVERLAY_FONT_FILE,
+        width: textWidth,
+        wrap: "word-char",
+        rgba: true,
+        dpi: 72,
+      },
+    }).png().toBuffer();
+    return await sharp(raster)
+      .resize({
+        width: textWidth,
+        height: box.height,
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .png().toBuffer({ resolveWithObject: true });
+  }));
+  const textHeight = rendered.reduce((total, layer) => total + layer.info.height, 0)
+    + Math.max(0, rendered.length - 1) * gap;
+  let top = caption.top + Math.max(padding, Math.floor((caption.height - textHeight) / 2));
+  for (const layer of rendered) {
+    layers.push({ input: layer.data, left: padding, top });
+    top += layer.info.height + gap;
+  }
+  if (logo) layers.push({
+    input: logo.buffer,
+    left: args.width - padding - logo.width,
+    top: caption.top + Math.floor((caption.height - logo.height) / 2),
+  });
+  const backdrop = Buffer.from(`
+    <svg width="${args.width}" height="${args.height}" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="brand">
+          <stop stop-color="${args.colors[0]}"/>
+          <stop offset="0.5" stop-color="${args.colors[1]}"/>
+          <stop offset="1" stop-color="${args.colors[2]}"/>
+        </linearGradient>
+      </defs>
+      <rect y="${caption.top}" width="${args.width}" height="${caption.height}" fill="#020617"/>
+      <rect y="${caption.top}" width="${args.width}" height="${Math.max(2, Math.round(unit * 0.003))}" fill="url(#brand)"/>
+    </svg>
+  `);
+  return await sharp(backdrop).composite(layers)
+    .png({ compressionLevel: 9, adaptiveFiltering: true }).toBuffer();
+}
+
 /**
  * Calque PNG exact appliqué après la génération vidéo : l'IA ne dessine
  * jamais le logo ni les textes de marque. Cela évite les pseudo-logos et
@@ -566,7 +685,12 @@ async function buildBrandOverlays(args: RenderBaseArgs & {
 export async function renderAiMediaVideoOverlay(args: RenderBaseArgs & {
   scene: AiMediaCreativeScene;
   withText: boolean;
+  /** Video-only safe band. Use the same option when composing the clips. */
+  captionLayout?: AiMediaVideoCaptionLayout;
 }) {
+  if (args.withText && args.captionLayout === "caption-band") {
+    return await renderVideoCaptionBand(args);
+  }
   const transparent = await sharp({
     create: {
       width: args.width,

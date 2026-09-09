@@ -139,6 +139,8 @@ export type AiMediaGenerationRequest = {
   /** Identifiant aléatoire du jeu de références, jamais dérivé de leur contenu. */
   identityReferenceSetId: string;
   durationSeconds: AiMediaVideoDuration | null;
+  /** Opt-in: chain generated scenes from the preceding frame; otherwise render in parallel. */
+  connectScenes: boolean;
   inspirationImages: AiMediaInspirationImage[];
   source: AiMediaSurface;
 };
@@ -376,6 +378,9 @@ export function normalizeAiMediaGenerationRequest(
   }
 
   const requestedDuration = Number(body.durationSeconds || 16);
+  if (body.connectScenes !== undefined && typeof body.connectScenes !== "boolean") {
+    throw new AiMediaRequestValidationError("L’option de raccord des scènes est invalide.");
+  }
   if (kind === "video" && ![8, 16, 24].includes(requestedDuration)) {
     throw new AiMediaRequestValidationError(
       "Durée vidéo invalide : choisissez 8, 16 ou 24 secondes.",
@@ -529,9 +534,37 @@ export function normalizeAiMediaGenerationRequest(
       : "",
     durationSeconds:
       kind === "video" ? (requestedDuration as AiMediaVideoDuration) : null,
+    connectScenes: shouldConnectAiMediaVideoScenes({
+      kind,
+      durationSeconds: requestedDuration,
+      connectScenes: body.connectScenes === true,
+      identityMode,
+      peopleMode: normalizedPeopleMode,
+      teamVideoMode,
+    }),
     inspirationImages,
     source,
   };
+}
+
+/** Shared client/server applicability: local identity animation has no generated scene joins. */
+export function shouldConnectAiMediaVideoScenes(request: {
+  kind: string;
+  durationSeconds?: number | null;
+  connectScenes?: boolean;
+  identityMode?: string;
+  videoCharacterMode?: string;
+  peopleMode?: string;
+  teamVideoMode?: string;
+}): boolean {
+  if (request.kind !== "video" || (request.durationSeconds ?? 16) <= 8 || request.connectScenes !== true) {
+    return false;
+  }
+  const requestedIdentity = request.identityMode || request.videoCharacterMode || "auto";
+  const identity = requestedIdentity === "reference_team" || request.peopleMode !== "none"
+    ? requestedIdentity
+    : "auto";
+  return identity === "auto" || request.teamVideoMode === "cinematic";
 }
 
 export function buildAiMediaTitle(idea: string, kind: AiMediaKind) {

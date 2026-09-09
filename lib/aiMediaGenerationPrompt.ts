@@ -400,6 +400,7 @@ export function getAiMediaPromptOutputSpec(
     width: format.width,
     height: format.height,
     durationSeconds: value.kind === "video" ? value.durationSeconds : null,
+    connectScenes: value.kind === "video" && value.connectScenes === true,
     quality: "hd",
     typology: value.typology,
     visualStyle: value.visualStyle,

@@ -12,6 +12,7 @@ import {
   getAiMediaDialogueFallbackPair,
   isQualityAiMediaDialogueLine,
   selectAiMediaDialogueLine,
+  resolveAiMediaDialogueSequence,
 } from "../../lib/aiMediaDialogue.ts";
 import { getAiMediaVideoSegmentDurations } from "../../lib/aiMediaVideoTimeline.ts";
 import {
@@ -39,6 +40,7 @@ function loadVeoPromptRuntime() {
   const noOp = () => undefined;
   const stubs = new Map<string, unknown>([
     ["server-only", {}],
+    ["./aiMediaVideoContinuity.ts", {}],
     [
       "@google/genai",
       {
@@ -75,7 +77,7 @@ function loadVeoPromptRuntime() {
     ["@/lib/aiVideoProviderTypes", { assertAiVideoReferenceTeamGoogleEgress: noOp }],
     [
       "@/lib/aiMediaDialogue",
-      { aiMediaDialogueSignature, selectAiMediaDialogueLine },
+      { aiMediaDialogueSignature, selectAiMediaDialogueLine, resolveAiMediaDialogueSequence },
     ],
     [
       "@/lib/aiMediaSensitiveText",
@@ -110,7 +112,7 @@ function loadVeoPromptRuntime() {
         args: Record<string, unknown>,
         index: number,
         durationSeconds: 8,
-        options?: { continuation?: boolean },
+        options?: { continuation?: boolean; continuationFrame?: boolean; firstFrameTag?: boolean },
       ) => string,
     promptForInspirationMode:
       commonJsModule.exports.promptForInspirationMode as (
@@ -228,17 +230,18 @@ test("le routeur respecte Veo ou Omni pour les vidéos de 8, 16 et 24 secondes",
   assert.deepEqual(getAiMediaVideoSegmentDurations(24), [8, 8, 8]);
 });
 
-test("Omni long reste parallèle par défaut, avec les références sur chaque acte", () => {
+test("Omni chaîne les frames sur demande et borne le temps de génération du film", () => {
   const omni = read("lib/aiVideoProviderGoogleOmni.ts");
 
-  assert.match(omni, /const DEFAULT_CONCURRENCY = 3/);
+  assert.match(omni, /const generationDeadline = Date\.now\(\) \+ Math\.min\(600_000, timeoutMs \* durations\.length\)/);
+  assert.match(omni, /timeoutMs: Math\.min\(timeoutMs, remainingMs\)/);
   assert.match(
     omni,
-    /const continuationMode =\s*durations\.length > 1 && statefulContinuationEnabled\(\)/,
+    /const continuationMode =\s*connectScenes && statefulContinuationEnabled\(\)/,
   );
   assert.match(
     omni,
-    /const concurrency = continuationMode\s*\? 1\s*: Math\.min\(configuredConcurrency, durations\.length\)/,
+    /const concurrency = connectScenes \? 1 : Math\.min\(configuredConcurrency, durations\.length\)/,
   );
   assert.match(
     omni,
@@ -246,9 +249,11 @@ test("Omni long reste parallèle par défaut, avec les références sur chaque a
   );
   assert.match(
     omni,
-    /inspirationImages:\s*!isContinuation &&\s*\(preserveIdentityReferences \|\| index === 0\)\s*\? args\.request\.inspirationImages\s*: \[\]/,
-    "sans continuation, preserveIdentityReferences garde les images sur tous les actes",
+    /inspirationImages:\s*index === 0 \|\| \(!connectScenes && preserveIdentityReferences\)\s*\? args\.request\.inspirationImages\s*: \[\]/,
+    "les actes indépendants gardent leurs références; les actes connectés héritent de la frame réelle",
   );
+  assert.match(omni, /extractAiMediaVideoContinuityFrame\(\{ \.\.\.previousClip/);
+  assert.match(omni, /args\.preserveIdentityReferences \|\| args\.continuityFrame/);
   assert.match(
     omni,
     /if \(continuationMode\) previousInteractionId = clip\.requestId/,
@@ -315,7 +320,7 @@ test("l’opt-in Omni enchaîne res1 vers res2 puis res3 et n’envoie les image
     "previousInteractionId = clip.requestId",
     previousIdInput,
   );
-  const loopEnd = omni.indexOf("const concurrency = continuationMode", stateHandoff);
+  const loopEnd = omni.indexOf("const workers = await Promise.allSettled", stateHandoff);
 
   assert.ok(state >= 0, "l’état de continuation existe");
   assert.ok(generation > state, "chaque tour génère depuis l’état courant");
@@ -329,11 +334,11 @@ test("l’opt-in Omni enchaîne res1 vers res2 puis res3 et n’envoie les image
   );
   assert.match(
     omni,
-    /const concurrency = continuationMode\s*\? 1\s*: Math\.min\(configuredConcurrency, durations\.length\)/,
+    /const concurrency = connectScenes \? 1 : Math\.min\(configuredConcurrency, durations\.length\)/,
   );
   assert.match(
     omni,
-    /inspirationImages:\s*!isContinuation &&\s*\(preserveIdentityReferences \|\| index === 0\)\s*\? args\.request\.inspirationImages\s*: \[\]/,
+    /inspirationImages:\s*index === 0 \|\| \(!connectScenes && preserveIdentityReferences\)\s*\? args\.request\.inspirationImages\s*: \[\]/,
   );
   assert.match(
     omni,
@@ -503,6 +508,28 @@ test("le prompt reference_team de 24 secondes conserve ses contraintes critiques
   assert.match(prompt, /Continue prior frame/);
   assert.match(prompt, /PEOPLE: mature adults 25\+ only; no minors/);
 
+  for (const language of ["fr", "en", "es", "it", "de", "nl", "pt", "th", "zh"]) {
+    for (const identityMode of ["professional", "reference_team", "brand_avatar", "auto"]) {
+      const framePrompt = buildGoogleVideoScenePrompt({
+        ...generationArgs,
+        contentLanguage: language,
+        request: { ...generationArgs.request, identityMode, videoCharacterMode: identityMode },
+        plan: { ...plan, scenes: plan.scenes.map((scene, index) => ({
+          ...scene, spokenLine: getAiMediaDialogueFallbackPair(language, index)[0],
+        })) },
+      }, 1, 8, { continuationFrame: true, firstFrameTag: true });
+      assert.ok(framePrompt.length <= 1_400, `${language}/${identityMode}: prompt trop long`);
+      assert.match(framePrompt, /\[# Sources <FIRST_FRAME>@Image1\]/);
+      assert.match(framePrompt, /REFERENCE: prior generated frame/);
+      assert.match(framePrompt, /SUBJECT:/);
+      assert.match(framePrompt, /USER:/);
+      assert.match(framePrompt, /DIALOGUE:/);
+      assert.match(framePrompt, /PARAMS:/);
+      assert.match(framePrompt, /CONTINUITY:/);
+      assert.doesNotMatch(framePrompt, /<PREVIOUS_VIDEO>/);
+    }
+  }
+
   const actPrompts = [0, 1, 2].map((index) =>
     buildGoogleVideoScenePrompt(
       generationArgs,
@@ -531,7 +558,7 @@ test("le prompt reference_team de 24 secondes conserve ses contraintes critiques
       /render=photo\/cinematic;shot=medium;people=team/,
     );
     assert.match(actPrompt, /creative=faithful;palette=#13b8ff, #ec3e9d/);
-    assert.match(actPrompt, /FRAME medium-wide\/full heads/);
+    assert.match(actPrompt, /FRAME medium\/full heads/);
   }
 
   const parallelActPrompts = [0, 1, 2].map((index) =>
@@ -544,7 +571,7 @@ test("le prompt reference_team de 24 secondes conserve ses contraintes critiques
   assert.match(continuityContracts[0] || "", /CAST same 3 approved adults, each once/);
   assert.match(continuityContracts[0] || "", /LOCK faces\/hair\/clothes\/voices\/place\/light\/palette\/lens\/camera/);
   assert.match(continuityContracts[0] || "", /PATH /);
-  assert.match(continuityContracts[0] || "", /FRAME medium-wide\/full heads/);
+  assert.match(continuityContracts[0] || "", /FRAME medium\/full heads/);
   const expectedParallelRoles = [
     /ACT: OPENING: requested action moves at frame 1/,
     /ACT: MIDDLE: new proof step; no opening replay/,
@@ -627,9 +654,10 @@ test("les dialogues de 24 secondes sont assez longs, significatifs et tous uniqu
   assert.equal(isQualityAiMediaDialogueLine(replacement, "fr", used), true);
 
   const veo = read("lib/aiVideoProviderGoogleVeo.ts");
-  assert.match(veo, /args\.plan\.scenes\.slice\(0, index\)/);
-  assert.match(veo, /usedDialogue\.add\(aiMediaDialogueSignature\(previous\.spokenLine\)\)/);
-  assert.match(veo, /usedDialogue\.add\(aiMediaDialogueSignature\(selectedFirstLine\)\)/);
+  assert.match(veo, /const firstLine = resolveAiMediaDialogueSequence/);
+  const dialogue = read("lib/aiMediaDialogue.ts");
+  assert.match(dialogue, /usedSignatures: used/);
+  assert.match(dialogue, /used\.add\(aiMediaDialogueSignature\(line\)\)/);
 });
 
 test("le secours dialogue d’un film 16 s suit ouverture puis conclusion", () => {

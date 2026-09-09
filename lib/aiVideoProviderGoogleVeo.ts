@@ -35,10 +35,11 @@ import {
   type AiVideoProviderGenerationArgs,
   type AiVideoProviderResult,
 } from "@/lib/aiVideoProviderTypes";
+import { resolveAiMediaDialogueSequence } from "@/lib/aiMediaDialogue";
 import {
-  aiMediaDialogueSignature,
-  selectAiMediaDialogueLine,
-} from "@/lib/aiMediaDialogue";
+  extractAiMediaVideoContinuityFrame,
+  type AiMediaVideoContinuityFrame,
+} from "./aiMediaVideoContinuity.ts";
 import { redactAiMediaSensitiveText } from "@/lib/aiMediaSensitiveText";
 
 const PROVIDER_ID = "google-gemini";
@@ -58,9 +59,7 @@ const DEFAULT_DOWNLOAD_ATTEMPTS = 3;
 // 1 400 caractères laisse une marge pour la tokenisation des accents et évite
 // qu'un profil très rempli invalide toute la génération.
 const MAX_VEO_PROMPT_CHARS = 1_400;
-// Deux plans simultanés offrent un bon compromis sur les nouveaux projets
-// Google : la génération reste parallèle sans saturer les faibles quotas RPM.
-// Les projets dont le plafond AI Studio le permet peuvent monter à 4 par env.
+// Keep the established two-act parallelism within typical Google RPM quotas.
 const DEFAULT_CONCURRENCY = 2;
 const MAX_CLIP_BYTES = 128 * 1024 * 1024;
 const MINOR_SUBJECT_PATTERN =
@@ -526,27 +525,41 @@ export function buildGoogleVideoParameterContract(
   );
 }
 
-function exactSpokenLine(value: unknown, fallback: string) {
-  const normalized = adultSafePromptText(value, 72)
-    .replace(/^[\s"'«»]+|[\s"'«»]+$/g, "")
-    .replace(/\s*[|·]+\s*/g, ", ")
-    .replace(/[…]+$/u, "")
-    .trim();
-  const safe = normalized || fallback;
-  return /[.!?。！？]$/u.test(safe) ? safe : `${safe}.`;
+function selectedVideoFraming(shotType: AiVideoProviderGenerationArgs["request"]["shotType"]) {
+  switch (shotType) {
+    case "close":
+      return {
+        contract: "FRAME close/full heads",
+        direction: "Stable close shot, never extreme close-up; keep the complete head, chin and shoulders visible with headroom",
+      };
+    case "medium":
+      return {
+        contract: "FRAME medium/full heads",
+        direction: "Stable medium shot; keep the complete head, shoulders and upper torso visible with headroom",
+      };
+    case "wide":
+      return {
+        contract: "FRAME wide/full subjects",
+        direction: "Stable wide shot; keep complete subjects and their surroundings visible with comfortable margins",
+      };
+    default:
+      return {
+        contract: "FRAME medium-wide/full heads",
+        direction: "Stable medium-wide shot, never extreme close-up; keep complete hairline, entire head, chin, shoulders and upper torso in frame with headroom",
+      };
+  }
 }
 
 export function buildGoogleVideoFramingDirection(
   request: AiVideoProviderGenerationArgs["request"],
 ) {
+  const common = selectedVideoFraming(request.shotType).direction;
   const identityIsAnimated =
     request.teamVideoMode === "cinematic" &&
     request.inspirationImages.length > 0;
   if (!identityIsAnimated) {
-    return "Keep every face, head and important subject fully inside frame with comfortable margins.";
+    return `${common}. Keep every face, head and important subject fully inside frame with comfortable margins.`;
   }
-  const common =
-    "Stable medium-wide shot, never extreme close-up; keep complete hairline, entire head, chin, shoulders and upper torso in frame with headroom";
   if (request.format === "square") {
     return `FINAL 1:1 SAFE FRAME — ${common}; keep speakers upper-centre and leave clean space below`;
   }
@@ -572,25 +585,11 @@ export function buildGoogleVideoTeamSpeechDirection(
   }
 
   const language = String(args.contentLanguage || "fr").toLowerCase();
-  const scene = args.plan.scenes[index];
-  const usedDialogue = new Set<string>();
-  for (const previous of args.plan.scenes.slice(0, index)) {
-    usedDialogue.add(aiMediaDialogueSignature(previous.spokenLine));
-    usedDialogue.add(aiMediaDialogueSignature(previous.spokenReply));
-  }
-  const selectedFirstLine = selectAiMediaDialogueLine({
-    value: scene?.spokenLine || scene?.body || scene?.title || args.plan.headline,
+  const firstLine = resolveAiMediaDialogueSequence({
+    scenes: args.plan.scenes,
+    headline: args.plan.headline,
     language,
-    sceneIndex: index,
-    sceneCount: args.plan.scenes.length,
-    speaker: "lead",
-    usedSignatures: usedDialogue,
-  });
-  usedDialogue.add(aiMediaDialogueSignature(selectedFirstLine));
-  const firstLine = exactSpokenLine(
-    selectedFirstLine,
-    selectedFirstLine,
-  );
+  })[index];
   if (args.request.identityMode !== "reference_team") {
     return `DIALOGUE: recurring character lip-syncs once 0.2–5.5s: “${firstLine}” Then mouth closed/silent. No repeat/old line/narrator/music/cloning; stable adult synthetic voice.`;
   }
@@ -635,8 +634,8 @@ function buildGoogleVideoContinuityCast(
 
 /**
  * Compact deterministic continuity contract repeated in every 8 s act.
- * Keeping this below a fixed budget is essential: Veo receives independently
- * rendered segments, so the immutable anchors must never be the optional part
+ * Keeping this below a fixed budget is essential: the immutable anchors must
+ * remain alongside the visual continuation frame, never the optional part
  * that disappears when a professional writes a long instruction.
  */
 export function buildGoogleVideoContinuityContract(
@@ -660,7 +659,7 @@ export function buildGoogleVideoContinuityContract(
       )}`,
       "LOCK faces/hair/clothes/voices/place/light/palette/lens/camera",
       `PATH ${startState || "task begins"}->${endState || "task completed"}`,
-      "FRAME medium-wide/full heads",
+      selectedVideoFraming(args.request.shotType).contract,
     ].join("; "),
     180,
   );
@@ -719,7 +718,7 @@ export function buildGoogleVideoScenePrompt(
   args: AiVideoProviderGenerationArgs,
   index: number,
   durationSeconds: 4 | 6 | 8,
-  options: { continuation?: boolean } = {},
+  options: { continuation?: boolean; continuationFrame?: boolean; firstFrameTag?: boolean } = {},
 ) {
   const scene = args.plan.scenes[index];
   const colors = args.brandColors.filter(Boolean).slice(0, 5).join(", ");
@@ -773,18 +772,19 @@ export function buildGoogleVideoScenePrompt(
   // Le budget Veo est strict. Ces limites privilégient la saisie du
   // professionnel, mais conservent aussi le rôle du fichier joint, l'action de
   // l'acte et les paramètres visuels dans CHAQUE segment indépendant.
-  const primarySubject = priorityPromptSnippet(
-    exactIdea
+  const subjectSource = exactIdea
       ? `${exactIdea}; professional context: ${professionalActivity}`
-      : `${professionalActivity}; ${businessContext}`,
-    nativeDialogueRequested ? 105 : 190,
-  );
-  const userDirection = priorityPromptSnippet(
-    punctualInstruction,
-    nativeDialogueRequested ? 54 : 125,
-  );
+      : `${professionalActivity}; ${businessContext}`;
+  const actionSource = [sceneDirection, scene?.title, scene?.body].filter(Boolean).join(" — ");
+  let subjectBudget = nativeDialogueRequested ? 105 : 190;
+  let instructionBudget = nativeDialogueRequested ? 54 : 125;
+  let actionBudget = nativeDialogueRequested ? 70 : 118;
+  let primarySubject = priorityPromptSnippet(subjectSource, subjectBudget);
+  let userDirection = priorityPromptSnippet(punctualInstruction, instructionBudget);
   const referenceContract = promptSnippet(
-    buildGoogleVideoReferenceContract(
+    options.continuationFrame
+      ? "prior generated frame; preserve its visible cast/design/place/framing; continue action"
+      : buildGoogleVideoReferenceContract(
       args.request,
       args.identityTeamMemberCount,
     ),
@@ -793,12 +793,11 @@ export function buildGoogleVideoScenePrompt(
   // Depuis le plan v18, visualBrief commence par le rôle propre de l'acte. Le
   // garder avant son titre évite que les actes 1–8, 9–16 et 17–24 rejouent la
   // même pose ou que seule la seconde tranche anime la référence.
-  const actAction = priorityPromptSnippet(
-    [sceneDirection, scene?.title, scene?.body].filter(Boolean).join(" — "),
-    nativeDialogueRequested ? 70 : 118,
-  );
+  let actAction = priorityPromptSnippet(actionSource, actionBudget);
   const sequenceHeader = options.continuation
     ? "[# Sources <PREVIOUS_VIDEO>@Video1] Continue prior frame: same cast/look/place/light/lens/motion; no intro/reset/recap/cut."
+    : options.continuationFrame
+      ? `${options.firstFrameTag ? "[# Sources <FIRST_FRAME>@Image1] " : ""}Start from the supplied first frame, prior shot's final frame; continue motion; no reset/cut.`
     : `SHOT ${index + 1}/${args.plan.scenes.length}; ${durationSeconds}s; one continuous take.`;
   const adultSafety =
     args.request.peopleMode === "none"
@@ -813,7 +812,7 @@ export function buildGoogleVideoScenePrompt(
   // Contrat commun image→vidéo : l'ordre reflète la hiérarchie produit. Les
   // garde-fous de texte arrivent avant tout contexte facultatif afin que Veo
   // ne génère plus de faux panneaux (« Agenice », « Agenue », etc.).
-  const requiredSections = [
+  const requiredSections = () => [
     sequenceHeader,
     `SUBJECT: ${primarySubject}. Keep named entities/actions/relations; no substitute.`,
     userDirection
@@ -829,10 +828,28 @@ export function buildGoogleVideoScenePrompt(
       ? `CONTINUITY: ${promptSnippet(buildGoogleVideoContinuityContract(args), 170)}.`
       : "",
   ].filter(Boolean);
-  const requiredPrompt = requiredSections.join(" ");
+  let sections = requiredSections();
+  let requiredPrompt = sections.join(" ");
+  // Frame tags and long selected parameters share the same strict budget.
+  // Reduce only descriptive excerpts, preserving their beginning AND ending;
+  // never drop dialogue, references, selected settings or complete guardrails.
+  while (
+    requiredPrompt.length > MAX_VEO_PROMPT_CHARS &&
+    (subjectBudget > 80 || instructionBudget > 42 || actionBudget > 50)
+  ) {
+    const reduction = Math.max(4, Math.ceil((requiredPrompt.length - MAX_VEO_PROMPT_CHARS) / 3));
+    subjectBudget = Math.max(80, subjectBudget - reduction);
+    instructionBudget = Math.max(42, instructionBudget - reduction);
+    actionBudget = Math.max(50, actionBudget - reduction);
+    primarySubject = priorityPromptSnippet(subjectSource, subjectBudget);
+    userDirection = priorityPromptSnippet(punctualInstruction, instructionBudget);
+    actAction = priorityPromptSnippet(actionSource, actionBudget);
+    sections = requiredSections();
+    requiredPrompt = sections.join(" ");
+  }
   if (requiredPrompt.length > MAX_VEO_PROMPT_CHARS) {
     throw new Error(
-      `ai_video_veo_required_prompt_budget_exceeded:${requiredPrompt.length}:${requiredSections
+      `ai_video_veo_required_prompt_budget_exceeded:${requiredPrompt.length}:${sections
         .map((section) => section.length)
         .join(",")}`,
     );
@@ -862,11 +879,12 @@ async function submitOperation(args: {
   durationSeconds: 4 | 6 | 8;
   aspectRatio: "16:9" | "9:16";
   inspirationImages?: AiVideoProviderGenerationArgs["request"]["inspirationImages"];
+  continuityFrame?: AiMediaVideoContinuityFrame;
   preserveIdentityReferences: boolean;
   signal: AbortSignal;
 }) {
   let lastError: unknown = null;
-  let inspirationMode = selectVeoInspirationMode({
+  let inspirationMode = args.continuityFrame ? "source" as const : selectVeoInspirationMode({
     model: args.model,
     durationSeconds: args.durationSeconds,
     imageCount: args.inspirationImages?.length || 0,
@@ -877,11 +895,13 @@ async function submitOperation(args: {
   while (transientAttempt < DEFAULT_SUBMIT_ATTEMPTS) {
     try {
       const sourceImage =
-        inspirationMode === "source" ? args.inspirationImages?.[0] : null;
+        args.continuityFrame || (inspirationMode === "source" ? args.inspirationImages?.[0] : null);
       const operation = await args.ai.models.generateVideos({
         model: args.model,
         source: {
-          prompt: promptForInspirationMode(args.prompt, inspirationMode),
+          prompt: args.continuityFrame
+            ? args.prompt
+            : promptForInspirationMode(args.prompt, inspirationMode),
           ...(sourceImage
             ? {
                 image: {
@@ -901,10 +921,10 @@ async function submitOperation(args: {
           // Les routes Veo 3/3.1 européennes n'acceptent que allow_adult pour
           // les personnes. L'expliciter avec une référence évite que le visage
           // adulte autorisé soit rejeté selon le défaut régional du projet.
-          ...(args.inspirationImages?.length
+          ...(args.continuityFrame || args.inspirationImages?.length
             ? { personGeneration: "allow_adult" }
             : {}),
-          ...(inspirationMode === "references" && args.inspirationImages
+          ...(!args.continuityFrame && inspirationMode === "references" && args.inspirationImages
             ? {
                 referenceImages: args.inspirationImages.map((image) => ({
                   image: {
@@ -926,7 +946,7 @@ async function submitOperation(args: {
       // request, because that would silently substitute another person.
       const nextMode = nextVeoInspirationMode(inspirationMode);
       if (failure.kind === "invalid_argument" && nextMode) {
-        if (args.preserveIdentityReferences) {
+        if (args.preserveIdentityReferences || args.continuityFrame) {
           throw identityReferenceRejectedError(error);
         }
         warnings.push(
@@ -1030,6 +1050,7 @@ async function generateClip(args: {
   durationSeconds: 4 | 6 | 8;
   aspectRatio: "16:9" | "9:16";
   inspirationImages?: AiVideoProviderGenerationArgs["request"]["inspirationImages"];
+  continuityFrame?: AiMediaVideoContinuityFrame;
   preserveIdentityReferences: boolean;
   timeoutMs: number;
   pollMs: number;
@@ -1054,7 +1075,7 @@ async function generateClip(args: {
       let billableOutputExists = false;
       const inspirationImages = args.inspirationImages || [];
       const contentAttempts =
-        inspirationImages.length && args.preserveIdentityReferences
+        (inspirationImages.length && args.preserveIdentityReferences) || args.continuityFrame
           ? [{ prompt: args.prompt, inspirationImages }]
           : inspirationImages.length
           ? [
@@ -1136,8 +1157,8 @@ async function generateClip(args: {
           if (billableOutputExists) throw error;
           const failure = classifyVeoFailure(error);
           if (
-            args.preserveIdentityReferences &&
-            attempt.inspirationImages.length > 0 &&
+            (args.continuityFrame || (args.preserveIdentityReferences &&
+            attempt.inspirationImages.length > 0)) &&
             (failure.kind === "invalid_argument" || failure.kind === "safety")
           ) {
             lastError = isIdentityReferenceRejected(error)
@@ -1146,7 +1167,7 @@ async function generateClip(args: {
             break;
           }
           const canRetryWithoutInspiration =
-            !args.preserveIdentityReferences &&
+            !args.preserveIdentityReferences && !args.continuityFrame &&
             attempt.inspirationImages.length > 0 &&
             (failure.kind === "invalid_argument" || failure.kind === "safety");
           if (canRetryWithoutInspiration) {
@@ -1214,10 +1235,8 @@ export const googleVeoVideoProvider: AiVideoProvider = {
       args.request,
     );
     const configuredModels = modelCandidates();
-    // Toute identité autorisée utilise le contrat referenceImages Veo 3.1,
-    // même avec un seul portrait. Ne jamais retomber sur Lite/source-image :
-    // la photo guide l'identité dans chaque acte, sans devenir une simple
-    // première image figée.
+    // Approved identities stay on a reference-capable model. Independent acts
+    // reuse the originals; connected acts inherit the prior generated frame.
     const models =
       preserveIdentityReferences && args.request.inspirationImages.length > 0
         ? configuredModels.filter(supportsVeoReferenceImages)
@@ -1238,21 +1257,23 @@ export const googleVeoVideoProvider: AiVideoProvider = {
       DEFAULT_POLL_MS,
       15_000,
     );
+    const requestedDurations = getAiMediaVideoSegmentDurations(
+      args.request.durationSeconds || 16,
+    );
+    // Keep exact commercial durations for both independent and connected acts.
+    const durations: Array<4 | 6 | 8> = [...requestedDurations];
+    if (args.plan.scenes.length !== durations.length) {
+      throw new Error("ai_video_veo_scene_count_invalid");
+    }
+    const connectScenes = durations.length > 1 && args.request.connectScenes === true;
     const configuredConcurrency = positiveInt(
       process.env.AI_MEDIA_VEO_CONCURRENCY,
       DEFAULT_CONCURRENCY,
       4,
     );
-    const requestedDurations = getAiMediaVideoSegmentDurations(
-      args.request.durationSeconds || 16,
-    );
-    // Preserve the exact commercial duration. Approved identity references
-    // are sent to every native segment; generic inspiration remains limited
-    // to the opening shot to avoid accidental identity claims.
-    const durations: Array<4 | 6 | 8> = [...requestedDurations];
-    if (args.plan.scenes.length !== durations.length) {
-      throw new Error("ai_video_veo_scene_count_invalid");
-    }
+    // Keep the per-clip allowance while bounding the whole sequential film.
+    // 600 s leaves headroom inside the 800 s route for planning/composition.
+    const generationDeadline = Date.now() + Math.min(600_000, timeoutMs * durations.length);
     const totalDurationSeconds = durations.reduce(
       (total, duration) => total + duration,
       0,
@@ -1294,18 +1315,30 @@ export const googleVeoVideoProvider: AiVideoProvider = {
               ? filmModels
               : Array.from(new Set([preferredModel, ...filmModels]));
           try {
+            const previousClip = connectScenes && index > 0 ? clips[index - 1] : undefined;
+            if (connectScenes && index > 0 && !previousClip) {
+              throw new Error("ai_video_continuity_context_missing");
+            }
+            const continuityFrame = previousClip
+              ? await extractAiMediaVideoContinuityFrame({ ...previousClip, signal: args.signal })
+              : undefined;
+            const remainingMs = generationDeadline - Date.now();
+            if (remainingMs <= 0) throw new Error("ai_video_veo_timeout");
             const clip = await generateClip({
               ai,
               models: orderedModels,
-              prompt: buildGoogleVideoScenePrompt(args, index, durationSeconds),
+              prompt: buildGoogleVideoScenePrompt(args, index, durationSeconds, {
+                continuationFrame: Boolean(continuityFrame),
+              }),
               durationSeconds,
               aspectRatio: aspectRatio(args.request.format),
               inspirationImages:
-                preserveIdentityReferences || index === 0
+                index === 0 || (!connectScenes && preserveIdentityReferences)
                   ? args.request.inspirationImages
                   : [],
+              continuityFrame,
               preserveIdentityReferences,
-              timeoutMs,
+              timeoutMs: Math.min(timeoutMs, remainingMs),
               pollMs,
               signal: args.signal,
               onBillable: (usedModel) => {
@@ -1314,7 +1347,9 @@ export const googleVeoVideoProvider: AiVideoProvider = {
                 billableModels.add(usedModel);
               },
             });
-            clips[index] = clip;
+            clips[index] = continuityFrame
+              ? { ...clip, warnings: [...clip.warnings, "video_last_frame_continuity"] }
+              : clip;
             // Once a fallback proved healthy, later unscheduled clips start
             // there instead of repeating a known failing primary route.
             preferredModel = clip.model;
@@ -1333,8 +1368,13 @@ export const googleVeoVideoProvider: AiVideoProvider = {
           }
         }
       };
-      const concurrency = Math.min(configuredConcurrency, durations.length);
-      await Promise.all(Array.from({ length: concurrency }, () => worker()));
+      const concurrency = connectScenes ? 1 : Math.min(configuredConcurrency, durations.length);
+      // Wait for every already-started act: an early rejection must not let an
+      // outer fallback race with chargeable outputs from the other workers.
+      const workers = await Promise.allSettled(Array.from({ length: concurrency }, () => worker()));
+      for (const result of workers) {
+        if (result.status === "rejected") firstError ||= result.reason;
+      }
       if (firstError) throw firstError;
       if (clips.some((clip) => !clip)) {
         throw new Error("ai_video_veo_clip_set_incomplete");

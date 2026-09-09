@@ -170,7 +170,7 @@ Le runtime possède des valeurs conservatrices par défaut. Les surcharges suiva
 
 - `AI_MEDIA_IMAGE_COST_MICRO_USD`, `AI_MEDIA_OMNI_COST_MICRO_USD_PER_SECOND`, les coûts Veo par modèle (`AI_MEDIA_VEO_FAST_COST_MICRO_USD_PER_SECOND`, `AI_MEDIA_VEO_LITE_COST_MICRO_USD_PER_SECOND`, `AI_MEDIA_VEO_STANDARD_COST_MICRO_USD_PER_SECOND`) et `AI_MEDIA_TTS_COST_MICRO_USD` : réservations de coût estimé pour les garde-fous ; `AI_MEDIA_VEO_COST_MICRO_USD_PER_SECOND` reste l’alias historique du coût Fast ;
 - `AI_MEDIA_IMAGE_TIMEOUT_MS` et `AI_MEDIA_VIDEO_TIMEOUT_MS` : délais maximums, bornés côté serveur.
-- `AI_MEDIA_OMNI_CONCURRENCY`, `AI_MEDIA_VEO_POLL_MS` et `AI_MEDIA_VEO_CONCURRENCY` : concurrence/polling, à calibrer d’abord en Preview ;
+- `AI_MEDIA_VEO_POLL_MS` : polling, à calibrer d’abord en Preview. `AI_MEDIA_OMNI_CONCURRENCY` (défaut 3) et `AI_MEDIA_VEO_CONCURRENCY` (défaut 2) règlent le parallélisme sans raccord. L’option `connectScenes` dans Finitions (bloc 4), sous les durées, désactive ce parallélisme et chaîne les frames sous un délai vidéo global ;
 - `AI_MEDIA_TTS_MODEL`, `AI_MEDIA_TTS_VOICE` et `AI_MEDIA_TTS_TIMEOUT_MS` : réglages optionnels de la voix off.
 - `AI_GATEWAY_MAX_COST_MICRO_USD_PER_ACCOUNT_DAY` : le défaut du code est `20000000`. Toute valeur Vercel existante surcharge ce défaut et doit rester au moins à `20000000` pour ne pas bloquer un Premium qui utilise légitimement 6 vidéos et 30 images le même jour.
 

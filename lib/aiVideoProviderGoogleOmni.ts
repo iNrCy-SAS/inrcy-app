@@ -13,6 +13,10 @@ import {
   rollbackAiGatewayAccountAttempt,
 } from "@/lib/aiGatewayAccountGuard";
 import { getAiMediaVideoSegmentDurations } from "@/lib/aiMediaVideoTimeline";
+import {
+  extractAiMediaVideoContinuityFrame,
+  type AiMediaVideoContinuityFrame,
+} from "./aiMediaVideoContinuity.ts";
 import { redactAiMediaSensitiveText } from "@/lib/aiMediaSensitiveText";
 import {
   buildGoogleVideoSafetyFallbackPrompt,
@@ -41,10 +45,8 @@ const DEFAULT_TIMEOUT_MS = 420_000;
 const DEFAULT_GENERATION_ATTEMPTS = 3;
 const DEFAULT_DOWNLOAD_ATTEMPTS = 3;
 const DEFAULT_FILE_POLL_MS = 2_000;
-// Independent eight-second acts run concurrently by default. Stateful video
-// continuation is kept behind an explicit opt-in until the serving route is
-// reliable enough to avoid turning a fast 16/24 s render into a long local
-// fallback after one failed continuation turn.
+// Independent acts use the existing parallel path unless scene connections
+// are explicitly requested. Stateful continuation remains an internal opt-in.
 const DEFAULT_CONCURRENCY = 3;
 const MAX_CLIP_BYTES = 128 * 1024 * 1024;
 
@@ -421,6 +423,7 @@ async function generateClip(args: {
   aspectRatio: "16:9" | "9:16";
   inspirationImages: AiVideoProviderGenerationArgs["request"]["inspirationImages"];
   preserveIdentityReferences: boolean;
+  continuityFrame?: AiMediaVideoContinuityFrame;
   previousInteractionId?: string;
   timeoutMs: number;
   onBillable: () => void;
@@ -439,7 +442,7 @@ async function generateClip(args: {
 
   try {
     const contentAttempts =
-      args.preserveIdentityReferences
+      args.preserveIdentityReferences || args.continuityFrame
         ? [
             {
               prompt: args.prompt,
@@ -490,6 +493,11 @@ async function generateClip(args: {
         let billableOutputExists = false;
         try {
           const input = [
+            ...(args.continuityFrame ? [{
+              type: "image" as const,
+              data: args.continuityFrame.data,
+              mime_type: args.continuityFrame.mimeType,
+            }] : []),
             ...contentAttempt.images.map((image) => ({
               type: "image" as const,
               data: image.data,
@@ -636,11 +644,6 @@ export const googleOmniVideoProvider: AiVideoProvider = {
       DEFAULT_TIMEOUT_MS,
       600_000,
     );
-    const configuredConcurrency = positiveInt(
-      process.env.AI_MEDIA_OMNI_CONCURRENCY,
-      DEFAULT_CONCURRENCY,
-      4,
-    );
     const preserveIdentityReferences = preservesIdentityReferences(
       args.request,
     );
@@ -650,8 +653,15 @@ export const googleOmniVideoProvider: AiVideoProvider = {
     if (args.plan.scenes.length !== durations.length) {
       throw new Error("ai_video_omni_scene_count_invalid");
     }
+    const connectScenes = durations.length > 1 && args.request.connectScenes === true;
+    const configuredConcurrency = positiveInt(
+      process.env.AI_MEDIA_OMNI_CONCURRENCY,
+      DEFAULT_CONCURRENCY,
+      4,
+    );
+    const generationDeadline = Date.now() + Math.min(600_000, timeoutMs * durations.length);
     const continuationMode =
-      durations.length > 1 && statefulContinuationEnabled();
+      connectScenes && statefulContinuationEnabled();
     let actualCostMicroUsd = 0;
     let fallbackCostMicroUsd = 0;
     const fallbackModels = new Set<string>();
@@ -685,6 +695,15 @@ export const googleOmniVideoProvider: AiVideoProvider = {
           > | null = null;
           let sceneBillable = false;
           try {
+            const previousClip = connectScenes && !continuationMode && index > 0 ? clips[index - 1] : undefined;
+            if (connectScenes && !continuationMode && index > 0 && !previousClip) {
+              throw new Error("ai_video_continuity_context_missing");
+            }
+            const continuityFrame = previousClip
+              ? await extractAiMediaVideoContinuityFrame({ ...previousClip, signal: args.signal })
+              : undefined;
+            const remainingMs = generationDeadline - Date.now();
+            if (remainingMs <= 0) throw new Error("ai_video_omni_timeout");
             // Reserve each scene independently. If Omni rejects a scene before
             // returning an asset, its reservation is released before the Veo
             // fallback reserves the same scene. This prevents a temporary
@@ -706,25 +725,27 @@ export const googleOmniVideoProvider: AiVideoProvider = {
                 args,
                 index,
                 durationSeconds,
-                { continuation: isContinuation },
+                { continuation: isContinuation, continuationFrame: Boolean(continuityFrame), firstFrameTag: true },
               ),
               durationSeconds,
               aspectRatio: aspectRatio(args.request.format),
               inspirationImages:
-                !isContinuation &&
-                (preserveIdentityReferences || index === 0)
+                index === 0 || (!connectScenes && preserveIdentityReferences)
                   ? args.request.inspirationImages
                   : [],
+              continuityFrame,
               preserveIdentityReferences,
               previousInteractionId,
-              timeoutMs,
+              timeoutMs: Math.min(timeoutMs, remainingMs),
               onBillable: () => {
                 if (sceneBillable) return;
                 sceneBillable = true;
                 actualCostMicroUsd += sceneCostMicroUsd;
               },
             });
-            clips[index] = clip;
+            clips[index] = continuityFrame
+              ? { ...clip, warnings: [...clip.warnings, "video_last_frame_continuity"] }
+              : clip;
             if (continuationMode) previousInteractionId = clip.requestId;
             await commitAiGatewayAccountAttempt({
               reservation: sceneReservation,
@@ -816,10 +837,13 @@ export const googleOmniVideoProvider: AiVideoProvider = {
           }
         }
       };
-      const concurrency = continuationMode
-        ? 1
-        : Math.min(configuredConcurrency, durations.length);
-      await Promise.all(Array.from({ length: concurrency }, () => worker()));
+      const concurrency = connectScenes ? 1 : Math.min(configuredConcurrency, durations.length);
+      // An in-flight act may still return a billable asset after another fails.
+      // Settle every worker before exposing the failure to any outer fallback.
+      const workers = await Promise.allSettled(Array.from({ length: concurrency }, () => worker()));
+      for (const result of workers) {
+        if (result.status === "rejected") firstError ||= result.reason;
+      }
       if (firstError) throw firstError;
       if (clips.some((clip) => !clip)) {
         throw new Error("ai_video_omni_clip_set_incomplete");

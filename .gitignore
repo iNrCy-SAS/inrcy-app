@@ -44,6 +44,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# Local Supabase CLI metadata (migrations remain versioned)
+/supabase/.temp/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

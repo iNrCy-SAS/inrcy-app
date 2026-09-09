@@ -25,12 +25,16 @@ test("le prompt vidéo distingue le professionnel, l’avatar et le mode génér
   assert.match(veo, /USER: \$\{userDirection\}/);
 });
 
-test("les références d’identité restent actives sur chaque segment et chaque fournisseur", () => {
+test("les identités gardent leurs références en parallèle et héritent des frames avec raccords", () => {
   const veo = read("lib/aiVideoProviderGoogleVeo.ts");
   const omni = read("lib/aiVideoProviderGoogleOmni.ts");
 
   for (const provider of [veo, omni]) {
-    assert.match(provider, /preserveIdentityReferences \|\| index === 0/);
+    assert.match(provider, /inspirationImages:\s*index === 0 \|\| \(!connectScenes && preserveIdentityReferences\)\s*\? args\.request\.inspirationImages\s*: \[\]/);
+    assert.match(provider, /const previousClip =[^;]*index > 0 \? clips\[index - 1\] : undefined/);
+    assert.match(provider, /ai_video_continuity_context_missing/);
+    assert.match(provider, /const continuityFrame = previousClip\s*\? await extractAiMediaVideoContinuityFrame\(\{ \.\.\.previousClip, signal: args\.signal \}\)/);
+    assert.match(provider, /continuityFrame,\s*preserveIdentityReferences,/);
     assert.match(provider, /request\.teamVideoMode === "cinematic"/);
     assert.match(provider, /videoCharacterMode === "professional"/);
     assert.match(provider, /videoCharacterMode === "brand_avatar"/);
@@ -40,17 +44,21 @@ test("les références d’identité restent actives sur chaque segment et chaqu
 
   assert.match(
     veo,
-    /inspirationImages\.length && args\.preserveIdentityReferences[\s\S]*?\[\{ prompt: args\.prompt, inspirationImages \}\]/
+    /\(inspirationImages\.length && args\.preserveIdentityReferences\) \|\| args\.continuityFrame\s*\? \[\{ prompt: args\.prompt, inspirationImages \}\]/
   );
   assert.match(
     veo,
     /preserveIdentityReferences && args\.request\.inspirationImages\.length > 0[\s\S]*?configuredModels\.filter\(supportsVeoReferenceImages\)/,
   );
   assert.match(veo, /personGeneration: "allow_adult"/);
+  assert.match(veo, /const sourceImage =\s*args\.continuityFrame \|\|/);
+  assert.match(veo, /imageBytes: sourceImage\.data/);
+  assert.match(veo, /!args\.continuityFrame && inspirationMode === "references"/);
   assert.match(
     omni,
-    /args\.preserveIdentityReferences[\s\S]*?images: args\.inspirationImages/
+    /args\.preserveIdentityReferences \|\| args\.continuityFrame\s*\? \[\s*\{\s*prompt: args\.prompt,\s*images: args\.inspirationImages/
   );
+  assert.match(omni, /args\.continuityFrame \? \[\{\s*type: "image" as const,\s*data: args\.continuityFrame\.data,\s*mime_type: args\.continuityFrame\.mimeType/);
 });
 
 test("un fournisseur qui refuse l’identité échoue explicitement sans rendu générique", () => {
@@ -207,25 +215,28 @@ test("la direction Veo impose une scène animée continue sans diaporama ni alt�
 test("Veo sépare strictement les dialogues natifs et la voix off sans inférer le genre réel", () => {
   const veo = read("lib/aiVideoProviderGoogleVeo.ts");
   const contracts = read("lib/aiMediaGenerationContracts.ts");
+  const dialogue = read("lib/aiMediaDialogue.ts");
 
   assert.match(contracts, /teamVideoSpeechMode: AiMediaTeamVideoSpeechMode/);
   assert.match(contracts, /teamVideoSpeechMode !== "characters"/);
   assert.match(veo, /buildGoogleVideoTeamSpeechDirection/);
-  assert.match(veo, /scene\?\.spokenLine/);
-  assert.match(veo, /selectAiMediaDialogueLine/);
-  assert.match(veo, /usedSignatures: usedDialogue/);
+  assert.match(veo, /resolveAiMediaDialogueSequence/);
+  assert.match(dialogue, /value: scene\.spokenLine \|\| scene\.body \|\| scene\.title \|\| args\.headline/);
+  assert.match(dialogue, /usedSignatures: used/);
+  assert.match(dialogue, /const line = completeAiMediaSpeechSentence\(selected, args\.language\);\s*used\.add\(aiMediaDialogueSignature\(line\)\)/);
+  assert.doesNotMatch(veo, /selectAiMediaDialogueLine|usedDialogue/);
   assert.doesNotMatch(veo, /\["On s’y met \?", "Avec plaisir\."\]/);
   assert.match(veo, /VOICE-OVER: people stay silent with closed mouths/);
   assert.match(veo, /no native speech, lip-sync, vocalisation/);
   assert.match(veo, /DIALOGUE: recurring character lip-syncs once 0\.2–5\.5s/);
   assert.match(veo, /DIALOGUE: Person \$\{firstSpeaker\} left-to-right lip-syncs once/);
-  assert.match(veo, /const firstLine = exactSpokenLine/);
+  assert.match(veo, /const firstLine = resolveAiMediaDialogueSequence\(\{[\s\S]*?\}\)\[index\]/);
   assert.match(veo, /Then mouth closed\/silent/);
   assert.match(veo, /No repeat\/old line\/narrator\/music\/cloning/);
   assert.match(veo, /stable adult synthetic voice/);
   assert.match(veo, /narrator\/music/);
 
-  const requiredPosition = veo.indexOf("const requiredSections = [");
+  const requiredPosition = veo.indexOf("const requiredSections = () => [");
   const subjectPosition = veo.indexOf("`SUBJECT: ${primarySubject}", requiredPosition);
   const userPosition = veo.indexOf("`USER: ${userDirection}", requiredPosition);
   const referencePosition = veo.indexOf("`REFERENCE: ${referenceContract}", requiredPosition);
@@ -294,6 +305,7 @@ test("le montage audio préserve le dialogue natif sans jamais recoller un TTS s
   assert.match(server, /native_character_dialogue_preserved/);
   assert.match(server, /quality_assurance/);
   assert.match(server, /status: "compositor_validated"/);
-  assert.match(server, /"full_frame_crop"/);
+  assert.match(server, /checks: \["duration", "frame_layout", "audio_policy"\] as const/);
+  assert.match(server, /caption_layout: captionLayout/);
   assert.doesNotMatch(server, /await measure\("video_local_quality_check"/);
 });

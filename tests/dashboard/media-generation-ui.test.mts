@@ -189,7 +189,7 @@ test("la fenêtre iNrCy sépare les critères de la création et de la revue", (
   ]) {
     assert.ok(generator.includes(key), `${key} doit être présent`);
   }
-  assert.match(generator, /ai_generator_duration_\$\{duration\}/);
+  assert.match(generator, /ai_generator_sequence_count", \{ count: duration \/ 8 \}/);
   assert.match(generator, /useState<MediaGenerationVideoDuration>\(8\)/);
   assert.match(generator, /useState<MediaGenerationVideoEngine>\("omni"\)/);
   assert.match(generator, /\(\["omni", "veo"\] as const\)/);
@@ -392,7 +392,7 @@ test("la fenêtre iNrCy sépare les critères de la création et de la revue", (
     generatorStyles,
     /@media \(max-width: 620px\)[\s\S]*?\.generateButton\s*\{[\s\S]*?width:\s*min\(100%, 250px\)[\s\S]*?justify-self:\s*center/
   );
-  assert.match(generator, /ai_generator_duration_\$\{duration\}/);
+  assert.match(generator, /ai_generator_sequence_count", \{ count: duration \/ 8 \}/);
   assert.match(generator, /className=\{styles\.quotaCard\}/);
   assert.match(
     modalStyles,

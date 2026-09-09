@@ -49,6 +49,7 @@ export type AiMediaGeneratorBlockDefaults = {
   };
   6: {
     durationSeconds: 8 | 16 | 24;
+    connectScenes: boolean;
     withText: boolean;
     withMusic: boolean;
     withNarration: boolean;
@@ -136,6 +137,7 @@ const DEFAULT_BLOCKS: AiMediaGeneratorPreferences["blocks"] = {
     saved: false,
     defaults: {
       durationSeconds: 8,
+      connectScenes: false,
       withText: true,
       withMusic: true,
       withNarration: true,
@@ -331,6 +333,9 @@ function parseStrictBlockDefaults<K extends AiMediaGeneratorPreferenceBlockId>(
       }
       return {
         durationSeconds: input.durationSeconds as 8 | 16 | 24,
+        connectScenes: input.connectScenes === undefined
+          ? false
+          : requiredBoolean(input.connectScenes, "L’option de raccord des scènes"),
         withText: requiredBoolean(input.withText, "L’option de texte"),
         withMusic: requiredBoolean(input.withMusic, "L’option de musique"),
         withNarration: requiredBoolean(
@@ -483,6 +488,7 @@ export function sanitizeAiMediaGeneratorBlockDefaults<K extends AiMediaGenerator
         durationSeconds: [8, 16, 24].includes(Number(input.durationSeconds))
           ? (Number(input.durationSeconds) as 8 | 16 | 24)
           : 8,
+        connectScenes: booleanValue(input.connectScenes, false),
         withText: booleanValue(input.withText, true),
         withMusic: booleanValue(input.withMusic, true),
         withNarration: booleanValue(input.withNarration, true),

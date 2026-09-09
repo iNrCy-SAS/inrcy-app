@@ -377,3 +377,28 @@ export function getAiMediaDialogueFallbackPair(
     DIALOGUE_FALLBACKS.fr;
   return fallbacks[sceneIndex % fallbacks.length]!;
 }
+
+/** Resolve the exact script once, in order, for both generation and audio QA.
+ * Tracking selected fallbacks (not rejected source lines) prevents a later
+ * scene from accidentally repeating a replacement spoken in an earlier act.
+ */
+export function resolveAiMediaDialogueSequence(args: {
+  scenes: ReadonlyArray<{ spokenLine?: string; body?: string; title?: string }>;
+  headline: string;
+  language: string;
+}) {
+  const used = new Set<string>();
+  return args.scenes.map((scene, sceneIndex) => {
+    const selected = selectAiMediaDialogueLine({
+      value: scene.spokenLine || scene.body || scene.title || args.headline,
+      language: args.language,
+      sceneIndex,
+      sceneCount: args.scenes.length,
+      speaker: "lead",
+      usedSignatures: used,
+    });
+    const line = completeAiMediaSpeechSentence(selected, args.language);
+    used.add(aiMediaDialogueSignature(line));
+    return line;
+  });
+}

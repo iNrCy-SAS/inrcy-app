@@ -1,7 +1,7 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import useMediaGeneration, {
   MediaGenerationAccountChangedError,
@@ -31,6 +31,7 @@ import type {
   AiMediaGeneratorBlockDefaults,
   AiMediaGeneratorPreferenceBlockId,
 } from "@/lib/aiMediaGenerationPreferences";
+import { shouldConnectAiMediaVideoScenes } from "@/lib/aiMediaGenerationContracts";
 import MediaSubjectVoiceButton from "./MediaSubjectVoiceButton";
 
 import styles from "./MediaGenerator.module.css";
@@ -133,6 +134,66 @@ function RememberPreferenceControl({
       <span aria-hidden="true" />
       <small>{saving ? savingLabel : label}</small>
     </button>
+  );
+}
+
+function SceneConnectionNotice({ onClose }: { onClose: () => void }) {
+  const t = useTranslations("media");
+  const titleId = useId();
+  const descriptionId = useId();
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const confirmRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    const previousFocus = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    dialog.showModal();
+    confirmRef.current?.focus({ preventScroll: true });
+    return () => {
+      if (dialog.open) dialog.close();
+      if (previousFocus?.isConnected) previousFocus.focus({ preventScroll: true });
+    };
+  }, []);
+
+  return (
+    <dialog
+      ref={dialogRef}
+      className={styles.sceneConnectionNotice}
+      aria-labelledby={titleId}
+      aria-describedby={descriptionId}
+      onCancel={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
+      onKeyDown={(event) => {
+        // This dialog owns Escape/Tab while the outer generator stays mounted.
+        event.stopPropagation();
+      }}
+    >
+      <div className={styles.sceneConnectionNoticeHeading}>
+        <h3 id={titleId}>{t("ai_generator_connect_scenes_label")}</h3>
+        <button
+          type="button"
+          className={styles.sceneConnectionNoticeClose}
+          aria-label={t("fermer_5ab4ec64")}
+          onClick={onClose}
+        >
+          ×
+        </button>
+      </div>
+      <p id={descriptionId}>{t("ai_generator_connect_scenes_notice")}</p>
+      <button
+        ref={confirmRef}
+        type="button"
+        className={styles.sceneConnectionNoticeConfirm}
+        onClick={onClose}
+      >
+        {t("ai_generator_connect_scenes_understood")}
+      </button>
+    </dialog>
   );
 }
 
@@ -324,6 +385,8 @@ export default function MediaGenerator({
   const [logoMode, setLogoMode] = useState<MediaGenerationLogoMode>("discreet");
   const [durationSeconds, setDurationSeconds] =
     useState<MediaGenerationVideoDuration>(8);
+  const [connectScenes, setConnectScenes] = useState(false);
+  const [sceneConnectionNoticeOpen, setSceneConnectionNoticeOpen] = useState(false);
   const [videoEngine, setVideoEngine] =
     useState<MediaGenerationVideoEngine>("omni");
   const [withText, setWithText] = useState(true);
@@ -366,6 +429,7 @@ export default function MediaGenerator({
     setIdentityConsent(false);
     setTeamVideoVeoConsent(false);
     setTeamVideoConsentOpen(false);
+    setSceneConnectionNoticeOpen(false);
     identityReferenceSetIdRef.current = createIdentityReferenceSetId();
   }, [preferencesAccountEpoch]);
 
@@ -374,6 +438,8 @@ export default function MediaGenerator({
     if (appliedPreferencesEpochRef.current === preferencesAccountEpoch) return;
 
     const block1 = savedPreferences.blocks[1];
+    const block6 = savedPreferences.blocks[6];
+    setConnectScenes(block6.saved ? block6.defaults.connectScenes : false);
     if (block1.saved) {
       setKind(block1.defaults.kind);
       setSubjectSource(
@@ -419,7 +485,6 @@ export default function MediaGenerator({
       setTeamVideoSpeechMode(block5.defaults.teamVideoSpeechMode);
     }
 
-    const block6 = savedPreferences.blocks[6];
     if (block6.saved) {
       setDurationSeconds(block6.defaults.durationSeconds);
       setWithText(block6.defaults.withText);
@@ -494,6 +559,14 @@ export default function MediaGenerator({
   const referenceCinematicRequested =
     referenceAnimationAvailable &&
     teamVideoMode === "cinematic";
+  const sceneConnectionAvailable = shouldConnectAiMediaVideoScenes({
+    kind,
+    durationSeconds,
+    connectScenes: true,
+    identityMode: peopleMode !== "none" ? videoCharacterMode : "auto",
+    peopleMode,
+    teamVideoMode,
+  });
   const animatedCharactersSpeak =
     referenceCinematicRequested &&
     peopleMode !== "none" &&
@@ -632,6 +705,7 @@ export default function MediaGenerator({
       case 6: {
         const defaults: AiMediaGeneratorBlockDefaults[6] = {
           durationSeconds,
+          connectScenes,
           withText,
           withMusic,
           withNarration,
@@ -710,6 +784,7 @@ export default function MediaGenerator({
           ? veoConsentForAttempt
           : false,
         durationSeconds: kind === "video" ? durationSeconds : undefined,
+        connectScenes: sceneConnectionAvailable ? connectScenes : undefined,
         inspirationImages,
       });
     } catch (caught) {
@@ -1080,6 +1155,9 @@ export default function MediaGenerator({
   return (
     <div className={styles.generator} data-origin={origin}>
       {teamVideoConsentDialog}
+      {sceneConnectionNoticeOpen ? (
+        <SceneConnectionNotice onClose={() => setSceneConnectionNoticeOpen(false)} />
+      ) : null}
       <div className={styles.criteriaGrid}>
         <section className={`${styles.criteriaSection} ${styles.collapsibleSection}`}>
           <div className={styles.collapsibleHeader}>
@@ -1138,6 +1216,7 @@ export default function MediaGenerator({
                       setIdentityConsent(false);
                       setTeamVideoVeoConsent(false);
                       setTeamVideoConsentOpen(false);
+                      setSceneConnectionNoticeOpen(false);
                       setKind(option);
                     }}
                   >
@@ -1837,33 +1916,53 @@ export default function MediaGenerator({
           </div>
           {expandedStep === 4 ? <div className={styles.collapsibleBody}>
             {kind === "video" ? (
-              <div className={styles.durationChoices} role="radiogroup" aria-label={t("ai_generator_duration_title")}>
-                {([8, 16, 24] as const).map((duration) => {
-                  const premiumLocked = duration > videoMaxDurationSeconds;
-                  return (
-                    <button
-                      key={duration}
-                      type="button"
-                      role="radio"
-                      aria-checked={durationSeconds === duration}
-                      className={durationSeconds === duration ? styles.compactChoiceActive : ""}
-                      onClick={() => setDurationSeconds(duration)}
-                      disabled={operationLocked || premiumLocked}
-                      title={premiumLocked ? t("ai_generator_video_premium_required") : undefined}
-                    >
-                      <strong>{duration} s</strong>
-                      <small>
-                        {t(`ai_generator_duration_${duration}`)}
-                        {premiumLocked ? ` · ${t("ai_generator_premium_only_short")}` : ""}
-                      </small>
-                    </button>
-                  );
-                })}
-              </div>
-            ) : null}
-            {videoDurationRestricted ? (
-              <div className={styles.durationUpsell} role="note">
-                {t("ai_generator_video_premium_required")}
+              <div className={styles.combinedSubsection}>
+                <strong className={styles.combinedSectionTitle}>{t("ai_generator_duration_title")}</strong>
+                <div className={styles.durationChoices} role="radiogroup" aria-label={t("ai_generator_duration_title")}>
+                  {([8, 16, 24] as const).map((duration) => {
+                    const premiumLocked = duration > videoMaxDurationSeconds;
+                    return (
+                      <button
+                        key={duration}
+                        type="button"
+                        role="radio"
+                        aria-checked={durationSeconds === duration}
+                        className={durationSeconds === duration ? styles.compactChoiceActive : ""}
+                        onClick={() => setDurationSeconds(duration)}
+                        disabled={operationLocked || premiumLocked}
+                        title={premiumLocked ? t("ai_generator_video_premium_required") : undefined}
+                      >
+                        <strong>{duration} s</strong>
+                        <small>
+                          {t("ai_generator_sequence_count", { count: duration / 8 })}
+                          {premiumLocked ? ` · ${t("ai_generator_premium_only_short")}` : ""}
+                        </small>
+                      </button>
+                    );
+                  })}
+                </div>
+                {sceneConnectionAvailable ? (
+                  <label className={styles.sceneConnectionChoice}>
+                    <input
+                      type="checkbox"
+                      checked={connectScenes}
+                      disabled={operationLocked}
+                      onChange={(event) => {
+                        setConnectScenes(event.target.checked);
+                        if (event.target.checked) setSceneConnectionNoticeOpen(true);
+                      }}
+                    />
+                    <span>
+                      <strong>{t("ai_generator_connect_scenes_label")}</strong>
+                      <small>{t("ai_generator_connect_scenes_hint")}</small>
+                    </span>
+                  </label>
+                ) : null}
+                {videoDurationRestricted ? (
+                  <div className={styles.durationUpsell} role="note">
+                    {t("ai_generator_video_premium_required")}
+                  </div>
+                ) : null}
               </div>
             ) : null}
             <label className={styles.switchRow}>

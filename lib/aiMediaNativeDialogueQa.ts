@@ -163,8 +163,9 @@ function contiguousOccurrences(
 }
 
 /**
- * Repère aussi le défaut observé en production où Veo répète plusieurs fois
- * les 2–4 premiers mots d'une réplique, sans jamais aller jusqu'à sa fin.
+ * Repère les boucles, même sur une fin de deux mots (« plus facilement »).
+ * Une répétition écrite dans le script reste autorisée : le premier passage
+ * et les occurrences prévues comptent ensemble pour un seul passage normal.
  */
 function dialogueRepeatCount(
   expected: readonly string[],
@@ -172,16 +173,49 @@ function dialogueRepeatCount(
 ) {
   if (!expected.length || !detected.length) return 0;
   let maximum = contiguousOccurrences(detected, expected);
-  const minimumChunk = Math.min(expected.length, Math.max(3, Math.ceil(expected.length * 0.3)));
-  for (let size = expected.length - 1; size >= minimumChunk; size -= 1) {
-    for (let expectedStart = 0; expectedStart + size <= expected.length; expectedStart += 1) {
-      maximum = Math.max(
-        maximum,
-        contiguousOccurrences(
-          detected,
-          expected.slice(expectedStart, expectedStart + size),
-        ),
-      );
+  const minimumChunk = expected.length === 1 ? 1 : 2;
+  const visited = new Set<string>();
+  for (let size = Math.floor(detected.length / 2); size >= minimumChunk; size -= 1) {
+    for (let start = 0; start + size <= detected.length; start += 1) {
+      const pattern = detected.slice(start, start + size);
+      const key = pattern.join(" ");
+      if (visited.has(key)) continue;
+      visited.add(key);
+      const occurrences = contiguousOccurrences(detected, pattern);
+      if (occurrences < 2) continue;
+      const permitted = Math.max(1, contiguousOccurrences(expected, pattern));
+      maximum = Math.max(maximum, 1 + Math.max(0, occurrences - permitted));
+    }
+  }
+  return maximum;
+}
+
+/**
+ * Un acte peut reprendre une phrase de l'acte précédent une seule fois : il
+ * n'y a alors aucune boucle à l'intérieur du clip. Les répliques déjà prévues
+ * dans le script courant sont exclues de ce contrôle de répétition inter-actes.
+ */
+function previousDialogueRepeatCount(
+  expected: readonly string[],
+  detected: readonly string[],
+  previousDialogues: readonly (readonly string[])[],
+) {
+  let maximum = 0;
+  const visited = new Set<string>();
+  for (const previous of previousDialogues) {
+    for (let size = Math.min(previous.length, detected.length); size >= 2; size -= 1) {
+      // Deux mots suffisent pour une fin répétée. Ailleurs, exiger trois mots
+      // évite de prendre une courte expression commune pour une réplique.
+      const firstStart = size === 2 ? previous.length - size : 0;
+      for (let start = firstStart; start + size <= previous.length; start += 1) {
+        const pattern = previous.slice(start, start + size);
+        const key = pattern.join(" ");
+        if (visited.has(key)) continue;
+        visited.add(key);
+        const excess = contiguousOccurrences(detected, pattern) -
+          contiguousOccurrences(expected, pattern);
+        if (excess > 0) maximum = Math.max(maximum, 1 + excess);
+      }
     }
   }
   return maximum;
@@ -319,15 +353,40 @@ export async function auditAiMediaNativeDialogueClips(args: {
           language,
         }),
         model: transcription.model,
+        expectedTokens: tokenizeAiMediaNativeDialogue(clip.expectedLine),
+        detectedTokens: tokenizeAiMediaNativeDialogue(transcription.text),
       };
     } catch (error) {
       if (args.signal?.aborted) throw error;
-      return { result: unavailableClipResult(clip), model: undefined };
+      return {
+        result: unavailableClipResult(clip),
+        model: undefined,
+        expectedTokens: [],
+        detectedTokens: [],
+      };
     }
   }));
+  // Garder uniquement les tokens pendant ce contrôle local, jamais dans les
+  // diagnostics renvoyés. L'ordre narratif ne dépend pas de l'ordre réseau.
+  results.sort((left, right) => left.result.sceneIndex - right.result.sceneIndex);
+  const previousDialogues: string[][] = [];
+  for (const entry of results) {
+    const repeatCount = previousDialogueRepeatCount(
+      entry.expectedTokens,
+      entry.detectedTokens,
+      previousDialogues,
+    );
+    if (repeatCount >= 2) {
+      entry.result.status = "rejected";
+      if (!entry.result.issues.includes("spoken_dialogue_repeated")) {
+        entry.result.issues.push("spoken_dialogue_repeated");
+      }
+      entry.result.metrics.repeatCount = Math.max(entry.result.metrics.repeatCount, repeatCount);
+    }
+    if (entry.detectedTokens.length) previousDialogues.push(entry.detectedTokens);
+  }
   const clips = results
-    .map((entry) => entry.result)
-    .sort((left, right) => left.sceneIndex - right.sceneIndex);
+    .map((entry) => entry.result);
   const status: AiMediaNativeDialogueQaStatus = clips.some(
     (clip) => clip.status === "rejected",
   )

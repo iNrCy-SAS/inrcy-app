@@ -95,6 +95,7 @@ export async function generateInrAgentMedia(args: {
     teamVideoSpeechMode: "voiceover",
     teamVideoVeoConsent: false,
     identityReferenceSetId: "",
+    connectScenes: false,
     durationSeconds: args.kind === "video" ? 8 : null,
     inspirationImages: [],
     source: "booster",

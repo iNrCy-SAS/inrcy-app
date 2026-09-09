@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { MediaLibraryPickerItem } from "@/app/dashboard/_components/MediaLibraryPickerModal";
 import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
+import { shouldConnectAiMediaVideoScenes } from "@/lib/aiMediaGenerationContracts";
 
 export type MediaGenerationKind = "image" | "video";
 export type MediaGenerationSource = "booster" | "studio";
@@ -147,6 +148,7 @@ export type MediaGenerationRequest = {
   identityConsent?: boolean;
   identityReferenceSetId?: string;
   durationSeconds?: MediaGenerationVideoDuration;
+  connectScenes?: boolean;
   inspirationImages?: MediaGenerationInspirationImage[];
   source: MediaGenerationSource;
 };
@@ -437,6 +439,7 @@ function buildGenerationAttemptKey(
         : "",
     durationSeconds:
       request.kind === "video" ? request.durationSeconds || 16 : null,
+    connectScenes: shouldConnectAiMediaVideoScenes(request),
     inspirationImages: (request.inspirationImages || []).map((image) => ({
       mimeType: image.mimeType,
       length: image.data.length,
@@ -786,6 +789,7 @@ export default function useMediaGeneration() {
               request.kind === "video"
                 ? request.durationSeconds || 16
                 : undefined,
+            connectScenes: shouldConnectAiMediaVideoScenes(request),
             inspirationImages: request.inspirationImages?.length
               ? request.inspirationImages.map((image) => ({
                   mimeType: image.mimeType,

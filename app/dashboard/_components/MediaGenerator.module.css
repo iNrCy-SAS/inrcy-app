@@ -896,6 +896,127 @@
   line-height: 1.4;
 }
 
+.sceneConnectionChoice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid rgba(109, 220, 255, 0.2);
+  border-radius: 12px;
+  background: rgba(5, 17, 42, 0.5);
+  cursor: pointer;
+}
+
+.sceneConnectionChoice input {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin: 1px 0 0;
+  accent-color: #45d8f5;
+}
+
+.sceneConnectionChoice > span {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.sceneConnectionChoice strong {
+  color: #f5f9ff;
+  font-size: 11px;
+}
+
+.sceneConnectionChoice small {
+  color: rgba(218, 232, 251, 0.74);
+  font-size: 10px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.sceneConnectionChoice:has(input:focus-visible) {
+  outline: 2px solid #6ce4ff;
+  outline-offset: 3px;
+}
+
+.sceneConnectionNotice {
+  box-sizing: border-box;
+  width: min(480px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  margin: auto;
+  padding: clamp(16px, 4vw, 24px);
+  border: 1px solid rgba(102, 218, 255, 0.3);
+  border-radius: 20px;
+  color: #f5f9ff;
+  background: linear-gradient(145deg, #0a1d41, #1e143f);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+}
+
+.sceneConnectionNotice[open] {
+  display: grid;
+  gap: 16px;
+}
+
+.sceneConnectionNotice::backdrop {
+  background: rgba(1, 6, 21, 0.78);
+  backdrop-filter: blur(8px);
+}
+
+.sceneConnectionNoticeHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sceneConnectionNotice h3,
+.sceneConnectionNotice p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.sceneConnectionNotice h3 {
+  font-size: clamp(17px, 4vw, 21px);
+  line-height: 1.25;
+}
+
+.sceneConnectionNotice p {
+  color: rgba(230, 240, 255, 0.85);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.sceneConnectionNoticeClose,
+.sceneConnectionNoticeConfirm {
+  min-height: 44px;
+  border: 1px solid rgba(120, 190, 245, 0.3);
+  border-radius: 12px;
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.sceneConnectionNoticeClose {
+  flex: 0 0 44px;
+  width: 44px;
+  padding: 0;
+  font-size: 25px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.sceneConnectionNoticeConfirm {
+  justify-self: end;
+  padding: 10px 22px;
+  font-weight: 800;
+  background: linear-gradient(100deg, #20b9e5, #7259e9 56%, #bd3eaf);
+}
+
+.sceneConnectionNotice button:focus-visible {
+  outline: 2px solid #8cecff;
+  outline-offset: 3px;
+}
+
 .combinedSubsection {
   min-width: 0;
 }

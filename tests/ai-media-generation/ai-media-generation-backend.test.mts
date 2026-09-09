@@ -808,8 +808,18 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   assert.match(omni, /background: false/);
   assert.match(omni, /store: true/);
   assert.match(omni, /stream: false/);
-  assert.match(omni, /DEFAULT_CONCURRENCY = 3/);
-  assert.match(omni, /AI_MEDIA_OMNI_CONCURRENCY/);
+  for (const videoProvider of [omni, veo]) {
+    assert.match(videoProvider, /const generationDeadline = Date\.now\(\) \+ Math\.min\(600_000, timeoutMs \* durations\.length\)/);
+    assert.match(videoProvider, /const remainingMs = generationDeadline - Date\.now\(\)/);
+    assert.match(videoProvider, /if \(remainingMs <= 0\) throw new Error/);
+    assert.match(videoProvider, /timeoutMs: Math\.min\(timeoutMs, remainingMs\)/);
+    assert.match(videoProvider, /const connectScenes = durations\.length > 1 && args\.request\.connectScenes === true/);
+    assert.match(videoProvider, /const concurrency = connectScenes \? 1 : Math\.min\(configuredConcurrency, durations\.length\)/);
+    assert.match(videoProvider, /await Promise\.allSettled/);
+    assert.match(videoProvider, /AI_MEDIA_(?:OMNI|VEO)_CONCURRENCY/);
+  }
+  assert.match(omni, /durations\.length > 1 &&\s*completedClips\.some\(\(clip\) => clip\.model !== model\)/);
+  assert.match(omni, /ai_video_omni_film_model_mixed/);
   assert.match(omni, /AI_MEDIA_OMNI_FALLBACK_TO_VEO/);
   assert.match(omni, /omni_scene_fallback_to_veo/);
   assert.match(omni, /ai_video_omni_clip_billable_failure/);
@@ -867,9 +877,10 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   assert.match(veo, /DEFAULT_DOWNLOAD_ATTEMPTS = 3/);
   assert.match(veo, /MAX_VEO_PROMPT_CHARS = 1_400/);
   assert.match(veo, /requiredPrompt\.length > MAX_VEO_PROMPT_CHARS/);
-  assert.match(veo, /DEFAULT_CONCURRENCY = 2/);
+  assert.match(veo, /const filmModels = durations\.length > 1 \? \[primaryModel\] : models/);
+  assert.match(veo, /durations\.length > 1 && usedModels\.length !== 1/);
+  assert.match(veo, /ai_video_veo_film_model_mixed/);
   assert.match(veo, /retryDelayMs/);
-  assert.match(veo, /Math\.min\(configuredConcurrency, durations\.length\)/);
   assert.match(veo, /actualCostMicroUsd \+=/);
   assert.match(veo, /costMicroUsdPerSecond\(usedModel\)/);
   assert.match(veo, /Math\.max\([\s\S]*costMicroUsdPerSecond/);

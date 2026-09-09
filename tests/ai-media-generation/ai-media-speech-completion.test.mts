@@ -54,10 +54,20 @@ test("les répliques natives trop longues ou pendantes basculent vers une phrase
 
 test("le prompt Veo transmet la réplique complète et réserve une fin silencieuse", () => {
   const veo = read("lib/aiVideoProviderGoogleVeo.ts");
+  const server = read("lib/aiMediaGenerationServer.ts");
   const narration = read("lib/aiMediaNarration.ts");
   const composer = read("lib/aiMediaGeneratedVideo.ts");
 
-  assert.match(veo, /const firstLine = exactSpokenLine/);
+  assert.match(
+    veo,
+    /const firstLine = resolveAiMediaDialogueSequence\(\{\s*scenes: args\.plan\.scenes,\s*headline: args\.plan\.headline,\s*language,\s*\}\)\[index\]/,
+  );
+  assert.match(
+    server,
+    /const expectedDialogueLines = resolveAiMediaDialogueSequence\(\{\s*scenes: creativePlan\.scenes,\s*headline: creativePlan\.headline,\s*language: profile\.preferences\.language,\s*\}\)/,
+  );
+  assert.match(server, /plan: creativePlan,[\s\S]*?contentLanguage: profile\.preferences\.language/);
+  assert.match(server, /expectedLine: expectedDialogueLines\[index\] \|\| ""/);
   assert.match(veo, /lip-syncs once 0\.2–5\.5s: “\$\{firstLine\}”/);
   assert.match(veo, /Then mouth closed\/silent/);
   assert.match(veo, /No repeat\/old line\/narrator\/music/);

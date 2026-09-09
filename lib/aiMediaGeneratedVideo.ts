@@ -11,6 +11,10 @@ import type { AiMediaVideoDuration } from "@/lib/aiMediaGenerationContracts";
 import type { GeneratedAiNarrationAudio } from "@/lib/aiMediaNarrationAudio";
 import type { NormalizedAiVideo } from "@/lib/aiMediaNormalizer";
 import {
+  resolveAiMediaVideoLayout,
+  type AiMediaVideoCaptionLayout,
+} from "@/lib/aiMediaVideoLayout";
+import {
   probeVideoSource,
   resolveVideoNormalizationFfmpegPath,
 } from "@/lib/mediaVideoNormalizer";
@@ -111,8 +115,10 @@ function buildFilter(args: {
   narrationInputIndex: number | null;
   narrationDurationSeconds: number | null;
   nativeAudioMode: AiMediaNativeAudioMode;
+  captionLayout?: AiMediaVideoCaptionLayout;
 }) {
   const filters: string[] = [];
+  const layout = resolveAiMediaVideoLayout(args);
   // Omni/Veo génèrent actuellement les sorties carrées sur une source 9:16.
   // Un crop vertical centré supprimait alors souvent le haut d'un visage.
   // Pour le carré, on ancre le recadrage en haut ; pour le 4:5, on conserve
@@ -127,8 +133,14 @@ function buildFilter(args: {
     const clipSeconds = args.clipDurations[index];
     const sourceStartSeconds = Math.max(0, args.clipSourceStarts[index] || 0);
     const overlayIndex = args.clipDurations.length + index;
+    // A reserved caption band must never hide a mouth or crop a face. Fit the
+    // entire source inside the remaining region, then pad to the final frame.
+    // The legacy/no-text path intentionally retains its edge-to-edge framing.
+    const framing = layout.caption.height > 0
+      ? `scale=${layout.content.width}:${layout.content.height}:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=${layout.content.width}:${layout.content.height}:(ow-iw)/2:(oh-ih)/2:color=0x020617,pad=${args.width}:${args.height}:0:0:color=0x020617`
+      : `scale=${args.width}:${args.height}:force_original_aspect_ratio=increase,crop=${args.width}:${args.height}:(in_w-out_w)/2:${verticalCropY}`;
     filters.push(
-      `[${index}:v]trim=start=${sourceStartSeconds}:duration=${clipSeconds},setpts=PTS-STARTPTS,scale=${args.width}:${args.height}:force_original_aspect_ratio=increase,crop=${args.width}:${args.height}:(in_w-out_w)/2:${verticalCropY},fps=30,setsar=1,format=yuv420p[base${index}]`,
+      `[${index}:v]trim=start=${sourceStartSeconds}:duration=${clipSeconds},setpts=PTS-STARTPTS,${framing},fps=30,setsar=1,format=yuv420p[base${index}]`,
       `[base${index}][${overlayIndex}:v]overlay=0:0:shortest=1,tpad=stop_mode=clone:stop_duration=${clipSeconds},trim=duration=${clipSeconds},setpts=PTS-STARTPTS[v${index}]`,
     );
     if (args.hasNativeAudio) {
@@ -234,6 +246,8 @@ export async function composeOriginalAiVideo(args: {
   narration?: GeneratedAiNarrationAudio | null;
   /** Préserve les dialogues/lip-sync natifs à leur niveau de parole. */
   nativeAudioMode?: AiMediaNativeAudioMode;
+  /** Must match the layout passed to renderAiMediaVideoOverlay. */
+  captionLayout?: AiMediaVideoCaptionLayout;
   signal?: AbortSignal;
 }): Promise<NormalizedAiVideo> {
   args.signal?.throwIfAborted();
@@ -340,6 +354,7 @@ export async function composeOriginalAiVideo(args: {
         narrationInputIndex,
         narrationDurationSeconds,
         nativeAudioMode,
+        captionLayout: args.captionLayout,
       }),
       "-map",
       "[video]",
