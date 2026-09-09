@@ -441,11 +441,54 @@ export function buildAiMediaCreativePlan(args: {
   const profession = business.professionLabel || business.sectorLabel;
   const companyName = business.companyName || localized.professionalFallback;
   const typology = safeTypology(request);
-  const targetCount = getAiMediaVideoSegmentCount(request.durationSeconds || 16);
-  const oneShotInstruction = clean(request.aiInstruction, 600);
+  const targetCount = request.kind === "video"
+    ? getAiMediaVideoSegmentCount(request.durationSeconds || 16)
+    : 1;
+  const oneShotInstruction = clean(request.aiInstruction, 190);
   const instructionDirection = oneShotInstruction
-    ? ` Consigne ponctuelle à appliquer sans l'afficher ni la recopier : ${oneShotInstruction}`
+    ? ` CONSIGNE PRIORITAIRE : ${oneShotInstruction}. L'appliquer entièrement sans l'afficher ni la réciter.`
     : "";
+
+  const exactIdeaDirection = (idea: string) => [
+    `SUJET IMMUTABLE : ${clean(idea, 280)}.`,
+    "Conserver ce même sujet, ses personnages ou objets, son action et son objectif dans chaque acte ; ne jamais le remplacer par une prestation générique de l'ADN.",
+    instructionDirection,
+  ].filter(Boolean).join(" ");
+
+  const userDirectedScenes = (options: {
+    idea: string;
+    headline: string;
+    subline: string;
+    cta: string;
+    supportingEyebrow: string;
+    supportingTitle: string;
+    supportingBody: string;
+  }) => {
+    const contract = exactIdeaDirection(options.idea);
+    return [
+      scene(
+        companyName,
+        options.headline,
+        options.subline,
+        "hero",
+        `ACTE 1 : commencer l'action principale dès la première image et rendre immédiatement le sujet reconnaissable. ${contract}`,
+      ),
+      scene(
+        options.supportingEyebrow,
+        options.supportingTitle,
+        options.supportingBody,
+        "editorial",
+        `ACTE 2 : poursuivre exactement la même action avec une étape ou une preuve nouvelle et concrète, sans redémarrer ni changer de sujet. ${contract}`,
+      ),
+      scene(
+        companyName,
+        options.cta,
+        business.city,
+        "cta",
+        `ACTE FINAL : achever exactement la même action, montrer son résultat concret puis une prochaine étape naturelle, sans introduire une autre prestation. ${contract}`,
+      ),
+    ].filter((value): value is AiMediaCreativeScene => Boolean(value));
+  };
 
   // Le plan français historique reste riche et très contextualisé. Pour toute
   // autre langue, le plan déterministe de secours n'affiche volontairement que
@@ -457,9 +500,30 @@ export function buildAiMediaCreativePlan(args: {
     const subline = localized.sublineFallback;
     const cta = ctaLabel(profile);
     const idea = request.subjectSource === "profile" ? "" : clean(request.idea, 700);
-    const ideaDirection = (idea
-      ? `S'inspirer strictement de cette idée sans la recopier à l'écran : ${idea}`
-      : `Représenter concrètement l'activité ${profession || companyName}.`) + instructionDirection;
+    if (idea) {
+      return {
+        headline,
+        subline,
+        companyName,
+        cta,
+        scenes: finalizeScenes({
+          candidates: userDirectedScenes({
+            idea,
+            headline,
+            subline,
+            cta,
+            supportingEyebrow: localized.supportingEyebrow,
+            supportingTitle: localized.supportingTitle,
+            supportingBody: localized.supportingBody,
+          }),
+          targetCount,
+          language,
+        }),
+      };
+    }
+    const ideaDirection =
+      `Représenter concrètement l'activité ${profession || companyName}.` +
+      instructionDirection;
     const localizedScenes = [
       scene(companyName, headline, subline, "hero", ideaDirection),
       scene(
@@ -512,9 +576,30 @@ export function buildAiMediaCreativePlan(args: {
     145,
   );
   const cta = ctaLabel(profile);
-  const ideaDirection = (idea
-    ? `S'inspirer strictement de cette idee sans la recopier a l'ecran : ${idea}`
-    : `Representer concretement l'activite ${profession || companyName}.`) + instructionDirection;
+  if (idea) {
+    return {
+      headline,
+      subline,
+      companyName,
+      cta,
+      scenes: finalizeScenes({
+        candidates: userDirectedScenes({
+          idea,
+          headline,
+          subline,
+          cta,
+          supportingEyebrow: "En action",
+          supportingTitle: "Une étape concrète",
+          supportingBody: subline,
+        }),
+        targetCount,
+        language,
+      }),
+    };
+  }
+  const ideaDirection =
+    `Representer concretement l'activite ${profession || companyName}.` +
+    instructionDirection;
 
   const candidates = [
     scene(companyName, headline, subline, "hero", ideaDirection),

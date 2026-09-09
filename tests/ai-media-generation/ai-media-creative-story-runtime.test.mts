@@ -90,6 +90,7 @@ test("les films 16/24 s gardent leur nombre d'actes et finissent par une vraie c
     const plan = buildAiMediaCreativePlan({
       request: {
         requestId: `story-${durationSeconds}`,
+        kind: "video",
         durationSeconds,
         subjectSource: "custom",
         idea,
@@ -116,6 +117,13 @@ test("les films 16/24 s gardent leur nombre d'actes et finissent par une vraie c
     assert.equal(plan.scenes.at(-1)?.layout, "cta");
     assert.match(plan.scenes.at(-1)?.visualBrief || "", /page blanche/i);
     assert.match(plan.scenes.at(-1)?.visualBrief || "", /résultat concret/i);
+    for (const [index, plannedScene] of plan.scenes.entries()) {
+      assert.match(
+        plannedScene.visualBrief,
+        /SUJET IMMUTABLE.*page blanche.*publier une campagne.*résultats/i,
+        `acte ${index + 1}: le sujet exact doit rester présent`,
+      );
+    }
   }
 });
 
@@ -143,6 +151,7 @@ test("une collision entre prestation et CTA ne peut jamais supprimer la conclusi
     const plan = buildAiMediaCreativePlan({
       request: {
         requestId: `cta-collision-${index}`,
+        kind: "video",
         durationSeconds: 16,
         subjectSource: "profile",
         idea: "",
@@ -185,6 +194,7 @@ test("une idée formulée comme une action devient une accroche française natur
     const plan = buildAiMediaCreativePlan({
       request: {
         requestId: `artisan-urgent-${index}`,
+        kind: "image",
         durationSeconds: 8,
         subjectSource: "custom",
         idea,
@@ -202,6 +212,7 @@ test("une idée formulée comme une action devient une accroche française natur
       /^(?:cap sur )?un artisan reçoit une demande urgente(?: prend vie|, autrement)?$/i,
     );
     assert.equal(plan.headline.includes("…"), false);
+    assert.equal(plan.scenes.length, 1, "une image ne doit jamais recevoir un scénario vidéo multi-actes");
   }
 });
 
@@ -228,6 +239,7 @@ test("le secours local conserve les noms propres entiers et corrige le sujet pei
     const plan = buildAiMediaCreativePlan({
       request: {
         requestId: `guyancourt-${index}`,
+        kind: "image",
         durationSeconds: 8,
         subjectSource: "custom",
         idea,

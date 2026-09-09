@@ -983,13 +983,13 @@ export async function generateAndSaveAiMedia(args: {
       pipelineWarnings.push("narration_slow_video_continued");
     }
     // La piste audio native et les mouvements de bouche sont produits ensemble
-    // par le moteur vidéo. Un échec (ou une indisponibilité) du contrôle de
-    // transcription ne doit jamais remplacer cette piste par un TTS : les
-    // lèvres resteraient animées pour la voix d'origine et seraient donc
-    // nécessairement désynchronisées avec la nouvelle voix.
+    // par le moteur vidéo. Une transcription explicitement rejetée ne doit
+    // jamais être livrée : on garde alors le mouvement mais on coupe la voix,
+    // sans lui substituer un TTS qui serait désynchronisé. Une indisponibilité
+    // technique du contrôle reste distincte d'un rejet de contenu.
     if (nativeDialogueQa?.status === "rejected") {
       pipelineWarnings.push(
-        "native_character_dialogue_qa_rejected_native_audio_preserved_for_lip_sync",
+        "native_character_dialogue_qa_rejected_native_audio_muted",
       );
     } else if (nativeDialogueQa?.status === "unavailable") {
       pipelineWarnings.push(
@@ -1021,7 +1021,9 @@ export async function generateAndSaveAiMedia(args: {
     let narration = narrationResult?.narration || null;
     let narrationAudio = narrationResult?.audio || null;
     let nativeCharacterDialoguePreserved =
-      characterDialogueRequested && !characterDialogueProviderFallback;
+      characterDialogueRequested &&
+      !characterDialogueProviderFallback &&
+      nativeDialogueQa?.status !== "rejected";
 
     const clips = videoGateway.clips.map((clip) => ({
       buffer: clip.buffer,

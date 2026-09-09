@@ -549,8 +549,15 @@ test("le prompt donne à GPT Image le sujet, l’ADN, l’identité autorisée e
   const dna = read("lib/aiMediaBusinessDna.ts");
   assert.match(
     source,
-    /AI_MEDIA_PROMPT_VERSION = "inrcy-media-v17-exact-contact-composition"/,
+    /AI_MEDIA_PROMPT_VERSION = "inrcy-media-v18-strict-user-intent"/,
   );
+  assert.match(source, /CONTRAT CRÉATIF PRIORITAIRE/);
+  assert.match(source, /SUJET CENTRAL OBLIGATOIRE/);
+  assert.match(source, /CONSIGNE DE RÉALISATION PRIORITAIRE/);
+  assert.match(source, /getAiMediaImageQualityBar/);
+  assert.match(source, /image digne d’une campagne de marque/);
+  assert.match(source, /point focal fort, une profondeur en plusieurs plans/);
+  assert.match(source, /accessoires aléatoires/);
   assert.match(source, /buildAiMediaBusinessDnaPayload/);
   assert.match(source, /ADN PROFESSIONNEL AUTORISÉ/);
   assert.match(source, /Palette réelle extraite du logo/);
@@ -838,11 +845,11 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   assert.match(veo, /redactAiMediaSensitiveText\(failure\.details, 500\)/);
   assert.match(veo, /classifyVeoFailure/);
   assert.match(veo, /nextVeoInspirationMode/);
-  assert.match(veo, /Adults only \(25\+\); no minors/);
-  assert.match(veo, /This business serves a family audience/);
+  assert.match(veo, /PEOPLE: mature adults 25\+ only; no minors/);
+  assert.match(veo, /Family-facing context/);
   assert.match(veo, /buildGoogleVideoSafetyFallbackPrompt/);
   assert.match(veo, /canRetryAfterSafety/);
-  assert.match(veo, /PROFESSIONAL SAFETY FRAMING/);
+  assert.match(veo, /PROFESSIONAL SAFETY/);
   assert.match(veo, /Professional wellness service only/);
   assert.match(veo, /modestly covered by towels or sheets/);
   assert.match(veo, /no intimate body area/);
@@ -859,7 +866,7 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   assert.match(veo, /DEFAULT_SUBMIT_ATTEMPTS = 4/);
   assert.match(veo, /DEFAULT_DOWNLOAD_ATTEMPTS = 3/);
   assert.match(veo, /MAX_VEO_PROMPT_CHARS = 1_400/);
-  assert.match(veo, /\.join\(" "\),\s*MAX_VEO_PROMPT_CHARS,?\s*\)/);
+  assert.match(veo, /requiredPrompt\.length > MAX_VEO_PROMPT_CHARS/);
   assert.match(veo, /DEFAULT_CONCURRENCY = 2/);
   assert.match(veo, /retryDelayMs/);
   assert.match(veo, /Math\.min\(configuredConcurrency, durations\.length\)/);
@@ -878,16 +885,22 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
       `${criterion} doit guider chaque plan Veo`
     );
   }
-  assert.match(veo, /PRIMARY SUBJECT — visually unmistakable/);
+  assert.match(veo, /`SUBJECT: \$\{primarySubject\}/);
   assert.match(
     veo,
-    /Keep every named trade, product, animal, object, action or place central/
+    /Keep named entities\/actions\/relations; no substitute/
   );
   assert.match(veo, /smartphone, tablet or laptop in the foreground/);
   assert.match(veo, /masonry or construction site/);
   assert.match(veo, /real horses as central subjects/);
   assert.match(veo, /function subjectDigitalDirection/);
-  assert.match(veo, /digitalDirection \? `\$\{digitalDirection\}\.\` : ""/);
+  assert.match(veo, /digitalDirection \? `\$\{promptSnippet\(digitalDirection, 110\)\}\.\` : ""/);
+  assert.match(veo, /buildGoogleVideoReferenceContract/);
+  assert.match(veo, /buildGoogleVideoParameterContract/);
+  assert.match(veo, /buildGoogleVideoContinuityContract/);
+  assert.match(veo, /priorityPromptSnippet/);
+  assert.match(veo, /NO VISUAL TEXT/);
+  assert.match(veo, /Animate from 0\.0s throughout/);
   assert.doesNotMatch(veo, /watermarks, interfaces, posters/);
   assert.match(timeline, /8: Object\.freeze\(\[8\]/);
   assert.match(timeline, /16: Object\.freeze\(\[8, 8\]/);
@@ -975,7 +988,7 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
     /creativeBrief: buildAiMediaVideoDnaBrief\(profile\)/
   );
   assert.match(dnaHelper, /\["Prestation", first\(business\.services, 120\)\]/);
-  assert.match(veo, /adultSafePromptText\(args\.creativeBrief, 90\)/);
+  assert.match(veo, /adultSafePromptText\(args\.creativeBrief, 180\)/);
   assert.doesNotMatch(veo, /compact\(args\.creativeBrief, 6_000\)/);
   assert.match(server, /writeAiMediaHeadline/);
   assert.match(server, /writeAiMediaNarration/);

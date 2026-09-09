@@ -42,6 +42,34 @@ test("all campaign editors expose the full-screen message control", () => {
   }
 });
 
+test("full-screen campaign editors keep the subject and AI generation controls available", () => {
+  const editor = read("app/dashboard/_components/RichMailEditor.tsx");
+  const header = read("app/dashboard/_components/CampaignFullscreenComposerHeader.tsx");
+  const headerCss = read("app/dashboard/_components/CampaignFullscreenComposerHeader.module.css");
+
+  assert.match(editor, /fullscreenHeader\?:\s*React\.ReactNode/);
+  assert.match(editor, /isExpanded && fullscreenHeader/);
+  assert.match(editor, /data-campaign-fullscreen-header/);
+
+  assert.match(header, /value=\{subject\}/);
+  assert.match(header, /value=\{selectedKey\}/);
+  assert.match(header, /<TemplateAiEngineSelector/);
+  assert.match(header, /onClick=\{onGenerate\}/);
+  assert.match(headerCss, /grid-template-columns:[\s\S]*?minmax\(280px, 1\.35fr\)/);
+  assert.match(headerCss, /@media \(max-width: 1180px\)/);
+  assert.match(headerCss, /@media \(max-width: 680px\)/);
+
+  for (const path of campaignModals) {
+    const source = read(path);
+    assert.match(source, /import CampaignFullscreenComposerHeader/);
+    assert.match(
+      source,
+      /fullscreenHeader=\{[\s\S]*?<CampaignFullscreenComposerHeader[\s\S]*?subject=\{subject\}[\s\S]*?selectedKey=\{selectedKey\}[\s\S]*?aiEngine=\{aiEngine\}[\s\S]*?onGenerate=\{generateAiTemplateContent\}/,
+      `${path} should expose the live campaign controls in full-screen mode`,
+    );
+  }
+});
+
 test("generated campaign templates update subject and message as one complete result", () => {
   for (const path of campaignModals) {
     const source = read(path);

@@ -6,6 +6,7 @@ import stylesDash from "../../../dashboard.module.css";
 import { getTemplates, type TemplateDef } from "@/lib/messageTemplates";
 import { useBusinessTemplateContext } from "@/app/dashboard/_hooks/useBusinessTemplateContext";
 import RichMailEditor from "@/app/dashboard/_components/RichMailEditor";
+import CampaignFullscreenComposerHeader from "@/app/dashboard/_components/CampaignFullscreenComposerHeader";
 import AiContentReportButton from "@/app/dashboard/_components/AiContentReportButton";
 import TemplateSubjectInlineEditor from "@/app/dashboard/_components/TemplateSubjectInlineEditor";
 import { extractTemplatePlaceholders, textToRichMailHtml } from "@/lib/mailRichText";
@@ -379,6 +380,28 @@ export default function EnqueterModal({
               compactToolbar
               mobileFullscreen={isMobile}
               allowFullscreen
+              fullscreenHeader={
+                <CampaignFullscreenComposerHeader
+                  subject={subject}
+                  onSubjectChange={setSubject}
+                  selectedKey={selectedKey}
+                  onTemplateChange={(nextKey) => {
+                    restoredWorkflowKeyRef.current = "";
+                    setSelectedKey(nextKey);
+                  }}
+                  options={categories.map((template, index) => ({
+                    value: template.key,
+                    label: `${index + 1}. ${template.title}`,
+                  }))}
+                  aiEngine={aiEngine}
+                  defaultAiEngine={defaultAiEngine}
+                  onAiEngineChange={setAiEngine}
+                  aiGenerating={aiGenerating}
+                  canGenerate={Boolean(selected)}
+                  onGenerate={generateAiTemplateContent}
+                  error={aiError}
+                />
+              }
               minHeight={0}
               className={styles.textarea}
               editorStyle={{

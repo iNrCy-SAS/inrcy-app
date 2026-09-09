@@ -16,7 +16,8 @@ test("la consigne ponctuelle traverse le client, le prompt et les rédacteurs sa
   assert.match(generator, /aiInstruction: aiInstruction\.trim\(\)/);
   assert.match(generator, /maxLength=\{600\}/);
   assert.match(hook, /aiInstruction: String\(request\.aiInstruction \|\| ""\)\.trim\(\)/);
-  assert.match(prompt, /CONSIGNE PONCTUELLE DU PROFESSIONNEL/);
+  assert.match(prompt, /CONSIGNE DE RÉALISATION PRIORITAIRE DU PROFESSIONNEL/);
+  assert.match(prompt, /Appliquer tous ses éléments visuels et narratifs/);
   assert.match(copywriter, /consigne_ponctuelle: args\.request\.aiInstruction \|\| null/);
   assert.match(narration, /consigne_ponctuelle: args\.request\.aiInstruction \|\| null/);
   assert.match(route, /ai_instruction_present: Boolean\(normalizedRequest\.aiInstruction\)/);
@@ -39,7 +40,8 @@ test("l'identité vidéo est consentie, auditée et indépendante du rendu", () 
   assert.match(generator, /const strictIdentityReferenceMode =/);
   assert.match(generator, /identityConsent: identityConsentRequired \? identityConsent : false/);
   assert.match(generator, /\n\s*inspirationImages,\n/);
-  assert.match(prompt, /getAiMediaVideoIdentityDirection/);
+  assert.match(prompt, /getAiMediaIdentityDirection/);
+  assert.doesNotMatch(prompt, /getAiMediaVideoIdentityDirection/);
   assert.match(prompt, /sans le remplacer par un visage générique/);
   assert.match(prompt, /dans le rendu choisi/);
   assert.match(route, /inrcy-media-identity-consent-v1/);

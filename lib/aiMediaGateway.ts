@@ -190,7 +190,7 @@ export async function generateAiMediaImage(args: {
                 ? `- Les ${providedReferences.length} première${providedReferences.length > 1 ? "s" : ""} image${providedReferences.length > 1 ? "s" : ""} sont des références autorisées d’un professionnel adulte. Le rendu vise à préserver son identité visuelle sans substituer une personne générique ; le professionnel doit contrôler le résultat avant validation.`
                 : `- Les ${providedReferences.length} première${providedReferences.length > 1 ? "s" : ""} image${providedReferences.length > 1 ? "s" : ""} sont des références autorisées pour construire ou préserver l’avatar illustré de la marque. Conserver ses signes distinctifs et faire contrôler le résultat avant validation.`
               : providedReferences.length
-                ? `- Les ${providedReferences.length} première${providedReferences.length > 1 ? "s" : ""} image${providedReferences.length > 1 ? "s" : ""} sont uniquement des inspirations visuelles générales pour le sujet, l’ambiance ou la scène. Elles n’imposent aucune identité réelle à reproduire.`
+                ? `- Les ${providedReferences.length} première${providedReferences.length > 1 ? "s" : ""} image${providedReferences.length > 1 ? "s" : ""} sont des inspirations visuelles obligatoires. En extraire le sujet, l’ambiance, la composition et le style pertinents, puis rendre cette influence perceptible dans le résultat sans reproduire ni revendiquer l’identité d’une personne réelle.`
               : "- Aucune référence d'identité n'est fournie.",
             officialLogoIncluded
               ? `- L'image ${referenceImagesCount} est exclusivement le logo officiel ; ne jamais la confondre avec une personne ni un décor.`

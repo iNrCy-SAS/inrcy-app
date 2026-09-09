@@ -13,18 +13,16 @@ const read = (relativePath: string) =>
 test("le prompt vidéo distingue le professionnel, l’avatar et le mode générique", () => {
   const veo = read("lib/aiVideoProviderGoogleVeo.ts");
 
-  assert.match(veo, /buildGoogleVideoIdentityDirection/);
-  assert.match(veo, /IDENTITY LOCK — APPROVED REAL PROFESSIONAL/);
-  assert.match(veo, /IDENTITY LOCK — APPROVED BRAND AVATAR/);
-  assert.match(veo, /SOURCE IMAGE ANIMATION — APPROVED REFERENCE/);
-  assert.match(veo, /animate the subject shown in the/);
-  assert.match(veo, /never render a still-photo slideshow/);
-  assert.match(veo, /general visual inspiration only/);
-  assert.match(
-    veo,
-    /never replace the professional with a generic or different person/
-  );
-  assert.match(veo, /PUNCTUAL USER DIRECTION FOR THIS GENERATION ONLY/);
+  assert.match(veo, /buildGoogleVideoReferenceContract/);
+  assert.match(veo, /request\.identityMode === "professional"/);
+  assert.match(veo, /same face\/hair\/build each act/);
+  assert.match(veo, /request\.identityMode === "brand_avatar"/);
+  assert.match(veo, /same design\/features each act/);
+  assert.match(veo, /request\.identityMode === "reference_team"/);
+  assert.match(veo, /identities locked; all move 0\.0s/);
+  assert.match(veo, /source to animate, not mood board/);
+  assert.match(veo, /use subject\/mood\/composition\/style, not real identity/);
+  assert.match(veo, /USER: \$\{userDirection\}/);
 });
 
 test("les références d’identité restent actives sur chaque segment et chaque fournisseur", () => {
@@ -190,17 +188,17 @@ test("la direction Veo impose une scène animée continue sans diaporama ni alt�
   const veo = read("lib/aiVideoProviderGoogleVeo.ts");
   const server = read("lib/aiMediaGenerationServer.ts");
 
-  assert.match(veo, /single unbroken continuous shot with no scene cuts/);
-  assert.match(veo, /living motion; no collage, slideshow or Ken Burns/);
-  assert.match(veo, /exactly \$\{identityTeamMemberCount === 3 \? 3 : 2\} approved adults/);
-  assert.match(veo, /never invent, omit, fuse, duplicate, swap or replace/);
-  assert.match(veo, /safe medium-wide, full heads with headroom/);
-  assert.match(veo, /ACT 1 — OPENING:[\s\S]*?no static talking head/);
-  assert.match(veo, /MIDDLE ACT — DEMONSTRATION\/PROOF:[\s\S]*?new concrete step/);
-  assert.match(veo, /FINAL ACT — CONCLUSION:[\s\S]*?never replay an earlier pose or framing/);
+  assert.match(veo, /one continuous take/);
+  assert.match(veo, /no still\/freeze\/slideshow\/pan-zoom\/reset\/cut/);
+  assert.match(veo, /group=\$\{identityTeamMemberCount === 3 \? 3 : 2\} adults/);
+  assert.match(veo, /no merge\/omit\/duplicate\/swap/);
+  assert.match(veo, /FRAME medium-wide\/full heads/);
+  assert.match(veo, /OPENING: requested action moves at frame 1/);
+  assert.match(veo, /MIDDLE: new proof step; no opening replay/);
+  assert.match(veo, /FINAL: same task reaches requested result/);
   assert.match(
     veo,
-    /Extend this video immediately[\s\S]*?no new intro, reset, recap or repeated event/,
+    /Continue prior frame:[\s\S]*?no intro\/reset\/recap\/cut/,
   );
   assert.match(server, /jamais un collage, un écran partagé, des cartes portrait ni un diaporama/);
   assert.match(server, /regards, expressions, gestes, pas, interactions et mouvements de caméra naturels/);
@@ -217,41 +215,32 @@ test("Veo sépare strictement les dialogues natifs et la voix off sans inférer 
   assert.match(veo, /selectAiMediaDialogueLine/);
   assert.match(veo, /usedSignatures: usedDialogue/);
   assert.doesNotMatch(veo, /\["On s’y met \?", "Avec plaisir\."\]/);
-  assert.match(veo, /VOICE-OVER MODE — every on-screen person stays silent/);
-  assert.match(veo, /no dialogue, speech, lip-sync or vocalisation/);
-  assert.match(veo, /NATIVE CHARACTER DIALOGUE, never voice-over/);
-  assert.doesNotMatch(veo, /promptSnippet\(firstLine, (?:64|72)\)/);
-  assert.match(veo, /ONCE ONLY: .* says exactly “\$\{firstLine\}”/);
-  assert.match(veo, /exact lip-sync/);
-  assert.match(veo, /finish all words by 5\.5s/);
-  assert.match(veo, /after speaking close the mouth and react silently/);
-  assert.match(veo, /otherwise stay silent/);
-  assert.match(veo, /never repeat, restart, loop or reuse earlier-scene dialogue/);
-  assert.match(veo, /one synthetic adult voice fixed to face/);
-  assert.match(veo, /distinct synthetic adult voice\/face/);
-  assert.match(veo, /no cloning, gender\/identity inference/);
+  assert.match(veo, /VOICE-OVER: people stay silent with closed mouths/);
+  assert.match(veo, /no native speech, lip-sync, vocalisation/);
+  assert.match(veo, /DIALOGUE: recurring character lip-syncs once 0\.2–5\.5s/);
+  assert.match(veo, /DIALOGUE: Person \$\{firstSpeaker\} left-to-right lip-syncs once/);
+  assert.match(veo, /const firstLine = exactSpokenLine/);
+  assert.match(veo, /Then mouth closed\/silent/);
+  assert.match(veo, /No repeat\/old line\/narrator\/music\/cloning/);
+  assert.match(veo, /stable adult synthetic voice/);
   assert.match(veo, /narrator\/music/);
 
-  const singleScenePromptPosition = veo.indexOf(
-    "return compact(",
-    veo.indexOf("export function buildGoogleVideoScenePrompt"),
-  );
-  const identityPosition = veo.indexOf(
-    "identityDirection ? `${identityDirection}.` : \"\"",
-    singleScenePromptPosition,
-  );
-  const speechPosition = veo.indexOf(
-    "speechDirection ? `${speechDirection}.` : \"\"",
-    singleScenePromptPosition,
-  );
-  const subjectPosition = veo.indexOf(
-    "`PRIMARY SUBJECT — visually unmistakable: ${primarySubject}.`",
-    singleScenePromptPosition,
-  );
-  assert.ok(singleScenePromptPosition > 0, "assemblage du prompt court présent");
-  assert.ok(identityPosition > 0, "verrou d’identité présent");
-  assert.ok(speechPosition > identityPosition, "dialogue après le verrou d’identité");
-  assert.ok(subjectPosition > speechPosition, "instructions critiques avant le contexte tronquable");
+  const requiredPosition = veo.indexOf("const requiredSections = [");
+  const subjectPosition = veo.indexOf("`SUBJECT: ${primarySubject}", requiredPosition);
+  const userPosition = veo.indexOf("`USER: ${userDirection}", requiredPosition);
+  const referencePosition = veo.indexOf("`REFERENCE: ${referenceContract}", requiredPosition);
+  const actPosition = veo.indexOf("`ACT: ${promptSnippet(sequenceDirection", requiredPosition);
+  const noTextPosition = veo.indexOf('"NO VISUAL TEXT:', requiredPosition);
+  const speechPosition = veo.indexOf("speechDirection,", requiredPosition);
+  const parametersPosition = veo.indexOf("`PARAMS: ${selectedParameters}", requiredPosition);
+  assert.ok(requiredPosition > 0, "contrat critique présent");
+  assert.ok(subjectPosition > requiredPosition, "sujet prioritaire présent");
+  assert.ok(userPosition > subjectPosition, "consigne après le sujet");
+  assert.ok(referencePosition > userPosition, "rôle des références après la consigne");
+  assert.ok(actPosition > referencePosition, "action de l’acte après la référence");
+  assert.ok(noTextPosition > actPosition, "anti-texte avant le dialogue");
+  assert.ok(speechPosition > noTextPosition, "dialogue après l’anti-texte");
+  assert.ok(parametersPosition > speechPosition, "réglages après le dialogue");
 });
 
 test("le cadrage vidéo protège la tête lors du recadrage carré", () => {
@@ -267,7 +256,7 @@ test("le cadrage vidéo protège la tête lors du recadrage carré", () => {
   assert.match(composer, /crop=\$\{args\.width\}:\$\{args\.height\}:\(in_w-out_w\)\/2:\$\{verticalCropY\}/);
   assert.match(copywriter, /spokenLine/);
   assert.match(copywriter, /spokenReply/);
-  assert.match(copywriter, /directement liée au sujet professionnel vérifié/);
+  assert.match(copywriter, /directement liée au sujet central exact et à l'action demandée/);
 });
 
 test("le montage audio préserve le dialogue natif sans jamais recoller un TTS sur les lèvres", () => {
@@ -280,17 +269,14 @@ test("le montage audio préserve le dialogue natif sans jamais recoller un TTS s
   assert.match(composer, /ai_original_video_dialogue_narration_conflict/);
   assert.match(composer, /ai_original_video_native_dialogue_missing/);
   assert.match(server, /auditAiMediaNativeDialogueWithGoogle/);
-  assert.match(
-    server,
-    /native_character_dialogue_qa_rejected_native_audio_preserved_for_lip_sync/,
-  );
+  assert.match(server, /native_character_dialogue_qa_rejected_native_audio_muted/);
   assert.match(
     server,
     /native_character_dialogue_qa_unavailable_native_audio_preserved/,
   );
   assert.match(
     server,
-    /characterDialogueRequested && !characterDialogueProviderFallback/,
+    /characterDialogueRequested &&[\s\S]*?!characterDialogueProviderFallback &&[\s\S]*?nativeDialogueQa\?\.status !== "rejected"/,
   );
   assert.doesNotMatch(server, /character_dialogue_fallback_narration/);
   assert.doesNotMatch(server, /character_dialogue_audio_fallback/);

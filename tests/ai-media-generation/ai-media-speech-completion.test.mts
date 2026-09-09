@@ -57,10 +57,10 @@ test("le prompt Veo transmet la réplique complète et réserve une fin silencie
   const narration = read("lib/aiMediaNarration.ts");
   const composer = read("lib/aiMediaGeneratedVideo.ts");
 
-  assert.doesNotMatch(veo, /promptSnippet\(firstLine,\s*(?:64|72)\)/);
-  assert.match(veo, /says exactly “\$\{firstLine\}”/);
-  assert.match(veo, /finish all words by 5\.5s/);
-  assert.match(veo, /otherwise stay silent/);
+  assert.match(veo, /const firstLine = exactSpokenLine/);
+  assert.match(veo, /lip-syncs once 0\.2–5\.5s: “\$\{firstLine\}”/);
+  assert.match(veo, /Then mouth closed\/silent/);
+  assert.match(veo, /No repeat\/old line\/narrator\/music/);
 
   assert.match(narration, /count <= target\.max/);
   assert.match(narration, /hasCompleteAiMediaSpeechEnding\(value, language\)/);

@@ -114,7 +114,8 @@ test("les identités strictes restent sur GPT-Image-2, les références auto res
     /const model = strictIdentityReferences[\s\S]*?DEFAULT_IMAGE_MODEL[\s\S]*?: configuredModel/,
   );
   assert.match(gateway, /inputFidelity: "high"/);
-  assert.match(gateway, /uniquement des inspirations visuelles générales/);
+  assert.match(gateway, /des inspirations visuelles obligatoires/);
+  assert.match(gateway, /rendre cette influence perceptible/);
   assert.match(
     gateway,
     /strictIdentityReferences[\s\S]*?"ai_image_identity_not_generated"[\s\S]*?"ai_image_not_generated"/,
@@ -150,7 +151,8 @@ test("le prompt cumule cardinalité et identité sans promettre une ressemblance
   assert.match(prompt, /PEOPLE_DIRECTIONS\[request\.peopleMode\]/);
   assert.match(prompt, /const castRule =/);
   assert.match(prompt, /const hasStrictIdentityReferences =/);
-  assert.match(prompt, /uniquement des inspirations visuelles générales/);
+  assert.match(prompt, /inspirations visuelles obligatoires/);
+  assert.match(prompt, /sans reproduire ni revendiquer l’identité d’une personne réelle/);
   assert.match(prompt, /contrôler la ressemblance avant validation/);
   assert.doesNotMatch(prompt, /préserver fidèlement l’identité/);
   assert.match(

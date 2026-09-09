@@ -21,6 +21,7 @@ type RichMailEditorProps = {
   highlightTemplatePlaceholders?: boolean;
   mobileFullscreen?: boolean;
   allowFullscreen?: boolean;
+  fullscreenHeader?: React.ReactNode;
 };
 
 export default function RichMailEditor({
@@ -37,6 +38,7 @@ export default function RichMailEditor({
   highlightTemplatePlaceholders = true,
   mobileFullscreen = false,
   allowFullscreen = false,
+  fullscreenHeader,
 }: RichMailEditorProps) {
   const i18nT = useTranslations("mails");
   const editorRef = useRef<HTMLDivElement | null>(null);
@@ -300,6 +302,12 @@ export default function RichMailEditor({
         ) : null}
         <div style={{ justifySelf: showExpandControl ? "end" : undefined }}>{toolbar}</div>
       </div>
+
+      {isExpanded && fullscreenHeader ? (
+        <div data-campaign-fullscreen-header style={{ flex: "0 0 auto", minWidth: 0 }}>
+          {fullscreenHeader}
+        </div>
+      ) : null}
 
       <div
         style={{

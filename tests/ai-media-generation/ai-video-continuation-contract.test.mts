@@ -24,7 +24,7 @@ const ROOT = process.cwd();
 const read = (relativePath: string) =>
   readFileSync(path.join(ROOT, relativePath), "utf8");
 
-function loadVeoPromptBuilder() {
+function loadVeoPromptRuntime() {
   const source = read("lib/aiVideoProviderGoogleVeo.ts");
   const transpiled = ts.transpileModule(source, {
     compilerOptions: {
@@ -104,12 +104,20 @@ function loadVeoPromptBuilder() {
     path.join(ROOT, "lib/aiVideoProviderGoogleVeo.ts"),
     path.join(ROOT, "lib"),
   );
-  return commonJsModule.exports.buildGoogleVideoScenePrompt as (
-    args: Record<string, unknown>,
-    index: number,
-    durationSeconds: 8,
-    options?: { continuation?: boolean },
-  ) => string;
+  return {
+    buildGoogleVideoScenePrompt:
+      commonJsModule.exports.buildGoogleVideoScenePrompt as (
+        args: Record<string, unknown>,
+        index: number,
+        durationSeconds: 8,
+        options?: { continuation?: boolean },
+      ) => string,
+    promptForInspirationMode:
+      commonJsModule.exports.promptForInspirationMode as (
+        prompt: string,
+        mode: "references" | "source" | "none",
+      ) => string,
+  };
 }
 
 function loadVideoProviderRouter() {
@@ -401,23 +409,21 @@ test("le prompt de prolongation impose une vraie suite sans coupe, reset ni rép
   const veo = read("lib/aiVideoProviderGoogleVeo.ts");
 
   assert.match(veo, /\[# Sources <PREVIOUS_VIDEO>@Video1\]/);
-  assert.match(veo, /Extend this video immediately/);
-  assert.match(
-    veo,
-    /same people, faces, clothing, voices, workplace, light and motion/,
-  );
-  assert.match(veo, /no new intro, reset, recap or repeated event/);
-  assert.match(veo, /single unbroken continuous shot with no scene cuts/);
-  assert.match(veo, /ACT 1 — OPENING/);
-  assert.match(veo, /MIDDLE ACT — DEMONSTRATION/);
-  assert.match(veo, /FINAL ACT — CONCLUSION/);
-  assert.match(veo, /never replay the opening pose, framing or gesture/);
-  assert.match(veo, /never repeat, restart, loop or reuse earlier-scene dialogue/);
-  assert.match(veo, /after speaking close the mouth and react silently/);
+  assert.match(veo, /Continue prior frame/);
+  assert.match(veo, /same cast\/look\/place\/light\/lens\/motion/);
+  assert.match(veo, /no intro\/reset\/recap\/cut/);
+  assert.match(veo, /one continuous take/);
+  assert.match(veo, /OPENING: requested action moves at frame 1/);
+  assert.match(veo, /MIDDLE: new proof step; no opening replay/);
+  assert.match(veo, /FINAL: same task reaches requested result/);
+  assert.match(veo, /Animate from 0\.0s throughout/);
+  assert.match(veo, /No repeat\/old line\/narrator\/music/);
+  assert.match(veo, /Then mouth closed\/silent/);
 });
 
 test("le prompt reference_team de 24 secondes conserve ses contraintes critiques sous 1 400 caractères", () => {
-  const buildGoogleVideoScenePrompt = loadVeoPromptBuilder();
+  const { buildGoogleVideoScenePrompt, promptForInspirationMode } =
+    loadVeoPromptRuntime();
   const dialogues = [0, 1, 2].map((index) =>
     getAiMediaDialogueFallbackPair("fr", index),
   );
@@ -433,7 +439,7 @@ test("le prompt reference_team de 24 secondes conserve ses contraintes critiques
       spokenLine,
       spokenReply,
       visualBrief:
-        "Les trois collègues se déplacent, travaillent et interagissent naturellement dans le même studio.",
+        `Action distincte ${index + 1} : les trois collègues se déplacent, travaillent et interagissent naturellement dans le même studio.`,
       layout: "editorial",
     })),
   };
@@ -491,12 +497,11 @@ test("le prompt reference_team de 24 secondes conserve ses contraintes critiques
 
   assert.ok(prompt.length <= 1_400, `prompt trop long: ${prompt.length}`);
   assert.match(prompt, /\[# Sources <PREVIOUS_VIDEO>@Video1\]/);
-  assert.match(prompt, /IDENTITY LOCK/);
-  assert.match(prompt, /says exactly “[^”]{12,}”/);
-  assert.match(prompt, /ONCE ONLY/);
-  assert.match(prompt, /never repeat, restart, loop or reuse/);
-  assert.match(prompt, /single unbroken continuous shot with no scene cuts/);
-  assert.match(prompt, /Adults only \(25\+\); no minors/);
+  assert.match(prompt, /REFERENCE: group=3 adults, each once; identities locked/);
+  assert.match(prompt, /lip-syncs once 0\.2–5\.5s: “[^”]{12,}”/);
+  assert.match(prompt, /No repeat\/old line/);
+  assert.match(prompt, /Continue prior frame/);
+  assert.match(prompt, /PEOPLE: mature adults 25\+ only; no minors/);
 
   const actPrompts = [0, 1, 2].map((index) =>
     buildGoogleVideoScenePrompt(
@@ -509,48 +514,43 @@ test("le prompt reference_team de 24 secondes conserve ses contraintes critiques
   for (const [index, actPrompt] of actPrompts.entries()) {
     assert.match(
       actPrompt,
-      /PRIMARY SUBJECT — visually unmistakable: Présenter une équipe qui construit une stratégie de communication digitale concrète/,
+      /SUBJECT: Présenter une équipe qui construit une stratégie de communication/,
       `acte ${index + 1}: le sujet choisi doit survivre aux contraintes critiques`,
     );
     assert.match(
       actPrompt,
-      /REQUIRED VISUAL PROOF:.*(?:digital|software|content|photo|video)/i,
-      `acte ${index + 1}: une preuve visuelle propre au sujet est requise`,
+      /USER: Poursuivre exactement l’action en/,
+      `acte ${index + 1}: la consigne ponctuelle doit survivre aux contraintes critiques`,
     );
+    assert.match(actPrompt, /étape du travail/);
+    assert.match(actPrompt, /Animate from 0\.0s throughout/);
+    assert.match(actPrompt, /NO VISUAL TEXT: blank surfaces/);
+    assert.match(actPrompt, /PARAMS: 8s;square;service;visual=expert\/precise/);
     assert.match(
       actPrompt,
-      /safe medium-wide, full heads with headroom/i,
-      `acte ${index + 1}: aucun visage ne doit être coupé`,
+      /render=photo\/cinematic;shot=medium;people=team/,
     );
+    assert.match(actPrompt, /creative=faithful;palette=#13b8ff, #ec3e9d/);
+    assert.match(actPrompt, /FRAME medium-wide\/full heads/);
   }
 
   const parallelActPrompts = [0, 1, 2].map((index) =>
     buildGoogleVideoScenePrompt(generationArgs, index, 8),
   );
-  const continuityBibles = parallelActPrompts.map(
-    (actPrompt) =>
-      actPrompt.match(/CONTINUITY BIBLE — ([\s\S]*?)\. Adults only/)?.[1],
+  const continuityContracts = parallelActPrompts.map(
+    (actPrompt) => actPrompt.match(/CONTINUITY: ([\s\S]*?)\./)?.[1],
   );
-  assert.equal(new Set(continuityBibles).size, 1);
-  assert.match(continuityBibles[0] || "", /CAST:/);
-  assert.match(continuityBibles[0] || "", /LOOK\/VOICE: same clothes and synthetic voice per face/);
-  assert.match(continuityBibles[0] || "", /PLACE:/);
-  assert.match(continuityBibles[0] || "", /LIGHT:/);
-  assert.match(continuityBibles[0] || "", /PALETTE:/);
-  assert.match(continuityBibles[0] || "", /CAMERA:/);
-  assert.match(continuityBibles[0] || "", /START STATE:/);
-  assert.match(continuityBibles[0] || "", /END STATE:/);
+  assert.equal(new Set(continuityContracts).size, 1);
+  assert.match(continuityContracts[0] || "", /CAST same 3 approved adults, each once/);
+  assert.match(continuityContracts[0] || "", /LOCK faces\/hair\/clothes\/voices\/place\/light\/palette\/lens\/camera/);
+  assert.match(continuityContracts[0] || "", /PATH /);
+  assert.match(continuityContracts[0] || "", /FRAME medium-wide\/full heads/);
   const expectedParallelRoles = [
-    /ACT 1 — OPENING/,
-    /MIDDLE ACT — DEMONSTRATION\/PROOF/,
-    /FINAL ACT — CONCLUSION/,
+    /ACT: OPENING: requested action moves at frame 1/,
+    /ACT: MIDDLE: new proof step; no opening replay/,
+    /ACT: FINAL: same task reaches requested result/,
   ];
   for (const [index, actPrompt] of parallelActPrompts.entries()) {
-    assert.match(
-      actPrompt,
-      /ONE FILM STORY:/,
-      `acte parallèle ${index + 1}: l'arc commun doit être transmis`,
-    );
     assert.match(
       actPrompt,
       expectedParallelRoles[index]!,
@@ -558,15 +558,39 @@ test("le prompt reference_team de 24 secondes conserve ses contraintes critiques
     );
     assert.match(
       actPrompt,
-      /ONE FILM STORY: 1:.* -> 2:.* -> 3:/,
-      `acte parallèle ${index + 1}: l'arc doit conserver les trois actes`,
-    );
-    assert.match(
-      actPrompt,
-      new RegExp(`ACT ACTION:.*distincte ${index + 1}`),
+      new RegExp(`ACT:.*Action distincte ${index + 1}`),
       `acte parallèle ${index + 1}: l'action propre à l'acte ne doit pas être tronquée`,
     );
   }
+  assert.equal(new Set(parallelActPrompts).size, 3);
+
+  const genericReferencePrompt = actPrompts[0]!.replace(
+    /REFERENCE:[\s\S]*?(?=\sACT:)/,
+    "REFERENCE: generic mood/composition inspiration. ",
+  );
+  const sourcePrompt = promptForInspirationMode(
+    genericReferencePrompt,
+    "source",
+  );
+  assert.ok(sourcePrompt.length <= 1_400);
+  assert.match(
+    sourcePrompt,
+    /REFERENCE: supplied image is animation source/,
+  );
+  assert.match(sourcePrompt, /real motion at 0\.0s/);
+  assert.match(sourcePrompt, /PARAMS:/);
+  assert.match(sourcePrompt, /CONTINUITY:/);
+  assert.equal((sourcePrompt.match(/REFERENCE:/g) || []).length, 1);
+
+  const strictSourcePrompt = promptForInspirationMode(
+    actPrompts[0]!,
+    "source",
+  );
+  assert.equal(
+    strictSourcePrompt,
+    actPrompts[0],
+    "le mode source ne doit jamais effacer le verrou d'identité d'équipe",
+  );
 });
 
 test("les dialogues de 24 secondes sont assez longs, significatifs et tous uniques", () => {
