@@ -147,13 +147,15 @@ export default function OffrirModal({ styles, onClose, onDone = onClose, saveDra
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(String(j?.error || "La génération IA a échoué."));
-      if (j?.subject) setSubject(String(j.subject));
-      if (j?.body_text) {
-        const nextBody = String(j.body_text);
-        setBody(nextBody);
-        setBodyHtml(textToRichMailHtml(nextBody));
+      const nextSubject = String(j?.subject || "").trim();
+      const nextBody = String(j?.body_text || "").trim();
+      if (!nextSubject || !nextBody) {
+        throw new Error("La génération IA a renvoyé un contenu incomplet. Merci de réessayer.");
       }
-      if (j?.subject || j?.body_text) setAiContentGenerated(true);
+      setSubject(nextSubject);
+      setBody(nextBody);
+      setBodyHtml(textToRichMailHtml(nextBody));
+      setAiContentGenerated(true);
     } catch (error) {
       setAiError(getClientUserFacingErrorMessage(error, "La génération IA a échoué."));
     } finally {
@@ -258,10 +260,10 @@ export default function OffrirModal({ styles, onClose, onDone = onClose, saveDra
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0, minWidth: 0 }}>
       <div className={styles.blockCard} style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, minWidth: 0, maxWidth: "100%", boxSizing: "border-box", height: "100%" }}>
-        <div className={styles.blockTitle} style={{ marginBottom: 10, fontSize: 20, display: isMobile ? "none" : "block", flex: "0 0 auto" }}>
-          {i18nT("modele_d_email_offrir_4509a53b")}{" "}</div>
-        <div className={styles.subtitle} style={{ marginBottom: isMobile ? 0 : 10, display: isMobile ? "none" : "block" }}>
-          {i18nT("choisissez_un_email_preconcu_modifiez_si_6736bfa1")}{" "}</div>
+        <div className={styles.campaignTemplateIntro} style={{ display: isMobile ? "none" : undefined }}>
+          <div className={styles.blockTitle}>{i18nT("modele_d_email_offrir_4509a53b")}</div>
+          <div className={styles.subtitle}>{i18nT("choisissez_un_email_preconcu_modifiez_si_6736bfa1")}</div>
+        </div>
 
         <div style={{ marginBottom: isMobile ? 8 : 12 }}>
           <div
@@ -359,6 +361,7 @@ export default function OffrirModal({ styles, onClose, onDone = onClose, saveDra
               toolbarTitle={<span style={{ ...sectionHeaderStyle, marginBottom: 0 }}>{i18nT("message_68f4145f")}</span>}
               compactToolbar
               mobileFullscreen={isMobile}
+              allowFullscreen
               minHeight={0}
               className={styles.textarea}
               editorStyle={{

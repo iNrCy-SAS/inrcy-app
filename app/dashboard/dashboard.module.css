@@ -4226,6 +4226,32 @@
   flex: 1 1 180px;
 }
 
+.campaignTemplateIntro {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  column-gap: clamp(14px, 2vw, 28px);
+  row-gap: 4px;
+  margin-bottom: 10px;
+  min-width: 0;
+  flex: 0 0 auto;
+}
+
+.campaignTemplateIntro > .blockTitle {
+  flex: 0 0 auto;
+  margin: 0;
+  font-size: 20px;
+  white-space: nowrap;
+}
+
+.campaignTemplateIntro > .subtitle {
+  flex: 1 1 440px;
+  min-width: 0;
+  max-width: none;
+  margin: 0;
+  line-height: 1.35;
+}
+
 .connectionPill {
   display: inline-flex;
   align-items: center;
@@ -6570,7 +6596,8 @@
   gap: 8px;
   width: 100%;
   margin-top: 14px;
-  padding: 0 8px;
+  padding: 2px clamp(14px, 2vw, 28px);
+  box-sizing: border-box;
   border-radius: 0;
   border: 0;
   background: transparent;
@@ -6582,9 +6609,11 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   width: 100%;
-  overflow-x: auto;
+  padding: 2px 0;
+  box-sizing: border-box;
+  overflow: visible;
   scrollbar-width: none;
 }
 
@@ -11651,7 +11680,7 @@
 
 .channelPillRail {
   margin-top: 11px;
-  padding: 0;
+  padding: 2px clamp(14px, 2vw, 28px);
   border: 0;
   border-radius: 0;
   background: transparent;

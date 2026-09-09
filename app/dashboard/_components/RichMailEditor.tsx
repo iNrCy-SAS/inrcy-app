@@ -20,6 +20,7 @@ type RichMailEditorProps = {
   compactToolbar?: boolean;
   highlightTemplatePlaceholders?: boolean;
   mobileFullscreen?: boolean;
+  allowFullscreen?: boolean;
 };
 
 export default function RichMailEditor({
@@ -35,6 +36,7 @@ export default function RichMailEditor({
   compactToolbar = false,
   highlightTemplatePlaceholders = true,
   mobileFullscreen = false,
+  allowFullscreen = false,
 }: RichMailEditorProps) {
   const i18nT = useTranslations("mails");
   const editorRef = useRef<HTMLDivElement | null>(null);
@@ -75,8 +77,11 @@ export default function RichMailEditor({
     if (!node) return;
     const normalizedHtml = normalizeRichMailHtmlForSend(text, html || textToRichMailHtml(text));
     const nextHtml = highlightTemplatePlaceholders ? highlightTemplatePlaceholdersInHtml(normalizedHtml) : stripTemplatePlaceholderHighlights(normalizedHtml);
-    if (lastHtmlRef.current === nextHtml) return;
-    if (node.innerHTML === nextHtml) return;
+    if (node.innerHTML === nextHtml) {
+      lastHtmlRef.current = nextHtml;
+      setIsEmpty(!String(text || "").trim());
+      return;
+    }
     node.innerHTML = nextHtml;
     lastHtmlRef.current = nextHtml;
     setIsEmpty(!String(text || "").trim());
@@ -212,8 +217,8 @@ export default function RichMailEditor({
   }, [isExpanded]);
 
   useEffect(() => {
-    if (!mobileFullscreen && isExpanded) setIsExpanded(false);
-  }, [mobileFullscreen, isExpanded]);
+    if (!mobileFullscreen && !allowFullscreen && isExpanded) setIsExpanded(false);
+  }, [allowFullscreen, mobileFullscreen, isExpanded]);
 
   const fillAvailable = minHeight === 0 || minHeight === "0" || minHeight === "0px";
   const buttonStyle = compactToolbar ? compactToolbarButtonStyle : toolbarButtonStyle;
@@ -232,7 +237,7 @@ export default function RichMailEditor({
     </div>
   );
 
-  const showExpandControl = mobileFullscreen;
+  const showExpandControl = mobileFullscreen || allowFullscreen;
 
   return (
     <div
@@ -250,9 +255,13 @@ export default function RichMailEditor({
           ? {
               position: "fixed" as const,
               inset: 0,
-              bottom: "var(--inrcy-mobile-bottom-nav-total-height, calc(50px + var(--inrcy-safe-area-bottom)))",
+              bottom: mobileFullscreen
+                ? "var(--inrcy-mobile-bottom-nav-total-height, calc(50px + var(--inrcy-safe-area-bottom)))"
+                : 0,
               zIndex: 100000,
-              padding: "max(14px, var(--inrcy-safe-area-top)) 14px 14px",
+              padding: mobileFullscreen
+                ? "max(14px, var(--inrcy-safe-area-top)) 14px 14px"
+                : "clamp(18px, 2vw, 28px)",
               background: "linear-gradient(180deg, #10182b 0%, #12172a 55%, #0b1020 100%)",
               boxSizing: "border-box" as const,
             }

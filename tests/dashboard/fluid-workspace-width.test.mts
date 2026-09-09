@@ -65,15 +65,17 @@ test("calendar appointments stack as equal-width vertical cards", () => {
   assert.match(ui, /styles\.chipTitle/);
 });
 
-test("desktop dashboard channels stay on one row", () => {
+test("desktop dashboard channels wrap with safe side spacing when needed", () => {
   const section = read("app/dashboard/_components/DashboardChannelsSection.tsx");
   const css = read("app/dashboard/dashboard.module.css");
   const row = css.match(/^\.channelPillRow\s*\{[\s\S]*?\}/m)?.[0] ?? "";
+  const rail = css.match(/^\.channelPillRail\s*\{[\s\S]*?\}/m)?.[0] ?? "";
   const hover = css.match(/^\.channelPill:hover\s*\{[\s\S]*?\}/m)?.[0] ?? "";
 
   assert.match(section, /const channelPillRows = useMemo\(\(\) => \[baseModules\]/);
-  assert.match(row, /flex-wrap:\s*nowrap/);
-  assert.match(row, /overflow-x:\s*auto/);
+  assert.match(row, /flex-wrap:\s*wrap/);
+  assert.match(row, /overflow:\s*visible/);
+  assert.match(rail, /padding:\s*2px clamp\(14px, 2vw, 28px\)/);
   assert.match(hover, /transform:\s*none/, "hovering a channel must not clip its top border");
 });
 

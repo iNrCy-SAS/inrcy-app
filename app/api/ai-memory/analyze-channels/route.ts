@@ -22,12 +22,13 @@ import {
 } from "@/lib/businessDnaSourceBudget";
 import {
   BusinessDnaAnalysisQuotaError,
+  type BusinessDnaAnalysisQuotaEdition,
   consumeBusinessDnaAnalysisQuota,
   getBusinessDnaAnalysisQuota,
   refundBusinessDnaAnalysisQuota,
 } from "@/lib/businessDnaAnalysisQuota";
+import { isAdminUserForAi } from "@/lib/aiUsageQuota";
 import { hasPremiumDashboardAccess } from "@/lib/dashboardEdition";
-import type { DashboardEdition } from "@/lib/dashboardEdition";
 import { getDashboardEditionForAccountId } from "@/lib/dashboardEditionServer";
 import { getChannelConnectionStates } from "@/lib/channelConnectionState";
 import { enforceRateLimit } from "@/lib/rateLimit";
@@ -202,15 +203,16 @@ export async function GET() {
   if (errorResponse) return errorResponse;
 
   try {
-    const [edition, channelStates] = await Promise.all([
+    const [edition, channelStates, isAdmin] = await Promise.all([
       getDashboardEditionForAccountId(activeUserId),
       getChannelConnectionStates(supabase, activeUserId),
+      isAdminUserForAi(supabase, authUserId),
     ]);
 
     const quota = await getBusinessDnaAnalysisQuota({
       accountId: activeUserId,
       actorAuthUserId: authUserId,
-      edition,
+      edition: isAdmin ? "admin" : "standard",
     });
     const channels = buildBusinessDnaDashboardChannelAvailability({
       channelStates,
@@ -247,11 +249,11 @@ export async function POST() {
   let consumedQuotaContext: {
     accountId: string;
     actorAuthUserId: string;
-    edition: DashboardEdition;
+    edition: BusinessDnaAnalysisQuotaEdition;
   } | null = null;
 
   try {
-    const [edition, businessResult, memoryResult, toolsResult] = await Promise.all([
+    const [edition, businessResult, memoryResult, toolsResult, isAdmin] = await Promise.all([
       getDashboardEditionForAccountId(activeUserId),
       supabase
         .from("business_profiles")
@@ -270,6 +272,7 @@ export async function POST() {
         .select("settings")
         .eq("user_id", activeUserId)
         .maybeSingle(),
+      isAdminUserForAi(supabase, authUserId),
     ]);
 
     if (businessResult.error) throw businessResult.error;
@@ -280,10 +283,14 @@ export async function POST() {
 
     const premiumEnabled = hasPremiumDashboardAccess(edition);
     const recentWindow = buildBusinessDnaRecentWindow();
+    // Toutes les éditions commerciales partagent désormais le même plafond de
+    // quatre analyses. Utiliser la ligne Standard rend ce plafond effectif dès
+    // le déploiement du code, même avant l'application de la migration SQL.
+    const quotaEdition: BusinessDnaAnalysisQuotaEdition = isAdmin ? "admin" : "standard";
     const quotaContext = {
       accountId: activeUserId,
       actorAuthUserId: authUserId,
-      edition,
+      edition: quotaEdition,
     };
     const currentQuota = await getBusinessDnaAnalysisQuota(quotaContext);
     if (currentQuota.remaining === 0) return quotaReachedResponse(currentQuota);

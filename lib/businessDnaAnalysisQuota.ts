@@ -3,8 +3,10 @@ import "server-only";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import type { DashboardEdition } from "@/lib/dashboardEdition";
 
+export type BusinessDnaAnalysisQuotaEdition = DashboardEdition | "admin";
+
 export type BusinessDnaAnalysisQuota = {
-  edition: DashboardEdition;
+  edition: BusinessDnaAnalysisQuotaEdition;
   limit: number;
   used: number;
   remaining: number;
@@ -52,8 +54,8 @@ function assertUuid(value: string, label: string) {
   return normalized;
 }
 
-function normalizeEdition(value: unknown): DashboardEdition {
-  if (value === "standard" || value === "premium" || value === "founder") return value;
+function normalizeEdition(value: unknown): BusinessDnaAnalysisQuotaEdition {
+  if (value === "standard" || value === "premium" || value === "founder" || value === "admin") return value;
   throw new BusinessDnaAnalysisQuotaError(
     "business_dna_quota_invalid_response",
     "L’édition du quota d’analyse est invalide.",
@@ -105,6 +107,14 @@ function rpcFailure(rpcName: string, error: unknown): never {
       { cause: error },
     );
   }
+  if (raw.includes("BUSINESS_DNA_INVALID_EDITION")) {
+    throw new BusinessDnaAnalysisQuotaError(
+      "business_dna_quota_invalid_edition",
+      "Cette édition de quota n’est pas encore disponible.",
+      503,
+      { cause: error },
+    );
+  }
   if (/business_dna_analysis_(?:monthly_usage|plan_limits)|get_business_dna_analysis_quota|consume_business_dna_analysis_quota/i.test(raw)) {
     throw new BusinessDnaAnalysisQuotaError(
       "business_dna_quota_migration_required",
@@ -127,6 +137,31 @@ async function rpc(rpcName: string, args: Record<string, unknown>) {
   return firstRow(data, rpcName);
 }
 
+async function quotaRpc(
+  rpcName: string,
+  params: {
+    accountId: string;
+    actorAuthUserId: string;
+    edition: BusinessDnaAnalysisQuotaEdition;
+  },
+) {
+  try {
+    return await rpc(rpcName, quotaArgs(params));
+  } catch (error) {
+    // Déploiement sans interruption : tant que la ligne `admin` n'a pas encore
+    // été ajoutée par la migration, l'ancien plafond Founder (16) reste le
+    // repli réservé à un acteur déjà vérifié comme Admin par la route serveur.
+    if (
+      params.edition === "admin" &&
+      error instanceof BusinessDnaAnalysisQuotaError &&
+      error.code === "business_dna_quota_invalid_edition"
+    ) {
+      return rpc(rpcName, quotaArgs({ ...params, edition: "founder" }));
+    }
+    throw error;
+  }
+}
+
 function quotaFromRow(row: QuotaRow): BusinessDnaAnalysisQuota {
   return {
     edition: normalizeEdition(row.edition),
@@ -141,7 +176,7 @@ function quotaFromRow(row: QuotaRow): BusinessDnaAnalysisQuota {
 function quotaArgs(params: {
   accountId: string;
   actorAuthUserId: string;
-  edition: DashboardEdition;
+  edition: BusinessDnaAnalysisQuotaEdition;
 }) {
   return {
     p_account_id: assertUuid(params.accountId, "accountId"),
@@ -153,17 +188,17 @@ function quotaArgs(params: {
 export async function getBusinessDnaAnalysisQuota(params: {
   accountId: string;
   actorAuthUserId: string;
-  edition: DashboardEdition;
+  edition: BusinessDnaAnalysisQuotaEdition;
 }) {
-  return quotaFromRow(await rpc("get_business_dna_analysis_quota", quotaArgs(params)));
+  return quotaFromRow(await quotaRpc("get_business_dna_analysis_quota", params));
 }
 
 export async function consumeBusinessDnaAnalysisQuota(params: {
   accountId: string;
   actorAuthUserId: string;
-  edition: DashboardEdition;
+  edition: BusinessDnaAnalysisQuotaEdition;
 }): Promise<BusinessDnaAnalysisQuotaConsumption> {
-  const row = await rpc("consume_business_dna_analysis_quota", quotaArgs(params));
+  const row = await quotaRpc("consume_business_dna_analysis_quota", params);
   const outcome = row.outcome;
   if (outcome !== "consumed" && outcome !== "quota_reached") {
     throw new BusinessDnaAnalysisQuotaError(
@@ -177,7 +212,7 @@ export async function consumeBusinessDnaAnalysisQuota(params: {
 export async function refundBusinessDnaAnalysisQuota(params: {
   accountId: string;
   actorAuthUserId: string;
-  edition: DashboardEdition;
+  edition: BusinessDnaAnalysisQuotaEdition;
 }) {
-  return quotaFromRow(await rpc("refund_business_dna_analysis_quota", quotaArgs(params)));
+  return quotaFromRow(await quotaRpc("refund_business_dna_analysis_quota", params));
 }
