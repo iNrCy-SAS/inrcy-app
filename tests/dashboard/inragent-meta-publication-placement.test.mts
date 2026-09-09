@@ -44,7 +44,7 @@ test("Facebook and Instagram placements are independent and use the publish-now 
 
   assert.deepEqual(withInstagramStory.facebookPublicationSettings, {
     placement: "reel",
-    mediaOnly: true,
+    mediaOnly: false,
   });
   assert.deepEqual(withInstagramStory.instagramPublicationSettings, {
     placement: "story",
@@ -89,6 +89,10 @@ test("the Channel card exposes the selector and media-only mode never erases con
   assert.match(client, /className=\{styles\.publishPlacementSelect\}/);
   assert.match(client, /savePublishPlacement/);
   assert.match(client, /publication_mode_media_only_help/);
+  assert.match(
+    client,
+    /activeMetaPublicationChannel && publishPlacement === "story"/,
+  );
   assert.match(client, /publishMediaOnly\s*\?/);
   assert.doesNotMatch(
     client,

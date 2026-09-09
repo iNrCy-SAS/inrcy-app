@@ -33,6 +33,8 @@ test("les trois étapes Booster partagent une seule navigation de canaux", () =>
     previewPanel,
     /items=\{previewReadinessTabs\.map\(\(tab\) => tab\.key\)\}/,
   );
+  assert.match(previewPanel, /data-preview-channel-rail="full-width"/);
+  assert.match(previewPanel, /gridColumn: "1 \/ -1"/);
 });
 
 test("les flèches sont accessibles, bornées et centrent le canal actif", () => {

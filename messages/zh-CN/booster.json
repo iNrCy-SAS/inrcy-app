@@ -148,7 +148,7 @@
   "instagram_review_media_only_warning": "{mode}：只会发布媒体，不会发送标题、正文、CTA 和话题标签。",
   "pinterest_review_board": "Pinterest 图板：{board}",
   "instagram_media_only_notice": "此格式仅发布媒体，不会发送标题、正文、CTA 和话题标签。",
-  "instagram_image_motion_notice": "图片将配上 iNrCy 原创音乐，转换为 8 秒竖屏短视频。不会发送标题、正文、CTA 和话题标签。",
+  "instagram_image_motion_notice": "所选图片将按顺序合成为配有 iNrCy 原创音乐的 8 秒竖屏短视频。",
   "contenu_commercial_593e3b1d": "商业内容",
   "contenu_envoye_aaa62b2f": "发送内容",
   "contenu_f3cb82af": "内容",

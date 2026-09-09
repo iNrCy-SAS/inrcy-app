@@ -38,7 +38,7 @@ const preferencesPostflight = read(
   "ops/sql/2026-09-07_instagram_publication_preferences_postflight_read_only.sql",
 );
 
-test("Instagram always exposes Classic, Reel and Story, including before media selection", () => {
+test("Instagram exposes Classic, Reel and Story while only Story disables text", () => {
   assert.match(
     editor,
     /activeCard === "instagram" \? \([\s\S]*?aria-label=\{i18nT\("instagram_publication_format"\)\}/,
@@ -52,14 +52,21 @@ test("Instagram always exposes Classic, Reel and Story, including before media s
   assert.match(editor, /<option value="story"[\s\S]*?instagram_stories/);
   assert.match(
     editor,
-    /const instagramMediaOnly =[\s\S]*?activeCard === "instagram" &&[\s\S]*?instagramPublicationPlacement !== "classic";/,
+    /const instagramMediaOnly =[\s\S]*?activeCard === "instagram" && instagramPublicationPlacement === "story";/,
   );
   assert.doesNotMatch(
     editor,
     /const instagramMediaOnly =[\s\S]*?instagramMediaMode !== "none";/,
   );
   assert.match(editor, /disabled=\{activeMediaOnly\}/);
-  assert.match(editor, /activeMediaMode === "images"[\s\S]*?instagram_image_motion_notice/);
+  assert.match(
+    editor,
+    /const activeVerticalImageMotion =[\s\S]*?activeMediaMode === "images";/,
+  );
+  assert.match(
+    editor,
+    /activeVerticalImageMotion[\s\S]*?instagram_image_motion_notice/,
+  );
   assert.doesNotMatch(
     editor,
     /activeCard === "instagram" && instagramMediaMode === "video"/,
@@ -288,10 +295,10 @@ test("publish-now enforces account Instagram preferences only for Reel and Story
   );
 });
 
-test("final and scheduled reviews warn on media-only formats and name Pinterest board", () => {
+test("final and scheduled reviews warn only on Story media-only formats and name Pinterest board", () => {
   assert.match(
     modal,
-    /const instagramMediaOnly =[\s\S]*?channel === "instagram" &&[\s\S]*?instagramPublicationPlacement !== "classic";/,
+    /const instagramMediaOnly =[\s\S]*?channel === "instagram" &&[\s\S]*?instagramPublicationPlacement === "story";/,
   );
   assert.doesNotMatch(
     modal,
@@ -315,16 +322,21 @@ test("new Instagram format settings survive immediate and scheduled durable disp
   assert.match(route, /normalizeInstagramPublicationSettings\(body\.instagramPublicationSettings\)/);
   assert.match(route, /channel === "instagram" && instagramPublicationSettings/);
   assert.match(foundations, /mediaType: story \? "STORIES" : "REELS"/);
-  assert.match(foundations, /mediaOnly: true/);
+  assert.match(foundations, /mediaOnly: story/);
 });
 
-test("an Instagram image is converted to a real vertical MP4 and never falls back to a photo", () => {
+test("ordered Instagram images become one vertical MP4 while Reels retain their caption", () => {
   assert.match(
     route,
     /instagramPublicationSettings &&[\s\S]*?mediaModeByChannel\[ch\] === "images"[\s\S]*?createInstagramImageMotionVideo/,
   );
   assert.match(route, /instagram_image_motion_preparation_failed/);
-  assert.match(route, /const instagramCaption = instagramPublicationSettings[\s\S]*?\? ""/);
+  assert.match(
+    route,
+    /instagramPublicationSettings\?\.placement === "story"[\s\S]*?\? ""[\s\S]*?: buildBoosterInstagramCaption/,
+  );
+  assert.match(motion, /imageStoragePaths[\s\S]*?\.slice\(0, 5\)/);
+  assert.match(motion, /buildMotionFilter\(framePaths\.length\)/);
   assert.match(motion, /const OUTPUT_WIDTH = 1_080/);
   assert.match(motion, /const OUTPUT_HEIGHT = 1_920/);
   assert.match(motion, /const OUTPUT_DURATION_SECONDS = 8/);

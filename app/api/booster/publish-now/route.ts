@@ -4259,6 +4259,19 @@ async function publishNowHandler(req: Request) {
                 pageAccessToken: pageToken,
                 videoUrl: facebookPublishVideo.publicUrl,
                 placement: facebookPublicationSettings.placement,
+                description:
+                  facebookPublicationSettings.placement === "reel"
+                    ? [
+                        canonMessage,
+                        buildBoosterHashtagLine(channelPost, canonMessage, 8),
+                      ]
+                        .filter(Boolean)
+                        .join("\n\n")
+                    : undefined,
+                title:
+                  facebookPublicationSettings.placement === "reel"
+                    ? channelPost.title || undefined
+                    : undefined,
               })
             : mediaModeByChannel[ch] === "video" && channelVideo
               ? await facebookPublishVideoToPage({
@@ -4395,12 +4408,13 @@ async function publishNowHandler(req: Request) {
             continue;
           }
 
-          const instagramCaption = instagramPublicationSettings
-            ? ""
-            : buildBoosterInstagramCaption(channelPost, {
+          const instagramCaption =
+            instagramPublicationSettings?.placement === "story"
+              ? ""
+              : buildBoosterInstagramCaption(channelPost, {
                 websiteUrl: getPublicationWebsiteUrl("instagram"),
                 phone: businessPhone,
-              });
+                });
           const instagramTokenCandidates = buildInstagramPublishTokenCandidates(
             ig,
             fbRow,

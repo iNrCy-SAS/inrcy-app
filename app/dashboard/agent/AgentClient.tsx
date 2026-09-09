@@ -1128,7 +1128,7 @@ export default function AgentClient() {
           )
         : publishPlacement === "classic";
   const publishMediaOnly = Boolean(
-    activeMetaPublicationChannel && publishPlacement !== "classic",
+    activeMetaPublicationChannel && publishPlacement === "story",
   );
   const savedPinterestBoard = selectedPreparedAction
     ? readInrAgentPinterestBoardSelection(selectedPreparedAction.payload)
@@ -1307,7 +1307,7 @@ export default function AgentClient() {
               metaChannel,
             )
           : "classic";
-        const mediaOnly = Boolean(metaChannel && placement !== "classic");
+        const mediaOnly = Boolean(metaChannel && placement === "story");
         const placementAllowed =
           metaChannel === "instagram"
             ? isInstagramPublicationPlacementEnabled(

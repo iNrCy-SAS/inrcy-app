@@ -92,7 +92,7 @@ export function applyInrAgentPublicationPlacement(
     delete nextPublishPayload[settingsKey];
     delete nextPublishPayload[placementKey];
   } else {
-    const settings = { placement, mediaOnly: true };
+    const settings = { placement, mediaOnly: placement === "story" };
     nextPayload[settingsKey] = settings;
     nextPayload[placementKey] = placement;
     nextPublishPayload[settingsKey] = settings;

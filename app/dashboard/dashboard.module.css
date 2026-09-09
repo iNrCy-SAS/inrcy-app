@@ -6625,7 +6625,8 @@
 }
 
 .channelPill:hover {
-  transform: translateY(-1px);
+  /* The row scrolls horizontally, so lifting a pill clips its top border. */
+  transform: none;
   color: rgba(255, 255, 255, 0.96);
 }
 
@@ -8501,28 +8502,31 @@
     --dash-channel-arrow-size: 30px;
 
     display: grid !important;
-    grid-template-columns: var(--dash-channel-arrow-size) max-content var(--dash-channel-arrow-size) !important;
+    grid-template-columns: var(--dash-channel-arrow-size) minmax(0, 1fr) var(--dash-channel-arrow-size) !important;
     align-items: center !important;
     justify-content: center !important;
-    column-gap: 6px !important;
+    column-gap: 4px !important;
     width: 100% !important;
     max-width: 100% !important;
     min-width: 0 !important;
+    box-sizing: border-box !important;
+    padding-inline: max(8px, env(safe-area-inset-left)) max(8px, env(safe-area-inset-right)) !important;
     overflow: visible !important;
   }
 
   .carouselIconRail {
     display: grid !important;
-    grid-auto-flow: column !important;
-    grid-auto-columns: var(--dash-channel-icon-size) !important;
+    grid-template-columns: repeat(var(--dashboard-channel-count, 13), minmax(0, 1fr)) !important;
+    grid-auto-flow: initial !important;
+    grid-auto-columns: initial !important;
     align-items: center !important;
     justify-content: center !important;
     justify-items: center !important;
-    gap: var(--dash-channel-icon-gap) !important;
+    gap: min(var(--dash-channel-icon-gap), 0.75vw) !important;
 
-    width: max-content !important;
+    width: 100% !important;
     min-width: 0 !important;
-    max-width: none !important;
+    max-width: 100% !important;
     flex: none !important;
     flex-basis: auto !important;
     flex-grow: 0 !important;
@@ -8537,16 +8541,16 @@
     display: inline-grid !important;
     place-items: center !important;
 
-    width: var(--dash-channel-icon-size) !important;
-    height: var(--dash-channel-icon-size) !important;
-    min-width: var(--dash-channel-icon-size) !important;
-    min-height: var(--dash-channel-icon-size) !important;
+    width: min(100%, var(--dash-channel-icon-size)) !important;
+    height: auto !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
     max-width: var(--dash-channel-icon-size) !important;
     max-height: var(--dash-channel-icon-size) !important;
-    inline-size: var(--dash-channel-icon-size) !important;
-    block-size: var(--dash-channel-icon-size) !important;
-    min-inline-size: var(--dash-channel-icon-size) !important;
-    min-block-size: var(--dash-channel-icon-size) !important;
+    inline-size: min(100%, var(--dash-channel-icon-size)) !important;
+    block-size: auto !important;
+    min-inline-size: 0 !important;
+    min-block-size: 0 !important;
     max-inline-size: var(--dash-channel-icon-size) !important;
     max-block-size: var(--dash-channel-icon-size) !important;
 

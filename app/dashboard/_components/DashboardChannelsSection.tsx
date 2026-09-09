@@ -3,7 +3,7 @@
 import { useTranslations } from "next-intl";
 
 
-import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type TouchEvent as ReactTouchEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type TouchEvent as ReactTouchEvent } from "react";
 import styles from "../dashboard.module.css";
 import bubbleStyles from "./DashboardChannelBubble.module.css";
 import HelpButton from "./HelpButton";
@@ -531,7 +531,12 @@ export default function DashboardChannelsSection({
 
           {hasCarousel && (
             <div className={styles.carouselNavWrap}>
-              <div className={styles.carouselNav} aria-label={t.channels.positionAria}>
+              <div
+                className={styles.carouselNav}
+                aria-label={t.channels.positionAria}
+                data-dashboard-channel-navigation="true"
+                style={{ "--dashboard-channel-count": Math.max(baseModules.length, 1) } as CSSProperties}
+              >
                 <button
                   type="button"
                   className={styles.carouselArrow}

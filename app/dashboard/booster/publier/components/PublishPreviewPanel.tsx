@@ -76,26 +76,33 @@ export default function PublishPreviewPanel({
             }}
           >
             {i18nT("apercu_f0f53004")}{" "}</PublishStepTitle>
-          <ChannelNavigationRail
-            items={previewReadinessTabs.map((tab) => tab.key)}
-            activeItem={activeImageChannel}
-            onSelect={setSynchronizedActiveChannel}
-            navigationLabel={i18nT("apercu_f0f53004")}
-            trackClassName={styles.subtitle}
-            rootStyle={{ gridColumn: "1 / -1", gridRow: 2 }}
-            trackStyle={{
-              display: "grid",
-              gridTemplateColumns: isMobile
-                ? "repeat(2, minmax(0, 1fr))"
-                : `repeat(${Math.max(1, previewReadinessTabs.length)}, minmax(0, 1fr))`,
-              gap: isMobile ? 8 : 6,
+          <div
+            data-preview-channel-rail="full-width"
+            style={{
+              gridColumn: "1 / -1",
+              gridRow: 2,
               width: "100%",
-              maxWidth: "100%",
-              paddingBottom: 2,
-              marginBottom: 0,
               minWidth: 0,
             }}
           >
+            <ChannelNavigationRail
+              items={previewReadinessTabs.map((tab) => tab.key)}
+              activeItem={activeImageChannel}
+              onSelect={setSynchronizedActiveChannel}
+              navigationLabel={i18nT("apercu_f0f53004")}
+              trackStyle={{
+                display: "grid",
+                gridTemplateColumns: isMobile
+                  ? "repeat(2, minmax(0, 1fr))"
+                  : `repeat(${Math.max(1, previewReadinessTabs.length)}, minmax(0, 1fr))`,
+                gap: isMobile ? 8 : 6,
+                width: "100%",
+                maxWidth: "100%",
+                paddingBottom: 2,
+                marginBottom: 0,
+                minWidth: 0,
+              }}
+            >
             {previewReadinessTabs.map((tab) => {
               const previewStatusStyle =
                 tab.tone === "ready"
@@ -165,7 +172,8 @@ export default function PublishPreviewPanel({
                 </button>
               );
             })}
-          </ChannelNavigationRail>
+            </ChannelNavigationRail>
+          </div>
         </div>
         <button
           type="button"

@@ -285,14 +285,23 @@ export async function facebookPublishVideoToPage(params: {
 
 export type FacebookVerticalVideoPlacement = "reel" | "story";
 
-/** Publie un média vertical natif sur une Page Facebook, sans texte ni CTA. */
+/** Publie un Reel ou une Story verticale native sur une Page Facebook. */
 export async function facebookPublishVerticalVideoToPage(params: {
   pageId: string;
   pageAccessToken: string;
   videoUrl: string;
   placement: FacebookVerticalVideoPlacement;
+  description?: string;
+  title?: string;
 }): Promise<PublishResult> {
-  const { pageId, pageAccessToken, videoUrl, placement } = params;
+  const {
+    pageId,
+    pageAccessToken,
+    videoUrl,
+    placement,
+    description = "",
+    title = "",
+  } = params;
   if (!pageId || !pageAccessToken) {
     return {
       ok: false,
@@ -362,7 +371,13 @@ export async function facebookPublishVerticalVideoToPage(params: {
     finish.append("access_token", pageAccessToken);
     finish.append("upload_phase", "finish");
     finish.append("video_id", videoId);
-    if (placement === "reel") finish.append("video_state", "PUBLISHED");
+    if (placement === "reel") {
+      finish.append("video_state", "PUBLISHED");
+      const reelDescription = description.trim();
+      const reelTitle = title.trim();
+      if (reelDescription) finish.append("description", reelDescription);
+      if (reelTitle) finish.append("title", reelTitle);
+    }
     const finishResponse = await fetch(endpoint, {
       method: "POST",
       body: finish,

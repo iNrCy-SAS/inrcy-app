@@ -5058,12 +5058,12 @@ export default function PublishModal({
       (ch) =>
         !(
           ch === "instagram" &&
-          instagramPublicationPlacement !== "classic" &&
+          instagramPublicationPlacement === "story" &&
           resolveChannelMediaMode(ch) !== "none"
         ) &&
         !(
           ch === "facebook" &&
-          facebookPublicationPlacement !== "classic" &&
+          facebookPublicationPlacement === "story" &&
           resolveChannelMediaMode(ch) !== "none"
         ) &&
         !String(preparedPostsByChannel[ch]?.content || "").trim(),
@@ -6617,9 +6617,11 @@ export default function PublishModal({
       const hasContent = !!String(post?.content || "").trim();
       const instagramMediaOnly =
         channel === "instagram" &&
-        instagramPublicationPlacement !== "classic";
-      const facebookMediaOnly =
+        instagramPublicationPlacement === "story";
+      const facebookVerticalFormat =
         channel === "facebook" && facebookPublicationPlacement !== "classic";
+      const facebookMediaOnly =
+        channel === "facebook" && facebookPublicationPlacement === "story";
       const activeMediaOnly = instagramMediaOnly || facebookMediaOnly;
       const hasText = activeMediaOnly || hasTitle || hasContent;
       const hasImage = imageKeysToPublish.length > 0;
@@ -6657,7 +6659,7 @@ export default function PublishModal({
       const facebookMaximumDuration =
         facebookPublicationPlacement === "story" ? 60 : 90;
       const facebookVerticalDurationInvalid =
-        facebookMediaOnly &&
+        facebookVerticalFormat &&
         hasVideo &&
         Number.isFinite(effectiveVideoDuration) &&
         effectiveVideoDuration > 0 &&
@@ -6714,7 +6716,7 @@ export default function PublishModal({
           ? ["pinterest_board_required"]
           : []),
         ...(xForbiddenUrlFields.length ? ["x_url_forbidden"] : []),
-        ...(facebookMediaOnly && !hasImage && !hasVideo
+        ...(facebookVerticalFormat && !hasImage && !hasVideo
           ? ["facebook_vertical_media_required"]
           : []),
         ...(facebookVerticalDurationInvalid

@@ -159,7 +159,7 @@
   "instagram_review_media_only_warning": "{mode} : seul le média sera publié. Le titre, le texte, le CTA et les hashtags ne seront pas envoyés.",
   "pinterest_review_board": "Tableau Pinterest : {board}",
   "instagram_media_only_notice": "Ce format publie uniquement le média : le titre, le texte, le CTA et les hashtags ne sont pas envoyés.",
-  "instagram_image_motion_notice": "L’image sera transformée en mini-vidéo verticale de 8 secondes avec une musique originale iNrCy. Le titre, le texte, le CTA et les hashtags ne sont pas envoyés.",
+  "instagram_image_motion_notice": "Les images sélectionnées seront assemblées dans leur ordre en mini-vidéo verticale de 8 secondes avec une musique originale iNrCy.",
   "contenu_commercial_593e3b1d": "Contenu commercial",
   "contenu_envoye_aaa62b2f": "Contenu envoyé",
   "contenu_f3cb82af": "Contenu",

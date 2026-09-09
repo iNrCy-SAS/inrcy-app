@@ -58,7 +58,7 @@ test("Configurer Facebook exposes Classic, Reel, Story and an account default", 
   assert.match(sql, /inrcy_can_access_account/);
 });
 
-test("Booster exposes the Facebook selector before media and preserves hidden text", () => {
+test("Booster exposes Facebook formats and disables text only for Stories", () => {
   assert.match(editor, /activeCard === "facebook" \? \(/);
   assert.match(editor, /value=\{facebookPublicationPlacement\}/);
   assert.match(editor, /<option value="classic"/);
@@ -66,7 +66,7 @@ test("Booster exposes the Facebook selector before media and preserves hidden te
   assert.match(editor, /facebookPublicationPreferences\.storiesEnabled/);
   assert.match(
     editor,
-    /const facebookMediaOnly =[\s\S]*?activeCard === "facebook" && facebookPublicationPlacement !== "classic"/,
+    /const facebookMediaOnly =[\s\S]*?activeCard === "facebook" && facebookPublicationPlacement === "story"/,
   );
   assert.match(editor, /disabled=\{activeMediaOnly\}/);
   assert.doesNotMatch(editor, /setPostsByChannel\(\{\}\).*facebookMediaOnly/);
@@ -82,7 +82,8 @@ test("immediate, scheduled and single-channel continuation payloads keep the Fac
   assert.match(route, /normalizeFacebookPublicationSettings\(body\.facebookPublicationSettings\)/);
   assert.match(route, /channel === "facebook" && facebookPublicationSettings/);
   assert.match(dedupe, /facebook-placement:/);
-  assert.match(foundations, /FacebookPublicationSettings[\s\S]*?mediaOnly: true/);
+  assert.match(foundations, /FacebookPublicationSettings[\s\S]*?mediaOnly: boolean/);
+  assert.match(foundations, /mediaOnly: story/);
 });
 
 test("Facebook Reel and Story require media and image inputs become an 8-second 9:16 music video", () => {
@@ -100,7 +101,7 @@ test("Facebook Reel and Story require media and image inputs become an 8-second 
   assert.match(read("lib/instagramImageMotionVideo.ts"), /loadAiMediaSoundtrack/);
 });
 
-test("Facebook uses native Page Reel and Story endpoints and never sends text in media-only mode", () => {
+test("Facebook sends text and hashtags with Reels while Stories remain media-only", () => {
   assert.match(provider, /placement === "story" \? "video_stories" : "video_reels"/);
   assert.match(provider, /upload_phase", "start"/);
   assert.match(provider, /Authorization: `OAuth \$\{pageAccessToken\}`/);
@@ -110,11 +111,19 @@ test("Facebook uses native Page Reel and Story endpoints and never sends text in
   const verticalStart = provider.indexOf("facebookPublishVerticalVideoToPage");
   assert.notEqual(verticalStart, -1);
   const verticalSource = provider.slice(verticalStart);
-  assert.doesNotMatch(
+  assert.match(
     verticalSource,
-    /(?:start|finish)\.append\("(?:description|message|caption)"/,
+    /if \(placement === "reel"\)[\s\S]*?finish\.append\("description", reelDescription\)/,
   );
-  assert.match(route, /facebookPublishVerticalVideoToPage\(\{/);
+  assert.match(verticalSource, /finish\.append\("title", reelTitle\)/);
+  assert.match(
+    route,
+    /facebookPublishVerticalVideoToPage\(\{[\s\S]*?placement:[\s\S]*?description:[\s\S]*?buildBoosterHashtagLine\(channelPost, canonMessage, 8\)/,
+  );
+  assert.match(
+    route,
+    /facebookPublicationSettings\.placement === "reel"[\s\S]*?: undefined/,
+  );
 });
 
 test("server-side preference gate runs before durable ingress", () => {

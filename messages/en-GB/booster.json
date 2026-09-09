@@ -148,7 +148,7 @@
   "instagram_review_media_only_warning": "{mode}: only the media will be published. The title, text, CTA and hashtags will not be sent.",
   "pinterest_review_board": "Pinterest board: {board}",
   "instagram_media_only_notice": "This format publishes media only: the title, text, CTA and hashtags are not sent.",
-  "instagram_image_motion_notice": "The image will become an 8-second vertical mini-video with original iNrCy music. The title, text, CTA and hashtags are not sent.",
+  "instagram_image_motion_notice": "The selected images will be assembled in order into an 8-second vertical mini-video with original iNrCy music.",
   "contenu_commercial_593e3b1d": "Commercial content",
   "contenu_envoye_aaa62b2f": "Content sent",
   "contenu_f3cb82af": "Content",

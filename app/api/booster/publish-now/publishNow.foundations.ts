@@ -178,14 +178,14 @@ export type InstagramPublicationSettings = {
   placement: InstagramPublicationPlacement;
   mediaType: "REELS" | "STORIES";
   shareToFeed: boolean;
-  mediaOnly: true;
+  mediaOnly: boolean;
 };
 
 export type FacebookPublicationPlacement = "reel" | "story";
 
 export type FacebookPublicationSettings = {
   placement: FacebookPublicationPlacement;
-  mediaOnly: true;
+  mediaOnly: boolean;
 };
 
 export type VideoPayload = {
@@ -263,7 +263,7 @@ export function normalizeInstagramPublicationSettings(
     placement: story ? "story" : "reel",
     mediaType: story ? "STORIES" : "REELS",
     shareToFeed: !story,
-    mediaOnly: true,
+    mediaOnly: story,
   };
 }
 
@@ -280,10 +280,10 @@ export function normalizeFacebookPublicationSettings(
   if (!["reel", "reels", "story", "stories"].includes(requested)) {
     return null;
   }
+  const story = requested === "story" || requested === "stories";
   return {
-    placement:
-      requested === "story" || requested === "stories" ? "story" : "reel",
-    mediaOnly: true,
+    placement: story ? "story" : "reel",
+    mediaOnly: story,
   };
 }
 

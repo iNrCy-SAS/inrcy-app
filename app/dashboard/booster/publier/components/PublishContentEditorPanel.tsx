@@ -307,15 +307,25 @@ export default function PublishContentEditorPanel({
   const xForbiddenCtaUrlFields = xForbiddenUrlFields.filter((field) =>
     ["cta", "ctaUrl", "ctaPhone"].includes(field.field),
   );
-  const instagramMediaOnly =
+  const instagramVerticalFormat =
     activeCard === "instagram" &&
     instagramPublicationPlacement !== "classic";
-  const facebookMediaOnly =
+  const facebookVerticalFormat =
     activeCard === "facebook" && facebookPublicationPlacement !== "classic";
+  const instagramMediaOnly =
+    activeCard === "instagram" && instagramPublicationPlacement === "story";
+  const facebookMediaOnly =
+    activeCard === "facebook" && facebookPublicationPlacement === "story";
   const activeMediaOnly = instagramMediaOnly || facebookMediaOnly;
-  const activeMediaMode = instagramMediaOnly
-    ? instagramMediaMode
-    : facebookMediaMode;
+  const activeMediaMode =
+    activeCard === "instagram"
+      ? instagramMediaMode
+      : activeCard === "facebook"
+        ? facebookMediaMode
+        : "none";
+  const activeVerticalImageMotion =
+    (instagramVerticalFormat || facebookVerticalFormat) &&
+    activeMediaMode === "images";
   const activeTextGuidelines = CHANNEL_TEXT_GUIDELINES[activeCard];
   const titleVoiceMaxLength = Math.max(
     activePost.title.length,
@@ -388,9 +398,9 @@ export default function PublishContentEditorPanel({
                 ).length > 0;
               const hasText =
                 (key === "instagram" &&
-                  instagramPublicationPlacement !== "classic") ||
+                  instagramPublicationPlacement === "story") ||
                 (key === "facebook" &&
-                  facebookPublicationPlacement !== "classic") ||
+                  facebookPublicationPlacement === "story") ||
                 !!(
                   String(post.title || "").trim() ||
                   String(post.content || "").trim()
@@ -600,7 +610,7 @@ export default function PublishContentEditorPanel({
               <div style={{ marginBottom: 8, fontSize: 12, opacity: 0.72 }}>
                 {i18nT("aucun_tableau_disponible_creez_en_un_fdb1c0ea")}{" "}</div>
             ) : null}
-            {activeMediaOnly ? (
+            {activeVerticalImageMotion || activeMediaOnly ? (
               <div
                 role="status"
                 style={{
@@ -614,9 +624,13 @@ export default function PublishContentEditorPanel({
                   lineHeight: 1.45,
                 }}
               >
-                {activeMediaMode === "images"
+                {activeVerticalImageMotion
                   ? i18nT("instagram_image_motion_notice")
-                  : i18nT("instagram_media_only_notice")}
+                  : null}
+                {activeVerticalImageMotion && activeMediaOnly ? " " : null}
+                {activeMediaOnly
+                  ? i18nT("instagram_media_only_notice")
+                  : null}
               </div>
             ) : null}
             {activeCard === "x" && xForbiddenUrlFields.length ? (
