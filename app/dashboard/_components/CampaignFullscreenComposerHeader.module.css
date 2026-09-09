@@ -1,9 +1,8 @@
 .shell {
   display: grid;
   grid-template-columns:
-    minmax(280px, 1.35fr)
-    minmax(220px, 1fr)
-    minmax(220px, 0.9fr)
+    minmax(280px, 1.2fr)
+    minmax(240px, 1fr)
     minmax(190px, auto);
   align-items: end;
   gap: 10px 12px;
@@ -31,7 +30,8 @@
 }
 
 .subjectField {
-  min-width: 260px;
+  grid-column: 1 / -1;
+  min-width: 0;
 }
 
 .label {

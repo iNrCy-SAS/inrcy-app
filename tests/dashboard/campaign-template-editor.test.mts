@@ -55,7 +55,9 @@ test("full-screen campaign editors keep the subject and AI generation controls a
   assert.match(header, /value=\{selectedKey\}/);
   assert.match(header, /<TemplateAiEngineSelector/);
   assert.match(header, /onClick=\{onGenerate\}/);
-  assert.match(headerCss, /grid-template-columns:[\s\S]*?minmax\(280px, 1\.35fr\)/);
+  assert.match(header, /value=\{selectedKey\}[\s\S]*?<TemplateAiEngineSelector[\s\S]*?value=\{subject\}/);
+  assert.match(headerCss, /grid-template-columns:[\s\S]*?minmax\(280px, 1\.2fr\)/);
+  assert.match(headerCss, /\.subjectField\s*\{[\s\S]*?grid-column:\s*1 \/ -1/);
   assert.match(headerCss, /@media \(max-width: 1180px\)/);
   assert.match(headerCss, /@media \(max-width: 680px\)/);
 

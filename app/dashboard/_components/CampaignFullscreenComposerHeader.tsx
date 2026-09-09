@@ -46,18 +46,6 @@ export default function CampaignFullscreenComposerHeader({
 
   return (
     <section className={styles.shell} aria-label={i18nT("generer_avec_inrcy_58900495")}>
-      <label className={`${styles.field} ${styles.subjectField}`} htmlFor={subjectId}>
-        <span className={styles.label}>{i18nT("objet_3de621c5")}</span>
-        <input
-          id={subjectId}
-          value={subject}
-          onChange={(event) => onSubjectChange(event.target.value)}
-          placeholder={i18nT("objet_3de621c5")}
-          className={styles.control}
-          autoComplete="off"
-        />
-      </label>
-
       <label className={styles.field} htmlFor={templateId}>
         <span className={styles.label}>{i18nT("modele_dedie_c1a52e79")}</span>
         <select
@@ -101,6 +89,18 @@ export default function CampaignFullscreenComposerHeader({
             : i18nT("generer_avec_inrcy_58900495")}
         </button>
       </div>
+
+      <label className={`${styles.field} ${styles.subjectField}`} htmlFor={subjectId}>
+        <span className={styles.label}>{i18nT("objet_3de621c5")}</span>
+        <input
+          id={subjectId}
+          value={subject}
+          onChange={(event) => onSubjectChange(event.target.value)}
+          placeholder={i18nT("objet_3de621c5")}
+          className={styles.control}
+          autoComplete="off"
+        />
+      </label>
 
       {error ? (
         <div className={styles.error} role="alert">
