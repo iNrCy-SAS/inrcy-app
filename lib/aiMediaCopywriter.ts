@@ -4,6 +4,7 @@ import type { NormalizedAiGenerationProfile } from "@/lib/aiGenerationProfile";
 import type { AiMediaCreativePlan } from "@/lib/aiMediaCreativePlan";
 import type { AiMediaGenerationRequest } from "@/lib/aiMediaGenerationContracts";
 import { buildAiMediaBusinessDnaPayload } from "@/lib/aiMediaBusinessDna";
+import { isAiMediaTechnicalCopyAllowed } from "./aiMediaTechnicalText.ts";
 import {
   aiMediaDialogueSignature,
   selectAiMediaDialogueLine,
@@ -70,7 +71,7 @@ function normalizeVisibleCopy(value: unknown) {
   return String(value ?? "")
     .replace(/\u0000/g, "")
     .replace(/^[\s"'«»]+|[\s"'«»]+$/g, "")
-    .replace(/[#*_`<>]/g, "")
+    .replace(/#(?![\da-f]{3}(?:[\da-f]{3})?\b)|[*_`<>]/gi, "")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -377,6 +378,7 @@ export async function writeAiMediaHeadline(args: {
         "Chaque réplique finit sur un mot porteur de sens, jamais sur un article, une préposition ou une conjonction. Aucun libellé de dialogue, guillemet, nom de locuteur ni question adressée à un interlocuteur indéfini dans spokenLine ou spokenReply.",
         "L'accroche contient au maximum 58 caractères. Aucun guillemet, emoji ou promesse inventée.",
         "Utilise uniquement les faits fournis et n'ajoute ni prix, promotion, certification, adresse, délai ni résultat garanti.",
+        "Les couleurs, cadrages et paramètres sont des directives visuelles, jamais du texte visible ou prononcé. Aucun code couleur ni préfixe technique, sauf texte littéral explicitement demandé.",
       ].join(" "),
       input: JSON.stringify({
         langue_cible: getAiLanguageLabel(args.profile),
@@ -417,6 +419,17 @@ export async function writeAiMediaHeadline(args: {
       timeoutMs: args.request.idea ? 5_000 : 18_000,
       deadlineAt: args.request.idea ? Date.now() + 5_900 : undefined,
     });
+    // Check before typography cleanup can hide the marker identifying a leak.
+    const copyFields = [
+      generated.headline,
+      generated.cta,
+      ...(Array.isArray(generated.scenes) ? generated.scenes : []).flatMap((scene) => [
+        scene.eyebrow, scene.title, scene.body, scene.spokenLine, scene.spokenReply,
+      ]),
+    ];
+    if (copyFields.some((value) => !isAiMediaTechnicalCopyAllowed(value, args.request))) {
+      return args.plan;
+    }
     const headline = compactHeadline(generated.headline);
     if (
       args.request.withText &&

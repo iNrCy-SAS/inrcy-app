@@ -11,6 +11,7 @@ import {
   selectAiMediaDialogueLine,
 } from "../../lib/aiMediaDialogue.ts";
 import { getAiMediaVideoSegmentCount } from "../../lib/aiMediaVideoTimeline.ts";
+import { fitAiMediaSceneDirection } from "../../lib/aiMediaTechnicalText.ts";
 
 const ROOT = process.cwd();
 
@@ -38,6 +39,7 @@ function loadCreativePlanBuilder() {
     ["@/lib/aiMediaDialogue", { aiMediaDialogueSignature, selectAiMediaDialogueLine }],
     ["@/lib/aiMediaLanguage", { getAiMediaLanguageCopy: () => copy }],
     ["@/lib/aiMediaVideoTimeline", { getAiMediaVideoSegmentCount }],
+    ["./aiMediaTechnicalText.ts", { fitAiMediaSceneDirection }],
   ]);
   const localRequire = (specifier: string) => {
     if (stubs.has(specifier)) return stubs.get(specifier);

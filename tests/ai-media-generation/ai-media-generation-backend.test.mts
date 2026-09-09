@@ -549,7 +549,7 @@ test("le prompt donne à GPT Image le sujet, l’ADN, l’identité autorisée e
   const dna = read("lib/aiMediaBusinessDna.ts");
   assert.match(
     source,
-    /AI_MEDIA_PROMPT_VERSION = "inrcy-media-v18-strict-user-intent"/,
+    /AI_MEDIA_PROMPT_VERSION = "inrcy-media-v19-scene-color-direction"/,
   );
   assert.match(source, /CONTRAT CRÉATIF PRIORITAIRE/);
   assert.match(source, /SUJET CENTRAL OBLIGATOIRE/);
@@ -560,7 +560,7 @@ test("le prompt donne à GPT Image le sujet, l’ADN, l’identité autorisée e
   assert.match(source, /accessoires aléatoires/);
   assert.match(source, /buildAiMediaBusinessDnaPayload/);
   assert.match(source, /ADN PROFESSIONNEL AUTORISÉ/);
-  assert.match(source, /Palette réelle extraite du logo/);
+  assert.match(source, /Couleurs de marque à utiliser uniquement comme accents dans la lumière, les matières et le décor/);
   assert.match(source, /référence(?:s)? d’identité/);
   assert.match(source, /logo officiel/);
   assert.match(source, /Aucune photo de Médiathèque/);
@@ -899,7 +899,7 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   assert.match(veo, /`SUBJECT: \$\{primarySubject\}/);
   assert.match(
     veo,
-    /Keep named entities\/actions\/relations; no substitute/
+    /Keep entities\/actions\/relations; no swaps/
   );
   assert.match(veo, /smartphone, tablet or laptop in the foreground/);
   assert.match(veo, /masonry or construction site/);

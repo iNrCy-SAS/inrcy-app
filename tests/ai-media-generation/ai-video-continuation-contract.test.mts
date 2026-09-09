@@ -6,6 +6,7 @@ import test from "node:test";
 import vm from "node:vm";
 
 import ts from "typescript";
+import * as colorDirection from "../../lib/aiMediaColorDirection.ts";
 
 import {
   aiMediaDialogueSignature,
@@ -58,6 +59,7 @@ function loadVeoPromptRuntime() {
       },
     ],
     ["@/lib/aiMediaVideoTimeline", { getAiMediaVideoSegmentDurations }],
+    ["@/lib/aiMediaColorDirection", colorDirection],
     [
       "@/lib/aiVideoReliability",
       {
@@ -415,7 +417,8 @@ test("le prompt de prolongation impose une vraie suite sans coupe, reset ni rép
 
   assert.match(veo, /\[# Sources <PREVIOUS_VIDEO>@Video1\]/);
   assert.match(veo, /Continue prior frame/);
-  assert.match(veo, /same cast\/look\/place\/light\/lens\/motion/);
+  assert.match(veo, /same scene\/motion/);
+  assert.match(veo, /LOCK faces\/hair\/clothes\/voices\/place\/light\/palette\/lens\/camera/);
   assert.match(veo, /no intro\/reset\/recap\/cut/);
   assert.match(veo, /one continuous take/);
   assert.match(veo, /OPENING: requested action moves at frame 1/);
@@ -557,7 +560,8 @@ test("le prompt reference_team de 24 secondes conserve ses contraintes critiques
       actPrompt,
       /render=photo\/cinematic;shot=medium;people=team/,
     );
-    assert.match(actPrompt, /creative=faithful;palette=#13b8ff, #ec3e9d/);
+    assert.ok(actPrompt.includes(`creative=faithful;light/material-accents=${colorDirection.describeAiMediaBrandColors(["#13b8ff", "#ec3e9d"]).join("/")}`));
+    assert.doesNotMatch(actPrompt, /#[0-9a-f]{6}/i);
     assert.match(actPrompt, /FRAME medium\/full heads/);
   }
 

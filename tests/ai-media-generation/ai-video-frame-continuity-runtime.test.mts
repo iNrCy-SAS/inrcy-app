@@ -8,6 +8,7 @@ import vm from "node:vm";
 import ts from "typescript";
 
 import * as dialogue from "../../lib/aiMediaDialogue.ts";
+import * as colorDirection from "../../lib/aiMediaColorDirection.ts";
 import { getAiMediaVideoSegmentDurations } from "../../lib/aiMediaVideoTimeline.ts";
 import * as reliability from "../../lib/aiVideoReliability.ts";
 import * as providerTypes from "../../lib/aiVideoProviderTypes.ts";
@@ -139,6 +140,7 @@ function createHarness(engine: Engine, options: {
     ["@/lib/aiVideoReliability", reliability],
     ["@/lib/aiVideoProviderTypes", providerTypes],
     ["@/lib/aiMediaDialogue", dialogue],
+    ["@/lib/aiMediaColorDirection", colorDirection],
     ["@/lib/aiMediaSensitiveText", { redactAiMediaSensitiveText: (value: unknown) => String(value ?? "") }],
     ["./aiMediaVideoContinuity.ts", {
       extractAiMediaVideoContinuityFrame: async (args: { buffer: Buffer; durationSeconds: number; sourceStartSeconds?: number }) => {

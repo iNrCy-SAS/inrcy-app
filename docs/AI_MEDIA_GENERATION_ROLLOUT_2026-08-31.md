@@ -363,3 +363,33 @@ La Production n’est autorisée que si tous les points suivants sont vrais :
 - réutilisation de la médiathèque sans nouvelle consommation ;
 - atelier accessible aux trois éditions, avec quotas 20/5, 30/6 et 30/6, et durées maximales respectives de 8, 24 et 24 secondes ;
 - plan de retour au build précédent identifié et sauvegarde Supabase disponible.
+
+## 13. Consignes chromatiques sans annotations parasites — 9 septembre 2026
+
+Le prompt `inrcy-media-v19-scene-color-direction` sépare la direction de couleur
+des éléments publiables :
+
+- les codes du logo restent inchangés dans le kit de marque et le compositeur
+  déterministe ; seuls les prompts de scène utilisent des descriptions de teintes ;
+- les couleurs guident la lumière, les matières et le décor, sans demander une
+  planche de présentation ;
+- les consignes image et le prompt vidéo partagé par Veo/Omni excluent les
+  nuanciers, codes couleur et annotations techniques, y compris autour des
+  sujets de référence, sans modifier le mode d’identité sélectionné ;
+- le garde-fou vidéo reste dans les sections obligatoires du budget de 1 400
+  caractères, dans chaque séquence, avec ou sans raccord ;
+- les sorties du copywriter et de la narration sont contrôlées avant le
+  nettoyage typographique : les codes couleur et préfixes techniques parasites
+  déclenchent le secours local, sans second appel ; le texte littéral
+  explicitement demandé reste autorisé ;
+- les intentions de scène réservent la place de la règle anti-récitation dans
+  leur plafond de 700 caractères ;
+- aucun modèle, coût autorisé, appel fournisseur supplémentaire ou réglage de
+  concurrence n’est ajouté pour ce correctif.
+
+Validation hors ligne : `npm run test:ai-media-generation` et `npm run typecheck`.
+Le cas de régression reprend les trois couleurs `#f9b7f3`, `#f870e5`, `#b7e5fe`.
+Les tests vérifient le code et les requêtes préparées, pas la conformité de chaque
+sortie probabiliste. Après déploiement, contrôler visuellement la prochaine
+génération demandée par l’utilisateur ; les médias déjà exportés ne sont ni
+modifiés ni régénérés automatiquement.

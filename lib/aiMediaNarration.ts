@@ -6,6 +6,7 @@ import type { NormalizedAiGenerationProfile } from "@/lib/aiGenerationProfile";
 import type { AiMediaCreativePlan } from "@/lib/aiMediaCreativePlan";
 import type { AiMediaGenerationRequest } from "@/lib/aiMediaGenerationContracts";
 import { buildAiMediaBusinessDnaPayload } from "@/lib/aiMediaBusinessDna";
+import { isAiMediaTechnicalCopyAllowed } from "./aiMediaTechnicalText.ts";
 import { aiGenerateJSON } from "@/lib/aiGatewayClient";
 import { hasAiLanguageMismatch } from "@/lib/aiLanguageValidation";
 import { buildAiMediaNarrationFallback } from "@/lib/aiMediaLanguage";
@@ -71,7 +72,7 @@ function clean(value: unknown, max = 620) {
     .replace(/\u0000/g, "")
     .replace(/^[\s"'«»*-]+|[\s"'«»*-]+$/g, "")
     .replace(/https?:\/\/\S+/gi, "")
-    .replace(/[#*_`<>]/g, "")
+    .replace(/#(?![\da-f]{3}(?:[\da-f]{3})?\b)|[*_`<>]/gi, "")
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, max);
@@ -179,6 +180,7 @@ export async function writeAiMediaNarration(args: {
         "La consigne ponctuelle est PRIORITAIRE : respecte tous ses éléments narratifs utiles, même absents de l'ADN, sans jamais la réciter, la citer ou la présenter comme une instruction. Ne neutralise un fragment que pour la sécurité, les droits, une impossibilité technique ou un fait commercial non vérifié.",
         "Utilise uniquement les faits fournis. N'invente aucun prix, résultat, certification, promotion, délai, adresse ou témoignage.",
         "Aucune liste, addition de mots-clés, hashtag, emoji, titre, label, URL ou indication de mise en scène.",
+        "Les intentions de scène, couleurs et cadrages sont des directives visuelles : ne réciter aucun code couleur ni préfixe technique, sauf texte littéral explicitement demandé.",
         "Termine par une phrase complète et ponctuée. Ne commence jamais une dernière proposition que la limite de mots t'empêcherait de finir.",
         "Le résultat doit être immédiatement prononçable, humain, crédible et cohérent avec toutes les scènes.",
       ].join(" "),
@@ -204,7 +206,10 @@ export async function writeAiMediaNarration(args: {
       timeoutMs: 20_000,
     });
     const candidate = clean(generated.script);
-    if (validGeneratedScript(candidate, duration, languageCode)) {
+    if (
+      isAiMediaTechnicalCopyAllowed(generated.script, args.request) &&
+      validGeneratedScript(candidate, duration, languageCode)
+    ) {
       script = completeAiMediaSpeechSentence(candidate, languageCode);
       source = "ai";
     }

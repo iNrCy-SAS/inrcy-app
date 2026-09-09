@@ -1,5 +1,6 @@
 import type { NormalizedAiGenerationProfile } from "@/lib/aiGenerationProfile";
 import { buildAiMediaBusinessDnaPayload } from "@/lib/aiMediaBusinessDna";
+import { describeAiMediaBrandColors } from "@/lib/aiMediaColorDirection";
 import {
   AI_MEDIA_FORMAT_SPECS,
   type AiMediaGenerationRequest,
@@ -7,7 +8,7 @@ import {
 } from "@/lib/aiMediaGenerationContracts";
 import { getAiLanguageLabel } from "@/lib/aiWritingProfile";
 
-export const AI_MEDIA_PROMPT_VERSION = "inrcy-media-v18-strict-user-intent";
+export const AI_MEDIA_PROMPT_VERSION = "inrcy-media-v19-scene-color-direction";
 export const AI_MEDIA_COMPILED_PROMPT_MAX_CHARS = 11_800;
 
 type RecentPublication = {
@@ -269,7 +270,7 @@ export function buildAiMediaPrompt(args: {
   const preferences = profile.preferences;
   const targetLanguage = getAiLanguageLabel(profile);
   const format = AI_MEDIA_FORMAT_SPECS[request.format];
-  const palette = (args.brandColors || []).filter(Boolean).slice(0, 4);
+  const palette = describeAiMediaBrandColors(args.brandColors || [], 4);
   const preferenceLine = [
     `ton ${preferences.tone}`,
     `style éditorial ${preferences.communicationStyle}`,
@@ -352,7 +353,7 @@ export function buildAiMediaPrompt(args: {
       ? `LANGUE DU TEXTE VISIBLE — RÈGLE ABSOLUE : l'accroche et tout caractère destiné au lecteur doivent être exclusivement en ${targetLanguage}. Le brief, l’ADN et les consignes techniques peuvent être rédigés dans une autre langue : ne jamais reprendre leur langue par défaut. Les noms propres, marques et le logo officiel restent inchangés.`
       : `LANGUE DE GÉNÉRATION CONFIGURÉE : ${targetLanguage}. Aucun texte visible ne doit être créé dans le média, quelle que soit la langue du brief, hors texte déjà présent dans le logo officiel.`,
     request.useBrandColors && palette.length
-      ? `Palette réelle extraite du logo à harmoniser subtilement : ${palette.join(", ")}.`
+      ? `Couleurs de marque à utiliser uniquement comme accents dans la lumière, les matières et le décor : ${palette.join(", ")}. Ne pas en faire un sujet ni une planche de présentation.`
       : args.hasLogo
         ? "Palette créative libre et cohérente avec le secteur. Ne pas étendre les couleurs du logo à toute l’image : elles doivent rester limitées au logo lui-même."
         : "Palette créative libre, harmonieuse, professionnelle et cohérente avec le secteur.",
@@ -363,6 +364,7 @@ export function buildAiMediaPrompt(args: {
     "HISTORIQUE RÉCENT À NE PAS COPIER (éviter les répétitions visuelles) :",
     buildHistory(args.recentPublications || []),
     "RÈGLES IMPÉRATIVES :",
+    "Les paramètres techniques et couleurs de marque sont des instructions de réalisation, jamais des éléments à afficher. Aucun nuancier, échantillon de couleur, code hexadécimal, légende technique ou planche de style ajouté au résultat. Ne pas recopier les annotations techniques autour du sujet des références ; conserver son apparence selon le mode d’identité choisi.",
     sharedSafetyRules(),
     args.deferVisibleElementsToComposer
       ? "COMPOSITION EXACTE PRISE EN CHARGE PAR iNrCy APRÈS GÉNÉRATION — RÈGLE FINALE PRIORITAIRE : produire exclusivement le fond sans texte, chiffre, téléphone, coordonnées ni logo. La consigne ponctuelle peut demander leur présence, mais le fournisseur ne doit jamais les dessiner : iNrCy appliquera ensuite les valeurs exactes du profil sans les transmettre au moteur."

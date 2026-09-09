@@ -9,6 +9,7 @@ import {
 } from "@/lib/aiMediaDialogue";
 import { getAiMediaLanguageCopy } from "@/lib/aiMediaLanguage";
 import { getAiMediaVideoSegmentCount } from "@/lib/aiMediaVideoTimeline";
+import { fitAiMediaSceneDirection } from "./aiMediaTechnicalText.ts";
 
 type RecentPublication = {
   title?: string | null;
@@ -331,7 +332,7 @@ function scene(
     // personnages doivent parler.
     spokenLine: compactAtWordBoundary(safeTitle, 96),
     spokenReply: safeBody || compactAtWordBoundary(safeTitle, 96),
-    visualBrief: clean(visualBrief, 700),
+    visualBrief: fitAiMediaSceneDirection(visualBrief),
     layout,
   };
 }

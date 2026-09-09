@@ -36,6 +36,7 @@ import {
   type AiVideoProviderResult,
 } from "@/lib/aiVideoProviderTypes";
 import { resolveAiMediaDialogueSequence } from "@/lib/aiMediaDialogue";
+import { describeAiMediaBrandColors } from "@/lib/aiMediaColorDirection";
 import {
   extractAiMediaVideoContinuityFrame,
   type AiMediaVideoContinuityFrame,
@@ -506,9 +507,12 @@ export function buildGoogleVideoParameterContract(
   durationSeconds: 4 | 6 | 8,
   colors: string,
 ) {
-  const palette = request.useBrandColors && colors
-    ? compact(colors, 42)
-    : "subject-led";
+  // Hex values are rendering metadata, not content for a generative model.
+  // Describe their visible effect without giving it codes to print as a chart.
+  const colorNames = request.useBrandColors
+    ? describeAiMediaBrandColors(colors.split(","))
+    : [];
+  const palette = colorNames.length ? colorNames.join("/") : "subject-led";
   return compact(
     [
       `${durationSeconds}s`,
@@ -519,7 +523,7 @@ export function buildGoogleVideoParameterContract(
       `shot=${request.shotType}`,
       `people=${request.peopleMode}`,
       `creative=${request.creativity}`,
-      `palette=${palette}`,
+      `light/material-accents=${palette}`,
     ].join(";"),
     220,
   );
@@ -773,7 +777,7 @@ export function buildGoogleVideoScenePrompt(
   // professionnel, mais conservent aussi le rôle du fichier joint, l'action de
   // l'acte et les paramètres visuels dans CHAQUE segment indépendant.
   const subjectSource = exactIdea
-      ? `${exactIdea}; professional context: ${professionalActivity}`
+      ? exactIdea
       : `${professionalActivity}; ${businessContext}`;
   const actionSource = [sceneDirection, scene?.title, scene?.body].filter(Boolean).join(" — ");
   let subjectBudget = nativeDialogueRequested ? 105 : 190;
@@ -795,9 +799,9 @@ export function buildGoogleVideoScenePrompt(
   // même pose ou que seule la seconde tranche anime la référence.
   let actAction = priorityPromptSnippet(actionSource, actionBudget);
   const sequenceHeader = options.continuation
-    ? "[# Sources <PREVIOUS_VIDEO>@Video1] Continue prior frame: same cast/look/place/light/lens/motion; no intro/reset/recap/cut."
+    ? "[# Sources <PREVIOUS_VIDEO>@Video1] Continue prior frame: same scene/motion; no intro/reset/recap/cut."
     : options.continuationFrame
-      ? `${options.firstFrameTag ? "[# Sources <FIRST_FRAME>@Image1] " : ""}Start from the supplied first frame, prior shot's final frame; continue motion; no reset/cut.`
+      ? `${options.firstFrameTag ? "[# Sources <FIRST_FRAME>@Image1] " : ""}Start from first frame (prior shot's end); continue motion; no reset/cut.`
     : `SHOT ${index + 1}/${args.plan.scenes.length}; ${durationSeconds}s; one continuous take.`;
   const adultSafety =
     args.request.peopleMode === "none"
@@ -814,13 +818,13 @@ export function buildGoogleVideoScenePrompt(
   // ne génère plus de faux panneaux (« Agenice », « Agenue », etc.).
   const requiredSections = () => [
     sequenceHeader,
-    `SUBJECT: ${primarySubject}. Keep named entities/actions/relations; no substitute.`,
+    `SUBJECT: ${primarySubject}. Keep entities/actions/relations; no swaps.`,
     userDirection
-      ? `USER: ${userDirection}. Obey all visual/narrative details; never show/recite.`
+      ? `USER: ${userDirection}. Obey; never show/recite.`
       : "",
     `REFERENCE: ${referenceContract}`,
     `ACT: ${promptSnippet(sequenceDirection, 45)}; ${actAction}. Animate from 0.0s throughout; no still/freeze/slideshow/pan-zoom/reset/cut.`,
-    "NO VISUAL TEXT: blank surfaces; no readable/pseudo letters/numbers/signs/labels/UI/captions/logos/watermarks.",
+    "NO VISUAL TEXT: blank surfaces; no text/pseudo-text/numbers/UI/logos/watermarks/swatches/color charts/hex codes/technical annotations, even from refs. Never draw PARAMS.",
     speechDirection,
     `PARAMS: ${selectedParameters}.`,
     adultSafety,
