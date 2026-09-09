@@ -123,15 +123,16 @@ export default function SettingsDrawer({
       }}
     >
       <aside
+        data-dashboard-settings-drawer="true"
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         onClick={(e) => e.stopPropagation()}
         style={{
           width: isPhone
-            ? "100vw"
-            : "min(560px, 92vw)",
-          maxWidth: "100vw",
+            ? "100%"
+            : "min(560px, 92%)",
+          maxWidth: "100%",
           height: "100%",
           maxHeight: "100%",
           minHeight: 0,
@@ -140,10 +141,10 @@ export default function SettingsDrawer({
           color: "rgba(255,255,255,0.92)",
           borderLeft: isPhone ? 0 : "1px solid rgba(255,255,255,0.08)",
           borderRight: 0,
-          padding: isPhone
-            ? "max(12px, var(--inrcy-safe-area-top)) max(12px, var(--inrcy-safe-area-right)) max(24px, var(--inrcy-safe-area-bottom)) max(12px, var(--inrcy-safe-area-left))"
-            : 16,
-          overflowY: "auto",
+          padding: 0,
+          display: "flex",
+          flexDirection: "column",
+          overflowY: "hidden",
           overflowX: "hidden",
           overscrollBehavior: "contain",
           WebkitOverflowScrolling: "touch",
@@ -154,6 +155,7 @@ export default function SettingsDrawer({
         }}
       >
         <div
+          data-dashboard-settings-drawer-header="true"
           style={{
             display: "grid",
             gridTemplateColumns: "minmax(0, 1fr) auto",
@@ -161,6 +163,13 @@ export default function SettingsDrawer({
             gap: 12,
             minWidth: 0,
             width: "100%",
+            flex: "0 0 auto",
+            boxSizing: "border-box",
+            padding: isPhone
+              ? "max(12px, var(--inrcy-safe-area-top)) max(12px, var(--inrcy-safe-area-right)) 10px max(12px, var(--inrcy-safe-area-left))"
+              : 16,
+            borderBottom: "1px solid rgba(255,255,255,0.08)",
+            background: "rgba(16,16,16,0.98)",
           }}
         >
           <div style={{ minWidth: 0, maxWidth: "100%" }}>
@@ -221,12 +230,22 @@ export default function SettingsDrawer({
         </div>
 
         <div
+          data-dashboard-settings-drawer-scroll="true"
           style={{
-            marginTop: 12,
+            flex: "1 1 auto",
+            width: "100%",
             minWidth: 0,
+            minHeight: 0,
             maxWidth: "100%",
             overflowX: "hidden",
-            paddingBottom: isResponsive ? 8 : 0,
+            overflowY: "auto",
+            overscrollBehavior: "contain",
+            WebkitOverflowScrolling: "touch",
+            boxSizing: "border-box",
+            padding: isPhone
+              ? "12px max(12px, var(--inrcy-safe-area-right)) max(24px, var(--inrcy-safe-area-bottom)) max(12px, var(--inrcy-safe-area-left))"
+              : "12px 16px 16px",
+            scrollPaddingBottom: isResponsive ? 24 : 16,
           }}
         >
           {children}

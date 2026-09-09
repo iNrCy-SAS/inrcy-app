@@ -1938,6 +1938,99 @@
   transform: none;
 }
 
+/* Every dashboard configuration view is rendered inside SettingsDrawer.
+   Keep one responsive width contract for every panel instead of relying on
+   each integration to remember its own overflow guards. */
+.settingsDrawerContent {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+.settingsDrawerContent,
+.settingsDrawerContent > *,
+.settingsDrawerContent > * > * {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.settingsDrawerContent :where(input, select, textarea, fieldset, table, img, video, iframe) {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.settingsDrawerContent :where(h1, h2, h3, h4, p, label, span, strong, small) {
+  overflow-wrap: anywhere;
+}
+
+.channelConfigPanel {
+  display: grid;
+  gap: 14px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+.channelConfigCard {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.channelConfigActionRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.channelConfigField {
+  flex: 1 1 260px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.channelConfigActionRow .actionBtn {
+  max-width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .settingsDrawerContent .actionBtn {
+    max-width: 100%;
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: center;
+  }
+
+  .channelConfigActionRow {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .channelConfigActionRow > * {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+}
+
 /* Le panneau Facebook cumule les libellés d'action les plus longs du drawer.
    Ces garde-fous empêchent leur largeur intrinsèque de pousser le panneau
    sous le bord droit, notamment avec un zoom navigateur ou un petit écran. */

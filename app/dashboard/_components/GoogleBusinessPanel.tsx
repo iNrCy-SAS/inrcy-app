@@ -111,7 +111,7 @@ export default function GoogleBusinessPanel(props: any) {
   };
 
   return (
-    <div style={{ display: "grid", gap: 14 }}>
+    <div className={styles.channelConfigPanel}>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
         <span
           style={{
@@ -141,6 +141,7 @@ export default function GoogleBusinessPanel(props: any) {
       </div>
 
       <div
+        className={styles.channelConfigCard}
         style={{
           border: "1px solid rgba(255,255,255,0.12)",
           background: "rgba(255,255,255,0.03)",
@@ -156,8 +157,9 @@ export default function GoogleBusinessPanel(props: any) {
         </div>
         <div className={styles.blockSub}>{i18nT("ce_compte_google_sert_a_acceder_80ee3ae0")}</div>
 
-        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+        <div className={styles.channelConfigActionRow}>
           <input
+            className={styles.channelConfigField}
             value={gmbAccountEmail || (gmbAccountConnected ? i18nT("compte_connecte_a442afe1") : "")}
             readOnly
             placeholder={gmbAccountConnected ? i18nT("compte_connecte_a442afe1") : i18nT("account_not_connected")}
@@ -194,6 +196,7 @@ export default function GoogleBusinessPanel(props: any) {
 
       {gmbAccountConnected ? (
         <div
+          className={styles.channelConfigCard}
           style={{
             border: "1px solid rgba(255,255,255,0.12)",
             background: "rgba(255,255,255,0.03)",
@@ -214,7 +217,7 @@ export default function GoogleBusinessPanel(props: any) {
           </div>
           <div className={styles.blockSub}>{i18nT("choisissez_la_fiche_google_business_a_ea2602ec")}</div>
 
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <div className={styles.channelConfigActionRow}>
             <button
               type="button"
               className={`${styles.actionBtn} ${styles.secondaryBtn} ${gmbLocationsPhase === "connecting" ? styles.connectingActionBtn : gmbLocationsPhase === "searching" || gmbLoadingList ? styles.searchingActionBtn : ""}`}
@@ -227,6 +230,7 @@ export default function GoogleBusinessPanel(props: any) {
               {i18nT("charger_mes_etablissements_b636d3f7")}{" "}</button>
 
             <select
+              className={`${styles.channelConfigField} ${styles.selectReadable}`}
               value={selectedLocationName}
               onChange={(e) => setGmbLocationName(e.target.value)}
               disabled={gmbLoadingList || gmbLocationBusy || gmbPickerLocked}
@@ -292,6 +296,7 @@ export default function GoogleBusinessPanel(props: any) {
       ) : null}
 
       <div
+        className={styles.channelConfigCard}
         style={{
           border: "1px solid rgba(255,255,255,0.12)",
           background: "rgba(255,255,255,0.03)",
@@ -307,8 +312,9 @@ export default function GoogleBusinessPanel(props: any) {
         </div>
         <div className={styles.blockSub}>{i18nT("se_remplit_automatiquement_une_fois_l_27c3f226")}</div>
 
-        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+        <div className={styles.channelConfigActionRow}>
           <input
+            className={styles.channelConfigField}
             value={gmbUrl}
             readOnly
             placeholder={gmbConfigured ? "Lien récupéré automatiquement" : "Sélectionne un établissement pour générer le lien"}

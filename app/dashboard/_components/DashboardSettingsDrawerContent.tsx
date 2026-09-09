@@ -26,6 +26,7 @@ import InrBadgeSettingsContent from "../settings/_components/InrBadgeSettingsCon
 import StandardSubscriptionContent from "../settings/_components/StandardSubscriptionContent";
 import type { DashboardEdition } from "@/lib/dashboardEdition";
 import GoogleOAuthConsentBanner from "./GoogleOAuthConsentBanner";
+import styles from "../dashboard.module.css";
 
 type DashboardPanelName =
   | "contact"
@@ -126,7 +127,7 @@ export default function DashboardSettingsDrawerContent({
   inrSearchDirectoryEnabled = null,
 }: DashboardSettingsDrawerContentProps) {
   return (
-    <>
+    <div className={styles.settingsDrawerContent} data-dashboard-settings-drawer-content="true">
       <GoogleOAuthConsentBanner panel={panel} />
       {panel === "contact" && <ContactContent mode="drawer" />}
       {panel === "compte" && (
@@ -201,6 +202,6 @@ export default function DashboardSettingsDrawerContent({
       <GmbPanelBlock panel={panel} panelProps={gmbPanelProps} />
       <FacebookPanelBlock panel={panel} panelProps={facebookPanelProps} />
       <TiktokPanelBlock panel={panel} panelProps={tiktokPanelProps} />
-    </>
+    </div>
   );
 }
