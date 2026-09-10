@@ -32,6 +32,7 @@ function sourceEvent(overrides: TeamCalendarEvent = {}): TeamCalendarEvent {
     location: "Google Meet",
     htmlLink: "https://calendar.google.com/event?eid=source",
     hangoutLink: "https://meet.google.com/abc-defg-hij",
+    iCalUID: "shared-logical-appointment@example.com",
     start: { dateTime: "2026-09-08T09:00:00.000Z" },
     end: { dateTime: "2026-09-08T10:00:00.000Z" },
     organizer: { email: member.email },
@@ -168,6 +169,10 @@ test("le miroir est interne, sans invité ni nouvelle conférence, et conserve l
   assert.equal(body.extendedProperties.private.inrcyBooking, "signup-visio");
   assert.equal(body.extendedProperties.private.sourceFingerprint, "fingerprint");
   assert.equal(
+    body.extendedProperties.private.sourceICalUID,
+    "shared-logical-appointment@example.com",
+  );
+  assert.equal(
     body.extendedProperties.private.sourceOrganizerEmail,
     member.email,
   );
@@ -250,6 +255,13 @@ test("le rappel orange d'inscription est identifié uniquement par son User ID",
   assert.equal(
     isPendingSignupReminderForProspect(reminder, "un-autre-utilisateur"),
     false,
+  );
+  assert.equal(
+    pendingSignupReminderProspectUserId({
+      ...reminder,
+      summary: "Inscription - A traiter — Océane",
+    }),
+    "4b6eceb7-d627-4447-b453-4f5e1e749272",
   );
 });
 

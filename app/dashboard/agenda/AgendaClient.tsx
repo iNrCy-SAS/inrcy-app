@@ -1303,6 +1303,15 @@ export default function AgendaClient({
     void loadEventsForMonth(cursorMonth, { silent: Boolean(readInitialAgendaMonthSnapshot(cursorMonth)) });
   }, [cursorMonth]);
 
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void loadEventsForMonth(cursorMonth, { silent: true });
+      }
+    }, 15_000);
+    return () => window.clearInterval(interval);
+  }, [cursorMonth]);
+
   const monthStart = useMemo(() => startOfMonth(cursorMonth), [cursorMonth]);
   const monthEnd = useMemo(() => endOfMonth(cursorMonth), [cursorMonth]);
   const gridStart = useMemo(() => startOfWeekMonday(monthStart), [monthStart]);

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { isAuthorizedCronRequest } from "@/lib/cronAuth";
 import { syncVisioSharedCalendarToInrCalendar } from "@/lib/inrCalendarGoogleSync";
 import { syncVisioTeamCalendarsToShared } from "@/lib/visioBookingGoogle";
+import { ensureVisioCalendarWatches } from "@/lib/visioCalendarWatch";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,6 +24,13 @@ export async function GET(request: Request) {
   }
 
   try {
+    const watches = await ensureVisioCalendarWatches().catch((error: unknown) => ({
+      ok: false,
+      configured: false,
+      created: 0,
+      active: 0,
+      errors: [{ calendarId: "system", code: syncErrorCode(error) }],
+    }));
     let teamCalendar:
       | Awaited<ReturnType<typeof syncVisioTeamCalendarsToShared>>
       | { ok: false; errors: Array<{ memberId: "system"; code: string }> };
@@ -35,14 +43,15 @@ export async function GET(request: Request) {
       };
     }
     const inrCalendar = await syncVisioSharedCalendarToInrCalendar();
-    const ok = teamCalendar.ok && inrCalendar.ok;
+    const ok = teamCalendar.ok && inrCalendar.ok && watches.ok;
     if (!ok) {
       console.error("[visio-calendar-sync][partial]", {
         teamCalendar: teamCalendar.errors,
         inrCalendar: inrCalendar.errors,
+        watches: watches.errors,
       });
     }
-    return NextResponse.json({ ok, teamCalendar, inrCalendar }, {
+    return NextResponse.json({ ok, watches, teamCalendar, inrCalendar }, {
       status: ok ? 200 : 503,
       headers: { "Cache-Control": "no-store" },
     });

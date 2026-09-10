@@ -28,6 +28,7 @@ test("le nouveau OAuth visio reste séparé de l'ancien connecteur iNrCalendar s
 
 test("la réservation impose capacité deux, Meet et invitations", () => {
   const backend = read("lib/visioBookingGoogle.ts");
+  const eventPolicy = read("lib/visioBookingEventPolicy.ts");
   assert.match(backend, /VISIO_BOOKING_MAX_CONCURRENT/);
   assert.match(backend, /listAllBookingEvents\(rangeStart, rangeEnd\)/);
   assert.match(backend, /listAllBookingEvents\(loadRangeStart, loadRangeEnd\)/);
@@ -37,32 +38,36 @@ test("la réservation impose capacité deux, Meet et invitations", () => {
   assert.match(backend, /INRCY_VISIO_SHARED_CALENDAR_ID/);
   assert.match(backend, /INRCY_VISIO_BOOKED_COLOR_ID",\s*"9"/);
   assert.match(backend, /PUBLIC_BOOKING_ASSIGNEE\s*=\s*"Équipe iNrCy"/);
-  assert.match(backend, /Interlocuteur iNrCy : \$\{PUBLIC_BOOKING_ASSIGNEE\}/);
+  assert.match(eventPolicy, /Votre interlocuteur : \$\{memberName\}/);
   assert.match(backend, /guestsCanSeeOtherGuests:\s*false/);
   assert.doesNotMatch(backend, /Rendez-vous attribué à : \$\{input\.member\.name\}/);
   assert.match(backend, /removePendingSignupRemindersForProspect/);
   assert.match(backend, /pendingSignupReminderProspectUserId/);
 });
 
-test("le membre héberge le Meet mais le compte public iNrCy invite le prospect", () => {
+test("une inscription devient un seul événement partagé avec Meet et invités", () => {
   const backend = read("lib/visioBookingGoogle.ts");
   const mirror = read("lib/visioCalendarMirrorPolicy.ts");
-  assert.match(
-    backend,
-    /encodeCalendarId\(input\.member\.calendarId\)[\s\S]*?conferenceDataVersion=1&sendUpdates=none/,
+  const eventPolicy = read("lib/visioBookingEventPolicy.ts");
+  const creation = backend.slice(
+    backend.indexOf("async function createGoogleBookingEvent"),
+    backend.indexOf("export async function bookVisioSlot"),
   );
   assert.match(
-    backend,
-    /encodeCalendarId\(publicCalendarId\)[\s\S]*?conferenceDataVersion=1&sendUpdates=all/,
+    creation,
+    /encodeCalendarId\(sharedCalendarId\)[\s\S]*?conferenceDataVersion=1&sendUpdates=all/,
   );
-  assert.match(backend, /INRCY_VISIO_PUBLIC_CALENDAR_ID/);
-  assert.match(backend, /conferenceData:\s*memberEvent\?\.conferenceData/);
-  assert.match(backend, /email:\s*prospect\.email/);
-  assert.match(backend, /upsertTeamMirrorEvent\(\{/);
-  assert.match(backend, /PRIVATE_BOOKING_COMPANION_KEY/);
-  assert.match(backend, /PRIVATE_BOOKING_COMPANION_VALUE/);
-  assert.match(backend, /sendUpdates=none/);
-  assert.match(backend, /getExistingBooking\(eventId\)/);
+  assert.match(creation, /findPendingSignupReminder\(input\.claims\)/);
+  assert.match(creation, /PRIVATE_BOOKING_SINGLE_EVENT_KEY/);
+  assert.match(creation, /TEAM_CALENDAR_MIRROR_KEY/);
+  assert.match(creation, /email:\s*prospect\.email/);
+  assert.match(creation, /teamMembers:\s*getVisioTeamMembers\(\)/);
+  assert.match(creation, /\.\.\.publicContent/);
+  assert.match(creation, /buildSingleAssigneeVisioAttendees/);
+  assert.match(eventPolicy, /member\.id !== input\.assignedMemberId/);
+  assert.doesNotMatch(creation, /bookingCompanionEventId/);
+  assert.doesNotMatch(creation, /upsertTeamMirrorEvent/);
+  assert.match(backend, /getExistingBooking\(eventId, claims\)/);
   assert.match(backend, /for \(const member of getVisioTeamMembers\(\)\)/);
   assert.match(
     backend,
@@ -88,8 +93,15 @@ test("le calendrier partagé global est synchronisé par un cron protégé et id
   assert.match(route, /status:\s*ok \? 200 : 503/);
   assert.match(route, /syncVisioTeamCalendarsToShared/);
   assert.match(route, /syncVisioSharedCalendarToInrCalendar/);
+  assert.match(route, /ensureVisioCalendarWatches/);
   assert.match(vercel, /\/api\/cron\/visio-calendar-sync/);
-  assert.match(vercel, /"schedule": "\*\/5 \* \* \* \*"/);
+  assert.match(vercel, /"schedule": "\*\/1 \* \* \* \*"/);
+  const webhook = read("app/api/webhooks/google-calendar/route.ts");
+  const watch = read("lib/visioCalendarWatch.ts");
+  assert.match(webhook, /x-goog-channel-token/);
+  assert.match(webhook, /after\(async/);
+  assert.match(backend, /events\/watch/);
+  assert.match(watch, /timingSafeEqual/);
   assert.match(backend, /inrcy:visio-booking:team-calendar-sync/);
   assert.match(backend, /sourceFingerprint/);
   assert.match(backend, /showDeleted:\s*true/);
@@ -168,6 +180,9 @@ test("l’attribution équipe est privée, auditée et silencieuse pour le profe
   assert.match(route, /requireVisioTeamApi/);
   assert.match(route, /sec-fetch-site/);
   assert.match(route, /reassignVisioTeamAppointment/);
+  assert.match(route, /rescheduleVisioTeamAppointment/);
+  assert.match(route, /export async function PATCH/);
+  assert.match(route, /newStartLocal/);
   assert.match(route, /appointmentIdentity/);
   assert.match(route, /appointmentStart/);
   assert.match(route, /syncVisioSharedCalendarToInrCalendar/);
@@ -192,6 +207,13 @@ test("l’attribution équipe est privée, auditée et silencieuse pour le profe
   assert.match(backend, /publicOrganizerPreserved:\s*isBooking/);
   assert.match(backend, /notificationsSent:\s*false/);
   assert.match(backend, /type:\s*"appointment_reassigned"/);
+  assert.match(backend, /type:\s*"appointment_rescheduled"/);
+  assert.match(backend, /patchCalendarEventWithUpdates/);
+  assert.match(backend, /sendUpdates=\$\{sendUpdates\}/);
+  assert.match(backend, /buildTimedEventSchedule/);
+  assert.match(backend, /previousEndMs - previousStartMs/);
+  assert.match(backend, /rescheduleAutomaticBooking/);
+  assert.match(backend, /rescheduleCalendarAppointment/);
   assert.match(page, /Jimmy|member\.name/);
   assert.match(page, /Aucun e-mail de changement n’est envoyé/);
   assert.match(page, /Un seul responsable interne est conservé/);
@@ -200,6 +222,9 @@ test("l’attribution équipe est privée, auditée et silencieuse pour le profe
   assert.match(page, /currentMemberId:\s*target\.id/);
   assert.match(page, /appointmentIdentity: appointment\.identity/);
   assert.match(page, /appointmentStart: appointment\.start/);
+  assert.match(page, /type="datetime-local"/);
+  assert.match(page, /Modifier date \/ heure/);
+  assert.match(page, /Durée conservée/);
   assert.doesNotMatch(page, /window\.confirm/);
   assert.match(adminHome, /href:\s*"\/equipe\/agenda"/);
   assert.match(adminHome, /Attribution des rendez-vous/);

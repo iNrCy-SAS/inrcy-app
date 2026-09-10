@@ -82,6 +82,50 @@ export function zonedDateTimeToUtc(
   return new Date(utc);
 }
 
+export function parseLocalDateTime(
+  value: unknown,
+  timeZone = VISIO_BOOKING_TIMEZONE,
+) {
+  const match = String(value || "").trim().match(
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/,
+  );
+  if (!match) return null;
+
+  const [, yearValue, monthValue, dayValue, hourValue, minuteValue] = match;
+  const expected = {
+    year: Number(yearValue),
+    month: Number(monthValue),
+    day: Number(dayValue),
+    hour: Number(hourValue),
+    minute: Number(minuteValue),
+  };
+  if (
+    expected.year < 2020 ||
+    expected.year > 2100 ||
+    expected.month < 1 ||
+    expected.month > 12 ||
+    expected.day < 1 ||
+    expected.day > 31 ||
+    expected.hour < 0 ||
+    expected.hour > 23 ||
+    expected.minute < 0 ||
+    expected.minute > 59
+  ) {
+    return null;
+  }
+
+  const date = zonedDateTimeToUtc(expected, timeZone);
+  if (!Number.isFinite(date.getTime())) return null;
+  const actual = getLocalDateTimeParts(date, timeZone);
+  return actual.year === expected.year &&
+    actual.month === expected.month &&
+    actual.day === expected.day &&
+    actual.hour === expected.hour &&
+    actual.minute === expected.minute
+    ? date
+    : null;
+}
+
 export function addLocalDays(base: LocalDateParts, days: number): LocalDateParts {
   const date = new Date(Date.UTC(base.year, base.month - 1, base.day + days, 12));
   return {

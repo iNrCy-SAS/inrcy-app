@@ -62,6 +62,31 @@ function formatTime(value: string, allDay: boolean) {
   }).format(new Date(value)).replace(":", "h");
 }
 
+function toParisDateTimeLocal(value: string) {
+  const parts = new Intl.DateTimeFormat("fr-CA", {
+    timeZone: PARIS_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date(value));
+  const map = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${map.year}-${map.month}-${map.day}T${map.hour}:${map.minute}`;
+}
+
+function formatDuration(startValue: string, endValue: string) {
+  const minutes = Math.round(
+    (new Date(endValue).getTime() - new Date(startValue).getTime()) / 60_000,
+  );
+  if (!Number.isFinite(minutes) || minutes <= 0) return "durée actuelle";
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  return remainder ? `${hours} h ${remainder}` : `${hours} h`;
+}
+
 export default function TeamAgendaClient({
   initialViewer,
 }: {
@@ -72,13 +97,16 @@ export default function TeamAgendaClient({
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [assigningId, setAssigningId] = useState("");
+  const [reschedulingId, setReschedulingId] = useState("");
+  const [editingId, setEditingId] = useState("");
+  const [newStartLocal, setNewStartLocal] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const loadAppointments = useCallback(async (manual = false) => {
+  const loadAppointments = useCallback(async (manual = false, silent = false) => {
     if (manual) setRefreshing(true);
-    else setLoading(true);
-    setError("");
+    else if (!silent) setLoading(true);
+    if (!silent) setError("");
     try {
       const endpoint = manual
         ? "/api/internal/visio-booking/appointments?refresh=1"
@@ -92,15 +120,28 @@ export default function TeamAgendaClient({
       setAppointments(Array.isArray(payload.appointments) ? payload.appointments : []);
       setMembers(Array.isArray(payload.members) ? payload.members : []);
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Impossible de charger les rendez-vous.");
+      if (!silent) {
+        setError(loadError instanceof Error ? loadError.message : "Impossible de charger les rendez-vous.");
+      }
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (!silent) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, []);
 
   useEffect(() => {
     void loadAppointments();
+  }, [loadAppointments]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void loadAppointments(false, true);
+      }
+    }, 15_000);
+    return () => window.clearInterval(interval);
   }, [loadAppointments]);
 
   const groupedAppointments = useMemo(() => {
@@ -116,7 +157,11 @@ export default function TeamAgendaClient({
     appointment: TeamAppointment,
     target: TeamMember,
   ) => {
-    if (appointment.currentMemberId === target.id || assigningId) return;
+    if (
+      appointment.currentMemberId === target.id ||
+      assigningId ||
+      reschedulingId
+    ) return;
     const previousMemberId = appointment.currentMemberId;
     const previousMemberName = appointment.currentMemberName;
     setAssigningId(appointment.id);
@@ -172,7 +217,58 @@ export default function TeamAgendaClient({
     } finally {
       setAssigningId("");
     }
-  }, [assigningId]);
+  }, [assigningId, reschedulingId]);
+
+  const beginReschedule = useCallback((appointment: TeamAppointment) => {
+    if (appointment.allDay || assigningId || reschedulingId) return;
+    setEditingId(appointment.id);
+    setNewStartLocal(toParisDateTimeLocal(appointment.start));
+    setError("");
+    setSuccess("");
+  }, [assigningId, reschedulingId]);
+
+  const reschedule = useCallback(async (appointment: TeamAppointment) => {
+    if (!newStartLocal || assigningId || reschedulingId) return;
+    setReschedulingId(appointment.id);
+    setError("");
+    setSuccess("");
+    try {
+      const response = await fetch("/api/internal/visio-booking/appointments", {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mirrorEventId: appointment.id,
+          appointmentIdentity: appointment.identity,
+          appointmentStart: appointment.start,
+          newStartLocal,
+        }),
+      });
+      const payload = await response.json().catch(() => ({})) as {
+        error?: string;
+        appointment?: TeamAppointment;
+      };
+      if (!response.ok || !payload.appointment) {
+        throw new Error(payload.error || "Le changement de date a échoué.");
+      }
+      const updatedAppointment = payload.appointment;
+      setAppointments((current) => current
+        .map((item) =>
+          item.id === appointment.id || item.id === updatedAppointment.id
+            ? updatedAppointment
+            : item,
+        )
+        .sort((left, right) => left.start.localeCompare(right.start)));
+      setEditingId("");
+      setSuccess(
+        `${appointment.title} a été déplacé au ${formatDay(updatedAppointment.start)} à ${formatTime(updatedAppointment.start, false)}.`,
+      );
+    } catch (scheduleError) {
+      setError(scheduleError instanceof Error ? scheduleError.message : "Le changement de date a échoué.");
+    } finally {
+      setReschedulingId("");
+    }
+  }, [assigningId, newStartLocal, reschedulingId]);
 
   return (
     <main className={styles.page}>
@@ -212,7 +308,7 @@ export default function TeamAgendaClient({
               type="button"
               className={styles.refreshButton}
               onClick={() => void loadAppointments(true)}
-              disabled={refreshing || Boolean(assigningId)}
+              disabled={refreshing || Boolean(assigningId) || Boolean(reschedulingId)}
             >
               {refreshing ? "Actualisation…" : "Actualiser"}
             </button>
@@ -256,7 +352,58 @@ export default function TeamAgendaClient({
                           {appointment.calendarUrl ? (
                             <a href={appointment.calendarUrl} target="_blank" rel="noreferrer">Voir dans Google Agenda</a>
                           ) : null}
+                          {!appointment.allDay ? (
+                            <button
+                              type="button"
+                              className={styles.scheduleToggle}
+                              disabled={Boolean(assigningId) || Boolean(reschedulingId) || refreshing}
+                              onClick={() => beginReschedule(appointment)}
+                            >
+                              Modifier date / heure
+                            </button>
+                          ) : null}
                         </div>
+                        {editingId === appointment.id ? (
+                          <form
+                            className={styles.scheduleEditor}
+                            onSubmit={(event) => {
+                              event.preventDefault();
+                              void reschedule(appointment);
+                            }}
+                          >
+                            <label>
+                              <span>Nouvelle date et heure</span>
+                              <input
+                                type="datetime-local"
+                                step="60"
+                                value={newStartLocal}
+                                onChange={(event) => setNewStartLocal(event.target.value)}
+                                disabled={reschedulingId === appointment.id}
+                                required
+                              />
+                            </label>
+                            <div className={styles.scheduleEditorCopy}>
+                              <strong>Durée conservée : {formatDuration(appointment.start, appointment.end)}</strong>
+                              <span>Les invités Google éventuels recevront la mise à jour.</span>
+                            </div>
+                            <div className={styles.scheduleEditorActions}>
+                              <button
+                                type="button"
+                                onClick={() => setEditingId("")}
+                                disabled={reschedulingId === appointment.id}
+                              >
+                                Annuler
+                              </button>
+                              <button
+                                type="submit"
+                                className={styles.saveScheduleButton}
+                                disabled={reschedulingId === appointment.id || !newStartLocal}
+                              >
+                                {reschedulingId === appointment.id ? "Enregistrement…" : "Enregistrer"}
+                              </button>
+                            </div>
+                          </form>
+                        ) : null}
                       </div>
                       <div className={styles.assignment}>
                         <p>Responsable actuel : <strong>{appointment.currentMemberName}</strong></p>
@@ -269,7 +416,7 @@ export default function TeamAgendaClient({
                                 key={member.id}
                                 type="button"
                                 className={active ? styles.memberButtonActive : styles.memberButton}
-                                disabled={active || Boolean(assigningId) || refreshing}
+                                disabled={active || Boolean(assigningId) || Boolean(reschedulingId) || refreshing}
                                 onClick={() => void reassign(appointment, member)}
                               >
                                 {pending && active ? "Mise à jour…" : active ? `✓ ${member.name}` : member.name}

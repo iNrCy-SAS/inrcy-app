@@ -60,9 +60,17 @@ const tools = [
     status: "Actif",
     ready: true,
   },
+  {
+    href: "/dashboard/admin/trials",
+    icon: "⏳",
+    title: "Périodes d’essai",
+    description: "Suivre les inscriptions, échéances et relances à J-3 / J-2.",
+    status: "Actif",
+    ready: true,
+  },
 ];
 
-const upcomingTools = Array.from({ length: 5 }, (_, index) => ({
+const upcomingTools = Array.from({ length: 4 }, (_, index) => ({
   href: "#",
   icon: "＋",
   title: `Emplacement ${index + 1}`,
@@ -72,6 +80,8 @@ const upcomingTools = Array.from({ length: 5 }, (_, index) => ({
 }));
 
 const adminTools = [...tools, ...upcomingTools];
+const activeToolCount = tools.length;
+const upcomingToolCount = upcomingTools.length;
 
 export default async function AdminHomePage() {
   const { isAdmin } = await getMyRole();
@@ -97,10 +107,10 @@ export default async function AdminHomePage() {
         </section>
 
         <section className={styles.statsGrid} aria-label="Résumé admin">
-          <article className={styles.statCard}><div className={styles.statContent}><span className={styles.statLabel}>Outils</span><strong className={styles.statValue}>7</strong><small className={styles.statSub}>pages</small></div></article>
+          <article className={styles.statCard}><div className={styles.statContent}><span className={styles.statLabel}>Outils</span><strong className={styles.statValue}>{activeToolCount}</strong><small className={styles.statSub}>pages</small></div></article>
           <article className={styles.statCard}><div className={styles.statContent}><span className={styles.statLabel}>Accès</span><strong className={styles.statValue}>Admin</strong><small className={styles.statSub}>uniquement</small></div></article>
-          <article className={styles.statCard}><div className={styles.statContent}><span className={styles.statLabel}>Actifs</span><strong className={styles.statValue}>7</strong><small className={styles.statSub}>branchés</small></div></article>
-          <article className={styles.statCard}><div className={styles.statContent}><span className={styles.statLabel}>À venir</span><strong className={styles.statValue}>5</strong><small className={styles.statSub}>emplacements</small></div></article>
+          <article className={styles.statCard}><div className={styles.statContent}><span className={styles.statLabel}>Actifs</span><strong className={styles.statValue}>{activeToolCount}</strong><small className={styles.statSub}>branchés</small></div></article>
+          <article className={styles.statCard}><div className={styles.statContent}><span className={styles.statLabel}>À venir</span><strong className={styles.statValue}>{upcomingToolCount}</strong><small className={styles.statSub}>emplacements</small></div></article>
         </section>
 
         <section className={styles.toolsGrid} aria-label="Outils admin">

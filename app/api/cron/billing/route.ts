@@ -15,6 +15,8 @@ import { stripeSubscriptionPeriodEndUnix } from "@/lib/stripeSubscription";
 import { stripeSubscriptionCadence } from "@/lib/subscriptionCancellation";
 import { captureApiException } from "@/lib/observability/sentry";
 import { deleteUserAccountEverywhere } from "@/lib/deleteUserAccount";
+import { sendAdminTrialFollowupNotifications } from "@/lib/adminTrialFollowupNotifications";
+import { adminTrialFollowupOffset, calendarDaysUntil } from "@/lib/trialFollowup";
 
 export const runtime = "nodejs";
 
@@ -55,6 +57,10 @@ type ProfileEmailRow = {
   user_id: string;
   admin_email?: string | null;
   contact_email?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  company_legal_name?: string | null;
+  phone?: string | null;
 };
 
 type AnnualSubscriptionRow = {
@@ -128,7 +134,7 @@ async function loadProfileEmails(userIds: string[]) {
 
   const { data } = await supabaseAdmin
     .from("profiles")
-    .select("user_id, admin_email, contact_email")
+    .select("user_id, admin_email, contact_email, first_name, last_name, company_legal_name, phone")
     .in("user_id", uniqueUserIds);
 
   for (const profile of (data || []) as ProfileEmailRow[]) {
@@ -193,7 +199,7 @@ export async function GET(req: Request) {
   if (trialUserIds.length > 0) {
     const { data: profiles, error: pErr } = await supabaseAdmin
       .from("profiles")
-      .select("user_id, admin_email, contact_email")
+      .select("user_id, admin_email, contact_email, first_name, last_name, company_legal_name, phone")
       .in("user_id", trialUserIds);
 
     if (pErr) return NextResponse.json({ error: "Impossible de récupérer les coordonnées des comptes concernés pour le moment." }, { status: 500 });
@@ -205,6 +211,8 @@ export async function GET(req: Request) {
 
   let sent = 0;
   let repairedTrialDates = 0;
+  let adminTrialNotifications = 0;
+  let adminTrialEmails = 0;
 
   for (const s of (trials || []) as TrialRow[]) {
     let trialStartAt = s.trial_start_at;
@@ -232,11 +240,48 @@ export async function GET(req: Request) {
     }
 
     const end = trialEndAt ? new Date(trialEndAt) : null;
-    if (!end) continue;
+    if (!end || !Number.isFinite(end.getTime())) continue;
 
-    const nowDay = new Date(`${ymd(now)}T00:00:00.000Z`);
-    const endDay = new Date(`${ymd(end)}T00:00:00.000Z`);
-    const daysUntilEnd = Math.round((endDay.getTime() - nowDay.getTime()) / (24 * 3600 * 1000));
+    const daysUntilEnd = calendarDaysUntil(end, now);
+    if (daysUntilEnd === null) continue;
+    const profile = profileEmails.get(s.user_id);
+    const hasScheduledStripeSubscription = Boolean(s.stripe_subscription_id?.trim());
+    const adminFollowupOffset = hasScheduledStripeSubscription
+      ? null
+      : adminTrialFollowupOffset(end, now);
+
+    if (adminFollowupOffset !== null && trialEndAt) {
+      try {
+        const fullName = [profile?.first_name?.trim(), profile?.last_name?.trim()]
+          .filter(Boolean)
+          .join(" ") || null;
+        const result = await sendAdminTrialFollowupNotifications({
+          trialUserId: s.user_id,
+          fullName,
+          companyName: profile?.company_legal_name?.trim() || null,
+          email:
+            profile?.admin_email?.trim() ||
+            profile?.contact_email?.trim() ||
+            s.contact_email?.trim() ||
+            null,
+          phone: profile?.phone?.trim() || null,
+          trialStartAt,
+          trialEndAt,
+          daysBeforeEnd: adminFollowupOffset,
+        });
+        adminTrialNotifications += result.notificationsInserted;
+        if (result.emailSent) adminTrialEmails += 1;
+      } catch (error) {
+        mailFailures += 1;
+        captureApiException(req, error, {
+          area: "billing",
+          operation: "admin_trial_followup",
+          userId: s.user_id,
+          statusCode: 502,
+        });
+      }
+    }
+
     const reminderOffset = dueReminderOffset(daysUntilEnd, reminderOffsets);
     if (reminderOffset === null) continue;
 
@@ -244,7 +289,6 @@ export async function GET(req: Request) {
     const reminderMarker = 100 - reminderOffset;
     if (already >= reminderMarker) continue;
 
-    const profile = profileEmails.get(s.user_id);
     const to =
       profile?.admin_email?.trim() ||
       profile?.contact_email?.trim() ||
@@ -252,7 +296,6 @@ export async function GET(req: Request) {
       null;
     if (!to) continue;
 
-    const hasScheduledStripeSubscription = Boolean(s.stripe_subscription_id?.trim());
     const subject = hasScheduledStripeSubscription
       ? daysUntilEnd === 1
         ? "iNrCy — Votre abonnement démarre demain"
@@ -653,6 +696,8 @@ export async function GET(req: Request) {
   return NextResponse.json({
     ok: true,
     sent,
+    admin_trial_notifications: adminTrialNotifications,
+    admin_trial_emails: adminTrialEmails,
     sent_annual_renewal_reminders: sentAnnualRenewalReminders,
     repaired_trial_dates: repairedTrialDates,
     repaired_renewal_dates: repairedRenewalDates,

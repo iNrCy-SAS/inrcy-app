@@ -6,6 +6,7 @@ import {
   visioOptions,
   withVisioCors,
 } from "@/lib/visioBookingCors";
+import { syncVisioSharedCalendarToInrCalendar } from "@/lib/inrCalendarGoogleSync";
 import { bookVisioSlot } from "@/lib/visioBookingGoogle";
 import { verifyVisioBookingToken } from "@/lib/visioBookingToken";
 
@@ -81,7 +82,21 @@ export async function POST(request: Request) {
     const body = (await request.json()) as { token?: unknown; start?: unknown };
     const claims = verifyVisioBookingToken(body?.token);
     const booking = await bookVisioSlot(claims, body?.start);
-    return json(request, { ok: true, booking });
+    const inrCalendar = await syncVisioSharedCalendarToInrCalendar({
+      pastDays: 30,
+      futureDays: 365,
+    }).catch((error: unknown) => {
+      console.error(
+        "[visio-booking][inrcalendar-sync-after-booking]",
+        error instanceof Error ? error.message : "sync_failed",
+      );
+      return null;
+    });
+    return json(request, {
+      ok: true,
+      booking,
+      inrCalendarSynced: inrCalendar?.ok ?? false,
+    });
   } catch (error) {
     return publicError(request, error);
   }

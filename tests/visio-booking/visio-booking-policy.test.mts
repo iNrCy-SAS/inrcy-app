@@ -9,6 +9,7 @@ import {
   getLocalDateTimeParts,
   isAllowedVisioStart,
   isMemberFree,
+  parseLocalDateTime,
   zonedDateTimeToUtc,
   type VisioTeamMember,
 } from "../../lib/visioBookingPolicy.ts";
@@ -32,6 +33,16 @@ test("une heure locale de Paris est convertie correctement avant et après le ch
   assert.equal(summer.toISOString(), "2026-07-13T07:00:00.000Z");
   assert.equal(getLocalDateTimeParts(winter).hour, 9);
   assert.equal(getLocalDateTimeParts(summer).hour, 9);
+});
+
+test("la date saisie par l'admin est interprétée à Paris et les dates impossibles sont refusées", () => {
+  assert.equal(
+    parseLocalDateTime("2026-09-10T13:45")?.toISOString(),
+    "2026-09-10T11:45:00.000Z",
+  );
+  assert.equal(parseLocalDateTime("2026-02-30T13:45"), null);
+  assert.equal(parseLocalDateTime("2026-03-29T02:30"), null);
+  assert.equal(parseLocalDateTime("not-a-date"), null);
 });
 
 test("les dimanches, horaires hors grille et délais calendaires trop courts sont refusés", () => {

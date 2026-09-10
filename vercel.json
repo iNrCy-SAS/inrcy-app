@@ -23,7 +23,7 @@
     },
     {
       "path": "/api/cron/visio-calendar-sync",
-      "schedule": "*/5 * * * *"
+      "schedule": "*/1 * * * *"
     },
     {
       "path": "/api/cron/mail-campaigns",

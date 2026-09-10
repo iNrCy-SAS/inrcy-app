@@ -29,6 +29,7 @@ export type TeamCalendarEvent = {
   updated?: string;
   htmlLink?: string;
   hangoutLink?: string;
+  iCalUID?: string;
   colorId?: string;
   start?: TeamCalendarDate;
   end?: TeamCalendarDate;
@@ -123,9 +124,10 @@ function normalizedCalendarLabel(value: unknown) {
 }
 
 export function pendingSignupReminderProspectUserId(event: TeamCalendarEvent) {
+  const normalizedSummary = normalizedCalendarLabel(event.summary);
   if (
     event.status === "cancelled" ||
-    normalizedCalendarLabel(event.summary) !== PENDING_SIGNUP_REMINDER_SUMMARY ||
+    !normalizedSummary.startsWith(PENDING_SIGNUP_REMINDER_SUMMARY) ||
     event.extendedProperties?.private?.inrcyBooking ||
     event.extendedProperties?.private?.[TEAM_CALENDAR_MIRROR_KEY]
   ) {
@@ -280,6 +282,7 @@ export function teamCalendarMirrorContentSignature(event: TeamCalendarEvent) {
     mirrorVersion: properties[TEAM_CALENDAR_MIRROR_KEY] || "",
     sourceCalendarId: properties.sourceCalendarId || "",
     sourceEventId: properties.sourceEventId || "",
+    sourceICalUID: properties.sourceICalUID || "",
     sourceFingerprint: properties.sourceFingerprint || "",
     sourceOrganizerEmail: properties.sourceOrganizerEmail || "",
     sourceCalendarIsOrganizer: properties.sourceCalendarIsOrganizer || "",
@@ -351,6 +354,7 @@ export function buildTeamCalendarMirrorBody(input: TeamCalendarMirrorInput) {
         [TEAM_CALENDAR_MIRROR_KEY]: TEAM_CALENDAR_MIRROR_VALUE,
         sourceCalendarId: member.calendarId,
         sourceEventId: String(event.id || ""),
+        sourceICalUID: String(event.iCalUID || ""),
         sourceEventUpdated: String(event.updated || ""),
         sourceFingerprint: fingerprint,
         sourceOrganizerEmail,
