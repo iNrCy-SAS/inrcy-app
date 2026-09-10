@@ -87,6 +87,48 @@ test("les pastilles privilégient la connexion confirmée sur un ancien état de
   assert.match(linkedin, /hasCompanyPage\s*\?\s*undefined/);
 });
 
+test("les panneaux Facebook et Instagram reçoivent leurs contrôles de formats", () => {
+  const dashboard = read("app/dashboard/DashboardClient.tsx");
+  const localsStart = dashboard.indexOf("const locals = {");
+  const localsEnd = dashboard.indexOf(
+    "buildDashboardPanelProps(locals)",
+    localsStart,
+  );
+
+  assert.notEqual(localsStart, -1);
+  assert.notEqual(localsEnd, -1);
+
+  const locals = dashboard.slice(localsStart, localsEnd);
+  for (const platform of ["Facebook", "Instagram"] as const) {
+    const prefix = platform.toLowerCase();
+    assert.match(locals, new RegExp(`${prefix}PublicationPreferences[,\\s]`));
+    assert.match(
+      locals,
+      new RegExp(`${prefix}PublicationPreferencesLoading[,\\s]`),
+    );
+    assert.match(
+      locals,
+      new RegExp(`${prefix}PublicationPreferencesSaving[,\\s]`),
+    );
+    assert.match(
+      locals,
+      new RegExp(`${prefix}PublicationPreferencesNotice[,\\s]`),
+    );
+    assert.match(
+      locals,
+      new RegExp(`${prefix}PublicationPreferencesError[,\\s]`),
+    );
+    assert.match(
+      locals,
+      new RegExp(`update${platform}PublicationPreferences[,\\s]`),
+    );
+    assert.match(
+      locals,
+      new RegExp(`save${platform}PublicationPreferences[,\\s]`),
+    );
+  }
+});
+
 test("une connexion en cours grise et neutralise le bouton sans seconde animation", () => {
   const css = read("app/dashboard/dashboard.module.css");
 
