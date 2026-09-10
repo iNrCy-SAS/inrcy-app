@@ -301,6 +301,30 @@ type BoosterMediaOptimizerRequest = {
   destination: BoosterMediaInsertionDestination;
 };
 
+function normalizeRestoredTiktokPublicationSettings(
+  value: unknown,
+): TiktokPublicationSettings | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const privacyLevel = String(raw.privacyLevel || "").trim();
+  if (!privacyLevel) return null;
+  const commercialContent = ["none", "self", "branded", "both"].includes(
+    String(raw.commercialContent || ""),
+  )
+    ? (String(raw.commercialContent) as TiktokPublicationSettings["commercialContent"])
+    : "none";
+  return {
+    privacyLevel,
+    allowComments: Boolean(raw.allowComments),
+    allowDuo: Boolean(raw.allowDuo),
+    allowStitch: Boolean(raw.allowStitch),
+    commercialContent,
+    aiContent: Boolean(raw.aiContent),
+    photoAutoMusic: Boolean(raw.photoAutoMusic),
+    musicUsageConfirmed: Boolean(raw.musicUsageConfirmed),
+  };
+}
+
 function buildTransferredBoosterVideoMetadata(
   file: Pick<File, "size" | "type">,
   preferred: TransferableMediaMetadata | null | undefined,
@@ -533,6 +557,7 @@ export default function PublishModal({
     useState<AiPreferredEngine>(DEFAULT_AI_PREFERRED_ENGINE);
   const [selectedAiPreferredEngine, setSelectedAiPreferredEngine] =
     useState<AiPreferredEngine>(DEFAULT_AI_PREFERRED_ENGINE);
+  const aiEngineRestoredFromDraftRef = useRef(false);
   const [instagramHashtagsInput, setInstagramHashtagsInput] = useState("");
   const [xHashtagsInput, setXHashtagsInput] = useState("");
   const [instagramPublicationPlacement, setInstagramPublicationPlacement] =
@@ -661,7 +686,9 @@ export default function PublishModal({
     const next = normalizeAiPreferredEngine(value);
     setDefaultAiPreferredEngine((previousDefault) => {
       setSelectedAiPreferredEngine((current) =>
-        current === previousDefault ? next : current,
+        !aiEngineRestoredFromDraftRef.current && current === previousDefault
+          ? next
+          : current,
       );
       return next;
     });
@@ -2755,11 +2782,17 @@ export default function PublishModal({
       contentStyle,
       channels: selectedChannels,
       postsByChannel,
+      aiPreferredEngine: selectedAiPreferredEngine,
+      activeCard,
+      contentWorkspaceOpen,
       instagramHashtagsInput,
+      xHashtagsInput,
       instagramPublicationPlacement,
       facebookPublicationPlacement,
       pinterestBoardId,
       pinterestBoardName,
+      tiktokPublicationSettings,
+      showPublicationPreview,
       imageNames,
       videoName,
       videoTransformedVariants: normalizeRestoredVideoVariants(
@@ -2782,11 +2815,17 @@ export default function PublishModal({
     contentStyle,
     selectedChannels,
     postsByChannel,
+    selectedAiPreferredEngine,
+    activeCard,
+    contentWorkspaceOpen,
     instagramHashtagsInput,
+    xHashtagsInput,
     instagramPublicationPlacement,
     facebookPublicationPlacement,
     pinterestBoardId,
     pinterestBoardName,
+    tiktokPublicationSettings,
+    showPublicationPreview,
     images,
     videoFile,
     videoDurationSeconds,
@@ -3090,6 +3129,20 @@ export default function PublishModal({
           (Array.isArray((nextPostsByChannel as any)?.instagram?.hashtags)
             ? (nextPostsByChannel as any).instagram.hashtags.join(" ")
             : "");
+        const nextXHashtags = String(payload.xHashtagsInput || "");
+        const hasDraftAiEngine = Boolean(
+          String(payload.aiPreferredEngine || "").trim(),
+        );
+        const nextAiPreferredEngine = hasDraftAiEngine
+          ? normalizeAiPreferredEngine(payload.aiPreferredEngine)
+          : defaultAiPreferredEngine;
+        const nextTiktokPublicationSettings =
+          normalizeRestoredTiktokPublicationSettings(
+            payload.tiktokPublicationSettings,
+          );
+        const nextActiveCard = isChannelKey(payload.activeCard)
+          ? payload.activeCard
+          : "inrcy_site";
         const nextInstagramPublicationPlacement =
           coerceInstagramPublicationPlacement(
             normalizeInstagramPublicationPlacement(
@@ -3126,26 +3179,34 @@ export default function PublishModal({
         setTheme(nextTheme);
         setContentStyle(nextContentStyle);
         setCreationMode(nextCreationMode);
+        aiEngineRestoredFromDraftRef.current = hasDraftAiEngine;
+        setSelectedAiPreferredEngine(nextAiPreferredEngine);
         setCreationModeError("");
         setContentWorkspaceOpen(
-          nextCreationMode === "manual" ||
-            Object.values(nextPostsByChannel).some((post) => {
-              const normalized = normalizePost(post);
-              return Boolean(
-                normalized.title.trim() || normalized.content.trim(),
-              );
-            }),
+          typeof payload.contentWorkspaceOpen === "boolean"
+            ? payload.contentWorkspaceOpen
+            : nextCreationMode === "manual" ||
+                Object.values(nextPostsByChannel).some((post) => {
+                  const normalized = normalizePost(post);
+                  return Boolean(
+                    normalized.title.trim() || normalized.content.trim(),
+                  );
+                }),
         );
+        setActiveCard(nextActiveCard);
         draftChannelsRestoredRef.current = true;
         setChannels(nextChannels);
         setPostsByChannel(nextPostsByChannel);
         setInstagramHashtagsInput(nextInstagramHashtags);
+        setXHashtagsInput(nextXHashtags);
         instagramPlacementTouchedRef.current = true;
         setInstagramPublicationPlacement(nextInstagramPublicationPlacement);
         facebookPlacementTouchedRef.current = true;
         setFacebookPublicationPlacement(nextFacebookPublicationPlacement);
         setPinterestBoardId(nextPinterestBoardId);
         setPinterestBoardName(nextPinterestBoardName);
+        setTiktokPublicationSettings(nextTiktokPublicationSettings);
+        setShowPublicationPreview(Boolean(payload.showPublicationPreview));
         const effectiveMediaType = restoredVideo.file ? "video" : nextMediaType;
         setPublicationMediaType(effectiveMediaType);
         setChannelMediaModes(nextChannelMediaModes);
@@ -3208,13 +3269,28 @@ export default function PublishModal({
             contentStyle: nextContentStyle,
             channels: selectedDraftChannels,
             postsByChannel: nextPostsByChannel,
+            aiPreferredEngine: nextAiPreferredEngine,
+            activeCard: nextActiveCard,
+            contentWorkspaceOpen:
+              typeof payload.contentWorkspaceOpen === "boolean"
+                ? payload.contentWorkspaceOpen
+                : nextCreationMode === "manual" ||
+                  Object.values(nextPostsByChannel).some((post) => {
+                    const normalized = normalizePost(post);
+                    return Boolean(
+                      normalized.title.trim() || normalized.content.trim(),
+                    );
+                  }),
             instagramHashtagsInput: nextInstagramHashtags,
+            xHashtagsInput: nextXHashtags,
             instagramPublicationPlacement:
               nextInstagramPublicationPlacement,
             facebookPublicationPlacement:
               nextFacebookPublicationPlacement,
             pinterestBoardId: nextPinterestBoardId,
             pinterestBoardName: nextPinterestBoardName,
+            tiktokPublicationSettings: nextTiktokPublicationSettings,
+            showPublicationPreview: Boolean(payload.showPublicationPreview),
             imageNames,
             videoName,
             videoTransformedVariants: restoredVideo.transformedVariants,
@@ -5888,6 +5964,9 @@ export default function PublishModal({
             publicationInstruction: publicationInstruction.trim(),
             theme,
             contentStyle,
+            aiPreferredEngine: selectedAiPreferredEngine,
+            activeCard,
+            contentWorkspaceOpen,
             channel: channelLabels,
             channels: selectedChannels,
             postByChannel: preparedPostsByChannel,
@@ -5905,10 +5984,13 @@ export default function PublishModal({
             useImagesForAI,
             imageSettingsByChannel: getDraftImageSettingsByChannel(),
             instagramHashtagsInput,
+            xHashtagsInput,
             instagramPublicationPlacement,
             facebookPublicationPlacement,
             pinterestBoardId,
             pinterestBoardName,
+            tiktokPublicationSettings,
+            showPublicationPreview,
             saved_at: new Date().toISOString(),
           },
         }),
@@ -7382,9 +7464,10 @@ export default function PublishModal({
             generationProgressRef={generationProgressRef}
             aiPreferredEngine={selectedAiPreferredEngine}
             defaultAiPreferredEngine={defaultAiPreferredEngine}
-            onAiPreferredEngineChange={(engine) =>
-              setSelectedAiPreferredEngine(normalizeAiPreferredEngine(engine))
-            }
+            onAiPreferredEngineChange={(engine) => {
+              aiEngineRestoredFromDraftRef.current = true;
+              setSelectedAiPreferredEngine(normalizeAiPreferredEngine(engine));
+            }}
             onGenerate={onGenerate}
             onOpenAiConfiguration={() => setAiConfigurationOpen(true)}
             onVoiceBusyChange={setIntentVoiceBusy}

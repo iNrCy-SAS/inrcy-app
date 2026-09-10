@@ -26,6 +26,10 @@ type Props = {
   activeDraftId?: string;
   buttonClassName: string;
   disabled?: boolean;
+  emptyScopeLabel?: string;
+  endpoint?: string;
+  fallbackBadge?: string;
+  moduleLabel?: string;
   onSelect: (draftId: string) => void | Promise<void>;
 };
 
@@ -135,6 +139,10 @@ export default function PublishDraftHeaderMenu({
   activeDraftId = "",
   buttonClassName,
   disabled = false,
+  emptyScopeLabel,
+  endpoint = "/api/booster/events?view=drafts&limit=20",
+  fallbackBadge = "Booster",
+  moduleLabel = "Booster",
   onSelect,
 }: Props) {
   const mailsT = useTranslations("mails");
@@ -155,7 +163,7 @@ export default function PublishDraftHeaderMenu({
     setLoading(true);
     setLoadFailed(false);
     try {
-      const response = await fetch("/api/booster/events?view=drafts&limit=20", {
+      const response = await fetch(endpoint, {
         cache: "no-store",
         credentials: "include",
       });
@@ -185,7 +193,7 @@ export default function PublishDraftHeaderMenu({
     } finally {
       if (requestId === requestIdRef.current) setLoading(false);
     }
-  }, [mailsT]);
+  }, [endpoint, mailsT]);
 
   const syncMenuPosition = useCallback(() => {
     const trigger = triggerRef.current;
@@ -308,7 +316,7 @@ export default function PublishDraftHeaderMenu({
                 <DraftsIcon />
               </span>
               <span className={menuStyles.menuHeading}>
-                <small>Booster</small>
+                <small>{moduleLabel}</small>
                 <strong>{mailsT("brouillons_a55f3cd9")}</strong>
               </span>
               <span className={menuStyles.menuCount}>{drafts.length}</span>
@@ -345,7 +353,8 @@ export default function PublishDraftHeaderMenu({
                     <DraftsIcon />
                   </span>
                   {mailsT("aucun_brouillon_dans_value_b6011534", {
-                    value0: boosterT("publications_0855684c"),
+                    value0:
+                      emptyScopeLabel || boosterT("publications_0855684c"),
                   })}
                 </div>
               ) : (
@@ -393,7 +402,7 @@ export default function PublishDraftHeaderMenu({
                               </span>
                             ))
                           ) : (
-                            <span className={menuStyles.channelBadge}>Booster</span>
+                            <span className={menuStyles.channelBadge}>{fallbackBadge}</span>
                           )}
                           {remainingChannels ? (
                             <span className={menuStyles.channelBadge}>

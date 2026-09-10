@@ -9,6 +9,19 @@
 3. **Clean-up last**
    - Drop old columns only after you’re sure no deployment needs them.
 
+## 2026-09-10 — Reprise exacte des brouillons iNrSend et campagnes
+
+Exécuter avant ou juste après le déploiement :
+
+```text
+ops/sql/2026-09-10_inrsend_workflow_draft_state.sql
+```
+
+Cette migration additive ajoute l’état d’interface versionné des brouillons
+(`draft_state`) : étape de travail, moteur IA, compte d’envoi, destinataires,
+ciblage et contexte de campagne. Le sujet, le contenu et les pièces jointes
+restent stockés dans leurs colonnes dédiées de `send_items`.
+
 ## 2026-09-06 — Plafond Premium d’analyse ADN
 
 Exécuter après les migrations de quota ADN des 4 et 5 septembre :

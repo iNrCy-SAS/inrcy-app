@@ -7,7 +7,12 @@ import { resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { MODULE_SNAPSHOT_KEYS, readModuleSnapshot, writeModuleSnapshot } from "@/lib/browserModuleSnapshotCache";
 
 import { readWorkflowMailPrefillAttachments } from "@/app/dashboard/_lib/workflowMailPrefillAttachments";
-import { saveWorkflowCampaignState } from "@/app/dashboard/_lib/workflowCampaignState";
+import {
+  normalizeWorkflowCampaignState,
+  readWorkflowCampaignState,
+  saveWorkflowCampaignState,
+  workflowCampaignTargetFromTrack,
+} from "@/app/dashboard/_lib/workflowCampaignState";
 import React, {
   useCallback,
   useEffect,
@@ -1024,14 +1029,23 @@ export default function MailboxClient({
     const target = workflowDraftTargetFromSendItem(item, raw);
     if (!target) return false;
 
-    const restoreKey = saveWorkflowCampaignState({
+    const supplemental =
+      raw.draft_state && typeof raw.draft_state === "object" && !Array.isArray(raw.draft_state)
+        ? (raw.draft_state as Record<string, unknown>)
+        : {};
+    // Un brouillon enregistré dans le compositeur doit rouvrir le compositeur,
+    // pas faire reculer artificiellement l'utilisateur dans l'éditeur de campagne.
+    if (supplemental.stage === "compose") return false;
+
+    const restored = normalizeWorkflowCampaignState({
+      ...supplemental,
+      version: 1,
       kind: target.kind,
       action: target.action,
       folder: target.folder,
       trackKind: target.kind,
       trackType: target.trackType,
       templateKey: String(raw.template_key || "") || null,
-      templateCategory: null,
       subject: normalizeMailSubject(String(raw.subject || item.subject || "")),
       bodyText: String(raw.body_text || item.detailText || ""),
       bodyHtml: String(
@@ -1040,8 +1054,16 @@ export default function MailboxClient({
           textToRichMailHtml(String(raw.body_text || item.detailText || "")),
       ),
       attachments: normalizeCampaignAttachments(raw.attachments),
+      selectedAccountId: String(raw.integration_id || supplemental.selectedAccountId || "") || null,
+      provider: String(raw.provider || supplemental.provider || "") || null,
+      toEmails: String(raw.to_emails || supplemental.toEmails || ""),
       draftId: item.id,
+      createdAt: new Date(String(raw.created_at || Date.now())).getTime(),
+      updatedAt: new Date(String(raw.updated_at || raw.created_at || Date.now())).getTime(),
     });
+    if (!restored) return false;
+
+    const restoreKey = saveWorkflowCampaignState(restored);
 
     setDetailsOpen(false);
     setComposeOpen(false);
@@ -2810,13 +2832,33 @@ export default function MailboxClient({
     const preAttachmentsRaw = searchParams?.get("prefill_attachments") || "";
     const preAttachmentsKey =
       searchParams?.get("prefill_attachments_key") || "";
-    const templateKey = searchParams?.get("template_key") || "";
+    const returnKey = searchParams?.get("workflow_return_key") || "";
+    const storedWorkflowState = readWorkflowCampaignState(returnKey);
+    const storedComposeState =
+      storedWorkflowState?.stage === "compose" ? storedWorkflowState : null;
+    const templateKey =
+      searchParams?.get("template_key") ||
+      storedComposeState?.templateKey ||
+      "";
     const open = (searchParams?.get("compose") || "").toLowerCase();
     if (templateKey) setComposeTemplateKey(templateKey);
+    if (storedComposeState) {
+      setDraftId(storedComposeState.draftId || null);
+      setSelectedAccountId(storedComposeState.selectedAccountId || "");
+      setTo(storedComposeState.toEmails || "");
+      setComposeRecipientHints(
+        normalizeComposeRecipientHints(storedComposeState.recipientHints),
+      );
+    }
 
     // Optional tracking intent (sent from Booster/Fidéliser modules)
-    const trackKind = (searchParams?.get("track_kind") || "").toLowerCase();
-    const trackType = searchParams?.get("track_type") || "";
+    const trackKind = (
+      searchParams?.get("track_kind") ||
+      storedComposeState?.trackKind ||
+      ""
+    ).toLowerCase();
+    const trackType =
+      searchParams?.get("track_type") || storedComposeState?.trackType || "";
     const trackPayloadRaw = searchParams?.get("track_payload") || "";
 
     if (
@@ -2829,9 +2871,12 @@ export default function MailboxClient({
       try {
         payload = trackPayloadRaw
           ? (JSON.parse(safeDecode(trackPayloadRaw)) as any)
-          : {};
+          : ((storedComposeState?.trackPayload || {}) as Record<string, any>);
       } catch {
-        payload = {};
+        payload = (storedComposeState?.trackPayload || {}) as Record<
+          string,
+          any
+        >;
       }
       setPendingTrack({ kind: trackKind as any, type: trackType, payload });
 
@@ -2854,23 +2899,38 @@ export default function MailboxClient({
       !preHtmlRaw &&
       !preAttachmentsRaw &&
       !preAttachmentsKey &&
-      !templateKey
+      !templateKey &&
+      !storedComposeState
     )
       return;
 
-    const preSubject = safeDecode(preSubjectRaw);
-    const preText = safeDecode(preTextRaw);
-    const preHtml = safeDecode(preHtmlRaw);
+    const preSubject = storedComposeState
+      ? storedComposeState.subject
+      : safeDecode(preSubjectRaw);
+    const preText = storedComposeState
+      ? storedComposeState.bodyText
+      : safeDecode(preTextRaw);
+    const preHtml = storedComposeState
+      ? storedComposeState.bodyHtml
+      : safeDecode(preHtmlRaw);
     const preAttachmentsFromStorage = readWorkflowMailPrefillAttachments(
       safeDecode(preAttachmentsKey),
     );
-    const preAttachments = preAttachmentsFromStorage.length
-      ? preAttachmentsFromStorage
-      : normalizeCampaignAttachments(safeDecode(preAttachmentsRaw));
+    const preAttachments = storedComposeState
+      ? normalizeCampaignAttachments(storedComposeState.attachments)
+      : preAttachmentsFromStorage.length
+        ? preAttachmentsFromStorage
+        : normalizeCampaignAttachments(safeDecode(preAttachmentsRaw));
 
     const run = async () => {
+      // A restored compose draft is already the user's exact snapshot. Re-rendering
+      // its template here could silently replace edits made after generation.
+      if (storedComposeState) {
+        if (preSubject) setSubject(normalizeMailSubject(preSubject));
+        setComposeBody(preText, preHtml || undefined);
+      }
       // If we have a template key, ask the server to render placeholders + compute links.
-      if (templateKey) {
+      else if (templateKey) {
         try {
           const r = await fetch("/api/templates/render", {
             method: "POST",
@@ -3177,6 +3237,39 @@ export default function MailboxClient({
     if (!userId) return;
 
     const draftFolder = getBulkCampaignFolder();
+    const workflowKind =
+      pendingTrack?.kind === "propulser" || pendingTrack?.kind === "fideliser"
+        ? pendingTrack.kind
+        : null;
+    const workflowSessionState = readWorkflowCampaignState(workflowReturnKey);
+    const workflowTarget = workflowKind
+      ? workflowCampaignTargetFromTrack(workflowKind, pendingTrack?.type || "")
+      : null;
+    const draftState = workflowTarget
+      ? {
+          version: 1,
+          kind: workflowKind,
+          action: workflowTarget.action,
+          folder: draftFolder,
+          trackKind: workflowKind,
+          trackType: workflowTarget.trackType,
+          templateCategory: workflowSessionState?.templateCategory || null,
+          aiEngine: workflowSessionState?.aiEngine || null,
+          stage: "compose",
+          selectedAccountId: selectedAccountId || null,
+          provider: selectedAccount?.provider || null,
+          toEmails: to.trim(),
+          recipientHints: normalizeComposeRecipientHints(composeRecipientHints),
+          trackPayload: pendingTrack?.payload || workflowSessionState?.trackPayload || {},
+        }
+      : {
+          version: 1,
+          stage: "compose",
+          selectedAccountId: selectedAccountId || null,
+          provider: selectedAccount?.provider || null,
+          toEmails: to.trim(),
+          recipientHints: normalizeComposeRecipientHints(composeRecipientHints),
+        };
     const draftPayload = {
       user_id: userId,
       integration_id: selectedAccountId || null,
@@ -3195,7 +3288,11 @@ export default function MailboxClient({
       track_type: pendingTrack?.type || null,
       template_key: composeTemplateKey || null,
       attachments: serializeComposeAttachments(composeAttachments),
+      draft_state: draftState,
     };
+
+    const metadataPayload = { ...draftPayload } as Record<string, unknown>;
+    delete metadataPayload.draft_state;
 
     const legacyPayload = {
       user_id: draftPayload.user_id,
@@ -3226,6 +3323,13 @@ export default function MailboxClient({
       );
     };
 
+    const isMissingDraftStateColumn = (error: any) => {
+      const msg = String(
+        error?.message || error?.details || error?.hint || "",
+      ).toLowerCase();
+      return error?.code === "PGRST204" || msg.includes("draft_state");
+    };
+
     if (draftId) {
       let usedLegacyFallback = false;
       let { error } = await supabase
@@ -3233,6 +3337,13 @@ export default function MailboxClient({
         .update(draftPayload as any)
         .eq("id", draftId)
         .eq("user_id", userId);
+      if (error && isMissingDraftStateColumn(error)) {
+        ({ error } = await supabase
+          .from("send_items")
+          .update(metadataPayload)
+          .eq("id", draftId)
+          .eq("user_id", userId));
+      }
       if (error && isMissingDraftMetadataColumn(error)) {
         ({ error } = await supabase
           .from("send_items")
@@ -3266,6 +3377,13 @@ export default function MailboxClient({
       .insert(draftPayload as any)
       .select("id")
       .single();
+    if (error && isMissingDraftStateColumn(error)) {
+      ({ data, error } = await supabase
+        .from("send_items")
+        .insert(metadataPayload)
+        .select("id")
+        .single());
+    }
     if (error && isMissingDraftMetadataColumn(error)) {
       ({ data, error } = await supabase
         .from("send_items")
@@ -5116,6 +5234,10 @@ export default function MailboxClient({
       if (openWorkflowCampaignDraft(it, raw)) return;
       setComposeOpen(true);
       setDraftId(it.id);
+      const draftState =
+        raw.draft_state && typeof raw.draft_state === "object" && !Array.isArray(raw.draft_state)
+          ? (raw.draft_state as Record<string, any>)
+          : {};
       const nextType = (
         raw.type === "facture" || raw.type === "devis" ? raw.type : "mail"
       ) as SendType;
@@ -5124,10 +5246,16 @@ export default function MailboxClient({
           ? ({
               kind: raw.track_kind,
               type: raw.track_type,
-              payload: {},
+              payload:
+                draftState.trackPayload && typeof draftState.trackPayload === "object"
+                  ? draftState.trackPayload
+                  : {},
             } as PendingTrack)
           : inferTrackFromCampaign(it);
       const nextAttachments = normalizeCampaignAttachments(raw.attachments);
+      const nextSelectedAccountId = String(
+        raw.integration_id || draftState.selectedAccountId || "",
+      );
       setComposeType(nextType);
       setComposeTemplateKey(String(raw.template_key || ""));
       setComposeSourceDocSaveId(String(raw.source_doc_save_id || ""));
@@ -5138,16 +5266,18 @@ export default function MailboxClient({
       );
       setComposeSourceDocNumber(String(raw.source_doc_number || ""));
       setPendingTrack(nextTrack);
+      setSelectedAccountId(nextSelectedAccountId);
       setTo(raw.to_emails || "");
+      setComposeRecipientHints(
+        normalizeComposeRecipientHints(draftState.recipientHints),
+      );
       setSubject(normalizeMailSubject(raw.subject || ""));
       setComposeBody(raw.body_text || "", raw.body_html || "");
       setComposeAttachments(nextAttachments);
       setFiles([]);
       setLastSavedComposeSnapshot(
         makeComposeSnapshot({
-          selectedAccountId: String(
-            raw.integration_id || selectedAccountId || "",
-          ),
+          selectedAccountId: nextSelectedAccountId,
           to: String(raw.to_emails || ""),
           subject: normalizeMailSubject(raw.subject || ""),
           text: String(raw.body_text || ""),
@@ -5186,13 +5316,22 @@ export default function MailboxClient({
     const trackType =
       pendingTrack?.type || String(searchParams?.get("track_type") || "");
     const trackPayload = (pendingTrack?.payload || {}) as Record<string, any>;
+    const currentWorkflowState = readWorkflowCampaignState(workflowReturnKey);
     saveWorkflowCampaignState(
       {
+        version: 1,
         kind: workflowFinalizerKind,
         action: workflowReturnAction,
+        aiEngine: currentWorkflowState?.aiEngine || null,
+        stage: "editor",
         folder,
+        selectedAccountId: selectedAccountId || null,
+        provider: selectedAccount?.provider || null,
+        toEmails: to,
+        recipientHints: composeRecipientHints,
         trackKind: workflowFinalizerKind,
         trackType,
+        trackPayload,
         templateKey:
           composeTemplateKey ||
           String(searchParams?.get("template_key") || "") ||
@@ -5212,6 +5351,7 @@ export default function MailboxClient({
     );
   }, [
     composeAttachments,
+    composeRecipientHints,
     composeTemplateKey,
     draftId,
     folder,
@@ -5219,8 +5359,11 @@ export default function MailboxClient({
     pendingTrack,
     router,
     searchParams,
+    selectedAccount?.provider,
+    selectedAccountId,
     subject,
     text,
+    to,
     workflowFinalizerKind,
     workflowReturnAction,
     workflowReturnKey,

@@ -5,7 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import styles from "../../dashboard/dashboard.module.css";
 import b from "./fideliser.module.css";
@@ -21,6 +21,8 @@ import { useUnsavedExitGuard } from "../_hooks/useUnsavedExitGuard";
 import PublishAiConfigurationDrawer from "../booster/publier/components/PublishAiConfigurationDrawer";
 import { MODULE_SNAPSHOT_KEYS, readModuleSnapshot, writeModuleSnapshot } from "@/lib/browserModuleSnapshotCache";
 import AiConfigurationIcon from "../_components/AiConfigurationIcon";
+import PublishDraftHeaderMenu from "../booster/publier/components/PublishDraftHeaderMenu";
+import { loadWorkflowCampaignDraft, saveWorkflowCampaignState } from "../_lib/workflowCampaignState";
 
 
 const InformerModal = dynamic(() => import("./components/informer/InformerModal"), {
@@ -56,12 +58,14 @@ type FideliserMetricsSnapshot = { metrics: any; weeklySummary: WeeklySummary | n
 export default function FideliserPage() {
   const i18nT = useTranslations("growth");
   const locale = useLocale();
+  const router = useRouter();
   const [helpOpen, setHelpOpen] = useState(false);
   const [aiConfigurationOpen, setAiConfigurationOpen] = useState(false);
   const [isMobileHeader, setIsMobileHeader] = useState(false);
   const [active, setActive] = useState<ActiveModal>(null);
   const workflowDraftActionRef = useRef<(() => Promise<void>) | null>(null);
   const [workflowDraftSaving, setWorkflowDraftSaving] = useState(false);
+  const [workflowDraftLoading, setWorkflowDraftLoading] = useState(false);
   const [workflowDraftMessage, setWorkflowDraftMessage] = useState("");
   const [initialMetricsSnapshot] = useState<FideliserMetricsSnapshot | null>(() =>
     readModuleSnapshot<FideliserMetricsSnapshot>(MODULE_SNAPSHOT_KEYS.fideliserMetrics)?.data ?? null,
@@ -342,6 +346,54 @@ export default function FideliserPage() {
     }
   }, [workflowDraftSaving]);
 
+  const openWorkflowDraftFromHeader = useCallback(async (draftId: string) => {
+    if (workflowDraftLoading) return;
+    if (active) {
+      const confirmed = await confirmInrcy({
+        eyebrow: "Brouillon enregistré",
+        title: "Ouvrir ce brouillon ?",
+        message: "L’état actuellement affiché sera remplacé par celui du brouillon sélectionné.",
+        cancelLabel: i18nT("continuer_l_edition_0f0075bb"),
+        confirmLabel: "Ouvrir le brouillon",
+        variant: "warning",
+      });
+      if (!confirmed) return;
+    }
+    setWorkflowDraftLoading(true);
+    setWorkflowDraftMessage("");
+    try {
+      const draft = await loadWorkflowCampaignDraft(draftId);
+      if (draft.kind !== "fideliser") throw new Error("Ce brouillon n’appartient pas à Fidéliser.");
+      const restoreKey = saveWorkflowCampaignState(draft);
+      workflowDraftActionRef.current = null;
+      if (draft.stage === "compose") {
+        setActive(null);
+        const query = new URLSearchParams({
+          folder: draft.folder || "fidelisations",
+          compose: "1",
+          finalizer: "fideliser",
+          workflow_kind: "fideliser",
+          workflow_action: draft.action,
+          workflow_return_key: restoreKey,
+          track_kind: "fideliser",
+          track_type: draft.trackType,
+        });
+        if (draft.templateKey) query.set("template_key", draft.templateKey);
+        router.push(`/dashboard/mails?${query.toString()}`);
+        return;
+      }
+      setActive(draft.action as ActiveModal);
+      router.replace(
+        `/dashboard/fideliser?action=${encodeURIComponent(draft.action)}&restore_key=${encodeURIComponent(restoreKey)}`,
+        { scroll: false },
+      );
+    } catch (error) {
+      setWorkflowDraftMessage(error instanceof Error ? error.message : "Impossible d’ouvrir le brouillon.");
+    } finally {
+      setWorkflowDraftLoading(false);
+    }
+  }, [active, i18nT, router, workflowDraftLoading]);
+
   useEffect(() => {
     if (!active) setWorkflowDraftMessage("");
   }, [active]);
@@ -467,6 +519,15 @@ export default function FideliserPage() {
                 ariaLabel={i18nT("navigation_entre_les_themes_fideliser_436ee375")}
               />
               <button type="button" className={`${styles.secondaryBtn} ${styles.aiHeaderBtn}`} onClick={() => setAiConfigurationOpen(true)} aria-label={i18nT("configuration_ia_f620c8d8")} title={i18nT("configuration_ia_f620c8d8")} style={{ width: isMobileHeader ? 32 : 38, minWidth: isMobileHeader ? 32 : 38, minHeight: isMobileHeader ? 32 : 36, padding: 0, fontSize: isMobileHeader ? 12 : 13, borderRadius: 999 }}><AiConfigurationIcon size={isMobileHeader ? 19 : 22} /></button>
+              <PublishDraftHeaderMenu
+                buttonClassName={styles.secondaryBtn}
+                disabled={workflowDraftLoading}
+                emptyScopeLabel="Fidéliser"
+                endpoint="/api/mails/workflow-draft?view=drafts&kind=fideliser&limit=20"
+                fallbackBadge="Fidéliser"
+                moduleLabel="Fidéliser"
+                onSelect={openWorkflowDraftFromHeader}
+              />
               <button type="button" className={styles.secondaryBtn} onClick={() => void saveWorkflowDraftFromHeader()} disabled={workflowDraftSaving} title={i18nT("enregistrer_le_brouillon_6a319595")} aria-label={i18nT("enregistrer_le_brouillon_6a319595")} style={{ width: isMobileHeader ? 32 : 38, minWidth: isMobileHeader ? 32 : 38, minHeight: isMobileHeader ? 32 : 36, padding: 0, display: "inline-grid", placeItems: "center", fontSize: isMobileHeader ? 15 : 18, borderRadius: 999, opacity: workflowDraftSaving ? 0.64 : 1, cursor: workflowDraftSaving ? "wait" : "pointer" }}>
                 {workflowDraftSaving ? "…" : "💾"}
               </button>

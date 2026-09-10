@@ -317,6 +317,7 @@ export type SendItem = {
   track_type?: string | null;
   template_key?: string | null;
   attachments?: unknown;
+  draft_state?: unknown;
   error: string | null;
   sent_at: string | null;
   created_at: string;

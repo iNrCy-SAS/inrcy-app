@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import { resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
 import {
@@ -12,6 +12,12 @@ import {
 export function useTemplateAiEngine() {
   const [defaultEngine, setDefaultEngine] = useState<AiPreferredEngine>(DEFAULT_AI_PREFERRED_ENGINE);
   const [engine, setEngine] = useState<AiPreferredEngine>(DEFAULT_AI_PREFERRED_ENGINE);
+  const explicitEngineRef = useRef(false);
+
+  const selectEngine = useCallback((next: AiPreferredEngine) => {
+    explicitEngineRef.current = true;
+    setEngine(next);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -32,7 +38,7 @@ export function useTemplateAiEngine() {
         if (cancelled) return;
         const resolved = getAiPreferredEngineFromBusiness(business || {});
         setDefaultEngine(resolved);
-        setEngine(resolved);
+        if (!explicitEngineRef.current) setEngine(resolved);
       } catch {
         // Le moteur OpenAI reste le repli sûr si le profil n'est pas lisible.
       }
@@ -40,5 +46,5 @@ export function useTemplateAiEngine() {
     return () => { cancelled = true; };
   }, []);
 
-  return { engine, setEngine, defaultEngine };
+  return { engine, setEngine: selectEngine, defaultEngine };
 }

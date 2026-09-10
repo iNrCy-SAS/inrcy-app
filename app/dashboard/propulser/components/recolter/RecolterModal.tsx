@@ -16,7 +16,7 @@ import TemplateAiEngineSelector from "@/app/dashboard/_components/TemplateAiEngi
 import { useTemplateAiEngine } from "@/app/dashboard/_hooks/useTemplateAiEngine";
 import type { ComposeAttachmentRef } from "@/app/dashboard/mails/_lib/mailboxPhase1";
 import { storeWorkflowMailPrefillAttachments } from "@/app/dashboard/_lib/workflowMailPrefillAttachments";
-import { readWorkflowCampaignState, saveWorkflowCampaignDraft, saveWorkflowCampaignState } from "@/app/dashboard/_lib/workflowCampaignState";
+import { readWorkflowCampaignState, saveWorkflowCampaignDraft, saveWorkflowCampaignState, type WorkflowCampaignState } from "@/app/dashboard/_lib/workflowCampaignState";
 
 const WORKFLOW_KIND = "propulser" as const;
 const WORKFLOW_ACTION = "reviews";
@@ -42,6 +42,7 @@ export default function RecolterModal({
   const searchParams = useSearchParams();
   const restoreKey = searchParams?.get("restore_key") || "";
   const restoredWorkflowKeyRef = useRef(restoreKey);
+  const restoredWorkflowStateRef = useRef<WorkflowCampaignState | null>(null);
   const { sectorCategory, profession } = useBusinessTemplateContext();
 
   const templates = useMemo(() => getTemplates("avis", undefined, sectorCategory, profession), [sectorCategory, profession]);
@@ -125,21 +126,25 @@ export default function RecolterModal({
   useEffect(() => {
     if (!restoreKey) {
       restoredWorkflowKeyRef.current = "";
+      restoredWorkflowStateRef.current = null;
       return;
     }
     const restored = readWorkflowCampaignState(restoreKey);
     if (!restored || restored.kind !== WORKFLOW_KIND || restored.action !== WORKFLOW_ACTION) {
       restoredWorkflowKeyRef.current = "";
+      restoredWorkflowStateRef.current = null;
       return;
     }
     restoredWorkflowKeyRef.current = restoreKey;
+    restoredWorkflowStateRef.current = restored;
     if (restored.templateKey) setSelectedKey(String(restored.templateKey));
     setSubject(restored.subject || "");
     setBody(restored.bodyText || "");
     setBodyHtml(restored.bodyHtml || textToRichMailHtml(restored.bodyText || ""));
     setAttachments(restored.attachments || []);
     setWorkflowDraftId(restored.draftId || null);
-  }, [restoreKey]);
+    if (restored.aiEngine) setAiEngine(restored.aiEngine);
+  }, [restoreKey, setAiEngine]);
 
   const generateAiTemplateContent = async () => {
     if (!selected || aiGenerating) return;
@@ -179,35 +184,36 @@ export default function RecolterModal({
     }
   };
 
-  const buildCurrentWorkflowState = useCallback((draftId: string | null = workflowDraftId) => ({
-    kind: WORKFLOW_KIND,
-    action: WORKFLOW_ACTION,
-    folder: WORKFLOW_FOLDER,
-    trackKind: WORKFLOW_KIND,
-    trackType: WORKFLOW_TRACK_TYPE,
-    templateKey: selected?.key || selectedKey || null,
-    templateCategory: selected?.category || null,
-    subject,
-    bodyText: body,
-    bodyHtml: bodyHtml || textToRichMailHtml(body),
-    attachments,
-    draftId,
-  }), [attachments, body, bodyHtml, selected?.category, selected?.key, selectedKey, subject, workflowDraftId]);
+  const buildCurrentWorkflowState = useCallback((draftId: string | null = workflowDraftId, stage: "editor" | "compose" = "editor") => {
+    const restored = restoredWorkflowStateRef.current;
+    return {
+      version: 1 as const,
+      kind: WORKFLOW_KIND,
+      action: WORKFLOW_ACTION,
+      folder: WORKFLOW_FOLDER,
+      trackKind: WORKFLOW_KIND,
+      trackType: WORKFLOW_TRACK_TYPE,
+      templateKey: selected?.key || selectedKey || null,
+      templateCategory: selected?.category || restored?.templateCategory || null,
+      subject,
+      bodyText: body,
+      bodyHtml: bodyHtml || textToRichMailHtml(body),
+      attachments,
+      aiEngine,
+      stage,
+      selectedAccountId: restored?.selectedAccountId || null,
+      provider: restored?.provider || null,
+      toEmails: restored?.toEmails || "",
+      recipientHints: restored?.recipientHints || [],
+      trackPayload: restored?.trackPayload || {},
+      draftId,
+    };
+  }, [aiEngine, attachments, body, bodyHtml, selected?.category, selected?.key, selectedKey, subject, workflowDraftId]);
 
   const saveCurrentWorkflowDraft = useCallback(async () => {
     try {
       const state = buildCurrentWorkflowState();
-      const result = await saveWorkflowCampaignDraft({
-        draftId: state.draftId || null,
-        kind: state.kind,
-        folder: state.folder,
-        trackType: state.trackType,
-        templateKey: state.templateKey,
-        subject: state.subject,
-        bodyText: state.bodyText,
-        bodyHtml: state.bodyHtml,
-        attachments: state.attachments,
-      });
+      const result = await saveWorkflowCampaignDraft(state);
       const nextDraftId = result.draftId || state.draftId || null;
       setWorkflowDraftId(nextDraftId);
       saveWorkflowCampaignState(buildCurrentWorkflowState(nextDraftId), restoreKey || undefined);
@@ -252,7 +258,7 @@ export default function RecolterModal({
     }
     q.set("compose", "1");
     q.set("finalizer", "propulser");
-    const workflowReturnKey = saveWorkflowCampaignState(buildCurrentWorkflowState(), restoreKey || undefined);
+    const workflowReturnKey = saveWorkflowCampaignState(buildCurrentWorkflowState(workflowDraftId, "compose"), restoreKey || undefined);
     q.set("workflow_kind", WORKFLOW_KIND);
     q.set("workflow_action", WORKFLOW_ACTION);
     q.set("workflow_return_key", workflowReturnKey);
