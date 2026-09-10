@@ -702,5 +702,6 @@
   "weekday_tuesday": "Mardi",
   "weekday_wednesday": "Mercredi",
   "youtube_requires_video": "YouTube nécessite une vidéo.",
+  "channel_disconnected_aria": "{channel} — canal déconnecté",
   "zoom_value_1d90c01c": "zoom {value0}×"
 }

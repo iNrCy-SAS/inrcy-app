@@ -3389,6 +3389,56 @@
   gap: 10px;
 }
 
+.settingsModal.automationSettingsModal {
+  width: min(1180px, calc(100vw - 32px));
+  max-height: calc(100svh - 24px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.settingsModalLayout {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(430px, 0.9fr) minmax(520px, 1.1fr);
+  align-items: start;
+  gap: 12px;
+}
+
+.settingsScheduleGrid,
+.settingsContentColumn {
+  min-width: 0;
+  align-content: start;
+}
+
+.settingsContentColumn {
+  display: grid;
+  gap: 10px;
+}
+
+.settingsContentColumn > .modalSection,
+.settingsContentColumn .campaignSettingsPair .modalSection {
+  margin-top: 0;
+}
+
+.settingsModalFooter {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(480px, 0.95fr);
+  align-items: center;
+  gap: 10px 14px;
+  margin-top: 10px;
+}
+
+.settingsModalFooter .prepareProgressCard {
+  grid-column: 1 / -1;
+}
+
+.settingsModalFooter .modalNote,
+.settingsModalFooter .modalActionRow {
+  margin-top: 0;
+}
+
 .settingsModal:not(.helpModal) .modalGrid label,
 .settingsModal:not(.helpModal) .modalSection {
   gap: 6px;
@@ -3498,6 +3548,42 @@
     ),
     linear-gradient(135deg, rgba(37, 99, 235, 0.48), rgba(124, 58, 237, 0.38));
   box-shadow: 0 0 16px rgba(59, 130, 246, 0.16);
+}
+
+.settingsModal:not(.helpModal) .choiceGrid .channelChoiceDisconnected {
+  position: relative;
+  color: rgba(203, 213, 225, 0.5);
+  border-style: dashed;
+  border-color: rgba(148, 163, 184, 0.22);
+  background: rgba(15, 23, 42, 0.38);
+  box-shadow: none;
+  cursor: not-allowed;
+  filter: grayscale(0.88) saturate(0.25);
+  opacity: 0.58;
+}
+
+.settingsModal:not(.helpModal)
+  .choiceGrid
+  .channelChoiceDisconnected:hover {
+  transform: none;
+  border-color: rgba(148, 163, 184, 0.22);
+  background: rgba(15, 23, 42, 0.38);
+  box-shadow: none;
+}
+
+.channelDisconnectedMark {
+  width: 16px;
+  height: 16px;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 16px;
+  border: 1px solid rgba(248, 113, 113, 0.36);
+  border-radius: 999px;
+  color: rgba(254, 202, 202, 0.76);
+  background: rgba(127, 29, 29, 0.34);
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
 }
 
 .studioMediaMixControl {
@@ -3685,9 +3771,9 @@
 }
 
 @media (max-height: 780px) and (min-width: 820px) {
-  .settingsModal:not(.helpModal) {
-    width: min(820px, calc(100vw - 36px));
-    padding: 14px 18px;
+  .settingsModal.automationSettingsModal {
+    width: min(1180px, calc(100vw - 28px));
+    padding: 12px 16px;
   }
 
   .settingsModal:not(.helpModal) h2 {
@@ -3769,9 +3855,9 @@
 
 }
 
-/* Étape 34 — correctifs iNrAgent responsive + logique canaux */
-.settingsModal,
-.settingsModal:not(.helpModal) {
+/* Les petites modales restent scrollables. La grande grille desktop ne l'est pas. */
+.settingsModal:not(.helpModal):not(.automationSettingsModal),
+.helpModal {
   max-height: calc(100svh - 32px);
   overflow-y: auto !important;
   overflow-x: hidden;
@@ -3779,8 +3865,19 @@
   overscroll-behavior: contain;
 }
 
-.helpModal {
-  max-height: calc(100svh - 32px);
+@media (max-width: 980px), (max-height: 720px) {
+  .automationSettingsModal {
+    max-height: calc(100svh - 28px);
+    overflow-y: auto !important;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  .settingsModalLayout,
+  .settingsModalFooter {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 @media (max-width: 760px) {
@@ -9764,7 +9861,28 @@ button.campaignInfoRecipients:hover {
 .scheduleSlotPair {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px 11px;
+  border: 1px solid rgba(148, 163, 255, 0.1);
+  border-radius: 15px;
+  background: radial-gradient(
+      circle at 100% 0%,
+      rgba(96, 165, 250, 0.08),
+      transparent 34%
+    ),
+    rgba(255, 255, 255, 0.052);
+}
+
+.settingsModal:not(.helpModal)
+  .settingsScheduleGrid
+  .scheduleSlotPair
+  > label {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .scheduleMonthDayGrid {

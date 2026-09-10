@@ -702,5 +702,6 @@
   "weekday_tuesday": "星期二",
   "weekday_wednesday": "星期三",
   "youtube_requires_video": "YouTube 需要视频。",
+  "channel_disconnected_aria": "{channel} — 频道未连接",
   "zoom_value_1d90c01c": "缩放 {value0}×"
 }

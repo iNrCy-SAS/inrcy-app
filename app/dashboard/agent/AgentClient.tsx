@@ -1032,6 +1032,10 @@ export default function AgentClient() {
         : [],
     [agentConnectedChannels, settingsAutomation],
   );
+  const settingsDisplayedChannels = useMemo(
+    () => settingsAutomation?.availableChannels ?? [],
+    [settingsAutomation],
+  );
   const settingsNoConnectedChannelBlock = Boolean(
     settingsAutomation &&
     settingsAutomation.key !== "stats" &&
@@ -7274,6 +7278,7 @@ export default function AgentClient() {
         >
           <section
             className={`${styles.settingsModal} ${styles.automationSettingsModal}`}
+            data-automation={settingsAutomation.key}
             role="dialog"
             aria-modal="true"
             aria-label={agentAutomationSettingsTitle(settingsAutomation.key, runtimeT)}
@@ -7343,7 +7348,10 @@ export default function AgentClient() {
               </div>
             </header>
 
-            <div className={styles.modalGrid}>
+            <div className={styles.settingsModalLayout}>
+              <div
+                className={`${styles.modalGrid} ${styles.settingsScheduleGrid}`}
+              >
               <label>
                 <span>{i18nT("frequence_bafbfba7")}</span>
                 <select
@@ -7500,7 +7508,7 @@ export default function AgentClient() {
                     </div>
                   ))
               ) : (
-                <>
+                <div className={styles.scheduleSlotPair}>
                   <label>
                     <span>{i18nT("jour_240ce85d")}</span>
                     <select
@@ -7551,7 +7559,7 @@ export default function AgentClient() {
                       ))}
                     </select>
                   </label>
-                </>
+                </div>
               )}
               <label>
                 <span>{i18nT("validation_dd74d182")}</span>
@@ -7572,25 +7580,52 @@ export default function AgentClient() {
                   )}
                 </select>
               </label>
-            </div>
+              </div>
 
-            {isCampaignAutomationKey(settingsAutomation.key) ? (
+              <div className={styles.settingsContentColumn}>
+                {isCampaignAutomationKey(settingsAutomation.key) ? (
               <>
                 <div className={styles.campaignSettingsPair}>
                   <div className={styles.modalSection}>
                     <span>{i18nT("canal_61f21e6f")}</span>
-                    {settingsAvailableChannels.length > 0 ? (
+                    {settingsDisplayedChannels.length > 0 ? (
                       <div className={styles.choiceGrid}>
-                        {settingsAvailableChannels.map((channelKey) => {
+                        {settingsDisplayedChannels.map((channelKey) => {
                           const channel = channelOptions[channelKey];
+                          const connected =
+                            connectedChannelsLoadState !== "ready" ||
+                            settingsAvailableChannels.includes(channelKey);
                           const checked =
+                            connected &&
                             settingsConfig.channels.includes(channelKey);
+                          const channelLabel = agentChannelLabel(
+                            channelKey,
+                            runtimeT,
+                          );
                           return (
                             <button
                               type="button"
                               key={channelKey}
                               data-channel={channelKey}
-                              className={checked ? styles.choiceActive : ""}
+                              data-connected={connected}
+                              className={`${checked ? styles.choiceActive : ""} ${
+                                !connected ? styles.channelChoiceDisconnected : ""
+                              }`}
+                              disabled={!connected}
+                              aria-label={
+                                connected
+                                  ? channelLabel
+                                  : i18nT("channel_disconnected_aria", {
+                                      channel: channelLabel,
+                                    })
+                              }
+                              title={
+                                connected
+                                  ? channelLabel
+                                  : i18nT("channel_disconnected_aria", {
+                                      channel: channelLabel,
+                                    })
+                              }
                               onClick={() =>
                                 updateConfig(settingsAutomation.key, {
                                   channels: toggleChannelItem(
@@ -7607,7 +7642,15 @@ export default function AgentClient() {
                                 loading="eager"
                                 decoding="async"
                               />
-                              {agentChannelLabel(channelKey, runtimeT)}
+                              {channelLabel}
+                              {!connected ? (
+                                <span
+                                  className={styles.channelDisconnectedMark}
+                                  aria-hidden="true"
+                                >
+                                  ×
+                                </span>
+                              ) : null}
                             </button>
                           );
                         })}
@@ -7678,18 +7721,44 @@ export default function AgentClient() {
                         ? i18nT("canaux_booster_publier_1ac0f46f")
                         : i18nT("canal_61f21e6f")}
                     </span>
-                    {settingsAvailableChannels.length > 0 ? (
+                    {settingsDisplayedChannels.length > 0 ? (
                       <div className={styles.choiceGrid}>
-                        {settingsAvailableChannels.map((channelKey) => {
+                        {settingsDisplayedChannels.map((channelKey) => {
                           const channel = channelOptions[channelKey];
+                          const connected =
+                            connectedChannelsLoadState !== "ready" ||
+                            settingsAvailableChannels.includes(channelKey);
                           const checked =
+                            connected &&
                             settingsConfig.channels.includes(channelKey);
+                          const channelLabel = agentChannelLabel(
+                            channelKey,
+                            runtimeT,
+                          );
                           return (
                             <button
                               type="button"
                               key={channelKey}
                               data-channel={channelKey}
-                              className={checked ? styles.choiceActive : ""}
+                              data-connected={connected}
+                              className={`${checked ? styles.choiceActive : ""} ${
+                                !connected ? styles.channelChoiceDisconnected : ""
+                              }`}
+                              disabled={!connected}
+                              aria-label={
+                                connected
+                                  ? channelLabel
+                                  : i18nT("channel_disconnected_aria", {
+                                      channel: channelLabel,
+                                    })
+                              }
+                              title={
+                                connected
+                                  ? channelLabel
+                                  : i18nT("channel_disconnected_aria", {
+                                      channel: channelLabel,
+                                    })
+                              }
                               onClick={() =>
                                 updateConfig(settingsAutomation.key, {
                                   channels: toggleChannelItem(
@@ -7706,7 +7775,15 @@ export default function AgentClient() {
                                 loading="eager"
                                 decoding="async"
                               />
-                              {agentChannelLabel(channelKey, runtimeT)}
+                              {channelLabel}
+                              {!connected ? (
+                                <span
+                                  className={styles.channelDisconnectedMark}
+                                  aria-hidden="true"
+                                >
+                                  ×
+                                </span>
+                              ) : null}
                             </button>
                           );
                         })}
@@ -7844,63 +7921,70 @@ export default function AgentClient() {
                   </div>
                 )}
               </>
-            )}
-
-            <p className={styles.modalNote}>
-              {i18nT("source_des_idees_value_75f522cb", { value0: agentSourceLabel(settingsConfig.source, runtimeT) })}</p>
-            {prepareProgress?.key === settingsAutomation.key && (
-              <div
-                className={styles.prepareProgressCard}
-                role="status"
-                aria-live="polite"
-              >
-                <div>
-                  <strong>{i18nT("preparation_en_cours_28379fdb")}</strong>
-                  <span>{agentProgressLabel(prepareProgress.label, runtimeT)}</span>
-                </div>
-                <b>{prepareProgress.percent}%</b>
+                )}
               </div>
-            )}
-            <div className={styles.modalActionRow}>
-              <button
-                type="button"
-                className={styles.modalAction}
-                onClick={saveSettings}
-                disabled={
-                  saveState === "saving" ||
-                  loadState === "loading" ||
-                  Boolean(testNowKey) ||
-                  (settingsNoConnectedChannelBlock && settingsConfig.enabled)
-                }
-              >
-                {saveState === "saving"
-                  ? i18nT("enregistrement_9bf1058a")
-                  : i18nT("enregistrer_les_reglages_a47974c5")}
-              </button>
-              <button
-                type="button"
-                className={`${styles.modalAction} ${styles.modalSecondaryAction}`}
-                onClick={() => testAutomationNow(settingsAutomation.key)}
-                disabled={
-                  saveState === "saving" ||
-                  loadState === "loading" ||
-                  prepareActionState === "saving" ||
-                  Boolean(testNowKey) ||
-                  settingsNoConnectedChannelBlock
-                }
-              >
-                {testNowKey === settingsAutomation.key ||
-                prepareActionState === "saving"
-                  ? settingsAutomation.key === "stats"
-                    ? i18nT("envoi_du_bilan_27b6de4a")
-                    : prepareProgress?.key === settingsAutomation.key
-                      ? i18nT("preparation_2c6b897e")
-                      : i18nT("preparation_2c6b897e")
-                  : settingsAutomation.key === "stats"
-                    ? i18nT("envoyer_un_bilan_6dff1c99")
-                    : i18nT("preparer_maintenant_e3f186ee")}
-              </button>
             </div>
+
+            <footer className={styles.settingsModalFooter}>
+              <p className={styles.modalNote}>
+                {i18nT("source_des_idees_value_75f522cb", {
+                  value0: agentSourceLabel(settingsConfig.source, runtimeT),
+                })}
+              </p>
+              {prepareProgress?.key === settingsAutomation.key && (
+                <div
+                  className={styles.prepareProgressCard}
+                  role="status"
+                  aria-live="polite"
+                >
+                  <div>
+                    <strong>{i18nT("preparation_en_cours_28379fdb")}</strong>
+                    <span>
+                      {agentProgressLabel(prepareProgress.label, runtimeT)}
+                    </span>
+                  </div>
+                  <b>{prepareProgress.percent}%</b>
+                </div>
+              )}
+              <div className={styles.modalActionRow}>
+                <button
+                  type="button"
+                  className={styles.modalAction}
+                  onClick={saveSettings}
+                  disabled={
+                    saveState === "saving" ||
+                    loadState === "loading" ||
+                    Boolean(testNowKey) ||
+                    (settingsNoConnectedChannelBlock && settingsConfig.enabled)
+                  }
+                >
+                  {saveState === "saving"
+                    ? i18nT("enregistrement_9bf1058a")
+                    : i18nT("enregistrer_les_reglages_a47974c5")}
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.modalAction} ${styles.modalSecondaryAction}`}
+                  onClick={() => testAutomationNow(settingsAutomation.key)}
+                  disabled={
+                    saveState === "saving" ||
+                    loadState === "loading" ||
+                    prepareActionState === "saving" ||
+                    Boolean(testNowKey) ||
+                    settingsNoConnectedChannelBlock
+                  }
+                >
+                  {testNowKey === settingsAutomation.key ||
+                  prepareActionState === "saving"
+                    ? settingsAutomation.key === "stats"
+                      ? i18nT("envoi_du_bilan_27b6de4a")
+                      : i18nT("preparation_2c6b897e")
+                    : settingsAutomation.key === "stats"
+                      ? i18nT("envoyer_un_bilan_6dff1c99")
+                      : i18nT("preparer_maintenant_e3f186ee")}
+                </button>
+              </div>
+            </footer>
           </section>
         </div>
       )}

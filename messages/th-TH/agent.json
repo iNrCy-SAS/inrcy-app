@@ -702,5 +702,6 @@
   "weekday_tuesday": "วันอังคาร",
   "weekday_wednesday": "วันพุธ",
   "youtube_requires_video": "YouTube ต้องใช้วิดีโอ",
+  "channel_disconnected_aria": "{channel} — ช่องยังไม่ได้เชื่อมต่อ",
   "zoom_value_1d90c01c": "ซูม {value0}×"
 }
