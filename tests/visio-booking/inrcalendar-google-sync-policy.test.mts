@@ -6,6 +6,7 @@ import {
   INR_CALENDAR_GOOGLE_SOURCE,
 } from "../../lib/inrCalendarGoogleSyncConstants.ts";
 import {
+  buildInrCalendarCanonicalEventId,
   buildInrCalendarGoogleEventId,
   buildInrCalendarGoogleRow,
   getInrCalendarGoogleEventRange,
@@ -101,6 +102,36 @@ test("les participants externes restent visibles sans activer de rappel iNrCy", 
   assert.equal(
     (row.meta.reminders as Record<string, unknown>).deliveryPolicy,
     "manual_only",
+  );
+});
+
+test("deux copies Google du même rendez-vous utilisent une seule ligne iNrCalendar", () => {
+  const canonicalIdentity =
+    "ical:series@google.com:2026-09-09T08:00:00.000Z";
+  const first = buildInrCalendarGoogleRow({
+    event: event({ id: "google-copy-a" }),
+    calendarId,
+    adminUserId,
+    canonicalIdentity,
+  });
+  const second = buildInrCalendarGoogleRow({
+    event: event({ id: "google-copy-b" }),
+    calendarId,
+    adminUserId,
+    canonicalIdentity,
+  });
+
+  assert.ok(first);
+  assert.ok(second);
+  assert.equal(first.id, second.id);
+  assert.equal(
+    first.id,
+    buildInrCalendarCanonicalEventId(calendarId, canonicalIdentity),
+  );
+  assert.equal(first.meta.appointmentIdentity, canonicalIdentity);
+  assert.equal(
+    (first.meta.google as Record<string, unknown>).canonicalIdentity,
+    canonicalIdentity,
   );
 });
 

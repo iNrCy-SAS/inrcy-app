@@ -3,11 +3,14 @@ import "server-only";
 import { optionalEnv } from "@/lib/env";
 import { INR_CALENDAR_GOOGLE_SOURCE } from "@/lib/inrCalendarGoogleSyncConstants";
 import {
+  buildInrCalendarCanonicalEventId,
   buildInrCalendarGoogleEventId,
   buildInrCalendarGoogleRow,
+  type InrCalendarGoogleEvent,
   type InrCalendarGoogleRow,
 } from "@/lib/inrCalendarGoogleSyncPolicy";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { canonicalVisioAppointmentIdentity } from "@/lib/visioAppointmentIdentity";
 import {
   getVisioPublicCalendarId,
   getVisioBookingIntegrationAccountId,
@@ -37,6 +40,7 @@ export type InrCalendarGoogleSyncResult = {
   scanned: number;
   upserted: number;
   deleted: number;
+  deduplicated: number;
   skipped: number;
   errors: string[];
 };
@@ -74,6 +78,33 @@ function batches<T>(values: T[], size = DATABASE_BATCH_SIZE) {
     output.push(values.slice(index, index + size));
   }
   return output;
+}
+
+function shouldPreferCanonicalGoogleEvent(
+  candidate: InrCalendarGoogleEvent,
+  current: InrCalendarGoogleEvent,
+) {
+  const candidatePrivate = candidate.extendedProperties?.private || {};
+  const currentPrivate = current.extendedProperties?.private || {};
+  const candidateIsBooking = Boolean(candidatePrivate.inrcyBooking);
+  const currentIsBooking = Boolean(currentPrivate.inrcyBooking);
+  if (candidateIsBooking !== currentIsBooking) return candidateIsBooking;
+
+  const candidateIsOrganizer = candidatePrivate.sourceCalendarIsOrganizer === "true";
+  const currentIsOrganizer = currentPrivate.sourceCalendarIsOrganizer === "true";
+  if (candidateIsOrganizer !== currentIsOrganizer) return candidateIsOrganizer;
+
+  const candidateHasMeet = Boolean(
+    candidate.hangoutLink || candidatePrivate.sourceMeetUrl,
+  );
+  const currentHasMeet = Boolean(current.hangoutLink || currentPrivate.sourceMeetUrl);
+  if (candidateHasMeet !== currentHasMeet) return candidateHasMeet;
+
+  const updatedOrder = String(candidate.updated || "").localeCompare(
+    String(current.updated || ""),
+  );
+  if (updatedOrder !== 0) return updatedOrder > 0;
+  return String(candidate.id || "") < String(current.id || "");
 }
 
 async function deleteImportedRows(ids: string[], adminUserId: string) {
@@ -142,6 +173,7 @@ export async function syncVisioSharedCalendarToInrCalendar(input?: {
     scanned: 0,
     upserted: 0,
     deleted: 0,
+    deduplicated: 0,
     skipped: 0,
     errors: [],
   };
@@ -173,6 +205,7 @@ export async function syncVisioSharedCalendarToInrCalendar(input?: {
     ];
     const activeIds = new Set<string>();
     const cancelledIds: string[] = [];
+    const canonicalEvents = new Map<string, InrCalendarGoogleEvent>();
     for (const event of googleEvents) {
       const eventId = String(event.id || "").trim();
       if (!eventId) {
@@ -182,13 +215,37 @@ export async function syncVisioSharedCalendarToInrCalendar(input?: {
       const importedId = buildInrCalendarGoogleEventId(calendarId, eventId);
       if (String(event.status || "").toLowerCase() === "cancelled") {
         cancelledIds.push(importedId);
+        const cancelledIdentity = canonicalVisioAppointmentIdentity(event);
+        if (cancelledIdentity) {
+          cancelledIds.push(
+            buildInrCalendarCanonicalEventId(calendarId, cancelledIdentity),
+          );
+        }
         continue;
       }
+      const canonicalIdentity = canonicalVisioAppointmentIdentity(event);
+      const current = canonicalEvents.get(canonicalIdentity);
+      if (current) {
+        result.deduplicated += 1;
+        if (shouldPreferCanonicalGoogleEvent(event, current)) {
+          canonicalEvents.set(canonicalIdentity, event);
+        }
+      } else {
+        canonicalEvents.set(canonicalIdentity, event);
+      }
+    }
+
+    for (const [canonicalIdentity, event] of canonicalEvents) {
+      const importedId = buildInrCalendarCanonicalEventId(
+        calendarId,
+        canonicalIdentity,
+      );
       const row = buildInrCalendarGoogleRow({
         event,
         calendarId,
         adminUserId,
         internalEmails,
+        canonicalIdentity,
         previous: existingById.get(importedId) || null,
       });
       if (!row) {
@@ -205,7 +262,7 @@ export async function syncVisioSharedCalendarToInrCalendar(input?: {
       .map((row) => String(row.id || ""))
       .filter((id) => id && !activeIds.has(id));
     result.deleted = await deleteImportedRows(
-      [...cancelledIds, ...staleIds],
+      [...cancelledIds, ...staleIds].filter((id) => !activeIds.has(id)),
       adminUserId,
     );
   } catch (error) {

@@ -49,6 +49,12 @@ export function calendarReminderEventIdentity(input: ReminderEventIdentityInput)
     clean(privateMeta.bookingNonce);
   if (bookingNonce) return `booking:${bookingNonce}`;
 
+  const appointmentIdentity =
+    clean(meta.appointmentIdentity) ||
+    clean(inrcy.appointmentIdentity) ||
+    clean(google.canonicalIdentity);
+  if (appointmentIdentity) return `appointment:${appointmentIdentity}`;
+
   const sourceCalendarId = clean(google.sourceCalendarId);
   const sourceEventId = clean(google.sourceEventId);
   if (sourceCalendarId && sourceEventId) {
@@ -60,10 +66,6 @@ export function calendarReminderEventIdentity(input: ReminderEventIdentityInput)
   if (googleCalendarId && googleEventId) {
     return `google:${googleCalendarId}:${googleEventId}`;
   }
-
-  const appointmentIdentity =
-    clean(meta.appointmentIdentity) || clean(inrcy.appointmentIdentity);
-  if (appointmentIdentity) return `appointment:${appointmentIdentity}`;
 
   return `agenda:${clean(input.id)}`;
 }
@@ -97,8 +99,22 @@ export function calendarReminderDeliveryFingerprint(input: ReminderDeliveryKeyIn
 export function shouldRunAutomaticCalendarReminders(metaInput: unknown) {
   const meta = safeObject(metaInput);
   const reminders = safeObject(meta.reminders);
+  const google = safeObject(meta.google);
+  const inrcy = safeObject(meta.inrcy);
+  const privateMeta = safeObject(meta.private);
+  const isGoogleManaged =
+    clean(google.provider) === "google" ||
+    Boolean(clean(google.calendarId) && clean(google.eventId));
+  const isSiteBooking = Boolean(
+    clean(google.bookingNonce) ||
+      clean(meta.bookingNonce) ||
+      clean(inrcy.bookingNonce) ||
+      clean(privateMeta.bookingNonce),
+  );
   return !(
     clean(meta.source) === INR_CALENDAR_GOOGLE_SOURCE ||
-    clean(reminders.deliveryPolicy) === CALENDAR_REMINDER_MANUAL_ONLY_POLICY
+    clean(reminders.deliveryPolicy) === CALENDAR_REMINDER_MANUAL_ONLY_POLICY ||
+    isGoogleManaged ||
+    isSiteBooking
   );
 }

@@ -111,6 +111,10 @@ test("le calendrier partagé global est synchronisé par un cron protégé et id
   assert.match(backend, /sourceFingerprint/);
   assert.match(backend, /showDeleted:\s*true/);
   assert.match(backend, /cancelSharedCalendarEvent/);
+  assert.match(backend, /cancelDuplicatePendingSignupReminders/);
+  assert.match(backend, /preferredActiveAppointmentMirrors/);
+  assert.match(backend, /reconcileSharedAppointmentDuplicates/);
+  assert.match(backend, /canonicalAssignmentEvents/);
   assert.match(backend, /getVisioSharedCalendarAccess/);
   assert.match(inrCalendarSync, /INR_CALENDAR_GOOGLE_SOURCE/);
   assert.match(inrCalendarSync, /getVisioBookingIntegrationAccountId/);
@@ -119,6 +123,9 @@ test("le calendrier partagé global est synchronisé par un cron protégé et id
   assert.match(inrCalendarSync, /\.upsert\(batch, \{ onConflict: "id", ignoreDuplicates: false \}\)/);
   assert.match(inrCalendarSync, /\.contains\("meta", \{ source: INR_CALENDAR_GOOGLE_SOURCE \}\)/);
   assert.match(inrCalendarSync, /staleIds/);
+  assert.match(inrCalendarSync, /canonicalEvents/);
+  assert.match(inrCalendarSync, /buildInrCalendarCanonicalEventId/);
+  assert.match(inrCalendarSync, /deduplicated/);
 });
 
 test("le compte admin ouvre Google Agenda et les copies Google restent en lecture seule", () => {

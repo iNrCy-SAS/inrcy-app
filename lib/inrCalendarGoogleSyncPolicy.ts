@@ -5,6 +5,7 @@ import {
   INR_CALENDAR_GOOGLE_SOURCE,
 } from "./inrCalendarGoogleSyncConstants.ts";
 import { CALENDAR_REMINDER_MANUAL_ONLY_POLICY } from "./calendarReminderDeliveryPolicy.ts";
+import { canonicalVisioAppointmentIdentity } from "./visioAppointmentIdentity.ts";
 
 export type InrCalendarGoogleEvent = {
   id?: string;
@@ -179,6 +180,22 @@ export function buildInrCalendarGoogleEventId(
   return `${normalized.slice(0, 8)}-${normalized.slice(8, 12)}-${normalized.slice(12, 16)}-${normalized.slice(16, 20)}-${normalized.slice(20)}`;
 }
 
+export function buildInrCalendarCanonicalEventId(
+  calendarIdInput: string,
+  appointmentIdentityInput: string,
+) {
+  const calendarId = cleanString(calendarIdInput);
+  const appointmentIdentity = cleanString(appointmentIdentityInput);
+  if (!calendarId || !appointmentIdentity) {
+    throw new Error("inrcalendar_canonical_appointment_identity_required");
+  }
+
+  return buildInrCalendarGoogleEventId(
+    calendarId,
+    `canonical:v2:${appointmentIdentity}`,
+  );
+}
+
 export function getInrCalendarGoogleEventRange(event: InrCalendarGoogleEvent) {
   const startDateTime = cleanString(event.start?.dateTime);
   const endDateTime = cleanString(event.end?.dateTime);
@@ -220,6 +237,7 @@ export function buildInrCalendarGoogleRow(input: {
   calendarId: string;
   adminUserId: string;
   internalEmails?: string[];
+  canonicalIdentity?: string;
   previous?: {
     start_at?: string | null;
     end_at?: string | null;
@@ -242,6 +260,9 @@ export function buildInrCalendarGoogleRow(input: {
   if (!range) return null;
 
   const privateProperties = input.event.extendedProperties?.private || {};
+  const canonicalIdentity =
+    cleanString(input.canonicalIdentity) ||
+    canonicalVisioAppointmentIdentity(input.event);
   const htmlLink = cleanString(input.event.htmlLink);
   const meetUrl = eventMeetUrl(input.event);
   const previousMeta = safeObject(input.previous?.meta);
@@ -259,7 +280,7 @@ export function buildInrCalendarGoogleRow(input: {
   });
 
   return {
-    id: buildInrCalendarGoogleEventId(calendarId, eventId),
+    id: buildInrCalendarCanonicalEventId(calendarId, canonicalIdentity),
     user_id: adminUserId,
     title: cleanString(input.event.summary) || "(Sans titre)",
     description: cleanString(input.event.description) || null,
@@ -270,6 +291,7 @@ export function buildInrCalendarGoogleRow(input: {
     meta: {
       ...previousMeta,
       source: INR_CALENDAR_GOOGLE_SOURCE,
+      appointmentIdentity: canonicalIdentity,
       status: "confirmed",
       kind: "agenda",
       readOnly: true,
@@ -316,6 +338,7 @@ export function buildInrCalendarGoogleRow(input: {
         assignedMemberId: cleanString(privateProperties.assignedMemberId) || null,
         assignedMemberEmail: cleanString(privateProperties.assignedMemberEmail) || null,
         bookingNonce: cleanString(privateProperties.bookingNonce) || null,
+        canonicalIdentity,
       },
     },
   };

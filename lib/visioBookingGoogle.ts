@@ -16,6 +16,7 @@ import {
   buildPublicVisioBookingContent,
   buildSingleAssigneeVisioAttendees,
 } from "@/lib/visioBookingEventPolicy";
+import { canonicalVisioAppointmentIdentity } from "@/lib/visioAppointmentIdentity";
 import {
   VISIO_BOOKING_MANUAL_RESEND_LOCK_TTL_MS,
   VISIO_BOOKING_MANUAL_RESEND_SCOPE,
@@ -646,6 +647,91 @@ async function cancelSharedCalendarEvent(event: GoogleCalendarEvent) {
   return true;
 }
 
+async function cancelDuplicatePendingSignupReminders(
+  events: GoogleCalendarEvent[],
+) {
+  const canonicalByProspect = new Map<string, GoogleCalendarEvent>();
+  let cancelled = 0;
+
+  for (const event of events) {
+    const prospectUserId = pendingSignupReminderProspectUserId(event);
+    if (!prospectUserId) continue;
+    const current = canonicalByProspect.get(prospectUserId);
+    if (!current) {
+      canonicalByProspect.set(prospectUserId, event);
+      continue;
+    }
+
+    const keepCurrent =
+      String(current.updated || "") > String(event.updated || "") ||
+      (String(current.updated || "") === String(event.updated || "") &&
+        String(current.id || "") < String(event.id || ""));
+    const duplicate = keepCurrent ? event : current;
+    const canonical = keepCurrent ? current : event;
+    if (await cancelSharedCalendarEvent(duplicate)) {
+      duplicate.status = "cancelled";
+      cancelled += 1;
+    }
+    canonicalByProspect.set(prospectUserId, canonical);
+  }
+
+  return cancelled;
+}
+
+function preferredActiveAppointmentMirrors(
+  events: GoogleCalendarEvent[],
+) {
+  const preferred = new Map<string, GoogleCalendarEvent>();
+  for (const event of events) {
+    if (
+      !event.id ||
+      event.status === "cancelled" ||
+      event.extendedProperties?.private?.[TEAM_CALENDAR_MIRROR_KEY] !==
+        TEAM_CALENDAR_MIRROR_VALUE
+    ) {
+      continue;
+    }
+    const identity = appointmentIdentity(event);
+    const current = preferred.get(identity);
+    if (!current || shouldPreferAppointmentMirror(event, current)) {
+      preferred.set(identity, event);
+    }
+  }
+  return preferred;
+}
+
+async function isCalendarSourceActive(sourceKey: string) {
+  const [calendarId, eventId] = sourceKey.split("\n");
+  if (!calendarId || !eventId) return false;
+  const event = await getCalendarEvent(calendarId, eventId);
+  return Boolean(event && event.status !== "cancelled");
+}
+
+async function reconcileSharedAppointmentDuplicates(
+  timeMin: Date,
+  timeMax: Date,
+) {
+  const events = await listVisioSharedCalendarEvents(timeMin, timeMax, false);
+  const preferred = preferredActiveAppointmentMirrors(events);
+  let cancelled = 0;
+
+  for (const event of events) {
+    if (
+      !event.id ||
+      event.status === "cancelled" ||
+      event.extendedProperties?.private?.[TEAM_CALENDAR_MIRROR_KEY] !==
+        TEAM_CALENDAR_MIRROR_VALUE
+    ) {
+      continue;
+    }
+    const canonical = preferred.get(appointmentIdentity(event));
+    if (!canonical?.id || canonical.id === event.id) continue;
+    if (await cancelSharedCalendarEvent(event)) cancelled += 1;
+  }
+
+  return cancelled;
+}
+
 async function findPendingSignupReminder(claims: VisioBookingClaims) {
   const signupTime = new Date(claims.iat * 1_000);
   const timeMin = new Date(signupTime.getTime() - 7 * 24 * 60 * 60_000);
@@ -776,6 +862,10 @@ export async function syncVisioTeamCalendarsToShared(input?: {
     const sharedEvents = await listVisioSharedCalendarEvents(timeMin, timeMax);
     const sharedCalendarId = getVisioSharedCalendarId();
 
+    // An interrupted signup flow used to be able to leave several reminder
+    // blocks for the same professional. Keep exactly one before assigning it.
+    result.cancelled += await cancelDuplicatePendingSignupReminders(sharedEvents);
+
     // Repair historical site bookings silently. Older versions attached
     // Google e-mail/popup reminders to the event; keeping this in the minute
     // synchronizer makes the migration self-healing without notifying guests.
@@ -827,11 +917,33 @@ export async function syncVisioTeamCalendarsToShared(input?: {
         .map((event) => [mirrorSourceKey(event), event] as const)
         .filter(([key]) => Boolean(key)),
     );
+    const canonicalSourceByIdentity = new Map(
+      [...preferredActiveAppointmentMirrors(sharedEvents)].flatMap(
+        ([identity, mirror]) => {
+          const sourceKey = mirrorSourceKey(mirror);
+          return sourceKey ? [[identity, sourceKey] as const] : [];
+        },
+      ),
+    );
+    const canonicalSourceActive = new Map<string, boolean>();
     const teamMembers = getVisioTeamMembers();
     const memberById = new Map(teamMembers.map((member) => [member.id, member]));
-    const assignmentCounts = sharedEvents.reduce<Record<string, number>>(
+    // Historical mirrors must not weigh several times in the fair-assignment
+    // calculation. Count the canonical appointment once, regardless of how
+    // many Google copies existed before reconciliation.
+    const canonicalAssignmentEvents = new Map<string, GoogleCalendarEvent>();
+    for (const event of sharedEvents) {
+      if (event.status === "cancelled") continue;
+      const identity = appointmentIdentity(event);
+      const current = canonicalAssignmentEvents.get(identity);
+      if (!current || shouldPreferAppointmentMirror(event, current)) {
+        canonicalAssignmentEvents.set(identity, event);
+      }
+    }
+    const assignmentCounts = [...canonicalAssignmentEvents.values()].reduce<
+      Record<string, number>
+    >(
       (counts, event) => {
-        if (event.status === "cancelled") return counts;
         const memberId = String(
           event.extendedProperties?.private?.assignedMemberId || "",
         );
@@ -957,6 +1069,25 @@ export async function syncVisioTeamCalendarsToShared(input?: {
         }
 
         try {
+          const identity = appointmentIdentity(event);
+          const canonicalSourceKey = canonicalSourceByIdentity.get(identity);
+          if (canonicalSourceKey && canonicalSourceKey !== sourceKey) {
+            let canonicalIsActive = canonicalSourceActive.get(canonicalSourceKey);
+            if (canonicalIsActive === undefined) {
+              canonicalIsActive = await isCalendarSourceActive(canonicalSourceKey);
+              canonicalSourceActive.set(canonicalSourceKey, canonicalIsActive);
+            }
+            if (canonicalIsActive) {
+              if (existingMirror && (await cancelSharedCalendarEvent(existingMirror))) {
+                result.cancelled += 1;
+              } else {
+                result.skipped += 1;
+              }
+              continue;
+            }
+            canonicalSourceByIdentity.delete(identity);
+          }
+
           const assignedMember = memberById.get(
             String(privateProperties.assignedMemberId || ""),
           );
@@ -978,6 +1109,8 @@ export async function syncVisioTeamCalendarsToShared(input?: {
             existing: existingMirror,
           });
           result[outcome] += 1;
+          canonicalSourceByIdentity.set(identity, sourceKey);
+          canonicalSourceActive.set(sourceKey, true);
         } catch (error) {
           result.errors.push({ memberId: member.id, code: visioGoogleErrorCode(error) });
         }
@@ -1010,6 +1143,14 @@ export async function syncVisioTeamCalendarsToShared(input?: {
         result.errors.push({ memberId: "shared", code: visioGoogleErrorCode(error) });
       }
     }
+
+    // Re-read after all upserts: if a legacy race or two independent source
+    // events still represent the same logical appointment, retain only the
+    // strongest canonical mirror. No guest update is emitted.
+    result.cancelled += await reconcileSharedAppointmentDuplicates(
+      timeMin,
+      timeMax,
+    );
 
     result.ok = result.errors.length === 0;
     result.finishedAt = new Date().toISOString();
@@ -1753,19 +1894,7 @@ function cleanAppointmentTitle(value: unknown) {
 }
 
 function appointmentIdentity(event: GoogleCalendarEvent) {
-  const properties = event.extendedProperties?.private || {};
-  const nonce = String(properties.bookingNonce || "").trim();
-  if (nonce) return `booking:${nonce}`;
-  const sourceICalUID = String(properties.sourceICalUID || "").trim().toLowerCase();
-  if (sourceICalUID) return `ical:${sourceICalUID}`;
-  const meetUrl = teamCalendarEventMeetUrl(event).toLowerCase();
-  const start = appointmentDateValue(event, "start");
-  if (meetUrl && start) return `meet:${meetUrl}:${start}`;
-  const sourceEventId = String(properties.sourceEventId || event.id || "").trim();
-  if (sourceEventId && start) return `event:${sourceEventId}:${start}`;
-  return `source:${String(properties.sourceCalendarId || "")}:${String(
-    sourceEventId,
-  )}`;
+  return canonicalVisioAppointmentIdentity(event);
 }
 
 function memberForMirrorEvent(event: GoogleCalendarEvent) {
@@ -1910,7 +2039,11 @@ function shouldPreferAppointmentMirror(
     // carry organizer metadata (the public copy is often only an attendee).
     return candidateIsBooking ? candidateIsPublic : !candidateIsPublic;
   }
-  return String(candidate.updated || "") > String(current.updated || "");
+  const updatedOrder = String(candidate.updated || "").localeCompare(
+    String(current.updated || ""),
+  );
+  if (updatedOrder !== 0) return updatedOrder > 0;
+  return String(candidate.id || "") < String(current.id || "");
 }
 
 export async function listVisioTeamAppointments(input?: {

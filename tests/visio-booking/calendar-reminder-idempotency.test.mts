@@ -96,6 +96,26 @@ test("les rendez-vous Google et les lignes manual_only ne passent jamais dans le
     shouldRunAutomaticCalendarReminders({
       source: "agenda",
       reminders: { enabled: true },
+      google: {
+        provider: "google",
+        calendarId: "shared@group.calendar.google.com",
+        eventId: "legacy-event",
+      },
+    }),
+    false,
+  );
+  assert.equal(
+    shouldRunAutomaticCalendarReminders({
+      source: "agenda",
+      reminders: { enabled: true },
+      inrcy: { bookingNonce: "legacy-site-booking" },
+    }),
+    false,
+  );
+  assert.equal(
+    shouldRunAutomaticCalendarReminders({
+      source: "agenda",
+      reminders: { enabled: true },
     }),
     true,
   );
