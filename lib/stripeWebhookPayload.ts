@@ -89,3 +89,39 @@ export function paymentSuccessStatus(existingStatusValue: unknown, stripeStatusV
   if (["past_due", "unpaid", "incomplete"].includes(existingStatus)) return "active";
   return null;
 }
+
+const STRIPE_RECOVERABLE_LOCAL_STATUSES = new Set([
+  "past_due",
+  "unpaid",
+  "incomplete",
+  "paused",
+]);
+
+const STRIPE_AUTHORITATIVE_SUBSCRIPTION_STATUSES = new Set([
+  "active",
+  "trialing",
+  "past_due",
+  "unpaid",
+  "incomplete",
+  "incomplete_expired",
+  "paused",
+  "canceled",
+]);
+
+/**
+ * Stripe remains authoritative for a subscription that Supabase currently
+ * considers delinquent. Returning null deliberately means "do not write":
+ * unknown Stripe values and healthy/local-only subscriptions are never guessed.
+ */
+export function reconciledStripeSubscriptionStatus(
+  existingStatusValue: unknown,
+  stripeStatusValue: unknown,
+): string | null {
+  const existingStatus = String(existingStatusValue || "").trim().toLowerCase();
+  const stripeStatus = String(stripeStatusValue || "").trim().toLowerCase();
+
+  if (!STRIPE_RECOVERABLE_LOCAL_STATUSES.has(existingStatus)) return null;
+  if (!STRIPE_AUTHORITATIVE_SUBSCRIPTION_STATUSES.has(stripeStatus)) return null;
+  if (existingStatus === stripeStatus) return null;
+  return stripeStatus;
+}

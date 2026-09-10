@@ -6,6 +6,10 @@
       "schedule": "0 9,18 * * *"
     },
     {
+      "path": "/api/cron/stripe-subscription-sync",
+      "schedule": "*/10 * * * *"
+    },
+    {
       "path": "/api/cron/cleanup-stats-cache",
       "schedule": "0 */6 * * *"
     },

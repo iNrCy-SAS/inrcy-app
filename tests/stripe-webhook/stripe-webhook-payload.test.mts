@@ -8,6 +8,7 @@ import {
   invoiceUserId,
   paymentFailureStatus,
   paymentSuccessStatus,
+  reconciledStripeSubscriptionStatus,
   subscriptionCancellationReason,
 } from "../../lib/stripeWebhookPayload.ts";
 
@@ -58,4 +59,14 @@ test("un paiement recupere reactive uniquement un abonnement recuperable", () =>
 
 test("lit la raison d'annulation Stripe", () => {
   assert.equal(subscriptionCancellationReason({ cancellation_details: { reason: "payment_failed" } }), "payment_failed");
+});
+
+test("la reconciliation retablit uniquement un abonnement Stripe recuperable", () => {
+  assert.equal(reconciledStripeSubscriptionStatus("past_due", "active"), "active");
+  assert.equal(reconciledStripeSubscriptionStatus("unpaid", "active"), "active");
+  assert.equal(reconciledStripeSubscriptionStatus("paused", "trialing"), "trialing");
+  assert.equal(reconciledStripeSubscriptionStatus("past_due", "canceled"), "canceled");
+  assert.equal(reconciledStripeSubscriptionStatus("active", "past_due"), null);
+  assert.equal(reconciledStripeSubscriptionStatus("past_due", "mystery"), null);
+  assert.equal(reconciledStripeSubscriptionStatus("past_due", "past_due"), null);
 });

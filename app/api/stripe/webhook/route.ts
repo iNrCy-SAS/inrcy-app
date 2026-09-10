@@ -475,7 +475,16 @@ export async function POST(req: Request) {
     }
 
     if (type === "customer.subscription.created" || type === "customer.subscription.updated") {
-      const sub = obj;
+      const eventSub = obj;
+      const eventSubscriptionId = stripeObjectId(eventSub?.id);
+      // Stripe does not guarantee webhook ordering. Always read the current
+      // subscription so a delayed past_due snapshot cannot overwrite a newer
+      // successful payment already reflected by Stripe.
+      const sub = eventSubscriptionId
+        ? (await stripeGet(
+            `/subscriptions/${encodeURIComponent(eventSubscriptionId)}`,
+          )) as StripeObjectLoose
+        : eventSub;
       const metadata = (sub?.metadata as StripeObjectLoose | undefined) ?? undefined;
       const userId = typeof metadata?.user_id === "string" ? metadata.user_id : null;
       const customerId = stripeObjectId(sub?.customer);

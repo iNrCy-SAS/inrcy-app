@@ -227,6 +227,22 @@ test("le webhook est idempotent, compatible Basil et ne rétrograde jamais Found
   assert.match(webhook, /billing_cycle: billingCycle/);
   assert.match(webhook, /session\?\.client_reference_id/);
   assert.match(webhook, /metadataUserId \|\| clientReferenceId/);
+  assert.match(webhook, /eventSubscriptionId/);
+  assert.match(webhook, /subscriptions\/\$\{encodeURIComponent\(eventSubscriptionId\)\}/);
+});
+
+test("les statuts Stripe en retard sont reconciliés automatiquement sans ecraser un webhook concurrent", () => {
+  const sync = source("lib/stripeSubscriptionStatusSync.ts");
+  const route = source("app/api/cron/stripe-subscription-sync/route.ts");
+  const vercel = source("vercel.json");
+
+  assert.match(sync, /RECOVERY_CANDIDATE_STATUSES/);
+  assert.match(sync, /reconciledStripeSubscriptionStatus/);
+  assert.match(sync, /\.eq\("status", existingStatus\)/);
+  assert.match(sync, /billing_provider/);
+  assert.match(route, /isAuthorizedCronRequest/);
+  assert.match(vercel, /\/api\/cron\/stripe-subscription-sync/);
+  assert.match(vercel, /\*\/10 \* \* \* \*/);
 });
 
 test("la résiliation et sa réactivation couvrent les deux cadences commerciales", () => {
