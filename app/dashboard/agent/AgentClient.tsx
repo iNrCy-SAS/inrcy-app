@@ -7817,6 +7817,7 @@ export default function AgentClient() {
                             {INR_AGENT_STUDIO_MEDIA_PREFERENCE_STEPS.map((step) => (
                               <span
                                 key={step}
+                                style={{ left: `${step}%` }}
                                 className={
                                   step === settingsStudioMediaPreferenceStep
                                     ? styles.studioMediaMixTickActive
