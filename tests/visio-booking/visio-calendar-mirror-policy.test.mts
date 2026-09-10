@@ -261,7 +261,21 @@ test("le rappel orange d'inscription est identifié uniquement par son User ID",
   assert.equal(
     pendingSignupReminderProspectUserId({
       ...reminder,
-      summary: "Inscription - A traiter — Océane",
+      summary: "Inscription - Mpicka à rappeler par SMS",
+    }),
+    "4b6eceb7-d627-4447-b453-4f5e1e749272",
+  );
+  assert.equal(
+    pendingSignupReminderProspectUserId({
+      ...reminder,
+      summary: "Inscription — Belle à croquer — Apolline",
+      description: "Inscription iNrCy en attente de rendez-vous.",
+      extendedProperties: {
+        private: {
+          inrcySignupAssignment: "v1",
+          prospectUserId: "4b6eceb7-d627-4447-b453-4f5e1e749272",
+        },
+      },
     }),
     "4b6eceb7-d627-4447-b453-4f5e1e749272",
   );
@@ -299,7 +313,7 @@ test("un vrai rendez-vous ou un rappel sans identifiant n'est jamais supprimable
     pendingSignupReminderProspectUserId(
       sourceEvent({
         summary: "Présentation iNrCy",
-        description: "User ID : prospect-123",
+        description: "Nouvelle inscription iNrCy\nUser ID : prospect-123",
       }),
     ),
     "",

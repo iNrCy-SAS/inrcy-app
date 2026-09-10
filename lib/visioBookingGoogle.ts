@@ -13,6 +13,7 @@ import {
   completeExecutionIdempotencyLockOrThrow,
 } from "@/lib/executionIdempotency";
 import {
+  buildPendingSignupCalendarContent,
   buildPublicVisioBookingContent,
   buildSingleAssigneeVisioAttendees,
 } from "@/lib/visioBookingEventPolicy";
@@ -25,6 +26,8 @@ import {
   visioBookingManualResendFingerprint,
 } from "@/lib/visioBookingDeliveryPolicy";
 import {
+  PENDING_SIGNUP_ASSIGNMENT_KEY,
+  PENDING_SIGNUP_ASSIGNMENT_VALUE,
   TEAM_CALENDAR_MIRROR_KEY,
   TEAM_CALENDAR_MIRROR_VALUE,
   buildTeamCalendarMirrorBody,
@@ -69,8 +72,6 @@ const PRIVATE_BOOKING_COMPANION_VALUE = "assigned-member";
 const PRIVATE_BOOKING_PUBLIC_VALUE = "public-organizer";
 const PRIVATE_BOOKING_SINGLE_EVENT_KEY = "inrcyBookingSingleEvent";
 const PRIVATE_BOOKING_SINGLE_EVENT_VALUE = "v2";
-const PRIVATE_SIGNUP_ASSIGNMENT_KEY = "inrcySignupAssignment";
-const PRIVATE_SIGNUP_ASSIGNMENT_VALUE = "v1";
 const PUBLIC_BOOKING_ASSIGNEE = "Équipe iNrCy";
 const REQUIRED_INTERNAL_ALERT_EMAIL = "compte@inrcy.com";
 const TEAM_MIRROR_DEFAULT_PAST_DAYS = 30;
@@ -963,30 +964,54 @@ export async function syncVisioTeamCalendarsToShared(input?: {
       const currentMemberId = String(
         reminder.extendedProperties?.private?.assignedMemberId || "",
       );
-      if (!prospectUserId || memberById.has(currentMemberId) || !reminder.id) {
+      if (!prospectUserId || !reminder.id) {
         continue;
       }
-      const assignedMember = [...teamMembers].sort(
-        (left, right) =>
-          (assignmentCounts[left.id] || 0) - (assignmentCounts[right.id] || 0) ||
-          left.id.localeCompare(right.id),
-      )[0];
+      const existingMember = memberById.get(currentMemberId);
+      const assignedMember =
+        existingMember ||
+        [...teamMembers].sort(
+          (left, right) =>
+            (assignmentCounts[left.id] || 0) -
+              (assignmentCounts[right.id] || 0) ||
+            left.id.localeCompare(right.id),
+        )[0];
       if (!assignedMember) continue;
+      const safeContent = buildPendingSignupCalendarContent({
+        event: reminder,
+        assignedMember,
+      });
+      const reminderProperties = reminder.extendedProperties?.private || {};
+      const needsSanitizing =
+        !existingMember ||
+        reminder.summary !== safeContent.summary ||
+        reminder.description !== safeContent.description ||
+        Boolean(String(reminder.location || "").trim()) ||
+        Boolean(reminder.attendees?.length) ||
+        hasAutomaticGoogleCalendarReminders(reminder) ||
+        reminderProperties[PENDING_SIGNUP_ASSIGNMENT_KEY] !==
+          PENDING_SIGNUP_ASSIGNMENT_VALUE ||
+        reminderProperties.prospectUserId !== prospectUserId;
+      if (!needsSanitizing) continue;
       try {
         await patchCalendarEventWithoutUpdates(sharedCalendarId, reminder.id, {
-          summary: `Inscription - A traiter — ${assignedMember.name}`,
+          ...safeContent,
+          attendees: [],
           extendedProperties: {
             private: {
-              ...(reminder.extendedProperties?.private || {}),
-              [PRIVATE_SIGNUP_ASSIGNMENT_KEY]: PRIVATE_SIGNUP_ASSIGNMENT_VALUE,
+              ...reminderProperties,
+              [PENDING_SIGNUP_ASSIGNMENT_KEY]:
+                PENDING_SIGNUP_ASSIGNMENT_VALUE,
               assignedMemberId: assignedMember.id,
               assignedMemberEmail: assignedMember.email,
               prospectUserId,
             },
           },
         });
-        assignmentCounts[assignedMember.id] =
-          (assignmentCounts[assignedMember.id] || 0) + 1;
+        if (!existingMember) {
+          assignmentCounts[assignedMember.id] =
+            (assignmentCounts[assignedMember.id] || 0) + 1;
+        }
         result.updated += 1;
       } catch (error) {
         result.errors.push({

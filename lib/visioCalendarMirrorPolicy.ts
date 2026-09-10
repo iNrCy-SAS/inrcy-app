@@ -3,6 +3,8 @@ import { INR_CALENDAR_GOOGLE_GUEST_EMAILS_PROPERTY } from "./inrCalendarGoogleSy
 export const TEAM_CALENDAR_MIRROR_KEY = "inrcyTeamMirror";
 export const TEAM_CALENDAR_MIRROR_VALUE = "v1";
 export const PENDING_SIGNUP_REMINDER_SUMMARY = "inscription a traiter";
+export const PENDING_SIGNUP_ASSIGNMENT_KEY = "inrcySignupAssignment";
+export const PENDING_SIGNUP_ASSIGNMENT_VALUE = "v1";
 
 export type TeamCalendarMember = {
   id: string;
@@ -129,14 +131,30 @@ function normalizedCalendarLabel(value: unknown) {
 
 export function pendingSignupReminderProspectUserId(event: TeamCalendarEvent) {
   const normalizedSummary = normalizedCalendarLabel(event.summary);
+  const privateProperties = event.extendedProperties?.private || {};
   if (
     event.status === "cancelled" ||
-    !normalizedSummary.startsWith(PENDING_SIGNUP_REMINDER_SUMMARY) ||
-    event.extendedProperties?.private?.inrcyBooking ||
-    event.extendedProperties?.private?.[TEAM_CALENDAR_MIRROR_KEY]
+    privateProperties.inrcyBooking ||
+    privateProperties[TEAM_CALENDAR_MIRROR_KEY]
   ) {
     return "";
   }
+
+  const isSanitizedSignupReminder =
+    privateProperties[PENDING_SIGNUP_ASSIGNMENT_KEY] ===
+      PENDING_SIGNUP_ASSIGNMENT_VALUE &&
+    Boolean(String(privateProperties.prospectUserId || "").trim());
+  const isRawSignupReminder =
+    normalizedSummary.startsWith("inscription") &&
+    /(?:^|\r?\n)\s*Nouvelle inscription iNrCy\s*(?=\r?\n|$)/i.test(
+      String(event.description || ""),
+    );
+  if (!isSanitizedSignupReminder && !isRawSignupReminder) return "";
+
+  const storedProspectUserId = String(
+    privateProperties.prospectUserId || "",
+  ).trim();
+  if (storedProspectUserId) return storedProspectUserId;
 
   const match = String(event.description || "").match(
     /(?:^|\r?\n)\s*User ID\s*:\s*([^\r\n]+?)\s*(?=\r?\n|$)/i,

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  buildPendingSignupCalendarContent,
   buildPublicVisioBookingContent,
   buildSingleAssigneeVisioAttendees,
 } from "../../lib/visioBookingEventPolicy.ts";
@@ -11,6 +12,64 @@ const teamMembers = [
   { id: "apolline", name: "Apolline", email: "apolline@inrcy.com" },
   { id: "jimmy", name: "Jimmy", email: "jimmy@inrcy.com" },
 ];
+
+test("le rappel d'inscription ne conserve que l'identité publique utile", () => {
+  const content = buildPendingSignupCalendarContent({
+    event: {
+      summary: "Inscription - A traiter",
+      description: [
+        "STATUT : A traiter",
+        "Couleurs conseillées : jaune = a traiter, bleu = appelé, vert = valide, rouge = refusé.",
+        "",
+        "Nouvelle inscription iNrCy",
+        "Nom : Mpicka",
+        "Prénom : Josiane",
+        "E-mail : pro@example.com",
+        "Société : Belle à croquer",
+        "Téléphone : 0600000000",
+        "Consentement : Oui",
+        "",
+        "Provenance de l'inscription",
+        "Campagne : acquisition-secrète",
+        "",
+        "Données techniques",
+        "User ID : 4b6eceb7-d627-4447-b453-4f5e1e749272",
+        "Provider : email",
+      ].join("\n"),
+    },
+    assignedMember: teamMembers[1],
+  });
+
+  assert.equal(content.summary, "Inscription — Belle à croquer — Apolline");
+  assert.equal(
+    content.description,
+    [
+      "Inscription iNrCy en attente de rendez-vous.",
+      "Professionnel : Josiane Mpicka",
+      "Société : Belle à croquer",
+      "Responsable iNrCy : Apolline",
+    ].join("\n"),
+  );
+  assert.equal(content.location, "");
+  assert.deepEqual(content.reminders, { useDefault: false, overrides: [] });
+  assert.doesNotMatch(
+    JSON.stringify(content),
+    /statut|couleur|e-mail|téléphone|consentement|provenance|campagne|user id|provider|0600000000|pro@example/i,
+  );
+});
+
+test("un titre de suivi saisi par l'équipe est conservé sans recopier le mail", () => {
+  const content = buildPendingSignupCalendarContent({
+    event: {
+      summary: "Inscription - Mpicka à rappeler par SMS",
+      description: "Professionnel : Josiane Mpicka\nSociété : Belle à croquer\nUser ID : secret",
+    },
+    assignedMember: teamMembers[0],
+  });
+
+  assert.equal(content.summary, "Inscription - Mpicka à rappeler par SMS");
+  assert.doesNotMatch(content.description, /secret|user id/i);
+});
 
 test("l'invitation du professionnel ne contient que le libellé public du rendez-vous", () => {
   const content = buildPublicVisioBookingContent({
