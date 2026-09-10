@@ -10,6 +10,16 @@ import { sendMailFromIntegration } from "@/lib/inrsend/sendMailFromIntegration";
 import { getConnectionDisplayStatus, mailConnectionKind } from "@/lib/connectionVersions";
 import { insertNotificationOnce } from "@/lib/notificationWriter";
 import {
+  CALENDAR_REMINDER_IDEMPOTENCY_SCOPE,
+  CALENDAR_REMINDER_LOCK_TTL_MS,
+  buildCalendarReminderDeliveryKey,
+  calendarReminderDeliveryFingerprint,
+} from "@/lib/calendarReminderDeliveryPolicy";
+import {
+  acquireExecutionIdempotencyLock,
+  completeExecutionIdempotencyLockOrThrow,
+} from "@/lib/executionIdempotency";
+import {
   buildClientExchangePreferences,
   DEFAULT_CLIENT_EXCHANGE_PREFERENCES,
   formatClientDateOnly,
@@ -738,6 +748,8 @@ export async function GET(req: Request) {
 
   let inAppSent = 0;
   let emailSent = 0;
+  let emailDeduplicated = 0;
+  let emailBlockedForSafety = 0;
   const userSettingsCache = new Map<string, CalendarReminderSettings>();
   const userClientPreferencesCache = new Map<string, ClientExchangePreferences>();
   const usableMailAccountCache = new Map<string, Promise<string>>();
@@ -831,6 +843,49 @@ export async function GET(req: Request) {
         const alreadySentAt = getRecipientSentAt(nextReminders, recipient, offsetMinutes);
         if (alreadySentAt) continue;
 
+        // Fail closed: a reminder must never leave the application unless its
+        // durable claim was acquired first. Unlike agenda_events.meta, this
+        // lock cannot be overwritten by the Google calendar synchronizer.
+        if (!selectedMailAccountId && !smtpConfigured) continue;
+        const deliveryInput = {
+          id: String(row.id),
+          startAt: String(row.start_at),
+          meta,
+          recipientKey: recipient.sentKey,
+          offsetMinutes,
+        };
+        const idempotencyKey = buildCalendarReminderDeliveryKey(deliveryInput);
+        const deliveryFingerprint = calendarReminderDeliveryFingerprint(deliveryInput);
+        const claim = await acquireExecutionIdempotencyLock({
+          supabase: supabaseAdmin,
+          userId: String(row.user_id),
+          scope: CALENDAR_REMINDER_IDEMPOTENCY_SCOPE,
+          idempotencyKey,
+          ttlMs: CALENDAR_REMINDER_LOCK_TTL_MS,
+          metadata: {
+            eventId: String(row.id),
+            occurrenceStart: String(row.start_at),
+            recipientKind: recipient.kind,
+            offsetMinutes,
+            deliveryFingerprint,
+          },
+        });
+        if (claim.state === "completed" || claim.state === "running") {
+          emailDeduplicated += 1;
+          continue;
+        }
+        if (claim.state === "unavailable" || !claim.lock?.id) {
+          emailBlockedForSafety += 1;
+          console.error("[calendar-reminders] reminder blocked because idempotency is unavailable", {
+            eventId: row.id,
+            recipientKind: recipient.kind,
+            offsetMinutes,
+            deliveryFingerprint,
+            error: claim.state === "unavailable" ? claim.error : "lock_missing",
+          });
+          continue;
+        }
+
         const mail = buildReminderMail(row, meta, offsetMinutes, recipient, proRecipient, clientPreferences);
         try {
           let sent = false;
@@ -869,6 +924,18 @@ export async function GET(req: Request) {
 
           if (!sent) continue;
 
+          await completeExecutionIdempotencyLockOrThrow({
+            supabase: supabaseAdmin,
+            lockId: claim.lock.id,
+            result: { ok: true, sentAt: now.toISOString() },
+            metadata: {
+              eventId: String(row.id),
+              occurrenceStart: String(row.start_at),
+              recipientKind: recipient.kind,
+              offsetMinutes,
+              deliveryFingerprint,
+            },
+          });
           emailSent += 1;
           nextReminders = markRecipientSent(nextReminders, recipient, offsetMinutes, now.toISOString());
           nextMeta = { ...nextMeta, reminders: nextReminders };
@@ -890,9 +957,25 @@ export async function GET(req: Request) {
     }
 
     if (dirty) {
-      await supabaseAdmin.from("agenda_events").update({ meta: nextMeta }).eq("id", row.id);
+      const { error: reminderStateError } = await supabaseAdmin
+        .from("agenda_events")
+        .update({ meta: nextMeta })
+        .eq("id", row.id);
+      if (reminderStateError) {
+        console.error("[calendar-reminders] reminder state update failed", {
+          eventId: row.id,
+          error: reminderStateError,
+        });
+      }
     }
   }
 
-  return NextResponse.json({ ok: true, scanned: (data ?? []).length, inAppSent, emailSent });
+  return NextResponse.json({
+    ok: true,
+    scanned: (data ?? []).length,
+    inAppSent,
+    emailSent,
+    emailDeduplicated,
+    emailBlockedForSafety,
+  });
 }
