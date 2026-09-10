@@ -3544,18 +3544,51 @@
   cursor: pointer;
 }
 
-.studioMediaMixScale {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  color: rgba(191, 219, 254, 0.6);
-  font-size: 10px;
-  font-weight: 750;
+.studioMediaMixRangeWrap {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
 }
 
-.studioMediaMixScale span:last-child {
-  color: rgba(244, 114, 182, 0.78);
+.studioMediaMixRangeWrap datalist {
+  display: none;
+}
+
+.studioMediaMixTicks {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  align-items: start;
+  color: rgba(191, 219, 254, 0.56);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.studioMediaMixTicks span {
+  position: relative;
+  text-align: center;
+}
+
+.studioMediaMixTicks span:first-child {
+  text-align: left;
+}
+
+.studioMediaMixTicks span:last-child {
   text-align: right;
+}
+
+.studioMediaMixTickActive {
+  color: #67e8f9;
+  text-shadow: 0 0 10px rgba(103, 232, 249, 0.56);
+}
+
+.studioMediaMixDescription {
+  margin: 3px 0 0;
+  color: rgba(235, 248, 255, 0.88);
+  font-size: 12px;
+  font-weight: 760;
+  line-height: 1.3;
 }
 
 .settingsModal:not(.helpModal) .modalNote {
@@ -3655,14 +3688,6 @@
     height: 38px;
   }
 
-  .studioMediaMixScale {
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .studioMediaMixScale span:last-child {
-    text-align: left;
-  }
 }
 
 /* Étape 34 — correctifs iNrAgent responsive + logique canaux */

@@ -74,9 +74,19 @@ export type InrAgentPlanningHorizonDays =
 
 /**
  * Part des médias IA iNrAgent qui reprennent les réglages mémorisés dans
- * iNrStudio. La valeur est exprimée en pourcentage et reste bornée à 0–100.
+ * iNrStudio. La valeur est exprimée en pourcentage, bornée à 0–100 et
+ * alignée sur des paliers de 20 pour rester lisible dans l’interface.
  */
-export const INR_AGENT_STUDIO_MEDIA_PREFERENCE_DEFAULT = 70;
+export const INR_AGENT_STUDIO_MEDIA_PREFERENCE_STEP = 20;
+export const INR_AGENT_STUDIO_MEDIA_PREFERENCE_STEPS = [
+  0,
+  20,
+  40,
+  60,
+  80,
+  100,
+] as const;
+export const INR_AGENT_STUDIO_MEDIA_PREFERENCE_DEFAULT = 80;
 
 // Compat anciens composants / ancien vocabulaire V1.
 export const INR_AGENT_MODES = INR_AGENT_VALIDATION_MODES;
@@ -410,8 +420,23 @@ export function normalizeInrAgentStudioMediaPreferencePercent(
   fallback: number,
 ): number {
   const numeric = typeof value === "number" ? value : Number(value);
-  if (!Number.isFinite(numeric)) return fallback;
-  return Math.min(100, Math.max(0, Math.round(numeric)));
+  const fallbackNumeric =
+    typeof fallback === "number" ? fallback : Number(fallback);
+  const source = Number.isFinite(numeric)
+    ? numeric
+    : Number.isFinite(fallbackNumeric)
+      ? fallbackNumeric
+      : INR_AGENT_STUDIO_MEDIA_PREFERENCE_DEFAULT;
+  const bounded = Math.min(100, Math.max(0, source));
+  return Math.min(
+    100,
+    Math.max(
+      0,
+      Math.round(
+        bounded / INR_AGENT_STUDIO_MEDIA_PREFERENCE_STEP,
+      ) * INR_AGENT_STUDIO_MEDIA_PREFERENCE_STEP,
+    ),
+  );
 }
 
 const INR_SEARCH_PUBLISH_MIGRATION_FLAG = "inrSearchChannelAdded";

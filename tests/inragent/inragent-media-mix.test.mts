@@ -5,8 +5,13 @@ import {
   normalizeAiMediaGeneratorPreferences,
 } from "../../lib/aiMediaGenerationPreferences.ts";
 import { resolveInrAgentMediaMix } from "../../lib/inrAgentMediaMix.ts";
+import { normalizeInrAgentStudioMediaPreferencePercent } from "../../lib/inrAgentSettings.ts";
 
 test("le curseur iNrAgent est borné et ses décisions sont déterministes", () => {
+  assert.equal(normalizeInrAgentStudioMediaPreferencePercent(94, 80), 100);
+  assert.equal(normalizeInrAgentStudioMediaPreferencePercent(69, 80), 60);
+  assert.equal(normalizeInrAgentStudioMediaPreferencePercent("invalid", 80), 80);
+
   const studio = resolveInrAgentMediaMix({
     kind: "video",
     theme: "conseils",

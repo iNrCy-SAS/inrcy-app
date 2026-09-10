@@ -148,6 +148,9 @@ import {
   type VideoFormat,
 } from "../booster/publier/publishModal.shared";
 import {
+  INR_AGENT_STUDIO_MEDIA_PREFERENCE_DEFAULT,
+  INR_AGENT_STUDIO_MEDIA_PREFERENCE_STEPS,
+  normalizeInrAgentStudioMediaPreferencePercent,
   sanitizeInrAgentSettings,
   type InrAgentSettings,
 } from "@/lib/inrAgentSettings";
@@ -367,6 +370,28 @@ const AGENT_VIDEO_OPTIMIZER_ACCEPT = [
 ].join(",");
 
 type PublicationValidationState = "pending" | "validated" | "refused";
+
+type StudioMediaPreferenceStep =
+  (typeof INR_AGENT_STUDIO_MEDIA_PREFERENCE_STEPS)[number];
+
+const STUDIO_MEDIA_PREFERENCE_DESCRIPTION_KEYS: Record<
+  StudioMediaPreferenceStep,
+  string
+> = {
+  0: "studio_media_preference_description_0",
+  20: "studio_media_preference_description_20",
+  40: "studio_media_preference_description_40",
+  60: "studio_media_preference_description_60",
+  80: "studio_media_preference_description_80",
+  100: "studio_media_preference_description_100",
+};
+
+function studioMediaPreferenceStep(value: number): StudioMediaPreferenceStep {
+  return normalizeInrAgentStudioMediaPreferencePercent(
+    value,
+    INR_AGENT_STUDIO_MEDIA_PREFERENCE_DEFAULT,
+  ) as StudioMediaPreferenceStep;
+}
 
 function isAgentActionAwaitingValidation(action: AgentPreparedAction | null) {
   if (!action) return false;
@@ -985,6 +1010,9 @@ export default function AgentClient() {
     [agentConnectedChannels, selected],
   );
   const settingsConfig = settingsKey ? configs[settingsKey] : null;
+  const settingsStudioMediaPreferenceStep = settingsConfig
+    ? studioMediaPreferenceStep(settingsConfig.studioMediaPreferencePercent)
+    : INR_AGENT_STUDIO_MEDIA_PREFERENCE_DEFAULT;
   const settingsMonthlyDateCount = settingsConfig
     ? inrAgentMonthlyDateCount(settingsConfig.frequency)
     : 0;
@@ -7755,29 +7783,58 @@ export default function AgentClient() {
                         <div className={styles.studioMediaMixHeader}>
                           <span>{i18nT("studio_media_preference_title")}</span>
                           <strong>
-                            {settingsConfig.studioMediaPreferencePercent}%
+                            {settingsStudioMediaPreferenceStep}%
                           </strong>
                         </div>
-                        <input
-                          className={styles.studioMediaMixRange}
-                          type="range"
-                          min={0}
-                          max={100}
-                          step={1}
-                          value={settingsConfig.studioMediaPreferencePercent}
-                          aria-label={i18nT("studio_media_preference_title")}
-                          onChange={(event) =>
-                            updateConfig(settingsAutomation.key, {
-                              studioMediaPreferencePercent: Number(
-                                event.target.value,
+                        <div className={styles.studioMediaMixRangeWrap}>
+                          <input
+                            className={styles.studioMediaMixRange}
+                            type="range"
+                            min={0}
+                            max={100}
+                            step={20}
+                            list={`studio-media-preference-steps-${settingsAutomation.key}`}
+                            value={settingsStudioMediaPreferenceStep}
+                            aria-label={i18nT("studio_media_preference_title")}
+                            onChange={(event) =>
+                              updateConfig(settingsAutomation.key, {
+                                studioMediaPreferencePercent: Number(
+                                  event.target.value,
+                                ),
+                              })
+                            }
+                          />
+                          <datalist
+                            id={`studio-media-preference-steps-${settingsAutomation.key}`}
+                          >
+                            {INR_AGENT_STUDIO_MEDIA_PREFERENCE_STEPS.map(
+                              (step) => (
+                                <option key={step} value={step} label={`${step}%`} />
                               ),
-                            })
-                          }
-                        />
-                        <div className={styles.studioMediaMixScale}>
-                          <span>{i18nT("studio_media_preference_variation")}</span>
-                          <span>{i18nT("studio_media_preference_studio")}</span>
+                            )}
+                          </datalist>
+                          <div className={styles.studioMediaMixTicks} aria-hidden="true">
+                            {INR_AGENT_STUDIO_MEDIA_PREFERENCE_STEPS.map((step) => (
+                              <span
+                                key={step}
+                                className={
+                                  step === settingsStudioMediaPreferenceStep
+                                    ? styles.studioMediaMixTickActive
+                                    : ""
+                                }
+                              >
+                                {step}%
+                              </span>
+                            ))}
+                          </div>
                         </div>
+                        <p className={styles.studioMediaMixDescription}>
+                          {i18nT(
+                            STUDIO_MEDIA_PREFERENCE_DESCRIPTION_KEYS[
+                              settingsStudioMediaPreferenceStep
+                            ],
+                          )}
+                        </p>
                         <p className={styles.modalHint}>
                           {i18nT("studio_media_preference_hint")}
                         </p>
