@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { canonicalVisioAppointmentIdentity } from "../../lib/visioAppointmentIdentity.ts";
+import {
+  canonicalVisioAppointmentIdentity,
+  sharedVisioMirrorDeduplicationIdentity,
+} from "../../lib/visioAppointmentIdentity.ts";
 
 const start = "2026-09-12T08:00:00.000Z";
 
@@ -84,4 +87,150 @@ test("deux rendez-vous indépendants sans identifiant commun restent distincts",
   });
 
   assert.notEqual(first, second);
+});
+
+test("un miroir legacy et un miroir courant du même événement source partagent la même clé", () => {
+  const source = {
+    id: "source-event-42",
+    iCalUID: "source-uid@google.com",
+    start: { dateTime: "2026-09-12T10:00:00+02:00" },
+    end: { dateTime: "2026-09-12T11:00:00+02:00" },
+    summary: "Présentation iNrCy",
+  };
+  const currentMirror = {
+    id: "tm-current",
+    iCalUID: "shared-current@google.com",
+    start: { dateTime: "2026-09-12T08:00:00.000Z" },
+    end: { dateTime: "2026-09-12T09:00:00.000Z" },
+    summary: "[Jimmy] Présentation iNrCy",
+    extendedProperties: {
+      private: {
+        inrcyTeamMirror: "v1",
+        sourceCalendarId: "contact@admin-inrcy.com",
+        sourceEventId: "source-event-42",
+      },
+    },
+  };
+  const legacyMirror = {
+    id: "tm-legacy",
+    iCalUID: "shared-legacy@google.com",
+    start: { dateTime: "2026-09-12T08:00:00.000Z" },
+    end: { dateTime: "2026-09-12T09:00:00.000Z" },
+    summary: "[Jimmy] Présentation iNrCy",
+    extendedProperties: {
+      private: {
+        inrcyTeamMirror: "v1",
+        sourceCalendarId: "contact@admin-inrcy.com",
+        sourceEventId: "source-event-42",
+      },
+    },
+  };
+
+  const sourceIdentity = sharedVisioMirrorDeduplicationIdentity(source, {
+    sourceCalendarId: "contact@admin-inrcy.com",
+    managedOrganizerEmails: ["jimmy.wright@inrcy.com"],
+  });
+  assert.equal(
+    sourceIdentity,
+    sharedVisioMirrorDeduplicationIdentity(currentMirror),
+  );
+  assert.equal(
+    sourceIdentity,
+    sharedVisioMirrorDeduplicationIdentity(legacyMirror),
+  );
+});
+
+test("des invitations externes identiques sont dédupliquées par pro, créneau et contenu", () => {
+  const base = {
+    start: { dateTime: "2026-09-12T08:00:00.000Z" },
+    end: { dateTime: "2026-09-12T09:00:00.000Z" },
+    summary: "Facturation électronique : les 5 étapes pour être prêt à temps",
+    organizer: { email: "no-reply@livestorm-events.com" },
+  };
+  const first = sharedVisioMirrorDeduplicationIdentity(
+    {
+      ...base,
+      id: "external-a",
+      iCalUID: "a@livestorm-events.com",
+    },
+    {
+      sourceCalendarId: "contact@admin-inrcy.com",
+      assignedMemberId: "jimmy",
+      managedOrganizerEmails: ["jimmy.wright@inrcy.com"],
+    },
+  );
+  const second = sharedVisioMirrorDeduplicationIdentity(
+    {
+      ...base,
+      id: "external-b",
+      iCalUID: "b@livestorm-events.com",
+    },
+    {
+      sourceCalendarId: "contact@admin-inrcy.com",
+      assignedMemberId: "jimmy",
+      managedOrganizerEmails: ["jimmy.wright@inrcy.com"],
+    },
+  );
+
+  assert.equal(first, second);
+});
+
+test("la clé externe ne mélange jamais deux professionnels", () => {
+  const base = {
+    start: { dateTime: start },
+    end: { dateTime: "2026-09-12T09:00:00.000Z" },
+    summary: "Démonstration externe",
+    organizer: { email: "no-reply@example.com" },
+  };
+  const jimmy = sharedVisioMirrorDeduplicationIdentity(
+    { ...base, id: "event-jimmy", iCalUID: "jimmy@example.com" },
+    {
+      sourceCalendarId: "contact@admin-inrcy.com",
+      assignedMemberId: "jimmy",
+    },
+  );
+  const oceane = sharedVisioMirrorDeduplicationIdentity(
+    { ...base, id: "event-oceane", iCalUID: "oceane@example.com" },
+    {
+      sourceCalendarId: "oceane.pinceloup@inrcy.com",
+      assignedMemberId: "oceane",
+    },
+  );
+
+  assert.notEqual(jimmy, oceane);
+});
+
+test("un professionnel garde une seule identité malgré plusieurs anciens nonces", () => {
+  const first = {
+    id: "booking-a",
+    start: { dateTime: "2026-09-12T08:00:00.000Z" },
+    end: { dateTime: "2026-09-12T09:00:00.000Z" },
+    extendedProperties: {
+      private: {
+        prospectUserId: "863fe7b1-d7e2-4f74-b2f7-f939707853b2",
+        bookingNonce: "ancien-nonce-a",
+      },
+    },
+  };
+  const second = {
+    ...first,
+    id: "booking-b",
+    start: { dateTime: "2026-09-14T13:00:00.000Z" },
+    end: { dateTime: "2026-09-14T14:00:00.000Z" },
+    extendedProperties: {
+      private: {
+        prospectUserId: "863fe7b1-d7e2-4f74-b2f7-f939707853b2",
+        bookingNonce: "ancien-nonce-b",
+      },
+    },
+  };
+
+  assert.equal(
+    canonicalVisioAppointmentIdentity(first),
+    canonicalVisioAppointmentIdentity(second),
+  );
+  assert.equal(
+    sharedVisioMirrorDeduplicationIdentity(first),
+    sharedVisioMirrorDeduplicationIdentity(second),
+  );
 });

@@ -135,7 +135,9 @@ export function pendingSignupReminderProspectUserId(event: TeamCalendarEvent) {
   if (
     event.status === "cancelled" ||
     privateProperties.inrcyBooking ||
-    privateProperties[TEAM_CALENDAR_MIRROR_KEY]
+    (privateProperties[TEAM_CALENDAR_MIRROR_KEY] &&
+      privateProperties[PENDING_SIGNUP_ASSIGNMENT_KEY] !==
+        PENDING_SIGNUP_ASSIGNMENT_VALUE)
   ) {
     return "";
   }
@@ -250,6 +252,9 @@ export function shouldMirrorTeamCalendarEvent(input: {
 }) {
   const { event } = input;
   if (!event.id || event.status === "cancelled") return false;
+  if (event.extendedProperties?.private?.inrcyCalendarReplica === "v1") {
+    return false;
+  }
   if (event.extendedProperties?.private?.[TEAM_CALENDAR_MIRROR_KEY]) return false;
   if (normalized(event.organizer?.email) === normalized(input.sharedCalendarId)) {
     return false;
@@ -310,6 +315,17 @@ export function teamCalendarMirrorContentSignature(event: TeamCalendarEvent) {
     sourceOrganizerEmail: properties.sourceOrganizerEmail || "",
     sourceCalendarIsOrganizer: properties.sourceCalendarIsOrganizer || "",
     assignedMemberId: properties.assignedMemberId || "",
+    assignedMemberEmail: properties.assignedMemberEmail || "",
+    logicalAppointmentId: properties.inrcyLogicalAppointmentId || "",
+    appointmentStatus: properties.inrcyAppointmentStatus || "",
+    appointmentOrigin: properties.inrcyAppointmentOrigin || "",
+    appointmentLifecycleVersion:
+      properties.inrcyAppointmentLifecycleVersion || "",
+    calendarReplica: properties.inrcyCalendarReplica || "",
+    canonicalEventId: properties.inrcyCanonicalEventId || "",
+    replicaFingerprint: properties.inrcyReplicaFingerprint || "",
+    sourceMeetUrl: properties.sourceMeetUrl || "",
+    conferenceData: event.conferenceData || null,
     guestEmails: properties[INR_CALENDAR_GOOGLE_GUEST_EMAILS_PROPERTY] || "",
   });
 }

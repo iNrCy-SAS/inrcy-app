@@ -72,6 +72,12 @@ export type InrAgentPreferredMediaSource =
 export type InrAgentPlanningHorizonDays =
   (typeof INR_AGENT_PLANNING_HORIZON_DAYS)[number];
 
+/**
+ * Part des médias IA iNrAgent qui reprennent les réglages mémorisés dans
+ * iNrStudio. La valeur est exprimée en pourcentage et reste bornée à 0–100.
+ */
+export const INR_AGENT_STUDIO_MEDIA_PREFERENCE_DEFAULT = 70;
+
 // Compat anciens composants / ancien vocabulaire V1.
 export const INR_AGENT_MODES = INR_AGENT_VALIDATION_MODES;
 export const INR_AGENT_ACTIONS = ["publication", "mailing", "review_request", "loyalty"] as const;
@@ -89,6 +95,7 @@ export type InrAgentAutomationSettings = {
   useImageBank: boolean;
   imageRequired: boolean;
   preferredMediaSource: InrAgentPreferredMediaSource;
+  studioMediaPreferencePercent: number;
   planningHorizonDays: InrAgentPlanningHorizonDays;
   recipientScope: InrAgentRecipientScope;
   sourceStrategy: InrAgentSourceStrategy;
@@ -131,6 +138,7 @@ const DEFAULT_AUTOMATIONS: Record<InrAgentAutomationKey, InrAgentAutomationSetti
     useImageBank: true,
     imageRequired: true,
     preferredMediaSource: "media_library",
+    studioMediaPreferencePercent: INR_AGENT_STUDIO_MEDIA_PREFERENCE_DEFAULT,
     planningHorizonDays: 15,
     recipientScope: "none",
     sourceStrategy: "published_history",
@@ -150,6 +158,7 @@ const DEFAULT_AUTOMATIONS: Record<InrAgentAutomationKey, InrAgentAutomationSetti
     useImageBank: true,
     imageRequired: false,
     preferredMediaSource: "media_library",
+    studioMediaPreferencePercent: INR_AGENT_STUDIO_MEDIA_PREFERENCE_DEFAULT,
     planningHorizonDays: 15,
     recipientScope: "all_crm",
     sourceStrategy: "templates",
@@ -169,6 +178,7 @@ const DEFAULT_AUTOMATIONS: Record<InrAgentAutomationKey, InrAgentAutomationSetti
     useImageBank: true,
     imageRequired: false,
     preferredMediaSource: "media_library",
+    studioMediaPreferencePercent: INR_AGENT_STUDIO_MEDIA_PREFERENCE_DEFAULT,
     planningHorizonDays: 15,
     recipientScope: "clients",
     sourceStrategy: "templates",
@@ -188,6 +198,7 @@ const DEFAULT_AUTOMATIONS: Record<InrAgentAutomationKey, InrAgentAutomationSetti
     useImageBank: false,
     imageRequired: false,
     preferredMediaSource: "media_library",
+    studioMediaPreferencePercent: INR_AGENT_STUDIO_MEDIA_PREFERENCE_DEFAULT,
     planningHorizonDays: 15,
     recipientScope: "none",
     sourceStrategy: "stats_snapshot",
@@ -394,6 +405,15 @@ function sanitizePlanningHorizonDays(
         : fallback;
 }
 
+export function normalizeInrAgentStudioMediaPreferencePercent(
+  value: unknown,
+  fallback: number,
+): number {
+  const numeric = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.min(100, Math.max(0, Math.round(numeric)));
+}
+
 const INR_SEARCH_PUBLISH_MIGRATION_FLAG = "inrSearchChannelAdded";
 export const INR_AGENT_PINTEREST_PUBLISH_MIGRATION_FLAG = "pinterestChannelAdded";
 export const INR_AGENT_X_PUBLISH_MIGRATION_FLAG = "xChannelAdded";
@@ -430,12 +450,17 @@ export function sanitizeInrAgentAutomationSettings(
     source.planningHorizonDays ?? metadata.planningHorizonDays,
     defaults.planningHorizonDays,
   );
+  const studioMediaPreferencePercent = normalizeInrAgentStudioMediaPreferencePercent(
+    source.studioMediaPreferencePercent ?? metadata.studioMediaPreferencePercent,
+    defaults.studioMediaPreferencePercent,
+  );
   const normalizedMetadataBase = shouldMigratePublishChannels
     ? { ...metadata, [INR_SEARCH_PUBLISH_MIGRATION_FLAG]: true }
     : metadata;
   const normalizedMetadata = {
     ...normalizedMetadataBase,
     preferredMediaSource,
+    studioMediaPreferencePercent,
     planningHorizonDays,
   };
 
@@ -459,6 +484,7 @@ export function sanitizeInrAgentAutomationSettings(
     useImageBank: sanitizeBoolean(source.useImageBank, defaults.useImageBank),
     imageRequired: sanitizeBoolean(source.imageRequired, defaults.imageRequired),
     preferredMediaSource,
+    studioMediaPreferencePercent,
     planningHorizonDays,
     recipientScope: includesValue(INR_AGENT_RECIPIENT_SCOPES, source.recipientScope) ? source.recipientScope : defaults.recipientScope,
     sourceStrategy: includesValue(INR_AGENT_SOURCE_STRATEGIES, source.sourceStrategy) ? source.sourceStrategy : defaults.sourceStrategy,

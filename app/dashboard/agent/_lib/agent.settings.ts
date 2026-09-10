@@ -425,6 +425,8 @@ export function settingsToConfigs(
             ? source.metadata.signatureAutomatic
             : true,
         preferredMediaSource: source.preferredMediaSource,
+        studioMediaPreferencePercent:
+          source.studioMediaPreferencePercent,
         planningHorizonDays: source.planningHorizonDays,
       };
 
@@ -452,6 +454,7 @@ export function configToAutomationSettings(
   const nextMetadata = {
     ...metadataWithoutScheduleSlots,
     preferredMediaSource: config.preferredMediaSource,
+    studioMediaPreferencePercent: config.studioMediaPreferencePercent,
     planningHorizonDays: config.planningHorizonDays,
     ...(key === "grow" || key === "loyalty"
       ? { signatureAutomatic: config.signatureAutomatic }
@@ -500,6 +503,10 @@ export function configToAutomationSettings(
       key === "publish"
         ? config.preferredMediaSource
         : (existing.preferredMediaSource as InrAgentPreferredMediaSource),
+    studioMediaPreferencePercent:
+      key === "publish"
+        ? config.studioMediaPreferencePercent
+        : existing.studioMediaPreferencePercent,
     planningHorizonDays:
       key === "publish"
         ? config.planningHorizonDays

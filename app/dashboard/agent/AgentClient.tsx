@@ -7750,6 +7750,39 @@ export default function AgentClient() {
                         </button>
                       ))}
                     </div>
+                    {settingsConfig.preferredMediaSource === "ai_generation" ? (
+                      <div className={styles.studioMediaMixControl}>
+                        <div className={styles.studioMediaMixHeader}>
+                          <span>{i18nT("studio_media_preference_title")}</span>
+                          <strong>
+                            {settingsConfig.studioMediaPreferencePercent}%
+                          </strong>
+                        </div>
+                        <input
+                          className={styles.studioMediaMixRange}
+                          type="range"
+                          min={0}
+                          max={100}
+                          step={1}
+                          value={settingsConfig.studioMediaPreferencePercent}
+                          aria-label={i18nT("studio_media_preference_title")}
+                          onChange={(event) =>
+                            updateConfig(settingsAutomation.key, {
+                              studioMediaPreferencePercent: Number(
+                                event.target.value,
+                              ),
+                            })
+                          }
+                        />
+                        <div className={styles.studioMediaMixScale}>
+                          <span>{i18nT("studio_media_preference_variation")}</span>
+                          <span>{i18nT("studio_media_preference_studio")}</span>
+                        </div>
+                        <p className={styles.modalHint}>
+                          {i18nT("studio_media_preference_hint")}
+                        </p>
+                      </div>
+                    ) : null}
                   </div>
                 )}
               </>

@@ -33,6 +33,7 @@ function event(overrides: InrCalendarGoogleEvent = {}): InrCalendarGoogleEvent {
         sourceCalendarId: "apolline.benedyczak@inrcy.com",
         sourceEventId: "source-event-1",
         assignedMemberId: "apolline",
+        inrcyAppointmentStatus: "appointment_scheduled_direct",
       },
     },
     ...overrides,
@@ -63,6 +64,7 @@ test("un rendez-vous Google devient un événement iNrCalendar admin en lecture 
   assert.equal(row.all_day, false);
   assert.equal(row.meta.source, INR_CALENDAR_GOOGLE_SOURCE);
   assert.equal(row.meta.readOnly, true);
+  assert.equal(row.meta.appointmentStatus, "appointment_scheduled_direct");
   assert.deepEqual(row.meta.reminders, {
     enabled: false,
     deliveryPolicy: "manual_only",
@@ -76,6 +78,10 @@ test("un rendez-vous Google devient un événement iNrCalendar admin en lecture 
   assert.equal(
     (row.meta.google as Record<string, unknown>).assignedMemberId,
     "apolline",
+  );
+  assert.equal(
+    (row.meta.google as Record<string, unknown>).appointmentStatus,
+    "appointment_scheduled_direct",
   );
 });
 

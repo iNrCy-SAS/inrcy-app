@@ -29,6 +29,7 @@ test("le nouveau OAuth visio reste séparé de l'ancien connecteur iNrCalendar s
 test("la réservation impose capacité deux, Meet et invitations", () => {
   const backend = read("lib/visioBookingGoogle.ts");
   const eventPolicy = read("lib/visioBookingEventPolicy.ts");
+  const lifecycle = read("lib/visioAppointmentLifecycle.ts");
   assert.match(backend, /VISIO_BOOKING_MAX_CONCURRENT/);
   assert.match(backend, /listAllBookingEvents\(rangeStart, rangeEnd\)/);
   assert.match(backend, /listAllBookingEvents\(loadRangeStart, loadRangeEnd\)/);
@@ -36,9 +37,11 @@ test("la réservation impose capacité deux, Meet et invitations", () => {
   assert.match(backend, /conferenceSolutionKey:\s*\{ type: "hangoutsMeet" \}/);
   assert.match(backend, /assignedMemberId/);
   assert.match(backend, /INRCY_VISIO_SHARED_CALENDAR_ID/);
-  assert.match(backend, /INRCY_VISIO_BOOKED_COLOR_ID",\s*"9"/);
+  assert.match(lifecycle, /appointment_scheduled_direct:\s*"9"/);
+  assert.match(lifecycle, /appointment_scheduled_from_signup:\s*"7"/);
   assert.match(backend, /PUBLIC_BOOKING_ASSIGNEE\s*=\s*"Équipe iNrCy"/);
-  assert.match(eventPolicy, /Votre interlocuteur : \$\{memberName\}/);
+  assert.match(eventPolicy, /summary:\s*`Inscription iNrCy - \$\{professionalLabel\}`/);
+  assert.match(eventPolicy, /`E-mail : \$\{safe\.email \|\| "—"\}`/);
   assert.match(backend, /guestsCanSeeOtherGuests:\s*false/);
   assert.match(backend, /reminders:\s*\{[\s\S]*?useDefault:\s*false,[\s\S]*?overrides:\s*\[\]/);
   assert.doesNotMatch(backend, /Rendez-vous attribué à : \$\{input\.member\.name\}/);
@@ -61,8 +64,12 @@ test("une inscription devient un seul événement partagé avec Meet et invités
   assert.match(creation, /findPendingSignupReminder\(input\.claims\)/);
   assert.match(creation, /PRIVATE_BOOKING_SINGLE_EVENT_KEY/);
   assert.match(creation, /TEAM_CALENDAR_MIRROR_KEY/);
+  assert.match(
+    creation,
+    /const bookingOrigin: VisioAppointmentOrigin = "signup_with_appointment"/,
+  );
   assert.match(creation, /email:\s*prospect\.email/);
-  assert.match(creation, /teamMembers:\s*getVisioTeamMembers\(\)/);
+  assert.match(creation, /teamMembers:\s*\[\]/);
   assert.match(creation, /\.\.\.publicContent/);
   assert.match(creation, /buildSingleAssigneeVisioAttendees/);
   assert.doesNotMatch(
@@ -74,6 +81,9 @@ test("une inscription devient un seul événement partagé avec Meet et invités
   assert.doesNotMatch(creation, /upsertTeamMirrorEvent/);
   assert.match(backend, /getExistingBooking\(eventId, claims\)/);
   assert.match(backend, /for \(const member of getVisioTeamMembers\(\)\)/);
+  assert.match(backend, /syncManagedCalendarReplicas\(event\)/);
+  assert.match(backend, /PRIVATE_CALENDAR_REPLICA_KEY/);
+  assert.match(backend, /PRIVATE_LOGICAL_APPOINTMENT_KEY/);
   assert.match(
     backend,
     /const sharedEvent = await getCalendarEvent\(getVisioSharedCalendarId\(\), eventId\)/,
@@ -85,7 +95,8 @@ test("une inscription devient un seul événement partagé avec Meet et invités
   assert.match(backend, /visio_booking_cancelled/);
   assert.match(backend, /properties\.bookingNonce !== claims\.nonce/);
   assert.doesNotMatch(mirror, /attendees\s*:/);
-  assert.doesNotMatch(mirror, /conferenceData\s*:/);
+  assert.doesNotMatch(mirror, /conferenceSolutionKey/);
+  assert.match(backend, /canonical\.conferenceData/);
 });
 
 test("le calendrier partagé global est synchronisé par un cron protégé et idempotent", () => {
@@ -231,6 +242,8 @@ test("l’attribution équipe est privée, auditée et silencieuse pour le profe
   assert.match(backend, /previousEndMs - previousStartMs/);
   assert.match(backend, /rescheduleAutomaticBooking/);
   assert.match(backend, /rescheduleCalendarAppointment/);
+  assert.match(backend, /convertPendingSignupToScheduledAppointment/);
+  assert.match(backend, /"appointment_scheduled_from_signup"/);
   assert.match(backend, /resendVisioBookingLink/);
   assert.match(backend, /VISIO_BOOKING_MANUAL_RESEND_SCOPE/);
   assert.match(backend, /completeExecutionIdempotencyLockOrThrow/);

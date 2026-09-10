@@ -53,6 +53,7 @@ export type AutomationConfig = {
   source: string;
   signatureAutomatic: boolean;
   preferredMediaSource: InrAgentPreferredMediaSource;
+  studioMediaPreferencePercent: number;
   planningHorizonDays: InrAgentPlanningHorizonDays;
 };
 

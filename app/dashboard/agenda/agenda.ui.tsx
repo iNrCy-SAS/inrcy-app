@@ -10,7 +10,7 @@ import AgendaSettingsContent from "../settings/_components/AgendaSettingsContent
 import HelpModal from "../_components/HelpModal";
 import { confirmInrcy } from "@/lib/inrcyDialog";
 import {
-  accentFor,
+  eventAccentFor,
   formatDayLabel,
   formatMonthLabel,
   formatTime,
@@ -553,7 +553,9 @@ export function AgendaCalendarCard({
                 <div className={styles.chips}>
                   {show.map((ev) => {
                     const draft = isDraftEvent(ev);
-                    const accentClass = draft ? styles.accentDraft : getEventAccentClass(accentFor(ev.id), styles);
+                    const accentClass = draft
+                      ? styles.accentDraft
+                      : getEventAccentClass(eventAccentFor(ev), styles);
                     const time = !ev.allDay && ev.startDate ? formatTime(ev.startDate, locale) : "";
                     const title = draft ? `Brouillon · ${ev.summary}` : ev.summary;
                     const label = ev.allDay ? title : `${time} — ${title}`;
@@ -621,7 +623,9 @@ function AgendaEventRow({
 }) {
   const i18nT = useTranslations("agenda");
   const draft = isDraftEvent(event);
-  const accentClass = draft ? styles.accentDraft : getEventAccentClass(accentFor(event.id), styles);
+  const accentClass = draft
+    ? styles.accentDraft
+    : getEventAccentClass(eventAccentFor(event), styles);
 
   return (
     <div

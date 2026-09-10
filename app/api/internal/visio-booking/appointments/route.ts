@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 
 import { syncVisioSharedCalendarToInrCalendar } from "@/lib/inrCalendarGoogleSync";
+import { isVisioAppointmentStatus } from "@/lib/visioAppointmentLifecycle";
 import { requireVisioTeamApi } from "@/lib/visioTeamAccess";
 import {
   getVisioTeamMembers,
   listVisioTeamAppointments,
   reassignVisioTeamAppointment,
   rescheduleVisioTeamAppointment,
+  updateVisioTeamAppointmentStatus,
 } from "@/lib/visioBookingGoogle";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +30,32 @@ function assignmentErrorResponse(error: unknown) {
   if (code === "visio_team_reschedule_all_day") {
     return NextResponse.json(
       { ok: false, error: "Les événements sur toute la journée ne peuvent pas être déplacés ici." },
+      { status: 409 },
+    );
+  }
+  if (code === "visio_team_reschedule_professional_email_missing") {
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          "L’e-mail du professionnel manque dans cette inscription. Ajoutez-le avant de positionner le rendez-vous.",
+      },
+      { status: 409 },
+    );
+  }
+  if (code === "visio_team_status_invalid") {
+    return NextResponse.json(
+      { ok: false, error: "Le statut demandé est invalide." },
+      { status: 400 },
+    );
+  }
+  if (code === "visio_team_status_transition_invalid") {
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          "Cette transition n’est pas autorisée. Pour transformer une inscription en rendez-vous, utilisez Modifier date / heure.",
+      },
       { status: 409 },
     );
   }
@@ -210,6 +238,58 @@ export async function PATCH(request: Request) {
       actor: authorization.actor,
     });
     const inrCalendarSync = await syncInrCalendarAfterMutation("reschedule");
+    return NextResponse.json({
+      ok: true,
+      ...result,
+      inrCalendarSynced: inrCalendarSync?.ok ?? false,
+    });
+  } catch (error) {
+    return assignmentErrorResponse(error);
+  }
+}
+
+export async function PUT(request: Request) {
+  const authorization = await requireVisioTeamApi();
+  if (!authorization.ok) return authorization.response;
+  if (isCrossSiteMutation(request)) {
+    return NextResponse.json(
+      { ok: false, error: "Requête non autorisée." },
+      { status: 403 },
+    );
+  }
+
+  const body = (await request.json().catch(() => null)) as {
+    mirrorEventId?: unknown;
+    appointmentIdentity?: unknown;
+    appointmentStart?: unknown;
+    status?: unknown;
+  } | null;
+  const mirrorEventId = String(body?.mirrorEventId || "").trim();
+  const appointmentIdentity = String(body?.appointmentIdentity || "").trim();
+  const appointmentStart = String(body?.appointmentStart || "").trim();
+  const status = String(body?.status || "").trim();
+  if (
+    !/^[a-zA-Z0-9_-]{5,1024}$/.test(mirrorEventId) ||
+    (appointmentIdentity && appointmentIdentity.length > 2048) ||
+    (appointmentStart &&
+      !Number.isFinite(new Date(appointmentStart).getTime())) ||
+    !isVisioAppointmentStatus(status)
+  ) {
+    return NextResponse.json(
+      { ok: false, error: "Demande invalide." },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const result = await updateVisioTeamAppointmentStatus({
+      mirrorEventId,
+      appointmentIdentity,
+      appointmentStart,
+      status,
+      actor: authorization.actor,
+    });
+    const inrCalendarSync = await syncInrCalendarAfterMutation("status");
     return NextResponse.json({
       ok: true,
       ...result,

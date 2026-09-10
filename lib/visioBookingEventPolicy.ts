@@ -1,6 +1,10 @@
 export type VisioBookingPublicIdentity = {
   name: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
   company: string;
+  phone?: string;
 };
 
 export type VisioBookingTeamIdentity = {
@@ -22,6 +26,14 @@ export type VisioBookingAttendee = {
 export type PendingSignupCalendarEvent = {
   summary?: string;
   description?: string;
+};
+
+export type VisioAppointmentPublicDetails = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  company: string;
+  phone: string;
 };
 
 function clean(value: unknown) {
@@ -57,46 +69,103 @@ function labeledDescriptionValue(description: string, labels: string[]) {
   return "";
 }
 
+function splitLegacyProfessionalName(value: string) {
+  const chunks = publicCalendarValue(value).split(/\s+/).filter(Boolean);
+  if (chunks.length <= 1) return { firstName: "", lastName: chunks[0] || "" };
+  return {
+    firstName: chunks.slice(0, -1).join(" "),
+    lastName: chunks[chunks.length - 1] || "",
+  };
+}
+
+export function readVisioAppointmentPublicDetails(
+  event: PendingSignupCalendarEvent,
+): VisioAppointmentPublicDetails {
+  const description = clean(event.description);
+  const legacyProfessional = labeledDescriptionValue(description, [
+    "Professionnel",
+  ]);
+  const legacyName = splitLegacyProfessionalName(legacyProfessional);
+  return {
+    firstName:
+      labeledDescriptionValue(description, ["Prénom", "Prenom"]) ||
+      legacyName.firstName,
+    lastName:
+      labeledDescriptionValue(description, ["Nom"]) || legacyName.lastName,
+    email: labeledDescriptionValue(description, ["E-mail", "Email", "Mail"]),
+    company: labeledDescriptionValue(description, [
+      "Entreprise",
+      "Société",
+      "Societe",
+    ]),
+    phone: labeledDescriptionValue(description, [
+      "Téléphone",
+      "Telephone",
+      "Tél",
+      "Tel",
+    ]),
+  };
+}
+
+function publicDetailsFromIdentity(
+  prospect: VisioBookingPublicIdentity,
+): VisioAppointmentPublicDetails {
+  const legacyName = splitLegacyProfessionalName(prospect.name);
+  return {
+    firstName: publicCalendarValue(prospect.firstName) || legacyName.firstName,
+    lastName: publicCalendarValue(prospect.lastName) || legacyName.lastName,
+    email: publicCalendarValue(prospect.email),
+    company: publicCalendarValue(prospect.company),
+    phone: publicCalendarValue(prospect.phone),
+  };
+}
+
+export function buildVisioAppointmentCalendarContent(
+  details: VisioAppointmentPublicDetails,
+) {
+  const safe = {
+    firstName: publicCalendarValue(details.firstName),
+    lastName: publicCalendarValue(details.lastName),
+    email: publicCalendarValue(details.email),
+    company: publicCalendarValue(details.company),
+    phone: publicCalendarValue(details.phone),
+  };
+  const professionalLabel =
+    safe.company ||
+    [safe.firstName, safe.lastName].filter(Boolean).join(" ") ||
+    safe.email ||
+    "Professionnel";
+
+  return {
+    summary: `Inscription iNrCy - ${professionalLabel}`,
+    description: [
+      `Nom : ${safe.lastName || "—"}`,
+      `Prénom : ${safe.firstName || "—"}`,
+      `E-mail : ${safe.email || "—"}`,
+      `Entreprise : ${safe.company || "—"}`,
+      `Téléphone : ${safe.phone || "—"}`,
+    ].join("\n"),
+    location: "",
+  };
+}
+
 /**
  * Public-safe waiting state for the signup calendar object. The original
  * monitoring message may contain acquisition, consent and technical data;
- * this allowlist deliberately retains only the professional's display
- * identity. Contact details remain in the internal monitoring email and the
- * invitation email address is later carried as a Google attendee, never in
- * the visible description.
+ * this explicit allowlist retains only the five contact fields requested for
+ * operational follow-up. Assignment and lifecycle data stay private.
  */
 export function buildPendingSignupCalendarContent(input: {
   event: PendingSignupCalendarEvent;
   assignedMember: Pick<VisioBookingTeamIdentity, "name">;
 }) {
-  const description = clean(input.event.description);
-  const existingProfessional = labeledDescriptionValue(description, ["Professionnel"]);
-  const firstName = labeledDescriptionValue(description, ["Prénom", "Prenom"]);
-  const lastName = labeledDescriptionValue(description, ["Nom"]);
-  const professionalName =
-    existingProfessional || [firstName, lastName].filter(Boolean).join(" ");
-  const company = labeledDescriptionValue(description, ["Société", "Societe"]);
-  const memberName = publicCalendarValue(input.assignedMember.name) || "Équipe iNrCy";
-  const currentSummary = publicCalendarValue(input.event.summary);
-  const canonicalIdentity = company || professionalName || "Professionnel";
-  const defaultPendingSummary = normalizedLabel(currentSummary).startsWith(
-    "inscription a traiter",
+  void input.assignedMember;
+  const content = buildVisioAppointmentCalendarContent(
+    readVisioAppointmentPublicDetails(input.event),
   );
 
   return {
-    summary:
-      !currentSummary || defaultPendingSummary
-        ? `Inscription — ${canonicalIdentity} — ${memberName}`
-        : currentSummary,
-    description: [
-      "Inscription iNrCy en attente de rendez-vous.",
-      professionalName ? `Professionnel : ${professionalName}` : "",
-      company ? `Société : ${company}` : "",
-      `Responsable iNrCy : ${memberName}`,
-    ]
-      .filter(Boolean)
-      .join("\n"),
-    location: "",
+    ...content,
     reminders: { useDefault: false, overrides: [] as never[] },
   };
 }
@@ -118,25 +187,19 @@ function writableAttendee(attendee: VisioBookingAttendee | undefined) {
 }
 
 /**
- * This is the complete public payload exposed in the Google invitation.
- * Contact details, acquisition data and internal identifiers deliberately do
- * not enter this function, which makes an accidental leak much harder.
+ * This is the complete visible payload exposed in the Google invitation.
+ * It deliberately contains only the professional's own five contact fields.
+ * Acquisition data, assignment, lifecycle and technical identifiers cannot
+ * enter this function.
  */
 export function buildPublicVisioBookingContent(input: {
   prospect: VisioBookingPublicIdentity;
   assignedMember: Pick<VisioBookingTeamIdentity, "name">;
 }) {
-  const prospectLabel = clean(input.prospect.company) || clean(input.prospect.name);
-  const memberName = clean(input.assignedMember.name) || "Équipe iNrCy";
-  return {
-    summary: `Présentation iNrCy — ${prospectLabel || "Professionnel"}`,
-    description: [
-      "Rendez-vous de présentation iNrCy.",
-      `Votre interlocuteur : ${memberName}.`,
-      "Le lien Google Meet est joint à cette invitation.",
-    ].join("\n"),
-    location: "Google Meet",
-  };
+  void input.assignedMember;
+  return buildVisioAppointmentCalendarContent(
+    publicDetailsFromIdentity(input.prospect),
+  );
 }
 
 /**

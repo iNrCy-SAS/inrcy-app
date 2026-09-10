@@ -260,6 +260,8 @@ export function buildInrCalendarGoogleRow(input: {
   if (!range) return null;
 
   const privateProperties = input.event.extendedProperties?.private || {};
+  const appointmentStatus =
+    cleanString(privateProperties.inrcyAppointmentStatus) || null;
   const canonicalIdentity =
     cleanString(input.canonicalIdentity) ||
     canonicalVisioAppointmentIdentity(input.event);
@@ -292,6 +294,7 @@ export function buildInrCalendarGoogleRow(input: {
       ...previousMeta,
       source: INR_CALENDAR_GOOGLE_SOURCE,
       appointmentIdentity: canonicalIdentity,
+      appointmentStatus,
       status: "confirmed",
       kind: "agenda",
       readOnly: true,
@@ -333,6 +336,7 @@ export function buildInrCalendarGoogleRow(input: {
         htmlLink: htmlLink || null,
         meetUrl: meetUrl || null,
         colorId: cleanString(input.event.colorId) || null,
+        appointmentStatus,
         sourceCalendarId: cleanString(privateProperties.sourceCalendarId) || null,
         sourceEventId: cleanString(privateProperties.sourceEventId) || null,
         assignedMemberId: cleanString(privateProperties.assignedMemberId) || null,

@@ -14,10 +14,32 @@ import {
 } from "@/lib/executionIdempotency";
 import {
   buildPendingSignupCalendarContent,
+  buildVisioAppointmentCalendarContent,
   buildPublicVisioBookingContent,
   buildSingleAssigneeVisioAttendees,
+  readVisioAppointmentPublicDetails,
 } from "@/lib/visioBookingEventPolicy";
-import { canonicalVisioAppointmentIdentity } from "@/lib/visioAppointmentIdentity";
+import {
+  VISIO_APPOINTMENT_ORIGIN_KEY,
+  VISIO_APPOINTMENT_STATUS_KEY,
+  VISIO_APPOINTMENT_STATUS_LABELS,
+  VISIO_APPOINTMENT_STATUSES,
+  canManuallyTransitionVisioAppointment,
+  cancellationStatusFor,
+  isVisioAppointmentOrigin,
+  isVisioAppointmentStatus,
+  lifecyclePrivateProperties,
+  scheduledStatusForOrigin,
+  visioAppointmentColorId,
+  visioAppointmentOriginForStatus,
+  visioAppointmentStatusAfterColorChange,
+  type VisioAppointmentOrigin,
+  type VisioAppointmentStatus,
+} from "@/lib/visioAppointmentLifecycle";
+import {
+  canonicalVisioAppointmentIdentity,
+  sharedVisioMirrorDeduplicationIdentity,
+} from "@/lib/visioAppointmentIdentity";
 import {
   VISIO_BOOKING_MANUAL_RESEND_LOCK_TTL_MS,
   VISIO_BOOKING_MANUAL_RESEND_SCOPE,
@@ -72,6 +94,11 @@ const PRIVATE_BOOKING_COMPANION_VALUE = "assigned-member";
 const PRIVATE_BOOKING_PUBLIC_VALUE = "public-organizer";
 const PRIVATE_BOOKING_SINGLE_EVENT_KEY = "inrcyBookingSingleEvent";
 const PRIVATE_BOOKING_SINGLE_EVENT_VALUE = "v2";
+const PRIVATE_CALENDAR_REPLICA_KEY = "inrcyCalendarReplica";
+const PRIVATE_CALENDAR_REPLICA_VALUE = "v1";
+const PRIVATE_CANONICAL_EVENT_ID_KEY = "inrcyCanonicalEventId";
+const PRIVATE_REPLICA_FINGERPRINT_KEY = "inrcyReplicaFingerprint";
+const PRIVATE_LOGICAL_APPOINTMENT_KEY = "inrcyLogicalAppointmentId";
 const PUBLIC_BOOKING_ASSIGNEE = "Équipe iNrCy";
 const REQUIRED_INTERNAL_ALERT_EMAIL = "compte@inrcy.com";
 const TEAM_MIRROR_DEFAULT_PAST_DAYS = 30;
@@ -145,6 +172,11 @@ export type VisioTeamAppointment = {
   currentMemberId: string;
   currentMemberName: string;
   sourceType: "booking" | "calendar";
+  status: VisioAppointmentStatus;
+  statusLabel: string;
+  colorId: string;
+  origin: VisioAppointmentOrigin;
+  managedLifecycle: boolean;
 };
 
 export type VisioTeamReassignmentActor = {
@@ -166,6 +198,13 @@ export type VisioTeamRescheduleResult = {
   previousStart: string;
   previousEnd: string;
   googleUpdatesRequested: boolean;
+};
+
+export type VisioTeamStatusResult = {
+  appointment: VisioTeamAppointment;
+  previousStatus: VisioAppointmentStatus;
+  status: VisioAppointmentStatus;
+  notificationsSent: false;
 };
 
 export type VisioBookingManualResendResult = {
@@ -692,7 +731,7 @@ function preferredActiveAppointmentMirrors(
     ) {
       continue;
     }
-    const identity = appointmentIdentity(event);
+    const identity = sharedVisioMirrorDeduplicationIdentity(event);
     const current = preferred.get(identity);
     if (!current || shouldPreferAppointmentMirror(event, current)) {
       preferred.set(identity, event);
@@ -725,7 +764,9 @@ async function reconcileSharedAppointmentDuplicates(
     ) {
       continue;
     }
-    const canonical = preferred.get(appointmentIdentity(event));
+    const canonical = preferred.get(
+      sharedVisioMirrorDeduplicationIdentity(event),
+    );
     if (!canonical?.id || canonical.id === event.id) continue;
     if (await cancelSharedCalendarEvent(event)) cancelled += 1;
   }
@@ -741,9 +782,13 @@ async function findPendingSignupReminder(claims: VisioBookingClaims) {
       (getVisioBookingHorizonDays() + 7) * 24 * 60 * 60_000,
   );
   const events = await listVisioSharedCalendarEvents(timeMin, timeMax, false);
-  return events.find((event) =>
-    isPendingSignupReminderForProspect(event, claims.sub),
-  ) || null;
+  return (
+    events.find(
+      (event) =>
+        isPendingSignupReminderForProspect(event, claims.sub) &&
+        lifecycleStatusForEvent(event) === "signup_pending",
+    ) || null
+  );
 }
 
 async function removePendingSignupRemindersForProspect(
@@ -756,7 +801,12 @@ async function removePendingSignupRemindersForProspect(
   let removed = 0;
 
   for (const event of events) {
-    if (!isPendingSignupReminderForProspect(event, claims.sub)) continue;
+    if (
+      !isPendingSignupReminderForProspect(event, claims.sub) ||
+      lifecycleStatusForEvent(event) !== "signup_pending"
+    ) {
+      continue;
+    }
     if (await cancelSharedCalendarEvent(event)) removed += 1;
   }
   return removed;
@@ -935,7 +985,7 @@ export async function syncVisioTeamCalendarsToShared(input?: {
     const canonicalAssignmentEvents = new Map<string, GoogleCalendarEvent>();
     for (const event of sharedEvents) {
       if (event.status === "cancelled") continue;
-      const identity = appointmentIdentity(event);
+      const identity = sharedVisioMirrorDeduplicationIdentity(event);
       const current = canonicalAssignmentEvents.get(identity);
       if (!current || shouldPreferAppointmentMirror(event, current)) {
         canonicalAssignmentEvents.set(identity, event);
@@ -982,32 +1032,59 @@ export async function syncVisioTeamCalendarsToShared(input?: {
         assignedMember,
       });
       const reminderProperties = reminder.extendedProperties?.private || {};
+      const pendingStatus: VisioAppointmentStatus =
+        reminderProperties[VISIO_APPOINTMENT_STATUS_KEY] ===
+        "signup_cancelled"
+          ? "signup_cancelled"
+          : "signup_pending";
+      const pendingLifecycle = lifecyclePrivateProperties({
+        status: pendingStatus,
+        origin: "signup_without_appointment",
+      });
       const needsSanitizing =
         !existingMember ||
         reminder.summary !== safeContent.summary ||
         reminder.description !== safeContent.description ||
+        reminder.colorId !== visioAppointmentColorId(pendingStatus) ||
         Boolean(String(reminder.location || "").trim()) ||
         Boolean(reminder.attendees?.length) ||
         hasAutomaticGoogleCalendarReminders(reminder) ||
         reminderProperties[PENDING_SIGNUP_ASSIGNMENT_KEY] !==
           PENDING_SIGNUP_ASSIGNMENT_VALUE ||
-        reminderProperties.prospectUserId !== prospectUserId;
+        reminderProperties.prospectUserId !== prospectUserId ||
+        reminderProperties[VISIO_APPOINTMENT_STATUS_KEY] !== pendingStatus ||
+        reminderProperties[VISIO_APPOINTMENT_ORIGIN_KEY] !==
+          "signup_without_appointment";
       if (!needsSanitizing) continue;
       try {
-        await patchCalendarEventWithoutUpdates(sharedCalendarId, reminder.id, {
-          ...safeContent,
-          attendees: [],
-          extendedProperties: {
-            private: {
-              ...reminderProperties,
-              [PENDING_SIGNUP_ASSIGNMENT_KEY]:
-                PENDING_SIGNUP_ASSIGNMENT_VALUE,
-              assignedMemberId: assignedMember.id,
-              assignedMemberEmail: assignedMember.email,
-              prospectUserId,
+        const updatedReminder = await patchCalendarEventWithoutUpdates(
+          sharedCalendarId,
+          reminder.id,
+          {
+            ...safeContent,
+            colorId: visioAppointmentColorId(pendingStatus),
+            attendees: [],
+            extendedProperties: {
+              private: {
+                ...reminderProperties,
+                ...pendingLifecycle,
+                [PENDING_SIGNUP_ASSIGNMENT_KEY]:
+                  PENDING_SIGNUP_ASSIGNMENT_VALUE,
+                [TEAM_CALENDAR_MIRROR_KEY]: TEAM_CALENDAR_MIRROR_VALUE,
+                [PRIVATE_LOGICAL_APPOINTMENT_KEY]: `prospect:${prospectUserId}`,
+                assignedMemberId: assignedMember.id,
+                assignedMemberEmail: assignedMember.email,
+                prospectUserId,
+                sourceCalendarId: sharedCalendarId,
+                sourceEventId: reminder.id,
+                sourceOrganizerEmail: sharedCalendarId,
+                sourceCalendarIsOrganizer: "true",
+                sharedCalendarId,
+              },
             },
           },
-        });
+        );
+        Object.assign(reminder, updatedReminder);
         if (!existingMember) {
           assignmentCounts[assignedMember.id] =
             (assignmentCounts[assignedMember.id] || 0) + 1;
@@ -1020,7 +1097,19 @@ export async function syncVisioTeamCalendarsToShared(input?: {
         });
       }
     }
+
     const managedCalendarIds = getVisioManagedCalendarAddresses();
+    const managedCanonicalByReplicaId = new Map<string, GoogleCalendarEvent>();
+    for (const canonical of sharedEvents) {
+      if (
+        canonical.id &&
+        canonical.status !== "cancelled" &&
+        isManagedLifecycleEvent(canonical)
+      ) {
+        const replicaId = calendarReplicaEventId(canonical);
+        if (replicaId) managedCanonicalByReplicaId.set(replicaId, canonical);
+      }
+    }
     for (const member of teamMembers) {
       let sourceEvents: GoogleCalendarEvent[];
       try {
@@ -1039,6 +1128,64 @@ export async function syncVisioTeamCalendarsToShared(input?: {
       for (const event of sourceEvents) {
         result.scanned += 1;
         const privateProperties = event.extendedProperties?.private || {};
+        // A deleted single event can come back from Google as a tombstone
+        // stripped of its extended properties. The deterministic replica id
+        // still lets us map that action to the one shared appointment. A
+        // deletion therefore becomes the matching red business status; the
+        // canonical event itself is never destroyed.
+        const deletedReplicaCanonical =
+          event.id && event.status === "cancelled"
+            ? managedCanonicalByReplicaId.get(event.id)
+            : undefined;
+        if (deletedReplicaCanonical?.id) {
+          try {
+            const currentStatus = lifecycleStatusForEvent(
+              deletedReplicaCanonical,
+            );
+            const isAlreadyCancelled =
+              currentStatus === "signup_cancelled" ||
+              currentStatus === "appointment_cancelled";
+            const updatedCanonical = isAlreadyCancelled
+              ? deletedReplicaCanonical
+              : await patchCalendarEventWithoutUpdates(
+                  sharedCalendarId,
+                  deletedReplicaCanonical.id,
+                  {
+                    ...lifecycleEventBody(
+                      deletedReplicaCanonical,
+                      cancellationStatusFor(currentStatus),
+                    ),
+                    reminders: { useDefault: false, overrides: [] },
+                  },
+                );
+            const normalized =
+              (await syncManagedCalendarReplicas(updatedCanonical)) ||
+              updatedCanonical;
+            Object.assign(deletedReplicaCanonical, normalized);
+            result.updated += 1;
+          } catch (error) {
+            result.errors.push({
+              memberId: member.id,
+              code: visioGoogleErrorCode(error),
+            });
+          }
+          continue;
+        }
+        if (
+          privateProperties[PRIVATE_CALENDAR_REPLICA_KEY] ===
+          PRIVATE_CALENDAR_REPLICA_VALUE
+        ) {
+          try {
+            const outcome = await reconcileManagedCalendarReplica(event);
+            result[outcome] += 1;
+          } catch (error) {
+            result.errors.push({
+              memberId: member.id,
+              code: visioGoogleErrorCode(error),
+            });
+          }
+          continue;
+        }
         if (
           event.status !== "cancelled" &&
           privateProperties[PRIVATE_BOOKING_KEY] === PRIVATE_BOOKING_VALUE &&
@@ -1056,11 +1203,17 @@ export async function syncVisioTeamCalendarsToShared(input?: {
           PRIVATE_BOOKING_COMPANION_VALUE
         ) {
           try {
+            let cleaned = false;
+            if (event.id && event.status !== "cancelled") {
+              await cancelCalendarEventWithoutUpdates(member.calendarId, event.id);
+              result.cancelled += 1;
+              cleaned = true;
+            }
             if (existingMirror && (await cancelSharedCalendarEvent(existingMirror))) {
               result.cancelled += 1;
-            } else {
-              result.skipped += 1;
+              cleaned = true;
             }
+            if (!cleaned) result.skipped += 1;
           } catch (error) {
             result.errors.push({
               memberId: member.id,
@@ -1094,7 +1247,14 @@ export async function syncVisioTeamCalendarsToShared(input?: {
         }
 
         try {
-          const identity = appointmentIdentity(event);
+          const identity = sharedVisioMirrorDeduplicationIdentity(event, {
+            sourceCalendarId: member.calendarId,
+            sourceEventId: String(event.id || ""),
+            assignedMemberId: String(
+              privateProperties.assignedMemberId || member.id,
+            ),
+            managedOrganizerEmails: managedCalendarIds,
+          });
           const canonicalSourceKey = canonicalSourceByIdentity.get(identity);
           if (canonicalSourceKey && canonicalSourceKey !== sourceKey) {
             let canonicalIsActive = canonicalSourceActive.get(canonicalSourceKey);
@@ -1156,6 +1316,32 @@ export async function syncVisioTeamCalendarsToShared(input?: {
         } catch (error) {
           result.errors.push({ memberId: member.id, code: visioGoogleErrorCode(error) });
         }
+      }
+    }
+
+    // The shared event is the canonical record. Each managed calendar gets a
+    // silent, deterministic replica with the same title, public details,
+    // schedule, lifecycle, Meet and event colour. Replica mutations were read
+    // above first, so a legitimate edit made in an individual calendar cannot
+    // be overwritten before it is reconciled.
+    for (const event of sharedEvents) {
+      if (
+        !event.id ||
+        event.status === "cancelled" ||
+        !isManagedLifecycleEvent(event)
+      ) {
+        continue;
+      }
+      try {
+        const refreshed = await getCalendarEvent(sharedCalendarId, event.id);
+        if (!refreshed || refreshed.status === "cancelled") continue;
+        const normalized = await syncManagedCalendarReplicas(refreshed);
+        if (normalized) Object.assign(event, normalized);
+      } catch (error) {
+        result.errors.push({
+          memberId: "replicas",
+          code: visioGoogleErrorCode(error),
+        });
       }
     }
 
@@ -1447,7 +1633,9 @@ async function getExistingBooking(
 ) {
   const sharedEvent = await getCalendarEvent(getVisioSharedCalendarId(), eventId);
   if (sharedEvent && sharedEvent.status !== "cancelled") {
-    if (claims) assertMatchingBookingEvent(sharedEvent, claims);
+    if (claims && !isReusableBookingForProspect(sharedEvent, claims)) {
+      assertMatchingBookingEvent(sharedEvent, claims);
+    }
     return sharedEvent;
   }
 
@@ -1460,20 +1648,28 @@ async function getExistingBooking(
           (getVisioBookingHorizonDays() + 7) * 24 * 60 * 60_000,
       ),
     );
-    const existing = candidates.find((event) => {
+    const matchingProspect = candidates.filter((event) => {
       const properties = event.extendedProperties?.private || {};
       return (
         event.status !== "cancelled" &&
-        properties.bookingNonce === claims.nonce &&
         properties.prospectUserId === claims.sub
       );
     });
-    if (existing) return existing;
+    const existing =
+      matchingProspect.find(
+        (event) =>
+          event.extendedProperties?.private?.bookingNonce === claims.nonce,
+      ) || matchingProspect[0];
+    if (existing && isReusableBookingForProspect(existing, claims)) {
+      return existing;
+    }
   }
 
   const publicEvent = await getCalendarEvent(getVisioPublicCalendarId(), eventId);
   if (publicEvent && publicEvent.status !== "cancelled") {
-    if (claims) assertMatchingBookingEvent(publicEvent, claims);
+    if (claims && !isReusableBookingForProspect(publicEvent, claims)) {
+      assertMatchingBookingEvent(publicEvent, claims);
+    }
     return publicEvent;
   }
 
@@ -1486,7 +1682,9 @@ async function getExistingBooking(
         event.extendedProperties?.private?.[PRIVATE_BOOKING_COMPANION_KEY] !==
           PRIVATE_BOOKING_COMPANION_VALUE
       ) {
-        if (claims) assertMatchingBookingEvent(event, claims);
+        if (claims && !isReusableBookingForProspect(event, claims)) {
+          assertMatchingBookingEvent(event, claims);
+        }
         return event;
       }
     } catch (error) {
@@ -1552,24 +1750,31 @@ async function acquireBookingLock(lockKey: string): Promise<BookingLock> {
   };
 }
 
-async function readProspect(claims: VisioBookingClaims) {
+async function readProspectByUserId(userId: string, fallbackEmail = "") {
   const { data, error } = await supabaseAdmin
     .from("profiles")
     .select("first_name,last_name,company_legal_name,phone,contact_email,admin_email")
-    .eq("user_id", claims.sub)
+    .eq("user_id", userId)
     .maybeSingle();
   if (error) throw new Error(`visio_profile_read_failed:${error.message}`);
   const row = (data || {}) as Record<string, unknown>;
   const firstName = String(row.first_name || "").trim();
   const lastName = String(row.last_name || "").trim();
+  const email = String(
+    row.contact_email || row.admin_email || fallbackEmail || "",
+  ).trim().toLowerCase();
   return {
     firstName,
     lastName,
-    name: [firstName, lastName].filter(Boolean).join(" ") || claims.email,
+    name: [firstName, lastName].filter(Boolean).join(" ") || email,
     company: String(row.company_legal_name || "").trim(),
     phone: String(row.phone || "").trim(),
-    email: claims.email,
+    email,
   };
+}
+
+async function readProspect(claims: VisioBookingClaims) {
+  return readProspectByUserId(claims.sub, claims.email);
 }
 
 function getInternalAlertRecipients(environmentName: string) {
@@ -1647,9 +1852,23 @@ async function createGoogleBookingEvent(input: {
     "Source : inscription validée sur inrcy.com",
   ].filter(Boolean);
   const publicContent = buildPublicVisioBookingContent({
-    prospect,
+    prospect: {
+      ...prospect,
+      firstName: prospect.firstName,
+      lastName: prospect.lastName,
+      email: prospect.email,
+      phone: prospect.phone,
+    },
     assignedMember: input.member,
   });
+  // This function is reached only when the professional actively confirms a
+  // slot from the public signup journey. A yellow waiting event may already
+  // exist, but reusing that same Google object must not make the booking look
+  // like an appointment positioned later by an administrator. Public direct
+  // bookings are always dark blue; the admin reschedule path below is the
+  // only path that turns yellow into light blue.
+  const bookingOrigin: VisioAppointmentOrigin = "signup_with_appointment";
+  const bookingStatus = scheduledStatusForOrigin(bookingOrigin);
 
   const privateProperties = {
     [PRIVATE_BOOKING_KEY]: PRIVATE_BOOKING_VALUE,
@@ -1657,6 +1876,11 @@ async function createGoogleBookingEvent(input: {
     [TEAM_CALENDAR_MIRROR_KEY]: TEAM_CALENDAR_MIRROR_VALUE,
     bookingNonce: input.claims.nonce,
     prospectUserId: input.claims.sub,
+    ...lifecyclePrivateProperties({
+      status: bookingStatus,
+      origin: bookingOrigin,
+    }),
+    [PRIVATE_LOGICAL_APPOINTMENT_KEY]: `prospect:${input.claims.sub}`,
     assignedMemberId: input.member.id,
     assignedMemberEmail: input.member.email,
     sourceCalendarId: sharedCalendarId,
@@ -1667,7 +1891,7 @@ async function createGoogleBookingEvent(input: {
   };
 
   const attendees = buildSingleAssigneeVisioAttendees({
-    teamMembers: getVisioTeamMembers(),
+    teamMembers: [],
     assignedMemberId: input.member.id,
     externalAttendees: [
       { email: prospect.email, displayName: prospect.name, optional: false },
@@ -1676,7 +1900,7 @@ async function createGoogleBookingEvent(input: {
 
   const eventBody = {
     ...publicContent,
-    colorId: optionalEnv("INRCY_VISIO_BOOKED_COLOR_ID", "9"),
+    colorId: visioAppointmentColorId(bookingStatus),
     visibility: "default",
     guestsCanInviteOthers: false,
     guestsCanModify: false,
@@ -1748,6 +1972,7 @@ async function createGoogleBookingEvent(input: {
   }
 
   event = await waitForMeetConference(sharedCalendarId, masterEventId, event);
+  event = (await syncManagedCalendarReplicas(event)) || event;
 
   const confirmation = confirmationFromEvent(event, input.start);
   if (createdMasterEvent) {
@@ -1769,6 +1994,91 @@ async function createGoogleBookingEvent(input: {
     });
   }
   return confirmation;
+}
+
+async function convertPendingSignupToScheduledAppointment(input: {
+  event: GoogleCalendarEvent;
+  start: NonNullable<GoogleCalendarEvent["start"]>;
+  end: NonNullable<GoogleCalendarEvent["end"]>;
+}) {
+  if (!input.event.id || lifecycleStatusForEvent(input.event) !== "signup_pending") {
+    throw new Error("visio_team_assignment_mirror_missing");
+  }
+  if (!input.start.dateTime || !input.end.dateTime) {
+    throw new Error("visio_team_reschedule_all_day");
+  }
+
+  const publicContent = await managedAppointmentPublicContent(input.event);
+  const details = readVisioAppointmentPublicDetails(publicContent);
+  const professionalEmail = String(details.email || "").trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(professionalEmail)) {
+    throw new Error("visio_team_reschedule_professional_email_missing");
+  }
+
+  const properties = input.event.extendedProperties?.private || {};
+  const prospectUserId = String(properties.prospectUserId || "").trim();
+  const bookingNonce = `admin-${createHash("sha256")
+    .update(
+      prospectUserId || logicalAppointmentId(input.event) || input.event.id,
+      "utf8",
+    )
+    .digest("hex")
+    .slice(0, 32)}`;
+  const status: VisioAppointmentStatus =
+    "appointment_scheduled_from_signup";
+  const body = {
+    ...publicContent,
+    start: input.start,
+    end: input.end,
+    colorId: visioAppointmentColorId(status),
+    attendees: [
+      {
+        email: professionalEmail,
+        displayName: [details.firstName, details.lastName]
+          .filter(Boolean)
+          .join(" "),
+      },
+    ],
+    reminders: { useDefault: false, overrides: [] },
+    extendedProperties: {
+      private: {
+        ...properties,
+        [PRIVATE_BOOKING_KEY]: PRIVATE_BOOKING_VALUE,
+        [PRIVATE_BOOKING_SINGLE_EVENT_KEY]:
+          PRIVATE_BOOKING_SINGLE_EVENT_VALUE,
+        [PRIVATE_LOGICAL_APPOINTMENT_KEY]: logicalAppointmentId(input.event),
+        bookingNonce,
+        ...lifecyclePrivateProperties({
+          status,
+          origin: "signup_without_appointment",
+        }),
+      },
+    },
+    ...(teamCalendarEventMeetUrl(input.event)
+      ? {}
+      : {
+          conferenceData: {
+            createRequest: {
+              requestId: conferenceRequestId(bookingNonce),
+              conferenceSolutionKey: { type: "hangoutsMeet" },
+            },
+          },
+        }),
+  };
+
+  const updated = await googleCalendarRequest<GoogleCalendarEvent>(
+    `/calendars/${encodeCalendarId(
+      getVisioSharedCalendarId(),
+    )}/events/${encodeURIComponent(
+      input.event.id,
+    )}?conferenceDataVersion=1&sendUpdates=all`,
+    { method: "PATCH", body: JSON.stringify(body) },
+  );
+  return waitForMeetConference(
+    getVisioSharedCalendarId(),
+    input.event.id,
+    updated,
+  );
 }
 
 export async function bookVisioSlot(
@@ -1877,6 +2187,95 @@ function normalizedCalendarId(value: unknown) {
   return String(value || "").trim().toLowerCase();
 }
 
+function lifecycleStatusForEvent(
+  event: GoogleCalendarEvent,
+  fallback: VisioAppointmentStatus = "appointment_scheduled_from_signup",
+): VisioAppointmentStatus {
+  const properties = event.extendedProperties?.private || {};
+  if (isVisioAppointmentStatus(properties[VISIO_APPOINTMENT_STATUS_KEY])) {
+    return properties[VISIO_APPOINTMENT_STATUS_KEY];
+  }
+  if (pendingSignupReminderProspectUserId(event)) return "signup_pending";
+  if (properties[PRIVATE_BOOKING_KEY] === PRIVATE_BOOKING_VALUE) {
+    const origin = isVisioAppointmentOrigin(properties[VISIO_APPOINTMENT_ORIGIN_KEY])
+      ? properties[VISIO_APPOINTMENT_ORIGIN_KEY]
+      : properties.bookingNonce &&
+          event.id &&
+          event.id !== bookingEventId(properties.bookingNonce)
+        ? "signup_without_appointment"
+        : "signup_with_appointment";
+    return scheduledStatusForOrigin(origin);
+  }
+  return fallback;
+}
+
+function lifecycleOriginForEvent(
+  event: GoogleCalendarEvent,
+  status = lifecycleStatusForEvent(event),
+): VisioAppointmentOrigin {
+  const value =
+    event.extendedProperties?.private?.[VISIO_APPOINTMENT_ORIGIN_KEY];
+  return isVisioAppointmentOrigin(value)
+    ? value
+    : visioAppointmentOriginForStatus(status);
+}
+
+function logicalAppointmentId(event: GoogleCalendarEvent) {
+  const properties = event.extendedProperties?.private || {};
+  const explicit = String(properties[PRIVATE_LOGICAL_APPOINTMENT_KEY] || "").trim();
+  if (explicit) return explicit;
+  const prospectUserId = String(properties.prospectUserId || "").trim();
+  if (prospectUserId) return `prospect:${prospectUserId}`;
+  const bookingNonce = String(properties.bookingNonce || "").trim();
+  if (bookingNonce) return `booking:${bookingNonce}`;
+  const sourceCalendarId = String(
+    properties.sourceCalendarId || event.organizer?.email || "",
+  ).trim();
+  const sourceEventId = String(properties.sourceEventId || event.id || "").trim();
+  return sourceCalendarId && sourceEventId
+    ? `calendar:${sourceCalendarId}:${sourceEventId}`
+    : "";
+}
+
+function calendarReplicaEventId(event: GoogleCalendarEvent) {
+  const logicalId = logicalAppointmentId(event);
+  if (!logicalId) return "";
+  return `vr${createHash("sha256")
+    .update(`visio-calendar-replica:${logicalId}`, "utf8")
+    .digest("hex")
+    .slice(0, 40)}`;
+}
+
+function calendarReplicaFingerprint(
+  event: GoogleCalendarEvent,
+  status = lifecycleStatusForEvent(event),
+) {
+  return createHash("sha256")
+    .update(
+      JSON.stringify({
+        summary: String(event.summary || "").trim(),
+        description: String(event.description || "").trim(),
+        location: String(event.location || "").trim(),
+        start: event.start || null,
+        end: event.end || null,
+        transparency: event.transparency || "opaque",
+        lifecycleStatus: status,
+        colorId: String(event.colorId || visioAppointmentColorId(status)),
+      }),
+      "utf8",
+    )
+    .digest("hex");
+}
+
+function isManagedLifecycleEvent(event: GoogleCalendarEvent) {
+  const properties = event.extendedProperties?.private || {};
+  return Boolean(
+    isVisioAppointmentStatus(properties[VISIO_APPOINTMENT_STATUS_KEY]) ||
+      properties[PRIVATE_BOOKING_KEY] === PRIVATE_BOOKING_VALUE ||
+      pendingSignupReminderProspectUserId(event),
+  );
+}
+
 function getVisioManagedCalendarAddresses() {
   return [...new Set([
     getVisioSharedCalendarId(),
@@ -1971,6 +2370,8 @@ function teamAppointmentFromMirror(event: GoogleCalendarEvent): VisioTeamAppoint
   }
   const member = memberForMirrorEvent(event);
   const properties = event.extendedProperties?.private || {};
+  const status = lifecycleStatusForEvent(event);
+  const origin = lifecycleOriginForEvent(event, status);
   return {
     id: event.id,
     identity: appointmentIdentity(event),
@@ -1986,6 +2387,11 @@ function teamAppointmentFromMirror(event: GoogleCalendarEvent): VisioTeamAppoint
       properties[PRIVATE_BOOKING_KEY] === PRIVATE_BOOKING_VALUE
         ? "booking"
         : "calendar",
+    status,
+    statusLabel: VISIO_APPOINTMENT_STATUS_LABELS[status],
+    colorId: visioAppointmentColorId(status),
+    origin,
+    managedLifecycle: isManagedLifecycleEvent(event),
   };
 }
 
@@ -2106,7 +2512,7 @@ export async function listVisioTeamAppointments(input?: {
     ) {
       continue;
     }
-    const key = appointmentIdentity(event);
+    const key = sharedVisioMirrorDeduplicationIdentity(event);
     const current = byIdentity.get(key);
     if (!current || shouldPreferAppointmentMirror(event, current)) {
       byIdentity.set(key, event);
@@ -2139,6 +2545,481 @@ async function patchCalendarEventWithoutUpdates(
   body: Record<string, unknown>,
 ) {
   return patchCalendarEvent(calendarId, eventId, body, "none");
+}
+
+function lifecycleEventBody(
+  event: GoogleCalendarEvent,
+  status = lifecycleStatusForEvent(event),
+) {
+  const origin = lifecycleOriginForEvent(event, status);
+  return {
+    colorId: visioAppointmentColorId(status),
+    extendedProperties: {
+      private: {
+        ...(event.extendedProperties?.private || {}),
+        ...lifecyclePrivateProperties({ status, origin }),
+        [PRIVATE_LOGICAL_APPOINTMENT_KEY]: logicalAppointmentId(event),
+      },
+    },
+  };
+}
+
+async function managedAppointmentPublicContent(event: GoogleCalendarEvent) {
+  const parsed = readVisioAppointmentPublicDetails(event);
+  const parsedContent = buildVisioAppointmentCalendarContent(parsed);
+  const hasProfessionalEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+    String(parsed.email || "").trim(),
+  );
+  if (
+    event.summary === parsedContent.summary &&
+    event.description === parsedContent.description &&
+    !String(event.location || "").trim() &&
+    hasProfessionalEmail
+  ) {
+    return parsedContent;
+  }
+
+  const prospectUserId = String(
+    event.extendedProperties?.private?.prospectUserId || "",
+  ).trim();
+  if (!prospectUserId) return parsedContent;
+
+  const fallbackEmail =
+    (hasProfessionalEmail ? parsed.email : "") ||
+    teamCalendarExternalAttendees(event, getVisioManagedCalendarAddresses())[0]
+      ?.email ||
+    "";
+  const profile = await readProspectByUserId(prospectUserId, fallbackEmail);
+  return buildVisioAppointmentCalendarContent({
+    firstName: profile.firstName || parsed.firstName,
+    lastName: profile.lastName || parsed.lastName,
+    email: profile.email || parsed.email,
+    company: profile.company || parsed.company,
+    phone: profile.phone || parsed.phone,
+  });
+}
+
+function managedCalendarReplicaBody(
+  canonical: GoogleCalendarEvent,
+  member: VisioTeamMember,
+) {
+  if (!canonical.id || !canonical.start || !canonical.end) {
+    throw new Error("visio_calendar_replica_source_invalid");
+  }
+  const status = lifecycleStatusForEvent(canonical);
+  const origin = lifecycleOriginForEvent(canonical, status);
+  const logicalId = logicalAppointmentId(canonical);
+  const replicaFingerprint = calendarReplicaFingerprint({
+    ...canonical,
+    colorId: visioAppointmentColorId(status),
+    extendedProperties: {
+      private: {
+        ...(canonical.extendedProperties?.private || {}),
+        ...lifecyclePrivateProperties({ status, origin }),
+      },
+    },
+  });
+  return {
+    id: calendarReplicaEventId(canonical),
+    status: "confirmed",
+    summary: String(canonical.summary || "Inscription iNrCy - Professionnel").trim(),
+    description: String(canonical.description || "").trim(),
+    location: String(canonical.location || "").trim(),
+    colorId: visioAppointmentColorId(status),
+    visibility: "default",
+    transparency: canonical.transparency || "opaque",
+    start: canonical.start,
+    end: canonical.end,
+    ...(canonical.conferenceData
+      ? { conferenceData: canonical.conferenceData }
+      : {}),
+    reminders: { useDefault: false, overrides: [] },
+    extendedProperties: {
+      private: {
+        ...(canonical.extendedProperties?.private || {}),
+        ...lifecyclePrivateProperties({ status, origin }),
+        [PRIVATE_LOGICAL_APPOINTMENT_KEY]: logicalId,
+        [PRIVATE_CALENDAR_REPLICA_KEY]: PRIVATE_CALENDAR_REPLICA_VALUE,
+        [PRIVATE_CANONICAL_EVENT_ID_KEY]: canonical.id,
+        [PRIVATE_REPLICA_FINGERPRINT_KEY]: replicaFingerprint,
+        sourceCalendarId: getVisioSharedCalendarId(),
+        sourceEventId: canonical.id,
+        sourceOrganizerEmail: getVisioSharedCalendarId(),
+        sourceCalendarIsOrganizer: "true",
+        assignedMemberId: String(
+          canonical.extendedProperties?.private?.assignedMemberId || member.id,
+        ),
+        assignedMemberEmail: String(
+          canonical.extendedProperties?.private?.assignedMemberEmail || member.email,
+        ),
+        sharedCalendarId: getVisioSharedCalendarId(),
+        sourceMeetUrl: teamCalendarEventMeetUrl(canonical),
+      },
+    },
+  };
+}
+
+async function upsertManagedCalendarReplica(
+  canonical: GoogleCalendarEvent,
+  member: VisioTeamMember,
+) {
+  const body = managedCalendarReplicaBody(canonical, member);
+  const replicaId = String(body.id || "");
+  if (!replicaId) throw new Error("visio_calendar_replica_id_missing");
+  const existing = await getCalendarEvent(member.calendarId, replicaId);
+  if (
+    existing &&
+    existing.status !== "cancelled" &&
+    teamCalendarMirrorContentSignature(existing) ===
+      teamCalendarMirrorContentSignature(body)
+  ) {
+    return "unchanged" as const;
+  }
+  if (existing?.id) {
+    await patchCalendarEventWithoutUpdates(member.calendarId, existing.id, body);
+    return "updated" as const;
+  }
+  try {
+    await googleCalendarRequest<GoogleCalendarEvent>(
+      `/calendars/${encodeCalendarId(member.calendarId)}/events?conferenceDataVersion=1&sendUpdates=none`,
+      { method: "POST", body: JSON.stringify(body) },
+    );
+    return "created" as const;
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message.startsWith("visio_google_api_failed:409:")
+    ) {
+      await patchCalendarEventWithoutUpdates(member.calendarId, replicaId, body);
+      return "updated" as const;
+    }
+    throw error;
+  }
+}
+
+function recoveredManagedCanonicalEventId(replica: GoogleCalendarEvent) {
+  const logicalId = logicalAppointmentId(replica);
+  if (!logicalId) throw new Error("visio_calendar_replica_identity_missing");
+  return `vc${createHash("sha256")
+    .update(`visio-canonical-recovery:${logicalId}`, "utf8")
+    .digest("hex")
+    .slice(0, 40)}`;
+}
+
+async function restoreManagedCanonicalFromReplica(input: {
+  replica: GoogleCalendarEvent;
+  cancelledCanonical?: GoogleCalendarEvent | null;
+}) {
+  const { replica } = input;
+  const properties = { ...(replica.extendedProperties?.private || {}) };
+  const previousStatus = lifecycleStatusForEvent(replica);
+  const status: VisioAppointmentStatus =
+    previousStatus === "signup_cancelled" ||
+    previousStatus === "appointment_cancelled"
+      ? previousStatus
+      : cancellationStatusFor(previousStatus);
+  const origin = lifecycleOriginForEvent(replica, previousStatus);
+  const publicContent = await managedAppointmentPublicContent(replica);
+  const details = readVisioAppointmentPublicDetails(publicContent);
+  const professionalEmail = String(details.email || "").trim().toLowerCase();
+  const shouldKeepProfessional =
+    status !== "signup_cancelled" &&
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(professionalEmail);
+
+  delete properties[PRIVATE_CALENDAR_REPLICA_KEY];
+  delete properties[PRIVATE_CANONICAL_EVENT_ID_KEY];
+  delete properties[PRIVATE_REPLICA_FINGERPRINT_KEY];
+
+  const buildBody = (eventId: string) => ({
+    status: "confirmed",
+    ...publicContent,
+    colorId: visioAppointmentColorId(status),
+    visibility: "default",
+    transparency: replica.transparency || "opaque",
+    guestsCanInviteOthers: false,
+    guestsCanModify: false,
+    guestsCanSeeOtherGuests: false,
+    start: replica.start,
+    end: replica.end,
+    ...(replica.conferenceData
+      ? { conferenceData: replica.conferenceData }
+      : {}),
+    attendees: shouldKeepProfessional
+      ? [
+          {
+            email: professionalEmail,
+            displayName: [details.firstName, details.lastName]
+              .filter(Boolean)
+              .join(" "),
+          },
+        ]
+      : [],
+    reminders: { useDefault: false, overrides: [] },
+    extendedProperties: {
+      private: {
+        ...properties,
+        ...lifecyclePrivateProperties({ status, origin }),
+        [TEAM_CALENDAR_MIRROR_KEY]: TEAM_CALENDAR_MIRROR_VALUE,
+        [PRIVATE_LOGICAL_APPOINTMENT_KEY]: logicalAppointmentId(replica),
+        sourceCalendarId: getVisioSharedCalendarId(),
+        sourceEventId: eventId,
+        sourceOrganizerEmail: getVisioSharedCalendarId(),
+        sourceCalendarIsOrganizer: "true",
+        sharedCalendarId: getVisioSharedCalendarId(),
+        sourceMeetUrl: teamCalendarEventMeetUrl(replica),
+      },
+    },
+  });
+
+  const cancelledCanonicalId = String(input.cancelledCanonical?.id || "").trim();
+  if (cancelledCanonicalId) {
+    try {
+      return await patchCalendarEventWithoutUpdates(
+        getVisioSharedCalendarId(),
+        cancelledCanonicalId,
+        buildBody(cancelledCanonicalId),
+      );
+    } catch (error) {
+      if (
+        !(error instanceof Error) ||
+        (!error.message.startsWith("visio_google_api_failed:404:") &&
+          !error.message.startsWith("visio_google_api_failed:410:"))
+      ) {
+        throw error;
+      }
+    }
+  }
+
+  const recoveredId = recoveredManagedCanonicalEventId(replica);
+  const body = buildBody(recoveredId);
+  try {
+    return await googleCalendarRequest<GoogleCalendarEvent>(
+      `/calendars/${encodeCalendarId(
+        getVisioSharedCalendarId(),
+      )}/events?conferenceDataVersion=1&sendUpdates=none`,
+      {
+        method: "POST",
+        body: JSON.stringify({ ...body, id: recoveredId }),
+      },
+    );
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message.startsWith("visio_google_api_failed:409:")
+    ) {
+      return patchCalendarEventWithoutUpdates(
+        getVisioSharedCalendarId(),
+        recoveredId,
+        body,
+      );
+    }
+    throw error;
+  }
+}
+
+function isReusableBookingForProspect(
+  event: GoogleCalendarEvent,
+  claims: VisioBookingClaims,
+) {
+  const properties = event.extendedProperties?.private || {};
+  if (
+    properties[PRIVATE_BOOKING_KEY] !== PRIVATE_BOOKING_VALUE ||
+    properties.prospectUserId !== claims.sub
+  ) {
+    return false;
+  }
+  const status = lifecycleStatusForEvent(event);
+  if (status === "signup_cancelled" || status === "appointment_cancelled") {
+    throw new Error("visio_booking_cancelled");
+  }
+  return true;
+}
+
+async function syncManagedCalendarReplicas(canonical: GoogleCalendarEvent) {
+  if (!canonical.id || canonical.status === "cancelled") return;
+  const storedStatus = lifecycleStatusForEvent(canonical);
+  const origin = lifecycleOriginForEvent(canonical, storedStatus);
+  const status = visioAppointmentStatusAfterColorChange({
+    currentStatus: storedStatus,
+    origin,
+    colorId: canonical.colorId,
+  });
+  const properties = canonical.extendedProperties?.private || {};
+  const publicContent = await managedAppointmentPublicContent(canonical);
+  const externalAttendees = teamCalendarExternalAttendees(
+    canonical,
+    getVisioManagedCalendarAddresses(),
+  );
+  const attendeeSignature = (attendees: GoogleCalendarEvent["attendees"]) =>
+    (attendees || [])
+      .map((attendee) => String(attendee.email || "").trim().toLowerCase())
+      .filter(Boolean)
+      .sort()
+      .join("\n");
+  const needsNormalizing =
+    canonical.summary !== publicContent.summary ||
+    canonical.description !== publicContent.description ||
+    Boolean(String(canonical.location || "").trim()) ||
+    canonical.colorId !== visioAppointmentColorId(status) ||
+    properties[VISIO_APPOINTMENT_STATUS_KEY] !== status ||
+    properties[VISIO_APPOINTMENT_ORIGIN_KEY] !== origin ||
+    properties[PRIVATE_LOGICAL_APPOINTMENT_KEY] !==
+      logicalAppointmentId(canonical) ||
+    attendeeSignature(canonical.attendees) !==
+      attendeeSignature(externalAttendees) ||
+    hasAutomaticGoogleCalendarReminders(canonical);
+  const normalized = needsNormalizing
+    ? await patchCalendarEventWithoutUpdates(
+        getVisioSharedCalendarId(),
+        canonical.id,
+        {
+          ...publicContent,
+          ...lifecycleEventBody(canonical, status),
+          attendees: externalAttendees,
+          reminders: { useDefault: false, overrides: [] },
+        },
+      )
+    : canonical;
+  await Promise.all(
+    getVisioTeamMembers().map((member) =>
+      upsertManagedCalendarReplica(normalized, member),
+    ),
+  );
+  return normalized;
+}
+
+async function reconcileManagedCalendarReplica(
+  replica: GoogleCalendarEvent,
+) {
+  const properties = replica.extendedProperties?.private || {};
+  if (
+    properties[PRIVATE_CALENDAR_REPLICA_KEY] !==
+      PRIVATE_CALENDAR_REPLICA_VALUE ||
+    !properties[PRIVATE_CANONICAL_EVENT_ID_KEY]
+  ) {
+    return "skipped" as const;
+  }
+
+  const canonical = await getCalendarEvent(
+    getVisioSharedCalendarId(),
+    properties[PRIVATE_CANONICAL_EVENT_ID_KEY],
+  );
+  if (!canonical?.id || canonical.status === "cancelled") {
+    const restored = await restoreManagedCanonicalFromReplica({
+      replica,
+      cancelledCanonical: canonical,
+    });
+    await syncManagedCalendarReplicas(restored);
+    return "updated" as const;
+  }
+
+  const currentStatus = lifecycleStatusForEvent(canonical);
+  const origin = lifecycleOriginForEvent(canonical, currentStatus);
+  const storedFingerprint = String(
+    properties[PRIVATE_REPLICA_FINGERPRINT_KEY] || "",
+  ).trim();
+  const requestedStatus =
+    replica.status === "cancelled"
+      ? cancellationStatusFor(currentStatus)
+      : visioAppointmentStatusAfterColorChange({
+          currentStatus,
+          origin,
+          colorId: replica.colorId,
+        });
+  const actualFingerprint = calendarReplicaFingerprint(
+    replica,
+    requestedStatus,
+  );
+  const scheduleChanged =
+    Boolean(replica.start && replica.end) &&
+    (JSON.stringify(replica.start) !== JSON.stringify(canonical.start) ||
+      JSON.stringify(replica.end) !== JSON.stringify(canonical.end));
+  const replicaChanged =
+    Boolean(storedFingerprint) && actualFingerprint !== storedFingerprint;
+  const canonicalRequestedStatus = visioAppointmentStatusAfterColorChange({
+    currentStatus,
+    origin,
+    colorId: canonical.colorId,
+  });
+
+  // An unchanged replica is also the previous snapshot of the canonical
+  // event. If the yellow shared case has moved while that snapshot did not,
+  // the user positioned the appointment directly in the shared calendar.
+  // Complete the same one-time Meet + guest transition as the admin tool.
+  if (
+    storedFingerprint &&
+    !replicaChanged &&
+    scheduleChanged &&
+    currentStatus === "signup_pending" &&
+    canonicalRequestedStatus === currentStatus &&
+    canonical.start &&
+    canonical.end
+  ) {
+    const scheduled = await convertPendingSignupToScheduledAppointment({
+      event: canonical,
+      start: canonical.start,
+      end: canonical.end,
+    });
+    await syncManagedCalendarReplicas(scheduled);
+    return "updated" as const;
+  }
+
+  if (!storedFingerprint || !replicaChanged) {
+    await syncManagedCalendarReplicas(canonical);
+    return "unchanged" as const;
+  }
+
+  const statusChanged = requestedStatus !== currentStatus;
+  const [replicaPublicContent, canonicalPublicContent] = await Promise.all([
+    managedAppointmentPublicContent(replica),
+    managedAppointmentPublicContent(canonical),
+  ]);
+  const publicContentChanged =
+    replicaPublicContent.summary !== canonicalPublicContent.summary ||
+    replicaPublicContent.description !== canonicalPublicContent.description;
+
+  // Moving the yellow case in an individual calendar has the same meaning as
+  // positioning it from the attribution tool. Reuse the one canonical event,
+  // create its Meet if needed, and send the professional one initial invite.
+  if (
+    scheduleChanged &&
+    requestedStatus === "signup_pending" &&
+    replica.start &&
+    replica.end
+  ) {
+    const scheduled = await convertPendingSignupToScheduledAppointment({
+      event: {
+        ...canonical,
+        ...replicaPublicContent,
+        start: replica.start,
+        end: replica.end,
+      },
+      start: replica.start,
+      end: replica.end,
+    });
+    await syncManagedCalendarReplicas(scheduled);
+    return "updated" as const;
+  }
+
+  const updated =
+    scheduleChanged || statusChanged || publicContentChanged
+      ? await patchCalendarEventWithoutUpdates(
+          getVisioSharedCalendarId(),
+          canonical.id,
+          {
+            ...(publicContentChanged ? replicaPublicContent : {}),
+            ...(scheduleChanged
+              ? { start: replica.start, end: replica.end }
+              : {}),
+            ...(statusChanged
+              ? lifecycleEventBody(canonical, requestedStatus)
+              : {}),
+            reminders: { useDefault: false, overrides: [] },
+          },
+        )
+      : canonical;
+  await syncManagedCalendarReplicas(updated);
+  return "updated" as const;
 }
 
 async function moveCalendarEventWithoutUpdates(
@@ -2185,7 +3066,7 @@ async function cancelDuplicateAppointmentMirrors(
 ) {
   const startMs = eventStartMs(reference);
   if (!startMs) return;
-  const referenceIdentity = appointmentIdentity(reference);
+  const referenceIdentity = sharedVisioMirrorDeduplicationIdentity(reference);
   const events = await listVisioSharedCalendarEvents(
     new Date(startMs - 24 * 60 * 60_000),
     new Date(startMs + 24 * 60 * 60_000),
@@ -2197,7 +3078,7 @@ async function cancelDuplicateAppointmentMirrors(
       event.id === keepMirrorId ||
       event.extendedProperties?.private?.[TEAM_CALENDAR_MIRROR_KEY] !==
         TEAM_CALENDAR_MIRROR_VALUE ||
-      appointmentIdentity(event) !== referenceIdentity
+      sharedVisioMirrorDeduplicationIdentity(event) !== referenceIdentity
     ) {
       continue;
     }
@@ -2280,20 +3161,12 @@ async function reassignAutomaticBooking(input: {
       PRIVATE_BOOKING_SINGLE_EVENT_VALUE &&
     input.mirror.id
   ) {
-    const publicContent = buildPublicVisioBookingContent({
-      prospect: {
-        name: cleanAppointmentTitle(input.mirror.summary),
-        company: cleanAppointmentTitle(input.mirror.summary),
-      },
-      assignedMember: input.targetMember,
-    });
-    return patchCalendarEventWithoutUpdates(
+    const updated = await patchCalendarEventWithoutUpdates(
       getVisioSharedCalendarId(),
       input.mirror.id,
       {
-        description: publicContent.description,
         attendees: buildSingleAssigneeVisioAttendees({
-          teamMembers: getVisioTeamMembers(),
+          teamMembers: [],
           assignedMemberId: input.targetMember.id,
           currentAttendees: input.mirror.attendees,
         }),
@@ -2306,6 +3179,7 @@ async function reassignAutomaticBooking(input: {
         },
       },
     );
+    return (await syncManagedCalendarReplicas(updated)) || updated;
   }
 
   const publicCalendarId = getVisioPublicCalendarId();
@@ -2449,6 +3323,29 @@ async function reassignCalendarAppointment(input: {
   let sourceEventId = String(properties.sourceEventId || "").trim();
   if (!sourceCalendarId || !sourceEventId) {
     throw new Error("visio_team_assignment_source_missing");
+  }
+
+  if (
+    input.mirror.id &&
+    normalizedCalendarId(sourceCalendarId) ===
+      normalizedCalendarId(getVisioSharedCalendarId()) &&
+    sourceEventId === input.mirror.id &&
+    isManagedLifecycleEvent(input.mirror)
+  ) {
+    const updated = await patchCalendarEventWithoutUpdates(
+      getVisioSharedCalendarId(),
+      input.mirror.id,
+      {
+        extendedProperties: {
+          private: {
+            ...properties,
+            assignedMemberId: input.targetMember.id,
+            assignedMemberEmail: input.targetMember.email,
+          },
+        },
+      },
+    );
+    return (await syncManagedCalendarReplicas(updated)) || updated;
   }
 
   let sourceEvent = await getCalendarEvent(sourceCalendarId, sourceEventId);
@@ -2714,7 +3611,12 @@ async function rescheduleAutomaticBooking(input: {
       input.mirror.id,
       { start: schedule.start, end: schedule.end },
     );
-    return { mirror: master, ...schedule, googleUpdatesRequested: false };
+    const normalized = (await syncManagedCalendarReplicas(master)) || master;
+    return {
+      mirror: normalized,
+      ...schedule,
+      googleUpdatesRequested: false,
+    };
   }
 
   const publicCalendarId = getVisioPublicCalendarId();
@@ -2808,6 +3710,48 @@ async function rescheduleCalendarAppointment(input: {
   if (!sourceCalendarId || !sourceEventId) {
     throw new Error("visio_team_assignment_source_missing");
   }
+
+  const isSharedManagedEvent =
+    input.mirror.id &&
+    normalizedCalendarId(sourceCalendarId) ===
+      normalizedCalendarId(getVisioSharedCalendarId()) &&
+    sourceEventId === input.mirror.id &&
+    isManagedLifecycleEvent(input.mirror);
+  if (isSharedManagedEvent) {
+    const schedule = buildTimedEventSchedule(input.mirror, input.newStart);
+    const currentStatus = lifecycleStatusForEvent(input.mirror);
+    const becomesAppointment = currentStatus === "signup_pending";
+    if (!schedule.changed && !becomesAppointment) {
+      return {
+        mirror: input.mirror,
+        ...schedule,
+        googleUpdatesRequested: false,
+      };
+    }
+
+    let updated = becomesAppointment
+      ? await convertPendingSignupToScheduledAppointment({
+          event: input.mirror,
+          start: schedule.start,
+          end: schedule.end,
+        })
+      : await patchCalendarEventWithoutUpdates(
+          getVisioSharedCalendarId(),
+          String(input.mirror.id),
+          {
+            start: schedule.start,
+            end: schedule.end,
+            reminders: { useDefault: false, overrides: [] },
+          },
+        );
+    updated = (await syncManagedCalendarReplicas(updated)) || updated;
+    return {
+      mirror: updated,
+      ...schedule,
+      googleUpdatesRequested: becomesAppointment,
+    };
+  }
+
   const sourceEvent = await getCalendarEvent(sourceCalendarId, sourceEventId);
   if (!sourceEvent?.id || sourceEvent.status === "cancelled") {
     throw new Error("visio_team_assignment_source_missing");
@@ -2912,6 +3856,31 @@ async function recordVisioTeamReschedule(input: {
   });
   if (error) {
     console.error("[visio-booking][team-reschedule-audit]", error.message);
+  }
+}
+
+async function recordVisioTeamStatusChange(input: {
+  actor: VisioTeamReassignmentActor;
+  mirrorId: string;
+  previousStatus: VisioAppointmentStatus;
+  status: VisioAppointmentStatus;
+}) {
+  const { error } = await supabaseAdmin.from("app_events").insert({
+    user_id: input.actor.userId,
+    module: "visio_booking_admin",
+    type: "appointment_status_changed",
+    payload: {
+      mirrorEventId: input.mirrorId,
+      previousStatus: input.previousStatus,
+      status: input.status,
+      actorEmail: input.actor.email,
+      actorName: input.actor.name,
+      notificationsSent: false,
+      changedAt: new Date().toISOString(),
+    },
+  });
+  if (error) {
+    console.error("[visio-booking][team-status-audit]", error.message);
   }
 }
 
@@ -3092,6 +4061,93 @@ export async function resendVisioBookingLink(input: {
     recipientFingerprint,
   });
   return { appointment, sent: true, idempotent: false };
+}
+
+export async function updateVisioTeamAppointmentStatus(input: {
+  mirrorEventId: string;
+  appointmentIdentity?: string;
+  appointmentStart?: string;
+  status: VisioAppointmentStatus;
+  actor: VisioTeamReassignmentActor;
+}): Promise<VisioTeamStatusResult> {
+  const mirrorEventId = String(input.mirrorEventId || "").trim();
+  if (
+    !mirrorEventId ||
+    !VISIO_APPOINTMENT_STATUSES.includes(input.status)
+  ) {
+    throw new Error("visio_team_status_invalid");
+  }
+
+  const calendarMutationLock = await acquireTeamCalendarSyncLock();
+  if (!calendarMutationLock.acquired) {
+    throw new Error("visio_team_assignment_sync_busy");
+  }
+  try {
+    const mirror = await resolveActiveTeamAppointmentMirror({
+      mirrorEventId,
+      identity: input.appointmentIdentity,
+      start: input.appointmentStart,
+    });
+    if (!mirror?.id || !isManagedLifecycleEvent(mirror)) {
+      throw new Error("visio_team_assignment_mirror_missing");
+    }
+
+    const lockIdentity = createHash("sha256")
+      .update(String(input.appointmentIdentity || mirror.id), "utf8")
+      .digest("hex")
+      .slice(0, 32);
+    const lock = await acquireBookingLock(`status:${lockIdentity}`);
+    try {
+      const previousStatus = lifecycleStatusForEvent(mirror);
+      const origin = lifecycleOriginForEvent(mirror, previousStatus);
+      if (
+        input.status !== previousStatus &&
+        !canManuallyTransitionVisioAppointment(
+          previousStatus,
+          input.status,
+          origin,
+        )
+      ) {
+        throw new Error("visio_team_status_transition_invalid");
+      }
+
+      const updated =
+        input.status === previousStatus
+          ? mirror
+          : await patchCalendarEventWithoutUpdates(
+              getVisioSharedCalendarId(),
+              mirror.id,
+              {
+                ...lifecycleEventBody(mirror, input.status),
+                reminders: { useDefault: false, overrides: [] },
+              },
+            );
+      const normalized =
+        (await syncManagedCalendarReplicas(updated)) || updated;
+      const appointment = teamAppointmentFromMirror(normalized);
+      if (!appointment) {
+        throw new Error("visio_team_assignment_mirror_missing");
+      }
+      if (input.status !== previousStatus) {
+        await recordVisioTeamStatusChange({
+          actor: input.actor,
+          mirrorId: mirror.id,
+          previousStatus,
+          status: input.status,
+        });
+      }
+      return {
+        appointment,
+        previousStatus,
+        status: input.status,
+        notificationsSent: false,
+      };
+    } finally {
+      await lock.release().catch(() => undefined);
+    }
+  } finally {
+    await calendarMutationLock.release().catch(() => undefined);
+  }
 }
 
 export async function reassignVisioTeamAppointment(input: {

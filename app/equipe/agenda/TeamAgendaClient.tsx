@@ -5,6 +5,12 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { confirmInrcy } from "@/lib/inrcyDialog";
+import {
+  VISIO_APPOINTMENT_STATUS_LABELS,
+  visioAppointmentManualTransitions,
+  type VisioAppointmentOrigin,
+  type VisioAppointmentStatus,
+} from "@/lib/visioAppointmentLifecycle";
 
 import styles from "./teamAgenda.module.css";
 
@@ -21,6 +27,11 @@ type TeamAppointment = {
   currentMemberId: string;
   currentMemberName: string;
   sourceType: "booking" | "calendar";
+  status: VisioAppointmentStatus;
+  statusLabel: string;
+  colorId: string;
+  origin: VisioAppointmentOrigin;
+  managedLifecycle: boolean;
 };
 type TeamViewer = { userId: string; email: string; name: string };
 
@@ -101,6 +112,7 @@ export default function TeamAgendaClient({
   const [assigningId, setAssigningId] = useState("");
   const [reschedulingId, setReschedulingId] = useState("");
   const [resendingId, setResendingId] = useState("");
+  const [statusUpdatingId, setStatusUpdatingId] = useState("");
   const [editingId, setEditingId] = useState("");
   const [newStartLocal, setNewStartLocal] = useState("");
   const [error, setError] = useState("");
@@ -165,7 +177,8 @@ export default function TeamAgendaClient({
       appointment.currentMemberId === target.id ||
       assigningId ||
       reschedulingId ||
-      resendingId
+      resendingId ||
+      statusUpdatingId
     ) return;
     const previousMemberId = appointment.currentMemberId;
     const previousMemberName = appointment.currentMemberName;
@@ -222,18 +235,30 @@ export default function TeamAgendaClient({
     } finally {
       setAssigningId("");
     }
-  }, [assigningId, reschedulingId, resendingId]);
+  }, [assigningId, reschedulingId, resendingId, statusUpdatingId]);
 
   const beginReschedule = useCallback((appointment: TeamAppointment) => {
-    if (appointment.allDay || assigningId || reschedulingId || resendingId) return;
+    if (
+      appointment.allDay ||
+      assigningId ||
+      reschedulingId ||
+      resendingId ||
+      statusUpdatingId
+    ) return;
     setEditingId(appointment.id);
     setNewStartLocal(toParisDateTimeLocal(appointment.start));
     setError("");
     setSuccess("");
-  }, [assigningId, reschedulingId, resendingId]);
+  }, [assigningId, reschedulingId, resendingId, statusUpdatingId]);
 
   const reschedule = useCallback(async (appointment: TeamAppointment) => {
-    if (!newStartLocal || assigningId || reschedulingId || resendingId) return;
+    if (
+      !newStartLocal ||
+      assigningId ||
+      reschedulingId ||
+      resendingId ||
+      statusUpdatingId
+    ) return;
     setReschedulingId(appointment.id);
     setError("");
     setSuccess("");
@@ -273,7 +298,7 @@ export default function TeamAgendaClient({
     } finally {
       setReschedulingId("");
     }
-  }, [assigningId, newStartLocal, reschedulingId, resendingId]);
+  }, [assigningId, newStartLocal, reschedulingId, resendingId, statusUpdatingId]);
 
   const resendBookingLink = useCallback(async (appointment: TeamAppointment) => {
     if (
@@ -281,7 +306,8 @@ export default function TeamAgendaClient({
       !appointment.meetUrl ||
       assigningId ||
       reschedulingId ||
-      resendingId
+      resendingId ||
+      statusUpdatingId
     ) {
       return;
     }
@@ -335,7 +361,64 @@ export default function TeamAgendaClient({
     } finally {
       setResendingId("");
     }
-  }, [assigningId, reschedulingId, resendingId]);
+  }, [assigningId, reschedulingId, resendingId, statusUpdatingId]);
+
+  const updateStatus = useCallback(async (
+    appointment: TeamAppointment,
+    status: VisioAppointmentStatus,
+  ) => {
+    if (
+      status === appointment.status ||
+      assigningId ||
+      reschedulingId ||
+      resendingId ||
+      statusUpdatingId
+    ) {
+      return;
+    }
+    setStatusUpdatingId(appointment.id);
+    setError("");
+    setSuccess("");
+    try {
+      const response = await fetch("/api/internal/visio-booking/appointments", {
+        method: "PUT",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mirrorEventId: appointment.id,
+          appointmentIdentity: appointment.identity,
+          appointmentStart: appointment.start,
+          status,
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        appointment?: TeamAppointment;
+      };
+      if (!response.ok || !payload.appointment) {
+        throw new Error(payload.error || "Le changement de statut a échoué.");
+      }
+      const updatedAppointment = payload.appointment;
+      setAppointments((current) =>
+        current.map((item) =>
+          item.id === appointment.id || item.id === updatedAppointment.id
+            ? updatedAppointment
+            : item,
+        ),
+      );
+      setSuccess(
+        `${appointment.title} : ${updatedAppointment.statusLabel.toLowerCase()}.`,
+      );
+    } catch (statusError) {
+      setError(
+        statusError instanceof Error
+          ? statusError.message
+          : "Le changement de statut a échoué.",
+      );
+    } finally {
+      setStatusUpdatingId("");
+    }
+  }, [assigningId, reschedulingId, resendingId, statusUpdatingId]);
 
   return (
     <main className={styles.page}>
@@ -375,7 +458,7 @@ export default function TeamAgendaClient({
               type="button"
               className={styles.refreshButton}
               onClick={() => void loadAppointments(true)}
-              disabled={refreshing || Boolean(assigningId) || Boolean(reschedulingId) || Boolean(resendingId)}
+              disabled={refreshing || Boolean(assigningId) || Boolean(reschedulingId) || Boolean(resendingId) || Boolean(statusUpdatingId)}
             >
               {refreshing ? "Actualisation…" : "Actualiser"}
             </button>
@@ -412,6 +495,54 @@ export default function TeamAgendaClient({
                             {appointment.sourceType === "booking" ? "Réservation site" : "Agenda"}
                           </span>
                         </div>
+                        {appointment.managedLifecycle ? (
+                          <div className={styles.statusRow}>
+                            <span
+                              className={styles.statusBadge}
+                              data-status={appointment.status}
+                            >
+                              {appointment.statusLabel}
+                            </span>
+                            <label className={styles.statusSelectLabel}>
+                              <span>Changer le statut</span>
+                              <select
+                                value={appointment.status}
+                                disabled={
+                                  Boolean(assigningId) ||
+                                  Boolean(reschedulingId) ||
+                                  Boolean(resendingId) ||
+                                  Boolean(statusUpdatingId) ||
+                                  refreshing
+                                }
+                                onChange={(event) =>
+                                  void updateStatus(
+                                    appointment,
+                                    event.target.value as VisioAppointmentStatus,
+                                  )
+                                }
+                              >
+                                <option value={appointment.status}>
+                                  {statusUpdatingId === appointment.id
+                                    ? "Mise à jour…"
+                                    : appointment.statusLabel}
+                                </option>
+                                {visioAppointmentManualTransitions(
+                                  appointment.status,
+                                  appointment.origin,
+                                ).map((status) => (
+                                  <option value={status} key={status}>
+                                    {VISIO_APPOINTMENT_STATUS_LABELS[status]}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            {appointment.status === "signup_pending" ? (
+                              <span className={styles.statusHint}>
+                                Pour le passer en bleu clair, positionnez sa date et son heure.
+                              </span>
+                            ) : null}
+                          </div>
+                        ) : null}
                         <div className={styles.links}>
                           {appointment.meetUrl ? (
                             <a href={appointment.meetUrl} target="_blank" rel="noreferrer">Ouvrir Google Meet</a>
@@ -425,7 +556,7 @@ export default function TeamAgendaClient({
                             <button
                               type="button"
                               className={styles.resendLinkButton}
-                              disabled={Boolean(assigningId) || Boolean(reschedulingId) || Boolean(resendingId) || refreshing}
+                              disabled={Boolean(assigningId) || Boolean(reschedulingId) || Boolean(resendingId) || Boolean(statusUpdatingId) || refreshing}
                               onClick={() => void resendBookingLink(appointment)}
                             >
                               {resendingId === appointment.id ? "Envoi…" : "Renvoyer le lien"}
@@ -435,7 +566,7 @@ export default function TeamAgendaClient({
                             <button
                               type="button"
                               className={styles.scheduleToggle}
-                              disabled={Boolean(assigningId) || Boolean(reschedulingId) || Boolean(resendingId) || refreshing}
+                              disabled={Boolean(assigningId) || Boolean(reschedulingId) || Boolean(resendingId) || Boolean(statusUpdatingId) || refreshing}
                               onClick={() => beginReschedule(appointment)}
                             >
                               Modifier date / heure
@@ -495,7 +626,7 @@ export default function TeamAgendaClient({
                                 key={member.id}
                                 type="button"
                                 className={active ? styles.memberButtonActive : styles.memberButton}
-                                disabled={active || Boolean(assigningId) || Boolean(reschedulingId) || Boolean(resendingId) || refreshing}
+                                disabled={active || Boolean(assigningId) || Boolean(reschedulingId) || Boolean(resendingId) || Boolean(statusUpdatingId) || refreshing}
                                 onClick={() => void reassign(appointment, member)}
                               >
                                 {pending && active ? "Mise à jour…" : active ? `✓ ${member.name}` : member.name}

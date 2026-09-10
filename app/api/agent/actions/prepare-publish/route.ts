@@ -56,6 +56,7 @@ import {
   type BoosterAiImage,
 } from "@/lib/boosterPublishGeneration";
 import { generateInrAgentMedia } from "@/lib/inrAgentMediaGeneration";
+import { loadInrAgentStudioMediaPreferences } from "@/lib/inrAgentMediaPreferencesServer";
 import type { BoosterCtaMode } from "@/lib/boosterCta";
 import { applySafePreferredCta } from "@/lib/boosterCtaPreferences";
 import { loadBoosterCtaDefaults } from "@/lib/boosterCtaDefaultsServer";
@@ -1855,12 +1856,21 @@ export async function POST(request: Request) {
         scheduledFor: editorialTarget.plan.scheduledFor,
       })
     : Promise.resolve([] as string[]);
+  const studioMediaPreferencesPromise =
+    automation.preferredMediaSource === "ai_generation" &&
+    automation.studioMediaPreferencePercent > 0
+      ? loadInrAgentStudioMediaPreferences({
+          supabase: supabaseAdmin,
+          accountId: userId,
+        })
+      : Promise.resolve(null);
 
   const [
     availableChannels,
     generationContext,
     earlierEditorialAngles,
     ctaDefaults,
+    studioMediaPreferences,
   ] =
     await Promise.all([
       selectConnectedChannels({
@@ -1871,6 +1881,7 @@ export async function POST(request: Request) {
       generationContextPromise,
       earlierEditorialAnglesPromise,
       loadBoosterCtaDefaults({ supabase, userId }),
+      studioMediaPreferencesPromise,
     ]);
   const plannedBoosterChannels = editorialTarget
     ? editorialTarget.plan.channels
@@ -1975,6 +1986,12 @@ export async function POST(request: Request) {
   const generatedMediaResults: Array<
     Awaited<ReturnType<typeof generateInrAgentMedia>>
   > = [];
+  const mediaVariantSeed = [
+    userId,
+    editorialTarget?.id || "on-demand",
+    editorialTarget?.plan.scheduledFor || "unscheduled",
+    agentTheme,
+  ].join(":");
   for (let index = 0; index < requestedGenerationCount; index += 1) {
     generatedMediaResults.push(
       await generateInrAgentMedia({
@@ -1988,6 +2005,10 @@ export async function POST(request: Request) {
         theme: agentTheme,
         kind: generatedKind,
         adminUnlimited: isAdmin,
+        studioMediaPreferencePercent:
+          automation.studioMediaPreferencePercent,
+        studioPreferences: studioMediaPreferences,
+        variantSeed: `${mediaVariantSeed}:${index}`,
       }),
     );
   }

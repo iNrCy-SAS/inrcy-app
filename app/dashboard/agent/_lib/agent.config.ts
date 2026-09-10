@@ -4,9 +4,10 @@ import {
   INR_MEDIA_VIDEO_SOURCE_MAX_BYTES,
 } from "@/lib/mediaRules";
 import type { DisplayKey as BoosterDisplayKey } from "../../booster/publier/publishModal.shared";
-import type {
-  InrAgentChannel,
-  InrAgentTheme,
+import {
+  INR_AGENT_STUDIO_MEDIA_PREFERENCE_DEFAULT,
+  type InrAgentChannel,
+  type InrAgentTheme,
 } from "@/lib/inrAgentSettings";
 import type { InrAgentActionStatus } from "@/lib/inrAgentActions";
 import type {
@@ -422,6 +423,7 @@ export const defaultConfigs: Record<AutomationKey, AutomationConfig> = {
     source: "Contenus déjà publiés + canaux Booster / Publier connectés",
     signatureAutomatic: true,
     preferredMediaSource: "media_library",
+    studioMediaPreferencePercent: INR_AGENT_STUDIO_MEDIA_PREFERENCE_DEFAULT,
     planningHorizonDays: 15,
   },
   grow: {
@@ -440,6 +442,7 @@ export const defaultConfigs: Record<AutomationKey, AutomationConfig> = {
     source: "Publications déjà faites + rubriques Propulser",
     signatureAutomatic: true,
     preferredMediaSource: "media_library",
+    studioMediaPreferencePercent: INR_AGENT_STUDIO_MEDIA_PREFERENCE_DEFAULT,
     planningHorizonDays: 15,
   },
   loyalty: {
@@ -458,6 +461,7 @@ export const defaultConfigs: Record<AutomationKey, AutomationConfig> = {
     source: "Publications déjà faites + rubriques Fidéliser",
     signatureAutomatic: true,
     preferredMediaSource: "media_library",
+    studioMediaPreferencePercent: INR_AGENT_STUDIO_MEDIA_PREFERENCE_DEFAULT,
     planningHorizonDays: 15,
   },
   stats: {
@@ -483,6 +487,7 @@ export const defaultConfigs: Record<AutomationKey, AutomationConfig> = {
     source: "Rubriques iNr’Stats connectées",
     signatureAutomatic: true,
     preferredMediaSource: "media_library",
+    studioMediaPreferencePercent: INR_AGENT_STUDIO_MEDIA_PREFERENCE_DEFAULT,
     planningHorizonDays: 15,
   },
 };

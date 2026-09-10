@@ -40,25 +40,26 @@ test("le rappel d'inscription ne conserve que l'identité publique utile", () =>
     assignedMember: teamMembers[1],
   });
 
-  assert.equal(content.summary, "Inscription — Belle à croquer — Apolline");
+  assert.equal(content.summary, "Inscription iNrCy - Belle à croquer");
   assert.equal(
     content.description,
     [
-      "Inscription iNrCy en attente de rendez-vous.",
-      "Professionnel : Josiane Mpicka",
-      "Société : Belle à croquer",
-      "Responsable iNrCy : Apolline",
+      "Nom : Mpicka",
+      "Prénom : Josiane",
+      "E-mail : pro@example.com",
+      "Entreprise : Belle à croquer",
+      "Téléphone : 0600000000",
     ].join("\n"),
   );
   assert.equal(content.location, "");
   assert.deepEqual(content.reminders, { useDefault: false, overrides: [] });
   assert.doesNotMatch(
     JSON.stringify(content),
-    /statut|couleur|e-mail|téléphone|consentement|provenance|campagne|user id|provider|0600000000|pro@example/i,
+    /statut|couleur|consentement|provenance|campagne|user id|provider|acquisition-secrète/i,
   );
 });
 
-test("un titre de suivi saisi par l'équipe est conservé sans recopier le mail", () => {
+test("un ancien titre de suivi est remplacé par le contrat public unique", () => {
   const content = buildPendingSignupCalendarContent({
     event: {
       summary: "Inscription - Mpicka à rappeler par SMS",
@@ -67,29 +68,48 @@ test("un titre de suivi saisi par l'équipe est conservé sans recopier le mail"
     assignedMember: teamMembers[0],
   });
 
-  assert.equal(content.summary, "Inscription - Mpicka à rappeler par SMS");
-  assert.doesNotMatch(content.description, /secret|user id/i);
-});
-
-test("l'invitation du professionnel ne contient que le libellé public du rendez-vous", () => {
-  const content = buildPublicVisioBookingContent({
-    prospect: { name: "Jeanne Martin", company: "Atelier Jeanne" },
-    assignedMember: teamMembers[0],
-  });
-
-  assert.equal(content.summary, "Présentation iNrCy — Atelier Jeanne");
+  assert.equal(content.summary, "Inscription iNrCy - Belle à croquer");
   assert.equal(
     content.description,
     [
-      "Rendez-vous de présentation iNrCy.",
-      "Votre interlocuteur : Océane.",
-      "Le lien Google Meet est joint à cette invitation.",
+      "Nom : Mpicka",
+      "Prénom : Josiane",
+      "E-mail : —",
+      "Entreprise : Belle à croquer",
+      "Téléphone : —",
     ].join("\n"),
   );
-  assert.equal(content.location, "Google Meet");
+  assert.doesNotMatch(JSON.stringify(content), /rappeler|secret|user id/i);
+});
+
+test("l'invitation du professionnel utilise le même titre et les cinq champs publics", () => {
+  const content = buildPublicVisioBookingContent({
+    prospect: {
+      name: "Jeanne Martin",
+      firstName: "Jeanne",
+      lastName: "Martin",
+      email: "jeanne@example.com",
+      company: "Atelier Jeanne",
+      phone: "0611223344",
+    },
+    assignedMember: teamMembers[0],
+  });
+
+  assert.equal(content.summary, "Inscription iNrCy - Atelier Jeanne");
+  assert.equal(
+    content.description,
+    [
+      "Nom : Martin",
+      "Prénom : Jeanne",
+      "E-mail : jeanne@example.com",
+      "Entreprise : Atelier Jeanne",
+      "Téléphone : 0611223344",
+    ].join("\n"),
+  );
+  assert.equal(content.location, "");
   assert.doesNotMatch(
     JSON.stringify(content),
-    /user id|téléphone|e-mail|campagne|source|nonce|secret|interne/i,
+    /user id|campagne|source|nonce|secret|interne|interlocuteur/i,
   );
 });
 

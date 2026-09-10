@@ -19,6 +19,8 @@ import { generateAndSaveAiMedia } from "@/lib/aiMediaGenerationServer";
 import { AI_MEDIA_ADMIN_LIMIT_OVERRIDE } from "@/lib/aiMediaQuotaPresentation";
 import { getDashboardEditionForAccountId } from "@/lib/dashboardEditionServer";
 import type { InrAgentTheme } from "@/lib/inrAgentSettings";
+import type { AiMediaGeneratorPreferences } from "@/lib/aiMediaGenerationPreferences";
+import { resolveInrAgentMediaMix } from "@/lib/inrAgentMediaMix";
 
 type SupabaseLike = Parameters<typeof generateAndSaveAiMedia>[0]["supabase"];
 
@@ -63,8 +65,23 @@ export async function generateInrAgentMedia(args: {
   theme: InrAgentTheme;
   kind: AiMediaKind;
   adminUnlimited: boolean;
+  /** Part Studio/variation demandée dans Publier (0–100). */
+  studioMediaPreferencePercent?: number;
+  /** Réglages Studio déjà chargés une fois pour toute l’action. */
+  studioPreferences?: AiMediaGeneratorPreferences | null;
+  /** Seed stable (action + index) pour éviter un changement au retry. */
+  variantSeed?: string;
 }): Promise<InrAgentGeneratedMediaResult> {
   const edition = await getDashboardEditionForAccountId(args.accountId);
+  const mediaMix = resolveInrAgentMediaMix({
+    kind: args.kind,
+    theme: args.theme,
+    studioMediaPreferencePercent: args.studioMediaPreferencePercent ?? 0,
+    studioPreferences: args.studioPreferences,
+    seed:
+      args.variantSeed ||
+      `${args.accountId}:${args.theme}:${args.kind}:${args.idea}`,
+  });
   const request: AiMediaGenerationRequest = {
     requestId: `inr-agent:${randomUUID()}`,
     kind: args.kind,
@@ -75,28 +92,28 @@ export async function generateInrAgentMedia(args: {
     // les plans Veo augmenterait le risque de faux caracteres.
     withText: false,
     textKeywords: [],
-    withMusic: args.kind === "video",
-    withNarration: args.kind === "video",
-    narrationVoice: args.kind === "video" ? "female" : null,
-    format: args.kind === "video" ? "story" : "portrait",
+    withMusic: mediaMix.withMusic,
+    withNarration: mediaMix.withNarration,
+    narrationVoice: mediaMix.narrationVoice,
+    format: mediaMix.format,
     typology: typologyForTheme(args.theme),
-    visualStyle: "brand",
-    imageStyle: "photo",
-    shotType: "auto",
-    peopleMode: "auto",
-    creativity: "faithful",
-    useBrandColors: true,
-    logoMode: "discreet",
+    visualStyle: mediaMix.visualStyle,
+    imageStyle: mediaMix.imageStyle,
+    shotType: mediaMix.shotType,
+    peopleMode: mediaMix.peopleMode,
+    creativity: mediaMix.creativity,
+    useBrandColors: mediaMix.useBrandColors,
+    logoMode: mediaMix.logoMode,
     videoEngine: args.kind === "video" ? "omni" : null,
     identityMode: "auto",
     videoCharacterMode: "auto",
     identityConsent: false,
-    teamVideoMode: "montage",
-    teamVideoSpeechMode: "voiceover",
+    teamVideoMode: mediaMix.teamVideoMode,
+    teamVideoSpeechMode: mediaMix.teamVideoSpeechMode,
     teamVideoVeoConsent: false,
     identityReferenceSetId: "",
-    connectScenes: false,
-    durationSeconds: args.kind === "video" ? 8 : null,
+    connectScenes: mediaMix.connectScenes,
+    durationSeconds: mediaMix.durationSeconds,
     inspirationImages: [],
     source: "booster",
   };
@@ -122,6 +139,10 @@ export async function generateInrAgentMedia(args: {
       automation_key: "publish",
       theme: args.theme,
       duration_seconds: request.durationSeconds,
+      studio_media_preference_percent:
+        mediaMix.studioMediaPreferencePercent,
+      studio_media_preference_mode: mediaMix.mode,
+      studio_media_preference_blocks: mediaMix.appliedStudioBlockIds,
     },
   });
 
@@ -161,6 +182,10 @@ export async function generateInrAgentMedia(args: {
         model: generated.model,
         prompt_version: generated.promptVersion,
         prompt_sha256: generated.promptSha256,
+        studio_media_preference_percent:
+          mediaMix.studioMediaPreferencePercent,
+        studio_media_preference_mode: mediaMix.mode,
+        studio_media_preference_blocks: mediaMix.appliedStudioBlockIds,
       },
     });
     quotaCompleted = true;

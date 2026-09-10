@@ -1,4 +1,9 @@
 import { INR_CALENDAR_GOOGLE_SOURCE } from "@/lib/inrCalendarGoogleSyncConstants";
+import {
+  isVisioAppointmentStatus,
+  visioAppointmentStatusForColor,
+  type VisioAppointmentStatus,
+} from "@/lib/visioAppointmentLifecycle";
 
 export type ContactCategory = "particulier" | "professionnel" | "collectivite_publique";
 export type ContactType = "prospect" | "client" | "fournisseur" | "partenaire" | "autre";
@@ -170,6 +175,47 @@ export function accentFor(id: string) {
   return pick === 0 ? "cyan" : pick === 1 ? "purple" : pick === 2 ? "pink" : "orange";
 }
 
+export type EventAccent =
+  | ReturnType<typeof accentFor>
+  | "appointmentYellow"
+  | "appointmentLightBlue"
+  | "appointmentDarkBlue"
+  | "appointmentLightRed"
+  | "appointmentDarkRed"
+  | "appointmentGreen";
+
+const APPOINTMENT_ACCENT_BY_STATUS: Record<VisioAppointmentStatus, EventAccent> = {
+  signup_pending: "appointmentYellow",
+  appointment_scheduled_from_signup: "appointmentLightBlue",
+  appointment_scheduled_direct: "appointmentDarkBlue",
+  signup_cancelled: "appointmentLightRed",
+  appointment_cancelled: "appointmentDarkRed",
+  appointment_signed: "appointmentGreen",
+};
+
+/**
+ * Managed appointments keep their business colour in iNrCalendar. Other
+ * events retain the existing deterministic palette.
+ */
+export function eventAccentFor(event: EventItem | DayEvent): EventAccent {
+  const meta =
+    event.inrcy && typeof event.inrcy === "object"
+      ? (event.inrcy as Record<string, unknown>)
+      : {};
+  const google =
+    meta.google && typeof meta.google === "object"
+      ? (meta.google as Record<string, unknown>)
+      : {};
+  const rawStatus = String(
+    meta.appointmentStatus || google.appointmentStatus || "",
+  ).trim();
+  const status = isVisioAppointmentStatus(rawStatus)
+    ? rawStatus
+    : visioAppointmentStatusForColor(google.colorId);
+
+  return status ? APPOINTMENT_ACCENT_BY_STATUS[status] : accentFor(event.id);
+}
+
 export function buildCrmDisplayName(firstName: string, lastName: string, companyName?: string) {
   const left = [firstName ?? "", lastName ?? ""].join(" ").replace(/\s+/g, " ").trim();
   const right = (companyName ?? "").trim();
@@ -234,12 +280,18 @@ export function isGoogleSyncedEvent(event: EventItem | DayEvent | null | undefin
   );
 }
 
-export function getEventAccentClass(accent: ReturnType<typeof accentFor>, styles: Record<string, string>) {
-  return accent === "cyan"
-    ? styles.accentCyan
-    : accent === "purple"
-      ? styles.accentPurple
-      : accent === "pink"
-        ? styles.accentPink
-        : styles.accentOrange;
+export function getEventAccentClass(accent: EventAccent, styles: Record<string, string>) {
+  const classByAccent: Record<EventAccent, string> = {
+    cyan: styles.accentCyan,
+    purple: styles.accentPurple,
+    pink: styles.accentPink,
+    orange: styles.accentOrange,
+    appointmentYellow: styles.accentAppointmentYellow,
+    appointmentLightBlue: styles.accentAppointmentLightBlue,
+    appointmentDarkBlue: styles.accentAppointmentDarkBlue,
+    appointmentLightRed: styles.accentAppointmentLightRed,
+    appointmentDarkRed: styles.accentAppointmentDarkRed,
+    appointmentGreen: styles.accentAppointmentGreen,
+  };
+  return classByAccent[accent];
 }
