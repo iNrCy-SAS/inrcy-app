@@ -6,6 +6,39 @@ import { preserveVideoAiContextReferenceOnDraftUpdate } from "@/lib/videoAiConte
 
 type BoosterEventType = "publish" | "publish_draft" | "review_mail" | "promo_mail";
 
+type PublishDraftEventRow = {
+  id: string | null;
+  payload: unknown;
+  created_at: string | null;
+};
+
+type PublishDraftMenuItem = {
+  id: string;
+  title: string;
+  preview: string;
+  channels: string[];
+  savedAt: string;
+};
+
+const MAX_DRAFT_MENU_ITEMS = 30;
+const DRAFT_MENU_SCAN_LIMIT = 100;
+
+function cleanDraftText(value: unknown, fallback = "") {
+  const text = String(value || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  return text || fallback;
+}
+
+function parseDraftMenuLimit(value: string | null) {
+  const parsed = Number.parseInt(String(value || ""), 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return 20;
+  return Math.min(parsed, MAX_DRAFT_MENU_ITEMS);
+}
+
+function getDraftSavedAt(payload: Record<string, unknown>, createdAt: unknown) {
+  const savedAt = String(payload.saved_at || "").trim();
+  return Number.isFinite(Date.parse(savedAt)) ? savedAt : String(createdAt || "");
+}
+
 export async function GET(req: Request) {
   try {
     const { supabase, user, errorResponse, activeUserId } = await requireUser();
@@ -13,6 +46,56 @@ export async function GET(req: Request) {
 
     const url = new URL(req.url);
     const draftId = String(url.searchParams.get("draftId") || "").trim();
+    const draftListRequested = url.searchParams.get("view") === "drafts";
+
+    if (draftListRequested && !draftId) {
+      const requestedLimit = parseDraftMenuLimit(url.searchParams.get("limit"));
+      const { data, error } = await supabase
+        .from("app_events")
+        .select("id,payload,created_at")
+        .eq("user_id", activeUserId)
+        .eq("module", "booster")
+        .eq("type", "publish_draft")
+        .order("created_at", { ascending: false })
+        .limit(DRAFT_MENU_SCAN_LIMIT);
+
+      if (error) return jsonUserFacingError(error, { status: 500 });
+
+      const drafts = ((data || []) as PublishDraftEventRow[])
+        .map((row) => {
+          const payload =
+            row.payload && typeof row.payload === "object" && !Array.isArray(row.payload)
+              ? (row.payload as Record<string, unknown>)
+              : {};
+          const channels = Array.isArray(payload.channels)
+            ? Array.from(
+                new Set(
+                  payload.channels
+                    .map((channel) => cleanDraftText(channel))
+                    .filter(Boolean),
+                ),
+              )
+            : [];
+          return {
+            id: String(row.id || ""),
+            title: cleanDraftText(payload.title),
+            preview: cleanDraftText(payload.preview || payload.content || payload.idea).slice(0, 180),
+            channels,
+            savedAt: getDraftSavedAt(payload, row.created_at),
+          };
+        })
+        .filter((draft): draft is PublishDraftMenuItem => Boolean(draft.id))
+        .sort((left: PublishDraftMenuItem, right: PublishDraftMenuItem) =>
+          Date.parse(right.savedAt) - Date.parse(left.savedAt),
+        )
+        .slice(0, requestedLimit);
+
+      return NextResponse.json(
+        { ok: true, drafts },
+        { headers: { "Cache-Control": "private, no-store, max-age=0" } },
+      );
+    }
+
     if (!draftId) {
       return NextResponse.json({ error: "Brouillon introuvable." }, { status: 400 });
     }

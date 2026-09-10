@@ -17,7 +17,7 @@ type Props = {
   resetCompose: (type: any) => void;
   setComposeOpen: (open: boolean) => void;
   boxView: BoxView;
-  setBoxView: React.Dispatch<React.SetStateAction<BoxView>>;
+  onBoxViewChange: (value: BoxView) => void;
   draftCount: number;
   publicationOnly?: boolean;
 };
@@ -37,7 +37,7 @@ export default function MailboxToolbar(props: Props) {
     resetCompose,
     setComposeOpen,
     boxView,
-    setBoxView,
+    onBoxViewChange,
     draftCount,
     publicationOnly = false,
   } = props;
@@ -114,19 +114,18 @@ export default function MailboxToolbar(props: Props) {
           </button>
         ) : null}
 
-        {!publicationOnly ? (
-          <button
-            className={`${styles.toolbarBtn} ${styles.draftsToggleBtn} ${boxView === "drafts" ? styles.toolbarBtnActive : ""}`}
-            onClick={() => setBoxView((value: BoxView) => (value === "drafts" ? "sent" : "drafts"))}
-            type="button"
-            title={draftCount > 0
-              ? i18nT("drafts_count", { count: draftCount })
-              : i18nT("brouillons_a55f3cd9")}
-          >
-            <span className={styles.draftsToggleLabel}>{i18nT("brouillons_a55f3cd9")}</span>
-            {draftCount > 0 ? <span className={styles.badgeCount}>{draftCount}</span> : null}
-          </button>
-        ) : null}
+        <button
+          className={`${styles.toolbarBtn} ${styles.draftsToggleBtn} ${boxView === "drafts" ? styles.toolbarBtnActive : ""}`}
+          onClick={() => onBoxViewChange(boxView === "drafts" ? "sent" : "drafts")}
+          type="button"
+          aria-pressed={boxView === "drafts"}
+          title={draftCount > 0
+            ? i18nT("drafts_count", { count: draftCount })
+            : i18nT("brouillons_a55f3cd9")}
+        >
+          <span className={styles.draftsToggleLabel}>{i18nT("brouillons_a55f3cd9")}</span>
+          {draftCount > 0 ? <span className={styles.badgeCount}>{draftCount}</span> : null}
+        </button>
 
         <button
           className={`${styles.toolbarBtn} ${styles.toolbarIconBtn} ${styles.desktopToolbarIconBtn} ${

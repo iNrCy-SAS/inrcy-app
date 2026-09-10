@@ -11,10 +11,6 @@ import type { AiMediaVideoDuration } from "@/lib/aiMediaGenerationContracts";
 import type { GeneratedAiNarrationAudio } from "@/lib/aiMediaNarrationAudio";
 import type { NormalizedAiVideo } from "@/lib/aiMediaNormalizer";
 import {
-  resolveAiMediaVideoLayout,
-  type AiMediaVideoCaptionLayout,
-} from "@/lib/aiMediaVideoLayout";
-import {
   probeVideoSource,
   resolveVideoNormalizationFfmpegPath,
 } from "@/lib/mediaVideoNormalizer";
@@ -115,10 +111,8 @@ function buildFilter(args: {
   narrationInputIndex: number | null;
   narrationDurationSeconds: number | null;
   nativeAudioMode: AiMediaNativeAudioMode;
-  captionLayout?: AiMediaVideoCaptionLayout;
 }) {
   const filters: string[] = [];
-  const layout = resolveAiMediaVideoLayout(args);
   // Un ancien rendu carré pouvait encore recevoir une source 9:16. On garde
   // donc un ancrage haut pour protéger les visages lors du recadrage. Les
   // nouvelles générations carrées demandent désormais une source 16:9.
@@ -136,9 +130,7 @@ function buildFilter(args: {
     // plan entier, mais gravait de larges piliers noirs autour des sources
     // verticales. La composition du prompt protège déjà le sujet dans la zone
     // sûre ; le crop est donc préférable à une vidéo visuellement réduite.
-    const framing = layout.caption.height > 0
-      ? `scale=${layout.content.width}:${layout.content.height}:force_original_aspect_ratio=increase:force_divisible_by=2,crop=${layout.content.width}:${layout.content.height}:(in_w-out_w)/2:${verticalCropY},pad=${args.width}:${args.height}:0:0:color=0x020617`
-      : `scale=${args.width}:${args.height}:force_original_aspect_ratio=increase,crop=${args.width}:${args.height}:(in_w-out_w)/2:${verticalCropY}`;
+    const framing = `scale=${args.width}:${args.height}:force_original_aspect_ratio=increase:force_divisible_by=2,crop=${args.width}:${args.height}:(in_w-out_w)/2:${verticalCropY}`;
     filters.push(
       `[${index}:v]trim=start=${sourceStartSeconds}:duration=${clipSeconds},setpts=PTS-STARTPTS,${framing},fps=30,setsar=1,format=yuv420p[base${index}]`,
       `[base${index}][${overlayIndex}:v]overlay=0:0:shortest=1,tpad=stop_mode=clone:stop_duration=${clipSeconds},trim=duration=${clipSeconds},setpts=PTS-STARTPTS[v${index}]`,
@@ -246,8 +238,6 @@ export async function composeOriginalAiVideo(args: {
   narration?: GeneratedAiNarrationAudio | null;
   /** Préserve les dialogues/lip-sync natifs à leur niveau de parole. */
   nativeAudioMode?: AiMediaNativeAudioMode;
-  /** Must match the layout passed to renderAiMediaVideoOverlay. */
-  captionLayout?: AiMediaVideoCaptionLayout;
   signal?: AbortSignal;
 }): Promise<NormalizedAiVideo> {
   args.signal?.throwIfAborted();
@@ -354,7 +344,6 @@ export async function composeOriginalAiVideo(args: {
         narrationInputIndex,
         narrationDurationSeconds,
         nativeAudioMode,
-        captionLayout: args.captionLayout,
       }),
       "-map",
       "[video]",

@@ -4,6 +4,7 @@ import {
   useState,
   type Dispatch,
   type MutableRefObject,
+  type RefObject,
   type SetStateAction,
 } from "react";
 import {
@@ -92,6 +93,7 @@ type PublishIntentPanelProps = {
   generationPhaseLabel: string;
   generationStage: string;
   generationProgress: number;
+  generationProgressRef?: RefObject<HTMLDivElement | null>;
   aiPreferredEngine: AiPreferredEngine;
   defaultAiPreferredEngine: AiPreferredEngine;
   onAiPreferredEngineChange: (engine: AiPreferredEngine) => void;
@@ -139,6 +141,7 @@ export default function PublishIntentPanel({
   generationPhaseLabel,
   generationStage,
   generationProgress,
+  generationProgressRef,
   aiPreferredEngine,
   defaultAiPreferredEngine,
   onAiPreferredEngineChange,
@@ -933,11 +936,13 @@ export default function PublishIntentPanel({
           ) : null}
           {generating ? (
             <div
+              ref={generationProgressRef}
               style={{
                 width: "min(520px, 100%)",
                 display: "grid",
                 gap: 7,
                 color: "rgba(255,255,255,0.72)",
+                scrollMarginBlock: 88,
               }}
             >
               <div

@@ -245,7 +245,10 @@ export function isStandardApiRouteAllowed(
     if (pathname === "/api/inrsend/history") {
       const folder = normalizePlan(searchParams?.get("folder"));
       const boxView = normalizePlan(searchParams?.get("boxView"));
-      return folder === "publications" && (!boxView || boxView === "sent");
+      return (
+        folder === "publications" &&
+        (!boxView || boxView === "sent" || boxView === "drafts")
+      );
     }
 
     if (pathMatches(pathname, "/api/inrsend/history/files")) return true;

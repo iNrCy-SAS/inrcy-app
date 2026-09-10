@@ -2,7 +2,11 @@ import "server-only";
 
 import sharp from "sharp";
 
-import { extractLogoPathFromUrl, LOGO_BUCKET } from "@/lib/profileLogo";
+import {
+  extractLogoPathFromUrl,
+  getProfileLogoVersion,
+  LOGO_BUCKET,
+} from "@/lib/profileLogo";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 type JsonRecord = Record<string, unknown>;
@@ -11,6 +15,7 @@ export type AiMediaBrandKit = {
   /** PNG sûr pour l'IA et les habillages, issu uniquement du logo du profil. */
   logo: Buffer | null;
   logoPath: string | null;
+  logoVersion: string | null;
   colors: [string, string, string];
 };
 
@@ -23,6 +28,12 @@ const MAX_ASSET_BYTES = 24 * 1024 * 1024;
 
 function clean(value: unknown, max = 800) {
   return String(value ?? "").trim().slice(0, max);
+}
+
+function asRecord(value: unknown): JsonRecord | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as JsonRecord
+    : null;
 }
 
 function toHex(red: number, green: number, blue: number) {
@@ -97,13 +108,66 @@ async function extractPalette(buffer: Buffer): Promise<[string, string, string]>
   }
 }
 
-async function downloadStorageAsset(bucket: string, storagePath: string) {
+async function downloadStorageAsset(
+  bucket: string,
+  storagePath: string,
+  logoVersion: string,
+) {
   if (!bucket || !storagePath) return null;
+  // Logos are intentionally replaceable. Supabase Smart CDN keys replaced
+  // objects by path, so the profile version is also sent as cacheNonce and
+  // the server fetch explicitly bypasses its own HTTP cache. This guarantees
+  // that a generation started just after a profile save uses the new bytes.
+  const signed = await supabaseAdmin.storage
+    .from(bucket)
+    .createSignedUrl(storagePath, 90);
+  if (!signed.error && signed.data?.signedUrl) {
+    try {
+      const signedUrl = new URL(signed.data.signedUrl);
+      signedUrl.searchParams.set(
+        "cacheNonce",
+        logoVersion || `fresh-${Date.now().toString(36)}`,
+      );
+      const response = await fetch(signedUrl, {
+        cache: "no-store",
+        headers: {
+          "Cache-Control": "no-cache",
+          Pragma: "no-cache",
+        },
+      });
+      const declaredSize = Number(response.headers.get("content-length") || 0);
+      if (!response.ok || declaredSize > MAX_ASSET_BYTES) return null;
+      const buffer = Buffer.from(await response.arrayBuffer());
+      if (!buffer.byteLength || buffer.byteLength > MAX_ASSET_BYTES) return null;
+      return buffer;
+    } catch {
+      // The authenticated SDK read below remains a resilient fallback when a
+      // serverless network layer refuses an otherwise valid signed URL.
+    }
+  }
+
   const result = await supabaseAdmin.storage.from(bucket).download(storagePath);
   if (result.error || !result.data || result.data.size > MAX_ASSET_BYTES) return null;
   const buffer = Buffer.from(await result.data.arrayBuffer());
-  if (!buffer.byteLength) return null;
-  return buffer;
+  return buffer.byteLength ? buffer : null;
+}
+
+async function loadCurrentLogoProfile(
+  accountId: string,
+  fallbackProfile: JsonRecord | null,
+) {
+  try {
+    const result = await supabaseAdmin
+      .from("profiles")
+      .select("logo_path,logo_url")
+      .eq("user_id", accountId)
+      .maybeSingle();
+    if (!result.error) return asRecord(result.data);
+  } catch {
+    // The cached generation context keeps generation available during a
+    // transient database read failure, but is never preferred over live data.
+  }
+  return fallbackProfile;
 }
 
 async function loadOwnedLogo(accountId: string, profile: JsonRecord | null) {
@@ -111,10 +175,15 @@ async function loadOwnedLogo(accountId: string, profile: JsonRecord | null) {
     extractLogoPathFromUrl(clean(profile?.logo_path)) ||
     extractLogoPathFromUrl(clean(profile?.logo_url));
   if (!logoPath || !logoPath.startsWith(`${accountId}/`)) {
-    return { logo: null, logoPath: null };
+    return { logo: null, logoPath: null, logoVersion: null };
   }
-  const logo = await downloadStorageAsset(LOGO_BUCKET, logoPath).catch(() => null);
-  if (!logo) return { logo: null, logoPath: null };
+  const logoVersion = getProfileLogoVersion(clean(profile?.logo_url));
+  const logo = await downloadStorageAsset(
+    LOGO_BUCKET,
+    logoPath,
+    logoVersion,
+  ).catch(() => null);
+  if (!logo) return { logo: null, logoPath: null, logoVersion: null };
   try {
     const normalized = await sharp(logo, {
       failOn: "error",
@@ -131,9 +200,9 @@ async function loadOwnedLogo(accountId: string, profile: JsonRecord | null) {
       })
       .png({ compressionLevel: 9, adaptiveFiltering: true })
       .toBuffer();
-    return { logo: normalized, logoPath };
+    return { logo: normalized, logoPath, logoVersion: logoVersion || null };
   } catch {
-    return { logo: null, logoPath: null };
+    return { logo: null, logoPath: null, logoVersion: null };
   }
 }
 
@@ -141,13 +210,18 @@ export async function loadAiMediaBrandKit(args: {
   accountId: string;
   profile: JsonRecord | null;
 }): Promise<AiMediaBrandKit> {
-  const ownedLogo = await loadOwnedLogo(args.accountId, args.profile);
+  const currentProfile = await loadCurrentLogoProfile(
+    args.accountId,
+    args.profile,
+  );
+  const ownedLogo = await loadOwnedLogo(args.accountId, currentProfile);
   const colors = ownedLogo.logo
     ? await extractPalette(ownedLogo.logo)
     : FALLBACK_COLORS;
   return {
     logo: ownedLogo.logo,
     logoPath: ownedLogo.logoPath,
+    logoVersion: ownedLogo.logoVersion,
     colors,
   };
 }

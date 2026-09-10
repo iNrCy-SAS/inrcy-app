@@ -9,8 +9,8 @@ import type {
   AiMediaVisualStyle,
 } from "@/lib/aiMediaGenerationContracts";
 import {
-  resolveAiMediaVideoLayout,
-  type AiMediaVideoCaptionLayout,
+  resolveAiMediaVideoCopyPlacement,
+  resolveAiMediaVideoOverlayLayout,
 } from "@/lib/aiMediaVideoLayout";
 
 type RenderBaseArgs = {
@@ -254,9 +254,9 @@ async function rasterTextLayer(args: {
 
 function styleOverlayOpacity(style: AiMediaVisualStyle) {
   if (style === "clean") return 0.64;
-  if (style === "premium" || style === "expert") return 0.84;
-  if (style === "colorful" || style === "dynamic") return 0.7;
-  return 0.76;
+  if (style === "premium" || style === "expert") return 0.78;
+  if (style === "colorful" || style === "dynamic") return 0.68;
+  return 0.72;
 }
 
 function isNearWhiteCanvasPixel(
@@ -415,36 +415,47 @@ async function prepareLogo(
   }
 }
 
-function sceneCopyBackdropSvg(args: RenderBaseArgs & { scene: AiMediaCreativeScene }) {
-  const margin = Math.round(args.width * 0.065);
-  const titleSize = Math.max(48, Math.min(94, Math.round(args.width * 0.065)));
-  const bodySize = Math.max(25, Math.min(40, Math.round(args.width * 0.028)));
-  const eyebrowSize = Math.max(20, Math.min(31, Math.round(args.width * 0.022)));
-  const statement = args.scene.layout === "statement" || args.scene.layout === "cta";
-  const shadeOpacity = statement ? 0.86 : styleOverlayOpacity(args.visualStyle);
+function resolveSceneCopyLayout(
+  args: RenderBaseArgs & { scene: AiMediaCreativeScene },
+) {
+  const layout = resolveAiMediaVideoOverlayLayout(args);
   const titleLines = wrapAiMediaOverlayText(
     args.scene.title,
-    args.width > args.height ? 37 : 24,
-    3,
+    layout.copy.titleMaxCharacters,
+    layout.copy.titleMaxLines,
   );
   const bodyLines = wrapAiMediaOverlayBodyText(
     args.scene.body,
-    args.width > args.height ? 64 : 43,
-    2,
+    layout.copy.bodyMaxCharacters,
+    layout.copy.bodyMaxLines,
   );
-  const titleLineHeight = Math.round(titleSize * 1.05);
-  const bodyLineHeight = Math.round(bodySize * 1.25);
-  const safeBottom = args.height - margin - 22;
-  const bodyY = safeBottom - Math.max(0, bodyLines.length - 1) * bodyLineHeight;
-  const titleLastBaseline = bodyY - Math.round(bodySize * 1.55);
-  const startY = titleLastBaseline - titleSize - Math.max(0, titleLines.length - 1) * titleLineHeight;
+  const placement = resolveAiMediaVideoCopyPlacement({
+    layout,
+    titleLineCount: titleLines.length,
+    bodyLineCount: bodyLines.length,
+  });
+  return { layout, placement, titleLines, bodyLines };
+}
+
+type ResolvedSceneCopyLayout = ReturnType<typeof resolveSceneCopyLayout>;
+
+function sceneCopyBackdropSvg(
+  args: RenderBaseArgs & { scene: AiMediaCreativeScene },
+  resolved: ResolvedSceneCopyLayout,
+) {
+  const { layout, placement } = resolved;
+  const statement = args.scene.layout === "statement" || args.scene.layout === "cta";
+  const shadeOpacity = statement
+    ? 0.78
+    : styleOverlayOpacity(args.visualStyle);
   return Buffer.from(`
     <svg width="${args.width}" height="${args.height}" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <linearGradient id="shade" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stop-color="#020617" stop-opacity="${statement ? 0.16 : 0}"/>
-          <stop offset="0.48" stop-color="#020617" stop-opacity="0.13"/>
-          <stop offset="1" stop-color="#020617" stop-opacity="${shadeOpacity}"/>
+          <stop offset="0%" stop-color="#020617" stop-opacity="0"/>
+          <stop offset="${placement.gradientStartPercent}%" stop-color="#020617" stop-opacity="0"/>
+          <stop offset="${placement.gradientMiddlePercent}%" stop-color="#020617" stop-opacity="0.18"/>
+          <stop offset="100%" stop-color="#020617" stop-opacity="${shadeOpacity}"/>
         </linearGradient>
         <linearGradient id="brand" x1="0" y1="0" x2="1" y2="0">
           <stop offset="0" stop-color="${args.colors[0]}"/>
@@ -453,7 +464,7 @@ function sceneCopyBackdropSvg(args: RenderBaseArgs & { scene: AiMediaCreativeSce
         </linearGradient>
       </defs>
       <rect width="${args.width}" height="${args.height}" fill="url(#shade)"/>
-      <rect x="${margin}" y="${Math.round(startY - eyebrowSize * 1.55)}" width="${Math.round(args.width * 0.18)}" height="7" rx="4" fill="url(#brand)"/>
+      <rect x="${layout.copy.left}" y="${placement.accentTop}" width="${layout.copy.accentWidth}" height="${layout.copy.accentHeight}" rx="${Math.ceil(layout.copy.accentHeight / 2)}" fill="url(#brand)"/>
     </svg>
   `);
 }
@@ -461,57 +472,38 @@ function sceneCopyBackdropSvg(args: RenderBaseArgs & { scene: AiMediaCreativeSce
 async function renderSceneCopyOverlay(
   args: RenderBaseArgs & { scene: AiMediaCreativeScene },
 ) {
-  const margin = Math.round(args.width * 0.065);
-  const maxWidth = args.width - margin * 2;
-  const titleSize = Math.max(48, Math.min(94, Math.round(args.width * 0.065)));
-  const bodySize = Math.max(25, Math.min(40, Math.round(args.width * 0.028)));
-  const eyebrowSize = Math.max(20, Math.min(31, Math.round(args.width * 0.022)));
-  const titleLines = wrapAiMediaOverlayText(
-    args.scene.title,
-    args.width > args.height ? 37 : 24,
-    3,
-  );
-  const bodyLines = wrapAiMediaOverlayBodyText(
-    args.scene.body,
-    args.width > args.height ? 64 : 43,
-    2,
-  );
-  const titleLineHeight = Math.round(titleSize * 1.05);
-  const bodyLineHeight = Math.round(bodySize * 1.25);
-  const safeBottom = args.height - margin - 22;
-  const bodyY = safeBottom - Math.max(0, bodyLines.length - 1) * bodyLineHeight;
-  const titleLastBaseline = bodyY - Math.round(bodySize * 1.55);
-  const startY = titleLastBaseline - titleSize - Math.max(0, titleLines.length - 1) * titleLineHeight;
+  const resolved = resolveSceneCopyLayout(args);
+  const { layout, placement, titleLines, bodyLines } = resolved;
   const textLayers = await Promise.all([
     rasterTextLayer({
       text: args.scene.eyebrow.toLocaleUpperCase(),
-      fontSize: eyebrowSize,
+      fontSize: layout.copy.eyebrowSize,
       fontWeight: 700,
       color: "#d5deed",
-      left: margin,
-      top: startY - eyebrowSize * 1.3,
-      maxWidth,
+      left: layout.copy.left,
+      top: placement.eyebrowTop,
+      maxWidth: layout.copy.maxWidth,
     }),
     ...titleLines.map((line, index) =>
       rasterTextLayer({
         text: line,
-        fontSize: titleSize,
+        fontSize: layout.copy.titleSize,
         fontWeight: 800,
         color: "#ffffff",
-        left: margin,
-        top: startY + index * titleLineHeight,
-        maxWidth,
+        left: layout.copy.left,
+        top: placement.titleFirstTop + index * layout.copy.titleLineHeight,
+        maxWidth: layout.copy.maxWidth,
       }),
     ),
     ...bodyLines.map((line, index) =>
       rasterTextLayer({
         text: line,
-        fontSize: bodySize,
+        fontSize: layout.copy.bodySize,
         fontWeight: 500,
         color: "#dbe3f0",
-        left: margin,
-        top: bodyY - bodySize + index * bodyLineHeight,
-        maxWidth,
+        left: layout.copy.left,
+        top: placement.bodyFirstTop + index * layout.copy.bodyLineHeight,
+        maxWidth: layout.copy.maxWidth,
       }),
     ),
   ]);
@@ -525,13 +517,12 @@ async function renderSceneCopyOverlay(
   }).png().toBuffer();
   return await sharp(transparent)
     .composite([
-      { input: sceneCopyBackdropSvg(args), top: 0, left: 0 },
+      { input: sceneCopyBackdropSvg(args, resolved), top: 0, left: 0 },
       ...textLayers.filter((layer): layer is NonNullable<typeof layer> => Boolean(layer)),
     ])
     .png({ compressionLevel: 9, adaptiveFiltering: true })
     .toBuffer();
 }
-
 async function buildBrandOverlays(args: RenderBaseArgs & {
   copyOverlay: Buffer;
 }) {
@@ -552,129 +543,13 @@ async function buildBrandOverlays(args: RenderBaseArgs & {
   // coin supérieur droit, à taille discrète et avec une marge sûre de 4,5 %.
   // Il est posé directement avec son alpha : aucune pastille blanche n'est
   // ajoutée et le sujet central demeure dégagé.
-  const safeMarginX = Math.max(18, Math.round(args.width * 0.045));
-  const safeMarginY = Math.max(18, Math.round(args.height * 0.045));
+  const { logo: logoLayout } = resolveAiMediaVideoOverlayLayout(args);
   overlays.push({
     input: preparedLogo.buffer,
-    left: Math.max(0, args.width - safeMarginX - preparedLogo.width),
-    top: safeMarginY,
+    left: Math.max(0, args.width - logoLayout.marginX - preparedLogo.width),
+    top: logoLayout.marginY,
   });
   return overlays;
-}
-
-async function renderVideoCaptionBand(
-  args: RenderBaseArgs & { scene: AiMediaCreativeScene },
-) {
-  const { caption } = resolveAiMediaVideoLayout({
-    ...args,
-    captionLayout: "caption-band",
-  });
-  const unit = Math.min(args.width, args.height);
-  const padding = Math.max(8, Math.round(unit * 0.02));
-  const titleSize = Math.max(11, Math.round(unit * 0.035));
-  const bodySize = Math.max(9, Math.round(unit * 0.021));
-  const eyebrowSize = Math.max(8, Math.round(unit * 0.017));
-  const gap = Math.max(3, Math.round(unit * 0.008));
-  const preparedLogo = args.logoMode === "none"
-    ? null
-    : await prepareLogo(args.logo, args.width, args.height, args.logoMode);
-  const fittedLogo = preparedLogo
-    ? await sharp(preparedLogo.buffer)
-        .resize({
-          width: preparedLogo.width,
-          height: caption.height - padding * 2,
-          fit: "inside",
-          withoutEnlargement: true,
-        })
-        .png().toBuffer({ resolveWithObject: true })
-    : null;
-  const logo = fittedLogo
-    ? {
-        buffer: fittedLogo.data,
-        width: fittedLogo.info.width,
-        height: fittedLogo.info.height,
-      }
-    : null;
-  const textWidth = args.width - padding * 2 - (logo ? logo.width + padding : 0);
-  const layers: Array<{ input: Buffer; left: number; top: number }> = [];
-
-  // Render exact copy with the bundled font. A long title wraps and shrinks
-  // inside its own box instead of spilling onto the video or being cut off.
-  const textBoxes = [
-    {
-      text: args.scene.eyebrow.toLocaleUpperCase(),
-      size: eyebrowSize,
-      weight: 700,
-      color: "#b8c8e1",
-      height: Math.ceil(eyebrowSize * 1.2),
-    },
-    {
-      text: args.scene.title,
-      size: titleSize,
-      weight: 800,
-      color: "#ffffff",
-      height: Math.ceil(titleSize * 2.25),
-    },
-    {
-      text: wrapAiMediaOverlayBodyText(
-        args.scene.body,
-        Math.floor(textWidth / (bodySize * 0.54)),
-        1,
-      ).join(" "),
-      size: bodySize,
-      weight: 500,
-      color: "#dbe3f0",
-      height: Math.ceil(bodySize * 1.25),
-    },
-  ].filter((box) => safeOverlayText(box.text));
-  const rendered = await Promise.all(textBoxes.map(async (box) => {
-    const raster = await sharp({
-      text: {
-        text: `<span foreground="${box.color}" weight="${box.weight}">${escapeXml(safeOverlayText(box.text))}</span>`,
-        font: `Geist ${box.size}`,
-        fontfile: OVERLAY_FONT_FILE,
-        width: textWidth,
-        wrap: "word-char",
-        rgba: true,
-        dpi: 72,
-      },
-    }).png().toBuffer();
-    return await sharp(raster)
-      .resize({
-        width: textWidth,
-        height: box.height,
-        fit: "inside",
-        withoutEnlargement: true,
-      })
-      .png().toBuffer({ resolveWithObject: true });
-  }));
-  const textHeight = rendered.reduce((total, layer) => total + layer.info.height, 0)
-    + Math.max(0, rendered.length - 1) * gap;
-  let top = caption.top + Math.max(padding, Math.floor((caption.height - textHeight) / 2));
-  for (const layer of rendered) {
-    layers.push({ input: layer.data, left: padding, top });
-    top += layer.info.height + gap;
-  }
-  if (logo) layers.push({
-    input: logo.buffer,
-    left: args.width - padding - logo.width,
-    top: caption.top + Math.floor((caption.height - logo.height) / 2),
-  });
-  const backdrop = Buffer.from(`
-    <svg width="${args.width}" height="${args.height}" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <linearGradient id="brand">
-          <stop stop-color="${args.colors[0]}"/>
-          <stop offset="0.5" stop-color="${args.colors[1]}"/>
-          <stop offset="1" stop-color="${args.colors[2]}"/>
-        </linearGradient>
-      </defs>
-      <rect y="${caption.top}" width="${args.width}" height="${caption.height}" fill="#020617"/>
-      <rect y="${caption.top}" width="${args.width}" height="${Math.max(2, Math.round(unit * 0.003))}" fill="url(#brand)"/>
-    </svg>
-  `);
-  return await sharp(backdrop).composite(layers)
-    .png({ compressionLevel: 9, adaptiveFiltering: true }).toBuffer();
 }
 
 /**
@@ -685,12 +560,7 @@ async function renderVideoCaptionBand(
 export async function renderAiMediaVideoOverlay(args: RenderBaseArgs & {
   scene: AiMediaCreativeScene;
   withText: boolean;
-  /** Video-only safe band. Use the same option when composing the clips. */
-  captionLayout?: AiMediaVideoCaptionLayout;
 }) {
-  if (args.withText && args.captionLayout === "caption-band") {
-    return await renderVideoCaptionBand(args);
-  }
   const transparent = await sharp({
     create: {
       width: args.width,

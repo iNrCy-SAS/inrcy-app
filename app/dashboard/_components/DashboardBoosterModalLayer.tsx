@@ -3,7 +3,7 @@
 import { useTranslations } from "next-intl";
 
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import styles from "../dashboard.module.css";
 import b from "../booster/booster.module.css";
@@ -28,6 +28,7 @@ import PublishModal from "../booster/publier/PublishModal";
 import PublishExecutionResultModal from "./PublishExecutionResultModal";
 import AiConfigurationIcon from "./AiConfigurationIcon";
 import BusinessDnaIcon from "./BusinessDnaIcon";
+import PublishDraftHeaderMenu from "../booster/publier/components/PublishDraftHeaderMenu";
 
 type DashboardBoosterModalMode = "publish" | "stats" | null;
 
@@ -41,6 +42,7 @@ type WeeklySummary = {
 type PublishDraftHeaderState = {
   saving: boolean;
   draftSaving: boolean;
+  generating: boolean;
   draftMessage: string;
 };
 
@@ -58,6 +60,8 @@ export default function DashboardBoosterModalLayer({
   const i18nT = useTranslations("booster");
   const dashboardT = useTranslations("dashboard");
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const activePublishDraftId = String(searchParams?.get("draftId") || "").trim();
   const [publishSuccessOpen, setPublishSuccessOpen] = useState(false);
   const [publishSummary, setPublishSummary] = useState<any>(null);
   const [publishEditorOverlayOpen, setPublishEditorOverlayOpen] = useState(false);
@@ -69,6 +73,7 @@ export default function DashboardBoosterModalLayer({
   const [publishDraftHeaderState, setPublishDraftHeaderState] = useState<PublishDraftHeaderState>({
     saving: false,
     draftSaving: false,
+    generating: false,
     draftMessage: "",
   });
   const [publishDraftMobileToast, setPublishDraftMobileToast] = useState("");
@@ -210,11 +215,34 @@ export default function DashboardBoosterModalLayer({
     closePublishModal();
   }, [closePublishModal, publishHasUnsavedChanges]);
 
+  const openPublishDraft = useCallback(async (draftId: string) => {
+    const nextDraftId = String(draftId || "").trim();
+    if (!nextDraftId || nextDraftId === activePublishDraftId) return;
+
+    if (publishHasUnsavedChanges) {
+      const ok = await confirmInrcy({
+        eyebrow: i18nT("publication_en_cours_58f34b8e"),
+        title: i18nT("quitter_la_publication_509848c0"),
+        message: i18nT("du_contenu_a_deja_ete_saisi_6057d3e7"),
+        cancelLabel: i18nT("continuer_l_edition_0f0075bb"),
+        confirmLabel: i18nT("quitter_3e4126f5"),
+        variant: "danger",
+      });
+      if (!ok) return;
+    }
+
+    const params = new URLSearchParams(searchParams?.toString() || "");
+    params.set("action", "publish");
+    params.set("draftId", nextDraftId);
+    router.replace(`/dashboard?${params.toString()}`, { scroll: false });
+  }, [activePublishDraftId, i18nT, publishHasUnsavedChanges, router, searchParams]);
+
 
   const handlePublishDraftHeaderStateChange = useCallback((next: PublishDraftHeaderState) => {
     setPublishDraftHeaderState((prev) =>
       prev.saving === next.saving &&
       prev.draftSaving === next.draftSaving &&
+      prev.generating === next.generating &&
       prev.draftMessage === next.draftMessage
         ? prev
         : next,
@@ -224,7 +252,7 @@ export default function DashboardBoosterModalLayer({
   useEffect(() => {
     if (mode === "publish") return;
     publishSaveDraftRef.current = null;
-    setPublishDraftHeaderState({ saving: false, draftSaving: false, draftMessage: "" });
+    setPublishDraftHeaderState({ saving: false, draftSaving: false, generating: false, draftMessage: "" });
     setPublishDraftMobileToast("");
   }, [mode]);
 
@@ -498,6 +526,16 @@ export default function DashboardBoosterModalLayer({
           headerStatusMobileHidden
           headerActions={
             <>
+              <PublishDraftHeaderMenu
+                activeDraftId={activePublishDraftId}
+                buttonClassName={styles.secondaryBtn}
+                disabled={
+                  publishDraftHeaderState.saving ||
+                  publishDraftHeaderState.draftSaving ||
+                  publishDraftHeaderState.generating
+                }
+                onSelect={openPublishDraft}
+              />
               <HelpButton
                 onClick={() => publishOpenHelpRef.current?.()}
                 title={i18nT("aide_publication_et_inr_send_b984bd87")}
@@ -542,7 +580,11 @@ export default function DashboardBoosterModalLayer({
                 type="button"
                 className={styles.secondaryBtn}
                 onClick={() => publishSaveDraftRef.current?.()}
-                disabled={publishDraftHeaderState.saving || publishDraftHeaderState.draftSaving}
+                disabled={
+                  publishDraftHeaderState.saving ||
+                  publishDraftHeaderState.draftSaving ||
+                  publishDraftHeaderState.generating
+                }
                 title={i18nT("enregistrer_le_brouillon_publication_22a24f8b")}
                 aria-label={i18nT("enregistrer_le_brouillon_publication_22a24f8b")}
                 style={{
@@ -554,8 +596,18 @@ export default function DashboardBoosterModalLayer({
                   placeItems: "center",
                   fontSize: 18,
                   borderRadius: 999,
-                  opacity: publishDraftHeaderState.saving || publishDraftHeaderState.draftSaving ? 0.64 : 1,
-                  cursor: publishDraftHeaderState.saving || publishDraftHeaderState.draftSaving ? "wait" : "pointer",
+                  opacity:
+                    publishDraftHeaderState.saving ||
+                    publishDraftHeaderState.draftSaving ||
+                    publishDraftHeaderState.generating
+                      ? 0.64
+                      : 1,
+                  cursor:
+                    publishDraftHeaderState.saving ||
+                    publishDraftHeaderState.draftSaving ||
+                    publishDraftHeaderState.generating
+                      ? "wait"
+                      : "pointer",
                 }}
               >
                 {publishDraftHeaderState.draftSaving ? "…" : "💾"}

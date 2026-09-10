@@ -537,8 +537,10 @@ export default function MailboxClient({
   useEffect(() => {
     if (!standardMode) return;
 
+    const requestedBoxView = String(searchParams?.get("boxView") || "").toLowerCase();
+    const nextBoxView: BoxView = requestedBoxView === "drafts" ? "drafts" : "sent";
     setFolder("publications");
-    setBoxView("sent");
+    setBoxView(nextBoxView);
     setFilterAccountId("");
     setMobileFoldersOpen(false);
     setSettingsOpen(false);
@@ -1378,6 +1380,8 @@ export default function MailboxClient({
       try {
         const params = new URLSearchParams();
         params.set("countsOnly", "1");
+        params.set("folder", context.folder);
+        params.set("boxView", context.boxView);
         if (context.filterAccountId) {
           params.set("filterAccountId", context.filterAccountId);
         }
@@ -3148,6 +3152,18 @@ export default function MailboxClient({
     router.replace(`/dashboard/mails?folder=${encodeURIComponent(next)}`);
     // reset selection to first item in that folder
     setSelectedId(null);
+  }
+
+  function updateBoxView(next: BoxView) {
+    setBoxView(next);
+    setSelectedId(null);
+
+    if (!standardMode) return;
+
+    const params = new URLSearchParams(searchParams?.toString() || "");
+    params.set("folder", "publications");
+    params.set("boxView", next);
+    router.replace(`/dashboard/mails?${params.toString()}`, { scroll: false });
   }
 
   async function saveDraft() {
@@ -5274,7 +5290,7 @@ export default function MailboxClient({
               resetCompose={resetCompose}
               setComposeOpen={setComposeOpen}
               boxView={boxView}
-              setBoxView={setBoxView}
+              onBoxViewChange={updateBoxView}
               draftCount={currentFolderDraftCount}
             />
 

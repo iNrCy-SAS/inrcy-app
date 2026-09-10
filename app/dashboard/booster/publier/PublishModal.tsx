@@ -418,6 +418,7 @@ export default function PublishModal({
   onDraftHeaderStateChange?: (state: {
     saving: boolean;
     draftSaving: boolean;
+    generating: boolean;
     draftMessage: string;
   }) => void;
   initialConnectedChannels?: Partial<Record<ChannelKey, boolean>>;
@@ -493,8 +494,8 @@ export default function PublishModal({
     useState<VideoAiContextReference | null>(null);
 
   useEffect(() => {
-    onDraftHeaderStateChange?.({ saving, draftSaving, draftMessage });
-  }, [saving, draftSaving, draftMessage, onDraftHeaderStateChange]);
+    onDraftHeaderStateChange?.({ saving, draftSaving, generating, draftMessage });
+  }, [saving, draftSaving, generating, draftMessage, onDraftHeaderStateChange]);
   const [publishProgress, setPublishProgress] = useState(0);
   const [publishProgressLabel, setPublishProgressLabel] = useState("");
   const [publishProgressPhaseIndex, setPublishProgressPhaseIndex] = useState(0);
@@ -886,6 +887,7 @@ export default function PublishModal({
   const [showPublicationPreview, setShowPublicationPreview] = useState(false);
   const previewStageRef = useRef<HTMLDivElement | null>(null);
   const publishAreaRef = useRef<HTMLDivElement | null>(null);
+  const generationProgressRef = useRef<HTMLDivElement | null>(null);
   const contentTextAreaRef = useRef<HTMLTextAreaElement | null>(null);
   const siteContentEditorRef = useRef<HTMLDivElement | null>(null);
   const creationPathRef = useRef<HTMLDivElement | null>(null);
@@ -1149,6 +1151,18 @@ export default function PublishModal({
       });
     }, 180);
     return () => window.clearInterval(timerId);
+  }, [generating]);
+
+  useEffect(() => {
+    if (!generating) return;
+    const timerId = window.setTimeout(() => {
+      generationProgressRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+        inline: "nearest",
+      });
+    }, 80);
+    return () => window.clearTimeout(timerId);
   }, [generating]);
 
   useEffect(() => {
@@ -7365,6 +7379,7 @@ export default function PublishModal({
             generationPhaseLabel={generationPhaseLabel}
             generationStage={generationStage}
             generationProgress={generationProgress}
+            generationProgressRef={generationProgressRef}
             aiPreferredEngine={selectedAiPreferredEngine}
             defaultAiPreferredEngine={defaultAiPreferredEngine}
             onAiPreferredEngineChange={(engine) =>

@@ -32,7 +32,7 @@ import {
   type AiMediaGatewayResult,
 } from "@/lib/aiMediaGateway";
 import { composeOriginalAiVideo } from "@/lib/aiMediaGeneratedVideo";
-import type { AiMediaVideoCaptionLayout } from "./aiMediaVideoLayout.ts";
+import { AI_MEDIA_VIDEO_TEXT_LAYOUT } from "@/lib/aiMediaVideoLayout";
 import {
   AiMediaIdentityReferenceValidationError,
   prepareAiMediaIdentityReferences,
@@ -551,9 +551,6 @@ export async function generateAndSaveAiMedia(args: {
   } else {
     args.signal?.throwIfAborted();
     const pipelineWarnings: string[] = [];
-    const videoCaptionLayout: AiMediaVideoCaptionLayout = providerRequest.withText
-      ? "caption-band"
-      : "overlay";
     const durationSeconds = providerRequest.durationSeconds || 8;
     const narrationController = new AbortController();
     const abortNarrationFromCaller = () =>
@@ -914,13 +911,12 @@ export async function generateAndSaveAiMedia(args: {
               visualStyle: providerRequest.visualStyle,
               logoMode: providerRequest.logoMode,
               withText: providerRequest.withText,
-              captionLayout: videoCaptionLayout,
               width: format.width,
               height: format.height,
             }),
           ),
         );
-        return { value, warnings: [] as string[], error: null, captionLayout: videoCaptionLayout };
+        return { value, warnings: [] as string[], error: null };
       } catch {
         args.signal?.throwIfAborted();
         // Un logo corrompu ou une accroche impossible à rasteriser ne doit pas
@@ -932,10 +928,9 @@ export async function generateAndSaveAiMedia(args: {
             value,
             warnings: ["branding_overlay_unavailable_video_continued"],
             error: null,
-            captionLayout: "overlay" as const,
           };
         } catch (error) {
-          return { value: null, warnings: [] as string[], error, captionLayout: "overlay" as const };
+          return { value: null, warnings: [] as string[], error };
         }
       }
     });
@@ -1030,7 +1025,6 @@ export async function generateAndSaveAiMedia(args: {
       throw overlaysResult.error || new Error("ai_media_video_overlay_missing");
     }
     let overlays = overlaysResult.value;
-    let captionLayout = overlaysResult.captionLayout;
     let narration = narrationResult?.narration || null;
     let narrationAudio = narrationResult?.audio || null;
     let nativeCharacterDialoguePreserved =
@@ -1048,7 +1042,6 @@ export async function generateAndSaveAiMedia(args: {
         composeOriginalAiVideo({
           clips,
           overlays,
-          captionLayout,
           width: format.width,
           height: format.height,
           durationSeconds,
@@ -1068,7 +1061,6 @@ export async function generateAndSaveAiMedia(args: {
       // l'un de ces actifs, réassembler les mêmes clips en mode minimal évite
       // de rappeler Veo et préserve le rendu déjà payé.
       overlays = await renderMinimalOverlays();
-      captionLayout = "overlay";
       soundtrack = null;
       pipelineWarnings.push("video_enhancements_unavailable_video_continued");
       const nativeDialogueMissing = String(
@@ -1175,13 +1167,13 @@ export async function generateAndSaveAiMedia(args: {
       version: 1,
       status: "compositor_validated" as const,
       checks: ["duration", "frame_layout", "audio_policy"] as const,
-      caption_layout: captionLayout,
+      caption_layout: AI_MEDIA_VIDEO_TEXT_LAYOUT,
     };
     model = [
       teamPrecompositionModel,
       videoGateway.model,
       narrationAudio?.model,
-      "inrcy/video-composer-v5-safe-caption",
+      "inrcy/video-composer-v6-full-frame-overlay",
     ].filter(Boolean).join("+");
     videoEngineResult = videoGateway.provider.startsWith("inrcy-")
       ? "local_fallback"
@@ -1285,6 +1277,7 @@ export async function generateAndSaveAiMedia(args: {
           connect_scenes: providerRequest.connectScenes,
           inspiration_image_count: providerRequest.inspirationImages.length,
           exact_logo_applied: Boolean(officialLogo),
+          logo_version_applied: officialLogo ? brandKit.logoVersion : null,
           exact_contact_composition_applied: exactContactCompositionApplied,
           profile_phone_display_requested: profilePhoneDisplayRequested,
           profile_phone_display_applied: Boolean(profilePhone),

@@ -306,6 +306,9 @@ test("le montage audio préserve le dialogue natif sans jamais recoller un TTS s
   assert.match(server, /quality_assurance/);
   assert.match(server, /status: "compositor_validated"/);
   assert.match(server, /checks: \["duration", "frame_layout", "audio_policy"\] as const/);
-  assert.match(server, /caption_layout: captionLayout/);
+  assert.match(server, /caption_layout: AI_MEDIA_VIDEO_TEXT_LAYOUT/);
+  assert.match(server, /inrcy\/video-composer-v6-full-frame-overlay/);
+  assert.doesNotMatch(server, /caption-band|videoCaptionLayout/);
+  assert.doesNotMatch(composer, /caption-band|captionLayout|pad=.*020617/);
   assert.doesNotMatch(server, /await measure\("video_local_quality_check"/);
 });

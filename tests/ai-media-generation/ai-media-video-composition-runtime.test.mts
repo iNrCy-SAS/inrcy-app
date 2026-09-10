@@ -32,7 +32,6 @@ type ComposerModule = {
     height: number;
     durationSeconds: 8 | 16 | 24;
     nativeAudioMode?: "ambience" | "dialogue" | "mute";
-    captionLayout?: "overlay" | "caption-band";
   }) => Promise<{ buffer: Buffer }>;
 };
 
@@ -62,7 +61,6 @@ type BrandRendererModule = {
       layout: "editorial";
     };
     withText: boolean;
-    captionLayout?: "overlay" | "caption-band";
   }) => Promise<Buffer>;
 };
 
@@ -236,89 +234,192 @@ test("le compositeur remplit réellement un carré depuis un plan Veo 16:9", asy
   }
 });
 
-test("la bande vidéo réserve la même géométrie paire au texte et au plan", () => {
-  for (const [width, height] of [[1080, 1080], [1080, 1920], [1920, 1080], [1080, 1350], [320, 320]]) {
-    const { content, caption } = videoLayout.resolveAiMediaVideoLayout({ width: width!, height: height!, captionLayout: "caption-band" });
-    assert.equal(content.height + caption.height, height);
-    assert.equal(content.height, caption.top);
-    assert.equal(content.height % 2, 0);
-    assert.equal(caption.height % 2, 0);
-    assert.ok(caption.height >= 64);
-    assert.ok(caption.height <= height! * 0.32);
-    assert.equal(videoLayout.resolveAiMediaVideoLayout({ width: width!, height: height! }).caption.height, 0);
+test("le placement vidéo reste plein cadre et s’adapte à chaque ratio", () => {
+  const cases = [
+    { width: 1080, height: 1080, orientation: "square" },
+    { width: 1080, height: 1920, orientation: "portrait" },
+    { width: 1920, height: 1080, orientation: "landscape" },
+    { width: 1080, height: 1350, orientation: "portrait" },
+    { width: 320, height: 320, orientation: "square" },
+  ] as const;
+
+  assert.equal(videoLayout.AI_MEDIA_VIDEO_TEXT_LAYOUT, "adaptive-overlay");
+  for (const item of cases) {
+    const layout = videoLayout.resolveAiMediaVideoOverlayLayout(item);
+    const placement = videoLayout.resolveAiMediaVideoCopyPlacement({
+      layout,
+      titleLineCount: layout.copy.titleMaxLines,
+      bodyLineCount: layout.copy.bodyMaxLines,
+    });
+    assert.equal(layout.width, item.width);
+    assert.equal(layout.height, item.height);
+    assert.equal(layout.orientation, item.orientation);
+    assert.ok(layout.copy.left >= 16);
+    assert.ok(layout.copy.maxWidth > item.width * 0.5);
+    assert.ok(layout.copy.left + layout.copy.maxWidth <= item.width);
+    assert.ok(layout.copy.safeBottom < item.height);
+    assert.ok(layout.copy.safeBottom > item.height * 0.75);
+    assert.ok(placement.accentTop >= 0);
+    assert.ok(placement.titleFirstTop > placement.accentTop);
+    assert.ok(placement.bodyFirstTop <= layout.copy.safeBottom);
+    assert.ok(layout.logo.marginX >= 16);
+    assert.ok(layout.logo.marginY >= 16);
   }
 });
 
-test("tout l’habillage reste sous le plan même avec un titre long et un logo", async () => {
-  const runtime = transpileRuntimeModule<BrandRendererModule>("../../lib/aiMediaBrandRenderer.ts");
-  const logo = await sharp({ create: { width: 100, height: 220, channels: 4, background: "#db2777" } }).png().toBuffer();
-  for (const [width, height] of [[1080, 1080], [1080, 1920], [1920, 1080], [320, 320]]) {
-    const { caption } = videoLayout.resolveAiMediaVideoLayout({ width: width!, height: height!, captionLayout: "caption-band" });
+test("le texte et le logo restent sur l’image sans bande opaque", async () => {
+  const runtime = transpileRuntimeModule<BrandRendererModule>(
+    "../../lib/aiMediaBrandRenderer.ts",
+  );
+  const logo = await sharp({
+    create: {
+      width: 70,
+      height: 28,
+      channels: 4,
+      background: "#db2777",
+    },
+  }).png().toBuffer();
+
+  for (const [width, height] of [[320, 320], [320, 568], [568, 320], [320, 400]]) {
     const overlay = await runtime.renderAiMediaVideoOverlay({
-      width: width!, height: height!, logo, colors: ["#0ea5e9", "#8b5cf6", "#db2777"], companyName: "Entreprise test", visualStyle: "clean", logoMode: "visible", withText: true, captionLayout: "caption-band",
-      scene: { eyebrow: "Votre communication", title: "Découvrez l’évolution de l’outil Booster et publiez vos stories plus facilement", body: "Votre visibilité progresse.", layout: "editorial" },
+      width: width!,
+      height: height!,
+      logo,
+      colors: ["#0ea5e9", "#8b5cf6", "#db2777"],
+      companyName: "Entreprise test",
+      visualStyle: "clean",
+      logoMode: "visible",
+      withText: true,
+      scene: {
+        eyebrow: "Votre communication",
+        title: "Publiez plus facilement avec un contenu clair et fidèle",
+        body: "Votre visibilité progresse.",
+        layout: "editorial",
+      },
     });
-    const { data, info } = await sharp(overlay).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    const { data, info } = await sharp(overlay)
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
     assert.equal(info.width, width);
     assert.equal(info.height, height);
-    let captionWhitePixels = 0;
+    assert.equal(data[3], 0, "le haut gauche du plan reste intact");
+
+    let lightTextPixels = 0;
+    let maximumOpaqueRowCoverage = 0;
     for (let y = 0; y < info.height; y += 1) {
+      let opaquePixels = 0;
       for (let x = 0; x < info.width; x += 1) {
         const offset = (y * info.width + x) * 4;
-        if (y < caption.top) assert.equal(data[offset + 3], 0, `plan intact à ${width}x${height} / ${x},${y}`);
-        else {
-          assert.equal(data[offset + 3], 255, "bande entièrement opaque");
-          if (data[offset]! > 170 && data[offset + 1]! > 170 && data[offset + 2]! > 170) captionWhitePixels += 1;
+        const alpha = data[offset + 3]!;
+        if (alpha >= 250) opaquePixels += 1;
+        if (
+          alpha > 180 &&
+          data[offset]! > 170 &&
+          data[offset + 1]! > 170 &&
+          data[offset + 2]! > 170
+        ) {
+          lightTextPixels += 1;
         }
       }
+      maximumOpaqueRowCoverage = Math.max(
+        maximumOpaqueRowCoverage,
+        opaquePixels / info.width,
+      );
     }
-    assert.ok(captionWhitePixels > width! / 4, `titre réellement rasterisé dans la bande ${width}x${height}: ${captionWhitePixels} pixels blancs`);
+    assert.ok(
+      maximumOpaqueRowCoverage < 0.5,
+      `aucune ligne opaque pleine largeur à ${width}x${height}`,
+    );
+    assert.ok(
+      lightTextPixels > width! / 4,
+      `texte réellement rasterisé sur l’image à ${width}x${height}`,
+    );
+
+    const bottomAlpha = await sharp(overlay)
+      .extract({ left: 0, top: height! - 1, width: width!, height: 1 })
+      .extractChannel(3)
+      .stats();
+    assert.ok(bottomAlpha.channels[0]!.mean > 0, "dégradé de lisibilité présent");
+    assert.ok(bottomAlpha.channels[0]!.mean < 220, "fond inférieur jamais opaque");
   }
 });
 
-test("le mode sans texte ignore la bande et conserve le calque transparent", async () => {
-  const runtime = transpileRuntimeModule<BrandRendererModule>("../../lib/aiMediaBrandRenderer.ts");
+test("le mode sans texte ni logo conserve un calque entièrement transparent", async () => {
+  const runtime = transpileRuntimeModule<BrandRendererModule>(
+    "../../lib/aiMediaBrandRenderer.ts",
+  );
   const overlay = await runtime.renderAiMediaVideoOverlay({
-    width: 320, height: 320, logo: null, colors: ["#0ea5e9", "#8b5cf6", "#db2777"], companyName: "Test", visualStyle: "clean", logoMode: "none", withText: false, captionLayout: "caption-band",
-    scene: { eyebrow: "Repère", title: "Titre", body: "Corps", layout: "editorial" },
+    width: 320,
+    height: 320,
+    logo: null,
+    colors: ["#0ea5e9", "#8b5cf6", "#db2777"],
+    companyName: "Test",
+    visualStyle: "clean",
+    logoMode: "none",
+    withText: false,
+    scene: {
+      eyebrow: "Repère",
+      title: "Titre",
+      body: "Corps",
+      layout: "editorial",
+    },
   });
   const alpha = await sharp(overlay).extractChannel(3).stats();
   assert.equal(alpha.channels[0]!.max, 0);
 });
 
-test("la composition avec bande remplit le cadre même depuis un plan vertical", async () => {
-  const runtime = transpileRuntimeModule<ComposerModule>("../../lib/aiMediaGeneratedVideo.ts");
-  const directory = await mkdtemp(path.join(tmpdir(), "inrcy-caption-cover-test-"));
+test("le compositeur conserve l’image jusqu’au bord inférieur depuis un plan vertical", async () => {
+  const runtime = transpileRuntimeModule<ComposerModule>(
+    "../../lib/aiMediaGeneratedVideo.ts",
+  );
+  const directory = await mkdtemp(path.join(tmpdir(), "inrcy-full-frame-cover-test-"));
   const sourcePath = path.join(directory, "source.mp4");
   const outputPath = path.join(directory, "output.mp4");
   const framePath = path.join(directory, "frame.png");
   const ffmpegPath = await resolveVideoNormalizationFfmpegPath();
   try {
     await execFileAsync(ffmpegPath, [
-      "-hide_banner", "-nostdin", "-y", "-f", "lavfi", "-i", "color=c=0xed2945:s=320x568:r=30:d=8",
+      "-hide_banner", "-nostdin", "-y", "-f", "lavfi", "-i",
+      "color=c=0xed2945:s=320x568:r=30:d=8",
       "-c:v", "libx264", "-pix_fmt", "yuv420p", "-an", sourcePath,
     ], { timeout: 45_000, windowsHide: true });
-    const overlay = await sharp({ create: { width: 320, height: 320, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).png().toBuffer();
-    const composed = await runtime.composeOriginalAiVideo({ clips: [{ buffer: await readFile(sourcePath), durationSeconds: 8 }], overlays: [overlay], width: 320, height: 320, durationSeconds: 8, nativeAudioMode: "mute", captionLayout: "caption-band" });
+    const overlay = await sharp({
+      create: {
+        width: 320,
+        height: 320,
+        channels: 4,
+        background: { r: 0, g: 0, b: 0, alpha: 0 },
+      },
+    }).png().toBuffer();
+    const composed = await runtime.composeOriginalAiVideo({
+      clips: [{ buffer: await readFile(sourcePath), durationSeconds: 8 }],
+      overlays: [overlay],
+      width: 320,
+      height: 320,
+      durationSeconds: 8,
+      nativeAudioMode: "mute",
+    });
     await writeFile(outputPath, composed.buffer);
-    await execFileAsync(ffmpegPath, ["-hide_banner", "-nostdin", "-y", "-ss", "2", "-i", outputPath, "-frames:v", "1", framePath], { timeout: 30_000, windowsHide: true });
-    const { content } = videoLayout.resolveAiMediaVideoLayout({ width: 320, height: 320, captionLayout: "caption-band" });
-    const pixelAt = async (left: number, top: number) => {
-      const { data } = await sharp(framePath).extract({ left, top, width: 4, height: 4 }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
-      return [data[0]!, data[1]!, data[2]!];
-    };
-    for (const [left, top] of [[4, 20], [310, 20], [4, content.height - 20], [310, content.height - 20]]) {
-      const pixel = await pixelAt(left!, top!);
-      assert.ok(pixel[0]! > 170, `plan visible jusqu'au bord à ${left},${top}`);
-      assert.ok(pixel[1]! < 100 && pixel[2]! < 120, `aucun pilier noir à ${left},${top}`);
+    await execFileAsync(ffmpegPath, [
+      "-hide_banner", "-nostdin", "-y", "-ss", "2", "-i", outputPath,
+      "-frames:v", "1", framePath,
+    ], { timeout: 30_000, windowsHide: true });
+
+    for (const top of [0, 150, 300]) {
+      const stats = await sharp(framePath)
+        .extract({ left: 0, top, width: 320, height: 20 })
+        .stats();
+      assert.ok(stats.channels[0]!.mean > 180, `plan visible à y=${top}`);
+      assert.ok(
+        stats.channels[1]!.mean < 90 && stats.channels[2]!.mean < 110,
+        `aucun bandeau ou remplissage noir à y=${top}`,
+      );
     }
-    const captionPixel = await pixelAt(150, content.height + 20);
-    assert.ok(Math.max(...captionPixel) < 40, "aucun pixel source dans la bande réservée");
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
 });
-
 test("le logo transparent reste discret, sans pastille blanche et en zone sûre", async () => {
   const runtime = transpileRuntimeModule<BrandRendererModule>(
     "../../lib/aiMediaBrandRenderer.ts",

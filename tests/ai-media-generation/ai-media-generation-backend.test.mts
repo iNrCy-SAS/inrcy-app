@@ -955,6 +955,10 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   assert.doesNotMatch(brandKit, /pro_media_library|libraryImages/);
   assert.match(brandKit, /extractPalette/);
   assert.match(brandKit, /\.png\(\{ compressionLevel: 9/);
+  assert.match(brandKit, /\.select\("logo_path,logo_url"\)/);
+  assert.match(brandKit, /\.eq\("user_id", accountId\)/);
+  assert.match(brandKit, /searchParams\.set\([\s\S]*?"cacheNonce"/);
+  assert.match(brandKit, /cache: "no-store"/);
   assert.doesNotMatch(renderer, /renderBrandedAiImage|imageCopySvg/);
   assert.match(renderer, /renderAiMediaVideoOverlay/);
   assert.match(renderer, /args\.logoMode === "none"/);
@@ -968,7 +972,8 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
     /background: \{ r: 0, g: 0, b: 0, alpha: 0 \}/,
   );
   assert.match(renderer, /width \* \(visible \? 0\.16 : 0\.12\)/);
-  assert.match(renderer, /args\.width - safeMarginX - preparedLogo\.width/);
+  assert.match(renderer, /args\.width - logoLayout\.marginX - preparedLogo\.width/);
+  assert.doesNotMatch(renderer, /caption-band|renderVideoCaptionBand/);
   assert.doesNotMatch(renderer, /brandPlateSvg|fill="#ffffff" fill-opacity/);
   assert.doesNotMatch(renderer, /renderAiMediaVideoScenes/);
 

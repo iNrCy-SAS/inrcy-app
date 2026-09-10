@@ -205,6 +205,14 @@ const inrSendFileDownloadSource = readFileSync(
   new URL("../../app/api/inrsend/history/files/[fileId]/download/route.ts", import.meta.url),
   "utf8",
 );
+const inrSendClientSource = readFileSync(
+  new URL("../../app/dashboard/mails/MailboxClient.tsx", import.meta.url),
+  "utf8",
+);
+const inrSendToolbarSource = readFileSync(
+  new URL("../../app/dashboard/mails/_components/MailboxToolbar.tsx", import.meta.url),
+  "utf8",
+);
 const loyaltyAwardApiSource = readFileSync(
   new URL("../../app/api/loyalty/award/route.ts", import.meta.url),
   "utf8",
@@ -669,6 +677,20 @@ test("iNrSend Standard n'expose que l'historique Publications", () => {
     ),
     true,
   );
+  assert.equal(
+    isStandardApiRouteAllowed(
+      "/api/inrsend/history",
+      new URLSearchParams("folder=publications&boxView=drafts"),
+    ),
+    true,
+  );
+  assert.equal(
+    isStandardApiRouteAllowed(
+      "/api/inrsend/history",
+      new URLSearchParams("folder=publications&boxView=unknown"),
+    ),
+    false,
+  );
   assert.equal(isStandardApiRouteAllowed("/api/inrsend/history", new URLSearchParams()), false);
   assert.equal(
     isStandardApiRouteAllowed("/api/inrsend/history", new URLSearchParams("folder=mails")),
@@ -681,6 +703,26 @@ test("iNrSend Standard n'expose que l'historique Publications", () => {
   assert.equal(isStandardApiRouteAllowed("/api/crm/contacts"), false);
   assert.match(inrSendFileDownloadSource, /dashboardEdition === "standard" && !isPublicationFile/);
   assert.match(inrSendFileDownloadSource, /file_role/);
+});
+
+test("iNrSend Standard donne accès aux brouillons de Publications et conserve la vue", () => {
+  assert.match(
+    inrSendToolbarSource,
+    /onBoxViewChange\(boxView === "drafts" \? "sent" : "drafts"\)/,
+  );
+  assert.match(inrSendToolbarSource, /aria-pressed=\{boxView === "drafts"\}/);
+  assert.doesNotMatch(
+    inrSendToolbarSource,
+    /\{!publicationOnly \? \(\s*<button[\s\S]{0,300}draftsToggleBtn/,
+  );
+  assert.match(
+    inrSendClientSource,
+    /requestedBoxView === "drafts" \? "drafts" : "sent"/,
+  );
+  assert.match(
+    inrSendClientSource,
+    /params\.set\("countsOnly", "1"\);\s*params\.set\("folder", context\.folder\);\s*params\.set\("boxView", context\.boxView\);/,
+  );
 });
 
 test("Mon compte affiche les identifiants puis le forfait et renvoie vers Mon abonnement", () => {
