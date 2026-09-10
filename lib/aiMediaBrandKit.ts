@@ -7,6 +7,7 @@ import {
   getProfileLogoVersion,
   LOGO_BUCKET,
 } from "@/lib/profileLogo";
+import { createSafeStorageSignedUrl } from "@/lib/safeStorageSignedUrl";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 type JsonRecord = Record<string, unknown>;
@@ -118,12 +119,10 @@ async function downloadStorageAsset(
   // objects by path, so the profile version is also sent as cacheNonce and
   // the server fetch explicitly bypasses its own HTTP cache. This guarantees
   // that a generation started just after a profile save uses the new bytes.
-  const signed = await supabaseAdmin.storage
-    .from(bucket)
-    .createSignedUrl(storagePath, 90);
-  if (!signed.error && signed.data?.signedUrl) {
+  const signed = await createSafeStorageSignedUrl(bucket, storagePath, 90);
+  if (signed) {
     try {
-      const signedUrl = new URL(signed.data.signedUrl);
+      const signedUrl = new URL(signed);
       signedUrl.searchParams.set(
         "cacheNonce",
         logoVersion || `fresh-${Date.now().toString(36)}`,

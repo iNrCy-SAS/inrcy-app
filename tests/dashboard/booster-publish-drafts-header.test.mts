@@ -11,6 +11,12 @@ const modalLayer = read("app/dashboard/_components/DashboardBoosterModalLayer.ts
 const draftMenu = read(
   "app/dashboard/booster/publier/components/PublishDraftHeaderMenu.tsx",
 );
+const draftMenuStyles = read(
+  "app/dashboard/booster/publier/components/publishDraftHeaderMenu.module.css",
+);
+const workflowBaseModal = read(
+  "app/dashboard/_components/WorkflowBaseModal.tsx",
+);
 const publishModal = read("app/dashboard/booster/publier/PublishModal.tsx");
 const intentPanel = read(
   "app/dashboard/booster/publier/components/PublishIntentPanel.tsx",
@@ -34,6 +40,23 @@ test("le header de Publier ouvre un brouillon sans créer un second stockage", (
   assert.match(modalLayer, /publishHasUnsavedChanges[\s\S]{0,260}confirmInrcy/);
   assert.match(draftMenu, /aria-haspopup="menu"/);
   assert.match(draftMenu, /draft\.id === activeDraftId/);
+});
+
+test("le menu des brouillons flotte au-dessus de l'outil sans être rogné", () => {
+  assert.match(draftMenu, /createPortal\(/);
+  assert.match(draftMenu, /document\.body/);
+  assert.match(draftMenu, /menuRef\.current\?\.contains\(target\)/);
+  assert.match(
+    draftMenuStyles,
+    /\.menu\s*\{[\s\S]*?position:\s*fixed;[\s\S]*?z-index:\s*1000;/,
+  );
+});
+
+test("le titre Publier reste centré malgré les actions du header", () => {
+  assert.match(
+    workflowBaseModal,
+    /"minmax\(0, 1fr\) auto minmax\(0, 1fr\)"/,
+  );
 });
 
 test("la barre de génération est révélée automatiquement après le clic IA", () => {

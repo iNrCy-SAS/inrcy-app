@@ -145,7 +145,7 @@ export default function BaseModal({
                 display: "grid",
                 gridTemplateColumns: titleMovesLeft
                   ? "minmax(0, auto) minmax(0, 1fr) minmax(0, auto)"
-                  : "minmax(0, auto) minmax(0, 1fr) minmax(0, auto)",
+                  : "minmax(0, 1fr) auto minmax(0, 1fr)",
                 alignItems: "center",
                 gap: isMobileHeader ? 5 : 12,
               }}
