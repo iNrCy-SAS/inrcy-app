@@ -7,15 +7,27 @@ import { Redis } from "@upstash/redis";
 import { encryptToken, tryDecryptToken } from "@/lib/oauthCrypto";
 import { optionalEnv, requireEnv } from "@/lib/env";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { sendMonitoringMail } from "@/lib/txMailer";
+import { sendMonitoringMail, sendTxMail } from "@/lib/txMailer";
+import {
+  acquireExecutionIdempotencyLock,
+  completeExecutionIdempotencyLockOrThrow,
+} from "@/lib/executionIdempotency";
 import {
   buildPublicVisioBookingContent,
   buildSingleAssigneeVisioAttendees,
 } from "@/lib/visioBookingEventPolicy";
 import {
+  VISIO_BOOKING_MANUAL_RESEND_LOCK_TTL_MS,
+  VISIO_BOOKING_MANUAL_RESEND_SCOPE,
+  buildVisioBookingLinkMail,
+  buildVisioBookingManualResendKey,
+  visioBookingManualResendFingerprint,
+} from "@/lib/visioBookingDeliveryPolicy";
+import {
   TEAM_CALENDAR_MIRROR_KEY,
   TEAM_CALENDAR_MIRROR_VALUE,
   buildTeamCalendarMirrorBody,
+  hasAutomaticGoogleCalendarReminders,
   isPendingSignupReminderForProspect,
   pendingSignupReminderProspectUserId,
   shouldMirrorTeamCalendarEvent,
@@ -152,6 +164,12 @@ export type VisioTeamRescheduleResult = {
   previousStart: string;
   previousEnd: string;
   googleUpdatesRequested: boolean;
+};
+
+export type VisioBookingManualResendResult = {
+  appointment: VisioTeamAppointment;
+  sent: true;
+  idempotent: boolean;
 };
 
 function boundedInteger(name: string, fallback: number, min: number, max: number) {
@@ -756,6 +774,36 @@ export async function syncVisioTeamCalendarsToShared(input?: {
 
   try {
     const sharedEvents = await listVisioSharedCalendarEvents(timeMin, timeMax);
+    const sharedCalendarId = getVisioSharedCalendarId();
+
+    // Repair historical site bookings silently. Older versions attached
+    // Google e-mail/popup reminders to the event; keeping this in the minute
+    // synchronizer makes the migration self-healing without notifying guests.
+    for (let index = 0; index < sharedEvents.length; index += 1) {
+      const event = sharedEvents[index];
+      if (
+        !event.id ||
+        event.status === "cancelled" ||
+        event.extendedProperties?.private?.[PRIVATE_BOOKING_KEY] !==
+          PRIVATE_BOOKING_VALUE ||
+        !hasAutomaticGoogleCalendarReminders(event)
+      ) {
+        continue;
+      }
+      try {
+        sharedEvents[index] = await patchCalendarEventWithoutUpdates(
+          sharedCalendarId,
+          event.id,
+          { reminders: { useDefault: false, overrides: [] } },
+        );
+        result.updated += 1;
+      } catch (error) {
+        result.errors.push({
+          memberId: "shared",
+          code: visioGoogleErrorCode(error),
+        });
+      }
+    }
     const mirrors = sharedEvents.filter(
       (event) =>
         event.extendedProperties?.private?.[TEAM_CALENDAR_MIRROR_KEY] ===
@@ -779,8 +827,6 @@ export async function syncVisioTeamCalendarsToShared(input?: {
         .map((event) => [mirrorSourceKey(event), event] as const)
         .filter(([key]) => Boolean(key)),
     );
-    const sharedCalendarId = getVisioSharedCalendarId();
-
     const teamMembers = getVisioTeamMembers();
     const memberById = new Map(teamMembers.map((member) => [member.id, member]));
     const assignmentCounts = sharedEvents.reduce<Record<string, number>>(
@@ -1479,10 +1525,7 @@ async function createGoogleBookingEvent(input: {
     },
     reminders: {
       useDefault: false,
-      overrides: [
-        { method: "email", minutes: 24 * 60 },
-        { method: "popup", minutes: 60 },
-      ],
+      overrides: [],
     },
     extendedProperties: {
       private: privateProperties,
@@ -1922,7 +1965,7 @@ async function patchCalendarEvent(
   calendarId: string,
   eventId: string,
   body: Record<string, unknown>,
-  sendUpdates: "all" | "none",
+  sendUpdates: "none",
 ) {
   return googleCalendarRequest<GoogleCalendarEvent>(
     `/calendars/${encodeCalendarId(calendarId)}/events/${encodeURIComponent(
@@ -1938,14 +1981,6 @@ async function patchCalendarEventWithoutUpdates(
   body: Record<string, unknown>,
 ) {
   return patchCalendarEvent(calendarId, eventId, body, "none");
-}
-
-async function patchCalendarEventWithUpdates(
-  calendarId: string,
-  eventId: string,
-  body: Record<string, unknown>,
-) {
-  return patchCalendarEvent(calendarId, eventId, body, "all");
 }
 
 async function moveCalendarEventWithoutUpdates(
@@ -2516,12 +2551,12 @@ async function rescheduleAutomaticBooking(input: {
     if (!schedule.changed) {
       return { mirror: input.mirror, ...schedule, googleUpdatesRequested: false };
     }
-    const master = await patchCalendarEventWithUpdates(
+    const master = await patchCalendarEventWithoutUpdates(
       getVisioSharedCalendarId(),
       input.mirror.id,
       { start: schedule.start, end: schedule.end },
     );
-    return { mirror: master, ...schedule, googleUpdatesRequested: true };
+    return { mirror: master, ...schedule, googleUpdatesRequested: false };
   }
 
   const publicCalendarId = getVisioPublicCalendarId();
@@ -2573,7 +2608,7 @@ async function rescheduleAutomaticBooking(input: {
       schedule,
     });
 
-    await patchCalendarEventWithUpdates(publicCalendarId, publicEvent.id, {
+    await patchCalendarEventWithoutUpdates(publicCalendarId, publicEvent.id, {
       start: schedule.start,
       end: schedule.end,
     });
@@ -2601,7 +2636,7 @@ async function rescheduleAutomaticBooking(input: {
       error instanceof Error ? error.message : "cleanup_failed",
     );
   });
-  return { mirror: stagedMirror, ...schedule, googleUpdatesRequested: true };
+  return { mirror: stagedMirror, ...schedule, googleUpdatesRequested: false };
 }
 
 async function rescheduleCalendarAppointment(input: {
@@ -2636,7 +2671,7 @@ async function rescheduleCalendarAppointment(input: {
       member: input.member,
       schedule,
     });
-    await patchCalendarEventWithUpdates(sourceCalendarId, sourceEvent.id, {
+    await patchCalendarEventWithoutUpdates(sourceCalendarId, sourceEvent.id, {
       start: schedule.start,
       end: schedule.end,
     });
@@ -2658,7 +2693,7 @@ async function rescheduleCalendarAppointment(input: {
       error instanceof Error ? error.message : "cleanup_failed",
     );
   });
-  return { mirror: stagedMirror, ...schedule, googleUpdatesRequested: true };
+  return { mirror: stagedMirror, ...schedule, googleUpdatesRequested: false };
 }
 
 async function recordVisioTeamReassignment(input: {
@@ -2720,6 +2755,185 @@ async function recordVisioTeamReschedule(input: {
   if (error) {
     console.error("[visio-booking][team-reschedule-audit]", error.message);
   }
+}
+
+async function recordVisioBookingManualResend(input: {
+  actor: VisioTeamReassignmentActor;
+  mirrorId: string;
+  appointmentFingerprint: string;
+  recipientFingerprint: string;
+}) {
+  const { error } = await supabaseAdmin.from("app_events").insert({
+    user_id: input.actor.userId,
+    module: "visio_booking_admin",
+    type: "appointment_link_resent",
+    payload: {
+      mirrorEventId: input.mirrorId,
+      appointmentFingerprint: input.appointmentFingerprint,
+      recipientFingerprint: input.recipientFingerprint,
+      actorEmail: input.actor.email,
+      actorName: input.actor.name,
+      deliveryMode: "manual_only",
+      resentAt: new Date().toISOString(),
+    },
+  });
+  if (error) {
+    console.error("[visio-booking][manual-link-resend-audit]", error.message);
+  }
+}
+
+async function bookingDeliveryEvent(mirror: GoogleCalendarEvent) {
+  const properties = mirror.extendedProperties?.private || {};
+  const sourceCalendarId = String(properties.sourceCalendarId || "").trim();
+  const sourceEventId = String(properties.sourceEventId || "").trim();
+  if (
+    !sourceCalendarId ||
+    !sourceEventId ||
+    (normalizedCalendarId(sourceCalendarId) ===
+      normalizedCalendarId(getVisioSharedCalendarId()) &&
+      sourceEventId === mirror.id)
+  ) {
+    return mirror;
+  }
+
+  const source = await getCalendarEvent(sourceCalendarId, sourceEventId);
+  const mirrorNonce = String(properties.bookingNonce || "").trim();
+  const sourceNonce = String(
+    source?.extendedProperties?.private?.bookingNonce || "",
+  ).trim();
+  return source?.id && source.status !== "cancelled" &&
+    (!mirrorNonce || sourceNonce === mirrorNonce)
+    ? source
+    : mirror;
+}
+
+export async function resendVisioBookingLink(input: {
+  mirrorEventId: string;
+  appointmentIdentity?: string;
+  appointmentStart?: string;
+  deliveryKey: string;
+  actor: VisioTeamReassignmentActor;
+}): Promise<VisioBookingManualResendResult> {
+  const mirrorEventId = String(input.mirrorEventId || "").trim();
+  if (!mirrorEventId || !String(input.deliveryKey || "").trim()) {
+    throw new Error("visio_booking_manual_resend_invalid");
+  }
+
+  const mirror = await resolveActiveTeamAppointmentMirror({
+    mirrorEventId,
+    identity: input.appointmentIdentity,
+    start: input.appointmentStart,
+  });
+  if (!mirror?.id) throw new Error("visio_team_assignment_mirror_missing");
+
+  const properties = mirror.extendedProperties?.private || {};
+  if (properties[PRIVATE_BOOKING_KEY] !== PRIVATE_BOOKING_VALUE) {
+    throw new Error("visio_booking_manual_resend_not_booking");
+  }
+  const canonicalIdentity = appointmentIdentity(mirror);
+  if (
+    input.appointmentIdentity &&
+    String(input.appointmentIdentity).trim() !== canonicalIdentity
+  ) {
+    throw new Error("visio_team_assignment_mirror_missing");
+  }
+
+  const appointment = teamAppointmentFromMirror(mirror);
+  if (!appointment) throw new Error("visio_team_assignment_mirror_missing");
+  const deliveryEvent = await bookingDeliveryEvent(mirror);
+  const recipients = teamCalendarExternalAttendees(
+    deliveryEvent,
+    getVisioManagedCalendarAddresses(),
+  ).filter(
+    (attendee) =>
+      String(attendee.responseStatus || "").toLowerCase() !== "declined",
+  );
+  if (recipients.length === 0) {
+    throw new Error("visio_booking_manual_resend_recipient_missing");
+  }
+  if (recipients.length !== 1) {
+    throw new Error("visio_booking_manual_resend_recipient_ambiguous");
+  }
+
+  const meetUrl = teamCalendarEventMeetUrl(deliveryEvent) || appointment.meetUrl;
+  const mail = buildVisioBookingLinkMail({
+    start: appointment.start,
+    end: appointment.end,
+    meetUrl,
+  });
+  const idempotencyKey = buildVisioBookingManualResendKey({
+    appointmentIdentity: canonicalIdentity,
+    deliveryKey: input.deliveryKey,
+  });
+  const appointmentFingerprint = visioBookingManualResendFingerprint({
+    appointmentIdentity: canonicalIdentity,
+    deliveryKey: input.deliveryKey,
+  });
+  const recipientFingerprint = createHash("sha256")
+    .update(recipients[0].email.toLowerCase(), "utf8")
+    .digest("hex");
+  const claim = await acquireExecutionIdempotencyLock({
+    supabase: supabaseAdmin,
+    userId: input.actor.userId,
+    scope: VISIO_BOOKING_MANUAL_RESEND_SCOPE,
+    idempotencyKey,
+    ttlMs: VISIO_BOOKING_MANUAL_RESEND_LOCK_TTL_MS,
+    metadata: {
+      mirrorEventId: mirror.id,
+      appointmentFingerprint,
+      recipientFingerprint,
+      deliveryMode: "manual_only",
+    },
+  });
+  if (claim.state === "completed") {
+    return { appointment, sent: true, idempotent: true };
+  }
+  if (claim.state === "running") {
+    throw new Error("visio_booking_manual_resend_in_progress");
+  }
+  if (claim.state === "unavailable" || !claim.lock?.id) {
+    throw new Error("visio_booking_manual_resend_idempotency_unavailable");
+  }
+
+  try {
+    await sendTxMail({ to: recipients[0].email, ...mail });
+  } catch (error) {
+    console.error(
+      "[visio-booking][manual-link-resend-delivery]",
+      error instanceof Error ? error.message : "send_failed",
+    );
+    // The SMTP outcome may be uncertain. Keep the durable claim in `running`
+    // so an automatic/network retry cannot send the same message twice.
+    throw new Error("visio_booking_manual_resend_delivery_failed");
+  }
+
+  try {
+    await completeExecutionIdempotencyLockOrThrow({
+      supabase: supabaseAdmin,
+      lockId: claim.lock.id,
+      result: { ok: true, sentAt: new Date().toISOString() },
+      metadata: {
+        mirrorEventId: mirror.id,
+        appointmentFingerprint,
+        recipientFingerprint,
+        deliveryMode: "manual_only",
+      },
+    });
+  } catch (error) {
+    console.error(
+      "[visio-booking][manual-link-resend-commit]",
+      error instanceof Error ? error.message : "commit_failed",
+    );
+    throw new Error("visio_booking_manual_resend_commit_uncertain");
+  }
+
+  await recordVisioBookingManualResend({
+    actor: input.actor,
+    mirrorId: mirror.id,
+    appointmentFingerprint,
+    recipientFingerprint,
+  });
+  return { appointment, sent: true, idempotent: false };
 }
 
 export async function reassignVisioTeamAppointment(input: {

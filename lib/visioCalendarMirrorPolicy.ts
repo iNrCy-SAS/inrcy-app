@@ -49,6 +49,10 @@ export type TeamCalendarEvent = {
   conferenceData?: {
     entryPoints?: Array<{ entryPointType?: string; uri?: string }>;
   };
+  reminders?: {
+    useDefault?: boolean;
+    overrides?: Array<{ method?: string; minutes?: number }>;
+  };
   extendedProperties?: {
     private?: Record<string, string>;
   };
@@ -279,6 +283,7 @@ export function teamCalendarMirrorContentSignature(event: TeamCalendarEvent) {
     transparency: event.transparency || "",
     start: event.start || null,
     end: event.end || null,
+    reminders: event.reminders || null,
     mirrorVersion: properties[TEAM_CALENDAR_MIRROR_KEY] || "",
     sourceCalendarId: properties.sourceCalendarId || "",
     sourceEventId: properties.sourceEventId || "",
@@ -289,6 +294,13 @@ export function teamCalendarMirrorContentSignature(event: TeamCalendarEvent) {
     assignedMemberId: properties.assignedMemberId || "",
     guestEmails: properties[INR_CALENDAR_GOOGLE_GUEST_EMAILS_PROPERTY] || "",
   });
+}
+
+export function hasAutomaticGoogleCalendarReminders(event: TeamCalendarEvent) {
+  const reminders = event.reminders;
+  return !reminders ||
+    reminders.useDefault !== false ||
+    (Array.isArray(reminders.overrides) && reminders.overrides.length > 0);
 }
 
 export function buildTeamCalendarMirrorBody(input: TeamCalendarMirrorInput) {

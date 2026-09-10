@@ -64,6 +64,7 @@ test("un rendez-vous Google devient un événement iNrCalendar admin en lecture 
   assert.equal(row.meta.readOnly, true);
   assert.deepEqual(row.meta.reminders, {
     enabled: false,
+    deliveryPolicy: "manual_only",
     inAppMinutesBefore: 120,
     emailMinutesBefore: 1440,
     mailAccountId: null,
@@ -77,7 +78,7 @@ test("un rendez-vous Google devient un événement iNrCalendar admin en lecture 
   );
 });
 
-test("les participants externes Google deviennent des invités avec rappels iNrCy", () => {
+test("les participants externes restent visibles sans activer de rappel iNrCy", () => {
   const row = buildInrCalendarGoogleRow({
     event: event({
       organizer: { email: "apolline.benedyczak@inrcy.com" },
@@ -96,10 +97,14 @@ test("les participants externes Google deviennent des invités avec rappels iNrC
   assert.deepEqual(row.meta.guests, [
     { email: "pro@example.com", display_name: "Jean Pro" },
   ]);
-  assert.equal((row.meta.reminders as Record<string, unknown>).enabled, true);
+  assert.equal((row.meta.reminders as Record<string, unknown>).enabled, false);
+  assert.equal(
+    (row.meta.reminders as Record<string, unknown>).deliveryPolicy,
+    "manual_only",
+  );
 });
 
-test("les invités transportés par le miroir Google activent les rappels", () => {
+test("les invités transportés par le miroir Google restent sans rappel", () => {
   const row = buildInrCalendarGoogleRow({
     event: event({
       extendedProperties: {
@@ -119,7 +124,11 @@ test("les invités transportés par le miroir Google activent les rappels", () =
 
   assert.ok(row);
   assert.deepEqual(row.meta.guests, [{ email: "client@example.com" }]);
-  assert.equal((row.meta.reminders as Record<string, unknown>).enabled, true);
+  assert.equal((row.meta.reminders as Record<string, unknown>).enabled, false);
+  assert.equal(
+    (row.meta.reminders as Record<string, unknown>).deliveryPolicy,
+    "manual_only",
+  );
 });
 
 test("la resynchronisation conserve l'historique d'envoi et un déplacement le réinitialise", () => {
@@ -156,6 +165,10 @@ test("la resynchronisation conserve l'historique d'envoi et un déplacement le r
 
   assert.ok(sameSlot);
   assert.ok(moved);
+  assert.equal(
+    (sameSlot.meta.reminders as Record<string, unknown>).enabled,
+    false,
+  );
   assert.deepEqual(
     (sameSlot.meta.reminders as Record<string, unknown>).emailSentAtByRecipient,
     (previous.meta.reminders as Record<string, unknown>).emailSentAtByRecipient,

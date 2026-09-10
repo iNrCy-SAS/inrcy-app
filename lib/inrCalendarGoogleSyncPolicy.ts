@@ -4,6 +4,7 @@ import {
   INR_CALENDAR_GOOGLE_GUEST_EMAILS_PROPERTY,
   INR_CALENDAR_GOOGLE_SOURCE,
 } from "./inrCalendarGoogleSyncConstants.ts";
+import { CALENDAR_REMINDER_MANUAL_ONLY_POLICY } from "./calendarReminderDeliveryPolicy.ts";
 
 export type InrCalendarGoogleEvent = {
   id?: string;
@@ -275,7 +276,11 @@ export function buildInrCalendarGoogleRow(input: {
       guests,
       reminders: {
         ...previousReminders,
-        enabled: guests.length > 0,
+        // A Google/site booking sends its invitation once at creation. The
+        // generic iNrCalendar cron must never turn guests into reminder
+        // recipients; another link can only leave through the manual action.
+        enabled: false,
+        deliveryPolicy: CALENDAR_REMINDER_MANUAL_ONLY_POLICY,
         inAppMinutesBefore: Number(previousReminders.inAppMinutesBefore ?? 120),
         emailMinutesBefore: Number(previousReminders.emailMinutesBefore ?? 1440),
         mailAccountId:

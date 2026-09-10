@@ -14,6 +14,7 @@ import {
   CALENDAR_REMINDER_LOCK_TTL_MS,
   buildCalendarReminderDeliveryKey,
   calendarReminderDeliveryFingerprint,
+  shouldRunAutomaticCalendarReminders,
 } from "@/lib/calendarReminderDeliveryPolicy";
 import {
   acquireExecutionIdempotencyLock,
@@ -757,6 +758,9 @@ export async function GET(req: Request) {
   for (const row of data ?? []) {
     const meta = safeObj(row.meta);
     if (isInactiveAppointmentRequest(meta)) continue;
+    // Fail closed before notifications or e-mails: Google/site appointments
+    // are invitation-once + manual-resend-only, including stale mirror rows.
+    if (!shouldRunAutomaticCalendarReminders(meta)) continue;
     const reminders = safeObj(meta.reminders);
     if (reminders.enabled === false) continue;
     const startAt = new Date(String(row.start_at));

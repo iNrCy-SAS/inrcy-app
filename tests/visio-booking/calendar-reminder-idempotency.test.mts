@@ -6,6 +6,7 @@ import {
   CALENDAR_REMINDER_LOCK_TTL_MS,
   buildCalendarReminderDeliveryKey,
   calendarReminderEventIdentity,
+  shouldRunAutomaticCalendarReminders,
 } from "../../lib/calendarReminderDeliveryPolicy.ts";
 
 const base = {
@@ -73,5 +74,29 @@ test("un événement Google sans booking utilise sa source avant sa ligne locale
   assert.equal(
     buildCalendarReminderDeliveryKey(input),
     buildCalendarReminderDeliveryKey({ ...input, id: "a-different-local-row" }),
+  );
+});
+
+test("les rendez-vous Google et les lignes manual_only ne passent jamais dans le cron", () => {
+  assert.equal(
+    shouldRunAutomaticCalendarReminders({
+      source: "google_shared_calendar",
+      reminders: { enabled: true },
+    }),
+    false,
+  );
+  assert.equal(
+    shouldRunAutomaticCalendarReminders({
+      source: "agenda",
+      reminders: { enabled: true, deliveryPolicy: "manual_only" },
+    }),
+    false,
+  );
+  assert.equal(
+    shouldRunAutomaticCalendarReminders({
+      source: "agenda",
+      reminders: { enabled: true },
+    }),
+    true,
   );
 });

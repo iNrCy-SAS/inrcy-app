@@ -307,19 +307,24 @@
 .links { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 5px; }
 .links a { color: #5ddcff; font-size: 11px; font-weight: 750; text-decoration: none; }
 .links a:hover { text-decoration: underline; }
-.scheduleToggle {
+.scheduleToggle,
+.resendLinkButton {
   padding: 0;
   border: 0;
-  color: #d7b8ff;
   background: transparent;
   font-size: 11px;
   font-weight: 800;
   cursor: pointer;
 }
 
+.scheduleToggle { color: #d7b8ff; }
 .scheduleToggle::before { content: "▣ "; color: #f29adf; }
-.scheduleToggle:hover { color: #fff; text-decoration: underline; }
-.scheduleToggle:disabled { cursor: default; opacity: 0.5; }
+.resendLinkButton { color: #9ff4d7; }
+.resendLinkButton::before { content: "✉ "; color: #4de2af; }
+.scheduleToggle:hover,
+.resendLinkButton:hover { color: #fff; text-decoration: underline; }
+.scheduleToggle:disabled,
+.resendLinkButton:disabled { cursor: default; opacity: 0.5; }
 
 .scheduleEditor {
   display: grid;

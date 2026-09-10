@@ -6,6 +6,7 @@ import {
   TEAM_CALENDAR_MIRROR_KEY,
   TEAM_CALENDAR_MIRROR_VALUE,
   buildTeamCalendarMirrorBody,
+  hasAutomaticGoogleCalendarReminders,
   isPendingSignupReminderForProspect,
   pendingSignupReminderProspectUserId,
   shouldMirrorTeamCalendarEvent,
@@ -166,6 +167,7 @@ test("le miroir est interne, sans invité ni nouvelle conférence, et conserve l
   assert.equal("attendees" in body, false);
   assert.equal("conferenceData" in body, false);
   assert.equal(body.reminders.useDefault, false);
+  assert.deepEqual(body.reminders.overrides, []);
   assert.equal(body.extendedProperties.private.inrcyBooking, "signup-visio");
   assert.equal(body.extendedProperties.private.sourceFingerprint, "fingerprint");
   assert.equal(
@@ -262,6 +264,33 @@ test("le rappel orange d'inscription est identifié uniquement par son User ID",
       summary: "Inscription - A traiter — Océane",
     }),
     "4b6eceb7-d627-4447-b453-4f5e1e749272",
+  );
+});
+
+test("les rappels Google historiques sont détectés pour être nettoyés", () => {
+  assert.equal(hasAutomaticGoogleCalendarReminders(sourceEvent()), true);
+  assert.equal(
+    hasAutomaticGoogleCalendarReminders(
+      sourceEvent({ reminders: { useDefault: true } }),
+    ),
+    true,
+  );
+  assert.equal(
+    hasAutomaticGoogleCalendarReminders(
+      sourceEvent({
+        reminders: {
+          useDefault: false,
+          overrides: [{ method: "email", minutes: 1440 }],
+        },
+      }),
+    ),
+    true,
+  );
+  assert.equal(
+    hasAutomaticGoogleCalendarReminders(
+      sourceEvent({ reminders: { useDefault: false, overrides: [] } }),
+    ),
+    false,
   );
 });
 

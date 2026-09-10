@@ -40,6 +40,7 @@ test("la réservation impose capacité deux, Meet et invitations", () => {
   assert.match(backend, /PUBLIC_BOOKING_ASSIGNEE\s*=\s*"Équipe iNrCy"/);
   assert.match(eventPolicy, /Votre interlocuteur : \$\{memberName\}/);
   assert.match(backend, /guestsCanSeeOtherGuests:\s*false/);
+  assert.match(backend, /reminders:\s*\{[\s\S]*?useDefault:\s*false,[\s\S]*?overrides:\s*\[\]/);
   assert.doesNotMatch(backend, /Rendez-vous attribué à : \$\{input\.member\.name\}/);
   assert.match(backend, /removePendingSignupRemindersForProspect/);
   assert.match(backend, /pendingSignupReminderProspectUserId/);
@@ -64,6 +65,10 @@ test("une inscription devient un seul événement partagé avec Meet et invités
   assert.match(creation, /teamMembers:\s*getVisioTeamMembers\(\)/);
   assert.match(creation, /\.\.\.publicContent/);
   assert.match(creation, /buildSingleAssigneeVisioAttendees/);
+  assert.doesNotMatch(
+    backend.slice(backend.indexOf("export async function bookVisioSlot")),
+    /sendUpdates=all/,
+  );
   assert.match(eventPolicy, /member\.id !== input\.assignedMemberId/);
   assert.doesNotMatch(creation, /bookingCompanionEventId/);
   assert.doesNotMatch(creation, /upsertTeamMirrorEvent/);
@@ -170,6 +175,7 @@ test("l’attribution équipe est privée, auditée et silencieuse pour le profe
   const backend = read("lib/visioBookingGoogle.ts");
   const access = read("lib/visioTeamAccess.ts");
   const route = read("app/api/internal/visio-booking/appointments/route.ts");
+  const resendRoute = read("app/api/internal/visio-booking/appointments/resend-link/route.ts");
   const page = read("app/equipe/agenda/TeamAgendaClient.tsx");
   const adminHome = read("app/dashboard/admin/page.tsx");
 
@@ -186,6 +192,10 @@ test("l’attribution équipe est privée, auditée et silencieuse pour le profe
   assert.match(route, /appointmentIdentity/);
   assert.match(route, /appointmentStart/);
   assert.match(route, /syncVisioSharedCalendarToInrCalendar/);
+  assert.match(resendRoute, /requireVisioTeamApi/);
+  assert.match(resendRoute, /resendVisioBookingLink/);
+  assert.match(resendRoute, /deliveryKey/);
+  assert.match(resendRoute, /sec-fetch-site/);
   assert.match(route, /inrCalendarSynced/);
   assert.match(route, /pastDays:\s*7/);
   assert.match(route, /futureDays:\s*14/);
@@ -208,15 +218,22 @@ test("l’attribution équipe est privée, auditée et silencieuse pour le profe
   assert.match(backend, /notificationsSent:\s*false/);
   assert.match(backend, /type:\s*"appointment_reassigned"/);
   assert.match(backend, /type:\s*"appointment_rescheduled"/);
-  assert.match(backend, /patchCalendarEventWithUpdates/);
+  assert.doesNotMatch(backend, /patchCalendarEventWithUpdates/);
   assert.match(backend, /sendUpdates=\$\{sendUpdates\}/);
   assert.match(backend, /buildTimedEventSchedule/);
   assert.match(backend, /previousEndMs - previousStartMs/);
   assert.match(backend, /rescheduleAutomaticBooking/);
   assert.match(backend, /rescheduleCalendarAppointment/);
+  assert.match(backend, /resendVisioBookingLink/);
+  assert.match(backend, /VISIO_BOOKING_MANUAL_RESEND_SCOPE/);
+  assert.match(backend, /completeExecutionIdempotencyLockOrThrow/);
+  assert.match(backend, /type:\s*"appointment_link_resent"/);
+  assert.match(backend, /hasAutomaticGoogleCalendarReminders/);
   assert.match(page, /Jimmy|member\.name/);
-  assert.match(page, /Aucun e-mail de changement n’est envoyé/);
-  assert.match(page, /Un seul responsable interne est conservé/);
+  assert.match(page, /Une invitation unique est envoyée/);
+  assert.match(page, /Renvoyer le lien/);
+  assert.match(page, /confirmInrcy/);
+  assert.match(page, /aucun rappel automatique/i);
   assert.match(page, /7 jours d’historique et 14 jours à venir/);
   assert.match(page, /appointments\?refresh=1/);
   assert.match(page, /currentMemberId:\s*target\.id/);

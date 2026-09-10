@@ -2,7 +2,9 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+import { confirmInrcy } from "@/lib/inrcyDialog";
 
 import styles from "./teamAgenda.module.css";
 
@@ -98,10 +100,12 @@ export default function TeamAgendaClient({
   const [refreshing, setRefreshing] = useState(false);
   const [assigningId, setAssigningId] = useState("");
   const [reschedulingId, setReschedulingId] = useState("");
+  const [resendingId, setResendingId] = useState("");
   const [editingId, setEditingId] = useState("");
   const [newStartLocal, setNewStartLocal] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const resendDeliveryKeys = useRef(new Map<string, string>());
 
   const loadAppointments = useCallback(async (manual = false, silent = false) => {
     if (manual) setRefreshing(true);
@@ -160,7 +164,8 @@ export default function TeamAgendaClient({
     if (
       appointment.currentMemberId === target.id ||
       assigningId ||
-      reschedulingId
+      reschedulingId ||
+      resendingId
     ) return;
     const previousMemberId = appointment.currentMemberId;
     const previousMemberName = appointment.currentMemberName;
@@ -217,18 +222,18 @@ export default function TeamAgendaClient({
     } finally {
       setAssigningId("");
     }
-  }, [assigningId, reschedulingId]);
+  }, [assigningId, reschedulingId, resendingId]);
 
   const beginReschedule = useCallback((appointment: TeamAppointment) => {
-    if (appointment.allDay || assigningId || reschedulingId) return;
+    if (appointment.allDay || assigningId || reschedulingId || resendingId) return;
     setEditingId(appointment.id);
     setNewStartLocal(toParisDateTimeLocal(appointment.start));
     setError("");
     setSuccess("");
-  }, [assigningId, reschedulingId]);
+  }, [assigningId, reschedulingId, resendingId]);
 
   const reschedule = useCallback(async (appointment: TeamAppointment) => {
-    if (!newStartLocal || assigningId || reschedulingId) return;
+    if (!newStartLocal || assigningId || reschedulingId || resendingId) return;
     setReschedulingId(appointment.id);
     setError("");
     setSuccess("");
@@ -268,7 +273,69 @@ export default function TeamAgendaClient({
     } finally {
       setReschedulingId("");
     }
-  }, [assigningId, newStartLocal, reschedulingId]);
+  }, [assigningId, newStartLocal, reschedulingId, resendingId]);
+
+  const resendBookingLink = useCallback(async (appointment: TeamAppointment) => {
+    if (
+      appointment.sourceType !== "booking" ||
+      !appointment.meetUrl ||
+      assigningId ||
+      reschedulingId ||
+      resendingId
+    ) {
+      return;
+    }
+
+    const confirmed = await confirmInrcy({
+      eyebrow: "ENVOI EXTERNE",
+      title: "Renvoyer le lien Google Meet",
+      message: "Renvoyer maintenant le lien au professionnel ? Cet envoi est manuel et n’activera aucun rappel automatique.",
+      confirmLabel: "Renvoyer le lien",
+      cancelLabel: "Annuler",
+      variant: "warning",
+    });
+    if (!confirmed) return;
+
+    const existingDeliveryKey = resendDeliveryKeys.current.get(appointment.id);
+    const deliveryKey = existingDeliveryKey || window.crypto.randomUUID();
+    resendDeliveryKeys.current.set(appointment.id, deliveryKey);
+    setResendingId(appointment.id);
+    setError("");
+    setSuccess("");
+    try {
+      const response = await fetch(
+        "/api/internal/visio-booking/appointments/resend-link",
+        {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            mirrorEventId: appointment.id,
+            appointmentIdentity: appointment.identity,
+            appointmentStart: appointment.start,
+            deliveryKey,
+          }),
+        },
+      );
+      const payload = await response.json().catch(() => ({})) as {
+        error?: string;
+        sent?: boolean;
+      };
+      if (!response.ok || payload.sent !== true) {
+        throw new Error(payload.error || "Le lien n’a pas pu être renvoyé.");
+      }
+      resendDeliveryKeys.current.delete(appointment.id);
+      setSuccess("Le lien Google Meet a été renvoyé manuellement au professionnel.");
+    } catch (resendError) {
+      setError(
+        resendError instanceof Error
+          ? resendError.message
+          : "Le lien n’a pas pu être renvoyé.",
+      );
+    } finally {
+      setResendingId("");
+    }
+  }, [assigningId, reschedulingId, resendingId]);
 
   return (
     <main className={styles.page}>
@@ -292,7 +359,7 @@ export default function TeamAgendaClient({
                 <span className={styles.period}>7 jours d’historique et 14 jours à venir</span>
                 <span
                   className={styles.safetyChip}
-                  title="Les réservations automatiques restent envoyées par Équipe iNrCy. Un seul responsable interne est conservé. Aucun e-mail de changement n’est envoyé."
+                  title="Une invitation unique est envoyée lors de la réservation sur le site. Les changements restent silencieux et le lien ne peut ensuite être renvoyé que manuellement."
                 >
                   ✓ Attribution privée
                 </span>
@@ -308,7 +375,7 @@ export default function TeamAgendaClient({
               type="button"
               className={styles.refreshButton}
               onClick={() => void loadAppointments(true)}
-              disabled={refreshing || Boolean(assigningId) || Boolean(reschedulingId)}
+              disabled={refreshing || Boolean(assigningId) || Boolean(reschedulingId) || Boolean(resendingId)}
             >
               {refreshing ? "Actualisation…" : "Actualiser"}
             </button>
@@ -352,11 +419,23 @@ export default function TeamAgendaClient({
                           {appointment.calendarUrl ? (
                             <a href={appointment.calendarUrl} target="_blank" rel="noreferrer">Voir dans Google Agenda</a>
                           ) : null}
+                          {appointment.sourceType === "booking" &&
+                          appointment.meetUrl &&
+                          new Date(appointment.end).getTime() > Date.now() ? (
+                            <button
+                              type="button"
+                              className={styles.resendLinkButton}
+                              disabled={Boolean(assigningId) || Boolean(reschedulingId) || Boolean(resendingId) || refreshing}
+                              onClick={() => void resendBookingLink(appointment)}
+                            >
+                              {resendingId === appointment.id ? "Envoi…" : "Renvoyer le lien"}
+                            </button>
+                          ) : null}
                           {!appointment.allDay ? (
                             <button
                               type="button"
                               className={styles.scheduleToggle}
-                              disabled={Boolean(assigningId) || Boolean(reschedulingId) || refreshing}
+                              disabled={Boolean(assigningId) || Boolean(reschedulingId) || Boolean(resendingId) || refreshing}
                               onClick={() => beginReschedule(appointment)}
                             >
                               Modifier date / heure
@@ -384,7 +463,7 @@ export default function TeamAgendaClient({
                             </label>
                             <div className={styles.scheduleEditorCopy}>
                               <strong>Durée conservée : {formatDuration(appointment.start, appointment.end)}</strong>
-                              <span>Les invités Google éventuels recevront la mise à jour.</span>
+                              <span>La date sera mise à jour sans e-mail automatique au professionnel.</span>
                             </div>
                             <div className={styles.scheduleEditorActions}>
                               <button
@@ -416,7 +495,7 @@ export default function TeamAgendaClient({
                                 key={member.id}
                                 type="button"
                                 className={active ? styles.memberButtonActive : styles.memberButton}
-                                disabled={active || Boolean(assigningId) || Boolean(reschedulingId) || refreshing}
+                                disabled={active || Boolean(assigningId) || Boolean(reschedulingId) || Boolean(resendingId) || refreshing}
                                 onClick={() => void reassign(appointment, member)}
                               >
                                 {pending && active ? "Mise à jour…" : active ? `✓ ${member.name}` : member.name}

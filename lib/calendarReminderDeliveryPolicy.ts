@@ -1,7 +1,10 @@
 import { createHash } from "node:crypto";
 
+import { INR_CALENDAR_GOOGLE_SOURCE } from "./inrCalendarGoogleSyncConstants.ts";
+
 export const CALENDAR_REMINDER_IDEMPOTENCY_SCOPE = "calendar_reminder_email_v1";
 export const CALENDAR_REMINDER_LOCK_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+export const CALENDAR_REMINDER_MANUAL_ONLY_POLICY = "manual_only";
 
 type ReminderEventIdentityInput = {
   id: string;
@@ -84,4 +87,18 @@ export function buildCalendarReminderDeliveryKey(input: ReminderDeliveryKeyInput
 
 export function calendarReminderDeliveryFingerprint(input: ReminderDeliveryKeyInput) {
   return buildCalendarReminderDeliveryKey(input).slice(3);
+}
+
+/**
+ * Google appointments already own their delivery lifecycle. They must never
+ * enter the generic iNrCalendar reminder cron, even if a stale mirror row
+ * still contains `enabled: true` from a previous synchronization version.
+ */
+export function shouldRunAutomaticCalendarReminders(metaInput: unknown) {
+  const meta = safeObject(metaInput);
+  const reminders = safeObject(meta.reminders);
+  return !(
+    clean(meta.source) === INR_CALENDAR_GOOGLE_SOURCE ||
+    clean(reminders.deliveryPolicy) === CALENDAR_REMINDER_MANUAL_ONLY_POLICY
+  );
 }
