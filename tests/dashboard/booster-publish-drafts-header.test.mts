@@ -59,6 +59,23 @@ test("le titre Publier reste centré malgré les actions du header", () => {
   );
 });
 
+test("les brouillons sont regroupés avec l'enregistrement après les outils du header", () => {
+  const agentShortcutIndex = modalLayer.indexOf("data-inr-agent-header-shortcut");
+  const draftMenuIndex = modalLayer.indexOf("<PublishDraftHeaderMenu", agentShortcutIndex);
+  const saveDraftIndex = modalLayer.indexOf(
+    "publishSaveDraftRef.current?.()",
+    draftMenuIndex,
+  );
+
+  assert.ok(agentShortcutIndex >= 0);
+  assert.ok(draftMenuIndex > agentShortcutIndex);
+  assert.ok(saveDraftIndex > draftMenuIndex);
+  assert.match(
+    draftMenuStyles,
+    /@media \(max-width: 768px\)[\s\S]*?\.root \.trigger\s*\{[\s\S]*?width:\s*34px;[\s\S]*?\.triggerLabel,[\s\S]*?display:\s*none;/,
+  );
+});
+
 test("la barre de génération est révélée automatiquement après le clic IA", () => {
   assert.match(publishModal, /const generationProgressRef = useRef<HTMLDivElement \| null>\(null\)/);
   assert.match(

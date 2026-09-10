@@ -526,16 +526,6 @@ export default function DashboardBoosterModalLayer({
           headerStatusMobileHidden
           headerActions={
             <>
-              <PublishDraftHeaderMenu
-                activeDraftId={activePublishDraftId}
-                buttonClassName={styles.secondaryBtn}
-                disabled={
-                  publishDraftHeaderState.saving ||
-                  publishDraftHeaderState.draftSaving ||
-                  publishDraftHeaderState.generating
-                }
-                onSelect={openPublishDraft}
-              />
               <HelpButton
                 onClick={() => publishOpenHelpRef.current?.()}
                 title={i18nT("aide_publication_et_inr_send_b984bd87")}
@@ -576,6 +566,16 @@ export default function DashboardBoosterModalLayer({
                   height={26}
                 />
               </button>
+              <PublishDraftHeaderMenu
+                activeDraftId={activePublishDraftId}
+                buttonClassName={styles.secondaryBtn}
+                disabled={
+                  publishDraftHeaderState.saving ||
+                  publishDraftHeaderState.draftSaving ||
+                  publishDraftHeaderState.generating
+                }
+                onSelect={openPublishDraft}
+              />
               <button
                 type="button"
                 className={styles.secondaryBtn}
