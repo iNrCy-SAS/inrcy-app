@@ -1,6 +1,7 @@
 export const ADMIN_SUBSCRIBER_STATUSES = ["active", "past_due", "unpaid", "paused"] as const;
 
-export type AdminSubscriberStatus = (typeof ADMIN_SUBSCRIBER_STATUSES)[number];
+export type StoredAdminSubscriberStatus = (typeof ADMIN_SUBSCRIBER_STATUSES)[number];
+export type AdminSubscriberStatus = StoredAdminSubscriberStatus | "unverified";
 
 export type AdminSubscriberSubscriptionRow = {
   user_id: string;
@@ -10,6 +11,9 @@ export type AdminSubscriberSubscriptionRow = {
   monthly_price_eur: number | null;
   billing_cycle: string | null;
   billing_provider: string | null;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+  stripe_price_id: string | null;
   last_reminder_at: string | null;
   next_renewal_date: string | null;
 };
@@ -27,14 +31,33 @@ export type AdminSubscriberProfileRow = {
 export type AdminSubscriber = {
   user_id: string;
   name: string | null;
+  company_name: string | null;
   email: string | null;
   phone: string | null;
   amount_eur: number | null;
   billing_cycle: string | null;
   payment_status: AdminSubscriberStatus;
+  stored_payment_status: string | null;
+  payment_status_source: "stripe_live" | "provider_database" | "unverified";
   payment_provider: string | null;
   last_followup_at: string | null;
   next_renewal_date: string | null;
+  stripe_subscription_id: string | null;
+  reconciliation_status:
+    | "matched"
+    | "unmatched"
+    | "ambiguous"
+    | "review_required"
+    | "not_checked";
+  reconciliation_method: string | null;
+  reconciliation_candidate: {
+    name: string | null;
+    email: string | null;
+    phone: string | null;
+    amount_eur: number | null;
+    payment_status: StoredAdminSubscriberStatus;
+    stripe_subscription_id: string;
+  } | null;
 };
 
 const RELEVANT_STATUS_SET = new Set<string>(ADMIN_SUBSCRIBER_STATUSES);
@@ -42,8 +65,9 @@ const PAYMENT_ISSUE_STATUS_SET = new Set<AdminSubscriberStatus>(["past_due", "un
 const PAYMENT_STATUS_PRIORITY: Record<AdminSubscriberStatus, number> = {
   unpaid: 0,
   past_due: 1,
-  paused: 2,
-  active: 3,
+  unverified: 2,
+  paused: 3,
+  active: 4,
 };
 
 function textOrNull(value: unknown): string | null {
@@ -72,6 +96,13 @@ export function isRelevantAdminSubscriber(row: AdminSubscriberSubscriptionRow): 
 export function toAdminSubscriber(
   subscription: AdminSubscriberSubscriptionRow,
   profile: AdminSubscriberProfileRow | null,
+  verification?: {
+    paymentStatus?: AdminSubscriberStatus;
+    paymentStatusSource?: AdminSubscriber["payment_status_source"];
+    reconciliationStatus?: AdminSubscriber["reconciliation_status"];
+    reconciliationMethod?: string | null;
+    reconciliationCandidate?: AdminSubscriber["reconciliation_candidate"];
+  },
 ): AdminSubscriber {
   const firstName = textOrNull(profile?.first_name);
   const lastName = textOrNull(profile?.last_name);
@@ -80,6 +111,7 @@ export function toAdminSubscriber(
   return {
     user_id: subscription.user_id,
     name: fullName || textOrNull(profile?.company_legal_name),
+    company_name: textOrNull(profile?.company_legal_name),
     email:
       textOrNull(profile?.admin_email) ||
       textOrNull(profile?.contact_email) ||
@@ -87,10 +119,17 @@ export function toAdminSubscriber(
     phone: textOrNull(profile?.phone),
     amount_eur: amountOrNull(subscription.monthly_price_eur),
     billing_cycle: textOrNull(subscription.billing_cycle)?.toLowerCase() || null,
-    payment_status: normalizedText(subscription.status) as AdminSubscriberStatus,
+    payment_status:
+      verification?.paymentStatus ?? (normalizedText(subscription.status) as AdminSubscriberStatus),
+    stored_payment_status: textOrNull(subscription.status)?.toLowerCase() || null,
+    payment_status_source: verification?.paymentStatusSource ?? "provider_database",
     payment_provider: textOrNull(subscription.billing_provider)?.toLowerCase() || null,
     last_followup_at: textOrNull(subscription.last_reminder_at),
     next_renewal_date: textOrNull(subscription.next_renewal_date),
+    stripe_subscription_id: textOrNull(subscription.stripe_subscription_id),
+    reconciliation_status: verification?.reconciliationStatus ?? "not_checked",
+    reconciliation_method: verification?.reconciliationMethod ?? null,
+    reconciliation_candidate: verification?.reconciliationCandidate ?? null,
   };
 }
 
@@ -131,6 +170,7 @@ export function sortAdminSubscribers(rows: AdminSubscriber[]): AdminSubscriber[]
 
 export function summarizeAdminSubscribers(rows: AdminSubscriber[]) {
   const activeRows = rows.filter((row) => row.payment_status === "active");
+  const unpricedActiveCount = activeRows.filter((row) => row.amount_eur == null).length;
   const paymentIssueCount = rows.filter((row) =>
     PAYMENT_ISSUE_STATUS_SET.has(row.payment_status),
   ).length;
@@ -143,5 +183,7 @@ export function summarizeAdminSubscribers(rows: AdminSubscriber[]) {
     active_count: activeRows.length,
     payment_issue_count: paymentIssueCount,
     monthly_revenue_eur: Math.round(monthlyRevenueEur * 100) / 100,
+    unpriced_active_count: unpricedActiveCount,
+    revenue_complete: unpricedActiveCount === 0,
   };
 }

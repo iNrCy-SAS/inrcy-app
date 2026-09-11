@@ -13,6 +13,7 @@ import {
   teamCalendarExternalAttendees,
   teamCalendarMirrorContentSignature,
   teamCalendarMirrorSourceKey,
+  teamCalendarReplicaReconciliationDecision,
   type TeamCalendarEvent,
   type TeamCalendarMember,
 } from "../../lib/visioCalendarMirrorPolicy.ts";
@@ -323,6 +324,34 @@ test("une liste de rappels vide omise par Google garde la même signature", () =
   );
 });
 
+test("les valeurs Google implicites gardent la même signature", () => {
+  const googleResponse = sourceEvent({
+    visibility: undefined,
+    transparency: undefined,
+    start: { dateTime: "2026-09-08T09:00:00.000Z" },
+    end: { dateTime: "2026-09-08T10:00:00.000Z" },
+  });
+  const inrcyRequest = sourceEvent({
+    visibility: "default",
+    transparency: "opaque",
+    start: {
+      dateTime: "2026-09-08T09:00:00.000Z",
+      date: undefined,
+      timeZone: undefined,
+    },
+    end: {
+      dateTime: "2026-09-08T10:00:00.000Z",
+      date: undefined,
+      timeZone: undefined,
+    },
+  });
+
+  assert.equal(
+    teamCalendarMirrorContentSignature(googleResponse),
+    teamCalendarMirrorContentSignature(inrcyRequest),
+  );
+});
+
 test("les métadonnées et l'ordre Google ne changent pas la signature de conférence", () => {
   type GoogleConferenceData = NonNullable<TeamCalendarEvent["conferenceData"]> & {
     conferenceId?: string;
@@ -350,6 +379,48 @@ test("les métadonnées et l'ordre Google ne changent pas la signature de confé
   assert.equal(
     teamCalendarMirrorContentSignature(googleResponse),
     teamCalendarMirrorContentSignature(inrcyRequest),
+  );
+});
+
+test("une réplique stable ne demande aucun accès Google supplémentaire", () => {
+  assert.equal(
+    teamCalendarReplicaReconciliationDecision({
+      storedFingerprint: "fingerprint-v1",
+      actualFingerprint: "fingerprint-v1",
+      contentMatchesCanonical: true,
+    }),
+    "stable",
+  );
+  assert.equal(
+    teamCalendarReplicaReconciliationDecision({
+      storedFingerprint: "fingerprint-v1",
+      actualFingerprint: "fingerprint-v1",
+      contentMatchesCanonical: false,
+    }),
+    "repair",
+  );
+  assert.equal(
+    teamCalendarReplicaReconciliationDecision({
+      actualFingerprint: "legacy",
+      contentMatchesCanonical: true,
+    }),
+    "repair",
+  );
+  assert.equal(
+    teamCalendarReplicaReconciliationDecision({
+      storedFingerprint: "fingerprint-from-an-older-signature-version",
+      actualFingerprint: "fingerprint-from-the-current-signature-version",
+      contentMatchesCanonical: true,
+    }),
+    "stable",
+  );
+  assert.equal(
+    teamCalendarReplicaReconciliationDecision({
+      storedFingerprint: "fingerprint-v1",
+      actualFingerprint: "changed-by-user",
+      contentMatchesCanonical: false,
+    }),
+    "replica_changed",
   );
 });
 

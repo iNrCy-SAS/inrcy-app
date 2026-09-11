@@ -236,6 +236,45 @@
   gap: 12px;
 }
 
+.reconciliationWarning {
+  flex: 0 0 auto;
+  min-height: 38px;
+  border: 1px solid rgba(255, 198, 92, 0.42);
+  border-radius: 14px;
+  padding: 7px 11px;
+  background: linear-gradient(110deg, rgba(117, 72, 20, 0.42), rgba(79, 39, 92, 0.36));
+  color: #ffe8b3;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.reconciliationWarning strong {
+  flex: 0 0 auto;
+  color: #fff2d2;
+}
+
+.reconciliationWarning span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.confirmationSuccess {
+  flex: 0 0 auto;
+  min-height: 38px;
+  border: 1px solid rgba(65, 226, 174, 0.38);
+  border-radius: 14px;
+  padding: 8px 11px;
+  background: rgba(35, 157, 124, 0.18);
+  color: #c7ffe9;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+}
+
 .error button {
   flex: 0 0 auto;
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -313,6 +352,17 @@
   opacity: 0.72;
 }
 
+.row[data-reconciliation-tone="attention"] {
+  border-color: rgba(255, 198, 92, 0.48);
+  box-shadow: inset 3px 0 0 rgba(255, 198, 92, 0.62);
+}
+
+.row[data-payment-tone="unknown"] .statusBadge {
+  border-color: rgba(255, 198, 92, 0.4);
+  background: rgba(149, 101, 28, 0.22);
+  color: #ffe8b3;
+}
+
 .nameCell,
 .contactCell,
 .amountCell,
@@ -348,6 +398,37 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 3px;
+}
+
+.nameCell > div {
+  min-width: 0;
+}
+
+.confirmButton {
+  max-width: 100%;
+  overflow: hidden;
+  border: 1px solid rgba(255, 198, 92, 0.42);
+  border-radius: 999px;
+  padding: 3px 7px;
+  background: rgba(149, 101, 28, 0.2);
+  color: #ffe8b3;
+  font: inherit;
+  font-size: 8.5px;
+  font-weight: 850;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.confirmButton:hover:not(:disabled) {
+  border-color: rgba(255, 215, 133, 0.72);
+  background: rgba(173, 116, 31, 0.3);
+}
+
+.confirmButton:disabled {
+  cursor: wait;
+  opacity: 0.58;
 }
 
 .nameCell strong,
@@ -604,6 +685,17 @@
   .error {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .reconciliationWarning {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .reconciliationWarning span {
+    overflow: visible;
+    white-space: normal;
   }
 }
 

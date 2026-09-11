@@ -13,12 +13,13 @@ export function stripeSubscriptionPeriodEndUnix(subscription: unknown): number |
   const sub = (subscription ?? {}) as StripeLooseObject;
   const rootValue = positiveUnixSeconds(sub.current_period_end);
   const items = (sub.items ?? {}) as StripeLooseObject;
+  if (items.has_more === true) return null;
   const data = Array.isArray(items.data) ? items.data : [];
   const itemValues = data
     .map((item) => positiveUnixSeconds((item as StripeLooseObject | null)?.current_period_end))
     .filter((value): value is number => value !== null);
 
-  if (itemValues.length > 0) return Math.max(...itemValues);
+  if (itemValues.length > 0) return Math.min(...itemValues);
   return rootValue;
 }
 

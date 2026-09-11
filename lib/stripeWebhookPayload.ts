@@ -45,16 +45,25 @@ export function invoiceCustomerEmail(invoiceValue: unknown): string | null {
   return typeof customer?.email === "string" && customer.email.trim() ? customer.email.trim() : null;
 }
 
-export function invoiceUserId(invoiceValue: unknown): string | null {
+export function invoiceUserIdentity(invoiceValue: unknown): {
+  userId: string | null;
+  conflict: boolean;
+} {
   const invoice = asRecord(invoiceValue);
-  if (!invoice) return null;
+  if (!invoice) return { userId: null, conflict: false };
 
   const invoiceMetadataUserId = metadataUserId(invoice.metadata);
-  if (invoiceMetadataUserId) return invoiceMetadataUserId;
-
   const parent = asRecord(invoice.parent);
   const subscriptionDetails = asRecord(parent?.subscription_details);
-  return metadataUserId(subscriptionDetails?.metadata);
+  const subscriptionMetadataUserId = metadataUserId(subscriptionDetails?.metadata);
+  return consistentStripeWebhookUserId([
+    invoiceMetadataUserId,
+    subscriptionMetadataUserId,
+  ]);
+}
+
+export function invoiceUserId(invoiceValue: unknown): string | null {
+  return invoiceUserIdentity(invoiceValue).userId;
 }
 
 export function subscriptionCancellationReason(subscriptionValue: unknown): string | null {
@@ -64,37 +73,92 @@ export function subscriptionCancellationReason(subscriptionValue: unknown): stri
   return typeof reason === "string" && reason.trim() ? reason.trim().toLowerCase() : null;
 }
 
-export function paymentFailureStatus(existingStatusValue: unknown, stripeStatusValue: unknown): string {
-  const existingStatus = String(existingStatusValue || "").trim().toLowerCase();
-  const stripeStatus = String(stripeStatusValue || "").trim().toLowerCase();
-
-  if (["canceled", "unpaid", "paused", "incomplete_expired"].includes(stripeStatus)) {
-    return stripeStatus;
-  }
-
-  if (["canceled", "unpaid"].includes(existingStatus)) {
-    return existingStatus;
-  }
-
-  return "past_due";
+export function consistentStripeWebhookUserId(values: unknown[]): {
+  userId: string | null;
+  conflict: boolean;
+} {
+  const userIds = new Set(
+    values
+      .map((value) => (typeof value === "string" ? value.trim() : ""))
+      .filter(Boolean),
+  );
+  return {
+    userId: userIds.size === 1 ? Array.from(userIds)[0] : null,
+    conflict: userIds.size > 1,
+  };
 }
 
-export function paymentSuccessStatus(existingStatusValue: unknown, stripeStatusValue: unknown): string | null {
-  const existingStatus = String(existingStatusValue || "").trim().toLowerCase();
-  const stripeStatus = String(stripeStatusValue || "").trim().toLowerCase();
+export function resolveStripeWebhookStrongUser(input: {
+  metadataUserIds: unknown[];
+  subscriptionUserIds: unknown[];
+  customerUserIds: unknown[];
+  subscriptionAmbiguous?: boolean;
+  metadataAmbiguous?: boolean;
+}): { userId: string | null; conflict: boolean; source: string | null } {
+  const metadata = consistentStripeWebhookUserId(input.metadataUserIds);
+  const subscription = consistentStripeWebhookUserId(input.subscriptionUserIds);
+  const customer = consistentStripeWebhookUserId(input.customerUserIds);
+  if (
+    metadata.conflict ||
+    subscription.conflict ||
+    input.subscriptionAmbiguous ||
+    input.metadataAmbiguous
+  ) {
+    return { userId: null, conflict: true, source: null };
+  }
 
-  if (stripeStatus === "active" || stripeStatus === "trialing") return stripeStatus;
-  if (["canceled", "unpaid", "past_due", "paused", "incomplete", "incomplete_expired"].includes(stripeStatus)) return null;
+  let winner = subscription.userId;
+  let source: string | null = winner ? "subscription_id" : null;
+  if (metadata.userId) {
+    if (winner && winner !== metadata.userId) {
+      return { userId: null, conflict: true, source: null };
+    }
+    winner ||= metadata.userId;
+    source ||= "metadata_user_id";
+  }
 
-  if (["past_due", "unpaid", "incomplete"].includes(existingStatus)) return "active";
-  return null;
+  // A customer can legitimately be shared. It is decisive only when unique;
+  // multiple customer owners do not veto a stronger sub/metadata winner.
+  if (!winner) {
+    if (customer.conflict) {
+      return { userId: null, conflict: true, source: null };
+    }
+    if (customer.userId) {
+      winner = customer.userId;
+      source = "customer_id";
+    }
+  }
+
+  return { userId: winner, conflict: false, source };
 }
 
-const STRIPE_RECOVERABLE_LOCAL_STATUSES = new Set([
+export function paymentFailureStatus(
+  _existingStatusValue: unknown,
+  stripeStatusValue: unknown,
+): string | null {
+  const stripeStatus = String(stripeStatusValue || "").trim().toLowerCase();
+  return STRIPE_AUTHORITATIVE_SUBSCRIPTION_STATUSES.has(stripeStatus)
+    ? stripeStatus
+    : null;
+}
+
+export function paymentSuccessStatus(_existingStatusValue: unknown, stripeStatusValue: unknown): string | null {
+  const stripeStatus = String(stripeStatusValue || "").trim().toLowerCase();
+  return STRIPE_AUTHORITATIVE_SUBSCRIPTION_STATUSES.has(stripeStatus)
+    ? stripeStatus
+    : null;
+}
+
+const STRIPE_RECONCILABLE_LOCAL_STATUSES = new Set([
+  "active",
+  "trialing",
+  "trial_expired",
+  "cancelled",
   "past_due",
   "unpaid",
   "incomplete",
   "paused",
+  "canceled",
 ]);
 
 const STRIPE_AUTHORITATIVE_SUBSCRIPTION_STATUSES = new Set([
@@ -109,9 +173,9 @@ const STRIPE_AUTHORITATIVE_SUBSCRIPTION_STATUSES = new Set([
 ]);
 
 /**
- * Stripe remains authoritative for a subscription that Supabase currently
- * considers delinquent. Returning null deliberately means "do not write":
- * unknown Stripe values and healthy/local-only subscriptions are never guessed.
+ * Once a deterministic Stripe relationship is established, Stripe remains
+ * authoritative in both directions (including active -> past_due). Returning
+ * null deliberately means "do not write" for unknown/equal states.
  */
 export function reconciledStripeSubscriptionStatus(
   existingStatusValue: unknown,
@@ -120,7 +184,7 @@ export function reconciledStripeSubscriptionStatus(
   const existingStatus = String(existingStatusValue || "").trim().toLowerCase();
   const stripeStatus = String(stripeStatusValue || "").trim().toLowerCase();
 
-  if (!STRIPE_RECOVERABLE_LOCAL_STATUSES.has(existingStatus)) return null;
+  if (!STRIPE_RECONCILABLE_LOCAL_STATUSES.has(existingStatus)) return null;
   if (!STRIPE_AUTHORITATIVE_SUBSCRIPTION_STATUSES.has(stripeStatus)) return null;
   if (existingStatus === stripeStatus) return null;
   return stripeStatus;

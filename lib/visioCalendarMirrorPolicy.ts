@@ -68,6 +68,11 @@ export type TeamCalendarMirrorInput = {
   fingerprint: string;
 };
 
+export type TeamCalendarReplicaReconciliationDecision =
+  | "stable"
+  | "repair"
+  | "replica_changed";
+
 function normalized(value: unknown) {
   return String(value || "").trim().toLowerCase();
 }
@@ -297,6 +302,14 @@ export function shouldMirrorTeamCalendarEvent(input: {
 
 export function teamCalendarMirrorContentSignature(event: TeamCalendarEvent) {
   const properties = event.extendedProperties?.private || {};
+  const normalizedDate = (date: TeamCalendarDate | undefined) =>
+    date
+      ? {
+          dateTime: String(date.dateTime || "").trim(),
+          date: String(date.date || "").trim(),
+          timeZone: String(date.timeZone || "").trim(),
+        }
+      : null;
   const reminders = event.reminders
     ? {
         useDefault: event.reminders.useDefault ?? null,
@@ -322,10 +335,10 @@ export function teamCalendarMirrorContentSignature(event: TeamCalendarEvent) {
     description: event.description || "",
     location: event.location || "",
     colorId: event.colorId || "",
-    visibility: event.visibility || "",
-    transparency: event.transparency || "",
-    start: event.start || null,
-    end: event.end || null,
+    visibility: event.visibility || "default",
+    transparency: event.transparency || "opaque",
+    start: normalizedDate(event.start),
+    end: normalizedDate(event.end),
     reminders,
     mirrorVersion: properties[TEAM_CALENDAR_MIRROR_KEY] || "",
     sourceCalendarId: properties.sourceCalendarId || "",
@@ -350,6 +363,21 @@ export function teamCalendarMirrorContentSignature(event: TeamCalendarEvent) {
     conferenceData: conferenceEntryPoints.length ? conferenceEntryPoints : null,
     guestEmails: properties[INR_CALENDAR_GOOGLE_GUEST_EMAILS_PROPERTY] || "",
   });
+}
+
+export function teamCalendarReplicaReconciliationDecision(input: {
+  storedFingerprint?: string;
+  actualFingerprint?: string;
+  contentMatchesCanonical: boolean;
+}): TeamCalendarReplicaReconciliationDecision {
+  const storedFingerprint = String(input.storedFingerprint || "").trim();
+  const actualFingerprint = String(input.actualFingerprint || "").trim();
+  if (!storedFingerprint) return "repair";
+  if (input.contentMatchesCanonical) return "stable";
+  if (actualFingerprint !== storedFingerprint) {
+    return "replica_changed";
+  }
+  return "repair";
 }
 
 export function hasAutomaticGoogleCalendarReminders(event: TeamCalendarEvent) {

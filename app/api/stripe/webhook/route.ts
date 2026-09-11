@@ -4,15 +4,18 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { stripeGet, verifyStripeWebhookSignature } from "@/lib/stripeRest";
 import { optionalEnv } from "@/lib/env";
 import { commercialPriceFromId } from "@/lib/billingCatalog";
+import { stripeSubscriptionMonthlyTerms } from "@/lib/adminSubscriberStripe";
 import { stripeSubscriptionPeriodEndIso } from "@/lib/stripeSubscription";
 import { sendAdminSubscriptionAlertForUser } from "@/lib/subscriptionAdmin";
 import {
+  consistentStripeWebhookUserId,
   invoiceCustomerEmail,
   invoiceCustomerId,
   invoiceSubscriptionId,
-  invoiceUserId,
+  invoiceUserIdentity,
   paymentFailureStatus,
   paymentSuccessStatus,
+  resolveStripeWebhookStrongUser,
   stripeObjectId,
   subscriptionCancellationReason,
 } from "@/lib/stripeWebhookPayload";
@@ -50,19 +53,20 @@ type SubscriptionSnapshot = {
   billing_provider?: string | null;
 };
 
+const STRIPE_SUBSCRIPTION_STATUSES = new Set([
+  "incomplete",
+  "incomplete_expired",
+  "trialing",
+  "active",
+  "past_due",
+  "canceled",
+  "unpaid",
+  "paused",
+]);
+
 function normalizeStripeStatus(status: string): string {
   const s = String(status || "").toLowerCase();
-  const allowed = new Set([
-    "incomplete",
-    "incomplete_expired",
-    "trialing",
-    "active",
-    "past_due",
-    "canceled",
-    "unpaid",
-    "paused",
-  ]);
-  return allowed.has(s) ? s : "incomplete";
+  return STRIPE_SUBSCRIPTION_STATUSES.has(s) ? s : "incomplete";
 }
 
 function planFromPriceId(priceId: string | null) {
@@ -88,40 +92,6 @@ function storedDbPrice(raw: unknown): number | null {
   return Number.isFinite(value) && value >= 0 ? value : null;
 }
 
-function stripePriceAmountForIntegerColumn(price: StripeObjectLoose | null | undefined, quantity = 1): number | null {
-  if (!price) return null;
-
-  const amountRaw = price.unit_amount ?? price.unit_amount_decimal;
-  const amountCents = Number(amountRaw);
-  const normalizedQuantity = Number.isFinite(quantity) && quantity > 0 ? quantity : 1;
-  if (!Number.isFinite(amountCents) || amountCents < 0) return null;
-
-  const amountEur = (amountCents * normalizedQuantity) / 100;
-
-  // La colonne actuelle monthly_price_eur est entière (int4) dans Supabase.
-  // On refuse donc d'inventer/arrondir un prix Stripe avec des centimes.
-  return Number.isInteger(amountEur) ? amountEur : null;
-}
-
-async function resolveStripeStoredPrice(
-  price: StripeObjectLoose | null | undefined,
-  priceId: string | null,
-  quantity = 1
-): Promise<number | null> {
-  const inlineAmount = stripePriceAmountForIntegerColumn(price, quantity);
-  if (inlineAmount != null) return inlineAmount;
-  if (!priceId) return null;
-
-  try {
-    const fetchedPrice = (await stripeGet(`/prices/${encodeURIComponent(priceId)}`)) as StripeObjectLoose;
-    return stripePriceAmountForIntegerColumn(fetchedPrice, quantity);
-  } catch {
-    // Un webhook de statut ne doit pas échouer uniquement parce que Stripe Price
-    // n'a pas pu être relu. La valeur DB existante reste alors intacte.
-    return null;
-  }
-}
-
 const SUBSCRIPTION_SELECT =
   "user_id, contact_email, plan, scheduled_plan, status, trial_start_at, trial_end_at, cancel_requested_at, end_date, next_renewal_date, stripe_customer_id, stripe_subscription_id, stripe_price_id, monthly_price_eur, app_edition, billing_cycle, billing_provider";
 
@@ -135,9 +105,9 @@ function exactIlikePattern(value: string) {
   return value.replace(/([\\%_])/g, "\\$1");
 }
 
-async function findUniqueSubscriptionBy(column: string, value?: string | null) {
+async function findSubscriptionMatchesBy(column: string, value?: string | null) {
   const cleaned = String(value || "").trim();
-  if (!cleaned) return null;
+  if (!cleaned) return [] as SubscriptionSnapshot[];
 
   const query = supabaseAdmin
     .from("subscriptions")
@@ -149,16 +119,15 @@ async function findUniqueSubscriptionBy(column: string, value?: string | null) {
 
   if (error) throw error;
   const rows = (data as SubscriptionSnapshot[] | null) ?? [];
-  if (rows.length === 1) return rows[0];
   if (rows.length > 1) {
     console.warn(`[stripe-webhook] Correspondance subscriptions ambigue pour ${column}.`);
   }
-  return null;
+  return rows;
 }
 
-async function findUserIdByEmail(email?: string | null) {
+async function findUserIdsByEmail(email?: string | null) {
   const variants = normalizedEmailVariants(email);
-  if (!variants.length) return null;
+  if (!variants.length) return [] as string[];
 
   const userIds = new Set<string>();
   for (const value of variants) {
@@ -176,7 +145,7 @@ async function findUserIdByEmail(email?: string | null) {
     }
   }
 
-  return userIds.size === 1 ? Array.from(userIds)[0] : null;
+  return Array.from(userIds);
 }
 
 async function getStripeCustomerHints(customerId?: string | null) {
@@ -198,50 +167,107 @@ async function getSubscriptionRow(
   userId?: string | null,
   customerId?: string | null,
   subscriptionId?: string | null,
-  email?: string | null
+  email?: string | null,
+  customerHintsCache?: Map<
+    string,
+    Promise<{ userId: string | null; email: string | null }>
+  >,
 ) {
-  let resolvedUserId = userId || null;
-  let resolvedEmail = email || null;
-
-  for (const lookup of [
-    ["user_id", resolvedUserId],
-    ["stripe_subscription_id", subscriptionId],
-    ["stripe_customer_id", customerId],
-  ] as const) {
-    const row = await findUniqueSubscriptionBy(lookup[0], lookup[1]);
-    if (row) return row;
-  }
-
-  if (!resolvedUserId && customerId) {
-    const hints = await getStripeCustomerHints(customerId);
-    resolvedUserId = hints.userId;
-    resolvedEmail = resolvedEmail || hints.email;
-
-    if (resolvedUserId) {
-      const row = await findUniqueSubscriptionBy("user_id", resolvedUserId);
-      if (row) return row;
+  let hints = { userId: null as string | null, email: null as string | null };
+  if (customerId) {
+    let hintsPromise = customerHintsCache?.get(customerId);
+    if (!hintsPromise) {
+      hintsPromise = getStripeCustomerHints(customerId);
+      customerHintsCache?.set(customerId, hintsPromise);
     }
+    hints = await hintsPromise;
+  }
+  const metadataConsensus = consistentStripeWebhookUserId([userId]);
+  const subscriptionRows = await findSubscriptionMatchesBy(
+    "stripe_subscription_id",
+    subscriptionId,
+  );
+  const customerRows = await findSubscriptionMatchesBy("stripe_customer_id", customerId);
+  const metadataRows = metadataConsensus.userId
+    ? await findSubscriptionMatchesBy("user_id", metadataConsensus.userId)
+    : [];
+  const hintRows = hints.userId
+    ? await findSubscriptionMatchesBy("user_id", hints.userId)
+    : [];
+  const strongRows = [...subscriptionRows, ...customerRows, ...metadataRows, ...hintRows];
+  const warnStrongConflict = () => {
+    console.warn("[stripe-webhook][strong_identity_conflict]", {
+      hasUserId: Boolean(userId || hints.userId),
+      hasCustomerId: Boolean(customerId),
+      hasSubscriptionId: Boolean(subscriptionId),
+      matchedAccounts: new Set(strongRows.map((row) => row.user_id)).size,
+    });
+  };
+  const strongResolution = resolveStripeWebhookStrongUser({
+    metadataUserIds: [userId],
+    subscriptionUserIds: subscriptionRows.map((row) => row.user_id),
+    customerUserIds: [
+      ...customerRows.map((row) => row.user_id),
+      hints.userId,
+    ],
+    subscriptionAmbiguous: subscriptionRows.length > 1,
+    metadataAmbiguous: metadataRows.length > 1,
+  });
+  if (strongResolution.conflict) {
+    warnStrongConflict();
+    return null;
+  }
+  if (strongResolution.userId) {
+    const strongWinner = strongRows.find(
+      (row) => row.user_id === strongResolution.userId,
+    );
+    // Metadata names a non-existent local subscription: never redirect by a
+    // lower-priority customer id or email.
+    return strongWinner ?? null;
   }
 
+  const resolvedEmail = email || hints.email;
+  const weakRows: SubscriptionSnapshot[] = [];
+  let weakAmbiguous = false;
   for (const emailVariant of normalizedEmailVariants(resolvedEmail)) {
-    const row = await findUniqueSubscriptionBy("contact_email", emailVariant);
-    if (row) return row;
+    const rows = await findSubscriptionMatchesBy("contact_email", emailVariant);
+    weakAmbiguous ||= rows.length > 1;
+    weakRows.push(...rows);
   }
-
-  const profileUserId = await findUserIdByEmail(resolvedEmail);
-  if (profileUserId) return findUniqueSubscriptionBy("user_id", profileUserId);
-
-  return null;
+  const profileUserIds = await findUserIdsByEmail(resolvedEmail);
+  weakAmbiguous ||= profileUserIds.length > 1;
+  for (const profileUserId of profileUserIds) {
+    const rows = await findSubscriptionMatchesBy("user_id", profileUserId);
+    weakAmbiguous ||= rows.length > 1;
+    weakRows.push(...rows);
+  }
+  const weakConsensus = consistentStripeWebhookUserId(
+    weakRows.map((row) => row.user_id),
+  );
+  if (weakAmbiguous || weakConsensus.conflict) {
+    console.warn("[stripe-webhook][email_identity_conflict]", {
+      hasEmail: Boolean(resolvedEmail),
+      matchedAccounts: new Set(weakRows.map((row) => row.user_id)).size,
+    });
+    return null;
+  }
+  return weakConsensus.userId
+    ? weakRows.find((row) => row.user_id === weakConsensus.userId) ?? null
+    : null;
 }
 
 async function getStripeSubscriptionStatus(subscriptionId?: string | null) {
   if (!subscriptionId) return null;
-  try {
-    const subscription = (await stripeGet(`/subscriptions/${encodeURIComponent(subscriptionId)}`)) as StripeObjectLoose;
-    return normalizeStripeStatus(String(subscription?.status || ""));
-  } catch {
-    return null;
+  // Invoice webhooks can arrive late or out of order. Never infer a transition
+  // when Stripe live is unavailable; throwing lets Stripe retry the event.
+  const subscription = (await stripeGet(
+    `/subscriptions/${encodeURIComponent(subscriptionId)}`,
+  )) as StripeObjectLoose;
+  const status = String(subscription?.status || "").trim().toLowerCase();
+  if (!STRIPE_SUBSCRIPTION_STATUSES.has(status)) {
+    throw new Error("stripe_subscription_status_unavailable");
   }
+  return status;
 }
 
 type StripeWebhookEventRow = {
@@ -357,6 +383,23 @@ export async function POST(req: Request) {
     });
   }
 
+  const customerHintsCache = new Map<
+    string,
+    Promise<{ userId: string | null; email: string | null }>
+  >();
+  const resolveSubscriptionRow = (
+    userId?: string | null,
+    customerId?: string | null,
+    subscriptionId?: string | null,
+    email?: string | null,
+  ) => getSubscriptionRow(
+    userId,
+    customerId,
+    subscriptionId,
+    email,
+    customerHintsCache,
+  );
+
   const updateSubscriptionRow = async (
     userId: string | null | undefined,
     customerId: string | null | undefined,
@@ -364,7 +407,7 @@ export async function POST(req: Request) {
     subscriptionId?: string | null,
     email?: string | null
   ) => {
-    const existingRow = await getSubscriptionRow(userId, customerId, subscriptionId, email);
+    const existingRow = await resolveSubscriptionRow(userId, customerId, subscriptionId, email);
     if (!existingRow?.user_id) {
       const details = {
         eventId: typeof evt.id === "string" ? evt.id : null,
@@ -374,7 +417,13 @@ export async function POST(req: Request) {
         hasSubscriptionId: Boolean(subscriptionId),
         hasEmail: Boolean(email),
       };
-      if (userId || evt.type === "checkout.session.completed") {
+      const eventType = String(evt.type || "");
+      if (
+        userId ||
+        eventType === "checkout.session.completed" ||
+        eventType.startsWith("customer.subscription.") ||
+        eventType.startsWith("invoice.")
+      ) {
         console.warn("[stripe-webhook] Aucun compte Supabase unique ne correspond a l'evenement Stripe.", details);
       } else {
         // Historical or out-of-scope Stripe objects can legitimately reach the
@@ -398,18 +447,60 @@ export async function POST(req: Request) {
         userId: existingRow.user_id,
         existingProvider,
       });
-      return existingRow;
+      return null;
     }
 
-    const { data, error } = await supabaseAdmin
+    if (
+      subscriptionId &&
+      existingRow.stripe_subscription_id &&
+      existingRow.stripe_subscription_id !== subscriptionId
+    ) {
+      const terminalStatuses = new Set([
+        "canceled",
+        "cancelled",
+        "incomplete_expired",
+        "trial_expired",
+        "inactive",
+        "expired",
+        "unpaid",
+      ]);
+      const mayReplaceTerminalSubscription =
+        evt.type === "checkout.session.completed" &&
+        Boolean(userId) &&
+        existingRow.user_id === userId &&
+        terminalStatuses.has(String(existingRow.status ?? "").trim().toLowerCase());
+      if (!mayReplaceTerminalSubscription) {
+        console.warn("[stripe-webhook][stale_subscription_event_ignored]", {
+          eventType: String(evt.type || "unknown"),
+          hasIncomingSubscriptionId: true,
+          hasCurrentSubscriptionId: true,
+        });
+        return null;
+      }
+    }
+
+    let updateQuery = supabaseAdmin
       .from("subscriptions")
       .update({ ...patch, updated_at: new Date().toISOString() })
-      .eq("user_id", existingRow.user_id)
+      .eq("user_id", existingRow.user_id);
+    updateQuery = existingRow.stripe_subscription_id == null
+      ? updateQuery.is("stripe_subscription_id", null)
+      : updateQuery.eq("stripe_subscription_id", existingRow.stripe_subscription_id);
+    updateQuery = existingRow.status == null
+      ? updateQuery.is("status", null)
+      : updateQuery.eq("status", existingRow.status);
+    const { data, error } = await updateQuery
       .select(SUBSCRIPTION_SELECT)
       .maybeSingle();
 
     if (error) throw error;
-    if (!data) throw new Error("La synchronisation Stripe n'a modifie aucun abonnement Supabase.");
+    if (!data) {
+      console.warn("[stripe-webhook][concurrent_subscription_update_ignored]", {
+        eventType: String(evt.type || "unknown"),
+        hasSubscriptionId: Boolean(subscriptionId),
+      });
+      return null;
+    }
     return data as SubscriptionSnapshot;
   };
 
@@ -426,22 +517,81 @@ export async function POST(req: Request) {
         typeof session?.client_reference_id === "string"
           ? session.client_reference_id
           : null;
-      const userId = metadataUserId || clientReferenceId;
-      const customerId = stripeObjectId(session?.customer);
+      const checkoutIdentity = consistentStripeWebhookUserId([
+        metadataUserId,
+        clientReferenceId,
+      ]);
+      let userId = checkoutIdentity.userId;
+      let customerId = stripeObjectId(session?.customer);
       const subId = stripeObjectId(session?.subscription);
+      const checkoutMode = String(session?.mode ?? "").trim().toLowerCase();
       const customerDetails = (session?.customer_details as StripeObjectLoose | undefined) ?? undefined;
       const email =
         (typeof customerDetails?.email === "string" ? customerDetails.email : null) ||
         (typeof session?.customer_email === "string" ? session.customer_email : null);
       const billingCycle = typeof metadata?.billing_cycle === "string" ? metadata.billing_cycle : null;
 
-      await updateSubscriptionRow(
+      if (checkoutIdentity.conflict) {
+        console.warn("[stripe-webhook][checkout_identity_conflict]", {
+          eventType: type,
+          hasMetadataUserId: Boolean(metadataUserId),
+          hasClientReferenceId: Boolean(clientReferenceId),
+        });
+        await completeStripeWebhookEvent(evt);
+        return NextResponse.json({ received: true, ignored: "identity_conflict" });
+      }
+      if (checkoutMode !== "subscription" || !subId) {
+        console.info("[stripe-webhook][checkout_non_subscription_ignored]", {
+          eventType: type,
+          hasSubscriptionId: Boolean(subId),
+        });
+        await completeStripeWebhookEvent(evt);
+        return NextResponse.json({ received: true, ignored: "not_a_subscription" });
+      }
+
+      const checkoutSubscription = (await stripeGet(
+        `/subscriptions/${encodeURIComponent(subId)}`,
+      )) as StripeObjectLoose;
+      const checkoutSubscriptionMetadata =
+        (checkoutSubscription.metadata as StripeObjectLoose | undefined) ?? undefined;
+      const subscriptionMetadataUserId =
+        typeof checkoutSubscriptionMetadata?.user_id === "string"
+          ? checkoutSubscriptionMetadata.user_id
+          : null;
+      const confirmedIdentity = consistentStripeWebhookUserId([
+        userId,
+        subscriptionMetadataUserId,
+      ]);
+      const liveCustomerId = stripeObjectId(checkoutSubscription.customer);
+      const liveCheckoutStatus = normalizeStripeStatus(
+        String(checkoutSubscription.status || ""),
+      );
+      const liveCheckoutIsCurrent = ["active", "trialing"].includes(liveCheckoutStatus);
+      if (
+        confirmedIdentity.conflict ||
+        (customerId && liveCustomerId && customerId !== liveCustomerId) ||
+        !liveCheckoutIsCurrent
+      ) {
+        console.warn("[stripe-webhook][checkout_subscription_validation_failed]", {
+          hasIdentityConflict: confirmedIdentity.conflict,
+          hasCustomerConflict: Boolean(
+            customerId && liveCustomerId && customerId !== liveCustomerId,
+          ),
+          statusIsCurrent: liveCheckoutIsCurrent,
+        });
+        await completeStripeWebhookEvent(evt);
+        return NextResponse.json({ received: true, ignored: "subscription_not_current" });
+      }
+      userId = confirmedIdentity.userId;
+      customerId = liveCustomerId || customerId;
+
+      const row = await updateSubscriptionRow(
         userId,
         customerId,
         {
           billing_provider: "stripe",
           stripe_customer_id: customerId || null,
-          stripe_subscription_id: subId || null,
+          stripe_subscription_id: subId,
           ...(billingCycle === "monthly" || billingCycle === "yearly"
             ? { billing_cycle: billingCycle }
             : {}),
@@ -451,12 +601,11 @@ export async function POST(req: Request) {
         email
       );
 
-      if (userId) {
-        const row = await getSubscriptionRow(userId, customerId, subId, email);
+      if (row?.user_id && row.stripe_subscription_id === subId) {
         await sendAdminSubscriptionAlertForUser({
           type: "checkout_completed",
           source: "stripe.webhook.checkout.session.completed",
-          userId,
+          userId: row.user_id,
           accountEmail: row?.contact_email ?? null,
           plan: row?.plan ?? null,
           scheduledPlan: row?.scheduled_plan ?? null,
@@ -502,46 +651,33 @@ export async function POST(req: Request) {
       const trialEndAt = sub?.trial_end ? new Date(Number(sub.trial_end) * 1000).toISOString() : null;
       const trialStartAt = sub?.trial_start ? new Date(Number(sub.trial_start) * 1000).toISOString() : null;
       const commercialPrice = commercialPriceFromId(priceId);
-      const recurring = (priceObj?.recurring as StripeObjectLoose | undefined) ?? undefined;
-      const recurringInterval = String(recurring?.interval || "").toLowerCase();
-      const billingCycle = commercialPrice?.billingCycle ??
-        (recurringInterval === "year"
-          ? "yearly"
-          : recurringInterval === "month"
-            ? "monthly"
-            : null);
+      const liveTerms = stripeSubscriptionMonthlyTerms(sub);
+      const billingCycle =
+        liveTerms.billingCycle === "monthly" || liveTerms.billingCycle === "yearly"
+          ? liveTerms.billingCycle
+          : null;
       const inrcyPlan = planFromPriceId(priceId);
-      const quantityRaw = Number(firstItem?.quantity ?? 1);
-      const quantity = Number.isFinite(quantityRaw) && quantityRaw > 0 ? quantityRaw : 1;
-      const existingRow = await getSubscriptionRow(userId, customerId, subId);
+      const existingRow = await resolveSubscriptionRow(userId, customerId, subId);
       const currentStoredPrice = storedDbPrice(existingRow?.monthly_price_eur);
-      const stripeStoredPrice = await resolveStripeStoredPrice(priceObj, priceId, quantity);
+      const stripeStoredPrice =
+        liveTerms.amountEur != null &&
+        Number.isFinite(liveTerms.amountEur) &&
+        liveTerms.amountEur >= 0
+          ? liveTerms.amountEur
+          : null;
       const existingEdition = String(existingRow?.app_edition || "").trim().toLowerCase();
       const founderAccount = existingEdition === "founder";
       const shouldKeepTrialPlan = stripeStatus === "trialing";
-      const existingWasTrial =
-        String(existingRow?.plan || "").toLowerCase() === "trial" ||
-        String(existingRow?.status || "").toLowerCase() === "trialing";
-
-      // Une valeur déjà présente dans Supabase est volontairement prioritaire :
-      // elle peut venir d'un tarif négocié saisi manuellement. Pour un nouvel abonnement
-      // automatique (prix absent ou sortie d'essai), on enregistre le montant réel Stripe.
-      const shouldAutofillPriceFromStripe =
-        !shouldKeepTrialPlan &&
-        stripeStoredPrice != null &&
-        (currentStoredPrice == null || (existingWasTrial && currentStoredPrice === 0));
       const cancellationTimestamp = cancellationScheduled
         ? existingRow?.cancel_requested_at || new Date().toISOString()
         : null;
       const cancellationEnd = cancelAt || (cancelAtPeriodEnd ? currentPeriodEnd : null);
-      const commercialMonthlyPrice =
-        commercialPrice && !founderAccount ? commercialPrice.monthlyReferenceEur : null;
 
-      await updateSubscriptionRow(userId, customerId, {
+      const row = await updateSubscriptionRow(userId, customerId, {
         billing_provider: "stripe",
         status: stripeStatus,
         stripe_customer_id: customerId || null,
-        stripe_subscription_id: subId || null,
+        ...(subId ? { stripe_subscription_id: subId } : {}),
         stripe_price_id: priceId,
         ...(billingCycle ? { billing_cycle: billingCycle } : {}),
         ...(commercialPrice && !founderAccount ? { app_edition: commercialPrice.edition } : {}),
@@ -554,11 +690,11 @@ export async function POST(req: Request) {
             }
           : {
               ...(inrcyPlan ? { plan: inrcyPlan } : {}),
-              ...(commercialMonthlyPrice != null
-                ? { monthly_price_eur: commercialMonthlyPrice }
-                : shouldAutofillPriceFromStripe
-                  ? { monthly_price_eur: stripeStoredPrice }
-                  : {}),
+              // For a linked Stripe subscription, Stripe is authoritative even
+              // when Supabase previously contained 0 or a stale negotiated price.
+              ...(stripeStoredPrice != null
+                ? { monthly_price_eur: stripeStoredPrice }
+                : {}),
               scheduled_plan: null,
             }),
         ...(trialEndAt ? { trial_end_at: trialEndAt } : {}),
@@ -568,9 +704,8 @@ export async function POST(req: Request) {
         end_date: cancellationEnd ? cancellationEnd.slice(0, 10) : null,
       }, subId);
 
-      const row = await getSubscriptionRow(userId, customerId, subId);
-      const resolvedUserId = userId || row?.user_id || null;
-      if (resolvedUserId) {
+      const resolvedUserId = row?.user_id ?? null;
+      if (resolvedUserId && subId && row?.stripe_subscription_id === subId) {
         const previousStatus = normalizeStripeStatus(String(previous?.status || ""));
         const previousCancellationScheduled =
           previous?.cancel_at_period_end === true || Boolean(previous?.cancel_at);
@@ -643,14 +778,14 @@ export async function POST(req: Request) {
       const endedAt = sub?.ended_at ? new Date(Number(sub.ended_at) * 1000).toISOString() : null;
       const cancellationReason = subscriptionCancellationReason(sub);
 
-      await updateSubscriptionRow(
+      const row = await updateSubscriptionRow(
         userId,
         customerId,
         {
           billing_provider: "stripe",
           status: "canceled",
           stripe_customer_id: customerId || null,
-          stripe_subscription_id: subId || null,
+          ...(subId ? { stripe_subscription_id: subId } : {}),
           end_date: endedAt ? endedAt.slice(0, 10) : null,
           // Une annulation automatique pour impaye bloque le compte, sans demander sa suppression.
           ...(cancellationReason === "payment_failed" ? { cancel_requested_at: null } : {}),
@@ -658,9 +793,8 @@ export async function POST(req: Request) {
         subId
       );
 
-      const row = await getSubscriptionRow(userId, customerId, subId);
-      const resolvedUserId = userId || row?.user_id || null;
-      if (resolvedUserId) {
+      const resolvedUserId = row?.user_id ?? null;
+      if (resolvedUserId && subId && row?.stripe_subscription_id === subId) {
         await sendAdminSubscriptionAlertForUser({
           type: "subscription_deleted",
           source: "stripe.webhook.customer.subscription.deleted",
@@ -687,25 +821,35 @@ export async function POST(req: Request) {
       // Une facture ponctuelle ne doit jamais modifier l'accès à l'abonnement iNrCy.
       if (subId) {
         const customerId = invoiceCustomerId(invoice);
-        const userId = invoiceUserId(invoice);
+        const identity = invoiceUserIdentity(invoice);
+        const userId = identity.userId;
         const email = invoiceCustomerEmail(invoice);
-        const existingRow = await getSubscriptionRow(userId, customerId, subId, email);
-        const stripeStatus = await getStripeSubscriptionStatus(subId);
-        const targetStatus = paymentFailureStatus(existingRow?.status, stripeStatus);
+        if (identity.conflict) {
+          console.warn("[stripe-webhook][invoice_metadata_conflict]", {
+            eventType: type,
+            hasSubscriptionId: true,
+          });
+        } else {
+          const existingRow = await resolveSubscriptionRow(userId, customerId, subId, email);
+          const stripeStatus = await getStripeSubscriptionStatus(subId);
+          const targetStatus = paymentFailureStatus(existingRow?.status, stripeStatus);
 
-        await updateSubscriptionRow(
-          userId,
-          customerId,
-          {
-            billing_provider: "stripe",
-            status: targetStatus,
-            stripe_customer_id: customerId || existingRow?.stripe_customer_id || null,
-            stripe_subscription_id: subId || existingRow?.stripe_subscription_id || null,
-            ...(email ? { contact_email: email } : {}),
-          },
-          subId,
-          email
-        );
+          if (targetStatus) {
+            await updateSubscriptionRow(
+              userId,
+              customerId,
+              {
+                billing_provider: "stripe",
+                status: targetStatus,
+                stripe_customer_id: customerId || existingRow?.stripe_customer_id || null,
+                stripe_subscription_id: subId || existingRow?.stripe_subscription_id || null,
+                ...(email ? { contact_email: email } : {}),
+              },
+              subId,
+              email
+            );
+          }
+        }
       }
     }
 
@@ -716,26 +860,34 @@ export async function POST(req: Request) {
       // Même protection : seuls les paiements liés à un abonnement peuvent rétablir l'accès.
       if (subId) {
         const customerId = invoiceCustomerId(invoice);
-        const userId = invoiceUserId(invoice);
+        const identity = invoiceUserIdentity(invoice);
+        const userId = identity.userId;
         const email = invoiceCustomerEmail(invoice);
-        const existingRow = await getSubscriptionRow(userId, customerId, subId, email);
-        const stripeStatus = await getStripeSubscriptionStatus(subId);
-        const targetStatus = paymentSuccessStatus(existingRow?.status, stripeStatus);
+        if (identity.conflict) {
+          console.warn("[stripe-webhook][invoice_metadata_conflict]", {
+            eventType: type,
+            hasSubscriptionId: true,
+          });
+        } else {
+          const existingRow = await resolveSubscriptionRow(userId, customerId, subId, email);
+          const stripeStatus = await getStripeSubscriptionStatus(subId);
+          const targetStatus = paymentSuccessStatus(existingRow?.status, stripeStatus);
 
-        if (targetStatus) {
-          await updateSubscriptionRow(
-            userId,
-            customerId,
-            {
-              billing_provider: "stripe",
-              status: targetStatus,
-              stripe_customer_id: customerId || existingRow?.stripe_customer_id || null,
-              stripe_subscription_id: subId || existingRow?.stripe_subscription_id || null,
-              ...(email ? { contact_email: email } : {}),
-            },
-            subId,
-            email
-          );
+          if (targetStatus) {
+            await updateSubscriptionRow(
+              userId,
+              customerId,
+              {
+                billing_provider: "stripe",
+                status: targetStatus,
+                stripe_customer_id: customerId || existingRow?.stripe_customer_id || null,
+                stripe_subscription_id: subId || existingRow?.stripe_subscription_id || null,
+                ...(email ? { contact_email: email } : {}),
+              },
+              subId,
+              email
+            );
+          }
         }
       }
     }

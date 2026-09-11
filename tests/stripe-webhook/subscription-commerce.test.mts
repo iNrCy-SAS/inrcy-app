@@ -89,14 +89,20 @@ test("la date de renouvellement Stripe Basil vient des postes d'abonnement", () 
       ],
     },
   };
-  assert.equal(stripeSubscriptionPeriodEndUnix(basil), 1_786_294_800);
+  assert.equal(stripeSubscriptionPeriodEndUnix(basil), 1_786_294_700);
   assert.equal(
     stripeSubscriptionPeriodEndIso(basil),
-    new Date(1_786_294_800 * 1000).toISOString(),
+    new Date(1_786_294_700 * 1000).toISOString(),
   );
   assert.equal(
     stripeSubscriptionPeriodEndUnix({ current_period_end: 1_700_000_000 }),
     1_700_000_000,
+  );
+  assert.equal(
+    stripeSubscriptionPeriodEndUnix({
+      items: { has_more: true, data: [{ current_period_end: 1_786_294_700 }] },
+    }),
+    null,
   );
 });
 
@@ -226,9 +232,15 @@ test("le webhook est idempotent, compatible Basil et ne rétrograde jamais Found
   assert.match(webhook, /const cancellationScheduled = cancelAtPeriodEnd \|\| Boolean\(cancelAt\)/);
   assert.match(webhook, /billing_cycle: billingCycle/);
   assert.match(webhook, /session\?\.client_reference_id/);
-  assert.match(webhook, /metadataUserId \|\| clientReferenceId/);
+  assert.match(webhook, /consistentStripeWebhookUserId\(\[\s*metadataUserId,\s*clientReferenceId/);
+  assert.match(webhook, /checkout_identity_conflict/);
+  assert.match(webhook, /checkout_non_subscription_ignored/);
+  assert.match(webhook, /checkout_subscription_validation_failed/);
+  assert.match(webhook, /liveCheckoutIsCurrent/);
   assert.match(webhook, /eventSubscriptionId/);
   assert.match(webhook, /subscriptions\/\$\{encodeURIComponent\(eventSubscriptionId\)\}/);
+  assert.match(webhook, /consistentStripeWebhookUserId/);
+  assert.match(webhook, /strong_identity_conflict/);
 });
 
 test("les statuts Stripe en retard sont reconciliés automatiquement sans ecraser un webhook concurrent", () => {
@@ -236,13 +248,48 @@ test("les statuts Stripe en retard sont reconciliés automatiquement sans ecrase
   const route = source("app/api/cron/stripe-subscription-sync/route.ts");
   const vercel = source("vercel.json");
 
-  assert.match(sync, /RECOVERY_CANDIDATE_STATUSES/);
+  assert.match(sync, /listStripeAdminSubscriberSnapshots/);
+  assert.match(sync, /matchAdminSubscribersToStripe/);
+  assert.match(sync, /collectSupabaseKeysetPages/);
   assert.match(sync, /reconciledStripeSubscriptionStatus/);
-  assert.match(sync, /\.eq\("status", existingStatus\)/);
+  assert.match(sync, /\.eq\("status", row\.status\)/);
+  assert.match(sync, /\.eq\("updated_at", row\.updated_at\)/);
   assert.match(sync, /billing_provider/);
   assert.match(route, /isAuthorizedCronRequest/);
   assert.match(vercel, /\/api\/cron\/stripe-subscription-sync/);
   assert.match(vercel, /\*\/10 \* \* \* \*/);
+});
+
+test("le webhook prend le montant Stripe contractuel même en mode test/staging", () => {
+  const webhook = source("app/api/stripe/webhook/route.ts");
+  assert.match(webhook, /stripeSubscriptionMonthlyTerms\(sub\)/);
+  assert.match(webhook, /Number\.isFinite\(liveTerms\.amountEur\)/);
+  assert.doesNotMatch(webhook, /Number\.isInteger\(liveTerms\.amountEur\)/);
+  assert.doesNotMatch(webhook, /shouldAutofillPriceFromStripe/);
+});
+
+test("le webhook ignore les événements d'un ancien abonnement sans écrire ni alerter", () => {
+  const webhook = source("app/api/stripe/webhook/route.ts");
+  assert.match(webhook, /stale_subscription_event_ignored/);
+  assert.match(webhook, /existingRow\.stripe_subscription_id !== subscriptionId/);
+  assert.match(webhook, /mayReplaceTerminalSubscription/);
+  assert.match(webhook, /evt\.type === "checkout\.session\.completed"/);
+  assert.match(webhook, /terminalStatuses\.has/);
+  assert.match(webhook, /"unpaid"/);
+  assert.doesNotMatch(
+    webhook.slice(webhook.indexOf("const terminalStatuses"), webhook.indexOf("const mayReplaceTerminalSubscription")),
+    /"past_due"/,
+  );
+  assert.match(webhook, /\.eq\("stripe_subscription_id", existingRow\.stripe_subscription_id\)/);
+  assert.match(webhook, /\.eq\("status", existingRow\.status\)/);
+  assert.match(webhook, /concurrent_subscription_update_ignored/);
+  assert.match(webhook, /row\?\.stripe_subscription_id === subId/);
+  const liveStatusLookup = webhook.slice(
+    webhook.indexOf("async function getStripeSubscriptionStatus"),
+    webhook.indexOf("type StripeWebhookEventRow"),
+  );
+  assert.match(liveStatusLookup, /stripe_subscription_status_unavailable/);
+  assert.doesNotMatch(liveStatusLookup, /catch/);
 });
 
 test("la résiliation et sa réactivation couvrent les deux cadences commerciales", () => {

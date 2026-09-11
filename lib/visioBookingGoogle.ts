@@ -60,6 +60,7 @@ import {
   teamCalendarExternalAttendees,
   teamCalendarEventMeetUrl,
   teamCalendarMirrorContentSignature,
+  teamCalendarReplicaReconciliationDecision,
   teamCalendarMirrorSourceKey,
   teamCalendarSourceGuestEmails,
   type TeamCalendarEvent,
@@ -104,6 +105,9 @@ const REQUIRED_INTERNAL_ALERT_EMAIL = "compte@inrcy.com";
 const TEAM_MIRROR_DEFAULT_PAST_DAYS = 30;
 const TEAM_MIRROR_DEFAULT_FUTURE_DAYS = 365;
 const BOOKING_LOCK_TTL_SECONDS = 120;
+const TEAM_CALENDAR_MUTATION_LOCK_WAIT_MS = 8_000;
+const TEAM_CALENDAR_MUTATION_LOCK_RETRY_MS = 250;
+const MANAGED_REPLICA_CREATE_CONCURRENCY = 6;
 const REDIS_COMPARE_DELETE_SCRIPT =
   "if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]); end; return 0;";
 
@@ -157,6 +161,12 @@ export type VisioTeamCalendarSyncResult = {
   unchanged: number;
   skipped: number;
   locked: boolean;
+  reconciliation: {
+    canonicalCacheHits: number;
+    canonicalFetches: number;
+    replicaFanouts: number;
+    missingReplicaChecks: number;
+  };
   errors: Array<{ memberId: string; code: string }>;
 };
 
@@ -830,10 +840,24 @@ type TeamCalendarSyncLock = {
   release: () => Promise<void>;
 };
 
-async function acquireTeamCalendarSyncLock(): Promise<TeamCalendarSyncLock> {
+async function acquireTeamCalendarSyncLock(options?: {
+  waitMs?: number;
+  retryMs?: number;
+}): Promise<TeamCalendarSyncLock> {
   const redis = getBookingRedis();
   const key = "inrcy:visio-booking:team-calendar-sync";
   const value = randomUUID();
+  const waitMs = Math.max(0, options?.waitMs || 0);
+  const retryMs = Math.max(50, options?.retryMs || 250);
+  const deadline = Date.now() + waitMs;
+  const waitBeforeRetry = async () => {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) return false;
+    await new Promise((resolve) =>
+      setTimeout(resolve, Math.min(retryMs, remaining)),
+    );
+    return true;
+  };
   if (!redis) {
     if (process.env.NODE_ENV === "production") {
       throw new Error("visio_team_calendar_sync_lock_unavailable");
@@ -841,11 +865,13 @@ async function acquireTeamCalendarSyncLock(): Promise<TeamCalendarSyncLock> {
     const globalCache = globalThis as typeof globalThis & {
       __inrcy_visio_team_sync_lock?: { value: string; expiresAt: number };
     };
-    if (
+    while (
       globalCache.__inrcy_visio_team_sync_lock &&
       globalCache.__inrcy_visio_team_sync_lock.expiresAt > Date.now()
     ) {
-      return { acquired: false, release: async () => undefined };
+      if (!(await waitBeforeRetry())) {
+        return { acquired: false, release: async () => undefined };
+      }
     }
     globalCache.__inrcy_visio_team_sync_lock = {
       value,
@@ -861,13 +887,24 @@ async function acquireTeamCalendarSyncLock(): Promise<TeamCalendarSyncLock> {
     };
   }
 
-  const acquired = (await redis.set(key, value, { nx: true, ex: 240 })) === "OK";
+  let acquired = false;
+  while (!acquired) {
+    acquired = (await redis.set(key, value, { nx: true, ex: 240 })) === "OK";
+    if (acquired || !(await waitBeforeRetry())) break;
+  }
   return {
     acquired,
     release: async () => {
       if (acquired) await releaseRedisLock(redis, key, value);
     },
   };
+}
+
+function acquireTeamCalendarMutationLock() {
+  return acquireTeamCalendarSyncLock({
+    waitMs: TEAM_CALENDAR_MUTATION_LOCK_WAIT_MS,
+    retryMs: TEAM_CALENDAR_MUTATION_LOCK_RETRY_MS,
+  });
 }
 
 export async function syncVisioTeamCalendarsToShared(input?: {
@@ -899,6 +936,12 @@ export async function syncVisioTeamCalendarsToShared(input?: {
     unchanged: 0,
     skipped: 0,
     locked: false,
+    reconciliation: {
+      canonicalCacheHits: 0,
+      canonicalFetches: 0,
+      replicaFanouts: 0,
+      missingReplicaChecks: 0,
+    },
     errors: [],
   };
 
@@ -1100,6 +1143,10 @@ export async function syncVisioTeamCalendarsToShared(input?: {
 
     const managedCalendarIds = getVisioManagedCalendarAddresses();
     const managedCanonicalByReplicaId = new Map<string, GoogleCalendarEvent>();
+    const managedCanonicalById = new Map<
+      string,
+      GoogleCalendarEvent | null
+    >();
     for (const canonical of sharedEvents) {
       if (
         canonical.id &&
@@ -1108,35 +1155,136 @@ export async function syncVisioTeamCalendarsToShared(input?: {
       ) {
         const replicaId = calendarReplicaEventId(canonical);
         if (replicaId) managedCanonicalByReplicaId.set(replicaId, canonical);
+        managedCanonicalById.set(canonical.id, canonical);
       }
     }
-    const managedCanonicalIdsForReplicaSync = new Set(
-      sharedEvents.flatMap((canonical) =>
-        canonical.id &&
-        canonical.status !== "cancelled" &&
-        isManagedLifecycleEvent(canonical)
-          ? [canonical.id]
-          : [],
-      ),
-    );
+    const fullySyncedManagedCanonicalIds = new Set<string>();
+    const failedManagedCanonicalIds = new Set<string>();
+    const seenManagedReplicaKeys = new Set<string>();
+    const successfullyListedMemberIds = new Set<string>();
+    const managedReplicaKey = (memberId: string, canonicalEventId: string) =>
+      `${memberId}:${canonicalEventId}`;
+    const sourceEventsByMemberId = new Map<string, GoogleCalendarEvent[]>();
     for (const member of teamMembers) {
-      let sourceEvents: GoogleCalendarEvent[];
       try {
-        sourceEvents = await listGoogleCalendarEvents({
+        const sourceEvents = await listGoogleCalendarEvents({
           calendarId: member.calendarId,
           timeMin,
           timeMax,
           showDeleted: true,
         });
+        sourceEventsByMemberId.set(member.id, sourceEvents);
+        successfullyListedMemberIds.add(member.id);
       } catch (error) {
         result.errors.push({ memberId: member.id, code: visioGoogleErrorCode(error) });
-        continue;
       }
+    }
+
+    // Index every member snapshot before mutating Google. This preserves a
+    // tombstone even when another member replica is needed to reveal its
+    // canonical, and bounds out-of-window canonical reads to one per id.
+    const canonicalIdsToLoad = new Set<string>();
+    for (const sourceEvents of sourceEventsByMemberId.values()) {
+      for (const event of sourceEvents) {
+        const privateProperties = event.extendedProperties?.private || {};
+        const canonicalEventId = String(
+          privateProperties[PRIVATE_CANONICAL_EVENT_ID_KEY] || "",
+        ).trim();
+        if (
+          privateProperties[PRIVATE_CALENDAR_REPLICA_KEY] ===
+            PRIVATE_CALENDAR_REPLICA_VALUE &&
+          canonicalEventId
+        ) {
+          const recoveredCanonical = event.id
+            ? managedCanonicalByReplicaId.get(event.id)
+            : undefined;
+          if (
+            recoveredCanonical?.id &&
+            logicalAppointmentId(recoveredCanonical) &&
+            logicalAppointmentId(recoveredCanonical) === logicalAppointmentId(event)
+          ) {
+            managedCanonicalById.set(canonicalEventId, recoveredCanonical);
+          } else if (!managedCanonicalById.has(canonicalEventId)) {
+            canonicalIdsToLoad.add(canonicalEventId);
+          }
+        }
+      }
+    }
+    await Promise.all(
+      [...canonicalIdsToLoad].map(async (canonicalEventId) => {
+        result.reconciliation.canonicalFetches += 1;
+        try {
+          const canonical = await getCalendarEvent(
+            sharedCalendarId,
+            canonicalEventId,
+          );
+          managedCanonicalById.set(canonicalEventId, canonical);
+          if (canonical?.id && canonical.status !== "cancelled") {
+            managedCanonicalById.set(canonical.id, canonical);
+            const replicaId = calendarReplicaEventId(canonical);
+            if (replicaId) managedCanonicalByReplicaId.set(replicaId, canonical);
+          }
+        } catch (error) {
+          failedManagedCanonicalIds.add(canonicalEventId);
+          result.errors.push({
+            memberId: "shared",
+            code: visioGoogleErrorCode(error),
+          });
+        }
+      }),
+    );
+
+    // The parallel reads above can discover a recovered canonical only after
+    // another replica already resolved its former canonical id as missing.
+    // Re-run the deterministic replica-id aliasing once every read has settled
+    // so an old id never restores over the recovered canonical.
+    for (const sourceEvents of sourceEventsByMemberId.values()) {
+      for (const event of sourceEvents) {
+        const privateProperties = event.extendedProperties?.private || {};
+        const canonicalEventId = String(
+          privateProperties[PRIVATE_CANONICAL_EVENT_ID_KEY] || "",
+        ).trim();
+        if (
+          privateProperties[PRIVATE_CALENDAR_REPLICA_KEY] !==
+            PRIVATE_CALENDAR_REPLICA_VALUE ||
+          !canonicalEventId
+        ) {
+          continue;
+        }
+        const recoveredCanonical = event.id
+          ? managedCanonicalByReplicaId.get(event.id)
+          : undefined;
+        if (
+          recoveredCanonical?.id &&
+          logicalAppointmentId(recoveredCanonical) &&
+          logicalAppointmentId(recoveredCanonical) === logicalAppointmentId(event)
+        ) {
+          managedCanonicalById.set(canonicalEventId, recoveredCanonical);
+          failedManagedCanonicalIds.delete(canonicalEventId);
+        }
+      }
+    }
+
+    for (const member of teamMembers) {
+      const sourceEvents = sourceEventsByMemberId.get(member.id);
+      if (!sourceEvents) continue;
 
       const seenSourceKeys = new Set<string>();
       for (const event of sourceEvents) {
         result.scanned += 1;
         const privateProperties = event.extendedProperties?.private || {};
+        const replicaCanonicalEventId = String(
+          privateProperties[PRIVATE_CANONICAL_EVENT_ID_KEY] || "",
+        ).trim();
+        if (
+          privateProperties[PRIVATE_CALENDAR_REPLICA_KEY] ===
+            PRIVATE_CALENDAR_REPLICA_VALUE &&
+          replicaCanonicalEventId
+        ) {
+          seenManagedReplicaKeys.add(
+            managedReplicaKey(member.id, replicaCanonicalEventId),
+          );
+        }
         // A deleted single event can come back from Google as a tombstone
         // stripped of its extended properties. The deterministic replica id
         // still lets us map that action to the one shared appointment. A
@@ -1171,6 +1319,14 @@ export async function syncVisioTeamCalendarsToShared(input?: {
               (await syncManagedCalendarReplicas(updatedCanonical)) ||
               updatedCanonical;
             Object.assign(deletedReplicaCanonical, normalized);
+            const normalizedCanonicalId = String(
+              normalized.id || updatedCanonical.id || "",
+            ).trim();
+            if (normalizedCanonicalId) {
+              managedCanonicalById.set(normalizedCanonicalId, normalized);
+              fullySyncedManagedCanonicalIds.add(normalizedCanonicalId);
+            }
+            result.reconciliation.replicaFanouts += 1;
             result.updated += 1;
           } catch (error) {
             result.errors.push({
@@ -1187,7 +1343,11 @@ export async function syncVisioTeamCalendarsToShared(input?: {
           try {
             const outcome = await reconcileManagedCalendarReplica(
               event,
-              managedCanonicalIdsForReplicaSync,
+              member,
+              managedCanonicalById,
+              failedManagedCanonicalIds,
+              fullySyncedManagedCanonicalIds,
+              result.reconciliation,
             );
             result[outcome] += 1;
           } catch (error) {
@@ -1331,28 +1491,120 @@ export async function syncVisioTeamCalendarsToShared(input?: {
       }
     }
 
-    // The shared event is the canonical record. Each managed calendar gets a
-    // silent, deterministic replica with the same title, public details,
-    // schedule, lifecycle, Meet and event colour. Replica mutations were read
-    // above first, so a legitimate edit made in an individual calendar cannot
-    // be overwritten before it is reconciled.
-    const sharedEventById = new Map(
-      sharedEvents.flatMap((event) =>
-        event.id ? [[event.id, event] as const] : [],
+    // Stable replicas were already present in the paginated member listings.
+    // Only probe deterministic ids that were absent, including for a canonical
+    // discovered outside the shared-calendar window through another replica.
+    const missingReplicaCanonicalsById = new Map(
+      [...managedCanonicalById.values()].flatMap((canonical) =>
+        canonical?.id ? [[canonical.id, canonical] as const] : [],
       ),
     );
-    for (const canonicalEventId of managedCanonicalIdsForReplicaSync) {
-      try {
-        const refreshed = await getCalendarEvent(sharedCalendarId, canonicalEventId);
-        if (!refreshed || refreshed.status === "cancelled") continue;
-        const normalized = await syncManagedCalendarReplicas(refreshed);
-        const listedEvent = sharedEventById.get(canonicalEventId);
-        if (normalized && listedEvent) Object.assign(listedEvent, normalized);
-      } catch (error) {
-        result.errors.push({
-          memberId: "replicas",
-          code: visioGoogleErrorCode(error),
-        });
+    const missingReplicaPairs: Array<{
+      canonical: GoogleCalendarEvent;
+      member: VisioTeamMember;
+    }> = [];
+    for (const canonical of missingReplicaCanonicalsById.values()) {
+      if (
+        !canonical.id ||
+        canonical.status === "cancelled" ||
+        fullySyncedManagedCanonicalIds.has(canonical.id)
+      ) {
+        continue;
+      }
+      for (const member of teamMembers) {
+        if (
+          !successfullyListedMemberIds.has(member.id) ||
+          seenManagedReplicaKeys.has(managedReplicaKey(member.id, canonical.id))
+        ) {
+          continue;
+        }
+        missingReplicaPairs.push({ canonical, member });
+      }
+    }
+    for (
+      let index = 0;
+      index < missingReplicaPairs.length;
+      index += MANAGED_REPLICA_CREATE_CONCURRENCY
+    ) {
+      const attempts = await Promise.all(
+        missingReplicaPairs
+          .slice(index, index + MANAGED_REPLICA_CREATE_CONCURRENCY)
+          .map(async ({ canonical, member }) => {
+            if (
+              !canonical.id ||
+              fullySyncedManagedCanonicalIds.has(canonical.id)
+            ) {
+              return { kind: "skipped" as const, canonical, member };
+            }
+            result.reconciliation.missingReplicaChecks += 1;
+            try {
+              await createManagedCalendarReplica(canonical, member);
+              return { kind: "created" as const, canonical, member };
+            } catch (error) {
+              return isVisioGoogleConflict(error)
+                ? { kind: "conflict" as const, canonical, member }
+                : { kind: "failed" as const, canonical, member, error };
+            }
+          }),
+      );
+      for (const attempt of attempts) {
+        const { canonical, member } = attempt;
+        if (attempt.kind === "skipped") continue;
+        if (attempt.kind === "created") {
+          result.created += 1;
+          continue;
+        }
+        if (attempt.kind === "failed") {
+          result.errors.push({
+            memberId: member.id,
+            code: visioGoogleErrorCode(attempt.error),
+          });
+          continue;
+        }
+        if (!canonical.id || fullySyncedManagedCanonicalIds.has(canonical.id)) {
+          continue;
+        }
+        try {
+          const replicaId = calendarReplicaEventId(canonical);
+          const existing = replicaId
+            ? await getCalendarEvent(member.calendarId, replicaId)
+            : null;
+          if (!existing) {
+            throw new Error("visio_calendar_replica_conflict_missing");
+          }
+          const existingProperties = existing?.extendedProperties?.private || {};
+          const isManagedReplica =
+            existingProperties[PRIVATE_CALENDAR_REPLICA_KEY] ===
+              PRIVATE_CALENDAR_REPLICA_VALUE &&
+            Boolean(existingProperties[PRIVATE_CANONICAL_EVENT_ID_KEY]);
+          if (!isManagedReplica && existing.status !== "cancelled") {
+            throw new Error("visio_calendar_replica_id_conflict");
+          }
+          const replicaForReconciliation = isManagedReplica
+            ? existing
+            : {
+                ...existing,
+                extendedProperties: {
+                  private:
+                    managedCalendarReplicaBody(canonical, member)
+                      .extendedProperties.private,
+                },
+              };
+          const outcome = await reconcileManagedCalendarReplica(
+            replicaForReconciliation,
+            member,
+            managedCanonicalById,
+            failedManagedCanonicalIds,
+            fullySyncedManagedCanonicalIds,
+            result.reconciliation,
+          );
+          result[outcome] += 1;
+        } catch (error) {
+          result.errors.push({
+            memberId: member.id,
+            code: visioGoogleErrorCode(error),
+          });
+        }
       }
     }
 
@@ -2670,14 +2922,37 @@ function managedCalendarReplicaBody(
   };
 }
 
-async function upsertManagedCalendarReplica(
+function isVisioGoogleConflict(error: unknown) {
+  return (
+    error instanceof Error &&
+    error.message.startsWith("visio_google_api_failed:409:")
+  );
+}
+
+async function createManagedCalendarReplica(
   canonical: GoogleCalendarEvent,
   member: VisioTeamMember,
 ) {
   const body = managedCalendarReplicaBody(canonical, member);
+  await googleCalendarRequest<GoogleCalendarEvent>(
+    `/calendars/${encodeCalendarId(member.calendarId)}/events?conferenceDataVersion=1&sendUpdates=none`,
+    { method: "POST", body: JSON.stringify(body) },
+  );
+  return "created" as const;
+}
+
+async function upsertManagedCalendarReplica(
+  canonical: GoogleCalendarEvent,
+  member: VisioTeamMember,
+  existingReplica?: GoogleCalendarEvent | null,
+) {
+  const body = managedCalendarReplicaBody(canonical, member);
   const replicaId = String(body.id || "");
   if (!replicaId) throw new Error("visio_calendar_replica_id_missing");
-  const existing = await getCalendarEvent(member.calendarId, replicaId);
+  const existing =
+    existingReplica === undefined
+      ? await getCalendarEvent(member.calendarId, replicaId)
+      : existingReplica;
   if (
     existing &&
     existing.status !== "cancelled" &&
@@ -2691,16 +2966,9 @@ async function upsertManagedCalendarReplica(
     return "updated" as const;
   }
   try {
-    await googleCalendarRequest<GoogleCalendarEvent>(
-      `/calendars/${encodeCalendarId(member.calendarId)}/events?conferenceDataVersion=1&sendUpdates=none`,
-      { method: "POST", body: JSON.stringify(body) },
-    );
-    return "created" as const;
+    return await createManagedCalendarReplica(canonical, member);
   } catch (error) {
-    if (
-      error instanceof Error &&
-      error.message.startsWith("visio_google_api_failed:409:")
-    ) {
+    if (isVisioGoogleConflict(error)) {
       await patchCalendarEventWithoutUpdates(member.calendarId, replicaId, body);
       return "updated" as const;
     }
@@ -2901,27 +3169,55 @@ async function syncManagedCalendarReplicas(canonical: GoogleCalendarEvent) {
 
 async function reconcileManagedCalendarReplica(
   replica: GoogleCalendarEvent,
-  managedCanonicalIdsForReplicaSync: Set<string>,
+  member: VisioTeamMember,
+  managedCanonicalById: Map<string, GoogleCalendarEvent | null>,
+  failedManagedCanonicalIds: Set<string>,
+  fullySyncedManagedCanonicalIds: Set<string>,
+  reconciliation: VisioTeamCalendarSyncResult["reconciliation"],
 ) {
   const properties = replica.extendedProperties?.private || {};
+  const canonicalEventId = String(
+    properties[PRIVATE_CANONICAL_EVENT_ID_KEY] || "",
+  ).trim();
   if (
     properties[PRIVATE_CALENDAR_REPLICA_KEY] !==
       PRIVATE_CALENDAR_REPLICA_VALUE ||
-    !properties[PRIVATE_CANONICAL_EVENT_ID_KEY]
+    !canonicalEventId
   ) {
     return "skipped" as const;
   }
+  if (failedManagedCanonicalIds.has(canonicalEventId)) {
+    return "skipped" as const;
+  }
 
-  const canonical = await getCalendarEvent(
-    getVisioSharedCalendarId(),
-    properties[PRIVATE_CANONICAL_EVENT_ID_KEY],
-  );
+  let canonical: GoogleCalendarEvent | null | undefined =
+    managedCanonicalById.get(canonicalEventId);
+  if (managedCanonicalById.has(canonicalEventId)) {
+    reconciliation.canonicalCacheHits += 1;
+  } else {
+    reconciliation.canonicalFetches += 1;
+    canonical = await getCalendarEvent(
+      getVisioSharedCalendarId(),
+      canonicalEventId,
+    );
+    managedCanonicalById.set(canonicalEventId, canonical);
+    if (canonical?.id) {
+      managedCanonicalById.set(canonical.id, canonical);
+    }
+  }
   if (!canonical?.id || canonical.status === "cancelled") {
     const restored = await restoreManagedCanonicalFromReplica({
       replica,
       cancelledCanonical: canonical,
     });
-    await syncManagedCalendarReplicas(restored);
+    const normalized = (await syncManagedCalendarReplicas(restored)) || restored;
+    managedCanonicalById.set(canonicalEventId, normalized);
+    fullySyncedManagedCanonicalIds.add(canonicalEventId);
+    if (normalized.id) {
+      managedCanonicalById.set(normalized.id, normalized);
+      fullySyncedManagedCanonicalIds.add(normalized.id);
+    }
+    reconciliation.replicaFanouts += 1;
     return "updated" as const;
   }
 
@@ -2972,16 +3268,34 @@ async function reconcileManagedCalendarReplica(
       start: canonical.start,
       end: canonical.end,
     });
-    await syncManagedCalendarReplicas(scheduled);
+    const normalized = (await syncManagedCalendarReplicas(scheduled)) || scheduled;
+    managedCanonicalById.set(canonical.id, normalized);
+    fullySyncedManagedCanonicalIds.add(canonical.id);
+    reconciliation.replicaFanouts += 1;
     return "updated" as const;
   }
 
-  if (!storedFingerprint || !replicaChanged) {
-    // Defer this repair to the single fan-out pass at the end of the sync. The
-    // canonical can be outside the shared-calendar listing window after a
-    // direct move, so keep the id discovered through its in-window replica.
-    managedCanonicalIdsForReplicaSync.add(canonical.id);
+  const desiredReplica = managedCalendarReplicaBody(canonical, member);
+  const decision = teamCalendarReplicaReconciliationDecision({
+    storedFingerprint,
+    actualFingerprint,
+    contentMatchesCanonical:
+      teamCalendarMirrorContentSignature(replica) ===
+      teamCalendarMirrorContentSignature(desiredReplica),
+  });
+  if (decision === "stable") {
     return "unchanged" as const;
+  }
+  if (decision === "repair") {
+    if (fullySyncedManagedCanonicalIds.has(canonical.id)) {
+      return "unchanged" as const;
+    }
+    const normalized =
+      (await syncManagedCalendarReplicas(canonical)) || canonical;
+    managedCanonicalById.set(canonical.id, normalized);
+    fullySyncedManagedCanonicalIds.add(canonical.id);
+    reconciliation.replicaFanouts += 1;
+    return "updated" as const;
   }
 
   const statusChanged = requestedStatus !== currentStatus;
@@ -3012,7 +3326,10 @@ async function reconcileManagedCalendarReplica(
       start: replica.start,
       end: replica.end,
     });
-    await syncManagedCalendarReplicas(scheduled);
+    const normalized = (await syncManagedCalendarReplicas(scheduled)) || scheduled;
+    managedCanonicalById.set(canonical.id, normalized);
+    fullySyncedManagedCanonicalIds.add(canonical.id);
+    reconciliation.replicaFanouts += 1;
     return "updated" as const;
   }
 
@@ -3033,7 +3350,10 @@ async function reconcileManagedCalendarReplica(
           },
         )
       : canonical;
-  await syncManagedCalendarReplicas(updated);
+  const normalized = (await syncManagedCalendarReplicas(updated)) || updated;
+  managedCanonicalById.set(canonical.id, normalized);
+  fullySyncedManagedCanonicalIds.add(canonical.id);
+  reconciliation.replicaFanouts += 1;
   return "updated" as const;
 }
 
@@ -4093,7 +4413,7 @@ export async function updateVisioTeamAppointmentStatus(input: {
     throw new Error("visio_team_status_invalid");
   }
 
-  const calendarMutationLock = await acquireTeamCalendarSyncLock();
+  const calendarMutationLock = await acquireTeamCalendarMutationLock();
   if (!calendarMutationLock.acquired) {
     throw new Error("visio_team_assignment_sync_busy");
   }
@@ -4180,7 +4500,7 @@ export async function reassignVisioTeamAppointment(input: {
     throw new Error("visio_team_assignment_invalid");
   }
 
-  const calendarMutationLock = await acquireTeamCalendarSyncLock();
+  const calendarMutationLock = await acquireTeamCalendarMutationLock();
   if (!calendarMutationLock.acquired) {
     throw new Error("visio_team_assignment_sync_busy");
   }
@@ -4245,7 +4565,7 @@ export async function rescheduleVisioTeamAppointment(input: {
     throw new Error("visio_team_reschedule_invalid");
   }
 
-  const calendarMutationLock = await acquireTeamCalendarSyncLock();
+  const calendarMutationLock = await acquireTeamCalendarMutationLock();
   if (!calendarMutationLock.acquired) {
     throw new Error("visio_team_assignment_sync_busy");
   }

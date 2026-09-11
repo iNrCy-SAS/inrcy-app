@@ -141,23 +141,91 @@ test("le calendrier partagé global est synchronisé par un cron protégé et id
 
 test("les répliques inchangées sont regroupées sans perdre un canonique hors fenêtre", () => {
   const backend = read("lib/visioBookingGoogle.ts");
+  const teamSync = backend.slice(
+    backend.indexOf("export async function syncVisioTeamCalendarsToShared"),
+    backend.indexOf("async function readFreeBusy"),
+  );
   const replicaReconciliation = backend.slice(
     backend.indexOf("async function reconcileManagedCalendarReplica"),
     backend.indexOf("async function moveCalendarEventWithoutUpdates"),
   );
   assert.match(
     replicaReconciliation,
-    /if \(!storedFingerprint \|\| !replicaChanged\) \{[\s\S]*?managedCanonicalIdsForReplicaSync\.add\(canonical\.id\);[\s\S]*?return "unchanged" as const;[\s\S]*?\}/,
+    /managedCanonicalById\.get\(canonicalEventId\)[\s\S]*?else \{[\s\S]*?canonicalFetches \+= 1;[\s\S]*?getCalendarEvent/,
   );
+  const stableBranch = replicaReconciliation.match(
+    /if \(decision === "stable"\) \{[\s\S]*?\n  \}/,
+  )?.[0] || "";
+  assert.match(stableBranch, /return "unchanged" as const/);
   assert.doesNotMatch(
-    replicaReconciliation.match(
-      /if \(!storedFingerprint \|\| !replicaChanged\) \{[\s\S]*?\n  \}/,
-    )?.[0] || "",
-    /syncManagedCalendarReplicas/,
+    stableBranch,
+    /getCalendarEvent|patchCalendarEvent|upsertManagedCalendarReplica|syncManagedCalendarReplicas/,
   );
   assert.match(
+    teamSync,
+    /!successfullyListedMemberIds\.has\(member\.id\)[\s\S]*?seenManagedReplicaKeys\.has\(managedReplicaKey\(member\.id, canonical\.id\)\)[\s\S]*?missingReplicaChecks \+= 1;[\s\S]*?const replicaId = calendarReplicaEventId\(canonical\)/,
+  );
+  assert.match(
+    teamSync,
+    /createManagedCalendarReplica\(canonical, member\)[\s\S]*?kind: "conflict"[\s\S]*?getCalendarEvent\(member\.calendarId, replicaId\)[\s\S]*?visio_calendar_replica_id_conflict[\s\S]*?reconcileManagedCalendarReplica\([\s\S]*?replicaForReconciliation,/,
+  );
+  assert.match(
+    teamSync,
+    /sourceEventsByMemberId\.set\(member\.id, sourceEvents\)[\s\S]*?canonicalIdsToLoad[\s\S]*?managedCanonicalByReplicaId\.set\(replicaId, canonical\)/,
+  );
+  assert.doesNotMatch(teamSync, /for \(const canonicalEventId[\s\S]*?syncManagedCalendarReplicas/);
+  assert.match(
+    replicaReconciliation,
+    /managedCanonicalById\.set\(canonicalEventId, normalized\);[\s\S]*?fullySyncedManagedCanonicalIds\.add\(canonicalEventId\);/,
+  );
+  assert.match(
+    teamSync,
+    /logicalAppointmentId\(recoveredCanonical\) === logicalAppointmentId\(event\)[\s\S]*?managedCanonicalById\.set\(canonicalEventId, recoveredCanonical\)/,
+  );
+  const canonicalPreload = teamSync.indexOf("[...canonicalIdsToLoad].map");
+  const postPreloadAlias = teamSync.indexOf(
+    "failedManagedCanonicalIds.delete(canonicalEventId)",
+    canonicalPreload,
+  );
+  const reconciliationPass = teamSync.indexOf(
+    "for (const member of teamMembers)",
+    postPreloadAlias,
+  );
+  assert.ok(canonicalPreload >= 0);
+  assert.ok(postPreloadAlias > canonicalPreload);
+  assert.ok(reconciliationPass > postPreloadAlias);
+  assert.match(
+    teamSync.slice(canonicalPreload, reconciliationPass),
+    /managedCanonicalByReplicaId\.get\(event\.id\)[\s\S]*?logicalAppointmentId\(recoveredCanonical\) === logicalAppointmentId\(event\)[\s\S]*?managedCanonicalById\.set\(canonicalEventId, recoveredCanonical\);[\s\S]*?failedManagedCanonicalIds\.delete\(canonicalEventId\);/,
+  );
+  assert.match(
+    teamSync,
+    /catch \(error\) \{[\s\S]*?failedManagedCanonicalIds\.add\(canonicalEventId\);/,
+  );
+  assert.match(
+    replicaReconciliation,
+    /if \(failedManagedCanonicalIds\.has\(canonicalEventId\)\) \{[\s\S]*?return "skipped" as const;/,
+  );
+  assert.match(teamSync, /MANAGED_REPLICA_CREATE_CONCURRENCY/);
+});
+
+test("les mutations agenda attendent brièvement le verrou sans ralentir le cron", () => {
+  const backend = read("lib/visioBookingGoogle.ts");
+  const teamSync = backend.slice(
+    backend.indexOf("export async function syncVisioTeamCalendarsToShared"),
+    backend.indexOf("async function readFreeBusy"),
+  );
+  assert.match(backend, /TEAM_CALENDAR_MUTATION_LOCK_WAIT_MS = 8_000/);
+  assert.match(backend, /TEAM_CALENDAR_MUTATION_LOCK_RETRY_MS = 250/);
+  assert.match(
     backend,
-    /for \(const canonicalEventId of managedCanonicalIdsForReplicaSync\) \{[\s\S]*?getCalendarEvent\(sharedCalendarId, canonicalEventId\)[\s\S]*?syncManagedCalendarReplicas\(refreshed\)/,
+    /function acquireTeamCalendarMutationLock\(\)[\s\S]*?waitMs: TEAM_CALENDAR_MUTATION_LOCK_WAIT_MS,[\s\S]*?retryMs: TEAM_CALENDAR_MUTATION_LOCK_RETRY_MS/,
+  );
+  assert.match(teamSync, /acquireTeamCalendarSyncLock\(\)/);
+  assert.doesNotMatch(teamSync, /acquireTeamCalendarMutationLock/);
+  assert.equal(
+    backend.match(/await acquireTeamCalendarMutationLock\(\)/g)?.length,
+    3,
   );
 });
 
