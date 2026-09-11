@@ -72,6 +72,17 @@ test("full-screen campaign editors keep the subject and AI generation controls a
   }
 });
 
+test("full-screen campaign header masks decorative dashboard layers", () => {
+  const css = read("app/dashboard/_components/CampaignFullscreenComposerHeader.module.css");
+  const shell = css.match(/^\.shell\s*\{[\s\S]*?^\}/m)?.[0] ?? "";
+
+  assert.match(shell, /isolation:\s*isolate/);
+  assert.match(shell, /overflow:\s*clip/);
+  assert.match(shell, /background-color:\s*rgb\(10, 42, 76\)/);
+  assert.match(shell, /background-image:\s*linear-gradient\([\s\S]*?rgb\(10, 42, 76\)[\s\S]*?rgb\(51, 24, 68\)/);
+  assert.doesNotMatch(shell, /background(?:-image)?:[\s\S]*?radial-gradient/);
+});
+
 test("generated campaign templates update subject and message as one complete result", () => {
   for (const path of campaignModals) {
     const source = read(path);

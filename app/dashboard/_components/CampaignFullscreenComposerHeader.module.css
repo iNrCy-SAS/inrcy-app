@@ -10,13 +10,18 @@
   padding: 12px;
   border: 1px solid rgba(125, 211, 252, 0.22);
   border-radius: 18px;
-  /* A continuous gradient prevents circular glow seams from showing through
-     the translucent controls (notably in Chrome at non-default zoom levels). */
-  background: linear-gradient(
+  /* Keep the composer on its own, fully opaque paint layer. The dashboard uses
+     decorative radial gradients which otherwise bleed through translucent
+     form controls in Chrome at some zoom/scaling levels. */
+  position: relative;
+  isolation: isolate;
+  overflow: clip;
+  background-color: rgb(10, 42, 76);
+  background-image: linear-gradient(
     135deg,
-    rgba(10, 42, 76, 0.98) 0%,
-    rgba(28, 30, 72, 0.98) 58%,
-    rgba(51, 24, 68, 0.98) 100%
+    rgb(10, 42, 76) 0%,
+    rgb(28, 30, 72) 58%,
+    rgb(51, 24, 68) 100%
   );
   box-shadow: 0 16px 34px rgba(0, 0, 0, 0.22);
 }
