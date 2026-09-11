@@ -857,6 +857,23 @@ async function executeAgentActionHandler(request: Request) {
     return NextResponse.json({ action, alreadyCompleted: true });
   }
 
+  if (
+    action.automationKey === "publish" &&
+    action.actionType === "publication" &&
+    action.targetTool === "booster" &&
+    action.scheduledFor &&
+    asRecord(action.payload?.editorialPlan)
+  ) {
+    return NextResponse.json(
+      {
+        error:
+          "Cette actu iNr’Agent est déjà datée : Valider confirme sa date et ses canaux, sans publication immédiate.",
+        code: "INR_AGENT_EDITORIAL_SCHEDULE_REQUIRED",
+      },
+      { status: 409 },
+    );
+  }
+
   if (action.status === "executing") {
     return NextResponse.json(
       { error: "Cette action est déjà en cours d’exécution." },

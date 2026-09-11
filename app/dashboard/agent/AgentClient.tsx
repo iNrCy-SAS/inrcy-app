@@ -408,6 +408,21 @@ function isAgentActionAwaitingValidation(action: AgentPreparedAction | null) {
   );
 }
 
+function isRobotPlannedPublication(
+  action: AgentPreparedAction | null | undefined,
+) {
+  return Boolean(
+    action &&
+      action.automationKey === "publish" &&
+      action.actionType === "publication" &&
+      action.targetTool === "booster" &&
+      action.validationRequired === true &&
+      action.executionPolicy === "manual_validation" &&
+      action.scheduledFor &&
+      asRecord(action.payload?.editorialPlan),
+  );
+}
+
 function publicationValidationState(
   action: AgentPreparedAction | null,
 ): PublicationValidationState {
@@ -4219,6 +4234,92 @@ export default function AgentClient() {
     await refreshScheduledActions(true);
   }
 
+  async function confirmRobotPlannedPublication() {
+    const action = selectedPreparedAction;
+    if (
+      !action ||
+      !isRobotPlannedPublication(action) ||
+      validationScheduleState === "saving"
+    ) {
+      return;
+    }
+
+    setValidationScheduleState("saving");
+    setNotice(null);
+    try {
+      await persistScheduledPreparedAction(
+        {
+          actionId: action.id,
+          confirmExistingPlan: true,
+          timezone: agentSettings.timezone || "Europe/Paris",
+        },
+        i18nT("scheduled_action_success"),
+      );
+      setValidationChoiceOpen(false);
+    } catch (error) {
+      await refreshActions(true);
+      showNotice(
+        error instanceof Error
+          ? error.message
+          : i18nT("publication_schedule_failed"),
+      );
+    } finally {
+      setValidationScheduleState("idle");
+    }
+  }
+
+  async function saveScheduledEditAtExistingDate() {
+    const session = scheduledEditSession;
+    if (!session || validationScheduleState === "saving") return;
+
+    const scheduledAt =
+      session.scheduledAction.scheduledAt || session.action.scheduledFor;
+    if (!scheduledAt) {
+      showNotice(i18nT("future_date_required"));
+      return;
+    }
+
+    const isPublication =
+      session.action.automationKey === "publish" &&
+      session.action.actionType === "publication" &&
+      session.action.targetTool === "booster";
+
+    setValidationScheduleState("saving");
+    setNotice(null);
+    try {
+      if (isPublication) {
+        const seen = new Set<BoosterChannelKey>();
+        const selections = preparedChannels
+          .map(boosterChannelKeyFromAgentChannel)
+          .filter((channel) => {
+            if (seen.has(channel)) return false;
+            seen.add(channel);
+            return true;
+          })
+          .map((channel) => ({ channel, scheduledAt }));
+        await saveScheduledEditPublication(selections);
+      } else {
+        await saveScheduledEditCampaign(scheduledAt);
+      }
+      exitScheduledEditSession({ silent: true, force: true });
+      showNotice(
+        isPublication
+          ? i18nT("scheduled_action_updated")
+          : i18nT("scheduled_campaign_updated"),
+      );
+    } catch (error) {
+      showNotice(
+        error instanceof Error
+          ? error.message
+          : isPublication
+            ? i18nT("scheduled_publication_update_failed")
+            : i18nT("scheduled_campaign_update_failed"),
+      );
+    } finally {
+      setValidationScheduleState("idle");
+    }
+  }
+
   async function scheduleValidatedCampaign(scheduledAt: string) {
     if (!selectedPreparedAction || validationScheduleState === "saving") return;
     if (
@@ -4338,7 +4439,6 @@ export default function AgentClient() {
     agentCampaignLaunchNotice,
     setAgentCampaignLaunchNotice,
     executeImmediateAgentPublicationAfterSchedule,
-    runScheduledEditNow,
     updateActionStatus,
   } = useAgentActionExecution({
     selectedPreparedAction,
@@ -5873,7 +5973,8 @@ export default function AgentClient() {
                       </button>
                     )}
                     <div className={styles.previewActions}>
-                      {actionMutationState === "saving" ? (
+                      {actionMutationState === "saving" ||
+                      validationScheduleState === "saving" ? (
                         <button
                           type="button"
                           className={`${styles.actionProcessingButton} ${
@@ -5889,9 +5990,11 @@ export default function AgentClient() {
                             className={styles.actionProcessingSpinner}
                             aria-hidden
                           />
-                          {actionMutationIntent === "refused"
-                            ? i18nT("refus_en_cours_6be9a897")
-                            : i18nT("validation_en_cours_25be85c2")}
+                          {scheduledEditSession
+                            ? i18nT("enregistrement_e7d5f232")
+                            : actionMutationIntent === "refused"
+                              ? i18nT("refus_en_cours_6be9a897")
+                              : i18nT("validation_en_cours_25be85c2")}
                         </button>
                       ) : (
                         <>
@@ -5899,11 +6002,20 @@ export default function AgentClient() {
                             type="button"
                             className={styles.validateButton}
                             disabled={
-                              !hasPreparedAction || !canReviewSelectedAction
+                              !hasPreparedAction ||
+                              !canReviewSelectedAction
                             }
                             onClick={() => {
                               if (scheduledEditSession) {
-                                void updateActionStatus("validated");
+                                void saveScheduledEditAtExistingDate();
+                                return;
+                              }
+                              if (
+                                isRobotPlannedPublication(
+                                  selectedPreparedAction,
+                                )
+                              ) {
+                                void confirmRobotPlannedPublication();
                                 return;
                               }
                               if (
@@ -5918,19 +6030,24 @@ export default function AgentClient() {
                             <span aria-hidden>
                               <ValidateActionIcon />
                             </span>
-                            {i18nT("valider_be4220f7")}{" "}</button>
-                          <button
-                            type="button"
-                            className={styles.refuseButton}
-                            disabled={
-                              !hasPreparedAction || !canReviewSelectedAction
-                            }
-                            onClick={() => updateActionStatus("refused")}
-                          >
-                            <span aria-hidden>
-                              <RefuseActionIcon />
-                            </span>
-                            {i18nT("refuser_62897154")}{" "}</button>
+                            {scheduledEditSession
+                              ? i18nT("enregistrer_f7c8bcd8")
+                              : i18nT("valider_be4220f7")}{" "}</button>
+                          {!scheduledEditSession && (
+                            <button
+                              type="button"
+                              className={styles.refuseButton}
+                              disabled={
+                                !hasPreparedAction ||
+                                !canReviewSelectedAction
+                              }
+                              onClick={() => updateActionStatus("refused")}
+                            >
+                              <span aria-hidden>
+                                <RefuseActionIcon />
+                              </span>
+                              {i18nT("refuser_62897154")}{" "}</button>
+                          )}
                         </>
                       )}
                     </div>
@@ -7042,20 +7159,22 @@ export default function AgentClient() {
       />
 
       <ValidationChoiceModal
-        open={validationChoiceOpen}
+        open={
+          validationChoiceOpen &&
+          !scheduledEditSession &&
+          !isRobotPlannedPublication(selectedPreparedAction)
+        }
         selectedPreparedAction={selectedPreparedAction}
         scheduledEditSession={scheduledEditSession}
         mutationState={actionMutationState}
         onClose={() => setValidationChoiceOpen(false)}
-        onRunNow={() =>
-          scheduledEditSession
-            ? void runScheduledEditNow()
-            : void updateActionStatus("validated")
-        }
+        onRunNow={() => void updateActionStatus("validated")}
         onSchedule={openValidationScheduleModal}
       />
 
       {validationScheduleOpen &&
+        !scheduledEditSession &&
+        !selectedEditorialPlan &&
         selectedPreparedAction?.automationKey === "publish" && (
           <PublishScheduleModal
             open={validationScheduleOpen}
@@ -7066,25 +7185,7 @@ export default function AgentClient() {
             error=""
             successMessage={i18nT("programmation_reussie_1307249b")}
             savingLabel={i18nT("envoi_en_cours_2de80069")}
-            enableImmediateUnselectedWarning={
-              !scheduledEditSession && !selectedEditorialPlan
-            }
-            initialSelections={
-              scheduledEditSession
-                ? preparedChannels.map((channel) => ({
-                    channel: boosterChannelKeyFromAgentChannel(channel),
-                    scheduledAt:
-                      scheduledEditSession.scheduledAction.scheduledAt ||
-                      selectedPreparedAction.scheduledFor ||
-                      new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-                  }))
-                : selectedEditorialPlan && selectedPreparedAction.scheduledFor
-                  ? preparedChannels.map((channel) => ({
-                      channel: boosterChannelKeyFromAgentChannel(channel),
-                      scheduledAt: selectedPreparedAction.scheduledFor as string,
-                    }))
-                  : undefined
-            }
+            enableImmediateUnselectedWarning
             onClose={() => {
               if (validationScheduleState === "saving") return;
               setValidationScheduleOpen(false);
@@ -7098,11 +7199,6 @@ export default function AgentClient() {
               setValidationScheduleOpen(false);
               setValidationChoiceOpen(false);
               setPendingImmediateAgentPublishAfterSchedule(null);
-              if (scheduledEditSession) {
-                exitScheduledEditSession({ silent: true, force: true });
-                showNotice(i18nT("scheduled_action_updated"));
-                return;
-              }
               if (immediatePublishRequest?.channels.length) {
                 void executeImmediateAgentPublicationAfterSchedule(
                   immediatePublishRequest,
@@ -7113,6 +7209,7 @@ export default function AgentClient() {
         )}
 
       {validationScheduleOpen &&
+        !scheduledEditSession &&
         selectedPreparedAction &&
         selectedPreparedAction.automationKey !== "publish" && (
           <CampaignScheduleModal
@@ -7133,10 +7230,7 @@ export default function AgentClient() {
             error={null}
             successMessage={i18nT("programmation_reussie_1307249b")}
             savingLabel={i18nT("programmation_en_cours_13ae187c")}
-            initialScheduledAt={
-              scheduledEditSession?.scheduledAction.scheduledAt ||
-              selectedPreparedAction.scheduledFor
-            }
+            initialScheduledAt={selectedPreparedAction.scheduledFor}
             onClose={() => {
               if (validationScheduleState === "saving") return;
               setValidationScheduleOpen(false);
@@ -7145,10 +7239,6 @@ export default function AgentClient() {
             onSuccess={() => {
               setValidationScheduleOpen(false);
               setValidationChoiceOpen(false);
-              if (scheduledEditSession) {
-                exitScheduledEditSession({ silent: true, force: true });
-                showNotice(i18nT("scheduled_campaign_updated"));
-              }
             }}
           />
         )}

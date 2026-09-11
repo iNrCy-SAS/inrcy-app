@@ -2843,6 +2843,38 @@ export async function PATCH(request: Request) {
     );
   }
 
+  if (["validated", "scheduled", "pending", "pending_validation"].includes(status)) {
+    const { data: statusActionRow, error: statusActionError } = await supabaseAdmin
+      .from("inr_agent_actions")
+      .select(ACTION_SELECT)
+      .eq("id", actionId)
+      .eq("user_id", activeUserId)
+      .maybeSingle();
+    if (statusActionError) {
+      return NextResponse.json(
+        { error: "Vérification de l’action iNr’Agent impossible." },
+        { status: 500 },
+      );
+    }
+    if (statusActionRow) {
+      const statusAction = rowToInrAgentAction(statusActionRow as any);
+      if (
+        isPublishAction(statusAction) &&
+        statusAction.scheduledFor &&
+        asRecord(statusAction.payload?.editorialPlan)
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "Cette actu éditoriale doit être confirmée avec sa date et ses canaux existants.",
+            code: "INR_AGENT_EDITORIAL_SCHEDULE_REQUIRED",
+          },
+          { status: 409 },
+        );
+      }
+    }
+  }
+
   const now = new Date().toISOString();
   const updatePayload: Record<string, unknown> = {
     status,

@@ -54,6 +54,9 @@ const ACTION_SELECT =
 const SCHEDULED_ACTION_SELECT =
   "id, automation_key, action_type, target_tool, source, title, summary, scheduled_at, timezone, channels, payload, status, attempt_count, last_error, executed_at, created_at, updated_at";
 
+const EDITORIAL_VALIDATION_EXPIRED_MESSAGE =
+  "Validation non reçue avant l’échéance programmée.";
+
 const schedulableStatuses = new Set([
   "prepared",
   "pending_validation",
@@ -219,6 +222,17 @@ function isMissingTableError(
     error?.code === "42703" ||
     error?.code === "PGRST205" ||
     message.includes("inr_agent_scheduled_actions")
+  );
+}
+
+function isMissingEditorialConfirmationRpc(
+  error: { code?: string; message?: string } | null | undefined,
+) {
+  const message = String(error?.message || "").toLowerCase();
+  return (
+    error?.code === "PGRST202" ||
+    error?.code === "42883" ||
+    message.includes("inrcy_confirm_editorial_publication_schedule")
   );
 }
 
@@ -660,6 +674,19 @@ function isCampaignAgentAction(action: ReturnType<typeof rowToInrAgentAction>) {
   );
 }
 
+function isManualEditorialPublicationAction(
+  action: ReturnType<typeof rowToInrAgentAction>,
+) {
+  return (
+    action.automationKey === "publish" &&
+    action.actionType === "publication" &&
+    action.targetTool === "booster" &&
+    action.executionPolicy === "manual_validation" &&
+    action.validationRequired === true &&
+    asRecord(action.payload?.editorialPlan) !== null
+  );
+}
+
 async function buildScheduledPayload(
   action: ReturnType<typeof rowToInrAgentAction>,
 ) {
@@ -885,6 +912,7 @@ async function scheduleAgentActionHandler(request: Request) {
   const standardMode =
     (await getDashboardEditionForAccountId(activeUserId)) === "standard";
   const automaticExecution = body?.executionSource === "automatic";
+  const confirmExistingPlan = body?.confirmExistingPlan === true;
   if (automaticExecution && !isCron) {
     return NextResponse.json(
       { error: "La publication automatique est réservée au moteur iNr’Agent." },
@@ -906,13 +934,18 @@ async function scheduleAgentActionHandler(request: Request) {
   let scheduledAt = automaticExecution
     ? sanitizeAutomaticScheduledDate(body?.scheduledAt)
     : sanitizeFutureDate(body?.scheduledAt);
-  const scheduleSelections = normalizeScheduleSelections(body?.scheduleSelections);
+  let scheduleSelections = normalizeScheduleSelections(body?.scheduleSelections);
   if (!actionId)
     return NextResponse.json(
       { error: "Action iNr’Agent introuvable." },
       { status: 400 },
     );
-  if (!automaticExecution && !scheduledAt && !scheduleSelections.length)
+  if (
+    !automaticExecution &&
+    !confirmExistingPlan &&
+    !scheduledAt &&
+    !scheduleSelections.length
+  )
     return NextResponse.json(
       { error: "Choisissez une date et une heure dans le futur." },
       { status: 400 },
@@ -942,6 +975,63 @@ async function scheduleAgentActionHandler(request: Request) {
   let action = rowToInrAgentAction(actionRow as any);
   if (standardMode && !isStandardAgentActionDescriptor(action)) {
     return premiumRequiredApiResponse();
+  }
+  const confirmingEditorialPlan =
+    confirmExistingPlan && isManualEditorialPublicationAction(action);
+  if (confirmExistingPlan && !confirmingEditorialPlan) {
+    return NextResponse.json(
+      {
+        error:
+          "Seule une publication datée par le planning iNr’Agent peut être validée ainsi.",
+        code: "INR_AGENT_EDITORIAL_CONFIRMATION_NOT_ALLOWED",
+      },
+      { status: 400 },
+    );
+  }
+
+  if (confirmingEditorialPlan) {
+    if (action.status === "scheduled") {
+      const { data: existingScheduledRows, error: existingScheduledError } =
+        await supabaseAdmin
+          .from("inr_agent_scheduled_actions")
+          .select(SCHEDULED_ACTION_SELECT)
+          .eq("user_id", activeUserId)
+          .contains("payload", { sourceActionId: action.id })
+          .order("scheduled_at", { ascending: true });
+      if (existingScheduledError && !isMissingTableError(existingScheduledError)) {
+        throw existingScheduledError;
+      }
+      const existingRows = Array.isArray(existingScheduledRows)
+        ? existingScheduledRows
+        : [];
+      if (existingRows.length) {
+        const scheduledActions = existingRows.map(rowToInrAgentScheduledAction);
+        return NextResponse.json({
+          action,
+          scheduledActions,
+          scheduledAction: scheduledActions[0] || null,
+          scheduled: true,
+          alreadyScheduled: true,
+          tableMissing: false,
+        });
+      }
+    }
+
+    const plannedDate = new Date(String(action.scheduledFor || ""));
+    if (!Number.isFinite(plannedDate.getTime())) {
+      return NextResponse.json(
+        {
+          error: "La date prévue par iNr’Agent est introuvable.",
+          code: "INR_AGENT_EDITORIAL_DATE_MISSING",
+        },
+        { status: 409 },
+      );
+    }
+
+    // La validation confirme le plan existant : la date et les canaux envoyés
+    // par le navigateur sont volontairement ignorés.
+    scheduledAt = plannedDate.toISOString();
+    scheduleSelections = [];
   }
   if (automaticExecution) {
     const isAutomaticEditorialPublication =
@@ -987,6 +1077,16 @@ async function scheduleAgentActionHandler(request: Request) {
     }
     scheduledAt = sanitizeAutomaticScheduledDate(action.scheduledFor);
   }
+  if (confirmingEditorialPlan && action.status === "refused") {
+    return NextResponse.json(
+      {
+        error: EDITORIAL_VALIDATION_EXPIRED_MESSAGE,
+        code: "INR_AGENT_VALIDATION_EXPIRED",
+        action,
+      },
+      { status: 409 },
+    );
+  }
   if (!schedulableStatuses.has(action.status)) {
     return NextResponse.json(
       {
@@ -997,6 +1097,8 @@ async function scheduleAgentActionHandler(request: Request) {
   }
 
   let automaticClaimed = false;
+  let editorialValidationClaimed = false;
+  let editorialValidationClaimedAt: string | null = null;
   const releaseAutomaticClaim = async () => {
     if (!automaticClaimed) return;
     const { data: currentAction } = await supabaseAdmin
@@ -1021,6 +1123,43 @@ async function scheduleAgentActionHandler(request: Request) {
       .eq("user_id", activeUserId)
       .eq("status", "executing");
     automaticClaimed = false;
+  };
+
+  const releaseEditorialValidationClaim = async () => {
+    if (!editorialValidationClaimed || !editorialValidationClaimedAt) return;
+    const releasedAt = new Date().toISOString();
+    const deadline = new Date(String(action.scheduledFor || "")).getTime();
+    const expired =
+      !Number.isFinite(deadline) || deadline <= new Date(releasedAt).getTime();
+    const { error: releaseError } = await supabaseAdmin
+      .from("inr_agent_actions")
+      .update({
+        status: expired ? "refused" : "pending_validation",
+        validated_at: null,
+        refused_at: expired ? releasedAt : null,
+        last_error: expired ? EDITORIAL_VALIDATION_EXPIRED_MESSAGE : null,
+        updated_at: releasedAt,
+      })
+      .eq("id", action.id)
+      .eq("user_id", activeUserId)
+      .eq("status", "executing")
+      .eq("execution_policy", "manual_validation")
+      .eq("validation_required", true)
+      .eq("validated_at", editorialValidationClaimedAt)
+      .contains("metadata", { editorialPlan: true });
+    if (releaseError) {
+      console.error(
+        "[inr-agent] editorial validation claim release failed",
+        releaseError,
+      );
+    }
+    editorialValidationClaimed = false;
+    editorialValidationClaimedAt = null;
+  };
+
+  const releaseScheduleClaims = async () => {
+    await releaseAutomaticClaim();
+    await releaseEditorialValidationClaim();
   };
 
   try {
@@ -1160,6 +1299,152 @@ async function scheduleAgentActionHandler(request: Request) {
       }
     }
 
+    if (confirmingEditorialPlan) {
+      const { data: atomicData, error: atomicError } = await supabaseAdmin.rpc(
+        "inrcy_confirm_editorial_publication_schedule",
+        {
+          p_action_id: action.id,
+          p_user_id: activeUserId,
+          p_rows: rows,
+          p_schedule_selections: normalizedScheduleSelections,
+        },
+      );
+
+      if (!atomicError) {
+        const atomicResult = asRecord(atomicData) || {};
+        const outcome = cleanText(atomicResult.outcome, 80);
+        const atomicActionRow = asRecord(atomicResult.action);
+        const atomicScheduledRows = Array.isArray(atomicResult.scheduledActions)
+          ? atomicResult.scheduledActions
+              .map((row) => asRecord(row))
+              .filter((row): row is JsonRecord => Boolean(row))
+          : [];
+
+        if (
+          (outcome === "scheduled" || outcome === "already_scheduled") &&
+          atomicActionRow &&
+          atomicScheduledRows.length
+        ) {
+          const scheduledActions = atomicScheduledRows.map((row) =>
+            rowToInrAgentScheduledAction(row as any),
+          );
+          return NextResponse.json({
+            action: rowToInrAgentAction(atomicActionRow as any),
+            scheduledActions,
+            scheduledAction: scheduledActions[0] || null,
+            scheduled: true,
+            alreadyScheduled: outcome === "already_scheduled",
+            tableMissing: false,
+          });
+        }
+
+        if (outcome === "expired") {
+          return NextResponse.json(
+            {
+              error: EDITORIAL_VALIDATION_EXPIRED_MESSAGE,
+              code: "INR_AGENT_VALIDATION_EXPIRED",
+              action: atomicActionRow
+                ? rowToInrAgentAction(atomicActionRow as any)
+                : action,
+            },
+            { status: 409 },
+          );
+        }
+
+        return NextResponse.json(
+          {
+            error:
+              outcome === "not_found"
+                ? "Action iNr’Agent introuvable."
+                : "Cette publication a déjà été traitée ou n’attend plus de validation.",
+            code: "INR_AGENT_VALIDATION_ALREADY_HANDLED",
+          },
+          { status: outcome === "not_found" ? 404 : 409 },
+        );
+      }
+
+      if (!isMissingEditorialConfirmationRpc(atomicError)) {
+        throw atomicError;
+      }
+
+      // Compatibilité transitoire tant que la migration atomique n'est pas
+      // encore appliquée. Le compare-and-set garde les deux issues exclusives.
+      console.warn(
+        "[inr-agent] atomic editorial confirmation RPC missing; using guarded fallback",
+      );
+      const claimNow = new Date().toISOString();
+      const { data: claimedRow, error: claimError } = await supabaseAdmin
+        .from("inr_agent_actions")
+        .update({
+          status: "executing",
+          validated_at: claimNow,
+          refused_at: null,
+          last_error: null,
+          updated_at: claimNow,
+        })
+        .eq("id", action.id)
+        .eq("user_id", activeUserId)
+        .eq("automation_key", "publish")
+        .eq("action_type", "publication")
+        .eq("target_tool", "booster")
+        .eq("status", "pending_validation")
+        .eq("execution_policy", "manual_validation")
+        .eq("validation_required", true)
+        .gt("scheduled_for", claimNow)
+        .contains("metadata", { editorialPlan: true })
+        .select(ACTION_SELECT)
+        .maybeSingle();
+      if (claimError) throw claimError;
+
+      if (!claimedRow) {
+        const refusedAt = new Date().toISOString();
+        const { data: expiredRow, error: expireError } = await supabaseAdmin
+          .from("inr_agent_actions")
+          .update({
+            status: "refused",
+            validated_at: null,
+            refused_at: refusedAt,
+            last_error: EDITORIAL_VALIDATION_EXPIRED_MESSAGE,
+            updated_at: refusedAt,
+          })
+          .eq("id", action.id)
+          .eq("user_id", activeUserId)
+          .eq("automation_key", "publish")
+          .eq("action_type", "publication")
+          .eq("target_tool", "booster")
+          .eq("status", "pending_validation")
+          .eq("execution_policy", "manual_validation")
+          .eq("validation_required", true)
+          .lte("scheduled_for", refusedAt)
+          .contains("metadata", { editorialPlan: true })
+          .select(ACTION_SELECT)
+          .maybeSingle();
+        if (expireError) throw expireError;
+        if (expiredRow) {
+          return NextResponse.json(
+            {
+              error: EDITORIAL_VALIDATION_EXPIRED_MESSAGE,
+              code: "INR_AGENT_VALIDATION_EXPIRED",
+              action: rowToInrAgentAction(expiredRow as any),
+            },
+            { status: 409 },
+          );
+        }
+        return NextResponse.json(
+          {
+            error:
+              "Cette publication a déjà été traitée ou n’attend plus de validation.",
+            code: "INR_AGENT_VALIDATION_ALREADY_HANDLED",
+          },
+          { status: 409 },
+        );
+      }
+
+      action = rowToInrAgentAction(claimedRow as any);
+      editorialValidationClaimed = true;
+      editorialValidationClaimedAt = claimNow;
+    }
+
     if (automaticExecution) {
       const claimNow = new Date().toISOString();
       const { data: claimedRow, error: claimError } = await supabaseAdmin
@@ -1214,7 +1499,7 @@ async function scheduleAgentActionHandler(request: Request) {
     );
 
     if (insertError) {
-      await releaseAutomaticClaim();
+      await releaseScheduleClaims();
       if (isMissingTableError(insertError)) {
         return NextResponse.json(
           {
@@ -1236,7 +1521,7 @@ async function scheduleAgentActionHandler(request: Request) {
       ? scheduledRows
       : [];
     if (!createdScheduledRows.length) {
-      await releaseAutomaticClaim();
+      await releaseScheduleClaims();
       return NextResponse.json(
         { error: "Aucune action programmée n’a été créée." },
         { status: 500 },
@@ -1252,7 +1537,9 @@ async function scheduleAgentActionHandler(request: Request) {
       .update({
         status: "scheduled",
         scheduled_for: scheduledFor,
-        validated_at: automaticExecution ? null : now,
+        validated_at: automaticExecution
+          ? null
+          : editorialValidationClaimedAt || now,
         refused_at: null,
         last_error: null,
         payload: {
@@ -1278,25 +1565,42 @@ async function scheduleAgentActionHandler(request: Request) {
         .eq("execution_policy", "automatic_after_settings")
         .eq("validation_required", false);
     }
+    if (editorialValidationClaimed && editorialValidationClaimedAt) {
+      actionUpdate = actionUpdate
+        .eq("status", "executing")
+        .eq("execution_policy", "manual_validation")
+        .eq("validation_required", true)
+        .eq("validated_at", editorialValidationClaimedAt)
+        .contains("metadata", { editorialPlan: true });
+    }
     const { data: updatedActionRow, error: updateError } = await actionUpdate
       .select(ACTION_SELECT)
       .single();
 
     if (updateError) {
-      if (automaticExecution) {
-        await supabaseAdmin
+      const scheduledActionIds = createdScheduledRows
+        .map((row) => String(row.id || ""))
+        .filter(Boolean);
+      if (scheduledActionIds.length) {
+        const { error: cancelError } = await supabaseAdmin
           .from("inr_agent_scheduled_actions")
           .update({
             status: "cancelled",
             last_error:
-              "Le mode de validation iNr’Agent a changé avant la programmation.",
+              "Programmation annulée : la validation iNr’Agent n’a pas pu être finalisée.",
             updated_at: new Date().toISOString(),
           })
-          .eq("id", action.id)
           .eq("user_id", activeUserId)
+          .in("id", scheduledActionIds)
           .eq("status", "scheduled");
-        await releaseAutomaticClaim();
+        if (cancelError) {
+          console.error(
+            "[inr-agent] orphan scheduled action cancellation failed",
+            cancelError,
+          );
+        }
       }
+      await releaseScheduleClaims();
       return NextResponse.json(
         {
           error:
@@ -1307,6 +1611,8 @@ async function scheduleAgentActionHandler(request: Request) {
     }
 
     automaticClaimed = false;
+    editorialValidationClaimed = false;
+    editorialValidationClaimedAt = null;
 
     return NextResponse.json({
       action: rowToInrAgentAction(updatedActionRow as any),
@@ -1318,7 +1624,7 @@ async function scheduleAgentActionHandler(request: Request) {
       tableMissing: false,
     });
   } catch (error) {
-    await releaseAutomaticClaim();
+    await releaseScheduleClaims();
     captureApiException(request, error, {
       area: "inragent",
       operation: "POST /api/agent/actions/schedule",

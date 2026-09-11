@@ -16,6 +16,8 @@ const SCHEDULED_ACTION_SELECT = "id,user_id,automation_key,action_type,target_to
 const STALE_RUNNING_MINUTES = 20;
 const MAX_EXECUTION_ATTEMPTS = 3;
 const RETRY_DELAY_MS = 5 * 60 * 1000;
+const EDITORIAL_VALIDATION_EXPIRED_MESSAGE =
+  "Validation non reçue avant l’échéance programmée.";
 
 type ScheduledActionCronRow = {
   id: string;
@@ -346,6 +348,50 @@ async function resetStaleRunningActions() {
   }
 }
 
+async function refuseExpiredEditorialValidations(args: {
+  nowIso: string;
+  dryRun: boolean;
+}) {
+  if (args.dryRun) {
+    const { data, error } = await supabaseAdmin
+      .from("inr_agent_actions")
+      .select("id")
+      .eq("automation_key", "publish")
+      .eq("action_type", "publication")
+      .eq("target_tool", "booster")
+      .eq("status", "pending_validation")
+      .eq("execution_policy", "manual_validation")
+      .eq("validation_required", true)
+      .lte("scheduled_for", args.nowIso)
+      .contains("metadata", { editorialPlan: true });
+    if (error) throw error;
+    return Array.isArray(data) ? data.length : 0;
+  }
+
+  // Cette mise à jour conditionnelle est le verrou d'échéance : elle ne peut
+  // jamais refuser une ligne déjà gagnée par la validation atomique.
+  const { data, error } = await supabaseAdmin
+    .from("inr_agent_actions")
+    .update({
+      status: "refused",
+      validated_at: null,
+      refused_at: args.nowIso,
+      last_error: EDITORIAL_VALIDATION_EXPIRED_MESSAGE,
+      updated_at: args.nowIso,
+    })
+    .eq("automation_key", "publish")
+    .eq("action_type", "publication")
+    .eq("target_tool", "booster")
+    .eq("status", "pending_validation")
+    .eq("execution_policy", "manual_validation")
+    .eq("validation_required", true)
+    .lte("scheduled_for", args.nowIso)
+    .contains("metadata", { editorialPlan: true })
+    .select("id");
+  if (error) throw error;
+  return Array.isArray(data) ? data.length : 0;
+}
+
 async function claimAction(row: ScheduledActionCronRow) {
   const attemptCount = Math.max(0, Number(row.attempt_count || 0)) + 1;
   const { data, error } = await supabaseAdmin
@@ -378,21 +424,24 @@ async function automaticPublicationStillAuthorized(row: ScheduledActionCronRow) 
   return false;
 }
 
-async function syncAutomaticSourceActionOutcome(
+async function syncSourceActionOutcome(
   row: ScheduledActionCronRow,
   outcome: "completed" | "failed",
   error?: string | null,
 ) {
-  if (row.source !== "automatic") return;
   const payload = asRecord(row.payload);
   const publishPayload = asRecord(payload.publishPayload);
+  const explicitSourceActionId = trimDiagnosticText(
+    payload.sourceActionId || publishPayload.inrAgentActionId,
+    120,
+  );
   const sourceActionId = trimDiagnosticText(
-    payload.sourceActionId || publishPayload.inrAgentActionId || row.id,
+    explicitSourceActionId || (row.source === "automatic" ? row.id : ""),
     120,
   );
   if (!sourceActionId) return;
   const now = new Date().toISOString();
-  await supabaseAdmin
+  let actionUpdate: any = supabaseAdmin
     .from("inr_agent_actions")
     .update({
       status: outcome,
@@ -402,9 +451,21 @@ async function syncAutomaticSourceActionOutcome(
     })
     .eq("id", sourceActionId)
     .eq("user_id", row.user_id)
-    .eq("status", "scheduled")
-    .eq("execution_policy", "automatic_after_settings")
-    .eq("validation_required", false);
+    .eq("status", "scheduled");
+  if (row.source === "automatic") {
+    actionUpdate = actionUpdate
+      .eq("execution_policy", "automatic_after_settings")
+      .eq("validation_required", false);
+  } else {
+    actionUpdate = actionUpdate.not("validated_at", "is", null);
+  }
+  const { error: syncError } = await actionUpdate;
+  if (syncError) {
+    console.error(
+      "[inr-agent-scheduled-actions] source action status sync failed",
+      syncError,
+    );
+  }
 }
 
 async function markDone(row: ScheduledActionCronRow, execution: Record<string, unknown>) {
@@ -733,6 +794,24 @@ async function processDueScheduledActions(args: { origin: string; maxRows: numbe
   await resetStaleRunningActions();
 
   const nowIso = new Date().toISOString();
+  let expiredEditorialValidations = 0;
+  let editorialExpirationError: string | null = null;
+  try {
+    expiredEditorialValidations = await refuseExpiredEditorialValidations({
+      nowIso,
+      dryRun: args.dryRun,
+    });
+  } catch (expirationError) {
+    editorialExpirationError =
+      expirationError instanceof Error
+        ? trimDiagnosticText(expirationError.message, 500)
+        : "Contrôle des validations éditoriales expirées impossible.";
+    console.error(
+      "[inr-agent-scheduled-actions] editorial validation expiration failed",
+      expirationError,
+    );
+  }
+
   const { data, error } = await supabaseAdmin
     .from("inr_agent_scheduled_actions")
     .select(SCHEDULED_ACTION_SELECT)
@@ -743,7 +822,12 @@ async function processDueScheduledActions(args: { origin: string; maxRows: numbe
 
   if (error) {
     if (isMissingTableError(error)) {
-      return { tableMissing: true, results: [] as ExecutionResult[] };
+      return {
+        tableMissing: true,
+        results: [] as ExecutionResult[],
+        expiredEditorialValidations,
+        editorialExpirationError,
+      };
     }
     throw error;
   }
@@ -893,7 +977,7 @@ async function processDueScheduledActions(args: { origin: string; maxRows: numbe
           phase: result.phase || null,
         });
         if (transitioned) {
-          await syncAutomaticSourceActionOutcome(claimed, "completed");
+          await syncSourceActionOutcome(claimed, "completed");
           await notifyScheduledActionOutcome(claimed, {
             outcome: result.status === "processing" ? "processing" : "done",
             campaignId: result.campaignId || null,
@@ -929,7 +1013,7 @@ async function processDueScheduledActions(args: { origin: string; maxRows: numbe
         if (!failure.updated) {
           result.detail = result.detail || "claim_lost_after_execution";
         } else if (result.status === "failed") {
-          await syncAutomaticSourceActionOutcome(
+          await syncSourceActionOutcome(
             claimed,
             "failed",
             result.error || null,
@@ -949,7 +1033,12 @@ async function processDueScheduledActions(args: { origin: string; maxRows: numbe
     results.push(result);
   }
 
-  return { tableMissing: false, results };
+  return {
+    tableMissing: false,
+    results,
+    expiredEditorialValidations,
+    editorialExpirationError,
+  };
 }
 
 export async function POST(req: Request) {
@@ -964,16 +1053,23 @@ export async function POST(req: Request) {
   const origin = getAppOriginFromRequest(req);
 
   try {
-    const { tableMissing, results } = await processDueScheduledActions({ origin, maxRows, timeoutMs, dryRun });
+    const {
+      tableMissing,
+      results,
+      expiredEditorialValidations,
+      editorialExpirationError,
+    } = await processDueScheduledActions({ origin, maxRows, timeoutMs, dryRun });
     const summary = results.reduce<Record<string, number>>((acc, result) => {
       acc[result.status] = (acc[result.status] || 0) + 1;
       return acc;
     }, {});
 
     return NextResponse.json({
-      success: !tableMissing,
+      success: !tableMissing && !editorialExpirationError,
       tableMissing,
       dryRun,
+      expiredEditorialValidations,
+      editorialExpirationError,
       processed: results.length,
       summary,
       results,
