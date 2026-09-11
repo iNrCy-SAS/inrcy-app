@@ -36,7 +36,7 @@ test("le bloc Périodes d'essai remplace un emplacement libre dans Admin", () =>
   const adminHome = read("app/dashboard/admin/page.tsx");
   assert.match(adminHome, /href: "\/dashboard\/admin\/trials"/);
   assert.match(adminHome, /title: "Périodes d’essai"/);
-  assert.match(adminHome, /Array\.from\(\{ length: 4 \}/);
+  assert.match(adminHome, /Array\.from\(\{ length: 3 \}/);
   assert.match(adminHome, /const activeToolCount = tools\.length/);
 });
 

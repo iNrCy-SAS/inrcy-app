@@ -36,6 +36,7 @@ test("all campaign editors expose the full-screen message control", () => {
   assert.match(editor, /allowFullscreen\?:\s*boolean/);
   assert.match(editor, /const showExpandControl = mobileFullscreen \|\| allowFullscreen/);
   assert.match(editor, /bottom:\s*mobileFullscreen[\s\S]*?:\s*0,/);
+  assert.match(editor, /createPortal\(editor, document\.body\)/);
 
   for (const path of campaignModals) {
     assert.match(read(path), /<RichMailEditor[\s\S]*?allowFullscreen[\s\S]*?\/>/, `${path} should enable full-screen editing`);

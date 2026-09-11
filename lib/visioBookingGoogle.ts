@@ -1110,6 +1110,15 @@ export async function syncVisioTeamCalendarsToShared(input?: {
         if (replicaId) managedCanonicalByReplicaId.set(replicaId, canonical);
       }
     }
+    const managedCanonicalIdsForReplicaSync = new Set(
+      sharedEvents.flatMap((canonical) =>
+        canonical.id &&
+        canonical.status !== "cancelled" &&
+        isManagedLifecycleEvent(canonical)
+          ? [canonical.id]
+          : [],
+      ),
+    );
     for (const member of teamMembers) {
       let sourceEvents: GoogleCalendarEvent[];
       try {
@@ -1176,7 +1185,10 @@ export async function syncVisioTeamCalendarsToShared(input?: {
           PRIVATE_CALENDAR_REPLICA_VALUE
         ) {
           try {
-            const outcome = await reconcileManagedCalendarReplica(event);
+            const outcome = await reconcileManagedCalendarReplica(
+              event,
+              managedCanonicalIdsForReplicaSync,
+            );
             result[outcome] += 1;
           } catch (error) {
             result.errors.push({
@@ -1324,19 +1336,18 @@ export async function syncVisioTeamCalendarsToShared(input?: {
     // schedule, lifecycle, Meet and event colour. Replica mutations were read
     // above first, so a legitimate edit made in an individual calendar cannot
     // be overwritten before it is reconciled.
-    for (const event of sharedEvents) {
-      if (
-        !event.id ||
-        event.status === "cancelled" ||
-        !isManagedLifecycleEvent(event)
-      ) {
-        continue;
-      }
+    const sharedEventById = new Map(
+      sharedEvents.flatMap((event) =>
+        event.id ? [[event.id, event] as const] : [],
+      ),
+    );
+    for (const canonicalEventId of managedCanonicalIdsForReplicaSync) {
       try {
-        const refreshed = await getCalendarEvent(sharedCalendarId, event.id);
+        const refreshed = await getCalendarEvent(sharedCalendarId, canonicalEventId);
         if (!refreshed || refreshed.status === "cancelled") continue;
         const normalized = await syncManagedCalendarReplicas(refreshed);
-        if (normalized) Object.assign(event, normalized);
+        const listedEvent = sharedEventById.get(canonicalEventId);
+        if (normalized && listedEvent) Object.assign(listedEvent, normalized);
       } catch (error) {
         result.errors.push({
           memberId: "replicas",
@@ -2890,6 +2901,7 @@ async function syncManagedCalendarReplicas(canonical: GoogleCalendarEvent) {
 
 async function reconcileManagedCalendarReplica(
   replica: GoogleCalendarEvent,
+  managedCanonicalIdsForReplicaSync: Set<string>,
 ) {
   const properties = replica.extendedProperties?.private || {};
   if (
@@ -2965,7 +2977,10 @@ async function reconcileManagedCalendarReplica(
   }
 
   if (!storedFingerprint || !replicaChanged) {
-    await syncManagedCalendarReplicas(canonical);
+    // Defer this repair to the single fan-out pass at the end of the sync. The
+    // canonical can be outside the shared-calendar listing window after a
+    // direct move, so keep the id discovered through its in-window replica.
+    managedCanonicalIdsForReplicaSync.add(canonical.id);
     return "unchanged" as const;
   }
 

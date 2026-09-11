@@ -11,6 +11,7 @@ import {
   pendingSignupReminderProspectUserId,
   shouldMirrorTeamCalendarEvent,
   teamCalendarExternalAttendees,
+  teamCalendarMirrorContentSignature,
   teamCalendarMirrorSourceKey,
   type TeamCalendarEvent,
   type TeamCalendarMember,
@@ -305,6 +306,50 @@ test("les rappels Google historiques sont détectés pour être nettoyés", () =
       sourceEvent({ reminders: { useDefault: false, overrides: [] } }),
     ),
     false,
+  );
+});
+
+test("une liste de rappels vide omise par Google garde la même signature", () => {
+  const googleResponse = sourceEvent({
+    reminders: { useDefault: false },
+  });
+  const inrcyRequest = sourceEvent({
+    reminders: { useDefault: false, overrides: [] },
+  });
+
+  assert.equal(
+    teamCalendarMirrorContentSignature(googleResponse),
+    teamCalendarMirrorContentSignature(inrcyRequest),
+  );
+});
+
+test("les métadonnées et l'ordre Google ne changent pas la signature de conférence", () => {
+  type GoogleConferenceData = NonNullable<TeamCalendarEvent["conferenceData"]> & {
+    conferenceId?: string;
+    signature?: string;
+  };
+  const googleResponse = sourceEvent({
+    conferenceData: {
+      conferenceId: "meet-id-from-google",
+      signature: "server-signature",
+      entryPoints: [
+        { entryPointType: "video", uri: "https://meet.google.com/abc-defg-hij" },
+        { entryPointType: "phone", uri: "tel:+33123456789" },
+      ],
+    } as GoogleConferenceData,
+  });
+  const inrcyRequest = sourceEvent({
+    conferenceData: {
+      entryPoints: [
+        { entryPointType: "phone", uri: "tel:+33123456789" },
+        { entryPointType: "video", uri: "https://meet.google.com/abc-defg-hij" },
+      ],
+    },
+  });
+
+  assert.equal(
+    teamCalendarMirrorContentSignature(googleResponse),
+    teamCalendarMirrorContentSignature(inrcyRequest),
   );
 });
 

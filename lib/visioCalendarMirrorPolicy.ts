@@ -297,6 +297,26 @@ export function shouldMirrorTeamCalendarEvent(input: {
 
 export function teamCalendarMirrorContentSignature(event: TeamCalendarEvent) {
   const properties = event.extendedProperties?.private || {};
+  const reminders = event.reminders
+    ? {
+        useDefault: event.reminders.useDefault ?? null,
+        // Google omits an empty overrides array in event responses. Keep that
+        // representation equivalent to the empty array sent by iNrCy so an
+        // unchanged replica is not patched on every reconciliation pass.
+        overrides: event.reminders.overrides ?? [],
+      }
+    : null;
+  const conferenceEntryPoints = (event.conferenceData?.entryPoints || [])
+    .map((entryPoint) => ({
+      entryPointType: String(entryPoint.entryPointType || "").trim(),
+      uri: String(entryPoint.uri || "").trim(),
+    }))
+    .filter((entryPoint) => entryPoint.entryPointType || entryPoint.uri)
+    .sort((left, right) =>
+      `${left.entryPointType}\n${left.uri}`.localeCompare(
+        `${right.entryPointType}\n${right.uri}`,
+      ),
+    );
   return JSON.stringify({
     summary: event.summary || "",
     description: event.description || "",
@@ -306,7 +326,7 @@ export function teamCalendarMirrorContentSignature(event: TeamCalendarEvent) {
     transparency: event.transparency || "",
     start: event.start || null,
     end: event.end || null,
-    reminders: event.reminders || null,
+    reminders,
     mirrorVersion: properties[TEAM_CALENDAR_MIRROR_KEY] || "",
     sourceCalendarId: properties.sourceCalendarId || "",
     sourceEventId: properties.sourceEventId || "",
@@ -325,7 +345,9 @@ export function teamCalendarMirrorContentSignature(event: TeamCalendarEvent) {
     canonicalEventId: properties.inrcyCanonicalEventId || "",
     replicaFingerprint: properties.inrcyReplicaFingerprint || "",
     sourceMeetUrl: properties.sourceMeetUrl || "",
-    conferenceData: event.conferenceData || null,
+    // Conference payloads also contain Google-managed metadata. Replica
+    // equality only depends on the usable entry points and not their order.
+    conferenceData: conferenceEntryPoints.length ? conferenceEntryPoints : null,
     guestEmails: properties[INR_CALENDAR_GOOGLE_GUEST_EMAILS_PROPERTY] || "",
   });
 }

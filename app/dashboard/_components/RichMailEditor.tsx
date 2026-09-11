@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 
 
 import React, { useEffect, useRef, useState, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import { highlightTemplatePlaceholdersInHtml, normalizeRichMailHtmlForSend, richMailHtmlToText, sanitizeRichMailHtml, stripTemplatePlaceholderHighlights, textToRichMailHtml } from "@/lib/mailRichText";
 import EmojiPickerButton from "./EmojiPickerButton";
 
@@ -241,7 +242,7 @@ export default function RichMailEditor({
 
   const showExpandControl = mobileFullscreen || allowFullscreen;
 
-  return (
+  const editor = (
     <div
       role={isExpanded ? "dialog" : undefined}
       aria-modal={isExpanded ? true : undefined}
@@ -386,6 +387,10 @@ export default function RichMailEditor({
       </div>
     </div>
   );
+
+  return isExpanded && typeof document !== "undefined"
+    ? createPortal(editor, document.body)
+    : editor;
 }
 
 function focusEditableWithoutScroll(node: HTMLElement) {

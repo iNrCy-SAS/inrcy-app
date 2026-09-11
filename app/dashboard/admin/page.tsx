@@ -29,6 +29,14 @@ const tools = [
     ready: true,
   },
   {
+    href: "/dashboard/admin/subscribers",
+    icon: "💳",
+    title: "Abonnés",
+    description: "Listing des abonnés et suivi des paiements.",
+    status: "Actif",
+    ready: true,
+  },
+  {
     href: "/dashboard/admin/tools",
     icon: "🧩",
     title: "Accès outils / bulles",
@@ -70,7 +78,7 @@ const tools = [
   },
 ];
 
-const upcomingTools = Array.from({ length: 4 }, (_, index) => ({
+const upcomingTools = Array.from({ length: 3 }, (_, index) => ({
   href: "#",
   icon: "＋",
   title: `Emplacement ${index + 1}`,

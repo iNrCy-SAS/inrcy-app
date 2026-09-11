@@ -139,6 +139,28 @@ test("le calendrier partagé global est synchronisé par un cron protégé et id
   assert.match(inrCalendarSync, /deduplicated/);
 });
 
+test("les répliques inchangées sont regroupées sans perdre un canonique hors fenêtre", () => {
+  const backend = read("lib/visioBookingGoogle.ts");
+  const replicaReconciliation = backend.slice(
+    backend.indexOf("async function reconcileManagedCalendarReplica"),
+    backend.indexOf("async function moveCalendarEventWithoutUpdates"),
+  );
+  assert.match(
+    replicaReconciliation,
+    /if \(!storedFingerprint \|\| !replicaChanged\) \{[\s\S]*?managedCanonicalIdsForReplicaSync\.add\(canonical\.id\);[\s\S]*?return "unchanged" as const;[\s\S]*?\}/,
+  );
+  assert.doesNotMatch(
+    replicaReconciliation.match(
+      /if \(!storedFingerprint \|\| !replicaChanged\) \{[\s\S]*?\n  \}/,
+    )?.[0] || "",
+    /syncManagedCalendarReplicas/,
+  );
+  assert.match(
+    backend,
+    /for \(const canonicalEventId of managedCanonicalIdsForReplicaSync\) \{[\s\S]*?getCalendarEvent\(sharedCalendarId, canonicalEventId\)[\s\S]*?syncManagedCalendarReplicas\(refreshed\)/,
+  );
+});
+
 test("le compte admin ouvre Google Agenda et les copies Google restent en lecture seule", () => {
   const page = read("app/dashboard/agenda/page.tsx");
   const client = read("app/dashboard/agenda/AgendaClient.tsx");
