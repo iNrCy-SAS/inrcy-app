@@ -14,6 +14,11 @@ import {
 } from "@/lib/browserAccountCache";
 import { waitForServerAuthSession } from "@/lib/browserAuthSessionReady";
 import { buildSupabaseEmailRedirectUrl } from "@/lib/authEmailLinks";
+import { classifyLoginError } from "@/lib/loginAuthError";
+import {
+  reportLoginFailure,
+  reportLoginSuccess,
+} from "@/lib/loginFailureAlertClient";
 import AuthLanguageSelector from "@/app/auth/_components/AuthLanguageSelector";
 import styles from "./login.module.css";
 
@@ -48,118 +53,6 @@ type LoginErrorState = {
 };
 
 const PUBLIC_SIGNUP_HREF = "https://inrcy.com/inscription";
-
-function rawErrorMessage(input: unknown): string {
-  if (typeof input === "string") return input.trim();
-  if (input instanceof Error) return String(input.message || "").trim();
-  if (input && typeof input === "object") {
-    const maybe = input as {
-      message?: unknown;
-      error?: unknown;
-      statusText?: unknown;
-      name?: unknown;
-    };
-    if (typeof maybe.message === "string") return maybe.message.trim();
-    if (typeof maybe.error === "string") return maybe.error.trim();
-    if (typeof maybe.statusText === "string") return maybe.statusText.trim();
-    if (typeof maybe.name === "string") return maybe.name.trim();
-  }
-  return "";
-}
-
-function hasAny(value: string, needles: string[]) {
-  return needles.some((needle) => value.includes(needle));
-}
-
-type LoginErrorKind =
-  | "invalidCredentials"
-  | "emailUnconfirmed"
-  | "linkUnavailable"
-  | "network"
-  | "storage"
-  | "service"
-  | "technical";
-
-function classifyLoginError(input: unknown): LoginErrorKind {
-  const raw = rawErrorMessage(input);
-  const message = raw.toLowerCase();
-
-  if (
-    hasAny(message, [
-      "invalid login credentials",
-      "invalid credentials",
-      "email not found",
-      "wrong password",
-    ])
-  ) {
-    return "invalidCredentials";
-  }
-
-  if (hasAny(message, ["email not confirmed", "email_not_confirmed"])) {
-    return "emailUnconfirmed";
-  }
-
-  if (
-    hasAny(message, [
-      "otp_expired",
-      "expired",
-      "invalid token",
-      "email link is invalid",
-      "email rate limit",
-      "over_email_send_rate_limit",
-    ])
-  ) {
-    return "linkUnavailable";
-  }
-
-  if (
-    hasAny(message, [
-      "failed to fetch",
-      "networkerror",
-      "network request failed",
-      "load failed",
-      "fetch failed",
-      "econnreset",
-      "econnrefused",
-      "enotfound",
-      "socket hang up",
-      "aborterror",
-      "timeout",
-      "timed out",
-    ])
-  ) {
-    return "network";
-  }
-
-  if (
-    hasAny(message, [
-      "auth session missing",
-      "session",
-      "storage",
-      "localstorage",
-      "cookie",
-      "cookies",
-    ])
-  ) {
-    return "storage";
-  }
-
-  if (
-    hasAny(message, [
-      "500",
-      "502",
-      "503",
-      "504",
-      "server error",
-      "internal server error",
-      "service unavailable",
-    ])
-  ) {
-    return "service";
-  }
-
-  return "technical";
-}
 
 function makeLoginError(
   title: string,
@@ -323,6 +216,7 @@ export default function LoginPage() {
       redirectingToDashboardRef.current = true;
       setRedirectingToDashboard(true);
       setCheckingSession(true);
+      void reportLoginSuccess();
       window.location.replace(resolvePostLoginHref(localizedDashboardHref));
     };
 
@@ -608,15 +502,25 @@ export default function LoginPage() {
         return;
       }
 
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      let signInError: unknown = null;
+      let signInThrew = false;
+      try {
+        const result = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        signInError = result.error;
+      } catch (err: unknown) {
+        signInError = err;
+        signInThrew = true;
+      }
 
-      if (error) {
+      if (signInError) {
+        void reportLoginFailure({ email, error: signInError });
+        if (signInThrew) throw signInError;
         setError(
           friendlyLoginError(
-            error,
+            signInError,
             t("errors.actionFailed"),
           ),
         );
@@ -670,6 +574,7 @@ export default function LoginPage() {
 
       // Redirection complète uniquement après confirmation que la session est
       // lisible côté serveur. Cela évite un rebond /dashboard -> /login.
+      void reportLoginSuccess();
       window.location.replace(resolvePostLoginHref(localizedDashboardHref));
     } catch (err: unknown) {
       setError(
