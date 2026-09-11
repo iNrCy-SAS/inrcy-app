@@ -8,6 +8,8 @@ import {
   buildAiMemoryPromptPayload,
   EMPTY_AI_BUSINESS_KNOWLEDGE,
   EMPTY_AI_MEMORY,
+  getAiWorkspaceCompletionScore,
+  mergeAiBusinessDnaAnalysis,
   normalizeAiBusinessKnowledge,
   normalizeAiMemory,
 } from "@/lib/aiMemory";
@@ -28,13 +30,23 @@ import {
   refundBusinessDnaAnalysisQuota,
 } from "@/lib/businessDnaAnalysisQuota";
 import { isAdminUserForAi } from "@/lib/aiUsageQuota";
+import { invalidateBoosterGenerationContext } from "@/lib/boosterGenerationContext";
+import {
+  getCronUserIdFromRequest,
+  isAuthorizedCronRequest,
+} from "@/lib/cronAuth";
 import { hasPremiumDashboardAccess } from "@/lib/dashboardEdition";
 import { getDashboardEditionForAccountId } from "@/lib/dashboardEditionServer";
 import { getChannelConnectionStates } from "@/lib/channelConnectionState";
 import { enforceRateLimit } from "@/lib/rateLimit";
 import { requireUser } from "@/lib/requireUser";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { asRecord, asString } from "@/lib/tsSafe";
-import { decodeBusinessWeeklySchedule } from "@/lib/businessWeeklySchedule";
+import {
+  decodeBusinessWeeklySchedule,
+  encodeBusinessWeeklySchedule,
+  formatBusinessWeeklySchedule,
+} from "@/lib/businessWeeklySchedule";
 import { buildBusinessDnaRecentWindow } from "@/lib/businessDnaRecentNews";
 
 export const runtime = "nodejs";
@@ -198,6 +210,22 @@ function quotaReachedResponse(
   );
 }
 
+function businessKnowledgeFromProfileRow(value: unknown) {
+  const business = asRecord(value);
+  return normalizeAiBusinessKnowledge({
+    ...EMPTY_AI_BUSINESS_KNOWLEDGE,
+    description: business.business_description || business.activity_description,
+    services: business.services,
+    interventionZones: business.intervention_zones,
+    weeklySchedule: decodeBusinessWeeklySchedule(
+      business.opening_days,
+      business.opening_hours,
+    ),
+    strengths: business.strengths,
+    customerTypes: business.customer_typologies,
+  });
+}
+
 export async function GET() {
   const { supabase, activeUserId, authUserId, errorResponse } = await requireUser();
   if (errorResponse) return errorResponse;
@@ -231,20 +259,37 @@ export async function GET() {
   }
 }
 
-export async function POST() {
-  const { supabase, activeUserId, authUserId, errorResponse } = await requireUser();
-  if (errorResponse) return errorResponse;
+export async function POST(request: Request) {
+  const automaticUserId =
+    new URL(request.url).searchParams.get("automatic") === "1" &&
+    isAuthorizedCronRequest(request)
+      ? getCronUserIdFromRequest(request)
+      : "";
+  const automatic = Boolean(automaticUserId);
+  let supabase = supabaseAdmin;
+  let activeUserId = automaticUserId;
+  let authUserId = "";
 
-  const rateLimited = await enforceRateLimit({
-    name: "business_dna_analyze",
-    identifier: activeUserId,
-    limit: 3,
-    fallbackLimit: 2,
-    window: "5 m",
-    failClosed: false,
-    code: "business_dna_analysis_rate_limit",
-  });
-  if (rateLimited) return rateLimited;
+  if (!automatic) {
+    const userContext = await requireUser();
+    if (userContext.errorResponse) return userContext.errorResponse;
+    supabase = userContext.supabase;
+    activeUserId = userContext.activeUserId;
+    authUserId = userContext.authUserId;
+  }
+
+  if (!automatic) {
+    const rateLimited = await enforceRateLimit({
+      name: "business_dna_analyze",
+      identifier: activeUserId,
+      limit: 3,
+      fallbackLimit: 2,
+      window: "5 m",
+      failClosed: false,
+      code: "business_dna_analysis_rate_limit",
+    });
+    if (rateLimited) return rateLimited;
+  }
 
   let consumedQuotaContext: {
     accountId: string;
@@ -272,7 +317,7 @@ export async function POST() {
         .select("settings")
         .eq("user_id", activeUserId)
         .maybeSingle(),
-      isAdminUserForAi(supabase, authUserId),
+      automatic ? Promise.resolve(false) : isAdminUserForAi(supabase, authUserId),
     ]);
 
     if (businessResult.error) throw businessResult.error;
@@ -283,17 +328,20 @@ export async function POST() {
 
     const premiumEnabled = hasPremiumDashboardAccess(edition);
     const recentWindow = buildBusinessDnaRecentWindow();
-    // Toutes les éditions commerciales partagent désormais le même plafond de
-    // quatre analyses. Utiliser la ligne Standard rend ce plafond effectif dès
-    // le déploiement du code, même avant l'application de la migration SQL.
+    // Toutes les éditions commerciales partagent le même plafond manuel. La
+    // programmation mensuelle gratuite suit un verrou séparé et ne passe
+    // jamais par ce compteur.
     const quotaEdition: BusinessDnaAnalysisQuotaEdition = isAdmin ? "admin" : "standard";
     const quotaContext = {
       accountId: activeUserId,
       actorAuthUserId: authUserId,
       edition: quotaEdition,
     };
-    const currentQuota = await getBusinessDnaAnalysisQuota(quotaContext);
-    if (currentQuota.remaining === 0) return quotaReachedResponse(currentQuota);
+    let quota: Awaited<ReturnType<typeof consumeBusinessDnaAnalysisQuota>> | null = null;
+    if (!automatic) {
+      const currentQuota = await getBusinessDnaAnalysisQuota(quotaContext);
+      if (currentQuota.remaining === 0) return quotaReachedResponse(currentQuota);
+    }
 
     const sources = await collectBusinessDnaChannelSources({
       supabase,
@@ -314,28 +362,22 @@ export async function POST() {
       );
     }
 
-    const quota = await consumeBusinessDnaAnalysisQuota(quotaContext);
-    if (quota.outcome === "quota_reached") {
-      return quotaReachedResponse(quota, publicSources);
+    if (!automatic) {
+      quota = await consumeBusinessDnaAnalysisQuota(quotaContext);
+      if (quota.outcome === "quota_reached") {
+        return quotaReachedResponse(quota, publicSources);
+      }
+      consumedQuotaContext = quotaContext;
     }
-    consumedQuotaContext = quotaContext;
 
     const business = asRecord(businessResult.data);
-    const existingMemory = normalizeAiMemory(memoryResult.data?.memory || EMPTY_AI_MEMORY, {
+    const storedMemory = normalizeAiMemory(memoryResult.data?.memory || EMPTY_AI_MEMORY, {
+      includePremium: true,
+    });
+    const existingMemory = normalizeAiMemory(storedMemory, {
       includePremium: premiumEnabled,
     });
-    const existingBusinessKnowledge = normalizeAiBusinessKnowledge({
-      ...EMPTY_AI_BUSINESS_KNOWLEDGE,
-      description: business.business_description || business.activity_description,
-      services: business.services,
-      interventionZones: business.intervention_zones,
-      weeklySchedule: decodeBusinessWeeklySchedule(
-        business.opening_days,
-        business.opening_hours,
-      ),
-      strengths: business.strengths,
-      customerTypes: business.customer_typologies,
-    });
+    const existingBusinessKnowledge = businessKnowledgeFromProfileRow(business);
     const language = asString(business.ai_language) || "fr";
     const preferredEngine = normalizeAiPreferredEngine(business.ai_preferred_engine);
     const budget = createAiOperationBudget("business-dna.analyze");
@@ -421,6 +463,99 @@ Réponds uniquement selon le schéma JSON demandé.`;
       recentNewsWindowEnd: recentWindow.end,
       recentNewsSourceKeys,
     }, { includePremium: premiumEnabled });
+    if (automatic) {
+      // L'analyse peut durer plus d'une minute. Relire les deux blocs juste
+      // avant l'écriture évite qu'une modification manuelle faite pendant ce
+      // temps soit remplacée par l'instantané chargé au début de la tâche.
+      const [latestBusinessResult, latestMemoryResult] = await Promise.all([
+        supabase
+          .from("business_profiles")
+          .select(
+            "business_description,activity_description,services,intervention_zones,opening_days,opening_hours,strengths,customer_typologies",
+          )
+          .eq("user_id", activeUserId)
+          .order("updated_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from("business_ai_memories")
+          .select("memory")
+          .eq("account_id", activeUserId)
+          .maybeSingle(),
+      ]);
+      if (latestBusinessResult.error) throw latestBusinessResult.error;
+      if (latestMemoryResult.error) throw latestMemoryResult.error;
+
+      const latestStoredMemory = normalizeAiMemory(
+        latestMemoryResult.data?.memory || EMPTY_AI_MEMORY,
+        { includePremium: true },
+      );
+      const latestBusinessKnowledge = businessKnowledgeFromProfileRow(
+        latestBusinessResult.data,
+      );
+      const merged = mergeAiBusinessDnaAnalysis(
+        latestStoredMemory,
+        latestBusinessKnowledge,
+        suggestedMemory,
+        suggestedBusinessKnowledge,
+        { includePremium: premiumEnabled },
+      );
+      const updatedAt = new Date().toISOString();
+      const { error: businessError } = await supabase
+        .from("business_profiles")
+        .upsert(
+          {
+            user_id: activeUserId,
+            business_description: merged.businessKnowledge.description,
+            services: merged.businessKnowledge.services,
+            intervention_zones: merged.businessKnowledge.interventionZones,
+            opening_days: encodeBusinessWeeklySchedule(merged.businessKnowledge.weeklySchedule),
+            opening_hours: formatBusinessWeeklySchedule(merged.businessKnowledge.weeklySchedule),
+            strengths: merged.businessKnowledge.strengths,
+            customer_typologies: merged.businessKnowledge.customerTypes,
+            updated_at: updatedAt,
+          },
+          { onConflict: "user_id" },
+        );
+      if (businessError) throw businessError;
+
+      const completionScore = getAiWorkspaceCompletionScore(
+        merged.memory,
+        merged.businessKnowledge,
+        { includePremium: false },
+      );
+      const { error: memoryError } = await supabase
+        .from("business_ai_memories")
+        .upsert(
+          {
+            account_id: activeUserId,
+            schema_version: 1,
+            memory: merged.memory,
+            completion_score: completionScore,
+          },
+          { onConflict: "account_id" },
+        );
+      if (memoryError) throw memoryError;
+
+      await invalidateBoosterGenerationContext(activeUserId, "professional");
+      return NextResponse.json(
+        {
+          ok: true,
+          automatic: true,
+          edition,
+          premiumEnabled,
+          analyzedAt: updatedAt,
+          sources: publicSources,
+          applied: {
+            changedFields: merged.changedFields,
+            addedItems: merged.addedItems,
+            completionScore,
+          },
+        },
+        { headers: { "Cache-Control": "no-store" } },
+      );
+    }
+
     consumedQuotaContext = null;
 
     return NextResponse.json(

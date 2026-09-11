@@ -32,6 +32,7 @@ import { confirmInrcy } from "@/lib/inrcyDialog";
 import { refreshPublicProfileDependents } from "@/lib/publicProfileRefreshClient";
 import MediaSubjectVoiceButton from "../../_components/MediaSubjectVoiceButton";
 import BusinessDnaRichTextEditor from "./BusinessDnaRichTextEditor";
+import BusinessDnaAnalysisScheduleModal from "./BusinessDnaAnalysisScheduleModal";
 import BusinessScheduleEditor from "./BusinessScheduleEditor";
 import EditableTags from "./EditableTags";
 
@@ -179,6 +180,7 @@ export default function AiMemoryContent({
   const [analysisError, setAnalysisError] = useState("");
   const [analysisSummary, setAnalysisSummary] = useState<AnalysisSummary | null>(null);
   const [analysisQuota, setAnalysisQuota] = useState<AnalysisQuota | null>(null);
+  const [analysisScheduleOpen, setAnalysisScheduleOpen] = useState(false);
   const [analysisChannels, setAnalysisChannels] =
     useState<BusinessDnaDashboardChannelAvailability[]>(disconnectedAnalysisChannels);
   const memoryRef = useRef<AiMemory>(EMPTY_AI_MEMORY);
@@ -866,6 +868,19 @@ export default function AiMemoryContent({
                         ? t("analysisQuotaReachedButton")
                         : t("analysisButton")}
                   </button>
+                  <button
+                    type="button"
+                    disabled={voiceBusy || analyzing}
+                    onClick={() => setAnalysisScheduleOpen(true)}
+                    style={{
+                      ...analysisScheduleButtonStyle,
+                      opacity: voiceBusy || analyzing ? 0.58 : 1,
+                      cursor: voiceBusy || analyzing ? "default" : "pointer",
+                    }}
+                  >
+                    <span aria-hidden>◷</span>
+                    <span>{t("analysisScheduleButton")}</span>
+                  </button>
                   {analysisQuota ? (
                     <span style={analysisQuotaStyle}>
                       <span aria-hidden style={analysisQuotaDotStyle} />
@@ -1280,6 +1295,11 @@ export default function AiMemoryContent({
       {error ? <div style={errorStyle}>{error}</div> : null}
       {saved ? <div style={successStyle}>{t("saved")}</div> : null}
 
+      <BusinessDnaAnalysisScheduleModal
+        open={analysisScheduleOpen}
+        onClose={() => setAnalysisScheduleOpen(false)}
+      />
+
       {!loading && loaded && (activeTab !== "analysis" || signature !== savedSignatureRef.current) ? (
         <div data-ai-memory-actions style={actionsStyle}>
           <button type="button" disabled={saving || voiceBusy} onClick={() => void resetWorkspace()} style={dangerButtonStyle}>{t("reset")}</button>
@@ -1661,7 +1681,7 @@ const analysisDnaModelStyle: CSSProperties = { position: "relative", width: 184,
 const analysisStreamLeftStyle: CSSProperties = { position: "absolute", zIndex: 2, left: 0, top: "16%", width: "calc(50% - 110px)", height: "68%", overflow: "hidden", maskImage: "linear-gradient(90deg, transparent, black 20%, black)" };
 const analysisStreamRightStyle: CSSProperties = { position: "absolute", zIndex: 2, right: 0, top: "16%", width: "calc(50% - 110px)", height: "68%", overflow: "hidden", maskImage: "linear-gradient(270deg, transparent, black 20%, black)" };
 const analysisStreamParticleStyle: CSSProperties = { position: "absolute", width: 5, height: 5, borderRadius: "50%", background: "#fdf2f8", boxShadow: "0 0 8px #f472b6, 0 0 20px rgba(56,189,248,.72)", opacity: 0.24 };
-const analysisIntroStyle: CSSProperties = { width: "min(680px, 100%)", display: "grid", justifyItems: "center", gap: 8 };
+const analysisIntroStyle: CSSProperties = { width: "min(680px, 100%)", display: "grid", justifyItems: "center", gap: 8, marginTop: -14 };
 const analysisTitleStyle: CSSProperties = { margin: 0, color: "white", fontSize: "clamp(22px, 2.7vw, 34px)", lineHeight: 1.08, letterSpacing: "-0.035em", textWrap: "balance" };
 const analysisDescriptionStyle: CSSProperties = { margin: 0, maxWidth: 650, color: "rgba(213,226,250,0.70)", fontSize: "clamp(11.5px, 1.25vw, 13.5px)", lineHeight: 1.42, textWrap: "balance" };
 const analysisChannelRailStyle: CSSProperties = { width: "min(1060px, 100%)", display: "flex", flexWrap: "wrap", justifyContent: "center", alignItems: "center", gap: 6, minWidth: 0 };
@@ -1680,6 +1700,7 @@ const analysisProgressStyle: CSSProperties = { width: "min(650px, 88%)", display
 const analysisActionGroupStyle: CSSProperties = { display: "grid", justifyItems: "center", gap: 9 };
 const analysisPrivacyStyle: CSSProperties = { maxWidth: 720, color: "rgba(165,243,252,0.58)", fontSize: 10, lineHeight: 1.35 };
 const analysisButtonStyle: CSSProperties = { minHeight: 42, borderRadius: 13, border: "1px solid rgba(103,232,249,0.40)", background: "linear-gradient(105deg, rgba(8,145,178,0.96), rgba(109,40,217,0.96) 58%, rgba(219,39,119,0.92))", color: "white", padding: "9px 18px", fontSize: 12.5, fontWeight: 950, boxShadow: "0 13px 32px rgba(124,58,237,0.24)" };
+const analysisScheduleButtonStyle: CSSProperties = { minHeight: 38, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, borderRadius: 12, border: "1px solid rgba(125,211,252,0.28)", background: "linear-gradient(115deg, rgba(8,47,79,0.74), rgba(49,32,91,0.76))", color: "rgba(240,249,255,.92)", padding: "8px 15px", fontSize: 11.5, fontWeight: 900, boxShadow: "0 9px 23px rgba(14,116,144,0.12)" };
 const analysisReportStyle: CSSProperties = { display: "grid", gap: 9, paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.08)" };
 const analysisErrorStyle: CSSProperties = { borderRadius: 11, border: "1px solid rgba(248,113,113,0.26)", background: "rgba(127,29,29,0.16)", color: "#fecaca", padding: "9px 11px", fontSize: 11.5, fontWeight: 750 };
 const scoreStyle: CSSProperties = { minWidth: 38, color: "#ddd6fe", fontSize: 12, textAlign: "right" };

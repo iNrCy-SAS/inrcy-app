@@ -11,6 +11,7 @@ import {
   type VisioAppointmentOrigin,
   type VisioAppointmentStatus,
 } from "@/lib/visioAppointmentLifecycle";
+import { shouldApplyVisioTeamAppointmentsResponse } from "@/lib/visioTeamAgendaRequestPolicy";
 
 import styles from "./teamAgenda.module.css";
 
@@ -118,8 +119,31 @@ export default function TeamAgendaClient({
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const resendDeliveryKeys = useRef(new Map<string, string>());
+  const appointmentMutationInFlight = useRef(false);
+  const appointmentMutationRevision = useRef(0);
+  const appointmentLoadSequence = useRef(0);
+  const lastAppliedAppointmentLoad = useRef(0);
+
+  const beginAppointmentMutation = useCallback(() => {
+    if (appointmentMutationInFlight.current) return false;
+    appointmentMutationInFlight.current = true;
+    // Any list request that started before this mutation is now stale. Its
+    // response must never overwrite the authoritative mutation response.
+    appointmentMutationRevision.current += 1;
+    return true;
+  }, []);
+
+  const endAppointmentMutation = useCallback(() => {
+    appointmentMutationInFlight.current = false;
+  }, []);
 
   const loadAppointments = useCallback(async (manual = false, silent = false) => {
+    // The 15-second refresh used to race a date/status update: an older GET
+    // could finish after the PATCH and visually restore the former slot/color.
+    if (appointmentMutationInFlight.current) return;
+    const requestSequence = appointmentLoadSequence.current + 1;
+    appointmentLoadSequence.current = requestSequence;
+    const mutationRevision = appointmentMutationRevision.current;
     if (manual) setRefreshing(true);
     else if (!silent) setLoading(true);
     if (!silent) setError("");
@@ -133,10 +157,24 @@ export default function TeamAgendaClient({
       });
       const payload = await response.json().catch(() => ({})) as AppointmentsPayload;
       if (!response.ok) throw new Error(payload.error || "Impossible de charger les rendez-vous.");
+      if (!shouldApplyVisioTeamAppointmentsResponse({
+        startedMutationRevision: mutationRevision,
+        currentMutationRevision: appointmentMutationRevision.current,
+        requestSequence,
+        lastAppliedRequestSequence: lastAppliedAppointmentLoad.current,
+        mutationInFlight: appointmentMutationInFlight.current,
+      })) {
+        return;
+      }
+      lastAppliedAppointmentLoad.current = requestSequence;
       setAppointments(Array.isArray(payload.appointments) ? payload.appointments : []);
       setMembers(Array.isArray(payload.members) ? payload.members : []);
     } catch (loadError) {
-      if (!silent) {
+      if (
+        !silent &&
+        mutationRevision === appointmentMutationRevision.current &&
+        !appointmentMutationInFlight.current
+      ) {
         setError(loadError instanceof Error ? loadError.message : "Impossible de charger les rendez-vous.");
       }
     } finally {
@@ -180,6 +218,7 @@ export default function TeamAgendaClient({
       resendingId ||
       statusUpdatingId
     ) return;
+    if (!beginAppointmentMutation()) return;
     const previousMemberId = appointment.currentMemberId;
     const previousMemberName = appointment.currentMemberName;
     setAssigningId(appointment.id);
@@ -234,8 +273,16 @@ export default function TeamAgendaClient({
       setError(assignmentError instanceof Error ? assignmentError.message : "La réattribution a échoué.");
     } finally {
       setAssigningId("");
+      endAppointmentMutation();
     }
-  }, [assigningId, reschedulingId, resendingId, statusUpdatingId]);
+  }, [
+    assigningId,
+    beginAppointmentMutation,
+    endAppointmentMutation,
+    reschedulingId,
+    resendingId,
+    statusUpdatingId,
+  ]);
 
   const beginReschedule = useCallback((appointment: TeamAppointment) => {
     if (
@@ -259,6 +306,7 @@ export default function TeamAgendaClient({
       resendingId ||
       statusUpdatingId
     ) return;
+    if (!beginAppointmentMutation()) return;
     setReschedulingId(appointment.id);
     setError("");
     setSuccess("");
@@ -297,8 +345,17 @@ export default function TeamAgendaClient({
       setError(scheduleError instanceof Error ? scheduleError.message : "Le changement de date a échoué.");
     } finally {
       setReschedulingId("");
+      endAppointmentMutation();
     }
-  }, [assigningId, newStartLocal, reschedulingId, resendingId, statusUpdatingId]);
+  }, [
+    assigningId,
+    beginAppointmentMutation,
+    endAppointmentMutation,
+    newStartLocal,
+    reschedulingId,
+    resendingId,
+    statusUpdatingId,
+  ]);
 
   const resendBookingLink = useCallback(async (appointment: TeamAppointment) => {
     if (
@@ -376,6 +433,7 @@ export default function TeamAgendaClient({
     ) {
       return;
     }
+    if (!beginAppointmentMutation()) return;
     setStatusUpdatingId(appointment.id);
     setError("");
     setSuccess("");
@@ -417,8 +475,16 @@ export default function TeamAgendaClient({
       );
     } finally {
       setStatusUpdatingId("");
+      endAppointmentMutation();
     }
-  }, [assigningId, reschedulingId, resendingId, statusUpdatingId]);
+  }, [
+    assigningId,
+    beginAppointmentMutation,
+    endAppointmentMutation,
+    reschedulingId,
+    resendingId,
+    statusUpdatingId,
+  ]);
 
   return (
     <main className={styles.page}>

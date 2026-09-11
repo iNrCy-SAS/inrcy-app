@@ -5,12 +5,15 @@ import test from "node:test";
 const read = (relativePath: string) =>
   readFileSync(new URL(`../../${relativePath}`, import.meta.url), "utf8");
 
-test("Business DNA grants 4 analyses to every commercial edition and 16 only to Admin", () => {
+test("Business DNA keeps Admin at 16 and the latest migration sets every commercial edition to 3", () => {
   const quota = read("lib/businessDnaAnalysisQuota.ts");
   const route = read("app/api/ai-memory/analyze-channels/route.ts");
   const migration = read("ops/sql/2026-09-09_business_dna_plan_limits_4_admin_16.sql");
   const postflight = read(
     "ops/sql/2026-09-09_business_dna_plan_limits_4_admin_16_postflight_read_only.sql",
+  );
+  const currentMigration = read(
+    "supabase/migrations/20260911190000_business_dna_automatic_analysis.sql",
   );
 
   assert.match(quota, /DashboardEdition \| "admin"/);
@@ -37,4 +40,9 @@ test("Business DNA grants 4 analyses to every commercial edition and 16 only to 
   assert.match(postflight, /edition = 'premium' and monthly_limit = 4/);
   assert.match(postflight, /edition = 'founder' and monthly_limit = 4/);
   assert.match(postflight, /edition = 'admin' and monthly_limit = 16/);
+
+  assert.match(currentMigration, /\('standard', 3\)/);
+  assert.match(currentMigration, /\('premium', 3\)/);
+  assert.match(currentMigration, /\('founder', 3\)/);
+  assert.match(currentMigration, /\('admin', 16\)/);
 });

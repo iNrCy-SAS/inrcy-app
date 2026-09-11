@@ -387,6 +387,7 @@ test("une réplique stable ne demande aucun accès Google supplémentaire", () =
     teamCalendarReplicaReconciliationDecision({
       storedFingerprint: "fingerprint-v1",
       actualFingerprint: "fingerprint-v1",
+      canonicalFingerprint: "fingerprint-v1",
       contentMatchesCanonical: true,
     }),
     "stable",
@@ -395,6 +396,7 @@ test("une réplique stable ne demande aucun accès Google supplémentaire", () =
     teamCalendarReplicaReconciliationDecision({
       storedFingerprint: "fingerprint-v1",
       actualFingerprint: "fingerprint-v1",
+      canonicalFingerprint: "fingerprint-v1",
       contentMatchesCanonical: false,
     }),
     "repair",
@@ -402,6 +404,7 @@ test("une réplique stable ne demande aucun accès Google supplémentaire", () =
   assert.equal(
     teamCalendarReplicaReconciliationDecision({
       actualFingerprint: "legacy",
+      canonicalFingerprint: "current-canonical",
       contentMatchesCanonical: true,
     }),
     "repair",
@@ -410,6 +413,7 @@ test("une réplique stable ne demande aucun accès Google supplémentaire", () =
     teamCalendarReplicaReconciliationDecision({
       storedFingerprint: "fingerprint-from-an-older-signature-version",
       actualFingerprint: "fingerprint-from-the-current-signature-version",
+      canonicalFingerprint: "fingerprint-from-the-current-signature-version",
       contentMatchesCanonical: true,
     }),
     "stable",
@@ -418,9 +422,20 @@ test("une réplique stable ne demande aucun accès Google supplémentaire", () =
     teamCalendarReplicaReconciliationDecision({
       storedFingerprint: "fingerprint-v1",
       actualFingerprint: "changed-by-user",
+      canonicalFingerprint: "fingerprint-v1",
       contentMatchesCanonical: false,
     }),
     "replica_changed",
+  );
+  assert.equal(
+    teamCalendarReplicaReconciliationDecision({
+      storedFingerprint: "former-canonical-snapshot",
+      actualFingerprint: "former-snapshot-normalized-by-google",
+      canonicalFingerprint: "current-canonical-snapshot",
+      contentMatchesCanonical: false,
+    }),
+    "repair",
+    "une ancienne copie Google ne doit jamais restaurer l'ancienne date ou couleur",
   );
 });
 

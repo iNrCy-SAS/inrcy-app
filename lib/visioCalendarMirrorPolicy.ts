@@ -368,12 +368,26 @@ export function teamCalendarMirrorContentSignature(event: TeamCalendarEvent) {
 export function teamCalendarReplicaReconciliationDecision(input: {
   storedFingerprint?: string;
   actualFingerprint?: string;
+  canonicalFingerprint: string;
   contentMatchesCanonical: boolean;
 }): TeamCalendarReplicaReconciliationDecision {
   const storedFingerprint = String(input.storedFingerprint || "").trim();
   const actualFingerprint = String(input.actualFingerprint || "").trim();
+  const canonicalFingerprint = String(
+    input.canonicalFingerprint || "",
+  ).trim();
   if (!storedFingerprint) return "repair";
   if (input.contentMatchesCanonical) return "stable";
+  // A replica can be returned by Google from an older snapshot immediately
+  // after iNrCy moved or recoloured the canonical event. If its base
+  // fingerprint is no longer the canonical one, the canonical event wins;
+  // otherwise the stale replica could restore the former date/status.
+  if (
+    canonicalFingerprint &&
+    storedFingerprint !== canonicalFingerprint
+  ) {
+    return "repair";
+  }
   if (actualFingerprint !== storedFingerprint) {
     return "replica_changed";
   }

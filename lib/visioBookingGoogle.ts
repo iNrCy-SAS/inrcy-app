@@ -3276,9 +3276,15 @@ async function reconcileManagedCalendarReplica(
   }
 
   const desiredReplica = managedCalendarReplicaBody(canonical, member);
+  const canonicalFingerprint = String(
+    desiredReplica.extendedProperties.private[
+      PRIVATE_REPLICA_FINGERPRINT_KEY
+    ] || "",
+  ).trim();
   const decision = teamCalendarReplicaReconciliationDecision({
     storedFingerprint,
     actualFingerprint,
+    canonicalFingerprint,
     contentMatchesCanonical:
       teamCalendarMirrorContentSignature(replica) ===
       teamCalendarMirrorContentSignature(desiredReplica),

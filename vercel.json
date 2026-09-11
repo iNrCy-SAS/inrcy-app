@@ -22,6 +22,10 @@
       "schedule": "*/15 * * * *"
     },
     {
+      "path": "/api/cron/business-dna-analysis",
+      "schedule": "*/1 * * * *"
+    },
+    {
       "path": "/api/cron/calendar-reminders",
       "schedule": "*/10 * * * *"
     },
