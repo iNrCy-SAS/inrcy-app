@@ -6,6 +6,7 @@ import {
 } from "@/lib/visioBookingGoogle";
 import {
   calendarIdFromVisioWatchToken,
+  claimVisioCalendarWebhookSync,
   isWatchedVisioCalendar,
 } from "@/lib/visioCalendarWatch";
 
@@ -35,13 +36,31 @@ export async function POST(request: Request) {
     );
   }
 
+  // Google sends this handshake when a watch channel is created. It does not
+  // describe an event mutation and must not trigger a full multi-calendar sync.
+  if (resourceState === "sync") {
+    return NextResponse.json(
+      { ok: true, accepted: true, ignored: "initial_sync" },
+      { status: 202, headers: { "Cache-Control": "no-store" } },
+    );
+  }
+
+  if (!(await claimVisioCalendarWebhookSync())) {
+    return NextResponse.json(
+      { ok: true, accepted: true, coalesced: true },
+      { status: 202, headers: { "Cache-Control": "no-store" } },
+    );
+  }
+
   after(async () => {
     try {
       // The shared calendar also receives the raw signup reminder. Running the
       // team reconciliation on every trusted notification attributes it at
       // once; the second notification caused by that patch is idempotent.
-      await syncVisioTeamCalendarsToShared();
-      await syncVisioSharedCalendarToInrCalendar();
+      const teamCalendar = await syncVisioTeamCalendarsToShared();
+      if (!teamCalendar.locked) {
+        await syncVisioSharedCalendarToInrCalendar();
+      }
     } catch (error) {
       console.error(
         "[google-calendar-webhook][sync-failed]",

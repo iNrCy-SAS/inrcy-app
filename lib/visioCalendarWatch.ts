@@ -14,6 +14,8 @@ import {
 
 const WATCH_TTL_SECONDS = 6 * 24 * 60 * 60;
 const WATCH_RENEWAL_WINDOW_MS = 24 * 60 * 60_000;
+const WEBHOOK_SYNC_COALESCE_SECONDS = 90;
+const WEBHOOK_SYNC_COALESCE_KEY = "inrcy:visio-calendar-webhook-sync:v1";
 
 type WatchState = {
   channelId: string;
@@ -59,6 +61,27 @@ function watchRedis() {
   };
   cache.__inrcy_visio_watch_redis ||= new Redis({ url, token });
   return cache.__inrcy_visio_watch_redis;
+}
+
+export async function claimVisioCalendarWebhookSync() {
+  const redis = watchRedis();
+  if (!redis) return true;
+  try {
+    return (
+      await redis.set(WEBHOOK_SYNC_COALESCE_KEY, randomUUID(), {
+        nx: true,
+        ex: WEBHOOK_SYNC_COALESCE_SECONDS,
+      })
+    ) === "OK";
+  } catch (error) {
+    // The minute cron remains the recovery path. A transient Redis incident
+    // must not make a valid Google notification disappear completely.
+    console.error(
+      "[google-calendar-webhook][coalesce-failed]",
+      error instanceof Error ? error.message : "redis_failed",
+    );
+    return true;
+  }
 }
 
 function stateKey(calendarId: string) {
@@ -192,4 +215,3 @@ export function isWatchedVisioCalendar(calendarId: string) {
     (candidate) => candidate.trim().toLowerCase() === normalized,
   );
 }
-

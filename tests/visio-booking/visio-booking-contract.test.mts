@@ -97,6 +97,17 @@ test("une inscription devient un seul événement partagé avec Meet et invités
   assert.doesNotMatch(mirror, /attendees\s*:/);
   assert.doesNotMatch(mirror, /conferenceSolutionKey/);
   assert.match(backend, /canonical\.conferenceData/);
+  const alertCall = creation.indexOf("await ensureBookingInternalAlertForEvent");
+  const meetWait = creation.indexOf("await waitForMeetConference");
+  const replicaSync = creation.indexOf("await syncManagedCalendarReplicas");
+  const alertIntent = creation.indexOf("await prepareVisioBookingInternalAlert");
+  const googleMutation = creation.indexOf("event = await googleCalendarRequest");
+  assert.ok(alertIntent >= 0 && alertIntent < googleMutation);
+  assert.ok(meetWait >= 0 && meetWait < alertCall && alertCall < replicaSync);
+  assert.match(creation, /catch \(error\) \{[\s\S]*?ensureBookingInternalAlertForEvent[\s\S]*?throw error/);
+  assert.doesNotMatch(creation, /createdMasterEvent|sendMonitoringMail/);
+  const booking = backend.slice(backend.indexOf("export async function bookVisioSlot"));
+  assert.ok((booking.match(/ensureBookingInternalAlertForEvent/g) || []).length >= 3);
 });
 
 test("le calendrier partagé global est synchronisé par un cron protégé et idempotent", () => {
@@ -110,12 +121,15 @@ test("le calendrier partagé global est synchronisé par un cron protégé et id
   assert.match(route, /syncVisioTeamCalendarsToShared/);
   assert.match(route, /syncVisioSharedCalendarToInrCalendar/);
   assert.match(route, /ensureVisioCalendarWatches/);
+  assert.match(route, /processVisioBookingInternalAlerts/);
   assert.match(vercel, /\/api\/cron\/visio-calendar-sync/);
   assert.match(vercel, /"schedule": "\*\/1 \* \* \* \*"/);
   const webhook = read("app/api/webhooks/google-calendar/route.ts");
   const watch = read("lib/visioCalendarWatch.ts");
   assert.match(webhook, /x-goog-channel-token/);
   assert.match(webhook, /after\(async/);
+  assert.match(webhook, /resourceState === "sync"/);
+  assert.match(webhook, /claimVisioCalendarWebhookSync/);
   assert.match(backend, /events\/watch/);
   assert.match(watch, /timingSafeEqual/);
   assert.match(backend, /inrcy:visio-booking:team-calendar-sync/);

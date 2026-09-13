@@ -2,8 +2,12 @@ import { NextResponse } from "next/server";
 
 import { isAuthorizedCronRequest } from "@/lib/cronAuth";
 import { syncVisioSharedCalendarToInrCalendar } from "@/lib/inrCalendarGoogleSync";
-import { syncVisioTeamCalendarsToShared } from "@/lib/visioBookingGoogle";
+import {
+  reconcileVisioBookingInternalAlertIntents,
+  syncVisioTeamCalendarsToShared,
+} from "@/lib/visioBookingGoogle";
 import { ensureVisioCalendarWatches } from "@/lib/visioCalendarWatch";
+import { processVisioBookingInternalAlerts } from "@/lib/visioBookingInternalAlert";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,6 +28,25 @@ export async function GET(request: Request) {
   }
 
   try {
+    const bookingAlertIntents = await reconcileVisioBookingInternalAlertIntents(10)
+      .catch((error: unknown) => ({
+        ok: false as const,
+        scanned: 0,
+        promoted: 0,
+        waiting: 0,
+        discarded: 0,
+        error: syncErrorCode(error),
+      }));
+    const bookingAlerts = await processVisioBookingInternalAlerts({ limit: 10 })
+      .catch((error: unknown) => ({
+        ok: false as const,
+        claimed: 0,
+        accepted: 0,
+        retrying: 0,
+        dead: 0,
+        uncertain: 0,
+        error: syncErrorCode(error),
+      }));
     const watches = await ensureVisioCalendarWatches().catch((error: unknown) => ({
       ok: false,
       configured: false,
@@ -42,16 +65,22 @@ export async function GET(request: Request) {
         errors: [{ memberId: "system", code: syncErrorCode(error) }],
       };
     }
-    const inrCalendar = await syncVisioSharedCalendarToInrCalendar();
-    const ok = teamCalendar.ok && inrCalendar.ok && watches.ok;
+    // If another worker owns the full team reconciliation, it will also make
+    // the shared event canonical. Avoid doubling Google reads during that run.
+    const inrCalendar = "locked" in teamCalendar && teamCalendar.locked
+      ? { ok: true as const, skipped: true as const, reason: "team_sync_locked", errors: [] }
+      : await syncVisioSharedCalendarToInrCalendar();
+    const ok = bookingAlertIntents.ok && bookingAlerts.ok && teamCalendar.ok && inrCalendar.ok && watches.ok;
     if (!ok) {
       console.error("[visio-calendar-sync][partial]", {
+        bookingAlertIntents,
+        bookingAlerts,
         teamCalendar: teamCalendar.errors,
         inrCalendar: inrCalendar.errors,
         watches: watches.errors,
       });
     }
-    return NextResponse.json({ ok, watches, teamCalendar, inrCalendar }, {
+    return NextResponse.json({ ok, bookingAlertIntents, bookingAlerts, watches, teamCalendar, inrCalendar }, {
       status: ok ? 200 : 503,
       headers: { "Cache-Control": "no-store" },
     });

@@ -22,6 +22,8 @@ export type TxMail = {
   subject: string;
   text: string;
   html?: string;
+  /** Stable RFC Message-ID used by durable, at-least-once delivery flows. */
+  messageId?: string;
   attachments?: TxMailAttachment[];
 };
 
@@ -121,6 +123,7 @@ async function sendSmtpMail(mail: TxMail, config: TxSmtpConfig) {
       subject: mail.subject,
       text: mail.text,
       html: mail.html,
+      messageId: mail.messageId,
       attachments: (mail.attachments || []).map((attachment) => ({
         filename: attachment.filename || "piece-jointe",
         content: attachment.content,
