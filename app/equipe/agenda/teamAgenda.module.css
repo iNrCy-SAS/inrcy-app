@@ -398,7 +398,8 @@
 .links a { color: #5ddcff; font-size: 11px; font-weight: 750; text-decoration: none; }
 .links a:hover { text-decoration: underline; }
 .scheduleToggle,
-.resendLinkButton {
+.resendLinkButton,
+.confirmScheduledButton {
   padding: 0;
   border: 0;
   background: transparent;
@@ -411,10 +412,16 @@
 .scheduleToggle::before { content: "▣ "; color: #f29adf; }
 .resendLinkButton { color: #9ff4d7; }
 .resendLinkButton::before { content: "✉ "; color: #4de2af; }
+.confirmScheduledButton {
+  color: #fff3bd;
+}
+.confirmScheduledButton::before { content: "✓ "; color: #f6bf26; }
 .scheduleToggle:hover,
-.resendLinkButton:hover { color: #fff; text-decoration: underline; }
+.resendLinkButton:hover,
+.confirmScheduledButton:hover { color: #fff; text-decoration: underline; }
 .scheduleToggle:disabled,
-.resendLinkButton:disabled { cursor: default; opacity: 0.5; }
+.resendLinkButton:disabled,
+.confirmScheduledButton:disabled { cursor: default; opacity: 0.5; }
 
 .scheduleEditor {
   display: grid;

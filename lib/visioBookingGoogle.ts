@@ -24,10 +24,13 @@ import {
   VISIO_APPOINTMENT_STATUS_KEY,
   VISIO_APPOINTMENT_STATUS_LABELS,
   VISIO_APPOINTMENT_STATUSES,
+  canExplicitlyConfirmPendingSignup,
   canManuallyTransitionVisioAppointment,
   cancellationStatusFor,
   isVisioAppointmentOrigin,
   isVisioAppointmentStatus,
+  isPendingSignupGoogleSchedulingIntent,
+  isLegacyVisioAppointment,
   lifecyclePrivateProperties,
   scheduledStatusForOrigin,
   visioAppointmentColorId,
@@ -187,6 +190,7 @@ export type VisioTeamAppointment = {
   colorId: string;
   origin: VisioAppointmentOrigin;
   managedLifecycle: boolean;
+  legacyLifecycle: boolean;
 };
 
 export type VisioTeamReassignmentActor = {
@@ -1021,6 +1025,7 @@ export async function syncVisioTeamCalendarsToShared(input?: {
     );
     const canonicalSourceActive = new Map<string, boolean>();
     const teamMembers = getVisioTeamMembers();
+    const managedCalendarIds = getVisioManagedCalendarAddresses();
     const memberById = new Map(teamMembers.map((member) => [member.id, member]));
     // Historical mirrors must not weigh several times in the fair-assignment
     // calculation. Count the canonical appointment once, regardless of how
@@ -1070,6 +1075,38 @@ export async function syncVisioTeamCalendarsToShared(input?: {
             left.id.localeCompare(right.id),
         )[0];
       if (!assignedMember) continue;
+      const externalAttendees = teamCalendarExternalAttendees(
+        reminder,
+        managedCalendarIds,
+      );
+      const acceptsGoogleScheduling =
+        Boolean(reminder.start?.dateTime && reminder.end?.dateTime) &&
+        isPendingSignupGoogleSchedulingIntent({
+          currentStatus: lifecycleStatusForEvent(reminder),
+          colorId: reminder.colorId,
+          externalAttendeeCount: externalAttendees.length,
+        });
+      if (acceptsGoogleScheduling) {
+        try {
+          const alreadyHasMeet = Boolean(teamCalendarEventMeetUrl(reminder));
+          const updatedReminder = await convertPendingSignupToScheduledAppointment({
+            event: reminder,
+            start: reminder.start!,
+            end: reminder.end!,
+            attendees: externalAttendees,
+            sendUpdates: alreadyHasMeet ? "none" : "all",
+          });
+          Object.assign(reminder, updatedReminder);
+          bookedProspectIds.add(prospectUserId);
+          result.updated += 1;
+        } catch (error) {
+          result.errors.push({
+            memberId: "shared",
+            code: visioGoogleErrorCode(error),
+          });
+        }
+        continue;
+      }
       const safeContent = buildPendingSignupCalendarContent({
         event: reminder,
         assignedMember,
@@ -1141,7 +1178,6 @@ export async function syncVisioTeamCalendarsToShared(input?: {
       }
     }
 
-    const managedCalendarIds = getVisioManagedCalendarAddresses();
     const managedCanonicalByReplicaId = new Map<string, GoogleCalendarEvent>();
     const managedCanonicalById = new Map<
       string,
@@ -2263,6 +2299,8 @@ async function convertPendingSignupToScheduledAppointment(input: {
   event: GoogleCalendarEvent;
   start: NonNullable<GoogleCalendarEvent["start"]>;
   end: NonNullable<GoogleCalendarEvent["end"]>;
+  attendees?: NonNullable<GoogleCalendarEvent["attendees"]>;
+  sendUpdates?: "all" | "none";
 }) {
   if (!input.event.id || lifecycleStatusForEvent(input.event) !== "signup_pending") {
     throw new Error("visio_team_assignment_mirror_missing");
@@ -2273,7 +2311,14 @@ async function convertPendingSignupToScheduledAppointment(input: {
 
   const publicContent = await managedAppointmentPublicContent(input.event);
   const details = readVisioAppointmentPublicDetails(publicContent);
-  const professionalEmail = String(details.email || "").trim().toLowerCase();
+  const suppliedAttendees = (input.attendees || []).filter((attendee) =>
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+      String(attendee.email || "").trim().toLowerCase(),
+    ),
+  );
+  const professionalEmail = String(
+    suppliedAttendees[0]?.email || details.email || "",
+  ).trim().toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(professionalEmail)) {
     throw new Error("visio_team_reschedule_professional_email_missing");
   }
@@ -2294,14 +2339,17 @@ async function convertPendingSignupToScheduledAppointment(input: {
     start: input.start,
     end: input.end,
     colorId: visioAppointmentColorId(status),
-    attendees: [
-      {
-        email: professionalEmail,
-        displayName: [details.firstName, details.lastName]
-          .filter(Boolean)
-          .join(" "),
-      },
-    ],
+    attendees:
+      suppliedAttendees.length > 0
+        ? suppliedAttendees
+        : [
+            {
+              email: professionalEmail,
+              displayName: [details.firstName, details.lastName]
+                .filter(Boolean)
+                .join(" "),
+            },
+          ],
     reminders: { useDefault: false, overrides: [] },
     extendedProperties: {
       private: {
@@ -2334,7 +2382,7 @@ async function convertPendingSignupToScheduledAppointment(input: {
       getVisioSharedCalendarId(),
     )}/events/${encodeURIComponent(
       input.event.id,
-    )}?conferenceDataVersion=1&sendUpdates=all`,
+    )}?conferenceDataVersion=1&sendUpdates=${input.sendUpdates || "all"}`,
     { method: "PATCH", body: JSON.stringify(body) },
   );
   return waitForMeetConference(
@@ -2655,6 +2703,7 @@ function teamAppointmentFromMirror(event: GoogleCalendarEvent): VisioTeamAppoint
     colorId: visioAppointmentColorId(status),
     origin,
     managedLifecycle: isManagedLifecycleEvent(event),
+    legacyLifecycle: isLegacyVisioAppointment(event.created),
   };
 }
 
@@ -4409,6 +4458,7 @@ export async function updateVisioTeamAppointmentStatus(input: {
   appointmentIdentity?: string;
   appointmentStart?: string;
   status: VisioAppointmentStatus;
+  confirmPendingAtCurrentSchedule?: boolean;
   actor: VisioTeamReassignmentActor;
 }): Promise<VisioTeamStatusResult> {
   const mirrorEventId = String(input.mirrorEventId || "").trim();
@@ -4441,8 +4491,15 @@ export async function updateVisioTeamAppointmentStatus(input: {
     try {
       const previousStatus = lifecycleStatusForEvent(mirror);
       const origin = lifecycleOriginForEvent(mirror, previousStatus);
+      const confirmsPendingAtCurrentSchedule =
+        canExplicitlyConfirmPendingSignup({
+          from: previousStatus,
+          to: input.status,
+          confirmed: input.confirmPendingAtCurrentSchedule === true,
+        });
       if (
         input.status !== previousStatus &&
+        !confirmsPendingAtCurrentSchedule &&
         !canManuallyTransitionVisioAppointment(
           previousStatus,
           input.status,
@@ -4452,8 +4509,20 @@ export async function updateVisioTeamAppointmentStatus(input: {
         throw new Error("visio_team_status_transition_invalid");
       }
 
-      const updated =
-        input.status === previousStatus
+      const updated = confirmsPendingAtCurrentSchedule
+        ? mirror.start?.dateTime && mirror.end?.dateTime
+          ? await convertPendingSignupToScheduledAppointment({
+              event: mirror,
+              start: mirror.start,
+              end: mirror.end,
+              // An explicit migration only restores the canonical lifecycle.
+              // The admin decides separately whether to resend the Meet link.
+              sendUpdates: "none",
+            })
+          : (() => {
+              throw new Error("visio_team_reschedule_all_day");
+            })()
+        : input.status === previousStatus
           ? mirror
           : await patchCalendarEventWithoutUpdates(
               getVisioSharedCalendarId(),

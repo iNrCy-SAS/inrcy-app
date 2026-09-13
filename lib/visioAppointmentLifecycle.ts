@@ -3,6 +3,8 @@ export const VISIO_APPOINTMENT_ORIGIN_KEY = "inrcyAppointmentOrigin";
 export const VISIO_APPOINTMENT_LIFECYCLE_VERSION_KEY =
   "inrcyAppointmentLifecycleVersion";
 export const VISIO_APPOINTMENT_LIFECYCLE_VERSION = "v1";
+export const VISIO_APPOINTMENT_LIFECYCLE_CUTOVER_AT =
+  "2026-09-10T20:40:29.000Z";
 
 export const VISIO_APPOINTMENT_STATUSES = [
   "signup_pending",
@@ -76,6 +78,14 @@ export function isVisioAppointmentOrigin(
   );
 }
 
+export function isLegacyVisioAppointment(createdAt: unknown) {
+  const createdAtMs = Date.parse(String(createdAt || ""));
+  return Boolean(
+    Number.isFinite(createdAtMs) &&
+      createdAtMs < Date.parse(VISIO_APPOINTMENT_LIFECYCLE_CUTOVER_AT),
+  );
+}
+
 export function visioAppointmentStatusForColor(
   colorId: unknown,
 ): VisioAppointmentStatus | null {
@@ -84,6 +94,25 @@ export function visioAppointmentStatusForColor(
 
 export function visioAppointmentColorId(status: VisioAppointmentStatus) {
   return VISIO_APPOINTMENT_COLOR_BY_STATUS[status];
+}
+
+/**
+ * A pending signup can also be positioned directly from Google Calendar.
+ * Requiring both the scheduled colour and an external guest makes that intent
+ * unambiguous and prevents a decorative colour change from sending an invite.
+ */
+export function isPendingSignupGoogleSchedulingIntent(input: {
+  currentStatus: VisioAppointmentStatus;
+  colorId: unknown;
+  externalAttendeeCount: number;
+}) {
+  return Boolean(
+    input.currentStatus === "signup_pending" &&
+      visioAppointmentStatusForColor(input.colorId) ===
+        "appointment_scheduled_from_signup" &&
+      Number.isFinite(input.externalAttendeeCount) &&
+      input.externalAttendeeCount > 0,
+  );
 }
 
 export function visioAppointmentOriginForStatus(
@@ -111,8 +140,8 @@ export function cancellationStatusFor(
 /**
  * Status changes exposed to the internal attribution screen. Scheduling a
  * pending signup is intentionally absent: that transition must go through the
- * date/time action so the existing event receives its single Meet link and its
- * one initial invitation.
+ * date/time action, or the explicit Google colour + guest intent above, so the
+ * existing event receives its single Meet link and its one initial invitation.
  */
 export function visioAppointmentManualTransitions(
   status: VisioAppointmentStatus,
@@ -140,6 +169,18 @@ export function canManuallyTransitionVisioAppointment(
   origin: VisioAppointmentOrigin = visioAppointmentOriginForStatus(from),
 ) {
   return visioAppointmentManualTransitions(from, origin).includes(to);
+}
+
+export function canExplicitlyConfirmPendingSignup(input: {
+  from: VisioAppointmentStatus;
+  to: VisioAppointmentStatus;
+  confirmed: boolean;
+}) {
+  return Boolean(
+    input.confirmed &&
+      input.from === "signup_pending" &&
+      input.to === "appointment_scheduled_from_signup",
+  );
 }
 
 /**

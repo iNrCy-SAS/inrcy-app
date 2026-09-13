@@ -33,6 +33,7 @@ type TeamAppointment = {
   colorId: string;
   origin: VisioAppointmentOrigin;
   managedLifecycle: boolean;
+  legacyLifecycle: boolean;
 };
 type TeamViewer = { userId: string; email: string; name: string };
 
@@ -423,6 +424,7 @@ export default function TeamAgendaClient({
   const updateStatus = useCallback(async (
     appointment: TeamAppointment,
     status: VisioAppointmentStatus,
+    options?: { confirmPendingAtCurrentSchedule?: boolean },
   ) => {
     if (
       status === appointment.status ||
@@ -447,6 +449,8 @@ export default function TeamAgendaClient({
           appointmentIdentity: appointment.identity,
           appointmentStart: appointment.start,
           status,
+          confirmPendingAtCurrentSchedule:
+            options?.confirmPendingAtCurrentSchedule === true,
         }),
       });
       const payload = (await response.json().catch(() => ({}))) as {
@@ -465,7 +469,9 @@ export default function TeamAgendaClient({
         ),
       );
       setSuccess(
-        `${appointment.title} : ${updatedAppointment.statusLabel.toLowerCase()}.`,
+        options?.confirmPendingAtCurrentSchedule
+          ? `${appointment.title} est repris dans le nouveau système, sans nouvel e-mail. Vous pouvez maintenant renvoyer son lien Meet si nécessaire.`
+          : `${appointment.title} : ${updatedAppointment.statusLabel.toLowerCase()}.`,
       );
     } catch (statusError) {
       setError(
@@ -484,6 +490,39 @@ export default function TeamAgendaClient({
     reschedulingId,
     resendingId,
     statusUpdatingId,
+  ]);
+
+  const confirmPendingAppointment = useCallback(async (
+    appointment: TeamAppointment,
+  ) => {
+    if (
+      appointment.status !== "signup_pending" ||
+      assigningId ||
+      reschedulingId ||
+      resendingId ||
+      statusUpdatingId
+    ) {
+      return;
+    }
+    const confirmed = await confirmInrcy({
+      eyebrow: "REPRISE ANCIEN RENDEZ-VOUS",
+      title: "Confirmer ce rendez-vous à son horaire actuel",
+      message:
+        "Il passera en bleu clair, conservera sa date et sera rattaché au nouveau système. Aucun e-mail ne sera envoyé au professionnel. Vous pourrez ensuite renvoyer manuellement le lien Google Meet si nécessaire.",
+      confirmLabel: "Confirmer le rendez-vous",
+      cancelLabel: "Annuler",
+      variant: "warning",
+    });
+    if (!confirmed) return;
+    await updateStatus(appointment, "appointment_scheduled_from_signup", {
+      confirmPendingAtCurrentSchedule: true,
+    });
+  }, [
+    assigningId,
+    reschedulingId,
+    resendingId,
+    statusUpdatingId,
+    updateStatus,
   ]);
 
   return (
@@ -603,9 +642,25 @@ export default function TeamAgendaClient({
                               </select>
                             </label>
                             {appointment.status === "signup_pending" ? (
-                              <span className={styles.statusHint}>
-                                Pour le passer en bleu clair, positionnez sa date et son heure.
-                              </span>
+                              <>
+                                <span className={styles.statusHint}>
+                                  {appointment.legacyLifecycle
+                                    ? "Ancien format : confirmez-le seulement s’il s’agit bien d’un rendez-vous déjà positionné."
+                                    : "Pour le passer en bleu clair, positionnez sa date et son heure."}
+                                </span>
+                                {appointment.legacyLifecycle ? (
+                                  <button
+                                    type="button"
+                                    className={styles.confirmScheduledButton}
+                                    disabled={Boolean(assigningId) || Boolean(reschedulingId) || Boolean(resendingId) || Boolean(statusUpdatingId) || refreshing}
+                                    onClick={() => void confirmPendingAppointment(appointment)}
+                                  >
+                                    {statusUpdatingId === appointment.id
+                                      ? "Reprise…"
+                                      : "Confirmer ce RDV"}
+                                  </button>
+                                ) : null}
+                              </>
                             ) : null}
                           </div>
                         ) : null}

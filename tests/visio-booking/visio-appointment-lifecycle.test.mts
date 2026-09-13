@@ -3,8 +3,11 @@ import test from "node:test";
 
 import {
   VISIO_APPOINTMENT_COLOR_BY_STATUS,
+  canExplicitlyConfirmPendingSignup,
   canManuallyTransitionVisioAppointment,
   cancellationStatusFor,
+  isPendingSignupGoogleSchedulingIntent,
+  isLegacyVisioAppointment,
   lifecyclePrivateProperties,
   scheduledStatusForOrigin,
   visioAppointmentStatusAfterColorChange,
@@ -28,7 +31,7 @@ test("chaque statut métier possède exactement la couleur Google convenue", () 
   }
 });
 
-test("une inscription sans rendez-vous ne devient rendez-vous que par la date et l'heure", () => {
+test("une inscription sans rendez-vous ne devient pas rendez-vous par la couleur seule", () => {
   assert.equal(
     canManuallyTransitionVisioAppointment(
       "signup_pending",
@@ -52,6 +55,74 @@ test("une inscription sans rendez-vous ne devient rendez-vous que par la date et
   assert.equal(
     scheduledStatusForOrigin("signup_with_appointment"),
     "appointment_scheduled_direct",
+  );
+});
+
+test("une inscription peut être confirmée à son horaire actuel uniquement par une action explicite", () => {
+  assert.equal(
+    canExplicitlyConfirmPendingSignup({
+      from: "signup_pending",
+      to: "appointment_scheduled_from_signup",
+      confirmed: true,
+    }),
+    true,
+  );
+  assert.equal(
+    canExplicitlyConfirmPendingSignup({
+      from: "signup_pending",
+      to: "appointment_scheduled_from_signup",
+      confirmed: false,
+    }),
+    false,
+  );
+  assert.equal(
+    canExplicitlyConfirmPendingSignup({
+      from: "appointment_cancelled",
+      to: "appointment_scheduled_from_signup",
+      confirmed: true,
+    }),
+    false,
+  );
+});
+
+test("seuls les événements créés avant le déploiement du cycle sont signalés comme anciens", () => {
+  assert.equal(isLegacyVisioAppointment("2026-09-10T20:40:28.000Z"), true);
+  assert.equal(isLegacyVisioAppointment("2026-09-10T20:40:29.000Z"), false);
+  assert.equal(isLegacyVisioAppointment("date-invalide"), false);
+});
+
+test("Google peut positionner une ancienne inscription avec le bleu clair et un invité", () => {
+  assert.equal(
+    isPendingSignupGoogleSchedulingIntent({
+      currentStatus: "signup_pending",
+      colorId: "7",
+      externalAttendeeCount: 1,
+    }),
+    true,
+  );
+  assert.equal(
+    isPendingSignupGoogleSchedulingIntent({
+      currentStatus: "signup_pending",
+      colorId: "7",
+      externalAttendeeCount: 0,
+    }),
+    false,
+  );
+  assert.equal(
+    isPendingSignupGoogleSchedulingIntent({
+      currentStatus: "signup_pending",
+      colorId: "5",
+      externalAttendeeCount: 1,
+    }),
+    false,
+  );
+  assert.equal(
+    isPendingSignupGoogleSchedulingIntent({
+      currentStatus: "appointment_scheduled_from_signup",
+      colorId: "7",
+      externalAttendeeCount: 1,
+    }),
+    false,
   );
 });
 

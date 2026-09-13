@@ -263,11 +263,14 @@ export async function PUT(request: Request) {
     appointmentIdentity?: unknown;
     appointmentStart?: unknown;
     status?: unknown;
+    confirmPendingAtCurrentSchedule?: unknown;
   } | null;
   const mirrorEventId = String(body?.mirrorEventId || "").trim();
   const appointmentIdentity = String(body?.appointmentIdentity || "").trim();
   const appointmentStart = String(body?.appointmentStart || "").trim();
   const status = String(body?.status || "").trim();
+  const confirmPendingAtCurrentSchedule =
+    body?.confirmPendingAtCurrentSchedule === true;
   if (
     !/^[a-zA-Z0-9_-]{5,1024}$/.test(mirrorEventId) ||
     (appointmentIdentity && appointmentIdentity.length > 2048) ||
@@ -287,6 +290,7 @@ export async function PUT(request: Request) {
       appointmentIdentity,
       appointmentStart,
       status,
+      confirmPendingAtCurrentSchedule,
       actor: authorization.actor,
     });
     const inrCalendarSync = await syncInrCalendarAfterMutation("status");

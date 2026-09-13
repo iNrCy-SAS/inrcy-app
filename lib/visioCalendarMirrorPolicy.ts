@@ -22,6 +22,7 @@ export type TeamCalendarDate = {
 export type TeamCalendarEvent = {
   id?: string;
   status?: string;
+  created?: string;
   summary?: string;
   description?: string;
   location?: string;
