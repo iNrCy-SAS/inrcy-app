@@ -622,5 +622,6 @@
   "account_deletion_choices_description": "访问专用页面可选择访问结束时删除、立即删除或特定类别的数据。",
   "native_purchase_confirmed": "购买已确认。 iNrCy 将您的订阅与商店同步。",
   "native_subscription_management_message": "此订阅在您的手机商店中管理。",
-  "native_subscription_managed_by_store": "您的订阅由 {store} 管理。续订、付款方式和取消均在商店内管理。"
+  "native_subscription_managed_by_store": "您的订阅由 {store} 管理。续订、付款方式和取消均在商店内管理。",
+  "tags_voice_help": "语音输入时，请说“逗号”来分隔每项，例如：“优势 1，逗号，优势 2，逗号，优势 3”。"
 }

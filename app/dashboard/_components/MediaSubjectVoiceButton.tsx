@@ -37,7 +37,7 @@ type Props = {
   onChange: (value: string) => void;
   onBusyChange?: (busy: boolean) => void;
   contextLabel?: string;
-  purpose?: "subject" | "instruction" | "title" | "content" | "cta" | "hashtags";
+  purpose?: "subject" | "instruction" | "title" | "content" | "cta" | "hashtags" | "tags";
   placement?: "overlay" | "inline";
   mergeMode?: "paragraph" | "space" | "replace";
   maxLength?: number;
@@ -743,7 +743,9 @@ export default function MediaSubjectVoiceButton({
             ? "voice_cta_title"
             : purpose === "hashtags"
               ? "voice_hashtags_title"
-              : "voice_subject_title";
+              : purpose === "tags"
+                ? "voice_tags_title"
+                : "voice_subject_title";
   const label = recording
     ? t("arreter_le_vocal_value_aace3fb5", { value0: formatDuration(seconds) })
     : state === "requesting" || state === "transcribing"

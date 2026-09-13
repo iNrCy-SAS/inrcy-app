@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  BUSINESS_DNA_ANALYSIS_HISTORY_DAYS,
   BUSINESS_DNA_RECENT_NEWS_DAYS,
+  buildBusinessDnaAnalysisHistoryWindow,
   buildBusinessDnaRecentWindow,
   businessDnaPublicationTimestamp,
   isBusinessDnaPublicationInWindow,
@@ -21,6 +23,18 @@ test("the recent-news window covers exactly the latest 30 days", () => {
     isBusinessDnaPublicationInWindow("2026-08-08T12:29:59.999Z", window),
     false,
   );
+});
+
+test("the learning window covers one year without changing recent news", () => {
+  const now = new Date("2026-09-07T12:30:00.000Z");
+  const history = buildBusinessDnaAnalysisHistoryWindow(now);
+  const recent = buildBusinessDnaRecentWindow(now);
+
+  assert.equal(BUSINESS_DNA_ANALYSIS_HISTORY_DAYS, 365);
+  assert.equal(history.end, recent.end);
+  assert.equal(history.start, "2025-09-07T12:30:00.000Z");
+  assert.equal(isBusinessDnaPublicationInWindow("2026-01-10T10:00:00.000Z", history), true);
+  assert.equal(isBusinessDnaPublicationInWindow("2026-01-10T10:00:00.000Z", recent), false);
 });
 
 test("publication timestamps accept API seconds and milliseconds safely", () => {

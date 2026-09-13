@@ -44,7 +44,7 @@ const USER_CONTENT_CALLS = new Map<string, number>([
 ]);
 
 const TECHNICAL_CALLS = new Map<string, number>([
-  ["app/api/ai-memory/analyze-channels/route.ts", 1],
+  ["app/api/ai-memory/analyze-channels/route.ts", 2],
   ["app/api/booster/transcribe/route.ts", 1],
   ["lib/aiAttachmentContext.ts", 2],
   ["lib/aiMediaUnderstanding.ts", 1],

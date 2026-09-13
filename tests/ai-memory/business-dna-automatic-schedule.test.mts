@@ -17,7 +17,7 @@ const read = (path: string) => readFileSync(resolve(root, path), "utf8");
 test("le quota manuel public est fixé à trois analyses", () => {
   assert.equal(BUSINESS_DNA_MANUAL_MONTHLY_LIMIT, 3);
   const migration = read(
-    "supabase/migrations/20260911190000_business_dna_automatic_analysis.sql",
+    "supabase/migrations/20260911213822_business_dna_automatic_analysis.sql",
   );
   assert.match(migration, /\('standard', 3\)/);
   assert.match(migration, /\('premium', 3\)/);
@@ -69,7 +69,7 @@ test("les valeurs de programmation invalides reviennent aux valeurs sûres", () 
 
 test("la migration garantit claim atomique, lease et historique mensuel", () => {
   const migration = read(
-    "supabase/migrations/20260911190000_business_dna_automatic_analysis.sql",
+    "supabase/migrations/20260911213822_business_dna_automatic_analysis.sql",
   );
   assert.match(migration, /for update skip locked/i);
   assert.match(migration, /lock_expires_at/i);

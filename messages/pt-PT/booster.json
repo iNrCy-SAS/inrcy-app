@@ -627,6 +627,7 @@
   "voice_content_title": "Dite o conteúdo: iNrCy transcreve-o e corrige os erros.",
   "voice_cta_title": "Dite o apelo à ação: iNrCy transcreve-o e corrige os erros.",
   "voice_hashtags_title": "Dite as hashtags: iNrCy transcreve-as e corrige os erros.",
+  "voice_tags_title": "Dite vários elementos separados por vírgulas.",
   "voice_text_truncated": "O texto ditado foi adicionado até ao limite de caracteres permitido neste campo.",
   "generation_images_blocked_by_video": "A geração utiliza imagens ou um vídeo. Elimine o vídeo para escolher imagens.",
   "generation_images_limit": "Máximo de {count} imagens",

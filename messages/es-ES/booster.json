@@ -627,6 +627,7 @@
   "voice_content_title": "Dicta el contenido: iNrCy lo transcribe y corrige los errores.",
   "voice_cta_title": "Dicta la llamada a la acción: iNrCy la transcribe y corrige los errores.",
   "voice_hashtags_title": "Dicta los hashtags: iNrCy los transcribe y corrige los errores.",
+  "voice_tags_title": "Dicta varios elementos separados por comas.",
   "voice_text_truncated": "El texto dictado se añadió hasta alcanzar el límite de caracteres del campo.",
   "generation_images_blocked_by_video": "La generación utiliza imágenes o un vídeo. Elimina el vídeo para seleccionar imágenes.",
   "generation_images_limit": "Máximo: {count} imágenes",

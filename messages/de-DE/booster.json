@@ -627,6 +627,7 @@
   "voice_content_title": "Diktieren Sie den Inhalt: iNrCy transkribiert ihn und korrigiert Fehler.",
   "voice_cta_title": "Diktieren Sie den Handlungsaufruf: iNrCy transkribiert ihn und korrigiert Fehler.",
   "voice_hashtags_title": "Diktieren Sie die Hashtags: iNrCy transkribiert sie und korrigiert Fehler.",
+  "voice_tags_title": "Diktieren Sie mehrere durch Kommas getrennte Elemente.",
   "voice_text_truncated": "Der diktierte Text wurde eingefügt, bis die maximal zulässige Länge des Feldes erreicht war.",
   "generation_images_blocked_by_video": "Diese Generation verwendet entweder Bilder oder ein Video. Löschen Sie das Video, um Bilder auszuwählen.",
   "generation_images_limit": "Maximal {count} Bilder",

@@ -1,5 +1,5 @@
-export const BUSINESS_DNA_MAX_WEBSITE_PAGES = 8;
-export const BUSINESS_DNA_MAX_WEBSITE_SOURCE_CHARS = 16_000;
+export const BUSINESS_DNA_MAX_WEBSITE_PAGES = 16;
+export const BUSINESS_DNA_MAX_WEBSITE_SOURCE_CHARS = 36_000;
 
 const MAX_PAGE_URL_CHARS = 512;
 const PAGE_SEPARATOR = "\n\n";
@@ -57,7 +57,7 @@ function balancedTextBudgets(lengths: number[], totalBudget: number) {
 
 /**
  * Builds one bounded website source while reserving representation for the
- * home page and every successfully fetched useful page (up to eight total).
+ * home page and every successfully fetched useful page (up to sixteen total).
  */
 export function buildBalancedBusinessDnaWebsiteContent(
   documents: BusinessDnaWebsiteDocument[],

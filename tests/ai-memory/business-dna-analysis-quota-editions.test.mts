@@ -13,7 +13,7 @@ test("Business DNA keeps Admin at 16 and the latest migration sets every commerc
     "ops/sql/2026-09-09_business_dna_plan_limits_4_admin_16_postflight_read_only.sql",
   );
   const currentMigration = read(
-    "supabase/migrations/20260911190000_business_dna_automatic_analysis.sql",
+    "supabase/migrations/20260911213822_business_dna_automatic_analysis.sql",
   );
 
   assert.match(quota, /DashboardEdition \| "admin"/);

@@ -745,6 +745,7 @@
   "voice_content_title": "Dictez le contenu : iNrCy le transcrit et corrige les fautes.",
   "voice_cta_title": "Dictez l’appel à l’action : iNrCy le transcrit et corrige les fautes.",
   "voice_hashtags_title": "Dictez les hashtags : iNrCy les transcrit et corrige les fautes.",
+  "voice_tags_title": "Dictez plusieurs éléments séparés par des virgules.",
   "voice_text_truncated": "Le texte dicté a été ajouté jusqu’à la limite de caractères du champ.",
   "voice_live_unavailable": "La dictée en direct n’est pas disponible sur ce navigateur. Réessayez : iNrCy utilisera l’enregistrement vocal classique.",
   "voice_micro_activation_failed": "Impossible d’activer le microphone. Vérifiez les autorisations du navigateur et de l’appareil.",

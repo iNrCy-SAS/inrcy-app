@@ -1,4 +1,5 @@
 export const BUSINESS_DNA_RECENT_NEWS_DAYS = 30;
+export const BUSINESS_DNA_ANALYSIS_HISTORY_DAYS = 365;
 
 export type BusinessDnaRecentWindow = {
   start: string;
@@ -11,6 +12,24 @@ export function buildBusinessDnaRecentWindow(
   const endTimestamp = Number.isFinite(now.getTime()) ? now.getTime() : Date.now();
   const startTimestamp =
     endTimestamp - BUSINESS_DNA_RECENT_NEWS_DAYS * 24 * 60 * 60 * 1_000;
+  return {
+    start: new Date(startTimestamp).toISOString(),
+    end: new Date(endTimestamp).toISOString(),
+  };
+}
+
+/**
+ * Fenêtre longue utilisée pour comprendre le métier, la ligne éditoriale et
+ * les sujets récurrents. Elle reste distincte de la fenêtre « actualités » :
+ * une publication ancienne peut enrichir l'ADN, mais ne doit jamais remonter
+ * comme une nouveauté des 30 derniers jours.
+ */
+export function buildBusinessDnaAnalysisHistoryWindow(
+  now: Date = new Date(),
+): BusinessDnaRecentWindow {
+  const endTimestamp = Number.isFinite(now.getTime()) ? now.getTime() : Date.now();
+  const startTimestamp =
+    endTimestamp - BUSINESS_DNA_ANALYSIS_HISTORY_DAYS * 24 * 60 * 60 * 1_000;
   return {
     start: new Date(startTimestamp).toISOString(),
     end: new Date(endTimestamp).toISOString(),

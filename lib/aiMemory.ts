@@ -630,7 +630,10 @@ export function hasAiMemoryContent(memory: unknown) {
   });
 }
 
-export const AI_MEMORY_PROMPT_PAYLOAD_MAX_CHARS = 9_000;
+// Booster et iNrAgent disposent ainsi de davantage de matière issue de l'ADN
+// enrichi. Les générateurs aux budgets plus courts gardent leur propre
+// compression proportionnelle via buildAiWritingProfilePromptSection().
+export const AI_MEMORY_PROMPT_PAYLOAD_MAX_CHARS = 14_000;
 
 /**
  * Payload compact et factuel injecté dans les prompts de génération.

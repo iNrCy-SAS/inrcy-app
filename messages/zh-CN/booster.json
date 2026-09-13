@@ -627,6 +627,7 @@
   "voice_content_title": "口述内容：iNrCy 会将语音转成文字并自动纠错。",
   "voice_cta_title": "口述行动号召：iNrCy 会将语音转成文字并自动纠错。",
   "voice_hashtags_title": "口述话题标签：iNrCy 会将语音转成文字并自动纠错。",
+  "voice_tags_title": "口述多个项目，并用“逗号”分隔。",
   "voice_text_truncated": "听写文本已添加至该字段的字符数上限。",
   "generation_images_blocked_by_video": "该一代使用图像或视频。删除视频以选择图像。",
   "generation_images_limit": "{count} 图像最大",

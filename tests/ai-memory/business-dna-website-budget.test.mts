@@ -17,8 +17,8 @@ function pageSections(content: string) {
   ));
 }
 
-test("website collection keeps at most eight pages including the home page", () => {
-  const documents = Array.from({ length: 12 }, (_value, index) => ({
+test("website collection keeps at most sixteen pages including the home page", () => {
+  const documents = Array.from({ length: 20 }, (_value, index) => ({
     url: index === 0 ? "https://example.test/" : `https://example.test/page-${index}`,
     text: `marker-${index} ${"x".repeat(500)}`,
   }));
@@ -26,18 +26,18 @@ test("website collection keeps at most eight pages including the home page", () 
   const content = buildBalancedBusinessDnaWebsiteContent(documents);
   const sections = pageSections(content);
 
-  assert.equal(BUSINESS_DNA_MAX_WEBSITE_PAGES, 8);
-  assert.equal(sections.length, 8);
-  for (let index = 0; index < 8; index += 1) {
+  assert.equal(BUSINESS_DNA_MAX_WEBSITE_PAGES, 16);
+  assert.equal(sections.length, 16);
+  for (let index = 0; index < 16; index += 1) {
     assert.match(content, new RegExp(`marker-${index}\\b`));
   }
-  assert.doesNotMatch(content, /marker-8\b/);
+  assert.doesNotMatch(content, /marker-16\b/);
 });
 
 test("a very long home page cannot evict any discovered useful page", () => {
   const documents = [
     { url: "https://example.test/", text: `HOME ${"h".repeat(14_000)}` },
-    ...Array.from({ length: 7 }, (_value, index) => ({
+    ...Array.from({ length: 15 }, (_value, index) => ({
       url: `https://example.test/service-${index + 1}`,
       text: `SERVICE_${index + 1} ${String(index + 1).repeat(4_000)}`,
     })),
@@ -46,9 +46,9 @@ test("a very long home page cannot evict any discovered useful page", () => {
   const content = buildBalancedBusinessDnaWebsiteContent(documents);
   const sections = pageSections(content);
 
-  assert.equal(sections.length, 8);
+  assert.equal(sections.length, 16);
   assert.match(sections[0], /HOME/);
-  for (let index = 1; index <= 7; index += 1) {
+  for (let index = 1; index <= 15; index += 1) {
     assert.match(content, new RegExp(`SERVICE_${index}\\b`));
   }
   assert.ok(sections[0].length < 3_000, "the home page must receive a fair share, not ~14k");
@@ -56,15 +56,15 @@ test("a very long home page cannot evict any discovered useful page", () => {
   assert.ok(Math.max(...representedLengths) - Math.min(...representedLengths) < 100);
 });
 
-test("balanced website content respects the exact unchanged 16k source ceiling", () => {
+test("balanced website content respects the exact 36k source ceiling", () => {
   const content = buildBalancedBusinessDnaWebsiteContent(
-    Array.from({ length: 8 }, (_value, index) => ({
+    Array.from({ length: 16 }, (_value, index) => ({
       url: `https://example.test/useful-${index}`,
       text: `${index}-${"é".repeat(30_000)}`,
     })),
   );
 
-  assert.equal(BUSINESS_DNA_MAX_WEBSITE_SOURCE_CHARS, 16_000);
+  assert.equal(BUSINESS_DNA_MAX_WEBSITE_SOURCE_CHARS, 36_000);
   assert.equal(content.length, BUSINESS_DNA_MAX_WEBSITE_SOURCE_CHARS);
 });
 

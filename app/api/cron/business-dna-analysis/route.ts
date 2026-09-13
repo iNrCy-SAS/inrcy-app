@@ -59,7 +59,7 @@ export async function POST(request: Request) {
 
   const { data, error } = await supabaseAdmin.rpc(
     "claim_due_business_dna_automatic_analysis",
-    { p_lease_seconds: 180 },
+    { p_lease_seconds: 240 },
   );
   if (error) {
     return NextResponse.json(
@@ -90,7 +90,7 @@ export async function POST(request: Request) {
       method: "POST",
       headers: buildInternalCronHeaders(accountId),
       cache: "no-store",
-      signal: AbortSignal.timeout(115_000),
+      signal: AbortSignal.timeout(165_000),
     });
     responseStatus = response.status;
     const payload = asRecord(await response.json().catch(() => ({})));

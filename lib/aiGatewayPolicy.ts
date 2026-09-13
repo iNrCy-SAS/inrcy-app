@@ -169,18 +169,17 @@ export const AI_FEATURE_POLICIES: Readonly<Record<AiGenerationFeature, AiFeature
     defaultOperationMaxDurationMs: 50_000,
   },
   "business-dna.analyze": {
-    // Une sortie structurée complète peut contenir les trois blocs Premium.
-    // Le plafond garde une vraie marge pour éviter une coupure en fin de JSON ;
-    // il ne constitue jamais une taille cible ni une dépense automatique.
+    // Une analyse approfondie lit jusqu'à douze mois de matière et peut lancer
+    // une unique passe de complément tolérante aux pannes.
     maxOutputTokens: 8_000,
     maxRetries: 1,
     maxTimeoutMs: 72_000,
-    maxInputChars: 68_000,
+    maxInputChars: 150_000,
     maxImages: 0,
     maxImageDataChars: 0,
-    defaultOperationMaxCalls: 1,
-    defaultOperationMaxReservedOutputTokens: 8_000,
-    defaultOperationMaxDurationMs: 95_000,
+    defaultOperationMaxCalls: 2,
+    defaultOperationMaxReservedOutputTokens: 15_200,
+    defaultOperationMaxDurationMs: 125_000,
   },
   "agent.stats-report": {
     maxOutputTokens: 1800,

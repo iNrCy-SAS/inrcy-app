@@ -627,6 +627,7 @@
   "voice_content_title": "Detta il contenuto: iNrCy lo trascrive e corregge gli errori.",
   "voice_cta_title": "Detta l’invito all’azione: iNrCy lo trascrive e corregge gli errori.",
   "voice_hashtags_title": "Detta gli hashtag: iNrCy li trascrive e corregge gli errori.",
+  "voice_tags_title": "Detta più elementi separati da virgole.",
   "voice_text_truncated": "Il testo dettato è stato aggiunto fino a raggiungere il limite di caratteri del campo.",
   "generation_images_blocked_by_video": "La generazione utilizza immagini o un video. Elimina il video per scegliere le immagini.",
   "generation_images_limit": "Massimo {count} immagini",

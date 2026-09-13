@@ -27,6 +27,7 @@ export function buildBusinessDnaAnalysisSourcePayload(
     "inrcy_site",
     "google_business",
     "inr_search",
+    "inrcy_publications",
     "facebook",
     "instagram",
     "linkedin",
@@ -74,18 +75,48 @@ export function buildBusinessDnaAnalysisSourcePayload(
     remainingEncodedChars -= encodedLength(content);
   }
 
-  // La marge restante va ensuite aux sources les plus probantes, dans
-  // l'ordre site officiel > Google Business > profils sociaux.
-  for (let index = 0; index < ordered.length && remainingEncodedChars > 0; index += 1) {
-    const current = payload[index].content;
-    const currentCost = encodedLength(current);
-    const expanded = prefixForEncodedBudget(
-      ordered[index].content,
-      currentCost + remainingEncodedChars,
+  // La marge restante est pondérée plutôt que consommée entièrement par la
+  // première page longue. Le site et Google restent prioritaires, tandis que
+  // l'historique iNrCy et chaque réseau conservent assez de matière pour faire
+  // émerger les thèmes, les besoins clients et le vocabulaire récurrents.
+  const sourceWeight = (key: string) => {
+    if (key === "website" || key === "inrcy_site") return 5;
+    if (key === "google_business") return 4;
+    if (key === "inr_search") return 3;
+    if (key === "inrcy_publications") return 2;
+    return 1;
+  };
+  let expandable = ordered.map((_source, index) => index);
+  while (expandable.length && remainingEncodedChars > 0) {
+    const roundBudget = remainingEncodedChars;
+    const totalWeight = expandable.reduce(
+      (sum, index) => sum + sourceWeight(ordered[index].key),
+      0,
     );
-    const extraCost = Math.max(0, encodedLength(expanded) - currentCost);
-    payload[index].content = expanded;
-    remainingEncodedChars -= extraCost;
+    let expandedInRound = 0;
+    const stillExpandable: number[] = [];
+
+    for (const index of expandable) {
+      if (remainingEncodedChars <= 0) break;
+      const current = payload[index].content;
+      const currentCost = encodedLength(current);
+      const weightedShare = Math.max(
+        1,
+        Math.floor((roundBudget * sourceWeight(ordered[index].key)) / totalWeight),
+      );
+      const expanded = prefixForEncodedBudget(
+        ordered[index].content,
+        currentCost + Math.min(remainingEncodedChars, weightedShare),
+      );
+      const extraCost = Math.max(0, encodedLength(expanded) - currentCost);
+      payload[index].content = expanded;
+      remainingEncodedChars -= extraCost;
+      expandedInRound += extraCost;
+      if (expanded.length < ordered[index].content.length) stillExpandable.push(index);
+    }
+
+    if (!expandedInRound) break;
+    expandable = stillExpandable;
   }
 
   return payload.filter((source) => source.content);

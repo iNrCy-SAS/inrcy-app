@@ -1,9 +1,9 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { useRef, useState } from "react";
 
-
-import { useState } from "react";
+import MediaSubjectVoiceButton from "../../_components/MediaSubjectVoiceButton";
 
 type EditableTagsProps = {
   values: string[];
@@ -33,6 +33,18 @@ function uniqueTags(values: string[]) {
   });
 }
 
+function splitTagDraft(value: string) {
+  return String(value || "")
+    // Les moteurs de dictée peuvent restituer le signe ou le mot prononcé.
+    // Les principales variantes de « virgule » restent reconnues pour que le
+    // composant fonctionne aussi dans les autres langues de l'application.
+    .replace(/(?:逗号|จุลภาค)/giu, ",")
+    .replace(/\b(?:virgule|comma|coma|komma|virgola|vírgula)\b/giu, ",")
+    .split(/[,;\n]+/)
+    .map(cleanTag)
+    .filter(Boolean);
+}
+
 export default function EditableTags({
   values,
   onChange,
@@ -46,19 +58,36 @@ export default function EditableTags({
   const i18nT = useTranslations("settings");
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState("");
+  const [voiceBusy, setVoiceBusy] = useState(false);
+  const draftRef = useRef("");
+  const voiceSessionStartedRef = useRef(false);
 
-  const commit = () => {
+  const updateDraft = (value: string) => {
+    draftRef.current = value;
+    setDraft(value);
+  };
+
+  const commit = (rawDraft = draftRef.current) => {
     if (disabled) return;
-    const next = draft
-      .split(/[,;\n]+/)
-      .map(cleanTag)
-      .filter(Boolean);
+    const next = splitTagDraft(rawDraft);
     if (!next.length) {
-      setDraft("");
+      updateDraft("");
       return;
     }
     onChange(uniqueTags([...values, ...next]).slice(0, maxItems));
-    setDraft("");
+    updateDraft("");
+  };
+
+  const handleVoiceBusyChange = (busy: boolean) => {
+    setVoiceBusy(busy);
+    if (busy) {
+      voiceSessionStartedRef.current = true;
+      setAdding(true);
+      return;
+    }
+    if (!voiceSessionStartedRef.current) return;
+    voiceSessionStartedRef.current = false;
+    if (draftRef.current.trim()) commit(draftRef.current);
   };
 
   return (
@@ -138,6 +167,26 @@ export default function EditableTags({
             + {addLabel}
           </button>
         ) : null}
+
+        {values.length < maxItems ? (
+          <span
+            data-editable-tags-voice
+            onMouseDown={(event) => event.preventDefault()}
+            style={{ display: "inline-flex", alignItems: "center" }}
+          >
+            <MediaSubjectVoiceButton
+              disabled={disabled}
+              value={draft}
+              onChange={updateDraft}
+              onBusyChange={handleVoiceBusyChange}
+              contextLabel={addLabel}
+              purpose="tags"
+              placement="inline"
+              mergeMode="space"
+              maxLength={2_000}
+            />
+          </span>
+        ) : null}
       </div>
 
       {adding ? (
@@ -153,7 +202,7 @@ export default function EditableTags({
             value={draft}
             readOnly={disabled}
             onChange={(event) => {
-              if (!disabled) setDraft(event.target.value);
+              if (!disabled) updateDraft(event.target.value);
             }}
             onKeyDown={(event) => {
               if (disabled) return;
@@ -162,13 +211,13 @@ export default function EditableTags({
                 commit();
               }
               if (event.key === "Escape") {
-                setDraft("");
+                updateDraft("");
                 setAdding(false);
               }
             }}
             onBlur={() => {
-              if (disabled) return;
-              if (draft.trim()) commit();
+              if (disabled || voiceBusy) return;
+              if (draftRef.current.trim()) commit();
             }}
             placeholder={placeholder}
             style={{
@@ -187,7 +236,7 @@ export default function EditableTags({
             type="button"
             disabled={disabled}
             onMouseDown={(event) => event.preventDefault()}
-            onClick={commit}
+            onClick={() => commit()}
             style={{
               borderRadius: 11,
               border: "1px solid rgba(56,189,248,0.34)",
@@ -199,7 +248,8 @@ export default function EditableTags({
               fontWeight: 850,
             }}
           >
-            {i18nT("ajouter_87c57ed1")}{" "}</button>
+            {i18nT("ajouter_87c57ed1")}
+          </button>
         </div>
       ) : !inlineAdd && values.length < maxItems ? (
         <button
@@ -210,6 +260,15 @@ export default function EditableTags({
         >
           + {addLabel}
         </button>
+      ) : null}
+
+      {values.length < maxItems ? (
+        <span
+          data-editable-tags-voice-help
+          style={{ color: "rgba(186,230,253,0.66)", fontSize: 11.5, lineHeight: 1.45 }}
+        >
+          {i18nT("tags_voice_help")}
+        </span>
       ) : null}
     </div>
   );
