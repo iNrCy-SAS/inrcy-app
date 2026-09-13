@@ -153,6 +153,22 @@ test("le calendrier partagé global est synchronisé par un cron protégé et id
   assert.match(inrCalendarSync, /deduplicated/);
 });
 
+test("un conflit de tombstone miroir se répare sans notification Google", () => {
+  const backend = read("lib/visioBookingGoogle.ts");
+  const upsert = backend.slice(
+    backend.indexOf("async function upsertTeamMirrorEvent"),
+    backend.indexOf("async function cancelSharedCalendarEvent"),
+  );
+  assert.match(upsert, /expectedMirrorEventId = teamMirrorEventIdForSource/);
+  assert.match(upsert, /isRecoverableTeamCalendarMirrorTombstone/);
+  assert.match(upsert, /!hasMatchingSourceMetadata && !isRecoverableTombstone/);
+  assert.match(
+    upsert,
+    /events\/\$\{encodeURIComponent\(mirrorEventId\)\}\?sendUpdates=none/,
+  );
+  assert.doesNotMatch(upsert, /sendUpdates=all|attendees|conferenceData|sendTxMail/);
+});
+
 test("les répliques inchangées sont regroupées sans perdre un canonique hors fenêtre", () => {
   const backend = read("lib/visioBookingGoogle.ts");
   const teamSync = backend.slice(

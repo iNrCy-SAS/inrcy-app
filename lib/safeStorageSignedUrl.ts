@@ -1,4 +1,10 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import {
+  createStorageSignErrorDiagnostic,
+  isMissingStorageObjectError,
+  isStorageClientError,
+  isTransientStorageError,
+} from "@/lib/storageSignedUrlError";
 import { normalizeStorageDeliveryUrl } from "@/lib/storageUrlSanitization";
 
 function normalizePath(value: unknown) {
@@ -74,20 +80,6 @@ function pruneCache(now: number) {
     removed += 1;
     if (removed >= overflow) break;
   }
-}
-
-function isMissingObjectError(error: unknown) {
-  const candidate = error as { statusCode?: string | number; status?: number; message?: string; error?: string } | null;
-  const status = Number(candidate?.statusCode || candidate?.status || 0);
-  const message = `${candidate?.message || ""} ${candidate?.error || ""}`.toLowerCase();
-  return status === 400 || status === 404 || message.includes("not found") || message.includes("does not exist");
-}
-
-function isTransientStorageError(error: unknown) {
-  const candidate = error as { statusCode?: string | number; status?: number; message?: string; error?: string } | null;
-  const status = Number(candidate?.statusCode || candidate?.status || 0);
-  const message = `${candidate?.message || ""} ${candidate?.error || ""}`.toLowerCase();
-  return status === 408 || status === 429 || status >= 500 || message.includes("timeout") || message.includes("fetch failed") || message.includes("econnreset");
 }
 
 function sleep(ms: number) {
@@ -174,15 +166,31 @@ async function signWithRetry(bucket: string, path: string, expiresIn: number): P
       }
       lastError = error;
 
-      // A stale/non-existent path is deterministic: retrying only creates more 400s.
-      if (isMissingObjectError(error)) {
+      // A stale/non-existent path is deterministic: retrying only creates more noise.
+      if (isMissingStorageObjectError(error)) {
         rememberMissingObject(bucket, path);
         return null;
       }
-      if (!isTransientStorageError(error)) return null;
+      if (!isTransientStorageError(error)) {
+        if (isStorageClientError(error)) {
+          console.warn(
+            "[storage-sign] request rejected",
+            createStorageSignErrorDiagnostic({ error, bucket, path }),
+          );
+        }
+        return null;
+      }
     } catch (error) {
       lastError = error;
-      if (!isTransientStorageError(error)) return null;
+      if (!isTransientStorageError(error)) {
+        if (isStorageClientError(error)) {
+          console.warn(
+            "[storage-sign] request rejected",
+            createStorageSignErrorDiagnostic({ error, bucket, path }),
+          );
+        }
+        return null;
+      }
     }
 
     if (attempt < RETRY_DELAYS_MS.length) {
@@ -190,11 +198,10 @@ async function signWithRetry(bucket: string, path: string, expiresIn: number): P
     }
   }
 
-  console.error("[storage-sign] unavailable after retries", {
-    bucket,
-    path,
-    error: lastError instanceof Error ? lastError.message : String(lastError || "unknown"),
-  });
+  console.error(
+    "[storage-sign] unavailable after retries",
+    createStorageSignErrorDiagnostic({ error: lastError, bucket, path }),
+  );
   return null;
 }
 
@@ -204,7 +211,7 @@ async function signWithRetry(bucket: string, path: string, expiresIn: number): P
  * - still attempts signing when the probe is inconclusive, preserving availability;
  * - one in-flight request per object (prevents request storms);
  * - retries only transient 5xx/timeout failures;
- * - never retries deterministic 400/404 stale paths;
+ * - never retries deterministic missing paths or non-transient 4xx errors;
  * - caches the URL for less than its real TTL so callers do not keep re-signing it.
  */
 export async function createSafeStorageSignedUrl(

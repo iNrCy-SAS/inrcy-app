@@ -235,13 +235,23 @@ export async function reconcileStripeSubscriptionStatuses(): Promise<StripeSubsc
   }
 
   if (result.ambiguous || result.unmatched_stripe || result.review_required) {
-    console.warn(
-      "[stripe-subscription-sync][reconciliation_anomalies]",
+    // These rows need an admin reconciliation, but the synchronization itself
+    // succeeded. Keep this business state out of Vercel's warning/error stream:
+    // the admin subscriber screen and the structured cron response remain the
+    // authoritative, actionable surfaces.
+    console.info(
+      "[stripe-subscription-sync][reconciliation_pending]",
       JSON.stringify({
         ambiguous: result.ambiguous,
         unmatched_stripe: result.unmatched_stripe,
         review_required: result.review_required,
       }),
+    );
+  }
+  if (result.errors.length > 0) {
+    console.error(
+      "[stripe-subscription-sync][persistence_failed]",
+      JSON.stringify({ count: result.errors.length, errors: result.errors }),
     );
   }
   result.ok = result.errors.length === 0;

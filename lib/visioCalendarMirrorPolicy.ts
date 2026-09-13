@@ -185,6 +185,17 @@ export function teamCalendarMirrorSourceKey(calendarId: string, eventId: string)
   return `${calendarId.trim()}\n${eventId.trim()}`;
 }
 
+export function isRecoverableTeamCalendarMirrorTombstone(input: {
+  existing: Pick<TeamCalendarEvent, "id" | "status">;
+  expectedEventId: string;
+  mirrorEventId: string;
+}) {
+  return Boolean(input.expectedEventId) &&
+    input.existing.status === "cancelled" &&
+    input.existing.id === input.expectedEventId &&
+    input.mirrorEventId === input.expectedEventId;
+}
+
 export function teamCalendarEventMeetUrl(event: TeamCalendarEvent) {
   return String(
     event.hangoutLink ||

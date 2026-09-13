@@ -68,6 +68,7 @@ import {
   TEAM_CALENDAR_MIRROR_VALUE,
   buildTeamCalendarMirrorBody,
   hasAutomaticGoogleCalendarReminders,
+  isRecoverableTeamCalendarMirrorTombstone,
   isPendingSignupReminderForProspect,
   pendingSignupReminderProspectUserId,
   shouldMirrorTeamCalendarEvent,
@@ -645,10 +646,11 @@ async function upsertTeamMirrorEvent(input: {
   const fingerprint = teamMirrorFingerprint(input.event, input.member);
   const existingFingerprint =
     input.existing?.extendedProperties?.private?.sourceFingerprint || "";
+  const expectedMirrorEventId = teamMirrorEventIdForSource(input.member, input.event);
   const mirrorEventId =
     input.existing?.id ||
     input.mirrorEventId ||
-    teamMirrorEventIdForSource(input.member, input.event);
+    expectedMirrorEventId;
   const body = buildTeamCalendarMirrorBody({
     event: input.event,
     member: input.member,
@@ -689,11 +691,16 @@ async function upsertTeamMirrorEvent(input: {
         `/calendars/${encodeCalendarId(sharedCalendarId)}/events/${encodeURIComponent(mirrorEventId)}`,
       );
       const properties = existing.extendedProperties?.private || {};
-      if (
-        properties[TEAM_CALENDAR_MIRROR_KEY] !== TEAM_CALENDAR_MIRROR_VALUE ||
-        properties.sourceCalendarId !== input.member.calendarId ||
-        properties.sourceEventId !== input.event.id
-      ) {
+      const hasMatchingSourceMetadata =
+        properties[TEAM_CALENDAR_MIRROR_KEY] === TEAM_CALENDAR_MIRROR_VALUE &&
+        properties.sourceCalendarId === input.member.calendarId &&
+        properties.sourceEventId === input.event.id;
+      const isRecoverableTombstone = isRecoverableTeamCalendarMirrorTombstone({
+        existing,
+        expectedEventId: expectedMirrorEventId,
+        mirrorEventId,
+      });
+      if (!hasMatchingSourceMetadata && !isRecoverableTombstone) {
         throw new Error("visio_team_mirror_id_conflict");
       }
       await googleCalendarRequest<GoogleCalendarEvent>(

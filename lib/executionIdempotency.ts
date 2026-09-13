@@ -41,11 +41,6 @@ function isMissingTableError(error: { code?: string; message?: string } | null |
   );
 }
 
-function isUniqueViolation(error: { code?: string; message?: string } | null | undefined) {
-  const message = String(error?.message || "").toLowerCase();
-  return error?.code === "23505" || message.includes("duplicate key");
-}
-
 export function cleanExecutionIdempotencyKey(value: unknown) {
   return String(value || "")
     .trim()
@@ -169,21 +164,30 @@ export async function acquireExecutionIdempotencyLock(args: {
   try {
     const { data, error } = await args.supabase
       .from("execution_idempotency_locks")
-      .insert({
-        user_id: args.userId,
-        scope: args.scope,
-        idempotency_key: idempotencyKey,
-        status: "running",
-        metadata,
-        locked_at: nowIso,
-        expires_at: expiresAt,
-        updated_at: nowIso,
-      })
-      .select(EXECUTION_IDEMPOTENCY_SELECT)
-      .single();
+      .upsert(
+        {
+          user_id: args.userId,
+          scope: args.scope,
+          idempotency_key: idempotencyKey,
+          status: "running",
+          metadata,
+          locked_at: nowIso,
+          expires_at: expiresAt,
+          updated_at: nowIso,
+        },
+        {
+          onConflict: "user_id,scope,idempotency_key",
+          ignoreDuplicates: true,
+        },
+      )
+      .select(EXECUTION_IDEMPOTENCY_SELECT);
 
-    if (!error) return { state: "acquired", lock: normalizeLock(data) };
-    if (!isUniqueViolation(error)) throw error;
+    if (error) throw error;
+    // PostgREST returns an empty array when ON CONFLICT DO NOTHING wins.
+    // maybeSingle() on a mutation requests a singular response and converts
+    // that expected zero-row result into a noisy PGRST116/406.
+    const inserted = Array.isArray(data) ? data[0] : data;
+    if (inserted) return { state: "acquired", lock: normalizeLock(inserted) };
 
     const existing = await fetchExecutionIdempotencyLock({
       supabase: args.supabase,

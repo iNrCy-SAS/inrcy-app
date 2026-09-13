@@ -255,6 +255,10 @@ test("les statuts Stripe en retard sont reconciliés automatiquement sans ecrase
   assert.match(sync, /\.eq\("status", row\.status\)/);
   assert.match(sync, /\.eq\("updated_at", row\.updated_at\)/);
   assert.match(sync, /billing_provider/);
+  assert.match(sync, /\[stripe-subscription-sync\]\[reconciliation_pending\]/);
+  assert.match(sync, /console\.info/);
+  assert.doesNotMatch(sync, /\[stripe-subscription-sync\]\[reconciliation_anomalies\]/);
+  assert.match(sync, /\[stripe-subscription-sync\]\[persistence_failed\]/);
   assert.match(route, /isAuthorizedCronRequest/);
   assert.match(vercel, /\/api\/cron\/stripe-subscription-sync/);
   assert.match(vercel, /\*\/10 \* \* \* \*/);

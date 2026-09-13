@@ -4,9 +4,11 @@ import { createSupabaseServer } from "@/lib/supabaseServer";
 import { resolveActiveInrcyAccountId } from "@/lib/multicompte/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { buildStorageContentUrl } from "@/lib/storageContentUrl";
+import { createSafeStorageSignedUrl } from "@/lib/safeStorageSignedUrl";
 import { runTransientPostgrestRead } from "@/lib/supabaseTransientRetry";
 import { getInrSendRetentionCutoffIso, getOldestAutoRetentionCutoffIso, isInrSendItemRetained } from "@/lib/inrsendRetention";
 import { fetchInrSendHistoryFiles } from "@/lib/inrsend/historyFiles";
+import { sanitizeInrSendHistoryStorageUrls } from "@/lib/inrsend/historyStorageUrls";
 import {
   INRCY_WORKFLOW_ACTIONS,
   INRSEND_GROUPED_FOLDERS,
@@ -159,6 +161,7 @@ const COUNT_SOURCE_ROW_LIMIT = 300;
 const HISTORY_NO_STORE_HEADERS = {
   "Cache-Control": "private, no-store, max-age=0",
 };
+const HISTORY_PRIVATE_STORAGE_URL_TTL_SECONDS = 15 * 60;
 const ALL_FOLDERS: Folder[] = Array.from(
   new Set<string>([...INRSEND_LEGACY_FOLDERS, ...INRSEND_GROUPED_FOLDERS]),
 ) as Folder[];
@@ -168,6 +171,14 @@ function emptyFolderCounts(): FolderCounts {
     acc[folder] = 0;
     return acc;
   }, {} as FolderCounts);
+}
+
+async function resolvePrivateHistoryStorageUrl(bucket: string, storagePath: string) {
+  return createSafeStorageSignedUrl(
+    bucket,
+    storagePath,
+    HISTORY_PRIVATE_STORAGE_URL_TTL_SECONDS,
+  );
 }
 
 function parsePositiveInt(value: string | null, fallback: number, max: number) {
@@ -1776,7 +1787,7 @@ export async function GET(req: Request) {
     const hasMoreFromPage =
       page < MAX_HISTORY_PAGE && (filtered.length > end || scanTruncated);
 
-    const items = filtered.slice(start, end);
+    let items = filtered.slice(start, end);
     const historyFiles = await fetchInrSendHistoryFiles(
       supabase,
       activeUserId,
@@ -1810,6 +1821,11 @@ export async function GET(req: Request) {
     }
 
     await withStatsReportContentUrls(items);
+    items = await sanitizeInrSendHistoryStorageUrls(items, {
+      activeUserId,
+      supabaseUrl: String(process.env.NEXT_PUBLIC_SUPABASE_URL || ""),
+      resolvePrivateUrl: resolvePrivateHistoryStorageUrl,
+    });
 
     if (!includeCounts) {
       // When every relevant source was exhausted by the bounded page scan, the

@@ -40,7 +40,7 @@ test("les URL Storage privées passent toutes par le service de signature proté
   );
   assert.match(helper, /if \(objectState === "missing"\) return null/);
   assert.match(helper, /const signingInFlight = new Map/);
-  assert.match(helper, /if \(isMissingObjectError\(error\)\)/);
+  assert.match(helper, /if \(isMissingStorageObjectError\(error\)\)/);
 
   const offenders = [...sourceFiles("app"), ...sourceFiles("lib")].filter(
     (relativePath) =>
@@ -136,5 +136,9 @@ test("Stripe rattache un Checkout au compte même sans metadata", () => {
   const webhook = read("app/api/stripe/webhook/route.ts");
   assert.match(checkout, /sessionParams\.set\("client_reference_id", userId\)/);
   assert.match(webhook, /session\?\.client_reference_id/);
-  assert.match(webhook, /metadataUserId \|\| clientReferenceId/);
+  assert.match(
+    webhook,
+    /consistentStripeWebhookUserId\(\[\s*metadataUserId,\s*clientReferenceId/,
+  );
+  assert.match(webhook, /checkout_identity_conflict/);
 });

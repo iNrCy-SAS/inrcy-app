@@ -15,7 +15,19 @@ function getRequestUrl(input: RequestInfo | URL) {
 }
 
 function isAuthUserRequest(input: RequestInfo | URL) {
-  return getRequestUrl(input).includes(AUTH_USER_PATH);
+  try {
+    return new URL(getRequestUrl(input), "http://localhost").pathname === AUTH_USER_PATH;
+  } catch {
+    return false;
+  }
+}
+
+function getRequestMethod(input: RequestInfo | URL, init?: RequestInit) {
+  if (init?.method) return init.method.toUpperCase();
+  if (typeof Request !== "undefined" && input instanceof Request) {
+    return input.method.toUpperCase();
+  }
+  return "GET";
 }
 
 async function handleInvalidBrowserSession() {
@@ -32,12 +44,13 @@ async function handleInvalidBrowserSession() {
   window.dispatchEvent(new CustomEvent("inrcy:auth-session-invalid"));
 }
 
-async function guardedFetch(input: RequestInfo | URL, init?: RequestInit) {
+export async function guardedFetch(input: RequestInfo | URL, init?: RequestInit) {
   if (!isAuthUserRequest(input)) return fetch(input, init);
 
   // A dashboard render may mount many hooks at once. Supabase getUser() calls are
   // identical, so coalesce them into one request instead of producing a 403 storm.
-  if (authUserRequest) return (await authUserRequest).clone();
+  const shouldCoalesce = getRequestMethod(input, init) === "GET";
+  if (shouldCoalesce && authUserRequest) return (await authUserRequest).clone();
 
   const request = fetch(input, init)
     .then(async (response) => {
@@ -48,11 +61,14 @@ async function guardedFetch(input: RequestInfo | URL, init?: RequestInit) {
       return response;
     })
     .finally(() => {
-      authUserRequest = null;
+      if (shouldCoalesce && authUserRequest === request) authUserRequest = null;
     });
 
-  authUserRequest = request;
-  return (await request).clone();
+  if (shouldCoalesce) {
+    authUserRequest = request;
+    return (await request).clone();
+  }
+  return request;
 }
 
 export function createClient() {
