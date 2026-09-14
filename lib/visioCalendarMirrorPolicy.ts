@@ -186,7 +186,7 @@ export function teamCalendarMirrorSourceKey(calendarId: string, eventId: string)
 }
 
 export function isRecoverableDeterministicTeamCalendarMirror(input: {
-  existing: Pick<TeamCalendarEvent, "id">;
+  existing: Pick<TeamCalendarEvent, "id" | "status">;
   expectedEventId: string;
   mirrorEventId: string;
 }) {
