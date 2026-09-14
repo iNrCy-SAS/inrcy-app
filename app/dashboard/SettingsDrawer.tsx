@@ -111,7 +111,7 @@ export default function SettingsDrawer({
         width: "100%",
         height: drawerHeight,
         maxHeight: drawerHeight,
-        background: "rgba(0,0,0,0.55)",
+        background: "var(--inrcy-theme-drawer-backdrop, rgba(0,0,0,0.55))",
         zIndex: 2147483001,
         display: "flex",
         justifyContent: isPhone ? "stretch" : "flex-end",
@@ -137,9 +137,9 @@ export default function SettingsDrawer({
           maxHeight: "100%",
           minHeight: 0,
           boxSizing: "border-box",
-          background: "rgba(16,16,16,0.98)",
-          color: "rgba(255,255,255,0.92)",
-          borderLeft: isPhone ? 0 : "1px solid rgba(255,255,255,0.08)",
+          background: "var(--inrcy-theme-drawer-background, rgba(16,16,16,0.98))",
+          color: "var(--inrcy-theme-text-primary, rgba(255,255,255,0.92))",
+          borderLeft: isPhone ? 0 : "1px solid var(--inrcy-theme-border, rgba(255,255,255,0.08))",
           borderRight: 0,
           padding: 0,
           display: "flex",
@@ -168,8 +168,8 @@ export default function SettingsDrawer({
             padding: isPhone
               ? "max(12px, var(--inrcy-safe-area-top)) max(12px, var(--inrcy-safe-area-right)) 10px max(12px, var(--inrcy-safe-area-left))"
               : 16,
-            borderBottom: "1px solid rgba(255,255,255,0.08)",
-            background: "rgba(16,16,16,0.98)",
+            borderBottom: "1px solid var(--inrcy-theme-border, rgba(255,255,255,0.08))",
+            background: "var(--inrcy-theme-drawer-background, rgba(16,16,16,0.98))",
           }}
         >
           <div style={{ minWidth: 0, maxWidth: "100%" }}>
@@ -177,7 +177,7 @@ export default function SettingsDrawer({
               id={titleId}
               style={{
                 margin: 0,
-                color: "white",
+                color: "var(--inrcy-theme-text-primary, white)",
                 fontSize: "clamp(16px, 4.3vw, 18px)",
                 fontWeight: 800,
                 minWidth: 0,
@@ -212,9 +212,9 @@ export default function SettingsDrawer({
               type="button"
               onClick={onClose}
               style={{
-                border: "1px solid rgba(255,255,255,0.12)",
-                background: "transparent",
-                color: "white",
+                border: "1px solid var(--inrcy-theme-border-strong, rgba(255,255,255,0.12))",
+                background: "var(--inrcy-theme-surface-soft, transparent)",
+                color: "var(--inrcy-theme-text-primary, white)",
                 borderRadius: 10,
                 padding: "8px 10px",
                 cursor: "pointer",

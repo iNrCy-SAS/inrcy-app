@@ -46,11 +46,13 @@
   position: fixed;
   inset: 0;
   z-index: -2;
-  background:
+  background: var(
+    --inrcy-theme-page-background,
     radial-gradient(900px 480px at 10% 10%, rgba(0,255,255,.10), transparent 55%),
     radial-gradient(900px 520px at 95% 20%, rgba(157,78,255,.12), transparent 55%),
     radial-gradient(700px 540px at 65% 95%, rgba(255,60,120,.08), transparent 55%),
-    linear-gradient(180deg, rgba(10,12,18,1), rgba(8,10,15,1));
+    linear-gradient(180deg, rgba(10,12,18,1), rgba(8,10,15,1))
+  );
 }
 
 /* subtle dot grid */

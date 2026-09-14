@@ -3,11 +3,13 @@
   min-height:100vh;
   padding:26px 18px 56px;
   color:#f7fbff;
-  background:
+  background: var(
+    --inrcy-theme-page-background,
     radial-gradient(circle at top left, rgba(31,165,255,.16), transparent 26%),
     radial-gradient(circle at top right, rgba(154,74,255,.20), transparent 30%),
     radial-gradient(circle at bottom left, rgba(46,226,167,.10), transparent 24%),
-    linear-gradient(180deg, #07112a 0%, #050d21 100%);
+    linear-gradient(180deg, #07112a 0%, #050d21 100%)
+  );
   overflow:hidden;
 }
 

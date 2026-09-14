@@ -96,8 +96,8 @@ export const dashboardWorkspacePageStyle: CSSProperties = {
   minHeight: "100svh",
   overflowX: "clip",
   padding: "14px clamp(10px, 2.2vw, 28px) max(90px, calc(34px + var(--inrcy-safe-area-bottom)))",
-  background: "radial-gradient(900px 480px at 10% 0%, rgba(14,165,233,0.13), transparent 60%), radial-gradient(900px 500px at 92% 4%, rgba(139,92,246,0.15), transparent 62%), linear-gradient(180deg, rgba(5,14,30,0.97), rgba(12,8,28,0.98))",
-  color: "rgba(255,255,255,0.92)",
+  background: "var(--inrcy-theme-page-background, radial-gradient(900px 480px at 10% 0%, rgba(14,165,233,0.13), transparent 60%), radial-gradient(900px 500px at 92% 4%, rgba(139,92,246,0.15), transparent 62%), linear-gradient(180deg, rgba(5,14,30,0.97), rgba(12,8,28,0.98)))",
+  color: "var(--inrcy-theme-text-primary, rgba(255,255,255,0.92))",
 };
 
 export const dashboardWorkspaceContentStyle: CSSProperties = {
@@ -119,21 +119,21 @@ const headerStyle: CSSProperties = {
   justifyContent: "space-between",
   gap: 14,
   borderRadius: 17,
-  border: "1px solid rgba(125,211,252,0.13)",
-  background: "linear-gradient(135deg, rgba(5,15,32,0.96), rgba(17,12,38,0.95))",
-  boxShadow: "0 15px 42px rgba(0,0,0,0.25)",
+  border: "1px solid var(--inrcy-theme-border, rgba(125,211,252,0.13))",
+  background: "var(--inrcy-theme-drawer-background, linear-gradient(135deg, rgba(5,15,32,0.96), rgba(17,12,38,0.95)))",
+  boxShadow: "var(--inrcy-theme-shadow-soft, 0 15px 42px rgba(0,0,0,0.25))",
   backdropFilter: "blur(20px)",
 };
 const brandStyle: CSSProperties = { display: "flex", alignItems: "center", gap: 10, minWidth: 0 };
 const logoStyle: CSSProperties = { width: 42, height: 42, flex: "0 0 auto", filter: "drop-shadow(0 9px 22px rgba(124,58,237,0.26))" };
-const dividerStyle: CSSProperties = { width: 1, height: 30, flex: "0 0 auto", background: "rgba(255,255,255,0.13)" };
+const dividerStyle: CSSProperties = { width: 1, height: 30, flex: "0 0 auto", background: "var(--inrcy-theme-border-strong, rgba(255,255,255,0.13))" };
 const titleGroupStyle: CSSProperties = { display: "grid", gap: 2, minWidth: 0 };
-const titleStyle: CSSProperties = { margin: 0, color: "white", fontSize: "clamp(15px, 2vw, 18px)", fontWeight: 900, lineHeight: 1.15, letterSpacing: "-0.01em" };
-const subtitleStyle: CSSProperties = { maxWidth: "min(52vw, 720px)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "rgba(255,255,255,0.60)", fontSize: 10.5, lineHeight: 1.25 };
+const titleStyle: CSSProperties = { margin: 0, color: "var(--inrcy-theme-text-primary, white)", fontSize: "clamp(15px, 2vw, 18px)", fontWeight: 900, lineHeight: 1.15, letterSpacing: "-0.01em" };
+const subtitleStyle: CSSProperties = { maxWidth: "min(52vw, 720px)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--inrcy-theme-text-muted, rgba(255,255,255,0.60))", fontSize: 10.5, lineHeight: 1.25 };
 const actionsStyle: CSSProperties = { display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8, flex: "0 0 auto" };
-const headerButtonBase: CSSProperties = { borderRadius: 10, padding: "7px 10px", color: "rgba(255,255,255,0.90)", cursor: "pointer", fontSize: 11.5, fontWeight: 850, whiteSpace: "nowrap" };
+const headerButtonBase: CSSProperties = { borderRadius: 10, padding: "7px 10px", color: "var(--inrcy-theme-text-primary, rgba(255,255,255,0.90))", cursor: "pointer", fontSize: 11.5, fontWeight: 850, whiteSpace: "nowrap" };
 const buttonToneStyles: Record<NonNullable<WorkspaceHeaderAction["tone"]>, CSSProperties> = {
   cyan: { border: "1px solid rgba(56,189,248,0.22)", background: "rgba(14,165,233,0.10)" },
   violet: { border: "1px solid rgba(196,181,253,0.25)", background: "rgba(124,58,237,0.12)" },
-  neutral: { border: "1px solid rgba(255,255,255,0.13)", background: "rgba(255,255,255,0.035)" },
+  neutral: { border: "1px solid var(--inrcy-theme-border, rgba(255,255,255,0.13))", background: "var(--inrcy-theme-surface-soft, rgba(255,255,255,0.035))" },
 };

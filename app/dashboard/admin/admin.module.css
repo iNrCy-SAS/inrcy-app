@@ -22,11 +22,13 @@
   position: fixed;
   inset: 0;
   z-index: -2;
-  background:
+  background: var(
+    --inrcy-theme-page-background,
     radial-gradient(920px 520px at 12% 10%, rgba(0, 255, 255, 0.14), transparent 56%),
     radial-gradient(940px 560px at 94% 16%, rgba(157, 78, 255, 0.16), transparent 56%),
     radial-gradient(760px 520px at 70% 96%, rgba(255, 60, 120, 0.1), transparent 56%),
-    linear-gradient(180deg, rgba(11, 13, 18, 1), rgba(8, 10, 15, 1));
+    linear-gradient(180deg, rgba(11, 13, 18, 1), rgba(8, 10, 15, 1))
+  );
 }
 
 .page::after {

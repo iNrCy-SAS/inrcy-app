@@ -25,6 +25,7 @@ import {
   saveMobileShortcutsPreference,
   type MobileShortcutId,
 } from "@/lib/mobileShortcuts";
+import AppAppearancePicker from "./AppAppearancePicker";
 
 type Props = {
   mode?: "page" | "drawer";
@@ -161,8 +162,8 @@ export default function GeneralPreferencesContent({ mode = "drawer", onUnsavedCh
     boxSizing: "border-box",
     padding: "clamp(12px, 3.6vw, 16px)",
     borderRadius: 16,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.045)",
+    border: "1px solid var(--inrcy-theme-border, rgba(255,255,255,0.10))",
+    background: "var(--inrcy-theme-settings-card-background, rgba(255,255,255,0.045))",
     backdropFilter: "blur(10px)",
     WebkitBackdropFilter: "blur(10px)",
   }), []);
@@ -171,13 +172,13 @@ export default function GeneralPreferencesContent({ mode = "drawer", onUnsavedCh
     ...card,
     position: "relative",
     overflow: "hidden",
-    border: "1px solid rgba(56,189,248,0.22)",
-    background: "linear-gradient(135deg, rgba(56,189,248,0.16), rgba(97,87,255,0.14), rgba(251,191,36,0.12))",
-    boxShadow: "0 20px 60px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.10)",
+    border: "1px solid var(--inrcy-theme-accent-border, rgba(56,189,248,0.22))",
+    background: "var(--inrcy-theme-settings-hero-background, linear-gradient(135deg, rgba(56,189,248,0.16), rgba(97,87,255,0.14), rgba(251,191,36,0.12)))",
+    boxShadow: "var(--inrcy-theme-shadow, 0 20px 60px rgba(0,0,0,0.22)), inset 0 1px 0 rgba(255,255,255,0.10)",
   }), [card]);
 
   const sectionTitle: React.CSSProperties = {
-    color: "rgba(255,255,255,0.94)",
+    color: "var(--inrcy-theme-text-primary, rgba(255,255,255,0.94))",
     fontSize: 13,
     fontWeight: 950,
     letterSpacing: ".08em",
@@ -193,10 +194,10 @@ export default function GeneralPreferencesContent({ mode = "drawer", onUnsavedCh
     fontSize: 15,
     lineHeight: 1.35,
     borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.14)",
-    background: "rgba(255,255,255,0.04)",
+    border: "1px solid var(--inrcy-theme-border-strong, rgba(255,255,255,0.14))",
+    background: "var(--inrcy-theme-settings-field-background, rgba(255,255,255,0.04))",
     padding: "10px 12px",
-    color: "white",
+    color: "var(--inrcy-theme-text-primary, white)",
     outline: "none",
   }), []);
 
@@ -207,11 +208,11 @@ export default function GeneralPreferencesContent({ mode = "drawer", onUnsavedCh
     maxWidth: "100%",
     padding: "12px",
     borderRadius: 15,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "linear-gradient(135deg, rgba(255,255,255,0.060), rgba(255,255,255,0.025))",
+    border: "1px solid var(--inrcy-theme-border, rgba(255,255,255,0.10))",
+    background: "var(--inrcy-theme-settings-field-background, linear-gradient(135deg, rgba(255,255,255,0.060), rgba(255,255,255,0.025)))",
     boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06)",
   };
-  const labelTitle: React.CSSProperties = { color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 800, lineHeight: 1.25 };
+  const labelTitle: React.CSSProperties = { color: "var(--inrcy-theme-text-secondary, rgba(255,255,255,0.85))", fontSize: 13, fontWeight: 800, lineHeight: 1.25 };
   const grid2: React.CSSProperties = { display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 210px), 1fr))", minWidth: 0, maxWidth: "100%" };
   const primaryBtn: React.CSSProperties = {
     border: "1px solid rgba(255,255,255,0.18)",
@@ -398,17 +399,19 @@ export default function GeneralPreferencesContent({ mode = "drawer", onUnsavedCh
             pointerEvents: "none",
           }}
         />
-        <div style={{ fontSize: "clamp(16px, 4.6vw, 18px)", fontWeight: 950, color: "rgba(255,255,255,0.98)", marginBottom: 8, lineHeight: 1.25, overflowWrap: "break-word" }}>
+        <div style={{ fontSize: "clamp(16px, 4.6vw, 18px)", fontWeight: 950, color: "var(--inrcy-theme-text-primary, rgba(255,255,255,0.98))", marginBottom: 8, lineHeight: 1.25, overflowWrap: "break-word" }}>
           {i18nT("preferences_generales_9266b474")}{" "}</div>
-        <div style={{ color: "rgba(255,255,255,0.78)", fontSize: 13, lineHeight: 1.55, maxWidth: 620, overflowWrap: "break-word" }}>
+        <div style={{ color: "var(--inrcy-theme-text-secondary, rgba(255,255,255,0.78))", fontSize: 13, lineHeight: 1.55, maxWidth: 620, overflowWrap: "break-word" }}>
           {i18nT("reglez_les_parametres_globaux_de_vos_1396fb07")}{" "}</div>
       </div>
 
       <div style={card}>
         {loading ? (
-          <div style={{ color: "rgba(255,255,255,0.72)", fontSize: 13 }}>{i18nT("chargement_01cba1df")}</div>
+          <div style={{ color: "var(--inrcy-theme-text-secondary, rgba(255,255,255,0.72))", fontSize: 13 }}>{i18nT("chargement_01cba1df")}</div>
         ) : (
           <div style={{ display: "grid", gap: 18 }}>
+            <AppAppearancePicker />
+
             <div style={{ display: "grid", gap: 12 }}>
               <div style={sectionTitle}>{i18nT("localisation_echanges_clients_548f849b")}</div>
               <div style={grid2}>
@@ -472,7 +475,7 @@ export default function GeneralPreferencesContent({ mode = "drawer", onUnsavedCh
             <div style={{ display: "grid", gap: 12 }}>
               <div>
                 <div style={sectionTitle}>{i18nT("raccourcis_mobiles_db886e5d")}</div>
-                <div style={{ marginTop: 6, color: "rgba(255,255,255,0.70)", fontSize: 12.5, lineHeight: 1.5 }}>
+                <div style={{ marginTop: 6, color: "var(--inrcy-theme-text-secondary, rgba(255,255,255,0.70))", fontSize: 12.5, lineHeight: 1.5 }}>
                   {i18nT("choisissez_jusqu_a_9d086004")}{" "}{MOBILE_SHORTCUT_MAX} {" "}{i18nT("outils_pour_le_bloc_839a3e2f")}{" "}<strong>{i18nT("raccourcis_0e0d6404")}</strong> {" "}{i18nT("du_menu_mobile_le_choix_est_6892ed72")}{" "}</div>
               </div>
 
@@ -483,8 +486,8 @@ export default function GeneralPreferencesContent({ mode = "drawer", onUnsavedCh
                       {index + 1}. {getMobileShortcutLabel(id, t.locale)}
                     </span>
                     <span style={{ display: "inline-flex", gap: 6, flex: "0 0 auto" }}>
-                      <button type="button" aria-label={i18nT("monter_dd1b79d9")} disabled={index === 0} onClick={() => moveMobileShortcut(id, -1)} style={{ width: 34, height: 34, borderRadius: 10, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", color: "white", cursor: index === 0 ? "default" : "pointer", opacity: index === 0 ? 0.35 : 1 }}>↑</button>
-                      <button type="button" aria-label={i18nT("descendre_383f2e3e")} disabled={index === mobileShortcuts.length - 1} onClick={() => moveMobileShortcut(id, 1)} style={{ width: 34, height: 34, borderRadius: 10, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", color: "white", cursor: index === mobileShortcuts.length - 1 ? "default" : "pointer", opacity: index === mobileShortcuts.length - 1 ? 0.35 : 1 }}>↓</button>
+                      <button type="button" aria-label={i18nT("monter_dd1b79d9")} disabled={index === 0} onClick={() => moveMobileShortcut(id, -1)} style={{ width: 34, height: 34, borderRadius: 10, border: "1px solid var(--inrcy-theme-border, rgba(255,255,255,0.12))", background: "var(--inrcy-theme-surface-soft, rgba(255,255,255,0.06))", color: "var(--inrcy-theme-text-primary, white)", cursor: index === 0 ? "default" : "pointer", opacity: index === 0 ? 0.35 : 1 }}>↑</button>
+                      <button type="button" aria-label={i18nT("descendre_383f2e3e")} disabled={index === mobileShortcuts.length - 1} onClick={() => moveMobileShortcut(id, 1)} style={{ width: 34, height: 34, borderRadius: 10, border: "1px solid var(--inrcy-theme-border, rgba(255,255,255,0.12))", background: "var(--inrcy-theme-surface-soft, rgba(255,255,255,0.06))", color: "var(--inrcy-theme-text-primary, white)", cursor: index === mobileShortcuts.length - 1 ? "default" : "pointer", opacity: index === mobileShortcuts.length - 1 ? 0.35 : 1 }}>↓</button>
                     </span>
                   </div>
                 ))}
@@ -509,7 +512,7 @@ export default function GeneralPreferencesContent({ mode = "drawer", onUnsavedCh
                 })}
               </div>
 
-              <div style={{ color: mobileShortcuts.length >= MOBILE_SHORTCUT_MAX ? "rgba(251,191,36,0.95)" : "rgba(255,255,255,0.64)", fontSize: 12, fontWeight: 800 }}>
+              <div style={{ color: mobileShortcuts.length >= MOBILE_SHORTCUT_MAX ? "rgba(180,118,0,0.95)" : "var(--inrcy-theme-text-muted, rgba(255,255,255,0.64))", fontSize: 12, fontWeight: 800 }}>
                 {mobileShortcuts.length} / {MOBILE_SHORTCUT_MAX} {" "}{i18nT("raccourcis_selectionnes_14f4e07e")}{" "}</div>
             </div>
 
@@ -518,7 +521,7 @@ export default function GeneralPreferencesContent({ mode = "drawer", onUnsavedCh
 
             <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 180px), 1fr))", minWidth: 0, maxWidth: "100%" }}>
               <button type="button" style={primaryBtn} disabled={saving} onClick={save}>{saving ? i18nT("enregistrement_e7d5f232") : i18nT("enregistrer_f7c8bcd8")}</button>
-              <button type="button" disabled={saving} onClick={reset} style={{ border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.05)", color: "white", borderRadius: 14, padding: "10px 12px", cursor: saving ? "default" : "pointer", fontWeight: 900, fontSize: 16 }}>
+              <button type="button" disabled={saving} onClick={reset} style={{ border: "1px solid var(--inrcy-theme-border-strong, rgba(255,255,255,0.12))", background: "var(--inrcy-theme-surface-soft, rgba(255,255,255,0.05))", color: "var(--inrcy-theme-text-primary, white)", borderRadius: 14, padding: "10px 12px", cursor: saving ? "default" : "pointer", fontWeight: 900, fontSize: 16 }}>
                 {i18nT("reinitialiser_e0e2ad54")}{" "}</button>
             </div>
           </div>

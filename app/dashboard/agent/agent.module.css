@@ -3,18 +3,13 @@
   min-height: 0;
   padding: clamp(14px, 2vw, 28px);
   color: #f8fbff;
-  background: radial-gradient(
-      circle at 18% 0%,
-      rgba(37, 99, 235, 0.22),
-      transparent 34%
-    ),
+  background: var(
+    --inrcy-theme-page-background,
+    radial-gradient(circle at 18% 0%, rgba(37, 99, 235, 0.22), transparent 34%),
     radial-gradient(circle at 86% 16%, rgba(168, 85, 247, 0.2), transparent 32%),
-    radial-gradient(
-      circle at 36% 100%,
-      rgba(14, 165, 233, 0.12),
-      transparent 38%
-    ),
-    linear-gradient(135deg, #050a1e 0%, #06132e 48%, #041126 100%);
+    radial-gradient(circle at 36% 100%, rgba(14, 165, 233, 0.12), transparent 38%),
+    linear-gradient(135deg, #050a1e 0%, #06132e 48%, #041126 100%)
+  );
   overflow: hidden;
 }
 

@@ -7,7 +7,7 @@
   width: 100%;
   min-height: 100vh;
   min-height: 100dvh;
-  background-color: #0b142c;
+  background-color: var(--inrcy-theme-shell-background, #0b142c);
 }
 
 /* =========================
@@ -16,28 +16,14 @@
 .page {
   min-height: 100vh;
   padding: 20px 18px 40px;
-  background:
-    radial-gradient(
-      900px 520px at 12% 8%,
-      rgba(56, 189, 248, 0.18),
-      transparent 62%
-    ),
-    radial-gradient(
-      900px 520px at 90% 12%,
-      rgba(167, 139, 250, 0.18),
-      transparent 62%
-    ),
-    radial-gradient(
-      900px 520px at 55% 92%,
-      rgba(251, 146, 60, 0.12),
-      transparent 64%
-    ),
-    radial-gradient(
-      700px 420px at 28% 78%,
-      rgba(244, 114, 182, 0.12),
-      transparent 64%
-    ),
-    linear-gradient(180deg, #0b1026 0%, #090e22 35%, #080b1c 100%);
+  background: var(
+    --inrcy-theme-page-background,
+    radial-gradient(900px 520px at 12% 8%, rgba(56, 189, 248, 0.18), transparent 62%),
+    radial-gradient(900px 520px at 90% 12%, rgba(167, 139, 250, 0.18), transparent 62%),
+    radial-gradient(900px 520px at 55% 92%, rgba(251, 146, 60, 0.12), transparent 64%),
+    radial-gradient(700px 420px at 28% 78%, rgba(244, 114, 182, 0.12), transparent 64%),
+    linear-gradient(180deg, #0b1026 0%, #090e22 35%, #080b1c 100%)
+  );
   color: rgba(255, 255, 255, 0.92);
 }
 
@@ -4224,6 +4210,18 @@
   font-weight: 650;
   min-width: 0;
   flex: 1 1 180px;
+}
+
+/* Sur les fonds lumineux, seuls les libellés posés directement sur la page
+   changent de couleur. Les cartes et bulles gardent leur rendu iNrCy sombre. */
+:global(html[data-inrcy-color-mode="light"]) :is(
+  .brandTag,
+  .channelTitleCluster .h2,
+  .footerLeft,
+  .footerRight
+) {
+  color: var(--inrcy-theme-text-primary);
+  text-shadow: none;
 }
 
 .campaignTemplateIntro {
@@ -10087,13 +10085,15 @@
   --cockpit-violet: 139, 92, 246;
   --cockpit-pink: 236, 72, 153;
   --cockpit-orange: 251, 146, 60;
-  background:
+  background: var(
+    --inrcy-theme-page-background,
     radial-gradient(760px 420px at 22% 4%, rgba(37, 99, 235, 0.2), transparent 68%),
     radial-gradient(680px 380px at 79% 8%, rgba(139, 92, 246, 0.2), transparent 67%),
     radial-gradient(840px 480px at 52% 38%, rgba(14, 165, 233, 0.055), transparent 72%),
     radial-gradient(900px 520px at 55% 92%, rgba(251, 146, 60, 0.1), transparent 64%),
     radial-gradient(700px 420px at 28% 78%, rgba(244, 114, 182, 0.1), transparent 64%),
-    linear-gradient(180deg, #0e1b3a 0%, #0c1733 38%, #0b142c 100%);
+    linear-gradient(180deg, #0e1b3a 0%, #0c1733 38%, #0b142c 100%)
+  );
 }
 
 .hero {

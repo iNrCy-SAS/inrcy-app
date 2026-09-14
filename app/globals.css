@@ -36,6 +36,136 @@
   --inrcy-safe-area-left: var(--safe-area-inset-left, env(safe-area-inset-left, 0px));
 }
 
+/*
+ * Thèmes d'apparence iNrCy.
+ * Le thème original ne redéfinit rien : chaque écran conserve donc exactement
+ * ses couleurs historiques. Les variantes ne remplacent que les surfaces
+ * globales et laissent intacts les logos, statuts et couleurs fonctionnelles.
+ */
+html[data-inrcy-theme="midnight"] {
+  --inrcy-theme-shell-background: #03171b;
+  --inrcy-theme-page-background:
+    radial-gradient(980px 580px at 7% 3%, rgba(45, 212, 191, 0.40), transparent 59%),
+    radial-gradient(900px 540px at 95% 8%, rgba(16, 185, 129, 0.29), transparent 61%),
+    radial-gradient(780px 520px at 52% 100%, rgba(34, 211, 238, 0.20), transparent 64%),
+    linear-gradient(180deg, #0b5962 0%, #063e47 48%, #03262d 100%);
+  --inrcy-theme-drawer-background: rgba(3, 24, 29, 0.988);
+  --inrcy-theme-drawer-backdrop: rgba(0, 13, 16, 0.68);
+  --inrcy-theme-settings-card-background: rgba(10, 52, 57, 0.80);
+  --inrcy-theme-settings-field-background: rgba(13, 65, 69, 0.68);
+  --inrcy-theme-settings-hero-background: linear-gradient(135deg, rgba(20, 184, 166, 0.25), rgba(6, 95, 70, 0.18), rgba(34, 211, 238, 0.12));
+}
+
+html[data-inrcy-theme="graphite"] {
+  --inrcy-theme-shell-background: #1b0b08;
+  --inrcy-theme-page-background:
+    radial-gradient(980px 580px at 8% 3%, rgba(251, 146, 60, 0.42), transparent 59%),
+    radial-gradient(900px 540px at 94% 8%, rgba(239, 68, 68, 0.32), transparent 61%),
+    radial-gradient(780px 520px at 50% 100%, rgba(245, 158, 11, 0.21), transparent 64%),
+    linear-gradient(180deg, #7a321d 0%, #501b18 48%, #280b0a 100%);
+  --inrcy-theme-drawer-background: rgba(34, 14, 10, 0.99);
+  --inrcy-theme-drawer-backdrop: rgba(18, 5, 3, 0.70);
+  --inrcy-theme-settings-card-background: rgba(67, 31, 21, 0.82);
+  --inrcy-theme-settings-field-background: rgba(80, 37, 24, 0.72);
+  --inrcy-theme-settings-hero-background: linear-gradient(135deg, rgba(251, 146, 60, 0.28), rgba(185, 28, 28, 0.16), rgba(244, 63, 94, 0.10));
+}
+
+html[data-inrcy-theme="soft-violet"] {
+  --inrcy-theme-shell-background: #16071f;
+  --inrcy-theme-page-background:
+    radial-gradient(980px 580px at 8% 3%, rgba(236, 72, 153, 0.39), transparent 59%),
+    radial-gradient(920px 550px at 95% 7%, rgba(168, 85, 247, 0.41), transparent 61%),
+    radial-gradient(800px 520px at 50% 100%, rgba(244, 63, 94, 0.24), transparent 64%),
+    linear-gradient(180deg, #672178 0%, #43145d 48%, #250b35 100%);
+  --inrcy-theme-drawer-background: rgba(33, 10, 45, 0.988);
+  --inrcy-theme-drawer-backdrop: rgba(15, 3, 23, 0.69);
+  --inrcy-theme-settings-card-background: rgba(71, 27, 84, 0.78);
+  --inrcy-theme-settings-field-background: rgba(83, 31, 98, 0.68);
+  --inrcy-theme-settings-hero-background: linear-gradient(135deg, rgba(236, 72, 153, 0.24), rgba(168, 85, 247, 0.25), rgba(244, 63, 94, 0.12));
+}
+
+html[data-inrcy-theme="pearl-light"] {
+  --inrcy-theme-shell-background: #f1e8e1;
+  --inrcy-theme-page-background:
+    radial-gradient(940px 560px at 8% 3%, rgba(244, 114, 182, 0.18), transparent 59%),
+    radial-gradient(900px 540px at 94% 7%, rgba(251, 146, 60, 0.14), transparent 61%),
+    radial-gradient(780px 520px at 48% 100%, rgba(167, 139, 250, 0.11), transparent 64%),
+    linear-gradient(180deg, #f7eee9 0%, #eee1dc 50%, #e6d8d2 100%);
+  --inrcy-theme-drawer-background: rgba(255, 253, 252, 0.985);
+  --inrcy-theme-drawer-backdrop: rgba(45, 35, 62, 0.28);
+  --inrcy-theme-settings-card-background: rgba(255, 253, 255, 0.96);
+  --inrcy-theme-settings-field-background: rgba(246, 240, 250, 0.98);
+  --inrcy-theme-settings-hero-background: linear-gradient(135deg, rgba(244, 114, 182, 0.12), rgba(167, 139, 250, 0.12), rgba(56, 189, 248, 0.08));
+  --inrcy-theme-panel-background: rgba(252, 247, 254, 0.96);
+  --inrcy-theme-panel-strong-background: rgba(255, 253, 255, 0.98);
+  --inrcy-theme-feature-panel-background:
+    radial-gradient(circle at 9% 8%, rgba(56, 189, 248, 0.17), transparent 35%),
+    radial-gradient(circle at 92% 88%, rgba(244, 114, 182, 0.14), transparent 38%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(253, 247, 255, 0.95));
+  --inrcy-theme-feature-panel-alt-background:
+    radial-gradient(circle at 10% 3%, rgba(56, 189, 248, 0.15), transparent 37%),
+    radial-gradient(circle at 91% 8%, rgba(167, 139, 250, 0.18), transparent 41%),
+    radial-gradient(circle at 84% 92%, rgba(244, 114, 182, 0.12), transparent 37%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(250, 245, 255, 0.95));
+  --inrcy-theme-surface-soft: rgba(244, 237, 249, 0.94);
+  --inrcy-theme-field-background: rgba(255, 254, 255, 0.99);
+  --inrcy-theme-text-primary: #20243a;
+  --inrcy-theme-text-secondary: #4f536b;
+  --inrcy-theme-text-muted: #74758a;
+  --inrcy-theme-border: rgba(83, 70, 112, 0.28);
+  --inrcy-theme-border-strong: rgba(83, 70, 112, 0.42);
+  --inrcy-theme-accent-border: rgba(139, 92, 246, 0.54);
+  --inrcy-theme-accent-text: #6d3bd1;
+  --inrcy-theme-selected-background: rgba(139, 92, 246, 0.14);
+  --inrcy-theme-shadow: 0 18px 50px rgba(57, 43, 82, 0.15), 0 0 0 1px rgba(83, 70, 112, 0.07);
+  --inrcy-theme-shadow-soft: 0 10px 28px rgba(57, 43, 82, 0.11), 0 0 0 1px rgba(83, 70, 112, 0.06);
+}
+
+html[data-inrcy-theme="azure-light"] {
+  --inrcy-theme-shell-background: #e4f1f6;
+  --inrcy-theme-page-background:
+    radial-gradient(960px 570px at 7% 3%, rgba(34, 211, 238, 0.20), transparent 59%),
+    radial-gradient(920px 550px at 94% 6%, rgba(59, 130, 246, 0.17), transparent 61%),
+    radial-gradient(780px 520px at 50% 100%, rgba(16, 185, 129, 0.10), transparent 64%),
+    linear-gradient(180deg, #eef9fc 0%, #e3f1f5 50%, #d5e8ef 100%);
+  --inrcy-theme-drawer-background: rgba(250, 253, 255, 0.985);
+  --inrcy-theme-drawer-backdrop: rgba(18, 48, 75, 0.26);
+  --inrcy-theme-settings-card-background: rgba(250, 253, 255, 0.97);
+  --inrcy-theme-settings-field-background: rgba(235, 246, 253, 0.98);
+  --inrcy-theme-settings-hero-background: linear-gradient(135deg, rgba(56, 189, 248, 0.14), rgba(96, 165, 250, 0.11), rgba(167, 139, 250, 0.08));
+  --inrcy-theme-panel-background: rgba(244, 250, 255, 0.97);
+  --inrcy-theme-panel-strong-background: rgba(252, 254, 255, 0.99);
+  --inrcy-theme-feature-panel-background:
+    radial-gradient(circle at 9% 8%, rgba(56, 189, 248, 0.18), transparent 35%),
+    radial-gradient(circle at 92% 88%, rgba(96, 165, 250, 0.12), transparent 38%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(244, 250, 255, 0.96));
+  --inrcy-theme-feature-panel-alt-background:
+    radial-gradient(circle at 10% 3%, rgba(14, 165, 233, 0.17), transparent 37%),
+    radial-gradient(circle at 91% 8%, rgba(96, 165, 250, 0.15), transparent 41%),
+    radial-gradient(circle at 84% 92%, rgba(167, 139, 250, 0.09), transparent 37%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.97), rgba(241, 248, 255, 0.96));
+  --inrcy-theme-surface-soft: rgba(228, 241, 251, 0.94);
+  --inrcy-theme-field-background: rgba(253, 255, 255, 0.99);
+  --inrcy-theme-text-primary: #14283e;
+  --inrcy-theme-text-secondary: #40566d;
+  --inrcy-theme-text-muted: #687d91;
+  --inrcy-theme-border: rgba(43, 89, 126, 0.28);
+  --inrcy-theme-border-strong: rgba(43, 89, 126, 0.42);
+  --inrcy-theme-accent-border: rgba(14, 165, 233, 0.54);
+  --inrcy-theme-accent-text: #036f9f;
+  --inrcy-theme-selected-background: rgba(14, 165, 233, 0.14);
+  --inrcy-theme-shadow: 0 18px 50px rgba(38, 76, 108, 0.15), 0 0 0 1px rgba(43, 89, 126, 0.07);
+  --inrcy-theme-shadow-soft: 0 10px 28px rgba(38, 76, 108, 0.11), 0 0 0 1px rgba(43, 89, 126, 0.06);
+}
+
+html[data-inrcy-theme]:not([data-inrcy-color-mode="light"]) {
+  color-scheme: dark;
+}
+
+html[data-inrcy-color-mode="light"] {
+  color-scheme: light;
+}
+
 html,
 body {
   height: 100%;
@@ -55,7 +185,11 @@ body {
 /* Dashboard mobile surface guard: keeps browser chrome/overscroll from exposing the light public-page background. */
 html:has(.inrcy-dashboard-shell),
 body:has(.inrcy-dashboard-shell) {
-  background-color: #0b142c;
+  background-color: var(--inrcy-theme-shell-background, #0b142c);
+}
+
+.inrcy-dashboard-shell {
+  transition: background-color 180ms ease;
 }
 
 

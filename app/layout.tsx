@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import "./globals.css";
@@ -8,6 +9,8 @@ import InrcyDialogProvider from "./_components/InrcyDialogProvider";
 import PullToRefresh from "./_components/PullToRefresh";
 import NativeRuntimeBridge from "./_components/NativeRuntimeBridge";
 import { htmlLanguageFromLocale } from "@/i18n/config";
+import AppAppearanceThemeBridge from "./_components/AppAppearanceThemeBridge";
+import { APP_APPEARANCE_THEME_BOOT_SCRIPT } from "@/lib/appAppearanceTheme";
 
 export const metadata: Metadata = {
   title: "iNrCy",
@@ -40,13 +43,22 @@ export default async function RootLayout({
   const messages = await getMessages();
 
   return (
-    <html lang={htmlLanguageFromLocale(locale)} translate="no" className="notranslate">
+    <html
+      lang={htmlLanguageFromLocale(locale)}
+      translate="no"
+      className="notranslate"
+      suppressHydrationWarning
+    >
       <head>
         {/* 🔒 Empêche Google Translate */}
         <meta name="google" content="notranslate" />
+        <Script id="inrcy-appearance-theme-init" strategy="beforeInteractive">
+          {APP_APPEARANCE_THEME_BOOT_SCRIPT}
+        </Script>
       </head>
       <body className="antialiased" translate="no">
         <NextIntlClientProvider locale={locale} messages={messages} timeZone="Europe/Paris">
+          <AppAppearanceThemeBridge />
           <NativeRuntimeBridge />
           <OrientationGuard />
           <CookieConsentBanner />

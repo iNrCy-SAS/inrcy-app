@@ -18,12 +18,14 @@
   overflow: hidden;
   padding: 18px 18px 34px;
   color: var(--er-text);
-  background:
+  background: var(
+    --inrcy-theme-page-background,
     radial-gradient(900px 520px at 12% 8%, rgba(56, 189, 248, 0.18), transparent 62%),
     radial-gradient(900px 520px at 90% 12%, rgba(167, 139, 250, 0.18), transparent 62%),
     radial-gradient(900px 520px at 55% 92%, rgba(251, 146, 60, 0.12), transparent 64%),
     radial-gradient(700px 420px at 28% 78%, rgba(244, 114, 182, 0.12), transparent 64%),
-    linear-gradient(180deg, #0b1026 0%, #090e22 35%, #080b1c 100%);
+    linear-gradient(180deg, #0b1026 0%, #090e22 35%, #080b1c 100%)
+  );
 }
 
 .page::after {
