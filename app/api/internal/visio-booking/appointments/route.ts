@@ -13,6 +13,7 @@ import {
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+export const maxDuration = 300;
 
 function isCrossSiteMutation(request: Request) {
   const fetchSite = String(request.headers.get("sec-fetch-site") || "").toLowerCase();

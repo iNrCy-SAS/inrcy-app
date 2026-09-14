@@ -119,8 +119,13 @@ const PUBLIC_BOOKING_ASSIGNEE = "Équipe iNrCy";
 const TEAM_MIRROR_DEFAULT_PAST_DAYS = 30;
 const TEAM_MIRROR_DEFAULT_FUTURE_DAYS = 365;
 const BOOKING_LOCK_TTL_SECONDS = 120;
-const TEAM_CALENDAR_MUTATION_LOCK_WAIT_MS = 8_000;
-const TEAM_CALENDAR_MUTATION_LOCK_RETRY_MS = 250;
+const TEAM_CALENDAR_SYNC_LOCK_KEY = "inrcy:visio-booking:team-calendar-sync";
+const TEAM_CALENDAR_MUTATION_PRIORITY_KEY =
+  "inrcy:visio-booking:team-calendar-mutation-priority";
+const TEAM_CALENDAR_SYNC_LOCK_TTL_SECONDS = 240;
+const TEAM_CALENDAR_MUTATION_PRIORITY_TTL_SECONDS = 300;
+const TEAM_CALENDAR_MUTATION_LOCK_WAIT_MS = 250_000;
+const TEAM_CALENDAR_MUTATION_LOCK_RETRY_MS = 1_000;
 const MANAGED_REPLICA_CREATE_CONCURRENCY = 6;
 const REDIS_COMPARE_DELETE_SCRIPT =
   "if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]); end; return 0;";
@@ -877,12 +882,14 @@ type TeamCalendarSyncLock = {
 async function acquireTeamCalendarSyncLock(options?: {
   waitMs?: number;
   retryMs?: number;
+  ignoreMutationPriority?: boolean;
 }): Promise<TeamCalendarSyncLock> {
   const redis = getBookingRedis();
-  const key = "inrcy:visio-booking:team-calendar-sync";
+  const key = TEAM_CALENDAR_SYNC_LOCK_KEY;
   const value = randomUUID();
   const waitMs = Math.max(0, options?.waitMs || 0);
   const retryMs = Math.max(50, options?.retryMs || 250);
+  const ignoreMutationPriority = options?.ignoreMutationPriority === true;
   const deadline = Date.now() + waitMs;
   const waitBeforeRetry = async () => {
     const remaining = deadline - Date.now();
@@ -898,18 +905,31 @@ async function acquireTeamCalendarSyncLock(options?: {
     }
     const globalCache = globalThis as typeof globalThis & {
       __inrcy_visio_team_sync_lock?: { value: string; expiresAt: number };
+      __inrcy_visio_team_mutation_priority?: {
+        value: string;
+        expiresAt: number;
+      };
     };
-    while (
-      globalCache.__inrcy_visio_team_sync_lock &&
-      globalCache.__inrcy_visio_team_sync_lock.expiresAt > Date.now()
-    ) {
+    while (true) {
+      const now = Date.now();
+      const mutationHasPriority =
+        !ignoreMutationPriority &&
+        Boolean(
+          globalCache.__inrcy_visio_team_mutation_priority &&
+            globalCache.__inrcy_visio_team_mutation_priority.expiresAt > now,
+        );
+      const syncIsActive = Boolean(
+        globalCache.__inrcy_visio_team_sync_lock &&
+          globalCache.__inrcy_visio_team_sync_lock.expiresAt > now,
+      );
+      if (!mutationHasPriority && !syncIsActive) break;
       if (!(await waitBeforeRetry())) {
         return { acquired: false, release: async () => undefined };
       }
     }
     globalCache.__inrcy_visio_team_sync_lock = {
       value,
-      expiresAt: Date.now() + 240_000,
+      expiresAt: Date.now() + TEAM_CALENDAR_SYNC_LOCK_TTL_SECONDS * 1_000,
     };
     return {
       acquired: true,
@@ -923,7 +943,20 @@ async function acquireTeamCalendarSyncLock(options?: {
 
   let acquired = false;
   while (!acquired) {
-    acquired = (await redis.set(key, value, { nx: true, ex: 240 })) === "OK";
+    if (!ignoreMutationPriority) {
+      const mutationPriority = await redis.get<string>(
+        TEAM_CALENDAR_MUTATION_PRIORITY_KEY,
+      );
+      if (mutationPriority) {
+        if (!(await waitBeforeRetry())) break;
+        continue;
+      }
+    }
+    acquired =
+      (await redis.set(key, value, {
+        nx: true,
+        ex: TEAM_CALENDAR_SYNC_LOCK_TTL_SECONDS,
+      })) === "OK";
     if (acquired || !(await waitBeforeRetry())) break;
   }
   return {
@@ -934,11 +967,127 @@ async function acquireTeamCalendarSyncLock(options?: {
   };
 }
 
-function acquireTeamCalendarMutationLock() {
-  return acquireTeamCalendarSyncLock({
-    waitMs: TEAM_CALENDAR_MUTATION_LOCK_WAIT_MS,
-    retryMs: TEAM_CALENDAR_MUTATION_LOCK_RETRY_MS,
-  });
+async function acquireTeamCalendarMutationPriorityLock(): Promise<TeamCalendarSyncLock> {
+  const redis = getBookingRedis();
+  const value = randomUUID();
+  const deadline = Date.now() + TEAM_CALENDAR_MUTATION_LOCK_WAIT_MS;
+  const waitBeforeRetry = async () => {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) return false;
+    await new Promise((resolve) =>
+      setTimeout(
+        resolve,
+        Math.min(TEAM_CALENDAR_MUTATION_LOCK_RETRY_MS, remaining),
+      ),
+    );
+    return true;
+  };
+
+  if (!redis) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("visio_team_calendar_sync_lock_unavailable");
+    }
+    const globalCache = globalThis as typeof globalThis & {
+      __inrcy_visio_team_mutation_priority?: {
+        value: string;
+        expiresAt: number;
+      };
+    };
+    while (
+      globalCache.__inrcy_visio_team_mutation_priority &&
+      globalCache.__inrcy_visio_team_mutation_priority.expiresAt > Date.now()
+    ) {
+      if (!(await waitBeforeRetry())) {
+        return { acquired: false, release: async () => undefined };
+      }
+    }
+    globalCache.__inrcy_visio_team_mutation_priority = {
+      value,
+      expiresAt:
+        Date.now() + TEAM_CALENDAR_MUTATION_PRIORITY_TTL_SECONDS * 1_000,
+    };
+    return {
+      acquired: true,
+      release: async () => {
+        if (
+          globalCache.__inrcy_visio_team_mutation_priority?.value === value
+        ) {
+          delete globalCache.__inrcy_visio_team_mutation_priority;
+        }
+      },
+    };
+  }
+
+  let acquired = false;
+  while (!acquired) {
+    acquired =
+      (await redis.set(TEAM_CALENDAR_MUTATION_PRIORITY_KEY, value, {
+        nx: true,
+        ex: TEAM_CALENDAR_MUTATION_PRIORITY_TTL_SECONDS,
+      })) === "OK";
+    if (acquired || !(await waitBeforeRetry())) break;
+  }
+  return {
+    acquired,
+    release: async () => {
+      if (acquired) {
+        await releaseRedisLock(
+          redis,
+          TEAM_CALENDAR_MUTATION_PRIORITY_KEY,
+          value,
+        );
+      }
+    },
+  };
+}
+
+async function releaseTeamCalendarLockSafely(
+  lock: TeamCalendarSyncLock,
+  label: "mutation" | "priority",
+) {
+  try {
+    await lock.release();
+  } catch (error) {
+    console.error("[visio-booking][team-calendar-lock-release-failed]", {
+      label,
+      error: error instanceof Error ? error.message : "unknown_error",
+    });
+  }
+}
+
+async function acquireTeamCalendarMutationLock(): Promise<TeamCalendarSyncLock> {
+  const startedAt = Date.now();
+  const priorityLock = await acquireTeamCalendarMutationPriorityLock();
+  if (!priorityLock.acquired) return priorityLock;
+
+  try {
+    const mutationLock = await acquireTeamCalendarSyncLock({
+      waitMs: TEAM_CALENDAR_MUTATION_LOCK_WAIT_MS,
+      retryMs: TEAM_CALENDAR_MUTATION_LOCK_RETRY_MS,
+      ignoreMutationPriority: true,
+    });
+    if (!mutationLock.acquired) {
+      await releaseTeamCalendarLockSafely(priorityLock, "priority");
+      return mutationLock;
+    }
+
+    const waitedMs = Date.now() - startedAt;
+    if (waitedMs >= TEAM_CALENDAR_MUTATION_LOCK_RETRY_MS) {
+      console.info("[visio-booking][team-calendar-mutation-lock-acquired]", {
+        waitedMs,
+      });
+    }
+    return {
+      acquired: true,
+      release: async () => {
+        await releaseTeamCalendarLockSafely(mutationLock, "mutation");
+        await releaseTeamCalendarLockSafely(priorityLock, "priority");
+      },
+    };
+  } catch (error) {
+    await releaseTeamCalendarLockSafely(priorityLock, "priority");
+    throw error;
+  }
 }
 
 export async function syncVisioTeamCalendarsToShared(input?: {

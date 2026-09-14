@@ -242,17 +242,26 @@ test("les répliques inchangées sont regroupées sans perdre un canonique hors 
   assert.match(teamSync, /MANAGED_REPLICA_CREATE_CONCURRENCY/);
 });
 
-test("les mutations agenda attendent brièvement le verrou sans ralentir le cron", () => {
+test("les mutations agenda ont priorité sur les synchronisations automatiques", () => {
   const backend = read("lib/visioBookingGoogle.ts");
   const teamSync = backend.slice(
     backend.indexOf("export async function syncVisioTeamCalendarsToShared"),
     backend.indexOf("async function readFreeBusy"),
   );
-  assert.match(backend, /TEAM_CALENDAR_MUTATION_LOCK_WAIT_MS = 8_000/);
-  assert.match(backend, /TEAM_CALENDAR_MUTATION_LOCK_RETRY_MS = 250/);
+  assert.match(backend, /TEAM_CALENDAR_MUTATION_LOCK_WAIT_MS = 250_000/);
+  assert.match(backend, /TEAM_CALENDAR_MUTATION_LOCK_RETRY_MS = 1_000/);
+  assert.match(backend, /TEAM_CALENDAR_MUTATION_PRIORITY_TTL_SECONDS = 300/);
   assert.match(
     backend,
-    /function acquireTeamCalendarMutationLock\(\)[\s\S]*?waitMs: TEAM_CALENDAR_MUTATION_LOCK_WAIT_MS,[\s\S]*?retryMs: TEAM_CALENDAR_MUTATION_LOCK_RETRY_MS/,
+    /function acquireTeamCalendarMutationLock\(\)[\s\S]*?acquireTeamCalendarMutationPriorityLock\(\)[\s\S]*?waitMs: TEAM_CALENDAR_MUTATION_LOCK_WAIT_MS,[\s\S]*?retryMs: TEAM_CALENDAR_MUTATION_LOCK_RETRY_MS,[\s\S]*?ignoreMutationPriority: true/,
+  );
+  assert.match(
+    backend,
+    /if \(!ignoreMutationPriority\)[\s\S]*?TEAM_CALENDAR_MUTATION_PRIORITY_KEY/,
+  );
+  assert.match(
+    backend,
+    /releaseTeamCalendarLockSafely\(mutationLock, "mutation"\)[\s\S]*?releaseTeamCalendarLockSafely\(priorityLock, "priority"\)/,
   );
   assert.match(teamSync, /acquireTeamCalendarSyncLock\(\)/);
   assert.doesNotMatch(teamSync, /acquireTeamCalendarMutationLock/);
