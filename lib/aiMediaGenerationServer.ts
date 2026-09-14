@@ -14,6 +14,10 @@ import { composeAiMediaContactImage } from "@/lib/aiMediaImageContactComposer";
 import { buildAiMediaCreativePlan } from "@/lib/aiMediaCreativePlan";
 import { writeAiMediaHeadline } from "@/lib/aiMediaCopywriter";
 import {
+  AiGatewayAccountLimitError,
+  AiGatewayGuardUnavailableError,
+} from "@/lib/aiGatewayAccountGuard";
+import {
   getExistingGeneratedAiMedia,
   saveGeneratedAiMedia,
 } from "@/lib/aiGeneratedMediaRegistry";
@@ -29,6 +33,7 @@ import {
 } from "@/lib/aiMediaGenerationContracts";
 import {
   generateAiMediaImage,
+  generateAiMediaImageWithGoogle,
   type AiMediaGatewayResult,
 } from "@/lib/aiMediaGateway";
 import { composeOriginalAiVideo } from "@/lib/aiMediaGeneratedVideo";
@@ -59,7 +64,10 @@ import {
   normalizeGeneratedAiImage,
   type NormalizedAiMedia,
 } from "@/lib/aiMediaNormalizer";
-import { redactAiMediaSensitiveText } from "@/lib/aiMediaSensitiveText";
+import {
+  redactAiMediaSensitiveText,
+  safeAiMediaErrorMessage,
+} from "@/lib/aiMediaSensitiveText";
 import {
   cleanAiMediaProfilePhone,
   isAiMediaProfilePhoneDisplayRequested,
@@ -150,6 +158,7 @@ function cleanProviderMetadata(gateway: AiMediaGatewayResult) {
   const hasIdentityReferences = gateway.identityReferenceImagesCount > 0;
   const hasGenericReferences = gateway.genericReferenceImagesCount > 0;
   return {
+    provider: gateway.provider,
     model: gateway.model,
     provider_media_type: gateway.mediaType,
     reference_images_count: gateway.referenceImagesCount,
@@ -406,8 +415,7 @@ export async function generateAndSaveAiMedia(args: {
 
   if (providerRequest.kind === "image") {
     args.signal?.throwIfAborted();
-    let imageBuffer: Buffer;
-    let gateway: AiMediaGatewayResult | null = null;
+    let gateway: AiMediaGatewayResult;
     try {
       gateway = await measure("image_provider", () =>
         generateAiMediaImage({
@@ -420,16 +428,53 @@ export async function generateAndSaveAiMedia(args: {
           signal: args.signal,
         }),
       );
-      imageBuffer = gateway.buffer;
-    } catch {
+    } catch (primaryError) {
       args.signal?.throwIfAborted();
-      localFallbackUsed = true;
-      imageBuffer = await measure("image_local_fallback", () =>
-        getLocalFallbackFrame(true),
-      );
+      if (
+        primaryError instanceof AiGatewayAccountLimitError ||
+        primaryError instanceof AiGatewayGuardUnavailableError
+      ) {
+        throw primaryError;
+      }
+      console.warn("[ai-media] primary image provider failed", {
+        accountId: args.accountId,
+        jobId: args.jobId,
+        provider: "vercel-ai-gateway",
+        error: safeAiMediaErrorMessage(primaryError, 400),
+      });
+      try {
+        gateway = await measure("image_provider_google_fallback", () =>
+          generateAiMediaImageWithGoogle({
+            accountId: args.accountId,
+            prompt,
+            identityMode: providerRequest.identityMode,
+            identityReferences: preparedIdentityReferences.buffers,
+            officialLogo: useExactContactComposition ? null : officialLogo,
+            size: format.generationSize,
+            signal: args.signal,
+          }),
+        );
+      } catch (fallbackError) {
+        args.signal?.throwIfAborted();
+        console.warn("[ai-media] secondary image provider failed", {
+          accountId: args.accountId,
+          jobId: args.jobId,
+          provider: "google-gemini-direct",
+          error: safeAiMediaErrorMessage(fallbackError, 400),
+        });
+        throw new Error(
+          preparedIdentityReferences.buffers.length &&
+            providerRequest.identityMode !== "auto"
+            ? "ai_image_identity_generation_unavailable"
+            : "ai_image_generation_unavailable",
+          { cause: new AggregateError([primaryError, fallbackError]) },
+        );
+      }
     }
-    // Cette étape garantit le cadrage et le JPEG universel, aussi bien pour le
-    // fournisseur nominal que pour le motion-graphic local de secours.
+    const imageBuffer = gateway.buffer;
+    // Cette étape garantit le cadrage et le JPEG universel du fichier produit
+    // par un vrai moteur génératif. Une photo source n'est jamais utilisée
+    // comme substitut silencieux à une génération échouée.
     try {
       normalized = await measure("image_normalization", () =>
         normalizeGeneratedAiImage(imageBuffer, {
@@ -437,23 +482,9 @@ export async function generateAndSaveAiMedia(args: {
           height: format.height,
         }),
       );
-    } catch {
+    } catch (error) {
       args.signal?.throwIfAborted();
-      if (!gateway) throw new Error("ai_image_local_fallback_invalid");
-      // Aucun second appel payant : si les octets fournisseur ne sont pas
-      // décodables, la composition locale fidèle clôt la même tentative.
-      gateway = null;
-      localFallbackUsed = true;
-      imageBuffer = await measure(
-        "image_local_fallback_after_normalization",
-        () => getLocalFallbackFrame(true),
-      );
-      normalized = await measure("image_local_fallback_normalization", () =>
-        normalizeGeneratedAiImage(imageBuffer, {
-          width: format.width,
-          height: format.height,
-        }),
-      );
+      throw new Error("ai_image_provider_output_invalid", { cause: error });
     }
     if (useExactContactComposition) {
       try {
@@ -471,83 +502,30 @@ export async function generateAndSaveAiMedia(args: {
         );
         normalized = { ...normalized, buffer: composedBuffer };
         exactContactCompositionApplied = true;
-      } catch {
+      } catch (error) {
         args.signal?.throwIfAborted();
-        // Le fournisseur ne reçoit jamais une seconde requête payante. Si la
-        // composition sur son fond échoue, le motion-graphic local garantit
-        // malgré tout une accroche entière et le numéro exact du profil.
-        gateway = null;
-        localFallbackUsed = true;
-        const safeContactFrame = await measure(
-          "image_exact_contact_local_fallback",
-          () =>
-            createBrandMotionFrame({
-              width: format.width,
-              height: format.height,
-              brandColors: effectiveColors,
-              officialLogo,
-              companyName: creativePlan.companyName,
-              headline: providerRequest.withText ? creativePlan.headline : "",
-              phone: profilePhone,
-            }),
+        throw new Error(
+          "ai_image_exact_contact_composition_failed",
+          { cause: error },
         );
-        normalized = await measure(
-          "image_exact_contact_local_fallback_normalization",
-          () =>
-            normalizeGeneratedAiImage(safeContactFrame, {
-              width: format.width,
-              height: format.height,
-            }),
-        );
-        exactContactCompositionApplied = true;
       }
     }
     args.signal?.throwIfAborted();
-    model = gateway?.model || (providerRequest.identityMode === "reference_team"
-      ? "inrcy/reference-team-composer-v1"
-      : "inrcy/local-brand-composer-v1");
+    model = gateway.model;
     const contactWarnings =
       profilePhoneDisplayRequested && !profilePhone
         ? ["profile_phone_unavailable_omitted"]
         : [];
-    if (gateway) {
-      const cleanGatewayMetadata = cleanProviderMetadata(gateway);
-      providerMetadata = {
-        ...cleanGatewayMetadata,
-        warnings: Array.from(
-          new Set([...cleanGatewayMetadata.warnings, ...contactWarnings]),
-        ),
-        exact_contact_composition_applied: exactContactCompositionApplied,
-        profile_phone_requested: profilePhoneDisplayRequested,
-        profile_phone_applied: Boolean(profilePhone),
-      };
-    } else {
-      providerMetadata = {
-          provider: "inrcy-local-composer",
-          model,
-          reference_images_count: preparedIdentityReferences.buffers.length,
-          identity_reference_images_count:
-            providerRequest.identityMode === "auto"
-              ? 0
-              : preparedIdentityReferences.buffers.length,
-          generic_reference_images_count:
-            providerRequest.identityMode === "auto"
-              ? preparedIdentityReferences.buffers.length
-              : 0,
-          official_logo_included: Boolean(officialLogo),
-          estimated_cost_micro_usd: 0,
-          warnings: [
-            providerRequest.identityMode === "reference_team"
-              ? "identity_team_exact_photo_local_composition"
-              : "image_provider_unavailable_local_composition",
-            ...contactWarnings,
-          ],
-          exact_contact_composition_applied: exactContactCompositionApplied,
-          profile_phone_requested: profilePhoneDisplayRequested,
-          profile_phone_applied: Boolean(profilePhone),
-          usage: null,
-        };
-    }
+    const cleanGatewayMetadata = cleanProviderMetadata(gateway);
+    providerMetadata = {
+      ...cleanGatewayMetadata,
+      warnings: Array.from(
+        new Set([...cleanGatewayMetadata.warnings, ...contactWarnings]),
+      ),
+      exact_contact_composition_applied: exactContactCompositionApplied,
+      profile_phone_requested: profilePhoneDisplayRequested,
+      profile_phone_applied: Boolean(profilePhone),
+    };
   } else {
     args.signal?.throwIfAborted();
     const pipelineWarnings: string[] = [];

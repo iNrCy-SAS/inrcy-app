@@ -4,6 +4,16 @@ export const AI_MEDIA_EDITIONS = ["standard", "premium", "founder"] as const;
 export const AI_MEDIA_KINDS = ["image", "video"] as const;
 export const AI_MEDIA_SURFACES = ["booster", "studio"] as const;
 
+/**
+ * Solde maximal pouvant etre conserve d'un mois sur l'autre. Le quota mensuel
+ * du forfait continue d'etre la recharge; ces valeurs bornent uniquement la
+ * cagnotte cumulable.
+ */
+export const AI_MEDIA_ROLLOVER_CAPS = Object.freeze({
+  image: 70,
+  video: 20,
+} as const);
+
 export type AiMediaEdition = (typeof AI_MEDIA_EDITIONS)[number];
 export type AiMediaKind = (typeof AI_MEDIA_KINDS)[number];
 export type AiMediaSurface = (typeof AI_MEDIA_SURFACES)[number];
@@ -48,6 +58,10 @@ export function normalizeAiMediaEdition(value: unknown): AiMediaEdition {
 
 export function getAiMediaMonthlyLimit(edition: AiMediaEdition, kind: AiMediaKind): number {
   return AI_MEDIA_MONTHLY_LIMITS[edition][kind];
+}
+
+export function getAiMediaRolloverCap(kind: AiMediaKind): number {
+  return AI_MEDIA_ROLLOVER_CAPS[kind];
 }
 
 export function hasAiMediaStudioAccess(edition: AiMediaEdition): boolean {

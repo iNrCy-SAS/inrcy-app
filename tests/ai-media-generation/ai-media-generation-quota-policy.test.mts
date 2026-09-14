@@ -3,8 +3,10 @@ import test from "node:test";
 
 import {
   AI_MEDIA_MONTHLY_LIMITS,
+  AI_MEDIA_ROLLOVER_CAPS,
   createAiMediaRequestFingerprint,
   getAiMediaMonthlyLimit,
+  getAiMediaRolloverCap,
   getAiMediaVideoMaxDuration,
   hasAiMediaStudioAccess,
   normalizeAiMediaEdition,
@@ -42,6 +44,15 @@ test("les plafonds mensuels sont propres a chaque edition", () => {
   assert.equal(getAiMediaVideoMaxDuration("standard"), 8);
   assert.equal(getAiMediaVideoMaxDuration("premium"), 24);
   assert.equal(getAiMediaVideoMaxDuration("founder"), 24);
+});
+
+test("la cagnotte reportable est plafonnee sans modifier les recharges mensuelles", () => {
+  assert.deepEqual(AI_MEDIA_ROLLOVER_CAPS, {
+    image: 70,
+    video: 20,
+  });
+  assert.equal(getAiMediaRolloverCap("image"), 70);
+  assert.equal(getAiMediaRolloverCap("video"), 20);
 });
 
 test("le studio avance est accessible a toutes les editions", () => {

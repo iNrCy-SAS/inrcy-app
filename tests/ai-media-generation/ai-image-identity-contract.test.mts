@@ -30,21 +30,41 @@ test("les médias source restent distincts des références d'identité strictes
   assert.doesNotMatch(hook, /request\.peopleMode !== "none" \? request\.inspirationImages/);
 });
 
-test("GPT Image reçoit les références d'identité sans repli silencieux", () => {
+test("les moteurs image reçoivent les références sans repli photo silencieux", () => {
   const gateway = read("lib/aiMediaGateway.ts");
   const server = read("lib/aiMediaGenerationServer.ts");
   const route = read("app/api/media-generation/generate/route.ts");
+  const imageBranchStart = server.indexOf(
+    'if (providerRequest.kind === "image")',
+  );
+  const imageBranchEnd = server.indexOf("\n  } else {", imageBranchStart);
+  const imageBranch = server.slice(imageBranchStart, imageBranchEnd);
 
   assert.match(gateway, /identityReferences\?: readonly Buffer\[\]/);
   assert.match(gateway, /const referenceImages = \[[\s\S]*?\.\.\.providedReferences/);
   assert.match(gateway, /images: referenceImages/);
   assert.match(gateway, /ai_image_identity_not_generated/);
+  assert.match(gateway, /generateAiMediaImageWithGoogle/);
+  assert.match(gateway, /DEFAULT_GOOGLE_IMAGE_MODEL = "gemini-3\.1-flash-image"/);
+  assert.match(gateway, /response_format: \{[\s\S]*?type: "image"/);
+  assert.match(gateway, /Interdiction de recopier la photo source/);
   assert.doesNotMatch(gateway, /catch[\s\S]{0,400}generateImage\([\s\S]{0,250}args\.prompt/);
   assert.match(server, /prepareAiMediaIdentityReferences\(args\.request\.inspirationImages\)/);
   assert.match(server, /identityReferences: preparedIdentityReferences\.buffers/);
   assert.match(server, /identityMode: providerRequest\.identityMode/);
+  assert.match(imageBranch, /generateAiMediaImageWithGoogle\(/);
+  assert.match(imageBranch, /primaryError instanceof AiGatewayAccountLimitError/);
+  assert.match(imageBranch, /primaryError instanceof AiGatewayGuardUnavailableError/);
+  assert.match(imageBranch, /ai_image_identity_generation_unavailable/);
+  assert.match(imageBranch, /ai_image_provider_output_invalid/);
+  assert.doesNotMatch(imageBranch, /getLocalFallbackFrame\(/);
+  assert.doesNotMatch(imageBranch, /createReferenceIdentityMontage\(/);
+  assert.doesNotMatch(imageBranch, /inrcy-local-composer/);
+  assert.doesNotMatch(imageBranch, /image_local_fallback/);
   assert.match(route, /AI_MEDIA_IMAGE_IDENTITY_REFERENCE_REJECTED/);
+  assert.match(route, /AI_MEDIA_IMAGE_PROVIDERS_UNAVAILABLE/);
   assert.match(route, /Aucun visage générique n’a été substitué/);
+  assert.match(route, /photo du professionnel n’a pas été réutilisée comme faux résultat/);
 });
 
 test("aucune photo ni empreinte de photo n'est persistée dans les traces", () => {

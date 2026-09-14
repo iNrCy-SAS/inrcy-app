@@ -219,6 +219,35 @@ function publicGenerationError(error: unknown) {
         "Le modèle d’image configuré ne peut pas recevoir les références d’identité en toute sécurité. Aucun repli sans référence n’a été effectué.",
     });
   }
+  if (message.includes("ai_image_identity_generation_unavailable")) {
+    return jsonError({
+      status: 503,
+      code: "AI_MEDIA_IMAGE_PROVIDERS_UNAVAILABLE",
+      message:
+        "Les deux moteurs d’image sont momentanément indisponibles. La photo du professionnel n’a pas été réutilisée comme faux résultat et aucun quota iNrCy n’a été consommé. Réessayez dans un instant.",
+      retryAfterSeconds: 30,
+    });
+  }
+  if (message.includes("ai_image_generation_unavailable")) {
+    return jsonError({
+      status: 503,
+      code: "AI_MEDIA_IMAGE_PROVIDERS_UNAVAILABLE",
+      message:
+        "Les deux moteurs d’image sont momentanément indisponibles. Aucun faux visuel n’a été créé et aucun quota iNrCy n’a été consommé. Réessayez dans un instant.",
+      retryAfterSeconds: 30,
+    });
+  }
+  if (
+    message.includes("ai_image_provider_output_invalid") ||
+    message.includes("ai_image_exact_contact_composition_failed")
+  ) {
+    return jsonError({
+      status: 502,
+      code: "AI_MEDIA_IMAGE_OUTPUT_INVALID",
+      message:
+        "Le moteur a renvoyé une image inutilisable. Aucun visuel de substitution n’a été présenté et aucun quota iNrCy n’a été consommé.",
+    });
+  }
   if (
     message.includes("ai_gateway_credentials_missing") ||
     message.includes("ai_video_omni_credentials_missing") ||
