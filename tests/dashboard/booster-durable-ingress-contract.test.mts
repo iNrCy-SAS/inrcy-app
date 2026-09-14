@@ -47,11 +47,11 @@ test("the external request commits its durable job before all heavy media work",
   assert.match(route, /return NextResponse\.json\(ingress\.response, \{ status: 202 \}\)/);
 });
 
-test("ingress atomically inserts one parent and one preparing placeholder per channel", () => {
+test("ingress atomically inserts one parent and one preparing placeholder per target", () => {
   assert.match(ingress, /publicationId: candidatePublicationId/);
   assert.match(ingress, /const rows = \[/);
   assert.match(ingress, /type: BOOSTER_ASYNC_JOB_EVENT_TYPE/);
-  assert.match(ingress, /\.\.\.params\.channels\.map/);
+  assert.match(ingress, /\.\.\.publicationTargets\.map/);
   assert.match(ingress, /type: BOOSTER_ASYNC_CHANNEL_EVENT_TYPE/);
   assert.match(ingress, /status: "preparing"/);
   assert.match(ingress, /\.from\("app_events"\)\.insert\(rows\)/);

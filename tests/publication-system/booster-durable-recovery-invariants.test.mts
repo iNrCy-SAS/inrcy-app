@@ -33,11 +33,11 @@ test("client preflight failures are bounded, durable and terminal before media p
   );
   assert.match(
     ingress,
-    /status: clientPreflightFailuresByChannel\[channel\][\s\S]*?\? "failed"[\s\S]*?: "preparing"/,
+    /status: clientPreflightFailuresByChannel\[target\.channel\][\s\S]*?\? "failed"[\s\S]*?: "preparing"/,
   );
   assert.match(
     ingress,
-    /result: clientPreflightFailuresByChannel\[channel\]/,
+    /result: clientPreflightFailuresByChannel\[target\.channel\]/,
   );
 
   assert.match(

@@ -133,12 +133,17 @@ test("processing phases durably queue a fast 202 continuation and release the wo
   assert.match(continuationHelper, /done:\s*false/);
   assert.match(continuationHelper, /queued:\s*true/);
 
-  // A new key per durable continuation prevents a failed lock-release write
-  // from imposing the generic five-minute channel TTL on the next poll.
+  // A new key per durable continuation and placement prevents a failed
+  // lock-release write from imposing the generic five-minute channel TTL on
+  // the next poll, without colliding with another Meta target.
   assert.match(route, /_instagramVideoContinuationAttempt/);
   assert.match(
     route,
-    /`\$\{publicationId\}:\$\{channel\}:video:\$\{instagramVideoContinuationAttempt\}`/,
+    /const channelTargetIdempotencyKey = asyncTargetKey[\s\S]*?`\$\{publicationId\}:\$\{asyncTargetKey\}`[\s\S]*?: `\$\{publicationId\}:\$\{channel\}`/,
+  );
+  assert.match(
+    route,
+    /`\$\{channelTargetIdempotencyKey\}:video:\$\{instagramVideoContinuationAttempt\}`/,
   );
 });
 

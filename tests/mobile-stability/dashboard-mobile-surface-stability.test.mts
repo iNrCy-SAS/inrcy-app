@@ -13,7 +13,10 @@ test("the dashboard activates a route-scoped dark browser surface", () => {
   assert.match(layout, /inrcy-dashboard-shell/);
   assert.match(globals, /html:has\(\.inrcy-dashboard-shell\)/);
   assert.match(globals, /body:has\(\.inrcy-dashboard-shell\)/);
-  assert.match(globals, /background-color: #0b142c/);
+  assert.match(
+    globals,
+    /background-color:\s*var\(--inrcy-theme-shell-background,\s*#0b142c\)/,
+  );
 });
 
 test("the mobile dashboard keeps a continuous dark rendering surface", () => {

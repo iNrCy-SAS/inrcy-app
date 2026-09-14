@@ -86,7 +86,11 @@ test("YouTube continuations return 202 and release the current worker lock", () 
   assert.match(route, /_youtubeUploadContinuationAttempt/);
   assert.match(
     route,
-    /`\$\{publicationId\}:\$\{channel\}:video:\$\{youtubeUploadContinuationAttempt\}`/,
+    /const channelTargetIdempotencyKey = asyncTargetKey[\s\S]*?`\$\{publicationId\}:\$\{asyncTargetKey\}`[\s\S]*?: `\$\{publicationId\}:\$\{channel\}`/,
+  );
+  assert.match(
+    route,
+    /`\$\{channelTargetIdempotencyKey\}:video:\$\{youtubeUploadContinuationAttempt\}`/,
   );
 });
 
