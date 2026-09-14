@@ -443,7 +443,10 @@ test("iNrADN verrouille la page pendant la dictée et délègue toute capture au
   assert.match(aiMemoryContent, /if \(voiceTargetRef\.current\) return;/);
   assert.match(aiMemoryContent, /disabled=\{voiceBusy\}/);
   assert.match(editableTags, /disabled\?: boolean/);
-  assert.match(editableTags, /const commit = \(\) => \{\s*if \(disabled\) return;/);
+  assert.match(
+    editableTags,
+    /const commit = \(rawDraft = draftRef\.current\) => \{\s*if \(disabled\) return;/,
+  );
   assert.ok(
     (aiMemoryContent.match(/disabled=\{voiceBusy\}/g) || []).length >= 5,
     "les onglets et les listes structurées doivent être verrouillés pendant la dictée",

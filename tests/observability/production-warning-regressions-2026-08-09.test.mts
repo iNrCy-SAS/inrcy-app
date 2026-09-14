@@ -88,7 +88,12 @@ test("les webhooks Stripe orphelins restent traçables sans faux warning", () =>
   assert.match(stripe, /\.ilike\(column, exactIlikePattern\(cleaned\)\)/);
   assert.match(stripe, /eventId: typeof evt\.id === "string"/);
   assert.match(stripe, /Evenement Stripe sans compte iNrCy local/);
-  assert.match(stripe, /if \(userId \|\| evt\.type === "checkout\.session\.completed"\)/);
+  assert.match(stripe, /const eventType = String\(evt\.type \|\| ""\)/);
+  assert.match(
+    stripe,
+    /userId \|\|\s*eventType === "checkout\.session\.completed" \|\|\s*eventType\.startsWith\("customer\.subscription\."\) \|\|\s*eventType\.startsWith\("invoice\."\)/,
+  );
+  assert.match(stripe, /console\.info\("\[stripe-webhook\] Evenement Stripe sans compte iNrCy local\."/);
 });
 
 test("les refus OAuth LinkedIn récupérables restent hors de Sentry", () => {

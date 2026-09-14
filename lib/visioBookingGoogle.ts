@@ -68,7 +68,7 @@ import {
   TEAM_CALENDAR_MIRROR_VALUE,
   buildTeamCalendarMirrorBody,
   hasAutomaticGoogleCalendarReminders,
-  isRecoverableTeamCalendarMirrorTombstone,
+  isRecoverableDeterministicTeamCalendarMirror,
   isPendingSignupReminderForProspect,
   pendingSignupReminderProspectUserId,
   shouldMirrorTeamCalendarEvent,
@@ -695,12 +695,18 @@ async function upsertTeamMirrorEvent(input: {
         properties[TEAM_CALENDAR_MIRROR_KEY] === TEAM_CALENDAR_MIRROR_VALUE &&
         properties.sourceCalendarId === input.member.calendarId &&
         properties.sourceEventId === input.event.id;
-      const isRecoverableTombstone = isRecoverableTeamCalendarMirrorTombstone({
-        existing,
-        expectedEventId: expectedMirrorEventId,
-        mirrorEventId,
-      });
-      if (!hasMatchingSourceMetadata && !isRecoverableTombstone) {
+      // The event id is a SHA-256-derived namespace owned by this exact source
+      // calendar event. Google can preserve an old event while omitting its
+      // private metadata, including when the event is still confirmed. The id
+      // therefore remains the authoritative ownership proof and is safe to
+      // repair in place without notifying guests.
+      const isRecoverableDeterministicMirror =
+        isRecoverableDeterministicTeamCalendarMirror({
+          existing,
+          expectedEventId: expectedMirrorEventId,
+          mirrorEventId,
+        });
+      if (!hasMatchingSourceMetadata && !isRecoverableDeterministicMirror) {
         throw new Error("visio_team_mirror_id_conflict");
       }
       await googleCalendarRequest<GoogleCalendarEvent>(

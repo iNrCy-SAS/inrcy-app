@@ -185,15 +185,15 @@ export function teamCalendarMirrorSourceKey(calendarId: string, eventId: string)
   return `${calendarId.trim()}\n${eventId.trim()}`;
 }
 
-export function isRecoverableTeamCalendarMirrorTombstone(input: {
-  existing: Pick<TeamCalendarEvent, "id" | "status">;
+export function isRecoverableDeterministicTeamCalendarMirror(input: {
+  existing: Pick<TeamCalendarEvent, "id">;
   expectedEventId: string;
   mirrorEventId: string;
 }) {
-  return Boolean(input.expectedEventId) &&
-    input.existing.status === "cancelled" &&
-    input.existing.id === input.expectedEventId &&
-    input.mirrorEventId === input.expectedEventId;
+  const expectedEventId = String(input.expectedEventId || "").trim();
+  return /^tm[0-9a-f]{40}$/.test(expectedEventId) &&
+    input.existing.id === expectedEventId &&
+    input.mirrorEventId === expectedEventId;
 }
 
 export function teamCalendarEventMeetUrl(event: TeamCalendarEvent) {

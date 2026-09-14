@@ -7,7 +7,7 @@ import {
   TEAM_CALENDAR_MIRROR_VALUE,
   buildTeamCalendarMirrorBody,
   hasAutomaticGoogleCalendarReminders,
-  isRecoverableTeamCalendarMirrorTombstone,
+  isRecoverableDeterministicTeamCalendarMirror,
   isPendingSignupReminderForProspect,
   pendingSignupReminderProspectUserId,
   shouldMirrorTeamCalendarEvent,
@@ -44,10 +44,10 @@ function sourceEvent(overrides: TeamCalendarEvent = {}): TeamCalendarEvent {
   };
 }
 
-test("seul le tombstone portant exactement l'id miroir déterministe est restaurable", () => {
+test("seul l'événement portant exactement l'id miroir déterministe est réparable", () => {
   const expectedEventId = "tm0123456789abcdef0123456789abcdef01234567";
   assert.equal(
-    isRecoverableTeamCalendarMirrorTombstone({
+    isRecoverableDeterministicTeamCalendarMirror({
       existing: { id: expectedEventId, status: "cancelled" },
       expectedEventId,
       mirrorEventId: expectedEventId,
@@ -55,15 +55,15 @@ test("seul le tombstone portant exactement l'id miroir déterministe est restaur
     true,
   );
   assert.equal(
-    isRecoverableTeamCalendarMirrorTombstone({
+    isRecoverableDeterministicTeamCalendarMirror({
       existing: { id: expectedEventId, status: "confirmed" },
       expectedEventId,
       mirrorEventId: expectedEventId,
     }),
-    false,
+    true,
   );
   assert.equal(
-    isRecoverableTeamCalendarMirrorTombstone({
+    isRecoverableDeterministicTeamCalendarMirror({
       existing: { id: "tm-other", status: "cancelled" },
       expectedEventId,
       mirrorEventId: expectedEventId,
@@ -71,10 +71,18 @@ test("seul le tombstone portant exactement l'id miroir déterministe est restaur
     false,
   );
   assert.equal(
-    isRecoverableTeamCalendarMirrorTombstone({
+    isRecoverableDeterministicTeamCalendarMirror({
       existing: { id: expectedEventId, status: "cancelled" },
       expectedEventId,
       mirrorEventId: "explicit-non-deterministic-id",
+    }),
+    false,
+  );
+  assert.equal(
+    isRecoverableDeterministicTeamCalendarMirror({
+      existing: { id: "manual-event", status: "confirmed" },
+      expectedEventId: "manual-event",
+      mirrorEventId: "manual-event",
     }),
     false,
   );
