@@ -61,6 +61,13 @@ export function useDashboardSetupAlert({
         eyebrow: t("eyebrow"),
         title: t("title"),
         message,
+        steps: [
+          t("stepProfile"),
+          t("stepChannels"),
+          t("stepDna"),
+          t("stepAi"),
+          t("stepFirstPublication"),
+        ],
         confirmLabel: t("confirm"),
         cancelLabel: t("cancel"),
         variant: "warning",

@@ -47,11 +47,28 @@ test("the first dashboard arrival shows one account-scoped setup alert", () => {
   assert.match(hook, /writeAccountCacheValue\([^;]*"1", accountId\)/);
   assert.match(hook, /!profileIncomplete && !activityIncomplete/);
   assert.match(hook, /confirmInrcy\(\{/);
+  assert.match(hook, /steps:\s*\[/);
+  assert.match(hook, /t\("stepProfile"\)/);
+  assert.match(hook, /t\("stepChannels"\)/);
+  assert.match(hook, /t\("stepDna"\)/);
+  assert.match(hook, /t\("stepAi"\)/);
+  assert.match(hook, /t\("stepFirstPublication"\)/);
   assert.match(hook, /confirmLabel: t\("confirm"\)/);
   assert.match(hook, /cancelLabel: t\("cancel"\)/);
   assert.match(hook, /if \(shouldOpenProfile\) onOpenProfile\(\)/);
   assert.match(dashboard, /useDashboardSetupAlert\(\{/);
   assert.match(dashboard, /onOpenProfile: openCombinedProfilePanel/);
+});
+
+test("the setup journey enlarges only dialogs that contain onboarding steps", () => {
+  const provider = read("app/_components/InrcyDialogProvider.tsx");
+  const dialogContract = read("lib/inrcyDialog.ts");
+
+  assert.match(dialogContract, /steps\?: string\[\]/);
+  assert.match(provider, /dialog\.options\.steps/);
+  assert.match(provider, /steps\.length \? stepsCardStyle : null/);
+  assert.match(provider, /<ol style=\{stepsListStyle\}>/);
+  assert.match(provider, /width: "min\(760px, calc\(100vw - 24px\)\)"/);
 });
 
 test("profile and activity saves clear their warning immediately then revalidate", () => {

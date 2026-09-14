@@ -137,6 +137,7 @@ export default function InrcyDialogProvider() {
 
   const copy = getDialogCopy(dialog, i18nT);
   const lines = splitMessage(dialog.options.message);
+  const steps = (dialog.options.steps || []).map((step) => step.trim()).filter(Boolean);
   const isDanger = copy.variant === "danger";
 
   const submitPrompt = () => {
@@ -150,7 +151,11 @@ export default function InrcyDialogProvider() {
 
   return (
     <div role="dialog" aria-modal="true" aria-labelledby="inrcy-dialog-title" style={overlayStyle} onMouseDown={() => finish(null)}>
-      <div className={styles.blockCard} style={cardStyle} onMouseDown={(event) => event.stopPropagation()}>
+      <div
+        className={styles.blockCard}
+        style={{ ...cardStyle, ...(steps.length ? stepsCardStyle : null) }}
+        onMouseDown={(event) => event.stopPropagation()}
+      >
         <div style={glowStyle} />
         <div style={headerStyle}>
           <span style={pillStyle}>{copy.eyebrow}</span>
@@ -168,6 +173,17 @@ export default function InrcyDialogProvider() {
         <div style={messageWrapStyle}>
           {lines.length ? lines.map((line, index) => <p key={`${line}-${index}`} style={messageStyle}>{line}</p>) : null}
         </div>
+
+        {steps.length ? (
+          <ol style={stepsListStyle}>
+            {steps.map((step, index) => (
+              <li key={`${step}-${index}`} style={stepItemStyle}>
+                <span style={stepNumberStyle} aria-hidden="true">{index + 1}</span>
+                <span style={stepTextStyle}>{step}</span>
+              </li>
+            ))}
+          </ol>
+        ) : null}
 
         {dialog.type === "prompt" ? (
           <div style={fieldWrapStyle}>
@@ -243,6 +259,10 @@ const cardStyle: CSSProperties = {
   background: "linear-gradient(180deg, rgba(30, 41, 72, 0.96), rgba(15, 23, 42, 0.96))",
   border: "1px solid rgba(255,255,255,0.16)",
   boxShadow: "0 28px 100px rgba(0,0,0,0.55)",
+};
+
+const stepsCardStyle: CSSProperties = {
+  width: "min(760px, calc(100vw - 24px))",
 };
 
 const glowStyle: CSSProperties = {
@@ -338,6 +358,50 @@ const messageStyle: CSSProperties = {
   color: "rgba(255,255,255,0.72)",
   fontSize: 13,
   lineHeight: 1.45,
+};
+
+const stepsListStyle: CSSProperties = {
+  position: "relative",
+  display: "grid",
+  gap: 8,
+  maxWidth: 600,
+  margin: "18px auto 0",
+  padding: 0,
+  listStyle: "none",
+};
+
+const stepItemStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 12,
+  minWidth: 0,
+  padding: "10px 12px",
+  borderRadius: 14,
+  border: "1px solid rgba(255,255,255,0.11)",
+  background: "linear-gradient(90deg, rgba(56, 189, 248, 0.08), rgba(167, 139, 250, 0.07))",
+};
+
+const stepNumberStyle: CSSProperties = {
+  width: 28,
+  height: 28,
+  flex: "0 0 28px",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  borderRadius: 10,
+  border: "1px solid rgba(125, 211, 252, 0.24)",
+  background: "rgba(56, 189, 248, 0.12)",
+  color: "rgba(224, 242, 254, 0.98)",
+  fontSize: 12,
+  fontWeight: 900,
+};
+
+const stepTextStyle: CSSProperties = {
+  minWidth: 0,
+  color: "rgba(255,255,255,0.88)",
+  fontSize: 13,
+  lineHeight: 1.35,
+  fontWeight: 800,
 };
 
 const fieldWrapStyle: CSSProperties = {

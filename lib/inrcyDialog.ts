@@ -6,6 +6,7 @@ export type InrcyConfirmOptions = {
   eyebrow?: string;
   confirmLabel?: string;
   cancelLabel?: string;
+  steps?: string[];
   variant?: InrcyDialogVariant;
 };
 
