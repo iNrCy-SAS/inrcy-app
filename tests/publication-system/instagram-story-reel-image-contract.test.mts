@@ -38,27 +38,27 @@ const preferencesPostflight = read(
   "ops/sql/2026-09-07_instagram_publication_preferences_postflight_read_only.sql",
 );
 
-test("Instagram exposes Classic, Reel and Story while only Story disables text", () => {
+test("Instagram exposes a primary format plus an independent Story option", () => {
   assert.match(
     editor,
-    /activeCard === "instagram" \? \([\s\S]*?aria-label=\{i18nT\("instagram_publication_format"\)\}/,
+    /activeCard === "instagram" \? \([\s\S]*?<MetaPublicationFormatControls[\s\S]*?label=\{i18nT\("instagram_publication_format"\)\}/,
   );
   assert.doesNotMatch(
     editor,
     /activeCard === "instagram" && instagramMediaMode !== "none" \? \(/,
   );
-  assert.match(editor, /<option value="classic"[\s\S]*?instagram_classic/);
-  assert.match(editor, /<option value="reel"[\s\S]*?instagram_reels/);
-  assert.match(editor, /<option value="story"[\s\S]*?instagram_stories/);
+  assert.match(editor, /primaryPlacement=\{instagramPublicationPlacement\}/);
+  assert.match(editor, /storyEnabled=\{instagramStoryEnabled\}/);
+  assert.match(editor, /type="checkbox"/);
   assert.match(
     editor,
-    /const instagramMediaOnly =[\s\S]*?activeCard === "instagram" && instagramPublicationPlacement === "story";/,
+    /const activeStoryEnabled =[\s\S]*?activeCard === "instagram" && instagramStoryEnabled/,
   );
   assert.doesNotMatch(
     editor,
     /const instagramMediaOnly =[\s\S]*?instagramMediaMode !== "none";/,
   );
-  assert.match(editor, /disabled=\{activeMediaOnly\}/);
+  assert.doesNotMatch(editor, /activeMediaOnly/);
   assert.match(
     editor,
     /const activeVerticalImageMotion =[\s\S]*?activeMediaMode === "images";/,
@@ -101,7 +101,7 @@ test("Classique is always enabled and remains the safe default", () => {
   );
   assert.match(instagramPanel, /type="checkbox" checked disabled/);
   assert.match(instagramPanel, /instagram_default_publication_mode/);
-  assert.match(modal, /instagramPublicationPlacement !== "classic"/);
+  assert.match(modal, /buildMetaPublicationSelection\(/);
   assert.match(foundations, /\["classic", "classique", "normal", "feed"\]/);
 });
 
@@ -250,7 +250,7 @@ test("publish-now enforces account Instagram preferences only for Reel and Story
   const preflightHelper = route.slice(preflightHelperStart, preflightHelperEnd);
 
   const requestGuardStart = route.indexOf(
-    "const requestedInstagramPublicationSettings",
+    "const requestedInstagramPublicationSelection",
   );
   const requestGuardEnd = route.indexOf(
     "const dispatchableSelected",
@@ -283,11 +283,11 @@ test("publish-now enforces account Instagram preferences only for Reel and Story
 
   assert.match(
     requestGuard,
-    /selected\.includes\([\s\S]*?"instagram"[\s\S]*?\)[\s\S]*?\? normalizeInstagramPublicationSettings\(body\.instagramPublicationSettings\)[\s\S]*?: null/,
+    /normalizeMetaPublicationSelection\(body\.instagramPublicationSettings\)/,
   );
   assert.match(
     requestGuard,
-    /if \([\s\S]*?requestedInstagramPublicationSettings[\s\S]*?!clientPreflightFailuresByChannel\.instagram[\s\S]*?getInstagramPlacementPreflightFailure\([\s\S]*?userId[\s\S]*?requestedInstagramPublicationSettings\.placement[\s\S]*?clientPreflightFailuresByChannel\.instagram = instagramPreflightFailure/,
+    /for \(const placement of requestedInstagramPlacements\)[\s\S]*?if \(placement === "classic"\) continue[\s\S]*?getInstagramPlacementPreflightFailure\(\{ userId, placement \}\)[\s\S]*?clientPreflightFailuresByChannel\.instagram = instagramPreflightFailure/,
   );
   assert.ok(
     requestGuardStart < route.indexOf("enqueueBoosterPublication({"),
@@ -298,7 +298,7 @@ test("publish-now enforces account Instagram preferences only for Reel and Story
 test("final and scheduled reviews warn only on Story media-only formats and name Pinterest board", () => {
   assert.match(
     modal,
-    /const instagramMediaOnly =[\s\S]*?channel === "instagram" &&[\s\S]*?instagramPublicationPlacement === "story";/,
+    /const instagramStoryAlsoPublished =[\s\S]*?channel === "instagram" && instagramStoryEnabled;/,
   );
   assert.doesNotMatch(
     modal,
@@ -319,8 +319,9 @@ test("new Instagram format settings survive immediate and scheduled durable disp
     "immediate and scheduled payloads must both carry the setting",
   );
   assert.match(ingress, /instagramPublicationSettings: body\.instagramPublicationSettings/);
-  assert.match(route, /normalizeInstagramPublicationSettings\(body\.instagramPublicationSettings\)/);
-  assert.match(route, /channel === "instagram" && instagramPublicationSettings/);
+  assert.match(route, /normalizeMetaPublicationSelection\(body\.instagramPublicationSettings\)/);
+  assert.match(route, /channel === "instagram"[\s\S]*?getMetaTargetSettings\(target\.placement\)/);
+  assert.match(route, /channel === "instagram" && targetInstagramPublicationSettings/);
   assert.match(foundations, /mediaType: story \? "STORIES" : "REELS"/);
   assert.match(foundations, /mediaOnly: story/);
 });

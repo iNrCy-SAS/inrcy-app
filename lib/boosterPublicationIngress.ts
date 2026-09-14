@@ -13,6 +13,7 @@ import {
   BOOSTER_ASYNC_CHANNEL_EVENT_TYPE,
   BOOSTER_ASYNC_JOB_EVENT_TYPE,
 } from "@/lib/boosterAsyncPublication";
+import { buildBoosterPublicationTargets } from "@/lib/metaPublicationTargets";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 type JsonRecord = Record<string, unknown>;
@@ -298,8 +299,13 @@ export async function enqueueBoosterPublication(params: {
   }
 
   const nowIso = new Date().toISOString();
+  const publicationTargets = buildBoosterPublicationTargets({
+    channels: params.channels,
+    instagramPublicationSettings: params.body.instagramPublicationSettings,
+    facebookPublicationSettings: params.body.facebookPublicationSettings,
+  });
   const channelEventIds = Object.fromEntries(
-    params.channels.map((channel) => [channel, randomUUID()]),
+    publicationTargets.map((target) => [target.key, randomUUID()]),
   );
   const deliveryIds = Object.fromEntries(
     params.channels.map((channel) => [channel, randomUUID()]),
@@ -318,6 +324,7 @@ export async function enqueueBoosterPublication(params: {
     _asyncPublicationId: publicationId,
     _asyncParentEventId: publicationId,
     _asyncChannelEventIds: channelEventIds,
+    _asyncPublicationTargets: publicationTargets,
     _asyncDeliveryIds: deliveryIds,
     _asyncPreparationAttempt: 1,
     _asyncParentIdempotencyLockId: parentLockId,
@@ -330,6 +337,7 @@ export async function enqueueBoosterPublication(params: {
     asyncVersion: 2,
     publication_id: publicationId,
     channels: params.channels,
+    publicationTargets,
     clientPreflightFailuresByChannel,
     channelEventIds,
     deliveryIds,
@@ -357,22 +365,27 @@ export async function enqueueBoosterPublication(params: {
       type: BOOSTER_ASYNC_JOB_EVENT_TYPE,
       payload: parentPayload,
     },
-    ...params.channels.map((channel) => ({
-      id: channelEventIds[channel],
+    ...publicationTargets.map((target) => ({
+      id: channelEventIds[target.key],
       user_id: params.userId,
       module: params.module,
       type: BOOSTER_ASYNC_CHANNEL_EVENT_TYPE,
       payload: {
-        status: clientPreflightFailuresByChannel[channel]
+        status: clientPreflightFailuresByChannel[target.channel]
           ? "failed"
           : "preparing",
         publication_id: publicationId,
         parentEventId: publicationId,
-        channel,
+        channel: target.channel,
+        targetKey: target.key,
+        placement: target.placement,
+        targetCount: publicationTargets.filter(
+          (candidate) => candidate.channel === target.channel,
+        ).length,
         attempt: 0,
-        ...(clientPreflightFailuresByChannel[channel]
+        ...(clientPreflightFailuresByChannel[target.channel]
           ? {
-              result: clientPreflightFailuresByChannel[channel],
+              result: clientPreflightFailuresByChannel[target.channel],
               completedAt: nowIso,
             }
           : {}),

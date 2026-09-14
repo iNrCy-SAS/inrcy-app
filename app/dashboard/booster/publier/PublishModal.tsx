@@ -119,8 +119,6 @@ import {
   isBoosterVideoFile,
   isSiteDisplayKey,
   normalizeBoosterAiLanguage,
-  normalizeInstagramPublicationPlacement,
-  normalizeFacebookPublicationPlacement,
   normalizePost,
   normalizePublicationMediaType,
   normalizeVideoAdaptationMode,
@@ -141,8 +139,6 @@ import {
   type DisplayKey,
   type ImageMeta,
   type ImagePayload,
-  type InstagramPublicationPlacement,
-  type FacebookPublicationPlacement,
   type PublicationMediaType,
   type StyleKey,
   type ThemeKey,
@@ -233,16 +229,19 @@ import {
 } from "@/lib/boosterVideoPreparationRecovery";
 import {
   CLASSIC_ONLY_INSTAGRAM_PUBLICATION_PREFERENCES,
-  coerceInstagramPublicationPlacement,
   normalizeInstagramPublicationPreferences,
   type InstagramPublicationPreferences,
 } from "@/lib/instagramPublicationPreferences";
 import {
   CLASSIC_ONLY_FACEBOOK_PUBLICATION_PREFERENCES,
-  coerceFacebookPublicationPlacement,
   normalizeFacebookPublicationPreferences,
   type FacebookPublicationPreferences,
 } from "@/lib/facebookPublicationPreferences";
+import {
+  buildMetaPublicationSelection,
+  normalizeMetaPublicationSelection,
+  type MetaPrimaryPublicationPlacement,
+} from "@/lib/metaPublicationTargets";
 import {
   loadMediaPublicationWorkspace,
   type MediaWorkspaceMediaSummary,
@@ -561,7 +560,8 @@ export default function PublishModal({
   const [instagramHashtagsInput, setInstagramHashtagsInput] = useState("");
   const [xHashtagsInput, setXHashtagsInput] = useState("");
   const [instagramPublicationPlacement, setInstagramPublicationPlacement] =
-    useState<InstagramPublicationPlacement>("classic");
+    useState<MetaPrimaryPublicationPlacement>("classic");
+  const [instagramStoryEnabled, setInstagramStoryEnabled] = useState(false);
   const [instagramPublicationPreferences, setInstagramPublicationPreferences] =
     useState<InstagramPublicationPreferences>(
       CLASSIC_ONLY_INSTAGRAM_PUBLICATION_PREFERENCES,
@@ -574,7 +574,8 @@ export default function PublishModal({
     Boolean(publicationDraftIdParam),
   );
   const [facebookPublicationPlacement, setFacebookPublicationPlacement] =
-    useState<FacebookPublicationPlacement>("classic");
+    useState<MetaPrimaryPublicationPlacement>("classic");
+  const [facebookStoryEnabled, setFacebookStoryEnabled] = useState(false);
   const [facebookPublicationPreferences, setFacebookPublicationPreferences] =
     useState<FacebookPublicationPreferences>(
       CLASSIC_ONLY_FACEBOOK_PUBLICATION_PREFERENCES,
@@ -629,15 +630,32 @@ export default function PublishModal({
         );
         instagramPublicationPreferencesRef.current = preferences;
         setInstagramPublicationPreferences(preferences);
-        setInstagramPublicationPlacement((current) => {
-          if (
-            !publicationDraftIdParam &&
-            !instagramPlacementTouchedRef.current
-          ) {
-            return preferences.defaultMode;
-          }
-          return coerceInstagramPublicationPlacement(current, preferences);
-        });
+        if (
+          !publicationDraftIdParam &&
+          !instagramPlacementTouchedRef.current
+        ) {
+          const selection = normalizeMetaPublicationSelection({
+            placement: preferences.defaultMode,
+          });
+          setInstagramPublicationPlacement(
+            selection.primaryPlacement === "reel" &&
+              preferences.reelsEnabled
+              ? "reel"
+              : "classic",
+          );
+          setInstagramStoryEnabled(
+            selection.includeStory && preferences.storiesEnabled,
+          );
+        } else {
+          setInstagramPublicationPlacement((current) =>
+            current === "reel" && preferences.reelsEnabled
+              ? "reel"
+              : "classic",
+          );
+          setInstagramStoryEnabled((current) =>
+            current && preferences.storiesEnabled,
+          );
+        }
       } catch {
         // Fail closed: Classique reste le seul format disponible tant que les
         // préférences du compte ne peuvent pas être confirmées.
@@ -665,12 +683,29 @@ export default function PublishModal({
         );
         facebookPublicationPreferencesRef.current = preferences;
         setFacebookPublicationPreferences(preferences);
-        setFacebookPublicationPlacement((current) => {
-          if (!publicationDraftIdParam && !facebookPlacementTouchedRef.current) {
-            return preferences.defaultMode;
-          }
-          return coerceFacebookPublicationPlacement(current, preferences);
-        });
+        if (!publicationDraftIdParam && !facebookPlacementTouchedRef.current) {
+          const selection = normalizeMetaPublicationSelection({
+            placement: preferences.defaultMode,
+          });
+          setFacebookPublicationPlacement(
+            selection.primaryPlacement === "reel" &&
+              preferences.reelsEnabled
+              ? "reel"
+              : "classic",
+          );
+          setFacebookStoryEnabled(
+            selection.includeStory && preferences.storiesEnabled,
+          );
+        } else {
+          setFacebookPublicationPlacement((current) =>
+            current === "reel" && preferences.reelsEnabled
+              ? "reel"
+              : "classic",
+          );
+          setFacebookStoryEnabled((current) =>
+            current && preferences.storiesEnabled,
+          );
+        }
       } catch {
         // Fail closed: le flux classique reste disponible si la préférence
         // liée au compte ne peut pas être confirmée.
@@ -2788,7 +2823,9 @@ export default function PublishModal({
       instagramHashtagsInput,
       xHashtagsInput,
       instagramPublicationPlacement,
+      instagramStoryEnabled,
       facebookPublicationPlacement,
+      facebookStoryEnabled,
       pinterestBoardId,
       pinterestBoardName,
       tiktokPublicationSettings,
@@ -2821,7 +2858,9 @@ export default function PublishModal({
     instagramHashtagsInput,
     xHashtagsInput,
     instagramPublicationPlacement,
+    instagramStoryEnabled,
     facebookPublicationPlacement,
+    facebookStoryEnabled,
     pinterestBoardId,
     pinterestBoardName,
     tiktokPublicationSettings,
@@ -3143,22 +3182,34 @@ export default function PublishModal({
         const nextActiveCard = isChannelKey(payload.activeCard)
           ? payload.activeCard
           : "inrcy_site";
-        const nextInstagramPublicationPlacement =
-          coerceInstagramPublicationPlacement(
-            normalizeInstagramPublicationPlacement(
-              payload.instagramPublicationPlacement ||
-                payload.instagramPublicationSettings?.placement,
-            ),
-            instagramPublicationPreferencesRef.current,
-          );
-        const nextFacebookPublicationPlacement =
-          coerceFacebookPublicationPlacement(
-            normalizeFacebookPublicationPlacement(
-              payload.facebookPublicationPlacement ||
-                payload.facebookPublicationSettings?.placement,
-            ),
-            facebookPublicationPreferencesRef.current,
-          );
+        const restoredInstagramSelection = normalizeMetaPublicationSelection(
+          payload.instagramPublicationSettings || {
+            placement: payload.instagramPublicationPlacement,
+            includeStory: payload.instagramStoryEnabled,
+          },
+        );
+        const nextInstagramPublicationPlacement: MetaPrimaryPublicationPlacement =
+          restoredInstagramSelection.primaryPlacement === "reel" &&
+          instagramPublicationPreferencesRef.current.reelsEnabled
+            ? "reel"
+            : "classic";
+        const nextInstagramStoryEnabled =
+          restoredInstagramSelection.includeStory &&
+          instagramPublicationPreferencesRef.current.storiesEnabled;
+        const restoredFacebookSelection = normalizeMetaPublicationSelection(
+          payload.facebookPublicationSettings || {
+            placement: payload.facebookPublicationPlacement,
+            includeStory: payload.facebookStoryEnabled,
+          },
+        );
+        const nextFacebookPublicationPlacement: MetaPrimaryPublicationPlacement =
+          restoredFacebookSelection.primaryPlacement === "reel" &&
+          facebookPublicationPreferencesRef.current.reelsEnabled
+            ? "reel"
+            : "classic";
+        const nextFacebookStoryEnabled =
+          restoredFacebookSelection.includeStory &&
+          facebookPublicationPreferencesRef.current.storiesEnabled;
         const nextPinterestBoardId = String(
           payload.pinterestBoardId || "",
         ).trim();
@@ -3201,8 +3252,10 @@ export default function PublishModal({
         setXHashtagsInput(nextXHashtags);
         instagramPlacementTouchedRef.current = true;
         setInstagramPublicationPlacement(nextInstagramPublicationPlacement);
+        setInstagramStoryEnabled(nextInstagramStoryEnabled);
         facebookPlacementTouchedRef.current = true;
         setFacebookPublicationPlacement(nextFacebookPublicationPlacement);
+        setFacebookStoryEnabled(nextFacebookStoryEnabled);
         setPinterestBoardId(nextPinterestBoardId);
         setPinterestBoardName(nextPinterestBoardName);
         setTiktokPublicationSettings(nextTiktokPublicationSettings);
@@ -3285,8 +3338,10 @@ export default function PublishModal({
             xHashtagsInput: nextXHashtags,
             instagramPublicationPlacement:
               nextInstagramPublicationPlacement,
+            instagramStoryEnabled: nextInstagramStoryEnabled,
             facebookPublicationPlacement:
               nextFacebookPublicationPlacement,
+            facebookStoryEnabled: nextFacebookStoryEnabled,
             pinterestBoardId: nextPinterestBoardId,
             pinterestBoardName: nextPinterestBoardName,
             tiktokPublicationSettings: nextTiktokPublicationSettings,
@@ -3443,12 +3498,32 @@ export default function PublishModal({
     setInstagramHashtagsInput("");
     setXHashtagsInput("");
     instagramPlacementTouchedRef.current = false;
+    const instagramDefaultSelection = normalizeMetaPublicationSelection({
+      placement: instagramPublicationPreferencesRef.current.defaultMode,
+    });
     setInstagramPublicationPlacement(
-      instagramPublicationPreferencesRef.current.defaultMode,
+      instagramDefaultSelection.primaryPlacement === "reel" &&
+        instagramPublicationPreferencesRef.current.reelsEnabled
+        ? "reel"
+        : "classic",
+    );
+    setInstagramStoryEnabled(
+      instagramDefaultSelection.includeStory &&
+        instagramPublicationPreferencesRef.current.storiesEnabled,
     );
     facebookPlacementTouchedRef.current = false;
+    const facebookDefaultSelection = normalizeMetaPublicationSelection({
+      placement: facebookPublicationPreferencesRef.current.defaultMode,
+    });
     setFacebookPublicationPlacement(
-      facebookPublicationPreferencesRef.current.defaultMode,
+      facebookDefaultSelection.primaryPlacement === "reel" &&
+        facebookPublicationPreferencesRef.current.reelsEnabled
+        ? "reel"
+        : "classic",
+    );
+    setFacebookStoryEnabled(
+      facebookDefaultSelection.includeStory &&
+        facebookPublicationPreferencesRef.current.storiesEnabled,
     );
     closeEmptyContentWarnings();
     setDuplicateFeedback(null);
@@ -5145,18 +5220,7 @@ export default function PublishModal({
     }
 
     const missingContentChannels = publishableChannels.filter(
-      (ch) =>
-        !(
-          ch === "instagram" &&
-          instagramPublicationPlacement === "story" &&
-          resolveChannelMediaMode(ch) !== "none"
-        ) &&
-        !(
-          ch === "facebook" &&
-          facebookPublicationPlacement === "story" &&
-          resolveChannelMediaMode(ch) !== "none"
-        ) &&
-        !String(preparedPostsByChannel[ch]?.content || "").trim(),
+      (ch) => !String(preparedPostsByChannel[ch]?.content || "").trim(),
     );
     if (missingContentChannels.length && !options?.skipEmptyContentWarnings) {
       setPostsByChannel(preparedPostsByChannel);
@@ -5191,7 +5255,7 @@ export default function PublishModal({
 
     if (
       publishableChannels.includes("facebook") &&
-      facebookPublicationPlacement !== "classic"
+      (facebookPublicationPlacement === "reel" || facebookStoryEnabled)
     ) {
       const facebookMode = publishMediaModeByChannel.facebook || "none";
       const facebookImages = channelImageEditors.facebook?.imageKeys || [];
@@ -5643,13 +5707,19 @@ export default function PublishModal({
           : null,
         instagramPublicationSettings: publishTargetChannels.includes(
           "instagram",
-        ) && instagramPublicationPlacement !== "classic"
-          ? { placement: instagramPublicationPlacement }
+        )
+          ? buildMetaPublicationSelection(
+              instagramPublicationPlacement,
+              instagramStoryEnabled,
+            )
           : null,
         facebookPublicationSettings: publishTargetChannels.includes(
           "facebook",
-        ) && facebookPublicationPlacement !== "classic"
-          ? { placement: facebookPublicationPlacement }
+        )
+          ? buildMetaPublicationSelection(
+              facebookPublicationPlacement,
+              facebookStoryEnabled,
+            )
           : null,
         pinterestPublicationSettings: publishTargetChannels.includes("pinterest")
           ? { boardId: pinterestBoardId, boardName: pinterestBoardName }
@@ -5986,7 +6056,9 @@ export default function PublishModal({
             instagramHashtagsInput,
             xHashtagsInput,
             instagramPublicationPlacement,
+            instagramStoryEnabled,
             facebookPublicationPlacement,
+            facebookStoryEnabled,
             pinterestBoardId,
             pinterestBoardName,
             tiktokPublicationSettings,
@@ -6509,13 +6581,19 @@ export default function PublishModal({
                   : null,
                 instagramPublicationSettings: groupChannels.includes(
                   "instagram",
-                ) && instagramPublicationPlacement !== "classic"
-                  ? { placement: instagramPublicationPlacement }
+                )
+                  ? buildMetaPublicationSelection(
+                      instagramPublicationPlacement,
+                      instagramStoryEnabled,
+                    )
                   : null,
                 facebookPublicationSettings: groupChannels.includes(
                   "facebook",
-                ) && facebookPublicationPlacement !== "classic"
-                  ? { placement: facebookPublicationPlacement }
+                )
+                  ? buildMetaPublicationSelection(
+                      facebookPublicationPlacement,
+                      facebookStoryEnabled,
+                    )
                   : null,
                 pinterestPublicationSettings: groupChannels.includes(
                   "pinterest",
@@ -6711,15 +6789,14 @@ export default function PublishModal({
       const imageKeysToPublish = getPublishImageKeysForChannel(channel);
       const hasTitle = !!String(post?.title || "").trim();
       const hasContent = !!String(post?.content || "").trim();
-      const instagramMediaOnly =
-        channel === "instagram" &&
-        instagramPublicationPlacement === "story";
+      const instagramStoryAlsoPublished =
+        channel === "instagram" && instagramStoryEnabled;
       const facebookVerticalFormat =
-        channel === "facebook" && facebookPublicationPlacement !== "classic";
-      const facebookMediaOnly =
-        channel === "facebook" && facebookPublicationPlacement === "story";
-      const activeMediaOnly = instagramMediaOnly || facebookMediaOnly;
-      const hasText = activeMediaOnly || hasTitle || hasContent;
+        channel === "facebook" &&
+        (facebookPublicationPlacement === "reel" || facebookStoryEnabled);
+      const facebookStoryAlsoPublished =
+        channel === "facebook" && facebookStoryEnabled;
+      const hasText = hasTitle || hasContent;
       const hasImage = imageKeysToPublish.length > 0;
       const mode = resolveChannelMediaMode(channel);
       const hasVideo = mode === "video" && !!videoFile;
@@ -6752,8 +6829,7 @@ export default function PublishModal({
       const effectiveVideoDuration = Number(
         videoDurationSeconds ?? videoSourceMetadata?.duration ?? 0,
       );
-      const facebookMaximumDuration =
-        facebookPublicationPlacement === "story" ? 60 : 90;
+      const facebookMaximumDuration = facebookStoryEnabled ? 60 : 90;
       const facebookVerticalDurationInvalid =
         facebookVerticalFormat &&
         hasVideo &&
@@ -6776,8 +6852,8 @@ export default function PublishModal({
         hasImage,
         imageCount: imageKeysToPublish.length,
         hasText,
-        hasTitle: activeMediaOnly || hasTitle,
-        hasContent: activeMediaOnly || hasContent,
+        hasTitle,
+        hasContent,
         xTextWeightedLength: xTextMetrics?.weightedLength ?? null,
         xGifCount,
       });
@@ -6830,7 +6906,7 @@ export default function PublishModal({
           : code === "facebook_vertical_media_required"
           ? "Facebook Reel/Story nécessite une image ou une vidéo."
           : code === "facebook_vertical_duration_invalid"
-            ? facebookPublicationPlacement === "story"
+            ? facebookStoryEnabled
               ? "Une Story Facebook doit durer entre 3 et 60 secondes."
               : "Un Reel Facebook doit durer entre 3 et 90 secondes."
           : getLocalizedChannelPublicationRequirement(
@@ -6854,23 +6930,17 @@ export default function PublishModal({
         imageCount: imageKeysToPublish.length,
         warnings: [
           ...requirements.warningCodes.map(localizeRequirement),
-          ...(instagramMediaOnly
+          ...(instagramStoryAlsoPublished
             ? [
                 i18nT("instagram_review_media_only_warning", {
-                  mode:
-                    instagramPublicationPlacement === "story"
-                      ? i18nT("instagram_stories")
-                      : i18nT("instagram_reels"),
+                  mode: i18nT("instagram_stories"),
                 }),
               ]
             : []),
-          ...(facebookMediaOnly
+          ...(facebookStoryAlsoPublished
             ? [
                 i18nT("instagram_review_media_only_warning", {
-                  mode:
-                    facebookPublicationPlacement === "story"
-                      ? i18nT("instagram_stories")
-                      : i18nT("instagram_reels"),
+                  mode: i18nT("instagram_stories"),
                 }),
               ]
             : []),
@@ -6903,8 +6973,8 @@ export default function PublishModal({
         publishable: blockers.length === 0,
         tiktokParametersValidated:
           channel === "tiktok" && Boolean(tiktokPublicationSettings),
-        hasContent: activeMediaOnly || hasContent,
-        hasTitle: activeMediaOnly || hasTitle,
+        hasContent,
+        hasTitle,
         hasText,
         hasImage,
       };
@@ -7509,27 +7579,43 @@ export default function PublishModal({
               pinterestBoardsError={pinterestBoardsError}
               onPinterestBoardChange={onPinterestBoardChange}
               instagramPublicationPlacement={instagramPublicationPlacement}
+              instagramStoryEnabled={instagramStoryEnabled}
               instagramPublicationPreferences={instagramPublicationPreferences}
               instagramMediaMode={resolveChannelMediaMode("instagram")}
               onInstagramPublicationPlacementChange={(placement) => {
                 instagramPlacementTouchedRef.current = true;
                 setInstagramPublicationPlacement(
-                  coerceInstagramPublicationPlacement(
-                    normalizeInstagramPublicationPlacement(placement),
-                    instagramPublicationPreferencesRef.current,
-                  ),
+                  placement === "reel" &&
+                    instagramPublicationPreferencesRef.current.reelsEnabled
+                    ? "reel"
+                    : "classic",
+                );
+              }}
+              onInstagramStoryEnabledChange={(enabled) => {
+                instagramPlacementTouchedRef.current = true;
+                setInstagramStoryEnabled(
+                  enabled &&
+                    instagramPublicationPreferencesRef.current.storiesEnabled,
                 );
               }}
               facebookPublicationPlacement={facebookPublicationPlacement}
+              facebookStoryEnabled={facebookStoryEnabled}
               facebookPublicationPreferences={facebookPublicationPreferences}
               facebookMediaMode={resolveChannelMediaMode("facebook")}
               onFacebookPublicationPlacementChange={(placement) => {
                 facebookPlacementTouchedRef.current = true;
                 setFacebookPublicationPlacement(
-                  coerceFacebookPublicationPlacement(
-                    normalizeFacebookPublicationPlacement(placement),
-                    facebookPublicationPreferencesRef.current,
-                  ),
+                  placement === "reel" &&
+                    facebookPublicationPreferencesRef.current.reelsEnabled
+                    ? "reel"
+                    : "classic",
+                );
+              }}
+              onFacebookStoryEnabledChange={(enabled) => {
+                facebookPlacementTouchedRef.current = true;
+                setFacebookStoryEnabled(
+                  enabled &&
+                    facebookPublicationPreferencesRef.current.storiesEnabled,
                 );
               }}
               onVoiceBusyChange={setContentVoiceBusy}

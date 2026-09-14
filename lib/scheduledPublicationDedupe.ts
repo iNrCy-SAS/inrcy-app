@@ -1,4 +1,5 @@
 import { createHash } from "crypto";
+import { normalizeMetaPublicationSelection } from "@/lib/metaPublicationTargets";
 
 const DEFAULT_DUPLICATE_WINDOW_MINUTES = 60;
 const DEFAULT_IMMEDIATE_DUPLICATE_LOOKAHEAD_MINUTES = 240;
@@ -175,20 +176,16 @@ function getChannelMediaSignature(payload: unknown, channel: BoosterChannel) {
 
   if (channel === "instagram") {
     const settings = asRecord(publishPayload.instagramPublicationSettings);
-    const placement = cleanText(settings?.placement || settings?.mode, 20);
-    if (["reel", "reels", "story", "stories"].includes(placement)) {
-      mediaKeys.add(`instagram-placement:${placement.startsWith("stor") ? "story" : "reel"}`);
-    }
+    normalizeMetaPublicationSelection(settings).placements.forEach(
+      (placement) => mediaKeys.add(`instagram-placement:${placement}`),
+    );
   }
 
   if (channel === "facebook") {
     const settings = asRecord(publishPayload.facebookPublicationSettings);
-    const placement = cleanText(settings?.placement || settings?.mode, 20);
-    if (["reel", "reels", "story", "stories"].includes(placement)) {
-      mediaKeys.add(
-        `facebook-placement:${placement.startsWith("stor") ? "story" : "reel"}`,
-      );
-    }
+    normalizeMetaPublicationSelection(settings).placements.forEach(
+      (placement) => mediaKeys.add(`facebook-placement:${placement}`),
+    );
   }
 
   if (mediaMode === "video") {

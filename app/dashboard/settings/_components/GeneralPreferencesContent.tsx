@@ -215,9 +215,9 @@ export default function GeneralPreferencesContent({ mode = "drawer", onUnsavedCh
   const labelTitle: React.CSSProperties = { color: "var(--inrcy-theme-text-secondary, rgba(255,255,255,0.85))", fontSize: 13, fontWeight: 800, lineHeight: 1.25 };
   const grid2: React.CSSProperties = { display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 210px), 1fr))", minWidth: 0, maxWidth: "100%" };
   const primaryBtn: React.CSSProperties = {
-    border: "1px solid rgba(255,255,255,0.18)",
-    background: "linear-gradient(135deg, rgba(251,191,36,.35), rgba(97,87,255,.28), rgba(0,200,255,.22))",
-    color: "white",
+    border: "1px solid var(--inrcy-theme-accent-border, rgba(255,255,255,0.18))",
+    background: "var(--inrcy-theme-cta-background, linear-gradient(135deg, rgba(251,191,36,.35), rgba(97,87,255,.28), rgba(0,200,255,.22)))",
+    color: "var(--inrcy-theme-cta-text, white)",
     borderRadius: 14,
     padding: "10px 12px",
     cursor: saving ? "default" : "pointer",
@@ -225,6 +225,7 @@ export default function GeneralPreferencesContent({ mode = "drawer", onUnsavedCh
     fontSize: 16,
     width: "100%",
     opacity: saving ? 0.7 : 1,
+    boxShadow: "var(--inrcy-theme-shadow-soft, 0 10px 28px rgba(0,0,0,0.18)), inset 0 1px 0 rgba(255,255,255,0.16)",
   };
 
   useEffect(() => {
@@ -516,8 +517,8 @@ export default function GeneralPreferencesContent({ mode = "drawer", onUnsavedCh
                 {mobileShortcuts.length} / {MOBILE_SHORTCUT_MAX} {" "}{i18nT("raccourcis_selectionnes_14f4e07e")}{" "}</div>
             </div>
 
-            {error ? <div style={{ color: "rgba(248,113,113,0.95)", fontWeight: 800 }}>{error}</div> : null}
-            {saved ? <div style={{ color: "rgba(34,197,94,0.95)", fontWeight: 900 }}>{i18nT("preferences_enregistrees_d062995f")}</div> : null}
+            {error ? <div style={{ color: "var(--inrcy-theme-danger-text, rgba(248,113,113,0.95))", fontWeight: 800 }}>{error}</div> : null}
+            {saved ? <div style={{ color: "var(--inrcy-theme-success-text, rgba(34,197,94,0.95))", fontWeight: 900 }}>{i18nT("preferences_enregistrees_d062995f")}</div> : null}
 
             <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 180px), 1fr))", minWidth: 0, maxWidth: "100%" }}>
               <button type="button" style={primaryBtn} disabled={saving} onClick={save}>{saving ? i18nT("enregistrement_e7d5f232") : i18nT("enregistrer_f7c8bcd8")}</button>

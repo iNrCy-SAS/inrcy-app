@@ -66,6 +66,10 @@ export default function DashboardWorkspaceHeader({
             width: 100% !important;
           }
         }
+        header[data-dashboard-workspace-header] nav button:focus-visible {
+          outline: 3px solid var(--inrcy-theme-focus-ring, rgba(111, 224, 255, 0.34));
+          outline-offset: 2px;
+        }
         @media (max-width: 520px) {
           header[data-dashboard-workspace-header] {
             padding: 8px !important;
@@ -133,7 +137,7 @@ const subtitleStyle: CSSProperties = { maxWidth: "min(52vw, 720px)", overflow: "
 const actionsStyle: CSSProperties = { display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8, flex: "0 0 auto" };
 const headerButtonBase: CSSProperties = { borderRadius: 10, padding: "7px 10px", color: "var(--inrcy-theme-text-primary, rgba(255,255,255,0.90))", cursor: "pointer", fontSize: 11.5, fontWeight: 850, whiteSpace: "nowrap" };
 const buttonToneStyles: Record<NonNullable<WorkspaceHeaderAction["tone"]>, CSSProperties> = {
-  cyan: { border: "1px solid rgba(56,189,248,0.22)", background: "rgba(14,165,233,0.10)" },
-  violet: { border: "1px solid rgba(196,181,253,0.25)", background: "rgba(124,58,237,0.12)" },
+  cyan: { border: "1px solid rgba(var(--inrcy-theme-accent-rgb-1, 56,189,248),0.32)", background: "rgba(var(--inrcy-theme-accent-rgb-1, 14,165,233),0.10)" },
+  violet: { border: "1px solid rgba(var(--inrcy-theme-accent-rgb-2, 196,181,253),0.30)", background: "rgba(var(--inrcy-theme-accent-rgb-2, 124,58,237),0.12)" },
   neutral: { border: "1px solid var(--inrcy-theme-border, rgba(255,255,255,0.13))", background: "var(--inrcy-theme-surface-soft, rgba(255,255,255,0.035))" },
 };

@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import type { BoosterCreationMode } from "@/lib/boosterCreationMode";
 import type { InstagramPublicationPreferences } from "@/lib/instagramPublicationPreferences";
 import type { FacebookPublicationPreferences } from "@/lib/facebookPublicationPreferences";
+import type { MetaPrimaryPublicationPlacement } from "@/lib/metaPublicationTargets";
 import { buildBoosterXPostText } from "@/lib/boosterCta";
 import { getXPostTextMetrics } from "@/lib/xChannel";
 import {
@@ -45,8 +46,6 @@ import {
   type ChannelMediaMode,
   type ChannelPost,
   type DisplayKey,
-  type InstagramPublicationPlacement,
-  type FacebookPublicationPlacement,
 } from "../publishModal.shared";
 import {
   darkOptionStyle,
@@ -76,6 +75,105 @@ type ManualVoiceTarget = {
 
 const INSTAGRAM_HASHTAGS_INPUT_MAX_LENGTH = 20 * (40 + 2);
 const X_HASHTAGS_INPUT_MAX_LENGTH = 2 * (40 + 2);
+
+function MetaPublicationFormatControls({
+  label,
+  primaryPlacement,
+  reelsEnabled,
+  storyEnabled,
+  storiesEnabled,
+  disabled,
+  classicLabel,
+  reelLabel,
+  storyLabel,
+  onPrimaryPlacementChange,
+  onStoryEnabledChange,
+}: {
+  label: string;
+  primaryPlacement: MetaPrimaryPublicationPlacement;
+  reelsEnabled: boolean;
+  storyEnabled: boolean;
+  storiesEnabled: boolean;
+  disabled: boolean;
+  classicLabel: string;
+  reelLabel: string;
+  storyLabel: string;
+  onPrimaryPlacementChange: (
+    placement: MetaPrimaryPublicationPlacement,
+  ) => void;
+  onStoryEnabledChange: (enabled: boolean) => void;
+}) {
+  const optionStyle = (active: boolean) => ({
+    ...pillBtn,
+    minHeight: 36,
+    padding: "7px 13px",
+    border: active
+      ? "1px solid rgba(76,195,255,0.68)"
+      : "1px solid rgba(148,163,184,0.28)",
+    background: active
+      ? "linear-gradient(135deg, rgba(32,151,217,0.34), rgba(151,71,255,0.28))"
+      : "rgba(8,20,46,0.58)",
+    color: active ? "#f8fbff" : "rgba(226,232,240,0.78)",
+    opacity: disabled ? 0.55 : 1,
+  });
+
+  return (
+    <div
+      aria-label={label}
+      role="group"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "flex-end",
+        gap: 7,
+        flexWrap: "wrap",
+        minWidth: 0,
+      }}
+    >
+      <button
+        type="button"
+        aria-pressed={primaryPlacement === "classic"}
+        onClick={() => onPrimaryPlacementChange("classic")}
+        disabled={disabled}
+        style={optionStyle(primaryPlacement === "classic")}
+      >
+        {classicLabel}
+      </button>
+      {reelsEnabled ? (
+        <button
+          type="button"
+          aria-pressed={primaryPlacement === "reel"}
+          onClick={() => onPrimaryPlacementChange("reel")}
+          disabled={disabled}
+          style={optionStyle(primaryPlacement === "reel")}
+        >
+          {reelLabel}
+        </button>
+      ) : null}
+      {storiesEnabled ? (
+        <label
+          style={{
+            ...optionStyle(storyEnabled),
+            cursor: disabled ? "not-allowed" : "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 7,
+            fontWeight: 800,
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={storyEnabled}
+            onChange={(event) => onStoryEnabledChange(event.target.checked)}
+            disabled={disabled}
+            style={{ accentColor: "#38bdf8" }}
+          />
+          + {storyLabel}
+        </label>
+      ) : null}
+    </div>
+  );
+}
 
 type PublishContentEditorPanelProps = {
   styles: PublishModalStyles;
@@ -111,18 +209,22 @@ type PublishContentEditorPanelProps = {
   pinterestBoardsLoading: boolean;
   pinterestBoardsError: string;
   onPinterestBoardChange: (boardId: string) => void;
-  instagramPublicationPlacement: InstagramPublicationPlacement;
+  instagramPublicationPlacement: MetaPrimaryPublicationPlacement;
+  instagramStoryEnabled: boolean;
   instagramPublicationPreferences: InstagramPublicationPreferences;
   instagramMediaMode: ChannelMediaMode;
   onInstagramPublicationPlacementChange: (
-    placement: InstagramPublicationPlacement,
+    placement: MetaPrimaryPublicationPlacement,
   ) => void;
-  facebookPublicationPlacement: FacebookPublicationPlacement;
+  onInstagramStoryEnabledChange: (enabled: boolean) => void;
+  facebookPublicationPlacement: MetaPrimaryPublicationPlacement;
+  facebookStoryEnabled: boolean;
   facebookPublicationPreferences: FacebookPublicationPreferences;
   facebookMediaMode: ChannelMediaMode;
   onFacebookPublicationPlacementChange: (
-    placement: FacebookPublicationPlacement,
+    placement: MetaPrimaryPublicationPlacement,
   ) => void;
+  onFacebookStoryEnabledChange: (enabled: boolean) => void;
   onVoiceBusyChange?: (busy: boolean) => void;
 };
 
@@ -154,13 +256,17 @@ export default function PublishContentEditorPanel({
   pinterestBoardsError,
   onPinterestBoardChange,
   instagramPublicationPlacement,
+  instagramStoryEnabled,
   instagramPublicationPreferences,
   instagramMediaMode,
   onInstagramPublicationPlacementChange,
+  onInstagramStoryEnabledChange,
   facebookPublicationPlacement,
+  facebookStoryEnabled,
   facebookPublicationPreferences,
   facebookMediaMode,
   onFacebookPublicationPlacementChange,
+  onFacebookStoryEnabledChange,
   onVoiceBusyChange,
 }: PublishContentEditorPanelProps) {
   const i18nT = useTranslations("booster");
@@ -309,14 +415,13 @@ export default function PublishContentEditorPanel({
   );
   const instagramVerticalFormat =
     activeCard === "instagram" &&
-    instagramPublicationPlacement !== "classic";
+    (instagramPublicationPlacement === "reel" || instagramStoryEnabled);
   const facebookVerticalFormat =
-    activeCard === "facebook" && facebookPublicationPlacement !== "classic";
-  const instagramMediaOnly =
-    activeCard === "instagram" && instagramPublicationPlacement === "story";
-  const facebookMediaOnly =
-    activeCard === "facebook" && facebookPublicationPlacement === "story";
-  const activeMediaOnly = instagramMediaOnly || facebookMediaOnly;
+    activeCard === "facebook" &&
+    (facebookPublicationPlacement === "reel" || facebookStoryEnabled);
+  const activeStoryEnabled =
+    (activeCard === "instagram" && instagramStoryEnabled) ||
+    (activeCard === "facebook" && facebookStoryEnabled);
   const activeMediaMode =
     activeCard === "instagram"
       ? instagramMediaMode
@@ -396,15 +501,10 @@ export default function PublishContentEditorPanel({
                   post,
                   { hashtagsInput: xHashtagsInput },
                 ).length > 0;
-              const hasText =
-                (key === "instagram" &&
-                  instagramPublicationPlacement === "story") ||
-                (key === "facebook" &&
-                  facebookPublicationPlacement === "story") ||
-                !!(
-                  String(post.title || "").trim() ||
-                  String(post.content || "").trim()
-                );
+              const hasText = !!(
+                String(post.title || "").trim() ||
+                String(post.content || "").trim()
+              );
               const statusStyle = xUrlBlocked
                 ? {
                     border: "1px solid rgba(248,113,113,0.48)",
@@ -532,72 +632,38 @@ export default function PublishContentEditorPanel({
                 </select>
               ) : null}
               {activeCard === "instagram" ? (
-                <select
-                  value={instagramPublicationPlacement}
-                  onChange={(event) =>
-                    onInstagramPublicationPlacementChange(
-                      event.target.value as InstagramPublicationPlacement,
-                    )
-                  }
+                <MetaPublicationFormatControls
+                  label={i18nT("instagram_publication_format")}
+                  primaryPlacement={instagramPublicationPlacement}
+                  reelsEnabled={instagramPublicationPreferences.reelsEnabled}
+                  storyEnabled={instagramStoryEnabled}
+                  storiesEnabled={instagramPublicationPreferences.storiesEnabled}
                   disabled={voiceBusy}
-                  aria-label={i18nT("instagram_publication_format")}
-                  title={i18nT("instagram_publication_format")}
-                  style={{
-                    ...darkSelectStyle,
-                    width: isMobile ? "min(58vw, 220px)" : "min(360px, 45%)",
-                    minWidth: isMobile ? 150 : 200,
-                    maxWidth: "100%",
-                    flex: "0 1 auto",
-                  }}
-                >
-                  <option value="classic" style={darkOptionStyle}>
-                    {i18nT("instagram_classic")}
-                  </option>
-                  {instagramPublicationPreferences.reelsEnabled ? (
-                  <option value="reel" style={darkOptionStyle}>
-                    {i18nT("instagram_reels")}
-                  </option>
-                  ) : null}
-                  {instagramPublicationPreferences.storiesEnabled ? (
-                  <option value="story" style={darkOptionStyle}>
-                    {i18nT("instagram_stories")}
-                  </option>
-                  ) : null}
-                </select>
+                  classicLabel={i18nT("instagram_classic")}
+                  reelLabel={i18nT("instagram_reels")}
+                  storyLabel={i18nT("instagram_stories")}
+                  onPrimaryPlacementChange={
+                    onInstagramPublicationPlacementChange
+                  }
+                  onStoryEnabledChange={onInstagramStoryEnabledChange}
+                />
               ) : null}
               {activeCard === "facebook" ? (
-                <select
-                  value={facebookPublicationPlacement}
-                  onChange={(event) =>
-                    onFacebookPublicationPlacementChange(
-                      event.target.value as FacebookPublicationPlacement,
-                    )
-                  }
+                <MetaPublicationFormatControls
+                  label={i18nT("facebook_publication_format")}
+                  primaryPlacement={facebookPublicationPlacement}
+                  reelsEnabled={facebookPublicationPreferences.reelsEnabled}
+                  storyEnabled={facebookStoryEnabled}
+                  storiesEnabled={facebookPublicationPreferences.storiesEnabled}
                   disabled={voiceBusy}
-                  aria-label={i18nT("facebook_publication_format")}
-                  title={i18nT("facebook_publication_format")}
-                  style={{
-                    ...darkSelectStyle,
-                    width: isMobile ? "min(58vw, 220px)" : "min(360px, 45%)",
-                    minWidth: isMobile ? 150 : 200,
-                    maxWidth: "100%",
-                    flex: "0 1 auto",
-                  }}
-                >
-                  <option value="classic" style={darkOptionStyle}>
-                    {i18nT("instagram_classic")}
-                  </option>
-                  {facebookPublicationPreferences.reelsEnabled ? (
-                    <option value="reel" style={darkOptionStyle}>
-                      {i18nT("instagram_reels")}
-                    </option>
-                  ) : null}
-                  {facebookPublicationPreferences.storiesEnabled ? (
-                    <option value="story" style={darkOptionStyle}>
-                      {i18nT("instagram_stories")}
-                    </option>
-                  ) : null}
-                </select>
+                  classicLabel={i18nT("instagram_classic")}
+                  reelLabel={i18nT("instagram_reels")}
+                  storyLabel={i18nT("instagram_stories")}
+                  onPrimaryPlacementChange={
+                    onFacebookPublicationPlacementChange
+                  }
+                  onStoryEnabledChange={onFacebookStoryEnabledChange}
+                />
               ) : null}
             </div>
             {activeCard === "pinterest" && pinterestBoardsError ? (
@@ -610,7 +676,7 @@ export default function PublishContentEditorPanel({
               <div style={{ marginBottom: 8, fontSize: 12, opacity: 0.72 }}>
                 {i18nT("aucun_tableau_disponible_creez_en_un_fdb1c0ea")}{" "}</div>
             ) : null}
-            {activeVerticalImageMotion || activeMediaOnly ? (
+            {activeVerticalImageMotion || activeStoryEnabled ? (
               <div
                 role="status"
                 style={{
@@ -627,9 +693,11 @@ export default function PublishContentEditorPanel({
                 {activeVerticalImageMotion
                   ? i18nT("instagram_image_motion_notice")
                   : null}
-                {activeVerticalImageMotion && activeMediaOnly ? " " : null}
-                {activeMediaOnly
-                  ? i18nT("instagram_media_only_notice")
+                {activeVerticalImageMotion && activeStoryEnabled ? " " : null}
+                {activeStoryEnabled
+                  ? i18nT("instagram_review_media_only_warning", {
+                      mode: i18nT("instagram_stories"),
+                    })
                   : null}
               </div>
             ) : null}
@@ -689,7 +757,6 @@ export default function PublishContentEditorPanel({
               </div>
             ) : null}
             <fieldset
-              disabled={activeMediaOnly}
               style={{
                 display: "grid",
                 gap: 10,
@@ -697,7 +764,7 @@ export default function PublishContentEditorPanel({
                 margin: 0,
                 padding: 0,
                 border: 0,
-                opacity: activeMediaOnly ? 0.42 : 1,
+                opacity: 1,
                 transition: "opacity 160ms ease",
               }}
             >

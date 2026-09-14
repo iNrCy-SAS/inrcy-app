@@ -11625,13 +11625,13 @@
    l'esprit, mais repose maintenant sur une bordure et un fond statiques. */
 .heroLeft {
   isolation: auto;
-  border-color: rgba(125, 211, 252, 0.34);
+  border-color: rgba(var(--inrcy-theme-accent-rgb-1, 125, 211, 252), 0.34);
   box-shadow:
     0 26px 78px rgba(0, 0, 0, 0.38),
-    -12px 0 42px rgba(var(--cockpit-cyan), 0.055),
-    12px 0 46px rgba(var(--cockpit-pink), 0.045),
+    -12px 0 42px rgba(var(--inrcy-theme-accent-rgb-1, var(--cockpit-cyan)), 0.055),
+    12px 0 46px rgba(var(--inrcy-theme-accent-rgb-3, var(--cockpit-pink)), 0.045),
     inset 0 1px 0 rgba(255, 255, 255, 0.11),
-    inset 0 0 0 1px rgba(var(--cockpit-violet), 0.045);
+    inset 0 0 0 1px rgba(var(--inrcy-theme-accent-rgb-2, var(--cockpit-violet)), 0.045);
 }
 
 .heroLeft::before {
@@ -11647,11 +11647,11 @@
   mask-image: none;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 58%),
-    radial-gradient(circle at 50% 39%, transparent 0 58px, rgba(var(--cockpit-cyan), 0.12) 59px, transparent 60px),
-    radial-gradient(circle at 50% 39%, transparent 0 96px, rgba(var(--cockpit-violet), 0.1) 97px, transparent 98px),
-    radial-gradient(circle at 50% 39%, transparent 0 138px, rgba(var(--cockpit-pink), 0.065) 139px, transparent 140px),
-    linear-gradient(rgba(125, 211, 252, 0.02) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(125, 211, 252, 0.02) 1px, transparent 1px);
+    radial-gradient(circle at 50% 39%, transparent 0 58px, rgba(var(--inrcy-theme-accent-rgb-1, var(--cockpit-cyan)), 0.12) 59px, transparent 60px),
+    radial-gradient(circle at 50% 39%, transparent 0 96px, rgba(var(--inrcy-theme-accent-rgb-2, var(--cockpit-violet)), 0.1) 97px, transparent 98px),
+    radial-gradient(circle at 50% 39%, transparent 0 138px, rgba(var(--inrcy-theme-accent-rgb-3, var(--cockpit-pink)), 0.065) 139px, transparent 140px),
+    linear-gradient(rgba(var(--inrcy-theme-accent-rgb-1, 125, 211, 252), 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(var(--inrcy-theme-accent-rgb-1, 125, 211, 252), 0.02) 1px, transparent 1px);
   background-size: auto, auto, auto, auto, 28px 28px, 28px 28px;
 }
 
@@ -11688,13 +11688,18 @@
 }
 
 .channelPill {
-  border-color: rgba(255, 255, 255, 0.14);
+  border-color: rgba(var(--inrcy-theme-accent-rgb-1, 255, 255, 255), 0.18);
   background:
     radial-gradient(circle at 24% 0%, rgba(255, 255, 255, 0.075), transparent 46%),
-    rgba(7, 17, 39, 0.78);
+    rgba(var(--inrcy-theme-surface-rgb-2, 7, 17, 39), 0.84);
+  color: var(--inrcy-theme-card-muted, rgba(255, 255, 255, 0.82));
   box-shadow:
     0 8px 19px rgba(0, 0, 0, 0.17),
     inset 0 1px 0 rgba(255, 255, 255, 0.085);
+}
+
+.channelPill:hover {
+  color: var(--inrcy-theme-card-text, rgba(255, 255, 255, 0.96));
 }
 
 .channelPillConnected {
@@ -11712,10 +11717,11 @@
 }
 
 .channelPillActive {
-  border-color: rgba(125, 211, 252, 0.75);
+  border-color: rgba(var(--inrcy-theme-accent-rgb-1, 125, 211, 252), 0.75);
   background:
-    radial-gradient(circle at 22% 0%, rgba(186, 230, 253, 0.14), transparent 48%),
-    linear-gradient(135deg, rgba(10, 89, 117, 0.72), rgba(66, 45, 135, 0.67));
+    radial-gradient(circle at 22% 0%, rgba(var(--inrcy-theme-accent-rgb-1, 186, 230, 253), 0.18), transparent 48%),
+    linear-gradient(135deg, rgba(var(--inrcy-theme-surface-rgb-1, 10, 89, 117), 0.88), rgba(var(--inrcy-theme-surface-rgb-3, 66, 45, 135), 0.84));
+  color: var(--inrcy-theme-card-text, #ffffff);
 }
 
 /* Sur les deux colonnes Premium, AGENDA et E-reputation finissent desormais
@@ -11803,82 +11809,271 @@
 ========================= */
 .heroLeft,
 .generatorCard {
-  border-color: rgba(125, 211, 252, 0.5);
+  border-color: rgba(var(--inrcy-theme-accent-rgb-1, 125, 211, 252), 0.5);
+  color: var(--inrcy-theme-card-text, rgba(255, 255, 255, 0.92));
   box-shadow:
     0 28px 82px rgba(0, 0, 0, 0.3),
-    -14px 0 46px rgba(var(--cockpit-cyan), 0.11),
-    14px 0 50px rgba(var(--cockpit-pink), 0.09),
-    0 0 0 1px rgba(125, 211, 252, 0.08),
+    -14px 0 46px rgba(var(--inrcy-theme-accent-rgb-1, var(--cockpit-cyan)), 0.11),
+    14px 0 50px rgba(var(--inrcy-theme-accent-rgb-3, var(--cockpit-pink)), 0.09),
+    0 0 0 1px rgba(var(--inrcy-theme-accent-rgb-1, 125, 211, 252), 0.08),
     inset 0 1px 0 rgba(255, 255, 255, 0.18),
-    inset 0 0 72px rgba(var(--cockpit-blue), 0.075);
+    inset 0 0 72px rgba(var(--inrcy-theme-accent-rgb-2, var(--cockpit-blue)), 0.075);
 }
 
 .heroLeft {
   background:
-    radial-gradient(circle at 50% 37%, rgba(var(--cockpit-blue), 0.28), transparent 36%),
-    radial-gradient(circle at 9% 8%, rgba(var(--cockpit-cyan), 0.22), transparent 34%),
-    radial-gradient(circle at 92% 88%, rgba(var(--cockpit-pink), 0.18), transparent 36%),
-    linear-gradient(145deg, rgba(17, 49, 94, 0.98), rgba(27, 34, 79, 0.98) 55%, rgba(61, 29, 79, 0.97));
+    radial-gradient(circle at 50% 37%, rgba(var(--inrcy-theme-accent-rgb-2, var(--cockpit-blue)), 0.23), transparent 36%),
+    radial-gradient(circle at 9% 8%, rgba(var(--inrcy-theme-accent-rgb-1, var(--cockpit-cyan)), 0.20), transparent 34%),
+    radial-gradient(circle at 92% 88%, rgba(var(--inrcy-theme-accent-rgb-3, var(--cockpit-pink)), 0.17), transparent 36%),
+    linear-gradient(145deg, rgba(var(--inrcy-theme-surface-rgb-1, 17, 49, 94), 0.98), rgba(var(--inrcy-theme-surface-rgb-2, 27, 34, 79), 0.98) 55%, rgba(var(--inrcy-theme-surface-rgb-3, 61, 29, 79), 0.97));
 }
 
 .generatorCard {
-  border-color: rgba(167, 139, 250, 0.52);
+  border-color: rgba(var(--inrcy-theme-accent-rgb-2, 167, 139, 250), 0.52);
   background:
-    radial-gradient(circle at 10% 3%, rgba(var(--cockpit-cyan), 0.28), transparent 36%),
-    radial-gradient(circle at 91% 8%, rgba(var(--cockpit-violet), 0.3), transparent 40%),
-    radial-gradient(circle at 84% 92%, rgba(var(--cockpit-pink), 0.19), transparent 35%),
-    linear-gradient(145deg, rgba(14, 55, 99, 0.98), rgba(31, 40, 89, 0.98) 53%, rgba(72, 33, 89, 0.97));
+    radial-gradient(circle at 10% 3%, rgba(var(--inrcy-theme-accent-rgb-1, var(--cockpit-cyan)), 0.25), transparent 36%),
+    radial-gradient(circle at 91% 8%, rgba(var(--inrcy-theme-accent-rgb-2, var(--cockpit-violet)), 0.27), transparent 40%),
+    radial-gradient(circle at 84% 92%, rgba(var(--inrcy-theme-accent-rgb-3, var(--cockpit-pink)), 0.18), transparent 35%),
+    linear-gradient(145deg, rgba(var(--inrcy-theme-surface-rgb-1, 14, 55, 99), 0.98), rgba(var(--inrcy-theme-surface-rgb-2, 31, 40, 89), 0.98) 53%, rgba(var(--inrcy-theme-surface-rgb-3, 72, 33, 89), 0.97));
+}
+
+.kickerText,
+.titleAccent {
+  background: linear-gradient(
+    90deg,
+    rgb(var(--inrcy-theme-accent-rgb-1, 56, 189, 248)),
+    rgb(var(--inrcy-theme-accent-rgb-2, 167, 139, 250)),
+    rgb(var(--inrcy-theme-accent-rgb-3, 244, 114, 182)),
+    rgb(var(--inrcy-theme-accent-rgb-4, 251, 146, 60))
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.titleAccent {
+  text-shadow:
+    0 0 28px rgba(var(--inrcy-theme-accent-rgb-1, var(--cockpit-cyan)), 0.12),
+    0 0 34px rgba(var(--inrcy-theme-accent-rgb-3, var(--cockpit-pink)), 0.08);
+}
+
+.kicker {
+  border-color: rgba(var(--inrcy-theme-accent-rgb-1, 125, 211, 252), 0.28);
+  background: linear-gradient(135deg, rgba(var(--inrcy-theme-surface-rgb-1, 8, 23, 55), 0.86), rgba(var(--inrcy-theme-surface-rgb-3, 31, 20, 66), 0.78));
+  box-shadow:
+    0 12px 34px rgba(0, 0, 0, 0.3),
+    0 0 26px rgba(var(--inrcy-theme-accent-rgb-1, var(--cockpit-cyan)), 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.subtitle {
+  color: var(--inrcy-theme-card-muted, rgba(232, 241, 255, 0.78));
+}
+
+.signatureFlow {
+  border-color: rgba(var(--inrcy-theme-accent-rgb-1, 125, 211, 252), 0.24);
+  background: linear-gradient(90deg, rgba(var(--inrcy-theme-surface-rgb-1, 8, 31, 68), 0.86), rgba(var(--inrcy-theme-surface-rgb-2, 35, 22, 72), 0.82), rgba(var(--inrcy-theme-surface-rgb-3, 62, 22, 62), 0.78));
+  color: var(--inrcy-theme-card-text, rgba(255, 255, 255, 0.95));
+  box-shadow:
+    0 14px 32px rgba(0, 0, 0, 0.3),
+    0 0 24px rgba(var(--inrcy-theme-accent-rgb-2, var(--cockpit-violet)), 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.flowArrow {
+  color: rgba(var(--inrcy-theme-accent-rgb-1, 125, 211, 252), 0.92);
+  text-shadow: 0 0 12px rgba(var(--inrcy-theme-accent-rgb-1, var(--cockpit-cyan)), 0.72);
+}
+
+.powerInlineTitle {
+  color: var(--inrcy-theme-card-text, rgba(241, 247, 255, 0.95));
+}
+
+.powerMeta,
+.powerHint,
+.powerHintComplete {
+  color: var(--inrcy-theme-card-muted, rgba(226, 235, 250, 0.74));
+}
+
+.powerBar {
+  border-color: rgba(var(--inrcy-theme-accent-rgb-1, 125, 211, 252), 0.09);
+  background: rgba(var(--inrcy-theme-surface-rgb-2, 4, 10, 27), 0.82);
+  box-shadow:
+    inset 0 2px 8px rgba(0, 0, 0, 0.52),
+    0 0 18px rgba(var(--inrcy-theme-accent-rgb-2, var(--cockpit-blue)), 0.08);
+}
+
+.powerBarFill {
+  background: linear-gradient(
+    90deg,
+    rgb(var(--inrcy-theme-accent-rgb-1, 56, 189, 248)) 0%,
+    rgb(var(--inrcy-theme-accent-rgb-2, 167, 139, 250)) 38%,
+    rgb(var(--inrcy-theme-accent-rgb-3, 244, 114, 182)) 68%,
+    rgb(var(--inrcy-theme-accent-rgb-4, 251, 146, 60)) 100%
+  );
+  box-shadow:
+    0 0 18px rgba(var(--inrcy-theme-accent-rgb-1, var(--cockpit-cyan)), 0.36),
+    0 0 34px rgba(var(--inrcy-theme-accent-rgb-2, var(--cockpit-violet)), 0.2),
+    0 0 42px rgba(var(--inrcy-theme-accent-rgb-3, var(--cockpit-pink)), 0.12);
+}
+
+.powerInlineValue {
+  background: linear-gradient(
+    90deg,
+    rgb(var(--inrcy-theme-accent-rgb-1, 56, 189, 248)),
+    rgb(var(--inrcy-theme-accent-rgb-2, 167, 139, 250)),
+    rgb(var(--inrcy-theme-accent-rgb-3, 244, 114, 182)),
+    rgb(var(--inrcy-theme-accent-rgb-4, 251, 146, 60))
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.powerInfoBtn {
+  border-color: rgba(var(--inrcy-theme-accent-rgb-1, 125, 211, 252), 0.42);
+  background: linear-gradient(135deg, rgba(var(--inrcy-theme-accent-rgb-1, 56, 189, 248), 0.2), rgba(var(--inrcy-theme-accent-rgb-2, 168, 85, 247), 0.16));
+  color: var(--inrcy-theme-card-text, rgba(255, 255, 255, 0.96));
+}
+
+.generatorCard::before {
+  background: linear-gradient(
+    130deg,
+    rgba(var(--inrcy-theme-accent-rgb-1, var(--cockpit-cyan)), 0.7),
+    rgba(var(--inrcy-theme-accent-rgb-1, var(--cockpit-blue)), 0.12) 31%,
+    rgba(var(--inrcy-theme-accent-rgb-2, var(--cockpit-violet)), 0.48) 69%,
+    rgba(var(--inrcy-theme-accent-rgb-3, var(--cockpit-pink)), 0.42)
+  );
+}
+
+.generatorCard::after {
+  background:
+    radial-gradient(circle, rgba(var(--inrcy-theme-accent-rgb-1, var(--cockpit-cyan)), 0.1), transparent 29%),
+    radial-gradient(circle, transparent 0 39%, rgba(var(--inrcy-theme-accent-rgb-1, var(--cockpit-blue)), 0.1) 39.5%, transparent 40.5%),
+    radial-gradient(circle, transparent 0 58%, rgba(var(--inrcy-theme-accent-rgb-2, var(--cockpit-violet)), 0.08) 58.5%, transparent 59.5%);
+  filter: drop-shadow(0 0 28px rgba(var(--inrcy-theme-accent-rgb-2, var(--cockpit-blue)), 0.12));
+}
+
+.generatorHeader {
+  border-bottom-color: rgba(var(--inrcy-theme-accent-rgb-1, 125, 211, 252), 0.12);
+}
+
+.generatorTitle {
+  color: var(--inrcy-theme-card-text, rgba(247, 250, 255, 0.98));
+  text-shadow: 0 0 20px rgba(var(--inrcy-theme-accent-rgb-1, var(--cockpit-cyan)), 0.14);
+}
+
+.generatorDesc {
+  color: var(--inrcy-theme-card-muted, rgba(220, 231, 248, 0.66));
+}
+
+.generatorGrid::before {
+  background: linear-gradient(90deg, transparent, rgba(var(--inrcy-theme-accent-rgb-1, var(--cockpit-cyan)), 0.34), rgba(var(--inrcy-theme-accent-rgb-2, var(--cockpit-violet)), 0.48), rgba(var(--inrcy-theme-accent-rgb-3, var(--cockpit-pink)), 0.3), transparent);
+  box-shadow: 0 0 12px rgba(var(--inrcy-theme-accent-rgb-2, var(--cockpit-blue)), 0.22);
+}
+
+.generatorGrid::after {
+  background: linear-gradient(180deg, transparent, rgba(var(--inrcy-theme-accent-rgb-1, var(--cockpit-cyan)), 0.32), rgba(var(--inrcy-theme-accent-rgb-2, var(--cockpit-violet)), 0.46), rgba(var(--inrcy-theme-accent-rgb-3, var(--cockpit-pink)), 0.28), transparent);
+  box-shadow: 0 0 12px rgba(var(--inrcy-theme-accent-rgb-2, var(--cockpit-violet)), 0.2);
+}
+
+.metricInertia {
+  --metric-accent: rgba(var(--inrcy-theme-accent-rgb-1, 56, 189, 248), 0.9);
+  --metric-glow: rgba(var(--inrcy-theme-accent-rgb-1, 56, 189, 248), 0.42);
+  --metric-halo: rgba(var(--inrcy-theme-accent-rgb-1, 56, 189, 248), 0.18);
+}
+
+.metricCa {
+  --metric-accent: rgba(var(--inrcy-theme-accent-rgb-2, 167, 139, 250), 0.92);
+  --metric-glow: rgba(var(--inrcy-theme-accent-rgb-2, 139, 92, 246), 0.42);
+  --metric-halo: rgba(var(--inrcy-theme-accent-rgb-2, 139, 92, 246), 0.18);
+}
+
+.metricOpportunities {
+  --metric-accent: rgba(var(--inrcy-theme-accent-rgb-3, 244, 114, 182), 0.9);
+  --metric-glow: rgba(var(--inrcy-theme-accent-rgb-3, 236, 72, 153), 0.4);
+  --metric-halo: rgba(var(--inrcy-theme-accent-rgb-3, 236, 72, 153), 0.16);
+}
+
+.metricDemandes {
+  --metric-accent: rgba(var(--inrcy-theme-accent-rgb-3, 251, 146, 60), 0.92);
+  --metric-glow: rgba(var(--inrcy-theme-accent-rgb-3, 251, 146, 60), 0.38);
+  --metric-halo: rgba(var(--inrcy-theme-accent-rgb-3, 251, 146, 60), 0.16);
+}
+
+.metricValue,
+.metricSplitValue {
+  color: var(--inrcy-theme-card-text, #ffffff);
+}
+
+.generatorCoreCenter {
+  filter: drop-shadow(0 0 18px rgba(var(--inrcy-theme-accent-rgb-1, var(--cockpit-cyan)), 0.2));
+}
+
+.generatorCoreCenter::before {
+  border-color: rgba(var(--inrcy-theme-accent-rgb-1, 125, 211, 252), 0.2);
+  box-shadow:
+    0 0 24px rgba(var(--inrcy-theme-accent-rgb-1, var(--cockpit-blue)), 0.14),
+    inset 0 0 18px rgba(var(--inrcy-theme-accent-rgb-2, var(--cockpit-violet)), 0.1);
+}
+
+.generatorCoreCenter::after {
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.86), rgba(var(--inrcy-theme-accent-rgb-1, var(--cockpit-cyan)), 0.7) 22%, rgba(var(--inrcy-theme-accent-rgb-2, var(--cockpit-violet)), 0.22) 58%, transparent 72%);
+  box-shadow:
+    0 0 18px rgba(var(--inrcy-theme-accent-rgb-1, var(--cockpit-cyan)), 0.78),
+    0 0 34px rgba(var(--inrcy-theme-accent-rgb-2, var(--cockpit-violet)), 0.46);
 }
 
 .lowerRow:not([data-dashboard-standard-lower-blocks="true"]) > .blockCard {
-  border-color: rgba(125, 211, 252, 0.48);
+  border-color: rgba(var(--inrcy-theme-accent-rgb-1, 125, 211, 252), 0.48);
+  color: var(--inrcy-theme-card-text, rgba(255, 255, 255, 0.92));
   background:
-    radial-gradient(circle at 7% 3%, rgba(var(--cockpit-cyan), 0.27), transparent 34%),
-    radial-gradient(circle at 96% 98%, rgba(var(--cockpit-pink), 0.22), transparent 36%),
-    linear-gradient(145deg, rgba(17, 49, 94, 0.99), rgba(29, 35, 80, 0.99) 55%, rgba(63, 29, 80, 0.98));
+    radial-gradient(circle at 7% 3%, rgba(var(--inrcy-theme-accent-rgb-1, var(--cockpit-cyan)), 0.24), transparent 34%),
+    radial-gradient(circle at 96% 98%, rgba(var(--inrcy-theme-accent-rgb-3, var(--cockpit-pink)), 0.20), transparent 36%),
+    linear-gradient(145deg, rgba(var(--inrcy-theme-surface-rgb-1, 17, 49, 94), 0.99), rgba(var(--inrcy-theme-surface-rgb-2, 29, 35, 80), 0.99) 55%, rgba(var(--inrcy-theme-surface-rgb-3, 63, 29, 80), 0.98));
   box-shadow:
     0 30px 82px rgba(0, 0, 0, 0.31),
-    -14px 0 44px rgba(var(--cockpit-cyan), 0.13),
-    14px 0 46px rgba(var(--cockpit-pink), 0.11),
-    0 0 0 1px rgba(125, 211, 252, 0.1),
+    -14px 0 44px rgba(var(--inrcy-theme-accent-rgb-1, var(--cockpit-cyan)), 0.13),
+    14px 0 46px rgba(var(--inrcy-theme-accent-rgb-3, var(--cockpit-pink)), 0.11),
+    0 0 0 1px rgba(var(--inrcy-theme-accent-rgb-1, 125, 211, 252), 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.18),
-    inset 0 0 58px rgba(var(--cockpit-blue), 0.075);
+    inset 0 0 58px rgba(var(--inrcy-theme-accent-rgb-2, var(--cockpit-blue)), 0.075);
 }
 
 .lowerRow:not([data-dashboard-standard-lower-blocks="true"]) > .gearBlockCard {
-  border-color: rgba(167, 139, 250, 0.52);
+  border-color: rgba(var(--inrcy-theme-accent-rgb-2, 167, 139, 250), 0.52);
   background:
-    radial-gradient(circle at 92% 4%, rgba(var(--cockpit-violet), 0.32), transparent 36%),
-    radial-gradient(circle at 8% 96%, rgba(var(--cockpit-pink), 0.24), transparent 37%),
-    radial-gradient(circle at 8% 5%, rgba(var(--cockpit-cyan), 0.17), transparent 32%),
-    linear-gradient(145deg, rgba(18, 47, 93, 0.99), rgba(35, 34, 86, 0.99) 53%, rgba(72, 31, 87, 0.98));
+    radial-gradient(circle at 92% 4%, rgba(var(--inrcy-theme-accent-rgb-2, var(--cockpit-violet)), 0.29), transparent 36%),
+    radial-gradient(circle at 8% 96%, rgba(var(--inrcy-theme-accent-rgb-3, var(--cockpit-pink)), 0.22), transparent 37%),
+    radial-gradient(circle at 8% 5%, rgba(var(--inrcy-theme-accent-rgb-1, var(--cockpit-cyan)), 0.16), transparent 32%),
+    linear-gradient(145deg, rgba(var(--inrcy-theme-surface-rgb-1, 18, 47, 93), 0.99), rgba(var(--inrcy-theme-surface-rgb-2, 35, 34, 86), 0.99) 53%, rgba(var(--inrcy-theme-surface-rgb-3, 72, 31, 87), 0.98));
 }
 
 .lowerRow:not([data-dashboard-standard-lower-blocks="true"]) .loopWrap {
-  border-color: rgba(125, 211, 252, 0.32);
+  border-color: rgba(var(--inrcy-theme-accent-rgb-1, 125, 211, 252), 0.32);
   background:
-    radial-gradient(circle at 50% 50%, rgba(var(--cockpit-blue), 0.28), transparent 36%),
-    radial-gradient(circle at 12% 12%, rgba(var(--cockpit-cyan), 0.17), transparent 44%),
-    radial-gradient(circle at 88% 88%, rgba(var(--cockpit-pink), 0.15), transparent 46%),
-    radial-gradient(circle at 50% 50%, transparent 0 34%, rgba(var(--cockpit-violet), 0.14) 34.4%, transparent 35%),
-    linear-gradient(145deg, rgba(14, 42, 82, 0.96), rgba(48, 28, 74, 0.94));
+    radial-gradient(circle at 50% 50%, rgba(var(--inrcy-theme-accent-rgb-2, var(--cockpit-blue)), 0.25), transparent 36%),
+    radial-gradient(circle at 12% 12%, rgba(var(--inrcy-theme-accent-rgb-1, var(--cockpit-cyan)), 0.17), transparent 44%),
+    radial-gradient(circle at 88% 88%, rgba(var(--inrcy-theme-accent-rgb-3, var(--cockpit-pink)), 0.15), transparent 46%),
+    radial-gradient(circle at 50% 50%, transparent 0 34%, rgba(var(--inrcy-theme-accent-rgb-2, var(--cockpit-violet)), 0.14) 34.4%, transparent 35%),
+    linear-gradient(145deg, rgba(var(--inrcy-theme-surface-rgb-1, 14, 42, 82), 0.96), rgba(var(--inrcy-theme-surface-rgb-3, 48, 28, 74), 0.94));
   box-shadow:
-    0 0 0 1px rgba(125, 211, 252, 0.065),
+    0 0 0 1px rgba(var(--inrcy-theme-accent-rgb-1, 125, 211, 252), 0.065),
     inset 0 1px 0 rgba(255, 255, 255, 0.13),
-    inset 0 0 82px rgba(var(--cockpit-blue), 0.11);
+    inset 0 0 82px rgba(var(--inrcy-theme-accent-rgb-2, var(--cockpit-blue)), 0.11);
 }
 
 .lowerRow:not([data-dashboard-standard-lower-blocks="true"]) .gearWrap {
-  border-color: rgba(167, 139, 250, 0.33);
+  border-color: rgba(var(--inrcy-theme-accent-rgb-2, 167, 139, 250), 0.33);
   background:
-    radial-gradient(circle at 50% 42%, rgba(var(--cockpit-violet), 0.29), transparent 37%),
-    radial-gradient(circle at 12% 12%, rgba(var(--cockpit-cyan), 0.16), transparent 43%),
-    radial-gradient(circle at 87% 88%, rgba(var(--cockpit-pink), 0.15), transparent 45%),
-    linear-gradient(145deg, rgba(15, 42, 82, 0.96), rgba(53, 27, 75, 0.94));
+    radial-gradient(circle at 50% 42%, rgba(var(--inrcy-theme-accent-rgb-2, var(--cockpit-violet)), 0.27), transparent 37%),
+    radial-gradient(circle at 12% 12%, rgba(var(--inrcy-theme-accent-rgb-1, var(--cockpit-cyan)), 0.16), transparent 43%),
+    radial-gradient(circle at 87% 88%, rgba(var(--inrcy-theme-accent-rgb-3, var(--cockpit-pink)), 0.15), transparent 45%),
+    linear-gradient(145deg, rgba(var(--inrcy-theme-surface-rgb-1, 15, 42, 82), 0.96), rgba(var(--inrcy-theme-surface-rgb-3, 53, 27, 75), 0.94));
   box-shadow:
-    0 0 0 1px rgba(167, 139, 250, 0.065),
+    0 0 0 1px rgba(var(--inrcy-theme-accent-rgb-2, 167, 139, 250), 0.065),
     inset 0 1px 0 rgba(255, 255, 255, 0.13),
-    inset 0 0 82px rgba(var(--cockpit-violet), 0.12);
+    inset 0 0 82px rgba(var(--inrcy-theme-accent-rgb-2, var(--cockpit-violet)), 0.12);
 }
 
 @media (max-width: 700px), (any-hover: none) and (any-pointer: coarse) {
@@ -11899,11 +12094,11 @@
    de verre colore afin de ne plus se confondre avec leur grand cadre.
 ========================= */
 .generatorStatus {
-  border-color: rgba(186, 230, 253, 0.24);
-  background: linear-gradient(135deg, rgba(20, 61, 102, 0.88), rgba(56, 37, 92, 0.84));
+  border-color: rgba(var(--inrcy-theme-accent-rgb-1, 186, 230, 253), 0.24);
+  background: linear-gradient(135deg, rgba(var(--inrcy-theme-surface-rgb-1, 20, 61, 102), 0.92), rgba(var(--inrcy-theme-surface-rgb-3, 56, 37, 92), 0.88));
   box-shadow:
     0 12px 28px rgba(0, 0, 0, 0.2),
-    0 0 22px rgba(var(--cockpit-cyan), 0.08),
+    0 0 22px rgba(var(--inrcy-theme-accent-rgb-1, var(--cockpit-cyan)), 0.08),
     inset 0 1px 0 rgba(255, 255, 255, 0.14);
 }
 
@@ -11914,11 +12109,12 @@
 
 .generatorSettingsBtn,
 .generatorRefreshBtn {
-  border-color: rgba(186, 230, 253, 0.34);
-  background: linear-gradient(135deg, rgba(22, 68, 116, 0.94), rgba(69, 39, 105, 0.9));
+  border-color: rgba(var(--inrcy-theme-accent-rgb-1, 186, 230, 253), 0.34);
+  background: linear-gradient(135deg, rgba(var(--inrcy-theme-surface-rgb-1, 22, 68, 116), 0.96), rgba(var(--inrcy-theme-surface-rgb-3, 69, 39, 105), 0.92));
+  color: var(--inrcy-theme-card-text, rgba(255, 255, 255, 0.92));
   box-shadow:
     0 12px 26px rgba(0, 0, 0, 0.2),
-    0 0 20px rgba(var(--cockpit-blue), 0.09),
+    0 0 20px rgba(var(--inrcy-theme-accent-rgb-2, var(--cockpit-blue)), 0.09),
     inset 0 1px 0 rgba(255, 255, 255, 0.16);
 }
 
@@ -11926,13 +12122,14 @@
   border-color: color-mix(in srgb, var(--metric-accent, rgba(125, 211, 252, 0.82)) 45%, rgba(255, 255, 255, 0.2));
   background:
     radial-gradient(120% 95% at 16% 0%, var(--metric-halo, rgba(56, 189, 248, 0.2)), transparent 58%),
-    radial-gradient(95% 80% at 95% 100%, rgba(var(--cockpit-violet), 0.18), transparent 64%),
-    linear-gradient(145deg, rgba(20, 58, 104, 0.97), rgba(36, 39, 91, 0.96) 58%, rgba(55, 32, 87, 0.94));
+    radial-gradient(95% 80% at 95% 100%, rgba(var(--inrcy-theme-accent-rgb-2, var(--cockpit-violet)), 0.18), transparent 64%),
+    linear-gradient(145deg, rgba(var(--inrcy-theme-surface-rgb-1, 20, 58, 104), 0.97), rgba(var(--inrcy-theme-surface-rgb-2, 36, 39, 91), 0.96) 58%, rgba(var(--inrcy-theme-surface-rgb-3, 55, 32, 87), 0.94));
+  color: var(--inrcy-theme-card-text, rgba(255, 255, 255, 0.92));
   box-shadow:
     0 15px 34px rgba(0, 0, 0, 0.22),
     0 0 24px var(--metric-halo, rgba(56, 189, 248, 0.12)),
     inset 0 1px 0 rgba(255, 255, 255, 0.17),
-    inset 0 -28px 48px rgba(var(--cockpit-blue), 0.07);
+    inset 0 -28px 48px rgba(var(--inrcy-theme-accent-rgb-2, var(--cockpit-blue)), 0.07);
 }
 
 .metricCard::after {
@@ -11943,92 +12140,94 @@
 .metricLabel,
 .metricHint,
 .metricSplitLabel {
-  color: rgba(230, 238, 250, 0.78);
+  color: var(--inrcy-theme-card-muted, rgba(230, 238, 250, 0.78));
 }
 
 .lowerRow:not([data-dashboard-standard-lower-blocks="true"]) .loopWrap {
-  border-color: rgba(147, 197, 253, 0.44);
+  border-color: rgba(var(--inrcy-theme-accent-rgb-1, 147, 197, 253), 0.44);
   background:
-    radial-gradient(circle at 50% 50%, rgba(var(--cockpit-blue), 0.34), transparent 38%),
-    radial-gradient(circle at 9% 8%, rgba(var(--cockpit-cyan), 0.24), transparent 46%),
-    radial-gradient(circle at 91% 92%, rgba(var(--cockpit-pink), 0.22), transparent 47%),
-    radial-gradient(circle at 50% 50%, transparent 0 34%, rgba(var(--cockpit-violet), 0.18) 34.4%, transparent 35%),
-    linear-gradient(145deg, rgba(18, 53, 96, 0.98), rgba(42, 38, 91, 0.97) 55%, rgba(67, 33, 88, 0.96));
+    radial-gradient(circle at 50% 50%, rgba(var(--inrcy-theme-accent-rgb-2, var(--cockpit-blue)), 0.31), transparent 38%),
+    radial-gradient(circle at 9% 8%, rgba(var(--inrcy-theme-accent-rgb-1, var(--cockpit-cyan)), 0.22), transparent 46%),
+    radial-gradient(circle at 91% 92%, rgba(var(--inrcy-theme-accent-rgb-3, var(--cockpit-pink)), 0.20), transparent 47%),
+    radial-gradient(circle at 50% 50%, transparent 0 34%, rgba(var(--inrcy-theme-accent-rgb-2, var(--cockpit-violet)), 0.18) 34.4%, transparent 35%),
+    linear-gradient(145deg, rgba(var(--inrcy-theme-surface-rgb-1, 18, 53, 96), 0.98), rgba(var(--inrcy-theme-surface-rgb-2, 42, 38, 91), 0.97) 55%, rgba(var(--inrcy-theme-surface-rgb-3, 67, 33, 88), 0.96));
   box-shadow:
-    0 0 0 1px rgba(125, 211, 252, 0.08),
+    0 0 0 1px rgba(var(--inrcy-theme-accent-rgb-1, 125, 211, 252), 0.08),
     inset 0 1px 0 rgba(255, 255, 255, 0.17),
-    inset 0 0 86px rgba(var(--cockpit-blue), 0.13);
+    inset 0 0 86px rgba(var(--inrcy-theme-accent-rgb-2, var(--cockpit-blue)), 0.13);
 }
 
 .lowerRow:not([data-dashboard-standard-lower-blocks="true"]) .loopNode {
-  border-color: rgba(255, 255, 255, 0.24);
+  border-color: rgba(var(--inrcy-theme-accent-rgb-1, 255, 255, 255), 0.24);
+  color: var(--inrcy-theme-card-text, rgba(255, 255, 255, 0.92));
   box-shadow:
     0 18px 40px rgba(0, 0, 0, 0.24),
-    0 0 24px rgba(var(--cockpit-blue), 0.1),
+    0 0 24px rgba(var(--inrcy-theme-accent-rgb-2, var(--cockpit-blue)), 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.18),
     inset 0 -24px 42px rgba(8, 15, 45, 0.12);
 }
 
 .lowerRow:not([data-dashboard-standard-lower-blocks="true"]) .loop_cyan {
-  border-color: rgba(56, 189, 248, 0.58);
+  border-color: rgba(var(--inrcy-theme-accent-rgb-1, 56, 189, 248), 0.58);
   background:
-    radial-gradient(circle at 50% -25%, rgba(125, 211, 252, 0.42), transparent 54%),
-    linear-gradient(145deg, rgba(15, 74, 124, 0.98), rgba(28, 43, 94, 0.96) 62%, rgba(43, 34, 87, 0.94));
+    radial-gradient(circle at 50% -25%, rgba(var(--inrcy-theme-accent-rgb-1, 125, 211, 252), 0.42), transparent 54%),
+    linear-gradient(145deg, rgba(var(--inrcy-theme-surface-rgb-1, 15, 74, 124), 0.98), rgba(var(--inrcy-theme-surface-rgb-2, 28, 43, 94), 0.96) 62%, rgba(var(--inrcy-theme-surface-rgb-3, 43, 34, 87), 0.94));
 }
 
 .lowerRow:not([data-dashboard-standard-lower-blocks="true"]) .loop_purple {
-  border-color: rgba(167, 139, 250, 0.55);
+  border-color: rgba(var(--inrcy-theme-accent-rgb-2, 167, 139, 250), 0.55);
   background:
-    radial-gradient(circle at 50% -25%, rgba(196, 181, 253, 0.36), transparent 54%),
-    linear-gradient(145deg, rgba(65, 47, 126, 0.98), rgba(43, 39, 101, 0.96) 60%, rgba(49, 31, 84, 0.94));
+    radial-gradient(circle at 50% -25%, rgba(var(--inrcy-theme-accent-rgb-2, 196, 181, 253), 0.36), transparent 54%),
+    linear-gradient(145deg, rgba(var(--inrcy-theme-surface-rgb-3, 65, 47, 126), 0.98), rgba(var(--inrcy-theme-surface-rgb-2, 43, 39, 101), 0.96) 60%, rgba(var(--inrcy-theme-surface-rgb-3, 49, 31, 84), 0.94));
 }
 
 .lowerRow:not([data-dashboard-standard-lower-blocks="true"]) .loop_pink {
-  border-color: rgba(244, 114, 182, 0.55);
+  border-color: rgba(var(--inrcy-theme-accent-rgb-3, 244, 114, 182), 0.55);
   background:
-    radial-gradient(circle at 50% -25%, rgba(251, 207, 232, 0.3), transparent 54%),
-    linear-gradient(145deg, rgba(105, 37, 91, 0.98), rgba(68, 35, 91, 0.96) 60%, rgba(47, 31, 79, 0.94));
+    radial-gradient(circle at 50% -25%, rgba(var(--inrcy-theme-accent-rgb-3, 251, 207, 232), 0.30), transparent 54%),
+    linear-gradient(145deg, rgba(var(--inrcy-theme-surface-rgb-3, 105, 37, 91), 0.98), rgba(var(--inrcy-theme-surface-rgb-2, 68, 35, 91), 0.96) 60%, rgba(var(--inrcy-theme-surface-rgb-3, 47, 31, 79), 0.94));
 }
 
 .lowerRow:not([data-dashboard-standard-lower-blocks="true"]) .loop_orange {
-  border-color: rgba(251, 146, 60, 0.55);
+  border-color: rgba(var(--inrcy-theme-accent-rgb-3, 251, 146, 60), 0.55);
   background:
-    radial-gradient(circle at 50% -25%, rgba(254, 215, 170, 0.3), transparent 54%),
-    linear-gradient(145deg, rgba(111, 56, 76, 0.98), rgba(73, 42, 86, 0.96) 60%, rgba(47, 32, 76, 0.94));
+    radial-gradient(circle at 50% -25%, rgba(var(--inrcy-theme-accent-rgb-3, 254, 215, 170), 0.30), transparent 54%),
+    linear-gradient(145deg, rgba(var(--inrcy-theme-surface-rgb-1, 111, 56, 76), 0.98), rgba(var(--inrcy-theme-surface-rgb-2, 73, 42, 86), 0.96) 60%, rgba(var(--inrcy-theme-surface-rgb-3, 47, 32, 76), 0.94));
 }
 
 .lowerRow:not([data-dashboard-standard-lower-blocks="true"]) .loopActions .actionBtn,
 .lowerRow:not([data-dashboard-standard-lower-blocks="true"]) .loopGearBtn {
-  border-color: rgba(186, 230, 253, 0.38);
-  background: linear-gradient(90deg, rgba(20, 131, 166, 0.48), rgba(85, 76, 204, 0.42), rgba(145, 52, 191, 0.36));
+  border-color: rgba(var(--inrcy-theme-accent-rgb-1, 186, 230, 253), 0.38);
+  background: linear-gradient(90deg, rgba(var(--inrcy-theme-accent-rgb-1, 20, 131, 166), 0.48), rgba(var(--inrcy-theme-accent-rgb-2, 85, 76, 204), 0.42), rgba(var(--inrcy-theme-accent-rgb-3, 145, 52, 191), 0.36));
+  color: var(--inrcy-theme-card-text, rgba(255, 255, 255, 0.92));
   box-shadow:
     0 9px 22px rgba(0, 0, 0, 0.2),
-    0 0 18px rgba(var(--cockpit-cyan), 0.1),
+    0 0 18px rgba(var(--inrcy-theme-accent-rgb-1, var(--cockpit-cyan)), 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.16);
 }
 
 .lowerRow:not([data-dashboard-standard-lower-blocks="true"]) .gearWrap {
-  border-color: rgba(196, 181, 253, 0.45);
+  border-color: rgba(var(--inrcy-theme-accent-rgb-2, 196, 181, 253), 0.45);
   background:
-    radial-gradient(circle at 50% 42%, rgba(var(--cockpit-violet), 0.35), transparent 39%),
-    radial-gradient(circle at 10% 9%, rgba(var(--cockpit-cyan), 0.22), transparent 45%),
-    radial-gradient(circle at 90% 91%, rgba(var(--cockpit-pink), 0.22), transparent 47%),
-    linear-gradient(145deg, rgba(18, 51, 94, 0.98), rgba(47, 37, 94, 0.97) 55%, rgba(72, 32, 91, 0.96));
+    radial-gradient(circle at 50% 42%, rgba(var(--inrcy-theme-accent-rgb-2, var(--cockpit-violet)), 0.32), transparent 39%),
+    radial-gradient(circle at 10% 9%, rgba(var(--inrcy-theme-accent-rgb-1, var(--cockpit-cyan)), 0.20), transparent 45%),
+    radial-gradient(circle at 90% 91%, rgba(var(--inrcy-theme-accent-rgb-3, var(--cockpit-pink)), 0.20), transparent 47%),
+    linear-gradient(145deg, rgba(var(--inrcy-theme-surface-rgb-1, 18, 51, 94), 0.98), rgba(var(--inrcy-theme-surface-rgb-2, 47, 37, 94), 0.97) 55%, rgba(var(--inrcy-theme-surface-rgb-3, 72, 32, 91), 0.96));
   box-shadow:
-    0 0 0 1px rgba(167, 139, 250, 0.08),
+    0 0 0 1px rgba(var(--inrcy-theme-accent-rgb-2, 167, 139, 250), 0.08),
     inset 0 1px 0 rgba(255, 255, 255, 0.17),
-    inset 0 0 86px rgba(var(--cockpit-violet), 0.14);
+    inset 0 0 86px rgba(var(--inrcy-theme-accent-rgb-2, var(--cockpit-violet)), 0.14);
 }
 
 .lowerRow:not([data-dashboard-standard-lower-blocks="true"]) .gearRail {
-  border-color: rgba(147, 197, 253, 0.26);
+  border-color: rgba(var(--inrcy-theme-accent-rgb-1, 147, 197, 253), 0.26);
   background:
-    radial-gradient(circle at 50% 50%, rgba(var(--cockpit-blue), 0.2), transparent 48%),
-    linear-gradient(145deg, rgba(16, 50, 91, 0.78), rgba(48, 31, 86, 0.74));
+    radial-gradient(circle at 50% 50%, rgba(var(--inrcy-theme-accent-rgb-2, var(--cockpit-blue)), 0.18), transparent 48%),
+    linear-gradient(145deg, rgba(var(--inrcy-theme-surface-rgb-1, 16, 50, 91), 0.82), rgba(var(--inrcy-theme-surface-rgb-3, 48, 31, 86), 0.78));
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.11),
-    inset 0 0 58px rgba(var(--cockpit-violet), 0.08),
-    0 0 38px rgba(var(--cockpit-violet), 0.06);
+    inset 0 0 58px rgba(var(--inrcy-theme-accent-rgb-2, var(--cockpit-violet)), 0.08),
+    0 0 38px rgba(var(--inrcy-theme-accent-rgb-2, var(--cockpit-violet)), 0.06);
 }
 
 .lowerRow:not([data-dashboard-standard-lower-blocks="true"]) .gearCapsule {
@@ -12036,7 +12235,8 @@
   background:
     radial-gradient(110% 130% at 14% 8%, rgba(255, 255, 255, 0.24), transparent 44%),
     radial-gradient(circle at 16% 52%, rgba(var(--premium-gear-accent, 125, 211, 252), 0.32), transparent 50%),
-    linear-gradient(135deg, rgba(18, 58, 104, 0.98), rgba(48, 39, 99, 0.97) 60%, rgba(var(--premium-gear-accent, 125, 211, 252), 0.25));
+    linear-gradient(135deg, rgba(var(--inrcy-theme-surface-rgb-1, 18, 58, 104), 0.98), rgba(var(--inrcy-theme-surface-rgb-2, 48, 39, 99), 0.97) 60%, rgba(var(--premium-gear-accent, 125, 211, 252), 0.25));
+  color: var(--inrcy-theme-card-text, rgba(255, 255, 255, 0.92));
   box-shadow:
     0 18px 42px rgba(0, 0, 0, 0.24),
     0 0 28px rgba(var(--premium-gear-accent, 125, 211, 252), 0.13),
@@ -12045,11 +12245,11 @@
 }
 
 .lowerRow:not([data-dashboard-standard-lower-blocks="true"]) .gearGrid > :nth-child(1).gearCapsule {
-  border-color: rgba(125, 211, 252, 0.72);
+  border-color: rgba(var(--inrcy-theme-accent-rgb-1, 125, 211, 252), 0.72);
   background:
     radial-gradient(90% 110% at 18% 8%, rgba(255, 255, 255, 0.3), transparent 46%),
-    radial-gradient(circle at 16% 54%, rgba(var(--cockpit-cyan), 0.36), transparent 50%),
-    linear-gradient(135deg, rgba(10, 67, 118, 0.99), rgba(43, 67, 142, 0.97) 56%, rgba(116, 54, 171, 0.92));
+    radial-gradient(circle at 16% 54%, rgba(var(--inrcy-theme-accent-rgb-1, var(--cockpit-cyan)), 0.36), transparent 50%),
+    linear-gradient(135deg, rgba(var(--inrcy-theme-surface-rgb-1, 10, 67, 118), 0.99), rgba(var(--inrcy-theme-surface-rgb-2, 43, 67, 142), 0.97) 56%, rgba(var(--inrcy-theme-accent-rgb-2, 116, 54, 171), 0.40));
 }
 
 /* Navigation verticale du cockpit vers les outils principaux. */
@@ -12087,15 +12287,15 @@
   gap: 8px;
   overflow: hidden;
   padding: 0 17px;
-  border: 1px solid rgba(100, 224, 255, 0.52);
+  border: 1px solid rgba(var(--inrcy-theme-accent-rgb-1, 100, 224, 255), 0.52);
   border-radius: 999px;
   color: rgba(248, 252, 255, 0.98);
   background:
-    radial-gradient(circle at 18% 12%, rgba(77, 220, 255, 0.34), transparent 43%),
-    linear-gradient(115deg, rgba(14, 71, 143, 0.96), rgba(89, 65, 190, 0.97) 53%, rgba(202, 55, 147, 0.95));
+    radial-gradient(circle at 18% 12%, rgba(var(--inrcy-theme-accent-rgb-1, 77, 220, 255), 0.34), transparent 43%),
+    linear-gradient(115deg, rgba(var(--inrcy-theme-surface-rgb-1, 14, 71, 143), 0.96), rgba(var(--inrcy-theme-accent-rgb-2, 89, 65, 190), 0.74) 53%, rgba(var(--inrcy-theme-accent-rgb-3, 202, 55, 147), 0.72));
   box-shadow:
-    0 12px 30px rgba(17, 55, 142, 0.34),
-    0 0 24px rgba(91, 211, 255, 0.16),
+    0 12px 30px rgba(var(--inrcy-theme-surface-rgb-2, 17, 55, 142), 0.34),
+    0 0 24px rgba(var(--inrcy-theme-accent-rgb-1, 91, 211, 255), 0.16),
     inset 0 1px rgba(255, 255, 255, 0.22);
   font: inherit;
   font-size: 11px;
@@ -12113,7 +12313,7 @@
   top: 50%;
   width: 44px;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(101, 223, 255, 0.72));
+  background: linear-gradient(90deg, transparent, rgba(var(--inrcy-theme-accent-rgb-1, 101, 223, 255), 0.72));
   pointer-events: none;
 }
 
@@ -12138,7 +12338,7 @@
   width: 19px;
   height: 19px;
   flex: 0 0 19px;
-  filter: drop-shadow(0 0 8px rgba(124, 231, 255, 0.72));
+  filter: drop-shadow(0 0 8px rgba(var(--inrcy-theme-accent-rgb-1, 124, 231, 255), 0.72));
 }
 
 .dashboardQuickJump path {
@@ -12151,11 +12351,11 @@
 .dashboardQuickJumpLabel { position: relative; }
 .dashboardQuickJump:hover {
   transform: translateY(-2px) scale(1.025);
-  border-color: rgba(255, 149, 222, 0.72);
-  box-shadow: 0 16px 34px rgba(37, 51, 158, 0.42), 0 0 30px rgba(209, 74, 173, 0.2), inset 0 1px rgba(255, 255, 255, 0.26);
+  border-color: rgba(var(--inrcy-theme-accent-rgb-3, 255, 149, 222), 0.72);
+  box-shadow: 0 16px 34px rgba(var(--inrcy-theme-accent-rgb-2, 37, 51, 158), 0.30), 0 0 30px rgba(var(--inrcy-theme-accent-rgb-3, 209, 74, 173), 0.2), inset 0 1px rgba(255, 255, 255, 0.26);
 }
 .dashboardQuickJump:focus-visible {
-  outline: 3px solid rgba(111, 224, 255, 0.34);
+  outline: 3px solid var(--inrcy-theme-focus-ring, rgba(111, 224, 255, 0.34));
   outline-offset: 3px;
 }
 
@@ -12188,15 +12388,203 @@
 .lowerRow:not([data-dashboard-standard-lower-blocks="true"]) .gearBtn,
 .lowerRow:not([data-dashboard-standard-lower-blocks="true"]) .gearSettingsBtn {
   border-color: rgba(var(--premium-gear-accent, 125, 211, 252), 0.42);
-  background: linear-gradient(90deg, rgba(var(--premium-gear-accent, 125, 211, 252), 0.3), rgba(99, 102, 241, 0.24));
+  background: linear-gradient(90deg, rgba(var(--premium-gear-accent, 125, 211, 252), 0.3), rgba(var(--inrcy-theme-accent-rgb-2, 99, 102, 241), 0.24));
+  color: var(--inrcy-theme-card-text, rgba(255, 255, 255, 0.92));
   box-shadow:
     0 8px 20px rgba(0, 0, 0, 0.18),
     inset 0 1px 0 rgba(255, 255, 255, 0.15);
 }
 
+/* La palette du thème pilote aussi les accents internes des blocs. Les valeurs
+   de repli sont exactement celles du cockpit iNrCy historique. */
+.lowerRow:not([data-dashboard-standard-lower-blocks="true"]) .loop_cyan::before {
+  background: radial-gradient(circle, rgba(var(--inrcy-theme-accent-rgb-1, 56, 189, 248), 0.45), transparent 60%);
+}
+
+.lowerRow:not([data-dashboard-standard-lower-blocks="true"]) .loop_cyan::after {
+  background: radial-gradient(circle at 30% 30%, rgba(var(--inrcy-theme-accent-rgb-1, 56, 189, 248), 0.4), transparent 60%);
+}
+
+.lowerRow:not([data-dashboard-standard-lower-blocks="true"]) .loop_purple::before {
+  background: radial-gradient(circle, rgba(var(--inrcy-theme-accent-rgb-2, 167, 139, 250), 0.45), transparent 60%);
+}
+
+.lowerRow:not([data-dashboard-standard-lower-blocks="true"]) .loop_purple::after {
+  background: radial-gradient(circle at 30% 30%, rgba(var(--inrcy-theme-accent-rgb-2, 167, 139, 250), 0.4), transparent 60%);
+}
+
+.lowerRow:not([data-dashboard-standard-lower-blocks="true"]) .loop_pink::before {
+  background: radial-gradient(circle, rgba(var(--inrcy-theme-accent-rgb-3, 244, 114, 182), 0.45), transparent 60%);
+}
+
+.lowerRow:not([data-dashboard-standard-lower-blocks="true"]) .loop_pink::after {
+  background: radial-gradient(circle at 30% 30%, rgba(var(--inrcy-theme-accent-rgb-3, 244, 114, 182), 0.4), transparent 60%);
+}
+
+.lowerRow:not([data-dashboard-standard-lower-blocks="true"]) .loop_orange::before {
+  background: radial-gradient(circle, rgba(var(--inrcy-theme-accent-rgb-4, 251, 146, 60), 0.45), transparent 60%);
+}
+
+.lowerRow:not([data-dashboard-standard-lower-blocks="true"]) .loop_orange::after {
+  background: radial-gradient(circle at 30% 30%, rgba(var(--inrcy-theme-accent-rgb-4, 251, 146, 60), 0.4), transparent 60%);
+}
+
+.lowerRow:not([data-dashboard-standard-lower-blocks="true"]) .loopTitle,
+.lowerRow:not([data-dashboard-standard-lower-blocks="true"]) .gearTitle {
+  color: var(--inrcy-theme-card-text, rgba(250, 252, 255, 0.98));
+}
+
+.lowerRow:not([data-dashboard-standard-lower-blocks="true"]) .loopSub,
+.lowerRow:not([data-dashboard-standard-lower-blocks="true"]) .gearSub {
+  color: var(--inrcy-theme-card-muted, rgba(220, 231, 247, 0.7));
+}
+
+:global(html[data-inrcy-theme]:not([data-inrcy-theme="original"])) .lowerRow:not([data-dashboard-standard-lower-blocks="true"]) .signalCore {
+  border-color: rgba(var(--inrcy-theme-accent-rgb-1), 0.42);
+  background: radial-gradient(
+    circle at 35% 30%,
+    rgba(255, 255, 255, 0.48),
+    rgba(var(--inrcy-theme-accent-rgb-1), 0.4) 20%,
+    rgba(var(--inrcy-theme-accent-rgb-2), 0.2) 52%,
+    rgba(var(--inrcy-theme-surface-rgb-2), 0.72) 72%
+  );
+  box-shadow:
+    0 0 18px rgba(var(--inrcy-theme-accent-rgb-1), 0.52),
+    0 0 32px rgba(var(--inrcy-theme-accent-rgb-2), 0.26),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+:global(html[data-inrcy-theme]:not([data-inrcy-theme="original"])) .lowerRow:not([data-dashboard-standard-lower-blocks="true"]) .signalWave {
+  border-color: rgba(var(--inrcy-theme-accent-rgb-1), 0.28);
+}
+
+.lowerRow:not([data-dashboard-standard-lower-blocks="true"]) .gear_cyan {
+  --premium-gear-accent: var(--inrcy-theme-accent-rgb-1, 56, 189, 248);
+}
+
+.lowerRow:not([data-dashboard-standard-lower-blocks="true"]) .gear_purple {
+  --premium-gear-accent: var(--inrcy-theme-accent-rgb-2, 139, 92, 246);
+}
+
+.lowerRow:not([data-dashboard-standard-lower-blocks="true"]) .gear_pink {
+  --premium-gear-accent: var(--inrcy-theme-accent-rgb-3, 236, 72, 153);
+}
+
+.lowerRow:not([data-dashboard-standard-lower-blocks="true"]) .gear_orange {
+  --premium-gear-accent: var(--inrcy-theme-accent-rgb-4, 251, 146, 60);
+}
+
+.lowerRow:not([data-dashboard-standard-lower-blocks="true"]) .gearWrap::before {
+  background:
+    radial-gradient(circle at 16% 12%, rgba(var(--inrcy-theme-accent-rgb-1, var(--cockpit-cyan)), 0.1) 0 2px, transparent 3px),
+    radial-gradient(circle at 83% 26%, rgba(var(--inrcy-theme-accent-rgb-2, var(--cockpit-violet)), 0.12) 0 2px, transparent 3px),
+    radial-gradient(circle at 22% 58%, rgba(var(--inrcy-theme-accent-rgb-3, var(--cockpit-pink)), 0.1) 0 2px, transparent 3px);
+  filter: drop-shadow(0 0 6px rgba(var(--inrcy-theme-accent-rgb-1, var(--cockpit-cyan)), 0.2));
+}
+
+.lowerRow:not([data-dashboard-standard-lower-blocks="true"]) .gearRail::after {
+  background:
+    radial-gradient(circle, rgba(var(--inrcy-theme-accent-rgb-1, 125, 211, 252), 0.92) 0 2px, transparent 3px) 19% 14% / 12px 12px no-repeat,
+    radial-gradient(circle, rgba(var(--inrcy-theme-accent-rgb-2, 167, 139, 250), 0.88) 0 2px, transparent 3px) 79% 30% / 12px 12px no-repeat,
+    radial-gradient(circle, rgba(var(--inrcy-theme-accent-rgb-3, 244, 114, 182), 0.84) 0 2px, transparent 3px) 22% 58% / 12px 12px no-repeat;
+  filter: drop-shadow(0 0 7px rgba(var(--inrcy-theme-accent-rgb-1, 125, 211, 252), 0.38));
+}
+
+:global(html[data-inrcy-theme]:not([data-inrcy-theme="original"])) .badgeCyan {
+  --loop-badge-theme-accent: var(--inrcy-theme-accent-rgb-1);
+  background: rgba(var(--inrcy-theme-accent-rgb-1), 0.95);
+}
+
+:global(html[data-inrcy-theme]:not([data-inrcy-theme="original"])) .badgePurple {
+  --loop-badge-theme-accent: var(--inrcy-theme-accent-rgb-2);
+  background: rgba(var(--inrcy-theme-accent-rgb-2), 0.95);
+}
+
+:global(html[data-inrcy-theme]:not([data-inrcy-theme="original"])) .badgePink {
+  --loop-badge-theme-accent: var(--inrcy-theme-accent-rgb-3);
+  background: rgba(var(--inrcy-theme-accent-rgb-3), 0.95);
+}
+
+:global(html[data-inrcy-theme]:not([data-inrcy-theme="original"])) .badgeOrange {
+  --loop-badge-theme-accent: var(--inrcy-theme-accent-rgb-4);
+  background: rgba(var(--inrcy-theme-accent-rgb-4), 0.95);
+}
+
+:global(html[data-inrcy-theme]:not([data-inrcy-theme="original"])) .loopBadge {
+  animation-name: themedBadgePulse;
+}
+
+@keyframes themedBadgePulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 8px rgba(var(--loop-badge-theme-accent), 0.6),
+      0 0 18px rgba(var(--loop-badge-theme-accent), 0.35);
+    transform: scale(1);
+    opacity: 0.9;
+  }
+
+  50% {
+    box-shadow:
+      0 0 16px rgba(var(--loop-badge-theme-accent), 0.9),
+      0 0 36px rgba(var(--loop-badge-theme-accent), 0.55);
+    transform: scale(1.25);
+    opacity: 1;
+  }
+}
+
+@media (min-width: 769px) {
+  :global(html[data-inrcy-theme]:not([data-inrcy-theme="original"])) .topbarActions .ghostBtn,
+  :global(html[data-inrcy-theme]:not([data-inrcy-theme="original"])) .notificationBellBtnWithLabel,
+  :global(html[data-inrcy-theme]:not([data-inrcy-theme="original"])) .userBubbleBtn,
+  :global(html[data-inrcy-theme]:not([data-inrcy-theme="original"])) .languageSelectorBtn {
+    border-color: rgba(var(--inrcy-theme-accent-rgb-1), 0.28) !important;
+    color: var(--inrcy-theme-card-text) !important;
+    background:
+      radial-gradient(circle at 18% 0%, rgba(var(--inrcy-theme-accent-rgb-1), 0.16), transparent 32%),
+      linear-gradient(135deg, rgba(var(--inrcy-theme-surface-rgb-1), 0.92), rgba(var(--inrcy-theme-surface-rgb-2), 0.88)) !important;
+    box-shadow:
+      0 18px 46px rgba(0, 0, 0, 0.24),
+      0 0 22px rgba(var(--inrcy-theme-accent-rgb-1), 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.13) !important;
+  }
+
+  :global(html[data-inrcy-theme]:not([data-inrcy-theme="original"])) .notificationBellBtnWithLabel {
+    border-color: rgba(var(--inrcy-theme-accent-rgb-4), 0.46) !important;
+    background:
+      radial-gradient(circle at 18% 0%, rgba(var(--inrcy-theme-accent-rgb-4), 0.28), transparent 34%),
+      linear-gradient(135deg, rgba(var(--inrcy-theme-surface-rgb-1), 0.94), rgba(var(--inrcy-theme-surface-rgb-3), 0.88)) !important;
+  }
+
+  :global(html[data-inrcy-theme]:not([data-inrcy-theme="original"])) .agentTopbarBtn {
+    border-color: rgba(var(--inrcy-theme-accent-rgb-2), 0.46) !important;
+    background:
+      radial-gradient(circle at 18% 0%, rgba(var(--inrcy-theme-accent-rgb-2), 0.3), transparent 34%),
+      linear-gradient(135deg, rgba(var(--inrcy-theme-surface-rgb-3), 0.94), rgba(var(--inrcy-theme-surface-rgb-2), 0.88)) !important;
+  }
+
+  :global(html[data-inrcy-theme]:not([data-inrcy-theme="original"])) .gpsTopbarBtn,
+  :global(html[data-inrcy-theme]:not([data-inrcy-theme="original"])) .languageSelectorBtn {
+    border-color: rgba(var(--inrcy-theme-accent-rgb-1), 0.46) !important;
+    background:
+      radial-gradient(circle at 18% 0%, rgba(var(--inrcy-theme-accent-rgb-1), 0.28), transparent 34%),
+      linear-gradient(135deg, rgba(var(--inrcy-theme-surface-rgb-1), 0.94), rgba(var(--inrcy-theme-surface-rgb-2), 0.88)) !important;
+  }
+
+  :global(html[data-inrcy-theme]:not([data-inrcy-theme="original"])) .adminTopbarBtn,
+  :global(html[data-inrcy-theme]:not([data-inrcy-theme="original"])) .contactTopbarBtn,
+  :global(html[data-inrcy-theme]:not([data-inrcy-theme="original"])) .topbarActions > .ghostBtn:not(.agentTopbarBtn):not(.gpsTopbarBtn):not(.adminTopbarBtn):not(.contactTopbarBtn) {
+    border-color: rgba(var(--inrcy-theme-accent-rgb-3), 0.42) !important;
+    background:
+      radial-gradient(circle at 18% 0%, rgba(var(--inrcy-theme-accent-rgb-3), 0.25), transparent 34%),
+      linear-gradient(135deg, rgba(var(--inrcy-theme-surface-rgb-3), 0.94), rgba(var(--inrcy-theme-surface-rgb-2), 0.88)) !important;
+  }
+}
+
 .blockHead .smallMuted {
-  border-color: rgba(186, 230, 253, 0.18);
-  background: linear-gradient(135deg, rgba(18, 51, 90, 0.7), rgba(54, 34, 88, 0.68));
+  border-color: rgba(var(--inrcy-theme-accent-rgb-1, 186, 230, 253), 0.18);
+  background: linear-gradient(135deg, rgba(var(--inrcy-theme-surface-rgb-1, 18, 51, 90), 0.78), rgba(var(--inrcy-theme-surface-rgb-3, 54, 34, 88), 0.76));
+  color: var(--inrcy-theme-card-muted, rgba(255, 255, 255, 0.64));
 }
 
 @media (max-width: 700px), (any-hover: none) and (any-pointer: coarse) {

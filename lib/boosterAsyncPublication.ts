@@ -17,6 +17,10 @@ import {
 import { classifyBoosterPublicationResult } from "@/lib/boosterPublicationOutcome";
 import { resolveMediaPreparationDisplayState } from "@/lib/mediaPreparationDisplay";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import type {
+  BoosterPublicationTarget,
+  MetaPublicationPlacement,
+} from "@/lib/metaPublicationTargets";
 
 export const BOOSTER_ASYNC_JOB_EVENT_TYPE = "publish_async_job";
 export const BOOSTER_ASYNC_CHANNEL_EVENT_TYPE = "publish_async_channel";
@@ -47,6 +51,8 @@ type AppEventParentRow = {
 
 type AsyncChannelState = {
   channel: BoosterAsyncChannelKey;
+  targetKey: string;
+  placement: MetaPublicationPlacement | null;
   eventId: string;
   status: string;
   result: JsonRecord;
@@ -54,6 +60,7 @@ type AsyncChannelState = {
 
 type AsyncJobDescriptor = {
   selected: BoosterAsyncChannelKey[];
+  targets: BoosterPublicationTarget[];
   channelEventIds: JsonRecord;
   ids: string[];
   valid: boolean;
@@ -403,17 +410,47 @@ function readAsyncJobDescriptor(payload: JsonRecord): AsyncJobDescriptor {
     .map(asChannel)
     .filter((value): value is BoosterAsyncChannelKey => Boolean(value));
   const channelEventIds = asRecord(payload.channelEventIds);
-  const ids = selected
-    .map((channel) => cleanString(channelEventIds[channel]))
+  const selectedSet = new Set(selected);
+  const persistedTargets = Array.isArray(payload.publicationTargets)
+    ? payload.publicationTargets.flatMap((value) => {
+        const raw = asRecord(value);
+        const channel = asChannel(raw.channel);
+        const key = cleanString(raw.key);
+        if (!channel || !selectedSet.has(channel) || !key) return [];
+        const rawPlacement = cleanString(raw.placement);
+        const placement: MetaPublicationPlacement | null = [
+          "classic",
+          "reel",
+          "story",
+        ].includes(rawPlacement)
+          ? (rawPlacement as MetaPublicationPlacement)
+          : null;
+        return [{ key, channel, placement }];
+      })
+    : [];
+  const targets: BoosterPublicationTarget[] = persistedTargets.length
+    ? persistedTargets
+    : selected.map((channel) => ({
+        key: channel,
+        channel,
+        placement: null,
+      }));
+  const ids = targets
+    .map((target) => cleanString(channelEventIds[target.key]))
     .filter(Boolean);
+  const targetKeys = targets.map((target) => target.key);
+  const targetedChannels = new Set(targets.map((target) => target.channel));
   return {
     selected,
+    targets,
     channelEventIds,
     ids,
     valid:
       selected.length > 0 &&
-      ids.length === selected.length &&
-      new Set(ids).size === ids.length,
+      ids.length === targets.length &&
+      new Set(ids).size === ids.length &&
+      new Set(targetKeys).size === targetKeys.length &&
+      selected.every((channel) => targetedChannels.has(channel)),
   };
 }
 
@@ -466,14 +503,18 @@ async function loadAsyncChannelStates(params: {
       asRecord(row.payload),
     ]),
   );
-  return params.descriptor.selected.map<AsyncChannelState>((channel) => {
-    const eventId = cleanString(params.descriptor.channelEventIds[channel]);
+  return params.descriptor.targets.map<AsyncChannelState>((target) => {
+    const eventId = cleanString(
+      params.descriptor.channelEventIds[target.key],
+    );
     const payload = eventById.get(eventId);
     if (!payload) {
       // The parent descriptor is authoritative. A missing technical child is
       // one isolated terminal failure, never an eternal synthetic queue item.
       return {
-        channel,
+        channel: target.channel,
+        targetKey: target.key,
+        placement: target.placement,
         eventId,
         status: "failed",
         result: {
@@ -485,7 +526,9 @@ async function loadAsyncChannelStates(params: {
       };
     }
     return {
-      channel,
+      channel: target.channel,
+      targetKey: target.key,
+      placement: target.placement,
       eventId,
       status: cleanString(payload.status) || "queued",
       result: asRecord(payload.result),
@@ -564,10 +607,99 @@ async function releaseAsyncPublicationFinalizationClaim(params: {
   }
 }
 
+function getTargetResultLabel(state: AsyncChannelState) {
+  if (state.placement === "story") return "Story";
+  if (state.placement === "reel") return "Reel";
+  if (state.placement === "classic") return "Classique";
+  return CHANNEL_LABELS[state.channel];
+}
+
+function aggregateChannelTargetResults(
+  channel: BoosterAsyncChannelKey,
+  states: AsyncChannelState[],
+) {
+  if (states.length === 1 && states[0]?.targetKey === channel) {
+    return Object.keys(states[0].result).length
+      ? states[0].result
+      : {
+          ok: states[0].status === "completed",
+          error:
+            states[0].status === "failed"
+              ? "La publication n'a pas pu être finalisée sur ce canal."
+              : null,
+        };
+  }
+
+  const placementResults = Object.fromEntries(
+    states.map((state) => [
+      state.placement || state.targetKey,
+      Object.keys(state.result).length
+        ? state.result
+        : {
+            ok: state.status === "completed",
+            error:
+              state.status === "failed"
+                ? "Ce format n'a pas pu être publié."
+                : null,
+          },
+    ]),
+  );
+  const successes = states.filter(
+    (state) => state.status === "completed" && state.result.ok !== false,
+  );
+  const failures = states.filter(
+    (state) => state.status === "failed" || state.result.ok === false,
+  );
+  const externalIds = successes
+    .map((state) => cleanString(state.result.external_id))
+    .filter(Boolean);
+
+  if (successes.length === states.length) {
+    return {
+      ok: true,
+      external_id: externalIds[0] || null,
+      external_ids: externalIds,
+      placements: placementResults,
+    };
+  }
+
+  const failedLabels = failures.map(getTargetResultLabel).join(", ");
+  if (successes.length > 0) {
+    return {
+      ok: true,
+      external_id: externalIds[0] || null,
+      external_ids: externalIds,
+      placements: placementResults,
+      warning: "meta_placement_partial_failure",
+      warning_message: `${CHANNEL_LABELS[channel]} a publié une partie des formats. À vérifier : ${failedLabels}.`,
+      failed_placements: failures.map(
+        (state) => state.placement || state.targetKey,
+      ),
+    };
+  }
+
+  return {
+    ok: false,
+    code: "meta_placements_failed",
+    retryable: false,
+    placements: placementResults,
+    error:
+      failures
+        .map((state) => cleanString(state.result.error))
+        .filter(Boolean)
+        .join(" · ") ||
+      `Aucun format ${CHANNEL_LABELS[channel]} n'a pu être publié.`,
+  };
+}
+
 function pendingChannels(channelStates: AsyncChannelState[]) {
-  return channelStates
-    .filter((state) => !TERMINAL_CHANNEL_STATUSES.has(state.status))
-    .map((state) => state.channel);
+  return Array.from(
+    new Set(
+      channelStates
+        .filter((state) => !TERMINAL_CHANNEL_STATUSES.has(state.status))
+        .map((state) => state.channel),
+    ),
+  );
 }
 
 function buildCompletedPublicationStatus(
@@ -586,6 +718,7 @@ function buildCompletedPublicationStatus(
 function buildProcessingPublicationStatus(
   publicationId: string,
   channelStates: AsyncChannelState[],
+  selectedChannels: BoosterAsyncChannelKey[],
   mediaPreparation?: {
     progress: number;
     status: string;
@@ -595,24 +728,36 @@ function buildProcessingPublicationStatus(
     phaseProgress: number | null;
   } | null,
 ) {
-  const entries = channelStates.map((state) => {
-    const terminal = TERMINAL_CHANNEL_STATUSES.has(state.status);
-    const outcome = terminal
-      ? classifyBoosterPublicationResult(state.result)
-      : null;
+  const entries = selectedChannels.map((channel) => {
+    const states = channelStates.filter((state) => state.channel === channel);
+    const terminal =
+      states.length > 0 &&
+      states.every((state) => TERMINAL_CHANNEL_STATUSES.has(state.status));
+    const result = terminal
+      ? aggregateChannelTargetResults(channel, states)
+      : {};
+    const outcome = terminal ? classifyBoosterPublicationResult(result) : null;
+    const technicalStatus = terminal
+      ? outcome?.ok
+        ? "completed"
+        : "failed"
+      : states.find((state) => state.status === "processing")?.status ||
+        states.find((state) => state.status === "preparing")?.status ||
+        states[0]?.status ||
+        "queued";
     return {
-      channel: state.channel,
-      label: CHANNEL_LABELS[state.channel],
-      status: outcome?.status || state.status,
-      technicalStatus: state.status,
+      channel,
+      label: CHANNEL_LABELS[channel],
+      status: outcome?.status || technicalStatus,
+      technicalStatus,
       ok: terminal
-        ? state.result.ok !== false && state.status !== "failed"
+        ? result.ok !== false
         : null,
-      error: cleanString(state.result.error) || null,
+      error: cleanString(result.error) || null,
       warning: outcome?.warningCode || null,
       warning_kind: outcome?.warningKind || null,
       warning_message: outcome?.warningMessage || null,
-      ...(state.status === "preparing" && mediaPreparation
+      ...(technicalStatus === "preparing" && mediaPreparation
         ? { processingProgress: mediaPreparation.progress }
         : {}),
     };
@@ -734,6 +879,26 @@ async function runFinalizationSideEffects(params: {
     });
   }
 
+  operations.push({
+    name: "deliveries",
+    promise: Promise.all(
+      params.descriptor.selected.map(async (channel) => {
+        const result = asRecord(params.results[channel]);
+        const failed = result.ok === false;
+        const { error } = await supabaseAdmin
+          .from("publication_deliveries")
+          .update({
+            status: failed ? "failed" : "delivered",
+            error: failed ? cleanString(result.error) || "Échec de publication." : null,
+          })
+          .eq("publication_id", params.publicationId)
+          .eq("user_id", params.userId)
+          .eq("channel", channel);
+        if (error) throw error;
+      }),
+    ),
+  });
+
   // Channel events are purely technical. Remove them only after the parent
   // contains the complete detailed balance consumed by iNr'Send.
   operations.push({
@@ -781,17 +946,12 @@ async function finalizeClaimedAsyncPublication(params: {
   }
 
   const results = Object.fromEntries(
-    params.channelStates.map((state) => [
-      state.channel,
-      Object.keys(state.result).length
-        ? state.result
-        : {
-            ok: state.status === "completed",
-            error:
-              state.status === "failed"
-                ? "La publication n'a pas pu être finalisée sur ce canal."
-                : null,
-          },
+    params.descriptor.selected.map((channel) => [
+      channel,
+      aggregateChannelTargetResults(
+        channel,
+        params.channelStates.filter((state) => state.channel === channel),
+      ),
     ]),
   );
   const aggregate = buildAsyncPublicationAggregate(
@@ -1030,6 +1190,7 @@ export async function readAsyncPublicationStatus(params: {
   return buildProcessingPublicationStatus(
     params.publicationId,
     channelStates,
+    descriptor.selected,
     mediaPreparation,
   );
 }

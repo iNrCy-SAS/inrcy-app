@@ -141,7 +141,7 @@ test("parent idempotency replays completed executions and blocks concurrent retr
   assert.match(executionIdempotency, /status:\s*"failed"/);
 });
 
-test("the browser request durably persists the parent and channel placeholders before 202", () => {
+test("the browser request durably persists the parent and technical target placeholders before 202", () => {
   assert.match(route, /const ingress = await enqueueBoosterPublication\(/);
   assert.match(
     route,
@@ -149,7 +149,7 @@ test("the browser request durably persists the parent and channel placeholders b
   );
   assert.match(ingress, /const rows = \[/);
   assert.match(ingress, /type: BOOSTER_ASYNC_JOB_EVENT_TYPE/);
-  assert.match(ingress, /\.\.\.params\.channels\.map\(\(channel\) => \(\{/);
+  assert.match(ingress, /\.\.\.publicationTargets\.map\(\(target\) => \(\{/);
   assert.match(ingress, /type: BOOSTER_ASYNC_CHANNEL_EVENT_TYPE/);
   assert.match(ingress, /supabaseAdmin\.from\("app_events"\)\.insert\(rows\)/);
   assertBefore(

@@ -58,19 +58,23 @@ test("Configurer Facebook exposes Classic, Reel, Story and an account default", 
   assert.match(sql, /inrcy_can_access_account/);
 });
 
-test("Booster exposes Facebook formats and disables text only for Stories", () => {
+test("Booster exposes one primary Facebook format plus optional Stories", () => {
   assert.match(editor, /activeCard === "facebook" \? \(/);
-  assert.match(editor, /value=\{facebookPublicationPlacement\}/);
-  assert.match(editor, /<option value="classic"/);
+  assert.match(editor, /<MetaPublicationFormatControls/);
+  assert.match(editor, /primaryPlacement=\{facebookPublicationPlacement\}/);
+  assert.match(editor, /storyEnabled=\{facebookStoryEnabled\}/);
+  assert.match(editor, /type="checkbox"/);
   assert.match(editor, /facebookPublicationPreferences\.reelsEnabled/);
   assert.match(editor, /facebookPublicationPreferences\.storiesEnabled/);
   assert.match(
     editor,
-    /const facebookMediaOnly =[\s\S]*?activeCard === "facebook" && facebookPublicationPlacement === "story"/,
+    /const activeStoryEnabled =[\s\S]*?activeCard === "facebook" && facebookStoryEnabled/,
   );
-  assert.match(editor, /disabled=\{activeMediaOnly\}/);
-  assert.doesNotMatch(editor, /setPostsByChannel\(\{\}\).*facebookMediaOnly/);
-  assert.match(modal, /facebookPublicationPlacement:\s*nextFacebookPublicationPlacement/);
+  assert.doesNotMatch(editor, /activeMediaOnly/);
+  assert.match(
+    modal,
+    /buildMetaPublicationSelection\([\s\S]*?facebookPublicationPlacement,[\s\S]*?facebookStoryEnabled/,
+  );
 });
 
 test("immediate, scheduled and single-channel continuation payloads keep the Facebook mode", () => {
@@ -79,8 +83,9 @@ test("immediate, scheduled and single-channel continuation payloads keep the Fac
     "immediate and scheduled payloads must carry the setting",
   );
   assert.match(ingress, /facebookPublicationSettings: body\.facebookPublicationSettings/);
-  assert.match(route, /normalizeFacebookPublicationSettings\(body\.facebookPublicationSettings\)/);
-  assert.match(route, /channel === "facebook" && facebookPublicationSettings/);
+  assert.match(route, /normalizeMetaPublicationSelection\(body\.facebookPublicationSettings\)/);
+  assert.match(route, /channel === "facebook"[\s\S]*?getMetaTargetSettings\(target\.placement\)/);
+  assert.match(route, /channel === "facebook" && targetFacebookPublicationSettings/);
   assert.match(dedupe, /facebook-placement:/);
   assert.match(foundations, /FacebookPublicationSettings[\s\S]*?mediaOnly: boolean/);
   assert.match(foundations, /mediaOnly: story/);
@@ -89,7 +94,7 @@ test("immediate, scheduled and single-channel continuation payloads keep the Fac
 test("Facebook Reel and Story require media and image inputs become an 8-second 9:16 music video", () => {
   assert.match(
     modal,
-    /publishableChannels\.includes\("facebook"\)[\s\S]*?facebookPublicationPlacement !== "classic"[\s\S]*?facebookMode === "none"/,
+    /publishableChannels\.includes\("facebook"\)[\s\S]*?facebookPublicationPlacement === "reel" \|\| facebookStoryEnabled[\s\S]*?facebookMode === "none"/,
   );
   assert.match(
     route,
