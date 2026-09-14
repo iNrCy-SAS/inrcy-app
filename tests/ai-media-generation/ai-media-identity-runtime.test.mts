@@ -12,6 +12,7 @@ import {
   AiMediaIdentityReferenceValidationError,
   prepareAiMediaIdentityReferences,
 } from "../../lib/aiMediaIdentityReferences.ts";
+import { normalizeImageAiPreviewBuffer } from "../../lib/mediaImageNormalizer.ts";
 import {
   normalizeAiMediaGeneratorPreferences,
   serializeAiMediaGeneratorPreferences,
@@ -178,6 +179,31 @@ test("Sharp valide les vrais octets, borne les dimensions et retire EXIF/GPS", a
       true,
     );
   }
+});
+
+test("le normaliseur commun convertit une référence TIFF en JPEG compatible IA", async () => {
+  const tiff = await sharp({
+    create: {
+      width: 1_600,
+      height: 1_200,
+      channels: 3,
+      background: { r: 42, g: 128, b: 196 },
+    },
+  })
+    .tiff({ quality: 90 })
+    .toBuffer();
+
+  const normalized = await normalizeImageAiPreviewBuffer({
+    buffer: tiff,
+    mimeType: "image/tiff",
+    originalFileName: "portrait-pro.tiff",
+  });
+  const metadata = await sharp(normalized.aiPreview.buffer).metadata();
+  assert.equal(normalized.source.format, "tiff");
+  assert.equal(normalized.aiPreview.mimeType, "image/jpeg");
+  assert.equal(metadata.format, "jpeg");
+  assert.ok((metadata.width || 0) <= 1_280);
+  assert.ok((metadata.height || 0) <= 1_280);
 });
 
 test("la préparation serveur rejette MIME usurpé, octets arbitraires et bombe de pixels", async () => {

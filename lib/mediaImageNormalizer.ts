@@ -458,3 +458,24 @@ export async function normalizeImageThumbnailBuffer(params: {
   if (!thumbnail) throw new Error("image_thumbnail_missing");
   return { source: normalized.source, thumbnail };
 }
+
+/**
+ * Produit uniquement la copie JPEG destinée à un moteur IA. Cette variante
+ * légère évite de calculer et de conserver les rendus de publication lorsqu'une
+ * photo sert seulement de référence d'identité éphémère.
+ */
+export async function normalizeImageAiPreviewBuffer(params: {
+  buffer: Buffer;
+  mimeType: string;
+  originalFileName?: string | null;
+}) {
+  const normalized = await normalizeImageInput({
+    input: params.buffer,
+    mimeType: params.mimeType,
+    originalFileName: params.originalFileName,
+    purposes: ["ai_preview"],
+  });
+  const aiPreview = normalized.variants.ai_preview;
+  if (!aiPreview) throw new Error("image_ai_preview_missing");
+  return { source: normalized.source, aiPreview };
+}

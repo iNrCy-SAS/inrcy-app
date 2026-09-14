@@ -94,6 +94,14 @@ test("les destinations n'acceptent jamais un type incohérent", () => {
   );
   assert.equal(targetAcceptsUniversalMediaType("workspace_source", "image"), true);
   assert.equal(targetAcceptsUniversalMediaType("workspace_source", "video"), true);
+  assert.equal(
+    targetAcceptsUniversalMediaType("ai_identity_reference", "image"),
+    true,
+  );
+  assert.equal(
+    targetAcceptsUniversalMediaType("ai_identity_reference", "video"),
+    false,
+  );
 });
 
 test("l'endpoint TUS utilise le hostname Storage direct du projet", () => {

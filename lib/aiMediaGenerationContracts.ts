@@ -48,6 +48,9 @@ export type AiMediaInspirationImage = {
 };
 
 export const AI_MEDIA_INSPIRATION_MAX_COUNT = 3;
+export const AI_MEDIA_INSPIRATION_SOURCE_MAX_BYTES = 12 * 1024 * 1024;
+export const AI_MEDIA_INSPIRATION_NORMALIZED_MAX_BYTES = 560_000;
+export const AI_MEDIA_INSPIRATION_MAX_DIMENSION = 1_280;
 export const AI_MEDIA_INSPIRATION_MAX_IMAGE_BASE64_CHARS = 800_000;
 
 export type AiMediaFormatSpec = {

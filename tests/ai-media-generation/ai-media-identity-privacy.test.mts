@@ -113,7 +113,11 @@ test("les identités strictes restent sur GPT-Image-2, les références auto res
     gateway,
     /const model = strictIdentityReferences[\s\S]*?DEFAULT_IMAGE_MODEL[\s\S]*?: configuredModel/,
   );
-  assert.match(gateway, /inputFidelity: "high"/);
+  assert.doesNotMatch(
+    gateway,
+    /inputFidelity/,
+    "GPT-Image-2 refuse input_fidelity même lorsqu'une référence d'identité est fournie",
+  );
   assert.match(gateway, /des inspirations visuelles obligatoires/);
   assert.match(gateway, /rendre cette influence perceptible/);
   assert.match(

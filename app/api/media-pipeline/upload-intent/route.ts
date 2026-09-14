@@ -77,6 +77,14 @@ const TARGET_CONFIG: Record<
     registerSource: true,
     publicObject: false,
   },
+  ai_identity_reference: {
+    bucket: "inrcy-pro-media",
+    folder: "studio-identity-reference",
+    // La référence sert uniquement à franchir la limite de corps Vercel avant
+    // conversion. Aucun média ni aucune empreinte biométrique n'est inscrit en base.
+    registerSource: false,
+    publicObject: false,
+  },
 };
 
 type IntentBody = {
@@ -202,6 +210,7 @@ function targetFolder(
     ]),
     media_library_source: new Set(["library-source", "mediatheque"]),
     workspace_source: new Set(["workspace-source"]),
+    ai_identity_reference: new Set(["studio-identity-reference"]),
   };
 
   return allowedByTarget[target].has(safeRequested)

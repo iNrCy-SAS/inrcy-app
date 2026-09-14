@@ -33,6 +33,7 @@ export const UNIVERSAL_MEDIA_UPLOAD_TARGETS = [
   "booster_video_source",
   "media_library_source",
   "workspace_source",
+  "ai_identity_reference",
 ] as const;
 
 export type UniversalMediaUploadTarget =
@@ -296,7 +297,8 @@ export function targetAcceptsUniversalMediaType(
 ): boolean {
   if (
     target === "booster_prepared_image" ||
-    target === "booster_draft_image"
+    target === "booster_draft_image" ||
+    target === "ai_identity_reference"
   ) {
     return mediaType === "image";
   }

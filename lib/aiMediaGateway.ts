@@ -299,9 +299,6 @@ export async function generateAiMediaImage(args: {
               openai: {
                 quality: "medium",
                 outputFormat: "jpeg",
-                ...(strictIdentityReferences
-                  ? { inputFidelity: "high" }
-                  : {}),
               },
             }
           : undefined,
@@ -401,7 +398,7 @@ export async function generateAiMediaImageWithGoogle(args: {
             type: "image",
             aspect_ratio: resolveGoogleImageAspectRatio(args.size),
             image_size: "1K",
-            mime_type: "image/png",
+            mime_type: "image/jpeg",
             delivery: "inline",
           },
         },
@@ -427,7 +424,7 @@ export async function generateAiMediaImageWithGoogle(args: {
         provider: "google-gemini-direct",
         model,
         buffer,
-        mediaType: interaction.output_image?.mime_type || "image/png",
+        mediaType: interaction.output_image?.mime_type || "image/jpeg",
         referenceImagesCount: input.referenceImagesCount,
         identityReferenceImagesCount: input.strictIdentityReferences
           ? input.providedReferences.length

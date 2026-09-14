@@ -32,9 +32,21 @@ import type {
   AiMediaGeneratorPreferenceBlockId,
 } from "@/lib/aiMediaGenerationPreferences";
 import {
+  AI_MEDIA_INSPIRATION_MAX_COUNT,
+  AI_MEDIA_INSPIRATION_MAX_DIMENSION,
+  AI_MEDIA_INSPIRATION_MAX_IMAGE_BASE64_CHARS,
+  AI_MEDIA_INSPIRATION_NORMALIZED_MAX_BYTES,
+  AI_MEDIA_INSPIRATION_SOURCE_MAX_BYTES,
   resolveAiMediaPreviewFormat,
   shouldConnectAiMediaVideoScenes,
 } from "@/lib/aiMediaGenerationContracts";
+import {
+  INR_MEDIA_ALLOWED_IMAGE_EXTENSIONS,
+  INR_MEDIA_ALLOWED_IMAGE_MIME_TYPES,
+  INR_MEDIA_IMAGE_FORMATS_LABEL,
+  isInrMediaImageFile,
+} from "@/lib/mediaRules";
+import { uploadUniversalMediaFile } from "@/lib/universalMediaUploadClient";
 import MediaSubjectVoiceButton from "./MediaSubjectVoiceButton";
 
 import styles from "./MediaGenerator.module.css";
@@ -98,10 +110,11 @@ const VIDEO_CHARACTER_MODES: MediaGenerationVideoCharacterMode[] = [
 const CREATIVITY_LEVELS: MediaGenerationCreativity[] = ["faithful", "bold"];
 const LOGO_MODES: MediaGenerationLogoMode[] = ["discreet", "visible", "none"];
 const MAX_TEXT_KEYWORDS = 6;
-const MAX_INSPIRATION_SOURCE_BYTES = 12 * 1024 * 1024;
-const MAX_INSPIRATION_OUTPUT_BYTES = 560_000;
-const MAX_INSPIRATION_DIMENSION = 1_280;
-const MAX_INSPIRATION_IMAGES = 3;
+const MAX_INSPIRATION_IMAGES = AI_MEDIA_INSPIRATION_MAX_COUNT;
+const INSPIRATION_IMAGE_ACCEPT = [
+  ...INR_MEDIA_ALLOWED_IMAGE_MIME_TYPES,
+  ...INR_MEDIA_ALLOWED_IMAGE_EXTENSIONS.map((extension) => `.${extension}`),
+].join(",");
 
 type RememberPreferenceControlProps = {
   checked: boolean;
@@ -233,16 +246,9 @@ function blobBase64(blob: Blob): Promise<string> {
   });
 }
 
-async function prepareInspirationImage(
+async function prepareInspirationImageInBrowser(
   file: File,
 ): Promise<MediaGenerationInspirationImage> {
-  if (!(["image/jpeg", "image/png", "image/webp"] as string[]).includes(file.type)) {
-    throw new Error("Utilisez une image JPG, PNG ou WebP.");
-  }
-  if (!file.size || file.size > MAX_INSPIRATION_SOURCE_BYTES) {
-    throw new Error("L’image d’inspiration doit peser moins de 12 Mo.");
-  }
-
   const objectUrl = URL.createObjectURL(file);
   try {
     const image = new Image();
@@ -258,7 +264,8 @@ async function prepareInspirationImage(
 
     let scale = Math.min(
       1,
-      MAX_INSPIRATION_DIMENSION / Math.max(image.naturalWidth, image.naturalHeight),
+      AI_MEDIA_INSPIRATION_MAX_DIMENSION /
+        Math.max(image.naturalWidth, image.naturalHeight),
     );
     let output: Blob | null = null;
     for (let resizeAttempt = 0; resizeAttempt < 4; resizeAttempt += 1) {
@@ -274,7 +281,7 @@ async function prepareInspirationImage(
       context.drawImage(image, 0, 0, width, height);
       for (const quality of [0.88, 0.78, 0.68]) {
         const candidate = await canvasBlob(canvas, quality);
-        if (candidate.size <= MAX_INSPIRATION_OUTPUT_BYTES) {
+        if (candidate.size <= AI_MEDIA_INSPIRATION_NORMALIZED_MAX_BYTES) {
           output = candidate;
           break;
         }
@@ -292,6 +299,96 @@ async function prepareInspirationImage(
     };
   } finally {
     URL.revokeObjectURL(objectUrl);
+  }
+}
+
+async function discardTransientInspirationImage(storagePath: string) {
+  if (!storagePath) return;
+  await fetch("/api/media-generation/normalize-reference", {
+    method: "DELETE",
+    credentials: "include",
+    cache: "no-store",
+    keepalive: true,
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ storagePath }),
+  }).catch(() => undefined);
+}
+
+async function prepareInspirationImageOnServer(
+  file: File,
+): Promise<MediaGenerationInspirationImage> {
+  const uploaded = await uploadUniversalMediaFile(file, {
+    target: "ai_identity_reference",
+    requestedFolder: "studio-identity-reference",
+    source: "studio",
+  });
+  const storagePath = String(uploaded.storagePath || "");
+  if (!storagePath) {
+    throw new Error("La conversion de cette image n’a pas pu démarrer.");
+  }
+
+  try {
+    const response = await fetch("/api/media-generation/normalize-reference", {
+      method: "POST",
+      credentials: "include",
+      cache: "no-store",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        storagePath,
+        fileName: file.name,
+        mimeType: uploaded.contentType || file.type,
+      }),
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(
+        String(
+          payload?.error ||
+            "Cette image n’a pas pu être convertie automatiquement.",
+        ),
+      );
+    }
+    const image = payload?.image;
+    const data = typeof image?.data === "string" ? image.data.trim() : "";
+    if (
+      image?.mimeType !== "image/jpeg" ||
+      data.length < 64 ||
+      data.length > AI_MEDIA_INSPIRATION_MAX_IMAGE_BASE64_CHARS ||
+      !/^[A-Za-z0-9+/]+={0,2}$/.test(data)
+    ) {
+      throw new Error("L’image convertie est invalide.");
+    }
+    return {
+      mimeType: "image/jpeg",
+      data,
+      name:
+        typeof image?.name === "string" && image.name.trim()
+          ? image.name.trim().slice(0, 120)
+          : `${file.name.replace(/\.[^.]+$/, "").slice(0, 110) || "reference"}.jpg`,
+    };
+  } catch (error) {
+    await discardTransientInspirationImage(storagePath);
+    throw error;
+  }
+}
+
+async function prepareInspirationImage(
+  file: File,
+): Promise<MediaGenerationInspirationImage> {
+  if (!isInrMediaImageFile(file)) {
+    throw new Error(`Formats acceptés : ${INR_MEDIA_IMAGE_FORMATS_LABEL}.`);
+  }
+  if (!file.size || file.size > AI_MEDIA_INSPIRATION_SOURCE_MAX_BYTES) {
+    throw new Error("L’image d’inspiration doit peser moins de 12 Mo.");
+  }
+
+  try {
+    return await prepareInspirationImageInBrowser(file);
+  } catch {
+    // HEIC/HEIF/TIFF et certains AVIF/BMP ne sont pas décodables par tous les
+    // navigateurs. Le binaire va directement dans Storage, est converti par le
+    // normaliseur commun à Booster, puis supprimé avant le retour au client.
+    return await prepareInspirationImageOnServer(file);
   }
 }
 
@@ -1487,7 +1584,7 @@ export default function MediaGenerator({
                         <input
                           type="file"
                           multiple
-                          accept="image/jpeg,image/png,image/webp"
+                          accept={INSPIRATION_IMAGE_ACCEPT}
                           disabled={operationLocked}
                           onChange={(event) => {
                             const remaining = MAX_INSPIRATION_IMAGES - inspirationImages.length;

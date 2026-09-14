@@ -47,6 +47,8 @@ test("les moteurs image reçoivent les références sans repli photo silencieux"
   assert.match(gateway, /generateAiMediaImageWithGoogle/);
   assert.match(gateway, /DEFAULT_GOOGLE_IMAGE_MODEL = "gemini-3\.1-flash-image"/);
   assert.match(gateway, /response_format: \{[\s\S]*?type: "image"/);
+  assert.match(gateway, /mime_type: "image\/jpeg"/);
+  assert.doesNotMatch(gateway, /inputFidelity/);
   assert.match(gateway, /Interdiction de recopier la photo source/);
   assert.doesNotMatch(gateway, /catch[\s\S]{0,400}generateImage\([\s\S]{0,250}args\.prompt/);
   assert.match(server, /prepareAiMediaIdentityReferences\(args\.request\.inspirationImages\)/);
@@ -79,4 +81,27 @@ test("aucune photo ni empreinte de photo n'est persistée dans les traces", () =
   assert.match(route, /inspiration_image_count/);
   assert.match(server, /inspiration_image_count/);
   assert.match(preferences, /cannot retain uploaded image bytes/);
+});
+
+test("iNrStudio accepte le catalogue image Booster et convertit les formats navigateur incompatibles", () => {
+  const generator = read("app/dashboard/_components/MediaGenerator.tsx");
+  const uploadPolicy = read("lib/mediaUploadPolicy.ts");
+  const uploadIntent = read("app/api/media-pipeline/upload-intent/route.ts");
+  const conversionRoute = read(
+    "app/api/media-generation/normalize-reference/route.ts",
+  );
+
+  assert.match(generator, /INR_MEDIA_ALLOWED_IMAGE_MIME_TYPES/);
+  assert.match(generator, /INR_MEDIA_ALLOWED_IMAGE_EXTENSIONS/);
+  assert.match(generator, /accept=\{INSPIRATION_IMAGE_ACCEPT\}/);
+  assert.match(generator, /target: "ai_identity_reference"/);
+  assert.match(generator, /prepareInspirationImageInBrowser/);
+  assert.match(generator, /prepareInspirationImageOnServer/);
+  assert.match(uploadPolicy, /"ai_identity_reference"/);
+  assert.match(uploadIntent, /folder: "studio-identity-reference"/);
+  assert.match(uploadIntent, /registerSource: false/);
+  assert.match(conversionRoute, /normalizeImageAiPreviewBuffer/);
+  assert.match(conversionRoute, /removeTransientReference\(storagePath\)/);
+  assert.match(conversionRoute, /mimeType: "image\/jpeg"/);
+  assert.doesNotMatch(conversionRoute, /\.from\("pro_media_library"\)/);
 });
