@@ -58,6 +58,10 @@
       "schedule": "*/15 * * * *"
     },
     {
+      "path": "/api/cron/auth-email-alerts",
+      "schedule": "*/15 * * * *"
+    },
+    {
       "path": "/api/cron/media-image-normalization",
       "schedule": "2-59/5 * * * *"
     },
