@@ -31,6 +31,35 @@ test("the site iframe follows each image or video natural ratio", async () => {
   assert.doesNotMatch(source, /\.mediaCol\{aspect-ratio:1\/1/);
 });
 
+test("the site iframe stays visible when reduced motion disables animations", async () => {
+  const source = await read("app/embed/actus/_lib/render.ts");
+  assert.match(source, /\.reveal\{opacity:1;transform:none\}/);
+  assert.match(
+    source,
+    /@media \(prefers-reduced-motion:no-preference\)\{\.reveal\{animation:fadeUp/,
+  );
+  assert.match(
+    source,
+    /@keyframes fadeUp\{from\{opacity:0;transform:translateY\(12px\)\}to\{opacity:1;transform:translateY\(0\)\}\}/,
+  );
+  assert.match(
+    source,
+    /@media \(prefers-reduced-motion:reduce\)\{\.reveal\{opacity:1;transform:none\}/,
+  );
+  assert.doesNotMatch(
+    source,
+    /\.reveal\{opacity:0;transform:translateY\(12px\);animation:fadeUp/,
+  );
+});
+
+test("the site iframe prioritizes only the first image in a media carousel", async () => {
+  const source = await read("app/embed/actus/_lib/render.ts");
+  assert.match(source, /images\.map\(\(img, imageIndex\) =>/);
+  assert.match(source, /loading="\$\{imageIndex === 0 \? "eager" : "lazy"\}"/);
+  assert.match(source, /fetchpriority="\$\{imageIndex === 0 \? "high" : "auto"\}"/);
+  assert.match(source, /loading="eager" fetchpriority="high" decoding="async"/);
+});
+
 test("Booster, iNrAgent and iNrSend keep Original as the untouched default", async () => {
   const [
     publishModal,
