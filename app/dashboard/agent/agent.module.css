@@ -10080,6 +10080,48 @@ button.campaignInfoRecipients:hover {
   font-weight: 950;
 }
 
+.publishTitleLoading {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px !important;
+  margin: 0 2px 0 1px;
+  border: 2px solid rgba(125, 211, 252, 0.22);
+  border-top-color: #67e8f9;
+  border-right-color: #f472b6;
+  border-radius: 999px;
+  box-shadow: 0 0 12px rgba(103, 232, 249, 0.42),
+    inset 0 0 6px rgba(244, 114, 182, 0.22);
+  animation: publishTitleOrbit 0.9s linear infinite;
+}
+
+.publishTitleLoading::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border-radius: inherit;
+  background: radial-gradient(circle, #f8fbff 0 22%, #67e8f9 24% 48%, transparent 52%);
+  box-shadow: 0 0 8px rgba(244, 114, 182, 0.8);
+  animation: publishTitlePulse 0.9s ease-in-out infinite alternate;
+}
+
+@keyframes publishTitleOrbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes publishTitlePulse {
+  from {
+    transform: scale(0.72);
+    opacity: 0.62;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
 .publishTitleLine strong,
 .publishCtaLine strong {
   min-width: 0;
@@ -14128,7 +14170,9 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   }
 
   .robotWorkingSpinner,
-  .publishRegenerateButton[data-busy="true"] span {
+  .publishRegenerateButton[data-busy="true"] span,
+  .publishTitleLoading,
+  .publishTitleLoading::after {
     animation: none !important;
   }
 }

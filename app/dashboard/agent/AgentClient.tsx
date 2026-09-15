@@ -1319,14 +1319,27 @@ export default function AgentClient() {
     : [];
   const publishHasText = Boolean(
     isPublishView &&
-    (preparedChannelPreview?.title ||
-      preparedChannelPreview?.body ||
-      preparedChannelPreview?.cta ||
-      preparedChannelPreview?.hashtags.length ||
-      selectedPreparedAction?.summary),
+    (preparedChannelPreview?.title || preparedChannelPreview?.body),
+  );
+  const editorialPreparationState = String(
+    selectedEditorialPlan?.state || "",
+  ).trim();
+  const publishPreparationInProgress = Boolean(
+    isPublishView &&
+      (testNowKey === "publish" ||
+        prepareProgress?.key === "publish" ||
+        (prepareActionState === "saving" && selectedKey === "publish") ||
+        (selectedPreparedAction &&
+          ["queued", "generating", "retry"].includes(
+            editorialPreparationState,
+          ))),
   );
   const publishContentKind = isPublishView
-    ? agentContentKindLabel(publishMediaPreview?.kind || "none", publishHasText, runtimeT)
+    ? publishMediaOnly
+      ? i18nT("publication_mode_media_only")
+      : publishHasText
+        ? i18nT("titre_et_texte_7f7b4e2a")
+        : i18nT("texte_seul_24210789")
     : "—";
   const selectedPublicationIsAutomatic =
     selectedPreparedAction?.executionPolicy === "automatic_after_settings";
@@ -5430,7 +5443,7 @@ export default function AgentClient() {
                             selectedPreparedAction
                               ? publishMediaOnly
                                 ? i18nT("publication_mode_media_only_help")
-                                : i18nT("edit_content")
+                                : i18nT("modifier_le_titre_le_texte_le_325c7a96")
                               : i18nT("no_publication_prepared")
                           }
                         >
@@ -5684,6 +5697,18 @@ export default function AgentClient() {
                           <div className={styles.publishPostText}>
                             <div className={styles.publishTitleLine}>
                               <span>{i18nT("titre_d03e0c7c")}</span>
+                              {publishPreparationInProgress ? (
+                                <span
+                                  className={styles.publishTitleLoading}
+                                  role="status"
+                                  aria-label={i18nT(
+                                    "preparation_de_la_publication_inr_agent_56ab605b",
+                                  )}
+                                  title={i18nT(
+                                    "preparation_de_la_publication_inr_agent_56ab605b",
+                                  )}
+                                />
+                              ) : null}
                               <strong>
                                 {preparedChannelPreview?.title ||
                                   selectedPreparedAction?.title ||

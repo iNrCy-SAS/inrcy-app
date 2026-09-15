@@ -149,12 +149,24 @@ function regeneratedIdea(args: {
     args.currentPost.content || args.currentPost.text || args.currentPost.body || args.currentPost.caption,
     1_200,
   );
+  const currentCta = cleanText(
+    args.currentPost.cta || args.currentPost.callToAction,
+    180,
+  );
+  const currentHashtags = Array.isArray(args.currentPost.hashtags)
+    ? args.currentPost.hashtags
+        .map((hashtag) => cleanText(hashtag, 40))
+        .filter(Boolean)
+        .join(" ")
+    : cleanText(args.currentPost.hashtags, 280);
   return [
     cleanText(args.payload.idea || args.actionSummary, 1_500),
     `RÉGÉNÉRATION DEMANDÉE POUR LE CANAL ${args.channel}.`,
-    "Crée une proposition vraiment différente, fidèle aux informations vérifiées de l'entreprise. Ne reprends pas mot pour mot la version précédente.",
+    "Crée une proposition vraiment différente, fidèle aux informations vérifiées de l'entreprise. Ne reprends pas mot pour mot la version précédente. Le titre, le texte, le CTA et les hashtags doivent former un ensemble cohérent.",
     currentTitle ? `Ancien titre à renouveler : ${currentTitle}` : "",
     currentContent ? `Ancien contenu à renouveler : ${currentContent}` : "",
+    currentCta ? `Ancien CTA à renouveler si nécessaire : ${currentCta}` : "",
+    currentHashtags ? `Anciens hashtags à renouveler si nécessaire : ${currentHashtags}` : "",
   ].filter(Boolean).join("\n\n");
 }
 
@@ -257,10 +269,17 @@ export async function POST(request: Request) {
       if (quota.errorResponse) return quota.errorResponse;
       reservation = quota.reservation;
 
-      const [{ profile, business, recentPublications }, ctaDefaults] = await Promise.all([
-        getBoosterGenerationContext({ supabase: supabaseAdmin, userId: activeUserId }),
-        loadBoosterCtaDefaults({ supabase: supabaseAdmin, userId: activeUserId }),
-      ]);
+      const [{ profile, business, recentPublications }, ctaDefaults] =
+        await Promise.all([
+          getBoosterGenerationContext({
+            supabase: supabaseAdmin,
+            userId: activeUserId,
+          }),
+          loadBoosterCtaDefaults({
+            supabase: supabaseAdmin,
+            userId: activeUserId,
+          }),
+        ]);
       const generated = await generateSharedBoosterPosts({
         idea,
         theme: agentThemeToBoosterTheme[theme],
@@ -269,22 +288,33 @@ export async function POST(request: Request) {
         profile,
         business,
         recentPublications,
-        mediaType: "images",
         forceNonBlocking: true,
         aiFeature: "agent.publish",
         accountId: activeUserId,
         extraInstructions:
-          "Régénère uniquement le titre et le texte de ce canal. Le résultat doit être complet, publiable, non tronqué et adapté aux limites techniques du canal. Ne modifie ni la date, ni les autres canaux, ni le média.",
+          "Régénère uniquement le contenu éditorial de ce canal : titre, texte, CTA et hashtags. Les quatre éléments doivent être cohérents entre eux, complets, publiables, non tronqués et adaptés aux limites techniques du canal. Conserve les coordonnées structurées du CTA (mode, URL et téléphone) pour que le bouton reste fonctionnel. Ne modifie ni la date, ni le média, ni les autres canaux.",
       });
       const rawPost = generated.versions[channel as BoosterChannels];
       if (!rawPost) throw new Error("Le moteur n’a pas produit de nouveau contenu.");
-      const regeneratedPost = applySafePreferredCta({
+      const regeneratedPost = cleanBoosterPost(rawPost, action.summary);
+      const editorialPost = {
+        ...currentPost,
+        title: regeneratedPost.title,
+        subject: regeneratedPost.subject,
+        content: regeneratedPost.content,
+        text: regeneratedPost.text,
+        body: regeneratedPost.body,
+        cta: regeneratedPost.cta,
+        callToAction: regeneratedPost.callToAction,
+        hashtags: regeneratedPost.hashtags,
+      };
+      const nextContentPost = applySafePreferredCta({
         channel: channel as BoosterChannels,
-        post: cleanBoosterPost(rawPost, action.summary),
+        post: editorialPost,
         defaults: ctaDefaults,
-        preserveExplicit: false,
+        preserveExplicit: true,
       });
-      const nextPostByChannel = setChannelValue(postByChannel, channel, regeneratedPost);
+      const nextPostByChannel = setChannelValue(postByChannel, channel, nextContentPost);
       const nextNested = { ...nested, postByChannel: nextPostByChannel };
       const nextPayload = {
         ...payload,
