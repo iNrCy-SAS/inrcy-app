@@ -110,15 +110,15 @@ export const BOOSTER_CHANNEL_CONTENT_RULES: Record<
   },
   x: {
     // La limite X de 280 caractères pondérés concerne le post complet
-    // (titre, contenu, CTA, URL et hashtags). Le corps reste volontairement
-    // plus court pour réserver de la place aux autres éléments et à une URL.
-    adapted: { min: 60, max: 120 },
-    short: { min: 40, max: 75 },
-    medium: { min: 65, max: 110 },
-    long: { min: 90, max: 135 },
-    deep: { min: 100, max: 150 },
-    detailed: { min: 90, max: 130 },
-    max: 160,
+    // (titre, contenu, CTA et hashtags). Le corps exploite désormais vraiment
+    // l'espace disponible, tandis que l'assemblage final reste contrôlé à 280.
+    adapted: { min: 120, max: 175 },
+    short: { min: 90, max: 125 },
+    medium: { min: 135, max: 175 },
+    long: { min: 165, max: 195 },
+    deep: { min: 185, max: 210 },
+    detailed: { min: 165, max: 195 },
+    max: 220,
   },
   tiktok: {
     adapted: { min: 140, max: 360 },
@@ -147,6 +147,28 @@ export const BOOSTER_CHANNEL_CONTENT_RULES: Record<
     detailed: { min: 320, max: 460 },
     max: 500,
   },
+};
+
+/**
+ * Plafonds des titres générés. Ils sont distincts des longueurs de contenu :
+ * faire évoluer un titre ne modifie donc jamais la densité des autres canaux.
+ */
+export const BOOSTER_CHANNEL_TITLE_MAX_LENGTH: Record<
+  BoosterChannelKey,
+  number
+> = {
+  inrcy_site: 120,
+  site_web: 120,
+  inr_search: 100,
+  gmb: 120,
+  facebook: 120,
+  instagram: 120,
+  linkedin: 120,
+  x: 48,
+  // Contraintes techniques propres aux destinations concernées.
+  tiktok: 90,
+  youtube_shorts: 100,
+  pinterest: 100,
 };
 
 export const INR_SEARCH_CONTENT_MAX_LENGTH =
@@ -242,6 +264,37 @@ function truncateAtNaturalBoundary(value: string, maxLength: number) {
   }
 
   return closeUnbalancedMarkdownBold(candidate.slice(0, cutAt).trimEnd());
+}
+
+/**
+ * Garde-fou des titres générés : jamais de coupe brute en plein mot.
+ * Le prompt demande déjà un titre complet sous le plafond ; cette fonction ne
+ * s'active que si un moteur renvoie malgré tout une réponse trop longue.
+ */
+export function limitBoosterGeneratedTitle(
+  channel: BoosterChannelKey,
+  title: string,
+) {
+  const normalized = String(title || "").replace(/\s+/g, " ").trim();
+  const maxLength = BOOSTER_CHANNEL_TITLE_MAX_LENGTH[channel];
+  if (!normalized || normalized.length <= maxLength) return normalized;
+
+  const candidate = normalized.slice(0, maxLength + 1);
+  const safeBoundary = candidate.slice(0, maxLength + 1).search(/\s+\S*$/u);
+  const cutAt = safeBoundary >= Math.floor(maxLength * 0.55)
+    ? safeBoundary
+    : candidate.lastIndexOf(" ", maxLength);
+
+  if (cutAt <= 0) {
+    // Un token pathologique ne peut pas être raccourci sans couper un mot.
+    // Une valeur vide déclenche alors la réparation IA existante.
+    return "";
+  }
+
+  return candidate
+    .slice(0, cutAt)
+    .replace(/[\s,:;\-–—/]+$/u, "")
+    .trim();
 }
 
 /**

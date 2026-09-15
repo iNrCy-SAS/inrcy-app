@@ -42,6 +42,7 @@ import {
   getBoosterContentLengthForChannel,
   getBoosterGeneratedContentRule,
   limitBoosterGeneratedContent,
+  limitBoosterGeneratedTitle,
 } from "@/lib/boosterChannelRules";
 import {
   hasAiGeneratedCitationArtifacts,
@@ -97,7 +98,7 @@ const CHANNEL_MIN_CONTENT_LENGTH: Record<BoosterChannels, number> = {
   facebook: 100,
   instagram: 80,
   linkedin: 120,
-  x: 40,
+  x: 80,
   tiktok: 45,
   youtube_shorts: 120,
   pinterest: 70,
@@ -116,7 +117,7 @@ const CHANNEL_DETAILED_ENRICHMENT_MIN: Record<BoosterChannels, number> = {
   facebook: 750,
   instagram: 580,
   linkedin: 900,
-  x: 80,
+  x: 155,
   tiktok: 340,
   youtube_shorts: 900,
   // 300 reste légèrement sous la plage Détaillé Pinterest : ne pas
@@ -395,9 +396,9 @@ function cleanHashtags(channel: BoosterChannels, input: unknown) {
     : [];
 }
 
-// Réserve suffisante pour qu'un CTA choisi dans Booster puisse encore ajouter
-// une URL t.co (23 caractères pondérés) sans transformer une génération X
-// valide en brouillon bloqué. Cet ajustement est purement local et instantané.
+// Réserve suffisante pour qu'un CTA structuré « Appeler » puisse encore ajouter
+// le numéro du pro sans transformer une génération X valide en brouillon bloqué.
+// Les URL restent interdites sur X ; le reste de l'espace profite au contenu.
 const X_GENERATED_POST_WEIGHTED_TARGET = X_POST_WEIGHTED_LENGTH_MAX - 28;
 
 function trimXGeneratedField(value: string, maxWeightedLength: number) {
@@ -487,12 +488,12 @@ function fitGeneratedXContent(post: ChannelPost) {
 
 function fitGeneratedXPost(post: ChannelPost): ChannelPost {
   const normalized: ChannelPost = {
-    title: trimXGeneratedField(post.title, 54),
+    title: trimXGeneratedField(post.title, 48),
     content: post.content,
-    cta: trimXGeneratedField(post.cta, 40),
+    cta: trimXGeneratedField(post.cta, 32),
     hashtags: post.hashtags
-      .slice(0, 2)
-      .map((tag) => trimXGeneratedField(String(tag || "").replace(/^#+/, ""), 24))
+      .slice(0, 1)
+      .map((tag) => trimXGeneratedField(String(tag || "").replace(/^#+/, ""), 20))
       .filter(Boolean),
   };
   return fitGeneratedXContent(normalized);
@@ -521,7 +522,12 @@ function normalizePost(channel: BoosterChannels, raw: Partial<ChannelPost> | und
   const siteChannel = siteChannels.has(channel);
 
   const normalized = {
-    title: (siteChannel ? sanitizeBoosterSiteText(generatedTitle) : stripSiteTextFormatting(generatedTitle)).slice(0, 90),
+    title: limitBoosterGeneratedTitle(
+      channel,
+      siteChannel
+        ? sanitizeBoosterSiteText(generatedTitle)
+        : stripSiteTextFormatting(generatedTitle),
+    ),
     content: limitBoosterGeneratedContent(
       channel,
       siteChannel

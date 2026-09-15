@@ -1,4 +1,5 @@
 import { stripSiteTextFormatting } from "@/lib/boosterFormatting";
+import { limitBoosterGeneratedTitle } from "@/lib/boosterChannelRules";
 
 export type GmbDraft = {
   title: string;
@@ -64,7 +65,10 @@ function sanitizeCta(input: string) {
 }
 
 export function sanitizeGmbGeneratedPost(post: Partial<GmbDraft> | null | undefined): GmbDraft {
-  const title = sanitizeText(String(post?.title || "")).slice(0, 90);
+  const title = limitBoosterGeneratedTitle(
+    "gmb",
+    sanitizeText(String(post?.title || "")),
+  );
   const content = sanitizeText(String(post?.content || "")).slice(0, 2000);
   const cta = sanitizeCta(String(post?.cta || ""));
   return {

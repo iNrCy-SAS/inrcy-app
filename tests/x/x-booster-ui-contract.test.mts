@@ -84,6 +84,9 @@ test("Booster keeps forbidden X URLs visible and blocks only X", () => {
   assert.match(editor, /X est bloqué : retirez le lien détecté/);
   assert.match(prompt, /X — RÈGLE TECHNIQUE PRIORITAIRE/);
   assert.match(prompt, /ne recopie et ne génère aucun lien ni aucune URL/);
+  assert.match(prompt, /2 à 3 phrases complémentaires/);
+  assert.match(prompt, /0 à 1 hashtag utile/);
+  assert.doesNotMatch(prompt, /phrases courtes/);
 });
 
 test("Booster enforces the exact X weighted counter and four-image contract", () => {

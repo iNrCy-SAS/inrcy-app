@@ -7,6 +7,7 @@ import {
   type NormalizedAiGenerationProfile,
 } from "@/lib/aiGenerationProfile";
 import {
+  BOOSTER_CHANNEL_TITLE_MAX_LENGTH,
   formatBoosterGeneratedContentRule,
   getBoosterContentLengthForChannel,
   INR_SEARCH_CONTENT_MAX_LENGTH,
@@ -182,9 +183,9 @@ const CHANNEL_COMPACT_CONTRACTS: Record<BoosterChannels, string> = {
   instagram:
     "Instagram visuel, vivant et spontané. Titre 35–70. Paragraphes courts. Hashtags ciblés si utiles. Ne jamais inventer ‘lien en bio’.",
   linkedin:
-    "LinkedIn professionnel, humain et crédible. Titre 45–90. Expertise, méthode, recul ou retour terrain. Peu d’emojis, pas de ton vendeur artificiel.",
+    "LinkedIn professionnel, humain et crédible. Titre 45–120. Expertise, méthode, recul ou retour terrain. Peu d’emojis, pas de ton vendeur artificiel.",
   x:
-    "X direct, clair et conversationnel. Le post final complet (titre, contenu, CTA et hashtags) doit rester sous 280 caractères pondérés. Une idée forte, phrases courtes, 0 à 2 hashtags utiles. RÈGLE ABSOLUE : aucune URL ni aucun lien dans title, content, cta ou hashtags, même si le contexte ou la consigne en fournit. Ne propose jamais de CTA Site, Lien personnalisé ou WhatsApp ; seuls Aucun CTA, Appeler et Envoyer un message sont autorisés.",
+    "X direct, clair et conversationnel. Le post final complet (titre, contenu, CTA et hashtags) doit rester sous 280 caractères pondérés. Titre bref de 20–45 caractères, puis un content réellement développé en 2 à 3 phrases complémentaires : contexte concret, idée utile et conclusion naturelle. Utilise intelligemment l'espace disponible sans remplissage. CTA bref et facultatif, 0 à 1 hashtag utile. RÈGLE ABSOLUE : aucune URL ni aucun lien dans title, content, cta ou hashtags, même si le contexte ou la consigne en fournit. Ne propose jamais de CTA Site, Lien personnalisé ou WhatsApp ; seuls Aucun CTA, Appeler et Envoyer un message sont autorisés.",
   tiktok:
     "TikTok direct, vivant et concret. Titre 30–70. Pensé pour accompagner vidéo/photos. Hashtags ciblés si utiles. Éviter le ton institutionnel.",
   youtube_shorts:
@@ -294,6 +295,12 @@ function buildBoosterLengthDirective(
       return `- ${CHANNEL_LABELS[channel]} — ${labels[length]} : ${getChannelLengthTarget(preferences, channel)}`;
     })
     .join("\n");
+  const titleTargets = uniqueChannels
+    .map(
+      (channel) =>
+        `- ${CHANNEL_LABELS[channel]} : titre complet, maximum ${BOOSTER_CHANNEL_TITLE_MAX_LENGTH[channel]} caractères`,
+    )
+    .join("\n");
 
   const priority =
     selectedLengths.includes("deep")
@@ -306,7 +313,7 @@ function buildBoosterLengthDirective(
           ? "Adapte intelligemment la densité au sujet et à chaque canal à l'intérieur de sa plage : plus de matière si elle est utile, plus de concision si le message est simple."
           : "Produis un contenu suffisamment développé, sans remplissage ni résumé excessif.";
 
-  return `LONGUEURS PAR FAMILLE DE CANAUX — PRIORITÉ ÉDITORIALE\n${priority}\nLes plages ci-dessous concernent exclusivement le champ content : title, cta et hashtags sont séparés. Elles pilotent réellement la quantité de texte attendue et ne sont pas décoratives. Le maximum absolu propre à chaque canal est un plafond technique iNrCy confortable : ne le dépasse jamais, même en mode APPROFONDI ou si une consigne ponctuelle demande un texte plus long. Si le contexte factuel est limité, développe l'explication, le bénéfice, la méthode ou le contexte sans inventer de faits.\n${targets}`;
+  return `LONGUEURS PAR FAMILLE DE CANAUX — PRIORITÉ ÉDITORIALE\n${priority}\nLes plages ci-dessous concernent exclusivement le champ content : title, cta et hashtags sont séparés. Elles pilotent réellement la quantité de texte attendue et ne sont pas décoratives. Le maximum absolu propre à chaque canal est un plafond technique iNrCy confortable : ne le dépasse jamais, même en mode APPROFONDI ou si une consigne ponctuelle demande un texte plus long. Si le contexte factuel est limité, développe l'explication, le bénéfice, la méthode ou le contexte sans inventer de faits.\n${targets}\n\nTITRES — AUCUNE COUPE\nÉcris chaque titre directement sous son plafond, comme une phrase complète et naturelle. Ne termine jamais par un mot tronqué, une préposition orpheline ou une idée inachevée.\n${titleTargets}`;
 }
 
 function compactRecord(record: Record<string, unknown>) {

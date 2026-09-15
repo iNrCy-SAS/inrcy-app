@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  BOOSTER_CHANNEL_TITLE_MAX_LENGTH,
   BOOSTER_CHANNEL_CONTENT_RULES,
   formatBoosterGeneratedContentRule,
   getBoosterContentLengthForChannel,
   limitBoosterGeneratedContent,
+  limitBoosterGeneratedTitle,
 } from "../../lib/boosterChannelRules.ts";
 
 test("Booster uses the validated SEO length table for every channel", () => {
@@ -73,13 +75,13 @@ test("Booster uses the validated SEO length table for every channel", () => {
       max: 3000,
     },
     x: {
-      adapted: { min: 60, max: 120 },
-      short: { min: 40, max: 75 },
-      medium: { min: 65, max: 110 },
-      long: { min: 90, max: 135 },
-      deep: { min: 100, max: 150 },
-      detailed: { min: 90, max: 130 },
-      max: 160,
+      adapted: { min: 120, max: 175 },
+      short: { min: 90, max: 125 },
+      medium: { min: 135, max: 175 },
+      long: { min: 165, max: 195 },
+      deep: { min: 185, max: 210 },
+      detailed: { min: 165, max: 195 },
+      max: 220,
     },
     tiktok: {
       adapted: { min: 140, max: 360 },
@@ -108,6 +110,35 @@ test("Booster uses the validated SEO length table for every channel", () => {
       detailed: { min: 320, max: 460 },
       max: 500,
     },
+  });
+});
+
+test("generated titles use explicit channel ceilings and never cut a normal word", () => {
+  assert.equal(BOOSTER_CHANNEL_TITLE_MAX_LENGTH.linkedin, 120);
+  assert.equal(BOOSTER_CHANNEL_TITLE_MAX_LENGTH.youtube_shorts, 100);
+  assert.equal(BOOSTER_CHANNEL_TITLE_MAX_LENGTH.x, 48);
+
+  const title =
+    "Rénovation complète à Saint-Agnant-Magnazeix : quand le patrimoine rencontre une nouvelle vision durable et locale pour chaque client professionnel de la région";
+  const limited = limitBoosterGeneratedTitle("linkedin", title);
+  assert.ok(limited.length <= 120);
+  assert.ok(title.startsWith(limited));
+  assert.equal(title[limited.length], " ");
+  assert.doesNotMatch(limited, /[-–—,:;\/]$/u);
+  assert.equal(
+    limitBoosterGeneratedTitle("linkedin", "x".repeat(121)),
+    "",
+  );
+});
+
+test("only X content ranges are extended; another channel keeps its validated ranges", () => {
+  assert.deepEqual(BOOSTER_CHANNEL_CONTENT_RULES.linkedin.medium, {
+    min: 650,
+    max: 1000,
+  });
+  assert.deepEqual(BOOSTER_CHANNEL_CONTENT_RULES.x.medium, {
+    min: 135,
+    max: 175,
   });
 });
 

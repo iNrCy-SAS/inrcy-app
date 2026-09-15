@@ -36,7 +36,10 @@ import {
   isBoosterWhatsAppUrl,
   type BoosterCtaMode,
 } from "@/lib/boosterCta";
-import { INR_SEARCH_CONTENT_MAX_LENGTH } from "@/lib/boosterChannelRules";
+import {
+  BOOSTER_CHANNEL_TITLE_MAX_LENGTH,
+  INR_SEARCH_CONTENT_MAX_LENGTH,
+} from "@/lib/boosterChannelRules";
 import {
   X_POST_MAX_IMAGES,
   X_POST_WEIGHTED_LENGTH_MAX,
@@ -1281,22 +1284,22 @@ export const CHANNEL_TEXT_GUIDELINES: Record<
   ChannelTextGuidelines
 > = {
   inrcy_site: {
-    title: 90,
+    title: BOOSTER_CHANNEL_TITLE_MAX_LENGTH.inrcy_site,
     content: 6000,
     cta: 180,
   },
   site_web: {
-    title: 90,
+    title: BOOSTER_CHANNEL_TITLE_MAX_LENGTH.site_web,
     content: 6000,
     cta: 180,
   },
   inr_search: {
-    title: 100,
+    title: BOOSTER_CHANNEL_TITLE_MAX_LENGTH.inr_search,
     content: INR_SEARCH_CONTENT_MAX_LENGTH,
     cta: 180,
   },
   gmb: {
-    title: 90,
+    title: BOOSTER_CHANNEL_TITLE_MAX_LENGTH.gmb,
     content: 2000,
     cta: 80,
     totalLabel: "Résumé final Google Business",
@@ -1304,12 +1307,12 @@ export const CHANNEL_TEXT_GUIDELINES: Record<
     totalValue: (post) => buildBoosterGmbSummary(post).length,
   },
   facebook: {
-    title: 90,
+    title: BOOSTER_CHANNEL_TITLE_MAX_LENGTH.facebook,
     content: 5000,
     cta: 180,
   },
   instagram: {
-    title: 90,
+    title: BOOSTER_CHANNEL_TITLE_MAX_LENGTH.instagram,
     content: 2000,
     cta: 180,
     hashtags: 20,
@@ -1318,12 +1321,12 @@ export const CHANNEL_TEXT_GUIDELINES: Record<
     totalValue: (post) => buildInstagramPreviewCaption(post).length,
   },
   linkedin: {
-    title: 90,
+    title: BOOSTER_CHANNEL_TITLE_MAX_LENGTH.linkedin,
     content: 3000,
     cta: 180,
   },
   x: {
-    title: 70,
+    title: BOOSTER_CHANNEL_TITLE_MAX_LENGTH.x,
     content: 220,
     cta: 90,
     hashtags: 2,
@@ -1333,7 +1336,7 @@ export const CHANNEL_TEXT_GUIDELINES: Record<
       getXPostTextMetrics(buildBoosterXPostText(post)).weightedLength,
   },
   tiktok: {
-    title: 90,
+    title: BOOSTER_CHANNEL_TITLE_MAX_LENGTH.tiktok,
     content: 2200,
     cta: 120,
     hashtags: 8,
@@ -1346,7 +1349,7 @@ export const CHANNEL_TEXT_GUIDELINES: Record<
     },
   },
   youtube_shorts: {
-    title: 90,
+    title: BOOSTER_CHANNEL_TITLE_MAX_LENGTH.youtube_shorts,
     content: 2200,
     cta: 120,
     hashtags: 8,
@@ -1359,7 +1362,7 @@ export const CHANNEL_TEXT_GUIDELINES: Record<
     },
   },
   pinterest: {
-    title: 90,
+    title: BOOSTER_CHANNEL_TITLE_MAX_LENGTH.pinterest,
     content: 500,
     cta: 120,
     hashtags: 8,
