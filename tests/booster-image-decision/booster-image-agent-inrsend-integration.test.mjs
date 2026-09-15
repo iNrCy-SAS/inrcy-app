@@ -41,6 +41,6 @@ test("iNrAgent scheduled publication keeps Pinterest image parity and includes v
   const schedule = await read("app/api/agent/actions/schedule/route.ts");
   assert.match(schedule, /\| "pinterest"\s*\| "x";/);
   assert.match(schedule, /pinterest: "pinterest"/);
-  assert.match(schedule, /activeMediaMode === "video"\) return true/);
+  assert.match(schedule, /if \(mode === "video"\) return channelHasVideo\(channel\)/);
   assert.doesNotMatch(schedule, /channel !== "pinterest"/);
 });

@@ -37,6 +37,7 @@ test("the historical local Config IA shape is relocated without losing a setting
     addressMode: "vous",
     commercialLevel: "direct",
     preferredCta: "appeler",
+    instructions: "",
     forbiddenStyle: "Ne jamais inventer un tarif.",
   });
 });
@@ -66,6 +67,7 @@ test("real legacy production values remain readable in the current fields", () =
       pronoun: "auto",
       addressMode: "vous",
       preferredCta: "custom",
+      instructions: "",
       forbiddenStyle: "Toujours rester factuel.",
     },
   );
