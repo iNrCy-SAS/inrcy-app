@@ -36,6 +36,24 @@ test("the Documents tab uploads through a signed URL and supports explicit delet
   assert.match(ui, /memory\.referenceDocuments\.map/);
 });
 
+test("the document consent description stays on a distinct readable line", () => {
+  const ui = read("app/dashboard/settings/_components/AiMemoryContent.tsx");
+
+  assert.match(ui, /<span style=\{documentsConsentCopyStyle\}>/);
+  assert.match(
+    ui,
+    /<strong style=\{documentsConsentTitleStyle\}>[\s\S]*?documentsConsentTitle[\s\S]*?<small style=\{documentsConsentDescriptionStyle\}>[\s\S]*?documentsConsentDescription/,
+  );
+  assert.match(
+    ui,
+    /documentsConsentCopyStyle[^;]*display: "grid"[^;]*gap: 5/,
+  );
+  assert.match(
+    ui,
+    /documentsConsentDescriptionStyle[^;]*display: "block"[^;]*lineHeight: 1\.5/,
+  );
+});
+
 test("reference document extracts are part of the shared AI context", () => {
   const memory = read("lib/aiMemory.ts");
   const profile = read("lib/aiGenerationProfile.ts");

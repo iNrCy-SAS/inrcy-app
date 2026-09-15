@@ -265,7 +265,10 @@ test("l'activation des réglages reste compacte dans le header", () => {
     client.indexOf("{publishMediaModal ? ("),
   );
 
-  assert.match(settingsModal, /<header className=\{styles\.settingsModalHeader\}>/);
+  assert.match(
+    settingsModal,
+    /<header[\s\S]{0,180}?className=\{styles\.settingsModalHeader\}/,
+  );
   assert.match(settingsModal, /className=\{styles\.settingsHeaderSwitch\}/);
   assert.match(settingsModal, /disabled=\{settingsNoConnectedChannelBlock\}/);
   assert.match(settingsModal, /className=\{styles\.modalClose\}/);

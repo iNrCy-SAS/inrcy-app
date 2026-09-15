@@ -1408,9 +1408,13 @@ export default function AiMemoryContent({
                       setDocumentUploadError("");
                     }}
                   />
-                  <span>
-                    <strong>{t("documentsConsentTitle")}</strong>
-                    <small>{t("documentsConsentDescription")}</small>
+                  <span style={documentsConsentCopyStyle}>
+                    <strong style={documentsConsentTitleStyle}>
+                      {t("documentsConsentTitle")}
+                    </strong>
+                    <small style={documentsConsentDescriptionStyle}>
+                      {t("documentsConsentDescription")}
+                    </small>
                   </span>
                 </label>
 
@@ -2075,6 +2079,9 @@ const newsItemNumberStyle: CSSProperties = { width: 38, height: 38, display: "gr
 const documentsCardStyle: CSSProperties = { border: "1px solid rgba(167,139,250,.28)", background: "radial-gradient(circle at 100% 0, rgba(56,189,248,.11), transparent 34%), linear-gradient(145deg, rgba(17,24,58,.76), rgba(45,23,72,.68))" };
 const documentsCountStyle: CSSProperties = { display: "inline-flex", alignItems: "center", minHeight: 28, padding: "5px 10px", borderRadius: 999, border: "1px solid rgba(167,139,250,.30)", background: "rgba(124,58,237,.13)", color: "#ddd6fe", fontSize: 10.5, fontWeight: 900, whiteSpace: "nowrap" };
 const documentsConsentStyle: CSSProperties = { display: "grid", gridTemplateColumns: "auto minmax(0, 1fr)", alignItems: "start", gap: 11, padding: 13, borderRadius: 15, border: "1px solid rgba(56,189,248,.22)", background: "rgba(8,47,73,.26)", color: "white", cursor: "pointer" };
+const documentsConsentCopyStyle: CSSProperties = { minWidth: 0, display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 5 };
+const documentsConsentTitleStyle: CSSProperties = { display: "block", lineHeight: 1.35 };
+const documentsConsentDescriptionStyle: CSSProperties = { display: "block", color: "rgba(226,232,240,.76)", fontSize: 11, lineHeight: 1.5 };
 const documentsUploadCardStyle: CSSProperties = { display: "grid", gridTemplateColumns: "46px minmax(0, 1fr) auto", alignItems: "center", gap: 13, padding: 15, borderRadius: 17, border: "1px dashed rgba(167,139,250,.38)", background: "linear-gradient(115deg, rgba(30,41,90,.46), rgba(72,31,88,.34))" };
 const documentsUploadIconStyle: CSSProperties = { width: 44, height: 44, display: "grid", placeItems: "center", borderRadius: 14, border: "1px solid rgba(103,232,249,.28)", background: "linear-gradient(145deg, rgba(14,165,233,.18), rgba(124,58,237,.20))", color: "#a5f3fc", fontSize: 24, lineHeight: 1 };
 const documentsUploadCopyStyle: CSSProperties = { minWidth: 0, display: "grid", gap: 4, color: "white", fontSize: 12, lineHeight: 1.4 };

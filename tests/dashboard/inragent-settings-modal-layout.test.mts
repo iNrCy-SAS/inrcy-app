@@ -9,20 +9,52 @@ function read(relativePath: string) {
 const client = read("app/dashboard/agent/AgentClient.tsx");
 const styles = read("app/dashboard/agent/agent.module.css");
 
-test("les réglages iNrAgent exploitent une disposition desktop large sans scroll interne", () => {
+test("les réglages iNrAgent exploitent une disposition desktop large et équilibrée", () => {
   assert.match(client, /className=\{styles\.settingsModalLayout\}/);
   assert.match(client, /className=\{styles\.settingsContentColumn\}/);
+  assert.match(client, /styles\.settingsPreferredMediaFullWidth/);
   assert.match(
     styles,
     /\.settingsModal\.automationSettingsModal \{[\s\S]*?width: min\(1180px,/,
   );
   assert.match(
     styles,
-    /\.settingsModalLayout \{[\s\S]*?grid-template-columns: minmax\(430px, 0\.9fr\) minmax\(520px, 1\.1fr\)/,
+    /\.settingsModalLayout \{[\s\S]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/,
   );
   assert.match(
     styles,
-    /@media \(max-width: 980px\), \(max-height: 720px\) \{[\s\S]*?\.automationSettingsModal \{[\s\S]*?overflow-y: auto !important/,
+    /\.settingsPreferredMediaFullWidth \{[\s\S]*?grid-column: 1 \/ -1/,
+  );
+  assert.match(
+    styles,
+    /@media \(max-width: 980px\) \{[\s\S]*?\.automationSettingsModal \{[\s\S]*?overflow-y: auto !important/,
+  );
+  assert.match(
+    styles,
+    /@media \(max-height: 820px\) \{[\s\S]*?\.automationSettingsModal \{[\s\S]*?overflow-y: auto !important/,
+  );
+});
+
+test("les onglets Publier sont intégrés au header et passent sur une ligne dédiée en responsive", () => {
+  const headerStart = client.indexOf("<header\n              className={styles.settingsModalHeader}");
+  const tabsStart = client.indexOf("className={styles.settingsPublishTabs}", headerStart);
+  const headerEnd = client.indexOf("</header>", headerStart);
+
+  assert.ok(headerStart >= 0);
+  assert.ok(tabsStart > headerStart);
+  assert.ok(tabsStart < headerEnd);
+  assert.match(client, /aria-current=\{[\s\S]*?settingsPublishTab === "settings"/);
+  assert.match(
+    styles,
+    /\.settingsModalHeader\[data-has-tabs="true"\] \{[\s\S]*?grid-template-columns: minmax\(0, 1fr\) auto minmax\(0, 1fr\)/,
+  );
+  assert.match(
+    styles,
+    /@media \(max-width: 980px\) \{[\s\S]*?grid-template-areas:[\s\S]*?"tabs tabs"/,
+  );
+  assert.match(
+    styles,
+    /\.automationSettingsModal \.settingsModalHeader\[data-has-tabs="true"\] \{[\s\S]*?"tabs tabs"[\s\S]*?\.settingsPublishTabs \{[\s\S]*?grid-area: tabs;[\s\S]*?width: 100%/,
   );
 });
 

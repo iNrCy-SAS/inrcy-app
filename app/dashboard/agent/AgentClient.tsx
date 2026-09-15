@@ -4809,11 +4809,30 @@ export default function AgentClient() {
           {visibleAutomations.map((automation) => {
             const selectedCard = automation.key === selectedKey;
             const active = configs[automation.key].enabled;
+            const hasInstantAction = automation.key !== "stats";
+            const instantActionLabel =
+              automation.key === "publish"
+                ? i18nT("instant_publish_action_label")
+                : i18nT("instant_campaign_action_label");
+            const instantActionHelp =
+              automation.key === "publish"
+                ? i18nT("instant_publish_action_help")
+                : i18nT("instant_campaign_action_help");
+            const instantActionUnavailable = Boolean(
+              hasInstantAction &&
+                connectedChannelsLoadState === "ready" &&
+                automation.availableChannels.length > 0 &&
+                connectedChannelsForAutomation(
+                  automation,
+                  agentConnectedChannels,
+                ).length === 0,
+            );
 
             return (
               <article
                 key={automation.key}
                 data-automation={automation.key}
+                data-has-instant-action={hasInstantAction ? "true" : undefined}
                 className={`${styles.automationCard} ${selectedCard ? styles.automationCardActive : ""}`}
               >
                 <button
@@ -4852,25 +4871,46 @@ export default function AgentClient() {
                     />
                   )}
                 </button>
-                <button
-                  type="button"
-                  className={styles.settingsButton}
-                  onClick={() => {
-                    const openSettings = () => setSettingsKey(automation.key);
-                    if (!exitScheduledEditSession({ silent: true, onAfterExit: openSettings })) return;
-                    openSettings();
-                  }}
-                  aria-label={agentAutomationSettingsTitle(
-                    automation.key,
-                    runtimeT,
-                  )}
-                  title={agentAutomationSettingsTitle(
-                    automation.key,
-                    runtimeT,
-                  )}
-                >
-                  <AutomationSettingsIcon />
-                </button>
+                <div className={styles.automationCardActions}>
+                  {hasInstantAction ? (
+                    <button
+                      type="button"
+                      className={styles.instantActionButton}
+                      onClick={() => testAutomationNow(automation.key)}
+                      disabled={
+                        saveState === "saving" ||
+                        loadState === "loading" ||
+                        prepareActionState === "saving" ||
+                        Boolean(testNowKey) ||
+                        instantActionUnavailable
+                      }
+                      aria-label={instantActionLabel}
+                      aria-busy={testNowKey === automation.key}
+                      title={`${instantActionLabel} — ${instantActionHelp}`}
+                    >
+                      <span aria-hidden>⚡</span>
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className={styles.settingsButton}
+                    onClick={() => {
+                      const openSettings = () => setSettingsKey(automation.key);
+                      if (!exitScheduledEditSession({ silent: true, onAfterExit: openSettings })) return;
+                      openSettings();
+                    }}
+                    aria-label={agentAutomationSettingsTitle(
+                      automation.key,
+                      runtimeT,
+                    )}
+                    title={agentAutomationSettingsTitle(
+                      automation.key,
+                      runtimeT,
+                    )}
+                  >
+                    <AutomationSettingsIcon />
+                  </button>
+                </div>
               </article>
             );
           })}
@@ -7544,7 +7584,12 @@ export default function AgentClient() {
             aria-label={agentAutomationSettingsTitle(settingsAutomation.key, runtimeT)}
             onClick={(event) => event.stopPropagation()}
           >
-            <header className={styles.settingsModalHeader}>
+            <header
+              className={styles.settingsModalHeader}
+              data-has-tabs={
+                settingsAutomation.key === "publish" ? "true" : undefined
+              }
+            >
               <div className={styles.settingsModalHeading}>
                 <p className={styles.modalEyebrow}>
                   {i18nT("automatisation_598357a3")}
@@ -7561,6 +7606,34 @@ export default function AgentClient() {
                   </p>
                 ) : null}
               </div>
+
+              {settingsAutomation.key === "publish" ? (
+                <nav
+                  className={styles.settingsPublishTabs}
+                  aria-label={i18nT("publish_settings_tabs_aria")}
+                >
+                  <button
+                    type="button"
+                    data-active={settingsPublishTab === "settings"}
+                    aria-current={
+                      settingsPublishTab === "settings" ? "page" : undefined
+                    }
+                    onClick={() => setSettingsPublishTab("settings")}
+                  >
+                    {i18nT("publish_settings_tab_settings")}
+                  </button>
+                  <button
+                    type="button"
+                    data-active={settingsPublishTab === "ideas"}
+                    aria-current={
+                      settingsPublishTab === "ideas" ? "page" : undefined
+                    }
+                    onClick={() => setSettingsPublishTab("ideas")}
+                  >
+                    {i18nT("publish_settings_tab_ideas")}
+                  </button>
+                </nav>
+              ) : null}
 
               <div className={styles.settingsModalHeaderActions}>
                 <label
@@ -7607,28 +7680,6 @@ export default function AgentClient() {
                 </button>
               </div>
             </header>
-
-            {settingsAutomation.key === "publish" ? (
-              <nav
-                className={styles.settingsPublishTabs}
-                aria-label={i18nT("publish_settings_tabs_aria")}
-              >
-                <button
-                  type="button"
-                  data-active={settingsPublishTab === "settings"}
-                  onClick={() => setSettingsPublishTab("settings")}
-                >
-                  {i18nT("publish_settings_tab_settings")}
-                </button>
-                <button
-                  type="button"
-                  data-active={settingsPublishTab === "ideas"}
-                  onClick={() => setSettingsPublishTab("ideas")}
-                >
-                  {i18nT("publish_settings_tab_ideas")}
-                </button>
-              </nav>
-            ) : null}
 
             <div
               className={styles.settingsModalLayout}
@@ -8115,9 +8166,14 @@ export default function AgentClient() {
                     })}
                   </div>
                 </div>
+              </>
+            )}
+              </div>
 
-                {settingsAutomation.key === "publish" && (
-                  <div className={styles.modalSection}>
+              {settingsAutomation.key === "publish" && (
+                <div
+                  className={`${styles.modalSection} ${styles.settingsPreferredMediaFullWidth}`}
+                >
                     <span>{i18nT("preferred_media_title")}</span>
                     <p className={styles.modalHint}>
                       {i18nT("preferred_media_hint")}
@@ -8209,11 +8265,8 @@ export default function AgentClient() {
                         </p>
                       </div>
                     ) : null}
-                  </div>
-                )}
-              </>
-                )}
-              </div>
+                </div>
+              )}
             </div>
 
             {settingsAutomation.key === "publish" &&
@@ -8279,31 +8332,19 @@ export default function AgentClient() {
               </section>
             ) : null}
 
-            <footer className={styles.settingsModalFooter}>
+            <footer
+              className={styles.settingsModalFooter}
+              data-save-only={settingsAutomation.key !== "stats" ? "true" : undefined}
+            >
               <p className={styles.modalNote}>
                 {i18nT("source_des_idees_value_75f522cb", {
                   value0: agentSourceLabel(settingsConfig.source, runtimeT),
                 })}
               </p>
-              {prepareProgress?.key === settingsAutomation.key && (
-                <div
-                  className={styles.prepareProgressCard}
-                  role="status"
-                  aria-live="polite"
-                >
-                  <div>
-                    <strong>{i18nT("preparation_en_cours_28379fdb")}</strong>
-                    <span>
-                      {agentProgressLabel(prepareProgress.label, runtimeT)}
-                    </span>
-                  </div>
-                  <b>{prepareProgress.percent}%</b>
-                </div>
-              )}
               <div className={styles.modalActionRow}>
                 <button
                   type="button"
-                  className={styles.modalAction}
+                  className={`${styles.modalAction} ${styles.settingsSaveAction}`}
                   onClick={saveSettings}
                   disabled={
                     saveState === "saving" ||
@@ -8316,27 +8357,25 @@ export default function AgentClient() {
                     ? i18nT("enregistrement_9bf1058a")
                     : i18nT("enregistrer_les_reglages_a47974c5")}
                 </button>
-                <button
-                  type="button"
-                  className={`${styles.modalAction} ${styles.modalSecondaryAction}`}
-                  onClick={() => testAutomationNow(settingsAutomation.key)}
-                  disabled={
-                    saveState === "saving" ||
-                    loadState === "loading" ||
-                    prepareActionState === "saving" ||
-                    Boolean(testNowKey) ||
-                    settingsNoConnectedChannelBlock
-                  }
-                >
-                  {testNowKey === settingsAutomation.key ||
-                  prepareActionState === "saving"
-                    ? settingsAutomation.key === "stats"
+                {settingsAutomation.key === "stats" ? (
+                  <button
+                    type="button"
+                    className={`${styles.modalAction} ${styles.modalSecondaryAction}`}
+                    onClick={() => testAutomationNow(settingsAutomation.key)}
+                    disabled={
+                      saveState === "saving" ||
+                      loadState === "loading" ||
+                      prepareActionState === "saving" ||
+                      Boolean(testNowKey) ||
+                      settingsNoConnectedChannelBlock
+                    }
+                  >
+                    {testNowKey === settingsAutomation.key ||
+                    prepareActionState === "saving"
                       ? i18nT("envoi_du_bilan_27b6de4a")
-                      : i18nT("preparation_2c6b897e")
-                    : settingsAutomation.key === "stats"
-                      ? i18nT("envoyer_un_bilan_6dff1c99")
-                      : i18nT("preparer_maintenant_e3f186ee")}
-                </button>
+                      : i18nT("envoyer_un_bilan_6dff1c99")}
+                  </button>
+                ) : null}
               </div>
             </footer>
           </section>
@@ -8527,7 +8566,7 @@ export default function AgentClient() {
                   ? prepareProgress?.key === prepareNowConfirm.key
                     ? i18nT("preparation_2c6b897e")
                     : i18nT("preparation_2c6b897e")
-                  : i18nT("preparer_maintenant_e3f186ee")}
+                  : i18nT("instant_campaign_action_label")}
               </button>
             </div>
           </section>
