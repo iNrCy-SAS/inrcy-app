@@ -400,7 +400,13 @@ export function publishChannelVideo(
   action: AgentPreparedAction,
   channelKey: ChannelKey | null,
 ): Record<string, unknown> | null {
+  const videoByChannel =
+    asRecord(publishPayloadValue(action, "videoByChannel")) || {};
+  const channelVideo = channelKey
+    ? publishMediaRecord(recordValueForUiChannel(videoByChannel, channelKey))
+    : null;
   const baseVideo =
+    channelVideo ||
     publishMediaRecord(publishPayloadValue(action, "video")) ||
     publishMediaRecord(publishPayloadValue(action, "videoAsset"));
   if (!baseVideo) return null;

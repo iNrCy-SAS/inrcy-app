@@ -35,7 +35,7 @@ const OVERLAY_FONT_FILE = path.join(
   "compiled",
   "@vercel",
   "og",
-  "Geist-Regular.ttf",
+  "Geist-Regular.ttf"
 );
 
 function escapeXml(value: string) {
@@ -48,26 +48,45 @@ function escapeXml(value: string) {
 }
 
 function safeOverlayText(value: string) {
-  return String(value || "")
-    .normalize("NFKC")
-    .replace(/[\u0000-\u001f\u007f-\u009f]/g, " ")
-    // Geist couvre les alphabets latins utilisés par l'application. Les emoji
-    // et pictogrammes couleur, eux, seraient à nouveau rendus en carrés.
-    .replace(/[^\p{Script=Latin}\p{M}\p{N}\s.,;:!?…'’"“”()&+#\-–—/%€@·•]/gu, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  return (
+    String(value || "")
+      .normalize("NFKC")
+      .replace(/[\u0000-\u001f\u007f-\u009f]/g, " ")
+      // Geist couvre les alphabets latins utilisés par l'application. Les emoji
+      // et pictogrammes couleur, eux, seraient à nouveau rendus en carrés.
+      .replace(
+        /[^\p{Script=Latin}\p{M}\p{N}\s.,;:!?…'’"“”()&+#\-–—/%€@·•]/gu,
+        " "
+      )
+      .replace(/\s+/g, " ")
+      .trim()
+  );
+}
+
+function removeExplicitlyIncompleteOverlayEnding(value: string) {
+  const normalized = safeOverlayText(value);
+  if (!/(?:\.{3}|…)+\s*$/.test(normalized)) return normalized;
+
+  // Des points de suspension fournis par le copywriter peuvent masquer un
+  // mot déjà coupé (ex. « administr... »). Le compositeur ne peut pas deviner
+  // sa terminaison : il retire donc ce dernier fragment au lieu de le graver
+  // définitivement dans une image ou une vidéo.
+  const withoutMarker = normalized.replace(/(?:\.{3}|…)+\s*$/g, "").trim();
+  return withoutMarker.replace(/\s+\S+$/u, "").trim();
 }
 
 export function wrapAiMediaOverlayText(
   value: string,
   maxCharacters: number,
-  maxLines: number,
+  maxLines: number
 ) {
-  const normalized = safeOverlayText(value);
-  const wrapped = wrapNormalizedOverlayText(normalized, maxCharacters, maxLines);
-  const explicitlyIncomplete = /(?:\.{3}|…)\s*$/.test(normalized);
+  const normalized = removeExplicitlyIncompleteOverlayEnding(value);
+  const wrapped = wrapNormalizedOverlayText(
+    normalized,
+    maxCharacters,
+    maxLines
+  );
   if (
-    !explicitlyIncomplete &&
     !hasDanglingOverlayEnding(normalized) &&
     wrapped.consumedWords === wrapped.wordCount
   ) {
@@ -77,7 +96,7 @@ export function wrapAiMediaOverlayText(
   const completeSentence = longestCompleteOverlaySentence(
     normalized,
     maxCharacters,
-    maxLines,
+    maxLines
   );
   if (completeSentence.length) return completeSentence;
 
@@ -86,13 +105,10 @@ export function wrapAiMediaOverlayText(
   // Le corps de texte utilise la variante stricte ci-dessous et disparaît si
   // aucune phrase complète ne tient dans l'espace disponible.
   const visiblePrefix = trimDanglingOverlayEnding(
-    wrapped.lines.join(" ").replace(/(?:\.{3}|…)+$/g, ""),
+    wrapped.lines.join(" ").replace(/(?:\.{3}|…)+$/g, "")
   );
-  return wrapNormalizedOverlayText(
-    visiblePrefix,
-    maxCharacters,
-    maxLines,
-  ).lines;
+  return wrapNormalizedOverlayText(visiblePrefix, maxCharacters, maxLines)
+    .lines;
 }
 
 type WrappedOverlayText = {
@@ -103,14 +119,93 @@ type WrappedOverlayText = {
 
 const DANGLING_OVERLAY_WORDS = new Set([
   // Français
-  "a", "afin", "au", "aux", "avec", "car", "ce", "ces", "chez", "comme",
-  "dans", "de", "des", "du", "en", "et", "la", "le", "les", "mais", "notre",
-  "ou", "par", "pour", "que", "qui", "sans", "sur", "un", "une", "vers", "votre",
+  "a",
+  "afin",
+  "au",
+  "aux",
+  "avec",
+  "car",
+  "ce",
+  "ces",
+  "chez",
+  "comme",
+  "dans",
+  "de",
+  "des",
+  "du",
+  "en",
+  "et",
+  "la",
+  "le",
+  "les",
+  "mais",
+  "notre",
+  "ou",
+  "par",
+  "pour",
+  "que",
+  "qui",
+  "sans",
+  "sur",
+  "un",
+  "une",
+  "vers",
+  "votre",
   // Anglais, espagnol, italien, allemand et portugais les plus fréquents.
-  "a", "an", "and", "at", "by", "for", "from", "in", "of", "on", "or", "the", "to", "with",
-  "con", "de", "del", "el", "en", "la", "las", "los", "para", "por", "un", "una", "y",
-  "con", "da", "del", "della", "di", "e", "il", "in", "la", "per", "un", "una",
-  "am", "an", "auf", "der", "die", "das", "ein", "eine", "für", "im", "in", "mit", "und", "von", "zu",
+  "a",
+  "an",
+  "and",
+  "at",
+  "by",
+  "for",
+  "from",
+  "in",
+  "of",
+  "on",
+  "or",
+  "the",
+  "to",
+  "with",
+  "con",
+  "de",
+  "del",
+  "el",
+  "en",
+  "la",
+  "las",
+  "los",
+  "para",
+  "por",
+  "un",
+  "una",
+  "y",
+  "con",
+  "da",
+  "del",
+  "della",
+  "di",
+  "e",
+  "il",
+  "in",
+  "la",
+  "per",
+  "un",
+  "una",
+  "am",
+  "an",
+  "auf",
+  "der",
+  "die",
+  "das",
+  "ein",
+  "eine",
+  "für",
+  "im",
+  "in",
+  "mit",
+  "und",
+  "von",
+  "zu",
 ]);
 
 function overlayWordSignature(value: string) {
@@ -133,7 +228,10 @@ function trimDanglingOverlayEnding(value: string) {
   ) {
     words.pop();
   }
-  return words.join(" ").replace(/[,:;\-–—]+$/g, "").trim();
+  return words
+    .join(" ")
+    .replace(/[,:;\-–—]+$/g, "")
+    .trim();
 }
 
 function hasDanglingOverlayEnding(value: string) {
@@ -148,7 +246,7 @@ function hasDanglingOverlayEnding(value: string) {
 function wrapNormalizedOverlayText(
   normalized: string,
   maxCharacters: number,
-  maxLines: number,
+  maxLines: number
 ): WrappedOverlayText {
   const words = normalized.split(/\s+/).filter(Boolean);
   const lines: string[] = [];
@@ -176,7 +274,7 @@ function wrapNormalizedOverlayText(
 function longestCompleteOverlaySentence(
   value: string,
   maxCharacters: number,
-  maxLines: number,
+  maxLines: number
 ) {
   const normalized = safeOverlayText(value);
   const sentenceEnd = /[.!?]+(?=\s|$)/g;
@@ -188,7 +286,11 @@ function longestCompleteOverlaySentence(
     if (match[0].length >= 3) continue;
     const candidate = normalized.slice(0, match.index + match[0].length).trim();
     if (hasDanglingOverlayEnding(candidate)) continue;
-    const wrapped = wrapNormalizedOverlayText(candidate, maxCharacters, maxLines);
+    const wrapped = wrapNormalizedOverlayText(
+      candidate,
+      maxCharacters,
+      maxLines
+    );
     if (wrapped.consumedWords !== wrapped.wordCount) break;
     best = wrapped.lines;
   }
@@ -198,10 +300,14 @@ function longestCompleteOverlaySentence(
 export function wrapAiMediaOverlayBodyText(
   value: string,
   maxCharacters: number,
-  maxLines: number,
+  maxLines: number
 ) {
   const normalized = safeOverlayText(value);
-  const wrapped = wrapNormalizedOverlayText(normalized, maxCharacters, maxLines);
+  const wrapped = wrapNormalizedOverlayText(
+    normalized,
+    maxCharacters,
+    maxLines
+  );
   const explicitlyIncomplete = /(?:\.{3}|…)\s*$/.test(normalized);
   if (
     !explicitlyIncomplete &&
@@ -229,7 +335,9 @@ async function rasterTextLayer(args: {
   if (!text) return null;
   const rendered = await sharp({
     text: {
-      text: `<span foreground="${args.color}" weight="${args.fontWeight}">${escapeXml(text)}</span>`,
+      text: `<span foreground="${args.color}" weight="${
+        args.fontWeight
+      }">${escapeXml(text)}</span>`,
       font: `Geist ${args.fontSize}`,
       fontfile: OVERLAY_FONT_FILE,
       rgba: true,
@@ -239,12 +347,17 @@ async function rasterTextLayer(args: {
   })
     .png()
     .toBuffer({ resolveWithObject: true });
-  const input = rendered.info.width > args.maxWidth
-    ? await sharp(rendered.data)
-        .resize({ width: args.maxWidth, fit: "inside", withoutEnlargement: true })
-        .png()
-        .toBuffer()
-    : rendered.data;
+  const input =
+    rendered.info.width > args.maxWidth
+      ? await sharp(rendered.data)
+          .resize({
+            width: args.maxWidth,
+            fit: "inside",
+            withoutEnlargement: true,
+          })
+          .png()
+          .toBuffer()
+      : rendered.data;
   return {
     input,
     left: Math.max(0, Math.round(args.left)),
@@ -263,7 +376,7 @@ function isNearWhiteCanvasPixel(
   data: Buffer,
   offset: number,
   minimumChannel = 208,
-  maximumChroma = 48,
+  maximumChroma = 48
 ) {
   const red = data[offset] || 0;
   const green = data[offset + 1] || 0;
@@ -305,10 +418,7 @@ async function removeOpaqueNearWhiteEdgeCanvas(input: Buffer) {
   for (const index of border) {
     const offset = index * 4;
     const alpha = decoded.data[offset + 3] || 0;
-    if (
-      alpha >= 224 &&
-      isNearWhiteCanvasPixel(decoded.data, offset, 234, 24)
-    ) {
+    if (alpha >= 224 && isNearWhiteCanvasPixel(decoded.data, offset, 234, 24)) {
       opaqueWhiteBorderPixels += 1;
     }
   }
@@ -344,7 +454,7 @@ async function removeOpaqueNearWhiteEdgeCanvas(input: Buffer) {
     const luminanceStrength = Math.max(0, Math.min(1, (minimum - 208) / 38));
     const neutralityStrength = Math.max(0, Math.min(1, 1 - chroma / 48));
     decoded.data[offset + 3] = Math.round(
-      alpha * (1 - luminanceStrength * neutralityStrength),
+      alpha * (1 - luminanceStrength * neutralityStrength)
     );
     if (x > 0) enqueue(index - 1);
     if (x + 1 < width) enqueue(index + 1);
@@ -363,7 +473,7 @@ async function prepareLogo(
   logo: Buffer | null,
   width: number,
   height: number,
-  logoMode: AiMediaLogoMode,
+  logoMode: AiMediaLogoMode
 ) {
   if (!logo) return null;
   const visible = logoMode === "visible";
@@ -416,18 +526,18 @@ async function prepareLogo(
 }
 
 function resolveSceneCopyLayout(
-  args: RenderBaseArgs & { scene: AiMediaCreativeScene },
+  args: RenderBaseArgs & { scene: AiMediaCreativeScene }
 ) {
   const layout = resolveAiMediaVideoOverlayLayout(args);
   const titleLines = wrapAiMediaOverlayText(
     args.scene.title,
     layout.copy.titleMaxCharacters,
-    layout.copy.titleMaxLines,
+    layout.copy.titleMaxLines
   );
   const bodyLines = wrapAiMediaOverlayBodyText(
     args.scene.body,
     layout.copy.bodyMaxCharacters,
-    layout.copy.bodyMaxLines,
+    layout.copy.bodyMaxLines
   );
   const placement = resolveAiMediaVideoCopyPlacement({
     layout,
@@ -441,20 +551,25 @@ type ResolvedSceneCopyLayout = ReturnType<typeof resolveSceneCopyLayout>;
 
 function sceneCopyBackdropSvg(
   args: RenderBaseArgs & { scene: AiMediaCreativeScene },
-  resolved: ResolvedSceneCopyLayout,
+  resolved: ResolvedSceneCopyLayout
 ) {
   const { layout, placement } = resolved;
-  const statement = args.scene.layout === "statement" || args.scene.layout === "cta";
-  const shadeOpacity = statement
-    ? 0.78
-    : styleOverlayOpacity(args.visualStyle);
+  const statement =
+    args.scene.layout === "statement" || args.scene.layout === "cta";
+  const shadeOpacity = statement ? 0.78 : styleOverlayOpacity(args.visualStyle);
   return Buffer.from(`
-    <svg width="${args.width}" height="${args.height}" xmlns="http://www.w3.org/2000/svg">
+    <svg width="${args.width}" height="${
+    args.height
+  }" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <linearGradient id="shade" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stop-color="#020617" stop-opacity="0"/>
-          <stop offset="${placement.gradientStartPercent}%" stop-color="#020617" stop-opacity="0"/>
-          <stop offset="${placement.gradientMiddlePercent}%" stop-color="#020617" stop-opacity="0.18"/>
+          <stop offset="${
+            placement.gradientStartPercent
+          }%" stop-color="#020617" stop-opacity="0"/>
+          <stop offset="${
+            placement.gradientMiddlePercent
+          }%" stop-color="#020617" stop-opacity="0.18"/>
           <stop offset="100%" stop-color="#020617" stop-opacity="${shadeOpacity}"/>
         </linearGradient>
         <linearGradient id="brand" x1="0" y1="0" x2="1" y2="0">
@@ -464,13 +579,17 @@ function sceneCopyBackdropSvg(
         </linearGradient>
       </defs>
       <rect width="${args.width}" height="${args.height}" fill="url(#shade)"/>
-      <rect x="${layout.copy.left}" y="${placement.accentTop}" width="${layout.copy.accentWidth}" height="${layout.copy.accentHeight}" rx="${Math.ceil(layout.copy.accentHeight / 2)}" fill="url(#brand)"/>
+      <rect x="${layout.copy.left}" y="${placement.accentTop}" width="${
+    layout.copy.accentWidth
+  }" height="${layout.copy.accentHeight}" rx="${Math.ceil(
+    layout.copy.accentHeight / 2
+  )}" fill="url(#brand)"/>
     </svg>
   `);
 }
 
 async function renderSceneCopyOverlay(
-  args: RenderBaseArgs & { scene: AiMediaCreativeScene },
+  args: RenderBaseArgs & { scene: AiMediaCreativeScene }
 ) {
   const resolved = resolveSceneCopyLayout(args);
   const { layout, placement, titleLines, bodyLines } = resolved;
@@ -493,7 +612,7 @@ async function renderSceneCopyOverlay(
         left: layout.copy.left,
         top: placement.titleFirstTop + index * layout.copy.titleLineHeight,
         maxWidth: layout.copy.maxWidth,
-      }),
+      })
     ),
     ...bodyLines.map((line, index) =>
       rasterTextLayer({
@@ -504,7 +623,7 @@ async function renderSceneCopyOverlay(
         left: layout.copy.left,
         top: placement.bodyFirstTop + index * layout.copy.bodyLineHeight,
         maxWidth: layout.copy.maxWidth,
-      }),
+      })
     ),
   ]);
   const transparent = await sharp({
@@ -514,18 +633,24 @@ async function renderSceneCopyOverlay(
       channels: 4,
       background: { r: 0, g: 0, b: 0, alpha: 0 },
     },
-  }).png().toBuffer();
+  })
+    .png()
+    .toBuffer();
   return await sharp(transparent)
     .composite([
       { input: sceneCopyBackdropSvg(args, resolved), top: 0, left: 0 },
-      ...textLayers.filter((layer): layer is NonNullable<typeof layer> => Boolean(layer)),
+      ...textLayers.filter((layer): layer is NonNullable<typeof layer> =>
+        Boolean(layer)
+      ),
     ])
     .png({ compressionLevel: 9, adaptiveFiltering: true })
     .toBuffer();
 }
-async function buildBrandOverlays(args: RenderBaseArgs & {
-  copyOverlay: Buffer;
-}) {
+async function buildBrandOverlays(
+  args: RenderBaseArgs & {
+    copyOverlay: Buffer;
+  }
+) {
   const overlays: Array<{ input: Buffer; top?: number; left?: number }> = [
     { input: args.copyOverlay, top: 0, left: 0 },
   ];
@@ -535,7 +660,7 @@ async function buildBrandOverlays(args: RenderBaseArgs & {
     args.logo,
     args.width,
     args.height,
-    args.logoMode,
+    args.logoMode
   );
   if (!preparedLogo) return overlays;
 
@@ -557,10 +682,12 @@ async function buildBrandOverlays(args: RenderBaseArgs & {
  * jamais le logo ni les textes de marque. Cela évite les pseudo-logos et
  * garantit un habillage net, identique sur tous les fournisseurs vidéo.
  */
-export async function renderAiMediaVideoOverlay(args: RenderBaseArgs & {
-  scene: AiMediaCreativeScene;
-  withText: boolean;
-}) {
+export async function renderAiMediaVideoOverlay(
+  args: RenderBaseArgs & {
+    scene: AiMediaCreativeScene;
+    withText: boolean;
+  }
+) {
   const transparent = await sharp({
     create: {
       width: args.width,
@@ -568,7 +695,9 @@ export async function renderAiMediaVideoOverlay(args: RenderBaseArgs & {
       channels: 4,
       background: { r: 0, g: 0, b: 0, alpha: 0 },
     },
-  }).png().toBuffer();
+  })
+    .png()
+    .toBuffer();
   const overlays = await buildBrandOverlays({
     ...args,
     copyOverlay: args.withText
@@ -578,5 +707,41 @@ export async function renderAiMediaVideoOverlay(args: RenderBaseArgs & {
   return await sharp(transparent)
     .composite(overlays)
     .png({ compressionLevel: 9, adaptiveFiltering: true })
+    .toBuffer();
+}
+
+/**
+ * Compose les éléments lisibles d'une image après la génération du fond.
+ * Le fournisseur d'images ne dessine ainsi aucune lettre : iNrCy maîtrise
+ * exactement les mots, les retours à la ligne, les marges et le logo.
+ */
+export async function composeAiMediaBrandedImage(
+  args: RenderBaseArgs & {
+    input: Buffer;
+    scene: AiMediaCreativeScene;
+    withText: boolean;
+  }
+) {
+  const overlay = await renderAiMediaVideoOverlay(args);
+  return await sharp(args.input, {
+    failOn: "error",
+    limitInputPixels: 50_000_000,
+    pages: 1,
+  })
+    .rotate()
+    .resize(args.width, args.height, {
+      fit: "cover",
+      position: "centre",
+    })
+    .composite([{ input: overlay, left: 0, top: 0 }])
+    .toColourspace("srgb")
+    .jpeg({
+      quality: 90,
+      mozjpeg: true,
+      progressive: true,
+      chromaSubsampling: "4:2:0",
+      optimiseCoding: true,
+      optimiseScans: true,
+    })
     .toBuffer();
 }

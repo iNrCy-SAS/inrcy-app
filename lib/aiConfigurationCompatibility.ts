@@ -10,6 +10,10 @@ import {
   type AiContentLength,
 } from "./aiContentLength.ts";
 import type { DashboardEdition } from "./dashboardEdition.ts";
+import {
+  AI_INSTRUCTION_SECTION_MAX_LENGTH,
+  decodeAiInstructionSections,
+} from "./aiInstructionSections.ts";
 
 type BoosterPreferredCta = "none" | "site" | "devis" | "appeler" | "message" | "whatsapp" | "custom";
 
@@ -47,6 +51,7 @@ export type AiConfigurationFormValues = {
   language: AppLanguageCode;
   likedExample: string;
   likedExample2: string;
+  instructions: string;
   forbiddenStyle: string;
 };
 
@@ -69,6 +74,7 @@ export const DEFAULT_AI_CONFIGURATION_FORM: AiConfigurationFormValues = {
   language: "fr",
   likedExample: "",
   likedExample2: "",
+  instructions: "",
   forbiddenStyle: "",
 };
 
@@ -282,8 +288,21 @@ export function migrateLegacyAiConfigurationLocal(
   if (likedExample !== undefined) result.likedExample = String(likedExample).slice(0, 1200);
   const likedExample2 = firstMeaningful(source, ["likedExample2"]);
   if (likedExample2 !== undefined) result.likedExample2 = String(likedExample2).slice(0, 1200);
-  const instructions = firstMeaningful(source, ["forbiddenStyle", "customInstructions"]);
-  if (instructions !== undefined) result.forbiddenStyle = String(instructions).slice(0, 700);
+  const instructions = firstMeaningful(source, ["serializedInstructions", "customInstructions"]);
+  if (instructions !== undefined) {
+    const sections = decodeAiInstructionSections(instructions);
+    result.instructions = sections.instructions;
+    result.forbiddenStyle = sections.forbiddenInstructions;
+  } else {
+    const explicitInstructions = firstMeaningful(source, ["instructions"]);
+    const explicitForbidden = firstMeaningful(source, ["forbiddenStyle"]);
+    if (explicitInstructions !== undefined) {
+      result.instructions = String(explicitInstructions).slice(0, AI_INSTRUCTION_SECTION_MAX_LENGTH);
+    }
+    if (explicitForbidden !== undefined) {
+      result.forbiddenStyle = String(explicitForbidden).slice(0, AI_INSTRUCTION_SECTION_MAX_LENGTH);
+    }
+  }
 
   return result;
 }
@@ -342,7 +361,11 @@ export function migrateBusinessProfileAiConfiguration(
   const likedExample2 = firstMeaningful(source, ["ai_liked_example_2", "liked_example_2"]);
   if (likedExample2 !== undefined) result.likedExample2 = String(likedExample2).slice(0, 1200);
   const instructions = firstMeaningful(source, ["ai_custom_instructions", "custom_instructions"]);
-  if (instructions !== undefined) result.forbiddenStyle = String(instructions).slice(0, 700);
+  if (instructions !== undefined) {
+    const sections = decodeAiInstructionSections(instructions);
+    result.instructions = sections.instructions;
+    result.forbiddenStyle = sections.forbiddenInstructions;
+  }
 
   return result;
 }

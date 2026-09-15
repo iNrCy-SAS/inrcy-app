@@ -425,6 +425,7 @@ export const defaultConfigs: Record<AutomationKey, AutomationConfig> = {
     preferredMediaSource: "media_library",
     studioMediaPreferencePercent: INR_AGENT_STUDIO_MEDIA_PREFERENCE_DEFAULT,
     planningHorizonDays: 15,
+    publicationIdeas: [],
   },
   grow: {
     enabled: false,
@@ -444,6 +445,7 @@ export const defaultConfigs: Record<AutomationKey, AutomationConfig> = {
     preferredMediaSource: "media_library",
     studioMediaPreferencePercent: INR_AGENT_STUDIO_MEDIA_PREFERENCE_DEFAULT,
     planningHorizonDays: 15,
+    publicationIdeas: [],
   },
   loyalty: {
     enabled: false,
@@ -463,6 +465,7 @@ export const defaultConfigs: Record<AutomationKey, AutomationConfig> = {
     preferredMediaSource: "media_library",
     studioMediaPreferencePercent: INR_AGENT_STUDIO_MEDIA_PREFERENCE_DEFAULT,
     planningHorizonDays: 15,
+    publicationIdeas: [],
   },
   stats: {
     enabled: false,
@@ -489,6 +492,7 @@ export const defaultConfigs: Record<AutomationKey, AutomationConfig> = {
     preferredMediaSource: "media_library",
     studioMediaPreferencePercent: INR_AGENT_STUDIO_MEDIA_PREFERENCE_DEFAULT,
     planningHorizonDays: 15,
+    publicationIdeas: [],
   },
 };
 

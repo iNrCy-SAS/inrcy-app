@@ -13,11 +13,14 @@ import {
 import { useTranslations } from "next-intl";
 
 import { invalidateBoosterGenerationContextClient } from "@/lib/boosterGenerationContextClient";
+import { createClient } from "@/lib/supabaseClient";
 import {
   BUSINESS_DNA_DASHBOARD_CHANNELS,
   type BusinessDnaDashboardChannelAvailability,
 } from "@/lib/businessDnaChannelAvailability";
 import {
+  AI_MEMORY_REFERENCE_DOCUMENT_MAX_BYTES,
+  AI_MEMORY_REFERENCE_DOCUMENT_MAX_ITEMS,
   EMPTY_AI_BUSINESS_KNOWLEDGE,
   EMPTY_AI_MEMORY,
   getAiWorkspaceCompletionScore,
@@ -26,6 +29,7 @@ import {
   normalizeAiMemory,
   type AiBusinessKnowledge,
   type AiMemory,
+  type AiMemoryReferenceDocument,
 } from "@/lib/aiMemory";
 import { hasPremiumDashboardAccess, type DashboardEdition } from "@/lib/dashboardEdition";
 import { confirmInrcy } from "@/lib/inrcyDialog";
@@ -44,6 +48,7 @@ type WorkspaceTab =
   | "local"
   | "identity"
   | "news"
+  | "documents"
   | "strategy";
 type VoiceTarget =
   | "detailedDescription"
@@ -181,6 +186,11 @@ export default function AiMemoryContent({
   const [analysisSummary, setAnalysisSummary] = useState<AnalysisSummary | null>(null);
   const [analysisQuota, setAnalysisQuota] = useState<AnalysisQuota | null>(null);
   const [analysisScheduleOpen, setAnalysisScheduleOpen] = useState(false);
+  const [documentAnalysisConsent, setDocumentAnalysisConsent] = useState(false);
+  const [documentUploadState, setDocumentUploadState] = useState<
+    "idle" | "uploading" | "analysing" | "deleting"
+  >("idle");
+  const [documentUploadError, setDocumentUploadError] = useState("");
   const [analysisChannels, setAnalysisChannels] =
     useState<BusinessDnaDashboardChannelAvailability[]>(disconnectedAnalysisChannels);
   const memoryRef = useRef<AiMemory>(EMPTY_AI_MEMORY);
@@ -189,6 +199,7 @@ export default function AiMemoryContent({
     workspaceSignature(EMPTY_AI_MEMORY, EMPTY_AI_BUSINESS_KNOWLEDGE),
   );
   const analysisProgressTimerRef = useRef<number | null>(null);
+  const documentInputRef = useRef<HTMLInputElement | null>(null);
   const tabSwipeStartRef = useRef<{ x: number; y: number; enabled: boolean } | null>(null);
   const voiceTargetRef = useRef<VoiceTarget | null>(null);
 
@@ -346,6 +357,162 @@ export default function AiMemoryContent({
     setField("recentNewsItems", nextItems);
   };
 
+  const applyPersistedReferenceDocuments = useCallback(
+    (documents: AiMemoryReferenceDocument[]) => {
+      const normalizedDocuments = normalizeAiMemory({
+        referenceDocuments: documents,
+      }).referenceDocuments;
+      updateMemory((current) => ({
+        ...current,
+        referenceDocuments: normalizedDocuments,
+      }));
+
+      try {
+        const savedWorkspace = JSON.parse(savedSignatureRef.current) as {
+          memory?: unknown;
+          businessKnowledge?: unknown;
+        };
+        const savedMemory = normalizeAiMemory(savedWorkspace.memory, {
+          includePremium: true,
+        });
+        const savedBusinessKnowledge = normalizeAiBusinessKnowledge(
+          savedWorkspace.businessKnowledge,
+        );
+        savedSignatureRef.current = workspaceSignature(
+          { ...savedMemory, referenceDocuments: normalizedDocuments },
+          savedBusinessKnowledge,
+        );
+      } catch {
+        // La signature est toujours créée localement à partir d'objets validés.
+      }
+    },
+    [updateMemory],
+  );
+
+  const uploadReferenceDocuments = async (files: File[]) => {
+    if (!files.length || documentUploadState !== "idle") return;
+    if (!documentAnalysisConsent) {
+      setDocumentUploadError(t("documentsConsentRequired"));
+      return;
+    }
+
+    const remaining = Math.max(
+      0,
+      AI_MEMORY_REFERENCE_DOCUMENT_MAX_ITEMS -
+        memoryRef.current.referenceDocuments.length,
+    );
+    if (!remaining) {
+      setDocumentUploadError(t("documentsLimitReached"));
+      return;
+    }
+
+    setDocumentUploadError("");
+    const selected = files.slice(0, remaining);
+    try {
+      for (const file of selected) {
+        if (file.size > AI_MEMORY_REFERENCE_DOCUMENT_MAX_BYTES) {
+          throw new Error(t("documentsSizeError"));
+        }
+        setDocumentUploadState("uploading");
+        const prepareResponse = await fetch("/api/ai-memory/documents", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            action: "prepare",
+            name: file.name,
+            mimeType: file.type || "application/octet-stream",
+            size: file.size,
+          }),
+        });
+        const prepared = await prepareResponse.json().catch(() => ({}));
+        if (!prepareResponse.ok) {
+          throw new Error(apiErrorMessage(prepared, t("documentsUploadError")));
+        }
+
+        const upload = await createClient()
+          .storage.from(String(prepared.bucket || "inrcy-pro-media"))
+          .uploadToSignedUrl(
+            String(prepared.storagePath || ""),
+            String(prepared.token || ""),
+            file,
+            { contentType: file.type || "application/octet-stream" },
+          );
+        if (upload.error) throw upload.error;
+
+        setDocumentUploadState("analysing");
+        const finalizeResponse = await fetch("/api/ai-memory/documents", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            action: "finalize",
+            id: prepared.id,
+            name: file.name,
+            mimeType: file.type || "application/octet-stream",
+            size: file.size,
+            storagePath: prepared.storagePath,
+            analysisConsent: true,
+          }),
+        });
+        const finalized = await finalizeResponse.json().catch(() => ({}));
+        if (!finalizeResponse.ok) {
+          throw new Error(apiErrorMessage(finalized, t("documentsAnalysisError")));
+        }
+        applyPersistedReferenceDocuments(
+          Array.isArray(finalized.documents) ? finalized.documents : [],
+        );
+        await invalidateBoosterGenerationContextClient("professional");
+      }
+    } catch (uploadError) {
+      setDocumentUploadError(
+        uploadError instanceof Error
+          ? uploadError.message
+          : t("documentsUploadError"),
+      );
+    } finally {
+      setDocumentUploadState("idle");
+    }
+  };
+
+  const deleteReferenceDocument = async (document: AiMemoryReferenceDocument) => {
+    if (documentUploadState !== "idle") return;
+    const confirmed = await confirmInrcy({
+      title: t("documentsDeleteTitle"),
+      message: t("documentsDeleteMessage", { name: document.name }),
+      confirmLabel: t("documentsDeleteConfirm"),
+      variant: "danger",
+    });
+    if (!confirmed) return;
+
+    setDocumentUploadState("deleting");
+    setDocumentUploadError("");
+    try {
+      const response = await fetch("/api/ai-memory/documents", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ id: document.id }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(apiErrorMessage(payload, t("documentsDeleteError")));
+      }
+      applyPersistedReferenceDocuments(
+        Array.isArray(payload.documents) ? payload.documents : [],
+      );
+      await invalidateBoosterGenerationContextClient("professional");
+    } catch (deleteError) {
+      setDocumentUploadError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : t("documentsDeleteError"),
+      );
+    } finally {
+      setDocumentUploadState("idle");
+    }
+  };
+
   const setRichDescription = (next: { text: string; html: string }) => {
     setSaved(false);
     setError("");
@@ -464,7 +631,17 @@ export default function AiMemoryContent({
       variant: "danger",
     });
     if (!confirmed) return;
-    updateMemory(normalizeAiMemory(EMPTY_AI_MEMORY, { includePremium: premiumEnabled }));
+    updateMemory(
+      normalizeAiMemory(
+        {
+          ...EMPTY_AI_MEMORY,
+          // Les documents ont leur propre suppression explicite afin qu'un
+          // clic sur "Réinitialiser" ne laisse jamais de fichier orphelin.
+          referenceDocuments: memoryRef.current.referenceDocuments,
+        },
+        { includePremium: premiumEnabled },
+      ),
+    );
     updateBusinessKnowledge(normalizeAiBusinessKnowledge(EMPTY_AI_BUSINESS_KNOWLEDGE));
     setSaved(false);
     setError("");
@@ -609,6 +786,7 @@ export default function AiMemoryContent({
     { key: "local", icon: "📍", label: t("tabLocal") },
     { key: "identity", icon: "🧭", label: t("tabIdentity") },
     { key: "news", icon: "⚡", label: t("tabNews") },
+    { key: "documents", icon: "📎", label: t("tabDocuments") },
     { key: "strategy", icon: "💎", label: t("tabStrategy"), premium: true },
   ];
   const activeTabIndex = Math.max(0, tabs.findIndex((tab) => tab.key === activeTab));
@@ -1201,6 +1379,131 @@ export default function AiMemoryContent({
               </section>
             ) : null}
 
+            {activeTab === "documents" ? (
+              <section
+                data-ai-memory-tab="documents"
+                style={{ ...cardStyle, ...documentsCardStyle }}
+              >
+                <SectionHeader
+                  icon="📎"
+                  title={t("documentsTitle")}
+                  description={t("documentsDescription")}
+                  trailing={(
+                    <span style={documentsCountStyle}>
+                      {t("documentsCount", {
+                        count: memory.referenceDocuments.length,
+                        limit: AI_MEMORY_REFERENCE_DOCUMENT_MAX_ITEMS,
+                      })}
+                    </span>
+                  )}
+                />
+
+                <label style={documentsConsentStyle}>
+                  <input
+                    type="checkbox"
+                    checked={documentAnalysisConsent}
+                    disabled={documentUploadState !== "idle"}
+                    onChange={(event) => {
+                      setDocumentAnalysisConsent(event.target.checked);
+                      setDocumentUploadError("");
+                    }}
+                  />
+                  <span>
+                    <strong>{t("documentsConsentTitle")}</strong>
+                    <small>{t("documentsConsentDescription")}</small>
+                  </span>
+                </label>
+
+                <div style={documentsUploadCardStyle}>
+                  <input
+                    ref={documentInputRef}
+                    type="file"
+                    multiple
+                    hidden
+                    accept=".pdf,.docx,.txt,.md,.csv,.json,.html,.htm,.png,.jpg,.jpeg,.webp,.gif,image/*,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/*"
+                    onChange={(event) => {
+                      const files = Array.from(event.target.files || []);
+                      event.target.value = "";
+                      void uploadReferenceDocuments(files);
+                    }}
+                  />
+                  <span style={documentsUploadIconStyle} aria-hidden>＋</span>
+                  <span style={documentsUploadCopyStyle}>
+                    <strong>{t("documentsUploadTitle")}</strong>
+                    <small>{t("documentsUploadHint")}</small>
+                  </span>
+                  <button
+                    type="button"
+                    disabled={
+                      !documentAnalysisConsent ||
+                      documentUploadState !== "idle" ||
+                      memory.referenceDocuments.length >=
+                        AI_MEMORY_REFERENCE_DOCUMENT_MAX_ITEMS
+                    }
+                    aria-busy={documentUploadState !== "idle"}
+                    onClick={() => documentInputRef.current?.click()}
+                    style={{
+                      ...primaryButtonStyle,
+                      opacity:
+                        !documentAnalysisConsent ||
+                        documentUploadState !== "idle" ||
+                        memory.referenceDocuments.length >=
+                          AI_MEMORY_REFERENCE_DOCUMENT_MAX_ITEMS
+                          ? 0.58
+                          : 1,
+                    }}
+                  >
+                    {documentUploadState === "uploading"
+                      ? t("documentsUploading")
+                      : documentUploadState === "analysing"
+                        ? t("documentsAnalysing")
+                        : t("documentsUploadButton")}
+                  </button>
+                </div>
+
+                {memory.referenceDocuments.length ? (
+                  <div style={documentsListStyle}>
+                    {memory.referenceDocuments.map((document) => (
+                      <article key={document.id} style={documentItemStyle}>
+                        <span style={documentFileIconStyle} aria-hidden>
+                          {document.mimeType.startsWith("image/") ? "🖼️" : "📄"}
+                        </span>
+                        <span style={documentItemCopyStyle}>
+                          <strong>{document.name}</strong>
+                          <small>
+                            {document.size
+                              ? `${Math.max(1, Math.round(document.size / 1024))} Ko · `
+                              : ""}
+                            {document.status === "analysed"
+                              ? t("documentsStatusAnalysed")
+                              : document.status === "error"
+                                ? t("documentsStatusError")
+                                : t("documentsStatusMetadata")}
+                          </small>
+                          {document.note ? <small>{document.note}</small> : null}
+                        </span>
+                        <button
+                          type="button"
+                          disabled={documentUploadState !== "idle"}
+                          aria-label={t("documentsDeleteAria", { name: document.name })}
+                          onClick={() => void deleteReferenceDocument(document)}
+                          style={documentDeleteButtonStyle}
+                        >
+                          ×
+                        </button>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={documentsEmptyStyle}>{t("documentsEmpty")}</div>
+                )}
+
+                {documentUploadError ? (
+                  <div style={errorStyle}>{documentUploadError}</div>
+                ) : null}
+              </section>
+            ) : null}
+
             {activeTab === "strategy" ? (
               <section data-ai-memory-tab="strategy" style={{ ...cardStyle, ...premiumCardStyle }}>
                 <div data-ai-memory-premium-heading style={sectionHeadingRowStyle}>
@@ -1706,7 +2009,7 @@ const analysisErrorStyle: CSSProperties = { borderRadius: 11, border: "1px solid
 const scoreStyle: CSSProperties = { minWidth: 38, color: "#ddd6fe", fontSize: 12, textAlign: "right" };
 const progressTrackStyle: CSSProperties = { height: 5, overflow: "hidden", borderRadius: 999, background: "rgba(255,255,255,0.09)" };
 const progressValueStyle: CSSProperties = { display: "block", height: "100%", minWidth: 4, borderRadius: 999, background: "linear-gradient(90deg, #38bdf8, #8b5cf6 58%, #ec4899)", boxShadow: "0 0 18px rgba(139,92,246,.42)", transition: "width .25s ease" };
-const tabListStyle: CSSProperties = { position: "relative", zIndex: 2, display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 5, padding: 6, overflow: "hidden", borderRadius: 16, border: "1px solid rgba(255,255,255,0.10)", background: "rgba(5,13,28,0.94)", boxShadow: "0 12px 34px rgba(0,0,0,0.20)", backdropFilter: "blur(18px)" };
+const tabListStyle: CSSProperties = { position: "relative", zIndex: 2, display: "grid", gridTemplateColumns: "repeat(8, minmax(0, 1fr))", gap: 5, padding: 6, overflow: "hidden", borderRadius: 16, border: "1px solid rgba(255,255,255,0.10)", background: "rgba(5,13,28,0.94)", boxShadow: "0 12px 34px rgba(0,0,0,0.20)", backdropFilter: "blur(18px)" };
 const tabButtonStyle: CSSProperties = { minWidth: 0, display: "flex", justifyContent: "center", alignItems: "center", gap: 6, borderRadius: 11, border: "1px solid transparent", background: "transparent", color: "rgba(255,255,255,0.66)", padding: "9px 5px", cursor: "pointer", fontSize: 11.5, fontWeight: 850, whiteSpace: "nowrap", overflow: "hidden" };
 const activeTabButtonStyle: CSSProperties = { border: "1px solid rgba(125,211,252,0.28)", background: "linear-gradient(135deg, rgba(14,165,233,0.18), rgba(124,58,237,0.18))", color: "white", boxShadow: "0 7px 22px rgba(14,165,233,0.10)" };
 const mobileTabNavigatorStyle: CSSProperties = { position: "relative", zIndex: 3, display: "none", gridTemplateColumns: "42px minmax(0, 1fr) 42px", alignItems: "stretch", gap: 7, padding: 7, borderRadius: 16, border: "1px solid rgba(125,211,252,.20)", background: "linear-gradient(135deg, rgba(4,18,38,.98), rgba(25,16,54,.98))", boxShadow: "0 13px 34px rgba(0,0,0,.24)" };
@@ -1769,6 +2072,18 @@ const newsUpdatedStyle: CSSProperties = { flex: "0 0 100%", color: "rgba(196,181
 const newsGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "minmax(0, 1fr)", alignItems: "stretch", gap: 11 };
 const newsItemCardStyle: CSSProperties = { minWidth: 0, display: "grid", gridTemplateColumns: "40px minmax(0, 1fr)", alignItems: "start", gap: 13, padding: 14, borderRadius: 17, border: "1px solid rgba(103,232,249,.18)", background: "linear-gradient(115deg, rgba(8,47,73,.34), rgba(23,26,66,.48) 56%, rgba(60,24,75,.34))", boxShadow: "inset 0 1px 0 rgba(255,255,255,.025), 0 10px 28px rgba(0,0,0,.10)" };
 const newsItemNumberStyle: CSSProperties = { width: 38, height: 38, display: "grid", placeItems: "center", borderRadius: 12, border: "1px solid rgba(103,232,249,.28)", background: "linear-gradient(145deg, rgba(14,165,233,.20), rgba(124,58,237,.18))", color: "#a5f3fc", fontSize: 12, fontWeight: 950, boxShadow: "0 8px 20px rgba(14,165,233,.10)" };
+const documentsCardStyle: CSSProperties = { border: "1px solid rgba(167,139,250,.28)", background: "radial-gradient(circle at 100% 0, rgba(56,189,248,.11), transparent 34%), linear-gradient(145deg, rgba(17,24,58,.76), rgba(45,23,72,.68))" };
+const documentsCountStyle: CSSProperties = { display: "inline-flex", alignItems: "center", minHeight: 28, padding: "5px 10px", borderRadius: 999, border: "1px solid rgba(167,139,250,.30)", background: "rgba(124,58,237,.13)", color: "#ddd6fe", fontSize: 10.5, fontWeight: 900, whiteSpace: "nowrap" };
+const documentsConsentStyle: CSSProperties = { display: "grid", gridTemplateColumns: "auto minmax(0, 1fr)", alignItems: "start", gap: 11, padding: 13, borderRadius: 15, border: "1px solid rgba(56,189,248,.22)", background: "rgba(8,47,73,.26)", color: "white", cursor: "pointer" };
+const documentsUploadCardStyle: CSSProperties = { display: "grid", gridTemplateColumns: "46px minmax(0, 1fr) auto", alignItems: "center", gap: 13, padding: 15, borderRadius: 17, border: "1px dashed rgba(167,139,250,.38)", background: "linear-gradient(115deg, rgba(30,41,90,.46), rgba(72,31,88,.34))" };
+const documentsUploadIconStyle: CSSProperties = { width: 44, height: 44, display: "grid", placeItems: "center", borderRadius: 14, border: "1px solid rgba(103,232,249,.28)", background: "linear-gradient(145deg, rgba(14,165,233,.18), rgba(124,58,237,.20))", color: "#a5f3fc", fontSize: 24, lineHeight: 1 };
+const documentsUploadCopyStyle: CSSProperties = { minWidth: 0, display: "grid", gap: 4, color: "white", fontSize: 12, lineHeight: 1.4 };
+const documentsListStyle: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 320px), 1fr))", gap: 10 };
+const documentItemStyle: CSSProperties = { minWidth: 0, display: "grid", gridTemplateColumns: "42px minmax(0, 1fr) 34px", alignItems: "center", gap: 10, padding: 12, borderRadius: 15, border: "1px solid rgba(255,255,255,.10)", background: "rgba(4,11,31,.45)", boxShadow: "inset 0 1px 0 rgba(255,255,255,.025)" };
+const documentFileIconStyle: CSSProperties = { width: 40, height: 40, display: "grid", placeItems: "center", borderRadius: 12, background: "rgba(124,58,237,.16)", fontSize: 18 };
+const documentItemCopyStyle: CSSProperties = { minWidth: 0, display: "grid", gap: 3, color: "white", fontSize: 11.5, lineHeight: 1.35, overflowWrap: "anywhere" };
+const documentDeleteButtonStyle: CSSProperties = { width: 32, height: 32, display: "grid", placeItems: "center", borderRadius: 10, border: "1px solid rgba(248,113,113,.22)", background: "rgba(127,29,29,.15)", color: "#fecaca", cursor: "pointer", fontSize: 19, lineHeight: 1 };
+const documentsEmptyStyle: CSSProperties = { padding: "18px 14px", borderRadius: 15, border: "1px solid rgba(148,163,184,.13)", background: "rgba(15,23,42,.34)", color: "rgba(203,213,225,.68)", textAlign: "center", fontSize: 12, lineHeight: 1.45 };
 const premiumCardStyle: CSSProperties = { border: "1px solid rgba(251,191,36,0.28)", background: "linear-gradient(145deg, rgba(92,55,7,0.20), rgba(49,24,71,0.66))" };
 const premiumGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "minmax(0, 1fr)", alignItems: "stretch", gap: 11 };
 const premiumFieldCardStyle: CSSProperties = { minWidth: 0, display: "grid", gridTemplateColumns: "40px minmax(0, 1fr)", alignItems: "start", gap: 13, padding: 14, borderRadius: 17, border: "1px solid rgba(251,191,36,.17)", background: "linear-gradient(115deg, rgba(92,55,7,.17), rgba(42,23,67,.48) 58%, rgba(76,29,70,.28))", boxShadow: "inset 0 1px 0 rgba(255,255,255,.025), 0 10px 28px rgba(0,0,0,.10)" };

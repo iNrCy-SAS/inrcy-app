@@ -87,6 +87,20 @@ export const INR_AGENT_STUDIO_MEDIA_PREFERENCE_STEPS = [
   100,
 ] as const;
 export const INR_AGENT_STUDIO_MEDIA_PREFERENCE_DEFAULT = 80;
+export const INR_AGENT_PUBLICATION_IDEA_MAX_ITEMS = 6;
+export const INR_AGENT_PUBLICATION_IDEA_MAX_LENGTH = 500;
+
+export function normalizeInrAgentPublicationIdeas(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .slice(0, INR_AGENT_PUBLICATION_IDEA_MAX_ITEMS)
+    .map((idea) =>
+      String(idea ?? "")
+        .replace(/\u0000/g, "")
+        .trim()
+        .slice(0, INR_AGENT_PUBLICATION_IDEA_MAX_LENGTH),
+    );
+}
 
 // Compat anciens composants / ancien vocabulaire V1.
 export const INR_AGENT_MODES = INR_AGENT_VALIDATION_MODES;
@@ -487,6 +501,13 @@ export function sanitizeInrAgentAutomationSettings(
     preferredMediaSource,
     studioMediaPreferencePercent,
     planningHorizonDays,
+    ...(key === "publish"
+      ? {
+          publicationIdeas: normalizeInrAgentPublicationIdeas(
+            normalizedMetadataBase.publicationIdeas,
+          ),
+        }
+      : {}),
   };
 
   const validationMode =

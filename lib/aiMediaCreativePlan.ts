@@ -63,9 +63,38 @@ function compactAtWordBoundary(value: unknown, max: number) {
 }
 
 const DANGLING_VISIBLE_WORDS = new Set([
-  "a", "afin", "au", "aux", "avec", "car", "ce", "ces", "chez", "comme",
-  "dans", "de", "des", "du", "en", "et", "la", "le", "les", "mais", "notre",
-  "ou", "par", "pour", "que", "qui", "sans", "sur", "un", "une", "vers", "votre",
+  "a",
+  "afin",
+  "au",
+  "aux",
+  "avec",
+  "car",
+  "ce",
+  "ces",
+  "chez",
+  "comme",
+  "dans",
+  "de",
+  "des",
+  "du",
+  "en",
+  "et",
+  "la",
+  "le",
+  "les",
+  "mais",
+  "notre",
+  "ou",
+  "par",
+  "pour",
+  "que",
+  "qui",
+  "sans",
+  "sur",
+  "un",
+  "une",
+  "vers",
+  "votre",
 ]);
 
 function visibleWordSignature(value: string) {
@@ -89,7 +118,10 @@ function trimDanglingVisibleEnding(value: string) {
   ) {
     words.pop();
   }
-  return words.join(" ").replace(/[,:;\-–—]+$/g, "").trim();
+  return words
+    .join(" ")
+    .replace(/[,:;\-–—]+$/g, "")
+    .trim();
 }
 
 function hasDanglingVisibleEnding(value: string) {
@@ -102,9 +134,18 @@ function hasDanglingVisibleEnding(value: string) {
 }
 
 function compactHeadline(value: string, max = 58) {
-  const normalized = clean(value, 140);
+  const source = clean(value, 140);
+  const normalized = /(?:\.{3}|…)\s*$/.test(source)
+    ? source
+        .replace(/(?:\.{3}|…)+\s*$/g, "")
+        .replace(/\s+\S+$/u, "")
+        .trim()
+    : source;
   if (normalized.length <= max) return trimDanglingVisibleEnding(normalized);
-  const words = normalized.slice(0, max + 1).replace(/\s+\S*$/, "").trim();
+  const words = normalized
+    .slice(0, max + 1)
+    .replace(/\s+\S*$/, "")
+    .trim();
   return trimDanglingVisibleEnding(words || normalized.split(/\s+/)[0] || "");
 }
 
@@ -140,7 +181,7 @@ function lowerFirst(value: string) {
 function normalizeFrenchIdeaTopic(value: string) {
   return value.replace(
     /^(?:(?:des?|les)\s+)?(?:travaux\s+de\s+)?peintures?\s+r[ée]alis(?:é|ée|és|ées)\s+/i,
-    "la peinture ",
+    "la peinture "
   );
 }
 
@@ -152,7 +193,7 @@ function normalizeFrenchIdeaTopic(value: string) {
  */
 function narrativeIdeaHeadline(value: string, variant: number) {
   const clause = value.match(
-    /^(.{2,34}?)\s+(reçoit|reçoivent|a reçu|ont reçu)\s+(.{3,58})$/i,
+    /^(.{2,34}?)\s+(reçoit|reçoivent|a reçu|ont reçu)\s+(.{3,58})$/i
   );
   if (clause) {
     const actor = lowerFirst(clause[1]);
@@ -166,7 +207,7 @@ function narrativeIdeaHeadline(value: string, variant: number) {
   }
 
   const actionClause = value.match(
-    /^(.{2,34}?)\s+(?:crée|créent|prépare|préparent|réalise|réalisent|lance|lancent|organise|organisent|accompagne|accompagnent|transforme|transforment|rénove|rénovent|répare|réparent|présente|présentent|dévoile|dévoilent|développe|développent|installe|installent|construit|construisent|livre|livrent|accueille|accueillent)\s+(.{3,58})$/i,
+    /^(.{2,34}?)\s+(?:crée|créent|prépare|préparent|réalise|réalisent|lance|lancent|organise|organisent|accompagne|accompagnent|transforme|transforment|rénove|rénovent|répare|réparent|présente|présentent|dévoile|dévoilent|développe|développent|installe|installent|construit|construisent|livre|livrent|accueille|accueillent)\s+(.{3,58})$/i
   );
   if (!actionClause) return "";
   const actor = lowerFirst(actionClause[1]);
@@ -174,7 +215,7 @@ function narrativeIdeaHeadline(value: string, variant: number) {
   return compactHeadline(
     variant % 2 === 0
       ? `${capitalize(object)} prend forme`
-      : `${capitalize(actor)}, au cœur de l’action`,
+      : `${capitalize(actor)}, au cœur de l’action`
   );
 }
 
@@ -184,23 +225,25 @@ function narrativeIdeaHeadline(value: string, variant: number) {
  * short timeout must not make the visible copy unrelated to the chosen topic.
  */
 function ideaHeadline(value: string, variant: number) {
-  const original = clean(value, 140).replace(/[.!?]+$/g, "").trim();
+  const original = clean(value, 140)
+    .replace(/[.!?]+$/g, "")
+    .trim();
   const firstBeat =
     original.split(/\s*(?:,|;|→|->|\bpuis\b|\bensuite\b|\bafin de\b)\s*/i)[0] ||
     original;
   const subject = compactAtWordBoundary(
     normalizeFrenchIdeaTopic(
       firstBeat
-      .replace(
-        /^(?:je\s+(?:veux|souhaite|voudrais)\s+(?:une?\s+)?(?:image|vid[eé]o|publication|contenu)?\s*(?:qui|sur|pour|de)?\s*)/i,
-        "",
-      )
-      .replace(
-        /^(?:(?:mettre\s+en\s+avant|cr[eé]er|faire|montrer|pr[eé]senter|illustrer|raconter|expliquer|valoriser|animer|filmer)\s+|partir\s+(?:d['’]|de\s+|du\s+|des\s+|avec\s+)|parler\s+de\s+)/i,
-        "",
-      ),
+        .replace(
+          /^(?:je\s+(?:veux|souhaite|voudrais)\s+(?:une?\s+)?(?:image|vid[eé]o|publication|contenu)?\s*(?:qui|sur|pour|de)?\s*)/i,
+          ""
+        )
+        .replace(
+          /^(?:(?:mettre\s+en\s+avant|cr[eé]er|faire|montrer|pr[eé]senter|illustrer|raconter|expliquer|valoriser|animer|filmer)\s+|partir\s+(?:d['’]|de\s+|du\s+|des\s+|avec\s+)|parler\s+de\s+)/i,
+          ""
+        )
     ),
-    80,
+    80
   );
   const topic =
     subject ||
@@ -253,21 +296,26 @@ function keywordHeadline(values: readonly string[], variant: number) {
 
 function historyText(publications: readonly RecentPublication[]) {
   return publications
-    .map((item) => `${item.idea || ""} ${item.title || ""} ${item.content || ""}`)
+    .map(
+      (item) => `${item.idea || ""} ${item.title || ""} ${item.content || ""}`
+    )
     .join(" ")
     .toLocaleLowerCase();
 }
 
 function chooseFresh(values: readonly string[], history: string, offset = 0) {
   const cleaned = values.map((value) => clean(value, 90)).filter(Boolean);
-  const fresh = cleaned.filter((value) => !history.includes(value.toLocaleLowerCase()));
+  const fresh = cleaned.filter(
+    (value) => !history.includes(value.toLocaleLowerCase())
+  );
   const candidates = fresh.length ? fresh : cleaned;
   return candidates.length ? candidates[offset % candidates.length] : "";
 }
 
 function variationIndex(value: string, modulo: number) {
   let hash = 0;
-  for (const character of value) hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
+  for (const character of value)
+    hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
   return modulo > 0 ? hash % modulo : 0;
 }
 
@@ -291,18 +339,55 @@ function typologyHeadline(args: {
 }) {
   const guided = keywordHeadline(args.textKeywords, args.variant);
   if (guided) return guided;
-  const subject = args.service || args.profession || args.company || "Votre projet";
+  const subject =
+    args.service || args.profession || args.company || "Votre projet";
   const templates: Record<AiMediaTypology, string[]> = {
     company: args.company
-      ? [`Découvrez ${args.company}`, `${args.company}, à vos côtés`, `L’univers ${args.company}`]
-      : ["Un savoir-faire à découvrir", "Une expertise à votre service", "Votre projet, notre métier"],
-    service: [subject, "Une expertise pensée pour vous", "Votre projet entre de bonnes mains"],
-    advice: ["Le conseil de votre expert", "Le bon réflexe de votre expert", "Un conseil qui fait la différence"],
-    showcase: ["Notre savoir-faire en images", "Le geste qui fait la différence", "La qualité dans chaque détail"],
-    offer: [subject, "Une solution à découvrir", "Le bon moment pour votre projet"],
-    event: [subject, "Un rendez-vous à ne pas manquer", "Retrouvons-nous prochainement"],
-    behind_scenes: ["Dans les coulisses de notre métier", "Les gestes derrière notre savoir-faire", "Au cœur de notre quotidien"],
-    recruitment: ["Rejoignez notre aventure", "Construisons la suite ensemble", "Votre talent a sa place ici"],
+      ? [
+          `Découvrez ${args.company}`,
+          `${args.company}, à vos côtés`,
+          `L’univers ${args.company}`,
+        ]
+      : [
+          "Un savoir-faire à découvrir",
+          "Une expertise à votre service",
+          "Votre projet, notre métier",
+        ],
+    service: [
+      subject,
+      "Une expertise pensée pour vous",
+      "Votre projet entre de bonnes mains",
+    ],
+    advice: [
+      "Le conseil de votre expert",
+      "Le bon réflexe de votre expert",
+      "Un conseil qui fait la différence",
+    ],
+    showcase: [
+      "Notre savoir-faire en images",
+      "Le geste qui fait la différence",
+      "La qualité dans chaque détail",
+    ],
+    offer: [
+      subject,
+      "Une solution à découvrir",
+      "Le bon moment pour votre projet",
+    ],
+    event: [
+      subject,
+      "Un rendez-vous à ne pas manquer",
+      "Retrouvons-nous prochainement",
+    ],
+    behind_scenes: [
+      "Dans les coulisses de notre métier",
+      "Les gestes derrière notre savoir-faire",
+      "Au cœur de notre quotidien",
+    ],
+    recruitment: [
+      "Rejoignez notre aventure",
+      "Construisons la suite ensemble",
+      "Votre talent a sa place ici",
+    ],
   };
   const candidates = templates[args.typology];
   return compactHeadline(candidates[args.variant % candidates.length], 58);
@@ -318,7 +403,7 @@ function scene(
   title: string,
   body: string,
   layout: AiMediaCreativeScene["layout"],
-  visualBrief = "",
+  visualBrief = ""
 ): AiMediaCreativeScene | null {
   const safeTitle = compactHeadline(title, 58);
   if (!safeTitle) return null;
@@ -367,10 +452,7 @@ function finalizeScenes(args: {
     args.targetCount > 1
       ? [...pool].reverse().find((candidate) => candidate.layout === "cta")
       : undefined;
-  const contentTarget = Math.max(
-    0,
-    args.targetCount - (conclusion ? 1 : 0),
-  );
+  const contentTarget = Math.max(0, args.targetCount - (conclusion ? 1 : 0));
   const selected: AiMediaCreativeScene[] = [];
   const usedTitles = new Set<string>();
   for (const candidate of pool) {
@@ -397,7 +479,11 @@ function finalizeScenes(args: {
     const signature = sceneTitleSignature(candidate.title);
     if (!signature || usedTitles.has(signature)) continue;
     usedTitles.add(signature);
-    selected.splice(Math.max(0, selected.length - (conclusion ? 1 : 0)), 0, candidate);
+    selected.splice(
+      Math.max(0, selected.length - (conclusion ? 1 : 0)),
+      0,
+      candidate
+    );
   }
 
   const usedDialogue = new Set<string>();
@@ -437,24 +523,32 @@ export function buildAiMediaCreativePlan(args: {
   const variant = variationIndex(request.requestId, 97);
   const service = chooseFresh(business.services, history, variant);
   const strength = chooseFresh(business.strengths, history, variant + 1);
-  const audience = chooseFresh(business.customerTypologies, history, variant + 2);
+  const audience = chooseFresh(
+    business.customerTypologies,
+    history,
+    variant + 2
+  );
   const zone = chooseFresh(business.interventionZones, history, variant + 3);
   const profession = business.professionLabel || business.sectorLabel;
   const companyName = business.companyName || localized.professionalFallback;
   const typology = safeTypology(request);
-  const targetCount = request.kind === "video"
-    ? getAiMediaVideoSegmentCount(request.durationSeconds || 16)
-    : 1;
+  const targetCount =
+    request.kind === "video"
+      ? getAiMediaVideoSegmentCount(request.durationSeconds || 16)
+      : 1;
   const oneShotInstruction = clean(request.aiInstruction, 190);
   const instructionDirection = oneShotInstruction
     ? ` CONSIGNE PRIORITAIRE : ${oneShotInstruction}. L'appliquer entièrement sans l'afficher ni la réciter.`
     : "";
 
-  const exactIdeaDirection = (idea: string) => [
-    `SUJET IMMUTABLE : ${clean(idea, 280)}.`,
-    "Conserver ce même sujet, ses personnages ou objets, son action et son objectif dans chaque acte ; ne jamais le remplacer par une prestation générique de l'ADN.",
-    instructionDirection,
-  ].filter(Boolean).join(" ");
+  const exactIdeaDirection = (idea: string) =>
+    [
+      `SUJET IMMUTABLE : ${clean(idea, 280)}.`,
+      "Conserver ce même sujet, ses personnages ou objets, son action et son objectif dans chaque acte ; ne jamais le remplacer par une prestation générique de l'ADN.",
+      instructionDirection,
+    ]
+      .filter(Boolean)
+      .join(" ");
 
   const userDirectedScenes = (options: {
     idea: string;
@@ -472,21 +566,21 @@ export function buildAiMediaCreativePlan(args: {
         options.headline,
         options.subline,
         "hero",
-        `ACTE 1 : commencer l'action principale dès la première image et rendre immédiatement le sujet reconnaissable. ${contract}`,
+        `ACTE 1 : commencer l'action principale dès la première image et rendre immédiatement le sujet reconnaissable. ${contract}`
       ),
       scene(
         options.supportingEyebrow,
         options.supportingTitle,
         options.supportingBody,
         "editorial",
-        `ACTE 2 : poursuivre exactement la même action avec une étape ou une preuve nouvelle et concrète, sans redémarrer ni changer de sujet. ${contract}`,
+        `ACTE 2 : poursuivre exactement la même action avec une étape ou une preuve nouvelle et concrète, sans redémarrer ni changer de sujet. ${contract}`
       ),
       scene(
         companyName,
         options.cta,
         business.city,
         "cta",
-        `ACTE FINAL : achever exactement la même action, montrer son résultat concret puis une prochaine étape naturelle, sans introduire une autre prestation. ${contract}`,
+        `ACTE FINAL : achever exactement la même action, montrer son résultat concret puis une prochaine étape naturelle, sans introduire une autre prestation. ${contract}`
       ),
     ].filter((value): value is AiMediaCreativeScene => Boolean(value));
   };
@@ -500,7 +594,8 @@ export function buildAiMediaCreativePlan(args: {
     const headline = localized.headlines[typology];
     const subline = localized.sublineFallback;
     const cta = ctaLabel(profile);
-    const idea = request.subjectSource === "profile" ? "" : clean(request.idea, 700);
+    const idea =
+      request.subjectSource === "profile" ? "" : clean(request.idea, 700);
     if (idea) {
       return {
         headline,
@@ -532,14 +627,14 @@ export function buildAiMediaCreativePlan(args: {
         localized.supportingTitle,
         localized.supportingBody,
         "editorial",
-        `${ideaDirection} Montrer une action professionnelle crédible, sans texte généré dans le décor.`,
+        `${ideaDirection} Montrer une action professionnelle crédible, sans texte généré dans le décor.`
       ),
       scene(
         companyName,
         cta,
         business.city,
         "cta",
-        `Conclure la même histoire sur un résultat clair et rassurant. ${ideaDirection}`,
+        `Conclure la même histoire sur un résultat clair et rassurant. ${ideaDirection}`
       ),
     ].filter((value): value is AiMediaCreativeScene => Boolean(value));
 
@@ -556,7 +651,8 @@ export function buildAiMediaCreativePlan(args: {
     };
   }
 
-  const idea = request.subjectSource === "profile" ? "" : clean(request.idea, 700);
+  const idea =
+    request.subjectSource === "profile" ? "" : clean(request.idea, 700);
   // Le copywriter reformule normalement cette base. Si son appel très court
   // expire, le secours local reste lié au vrai sujet sans jamais recopier la
   // consigne brute ou simplement la tronquer à l'écran.
@@ -574,7 +670,7 @@ export function buildAiMediaCreativePlan(args: {
     business.description ||
       [profession, business.city].filter(Boolean).join(" à ") ||
       "Une expertise au service de votre projet",
-    145,
+    145
   );
   const cta = ctaLabel(profile);
   if (idea) {
@@ -610,7 +706,7 @@ export function buildAiMediaCreativePlan(args: {
           service,
           profession,
           "editorial",
-          `${ideaDirection} Montrer une action credible liee a la prestation ${service}.`,
+          `${ideaDirection} Montrer une action credible liee a la prestation ${service}.`
         )
       : null,
     business.services[1]
@@ -619,7 +715,7 @@ export function buildAiMediaCreativePlan(args: {
           business.services[1],
           companyName,
           "editorial",
-          `${ideaDirection} Illustrer concretement ${business.services[1]}.`,
+          `${ideaDirection} Illustrer concretement ${business.services[1]}.`
         )
       : null,
     strength
@@ -628,7 +724,7 @@ export function buildAiMediaCreativePlan(args: {
           strength,
           subline,
           "statement",
-          `${ideaDirection} Rendre visible la force professionnelle suivante : ${strength}.`,
+          `${ideaDirection} Rendre visible la force professionnelle suivante : ${strength}.`
         )
       : null,
     audience
@@ -637,7 +733,7 @@ export function buildAiMediaCreativePlan(args: {
           audience,
           service || profession,
           "editorial",
-          `${ideaDirection} Mettre en scene la clientele ${audience} dans une situation naturelle.`,
+          `${ideaDirection} Mettre en scene la clientele ${audience} dans une situation naturelle.`
         )
       : null,
     zone || business.city
@@ -646,33 +742,55 @@ export function buildAiMediaCreativePlan(args: {
           zone || business.city,
           [profession, business.city].filter(Boolean).join(" · "),
           "statement",
-          `${ideaDirection} Ancrer la scene de facon credible a ${zone || business.city}.`,
+          `${ideaDirection} Ancrer la scene de facon credible a ${
+            zone || business.city
+          }.`
         )
       : null,
     business.openingHours
-      ? scene("Disponible", "À votre rythme", business.openingHours, "editorial")
+      ? scene(
+          "Disponible",
+          "À votre rythme",
+          business.openingHours,
+          "editorial"
+        )
       : null,
     business.services[2]
-      ? scene("Une solution complète", business.services[2], strength, "editorial")
+      ? scene(
+          "Une solution complète",
+          business.services[2],
+          strength,
+          "editorial"
+        )
       : null,
     scene(
       companyName,
       cta,
       business.city,
       "cta",
-      `Conclure la même histoire en montrant le résultat concret obtenu et une prochaine étape naturelle. ${ideaDirection}`,
+      `Conclure la même histoire en montrant le résultat concret obtenu et une prochaine étape naturelle. ${ideaDirection}`
     ),
   ].filter((value): value is AiMediaCreativeScene => Boolean(value));
 
   const fallbackScenes = [
-    scene("Votre projet", "Une réponse sur mesure", service || profession, "statement"),
-    scene("L’essentiel", "Qualité, écoute, proximité", strength || subline, "editorial"),
+    scene(
+      "Votre projet",
+      "Une réponse sur mesure",
+      service || profession,
+      "statement"
+    ),
+    scene(
+      "L’essentiel",
+      "Qualité, écoute, proximité",
+      strength || subline,
+      "editorial"
+    ),
     scene(
       companyName,
       cta,
       business.city,
       "cta",
-      `Conclure la même histoire en montrant le résultat concret obtenu et une prochaine étape naturelle. ${ideaDirection}`,
+      `Conclure la même histoire en montrant le résultat concret obtenu et une prochaine étape naturelle. ${ideaDirection}`
     ),
   ].filter((value): value is AiMediaCreativeScene => Boolean(value));
   return {

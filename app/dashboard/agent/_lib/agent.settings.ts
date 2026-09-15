@@ -1,5 +1,6 @@
 import {
   INR_AGENT_DEFAULT_SETTINGS,
+  normalizeInrAgentPublicationIdeas,
   sanitizeInrAgentSettings,
   type InrAgentAutomationSettings,
   type InrAgentPreferredMediaSource,
@@ -428,6 +429,10 @@ export function settingsToConfigs(
         studioMediaPreferencePercent:
           source.studioMediaPreferencePercent,
         planningHorizonDays: source.planningHorizonDays,
+        publicationIdeas:
+          automation.key === "publish"
+            ? normalizeInrAgentPublicationIdeas(source.metadata?.publicationIdeas)
+            : [],
       };
 
       return [automation.key, config];
@@ -456,6 +461,13 @@ export function configToAutomationSettings(
     preferredMediaSource: config.preferredMediaSource,
     studioMediaPreferencePercent: config.studioMediaPreferencePercent,
     planningHorizonDays: config.planningHorizonDays,
+    ...(key === "publish"
+      ? {
+          publicationIdeas: normalizeInrAgentPublicationIdeas(
+            config.publicationIdeas,
+          ),
+        }
+      : {}),
     ...(key === "grow" || key === "loyalty"
       ? { signatureAutomatic: config.signatureAutomatic }
       : {}),

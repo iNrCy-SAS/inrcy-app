@@ -55,7 +55,7 @@ function compact(value: unknown, max = 500) {
 
 function apiKey() {
   const value = String(
-    process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || "",
+    process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || ""
   ).trim();
   if (!value) throw new Error("ai_video_veo_credentials_missing");
   return value;
@@ -72,22 +72,26 @@ function narrationVoicePreset(narrationVoice: AiMediaNarrationVoice) {
   if (narrationVoice === "male") {
     return safeIdentifier(
       process.env.AI_MEDIA_TTS_VOICE_MALE,
-      DEFAULT_TTS_VOICE_MALE,
+      DEFAULT_TTS_VOICE_MALE
     );
   }
   return safeIdentifier(
     process.env.AI_MEDIA_TTS_VOICE_FEMALE || process.env.AI_MEDIA_TTS_VOICE,
-    DEFAULT_TTS_VOICE_FEMALE,
+    DEFAULT_TTS_VOICE_FEMALE
   );
 }
 
 function statusFromError(error: unknown) {
-  const source = error && typeof error === "object"
-    ? (error as { status?: unknown; code?: unknown; message?: unknown })
-    : null;
+  const source =
+    error && typeof error === "object"
+      ? (error as { status?: unknown; code?: unknown; message?: unknown })
+      : null;
   const explicit = Number(source?.status || source?.code || 0);
-  if (Number.isFinite(explicit) && explicit >= 100 && explicit <= 599) return explicit;
-  const match = String(source?.message || error || "").match(/\b(429|500|502|503|504)\b/);
+  if (Number.isFinite(explicit) && explicit >= 100 && explicit <= 599)
+    return explicit;
+  const match = String(source?.message || error || "").match(
+    /\b(429|500|502|503|504)\b/
+  );
   return match ? Number(match[1]) : 0;
 }
 
@@ -116,9 +120,11 @@ function delay(ms: number, signal?: AbortSignal) {
 }
 
 function hasWavHeader(buffer: Buffer) {
-  return buffer.length >= 12 &&
+  return (
+    buffer.length >= 12 &&
     buffer.toString("ascii", 0, 4) === "RIFF" &&
-    buffer.toString("ascii", 8, 12) === "WAVE";
+    buffer.toString("ascii", 8, 12) === "WAVE"
+  );
 }
 
 function pcm16ToWav(buffer: Buffer, sampleRate: number, channels: number) {
@@ -148,7 +154,8 @@ function normalizeAudio(args: {
 }) {
   const raw = Buffer.from(args.data, "base64");
   if (!raw.length) throw new Error("ai_media_narration_audio_empty");
-  if (raw.length > MAX_AUDIO_BYTES) throw new Error("ai_media_narration_audio_too_large");
+  if (raw.length > MAX_AUDIO_BYTES)
+    throw new Error("ai_media_narration_audio_too_large");
   const mimeType = compact(args.mimeType, 80).toLocaleLowerCase();
   if (hasWavHeader(raw)) {
     return { buffer: raw, mimeType: "audio/wav", extension: "wav" as const };
@@ -167,7 +174,7 @@ function normalizeAudio(args: {
   const wav = pcm16ToWav(
     raw,
     positiveInt(args.sampleRate, 24_000, 96_000),
-    positiveInt(args.channels, 1, 2),
+    positiveInt(args.channels, 1, 2)
   );
   return { buffer: wav, mimeType: "audio/wav", extension: "wav" as const };
 }
@@ -184,17 +191,20 @@ export async function generateAiMediaNarrationAudio(args: {
   signal?: AbortSignal;
 }): Promise<GeneratedAiNarrationAudio> {
   args.signal?.throwIfAborted();
-  const model = safeIdentifier(process.env.AI_MEDIA_TTS_MODEL, DEFAULT_TTS_MODEL);
+  const model = safeIdentifier(
+    process.env.AI_MEDIA_TTS_MODEL,
+    DEFAULT_TTS_MODEL
+  );
   const voice = narrationVoicePreset(args.narrationVoice);
   const costMicroUsd = positiveInt(
     process.env.AI_MEDIA_TTS_COST_MICRO_USD,
     DEFAULT_TTS_COST_MICRO_USD,
-    1_000_000,
+    1_000_000
   );
   const timeoutMs = positiveInt(
     process.env.AI_MEDIA_TTS_TIMEOUT_MS,
     DEFAULT_TTS_TIMEOUT_MS,
-    90_000,
+    90_000
   );
   const reservation = await reserveAiGatewayAccountAttempt(args.accountId, {
     estimatedInputTokens: 0,
@@ -214,7 +224,11 @@ export async function generateAiMediaNarrationAudio(args: {
             model,
             input: [
               "INSTRUCTION DE JEU — ne prononce pas cette ligne :",
-              `Voix ${args.narrationVoice === "male" ? "masculine" : "féminine"}, professionnelle, chaleureuse et naturelle. Langue ${language}. Débit fluide adapté à une vidéo de ${args.durationSeconds} secondes, sans chant ni emphase artificielle.`,
+              `Voix ${
+                args.narrationVoice === "male" ? "masculine" : "féminine"
+              }, professionnelle, chaleureuse et naturelle. Langue ${language}. Débit posé de conversation, environ 105 à 125 mots par minute, avec des respirations naturelles. La vidéo dure ${
+                args.durationSeconds
+              } secondes, mais ne compresse jamais les mots et n'accélère jamais la diction pour remplir la durée. Sans chant ni emphase artificielle.`,
               "TRANSCRIPTION À LIRE MOT POUR MOT :",
               args.narration.script,
             ].join("\n"),
@@ -229,10 +243,8 @@ export async function generateAiMediaNarrationAudio(args: {
           {
             timeout: timeoutMs,
             maxRetries: 0,
-            ...(args.signal
-              ? { fetchOptions: { signal: args.signal } }
-              : {}),
-          },
+            ...(args.signal ? { fetchOptions: { signal: args.signal } } : {}),
+          }
         );
         const audio = interaction.output_audio;
         if (!audio?.data) throw new Error("ai_media_narration_audio_empty");
@@ -252,7 +264,10 @@ export async function generateAiMediaNarrationAudio(args: {
         return { ...normalized, model, voice };
       } catch (error) {
         lastError = error;
-        if (attempt >= 2 || (!retryable(error) && !String(error).includes("audio_empty"))) {
+        if (
+          attempt >= 2 ||
+          (!retryable(error) && !String(error).includes("audio_empty"))
+        ) {
           throw error;
         }
         await delay(attempt === 0 ? 1_500 : 4_000, args.signal);

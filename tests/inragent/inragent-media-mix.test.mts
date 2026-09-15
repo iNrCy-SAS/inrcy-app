@@ -133,3 +133,56 @@ test("les blocs Studio sauvegardés sont appliqués sans réutiliser l'identité
   assert.equal("identityMode" in result, false);
   assert.equal("identityConsent" in result, false);
 });
+
+test("iNrAgent borne toutes les vidéos à la durée autorisée du compte", () => {
+  const preferences = normalizeAiMediaGeneratorPreferences(null);
+  preferences.blocks[6] = {
+    saved: true,
+    defaults: {
+      durationSeconds: 24,
+      connectScenes: true,
+      withText: false,
+      withMusic: true,
+      withNarration: true,
+      narrationVoice: "female",
+    },
+  };
+
+  const standardStudio = resolveInrAgentMediaMix({
+    kind: "video",
+    theme: "realisations",
+    studioMediaPreferencePercent: 100,
+    studioPreferences: preferences,
+    seed: "standard-studio-old-24-seconds",
+    maxVideoDurationSeconds: 8,
+  });
+  assert.equal(standardStudio.durationSeconds, 8);
+  assert.equal(standardStudio.connectScenes, false);
+
+  let creativeSixteenSecondSeed = "";
+  for (let index = 0; index < 100; index += 1) {
+    const seed = `creative-duration:${index}`;
+    const unrestricted = resolveInrAgentMediaMix({
+      kind: "video",
+      theme: "actualites",
+      studioMediaPreferencePercent: 0,
+      seed,
+      maxVideoDurationSeconds: 24,
+    });
+    if (unrestricted.durationSeconds === 16) {
+      creativeSixteenSecondSeed = seed;
+      break;
+    }
+  }
+  assert.ok(creativeSixteenSecondSeed, "une variante créative de 16 s doit exister");
+
+  const standardCreative = resolveInrAgentMediaMix({
+    kind: "video",
+    theme: "actualites",
+    studioMediaPreferencePercent: 0,
+    seed: creativeSixteenSecondSeed,
+    maxVideoDurationSeconds: 8,
+  });
+  assert.equal(standardCreative.durationSeconds, 8);
+  assert.equal(standardCreative.connectScenes, false);
+});

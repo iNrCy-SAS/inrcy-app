@@ -582,6 +582,7 @@ export function removeScheduledEditPublishChannel(
   const channelMapFields = [
     "postByChannel",
     "imagesByChannel",
+    "videoByChannel",
     "mediaModeByChannel",
     "mediaReadinessByChannel",
     "mediaAdaptationByChannel",
@@ -676,6 +677,11 @@ export function updateScheduledEditPublishMedia(
       asRecord(currentPublishPayload.imagesByChannel) ||
       {}),
   };
+  const videoByChannel = {
+    ...(asRecord(payload.videoByChannel) ||
+      asRecord(currentPublishPayload.videoByChannel) ||
+      {}),
+  };
   const mediaModeByChannel = {
     ...(asRecord(payload.mediaModeByChannel) ||
       asRecord(currentPublishPayload.mediaModeByChannel) ||
@@ -732,6 +738,7 @@ export function updateScheduledEditPublishMedia(
       else nextImages.push(media);
     }
     imagesByChannel[displayKey] = nextImages;
+    videoByChannel[displayKey] = null;
     mediaModeByChannel[displayKey] = "images";
     delete videoSettingsByChannel[displayKey];
     delete videoFormatByChannel[displayKey];
@@ -787,6 +794,7 @@ export function updateScheduledEditPublishMedia(
       }
     }
     imagesByChannel[displayKey] = [];
+    videoByChannel[displayKey] = nextVideo;
     mediaModeByChannel[displayKey] = "video";
     postByChannel[displayKey] = {
       ...currentPost,
@@ -807,6 +815,7 @@ export function updateScheduledEditPublishMedia(
       );
       nextImages = currentImages.filter((_, index) => index !== removeIndex);
       imagesByChannel[displayKey] = nextImages;
+      videoByChannel[displayKey] = null;
       mediaModeByChannel[displayKey] = nextImages.length ? "images" : "none";
       delete videoSettingsByChannel[displayKey];
       delete videoFormatByChannel[displayKey];
@@ -825,6 +834,7 @@ export function updateScheduledEditPublishMedia(
       };
     } else {
       imagesByChannel[displayKey] = [];
+      videoByChannel[displayKey] = null;
       mediaModeByChannel[displayKey] = "none";
       delete videoSettingsByChannel[displayKey];
       delete videoFormatByChannel[displayKey];
@@ -847,6 +857,7 @@ export function updateScheduledEditPublishMedia(
     ...currentPublishPayload,
     postByChannel,
     imagesByChannel,
+    videoByChannel,
     mediaModeByChannel,
     videoSettingsByChannel,
     videoFormatByChannel,
@@ -869,6 +880,7 @@ export function updateScheduledEditPublishMedia(
       publishPayload: nextPublishPayload,
       postByChannel,
       imagesByChannel,
+      videoByChannel,
       mediaModeByChannel,
       videoSettingsByChannel,
       videoFormatByChannel,
@@ -1031,6 +1043,10 @@ export function scheduledEditUpdateFromAction(
       ),
       imagesByChannel: filterRecordForScheduledChannels(
         payload.imagesByChannel || publishPayload.imagesByChannel,
+        channels,
+      ),
+      videoByChannel: filterRecordForScheduledChannels(
+        payload.videoByChannel || publishPayload.videoByChannel,
         channels,
       ),
       images,

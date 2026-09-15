@@ -38,6 +38,8 @@ import {
 } from "@/lib/activityCatalog";
 import {
   INR_AGENT_PINTEREST_PUBLISH_MIGRATION_FLAG,
+  INR_AGENT_X_PUBLISH_MIGRATION_FLAG,
+  normalizeInrAgentPublicationIdeas,
   sanitizeInrAgentAutomationSettings,
   type InrAgentAutomationSettings,
   type InrAgentChannel,
@@ -1131,6 +1133,18 @@ async function selectConnectedChannels(args: {
   ) {
     allowedAgentChannels.push("pinterest");
   }
+  if (
+    states.x.connected &&
+    !states.x.requiresUpdate &&
+    !allowedAgentChannels.includes("x") &&
+    args.automation.metadata?.[INR_AGENT_X_PUBLISH_MIGRATION_FLAG] !== true
+  ) {
+    // Même migration ponctuelle que l'écran Réglages : un ancien compte ne
+    // doit pas afficher X comme sélectionné puis le perdre à la préparation.
+    // Le drapeau passé à true après une sauvegarde respecte ensuite une vraie
+    // désélection volontaire du professionnel.
+    allowedAgentChannels.push("x");
+  }
 
   const allowedChannels = allowedAgentChannels
     .map((channel) => agentToBoosterChannel[channel])
@@ -1883,18 +1897,10 @@ export async function POST(request: Request) {
       loadBoosterCtaDefaults({ supabase, userId }),
       studioMediaPreferencesPromise,
     ]);
-  const plannedBoosterChannels = editorialTarget
-    ? editorialTarget.plan.channels
-        .map((channel) => agentToBoosterChannel[channel])
-        .filter((channel): channel is BoosterChannels => Boolean(channel))
-    : [];
-  const channels = (
-    editorialTarget
-      ? availableChannels.filter((channel) =>
-          plannedBoosterChannels.includes(channel),
-        )
-      : availableChannels
-  ).filter(
+  // Les canaux actifs sauvegardés au moment de la préparation sont la source
+  // de vérité. Le plan éditorial fige la date, le thème et le type de média,
+  // mais ne doit jamais réappliquer une ancienne liste de canaux.
+  const channels = availableChannels.filter(
     (channel) =>
       // Double sécurité : même si un ancien plan ou une donnée altérée remet
       // YouTube dans un créneau image, il ne traversera jamais la préparation.
@@ -1929,9 +1935,23 @@ export async function POST(request: Request) {
     theme: agentTheme,
     recentPublications,
   });
-  const idea = editorialTarget
-    ? `${baseIdea}\n\nPLAN ÉDITORIAL : publication ${editorialTarget.plan.sequence}/${editorialTarget.plan.totalSlots} du mois glissant, prévue le ${editorialTarget.plan.scheduledFor}. Choisis un angle concret distinct des autres publications du mois, tout en respectant strictement le thème et les informations vérifiées du profil.`
+  const publicationIdeas = normalizeInrAgentPublicationIdeas(
+    automation.metadata?.publicationIdeas,
+  ).filter(Boolean);
+  const publicationIdea = publicationIdeas.length
+    ? publicationIdeas[
+        Math.max(
+          0,
+          (editorialTarget?.plan.sequence || recentPublications.length + 1) - 1,
+        ) % publicationIdeas.length
+      ]
+    : "";
+  const guidedIdea = publicationIdea
+    ? `IDÉE PRIORITAIRE FOURNIE PAR LE PROFESSIONNEL : ${publicationIdea}\n\n${baseIdea}`
     : baseIdea;
+  const idea = editorialTarget
+    ? `${guidedIdea}\n\nPLAN ÉDITORIAL : publication ${editorialTarget.plan.sequence}/${editorialTarget.plan.totalSlots} du mois glissant, prévue le ${editorialTarget.plan.scheduledFor}. Choisis un angle concret distinct des autres publications du mois, tout en respectant strictement le thème et les informations vérifiées du profil.`
+    : guidedIdea;
   const requiresGeneratedVideo = channels.includes("youtube_shorts");
   const prefersExistingVideo =
     requiresGeneratedVideo || channels.includes("tiktok");

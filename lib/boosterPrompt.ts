@@ -377,7 +377,8 @@ function buildCompactPreferencePayload(profile: NormalizedAiGenerationProfile) {
     cta_prefere: preferences.preferredCta,
     contenu_apprecie_1: cleanText(preferences.likedExample, 1200),
     contenu_apprecie_2: cleanText(preferences.likedExample2, 1200),
-    a_eviter: cleanText(preferences.customInstructions, 700),
+    consignes: cleanText(preferences.customInstructions, 1200),
+    a_eviter: cleanText(preferences.forbiddenInstructions, 1200),
   });
 }
 

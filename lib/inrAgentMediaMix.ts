@@ -2,6 +2,7 @@ import type {
   AiMediaGenerationRequest,
   AiMediaKind,
 } from "./aiMediaGenerationContracts.ts";
+import type { AiMediaVideoDurationLimit } from "./aiMediaGenerationQuotaPolicy.ts";
 import {
   normalizeAiMediaGeneratorPreferences,
   type AiMediaGeneratorPreferences,
@@ -205,6 +206,33 @@ function shouldUseStudioPreferences(percent: number, seed: string): boolean {
   return stableHash(`${seed}:studio-preference`) % 100 < percent;
 }
 
+function applyVideoDurationLimit(
+  parameters: InrAgentMediaParameterSet,
+  kind: AiMediaKind,
+  maxVideoDurationSeconds: AiMediaVideoDurationLimit,
+): InrAgentMediaParameterSet {
+  if (kind !== "video") {
+    return {
+      ...parameters,
+      durationSeconds: null,
+      connectScenes: false,
+    };
+  }
+
+  const requestedDuration = parameters.durationSeconds || 8;
+  const durationSeconds = Math.min(
+    requestedDuration,
+    maxVideoDurationSeconds,
+  ) as AiMediaVideoDurationLimit;
+  return {
+    ...parameters,
+    durationSeconds,
+    // Une vidéo de 8 secondes ne comporte qu'un plan fournisseur : conserver
+    // un raccord de scènes hérité d'un ancien réglage Studio serait incohérent.
+    connectScenes: durationSeconds > 8 && parameters.connectScenes,
+  };
+}
+
 function studioParametersForKind(args: {
   kind: AiMediaKind;
   preferences: AiMediaGeneratorPreferences;
@@ -262,6 +290,8 @@ export function resolveInrAgentMediaMix(args: {
   studioMediaPreferencePercent: number;
   studioPreferences?: AiMediaGeneratorPreferences | null;
   seed: string;
+  /** Limite commerciale déjà résolue pour le compte (8, 16 ou 24 s). */
+  maxVideoDurationSeconds?: AiMediaVideoDurationLimit;
 }): InrAgentMediaMixResolution {
   const percent = normalizeInrAgentStudioMediaPreferencePercent(
     args.studioMediaPreferencePercent,
@@ -278,7 +308,11 @@ export function resolveInrAgentMediaMix(args: {
       preferences,
     });
     return {
-      ...studio.parameters,
+      ...applyVideoDurationLimit(
+        studio.parameters,
+        args.kind,
+        args.maxVideoDurationSeconds ?? 24,
+      ),
       mode: "studio",
       studioMediaPreferencePercent: percent,
       appliedStudioBlockIds: studio.appliedStudioBlockIds,
@@ -287,15 +321,22 @@ export function resolveInrAgentMediaMix(args: {
 
   const creative = chooseVariant(args.seed);
   const base = BASE_PARAMETERS[args.kind];
+  const creativeParameters = applyVideoDurationLimit(
+    {
+      ...base,
+      ...creative,
+      format: base.format,
+      durationSeconds: args.kind === "video" ? creative.durationSeconds : null,
+      connectScenes: args.kind === "video" ? creative.connectScenes : false,
+      withMusic: args.kind === "video" && creative.withMusic,
+      withNarration: args.kind === "video" && creative.withNarration,
+      narrationVoice: args.kind === "video" ? creative.narrationVoice : null,
+    },
+    args.kind,
+    args.maxVideoDurationSeconds ?? 24,
+  );
   return {
-    ...base,
-    ...creative,
-    format: base.format,
-    durationSeconds: args.kind === "video" ? creative.durationSeconds : null,
-    connectScenes: args.kind === "video" ? creative.connectScenes : false,
-    withMusic: args.kind === "video" && creative.withMusic,
-    withNarration: args.kind === "video" && creative.withNarration,
-    narrationVoice: args.kind === "video" ? creative.narrationVoice : null,
+    ...creativeParameters,
     mode: "creative",
     studioMediaPreferencePercent: percent,
     appliedStudioBlockIds: [],

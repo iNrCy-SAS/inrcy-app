@@ -58,13 +58,80 @@ type GeneratedMediaCopy = {
 };
 
 const DANGLING_VISIBLE_WORDS = new Set([
-  "a", "afin", "au", "aux", "avec", "car", "ce", "ces", "chez", "comme",
-  "dans", "de", "des", "du", "en", "et", "la", "le", "les", "mais", "notre",
-  "ou", "par", "pour", "que", "qui", "sans", "sur", "un", "une", "vers", "votre",
-  "an", "and", "at", "by", "for", "from", "in", "of", "on", "or", "the", "to", "with",
-  "con", "del", "el", "las", "los", "para", "por", "una", "y",
-  "da", "della", "di", "e", "il", "per",
-  "am", "an", "auf", "der", "die", "das", "ein", "eine", "für", "im", "mit", "und", "von", "zu",
+  "a",
+  "afin",
+  "au",
+  "aux",
+  "avec",
+  "car",
+  "ce",
+  "ces",
+  "chez",
+  "comme",
+  "dans",
+  "de",
+  "des",
+  "du",
+  "en",
+  "et",
+  "la",
+  "le",
+  "les",
+  "mais",
+  "notre",
+  "ou",
+  "par",
+  "pour",
+  "que",
+  "qui",
+  "sans",
+  "sur",
+  "un",
+  "une",
+  "vers",
+  "votre",
+  "an",
+  "and",
+  "at",
+  "by",
+  "for",
+  "from",
+  "in",
+  "of",
+  "on",
+  "or",
+  "the",
+  "to",
+  "with",
+  "con",
+  "del",
+  "el",
+  "las",
+  "los",
+  "para",
+  "por",
+  "una",
+  "y",
+  "da",
+  "della",
+  "di",
+  "e",
+  "il",
+  "per",
+  "am",
+  "an",
+  "auf",
+  "der",
+  "die",
+  "das",
+  "ein",
+  "eine",
+  "für",
+  "im",
+  "mit",
+  "und",
+  "von",
+  "zu",
 ]);
 
 function normalizeVisibleCopy(value: unknown) {
@@ -74,6 +141,10 @@ function normalizeVisibleCopy(value: unknown) {
     .replace(/#(?![\da-f]{3}(?:[\da-f]{3})?\b)|[*_`<>]/gi, "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function hasExplicitlyIncompleteCopy(value: unknown) {
+  return /(?:\.{3}|…)\s*$/.test(normalizeVisibleCopy(value));
 }
 
 function visibleWordSignature(value: string) {
@@ -97,7 +168,10 @@ function trimDanglingVisibleEnding(value: string) {
   ) {
     words.pop();
   }
-  return words.join(" ").replace(/[,:;\-–—]+$/g, "").trim();
+  return words
+    .join(" ")
+    .replace(/[,:;\-–—]+$/g, "")
+    .trim();
 }
 
 function hasDanglingVisibleEnding(value: string) {
@@ -154,10 +228,7 @@ function compactCompleteBody(value: unknown, maximum = 78) {
 }
 
 function compactHeadline(value: unknown) {
-  return compactCopy(
-    normalizeVisibleCopy(value).replace(/[+·|/]+/g, " "),
-    58,
-  );
+  return compactCopy(normalizeVisibleCopy(value).replace(/[+·|/]+/g, " "), 58);
 }
 
 function normalizedWords(value: unknown) {
@@ -170,21 +241,36 @@ function normalizedWords(value: unknown) {
 }
 
 const IDEA_STOP_WORDS = new Set([
-  "avec", "cette", "dans", "faire", "image", "mettre", "montrer",
-  "notre", "pour", "publication", "quand", "quelque", "video", "votre",
+  "avec",
+  "cette",
+  "dans",
+  "faire",
+  "image",
+  "mettre",
+  "montrer",
+  "notre",
+  "pour",
+  "publication",
+  "quand",
+  "quelque",
+  "video",
+  "votre",
 ]);
 
 function headlineRespectsIdea(
   headline: string,
   idea: string,
-  requireLexicalAnchor: boolean,
+  requireLexicalAnchor: boolean
 ) {
   const normalizedHeadline = normalizedWords(headline);
   const normalizedIdea = normalizedWords(idea);
   if (!normalizedIdea) return true;
   // Une consigne entière collée derrière un préfixe éditorial reste une
   // recopie brute, même si la chaîne n'est pas strictement égale.
-  if (normalizedIdea.length >= 12 && normalizedHeadline.includes(normalizedIdea)) {
+  if (
+    normalizedIdea.length >= 12 &&
+    normalizedHeadline.includes(normalizedIdea)
+  ) {
     return false;
   }
   // Une traduction idiomatique ne partage pas nécessairement les mêmes mots.
@@ -198,7 +284,9 @@ function headlineRespectsIdea(
   if (!ideaTokens.length) return true;
   return ideaTokens.some((ideaToken) => {
     const stem = ideaToken.slice(0, Math.min(6, ideaToken.length));
-    return headlineTokens.some((headlineToken) => headlineToken.startsWith(stem));
+    return headlineTokens.some((headlineToken) =>
+      headlineToken.startsWith(stem)
+    );
   });
 }
 
@@ -206,7 +294,7 @@ function isNaturalHeadline(
   value: string,
   keywords: readonly string[],
   idea: string,
-  language: NormalizedAiGenerationProfile["preferences"]["language"],
+  language: NormalizedAiGenerationProfile["preferences"]["language"]
 ) {
   if (value.length < 3 || /[+·|]/.test(value)) return false;
   if (keywords.length > 1 && value.split(/\s+/).length < 4) return false;
@@ -224,13 +312,26 @@ function isNaturalHeadline(
 function applyLocalizedCopy(
   plan: AiMediaCreativePlan,
   generated: GeneratedMediaCopy,
-  language: NormalizedAiGenerationProfile["preferences"]["language"],
+  language: NormalizedAiGenerationProfile["preferences"]["language"]
 ) {
+  if (
+    hasExplicitlyIncompleteCopy(generated.headline) ||
+    (Array.isArray(generated.scenes) &&
+      generated.scenes.some((scene) =>
+        [scene.title, scene.body].some(hasExplicitlyIncompleteCopy)
+      ))
+  ) {
+    // Une sortie déjà abrégée a perdu de l'information. Revenir au plan local
+    // complet est plus sûr que d'essayer de deviner le mot manquant.
+    return plan;
+  }
   const headline = compactHeadline(generated.headline);
   const cta = compactCopy(generated.cta, 58);
   if (!headline || !cta) return plan;
 
-  const generatedScenes = Array.isArray(generated.scenes) ? generated.scenes : [];
+  const generatedScenes = Array.isArray(generated.scenes)
+    ? generated.scenes
+    : [];
   const usedDialogue = new Set<string>();
   const usedTitles = new Set<string>();
   const scenes = plan.scenes.map((scene, index) => {
@@ -295,8 +396,7 @@ function applyLocalizedCopy(
       eyebrow: compactCopy(candidate.eyebrow, 38) || scene.eyebrow,
       title,
       body:
-        compactCompleteBody(candidate.body) ||
-        compactCompleteBody(scene.body),
+        compactCompleteBody(candidate.body) || compactCompleteBody(scene.body),
       spokenLine,
       spokenReply,
     };
@@ -357,11 +457,15 @@ export async function writeAiMediaHeadline(args: {
     const generated = await aiGenerateJSON<GeneratedMediaCopy>({
       feature: args.request.kind === "video" ? "media.video" : "media.image",
       accountId: args.accountId,
-      model: String(process.env.AI_MEDIA_COPY_MODEL || "openai/gpt-4o-mini").trim(),
+      model: String(
+        process.env.AI_MEDIA_COPY_MODEL || "openai/gpt-4o-mini"
+      ).trim(),
       system: [
         "Tu es le directeur éditorial multilingue du studio média iNrCy.",
         buildAiLanguageInstruction(args.profile),
-        `Tous les textes réellement visibles dans le média doivent être en ${getAiLanguageLabel(args.profile)} : headline, cta, eyebrow, title et body de chaque scène.`,
+        `Tous les textes réellement visibles dans le média doivent être en ${getAiLanguageLabel(
+          args.profile
+        )} : headline, cta, eyebrow, title et body de chaque scène.`,
         "Adapte ou traduis les informations utiles de l’ADN de l’entreprise dans cette langue sans traduire les noms propres, marques ou villes.",
         "Retourne exactement le même nombre de scènes et conserve leur ordre.",
         "Rédige une accroche publicitaire courte, naturelle, idiomatique et crédible.",
@@ -369,7 +473,7 @@ export async function writeAiMediaHeadline(args: {
         "L'idée du professionnel est le SUJET CENTRAL OBLIGATOIRE : conserve ses personnes, objets, lieux, actions, relations et résultat attendu dans toutes les scènes. Reformule-la naturellement sans la réciter ni la remplacer par un autre service de l'ADN.",
         "La consigne ponctuelle est une CONSIGNE DE RÉALISATION PRIORITAIRE : applique intégralement chacun de ses éléments visuels et narratifs, même s'ils ne figurent pas dans l'ADN. Ne neutralise un fragment que pour la sécurité, les droits, une impossibilité technique ou un fait commercial non vérifié ; ne la cite jamais.",
         "Chaque title visible est une accroche autonome de 58 caractères maximum. Chaque body visible est vide ou forme une seule phrase autonome et grammaticalement complète de 78 caractères maximum.",
-        "RÈGLE ABSOLUE : aucun texte visible ne doit être tronqué, finir par des points de suspension, ni se terminer par un article, une préposition ou une conjonction. Si aucune phrase body utile ne tient, retourne une chaîne vide.",
+        "RÈGLE ABSOLUE : écris dès le départ une formulation qui tient entièrement dans la limite. Aucun texte visible ne doit être tronqué, abrégé, finir par des points de suspension, ni se terminer par un article, une préposition ou une conjonction. Si aucune phrase body utile ne tient, retourne une chaîne vide.",
         "Pour chaque scène, spokenLine est une phrase orale naturelle et complète de 5 à 10 mots et 60 caractères maximum, directement liée au sujet central exact et à l'action demandée dans cette scène ; aucun dialogue vague, générique ou hors sujet.",
         "spokenReply est une réponse très courte qui poursuit naturellement spokenLine pour une éventuelle seconde personne.",
         "Pour un film en plusieurs scènes, les dialogues racontent une seule histoire : la première scène ouvre précisément le sujet, chaque scène intermédiaire apporte une preuve ou une étape nouvelle, et la dernière conclut le sujet avec une action ou un appel clair. Ne recommence jamais l'introduction et ne change jamais de sujet.",
@@ -395,10 +499,10 @@ export async function writeAiMediaHeadline(args: {
               args.plan.scenes.length === 1
                 ? "histoire_complete"
                 : index === 0
-                  ? "ouverture"
-                  : index === args.plan.scenes.length - 1
-                    ? "conclusion"
-                    : "preuve",
+                ? "ouverture"
+                : index === args.plan.scenes.length - 1
+                ? "conclusion"
+                : "preuve",
             eyebrow: scene.eyebrow,
             title: scene.title,
             body: scene.body,
@@ -423,11 +527,21 @@ export async function writeAiMediaHeadline(args: {
     const copyFields = [
       generated.headline,
       generated.cta,
-      ...(Array.isArray(generated.scenes) ? generated.scenes : []).flatMap((scene) => [
-        scene.eyebrow, scene.title, scene.body, scene.spokenLine, scene.spokenReply,
-      ]),
+      ...(Array.isArray(generated.scenes) ? generated.scenes : []).flatMap(
+        (scene) => [
+          scene.eyebrow,
+          scene.title,
+          scene.body,
+          scene.spokenLine,
+          scene.spokenReply,
+        ]
+      ),
     ];
-    if (copyFields.some((value) => !isAiMediaTechnicalCopyAllowed(value, args.request))) {
+    if (
+      copyFields.some(
+        (value) => !isAiMediaTechnicalCopyAllowed(value, args.request)
+      )
+    ) {
       return args.plan;
     }
     const headline = compactHeadline(generated.headline);
@@ -437,7 +551,7 @@ export async function writeAiMediaHeadline(args: {
         headline,
         args.request.textKeywords,
         args.request.idea,
-        languageCode,
+        languageCode
       )
     ) {
       return args.plan;

@@ -55,6 +55,7 @@ export type AutomationConfig = {
   preferredMediaSource: InrAgentPreferredMediaSource;
   studioMediaPreferencePercent: number;
   planningHorizonDays: InrAgentPlanningHorizonDays;
+  publicationIdeas: string[];
 };
 
 export type EditorialPlanApplyMode = "now" | "next_cycle";

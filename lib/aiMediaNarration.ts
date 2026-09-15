@@ -30,9 +30,11 @@ const NARRATION_SCHEMA = {
 } as const;
 
 const WORD_TARGETS = {
-  8: { min: 13, target: 16, max: 19 },
-  16: { min: 27, target: 32, max: 37 },
-  24: { min: 41, target: 47, max: 52 },
+  // Environ 90 à 110 mots/minute une fois les respirations ajoutées par le
+  // moteur TTS. La voix garde ainsi un débit posé, même sur le format 8 s.
+  8: { min: 8, target: 10, max: 12 },
+  16: { min: 20, target: 23, max: 26 },
+  24: { min: 31, target: 35, max: 39 },
 } as const;
 
 const LAST_RESORT_SENTENCES: Readonly<Record<string, string>> = {
@@ -131,7 +133,7 @@ function safeFallback(args: {
 function validGeneratedScript(
   value: string,
   duration: 8 | 16 | 24,
-  language: string,
+  language: string
 ) {
   const count = speechUnitCount(value, language);
   const target = WORD_TARGETS[duration];
@@ -170,11 +172,14 @@ export async function writeAiMediaNarration(args: {
     const generated = await aiGenerateJSON<{ script?: unknown }>({
       feature: "media.video",
       accountId: args.accountId,
-      model: String(process.env.AI_MEDIA_COPY_MODEL || "openai/gpt-4o-mini").trim(),
+      model: String(
+        process.env.AI_MEDIA_COPY_MODEL || "openai/gpt-4o-mini"
+      ).trim(),
       system: [
         "Tu es le concepteur-rédacteur et scénariste voix off du studio iNrCy.",
         `Rédige uniquement le texte oral d'une vidéo professionnelle de ${duration} secondes, en ${language}.`,
         `Vise exactement ${target.target} mots et reste impérativement entre ${target.min} et ${target.max} mots.`,
+        "Ce budget est volontairement court : privilégie une seule idée mémorable et des respirations naturelles plutôt qu'une accumulation d'informations.",
         "Construis un mini-récit fluide : une idée d'ouverture, un bénéfice concret lié au vrai métier, puis une conclusion naturelle.",
         "Le sujet du professionnel est le SUJET CENTRAL OBLIGATOIRE : conserve précisément ses personnes, objets, lieux, actions, relations et résultat attendu. Reformule-le oralement sans le réciter ni le remplacer par un autre service de l'ADN.",
         "La consigne ponctuelle est PRIORITAIRE : respecte tous ses éléments narratifs utiles, même absents de l'ADN, sans jamais la réciter, la citer ou la présenter comme une instruction. Ne neutralise un fragment que pour la sécurité, les droits, une impossibilité technique ou un fait commercial non vérifié.",

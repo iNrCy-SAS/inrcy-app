@@ -36,6 +36,10 @@ import {
   selectAiConfigurationCache,
   type AiConfigurationFormValues,
 } from "@/lib/aiConfigurationCompatibility";
+import {
+  AI_INSTRUCTION_SECTION_MAX_LENGTH,
+  encodeAiInstructionSections,
+} from "@/lib/aiInstructionSections";
 
 type Props = {
   edition?: DashboardEdition;
@@ -47,7 +51,11 @@ type Props = {
 };
 
 type AiConfigurationTab = "parameters" | "instructions";
-type AiConfigurationVoiceTarget = "likedExample" | "likedExample2" | "forbiddenStyle";
+type AiConfigurationVoiceTarget =
+  | "likedExample"
+  | "likedExample2"
+  | "instructions"
+  | "forbiddenStyle";
 
 function configurationSignature(form: AiConfigForm) {
   return JSON.stringify(form);
@@ -711,7 +719,10 @@ export default function AiConfigurationContent({
           ai_preferred_angle: form.preferredAngle,
           ai_language: form.language,
           ai_liked_example: form.likedExample.trim(),
-          ai_custom_instructions: form.forbiddenStyle.trim(),
+          ai_custom_instructions: encodeAiInstructionSections({
+            instructions: form.instructions,
+            forbiddenInstructions: form.forbiddenStyle,
+          }),
           updated_at: new Date().toISOString(),
         };
         let { error: upErr } = await supabase.from(TABLE).upsert(
@@ -1256,37 +1267,85 @@ export default function AiConfigurationContent({
                   </div>
                 </div>
 
-                <div data-custom-instructions style={{ ...label, ...instructionPanelStyle }}>
-                  <span style={voiceFieldHeadingStyle}>
-                    <label htmlFor={`${voiceFieldIdPrefix}-instructions`} style={labelTitle}>
-                      {configurationT("customInstructionsLabel")}
-                    </label>
-                    <span style={voiceFieldActionsStyle}>
-                      <MediaSubjectVoiceButton
-                        disabled={voiceDisabledFor("forbiddenStyle")}
-                        value={form.forbiddenStyle}
-                        contextLabel={configurationT("customInstructionsLabel")}
-                        onChange={(next) => set("forbiddenStyle", next.slice(0, 700))}
-                        onBusyChange={(busy) => handleVoiceBusyChange("forbiddenStyle", busy)}
-                        purpose="instruction"
-                        placement="inline"
-                        mergeMode="paragraph"
-                        maxLength={700}
-                      />
-                      <span style={voiceCounterStyle}>{form.forbiddenStyle.length}/700</span>
+                <div
+                  data-custom-instructions
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: workspaceMode
+                      ? "repeat(auto-fit, minmax(270px, 1fr))"
+                      : "repeat(auto-fit, minmax(320px, 1fr))",
+                    gap: 12,
+                  }}
+                >
+                  <div style={{ ...label, ...instructionPanelStyle }}>
+                    <span style={voiceFieldHeadingStyle}>
+                      <label htmlFor={`${voiceFieldIdPrefix}-instructions`} style={labelTitle}>
+                        {configurationT("customInstructionsLabel")}
+                      </label>
+                      <span style={voiceFieldActionsStyle}>
+                        <MediaSubjectVoiceButton
+                          disabled={voiceDisabledFor("instructions")}
+                          value={form.instructions}
+                          contextLabel={configurationT("customInstructionsLabel")}
+                          onChange={(next) => set("instructions", next.slice(0, AI_INSTRUCTION_SECTION_MAX_LENGTH))}
+                          onBusyChange={(busy) => handleVoiceBusyChange("instructions", busy)}
+                          purpose="instruction"
+                          placement="inline"
+                          mergeMode="paragraph"
+                          maxLength={AI_INSTRUCTION_SECTION_MAX_LENGTH}
+                        />
+                        <span style={voiceCounterStyle}>
+                          {form.instructions.length}/{AI_INSTRUCTION_SECTION_MAX_LENGTH}
+                        </span>
+                      </span>
                     </span>
-                  </span>
-                  <textarea
-                    id={`${voiceFieldIdPrefix}-instructions`}
-                    style={{ ...input, minHeight: workspaceMode ? 190 : 210, resize: "vertical", lineHeight: 1.45 }}
-                    value={form.forbiddenStyle}
-                    maxLength={700}
-                    readOnly={voiceBusy}
-                    aria-busy={voiceTarget === "forbiddenStyle"}
-                    onChange={(e) => set("forbiddenStyle", e.target.value.slice(0, 700))}
-                    placeholder={configurationT("customInstructionsPlaceholder")}
-                  />
-                  <span style={hint}>{configurationT("customInstructionsHint")}</span>
+                    <textarea
+                      id={`${voiceFieldIdPrefix}-instructions`}
+                      style={{ ...input, minHeight: workspaceMode ? 190 : 210, resize: "vertical", lineHeight: 1.45 }}
+                      value={form.instructions}
+                      maxLength={AI_INSTRUCTION_SECTION_MAX_LENGTH}
+                      readOnly={voiceBusy}
+                      aria-busy={voiceTarget === "instructions"}
+                      onChange={(e) => set("instructions", e.target.value.slice(0, AI_INSTRUCTION_SECTION_MAX_LENGTH))}
+                      placeholder={configurationT("customInstructionsPlaceholder")}
+                    />
+                    <span style={hint}>{configurationT("customInstructionsHint")}</span>
+                  </div>
+
+                  <div style={{ ...label, ...instructionPanelStyle }}>
+                    <span style={voiceFieldHeadingStyle}>
+                      <label htmlFor={`${voiceFieldIdPrefix}-forbidden-instructions`} style={labelTitle}>
+                        {configurationT("forbiddenInstructionsLabel")}
+                      </label>
+                      <span style={voiceFieldActionsStyle}>
+                        <MediaSubjectVoiceButton
+                          disabled={voiceDisabledFor("forbiddenStyle")}
+                          value={form.forbiddenStyle}
+                          contextLabel={configurationT("forbiddenInstructionsLabel")}
+                          onChange={(next) => set("forbiddenStyle", next.slice(0, AI_INSTRUCTION_SECTION_MAX_LENGTH))}
+                          onBusyChange={(busy) => handleVoiceBusyChange("forbiddenStyle", busy)}
+                          purpose="instruction"
+                          placement="inline"
+                          mergeMode="paragraph"
+                          maxLength={AI_INSTRUCTION_SECTION_MAX_LENGTH}
+                        />
+                        <span style={voiceCounterStyle}>
+                          {form.forbiddenStyle.length}/{AI_INSTRUCTION_SECTION_MAX_LENGTH}
+                        </span>
+                      </span>
+                    </span>
+                    <textarea
+                      id={`${voiceFieldIdPrefix}-forbidden-instructions`}
+                      style={{ ...input, minHeight: workspaceMode ? 190 : 210, resize: "vertical", lineHeight: 1.45 }}
+                      value={form.forbiddenStyle}
+                      maxLength={AI_INSTRUCTION_SECTION_MAX_LENGTH}
+                      readOnly={voiceBusy}
+                      aria-busy={voiceTarget === "forbiddenStyle"}
+                      onChange={(e) => set("forbiddenStyle", e.target.value.slice(0, AI_INSTRUCTION_SECTION_MAX_LENGTH))}
+                      placeholder={configurationT("forbiddenInstructionsPlaceholder")}
+                    />
+                    <span style={hint}>{configurationT("forbiddenInstructionsHint")}</span>
+                  </div>
                 </div>
               </section>
             ) : null}

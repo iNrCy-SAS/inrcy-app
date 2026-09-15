@@ -20,6 +20,7 @@ const MAX_GOOGLE_BUSINESS_VIDEO_BYTES = 74 * 1024 * 1024;
 const NARRATION_END_GUARD_SECONDS = 1;
 const NARRATION_TIMING_MARGIN_SECONDS = 0.2;
 const NARRATION_DECODE_TOLERANCE_SECONDS = 0.16;
+const NARRATION_MAX_TEMPO = 1.08;
 
 export type AiMediaNativeAudioMode = "ambience" | "dialogue" | "mute";
 
@@ -33,7 +34,7 @@ function compactError(error: unknown) {
 
 function parseMediaDurationSeconds(stderr: string) {
   const match = stderr.match(
-    /Duration:\s*(\d{1,2}):(\d{2}):(\d{2}(?:\.\d+)?)/i,
+    /Duration:\s*(\d{1,2}):(\d{2}):(\d{2}(?:\.\d+)?)/i
   );
   if (!match) return 0;
   return Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3]);
@@ -66,7 +67,7 @@ async function probeNarrationDurationSeconds(args: {
         maxBuffer: 4 * 1024 * 1024,
         windowsHide: true,
         signal: args.signal,
-      },
+      }
     );
     stderr = String(result.stderr || "");
   } catch (error) {
@@ -87,17 +88,18 @@ function narrationTempoFilters(args: {
   // courte que les échantillons effectivement décodés. Cette petite tolérance
   // fait finir la voix avant la zone de sécurité sans ajouter de seconde passe
   // FFmpeg ni ralentir la génération.
-  let tempo =
+  const tempo =
     (args.narrationDurationSeconds + NARRATION_DECODE_TOLERANCE_SECONDS) /
     args.targetVoiceSeconds;
   if (!Number.isFinite(tempo) || tempo <= 1) return [];
-  const filters: string[] = [];
-  while (tempo > 2) {
-    filters.push("atempo=2");
-    tempo /= 2;
+  // Une très légère correction (8 % maximum) absorbe uniquement les écarts
+  // de décodage/ponctuation du TTS. Au-delà, accélérer rendrait la voix
+  // artificielle : le serveur livrera la vidéo sans cette piste plutôt que de
+  // faire parler le professionnel à toute vitesse ou de couper une phrase.
+  if (tempo > NARRATION_MAX_TEMPO) {
+    throw new Error("ai_narration_too_long_for_natural_pace");
   }
-  filters.push(`atempo=${tempo.toFixed(6)}`);
-  return filters;
+  return [`atempo=${tempo.toFixed(6)}`];
 }
 
 function buildFilter(args: {
@@ -120,8 +122,8 @@ function buildFilter(args: {
     args.width === args.height
       ? "0"
       : args.height > args.width
-        ? "(in_h-out_h)*0.16"
-        : "(in_h-out_h)/2";
+      ? "(in_h-out_h)*0.16"
+      : "(in_h-out_h)/2";
   for (let index = 0; index < args.clipDurations.length; index += 1) {
     const clipSeconds = args.clipDurations[index];
     const sourceStartSeconds = Math.max(0, args.clipSourceStarts[index] || 0);
@@ -133,17 +135,22 @@ function buildFilter(args: {
     const framing = `scale=${args.width}:${args.height}:force_original_aspect_ratio=increase:force_divisible_by=2,crop=${args.width}:${args.height}:(in_w-out_w)/2:${verticalCropY}`;
     filters.push(
       `[${index}:v]trim=start=${sourceStartSeconds}:duration=${clipSeconds},setpts=PTS-STARTPTS,${framing},fps=30,setsar=1,format=yuv420p[base${index}]`,
-      `[base${index}][${overlayIndex}:v]overlay=0:0:shortest=1,tpad=stop_mode=clone:stop_duration=${clipSeconds},trim=duration=${clipSeconds},setpts=PTS-STARTPTS[v${index}]`,
+      `[base${index}][${overlayIndex}:v]overlay=0:0:shortest=1,tpad=stop_mode=clone:stop_duration=${clipSeconds},trim=duration=${clipSeconds},setpts=PTS-STARTPTS[v${index}]`
     );
     if (args.hasNativeAudio) {
       filters.push(
-        `[${index}:a]atrim=start=${sourceStartSeconds}:duration=${clipSeconds},asetpts=PTS-STARTPTS,aresample=48000,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,apad=pad_dur=${clipSeconds},atrim=duration=${clipSeconds}[a${index}]`,
+        `[${index}:a]atrim=start=${sourceStartSeconds}:duration=${clipSeconds},asetpts=PTS-STARTPTS,aresample=48000,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,apad=pad_dur=${clipSeconds},atrim=duration=${clipSeconds}[a${index}]`
       );
     }
   }
 
   filters.push(
-    `${Array.from({ length: args.clipDurations.length }, (_, index) => `[v${index}]`).join("")}concat=n=${args.clipDurations.length}:v=1:a=0,trim=duration=${args.durationSeconds},setpts=PTS-STARTPTS[video]`,
+    `${Array.from(
+      { length: args.clipDurations.length },
+      (_, index) => `[v${index}]`
+    ).join("")}concat=n=${args.clipDurations.length}:v=1:a=0,trim=duration=${
+      args.durationSeconds
+    },setpts=PTS-STARTPTS[video]`
   );
 
   if (args.hasNativeAudio) {
@@ -151,10 +158,15 @@ function buildFilter(args: {
       args.nativeAudioMode === "dialogue"
         ? "1.0"
         : args.narrationInputIndex === null
-          ? "0.42"
-          : "0.14";
+        ? "0.42"
+        : "0.14";
     filters.push(
-      `${Array.from({ length: args.clipDurations.length }, (_, index) => `[a${index}]`).join("")}concat=n=${args.clipDurations.length}:v=0:a=1,atrim=duration=${args.durationSeconds},asetpts=PTS-STARTPTS,volume=${nativeVolume}[native]`,
+      `${Array.from(
+        { length: args.clipDurations.length },
+        (_, index) => `[a${index}]`
+      ).join("")}concat=n=${args.clipDurations.length}:v=0:a=1,atrim=duration=${
+        args.durationSeconds
+      },asetpts=PTS-STARTPTS,volume=${nativeVolume}[native]`
     );
   }
   if (args.soundtrackInputIndex !== null) {
@@ -163,10 +175,10 @@ function buildFilter(args: {
       args.nativeAudioMode === "dialogue"
         ? "0.035"
         : args.narrationInputIndex === null
-          ? "0.16"
-          : "0.08";
+        ? "0.16"
+        : "0.08";
     filters.push(
-      `[${args.soundtrackInputIndex}:a]aresample=48000,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,atrim=duration=${args.durationSeconds},asetpts=PTS-STARTPTS,afade=t=in:st=0:d=0.4,afade=t=out:st=${fadeOutStart}:d=1.1,volume=${soundtrackVolume}[music]`,
+      `[${args.soundtrackInputIndex}:a]aresample=48000,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,atrim=duration=${args.durationSeconds},asetpts=PTS-STARTPTS,afade=t=in:st=0:d=0.4,afade=t=out:st=${fadeOutStart}:d=1.1,volume=${soundtrackVolume}[music]`
     );
   }
   if (args.narrationInputIndex !== null) {
@@ -175,11 +187,11 @@ function buildFilter(args: {
     }
     const maximumVoiceSeconds = Math.max(
       0.5,
-      args.durationSeconds - NARRATION_END_GUARD_SECONDS,
+      args.durationSeconds - NARRATION_END_GUARD_SECONDS
     );
     const targetVoiceSeconds = Math.max(
       0.4,
-      maximumVoiceSeconds - NARRATION_TIMING_MARGIN_SECONDS,
+      maximumVoiceSeconds - NARRATION_TIMING_MARGIN_SECONDS
     );
     const tempoFilters = narrationTempoFilters({
       narrationDurationSeconds: args.narrationDurationSeconds,
@@ -191,15 +203,15 @@ function buildFilter(args: {
       "asetpts=PTS-STARTPTS",
       "afade=t=in:st=0:d=0.08",
       ...tempoFilters,
-      // Ne jamais couper la voix à 7/15/23 s : l'atempo la fait déjà tenir
-      // avant cette borne. Le seul trim restant intervient à la durée totale,
-      // après au moins une seconde de silence de sécurité.
+      // Ne jamais couper la voix à 7/15/23 s. Seule une correction de tempo
+      // imperceptible est admise ; le trim restant intervient à la durée
+      // totale, après au moins une seconde de silence de sécurité.
       `apad=pad_dur=${args.durationSeconds}`,
       `atrim=duration=${args.durationSeconds}`,
       "volume=1.0",
     ];
     filters.push(
-      `[${args.narrationInputIndex}:a]${voiceFilters.join(",")}[voice]`,
+      `[${args.narrationInputIndex}:a]${voiceFilters.join(",")}[voice]`
     );
   }
 
@@ -210,7 +222,11 @@ function buildFilter(args: {
   ].filter(Boolean);
   if (audioTracks.length > 1) {
     filters.push(
-      `${audioTracks.join("")}amix=inputs=${audioTracks.length}:duration=longest:dropout_transition=0:normalize=0,atrim=duration=${args.durationSeconds}[audio]`,
+      `${audioTracks.join("")}amix=inputs=${
+        audioTracks.length
+      }:duration=longest:dropout_transition=0:normalize=0,atrim=duration=${
+        args.durationSeconds
+      }[audio]`
     );
   } else if (audioTracks.length === 1) {
     filters.push(`${audioTracks[0]}anull[audio]`);
@@ -246,7 +262,7 @@ export async function composeOriginalAiVideo(args: {
   }
   const clipDurationTotal = args.clips.reduce(
     (total, clip) => total + clip.durationSeconds,
-    0,
+    0
   );
   if (
     args.overlays.length !== args.clips.length ||
@@ -257,7 +273,9 @@ export async function composeOriginalAiVideo(args: {
     throw new Error("ai_original_video_clip_count_invalid");
   }
 
-  const temporaryDirectory = await mkdtemp(path.join(tmpdir(), "inrcy-ai-video-"));
+  const temporaryDirectory = await mkdtemp(
+    path.join(tmpdir(), "inrcy-ai-video-")
+  );
   const outputPath = path.join(temporaryDirectory, "inrcy-original-video.mp4");
   try {
     args.signal?.throwIfAborted();
@@ -265,35 +283,47 @@ export async function composeOriginalAiVideo(args: {
     // logiques qui partagent le même Buffer final. Ne pas recopier ce MP4 de
     // 16/24 s trois fois sur le disque éphémère de la fonction serveur.
     const clipFileByBuffer = new Map<Buffer, Promise<string>>();
-    const clipPaths = await Promise.all(args.clips.map((clip, index) => {
-      const existing = clipFileByBuffer.get(clip.buffer);
-      if (existing) return existing;
-      const clipPath = path.join(
-        temporaryDirectory,
-        `clip-${String(index).padStart(2, "0")}.mp4`,
-      );
-      const written = writeFile(clipPath, clip.buffer).then(() => clipPath);
-      clipFileByBuffer.set(clip.buffer, written);
-      return written;
-    }));
-    const overlayPaths = await Promise.all(args.overlays.map(async (buffer, index) => {
-      const overlayPath = path.join(temporaryDirectory, `overlay-${String(index).padStart(2, "0")}.png`);
-      await writeFile(overlayPath, buffer);
-      return overlayPath;
-    }));
+    const clipPaths = await Promise.all(
+      args.clips.map((clip, index) => {
+        const existing = clipFileByBuffer.get(clip.buffer);
+        if (existing) return existing;
+        const clipPath = path.join(
+          temporaryDirectory,
+          `clip-${String(index).padStart(2, "0")}.mp4`
+        );
+        const written = writeFile(clipPath, clip.buffer).then(() => clipPath);
+        clipFileByBuffer.set(clip.buffer, written);
+        return written;
+      })
+    );
+    const overlayPaths = await Promise.all(
+      args.overlays.map(async (buffer, index) => {
+        const overlayPath = path.join(
+          temporaryDirectory,
+          `overlay-${String(index).padStart(2, "0")}.png`
+        );
+        await writeFile(overlayPath, buffer);
+        return overlayPath;
+      })
+    );
     const ffmpegPath = await resolveVideoNormalizationFfmpegPath();
-    const probes = await Promise.all(clipPaths.map((inputPath) =>
-      probeVideoSource({ ffmpegPath, inputPath, timeoutMs: 60_000 }),
-    ));
+    const probes = await Promise.all(
+      clipPaths.map((inputPath) =>
+        probeVideoSource({ ffmpegPath, inputPath, timeoutMs: 60_000 })
+      )
+    );
     args.signal?.throwIfAborted();
-    if (probes.some((probe, index) =>
-      probe.durationSeconds <
-        (args.clips[index].sourceStartSeconds || 0) +
-          args.clips[index].durationSeconds -
-          0.35 ||
-      probe.orientedWidth < 320 ||
-      probe.orientedHeight < 320
-    )) {
+    if (
+      probes.some(
+        (probe, index) =>
+          probe.durationSeconds <
+            (args.clips[index].sourceStartSeconds || 0) +
+              args.clips[index].durationSeconds -
+              0.35 ||
+          probe.orientedWidth < 320 ||
+          probe.orientedHeight < 320
+      )
+    ) {
       throw new Error("ai_original_video_clip_contract_failed");
     }
     const nativeAudioMode = args.nativeAudioMode || "ambience";
@@ -301,16 +331,18 @@ export async function composeOriginalAiVideo(args: {
     if (nativeAudioMode === "dialogue" && !sourceHasNativeAudio) {
       throw new Error("ai_original_video_native_dialogue_missing");
     }
-    const hasNativeAudio =
-      nativeAudioMode !== "mute" && sourceHasNativeAudio;
+    const hasNativeAudio = nativeAudioMode !== "mute" && sourceHasNativeAudio;
 
     const command = ["-hide_banner", "-nostdin", "-y"];
     for (const clipPath of clipPaths) command.push("-i", clipPath);
     for (const overlayPath of overlayPaths) {
       command.push("-loop", "1", "-framerate", "30", "-i", overlayPath);
     }
-    const soundtrackInputIndex = args.soundtrack ? clipPaths.length + overlayPaths.length : null;
-    if (args.soundtrack) command.push("-stream_loop", "-1", "-i", args.soundtrack.absolutePath);
+    const soundtrackInputIndex = args.soundtrack
+      ? clipPaths.length + overlayPaths.length
+      : null;
+    if (args.soundtrack)
+      command.push("-stream_loop", "-1", "-i", args.soundtrack.absolutePath);
     const narrationInputIndex = args.narration
       ? clipPaths.length + overlayPaths.length + (args.soundtrack ? 1 : 0)
       : null;
@@ -318,7 +350,7 @@ export async function composeOriginalAiVideo(args: {
     if (args.narration) {
       const narrationPath = path.join(
         temporaryDirectory,
-        `narration.${args.narration.extension}`,
+        `narration.${args.narration.extension}`
       );
       await writeFile(narrationPath, args.narration.buffer);
       narrationDurationSeconds = await probeNarrationDurationSeconds({
@@ -334,7 +366,7 @@ export async function composeOriginalAiVideo(args: {
       buildFilter({
         clipDurations: args.clips.map((clip) => clip.durationSeconds),
         clipSourceStarts: args.clips.map(
-          (clip) => clip.sourceStartSeconds || 0,
+          (clip) => clip.sourceStartSeconds || 0
         ),
         width: args.width,
         height: args.height,
@@ -346,10 +378,12 @@ export async function composeOriginalAiVideo(args: {
         nativeAudioMode,
       }),
       "-map",
-      "[video]",
+      "[video]"
     );
     const hasOutputAudio =
-      hasNativeAudio || soundtrackInputIndex !== null || narrationInputIndex !== null;
+      hasNativeAudio ||
+      soundtrackInputIndex !== null ||
+      narrationInputIndex !== null;
     if (hasOutputAudio) command.push("-map", "[audio]");
     command.push(
       "-t",
@@ -371,7 +405,7 @@ export async function composeOriginalAiVideo(args: {
       "-pix_fmt",
       "yuv420p",
       "-r",
-      "30",
+      "30"
     );
     if (hasOutputAudio) {
       command.push("-c:a", "aac", "-b:a", "128k", "-ar", "48000", "-ac", "2");
@@ -385,7 +419,7 @@ export async function composeOriginalAiVideo(args: {
       "-1",
       "-metadata:s:v:0",
       "rotate=0",
-      outputPath,
+      outputPath
     );
 
     try {
@@ -400,15 +434,19 @@ export async function composeOriginalAiVideo(args: {
     }
 
     const [metadata, outputStats] = await Promise.all([
-      probeVideoSource({ ffmpegPath, inputPath: outputPath, timeoutMs: 60_000 }),
+      probeVideoSource({
+        ffmpegPath,
+        inputPath: outputPath,
+        timeoutMs: 60_000,
+      }),
       stat(outputPath),
     ]);
     args.signal?.throwIfAborted();
     const mp4Container = metadata.containerFormats.some((format) =>
-      ["mp4", "mov"].includes(String(format || "").toLowerCase()),
+      ["mp4", "mov"].includes(String(format || "").toLowerCase())
     );
     const h264Video = ["h264", "avc1"].includes(
-      String(metadata.videoCodec || "").toLowerCase(),
+      String(metadata.videoCodec || "").toLowerCase()
     );
     const yuv420Video = String(metadata.pixelFormat || "")
       .toLowerCase()
@@ -417,7 +455,9 @@ export async function composeOriginalAiVideo(args: {
       metadata.frameRate >= 29 && metadata.frameRate <= 31;
     const compatibleAudio = hasOutputAudio
       ? metadata.hasAudio &&
-        ["aac", "mp4a"].includes(String(metadata.audioCodec || "").toLowerCase())
+        ["aac", "mp4a"].includes(
+          String(metadata.audioCodec || "").toLowerCase()
+        )
       : !metadata.hasAudio;
     if (
       metadata.orientedWidth !== args.width ||
@@ -444,6 +484,8 @@ export async function composeOriginalAiVideo(args: {
       durationSeconds: args.durationSeconds,
     };
   } finally {
-    await rm(temporaryDirectory, { recursive: true, force: true }).catch(() => undefined);
+    await rm(temporaryDirectory, { recursive: true, force: true }).catch(
+      () => undefined
+    );
   }
 }

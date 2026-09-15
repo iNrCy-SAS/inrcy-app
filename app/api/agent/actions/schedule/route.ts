@@ -165,6 +165,14 @@ function publicationPayloadForChannels(
   channels: BoosterChannel[],
 ): JsonRecord {
   const publishPayload = asRecord(payload.publishPayload) || {};
+  const filteredVideoByChannel = filterRecordByChannels(
+    publishPayload.videoByChannel,
+    channels,
+  );
+  const channelSpecificVideo =
+    channels.length === 1
+      ? asRecord(filteredVideoByChannel[channels[0]])
+      : null;
   const nextPublishPayload: JsonRecord = {
     ...publishPayload,
     channels,
@@ -193,6 +201,10 @@ function publicationPayloadForChannels(
       publishPayload.imagesByChannel,
       channels,
     ),
+    videoByChannel: filteredVideoByChannel,
+    ...(channelSpecificVideo && Object.keys(channelSpecificVideo).length
+      ? { video: channelSpecificVideo }
+      : {}),
   };
   if (!channels.includes("instagram")) {
     delete nextPublishPayload.instagramPublicationSettings;
@@ -691,6 +703,7 @@ async function buildScheduledPayload(
   action: ReturnType<typeof rowToInrAgentAction>,
 ) {
   const payload = action.payload || {};
+  const nestedPublishPayload = asRecord(payload.publishPayload) || {};
 
   if (isCampaignAgentAction(action)) {
     const accountId = cleanText(
@@ -785,6 +798,28 @@ async function buildScheduledPayload(
       : hasImagePayload
         ? "images"
         : "none";
+    const sourceMediaModeByChannel = asRecord(
+      payload.mediaModeByChannel || nestedPublishPayload.mediaModeByChannel,
+    ) || {};
+    const sourceImagesByChannel = asRecord(
+      payload.imagesByChannel || nestedPublishPayload.imagesByChannel,
+    ) || {};
+    const sourceVideoByChannel = asRecord(
+      payload.videoByChannel || nestedPublishPayload.videoByChannel,
+    ) || {};
+    const channelMediaMode = (channel: BoosterChannel) => {
+      const configured = cleanText(sourceMediaModeByChannel[channel], 20).toLowerCase();
+      return configured === "video" || configured === "images" || configured === "none"
+        ? configured
+        : activeMediaMode;
+    };
+    const channelHasImages = (channel: BoosterChannel) =>
+      (Array.isArray(sourceImagesByChannel[channel]) &&
+        sourceImagesByChannel[channel].length > 0) ||
+      hasImagePayload;
+    const channelHasVideo = (channel: BoosterChannel) =>
+      Object.keys(asRecord(sourceVideoByChannel[channel]) || {}).length > 0 ||
+      hasVideoPayload;
     const instagramPublicationSettings = selectedChannels.includes("instagram")
       ? publicationSettingsForInrAgentChannel(payload, "instagram")
       : null;
@@ -795,13 +830,15 @@ async function buildScheduledPayload(
       ? readInrAgentPinterestBoardSelection(payload)
       : null;
     const publishChannels = selectedChannels.filter((channel) => {
-      if (activeMediaMode === "video") return true;
+      const mode = channelMediaMode(channel);
+      const hasChannelImagePayload = channelHasImages(channel);
+      if (mode === "video") return channelHasVideo(channel);
       if (isVideoOnlyChannel(channel)) return false;
       if (channel === "facebook" && facebookPublicationSettings) {
-        return hasImagePayload;
+        return hasChannelImagePayload;
       }
-      if (isImageRequiredChannel(channel)) return hasImagePayload;
-      return canPublishWithoutMedia(channel) || hasImagePayload;
+      if (isImageRequiredChannel(channel)) return hasChannelImagePayload;
+      return canPublishWithoutMedia(channel) || hasChannelImagePayload;
     });
     const blockedChannels = selectedChannels.filter(
       (channel) => !publishChannels.includes(channel),
@@ -835,7 +872,7 @@ async function buildScheduledPayload(
     );
 
     const mediaModeByChannel = Object.fromEntries(
-      publishChannels.map((channel) => [channel, activeMediaMode]),
+      publishChannels.map((channel) => [channel, channelMediaMode(channel)]),
     );
     const videoSettingsSource =
       (videoPayload as any)?.videoSettingsByChannel ||
@@ -881,6 +918,10 @@ async function buildScheduledPayload(
           videoSettingsByChannel,
           images: imagePayloads,
           imagesByChannel: preparedImages.imagesByChannel,
+          videoByChannel: filterRecordByChannels(
+            sourceVideoByChannel,
+            publishChannels,
+          ),
           imageSettingsByChannel: preparedImages.imageSettingsByChannel,
           imagePreparationWarnings: preparedImages.warnings,
           video: videoPayload,
@@ -1217,33 +1258,62 @@ async function scheduleAgentActionHandler(request: Request) {
         }, new Map<string, BoosterChannel[]>()),
       );
 
+      const scheduledPublishPayload = asRecord(
+        scheduledPayload.payload.publishPayload,
+      ) || {};
+      const scheduledMediaModes = asRecord(
+        scheduledPublishPayload.mediaModeByChannel,
+      ) || {};
+      const scheduledVideoByChannel = asRecord(
+        scheduledPublishPayload.videoByChannel,
+      ) || {};
+
       for (const [groupScheduledAt, groupChannels] of groupedSelections) {
-        normalizedScheduleSelections.push(
-          ...groupChannels.map((channel) => ({
-            channel,
-            scheduledAt: groupScheduledAt,
-          })),
-        );
-        rows.push(
-          scheduledActionToDbRow({
-            ...baseScheduleArgs,
-            ...(automaticExecution ? { id: action.id } : {}),
-            scheduledAt: groupScheduledAt,
-            title:
-              groupChannels.length > 1
-                ? `${baseScheduleArgs.title} · multicanal`
-                : baseScheduleArgs.title,
-            summary:
-              groupChannels.length > 1
-                ? `${baseScheduleArgs.summary} (${groupChannels.length} canaux).`
-                : baseScheduleArgs.summary,
-            channels: groupChannels,
-            payload: publicationPayloadForChannels(
-              scheduledPayload.payload,
-              groupChannels,
-            ),
-          }),
-        );
+        // Booster prépare une vidéo source par exécution. Une vidéo régénérée
+        // pour un seul canal doit donc devenir une ligne autonome : les autres
+        // canaux gardent exactement leur média, à la même date, sans mélange.
+        const channelGroups: BoosterChannel[][] = [];
+        const sharedChannels: BoosterChannel[] = [];
+        groupChannels.forEach((channel) => {
+          const hasDedicatedVideo =
+            cleanText(scheduledMediaModes[channel], 20).toLowerCase() ===
+              "video" &&
+            Object.keys(asRecord(scheduledVideoByChannel[channel]) || {}).length > 0;
+          if (hasDedicatedVideo) channelGroups.push([channel]);
+          else sharedChannels.push(channel);
+        });
+        if (sharedChannels.length) channelGroups.push(sharedChannels);
+
+        for (const channelsForRow of channelGroups) {
+          normalizedScheduleSelections.push(
+            ...channelsForRow.map((channel) => ({
+              channel,
+              scheduledAt: groupScheduledAt,
+            })),
+          );
+          rows.push(
+            scheduledActionToDbRow({
+              ...baseScheduleArgs,
+              ...(automaticExecution && channelGroups.length === 1
+                ? { id: action.id }
+                : {}),
+              scheduledAt: groupScheduledAt,
+              title:
+                channelsForRow.length > 1
+                  ? `${baseScheduleArgs.title} · multicanal`
+                  : baseScheduleArgs.title,
+              summary:
+                channelsForRow.length > 1
+                  ? `${baseScheduleArgs.summary} (${channelsForRow.length} canaux).`
+                  : baseScheduleArgs.summary,
+              channels: channelsForRow,
+              payload: publicationPayloadForChannels(
+                scheduledPayload.payload,
+                channelsForRow,
+              ),
+            }),
+          );
+        }
       }
     } else {
       rows.push(

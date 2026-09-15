@@ -18,6 +18,7 @@ import { createAiMediaRequestFingerprint } from "@/lib/aiMediaGenerationQuotaPol
 import { generateAndSaveAiMedia } from "@/lib/aiMediaGenerationServer";
 import { AI_MEDIA_ADMIN_LIMIT_OVERRIDE } from "@/lib/aiMediaQuotaPresentation";
 import { getDashboardEditionForAccountId } from "@/lib/dashboardEditionServer";
+import { getAiMediaVideoEntitlement } from "@/lib/aiMediaVideoEntitlementServer";
 import type { InrAgentTheme } from "@/lib/inrAgentSettings";
 import type { AiMediaGeneratorPreferences } from "@/lib/aiMediaGenerationPreferences";
 import { resolveInrAgentMediaMix } from "@/lib/inrAgentMediaMix";
@@ -73,11 +74,22 @@ export async function generateInrAgentMedia(args: {
   variantSeed?: string;
 }): Promise<InrAgentGeneratedMediaResult> {
   const edition = await getDashboardEditionForAccountId(args.accountId);
+  const videoEntitlement =
+    args.kind === "video"
+      ? await getAiMediaVideoEntitlement({
+          accountId: args.accountId,
+          edition,
+        })
+      : null;
+  const videoMaxDurationSeconds = args.adminUnlimited
+    ? 24
+    : (videoEntitlement?.maxDurationSeconds ?? 8);
   const mediaMix = resolveInrAgentMediaMix({
     kind: args.kind,
     theme: args.theme,
     studioMediaPreferencePercent: args.studioMediaPreferencePercent ?? 0,
     studioPreferences: args.studioPreferences,
+    maxVideoDurationSeconds: videoMaxDurationSeconds,
     seed:
       args.variantSeed ||
       `${args.accountId}:${args.theme}:${args.kind}:${args.idea}`,
@@ -171,6 +183,7 @@ export async function generateInrAgentMedia(args: {
       jobId: reservation.jobId,
       edition,
       request,
+      videoMaxDurationSeconds,
     });
     mediaPersisted = true;
     await completeAiMediaGeneration({

@@ -35,6 +35,7 @@ function buildProfile(premiumEnabled: boolean): MediaDnaProfile {
       likedExample: "Une accroche sobre et utile.",
       likedExample2: "Un récit concret centré sur le client.",
       customInstructions: "Toujours citer la fabrication locale.",
+      forbiddenInstructions: "",
     },
     business: {
       companyName: "Atelier Boréal",
@@ -79,6 +80,7 @@ function buildProfile(premiumEnabled: boolean): MediaDnaProfile {
       recentNewsWindowStart: "2026-08-08T10:00:00.000Z",
       recentNewsWindowEnd: "2026-09-07T10:00:00.000Z",
       recentNewsSourceKeys: ["instagram"],
+      referenceDocuments: [],
       richText: {
         detailedDescription: "",
         offersAndArguments: "",

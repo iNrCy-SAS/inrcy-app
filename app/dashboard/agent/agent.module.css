@@ -525,6 +525,74 @@
     drop-shadow(0 0 24px rgba(96, 165, 250, 0.26));
 }
 
+.robotWorkingBadge {
+  position: absolute;
+  z-index: 5;
+  left: 50%;
+  bottom: 14px;
+  width: max-content;
+  max-width: calc(100% - 24px);
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 13px;
+  border: 1px solid rgba(125, 211, 252, 0.45);
+  border-radius: 999px;
+  color: #f8fbff;
+  background: linear-gradient(
+    135deg,
+    rgba(7, 27, 67, 0.96),
+    rgba(66, 28, 114, 0.95)
+  );
+  box-shadow: 0 12px 30px rgba(2, 6, 23, 0.42),
+    0 0 24px rgba(56, 189, 248, 0.28);
+  transform: translateX(-50%);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.robotWorkingBadge > span:last-child {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.robotWorkingBadge strong,
+.robotWorkingBadge small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.robotWorkingBadge strong {
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.01em;
+}
+
+.robotWorkingBadge small {
+  color: rgba(224, 242, 254, 0.78);
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.robotWorkingSpinner {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-top-color: #67e8f9;
+  border-right-color: #c084fc;
+  border-radius: 999px;
+  animation: agentWorkingSpin 0.72s linear infinite;
+}
+
+@keyframes agentWorkingSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .starOne,
 .starTwo,
 .starThree {
@@ -3392,6 +3460,133 @@
   flex-direction: column;
 }
 
+.settingsPublishTabs {
+  display: inline-flex;
+  align-self: flex-start;
+  gap: 5px;
+  margin: 0 0 12px;
+  padding: 4px;
+  border: 1px solid rgba(148, 163, 255, 0.22);
+  border-radius: 999px;
+  background: rgba(2, 8, 23, 0.54);
+}
+
+.settingsPublishTabs button {
+  min-height: 34px;
+  padding: 0 18px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: rgba(226, 242, 255, 0.68);
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.settingsPublishTabs button[data-active="true"] {
+  color: #fff;
+  border-color: rgba(103, 232, 249, 0.38);
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.32), rgba(168, 85, 247, 0.32));
+  box-shadow: 0 7px 22px rgba(59, 130, 246, 0.16);
+}
+
+.publicationIdeasPanel {
+  min-height: 0;
+  overflow: auto;
+  padding: 4px 4px 4px 0;
+}
+
+.publicationIdeasPanel > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.publicationIdeasPanel h3,
+.publicationIdeasPanel p {
+  margin: 0;
+}
+
+.publicationIdeasPanel h3 {
+  color: #f8fbff;
+  font-size: 18px;
+}
+
+.publicationIdeasPanel header p,
+.publicationIdeasHint {
+  margin-top: 4px;
+  color: rgba(226, 242, 255, 0.64);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.publicationIdeasPanel > header > span {
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  border: 1px solid rgba(103, 232, 249, 0.26);
+  border-radius: 999px;
+  color: #a5f3fc;
+  background: rgba(8, 145, 178, 0.12);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.publicationIdeasGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.publicationIdeasGrid label {
+  display: grid;
+  gap: 7px;
+  padding: 11px;
+  border: 1px solid rgba(148, 163, 255, 0.2);
+  border-radius: 15px;
+  background: radial-gradient(circle at 100% 0%, rgba(168, 85, 247, 0.12), transparent 38%), rgba(255, 255, 255, 0.045);
+}
+
+.publicationIdeasGrid label > span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: rgba(238, 246, 255, 0.9);
+  font-size: 12px;
+}
+
+.publicationIdeasGrid label small {
+  color: rgba(226, 242, 255, 0.48);
+  font-weight: 750;
+}
+
+.publicationIdeasGrid textarea {
+  width: 100%;
+  min-height: 94px;
+  resize: vertical;
+  padding: 10px 11px;
+  border: 1px solid rgba(148, 163, 255, 0.2);
+  border-radius: 12px;
+  outline: none;
+  color: #f8fbff;
+  background: rgba(2, 8, 23, 0.62);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.publicationIdeasGrid textarea:focus {
+  border-color: rgba(103, 232, 249, 0.58);
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+}
+
+.publicationIdeasHint {
+  margin-top: 10px !important;
+}
+
 .settingsModalLayout {
   min-width: 0;
   display: grid;
@@ -3810,6 +4005,19 @@
 }
 
 @media (max-width: 680px) {
+  .settingsPublishTabs {
+    width: 100%;
+  }
+
+  .settingsPublishTabs button {
+    flex: 1 1 50%;
+    padding-inline: 10px;
+  }
+
+  .publicationIdeasGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .settingsModalHeader {
     align-items: flex-start;
     gap: 10px;
@@ -5802,6 +6010,70 @@ button.campaignInfoCard:hover {
   border-color: rgba(125, 211, 252, 0.42);
   box-shadow: inset 0 0 30px rgba(255, 255, 255, 0.035),
     0 0 24px rgba(59, 130, 246, 0.16), 0 14px 30px rgba(0, 0, 0, 0.18);
+}
+
+.publishInfoActionShell {
+  position: relative;
+  min-width: 0;
+  min-height: clamp(74px, 8vh, 92px);
+  display: flex;
+}
+
+.publishInfoActionShell > .campaignInfoCard {
+  width: 100%;
+  height: 100%;
+}
+
+.publishInfoCardWithAction {
+  padding-right: 58px;
+}
+
+.publishRegenerateButton {
+  position: absolute;
+  z-index: 3;
+  top: 50%;
+  right: 12px;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(186, 230, 253, 0.38);
+  border-radius: 12px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #168ed0, #7c3aed 58%, #d946ef);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 7px 18px rgba(76, 29, 149, 0.32),
+    0 0 17px rgba(56, 189, 248, 0.2);
+  transform: translateY(-50%);
+  cursor: pointer;
+  transition: transform 0.16s ease, filter 0.16s ease, opacity 0.16s ease;
+}
+
+.publishRegenerateButton:hover:not(:disabled) {
+  filter: brightness(1.14) saturate(1.08);
+  transform: translateY(-50%) scale(1.06);
+}
+
+.publishRegenerateButton:focus-visible {
+  outline: 2px solid #67e8f9;
+  outline-offset: 2px;
+}
+
+.publishRegenerateButton:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.publishRegenerateButton span {
+  display: block;
+  font-size: 24px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.publishRegenerateButton[data-busy="true"] span {
+  animation: agentWorkingSpin 0.72s linear infinite;
 }
 
 .campaignInfoIcon {
@@ -13804,6 +14076,11 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 @media (prefers-reduced-motion: reduce) {
   .robotCard {
     transition: none !important;
+  }
+
+  .robotWorkingSpinner,
+  .publishRegenerateButton[data-busy="true"] span {
+    animation: none !important;
   }
 }
 

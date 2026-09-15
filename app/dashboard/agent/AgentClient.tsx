@@ -150,6 +150,8 @@ import {
 import {
   INR_AGENT_STUDIO_MEDIA_PREFERENCE_DEFAULT,
   INR_AGENT_STUDIO_MEDIA_PREFERENCE_STEPS,
+  INR_AGENT_PUBLICATION_IDEA_MAX_ITEMS,
+  INR_AGENT_PUBLICATION_IDEA_MAX_LENGTH,
   normalizeInrAgentStudioMediaPreferencePercent,
   sanitizeInrAgentSettings,
   type InrAgentSettings,
@@ -533,6 +535,9 @@ export default function AgentClient() {
     y: number;
   } | null>(null);
   const [settingsKey, setSettingsKey] = useState<AutomationKey | null>(null);
+  const [settingsPublishTab, setSettingsPublishTab] = useState<
+    "settings" | "ideas"
+  >("settings");
   const [agentConfirmDialog, setAgentConfirmDialog] =
     useState<AgentConfirmDialogState>(null);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -708,6 +713,10 @@ export default function AgentClient() {
   const [publishChannelRemoveState, setPublishChannelRemoveState] = useState<
     "idle" | "removing"
   >("idle");
+  const [publishRegeneration, setPublishRegeneration] = useState<{
+    kind: "content" | "media";
+    channel: ChannelKey;
+  } | null>(null);
 
   const {
     publishBodyEditorRef,
@@ -1047,6 +1056,10 @@ export default function AgentClient() {
         : [],
     [agentConnectedChannels, settingsAutomation],
   );
+
+  useEffect(() => {
+    setSettingsPublishTab("settings");
+  }, [settingsKey]);
   const settingsDisplayedChannels = useMemo(
     () => settingsAutomation?.availableChannels ?? [],
     [settingsAutomation],
@@ -4457,6 +4470,115 @@ export default function AgentClient() {
     showNotice,
   });
 
+  async function performPublishChannelRegeneration(
+    kind: "content" | "media",
+    channel: ChannelKey,
+  ) {
+    if (
+      !selectedPreparedAction ||
+      scheduledEditSession ||
+      publishRegeneration ||
+      actionMutationState === "saving"
+    ) {
+      return;
+    }
+
+    setNotice(null);
+    setPublishRegeneration({ kind, channel });
+    try {
+      const response = await fetch("/api/agent/actions/regenerate-channel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          actionId: selectedPreparedAction.id,
+          channel: boosterChannelKeyFromAgentChannel(channel),
+          kind,
+        }),
+      });
+      const payload = (await response.json().catch(() => null)) as {
+        action?: AgentPreparedAction;
+        error?: string;
+      } | null;
+      if (!response.ok || !payload?.action) {
+        throw new Error(payload?.error || i18nT("regenerate_failed"));
+      }
+
+      const updatedAction = payload.action;
+      setActions((current) =>
+        current.map((action) =>
+          action.id === updatedAction.id ? updatedAction : action,
+        ),
+      );
+      if (kind === "media") setPublishMediaActiveIndex(0);
+      showNotice(
+        i18nT(
+          kind === "content"
+            ? "regenerate_content_success"
+            : "regenerate_media_success",
+          { channel: agentChannelLabel(channel, runtimeT) },
+        ),
+      );
+    } catch (error) {
+      showNotice(
+        error instanceof Error && error.message
+          ? error.message
+          : i18nT("regenerate_failed"),
+      );
+    } finally {
+      setPublishRegeneration(null);
+    }
+  }
+
+  function requestPublishChannelRegeneration(kind: "content" | "media") {
+    if (
+      !selectedPreparedAction ||
+      !activePreviewChannel ||
+      !canReviewSelectedAction ||
+      scheduledEditSession ||
+      publishRegeneration ||
+      (kind === "content" && publishMediaOnly)
+    ) {
+      return;
+    }
+    const channel = activePreviewChannel;
+    const channelLabel = agentChannelLabel(channel, runtimeT);
+    openAgentConfirmDialog({
+      title: i18nT("regenerate_confirm_title", { channel: channelLabel }),
+      message: i18nT(
+        kind === "content"
+          ? "regenerate_content_confirm"
+          : "regenerate_media_confirm",
+        { channel: channelLabel },
+      ),
+      confirmLabel: i18nT(
+        kind === "content" ? "regenerate_content" : "regenerate_media",
+      ),
+      cancelLabel: i18nT("annuler_49ba3292"),
+      tone: "warning",
+      onConfirm: () => performPublishChannelRegeneration(kind, channel),
+    });
+  }
+
+  const agentWorking =
+    saveState === "saving" ||
+    publishSaveState === "saving" ||
+    prepareActionState === "saving" ||
+    Boolean(testNowKey) ||
+    actionMutationState === "saving" ||
+    Boolean(publishRegeneration);
+  const agentWorkingLabel = publishRegeneration
+    ? i18nT(
+        publishRegeneration.kind === "content"
+          ? "agent_working_regenerating_content"
+          : "agent_working_regenerating_media",
+        { channel: agentChannelLabel(publishRegeneration.channel, runtimeT) },
+      )
+    : prepareActionState === "saving" || Boolean(testNowKey)
+      ? i18nT("agent_working_preparing")
+      : actionMutationState === "saving"
+        ? i18nT("agent_working_updating")
+        : i18nT("agent_working_saving");
+
   return (
     <main className={styles.agentPage}>
       <AgentFeedbackModals
@@ -4815,7 +4937,7 @@ export default function AgentClient() {
               </div>
             ) : (
               <>
-                <div className={styles.robotHalo} aria-hidden>
+                <div className={styles.robotHalo}>
                   <span className={styles.starOne} />
                   <span className={styles.starTwo} />
                   <span className={styles.starThree} />
@@ -4834,6 +4956,19 @@ export default function AgentClient() {
                     decoding="sync"
                     fetchPriority="high"
                   />
+                  {agentWorking ? (
+                    <div
+                      className={styles.robotWorkingBadge}
+                      role="status"
+                      aria-live="polite"
+                    >
+                      <span className={styles.robotWorkingSpinner} aria-hidden />
+                      <span>
+                        <strong>{i18nT("agent_working_title")}</strong>
+                        <small>{agentWorkingLabel}</small>
+                      </span>
+                    </div>
+                  ) : null}
                 </div>
 
               </>
@@ -5240,99 +5375,134 @@ export default function AgentClient() {
                           ) : null}
                         </span>
                       </article>
-                      <button
-                        type="button"
-                        className={`${styles.campaignInfoCard} ${styles.publishInfoFormat}`}
-                        onClick={openPublishTextEditor}
-                        disabled={
-                          !selectedPreparedAction ||
-                          publishMediaOnly ||
-                          !canReviewSelectedAction ||
-                          actionMutationState === "saving"
-                        }
-                        title={
-                          selectedPreparedAction
-                            ? publishMediaOnly
-                              ? i18nT("publication_mode_media_only_help")
-                              : i18nT("edit_content")
-                            : i18nT("no_publication_prepared")
-                        }
-                      >
-                        <span className={styles.campaignInfoIcon} aria-hidden>
-                          <ImageMetaIcon />
-                        </span>
-                        <span>
-                          <small>{i18nT("contenu_f3cb82af")}</small>
-                          <strong>
-                            {publishMediaOnly
-                              ? i18nT("publication_mode_media_only")
-                              : publishContentKind}
-                          </strong>
-                        </span>
-                        <span className={styles.campaignInfoEye} aria-hidden>
-                          👁
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        className={`${styles.campaignInfoCard} ${styles.publishInfoAttachment}`}
-                        onClick={openPublishMediaEditor}
-                        disabled={
-                          !selectedPreparedAction ||
-                          !canReviewSelectedAction ||
-                          actionMutationState === "saving"
-                        }
-                        title={
-                          selectedPreparedAction
-                            ? i18nT("manage_media")
-                            : i18nT("no_publication_prepared")
-                        }
-                      >
-                        {publishMediaPreview?.items.length ? (
-                          <span
-                            className={styles.publishMediaInfoThumbs}
-                            aria-hidden="true"
-                          >
-                            {publishMediaPreview.items
-                              .slice(0, 3)
-                              .map((media, index) => (
-                                <span
-                                  key={`${media.url}-${index}`}
-                                  className={styles.publishMediaInfoThumb}
-                                >
-                                  {media.kind === "video" ? (
-                                    <video
-                                      src={media.url}
-                                      muted
-                                      playsInline
-                                      preload="metadata"
-                                    />
-                                  ) : (
-                                    <img src={media.url} alt="" />
-                                  )}
-                                </span>
-                              ))}
-                            {publishMediaPreview.items.length > 3 ? (
-                              <em>+{publishMediaPreview.items.length - 3}</em>
-                            ) : null}
-                          </span>
-                        ) : (
+                      <div className={styles.publishInfoActionShell}>
+                        <button
+                          type="button"
+                          className={`${styles.campaignInfoCard} ${styles.publishInfoFormat} ${styles.publishInfoCardWithAction}`}
+                          onClick={openPublishTextEditor}
+                          disabled={
+                            !selectedPreparedAction ||
+                            publishMediaOnly ||
+                            !canReviewSelectedAction ||
+                            actionMutationState === "saving"
+                          }
+                          title={
+                            selectedPreparedAction
+                              ? publishMediaOnly
+                                ? i18nT("publication_mode_media_only_help")
+                                : i18nT("edit_content")
+                              : i18nT("no_publication_prepared")
+                          }
+                        >
                           <span className={styles.campaignInfoIcon} aria-hidden>
                             <ImageMetaIcon />
                           </span>
-                        )}
-                        <span className={styles.publishMediaInfoText}>
-                          <small>{i18nT("media_d8a313d3")}</small>
-                          <strong>
-                            {publishMediaPreview?.count
-                              ? publishMediaPreview.typeLabel
-                              : i18nT("aucun_b2ed82f1")}
-                          </strong>
-                        </span>
-                        <span className={styles.campaignInfoEye} aria-hidden>
-                          👁
-                        </span>
-                      </button>
+                          <span>
+                            <small>{i18nT("contenu_f3cb82af")}</small>
+                            <strong>
+                              {publishMediaOnly
+                                ? i18nT("publication_mode_media_only")
+                                : publishContentKind}
+                            </strong>
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          className={styles.publishRegenerateButton}
+                          onClick={() => requestPublishChannelRegeneration("content")}
+                          disabled={
+                            !selectedPreparedAction ||
+                            publishMediaOnly ||
+                            !canReviewSelectedAction ||
+                            Boolean(scheduledEditSession) ||
+                            actionMutationState === "saving" ||
+                            Boolean(publishRegeneration)
+                          }
+                          aria-label={i18nT("regenerate_content")}
+                          title={i18nT("regenerate_content")}
+                          aria-busy={publishRegeneration?.kind === "content"}
+                          data-busy={publishRegeneration?.kind === "content"}
+                        >
+                          <span aria-hidden>↻</span>
+                        </button>
+                      </div>
+                      <div className={styles.publishInfoActionShell}>
+                        <button
+                          type="button"
+                          className={`${styles.campaignInfoCard} ${styles.publishInfoAttachment} ${styles.publishInfoCardWithAction}`}
+                          onClick={openPublishMediaEditor}
+                          disabled={
+                            !selectedPreparedAction ||
+                            !canReviewSelectedAction ||
+                            actionMutationState === "saving"
+                          }
+                          title={
+                            selectedPreparedAction
+                              ? i18nT("manage_media")
+                              : i18nT("no_publication_prepared")
+                          }
+                        >
+                          {publishMediaPreview?.items.length ? (
+                            <span
+                              className={styles.publishMediaInfoThumbs}
+                              aria-hidden="true"
+                            >
+                              {publishMediaPreview.items
+                                .slice(0, 3)
+                                .map((media, index) => (
+                                  <span
+                                    key={`${media.url}-${index}`}
+                                    className={styles.publishMediaInfoThumb}
+                                  >
+                                    {media.kind === "video" ? (
+                                      <video
+                                        src={media.url}
+                                        muted
+                                        playsInline
+                                        preload="metadata"
+                                      />
+                                    ) : (
+                                      <img src={media.url} alt="" />
+                                    )}
+                                  </span>
+                                ))}
+                              {publishMediaPreview.items.length > 3 ? (
+                                <em>+{publishMediaPreview.items.length - 3}</em>
+                              ) : null}
+                            </span>
+                          ) : (
+                            <span className={styles.campaignInfoIcon} aria-hidden>
+                              <ImageMetaIcon />
+                            </span>
+                          )}
+                          <span className={styles.publishMediaInfoText}>
+                            <small>{i18nT("media_d8a313d3")}</small>
+                            <strong>
+                              {publishMediaPreview?.count
+                                ? publishMediaPreview.typeLabel
+                                : i18nT("aucun_b2ed82f1")}
+                            </strong>
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          className={styles.publishRegenerateButton}
+                          onClick={() => requestPublishChannelRegeneration("media")}
+                          disabled={
+                            !selectedPreparedAction ||
+                            !canReviewSelectedAction ||
+                            Boolean(scheduledEditSession) ||
+                            actionMutationState === "saving" ||
+                            Boolean(publishRegeneration)
+                          }
+                          aria-label={i18nT("regenerate_media")}
+                          title={i18nT("regenerate_media")}
+                          aria-busy={publishRegeneration?.kind === "media"}
+                          data-busy={publishRegeneration?.kind === "media"}
+                        >
+                          <span aria-hidden>↻</span>
+                        </button>
+                      </div>
                       <article
                         className={`${styles.campaignInfoCard} ${styles.publishInfoStatus}`}
                         data-validation-state={selectedPublicationValidationState}
@@ -7438,7 +7608,38 @@ export default function AgentClient() {
               </div>
             </header>
 
-            <div className={styles.settingsModalLayout}>
+            {settingsAutomation.key === "publish" ? (
+              <nav
+                className={styles.settingsPublishTabs}
+                aria-label={i18nT("publish_settings_tabs_aria")}
+              >
+                <button
+                  type="button"
+                  data-active={settingsPublishTab === "settings"}
+                  onClick={() => setSettingsPublishTab("settings")}
+                >
+                  {i18nT("publish_settings_tab_settings")}
+                </button>
+                <button
+                  type="button"
+                  data-active={settingsPublishTab === "ideas"}
+                  onClick={() => setSettingsPublishTab("ideas")}
+                >
+                  {i18nT("publish_settings_tab_ideas")}
+                </button>
+              </nav>
+            ) : null}
+
+            <div
+              className={styles.settingsModalLayout}
+              style={{
+                display:
+                  settingsAutomation.key === "publish" &&
+                  settingsPublishTab === "ideas"
+                    ? "none"
+                    : undefined,
+              }}
+            >
               <div
                 className={`${styles.modalGrid} ${styles.settingsScheduleGrid}`}
               >
@@ -8014,6 +8215,69 @@ export default function AgentClient() {
                 )}
               </div>
             </div>
+
+            {settingsAutomation.key === "publish" &&
+            settingsPublishTab === "ideas" ? (
+              <section className={styles.publicationIdeasPanel}>
+                <header>
+                  <div>
+                    <h3>{i18nT("publication_ideas_title")}</h3>
+                    <p>{i18nT("publication_ideas_description")}</p>
+                  </div>
+                  <span>
+                    {
+                      settingsConfig.publicationIdeas.filter((idea) =>
+                        idea.trim(),
+                      ).length
+                    }
+                    /{INR_AGENT_PUBLICATION_IDEA_MAX_ITEMS}
+                  </span>
+                </header>
+                <div className={styles.publicationIdeasGrid}>
+                  {Array.from(
+                    { length: INR_AGENT_PUBLICATION_IDEA_MAX_ITEMS },
+                    (_, index) => {
+                      const value = settingsConfig.publicationIdeas[index] || "";
+                      return (
+                        <label key={`publication-idea-${index}`}>
+                          <span>
+                            <strong>
+                              {i18nT("publication_idea_label", {
+                                number: index + 1,
+                              })}
+                            </strong>
+                            <small>
+                              {value.length}/{INR_AGENT_PUBLICATION_IDEA_MAX_LENGTH}
+                            </small>
+                          </span>
+                          <textarea
+                            value={value}
+                            maxLength={INR_AGENT_PUBLICATION_IDEA_MAX_LENGTH}
+                            rows={4}
+                            placeholder={i18nT("publication_idea_placeholder")}
+                            onChange={(event) => {
+                              const publicationIdeas = Array.from(
+                                { length: INR_AGENT_PUBLICATION_IDEA_MAX_ITEMS },
+                                (_, ideaIndex) =>
+                                  settingsConfig.publicationIdeas[ideaIndex] || "",
+                              );
+                              publicationIdeas[index] = event.target.value.slice(
+                                0,
+                                INR_AGENT_PUBLICATION_IDEA_MAX_LENGTH,
+                              );
+                              updateConfig("publish", { publicationIdeas });
+                            }}
+                          />
+                        </label>
+                      );
+                    },
+                  )}
+                </div>
+                <p className={styles.publicationIdeasHint}>
+                  {i18nT("publication_ideas_hint")}
+                </p>
+              </section>
+            ) : null}
 
             <footer className={styles.settingsModalFooter}>
               <p className={styles.modalNote}>

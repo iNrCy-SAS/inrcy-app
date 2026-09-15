@@ -22,7 +22,7 @@ type BuildAttachmentAiContextOptions = {
   maxCharsPerFile?: number;
 };
 
-type AttachmentExtract = {
+export type AttachmentExtract = {
   name: string;
   mimeType: string;
   size: number | null;
@@ -492,6 +492,36 @@ async function analyseOneAttachment(
     console.error("Attachment AI analysis failed", { name, path: ref.path, error });
     return { name, mimeType, size: declaredSize, status: "error", text: "", note: "analyse indisponible" };
   }
+}
+
+/**
+ * Analyse un document durable fourni dans iNrADN. Le fichier reste privé dans
+ * Supabase Storage ; seul cet extrait borné est conservé dans la mémoire ADN
+ * et transmis aux générateurs de contenus.
+ */
+export async function analyseAiMemoryReferenceDocument(
+  supabase: any,
+  ref: MailAttachmentRef,
+  options: {
+    userId: string;
+    engine: AiPreferredEngine;
+    maxFileBytes?: number;
+    maxCharsPerFile?: number;
+  },
+): Promise<AttachmentExtract> {
+  return await analyseOneAttachment(
+    supabase,
+    ref,
+    {
+      userId: options.userId,
+      engine: options.engine,
+      maxFiles: 1,
+      maxFileBytes: options.maxFileBytes ?? DEFAULT_MAX_FILE_BYTES,
+      maxTotalChars: options.maxCharsPerFile ?? DEFAULT_MAX_CHARS_PER_FILE,
+      maxCharsPerFile: options.maxCharsPerFile ?? DEFAULT_MAX_CHARS_PER_FILE,
+    },
+    { used: 0 },
+  );
 }
 
 export async function buildMailAttachmentAiPromptSection(

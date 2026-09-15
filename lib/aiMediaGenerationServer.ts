@@ -2,12 +2,11 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 
-import {
-  buildNormalizedAiGenerationProfile,
-} from "@/lib/aiGenerationProfile";
+import { buildNormalizedAiGenerationProfile } from "@/lib/aiGenerationProfile";
 import { buildAiMediaVideoDnaBrief } from "@/lib/aiMediaBusinessDna";
 import { loadAiMediaBrandKit } from "@/lib/aiMediaBrandKit";
 import {
+  composeAiMediaBrandedImage,
   renderAiMediaVideoOverlay,
 } from "@/lib/aiMediaBrandRenderer";
 import { composeAiMediaContactImage } from "@/lib/aiMediaImageContactComposer";
@@ -80,8 +79,14 @@ import {
   type AiVideoProviderResult,
 } from "@/lib/aiVideoProviderTypes";
 import type { DashboardEdition } from "@/lib/dashboardEdition";
+import {
+  getAiMediaVideoMaxDuration,
+  type AiMediaVideoDurationLimit,
+} from "@/lib/aiMediaGenerationQuotaPolicy";
 
-type SupabaseLike = Parameters<typeof getBoosterGenerationContext>[0]["supabase"];
+type SupabaseLike = Parameters<
+  typeof getBoosterGenerationContext
+>[0]["supabase"];
 
 export type AiMediaGenerationServerResult = {
   item: AiMediaLibraryPickerItem;
@@ -170,18 +175,21 @@ function cleanProviderMetadata(gateway: AiMediaGatewayResult) {
         ? "authorized_identity_and_official_logo"
         : "authorized_identity_only"
       : hasGenericReferences
-        ? gateway.officialLogoIncluded
-          ? "generic_inspiration_and_official_logo"
-          : "generic_inspiration_only"
+      ? gateway.officialLogoIncluded
+        ? "generic_inspiration_and_official_logo"
+        : "generic_inspiration_only"
       : gateway.officialLogoIncluded
-        ? "official_logo_only"
-        : "none",
+      ? "official_logo_only"
+      : "none",
     warnings: gateway.warnings,
     usage: gateway.usage,
   };
 }
 
-const FREE_STYLE_PALETTES: Record<AiMediaVisualStyle, [string, string, string]> = {
+const FREE_STYLE_PALETTES: Record<
+  AiMediaVisualStyle,
+  [string, string, string]
+> = {
   brand: ["#2563eb", "#7c3aed", "#ec4899"],
   clean: ["#e2e8f0", "#94a3b8", "#0f172a"],
   premium: ["#111827", "#b8904f", "#f8fafc"],
@@ -203,6 +211,8 @@ export async function generateAndSaveAiMedia(args: {
   jobId: string;
   edition?: DashboardEdition;
   request: AiMediaGenerationRequest;
+  /** Autorisation résolue avant réservation, contrôlée une seconde fois ici. */
+  videoMaxDurationSeconds?: AiMediaVideoDurationLimit;
   signal?: AbortSignal;
 }): Promise<AiMediaGenerationServerResult> {
   const pipelineStartedAt = performance.now();
@@ -217,19 +227,29 @@ export async function generateAndSaveAiMedia(args: {
   };
 
   args.signal?.throwIfAborted();
+  if (args.request.kind === "video") {
+    const authorizedDuration =
+      args.videoMaxDurationSeconds ??
+      getAiMediaVideoMaxDuration(args.edition ?? "standard");
+    if ((args.request.durationSeconds || 16) > authorizedDuration) {
+      throw new AiMediaRequestValidationError(
+        `Cette génération vidéo dépasse la durée autorisée de ${authorizedDuration} secondes.`,
+      );
+    }
+  }
   const [existing, generationContext] = await Promise.all([
     measure("draft_lookup", () =>
       getExistingGeneratedAiMedia({
         accountId: args.accountId,
         jobId: args.jobId,
-      }),
+      })
     ),
     measure("business_context", () =>
       getBoosterGenerationContext({
         supabase: args.supabase,
         userId: args.accountId,
         edition: args.edition,
-      }),
+      })
     ),
   ]);
   if (existing) {
@@ -251,7 +271,7 @@ export async function generateAndSaveAiMedia(args: {
   try {
     preparedIdentityReferences = await measure(
       "identity_reference_normalization",
-      () => prepareAiMediaIdentityReferences(args.request.inspirationImages),
+      () => prepareAiMediaIdentityReferences(args.request.inspirationImages)
     );
   } catch (error) {
     if (error instanceof AiMediaIdentityReferenceValidationError) {
@@ -271,7 +291,7 @@ export async function generateAndSaveAiMedia(args: {
     loadAiMediaBrandKit({
       accountId: args.accountId,
       profile: generationContext.profile,
-    }),
+    })
   );
   const profile = buildNormalizedAiGenerationProfile({
     profile: generationContext.profile,
@@ -293,11 +313,14 @@ export async function generateAndSaveAiMedia(args: {
   const profilePhone = profilePhoneDisplayRequested
     ? cleanAiMediaProfilePhone(profile.business.phone)
     : "";
-  // Lorsqu'un téléphone est demandé, le moteur crée uniquement le fond. Le
-  // texte, le logo et le numéro exact sont composés localement : aucune donnée
-  // de contact n'est transmise au fournisseur et aucun chiffre ne peut être
-  // halluciné dans le rendu final.
+  // Dès qu'un texte doit apparaître sur une image, le moteur crée uniquement
+  // le fond. iNrCy compose ensuite localement les lettres et le logo exacts :
+  // aucune accroche ne peut être redessinée, mal orthographiée ou tronquée par
+  // le fournisseur. Le téléphone conserve sa composition dédiée.
   const useExactContactComposition = profilePhoneDisplayRequested;
+  const useDeterministicImageComposition =
+    providerRequest.kind === "image" &&
+    (providerRequest.withText || useExactContactComposition);
   const initialCreativePlan = buildAiMediaCreativePlan({
     request: providerRequest,
     profile,
@@ -307,21 +330,22 @@ export async function generateAndSaveAiMedia(args: {
     providerRequest.withText ||
     (providerRequest.kind === "video" &&
       providerRequest.teamVideoSpeechMode === "characters")
-    ? measure("headline", () =>
-        writeAiMediaHeadline({
-          accountId: args.accountId,
-          request: providerRequest,
-          profile,
-          plan: initialCreativePlan,
-        }),
-      )
-    : Promise.resolve(initialCreativePlan);
+      ? measure("headline", () =>
+          writeAiMediaHeadline({
+            accountId: args.accountId,
+            request: providerRequest,
+            profile,
+            plan: initialCreativePlan,
+          })
+        )
+      : Promise.resolve(initialCreativePlan);
   const [brandKit, creativePlan] = await Promise.all([
     brandKitTask,
     creativePlanTask,
   ]);
   args.signal?.throwIfAborted();
-  const officialLogo = providerRequest.logoMode === "none" ? null : brandKit.logo;
+  const officialLogo =
+    providerRequest.logoMode === "none" ? null : brandKit.logo;
   const effectiveColors = providerRequest.useBrandColors
     ? brandKit.colors
     : FREE_STYLE_PALETTES[providerRequest.visualStyle];
@@ -330,14 +354,16 @@ export async function generateAndSaveAiMedia(args: {
     profile,
     recentPublications: generationContext.recentPublications,
     brandColors: providerRequest.useBrandColors ? brandKit.colors : [],
-    hasLogo: Boolean(officialLogo) && !useExactContactComposition,
-    deferVisibleElementsToComposer: useExactContactComposition,
+    hasLogo: Boolean(officialLogo) && !useDeterministicImageComposition,
+    deferVisibleElementsToComposer: useDeterministicImageComposition,
     copy: creativePlan,
   });
   const promptHash = promptSha256(prompt);
   const format = AI_MEDIA_FORMAT_SPECS[providerRequest.format];
   const localFallbackFrameTasks = new Map<string, Promise<Buffer>>();
-  const getLocalFallbackFrame = (includeLogo = providerRequest.kind === "image") => {
+  const getLocalFallbackFrame = (
+    includeLogo = providerRequest.kind === "image"
+  ) => {
     const cacheKey = includeLogo ? "with-logo" : "without-logo";
     const cached = localFallbackFrameTasks.get(cacheKey);
     if (cached) return cached;
@@ -399,16 +425,29 @@ export async function generateAndSaveAiMedia(args: {
           recentPublications: generationContext.recentPublications,
           brandColors: providerRequest.useBrandColors ? brandKit.colors : [],
           hasLogo: false,
-        })}\n\nIMAGE MAÎTRE ÉPHÉMÈRE POUR ANIMATION : réunir les ${preparedIdentityReferences.buffers.length} adultes autorisés dans une seule scène continue, plein cadre et cinématographique — jamais un collage, un écran partagé, des cartes portrait ni un diaporama. Image 1 = personne 1, image 2 = personne 2${preparedIdentityReferences.buffers.length === 3 ? ", image 3 = personne 3" : ""}. Chaque personne apparaît exactement une fois, reste distincte et reconnaissable ; aucune fusion, permutation, duplication, omission ni substitution générique. Garder tous les visages clairement visibles ainsi que suffisamment de corps et d’espace autour de chaque personne pour permettre regards, expressions, gestes, pas, interactions et mouvements de caméra naturels.${providerRequest.teamVideoSpeechMode === "characters" ? " Les disposer dans une interaction conversationnelle crédible, avec les bouches bien visibles pour permettre une future synchronisation labiale naturelle." : " Préserver des expressions naturelles sans posture de parole imposée."} Aucun texte ni logo.`
+        })}\n\nIMAGE MAÎTRE ÉPHÉMÈRE POUR ANIMATION : réunir les ${
+          preparedIdentityReferences.buffers.length
+        } adultes autorisés dans une seule scène continue, plein cadre et cinématographique — jamais un collage, un écran partagé, des cartes portrait ni un diaporama. Image 1 = personne 1, image 2 = personne 2${
+          preparedIdentityReferences.buffers.length === 3
+            ? ", image 3 = personne 3"
+            : ""
+        }. Chaque personne apparaît exactement une fois, reste distincte et reconnaissable ; aucune fusion, permutation, duplication, omission ni substitution générique. Garder tous les visages clairement visibles ainsi que suffisamment de corps et d’espace autour de chaque personne pour permettre regards, expressions, gestes, pas, interactions et mouvements de caméra naturels.${
+          providerRequest.teamVideoSpeechMode === "characters"
+            ? " Les disposer dans une interaction conversationnelle crédible, avec les bouches bien visibles pour permettre une future synchronisation labiale naturelle."
+            : " Préserver des expressions naturelles sans posture de parole imposée."
+        } Aucun texte ni logo.`
       : "";
 
   let normalized: NormalizedAiMedia;
-  let soundtrack: Awaited<ReturnType<typeof loadAiMediaSoundtrack>> | null = null;
+  let soundtrack: Awaited<ReturnType<typeof loadAiMediaSoundtrack>> | null =
+    null;
   let model = "";
   let providerMetadata: Record<string, unknown>;
-  let videoEngineResult: AiMediaGenerationServerResult["videoEngineResult"] = null;
+  let videoEngineResult: AiMediaGenerationServerResult["videoEngineResult"] =
+    null;
   let localFallbackUsed = false;
   let exactContactCompositionApplied = false;
+  let deterministicImageCompositionApplied = false;
   let teamPrecompositionGateway: AiMediaGatewayResult | null = null;
   let teamPrecompositionModel = "";
   let teamPrecompositionMetadata: Record<string, unknown> | null = null;
@@ -423,10 +462,10 @@ export async function generateAndSaveAiMedia(args: {
           prompt,
           identityMode: providerRequest.identityMode,
           identityReferences: preparedIdentityReferences.buffers,
-          officialLogo: useExactContactComposition ? null : officialLogo,
+          officialLogo: useDeterministicImageComposition ? null : officialLogo,
           size: format.generationSize,
           signal: args.signal,
-        }),
+        })
       );
     } catch (primaryError) {
       args.signal?.throwIfAborted();
@@ -449,10 +488,12 @@ export async function generateAndSaveAiMedia(args: {
             prompt,
             identityMode: providerRequest.identityMode,
             identityReferences: preparedIdentityReferences.buffers,
-            officialLogo: useExactContactComposition ? null : officialLogo,
+            officialLogo: useDeterministicImageComposition
+              ? null
+              : officialLogo,
             size: format.generationSize,
             signal: args.signal,
-          }),
+          })
         );
       } catch (fallbackError) {
         args.signal?.throwIfAborted();
@@ -464,10 +505,10 @@ export async function generateAndSaveAiMedia(args: {
         });
         throw new Error(
           preparedIdentityReferences.buffers.length &&
-            providerRequest.identityMode !== "auto"
+          providerRequest.identityMode !== "auto"
             ? "ai_image_identity_generation_unavailable"
             : "ai_image_generation_unavailable",
-          { cause: new AggregateError([primaryError, fallbackError]) },
+          { cause: new AggregateError([primaryError, fallbackError]) }
         );
       }
     }
@@ -480,7 +521,7 @@ export async function generateAndSaveAiMedia(args: {
         normalizeGeneratedAiImage(imageBuffer, {
           width: format.width,
           height: format.height,
-        }),
+        })
       );
     } catch (error) {
       args.signal?.throwIfAborted();
@@ -488,26 +529,60 @@ export async function generateAndSaveAiMedia(args: {
     }
     if (useExactContactComposition) {
       try {
-        const composedBuffer = await measure("image_exact_contact_composition", () =>
-          composeAiMediaContactImage({
-            input: normalized.buffer,
-            width: format.width,
-            height: format.height,
-            headline: providerRequest.withText ? creativePlan.headline : "",
-            phone: profilePhone,
-            officialLogo,
-            logoMode: providerRequest.logoMode,
-            brandColors: effectiveColors,
-          }),
+        const composedBuffer = await measure(
+          "image_exact_contact_composition",
+          () =>
+            composeAiMediaContactImage({
+              input: normalized.buffer,
+              width: format.width,
+              height: format.height,
+              headline: providerRequest.withText ? creativePlan.headline : "",
+              phone: profilePhone,
+              officialLogo,
+              logoMode: providerRequest.logoMode,
+              brandColors: effectiveColors,
+            })
         );
         normalized = { ...normalized, buffer: composedBuffer };
         exactContactCompositionApplied = true;
       } catch (error) {
         args.signal?.throwIfAborted();
-        throw new Error(
-          "ai_image_exact_contact_composition_failed",
-          { cause: error },
+        throw new Error("ai_image_exact_contact_composition_failed", {
+          cause: error,
+        });
+      }
+    } else if (providerRequest.withText) {
+      const imageScene = creativePlan.scenes[0];
+      if (!imageScene) throw new Error("ai_image_visible_copy_missing");
+      try {
+        const composedBuffer = await measure(
+          "image_exact_copy_composition",
+          () =>
+            composeAiMediaBrandedImage({
+              input: normalized.buffer,
+              width: format.width,
+              height: format.height,
+              scene: {
+                ...imageScene,
+                eyebrow: "",
+                title: creativePlan.headline,
+                body: "",
+              },
+              logo: officialLogo,
+              colors: effectiveColors,
+              companyName: creativePlan.companyName,
+              visualStyle: providerRequest.visualStyle,
+              logoMode: providerRequest.logoMode,
+              withText: true,
+            })
         );
+        normalized = { ...normalized, buffer: composedBuffer };
+        deterministicImageCompositionApplied = true;
+      } catch (error) {
+        args.signal?.throwIfAborted();
+        throw new Error("ai_image_exact_copy_composition_failed", {
+          cause: error,
+        });
       }
     }
     args.signal?.throwIfAborted();
@@ -520,9 +595,11 @@ export async function generateAndSaveAiMedia(args: {
     providerMetadata = {
       ...cleanGatewayMetadata,
       warnings: Array.from(
-        new Set([...cleanGatewayMetadata.warnings, ...contactWarnings]),
+        new Set([...cleanGatewayMetadata.warnings, ...contactWarnings])
       ),
       exact_contact_composition_applied: exactContactCompositionApplied,
+      deterministic_image_composition_applied:
+        deterministicImageCompositionApplied,
       profile_phone_requested: profilePhoneDisplayRequested,
       profile_phone_applied: Boolean(profilePhone),
     };
@@ -551,8 +628,8 @@ export async function generateAndSaveAiMedia(args: {
             withText: false,
             width: format.width,
             height: format.height,
-          }),
-        ),
+          })
+        )
       );
       return minimalOverlaysTask;
     };
@@ -570,7 +647,7 @@ export async function generateAndSaveAiMedia(args: {
     }) => {
       const failure = classifyVeoFailure(failureArgs.error);
       pipelineWarnings.push(
-        `video_engine_${failureArgs.engine}_failure_${failure.kind}`,
+        `video_engine_${failureArgs.engine}_failure_${failure.kind}`
       );
       // Ne jamais journaliser les prompts complets ni les images encodées. Ce
       // diagnostic court permet cependant de distinguer quota, sécurité,
@@ -589,7 +666,7 @@ export async function generateAndSaveAiMedia(args: {
     };
     const generateProviderVideo = async (
       request: AiMediaGenerationRequest,
-      overrides: Partial<VideoProviderOverrides> = {},
+      overrides: Partial<VideoProviderOverrides> = {}
     ): Promise<AiVideoProviderResult> => {
       const providerArgs: AiVideoProviderGenerationArgs = {
         accountId: args.accountId,
@@ -670,7 +747,7 @@ export async function generateAndSaveAiMedia(args: {
             new Set([
               ...motion.warnings,
               "identity_reference_local_motion_selected",
-            ]),
+            ])
           ),
         };
       }
@@ -689,7 +766,7 @@ export async function generateAndSaveAiMedia(args: {
                 officialLogo: null,
                 size: format.generationSize,
                 signal: args.signal,
-              }),
+              })
           );
           teamPrecompositionModel = teamPrecompositionGateway.model;
           teamPrecompositionMetadata = {
@@ -701,8 +778,8 @@ export async function generateAndSaveAiMedia(args: {
             "video_team_precomposition_normalization",
             () =>
               prepareReferenceTeamCompositionForAnimation(
-                teamPrecompositionGateway!.buffer,
-              ),
+                teamPrecompositionGateway!.buffer
+              )
           );
           if (
             providerRequest.teamVideoMode === "cinematic" &&
@@ -723,27 +800,27 @@ export async function generateAndSaveAiMedia(args: {
                 },
                 {
                   identityTeamPrecomposed: true,
-                  identityTeamMemberCount:
-                    preparedIdentityReferences.buffers.length as 2 | 3,
+                  identityTeamMemberCount: preparedIdentityReferences.buffers
+                    .length as 2 | 3,
                   identityTeamGoogleEgressConsent: true,
-                },
+                }
               );
             } catch {
               args.signal?.throwIfAborted();
               // Le rendu local clôt la même tentative sans nouvel appel
               // externe et sans rendre l'échec du provider visible au pro.
               pipelineWarnings.push(
-                "identity_team_cinematic_unavailable_local_motion",
+                "identity_team_cinematic_unavailable_local_motion"
               );
               if (providerRequest.teamVideoSpeechMode === "characters") {
                 pipelineWarnings.push(
-                  "identity_team_character_dialogue_unavailable_local_motion",
+                  "identity_team_character_dialogue_unavailable_local_motion"
                 );
               }
             }
           } else if (providerRequest.teamVideoMode === "cinematic") {
             pipelineWarnings.push(
-              "identity_team_google_consent_missing_local_motion",
+              "identity_team_google_consent_missing_local_motion"
             );
           }
           localFallbackUsed = true;
@@ -762,7 +839,7 @@ export async function generateAndSaveAiMedia(args: {
               "identity_team_ai_group_frame_local_motion",
               "identity_team_similarity_review_required",
               ...pipelineWarnings.filter((warning) =>
-                warning.startsWith("identity_team_"),
+                warning.startsWith("identity_team_")
               ),
             ],
             clips: motion.clips.map((clip) => ({
@@ -771,7 +848,7 @@ export async function generateAndSaveAiMedia(args: {
                 "identity_team_ai_group_frame_local_motion",
                 "identity_team_similarity_review_required",
                 ...pipelineWarnings.filter((warning) =>
-                  warning.startsWith("identity_team_"),
+                  warning.startsWith("identity_team_")
                 ),
               ],
             })),
@@ -810,7 +887,7 @@ export async function generateAndSaveAiMedia(args: {
       warnings: [] as string[],
     });
     const generateNarrationResult = async (
-      narrationRequest: AiMediaGenerationRequest,
+      narrationRequest: AiMediaGenerationRequest
     ) => {
       try {
         const narration = await measure("narration_copy", () =>
@@ -819,7 +896,7 @@ export async function generateAndSaveAiMedia(args: {
             request: narrationRequest,
             profile,
             plan: creativePlan,
-          }),
+          })
         );
         args.signal?.throwIfAborted();
         if (!narration) return emptyNarrationResult();
@@ -831,7 +908,7 @@ export async function generateAndSaveAiMedia(args: {
               durationSeconds,
               narrationVoice: narrationRequest.narrationVoice || "female",
               signal: narrationController.signal,
-            }),
+            })
           );
           return { narration, audio, warnings: [] as string[] };
         } catch {
@@ -855,7 +932,7 @@ export async function generateAndSaveAiMedia(args: {
       providerRequest.teamVideoSpeechMode === "characters"
         ? Promise.resolve(emptyNarrationResult())
         : measure("narration_pipeline", () =>
-            generateNarrationResult(providerRequest),
+            generateNarrationResult(providerRequest)
           );
     const soundtrackTask = measure("soundtrack", async () => {
       if (!providerRequest.withMusic) {
@@ -864,7 +941,7 @@ export async function generateAndSaveAiMedia(args: {
       try {
         const value = await loadAiMediaSoundtrack(
           providerRequest.idea ||
-            `${creativePlan.companyName} ${creativePlan.headline}`,
+            `${creativePlan.companyName} ${creativePlan.headline}`
         );
         return { value, warnings: [] as string[] };
       } catch {
@@ -891,8 +968,8 @@ export async function generateAndSaveAiMedia(args: {
               withText: providerRequest.withText,
               width: format.width,
               height: format.height,
-            }),
-          ),
+            })
+          )
         );
         return { value, warnings: [] as string[], error: null };
       } catch {
@@ -947,7 +1024,7 @@ export async function generateAndSaveAiMedia(args: {
                 sourceStartSeconds: clip.sourceStartSeconds,
                 expectedLine: expectedDialogueLines[index] || "",
               })),
-            }),
+            })
           )
         : null;
     const narrationJoinStartedAt = performance.now();
@@ -956,12 +1033,12 @@ export async function generateAndSaveAiMedia(args: {
       graceMs: positiveInt(
         process.env.AI_MEDIA_NARRATION_AFTER_VIDEO_GRACE_MS,
         DEFAULT_NARRATION_AFTER_VIDEO_GRACE_MS,
-        20_000,
+        20_000
       ),
       signal: args.signal,
     });
     pipelineTimingsMs.narration_join_after_veo = roundedDurationMs(
-      narrationJoinStartedAt,
+      narrationJoinStartedAt
     );
     if (!narrationResult) {
       narrationController.abort(new Error("ai_media_narration_deadline"));
@@ -974,16 +1051,16 @@ export async function generateAndSaveAiMedia(args: {
     // technique du contrôle reste distincte d'un rejet de contenu.
     if (nativeDialogueQa?.status === "rejected") {
       pipelineWarnings.push(
-        "native_character_dialogue_qa_rejected_native_audio_muted",
+        "native_character_dialogue_qa_rejected_native_audio_muted"
       );
     } else if (nativeDialogueQa?.status === "unavailable") {
       pipelineWarnings.push(
-        "native_character_dialogue_qa_unavailable_native_audio_preserved",
+        "native_character_dialogue_qa_unavailable_native_audio_preserved"
       );
     }
     if (characterDialogueProviderFallback) {
       pipelineWarnings.push(
-        "identity_team_character_dialogue_unavailable_silent_motion",
+        "identity_team_character_dialogue_unavailable_silent_motion"
       );
     }
     args.signal?.removeEventListener("abort", abortNarrationFromCaller);
@@ -996,7 +1073,7 @@ export async function generateAndSaveAiMedia(args: {
     pipelineWarnings.push(
       ...(narrationResult?.warnings || []),
       ...soundtrackResult.warnings,
-      ...overlaysResult.warnings,
+      ...overlaysResult.warnings
     );
     soundtrack = soundtrackResult.value;
     if (overlaysResult.error || !overlaysResult.value) {
@@ -1028,30 +1105,31 @@ export async function generateAndSaveAiMedia(args: {
           nativeAudioMode: nativeCharacterDialoguePreserved
             ? "dialogue"
             : characterDialogueRequested
-              ? "mute"
-              : "ambience",
+            ? "mute"
+            : "ambience",
           signal: args.signal,
-        }),
+        })
       );
     } catch (compositionError) {
       args.signal?.throwIfAborted();
-      // Les pistes audio et l'habillage sont facultatifs. Si FFmpeg refuse
-      // l'un de ces actifs, réassembler les mêmes clips en mode minimal évite
-      // de rappeler Veo et préserve le rendu déjà payé.
-      overlays = await renderMinimalOverlays();
-      soundtrack = null;
-      pipelineWarnings.push("video_enhancements_unavailable_video_continued");
-      const nativeDialogueMissing = String(
-        (compositionError as { message?: unknown })?.message || compositionError,
-      ).includes("ai_original_video_native_dialogue_missing");
-      let minimalNativeDialogueSucceeded = false;
+      const compositionMessage = String(
+        (compositionError as { message?: unknown })?.message || compositionError
+      );
+      let effectiveCompositionError: unknown = compositionError;
+      let naturalPaceFallbackSucceeded = false;
 
-      // Si seuls la musique ou l'habillage ont cassé, garder d'abord le vrai
-      // dialogue Veo payé plutôt que de le remplacer inutilement par un TTS.
-      if (nativeCharacterDialoguePreserved && !nativeDialogueMissing) {
+      // Si le TTS dépasse exceptionnellement la fenêtre malgré le budget de
+      // mots réduit, conserver le montage, le texte, le logo et la musique.
+      // Seule la voix est retirée : jamais de débit artificiellement accéléré,
+      // jamais de phrase coupée et aucun nouvel appel coûteux au moteur vidéo.
+      if (
+        !characterDialogueRequested &&
+        narrationAudio &&
+        compositionMessage.includes("ai_narration_too_long_for_natural_pace")
+      ) {
         try {
           normalized = await measure(
-            "video_composition_minimal_native_dialogue",
+            "video_composition_without_overspeed_narration",
             () =>
               composeOriginalAiVideo({
                 clips,
@@ -1059,81 +1137,126 @@ export async function generateAndSaveAiMedia(args: {
                 width: format.width,
                 height: format.height,
                 durationSeconds,
-                soundtrack: null,
+                soundtrack,
                 narration: null,
-                nativeAudioMode: "dialogue",
+                nativeAudioMode: "ambience",
                 signal: args.signal,
-              }),
+              })
           );
-          minimalNativeDialogueSucceeded = true;
-        } catch {
+          narration = null;
+          narrationAudio = null;
+          pipelineWarnings.push("narration_omitted_to_preserve_natural_pace");
+          naturalPaceFallbackSucceeded = true;
+        } catch (naturalPaceFallbackError) {
           args.signal?.throwIfAborted();
+          effectiveCompositionError = naturalPaceFallbackError;
         }
       }
 
-      if (!minimalNativeDialogueSucceeded) {
-        if (characterDialogueRequested) {
-          // Sans piste native exploitable, un repli TTS sur une bouche déjà
-          // animée serait trompeur et fatalement hors synchronisation. Livrer
-          // le mouvement sans parole reste le seul repli audiovisuel honnête.
-          narration = null;
-          narrationAudio = null;
-          pipelineWarnings.push(
-            "identity_team_character_dialogue_unavailable_silent_motion",
-            "video_audio_unavailable_video_continued",
-          );
-        } else {
-          // Pour une vidéo classique, une narration potentiellement malformée
-          // reste un embellissement facultatif et ne doit pas casser le rendu.
-          narration = null;
-          narrationAudio = null;
+      if (!naturalPaceFallbackSucceeded) {
+        // Les pistes audio et l'habillage sont facultatifs. Si FFmpeg refuse
+        // l'un de ces actifs, réassembler les mêmes clips en mode minimal évite
+        // de rappeler Veo et préserve le rendu déjà payé.
+        overlays = await renderMinimalOverlays();
+        soundtrack = null;
+        pipelineWarnings.push("video_enhancements_unavailable_video_continued");
+        const nativeDialogueMissing = String(
+          (effectiveCompositionError as { message?: unknown })?.message ||
+            effectiveCompositionError
+        ).includes("ai_original_video_native_dialogue_missing");
+        let minimalNativeDialogueSucceeded = false;
+
+        // Si seuls la musique ou l'habillage ont cassé, garder d'abord le vrai
+        // dialogue Veo payé plutôt que de le remplacer inutilement par un TTS.
+        if (nativeCharacterDialoguePreserved && !nativeDialogueMissing) {
+          try {
+            normalized = await measure(
+              "video_composition_minimal_native_dialogue",
+              () =>
+                composeOriginalAiVideo({
+                  clips,
+                  overlays,
+                  width: format.width,
+                  height: format.height,
+                  durationSeconds,
+                  soundtrack: null,
+                  narration: null,
+                  nativeAudioMode: "dialogue",
+                  signal: args.signal,
+                })
+            );
+            minimalNativeDialogueSucceeded = true;
+          } catch {
+            args.signal?.throwIfAborted();
+          }
         }
-        nativeCharacterDialoguePreserved = false;
-        try {
-          normalized = await measure("video_composition_fallback", () =>
-            composeOriginalAiVideo({
-              clips,
-              overlays,
-              width: format.width,
-              height: format.height,
-              durationSeconds,
-              soundtrack: null,
-              narration: narrationAudio,
-              nativeAudioMode: characterDialogueRequested
-                ? "mute"
-                : narrationAudio
+
+        if (!minimalNativeDialogueSucceeded) {
+          if (characterDialogueRequested) {
+            // Sans piste native exploitable, un repli TTS sur une bouche déjà
+            // animée serait trompeur et fatalement hors synchronisation. Livrer
+            // le mouvement sans parole reste le seul repli audiovisuel honnête.
+            narration = null;
+            narrationAudio = null;
+            pipelineWarnings.push(
+              "identity_team_character_dialogue_unavailable_silent_motion",
+              "video_audio_unavailable_video_continued"
+            );
+          } else {
+            // Pour une vidéo classique, une narration potentiellement malformée
+            // reste un embellissement facultatif et ne doit pas casser le rendu.
+            narration = null;
+            narrationAudio = null;
+          }
+          nativeCharacterDialoguePreserved = false;
+          try {
+            normalized = await measure("video_composition_fallback", () =>
+              composeOriginalAiVideo({
+                clips,
+                overlays,
+                width: format.width,
+                height: format.height,
+                durationSeconds,
+                soundtrack: null,
+                narration: narrationAudio,
+                nativeAudioMode: characterDialogueRequested
+                  ? "mute"
+                  : narrationAudio
                   ? "mute"
                   : "ambience",
-              signal: args.signal,
-            }),
-          );
-        } catch (fallbackCompositionError) {
-          args.signal?.throwIfAborted();
-          if (!characterDialogueRequested) {
-            throw fallbackCompositionError;
+                signal: args.signal,
+              })
+            );
+          } catch (fallbackCompositionError) {
+            args.signal?.throwIfAborted();
+            if (!characterDialogueRequested) {
+              throw fallbackCompositionError;
+            }
+            // Dernier repli honnête : le mouvement H264 reste livré. Toute parole
+            // native inutilisable est coupée, sans lui substituer un TTS qui ne
+            // pourrait pas suivre les mouvements de bouche déjà générés.
+            narration = null;
+            narrationAudio = null;
+            pipelineWarnings.push(
+              "identity_team_character_dialogue_fallback_silent_motion",
+              "video_audio_unavailable_video_continued"
+            );
+            normalized = await measure(
+              "video_composition_silent_fallback",
+              () =>
+                composeOriginalAiVideo({
+                  clips,
+                  overlays,
+                  width: format.width,
+                  height: format.height,
+                  durationSeconds,
+                  soundtrack: null,
+                  narration: null,
+                  nativeAudioMode: "mute",
+                  signal: args.signal,
+                })
+            );
           }
-          // Dernier repli honnête : le mouvement H264 reste livré. Toute parole
-          // native inutilisable est coupée, sans lui substituer un TTS qui ne
-          // pourrait pas suivre les mouvements de bouche déjà générés.
-          narration = null;
-          narrationAudio = null;
-          pipelineWarnings.push(
-            "identity_team_character_dialogue_fallback_silent_motion",
-            "video_audio_unavailable_video_continued",
-          );
-          normalized = await measure("video_composition_silent_fallback", () =>
-            composeOriginalAiVideo({
-              clips,
-              overlays,
-              width: format.width,
-              height: format.height,
-              durationSeconds,
-              soundtrack: null,
-              narration: null,
-              nativeAudioMode: "mute",
-              signal: args.signal,
-            }),
-          );
         }
       }
     }
@@ -1152,17 +1275,19 @@ export async function generateAndSaveAiMedia(args: {
       videoGateway.model,
       narrationAudio?.model,
       "inrcy/video-composer-v6-full-frame-overlay",
-    ].filter(Boolean).join("+");
+    ]
+      .filter(Boolean)
+      .join("+");
     videoEngineResult = videoGateway.provider.startsWith("inrcy-")
       ? "local_fallback"
       : providerRequest.videoEngine === "veo" &&
-          videoGateway.provider.includes("google-gemini-omni")
-        ? "veo_omni_fallback"
-        : videoGateway.provider.includes("+")
-          ? "omni_veo_fallback"
-          : videoGateway.provider === "google-gemini-omni"
-            ? "omni"
-            : "veo";
+        videoGateway.provider.includes("google-gemini-omni")
+      ? "veo_omni_fallback"
+      : videoGateway.provider.includes("+")
+      ? "omni_veo_fallback"
+      : videoGateway.provider === "google-gemini-omni"
+      ? "omni"
+      : "veo";
     providerMetadata = {
       provider: videoGateway.provider,
       model: videoGateway.model,
@@ -1170,7 +1295,7 @@ export async function generateAndSaveAiMedia(args: {
       provider_request_ids: videoGateway.clips.map((clip) => clip.requestId),
       estimated_cost_micro_usd: videoGateway.estimatedCostMicroUsd,
       warnings: Array.from(
-        new Set([...videoGateway.warnings, ...pipelineWarnings]),
+        new Set([...videoGateway.warnings, ...pipelineWarnings])
       ),
       team_precomposition: teamPrecompositionMetadata,
       team_video_speech_mode: providerRequest.teamVideoSpeechMode,
@@ -1186,17 +1311,18 @@ export async function generateAndSaveAiMedia(args: {
           : { version: 1, status: "not_requested" },
         final_video: finalVideoQa,
       },
-      narration: narration && narrationAudio
-        ? {
-            enabled: true,
-            model: narrationAudio.model,
-            voice: narrationAudio.voice,
-            language: narration.language,
-            word_count: narration.wordCount,
-            script_source: narration.source,
-            script_sha256: narration.sha256,
-          }
-        : { enabled: false },
+      narration:
+        narration && narrationAudio
+          ? {
+              enabled: true,
+              model: narrationAudio.model,
+              voice: narrationAudio.voice,
+              language: narration.language,
+              word_count: narration.wordCount,
+              script_source: narration.source,
+              script_sha256: narration.sha256,
+            }
+          : { enabled: false },
     };
   }
 
@@ -1217,8 +1343,8 @@ export async function generateAndSaveAiMedia(args: {
           source: localFallbackUsed
             ? "inrcy_local_media_fallback"
             : providerRequest.kind === "video"
-              ? "inrcy_original_ai_video_engine"
-              : "inrcy_brand_image_engine",
+            ? "inrcy_original_ai_video_engine"
+            : "inrcy_brand_image_engine",
           surface: providerRequest.source,
           prompt_version: AI_MEDIA_PROMPT_VERSION,
           prompt_sha256: promptHash,
@@ -1257,9 +1383,13 @@ export async function generateAndSaveAiMedia(args: {
           exact_logo_applied: Boolean(officialLogo),
           logo_version_applied: officialLogo ? brandKit.logoVersion : null,
           exact_contact_composition_applied: exactContactCompositionApplied,
+          deterministic_image_composition_applied:
+            deterministicImageCompositionApplied,
           profile_phone_display_requested: profilePhoneDisplayRequested,
           profile_phone_display_applied: Boolean(profilePhone),
-          brand_palette_applied: providerRequest.useBrandColors ? brandKit.colors : [],
+          brand_palette_applied: providerRequest.useBrandColors
+            ? brandKit.colors
+            : [],
           professional_library_images_used: 0,
           original_ai_video:
             providerRequest.kind === "video" && !localFallbackUsed,
@@ -1284,7 +1414,7 @@ export async function generateAndSaveAiMedia(args: {
             }
           : null,
       },
-    }),
+    })
   );
 
   pipelineTimingsMs.total = roundedDurationMs(pipelineStartedAt);

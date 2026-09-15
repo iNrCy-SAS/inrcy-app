@@ -166,6 +166,10 @@ export function buildAiMediaBusinessDnaPayload(
         preferences.customInstructions,
         900,
       ),
+      interdictions_personnalisees: cleanText(
+        preferences.forbiddenInstructions,
+        900,
+      ),
     },
   });
   // Ces repères décident directement du sujet et de la conformité de marque.
@@ -213,6 +217,10 @@ export function buildAiMediaBusinessDnaPayload(
       style: preferences.communicationStyle,
       consignes_personnalisees: cleanText(
         preferences.customInstructions,
+        160,
+      ),
+      interdictions_personnalisees: cleanText(
+        preferences.forbiddenInstructions,
         160,
       ),
     },

@@ -1,8 +1,5 @@
 "use client";
 
-import { useTranslations } from "next-intl";
-
-
 import {
   useRef,
   type Dispatch,
@@ -31,7 +28,6 @@ export function useAgentRichTextEditors<
   setCampaignTextDraft,
   setPublishTextDraft,
 }: UseAgentRichTextEditorsParams<TCampaignDraft, TPublishDraft>) {
-  const i18nT = useTranslations("agent");
   const publishBodyEditorRef = useRef<HTMLDivElement | null>(null);
   const campaignBodyEditorRef = useRef<HTMLDivElement | null>(null);
   const publishEmojiSelectionRef = useRef<Range | null>(null);
@@ -55,17 +51,6 @@ export function useAgentRichTextEditors<
       ...current,
       body: nextBody,
     }));
-  }
-
-  function selectionTargetsEditor(editor: HTMLDivElement) {
-    if (typeof window === "undefined") return false;
-    const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0) return false;
-    const anchor = selection.anchorNode;
-    const focus = selection.focusNode;
-    return Boolean(
-      anchor && focus && editor.contains(anchor) && editor.contains(focus),
-    );
   }
 
   function saveRichEditorSelection(
@@ -106,26 +91,10 @@ export function useAgentRichTextEditors<
 
     const command =
       kind === "bold" ? "bold" : kind === "italic" ? "italic" : "underline";
-    const selection =
-      typeof window !== "undefined" ? window.getSelection() : null;
-    const hasSelection = Boolean(
-      selection &&
-        selection.rangeCount > 0 &&
-        !selection.isCollapsed &&
-        selectionTargetsEditor(editor),
-    );
-
-    if (hasSelection) {
-      document.execCommand(command, false);
-    } else {
-      const placeholderHtml =
-        kind === "bold"
-          ? "<strong>texte</strong>"
-          : kind === "italic"
-            ? "<em>texte</em>"
-            : "<u>texte</u>";
-      document.execCommand(i18nT("inserthtml_d8d4d068"), false, placeholderHtml);
-    }
+    // Un clic sur gras/italique/souligné sans sélection doit uniquement
+    // activer le format pour la prochaine saisie. Insérer un faux mot
+    // « texte » produisait le bug visible « TexteTexteTexte ».
+    document.execCommand(command, false);
 
     sync(editor);
   }

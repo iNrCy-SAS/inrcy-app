@@ -273,7 +273,8 @@ export const AI_WRITING_PROFILE_PROMPT_MAX_CHARS = 3_600;
 export function buildAiWritingProfilePromptSection(source: unknown) {
   const normalized = asNormalized(source);
   const preferences = normalized.preferences;
-  const forbiddenStyle = String(preferences.customInstructions || "").slice(0, 700);
+  const customInstructions = String(preferences.customInstructions || "").slice(0, 1200);
+  const forbiddenInstructions = String(preferences.forbiddenInstructions || "").slice(0, 1200);
   const likedExample = String(preferences.likedExample || "").slice(0, 1200);
   const likedExample2 = String(preferences.likedExample2 || "").slice(0, 1200);
 
@@ -309,7 +310,8 @@ export function buildAiWritingProfilePromptSection(source: unknown) {
     {
       contenu_apprecie_1: likedExample,
       contenu_apprecie_2: likedExample2,
-      consignes_personnalisees: forbiddenStyle,
+      consignes_personnalisees: customInstructions,
+      interdictions_personnalisees: forbiddenInstructions,
       memoire_ia: buildAiMemoryPromptPayload(normalized.memory),
     },
     personalizationBudget,

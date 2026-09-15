@@ -444,8 +444,19 @@ async function buildImagePayloadsFromAgentAction(
   return images;
 }
 
-async function buildVideoPayloadFromAgentAction(payload: JsonRecord) {
-  const media = getAgentMediaRecord(payload);
+async function buildVideoPayloadFromAgentAction(
+  payload: JsonRecord,
+  channel?: BoosterChannel,
+) {
+  const publishPayload = asRecord(payload.publishPayload) || {};
+  const channelVideoMap =
+    asRecord(payload.videoByChannel) ||
+    asRecord(publishPayload.videoByChannel) ||
+    {};
+  const channelMedia = channel
+    ? asRecord(channelVideoMap[channel])
+    : null;
+  const media = channelMedia || getAgentMediaRecord(payload);
   if (!media || !isVideoMedia(media)) return null;
   const storagePath = cleanText(
     media.storagePath || media.storage_path || media.path || "",
@@ -918,7 +929,10 @@ async function executeAgentActionHandler(request: Request) {
     action.imageAssets,
   );
   const imagePayload = imagePayloads[0] || null;
-  const videoPayload = await buildVideoPayloadFromAgentAction(payload);
+  const videoPayload = await buildVideoPayloadFromAgentAction(
+    payload,
+    selectedChannels.length === 1 ? selectedChannels[0] : undefined,
+  );
   const hasImagePayload = Boolean(imagePayload);
   const hasVideoPayload = Boolean(videoPayload);
   const activeMediaMode = hasVideoPayload

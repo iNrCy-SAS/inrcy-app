@@ -775,6 +775,7 @@ export async function POST(request: Request) {
       jobId: context.jobId,
       edition: accountEdition || undefined,
       request: normalizedRequest,
+      videoMaxDurationSeconds,
       signal: request.signal,
     });
     mediaPersisted = true;

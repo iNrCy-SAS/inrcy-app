@@ -30,7 +30,7 @@ test("une voix off ne peut jamais être validée ou retaillée sur une phrase in
   });
   assert.equal(
     fitted,
-    "Votre projet avance avec une méthode claire et concrète.",
+    "Votre projet avance avec une méthode claire et concrète."
   );
   assert.equal(hasCompleteAiMediaSpeechEnding(fitted, "fr"), true);
 });
@@ -49,24 +49,31 @@ test("les répliques natives trop longues ou pendantes basculent vers une phrase
   });
   assert.equal(isQualityAiMediaDialogueLine(replacement, "fr"), true);
   assert.ok(replacement.length <= 60);
-  assert.notEqual(aiMediaDialogueSignature(replacement), aiMediaDialogueSignature(tooLong));
+  assert.notEqual(
+    aiMediaDialogueSignature(replacement),
+    aiMediaDialogueSignature(tooLong)
+  );
 });
 
 test("le prompt Veo transmet la réplique complète et réserve une fin silencieuse", () => {
   const veo = read("lib/aiVideoProviderGoogleVeo.ts");
   const server = read("lib/aiMediaGenerationServer.ts");
   const narration = read("lib/aiMediaNarration.ts");
+  const narrationAudio = read("lib/aiMediaNarrationAudio.ts");
   const composer = read("lib/aiMediaGeneratedVideo.ts");
 
   assert.match(
     veo,
-    /const firstLine = resolveAiMediaDialogueSequence\(\{\s*scenes: args\.plan\.scenes,\s*headline: args\.plan\.headline,\s*language,\s*\}\)\[index\]/,
+    /const firstLine = resolveAiMediaDialogueSequence\(\{\s*scenes: args\.plan\.scenes,\s*headline: args\.plan\.headline,\s*language,\s*\}\)\[index\]/
   );
   assert.match(
     server,
-    /const expectedDialogueLines = resolveAiMediaDialogueSequence\(\{\s*scenes: creativePlan\.scenes,\s*headline: creativePlan\.headline,\s*language: profile\.preferences\.language,\s*\}\)/,
+    /const expectedDialogueLines = resolveAiMediaDialogueSequence\(\{\s*scenes: creativePlan\.scenes,\s*headline: creativePlan\.headline,\s*language: profile\.preferences\.language,\s*\}\)/
   );
-  assert.match(server, /plan: creativePlan,[\s\S]*?contentLanguage: profile\.preferences\.language/);
+  assert.match(
+    server,
+    /plan: creativePlan,[\s\S]*?contentLanguage: profile\.preferences\.language/
+  );
   assert.match(server, /expectedLine: expectedDialogueLines\[index\] \|\| ""/);
   assert.match(veo, /lip-syncs once 0\.2–5\.5s: “\$\{firstLine\}”/);
   assert.match(veo, /Then mouth closed\/silent/);
@@ -75,28 +82,37 @@ test("le prompt Veo transmet la réplique complète et réserve une fin silencie
   assert.match(narration, /count <= target\.max/);
   assert.match(narration, /hasCompleteAiMediaSpeechEnding\(value, language\)/);
   assert.match(narration, /fitAiMediaSpeechToCompleteSentences/);
+  assert.match(narration, /8: \{ min: 8, target: 10, max: 12 \}/);
+  assert.match(narration, /16: \{ min: 20, target: 23, max: 26 \}/);
+  assert.match(narration, /24: \{ min: 31, target: 35, max: 39 \}/);
+  assert.match(narrationAudio, /environ 105 à 125 mots par minute/);
+  assert.match(narrationAudio, /ne compresse jamais les mots/);
 
   assert.match(composer, /NARRATION_END_GUARD_SECONDS = 1/);
   assert.match(composer, /NARRATION_DECODE_TOLERANCE_SECONDS = 0\.16/);
+  assert.match(composer, /NARRATION_MAX_TEMPO = 1\.08/);
   assert.match(composer, /narrationTempoFilters/);
-  assert.ok(
-    composer.indexOf("...tempoFilters") <
-      composer.indexOf("`apad=pad_dur=${args.durationSeconds}`"),
-    "la voix off est accélérée pour finir avant le silence de sécurité",
+  assert.match(
+    composer,
+    /if \(tempo > NARRATION_MAX_TEMPO\) \{\s*throw new Error\("ai_narration_too_long_for_natural_pace"\)/,
+    "le monteur refuse une accélération audible"
   );
+  assert.doesNotMatch(composer, /while \(tempo > 2\)/);
+  assert.match(server, /video_composition_without_overspeed_narration/);
+  assert.match(server, /narration_omitted_to_preserve_natural_pace/);
   assert.doesNotMatch(
     composer,
     /atrim=duration=\$\{maximumVoiceSeconds\}/,
-    "aucune coupe anticipée ne peut rogner le dernier mot de la voix off",
+    "aucune coupe anticipée ne peut rogner le dernier mot de la voix off"
   );
   assert.match(
     composer,
     /narrationDurationSeconds \+ NARRATION_DECODE_TOLERANCE_SECONDS/,
-    "le calcul absorbe le léger décalage possible des formats audio compressés",
+    "le calcul absorbe le léger décalage possible des formats audio compressés"
   );
   assert.match(
     composer,
     /apad=pad_dur=\$\{args\.durationSeconds\}[\s\S]*?atrim=duration=\$\{args\.durationSeconds\}/,
-    "le trim final ne retire que le silence ajouté jusqu’à la durée de la vidéo",
+    "le trim final ne retire que le silence ajouté jusqu’à la durée de la vidéo"
   );
 });

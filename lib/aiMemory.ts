@@ -15,6 +15,23 @@ import { fitPromptPayloadToJsonBudget } from "./aiPromptBudget.ts";
 
 export const AI_MEMORY_SCHEMA_VERSION = 1 as const;
 
+export const AI_MEMORY_REFERENCE_DOCUMENT_MAX_ITEMS = 6;
+export const AI_MEMORY_REFERENCE_DOCUMENT_MAX_BYTES = 6 * 1024 * 1024;
+export const AI_MEMORY_REFERENCE_DOCUMENT_MAX_EXTRACT_CHARS = 2_500;
+
+export type AiMemoryReferenceDocument = {
+  id: string;
+  name: string;
+  bucket: string;
+  path: string;
+  mimeType: string;
+  size: number | null;
+  status: "analysed" | "metadata_only" | "error";
+  extractedText: string;
+  note: string;
+  createdAt: string;
+};
+
 export type AiMemory = {
   schemaVersion: typeof AI_MEMORY_SCHEMA_VERSION;
   detailedDescription: string;
@@ -39,6 +56,7 @@ export type AiMemory = {
   recentNewsWindowStart: string;
   recentNewsWindowEnd: string;
   recentNewsSourceKeys: string[];
+  referenceDocuments: AiMemoryReferenceDocument[];
   richText: BusinessDnaRichText;
 };
 
@@ -86,6 +104,7 @@ export const EMPTY_AI_MEMORY: AiMemory = {
   recentNewsWindowStart: "",
   recentNewsWindowEnd: "",
   recentNewsSourceKeys: [],
+  referenceDocuments: [],
   richText: EMPTY_BUSINESS_DNA_RICH_TEXT,
 };
 
@@ -146,6 +165,48 @@ function cleanIsoDate(value: unknown) {
   if (!raw) return "";
   const timestamp = Date.parse(raw);
   return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : "";
+}
+
+function normalizeReferenceDocuments(value: unknown): AiMemoryReferenceDocument[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const documents: AiMemoryReferenceDocument[] = [];
+  for (const item of value) {
+    const source = asRecord(item);
+    const id = cleanText(source.id, 120);
+    const path = cleanText(source.path ?? source.storage_path, 1_000);
+    const bucket = cleanText(source.bucket ?? source.bucket_name, 120);
+    if (!id || !path || !bucket || seen.has(id)) continue;
+    if (path.startsWith("/") || path.includes("..") || /[\u0000-\u001f]/.test(path)) continue;
+    if (!/^[a-zA-Z0-9._-]+$/.test(bucket)) continue;
+    const rawStatus = cleanText(source.status, 30);
+    const status: AiMemoryReferenceDocument["status"] =
+      rawStatus === "analysed" || rawStatus === "metadata_only" || rawStatus === "error"
+        ? rawStatus
+        : "metadata_only";
+    const rawSize = Number(source.size ?? source.size_bytes);
+    const size = Number.isFinite(rawSize) && rawSize >= 0
+      ? Math.min(Math.round(rawSize), AI_MEMORY_REFERENCE_DOCUMENT_MAX_BYTES)
+      : null;
+    seen.add(id);
+    documents.push({
+      id,
+      name: cleanText(source.name ?? source.file_name, 180) || "Document",
+      bucket,
+      path,
+      mimeType: cleanText(source.mimeType ?? source.mime_type, 140) || "application/octet-stream",
+      size,
+      status,
+      extractedText: cleanText(
+        source.extractedText ?? source.extracted_text ?? source.text,
+        AI_MEMORY_REFERENCE_DOCUMENT_MAX_EXTRACT_CHARS,
+      ),
+      note: cleanText(source.note, 320),
+      createdAt: cleanIsoDate(source.createdAt ?? source.created_at) || new Date(0).toISOString(),
+    });
+    if (documents.length >= AI_MEMORY_REFERENCE_DOCUMENT_MAX_ITEMS) break;
+  }
+  return documents;
 }
 
 export function normalizeAiMemory(
@@ -229,6 +290,9 @@ export function normalizeAiMemory(
       source.recentNewsSourceKeys ?? source.recent_news_source_keys,
       12,
       60,
+    ),
+    referenceDocuments: normalizeReferenceDocuments(
+      source.referenceDocuments ?? source.reference_documents,
     ),
     richText: includePremium
       ? richText
@@ -314,6 +378,7 @@ export function mergeAiMemoryUpdate(
     ["recentNewsWindowStart", ["recentNewsWindowStart", "recent_news_window_start"]],
     ["recentNewsWindowEnd", ["recentNewsWindowEnd", "recent_news_window_end"]],
     ["recentNewsSourceKeys", ["recentNewsSourceKeys", "recent_news_source_keys"]],
+    ["referenceDocuments", ["referenceDocuments", "reference_documents"]],
   ];
 
   const changedPlainRichFields = new Set<keyof BusinessDnaRichText>();
@@ -665,6 +730,12 @@ export function buildAiMemoryPromptPayload(
     strategie_editoriale: cleanText(value.editorialStrategy, 2_200),
     calendrier_de_campagnes: cleanText(value.campaignCalendar, 1_500),
     actualites_recentes_30_jours: cleanList(value.recentNewsItems, 4, 1_300),
+    documents_fournis_par_le_professionnel: value.referenceDocuments
+      .map((document) => {
+        const content = cleanText(document.extractedText || document.note, 2_000);
+        return content ? `${document.name} : ${content}` : "";
+      })
+      .filter(Boolean),
   };
 
   const payload = Object.fromEntries(

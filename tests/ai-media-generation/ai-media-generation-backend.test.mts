@@ -124,7 +124,7 @@ test("le contrat réduit les options au média demandé", () => {
   assert.equal(video.inspirationImages.length, 3);
   assert.deepEqual(
     video.inspirationImages.map((item) => item.mimeType),
-    ["image/jpeg", "image/png", "image/webp"],
+    ["image/jpeg", "image/png", "image/webp"]
   );
   const veoVideo = normalizeAiMediaGenerationRequest({
     requestId: "media-request-veo-fast",
@@ -153,7 +153,7 @@ test("le contrat réduit les options au média demandé", () => {
         narrationVoice: "robot",
         source: "studio",
       }),
-    AiMediaRequestValidationError,
+    AiMediaRequestValidationError
   );
   assert.throws(
     () =>
@@ -164,7 +164,7 @@ test("le contrat réduit les options au média demandé", () => {
         videoEngine: "standard",
         source: "studio",
       }),
-    AiMediaRequestValidationError,
+    AiMediaRequestValidationError
   );
   const genericImageReference = normalizeAiMediaGenerationRequest({
     requestId: "media-request-image-ref",
@@ -188,7 +188,7 @@ test("le contrat réduit les options au média demandé", () => {
         })),
         source: "studio",
       }),
-    AiMediaRequestValidationError,
+    AiMediaRequestValidationError
   );
   assert.throws(
     () =>
@@ -372,7 +372,7 @@ test("le mode cinématique anime toute identité référencée et protège l’e
         teamVideoMode: "faceswap",
         source: "studio",
       }),
-    AiMediaRequestValidationError,
+    AiMediaRequestValidationError
   );
   assert.throws(
     () =>
@@ -387,7 +387,7 @@ test("le mode cinématique anime toute identité référencée et protège l’e
         inspirationImages: references,
         source: "studio",
       }),
-    AiMediaRequestValidationError,
+    AiMediaRequestValidationError
   );
 });
 
@@ -397,7 +397,9 @@ test("la consigne ponctuelle et l'identité image/vidéo sont normalisées sans 
     requestId: "media-instruction-0001",
     kind: "image",
     subjectSource: "profile",
-    aiInstruction: `  Plus\u0001    lumineux\r\n\r\n\r\nsans texte ${"x".repeat(700)}`,
+    aiInstruction: `  Plus\u0001    lumineux\r\n\r\n\r\nsans texte ${"x".repeat(
+      700
+    )}`,
     source: "studio",
   });
   assert.equal(normalizedInstruction.aiInstruction.includes("\u0001"), false);
@@ -405,38 +407,41 @@ test("la consigne ponctuelle et l'identité image/vidéo sont normalisées sans 
   assert.equal(normalizedInstruction.aiInstruction.length, 600);
 
   assert.throws(
-    () => normalizeAiMediaGenerationRequest({
-      requestId: "media-professional-no-photo",
-      kind: "video",
-      subjectSource: "profile",
-      peopleMode: "solo",
-      videoCharacterMode: "professional",
-      source: "studio",
-    }),
-    /photo du professionnel/,
+    () =>
+      normalizeAiMediaGenerationRequest({
+        requestId: "media-professional-no-photo",
+        kind: "video",
+        subjectSource: "profile",
+        peopleMode: "solo",
+        videoCharacterMode: "professional",
+        source: "studio",
+      }),
+    /photo du professionnel/
   );
   assert.throws(
-    () => normalizeAiMediaGenerationRequest({
-      requestId: "media-avatar-no-reference",
-      kind: "video",
-      subjectSource: "profile",
-      peopleMode: "solo",
-      videoCharacterMode: "brand_avatar",
-      source: "studio",
-    }),
-    /dessin d.avatar|photo autorisée/,
+    () =>
+      normalizeAiMediaGenerationRequest({
+        requestId: "media-avatar-no-reference",
+        kind: "video",
+        subjectSource: "profile",
+        peopleMode: "solo",
+        videoCharacterMode: "brand_avatar",
+        source: "studio",
+      }),
+    /dessin d.avatar|photo autorisée/
   );
   assert.throws(
-    () => normalizeAiMediaGenerationRequest({
-      requestId: "media-professional-no-consent",
-      kind: "video",
-      subjectSource: "profile",
-      peopleMode: "solo",
-      videoCharacterMode: "professional",
-      inspirationImages: [{ mimeType: "image/jpeg", data: inspirationData }],
-      source: "studio",
-    }),
-    /autorisation/,
+    () =>
+      normalizeAiMediaGenerationRequest({
+        requestId: "media-professional-no-consent",
+        kind: "video",
+        subjectSource: "profile",
+        peopleMode: "solo",
+        videoCharacterMode: "professional",
+        inspirationImages: [{ mimeType: "image/jpeg", data: inspirationData }],
+        source: "studio",
+      }),
+    /autorisation/
   );
 
   const professional = normalizeAiMediaGenerationRequest({
@@ -468,19 +473,23 @@ test("la consigne ponctuelle et l'identité image/vidéo sont normalisées sans 
   assert.equal(noPeople.identityMode, "auto");
   assert.equal(noPeople.identityConsent, false);
   assert.equal(noPeople.inspirationImages.length, 1);
-  assert.equal(noPeople.identityReferenceSetId, "legacy:media-no-people-identity");
+  assert.equal(
+    noPeople.identityReferenceSetId,
+    "legacy:media-no-people-identity"
+  );
 
   assert.throws(
-    () => normalizeAiMediaGenerationRequest({
-      requestId: "image-professional-no-consent",
-      kind: "image",
-      subjectSource: "profile",
-      peopleMode: "solo",
-      identityMode: "professional",
-      inspirationImages: [{ mimeType: "image/jpeg", data: inspirationData }],
-      source: "studio",
-    }),
-    /autorisation/,
+    () =>
+      normalizeAiMediaGenerationRequest({
+        requestId: "image-professional-no-consent",
+        kind: "image",
+        subjectSource: "profile",
+        peopleMode: "solo",
+        identityMode: "professional",
+        inspirationImages: [{ mimeType: "image/jpeg", data: inspirationData }],
+        source: "studio",
+      }),
+    /autorisation/
   );
   const professionalImage = normalizeAiMediaGenerationRequest({
     requestId: "image-professional-consent",
@@ -549,7 +558,7 @@ test("le prompt donne à GPT Image le sujet, l’ADN, l’identité autorisée e
   const dna = read("lib/aiMediaBusinessDna.ts");
   assert.match(
     source,
-    /AI_MEDIA_PROMPT_VERSION = "inrcy-media-v19-scene-color-direction"/,
+    /AI_MEDIA_PROMPT_VERSION = "inrcy-media-v19-scene-color-direction"/
   );
   assert.match(source, /CONTRAT CRÉATIF PRIORITAIRE/);
   assert.match(source, /SUJET CENTRAL OBLIGATOIRE/);
@@ -560,7 +569,10 @@ test("le prompt donne à GPT Image le sujet, l’ADN, l’identité autorisée e
   assert.match(source, /accessoires aléatoires/);
   assert.match(source, /buildAiMediaBusinessDnaPayload/);
   assert.match(source, /ADN PROFESSIONNEL AUTORISÉ/);
-  assert.match(source, /Couleurs de marque à utiliser uniquement comme accents dans la lumière, les matières et le décor/);
+  assert.match(
+    source,
+    /Couleurs de marque à utiliser uniquement comme accents dans la lumière, les matières et le décor/
+  );
   assert.match(source, /référence(?:s)? d’identité/);
   assert.match(source, /logo officiel/);
   assert.match(source, /Aucune photo de Médiathèque/);
@@ -602,23 +614,71 @@ test("une demande de téléphone utilise le profil local sans exposer ses coordo
   const composer = read("lib/aiMediaImageContactComposer.ts");
 
   assert.match(server, /cleanAiMediaProfilePhone\(profile\.business\.phone\)/);
-  assert.match(server, /officialLogo: useExactContactComposition \? null : officialLogo/);
+  assert.match(
+    server,
+    /officialLogo: useDeterministicImageComposition \? null : officialLogo/
+  );
   assert.match(server, /profile_phone_display_applied/);
   assert.match(detector, /isAiMediaProfilePhoneDisplayRequested/);
   assert.match(detector, /Retourne uniquement le numéro réellement enregistré/);
-  assert.match(prompt, /produire exclusivement le fond sans texte, chiffre, téléphone/);
+  assert.match(
+    prompt,
+    /produire exclusivement le fond sans texte, chiffre, téléphone/
+  );
   assert.doesNotMatch(prompt, /profile\.business\.phone/);
   assert.match(composer, /wrapWholeWords/);
   assert.match(composer, /TEL  \$\{phone\}/);
 });
 
+test("les textes d’image sont composés localement et jamais dessinés par le fournisseur", () => {
+  const server = read("lib/aiMediaGenerationServer.ts");
+  const prompt = read("lib/aiMediaGenerationPrompt.ts");
+  const renderer = read("lib/aiMediaBrandRenderer.ts");
+
+  assert.match(
+    server,
+    /const useDeterministicImageComposition =\s*providerRequest\.kind === "image" &&\s*\(providerRequest\.withText \|\| useExactContactComposition\)/
+  );
+  assert.match(
+    server,
+    /deferVisibleElementsToComposer: useDeterministicImageComposition/
+  );
+  assert.match(server, /composeAiMediaBrandedImage\(\{/);
+  assert.match(server, /deterministic_image_composition_applied/);
+  assert.match(
+    prompt,
+    /produire exclusivement le fond sans texte, chiffre, téléphone/
+  );
+  assert.match(renderer, /renderAiMediaVideoOverlay\(args\)/);
+  assert.match(
+    renderer,
+    /\.composite\(\[\{ input: overlay, left: 0, top: 0 \}\]\)/
+  );
+});
+
 test("les médias IA verrouillent les textes visibles et la narration dans la langue du profil", () => {
-  const languages = ["fr", "en", "es", "it", "de", "nl", "pt", "th", "zh"] as const;
+  const languages = [
+    "fr",
+    "en",
+    "es",
+    "it",
+    "de",
+    "nl",
+    "pt",
+    "th",
+    "zh",
+  ] as const;
   for (const language of languages) {
     const copy = getAiMediaLanguageCopy(language);
-    assert.ok(copy.headlines.service.length >= 3, `${language}: accroche de secours`);
+    assert.ok(
+      copy.headlines.service.length >= 3,
+      `${language}: accroche de secours`
+    );
     assert.ok(copy.ctas.appeler.length >= 3, `${language}: CTA Appeler`);
-    assert.ok(copy.supportingTitle.length >= 3, `${language}: scène de secours`);
+    assert.ok(
+      copy.supportingTitle.length >= 3,
+      `${language}: scène de secours`
+    );
     const narration = buildAiMediaNarrationFallback({
       language,
       company: "iNrCy",
@@ -629,8 +689,14 @@ test("les médias IA verrouillent les textes visibles et la narration dans la la
   }
 
   assert.equal(getAiMediaLanguageCopy("en").ctas.appeler, "Call us");
-  assert.equal(getAiMediaLanguageCopy("es").ctas.devis, "Solicite su presupuesto");
-  assert.equal(getAiMediaLanguageCopy("zh").headlines.recruitment, "加入我们的团队");
+  assert.equal(
+    getAiMediaLanguageCopy("es").ctas.devis,
+    "Solicite su presupuesto"
+  );
+  assert.equal(
+    getAiMediaLanguageCopy("zh").headlines.recruitment,
+    "加入我们的团队"
+  );
 
   const prompt = read("lib/aiMediaGenerationPrompt.ts");
   const copywriter = read("lib/aiMediaCopywriter.ts");
@@ -645,14 +711,17 @@ test("les médias IA verrouillent les textes visibles et la narration dans la la
   assert.match(copywriter, /langue_cible: getAiLanguageLabel\(args\.profile\)/);
   assert.match(
     copywriter,
-    /!args\.request\.idea[\s\S]*?args\.request\.subjectSource !== "profile"/,
+    /!args\.request\.idea[\s\S]*?args\.request\.subjectSource !== "profile"/
+  );
+  assert.match(copywriter, /timeoutMs: args\.request\.idea \? 5_000 : 18_000/);
+  assert.match(
+    copywriter,
+    /deadlineAt: args\.request\.idea \? Date\.now\(\) \+ 5_900/
   );
   assert.match(
     copywriter,
-    /timeoutMs: args\.request\.idea \? 5_000 : 18_000/,
+    /headlineRespectsIdea\(value, idea, language === "fr"\)/
   );
-  assert.match(copywriter, /deadlineAt: args\.request\.idea \? Date\.now\(\) \+ 5_900/);
-  assert.match(copywriter, /headlineRespectsIdea\(value, idea, language === "fr"\)/);
   assert.match(creativePlan, /if \(language !== "fr"\)/);
   assert.match(creativePlan, /getAiMediaLanguageCopy\(language\)/);
   assert.match(narration, /buildAiMediaNarrationFallback/);
@@ -660,7 +729,7 @@ test("les médias IA verrouillent les textes visibles et la narration dans la la
   assert.match(narration, /hasAiLanguageMismatch\(language, value\)/);
   assert.match(
     server,
-    /const creativePlanTask =\s*providerRequest\.withText \|\|[\s\S]*?teamVideoSpeechMode === "characters"/,
+    /const creativePlanTask =\s*providerRequest\.withText \|\|[\s\S]*?teamVideoSpeechMode === "characters"/
   );
 });
 
@@ -722,7 +791,10 @@ test("la route applique scope, abonnement et quota à l'établissement actif", (
   assert.match(route, /isAdminUserForAi\(/);
   assert.match(route, /AI_MEDIA_ADMIN_LIMIT_OVERRIDE/);
   assert.match(route, /limitOverride: adminUnlimited/);
-  assert.match(route, /\(normalizedRequest\.durationSeconds \|\| 16\) > videoMaxDurationSeconds/);
+  assert.match(
+    route,
+    /\(normalizedRequest\.durationSeconds \|\| 16\) > videoMaxDurationSeconds/
+  );
   assert.match(route, /AI_MEDIA_VIDEO_LONG_FORM_PREMIUM_REQUIRED/);
   assert.match(route, /getAiMediaVideoEntitlement/);
   assert.match(route, /videoMaxDurationSeconds/);
@@ -764,7 +836,10 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   assert.match(gateway, /AI_GATEWAY_IMAGE_MODEL/);
   assert.doesNotMatch(gateway, /AI_GATEWAY_VIDEO_MODEL|storyboard-v1/);
   assert.match(gateway, /size: args\.size \|\| "1024x1024"/);
-  assert.match(gateway, /AbortSignal\.any\(\[args\.signal, AbortSignal\.timeout\(timeoutMs\)\]\)/);
+  assert.match(
+    gateway,
+    /AbortSignal\.any\(\[args\.signal, AbortSignal\.timeout\(timeoutMs\)\]\)/
+  );
   assert.match(gateway, /if \(!args\.signal\?\.aborted\)/);
   assert.match(gateway, /officialLogo\?: Buffer \| null/);
   assert.match(gateway, /identityReferences\?: readonly Buffer\[\]/);
@@ -809,21 +884,42 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   assert.match(omni, /store: true/);
   assert.match(omni, /stream: false/);
   for (const videoProvider of [omni, veo]) {
-    assert.match(videoProvider, /const generationDeadline = Date\.now\(\) \+ Math\.min\(600_000, timeoutMs \* durations\.length\)/);
-    assert.match(videoProvider, /const remainingMs = generationDeadline - Date\.now\(\)/);
+    assert.match(
+      videoProvider,
+      /const generationDeadline = Date\.now\(\) \+ Math\.min\(600_000, timeoutMs \* durations\.length\)/
+    );
+    assert.match(
+      videoProvider,
+      /const remainingMs = generationDeadline - Date\.now\(\)/
+    );
     assert.match(videoProvider, /if \(remainingMs <= 0\) throw new Error/);
-    assert.match(videoProvider, /timeoutMs: Math\.min\(timeoutMs, remainingMs\)/);
-    assert.match(videoProvider, /const connectScenes = durations\.length > 1 && args\.request\.connectScenes === true/);
-    assert.match(videoProvider, /const concurrency = connectScenes \? 1 : Math\.min\(configuredConcurrency, durations\.length\)/);
+    assert.match(
+      videoProvider,
+      /timeoutMs: Math\.min\(timeoutMs, remainingMs\)/
+    );
+    assert.match(
+      videoProvider,
+      /const connectScenes = durations\.length > 1 && args\.request\.connectScenes === true/
+    );
+    assert.match(
+      videoProvider,
+      /const concurrency = connectScenes \? 1 : Math\.min\(configuredConcurrency, durations\.length\)/
+    );
     assert.match(videoProvider, /await Promise\.allSettled/);
     assert.match(videoProvider, /AI_MEDIA_(?:OMNI|VEO)_CONCURRENCY/);
   }
-  assert.match(omni, /durations\.length > 1 &&\s*completedClips\.some\(\(clip\) => clip\.model !== model\)/);
+  assert.match(
+    omni,
+    /durations\.length > 1 &&\s*completedClips\.some\(\(clip\) => clip\.model !== model\)/
+  );
   assert.match(omni, /ai_video_omni_film_model_mixed/);
   assert.match(omni, /AI_MEDIA_OMNI_FALLBACK_TO_VEO/);
   assert.match(omni, /omni_scene_fallback_to_veo/);
   assert.match(omni, /ai_video_omni_clip_billable_failure/);
-  assert.match(omni, /details\.includes\("ai_video_omni_clip_billable_failure"\)/);
+  assert.match(
+    omni,
+    /details\.includes\("ai_video_omni_clip_billable_failure"\)/
+  );
   assert.match(omni, /googleVeoVideoProvider\.generate/);
   assert.match(omni, /actualCostMicroUsd \+ fallbackCostMicroUsd/);
   assert.match(omni, /reserveAiGatewayAccountAttempt/);
@@ -877,7 +973,10 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   assert.match(veo, /DEFAULT_DOWNLOAD_ATTEMPTS = 3/);
   assert.match(veo, /MAX_VEO_PROMPT_CHARS = 1_400/);
   assert.match(veo, /requiredPrompt\.length > MAX_VEO_PROMPT_CHARS/);
-  assert.match(veo, /const filmModels = durations\.length > 1 \? \[primaryModel\] : models/);
+  assert.match(
+    veo,
+    /const filmModels = durations\.length > 1 \? \[primaryModel\] : models/
+  );
   assert.match(veo, /durations\.length > 1 && usedModels\.length !== 1/);
   assert.match(veo, /ai_video_veo_film_model_mixed/);
   assert.match(veo, /retryDelayMs/);
@@ -897,15 +996,15 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
     );
   }
   assert.match(veo, /`SUBJECT: \$\{primarySubject\}/);
-  assert.match(
-    veo,
-    /Keep entities\/actions\/relations; no swaps/
-  );
+  assert.match(veo, /Keep entities\/actions\/relations; no swaps/);
   assert.match(veo, /smartphone, tablet or laptop in the foreground/);
   assert.match(veo, /masonry or construction site/);
   assert.match(veo, /real horses as central subjects/);
   assert.match(veo, /function subjectDigitalDirection/);
-  assert.match(veo, /digitalDirection \? `\$\{promptSnippet\(digitalDirection, 110\)\}\.\` : ""/);
+  assert.match(
+    veo,
+    /digitalDirection \? `\$\{promptSnippet\(digitalDirection, 110\)\}\.\` : ""/
+  );
   assert.match(veo, /buildGoogleVideoReferenceContract/);
   assert.match(veo, /buildGoogleVideoParameterContract/);
   assert.match(veo, /buildGoogleVideoContinuityContract/);
@@ -919,7 +1018,10 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   assert.match(copywriter, /ne les additionne jamais/);
   assert.match(copywriter, /une accroche publicitaire courte, naturelle/i);
   assert.match(copywriter, /mots_a_evoquer: args\.request\.textKeywords/);
-  assert.match(copywriter, /adn_de_l_entreprise: buildAiMediaBusinessDnaPayload/);
+  assert.match(
+    copywriter,
+    /adn_de_l_entreprise: buildAiMediaBusinessDnaPayload/
+  );
   assert.match(copywriter, /applyLocalizedCopy/);
   assert.doesNotMatch(copywriter, /\.join\(" \+ "\)/);
   assert.match(composer, /composeOriginalAiVideo/);
@@ -935,15 +1037,18 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   assert.match(composer, /narration\?: GeneratedAiNarrationAudio/);
   assert.match(
     composer,
-    /const soundtrackVolume =[\s\S]*?args\.nativeAudioMode === "dialogue"[\s\S]*?\? "0\.035"/,
+    /const soundtrackVolume =[\s\S]*?args\.nativeAudioMode === "dialogue"[\s\S]*?\? "0\.035"/
   );
   assert.match(
     composer,
-    /const soundtrackVolume =[\s\S]*?args\.narrationInputIndex === null[\s\S]*?\? "0\.16"[\s\S]*?: "0\.08"/,
+    /const soundtrackVolume =[\s\S]*?args\.narrationInputIndex === null[\s\S]*?\? "0\.16"[\s\S]*?: "0\.08"/
   );
   assert.match(composer, /\[voice\]/);
   assert.match(narration, /idee_du_professionnel/);
-  assert.match(narration, /adn_de_l_entreprise: buildAiMediaBusinessDnaPayload/);
+  assert.match(
+    narration,
+    /adn_de_l_entreprise: buildAiMediaBusinessDnaPayload/
+  );
   assert.match(server, /creativeBrief: buildAiMediaVideoDnaBrief\(profile\)/);
   assert.match(narration, /N'invente aucun prix, résultat, certification/);
   assert.match(narration, /WORD_TARGETS/);
@@ -967,12 +1072,12 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   assert.match(renderer, /safeOverlayText/);
   assert.doesNotMatch(renderer, /font-family="Arial, Helvetica, sans-serif"/);
   assert.match(nextConfig, /Geist-Regular\.ttf/);
+  assert.match(renderer, /background: \{ r: 0, g: 0, b: 0, alpha: 0 \}/);
+  assert.match(renderer, /width \* \(visible \? 0\.16 : 0\.12\)/);
   assert.match(
     renderer,
-    /background: \{ r: 0, g: 0, b: 0, alpha: 0 \}/,
+    /args\.width - logoLayout\.marginX - preparedLogo\.width/
   );
-  assert.match(renderer, /width \* \(visible \? 0\.16 : 0\.12\)/);
-  assert.match(renderer, /args\.width - logoLayout\.marginX - preparedLogo\.width/);
   assert.doesNotMatch(renderer, /caption-band|renderVideoCaptionBand/);
   assert.doesNotMatch(renderer, /brandPlateSvg|fill="#ffffff" fill-opacity/);
   assert.doesNotMatch(renderer, /renderAiMediaVideoScenes/);
@@ -991,18 +1096,21 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   );
   assert.match(
     server,
-    /const officialLogo = providerRequest\.logoMode === "none" \? null : brandKit\.logo/
+    /const officialLogo =\s*providerRequest\.logoMode === "none" \? null : brandKit\.logo/
   );
-  assert.match(server, /generateAiMediaImage\(\{[\s\S]*?identityReferences: preparedIdentityReferences\.buffers,[\s\S]*?officialLogo,/);
-  assert.match(server, /const effectiveColors = providerRequest\.useBrandColors/);
+  assert.match(
+    server,
+    /generateAiMediaImage\(\{[\s\S]*?identityReferences: preparedIdentityReferences\.buffers,[\s\S]*?officialLogo,/
+  );
+  assert.match(
+    server,
+    /const effectiveColors = providerRequest\.useBrandColors/
+  );
   assert.match(server, /authorized_identity_and_official_logo/);
   assert.doesNotMatch(server, /inspiration_image_sha256/);
   assert.match(server, /normalizeGeneratedAiImage\(imageBuffer/);
   assert.match(server, /generateOriginalAiVideoClips/);
-  assert.match(
-    server,
-    /creativeBrief: buildAiMediaVideoDnaBrief\(profile\)/
-  );
+  assert.match(server, /creativeBrief: buildAiMediaVideoDnaBrief\(profile\)/);
   assert.match(dnaHelper, /\["Prestation", first\(business\.services, 120\)\]/);
   assert.match(veo, /adultSafePromptText\(args\.creativeBrief, 180\)/);
   assert.doesNotMatch(veo, /compact\(args\.creativeBrief, 6_000\)/);
@@ -1015,11 +1123,14 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   assert.match(server, /soundtrack:\s*null/);
   assert.match(server, /narration:\s*null/);
   assert.equal((server.match(/generateOriginalAiVideoClips/g) || []).length, 3);
-  assert.match(server, /const durationSeconds = providerRequest\.durationSeconds \|\| 8/);
+  assert.match(
+    server,
+    /const durationSeconds = providerRequest\.durationSeconds \|\| 8/
+  );
   assert.match(server, /const videoGatewayTask = measure\("video_generation"/);
   assert.match(
     server,
-    /const narrationTask =[\s\S]*?measure\("narration_pipeline"/,
+    /const narrationTask =[\s\S]*?measure\("narration_pipeline"/
   );
   assert.match(server, /const soundtrackTask = measure\("soundtrack"/);
   assert.match(server, /const overlaysTask = measure\("video_overlays"/);
@@ -1032,7 +1143,7 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   assert.match(narrationAudio, /AI_MEDIA_TTS_VOICE_MALE/);
   assert.match(
     server,
-    /providerRequest\.teamVideoSpeechMode === "characters"[\s\S]*?Promise\.resolve\(emptyNarrationResult\(\)\)/,
+    /providerRequest\.teamVideoSpeechMode === "characters"[\s\S]*?Promise\.resolve\(emptyNarrationResult\(\)\)/
   );
   assert.doesNotMatch(server, /character_dialogue_fallback_narration/);
   assert.match(veo, /DEFAULT_POLL_MS = 2_500/);

@@ -39,14 +39,31 @@ type BrandRendererModule = {
   wrapAiMediaOverlayText: (
     value: string,
     maxCharacters: number,
-    maxLines: number,
+    maxLines: number
   ) => string[];
   wrapAiMediaOverlayBodyText: (
     value: string,
     maxCharacters: number,
-    maxLines: number,
+    maxLines: number
   ) => string[];
   renderAiMediaVideoOverlay: (args: {
+    width: number;
+    height: number;
+    logo: Buffer | null;
+    colors: [string, string, string];
+    companyName: string;
+    visualStyle: "clean";
+    logoMode: "discreet" | "visible" | "none";
+    scene: {
+      eyebrow: string;
+      title: string;
+      body: string;
+      layout: "editorial";
+    };
+    withText: boolean;
+  }) => Promise<Buffer>;
+  composeAiMediaBrandedImage: (args: {
+    input: Buffer;
     width: number;
     height: number;
     logo: Buffer | null;
@@ -66,67 +83,90 @@ type BrandRendererModule = {
 
 test("l’accroche utilise entièrement sa dernière ligne avant de l’abréger", () => {
   const runtime = transpileRuntimeModule<BrandRendererModule>(
-    "../../lib/aiMediaBrandRenderer.ts",
+    "../../lib/aiMediaBrandRenderer.ts"
   );
   assert.deepEqual(
     runtime.wrapAiMediaOverlayText(
       "Face à une demande urgente, un artisan passe à l’action",
       24,
-      3,
+      3
     ),
-    ["Face à une demande", "urgente, un artisan", "passe à l’action"],
+    ["Face à une demande", "urgente, un artisan", "passe à l’action"]
   );
 });
 
 test("un texte secondaire trop long conserve une phrase entière ou disparaît", () => {
   const runtime = transpileRuntimeModule<BrandRendererModule>(
-    "../../lib/aiMediaBrandRenderer.ts",
+    "../../lib/aiMediaBrandRenderer.ts"
   );
   assert.deepEqual(
     runtime.wrapAiMediaOverlayBodyText(
       "Une solution simple et rapide. Elle centralise toutes vos publications sur chaque canal.",
       24,
-      2,
+      2
     ),
-    ["Une solution simple et", "rapide."],
+    ["Une solution simple et", "rapide."]
   );
   assert.deepEqual(
     runtime.wrapAiMediaOverlayBodyText(
       "On peut prendre rendez-vous et parler de votre communication digitale avec notre équipe",
       24,
-      2,
+      2
     ),
-    [],
+    []
   );
   assert.deepEqual(
     runtime.wrapAiMediaOverlayBodyText(
       "On peut prendre rendez-vous et parler de",
       43,
-      2,
+      2
     ),
-    [],
+    []
   );
 });
 
 test("une accroche raccourcie ne finit jamais par des points de suspension ni un mot pendant", () => {
   const runtime = transpileRuntimeModule<BrandRendererModule>(
-    "../../lib/aiMediaBrandRenderer.ts",
+    "../../lib/aiMediaBrandRenderer.ts"
   );
   const lines = runtime.wrapAiMediaOverlayText(
     "Développez votre visibilité avec une communication pensée pour votre entreprise et",
     24,
-    2,
+    2
   );
   const visible = lines.join(" ");
   assert.doesNotMatch(visible, /(?:…|\.{3})$/);
   assert.doesNotMatch(visible, /\b(?:avec|de|des|du|et|pour|sur|un|une)$/i);
 });
 
-function transpileRuntimeModule<T>(relativePath: string): T {
-  const source = readFileSync(
-    new URL(relativePath, import.meta.url),
-    "utf8",
+test("un fragment déjà tronqué par le copywriter n’est jamais gravé dans le média", () => {
+  const runtime = transpileRuntimeModule<BrandRendererModule>(
+    "../../lib/aiMediaBrandRenderer.ts"
   );
+  const visible = runtime
+    .wrapAiMediaOverlayText(
+      "BATICAD 3D : votre partenaire pour les démarches administr...",
+      29,
+      3
+    )
+    .join(" ");
+  assert.equal(visible, "BATICAD 3D : votre partenaire pour les démarches");
+  assert.doesNotMatch(visible, /(?:…|\.{3})|\badministr$/i);
+});
+
+test("une accroche complète calibrée reste intégralement visible", () => {
+  const runtime = transpileRuntimeModule<BrandRendererModule>(
+    "../../lib/aiMediaBrandRenderer.ts"
+  );
+  const headline = "Facilitez vos démarches administratives avec BATICAD 3D";
+  assert.equal(
+    runtime.wrapAiMediaOverlayText(headline, 29, 3).join(" "),
+    headline
+  );
+});
+
+function transpileRuntimeModule<T>(relativePath: string): T {
+  const source = readFileSync(new URL(relativePath, import.meta.url), "utf8");
   const output = ts.transpileModule(source, {
     compilerOptions: {
       esModuleInterop: true,
@@ -150,7 +190,7 @@ function transpileRuntimeModule<T>(relativePath: string): T {
 
 test("le compositeur remplit réellement un carré depuis un plan Veo 16:9", async () => {
   const runtime = transpileRuntimeModule<ComposerModule>(
-    "../../lib/aiMediaGeneratedVideo.ts",
+    "../../lib/aiMediaGeneratedVideo.ts"
   );
   const directory = await mkdtemp(path.join(tmpdir(), "inrcy-cover-test-"));
   const sourcePath = path.join(directory, "source-16x9.mp4");
@@ -175,7 +215,7 @@ test("le compositeur remplit réellement un carré depuis un plan Veo 16:9", asy
         "-an",
         sourcePath,
       ],
-      { timeout: 45_000, windowsHide: true },
+      { timeout: 45_000, windowsHide: true }
     );
     const transparentOverlay = await sharp({
       create: {
@@ -215,7 +255,7 @@ test("le compositeur remplit réellement un carré depuis un plan Veo 16:9", asy
         "1",
         framePath,
       ],
-      { timeout: 30_000, windowsHide: true },
+      { timeout: 30_000, windowsHide: true }
     );
     const frame = sharp(framePath);
     const metadata = await frame.metadata();
@@ -227,7 +267,10 @@ test("le compositeur remplit réellement un carré depuis un plan Veo 16:9", asy
         .extract({ left: 0, top, width: 320, height: 20 })
         .stats();
       assert.ok(stats.channels[0]!.mean > 180, `rouge visible à y=${top}`);
-      assert.ok(stats.channels[1]!.mean < 90, `aucune bande grise/noire à y=${top}`);
+      assert.ok(
+        stats.channels[1]!.mean < 90,
+        `aucune bande grise/noire à y=${top}`
+      );
     }
   } finally {
     await rm(directory, { recursive: true, force: true });
@@ -269,7 +312,7 @@ test("le placement vidéo reste plein cadre et s’adapte à chaque ratio", () =
 
 test("le texte et le logo restent sur l’image sans bande opaque", async () => {
   const runtime = transpileRuntimeModule<BrandRendererModule>(
-    "../../lib/aiMediaBrandRenderer.ts",
+    "../../lib/aiMediaBrandRenderer.ts"
   );
   const logo = await sharp({
     create: {
@@ -278,9 +321,16 @@ test("le texte et le logo restent sur l’image sans bande opaque", async () => 
       channels: 4,
       background: "#db2777",
     },
-  }).png().toBuffer();
+  })
+    .png()
+    .toBuffer();
 
-  for (const [width, height] of [[320, 320], [320, 568], [568, 320], [320, 400]]) {
+  for (const [width, height] of [
+    [320, 320],
+    [320, 568],
+    [568, 320],
+    [320, 400],
+  ]) {
     const overlay = await runtime.renderAiMediaVideoOverlay({
       width: width!,
       height: height!,
@@ -324,30 +374,78 @@ test("le texte et le logo restent sur l’image sans bande opaque", async () => 
       }
       maximumOpaqueRowCoverage = Math.max(
         maximumOpaqueRowCoverage,
-        opaquePixels / info.width,
+        opaquePixels / info.width
       );
     }
     assert.ok(
       maximumOpaqueRowCoverage < 0.5,
-      `aucune ligne opaque pleine largeur à ${width}x${height}`,
+      `aucune ligne opaque pleine largeur à ${width}x${height}`
     );
     assert.ok(
       lightTextPixels > width! / 4,
-      `texte réellement rasterisé sur l’image à ${width}x${height}`,
+      `texte réellement rasterisé sur l’image à ${width}x${height}`
     );
 
     const bottomAlpha = await sharp(overlay)
       .extract({ left: 0, top: height! - 1, width: width!, height: 1 })
       .extractChannel(3)
       .stats();
-    assert.ok(bottomAlpha.channels[0]!.mean > 0, "dégradé de lisibilité présent");
-    assert.ok(bottomAlpha.channels[0]!.mean < 220, "fond inférieur jamais opaque");
+    assert.ok(
+      bottomAlpha.channels[0]!.mean > 0,
+      "dégradé de lisibilité présent"
+    );
+    assert.ok(
+      bottomAlpha.channels[0]!.mean < 220,
+      "fond inférieur jamais opaque"
+    );
   }
+});
+
+test("les images reçoivent elles aussi leur texte exact après la génération", async () => {
+  const runtime = transpileRuntimeModule<BrandRendererModule>(
+    "../../lib/aiMediaBrandRenderer.ts"
+  );
+  const base = await sharp({
+    create: {
+      width: 320,
+      height: 320,
+      channels: 3,
+      background: "#2563eb",
+    },
+  })
+    .jpeg()
+    .toBuffer();
+  const composed = await runtime.composeAiMediaBrandedImage({
+    input: base,
+    width: 320,
+    height: 320,
+    logo: null,
+    colors: ["#0ea5e9", "#8b5cf6", "#db2777"],
+    companyName: "BATICAD 3D",
+    visualStyle: "clean",
+    logoMode: "none",
+    withText: true,
+    scene: {
+      eyebrow: "",
+      title: "Facilitez vos démarches administratives",
+      body: "",
+      layout: "editorial",
+    },
+  });
+  const metadata = await sharp(composed).metadata();
+  const stats = await sharp(composed).stats();
+  assert.equal(metadata.format, "jpeg");
+  assert.equal(metadata.width, 320);
+  assert.equal(metadata.height, 320);
+  assert.ok(
+    stats.channels.some((channel) => channel.stdev > 8),
+    "le calque éditorial modifie réellement le fond généré"
+  );
 });
 
 test("le mode sans texte ni logo conserve un calque entièrement transparent", async () => {
   const runtime = transpileRuntimeModule<BrandRendererModule>(
-    "../../lib/aiMediaBrandRenderer.ts",
+    "../../lib/aiMediaBrandRenderer.ts"
   );
   const overlay = await runtime.renderAiMediaVideoOverlay({
     width: 320,
@@ -371,19 +469,35 @@ test("le mode sans texte ni logo conserve un calque entièrement transparent", a
 
 test("le compositeur conserve l’image jusqu’au bord inférieur depuis un plan vertical", async () => {
   const runtime = transpileRuntimeModule<ComposerModule>(
-    "../../lib/aiMediaGeneratedVideo.ts",
+    "../../lib/aiMediaGeneratedVideo.ts"
   );
-  const directory = await mkdtemp(path.join(tmpdir(), "inrcy-full-frame-cover-test-"));
+  const directory = await mkdtemp(
+    path.join(tmpdir(), "inrcy-full-frame-cover-test-")
+  );
   const sourcePath = path.join(directory, "source.mp4");
   const outputPath = path.join(directory, "output.mp4");
   const framePath = path.join(directory, "frame.png");
   const ffmpegPath = await resolveVideoNormalizationFfmpegPath();
   try {
-    await execFileAsync(ffmpegPath, [
-      "-hide_banner", "-nostdin", "-y", "-f", "lavfi", "-i",
-      "color=c=0xed2945:s=320x568:r=30:d=8",
-      "-c:v", "libx264", "-pix_fmt", "yuv420p", "-an", sourcePath,
-    ], { timeout: 45_000, windowsHide: true });
+    await execFileAsync(
+      ffmpegPath,
+      [
+        "-hide_banner",
+        "-nostdin",
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        "color=c=0xed2945:s=320x568:r=30:d=8",
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "-an",
+        sourcePath,
+      ],
+      { timeout: 45_000, windowsHide: true }
+    );
     const overlay = await sharp({
       create: {
         width: 320,
@@ -391,7 +505,9 @@ test("le compositeur conserve l’image jusqu’au bord inférieur depuis un pla
         channels: 4,
         background: { r: 0, g: 0, b: 0, alpha: 0 },
       },
-    }).png().toBuffer();
+    })
+      .png()
+      .toBuffer();
     const composed = await runtime.composeOriginalAiVideo({
       clips: [{ buffer: await readFile(sourcePath), durationSeconds: 8 }],
       overlays: [overlay],
@@ -401,10 +517,22 @@ test("le compositeur conserve l’image jusqu’au bord inférieur depuis un pla
       nativeAudioMode: "mute",
     });
     await writeFile(outputPath, composed.buffer);
-    await execFileAsync(ffmpegPath, [
-      "-hide_banner", "-nostdin", "-y", "-ss", "2", "-i", outputPath,
-      "-frames:v", "1", framePath,
-    ], { timeout: 30_000, windowsHide: true });
+    await execFileAsync(
+      ffmpegPath,
+      [
+        "-hide_banner",
+        "-nostdin",
+        "-y",
+        "-ss",
+        "2",
+        "-i",
+        outputPath,
+        "-frames:v",
+        "1",
+        framePath,
+      ],
+      { timeout: 30_000, windowsHide: true }
+    );
 
     for (const top of [0, 150, 300]) {
       const stats = await sharp(framePath)
@@ -413,7 +541,7 @@ test("le compositeur conserve l’image jusqu’au bord inférieur depuis un pla
       assert.ok(stats.channels[0]!.mean > 180, `plan visible à y=${top}`);
       assert.ok(
         stats.channels[1]!.mean < 90 && stats.channels[2]!.mean < 110,
-        `aucun bandeau ou remplissage noir à y=${top}`,
+        `aucun bandeau ou remplissage noir à y=${top}`
       );
     }
   } finally {
@@ -422,7 +550,7 @@ test("le compositeur conserve l’image jusqu’au bord inférieur depuis un pla
 });
 test("le logo transparent reste discret, sans pastille blanche et en zone sûre", async () => {
   const runtime = transpileRuntimeModule<BrandRendererModule>(
-    "../../lib/aiMediaBrandRenderer.ts",
+    "../../lib/aiMediaBrandRenderer.ts"
   );
   const logo = await sharp({
     create: {
@@ -435,7 +563,7 @@ test("le logo transparent reste discret, sans pastille blanche et en zone sûre"
     .composite([
       {
         input: Buffer.from(
-          '<svg width="300" height="120" xmlns="http://www.w3.org/2000/svg"><rect x="35" y="35" width="230" height="50" rx="18" fill="#db2777"/></svg>',
+          '<svg width="300" height="120" xmlns="http://www.w3.org/2000/svg"><rect x="35" y="35" width="230" height="50" rx="18" fill="#db2777"/></svg>'
         ),
       },
     ])
@@ -495,7 +623,7 @@ test("le logo transparent reste discret, sans pastille blanche et en zone sûre"
 
 test("un canvas blanc est détouré sans effacer un vrai logo blanc transparent", async () => {
   const runtime = transpileRuntimeModule<BrandRendererModule>(
-    "../../lib/aiMediaBrandRenderer.ts",
+    "../../lib/aiMediaBrandRenderer.ts"
   );
   const scene = {
     eyebrow: "Repère",
@@ -529,7 +657,7 @@ test("un canvas blanc est détouré sans effacer un vrai logo blanc transparent"
     .composite([
       {
         input: Buffer.from(
-          '<svg width="420" height="160" xmlns="http://www.w3.org/2000/svg"><circle cx="118" cy="80" r="42" fill="#0ea5e9"/><rect x="175" y="45" width="185" height="70" rx="22" fill="#db2777"/></svg>',
+          '<svg width="420" height="160" xmlns="http://www.w3.org/2000/svg"><circle cx="118" cy="80" r="42" fill="#0ea5e9"/><rect x="175" y="45" width="185" height="70" rx="22" fill="#db2777"/></svg>'
         ),
       },
     ])
@@ -571,7 +699,7 @@ test("un canvas blanc est détouré sans effacer un vrai logo blanc transparent"
     .composite([
       {
         input: Buffer.from(
-          '<svg width="320" height="130" xmlns="http://www.w3.org/2000/svg"><rect x="45" y="35" width="230" height="60" rx="20" fill="#ffffff"/></svg>',
+          '<svg width="320" height="130" xmlns="http://www.w3.org/2000/svg"><rect x="45" y="35" width="230" height="60" rx="20" fill="#ffffff"/></svg>'
         ),
       },
     ])
@@ -594,6 +722,6 @@ test("un canvas blanc est détouré sans effacer un vrai logo blanc transparent"
   }
   assert.ok(
     preservedWhitePixels > 400,
-    "les éléments blancs sur transparence ne sont jamais supprimés",
+    "les éléments blancs sur transparence ne sont jamais supprimés"
   );
 });

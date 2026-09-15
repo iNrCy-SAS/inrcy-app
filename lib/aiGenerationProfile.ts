@@ -15,6 +15,7 @@ import {
   type AiContentLength,
 } from "@/lib/aiContentLength";
 import { normalizeAiMemory, type AiMemory } from "@/lib/aiMemory";
+import { decodeAiInstructionSections } from "@/lib/aiInstructionSections";
 
 export type AiLanguageCode = "fr" | "en" | "es" | "it" | "de" | "nl" | "pt" | "th" | "zh";
 export type AiTone = "serious" | "warm" | "fun" | "premium" | "direct";
@@ -60,6 +61,7 @@ export type AiGenerationPreferences = {
   likedExample: string;
   likedExample2: string;
   customInstructions: string;
+  forbiddenInstructions: string;
 };
 
 export type AiGenerationBusinessContext = {
@@ -362,6 +364,12 @@ function upgradeNormalizedAiGenerationProfile(
   profile: NormalizedAiGenerationProfile,
 ): NormalizedAiGenerationProfile {
   const rawPreferences = asRecord(profile.preferences);
+  const instructionSections = rawPreferences.forbiddenInstructions !== undefined
+    ? {
+        instructions: cleanText(rawPreferences.customInstructions, 1200),
+        forbiddenInstructions: cleanText(rawPreferences.forbiddenInstructions, 1200),
+      }
+    : decodeAiInstructionSections(rawPreferences.customInstructions);
   const premiumEnabled = rawPreferences.premiumEnabled === true;
   const length = enforceAiContentLengthForEdition(
     normalizeAiContentLength(rawPreferences.length, "medium"),
@@ -395,7 +403,8 @@ function upgradeNormalizedAiGenerationProfile(
       ),
       likedExample: cleanText(rawPreferences.likedExample, 1200),
       likedExample2: cleanText(rawPreferences.likedExample2, 1200),
-      customInstructions: cleanText(rawPreferences.customInstructions, 1200),
+      customInstructions: instructionSections.instructions,
+      forbiddenInstructions: instructionSections.forbiddenInstructions,
     },
     memory: normalizeAiMemory(asRecord(profile).memory, {
       includePremium: premiumEnabled,
@@ -481,6 +490,9 @@ export function buildNormalizedAiGenerationProfile(
     ),
     lengthEdition,
     generalLength,
+  );
+  const instructionSections = decodeAiInstructionSections(
+    firstValue(preferenceSources, ["ai_custom_instructions", "custom_instructions"]),
   );
 
   return {
@@ -578,10 +590,8 @@ export function buildNormalizedAiGenerationProfile(
         firstValue(preferenceSources, ["ai_liked_example_2", "liked_example_2"]),
         1200,
       ),
-      customInstructions: cleanText(
-        firstValue(preferenceSources, ["ai_custom_instructions", "custom_instructions"]),
-        1200,
-      ),
+      customInstructions: instructionSections.instructions,
+      forbiddenInstructions: instructionSections.forbiddenInstructions,
     },
     business: {
       companyName: cleanText(

@@ -108,6 +108,22 @@ test("X is hydrated once when connected and remains Classic-only", () => {
   assert.doesNotMatch(agentClient, /activeMetaPublicationChannel\s*===\s*"x"/);
 });
 
+test("the preparation backend keeps hydrated X and uses current saved channels", () => {
+  assert.match(
+    agentPrepareApi,
+    /INR_AGENT_X_PUBLISH_MIGRATION_FLAG/,
+  );
+  assert.match(
+    agentPrepareApi,
+    /states\.x\.connected[\s\S]*?!allowedAgentChannels\.includes\("x"\)[\s\S]*?allowedAgentChannels\.push\("x"\)/,
+  );
+  assert.match(
+    agentPrepareApi,
+    /const channels = availableChannels\.filter\(/,
+  );
+  assert.doesNotMatch(agentPrepareApi, /plannedBoosterChannels/);
+});
+
 test("the iNrAgent media editor enforces X's four-image limit", () => {
   assert.match(agentClient, /getBoosterMaxImageCountForChannel\(publishBoosterChannel\)/);
   assert.match(agentClient, /publishImageCount\s*>=\s*publishImageMaxCount/);

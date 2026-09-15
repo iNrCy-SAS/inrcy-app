@@ -70,7 +70,7 @@
   "ai_generator_video_options_hint": "ความยาว เสียงบรรยายอัจฉริยะและเพลงประกอบ iNrCy",
   "ai_generator_image_options_hint": "Image text and finishing touches.",
   "ai_generator_duration_title": "ความยาววิดีโอ",
-  "ai_generator_sequence_count": "{count} ช่วง",
+  "ai_generator_sequence_count": "วิดีโอนี้ประกอบด้วย {count} ช่วงที่สร้างขึ้น",
   "ai_generator_connect_scenes_label": "เชื่อมต่อฉาก",
   "ai_generator_connect_scenes_hint": "รักษาความต่อเนื่องของภาพระหว่างแต่ละช่วง",
   "ai_generator_connect_scenes_notice": "โปรดทราบ: การเชื่อมต่อฉากอาจใช้เวลาสร้างนานกว่าการไม่เชื่อมต่อฉาก",

@@ -252,6 +252,11 @@ async function refreshPublishPayloadMediaUrls(
       next.imagesByChannel,
     );
   }
+  if (next.videoByChannel) {
+    next.videoByChannel = await refreshImagesByChannelMediaUrls(
+      next.videoByChannel,
+    );
+  }
   if (next.postByChannel) {
     next.postByChannel = await refreshPostByChannelMediaUrls(
       next.postByChannel,
@@ -1675,6 +1680,7 @@ export async function PATCH(request: Request) {
     const channelMapFields = [
       "postByChannel",
       "imagesByChannel",
+      "videoByChannel",
       "mediaModeByChannel",
       "mediaReadinessByChannel",
       "mediaAdaptationByChannel",

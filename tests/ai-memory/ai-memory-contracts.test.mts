@@ -51,7 +51,10 @@ test("Premium memory is gated on the server and hidden from Standard prompts", (
   );
   assert.doesNotMatch(memoryUi, /customInstructions/);
   assert.match(configurationUi, /edition = "standard"/);
-  assert.match(configurationUi, /ai_custom_instructions: form\.forbiddenStyle\.trim\(\)/);
+  assert.match(configurationUi, /ai_custom_instructions: encodeAiInstructionSections\(\{/);
+  assert.match(configurationUi, /instructions: form\.instructions/);
+  assert.match(configurationUi, /forbiddenInstructions: form\.forbiddenStyle/);
+  assert.match(configurationUi, /AI_INSTRUCTION_SECTION_MAX_LENGTH/);
   assert.match(configurationUi, /function ContentLengthSelect/);
   assert.match(configurationUi, /const locked = premiumOption && !premiumAccess/);
   assert.match(configurationUi, /contentLengthPremiumPillStyle/);
@@ -207,10 +210,10 @@ test("identity, values and brand vocabulary stay together in Business DNA", () =
   const configurationUi = read("app/dashboard/settings/_components/AiConfigurationContent.tsx");
   const memory = read("lib/aiMemory.ts");
 
-  assert.match(memoryUi, /\| "identity"\s*\| "news"\s*\| "strategy"/);
+  assert.match(memoryUi, /\| "identity"\s*\| "news"\s*\| "documents"\s*\| "strategy"/);
   assert.match(memoryUi, /t\("tabIdentity"\)/);
-  assert.match(memoryUi, /\{ key: "news"[\s\S]*?\{ key: "strategy"/);
-  assert.match(memoryUi, /gridTemplateColumns: "repeat\(7, minmax\(0, 1fr\)\)"/);
+  assert.match(memoryUi, /\{ key: "news"[\s\S]*?\{ key: "documents"[\s\S]*?\{ key: "strategy"/);
+  assert.match(memoryUi, /gridTemplateColumns: "repeat\(8, minmax\(0, 1fr\)\)"/);
   assert.doesNotMatch(memoryUi, /activeTab === "voice"/);
   assert.doesNotMatch(memoryUi, /configurationLink/);
   assert.match(memoryUi, /memoryTags\([\s\S]*?"preferredVocabulary"/);

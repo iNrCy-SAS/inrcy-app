@@ -175,12 +175,23 @@ test("Configuration IA équipe ses exemples et ses consignes avec le micro corri
   );
 
   const voiceButtons = jsxElements(aiConfigurationContent, "MediaSubjectVoiceButton");
-  assert.equal(voiceButtons.length, 3);
+  assert.equal(voiceButtons.length, 4);
 
   const expected = [
-    { value: "form.likedExample", target: "likedExample", purpose: "content", maxLength: 1200 },
-    { value: "form.likedExample2", target: "likedExample2", purpose: "content", maxLength: 1200 },
-    { value: "form.forbiddenStyle", target: "forbiddenStyle", purpose: "instruction", maxLength: 700 },
+    { value: "form.likedExample", target: "likedExample", purpose: "content", maxLength: "1200" },
+    { value: "form.likedExample2", target: "likedExample2", purpose: "content", maxLength: "1200" },
+    {
+      value: "form.instructions",
+      target: "instructions",
+      purpose: "instruction",
+      maxLength: "AI_INSTRUCTION_SECTION_MAX_LENGTH",
+    },
+    {
+      value: "form.forbiddenStyle",
+      target: "forbiddenStyle",
+      purpose: "instruction",
+      maxLength: "AI_INSTRUCTION_SECTION_MAX_LENGTH",
+    },
   ] as const;
 
   for (const field of expected) {
