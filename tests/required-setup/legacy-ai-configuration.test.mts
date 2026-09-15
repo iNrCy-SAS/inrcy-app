@@ -190,10 +190,11 @@ test("Config IA scopes browser settings per active account without deleting the 
   assert.match(source, /writeAccountCacheValue\(STORAGE_KEY, "\{\}", activeUserId\)/);
 });
 
-test("ADN saves preserve hidden Premium memory and update only relocated business fields", () => {
+test("ADN saves expose the complete strategy memory and update only relocated business fields", () => {
   const route = read("app/api/ai-memory/route.ts");
-  assert.match(route, /mergeAiMemoryPremiumFields\(memory, currentMemoryResult\.data\?\.memory\)/);
+  assert.match(route, /normalizeAiMemory\(currentMemoryResult\.data\?\.memory, \{ includePremium: true \}\)/);
   assert.match(route, /mergeAiMemoryUpdate\(currentMemory, input\.memory \?\? input/);
+  assert.doesNotMatch(route, /mergeAiMemoryPremiumFields/);
   assert.match(route, /mergeAiBusinessKnowledgeUpdate\(currentBusinessKnowledge, input\.businessKnowledge\)/);
   assert.match(route, /const hasBusinessKnowledge = Object\.prototype\.hasOwnProperty\.call\(input, "businessKnowledge"\)/);
   assert.match(route, /business_description: businessKnowledge\.description/);

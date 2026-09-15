@@ -28,7 +28,8 @@ test("Business DNA uses one swipeable tab and keeps its analysis content within 
   assert.match(businessDna, /onTouchStart=/);
   assert.match(businessDna, /onTouchEnd=/);
   assert.match(businessDna, /\[data-business-dna-channel-states\][\s\S]*?flex-wrap: wrap !important/);
-  assert.match(businessDna, /\[data-dna-score-summary\] \{ top: -4px !important; \}/);
+  assert.match(businessDna, /\[data-business-dna-analysis-orb\][\s\S]*?padding-top: 52px/);
+  assert.match(businessDna, /\[data-dna-score-summary\] \{ top: 6px !important; \}/);
   assert.match(businessDna, /\[data-dna-score-help\]::after \{[\s\S]*?right: -2px;[\s\S]*?width: min\(220px, calc\(100vw - 76px\)\)/);
   assert.doesNotMatch(businessDna, /@media \(max-width: 640px\)[\s\S]*?\[data-dna-score-help\]::after \{[\s\S]*?left: 50%/);
 });

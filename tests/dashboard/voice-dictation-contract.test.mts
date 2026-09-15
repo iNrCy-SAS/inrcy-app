@@ -305,7 +305,7 @@ test("iNrADN équipe tous ses champs libres avec le micro corrigé partagé", ()
     assert.match(
       textarea,
       new RegExp(
-        `disabled=\\{!premiumEnabled \\|\\| voiceDisabledFor\\("${field}"\\)\\}`,
+        `disabled=\\{voiceDisabledFor\\("${field}"\\)\\}`,
       ),
     );
     assert.match(
