@@ -76,7 +76,7 @@ const buildHtmlSnippet = (config: GeneratedActusWidgetConfig) => {
   const { iframeId, initialHeight, publicAppOrigin, src } = buildEmbedDefinition(config);
   const htmlSrc = escapeHtmlAttribute(src);
 
-  return `<iframe id="${iframeId}" src="${htmlSrc}" width="100%" height="${initialHeight}" style="border:0;width:100%;max-width:100%;overflow:hidden;border-radius:24px;background:transparent;display:block;" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" scrolling="no" title="Actualités iNrCy"></iframe>
+  return `<iframe id="${iframeId}" src="${htmlSrc}" width="100%" height="${initialHeight}" style="border:0;width:100%;max-width:100%;overflow:hidden;border-radius:24px;background:transparent;display:block;" loading="eager" fetchpriority="high" referrerpolicy="strict-origin-when-cross-origin" scrolling="no" title="Actualités iNrCy"></iframe>
 <script>
 (function(){
   var iframe=document.getElementById("${iframeId}");
@@ -189,7 +189,8 @@ export default function InrcyActus() {
           background: "transparent",
           display: "block",
         }}
-        loading="lazy"
+        loading="eager"
+        fetchPriority="high"
         referrerPolicy="strict-origin-when-cross-origin"
         scrolling="no"
         title="Actualités iNrCy"

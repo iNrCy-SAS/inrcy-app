@@ -242,9 +242,13 @@ function renderMediaBlock(article: Record<string, unknown>, idPrefix: string) {
         <div class="mediaFallback" aria-hidden="true">Image indisponible</div>
       </div>`;
   }
-  const slides = images.map((img, imageIndex) => `
+  // The widget is small and must remain reliable when embedded in third-party
+  // builders (including preview panes and private browsing). Native lazy
+  // loading can defer images indefinitely and replace them with placeholders,
+  // so every carousel image is requested explicitly up front.
+  const slides = images.map((img) => `
     <div class="mediaSlide" data-media-slide>
-      <img class="media" src="${safeAttr(stableImageSrc(img))}" data-original-src="${safeAttr(img)}" alt="" loading="${imageIndex === 0 ? "eager" : "lazy"}" fetchpriority="${imageIndex === 0 ? "high" : "auto"}" decoding="async" referrerpolicy="no-referrer" />
+      <img class="media" src="${safeAttr(stableImageSrc(img))}" data-original-src="${safeAttr(img)}" alt="" loading="eager" fetchpriority="high" decoding="async" referrerpolicy="no-referrer" />
     </div>
   `).join("");
   const dots = images.map((_, imageIndex) => `<button class="mediaDot" type="button" data-media-dot="${imageIndex}" aria-label="Photo ${imageIndex + 1}"></button>`).join("");

@@ -52,12 +52,12 @@ test("the site iframe stays visible when reduced motion disables animations", as
   );
 });
 
-test("the site iframe prioritizes only the first image in a media carousel", async () => {
+test("the site iframe eagerly loads every image in a media carousel", async () => {
   const source = await read("app/embed/actus/_lib/render.ts");
-  assert.match(source, /images\.map\(\(img, imageIndex\) =>/);
-  assert.match(source, /loading="\$\{imageIndex === 0 \? "eager" : "lazy"\}"/);
-  assert.match(source, /fetchpriority="\$\{imageIndex === 0 \? "high" : "auto"\}"/);
+  assert.match(source, /images\.map\(\(img\) =>/);
   assert.match(source, /loading="eager" fetchpriority="high" decoding="async"/);
+  assert.doesNotMatch(source, /loading="lazy"/);
+  assert.doesNotMatch(source, /fetchpriority="auto"/);
 });
 
 test("Booster, iNrAgent and iNrSend keep Original as the untouched default", async () => {
