@@ -25,6 +25,7 @@ export function buildBusinessDnaAnalysisSourcePayload(
   const priorities = [
     "website",
     "inrcy_site",
+    "reference_documents",
     "google_business",
     "inr_search",
     "inrcy_publications",
@@ -80,7 +81,7 @@ export function buildBusinessDnaAnalysisSourcePayload(
   // l'historique iNrCy et chaque réseau conservent assez de matière pour faire
   // émerger les thèmes, les besoins clients et le vocabulaire récurrents.
   const sourceWeight = (key: string) => {
-    if (key === "website" || key === "inrcy_site") return 5;
+    if (key === "website" || key === "inrcy_site" || key === "reference_documents") return 5;
     if (key === "google_business") return 4;
     if (key === "inr_search") return 3;
     if (key === "inrcy_publications") return 2;

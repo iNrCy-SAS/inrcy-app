@@ -21,22 +21,22 @@ test("the additive migration keeps profile automation and scopes memory per acco
   assert.doesNotMatch(migration, /drop\s+(?:table|column)\s/i);
 });
 
-test("Premium memory is gated on the server and hidden from Standard prompts", () => {
+test("Business DNA strategy is available to Standard and Premium generations", () => {
   const route = read("app/api/ai-memory/route.ts");
   const context = read("lib/boosterGenerationContext.ts");
   const profile = read("lib/aiGenerationProfile.ts");
   const memoryUi = read("app/dashboard/settings/_components/AiMemoryContent.tsx");
   const configurationUi = read("app/dashboard/settings/_components/AiConfigurationContent.tsx");
 
-  assert.match(route, /hasPremiumDashboardAccess\(edition\)/);
-  assert.match(route, /mergeAiMemoryPremiumFields\(memory, currentMemoryResult\.data\?\.memory\)/);
-  assert.match(context, /includePremium: hasPremiumDashboardAccess\(edition\)/);
-  assert.match(profile, /includePremium: lengthEdition === "premium"/);
-  assert.match(memoryUi, /edition = "standard"/);
+  assert.doesNotMatch(route, /hasPremiumDashboardAccess|mergeAiMemoryPremiumFields/);
+  assert.match(route, /strategyEnabled: true/);
+  assert.match(context, /includePremium: true/);
+  assert.match(profile, /includePremium: true/);
+  assert.match(memoryUi, /const strategyEnabled = true/);
   assert.equal(
     (
       memoryUi.match(
-        /disabled=\{!premiumEnabled \|\| voiceDisabledFor\("(?:offersAndArguments|proofsAndObjections|editorialStrategy)"\)\}/g,
+        /disabled=\{voiceDisabledFor\("(?:offersAndArguments|proofsAndObjections|editorialStrategy)"\)\}/g,
       ) || []
     ).length,
     3,
@@ -44,11 +44,12 @@ test("Premium memory is gated on the server and hidden from Standard prompts", (
   assert.equal(
     (
       memoryUi.match(
-        /disabled=\{!premiumEnabled \|\| voiceDisabledFor\("(?:keyArguments|objectionResponses|campaignCalendar)"\)\}/g,
+        /disabled=\{voiceDisabledFor\("(?:keyArguments|objectionResponses|campaignCalendar)"\)\}/g,
       ) || []
     ).length,
     3,
   );
+  assert.doesNotMatch(memoryUi, /premiumLocked|premiumEnabled \?/);
   assert.doesNotMatch(memoryUi, /customInstructions/);
   assert.match(configurationUi, /edition = "standard"/);
   assert.match(configurationUi, /ai_custom_instructions: encodeAiInstructionSections\(\{/);
@@ -143,7 +144,8 @@ test("channel analysis is private, bounded, cumulative and monthly limited", () 
   assert.match(route, /JSON\.stringify\(ANALYSIS_RESPONSE_SCHEMA\.schema\)\.length \+ 900/);
   assert.match(route, /const ANALYSIS_MAX_INPUT_CHARS = 150_000/);
   assert.match(route, /const ANALYSIS_MAX_SOURCE_PAYLOAD_CHARS = 100_000/);
-  assert.match(route, /premiumEnabled \? "développe les six leviers Premium/);
+  assert.match(route, /développe les six leviers de stratégie/);
+  assert.match(route, /buildBusinessDnaReferenceDocumentSources/);
   assert.match(collector, /getPublicBusinessDnaSourceResults/);
   assert.match(collector, /const \{ content: _content, \.\.\.visible \} = source/);
   assert.doesNotMatch(collector, /reviewerName:/);
@@ -212,7 +214,8 @@ test("identity, values and brand vocabulary stay together in Business DNA", () =
 
   assert.match(memoryUi, /\| "identity"\s*\| "news"\s*\| "documents"\s*\| "strategy"/);
   assert.match(memoryUi, /t\("tabIdentity"\)/);
-  assert.match(memoryUi, /\{ key: "news"[\s\S]*?\{ key: "documents"[\s\S]*?\{ key: "strategy"/);
+  assert.match(memoryUi, /\{ key: "analysis"[\s\S]*?\{ key: "documents"[\s\S]*?\{ key: "activity"/);
+  assert.match(memoryUi, /\{ key: "news"[\s\S]*?\{ key: "strategy"/);
   assert.match(memoryUi, /gridTemplateColumns: "repeat\(8, minmax\(0, 1fr\)\)"/);
   assert.doesNotMatch(memoryUi, /activeTab === "voice"/);
   assert.doesNotMatch(memoryUi, /configurationLink/);
@@ -228,7 +231,7 @@ test("identity, values and brand vocabulary stay together in Business DNA", () =
   assert.match(memory, /vocabulaire_a_privilegier/);
 });
 
-test("recent news and Premium use responsive full-width stacked rows", () => {
+test("recent news and strategy use responsive full-width stacked rows", () => {
   const memoryUi = read("app/dashboard/settings/_components/AiMemoryContent.tsx");
 
   assert.match(memoryUi, /data-ai-memory-news-rows style=\{newsGridStyle\}/);
@@ -238,7 +241,7 @@ test("recent news and Premium use responsive full-width stacked rows", () => {
   assert.equal(
     (memoryUi.match(/data-ai-memory-premium-row style=/g) || []).length,
     6,
-    "Premium must stay split into six independent stacked fields",
+    "Strategy must stay split into six independent stacked fields",
   );
   assert.match(
     memoryUi,
@@ -260,7 +263,7 @@ test("every shared writing generator loads the complete professional DNA context
 
   assert.match(context, /from\("business_ai_memories"\)/);
   assert.match(context, /ai_memory: memory/);
-  assert.match(context, /includePremium: hasPremiumDashboardAccess\(edition\)/);
+  assert.match(context, /includePremium: true/);
   for (const generator of [reviewReply, mailWriter, templateWriter]) {
     assert.match(generator, /getAiProfessionalGenerationContext/);
     assert.match(generator, /buildAiWritingProfilePromptSection\(generationProfile\)/);

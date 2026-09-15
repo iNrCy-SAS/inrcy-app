@@ -16,7 +16,8 @@ import { fitPromptPayloadToJsonBudget } from "./aiPromptBudget.ts";
 export const AI_MEMORY_SCHEMA_VERSION = 1 as const;
 
 export const AI_MEMORY_REFERENCE_DOCUMENT_MAX_ITEMS = 6;
-export const AI_MEMORY_REFERENCE_DOCUMENT_MAX_BYTES = 6 * 1024 * 1024;
+export const AI_MEMORY_REFERENCE_DOCUMENT_MAX_BYTES = 20 * 1024 * 1024;
+export const AI_MEMORY_REFERENCE_DOCUMENT_MAX_TOTAL_BYTES = 50 * 1024 * 1024;
 export const AI_MEMORY_REFERENCE_DOCUMENT_MAX_EXTRACT_CHARS = 2_500;
 
 export type AiMemoryReferenceDocument = {

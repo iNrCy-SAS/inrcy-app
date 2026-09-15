@@ -13,7 +13,7 @@ import {
 import { useTranslations } from "next-intl";
 
 import { invalidateBoosterGenerationContextClient } from "@/lib/boosterGenerationContextClient";
-import { createClient } from "@/lib/supabaseClient";
+import { uploadFileToPreparedStorageIntent } from "@/lib/universalMediaUploadClient";
 import {
   BUSINESS_DNA_DASHBOARD_CHANNELS,
   type BusinessDnaDashboardChannelAvailability,
@@ -21,6 +21,7 @@ import {
 import {
   AI_MEMORY_REFERENCE_DOCUMENT_MAX_BYTES,
   AI_MEMORY_REFERENCE_DOCUMENT_MAX_ITEMS,
+  AI_MEMORY_REFERENCE_DOCUMENT_MAX_TOTAL_BYTES,
   EMPTY_AI_BUSINESS_KNOWLEDGE,
   EMPTY_AI_MEMORY,
   getAiWorkspaceCompletionScore,
@@ -31,7 +32,7 @@ import {
   type AiMemory,
   type AiMemoryReferenceDocument,
 } from "@/lib/aiMemory";
-import { hasPremiumDashboardAccess, type DashboardEdition } from "@/lib/dashboardEdition";
+import { type DashboardEdition } from "@/lib/dashboardEdition";
 import { confirmInrcy } from "@/lib/inrcyDialog";
 import { refreshPublicProfileDependents } from "@/lib/publicProfileRefreshClient";
 import MediaSubjectVoiceButton from "../../_components/MediaSubjectVoiceButton";
@@ -159,7 +160,6 @@ function parseAnalysisChannels(value: unknown): BusinessDnaDashboardChannelAvail
 }
 
 export default function AiMemoryContent({
-  edition = "standard",
   onUnsavedChange,
   onVoiceBusyChange,
 }: Props) {
@@ -172,7 +172,8 @@ export default function AiMemoryContent({
     EMPTY_AI_BUSINESS_KNOWLEDGE,
   );
   const [foundation, setFoundation] = useState<ProfileFoundation>({ sector: "", profession: "" });
-  const [premiumEnabled, setPremiumEnabled] = useState(hasPremiumDashboardAccess(edition));
+  // La stratégie fait désormais partie du socle iNrADN de toutes les éditions.
+  const strategyEnabled = true;
   const [loading, setLoading] = useState(true);
   const [loaded, setLoaded] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
@@ -225,7 +226,7 @@ export default function AiMemoryContent({
     [businessKnowledge, memory],
   );
   const completionScore = getAiWorkspaceCompletionScore(memory, businessKnowledge, {
-    includePremium: premiumEnabled,
+    includePremium: strategyEnabled,
   });
   const voiceBusy = voiceTarget !== null;
   const voiceOperationsLocked = saving || analyzing || loading || !loaded;
@@ -282,11 +283,11 @@ export default function AiMemoryContent({
         if (!response.ok) throw new Error(apiErrorMessage(payload, t("loadError")));
         if (!active) return;
 
-        const nextPremiumEnabled = Boolean(payload.premiumEnabled);
+        const nextStrategyEnabled = payload.strategyEnabled !== false;
         const rawFoundation = payload.profileFoundation || {};
         const rawBusinessKnowledge = payload.businessKnowledge || {};
         const nextMemory = normalizeAiMemory(payload.memory, {
-          includePremium: nextPremiumEnabled,
+          includePremium: nextStrategyEnabled,
         });
         const nextBusinessKnowledge = normalizeAiBusinessKnowledge({
           ...rawBusinessKnowledge,
@@ -300,7 +301,7 @@ export default function AiMemoryContent({
             detailedDescription: nextBusinessKnowledge.description,
             differentiators: nextBusinessKnowledge.strengths,
           },
-          { includePremium: nextPremiumEnabled },
+          { includePremium: nextStrategyEnabled },
         );
 
         updateMemory(synchronizedMemory);
@@ -309,7 +310,6 @@ export default function AiMemoryContent({
           sector: String(rawFoundation.sector || ""),
           profession: String(rawFoundation.profession || ""),
         });
-        setPremiumEnabled(nextPremiumEnabled);
         setAnalysisQuota(parseAnalysisQuota(quotaPayload.quota));
         setAnalysisChannels(parseAnalysisChannels(quotaPayload.channels));
         setLoaded(true);
@@ -408,11 +408,19 @@ export default function AiMemoryContent({
 
     setDocumentUploadError("");
     const selected = files.slice(0, remaining);
+    let selectedTotalBytes = memoryRef.current.referenceDocuments.reduce(
+      (total, document) => total + Math.max(0, Number(document.size) || 0),
+      0,
+    );
     try {
       for (const file of selected) {
         if (file.size > AI_MEMORY_REFERENCE_DOCUMENT_MAX_BYTES) {
           throw new Error(t("documentsSizeError"));
         }
+        if (selectedTotalBytes + file.size > AI_MEMORY_REFERENCE_DOCUMENT_MAX_TOTAL_BYTES) {
+          throw new Error(t("documentsTotalSizeError"));
+        }
+        selectedTotalBytes += file.size;
         setDocumentUploadState("uploading");
         const prepareResponse = await fetch("/api/ai-memory/documents", {
           method: "POST",
@@ -430,15 +438,26 @@ export default function AiMemoryContent({
           throw new Error(apiErrorMessage(prepared, t("documentsUploadError")));
         }
 
-        const upload = await createClient()
-          .storage.from(String(prepared.bucket || "inrcy-pro-media"))
-          .uploadToSignedUrl(
-            String(prepared.storagePath || ""),
-            String(prepared.token || ""),
-            file,
-            { contentType: file.type || "application/octet-stream" },
-          );
-        if (upload.error) throw upload.error;
+        const uploadMimeType = String(
+          prepared.mimeType || file.type || "application/octet-stream",
+        );
+        const uploadProtocol =
+          prepared.protocol === "tus"
+            ? "tus"
+            : prepared.protocol === "signed"
+              ? "signed"
+              : null;
+        if (!uploadProtocol) {
+          throw new Error(t("documentsUploadError"));
+        }
+        await uploadFileToPreparedStorageIntent(file, {
+          protocol: uploadProtocol,
+          bucket: String(prepared.bucket || "inrcy-ai-documents"),
+          storagePath: String(prepared.storagePath || ""),
+          token: String(prepared.token || ""),
+          contentType: uploadMimeType,
+          resumableEndpoint: String(prepared.resumableEndpoint || ""),
+        });
 
         setDocumentUploadState("analysing");
         const finalizeResponse = await fetch("/api/ai-memory/documents", {
@@ -449,7 +468,7 @@ export default function AiMemoryContent({
             action: "finalize",
             id: prepared.id,
             name: file.name,
-            mimeType: file.type || "application/octet-stream",
+            mimeType: uploadMimeType,
             size: file.size,
             storagePath: prepared.storagePath,
             analysisConsent: true,
@@ -568,16 +587,15 @@ export default function AiMemoryContent({
       if (nextQuota) setAnalysisQuota(nextQuota);
       if (!response.ok) throw new Error(apiErrorMessage(payload, t("saveError")));
 
-      const nextPremiumEnabled = Boolean(payload.premiumEnabled);
+      const nextStrategyEnabled = payload.strategyEnabled !== false;
       const nextBusinessKnowledge = normalizeAiBusinessKnowledge(
         payload.businessKnowledge || businessKnowledge,
       );
       const nextMemory = normalizeAiMemory(payload.memory, {
-        includePremium: nextPremiumEnabled,
+        includePremium: nextStrategyEnabled,
       });
       updateMemory(nextMemory);
       updateBusinessKnowledge(nextBusinessKnowledge);
-      setPremiumEnabled(nextPremiumEnabled);
       savedSignatureRef.current = workspaceSignature(nextMemory, nextBusinessKnowledge);
       onUnsavedChange?.(false);
       setSaved(true);
@@ -609,7 +627,7 @@ export default function AiMemoryContent({
         businessKnowledge?: unknown;
       };
       const savedMemory = normalizeAiMemory(savedWorkspace.memory, {
-        includePremium: premiumEnabled,
+        includePremium: strategyEnabled,
       });
       const savedBusinessKnowledge = normalizeAiBusinessKnowledge(savedWorkspace.businessKnowledge);
       updateMemory(savedMemory);
@@ -639,7 +657,7 @@ export default function AiMemoryContent({
           // clic sur "Réinitialiser" ne laisse jamais de fichier orphelin.
           referenceDocuments: memoryRef.current.referenceDocuments,
         },
-        { includePremium: premiumEnabled },
+        { includePremium: strategyEnabled },
       ),
     );
     updateBusinessKnowledge(normalizeAiBusinessKnowledge(EMPTY_AI_BUSINESS_KNOWLEDGE));
@@ -703,7 +721,7 @@ export default function AiMemoryContent({
         businessKnowledgeRef.current,
         suggestion.memory,
         suggestion.businessKnowledge,
-        { includePremium: premiumEnabled },
+        { includePremium: strategyEnabled },
       );
       updateMemory(merged.memory);
       updateBusinessKnowledge(merged.businessKnowledge);
@@ -779,15 +797,15 @@ export default function AiMemoryContent({
       })
     : "";
 
-  const tabs: Array<{ key: WorkspaceTab; icon: string; label: string; premium?: boolean }> = [
+  const tabs: Array<{ key: WorkspaceTab; icon: string; label: string }> = [
     { key: "analysis", icon: "✦", label: t("tabAnalysis") },
+    { key: "documents", icon: "📎", label: t("tabDocuments") },
     { key: "activity", icon: "🏢", label: t("tabActivity") },
     { key: "audience", icon: "🎯", label: t("tabAudience") },
     { key: "local", icon: "📍", label: t("tabLocal") },
     { key: "identity", icon: "🧭", label: t("tabIdentity") },
     { key: "news", icon: "⚡", label: t("tabNews") },
-    { key: "documents", icon: "📎", label: t("tabDocuments") },
-    { key: "strategy", icon: "💎", label: t("tabStrategy"), premium: true },
+    { key: "strategy", icon: "🧠", label: t("tabStrategy") },
   ];
   const activeTabIndex = Math.max(0, tabs.findIndex((tab) => tab.key === activeTab));
   const activeTabDefinition = tabs[activeTabIndex] ?? tabs[0];
@@ -814,13 +832,6 @@ export default function AiMemoryContent({
             >
               <span aria-hidden>{tab.icon}</span>
               <span>{tab.label}</span>
-              {tab.premium ? (
-                <span
-                  aria-label={t("premiumBadge")}
-                  title={t("premiumBadge")}
-                  style={miniPremiumBadgeStyle}
-                />
-              ) : null}
             </button>
           );
         })}
@@ -840,7 +851,6 @@ export default function AiMemoryContent({
           <span style={mobileTabLabelStyle}>
             <span aria-hidden>{activeTabDefinition.icon}</span>
             <strong>{activeTabDefinition.label}</strong>
-            {activeTabDefinition.premium ? <span aria-hidden style={miniPremiumBadgeStyle} /> : null}
           </span>
           <span style={mobileTabPositionStyle}>{activeTabIndex + 1} / {tabs.length}</span>
           <span aria-hidden style={mobileTabProgressTrackStyle}>
@@ -1510,16 +1520,14 @@ export default function AiMemoryContent({
 
             {activeTab === "strategy" ? (
               <section data-ai-memory-tab="strategy" style={{ ...cardStyle, ...premiumCardStyle }}>
-                <div data-ai-memory-premium-heading style={sectionHeadingRowStyle}>
+                <div data-ai-memory-strategy-heading style={sectionHeadingRowStyle}>
                   <SectionHeader
-                    icon="💎"
+                    icon="🧠"
                     title={t("premiumTitle")}
                     description={t("premiumDescription")}
                     trailing={<CompletionPill label={t("completion")} score={completionScore} />}
                   />
-                  <span style={premiumBadgeStyle}>{t("premiumBadge")}</span>
                 </div>
-                {!premiumEnabled ? <div style={lockedNoticeStyle}>🔒 {t("premiumLocked")}</div> : null}
                 <div data-ai-memory-premium-rows style={premiumGridStyle}>
                   <div data-ai-memory-premium-row style={premiumFieldCardStyle}>
                     <span aria-hidden style={premiumFieldNumberStyle}>1</span>
@@ -1528,7 +1536,7 @@ export default function AiMemoryContent({
                       placeholder={t("offersPlaceholder")}
                       value={memory.offersAndArguments}
                       html={memory.richText.offersAndArguments}
-                      disabled={!premiumEnabled || voiceDisabledFor("offersAndArguments")}
+                      disabled={voiceDisabledFor("offersAndArguments")}
                       onVoiceBusyChange={(busy) => handleVoiceBusyChange("offersAndArguments", busy)}
                       onChange={(next) => setPremiumRichField("offersAndArguments", next)}
                     />
@@ -1539,7 +1547,7 @@ export default function AiMemoryContent({
                       label={t("argumentsLabel")}
                       placeholder={t("argumentsPlaceholder")}
                       value={memory.keyArguments}
-                      disabled={!premiumEnabled || voiceDisabledFor("keyArguments")}
+                      disabled={voiceDisabledFor("keyArguments")}
                       maxLength={3000}
                       onVoiceBusyChange={(busy) => handleVoiceBusyChange("keyArguments", busy)}
                       onChange={(next) => setField("keyArguments", next.slice(0, 3000))}
@@ -1552,7 +1560,7 @@ export default function AiMemoryContent({
                       placeholder={t("proofsPlaceholder")}
                       value={memory.proofsAndObjections}
                       html={memory.richText.proofsAndObjections}
-                      disabled={!premiumEnabled || voiceDisabledFor("proofsAndObjections")}
+                      disabled={voiceDisabledFor("proofsAndObjections")}
                       onVoiceBusyChange={(busy) => handleVoiceBusyChange("proofsAndObjections", busy)}
                       onChange={(next) => setPremiumRichField("proofsAndObjections", next)}
                     />
@@ -1563,7 +1571,7 @@ export default function AiMemoryContent({
                       label={t("objectionsLabel")}
                       placeholder={t("objectionsPlaceholder")}
                       value={memory.objectionResponses}
-                      disabled={!premiumEnabled || voiceDisabledFor("objectionResponses")}
+                      disabled={voiceDisabledFor("objectionResponses")}
                       maxLength={3000}
                       onVoiceBusyChange={(busy) => handleVoiceBusyChange("objectionResponses", busy)}
                       onChange={(next) => setField("objectionResponses", next.slice(0, 3000))}
@@ -1576,7 +1584,7 @@ export default function AiMemoryContent({
                       placeholder={t("editorialPlaceholder")}
                       value={memory.editorialStrategy}
                       html={memory.richText.editorialStrategy}
-                      disabled={!premiumEnabled || voiceDisabledFor("editorialStrategy")}
+                      disabled={voiceDisabledFor("editorialStrategy")}
                       onVoiceBusyChange={(busy) => handleVoiceBusyChange("editorialStrategy", busy)}
                       onChange={(next) => setPremiumRichField("editorialStrategy", next)}
                     />
@@ -1587,7 +1595,7 @@ export default function AiMemoryContent({
                       label={t("campaignCalendarLabel")}
                       placeholder={t("campaignCalendarPlaceholder")}
                       value={memory.campaignCalendar}
-                      disabled={!premiumEnabled || voiceDisabledFor("campaignCalendar")}
+                      disabled={voiceDisabledFor("campaignCalendar")}
                       maxLength={3000}
                       onVoiceBusyChange={(busy) => handleVoiceBusyChange("campaignCalendar", busy)}
                       onChange={(next) => setField("campaignCalendar", next.slice(0, 3000))}
@@ -1800,9 +1808,9 @@ export default function AiMemoryContent({
             width: 100% !important;
             height: 270px !important;
             box-sizing: border-box;
-            padding-top: 48px;
+            padding-top: 52px;
           }
-          [data-dna-score-summary] { top: -4px !important; }
+          [data-dna-score-summary] { top: 6px !important; }
           [data-business-dna-channel-states] {
             width: 100% !important;
             flex-wrap: wrap !important;
@@ -1843,10 +1851,10 @@ export default function AiMemoryContent({
             flex: 1 1 100% !important;
             justify-content: flex-start !important;
           }
-          div[data-ai-memory-premium-heading] {
+          div[data-ai-memory-strategy-heading] {
             grid-template-columns: minmax(0, 1fr) !important;
           }
-          div[data-ai-memory-premium-heading] > span:last-child {
+          div[data-ai-memory-strategy-heading] > span:last-child {
             justify-self: start;
           }
           div[data-ai-memory-news-row],
@@ -1979,8 +1987,8 @@ function PremiumTextarea({
 const pageStyle: CSSProperties = { display: "grid", gap: 11, width: "100%", maxWidth: "none", margin: 0, paddingBottom: "max(14px, var(--inrcy-safe-area-bottom))" };
 const cardStyle: CSSProperties = { display: "grid", gap: 18, padding: "clamp(14px, 2.2vw, 22px)", borderRadius: 20, border: "1px solid rgba(125,211,252,0.17)", background: "linear-gradient(145deg, rgba(11,27,52,0.82), rgba(31,23,58,0.70))", boxShadow: "0 16px 44px rgba(0,0,0,0.18)", minWidth: 0 };
 const analysisLandingStyle: CSSProperties = { position: "relative", isolation: "isolate", overflow: "hidden", height: "clamp(610px, calc(100svh - 245px), 780px)", minHeight: 0, display: "grid", justifyItems: "center", alignContent: "center", gap: "clamp(15px, 1.8vh, 22px)", padding: "clamp(24px, 3vw, 40px) clamp(14px, 3vw, 34px)", borderRadius: 22, border: "1px solid rgba(125,211,252,0.20)", background: "radial-gradient(circle at 50% 28%, rgba(79,70,229,0.22), transparent 31%), radial-gradient(circle at 15% 15%, rgba(6,182,212,0.10), transparent 28%), radial-gradient(circle at 88% 86%, rgba(236,72,153,0.10), transparent 29%), linear-gradient(145deg, rgba(5,18,39,0.96), rgba(24,11,48,0.93))", boxShadow: "0 24px 68px rgba(0,0,0,0.24)", textAlign: "center" };
-const analysisOrbStageStyle: CSSProperties = { position: "relative", width: "min(530px, 92vw)", height: 285, display: "grid", placeItems: "center", perspective: 760 };
-const analysisScoreBubbleStyle: CSSProperties = { position: "absolute", zIndex: 8, top: -24, left: "50%", transform: "translateX(-50%)", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 34, padding: "7px 9px 7px 13px", borderRadius: 999, border: "1px solid rgba(125,211,252,.30)", background: "linear-gradient(115deg, rgba(3,20,48,.96), rgba(45,25,91,.96) 58%, rgba(91,22,72,.94))", boxShadow: "0 12px 30px rgba(0,0,0,.30), 0 0 25px rgba(124,58,237,.20)", color: "rgba(226,232,240,.82)", fontSize: 11.5, fontWeight: 800, whiteSpace: "nowrap", letterSpacing: ".01em" };
+const analysisOrbStageStyle: CSSProperties = { position: "relative", width: "min(530px, 92vw)", height: 300, boxSizing: "border-box", paddingTop: 42, display: "grid", placeItems: "center", perspective: 760 };
+const analysisScoreBubbleStyle: CSSProperties = { position: "absolute", zIndex: 8, top: 6, left: "50%", transform: "translateX(-50%)", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 34, maxWidth: "calc(100% - 24px)", padding: "7px 9px 7px 13px", borderRadius: 999, border: "1px solid rgba(125,211,252,.30)", background: "linear-gradient(115deg, rgba(3,20,48,.96), rgba(45,25,91,.96) 58%, rgba(91,22,72,.94))", boxShadow: "0 12px 30px rgba(0,0,0,.30), 0 0 25px rgba(124,58,237,.20)", color: "rgba(226,232,240,.82)", fontSize: 11.5, fontWeight: 800, whiteSpace: "nowrap", letterSpacing: ".01em" };
 const analysisScoreHelpStyle: CSSProperties = { position: "relative", width: 19, height: 19, display: "inline-grid", placeItems: "center", borderRadius: "50%", border: "1px solid rgba(165,243,252,.38)", background: "rgba(56,189,248,.12)", color: "#a5f3fc", fontSize: 10.5, fontWeight: 950, lineHeight: 1, cursor: "help", outline: "none", boxShadow: "0 0 12px rgba(56,189,248,.18)" };
 const analysisOrbAuraStyle: CSSProperties = { position: "absolute", inset: "4% 12%", borderRadius: "46%", background: "radial-gradient(ellipse, rgba(124,58,237,0.40), rgba(6,182,212,0.14) 43%, rgba(236,72,153,.08) 58%, transparent 74%)", filter: "blur(23px)", opacity: 0.72 };
 const analysisDnaAssemblyStyle: CSSProperties = { position: "relative", zIndex: 4, width: 210, height: 220, display: "grid", placeItems: "center", transformStyle: "preserve-3d" };
@@ -1990,7 +1998,7 @@ const analysisStreamRightStyle: CSSProperties = { position: "absolute", zIndex: 
 const analysisStreamParticleStyle: CSSProperties = { position: "absolute", width: 5, height: 5, borderRadius: "50%", background: "#fdf2f8", boxShadow: "0 0 8px #f472b6, 0 0 20px rgba(56,189,248,.72)", opacity: 0.24 };
 const analysisIntroStyle: CSSProperties = { width: "min(680px, 100%)", display: "grid", justifyItems: "center", gap: 8, marginTop: -14 };
 const analysisTitleStyle: CSSProperties = { margin: 0, color: "white", fontSize: "clamp(22px, 2.7vw, 34px)", lineHeight: 1.08, letterSpacing: "-0.035em", textWrap: "balance" };
-const analysisDescriptionStyle: CSSProperties = { margin: 0, maxWidth: 650, color: "rgba(213,226,250,0.70)", fontSize: "clamp(11.5px, 1.25vw, 13.5px)", lineHeight: 1.42, textWrap: "balance" };
+const analysisDescriptionStyle: CSSProperties = { margin: 0, maxWidth: 720, color: "rgba(238,244,255,0.92)", fontSize: "clamp(13px, 1.35vw, 15px)", fontWeight: 650, lineHeight: 1.48, textWrap: "balance", textShadow: "0 1px 14px rgba(56,189,248,0.16)" };
 const analysisChannelRailStyle: CSSProperties = { width: "min(1060px, 100%)", display: "flex", flexWrap: "wrap", justifyContent: "center", alignItems: "center", gap: 6, minWidth: 0 };
 const analysisChannelPillStyle: CSSProperties = { minHeight: 27, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "5px 9px", borderRadius: 999, fontSize: 10.5, fontWeight: 850, lineHeight: 1, whiteSpace: "nowrap", transition: "border-color .18s ease, background .18s ease, box-shadow .18s ease, color .18s ease" };
 const analysisChannelConnectedStyle: CSSProperties = { border: "1px solid rgba(103,232,249,.34)", background: "linear-gradient(115deg, rgba(8,145,178,.18), rgba(109,40,217,.18) 60%, rgba(219,39,119,.15))", color: "rgba(240,249,255,.94)", boxShadow: "0 0 15px rgba(56,189,248,.12), 0 0 18px rgba(168,85,247,.10)" };
@@ -2023,7 +2031,6 @@ const mobileTabLabelStyle: CSSProperties = { minWidth: 0, display: "flex", align
 const mobileTabPositionStyle: CSSProperties = { color: "rgba(186,230,253,.72)", fontSize: 10.5, fontWeight: 850, whiteSpace: "nowrap" };
 const mobileTabProgressTrackStyle: CSSProperties = { gridColumn: "1 / -1", height: 3, overflow: "hidden", borderRadius: 999, background: "rgba(255,255,255,.08)" };
 const mobileTabProgressValueStyle: CSSProperties = { display: "block", height: "100%", borderRadius: 999, background: "linear-gradient(90deg, #38bdf8, #8b5cf6 58%, #ec4899)", transition: "width .2s ease" };
-const miniPremiumBadgeStyle: CSSProperties = { width: 8, height: 8, flex: "0 0 auto", borderRadius: 999, border: "1px solid rgba(253,230,138,0.86)", background: "#fbbf24", boxShadow: "0 0 11px rgba(251,191,36,0.65)" };
 const tabPanelStyle: CSSProperties = { minWidth: 0 };
 const sectionStackStyle: CSSProperties = { display: "grid", gap: 15, minWidth: 0 };
 const foundationCardStyle: CSSProperties = { display: "grid", gridTemplateColumns: "auto minmax(0, 1fr)", alignItems: "center", gap: 11, padding: "11px 14px", borderRadius: 16, border: "1px solid rgba(103,232,249,0.22)", background: "linear-gradient(145deg, rgba(8,145,178,0.13), rgba(38,20,78,0.68))", boxShadow: "0 14px 38px rgba(0,0,0,.16)" };
@@ -2095,8 +2102,6 @@ const premiumCardStyle: CSSProperties = { border: "1px solid rgba(251,191,36,0.2
 const premiumGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "minmax(0, 1fr)", alignItems: "stretch", gap: 11 };
 const premiumFieldCardStyle: CSSProperties = { minWidth: 0, display: "grid", gridTemplateColumns: "40px minmax(0, 1fr)", alignItems: "start", gap: 13, padding: 14, borderRadius: 17, border: "1px solid rgba(251,191,36,.17)", background: "linear-gradient(115deg, rgba(92,55,7,.17), rgba(42,23,67,.48) 58%, rgba(76,29,70,.28))", boxShadow: "inset 0 1px 0 rgba(255,255,255,.025), 0 10px 28px rgba(0,0,0,.10)" };
 const premiumFieldNumberStyle: CSSProperties = { width: 38, height: 38, display: "grid", placeItems: "center", borderRadius: 12, border: "1px solid rgba(251,191,36,.28)", background: "linear-gradient(145deg, rgba(245,158,11,.18), rgba(168,85,247,.18))", color: "#fde68a", fontSize: 12, fontWeight: 950, boxShadow: "0 8px 20px rgba(146,64,14,.10)" };
-const premiumBadgeStyle: CSSProperties = { flex: "0 0 auto", borderRadius: 999, border: "1px solid rgba(251,191,36,0.38)", background: "rgba(251,191,36,0.13)", color: "#fde68a", padding: "5px 9px", fontSize: 10.5, fontWeight: 950, textTransform: "uppercase", letterSpacing: ".06em" };
-const lockedNoticeStyle: CSSProperties = { borderRadius: 12, border: "1px solid rgba(251,191,36,0.20)", background: "rgba(120,53,15,0.16)", color: "#fde68a", padding: "10px 11px", fontSize: 12, lineHeight: 1.4, fontWeight: 800 };
 const actionsStyle: CSSProperties = { position: "relative", zIndex: 2, display: "grid", gridTemplateColumns: "minmax(105px, 130px) minmax(135px, 175px) minmax(220px, 310px)", justifyContent: "end", gap: 8, padding: "2px 0 0", background: "transparent" };
 const secondaryButtonStyle: CSSProperties = { minHeight: 38, borderRadius: 11, border: "1px solid rgba(255,255,255,0.13)", background: "rgba(255,255,255,0.05)", color: "white", padding: "8px 10px", cursor: "pointer", fontSize: 12, fontWeight: 800 };
 const dangerButtonStyle: CSSProperties = { minHeight: 38, borderRadius: 11, border: "1px solid rgba(248,113,113,0.22)", background: "rgba(127,29,29,0.13)", color: "#fecaca", padding: "8px 10px", cursor: "pointer", fontSize: 12, fontWeight: 850 };

@@ -10,20 +10,26 @@ import {
   type UniversalUploadMediaType,
 } from "@/lib/mediaUploadPolicy";
 
-export type UniversalMediaUploadIntent = {
-  ok: true;
-  target: UniversalMediaUploadTarget;
-  mediaType: UniversalUploadMediaType;
+export type PreparedStorageUploadIntent = {
   protocol: UniversalMediaUploadProtocol;
   bucket: string;
   storagePath: string;
   token: string;
-  signedUrl?: string | null;
-  publicUrl?: string | null;
   contentType: string;
   resumableEndpoint: string;
+};
+
+type StorageTransportIntent = PreparedStorageUploadIntent & {
   mediaId?: string | null;
   clientMediaKey?: string | null;
+};
+
+export type UniversalMediaUploadIntent = StorageTransportIntent & {
+  ok: true;
+  target: UniversalMediaUploadTarget;
+  mediaType: UniversalUploadMediaType;
+  signedUrl?: string | null;
+  publicUrl?: string | null;
   reused?: boolean;
   alreadyUploaded?: boolean;
 };
@@ -45,6 +51,13 @@ export type UniversalMediaUploadResult = {
   mediaId: string | null;
   clientMediaKey: string | null;
   reused: boolean;
+};
+
+export type PreparedStorageUploadResult = {
+  protocol: UniversalMediaUploadProtocol;
+  bucket: string;
+  storagePath: string;
+  contentType: string;
 };
 
 export type UniversalMediaUploadOptions = {
@@ -313,7 +326,7 @@ function wait(ms: number, signal?: AbortSignal) {
 
 async function uploadWithSignedToken(
   file: File,
-  intent: UniversalMediaUploadIntent,
+  intent: StorageTransportIntent,
   options: PreparedIntentOptions,
 ) {
   const supabase = createClient();
@@ -366,7 +379,7 @@ function encodeTusMetadataValue(value: string) {
   return btoa(binary);
 }
 
-function buildTusMetadata(intent: UniversalMediaUploadIntent) {
+function buildTusMetadata(intent: StorageTransportIntent) {
   const values: Record<string, string> = {
     bucketName: intent.bucket,
     objectName: intent.storagePath,
@@ -383,7 +396,7 @@ function buildTusMetadata(intent: UniversalMediaUploadIntent) {
     .join(",");
 }
 
-function tusStorageKey(intent: UniversalMediaUploadIntent, file: File) {
+function tusStorageKey(intent: StorageTransportIntent, file: File) {
   return `inrcy:tus:${[
     intent.bucket,
     intent.storagePath,
@@ -394,7 +407,7 @@ function tusStorageKey(intent: UniversalMediaUploadIntent, file: File) {
 
 function readStoredTusUrl(
   key: string,
-  intent: UniversalMediaUploadIntent,
+  intent: StorageTransportIntent,
 ): string | null {
   if (typeof window === "undefined") return null;
   try {
@@ -444,7 +457,7 @@ function readStoredTusUrl(
 function storeTusUrl(
   key: string,
   url: string,
-  intent: UniversalMediaUploadIntent,
+  intent: StorageTransportIntent,
 ) {
   if (typeof window === "undefined") return;
   try {
@@ -569,7 +582,7 @@ async function fetchTusWithTimeout(
 
 async function readTusOffset(
   uploadUrl: string,
-  intent: UniversalMediaUploadIntent,
+  intent: StorageTransportIntent,
   signal?: AbortSignal,
 ): Promise<number | null> {
   const response = await fetchTusWithTimeout(uploadUrl, {
@@ -595,7 +608,7 @@ async function readTusOffset(
 
 async function readTusOffsetWithRetry(
   uploadUrl: string,
-  intent: UniversalMediaUploadIntent,
+  intent: StorageTransportIntent,
   signal?: AbortSignal,
 ) {
   let lastError: unknown = null;
@@ -623,7 +636,7 @@ async function readTusOffsetWithRetry(
 
 async function createTusUploadUrlOnce(
   file: File,
-  intent: UniversalMediaUploadIntent,
+  intent: StorageTransportIntent,
   signal?: AbortSignal,
 ) {
   assertSignedTusEndpoint(intent.resumableEndpoint);
@@ -657,7 +670,7 @@ async function createTusUploadUrlOnce(
 
 async function createTusUploadUrl(
   file: File,
-  intent: UniversalMediaUploadIntent,
+  intent: StorageTransportIntent,
   signal?: AbortSignal,
 ) {
   let lastError: unknown = null;
@@ -690,7 +703,7 @@ function patchTusChunk(params: {
   chunk: Blob;
   offset: number;
   totalBytes: number;
-  intent: UniversalMediaUploadIntent;
+  intent: StorageTransportIntent;
   signal?: AbortSignal;
   onProgress?: (uploadedBytes: number) => void;
 }): Promise<number> {
@@ -776,7 +789,7 @@ function patchTusChunk(params: {
 
 async function uploadWithTus(
   file: File,
-  intent: UniversalMediaUploadIntent,
+  intent: StorageTransportIntent,
   options: PreparedIntentOptions,
 ) {
   if (typeof window === "undefined" || typeof XMLHttpRequest === "undefined") {
@@ -908,6 +921,34 @@ async function uploadWithTus(
   // acknowledged. Storage can contain all bytes before its metadata becomes
   // visible; clearing here made that recoverable state impossible to resume.
   return storageKey;
+}
+
+/**
+ * Transport signé générique pour les objets privés (PDF, DOCX, texte, etc.).
+ * Il réutilise le même TUS résumable que les médias sans classifier le fichier
+ * comme une image ou une vidéo et sans créer d'événement du pipeline média.
+ */
+export async function uploadFileToPreparedStorageIntent(
+  file: File,
+  intent: PreparedStorageUploadIntent,
+  options: PreparedIntentOptions = {},
+): Promise<PreparedStorageUploadResult> {
+  throwIfAborted(options.signal);
+
+  let tusResumeStorageKey: string | null = null;
+  if (intent.protocol === "tus") {
+    tusResumeStorageKey = await uploadWithTus(file, intent, options);
+  } else {
+    await uploadWithSignedToken(file, intent, options);
+  }
+  if (tusResumeStorageKey) clearStoredTusUrl(tusResumeStorageKey);
+
+  return {
+    protocol: intent.protocol,
+    bucket: intent.bucket,
+    storagePath: intent.storagePath,
+    contentType: intent.contentType,
+  };
 }
 
 export async function uploadFileToPreparedUniversalIntent(

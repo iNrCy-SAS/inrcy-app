@@ -7,7 +7,6 @@ import {
   getAiWorkspaceCompletionScore,
   mergeAiBusinessKnowledgeUpdate,
   mergeAiMemoryUpdate,
-  mergeAiMemoryPremiumFields,
   normalizeAiBusinessKnowledge,
   normalizeAiMemory,
   type AiMemory,
@@ -20,7 +19,6 @@ import {
 } from "@/lib/activityCatalog";
 import { buildNormalizedAiGenerationProfile } from "@/lib/aiGenerationProfile";
 import { invalidateBoosterGenerationContext } from "@/lib/boosterGenerationContext";
-import { hasPremiumDashboardAccess } from "@/lib/dashboardEdition";
 import { getDashboardEditionForAccountId } from "@/lib/dashboardEditionServer";
 import { requireUser } from "@/lib/requireUser";
 import {
@@ -116,9 +114,8 @@ export async function GET() {
     return jsonUserFacingError(businessResult.error, { status: 500 });
   }
 
-  const premiumEnabled = hasPremiumDashboardAccess(edition);
   const storedMemory = normalizeAiMemory(memoryResult.data?.memory || EMPTY_AI_MEMORY, {
-    includePremium: premiumEnabled,
+    includePremium: true,
   });
   const professionalProfile = buildNormalizedAiGenerationProfile({
     business: businessResult.data,
@@ -132,18 +129,18 @@ export async function GET() {
         ? businessKnowledge.strengths
         : storedMemory.differentiators,
     },
-    { includePremium: premiumEnabled },
+    { includePremium: true },
   );
 
   return NextResponse.json(
     {
       ok: true,
       edition,
-      premiumEnabled,
+      strategyEnabled: true,
       memory,
       businessKnowledge,
       completionScore: getAiWorkspaceCompletionScore(memory, businessKnowledge, {
-        includePremium: premiumEnabled,
+        includePremium: true,
       }),
       updatedAt: memoryResult.data?.updated_at || null,
       profileFoundation: {
@@ -189,7 +186,6 @@ export async function PUT(req: Request) {
     : {};
 
   const edition = await getDashboardEditionForAccountId(activeUserId);
-  const premiumEnabled = hasPremiumDashboardAccess(edition);
   const [currentMemoryResult, currentBusinessResult] = await Promise.all([
     supabase
       .from("business_ai_memories")
@@ -235,12 +231,6 @@ export async function PUT(req: Request) {
     }, { includePremium: true });
   }
 
-  if (!premiumEnabled) {
-    // Un passage temporaire en Standard ne détruit jamais les informations
-    // Premium déjà saisies. Elles sont conservées mais non lues par les IA.
-    memory = mergeAiMemoryPremiumFields(memory, currentMemoryResult.data?.memory);
-  }
-
   if (hasBusinessKnowledge) {
     const { error: businessError } = await supabase
       .from("business_profiles")
@@ -264,7 +254,7 @@ export async function PUT(req: Request) {
   }
 
   const completionScore = getAiWorkspaceCompletionScore(memory, businessKnowledge, {
-    includePremium: false,
+    includePremium: true,
   });
   const { data, error } = await supabase
     .from("business_ai_memories")
@@ -286,18 +276,18 @@ export async function PUT(req: Request) {
 
   await invalidateBoosterGenerationContext(activeUserId, "professional");
   const visibleMemory = normalizeAiMemory(data?.memory, {
-    includePremium: premiumEnabled,
+    includePremium: true,
   });
 
   return NextResponse.json(
     {
       ok: true,
       edition,
-      premiumEnabled,
+      strategyEnabled: true,
       memory: visibleMemory,
       businessKnowledge,
       completionScore: getAiWorkspaceCompletionScore(visibleMemory, businessKnowledge, {
-        includePremium: premiumEnabled,
+        includePremium: true,
       }),
       updatedAt: data?.updated_at || null,
     },

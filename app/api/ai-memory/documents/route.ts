@@ -8,17 +8,26 @@ import {
   AI_MEMORY_REFERENCE_DOCUMENT_MAX_BYTES,
   AI_MEMORY_REFERENCE_DOCUMENT_MAX_EXTRACT_CHARS,
   AI_MEMORY_REFERENCE_DOCUMENT_MAX_ITEMS,
+  AI_MEMORY_REFERENCE_DOCUMENT_MAX_TOTAL_BYTES,
   normalizeAiMemory,
   type AiMemoryReferenceDocument,
 } from "@/lib/aiMemory";
 import { invalidateBoosterGenerationContext } from "@/lib/boosterGenerationContext";
+import {
+  buildDirectStorageResumableEndpoint,
+  selectUniversalMediaUploadProtocol,
+} from "@/lib/mediaUploadPolicy";
 import { requireUser } from "@/lib/requireUser";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
 export const maxDuration = 90;
 
-const BUCKET = "inrcy-pro-media";
+// Les documents métier restent privés et séparés de la médiathèque publique.
+// Cela évite que les restrictions image/vidéo du bucket média bloquent les PDF.
+const BUCKET = "inrcy-ai-documents";
+const LEGACY_BUCKET = "inrcy-pro-media";
+const ALLOWED_DOCUMENT_BUCKETS = new Set([BUCKET, LEGACY_BUCKET]);
 const ALLOWED_EXTENSIONS = new Set([
   "pdf",
   "docx",
@@ -37,11 +46,27 @@ const ALLOWED_EXTENSIONS = new Set([
 const ALLOWED_MIME_PREFIXES = ["image/", "text/"];
 const ALLOWED_MIME_TYPES = new Set([
   "application/pdf",
+  "application/x-pdf",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "application/json",
   "application/csv",
   "application/octet-stream",
 ]);
+const CANONICAL_MIME_BY_EXTENSION: Record<string, string> = {
+  pdf: "application/pdf",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  txt: "text/plain",
+  md: "text/markdown",
+  csv: "text/csv",
+  json: "application/json",
+  html: "text/html",
+  htm: "text/html",
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  webp: "image/webp",
+  gif: "image/gif",
+};
 
 function cleanText(value: unknown, maxLength: number) {
   return String(value ?? "")
@@ -74,11 +99,32 @@ function isAllowedFile(name: string, mimeType: string) {
   return extensionAllowed && mimeAllowed;
 }
 
+function canonicalDocumentMimeType(name: string) {
+  return CANONICAL_MIME_BY_EXTENSION[fileExtension(name)] || "application/octet-stream";
+}
+
 function ownedPath(accountId: string, path: string) {
   return (
     path.startsWith(`users/${accountId}/ai-memory-documents/`) &&
     !path.includes("..") &&
     !/[\u0000-\u001f]/.test(path)
+  );
+}
+
+function referenceDocumentsSize(documents: AiMemoryReferenceDocument[]) {
+  return documents.reduce(
+    (total, document) => total + Math.max(0, Number(document.size) || 0),
+    0,
+  );
+}
+
+function exceedsReferenceDocumentsQuota(
+  documents: AiMemoryReferenceDocument[],
+  incomingSize: number,
+) {
+  return (
+    referenceDocumentsSize(documents) + incomingSize >
+    AI_MEMORY_REFERENCE_DOCUMENT_MAX_TOTAL_BYTES
   );
 }
 
@@ -134,9 +180,10 @@ export async function POST(request: Request) {
 
     if (action === "prepare") {
       const name = cleanText(body?.name, 180);
-      const mimeType = cleanText(body?.mimeType, 140).toLowerCase();
+      const suppliedMimeType = cleanText(body?.mimeType, 140).toLowerCase();
+      const mimeType = canonicalDocumentMimeType(name);
       const size = Number(body?.size || 0);
-      if (!name || !isAllowedFile(name, mimeType)) {
+      if (!name || !isAllowedFile(name, suppliedMimeType || mimeType)) {
         return NextResponse.json(
           { error: "Format accepté : image, PDF, DOCX, TXT, Markdown, CSV, JSON ou HTML." },
           { status: 400 },
@@ -144,7 +191,13 @@ export async function POST(request: Request) {
       }
       if (!Number.isFinite(size) || size <= 0 || size > AI_MEMORY_REFERENCE_DOCUMENT_MAX_BYTES) {
         return NextResponse.json(
-          { error: "Le document doit peser moins de 6 Mo." },
+          { error: "Le document ne doit pas dépasser 20 Mo." },
+          { status: 413 },
+        );
+      }
+      if (exceedsReferenceDocumentsQuota(current.memory.referenceDocuments, size)) {
+        return NextResponse.json(
+          { error: "L’espace Documents iNrADN est limité à 50 Mo au total." },
           { status: 413 },
         );
       }
@@ -154,20 +207,29 @@ export async function POST(request: Request) {
           { status: 409 },
         );
       }
-
       const id = randomUUID();
       const storagePath = `users/${activeUserId}/ai-memory-documents/${id}-${safeFileName(name)}`;
       const { data, error } = await supabaseAdmin.storage
         .from(BUCKET)
         .createSignedUploadUrl(storagePath);
       if (error || !data?.token) throw error || new Error("Signed upload unavailable");
+      const protocol = selectUniversalMediaUploadProtocol(size);
+      const resumableEndpoint =
+        protocol === "tus"
+          ? buildDirectStorageResumableEndpoint(
+              process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+            )
+          : "";
 
       return NextResponse.json({
         ok: true,
         id,
         bucket: BUCKET,
+        mimeType,
         storagePath,
         token: data.token,
+        protocol,
+        resumableEndpoint,
       });
     }
 
@@ -188,14 +250,15 @@ export async function POST(request: Request) {
 
       const id = cleanText(body?.id, 120);
       const name = cleanText(body?.name, 180);
-      const mimeType = cleanText(body?.mimeType, 140).toLowerCase();
+      const suppliedMimeType = cleanText(body?.mimeType, 140).toLowerCase();
+      const mimeType = canonicalDocumentMimeType(name);
       const storagePath = cleanText(body?.storagePath, 1_000);
       const declaredSize = Number(body?.size || 0);
       if (
         !id ||
         !name ||
         !ownedPath(activeUserId, storagePath) ||
-        !isAllowedFile(name, mimeType) ||
+        !isAllowedFile(name, suppliedMimeType || mimeType) ||
         !Number.isFinite(declaredSize) ||
         declaredSize <= 0 ||
         declaredSize > AI_MEMORY_REFERENCE_DOCUMENT_MAX_BYTES
@@ -213,6 +276,13 @@ export async function POST(request: Request) {
         return NextResponse.json(
           { error: "Vous pouvez conserver jusqu’à 6 documents dans iNrADN." },
           { status: 409 },
+        );
+      }
+      if (exceedsReferenceDocumentsQuota(current.memory.referenceDocuments, declaredSize)) {
+        await supabaseAdmin.storage.from(BUCKET).remove([storagePath]).catch(() => undefined);
+        return NextResponse.json(
+          { error: "L’espace Documents iNrADN est limité à 50 Mo au total." },
+          { status: 413 },
         );
       }
 
@@ -247,13 +317,22 @@ export async function POST(request: Request) {
         );
       }
 
+      const analysedSize = Math.max(0, Number(analysis.size) || declaredSize);
+      if (exceedsReferenceDocumentsQuota(current.memory.referenceDocuments, analysedSize)) {
+        await supabaseAdmin.storage.from(BUCKET).remove([storagePath]).catch(() => undefined);
+        return NextResponse.json(
+          { error: "L’espace Documents iNrADN est limité à 50 Mo au total." },
+          { status: 413 },
+        );
+      }
+
       const document: AiMemoryReferenceDocument = {
         id,
         name: analysis.name || name,
         bucket: BUCKET,
         path: storagePath,
         mimeType: analysis.mimeType || mimeType,
-        size: analysis.size,
+        size: analysedSize,
         status:
           analysis.status === "analysed"
             ? "analysed"
@@ -304,13 +383,17 @@ export async function DELETE(request: Request) {
   try {
     const current = await loadMemory(activeUserId);
     const document = current.memory.referenceDocuments.find((item) => item.id === id);
-    if (!document || document.bucket !== BUCKET || !ownedPath(activeUserId, document.path)) {
+    if (
+      !document ||
+      !ALLOWED_DOCUMENT_BUCKETS.has(document.bucket) ||
+      !ownedPath(activeUserId, document.path)
+    ) {
       return NextResponse.json({ error: "Document introuvable." }, { status: 404 });
     }
     const documents = current.memory.referenceDocuments.filter((item) => item.id !== id);
     const memory = await persistDocuments(activeUserId, documents, current.completionScore);
     const { error: storageError } = await supabaseAdmin.storage
-      .from(BUCKET)
+      .from(document.bucket)
       .remove([document.path]);
     if (storageError) {
       console.warn("[ai-memory/documents] orphan cleanup deferred", {

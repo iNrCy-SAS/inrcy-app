@@ -187,7 +187,9 @@ async function loadProfessionalContextFromDatabase(
   const rawBusiness = asRecord(businessResult?.data);
   const rawMemoryRow = asRecord(memoryResult?.data);
   const memory = normalizeAiMemory(rawMemoryRow?.memory, {
-    includePremium: hasPremiumDashboardAccess(edition),
+    // Les champs de stratégie iNrADN améliorent désormais les générations
+    // Standard comme Premium. L'édition garde ses autres limites inchangées.
+    includePremium: true,
   });
   const business = rawBusiness || {};
 
@@ -296,7 +298,8 @@ async function getRecentPublications(args: {
 
 /**
  * Contexte professionnel partagé par les générations multicanales Booster,
- * iNrAgent et média. La Mémoire IA y est filtrée serveur selon l'édition active.
+ * iNrAgent et média. La stratégie iNrADN est commune à toutes les éditions ;
+ * les autres limites commerciales restent calculées selon l'édition active.
  */
 export async function getAiProfessionalGenerationContext(args: {
   supabase: SupabaseLike;

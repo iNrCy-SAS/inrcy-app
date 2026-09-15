@@ -96,15 +96,15 @@ test("iNrAgent campaign and report entrypoints no longer reload professional tab
   }
 });
 
-test("shared professional context keeps server-side Premium filtering and a contact-free prompt projection", () => {
+test("shared professional context exposes strategy to every edition and keeps a contact-free prompt projection", () => {
   const facade = read("lib/aiProfessionalGenerationContext.ts");
   const loader = read("lib/boosterGenerationContext.ts");
   const profile = read("lib/aiGenerationProfile.ts");
   const projection = facade.slice(facade.indexOf("buildAiProfessionalBusinessPromptPayload"));
 
   assert.match(facade, /getAiProfessionalGenerationContext/);
-  assert.match(loader, /includePremium: hasPremiumDashboardAccess\(edition\)/);
-  assert.match(profile, /includePremium: lengthEdition === "premium"/);
+  assert.match(loader, /includePremium: true/);
+  assert.match(profile, /includePremium: true/);
   assert.doesNotMatch(projection, /business\.(?:phone|email|postalCode)/);
   assert.doesNotMatch(projection, /(?:access|refresh|api)[_-]?token|messages?/i);
 });

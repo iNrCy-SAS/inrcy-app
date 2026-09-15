@@ -21,6 +21,7 @@ import {
   collectBusinessDnaChannelSources,
   getPublicBusinessDnaSourceResults,
 } from "@/lib/businessDnaChannelAnalysis";
+import { buildBusinessDnaReferenceDocumentSources } from "@/lib/businessDnaReferenceDocumentSource";
 import { buildBusinessDnaDashboardChannelAvailability } from "@/lib/businessDnaChannelAvailability";
 import {
   buildBusinessDnaAnalysisSourcePayload,
@@ -39,7 +40,6 @@ import {
   getCronUserIdFromRequest,
   isAuthorizedCronRequest,
 } from "@/lib/cronAuth";
-import { hasPremiumDashboardAccess } from "@/lib/dashboardEdition";
 import { getDashboardEditionForAccountId } from "@/lib/dashboardEditionServer";
 import { getChannelConnectionStates } from "@/lib/channelConnectionState";
 import { enforceRateLimit } from "@/lib/rateLimit";
@@ -339,7 +339,10 @@ export async function POST(request: Request) {
     }
     if (toolsResult.error) throw toolsResult.error;
 
-    const premiumEnabled = hasPremiumDashboardAccess(edition);
+    const strategyEnabled = true;
+    const storedMemory = normalizeAiMemory(memoryResult.data?.memory || EMPTY_AI_MEMORY, {
+      includePremium: true,
+    });
     const now = new Date();
     const recentWindow = buildBusinessDnaRecentWindow(now);
     const historyWindow = buildBusinessDnaAnalysisHistoryWindow(now);
@@ -358,18 +361,21 @@ export async function POST(request: Request) {
       if (currentQuota.remaining === 0) return quotaReachedResponse(currentQuota);
     }
 
-    const sources = await collectBusinessDnaChannelSources({
-      supabase,
-      userId: activeUserId,
-      businessProfile: businessResult.data,
-      proToolsConfig: toolsResult.data,
-    });
+    const sources = [
+      ...(await collectBusinessDnaChannelSources({
+        supabase,
+        userId: activeUserId,
+        businessProfile: businessResult.data,
+        proToolsConfig: toolsResult.data,
+      })),
+      ...buildBusinessDnaReferenceDocumentSources(storedMemory.referenceDocuments),
+    ];
     const publicSources = getPublicBusinessDnaSourceResults(sources);
     if (!hasReadableBusinessDnaAnalysisSource(sources)) {
       return NextResponse.json(
         {
           error: "Aucune source connectée n’a pu être analysée.",
-          user_message: "Connectez un site ou un canal, ou actualisez une autorisation expirée, puis relancez l’analyse.",
+          user_message: "Connectez un site ou un canal, ou joignez un document lisible, puis relancez l’analyse.",
           error_code: "business_dna_no_readable_source",
           sources: publicSources,
         },
@@ -386,11 +392,8 @@ export async function POST(request: Request) {
     }
 
     const business = asRecord(businessResult.data);
-    const storedMemory = normalizeAiMemory(memoryResult.data?.memory || EMPTY_AI_MEMORY, {
-      includePremium: true,
-    });
     const existingMemory = normalizeAiMemory(storedMemory, {
-      includePremium: premiumEnabled,
+      includePremium: strategyEnabled,
     });
     const existingBusinessKnowledge = businessKnowledgeFromProfileRow(business);
     const language = asString(business.ai_language) || "fr";
@@ -399,6 +402,7 @@ export async function POST(request: Request) {
     const {
       presentation_detaillee: _duplicatedDescription,
       differences: _duplicatedStrengths,
+      documents_fournis_par_le_professionnel: _duplicatedDocuments,
       ...existingMemoryContext
     } = buildAiMemoryPromptPayload(existingMemory);
     const existingContextJson = JSON.stringify({
@@ -409,7 +413,7 @@ export async function POST(request: Request) {
 
 Règles absolues :
 - n’invente jamais un service, un prix, une garantie, une certification, une zone, une ancienneté ou un chiffre ;
-- recoupe les sources et privilégie le site officiel et Google Business ;
+- traite les documents joints par le professionnel comme des sources métier de première main ; pour les données volatiles (horaires, coordonnées, prix ou disponibilité), privilégie toutefois le site officiel et Google Business les plus récents ;
 - exploite l’historique du ${historyWindow.start} au ${historyWindow.end} pour identifier les offres, sujets récurrents, clientèles, problèmes résolus, preuves, vocabulaire, ton, saisonnalité et appels à l’action réellement observables ;
 - les avis clients peuvent révéler des besoins, objections ou forces récurrentes, mais ne constituent jamais une certification ;
 - n’inclus jamais le nom d’un auteur d’avis, une donnée privée, un identifiant technique ou une information OAuth ;
@@ -425,7 +429,7 @@ Règles absolues :
 - pour recentNewsItems, utilise exclusivement les publications portant une date comprise dans cette période ; n’utilise ni profil statique, ni page de site, ni avis client pour inventer une actualité ;
 - sélectionne les quatre faits distincts les plus récents et utiles, sans imposer de catégorie : si les quatre concernent des réalisations, conserve quatre réalisations ; une actualité autonome et concise par élément, sans doublon, dans l’ordre du plus récent au plus ancien ;
 - remplis autant d’éléments que les sources permettent réellement d’en prouver, jusqu’à quatre, et n’invente jamais pour compléter la liste ;
-- ${premiumEnabled ? "développe les six leviers Premium : offres et bénéfices, arguments commerciaux, preuves vérifiables et objections probables, réponses prudentes aux objections, stratégie éditoriale fondée sur l’historique, puis calendrier de campagnes cohérent ; toute affirmation factuelle doit rester étayée" : "laisse obligatoirement vides offersAndArguments, keyArguments, proofsAndObjections, objectionResponses, editorialStrategy et campaignCalendar"}.
+- développe les six leviers de stratégie : offres et bénéfices, arguments commerciaux, preuves vérifiables et objections probables, réponses prudentes aux objections, stratégie éditoriale fondée sur l’historique, puis calendrier de campagnes cohérent ; toute affirmation factuelle doit rester étayée.
 
 Objectifs de profondeur par rubrique, seulement dans la limite des sources :
 - description et présentation détaillée : synthèse structurée de l’activité, du savoir-faire, des clients, des problèmes résolus, de la méthode, du territoire et du positionnement ;
@@ -481,12 +485,12 @@ Réponds uniquement selon le schéma JSON demandé.`;
 
     const primaryDraft = {
       businessKnowledge: normalizeAiBusinessKnowledge(generated.businessKnowledge),
-      memory: normalizeAiMemory(generated.memory, { includePremium: premiumEnabled }),
+      memory: normalizeAiMemory(generated.memory, { includePremium: strategyEnabled }),
     };
     const depthGaps = getBusinessDnaAnalysisDepthGaps(
       primaryDraft.businessKnowledge,
       primaryDraft.memory,
-      { includePremium: premiumEnabled },
+      { includePremium: strategyEnabled },
     );
     let completedDraft = primaryDraft;
 
@@ -536,7 +540,7 @@ Réponds uniquement selon le schéma JSON demandé.`;
           input: `${completionIntroduction}${completionSourceIntroduction}${JSON.stringify(completionSources)}${completionFinalInstruction}`,
         });
         completedDraft = mergeBusinessDnaAnalysisDrafts(primaryDraft, supplement, {
-          includePremium: premiumEnabled,
+          includePremium: strategyEnabled,
         });
       } catch (completionError) {
         console.warn("[business-dna] optional completion pass skipped", {
@@ -560,7 +564,7 @@ Réponds uniquement selon le schéma JSON demandé.`;
       recentNewsWindowStart: recentWindow.start,
       recentNewsWindowEnd: recentWindow.end,
       recentNewsSourceKeys,
-    }, { includePremium: premiumEnabled });
+    }, { includePremium: strategyEnabled });
     if (automatic) {
       // L'analyse peut durer plus d'une minute. Relire les deux blocs juste
       // avant l'écriture évite qu'une modification manuelle faite pendant ce
@@ -596,7 +600,7 @@ Réponds uniquement selon le schéma JSON demandé.`;
         latestBusinessKnowledge,
         suggestedMemory,
         suggestedBusinessKnowledge,
-        { includePremium: premiumEnabled },
+        { includePremium: strategyEnabled },
       );
       const updatedAt = new Date().toISOString();
       const { error: businessError } = await supabase
@@ -620,7 +624,7 @@ Réponds uniquement selon le schéma JSON demandé.`;
       const completionScore = getAiWorkspaceCompletionScore(
         merged.memory,
         merged.businessKnowledge,
-        { includePremium: false },
+        { includePremium: strategyEnabled },
       );
       const { error: memoryError } = await supabase
         .from("business_ai_memories")
@@ -641,7 +645,7 @@ Réponds uniquement selon le schéma JSON demandé.`;
           ok: true,
           automatic: true,
           edition,
-          premiumEnabled,
+          strategyEnabled,
           analyzedAt: updatedAt,
           sources: publicSources,
           applied: {
@@ -660,7 +664,7 @@ Réponds uniquement selon le schéma JSON demandé.`;
       {
         ok: true,
         edition,
-        premiumEnabled,
+        strategyEnabled,
         analyzedAt: new Date().toISOString(),
         quota,
         sources: publicSources,

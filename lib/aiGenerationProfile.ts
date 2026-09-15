@@ -407,7 +407,8 @@ function upgradeNormalizedAiGenerationProfile(
       forbiddenInstructions: instructionSections.forbiddenInstructions,
     },
     memory: normalizeAiMemory(asRecord(profile).memory, {
-      includePremium: premiumEnabled,
+      // La stratégie iNrADN est un socle de qualité commun à toutes les offres.
+      includePremium: true,
     }),
   };
 }
@@ -657,7 +658,7 @@ export function buildNormalizedAiGenerationProfile(
     },
     memory: normalizeAiMemory(
       firstValue([business, profile], ["ai_memory", "memory"]),
-      { includePremium: lengthEdition === "premium" },
+      { includePremium: true },
     ),
     request: {
       idea: cleanText(args.idea, 4000),
