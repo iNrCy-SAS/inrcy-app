@@ -86,11 +86,11 @@ function authEmailFrom() {
 }
 
 function authEmailReplyTo() {
-  return clean(process.env.AUTH_EMAIL_REPLY_TO, 320) || "contact@inrcy.com";
+  return clean(process.env.AUTH_EMAIL_REPLY_TO, 320) || "contact@admin-inrcy.com";
 }
 
 function authEmailAlertTo() {
-  return clean(process.env.AUTH_EMAIL_ALERT_TO, 320).toLowerCase() || "contact@inrcy.com";
+  return clean(process.env.AUTH_EMAIL_ALERT_TO, 320).toLowerCase() || "contact@admin-inrcy.com";
 }
 
 async function withProviderTimeout<T>(promise: Promise<T>) {

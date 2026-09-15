@@ -27,7 +27,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendMonitoringMailWithResult } from "@/lib/txMailer";
 import { shouldBypassUpstashInCurrentEnv } from "@/lib/upstashMode";
 
-const REQUIRED_ALERT_RECIPIENT = "contact@inrcy.com";
+const REQUIRED_ALERT_RECIPIENT = "contact@admin-inrcy.com";
 const FORBIDDEN_ALERT_RECIPIENT = "compte@inrcy.com";
 const DEFAULT_WINDOW_SECONDS = 15 * 60;
 const DEFAULT_DEDUPE_SECONDS = 24 * 60 * 60;

@@ -365,7 +365,7 @@ test("la route reste opaque, bornée et ne transmet aucun secret d'authentificat
   assert.match(route, /createSupabaseServer\(\)/);
   assert.match(route, /supabase\.auth\.getUser\(\)/);
   assert.match(route, /clearLoginFailureCountersForUser/);
-  assert.match(backend, /REQUIRED_ALERT_RECIPIENT\s*=\s*"contact@inrcy\.com"/);
+  assert.match(backend, /REQUIRED_ALERT_RECIPIENT\s*=\s*"contact@admin-inrcy\.com"/);
   assert.match(backend, /FORBIDDEN_ALERT_RECIPIENT\s*=\s*"compte@inrcy\.com"/);
   assert.match(backend, /nx:\s*true/);
   assert.match(backend, /login-failure-mail:v1/);
