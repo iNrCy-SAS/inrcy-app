@@ -60,6 +60,8 @@ Use an Elementor Pro Form widget with:
 
 5. Attribution Meta
    - charger `ops/wordpress-meta-attribution/inrcy-meta-attribution.js` sur tout le site
+   - synchroniser l'extrait Code Snippets actif avec `ops/wordpress-trial-signup-relay/inrcy-trial-signup-relay.php`
+   - ne jamais limiter le JSON du relais aux seuls champs visibles : l'attribution est lue depuis `$_POST['form_fields']`
    - retirer l'ancien gestionnaire `fbq('track', 'Lead', ...)` non dédupliqué
    - suivre `docs/META_ATTRIBUTION_CAPI_ROLLOUT.md`
 

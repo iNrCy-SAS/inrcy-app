@@ -8,9 +8,10 @@ Ce correctif permet de relier chaque inscription à sa source, sa campagne, son 
 2. Déployer l'application Next.js corrigée.
 3. Ajouter les variables Vercel décrites ci-dessous.
 4. Installer le script `ops/wordpress-meta-attribution/inrcy-meta-attribution.js` dans le code personnalisé WordPress, sur tout le site.
-5. Supprimer l'ancien script WordPress qui déclenche seul `fbq('track', 'Lead', ...)`, pour éviter les doublons.
-6. Ajouter les paramètres dynamiques aux URL des publicités Meta.
-7. Tester dans « Gestionnaire d'événements > Tester les événements » avant d'activer la production.
+5. Synchroniser l'extrait Code Snippets d'inscription avec `ops/wordpress-trial-signup-relay/inrcy-trial-signup-relay.php`. Ce relais est indispensable : il copie explicitement les champs publicitaires du POST Elementor vers l'API.
+6. Supprimer l'ancien script WordPress qui déclenche seul `fbq('track', 'Lead', ...)`, pour éviter les doublons.
+7. Ajouter les paramètres dynamiques aux URL des publicités Meta.
+8. Tester dans « Gestionnaire d'événements > Tester les événements » avant d'activer la production.
 
 ## 2. Variables Vercel
 
@@ -45,19 +46,30 @@ Meta remplace ces variables au moment du clic. Les noms donnent un rapport lisib
 Le script fourni :
 
 - transmet les paramètres publicitaires de la page d'accueil aux boutons d'inscription ;
+- conserve l'attribution pendant toute la navigation de l'onglet, même si le visiteur consulte plusieurs pages avant de s'inscrire ;
 - ajoute automatiquement les champs cachés au formulaire Elementor ;
 - crée un `event_id` commun au Pixel et à la Conversions API ;
 - déclenche le Pixel `Lead` après le succès réel du formulaire ;
 - respecte le consentement marketing Complianz ;
 - n'enregistre pas `_fbp`, `_fbc`, le `fbclid` ou le user-agent dans Supabase/Auth.
 
-Le webhook Elementor reste :
+Le formulaire de production utilise l'extrait Code Snippets versionné dans
+`ops/wordpress-trial-signup-relay/inrcy-trial-signup-relay.php`. Il faut
+conserver le secret déjà configuré sur le site sans le copier dans Git.
+
+Si l'action Webhook native Elementor est utilisée à la place, son URL reste :
 
 ```text
 https://app.inrcy.com/api/public/trial-signup?token=YOUR_SECRET
 ```
 
-Le script doit être chargé sur la page d'accueil et sur la page d'inscription. En cas de minification/cache WordPress, purger les caches après sa publication.
+Le script doit être chargé sur tout le site. En cas de minification/cache WordPress, purger les caches après sa publication.
+
+Attention : `$record->get('fields')` ne contient pas nécessairement les champs
+ajoutés dynamiquement au DOM. Le relais versionné lit donc ces champs depuis
+`$_POST['form_fields']` avec une liste blanche stricte. Ne reconstruire le JSON
+avec les seuls champs visibles du formulaire, sinon toute la provenance est
+silencieusement supprimée.
 
 ## 5. Vérification attendue
 

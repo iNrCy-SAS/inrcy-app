@@ -6,6 +6,9 @@
 (function inrcyMetaAttribution() {
   "use strict";
 
+  if (window.__inrcyMetaAttributionInitialized) return;
+  window.__inrcyMetaAttributionInitialized = true;
+
   var ATTRIBUTION_KEYS = [
     "utm_source",
     "utm_medium",
@@ -23,6 +26,7 @@
     "fbclid",
   ];
   var SIGNUP_PATH = /\/(?:inscription|s-inscrire|signup|register)(?:\/|$)/i;
+  var SESSION_STORAGE_KEY = "inrcy_signup_attribution_v1";
   var lastSubmittedForm = null;
   var refreshTimer = null;
 
@@ -76,33 +80,72 @@
     return "inrcy-lead-" + Date.now() + "-" + Math.random().toString(36).slice(2, 14);
   }
 
+  function readStoredAttribution() {
+    try {
+      var parsed = JSON.parse(window.sessionStorage.getItem(SESSION_STORAGE_KEY) || "null");
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+      if (!parsed.values || typeof parsed.values !== "object" || Array.isArray(parsed.values)) {
+        return null;
+      }
+      return parsed;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function storeAttribution(attribution) {
+    try {
+      window.sessionStorage.setItem(
+        SESSION_STORAGE_KEY,
+        JSON.stringify({
+          values: attribution.values,
+          capturedAt: attribution.capturedAt,
+          landingPageUrl: attribution.landingPageUrl,
+        }),
+      );
+    } catch (_) {
+      // Le suivi doit rester non bloquant si le stockage navigateur est indisponible.
+    }
+  }
+
   function currentAttribution() {
     var params = new URLSearchParams(window.location.search);
-    var values = {};
+    var currentValues = {};
     ATTRIBUTION_KEYS.forEach(function (key) {
       var value = String(params.get(key) || "").trim();
-      if (value) values[key] = value;
+      if (value) currentValues[key] = value;
     });
 
+    var hasCurrentAttribution = ATTRIBUTION_KEYS.some(function (key) {
+      return Boolean(currentValues[key]);
+    });
+    var stored = readStoredAttribution();
+    var values = Object.assign({}, stored ? stored.values : {}, currentValues);
     var hasCampaignData = ATTRIBUTION_KEYS.some(function (key) {
       return key !== "fbclid" && Boolean(values[key]);
     });
     var capturedAt = String(params.get("attribution_captured_at") || "").trim();
     var landingPageUrl = String(params.get("landing_page_url") || "").trim();
 
-    if ((hasCampaignData || values.fbclid) && !capturedAt) {
+    if (!capturedAt && hasCurrentAttribution) {
       capturedAt = new Date().toISOString();
+    } else if (!capturedAt && stored) {
+      capturedAt = String(stored.capturedAt || "").trim();
     }
-    if ((hasCampaignData || values.fbclid) && !landingPageUrl) {
+    if (!landingPageUrl && hasCurrentAttribution) {
       landingPageUrl = safeUrl(window.location.href);
+    } else if (!landingPageUrl && stored) {
+      landingPageUrl = String(stored.landingPageUrl || "").trim();
     }
 
-    return {
+    var attribution = {
       values: values,
       hasAttribution: hasCampaignData || Boolean(values.fbclid),
       capturedAt: capturedAt,
       landingPageUrl: safeUrl(landingPageUrl),
     };
+    if (hasCurrentAttribution) storeAttribution(attribution);
+    return attribution;
   }
 
   function decorateSignupLinks() {
@@ -147,8 +190,20 @@
       input.setAttribute("data-inrcy-attribution", "1");
       form.appendChild(input);
     }
-    input.value = String(value || "");
+    var normalizedValue = String(value || "");
+    input.value = normalizedValue;
+    input.defaultValue = normalizedValue;
+    input.setAttribute("value", normalizedValue);
     return input;
+  }
+
+  function copyAttributionToFormData(form, formData) {
+    Array.prototype.forEach.call(
+      form.querySelectorAll('input[data-inrcy-attribution="1"]'),
+      function (input) {
+        formData.set(input.name, input.value);
+      },
+    );
   }
 
   function isSignupForm(form) {
@@ -188,6 +243,14 @@
     var eventIdInput = findInput(form, "form_fields[event_id]");
     if (!eventIdInput || !String(eventIdInput.value || "").trim()) {
       upsertHidden(form, "event_id", newEventId());
+    }
+
+    if (form.getAttribute("data-inrcy-attribution-bound") !== "1") {
+      form.setAttribute("data-inrcy-attribution-bound", "1");
+      form.addEventListener("formdata", function (event) {
+        prepareForm(form);
+        copyAttributionToFormData(form, event.formData);
+      });
     }
   }
 
@@ -241,6 +304,8 @@
     );
 
     if (window.jQuery) {
+      // Neutralise l'ancien déclencheur Lead sans toucher au Pixel/PageView.
+      window.jQuery(document).off("submit_success.inrcyMeta");
       window.jQuery(document).on("submit_success.inrcyMetaAttribution", function (event) {
         var form = isSignupForm(event.target) ? event.target : lastSubmittedForm;
         trackSuccessfulLead(form);

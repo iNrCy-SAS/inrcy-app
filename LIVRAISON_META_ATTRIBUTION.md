@@ -26,6 +26,7 @@ Ce ZIP ne modifie ni le site en ligne, ni Supabase, ni Vercel, ni Meta Ads. Pour
 - `lib/signupAttributionPersistence.ts`
 - `ops/sql/2026-08-29_signup_attribution_meta_capi.sql`
 - `ops/wordpress-meta-attribution/inrcy-meta-attribution.js`
+- `ops/wordpress-trial-signup-relay/inrcy-trial-signup-relay.php`
 - `docs/META_ATTRIBUTION_CAPI_ROLLOUT.md`
 - `tests/auth/signup-attribution-meta-capi.test.mts`
 

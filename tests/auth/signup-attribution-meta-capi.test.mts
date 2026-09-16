@@ -113,6 +113,43 @@ test("la CAPI partage un event_id avec le Pixel et ne confond pas l'IP WordPress
   assert.match(wordpress, /\{ eventID: eventId \}/);
   assert.match(wordpress, /submit_success\.inrcyMetaAttribution/);
   assert.match(wordpress, /cmplz_marketing/);
+  assert.match(wordpress, /sessionStorage\.setItem/);
+  assert.match(wordpress, /__inrcyMetaAttributionInitialized/);
+  assert.match(wordpress, /input\.defaultValue = normalizedValue/);
+  assert.match(wordpress, /form\.addEventListener\("formdata"/);
+});
+
+test("le relais WordPress transmet explicitement toute l'attribution ajoutee au POST Elementor", () => {
+  const relay = read("ops/wordpress-trial-signup-relay/inrcy-trial-signup-relay.php");
+
+  assert.match(relay, /\$_POST\['form_fields'\]/);
+  assert.match(relay, /inrcy_trial_signup_copy_attribution/);
+  assert.match(relay, /inrcy_trial_signup_posted_fields\(\)/);
+  assert.match(relay, /'__INRCY_TRIAL_SIGNUP_TOKEN__'/);
+  assert.doesNotMatch(relay, /fkjfksvlgff/i);
+
+  for (const field of [
+    "utm_source",
+    "utm_medium",
+    "utm_campaign",
+    "campaign_id",
+    "campaign_name",
+    "adset_id",
+    "adset_name",
+    "ad_id",
+    "ad_name",
+    "placement",
+    "site_source_name",
+    "landing_page_url",
+    "event_source_url",
+    "referrer_url",
+    "event_id",
+    "meta_tracking_consent",
+    "fbp",
+    "fbc",
+  ]) {
+    assert.match(relay, new RegExp(`['\"]${field}['\"]`));
+  }
 });
 
 test("les e-mails et l'administration affichent campagne, publicité et placement", () => {
