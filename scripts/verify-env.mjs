@@ -26,6 +26,10 @@ const required = [
   // Internal / ops
   "HEALTHCHECK_TOKEN",
 
+  // Authentication email hooks and delivery tracking
+  "SEND_EMAIL_HOOK_SECRET",
+  "RESEND_WEBHOOK_SECRET",
+
   // Widgets / encrypted credentials
   "INRCY_WIDGETS_SIGNING_SECRET",
   "INRCY_CREDENTIALS_SECRET",
@@ -60,6 +64,10 @@ const requiredGroups = [
     label: "AI Gateway credentials",
     keys: ["AI_GATEWAY_API_KEY", "VERCEL_OIDC_TOKEN"],
   },
+  {
+    label: "Resend authentication email API key",
+    keys: ["AUTH_RESEND_API_KEY", "RESEND_API_KEY"],
+  },
 ];
 
 /** @type {string[]} */
@@ -70,6 +78,12 @@ const optionalButRecommended = [
   "INRCY_NEW_USER_ALERT_EMAIL",
   "INRCY_TRIAL_SIGNUP_SECRET",
   "INRCY_DIRECTORY_PURGE_URL",
+
+  // Authentication email identity and failure alerts
+  "AUTH_EMAIL_FROM",
+  "AUTH_EMAIL_REPLY_TO",
+  "AUTH_EMAIL_ALERT_TO",
+  "AUTH_EMAIL_ALERT_FROM",
 
   // SMTP identity
   "TX_MAIL_FROM",

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import {
   AuthMailDeliveryError,
+  authResendApiKey,
   processAuthEmailFailureAlert,
   recordResendAuthEmailEvent,
 } from "@/lib/authMailDelivery";
@@ -46,7 +47,7 @@ export async function POST(request: Request) {
       rawBody,
       headers,
       webhookSecret: String(process.env.RESEND_WEBHOOK_SECRET || ""),
-      apiKey: String(process.env.RESEND_API_KEY || ""),
+      apiKey: authResendApiKey(),
     });
     const event = normalizeResendAuthEvent(verifiedPayload);
     if (event.kind === "ignored") {

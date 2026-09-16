@@ -87,11 +87,14 @@ test("configuration and structured provider errors become alertable immediately"
 
 test("a dedicated auth Resend key overrides the Marketplace-managed fallback", async () => {
   const delivery = await source("lib/authMailDelivery.ts");
+  const webhook = await source("app/api/webhooks/resend-auth-email/route.ts");
 
   assert.match(
     delivery,
-    /process\.env\.AUTH_RESEND_API_KEY[\s\S]*\|\| requiredEnv\("RESEND_API_KEY"\)/,
+    /export function authResendApiKey\(\)[\s\S]*process\.env\.AUTH_RESEND_API_KEY[\s\S]*\|\| requiredEnv\("RESEND_API_KEY"\)/,
   );
+  assert.match(webhook, /apiKey: authResendApiKey\(\)/);
+  assert.doesNotMatch(webhook, /process\.env\.RESEND_API_KEY/);
 });
 
 test("a concurrent Resend idempotency request is uncertain rather than terminal", async () => {

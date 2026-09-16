@@ -34,6 +34,12 @@ STRICT=1 npm run verify:env
 - [ ] `INRCY_DIRECTORY_PURGE_URL` — facultatif, défaut `https://inrcy.com/wp-json/inrcy/v1/directory-cache/purge`
 - [ ] `INRCY_WIDGET_ALLOWED_ORIGINS`
 - [ ] `SUPABASE_NEW_USER_WEBHOOK_SECRET`
+- [ ] `SEND_EMAIL_HOOK_SECRET` — signature du hook d’envoi des e-mails Auth Supabase
+- [ ] `AUTH_RESEND_API_KEY` — clé Resend dédiée prioritaire pour les e-mails Auth ; accès limité à l’envoi
+- [ ] `RESEND_API_KEY` — repli géré par l’intégration Vercel Marketplace ; ne doit pas être l’unique clé de production
+- [ ] `RESEND_WEBHOOK_SECRET` — vérification locale des événements Resend (`sent`, `delivered`, échecs)
+- [ ] `AUTH_EMAIL_FROM` / `AUTH_EMAIL_REPLY_TO` — identité d’expédition et adresse de réponse
+- [ ] `AUTH_EMAIL_ALERT_TO` / `AUTH_EMAIL_ALERT_FROM` — alertes internes en cas d’échec définitif
 - [ ] `INRCY_NEW_USER_ALERT_EMAIL`
 - [ ] `INRCY_DIAGNOSTIC_REPORT_TO`
 - [ ] `ADMIN_SECRET`

@@ -77,14 +77,17 @@ function requiredEnv(name: string) {
   return value;
 }
 
-function resendClient() {
+export function authResendApiKey() {
   // Keep authentication mail independent from the Vercel Marketplace secret.
   // A failed Marketplace rotation can revoke the provider key without updating
   // the project variable. The dedicated override lets us recover safely while
   // retaining the managed variable as a backwards-compatible fallback.
-  const apiKey = clean(process.env.AUTH_RESEND_API_KEY, 4_000)
+  return clean(process.env.AUTH_RESEND_API_KEY, 4_000)
     || requiredEnv("RESEND_API_KEY");
-  return new Resend(apiKey);
+}
+
+function resendClient() {
+  return new Resend(authResendApiKey());
 }
 
 function authEmailFrom() {
