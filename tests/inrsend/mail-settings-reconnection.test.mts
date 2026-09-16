@@ -63,3 +63,17 @@ test("les erreurs d'authentification marquent immédiatement la boîte à reconn
   assert.match(campaigns, /mailbox_oauth_invalid/);
   assert.match(campaigns, /mailbox_authentication_failed/);
 });
+
+test("un envoi IMAP incomplet est rejeté avant le limiteur externe", () => {
+  const route = read("app/api/inbox/imap/send/route.ts");
+  const missingAccount = route.indexOf('if (!accountId)');
+  const missingRecipient = route.indexOf('if (!to)');
+  const limiter = route.indexOf('const rateLimited = await enforceRateLimit');
+  const accountLookup = route.indexOf('await loadImapAccount(accountId)');
+
+  assert.ok(missingAccount >= 0);
+  assert.ok(missingRecipient > missingAccount);
+  assert.ok(limiter > missingRecipient);
+  assert.ok(accountLookup > limiter);
+  assert.match(route, /name: "imap_send"[\s\S]*failClosed: true/);
+});

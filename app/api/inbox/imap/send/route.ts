@@ -31,14 +31,6 @@ const handler = async (req: Request) => {
     const userId = activeUserId;
     scopedUserId = userId;
 
-    const rateLimited = await enforceRateLimit({
-      name: "imap_send",
-      identifier: userId,
-      limit: 30,
-      window: "1 m",
-      failClosed: true,
-    });
-    if (rateLimited) return rateLimited;
     const ct = req.headers.get("content-type") || "";
     let accountId = "";
     let sendItemId = "";
@@ -101,6 +93,17 @@ const handler = async (req: Request) => {
     if (!to) {
       return NextResponse.json({ error: "Destinataire manquant." }, { status: 400 });
     }
+
+    // Reject incomplete requests deterministically before consulting the
+    // availability-dependent limiter. Valid send attempts remain fail-closed.
+    const rateLimited = await enforceRateLimit({
+      name: "imap_send",
+      identifier: userId,
+      limit: 30,
+      window: "1 m",
+      failClosed: true,
+    });
+    if (rateLimited) return rateLimited;
 
     const acc: unknown = await loadImapAccount(accountId);
     const accRec = asRecord(acc);
