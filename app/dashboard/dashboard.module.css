@@ -11996,9 +11996,9 @@
 }
 
 .metricDemandes {
-  --metric-accent: rgba(var(--inrcy-theme-accent-rgb-4, 251, 146, 60), 0.92);
-  --metric-glow: rgba(var(--inrcy-theme-accent-rgb-4, 251, 146, 60), 0.38);
-  --metric-halo: rgba(var(--inrcy-theme-accent-rgb-4, 251, 146, 60), 0.16);
+  --metric-accent: rgba(var(--inrcy-theme-accent-rgb-3, 251, 146, 60), 0.92);
+  --metric-glow: rgba(var(--inrcy-theme-accent-rgb-3, 251, 146, 60), 0.38);
+  --metric-halo: rgba(var(--inrcy-theme-accent-rgb-3, 251, 146, 60), 0.16);
 }
 
 .metricValue,
