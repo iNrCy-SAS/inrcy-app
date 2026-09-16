@@ -56,10 +56,13 @@ const STANDARD_BLOCKED_API_PREFIXES = [
 ] as const;
 
 const STANDARD_ALLOWED_AGENT_API_PATHS = [
+  // Standard garde toutes les fonctions Publications/Statistiques de iNrAgent.
+  // Seul prepare-campaign (Propulser/Fidéliser) reste volontairement Premium.
   "/api/agent/settings",
   "/api/agent/actions",
   "/api/agent/actions/pending-count",
   "/api/agent/actions/prepare-publish",
+  "/api/agent/actions/regenerate-channel",
   "/api/agent/actions/send-stats-report",
   "/api/agent/actions/schedule",
   "/api/agent/actions/execute",

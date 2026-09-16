@@ -558,6 +558,7 @@ test("iNrAgent Standard ne conserve que Publications et Statistiques", () => {
     "/api/agent/actions",
     "/api/agent/actions/pending-count",
     "/api/agent/actions/prepare-publish",
+    "/api/agent/actions/regenerate-channel",
     "/api/agent/actions/send-stats-report",
     "/api/agent/actions/schedule",
     "/api/agent/actions/execute",
