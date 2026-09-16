@@ -4,7 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { MediaLibraryPickerItem } from "@/app/dashboard/_components/MediaLibraryPickerModal";
 import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
-import { shouldConnectAiMediaVideoScenes } from "@/lib/aiMediaGenerationContracts";
+import {
+  shouldConnectAiMediaVideoScenes,
+  type AiMediaNarrationVoiceVariant,
+} from "@/lib/aiMediaGenerationContracts";
 
 export type MediaGenerationKind = "image" | "video";
 export type MediaGenerationSource = "booster" | "studio";
@@ -46,6 +49,7 @@ export type MediaGenerationVideoEngine = "omni" | "veo";
 export type MediaGenerationTeamVideoMode = "cinematic" | "montage";
 export type MediaGenerationTeamVideoSpeechMode = "voiceover" | "characters";
 export type MediaGenerationNarrationVoice = "female" | "male";
+export type MediaGenerationNarrationVoiceVariant = AiMediaNarrationVoiceVariant;
 export type MediaGenerationIdentityMode =
   | "auto"
   | "professional"
@@ -131,6 +135,7 @@ export type MediaGenerationRequest = {
   withMusic?: boolean;
   withNarration?: boolean;
   narrationVoice?: MediaGenerationNarrationVoice;
+  narrationVoiceVariant?: MediaGenerationNarrationVoiceVariant;
   format: MediaGenerationFormat;
   typology: MediaGenerationTypology;
   visualStyle: MediaGenerationVisualStyle;
@@ -401,6 +406,10 @@ function buildGenerationAttemptKey(
     narrationVoice:
       request.kind === "video" && request.withNarration
         ? request.narrationVoice || "female"
+        : null,
+    narrationVoiceVariant:
+      request.kind === "video" && request.withNarration
+        ? request.narrationVoiceVariant || null
         : null,
     format: request.format,
     typology: request.typology,
@@ -740,6 +749,10 @@ export default function useMediaGeneration() {
             narrationVoice:
               request.kind === "video" && request.withNarration
                 ? request.narrationVoice || "female"
+                : undefined,
+            narrationVoiceVariant:
+              request.kind === "video" && request.withNarration
+                ? request.narrationVoiceVariant
                 : undefined,
             format: request.format,
             typology: request.typology,

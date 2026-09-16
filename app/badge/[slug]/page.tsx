@@ -2,11 +2,13 @@ import { getTranslations } from "next-intl/server";
 /* eslint-disable @next/next/no-img-element */
 import { headers } from "next/headers";
 import type { Metadata } from "next";
+import type { CSSProperties } from "react";
 import { notFound } from "next/navigation";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { extractInrBadgeUserIdFromSlug } from "@/lib/inrBadge";
 import { getProfileLogoVersion } from "@/lib/profileLogo";
 import { normalizeInrBadgeShareSettings } from "@/lib/inrBadgeSettings";
+import { getInrBadgeThemeCssVariables, normalizeInrBadgeThemeSettings } from "@/lib/inrBadgeTheme";
 import { getInrBadgeTexts, normalizeInrBadgeLanguage } from "@/lib/inrBadgeLanguage";
 import { getChannelConnectionStates } from "@/lib/channelConnectionState";
 import { getInrSearchPublicStatus } from "@/lib/inrSearchPublic";
@@ -331,6 +333,8 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
   const toolSettings = safeObj((toolsRes.data as { settings?: unknown } | null)?.settings);
   const storedShareSettings = normalizeInrBadgeShareSettings(toolSettings.inrBadgeShareSettings);
   const shareSettings = effectiveInrBadgeShareSettings(storedShareSettings, dashboardEdition);
+  const badgeTheme = normalizeInrBadgeThemeSettings(toolSettings.inrBadgeTheme);
+  const badgeThemeStyle = getInrBadgeThemeCssVariables(badgeTheme) as CSSProperties;
   // La langue publique du badge vient des Préférences générales.
   // Elle est lue dans une requête séparée pour éviter qu'un souci sur les champs métier
   // ne fasse retomber l'écran principal du badge sur l'ancien réglage inrBadgeLanguage.
@@ -502,7 +506,7 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
   ]));
 
   return (
-    <main className={styles.page}>
+    <main className={styles.page} style={badgeThemeStyle} data-badge-theme={badgeTheme.id}>
       <BadgeAnalyticsClient slug={slug} />
       {iconPreloads.map((src) => <link key={src} rel="preload" as="image" href={src} />)}
       <section className={styles.shell}>

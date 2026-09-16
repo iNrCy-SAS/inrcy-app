@@ -1,12 +1,17 @@
 import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import type { CSSProperties } from "react";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { extractInrBadgeUserIdFromSlug } from "@/lib/inrBadge";
 import { normalizeInrBadgeShareSettings, resolveInrBadgeAppointmentSettings } from "@/lib/inrBadgeSettings";
 import { getInrBadgeTexts, normalizeInrBadgeLanguage } from "@/lib/inrBadgeLanguage";
 import { getDashboardEditionForAccountId } from "@/lib/dashboardEditionServer";
 import { canUseInrBadgeAppointments } from "@/lib/inrBadgeEditionPolicy";
+import {
+  getInrBadgeThemeCssVariables,
+  normalizeInrBadgeThemeSettings,
+} from "@/lib/inrBadgeTheme";
 import RdvBookingClient from "./RdvBookingClient";
 
 export const dynamic = "force-dynamic";
@@ -105,6 +110,7 @@ export default async function InrBadgeRdvPage({ params }: { params: Promise<{ sl
   const rootSettings = safeObj((toolsRes.data as { settings?: unknown } | null)?.settings);
   const shareSettings = normalizeInrBadgeShareSettings(rootSettings.inrBadgeShareSettings);
   const appointmentSettings = resolveInrBadgeAppointmentSettings(rootSettings);
+  const badgeTheme = normalizeInrBadgeThemeSettings(rootSettings.inrBadgeTheme);
   const business = (businessRes.data ?? {}) as Record<string, unknown>;
   const badgeLanguage = normalizeInrBadgeLanguage(business.client_language || rootSettings.inrBadgeLanguage);
   if (!canUseInrBadgeAppointments(dashboardEdition, shareSettings)) notFound();
@@ -125,6 +131,8 @@ export default async function InrBadgeRdvPage({ params }: { params: Promise<{ sl
       slug={slug}
       settings={appointmentSettings}
       language={badgeLanguage}
+      themeId={badgeTheme.id}
+      themeStyle={getInrBadgeThemeCssVariables(badgeTheme) as CSSProperties}
       events={(events || []).filter((event: Record<string, unknown>) => !isRejectedAgendaEvent(event)).map((event: Record<string, unknown>) => ({
         id: String(event.id || ""),
         start: String(event.start_at || ""),

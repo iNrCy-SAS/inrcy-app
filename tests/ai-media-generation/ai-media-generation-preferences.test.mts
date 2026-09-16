@@ -96,6 +96,7 @@ test("chaque bloc mémorisé est normalisé et peut être désactivé isolément
       withMusic: false,
       withNarration: true,
       narrationVoice: "male",
+      narrationVoiceVariant: "Orus",
       textKeywords: ["ne doit pas être stocké"],
     },
   });
@@ -114,6 +115,7 @@ test("chaque bloc mémorisé est normalisé et peut être désactivé isolément
       withMusic: false,
       withNarration: true,
       narrationVoice: "male",
+      narrationVoiceVariant: "Orus",
     },
   });
 
@@ -130,6 +132,7 @@ function finishingDefaults(overrides: Record<string, unknown> = {}) {
     withMusic: false,
     withNarration: true,
     narrationVoice: "male",
+    narrationVoiceVariant: "Charon",
     ...overrides,
   };
 }
@@ -153,7 +156,7 @@ test("le raccord est mémorisé explicitement dans le bloc 6 avec les réglages 
 });
 
 test("les anciens réglages et PATCH sans raccord restent valides et désactivent cette option", () => {
-  const legacyDefaults = finishingDefaults();
+  const legacyDefaults = finishingDefaults({ narrationVoiceVariant: undefined });
   const legacy = normalizeAiMediaGeneratorPreferences({
     version: 1,
     blocks: { 6: { saved: true, defaults: legacyDefaults } },
@@ -173,6 +176,35 @@ test("les anciens réglages et PATCH sans raccord restent valides et désactiven
   assert.deepEqual(
     normalizeAiMediaGeneratorPreferences(serializeAiMediaGeneratorPreferences(legacy)).blocks[6],
     expected,
+  );
+});
+
+test("les anciennes préférences vocales reçoivent une variante compatible et les croisements sont refusés", () => {
+  const legacyFemale = normalizeAiMediaGeneratorPreferences({
+    version: 1,
+    blocks: {
+      6: {
+        saved: true,
+        defaults: {
+          ...finishingDefaults({ narrationVoice: "female" }),
+          narrationVoiceVariant: undefined,
+        },
+      },
+    },
+  });
+  assert.equal(legacyFemale.blocks[6].defaults.narrationVoiceVariant, "Kore");
+
+  assert.throws(
+    () =>
+      patchAiMediaGeneratorPreferences({}, {
+        blockId: 6,
+        saved: true,
+        defaults: finishingDefaults({
+          narrationVoice: "male",
+          narrationVoiceVariant: "Aoede",
+        }),
+      }),
+    AiMediaGeneratorPreferencesValidationError,
   );
 });
 

@@ -56,6 +56,7 @@ test("le contrat réduit les options au média demandé", () => {
   assert.equal(image.withMusic, false);
   assert.equal(image.withNarration, false);
   assert.equal(image.narrationVoice, null);
+  assert.equal(image.narrationVoiceVariant, null);
   assert.equal(image.format, "square");
   assert.equal(image.typology, "service");
   assert.equal(image.visualStyle, "brand");
@@ -83,6 +84,7 @@ test("le contrat réduit les options au média demandé", () => {
     withMusic: true,
     withNarration: true,
     narrationVoice: "male",
+    narrationVoiceVariant: "Orus",
     format: "story",
     typology: "showcase",
     visualStyle: "dynamic",
@@ -105,6 +107,7 @@ test("le contrat réduit les options au média demandé", () => {
   assert.equal(video.withMusic, true);
   assert.equal(video.withNarration, true);
   assert.equal(video.narrationVoice, "male");
+  assert.equal(video.narrationVoiceVariant, "Orus");
   assert.equal(video.format, "story");
   assert.equal(video.typology, "showcase");
   assert.equal(video.visualStyle, "dynamic");
@@ -143,6 +146,7 @@ test("le contrat réduit les options au média demandé", () => {
     source: "studio",
   });
   assert.equal(legacyVoiceVideo.narrationVoice, "female");
+  assert.equal(legacyVoiceVideo.narrationVoiceVariant, null);
   assert.throws(
     () =>
       normalizeAiMediaGenerationRequest({
@@ -151,6 +155,19 @@ test("le contrat réduit les options au média demandé", () => {
         subjectSource: "profile",
         withNarration: true,
         narrationVoice: "robot",
+        source: "studio",
+      }),
+    AiMediaRequestValidationError
+  );
+  assert.throws(
+    () =>
+      normalizeAiMediaGenerationRequest({
+        requestId: "media-request-wrong-voice-variant",
+        kind: "video",
+        subjectSource: "profile",
+        withNarration: true,
+        narrationVoice: "male",
+        narrationVoiceVariant: "Aoede",
         source: "studio",
       }),
     AiMediaRequestValidationError
@@ -1146,6 +1163,14 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   assert.match(narrationAudio, /DEFAULT_TTS_VOICE_FEMALE = "Kore"/);
   assert.match(narrationAudio, /DEFAULT_TTS_VOICE_MALE = "Charon"/);
   assert.match(narrationAudio, /AI_MEDIA_TTS_VOICE_MALE/);
+  assert.match(
+    narrationAudio,
+    /narrationVoicePreset\([\s\S]*?args\.narrationVoiceVariant/,
+  );
+  assert.match(
+    server,
+    /narrationVoiceVariant: narrationRequest\.narrationVoiceVariant/,
+  );
   assert.match(
     server,
     /providerRequest\.teamVideoSpeechMode === "characters"[\s\S]*?Promise\.resolve\(emptyNarrationResult\(\)\)/

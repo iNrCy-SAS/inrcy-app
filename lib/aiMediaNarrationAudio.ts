@@ -9,7 +9,11 @@ import {
   rollbackAiGatewayAccountAttempt,
 } from "@/lib/aiGatewayAccountGuard";
 import type { AiMediaNarration } from "@/lib/aiMediaNarration";
-import type { AiMediaNarrationVoice } from "@/lib/aiMediaGenerationContracts";
+import type {
+  AiMediaNarrationVoice,
+  AiMediaNarrationVoiceVariant,
+} from "@/lib/aiMediaGenerationContracts";
+import { isAiMediaNarrationVoiceVariantForGender } from "./aiMediaNarrationVoices.ts";
 
 const DEFAULT_TTS_MODEL = "gemini-3.1-flash-tts-preview";
 const DEFAULT_TTS_VOICE_FEMALE = "Kore";
@@ -68,7 +72,18 @@ function safeIdentifier(value: unknown, fallback: string) {
     : fallback;
 }
 
-function narrationVoicePreset(narrationVoice: AiMediaNarrationVoice) {
+function narrationVoicePreset(
+  narrationVoice: AiMediaNarrationVoice,
+  narrationVoiceVariant?: AiMediaNarrationVoiceVariant | null,
+) {
+  if (
+    isAiMediaNarrationVoiceVariantForGender(
+      narrationVoiceVariant,
+      narrationVoice,
+    )
+  ) {
+    return narrationVoiceVariant;
+  }
   if (narrationVoice === "male") {
     return safeIdentifier(
       process.env.AI_MEDIA_TTS_VOICE_MALE,
@@ -188,6 +203,7 @@ export async function generateAiMediaNarrationAudio(args: {
   narration: AiMediaNarration;
   durationSeconds: 8 | 16 | 24;
   narrationVoice: AiMediaNarrationVoice;
+  narrationVoiceVariant?: AiMediaNarrationVoiceVariant | null;
   signal?: AbortSignal;
 }): Promise<GeneratedAiNarrationAudio> {
   args.signal?.throwIfAborted();
@@ -195,7 +211,10 @@ export async function generateAiMediaNarrationAudio(args: {
     process.env.AI_MEDIA_TTS_MODEL,
     DEFAULT_TTS_MODEL
   );
-  const voice = narrationVoicePreset(args.narrationVoice);
+  const voice = narrationVoicePreset(
+    args.narrationVoice,
+    args.narrationVoiceVariant,
+  );
   const costMicroUsd = positiveInt(
     process.env.AI_MEDIA_TTS_COST_MICRO_USD,
     DEFAULT_TTS_COST_MICRO_USD,

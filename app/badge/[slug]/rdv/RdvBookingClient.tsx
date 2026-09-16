@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 
 import Image from "next/image";
 import inrCalendarLogo from "@/public/inrcalendar-logo.png";
-import { useMemo, useState, type FormEvent } from "react";
+import { useMemo, useState, type CSSProperties, type FormEvent } from "react";
 import { getInrBadgeAppointmentDaySlots, type InrBadgeAppointmentSettings } from "@/lib/inrBadgeSettings";
 import { getInrBadgeLocale, getInrBadgeTexts, normalizeInrBadgeLanguage, type InrBadgeLanguageCode } from "@/lib/inrBadgeLanguage";
 import styles from "../badge.module.css";
@@ -17,6 +17,8 @@ type Props = {
   settings: InrBadgeAppointmentSettings;
   events: BusyEvent[];
   language?: InrBadgeLanguageCode;
+  themeId?: string;
+  themeStyle?: CSSProperties;
 };
 
 function pad(value: number) {
@@ -52,7 +54,14 @@ function overlaps(start: Date, end: Date, event: BusyEvent) {
   return start < eventEnd && end > eventStart;
 }
 
-export default function RdvBookingClient({ slug, settings, events, language }: Props) {
+export default function RdvBookingClient({
+  slug,
+  settings,
+  events,
+  language,
+  themeId,
+  themeStyle,
+}: Props) {
   const i18nT = useTranslations("public");
   const badgeLanguage = normalizeInrBadgeLanguage(language);
   const badgeText = getInrBadgeTexts(badgeLanguage);
@@ -167,7 +176,7 @@ export default function RdvBookingClient({ slug, settings, events, language }: P
   }
 
   return (
-    <main className={styles.page}>
+    <main className={styles.page} style={themeStyle} data-badge-theme={themeId}>
       <section className={styles.shell}>
         <div className={styles.card}>
           <div className={styles.calendarHeader}>

@@ -549,10 +549,8 @@
 .narrationVoicePicker {
   min-height: 56px;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 9px;
-  padding: 7px 8px 7px 11px;
+  gap: 8px;
+  padding: 8px;
   border: 1px solid rgba(130, 165, 238, 0.15);
   border-radius: 13px;
   background:
@@ -560,7 +558,16 @@
     rgba(12, 25, 56, 0.66);
 }
 
-.narrationVoicePicker > span {
+.narrationVoiceGender {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  padding-left: 3px;
+}
+
+.narrationVoiceGender > span,
+.narrationVoiceVariantField > span {
   color: rgba(218, 230, 251, 0.72);
   font-size: 9.5px;
   font-weight: 850;
@@ -573,6 +580,47 @@
 .narrationVoicePicker .parameterChoices button {
   min-height: 38px;
   padding: 7px;
+}
+
+.narrationVoiceVariantField {
+  display: grid;
+  gap: 5px;
+}
+
+.narrationVoiceVariantField > span {
+  padding-left: 3px;
+}
+
+.narrationVoiceVariantField select {
+  width: 100%;
+  min-height: 38px;
+  padding: 7px 28px 7px 10px;
+  border: 1px solid rgba(114, 166, 255, 0.28);
+  border-radius: 11px;
+  color: #eef6ff;
+  background: rgba(17, 38, 79, 0.96);
+  font: inherit;
+  font-size: 10.5px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.narrationVoiceVariantField select:focus-visible {
+  outline: 2px solid rgba(85, 205, 255, 0.78);
+  outline-offset: 2px;
+}
+
+.narrationVoiceVariantField select:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.narrationVoiceVariantField small {
+  min-height: 22px;
+  padding: 0 3px;
+  color: rgba(194, 213, 243, 0.67);
+  font-size: 8.5px;
+  line-height: 1.3;
 }
 
 .narrationControl + .switchRow {

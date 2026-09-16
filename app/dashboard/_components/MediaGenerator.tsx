@@ -13,6 +13,7 @@ import useMediaGeneration, {
   type MediaGenerationKind,
   type MediaGenerationLogoMode,
   type MediaGenerationNarrationVoice,
+  type MediaGenerationNarrationVoiceVariant,
   type MediaGenerationPeopleMode,
   type MediaGenerationResult,
   type MediaGenerationShotType,
@@ -40,6 +41,11 @@ import {
   resolveAiMediaPreviewFormat,
   shouldConnectAiMediaVideoScenes,
 } from "@/lib/aiMediaGenerationContracts";
+import {
+  AI_MEDIA_NARRATION_VOICE_VARIANTS,
+  defaultAiMediaNarrationVoiceVariant,
+  isAiMediaNarrationVoiceVariantForGender,
+} from "@/lib/aiMediaNarrationVoices";
 import {
   INR_MEDIA_ALLOWED_IMAGE_EXTENSIONS,
   INR_MEDIA_ALLOWED_IMAGE_MIME_TYPES,
@@ -496,6 +502,8 @@ export default function MediaGenerator({
   const [withNarration, setWithNarration] = useState(true);
   const [narrationVoice, setNarrationVoice] =
     useState<MediaGenerationNarrationVoice>("female");
+  const [narrationVoiceVariant, setNarrationVoiceVariant] =
+    useState<MediaGenerationNarrationVoiceVariant>("Kore");
   const [inspirationImages, setInspirationImages] =
     useState<MediaGenerationInspirationImage[]>([]);
   const [inspirationBusy, setInspirationBusy] = useState(false);
@@ -591,6 +599,7 @@ export default function MediaGenerator({
       setWithMusic(block6.defaults.withMusic);
       setWithNarration(block6.defaults.withNarration);
       setNarrationVoice(block6.defaults.narrationVoice);
+      setNarrationVoiceVariant(block6.defaults.narrationVoiceVariant);
     }
 
     appliedPreferencesEpochRef.current = preferencesAccountEpoch;
@@ -817,6 +826,7 @@ export default function MediaGenerator({
           withMusic,
           withNarration,
           narrationVoice,
+          narrationVoiceVariant,
         };
         void savePreferenceBlock(6, checked, defaults);
       }
@@ -864,6 +874,10 @@ export default function MediaGenerator({
         withNarration: kind === "video" ? effectiveWithNarration : undefined,
         narrationVoice:
           kind === "video" && effectiveWithNarration ? narrationVoice : undefined,
+        narrationVoiceVariant:
+          kind === "video" && effectiveWithNarration
+            ? narrationVoiceVariant
+            : undefined,
         format,
         typology,
         visualStyle,
@@ -1999,7 +2013,7 @@ export default function MediaGenerator({
                       narration: animatedCharactersSpeak
                         ? t("ai_generator_team_speech_finish_summary")
                         : effectiveWithNarration
-                        ? `${t("ai_generator_with_narration")} · ${t(`ai_generator_narration_voice_${narrationVoice}`)}`
+                        ? `${t("ai_generator_with_narration")} · ${t(`ai_generator_narration_voice_${narrationVoice}`)} · ${t(`ai_generator_narration_voice_variant_${narrationVoiceVariant.toLowerCase()}`)}`
                         : t("ai_generator_without_narration"),
                     })
                   : withText && resolvedTextKeywords.length
@@ -2166,28 +2180,64 @@ export default function MediaGenerator({
                   </div>
                 ) : effectiveWithNarration ? (
                   <div className={styles.narrationVoicePicker}>
-                    <span>{t("ai_generator_narration_voice_label")}</span>
-                    <div
-                      className={`${styles.parameterChoices} ${styles.twoChoices}`}
-                      role="radiogroup"
-                      aria-label={t("ai_generator_narration_voice_label")}
-                    >
-                      {(["female", "male"] as const).map((voice) => (
-                        <button
-                          key={voice}
-                          type="button"
-                          role="radio"
-                          aria-checked={narrationVoice === voice}
-                          className={narrationVoice === voice ? styles.compactChoiceActive : ""}
-                          onClick={() => setNarrationVoice(voice)}
-                          disabled={operationLocked}
-                        >
-                          {voice === "female"
-                            ? t("ai_generator_narration_voice_female")
-                            : t("ai_generator_narration_voice_male")}
-                        </button>
-                      ))}
+                    <div className={styles.narrationVoiceGender}>
+                      <span>{t("ai_generator_narration_voice_label")}</span>
+                      <div
+                        className={`${styles.parameterChoices} ${styles.twoChoices}`}
+                        role="radiogroup"
+                        aria-label={t("ai_generator_narration_voice_label")}
+                      >
+                        {(["female", "male"] as const).map((voice) => (
+                          <button
+                            key={voice}
+                            type="button"
+                            role="radio"
+                            aria-checked={narrationVoice === voice}
+                            className={narrationVoice === voice ? styles.compactChoiceActive : ""}
+                            onClick={() => {
+                              setNarrationVoice(voice);
+                              setNarrationVoiceVariant((current) =>
+                                isAiMediaNarrationVoiceVariantForGender(current, voice)
+                                  ? current
+                                  : defaultAiMediaNarrationVoiceVariant(voice),
+                              );
+                            }}
+                            disabled={operationLocked}
+                          >
+                            {voice === "female"
+                              ? t("ai_generator_narration_voice_female")
+                              : t("ai_generator_narration_voice_male")}
+                          </button>
+                        ))}
+                      </div>
                     </div>
+                    <label className={styles.narrationVoiceVariantField}>
+                      <span>{t("ai_generator_narration_voice_variant_label")}</span>
+                      <select
+                        value={narrationVoiceVariant}
+                        onChange={(event) =>
+                          setNarrationVoiceVariant(
+                            event.target.value as MediaGenerationNarrationVoiceVariant,
+                          )
+                        }
+                        disabled={operationLocked}
+                      >
+                        {AI_MEDIA_NARRATION_VOICE_VARIANTS[narrationVoice].map(
+                          (variant) => (
+                            <option key={variant} value={variant}>
+                              {t(
+                                `ai_generator_narration_voice_variant_${variant.toLowerCase()}`,
+                              )}
+                            </option>
+                          ),
+                        )}
+                      </select>
+                      <small>
+                        {t(
+                          `ai_generator_narration_voice_variant_${narrationVoiceVariant.toLowerCase()}_hint`,
+                        )}
+                      </small>
+                    </label>
                   </div>
                 ) : null}
               </div>

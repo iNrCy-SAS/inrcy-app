@@ -103,6 +103,7 @@ test("les blocs Studio sauvegardés sont appliqués sans réutiliser l'identité
       withMusic: false,
       withNarration: false,
       narrationVoice: "male",
+      narrationVoiceVariant: "Charon",
     },
   };
 
@@ -145,6 +146,7 @@ test("iNrAgent borne toutes les vidéos à la durée autorisée du compte", () =
       withMusic: true,
       withNarration: true,
       narrationVoice: "female",
+      narrationVoiceVariant: "Kore",
     },
   };
 

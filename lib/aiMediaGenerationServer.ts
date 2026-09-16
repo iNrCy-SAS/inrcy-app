@@ -417,6 +417,7 @@ export async function generateAndSaveAiMedia(args: {
             withMusic: false,
             withNarration: false,
             narrationVoice: null,
+            narrationVoiceVariant: null,
             videoEngine: null,
             durationSeconds: null,
             logoMode: "none",
@@ -907,6 +908,7 @@ export async function generateAndSaveAiMedia(args: {
               narration,
               durationSeconds,
               narrationVoice: narrationRequest.narrationVoice || "female",
+              narrationVoiceVariant: narrationRequest.narrationVoiceVariant,
               signal: narrationController.signal,
             })
           );
@@ -1356,6 +1358,7 @@ export async function generateAndSaveAiMedia(args: {
           with_music: providerRequest.withMusic,
           with_narration: providerRequest.withNarration,
           narration_voice: providerRequest.narrationVoice,
+          narration_voice_variant: providerRequest.narrationVoiceVariant,
           format: providerRequest.format,
           typology: providerRequest.typology,
           visual_style: providerRequest.visualStyle,

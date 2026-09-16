@@ -17,6 +17,15 @@ import {
   type InrBadgeShareKey,
   type InrBadgeShareSettings,
 } from "@/lib/inrBadgeSettings";
+import {
+  DEFAULT_INRBADGE_THEME_SETTINGS,
+  INRBADGE_THEME_PRESETS,
+  normalizeInrBadgeThemeSettings,
+  resolveInrBadgeThemePalette,
+  type InrBadgeThemeColors,
+  type InrBadgeThemeId,
+  type InrBadgeThemeSettings,
+} from "@/lib/inrBadgeTheme";
 
 type InrBadgeChannelStatus = {
   connected: boolean;
@@ -60,6 +69,7 @@ type Props = {
 type ShareKey = InrBadgeShareKey;
 type ShareSettings = InrBadgeShareSettings;
 type AppointmentSettings = InrBadgeAppointmentSettings;
+type ThemeSettings = InrBadgeThemeSettings;
 
 const INRBADGE_HEADER_LINE = "iNr'Badge : mon entreprise en QR Code";
 const INRBADGE_ICON_SRC = "/icons/inrbadge-dashboard.png";
@@ -116,6 +126,24 @@ function loadAppointmentSettings(storageKey: string): AppointmentSettings {
   }
 }
 
+function loadThemeSettings(storageKey: string): ThemeSettings {
+  if (typeof window === "undefined") return DEFAULT_INRBADGE_THEME_SETTINGS;
+  try {
+    const raw = window.localStorage.getItem(`${storageKey}:theme`);
+    return raw ? normalizeInrBadgeThemeSettings(JSON.parse(raw)) : DEFAULT_INRBADGE_THEME_SETTINGS;
+  } catch {
+    return DEFAULT_INRBADGE_THEME_SETTINGS;
+  }
+}
+
+function saveThemeSettings(storageKey: string, theme: ThemeSettings) {
+  try {
+    window.localStorage.setItem(`${storageKey}:theme`, JSON.stringify(theme));
+  } catch {
+    // Le réglage serveur reste la source de vérité si le stockage local est indisponible.
+  }
+}
+
 
 function loadSelectedMailAccountId(storageKey: string) {
   if (typeof window === "undefined") return "";
@@ -146,6 +174,34 @@ async function persistBadgeSettings(settings: ShareSettings, selectedMailAccount
     });
   } catch {
     // Le localStorage garde une copie instantanée si le réseau est indisponible.
+  }
+}
+
+async function persistBadgeTheme(theme: ThemeSettings) {
+  const response = await fetch("/api/inrbadge/settings", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ theme }),
+  });
+  if (!response.ok) throw new Error("theme_save_failed");
+}
+
+function hashLogoSource(value: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+function getLogoAnalysisUrl(publicUrl: string, logoUrl: string) {
+  if (typeof window === "undefined") return "";
+  try {
+    const badgeUrl = new URL(publicUrl, window.location.origin);
+    return `${badgeUrl.pathname.replace(/\/$/, "")}/icon.png?v=${hashLogoSource(logoUrl)}`;
+  } catch {
+    return "";
   }
 }
 
@@ -353,6 +409,54 @@ function FieldSelect({
   );
 }
 
+function ThemeChoice({
+  id,
+  label,
+  description,
+  colors,
+  selected,
+  disabled,
+  busy,
+  onSelect,
+}: {
+  id: InrBadgeThemeId;
+  label: string;
+  description: string;
+  colors: InrBadgeThemeColors;
+  selected: boolean;
+  disabled?: boolean;
+  busy?: boolean;
+  onSelect: (id: InrBadgeThemeId) => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      disabled={disabled || busy}
+      onClick={() => onSelect(id)}
+      style={{
+        ...themeChoiceStyle,
+        ...(selected ? themeChoiceActiveStyle : null),
+        opacity: disabled ? 0.52 : 1,
+        cursor: disabled || busy ? "not-allowed" : "pointer",
+      }}
+    >
+      <span style={themeSwatchesStyle} aria-hidden="true">
+        {[colors.primary, colors.secondary, colors.accent].map((color, index) => (
+          <span key={`${color}-${index}`} style={{ ...themeSwatchStyle, background: color }} />
+        ))}
+      </span>
+      <span style={{ minWidth: 0, textAlign: "left" }}>
+        <strong style={themeChoiceTitleStyle}>{busy ? "Analyse du logo…" : label}</strong>
+        <small style={themeChoiceHelperStyle}>{description}</small>
+      </span>
+      <span aria-hidden="true" style={selected ? themeRadioActiveStyle : themeRadioStyle}>
+        {selected ? "✓" : ""}
+      </span>
+    </button>
+  );
+}
+
 export default function InrBadgeSettingsContent({
   profile,
   publicUrl,
@@ -368,9 +472,11 @@ export default function InrBadgeSettingsContent({
   const [settings, setSettings] = useState<ShareSettings>(() =>
     effectiveInrBadgeShareSettings(loadShareSettings(storageKey), dashboardEdition));
   const [appointmentSettings, setAppointmentSettings] = useState<AppointmentSettings>(() => loadAppointmentSettings(storageKey));
+  const [theme, setTheme] = useState<ThemeSettings>(() => loadThemeSettings(storageKey));
   const [selectedMailAccountId, setSelectedMailAccountId] = useState<string>(() => loadSelectedMailAccountId(storageKey));
   const [mailAccounts, setMailAccounts] = useState<MailAccountOption[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
+  const [extractingLogoTheme, setExtractingLogoTheme] = useState(false);
   const [downloadMenuOpen, setDownloadMenuOpen] = useState(false);
   const downloadMenuRef = useRef<HTMLDivElement | null>(null);
 
@@ -378,9 +484,11 @@ export default function InrBadgeSettingsContent({
     let cancelled = false;
     const localSettings = effectiveInrBadgeShareSettings(loadShareSettings(storageKey), dashboardEdition);
     const localAppointmentSettings = loadAppointmentSettings(storageKey);
+    const localTheme = loadThemeSettings(storageKey);
     const localSelectedMailAccountId = loadSelectedMailAccountId(storageKey);
     setSettings(localSettings);
     setAppointmentSettings(localAppointmentSettings);
+    setTheme(localTheme);
     setSelectedMailAccountId(localSelectedMailAccountId);
 
     const loadServerSettings = async () => {
@@ -389,7 +497,7 @@ export default function InrBadgeSettingsContent({
           fetch("/api/inrbadge/settings", { cache: "no-store" }),
           standardMode ? Promise.resolve(null) : fetch("/api/integrations/status", { cache: "no-store" }),
         ]);
-        const json = await settingsRes.json().catch(() => null) as { settings?: unknown; appointmentSettings?: unknown; selectedMailAccountId?: unknown } | null;
+        const json = await settingsRes.json().catch(() => null) as { settings?: unknown; theme?: unknown; appointmentSettings?: unknown; selectedMailAccountId?: unknown } | null;
         const accountsJson = accountsRes
           ? await accountsRes.json().catch(() => null) as { mailAccounts?: unknown } | null
           : null;
@@ -408,11 +516,14 @@ export default function InrBadgeSettingsContent({
           dashboardEdition,
         );
         const serverAppointmentSettings = normalizeInrBadgeAppointmentSettings(json?.appointmentSettings);
+        const serverTheme = normalizeInrBadgeThemeSettings(json?.theme);
         const serverSelectedMailAccountId = trim(json?.selectedMailAccountId);
         setSettings(serverSettings);
         setAppointmentSettings(serverAppointmentSettings);
+        setTheme(serverTheme);
         setSelectedMailAccountId(serverSelectedMailAccountId);
         saveBadgeSettings(storageKey, serverSettings, serverAppointmentSettings, serverSelectedMailAccountId);
+        saveThemeSettings(storageKey, serverTheme);
       } catch {
         // On garde les réglages locaux en secours.
       }
@@ -474,6 +585,53 @@ export default function InrBadgeSettingsContent({
   const displayName = getDisplayName(profile);
   const phone = trim(profile.phone);
   const email = trim(profile.contactEmail);
+  const themePalette = resolveInrBadgeThemePalette(theme);
+  const identityPalette = resolveInrBadgeThemePalette({ id: "identity", identityColors: theme.identityColors });
+  const hasCompanyLogo = Boolean(trim(profile.logoUrl));
+
+  const saveSelectedTheme = async (nextTheme: ThemeSettings, successMessage: string) => {
+    setTheme(nextTheme);
+    saveThemeSettings(storageKey, nextTheme);
+    try {
+      await persistBadgeTheme(nextTheme);
+      setNotice(successMessage);
+    } catch {
+      setNotice("Impossible d’enregistrer le thème pour le moment.");
+    }
+    window.setTimeout(() => setNotice(null), 2200);
+  };
+
+  const selectTheme = async (id: InrBadgeThemeId) => {
+    if (id !== "identity") {
+      await saveSelectedTheme(
+        normalizeInrBadgeThemeSettings({ id, identityColors: theme.identityColors }),
+        "Thème du badge enregistré.",
+      );
+      return;
+    }
+
+    const logoAnalysisUrl = getLogoAnalysisUrl(publicUrl, profile.logoUrl);
+    if (!hasCompanyLogo || !logoAnalysisUrl) {
+      setNotice("Ajoutez d’abord le logo de l’entreprise dans Mon profil.");
+      window.setTimeout(() => setNotice(null), 2400);
+      return;
+    }
+
+    setExtractingLogoTheme(true);
+    try {
+      const { extractInrBadgeThemeColorsFromLogo } = await import("@/lib/inrBadgeThemeClient");
+      const identityColors = await extractInrBadgeThemeColorsFromLogo(logoAnalysisUrl);
+      await saveSelectedTheme(
+        normalizeInrBadgeThemeSettings({ id: "identity", identityColors }),
+        "Couleurs du logo appliquées au badge.",
+      );
+    } catch {
+      setNotice("Le logo n’a pas pu être analysé. Réessayez dans quelques secondes.");
+      window.setTimeout(() => setNotice(null), 2600);
+    } finally {
+      setExtractingLogoTheme(false);
+    }
+  };
 
   const copyLink = async () => {
     if (!publicUrl) return;
@@ -629,6 +787,65 @@ export default function InrBadgeSettingsContent({
         </div>
       </div>
 
+      <div style={cardStyle}>
+        <h3 style={sectionTitleStyle}>Apparence du badge</h3>
+        <p style={mutedStyle}>Choisissez une ambiance ou reprenez automatiquement les couleurs du logo de l’entreprise.</p>
+        <div style={themeGridStyle}>
+          {INRBADGE_THEME_PRESETS.map((preset) => (
+            <ThemeChoice
+              key={preset.id}
+              id={preset.id}
+              label={preset.label}
+              description={preset.description}
+              colors={preset.palette}
+              selected={theme.id === preset.id}
+              onSelect={(id) => void selectTheme(id)}
+            />
+          ))}
+          <ThemeChoice
+            id="identity"
+            label="Identité entreprise"
+            description={hasCompanyLogo ? "Couleurs détectées depuis votre logo" : "Ajoutez un logo dans Mon profil"}
+            colors={identityPalette}
+            selected={theme.id === "identity"}
+            disabled={!hasCompanyLogo}
+            busy={extractingLogoTheme}
+            onSelect={(id) => void selectTheme(id)}
+          />
+        </div>
+
+        {theme.id === "identity" && hasCompanyLogo ? (
+          <button
+            type="button"
+            style={{ ...smallButtonStyle, marginTop: 10 }}
+            disabled={extractingLogoTheme}
+            onClick={() => void selectTheme("identity")}
+          >
+            {extractingLogoTheme ? "Analyse du logo…" : "Actualiser depuis le logo"}
+          </button>
+        ) : null}
+
+        <div
+          style={{
+            ...themePreviewStyle,
+            background: `radial-gradient(circle at 12% 8%, ${themePalette.primary}33, transparent 34%), radial-gradient(circle at 88% 18%, ${themePalette.secondary}35, transparent 36%), linear-gradient(145deg, ${themePalette.pageStart}, ${themePalette.pageEnd})`,
+            borderColor: `${themePalette.primary}55`,
+          }}
+          aria-label="Aperçu des couleurs du badge"
+        >
+          <span style={{ ...themePreviewLogoStyle, boxShadow: `0 0 22px ${themePalette.primary}55` }} aria-hidden="true">
+            {company.slice(0, 2).toUpperCase()}
+          </span>
+          <span style={themePreviewTextStyle}>
+            <strong>{company}</strong>
+            <small>{displayName}</small>
+          </span>
+          <span style={{ ...themePreviewButtonStyle, background: `linear-gradient(135deg, ${themePalette.primary}, ${themePalette.secondary}, ${themePalette.accent})` }}>
+            Contacter
+          </span>
+        </div>
+      </div>
+
 
       <div style={cardStyle}>
         <h3 style={sectionTitleStyle}>{i18nT("informations_partagees_cbea91ba")}</h3>
@@ -741,6 +958,127 @@ const cardStyle: CSSProperties = {
   borderRadius: 18,
   padding: 14,
   boxShadow: "0 18px 40px rgba(0,0,0,0.18)",
+};
+
+const themeGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+  gap: 9,
+};
+
+const themeChoiceStyle: CSSProperties = {
+  width: "100%",
+  minHeight: 78,
+  display: "grid",
+  gridTemplateColumns: "54px minmax(0, 1fr) 22px",
+  alignItems: "center",
+  gap: 10,
+  padding: "10px 11px",
+  border: "1px solid rgba(255,255,255,0.09)",
+  borderRadius: 15,
+  background: "rgba(255,255,255,0.045)",
+  color: "#fff",
+  font: "inherit",
+};
+
+const themeChoiceActiveStyle: CSSProperties = {
+  border: "1px solid rgba(125,211,252,0.62)",
+  background: "linear-gradient(135deg, rgba(14,165,233,0.12), rgba(139,92,246,0.12)), rgba(255,255,255,0.05)",
+  boxShadow: "0 0 0 2px rgba(14,165,233,0.08)",
+};
+
+const themeSwatchesStyle: CSSProperties = {
+  width: 54,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+};
+
+const themeSwatchStyle: CSSProperties = {
+  width: 25,
+  height: 44,
+  marginLeft: -8,
+  border: "2px solid rgba(15,23,42,0.88)",
+  borderRadius: 999,
+  boxShadow: "0 7px 14px rgba(0,0,0,0.20)",
+};
+
+const themeChoiceTitleStyle: CSSProperties = {
+  display: "block",
+  fontSize: 13,
+  lineHeight: 1.2,
+  color: "rgba(255,255,255,0.96)",
+};
+
+const themeChoiceHelperStyle: CSSProperties = {
+  display: "block",
+  marginTop: 4,
+  fontSize: 10.5,
+  lineHeight: 1.35,
+  color: "rgba(226,232,240,0.62)",
+};
+
+const themeRadioStyle: CSSProperties = {
+  width: 20,
+  height: 20,
+  display: "grid",
+  placeItems: "center",
+  borderRadius: 999,
+  border: "1px solid rgba(255,255,255,0.26)",
+  color: "#fff",
+  fontSize: 12,
+  fontWeight: 950,
+};
+
+const themeRadioActiveStyle: CSSProperties = {
+  ...themeRadioStyle,
+  borderColor: "rgba(56,189,248,0.96)",
+  background: "linear-gradient(135deg, #0ea5e9, #8b5cf6)",
+};
+
+const themePreviewStyle: CSSProperties = {
+  minHeight: 92,
+  marginTop: 12,
+  padding: "12px 14px",
+  display: "grid",
+  gridTemplateColumns: "54px minmax(0, 1fr) auto",
+  alignItems: "center",
+  gap: 12,
+  border: "1px solid rgba(255,255,255,0.12)",
+  borderRadius: 20,
+  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)",
+};
+
+const themePreviewLogoStyle: CSSProperties = {
+  width: 50,
+  height: 50,
+  display: "grid",
+  placeItems: "center",
+  borderRadius: 999,
+  background: "#fff",
+  color: "#0f172a",
+  fontSize: 13,
+  fontWeight: 950,
+};
+
+const themePreviewTextStyle: CSSProperties = {
+  minWidth: 0,
+  display: "grid",
+  gap: 3,
+  color: "#fff",
+};
+
+const themePreviewButtonStyle: CSSProperties = {
+  minHeight: 34,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: "7px 11px",
+  borderRadius: 999,
+  color: "#fff",
+  fontSize: 11,
+  fontWeight: 900,
+  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.22)",
 };
 
 const autoSaveBadgeStyle: CSSProperties = {

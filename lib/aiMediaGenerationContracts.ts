@@ -1,3 +1,8 @@
+import {
+  isAiMediaNarrationVoiceVariantForGender,
+  type AiMediaNarrationVoiceVariant,
+} from "./aiMediaNarrationVoices.ts";
+
 export type AiMediaKind = "image" | "video";
 export type AiMediaSurface = "booster" | "studio";
 export type AiMediaSubjectSource = "publication" | "profile" | "custom";
@@ -34,6 +39,7 @@ export type AiMediaVideoEngine = "omni" | "veo";
 export type AiMediaTeamVideoMode = "cinematic" | "montage";
 export type AiMediaTeamVideoSpeechMode = "voiceover" | "characters";
 export type AiMediaNarrationVoice = "female" | "male";
+export type { AiMediaNarrationVoiceVariant } from "./aiMediaNarrationVoices.ts";
 export type AiMediaIdentityMode =
   | "auto"
   | "professional"
@@ -139,6 +145,7 @@ export type AiMediaGenerationRequest = {
   withMusic: boolean;
   withNarration: boolean;
   narrationVoice: AiMediaNarrationVoice | null;
+  narrationVoiceVariant: AiMediaNarrationVoiceVariant | null;
   format: AiMediaOutputFormat;
   typology: AiMediaTypology;
   visualStyle: AiMediaVisualStyle;
@@ -427,6 +434,20 @@ export function normalizeAiMediaGenerationRequest(
   ) {
     throw new AiMediaRequestValidationError("Voix de narration invalide.");
   }
+  const rawNarrationVoiceVariant = cleanText(body.narrationVoiceVariant, 24);
+  if (
+    kind === "video" &&
+    requestedWithNarration &&
+    rawNarrationVoiceVariant &&
+    !isAiMediaNarrationVoiceVariantForGender(
+      rawNarrationVoiceVariant,
+      rawNarrationVoice as AiMediaNarrationVoice,
+    )
+  ) {
+    throw new AiMediaRequestValidationError(
+      "Variante de voix de narration invalide.",
+    );
+  }
   const rawVideoEngine = cleanText(body.videoEngine, 24) || "omni";
   if (kind === "video" && !["omni", "veo"].includes(rawVideoEngine)) {
     throw new AiMediaRequestValidationError("Moteur vidéo invalide.");
@@ -540,6 +561,10 @@ export function normalizeAiMediaGenerationRequest(
     narrationVoice:
       kind === "video" && withNarration
         ? (rawNarrationVoice as AiMediaNarrationVoice)
+        : null,
+    narrationVoiceVariant:
+      kind === "video" && withNarration && rawNarrationVoiceVariant
+        ? (rawNarrationVoiceVariant as AiMediaNarrationVoiceVariant)
         : null,
     format: format as AiMediaOutputFormat,
     typology: typology as AiMediaTypology,

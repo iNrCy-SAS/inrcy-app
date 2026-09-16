@@ -1,3 +1,9 @@
+import {
+  defaultAiMediaNarrationVoiceVariant,
+  isAiMediaNarrationVoiceVariantForGender,
+  type AiMediaNarrationVoiceVariant,
+} from "./aiMediaNarrationVoices.ts";
+
 export const AI_MEDIA_GENERATOR_PREFERENCES_VERSION = 1 as const;
 
 export type AiMediaGeneratorPreferenceBlockId = 1 | 2 | 3 | 4 | 5 | 6;
@@ -54,6 +60,7 @@ export type AiMediaGeneratorBlockDefaults = {
     withMusic: boolean;
     withNarration: boolean;
     narrationVoice: "female" | "male";
+    narrationVoiceVariant: AiMediaNarrationVoiceVariant;
   };
 };
 
@@ -142,6 +149,7 @@ const DEFAULT_BLOCKS: AiMediaGeneratorPreferences["blocks"] = {
       withMusic: true,
       withNarration: true,
       narrationVoice: "female",
+      narrationVoiceVariant: "Kore",
     },
   },
 };
@@ -331,6 +339,23 @@ function parseStrictBlockDefaults<K extends AiMediaGeneratorPreferenceBlockId>(
       ) {
         return invalidPatch("La durée du média est invalide.");
       }
+      const narrationVoice = requiredEnum(
+        input.narrationVoice,
+        ["female", "male"] as const,
+        "La voix de narration",
+      );
+      const narrationVoiceVariant =
+        input.narrationVoiceVariant === undefined
+          ? defaultAiMediaNarrationVoiceVariant(narrationVoice)
+          : input.narrationVoiceVariant;
+      if (
+        !isAiMediaNarrationVoiceVariantForGender(
+          narrationVoiceVariant,
+          narrationVoice,
+        )
+      ) {
+        return invalidPatch("La variante de voix de narration est invalide.");
+      }
       return {
         durationSeconds: input.durationSeconds as 8 | 16 | 24,
         connectScenes: input.connectScenes === undefined
@@ -342,11 +367,8 @@ function parseStrictBlockDefaults<K extends AiMediaGeneratorPreferenceBlockId>(
           input.withNarration,
           "L’option de narration",
         ),
-        narrationVoice: requiredEnum(
-          input.narrationVoice,
-          ["female", "male"] as const,
-          "La voix de narration",
-        ),
+        narrationVoice,
+        narrationVoiceVariant,
       } as AiMediaGeneratorBlockDefaults[K];
     }
   }
@@ -483,7 +505,19 @@ export function sanitizeAiMediaGeneratorBlockDefaults<K extends AiMediaGenerator
         ),
       } as AiMediaGeneratorBlockDefaults[K];
     }
-    case 6:
+    case 6: {
+      const narrationVoice = enumValue(
+        input.narrationVoice,
+        ["female", "male"] as const,
+        "female",
+      );
+      const narrationVoiceVariant =
+        isAiMediaNarrationVoiceVariantForGender(
+          input.narrationVoiceVariant,
+          narrationVoice,
+        )
+          ? input.narrationVoiceVariant
+          : defaultAiMediaNarrationVoiceVariant(narrationVoice);
       return {
         durationSeconds: [8, 16, 24].includes(Number(input.durationSeconds))
           ? (Number(input.durationSeconds) as 8 | 16 | 24)
@@ -492,12 +526,10 @@ export function sanitizeAiMediaGeneratorBlockDefaults<K extends AiMediaGenerator
         withText: booleanValue(input.withText, true),
         withMusic: booleanValue(input.withMusic, true),
         withNarration: booleanValue(input.withNarration, true),
-        narrationVoice: enumValue(
-          input.narrationVoice,
-          ["female", "male"] as const,
-          "female",
-        ),
+        narrationVoice,
+        narrationVoiceVariant,
       } as AiMediaGeneratorBlockDefaults[K];
+    }
   }
 }
 

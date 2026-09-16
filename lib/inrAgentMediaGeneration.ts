@@ -107,6 +107,9 @@ export async function generateInrAgentMedia(args: {
     withMusic: mediaMix.withMusic,
     withNarration: mediaMix.withNarration,
     narrationVoice: mediaMix.narrationVoice,
+    // Les générations historiques iNrAgent ne choisissent pas de variante :
+    // le moteur conserve donc le preset Femme/Homme configuré jusque-là.
+    narrationVoiceVariant: null,
     format: mediaMix.format,
     typology: typologyForTheme(args.theme),
     visualStyle: mediaMix.visualStyle,

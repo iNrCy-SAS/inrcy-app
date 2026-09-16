@@ -9,6 +9,10 @@ import {
 } from "@/lib/inrBadgeSettings";
 import { getDashboardEditionForAuthUser } from "@/lib/dashboardEditionServer";
 import { effectiveInrBadgeShareSettings } from "@/lib/inrBadgeEditionPolicy";
+import {
+  normalizeInrBadgeThemeSettings,
+  sanitizeInrBadgeThemeSettingsPayload,
+} from "@/lib/inrBadgeTheme";
 
 function safeObj(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
@@ -32,6 +36,7 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     settings: effectiveInrBadgeShareSettings(storedShareSettings, dashboardEdition),
+    theme: normalizeInrBadgeThemeSettings(rootSettings.inrBadgeTheme),
     appointmentSettings: resolveInrBadgeAppointmentSettings(rootSettings),
     selectedMailAccountId: dashboardEdition === "standard"
       ? ""
@@ -61,6 +66,7 @@ export async function PATCH(req: Request) {
   const hasShareSettings = Object.prototype.hasOwnProperty.call(input, "settings");
   const hasAppointmentSettings = Object.prototype.hasOwnProperty.call(input, "appointmentSettings");
   const hasSelectedMailAccountId = Object.prototype.hasOwnProperty.call(input, "selectedMailAccountId");
+  const hasTheme = Object.prototype.hasOwnProperty.call(input, "theme");
   const currentShareSettings = normalizeInrBadgeShareSettings(currentSettings.inrBadgeShareSettings);
   const requestedShareSettings = hasShareSettings
     ? sanitizeInrBadgeShareSettingsPayload(input.settings)
@@ -74,6 +80,10 @@ export async function PATCH(req: Request) {
     : hasAppointmentSettings
       ? sanitizeInrBadgeAppointmentSettingsPayload(input.appointmentSettings)
       : currentAppointmentSettings;
+  const currentTheme = normalizeInrBadgeThemeSettings(currentSettings.inrBadgeTheme);
+  const nextTheme = hasTheme
+    ? sanitizeInrBadgeThemeSettingsPayload(input.theme)
+    : currentTheme;
 
 
   const currentInrCalendar = safeObj(currentSettings.inrcalendar);
@@ -89,6 +99,7 @@ export async function PATCH(req: Request) {
   const nextSettings = {
     ...currentSettings,
     inrBadgeShareSettings: nextShareSettings,
+    inrBadgeTheme: nextTheme,
     inrBadgeAppointmentSettings: nextAppointmentSettings,
     inrBadgeMailAccountId: nextSelectedMailAccountId,
     inrcalendar: {
@@ -106,6 +117,7 @@ export async function PATCH(req: Request) {
   return NextResponse.json({
     ok: true,
     settings: effectiveInrBadgeShareSettings(nextShareSettings, dashboardEdition),
+    theme: nextTheme,
     appointmentSettings: nextAppointmentSettings,
     selectedMailAccountId: dashboardEdition === "standard" ? "" : nextSelectedMailAccountId,
   });
