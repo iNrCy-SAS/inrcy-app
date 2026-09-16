@@ -35,13 +35,18 @@ Les identifiants d’agenda d’Océane, Apolline et Jimmy ont des valeurs par d
 
 Installer puis activer le dossier `ops/wordpress-visio-booking` sous forme d’extension. Le plugin observe la réponse de l’appel d’inscription existant : il ne crée jamais une seconde inscription.
 
+## Apps Script de récupération
+
+Le script versionné dans `ops/google-apps-script/inrcy-gmail-calendar-fallback.js` n'est plus le chemin principal. Copier cette version dans le projet Apps Script du compte `compte@inrcy.com`, l'enregistrer, puis exécuter une fois `installerAutomatisation` pour remplacer l'ancien déclencheur par un passage horaire. Le script rattrape un rappel manquant sans dupliquer celui déjà créé directement par l'API d'inscription.
+
 ## Règles métier verrouillées
 
 - rendez-vous du lundi au samedi, dimanche exclu ;
 - horaires 9h, 11h, 14h, 16h et 18h, heure de Paris ;
 - réservation possible dès le lendemain, jamais le jour même et sans décalage automatique à J+2 ;
 - événement réservé créé en bleu pour 1 heure, avec une fenêtre interne de disponibilité de 2 heures ;
-- rappel orange d'inscription conservé 1 heure uniquement si aucun rendez-vous n'est réservé ;
+- rappel orange d'inscription créé directement et de façon idempotente par l'API d'inscription, puis conservé 1 heure uniquement si aucun rendez-vous n'est réservé ;
+- le scan Gmail / Apps Script n'est qu'un filet de récupération : un quota Gmail épuisé ne peut plus empêcher la création normale du rappel ;
 - retrait automatique du rappel orange correspondant dès qu'un rendez-vous est confirmé ;
 - deux rendez-vous simultanés maximum ;
 - attribution automatique à la personne disponible ayant reçu le moins de rendez-vous ;

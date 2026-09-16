@@ -24,6 +24,7 @@ import { ensureTrialSubscription } from "@/lib/trialSubscription";
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import { buildSupabaseEmailRedirectUrl } from "@/lib/authEmailLinks";
 import { createVisioBookingToken } from "@/lib/visioBookingToken";
+import { ensurePendingSignupCalendarReminder } from "@/lib/visioBookingGoogle";
 import {
   hasKnownInrcyAccountForEmail,
   isExistingAuthUserError,
@@ -563,6 +564,7 @@ export async function POST(req: Request) {
     const invitedUser = invite.user;
     userId = invitedUser?.id || null;
     if (!userId) throw new Error("supabase_invitation_user_missing");
+    const signupUserId = userId;
     authUserCreated = true;
     const nowIso = new Date().toISOString();
 
@@ -634,6 +636,27 @@ export async function POST(req: Request) {
         "[trial-signup][attribution]",
         error instanceof Error ? error.message : "persistence_failed",
       );
+    });
+
+    // The operational reminder is created from the authoritative successful
+    // signup, not from an email scan. Calendar availability must never make
+    // account creation fail; Apps Script remains a fallback if Google is down.
+    await ensurePendingSignupCalendarReminder({
+      userId: signupUserId,
+      email: payload.email,
+      firstName: payload.firstName,
+      lastName: payload.lastName,
+      company: payload.companyName,
+      phone: payload.phone,
+      createdAt: nowIso,
+    }).catch((error: unknown) => {
+      log.error("trial_signup_calendar_reminder_deferred", {
+        request_id: requestId,
+        route: "/api/public/trial-signup",
+        user_id: signupUserId,
+        error_code: getSignupFailureErrorCode(error),
+        error_message: getSignupFailureSafeMessage(error),
+      });
     });
 
     await sendAdminSubscriptionAlertForUser({

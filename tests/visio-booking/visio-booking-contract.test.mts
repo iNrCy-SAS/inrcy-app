@@ -49,6 +49,16 @@ test("la réservation impose capacité deux, Meet et invitations", () => {
   assert.match(backend, /pendingSignupReminderProspectUserId/);
 });
 
+test("l'inscription crée directement le rappel agenda sans dépendre de Gmail", () => {
+  const signup = read("app/api/public/trial-signup/route.ts");
+  assert.match(signup, /ensurePendingSignupCalendarReminder\(\{/);
+  assert.match(signup, /trial_signup_calendar_reminder_deferred/);
+  assert.match(
+    signup,
+    /ensurePendingSignupCalendarReminder\(\{[\s\S]*?createdAt:\s*nowIso,[\s\S]*?\}\)\.catch/,
+  );
+});
+
 test("une inscription devient un seul événement partagé avec Meet et invités", () => {
   const backend = read("lib/visioBookingGoogle.ts");
   const mirror = read("lib/visioCalendarMirrorPolicy.ts");

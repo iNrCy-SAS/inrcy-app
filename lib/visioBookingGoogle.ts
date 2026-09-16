@@ -97,6 +97,10 @@ import {
   type BusyPeriod,
   type VisioTeamMember,
 } from "@/lib/visioBookingPolicy";
+import {
+  buildPendingSignupReminderCalendarEvent,
+  type PendingSignupReminderInput,
+} from "@/lib/visioPendingSignupPolicy";
 import type { VisioBookingClaims } from "@/lib/visioBookingToken";
 
 const GOOGLE_CALENDAR_API = "https://www.googleapis.com/calendar/v3";
@@ -2102,6 +2106,78 @@ async function getCalendarEvent(calendarId: string, eventId: string) {
       return null;
     }
     throw error;
+  }
+}
+
+export type PendingSignupCalendarReminderResult = {
+  status: "created" | "existing" | "restored";
+  eventId: string;
+};
+
+/**
+ * Creates the one-hour waiting reminder directly from the successful signup.
+ * Gmail/Apps Script remains a recovery path, but is no longer required for
+ * the operational calendar to receive a new professional.
+ */
+export async function ensurePendingSignupCalendarReminder(
+  input: Omit<PendingSignupReminderInput, "calendarId">,
+): Promise<PendingSignupCalendarReminderResult> {
+  const calendarId = getVisioSharedCalendarId();
+  const body = buildPendingSignupReminderCalendarEvent({
+    ...input,
+    calendarId,
+  });
+  const { id: eventId, ...writableBody } = body;
+  const eventPath = `/calendars/${encodeCalendarId(
+    calendarId,
+  )}/events/${encodeURIComponent(eventId)}`;
+
+  const assertOwnedEvent = (event: GoogleCalendarEvent) => {
+    const prospectUserId = String(
+      event.extendedProperties?.private?.prospectUserId || "",
+    ).trim();
+    if (prospectUserId && prospectUserId !== input.userId.trim()) {
+      throw new Error("visio_pending_signup_event_id_conflict");
+    }
+  };
+
+  const existing = await getCalendarEvent(calendarId, eventId);
+  if (existing) {
+    assertOwnedEvent(existing);
+    if (existing.status !== "cancelled") {
+      return { status: "existing", eventId };
+    }
+    await googleCalendarRequest<GoogleCalendarEvent>(
+      `${eventPath}?sendUpdates=none`,
+      { method: "PATCH", body: JSON.stringify(writableBody) },
+    );
+    return { status: "restored", eventId };
+  }
+
+  try {
+    await googleCalendarRequest<GoogleCalendarEvent>(
+      `/calendars/${encodeCalendarId(calendarId)}/events?sendUpdates=none`,
+      { method: "POST", body: JSON.stringify(body) },
+    );
+    return { status: "created", eventId };
+  } catch (error) {
+    if (
+      !(error instanceof Error) ||
+      !error.message.startsWith("visio_google_api_failed:409:")
+    ) {
+      throw error;
+    }
+    const racedEvent = await getCalendarEvent(calendarId, eventId);
+    if (!racedEvent) throw error;
+    assertOwnedEvent(racedEvent);
+    if (racedEvent.status !== "cancelled") {
+      return { status: "existing", eventId };
+    }
+    await googleCalendarRequest<GoogleCalendarEvent>(
+      `${eventPath}?sendUpdates=none`,
+      { method: "PATCH", body: JSON.stringify(writableBody) },
+    );
+    return { status: "restored", eventId };
   }
 }
 
