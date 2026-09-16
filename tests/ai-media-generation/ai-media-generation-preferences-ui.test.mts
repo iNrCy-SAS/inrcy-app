@@ -109,6 +109,9 @@ test("les neuf catalogues traduisent la mémorisation et les garanties d’ident
     "ai_generator_preferences_load_error",
     "ai_generator_preferences_save_error",
     "ai_generator_video_character_consent_label",
+    "ai_generator_footer_consent_title",
+    "ai_generator_footer_consent_blocking",
+    "ai_generator_footer_consent_confirmed",
     "ai_generator_inspiration_rules_body",
   ];
 

@@ -94,7 +94,9 @@ export function resolveAiMediaVideoOverlayLayout(args: {
         orientation === "landscape" ? 28 : 20,
         orientation === "landscape" ? 44 : orientation === "portrait" ? 29 : 34,
       ),
-      titleMaxLines: orientation === "landscape" ? 2 : 3,
+      // Long proper nouns and locations stay whole; the renderer rebalances
+      // the measure instead of deleting the final words.
+      titleMaxLines: orientation === "landscape" ? 3 : 4,
       bodyMaxCharacters: clamp(
         estimatedBodyCharacters,
         orientation === "landscape" ? 42 : 32,

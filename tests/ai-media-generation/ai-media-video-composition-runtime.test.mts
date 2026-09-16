@@ -16,6 +16,7 @@ import {
   resolveVideoNormalizationFfmpegPath,
 } from "../../lib/mediaVideoNormalizer.ts";
 import * as videoLayout from "../../lib/aiMediaVideoLayout.ts";
+import * as textIntegrity from "../../lib/aiMediaTextIntegrity.ts";
 
 const execFileAsync = promisify(execFile);
 const requireFromTest = createRequire(import.meta.url);
@@ -95,18 +96,15 @@ test("l’accroche utilise entièrement sa dernière ligne avant de l’abréger
   );
 });
 
-test("un texte secondaire trop long conserve une phrase entière ou disparaît", () => {
+test("un texte secondaire est rééquilibré en entier ou rejeté s’il est incomplet", () => {
   const runtime = transpileRuntimeModule<BrandRendererModule>(
     "../../lib/aiMediaBrandRenderer.ts"
   );
-  assert.deepEqual(
-    runtime.wrapAiMediaOverlayBodyText(
-      "Une solution simple et rapide. Elle centralise toutes vos publications sur chaque canal.",
-      24,
-      2
-    ),
-    ["Une solution simple et", "rapide."]
-  );
+  const completeBody =
+    "Une solution simple et rapide pour centraliser toutes vos publications.";
+  const completeBodyLines = runtime.wrapAiMediaOverlayBodyText(completeBody, 24, 2);
+  assert.equal(completeBodyLines.join(" "), completeBody);
+  assert.ok(completeBodyLines.length <= 2);
   assert.deepEqual(
     runtime.wrapAiMediaOverlayBodyText(
       "On peut prendre rendez-vous et parler de votre communication digitale avec notre équipe",
@@ -134,9 +132,7 @@ test("une accroche raccourcie ne finit jamais par des points de suspension ni un
     24,
     2
   );
-  const visible = lines.join(" ");
-  assert.doesNotMatch(visible, /(?:…|\.{3})$/);
-  assert.doesNotMatch(visible, /\b(?:avec|de|des|du|et|pour|sur|un|une)$/i);
+  assert.deepEqual(lines, []);
 });
 
 test("un fragment déjà tronqué par le copywriter n’est jamais gravé dans le média", () => {
@@ -150,8 +146,7 @@ test("un fragment déjà tronqué par le copywriter n’est jamais gravé dans l
       3
     )
     .join(" ");
-  assert.equal(visible, "BATICAD 3D : votre partenaire pour les démarches");
-  assert.doesNotMatch(visible, /(?:…|\.{3})|\badministr$/i);
+  assert.equal(visible, "");
 });
 
 test("une accroche complète calibrée reste intégralement visible", () => {
@@ -163,6 +158,14 @@ test("une accroche complète calibrée reste intégralement visible", () => {
     runtime.wrapAiMediaOverlayText(headline, 29, 3).join(" "),
     headline
   );
+});
+
+test("le rendu image et vidéo conserve La Celle Dunoise sans supprimer le dernier mot", () => {
+  const runtime = transpileRuntimeModule<BrandRendererModule>(
+    "../../lib/aiMediaBrandRenderer.ts"
+  );
+  const headline = "Permis de construire pour un bâtiment agricole à La Celle Dunoise";
+  assert.equal(runtime.wrapAiMediaOverlayText(headline, 29, 3).join(" "), headline);
 });
 
 function transpileRuntimeModule<T>(relativePath: string): T {
@@ -181,6 +184,7 @@ function transpileRuntimeModule<T>(relativePath: string): T {
       return { probeVideoSource, resolveVideoNormalizationFfmpegPath };
     }
     if (specifier === "@/lib/aiMediaVideoLayout") return videoLayout;
+    if (specifier === "@/lib/aiMediaTextIntegrity") return textIntegrity;
     return requireFromTest(specifier);
   };
   const execute = new Function("module", "exports", "require", output);

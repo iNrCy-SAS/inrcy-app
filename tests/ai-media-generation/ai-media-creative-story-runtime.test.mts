@@ -12,6 +12,7 @@ import {
 } from "../../lib/aiMediaDialogue.ts";
 import { getAiMediaVideoSegmentCount } from "../../lib/aiMediaVideoTimeline.ts";
 import { fitAiMediaSceneDirection } from "../../lib/aiMediaTechnicalText.ts";
+import * as aiMediaTextIntegrity from "../../lib/aiMediaTextIntegrity.ts";
 
 const ROOT = process.cwd();
 
@@ -38,6 +39,7 @@ function loadCreativePlanBuilder() {
   const stubs = new Map<string, unknown>([
     ["@/lib/aiMediaDialogue", { aiMediaDialogueSignature, selectAiMediaDialogueLine }],
     ["@/lib/aiMediaLanguage", { getAiMediaLanguageCopy: () => copy }],
+    ["@/lib/aiMediaTextIntegrity", aiMediaTextIntegrity],
     ["@/lib/aiMediaVideoTimeline", { getAiMediaVideoSegmentCount }],
     ["./aiMediaTechnicalText.ts", { fitAiMediaSceneDirection }],
   ]);
@@ -256,5 +258,53 @@ test("le secours local conserve les noms propres entiers et corrige le sujet pei
     assert.match(plan.headline, /Guyancourt/);
     assert.doesNotMatch(plan.headline, /Guyanc(?:\s|$|[,.!?])/);
     assert.doesNotMatch(plan.headline, /peinture réalisées/i);
+  }
+});
+
+test("les plans image et vidéo conservent La Celle Dunoise en entier", () => {
+  const buildAiMediaCreativePlan = loadCreativePlanBuilder();
+  const properName = "La Celle Dunoise";
+  const idea = `Permis de construire pour un bâtiment agricole à ${properName}`;
+  const profile = {
+    preferences: { language: "fr", preferredCta: "appeler" },
+    business: {
+      companyName: "Baticad 3D",
+      professionLabel: "Conception de bâtiments",
+      sectorLabel: "Bâtiment",
+      description: "Accompagnement des projets de construction agricole.",
+      services: ["Permis de construire"],
+      strengths: [],
+      customerTypologies: ["Exploitants agricoles"],
+      interventionZones: [properName],
+      city: properName,
+      openingHours: "",
+    },
+  };
+
+  for (const kind of ["image", "video"] as const) {
+    const plan = buildAiMediaCreativePlan({
+      request: {
+        requestId: `la-celle-dunoise-${kind}`,
+        kind,
+        durationSeconds: kind === "video" ? 16 : 8,
+        subjectSource: "custom",
+        idea,
+        aiInstruction: "",
+        withText: true,
+        textKeywords: [],
+        typology: "service",
+      },
+      profile,
+      recentPublications: [],
+    });
+    assert.match(plan.headline, /La Celle Dunoise/);
+    assert.doesNotMatch(plan.headline, /\bLa Celle$/);
+    assert.equal(plan.scenes[0]?.title.includes(properName), true);
+    if (kind === "video") {
+      assert.equal(
+        (plan.scenes[0] as { spokenLine?: string }).spokenLine?.includes(properName),
+        true,
+      );
+    }
   }
 });

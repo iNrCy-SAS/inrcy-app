@@ -1,3 +1,9 @@
+import {
+  AI_MEDIA_SPOKEN_LINE_MAX_CHARACTERS,
+  AI_MEDIA_SPOKEN_LINE_MAX_WORDS,
+  normalizeAiMediaCopy,
+} from "./aiMediaTextIntegrity.ts";
+
 const DIALOGUE_FALLBACKS: Record<
   string,
   ReadonlyArray<readonly [string, string]>
@@ -115,7 +121,7 @@ const DIALOGUE_FALLBACKS: Record<
 const GENERIC_DIALOGUE_PATTERN =
   /^(?:on s['’]y met|on avance bien|c['’]est pr[eê]t|exactement|shall we get started|we(?:'|’)re making good progress|it(?:'|’)s ready|absolutely|perfect|empezamos|claro|exacto|cominciamo|esatto|perfetto|fangen wir an|genau|zullen we beginnen|precies|come[cç]amos|exatamente)[.!?\s]*$/iu;
 
-const MAX_NATIVE_DIALOGUE_CHARACTERS = 60;
+const MAX_NATIVE_DIALOGUE_CHARACTERS = AI_MEDIA_SPOKEN_LINE_MAX_CHARACTERS;
 
 const DANGLING_SPEECH_ENDINGS: Readonly<Record<string, ReadonlySet<string>>> = {
   fr: new Set([
@@ -297,7 +303,10 @@ export function fitAiMediaSpeechToCompleteSentences(args: {
   return fitted;
 }
 
-export function compactAiMediaDialogue(value: unknown, maximum = 96) {
+export function compactAiMediaDialogue(
+  value: unknown,
+  maximum = AI_MEDIA_SPOKEN_LINE_MAX_CHARACTERS
+) {
   const normalized = String(value ?? "")
     .replace(/\u0000/g, "")
     .replace(/^[\s"'«»]+|[\s"'«»]+$/g, "")
@@ -305,14 +314,11 @@ export function compactAiMediaDialogue(value: unknown, maximum = 96) {
     .replace(/\s+/g, " ")
     .trim();
   if (normalized.length <= maximum) return normalized;
-  return normalized
-    .slice(0, maximum + 1)
-    .replace(/\s+\S*$/u, "")
-    .trim();
+  return "";
 }
 
 export function aiMediaDialogueSignature(value: unknown) {
-  return compactAiMediaDialogue(value, 120)
+  return normalizeAiMediaCopy(value)
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLocaleLowerCase()
@@ -334,7 +340,7 @@ export function isQualityAiMediaDialogueLine(
   const count = dialogueSpokenUnitCount(line, language);
   return ["zh", "th"].includes(normalizedLanguage(language))
     ? count >= 8 && count <= 42
-    : count >= 5 && count <= 10;
+    : count >= 5 && count <= AI_MEDIA_SPOKEN_LINE_MAX_WORDS;
 }
 
 export function selectAiMediaDialogueLine(args: {

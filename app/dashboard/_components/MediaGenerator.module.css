@@ -1203,46 +1203,6 @@
   pointer-events: none;
 }
 
-.identityConsent {
-  position: relative;
-  min-height: 48px;
-  display: flex;
-  align-items: flex-start;
-  gap: 9px;
-  margin-top: 9px;
-  padding: 9px 10px;
-  border: 1px solid rgba(91, 218, 255, 0.2);
-  border-radius: 11px;
-  background: rgba(8, 25, 53, 0.74);
-  cursor: pointer;
-}
-
-.identityConsent input {
-  width: 17px;
-  height: 17px;
-  flex: 0 0 auto;
-  margin: 1px 0 0;
-  accent-color: #4fdcff;
-}
-
-.identityConsent > span {
-  min-width: 0;
-  display: grid;
-  gap: 3px;
-}
-
-.identityConsent strong {
-  color: #f4f9ff;
-  font-size: 9.5px;
-  line-height: 1.35;
-}
-
-.identityConsent small {
-  color: rgba(203, 220, 247, 0.58);
-  font-size: 8.5px;
-  line-height: 1.35;
-}
-
 .identityRequirement {
   margin: 8px 0 0 !important;
   padding: 7px 9px;
@@ -1832,6 +1792,149 @@
 .footerBar > * {
   position: relative;
   z-index: 1;
+}
+
+.footerConsent {
+  min-width: 0;
+  flex: 1 1 430px;
+  max-width: 620px;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: start;
+  gap: 9px;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 190, 91, 0.38);
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 7% 22%, rgba(255, 202, 98, 0.14), transparent 34%),
+    linear-gradient(118deg, rgba(96, 55, 12, 0.3), rgba(38, 25, 52, 0.68)),
+    rgba(8, 20, 45, 0.8);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.065),
+    0 9px 24px rgba(0, 0, 0, 0.17);
+  cursor: pointer;
+  transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.footerConsent:hover {
+  border-color: rgba(255, 207, 119, 0.62);
+  transform: translateY(-1px);
+}
+
+.footerConsent:focus-within {
+  outline: 2px solid rgba(109, 225, 255, 0.78);
+  outline-offset: 2px;
+}
+
+.footerConsent[data-checked="true"] {
+  border-color: rgba(75, 225, 187, 0.38);
+  background:
+    radial-gradient(circle at 7% 22%, rgba(80, 231, 192, 0.13), transparent 34%),
+    linear-gradient(118deg, rgba(17, 91, 80, 0.27), rgba(25, 35, 70, 0.7)),
+    rgba(8, 20, 45, 0.8);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 0 24px rgba(49, 212, 179, 0.08),
+    0 9px 24px rgba(0, 0, 0, 0.16);
+}
+
+.footerConsent input {
+  width: 21px;
+  height: 21px;
+  display: grid;
+  place-content: center;
+  margin: 1px 0 0;
+  appearance: none;
+  border: 1px solid rgba(255, 218, 151, 0.62);
+  border-radius: 7px;
+  color: #fff;
+  background: rgba(4, 13, 33, 0.82);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.38), 0 0 0 3px rgba(255, 190, 91, 0.055);
+  cursor: pointer;
+}
+
+.footerConsent input::before {
+  content: "";
+  width: 10px;
+  height: 6px;
+  border-left: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  opacity: 0;
+  transform: translateY(-1px) rotate(-45deg) scale(0.65);
+  transition: opacity 150ms ease, transform 150ms ease;
+}
+
+.footerConsent input:checked {
+  border-color: rgba(121, 255, 221, 0.78);
+  background: linear-gradient(135deg, #19bde3, #32cc9c);
+  box-shadow: 0 0 14px rgba(43, 218, 183, 0.28);
+}
+
+.footerConsent input:checked::before {
+  opacity: 1;
+  transform: translateY(-1px) rotate(-45deg) scale(1);
+}
+
+.footerConsent input:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+.footerConsentCopy {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.footerConsentHeading {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.footerConsentHeading strong {
+  color: #fff7e8;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.footerConsentHeading em {
+  min-width: 0;
+  margin-left: auto;
+  padding: 3px 7px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 203, 111, 0.24);
+  border-radius: 999px;
+  color: #ffdda0;
+  background: rgba(144, 83, 18, 0.2);
+  font-size: 7.5px;
+  font-style: normal;
+  font-weight: 850;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.footerConsent[data-checked="true"] .footerConsentHeading em {
+  border-color: rgba(98, 235, 199, 0.25);
+  color: #9ff2d8;
+  background: rgba(25, 116, 94, 0.2);
+}
+
+.footerConsentStatement {
+  color: rgba(238, 244, 255, 0.86);
+  font-size: 8.5px;
+  font-weight: 730;
+  line-height: 1.3;
+}
+
+.footerConsentCopy > small {
+  color: rgba(198, 217, 244, 0.54);
+  font-size: 7.5px;
+  line-height: 1.25;
 }
 
 .quotaCard {
@@ -2867,6 +2970,34 @@ textarea:focus-visible,
     align-items: center;
   }
 
+  .footerBar[data-consent-required="true"] {
+    grid-template-columns: minmax(240px, 0.8fr) minmax(410px, 1.25fr) minmax(330px, 0.9fr);
+    grid-template-rows: auto auto;
+  }
+
+  .footerBar[data-consent-required="true"] .quotaCard {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    align-self: center;
+  }
+
+  .footerBar[data-consent-required="true"] .footerConsent {
+    width: 100%;
+    max-width: none;
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .footerBar[data-consent-required="true"][data-kind="image"] .footerConsent {
+    grid-row: 1 / span 2;
+    align-self: center;
+  }
+
+  .footerBar[data-consent-required="true"] .footerEnginePicker {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
   .footerEnginePicker {
     width: 100%;
     max-width: none;
@@ -2876,6 +3007,11 @@ textarea:focus-visible,
   .generateButton {
     grid-column: 3;
     justify-self: end;
+  }
+
+  .footerBar[data-consent-required="true"] .generateButton {
+    grid-row: 1 / span 2;
+    align-self: center;
   }
 
   .stepBadge {
@@ -3026,6 +3162,13 @@ textarea:focus-visible,
   .footerBar {
     position: relative;
     bottom: auto;
+    flex-wrap: wrap;
+  }
+
+  .footerConsent {
+    width: 100%;
+    max-width: none;
+    flex-basis: 100%;
   }
 }
 
@@ -3133,6 +3276,21 @@ textarea:focus-visible,
   .footerEnginePicker > span {
     padding: 0;
     text-align: center;
+  }
+  .footerConsent {
+    width: 100%;
+    max-width: none;
+    grid-template-columns: 22px minmax(0, 1fr);
+    padding: 9px 10px;
+  }
+  .footerConsentHeading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .footerConsentHeading em {
+    margin-left: 0;
+    white-space: normal;
   }
   .generateButton {
     width: min(100%, 250px);

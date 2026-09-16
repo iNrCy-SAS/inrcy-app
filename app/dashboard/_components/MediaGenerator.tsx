@@ -1733,47 +1733,6 @@ export default function MediaGenerator({
                     </p>
                   ) : null}
 
-                  {identityConsentRequired ? (
-                    <label className={styles.identityConsent}>
-                      <input
-                        type="checkbox"
-                        checked={identityConsent}
-                        disabled={operationLocked}
-                        onChange={(event) => {
-                          setIdentityConsent(event.target.checked);
-                          setTeamVideoVeoConsent(false);
-                          setTeamVideoConsentOpen(false);
-                          if (actionError || error) clearTransientState();
-                        }}
-                      />
-                      <span>
-                        <strong>
-                          {t(
-                            videoCharacterMode === "reference_team"
-                              ? "ai_generator_reference_team_consent_label"
-                              : "ai_generator_video_character_consent_label",
-                          )}
-                        </strong>
-                        <small>
-                          {t(
-                            videoCharacterMode === "reference_team" && kind === "video"
-                              ? teamVideoMode === "cinematic"
-                                ? "ai_generator_identity_consent_hint_team_video_cinematic"
-                                : "ai_generator_identity_consent_hint_team_video"
-                              : kind === "image"
-                                ? "ai_generator_identity_consent_hint_image"
-                                : "ai_generator_identity_consent_hint_video",
-                          )}
-                        </small>
-                      </span>
-                    </label>
-                  ) : null}
-
-                  {identityConsentMissing ? (
-                    <p className={styles.identityRequirement} role="alert">
-                      {t("ai_generator_video_character_consent_required")}
-                    </p>
-                  ) : null}
                 </div>
               </div>
             </div>
@@ -2275,7 +2234,11 @@ export default function MediaGenerator({
       ) : null}
       {actionError || error ? <div className={styles.error} role="alert">{actionError || error}</div> : null}
 
-      <div className={styles.footerBar} data-kind={kind}>
+      <div
+        className={styles.footerBar}
+        data-kind={kind}
+        data-consent-required={identityConsentRequired ? "true" : "false"}
+      >
         <div className={styles.quotaCard} data-kind={kind}>
           <span className={styles.quotaIcon} aria-hidden="true">
             <svg viewBox="0 0 24 24" focusable="false">
@@ -2327,7 +2290,64 @@ export default function MediaGenerator({
             </div>
           </div>
         ) : null}
-        <button type="button" className={styles.generateButton} disabled={disabled} onClick={() => void handleGenerate()}>
+        {identityConsentRequired ? (
+          <label
+            className={styles.footerConsent}
+            data-checked={identityConsent ? "true" : "false"}
+            htmlFor="ai-media-footer-identity-consent"
+          >
+            <input
+              id="ai-media-footer-identity-consent"
+              type="checkbox"
+              checked={identityConsent}
+              disabled={operationLocked}
+              aria-describedby="ai-media-footer-consent-hint"
+              onChange={(event) => {
+                setIdentityConsent(event.target.checked);
+                setTeamVideoVeoConsent(false);
+                setTeamVideoConsentOpen(false);
+                if (actionError || error) clearTransientState();
+              }}
+            />
+            <span className={styles.footerConsentCopy}>
+              <span className={styles.footerConsentHeading}>
+                <strong>{t("ai_generator_footer_consent_title")}</strong>
+                <em id="ai-media-footer-consent-status" role="status">
+                  {t(
+                    identityConsent
+                      ? "ai_generator_footer_consent_confirmed"
+                      : "ai_generator_footer_consent_blocking",
+                  )}
+                </em>
+              </span>
+              <span className={styles.footerConsentStatement}>
+                {t(
+                  videoCharacterMode === "reference_team"
+                    ? "ai_generator_reference_team_consent_label"
+                    : "ai_generator_video_character_consent_label",
+                )}
+              </span>
+              <small id="ai-media-footer-consent-hint">
+                {t(
+                  videoCharacterMode === "reference_team" && kind === "video"
+                    ? teamVideoMode === "cinematic"
+                      ? "ai_generator_identity_consent_hint_team_video_cinematic"
+                      : "ai_generator_identity_consent_hint_team_video"
+                    : kind === "image"
+                      ? "ai_generator_identity_consent_hint_image"
+                      : "ai_generator_identity_consent_hint_video",
+                )}
+              </small>
+            </span>
+          </label>
+        ) : null}
+        <button
+          type="button"
+          className={styles.generateButton}
+          disabled={disabled}
+          aria-describedby={identityConsentMissing ? "ai-media-footer-consent-status" : undefined}
+          onClick={() => void handleGenerate()}
+        >
           <span aria-hidden="true">✦</span>
           <strong>{t(kind === "image" ? "ai_generator_generate_image" : "ai_generator_generate_video")}</strong>
         </button>

@@ -55,6 +55,20 @@ test("les répliques natives trop longues ou pendantes basculent vers une phrase
   );
 });
 
+test("une réplique vidéo conserve le nom propre La Celle Dunoise en entier", () => {
+  const line = "Permis de construire pour un bâtiment agricole à La Celle Dunoise";
+  assert.equal(isQualityAiMediaDialogueLine(line, "fr"), true);
+  assert.equal(
+    selectAiMediaDialogueLine({
+      value: line,
+      language: "fr",
+      sceneIndex: 0,
+      speaker: "lead",
+    }),
+    line,
+  );
+});
+
 test("le prompt Veo transmet la réplique complète et réserve une fin silencieuse", () => {
   const veo = read("lib/aiVideoProviderGoogleVeo.ts");
   const server = read("lib/aiMediaGenerationServer.ts");

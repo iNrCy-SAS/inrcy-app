@@ -293,8 +293,21 @@ test("la fenêtre iNrCy sépare les critères de la création et de la revue", (
     't("ai_generator_people_label")',
     't("ai_generator_video_character_label")',
     "styles.inspirationSection",
-    "styles.identityConsent",
   ]);
+  assert.doesNotMatch(creationBody, /identityConsent|footerConsent/);
+  const footerBody = generator.slice(generator.indexOf("className={styles.footerBar}"));
+  assertOrdered(footerBody, [
+    "styles.quotaCard",
+    "styles.footerConsent",
+    "styles.generateButton",
+  ]);
+  assert.match(
+    footerBody,
+    /identityConsentRequired \? \([\s\S]*?id="ai-media-footer-identity-consent"[\s\S]*?checked=\{identityConsent\}/,
+  );
+  assert.match(footerBody, /ai_generator_footer_consent_blocking/);
+  assert.match(footerBody, /ai_generator_footer_consent_confirmed/);
+  assert.match(footerBody, /identityConsentMissing[\s\S]*?ai-media-footer-consent-status/);
   assert.match(creationBody, /data-reference-purpose=\{strictIdentityReferenceMode \? "identity" : "visual"\}/);
   assert.doesNotMatch(creationBody, /setInspirationImages\(\[\]\)/);
   const artBody = sourceSection(
@@ -325,6 +338,11 @@ test("la fenêtre iNrCy sépare les critères de la création et de la revue", (
   assert.match(generatorStyles, /\.collapsibleToggle/);
   assert.match(generatorStyles, /\.footerEnginePicker/);
   assert.match(generatorStyles, /\.footerEngineChoices/);
+  assert.match(generatorStyles, /\.footerConsent\[data-checked="true"\]/);
+  assert.match(
+    generatorStyles,
+    /\.footerBar\[data-consent-required="true"\][\s\S]*?grid-template-columns/,
+  );
   assert.match(
     generatorStyles,
     /@media \(max-width: 620px\)[\s\S]*?\.collapsibleToggle \.sectionSelection[\s\S]*?grid-row:\s*2[\s\S]*?white-space:\s*normal/
@@ -658,6 +676,9 @@ test("toutes les langues contiennent la copie complète de la modale", () => {
     "ai_generator_video_character_consent_label",
     "ai_generator_video_character_consent_hint",
     "ai_generator_video_character_consent_required",
+    "ai_generator_footer_consent_title",
+    "ai_generator_footer_consent_blocking",
+    "ai_generator_footer_consent_confirmed",
     "ai_generator_reference_summary",
     "ai_generator_media_to_animate_title",
     "ai_generator_professional_photos_title",

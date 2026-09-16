@@ -8,6 +8,14 @@ import {
   selectAiMediaDialogueLine,
 } from "@/lib/aiMediaDialogue";
 import { getAiMediaLanguageCopy } from "@/lib/aiMediaLanguage";
+import {
+  AI_MEDIA_SPOKEN_LINE_MAX_CHARACTERS,
+  AI_MEDIA_VISIBLE_BODY_MAX_CHARACTERS,
+  AI_MEDIA_VISIBLE_EYEBROW_MAX_CHARACTERS,
+  AI_MEDIA_VISIBLE_TITLE_MAX_CHARACTERS,
+  acceptCompleteAiMediaVisibleCopy,
+  normalizeAiMediaCopy,
+} from "@/lib/aiMediaTextIntegrity";
 import { getAiMediaVideoSegmentCount } from "@/lib/aiMediaVideoTimeline";
 import { fitAiMediaSceneDirection } from "./aiMediaTechnicalText.ts";
 
@@ -46,129 +54,25 @@ function clean(value: unknown, max = 160) {
     .slice(0, max);
 }
 
-/**
- * Les textes visibles ne doivent jamais subir le `slice` technique de
- * `clean()`: il transformait par exemple "Guyancourt" en "Guyanc" dans le
- * secours déterministe. On préfère retirer le dernier mot entier si la limite
- * est atteinte.
- */
+/** Validate-or-reject helper for internal copy building. Never slices words. */
 function compactAtWordBoundary(value: unknown, max: number) {
   const normalized = clean(value, Math.max(300, max + 80));
   if (normalized.length <= max) return normalized;
-  const candidate = normalized
-    .slice(0, max + 1)
-    .replace(/\s+\S*$/, "")
-    .trim();
-  return candidate || normalized;
+  return "";
 }
 
-const DANGLING_VISIBLE_WORDS = new Set([
-  "a",
-  "afin",
-  "au",
-  "aux",
-  "avec",
-  "car",
-  "ce",
-  "ces",
-  "chez",
-  "comme",
-  "dans",
-  "de",
-  "des",
-  "du",
-  "en",
-  "et",
-  "la",
-  "le",
-  "les",
-  "mais",
-  "notre",
-  "ou",
-  "par",
-  "pour",
-  "que",
-  "qui",
-  "sans",
-  "sur",
-  "un",
-  "une",
-  "vers",
-  "votre",
-]);
-
-function visibleWordSignature(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLocaleLowerCase()
-    .replace(/[^a-z]/g, "");
+function compactHeadline(
+  value: string,
+  max = AI_MEDIA_VISIBLE_TITLE_MAX_CHARACTERS
+) {
+  return acceptCompleteAiMediaVisibleCopy(value, max);
 }
 
-function trimDanglingVisibleEnding(value: string) {
-  const words = value
-    .replace(/(?:\.{3}|…)+$/g, "")
-    .replace(/[,:;\-–—]+$/g, "")
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-  while (
-    words.length > 1 &&
-    DANGLING_VISIBLE_WORDS.has(visibleWordSignature(words.at(-1) || ""))
-  ) {
-    words.pop();
-  }
-  return words
-    .join(" ")
-    .replace(/[,:;\-–—]+$/g, "")
-    .trim();
-}
-
-function hasDanglingVisibleEnding(value: string) {
-  const lastWord = value
-    .replace(/[.,;:!?…\-–—]+$/g, "")
-    .trim()
-    .split(/\s+/)
-    .at(-1);
-  return DANGLING_VISIBLE_WORDS.has(visibleWordSignature(lastWord || ""));
-}
-
-function compactHeadline(value: string, max = 58) {
-  const source = clean(value, 140);
-  const normalized = /(?:\.{3}|…)\s*$/.test(source)
-    ? source
-        .replace(/(?:\.{3}|…)+\s*$/g, "")
-        .replace(/\s+\S+$/u, "")
-        .trim()
-    : source;
-  if (normalized.length <= max) return trimDanglingVisibleEnding(normalized);
-  const words = normalized
-    .slice(0, max + 1)
-    .replace(/\s+\S*$/, "")
-    .trim();
-  return trimDanglingVisibleEnding(words || normalized.split(/\s+/)[0] || "");
-}
-
-function compactVisibleBody(value: string, max = 78) {
-  const normalized = clean(value, 300);
-  if (
-    normalized.length <= max &&
-    !/(?:\.{3}|…)\s*$/.test(normalized) &&
-    !hasDanglingVisibleEnding(normalized)
-  ) {
-    return normalized;
-  }
-  const sentenceEnd = /[.!?]+(?=\s|$)/g;
-  let match: RegExpExecArray | null;
-  let best = "";
-  while ((match = sentenceEnd.exec(normalized))) {
-    if (match[0].length >= 3) continue;
-    const candidate = normalized.slice(0, match.index + match[0].length).trim();
-    if (candidate.length > max) break;
-    if (hasDanglingVisibleEnding(candidate)) continue;
-    best = candidate;
-  }
-  return best;
+function compactVisibleBody(
+  value: string,
+  max = AI_MEDIA_VISIBLE_BODY_MAX_CHARACTERS
+) {
+  return acceptCompleteAiMediaVisibleCopy(value, max);
 }
 
 function lowerFirst(value: string) {
@@ -225,13 +129,13 @@ function narrativeIdeaHeadline(value: string, variant: number) {
  * short timeout must not make the visible copy unrelated to the chosen topic.
  */
 function ideaHeadline(value: string, variant: number) {
-  const original = clean(value, 140)
+  const original = normalizeAiMediaCopy(value)
     .replace(/[.!?]+$/g, "")
     .trim();
   const firstBeat =
     original.split(/\s*(?:,|;|→|->|\bpuis\b|\bensuite\b|\bafin de\b)\s*/i)[0] ||
     original;
-  const subject = compactAtWordBoundary(
+  const normalizedSubject = normalizeAiMediaCopy(
     normalizeFrenchIdeaTopic(
       firstBeat
         .replace(
@@ -242,9 +146,12 @@ function ideaHeadline(value: string, variant: number) {
           /^(?:(?:mettre\s+en\s+avant|cr[eé]er|faire|montrer|pr[eé]senter|illustrer|raconter|expliquer|valoriser|animer|filmer)\s+|partir\s+(?:d['’]|de\s+|du\s+|des\s+|avec\s+)|parler\s+de\s+)/i,
           ""
         )
-    ),
-    80
+    )
   );
+  const subject =
+    normalizedSubject.length <= AI_MEDIA_VISIBLE_TITLE_MAX_CHARACTERS
+      ? normalizedSubject
+      : "";
   const topic =
     subject ||
     compactAtWordBoundary(normalizeFrenchIdeaTopic(firstBeat), 80) ||
@@ -257,11 +164,18 @@ function ideaHeadline(value: string, variant: number) {
     `Cap sur ${lowerTopic}`,
     `${capitalize(topic)}, autrement`,
   ];
-  return compactHeadline(candidates[variant % candidates.length]);
+  return (
+    compactHeadline(candidates[variant % candidates.length]) ||
+    compactHeadline(topic) ||
+    "Votre projet prend vie"
+  );
 }
 
 function capitalize(value: string) {
-  const normalized = compactAtWordBoundary(value, 80);
+  const normalized = compactAtWordBoundary(
+    value,
+    AI_MEDIA_VISIBLE_TITLE_MAX_CHARACTERS
+  );
   return normalized
     ? `${normalized.charAt(0).toLocaleUpperCase()}${normalized.slice(1)}`
     : "";
@@ -390,7 +304,10 @@ function typologyHeadline(args: {
     ],
   };
   const candidates = templates[args.typology];
-  return compactHeadline(candidates[args.variant % candidates.length], 58);
+  return (
+    compactHeadline(candidates[args.variant % candidates.length]) ||
+    "Votre projet prend vie"
+  );
 }
 
 function ctaLabel(profile: NormalizedAiGenerationProfile) {
@@ -405,18 +322,23 @@ function scene(
   layout: AiMediaCreativeScene["layout"],
   visualBrief = ""
 ): AiMediaCreativeScene | null {
-  const safeTitle = compactHeadline(title, 58);
+  const safeTitle = compactHeadline(title);
   if (!safeTitle) return null;
   const safeBody = compactVisibleBody(body);
   return {
-    eyebrow: compactAtWordBoundary(eyebrow, 38),
+    eyebrow:
+      normalizeAiMediaCopy(eyebrow).length <= AI_MEDIA_VISIBLE_EYEBROW_MAX_CHARACTERS
+        ? normalizeAiMediaCopy(eyebrow)
+        : "",
     title: safeTitle,
     body: safeBody,
     // Secours local immédiatement prononçable. Le copywriter média remplace
     // ces formulations par des répliques contextualisées quand les
     // personnages doivent parler.
-    spokenLine: compactAtWordBoundary(safeTitle, 96),
-    spokenReply: safeBody || compactAtWordBoundary(safeTitle, 96),
+    spokenLine: compactAtWordBoundary(safeTitle, AI_MEDIA_SPOKEN_LINE_MAX_CHARACTERS),
+    spokenReply:
+      safeBody ||
+      compactAtWordBoundary(safeTitle, AI_MEDIA_SPOKEN_LINE_MAX_CHARACTERS),
     visualBrief: fitAiMediaSceneDirection(visualBrief),
     layout,
   };
