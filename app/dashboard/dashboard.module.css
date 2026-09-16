@@ -11996,9 +11996,9 @@
 }
 
 .metricDemandes {
-  --metric-accent: rgba(var(--inrcy-theme-accent-rgb-3, 251, 146, 60), 0.92);
-  --metric-glow: rgba(var(--inrcy-theme-accent-rgb-3, 251, 146, 60), 0.38);
-  --metric-halo: rgba(var(--inrcy-theme-accent-rgb-3, 251, 146, 60), 0.16);
+  --metric-accent: rgba(var(--inrcy-theme-accent-rgb-4, 251, 146, 60), 0.92);
+  --metric-glow: rgba(var(--inrcy-theme-accent-rgb-4, 251, 146, 60), 0.38);
+  --metric-halo: rgba(var(--inrcy-theme-accent-rgb-4, 251, 146, 60), 0.16);
 }
 
 .metricValue,
@@ -12189,9 +12189,9 @@
 }
 
 .lowerRow:not([data-dashboard-standard-lower-blocks="true"]) .loop_orange {
-  border-color: rgba(var(--inrcy-theme-accent-rgb-3, 251, 146, 60), 0.55);
+  border-color: rgba(var(--inrcy-theme-accent-rgb-4, 251, 146, 60), 0.55);
   background:
-    radial-gradient(circle at 50% -25%, rgba(var(--inrcy-theme-accent-rgb-3, 254, 215, 170), 0.30), transparent 54%),
+    radial-gradient(circle at 50% -25%, rgba(var(--inrcy-theme-accent-rgb-4, 254, 215, 170), 0.30), transparent 54%),
     linear-gradient(145deg, rgba(var(--inrcy-theme-surface-rgb-1, 111, 56, 76), 0.98), rgba(var(--inrcy-theme-surface-rgb-2, 73, 42, 86), 0.96) 60%, rgba(var(--inrcy-theme-surface-rgb-3, 47, 32, 76), 0.94));
 }
 

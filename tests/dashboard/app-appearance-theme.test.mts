@@ -12,6 +12,28 @@ const globalsCss = readFileSync(new URL("../../app/globals.css", import.meta.url
 const dashboardCss = readFileSync(new URL("../../app/dashboard/dashboard.module.css", import.meta.url), "utf8");
 const channelBubbleCss = readFileSync(new URL("../../app/dashboard/_components/DashboardChannelBubble.module.css", import.meta.url), "utf8");
 
+function rgbHue([red, green, blue]: number[]) {
+  const [r, g, b] = [red, green, blue].map((channel) => channel / 255);
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const delta = max - min;
+
+  if (delta === 0) return 0;
+
+  const hue = max === r
+    ? ((g - b) / delta) % 6
+    : max === g
+      ? (b - r) / delta + 2
+      : (r - g) / delta + 4;
+
+  return (hue * 60 + 360) % 360;
+}
+
+function hueDistance(a: number, b: number) {
+  const distance = Math.abs(a - b);
+  return Math.min(distance, 360 - distance);
+}
+
 test("the appearance theme catalog exposes only the supported branded presets", () => {
   assert.deepEqual(APP_APPEARANCE_THEMES, [
     "original",
@@ -72,6 +94,42 @@ test("the original iNrCy theme stays untouched while every alternative owns a co
       assert.match(block, new RegExp(`${token}:`), `${theme} must define ${token}`);
     }
   }
+});
+
+test("every alternative theme keeps one dominant mood without collapsing into a monochrome UI", () => {
+  for (const theme of APP_APPEARANCE_THEMES.filter((candidate) => candidate !== "original")) {
+    const block = globalsCss.match(
+      new RegExp(`html\\[data-inrcy-theme="${theme}"\\] \\{([\\s\\S]*?)\\n\\}`),
+    )?.[1];
+
+    assert.ok(block, `missing CSS palette for ${theme}`);
+
+    const accents = [...block.matchAll(/--inrcy-theme-accent-rgb-[1-4]:\s*(\d+),\s*(\d+),\s*(\d+);/g)]
+      .map((match) => match.slice(1).map(Number));
+
+    assert.equal(accents.length, 4, `${theme} must expose four visual accent roles`);
+
+    const hues = accents.map(rgbHue);
+    const separatedPairs = hues.flatMap((hue, index) =>
+      hues.slice(index + 1).map((otherHue) => hueDistance(hue, otherHue)),
+    );
+
+    assert.ok(
+      separatedPairs.filter((distance) => distance >= 45).length >= 3,
+      `${theme} must use genuinely differentiated accent hues`,
+    );
+  }
+});
+
+test("the fourth accent role is reserved for demand and orange attention surfaces", () => {
+  assert.match(
+    dashboardCss,
+    /\.metricDemandes\s*\{[\s\S]*?--metric-accent:\s*rgba\(var\(--inrcy-theme-accent-rgb-4/,
+  );
+  assert.match(
+    dashboardCss,
+    /\.loop_orange\s*\{[\s\S]*?border-color:\s*rgba\(var\(--inrcy-theme-accent-rgb-4/,
+  );
 });
 
 test("the premium palette reaches dashboard frames, controls and channel bubbles without an original override", () => {
