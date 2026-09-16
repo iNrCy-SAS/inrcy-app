@@ -571,6 +571,11 @@ test("iNrAgent Standard ne conserve que Publications et Statistiques", () => {
     isStandardApiRouteAllowed("/api/agent/actions/prepare-campaign"),
     false,
   );
+  assert.equal(
+    isStandardApiRouteAllowed("/api/agent/actions/future-standard-capability"),
+    true,
+    "une nouvelle fonction iNrAgent ne doit pas devenir Premium par omission",
+  );
   assert.equal(isStandardApiRouteAllowed("/api/templates/render"), false);
   assert.equal(isStandardApiRouteAllowed("/api/templates/generate-ai"), false);
   assert.equal(isStandardApiRouteAllowed("/api/inrstats/mails"), false);
@@ -582,6 +587,63 @@ test("iNrAgent Standard ne conserve que Publications et Statistiques", () => {
   assert.match(agentSettingsApiSource, /standardAgentAutomationKeysForPersistence/);
   assert.match(agentCronSource, /reason: "premium_required"/);
   assert.match(scheduledAgentCronSource, /status: "cancelled"/);
+});
+
+test("les fonctions Standard récentes restent accessibles de bout en bout", () => {
+  const standardSurfaces = [
+    "/dashboard/agent",
+    "/dashboard/adn-entreprise",
+    "/dashboard/booster/publier",
+    "/dashboard/generer-media",
+    "/dashboard/mediatheque",
+  ];
+  for (const path of standardSurfaces) {
+    assert.equal(isStandardDashboardRouteAllowed(path), true, path);
+  }
+
+  const standardApis = [
+    // iNrAgent Publications / Statistiques
+    "/api/agent/actions/prepare-publish",
+    "/api/agent/actions/regenerate-channel",
+    "/api/agent/actions/send-stats-report",
+    "/api/agent/actions/schedule",
+    "/api/agent/actions/execute",
+    "/api/agent/scheduled-actions/123/execute",
+    // iNrADN, y compris les documents de référence ajoutés récemment
+    "/api/ai-memory",
+    "/api/ai-memory/analyze-channels",
+    "/api/ai-memory/documents",
+    // Booster / Publier et ses dépendances média / réseaux
+    "/api/booster/connected-channels",
+    "/api/booster/cta-defaults",
+    "/api/booster/events",
+    "/api/booster/generate",
+    "/api/booster/publish-now",
+    "/api/booster/transcribe",
+    "/api/booster/upload-prepared",
+    "/api/booster/video-upload-url",
+    "/api/integrations/channel-states",
+    "/api/integrations/status",
+    "/api/integrations/x/status",
+    "/api/media-generation/generate",
+    "/api/media-generation/normalize-reference",
+    "/api/media-generation/preferences",
+    "/api/media-generation/quota",
+    "/api/media-library/upload",
+    "/api/media-pipeline/upload-intent",
+  ];
+  for (const path of standardApis) {
+    assert.equal(isStandardApiRouteAllowed(path), true, path);
+  }
+
+  for (const premiumPath of [
+    "/api/agent/actions/prepare-campaign",
+    "/api/crm/contacts",
+    "/api/propulser/campaigns",
+    "/api/fideliser/campaigns",
+  ]) {
+    assert.equal(isStandardApiRouteAllowed(premiumPath), false, premiumPath);
+  }
 });
 
 test("iNr’Agent retire un canal, refuse le dernier et garde un pupitre responsive lisible", () => {

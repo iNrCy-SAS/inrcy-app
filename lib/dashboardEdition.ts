@@ -55,24 +55,16 @@ const STANDARD_BLOCKED_API_PREFIXES = [
   "/api/templates",
 ] as const;
 
-const STANDARD_ALLOWED_AGENT_API_PATHS = [
-  // Standard garde toutes les fonctions Publications/Statistiques de iNrAgent.
-  // Seul prepare-campaign (Propulser/Fidéliser) reste volontairement Premium.
-  "/api/agent/settings",
-  "/api/agent/actions",
-  "/api/agent/actions/pending-count",
-  "/api/agent/actions/prepare-publish",
-  "/api/agent/actions/regenerate-channel",
-  "/api/agent/actions/send-stats-report",
-  "/api/agent/actions/schedule",
-  "/api/agent/actions/execute",
-  "/api/agent/scheduled-actions",
+// Toutes les fonctions iNrAgent appartiennent au socle Standard. Les campagnes
+// Propulser / Fidéliser restent le seul sous-parcours Premium et conservent en
+// plus leurs contrôles serveur par descripteur d'action.
+const STANDARD_BLOCKED_AGENT_API_PREFIXES = [
+  "/api/agent/actions/prepare-campaign",
 ] as const;
 
 function isStandardAgentApiPathAllowed(pathname: string): boolean {
-  if (pathMatches(pathname, "/api/agent/scheduled-actions")) return true;
-  return STANDARD_ALLOWED_AGENT_API_PATHS.some(
-    (candidate) => pathname === candidate,
+  return !STANDARD_BLOCKED_AGENT_API_PREFIXES.some(
+    (candidate) => pathMatches(pathname, candidate),
   );
 }
 

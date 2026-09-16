@@ -812,6 +812,11 @@ test("un média persisté n'est jamais libéré du quota", () => {
   assert.match(route, /AI_MEDIA_FINALIZATION_PENDING/);
 });
 
+test("la CSP autorise explicitement les aperçus audio et vidéo de l'application", () => {
+  const nextConfig = read("next.config.ts");
+  assert.match(nextConfig, /"media-src 'self' blob: https:"/);
+});
+
 test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat universel", () => {
   const gateway = read("lib/aiMediaGateway.ts");
   const normalizer = read("lib/aiMediaNormalizer.ts");
