@@ -11,6 +11,8 @@ const authSetup = read('tests/e2e/auth.setup.ts');
 const authHelper = read('tests/e2e/helpers/auth.ts');
 const loginPage = read('app/login/page.tsx');
 const gitignore = read('.gitignore');
+const ciWorkflow = read('.github/workflows/ci.yml');
+const proxy = read('proxy.ts');
 
 test('E2E authenticated specs reuse one setup session', () => {
   assert.match(config, /name: 'auth-setup'/);
@@ -36,4 +38,14 @@ test('the auth helper ignores Next route-announcer alerts and waits for the real
 test('the generated session never enters source control or CI artifacts', () => {
   assert.match(gitignore, /\/playwright\/\.auth\//);
   assert.doesNotMatch(config, /test-results\/.*auth/i);
+});
+
+test('GitHub E2E runs the exact production build instead of a compiling dev server', () => {
+  assert.match(ciWorkflow, /name: Upload Next\.js build[\s\S]*?name: next-build-\$\{\{ github\.sha \}\}/);
+  assert.match(ciWorkflow, /path: \|[\s\S]*?\.next[\s\S]*?!\.next\/cache/);
+  assert.match(ciWorkflow, /name: Download Next\.js build[\s\S]*?path: \.next/);
+  assert.match(config, /command: isCI \? 'npm run start -- -p 3000' : 'npm run dev -- -p 3000'/);
+  assert.doesNotMatch(config, /if \[ -f \.next\/BUILD_ID \]/);
+  assert.match(proxy, /requestHostname === "localhost"/);
+  assert.match(proxy, /process\.env\.NODE_ENV === "production" && !isLocalProductionHost/);
 });

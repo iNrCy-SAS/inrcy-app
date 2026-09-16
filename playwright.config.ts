@@ -53,7 +53,10 @@ export default defineConfig({
 
   webServer: shouldStartWebServer
     ? {
-        command: isCI ? 'sh -c "if [ -f .next/BUILD_ID ]; then npm run start -- -p 3000; else npm run dev -- -p 3000; fi"' : 'npm run dev -- -p 3000',
+        // GitHub Actions downloads the exact .next artifact produced by the
+        // build job. Fail fast if it is missing instead of silently running
+        // the full suite against Next's compiling development server.
+        command: isCI ? 'npm run start -- -p 3000' : 'npm run dev -- -p 3000',
         url: baseURL,
         reuseExistingServer: !isCI,
         timeout: 300_000,

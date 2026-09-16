@@ -492,8 +492,16 @@ export async function proxy(req: NextRequest) {
   }
 
   // 2) Enforce https in production when possible (Vercel sets x-forwarded-proto).
-  // This should not trigger on normal Vercel traffic.
-  if (process.env.NODE_ENV === "production") {
+  // Keep a locally started production build reachable over HTTP for CI and
+  // smoke tests; Vercel traffic still has its public hostname and stays HTTPS.
+  const requestHostname = req.nextUrl.hostname.toLowerCase();
+  const isLocalProductionHost =
+    requestHostname === "localhost" ||
+    requestHostname.endsWith(".localhost") ||
+    requestHostname === "127.0.0.1" ||
+    requestHostname === "::1" ||
+    requestHostname === "[::1]";
+  if (process.env.NODE_ENV === "production" && !isLocalProductionHost) {
     const proto = req.headers.get("x-forwarded-proto");
     if (proto && proto !== "https") {
       const url = req.nextUrl.clone();

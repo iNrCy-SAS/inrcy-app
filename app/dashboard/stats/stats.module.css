@@ -9061,6 +9061,67 @@
   }
 }
 
+/* iNrStats — sécurité finale au zoom navigateur.
+   Quand le zoom réduit la hauteur CSS disponible, les lignes gardent leur
+   hauteur lisible et la zone de données défile au lieu d'écraser son contenu. */
+@media (min-width: 901px) and (max-height: 960px) {
+  .page .statsWorkspace[data-stats-view="global"] .allStatsActions {
+    grid-auto-rows: minmax(44px, 1fr) !important;
+    min-height: 0 !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain !important;
+    scrollbar-gutter: stable !important;
+    scrollbar-width: thin !important;
+    scrollbar-color: rgba(125, 211, 252, 0.34) transparent !important;
+    padding-right: 6px !important;
+  }
+
+  .page .statsWorkspace[data-stats-view="global"] .allStatsActionCard {
+    min-height: 44px !important;
+  }
+
+  .page .statsWorkspace[data-stats-view="global"] .allStatsActions::-webkit-scrollbar {
+    display: block !important;
+    width: 6px !important;
+  }
+
+  .page .statsWorkspace[data-stats-view="global"] .allStatsActions::-webkit-scrollbar-track {
+    background: transparent !important;
+  }
+
+  .page .statsWorkspace[data-stats-view="global"] .allStatsActions::-webkit-scrollbar-thumb {
+    border-radius: 999px !important;
+    background: rgba(125, 211, 252, 0.28) !important;
+  }
+
+  .page .statsWorkspaceChannel .channelStatsPanel .cubeBody,
+  .page .statsWorkspaceChannel .channelStatsPanel .cubeBodyWithInrcyActivity,
+  .page .statsWorkspaceChannel .channelStatsPanel .cubeBody:not(.cubeBodyWithInrcyActivity) {
+    min-height: 0 !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain !important;
+    scrollbar-gutter: stable !important;
+    scrollbar-width: thin !important;
+    scrollbar-color: rgba(125, 211, 252, 0.34) transparent !important;
+  }
+
+  .page .statsWorkspaceChannel .channelStatsPanel .cubeBody::-webkit-scrollbar {
+    display: block !important;
+    width: 6px !important;
+  }
+
+  .page .statsWorkspaceChannel .channelStatsPanel .cubeBody::-webkit-scrollbar-track {
+    background: transparent !important;
+  }
+
+  .page .statsWorkspaceChannel .channelStatsPanel .cubeBody::-webkit-scrollbar-thumb {
+    border-radius: 999px !important;
+    background: rgba(125, 211, 252, 0.28) !important;
+  }
+}
+
 @media (max-width: 900px) {
   .mobileChannelTitleRow {
     display: inline-flex;

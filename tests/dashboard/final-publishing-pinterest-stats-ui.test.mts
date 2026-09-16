@@ -231,6 +231,34 @@ test("iNrStats keeps its taller global summary and all channel rows compact with
   );
 });
 
+test("iNrStats keeps every row readable when browser zoom reduces the desktop height", () => {
+  const css = read("app/dashboard/stats/stats.module.css");
+  const marker = "/* iNrStats — sécurité finale au zoom navigateur.";
+  const zoomSafety = css.slice(css.lastIndexOf(marker));
+
+  assert.notEqual(zoomSafety, css, "Expected the final browser-zoom safety block");
+  assert.match(
+    zoomSafety,
+    /@media \(min-width: 901px\) and \(max-height: 960px\)/,
+  );
+  assert.match(
+    zoomSafety,
+    /\.page \.statsWorkspace\[data-stats-view="global"\] \.allStatsActions \{[\s\S]*?grid-auto-rows: minmax\(44px, 1fr\) !important;[\s\S]*?overflow-y: auto !important;/,
+  );
+  assert.match(
+    zoomSafety,
+    /\.page \.statsWorkspace\[data-stats-view="global"\] \.allStatsActionCard \{[\s\S]*?min-height: 44px !important;/,
+  );
+  assert.match(
+    zoomSafety,
+    /\.page \.statsWorkspaceChannel \.channelStatsPanel \.cubeBody,[\s\S]*?overflow-y: auto !important;/,
+  );
+  assert.match(
+    zoomSafety,
+    /\.allStatsActions::\-webkit-scrollbar \{[\s\S]*?display: block !important;/,
+  );
+});
+
 test("iNrStats detail keeps the direct back action, prominent channel title and KPIs on one desktop header row", () => {
   const client = read("app/dashboard/stats/StatsClient.tsx");
   const css = read("app/dashboard/stats/stats.module.css");

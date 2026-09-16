@@ -103,6 +103,16 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Upload Next.js build
+        uses: actions/upload-artifact@v6
+        with:
+          name: next-build-${{ github.sha }}
+          path: |
+            .next
+            !.next/cache
+          include-hidden-files: true
+          retention-days: 1
+
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -178,6 +188,12 @@ jobs:
 
       - name: Install deps
         run: npm ci
+
+      - name: Download Next.js build
+        uses: actions/download-artifact@v6
+        with:
+          name: next-build-${{ github.sha }}
+          path: .next
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps
