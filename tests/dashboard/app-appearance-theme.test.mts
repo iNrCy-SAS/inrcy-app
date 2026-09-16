@@ -148,3 +148,22 @@ test("the premium palette reaches dashboard frames, controls and channel bubbles
     assert.match(channelBubbleCss, new RegExp(token), `channel bubbles must consume ${token}`);
   }
 });
+
+test("the calmer dashboard treatment is explicitly scoped away from the original theme", () => {
+  const alternateScope = ':global(html[data-inrcy-theme]:not([data-inrcy-theme="original"]))';
+
+  assert.ok(dashboardCss.includes(`${alternateScope} .heroLeft`));
+  assert.ok(dashboardCss.includes(`${alternateScope} .mobileViewToggle`));
+  assert.ok(channelBubbleCss.includes(`${alternateScope} .desktopStage`));
+});
+
+test("alternative channel bubbles stay compact on desktop and responsive on mobile", () => {
+  assert.match(
+    channelBubbleCss,
+    /\.desktopCenter\s*\{[\s\S]*?width:\s*270px;[\s\S]*?height:\s*270px;/,
+  );
+  assert.match(
+    channelBubbleCss,
+    /@media \(max-width: 560px\)[\s\S]*?\.card\s*\{[\s\S]*?width:\s*min\(84vw, 310px\);/,
+  );
+});
