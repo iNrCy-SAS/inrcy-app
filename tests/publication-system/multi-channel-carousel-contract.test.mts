@@ -87,3 +87,27 @@ test("iNrSearch expose et affiche toutes les photos dans un carrousel", () => {
   assert.match(showcase, /newsOrbitImageNavigation/);
   assert.match(styles, /\.newsOrbitImageNavigation/);
 });
+
+test("le carrousel iNrSearch ne signe pas les médias du bucket Booster public", () => {
+  const publicData = read("lib/inrSearchPublic.ts");
+  const resolverStart = publicData.indexOf(
+    "async function resolveStorageMediaUrls(",
+  );
+  const resolverEnd = publicData.indexOf(
+    "async function loadRowsInBatches",
+    resolverStart,
+  );
+
+  assert.notEqual(resolverStart, -1);
+  assert.notEqual(resolverEnd, -1);
+
+  const resolver = publicData.slice(resolverStart, resolverEnd);
+  const signerIndex = resolver.indexOf("createSafeStorageSignedUrl(");
+  const fastPath = resolver.slice(0, signerIndex);
+
+  assert.notEqual(signerIndex, -1);
+  assert.match(
+    fastPath,
+    /candidate\.bucket === "booster"[\s\S]*?getPublicUrl\(candidate\.storagePath\)[\s\S]*?if \(publicUrl\) return publicUrl/,
+  );
+});

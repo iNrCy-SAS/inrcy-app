@@ -584,6 +584,15 @@ async function resolveStorageMediaUrls(
 ) {
   const resolvedCandidates = await Promise.all(
     candidates.slice(0, limit).map(async (candidate) => {
+      // Booster media is public by contract. Prefer its stable public URL so a
+      // carousel does not probe and sign every slide during page regeneration.
+      if (candidate.bucket === "booster") {
+        const publicUrl = normalizeExternalUrl(
+          supabaseAdmin.storage.from(candidate.bucket).getPublicUrl(candidate.storagePath)?.data?.publicUrl,
+        );
+        if (publicUrl) return publicUrl;
+      }
+
       const signedUrl = await createSafeStorageSignedUrl(
         candidate.bucket,
         candidate.storagePath,
