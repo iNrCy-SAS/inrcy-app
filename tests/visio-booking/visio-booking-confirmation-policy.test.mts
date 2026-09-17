@@ -27,6 +27,9 @@ test("builds a branded Outlook-safe confirmation with the real Meet link", () =>
   const message = payload();
   assert.match(message.subject, /rendez-vous iNrCy est confirmé/);
   assert.match(message.text, /30 à 45 minutes/);
+  assert.match(message.text, /de préférence sur un ordinateur/);
+  assert.match(message.text, /identifiants de vos canaux existants/);
+  assert.match(message.text, /ne nous communiquez jamais vos mots de passe/);
   assert.match(message.text, /https:\/\/meet\.google\.com\/abc-defg-hij/);
   assert.match(message.html, /cid:inrcy-logo@inrcy/);
   assert.match(message.html, /bgcolor="#635BFF"/);
@@ -34,6 +37,9 @@ test("builds a branded Outlook-safe confirmation with the real Meet link", () =>
   assert.match(message.html, />Rejoindre la visio Google Meet<\/a>/);
   assert.match(message.html, /Océane/);
   assert.match(message.html, /Voir dans mon agenda/);
+  assert.match(message.html, /Bien préparer votre rendez-vous/);
+  assert.match(message.html, /de préférence sur un ordinateur/);
+  assert.match(message.html, /ne nous communiquez jamais vos mots de passe/);
   assert.doesNotMatch(message.html, /linear-gradient/);
 });
 

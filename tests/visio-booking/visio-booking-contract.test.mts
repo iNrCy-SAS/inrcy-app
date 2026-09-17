@@ -332,7 +332,12 @@ test("la modale contient les deux choix et le parcours de confirmation", () => {
   assert.match(plugin, /logoUrl.*logo-inrcy-transparent\.png/);
   assert.match(script, /inrcy-visio-brand[^\n]+<span>iNrCy<\/span>/);
   assert.match(script, /rendez-vous aura lieu avec <strong>un membre de l’équipe iNrCy<\/strong>/);
+  assert.match(script, /Bien préparer votre rendez-vous/);
+  assert.match(script, /de préférence sur un ordinateur/);
+  assert.match(script, /identifiants de vos canaux existants/);
+  assert.match(script, /ne nous communiquez jamais vos mots de passe/);
   assert.doesNotMatch(script, /booking\.assignedTo/);
+  assert.match(styles, /\.inrcy-visio-preparation\s*\{/);
   assert.match(styles, /grid-template-columns:\s*repeat\(6,\s*minmax\(0,\s*1fr\)\)/);
   assert.match(styles, /@media \(max-width: 620px\)[\s\S]*?grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
   assert.match(styles, /\.inrcy-visio-dialog\s*\{[\s\S]*?overflow:\s*hidden/);

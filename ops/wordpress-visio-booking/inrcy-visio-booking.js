@@ -350,6 +350,10 @@
       '<span aria-hidden="true">📅</span><div><b>' + escapeHtml(booking.dateLabel || '') + '</b><strong>' + escapeHtml(booking.timeLabel || '') + ' – 30 à 45 minutes</strong></div>',
       '</div>',
       '<p class="inrcy-visio-lead inrcy-visio-lead-compact">Votre rendez-vous aura lieu avec <strong>un membre de l’équipe iNrCy</strong>. L’invitation Google Agenda et le lien Meet vous sont envoyés par e-mail.</p>',
+      '<div class="inrcy-visio-preparation">',
+      '<span class="inrcy-visio-preparation-icon" aria-hidden="true">💻</span>',
+      '<div><b>Bien préparer votre rendez-vous</b><p>Installez-vous de préférence sur un ordinateur et gardez à portée de main les identifiants de vos canaux existants (site, Google, Facebook, Instagram, LinkedIn…).</p><small>Vous saisirez vous-même vos accès : ne nous communiquez jamais vos mots de passe.</small></div>',
+      '</div>',
       '<div class="inrcy-visio-actions">' + meetButton + '<button class="inrcy-visio-secondary" data-action="finish" type="button">Terminer</button></div>',
     ].join(""), { step: 3 });
   }
