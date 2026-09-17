@@ -1309,7 +1309,11 @@ export default function MediaGenerator({
         className={styles.essentialGrid}
         data-testid="inr-studio-essential-grid"
       >
-        <section className={`${styles.essentialCard} ${styles.creationCard}`}>
+        <section
+          className={`${styles.essentialCard} ${styles.creationCard}`}
+          data-media-kind={kind}
+          data-subject-source={subjectSource}
+        >
           <header className={styles.essentialCardHeader}>
             <span>1</span>
             <div>
@@ -1318,7 +1322,9 @@ export default function MediaGenerator({
             </div>
           </header>
 
-          <div className={styles.essentialField}>
+          <div
+            className={`${styles.essentialField} ${styles.creationTypeField}`}
+          >
             <span>{t("ai_generator_essential_media_type")}</span>
             <div className={styles.essentialSegmented} role="radiogroup">
               {(["image", "video"] as const).map((mediaKind) => (
@@ -1346,7 +1352,9 @@ export default function MediaGenerator({
           </div>
 
           {kind === "video" ? (
-            <div className={styles.essentialField}>
+            <div
+              className={`${styles.essentialField} ${styles.creationDurationField}`}
+            >
               <span>{t("ai_generator_duration_title")}</span>
               <div className={styles.essentialSegmented} role="radiogroup">
                 {([8, 16, 24] as const).map((duration) => {
@@ -1376,7 +1384,9 @@ export default function MediaGenerator({
             </div>
           ) : null}
 
-          <div className={styles.essentialSplitFields}>
+          <div
+            className={`${styles.essentialSplitFields} ${styles.creationFormatFields}`}
+          >
             <label className={styles.essentialSelectField}>
               <span>{t("ai_generator_format_title")}</span>
               <select
@@ -1423,7 +1433,9 @@ export default function MediaGenerator({
             </label>
           </div>
 
-          <label className={styles.essentialSelectField}>
+          <label
+            className={`${styles.essentialSelectField} ${styles.creationSubjectField}`}
+          >
             <span>{t("ai_generator_essential_subject_source")}</span>
             <select
               className={styles.studioSelect}
@@ -1449,7 +1461,9 @@ export default function MediaGenerator({
           </label>
 
           {subjectSource === "custom" ? (
-            <label className={styles.essentialTextareaField}>
+            <label
+              className={`${styles.essentialTextareaField} ${styles.creationCustomField}`}
+            >
               <span>{t("ai_generator_custom_label")}</span>
               <div className={styles.customTextareaWrap}>
                 <textarea
@@ -1481,7 +1495,9 @@ export default function MediaGenerator({
             </label>
           ) : null}
 
-          <label className={styles.essentialTextareaField}>
+          <label
+            className={`${styles.essentialTextareaField} ${styles.creationInstructionField}`}
+          >
             <span>
               {t("ai_generator_essential_instruction_label")}
               <small>{t("ai_generator_instruction_optional")}</small>
@@ -1514,7 +1530,11 @@ export default function MediaGenerator({
           </label>
         </section>
 
-        <section className={`${styles.essentialCard} ${styles.mediaCard}`}>
+        <section
+          className={`${styles.essentialCard} ${styles.mediaCard}`}
+          data-source-mode={mediaSourceMode}
+          data-character-count={realCharacterCount}
+        >
           <header className={styles.essentialCardHeader}>
             <span>2</span>
             <div>
@@ -1523,7 +1543,10 @@ export default function MediaGenerator({
             </div>
           </header>
 
-          <div className={styles.essentialSegmented} role="radiogroup">
+          <div
+            className={`${styles.essentialSegmented} ${styles.mediaModeField}`}
+            role="radiogroup"
+          >
             {(["ai", "real"] as const).map((mode) => (
               <button
                 key={mode}
@@ -1550,7 +1573,9 @@ export default function MediaGenerator({
             </div>
           ) : (
             <>
-              <div className={styles.essentialField}>
+              <div
+                className={`${styles.essentialField} ${styles.characterCountField}`}
+              >
                 <span>{t("ai_generator_essential_character_count")}</span>
                 <div className={styles.essentialSegmented} role="radiogroup">
                   {([0, 1, 2, 3] as const).map((count) => (
@@ -1618,7 +1643,10 @@ export default function MediaGenerator({
           ) : null}
         </section>
 
-        <section className={`${styles.essentialCard} ${styles.messageCard}`}>
+        <section
+          className={`${styles.essentialCard} ${styles.messageCard}`}
+          data-with-text={withText ? "true" : "false"}
+        >
           <header className={styles.essentialCardHeader}>
             <span>3</span>
             <div>
@@ -1627,7 +1655,9 @@ export default function MediaGenerator({
             </div>
           </header>
 
-          <label className={styles.essentialSwitchRow}>
+          <label
+            className={`${styles.essentialSwitchRow} ${styles.messageTextToggle}`}
+          >
             <span>
               <strong>{t("ai_generator_text_on_media")}</strong>
               <small>{t("ai_generator_text_inspiration_hint")}</small>
@@ -1655,8 +1685,12 @@ export default function MediaGenerator({
               {textKeywords.length ? (
                 <div className={styles.textKeywordTags}>
                   {textKeywords.map((keyword) => (
-                    <span key={keyword} className={styles.textKeywordTag}>
-                      {keyword}
+                    <span
+                      key={keyword}
+                      className={styles.textKeywordTag}
+                      title={keyword}
+                    >
+                      <span>{keyword}</span>
                       <button
                         type="button"
                         onClick={() => removeTextKeyword(keyword)}
@@ -1710,7 +1744,9 @@ export default function MediaGenerator({
             </div>
           ) : null}
 
-          <label className={styles.essentialSwitchRow}>
+          <label
+            className={`${styles.essentialSwitchRow} ${styles.messageBrandToggle}`}
+          >
             <span>
               <strong>{t("ai_generator_brand_colors")}</strong>
               <small>{t("ai_generator_brand_colors_hint")}</small>
@@ -1724,7 +1760,9 @@ export default function MediaGenerator({
             <i aria-hidden="true" />
           </label>
 
-          <div className={styles.essentialField}>
+          <div
+            className={`${styles.essentialField} ${styles.messageLogoField}`}
+          >
             <span>{t("ai_generator_logo_label")}</span>
             <div className={styles.essentialSegmented} role="radiogroup">
               {LOGO_MODES.map((option) => (
@@ -1890,30 +1928,32 @@ export default function MediaGenerator({
         </section>
       </div>
 
-      {preferencesError ? (
-        <div className={styles.preferencesError} role="alert">
-          {t(
-            preferencesError === "load"
-              ? "ai_generator_preferences_load_error"
-              : "ai_generator_preferences_save_error"
-          )}
-        </div>
-      ) : null}
+      <div className={styles.generatorAlerts} aria-live="polite">
+        {preferencesError ? (
+          <div className={styles.preferencesError} role="alert">
+            {t(
+              preferencesError === "load"
+                ? "ai_generator_preferences_load_error"
+                : "ai_generator_preferences_save_error"
+            )}
+          </div>
+        ) : null}
 
-      {videoPremiumRequired ? (
-        <div className={styles.warning} role="status">
-          {t("ai_generator_video_premium_required")}
-        </div>
-      ) : exhausted ? (
-        <div className={styles.warning} role="status">
-          {t("ai_generator_quota_reached")}
-        </div>
-      ) : null}
-      {actionError || error ? (
-        <div className={styles.error} role="alert">
-          {actionError || error}
-        </div>
-      ) : null}
+        {videoPremiumRequired ? (
+          <div className={styles.warning} role="status">
+            {t("ai_generator_video_premium_required")}
+          </div>
+        ) : exhausted ? (
+          <div className={styles.warning} role="status">
+            {t("ai_generator_quota_reached")}
+          </div>
+        ) : null}
+        {actionError || error ? (
+          <div className={styles.error} role="alert">
+            {actionError || error}
+          </div>
+        ) : null}
+      </div>
 
       <div
         className={styles.footerBar}

@@ -5,6 +5,7 @@
 }
 
 .generator {
+  position: relative;
   display: grid;
   gap: 16px;
   width: 100%;
@@ -3571,9 +3572,9 @@
   cursor: pointer;
 }
 
-button:focus-visible,
-input:focus-visible,
-textarea:focus-visible,
+.generator button:focus-visible,
+.generator input:focus-visible,
+.generator textarea:focus-visible,
 .switchRow:has(input:focus-visible) {
   outline: 3px solid rgba(93, 224, 255, 0.28);
   outline-offset: 2px;
@@ -3583,6 +3584,7 @@ textarea:focus-visible,
   .generator {
     height: 100%;
     min-height: 0;
+    gap: clamp(7px, 1dvh, 11px);
     grid-template-rows: minmax(0, 1fr) auto;
     overflow: hidden;
     padding-bottom: 0;
@@ -3598,11 +3600,536 @@ textarea:focus-visible,
   }
 
   .essentialGrid {
+    height: 100%;
     min-height: 0;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    scrollbar-gutter: stable;
-    padding-right: 4px;
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+    gap: clamp(7px, 1dvh, 11px);
+    overflow: hidden;
+    padding-right: 0;
+  }
+
+  .essentialCard {
+    height: 100%;
+    min-height: 0;
+    box-sizing: border-box;
+    align-content: start;
+    gap: clamp(5px, 0.75dvh, 9px);
+    overflow: hidden;
+    padding: clamp(9px, 1.15dvh, 13px);
+    border-radius: 17px;
+  }
+
+  .essentialCardHeader {
+    min-height: 29px;
+    gap: 8px;
+    padding-bottom: 0;
+  }
+
+  .essentialCardHeader > span {
+    width: 28px;
+    height: 28px;
+    border-radius: 9px;
+    font-size: 10.5px;
+  }
+
+  .essentialCardHeader h3 {
+    font-size: 13.5px;
+  }
+
+  .essentialCardHeader p {
+    display: -webkit-box;
+    margin-top: 1px;
+    overflow: hidden;
+    font-size: 8.8px;
+    line-height: 1.25;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+  }
+
+  .essentialField,
+  .essentialSelectField,
+  .essentialTextareaField {
+    gap: 4px;
+  }
+
+  .essentialSelectField {
+    justify-items: start;
+  }
+
+  .essentialField > span,
+  .essentialSelectField > span,
+  .essentialTextareaField > span {
+    font-size: 9.3px;
+  }
+
+  .essentialTextareaField > span small,
+  .essentialTextareaField > small {
+    font-size: 7.7px;
+    line-height: 1.2;
+  }
+
+  .essentialTextareaField > small {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+  }
+
+  .essentialSegmented {
+    width: fit-content;
+    max-width: 100%;
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .essentialSegmented button {
+    flex: 0 1 auto;
+  }
+
+  .essentialSplitFields {
+    width: fit-content;
+    max-width: 100%;
+    grid-template-columns: repeat(2, minmax(150px, 220px));
+    justify-content: start;
+    gap: 6px;
+  }
+
+  .essentialSegmented button,
+  .soundChoices button {
+    min-height: 32px;
+    gap: 5px;
+    padding: 5px 9px;
+    border-radius: 9px;
+    font-size: 9.2px;
+  }
+
+  .studioSelect {
+    width: auto;
+    max-width: 100%;
+    min-height: 33px;
+    padding: 0 30px 0 9px;
+    border-radius: 9px;
+    background-position: right 9px center;
+    font-size: 9.5px;
+  }
+
+  .essentialTextareaField textarea {
+    height: clamp(42px, 5.4dvh, 55px);
+    min-height: 0;
+    resize: none;
+    padding: 7px 42px 7px 9px;
+    border-radius: 9px;
+    font-size: 9.5px;
+    line-height: 1.3;
+  }
+
+  .essentialTextareaField .voiceButton {
+    right: 6px;
+    bottom: 6px;
+    min-width: 29px;
+    height: 29px;
+    padding: 0 7px;
+    font-size: 12px;
+  }
+
+  .creationCard {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .creationCard[data-media-kind="image"] {
+    grid-template-areas:
+      "header header"
+      "type subject"
+      "format format"
+      "instruction instruction";
+  }
+
+  .creationCard[data-media-kind="image"][data-subject-source="custom"] {
+    grid-template-areas:
+      "header header"
+      "type subject"
+      "format format"
+      "custom instruction";
+  }
+
+  .creationCard[data-media-kind="video"] {
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+    grid-template-areas:
+      "header header"
+      "type duration"
+      "format subject"
+      "instruction instruction";
+  }
+
+  .creationCard[data-media-kind="video"][data-subject-source="custom"] {
+    grid-template-areas:
+      "header header"
+      "type duration"
+      "format subject"
+      "custom instruction";
+  }
+
+  .creationCard > .essentialCardHeader {
+    grid-area: header;
+  }
+
+  .creationTypeField {
+    grid-area: type;
+  }
+
+  .creationDurationField {
+    grid-area: duration;
+  }
+
+  .creationFormatFields {
+    width: min(100%, 320px);
+    grid-area: format;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .creationSubjectField {
+    width: fit-content;
+    max-width: 100%;
+    grid-area: subject;
+  }
+
+  .creationCustomField {
+    grid-area: custom;
+  }
+
+  .creationInstructionField {
+    grid-area: instruction;
+  }
+
+  .mediaCard {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mediaCard > .essentialCardHeader,
+  .mediaCard > .aiMediaNotice,
+  .mediaCard > .referenceSlots,
+  .mediaCard > .newSceneNotice,
+  .mediaCard > .identityRequirement {
+    grid-column: 1 / -1;
+  }
+
+  .mediaCard[data-source-mode="ai"] > .mediaModeField {
+    grid-column: 1 / -1;
+  }
+
+  .aiMediaNotice,
+  .noAudioNotice,
+  .newSceneNotice,
+  .characterSpeechNotice {
+    width: fit-content;
+    max-width: 100%;
+    box-sizing: border-box;
+    gap: 7px;
+    padding: 6px 8px;
+    border-radius: 10px;
+  }
+
+  .aiMediaNotice > span,
+  .noAudioNotice > span,
+  .newSceneNotice > span {
+    width: 21px;
+    height: 21px;
+    border-radius: 7px;
+    font-size: 10px;
+  }
+
+  .aiMediaNotice strong,
+  .noAudioNotice strong {
+    font-size: 9px;
+  }
+
+  .aiMediaNotice small,
+  .noAudioNotice small,
+  .characterSpeechNotice,
+  .newSceneNotice p {
+    font-size: 7.9px;
+    line-height: 1.25;
+  }
+
+  .referenceSlots {
+    grid-template-columns: repeat(3, minmax(150px, 220px));
+    justify-content: start;
+    gap: 5px;
+  }
+
+  .referenceSlot {
+    min-height: 42px;
+    grid-template-columns: 30px minmax(0, 1fr) auto;
+    gap: 5px;
+    padding: 4px 5px;
+    border-radius: 10px;
+  }
+
+  .referenceSlot > img,
+  .referenceSlotIcon {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+  }
+
+  .referenceSlotIcon {
+    font-size: 13px;
+  }
+
+  .referenceSlotCopy {
+    gap: 1px;
+  }
+
+  .referenceSlotCopy strong {
+    overflow: hidden;
+    font-size: 8.8px;
+    line-height: 1.15;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .referenceSlotCopy small {
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: 7.2px;
+    line-height: 1.15;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+  }
+
+  .referenceSlotActions {
+    gap: 3px;
+  }
+
+  .referenceSlotActions label,
+  .referenceSlotActions button {
+    min-height: 23px;
+    border-radius: 7px;
+    font-size: 7.2px;
+  }
+
+  .referenceSlotActions label {
+    padding: 0 6px;
+  }
+
+  .referenceSlotActions button {
+    width: 23px;
+  }
+
+  .identityRequirement {
+    margin: 0 !important;
+    padding: 5px 7px;
+    font-size: 7.8px !important;
+    line-height: 1.2;
+  }
+
+  .messageCard {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      "header header"
+      "text brand"
+      "keywords logo";
+  }
+
+  .messageCard[data-with-text="false"] {
+    grid-template-areas:
+      "header header"
+      "text brand"
+      "logo logo";
+  }
+
+  .messageCard > .essentialCardHeader {
+    grid-area: header;
+  }
+
+  .messageTextToggle {
+    width: min(100%, 320px);
+    grid-area: text;
+    justify-self: start;
+  }
+
+  .messageBrandToggle {
+    width: min(100%, 320px);
+    grid-area: brand;
+    justify-self: start;
+  }
+
+  .messageLogoField {
+    width: fit-content;
+    max-width: 100%;
+    grid-area: logo;
+    justify-self: start;
+  }
+
+  .messageCard > .textKeywordsGroup {
+    grid-area: keywords;
+  }
+
+  .essentialSwitchRow {
+    min-height: 42px;
+    box-sizing: border-box;
+    gap: 7px;
+    padding: 6px 8px;
+    border-radius: 10px;
+  }
+
+  .essentialSwitchRow > span {
+    gap: 1px;
+  }
+
+  .essentialSwitchRow strong {
+    font-size: 9.2px;
+  }
+
+  .essentialSwitchRow small {
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: 7.5px;
+    line-height: 1.2;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+  }
+
+  .textKeywordsGroup {
+    align-self: start;
+    gap: 5px;
+    margin-top: 0;
+    padding: 7px;
+    border-radius: 10px;
+  }
+
+  .textKeywordsHeader > span {
+    font-size: 9px;
+  }
+
+  .textKeywordsHeader small {
+    font-size: 7.4px;
+  }
+
+  .textKeywordTags {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .textKeywordTag {
+    min-width: 0;
+    gap: 3px;
+    justify-content: space-between;
+    padding: 3px 4px 3px 6px;
+    font-size: 7.7px;
+  }
+
+  .textKeywordTag > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .textKeywordTag button {
+    width: 15px;
+    height: 15px;
+    font-size: 11px;
+  }
+
+  .textKeywordInputRow {
+    gap: 5px;
+  }
+
+  .textKeywordInputRow input,
+  .textKeywordInputRow > button {
+    min-height: 30px;
+    border-radius: 8px;
+    font-size: 8px;
+  }
+
+  .textKeywordInputRow input {
+    width: 100%;
+    padding: 0 8px;
+  }
+
+  .textKeywordInputRow > button {
+    padding: 0 8px;
+  }
+
+  .soundChoices {
+    grid-template-columns: repeat(2, minmax(170px, 240px));
+    justify-content: start;
+    gap: 6px;
+  }
+
+  .soundChoices button {
+    min-height: 48px;
+  }
+
+  .soundChoices button > span:last-child {
+    gap: 1px;
+  }
+
+  .soundChoices strong {
+    font-size: 9.2px;
+  }
+
+  .soundChoices small {
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: 7.4px;
+    line-height: 1.2;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+  }
+
+  .voiceSettings {
+    width: fit-content;
+    max-width: 100%;
+    grid-template-columns: minmax(150px, auto) minmax(180px, auto);
+    justify-content: start;
+    gap: 7px;
+  }
+
+  .generatorAlerts {
+    position: absolute;
+    z-index: 8;
+    left: 50%;
+    bottom: 68px;
+    width: min(560px, calc(100% - 24px));
+    display: grid;
+    gap: 5px;
+    transform: translateX(-50%);
+    pointer-events: none;
+  }
+
+  .generatorAlerts:empty {
+    display: none;
+  }
+
+  .generatorAlerts > * {
+    margin: 0;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.42);
+    backdrop-filter: blur(14px);
+  }
+
+  .footerBar {
+    padding: 7px 9px;
+    border-radius: 15px;
+  }
+
+  .quotaCard {
+    min-height: 46px;
+    padding: 5px 8px;
+  }
+
+  .quotaIcon {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+  }
+
+  .generateButton {
+    min-height: 48px;
   }
 
   .creationBodyGrid {
@@ -3880,10 +4407,62 @@ textarea:focus-visible,
   }
 }
 
+@media (min-width: 1101px) and (max-height: 760px) {
+  .essentialCard {
+    gap: 4px;
+    padding: 7px 8px;
+    border-radius: 14px;
+  }
+
+  .essentialCardHeader {
+    min-height: 25px;
+  }
+
+  .essentialCardHeader > span {
+    width: 25px;
+    height: 25px;
+  }
+
+  .essentialCardHeader p {
+    display: none;
+  }
+
+  .essentialTextareaField textarea {
+    height: 38px;
+  }
+
+  .referenceSlot {
+    min-height: 37px;
+  }
+
+  .referenceSlot > img,
+  .referenceSlotIcon {
+    width: 27px;
+    height: 27px;
+  }
+
+  .essentialSwitchRow {
+    min-height: 37px;
+  }
+
+  .soundChoices button {
+    min-height: 41px;
+  }
+
+  .footerBar {
+    padding-block: 5px;
+  }
+}
+
 @media (max-width: 1100px) {
   .criteriaGrid,
   .essentialGrid {
     grid-template-columns: 1fr;
+  }
+
+  .generatorAlerts {
+    display: grid;
+    gap: 8px;
   }
 
   .footerBar {

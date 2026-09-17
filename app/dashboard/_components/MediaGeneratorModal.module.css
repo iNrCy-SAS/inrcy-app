@@ -16,8 +16,11 @@
   width: 100%;
   height: 100%;
   border: 0;
-  background:
-    radial-gradient(circle at 18% 8%, rgba(33, 173, 240, 0.1), transparent 34%),
+  background: radial-gradient(
+      circle at 18% 8%,
+      rgba(33, 173, 240, 0.1),
+      transparent 34%
+    ),
     rgba(1, 5, 18, 0.82);
   backdrop-filter: blur(14px);
   cursor: default;
@@ -35,11 +38,15 @@
   border: 1px solid rgba(137, 169, 255, 0.24);
   border-radius: 24px;
   color: #f6fbff;
-  background:
-    radial-gradient(circle at 4% 0%, rgba(42, 202, 255, 0.15), transparent 32%),
+  background: radial-gradient(
+      circle at 4% 0%,
+      rgba(42, 202, 255, 0.15),
+      transparent 32%
+    ),
     radial-gradient(circle at 96% 0%, rgba(182, 70, 255, 0.17), transparent 34%),
     linear-gradient(180deg, rgba(14, 29, 67, 0.99), rgba(5, 13, 35, 0.995));
-  box-shadow: 0 32px 104px rgba(0, 0, 0, 0.66), inset 0 1px 0 rgba(255, 255, 255, 0.065);
+  box-shadow: 0 32px 104px rgba(0, 0, 0, 0.66),
+    inset 0 1px 0 rgba(255, 255, 255, 0.065);
   scrollbar-width: thin;
   scrollbar-color: rgba(113, 141, 223, 0.5) transparent;
 }
@@ -50,15 +57,30 @@
   z-index: 10;
   min-height: 72px;
   display: grid;
-  grid-template-columns: minmax(210px, 1fr) minmax(190px, auto) minmax(410px, 1fr);
+  grid-template-columns: minmax(210px, 1fr) minmax(190px, auto) minmax(
+      410px,
+      1fr
+    );
   align-items: center;
   gap: 16px;
   padding: 9px clamp(14px, 2vw, 30px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.075);
-  background:
-    radial-gradient(circle at 8% 50%, rgba(38, 195, 237, 0.12), transparent 25%),
-    radial-gradient(circle at 92% 50%, rgba(225, 78, 158, 0.13), transparent 27%),
-    linear-gradient(90deg, rgba(7, 23, 55, 0.96), rgba(11, 18, 48, 0.94) 55%, rgba(25, 18, 62, 0.95));
+  background: radial-gradient(
+      circle at 8% 50%,
+      rgba(38, 195, 237, 0.12),
+      transparent 25%
+    ),
+    radial-gradient(
+      circle at 92% 50%,
+      rgba(225, 78, 158, 0.13),
+      transparent 27%
+    ),
+    linear-gradient(
+      90deg,
+      rgba(7, 23, 55, 0.96),
+      rgba(11, 18, 48, 0.94) 55%,
+      rgba(25, 18, 62, 0.95)
+    );
   backdrop-filter: blur(18px);
   box-shadow: 0 10px 32px rgba(1, 7, 24, 0.2);
 }
@@ -137,7 +159,11 @@
   padding: 0 11px;
   border: 1px solid rgba(105, 226, 255, 0.24);
   border-radius: 11px;
-  background: linear-gradient(135deg, rgba(34, 184, 235, 0.15), rgba(132, 86, 232, 0.18));
+  background: linear-gradient(
+    135deg,
+    rgba(34, 184, 235, 0.15),
+    rgba(132, 86, 232, 0.18)
+  );
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
   color: #eafaff;
   font-size: 11px;
@@ -145,7 +171,8 @@
   line-height: 1;
   text-decoration: none;
   white-space: nowrap;
-  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+  transition: border-color 160ms ease, background 160ms ease,
+    transform 160ms ease;
 }
 
 .mediaLibraryLink svg {
@@ -161,7 +188,11 @@
 
 .mediaLibraryLink:hover {
   border-color: rgba(105, 226, 255, 0.45);
-  background: linear-gradient(135deg, rgba(34, 184, 235, 0.24), rgba(132, 86, 232, 0.28));
+  background: linear-gradient(
+    135deg,
+    rgba(34, 184, 235, 0.24),
+    rgba(132, 86, 232, 0.28)
+  );
   transform: translateY(-1px);
 }
 
@@ -192,7 +223,12 @@
   position: absolute;
   z-index: -1;
   inset: -30%;
-  background: conic-gradient(from 15deg, transparent, rgba(255, 255, 255, 0.36), transparent 28%);
+  background: conic-gradient(
+    from 15deg,
+    transparent,
+    rgba(255, 255, 255, 0.36),
+    transparent 28%
+  );
   transform: rotate(-12deg);
 }
 
@@ -296,10 +332,14 @@
   border: 1px solid rgba(154, 181, 255, 0.29);
   border-radius: 18px;
   color: #f7fbff;
-  background:
-    radial-gradient(circle at 10% 0%, rgba(49, 204, 255, 0.14), transparent 42%),
+  background: radial-gradient(
+      circle at 10% 0%,
+      rgba(49, 204, 255, 0.14),
+      transparent 42%
+    ),
     linear-gradient(160deg, rgba(18, 37, 80, 0.995), rgba(6, 14, 36, 0.995));
-  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.66), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.66),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .closeConfirmDialog h3 {
@@ -336,7 +376,11 @@
 
 .closeConfirmCancel {
   border: 1px solid rgba(125, 218, 255, 0.33);
-  background: linear-gradient(135deg, rgba(38, 180, 238, 0.21), rgba(111, 83, 229, 0.24));
+  background: linear-gradient(
+    135deg,
+    rgba(38, 180, 238, 0.21),
+    rgba(111, 83, 229, 0.24)
+  );
 }
 
 .closeConfirmLeave {
@@ -400,7 +444,10 @@
 
 @media (min-width: 621px) and (max-width: 1100px) {
   .header {
-    grid-template-columns: minmax(145px, 1fr) minmax(175px, auto) minmax(155px, 1fr);
+    grid-template-columns: minmax(145px, 1fr) minmax(175px, auto) minmax(
+        155px,
+        1fr
+      );
   }
 
   .moduleIdentity p {
@@ -411,6 +458,7 @@
 @media (min-width: 1101px) {
   .dialog {
     display: grid;
+    max-height: none;
     grid-template-rows: auto minmax(0, 1fr);
     overflow: hidden;
   }
@@ -420,8 +468,9 @@
   }
 
   .body {
+    height: 100%;
     min-height: 0;
-    overflow: auto;
+    overflow: hidden;
     padding-bottom: 12px;
   }
 
