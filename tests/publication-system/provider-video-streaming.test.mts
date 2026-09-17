@@ -505,6 +505,120 @@ test("LinkedIn derives 75 MB from storage and streams every instructed part", as
   }
 });
 
+test("LinkedIn ne renvoie jamais les corps, URLs ou jetons bruts des échecs vidéo", async () => {
+  const previousFetch = globalThis.fetch;
+  const modes = [
+    "initialize",
+    "upload",
+    "finalize",
+    "status_http",
+    "status_processing",
+  ] as const;
+
+  try {
+    for (const mode of modes) {
+      const size = 1024;
+      const secret = `${mode}-private-token`;
+      const sourceUrl = `https://storage.test/${mode}.mp4?token=source-${secret}`;
+      const uploadUrl = `https://upload.linkedin.test/${mode}?token=${secret}`;
+
+      globalThis.fetch = (async (
+        input: RequestInfo | URL,
+        init?: RequestInit,
+      ) => {
+        const url = String(input);
+        const method = init?.method || "GET";
+        if (url === sourceUrl && method === "HEAD") {
+          return new Response(null, {
+            headers: {
+              "Content-Length": String(size),
+              "Content-Type": "video/mp4",
+            },
+          });
+        }
+        if (url.includes("/rest/videos?action=initializeUpload")) {
+          if (mode === "initialize") {
+            return jsonResponse(
+              {
+                message: `https://private.linkedin.test/init?token=${secret}`,
+                uploadToken: secret,
+              },
+              503,
+            );
+          }
+          return jsonResponse({
+            value: {
+              video: `urn:li:video:${mode}`,
+              uploadToken: secret,
+              uploadInstructions: [
+                { uploadUrl, firstByte: 0, lastByte: size - 1 },
+              ],
+            },
+          });
+        }
+        if (url === sourceUrl && method === "GET") {
+          return rangedSourceResponse(0, size - 1, size);
+        }
+        if (url === uploadUrl && method === "PUT") {
+          if (mode === "upload") {
+            return new Response(
+              `https://private.linkedin.test/upload?token=${secret}`,
+              { status: 502 },
+            );
+          }
+          return new Response(null, {
+            status: 201,
+            headers: { ETag: '"safe-part-id"' },
+          });
+        }
+        if (url.includes("/rest/videos?action=finalizeUpload")) {
+          if (mode === "finalize") {
+            return jsonResponse(
+              {
+                message: `https://private.linkedin.test/finalize?token=${secret}`,
+                uploadToken: secret,
+              },
+              503,
+            );
+          }
+          return jsonResponse({});
+        }
+        if (url.includes(`/rest/videos/urn%3Ali%3Avideo%3A${mode}`)) {
+          if (mode === "status_http") {
+            return jsonResponse(
+              {
+                message: `https://private.linkedin.test/status?token=${secret}`,
+                uploadToken: secret,
+              },
+              503,
+            );
+          }
+          return jsonResponse({
+            status: "PROCESSING_FAILED",
+            processingFailureReason: `https://private.linkedin.test/processing?token=${secret}`,
+          });
+        }
+        throw new Error(`Unexpected fetch: ${method} ${url}`);
+      }) as typeof fetch;
+
+      const result = await linkedinPublishVideo({
+        accessToken: "linkedin-token",
+        authorUrn: "urn:li:person:test",
+        text: "Publication LinkedIn",
+        videoUrl: sourceUrl,
+      });
+      assert.equal(result.ok, false, mode);
+      const serialized = JSON.stringify(result);
+      assert.doesNotMatch(serialized, /private\.linkedin\.test/);
+      assert.doesNotMatch(serialized, /storage\.test|upload\.linkedin\.test/);
+      assert.doesNotMatch(serialized, new RegExp(secret));
+      assert.doesNotMatch(serialized, /uploadToken|processingFailureReason|[?&]token=/);
+    }
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
 test("LinkedIn rejects bad ranges, missing ETags, and videos over 75 MB", async () => {
   const previousFetch = globalThis.fetch;
   try {

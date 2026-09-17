@@ -17,6 +17,26 @@ export type PublicationImageStorageCleanupResult = {
   error: string | null;
 };
 
+export type PublicationImageUseGuard = {
+  markAssetsMayBeInUse: () => void;
+  canCleanupUnusedAssets: () => boolean;
+};
+
+/**
+ * Once an external write starts, its outcome can be ambiguous even when the
+ * caller receives an error. The guard is intentionally irreversible so a
+ * timeout can never cause media already referenced remotely to be deleted.
+ */
+export function createPublicationImageUseGuard(): PublicationImageUseGuard {
+  let assetsMayBeInUse = false;
+  return {
+    markAssetsMayBeInUse: () => {
+      assetsMayBeInUse = true;
+    },
+    canCleanupUnusedAssets: () => !assetsMayBeInUse,
+  };
+}
+
 function cleanupErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   if (error && typeof error === "object" && "message" in error) {

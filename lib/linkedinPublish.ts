@@ -29,6 +29,8 @@ type PublishKo = LinkedInImagePublishStats & {
 
 export type LinkedInPublishResult = PublishOk | PublishKo;
 
+class LinkedInSafePublicError extends Error {}
+
 async function parseResponse(res: Response) {
   const raw = await res.text().catch(() => "");
   let json: any = null;
@@ -43,11 +45,9 @@ async function parseResponse(res: Response) {
 }
 
 function safeMediaDiagnosticError(error: unknown, fallback: string) {
-  const message = error instanceof Error ? error.message : String(error || "");
-  return (message || fallback).replace(
-    /https?:\/\/[^\s<>"']+/gi,
-    "[url masquée]",
-  );
+  return error instanceof LinkedInSafePublicError && error.message
+    ? error.message
+    : fallback;
 }
 
 function linkedInHeaders(accessToken: string, extra: Record<string, string> = {}) {
@@ -63,7 +63,7 @@ function linkedInHeaders(accessToken: string, extra: Record<string, string> = {}
 async function fetchImageBlob(imageUrl: string): Promise<Blob> {
   if (imageUrl.startsWith("data:")) {
     const m = imageUrl.match(/^data:([^;]+);base64,(.+)$/);
-    if (!m) throw new Error("Image LinkedIn invalide.");
+    if (!m) throw new LinkedInSafePublicError("Image LinkedIn invalide.");
     const mime = m[1] || "image/jpeg";
     const b64 = m[2] || "";
     const buf = Buffer.from(b64, "base64");
@@ -72,7 +72,9 @@ async function fetchImageBlob(imageUrl: string): Promise<Blob> {
 
   const imgRes = await fetch(imageUrl, { cache: "no-store" });
   if (!imgRes.ok) {
-    throw new Error(`Impossible de récupérer l'image LinkedIn (${imgRes.status}).`);
+    throw new LinkedInSafePublicError(
+      `Impossible de récupérer l'image LinkedIn (${imgRes.status}).`,
+    );
   }
   const ab = await imgRes.arrayBuffer();
   const mime = imgRes.headers.get("content-type") || "image/jpeg";
@@ -93,22 +95,21 @@ async function createLinkedInPost(params: {
       body: JSON.stringify(payload),
       cache: "no-store",
     });
-  } catch (error: any) {
+  } catch {
     return {
       ok: false,
-      error: error?.message || "Réponse LinkedIn interrompue après l'envoi.",
+      error: "Réponse LinkedIn interrompue après l'envoi.",
       ...getProviderCreateFailureSafety({ requestThrew: true }),
       diagnostics: { stage: "post_request" },
     };
   }
 
-  const { raw, json } = await parseResponse(res);
+  const { json } = await parseResponse(res);
 
   if (!res.ok) {
-    const errMsg = json?.message || json?.error || raw || "Impossible de publier sur LinkedIn pour le moment.";
     return {
       ok: false,
-      error: errMsg,
+      error: `LinkedIn a refusé la publication (${res.status}).`,
       ...getProviderCreateFailureSafety({ httpStatus: res.status }),
       diagnostics: { stage: "post_response", status: res.status },
     };
@@ -136,15 +137,19 @@ async function uploadLinkedInImage(params: {
     cache: "no-store",
   });
 
-  const { raw: initRaw, json: initJson } = await parseResponse(initRes);
+  const { json: initJson } = await parseResponse(initRes);
   if (!initRes.ok) {
-    throw new Error(initJson?.message || initJson?.error || initRaw || "Impossible d’envoyer l’image sur LinkedIn pour le moment.");
+    throw new LinkedInSafePublicError(
+      `LinkedIn n’a pas pu préparer l’image (${initRes.status}).`,
+    );
   }
 
   const uploadUrl = String(initJson?.value?.uploadUrl || "");
   const imageUrn = String(initJson?.value?.image || "");
   if (!uploadUrl || !imageUrn) {
-    throw new Error("LinkedIn n'a pas renvoyé les informations d'upload d'image.");
+    throw new LinkedInSafePublicError(
+      "LinkedIn n'a pas renvoyé les informations d'upload d'image.",
+    );
   }
 
   const imageBlob = await fetchImageBlob(imageUrl);
@@ -158,9 +163,11 @@ async function uploadLinkedInImage(params: {
     cache: "no-store",
   });
 
-  const uploadRaw = await uploadRes.text().catch(() => "");
+  await uploadRes.text().catch(() => "");
   if (!uploadRes.ok) {
-    throw new Error(uploadRaw || "Impossible d’envoyer l’image sur LinkedIn pour le moment.");
+    throw new LinkedInSafePublicError(
+      `LinkedIn n’a pas accepté l’image (${uploadRes.status}).`,
+    );
   }
 
   return {
@@ -204,8 +211,8 @@ export async function linkedinResharePost(params: {
         },
       },
     });
-  } catch (e: any) {
-    return { ok: false, error: e?.message || "Impossible de partager la publication LinkedIn pour le moment." };
+  } catch {
+    return { ok: false, error: "Impossible de partager la publication LinkedIn pour le moment." };
   }
 }
 
@@ -237,8 +244,8 @@ export async function linkedinPublishText(params: {
         isReshareDisabledByAuthor: false,
       },
     });
-  } catch (e: any) {
-    return { ok: false, error: e?.message || "Impossible de publier sur LinkedIn pour le moment." };
+  } catch {
+    return { ok: false, error: "Impossible de publier sur LinkedIn pour le moment." };
   }
 }
 
@@ -305,10 +312,13 @@ export async function linkedinPublishImage(params: {
         upstream: postResult.diagnostics,
       },
     };
-  } catch (e: any) {
+  } catch (error) {
     return {
       ok: false,
-      error: e?.message || "Impossible de publier l'image sur LinkedIn pour le moment.",
+      error: safeMediaDiagnosticError(
+        error,
+        "Impossible de publier l'image sur LinkedIn pour le moment.",
+      ),
       safeTextFallback: true,
       requestedImageCount: 1,
       publishedImageCount: 0,
@@ -448,10 +458,13 @@ export async function linkedinPublishMultiImage(params: {
         upstream: postResult.diagnostics,
       },
     };
-  } catch (e: any) {
+  } catch (error) {
     return {
       ok: false,
-      error: e?.message || "Impossible de publier les images sur LinkedIn pour le moment.",
+      error: safeMediaDiagnosticError(
+        error,
+        "Impossible de publier les images sur LinkedIn pour le moment.",
+      ),
       safeTextFallback: true,
       requestedImageCount: imageUrls.length,
       publishedImageCount: 0,
@@ -504,18 +517,15 @@ async function getLinkedInVideoStatus(params: {
     },
   );
 
-  const { raw, json } = await parseResponse(res);
+  const { json } = await parseResponse(res);
   if (!res.ok) {
-    throw new Error(
-      json?.message ||
-        json?.error ||
-        raw ||
-        "Impossible de vérifier le statut de la vidéo LinkedIn.",
+    throw new LinkedInSafePublicError(
+      `Impossible de vérifier le statut de la vidéo LinkedIn (${res.status}).`,
     );
   }
 
   const status = String(json?.status || "") as LinkedInVideoStatus;
-  return { status, body: json ?? raw };
+  return { status };
 }
 
 async function waitForLinkedInVideoAfterFinalize(params: {
@@ -525,40 +535,35 @@ async function waitForLinkedInVideoAfterFinalize(params: {
   const { accessToken, videoUrn } = params;
   const delays = [900, 1400, 2200, 3200, 4600, 6200, 8000];
   let lastStatus = "";
-  let lastBody: any = null;
 
   for (let attempt = 0; attempt < delays.length; attempt += 1) {
     const checked = await getLinkedInVideoStatus({ accessToken, videoUrn });
     lastStatus = checked.status;
-    lastBody = checked.body;
 
     if (lastStatus === "PROCESSING_FAILED") {
-      const reason = String(checked.body?.processingFailureReason || "").trim();
-      throw new Error(
-        reason
-          ? `LinkedIn a refusé le traitement vidéo : ${reason}`
-          : "LinkedIn a refusé le traitement vidéo.",
+      throw new LinkedInSafePublicError(
+        "LinkedIn a refusé le traitement vidéo.",
       );
     }
 
     if (lastStatus === "AVAILABLE") {
-      return { status: lastStatus, body: lastBody, readyForPost: true };
+      return { status: lastStatus, readyForPost: true };
     }
 
     // Après finalize, LinkedIn peut rester quelques secondes en PROCESSING.
     // Le post est tenté après une courte attente, mais jamais en WAITING_UPLOAD.
     if (lastStatus === "PROCESSING" && attempt >= 2) {
-      return { status: lastStatus, body: lastBody, readyForPost: true };
+      return { status: lastStatus, readyForPost: true };
     }
 
     await wait(delays[attempt]);
   }
 
   if (lastStatus === "PROCESSING") {
-    return { status: lastStatus, body: lastBody, readyForPost: true };
+    return { status: lastStatus, readyForPost: true };
   }
 
-  throw new Error(
+  throw new LinkedInSafePublicError(
     lastStatus === "WAITING_UPLOAD"
       ? "LinkedIn attend encore la finalisation de l'upload vidéo."
       : "LinkedIn n'a pas confirmé la disponibilité de la vidéo.",
@@ -604,7 +609,7 @@ async function probeLinkedInVideoSource(
   videoUrl: string,
 ): Promise<LinkedInRemoteVideoSource> {
   if (videoUrl.startsWith("data:")) {
-    throw new Error(
+    throw new LinkedInSafePublicError(
       "Les vidéos LinkedIn doivent provenir du stockage sécurisé iNrCy.",
     );
   }
@@ -659,7 +664,7 @@ async function probeLinkedInVideoSource(
       contentRange.firstByte !== 0 ||
       contentRange.lastByte !== 0
     ) {
-      throw new Error(
+      throw new LinkedInSafePublicError(
         "Le stockage vidéo ne fournit pas une taille vérifiable pour LinkedIn.",
       );
     }
@@ -667,7 +672,7 @@ async function probeLinkedInVideoSource(
   }
 
   if (size > LINKEDIN_VIDEO_MAX_BYTES) {
-    throw new Error(
+    throw new LinkedInSafePublicError(
       `La vidéo LinkedIn dépasse la limite de ${INR_MEDIA_VIDEO_SOURCE_MAX_MB_LABEL}.`,
     );
   }
@@ -708,7 +713,9 @@ function normalizeLinkedInUploadInstructions(
     ) as LinkedInVideoUploadInstruction[];
 
   if (instructions.length !== rawInstructions.length) {
-    throw new Error("LinkedIn a renvoyÃ© un dÃ©coupage vidÃ©o invalide.");
+    throw new LinkedInSafePublicError(
+      "LinkedIn a renvoyÃ© un dÃ©coupage vidÃ©o invalide.",
+    );
   }
 
   const normalized = instructions.length
@@ -725,12 +732,16 @@ function normalizeLinkedInUploadInstructions(
   let expectedFirstByte = 0;
   for (const instruction of normalized) {
     if (instruction.firstByte !== expectedFirstByte) {
-      throw new Error("LinkedIn a renvoyé un découpage vidéo incomplet.");
+      throw new LinkedInSafePublicError(
+        "LinkedIn a renvoyé un découpage vidéo incomplet.",
+      );
     }
     expectedFirstByte = instruction.lastByte + 1;
   }
   if (expectedFirstByte !== fileSize) {
-    throw new Error("LinkedIn n'a pas couvert toute la vidéo à envoyer.");
+    throw new LinkedInSafePublicError(
+      "LinkedIn n'a pas couvert toute la vidéo à envoyer.",
+    );
   }
   return normalized;
 }
@@ -767,7 +778,7 @@ async function fetchLinkedInVideoRange(params: {
     !response.body
   ) {
     await cancelResponseBody(response);
-    throw new Error(
+    throw new LinkedInSafePublicError(
       `Le stockage n'a pas confirmé le segment vidéo ${params.firstByte}-${params.lastByte}.`,
     );
   }
@@ -782,7 +793,9 @@ async function uploadLinkedInVideo(params: {
   const { accessToken, ownerUrn, videoUrl } = params;
   const source = await probeLinkedInVideoSource(videoUrl);
   if (!isLinkedInMp4Video(source.mimeType, videoUrl)) {
-    throw new Error("LinkedIn accepte uniquement les vidéos MP4 pour ce type de publication.");
+    throw new LinkedInSafePublicError(
+      "LinkedIn accepte uniquement les vidéos MP4 pour ce type de publication.",
+    );
   }
   const fileSizeBytes = source.size;
 
@@ -800,9 +813,11 @@ async function uploadLinkedInVideo(params: {
     cache: "no-store",
   });
 
-  const { raw: initRaw, json: initJson } = await parseResponse(initRes);
+  const { json: initJson } = await parseResponse(initRes);
   if (!initRes.ok) {
-    throw new Error(initJson?.message || initJson?.error || initRaw || "Impossible de préparer la vidéo LinkedIn.");
+    throw new LinkedInSafePublicError(
+      `LinkedIn n’a pas pu préparer la vidéo (${initRes.status}).`,
+    );
   }
 
   const value = initJson?.value || {};
@@ -812,7 +827,9 @@ async function uploadLinkedInVideo(params: {
   const instructions = normalizeLinkedInUploadInstructions(value, uploadUrl, fileSizeBytes);
 
   if (!videoUrn || !instructions.length) {
-    throw new Error("LinkedIn n'a pas renvoyé les informations d'upload vidéo.");
+    throw new LinkedInSafePublicError(
+      "LinkedIn n'a pas renvoyé les informations d'upload vidéo.",
+    );
   }
 
   const uploadedPartIds: string[] = [];
@@ -843,14 +860,18 @@ async function uploadLinkedInVideo(params: {
       throw error;
     }
 
-    const uploadRaw = await uploadRes.text().catch(() => "");
+    await uploadRes.text().catch(() => "");
     const etag = String(uploadRes.headers.get("etag") || "").replace(/^\"|\"$/g, "");
 
     if (!uploadRes.ok) {
-      throw new Error(uploadRaw || "Impossible d’envoyer la vidéo sur LinkedIn.");
+      throw new LinkedInSafePublicError(
+        `LinkedIn n’a pas accepté un segment vidéo (${uploadRes.status}).`,
+      );
     }
     if (!etag) {
-      throw new Error("LinkedIn n'a pas confirmé le segment vidéo envoyé.");
+      throw new LinkedInSafePublicError(
+        "LinkedIn n'a pas confirmé le segment vidéo envoyé.",
+      );
     }
     uploadedPartIds.push(etag);
     uploadedPartCount += 1;
@@ -868,9 +889,11 @@ async function uploadLinkedInVideo(params: {
     }),
     cache: "no-store",
   });
-  const { raw: finalizeRaw, json: finalizeJson } = await parseResponse(finalizeRes);
+  await parseResponse(finalizeRes);
   if (!finalizeRes.ok) {
-    throw new Error(finalizeJson?.message || finalizeJson?.error || finalizeRaw || "Impossible de finaliser la vidéo LinkedIn.");
+    throw new LinkedInSafePublicError(
+      `LinkedIn n’a pas pu finaliser la vidéo (${finalizeRes.status}).`,
+    );
   }
 
   const videoStatus = await waitForLinkedInVideoAfterFinalize({
@@ -944,10 +967,13 @@ export async function linkedinPublishVideo(params: {
         upstream: postResult.diagnostics,
       },
     };
-  } catch (e: any) {
+  } catch (error) {
     return {
       ok: false,
-      error: e?.message || "Impossible de publier la vidéo sur LinkedIn pour le moment.",
+      error: safeMediaDiagnosticError(
+        error,
+        "Impossible de publier la vidéo sur LinkedIn pour le moment.",
+      ),
       safeTextFallback: true,
     };
   }

@@ -226,6 +226,65 @@ test("LinkedIn publie l'unique photo valide au lieu de refuser tout le lot", asy
   assert.equal(createdPayload?.content?.multiImage, undefined);
 });
 
+test("LinkedIn générique les erreurs brutes d'initialisation et d'upload d'une image unique", async (t) => {
+  const { loaded, tempDir } = await loadLinkedInPublishModule();
+  t.after(async () => fs.rm(tempDir, { recursive: true, force: true }));
+
+  const originalFetch = globalThis.fetch;
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  for (const stage of ["initialize", "upload"] as const) {
+    const rawSecret = `${stage}-raw-token-secret`;
+    globalThis.fetch = async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/rest/images?action=initializeUpload")) {
+        if (stage === "initialize") {
+          return Response.json(
+            {
+              message: `secret ${rawSecret} https://private.linkedin.test/init?token=${rawSecret}`,
+            },
+            { status: 503 },
+          );
+        }
+        return Response.json({
+          value: {
+            uploadUrl: `https://upload.linkedin.test/image?token=${rawSecret}`,
+            image: "urn:li:image:single",
+          },
+        });
+      }
+      if (url.startsWith("https://source.test/")) {
+        return new Response(Uint8Array.from([1, 2, 3]), {
+          headers: { "content-type": "image/jpeg" },
+        });
+      }
+      if (url.startsWith("https://upload.linkedin.test/")) {
+        return new Response(
+          `secret ${rawSecret} https://private.linkedin.test/upload?token=${rawSecret}`,
+          { status: 502 },
+        );
+      }
+      throw new Error(`Unexpected fetch ${url}`);
+    };
+
+    const result = await loaded.linkedinPublishImage({
+      accessToken: "token",
+      authorUrn: "urn:li:person:1",
+      text: "Publication image",
+      imageUrl: `https://source.test/image.jpg?token=source-${rawSecret}`,
+    });
+
+    assert.equal(result.ok, false, stage);
+    assert.equal(result.safeTextFallback, true, stage);
+    const serialized = JSON.stringify(result);
+    assert.doesNotMatch(serialized, /private\.linkedin\.test|source\.test/);
+    assert.doesNotMatch(serialized, new RegExp(rawSecret));
+    assert.doesNotMatch(serialized, /[?&]token=/);
+  }
+});
+
 test("LinkedIn ne renvoie ni payload de post ni URL d'upload après un échec fournisseur", async (t) => {
   const { loaded, tempDir } = await loadLinkedInPublishModule();
   t.after(async () => fs.rm(tempDir, { recursive: true, force: true }));
@@ -253,7 +312,13 @@ test("LinkedIn ne renvoie ni payload de post ni URL d'upload après un échec fo
       return new Response("upload-body-sentinel", { status: 201 });
     }
     if (url === "https://api.linkedin.com/rest/posts") {
-      return Response.json({ message: "LinkedIn indisponible" }, { status: 503 });
+      return Response.json(
+        {
+          message:
+            "https://private.linkedin.test/post?token=post-response-secret",
+        },
+        { status: 503 },
+      );
     }
     return new Response("unexpected", { status: 500 });
   };
@@ -272,12 +337,12 @@ test("LinkedIn ne renvoie ni payload de post ni URL d'upload après un échec fo
   });
 
   assert.equal(result.ok, false);
-  const serializedDiagnostics = JSON.stringify(result.diagnostics);
+  const serializedResult = JSON.stringify(result);
   assert.doesNotMatch(
-    serializedDiagnostics,
-    /customer\.example|source-secret|upload\.linkedin|private-|upload-body-sentinel/,
+    serializedResult,
+    /customer\.example|source-secret|upload\.linkedin|private-|upload-body-sentinel|post-response-secret/,
   );
-  assert.doesNotMatch(serializedDiagnostics, /"payload"|initJson|uploadRaw|sourceUrl/);
+  assert.doesNotMatch(serializedResult, /"payload"|initJson|uploadRaw|sourceUrl|[?&]token=/);
   assert.deepEqual(result.diagnostics.upstream, {
     stage: "post_response",
     status: 503,

@@ -59,7 +59,10 @@ import { validateXUrlFreeText } from "@/lib/xChannel";
 import { getInstagramPartialImagesWarning } from "@/lib/instagramPartialImagesWarning";
 import { getImagePublicationWarning } from "@/lib/multiImagePublicationWarning";
 import { refreshInrSendPublicationVideoUrl } from "@/lib/inrsend/publicationVideoStorage";
-import { removeCreatedPublicationImagePathsBestEffort } from "@/lib/inrsend/publicationImageStorageCleanup";
+import {
+  createPublicationImageUseGuard,
+  removeCreatedPublicationImagePathsBestEffort,
+} from "@/lib/inrsend/publicationImageStorageCleanup";
 const LINKEDIN_VERSION = "202603";
 const TIKTOK_INRSEND_EXTERNAL_ACTION_MESSAGE =
   "TikTok ne permet pas la modification ou la suppression réelle depuis iNrCy. Ouvrez TikTok pour gérer cette publication.";
@@ -278,7 +281,7 @@ function errorMessage(error: unknown, fallback = ""): string {
 
 async function cleanupCreatedPublicationImagePaths(params: {
   paths: readonly unknown[];
-  stage: "image_preparation" | "delivery_replace";
+  stage: "image_preparation" | "before_external_use";
   channel?: ChannelKey;
 }) {
   const cleanup = await removeCreatedPublicationImagePathsBestEffort({
@@ -1405,8 +1408,10 @@ async function replaceChannelDelivery(params: {
   mediaType?: PublicationMediaType;
   video?: PersistedVideoAttachment | null;
   imageSet?: ImageSet | null;
+  onAssetsMayBeInUse?: () => void;
 }) {
   const { userId, publicationId, channel, previousExternalId, publication, eventPayload, nextPost, imageSet } = params;
+  const markAssetsMayBeInUse = () => params.onAssetsMayBeInUse?.();
   const [publicationStates, bubbleAccess] = await Promise.all([
     getChannelConnectionStates(supabaseAdmin, userId),
     getAppBubbleAccessMapForUser(supabaseAdmin, userId),
@@ -1525,6 +1530,9 @@ async function replaceChannelDelivery(params: {
       expectedCount: expectedSiteImages,
       publishedCount: siteImages.length,
     });
+    // The database write may commit even if its response is lost. From this
+    // exact point, the new image URLs must be treated as referenced.
+    markAssetsMayBeInUse();
     const { data: article, error: articleError } = await supabaseAdmin
       .from("site_articles")
       .update({
@@ -1589,6 +1597,7 @@ async function replaceChannelDelivery(params: {
     }
 
     if (isVideoPublication && videoUrl) {
+      markAssetsMayBeInUse();
       const resp = await facebookPublishVideoToPage({
         pageId,
         pageAccessToken: pageToken,
@@ -1640,6 +1649,7 @@ async function replaceChannelDelivery(params: {
       }
     }
 
+    markAssetsMayBeInUse();
     const resp = await facebookPublishToPage({ pageId, pageAccessToken: pageToken, message: canonMessage, imageUrls: socialFeedImageUrls });
     if (!resp.ok) {
       const facebookUserError = getPublishChannelUserMessage("facebook", resp.error);
@@ -1720,6 +1730,7 @@ async function replaceChannelDelivery(params: {
         { sourceLabel: "facebook", row: fbRow },
       ]).map((candidate) => ({ source: candidate.source, accessToken: candidate.token }));
       const caption = buildBoosterInstagramCaption(nextPost, { websiteUrl, phone });
+      markAssetsMayBeInUse();
       const resp = await instagramPublishVideoWithTokenFallback({
         igUserId,
         accessToken: igToken,
@@ -1775,6 +1786,7 @@ async function replaceChannelDelivery(params: {
       { sourceLabel: "facebook", row: fbRow },
     ]).map((candidate) => ({ source: candidate.source, accessToken: candidate.token }));
     const caption = buildBoosterInstagramCaption(nextPost, { websiteUrl, phone });
+    markAssetsMayBeInUse();
     const resp = await instagramPublishImagesBestEffortWithTokenFallback({
       igUserId,
       accessToken: igToken,
@@ -1859,13 +1871,19 @@ async function replaceChannelDelivery(params: {
       ? 0
       : getExpectedImageCount(resolvedImageSet, 20);
     let linkedInWarning: { code: string; message: string } | null = null;
-    let resp = isVideoPublication && videoUrl
-      ? await linkedinPublishVideo({ accessToken, authorUrn, text: canonMessage, videoUrl, title: nextPost.title || undefined })
-      : linkedInImages.length > 1
-        ? await linkedinPublishMultiImage({ accessToken, authorUrn, text: canonMessage, imageUrls: linkedInImages, title: nextPost.title || undefined })
-        : linkedInImages[0]
-          ? await linkedinPublishImage({ accessToken, authorUrn, text: canonMessage, imageUrl: linkedInImages[0], title: nextPost.title || undefined })
-          : await linkedinPublishText({ accessToken, authorUrn, text: canonMessage });
+    let resp: Awaited<ReturnType<typeof linkedinPublishText>>;
+    if (isVideoPublication && videoUrl) {
+      markAssetsMayBeInUse();
+      resp = await linkedinPublishVideo({ accessToken, authorUrn, text: canonMessage, videoUrl, title: nextPost.title || undefined });
+    } else if (linkedInImages.length > 1) {
+      markAssetsMayBeInUse();
+      resp = await linkedinPublishMultiImage({ accessToken, authorUrn, text: canonMessage, imageUrls: linkedInImages, title: nextPost.title || undefined });
+    } else if (linkedInImages[0]) {
+      markAssetsMayBeInUse();
+      resp = await linkedinPublishImage({ accessToken, authorUrn, text: canonMessage, imageUrl: linkedInImages[0], title: nextPost.title || undefined });
+    } else {
+      resp = await linkedinPublishText({ accessToken, authorUrn, text: canonMessage });
+    }
 
     if (
       !resp.ok &&
@@ -2149,8 +2167,9 @@ async function replaceChannelDelivery(params: {
       }
 
       let resp: unknown = null;
-      const publishGmb = (options?: { imageUrls?: string[]; withoutCta?: boolean }) =>
-        gmbCreateLocalPost({
+      const publishGmb = (options?: { imageUrls?: string[]; withoutCta?: boolean }) => {
+        markAssetsMayBeInUse();
+        return gmbCreateLocalPost({
           accessToken: token.accessToken,
           accountName,
           locationName,
@@ -2162,6 +2181,7 @@ async function replaceChannelDelivery(params: {
           languageCode: "fr-FR",
           callToAction: !options?.withoutCta && gmbCallToAction ? gmbCallToAction : undefined,
         });
+      };
 
       try {
         resp = await publishGmb();
@@ -2317,6 +2337,7 @@ async function replaceChannelDelivery(params: {
       }) || null;
 
     if (isVideoPublication && videoUrl && video) {
+      markAssetsMayBeInUse();
       const created = await createPinterestVideoPin({
         accessToken,
         userId,
@@ -2383,6 +2404,7 @@ async function replaceChannelDelivery(params: {
       warning?: string | null;
       warningMessage?: string | null;
     }) => {
+      markAssetsMayBeInUse();
       const created = await createPinterestImagePin({
         accessToken,
         userId,
@@ -2861,6 +2883,7 @@ function buildCancelledPayload(params: {
 export function createPublicationChannelHandlers(channel: ChannelKey) {
   async function PATCH(req: Request, context: { params: Promise<{ publicationId: string }> }) {
     let unpersistedCreatedStoragePaths: string[] = [];
+    const imageUseGuard = createPublicationImageUseGuard();
     try {
       const { user, activeUserId, errorResponse } = await requireUser();
       if (errorResponse) return errorResponse;
@@ -2997,11 +3020,8 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
         mediaType,
         video,
         imageSet,
+        onAssetsMayBeInUse: imageUseGuard.markAssetsMayBeInUse,
       });
-      // A successful delivery replacement can already reference these objects
-      // (for example an iNrCy site article). From this point onward, never
-      // remove them even if local payload persistence subsequently fails.
-      unpersistedCreatedStoragePaths = [];
 
       const nextPayload = buildUpdatedPayload({
         eventPayload: ctx.eventPayload,
@@ -3043,6 +3063,9 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
       });
 
       await persistEventPayload(activeUserId, publicationId, nextPayload);
+      // Persistence itself now references the new objects. Protect them before
+      // any later delivery-row sync or indexing operation can fail.
+      imageUseGuard.markAssetsMayBeInUse();
       await syncDeliveryRow({ userId: activeUserId, publicationId, channel, status: replaceResult.status, error: replaceResult.error });
       if (channel === "inr_search") {
         const provisioned = await ensureSystemManagedInrSearch(supabaseAdmin, activeUserId);
@@ -3053,11 +3076,13 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
 
       return NextResponse.json({ ok: true, publication_id: publicationId, channel, external_id: replaceResult.externalId, payload: nextPayload });
     } catch (e: unknown) {
-      await cleanupCreatedPublicationImagePaths({
-        paths: unpersistedCreatedStoragePaths,
-        stage: "delivery_replace",
-        channel,
-      });
+      if (imageUseGuard.canCleanupUnusedAssets()) {
+        await cleanupCreatedPublicationImagePaths({
+          paths: unpersistedCreatedStoragePaths,
+          stage: "before_external_use",
+          channel,
+        });
+      }
       captureApiException(req, e, {
         area: "booster",
         operation: `PATCH /api/inrsend/publications/:publicationId/${channel}`,
