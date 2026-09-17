@@ -108,7 +108,8 @@ test("les refus OAuth LinkedIn récupérables restent hors de Sentry", () => {
   assert.match(oauth, /google_permissions_incomplete/);
   assert.match(oauth, /input\.outcome === 'failed' && isUserResolvableOAuthInput\(input\)/);
   assert.match(oauth, /isUserResolvableOAuthInput\(input\)[\s\S]*?return false/);
-  assert.match(oauth, /const logLevel = isUserResolvableOAuthException\(message\) \? 'warn' : 'error'/);
+  assert.match(oauth, /const logLevel = isExpectedHandledOAuthMessage\(message\)/);
+  assert.match(oauth, /\? 'info'[\s\S]*?: isUserResolvableOAuthException\(message\)[\s\S]*?\? 'warn'[\s\S]*?: 'error'/);
 });
 
 test("les confirmations Agenda journalisent le résultat du fallback sans données client", () => {

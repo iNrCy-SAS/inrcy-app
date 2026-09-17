@@ -39,7 +39,7 @@ export async function refreshInrSendPublicationVideoUrl(params: {
   return resolveInrSendVideoDeliveryUrl(params, {
     loadRegistryRow: loadOwnedUploadedVideoRegistryRow,
     authorizeSource: authorizeStoredVideoProbeSource,
-    createSignedUrl: (bucket, storagePath) =>
+    signAuthorizedUrl: (bucket, storagePath) =>
       createSafeStorageSignedUrl(
         bucket,
         storagePath,

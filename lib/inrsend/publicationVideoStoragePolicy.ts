@@ -25,7 +25,7 @@ export type InrSendVideoStorageDependencies = {
     storagePath: string;
     registryRow: InrSendVideoRegistryIdentity | null;
   }) => InrSendVideoStorageAuthorization;
-  createSignedUrl: (
+  signAuthorizedUrl: (
     bucket: string,
     storagePath: string,
   ) => Promise<string | null>;
@@ -157,7 +157,7 @@ export async function resolveInrSendVideoDeliveryUrl(
   });
 
   const refreshedUrl = authorization.urlMode === "signed"
-    ? await dependencies.createSignedUrl(
+    ? await dependencies.signAuthorizedUrl(
         authorization.bucket,
         authorization.storagePath,
       )

@@ -29,7 +29,7 @@ function dependencies(params: {
       calls.push("authorize");
       return authorizeStoredVideoProbeSource(input);
     },
-    createSignedUrl: async () => {
+    signAuthorizedUrl: async () => {
       calls.push("sign");
       return params.signedUrl ?? null;
     },
