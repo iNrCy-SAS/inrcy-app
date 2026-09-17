@@ -17,6 +17,7 @@ import {
   isApplicationSessionAuthenticationError,
   isProviderReconnectRequired,
 } from "@/lib/channelReconnectPolicy";
+import { getGoogleBusinessPostErrorDiagnostics } from "@/lib/googleBusinessPostTransport";
 
 export type PublishDiagnosticChannel =
   | "facebook"
@@ -232,6 +233,17 @@ export function logPublishChannelFailure(params: {
   stage?: string;
 }) {
   const rawError = stringifyError(params.error).slice(0, 1000);
+  const transportDiagnostics =
+    params.channel === "gmb"
+      ? getGoogleBusinessPostErrorDiagnostics(params.error)
+      : null;
+  const diagnostics =
+    transportDiagnostics || params.diagnostics
+      ? sanitizeDiagnostics({
+          ...(transportDiagnostics || {}),
+          ...(params.diagnostics ? { context: params.diagnostics } : {}),
+        })
+      : undefined;
   log.warn("channel_publish_failed", {
     route: params.route,
     channel: params.channel,
@@ -240,6 +252,6 @@ export function logPublishChannelFailure(params: {
     stage: params.stage || undefined,
     error: rawError,
     user_message: params.userMessage || undefined,
-    diagnostics: params.diagnostics ? sanitizeDiagnostics(params.diagnostics) : undefined,
+    diagnostics,
   });
 }

@@ -245,6 +245,55 @@ test("un HTTP 503 est classé relançable mais le transport ne crée pas de doub
   assert.equal(calls, 1);
 });
 
+test("les diagnostics Google sont conservés sous forme bornée sans secret ni payload brut", async () => {
+  const observedError = await postGoogleBusinessLocalPost({
+      endpoint: GMB_ENDPOINT,
+      accessToken: "token",
+      payload: { summary: "Actualité", topicType: "STANDARD" },
+      fetchImpl: (async () =>
+        Response.json(
+          {
+            error: {
+              code: 400,
+              status: "INVALID_ARGUMENT",
+              message: "Request contains an invalid argument.",
+              details: [
+                {
+                  "@type": "type.googleapis.com/google.rpc.BadRequest",
+                  fieldViolations: [
+                    {
+                      field: "localPost.callToAction.url",
+                      description:
+                        "URL refusée ?access_token=secret-value Bearer private-token",
+                    },
+                  ],
+                  ignoredPayload: { access_token: "must-never-be-retained" },
+                },
+              ],
+            },
+          },
+          { status: 400 },
+        )) as typeof fetch,
+    }).then(
+      () => null,
+      (error: unknown) => error,
+    );
+
+  assert.ok(observedError instanceof GoogleBusinessPostTransportError);
+  assert.equal(observedError.status, 400);
+  assert.equal(observedError.providerCode, 400);
+  assert.equal(observedError.providerStatus, "INVALID_ARGUMENT");
+  assert.deepEqual(observedError.fieldViolations, [
+    {
+      field: "localPost.callToAction.url",
+      description: "URL refusée ?access_token=[redacted] Bearer [redacted]",
+    },
+  ]);
+  const serialized = JSON.stringify(observedError.details);
+  assert.doesNotMatch(serialized, /secret-value|private-token|must-never-be-retained/);
+  assert.doesNotMatch(serialized, /ignoredPayload/);
+});
+
 test("sites et iNrSearch ne copient pas le master : ils conservent ses références", async () => {
   const publishNow = await readFile(
     new URL("../../app/api/booster/publish-now/route.ts", import.meta.url),
