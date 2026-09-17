@@ -116,7 +116,16 @@
 .inrcy-visio-progress span { width: 22px; height: 4px; border-radius: 9px; background: rgba(255,255,255,.16); }
 .inrcy-visio-progress span.is-active { background: linear-gradient(90deg, var(--cyan), var(--purple)); }
 
-.inrcy-visio-content { margin-top: 20px; text-align: center; }
+.inrcy-visio-content {
+  max-height: calc(100dvh - 132px);
+  margin-top: 20px;
+  padding: 0 3px 3px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(104, 221, 255, .48) transparent;
+  text-align: center;
+}
 .inrcy-visio-success-icon {
   display: grid;
   place-items: center;
@@ -140,7 +149,7 @@
 
 .inrcy-visio-benefits {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 12px;
   margin: 20px 0;
 }
@@ -154,6 +163,21 @@
 }
 .inrcy-visio-benefits b { display: block; color: #fff; font-size: 16px; }
 .inrcy-visio-benefits small { display: block; margin-top: 4px; color: #91a9cc; font-size: 12px; }
+
+.inrcy-visio-gift {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 3px auto 0 !important;
+  padding: 11px 14px;
+  border: 1px solid rgba(92, 222, 255, .24);
+  border-radius: 14px;
+  color: #cce9ff !important;
+  background: linear-gradient(90deg, rgba(31, 157, 225, .13), rgba(151, 67, 227, .14));
+  font-size: 13px !important;
+  line-height: 1.35 !important;
+}
 
 .inrcy-visio-actions { display: grid; gap: 9px; margin-top: 18px; }
 .inrcy-visio-primary,
@@ -215,7 +239,7 @@
 
 .inrcy-visio-days {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 7px;
   margin: 0 0 15px;
   padding: 0;
@@ -273,6 +297,32 @@
 .inrcy-visio-loader span:nth-child(2) { animation-delay: .15s; }
 .inrcy-visio-loader span:nth-child(3) { animation-delay: .3s; }
 
+.inrcy-visio-reopen {
+  position: fixed;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: max(18px, env(safe-area-inset-bottom));
+  z-index: 2147482999;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 10px;
+  align-items: center;
+  min-width: 250px;
+  border: 1px solid rgba(111, 226, 255, .55) !important;
+  border-radius: 18px !important;
+  padding: 13px 17px !important;
+  color: #fff !important;
+  background: linear-gradient(125deg, #12528d, #5031a4 62%, #b22aa8) !important;
+  box-shadow: 0 18px 46px rgba(7, 20, 55, .42) !important;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif !important;
+  text-align: left;
+  cursor: pointer;
+  animation: inrcyVisioRise .28s ease-out;
+}
+.inrcy-visio-reopen > span { grid-row: 1 / 3; font-size: 25px; }
+.inrcy-visio-reopen strong { font-size: 14px; line-height: 1.2; }
+.inrcy-visio-reopen small { color: #c8eaff; font-size: 11px; }
+.inrcy-visio-reopen:hover { filter: brightness(1.1); transform: translateY(-2px); }
+
 .inrcy-visio-dialog button:focus-visible,
 .inrcy-visio-dialog a:focus-visible { outline: 3px solid #73e4ff !important; outline-offset: 3px; }
 
@@ -287,23 +337,27 @@
   .inrcy-visio-progress { top: 31px; }
   .inrcy-visio-brand { height: 38px; gap: 8px; font-size: 22px; }
   .inrcy-visio-brand img { width: 38px; height: 38px; flex-basis: 38px; }
-  .inrcy-visio-content { margin-top: 16px; }
+  .inrcy-visio-content { max-height: calc(100dvh - 103px); margin-top: 16px; }
   .inrcy-visio-success-icon { width: 58px; height: 58px; margin-bottom: 12px; border-radius: 19px; font-size: 30px; }
   .inrcy-visio-dialog h2 { font-size: 27px !important; }
   .inrcy-visio-lead { margin-top: 10px !important; font-size: 14px !important; line-height: 1.42 !important; }
-  .inrcy-visio-benefits { gap: 7px; margin: 15px 0; }
-  .inrcy-visio-benefits span { padding: 12px 8px; }
+  .inrcy-visio-benefits { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 15px 0; }
+  .inrcy-visio-benefits span { padding: 11px 5px; }
+  .inrcy-visio-benefits b { font-size: 13px; }
+  .inrcy-visio-benefits small { font-size: 10px; line-height: 1.25; }
+  .inrcy-visio-gift { padding: 9px 10px; font-size: 11px !important; }
   .inrcy-visio-week-nav { grid-template-columns: 36px 1fr 36px; gap: 7px; margin: 12px auto 8px; }
   .inrcy-visio-week-arrow { width: 36px; height: 32px; border-radius: 11px !important; }
-  .inrcy-visio-days { gap: 4px; margin-bottom: 12px; }
+  .inrcy-visio-days { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-bottom: 12px; }
   .inrcy-visio-day { border-radius: 12px !important; padding: 7px 2px !important; }
   .inrcy-visio-day small, .inrcy-visio-day span { font-size: 9px; }
   .inrcy-visio-day b { font-size: 19px; }
-  .inrcy-visio-times { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
-  .inrcy-visio-time { min-width: 0; min-height: 43px; padding: 5px 2px !important; font-size: 11px !important; }
+  .inrcy-visio-times { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+  .inrcy-visio-time { min-width: 0; min-height: 45px; padding: 7px 4px !important; font-size: 13px !important; }
   .inrcy-visio-time span { margin-right: 2px; }
   .inrcy-visio-actions { margin-top: 13px; }
   .inrcy-visio-primary, .inrcy-visio-secondary { min-height: 50px; padding: 10px 13px !important; font-size: 14px !important; }
+  .inrcy-visio-reopen { right: 10px; bottom: 10px; min-width: 0; width: calc(100% - 20px); }
 }
 
 @media (max-height: 760px) {

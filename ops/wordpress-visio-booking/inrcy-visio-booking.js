@@ -8,7 +8,11 @@
   var selectedStart = "";
   var availability = [];
   var currentWeekPage = 0;
-  var DAYS_PER_WEEK = 7;
+  var currentStep = 1;
+  var bookingSurface = "signup_success";
+  var bookingSessionId = "";
+  var hasCompletedBooking = false;
+  var DAYS_PER_PAGE = 6;
 
   function escapeHtml(value) {
     return String(value == null ? "" : value)
@@ -32,6 +36,57 @@
       }
     }
     return "";
+  }
+
+  function randomUuid() {
+    if (window.crypto && typeof window.crypto.randomUUID === "function") {
+      return window.crypto.randomUUID();
+    }
+    return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, function (character) {
+      return (Number(character) ^ (window.crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (Number(character) / 4)))).toString(16);
+    });
+  }
+
+  function trackFunnel(eventName, step, metadata) {
+    if (!config.trackingUrl || !currentToken) return;
+    var details = Object.assign({
+      surface: bookingSurface,
+      viewport: window.innerWidth + "x" + window.innerHeight,
+    }, metadata || {});
+    fetch(config.trackingUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        token: currentToken,
+        eventId: randomUuid(),
+        eventName: eventName,
+        sessionId: bookingSessionId,
+        step: step,
+        metadata: details,
+      }),
+      credentials: "omit",
+      cache: "no-store",
+      keepalive: true,
+    }).catch(function () {});
+  }
+
+  function removeReopenButton() {
+    var existing = document.getElementById("inrcy-visio-reopen");
+    if (existing) existing.remove();
+  }
+
+  function showReopenButton() {
+    if (!currentToken || hasCompletedBooking) return;
+    removeReopenButton();
+    var button = document.createElement("button");
+    button.id = "inrcy-visio-reopen";
+    button.className = "inrcy-visio-reopen";
+    button.type = "button";
+    button.innerHTML = '<span aria-hidden="true">📅</span><strong>Réserver ma mise en route</strong><small>30 à 45 min offertes</small>';
+    button.addEventListener("click", function () {
+      openDialog(currentToken, "reopen");
+    });
+    document.body.appendChild(button);
   }
 
   function apiPost(url, body) {
@@ -72,13 +127,37 @@
   function setDialog(content, options) {
     if (!dialogRoot) return;
     var dialog = dialogRoot.querySelector(".inrcy-visio-dialog");
+    currentStep = Number((options || {}).step || 1);
     dialog.innerHTML = shell(content, options || { step: 1 });
     bindCommonActions();
   }
 
-  function openDialog(token) {
-    closeDialog();
+  function showIntro() {
+    setDialog([
+      '<div class="inrcy-visio-success-icon" aria-hidden="true">✓</div>',
+      '<p class="inrcy-visio-eyebrow">VOTRE ESSAI INRCY EST PRÊT</p>',
+      '<h2 id="inrcy-visio-title">Passez à l’action dès demain <span aria-hidden="true">✨</span></h2>',
+      '<p class="inrcy-visio-lead">Réservez votre <strong>mise en route personnalisée offerte</strong>. En 30 à 45 minutes, l’équipe iNrCy vous aide à partir sur de bonnes bases.</p>',
+      '<div class="inrcy-visio-benefits">',
+      '<span><b>30–45 min</b><small>un échange concret et personnalisé</small></span>',
+      '<span><b>100 % offert</b><small>mise en route de vos canaux</small></span>',
+      '<span><b>Dès demain</b><small>du lundi au samedi</small></span>',
+      '</div>',
+      '<p class="inrcy-visio-gift"><span aria-hidden="true">🎁</span> Choisissez maintenant l’heure qui vous convient — votre lien Google Meet arrivera par e-mail.</p>',
+      '<div class="inrcy-visio-actions">',
+      '<button class="inrcy-visio-primary" data-action="choose" type="button"><span>Réserver ma mise en route offerte</span><i aria-hidden="true">→</i></button>',
+      '<button class="inrcy-visio-secondary" data-action="skip" type="button">Je choisirai plus tard</button>',
+      '</div>',
+    ].join(""), { step: 1 });
+  }
+
+  function openDialog(token, surface) {
+    closeDialog("", true);
+    removeReopenButton();
     currentToken = token;
+    bookingSurface = surface || "signup_success";
+    bookingSessionId = randomUuid();
+    hasCompletedBooking = false;
     selectedStart = "";
     availability = [];
     currentWeekPage = 0;
@@ -88,42 +167,34 @@
     dialogRoot.innerHTML = '<section class="inrcy-visio-dialog" role="dialog" aria-modal="true" aria-labelledby="inrcy-visio-title"></section>';
     document.body.appendChild(dialogRoot);
     document.documentElement.classList.add("inrcy-visio-open");
-    setDialog([
-      '<div class="inrcy-visio-success-icon" aria-hidden="true">✓</div>',
-      '<p class="inrcy-visio-eyebrow">INSCRIPTION CONFIRMÉE</p>',
-      '<h2 id="inrcy-visio-title">Votre inscription est validée&nbsp;! <span aria-hidden="true">🎉</span></h2>',
-      '<p class="inrcy-visio-lead">Souhaitez-vous programmer une présentation en visio avec iNrCy et profiter de la <strong>création offerte de vos canaux</strong>&nbsp;?</p>',
-      '<div class="inrcy-visio-benefits">',
-      '<span><b>60 min</b><small>avec un membre de l’équipe iNrCy</small></span>',
-      '<span><b>Google Meet</b><small>lien envoyé par e-mail</small></span>',
-      '</div>',
-      '<div class="inrcy-visio-actions">',
-      '<button class="inrcy-visio-primary" data-action="choose" type="button"><span>Choisir mon créneau</span><i aria-hidden="true">→</i></button>',
-      '<button class="inrcy-visio-secondary" data-action="skip" type="button">Non, continuer sans rendez-vous</button>',
-      '</div>',
-    ].join(""), { step: 1 });
+    showIntro();
+    trackFunnel("modal_viewed", 1);
     window.setTimeout(function () {
       var first = dialogRoot && dialogRoot.querySelector("[data-action='choose']");
       if (first) first.focus();
     }, 30);
   }
 
-  function closeDialog() {
+  function closeDialog(reason, silent) {
     if (!dialogRoot) return;
+    if (!silent && !hasCompletedBooking) {
+      trackFunnel(reason === "skip" ? "modal_skipped" : "modal_closed", currentStep);
+    }
     dialogRoot.remove();
     dialogRoot = null;
     document.documentElement.classList.remove("inrcy-visio-open");
     if (previouslyFocused && typeof previouslyFocused.focus === "function") {
       previouslyFocused.focus();
     }
+    if (!silent && !hasCompletedBooking) showReopenButton();
   }
 
   function loadingView() {
     setDialog([
       '<div class="inrcy-visio-loader" aria-hidden="true"><span></span><span></span><span></span></div>',
       '<p class="inrcy-visio-eyebrow">AGENDA iNrCy</p>',
-      '<h2 id="inrcy-visio-title">Recherche des meilleurs créneaux…</h2>',
-      '<p class="inrcy-visio-lead">Nous vérifions les disponibilités de l’équipe en temps réel.</p>',
+      '<h2 id="inrcy-visio-title">Préparation de vos créneaux…</h2>',
+      '<p class="inrcy-visio-lead">Tous les horaires de 9 h à 18 h vous sont proposés, du lundi au samedi.</p>',
     ].join(""), { step: 2 });
   }
 
@@ -141,7 +212,7 @@
     setDialog([
       '<p class="inrcy-visio-eyebrow">CHOISISSEZ VOTRE CRÉNEAU</p>',
       '<h2 id="inrcy-visio-title">Quand souhaitez-vous échanger&nbsp;?</h2>',
-      '<p class="inrcy-visio-lead inrcy-visio-lead-compact">Prévoyez environ une heure pour découvrir iNrCy, échanger sur vos besoins et profiter de la <strong>création offerte de vos canaux</strong>.</p>',
+      '<p class="inrcy-visio-lead inrcy-visio-lead-compact">Prévoyez <strong>30 à 45 minutes</strong> pour découvrir iNrCy, échanger sur vos besoins et profiter de la création offerte de vos canaux. Créneaux du lundi au samedi.</p>',
       '<div class="inrcy-visio-week-nav" aria-label="Changer de semaine">',
       '<button class="inrcy-visio-week-arrow" data-action="week-prev" type="button" aria-label="Semaine précédente">‹</button>',
       '<strong class="inrcy-visio-week-label" aria-live="polite"></strong>',
@@ -165,16 +236,16 @@
 
   function renderWeek(pageIndex) {
     if (!dialogRoot || !availability.length) return;
-    var totalWeeks = Math.ceil(availability.length / DAYS_PER_WEEK);
+    var totalWeeks = Math.ceil(availability.length / DAYS_PER_PAGE);
     currentWeekPage = Math.max(0, Math.min(pageIndex, totalWeeks - 1));
-    var firstDayIndex = currentWeekPage * DAYS_PER_WEEK;
-    var visibleDays = availability.slice(firstDayIndex, firstDayIndex + DAYS_PER_WEEK);
+    var firstDayIndex = currentWeekPage * DAYS_PER_PAGE;
+    var visibleDays = availability.slice(firstDayIndex, firstDayIndex + DAYS_PER_PAGE);
     var days = dialogRoot.querySelector(".inrcy-visio-days");
     var label = dialogRoot.querySelector(".inrcy-visio-week-label");
     var previousWeek = dialogRoot.querySelector("[data-action='week-prev']");
     var nextWeek = dialogRoot.querySelector("[data-action='week-next']");
 
-    label.textContent = "Semaine " + (currentWeekPage + 1) + " / " + totalWeeks;
+    label.textContent = "Créneaux " + (currentWeekPage + 1) + " / " + totalWeeks;
     previousWeek.disabled = currentWeekPage === 0;
     nextWeek.disabled = currentWeekPage === totalWeeks - 1;
     days.innerHTML = visibleDays.map(function (day, index) {
@@ -219,18 +290,24 @@
         selectedStart = button.getAttribute("data-start") || "";
         selection.textContent = day.label + " à " + button.textContent.trim();
         submit.disabled = !selectedStart;
+        trackFunnel("slot_selected", 2, { slotStart: selectedStart });
       });
     });
   }
 
   function loadAvailability() {
+    trackFunnel("booking_started", 2);
     loadingView();
     apiPost(config.availabilityUrl, { token: currentToken })
       .then(function (payload) {
         availability = Array.isArray(payload.days) ? payload.days : [];
+        trackFunnel("availability_loaded", 2, { availabilityDays: availability.length });
         showAvailability();
       })
-      .catch(showError);
+      .catch(function (error) {
+        trackFunnel("availability_failed", 2, { errorCode: error && error.code });
+        showError(error);
+      });
   }
 
   function bookSelected() {
@@ -239,9 +316,17 @@
     button.disabled = true;
     button.classList.add("is-loading");
     button.querySelector("span").textContent = "Réservation en cours…";
+    trackFunnel("booking_submitted", 2, { slotStart: selectedStart });
     apiPost(config.bookingUrl, { token: currentToken, start: selectedStart })
-      .then(function (payload) { showConfirmation(payload.booking || {}); })
+      .then(function (payload) {
+        trackFunnel("booking_completed", 3, { slotStart: selectedStart });
+        showConfirmation(payload.booking || {});
+      })
       .catch(function (error) {
+        trackFunnel("booking_failed", 2, {
+          errorCode: error && error.code,
+          slotStart: selectedStart,
+        });
         if (error && error.code === "visio_slot_unavailable") {
           selectedStart = "";
           loadAvailability();
@@ -252,6 +337,8 @@
   }
 
   function showConfirmation(booking) {
+    hasCompletedBooking = true;
+    removeReopenButton();
     var meetButton = booking.meetUrl
       ? '<a class="inrcy-visio-primary" href="' + escapeHtml(booking.meetUrl) + '" target="_blank" rel="noopener"><span>Ouvrir Google Meet</span><i aria-hidden="true">↗</i></a>'
       : '';
@@ -260,10 +347,10 @@
       '<p class="inrcy-visio-eyebrow">RENDEZ-VOUS CONFIRMÉ</p>',
       '<h2 id="inrcy-visio-title">C’est réservé&nbsp;!</h2>',
       '<div class="inrcy-visio-confirm-card">',
-      '<span aria-hidden="true">📅</span><div><b>' + escapeHtml(booking.dateLabel || '') + '</b><strong>' + escapeHtml(booking.timeLabel || '') + ' – 1 heure</strong></div>',
+      '<span aria-hidden="true">📅</span><div><b>' + escapeHtml(booking.dateLabel || '') + '</b><strong>' + escapeHtml(booking.timeLabel || '') + ' – 30 à 45 minutes</strong></div>',
       '</div>',
       '<p class="inrcy-visio-lead inrcy-visio-lead-compact">Votre rendez-vous aura lieu avec <strong>un membre de l’équipe iNrCy</strong>. L’invitation Google Agenda et le lien Meet vous sont envoyés par e-mail.</p>',
-      '<div class="inrcy-visio-actions">' + meetButton + '<button class="inrcy-visio-secondary" data-action="skip" type="button">Terminer</button></div>',
+      '<div class="inrcy-visio-actions">' + meetButton + '<button class="inrcy-visio-secondary" data-action="finish" type="button">Terminer</button></div>',
     ].join(""), { step: 3 });
   }
 
@@ -282,12 +369,17 @@
   function bindCommonActions() {
     if (!dialogRoot) return;
     var close = dialogRoot.querySelector(".inrcy-visio-close");
-    if (close) close.addEventListener("click", closeDialog);
-    dialogRoot.querySelectorAll("[data-action='skip']").forEach(function (button) { button.addEventListener("click", closeDialog); });
+    if (close) close.addEventListener("click", function () { closeDialog("close"); });
+    dialogRoot.querySelectorAll("[data-action='skip']").forEach(function (button) {
+      button.addEventListener("click", function () { closeDialog("skip"); });
+    });
+    dialogRoot.querySelectorAll("[data-action='finish']").forEach(function (button) {
+      button.addEventListener("click", function () { closeDialog("finish"); });
+    });
     var choose = dialogRoot.querySelector("[data-action='choose']");
     if (choose) choose.addEventListener("click", loadAvailability);
     var back = dialogRoot.querySelector("[data-action='back']");
-    if (back) back.addEventListener("click", function () { openDialog(currentToken); });
+    if (back) back.addEventListener("click", showIntro);
     var retry = dialogRoot.querySelector("[data-action='retry']");
     if (retry) retry.addEventListener("click", loadAvailability);
     var book = dialogRoot.querySelector("[data-action='book']");
@@ -297,7 +389,7 @@
   document.addEventListener("keydown", function (event) {
     if (!dialogRoot) return;
     if (event.key === "Escape") {
-      closeDialog();
+      closeDialog("close");
       return;
     }
     if (event.key !== "Tab") return;
@@ -318,7 +410,18 @@
     $(document).on("submit_success.inrcyVisioBooking", function (event, response) {
       var token = findBookingToken(response, 0);
       if (!token) return;
-      window.setTimeout(function () { openDialog(token); }, 180);
+      window.setTimeout(function () { openDialog(token, "signup_success"); }, 180);
     });
   }
+
+  function openBookingLinkFromHash() {
+    if (!window.location.hash) return;
+    var parameters = new URLSearchParams(window.location.hash.slice(1));
+    var token = parameters.get("inrcy-booking") || "";
+    if (!token) return;
+    window.history.replaceState(null, document.title, window.location.pathname + window.location.search);
+    window.setTimeout(function () { openDialog(token, "email_link"); }, 80);
+  }
+
+  openBookingLinkFromHash();
 })(window.jQuery);

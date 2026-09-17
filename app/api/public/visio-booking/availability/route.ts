@@ -7,6 +7,10 @@ import {
   withVisioCors,
 } from "@/lib/visioBookingCors";
 import { getVisioAvailability } from "@/lib/visioBookingGoogle";
+import {
+  VISIO_BOOKING_DURATION_MINUTES,
+  VISIO_BOOKING_SPACING_MINUTES,
+} from "@/lib/visioBookingPolicy";
 import { verifyVisioBookingToken } from "@/lib/visioBookingToken";
 
 export const runtime = "nodejs";
@@ -66,8 +70,8 @@ export async function POST(request: Request) {
     return json(request, {
       ok: true,
       timezone: "Europe/Paris",
-      duration_minutes: 60,
-      spacing_minutes: 120,
+      duration_minutes: VISIO_BOOKING_DURATION_MINUTES,
+      spacing_minutes: VISIO_BOOKING_SPACING_MINUTES,
       days,
     });
   } catch (error) {

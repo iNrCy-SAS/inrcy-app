@@ -1,8 +1,7 @@
 export const VISIO_BOOKING_TIMEZONE = "Europe/Paris";
-export const VISIO_BOOKING_DURATION_MINUTES = 60;
-export const VISIO_BOOKING_SPACING_MINUTES = 120;
-export const VISIO_BOOKING_MAX_CONCURRENT = 2;
-export const VISIO_BOOKING_START_HOURS = [9, 11, 14, 16, 18] as const;
+export const VISIO_BOOKING_DURATION_MINUTES = 45;
+export const VISIO_BOOKING_SPACING_MINUTES = 60;
+export const VISIO_BOOKING_START_HOURS = [9, 10, 11, 12, 13, 14, 15, 16, 17, 18] as const;
 
 export type LocalDateParts = {
   year: number;
@@ -166,15 +165,23 @@ export function chooseBalancedMember(input: {
   members: VisioTeamMember[];
   busyByCalendar: Record<string, BusyPeriod[]>;
   bookingCountByMember: Record<string, number>;
+  bookingCountAtStartByMember?: Record<string, number>;
   start: Date;
 }) {
-  return input.members
-    .filter((member) => isMemberFree(member, input.busyByCalendar, input.start))
+  const freeMembers = input.members.filter((member) =>
+    isMemberFree(member, input.busyByCalendar, input.start),
+  );
+  const candidates = freeMembers.length > 0 ? freeMembers : input.members;
+
+  return candidates
     .sort((left, right) => {
+      const concurrentDelta =
+        (input.bookingCountAtStartByMember?.[left.id] || 0) -
+        (input.bookingCountAtStartByMember?.[right.id] || 0);
       const loadDelta =
         (input.bookingCountByMember[left.id] || 0) -
         (input.bookingCountByMember[right.id] || 0);
-      return loadDelta || left.id.localeCompare(right.id, "fr");
+      return concurrentDelta || loadDelta || left.id.localeCompare(right.id, "fr");
     })[0] || null;
 }
 

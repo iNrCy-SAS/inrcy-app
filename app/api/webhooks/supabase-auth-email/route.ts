@@ -11,6 +11,7 @@ import {
   readStandardWebhookHeaders,
   verifySupabaseAuthEmailHook,
 } from "@/lib/authMailWebhookSecurity";
+import { createVisioBookingToken } from "@/lib/visioBookingToken";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,6 +22,19 @@ function appOrigin() {
     process.env.NEXT_PUBLIC_SITE_URL ||
     "https://app.inrcy.com",
   ).trim();
+}
+
+function inviteBookingUrl(input: { userId: string; email: string }) {
+  const marketingOrigin = String(
+    process.env.INRCY_MARKETING_SITE_URL || "https://inrcy.com",
+  ).trim();
+  const url = new URL("/inscription/", marketingOrigin);
+  url.searchParams.set("lang", "fr");
+  url.hash = `inrcy-booking=${createVisioBookingToken({
+    userId: input.userId,
+    email: input.email,
+  })}`;
+  return url.toString();
 }
 
 function hookError(error: unknown) {
@@ -57,11 +71,15 @@ export async function POST(request: Request) {
       secret: String(process.env.SEND_EMAIL_HOOK_SECRET || ""),
     });
     const payload = parseSupabaseAuthEmailHookPayload(verifiedPayload);
+    const bookingUrl = payload.emailData.action === "invite"
+      ? inviteBookingUrl({ userId: payload.user.id, email: payload.user.email })
+      : undefined;
     const messages = buildPreparedAuthEmails({
       payload,
       hookId: headers.id,
       appOrigin: appOrigin(),
       allowLocalhost: process.env.NODE_ENV !== "production",
+      bookingUrl,
     });
 
     await Promise.all(messages.map((message) => sendPreparedAuthEmail(message)));

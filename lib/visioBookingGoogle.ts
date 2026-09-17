@@ -82,7 +82,6 @@ import {
 } from "@/lib/visioCalendarMirrorPolicy";
 import {
   VISIO_BOOKING_DURATION_MINUTES,
-  VISIO_BOOKING_MAX_CONCURRENT,
   VISIO_BOOKING_SPACING_MINUTES,
   VISIO_BOOKING_START_HOURS,
   VISIO_BOOKING_TIMEZONE,
@@ -1936,12 +1935,20 @@ function eventMemberId(event: GoogleCalendarEvent) {
   return String(event.extendedProperties?.private?.assignedMemberId || "");
 }
 
-function countEventsAtStart(events: GoogleCalendarEvent[], start: Date) {
-  return events.filter((event) => eventStartMs(event) === start.getTime()).length;
-}
-
 function countEventsByMember(events: GoogleCalendarEvent[]) {
   return events.reduce<Record<string, number>>((counts, event) => {
+    const memberId = eventMemberId(event);
+    if (memberId) counts[memberId] = (counts[memberId] || 0) + 1;
+    return counts;
+  }, {});
+}
+
+function countEventsAtStartByMember(
+  events: GoogleCalendarEvent[],
+  start: Date,
+) {
+  return events.reduce<Record<string, number>>((counts, event) => {
+    if (eventStartMs(event) !== start.getTime()) return counts;
     const memberId = eventMemberId(event);
     if (memberId) counts[memberId] = (counts[memberId] || 0) + 1;
     return counts;
@@ -1998,7 +2005,6 @@ function formatFrenchTime(start: Date) {
 }
 
 export async function getVisioAvailability(now = new Date()) {
-  const members = getVisioTeamMembers();
   const horizonDays = getVisioBookingHorizonDays();
   const minimumLeadDays = getVisioBookingMinimumLeadDays();
   const localNow = getLocalDateTimeParts(now);
@@ -2013,31 +2019,8 @@ export async function getVisioAvailability(now = new Date()) {
       }
     }
   }
-  if (candidates.length === 0) return [] as VisioAvailabilityDay[];
-
-  const rangeStart = candidates[0].start;
-  const rangeEnd = new Date(
-    candidates[candidates.length - 1].start.getTime() +
-      VISIO_BOOKING_SPACING_MINUTES * 60_000,
-  );
-  const [busyByCalendar, events] = await Promise.all([
-    readFreeBusy(members, rangeStart, rangeEnd),
-    listAllBookingEvents(rangeStart, rangeEnd),
-  ]);
-
-  const effectiveBusy = addInternalBookingsToBusyPeriods(
-    members,
-    busyByCalendar,
-    events,
-  );
   const grouped = new Map<string, VisioAvailabilityDay>();
   for (const candidate of candidates) {
-    const capacityUsed = countEventsAtStart(events, candidate.start);
-    const hasFreeMember = members.some((member) =>
-      isMemberFree(member, effectiveBusy, candidate.start),
-    );
-    if (capacityUsed >= VISIO_BOOKING_MAX_CONCURRENT || !hasFreeMember) continue;
-
     const day = grouped.get(candidate.date) || {
       date: candidate.date,
       label: formatFrenchDate(candidate.start),
@@ -2790,9 +2773,6 @@ export async function bookVisioSlot(
         findPendingSignupReminder(claims),
       ]);
 
-      if (countEventsAtStart(events, start) >= VISIO_BOOKING_MAX_CONCURRENT) {
-        throw new Error("visio_slot_unavailable");
-      }
       const effectiveBusy = addInternalBookingsToBusyPeriods(
         members,
         busyByCalendar,
@@ -2811,6 +2791,7 @@ export async function bookVisioSlot(
         members,
         busyByCalendar: effectiveBusy,
         bookingCountByMember: countEventsByMember(events),
+        bookingCountAtStartByMember: countEventsAtStartByMember(events, start),
         start,
       });
       if (!member) throw new Error("visio_slot_unavailable");

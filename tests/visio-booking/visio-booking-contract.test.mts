@@ -26,13 +26,20 @@ test("le nouveau OAuth visio reste séparé de l'ancien connecteur iNrCalendar s
   assert.doesNotMatch(start, /\/api\/integrations\/google-calendar/);
 });
 
-test("la réservation impose capacité deux, Meet et invitations", () => {
+test("la réservation autorise les chevauchements tout en équilibrant l'équipe", () => {
   const backend = read("lib/visioBookingGoogle.ts");
+  const policy = read("lib/visioBookingPolicy.ts");
   const eventPolicy = read("lib/visioBookingEventPolicy.ts");
   const lifecycle = read("lib/visioAppointmentLifecycle.ts");
-  assert.match(backend, /VISIO_BOOKING_MAX_CONCURRENT/);
-  assert.match(backend, /listAllBookingEvents\(rangeStart, rangeEnd\)/);
+  const availability = backend.slice(
+    backend.indexOf("export async function getVisioAvailability"),
+    backend.indexOf("function bookingEventId"),
+  );
+  assert.doesNotMatch(backend, /VISIO_BOOKING_MAX_CONCURRENT/);
+  assert.doesNotMatch(availability, /readFreeBusy|listAllBookingEvents/);
   assert.match(backend, /listAllBookingEvents\(loadRangeStart, loadRangeEnd\)/);
+  assert.match(backend, /bookingCountAtStartByMember:\s*countEventsAtStartByMember/);
+  assert.match(policy, /freeMembers\.length > 0 \? freeMembers : input\.members/);
   assert.match(backend, /conferenceDataVersion=1&sendUpdates=all/);
   assert.match(backend, /conferenceSolutionKey:\s*\{ type: "hangoutsMeet" \}/);
   assert.match(backend, /assignedMemberId/);
@@ -306,24 +313,42 @@ test("la modale contient les deux choix et le parcours de confirmation", () => {
   assert.match(plugin, /inrcy_visio_booking_frontend_enabled/);
   assert.match(plugin, /inrcy_visio_test/);
   assert.match(plugin, /current_user_can\('manage_options'\)/);
-  assert.match(script, /Choisir mon créneau/);
-  assert.match(script, /Non, continuer sans rendez-vous/);
+  assert.match(script, /Réserver ma mise en route offerte/);
+  assert.match(script, /Je choisirai plus tard/);
   assert.match(script, /Confirmer ce rendez-vous/);
-  assert.match(script, /DAYS_PER_WEEK\s*=\s*7/);
+  assert.match(script, /DAYS_PER_PAGE\s*=\s*6/);
   assert.match(script, /data-action="week-prev"/);
   assert.match(script, /data-action="week-next"/);
-  assert.match(script, /Prévoyez environ une heure/);
+  assert.match(script, /Prévoyez <strong>30 à 45 minutes<\/strong>/);
+  assert.match(script, /du lundi au samedi/);
+  assert.match(script, /openBookingLinkFromHash/);
+  assert.match(script, /inrcy-visio-reopen/);
+  assert.match(script, /booking_completed/);
+  assert.match(plugin, /trackingUrl.*visio-booking\/event/);
   assert.match(plugin, /logoUrl.*logo-inrcy-transparent\.png/);
   assert.match(script, /inrcy-visio-brand[^\n]+<span>iNrCy<\/span>/);
   assert.match(script, /rendez-vous aura lieu avec <strong>un membre de l’équipe iNrCy<\/strong>/);
   assert.doesNotMatch(script, /booking\.assignedTo/);
-  assert.match(styles, /grid-template-columns:\s*repeat\(7,\s*minmax\(0,\s*1fr\)\)/);
+  assert.match(styles, /grid-template-columns:\s*repeat\(6,\s*minmax\(0,\s*1fr\)\)/);
+  assert.match(styles, /@media \(max-width: 620px\)[\s\S]*?grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
   assert.match(styles, /\.inrcy-visio-dialog\s*\{[\s\S]*?overflow:\s*hidden/);
   assert.match(
     styles,
     /@media \(max-width: 620px\)[\s\S]*?\.inrcy-visio-overlay\s*\{[\s\S]*?align-items:\s*center/,
   );
   assert.match(script, /submit_success\.inrcyVisioBooking/);
+});
+
+test("le tunnel de réservation est suivi sans exposer les e-mails au navigateur", () => {
+  const route = read("app/api/public/visio-booking/event/route.ts");
+  const policy = read("lib/visioBookingFunnel.ts");
+  const migration = read("supabase/migrations/20260917075100_visio_booking_funnel_events.sql");
+  assert.match(route, /verifyVisioBookingToken/);
+  assert.match(route, /rejectUntrustedVisioOrigin/);
+  assert.match(policy, /prospect_user_id:\s*input\.claims\.sub/);
+  assert.doesNotMatch(policy, /claims\.email/);
+  assert.match(migration, /enable row level security/);
+  assert.match(migration, /revoke all.*anon, authenticated/);
 });
 
 test("le délai par défaut autorise les réservations dès le lendemain", () => {

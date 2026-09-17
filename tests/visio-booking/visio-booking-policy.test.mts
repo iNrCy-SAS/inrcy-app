@@ -20,10 +20,10 @@ const members: VisioTeamMember[] = [
   { id: "jimmy", name: "Jimmy", email: "jimmy@example.com", calendarId: "jimmy" },
 ];
 
-test("les cinq horaires attendus sont proposés", () => {
-  assert.deepEqual([...VISIO_BOOKING_START_HOURS], [9, 11, 14, 16, 18]);
-  assert.equal(VISIO_BOOKING_DURATION_MINUTES, 60);
-  assert.equal(VISIO_BOOKING_SPACING_MINUTES, 120);
+test("un créneau horaire est proposé de 9 h à 18 h", () => {
+  assert.deepEqual([...VISIO_BOOKING_START_HOURS], [9, 10, 11, 12, 13, 14, 15, 16, 17, 18]);
+  assert.equal(VISIO_BOOKING_DURATION_MINUTES, 45);
+  assert.equal(VISIO_BOOKING_SPACING_MINUTES, 60);
 });
 
 test("une heure locale de Paris est convertie correctement avant et après le changement d'heure", () => {
@@ -58,7 +58,7 @@ test("les dimanches, horaires hors grille et délais calendaires trop courts son
   );
   assert.equal(
     isAllowedVisioStart({
-      start: new Date("2026-09-07T08:00:00.000Z"),
+      start: new Date("2026-09-07T08:30:00.000Z"),
       now,
       horizonDays: 21,
       minimumLeadDays: 1,
@@ -141,12 +141,12 @@ test("le jour même est refusé mais tous les horaires du lendemain sont permis"
   );
 });
 
-test("un rendez-vous existant dans la fenêtre de deux heures bloque la personne", () => {
+test("un rendez-vous existant dans la fenêtre d'une heure bloque la personne", () => {
   const start = new Date("2026-09-07T07:00:00.000Z");
   assert.equal(
     isMemberFree(
       members[0],
-      { oceane: [{ start: "2026-09-07T08:00:00.000Z", end: "2026-09-07T09:00:00.000Z" }] },
+      { oceane: [{ start: "2026-09-07T07:30:00.000Z", end: "2026-09-07T08:30:00.000Z" }] },
       start,
     ),
     false,
@@ -166,4 +166,19 @@ test("l'attribution choisit la personne disponible ayant le moins de rendez-vous
     start: new Date("2026-09-07T07:00:00.000Z"),
   });
   assert.equal(selected?.id, "apolline");
+});
+
+test("si les trois agendas sont occupés, l'attribution autorise le chevauchement le moins chargé", () => {
+  const selected = chooseBalancedMember({
+    members,
+    busyByCalendar: {
+      oceane: [{ start: "2026-09-07T07:00:00.000Z", end: "2026-09-07T08:00:00.000Z" }],
+      apolline: [{ start: "2026-09-07T07:00:00.000Z", end: "2026-09-07T08:00:00.000Z" }],
+      jimmy: [{ start: "2026-09-07T07:00:00.000Z", end: "2026-09-07T08:00:00.000Z" }],
+    },
+    bookingCountByMember: { oceane: 3, apolline: 5, jimmy: 2 },
+    bookingCountAtStartByMember: { oceane: 2, apolline: 1, jimmy: 1 },
+    start: new Date("2026-09-07T07:00:00.000Z"),
+  });
+  assert.equal(selected?.id, "jimmy");
 });

@@ -5,7 +5,7 @@ import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { optionalEnv, requireEnv } from "@/lib/env";
 
 const TOKEN_VERSION = 1;
-const DEFAULT_TTL_SECONDS = 2 * 60 * 60;
+const DEFAULT_TTL_SECONDS = 21 * 24 * 60 * 60;
 
 export type VisioBookingClaims = {
   v: 1;
@@ -44,7 +44,7 @@ export function createVisioBookingToken(input: {
     optionalEnv("INRCY_VISIO_BOOKING_TOKEN_TTL_SECONDS", String(DEFAULT_TTL_SECONDS)),
   );
   const ttlSeconds = Math.min(
-    24 * 60 * 60,
+    30 * 24 * 60 * 60,
     Math.max(
       15 * 60,
       Math.floor(

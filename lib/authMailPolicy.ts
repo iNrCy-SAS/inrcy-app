@@ -327,6 +327,7 @@ function emailDocument(args: {
   displayName: string;
   cta?: string;
   actionUrl?: string;
+  bookingUrl?: string;
   code?: string;
   language: string;
 }) {
@@ -342,16 +343,25 @@ function emailDocument(args: {
   const actionText = args.actionUrl && args.cta
     ? `\n\n${args.cta}: ${args.actionUrl}`
     : "";
+  const bookingCta = args.language === "fr"
+    ? "Réserver ma mise en route offerte (30 à 45 min)"
+    : "Book my free setup session (30 to 45 min)";
+  const bookingText = args.bookingUrl
+    ? `\n\n${bookingCta}: ${args.bookingUrl}`
+    : "";
   const codeText = args.code ? `\n\n${args.code}` : "";
-  const text = `${greeting}\n\n${args.body}${actionText}${codeText}\n\n${args.actionUrl ? expiry : safety}\n\nL’équipe iNrCy`;
+  const text = `${greeting}\n\n${args.body}${actionText}${bookingText}${codeText}\n\n${args.actionUrl ? expiry : safety}\n\nL’équipe iNrCy`;
 
   const actionHtml = args.actionUrl && args.cta
     ? `<p style="margin:28px 0"><a href="${escapeHtml(args.actionUrl)}" style="display:inline-block;padding:14px 22px;border-radius:12px;background:linear-gradient(90deg,#25bff5,#8a5cff,#eb3faf);color:#fff;text-decoration:none;font-weight:700">${escapeHtml(args.cta)}</a></p>`
     : "";
+  const bookingHtml = args.bookingUrl
+    ? `<div style="margin:24px 0;padding:18px;border:1px solid #34558f;border-radius:14px;background:#101f42"><p style="margin:0 0 8px;font-size:16px;font-weight:800;color:#fff">${escapeHtml(args.language === "fr" ? "Bien démarrer avec iNrCy" : "Get started with iNrCy")}</p><p style="margin:0 0 16px;font-size:14px;line-height:1.5;color:#b8c9e8">${escapeHtml(args.language === "fr" ? "Choisissez dès maintenant votre créneau, du lundi au samedi." : "Choose your time now, Monday through Saturday.")}</p><a href="${escapeHtml(args.bookingUrl)}" style="display:inline-block;padding:12px 18px;border:1px solid #55d7ff;border-radius:11px;color:#eafaff;text-decoration:none;font-weight:700">${escapeHtml(bookingCta)}</a></div>`
+    : "";
   const codeHtml = args.code
     ? `<div style="margin:24px 0;padding:16px;border:1px solid #384a75;border-radius:12px;background:#111c38;font-size:28px;font-weight:800;letter-spacing:6px;text-align:center;color:#fff">${escapeHtml(args.code)}</div>`
     : "";
-  const html = `<!doctype html><html lang="${escapeHtml(args.language)}"><body style="margin:0;background:#071127;color:#f7f9ff;font-family:Arial,sans-serif"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#071127;padding:28px 12px"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;background:#0d1833;border:1px solid #26385f;border-radius:18px"><tr><td style="padding:30px"><div style="font-size:24px;font-weight:800;color:#fff">iNrCy</div><h1 style="font-size:26px;line-height:1.2;margin:28px 0 18px;color:#fff">${escapeHtml(args.title)}</h1><p style="font-size:16px;line-height:1.6;color:#dce5fa">${escapeHtml(greeting)}</p><p style="font-size:16px;line-height:1.6;color:#dce5fa">${escapeHtml(args.body)}</p>${actionHtml}${codeHtml}<p style="font-size:13px;line-height:1.6;color:#98a8c9">${escapeHtml(args.actionUrl ? expiry : safety)}</p><p style="font-size:14px;color:#dce5fa">L’équipe iNrCy</p></td></tr></table></td></tr></table></body></html>`;
+  const html = `<!doctype html><html lang="${escapeHtml(args.language)}"><body style="margin:0;background:#071127;color:#f7f9ff;font-family:Arial,sans-serif"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#071127;padding:28px 12px"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;background:#0d1833;border:1px solid #26385f;border-radius:18px"><tr><td style="padding:30px"><div style="font-size:24px;font-weight:800;color:#fff">iNrCy</div><h1 style="font-size:26px;line-height:1.2;margin:28px 0 18px;color:#fff">${escapeHtml(args.title)}</h1><p style="font-size:16px;line-height:1.6;color:#dce5fa">${escapeHtml(greeting)}</p><p style="font-size:16px;line-height:1.6;color:#dce5fa">${escapeHtml(args.body)}</p>${actionHtml}${bookingHtml}${codeHtml}<p style="font-size:13px;line-height:1.6;color:#98a8c9">${escapeHtml(args.actionUrl ? expiry : safety)}</p><p style="font-size:14px;color:#dce5fa">L’équipe iNrCy</p></td></tr></table></td></tr></table></body></html>`;
   return { text, html };
 }
 
@@ -381,6 +391,7 @@ export function buildPreparedAuthEmails(args: {
   hookId: string;
   appOrigin: string;
   allowLocalhost?: boolean;
+  bookingUrl?: string;
 }) {
   const { payload } = args;
   const action = payload.emailData.action;
@@ -437,6 +448,7 @@ export function buildPreparedAuthEmails(args: {
       ...copy,
       displayName: name,
       actionUrl,
+      bookingUrl: action === "invite" ? args.bookingUrl : undefined,
       code: candidate.code,
       language,
     });

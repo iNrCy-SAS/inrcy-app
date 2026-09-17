@@ -82,6 +82,30 @@ test("builds one deterministic invitation with one clean query string", () => {
   assert.equal((urlText.match(/\?/g) || []).length, 1);
 });
 
+test("adds the durable booking call-to-action to invitation emails only", () => {
+  const bookingUrl = "https://inrcy.com/inscription/?lang=fr#inrcy-booking=token.signature";
+  const invitation = buildPreparedAuthEmails({
+    payload: parseSupabaseAuthEmailHookPayload(rawPayload()),
+    hookId: "hook-invite-booking",
+    appOrigin: "https://app.inrcy.com",
+    bookingUrl,
+  })[0];
+  assert.match(invitation.text, /Réserver ma mise en route offerte \(30 à 45 min\)/);
+  assert.match(invitation.text, /#inrcy-booking=token\.signature/);
+  assert.match(invitation.html, /Bien démarrer avec iNrCy/);
+
+  const recoveryPayload = rawPayload();
+  recoveryPayload.email_data.email_action_type = "recovery";
+  recoveryPayload.email_data.redirect_to = "https://app.inrcy.com/auth/finish-reset/fr";
+  const recovery = buildPreparedAuthEmails({
+    payload: parseSupabaseAuthEmailHookPayload(recoveryPayload),
+    hookId: "hook-recovery-no-booking",
+    appOrigin: "https://app.inrcy.com",
+    bookingUrl,
+  })[0];
+  assert.doesNotMatch(recovery.text, /inrcy-booking/);
+});
+
 test("rejects a redirect to an untrusted origin", () => {
   const source = rawPayload();
   source.email_data.redirect_to = "https://attacker.example/steal";

@@ -44,7 +44,7 @@ function publicError(request: Request, error: unknown) {
       {
         ok: false,
         code: "visio_slot_unavailable",
-        error: "Ce créneau vient d’être réservé. Choisissez-en un autre.",
+        error: "Une réservation est en cours sur ce créneau. Réessayez dans un instant.",
       },
       409,
     );
