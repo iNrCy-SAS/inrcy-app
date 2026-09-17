@@ -20,6 +20,8 @@ import {
   updateAsyncPublicationJobEvent,
 } from "@/lib/boosterAsyncPublication";
 import { getBoosterCronSweepPlan } from "@/lib/boosterCronScheduling";
+import { parseBoosterDispatchRetryAfterMs } from "@/lib/boosterCronDispatchPolicy";
+import { log } from "@/lib/observability/logger";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -40,6 +42,7 @@ type AsyncEventCandidateRow = {
 };
 type AsyncChannelCandidateRow = AsyncEventCandidateRow & {
   candidate_channel?: unknown;
+  candidate_dispatch_deferred_until?: unknown;
   candidate_instagram_checkpoint?: unknown;
   candidate_instagram_next_poll_at?: unknown;
   candidate_instagram_rate_limit_next_run_at?: unknown;
@@ -100,6 +103,7 @@ const ASYNC_EVENT_CANDIDATE_COLUMNS = [
 const ASYNC_CHANNEL_CANDIDATE_COLUMNS = [
   ASYNC_EVENT_CANDIDATE_COLUMNS,
   "candidate_channel:payload->>channel",
+  "candidate_dispatch_deferred_until:payload->>dispatchDeferredUntil",
   "candidate_instagram_checkpoint:payload->instagramVideoCheckpoint",
   "candidate_instagram_next_poll_at:payload->>instagramVideoNextPollAt",
   "candidate_instagram_rate_limit_next_run_at:payload->>instagramRateLimitNextRunAt",
@@ -145,6 +149,7 @@ function candidateKey(row: Pick<AsyncEventCandidateRow, "id" | "user_id">) {
 }
 
 function isChannelCandidateDue(row: AsyncChannelCandidateRow, nowMs: number) {
+  if (timestampMs(row.candidate_dispatch_deferred_until) > nowMs) return false;
   const channel = String(row.candidate_channel || "").trim();
   const instagramCheckpoint = asRecord(row.candidate_instagram_checkpoint);
   const hasYoutubeCheckpoint =
@@ -496,6 +501,14 @@ async function dispatchChannelJob(job: AsyncDispatchJob, appOrigin: string) {
     return;
   }
 
+  const retainedAttemptPatch: JsonRecord = job.instagramVideoContinuation
+    ? { instagramContinuationAttempt: job.instagramContinuationAttempt }
+    : job.youtubeUploadContinuation
+      ? { youtubeContinuationAttempt: job.youtubeContinuationAttempt }
+      : job.pinterestVideoContinuation
+        ? { pinterestContinuationAttempt: job.pinterestContinuationAttempt }
+        : { attempt: job.attempt };
+
   try {
     await updateAsyncChannelEvent({
       userId: job.userId,
@@ -517,6 +530,7 @@ async function dispatchChannelJob(job: AsyncDispatchJob, appOrigin: string) {
                     job.pinterestContinuationAttempt + 1,
                 }
               : { attempt: job.attempt + 1 }),
+        dispatchDeferredUntil: null,
         lastDispatchAt: new Date().toISOString(),
       },
     });
@@ -546,6 +560,33 @@ async function dispatchChannelJob(job: AsyncDispatchJob, appOrigin: string) {
       }),
       cache: "no-store",
     });
+    if (response.status === 425) {
+      const nowMs = Date.now();
+      const retryAfterMs = parseBoosterDispatchRetryAfterMs(
+        response.headers.get("retry-after"),
+        nowMs,
+      );
+      const deferredUntil = new Date(nowMs + retryAfterMs).toISOString();
+      await updateAsyncChannelEvent({
+        userId: job.userId,
+        eventId: job.id,
+        patch: {
+          ...retainedAttemptPatch,
+          dispatchDeferredUntil: deferredUntil,
+          lastDispatchDeferredAt: new Date(nowMs).toISOString(),
+          lastDispatchHttpStatus: 425,
+        },
+      });
+      log.info("booster_channel_dispatch_deferred", {
+        route: "/api/cron/booster-publications",
+        publication_id: job.publicationId,
+        channel: job.channel,
+        status_code: 425,
+        retry_after_ms: retryAfterMs,
+        deferred_until: deferredUntil,
+      });
+      return;
+    }
     if (!response.ok) {
       throw new Error(`channel_dispatch_http_${response.status}`);
     }
