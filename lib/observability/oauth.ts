@@ -30,6 +30,8 @@ function isUserResolvableOAuthException(message: string): boolean {
     'request had insufficient authentication scopes',
     'aucune propriété ga4 ne correspond à ce domaine',
     'aucune propriete ga4 ne correspond a ce domaine',
+    'plusieurs propriétés ga4 correspondent à ce domaine',
+    'plusieurs proprietes ga4 correspondent a ce domaine',
     'aucune propriété search console ne correspond',
     'aucune propriete search console ne correspond',
     'access_denied',
@@ -52,10 +54,29 @@ function isUserResolvableOAuthInput(input: OAuthEventInput): boolean {
   return isUserResolvableOAuthException(`${String(input.error || '')} ${String(input.message || '')}`);
 }
 
+function isExpectedHandledOAuthMessage(message: string): boolean {
+  const raw = String(message || '').toLowerCase();
+  return [
+    'access_denied',
+    'user_denied',
+    'plusieurs propriétés ga4 correspondent à ce domaine',
+    'plusieurs proprietes ga4 correspondent a ce domaine',
+  ].some((needle) => raw.includes(needle));
+}
+
+function isExpectedHandledOAuthInput(input: OAuthEventInput): boolean {
+  return input.outcome === 'cancelled' || isExpectedHandledOAuthMessage(
+    `${String(input.error || '')} ${String(input.message || '')}`,
+  );
+}
+
 function levelForOAuthEvent(input: OAuthEventInput): 'info' | 'warn' | 'error' {
-  if (input.outcome === 'success' || input.outcome === 'started') return 'info';
   if (
-    input.outcome === 'cancelled' ||
+    input.outcome === 'success' ||
+    input.outcome === 'started' ||
+    isExpectedHandledOAuthInput(input)
+  ) return 'info';
+  if (
     input.outcome === 'state_invalid' ||
     input.outcome === 'not_authenticated' ||
     (input.outcome === 'failed' && isUserResolvableOAuthInput(input))
@@ -133,7 +154,11 @@ export function oauthCallbackException(
   const meta = getRequestMeta(req);
   const message = error instanceof Error ? error.message : String(error);
 
-  const logLevel = isUserResolvableOAuthException(message) ? 'warn' : 'error';
+  const logLevel = isExpectedHandledOAuthMessage(message)
+    ? 'info'
+    : isUserResolvableOAuthException(message)
+      ? 'warn'
+      : 'error';
   log[logLevel]('oauth_callback_exception', {
     request_id,
     route: meta.pathname,

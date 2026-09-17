@@ -1498,13 +1498,14 @@ export async function buildStatsOverview(args: {
           if (reconnectPersisted) {
             sourcesStatus.gmb.connected = false;
           }
-          log.warn("gmb_stats_refresh_failed", {
+          log[reconnectPersisted ? "info" : "warn"]("gmb_stats_refresh_failed", {
             user_id: userId,
             stage: "provider_metrics",
             connected: sourcesStatus.gmb.connected,
             has_location: Boolean(loc),
             has_account: Boolean(channelStates.gmb.account_name),
             error_message: getErrorMessage(e).slice(0, 500),
+            handled: reconnectPersisted,
           });
           sourcesStatus.gmb.metrics = {
             error: getSimpleFrenchErrorMessage(
@@ -1522,13 +1523,14 @@ export async function buildStatsOverview(args: {
           // waiting for the next Dashboard poll.
           sourcesStatus.gmb.connected = false;
         }
-        log.warn("gmb_stats_target_missing", {
+        log.info("gmb_stats_target_missing", {
           user_id: userId,
           stage: "provider_metrics_precheck",
           connected: sourcesStatus.gmb.connected,
           has_location: Boolean(loc),
           has_account: Boolean(channelStates.gmb.account_name),
           connection_status: channelStates.gmb.connection_status,
+          handled: true,
         });
         sourcesStatus.gmb.metrics = null;
       }

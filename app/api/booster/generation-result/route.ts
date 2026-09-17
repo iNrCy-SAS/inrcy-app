@@ -7,6 +7,7 @@ import {
   readBoosterGenerationRecoveryPayload,
 } from "@/lib/boosterGenerationRecovery";
 import { withApi } from "@/lib/observability/withApi";
+import { log } from "@/lib/observability/logger";
 
 export const runtime = "nodejs";
 
@@ -85,11 +86,12 @@ const handler = async (request: Request) => {
     );
   }
 
-  console.warn("[booster-generation-recovery] persisted result recovered", {
-    workspaceId,
-    generationRequestId,
-    generatedAt: recovery.generatedAt || null,
-    channelCount: Object.keys(recovery.versions).length,
+  log.info("booster_generation_result_recovered", {
+    route: "/api/booster/generation-result",
+    workspace_id: workspaceId,
+    generation_request_id: generationRequestId,
+    generated_at: recovery.generatedAt || null,
+    channel_count: Object.keys(recovery.versions).length,
   });
 
   return noStoreJson({

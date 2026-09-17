@@ -131,7 +131,10 @@ export async function GET() {
     new Set(discovery.diagnostics.issues.map((issue) => issue.subcode).filter((value): value is number => value !== null)),
   );
 
-  log.warn("instagram_account_discovery_empty", {
+  const discoveryHasProviderFailure =
+    discovery.diagnostics.successful_token_count === 0 &&
+    nonOptionalIssues.length > 0;
+  log[discoveryHasProviderFailure ? "warn" : "info"]("instagram_account_discovery_empty", {
     user_id: activeUserId,
     page_count: discovery.pages.length,
     token_count: discovery.diagnostics.token_count,
@@ -144,6 +147,7 @@ export async function GET() {
     meta_error_subcodes: metaErrorSubcodes,
     permission_checks_succeeded: successfulPermissionChecks.length,
     missing_permissions: requiredMissingForBestToken,
+    handled: !discoveryHasProviderFailure,
   });
 
   if (allPermissionChecksSucceeded && !completePermissionCheck) {

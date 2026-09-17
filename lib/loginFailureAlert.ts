@@ -468,7 +468,7 @@ export async function processLoginFailureSignal(
     email_fingerprint: context.emailFingerprint,
     ip_fingerprint: context.ipFingerprint,
   };
-  if (outcome.status === "sent") log.warn("login_failure_alert_sent", logContext);
+  if (outcome.status === "sent") log.info("login_failure_alert_sent", logContext);
   else if (outcome.status === "globally_limited") {
     log.warn("login_failure_alert_globally_limited", logContext);
   } else log.info("login_failure_signal_processed", logContext);

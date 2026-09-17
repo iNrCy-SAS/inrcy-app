@@ -167,6 +167,22 @@ function getFriendlyOtpError(error: unknown, mode: FinishMode) {
   return raw;
 }
 
+function isExpectedExpiredOtpError(error: unknown) {
+  const code = String(passwordWriteErrorCode(error) || "").toLowerCase();
+  if (["otp_expired", "otp_disabled", "flow_state_expired"].includes(code)) {
+    return true;
+  }
+  const message =
+    error instanceof Error
+      ? error.message
+      : error && typeof error === "object"
+        ? String((error as { message?: unknown }).message || "")
+        : String(error || "");
+  return /otp.{0,30}expir|email link is invalid or has expired|link.{0,30}expir/i.test(
+    message,
+  );
+}
+
 export async function GET(req: NextRequest) {
   const mode = readMode(req.nextUrl.searchParams.get("mode"));
   const expectedEmail = normalizeEmail(req.nextUrl.searchParams.get("email"));
@@ -309,11 +325,13 @@ export async function POST(req: NextRequest) {
       });
 
       if (verifyError) {
-        log.warn("auth_password_link_rejected", {
+        const expectedExpiredLink = isExpectedExpiredOtpError(verifyError);
+        log[expectedExpiredLink ? "info" : "warn"]("auth_password_link_rejected", {
           route: "/api/auth/finish-password",
           stage: "verify_otp",
           mode,
           error_code: passwordWriteErrorCode(verifyError),
+          handled: expectedExpiredLink,
         });
         const response = json(
           {
