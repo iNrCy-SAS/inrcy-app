@@ -10,10 +10,14 @@ import {
   buildAiLanguageInstruction,
   getAiEngineTemperature,
   buildAiWritingProfilePromptSection,
-  buildAiWritingProfileRules,
+  buildCompactAiWritingDirective,
 } from "@/lib/aiWritingProfile";
 import { buildNormalizedAiGenerationProfile } from "@/lib/aiGenerationProfile";
 import { getAiProfessionalGenerationContext } from "@/lib/aiProfessionalGenerationContext";
+import {
+  buildGoogleReviewReplyPrompt,
+  GOOGLE_REVIEW_REPLY_RESPONSE_SCHEMA,
+} from "@/lib/googleReviewReplyPrompt";
 import {
   commitAiCredits,
   computeReviewReplyAiCredits,
@@ -26,8 +30,7 @@ import {
 export const maxDuration = 60;
 
 type GeneratedReviewReply = {
-  reply_text?: unknown;
-  comment?: unknown;
+  reply_text: string;
 };
 
 const MAX_REVIEW_COMMENT_LENGTH = 2500;
@@ -193,7 +196,10 @@ export async function POST(req: Request) {
     const services = listFrom(businessContext.services, 10);
     const strengths = listFrom(businessContext.strengths, 8);
     const aiConfig = buildAiWritingProfilePromptSection(generationProfile);
-    const aiRules = buildAiWritingProfileRules(generationProfile, preferredEngine);
+    const aiDirective = buildCompactAiWritingDirective(
+      generationProfile,
+      generationProfile.preferences.engine,
+    );
     const aiLanguageInstruction = buildAiLanguageInstruction(generationProfile);
     const variationSeed = stableHash([reviewName, reviewerName, rating, reviewComment, company].join("|"));
     const openingVariant = pickVariant([
@@ -219,56 +225,27 @@ export async function POST(req: Request) {
       ? `Tu peux ajouter une courte signature personnalisée seulement de temps en temps (environ une réponse sur trois maximum), par exemple : ${signatureOptions.join(" | ")}.`
       : "Tu peux ajouter une courte signature de temps en temps (par exemple : — L’équipe), mais jamais systématiquement.";
 
-    const system = `Tu es l'assistant IA d'iNrCy spécialisé dans les réponses aux avis Google Business.
-Réponds uniquement en JSON valide : {"reply_text":"..."}.
-Objectif : proposer une réponse courte, humaine, professionnelle et prête à publier sur Google.
-Règles strictes :
-- Répondre au nom de l'entreprise, jamais au nom d'iNrCy.
-- Ne jamais inventer de fait, prix, geste commercial, garantie, délai, certification ou promesse.
-- Ne jamais divulguer d'information privée ou sensible.
-- Si l'avis est négatif ou mitigé : rester calme, empathique, remercier, reconnaître le ressenti sans admettre une faute non établie, proposer un échange direct.
-- Si l'avis est positif : remercier naturellement, valoriser l'équipe/le service sans surjouer.
-- Si l'avis ne contient pas de commentaire écrit : produire une réponse simple adaptée à la note.
-- Adapter clairement le ton selon la note : 5★ chaleureux et valorisant ; 4★ positif avec nuance ; 3★ neutre et ouvert ; 1–2★ empathique, calme et orienté résolution.
-- Varier fortement les formulations d'un avis à l'autre : éviter les copier-coller et les ouvertures répétitives.
-- Éviter si possible les phrases trop vues comme « Merci beaucoup pour votre excellente note » ou « Nous sommes ravis de savoir que notre service vous satisfait » si une formulation plus naturelle peut être proposée.
-- Ajouter une courte signature personnalisée seulement de temps en temps, jamais systématiquement.
-- Pas de markdown, pas de HTML, pas de hashtag, pas de formule lourde.
-- Une réponse Google doit rester concise et proportionnée à l'avis. Ne force pas un nombre fixe de phrases : une réponse très courte peut suffire, une réponse négative peut nécessiter un peu plus de matière.
-- Respecter la Configuration IA du professionnel quand elle est compatible avec une réponse d'avis Google.
-${aiLanguageInstruction}
-${aiRules}`;
-
-    const input = `Entreprise : ${company || target.locationTitle || "Non précisée"}
-Ville : ${city || "Non précisée"}
-Secteur : ${sectorLabel || "Non précisé"}
-Métier : ${profession || "Non précisé"}
-Description activité : ${activityDescription || "Non précisée"}
-Prestations : ${services.length ? services.join(", ") : "Non précisées"}
-Forces : ${strengths.length ? strengths.join(", ") : "Non précisées"}
-Fiche Google : ${target.locationTitle || "Fiche Google Business"}
-
-Configuration IA :
-${aiConfig || "- Non précisée"}
-
-Instruction de langue prioritaire :
-${aiLanguageInstruction}
-
-Pistes facultatives anti-répétition pour cette réponse :
-- Angle d’ouverture : ${openingVariant}
-- Style attendu : ${toneVariant}
-- Clôture : ${closingVariant}
-- Signature : ${signatureInstruction}
-
-Ces pistes sont des inspirations, pas un plan obligatoire. Si une autre construction naturelle convient mieux au moteur actif et à l'avis, utilise-la.
-
-Avis Google à traiter :
-- Auteur : ${reviewerName}
-- Note : ${rating || "Non précisée"}/5
-- Commentaire : ${reviewComment || "Avis sans commentaire écrit."}
-${existingReply ? `\nRéponse actuelle à améliorer/modifier :\n${existingReply}\n` : ""}
-
-Génère une seule réponse prête à publier, naturelle, rassurante et adaptée à la note. Ne recopie pas mot pour mot l'avis. Ne commence pas par le prénom si le nom semble incomplet ou anonymisé. Fais une réponse différente des formulations génériques habituelles lorsque c’est possible.`;
+    const { system, input } = buildGoogleReviewReplyPrompt({
+      company,
+      locationTitle: target.locationTitle || undefined,
+      city,
+      sectorLabel,
+      profession,
+      activityDescription,
+      services,
+      strengths,
+      aiConfig,
+      aiDirective,
+      aiLanguageInstruction,
+      openingVariant,
+      toneVariant,
+      closingVariant,
+      signatureInstruction,
+      reviewerName,
+      rating,
+      reviewComment,
+      existingReply,
+    });
 
     const generated = await aiGenerateJSON<GeneratedReviewReply>({
       feature: "reviews.google",
@@ -276,11 +253,12 @@ Génère une seule réponse prête à publier, naturelle, rassurante et adaptée
       engine: preferredEngine,
       system,
       input,
+      responseSchema: GOOGLE_REVIEW_REPLY_RESPONSE_SCHEMA,
       maxOutputTokens: 700,
       temperature: getAiEngineTemperature(generationProfile, preferredEngine, "reply"),
     });
 
-    const generatedReply = cleanReply(generated?.reply_text || generated?.comment);
+    const generatedReply = cleanReply(generated.reply_text);
     const replyText = generatedReply;
 
     if (!replyText) {

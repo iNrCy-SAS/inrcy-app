@@ -77,7 +77,7 @@ test("direct text writers use the shared server context, normalized profile and 
     );
     assert.match(
       source,
-      /buildAiWritingProfileRules\(generationProfile/,
+      /build(?:AiWritingProfileRules|CompactAiWritingDirective)\(\s*generationProfile/,
       `${file}: professional writing rules`,
     );
     assert.doesNotMatch(source, /\.from\(["'](?:profiles|business_profiles|business_ai_memories)["']\)/, `${file}: no ad-hoc professional profile query`);
