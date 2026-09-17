@@ -15,6 +15,12 @@ import {
   prepareVisioBookingInternalAlert,
 } from "@/lib/visioBookingInternalAlert";
 import {
+  discardAwaitingVisioBookingConfirmationIntent,
+  ensureVisioBookingConfirmation,
+  listAwaitingVisioBookingConfirmationIntents,
+  prepareVisioBookingConfirmation,
+} from "@/lib/visioBookingConfirmation";
+import {
   googleCalendarErrorReason,
   googleCalendarRetryDelayMs,
   isTransientGoogleCalendarFailure,
@@ -2365,6 +2371,67 @@ async function ensureBookingInternalAlertForEvent(input: {
   }
 }
 
+async function ensureBookingConfirmationForEvent(input: {
+  event: GoogleCalendarEvent;
+  claims: VisioBookingClaims;
+  start: Date;
+  member?: VisioTeamMember;
+  prospect?: VisioBookingProspect;
+}) {
+  const properties = input.event.extendedProperties?.private || {};
+  const members = getVisioTeamMembers();
+  const storedMemberId = String(properties.assignedMemberId || "").trim();
+  const storedMemberEmail = String(properties.assignedMemberEmail || "")
+    .trim()
+    .toLowerCase();
+  const member =
+    members.find((candidate) => candidate.id === storedMemberId) ||
+    members.find((candidate) => candidate.email === storedMemberEmail) ||
+    input.member;
+  const assignedMember = member || {
+    id: storedMemberId || "team",
+    name: storedMemberId
+      ? `${storedMemberId.charAt(0).toUpperCase()}${storedMemberId.slice(1)}`
+      : PUBLIC_BOOKING_ASSIGNEE,
+  };
+  const googleEventId = String(properties.sourceEventId || input.event.id || "").trim();
+  if (!googleEventId || !getMeetUrl(input.event)) return false;
+
+  try {
+    const prospect = input.prospect || await readProspect(input.claims);
+    await ensureVisioBookingConfirmation({
+      googleEventId,
+      prospectUserId: input.claims.sub,
+      assignedMember,
+      prospect,
+      confirmation: confirmationFromEvent(input.event, input.start),
+    });
+    return true;
+  } catch (error) {
+    // The appointment is already valid in Google. The durable outbox and the
+    // minute cron own retries without making the professional book twice.
+    console.error("[visio-booking][confirmation]", {
+      googleEventId,
+      code: error instanceof Error ? error.message.split(":")[0] : "confirmation_failed",
+    });
+    return false;
+  }
+}
+
+async function ensureBookingDeliveriesForEvent(input: {
+  event: GoogleCalendarEvent;
+  claims: VisioBookingClaims;
+  start: Date;
+  member?: VisioTeamMember;
+  prospect?: VisioBookingProspect;
+}) {
+  const [internalAlert, prospectConfirmation] = await Promise.all([
+    ensureBookingInternalAlertForEvent(input),
+    ensureBookingConfirmationForEvent(input),
+  ]);
+  return { internalAlert, prospectConfirmation };
+}
+
 function assertMatchingBookingEvent(
   event: GoogleCalendarEvent,
   claims: VisioBookingClaims,
@@ -2407,9 +2474,8 @@ async function waitForMeetConference(
 export async function reconcileVisioBookingInternalAlertIntents(limit = 10) {
   const intents = await listAwaitingVisioBookingInternalAlertIntents(limit);
   const result = { ok: true, scanned: intents.length, promoted: 0, waiting: 0, discarded: 0 };
-  const sharedCalendarId = getVisioSharedCalendarId();
   for (const intent of intents) {
-    const event = await getCalendarEvent(sharedCalendarId, intent.googleEventId);
+    const event = await getExistingBooking(intent.googleEventId);
     if (!event) {
       const createdAt = new Date(intent.createdAt).getTime();
       if (Number.isFinite(createdAt) && createdAt < Date.now() - 48 * 60 * 60_000) {
@@ -2453,6 +2519,54 @@ export async function reconcileVisioBookingInternalAlertIntents(limit = 10) {
   return result;
 }
 
+export async function reconcileVisioBookingConfirmationIntents(limit = 10) {
+  const intents = await listAwaitingVisioBookingConfirmationIntents(limit);
+  const result = { ok: true, scanned: intents.length, promoted: 0, waiting: 0, discarded: 0 };
+  for (const intent of intents) {
+    const event = await getExistingBooking(intent.googleEventId);
+    if (!event) {
+      const createdAt = new Date(intent.createdAt).getTime();
+      if (Number.isFinite(createdAt) && createdAt < Date.now() - 48 * 60 * 60_000) {
+        await discardAwaitingVisioBookingConfirmationIntent(intent.googleEventId);
+        result.discarded += 1;
+      } else {
+        result.waiting += 1;
+      }
+      continue;
+    }
+    const properties = event.extendedProperties?.private || {};
+    if (
+      event.status === "cancelled" ||
+      properties[PRIVATE_BOOKING_KEY] !== PRIVATE_BOOKING_VALUE ||
+      properties.prospectUserId !== intent.prospectUserId
+    ) {
+      await discardAwaitingVisioBookingConfirmationIntent(intent.googleEventId);
+      result.discarded += 1;
+      continue;
+    }
+    const start = new Date(event.start?.dateTime || "");
+    if (!Number.isFinite(start.getTime()) || !getMeetUrl(event)) {
+      result.waiting += 1;
+      continue;
+    }
+    const promoted = await ensureBookingConfirmationForEvent({
+      event,
+      start,
+      claims: {
+        v: 1,
+        sub: intent.prospectUserId,
+        email: "",
+        nonce: String(properties.bookingNonce || intent.googleEventId),
+        iat: 0,
+        exp: Number.MAX_SAFE_INTEGER,
+      },
+    });
+    if (promoted) result.promoted += 1;
+    else result.waiting += 1;
+  }
+  return result;
+}
+
 async function createGoogleBookingEvent(input: {
   eventId: string;
   start: Date;
@@ -2461,12 +2575,16 @@ async function createGoogleBookingEvent(input: {
   pendingReminder?: GoogleCalendarEvent | null;
 }) {
   const prospect = await readProspect(input.claims);
+  const publicCalendarId = getVisioPublicCalendarId();
   const sharedCalendarId = getVisioSharedCalendarId();
   const pendingReminder =
     input.pendingReminder === undefined
       ? await findPendingSignupReminder(input.claims)
       : input.pendingReminder;
-  const masterEventId = String(pendingReminder?.id || input.eventId);
+  const masterEventId = input.eventId;
+  const memberUsesPublicCalendar =
+    normalizedCalendarId(input.member.calendarId) ===
+    normalizedCalendarId(publicCalendarId);
   const end = new Date(
     input.start.getTime() + VISIO_BOOKING_DURATION_MINUTES * 60_000,
   );
@@ -2491,8 +2609,7 @@ async function createGoogleBookingEvent(input: {
 
   const privateProperties = {
     [PRIVATE_BOOKING_KEY]: PRIVATE_BOOKING_VALUE,
-    [PRIVATE_BOOKING_SINGLE_EVENT_KEY]: PRIVATE_BOOKING_SINGLE_EVENT_VALUE,
-    [TEAM_CALENDAR_MIRROR_KEY]: TEAM_CALENDAR_MIRROR_VALUE,
+    [PRIVATE_BOOKING_COMPANION_KEY]: PRIVATE_BOOKING_PUBLIC_VALUE,
     bookingNonce: input.claims.nonce,
     prospectUserId: input.claims.sub,
     ...lifecyclePrivateProperties({
@@ -2502,9 +2619,9 @@ async function createGoogleBookingEvent(input: {
     [PRIVATE_LOGICAL_APPOINTMENT_KEY]: `prospect:${input.claims.sub}`,
     assignedMemberId: input.member.id,
     assignedMemberEmail: input.member.email,
-    sourceCalendarId: sharedCalendarId,
+    sourceCalendarId: publicCalendarId,
     sourceEventId: masterEventId,
-    sourceOrganizerEmail: sharedCalendarId,
+    sourceOrganizerEmail: publicCalendarId,
     sourceCalendarIsOrganizer: "true",
     sharedCalendarId,
   };
@@ -2540,87 +2657,131 @@ async function createGoogleBookingEvent(input: {
       private: privateProperties,
     },
     attendees,
-    conferenceData: getMeetUrl(pendingReminder || {})
-      ? pendingReminder?.conferenceData
-      : {
-          createRequest: {
-            requestId: conferenceRequestId(input.claims.nonce),
-            conferenceSolutionKey: { type: "hangoutsMeet" },
-          },
-        },
+    conferenceData: {
+      createRequest: {
+        requestId: conferenceRequestId(input.claims.nonce),
+        conferenceSolutionKey: { type: "hangoutsMeet" },
+      },
+    },
   };
 
-  // Persist the intent before mutating Google. If the process dies after
-  // Google accepts the event, the minute cron can still finish the alert.
-  await prepareVisioBookingInternalAlert({
-    googleEventId: masterEventId,
-    prospectUserId: input.claims.sub,
-    assignedMember: input.member,
-    prospect,
-    confirmation: {
-      dateLabel: formatFrenchDate(input.start),
-      timeLabel: formatFrenchTime(input.start),
-      meetUrl: "",
-      calendarUrl: "",
-    },
-  });
+  // Persist both delivery intents before Google is mutated. The internal
+  // alert and the premium professional confirmation are promoted only after
+  // the appointment exists; the latter additionally requires a real Meet URL.
+  await Promise.all([
+    prepareVisioBookingInternalAlert({
+      googleEventId: masterEventId,
+      prospectUserId: input.claims.sub,
+      assignedMember: input.member,
+      prospect,
+      confirmation: {
+        dateLabel: formatFrenchDate(input.start),
+        timeLabel: formatFrenchTime(input.start),
+        meetUrl: "",
+        calendarUrl: "",
+      },
+    }),
+    prepareVisioBookingConfirmation({
+      googleEventId: masterEventId,
+      prospectUserId: input.claims.sub,
+      assignedMember: input.member,
+      prospect,
+      confirmation: {
+        dateLabel: formatFrenchDate(input.start),
+        timeLabel: formatFrenchTime(input.start),
+      },
+    }),
+  ]);
 
   let event: GoogleCalendarEvent;
-  if (pendingReminder?.id) {
-    if (!isPendingSignupReminderForProspect(pendingReminder, input.claims.sub)) {
-      throw new Error("visio_booking_id_conflict");
-    }
+  try {
     event = await googleCalendarRequest<GoogleCalendarEvent>(
-      `/calendars/${encodeCalendarId(sharedCalendarId)}/events/${encodeURIComponent(
-        pendingReminder.id,
-      )}?conferenceDataVersion=1&sendUpdates=all`,
-      { method: "PATCH", body: JSON.stringify(eventBody) },
+      `/calendars/${encodeCalendarId(publicCalendarId)}/events?conferenceDataVersion=1&sendUpdates=all`,
+      {
+        method: "POST",
+        body: JSON.stringify({ ...eventBody, id: masterEventId }),
+      },
     );
-  } else {
-    try {
-      event = await googleCalendarRequest<GoogleCalendarEvent>(
-        `/calendars/${encodeCalendarId(sharedCalendarId)}/events?conferenceDataVersion=1&sendUpdates=all`,
-        {
-          method: "POST",
-          body: JSON.stringify({ ...eventBody, id: masterEventId }),
-        },
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message.startsWith("visio_google_api_failed:409:")
+    ) {
+      const existingMaster = await getCalendarEvent(
+        publicCalendarId,
+        masterEventId,
       );
+      if (!existingMaster) throw new Error("visio_booking_cancelled");
+      assertMatchingBookingEvent(existingMaster, input.claims);
+      event = existingMaster;
+    } else {
+      throw error;
+    }
+  }
+
+  try {
+    event = await waitForMeetConference(publicCalendarId, masterEventId, event);
+  } catch (error) {
+    await ensureBookingInternalAlertForEvent({
+      event,
+      claims: input.claims,
+      start: input.start,
+      member: input.member,
+      prospect,
+    });
+    throw error;
+  }
+
+  if (!memberUsesPublicCalendar) {
+    try {
+      const companionEventId = bookingCompanionEventId(input.claims.nonce);
+      const existingCompanion = await getCalendarEvent(
+        input.member.calendarId,
+        companionEventId,
+      );
+      if (existingCompanion && existingCompanion.status !== "cancelled") {
+        assertMatchingBookingEvent(existingCompanion, input.claims);
+      } else {
+        await createMissingBookingCompanion({
+          publicEvent: event,
+          bookingNonce: input.claims.nonce,
+          targetMember: input.member,
+        });
+      }
     } catch (error) {
       if (
         error instanceof Error &&
-        error.message.startsWith("visio_google_api_failed:409:")
+        (error.message.startsWith("visio_google_api_failed:403:") ||
+          error.message.startsWith("visio_google_api_failed:404:"))
       ) {
-        const existingMaster = await getCalendarEvent(
-          sharedCalendarId,
-          masterEventId,
+        console.warn(
+          `[visio-booking] agenda personnel ${input.member.id} non modifiable; le rendez-vous reste visible dans l'agenda partagé`,
         );
-        if (!existingMaster) throw new Error("visio_booking_cancelled");
-        assertMatchingBookingEvent(existingMaster, input.claims);
-        event = existingMaster;
       } else {
         throw error;
       }
     }
   }
 
-  try {
-    event = await waitForMeetConference(sharedCalendarId, masterEventId, event);
-  } catch (error) {
-    await ensureBookingInternalAlertForEvent({
-      event,
-      claims: input.claims,
-      start: input.start,
-      prospect,
-    });
-    throw error;
-  }
-  await ensureBookingInternalAlertForEvent({
+  await upsertTeamMirrorEvent({
+    event,
+    member: { ...input.member, calendarId: publicCalendarId },
+    existing: pendingReminder || undefined,
+    mirrorEventId: pendingReminder?.id || input.eventId,
+  }).catch((error: unknown) => {
+    console.error(
+      "[visio-booking][shared-calendar-copy]",
+      error instanceof Error ? error.message : "copy_failed",
+    );
+  });
+
+  await ensureBookingDeliveriesForEvent({
     event,
     claims: input.claims,
     start: input.start,
+    member: input.member,
     prospect,
   });
-  event = (await syncManagedCalendarReplicas(event)) || event;
 
   return confirmationFromEvent(event, input.start);
 }
@@ -2740,7 +2901,7 @@ export async function bookVisioSlot(
     const members = getVisioTeamMembers();
     const existing = await getExistingBooking(eventId, claims);
     if (existing) {
-      await ensureBookingInternalAlertForEvent({ event: existing, claims, start });
+      await ensureBookingDeliveriesForEvent({ event: existing, claims, start });
       return finalizeBookedVisio(
         claims,
         confirmationFromEvent(existing, start),
@@ -2750,7 +2911,7 @@ export async function bookVisioSlot(
     try {
       const existingAfterLock = await getExistingBooking(eventId, claims);
       if (existingAfterLock) {
-        await ensureBookingInternalAlertForEvent({
+        await ensureBookingDeliveriesForEvent({
           event: existingAfterLock,
           claims,
           start,
@@ -2812,7 +2973,7 @@ export async function bookVisioSlot(
         ) {
           const racedEvent = await getExistingBooking(eventId, claims);
           if (racedEvent) {
-            await ensureBookingInternalAlertForEvent({
+            await ensureBookingDeliveriesForEvent({
               event: racedEvent,
               claims,
               start,
@@ -3844,37 +4005,71 @@ async function createMissingBookingCompanion(input: {
   targetMember: VisioTeamMember;
 }) {
   const properties = input.publicEvent.extendedProperties?.private || {};
-  return googleCalendarRequest<GoogleCalendarEvent>(
-    `/calendars/${encodeCalendarId(
-      input.targetMember.calendarId,
-    )}/events?conferenceDataVersion=1&sendUpdates=none`,
-    {
-      method: "POST",
-      body: JSON.stringify({
-        id: bookingCompanionEventId(input.bookingNonce),
-        summary: input.publicEvent.summary,
-        description: [
-          String(input.publicEvent.description || "").trim(),
-          `Responsable interne : ${input.targetMember.name}`,
-        ].filter(Boolean).join("\n"),
-        location: input.publicEvent.location,
-        colorId: input.publicEvent.colorId,
-        visibility: "private",
-        start: input.publicEvent.start,
-        end: input.publicEvent.end,
-        conferenceData: input.publicEvent.conferenceData,
-        reminders: { useDefault: false, overrides: [] },
-        extendedProperties: {
-          private: {
-            ...properties,
-            assignedMemberId: input.targetMember.id,
-            assignedMemberEmail: input.targetMember.email,
-            [PRIVATE_BOOKING_COMPANION_KEY]: PRIVATE_BOOKING_COMPANION_VALUE,
-          },
-        },
-      }),
+  const eventId = bookingCompanionEventId(input.bookingNonce);
+  const body = {
+    id: eventId,
+    status: "confirmed",
+    summary: input.publicEvent.summary,
+    description: [
+      String(input.publicEvent.description || "").trim(),
+      `Responsable interne : ${input.targetMember.name}`,
+    ].filter(Boolean).join("\n"),
+    location: input.publicEvent.location,
+    colorId: input.publicEvent.colorId,
+    visibility: "private",
+    start: input.publicEvent.start,
+    end: input.publicEvent.end,
+    conferenceData: input.publicEvent.conferenceData,
+    reminders: { useDefault: false, overrides: [] },
+    extendedProperties: {
+      private: {
+        ...properties,
+        assignedMemberId: input.targetMember.id,
+        assignedMemberEmail: input.targetMember.email,
+        [PRIVATE_BOOKING_COMPANION_KEY]: PRIVATE_BOOKING_COMPANION_VALUE,
+      },
     },
-  );
+  };
+  const eventPath = `/calendars/${encodeCalendarId(
+    input.targetMember.calendarId,
+  )}/events/${encodeURIComponent(eventId)}`;
+  const restoreOrReuse = async (existing: GoogleCalendarEvent) => {
+    const existingProperties = existing.extendedProperties?.private || {};
+    if (
+      existingProperties.bookingNonce !== input.bookingNonce ||
+      existingProperties.prospectUserId !== properties.prospectUserId
+    ) {
+      throw new Error("visio_booking_companion_id_conflict");
+    }
+    if (existing.status !== "cancelled") return existing;
+    const { id: _id, ...writableBody } = body;
+    return googleCalendarRequest<GoogleCalendarEvent>(
+      `${eventPath}?conferenceDataVersion=1&sendUpdates=none`,
+      { method: "PATCH", body: JSON.stringify(writableBody) },
+    );
+  };
+
+  const existing = await getCalendarEvent(input.targetMember.calendarId, eventId);
+  if (existing) return restoreOrReuse(existing);
+
+  try {
+    return await googleCalendarRequest<GoogleCalendarEvent>(
+      `/calendars/${encodeCalendarId(
+        input.targetMember.calendarId,
+      )}/events?conferenceDataVersion=1&sendUpdates=none`,
+      { method: "POST", body: JSON.stringify(body) },
+    );
+  } catch (error) {
+    if (
+      !(error instanceof Error) ||
+      !error.message.startsWith("visio_google_api_failed:409:")
+    ) {
+      throw error;
+    }
+    const racedEvent = await getCalendarEvent(input.targetMember.calendarId, eventId);
+    if (!racedEvent) throw error;
+    return restoreOrReuse(racedEvent);
+  }
 }
 
 async function reassignAutomaticBooking(input: {

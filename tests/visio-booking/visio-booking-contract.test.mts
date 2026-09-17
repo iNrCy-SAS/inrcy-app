@@ -66,21 +66,21 @@ test("l'inscription crée directement le rappel agenda sans dépendre de Gmail",
   );
 });
 
-test("une inscription devient un seul événement partagé avec Meet et invités", () => {
+test("une inscription crée un rendez-vous depuis une adresse iNrCy propre puis un miroir partagé", () => {
   const backend = read("lib/visioBookingGoogle.ts");
   const mirror = read("lib/visioCalendarMirrorPolicy.ts");
   const eventPolicy = read("lib/visioBookingEventPolicy.ts");
   const creation = backend.slice(
     backend.indexOf("async function createGoogleBookingEvent"),
-    backend.indexOf("export async function bookVisioSlot"),
+    backend.indexOf("async function convertPendingSignupToScheduledAppointment"),
   );
   assert.match(
     creation,
-    /encodeCalendarId\(sharedCalendarId\)[\s\S]*?conferenceDataVersion=1&sendUpdates=all/,
+    /encodeCalendarId\(publicCalendarId\)[\s\S]*?conferenceDataVersion=1&sendUpdates=all/,
   );
   assert.match(creation, /findPendingSignupReminder\(input\.claims\)/);
-  assert.match(creation, /PRIVATE_BOOKING_SINGLE_EVENT_KEY/);
-  assert.match(creation, /TEAM_CALENDAR_MIRROR_KEY/);
+  assert.doesNotMatch(creation, /PRIVATE_BOOKING_SINGLE_EVENT_KEY/);
+  assert.match(creation, /PRIVATE_BOOKING_PUBLIC_VALUE/);
   assert.match(
     creation,
     /const bookingOrigin: VisioAppointmentOrigin = "signup_with_appointment"/,
@@ -94,11 +94,12 @@ test("une inscription devient un seul événement partagé avec Meet et invités
     /sendUpdates=all/,
   );
   assert.match(eventPolicy, /member\.id !== input\.assignedMemberId/);
-  assert.doesNotMatch(creation, /bookingCompanionEventId/);
-  assert.doesNotMatch(creation, /upsertTeamMirrorEvent/);
+  assert.match(creation, /bookingCompanionEventId/);
+  assert.match(creation, /createMissingBookingCompanion/);
+  assert.match(creation, /upsertTeamMirrorEvent/);
   assert.match(backend, /getExistingBooking\(eventId, claims\)/);
   assert.match(backend, /for \(const member of getVisioTeamMembers\(\)\)/);
-  assert.match(backend, /syncManagedCalendarReplicas\(event\)/);
+  assert.doesNotMatch(creation, /syncManagedCalendarReplicas\(event\)/);
   assert.match(backend, /PRIVATE_CALENDAR_REPLICA_KEY/);
   assert.match(backend, /PRIVATE_LOGICAL_APPOINTMENT_KEY/);
   assert.match(
@@ -114,17 +115,18 @@ test("une inscription devient un seul événement partagé avec Meet et invités
   assert.doesNotMatch(mirror, /attendees\s*:/);
   assert.doesNotMatch(mirror, /conferenceSolutionKey/);
   assert.match(backend, /canonical\.conferenceData/);
-  const alertCall = creation.indexOf("await ensureBookingInternalAlertForEvent");
+  const deliveryCall = creation.indexOf("await ensureBookingDeliveriesForEvent");
   const meetWait = creation.indexOf("await waitForMeetConference");
-  const replicaSync = creation.indexOf("await syncManagedCalendarReplicas");
-  const alertIntent = creation.indexOf("await prepareVisioBookingInternalAlert");
+  const alertIntent = creation.indexOf("prepareVisioBookingInternalAlert");
+  const confirmationIntent = creation.indexOf("prepareVisioBookingConfirmation");
   const googleMutation = creation.indexOf("event = await googleCalendarRequest");
   assert.ok(alertIntent >= 0 && alertIntent < googleMutation);
-  assert.ok(meetWait >= 0 && meetWait < alertCall && alertCall < replicaSync);
+  assert.ok(confirmationIntent >= 0 && confirmationIntent < googleMutation);
+  assert.ok(meetWait >= 0 && meetWait < deliveryCall);
   assert.match(creation, /catch \(error\) \{[\s\S]*?ensureBookingInternalAlertForEvent[\s\S]*?throw error/);
   assert.doesNotMatch(creation, /createdMasterEvent|sendMonitoringMail/);
   const booking = backend.slice(backend.indexOf("export async function bookVisioSlot"));
-  assert.ok((booking.match(/ensureBookingInternalAlertForEvent/g) || []).length >= 3);
+  assert.ok((booking.match(/ensureBookingDeliveriesForEvent/g) || []).length >= 3);
 });
 
 test("le calendrier partagé global est synchronisé par un cron protégé et idempotent", () => {
@@ -139,6 +141,8 @@ test("le calendrier partagé global est synchronisé par un cron protégé et id
   assert.match(route, /syncVisioSharedCalendarToInrCalendar/);
   assert.match(route, /ensureVisioCalendarWatches/);
   assert.match(route, /processVisioBookingInternalAlerts/);
+  assert.match(route, /processVisioBookingConfirmations/);
+  assert.match(route, /reconcileVisioBookingConfirmationIntents/);
   assert.match(vercel, /\/api\/cron\/visio-calendar-sync/);
   assert.match(vercel, /"schedule": "\*\/1 \* \* \* \*"/);
   const webhook = read("app/api/webhooks/google-calendar/route.ts");
