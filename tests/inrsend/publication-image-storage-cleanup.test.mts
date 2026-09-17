@@ -84,6 +84,11 @@ test("iNrSend ne nettoie les nouveaux uploads qu'avant toute mutation susceptibl
   const deleteStart = source.indexOf("  async function DELETE(", patchStart);
   const replaceStart = source.indexOf("async function replaceChannelDelivery");
   const removeStart = source.indexOf("async function removeChannelDelivery");
+  const persistFunctionStart = source.indexOf("async function persistEventPayload");
+  const instagramLogStart = source.indexOf(
+    "async function logInstagramAction",
+    persistFunctionStart,
+  );
   const payloadStart = source.indexOf("function buildUpdatedPayload");
   const payloadEnd = source.indexOf("function buildDeletedPayload", payloadStart);
 
@@ -91,6 +96,7 @@ test("iNrSend ne nettoie les nouveaux uploads qu'avant toute mutation susceptibl
   const instagramUpload = source.slice(instagramStart, rebuildStart);
   const patchHandler = source.slice(patchStart, deleteStart);
   const replaceHandler = source.slice(replaceStart, removeStart);
+  const persistFunction = source.slice(persistFunctionStart, instagramLogStart);
   const payloadBuilder = source.slice(payloadStart, payloadEnd);
 
   assert.match(genericUpload, /createdStoragePaths\.push\(originalPath\)/);
@@ -120,16 +126,31 @@ test("iNrSend ne nettoie les nouveaux uploads qu'avant toute mutation susceptibl
     /await replaceChannelDelivery\([\s\S]*?unpersistedCreatedStoragePaths\s*=\s*\[\]/,
   );
   const persistIndex = patchHandler.indexOf("await persistEventPayload(");
-  const persistedMarkIndex = patchHandler.indexOf(
-    "imageUseGuard.markAssetsMayBeInUse();",
-    persistIndex,
-  );
   const syncIndex = patchHandler.indexOf("await syncDeliveryRow(", persistIndex);
   assert.ok(
-    persistIndex >= 0 &&
-      persistedMarkIndex > persistIndex &&
-      syncIndex > persistedMarkIndex,
-    "une persistance réussie doit protéger les médias avant les étapes suivantes",
+    persistIndex >= 0 && syncIndex > persistIndex,
+    "la synchronisation doit rester postérieure à la persistance",
+  );
+  assert.match(
+    patchHandler,
+    /await persistEventPayload\([\s\S]{0,250}?imageUseGuard\.markAssetsMayBeInUse/,
+  );
+  assert.doesNotMatch(
+    patchHandler.slice(persistIndex, syncIndex),
+    /imageUseGuard\.markAssetsMayBeInUse\(\);/,
+  );
+  const noEventReturnIndex = persistFunction.indexOf("if (!ids.length) return;");
+  const persistDispatchMarkIndex = persistFunction.indexOf(
+    "onPayloadMayReferenceAssets?.();",
+  );
+  const payloadUpdateIndex = persistFunction.indexOf(
+    '.from("app_events").update({ payload: nextPayload })',
+  );
+  assert.ok(
+    noEventReturnIndex >= 0 &&
+      persistDispatchMarkIndex > noEventReturnIndex &&
+      payloadUpdateIndex > persistDispatchMarkIndex,
+    "le mark doit précéder l'UPDATE potentiellement ambigu, mais suivre les lectures",
   );
 
   assert.match(

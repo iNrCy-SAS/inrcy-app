@@ -1350,7 +1350,12 @@ async function syncDeliveryRow(params: {
   if (upError) throw upError;
 }
 
-async function persistEventPayload(userId: string, publicationId: string, nextPayload: JsonRecord) {
+async function persistEventPayload(
+  userId: string,
+  publicationId: string,
+  nextPayload: JsonRecord,
+  onPayloadMayReferenceAssets?: () => void,
+) {
   const { data: events, error } = await supabaseAdmin
     .from("app_events")
     .select("id,payload")
@@ -1366,6 +1371,9 @@ async function persistEventPayload(userId: string, publicationId: string, nextPa
     .map((row) => String(row.id));
 
   if (!ids.length) return;
+  // The UPDATE can commit even if its response is lost. Mark immediately
+  // before dispatch, after every read-only lookup has succeeded.
+  onPayloadMayReferenceAssets?.();
   const { error: upError } = await supabaseAdmin.from("app_events").update({ payload: nextPayload }).in("id", ids).eq("user_id", userId);
   if (upError) throw upError;
 }
@@ -3062,10 +3070,12 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
         videoSettings: requestedVideoSettings,
       });
 
-      await persistEventPayload(activeUserId, publicationId, nextPayload);
-      // Persistence itself now references the new objects. Protect them before
-      // any later delivery-row sync or indexing operation can fail.
-      imageUseGuard.markAssetsMayBeInUse();
+      await persistEventPayload(
+        activeUserId,
+        publicationId,
+        nextPayload,
+        imageUseGuard.markAssetsMayBeInUse,
+      );
       await syncDeliveryRow({ userId: activeUserId, publicationId, channel, status: replaceResult.status, error: replaceResult.error });
       if (channel === "inr_search") {
         const provisioned = await ensureSystemManagedInrSearch(supabaseAdmin, activeUserId);
