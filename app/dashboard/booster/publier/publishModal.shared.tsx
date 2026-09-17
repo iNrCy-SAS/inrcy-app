@@ -33,6 +33,7 @@ import {
   buildBoosterXPostText,
   getCtaMode,
   getSupportedBoosterCtaModesForChannel,
+  isBoosterCtaLabelCompatibleWithMode,
   isBoosterWhatsAppUrl,
   type BoosterCtaMode,
 } from "@/lib/boosterCta";
@@ -323,6 +324,9 @@ export function getPreferredCtaChoiceFromPost(
 ): BoosterPreferredCta {
   const normalized = normalizePost(post);
   const mode = normalized.ctaMode || "none";
+  if (!isBoosterCtaLabelCompatibleWithMode(mode, normalized.cta)) {
+    return "none";
+  }
   let choice: BoosterPreferredCta = "devis";
   if (mode === "none") choice = "none";
   else if (mode === "call") choice = "appeler";
@@ -349,8 +353,6 @@ export function getPreferredCtaChoiceFromPost(
 
   const supported = new Set(getSupportedPreferredCtasForChannel(channel));
   if (supported.has(choice)) return choice;
-  if (supported.has("site")) return "site";
-  if (supported.has("message")) return "message";
   return "none";
 }
 

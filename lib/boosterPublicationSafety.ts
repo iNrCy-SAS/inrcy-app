@@ -251,6 +251,85 @@ function canonicalizeHashtag(input: unknown) {
     .toLocaleLowerCase("fr");
 }
 
+function collectUniqueHashtag(
+  selected: string[],
+  selectedCanonical: Set<string>,
+  input: unknown,
+  maxTags: number,
+) {
+  const token = normalizeHashtagToken(input);
+  const canonical = canonicalizeHashtag(token);
+  if (!token || !canonical || selectedCanonical.has(canonical)) return;
+  selected.push(token);
+  selectedCanonical.add(canonical);
+  if (selected.length > maxTags) selected.length = maxTags;
+}
+
+export function extractBoosterHashtagsFromText(input: unknown) {
+  const selected: string[] = [];
+  const selectedCanonical = new Set<string>();
+  for (const match of String(input || "").matchAll(HASHTAG_RE)) {
+    collectUniqueHashtag(selected, selectedCanonical, match[1], Number.MAX_SAFE_INTEGER);
+  }
+  return selected;
+}
+
+export function stripBoosterHashtagsFromText(input: unknown) {
+  const withoutHashtags = String(input || "").replace(HASHTAG_RE, "");
+  const withoutOrphanSeparators = withoutHashtags
+    .split("\n")
+    .map((line) =>
+      /^[\s\u2022\u00b7|,;:\-\u2013\u2014]+$/u.test(line) ? "" : line,
+    )
+    .join("\n");
+  return normalizeSpaces(withoutOrphanSeparators);
+}
+
+/**
+ * Instagram owns one canonical hashtag area. Any tags leaked by the writer in
+ * the title, body or CTA are moved into that structured list so the final
+ * caption cannot contain one block before the CTA and another after it.
+ */
+export function normalizeBoosterInstagramPostHashtags<
+  TPost extends BoosterPublicationSafetyPost,
+>(post: TPost, maxTags = 8): TPost & {
+  title: string;
+  content: string;
+  cta: string;
+  hashtags: string[];
+} {
+  const title = String(post?.title || "");
+  const content = String(post?.content || "");
+  const cta = String(post?.cta || "");
+  const selected: string[] = [];
+  const selectedCanonical = new Set<string>();
+  const limit = Math.max(0, Math.floor(Number(maxTags) || 0));
+
+  for (const value of [title, content, cta]) {
+    for (const tag of extractBoosterHashtagsFromText(value)) {
+      collectUniqueHashtag(selected, selectedCanonical, tag, limit);
+    }
+  }
+  for (const raw of Array.isArray(post?.hashtags) ? post.hashtags : []) {
+    const embedded = extractBoosterHashtagsFromText(raw);
+    if (embedded.length) {
+      for (const tag of embedded) {
+        collectUniqueHashtag(selected, selectedCanonical, tag, limit);
+      }
+    } else {
+      collectUniqueHashtag(selected, selectedCanonical, raw, limit);
+    }
+  }
+
+  return {
+    ...post,
+    title: stripBoosterHashtagsFromText(title),
+    content: stripBoosterHashtagsFromText(content),
+    cta: stripBoosterHashtagsFromText(cta),
+    hashtags: selected.slice(0, limit),
+  };
+}
+
 export function dedupeBoosterHashtagsInText(input: unknown) {
   const seen = new Set<string>();
   const value = String(input || "").replace(HASHTAG_RE, (full, tag: string) => {

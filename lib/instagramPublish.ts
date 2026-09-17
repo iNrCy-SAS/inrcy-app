@@ -12,6 +12,8 @@ type PublishOk = {
   parentMediaId?: string | null;
   childContainerIds?: string[];
   childMediaIds?: string[];
+  requestedImageCount?: number;
+  publishedImageCount?: number;
   diagnostics?: {
     containerId?: string;
     childContainerIds?: string[];
@@ -22,6 +24,17 @@ type PublishOk = {
     statusChecks?: any[];
     childStatusChecks?: Array<{ containerId: string; checks: any[] }>;
     publishResponse?: any;
+    carouselFallback?: {
+      error: string;
+      diagnostics?: any;
+    };
+    childFailures?: Array<{
+      index: number;
+      stage: "create" | "ready";
+      error: string;
+    }>;
+    standalonePublishAttempted?: boolean;
+    standalonePublishDiagnostics?: any;
   };
 };
 
@@ -35,6 +48,12 @@ type PublishKo = {
 };
 
 export type InstagramPublishResult = PublishOk | PublishKo;
+
+export type InstagramBestEffortImagePublishResult = InstagramPublishResult & {
+  requestedImageCount: number;
+  publishedImageCount: number;
+  carouselFallbackUsed: boolean;
+};
 
 export type InstagramTokenCandidate = {
   source: string;
@@ -581,56 +600,151 @@ export async function instagramPublishCarousel(params: {
       return instagramPublishPhoto({ igUserId, accessToken, caption, imageUrl: imageUrls[0] });
     }
 
-    const childContainerIds: string[] = [];
+    const childCandidates: Array<{
+      containerId: string;
+      imageUrl: string;
+      index: number;
+    }> = [];
     const childCreateResponses: any[] = [];
     const childStatusChecks: Array<{ containerId: string; checks: any[] }> = [];
+    const childFailures: Array<{
+      index: number;
+      stage: "create" | "ready";
+      error: string;
+    }> = [];
 
-    for (const imageUrl of imageUrls) {
-      const { res: childRes, json: childJson } = await createInstagramImageContainer({
-        igUserId,
-        accessToken,
-        imageUrl,
-        isCarouselItem: true,
-      });
+    for (const [index, imageUrl] of imageUrls.entries()) {
+      try {
+        const { res: childRes, json: childJson } =
+          await createInstagramImageContainer({
+            igUserId,
+            accessToken,
+            imageUrl,
+            isCarouselItem: true,
+          });
+        childCreateResponses.push(childJson);
 
-      childCreateResponses.push(childJson);
+        const childId = String(childJson?.id || "");
+        if (!childRes.ok) {
+          const childFailure = {
+            index: index + 1,
+            stage: "create" as const,
+            error:
+              childJson?.error?.message ||
+              "Instagram n'a pas pu préparer cette photo.",
+          };
+          childFailures.push(childFailure);
+          const providerFailure = buildInstagramGraphFailure({
+            fallbackMessage: childFailure.error,
+            response: childJson,
+            httpStatus: childRes.status,
+            diagnostics: { childCreateResponses, childFailures },
+          });
+          if (
+            isInstagramAuthorizationErrorResult(providerFailure) ||
+            isInstagramRateLimitErrorResult(providerFailure)
+          ) {
+            return providerFailure;
+          }
+          continue;
+        }
+        if (!childId) {
+          childFailures.push({
+            index: index + 1,
+            stage: "create",
+            error: "Instagram n'a renvoyé aucun identifiant pour cette photo.",
+          });
+          continue;
+        }
 
-      if (!childRes.ok) {
-        return {
-          ok: false,
-          error: childJson?.error?.message || "Impossible de préparer le carrousel Instagram.",
-          diagnostics: { childCreateResponses },
-        };
+        childCandidates.push({ containerId: childId, imageUrl, index });
+      } catch (error) {
+        childFailures.push({
+          index: index + 1,
+          stage: "create",
+          error:
+            error instanceof Error
+              ? error.message
+              : "Instagram n'a pas pu préparer cette photo.",
+        });
       }
-
-      const childId = String(childJson?.id || "");
-      if (!childId) {
-        return {
-          ok: false,
-          error: "Instagram carousel child creation returned no id",
-          diagnostics: { childCreateResponses },
-        };
-      }
-
-      childContainerIds.push(childId);
     }
 
-    for (const containerId of childContainerIds) {
+    const readyChildren: typeof childCandidates = [];
+    for (const child of childCandidates) {
       const waitResult = await waitForContainerReady({
-        containerId,
+        containerId: child.containerId,
         accessToken,
         maxAttempts: 10,
         initialDelayMs: 1200,
       });
 
-      childStatusChecks.push({ containerId, checks: waitResult.checks });
+      childStatusChecks.push({
+        containerId: child.containerId,
+        checks: waitResult.checks,
+      });
       if (!waitResult.ok) {
+        childFailures.push({
+          index: child.index + 1,
+          stage: "ready",
+          error:
+            "error" in waitResult
+              ? waitResult.error
+              : "Instagram met trop de temps à répondre.",
+        });
+        continue;
+      }
+      readyChildren.push(child);
+    }
+
+    const childContainerIds = readyChildren.map(
+      (child) => child.containerId,
+    );
+    if (readyChildren.length === 1) {
+      const photoResult = await instagramPublishPhoto({
+        igUserId,
+        accessToken,
+        caption,
+        imageUrl: readyChildren[0].imageUrl,
+      });
+      if (photoResult.ok) {
         return {
-          ok: false,
-          error: ("error" in waitResult ? waitResult.error : "Instagram met trop de temps à répondre."),
-          diagnostics: { childContainerIds, childCreateResponses, childStatusChecks },
+          ...photoResult,
+          requestedImageCount: imageUrls.length,
+          publishedImageCount: 1,
+          diagnostics: {
+            ...(photoResult.diagnostics || {}),
+            childContainerIds,
+            childCreateResponses,
+            childStatusChecks,
+            childFailures,
+            standalonePublishAttempted: true,
+          },
         };
       }
+      return {
+        ...photoResult,
+        diagnostics: {
+          childContainerIds,
+          childCreateResponses,
+          childStatusChecks,
+          childFailures,
+          standalonePublishAttempted: true,
+          standalonePublishDiagnostics: photoResult.diagnostics || null,
+        },
+      };
+    }
+    if (readyChildren.length === 0) {
+      return {
+        ok: false,
+        error: "Instagram n'a pu préparer aucune photo de ce carrousel.",
+        diagnostics: {
+          childContainerIds,
+          childCreateResponses,
+          childStatusChecks,
+          childFailures,
+        },
+      };
     }
 
     const createParams = new URLSearchParams({
@@ -647,7 +761,7 @@ export async function instagramPublishCarousel(params: {
       return {
         ok: false,
         error: createJson?.error?.message || "Impossible de créer le carrousel Instagram.",
-        diagnostics: { childContainerIds, childCreateResponses, childStatusChecks, createResponse: createJson },
+        diagnostics: { childContainerIds, childCreateResponses, childStatusChecks, childFailures, createResponse: createJson },
       };
     }
 
@@ -656,7 +770,7 @@ export async function instagramPublishCarousel(params: {
       return {
         ok: false,
         error: "Instagram carousel creation returned no id",
-        diagnostics: { childContainerIds, childCreateResponses, childStatusChecks, createResponse: createJson },
+        diagnostics: { childContainerIds, childCreateResponses, childStatusChecks, childFailures, createResponse: createJson },
       };
     }
 
@@ -676,6 +790,7 @@ export async function instagramPublishCarousel(params: {
           childContainerIds,
           childCreateResponses,
           childStatusChecks,
+          childFailures,
           createResponse: createJson,
           statusChecks: waitResult.checks,
         },
@@ -698,6 +813,7 @@ export async function instagramPublishCarousel(params: {
           childContainerIds,
           childCreateResponses,
           childStatusChecks,
+          childFailures,
           createResponse: createJson,
           statusChecks: waitResult.checks,
           publishResponse: publishJson,
@@ -715,6 +831,7 @@ export async function instagramPublishCarousel(params: {
           childContainerIds,
           childCreateResponses,
           childStatusChecks,
+          childFailures,
           createResponse: createJson,
           statusChecks: waitResult.checks,
           publishResponse: publishJson,
@@ -734,6 +851,8 @@ export async function instagramPublishCarousel(params: {
       parentMediaId: mediaId,
       childContainerIds,
       childMediaIds,
+      requestedImageCount: imageUrls.length,
+      publishedImageCount: readyChildren.length,
       diagnostics: {
         containerId,
         childContainerIds,
@@ -741,6 +860,7 @@ export async function instagramPublishCarousel(params: {
         detailsResponse: detailsRes.ok ? detailsJson : { ok: false, status: detailsRes.status, raw: detailsJson },
         childCreateResponses,
         childStatusChecks,
+        childFailures,
         createResponse: createJson,
         statusChecks: waitResult.checks,
         publishResponse: publishJson,
@@ -826,6 +946,115 @@ export async function instagramPublishCarouselWithTokenFallback(params: {
   }
 
   return withTokenFallbackDiagnostics(lastResult || { ok: false, error: "La connexion Instagram a expiré. Merci de reconnecter votre compte." }, attempts);
+}
+
+function canSafelyFallbackFromCarouselToPhoto(
+  result: InstagramPublishResult,
+): boolean {
+  if (
+    result.ok ||
+    isInstagramAuthorizationErrorResult(result) ||
+    isInstagramRateLimitErrorResult(result)
+  ) {
+    return false;
+  }
+
+  const diagnostics = asRecord(result.diagnostics);
+  const publishWasAttempted = Object.prototype.hasOwnProperty.call(
+    diagnostics,
+    "publishResponse",
+  ) || diagnostics["standalonePublishAttempted"] === true;
+  const carouselPreparationWasObserved = [
+    "childCreateResponses",
+    "childContainerIds",
+    "childStatusChecks",
+    "createResponse",
+    "statusChecks",
+  ].some((key) => Object.prototype.hasOwnProperty.call(diagnostics, key));
+
+  // Never retry after an ambiguous media_publish call: that could create a
+  // duplicate post. Failures observed while preparing the containers are safe
+  // to degrade to one standalone photo because nothing was published yet.
+  return carouselPreparationWasObserved && !publishWasAttempted;
+}
+
+export async function instagramPublishImagesBestEffortWithTokenFallback(
+  params: {
+    igUserId: string;
+    accessToken: string;
+    tokenCandidates?: InstagramTokenCandidate[];
+    caption: string;
+    imageUrls: string[];
+  },
+): Promise<InstagramBestEffortImagePublishResult> {
+  const imageUrls = (params.imageUrls || [])
+    .map((value) => String(value || "").trim())
+    .filter(Boolean)
+    .slice(0, 10);
+  const requestedImageCount = imageUrls.length;
+
+  if (requestedImageCount <= 1) {
+    const result = await instagramPublishPhotoWithTokenFallback({
+      ...params,
+      imageUrl: imageUrls[0] || "",
+    });
+    return {
+      ...result,
+      requestedImageCount,
+      publishedImageCount: result.ok ? requestedImageCount : 0,
+      carouselFallbackUsed: false,
+    };
+  }
+
+  const carouselResult = await instagramPublishCarouselWithTokenFallback({
+    ...params,
+    imageUrls,
+  });
+  if (carouselResult.ok) {
+    const publishedImageCount = Math.max(
+      1,
+      Math.min(
+        requestedImageCount,
+        Number(carouselResult.publishedImageCount || requestedImageCount),
+      ),
+    );
+    return {
+      ...carouselResult,
+      requestedImageCount,
+      publishedImageCount,
+      carouselFallbackUsed:
+        carouselResult.mediaType === "IMAGE" && requestedImageCount > 1,
+    };
+  }
+  if (!canSafelyFallbackFromCarouselToPhoto(carouselResult)) {
+    return {
+      ...carouselResult,
+      requestedImageCount,
+      publishedImageCount: 0,
+      carouselFallbackUsed: false,
+    };
+  }
+
+  const photoResult = await instagramPublishPhotoWithTokenFallback({
+    igUserId: params.igUserId,
+    accessToken: params.accessToken,
+    tokenCandidates: params.tokenCandidates,
+    caption: params.caption,
+    imageUrl: imageUrls[0],
+  });
+  return {
+    ...photoResult,
+    requestedImageCount,
+    publishedImageCount: photoResult.ok ? 1 : 0,
+    carouselFallbackUsed: photoResult.ok,
+    diagnostics: {
+      ...(photoResult.diagnostics || {}),
+      carouselFallback: {
+        error: carouselResult.error,
+        diagnostics: carouselResult.diagnostics || null,
+      },
+    },
+  };
 }
 
 

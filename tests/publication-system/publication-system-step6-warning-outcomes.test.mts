@@ -84,6 +84,8 @@ test("les bilans immédiat et asynchrone utilisent le contrat commun", () => {
     assert.match(source, /warningCount/);
     assert.match(source, /mediaWarningCount/);
   }
+  assert.match(asyncPublication, /successfulWarnings/);
+  assert.match(asyncPublication, /successfulWarningMessages/);
 });
 
 test("Booster et iNrSend affichent explicitement l'avertissement", () => {

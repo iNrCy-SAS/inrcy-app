@@ -35,6 +35,7 @@ import { requireUser } from "@/lib/requireUser";
 import { rowToInrAgentAction } from "@/lib/inrAgentActions";
 import { generateInrAgentMedia } from "@/lib/inrAgentMediaGeneration";
 import { loadInrAgentStudioMediaPreferences } from "@/lib/inrAgentMediaPreferencesServer";
+import { INR_AGENT_IMAGES_PER_PUBLICATION } from "@/lib/inrAgentEditorialPlanning";
 import type { InrAgentTheme } from "@/lib/inrAgentSettings";
 import { buildMediaLibraryContentUrl } from "@/lib/mediaLibraryContentUrl";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -353,7 +354,8 @@ export async function POST(request: Request) {
     channel === "youtube_shorts" || currentMode === "video" || currentVideo?.kind === "video"
       ? "video"
       : "image";
-  const expectedCount = mediaKind === "video" ? 1 : 2;
+  const expectedCount =
+    mediaKind === "image" ? INR_AGENT_IMAGES_PER_PUBLICATION : 1;
 
   try {
     const [isAdmin, studioPreferences] = await Promise.all([
@@ -366,9 +368,7 @@ export async function POST(request: Request) {
         supabase: supabaseAdmin,
         accountId: activeUserId,
         actorAuthUserId: authUserId || activeUserId,
-        idea: index === 0
-          ? idea
-          : `${idea}\n\nCrée une seconde image complémentaire : autre scène ou autre cadrage, même sujet et même identité, sans dupliquer la première.`,
+        idea,
         theme,
         kind: mediaKind,
         adminUnlimited: isAdmin,

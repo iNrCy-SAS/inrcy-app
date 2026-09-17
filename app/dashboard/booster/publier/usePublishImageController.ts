@@ -60,6 +60,7 @@ import {
   type PublicationMediaType,
 } from "./publishModal.shared";
 import { setImageKeysForChannel } from "./imageChannelAssignment";
+import { extendBoosterChannelImageSelectionForGlobalAdd } from "@/lib/boosterChannelImageSelection";
 
 function buildServerPreviewPlaceholder(file: Pick<File, "name">, placeholderLabel: string) {
   const safeName = String(file.name || "Image")
@@ -611,12 +612,13 @@ export default function usePublishImageController({
                     getBoosterMaxImageCountForChannel(channel),
                   )
                 : []
-              : (
-                  prev[channel]?.imageKeys ||
-                  (channelSupportsImages(channel) ? previousPoolKeys : [])
-                )
-                  .filter((key) => previousPoolKeys.includes(key))
-                  .slice(0, getBoosterMaxImageCountForChannel(channel));
+              : extendBoosterChannelImageSelectionForGlobalAdd({
+                  previousAvailableKeys: previousPoolKeys,
+                  previousSelectedKeys: prev[channel]?.imageKeys,
+                  newKeys,
+                  supportsImages: channelSupportsImages(channel),
+                  maxImages: getBoosterMaxImageCountForChannel(channel),
+                });
           next = setImageKeysForChannel(next, channel, selectedKeys, {
             fallback: { imageKeys: [], transforms: {} },
             patch: { synchronizedImageKeys: [...nextPoolKeys] },

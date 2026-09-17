@@ -93,3 +93,67 @@ test("website defaults keep Site web and Site iNrCy as distinct sources", () => 
     /proSiteWeb\.url \?\? inrcyCfg\.site_url/,
   );
 });
+
+test("Booster generation saves one structured and usable CTA per channel", () => {
+  const generation = read("app/api/booster/generate/route.ts");
+
+  assert.match(generation, /loadBoosterCtaDefaults/);
+  assert.match(generation, /const ctaDefaultsPromise = loadBoosterCtaDefaults\(\{/);
+  assert.match(
+    generation,
+    /Promise\.all\(\[generationContextPromise, ctaDefaultsPromise\]\)/,
+  );
+  assert.match(generation, /versions: generatedVersions/);
+  assert.match(
+    generation,
+    /applySafePreferredCta\(\{[\s\S]*?channel: channel as BoosterChannels,[\s\S]*?defaults: ctaDefaults,[\s\S]*?preserveExplicit: false/,
+  );
+  assert.match(generation, /postByChannel: versions/);
+  assert.match(generation, /NextResponse\.json\(\{[\s\S]*?versions,/);
+});
+
+test("the Booster editor repairs stale CTA drafts and never displays a fake fallback", () => {
+  const modal = read("app/dashboard/booster/publier/PublishModal.tsx");
+  const foundations = read(
+    "app/dashboard/booster/publier/publishModal.foundations.ts",
+  );
+  const shared = read(
+    "app/dashboard/booster/publier/publishModal.shared.tsx",
+  );
+  const preferences = read("lib/boosterCtaPreferences.ts");
+
+  assert.match(
+    foundations,
+    /sanitizePostsForEditor\([\s\S]*?ctaDefaults\?: BoosterCtaDefaults \| null/,
+  );
+  assert.match(foundations, /applySafePreferredCta\(\{/);
+  assert.match(foundations, /normalizeBoosterPostCtaForChannel\(/);
+  assert.match(modal, /sanitizePostsForEditor\(versions, ctaDefaults\)/);
+  assert.match(modal, /preserveExplicit: !shouldSetPreferredMode/);
+  assert.match(modal, /normalizeBoosterPostCtaForChannel\(/);
+  assert.match(shared, /isBoosterCtaLabelCompatibleWithMode\(mode, normalized\.cta\)/);
+  assert.doesNotMatch(shared, /if \(supported\.has\("site"\)\) return "site"/);
+  assert.doesNotMatch(shared, /if \(supported\.has\("message"\)\) return "message"/);
+  assert.match(
+    preferences,
+    /isBoosterCtaLabelCompatibleWithMode\(mode, post\.cta\)/,
+  );
+});
+
+test("the final CTA guard replaces labels that contradict their structured mode", () => {
+  const cta = read("lib/boosterCta.ts");
+
+  assert.match(cta, /export function isBoosterCtaLabelCompatibleWithMode/);
+  assert.match(
+    cta,
+    /isBoosterCtaLabelCompatibleWithMode\("website", source\.cta\)/,
+  );
+  assert.match(
+    cta,
+    /isBoosterCtaLabelCompatibleWithMode\("call", source\.cta\)/,
+  );
+  assert.match(
+    cta,
+    /isBoosterCtaLabelCompatibleWithMode\("message", source\.cta\)/,
+  );
+});

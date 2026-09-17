@@ -7,6 +7,7 @@ import {
   buildUniqueBoosterHashtagLine,
   dedupeBoosterHashtagsInText,
   getBoosterPhoneDisplayValue,
+  normalizeBoosterInstagramPostHashtags,
   sanitizeBoosterPostForStructuredCta as sanitizeStructuredCtaPost,
   sanitizeGoogleBusinessPublicationText,
 } from "@/lib/boosterPublicationSafety";
@@ -114,6 +115,19 @@ export function inferLegacyCtaMode(text: string): BoosterCtaMode {
   return "custom";
 }
 
+export function isBoosterCtaLabelCompatibleWithMode(
+  mode: BoosterCtaMode,
+  label: unknown,
+) {
+  if (mode === "custom") return true;
+  const inferredMode = inferLegacyCtaMode(String(label || ""));
+  return (
+    inferredMode === "none" ||
+    inferredMode === "custom" ||
+    inferredMode === mode
+  );
+}
+
 export function getCtaMode(post: Partial<BoosterPostLike> | null | undefined): BoosterCtaMode {
   const raw = String(post?.ctaMode || "").trim() as BoosterCtaMode;
   if (VALID_MODES.includes(raw)) return raw;
@@ -184,6 +198,16 @@ function hasUsableCtaForMode(
  * Un CTA incompatible ou incomplet est converti vers la meilleure action
  * réellement utilisable sur le canal, puis désactivé si aucune n'existe.
  */
+export function normalizeBoosterPostCtaForChannel<T extends BoosterPostLike>(
+  channel: BoosterChannelKey,
+  post: T,
+  context?: BoosterCtaContext,
+): T;
+export function normalizeBoosterPostCtaForChannel(
+  channel: BoosterChannelKey,
+  post: Partial<BoosterPostLike> | null | undefined,
+  context?: BoosterCtaContext,
+): BoosterPostLike;
 export function normalizeBoosterPostCtaForChannel(
   channel: BoosterChannelKey,
   post: Partial<BoosterPostLike> | null | undefined,
@@ -207,7 +231,9 @@ export function normalizeBoosterPostCtaForChannel(
       ...source,
       ctaMode: "website",
       cta:
-        requestedMode === "website" && collapseWhitespace(String(source.cta || ""))
+        requestedMode === "website" &&
+        collapseWhitespace(String(source.cta || "")) &&
+        isBoosterCtaLabelCompatibleWithMode("website", source.cta)
           ? source.cta
           : "Voir le site",
       ctaUrl: getCtaWebsiteUrl(source, context),
@@ -219,7 +245,9 @@ export function normalizeBoosterPostCtaForChannel(
       ...source,
       ctaMode: "call",
       cta:
-        requestedMode === "call" && collapseWhitespace(String(source.cta || ""))
+        requestedMode === "call" &&
+        collapseWhitespace(String(source.cta || "")) &&
+        isBoosterCtaLabelCompatibleWithMode("call", source.cta)
           ? source.cta
           : "Appeler",
       ctaUrl: "",
@@ -231,7 +259,9 @@ export function normalizeBoosterPostCtaForChannel(
       ...source,
       ctaMode: "message",
       cta:
-        requestedMode === "message" && collapseWhitespace(String(source.cta || ""))
+        requestedMode === "message" &&
+        collapseWhitespace(String(source.cta || "")) &&
+        isBoosterCtaLabelCompatibleWithMode("message", source.cta)
           ? source.cta
           : "Envoyer un message",
       ctaUrl: "",
@@ -341,8 +371,9 @@ export function buildBoosterHashtagLine(
 }
 
 export function buildBoosterInstagramCaption(post: Partial<BoosterPostLike> | null | undefined, context?: BoosterCtaContext) {
-  const base = buildBoosterMessage("instagram", post, context);
-  const tagLine = buildBoosterHashtagLine(post, base, 8);
+  const normalizedPost = normalizeBoosterInstagramPostHashtags(post || {}, 8);
+  const base = buildBoosterMessage("instagram", normalizedPost, context);
+  const tagLine = buildBoosterHashtagLine(normalizedPost, base, 8);
   return (tagLine ? `${base}\n\n${tagLine}` : base).trim().slice(0, 2200);
 }
 

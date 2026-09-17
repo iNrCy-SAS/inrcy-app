@@ -28,8 +28,13 @@ test("iNrAgent matérialise l'horizon choisi selon les créneaux et critères", 
   assert.match(planner, /toneValue\(args\.tone\)/);
   assert.match(planner, /startingIndex \+ sequence/);
   assert.match(planner, /Math\.round\(slotKeys\.length \* 0\.2\)/);
-  assert.match(planner, /"realisations", "coulisses", "temoignages"/);
-  assert.match(planner, /mediaKind === "image" \? plannedImageCount/);
+  assert.match(planner, /INR_AGENT_IMAGES_PER_PUBLICATION = 1 as const/);
+  assert.match(planner, /imageCount: 0 \| 1/);
+  assert.match(
+    planner,
+    /mediaKind === "image" \? INR_AGENT_IMAGES_PER_PUBLICATION : 0/,
+  );
+  assert.doesNotMatch(planner, /plannedImageCount/);
   assert.match(planner, /channels = channels\.filter\(\(channel\) => channel !== "youtube"\)/);
 });
 
@@ -108,14 +113,22 @@ test("le plan est durable, dédupliqué et protège les quotas lors d'un changem
   assert.match(vercel, /"schedule": "\*\/5 \* \* \* \*"/);
 });
 
-test("la préparation conserve 1 ou 2 images jusqu'à Booster et à l'agenda", () => {
+test("la préparation limite iNrAgent à une image jusqu'à Booster et à l'agenda", () => {
   const prepare = read("app/api/agent/actions/prepare-publish/route.ts");
+  const regenerate = read(
+    "app/api/agent/actions/regenerate-channel/route.ts",
+  );
+  const server = read("lib/inrAgentEditorialPlanServer.ts");
+  const messages = read("messages/fr-FR/agent.json");
   const schedule = read("app/api/agent/actions/schedule/route.ts");
   const preview = read("app/dashboard/agent/_lib/agent.publish-preview.ts");
   const scheduleItems = read("app/dashboard/agent/_lib/agent.schedule-items.ts");
   const client = read("app/dashboard/agent/AgentClient.tsx");
 
   assert.match(prepare, /requestedGenerationCount/);
+  assert.match(prepare, /INR_AGENT_IMAGES_PER_PUBLICATION/);
+  assert.doesNotMatch(prepare, /imageCount === 2/);
+  assert.doesNotMatch(prepare, /seconde variation visuelle/);
   assert.match(prepare, /generatedMediaResults/);
   assert.match(prepare, /mediaAssets/);
   assert.match(prepare, /images,/);
@@ -131,6 +144,10 @@ test("la préparation conserve 1 ou 2 images jusqu'à Booster et à l'agenda", (
   assert.match(client, /buildAgentScheduleItems/);
   assert.match(client, /selectedPreparedActionId/);
   assert.match(client, /selectedPreparedAction\.scheduledFor/);
+  assert.match(regenerate, /INR_AGENT_IMAGES_PER_PUBLICATION/);
+  assert.doesNotMatch(regenerate, /seconde image complémentaire/);
+  assert.match(server, /lostImages \+= INR_AGENT_IMAGES_PER_PUBLICATION/);
+  assert.match(messages, /une vidéo ou une seule image/);
 });
 
 test("les médias iNrAgent sont adaptés sans rognage automatique", () => {

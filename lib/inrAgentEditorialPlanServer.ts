@@ -6,6 +6,7 @@ import { buildInternalCronHeaders } from "@/lib/cronAuth";
 import {
   buildInrAgentEditorialPlan,
   getInrAgentEditorialPlanSignatures,
+  INR_AGENT_IMAGES_PER_PUBLICATION,
   INR_AGENT_EDITORIAL_PLAN_VERSION,
   type InrAgentEditorialSlot,
 } from "@/lib/inrAgentEditorialPlanning";
@@ -377,7 +378,7 @@ export async function analyzeInrAgentEditorialPlanChange(args: {
     generatedPublications += 1;
     if (plan.mediaKind === "video") lostVideos += 1;
     if (plan.mediaKind === "image") {
-      lostImages += Math.max(1, Math.min(2, Number(plan.imageCount) || 1));
+      lostImages += INR_AGENT_IMAGES_PER_PUBLICATION;
     }
   }
 

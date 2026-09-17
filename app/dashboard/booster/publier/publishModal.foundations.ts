@@ -1,8 +1,17 @@
 import { INR_SEARCH_CONTENT_MAX_LENGTH } from "@/lib/boosterChannelRules";
 import {
+  normalizeBoosterPostCtaForChannel,
+  sanitizeBoosterPostForStructuredCta,
+} from "@/lib/boosterCta";
+import {
+  applySafePreferredCta,
+  getPreferredWebsiteUrlForChannel,
+} from "@/lib/boosterCtaPreferences";
+import {
   stripSiteTextFormattingForEditor,
   stripSiteTextFormattingPreserveLayout,
 } from "@/lib/boosterFormatting";
+import { normalizeBoosterInstagramPostHashtags } from "@/lib/boosterPublicationSafety";
 import type { TiktokPublicationSettings } from "./components/TiktokPublicationSettingsModal";
 import {
   BOOSTER_CHANNEL_ORDER,
@@ -11,6 +20,7 @@ import {
   extractVideoFramesForAI,
   isSiteDisplayKey,
   normalizePost,
+  type BoosterCtaDefaults,
   type BoosterVideoSourceMetadata,
   type ChannelKey,
   type ChannelPost,
@@ -277,6 +287,7 @@ export function sanitizePostForEditor(
 
 export function sanitizePostsForEditor(
   raw: unknown,
+  ctaDefaults?: BoosterCtaDefaults | null,
 ): Partial<Record<ChannelKey, ChannelPost>> {
   const node =
     raw && typeof raw === "object" && !Array.isArray(raw)
@@ -284,11 +295,46 @@ export function sanitizePostsForEditor(
       : {};
   return CHANNEL_KEYS.reduce(
     (acc, channel) => {
-      if (node[channel] !== undefined)
+      if (node[channel] !== undefined) {
+        const sourcePost =
+          channel === "instagram"
+            ? normalizeBoosterInstagramPostHashtags(
+                node[channel] as Partial<ChannelPost>,
+                20,
+              )
+            : (node[channel] as Partial<ChannelPost>);
+        const sanitized = sanitizePostForEditor(
+          channel,
+          sourcePost,
+        );
+        if (!ctaDefaults) {
+          acc[channel] = sanitized;
+          return acc;
+        }
+
+        const context = {
+          websiteUrl: getPreferredWebsiteUrlForChannel(channel, ctaDefaults),
+          phone: ctaDefaults.phone,
+        };
+        const preferred = applySafePreferredCta({
+          channel,
+          post: sanitized,
+          defaults: ctaDefaults,
+          preserveExplicit: true,
+        });
+        const normalized = normalizeBoosterPostCtaForChannel(
+          channel,
+          preferred,
+          context,
+        );
         acc[channel] = sanitizePostForEditor(
           channel,
-          node[channel] as Partial<ChannelPost>,
+          sanitizeBoosterPostForStructuredCta(
+            { ...sanitized, ...normalized },
+            context,
+          ),
         );
+      }
       return acc;
     },
     {} as Partial<Record<ChannelKey, ChannelPost>>,

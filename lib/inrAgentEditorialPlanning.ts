@@ -13,6 +13,7 @@ import {
 
 export const INR_AGENT_EDITORIAL_HORIZON_DAYS = 15;
 export const INR_AGENT_EDITORIAL_PLAN_VERSION = 1;
+export const INR_AGENT_IMAGES_PER_PUBLICATION = 1 as const;
 
 export type InrAgentEditorialMediaKind = "image" | "video" | "existing";
 
@@ -24,7 +25,7 @@ export type InrAgentEditorialSlot = {
   theme: InrAgentTheme;
   tone: InrAgentTone;
   mediaKind: InrAgentEditorialMediaKind;
-  imageCount: 0 | 1 | 2;
+  imageCount: 0 | 1;
   channels: InrAgentChannel[];
   scheduleSignature: string;
   criteriaSignature: string;
@@ -252,13 +253,6 @@ function plannedTheme(
   return usable[(startingIndex + sequence) % usable.length];
 }
 
-function plannedImageCount(theme: InrAgentTheme, slotKey: string): 1 | 2 {
-  if (["realisations", "coulisses", "temoignages"].includes(theme)) return 2;
-  if (theme === "offres" && stableScore(`${slotKey}:carousel`) % 2 === 0)
-    return 2;
-  return 1;
-}
-
 function videoSlotKeys(slotKeys: string[]) {
   // Sur un vrai mois éditorial, on garde au moins une vidéo dès quatre
   // publications, puis environ 20 % du volume total.
@@ -406,7 +400,8 @@ export function buildInrAgentEditorialPlan(args: {
       theme,
       tone,
       mediaKind,
-      imageCount: mediaKind === "image" ? plannedImageCount(theme, slotKey) : 0,
+      imageCount:
+        mediaKind === "image" ? INR_AGENT_IMAGES_PER_PUBLICATION : 0,
       channels,
       scheduleSignature,
       criteriaSignature,

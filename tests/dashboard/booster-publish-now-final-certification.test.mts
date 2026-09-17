@@ -72,8 +72,7 @@ const branchDefinitions = [
       "instagramCreateVideoCheckpointWithTokenFallback",
       "instagramPollVideoCheckpointWithTokenFallback",
       "instagramPublishVideoCheckpointWithTokenFallback",
-      "instagramPublishCarouselWithTokenFallback",
-      "instagramPublishPhotoWithTokenFallback",
+      "instagramPublishImagesBestEffortWithTokenFallback",
       "buildInstagramPublishTokenCandidates",
       "setDelivery",
     ],
@@ -147,8 +146,7 @@ const networkPublisherMarkers = [
   "instagramCreateVideoCheckpointWithTokenFallback",
   "instagramPollVideoCheckpointWithTokenFallback",
   "instagramPublishVideoCheckpointWithTokenFallback",
-  "instagramPublishCarouselWithTokenFallback",
-  "instagramPublishPhotoWithTokenFallback",
+  "instagramPublishImagesBestEffortWithTokenFallback",
   "linkedinPublishVideo",
   "linkedinPublishMultiImage",
   "linkedinPublishImage",
@@ -195,8 +193,7 @@ test("network publishers remain isolated inside their own channel branches", () 
       "instagramCreateVideoCheckpointWithTokenFallback",
       "instagramPollVideoCheckpointWithTokenFallback",
       "instagramPublishVideoCheckpointWithTokenFallback",
-      "instagramPublishCarouselWithTokenFallback",
-      "instagramPublishPhotoWithTokenFallback",
+      "instagramPublishImagesBestEffortWithTokenFallback",
     ],
     linkedin: [
       "linkedinPublishVideo",
@@ -249,6 +246,7 @@ test("the extracted modules remain bounded by their intended responsibilities", 
   assert.match(serverPreparation, /from "@\/lib\/supabaseAdmin"/);
   assert.doesNotMatch(serverPreparation, /facebookPublishToPage/);
   assert.doesNotMatch(serverPreparation, /instagramPublishPhotoWithTokenFallback/);
+  assert.doesNotMatch(serverPreparation, /instagramPublishImagesBestEffortWithTokenFallback/);
   assert.doesNotMatch(serverPreparation, /linkedinPublishText/);
   assert.doesNotMatch(serverPreparation, /tiktokDirectPostPhotos/);
   assert.doesNotMatch(serverPreparation, /uploadYoutubeShort/);

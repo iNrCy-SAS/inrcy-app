@@ -47,6 +47,14 @@ export type PinterestCreatePinResult = {
   cover_image_url?: string | null;
   images_harmonized?: boolean;
   prepared_image_urls?: string[];
+  requested_image_count?: number;
+  prepared_image_count?: number;
+  rejected_images?: Array<{
+    index: number;
+    url: string;
+    stage: "validation" | "download" | "render" | "upload";
+    error: string;
+  }>;
   target_width?: number | null;
   target_height?: number | null;
 };
@@ -572,6 +580,9 @@ export async function createPinterestImagePin({
     media_type: "image",
     images_harmonized: preparedImages.harmonized,
     prepared_image_urls: preparedImages.imageUrls,
+    requested_image_count: preparedImages.requestedCount,
+    prepared_image_count: preparedImages.preparedCount,
+    rejected_images: preparedImages.rejectedImages,
     target_width: preparedImages.targetWidth,
     target_height: preparedImages.targetHeight,
   };

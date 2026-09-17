@@ -203,7 +203,7 @@ test("all ten supported channels keep an explicit server branch", () => {
     assert.ok(route.includes(marker), `missing channel branch: ${marker}`);
   }
   assert.match(route, /facebookPublishVideoToPage|facebookPublishToPage/);
-  assert.match(route, /instagramPublishVideoWithTokenFallback|instagramPublishPhotoWithTokenFallback/);
+  assert.match(route, /instagramPublishVideoCheckpointWithTokenFallback|instagramPublishImagesBestEffortWithTokenFallback/);
   assert.match(route, /linkedinPublishVideo|linkedinPublishMultiImage|linkedinPublishText/);
   assert.match(route, /tiktokDirectPostVideoFileUpload|tiktokDirectPostPhotos/);
   assert.match(route, /uploadYoutubeShort/);

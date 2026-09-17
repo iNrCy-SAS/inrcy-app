@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 
 
 import Image from "next/image";
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import type { InrSearchPublication } from "@/lib/inrSearchPublic";
 import styles from "./inrSearchPublic.module.css";
@@ -36,17 +36,42 @@ function excerpt(value: string, max = 220) {
 
 export default function InrSearchNewsShowcase({ companyName, publications }: Props) {
   const i18nT = useTranslations("public");
+  const shellT = useTranslations("shell");
   const [activeIndex, setActiveIndex] = useState(0);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [modalOpen, setModalOpen] = useState(false);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
   const total = publications.length;
   const activePublication = publications[activeIndex] || publications[0];
+  const activeImageUrls = useMemo(() => {
+    if (!activePublication) return [];
+    const urls = Array.isArray(activePublication.imageUrls)
+      ? activePublication.imageUrls.filter(Boolean)
+      : [];
+    if (urls.length) return urls;
+    return activePublication.imageUrl ? [activePublication.imageUrl] : [];
+  }, [activePublication]);
+  const activeImageCount = activeImageUrls.length;
+  const normalizedActiveImageIndex = wrapIndex(
+    activeImageIndex,
+    activeImageCount,
+  );
+  const activeImageUrl =
+    activeImageUrls[normalizedActiveImageIndex] || null;
 
   const move = useCallback((offset: number) => {
     if (!total) return;
+    setActiveImageIndex(0);
     setActiveIndex((current) => wrapIndex(current + offset, total));
   }, [total]);
+
+  const moveImage = useCallback((offset: number) => {
+    if (!activeImageCount) return;
+    setActiveImageIndex((current) =>
+      wrapIndex(current + offset, activeImageCount),
+    );
+  }, [activeImageCount]);
 
   const openModal = useCallback(() => {
     if (!activePublication) return;
@@ -85,6 +110,40 @@ export default function InrSearchNewsShowcase({ companyName, publications }: Pro
     };
   }, [modalOpen, move]);
 
+  const renderImageNavigation = (context: "stage" | "modal") =>
+    activeImageCount > 1 ? (
+      <div
+        className={styles.newsOrbitImageNavigation}
+        data-context={context}
+      >
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            moveImage(-1);
+          }}
+          onKeyDown={(event) => event.stopPropagation()}
+          aria-label={shellT("image_precedente_635f9e95")}
+        >
+          ←
+        </button>
+        <output aria-live="polite">
+          {normalizedActiveImageIndex + 1} / {activeImageCount}
+        </output>
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            moveImage(1);
+          }}
+          onKeyDown={(event) => event.stopPropagation()}
+          aria-label={shellT("image_suivante_656228da")}
+        >
+          →
+        </button>
+      </div>
+    ) : null;
+
   return (
     <div className={styles.newsOrbitExperience}>
       <div className={styles.newsOrbitHeader}>
@@ -115,7 +174,7 @@ export default function InrSearchNewsShowcase({ companyName, publications }: Pro
             className={styles.newsOrbitFocus}
             onClick={openModal}
           >
-            <span className={styles.newsOrbitFocusMedia}>
+            <div className={styles.newsOrbitFocusMedia}>
               {activePublication.videoUrl ? (
                 <video
                   className={styles.newsOrbitFocusVideo}
@@ -131,13 +190,14 @@ export default function InrSearchNewsShowcase({ companyName, publications }: Pro
                   onClick={(event) => event.stopPropagation()}
                   onKeyDown={(event) => event.stopPropagation()}
                 />
-              ) : activePublication.imageUrl ? (
-                <Image src={activePublication.imageUrl} alt={`${activePublication.title} – ${companyName}`} width={1600} height={1000} sizes="(max-width: 900px) 92vw, 720px" loading="eager" unoptimized />
+              ) : activeImageUrl ? (
+                <Image key={`${activePublication.id}-${normalizedActiveImageIndex}`} src={activeImageUrl} alt={`${activePublication.title} – ${companyName} – ${normalizedActiveImageIndex + 1}/${activeImageCount}`} width={1600} height={1000} sizes="(max-width: 900px) 92vw, 720px" loading="eager" unoptimized />
               ) : (
                 <span className={styles.newsOrbitFallback} aria-hidden="true"><b>✦</b><i /></span>
               )}
+              {!activePublication.videoUrl ? renderImageNavigation("stage") : null}
               {!activePublication.videoUrl ? <span className={styles.newsOrbitFocusShade} /> : null}
-            </span>
+            </div>
             <span className={styles.newsOrbitFocusContent}>
               <span className={styles.newsOrbitFocusMeta}>
                 <small>{i18nT("dernier_signal_e6e228e7")}</small>
@@ -167,7 +227,10 @@ export default function InrSearchNewsShowcase({ companyName, publications }: Pro
               className={styles.newsOrbitRailItem}
               data-active={index === activeIndex ? "true" : "false"}
               key={`${publication.id}-rail`}
-              onClick={() => setActiveIndex(index)}
+              onClick={() => {
+                setActiveImageIndex(0);
+                setActiveIndex(index);
+              }}
               role="listitem"
               aria-label={i18nT("afficher_value_94359678", { value0: publication.title })}
               aria-current={index === activeIndex ? "true" : undefined}
@@ -211,8 +274,8 @@ export default function InrSearchNewsShowcase({ companyName, publications }: Pro
                     </video>
                     <span />
                   </div>
-                ) : activePublication.imageUrl ? (
-                  <div className={styles.newsOrbitModalMedia}><Image key={activePublication.id} src={activePublication.imageUrl} alt={`${activePublication.title} – ${companyName}`} width={1800} height={1200} sizes="(max-width: 920px) 94vw, 70vw" unoptimized /><span /></div>
+                ) : activeImageUrl ? (
+                  <div className={styles.newsOrbitModalMedia}><Image key={`${activePublication.id}-modal-${normalizedActiveImageIndex}`} src={activeImageUrl} alt={`${activePublication.title} – ${companyName} – ${normalizedActiveImageIndex + 1}/${activeImageCount}`} width={1800} height={1200} sizes="(max-width: 920px) 94vw, 70vw" unoptimized /><span />{renderImageNavigation("modal")}</div>
                 ) : null}
                 <div className={styles.newsOrbitModalContent}>
                   <span className={styles.newsOrbitModalKicker}>{i18nT("actualite_de_value_6ebd8b93", { value0: companyName })}</span>

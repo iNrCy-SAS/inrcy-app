@@ -36,7 +36,9 @@ test("les réglages iNrAgent exploitent une disposition desktop large et équili
 });
 
 test("les onglets Publier sont intégrés au header et passent sur une ligne dédiée en responsive", () => {
-  const headerStart = client.indexOf("<header\n              className={styles.settingsModalHeader}");
+  const headerStart =
+    client.match(/<header\r?\n\s+className=\{styles\.settingsModalHeader\}/)
+      ?.index ?? -1;
   const tabsStart = client.indexOf("className={styles.settingsPublishTabs}", headerStart);
   const headerEnd = client.indexOf("</header>", headerStart);
 

@@ -6,6 +6,7 @@ import type {
 } from "@/lib/boosterCta";
 import {
   getSupportedBoosterCtaModesForChannel,
+  isBoosterCtaLabelCompatibleWithMode,
   isBoosterCtaModeSupportedForChannel,
 } from "@/lib/boosterCta";
 import {
@@ -431,6 +432,7 @@ function hasUsableExplicitStructuredCta(
   const mode = cleanText(post.ctaMode) as BoosterCtaMode;
   if (mode === "none") return true;
   if (!isBoosterCtaModeSupportedForChannel(channel, mode)) return false;
+  if (!isBoosterCtaLabelCompatibleWithMode(mode, post.cta)) return false;
   if (mode === "website" || mode === "custom") {
     return Boolean(normalizeCtaWebsiteUrl(post.ctaUrl));
   }

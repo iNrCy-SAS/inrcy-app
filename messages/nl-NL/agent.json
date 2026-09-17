@@ -523,7 +523,7 @@
   "regenerate_media": "Media opnieuw genereren",
   "regenerate_confirm_title": "Opnieuw genereren voor {channel}?",
   "regenerate_content_confirm": "iNrCy maakt alleen de titel en tekst voor {channel} opnieuw. De datum, media en andere kanalen blijven ongewijzigd.",
-  "regenerate_media_confirm": "iNrCy maakt alleen de media voor {channel} opnieuw: één video of precies twee afbeeldingen volgens het huidige formaat. Tekst, datum en andere kanalen blijven ongewijzigd.",
+  "regenerate_media_confirm": "iNrCy maakt alleen de media voor {channel} opnieuw: één video of één afbeelding volgens het huidige formaat. Tekst, datum en andere kanalen blijven ongewijzigd.",
   "regenerate_failed": "Het opnieuw genereren is niet voltooid. Bestaande inhoud is niet vervangen.",
   "regenerate_content_success": "De inhoud voor {channel} is opnieuw gegenereerd.",
   "regenerate_media_success": "De media voor {channel} zijn opnieuw gegenereerd.",

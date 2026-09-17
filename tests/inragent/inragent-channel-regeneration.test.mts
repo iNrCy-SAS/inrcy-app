@@ -47,10 +47,14 @@ test("iNrAgent regenerates the complete editorial panel for only the requested c
   assert.doesNotMatch(generatedCall, /mediaType:\s*"images"/);
 });
 
-test("media regeneration is atomic and keeps the one-video or two-image invariant", () => {
+test("media regeneration is atomic and keeps the one-media invariant", () => {
   const route = read("app/api/agent/actions/regenerate-channel/route.ts");
 
-  assert.match(route, /const expectedCount = mediaKind === "video" \? 1 : 2/);
+  assert.match(route, /INR_AGENT_IMAGES_PER_PUBLICATION/);
+  assert.match(
+    route,
+    /const expectedCount =\s*mediaKind === "image" \? INR_AGENT_IMAGES_PER_PUBLICATION : 1/,
+  );
   assert.match(route, /for \(let index = 0; index < expectedCount; index \+= 1\)/);
   assert.match(route, /if \(generatedMedia\.length !== expectedCount\)/);
   assert.match(route, /Aucun média de la publication n’a été remplacé/);
@@ -74,9 +78,19 @@ test("the review UI exposes independent content and media regeneration controls"
   assert.match(ui, /titre_et_texte_7f7b4e2a/);
   assert.match(ui, /publishTitleLoading/);
   assert.match(ui, /publishPreparationInProgress/);
+  assert.match(
+    ui,
+    /const agentWorking =[\s\S]*?publishPreparationInProgress/,
+  );
+  assert.match(ui, /<AgentWorkingIndicator/);
   assert.match(styles, /\.publishRegenerateButton/);
   assert.match(styles, /\.publishTitleLoading/);
   assert.match(styles, /\.robotWorkingBadge/);
+  assert.match(styles, /\.robotHaloWorking > img/);
+  assert.match(
+    styles,
+    /\.agentCommandRailRobot \.robotWorkingSpinner[\s\S]*?width: 96px/,
+  );
 });
 
 test("scheduled and immediate execution preserve channel-specific regenerated videos", () => {

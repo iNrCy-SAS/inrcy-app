@@ -76,6 +76,7 @@ test("the channel context stays deterministic and side-effect free", () => {
     /\.storage\b/,
     /\bfacebookPublishToPage\b/,
     /\binstagramPublishPhotoWithTokenFallback\b/,
+    /\binstagramPublishImagesBestEffortWithTokenFallback\b/,
     /\blinkedinPublishText\b/,
     /\btiktokDirectPostPhotos\b/,
     /\buploadYoutubeShort\b/,
@@ -96,7 +97,7 @@ test("network dispatch, durable delivery and token refresh stay in the route", (
     "getTiktokAccessToken",
     "getYoutubeShortsAccessToken",
     "facebookPublishToPage",
-    "instagramPublishPhotoWithTokenFallback",
+    "instagramPublishImagesBestEffortWithTokenFallback",
     "linkedinPublishText",
     "tiktokDirectPostPhotos",
     "uploadYoutubeShort",
@@ -109,13 +110,14 @@ test("network dispatch, durable delivery and token refresh stay in the route", (
   }
 });
 
-test("per-channel content, video and complete-image guards remain active", () => {
+test("per-channel content, video and explicit partial-image policy remain active", () => {
   assert.match(channelContext, /validateVideoPublicationForChannel\(/);
   assert.match(channelContext, /getVariantForChannel\(/);
   assert.match(channelContext, /limitBoosterChannelContent\(/);
   assert.match(channelContext, /sanitizeBoosterSiteText\(/);
   assert.match(channelContext, /never borrow a fallback from another channel/i);
   assert.match(channelContext, /urls\.length >= expected/);
+  assert.match(channelContext, /allowPartial/);
   assert.match(route, /getPublicationVideoForChannel\(ch\)/);
   assert.match(route, /getChannelPost\(ch\)/);
   assert.match(route, /pickCompleteChannelImageUrls\(\{/);

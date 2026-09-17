@@ -49,6 +49,7 @@ import {
   hasAiGeneratedCitationArtifacts,
   sanitizeAiGeneratedEditorialText,
 } from "@/lib/aiGeneratedTextSafety";
+import { normalizeBoosterInstagramPostHashtags } from "@/lib/boosterPublicationSafety";
 import {
   X_POST_WEIGHTED_LENGTH_MAX,
   getXPostTextMetrics,
@@ -65,6 +66,9 @@ export type ChannelPost = {
   title: string;
   content: string;
   cta: string;
+  ctaMode?: "none" | "website" | "call" | "message" | "custom";
+  ctaUrl?: string;
+  ctaPhone?: string;
   hashtags: string[];
 };
 
@@ -538,6 +542,9 @@ function normalizePost(channel: BoosterChannels, raw: Partial<ChannelPost> | und
     cta: stripSiteTextFormatting(generatedCta).slice(0, 180),
     hashtags: cleanHashtags(channel, raw?.hashtags),
   };
+  if (channel === "instagram") {
+    return normalizeBoosterInstagramPostHashtags(normalized, 8);
+  }
   return channel === "x" ? fitGeneratedXPost(normalized) : normalized;
 }
 

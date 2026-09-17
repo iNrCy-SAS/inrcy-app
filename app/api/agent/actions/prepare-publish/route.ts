@@ -62,9 +62,10 @@ import { loadInrAgentStudioMediaPreferences } from "@/lib/inrAgentMediaPreferenc
 import type { BoosterCtaMode } from "@/lib/boosterCta";
 import { applySafePreferredCta } from "@/lib/boosterCtaPreferences";
 import { loadBoosterCtaDefaults } from "@/lib/boosterCtaDefaultsServer";
-import type {
-  InrAgentEditorialMediaKind,
-  InrAgentEditorialSlot,
+import {
+  INR_AGENT_IMAGES_PER_PUBLICATION,
+  type InrAgentEditorialMediaKind,
+  type InrAgentEditorialSlot,
 } from "@/lib/inrAgentEditorialPlanning";
 
 export const maxDuration = 800;
@@ -415,7 +416,6 @@ function normalizeEditorialPlan(
   const channels = (Array.isArray(record.channels) ? record.channels : [])
     .map((channel) => cleanText(channel, 80) as InrAgentChannel)
     .filter(Boolean);
-  const rawImageCount = Math.round(Number(record.imageCount) || 0);
   return {
     slotKey,
     scheduledFor: new Date(scheduledAt).toISOString(),
@@ -424,12 +424,10 @@ function normalizeEditorialPlan(
     theme,
     tone: normalizeAgentTone(record.tone),
     mediaKind,
+    // Les anciens plans pouvaient encore contenir imageCount: 2. La politique
+    // courante s'applique au moment de la génération pour préserver le quota.
     imageCount:
-      mediaKind === "image"
-        ? rawImageCount >= 2
-          ? 2
-          : 1
-        : 0,
+      mediaKind === "image" ? INR_AGENT_IMAGES_PER_PUBLICATION : 0,
     channels,
     scheduleSignature: cleanText(record.scheduleSignature, 2_000),
     criteriaSignature: cleanText(record.criteriaSignature, 2_000),
@@ -1997,9 +1995,7 @@ export async function POST(request: Request) {
         : "image";
   const requestedGenerationCount =
     shouldGenerateMedia && generatedKind === "image"
-      ? editorialTarget?.plan.imageCount === 2
-        ? 2
-        : 1
+      ? INR_AGENT_IMAGES_PER_PUBLICATION
       : shouldGenerateMedia
         ? 1
         : 0;
@@ -2018,10 +2014,7 @@ export async function POST(request: Request) {
         supabase: supabaseAdmin,
         accountId: userId,
         actorAuthUserId: actorUserId,
-        idea:
-          index === 0
-            ? idea
-            : `${idea}\n\nCrée une seconde variation visuelle complémentaire : autre cadrage ou autre scène, même identité de marque et même message, sans dupliquer la première image.`,
+        idea,
         theme: agentTheme,
         kind: generatedKind,
         adminUnlimited: isAdmin,

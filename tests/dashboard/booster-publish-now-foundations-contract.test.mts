@@ -110,7 +110,7 @@ test("server preparation is isolated while dispatch and durable execution stay i
     "acquireExecutionIdempotencyLock",
     "finalizeAsyncPublicationIfReady",
     "facebookPublishToPage",
-    "instagramPublishPhotoWithTokenFallback",
+    "instagramPublishImagesBestEffortWithTokenFallback",
     "linkedinPublishText",
     "tiktokDirectPostPhotos",
     "uploadYoutubeShort",

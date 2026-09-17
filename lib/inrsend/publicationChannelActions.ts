@@ -5,7 +5,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { toExactStorageArrayBuffer } from "@/lib/supabaseStorageBinary";
 import { tryDecryptToken } from "@/lib/oauthCrypto";
 import { facebookPublishToPage, facebookPublishVideoToPage } from "@/lib/facebookPublish";
-import { instagramPublishCarouselWithTokenFallback, instagramPublishPhotoWithTokenFallback, instagramPublishVideoWithTokenFallback, isInstagramAuthorizationErrorResult } from "@/lib/instagramPublish";
+import { instagramPublishImagesBestEffortWithTokenFallback, instagramPublishVideoWithTokenFallback, isInstagramAuthorizationErrorResult } from "@/lib/instagramPublish";
 import { linkedinPublishImage, linkedinPublishMultiImage, linkedinPublishText, linkedinPublishVideo, linkedinResharePost } from "@/lib/linkedinPublish";
 import {
   getGmbToken,
@@ -56,6 +56,8 @@ import { isBubbleEnabled, type AppBubbleKey } from "@/lib/bubbleAccess";
 import { getXAccessToken } from "@/lib/xOAuth";
 import { deleteXPost } from "@/lib/xPublish";
 import { validateXUrlFreeText } from "@/lib/xChannel";
+import { getInstagramPartialImagesWarning } from "@/lib/instagramPartialImagesWarning";
+import { getImagePublicationWarning } from "@/lib/multiImagePublicationWarning";
 import { refreshInrSendPublicationVideoUrl } from "@/lib/inrsend/publicationVideoStorage";
 const LINKEDIN_VERSION = "202603";
 const TIKTOK_INRSEND_EXTERNAL_ACTION_MESSAGE =
@@ -187,6 +189,8 @@ type ImageSet = {
   siteCardPublishableUrls: string[];
   gmbPublishableUrls: string[];
   editableAttachments?: EditableImageAttachment[];
+  expectedImageCount?: number;
+  preparationErrors?: Array<{ index: number; reason: string }>;
 };
 
 type PublicationMediaType = "images" | "video";
@@ -372,6 +376,105 @@ async function uploadPublicationImages(userId: string, newImages: ImagePayload[]
   return { images: uploadedUrls, instagramPublishableUrls, socialFeedPublishableUrls, siteCardPublishableUrls, gmbPublishableUrls, editableAttachments };
 }
 
+async function uploadInstagramPublicationImagesBestEffort(
+  userId: string,
+  newImages: ImagePayload[],
+): Promise<ImageSet> {
+  const images: string[] = [];
+  const instagramPublishableUrls: string[] = [];
+  const editableAttachments: EditableImageAttachment[] = [];
+  const preparationErrors: Array<{ index: number; reason: string }> = [];
+  const requestedImages = newImages.slice(0, 5);
+
+  for (const [index, img] of requestedImages.entries()) {
+    try {
+      const parsed = dataUrlToBuffer(img.dataUrl);
+      if (!parsed) throw new Error(`Image invalide : ${img?.name || "image"}.`);
+
+      const ext = (img.name || "image").split(".").pop() || "jpg";
+      const originalPath = `${userId}/${randomUUID()}.${ext}`;
+      const originalUpload = await supabaseAdmin.storage
+        .from("booster")
+        .upload(
+          originalPath,
+          toExactStorageArrayBuffer(parsed.buffer),
+          {
+            contentType:
+              parsed.mime || img.type || "application/octet-stream",
+            upsert: false,
+          },
+        );
+      if (originalUpload.error) throw originalUpload.error;
+
+      const originalUrl = String(
+        supabaseAdmin.storage.from("booster").getPublicUrl(originalPath)?.data
+          ?.publicUrl || "",
+      ).trim();
+      if (!originalUrl) {
+        throw new Error(`URL publique introuvable pour ${img?.name || "image"}.`);
+      }
+
+      const optimized = await optimizeForInstagram(parsed.buffer);
+      const instagramPath = `${userId}/instagram/${randomUUID()}.${optimized.extension}`;
+      const instagramUpload = await supabaseAdmin.storage
+        .from("booster")
+        .upload(
+          instagramPath,
+          toExactStorageArrayBuffer(optimized.buffer),
+          { contentType: optimized.mime, upsert: false },
+        );
+      if (instagramUpload.error) throw instagramUpload.error;
+
+      const instagramUrl = String(
+        supabaseAdmin.storage.from("booster").getPublicUrl(instagramPath)?.data
+          ?.publicUrl || "",
+      ).trim();
+      if (!instagramUrl) {
+        throw new Error(`URL Instagram introuvable pour ${img?.name || "image"}.`);
+      }
+
+      const sourceOriginalUrl = String(
+        img.originalPublicUrl || img.originalUrl || originalUrl || "",
+      ).trim();
+      images.push(originalUrl);
+      instagramPublishableUrls.push(instagramUrl);
+      editableAttachments.push({
+        name:
+          String(img.originalName || img.name || "image.jpg").trim() ||
+          "image.jpg",
+        type:
+          String(
+            img.originalType || img.type || parsed.mime || "image/jpeg",
+          ).trim() || "image/jpeg",
+        url: originalUrl,
+        renderedUrl: originalUrl,
+        publicUrl: originalUrl,
+        originalUrl: sourceOriginalUrl || originalUrl,
+        originalPublicUrl: sourceOriginalUrl || originalUrl,
+        imageKey: String(img.imageKey || "").trim() || null,
+        transform: img.transform || null,
+        imageMeta: img.imageMeta || null,
+      });
+    } catch (error) {
+      preparationErrors.push({
+        index: index + 1,
+        reason: errorMessage(error, "préparation Instagram impossible"),
+      });
+    }
+  }
+
+  return {
+    images,
+    instagramPublishableUrls,
+    socialFeedPublishableUrls: [],
+    siteCardPublishableUrls: [],
+    gmbPublishableUrls: [],
+    editableAttachments,
+    expectedImageCount: requestedImages.length,
+    preparationErrors,
+  };
+}
+
 async function rebuildGoogleBusinessImagesFromSources(
   userId: string,
   sourceUrls: string[],
@@ -433,6 +536,35 @@ function emptyImageSet(): ImageSet {
   return { images: [], instagramPublishableUrls: [], socialFeedPublishableUrls: [], siteCardPublishableUrls: [], gmbPublishableUrls: [], editableAttachments: [] };
 }
 
+function getInstagramImageSelection(imageSet: ImageSet): {
+  urls: string[];
+  expectedCount: number;
+} {
+  const originals = imageSet.images.filter(Boolean).slice(0, 10);
+  const prepared = imageSet.instagramPublishableUrls.filter(Boolean).slice(0, 10);
+  const urls = prepared.length ? prepared : originals;
+  return {
+    urls,
+    expectedCount: Math.max(
+      Number(imageSet.expectedImageCount || 0),
+      originals.length,
+      urls.length,
+    ),
+  };
+}
+
+function getExpectedImageCount(imageSet: ImageSet, limit = 5) {
+  const preservedCount = Number(imageSet.expectedImageCount || 0);
+  return Math.min(
+    Math.max(
+      0,
+      Number.isFinite(preservedCount) ? preservedCount : 0,
+      imageSet.images.filter(Boolean).length,
+    ),
+    limit,
+  );
+}
+
 function getRenderedImageUrl(value: unknown): string {
   const record = asRecord(value);
   if (Object.keys(record).length) {
@@ -471,6 +603,24 @@ function getChannelImageSet(eventPayload: JsonRecord, publication: JsonRecord, c
     gmbPublishableUrls: Array.isArray(raw.gmbPublishableUrls)
       ? raw.gmbPublishableUrls.map((value) => String(value || "").trim()).filter(Boolean)
       : filterUrlsByIndexes(eventPayload.gmbPublishableUrls, inheritedIndexes),
+    expectedImageCount: Math.max(
+      0,
+      Number.isFinite(
+        Number(raw.expectedImageCount || raw.expected_image_count || 0),
+      )
+        ? Number(raw.expectedImageCount || raw.expected_image_count || 0)
+        : 0,
+      images.length,
+    ),
+    preparationErrors: Array.isArray(raw.preparationErrors)
+      ? raw.preparationErrors
+          .map((entry) => asRecord(entry))
+          .map((entry, index) => ({
+            index: Number(entry.index ?? index),
+            reason: String(entry.reason || entry.error || "").trim(),
+          }))
+          .filter((entry) => entry.reason)
+      : [],
   };
 }
 
@@ -528,7 +678,11 @@ async function updatePublicationImages(params: {
     editableAttachments: retainedIndexes.map((index) => currentAttachments[index]).filter(Boolean),
   };
 
-  const uploadedSet = newImages.length ? await uploadPublicationImages(userId, newImages) : emptyImageSet();
+  const uploadedSet = newImages.length
+    ? channel === "instagram"
+      ? await uploadInstagramPublicationImagesBestEffort(userId, newImages)
+      : await uploadPublicationImages(userId, newImages)
+    : emptyImageSet();
   return {
     images: [...baseImageSet.images, ...uploadedSet.images].slice(0, 5),
     instagramPublishableUrls: [...baseImageSet.instagramPublishableUrls, ...uploadedSet.instagramPublishableUrls].slice(0, 10),
@@ -536,6 +690,11 @@ async function updatePublicationImages(params: {
     siteCardPublishableUrls: [...baseImageSet.siteCardPublishableUrls, ...uploadedSet.siteCardPublishableUrls].slice(0, 20),
     gmbPublishableUrls: [...baseImageSet.gmbPublishableUrls, ...uploadedSet.gmbPublishableUrls].slice(0, 20),
     editableAttachments: [...(baseImageSet.editableAttachments || []), ...(uploadedSet.editableAttachments || [])].slice(0, 5),
+    expectedImageCount: Math.min(
+      retainedIndexes.length + newImages.slice(0, 5).length,
+      5,
+    ),
+    preparationErrors: uploadedSet.preparationErrors || [],
   };
 }
 
@@ -1227,7 +1386,15 @@ async function replaceChannelDelivery(params: {
   const resolvedImageSet = imageSet ?? getChannelImageSet(eventPayload, publication, channel);
   const images = resolvedImageSet.images;
   const socialFeedImageUrls = resolvedImageSet.socialFeedPublishableUrls.length ? resolvedImageSet.socialFeedPublishableUrls : images;
-  const instagramImageUrls = resolvedImageSet.instagramPublishableUrls.length ? resolvedImageSet.instagramPublishableUrls : images;
+  const instagramImageSelection = channel === "instagram" && !isVideoPublication
+    ? getInstagramImageSelection(resolvedImageSet)
+    : {
+        urls: resolvedImageSet.instagramPublishableUrls.length
+          ? resolvedImageSet.instagramPublishableUrls
+          : images,
+        expectedCount: images.filter(Boolean).slice(0, 10).length,
+      };
+  const instagramImageUrls = instagramImageSelection.urls;
   const siteCardImageUrls = resolvedImageSet.siteCardPublishableUrls.length ? resolvedImageSet.siteCardPublishableUrls : socialFeedImageUrls;
   const gmbImageUrls = (resolvedImageSet.gmbPublishableUrls.length ? resolvedImageSet.gmbPublishableUrls : socialFeedImageUrls)
     .filter(Boolean)
@@ -1283,6 +1450,19 @@ async function replaceChannelDelivery(params: {
   }
 
   if (channel === "inrcy_site" || channel === "site_web") {
+    const siteImages = isVideoPublication
+      ? []
+      : siteCardImageUrls.length
+        ? siteCardImageUrls
+        : images;
+    const expectedSiteImages = isVideoPublication
+      ? 0
+      : getExpectedImageCount(resolvedImageSet);
+    const siteImageWarning = getImagePublicationWarning({
+      channelLabel: channel === "inrcy_site" ? "Le site iNrCy" : "Le site web",
+      expectedCount: expectedSiteImages,
+      publishedCount: siteImages.length,
+    });
     const { data: article, error: articleError } = await supabaseAdmin
       .from("site_articles")
       .update({
@@ -1290,7 +1470,7 @@ async function replaceChannelDelivery(params: {
         content: nextPost.content,
         cta: buildCtaTextForChannel(channel, nextPost, { websiteUrl, phone }),
         hashtags: nextPost.hashtags,
-        images: isVideoPublication ? [] : (siteCardImageUrls.length ? siteCardImageUrls : images),
+        images: siteImages,
         ...(isVideoPublication && video ? {
           media_type: "video",
           video_url: video.publicUrl,
@@ -1310,7 +1490,15 @@ async function replaceChannelDelivery(params: {
 
     if (articleError) throw articleError;
     if (!article?.id) throw new Error("Article du site introuvable.");
-    return { externalId: article.id, status: "delivered", error: null };
+    return {
+      externalId: article.id,
+      status: "delivered",
+      error: null,
+      warning: siteImageWarning?.code || null,
+      warningMessage: siteImageWarning?.message || null,
+      imageCount: siteImages.length,
+      expectedImageCount: expectedSiteImages,
+    };
   }
 
   const [fbRow, gmbRow, igRow, liRow] = await Promise.all([
@@ -1413,25 +1601,26 @@ async function replaceChannelDelivery(params: {
         });
       });
     }
-    const facebookWarning = socialFeedImageUrls.length > 0 && Number(resp.failedImages || 0) > 0
-      ? Number(resp.uploadedImages || 0) > 0
-        ? {
-            code: "published_with_partial_images",
-            message:
-              "Facebook a publié uniquement les images acceptées. Une ou plusieurs images n'ont pas pu être jointes.",
-          }
-        : {
-            code: "published_without_image",
-            message:
-              "Facebook a publié le texte, mais aucune image n'a pu être jointe cette fois-ci.",
-          }
-      : null;
+    const expectedFacebookImageCount = getExpectedImageCount(resolvedImageSet);
+    const facebookWarning = getImagePublicationWarning({
+      channelLabel: "Facebook",
+      expectedCount: Math.max(
+        expectedFacebookImageCount,
+        socialFeedImageUrls.length,
+      ),
+      publishedCount: Number(resp.uploadedImages || 0),
+    });
     return {
       externalId: resp.postId,
       status: "delivered",
       error: null,
       warning: facebookWarning?.code || null,
       warningMessage: facebookWarning?.message || null,
+      imageCount: Number(resp.uploadedImages || 0),
+      expectedImageCount: Math.max(
+        expectedFacebookImageCount,
+        socialFeedImageUrls.length,
+      ),
     };
   }
 
@@ -1524,21 +1713,13 @@ async function replaceChannelDelivery(params: {
       { sourceLabel: "facebook", row: fbRow },
     ]).map((candidate) => ({ source: candidate.source, accessToken: candidate.token }));
     const caption = buildBoosterInstagramCaption(nextPost, { websiteUrl, phone });
-    const resp = instagramImages.length > 1
-      ? await instagramPublishCarouselWithTokenFallback({
-          igUserId,
-          accessToken: igToken,
-          tokenCandidates: instagramTokenCandidates,
-          caption,
-          imageUrls: instagramImages,
-        })
-      : await instagramPublishPhotoWithTokenFallback({
-          igUserId,
-          accessToken: igToken,
-          tokenCandidates: instagramTokenCandidates,
-          caption,
-          imageUrl: instagramImages[0],
-        });
+    const resp = await instagramPublishImagesBestEffortWithTokenFallback({
+      igUserId,
+      accessToken: igToken,
+      tokenCandidates: instagramTokenCandidates,
+      caption,
+      imageUrls: instagramImages,
+    });
     if (!resp.ok) {
       const instagramUserError = (isInstagramAuthorizationErrorResult(resp) || isInstagramAuthorizationLikeMessage(`instagram ${resp.error}`))
         ? INSTAGRAM_RECONNECT_USER_MESSAGE
@@ -1555,16 +1736,26 @@ async function replaceChannelDelivery(params: {
       });
       throw new Error(instagramUserError);
     }
+    const instagramWarning = getInstagramPartialImagesWarning({
+      expectedCount: instagramImageSelection.expectedCount,
+      publishedCount: resp.publishedImageCount,
+    });
     return {
       externalId: resp.mediaId,
       status: "delivered",
       error: previousDeleteResult && !previousDeleteResult.ok
         ? "Nouvelle version publiée. Instagram n’a pas confirmé la suppression automatique de l’ancien post."
         : null,
+      warning: instagramWarning?.code || null,
+      warningMessage: instagramWarning?.message || null,
       instagramMeta: {
         instagram_media_type: resp.mediaType,
         instagram_parent_media_id: resp.parentMediaId || resp.mediaId,
         instagram_child_media_ids: resp.childMediaIds || resp.childContainerIds || [],
+        instagram_expected_image_count:
+          instagramWarning?.expectedCount || instagramImageSelection.expectedCount,
+        instagram_published_image_count: resp.publishedImageCount,
+        instagram_carousel_fallback_used: resp.carouselFallbackUsed,
         instagram_delete_previous_result: previousDeleteResult || null,
       },
     };
@@ -1602,6 +1793,9 @@ async function replaceChannelDelivery(params: {
       throw new Error(linkedInUserError);
     }
     const linkedInImages = socialFeedImageUrls.filter(Boolean).slice(0, 20);
+    const expectedLinkedInImageCount = isVideoPublication
+      ? 0
+      : getExpectedImageCount(resolvedImageSet, 20);
     let linkedInWarning: { code: string; message: string } | null = null;
     let resp = isVideoPublication && videoUrl
       ? await linkedinPublishVideo({ accessToken, authorUrn, text: canonMessage, videoUrl, title: nextPost.title || undefined })
@@ -1620,13 +1814,13 @@ async function replaceChannelDelivery(params: {
       const mediaResp = resp;
       const fallbackResp = await linkedinPublishText({ accessToken, authorUrn, text: canonMessage });
       if (fallbackResp.ok) {
-        linkedInWarning = {
-          code: "published_without_image",
-          message:
-            "LinkedIn a publié le texte, mais les images n'ont pas pu être jointes cette fois-ci.",
-        };
         resp = {
           ...fallbackResp,
+          requestedImageCount:
+            mediaResp.requestedImageCount || linkedInImages.length,
+          publishedImageCount: 0,
+          failedImageCount:
+            mediaResp.failedImageCount || linkedInImages.length,
           diagnostics: {
             mediaPublishError: mediaResp.error,
             mediaPublishDiagnostics: mediaResp.diagnostics,
@@ -1648,6 +1842,18 @@ async function replaceChannelDelivery(params: {
         diagnostics: resp,
       });
       throw new Error(linkedInUserError);
+    }
+    if (!isVideoPublication) {
+      linkedInWarning = getImagePublicationWarning({
+        channelLabel: "LinkedIn",
+        expectedCount: Math.max(
+          expectedLinkedInImageCount,
+          linkedInImages.length,
+        ),
+        publishedCount: Number(
+          resp.publishedImageCount ?? linkedInImages.length,
+        ),
+      });
     }
     if (previousExternalId && previousExternalId !== resp.postUrn) {
       await deleteLinkedInPost(previousExternalId, accessToken).catch((error) => {
@@ -1693,6 +1899,12 @@ async function replaceChannelDelivery(params: {
       error: null,
       warning: linkedInWarning?.code || null,
       warningMessage: linkedInWarning?.message || null,
+      imageCount: isVideoPublication
+        ? 0
+        : Number(resp.publishedImageCount ?? linkedInImages.length),
+      expectedImageCount: isVideoPublication
+        ? 0
+        : Math.max(expectedLinkedInImageCount, linkedInImages.length),
       linkedinPersonalShareId: linkedInPersonalShareUrn,
     };
   }
@@ -2091,6 +2303,10 @@ async function replaceChannelDelivery(params: {
     }
 
     const pinterestImageUrls = socialFeedImageUrls.filter(Boolean).slice(0, 5);
+    const expectedPinterestImageCount = getExpectedImageCount(
+      resolvedImageSet,
+      5,
+    );
     if (!pinterestImageUrls.length) throw new Error("Pinterest nécessite au moins 1 image.");
     const currentImageSet = getChannelImageSet(eventPayload, publication, channel);
     const currentPinterestImageUrls = (
@@ -2120,6 +2336,21 @@ async function replaceChannelDelivery(params: {
         );
       }
 
+      const publishedImageCount = Number(
+        created.prepared_image_count ??
+          created.prepared_image_urls?.length ??
+          params.imageUrls.length,
+      );
+      const partialImageWarning = getImagePublicationWarning({
+        channelLabel: "Pinterest",
+        expectedCount: Math.max(
+          expectedPinterestImageCount,
+          params.imageUrls.length,
+          Number(created.requested_image_count || 0),
+        ),
+        publishedCount: publishedImageCount,
+      });
+
       try {
         await deletePinterestPin(accessToken, previousExternalId);
       } catch (deleteOldError) {
@@ -2135,13 +2366,22 @@ async function replaceChannelDelivery(params: {
         externalId: created.id,
         status: "delivered",
         error: null,
-        warning: params.warning || null,
-        warningMessage: params.warningMessage || null,
+        warning: partialImageWarning?.code || params.warning || null,
+        warningMessage:
+          [partialImageWarning?.message, params.warningMessage]
+            .filter(Boolean)
+            .join(" ") || null,
         pinterestMeta: {
           board_id: boardId,
           external_url: created.url || null,
           media_type: "image",
-          image_count: params.imageUrls.length,
+          image_count: publishedImageCount,
+          expected_image_count: Math.max(
+            expectedPinterestImageCount,
+            params.imageUrls.length,
+            Number(created.requested_image_count || 0),
+          ),
+          media_failures: created.rejected_images || [],
           images_harmonized: Boolean(created.images_harmonized),
           image_preparation_message: created.images_harmonized
             ? "Les images Pinterest ont été harmonisées automatiquement pour conserver un format identique."
@@ -2162,15 +2402,31 @@ async function replaceChannelDelivery(params: {
           description,
           link,
         });
+        const retainedImageCount =
+          currentPinterestImageUrls.length || pinterestImageUrls.length;
+        const retainedImageWarning = getImagePublicationWarning({
+          channelLabel: "Pinterest",
+          expectedCount: Math.max(
+            expectedPinterestImageCount,
+            retainedImageCount,
+          ),
+          publishedCount: retainedImageCount,
+        });
         return {
           externalId: updated.id || previousExternalId,
           status: "delivered",
           error: null,
+          warning: retainedImageWarning?.code || null,
+          warningMessage: retainedImageWarning?.message || null,
           pinterestMeta: {
             board_id: boardId,
             external_url: updated.url || null,
             media_type: "image",
-            image_count: currentPinterestImageUrls.length || pinterestImageUrls.length,
+            image_count: retainedImageCount,
+            expected_image_count: Math.max(
+              expectedPinterestImageCount,
+              retainedImageCount,
+            ),
           },
         };
       } catch (updateError) {

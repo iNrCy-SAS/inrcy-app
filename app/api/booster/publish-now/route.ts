@@ -19,8 +19,7 @@ import {
   facebookPublishVerticalVideoToPage,
 } from "@/lib/facebookPublish";
 import {
-  instagramPublishCarouselWithTokenFallback,
-  instagramPublishPhotoWithTokenFallback,
+  instagramPublishImagesBestEffortWithTokenFallback,
   isInstagramAuthorizationErrorResult,
   isInstagramRateLimitErrorResult,
 } from "@/lib/instagramPublish";
@@ -88,6 +87,8 @@ import {
   getPreferredWebsiteUrlForChannel,
   type BoosterCtaDefaults,
 } from "@/lib/boosterCtaPreferences";
+import { getInstagramPartialImagesWarning } from "@/lib/instagramPartialImagesWarning";
+import { getImagePublicationWarning } from "@/lib/multiImagePublicationWarning";
 import { getLinkedInAccessToken } from "@/lib/linkedinOAuth";
 import { getXAccessToken } from "@/lib/xOAuth";
 import { validateXUrlFreeText } from "@/lib/xChannel";
@@ -1196,6 +1197,23 @@ async function publishNowHandler(req: Request) {
     let imagesByChannel = hasAnyImageChannel
       ? (((body.imagesByChannel || {}) as ImagesByChannel) || {})
       : {};
+    const expectedImageCountByChannel = Object.fromEntries(
+      selected.map((channel) => {
+        const channelImages = Array.isArray(imagesByChannel[channel])
+          ? (imagesByChannel[channel] as ImagePayload[])
+          : [];
+        const preservedAsyncCount = internalAsyncDispatch
+          ? Math.max(
+              0,
+              Math.floor(Number(body._asyncExpectedImageCount || 0)),
+            )
+          : 0;
+        return [
+          channel,
+          preservedAsyncCount || channelImages.length || images.length,
+        ];
+      }),
+    ) as Partial<Record<ChannelKey, number>>;
     let imageSettingsByChannel = hasAnyImageChannel
       ? ((body.imageSettingsByChannel || {}) as Record<string, unknown>)
       : {};
@@ -2597,6 +2615,8 @@ async function publishNowHandler(req: Request) {
             _asyncTargetKey: target.key,
             _asyncTargetPlacement: target.placement,
             _asyncTargetCount: targetCountByChannel[channel] || 1,
+            _asyncExpectedImageCount:
+              expectedImageCountByChannel[channel] || 0,
             _asyncParentEventId: publicationId,
             _asyncParentIdempotencyLockId: publishIdempotencyLockId || null,
             _asyncParentIdempotencyKey: publishIdempotencyKey || null,
@@ -3009,6 +3029,7 @@ async function publishNowHandler(req: Request) {
       channelImageSets,
       baseImageSet,
       imagesByChannel,
+      expectedImageCountByChannel,
     });
 
     async function setDelivery(channel: ChannelKey, patch: JsonRecord) {
@@ -3834,19 +3855,18 @@ async function publishNowHandler(req: Request) {
                   candidates: ["images", "publishableUrls"],
                   legacyFallback: legacySiteImageUrls,
                   limit: 5,
+                  allowPartial: true,
                 })
               : [];
-          if (
-            mediaModeByChannel[ch] === "images" &&
-            getExpectedChannelImageCount(ch) > 0 &&
-            !siteImageUrls.length
-          ) {
-            const siteImageError =
-              "Les images du site n'ont pas pu être préparées sans modifier le rendu.";
-            await setDelivery(ch, { status: "failed", error: siteImageError });
-            results[ch] = { ok: false, error: siteImageError };
-            continue;
-          }
+          const expectedSiteImageCount =
+            mediaModeByChannel[ch] === "images"
+              ? getExpectedChannelImageCount(ch)
+              : 0;
+          const siteImageWarning = getImagePublicationWarning({
+            channelLabel: ch === "inrcy_site" ? "Le site iNrCy" : "Le site web",
+            expectedCount: expectedSiteImageCount,
+            publishedCount: siteImageUrls.length,
+          });
 
           // A restarted channel worker reuses the same local resource instead
           // of creating a duplicate article after a lost response.
@@ -3927,6 +3947,14 @@ async function publishNowHandler(req: Request) {
             ok: true,
             external_id: articleId,
             external_url: externalUrl,
+            image_count: siteImageUrls.length,
+            expected_image_count: expectedSiteImageCount,
+            ...(siteImageWarning
+              ? {
+                  warning: siteImageWarning.code,
+                  warning_message: siteImageWarning.message,
+                }
+              : {}),
           };
           continue;
         }
@@ -3987,6 +4015,12 @@ async function publishNowHandler(req: Request) {
 
           try {
             const xMediaIds: string[] = [];
+            const xMediaFailures: Array<{
+              index: number;
+              stage: "download" | "compatibility" | "upload";
+              error: string;
+            }> = [];
+            let xRequestedImageCount = 0;
             const xRawImages = (
               Array.isArray(imagesByChannel.x)
                 ? imagesByChannel.x
@@ -4033,12 +4067,6 @@ async function publishNowHandler(req: Request) {
 
             if (mediaModeByChannel[ch] === "images") {
               const expectedCount = getExpectedChannelImageCount(ch);
-              if (expectedCount > 4) {
-                throw new XPublishError(
-                  "X accepte au maximum 4 photos par publication.",
-                  { code: "x_media_count_invalid", retryable: false },
-                );
-              }
               const xImageUrls = pickCompleteChannelImageUrls({
                 channel: ch,
                 candidates: [
@@ -4048,56 +4076,96 @@ async function publishNowHandler(req: Request) {
                 ],
                 legacyFallback: socialFeedImageUrls,
                 limit: 4,
+                allowPartial: true,
               });
-              if (expectedCount > 0 && !xImageUrls.length) {
-                throw new XPublishError(
-                  "Les images X n'ont pas pu être préparées sans modifier le rendu.",
-                  { code: "x_image_preparation_failed", retryable: true },
-                );
-              }
+              xRequestedImageCount = Math.max(
+                expectedCount,
+                xImageUrls.length,
+              );
 
               const downloadedImages: Array<{
                 bytes: Uint8Array;
                 mimeType: string;
+                index: number;
               }> = [];
               for (let index = 0; index < xImageUrls.length; index += 1) {
-                const response = await fetch(xImageUrls[index], {
-                  cache: "no-store",
-                });
-                if (!response.ok) {
-                  throw new XPublishError(
-                    `L'image ${index + 1} est temporairement indisponible.`,
-                    { code: "x_image_source_unavailable", retryable: true },
-                  );
+                try {
+                  const response = await fetch(xImageUrls[index], {
+                    cache: "no-store",
+                  });
+                  if (!response.ok) {
+                    throw new Error(
+                      `L'image ${index + 1} est temporairement indisponible.`,
+                    );
+                  }
+                  const declaredType = String(
+                    response.headers.get("content-type") ||
+                      xRawImages[index]?.type ||
+                      "image/jpeg",
+                  )
+                    .split(";", 1)[0]
+                    .trim()
+                    .toLowerCase();
+                  const bytes = new Uint8Array(await response.arrayBuffer());
+                  downloadedImages.push({
+                    bytes,
+                    mimeType: declaredType,
+                    index,
+                  });
+                } catch (error) {
+                  xMediaFailures.push({
+                    index,
+                    stage: "download",
+                    error:
+                      error instanceof Error
+                        ? error.message
+                        : `L'image ${index + 1} est temporairement indisponible.`,
+                  });
                 }
-                const declaredType = String(
-                  response.headers.get("content-type") ||
-                    xRawImages[index]?.type ||
-                    "image/jpeg",
-                )
-                  .split(";", 1)[0]
-                  .trim()
-                  .toLowerCase();
-                const bytes = new Uint8Array(await response.arrayBuffer());
-                downloadedImages.push({ bytes, mimeType: declaredType });
               }
               const gifCount = downloadedImages.filter(
                 (image) => image.mimeType === "image/gif",
               ).length;
-              if (gifCount && downloadedImages.length !== 1) {
-                throw new XPublishError(
-                  "Sur X, un GIF animé doit être publié seul.",
-                  { code: "x_gif_combination_invalid", retryable: false },
+              let compatibleImages = downloadedImages;
+              if (gifCount && downloadedImages.length > 1) {
+                const staticImages = downloadedImages.filter(
+                  (image) => image.mimeType !== "image/gif",
                 );
-              }
-              for (const image of downloadedImages) {
-                const uploaded = await uploadXImage({
-                  accessToken: xAuth.accessToken,
-                  bytes: image.bytes,
-                  mimeType: image.mimeType,
-                  animatedGif: image.mimeType === "image/gif",
+                compatibleImages = staticImages.length
+                  ? staticImages
+                  : downloadedImages.slice(0, 1);
+                const retainedIndexes = new Set(
+                  compatibleImages.map((image) => image.index),
+                );
+                downloadedImages.forEach((image) => {
+                  if (retainedIndexes.has(image.index)) return;
+                  xMediaFailures.push({
+                    index: image.index,
+                    stage: "compatibility",
+                    error:
+                      "Sur X, un GIF animé doit être publié seul et ne peut pas accompagner des photos.",
+                  });
                 });
-                xMediaIds.push(uploaded.mediaId);
+              }
+              for (const image of compatibleImages) {
+                try {
+                  const uploaded = await uploadXImage({
+                    accessToken: xAuth.accessToken,
+                    bytes: image.bytes,
+                    mimeType: image.mimeType,
+                    animatedGif: image.mimeType === "image/gif",
+                  });
+                  xMediaIds.push(uploaded.mediaId);
+                } catch (error) {
+                  xMediaFailures.push({
+                    index: image.index,
+                    stage: "upload",
+                    error:
+                      error instanceof Error
+                        ? error.message
+                        : "X n’a pas pu transférer cette image.",
+                  });
+                }
               }
             } else if (mediaModeByChannel[ch] === "video") {
               if (!channelVideo) {
@@ -4123,13 +4191,35 @@ async function publishNowHandler(req: Request) {
               mediaIds: xMediaIds,
               madeWithAi: xMadeWithAi,
             });
+            const xImageWarning =
+              mediaModeByChannel[ch] === "images"
+                ? getImagePublicationWarning({
+                    channelLabel: "X",
+                    expectedCount: xRequestedImageCount,
+                    publishedCount: xMediaIds.length,
+                    constraintMessage:
+                      xRequestedImageCount > 4
+                        ? "X accepte au maximum 4 photos par publication."
+                        : null,
+                  })
+                : null;
             await setDelivery(ch, { status: "delivered", error: null });
             results[ch] = {
               ok: true,
               external_id: response.postId,
               external_url: response.url,
               media_count: xMediaIds.length,
+              expected_image_count: xRequestedImageCount,
               made_with_ai: xMadeWithAi && xMediaIds.length > 0,
+              ...(xMediaFailures.length
+                ? { media_failures: xMediaFailures }
+                : {}),
+              ...(xImageWarning
+                ? {
+                    warning: xImageWarning.code,
+                    warning_message: xImageWarning.message,
+                  }
+                : {}),
             };
           } catch (error) {
             const xError =
@@ -4238,6 +4328,10 @@ async function publishNowHandler(req: Request) {
             continue;
           }
 
+          const expectedFacebookImageCount =
+            mediaModeByChannel[ch] === "images"
+              ? getExpectedChannelImageCount(ch)
+              : 0;
           const facebookImageUrls = pickCompleteChannelImageUrls({
             channel: ch,
             candidates: [
@@ -4247,6 +4341,7 @@ async function publishNowHandler(req: Request) {
             ],
             legacyFallback: socialFeedImageUrls,
             limit: 5,
+            allowPartial: true,
           });
           if (
             facebookPublicationSettings &&
@@ -4283,21 +4378,6 @@ async function publishNowHandler(req: Request) {
               continue;
             }
           }
-          if (
-            mediaModeByChannel[ch] === "images" &&
-            getExpectedChannelImageCount(ch) > 0 &&
-            !facebookImageUrls.length
-          ) {
-            const facebookUserError =
-              "Les images Facebook n'ont pas pu être préparées sans modifier le rendu.";
-            await setDelivery(ch, {
-              status: "failed",
-              error: facebookUserError,
-            });
-            results[ch] = { ok: false, error: facebookUserError };
-            continue;
-          }
-
           let facebookWarning: { code: string; message: string } | null = null;
           let facebookPublishVideo = channelVideo;
           if (
@@ -4429,22 +4509,15 @@ async function publishNowHandler(req: Request) {
             continue;
           }
 
-          if (
-            mediaModeByChannel[ch] === "images" &&
-            facebookImageUrls.length > 0 &&
-            Number(resp.failedImages || 0) > 0
-          ) {
-            facebookWarning = Number(resp.uploadedImages || 0) > 0
-              ? {
-                  code: "published_with_partial_images",
-                  message:
-                    "Facebook a publié uniquement les images acceptées. Une ou plusieurs images n'ont pas pu être jointes.",
-                }
-              : {
-                  code: "published_without_image",
-                  message:
-                    "Facebook a publié le texte, mais aucune image n'a pu être jointe cette fois-ci.",
-                };
+          if (mediaModeByChannel[ch] === "images") {
+            facebookWarning = getImagePublicationWarning({
+              channelLabel: "Facebook",
+              expectedCount: Math.max(
+                expectedFacebookImageCount,
+                facebookImageUrls.length,
+              ),
+              publishedCount: Number(resp.uploadedImages || 0),
+            });
           }
 
           await setDelivery(ch, {
@@ -4455,6 +4528,11 @@ async function publishNowHandler(req: Request) {
           results[ch] = {
             ok: true,
             external_id: resp.postId,
+            image_count: Number(resp.uploadedImages || 0),
+            expected_image_count: Math.max(
+              expectedFacebookImageCount,
+              facebookImageUrls.length,
+            ),
             diagnostics: resp,
             ...(facebookWarning
               ? {
@@ -4826,37 +4904,39 @@ async function publishNowHandler(req: Request) {
           }
 
           const instagramImages = pickCompleteChannelImageUrls({
-              channel: ch,
-              candidates: ["instagramPublishableUrls"],
-              legacyFallback: instagramImageUrls,
-              limit: 10,
+            channel: ch,
+            candidates: ["instagramPublishableUrls"],
+            legacyFallback: instagramImageUrls,
+            limit: 10,
+            allowPartial: true,
+          });
+          if (!instagramImages.length) {
+            await setDelivery(ch, {
+              status: "failed",
+              error: "Instagram nécessite au moins 1 image",
             });
-            if (!instagramImages.length) {
-              await setDelivery(ch, {
-                status: "failed",
-                error: "Instagram nécessite au moins 1 image",
-              });
-              results[ch] = {
-                ok: false,
-                error: "Instagram a besoin d'au moins une image pour publier.",
-              };
-              continue;
-            }
-          const resp = instagramImages.length > 1
-                ? await instagramPublishCarouselWithTokenFallback({
-                    igUserId,
-                    accessToken: igToken,
-                    tokenCandidates: instagramTokenCandidates,
-                    caption: instagramCaption,
-                    imageUrls: instagramImages,
-                  })
-                : await instagramPublishPhotoWithTokenFallback({
-                    igUserId,
-                    accessToken: igToken,
-                    tokenCandidates: instagramTokenCandidates,
-                    caption: instagramCaption,
-                    imageUrl: instagramImages[0],
-                  });
+            results[ch] = {
+              ok: false,
+              error: "Instagram a besoin d'au moins une image pour publier.",
+            };
+            continue;
+          }
+          const instagramSourceImageCount = Math.min(
+            getChannelImageSet(ch).images.filter(Boolean).length,
+            10,
+          );
+          const expectedInstagramImageCount = Math.max(
+            getExpectedChannelImageCount(ch),
+            instagramSourceImageCount,
+            instagramImages.length,
+          );
+          const resp = await instagramPublishImagesBestEffortWithTokenFallback({
+            igUserId,
+            accessToken: igToken,
+            tokenCandidates: instagramTokenCandidates,
+            caption: instagramCaption,
+            imageUrls: instagramImages,
+          });
 
           if (!resp.ok) {
             const instagramRateLimited =
@@ -4922,6 +5002,11 @@ async function publishNowHandler(req: Request) {
             error: null,
           });
 
+          const instagramWarning = getInstagramPartialImagesWarning({
+            expectedCount: expectedInstagramImageCount,
+            publishedCount: resp.publishedImageCount,
+          });
+
           results[ch] = {
             ok: true,
             external_id: resp.mediaId,
@@ -4929,6 +5014,17 @@ async function publishNowHandler(req: Request) {
             instagram_parent_media_id: resp.parentMediaId || resp.mediaId,
             instagram_child_media_ids:
               resp.childMediaIds || resp.childContainerIds || [],
+            instagram_expected_image_count:
+              instagramWarning?.expectedCount || expectedInstagramImageCount,
+            instagram_published_image_count: resp.publishedImageCount,
+            instagram_carousel_fallback_used: resp.carouselFallbackUsed,
+            ...(instagramWarning
+              ? {
+                  warning: instagramWarning.code,
+                  warning_kind: instagramWarning.kind,
+                  warning_message: instagramWarning.message,
+                }
+              : {}),
             diagnostics: resp,
           };
           continue;
@@ -5002,6 +5098,10 @@ async function publishNowHandler(req: Request) {
             };
             continue;
           }
+          const expectedLinkedInImageCount =
+            mediaModeByChannel[ch] === "images"
+              ? getExpectedChannelImageCount(ch)
+              : 0;
           const linkedInImages = pickCompleteChannelImageUrls({
             channel: ch,
             candidates: [
@@ -5013,21 +5113,8 @@ async function publishNowHandler(req: Request) {
               ? socialFeedImageUrls
               : externalImageUrls,
             limit: 20,
+            allowPartial: true,
           });
-          if (
-            mediaModeByChannel[ch] === "images" &&
-            getExpectedChannelImageCount(ch) > 0 &&
-            !linkedInImages.length
-          ) {
-            const linkedInUserError =
-              "Les images LinkedIn n'ont pas pu être préparées sans modifier le rendu.";
-            await setDelivery(ch, {
-              status: "failed",
-              error: linkedInUserError,
-            });
-            results[ch] = { ok: false, error: linkedInUserError };
-            continue;
-          }
 
           const isLinkedInVideo = Boolean(
             mediaModeByChannel[ch] === "video" && channelVideo,
@@ -5076,13 +5163,13 @@ async function publishNowHandler(req: Request) {
               text: canonMessage,
             });
             if (fallbackResp.ok) {
-              linkedInWarning = {
-                code: "published_without_image",
-                message:
-                  "LinkedIn a publié le texte, mais les images n'ont pas pu être jointes cette fois-ci.",
-              };
               resp = {
                 ...fallbackResp,
+                requestedImageCount:
+                  mediaResp.requestedImageCount || linkedInImages.length,
+                publishedImageCount: 0,
+                failedImageCount:
+                  mediaResp.failedImageCount || linkedInImages.length,
                 diagnostics: {
                   mediaPublishError: mediaResp.error,
                   mediaPublishDiagnostics: mediaResp.diagnostics,
@@ -5129,6 +5216,19 @@ async function publishNowHandler(req: Request) {
                 : {}),
             };
             continue;
+          }
+
+          if (mediaModeByChannel[ch] === "images") {
+            linkedInWarning = getImagePublicationWarning({
+              channelLabel: "LinkedIn",
+              expectedCount: Math.max(
+                expectedLinkedInImageCount,
+                linkedInImages.length,
+              ),
+              publishedCount: Number(
+                resp.publishedImageCount ?? linkedInImages.length,
+              ),
+            });
           }
 
           let linkedInDiagnostics: any = resp;
@@ -5196,6 +5296,14 @@ async function publishNowHandler(req: Request) {
           results[ch] = {
             ok: true,
             external_id: resp.postUrn || null,
+            image_count:
+              mediaModeByChannel[ch] === "images"
+                ? Number(resp.publishedImageCount ?? linkedInImages.length)
+                : 0,
+            expected_image_count:
+              mediaModeByChannel[ch] === "images"
+                ? Math.max(expectedLinkedInImageCount, linkedInImages.length)
+                : 0,
             linkedin_personal_share_id: linkedInPersonalShareUrn,
             diagnostics: linkedInDiagnostics,
             ...(linkedInWarning
@@ -5595,10 +5703,13 @@ async function publishNowHandler(req: Request) {
               : paths.length > 0;
           const tiktokImageStoragePaths = explicitTiktokImageSet
             ? hasCompleteTikTokPaths(socialStoragePaths)
-              ? socialStoragePaths.slice(0, expectedTiktokImageCount)
+              ? socialStoragePaths.slice(0, expectedTiktokImageCount || 35)
               : hasCompleteTikTokPaths(sourceStoragePaths)
-                ? sourceStoragePaths.slice(0, expectedTiktokImageCount)
-                : []
+                ? sourceStoragePaths.slice(0, expectedTiktokImageCount || 35)
+                : (socialStoragePaths.length >= sourceStoragePaths.length
+                    ? socialStoragePaths
+                    : sourceStoragePaths
+                  ).slice(0, expectedTiktokImageCount || 35)
             : (socialStoragePaths.length
                 ? socialStoragePaths
                 : sourceStoragePaths
@@ -5621,6 +5732,7 @@ async function publishNowHandler(req: Request) {
             ],
             legacyFallback: legacyTiktokFallbackImageUrls,
             limit: 35,
+            allowPartial: true,
           });
           const tiktokImageUrls = tiktokImageStoragePaths.length
             ? tiktokImageStoragePaths
@@ -5632,6 +5744,11 @@ async function publishNowHandler(req: Request) {
                 .filter(Boolean)
                 .slice(0, 35)
             : tiktokFallbackImageUrls;
+          let tiktokPublishedImageUrls = tiktokImageUrls;
+          let tiktokImageWarning: {
+            code: string;
+            message: string;
+          } | null = null;
 
           if (tiktokMode === "video" && !channelVideo) {
             const tiktokUserError =
@@ -5758,10 +5875,12 @@ async function publishNowHandler(req: Request) {
                 }
               }),
             );
-            const invalidPrewarm = prewarmResults.find((entry) => !entry.ok);
-            if (invalidPrewarm) {
+            tiktokPublishedImageUrls = tiktokImageUrls.filter(
+              (_imageUrl, index) => prewarmResults[index]?.ok,
+            );
+            if (!tiktokPublishedImageUrls.length) {
               const tiktokUserError =
-                "L'image TikTok n'a pas pu être préparée de façon stable. Réessayez avec une image JPEG ou WebP.";
+                "Aucune image TikTok n'a pu être préparée de façon stable. Réessayez avec des images JPEG ou WebP.";
               await setDelivery(ch, { status: "failed", error: tiktokUserError });
               results[ch] = {
                 ok: false,
@@ -5774,6 +5893,14 @@ async function publishNowHandler(req: Request) {
               };
               continue;
             }
+            tiktokImageWarning = getImagePublicationWarning({
+              channelLabel: "TikTok",
+              expectedCount: Math.max(
+                expectedTiktokImageCount,
+                tiktokImageUrls.length,
+              ),
+              publishedCount: tiktokPublishedImageUrls.length,
+            });
           }
 
           const tiktokResult = isVideo
@@ -5792,7 +5919,7 @@ async function publishNowHandler(req: Request) {
               })
             : await tiktokDirectPostPhotos({
                 accessToken: tiktokAccessToken,
-                imageUrls: tiktokImageUrls,
+                imageUrls: tiktokPublishedImageUrls,
                 title: channelPost.title || "Publication iNrCy",
                 description: tiktokTitle,
                 publicationSettings:
@@ -5839,6 +5966,12 @@ async function publishNowHandler(req: Request) {
             : tiktokResult.status?.pending
               ? "TikTok a accepté l'envoi. iNrSend vérifie automatiquement sa finalisation."
               : null;
+          const tiktokWarningMessage = [
+            tiktokImageWarning?.message,
+            tiktokPendingMessage,
+          ]
+            .filter(Boolean)
+            .join(" ") || null;
 
           const tiktokOpenUrl =
             String(
@@ -5864,10 +5997,17 @@ async function publishNowHandler(req: Request) {
             tiktok_downloaded_bytes: tiktokResult.status?.downloadedBytes ?? null,
             tiktok_public_post_ids: tiktokResult.status?.publiclyAvailablePostIds || [],
             tiktok_media_type: isVideo ? "video" : "photos",
-            warning: Boolean(tiktokPendingMessage),
-            warning_message: tiktokPendingMessage,
+            warning:
+              tiktokImageWarning?.code || Boolean(tiktokPendingMessage),
+            warning_message: tiktokWarningMessage,
             media_type: isVideo ? "video" : "photos",
-            media_count: isVideo ? 1 : tiktokImageUrls.length,
+            media_count: isVideo ? 1 : tiktokPublishedImageUrls.length,
+            expected_image_count: isVideo
+              ? 0
+              : Math.max(
+                  expectedTiktokImageCount,
+                  tiktokImageUrls.length,
+                ),
             username: tiktokSettings.username,
             profile_url: tiktokSettings.profileUrl || null,
             diagnostics: {
@@ -6341,6 +6481,7 @@ async function publishNowHandler(req: Request) {
             continue;
           }
 
+          const expectedPinterestImageCount = getExpectedChannelImageCount(ch);
           const pinterestImageUrls = pickCompleteChannelImageUrls({
             channel: ch,
             candidates: [
@@ -6350,6 +6491,7 @@ async function publishNowHandler(req: Request) {
             ],
             legacyFallback: externalImageUrls,
             limit: 5,
+            allowPartial: true,
           });
 
           if (!pinterestImageUrls.length) {
@@ -6372,6 +6514,20 @@ async function publishNowHandler(req: Request) {
             imageUrls: pinterestImageUrls,
             link: pinterestLink,
           });
+          const publishedPinterestImageCount = Number(
+            pin.prepared_image_count ??
+              pin.prepared_image_urls?.length ??
+              pinterestImageUrls.length,
+          );
+          const pinterestImageWarning = getImagePublicationWarning({
+            channelLabel: "Pinterest",
+            expectedCount: Math.max(
+              expectedPinterestImageCount,
+              pinterestImageUrls.length,
+              Number(pin.requested_image_count || 0),
+            ),
+            publishedCount: publishedPinterestImageCount,
+          });
 
           await setDelivery(ch, {
             status: "delivered",
@@ -6384,7 +6540,21 @@ async function publishNowHandler(req: Request) {
             board_id: boardId,
             board_name: boardName || null,
             media_type: "image",
-            image_count: pinterestImageUrls.length,
+            image_count: publishedPinterestImageCount,
+            expected_image_count: Math.max(
+              expectedPinterestImageCount,
+              pinterestImageUrls.length,
+              Number(pin.requested_image_count || 0),
+            ),
+            ...(pin.rejected_images?.length
+              ? { media_failures: pin.rejected_images }
+              : {}),
+            ...(pinterestImageWarning
+              ? {
+                  warning: pinterestImageWarning.code,
+                  warning_message: pinterestImageWarning.message,
+                }
+              : {}),
             images_harmonized: Boolean(pin.images_harmonized),
             image_preparation_message: pin.images_harmonized
               ? "Les images Pinterest ont été harmonisées automatiquement pour conserver un format identique."
@@ -6480,6 +6650,7 @@ async function publishNowHandler(req: Request) {
                   ],
                   legacyFallback: gmbImageUrls,
                   limit: 5,
+                  allowPartial: true,
                 })
               : [];
           let probedGmbImages = rawGmbChannelImages.length

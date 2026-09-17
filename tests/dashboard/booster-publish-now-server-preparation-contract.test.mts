@@ -53,7 +53,7 @@ test("server preparation owns storage and transformation but never dispatch", ()
     "failExecutionIdempotencyLock",
     "finalizeAsyncPublicationIfReady",
     "facebookPublishToPage",
-    "instagramPublishPhotoWithTokenFallback",
+    "instagramPublishImagesBestEffortWithTokenFallback",
     "linkedinPublishText",
     "tiktokDirectPostPhotos",
     "uploadYoutubeShort",
@@ -70,7 +70,7 @@ test("the HTTP handler and every channel dispatch remain in the route", () => {
   assert.match(route, /export const POST = withApi\(/);
   for (const marker of [
     "facebookPublishToPage",
-    "instagramPublishPhotoWithTokenFallback",
+    "instagramPublishImagesBestEffortWithTokenFallback",
     "linkedinPublishText",
     "tiktokDirectPostPhotos",
     "uploadYoutubeShort",

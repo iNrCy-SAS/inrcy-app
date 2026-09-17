@@ -35,6 +35,7 @@ export type InrSearchPublication = {
   id: string;
   title: string;
   content: string;
+  imageUrls: string[];
   imageUrl: string | null;
   videoUrl: string | null;
   videoMime: string;
@@ -344,6 +345,36 @@ function firstImageUrl(value: unknown): string | null {
   return null;
 }
 
+function imageUrlsFromUnknown(value: unknown, limit = 5): string[] {
+  const candidates = Array.isArray(value) ? value : [];
+  const urls: string[] = [];
+  const seen = new Set<string>();
+  for (const candidate of candidates) {
+    const record = asRecord(candidate);
+    const raw = typeof candidate === "string"
+      ? candidate
+      : clean(
+          record.url ||
+          record.publicUrl ||
+          record.public_url ||
+          record.renderedUrl ||
+          record.rendered_url ||
+          record.originalPublicUrl ||
+          record.original_public_url ||
+          record.originalUrl ||
+          record.original_url ||
+          record.src,
+          1000,
+        );
+    const url = normalizeExternalUrl(raw);
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    urls.push(url);
+    if (urls.length >= limit) break;
+  }
+  return urls;
+}
+
 function arrayFromUnknown(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
@@ -416,7 +447,13 @@ function collectImageStorageCandidates(payload: Record<string, unknown>, post: R
     for (const storagePath of arrayFromUnknown(value)) {
       addStorageCandidate(candidates, seen, storagePath, "booster");
     }
+    // Each array is a complete ordered representation of the same image set.
+    // Keep the first durable representation instead of displaying derivatives
+    // of the same photo as additional carousel slides.
+    if (candidates.length) break;
   }
+
+  if (candidates.length) return candidates;
 
   for (const attachment of collectAttachmentRecords(post.attachments, payload.attachments, post.images, payload.images)) {
     if (isVideoLikeRecord(attachment)) continue;
@@ -433,7 +470,9 @@ function collectImageStorageCandidates(payload: Record<string, unknown>, post: R
       attachment.original_storage_path,
       attachment.path,
     ]) {
+      if (!normalizeStoragePath(storagePath)) continue;
       addStorageCandidate(candidates, seen, storagePath, bucket);
+      break;
     }
   }
 
@@ -539,6 +578,37 @@ async function resolveStorageMediaUrl(candidates: StorageMediaCandidate[]) {
   return null;
 }
 
+async function resolveStorageMediaUrls(
+  candidates: StorageMediaCandidate[],
+  limit = 5,
+) {
+  const resolvedCandidates = await Promise.all(
+    candidates.slice(0, limit).map(async (candidate) => {
+      const signedUrl = await createSafeStorageSignedUrl(
+        candidate.bucket,
+        candidate.storagePath,
+        MEDIA_SIGNED_URL_TTL_SECONDS,
+      );
+      const normalizedSignedUrl = normalizeExternalUrl(signedUrl);
+      if (normalizedSignedUrl) return normalizedSignedUrl;
+
+      if (candidate.bucket !== "booster") return null;
+      return normalizeExternalUrl(
+        supabaseAdmin.storage.from(candidate.bucket).getPublicUrl(candidate.storagePath)?.data?.publicUrl,
+      );
+    }),
+  );
+  const urls: string[] = [];
+  const seen = new Set<string>();
+  for (const resolvedUrl of resolvedCandidates) {
+    if (!resolvedUrl || seen.has(resolvedUrl)) continue;
+    seen.add(resolvedUrl);
+    urls.push(resolvedUrl);
+    if (urls.length >= limit) break;
+  }
+  return urls;
+}
+
 async function loadRowsInBatches<T>(buildQuery: () => any, pageSize = 1000) {
   const rows: T[] = [];
   for (let offset = 0; offset < 100_000; offset += pageSize) {
@@ -550,9 +620,14 @@ async function loadRowsInBatches<T>(buildQuery: () => any, pageSize = 1000) {
   return rows;
 }
 
-async function publicationImageUrl(payload: Record<string, unknown>, post: Record<string, unknown>) {
-  const storageUrl = await resolveStorageMediaUrl(collectImageStorageCandidates(payload, post));
-  if (storageUrl) return storageUrl;
+async function publicationImageUrls(
+  payload: Record<string, unknown>,
+  post: Record<string, unknown>,
+) {
+  const storageUrls = await resolveStorageMediaUrls(
+    collectImageStorageCandidates(payload, post),
+  );
+  if (storageUrls.length) return storageUrls;
 
   const videoRecords = collectVideoRecords(payload, post);
   const candidates = [
@@ -568,7 +643,7 @@ async function publicationImageUrl(payload: Record<string, unknown>, post: Recor
     ...arrayFromUnknown(payload.attachments).filter((item) => !isVideoLikeRecord(item)),
     ...videoRecords.flatMap((video) => [video.thumbnailUrl, video.thumbnail_url, video.video_thumbnail_url]),
   ].filter(Boolean);
-  return firstImageUrl(candidates);
+  return imageUrlsFromUnknown(candidates);
 }
 
 async function publicationVideoUrl(payload: Record<string, unknown>, post: Record<string, unknown>) {
@@ -645,8 +720,8 @@ async function normalizeBoosterPublicationEvents(value: unknown): Promise<InrSea
     const content = clean(preferredPost.content || preferredPost.text || fallbackPost.content || fallbackPost.text, 2400);
     if (!title && !content) continue;
 
-    const [imageUrl, videoUrl, videoThumbnailUrl] = await Promise.all([
-      publicationImageUrl(payload, preferredPost),
+    const [imageUrls, videoUrl, videoThumbnailUrl] = await Promise.all([
+      publicationImageUrls(payload, preferredPost),
       publicationVideoUrl(payload, preferredPost),
       publicationVideoThumbnailUrl(payload, preferredPost),
     ]);
@@ -656,7 +731,8 @@ async function normalizeBoosterPublicationEvents(value: unknown): Promise<InrSea
       id: publicationId,
       title: title || "Actualité",
       content,
-      imageUrl,
+      imageUrls,
+      imageUrl: imageUrls[0] || null,
       videoUrl,
       videoMime: publicationVideoMime(payload, preferredPost),
       videoThumbnailUrl,
@@ -776,8 +852,8 @@ async function normalizeDurableInrSearchPublications(
     );
     if (!title && !content) continue;
 
-    const [imageUrl, videoUrl, videoThumbnailUrl] = await Promise.all([
-      publicationImageUrl(durablePayload, durablePost),
+    const [imageUrls, videoUrl, videoThumbnailUrl] = await Promise.all([
+      publicationImageUrls(durablePayload, durablePost),
       publicationVideoUrl(durablePayload, durablePost),
       publicationVideoThumbnailUrl(durablePayload, durablePost),
     ]);
@@ -786,7 +862,8 @@ async function normalizeDurableInrSearchPublications(
       id: publicationId,
       title: title || "Actualité",
       content,
-      imageUrl,
+      imageUrls,
+      imageUrl: imageUrls[0] || null,
       videoUrl,
       videoMime:
         clean(record.video_mime, 120) ||
@@ -973,16 +1050,16 @@ async function loadInrSearchPublicPageUncached(slug: string): Promise<InrSearchP
         { key: "youtube", label: "YouTube", url: "https://www.youtube.com" },
       ],
       publications: [
-        { id: "preview-news-1", title: "iNr’Search donne une nouvelle gravité à votre présence en ligne", content: "Votre profil, vos expertises, vos réalisations et vos actualités se rejoignent désormais dans un parcours spectaculaire, lisible et conçu pour convertir.", imageUrl: "/icons/inr-search-logo.png", videoUrl: null, videoMime: "video/mp4", videoThumbnailUrl: null, createdAt: "2026-07-11T09:00:00.000Z" },
-        { id: "preview-news-2", title: "Publiez une fois, rayonnez partout", content: "Les contenus envoyés depuis Booster Publier alimentent automatiquement la chronologie iNr’Search et montrent une entreprise réellement active.", imageUrl: "/icons/inr-search-bubble.png", videoUrl: null, videoMime: "video/mp4", videoThumbnailUrl: null, createdAt: "2026-07-09T09:00:00.000Z" },
-        { id: "preview-news-3", title: "iNrBadge devient votre passeport de confiance", content: "Un QR code immédiatement accessible rassemble les informations essentielles et facilite le passage de la découverte au contact.", imageUrl: "/icons/inrbadge-dashboard.png", videoUrl: null, videoMime: "video/mp4", videoThumbnailUrl: null, createdAt: "2026-07-06T09:00:00.000Z" },
-        { id: "preview-news-4", title: "Vos expertises deviennent immédiatement lisibles", content: "Chaque publication enrichit un profil professionnel clair et directement accessible.", imageUrl: "/logo-appli-inrcy.png", videoUrl: null, videoMime: "video/mp4", videoThumbnailUrl: null, createdAt: "2026-07-04T09:00:00.000Z" },
-        { id: "preview-news-5", title: "Une actualité pensée pour tous les écrans", content: "Les textes et les médias restent accessibles sur ordinateur, tablette et mobile.", imageUrl: "/icons/inr-search-logo.png", videoUrl: null, videoMime: "video/mp4", videoThumbnailUrl: null, createdAt: "2026-07-02T09:00:00.000Z" },
-        { id: "preview-news-6", title: "Booster alimente automatiquement votre profil", content: "Le canal iNrSearch reçoit le texte et le média sélectionnés dès que la publication aboutit.", imageUrl: "/icons/inr-search-bubble.png", videoUrl: null, videoMime: "video/mp4", videoThumbnailUrl: null, createdAt: "2026-06-30T09:00:00.000Z" },
-        { id: "preview-news-7", title: "Votre activité reste vivante dans le temps", content: "Les dix actualités les plus récentes forment une chronologie simple à parcourir.", imageUrl: "/icons/inrbadge-dashboard.png", videoUrl: null, videoMime: "video/mp4", videoThumbnailUrl: null, createdAt: "2026-06-28T09:00:00.000Z" },
-        { id: "preview-news-8", title: "Chaque média conserve son cadrage", content: "Les formats carrés, verticaux et horizontaux sont affichés sans découpe.", imageUrl: "/logo-appli-inrcy.png", videoUrl: null, videoMime: "video/mp4", videoThumbnailUrl: null, createdAt: "2026-06-26T09:00:00.000Z" },
-        { id: "preview-news-9", title: "Une navigation directe et accessible", content: "Les numéros permettent d’ouvrir immédiatement l’actualité souhaitée.", imageUrl: "/icons/inr-search-logo.png", videoUrl: null, videoMime: "video/mp4", videoThumbnailUrl: null, createdAt: "2026-06-24T09:00:00.000Z" },
-        { id: "preview-news-10", title: "Votre dernière publication toujours en avant", content: "La chronologie se réorganise automatiquement pour présenter les nouveautés en premier.", imageUrl: "/icons/inr-search-bubble.png", videoUrl: null, videoMime: "video/mp4", videoThumbnailUrl: null, createdAt: "2026-06-22T09:00:00.000Z" },
+        { id: "preview-news-1", title: "iNr’Search donne une nouvelle gravité à votre présence en ligne", content: "Votre profil, vos expertises, vos réalisations et vos actualités se rejoignent désormais dans un parcours spectaculaire, lisible et conçu pour convertir.", imageUrls: ["/icons/inr-search-logo.png"], imageUrl: "/icons/inr-search-logo.png", videoUrl: null, videoMime: "video/mp4", videoThumbnailUrl: null, createdAt: "2026-07-11T09:00:00.000Z" },
+        { id: "preview-news-2", title: "Publiez une fois, rayonnez partout", content: "Les contenus envoyés depuis Booster Publier alimentent automatiquement la chronologie iNr’Search et montrent une entreprise réellement active.", imageUrls: ["/icons/inr-search-bubble.png"], imageUrl: "/icons/inr-search-bubble.png", videoUrl: null, videoMime: "video/mp4", videoThumbnailUrl: null, createdAt: "2026-07-09T09:00:00.000Z" },
+        { id: "preview-news-3", title: "iNrBadge devient votre passeport de confiance", content: "Un QR code immédiatement accessible rassemble les informations essentielles et facilite le passage de la découverte au contact.", imageUrls: ["/icons/inrbadge-dashboard.png"], imageUrl: "/icons/inrbadge-dashboard.png", videoUrl: null, videoMime: "video/mp4", videoThumbnailUrl: null, createdAt: "2026-07-06T09:00:00.000Z" },
+        { id: "preview-news-4", title: "Vos expertises deviennent immédiatement lisibles", content: "Chaque publication enrichit un profil professionnel clair et directement accessible.", imageUrls: ["/logo-appli-inrcy.png"], imageUrl: "/logo-appli-inrcy.png", videoUrl: null, videoMime: "video/mp4", videoThumbnailUrl: null, createdAt: "2026-07-04T09:00:00.000Z" },
+        { id: "preview-news-5", title: "Une actualité pensée pour tous les écrans", content: "Les textes et les médias restent accessibles sur ordinateur, tablette et mobile.", imageUrls: ["/icons/inr-search-logo.png"], imageUrl: "/icons/inr-search-logo.png", videoUrl: null, videoMime: "video/mp4", videoThumbnailUrl: null, createdAt: "2026-07-02T09:00:00.000Z" },
+        { id: "preview-news-6", title: "Booster alimente automatiquement votre profil", content: "Le canal iNrSearch reçoit le texte et le média sélectionnés dès que la publication aboutit.", imageUrls: ["/icons/inr-search-bubble.png"], imageUrl: "/icons/inr-search-bubble.png", videoUrl: null, videoMime: "video/mp4", videoThumbnailUrl: null, createdAt: "2026-06-30T09:00:00.000Z" },
+        { id: "preview-news-7", title: "Votre activité reste vivante dans le temps", content: "Les dix actualités les plus récentes forment une chronologie simple à parcourir.", imageUrls: ["/icons/inrbadge-dashboard.png"], imageUrl: "/icons/inrbadge-dashboard.png", videoUrl: null, videoMime: "video/mp4", videoThumbnailUrl: null, createdAt: "2026-06-28T09:00:00.000Z" },
+        { id: "preview-news-8", title: "Chaque média conserve son cadrage", content: "Les formats carrés, verticaux et horizontaux sont affichés sans découpe.", imageUrls: ["/logo-appli-inrcy.png"], imageUrl: "/logo-appli-inrcy.png", videoUrl: null, videoMime: "video/mp4", videoThumbnailUrl: null, createdAt: "2026-06-26T09:00:00.000Z" },
+        { id: "preview-news-9", title: "Une navigation directe et accessible", content: "Les numéros permettent d’ouvrir immédiatement l’actualité souhaitée.", imageUrls: ["/icons/inr-search-logo.png"], imageUrl: "/icons/inr-search-logo.png", videoUrl: null, videoMime: "video/mp4", videoThumbnailUrl: null, createdAt: "2026-06-24T09:00:00.000Z" },
+        { id: "preview-news-10", title: "Votre dernière publication toujours en avant", content: "La chronologie se réorganise automatiquement pour présenter les nouveautés en premier.", imageUrls: ["/icons/inr-search-bubble.png"], imageUrl: "/icons/inr-search-bubble.png", videoUrl: null, videoMime: "video/mp4", videoThumbnailUrl: null, createdAt: "2026-06-22T09:00:00.000Z" },
       ],
       media: [
         { id: "preview-media-1", title: "L’univers iNr’Search", url: "/icons/inr-search-logo.png" },

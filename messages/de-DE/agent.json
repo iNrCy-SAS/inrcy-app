@@ -523,7 +523,7 @@
   "regenerate_media": "Medium neu generieren",
   "regenerate_confirm_title": "Für {channel} neu generieren?",
   "regenerate_content_confirm": "iNrCy erstellt nur Titel und Text für {channel} neu. Datum, Medium und andere Kanäle bleiben unverändert.",
-  "regenerate_media_confirm": "iNrCy erstellt nur das Medium für {channel} neu: ein Video oder genau zwei Bilder, passend zum aktuellen Format. Text, Datum und andere Kanäle bleiben unverändert.",
+  "regenerate_media_confirm": "iNrCy erstellt nur das Medium für {channel} neu: ein Video oder ein einziges Bild, passend zum aktuellen Format. Text, Datum und andere Kanäle bleiben unverändert.",
   "regenerate_failed": "Die Neugenerierung wurde nicht abgeschlossen. Vorhandene Inhalte wurden nicht ersetzt.",
   "regenerate_content_success": "Der Inhalt für {channel} wurde neu generiert.",
   "regenerate_media_success": "Das Medium für {channel} wurde neu generiert.",

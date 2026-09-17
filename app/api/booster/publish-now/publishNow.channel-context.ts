@@ -185,12 +185,14 @@ export function createPublishNowImageContext(params: {
   channelImageSets: Partial<Record<ChannelKey, ImageSet>>;
   baseImageSet: ImageSet;
   imagesByChannel: ImagesByChannel;
+  expectedImageCountByChannel?: Partial<Record<ChannelKey, number>>;
 }) {
   const {
     publicationImageSet,
     channelImageSets,
     baseImageSet,
     imagesByChannel,
+    expectedImageCountByChannel = {},
   } = params;
 
   const externalImageUrls = (
@@ -222,6 +224,11 @@ export function createPublishNowImageContext(params: {
     channelImageSets[channel] || baseImageSet;
 
   const getExpectedChannelImageCount = (channel: ChannelKey) => {
+    const preservedExpectedCount = Math.max(
+      0,
+      Math.floor(Number(expectedImageCountByChannel[channel] || 0)),
+    );
+    if (preservedExpectedCount > 0) return preservedExpectedCount;
     const raw = Array.isArray(imagesByChannel?.[channel])
       ? (imagesByChannel[channel] as ImagePayload[])
       : [];
@@ -232,25 +239,43 @@ export function createPublishNowImageContext(params: {
   /**
    * New Booster payloads carry a dedicated image set per channel. Once such
    * a set exists, never borrow a fallback from another channel: that could
-   * publish the wrong crop/ratio. Also reject partial derivative lists so a
-   * carousel cannot silently lose one image. Legacy payloads still use the
-   * historical global fallback passed by the caller.
+   * publish the wrong crop/ratio. Complete derivative lists stay preferred,
+   * while callers such as Instagram may explicitly accept the best partial
+   * list and report the degradation instead of blocking publication. Legacy
+   * payloads still use the historical global fallback passed by the caller.
    */
   const pickCompleteChannelImageUrls = (params: {
     channel: ChannelKey;
     candidates: ChannelImageUrlKey[];
     legacyFallback: string[];
     limit: number;
+    allowPartial?: boolean;
   }) => {
-    const { channel, candidates, legacyFallback, limit } = params;
+    const {
+      channel,
+      candidates,
+      legacyFallback,
+      limit,
+      allowPartial = false,
+    } = params;
     const explicitSet = channelImageSets[channel];
     if (!explicitSet) {
-      return legacyFallback.filter(Boolean).slice(0, limit);
+      const legacyUrls = legacyFallback.filter(Boolean).slice(0, limit);
+      const expected = Math.min(
+        publicationImageSet.images.filter(Boolean).length,
+        limit,
+      );
+      if (expected > 0 && legacyUrls.length < expected) {
+        return allowPartial ? legacyUrls : [];
+      }
+      return expected > 0 ? legacyUrls.slice(0, expected) : legacyUrls;
     }
 
     const expected = Math.min(getExpectedChannelImageCount(channel), limit);
+    let bestAvailable: string[] = [];
     for (const key of candidates) {
-      const urls = (explicitSet[key] || []).filter(Boolean);
+      const urls = (explicitSet[key] || []).filter(Boolean).slice(0, limit);
+      if (urls.length > bestAvailable.length) bestAvailable = urls;
       if (expected > 0 && urls.length >= expected) {
         return urls.slice(0, expected);
       }
@@ -259,7 +284,7 @@ export function createPublishNowImageContext(params: {
       }
     }
 
-    return [];
+    return allowPartial ? bestAvailable : [];
   };
 
   return {

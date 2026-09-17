@@ -523,7 +523,7 @@
   "regenerate_media": "Regenerar el contenido multimedia",
   "regenerate_confirm_title": "¿Regenerar para {channel}?",
   "regenerate_content_confirm": "iNrCy volverá a crear únicamente el título y el texto de {channel}. La fecha, el contenido multimedia y los demás canales no cambiarán.",
-  "regenerate_media_confirm": "iNrCy volverá a crear únicamente el contenido multimedia de {channel}: un vídeo o exactamente dos imágenes según el formato actual. El texto, la fecha y los demás canales no cambiarán.",
+  "regenerate_media_confirm": "iNrCy volverá a crear únicamente el contenido multimedia de {channel}: un vídeo o una sola imagen según el formato actual. El texto, la fecha y los demás canales no cambiarán.",
   "regenerate_failed": "La regeneración no se completó. No se sustituyó ningún contenido existente.",
   "regenerate_content_success": "El contenido de {channel} se ha regenerado.",
   "regenerate_media_success": "El contenido multimedia de {channel} se ha regenerado.",

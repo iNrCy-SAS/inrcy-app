@@ -479,6 +479,29 @@ function publicationActionSortGroup(action: AgentPreparedAction) {
   return 2;
 }
 
+function AgentWorkingIndicator({
+  title,
+  detail,
+}: {
+  title: string;
+  detail: string;
+}) {
+  return (
+    <div
+      className={styles.robotWorkingBadge}
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+    >
+      <span className={styles.robotWorkingSpinner} aria-hidden />
+      <span>
+        <strong>{title}</strong>
+        <small>{detail}</small>
+      </span>
+    </div>
+  );
+}
+
 export default function AgentClient() {
   const i18nT = useTranslations("agent");
   const boosterT = useTranslations("booster");
@@ -4578,7 +4601,8 @@ export default function AgentClient() {
     prepareActionState === "saving" ||
     Boolean(testNowKey) ||
     actionMutationState === "saving" ||
-    Boolean(publishRegeneration);
+    Boolean(publishRegeneration) ||
+    publishPreparationInProgress;
   const agentWorkingLabel = publishRegeneration
     ? i18nT(
         publishRegeneration.kind === "content"
@@ -4586,7 +4610,9 @@ export default function AgentClient() {
           : "agent_working_regenerating_media",
         { channel: agentChannelLabel(publishRegeneration.channel, runtimeT) },
       )
-    : prepareActionState === "saving" || Boolean(testNowKey)
+    : prepareActionState === "saving" ||
+        Boolean(testNowKey) ||
+        publishPreparationInProgress
       ? i18nT("agent_working_preparing")
       : actionMutationState === "saving"
         ? i18nT("agent_working_updating")
@@ -4794,8 +4820,10 @@ export default function AgentClient() {
           }`}
           aria-label={i18nT("automatisations_inr_agent_66ca506e")}
         >
-          <div className={styles.agentCommandRailIdentity} aria-hidden>
-            <div className={`${styles.robotHalo} ${styles.agentCommandRailRobot}`}>
+          <div className={styles.agentCommandRailIdentity}>
+            <div
+              className={`${styles.robotHalo} ${styles.agentCommandRailRobot} ${agentWorking ? styles.robotHaloWorking : ""}`}
+            >
               <span className={styles.starOne} />
               <span className={styles.starTwo} />
               <span className={styles.starThree} />
@@ -4813,8 +4841,14 @@ export default function AgentClient() {
                 loading="eager"
                 decoding="sync"
               />
+              {agentWorking ? (
+                <AgentWorkingIndicator
+                  title={i18nT("agent_working_title")}
+                  detail={agentWorkingLabel}
+                />
+              ) : null}
             </div>
-            <span>
+            <span aria-hidden>
               <strong>{i18nT("inr_agent_88080b90")}</strong>
               <small>{i18nT("missions_323ea30c")}</small>
             </span>
@@ -4990,7 +5024,9 @@ export default function AgentClient() {
               </div>
             ) : (
               <>
-                <div className={styles.robotHalo}>
+                <div
+                  className={`${styles.robotHalo} ${agentWorking ? styles.robotHaloWorking : ""}`}
+                >
                   <span className={styles.starOne} />
                   <span className={styles.starTwo} />
                   <span className={styles.starThree} />
@@ -5010,17 +5046,10 @@ export default function AgentClient() {
                     fetchPriority="high"
                   />
                   {agentWorking ? (
-                    <div
-                      className={styles.robotWorkingBadge}
-                      role="status"
-                      aria-live="polite"
-                    >
-                      <span className={styles.robotWorkingSpinner} aria-hidden />
-                      <span>
-                        <strong>{i18nT("agent_working_title")}</strong>
-                        <small>{agentWorkingLabel}</small>
-                      </span>
-                    </div>
+                    <AgentWorkingIndicator
+                      title={i18nT("agent_working_title")}
+                      detail={agentWorkingLabel}
+                    />
                   ) : null}
                 </div>
 

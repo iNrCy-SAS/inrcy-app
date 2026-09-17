@@ -6,14 +6,20 @@ import {
 
 const LINKEDIN_VERSION = "202603";
 
-type PublishOk = {
+type LinkedInImagePublishStats = {
+  requestedImageCount?: number;
+  publishedImageCount?: number;
+  failedImageCount?: number;
+};
+
+type PublishOk = LinkedInImagePublishStats & {
   ok: true;
   /** LinkedIn post URN (often returned in x-restli-id header). */
   postUrn?: string;
   diagnostics?: any;
 };
 
-type PublishKo = {
+type PublishKo = LinkedInImagePublishStats & {
   ok: false;
   error: string;
   diagnostics?: any;
@@ -262,6 +268,9 @@ export async function linkedinPublishImage(params: {
     if (!postResult.ok) {
       return {
         ...postResult,
+        requestedImageCount: 1,
+        publishedImageCount: 0,
+        failedImageCount: 0,
         diagnostics: {
           stage: "post",
           imageUpload: uploaded,
@@ -272,6 +281,9 @@ export async function linkedinPublishImage(params: {
 
     return {
       ...postResult,
+      requestedImageCount: 1,
+      publishedImageCount: 1,
+      failedImageCount: 0,
       diagnostics: {
         imageUpload: uploaded,
         upstream: postResult.diagnostics,
@@ -282,6 +294,9 @@ export async function linkedinPublishImage(params: {
       ok: false,
       error: e?.message || "Impossible de publier l'image sur LinkedIn pour le moment.",
       safeTextFallback: true,
+      requestedImageCount: 1,
+      publishedImageCount: 0,
+      failedImageCount: 1,
     };
   }
 }
@@ -304,9 +319,57 @@ export async function linkedinPublishMultiImage(params: {
     if (imageUrls.length === 0) return linkedinPublishText({ accessToken, authorUrn, text, visibility });
     if (imageUrls.length === 1) return linkedinPublishImage({ accessToken, authorUrn, text, imageUrl: imageUrls[0], visibility, title });
 
-    const uploadedImages = [] as Array<{ imageUrn: string; initJson: any; uploadRaw: string }>;
-    for (const imageUrl of imageUrls) {
-      uploadedImages.push(await uploadLinkedInImage({ accessToken, ownerUrn: authorUrn, imageUrl }));
+    const uploadedImages = [] as Array<{
+      imageUrn: string;
+      initJson: any;
+      uploadRaw: string;
+      sourceIndex: number;
+      sourceUrl: string;
+    }>;
+    const imageErrors: Array<{
+      index: number;
+      url: string;
+      error: string;
+    }> = [];
+    for (const [index, imageUrl] of imageUrls.entries()) {
+      try {
+        uploadedImages.push({
+          ...(await uploadLinkedInImage({
+            accessToken,
+            ownerUrn: authorUrn,
+            imageUrl,
+          })),
+          sourceIndex: index,
+          sourceUrl: imageUrl,
+        });
+      } catch (error) {
+        imageErrors.push({
+          index,
+          url: imageUrl,
+          error:
+            error instanceof Error
+              ? error.message
+              : "Impossible d’envoyer cette image sur LinkedIn.",
+        });
+      }
+    }
+
+    if (!uploadedImages.length) {
+      return {
+        ok: false,
+        error:
+          imageErrors[0]?.error ||
+          "Aucune image n’a pu être envoyée sur LinkedIn.",
+        safeTextFallback: true,
+        requestedImageCount: imageUrls.length,
+        publishedImageCount: 0,
+        failedImageCount: imageErrors.length,
+        diagnostics: {
+          stage: "imageUpload",
+          uploadedImages,
+          imageErrors,
+        },
+      };
     }
 
     const postResult = await createLinkedInPost({
@@ -320,14 +383,25 @@ export async function linkedinPublishMultiImage(params: {
           targetEntities: [],
           thirdPartyDistributionChannels: [],
         },
-        content: {
-          multiImage: {
-            images: uploadedImages.map((img, index) => ({
-              id: img.imageUrn,
-              altText: index === 0 ? (title || text.slice(0, 120)) : `${title || "Publication iNrCy"} ${index + 1}`,
-            })),
-          },
-        },
+        content:
+          uploadedImages.length === 1
+            ? {
+                media: {
+                  id: uploadedImages[0].imageUrn,
+                  altText: title || text.slice(0, 120),
+                },
+              }
+            : {
+                multiImage: {
+                  images: uploadedImages.map((img, index) => ({
+                    id: img.imageUrn,
+                    altText:
+                      index === 0
+                        ? title || text.slice(0, 120)
+                        : `${title || "Publication iNrCy"} ${index + 1}`,
+                  })),
+                },
+              },
         lifecycleState: "PUBLISHED",
         isReshareDisabledByAuthor: false,
       },
@@ -336,9 +410,16 @@ export async function linkedinPublishMultiImage(params: {
     if (!postResult.ok) {
       return {
         ...postResult,
+        requestedImageCount: imageUrls.length,
+        publishedImageCount: 0,
+        failedImageCount: imageErrors.length,
         diagnostics: {
-          stage: "multiImagePost",
+          stage:
+            uploadedImages.length === 1
+              ? "singleImagePostAfterPartialUpload"
+              : "multiImagePost",
           uploadedImages,
+          imageErrors,
           upstream: postResult.diagnostics,
         },
       };
@@ -346,8 +427,12 @@ export async function linkedinPublishMultiImage(params: {
 
     return {
       ...postResult,
+      requestedImageCount: imageUrls.length,
+      publishedImageCount: uploadedImages.length,
+      failedImageCount: imageErrors.length,
       diagnostics: {
         uploadedImages,
+        imageErrors,
         upstream: postResult.diagnostics,
       },
     };
@@ -356,6 +441,9 @@ export async function linkedinPublishMultiImage(params: {
       ok: false,
       error: e?.message || "Impossible de publier les images sur LinkedIn pour le moment.",
       safeTextFallback: true,
+      requestedImageCount: imageUrls.length,
+      publishedImageCount: 0,
+      failedImageCount: imageUrls.length,
     };
   }
 }

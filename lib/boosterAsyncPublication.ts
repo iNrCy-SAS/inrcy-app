@@ -653,13 +653,47 @@ function aggregateChannelTargetResults(
   const externalIds = successes
     .map((state) => cleanString(state.result.external_id))
     .filter(Boolean);
+  const successfulWarnings = successes
+    .map((state) => {
+      const outcome = classifyBoosterPublicationResult(state.result);
+      return outcome.status === "published_with_warning"
+        ? {
+            code: outcome.warningCode,
+            kind: outcome.warningKind,
+            message: outcome.warningMessage,
+          }
+        : null;
+    })
+    .filter(
+      (warning): warning is {
+        code: string | null;
+        kind: "media_degraded" | "degraded";
+        message: string | null;
+      } => Boolean(warning),
+    );
+  const successfulWarningMessages = Array.from(
+    new Set(
+      successfulWarnings
+        .map((warning) => cleanString(warning.message))
+        .filter(Boolean),
+    ),
+  );
 
   if (successes.length === states.length) {
+    const firstWarning = successfulWarnings[0] || null;
     return {
       ok: true,
       external_id: externalIds[0] || null,
       external_ids: externalIds,
       placements: placementResults,
+      ...(firstWarning
+        ? {
+            warning: firstWarning.code || true,
+            warning_kind: firstWarning.kind,
+            warning_message:
+              successfulWarningMessages.join(" · ") || firstWarning.message,
+          }
+        : {}),
     };
   }
 
@@ -671,7 +705,12 @@ function aggregateChannelTargetResults(
       external_ids: externalIds,
       placements: placementResults,
       warning: "meta_placement_partial_failure",
-      warning_message: `${CHANNEL_LABELS[channel]} a publié une partie des formats. À vérifier : ${failedLabels}.`,
+      warning_message: [
+        `${CHANNEL_LABELS[channel]} a publié une partie des formats. À vérifier : ${failedLabels}.`,
+        ...successfulWarningMessages,
+      ]
+        .filter(Boolean)
+        .join(" "),
       failed_placements: failures.map(
         (state) => state.placement || state.targetKey,
       ),

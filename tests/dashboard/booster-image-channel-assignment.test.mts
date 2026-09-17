@@ -5,7 +5,10 @@ import {
   getImageChannelAction,
   setImageKeysForChannel,
 } from "../../app/dashboard/booster/publier/imageChannelAssignment.ts";
-import { mergeBoosterChannelImageSelection } from "../../lib/boosterChannelImageSelection.ts";
+import {
+  extendBoosterChannelImageSelectionForGlobalAdd,
+  mergeBoosterChannelImageSelection,
+} from "../../lib/boosterChannelImageSelection.ts";
 
 function read(path: string) {
   return readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
@@ -139,6 +142,41 @@ test("new physical keys are never auto-assigned to existing channel mappings", (
   );
 });
 
+test("a global add extends only channels that still used the complete image pool", () => {
+  assert.deepEqual(
+    extendBoosterChannelImageSelectionForGlobalAdd({
+      previousAvailableKeys: ["A"],
+      previousSelectedKeys: ["A"],
+      newKeys: ["B", "C"],
+      supportsImages: true,
+      maxImages: 5,
+    }),
+    ["A", "B", "C"],
+  );
+  assert.deepEqual(
+    extendBoosterChannelImageSelectionForGlobalAdd({
+      previousAvailableKeys: ["A", "B"],
+      previousSelectedKeys: ["A"],
+      newKeys: ["C"],
+      supportsImages: true,
+      maxImages: 5,
+    }),
+    ["A"],
+    "an intentional per-channel subset stays authoritative",
+  );
+  assert.deepEqual(
+    extendBoosterChannelImageSelectionForGlobalAdd({
+      previousAvailableKeys: ["A"],
+      previousSelectedKeys: [],
+      newKeys: ["B"],
+      supportsImages: true,
+      maxImages: 5,
+    }),
+    [],
+    "a channel with images disabled stays disabled",
+  );
+});
+
 test("reuse and removal mutate only the selected channel and never sync the pool", () => {
   const assign = between(
     imageController,
@@ -202,6 +240,7 @@ test("the first channel picker assigns only its target after one pool sync", () 
   assert.match(add, /if \(channel === targetChannel\) continue/);
   assert.match(add, /prev\[channel\]\?\.imageKeys/);
   assert.match(add, /setImageKeysForChannel\(next, targetChannel, targetKeys/);
+  assert.match(add, /extendBoosterChannelImageSelectionForGlobalAdd/);
 
   const change = between(
     imageController,

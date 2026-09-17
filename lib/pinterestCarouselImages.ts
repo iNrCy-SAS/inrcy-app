@@ -26,6 +26,14 @@ export type PinterestCarouselImagePreparation = {
   reason: "single_image" | "already_uniform" | "mixed_ratios" | "first_image_too_tall";
   targetWidth: number | null;
   targetHeight: number | null;
+  requestedCount: number;
+  preparedCount: number;
+  rejectedImages: Array<{
+    index: number;
+    url: string;
+    stage: "validation" | "download" | "render" | "upload";
+    error: string;
+  }>;
 };
 
 function normalizePublicImageUrl(value: unknown): string {
@@ -181,7 +189,16 @@ async function uploadPinterestCarouselImages(params: {
   buffers: Buffer[];
   targetWidth: number;
   targetHeight: number;
-}): Promise<string[]> {
+  sourceIndexes?: number[];
+}): Promise<{
+  imageUrls: string[];
+  failures: Array<{
+    index: number;
+    url: string;
+    stage: "upload";
+    error: string;
+  }>;
+}> {
   const userSegment = safeStorageSegment(params.userId, "compte");
   const outputHashes = params.buffers.map((buffer) => sha256(buffer));
   const setHash = sha256(
@@ -192,7 +209,7 @@ async function uploadPinterestCarouselImages(params: {
     ].join(":"),
   ).slice(0, 32);
 
-  return Promise.all(
+  const settled = await Promise.allSettled(
     params.buffers.map(async (buffer, index) => {
       const storagePath = `${userSegment}/pinterest/carousel-v${PINTEREST_CAROUSEL_PIPELINE_VERSION}/${setHash}/image-${index + 1}.jpg`;
       const upload = await supabaseAdmin.storage
@@ -218,9 +235,35 @@ async function uploadPinterestCarouselImages(params: {
           `Pinterest n’a pas pu obtenir l’URL publique de l’image harmonisée ${index + 1}.`,
         );
       }
-      return publicUrl;
+      return {
+        index: params.sourceIndexes?.[index] ?? index,
+        publicUrl,
+      };
     }),
   );
+  const imageUrls: string[] = [];
+  const failures: Array<{
+    index: number;
+    url: string;
+    stage: "upload";
+    error: string;
+  }> = [];
+  settled.forEach((result, index) => {
+    if (result.status === "fulfilled") {
+      imageUrls.push(result.value.publicUrl);
+      return;
+    }
+    failures.push({
+      index: params.sourceIndexes?.[index] ?? index,
+      url: "",
+      stage: "upload",
+      error:
+        result.reason instanceof Error
+          ? result.reason.message
+          : "Pinterest n’a pas pu enregistrer cette image harmonisée.",
+    });
+  });
+  return { imageUrls, failures };
 }
 
 /**
@@ -245,63 +288,144 @@ export async function preparePinterestCarouselImages(params: {
     throw new Error("Pinterest accepte au maximum 5 images par épingle.");
   }
 
-  const imageUrls = requestedImageUrls.map(normalizePublicImageUrl);
-  if (imageUrls.some((imageUrl) => !imageUrl)) {
-    throw new Error("Pinterest nécessite des images publiques valides.");
+  const rejectedImages: PinterestCarouselImagePreparation["rejectedImages"] = [];
+  const candidates = requestedImageUrls
+    .map((rawUrl, index) => ({
+      index,
+      rawUrl,
+      imageUrl: normalizePublicImageUrl(rawUrl),
+    }))
+    .filter((entry) => {
+      if (entry.imageUrl) return true;
+      rejectedImages.push({
+        index: entry.index,
+        url: entry.rawUrl,
+        stage: "validation",
+        error: "Pinterest nécessite une image publique valide.",
+      });
+      return false;
+    });
+  if (!candidates.length) {
+    throw new Error("Pinterest nécessite au moins 1 image publique valide.");
   }
-  if (imageUrls.length === 1) {
+
+  const downloaded: Array<
+    Awaited<ReturnType<typeof downloadPinterestImage>> & {
+      index: number;
+      imageUrl: string;
+    }
+  > = [];
+  for (const candidate of candidates) {
+    try {
+      downloaded.push({
+        ...(await downloadPinterestImage(
+          candidate.imageUrl,
+          candidate.index,
+        )),
+        index: candidate.index,
+        imageUrl: candidate.imageUrl,
+      });
+    } catch (error) {
+      rejectedImages.push({
+        index: candidate.index,
+        url: candidate.imageUrl,
+        stage: "download",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Pinterest n’a pas pu préparer cette image.",
+      });
+    }
+  }
+
+  if (!downloaded.length) {
+    throw new Error(
+      rejectedImages[0]?.error ||
+        "Pinterest n’a pu préparer aucune des images demandées.",
+    );
+  }
+  if (downloaded.length === 1) {
     return {
-      imageUrls,
+      imageUrls: [downloaded[0].imageUrl],
       harmonized: false,
       reason: "single_image",
       targetWidth: null,
       targetHeight: null,
+      requestedCount: requestedImageUrls.length,
+      preparedCount: 1,
+      rejectedImages,
     };
   }
 
-  const downloaded: Awaited<ReturnType<typeof downloadPinterestImage>>[] = [];
-  for (let index = 0; index < imageUrls.length; index += 1) {
-    downloaded.push(await downloadPinterestImage(imageUrls[index], index));
-  }
   const plan = buildPinterestCarouselGeometryPlan(
     downloaded.map((image) => image.metadata),
   );
 
   if (!plan.harmonize || !plan.targetRatio || !plan.targetWidth || !plan.targetHeight) {
     return {
-      imageUrls,
+      imageUrls: downloaded.map((image) => image.imageUrl),
       harmonized: false,
       reason: plan.reason,
       targetWidth: null,
       targetHeight: null,
+      requestedCount: requestedImageUrls.length,
+      preparedCount: downloaded.length,
+      rejectedImages,
     };
   }
 
-  const rendered: Buffer[] = [];
+  const rendered: Array<{ buffer: Buffer; sourceIndex: number }> = [];
   for (let index = 0; index < downloaded.length; index += 1) {
     const image = downloaded[index];
-    rendered.push(
-      await renderPinterestCarouselImage({
-        buffer: image.buffer,
-        sourceRatio: plan.geometries[index].ratio,
-        targetRatio: plan.targetRatio!,
-        targetWidth: plan.targetWidth!,
-        targetHeight: plan.targetHeight!,
-      }),
-    );
+    try {
+      rendered.push({
+        buffer: await renderPinterestCarouselImage({
+          buffer: image.buffer,
+          sourceRatio: plan.geometries[index].ratio,
+          targetRatio: plan.targetRatio!,
+          targetWidth: plan.targetWidth!,
+          targetHeight: plan.targetHeight!,
+        }),
+        sourceIndex: image.index,
+      });
+    } catch (error) {
+      rejectedImages.push({
+        index: image.index,
+        url: image.imageUrl,
+        stage: "render",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Pinterest n’a pas pu harmoniser cette image.",
+      });
+    }
   }
-  const preparedUrls = await uploadPinterestCarouselImages({
+  if (!rendered.length) {
+    throw new Error("Pinterest n’a pu harmoniser aucune des images demandées.");
+  }
+  const uploaded = await uploadPinterestCarouselImages({
     userId: params.userId,
-    buffers: rendered,
+    buffers: rendered.map((image) => image.buffer),
+    sourceIndexes: rendered.map((image) => image.sourceIndex),
     targetWidth: plan.targetWidth,
     targetHeight: plan.targetHeight,
   });
+  rejectedImages.push(...uploaded.failures);
+  if (!uploaded.imageUrls.length) {
+    throw new Error(
+      uploaded.failures[0]?.error ||
+        "Pinterest n’a pu enregistrer aucune des images harmonisées.",
+    );
+  }
 
   return {
-    imageUrls: preparedUrls,
+    imageUrls: uploaded.imageUrls,
     harmonized: true,
-    reason: plan.reason,
+    reason: uploaded.imageUrls.length === 1 ? "single_image" : plan.reason,
     targetWidth: plan.targetWidth,
     targetHeight: plan.targetHeight,
+    requestedCount: requestedImageUrls.length,
+    preparedCount: uploaded.imageUrls.length,
+    rejectedImages,
   };
 }

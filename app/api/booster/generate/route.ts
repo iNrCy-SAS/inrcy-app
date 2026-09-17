@@ -12,6 +12,8 @@ import {
 } from "@/lib/aiUsageQuota";
 import { withApi } from "@/lib/observability/withApi";
 import { generateSharedBoosterPosts } from "@/lib/boosterPublishGeneration";
+import { loadBoosterCtaDefaults } from "@/lib/boosterCtaDefaultsServer";
+import { applySafePreferredCta } from "@/lib/boosterCtaPreferences";
 import { INR_MEDIA_VIDEO_SOURCE_MAX_BYTES } from "@/lib/mediaRules";
 import {
   type BoosterChannels,
@@ -997,6 +999,10 @@ const handler = async (req: Request) => {
       supabase,
       userId,
     });
+    const ctaDefaultsPromise = loadBoosterCtaDefaults({
+      supabase,
+      userId,
+    });
 
     if (!isAdmin) {
       const quota = await reserveAiCredits({
@@ -1013,8 +1019,8 @@ const handler = async (req: Request) => {
       quotaReservation = quota.reservation;
     }
 
-    const generationContext = await withinGenerationDeadline(
-      generationContextPromise,
+    const [generationContext, ctaDefaults] = await withinGenerationDeadline(
+      Promise.all([generationContextPromise, ctaDefaultsPromise]),
       generationDeadlineAt,
     );
     assertGenerationBudget(generationDeadlineAt, 2_000);
@@ -1059,7 +1065,23 @@ const handler = async (req: Request) => {
       throw new Error("La génération IA n'a pas pu retourner de résultat.");
     }
 
-    const { versions, recoveredChannels, aiFallback, performance } = generationResult;
+    const {
+      versions: generatedVersions,
+      recoveredChannels,
+      aiFallback,
+      performance,
+    } = generationResult;
+    const versions = Object.fromEntries(
+      Object.entries(generatedVersions).map(([channel, post]) => [
+        channel,
+        applySafePreferredCta({
+          channel: channel as BoosterChannels,
+          post,
+          defaults: ctaDefaults,
+          preserveExplicit: false,
+        }),
+      ]),
+    ) as typeof generatedVersions;
 
     if (mediaWorkspaceId) {
       const generatedAt = new Date().toISOString();

@@ -5,7 +5,7 @@ import test from "node:test";
 const read = (path) =>
   readFile(new URL(`../../${path}`, import.meta.url), "utf8");
 
-test("final audit keeps per-channel fallbacks local and rejects partial image lists", async () => {
+test("final audit keeps per-channel fallbacks local and lets Instagram publish a partial carousel", async () => {
   const route = await read("app/api/booster/publish-now/route.ts");
   const channelContext = await read(
     "app/api/booster/publish-now/publishNow.channel-context.ts",
@@ -14,11 +14,46 @@ test("final audit keeps per-channel fallbacks local and rejects partial image li
   assert.match(channelContext, /const pickCompleteChannelImageUrls/);
   assert.match(channelContext, /never borrow a fallback from another channel/i);
   assert.match(channelContext, /urls\.length >= expected/);
+  assert.match(channelContext, /legacyUrls\.length < expected/);
+  assert.match(channelContext, /allowPartial \? legacyUrls : \[\]/);
   assert.match(route, /candidates: \["instagramPublishableUrls"\]/);
+  assert.match(route, /allowPartial: true/);
+  assert.match(route, /getInstagramPartialImagesWarning/);
+  assert.match(route, /instagramPublishImagesBestEffortWithTokenFallback/);
+  assert.match(route, /_asyncExpectedImageCount/);
   assert.match(route, /facebookImageUrls/);
   assert.match(route, /linkedInImages/);
   assert.match(route, /gmbChannelImages/);
   assert.match(route, /siteImageUrls/);
+});
+
+test("Instagram editing publishes available derivatives and reports the missing photos", async () => {
+  const actions = await read("lib/inrsend/publicationChannelActions.ts");
+
+  assert.match(actions, /function getInstagramImageSelection/);
+  assert.match(actions, /const urls = prepared\.length \? prepared : originals/);
+  assert.match(actions, /uploadInstagramPublicationImagesBestEffort/);
+  assert.match(actions, /expectedImageCount/);
+  assert.match(actions, /getInstagramPartialImagesWarning/);
+  assert.match(actions, /instagramPublishImagesBestEffortWithTokenFallback/);
+  assert.doesNotMatch(actions, /Rien n'a été publié/);
+});
+
+test("Instagram safely falls back from an unbuilt carousel to one photo", async () => {
+  const instagramPublish = await read("lib/instagramPublish.ts");
+
+  assert.match(
+    instagramPublish,
+    /function canSafelyFallbackFromCarouselToPhoto/,
+  );
+  assert.match(instagramPublish, /!publishWasAttempted/);
+  assert.match(
+    instagramPublish,
+    /instagramPublishImagesBestEffortWithTokenFallback/,
+  );
+  assert.match(instagramPublish, /const readyChildren/);
+  assert.match(instagramPublish, /publishedImageCount: readyChildren\.length/);
+  assert.match(instagramPublish, /publishedImageCount: photoResult\.ok \? 1 : 0/);
 });
 
 test("final audit only uses a complete TikTok storage-path set", async () => {

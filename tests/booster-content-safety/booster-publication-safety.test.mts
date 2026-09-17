@@ -5,6 +5,7 @@ import {
   buildUniqueBoosterHashtagLine,
   canonicalizeBoosterPhone,
   dedupeBoosterHashtagsInText,
+  normalizeBoosterInstagramPostHashtags,
   getBoosterPhoneDisplayValue,
   removeMatchingBoosterPhone,
   removeMatchingBoosterUrl,
@@ -62,6 +63,33 @@ test("hashtags already present in the body are not appended twice", () => {
   );
 });
 
+test("Instagram moves every inline hashtag into one structured unique list", () => {
+  const normalized = normalizeBoosterInstagramPostHashtags(
+    {
+      title: "Une intervention locale #Oise",
+      content: "Un résultat durable.\n\n#Artisan #Local #Oise",
+      cta: "Envoyez-nous un message #Contact",
+      hashtags: ["local", "Visibilite", "#Artisan"],
+    },
+    8,
+  );
+
+  assert.equal(normalized.title, "Une intervention locale");
+  assert.equal(normalized.content, "Un résultat durable.");
+  assert.equal(normalized.cta, "Envoyez-nous un message");
+  assert.deepEqual(normalized.hashtags, [
+    "Oise",
+    "Artisan",
+    "Local",
+    "Contact",
+    "Visibilite",
+  ]);
+  assert.equal(
+    buildUniqueBoosterHashtagLine("Texte\n\nEnvoyez-nous un message", normalized.hashtags, 8),
+    "#Oise #Artisan #Local #Contact #Visibilite",
+  );
+});
+
 test("Google Business final text strips contacts, URLs and hashtags at the last moment", () => {
   const input = [
     "Intervention locale en 2026",
@@ -87,5 +115,6 @@ test("Booster prompt and publication pipeline enforce structured contact fields"
   assert.match(prompt, /Tous les hashtags doivent être placés exclusivement dans le tableau hashtags/);
   assert.match(cta, /sanitizeBoosterPostForStructuredCta/);
   assert.match(cta, /sanitizeGoogleBusinessPublicationText/);
+  assert.match(cta, /normalizeBoosterInstagramPostHashtags/);
   assert.match(route, /buildBoosterHashtagLine/);
 });

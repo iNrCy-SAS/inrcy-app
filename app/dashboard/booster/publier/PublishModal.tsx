@@ -65,8 +65,10 @@ import { INR_SEARCH_CONTENT_MAX_LENGTH } from "@/lib/boosterChannelRules";
 import {
   buildCtaTextForChannel,
   buildBoosterXPostText,
+  normalizeBoosterPostCtaForChannel,
   sanitizeBoosterPostForStructuredCta,
 } from "@/lib/boosterCta";
+import { applySafePreferredCta } from "@/lib/boosterCtaPreferences";
 import {
   X_POST_WEIGHTED_LENGTH_MAX,
   getXPostTextMetrics,
@@ -1694,14 +1696,29 @@ export default function PublishModal({
             return String(patchValue || "").trim();
           },
         );
+        const context = {
+          websiteUrl: getWebsiteUrlForChannel(key, ctaDefaults),
+          phone: ctaDefaults.phone,
+        };
+        const candidate = hasMeaningfulPatch
+          ? { ...current, ...patch }
+          : current;
+        const preferred = applySafePreferredCta({
+          channel: key,
+          post: candidate,
+          defaults: ctaDefaults,
+          preserveExplicit: !shouldSetPreferredMode,
+        });
+        const normalized = normalizeBoosterPostCtaForChannel(
+          key,
+          preferred,
+          context,
+        );
         const merged = sanitizePostForEditor(
           key,
           sanitizeBoosterPostForStructuredCta(
-            hasMeaningfulPatch ? { ...current, ...patch } : current,
-            {
-              websiteUrl: getWebsiteUrlForChannel(key, ctaDefaults),
-              phone: ctaDefaults.phone,
-            },
+            { ...current, ...normalized },
+            context,
           ),
         );
         const before = JSON.stringify(current);
@@ -3002,6 +3019,7 @@ export default function PublishModal({
           payload.postByChannel && typeof payload.postByChannel === "object"
             ? payload.postByChannel
             : {},
+          ctaDefaults,
         );
         const nextEditors =
           payload.imageSettingsByChannel &&
@@ -3373,6 +3391,7 @@ export default function PublishModal({
     loadedPublicationDraftId,
     onUnsavedChange,
     legacyMediaCutoverClientAvailable,
+    ctaDefaults,
   ]);
 
   useEffect(() => {
@@ -4167,7 +4186,7 @@ export default function PublishModal({
         );
       }
       const versions = json?.versions || {};
-      setPostsByChannel(sanitizePostsForEditor(versions));
+      setPostsByChannel(sanitizePostsForEditor(versions, ctaDefaults));
       setContentWorkspaceOpen(true);
       if (selectedForGeneration.length) {
         setSynchronizedActiveChannel(selectedForGeneration[0]);
