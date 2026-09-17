@@ -13,6 +13,10 @@ import {
   hasSuccessfulInrSearchChannel,
   mergeInrSearchPublicationFeeds,
 } from "@/lib/inrSearchPublicationFeed";
+import {
+  resolveInrSearchStorageMediaUrls,
+  type InrSearchStorageMediaCandidate,
+} from "@/lib/inrSearchStorageMediaResolver";
 
 export type InrSearchSectionKey =
   | "identity"
@@ -379,10 +383,7 @@ function arrayFromUnknown(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
 
-type StorageMediaCandidate = {
-  bucket: string;
-  storagePath: string;
-};
+type StorageMediaCandidate = InrSearchStorageMediaCandidate;
 
 function normalizeStoragePath(value: unknown) {
   const raw = clean(value, 1200).replace(/^\/+/, "");
@@ -582,40 +583,23 @@ async function resolveStorageMediaUrls(
   candidates: StorageMediaCandidate[],
   limit = 5,
 ) {
-  const resolvedCandidates = await Promise.all(
-    candidates.slice(0, limit).map(async (candidate) => {
-      // Booster media is public by contract. Prefer its stable public URL so a
-      // carousel does not probe and sign every slide during page regeneration.
-      if (candidate.bucket === "booster") {
-        const publicUrl = normalizeExternalUrl(
-          supabaseAdmin.storage.from(candidate.bucket).getPublicUrl(candidate.storagePath)?.data?.publicUrl,
-        );
-        if (publicUrl) return publicUrl;
-      }
-
-      const signedUrl = await createSafeStorageSignedUrl(
-        candidate.bucket,
-        candidate.storagePath,
-        MEDIA_SIGNED_URL_TTL_SECONDS,
-      );
-      const normalizedSignedUrl = normalizeExternalUrl(signedUrl);
-      if (normalizedSignedUrl) return normalizedSignedUrl;
-
-      if (candidate.bucket !== "booster") return null;
-      return normalizeExternalUrl(
-        supabaseAdmin.storage.from(candidate.bucket).getPublicUrl(candidate.storagePath)?.data?.publicUrl,
-      );
-    }),
+  return resolveInrSearchStorageMediaUrls(
+    candidates,
+    {
+      probeStorageObject,
+      getPublicUrl: (bucket, storagePath) => normalizeExternalUrl(
+        supabaseAdmin.storage.from(bucket).getPublicUrl(storagePath)?.data?.publicUrl,
+      ) || null,
+      createSignedUrl: async (bucket, storagePath) => normalizeExternalUrl(
+        await createSafeStorageSignedUrl(
+          bucket,
+          storagePath,
+          MEDIA_SIGNED_URL_TTL_SECONDS,
+        ),
+      ) || null,
+    },
+    limit,
   );
-  const urls: string[] = [];
-  const seen = new Set<string>();
-  for (const resolvedUrl of resolvedCandidates) {
-    if (!resolvedUrl || seen.has(resolvedUrl)) continue;
-    seen.add(resolvedUrl);
-    urls.push(resolvedUrl);
-    if (urls.length >= limit) break;
-  }
-  return urls;
 }
 
 async function loadRowsInBatches<T>(buildQuery: () => any, pageSize = 1000) {
