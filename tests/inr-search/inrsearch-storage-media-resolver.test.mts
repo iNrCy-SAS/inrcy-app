@@ -30,7 +30,7 @@ function resolverHarness(options: {
       calls.publicUrls.push(candidateKey);
       return options.publicUrls?.[candidateKey] || null;
     },
-    async createSignedUrl(bucket, storagePath) {
+    async signAuthorizedUrl(bucket, storagePath) {
       const candidateKey = key(bucket, storagePath);
       calls.signedUrls.push(candidateKey);
       return options.signedUrls?.[candidateKey] || null;

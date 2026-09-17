@@ -11,7 +11,7 @@ export type InrSearchStorageMediaResolverDependencies = {
     storagePath: string,
   ) => Promise<InrSearchStorageObjectState>;
   getPublicUrl: (bucket: string, storagePath: string) => string | null;
-  createSignedUrl: (
+  signAuthorizedUrl: (
     bucket: string,
     storagePath: string,
   ) => Promise<string | null>;
@@ -40,7 +40,7 @@ async function resolveStorageMediaCandidate(
     }
   }
 
-  return dependencies.createSignedUrl(
+  return dependencies.signAuthorizedUrl(
     candidate.bucket,
     candidate.storagePath,
   );

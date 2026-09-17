@@ -590,7 +590,7 @@ async function resolveStorageMediaUrls(
       getPublicUrl: (bucket, storagePath) => normalizeExternalUrl(
         supabaseAdmin.storage.from(bucket).getPublicUrl(storagePath)?.data?.publicUrl,
       ) || null,
-      createSignedUrl: async (bucket, storagePath) => normalizeExternalUrl(
+      signAuthorizedUrl: async (bucket, storagePath) => normalizeExternalUrl(
         await createSafeStorageSignedUrl(
           bucket,
           storagePath,
