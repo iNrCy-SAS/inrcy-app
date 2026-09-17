@@ -82,28 +82,19 @@ test("builds one deterministic invitation with one clean query string", () => {
   assert.equal((urlText.match(/\?/g) || []).length, 1);
 });
 
-test("adds the durable booking call-to-action to invitation emails only", () => {
-  const bookingUrl = "https://inrcy.com/inscription/?lang=fr#inrcy-booking=token.signature";
+test("keeps invitation focused on a prominent Outlook-safe password action", () => {
   const invitation = buildPreparedAuthEmails({
     payload: parseSupabaseAuthEmailHookPayload(rawPayload()),
     hookId: "hook-invite-booking",
     appOrigin: "https://app.inrcy.com",
-    bookingUrl,
   })[0];
-  assert.match(invitation.text, /Réserver ma mise en route offerte \(30 à 45 min\)/);
-  assert.match(invitation.text, /#inrcy-booking=token\.signature/);
-  assert.match(invitation.html, /Bien démarrer avec iNrCy/);
-
-  const recoveryPayload = rawPayload();
-  recoveryPayload.email_data.email_action_type = "recovery";
-  recoveryPayload.email_data.redirect_to = "https://app.inrcy.com/auth/finish-reset/fr";
-  const recovery = buildPreparedAuthEmails({
-    payload: parseSupabaseAuthEmailHookPayload(recoveryPayload),
-    hookId: "hook-recovery-no-booking",
-    appOrigin: "https://app.inrcy.com",
-    bookingUrl,
-  })[0];
-  assert.doesNotMatch(recovery.text, /inrcy-booking/);
+  assert.match(invitation.text, /Créer mon mot de passe: https:\/\//);
+  assert.match(invitation.html, /bgcolor="#635BFF"/);
+  assert.match(invitation.html, /background-color:#635BFF/);
+  assert.match(invitation.html, />Créer mon mot de passe<\/a>/);
+  assert.match(invitation.html, /Si le bouton ne s’affiche pas/);
+  assert.doesNotMatch(invitation.text, /mise en route|réserver/i);
+  assert.doesNotMatch(invitation.html, /mise en route|réserver|inrcy-booking/i);
 });
 
 test("rejects a redirect to an untrusted origin", () => {
