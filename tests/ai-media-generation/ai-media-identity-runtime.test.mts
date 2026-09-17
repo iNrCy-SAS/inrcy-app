@@ -122,7 +122,14 @@ test("le contrat impose le consentement aux identités strictes sans bloquer les
         peopleMode: "auto",
         identityMode: "auto",
         identityConsent: true,
-        inspirationImages: [reference, reference, reference, reference],
+        inspirationImages: [
+          reference,
+          reference,
+          reference,
+          reference,
+          reference,
+          reference,
+        ],
       }),
     AiMediaRequestValidationError,
   );

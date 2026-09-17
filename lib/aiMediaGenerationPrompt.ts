@@ -8,7 +8,7 @@ import {
 } from "@/lib/aiMediaGenerationContracts";
 import { getAiLanguageLabel } from "@/lib/aiWritingProfile";
 
-export const AI_MEDIA_PROMPT_VERSION = "inrcy-media-v19-scene-color-direction";
+export const AI_MEDIA_PROMPT_VERSION = "inrcy-media-v20-essential-role-aware";
 export const AI_MEDIA_COMPILED_PROMPT_MAX_CHARS = 11_800;
 
 type RecentPublication = {
@@ -26,39 +26,73 @@ function clean(value: unknown, max = 600) {
     .slice(0, max);
 }
 
-const VISUAL_DIRECTIONS: Record<AiMediaGenerationRequest["visualStyle"], string> = {
-  brand: "identité de marque cohérente, composition éditoriale nette, détails graphiques maîtrisés",
-  clean: "minimalisme lumineux, beaucoup d’espace négatif, palette réduite, lignes simples et aérées",
-  premium: "direction haut de gamme, contraste élégant, matières raffinées, lumière sculptée et retenue",
+const VISUAL_DIRECTIONS: Record<
+  AiMediaGenerationRequest["visualStyle"],
+  string
+> = {
+  brand:
+    "identité de marque cohérente, composition éditoriale nette, détails graphiques maîtrisés",
+  clean:
+    "minimalisme lumineux, beaucoup d’espace négatif, palette réduite, lignes simples et aérées",
+  premium:
+    "direction haut de gamme, contraste élégant, matières raffinées, lumière sculptée et retenue",
   warm: "ambiance chaleureuse et humaine, lumière dorée, textures naturelles, proximité et douceur",
-  dynamic: "composition énergique, diagonales, mouvement perceptible, contraste franc et rythme visuel",
-  expert: "univers précis et crédible, structure rigoureuse, sobriété professionnelle et détails techniques",
-  local: "scène authentique et ancrée dans le réel, lumière naturelle, proximité et détails locaux crédibles",
-  colorful: "palette vive et joyeuse, contrastes chromatiques assumés, formes expressives sans surcharge",
+  dynamic:
+    "composition énergique, diagonales, mouvement perceptible, contraste franc et rythme visuel",
+  expert:
+    "univers précis et crédible, structure rigoureuse, sobriété professionnelle et détails techniques",
+  local:
+    "scène authentique et ancrée dans le réel, lumière naturelle, proximité et détails locaux crédibles",
+  colorful:
+    "palette vive et joyeuse, contrastes chromatiques assumés, formes expressives sans surcharge",
 };
 
-const IMAGE_DIRECTIONS: Record<AiMediaGenerationRequest["imageStyle"], string> = {
-  photo: "photographie réaliste haut de gamme, optique et lumière naturelles, aucun rendu artificiel",
-  illustration: "illustration éditoriale originale, formes maîtrisées, textures soignées et finition contemporaine",
-  three_d: "composition 3D premium, volumes crédibles, matériaux détaillés et éclairage de studio",
-  graphic: "affiche graphique moderne, mise en page forte, formes géométriques et hiérarchie éditoriale",
+const IMAGE_DIRECTIONS: Record<AiMediaGenerationRequest["imageStyle"], string> =
+  {
+    photo:
+      "photographie réaliste haut de gamme, optique et lumière naturelles, aucun rendu artificiel",
+    illustration:
+      "illustration éditoriale originale, formes maîtrisées, textures soignées et finition contemporaine",
+    three_d:
+      "composition 3D premium, volumes crédibles, matériaux détaillés et éclairage de studio",
+    graphic:
+      "affiche graphique moderne, mise en page forte, formes géométriques et hiérarchie éditoriale",
+  };
+
+const VIDEO_DIRECTIONS: Record<AiMediaGenerationRequest["imageStyle"], string> = {
+  photo:
+    "vidéo réaliste haut de gamme, personnes, objets, matières, lumière et mouvements naturels, sans aspect artificiel",
+  illustration:
+    "véritable dessin animé 2D, personnages et décors illustrés cohérents d’un plan à l’autre, animation fluide et aucun photoréalisme",
+  three_d:
+    "film d’animation 3D premium, personnages et volumes cohérents, matériaux détaillés et mouvements cinématographiques fluides",
+  graphic:
+    "motion design graphique moderne, formes animées lisibles, transitions maîtrisées et composition éditoriale dynamique",
 };
 
 const SHOT_DIRECTIONS: Record<AiMediaGenerationRequest["shotType"], string> = {
   auto: "choisir le cadrage le plus pertinent pour raconter le sujet",
-  close: "cadrage rapproché, détail ou geste au premier plan, profondeur de champ maîtrisée",
-  medium: "plan moyen équilibré montrant clairement le sujet et son contexte immédiat",
+  close:
+    "cadrage rapproché, détail ou geste au premier plan, profondeur de champ maîtrisée",
+  medium:
+    "plan moyen équilibré montrant clairement le sujet et son contexte immédiat",
   wide: "vue large structurée, environnement lisible et profondeur de scène",
 };
 
-const PEOPLE_DIRECTIONS: Record<AiMediaGenerationRequest["peopleMode"], string> = {
+const PEOPLE_DIRECTIONS: Record<
+  AiMediaGenerationRequest["peopleMode"],
+  string
+> = {
   auto: "présence humaine uniquement si elle renforce naturellement le message",
   none: "aucune personne, aucun visage, aucune silhouette ni membre humain visible",
   solo: "une seule personne crédible au maximum, posture naturelle et anatomie réaliste",
   team: "petite équipe crédible en interaction naturelle, sans foule ni poses artificielles",
 };
 
-const CREATIVE_DIRECTIONS: Record<AiMediaGenerationRequest["creativity"], string> = {
+const CREATIVE_DIRECTIONS: Record<
+  AiMediaGenerationRequest["creativity"],
+  string
+> = {
   faithful: "interprétation fidèle, rassurante et directement compréhensible",
   bold: "interprétation audacieuse et mémorable, avec un angle créatif inattendu mais toujours professionnel",
 };
@@ -81,14 +115,28 @@ function stableIndex(value: string, length: number) {
   return (hash >>> 0) % length;
 }
 
+export function getAiMediaRenderDirection(request: AiMediaGenerationRequest) {
+  return request.kind === "video"
+    ? VIDEO_DIRECTIONS[request.imageStyle]
+    : IMAGE_DIRECTIONS[request.imageStyle];
+}
+
 export function getAiMediaVisualDirection(request: AiMediaGenerationRequest) {
+  if (request.inputMode === "essential") {
+    return [
+      getAiMediaRenderDirection(request),
+      PEOPLE_DIRECTIONS[request.peopleMode],
+    ].join(" ; ");
+  }
   return [
     VISUAL_DIRECTIONS[request.visualStyle],
-    IMAGE_DIRECTIONS[request.imageStyle],
+    getAiMediaRenderDirection(request),
     SHOT_DIRECTIONS[request.shotType],
     PEOPLE_DIRECTIONS[request.peopleMode],
     CREATIVE_DIRECTIONS[request.creativity],
-    CREATIVE_VARIATIONS[stableIndex(request.requestId, CREATIVE_VARIATIONS.length)],
+    CREATIVE_VARIATIONS[
+      stableIndex(request.requestId, CREATIVE_VARIATIONS.length)
+    ],
   ].join(" ; ");
 }
 
@@ -100,9 +148,10 @@ export function getAiMediaVisualDirection(request: AiMediaGenerationRequest) {
  */
 export function getAiMediaImageQualityBar(request: AiMediaGenerationRequest) {
   if (request.kind !== "image") return "";
-  const ambition = request.creativity === "bold"
-    ? "Créer un parti pris visuel audacieux, immédiatement mémorable, mais lisible et crédible pour cette activité."
-    : "Créer un parti pris visuel distinctif, élégant et immédiatement compréhensible, fidèle au réel de cette activité.";
+  const ambition =
+    request.inputMode !== "essential" && request.creativity === "bold"
+      ? "Créer un parti pris visuel audacieux, immédiatement mémorable, mais lisible et crédible pour cette activité."
+      : "Créer un parti pris visuel distinctif, élégant et immédiatement compréhensible, fidèle au réel de cette activité.";
   return [
     "EXIGENCE DE QUALITÉ DIFFÉRENCIANTE : produire une image digne d’une campagne de marque, et non une image de banque générique.",
     ambition,
@@ -112,51 +161,78 @@ export function getAiMediaImageQualityBar(request: AiMediaGenerationRequest) {
   ].join("\n");
 }
 
-export function getAiMediaIdentityDirection(
-  request: AiMediaGenerationRequest,
-) {
+export function getAiMediaIdentityDirection(request: AiMediaGenerationRequest) {
   if (request.peopleMode === "none") return "";
 
-  const referenceCount = request.inspirationImages.length;
+  const characterReferences = request.inspirationImages.filter(
+    (image) =>
+      image.role === "character" ||
+      (!image.role && request.identityMode !== "auto")
+  );
+  const referenceCount = characterReferences.length;
   const mediaLabel = request.kind === "video" ? "vidéo" : "image";
   const castRule =
     request.peopleMode === "team"
       ? "Respecter une petite équipe : le personnage de référence reste le sujet principal et les autres personnes demeurent secondaires."
       : request.peopleMode === "solo"
-        ? "Respecter une personne unique : aucun second visage ni personnage ne doit apparaître."
-        : "Respecter la présence humaine automatique tout en gardant le personnage de référence comme sujet principal s’il apparaît.";
+      ? "Respecter une personne unique : aucun second visage ni personnage ne doit apparaître."
+      : "Respecter la présence humaine automatique tout en gardant le personnage de référence comme sujet principal s’il apparaît.";
   if (request.identityMode === "reference_team") {
     const mappedPeople = Array.from(
       { length: Math.max(2, referenceCount) },
-      (_, index) => `image ${index + 1} = personne ${index + 1}`,
+      (_, index) =>
+        `personnage ${characterReferences[index]?.characterIndex || index + 1}`
     ).join(", ");
     return [
-      `ÉQUIPE DE RÉFÉRENCE : réunir les ${Math.max(2, referenceCount)} adultes distincts et autorisés dans la même ${mediaLabel}.`,
-      `${mappedPeople}. Chaque identité reste indépendante : préserver séparément le visage, la coiffure et les signes distinctifs de chaque personne.`,
+      `ÉQUIPE DE RÉFÉRENCE : réunir les ${Math.max(
+        2,
+        referenceCount
+      )} adultes distincts et autorisés dans la même ${mediaLabel}.`,
+      `Références attendues : ${mappedPeople}. Chaque identité reste indépendante : préserver séparément le visage, la coiffure et les signes distinctifs de chaque personne.`,
       "Faire apparaître chaque personne exactement une fois ; ne jamais fusionner, permuter, dupliquer, omettre ni remplacer une identité par un visage générique.",
       request.kind === "video"
         ? "Lorsque l’animation reçoit une image de groupe précomposée, conserver tous les membres visibles de cette équipe pendant le plan et éviter toute transformation du visage."
-        : `Composer une scène de groupe naturelle dans le rendu choisi (${IMAGE_DIRECTIONS[request.imageStyle]}), puis faire contrôler les ressemblances avant validation.`,
+        : `Composer une scène de groupe naturelle dans le rendu choisi (${
+          getAiMediaRenderDirection(request)
+          }), puis faire contrôler les ressemblances avant validation.`,
     ].join("\n");
   }
   if (request.identityMode === "professional") {
     return [
-      `IDENTITÉ VISUELLE GUIDÉE : les références autorisées d’un professionnel adulte visent à préserver son apparence dans ${request.kind === "video" ? "la vidéo" : "l’image"}.`,
-      `Le représenter dans le rendu choisi (${IMAGE_DIRECTIONS[request.imageStyle]}), sans le remplacer par un visage générique. Le professionnel doit contrôler la ressemblance avant validation du média.`,
+      `IDENTITÉ VISUELLE GUIDÉE : les références autorisées d’un professionnel adulte visent à préserver son apparence dans ${
+        request.kind === "video" ? "la vidéo" : "l’image"
+      }.`,
+      `Le représenter dans le rendu choisi (${
+        getAiMediaRenderDirection(request)
+      }), sans le remplacer par un visage générique. Le professionnel doit contrôler la ressemblance avant validation du média.`,
       castRule,
       request.kind === "video"
-        ? `Utiliser les ${referenceCount} photo${referenceCount > 1 ? "s" : ""} de référence pour guider chaque plan et viser une continuité cohérente de la même personne pendant toute la vidéo.`
-        : `Utiliser les ${referenceCount} photo${referenceCount > 1 ? "s" : ""} de référence pour guider l’apparence, avec une posture, un vêtement et un décor adaptés au brief.`,
+        ? `Utiliser les ${referenceCount} photo${
+            referenceCount > 1 ? "s" : ""
+          } de référence pour guider chaque plan et viser une continuité cohérente de la même personne pendant toute la vidéo.`
+        : `Utiliser les ${referenceCount} photo${
+            referenceCount > 1 ? "s" : ""
+          } de référence pour guider l’apparence, avec une posture, un vêtement et un décor adaptés au brief.`,
     ].join("\n");
   }
 
   if (request.identityMode === "brand_avatar") {
     return [
-      `AVATAR DE MARQUE GUIDÉ : créer ou reprendre l’avatar illustré autorisé comme personnage de ${request.kind === "video" ? "la vidéo" : "l’image"}.`,
-      `Le décliner dans le rendu choisi (${IMAGE_DIRECTIONS[request.imageStyle]}) en visant une apparence, une palette et des signes distinctifs cohérents${request.kind === "video" ? " entre les plans" : ""}. Faire contrôler le résultat avant validation.`,
+      `AVATAR DE MARQUE GUIDÉ : créer ou reprendre l’avatar illustré autorisé comme personnage de ${
+        request.kind === "video" ? "la vidéo" : "l’image"
+      }.`,
+      `Le décliner dans le rendu choisi (${
+        getAiMediaRenderDirection(request)
+      }) en visant une apparence, une palette et des signes distinctifs cohérents${
+        request.kind === "video" ? " entre les plans" : ""
+      }. Faire contrôler le résultat avant validation.`,
       castRule,
       referenceCount
-        ? `Les ${referenceCount} référence${referenceCount > 1 ? "s" : ""} autorisée${referenceCount > 1 ? "s" : ""} guident ${request.kind === "video" ? "chaque plan" : "le rendu"} : viser le même avatar, qu’elles montrent un dessin existant ou une personne adulte autorisée à styliser.`
+        ? `Les ${referenceCount} référence${
+            referenceCount > 1 ? "s" : ""
+          } autorisée${referenceCount > 1 ? "s" : ""} guident ${
+            request.kind === "video" ? "chaque plan" : "le rendu"
+          } : viser le même avatar, qu’elles montrent un dessin existant ou une personne adulte autorisée à styliser.`
         : `Créer un avatar professionnel original et cohérent avec l’ADN, puis viser une continuité visuelle de ce personnage dans ${mediaLabel}.`,
     ].join("\n");
   }
@@ -194,7 +270,10 @@ function buildCreativeBrief(request: AiMediaGenerationRequest) {
         ? "Publication en cours"
         : "Sujet choisi par le professionnel";
     return [
-      `SUJET CENTRAL OBLIGATOIRE — ${sourceLabel} : ${clean(request.idea, 2_000)}`,
+      `SUJET CENTRAL OBLIGATOIRE — ${sourceLabel} : ${clean(
+        request.idea,
+        2_000
+      )}`,
       "Le résultat doit représenter ce sujet sans ambiguïté. Conserver ses personnes, objets, lieux, actions et relations importantes ; ne jamais le remplacer par une scène générique issue de l’ADN.",
       "L’ADN peut seulement préciser le contexte professionnel et les faits vérifiés. Il ne peut ni changer le sujet, ni ajouter une autre prestation comme thème principal.",
       "Interdiction de recopier cette phrase, de l’utiliser comme titre ou de la transcrire dans le média.",
@@ -224,8 +303,8 @@ function buildHistory(recentPublications: readonly RecentPublication[]) {
     .map((publication) =>
       clean(
         publication.idea || publication.title || publication.content || "",
-        180,
-      ),
+        180
+      )
     )
     .filter(Boolean);
   if (!rows.length) return "- Aucun historique exploitable.";
@@ -278,53 +357,92 @@ export function buildAiMediaPrompt(args: {
     `objectif ${preferences.mainGoal}`,
     `angle ${preferences.preferredAngle}`,
   ].join(", ");
+  const characterReferences = request.inspirationImages.filter(
+    (image) =>
+      image.role === "character" ||
+      (!image.role && request.identityMode !== "auto")
+  );
+  const environmentReferences = request.inspirationImages.filter(
+    (image) => image.role === "environment"
+  );
+  const productReferences = request.inspirationImages.filter(
+    (image) => image.role === "product"
+  );
   const hasStrictIdentityReferences =
-    request.inspirationImages.length > 0 &&
+    characterReferences.length > 0 &&
     (request.identityMode === "professional" ||
       request.identityMode === "brand_avatar" ||
       request.identityMode === "reference_team");
   const referenceInputLabel = hasStrictIdentityReferences
-    ? `${request.inspirationImages.length} référence${request.inspirationImages.length > 1 ? "s" : ""} d’identité autorisée${request.inspirationImages.length > 1 ? "s" : ""}`
-    : `${request.inspirationImages.length} inspiration${request.inspirationImages.length > 1 ? "s" : ""} visuelle${request.inspirationImages.length > 1 ? "s" : ""} autorisée${request.inspirationImages.length > 1 ? "s" : ""}`;
+    ? `${characterReferences.length} référence${
+        characterReferences.length > 1 ? "s" : ""
+      } de personnage autorisée${characterReferences.length > 1 ? "s" : ""}${
+        environmentReferences.length ? ", 1 décor" : ""
+      }${productReferences.length ? ", 1 produit" : ""}`
+    : `${request.inspirationImages.length} inspiration${
+        request.inspirationImages.length > 1 ? "s" : ""
+      } visuelle${request.inspirationImages.length > 1 ? "s" : ""} autorisée${
+        request.inspirationImages.length > 1 ? "s" : ""
+      }`;
 
-  const imageReferenceRules = request.kind === "image"
-    ? [
-        `ENTRÉES AUTORISÉES : le sujet ci-dessous, l’ADN professionnel structuré${request.inspirationImages.length ? ` et ${referenceInputLabel} avec accord ponctuel` : ""}${args.hasLogo ? ", puis le logo officiel" : ""}.`,
-        request.inspirationImages.length
-          ? hasStrictIdentityReferences
-            ? request.identityMode === "reference_team"
-              ? `Les ${request.inspirationImages.length} références représentent autant de personnes distinctes : image 1 = personne 1, image 2 = personne 2${request.inspirationImages.length === 3 ? ", image 3 = personne 3" : ""}. Les réunir toutes, exactement une fois chacune, sans fusion, permutation, duplication ni substitution générique. Ne jamais recopier leur arrière-plan par défaut.`
-              : "Les références d’identité servent uniquement à guider l’apparence du professionnel ou à créer son avatar selon le mode choisi. Ne jamais recopier leur arrière-plan par défaut."
-            : "Les médias fournis sont des inspirations visuelles obligatoires pour le sujet, l’ambiance, la composition ou la scène. Rendre leur rôle perceptible dans le résultat selon le brief, sans reproduire ni revendiquer l’identité d’une personne réelle."
-          : "Aucune photo de Médiathèque, d’identité, d’ancien média ou de publication n’est fournie : imaginer une scène originale strictement adaptée au sujet actuel.",
-        args.hasLogo
-          ? `${request.inspirationImages.length ? "La dernière image de référence" : "Le seul fichier image de référence"} est le logo officiel. Respecter fidèlement sa forme, ses proportions, ses couleurs et son orthographe. L’intégrer une seule fois, ${request.logoMode === "visible" ? "de façon clairement visible mais élégante" : "discrètement"}, dans une zone sûre ; il ne doit jamais devenir le sujet principal ni occuper plus de ${request.logoMode === "visible" ? "22" : "12"} % du visuel.`
-          : "Aucun logo n’est fourni : ne créer aucun logo, monogramme, emblème ou pseudo-logo.",
-        args.deferVisibleElementsToComposer
-          ? [
-              "Créer uniquement un fond visuel premium, sans aucun texte, lettre, chiffre, numéro, coordonnées, logo, monogramme ni pseudo-logo.",
-              request.format === "portrait" || request.format === "story"
-                ? "Réserver une zone visuellement calme dans la partie inférieure et garder le sujet principal dans la moitié supérieure : iNrCy y composera ensuite l’accroche et les coordonnées exactes."
-                : "Réserver une zone visuellement calme sur la moitié gauche et placer le sujet principal dans la moitié droite : iNrCy y composera ensuite l’accroche et les coordonnées exactes.",
-              "Ne jamais tenter d’interpréter, de deviner ou de redessiner le téléphone demandé dans la consigne ponctuelle.",
-            ].join("\n")
-          : request.withText
-          ? [
-              "Créer un visuel social finalisé avec une hiérarchie typographique professionnelle et des marges généreuses.",
-              `Accroche originale sélectionnée par iNrCy, distincte du brief, à afficher exactement : « ${clean(args.copy?.headline, 110)} ».`,
-              request.textKeywords.length
-                ? `Les mots-clés facultatifs demandés dans le bloc Texte ont guidé cette accroche : ${request.textKeywords.map((value) => clean(value, 48)).join(", ")}.`
-                : "Aucun mot-clé de texte n’a été imposé : l’accroche provient de l’ADN et du type de contenu.",
-              "Ne jamais ajouter de sous-titre, de paragraphe, de CTA ni d’autre texte. Chaque lettre doit être parfaitement lisible, sans coupure et éloignée des bords.",
-            ].join("\n")
-          : "Ne placer aucun texte hors celui qui appartient déjà au logo officiel.",
-      ].join("\n")
-    : [
-        request.inspirationImages.length
-          ? `Ce brief pilote des plans vidéo originaux avec ${referenceInputLabel}. Chaque référence est transmise selon le mode vidéo choisi et doit garder le rôle défini par l’utilisateur.`
-          : "Ce brief pilote des plans vidéo originaux sans média de référence.",
-        "Ne produire aucun logo ni pseudo-logo : l’habillage vidéo exact sera appliqué ensuite par iNrCy.",
-      ].join("\n");
+  const imageReferenceRules =
+    request.kind === "image"
+      ? [
+          `ENTRÉES AUTORISÉES : le sujet ci-dessous, l’ADN professionnel structuré${
+            request.inspirationImages.length
+              ? ` et ${referenceInputLabel} avec accord ponctuel`
+              : ""
+          }${args.hasLogo ? ", puis le logo officiel" : ""}.`,
+          request.inspirationImages.length
+            ? hasStrictIdentityReferences
+              ? request.identityMode === "reference_team"
+                ? `Les ${characterReferences.length} références de personnages représentent autant de personnes distinctes. Les réunir toutes, exactement une fois chacune, sans fusion, permutation, duplication ni substitution générique. Ne jamais recopier leur arrière-plan par défaut.`
+                : "La référence de personnage sert uniquement à préserver son apparence dans une création nouvelle. Ne jamais recopier son arrière-plan, sa pose ni le cadrage de la photo source."
+              : "Les médias fournis sont des inspirations visuelles obligatoires pour le sujet, l’ambiance, la composition ou la scène. Rendre leur rôle perceptible dans le résultat selon le brief, sans reproduire ni revendiquer l’identité d’une personne réelle."
+            : "Aucune photo de Médiathèque, d’identité, d’ancien média ou de publication n’est fournie : imaginer une scène originale strictement adaptée au sujet actuel.",
+          args.hasLogo
+            ? `${
+                request.inspirationImages.length
+                  ? "La dernière image de référence"
+                  : "Le seul fichier image de référence"
+              } est le logo officiel. Respecter fidèlement sa forme, ses proportions, ses couleurs et son orthographe. L’intégrer une seule fois, ${
+                request.logoMode === "visible"
+                  ? "de façon clairement visible mais élégante"
+                  : "discrètement"
+              }, dans une zone sûre ; il ne doit jamais devenir le sujet principal ni occuper plus de ${
+                request.logoMode === "visible" ? "22" : "12"
+              } % du visuel.`
+            : "Aucun logo n’est fourni : ne créer aucun logo, monogramme, emblème ou pseudo-logo.",
+          args.deferVisibleElementsToComposer
+            ? [
+                "Créer uniquement un fond visuel premium, sans aucun texte, lettre, chiffre, numéro, coordonnées, logo, monogramme ni pseudo-logo.",
+                request.format === "portrait" || request.format === "story"
+                  ? "Réserver une zone visuellement calme dans la partie inférieure et garder le sujet principal dans la moitié supérieure : iNrCy y composera ensuite l’accroche et les coordonnées exactes."
+                  : "Réserver une zone visuellement calme sur la moitié gauche et placer le sujet principal dans la moitié droite : iNrCy y composera ensuite l’accroche et les coordonnées exactes.",
+                "Ne jamais tenter d’interpréter, de deviner ou de redessiner le téléphone demandé dans la consigne ponctuelle.",
+              ].join("\n")
+            : request.withText
+            ? [
+                "Créer un visuel social finalisé avec une hiérarchie typographique professionnelle et des marges généreuses.",
+                `Accroche originale sélectionnée par iNrCy, distincte du brief, à afficher exactement : « ${clean(
+                  args.copy?.headline,
+                  110
+                )} ».`,
+                request.textKeywords.length
+                  ? `Les mots-clés facultatifs demandés dans le bloc Texte ont guidé cette accroche : ${request.textKeywords
+                      .map((value) => clean(value, 48))
+                      .join(", ")}.`
+                  : "Aucun mot-clé de texte n’a été imposé : l’accroche provient de l’ADN et du type de contenu.",
+                "Ne jamais ajouter de sous-titre, de paragraphe, de CTA ni d’autre texte. Chaque lettre doit être parfaitement lisible, sans coupure et éloignée des bords.",
+              ].join("\n")
+            : "Ne placer aucun texte hors celui qui appartient déjà au logo officiel.",
+        ].join("\n")
+      : [
+          request.inspirationImages.length
+            ? `Ce brief pilote des plans vidéo originaux avec ${referenceInputLabel}. Chaque référence est transmise selon le mode vidéo choisi et doit garder le rôle défini par l’utilisateur.`
+            : "Ce brief pilote des plans vidéo originaux sans média de référence.",
+          "Ne produire aucun logo ni pseudo-logo : l’habillage vidéo exact sera appliqué ensuite par iNrCy.",
+        ].join("\n");
 
   const compiledPrompt = [
     `Version : ${AI_MEDIA_PROMPT_VERSION}.`,
@@ -338,25 +456,35 @@ export function buildAiMediaPrompt(args: {
         ? `Créer le fond photographique ou illustré d’un média professionnel au format ${format.aspectRatio} (${format.label}), sans bordure.`
         : `Créer un média professionnel entièrement composé au format ${format.aspectRatio} (${format.label}), sans bordure.`
       : `Créer la photographie ou l’illustration de fond d’un média professionnel au format ${format.aspectRatio} (${format.label}), sans bordure.`,
-    `Typologie : ${request.typology}. Direction visuelle : ${request.visualStyle}.`,
-    `DIRECTION ARTISTIQUE DÉTAILLÉE : ${getAiMediaVisualDirection(request)}.`,
+    request.inputMode !== "essential"
+      ? `Typologie : ${request.typology}. Direction visuelle : ${request.visualStyle}.`
+      : "MODE STUDIO ESSENTIEL : déduire la mise en scène du sujet, de la consigne, de l’ADN et des rôles explicites des médias ; aucun autre preset caché ne doit orienter le résultat.",
+    request.inputMode !== "essential"
+      ? `DIRECTION ARTISTIQUE DÉTAILLÉE : ${getAiMediaVisualDirection(
+          request
+        )}.`
+      : `RENDU VISUEL CHOISI : ${getAiMediaVisualDirection(request)}.`,
     getAiMediaImageQualityBar(request),
     `CADRAGE ET ZONES SÛRES : ${safeCompositionGuide(request)}`,
     "Composition : sujet principal immédiatement lisible, profondeur naturelle, lumière soignée, marges sûres et hiérarchie visuelle équilibrée. Ne jamais couper un mot, un visage, le logo ou le sujet principal.",
     request.kind === "video"
       ? "Ce brief pilotera des plans vidéo originaux générés par IA : privilégier une action crédible, cohérente et cinématographique."
       : "Cette image doit être une création originale, cohérente avec le sujet actuel et directement publiable.",
-    `Direction de communication : ${preferenceLine}.`,
+    request.inputMode !== "essential"
+      ? `Direction de communication : ${preferenceLine}.`
+      : "",
     args.deferVisibleElementsToComposer
       ? `LANGUE DE GÉNÉRATION CONFIGURÉE : ${targetLanguage}. Le fournisseur crée uniquement le fond : aucun texte ni caractère visible, quelle que soit la langue du brief.`
       : request.withText
       ? `LANGUE DU TEXTE VISIBLE — RÈGLE ABSOLUE : l'accroche et tout caractère destiné au lecteur doivent être exclusivement en ${targetLanguage}. Le brief, l’ADN et les consignes techniques peuvent être rédigés dans une autre langue : ne jamais reprendre leur langue par défaut. Les noms propres, marques et le logo officiel restent inchangés.`
       : `LANGUE DE GÉNÉRATION CONFIGURÉE : ${targetLanguage}. Aucun texte visible ne doit être créé dans le média, quelle que soit la langue du brief, hors texte déjà présent dans le logo officiel.`,
     request.useBrandColors && palette.length
-      ? `Couleurs de marque à utiliser uniquement comme accents dans la lumière, les matières et le décor : ${palette.join(", ")}. Ne pas en faire un sujet ni une planche de présentation.`
+      ? `Couleurs de marque à utiliser uniquement comme accents dans la lumière, les matières et le décor : ${palette.join(
+          ", "
+        )}. Ne pas en faire un sujet ni une planche de présentation.`
       : args.hasLogo
-        ? "Palette créative libre et cohérente avec le secteur. Ne pas étendre les couleurs du logo à toute l’image : elles doivent rester limitées au logo lui-même."
-        : "Palette créative libre, harmonieuse, professionnelle et cohérente avec le secteur.",
+      ? "Palette créative libre et cohérente avec le secteur. Ne pas étendre les couleurs du logo à toute l’image : elles doivent rester limitées au logo lui-même."
+      : "Palette créative libre, harmonieuse, professionnelle et cohérente avec le secteur.",
     imageReferenceRules,
     getAiMediaIdentityDirection(request),
     "ADN PROFESSIONNEL AUTORISÉ — utiliser uniquement les éléments pertinents pour le sujet, sans afficher ni recopier ce bloc :",
@@ -374,7 +502,7 @@ export function buildAiMediaPrompt(args: {
 }
 
 export function getAiMediaPromptOutputSpec(
-  value: AiMediaGenerationRequest | AiMediaKind,
+  value: AiMediaGenerationRequest | AiMediaKind
 ) {
   if (typeof value === "string") {
     return value === "image"

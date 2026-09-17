@@ -7,52 +7,34 @@ import ts from "typescript";
 const source = readFileSync("app/dashboard/_components/MediaGenerator.tsx", "utf8");
 const styles = readFileSync("app/dashboard/_components/MediaGenerator.module.css", "utf8");
 
-test("les durées et le raccord restent dans Finitions, après les trois autres rubriques", () => {
+test("le type et la durée vidéo sont réunis dans la première carte", () => {
   const parsed = ts.createSourceFile("MediaGenerator.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const diagnostics = (parsed as ts.SourceFile & { parseDiagnostics: readonly ts.Diagnostic[] }).parseDiagnostics;
   assert.equal(diagnostics.length, 0, "le composant TSX est syntaxiquement valide");
-  const finishing = source.indexOf('{expandedStep === 4 ? <div');
-  const durations = source.indexOf('className={styles.durationChoices}');
-  const connection = source.indexOf('className={styles.sceneConnectionChoice}');
-  assert.ok(finishing > 0 && durations > finishing && connection > durations);
-  assert.equal((source.match(/className=\{styles\.durationChoices\}/g) || []).length, 1);
+  const firstCard = source.indexOf('className={`${styles.essentialCard} ${styles.creationCard}`}');
+  const mediaType = source.indexOf('ai_generator_essential_media_type', firstCard);
+  const durations = source.indexOf('ai_generator_duration_title', mediaType);
+  const format = source.indexOf('ai_generator_format_title', durations);
+  assert.ok(firstCard > 0 && mediaType > firstCard && durations > mediaType && format > durations);
   assert.match(source, /\[8, 16, 24\] as const/);
-  assert.match(source, /ai_generator_sequence_count", \{ count: duration \/ 8 \}/);
   assert.match(source, /disabled=\{operationLocked \|\| premiumLocked\}/);
+  assert.doesNotMatch(source, /expandedStep|sceneConnectionChoice/);
 });
 
-test("le raccord est un choix opt-in partagé avec le contrat serveur et mémorisé dans le bloc 6", () => {
-  assert.match(source, /\[connectScenes, setConnectScenes\] = useState\(false\)/);
-  assert.match(source, /sceneConnectionAvailable = shouldConnectAiMediaVideoScenes\(/);
-  assert.match(source, /connectScenes: sceneConnectionAvailable \? connectScenes : undefined/);
-  assert.match(source, /setConnectScenes\(block6.saved \? block6.defaults.connectScenes : false\)/);
-  const remember = source.slice(source.indexOf("const handleRememberPreference"), source.indexOf("const performGeneration"));
-  const block1 = remember.slice(remember.indexOf("case 1:"), remember.indexOf("case 2:"));
-  assert.doesNotMatch(block1, /durationSeconds|connectScenes/);
-  const block6 = remember.slice(remember.indexOf("case 6:"));
-  assert.match(block6, /durationSeconds,\s*connectScenes,/);
-  const checkbox = source.slice(source.indexOf('className={styles.sceneConnectionChoice}'), source.indexOf('className={styles.sceneConnectionChoice}') + 850);
-  assert.match(checkbox, /type="checkbox"/);
-  assert.match(checkbox, /checked=\{connectScenes\}/);
-  assert.match(checkbox, /if \(event.target.checked\) setSceneConnectionNoticeOpen\(true\)/);
+test("le Studio essentiel ne transmet plus le raccord ni les anciens réglages décoratifs", () => {
+  const generation = source.slice(source.indexOf("const performGeneration"), source.indexOf("const handleGenerate"));
+  assert.match(generation, /inputMode: "essential"/);
+  assert.doesNotMatch(generation, /connectScenes\s*:/);
+  assert.doesNotMatch(generation, /typology\s*:|visualStyle\s*:|shotType\s*:|creativity\s*:|videoEngine\s*:/);
+  assert.doesNotMatch(source, /setConnectScenes|SceneConnectionNotice/);
 });
 
-test("la notice utilise une vraie modale accessible et restaure le focus sans fermer le générateur", () => {
-  const notice = source.slice(source.indexOf("function SceneConnectionNotice"), source.indexOf("function canvasBlob"));
-  assert.match(notice, /<dialog/);
-  assert.match(notice, /dialog.showModal\(\)/);
-  assert.match(notice, /confirmRef.current\?\.focus\(\{ preventScroll: true \}\)/);
-  assert.match(notice, /aria-labelledby=\{titleId\}/);
-  assert.match(notice, /aria-describedby=\{descriptionId\}/);
-  assert.match(notice, /onCancel=\{\(event\) => \{\s*event.preventDefault\(\);\s*onClose\(\)/);
-  assert.match(notice, /event.stopPropagation\(\)/);
-  assert.match(notice, /previousFocus\?\.isConnected\) previousFocus.focus/);
-  assert.match(notice, /if \(dialog.open\) dialog.close\(\)/);
-  assert.doesNotMatch(notice, /window\.alert|window\.confirm/);
-  assert.match(styles, /\.sceneConnectionNotice\s*\{[^}]*width: min\(480px, calc\(100vw - 32px\)\)/);
-  assert.match(styles, /\.sceneConnectionNotice\s*\{[^}]*max-height: calc\(100dvh - 32px\)/);
-  assert.match(styles, /\.sceneConnectionNotice::backdrop/);
-  assert.match(styles, /\.sceneConnectionNotice button:focus-visible/);
+test("les sélecteurs essentiels restent sombres et la grille passe de 2×2 à une colonne", () => {
+  assert.match(source, /className=\{styles\.studioSelect\}/);
+  assert.match(styles, /\.studioSelect\s*\{[\s\S]*?background-color:\s*#091735/);
+  assert.match(styles, /\.studioSelect option\s*\{[\s\S]*?background:\s*#091735/);
+  assert.match(styles, /\.essentialGrid\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /@media \(max-width: 1100px\)[\s\S]*?\.essentialGrid\s*\{[\s\S]*?grid-template-columns:\s*1fr/);
 });
 
 test("les neuf langues affichent 1, 2 et 3 séquences et une mise en garde traduite", () => {

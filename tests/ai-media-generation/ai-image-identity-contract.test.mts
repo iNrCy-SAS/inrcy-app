@@ -13,13 +13,16 @@ test("les médias source restent distincts des références d'identité strictes
   const hook = read("app/dashboard/_hooks/useMediaGeneration.ts");
 
   assert.match(contracts, /const inspirationImages = normalizeInspirationImages/);
+  assert.match(contracts, /const characterReferences = inspirationImages\.filter/);
   assert.match(contracts, /const strictIdentityReferenceRequested =/);
-  assert.match(contracts, /identityMode !== "auto" && inspirationImages\.length > 0/);
+  assert.match(contracts, /identityMode !== "auto" && characterReferences\.length > 0/);
+  assert.match(contracts, /image\.role === "character"/);
   assert.doesNotMatch(contracts, /kind !== "video"[\s\S]{0,180}inspiration/);
   assert.match(generator, /const strictIdentityReferenceMode =/);
-  assert.match(generator, /data-reference-purpose=\{strictIdentityReferenceMode \? "identity" : "visual"\}/);
-  assert.match(generator, /identityMode:[\s\S]*?peopleMode !== "none"/);
-  assert.match(generator, /\n\s*inspirationImages,\n/);
+  assert.match(generator, /role: MediaGenerationReferenceRole/);
+  assert.match(generator, /image\.role === args\.role/);
+  assert.match(generator, /identityMode: effectiveIdentityMode/);
+  assert.match(generator, /inspirationImages: mediaSourceMode === "real" \? inspirationImages : \[\]/);
   assert.doesNotMatch(
     generator,
     /kind === "video" && peopleMode !== "none" \? \(\s*<>[\s\S]{0,200}ai_generator_video_character_label/,
@@ -41,6 +44,7 @@ test("les moteurs image reçoivent les références sans repli photo silencieux"
   const imageBranch = server.slice(imageBranchStart, imageBranchEnd);
 
   assert.match(gateway, /identityReferences\?: readonly Buffer\[\]/);
+  assert.match(gateway, /referenceRoles\?: ReadonlyArray/);
   assert.match(gateway, /const referenceImages = \[[\s\S]*?\.\.\.providedReferences/);
   assert.match(gateway, /images: referenceImages/);
   assert.match(gateway, /ai_image_identity_not_generated/);
@@ -49,7 +53,9 @@ test("les moteurs image reçoivent les références sans repli photo silencieux"
   assert.match(gateway, /response_format: \{[\s\S]*?type: "image"/);
   assert.match(gateway, /mime_type: "image\/jpeg"/);
   assert.doesNotMatch(gateway, /inputFidelity/);
-  assert.match(gateway, /Interdiction de recopier la photo source/);
+  assert.match(gateway, /Ne jamais recopier sa photo/);
+  assert.match(gateway, /décor de référence/);
+  assert.match(gateway, /produit à intégrer/);
   assert.doesNotMatch(gateway, /catch[\s\S]{0,400}generateImage\([\s\S]{0,250}args\.prompt/);
   assert.match(server, /prepareAiMediaIdentityReferences\(args\.request\.inspirationImages\)/);
   assert.match(server, /identityReferences: preparedIdentityReferences\.buffers/);

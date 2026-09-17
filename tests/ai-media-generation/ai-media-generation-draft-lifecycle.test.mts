@@ -36,7 +36,7 @@ test("un resultat reussi reste un brouillon prive jusqu'a l'acceptation", () => 
   const saveDraft = section(
     registry,
     "export async function saveGeneratedAiMediaDraft",
-    "/**\n * Promotion idempotente",
+    "export async function acceptGeneratedAiMediaDraft",
   );
   const acceptDraft = section(
     registry,

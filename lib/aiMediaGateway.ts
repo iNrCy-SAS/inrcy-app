@@ -13,7 +13,10 @@ import {
   rollbackAiGatewayAccountAttempt,
 } from "@/lib/aiGatewayAccountGuard";
 import { bufferFromUint8ArrayView } from "@/lib/aiMediaBuffer";
-import type { AiMediaIdentityMode } from "@/lib/aiMediaGenerationContracts";
+import type {
+  AiMediaIdentityMode,
+  AiMediaInspirationImage,
+} from "@/lib/aiMediaGenerationContracts";
 import { redactAiMediaSensitiveText } from "@/lib/aiMediaSensitiveText";
 
 const DEFAULT_IMAGE_MODEL = "openai/gpt-image-2";
@@ -38,6 +41,10 @@ export type AiMediaGatewayResult = {
 
 type AiMediaImageProviderInput = {
   providedReferences: Buffer[];
+  providedReferenceRoles: Array<
+    Pick<AiMediaInspirationImage, "role" | "characterIndex">
+  >;
+  characterReferenceCount: number;
   strictIdentityReferences: boolean;
   officialLogoIncluded: boolean;
   referenceImages: Buffer[];
@@ -54,7 +61,7 @@ function positiveInt(value: unknown, fallback: number, max: number) {
 
 function resolveImageModel() {
   const configured = String(
-    process.env.AI_GATEWAY_IMAGE_MODEL || process.env.AI_MEDIA_IMAGE_MODEL || "",
+    process.env.AI_GATEWAY_IMAGE_MODEL || process.env.AI_MEDIA_IMAGE_MODEL || ""
   ).trim();
   const model = configured || DEFAULT_IMAGE_MODEL;
   if (!/^[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*$/i.test(model)) {
@@ -65,7 +72,7 @@ function resolveImageModel() {
 
 function resolveGoogleImageModel() {
   const configured = String(
-    process.env.AI_MEDIA_GOOGLE_IMAGE_MODEL || "",
+    process.env.AI_MEDIA_GOOGLE_IMAGE_MODEL || ""
   ).trim();
   const model = configured || DEFAULT_GOOGLE_IMAGE_MODEL;
   if (!/^[a-z0-9][a-z0-9._-]*$/i.test(model)) {
@@ -78,19 +85,19 @@ function configuredCost(referenceImagesCount: number) {
   const baseCost = positiveInt(
     process.env.AI_MEDIA_IMAGE_COST_MICRO_USD,
     DEFAULT_IMAGE_COST_MICRO_USD,
-    50_000_000,
+    50_000_000
   );
   // Les images d'entrée sont facturables par le fournisseur. Cette réserve
-  // conservatrice couvre jusqu'à trois références et le logo sans sous-estimer
+  // conservatrice couvre jusqu'à cinq références et le logo sans sous-estimer
   // le budget du compte. Elle n'est pas un quota produit facturé au client.
   const perReferenceCost = positiveInt(
     process.env.AI_MEDIA_IMAGE_REFERENCE_COST_MICRO_USD,
     DEFAULT_IMAGE_REFERENCE_COST_MICRO_USD,
-    5_000_000,
+    5_000_000
   );
   return Math.min(
     50_000_000,
-    baseCost + Math.min(4, Math.max(0, referenceImagesCount)) * perReferenceCost,
+    baseCost + Math.min(6, Math.max(0, referenceImagesCount)) * perReferenceCost
   );
 }
 
@@ -105,9 +112,7 @@ function assertGatewayCredentials() {
 
 function googleImageApiKey() {
   const value = String(
-    process.env.GEMINI_API_KEY ||
-      process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
-      "",
+    process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || ""
   ).trim();
   if (!value) throw new Error("ai_image_google_credentials_missing");
   return value;
@@ -116,16 +121,30 @@ function googleImageApiKey() {
 function prepareImageProviderInput(args: {
   identityMode: AiMediaIdentityMode;
   identityReferences?: readonly Buffer[];
+  referenceRoles?: ReadonlyArray<
+    Pick<AiMediaInspirationImage, "role" | "characterIndex">
+  >;
   officialLogo?: Buffer | null;
 }): AiMediaImageProviderInput {
   const providedReferences = (args.identityReferences || [])
     .filter((image) => image.byteLength > 0)
-    .slice(0, 3);
+    .slice(0, 5);
+  const legacyStrictIdentity =
+    args.identityMode === "professional" ||
+    args.identityMode === "brand_avatar" ||
+    args.identityMode === "reference_team";
+  const providedReferenceRoles = providedReferences.map((_, index) => {
+    const explicit = args.referenceRoles?.[index];
+    if (explicit?.role) return explicit;
+    return legacyStrictIdentity
+      ? { role: "character" as const, characterIndex: (index + 1) as 1 | 2 | 3 }
+      : {};
+  });
+  const characterReferenceCount = providedReferenceRoles.filter(
+    (reference) => reference.role === "character"
+  ).length;
   const strictIdentityReferences =
-    providedReferences.length > 0 &&
-    (args.identityMode === "professional" ||
-      args.identityMode === "brand_avatar" ||
-      args.identityMode === "reference_team");
+    characterReferenceCount > 0 && legacyStrictIdentity;
   const officialLogoIncluded = Boolean(args.officialLogo?.byteLength);
   const referenceImages = [
     ...providedReferences,
@@ -133,6 +152,8 @@ function prepareImageProviderInput(args: {
   ];
   return {
     providedReferences,
+    providedReferenceRoles,
+    characterReferenceCount,
     strictIdentityReferences,
     officialLogoIncluded,
     referenceImages,
@@ -150,6 +171,7 @@ function buildImageReferenceRoleRules(args: {
 }) {
   const {
     providedReferences,
+    providedReferenceRoles,
     strictIdentityReferences,
     officialLogoIncluded,
     referenceImagesCount,
@@ -157,15 +179,24 @@ function buildImageReferenceRoleRules(args: {
   if (!referenceImagesCount) return "";
   return [
     "ORDRE DES IMAGES DE RÉFÉRENCE FOURNIES AU MODÈLE :",
-    providedReferences.length && strictIdentityReferences
-      ? args.identityMode === "reference_team"
-        ? `- Les ${providedReferences.length} premières images représentent ${providedReferences.length} adultes distincts et autorisés : image 1 = personne 1, image 2 = personne 2${providedReferences.length === 3 ? ", image 3 = personne 3" : ""}. Faire apparaître chaque personne exactement une fois dans la même scène, préserver séparément son visage et ses signes distinctifs, et ne jamais fusionner, permuter, dupliquer ou remplacer une identité par une personne générique.`
-        : args.identityMode === "professional"
-          ? `- Les ${providedReferences.length} première${providedReferences.length > 1 ? "s" : ""} image${providedReferences.length > 1 ? "s" : ""} sont uniquement des références d’identité autorisées d’un professionnel adulte. Préserver fidèlement son visage et ses signes distinctifs, mais créer une scène entièrement nouvelle liée au brief : nouveau décor, nouvelle action, nouvelle posture, nouveau cadrage et vêtements adaptés. Interdiction de recopier la photo source, son arrière-plan ou sa composition, de l’insérer telle quelle, ou de produire une carte, un cadre, un collage ou un simple détourage de cette photo.`
-          : `- Les ${providedReferences.length} première${providedReferences.length > 1 ? "s" : ""} image${providedReferences.length > 1 ? "s" : ""} sont des références autorisées pour construire ou préserver l’avatar illustré de la marque. Conserver ses signes distinctifs et faire contrôler le résultat avant validation.`
-      : providedReferences.length
-        ? `- Les ${providedReferences.length} première${providedReferences.length > 1 ? "s" : ""} image${providedReferences.length > 1 ? "s" : ""} sont des inspirations visuelles obligatoires. En extraire le sujet, l’ambiance, la composition et le style pertinents, puis rendre cette influence perceptible dans le résultat sans reproduire ni revendiquer l’identité d’une personne réelle.`
-        : "- Aucune référence d'identité n'est fournie.",
+    ...providedReferences.map((_, index) => {
+      const reference = providedReferenceRoles[index];
+      const imageNumber = index + 1;
+      if (reference?.role === "character") {
+        return `- Image ${imageNumber} = personnage ${
+          reference.characterIndex || imageNumber
+        }, adulte autorisé. Préserver séparément son visage et ses signes distinctifs, le faire apparaître exactement une fois dans la nouvelle scène, sans fusion, permutation, duplication ni substitution générique. Ne jamais recopier sa photo, sa posture, son cadrage ou son arrière-plan.`;
+      }
+      if (reference?.role === "environment") {
+        return `- Image ${imageNumber} = décor de référence. Recréer son lieu, son ambiance et ses éléments reconnaissables comme environnement plein cadre de la nouvelle scène ; ne jamais l’utiliser comme une photo fixe ou un fond simplement déplacé.`;
+      }
+      if (reference?.role === "product") {
+        return `- Image ${imageNumber} = produit à intégrer. Préserver son apparence, sa forme et ses détails distinctifs, puis l’intégrer naturellement une seule fois dans la nouvelle scène ; ne jamais le confondre avec un personnage ou un décor.`;
+      }
+      return strictIdentityReferences
+        ? `- Image ${imageNumber} = référence d’identité autorisée. Préserver l’identité dans une scène entièrement nouvelle.`
+        : `- Image ${imageNumber} = inspiration visuelle. En extraire les éléments pertinents sans recopier la photo source.`;
+    }),
     officialLogoIncluded
       ? `- L'image ${referenceImagesCount} est exclusivement le logo officiel ; ne jamais la confondre avec une personne ni un décor.`
       : "- Aucun fichier de logo n'est fourni.",
@@ -174,7 +205,7 @@ function buildImageReferenceRoleRules(args: {
 }
 
 function resolveGoogleImageAspectRatio(
-  size: "1024x1024" | "1024x1536" | "1536x1024" | undefined,
+  size: "1024x1024" | "1024x1536" | "1536x1024" | undefined
 ) {
   if (size === "1024x1536") return "2:3" as const;
   if (size === "1536x1024") return "3:2" as const;
@@ -242,6 +273,9 @@ export async function generateAiMediaImage(args: {
    * Médiathèque ni dans ses préférences.
    */
   identityReferences?: readonly Buffer[];
+  referenceRoles?: ReadonlyArray<
+    Pick<AiMediaInspirationImage, "role" | "characterIndex">
+  >;
   /** Logo officiel chargé depuis le stockage de l'établissement actif. */
   officialLogo?: Buffer | null;
   size?: "1024x1024" | "1024x1536" | "1536x1024";
@@ -253,6 +287,7 @@ export async function generateAiMediaImage(args: {
   const input = prepareImageProviderInput(args);
   const {
     providedReferences,
+    characterReferenceCount,
     strictIdentityReferences,
     officialLogoIncluded,
     referenceImages,
@@ -266,7 +301,7 @@ export async function generateAiMediaImage(args: {
   const timeoutMs = positiveInt(
     process.env.AI_MEDIA_IMAGE_TIMEOUT_MS,
     210_000,
-    300_000,
+    300_000
   );
 
   return await withEconomicGuard({
@@ -318,11 +353,11 @@ export async function generateAiMediaImage(args: {
         mediaType: image.mediaType || "image/png",
         referenceImagesCount,
         identityReferenceImagesCount: strictIdentityReferences
-          ? providedReferences.length
+          ? characterReferenceCount
           : 0,
-        genericReferenceImagesCount: strictIdentityReferences
-          ? 0
-          : providedReferences.length,
+        genericReferenceImagesCount:
+          providedReferences.length -
+          (strictIdentityReferences ? characterReferenceCount : 0),
         officialLogoIncluded,
         warnings: compactWarnings(result.warnings || []),
         usage: cleanUsage(result.usage),
@@ -334,7 +369,7 @@ export async function generateAiMediaImage(args: {
         strictIdentityReferences
           ? "ai_image_identity_not_generated"
           : "ai_image_not_generated",
-        { cause: error },
+        { cause: error }
       );
     }
     throw error;
@@ -351,6 +386,9 @@ export async function generateAiMediaImageWithGoogle(args: {
   prompt: string;
   identityMode: AiMediaIdentityMode;
   identityReferences?: readonly Buffer[];
+  referenceRoles?: ReadonlyArray<
+    Pick<AiMediaInspirationImage, "role" | "characterIndex">
+  >;
   officialLogo?: Buffer | null;
   size?: "1024x1024" | "1024x1536" | "1536x1024";
   signal?: AbortSignal;
@@ -363,7 +401,7 @@ export async function generateAiMediaImageWithGoogle(args: {
     process.env.AI_MEDIA_GOOGLE_IMAGE_TIMEOUT_MS ||
       process.env.AI_MEDIA_IMAGE_TIMEOUT_MS,
     180_000,
-    300_000,
+    300_000
   );
 
   return await withEconomicGuard({
@@ -405,10 +443,8 @@ export async function generateAiMediaImageWithGoogle(args: {
         {
           timeout: timeoutMs,
           maxRetries: 0,
-          ...(args.signal
-            ? { fetchOptions: { signal: args.signal } }
-            : {}),
-        },
+          ...(args.signal ? { fetchOptions: { signal: args.signal } } : {}),
+        }
       );
       const encoded = String(interaction.output_image?.data || "").trim();
       if (!encoded || encoded.length > MAX_IMAGE_BYTES * 2) {
@@ -427,11 +463,11 @@ export async function generateAiMediaImageWithGoogle(args: {
         mediaType: interaction.output_image?.mime_type || "image/jpeg",
         referenceImagesCount: input.referenceImagesCount,
         identityReferenceImagesCount: input.strictIdentityReferences
-          ? input.providedReferences.length
+          ? input.characterReferenceCount
           : 0,
-        genericReferenceImagesCount: input.strictIdentityReferences
-          ? 0
-          : input.providedReferences.length,
+        genericReferenceImagesCount:
+          input.providedReferences.length -
+          (input.strictIdentityReferences ? input.characterReferenceCount : 0),
         officialLogoIncluded: input.officialLogoIncluded,
         warnings: [],
         usage: cleanUsage(interaction.usage),

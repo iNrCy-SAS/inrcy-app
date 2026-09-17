@@ -12,32 +12,17 @@ function sourceSection(source: string, startToken: string, endToken: string) {
   return source.slice(start, end);
 }
 
-test("les quatre rubriques visuelles mémorisent les six blocs compatibles", () => {
+test("les quatre cartes essentielles remplacent les anciens contrôles de mémorisation", () => {
   const generator = read("app/dashboard/_components/MediaGenerator.tsx");
   const styles = read("app/dashboard/_components/MediaGenerator.module.css");
 
-  assert.equal(
-    (generator.match(/<RememberPreferenceControl/g) || []).length,
-    4,
-  );
-  for (const blockId of [1, 2, 3, 4, 5, 6]) {
-    assert.match(
-      generator,
-      new RegExp(`handleRememberPreference\\(${blockId}, checked\\)`),
-    );
-  }
-  assert.match(generator, /checked=\{savedPreferences\.blocks\[1\]\.saved && savedPreferences\.blocks\[5\]\.saved\}/);
-  assert.match(generator, /checked=\{savedPreferences\.blocks\[2\]\.saved\}/);
-  assert.match(generator, /checked=\{savedPreferences\.blocks\[3\]\.saved && savedPreferences\.blocks\[4\]\.saved\}/);
-  assert.match(generator, /checked=\{savedPreferences\.blocks\[6\]\.saved\}/);
-  assert.match(generator, /role="switch"/);
-  assert.match(generator, /aria-checked=\{checked\}/);
-  assert.match(generator, /ai_generator_remember_settings/);
-  assert.match(styles, /\.collapsibleHeader\s*\{[\s\S]*?grid-template-columns:/);
-  assert.match(styles, /\.rememberPreference\s*\{/);
+  assert.equal((generator.match(/<header className=\{styles\.essentialCardHeader\}>/g) || []).length, 4);
+  assert.doesNotMatch(generator, /RememberPreferenceControl|handleRememberPreference/);
+  assert.doesNotMatch(generator, /ai_generator_remember_settings/);
+  assert.match(styles, /\.essentialGrid\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(
     styles,
-    /@media \(max-width: 620px\)[\s\S]*?\.rememberPreference\s*\{[\s\S]*?position:\s*absolute/,
+    /@media \(max-width: 1100px\)[\s\S]*?\.essentialGrid\s*\{[\s\S]*?grid-template-columns:\s*1fr/,
   );
 });
 
@@ -59,36 +44,25 @@ test("le client charge sans cache, recharge au changement de compte et fusionne 
   assert.doesNotMatch(hook, /localStorage|sessionStorage/);
 });
 
-test("la mémorisation UI ne sérialise aucune donnée libre, photo ou consentement", () => {
+test("le Studio essentiel ne réécrit aucune préférence sensible ou ancien critère", () => {
   const generator = read("app/dashboard/_components/MediaGenerator.tsx");
-  const remembered = sourceSection(
+  const generation = sourceSection(
     generator,
-    "const handleRememberPreference",
     "const performGeneration",
+    "const handleGenerate",
   );
 
-  for (const forbidden of [
-    "aiInstruction",
-    "customIdea",
-    "inspirationImages",
-    "identityConsent",
-    "textKeywords",
-    "textKeywordDraft",
-  ]) {
+  assert.doesNotMatch(generator, /patchPreferences|handleRememberPreference/);
+  for (const forbidden of ["typology", "visualStyle", "shotType", "creativity", "videoEngine", "connectScenes"]) {
     assert.doesNotMatch(
-      remembered,
-      new RegExp(`\\b${forbidden}\\b`),
-      `${forbidden} ne doit jamais entrer dans le PATCH de préférences`,
+      generation,
+      new RegExp(`\\b${forbidden}\\s*:`),
+      `${forbidden} ne doit plus être envoyé par le Studio essentiel`,
     );
   }
-
-  const identityBlock = sourceSection(remembered, "case 5:", "case 6:");
-  assert.match(identityBlock, /peopleMode/);
-  assert.match(identityBlock, /identityMode/);
-  assert.doesNotMatch(
-    identityBlock,
-    /identityConsent|inspirationImages|identityReferenceSetId|photo/i,
-  );
+  assert.match(generation, /inputMode: "essential"/);
+  assert.match(generation, /aiInstruction: aiInstruction\.trim\(\)/);
+  assert.match(generation, /inspirationImages: mediaSourceMode === "real" \? inspirationImages : \[\]/);
 });
 
 test("les neuf catalogues traduisent la mémorisation et les garanties d’identité", () => {

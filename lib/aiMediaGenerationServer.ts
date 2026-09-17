@@ -56,6 +56,7 @@ import { resolveAiMediaDialogueSequence } from "@/lib/aiMediaDialogue";
 import {
   AI_MEDIA_PROMPT_VERSION,
   buildAiMediaPrompt,
+  getAiMediaRenderDirection,
   getAiMediaPromptOutputSpec,
 } from "@/lib/aiMediaGenerationPrompt";
 import { loadAiMediaSoundtrack } from "@/lib/aiMediaGenerationSoundtracks";
@@ -233,7 +234,7 @@ export async function generateAndSaveAiMedia(args: {
       getAiMediaVideoMaxDuration(args.edition ?? "standard");
     if ((args.request.durationSeconds || 16) > authorizedDuration) {
       throw new AiMediaRequestValidationError(
-        `Cette génération vidéo dépasse la durée autorisée de ${authorizedDuration} secondes.`,
+        `Cette génération vidéo dépasse la durée autorisée de ${authorizedDuration} secondes.`
       );
     }
   }
@@ -286,6 +287,15 @@ export async function generateAndSaveAiMedia(args: {
     ...args.request,
     inspirationImages: preparedIdentityReferences.providerImages,
   };
+  const preparedReferenceRoles = providerRequest.inspirationImages.map(
+    ({ role, characterIndex }) => ({ role, characterIndex })
+  );
+  const preparedCharacterBuffers = preparedIdentityReferences.buffers.filter(
+    (_, index) =>
+      providerRequest.inspirationImages[index]?.role === "character" ||
+      (!providerRequest.inspirationImages[index]?.role &&
+        providerRequest.identityMode !== "auto")
+  );
 
   const brandKitTask = measure("brand_kit", () =>
     loadAiMediaBrandKit({
@@ -369,14 +379,17 @@ export async function generateAndSaveAiMedia(args: {
     if (cached) return cached;
     const task = (async () => {
       const referenceArgs = {
-        references: preparedIdentityReferences.buffers,
+        references:
+          providerRequest.inputMode === "essential"
+            ? preparedCharacterBuffers
+            : preparedIdentityReferences.buffers,
         width: format.width,
         height: format.height,
         brandColors: effectiveColors,
         officialLogo:
           includeLogo && !useExactContactComposition ? officialLogo : null,
       };
-      if (preparedIdentityReferences.buffers.length) {
+      if (referenceArgs.references.length) {
         try {
           return providerRequest.identityMode === "reference_team"
             ? await createReferenceTeamMontage(referenceArgs)
@@ -427,16 +440,46 @@ export async function generateAndSaveAiMedia(args: {
           brandColors: providerRequest.useBrandColors ? brandKit.colors : [],
           hasLogo: false,
         })}\n\nIMAGE MAÎTRE ÉPHÉMÈRE POUR ANIMATION : réunir les ${
-          preparedIdentityReferences.buffers.length
+          preparedCharacterBuffers.length
         } adultes autorisés dans une seule scène continue, plein cadre et cinématographique — jamais un collage, un écran partagé, des cartes portrait ni un diaporama. Image 1 = personne 1, image 2 = personne 2${
-          preparedIdentityReferences.buffers.length === 3
-            ? ", image 3 = personne 3"
-            : ""
+          preparedCharacterBuffers.length === 3 ? ", image 3 = personne 3" : ""
         }. Chaque personne apparaît exactement une fois, reste distincte et reconnaissable ; aucune fusion, permutation, duplication, omission ni substitution générique. Garder tous les visages clairement visibles ainsi que suffisamment de corps et d’espace autour de chaque personne pour permettre regards, expressions, gestes, pas, interactions et mouvements de caméra naturels.${
           providerRequest.teamVideoSpeechMode === "characters"
             ? " Les disposer dans une interaction conversationnelle crédible, avec les bouches bien visibles pour permettre une future synchronisation labiale naturelle."
             : " Préserver des expressions naturelles sans posture de parole imposée."
-        } Aucun texte ni logo.`
+        } Style final obligatoire : ${getAiMediaRenderDirection(
+          providerRequest
+        )}. Aucun texte ni logo.`
+      : "";
+  const essentialScenePrecompositionPrompt =
+    providerRequest.inputMode === "essential" &&
+    providerRequest.kind === "video" &&
+    providerRequest.inspirationImages.length
+      ? `${buildAiMediaPrompt({
+          request: {
+            ...providerRequest,
+            kind: "image",
+            withText: false,
+            textKeywords: [],
+            withMusic: false,
+            withNarration: false,
+            narrationVoice: null,
+            narrationVoiceVariant: null,
+            videoEngine: null,
+            durationSeconds: null,
+            logoMode: "none",
+          },
+          profile,
+          recentPublications: generationContext.recentPublications,
+          brandColors: providerRequest.useBrandColors ? brandKit.colors : [],
+          hasLogo: false,
+        })}\n\nIMAGE MAÎTRE ÉPHÉMÈRE POUR UNE NOUVELLE SCÈNE VIDÉO : composer une image plein cadre entièrement nouvelle qui réunisse exactement les personnages demandés et intègre le décor et le produit selon leur rôle explicite. Les fichiers fournis ne sont jamais la première image à déplacer, un collage, un écran partagé, une carte portrait ou un diaporama. Prévoir une action, des postures, de l’espace autour des corps et une profondeur de scène permettant de vrais mouvements, gestes et déplacements de caméra.${
+          providerRequest.teamVideoSpeechMode === "characters"
+            ? " Les personnages doivent former une interaction crédible et avoir la bouche clairement visible pour permettre une synchronisation labiale naturelle."
+            : " Les personnages restent naturellement expressifs sans posture de parole imposée."
+        } Style final obligatoire : ${getAiMediaRenderDirection(
+          providerRequest
+        )}. Aucun texte ni logo.`
       : "";
 
   let normalized: NormalizedAiMedia;
@@ -463,6 +506,7 @@ export async function generateAndSaveAiMedia(args: {
           prompt,
           identityMode: providerRequest.identityMode,
           identityReferences: preparedIdentityReferences.buffers,
+          referenceRoles: preparedReferenceRoles,
           officialLogo: useDeterministicImageComposition ? null : officialLogo,
           size: format.generationSize,
           signal: args.signal,
@@ -489,6 +533,7 @@ export async function generateAndSaveAiMedia(args: {
             prompt,
             identityMode: providerRequest.identityMode,
             identityReferences: preparedIdentityReferences.buffers,
+            referenceRoles: preparedReferenceRoles,
             officialLogo: useDeterministicImageComposition
               ? null
               : officialLogo,
@@ -728,6 +773,84 @@ export async function generateAndSaveAiMedia(args: {
     // qualité nominale reste identique, mais les temps ne s'additionnent plus.
     const videoGatewayTask = measure("video_generation", async () => {
       if (
+        providerRequest.inputMode === "essential" &&
+        preparedIdentityReferences.buffers.length > 0
+      ) {
+        if (
+          providerRequest.identityMode === "reference_team" &&
+          !providerRequest.teamVideoVeoConsent
+        ) {
+          throw new Error("ai_media_team_video_consent_required");
+        }
+        try {
+          teamPrecompositionGateway = await measure(
+            "video_essential_scene_precomposition",
+            () =>
+              generateAiMediaImage({
+                accountId: args.accountId,
+                prompt: essentialScenePrecompositionPrompt,
+                identityMode: providerRequest.identityMode,
+                identityReferences: preparedIdentityReferences.buffers,
+                referenceRoles: preparedReferenceRoles,
+                officialLogo: null,
+                size: format.generationSize,
+                signal: args.signal,
+              })
+          );
+        } catch (primaryError) {
+          args.signal?.throwIfAborted();
+          if (
+            primaryError instanceof AiGatewayAccountLimitError ||
+            primaryError instanceof AiGatewayGuardUnavailableError
+          ) {
+            throw primaryError;
+          }
+          teamPrecompositionGateway = await measure(
+            "video_essential_scene_precomposition_google_fallback",
+            () =>
+              generateAiMediaImageWithGoogle({
+                accountId: args.accountId,
+                prompt: essentialScenePrecompositionPrompt,
+                identityMode: providerRequest.identityMode,
+                identityReferences: preparedIdentityReferences.buffers,
+                referenceRoles: preparedReferenceRoles,
+                officialLogo: null,
+                size: format.generationSize,
+                signal: args.signal,
+              })
+          );
+        }
+        teamPrecompositionModel = teamPrecompositionGateway.model;
+        teamPrecompositionMetadata = {
+          ...cleanProviderMetadata(teamPrecompositionGateway),
+          stage: "ephemeral_essential_scene_frame",
+          persisted: false,
+          reference_roles: preparedReferenceRoles,
+        };
+        const sceneImage = await measure(
+          "video_essential_scene_precomposition_normalization",
+          () =>
+            prepareReferenceTeamCompositionForAnimation(
+              teamPrecompositionGateway!.buffer
+            )
+        );
+        return await generateProviderVideo(
+          {
+            ...providerRequest,
+            inspirationImages: [sceneImage],
+          },
+          providerRequest.identityMode === "reference_team"
+            ? {
+                identityTeamPrecomposed: true,
+                identityTeamMemberCount: preparedCharacterBuffers.length as
+                  | 2
+                  | 3,
+                identityTeamGoogleEgressConsent: true,
+              }
+            : {}
+        );
+      }
+      if (
         providerRequest.identityMode !== "auto" &&
         providerRequest.identityMode !== "reference_team" &&
         preparedIdentityReferences.buffers.length > 0 &&
@@ -762,6 +885,7 @@ export async function generateAndSaveAiMedia(args: {
                 prompt: referenceTeamPrecompositionPrompt,
                 identityMode: "reference_team",
                 identityReferences: preparedIdentityReferences.buffers,
+                referenceRoles: preparedReferenceRoles,
                 // Le logo exact est ajouté une seule fois par le compositeur
                 // vidéo ; il ne surcharge pas les références d'identité.
                 officialLogo: null,
@@ -801,8 +925,9 @@ export async function generateAndSaveAiMedia(args: {
                 },
                 {
                   identityTeamPrecomposed: true,
-                  identityTeamMemberCount: preparedIdentityReferences.buffers
-                    .length as 2 | 3,
+                  identityTeamMemberCount: preparedCharacterBuffers.length as
+                    | 2
+                    | 3,
                   identityTeamGoogleEgressConsent: true,
                 }
               );
@@ -869,8 +994,9 @@ export async function generateAndSaveAiMedia(args: {
       }
       try {
         return await generateProviderVideo(providerRequest);
-      } catch {
+      } catch (providerError) {
         args.signal?.throwIfAborted();
+        if (providerRequest.inputMode === "essential") throw providerError;
         localFallbackUsed = true;
         const fallbackFrame = await getLocalFallbackFrame(false);
         return await createAiMediaFallbackVideo({
@@ -913,16 +1039,30 @@ export async function generateAndSaveAiMedia(args: {
             })
           );
           return { narration, audio, warnings: [] as string[] };
-        } catch {
+        } catch (error) {
           args.signal?.throwIfAborted();
+          if (
+            narrationRequest.inputMode === "essential" &&
+            narrationRequest.withNarration
+          ) {
+            throw new Error("ai_media_narration_audio_unavailable", {
+              cause: error,
+            });
+          }
           return {
             narration,
             audio: null,
             warnings: ["narration_unavailable_video_continued"],
           };
         }
-      } catch {
+      } catch (error) {
         args.signal?.throwIfAborted();
+        if (
+          narrationRequest.inputMode === "essential" &&
+          narrationRequest.withNarration
+        ) {
+          throw new Error("ai_media_narration_unavailable", { cause: error });
+        }
         return {
           narration: null,
           audio: null,
@@ -974,8 +1114,14 @@ export async function generateAndSaveAiMedia(args: {
           )
         );
         return { value, warnings: [] as string[], error: null };
-      } catch {
+      } catch (error) {
         args.signal?.throwIfAborted();
+        if (
+          providerRequest.inputMode === "essential" &&
+          (providerRequest.withText || Boolean(officialLogo))
+        ) {
+          return { value: null, warnings: [] as string[], error };
+        }
         // Un logo corrompu ou une accroche impossible à rasteriser ne doit pas
         // annuler les clips Veo déjà facturés. On conserve la vidéo avec un
         // calque transparent et on signale explicitement la dégradation.
@@ -1029,6 +1175,16 @@ export async function generateAndSaveAiMedia(args: {
             })
           )
         : null;
+    if (
+      providerRequest.inputMode === "essential" &&
+      characterDialogueRequested &&
+      (characterDialogueProviderFallback || nativeDialogueQa?.status !== "passed")
+    ) {
+      narrationController.abort(
+        new Error("ai_media_character_dialogue_quality_unverified")
+      );
+      throw new Error("ai_media_character_dialogue_quality_unverified");
+    }
     const narrationJoinStartedAt = performance.now();
     const narrationResult = await waitForOptionalTaskWithinGrace({
       task: narrationTask,
@@ -1044,7 +1200,20 @@ export async function generateAndSaveAiMedia(args: {
     );
     if (!narrationResult) {
       narrationController.abort(new Error("ai_media_narration_deadline"));
+      if (
+        providerRequest.inputMode === "essential" &&
+        providerRequest.withNarration
+      ) {
+        throw new Error("ai_media_narration_deadline");
+      }
       pipelineWarnings.push("narration_slow_video_continued");
+    }
+    if (
+      providerRequest.inputMode === "essential" &&
+      providerRequest.withNarration &&
+      (!narrationResult?.narration || !narrationResult.audio)
+    ) {
+      throw new Error("ai_media_narration_unavailable");
     }
     // La piste audio native et les mouvements de bouche sont produits ensemble
     // par le moteur vidéo. Une transcription explicitement rejetée ne doit
@@ -1087,7 +1256,9 @@ export async function generateAndSaveAiMedia(args: {
     let nativeCharacterDialoguePreserved =
       characterDialogueRequested &&
       !characterDialogueProviderFallback &&
-      nativeDialogueQa?.status !== "rejected";
+      (providerRequest.inputMode === "essential"
+        ? nativeDialogueQa?.status === "passed"
+        : nativeDialogueQa?.status !== "rejected");
 
     const clips = videoGateway.clips.map((clip) => ({
       buffer: clip.buffer,
@@ -1114,6 +1285,11 @@ export async function generateAndSaveAiMedia(args: {
       );
     } catch (compositionError) {
       args.signal?.throwIfAborted();
+      if (providerRequest.inputMode === "essential") {
+        throw new Error("ai_media_essential_video_composition_failed", {
+          cause: compositionError,
+        });
+      }
       const compositionMessage = String(
         (compositionError as { message?: unknown })?.message || compositionError
       );

@@ -22,13 +22,15 @@ export class AiMediaIdentityReferenceValidationError extends Error {
 
   constructor() {
     super(
-      "Une photo de référence n’est pas exploitable. Utilisez une image JPG, PNG ou WebP nette et réessayez.",
+      "Une photo de référence n’est pas exploitable. Utilisez une image JPG, PNG ou WebP nette et réessayez."
     );
     this.name = "AiMediaIdentityReferenceValidationError";
   }
 }
 
-function detectImageFormat(input: Buffer): SupportedIdentityReferenceFormat | null {
+function detectImageFormat(
+  input: Buffer
+): SupportedIdentityReferenceFormat | null {
   if (
     input.length >= 3 &&
     input[0] === 0xff &&
@@ -39,9 +41,9 @@ function detectImageFormat(input: Buffer): SupportedIdentityReferenceFormat | nu
   }
   if (
     input.length >= 8 &&
-    input.subarray(0, 8).equals(
-      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-    )
+    input
+      .subarray(0, 8)
+      .equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
   ) {
     return "png";
   }
@@ -69,7 +71,7 @@ export type PreparedAiMediaIdentityReferences = {
  * appelé. Les octets sources et les sorties restent exclusivement en mémoire.
  */
 export async function prepareAiMediaIdentityReferences(
-  images: readonly AiMediaInspirationImage[],
+  images: readonly AiMediaInspirationImage[]
 ): Promise<PreparedAiMediaIdentityReferences> {
   if (!images.length) return { buffers: [], providerImages: [] };
 
@@ -101,7 +103,7 @@ export async function prepareAiMediaIdentityReferences(
           (metadata.pages || 1) !== 1 ||
           metadata.width >
             Math.floor(
-              AI_MEDIA_IDENTITY_REFERENCE_MAX_INPUT_PIXELS / metadata.height,
+              AI_MEDIA_IDENTITY_REFERENCE_MAX_INPUT_PIXELS / metadata.height
             )
         ) {
           throw new AiMediaIdentityReferenceValidationError();
@@ -127,15 +129,19 @@ export async function prepareAiMediaIdentityReferences(
         ) {
           throw new AiMediaIdentityReferenceValidationError();
         }
-        return data;
-      }),
+        return { data, image };
+      })
     );
 
     return {
-      buffers,
-      providerImages: buffers.map((buffer) => ({
+      buffers: buffers.map(({ data }) => data),
+      providerImages: buffers.map(({ data, image }) => ({
         mimeType: "image/webp" as const,
-        data: buffer.toString("base64"),
+        data: data.toString("base64"),
+        ...(image.role ? { role: image.role } : {}),
+        ...(image.characterIndex
+          ? { characterIndex: image.characterIndex }
+          : {}),
       })),
     };
   } catch (error) {

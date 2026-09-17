@@ -134,340 +134,67 @@ test("une génération peut être arrêtée avec confirmation et propagation ser
   assert.match(composer, /signal: args\.signal/);
 });
 
-test("la fenêtre iNrCy sépare les critères de la création et de la revue", () => {
+test("la fenêtre iNrStudio expose quatre cartes essentielles adaptatives", () => {
   const hook = read("app/dashboard/_hooks/useMediaGeneration.ts");
   const generator = read("app/dashboard/_components/MediaGenerator.tsx");
-  const voice = read("app/dashboard/_components/MediaSubjectVoiceButton.tsx");
-  const generatorStyles = read(
-    "app/dashboard/_components/MediaGenerator.module.css"
-  );
-  const modal = read("app/dashboard/_components/MediaGeneratorModal.tsx");
-  const modalStyles = read(
-    "app/dashboard/_components/MediaGeneratorModal.module.css"
-  );
+  const generatorStyles = read("app/dashboard/_components/MediaGenerator.module.css");
 
-  for (const source of ["publication", "profile", "custom"] as const) {
-    assert.ok(
-      generator.includes(`\"${source}\"`),
-      `${source} doit être proposé`
-    );
-  }
-  assert.match(
+  assert.equal((generator.match(/<header className=\{styles\.essentialCardHeader\}>/g) || []).length, 4);
+  assert.match(generator, /className=\{styles\.essentialGrid\}/);
+  assert.doesNotMatch(generator, /expandedStep|RememberPreferenceControl|footerEnginePicker/);
+  assert.match(generator, /ai_generator_essential_creation_title/);
+  assert.match(generator, /ai_generator_essential_media_title/);
+  assert.match(generator, /ai_generator_essential_message_title/);
+  assert.match(generator, /ai_generator_essential_sound_title/);
+
+  const creationCard = sourceSection(
     generator,
-    /const subjectChoices:[\s\S]*?id: "publication"[\s\S]*?disabled: !publicationAvailable/
+    'className={`${styles.essentialCard} ${styles.creationCard}`}',
+    'className={`${styles.essentialCard} ${styles.mediaCard}`}',
   );
-  assert.match(generator, /disabled=\{operationLocked \|\| choice\.disabled\}/);
-  assert.match(generator, /ai_generator_subject_publication_unavailable/);
-  for (const key of [
-    "ai_generator_group_creation_title",
-    "ai_generator_group_creation_hint",
-    "ai_generator_group_content_title",
-    "ai_generator_group_content_hint",
-    "ai_generator_group_art_title",
-    "ai_generator_group_art_hint",
-    "ai_generator_group_composition_title",
-    "ai_generator_group_identity_title",
-    "ai_generator_group_identity_hint",
-    "ai_generator_group_finish_title",
-    "ai_generator_group_finish_hint",
-    "ai_generator_step_subject",
-    "ai_generator_step_kind",
-    "ai_generator_typology_title",
+  assertOrdered(creationCard, [
+    "ai_generator_essential_media_type",
+    "ai_generator_duration_title",
     "ai_generator_format_title",
-    "ai_generator_style_title",
-    "ai_generator_brand_colors",
-    "ai_generator_with_text",
-    "ai_generator_text_on_media",
-    "ai_generator_text_keywords_label",
-    "ai_generator_with_music",
-    "ai_generator_video_engine_title",
-    "ai_generator_narration",
-    "ai_generator_narration_voice_label",
-    "ai_generator_narration_voice_female",
-    "ai_generator_narration_voice_male",
-    "ai_generator_narration_voice_variant_label",
-    "ai_generator_with_narration",
-    "ai_generator_unlimited",
-  ]) {
-    assert.ok(generator.includes(key), `${key} doit être présent`);
-  }
-  assert.match(generator, /ai_generator_sequence_count", \{ count: duration \/ 8 \}/);
-  assert.match(generator, /useState<MediaGenerationVideoDuration>\(8\)/);
-  assert.match(generator, /useState<MediaGenerationVideoEngine>\("omni"\)/);
-  assert.match(generator, /\(\["omni", "veo"\] as const\)/);
-  assert.match(generator, /ai_generator_video_engine_\$\{engine\}/);
-  assert.match(generator, /ai_generator_video_engine_\$\{engine\}_hint/);
-  assert.match(generator, /className=\{styles\.footerEnginePicker\}/);
-  assert.match(generator, /generationResult\.videoEngineResult/);
-  assert.match(generator, /ai_generator_video_engine_result_\$\{generationResult\.videoEngineResult\}/);
-  assert.match(hook, /videoEngineResult: MediaGenerationVideoEngineResult \| null/);
-  assert.match(hook, /rawVideoEngineResult === "omni_veo_fallback"/);
-  assert.match(hook, /rawVideoEngineResult === "veo_omni_fallback"/);
-  assert.match(hook, /rawVideoEngineResult === "local_fallback"/);
-  assert.match(generator, /videoEngineResult\.includes\("fallback"\)/);
-  assert.match(generator, /videoEngine: kind === "video" \? videoEngine : undefined/);
-  assert.match(generator, /useState<MediaGenerationNarrationVoice>\("female"\)/);
-  assert.match(
-    generator,
-    /useState<MediaGenerationNarrationVoiceVariant>\("Kore"\)/,
-  );
-  assert.match(generator, /\(\["female", "male"\] as const\)\.map/);
-  assert.match(generator, /AI_MEDIA_NARRATION_VOICE_VARIANTS\[narrationVoice\]\.map/);
-  assert.match(
-    generator,
-    /narrationVoice:[\s\S]*?effectiveWithNarration \? narrationVoice : undefined/,
-  );
-  assert.match(hook, /narrationVoice\?: MediaGenerationNarrationVoice/);
-  assert.match(
-    hook,
-    /narrationVoiceVariant\?: MediaGenerationNarrationVoiceVariant/,
-  );
-  assert.match(generator, /duration > videoMaxDurationSeconds/);
-  assert.match(generator, /disabled=\{operationLocked \|\| premiumLocked\}/);
-  assert.match(generator, /acceptMode === "insert"/);
-  assert.match(generator, /await onAccepted\(result\)/);
-  assert.match(generator, /ai_generator_confirm_insert/);
-  assert.match(generator, /ai_generator_open_library/);
-  assert.match(generator, /ai_generator_regenerate/);
-  assert.match(generator, /ai_generator_saved_automatically/);
-  assert.match(generator, /setCreationScreen\(true\)/);
-  assert.match(generator, /className=\{styles\.creationWorkspace\}/);
-  assert.match(generator, /ai_generator_stage_storyboard/);
-  assert.match(generator, /ai_generator_stage_render/);
-  assert.match(generator, /ai_generator_edit_criteria/);
-  assert.match(generator, /progress >= 99/);
-  assert.match(generator, /ai_generator_stage_patience/);
-  assert.match(hook, /const COMPLETION_RAMP_MIN_MS = 300/);
-  assert.match(hook, /const COMPLETION_RAMP_MAX_MS = 700/);
-  assert.match(hook, /const COMPLETION_99_HOLD_MS = 120/);
-  assert.match(hook, /const COMPLETION_100_HOLD_MS = 250/);
-  assert.match(hook, /function estimateGenerationProgress/);
-  assert.match(hook, /function animateProgressToCompletion/);
-  assert.match(hook, /args\.onProgress\(99\)/);
-  assert.match(hook, /args\.onProgress\(100\)/);
-  assert.match(hook, /Math\.max\(current, Math\.min\(94, estimated\)\)/);
-  assert.doesNotMatch(hook, /Math\.min\(94, Math\.max\(current, estimated\)\)/);
-  assert.match(
-    hook,
-    /completionStartedRef\.current = true;[\s\S]*?await animateProgressToCompletion\([\s\S]*?setResult\(nextResult\)/
-  );
-  assert.match(generator, /generationResult\.item\.media_type === "video"/);
-  assert.match(generator, /<video[\s\S]*?controls[\s\S]*?playsInline/);
-  assert.match(generator, /<img[\s\S]*?generationResult\.item\.signed_url/);
-  assert.doesNotMatch(generator, /resultInfo|resultCaption|result\.prompt/);
+    "ai_generator_video_render_label",
+    "ai_generator_essential_subject_source",
+    "ai_generator_essential_instruction_label",
+  ]);
+  assert.match(creationCard, /ai_generator_video_render_\$\{option\}/);
+  assert.match(creationCard, /className=\{styles\.studioSelect\}/);
 
-  for (const format of ["square", "portrait", "story", "landscape"]) {
-    assert.ok(
-      generator.includes(`id: "${format}"`),
-      `${format} doit être proposé`
-    );
-  }
-  assert.match(generator, /\(\[8, 16, 24\] as const\)/);
-  assert.match(generator, /MediaSubjectVoiceButton/);
-  assert.match(voice, /\/api\/booster\/transcribe/);
-  assert.match(voice, /SpeechRecognition|webkitSpeechRecognition/);
-  assert.match(voice, /audio\/wav/);
-  assert.match(voice, /warmupMicrophoneIfNeeded/);
-  assert.match(voice, /voice_transcription_failed_live_kept/);
-  assert.match(voice, /user_message \|\| record\.userMessage/);
-  assert.match(generator, /expandedStep/);
-  assert.match(
+  const mediaCard = sourceSection(
     generator,
-    /useState<1 \| 2 \| 3 \| 4 \| null>\(null\)/
+    'className={`${styles.essentialCard} ${styles.mediaCard}`}',
+    'className={`${styles.essentialCard} ${styles.messageCard}`}',
   );
-  assert.match(generator, /aria-expanded=\{expandedStep === 1\}/);
-  assert.match(generator, /aria-expanded=\{expandedStep === 3\}/);
-  assert.match(generator, /aria-expanded=\{expandedStep === 4\}/);
-  assert.doesNotMatch(generator, /expandedStep === [5-8]/);
-  assert.equal((generator.match(/<section className=/g) || []).length, 4);
-  const creationBody = sourceSection(
+  assert.match(mediaCard, /\(\["ai", "real"\] as const\)\.map/);
+  assert.match(mediaCard, /\(\[0, 1, 2, 3\] as const\)\.map/);
+  assert.match(mediaCard, /role: "character"/);
+  assert.match(mediaCard, /role: "environment"/);
+  assert.match(mediaCard, /role: "product"/);
+  assert.match(mediaCard, /ai_generator_essential_new_scene_video/);
+
+  assert.match(generator, /ai_generator_text_on_media/);
+  assert.match(generator, /ai_generator_brand_colors/);
+  assert.match(generator, /ai_generator_logo_label/);
+  assert.match(generator, /kind === "image" \? \(/);
+  assert.match(generator, /\(\["voiceover", "characters"\] as const\)\.map/);
+  assert.match(generator, /teamVideoSpeechMode === "voiceover" \? \(/);
+
+  const generation = sourceSection(
     generator,
-    "{expandedStep === 1 ? (",
-    "</section>"
+    "const performGeneration",
+    "const handleGenerate",
   );
-  assertOrdered(creationBody, [
-    't("ai_generator_step_kind")',
-    't("ai_generator_step_subject")',
-    'styles.aiInstructionField',
-    't("ai_generator_group_identity_title")',
-    't("ai_generator_people_label")',
-    't("ai_generator_video_character_label")',
-    "styles.inspirationSection",
-  ]);
-  assert.doesNotMatch(creationBody, /identityConsent|footerConsent/);
-  const footerBody = generator.slice(generator.indexOf("className={styles.footerBar}"));
-  assertOrdered(footerBody, [
-    "styles.quotaCard",
-    "styles.footerConsent",
-    "styles.generateButton",
-  ]);
-  assert.match(
-    footerBody,
-    /identityConsentRequired \? \([\s\S]*?id="ai-media-footer-identity-consent"[\s\S]*?checked=\{identityConsent\}/,
-  );
-  assert.match(footerBody, /ai_generator_footer_consent_blocking/);
-  assert.match(footerBody, /ai_generator_footer_consent_confirmed/);
-  assert.match(footerBody, /identityConsentMissing[\s\S]*?ai-media-footer-consent-status/);
-  assert.match(creationBody, /data-reference-purpose=\{strictIdentityReferenceMode \? "identity" : "visual"\}/);
-  assert.doesNotMatch(creationBody, /setInspirationImages\(\[\]\)/);
-  const artBody = sourceSection(
-    generator,
-    '<strong>{t("ai_generator_group_art_title")}</strong>',
-    "</section>"
-  );
-  assertOrdered(artBody, [
-    "styles.styleChoices",
-    't("ai_generator_creativity_label")',
-    't("ai_generator_brand_colors")',
-    't("ai_generator_logo_label")',
-    't("ai_generator_group_composition_title")',
-    't("ai_generator_render_label")',
-    't("ai_generator_shot_label")',
-  ]);
-  assert.match(generator, /maxLength=\{600\}/);
-  assert.match(generator, /aiInstruction: aiInstruction\.trim\(\)/);
-  assert.match(generator, /videoCharacterMode:/);
-  assert.match(generator, /identityConsent:/);
-  assert.match(generator, /styles\.contentCriteriaSection/);
-  assert.match(generator, /styles\.inspirationInfoButton/);
-  assert.match(generator, /styles\.inspirationInfoBubble/);
-  assert.match(generator, /ai_generator_inspiration_rules_title/);
-  assert.match(generator, /ai_generator_inspiration_rules_body/);
-  assert.doesNotMatch(generator, /ai_generator_generate_summary_(?:video|image)/);
-  assert.doesNotMatch(generator, /styles\.wideSection/);
-  assert.match(generatorStyles, /\.collapsibleToggle/);
-  assert.match(generatorStyles, /\.footerEnginePicker/);
-  assert.match(generatorStyles, /\.footerEngineChoices/);
-  assert.match(generatorStyles, /\.footerConsent\[data-checked="true"\]/);
-  assert.match(
-    generatorStyles,
-    /\.footerBar\[data-consent-required="true"\][\s\S]*?grid-template-columns/,
-  );
-  assert.match(
-    generatorStyles,
-    /@media \(max-width: 620px\)[\s\S]*?\.collapsibleToggle \.sectionSelection[\s\S]*?grid-row:\s*2[\s\S]*?white-space:\s*normal/
-  );
-  assert.match(generatorStyles, /\.engineResultBadge\[data-fallback="true"\]/);
-  assert.doesNotMatch(generatorStyles, /\.videoEngineChoices/);
-  assert.match(generatorStyles, /\.combinedSubsection/);
-  assert.match(
-    generatorStyles,
-    /\.criteriaGrid\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\)/
-  );
-  assert.match(generatorStyles, /\.creationBodyGrid/);
-  assert.match(generatorStyles, /\.twoColumnBody/);
-  assert.match(
-    generatorStyles,
-    /@media \(min-width: 1101px\)[\s\S]*?\.creationBodyGrid\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 0\.96fr\) minmax\(0, 1\.04fr\)/
-  );
-  assert.match(
-    generatorStyles,
-    /@media \(min-width: 1101px\)[\s\S]*?\.twoColumnBody\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/
-  );
-  assert.match(
-    generatorStyles,
-    /\.criteriaGrid\s*\{[\s\S]*?grid-auto-rows:\s*max-content/
-  );
-  assert.match(
-    generatorStyles,
-    /\.criteriaGrid\s*\{[\s\S]*?align-items:\s*start/
-  );
-  assert.match(
-    generatorStyles,
-    /\.contentCriteriaSection\s*\{[\s\S]*?height:\s*fit-content/
-  );
-  assert.match(
-    generatorStyles,
-    /\.parameterChoices\s*\{[\s\S]*?grid-template-columns:\s*repeat\(4, minmax\(0, 1fr\)\)/
-  );
-  assert.match(generatorStyles, /\.voiceButton/);
-  assert.match(generator, /normalizeTextKeywordValues/);
-  assert.match(generator, /textKeywords: resolvedTextKeywords/);
-  assert.match(generator, /ai_generator_text_keywords_placeholder/);
-  assert.match(generatorStyles, /\.textKeywordTags/);
-  assert.match(generatorStyles, /\.textKeywordInputRow/);
-  assert.match(generatorStyles, /\.creationWorkspace::before/);
-  assert.match(
-    generatorStyles,
-    /\.creationWorkspace\s*\{[\s\S]*?min-height:\s*min\(760px, calc\(100dvh - 155px\)\)/
-  );
-  assert.match(generatorStyles, /@keyframes creativeAurora/);
-  assert.match(generator, /className=\{styles\.stopGenerationSlot\}/);
-  assert.match(
-    generatorStyles,
-    /\.creationProgress h3\s*\{[\s\S]*?height:\s*2\.2em/
-  );
-  assert.match(
-    generatorStyles,
-    /\.stopGenerationSlot\s*\{[\s\S]*?min-height:\s*55px/
-  );
-  assert.match(
-    generatorStyles,
-    /@media \(min-width: 1101px\)[\s\S]*?\.generator\s*\{[\s\S]*?grid-template-rows:\s*minmax\(0, 1fr\) auto[\s\S]*?overflow:\s*hidden/
-  );
-  assert.match(
-    generatorStyles,
-    /@media \(min-width: 1101px\)[\s\S]*?\.criteriaGrid\s*\{[\s\S]*?overflow-y:\s*auto/
-  );
-  assert.match(
-    generatorStyles,
-    /@media \(max-width: 1100px\)[\s\S]*?\.footerBar\s*\{[\s\S]*?position:\s*relative;[\s\S]*?bottom:\s*auto;/
-  );
-  assert.match(
-    generatorStyles,
-    /@media \(max-width: 620px\)[\s\S]*?\.footerBar\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\)[\s\S]*?justify-items:\s*center/
-  );
-  assert.match(
-    generatorStyles,
-    /@media \(max-width: 620px\)[\s\S]*?\.generateButton\s*\{[\s\S]*?width:\s*min\(100%, 250px\)[\s\S]*?justify-self:\s*center/
-  );
-  assert.match(generator, /ai_generator_sequence_count", \{ count: duration \/ 8 \}/);
-  assert.match(generator, /className=\{styles\.quotaCard\}/);
-  assert.match(
-    modalStyles,
-    /\.dialog\s*\{[\s\S]*?width:\s*min\(1600px, 100%\)/
-  );
-  assert.match(modalStyles, /border-radius:\s*24px/);
-  assert.match(
-    modalStyles,
-    /@media \(max-width: 620px\)[\s\S]*?height:\s*100dvh/
-  );
-  assert.match(
-    modalStyles,
-    /@media \(min-width: 1101px\)[\s\S]*?\.dialog\s*\{[\s\S]*?grid-template-rows:\s*auto minmax\(0, 1fr\)[\s\S]*?overflow:\s*hidden/
-  );
-  assert.match(
-    generatorStyles,
-    /\.previewFrame\[data-format="square"\]\s*\{[\s\S]*?aspect-ratio:\s*1 \/ 1/
-  );
-  assert.match(
-    generatorStyles,
-    /\.previewFrame\[data-format="portrait"\]\s*\{[\s\S]*?aspect-ratio:\s*4 \/ 5/
-  );
-  assert.match(
-    generatorStyles,
-    /\.previewFrame\[data-format="story"\]\s*\{[\s\S]*?aspect-ratio:\s*9 \/ 16/
-  );
-  assert.match(
-    generatorStyles,
-    /\.previewFrame\[data-format="landscape"\]\s*\{[\s\S]*?aspect-ratio:\s*16 \/ 9/
-  );
-  assert.match(generatorStyles, /object-fit:\s*contain/);
-  assert.match(modal, /createPortal/);
-  assert.match(modal, /role="dialog"/);
-  assert.match(modal, /className=\{styles\.moduleIdentity\}/);
-  assert.doesNotMatch(modal, /className=\{styles\.profileSignals\}/);
-  assert.doesNotMatch(modal, /ai_generator_signal_(profile|brand|history)/);
-  assert.match(modal, /href="\/dashboard\/mediatheque"/);
-  assert.match(modal, /className=\{styles\.mediaLibraryLink\}/);
-  assert.match(modal, /mediatheque_inrcy_a885e19e/);
-  assert.match(modal, /mediatheque_e4fa8e31/);
-  assert.match(
-    modalStyles,
-    /@media \(max-width: 620px\)[\s\S]*?\.mediaLibraryLink\s*\{[^}]*min-height:\s*35px/,
-  );
-  assert.match(modal, /ai_generator_made_inrcy_hint/);
-  assert.doesNotMatch(generator, /className=\{styles\.introCard\}/);
+  assert.match(generation, /inputMode: "essential"/);
+  assert.match(generation, /inspirationImages: mediaSourceMode === "real" \? inspirationImages : \[\]/);
+  assert.doesNotMatch(generation, /typology\s*:|visualStyle\s*:|shotType\s*:|creativity\s*:|videoEngine\s*:|connectScenes\s*:/);
+  assert.match(hook, /request\.inputMode === "essential"/);
+
+  assert.match(generatorStyles, /\.essentialGrid\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(generatorStyles, /\.studioSelect\s*\{[\s\S]*?background-color:\s*#091735/);
+  assert.match(generatorStyles, /@media \(max-width: 1100px\)[\s\S]*?\.essentialGrid\s*\{[\s\S]*?grid-template-columns:\s*1fr/);
 });
 
 test("la revue vidéo reste entière dans l'aperçu et en plein écran mobile", () => {

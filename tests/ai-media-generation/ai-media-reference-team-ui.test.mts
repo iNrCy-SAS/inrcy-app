@@ -112,24 +112,23 @@ test("le studio propose l'équipe en image et vidéo avec un flux responsive exp
   const styles = read("app/dashboard/_components/MediaGenerator.module.css");
   const hook = read("app/dashboard/_hooks/useMediaGeneration.ts");
 
-  assert.match(generator, /"reference_team"/);
-  assert.match(generator, /option === "reference_team"\) setPeopleMode\("team"\)/);
-  assert.match(generator, /videoCharacterMode === "reference_team"[\s\S]*?inspirationImages\.length < 2/);
-  assert.match(generator, /ai_generator_reference_team_consent_label/);
-  assert.match(generator, /ai_generator_identity_consent_hint_team_video/);
-  assert.match(generator, /ai_generator_kind_video_hint_team/);
-  assert.match(generator, /ai_generator_stage_team_composition/);
-  assert.match(generator, /ai_generator_video_creation_detail_team/);
-  assert.match(generator, /videoCharacterMode === "reference_team" && kind === "video"/);
-  assert.match(generator, /styles\.identityModeChoices/);
+  assert.match(generator, /type StudioCharacterCount = 0 \| 1 \| 2 \| 3/);
+  assert.match(generator, /realCharacterCount === 1[\s\S]*?"professional"[\s\S]*?: "reference_team"/);
+  assert.match(generator, /characterReferences\.length !== realCharacterCount/);
+  assert.match(generator, /Array\.from\(\{ length: realCharacterCount \}/);
+  assert.match(generator, /role: "character"/);
+  assert.match(generator, /role: "environment"/);
+  assert.match(generator, /role: "product"/);
+  assert.match(generator, /teamCinematicConsentRequired =/);
+  assert.match(generator, /styles\.referenceSlots/);
   assert.match(hook, /\| "reference_team"/);
   assert.match(
     styles,
-    /\.parameterChoices\.identityModeChoices\s*\{[\s\S]*?repeat\(4, minmax\(0, 1fr\)\)/,
+    /\.essentialGrid\s*\{[\s\S]*?repeat\(2, minmax\(0, 1fr\)\)/,
   );
   assert.match(
     styles,
-    /@media \(max-width: 620px\)[\s\S]*?\.parameterChoices\.identityModeChoices\s*\{[^}]*repeat\(2, minmax\(0, 1fr\)\)/,
+    /@media \(max-width: 1100px\)[\s\S]*?\.essentialGrid\s*\{[^}]*grid-template-columns:\s*1fr/,
   );
 });
 

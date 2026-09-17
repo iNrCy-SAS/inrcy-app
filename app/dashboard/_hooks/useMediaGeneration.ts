@@ -50,6 +50,11 @@ export type MediaGenerationTeamVideoMode = "cinematic" | "montage";
 export type MediaGenerationTeamVideoSpeechMode = "voiceover" | "characters";
 export type MediaGenerationNarrationVoice = "female" | "male";
 export type MediaGenerationNarrationVoiceVariant = AiMediaNarrationVoiceVariant;
+export type MediaGenerationInputMode = "legacy" | "essential";
+export type MediaGenerationReferenceRole =
+  | "character"
+  | "environment"
+  | "product";
 export type MediaGenerationIdentityMode =
   | "auto"
   | "professional"
@@ -67,21 +72,34 @@ export type MediaGenerationInspirationImage = {
   mimeType: "image/jpeg" | "image/png" | "image/webp";
   data: string;
   name: string;
+  role?: MediaGenerationReferenceRole;
+  characterIndex?: 1 | 2 | 3;
 };
+
+function characterReferenceCount(
+  images: MediaGenerationInspirationImage[] | undefined,
+  identityMode: MediaGenerationIdentityMode
+) {
+  return (images || []).filter(
+    (image) =>
+      image.role === "character" || (!image.role && identityMode !== "auto")
+  ).length;
+}
 
 function hasAnimationSourceImage(
   kind: MediaGenerationKind,
-  images: MediaGenerationInspirationImage[] | undefined,
+  images: MediaGenerationInspirationImage[] | undefined
 ) {
   return kind === "video" && Boolean(images?.length);
 }
 
 function hasStrictIdentityReferences(request: MediaGenerationRequest) {
-  const identityMode = request.identityMode || request.videoCharacterMode || "auto";
+  const identityMode =
+    request.identityMode || request.videoCharacterMode || "auto";
   return (
     request.peopleMode !== "none" &&
     identityMode !== "auto" &&
-    Boolean(request.inspirationImages?.length)
+    characterReferenceCount(request.inspirationImages, identityMode) > 0
   );
 }
 
@@ -126,6 +144,7 @@ export type MediaGenerationResult = {
 };
 
 export type MediaGenerationRequest = {
+  inputMode?: MediaGenerationInputMode;
   kind: MediaGenerationKind;
   subjectSource: MediaGenerationSubjectSource;
   idea: string;
@@ -137,12 +156,12 @@ export type MediaGenerationRequest = {
   narrationVoice?: MediaGenerationNarrationVoice;
   narrationVoiceVariant?: MediaGenerationNarrationVoiceVariant;
   format: MediaGenerationFormat;
-  typology: MediaGenerationTypology;
-  visualStyle: MediaGenerationVisualStyle;
+  typology?: MediaGenerationTypology;
+  visualStyle?: MediaGenerationVisualStyle;
   imageStyle: MediaGenerationImageStyle;
-  shotType: MediaGenerationShotType;
+  shotType?: MediaGenerationShotType;
   peopleMode: MediaGenerationPeopleMode;
-  creativity: MediaGenerationCreativity;
+  creativity?: MediaGenerationCreativity;
   useBrandColors: boolean;
   logoMode: MediaGenerationLogoMode;
   videoEngine?: MediaGenerationVideoEngine;
@@ -187,9 +206,7 @@ function interpolateProgress(
     0,
     Math.min(1, (elapsedSeconds - startSeconds) / (endSeconds - startSeconds))
   );
-  return Math.round(
-    startProgress + (endProgress - startProgress) * ratio
-  );
+  return Math.round(startProgress + (endProgress - startProgress) * ratio);
 }
 
 function estimateGenerationProgress(
@@ -204,22 +221,10 @@ function estimateGenerationProgress(
     return interpolateProgress(elapsedSeconds, 0, profileEnd, 4, 17);
   }
   if (elapsedSeconds < brandEnd) {
-    return interpolateProgress(
-      elapsedSeconds,
-      profileEnd,
-      brandEnd,
-      18,
-      41
-    );
+    return interpolateProgress(elapsedSeconds, profileEnd, brandEnd, 18, 41);
   }
   if (elapsedSeconds < creationEnd) {
-    return interpolateProgress(
-      elapsedSeconds,
-      brandEnd,
-      creationEnd,
-      42,
-      71
-    );
+    return interpolateProgress(elapsedSeconds, brandEnd, creationEnd, 42, 71);
   }
 
   const renderSeconds = elapsedSeconds - creationEnd;
@@ -333,17 +338,17 @@ function normalizeQuota(value: unknown): MediaGenerationQuota {
     source.videoPremiumRequired === true ||
     source.video_premium_required === true;
   const reportedVideoMaxDuration = Number(
-    source.videoMaxDurationSeconds ?? source.video_max_duration_seconds,
+    source.videoMaxDurationSeconds ?? source.video_max_duration_seconds
   );
   const videoMaxDurationSeconds = ([8, 16, 24] as const).includes(
-    reportedVideoMaxDuration as MediaGenerationVideoDuration,
+    reportedVideoMaxDuration as MediaGenerationVideoDuration
   )
     ? (reportedVideoMaxDuration as MediaGenerationVideoDuration)
     : videoLongFormPremiumRequired
-      ? 8
-      : 24;
+    ? 8
+    : 24;
   const videoAllowedDurationsSeconds = ([8, 16, 24] as const).filter(
-    (duration) => duration <= videoMaxDurationSeconds,
+    (duration) => duration <= videoMaxDurationSeconds
   );
   return {
     accountId: typeof source.accountId === "string" ? source.accountId : null,
@@ -395,6 +400,7 @@ function buildGenerationAttemptKey(
   idea: string
 ) {
   return JSON.stringify({
+    inputMode: request.inputMode || "legacy",
     kind: request.kind,
     subjectSource: request.subjectSource,
     idea,
@@ -412,30 +418,43 @@ function buildGenerationAttemptKey(
         ? request.narrationVoiceVariant || null
         : null,
     format: request.format,
-    typology: request.typology,
-    visualStyle: request.visualStyle,
+    ...((request.inputMode || "legacy") === "legacy"
+      ? {
+          typology: request.typology || "service",
+          visualStyle: request.visualStyle || "brand",
+          shotType: request.shotType || "auto",
+          creativity: request.creativity || "faithful",
+        }
+      : {}),
     imageStyle: request.imageStyle,
-    shotType: request.shotType,
     peopleMode: request.peopleMode,
-    creativity: request.creativity,
     useBrandColors: request.useBrandColors,
     logoMode: request.logoMode,
     videoEngine:
-      request.kind === "video" ? request.videoEngine || "omni" : null,
-    teamVideoMode: hasAnimationSourceImage(
-      request.kind,
-      request.inspirationImages,
-    )
-      ? request.teamVideoMode || "montage"
-      : null,
+      request.kind === "video"
+        ? request.videoEngine ||
+          (request.inputMode === "essential" &&
+          request.teamVideoSpeechMode === "characters"
+            ? "veo"
+            : "omni")
+        : null,
+    teamVideoMode:
+      request.kind === "video" && request.inputMode === "essential"
+        ? "cinematic"
+        : hasAnimationSourceImage(request.kind, request.inspirationImages)
+        ? request.teamVideoMode || "montage"
+        : null,
     teamVideoSpeechMode:
-      hasAnimationSourceImage(request.kind, request.inspirationImages) &&
-      request.teamVideoMode === "cinematic"
+      request.kind === "video" &&
+      (request.inputMode === "essential" ||
+        (hasAnimationSourceImage(request.kind, request.inspirationImages) &&
+          request.teamVideoMode === "cinematic"))
         ? request.teamVideoSpeechMode || "voiceover"
         : null,
     teamVideoVeoConsent:
       request.kind === "video" &&
-      (request.identityMode || request.videoCharacterMode) === "reference_team" &&
+      (request.identityMode || request.videoCharacterMode) ===
+        "reference_team" &&
       request.teamVideoMode === "cinematic" &&
       Boolean(request.teamVideoVeoConsent),
     identityMode:
@@ -444,16 +463,17 @@ function buildGenerationAttemptKey(
         : "auto",
     identityConsent:
       hasStrictIdentityReferences(request) && Boolean(request.identityConsent),
-    identityReferenceSetId:
-      request.inspirationImages?.length
-        ? request.identityReferenceSetId || ""
-        : "",
+    identityReferenceSetId: request.inspirationImages?.length
+      ? request.identityReferenceSetId || ""
+      : "",
     durationSeconds:
       request.kind === "video" ? request.durationSeconds || 16 : null,
     connectScenes: shouldConnectAiMediaVideoScenes(request),
     inspirationImages: (request.inspirationImages || []).map((image) => ({
       mimeType: image.mimeType,
       length: image.data.length,
+      role: image.role || null,
+      characterIndex: image.characterIndex || null,
     })),
     source: request.source,
   });
@@ -733,6 +753,7 @@ export default function useMediaGeneration() {
           signal: controller.signal,
           body: JSON.stringify({
             contractVersion: 4,
+            inputMode: request.inputMode || "legacy",
             requestId,
             kind: request.kind,
             subjectSource: request.subjectSource,
@@ -755,32 +776,46 @@ export default function useMediaGeneration() {
                 ? request.narrationVoiceVariant
                 : undefined,
             format: request.format,
-            typology: request.typology,
-            visualStyle: request.visualStyle,
+            ...((request.inputMode || "legacy") === "legacy"
+              ? {
+                  typology: request.typology || "service",
+                  visualStyle: request.visualStyle || "brand",
+                  shotType: request.shotType || "auto",
+                  creativity: request.creativity || "faithful",
+                  videoEngine:
+                    request.kind === "video"
+                      ? request.videoEngine || "omni"
+                      : undefined,
+                }
+              : {}),
             imageStyle: request.imageStyle,
-            shotType: request.shotType,
             peopleMode: request.peopleMode,
-            creativity: request.creativity,
             useBrandColors: request.useBrandColors,
             logoMode: request.logoMode,
-            videoEngine:
-              request.kind === "video"
-                ? request.videoEngine || "omni"
+            teamVideoMode:
+              hasAnimationSourceImage(
+                request.kind,
+                request.inspirationImages
+              ) ||
+              (request.kind === "video" && request.inputMode === "essential")
+                ? request.inputMode === "essential"
+                  ? "cinematic"
+                  : request.teamVideoMode || "montage"
                 : undefined,
-            teamVideoMode: hasAnimationSourceImage(
-              request.kind,
-              request.inspirationImages,
-            )
-              ? request.teamVideoMode || "montage"
-              : undefined,
             teamVideoSpeechMode:
-              hasAnimationSourceImage(request.kind, request.inspirationImages) &&
-              request.teamVideoMode === "cinematic"
+              request.kind === "video" &&
+              (request.inputMode === "essential" ||
+                (hasAnimationSourceImage(
+                  request.kind,
+                  request.inspirationImages
+                ) &&
+                  request.teamVideoMode === "cinematic"))
                 ? request.teamVideoSpeechMode || "voiceover"
                 : undefined,
             teamVideoVeoConsent:
               request.kind === "video" &&
-              (request.identityMode || request.videoCharacterMode) === "reference_team" &&
+              (request.identityMode || request.videoCharacterMode) ===
+                "reference_team" &&
               request.teamVideoMode === "cinematic"
                 ? Boolean(request.teamVideoVeoConsent)
                 : undefined,
@@ -796,10 +831,9 @@ export default function useMediaGeneration() {
             identityConsent: hasStrictIdentityReferences(request)
               ? Boolean(request.identityConsent)
               : undefined,
-            identityReferenceSetId:
-              request.inspirationImages?.length
-                ? request.identityReferenceSetId
-                : undefined,
+            identityReferenceSetId: request.inspirationImages?.length
+              ? request.identityReferenceSetId
+              : undefined,
             durationSeconds:
               request.kind === "video"
                 ? request.durationSeconds || 16
@@ -809,6 +843,8 @@ export default function useMediaGeneration() {
               ? request.inspirationImages.map((image) => ({
                   mimeType: image.mimeType,
                   data: image.data,
+                  role: image.role,
+                  characterIndex: image.characterIndex,
                 }))
               : undefined,
             source: request.source,
@@ -1069,11 +1105,15 @@ export default function useMediaGeneration() {
                 : "Le média n’a pas pu être enregistré."
             )
           );
-          if (!response.ok && !isRetryableDraftAcceptanceStatus(response.status)) {
+          if (
+            !response.ok &&
+            !isRetryableDraftAcceptanceStatus(response.status)
+          ) {
             retryableFailure = false;
           }
         } catch (caught) {
-          if (caught instanceof MediaGenerationAccountChangedError) throw caught;
+          if (caught instanceof MediaGenerationAccountChangedError)
+            throw caught;
           lastAcceptanceError =
             caught instanceof Error ? caught : lastAcceptanceError;
         }

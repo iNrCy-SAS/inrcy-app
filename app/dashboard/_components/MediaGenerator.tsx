@@ -1,13 +1,12 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import useMediaGeneration, {
   MediaGenerationAccountChangedError,
   MediaGenerationCancelledError,
   type MediaGenerationFormat,
-  type MediaGenerationCreativity,
   type MediaGenerationImageStyle,
   type MediaGenerationInspirationImage,
   type MediaGenerationKind,
@@ -15,23 +14,15 @@ import useMediaGeneration, {
   type MediaGenerationNarrationVoice,
   type MediaGenerationNarrationVoiceVariant,
   type MediaGenerationPeopleMode,
+  type MediaGenerationReferenceRole,
   type MediaGenerationResult,
-  type MediaGenerationShotType,
   type MediaGenerationSource,
   type MediaGenerationSubjectSource,
-  type MediaGenerationTypology,
   type MediaGenerationVideoDuration,
   type MediaGenerationVideoCharacterMode,
-  type MediaGenerationVideoEngine,
-  type MediaGenerationTeamVideoMode,
   type MediaGenerationTeamVideoSpeechMode,
-  type MediaGenerationVisualStyle,
 } from "@/app/dashboard/_hooks/useMediaGeneration";
 import useAiMediaGeneratorPreferences from "@/app/dashboard/_hooks/useAiMediaGeneratorPreferences";
-import type {
-  AiMediaGeneratorBlockDefaults,
-  AiMediaGeneratorPreferenceBlockId,
-} from "@/lib/aiMediaGenerationPreferences";
 import {
   AI_MEDIA_INSPIRATION_MAX_COUNT,
   AI_MEDIA_INSPIRATION_MAX_DIMENSION,
@@ -39,7 +30,6 @@ import {
   AI_MEDIA_INSPIRATION_NORMALIZED_MAX_BYTES,
   AI_MEDIA_INSPIRATION_SOURCE_MAX_BYTES,
   resolveAiMediaPreviewFormat,
-  shouldConnectAiMediaVideoScenes,
 } from "@/lib/aiMediaGenerationContracts";
 import {
   AI_MEDIA_NARRATION_VOICE_VARIANTS,
@@ -70,34 +60,19 @@ type MediaGeneratorProps = {
   onBusyChange?: (busy: boolean) => void;
 };
 
-const FORMATS: Array<{ id: MediaGenerationFormat; icon: string; ratio: string }> = [
+const FORMATS: Array<{
+  id: MediaGenerationFormat;
+  icon: string;
+  ratio: string;
+}> = [
   { id: "square", icon: "□", ratio: "1:1" },
   { id: "portrait", icon: "▯", ratio: "4:5" },
   { id: "story", icon: "▯", ratio: "9:16" },
   { id: "landscape", icon: "▭", ratio: "16:9" },
 ];
 
-const TYPOLOGIES: Array<{ id: MediaGenerationTypology; icon: string }> = [
-  { id: "company", icon: "◈" },
-  { id: "service", icon: "✦" },
-  { id: "advice", icon: "◎" },
-  { id: "showcase", icon: "▣" },
-  { id: "offer", icon: "◇" },
-  { id: "event", icon: "◷" },
-  { id: "behind_scenes", icon: "◉" },
-  { id: "recruitment", icon: "+" },
-];
-
-const VISUAL_STYLES: MediaGenerationVisualStyle[] = [
-  "brand",
-  "clean",
-  "premium",
-  "warm",
-  "dynamic",
-  "expert",
-  "local",
-  "colorful",
-];
+type StudioMediaSourceMode = "ai" | "real";
+type StudioCharacterCount = 0 | 1 | 2 | 3;
 
 const IMAGE_STYLES: MediaGenerationImageStyle[] = [
   "photo",
@@ -105,15 +80,6 @@ const IMAGE_STYLES: MediaGenerationImageStyle[] = [
   "three_d",
   "graphic",
 ];
-const SHOT_TYPES: MediaGenerationShotType[] = ["auto", "close", "medium", "wide"];
-const PEOPLE_MODES: MediaGenerationPeopleMode[] = ["auto", "none", "solo", "team"];
-const VIDEO_CHARACTER_MODES: MediaGenerationVideoCharacterMode[] = [
-  "auto",
-  "professional",
-  "brand_avatar",
-  "reference_team",
-];
-const CREATIVITY_LEVELS: MediaGenerationCreativity[] = ["faithful", "bold"];
 const LOGO_MODES: MediaGenerationLogoMode[] = ["discreet", "visible", "none"];
 const MAX_TEXT_KEYWORDS = 6;
 const MAX_INSPIRATION_IMAGES = AI_MEDIA_INSPIRATION_MAX_COUNT;
@@ -122,115 +88,17 @@ const INSPIRATION_IMAGE_ACCEPT = [
   ...INR_MEDIA_ALLOWED_IMAGE_EXTENSIONS.map((extension) => `.${extension}`),
 ].join(",");
 
-type RememberPreferenceControlProps = {
-  checked: boolean;
-  disabled: boolean;
-  saving: boolean;
-  label: string;
-  savingLabel: string;
-  blockTitle: string;
-  onChange: (checked: boolean) => void;
-};
-
-function RememberPreferenceControl({
-  checked,
-  disabled,
-  saving,
-  label,
-  savingLabel,
-  blockTitle,
-  onChange,
-}: RememberPreferenceControlProps) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={`${label} — ${blockTitle}`}
-      className={styles.rememberPreference}
-      data-checked={checked ? "true" : "false"}
-      data-saving={saving ? "true" : "false"}
-      disabled={disabled}
-      onClick={() => onChange(!checked)}
-    >
-      <span aria-hidden="true" />
-      <small>{saving ? savingLabel : label}</small>
-    </button>
-  );
-}
-
-function SceneConnectionNotice({ onClose }: { onClose: () => void }) {
-  const t = useTranslations("media");
-  const titleId = useId();
-  const descriptionId = useId();
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  const confirmRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    const previousFocus = document.activeElement instanceof HTMLElement
-      ? document.activeElement
-      : null;
-    dialog.showModal();
-    confirmRef.current?.focus({ preventScroll: true });
-    return () => {
-      if (dialog.open) dialog.close();
-      if (previousFocus?.isConnected) previousFocus.focus({ preventScroll: true });
-    };
-  }, []);
-
-  return (
-    <dialog
-      ref={dialogRef}
-      className={styles.sceneConnectionNotice}
-      aria-labelledby={titleId}
-      aria-describedby={descriptionId}
-      onCancel={(event) => {
-        event.preventDefault();
-        onClose();
-      }}
-      onKeyDown={(event) => {
-        // This dialog owns Escape/Tab while the outer generator stays mounted.
-        event.stopPropagation();
-      }}
-    >
-      <div className={styles.sceneConnectionNoticeHeading}>
-        <h3 id={titleId}>{t("ai_generator_connect_scenes_label")}</h3>
-        <button
-          type="button"
-          className={styles.sceneConnectionNoticeClose}
-          aria-label={t("fermer_5ab4ec64")}
-          onClick={onClose}
-        >
-          ×
-        </button>
-      </div>
-      <p id={descriptionId}>{t("ai_generator_connect_scenes_notice")}</p>
-      <button
-        ref={confirmRef}
-        type="button"
-        className={styles.sceneConnectionNoticeConfirm}
-        onClick={onClose}
-      >
-        {t("ai_generator_connect_scenes_understood")}
-      </button>
-    </dialog>
-  );
-}
-
-function canvasBlob(
-  canvas: HTMLCanvasElement,
-  quality: number,
-): Promise<Blob> {
+function canvasBlob(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
   return new Promise((resolve, reject) => {
     canvas.toBlob(
       (blob) =>
         blob
           ? resolve(blob)
-          : reject(new Error("L’image d’inspiration n’a pas pu être préparée.")),
+          : reject(
+              new Error("L’image d’inspiration n’a pas pu être préparée.")
+            ),
       "image/jpeg",
-      quality,
+      quality
     );
   });
 }
@@ -238,7 +106,8 @@ function canvasBlob(
 function blobBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onerror = () => reject(new Error("L’image d’inspiration n’a pas pu être lue."));
+    reader.onerror = () =>
+      reject(new Error("L’image d’inspiration n’a pas pu être lue."));
     reader.onload = () => {
       const value = typeof reader.result === "string" ? reader.result : "";
       const separator = value.indexOf(",");
@@ -253,7 +122,7 @@ function blobBase64(blob: Blob): Promise<string> {
 }
 
 async function prepareInspirationImageInBrowser(
-  file: File,
+  file: File
 ): Promise<MediaGenerationInspirationImage> {
   const objectUrl = URL.createObjectURL(file);
   try {
@@ -261,7 +130,8 @@ async function prepareInspirationImageInBrowser(
     image.decoding = "async";
     await new Promise<void>((resolve, reject) => {
       image.onload = () => resolve();
-      image.onerror = () => reject(new Error("L’image d’inspiration est illisible."));
+      image.onerror = () =>
+        reject(new Error("L’image d’inspiration est illisible."));
       image.src = objectUrl;
     });
     if (!image.naturalWidth || !image.naturalHeight) {
@@ -271,7 +141,7 @@ async function prepareInspirationImageInBrowser(
     let scale = Math.min(
       1,
       AI_MEDIA_INSPIRATION_MAX_DIMENSION /
-        Math.max(image.naturalWidth, image.naturalHeight),
+        Math.max(image.naturalWidth, image.naturalHeight)
     );
     let output: Blob | null = null;
     for (let resizeAttempt = 0; resizeAttempt < 4; resizeAttempt += 1) {
@@ -281,7 +151,8 @@ async function prepareInspirationImageInBrowser(
       canvas.width = width;
       canvas.height = height;
       const context = canvas.getContext("2d", { alpha: false });
-      if (!context) throw new Error("L’image d’inspiration n’a pas pu être préparée.");
+      if (!context)
+        throw new Error("L’image d’inspiration n’a pas pu être préparée.");
       context.fillStyle = "#ffffff";
       context.fillRect(0, 0, width, height);
       context.drawImage(image, 0, 0, width, height);
@@ -321,7 +192,7 @@ async function discardTransientInspirationImage(storagePath: string) {
 }
 
 async function prepareInspirationImageOnServer(
-  file: File,
+  file: File
 ): Promise<MediaGenerationInspirationImage> {
   const uploaded = await uploadUniversalMediaFile(file, {
     target: "ai_identity_reference",
@@ -350,8 +221,8 @@ async function prepareInspirationImageOnServer(
       throw new Error(
         String(
           payload?.error ||
-            "Cette image n’a pas pu être convertie automatiquement.",
-        ),
+            "Cette image n’a pas pu être convertie automatiquement."
+        )
       );
     }
     const image = payload?.image;
@@ -370,7 +241,9 @@ async function prepareInspirationImageOnServer(
       name:
         typeof image?.name === "string" && image.name.trim()
           ? image.name.trim().slice(0, 120)
-          : `${file.name.replace(/\.[^.]+$/, "").slice(0, 110) || "reference"}.jpg`,
+          : `${
+              file.name.replace(/\.[^.]+$/, "").slice(0, 110) || "reference"
+            }.jpg`,
     };
   } catch (error) {
     await discardTransientInspirationImage(storagePath);
@@ -379,7 +252,7 @@ async function prepareInspirationImageOnServer(
 }
 
 async function prepareInspirationImage(
-  file: File,
+  file: File
 ): Promise<MediaGenerationInspirationImage> {
   if (!isInrMediaImageFile(file)) {
     throw new Error(`Formats acceptés : ${INR_MEDIA_IMAGE_FORMATS_LABEL}.`);
@@ -458,57 +331,45 @@ export default function MediaGenerator({
   const {
     preferences: savedPreferences,
     loaded: preferencesLoaded,
-    loading: preferencesLoading,
     error: preferencesError,
-    savingBlockIds,
     accountEpoch: preferencesAccountEpoch,
-    saveBlock: savePreferenceBlock,
   } = useAiMediaGeneratorPreferences();
 
-  const [subjectSource, setSubjectSource] = useState<MediaGenerationSubjectSource>(
-    publicationAvailable ? "publication" : "profile",
-  );
+  const [subjectSource, setSubjectSource] =
+    useState<MediaGenerationSubjectSource>(
+      publicationAvailable ? "publication" : "profile"
+    );
   const [customIdea, setCustomIdea] = useState("");
   const [aiInstruction, setAiInstruction] = useState("");
   const [kind, setKind] = useState<MediaGenerationKind>("image");
   const [format, setFormat] = useState<MediaGenerationFormat>("square");
-  const [typology, setTypology] = useState<MediaGenerationTypology>("service");
-  const [visualStyle, setVisualStyle] = useState<MediaGenerationVisualStyle>("brand");
-  const [imageStyle, setImageStyle] = useState<MediaGenerationImageStyle>("photo");
-  const [shotType, setShotType] = useState<MediaGenerationShotType>("auto");
-  const [peopleMode, setPeopleMode] = useState<MediaGenerationPeopleMode>("auto");
-  const [videoCharacterMode, setVideoCharacterMode] =
-    useState<MediaGenerationVideoCharacterMode>("auto");
+  const [imageStyle, setImageStyle] =
+    useState<MediaGenerationImageStyle>("photo");
   const [identityConsent, setIdentityConsent] = useState(false);
-  const [teamVideoMode, setTeamVideoMode] =
-    useState<MediaGenerationTeamVideoMode>("cinematic");
   const [teamVideoSpeechMode, setTeamVideoSpeechMode] =
     useState<MediaGenerationTeamVideoSpeechMode>("voiceover");
   const [teamVideoVeoConsent, setTeamVideoVeoConsent] = useState(false);
   const [teamVideoConsentOpen, setTeamVideoConsentOpen] = useState(false);
-  const [creativity, setCreativity] = useState<MediaGenerationCreativity>("faithful");
+  const [mediaSourceMode, setMediaSourceMode] =
+    useState<StudioMediaSourceMode>("ai");
+  const [realCharacterCount, setRealCharacterCount] =
+    useState<StudioCharacterCount>(1);
   const [useBrandColors, setUseBrandColors] = useState(true);
   const [logoMode, setLogoMode] = useState<MediaGenerationLogoMode>("discreet");
   const [durationSeconds, setDurationSeconds] =
     useState<MediaGenerationVideoDuration>(8);
-  const [connectScenes, setConnectScenes] = useState(false);
-  const [sceneConnectionNoticeOpen, setSceneConnectionNoticeOpen] = useState(false);
-  const [videoEngine, setVideoEngine] =
-    useState<MediaGenerationVideoEngine>("omni");
   const [withText, setWithText] = useState(true);
   const [textKeywords, setTextKeywords] = useState<string[]>([]);
   const [textKeywordDraft, setTextKeywordDraft] = useState("");
   const [withMusic, setWithMusic] = useState(true);
-  const [withNarration, setWithNarration] = useState(true);
   const [narrationVoice, setNarrationVoice] =
     useState<MediaGenerationNarrationVoice>("female");
   const [narrationVoiceVariant, setNarrationVoiceVariant] =
     useState<MediaGenerationNarrationVoiceVariant>("Kore");
-  const [inspirationImages, setInspirationImages] =
-    useState<MediaGenerationInspirationImage[]>([]);
+  const [inspirationImages, setInspirationImages] = useState<
+    MediaGenerationInspirationImage[]
+  >([]);
   const [inspirationBusy, setInspirationBusy] = useState(false);
-  const [inspirationRulesOpen, setInspirationRulesOpen] = useState(false);
-  const [expandedStep, setExpandedStep] = useState<1 | 2 | 3 | 4 | null>(null);
   const [voiceBusy, setVoiceBusy] = useState(false);
   const [creationScreen, setCreationScreen] = useState(false);
   const [finishing, setFinishing] = useState(false);
@@ -527,17 +388,19 @@ export default function MediaGenerator({
   const operationLocked = busy || finishing || voiceBusy || inspirationBusy;
 
   useEffect(() => {
-    if (clearedSensitiveStateEpochRef.current === preferencesAccountEpoch) return;
+    if (clearedSensitiveStateEpochRef.current === preferencesAccountEpoch)
+      return;
     clearedSensitiveStateEpochRef.current = preferencesAccountEpoch;
     setCustomIdea("");
     setAiInstruction("");
     setTextKeywords([]);
     setTextKeywordDraft("");
     setInspirationImages([]);
+    setMediaSourceMode("ai");
+    setRealCharacterCount(1);
     setIdentityConsent(false);
     setTeamVideoVeoConsent(false);
     setTeamVideoConsentOpen(false);
-    setSceneConnectionNoticeOpen(false);
     identityReferenceSetIdRef.current = createIdentityReferenceSetId();
   }, [preferencesAccountEpoch]);
 
@@ -547,26 +410,22 @@ export default function MediaGenerator({
 
     const block1 = savedPreferences.blocks[1];
     const block6 = savedPreferences.blocks[6];
-    setConnectScenes(block6.saved ? block6.defaults.connectScenes : false);
     if (block1.saved) {
       setKind(block1.defaults.kind);
       setSubjectSource(
         block1.defaults.subjectSource === "publication" && !publicationAvailable
           ? "profile"
-          : block1.defaults.subjectSource,
+          : block1.defaults.subjectSource
       );
     }
 
     const block2 = savedPreferences.blocks[2];
     if (block2.saved) {
-      setTypology(block2.defaults.typology);
       setFormat(block2.defaults.format);
     }
 
     const block3 = savedPreferences.blocks[3];
     if (block3.saved) {
-      setVisualStyle(block3.defaults.visualStyle);
-      setCreativity(block3.defaults.creativity);
       setUseBrandColors(block3.defaults.useBrandColors);
       setLogoMode(block3.defaults.logoMode);
     }
@@ -574,22 +433,10 @@ export default function MediaGenerator({
     const block4 = savedPreferences.blocks[4];
     if (block4.saved) {
       setImageStyle(block4.defaults.imageStyle);
-      setShotType(block4.defaults.shotType);
     }
 
     const block5 = savedPreferences.blocks[5];
     if (block5.saved) {
-      setPeopleMode(
-        block5.defaults.identityMode === "reference_team"
-          ? "team"
-          : block5.defaults.peopleMode,
-      );
-      setVideoCharacterMode(
-        block5.defaults.peopleMode === "none"
-          ? "auto"
-          : block5.defaults.identityMode,
-      );
-      setTeamVideoMode(block5.defaults.teamVideoMode);
       setTeamVideoSpeechMode(block5.defaults.teamVideoSpeechMode);
     }
 
@@ -597,7 +444,6 @@ export default function MediaGenerator({
       setDurationSeconds(block6.defaults.durationSeconds);
       setWithText(block6.defaults.withText);
       setWithMusic(block6.defaults.withMusic);
-      setWithNarration(block6.defaults.withNarration);
       setNarrationVoice(block6.defaults.narrationVoice);
       setNarrationVoiceVariant(block6.defaults.narrationVoiceVariant);
     }
@@ -637,8 +483,8 @@ export default function MediaGenerator({
     subjectSource === "publication"
       ? normalizedPublicationBrief
       : subjectSource === "custom"
-        ? customIdea.trim()
-        : "";
+      ? customIdea.trim()
+      : "";
   const subjectReady =
     subjectSource === "profile" ||
     (subjectSource === "publication" && publicationAvailable) ||
@@ -660,7 +506,7 @@ export default function MediaGenerator({
   useEffect(() => {
     if (!quota) return;
     setDurationSeconds((current) =>
-      current > videoMaxDurationSeconds ? videoMaxDurationSeconds : current,
+      current > videoMaxDurationSeconds ? videoMaxDurationSeconds : current
     );
   }, [quota, videoMaxDurationSeconds]);
 
@@ -668,39 +514,43 @@ export default function MediaGenerator({
     kind === "video" && videoMaxDurationSeconds < 24;
   const videoPremiumRequired =
     kind === "video" && durationSeconds > videoMaxDurationSeconds;
-  const strictIdentityReferenceMode =
-    peopleMode !== "none" && videoCharacterMode !== "auto";
+  const characterReferences = inspirationImages.filter(
+    (image) => image.role === "character"
+  );
+  const environmentReference = inspirationImages.find(
+    (image) => image.role === "environment"
+  );
+  const productReference = inspirationImages.find(
+    (image) => image.role === "product"
+  );
+  const effectivePeopleMode: MediaGenerationPeopleMode =
+    mediaSourceMode === "ai"
+      ? "auto"
+      : realCharacterCount === 0
+      ? "none"
+      : realCharacterCount === 1
+      ? "solo"
+      : "team";
+  const effectiveIdentityMode: MediaGenerationVideoCharacterMode =
+    mediaSourceMode === "ai" || realCharacterCount === 0
+      ? "auto"
+      : realCharacterCount === 1
+      ? "professional"
+      : "reference_team";
+  const strictIdentityReferenceMode = effectiveIdentityMode !== "auto";
   const referenceAnimationAvailable =
     kind === "video" && inspirationImages.length > 0;
-  const referenceCinematicRequested =
-    referenceAnimationAvailable &&
-    teamVideoMode === "cinematic";
-  const sceneConnectionAvailable = shouldConnectAiMediaVideoScenes({
-    kind,
-    durationSeconds,
-    connectScenes: true,
-    identityMode: peopleMode !== "none" ? videoCharacterMode : "auto",
-    peopleMode,
-    teamVideoMode,
-  });
+  const referenceCinematicRequested = referenceAnimationAvailable;
   const animatedCharactersSpeak =
-    referenceCinematicRequested &&
-    peopleMode !== "none" &&
-    teamVideoSpeechMode === "characters";
+    kind === "video" && teamVideoSpeechMode === "characters";
   const teamCinematicConsentRequired =
-    referenceCinematicRequested && videoCharacterMode === "reference_team";
-  const effectiveWithNarration =
-    kind === "video" && !animatedCharactersSpeak && withNarration;
+    kind === "video" && effectiveIdentityMode === "reference_team";
+  const effectiveWithNarration = kind === "video" && !animatedCharactersSpeak;
   const characterReferenceMissing =
-    peopleMode !== "none" &&
-    ((videoCharacterMode === "professional" ||
-      videoCharacterMode === "brand_avatar")
-      ? inspirationImages.length === 0
-      : videoCharacterMode === "reference_team"
-        ? inspirationImages.length < 2 || inspirationImages.length > 3
-        : false);
+    mediaSourceMode === "real" &&
+    characterReferences.length !== realCharacterCount;
   const identityConsentRequired =
-    strictIdentityReferenceMode && inspirationImages.length > 0;
+    strictIdentityReferenceMode && characterReferences.length > 0;
   const identityConsentMissing = identityConsentRequired && !identityConsent;
   const disabled =
     operationLocked ||
@@ -714,52 +564,146 @@ export default function MediaGenerator({
     if (!quota?.resetAt) return "";
     const parsed = new Date(quota.resetAt);
     if (Number.isNaN(parsed.getTime())) return "";
-    return new Intl.DateTimeFormat(locale, { day: "numeric", month: "long" }).format(parsed);
+    return new Intl.DateTimeFormat(locale, {
+      day: "numeric",
+      month: "long",
+    }).format(parsed);
   }, [locale, quota?.resetAt]);
 
   const progressLabel =
     progress >= 99
       ? t("ai_generator_stage_patience")
       : progress < 18
-        ? t("ai_generator_stage_profile")
-        : progress < 42
-          ? t("ai_generator_stage_brand")
-          : progress < 72
-            ? t(
-                kind === "video"
-                  ? videoCharacterMode === "reference_team"
-                    ? "ai_generator_stage_team_composition"
-                    : "ai_generator_stage_storyboard"
-                  : "ai_generator_stage_image",
-              )
-            : t(
-                kind === "video"
-                  ? referenceCinematicRequested
-                    ? "ai_generator_stage_team_animation"
-                    : "ai_generator_stage_render"
-                  : "ai_generator_stage_finish",
-              );
+      ? t("ai_generator_stage_profile")
+      : progress < 42
+      ? t("ai_generator_stage_brand")
+      : progress < 72
+      ? t(
+          kind === "video"
+            ? effectiveIdentityMode === "reference_team"
+              ? "ai_generator_stage_team_composition"
+              : "ai_generator_stage_storyboard"
+            : "ai_generator_stage_image"
+        )
+      : t(
+          kind === "video"
+            ? referenceCinematicRequested
+              ? "ai_generator_stage_team_animation"
+              : "ai_generator_stage_render"
+            : "ai_generator_stage_finish"
+        );
 
   const quotaValue =
     quotaLoading && !counter
       ? t("chargement_01cba1df")
       : videoPremiumRequired
-        ? t("ai_generator_premium_only_short")
-        : quota?.unlimited
-        ? t("ai_generator_unlimited")
-        : counter?.limit === null || !counter
-        ? "—"
-        : counter.limit === 0
-        ? "0 / 0"
-        : `${counter.used + counter.reserved} / ${counter.limit}`;
+      ? t("ai_generator_premium_only_short")
+      : quota?.unlimited
+      ? t("ai_generator_unlimited")
+      : counter?.limit === null || !counter
+      ? "—"
+      : counter.limit === 0
+      ? "0 / 0"
+      : `${counter.used + counter.reserved} / ${counter.limit}`;
 
   const clearTransientState = () => {
     reset();
     setActionError("");
   };
 
+  const resetReferenceConsent = () => {
+    identityReferenceSetIdRef.current = createIdentityReferenceSetId();
+    setIdentityConsent(false);
+    setTeamVideoVeoConsent(false);
+    setTeamVideoConsentOpen(false);
+    if (actionError || error) clearTransientState();
+  };
+
+  const orderReferences = (images: MediaGenerationInspirationImage[]) =>
+    [...images].sort((left, right) => {
+      const rank = (image: MediaGenerationInspirationImage) =>
+        image.role === "character"
+          ? image.characterIndex || 1
+          : image.role === "environment"
+          ? 4
+          : 5;
+      return rank(left) - rank(right);
+    });
+
+  const selectMediaSourceMode = (mode: StudioMediaSourceMode) => {
+    setMediaSourceMode(mode);
+    if (mode === "ai") setInspirationImages([]);
+    resetReferenceConsent();
+  };
+
+  const selectRealCharacterCount = (count: StudioCharacterCount) => {
+    setRealCharacterCount(count);
+    setInspirationImages((current) =>
+      current.filter(
+        (image) =>
+          image.role !== "character" || (image.characterIndex || 0) <= count
+      )
+    );
+    resetReferenceConsent();
+  };
+
+  const removeReferenceImage = (
+    role: MediaGenerationReferenceRole,
+    characterIndex?: 1 | 2 | 3
+  ) => {
+    setInspirationImages((current) =>
+      current.filter(
+        (image) =>
+          !(
+            image.role === role &&
+            (role !== "character" || image.characterIndex === characterIndex)
+          )
+      )
+    );
+    resetReferenceConsent();
+  };
+
+  const prepareReferenceFile = async (
+    file: File,
+    role: MediaGenerationReferenceRole,
+    characterIndex?: 1 | 2 | 3
+  ) => {
+    setInspirationBusy(true);
+    setActionError("");
+    try {
+      const prepared = await prepareInspirationImage(file);
+      const next: MediaGenerationInspirationImage = {
+        ...prepared,
+        role,
+        ...(role === "character" ? { characterIndex } : {}),
+      };
+      setInspirationImages((current) =>
+        orderReferences([
+          ...current.filter(
+            (image) =>
+              !(
+                image.role === role &&
+                (role !== "character" ||
+                  image.characterIndex === characterIndex)
+              )
+          ),
+          next,
+        ]).slice(0, MAX_INSPIRATION_IMAGES)
+      );
+      resetReferenceConsent();
+    } catch (caught) {
+      setActionError(
+        caught instanceof Error ? caught.message : t("ai_generator_error")
+      );
+    } finally {
+      setInspirationBusy(false);
+    }
+  };
+
   const addTextKeywords = (rawValue: string) => {
-    setTextKeywords((current) => normalizeTextKeywordValues([...current, rawValue]));
+    setTextKeywords((current) =>
+      normalizeTextKeywordValues([...current, rawValue])
+    );
     setTextKeywordDraft("");
     if (actionError || error) clearTransientState();
   };
@@ -767,70 +711,6 @@ export default function MediaGenerator({
   const removeTextKeyword = (keyword: string) => {
     setTextKeywords((current) => current.filter((value) => value !== keyword));
     if (actionError || error) clearTransientState();
-  };
-
-  const handleRememberPreference = (
-    blockId: AiMediaGeneratorPreferenceBlockId,
-    checked: boolean,
-  ) => {
-    switch (blockId) {
-      case 1: {
-        const defaults: AiMediaGeneratorBlockDefaults[1] = {
-          kind,
-          // A free subject is one-shot. Choosing it never makes its text, or
-          // even the empty custom editor, the next generation's default.
-          subjectSource: subjectSource === "publication" ? "publication" : "profile",
-        };
-        void savePreferenceBlock(1, checked, defaults);
-        return;
-      }
-      case 2: {
-        const defaults: AiMediaGeneratorBlockDefaults[2] = { typology, format };
-        void savePreferenceBlock(2, checked, defaults);
-        return;
-      }
-      case 3: {
-        const defaults: AiMediaGeneratorBlockDefaults[3] = {
-          visualStyle,
-          creativity,
-          useBrandColors,
-          logoMode,
-        };
-        void savePreferenceBlock(3, checked, defaults);
-        return;
-      }
-      case 4: {
-        const defaults: AiMediaGeneratorBlockDefaults[4] = {
-          imageStyle,
-          shotType,
-        };
-        void savePreferenceBlock(4, checked, defaults);
-        return;
-      }
-      case 5: {
-        const defaults: AiMediaGeneratorBlockDefaults[5] = {
-          peopleMode:
-            videoCharacterMode === "reference_team" ? "team" : peopleMode,
-          identityMode: peopleMode === "none" ? "auto" : videoCharacterMode,
-          teamVideoMode,
-          teamVideoSpeechMode,
-        };
-        void savePreferenceBlock(5, checked, defaults);
-        return;
-      }
-      case 6: {
-        const defaults: AiMediaGeneratorBlockDefaults[6] = {
-          durationSeconds,
-          connectScenes,
-          withText,
-          withMusic,
-          withNarration,
-          narrationVoice,
-          narrationVoiceVariant,
-        };
-        void savePreferenceBlock(6, checked, defaults);
-      }
-    }
   };
 
   const performGeneration = async (veoConsentForAttempt: boolean) => {
@@ -852,7 +732,9 @@ export default function MediaGenerator({
           setTeamVideoConsentOpen(false);
           return;
         }
-        setActionError(caught instanceof Error ? caught.message : t("ai_generator_error"));
+        setActionError(
+          caught instanceof Error ? caught.message : t("ai_generator_error")
+        );
         setTeamVideoVeoConsent(false);
         setTeamVideoConsentOpen(false);
         return;
@@ -863,6 +745,7 @@ export default function MediaGenerator({
 
     try {
       await generate({
+        inputMode: "essential",
         source,
         kind,
         subjectSource,
@@ -873,40 +756,31 @@ export default function MediaGenerator({
         withMusic: kind === "video" ? withMusic : undefined,
         withNarration: kind === "video" ? effectiveWithNarration : undefined,
         narrationVoice:
-          kind === "video" && effectiveWithNarration ? narrationVoice : undefined,
+          kind === "video" && effectiveWithNarration
+            ? narrationVoice
+            : undefined,
         narrationVoiceVariant:
           kind === "video" && effectiveWithNarration
             ? narrationVoiceVariant
             : undefined,
         format,
-        typology,
-        visualStyle,
         imageStyle,
-        shotType,
-        peopleMode,
-        identityMode:
-          peopleMode !== "none" ? videoCharacterMode : "auto",
-        videoCharacterMode:
-          peopleMode !== "none" ? videoCharacterMode : "auto",
+        peopleMode: effectivePeopleMode,
+        identityMode: effectiveIdentityMode,
+        videoCharacterMode: effectiveIdentityMode,
         identityConsent: identityConsentRequired ? identityConsent : false,
-        identityReferenceSetId:
-          inspirationImages.length
-            ? identityReferenceSetIdRef.current
-            : undefined,
-        creativity,
+        identityReferenceSetId: inspirationImages.length
+          ? identityReferenceSetIdRef.current
+          : undefined,
         useBrandColors,
         logoMode,
-        videoEngine: kind === "video" ? videoEngine : undefined,
-        teamVideoMode: referenceAnimationAvailable ? teamVideoMode : undefined,
-        teamVideoSpeechMode: referenceCinematicRequested
-          ? teamVideoSpeechMode
-          : undefined,
+        teamVideoMode: kind === "video" ? "cinematic" : undefined,
+        teamVideoSpeechMode: kind === "video" ? teamVideoSpeechMode : undefined,
         teamVideoVeoConsent: teamCinematicConsentRequired
           ? veoConsentForAttempt
           : false,
         durationSeconds: kind === "video" ? durationSeconds : undefined,
-        connectScenes: sceneConnectionAvailable ? connectScenes : undefined,
-        inspirationImages,
+        inspirationImages: mediaSourceMode === "real" ? inspirationImages : [],
       });
     } catch (caught) {
       if (sequence !== generationSequenceRef.current) return;
@@ -918,7 +792,9 @@ export default function MediaGenerator({
         setActionError("");
         return;
       }
-      setActionError(caught instanceof Error ? caught.message : t("ai_generator_error"));
+      setActionError(
+        caught instanceof Error ? caught.message : t("ai_generator_error")
+      );
     } finally {
       // L'accord porte sur un essai de génération précis. Une nouvelle
       // tentative, réussie ou non, exige donc une confirmation fraîche.
@@ -970,7 +846,9 @@ export default function MediaGenerator({
         await discardDraft(generationResult);
         onResultChange?.(null);
       } catch (caught) {
-        setActionError(caught instanceof Error ? caught.message : t("ai_generator_error"));
+        setActionError(
+          caught instanceof Error ? caught.message : t("ai_generator_error")
+        );
         return;
       } finally {
         setDiscarding(false);
@@ -981,7 +859,8 @@ export default function MediaGenerator({
   };
 
   const handleConfirm = async () => {
-    if (!generationResult || operationLocked || acceptInFlightRef.current) return;
+    if (!generationResult || operationLocked || acceptInFlightRef.current)
+      return;
     acceptInFlightRef.current = true;
     setActionError("");
     setFinishing(true);
@@ -994,7 +873,9 @@ export default function MediaGenerator({
         setActionError("");
         return;
       }
-      setActionError(caught instanceof Error ? caught.message : t("ai_generator_error"));
+      setActionError(
+        caught instanceof Error ? caught.message : t("ai_generator_error")
+      );
     } finally {
       acceptInFlightRef.current = false;
       setFinishing(false);
@@ -1013,7 +894,7 @@ export default function MediaGenerator({
       description: t(
         publicationAvailable
           ? "ai_generator_subject_publication_hint"
-          : "ai_generator_subject_publication_unavailable",
+          : "ai_generator_subject_publication_unavailable"
       ),
       disabled: !publicationAvailable,
     },
@@ -1029,6 +910,88 @@ export default function MediaGenerator({
     },
   ];
 
+  const renderReferenceSlot = (args: {
+    role: MediaGenerationReferenceRole;
+    characterIndex?: 1 | 2 | 3;
+    title: string;
+    hint: string;
+    optional?: boolean;
+  }) => {
+    const reference = inspirationImages.find(
+      (image) =>
+        image.role === args.role &&
+        (args.role !== "character" ||
+          image.characterIndex === args.characterIndex)
+    );
+    const inputId = `ai-media-reference-${args.role}-${
+      args.characterIndex || 0
+    }`;
+    return (
+      <div
+        key={inputId}
+        className={styles.referenceSlot}
+        data-ready={reference ? "true" : "false"}
+      >
+        {reference ? (
+          <img
+            src={`data:${reference.mimeType};base64,${reference.data}`}
+            alt=""
+          />
+        ) : (
+          <span className={styles.referenceSlotIcon} aria-hidden="true">
+            {args.role === "character"
+              ? "◉"
+              : args.role === "environment"
+              ? "▧"
+              : "◇"}
+          </span>
+        )}
+        <span className={styles.referenceSlotCopy}>
+          <strong>{args.title}</strong>
+          <small>
+            {reference
+              ? t("ai_generator_essential_reference_ready")
+              : args.optional
+              ? `${args.hint} · ${t("ai_generator_essential_optional")}`
+              : args.hint}
+          </small>
+        </span>
+        <span className={styles.referenceSlotActions}>
+          <label htmlFor={inputId}>
+            {reference
+              ? t("ai_generator_essential_replace")
+              : t("ai_generator_essential_add")}
+          </label>
+          <input
+            id={inputId}
+            type="file"
+            accept={INSPIRATION_IMAGE_ACCEPT}
+            disabled={operationLocked}
+            onChange={(event) => {
+              const file = event.currentTarget.files?.[0];
+              event.currentTarget.value = "";
+              if (file) {
+                void prepareReferenceFile(file, args.role, args.characterIndex);
+              }
+            }}
+          />
+          {reference ? (
+            <button
+              type="button"
+              aria-label={t("ai_generator_inspiration_remove")}
+              disabled={operationLocked}
+              onClick={() =>
+                removeReferenceImage(args.role, args.characterIndex)
+              }
+            >
+              ×
+            </button>
+          ) : null}
+        </span>
+      </div>
+    );
+  };
+
   const teamVideoConsentDialog = teamVideoConsentOpen ? (
     <div className={styles.teamVideoConsentBackdrop}>
       <div
@@ -1038,7 +1001,9 @@ export default function MediaGenerator({
         aria-labelledby="ai-media-team-video-consent-title"
         aria-describedby="ai-media-team-video-consent-description"
       >
-        <span className={styles.teamVideoConsentIcon} aria-hidden="true">▶</span>
+        <span className={styles.teamVideoConsentIcon} aria-hidden="true">
+          ▶
+        </span>
         <div className={styles.teamVideoConsentHeading}>
           <small>{t("ai_generator_team_video_consent_eyebrow")}</small>
           <h3 id="ai-media-team-video-consent-title">
@@ -1048,7 +1013,7 @@ export default function MediaGenerator({
             {t(
               animatedCharactersSpeak
                 ? "ai_generator_team_video_consent_description_characters"
-                : "ai_generator_team_video_consent_description",
+                : "ai_generator_team_video_consent_description"
             )}
           </p>
         </div>
@@ -1063,7 +1028,7 @@ export default function MediaGenerator({
             {t(
               animatedCharactersSpeak
                 ? "ai_generator_team_video_consent_checkbox_characters"
-                : "ai_generator_team_video_consent_checkbox",
+                : "ai_generator_team_video_consent_checkbox"
             )}
           </span>
         </label>
@@ -1095,7 +1060,11 @@ export default function MediaGenerator({
 
   if (creationScreen) {
     return (
-      <div className={styles.creationWorkspace} data-origin={origin} data-media-kind={kind}>
+      <div
+        className={styles.creationWorkspace}
+        data-origin={origin}
+        data-media-kind={kind}
+      >
         <div className={styles.creationBackdrop} aria-hidden="true">
           <span />
           <span />
@@ -1105,22 +1074,26 @@ export default function MediaGenerator({
         {teamVideoConsentDialog}
 
         {operationLocked && !generationResult ? (
-          <div className={styles.creationProgress} role="status" aria-live="polite">
+          <div
+            className={styles.creationProgress}
+            role="status"
+            aria-live="polite"
+          >
             <div className={styles.orbit} aria-hidden="true">
               <span>✦</span>
             </div>
-            <p className={styles.creationEyebrow}>{t("ai_generator_creation_eyebrow")}</p>
+            <p className={styles.creationEyebrow}>
+              {t("ai_generator_creation_eyebrow")}
+            </p>
             <h3>{progressLabel}</h3>
             <p>
               {t(
                 kind === "video"
-                  ? videoCharacterMode === "reference_team"
-                    ? teamVideoMode === "cinematic"
-                      ? "ai_generator_video_creation_detail_team_cinematic"
-                      : "ai_generator_video_creation_detail_team"
+                  ? effectiveIdentityMode === "reference_team"
+                    ? "ai_generator_video_creation_detail_team_cinematic"
                     : "ai_generator_video_creation_detail"
                   : "ai_generator_image_creation_detail",
-                { duration: durationSeconds },
+                { duration: durationSeconds }
               )}
             </p>
             <div className={styles.largeProgressTrack} aria-hidden="true">
@@ -1186,16 +1159,31 @@ export default function MediaGenerator({
             <div className={styles.reviewHeading}>
               <div>
                 <p>{t("ai_generator_ready")}</p>
-                <h3>{t(kind === "video" ? "ai_generator_video_ready_title" : "ai_generator_image_ready_title")}</h3>
+                <h3>
+                  {t(
+                    kind === "video"
+                      ? "ai_generator_video_ready_title"
+                      : "ai_generator_image_ready_title"
+                  )}
+                </h3>
               </div>
               <div className={styles.reviewBadges}>
-                <span>{FORMATS.find((item) => item.id === resultPreviewFormat)?.ratio}</span>
+                <span>
+                  {
+                    FORMATS.find((item) => item.id === resultPreviewFormat)
+                      ?.ratio
+                  }
+                </span>
                 {kind === "video" && generationResult.videoEngineResult ? (
                   <span
                     className={styles.engineResultBadge}
-                    data-fallback={generationResult.videoEngineResult.includes("fallback")}
+                    data-fallback={generationResult.videoEngineResult.includes(
+                      "fallback"
+                    )}
                   >
-                    {t(`ai_generator_video_engine_result_${generationResult.videoEngineResult}`)}
+                    {t(
+                      `ai_generator_video_engine_result_${generationResult.videoEngineResult}`
+                    )}
                   </span>
                 ) : null}
               </div>
@@ -1225,7 +1213,13 @@ export default function MediaGenerator({
                     }}
                   />
                 ) : (
-                  <img src={generationResult.item.signed_url} alt={generationResult.item.title || t("ai_generator_preview_alt")} />
+                  <img
+                    src={generationResult.item.signed_url}
+                    alt={
+                      generationResult.item.title ||
+                      t("ai_generator_preview_alt")
+                    }
+                  />
                 )
               ) : (
                 <span>{t("apercu_indisponible_d0ce704a")}</span>
@@ -1236,15 +1230,38 @@ export default function MediaGenerator({
               {t("ai_generator_saved_automatically")}
             </div>
             <div className={styles.resultActions}>
-              <button type="button" className={styles.confirmButton} onClick={() => void handleConfirm()} disabled={operationLocked}>
+              <button
+                type="button"
+                className={styles.confirmButton}
+                onClick={() => void handleConfirm()}
+                disabled={operationLocked}
+              >
                 {finishing
-                  ? t(acceptMode === "insert" ? "ai_generator_inserting" : "ai_generator_finishing_library")
-                  : t(acceptMode === "insert" ? "ai_generator_confirm_insert" : "ai_generator_open_library")}
+                  ? t(
+                      acceptMode === "insert"
+                        ? "ai_generator_inserting"
+                        : "ai_generator_finishing_library"
+                    )
+                  : t(
+                      acceptMode === "insert"
+                        ? "ai_generator_confirm_insert"
+                        : "ai_generator_open_library"
+                    )}
               </button>
-              <button type="button" className={styles.regenerateButton} onClick={() => void handleGenerate()} disabled={disabled}>
+              <button
+                type="button"
+                className={styles.regenerateButton}
+                onClick={() => void handleGenerate()}
+                disabled={disabled}
+              >
                 ↻ {t("ai_generator_regenerate")}
               </button>
-              <button type="button" className={styles.editButton} onClick={() => void handleEditCriteria()} disabled={operationLocked}>
+              <button
+                type="button"
+                className={styles.editButton}
+                onClick={() => void handleEditCriteria()}
+                disabled={operationLocked}
+              >
                 {t("ai_generator_edit_criteria")}
               </button>
             </div>
@@ -1257,7 +1274,11 @@ export default function MediaGenerator({
             <h3>{t("ai_generator_creation_failed_title")}</h3>
             <p>{actionError || error || t("ai_generator_error")}</p>
             <div>
-              <button type="button" onClick={() => void handleGenerate()} disabled={disabled}>
+              <button
+                type="button"
+                onClick={() => void handleGenerate()}
+                disabled={disabled}
+              >
                 {t("ai_generator_retry")}
               </button>
               <button type="button" onClick={() => void handleEditCriteria()}>
@@ -1267,8 +1288,16 @@ export default function MediaGenerator({
           </div>
         ) : null}
 
-        {actionError && generationResult ? <div className={styles.error} role="alert">{actionError}</div> : null}
-        {originChangedNotice ? <div className={styles.warning} role="status">{t("ai_generator_origin_changed")}</div> : null}
+        {actionError && generationResult ? (
+          <div className={styles.error} role="alert">
+            {actionError}
+          </div>
+        ) : null}
+        {originChangedNotice ? (
+          <div className={styles.warning} role="status">
+            {t("ai_generator_origin_changed")}
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -1276,942 +1305,588 @@ export default function MediaGenerator({
   return (
     <div className={styles.generator} data-origin={origin}>
       {teamVideoConsentDialog}
-      {sceneConnectionNoticeOpen ? (
-        <SceneConnectionNotice onClose={() => setSceneConnectionNoticeOpen(false)} />
-      ) : null}
-      <div className={styles.criteriaGrid}>
-        <section className={`${styles.criteriaSection} ${styles.collapsibleSection}`}>
-          <div className={styles.collapsibleHeader}>
-            <button
-              type="button"
-              className={styles.collapsibleToggle}
-              aria-expanded={expandedStep === 1}
-              disabled={voiceBusy}
-              onClick={() => setExpandedStep((current) => current === 1 ? null : 1)}
-            >
-              <span className={styles.stepBadge}>1</span>
-              <span className={styles.collapsibleTitle}>
-                <strong>{t("ai_generator_group_creation_title")}</strong>
-                <small>{t("ai_generator_group_creation_hint")}</small>
-              </span>
-              <span className={styles.sectionSelection}>
-                {t(kind === "image" ? "image_50e19fda" : "video_304f6ca4")} · {t(`ai_generator_subject_${subjectSource}`)}
-                {inspirationImages.length
-                  ? t("ai_generator_inspiration_summary", {
-                      count: inspirationImages.length,
-                    })
-                  : ""}
-                {` · ${t(`ai_generator_people_${peopleMode}`)}`}
-              </span>
-              <i aria-hidden="true">⌄</i>
-            </button>
-            <RememberPreferenceControl
-              checked={savedPreferences.blocks[1].saved && savedPreferences.blocks[5].saved}
-              disabled={preferencesLoading || savingBlockIds.has(1) || savingBlockIds.has(5)}
-              saving={savingBlockIds.has(1) || savingBlockIds.has(5)}
-              label={t("ai_generator_remember_settings")}
-              savingLabel={t("ai_generator_preferences_saving")}
-              blockTitle={t("ai_generator_group_creation_title")}
-              onChange={(checked) => {
-                handleRememberPreference(1, checked);
-                handleRememberPreference(5, checked);
-              }}
-            />
-          </div>
-          {expandedStep === 1 ? (
-            <div className={`${styles.collapsibleBody} ${styles.creationBodyGrid}`}>
-              <div className={styles.creationCoreColumn}>
-            <div className={styles.combinedSubsection}>
-              <strong className={styles.combinedSectionTitle}>{t("ai_generator_step_kind")}</strong>
-              <div className={styles.kindChoices} role="radiogroup" aria-label={t("ai_generator_kind_label")}>
-                {(["image", "video"] as const).map((option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    role="radio"
-                    aria-checked={kind === option}
-                    className={kind === option ? styles.kindActive : ""}
-                    disabled={operationLocked}
-                    onClick={() => {
-                      clearTransientState();
-                      setIdentityConsent(false);
-                      setTeamVideoVeoConsent(false);
-                      setTeamVideoConsentOpen(false);
-                      setSceneConnectionNoticeOpen(false);
-                      setKind(option);
-                    }}
-                  >
-                    <span aria-hidden="true">{option === "image" ? "✦" : "▶"}</span>
-                    <strong>{t(option === "image" ? "image_50e19fda" : "video_304f6ca4")}</strong>
-                    <small>
-                      {t(
-                        option === "image"
-                          ? "ai_generator_kind_image_hint"
-                          : videoCharacterMode === "reference_team"
-                            ? teamVideoMode === "cinematic"
-                              ? "ai_generator_kind_video_hint_team_cinematic"
-                              : "ai_generator_kind_video_hint_team"
-                            : "ai_generator_kind_video_hint",
-                      )}
-                    </small>
-                  </button>
-                ))}
-              </div>
+      <div
+        className={styles.essentialGrid}
+        data-testid="inr-studio-essential-grid"
+      >
+        <section className={`${styles.essentialCard} ${styles.creationCard}`}>
+          <header className={styles.essentialCardHeader}>
+            <span>1</span>
+            <div>
+              <h3>{t("ai_generator_essential_creation_title")}</h3>
+              <p>{t("ai_generator_essential_creation_hint")}</p>
             </div>
-            <div className={styles.combinedSubsection}>
-              <strong className={styles.combinedSectionTitle}>{t("ai_generator_step_subject")}</strong>
-              <div className={styles.subjectChoices} role="radiogroup" aria-label={t("ai_generator_step_subject")}>
-              {subjectChoices.map((choice) => (
+          </header>
+
+          <div className={styles.essentialField}>
+            <span>{t("ai_generator_essential_media_type")}</span>
+            <div className={styles.essentialSegmented} role="radiogroup">
+              {(["image", "video"] as const).map((mediaKind) => (
                 <button
-                  key={choice.id}
+                  key={mediaKind}
                   type="button"
                   role="radio"
-                  aria-checked={subjectSource === choice.id}
-                  className={subjectSource === choice.id ? styles.choiceActive : ""}
-                  disabled={operationLocked || choice.disabled}
+                  aria-checked={kind === mediaKind}
+                  data-active={kind === mediaKind ? "true" : "false"}
+                  disabled={operationLocked}
                   onClick={() => {
-                    clearTransientState();
-                    setSubjectSource(choice.id);
+                    setKind(mediaKind);
+                    if (actionError || error) clearTransientState();
                   }}
                 >
-                  <span aria-hidden="true">{subjectSource === choice.id ? "✓" : ""}</span>
-                  <strong>{choice.title}</strong>
-                  <small>{choice.description}</small>
+                  <span aria-hidden="true">
+                    {mediaKind === "image" ? "▣" : "▶"}
+                  </span>
+                  {t(
+                    mediaKind === "image" ? "image_50e19fda" : "video_304f6ca4"
+                  )}
                 </button>
               ))}
-              </div>
-              {subjectSource === "custom" ? (
-                <div className={styles.customField}>
-                <label htmlFor="ai-media-custom-subject">{t("ai_generator_custom_label")}</label>
-                <div className={styles.customTextareaWrap}>
-                  <textarea
-                    id="ai-media-custom-subject"
-                    autoFocus
-                    value={customIdea}
-                    onChange={(event) => {
-                      setCustomIdea(event.target.value);
-                      if (actionError || error) clearTransientState();
-                    }}
-                    placeholder={t("ai_generator_custom_placeholder")}
-                    maxLength={1_600}
-                    disabled={busy || finishing}
-                    readOnly={voiceBusy}
-                    rows={3}
-                  />
-                  <MediaSubjectVoiceButton
-                    disabled={busy || finishing}
-                    value={customIdea}
-                    maxLength={1_600}
-                    onBusyChange={setVoiceBusy}
-                    onChange={(nextValue) => {
-                      setCustomIdea(nextValue);
-                      if (actionError || error) clearTransientState();
-                    }}
-                  />
-                </div>
-                {customIdea.trim().length > 0 && customIdea.trim().length < 3 ? <small>{t("ai_generator_custom_too_short")}</small> : null}
-                </div>
-              ) : null}
-              <div className={styles.aiInstructionField}>
-                <label htmlFor="ai-media-instruction">
-                  {t("ai_generator_instruction_label")}
-                  <small>{t("ai_generator_instruction_optional")}</small>
-                </label>
-                <div className={styles.customTextareaWrap}>
-                  <textarea
-                    id="ai-media-instruction"
-                    value={aiInstruction}
-                    onChange={(event) => {
-                      setAiInstruction(event.target.value);
-                      if (actionError || error) clearTransientState();
-                    }}
-                    placeholder={t("ai_generator_instruction_placeholder")}
-                    maxLength={600}
-                    disabled={operationLocked}
-                    rows={2}
-                    aria-describedby="ai-media-instruction-hint"
-                  />
-                  <MediaSubjectVoiceButton
-                    purpose="instruction"
-                    disabled={busy || finishing}
-                    value={aiInstruction}
-                    maxLength={600}
-                    onBusyChange={setVoiceBusy}
-                    onChange={(nextValue) => {
-                      setAiInstruction(nextValue);
-                      if (actionError || error) clearTransientState();
-                    }}
-                  />
-                </div>
-                <span id="ai-media-instruction-hint">
-                  {t("ai_generator_instruction_hint")}
-                  {aiInstruction.length ? ` · ${aiInstruction.length}/600` : ""}
-                </span>
-              </div>
             </div>
-              </div>
+          </div>
 
-              <div className={styles.creationMediaColumn}>
-                <div className={styles.creationColumnHeading}>
-                  <strong>{t("ai_generator_group_identity_title")}</strong>
-                  <small>{t("ai_generator_group_identity_hint")}</small>
-                </div>
-
-                <div className={styles.parameterGroup}>
-                  <span>{t("ai_generator_people_label")}</span>
-                  <div className={styles.parameterChoices} role="radiogroup" aria-label={t("ai_generator_people_label")}>
-                    {PEOPLE_MODES.map((option) => (
-                      <button
-                        key={option}
-                        type="button"
-                        role="radio"
-                        aria-checked={peopleMode === option}
-                        className={peopleMode === option ? styles.compactChoiceActive : ""}
-                        onClick={() => {
-                          setPeopleMode(option);
-                          if (option === "none") {
-                            setVideoCharacterMode("auto");
-                            setIdentityConsent(false);
-                            setTeamVideoVeoConsent(false);
-                            setTeamVideoConsentOpen(false);
-                          } else if (
-                            videoCharacterMode === "reference_team" &&
-                            option !== "team"
-                          ) {
-                            setVideoCharacterMode("auto");
-                            setIdentityConsent(false);
-                            setTeamVideoVeoConsent(false);
-                            setTeamVideoConsentOpen(false);
-                          }
-                          if (actionError || error) clearTransientState();
-                        }}
-                        disabled={operationLocked}
-                      >
-                        {t(`ai_generator_people_${option}`)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {peopleMode !== "none" ? (
-                  <div className={styles.parameterGroup}>
-                    <span>{t("ai_generator_video_character_label")}</span>
-                    <div
-                      className={`${styles.parameterChoices} ${styles.identityModeChoices}`}
-                      role="radiogroup"
-                      aria-label={t("ai_generator_video_character_label")}
+          {kind === "video" ? (
+            <div className={styles.essentialField}>
+              <span>{t("ai_generator_duration_title")}</span>
+              <div className={styles.essentialSegmented} role="radiogroup">
+                {([8, 16, 24] as const).map((duration) => {
+                  const premiumLocked = duration > videoMaxDurationSeconds;
+                  return (
+                    <button
+                      key={duration}
+                      type="button"
+                      role="radio"
+                      aria-checked={durationSeconds === duration}
+                      data-active={
+                        durationSeconds === duration ? "true" : "false"
+                      }
+                      disabled={operationLocked || premiumLocked}
+                      title={
+                        premiumLocked
+                          ? t("ai_generator_video_premium_required")
+                          : undefined
+                      }
+                      onClick={() => setDurationSeconds(duration)}
                     >
-                      {VIDEO_CHARACTER_MODES.map((option) => (
-                        <button
-                          key={option}
-                          type="button"
-                          role="radio"
-                          aria-checked={videoCharacterMode === option}
-                          className={videoCharacterMode === option ? styles.compactChoiceActive : ""}
-                          onClick={() => {
-                            setVideoCharacterMode(option);
-                            if (option === "reference_team") setPeopleMode("team");
-                            setIdentityConsent(false);
-                            setTeamVideoVeoConsent(false);
-                            setTeamVideoConsentOpen(false);
-                            if (actionError || error) clearTransientState();
-                          }}
-                          disabled={operationLocked}
-                        >
-                          {t(`ai_generator_video_character_${option}`)}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-
-                <div
-                  className={styles.inspirationSection}
-                  data-reference-purpose={strictIdentityReferenceMode ? "identity" : "visual"}
-                >
-                  <strong className={styles.combinedSectionTitle}>
-                    {t(
-                      strictIdentityReferenceMode
-                        ? videoCharacterMode === "professional"
-                          ? "ai_generator_professional_photos_title"
-                          : videoCharacterMode === "brand_avatar"
-                            ? "ai_generator_avatar_reference_title"
-                            : "ai_generator_reference_team_title"
-                        : kind === "video"
-                          ? "ai_generator_media_to_animate_title"
-                          : "ai_generator_identity_reference_title",
-                    )}
-                  </strong>
-                  <p>
-                    {t(
-                      strictIdentityReferenceMode
-                        ? videoCharacterMode === "professional"
-                          ? "ai_generator_reference_professional_hint"
-                          : videoCharacterMode === "brand_avatar"
-                            ? "ai_generator_reference_avatar_hint"
-                            : "ai_generator_reference_team_hint"
-                        : "ai_generator_reference_generic_hint",
-                    )}
-                  </p>
-
-                  {inspirationImages.length ? (
-                    <div className={styles.inspirationPreviews}>
-                      {inspirationImages.map((image, index) => (
-                        <div key={`${image.name}-${index}`} className={styles.inspirationPreview}>
-                          <img src={`data:${image.mimeType};base64,${image.data}`} alt="" />
-                          <span>
-                            <strong>{image.name}</strong>
-                            <small>{t("ai_generator_inspiration_ready")}</small>
-                          </span>
-                          <button
-                            type="button"
-                            disabled={operationLocked}
-                            aria-label={t("ai_generator_inspiration_remove")}
-                            onClick={() => {
-                              setInspirationImages((current) =>
-                                current.filter((_, itemIndex) => itemIndex !== index),
-                              );
-                              identityReferenceSetIdRef.current = createIdentityReferenceSetId();
-                              setIdentityConsent(false);
-                              setTeamVideoVeoConsent(false);
-                              setTeamVideoConsentOpen(false);
-                              if (actionError || error) clearTransientState();
-                            }}
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-
-                  {inspirationImages.length < MAX_INSPIRATION_IMAGES ? (
-                    <div className={styles.inspirationPickerRow}>
-                      <label className={styles.inspirationPicker}>
-                        <span aria-hidden="true">＋</span>
-                        <strong>
-                          {inspirationBusy
-                            ? t("ai_generator_inspiration_preparing")
-                            : t("ai_generator_inspiration_add")}
-                        </strong>
-                        <small>{inspirationImages.length} / {MAX_INSPIRATION_IMAGES}</small>
-                        <input
-                          type="file"
-                          multiple
-                          accept={INSPIRATION_IMAGE_ACCEPT}
-                          disabled={operationLocked}
-                          onChange={(event) => {
-                            const remaining = MAX_INSPIRATION_IMAGES - inspirationImages.length;
-                            const files = Array.from(event.currentTarget.files || []).slice(0, remaining);
-                            event.currentTarget.value = "";
-                            if (!files.length) return;
-                            setInspirationBusy(true);
-                            setActionError("");
-                            void Promise.all(files.map(prepareInspirationImage))
-                              .then((prepared) => {
-                                setInspirationImages((current) =>
-                                  [...current, ...prepared].slice(0, MAX_INSPIRATION_IMAGES),
-                                );
-                                identityReferenceSetIdRef.current = createIdentityReferenceSetId();
-                                setIdentityConsent(false);
-                                setTeamVideoVeoConsent(false);
-                                setTeamVideoConsentOpen(false);
-                              })
-                              .catch((caught) =>
-                                setActionError(
-                                  caught instanceof Error ? caught.message : t("ai_generator_error"),
-                                ),
-                              )
-                              .finally(() => setInspirationBusy(false));
-                          }}
-                        />
-                      </label>
-                      <button
-                        type="button"
-                        className={styles.inspirationInfoButton}
-                        aria-label={t("ai_generator_inspiration_rules_title")}
-                        aria-expanded={inspirationRulesOpen}
-                        onClick={() => setInspirationRulesOpen((current) => !current)}
-                      >
-                        i
-                      </button>
-                      {inspirationRulesOpen ? (
-                        <aside className={styles.inspirationInfoBubble} role="note">
-                          <strong>{t("ai_generator_inspiration_rules_title")}</strong>
-                          <p>{t("ai_generator_inspiration_rules_body")}</p>
-                        </aside>
-                      ) : null}
-                    </div>
-                  ) : null}
-
-                  {referenceAnimationAvailable ? (
-                    <div className={styles.teamAnimationGroup}>
-                      <label
-                        className={`${styles.switchRow} ${styles.teamAnimationToggle}`}
-                        data-team-video-mode={teamVideoMode}
-                      >
-                        <span>
-                          <strong>
-                            {t(
-                              strictIdentityReferenceMode
-                                ? "ai_generator_team_animation_label"
-                                : "ai_generator_media_to_animate_title",
-                            )}
-                          </strong>
-                          <small>
-                            {t(
-                              teamVideoMode === "cinematic"
-                                ? "ai_generator_team_animation_hint_cinematic"
-                                : "ai_generator_team_animation_hint_montage",
-                            )}
-                          </small>
-                        </span>
-                        <input
-                          type="checkbox"
-                          checked={teamVideoMode === "cinematic"}
-                          disabled={operationLocked}
-                          onChange={(event) => {
-                            setTeamVideoMode(event.target.checked ? "cinematic" : "montage");
-                            setTeamVideoVeoConsent(false);
-                            setTeamVideoConsentOpen(false);
-                            if (actionError || error) clearTransientState();
-                          }}
-                        />
-                        <i aria-hidden="true" />
-                      </label>
-
-                      {teamVideoMode === "cinematic" && peopleMode !== "none" ? (
-                        <div className={styles.teamSpeechMode}>
-                          <span className={styles.teamSpeechModeTitle}>
-                            {t("ai_generator_team_speech_title")}
-                          </span>
-                          <div
-                            className={styles.teamSpeechChoices}
-                            role="radiogroup"
-                            aria-label={t("ai_generator_team_speech_title")}
-                          >
-                            {(["voiceover", "characters"] as const).map((mode) => (
-                              <button
-                                key={mode}
-                                type="button"
-                                role="radio"
-                                aria-checked={teamVideoSpeechMode === mode}
-                                data-active={teamVideoSpeechMode === mode ? "true" : "false"}
-                                onClick={() => {
-                                  setTeamVideoSpeechMode(mode);
-                                  setTeamVideoVeoConsent(false);
-                                  setTeamVideoConsentOpen(false);
-                                  if (actionError || error) clearTransientState();
-                                }}
-                                disabled={operationLocked}
-                              >
-                                <span aria-hidden="true">{mode === "voiceover" ? "◉" : "◖"}</span>
-                                <span>
-                                  <strong>{t(`ai_generator_team_speech_${mode}`)}</strong>
-                                  <small>{t(`ai_generator_team_speech_${mode}_hint`)}</small>
-                                </span>
-                              </button>
-                            ))}
-                          </div>
-                          <p className={styles.teamSpeechNote}>
-                            {t("ai_generator_team_speech_gender_hint")}
-                          </p>
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : null}
-
-                  {characterReferenceMissing ? (
-                    <p className={styles.identityRequirement} role="alert">
-                      {t(
-                        videoCharacterMode === "reference_team"
-                          ? "ai_generator_video_character_reference_team_required"
-                          : videoCharacterMode === "brand_avatar"
-                            ? "ai_generator_video_character_avatar_reference_required"
-                            : "ai_generator_video_character_professional_photo_required",
-                      )}
-                    </p>
-                  ) : null}
-
-                </div>
+                      {duration} s
+                    </button>
+                  );
+                })}
               </div>
             </div>
           ) : null}
-        </section>
 
-        <section className={`${styles.criteriaSection} ${styles.collapsibleSection} ${styles.contentCriteriaSection}`}>
-          <div className={styles.collapsibleHeader}>
-            <button
-              type="button"
-              className={styles.collapsibleToggle}
-              aria-expanded={expandedStep === 2}
-              disabled={voiceBusy}
-              onClick={() => setExpandedStep((current) => current === 2 ? null : 2)}
-            >
-              <span className={styles.stepBadge}>2</span>
-              <span className={styles.collapsibleTitle}>
-                <strong>{t("ai_generator_group_content_title")}</strong>
-                <small>{t("ai_generator_group_content_hint")}</small>
+          <div className={styles.essentialSplitFields}>
+            <label className={styles.essentialSelectField}>
+              <span>{t("ai_generator_format_title")}</span>
+              <select
+                className={styles.studioSelect}
+                value={format}
+                disabled={operationLocked}
+                onChange={(event) =>
+                  setFormat(event.target.value as MediaGenerationFormat)
+                }
+              >
+                {FORMATS.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {t(`ai_generator_format_${option.id}`)} · {option.ratio}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className={styles.essentialSelectField}>
+              <span>
+                {t(
+                  kind === "video"
+                    ? "ai_generator_video_render_label"
+                    : "ai_generator_render_label"
+                )}
               </span>
-              <span className={styles.sectionSelection}>
-                {t(`ai_generator_typology_${typology}`)} · {FORMATS.find((item) => item.id === format)?.ratio}
-              </span>
-              <i aria-hidden="true">⌄</i>
-            </button>
-            <RememberPreferenceControl
-              checked={savedPreferences.blocks[2].saved}
-              disabled={preferencesLoading || savingBlockIds.has(2)}
-              saving={savingBlockIds.has(2)}
-              label={t("ai_generator_remember_settings")}
-              savingLabel={t("ai_generator_preferences_saving")}
-              blockTitle={t("ai_generator_group_content_title")}
-              onChange={(checked) => handleRememberPreference(2, checked)}
-            />
+              <select
+                className={styles.studioSelect}
+                value={imageStyle}
+                disabled={operationLocked}
+                onChange={(event) =>
+                  setImageStyle(event.target.value as MediaGenerationImageStyle)
+                }
+              >
+                {IMAGE_STYLES.map((option) => (
+                  <option key={option} value={option}>
+                    {t(
+                      kind === "video"
+                        ? `ai_generator_video_render_${option}`
+                        : `ai_generator_render_${option}`
+                    )}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
-          {expandedStep === 2 ? <div className={`${styles.collapsibleBody} ${styles.twoColumnBody}`}>
-            <div className={styles.combinedSubsection}>
-              <strong className={styles.combinedSectionTitle}>{t("ai_generator_typology_title")}</strong>
-              <div className={styles.typologyChoices} role="radiogroup" aria-label={t("ai_generator_typology_title")}>
-              {TYPOLOGIES.map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={typology === option.id}
-                  className={typology === option.id ? styles.compactChoiceActive : ""}
-                  onClick={() => setTypology(option.id)}
-                  disabled={operationLocked}
-                >
-                  <span aria-hidden="true">{option.icon}</span>
-                  {t(`ai_generator_typology_${option.id}`)}
-                </button>
-              ))}
-              </div>
-            </div>
-            <div className={styles.combinedSubsection}>
-              <strong className={styles.combinedSectionTitle}>{t("ai_generator_format_title")}</strong>
-              <div className={styles.formatChoices} role="radiogroup" aria-label={t("ai_generator_format_title")}>
-              {FORMATS.map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={format === option.id}
-                  className={format === option.id ? styles.compactChoiceActive : ""}
-                  onClick={() => setFormat(option.id)}
-                  disabled={operationLocked}
-                >
-                  <span aria-hidden="true">{option.icon}</span>
-                  <strong>{t(`ai_generator_format_${option.id}`)}</strong>
-                  <small>{option.ratio}</small>
-                </button>
-              ))}
-              </div>
-            </div>
-          </div> : null}
-        </section>
 
-        <section className={`${styles.criteriaSection} ${styles.collapsibleSection}`}>
-          <div className={styles.collapsibleHeader}>
-            <button
-              type="button"
-              className={styles.collapsibleToggle}
-              aria-expanded={expandedStep === 3}
-              disabled={voiceBusy}
-              onClick={() => setExpandedStep((current) => current === 3 ? null : 3)}
-            >
-              <span className={styles.stepBadge}>3</span>
-              <span className={styles.collapsibleTitle}>
-                <strong>{t("ai_generator_group_art_title")}</strong>
-                <small>{t("ai_generator_group_art_hint")}</small>
-              </span>
-              <span className={styles.sectionSelection}>
-                {t(`ai_generator_style_${visualStyle}`)} · {t(`ai_generator_render_${imageStyle}`)} · {t(`ai_generator_shot_${shotType}`)}
-              </span>
-              <i aria-hidden="true">⌄</i>
-            </button>
-            <RememberPreferenceControl
-              checked={savedPreferences.blocks[3].saved && savedPreferences.blocks[4].saved}
-              disabled={preferencesLoading || savingBlockIds.has(3) || savingBlockIds.has(4)}
-              saving={savingBlockIds.has(3) || savingBlockIds.has(4)}
-              label={t("ai_generator_remember_settings")}
-              savingLabel={t("ai_generator_preferences_saving")}
-              blockTitle={t("ai_generator_group_art_title")}
-              onChange={(checked) => {
-                handleRememberPreference(3, checked);
-                handleRememberPreference(4, checked);
+          <label className={styles.essentialSelectField}>
+            <span>{t("ai_generator_essential_subject_source")}</span>
+            <select
+              className={styles.studioSelect}
+              value={subjectSource}
+              disabled={operationLocked}
+              onChange={(event) => {
+                setSubjectSource(
+                  event.target.value as MediaGenerationSubjectSource
+                );
+                if (actionError || error) clearTransientState();
               }}
-            />
+            >
+              {subjectChoices.map((choice) => (
+                <option
+                  key={choice.id}
+                  value={choice.id}
+                  disabled={choice.disabled}
+                >
+                  {choice.title}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {subjectSource === "custom" ? (
+            <label className={styles.essentialTextareaField}>
+              <span>{t("ai_generator_custom_label")}</span>
+              <div className={styles.customTextareaWrap}>
+                <textarea
+                  value={customIdea}
+                  onChange={(event) => {
+                    setCustomIdea(event.target.value);
+                    if (actionError || error) clearTransientState();
+                  }}
+                  placeholder={t("ai_generator_custom_placeholder")}
+                  maxLength={1_600}
+                  disabled={busy || finishing}
+                  readOnly={voiceBusy}
+                  rows={3}
+                />
+                <MediaSubjectVoiceButton
+                  disabled={busy || finishing}
+                  value={customIdea}
+                  maxLength={1_600}
+                  onBusyChange={setVoiceBusy}
+                  onChange={(nextValue) => {
+                    setCustomIdea(nextValue);
+                    if (actionError || error) clearTransientState();
+                  }}
+                />
+              </div>
+              {customIdea.trim().length > 0 && customIdea.trim().length < 3 ? (
+                <small>{t("ai_generator_custom_too_short")}</small>
+              ) : null}
+            </label>
+          ) : null}
+
+          <label className={styles.essentialTextareaField}>
+            <span>
+              {t("ai_generator_essential_instruction_label")}
+              <small>{t("ai_generator_instruction_optional")}</small>
+            </span>
+            <div className={styles.customTextareaWrap}>
+              <textarea
+                value={aiInstruction}
+                onChange={(event) => {
+                  setAiInstruction(event.target.value);
+                  if (actionError || error) clearTransientState();
+                }}
+                placeholder={t("ai_generator_instruction_placeholder")}
+                maxLength={600}
+                disabled={operationLocked}
+                rows={2}
+              />
+              <MediaSubjectVoiceButton
+                purpose="instruction"
+                disabled={busy || finishing}
+                value={aiInstruction}
+                maxLength={600}
+                onBusyChange={setVoiceBusy}
+                onChange={(nextValue) => {
+                  setAiInstruction(nextValue);
+                  if (actionError || error) clearTransientState();
+                }}
+              />
+            </div>
+            <small>{t("ai_generator_instruction_hint")}</small>
+          </label>
+        </section>
+
+        <section className={`${styles.essentialCard} ${styles.mediaCard}`}>
+          <header className={styles.essentialCardHeader}>
+            <span>2</span>
+            <div>
+              <h3>{t("ai_generator_essential_media_title")}</h3>
+              <p>{t("ai_generator_essential_media_hint")}</p>
+            </div>
+          </header>
+
+          <div className={styles.essentialSegmented} role="radiogroup">
+            {(["ai", "real"] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                role="radio"
+                aria-checked={mediaSourceMode === mode}
+                data-active={mediaSourceMode === mode ? "true" : "false"}
+                disabled={operationLocked}
+                onClick={() => selectMediaSourceMode(mode)}
+              >
+                <span aria-hidden="true">{mode === "ai" ? "✦" : "◉"}</span>
+                {t(`ai_generator_essential_media_mode_${mode}`)}
+              </button>
+            ))}
           </div>
-          {expandedStep === 3 ? <div className={`${styles.collapsibleBody} ${styles.twoColumnBody}`}>
-            <div className={styles.combinedSubsection}>
-              <strong className={styles.combinedSectionTitle}>{t("ai_generator_style_title")}</strong>
-              <div className={styles.styleChoices} role="radiogroup" aria-label={t("ai_generator_style_title")}>
-                {VISUAL_STYLES.map((option) => (
+
+          {mediaSourceMode === "ai" ? (
+            <div className={styles.aiMediaNotice} role="note">
+              <span aria-hidden="true">✦</span>
+              <div>
+                <strong>{t("ai_generator_essential_ai_notice_title")}</strong>
+                <small>{t("ai_generator_essential_ai_notice_hint")}</small>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className={styles.essentialField}>
+                <span>{t("ai_generator_essential_character_count")}</span>
+                <div className={styles.essentialSegmented} role="radiogroup">
+                  {([0, 1, 2, 3] as const).map((count) => (
+                    <button
+                      key={count}
+                      type="button"
+                      role="radio"
+                      aria-checked={realCharacterCount === count}
+                      data-active={
+                        realCharacterCount === count ? "true" : "false"
+                      }
+                      disabled={operationLocked}
+                      onClick={() => selectRealCharacterCount(count)}
+                    >
+                      {count === 0
+                        ? t("ai_generator_essential_character_none")
+                        : count}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className={styles.referenceSlots}>
+                {Array.from({ length: realCharacterCount }, (_, index) =>
+                  renderReferenceSlot({
+                    role: "character",
+                    characterIndex: (index + 1) as 1 | 2 | 3,
+                    title: t("ai_generator_essential_character_slot", {
+                      count: index + 1,
+                    }),
+                    hint: t("ai_generator_essential_character_slot_hint"),
+                  })
+                )}
+                {renderReferenceSlot({
+                  role: "environment",
+                  title: t("ai_generator_essential_environment_slot"),
+                  hint: t("ai_generator_essential_environment_slot_hint"),
+                  optional: true,
+                })}
+                {renderReferenceSlot({
+                  role: "product",
+                  title: t("ai_generator_essential_product_slot"),
+                  hint: t("ai_generator_essential_product_slot_hint"),
+                  optional: true,
+                })}
+              </div>
+            </>
+          )}
+
+          <div className={styles.newSceneNotice} role="note">
+            <span aria-hidden="true">✓</span>
+            <p>
+              {t(
+                kind === "video"
+                  ? "ai_generator_essential_new_scene_video"
+                  : "ai_generator_essential_new_scene_image"
+              )}
+            </p>
+          </div>
+
+          {characterReferenceMissing ? (
+            <p className={styles.identityRequirement} role="alert">
+              {t("ai_generator_essential_character_missing")}
+            </p>
+          ) : null}
+        </section>
+
+        <section className={`${styles.essentialCard} ${styles.messageCard}`}>
+          <header className={styles.essentialCardHeader}>
+            <span>3</span>
+            <div>
+              <h3>{t("ai_generator_essential_message_title")}</h3>
+              <p>{t("ai_generator_essential_message_hint")}</p>
+            </div>
+          </header>
+
+          <label className={styles.essentialSwitchRow}>
+            <span>
+              <strong>{t("ai_generator_text_on_media")}</strong>
+              <small>{t("ai_generator_text_inspiration_hint")}</small>
+            </span>
+            <input
+              type="checkbox"
+              checked={withText}
+              disabled={operationLocked}
+              onChange={(event) => setWithText(event.target.checked)}
+            />
+            <i aria-hidden="true" />
+          </label>
+
+          {withText ? (
+            <div className={styles.textKeywordsGroup}>
+              <div className={styles.textKeywordsHeader}>
+                <span>{t("ai_generator_text_keywords_label")}</span>
+                <small>
+                  {t("ai_generator_text_keywords_counter", {
+                    count: resolvedTextKeywords.length,
+                    max: MAX_TEXT_KEYWORDS,
+                  })}
+                </small>
+              </div>
+              {textKeywords.length ? (
+                <div className={styles.textKeywordTags}>
+                  {textKeywords.map((keyword) => (
+                    <span key={keyword} className={styles.textKeywordTag}>
+                      {keyword}
+                      <button
+                        type="button"
+                        onClick={() => removeTextKeyword(keyword)}
+                        disabled={operationLocked}
+                        aria-label={t("ai_generator_text_keyword_remove", {
+                          keyword,
+                        })}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+              <div className={styles.textKeywordInputRow}>
+                <input
+                  type="text"
+                  value={textKeywordDraft}
+                  onChange={(event) =>
+                    setTextKeywordDraft(event.target.value.slice(0, 160))
+                  }
+                  onKeyDown={(event) => {
+                    if (["Enter", ",", ";"].includes(event.key)) {
+                      event.preventDefault();
+                      if (textKeywordDraft.trim())
+                        addTextKeywords(textKeywordDraft);
+                    }
+                  }}
+                  onBlur={() => {
+                    if (textKeywordDraft.trim())
+                      addTextKeywords(textKeywordDraft);
+                  }}
+                  placeholder={t("ai_generator_text_keywords_placeholder")}
+                  disabled={
+                    operationLocked || textKeywords.length >= MAX_TEXT_KEYWORDS
+                  }
+                />
+                <button
+                  type="button"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => addTextKeywords(textKeywordDraft)}
+                  disabled={
+                    operationLocked ||
+                    !textKeywordDraft.trim() ||
+                    textKeywords.length >= MAX_TEXT_KEYWORDS
+                  }
+                >
+                  {t("ai_generator_text_keyword_add")}
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          <label className={styles.essentialSwitchRow}>
+            <span>
+              <strong>{t("ai_generator_brand_colors")}</strong>
+              <small>{t("ai_generator_brand_colors_hint")}</small>
+            </span>
+            <input
+              type="checkbox"
+              checked={useBrandColors}
+              disabled={operationLocked}
+              onChange={(event) => setUseBrandColors(event.target.checked)}
+            />
+            <i aria-hidden="true" />
+          </label>
+
+          <div className={styles.essentialField}>
+            <span>{t("ai_generator_logo_label")}</span>
+            <div className={styles.essentialSegmented} role="radiogroup">
+              {LOGO_MODES.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  role="radio"
+                  aria-checked={logoMode === option}
+                  data-active={logoMode === option ? "true" : "false"}
+                  disabled={operationLocked}
+                  onClick={() => setLogoMode(option)}
+                >
+                  {t(`ai_generator_logo_${option}`)}
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section
+          className={`${styles.essentialCard} ${styles.soundCard}`}
+          data-media-kind={kind}
+        >
+          <header className={styles.essentialCardHeader}>
+            <span>4</span>
+            <div>
+              <h3>{t("ai_generator_essential_sound_title")}</h3>
+              <p>
+                {t(
+                  kind === "video"
+                    ? "ai_generator_essential_sound_hint"
+                    : "ai_generator_essential_sound_image_hint"
+                )}
+              </p>
+            </div>
+          </header>
+
+          {kind === "image" ? (
+            <div className={styles.noAudioNotice} role="note">
+              <span aria-hidden="true">▣</span>
+              <div>
+                <strong>{t("ai_generator_essential_no_audio_title")}</strong>
+                <small>{t("ai_generator_essential_no_audio_hint")}</small>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className={styles.soundChoices} role="radiogroup">
+                {(["voiceover", "characters"] as const).map((mode) => (
                   <button
-                    key={option}
+                    key={mode}
                     type="button"
                     role="radio"
-                    aria-checked={visualStyle === option}
-                    className={visualStyle === option ? styles.compactChoiceActive : ""}
-                    onClick={() => setVisualStyle(option)}
+                    aria-checked={teamVideoSpeechMode === mode}
+                    data-active={
+                      teamVideoSpeechMode === mode ? "true" : "false"
+                    }
                     disabled={operationLocked}
+                    onClick={() => {
+                      setTeamVideoSpeechMode(mode);
+                      setTeamVideoVeoConsent(false);
+                      setTeamVideoConsentOpen(false);
+                    }}
                   >
-                    {t(`ai_generator_style_${option}`)}
+                    <span aria-hidden="true">
+                      {mode === "voiceover" ? "◉" : "◖"}
+                    </span>
+                    <span>
+                      <strong>
+                        {t(`ai_generator_essential_sound_${mode}`)}
+                      </strong>
+                      <small>
+                        {t(`ai_generator_team_speech_${mode}_hint`)}
+                      </small>
+                    </span>
                   </button>
                 ))}
               </div>
-              <div className={styles.parameterGroup}>
-                <span>{t("ai_generator_creativity_label")}</span>
-                <div className={`${styles.parameterChoices} ${styles.twoChoices}`} role="radiogroup" aria-label={t("ai_generator_creativity_label")}>
-                  {CREATIVITY_LEVELS.map((option) => (
-                    <button
-                      key={option}
-                      type="button"
-                      role="radio"
-                      aria-checked={creativity === option}
-                      className={creativity === option ? styles.compactChoiceActive : ""}
-                      onClick={() => setCreativity(option)}
-                      disabled={operationLocked}
-                    >
-                      {t(`ai_generator_creativity_${option}`)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <label className={styles.switchRow}>
-                <span>
-                  <strong>{t("ai_generator_brand_colors")}</strong>
-                  <small>{t("ai_generator_brand_colors_hint")}</small>
-                </span>
-                <input type="checkbox" checked={useBrandColors} onChange={(event) => setUseBrandColors(event.target.checked)} />
-                <i aria-hidden="true" />
-              </label>
-              <div className={styles.parameterGroup}>
-                <span>{t("ai_generator_logo_label")}</span>
-                <div className={`${styles.parameterChoices} ${styles.threeChoices}`} role="radiogroup" aria-label={t("ai_generator_logo_label")}>
-                  {LOGO_MODES.map((option) => (
-                    <button
-                      key={option}
-                      type="button"
-                      role="radio"
-                      aria-checked={logoMode === option}
-                      className={logoMode === option ? styles.compactChoiceActive : ""}
-                      onClick={() => setLogoMode(option)}
-                      disabled={operationLocked}
-                    >
-                      {t(`ai_generator_logo_${option}`)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
 
-            <div className={styles.combinedSubsection}>
-              <strong className={styles.combinedSectionTitle}>{t("ai_generator_group_composition_title")}</strong>
-              <div className={styles.parameterGroup}>
-                <span>{t("ai_generator_render_label")}</span>
-                <div className={styles.parameterChoices} role="radiogroup" aria-label={t("ai_generator_render_label")}>
-                  {IMAGE_STYLES.map((option) => (
-                    <button
-                      key={option}
-                      type="button"
-                      role="radio"
-                      aria-checked={imageStyle === option}
-                      className={imageStyle === option ? styles.compactChoiceActive : ""}
-                      onClick={() => setImageStyle(option)}
-                      disabled={operationLocked}
+              {teamVideoSpeechMode === "voiceover" ? (
+                <div className={styles.voiceSettings}>
+                  <div className={styles.essentialField}>
+                    <span>{t("ai_generator_narration_voice_label")}</span>
+                    <div
+                      className={styles.essentialSegmented}
+                      role="radiogroup"
                     >
-                      {t(`ai_generator_render_${option}`)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className={styles.parameterGroup}>
-                <span>{t("ai_generator_shot_label")}</span>
-                <div className={styles.parameterChoices} role="radiogroup" aria-label={t("ai_generator_shot_label")}>
-                  {SHOT_TYPES.map((option) => (
-                    <button
-                      key={option}
-                      type="button"
-                      role="radio"
-                      aria-checked={shotType === option}
-                      className={shotType === option ? styles.compactChoiceActive : ""}
-                      onClick={() => setShotType(option)}
-                      disabled={operationLocked}
-                    >
-                      {t(`ai_generator_shot_${option}`)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div> : null}
-        </section>
-
-        <section className={`${styles.criteriaSection} ${styles.optionsSection} ${styles.collapsibleSection}`}>
-          <div className={styles.collapsibleHeader}>
-            <button
-              type="button"
-              className={styles.collapsibleToggle}
-              aria-expanded={expandedStep === 4}
-              disabled={voiceBusy}
-              onClick={() => setExpandedStep((current) => current === 4 ? null : 4)}
-            >
-              <span className={styles.stepBadge}>4</span>
-              <span className={styles.collapsibleTitle}>
-                <strong>{t("ai_generator_group_finish_title")}</strong>
-                <small>{t("ai_generator_group_finish_hint")}</small>
-              </span>
-              <span className={styles.sectionSelection}>
-                {kind === "video"
-                  ? t("ai_generator_options_summary_video", {
-                      duration: durationSeconds,
-                      text: t(withText ? "ai_generator_with_text" : "ai_generator_without_text"),
-                      music: t(withMusic ? "ai_generator_with_music" : "ai_generator_without_music"),
-                      narration: animatedCharactersSpeak
-                        ? t("ai_generator_team_speech_finish_summary")
-                        : effectiveWithNarration
-                        ? `${t("ai_generator_with_narration")} · ${t(`ai_generator_narration_voice_${narrationVoice}`)} · ${t(`ai_generator_narration_voice_variant_${narrationVoiceVariant.toLowerCase()}`)}`
-                        : t("ai_generator_without_narration"),
-                    })
-                  : withText && resolvedTextKeywords.length
-                    ? t("ai_generator_options_summary_text_keywords", {
-                        text: t("ai_generator_with_text"),
-                        count: resolvedTextKeywords.length,
-                      })
-                    : t(withText ? "ai_generator_with_text" : "ai_generator_without_text")}
-              </span>
-              <i aria-hidden="true">⌄</i>
-            </button>
-            <RememberPreferenceControl
-              checked={savedPreferences.blocks[6].saved}
-              disabled={preferencesLoading || savingBlockIds.has(6)}
-              saving={savingBlockIds.has(6)}
-              label={t("ai_generator_remember_settings")}
-              savingLabel={t("ai_generator_preferences_saving")}
-              blockTitle={t("ai_generator_group_finish_title")}
-              onChange={(checked) => handleRememberPreference(6, checked)}
-            />
-          </div>
-          {expandedStep === 4 ? <div className={styles.collapsibleBody}>
-            {kind === "video" ? (
-              <div className={styles.combinedSubsection}>
-                <strong className={styles.combinedSectionTitle}>{t("ai_generator_duration_title")}</strong>
-                <div className={styles.durationChoices} role="radiogroup" aria-label={t("ai_generator_duration_title")}>
-                  {([8, 16, 24] as const).map((duration) => {
-                    const premiumLocked = duration > videoMaxDurationSeconds;
-                    return (
-                      <button
-                        key={duration}
-                        type="button"
-                        role="radio"
-                        aria-checked={durationSeconds === duration}
-                        className={durationSeconds === duration ? styles.compactChoiceActive : ""}
-                        onClick={() => setDurationSeconds(duration)}
-                        disabled={operationLocked || premiumLocked}
-                        title={premiumLocked ? t("ai_generator_video_premium_required") : undefined}
-                      >
-                        <strong>{duration} s</strong>
-                        <small>
-                          {t("ai_generator_sequence_count", { count: duration / 8 })}
-                          {premiumLocked ? ` · ${t("ai_generator_premium_only_short")}` : ""}
-                        </small>
-                      </button>
-                    );
-                  })}
-                </div>
-                {sceneConnectionAvailable ? (
-                  <label className={styles.sceneConnectionChoice}>
-                    <input
-                      type="checkbox"
-                      checked={connectScenes}
-                      disabled={operationLocked}
-                      onChange={(event) => {
-                        setConnectScenes(event.target.checked);
-                        if (event.target.checked) setSceneConnectionNoticeOpen(true);
-                      }}
-                    />
-                    <span>
-                      <strong>{t("ai_generator_connect_scenes_label")}</strong>
-                      <small>{t("ai_generator_connect_scenes_hint")}</small>
-                    </span>
-                  </label>
-                ) : null}
-                {videoDurationRestricted ? (
-                  <div className={styles.durationUpsell} role="note">
-                    {t("ai_generator_video_premium_required")}
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-            <label className={styles.switchRow}>
-              <span>
-                <strong>{t("ai_generator_text_on_media")}</strong>
-                <small>{t("ai_generator_text_inspiration_hint")}</small>
-              </span>
-              <input type="checkbox" checked={withText} onChange={(event) => setWithText(event.target.checked)} />
-              <i aria-hidden="true" />
-            </label>
-            {withText ? (
-              <div className={styles.textKeywordsGroup}>
-                <div className={styles.textKeywordsHeader}>
-                  <span>{t("ai_generator_text_keywords_label")}</span>
-                  <small>{t("ai_generator_text_keywords_counter", { count: resolvedTextKeywords.length, max: MAX_TEXT_KEYWORDS })}</small>
-                </div>
-                <p>{t("ai_generator_text_keywords_hint")}</p>
-                {textKeywords.length ? (
-                  <div className={styles.textKeywordTags} aria-label={t("ai_generator_text_keywords_label")}>
-                    {textKeywords.map((keyword) => (
-                      <span key={keyword} className={styles.textKeywordTag}>
-                        {keyword}
+                      {(["female", "male"] as const).map((voice) => (
                         <button
+                          key={voice}
                           type="button"
-                          onClick={() => removeTextKeyword(keyword)}
+                          role="radio"
+                          aria-checked={narrationVoice === voice}
+                          data-active={
+                            narrationVoice === voice ? "true" : "false"
+                          }
                           disabled={operationLocked}
-                          aria-label={t("ai_generator_text_keyword_remove", { keyword })}
+                          onClick={() => {
+                            setNarrationVoice(voice);
+                            setNarrationVoiceVariant((current) =>
+                              isAiMediaNarrationVoiceVariantForGender(
+                                current,
+                                voice
+                              )
+                                ? current
+                                : defaultAiMediaNarrationVoiceVariant(voice)
+                            );
+                          }}
                         >
-                          ×
+                          {t(`ai_generator_narration_voice_${voice}`)}
                         </button>
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
-                <div className={styles.textKeywordInputRow}>
-                  <input
-                    type="text"
-                    value={textKeywordDraft}
-                    onChange={(event) => setTextKeywordDraft(event.target.value.slice(0, 160))}
-                    onKeyDown={(event) => {
-                      if (["Enter", ",", ";"].includes(event.key)) {
-                        event.preventDefault();
-                        if (textKeywordDraft.trim()) addTextKeywords(textKeywordDraft);
-                      } else if (event.key === "Backspace" && !textKeywordDraft && textKeywords.length) {
-                        removeTextKeyword(textKeywords[textKeywords.length - 1]);
-                      }
-                    }}
-                    onBlur={() => {
-                      if (textKeywordDraft.trim()) addTextKeywords(textKeywordDraft);
-                    }}
-                    placeholder={t("ai_generator_text_keywords_placeholder")}
-                    disabled={operationLocked || textKeywords.length >= MAX_TEXT_KEYWORDS}
-                    aria-label={t("ai_generator_text_keywords_label")}
-                  />
-                  <button
-                    type="button"
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={() => addTextKeywords(textKeywordDraft)}
-                    disabled={operationLocked || !textKeywordDraft.trim() || textKeywords.length >= MAX_TEXT_KEYWORDS}
-                  >
-                    {t("ai_generator_text_keyword_add")}
-                  </button>
-                </div>
-              </div>
-            ) : null}
-            {kind === "video" ? (
-              <div className={styles.narrationControl}>
-                <label
-                  className={styles.switchRow}
-                  data-disabled-by-team-speech={animatedCharactersSpeak ? "true" : "false"}
-                >
-                  <span>
-                    <strong>{t("ai_generator_narration")}</strong>
-                    <small>
-                      {t(
-                        animatedCharactersSpeak
-                          ? "ai_generator_team_speech_narration_disabled_hint"
-                          : "ai_generator_narration_hint",
-                      )}
-                    </small>
-                  </span>
-                  <input
-                    type="checkbox"
-                    checked={effectiveWithNarration}
-                    disabled={operationLocked || animatedCharactersSpeak}
-                    onChange={(event) => setWithNarration(event.target.checked)}
-                  />
-                  <i aria-hidden="true" />
-                </label>
-                {animatedCharactersSpeak ? (
-                  <div className={styles.teamSpeechFinishNotice} role="note">
-                    <strong>{t("ai_generator_team_speech_finish_title")}</strong>
-                    <small>{t("ai_generator_team_speech_finish_hint")}</small>
-                  </div>
-                ) : effectiveWithNarration ? (
-                  <div className={styles.narrationVoicePicker}>
-                    <div className={styles.narrationVoiceGender}>
-                      <span>{t("ai_generator_narration_voice_label")}</span>
-                      <div
-                        className={`${styles.parameterChoices} ${styles.twoChoices}`}
-                        role="radiogroup"
-                        aria-label={t("ai_generator_narration_voice_label")}
-                      >
-                        {(["female", "male"] as const).map((voice) => (
-                          <button
-                            key={voice}
-                            type="button"
-                            role="radio"
-                            aria-checked={narrationVoice === voice}
-                            className={narrationVoice === voice ? styles.compactChoiceActive : ""}
-                            onClick={() => {
-                              setNarrationVoice(voice);
-                              setNarrationVoiceVariant((current) =>
-                                isAiMediaNarrationVoiceVariantForGender(current, voice)
-                                  ? current
-                                  : defaultAiMediaNarrationVoiceVariant(voice),
-                              );
-                            }}
-                            disabled={operationLocked}
-                          >
-                            {voice === "female"
-                              ? t("ai_generator_narration_voice_female")
-                              : t("ai_generator_narration_voice_male")}
-                          </button>
-                        ))}
-                      </div>
+                      ))}
                     </div>
-                    <label className={styles.narrationVoiceVariantField}>
-                      <span>{t("ai_generator_narration_voice_variant_label")}</span>
-                      <select
-                        value={narrationVoiceVariant}
-                        onChange={(event) =>
-                          setNarrationVoiceVariant(
-                            event.target.value as MediaGenerationNarrationVoiceVariant,
-                          )
-                        }
-                        disabled={operationLocked}
-                      >
-                        {AI_MEDIA_NARRATION_VOICE_VARIANTS[narrationVoice].map(
-                          (variant) => (
-                            <option key={variant} value={variant}>
-                              {t(
-                                `ai_generator_narration_voice_variant_${variant.toLowerCase()}`,
-                              )}
-                            </option>
-                          ),
-                        )}
-                      </select>
-                      <small>
-                        {t(
-                          `ai_generator_narration_voice_variant_${narrationVoiceVariant.toLowerCase()}_hint`,
-                        )}
-                      </small>
-                    </label>
                   </div>
-                ) : null}
-              </div>
-            ) : null}
-            {kind === "video" ? (
-              <label className={styles.switchRow}>
+                  <label className={styles.essentialSelectField}>
+                    <span>
+                      {t("ai_generator_narration_voice_variant_label")}
+                    </span>
+                    <select
+                      className={styles.studioSelect}
+                      value={narrationVoiceVariant}
+                      disabled={operationLocked}
+                      onChange={(event) =>
+                        setNarrationVoiceVariant(
+                          event.target
+                            .value as MediaGenerationNarrationVoiceVariant
+                        )
+                      }
+                    >
+                      {AI_MEDIA_NARRATION_VOICE_VARIANTS[narrationVoice].map(
+                        (variant) => (
+                          <option key={variant} value={variant}>
+                            {t(
+                              `ai_generator_narration_voice_variant_${variant.toLowerCase()}`
+                            )}
+                          </option>
+                        )
+                      )}
+                    </select>
+                  </label>
+                </div>
+              ) : (
+                <div className={styles.characterSpeechNotice} role="note">
+                  {t("ai_generator_essential_character_speech_notice")}
+                </div>
+              )}
+
+              <label className={styles.essentialSwitchRow}>
                 <span>
                   <strong>{t("ai_generator_with_music")}</strong>
                   <small>{t("ai_generator_music_inrcy_hint")}</small>
                 </span>
-                <input type="checkbox" checked={withMusic} onChange={(event) => setWithMusic(event.target.checked)} />
+                <input
+                  type="checkbox"
+                  checked={withMusic}
+                  disabled={operationLocked}
+                  onChange={(event) => setWithMusic(event.target.checked)}
+                />
                 <i aria-hidden="true" />
               </label>
-            ) : null}
-          </div> : null}
+            </>
+          )}
         </section>
       </div>
 
@@ -2220,7 +1895,7 @@ export default function MediaGenerator({
           {t(
             preferencesError === "load"
               ? "ai_generator_preferences_load_error"
-              : "ai_generator_preferences_save_error",
+              : "ai_generator_preferences_save_error"
           )}
         </div>
       ) : null}
@@ -2230,9 +1905,15 @@ export default function MediaGenerator({
           {t("ai_generator_video_premium_required")}
         </div>
       ) : exhausted ? (
-        <div className={styles.warning} role="status">{t("ai_generator_quota_reached")}</div>
+        <div className={styles.warning} role="status">
+          {t("ai_generator_quota_reached")}
+        </div>
       ) : null}
-      {actionError || error ? <div className={styles.error} role="alert">{actionError || error}</div> : null}
+      {actionError || error ? (
+        <div className={styles.error} role="alert">
+          {actionError || error}
+        </div>
+      ) : null}
 
       <div
         className={styles.footerBar}
@@ -2249,47 +1930,29 @@ export default function MediaGenerator({
           </span>
           <div className={styles.quotaCopy}>
             <div className={styles.quotaHeadline}>
-              <span>{t(kind === "image" ? "ai_generator_image_quota" : "ai_generator_video_quota")}</span>
+              <span>
+                {t(
+                  kind === "image"
+                    ? "ai_generator_image_quota"
+                    : "ai_generator_video_quota"
+                )}
+              </span>
               <strong>{quotaValue}</strong>
             </div>
             <small>
               {videoPremiumRequired
                 ? t("ai_generator_video_premium_required")
                 : quota?.unlimited
-                  ? t("ai_generator_unlimited")
-                  : counter?.remaining !== null && counter
-                    ? t("ai_generator_remaining", { count: counter.remaining })
-                    : t("ai_generator_monthly_quota")}
-              {resetDate ? ` · ${t("ai_generator_reset", { date: resetDate })}` : ""}
+                ? t("ai_generator_unlimited")
+                : counter?.remaining !== null && counter
+                ? t("ai_generator_remaining", { count: counter.remaining })
+                : t("ai_generator_monthly_quota")}
+              {resetDate
+                ? ` · ${t("ai_generator_reset", { date: resetDate })}`
+                : ""}
             </small>
           </div>
         </div>
-        {kind === "video" ? (
-          <div className={styles.footerEnginePicker}>
-            <span>{t("ai_generator_video_engine_title")}</span>
-            <div
-              className={styles.footerEngineChoices}
-              role="radiogroup"
-              aria-label={t("ai_generator_video_engine_title")}
-            >
-              {(["omni", "veo"] as const).map((engine) => (
-                <button
-                  key={engine}
-                  type="button"
-                  role="radio"
-                  aria-checked={videoEngine === engine}
-                  data-active={videoEngine === engine}
-                  onClick={() => setVideoEngine(engine)}
-                  disabled={operationLocked}
-                  title={t(`ai_generator_video_engine_${engine}_hint`)}
-                >
-                  <span aria-hidden="true">{engine === "omni" ? "⚡" : "✦"}</span>
-                  <strong>{t(`ai_generator_video_engine_${engine}`)}</strong>
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : null}
         {identityConsentRequired ? (
           <label
             className={styles.footerConsent}
@@ -2316,26 +1979,24 @@ export default function MediaGenerator({
                   {t(
                     identityConsent
                       ? "ai_generator_footer_consent_confirmed"
-                      : "ai_generator_footer_consent_blocking",
+                      : "ai_generator_footer_consent_blocking"
                   )}
                 </em>
               </span>
               <span className={styles.footerConsentStatement}>
                 {t(
-                  videoCharacterMode === "reference_team"
+                  effectiveIdentityMode === "reference_team"
                     ? "ai_generator_reference_team_consent_label"
-                    : "ai_generator_video_character_consent_label",
+                    : "ai_generator_video_character_consent_label"
                 )}
               </span>
               <small id="ai-media-footer-consent-hint">
                 {t(
-                  videoCharacterMode === "reference_team" && kind === "video"
-                    ? teamVideoMode === "cinematic"
-                      ? "ai_generator_identity_consent_hint_team_video_cinematic"
-                      : "ai_generator_identity_consent_hint_team_video"
+                  effectiveIdentityMode === "reference_team" && kind === "video"
+                    ? "ai_generator_identity_consent_hint_team_video_cinematic"
                     : kind === "image"
-                      ? "ai_generator_identity_consent_hint_image"
-                      : "ai_generator_identity_consent_hint_video",
+                    ? "ai_generator_identity_consent_hint_image"
+                    : "ai_generator_identity_consent_hint_video"
                 )}
               </small>
             </span>
@@ -2345,14 +2006,23 @@ export default function MediaGenerator({
           type="button"
           className={styles.generateButton}
           disabled={disabled}
-          aria-describedby={identityConsentMissing ? "ai-media-footer-consent-status" : undefined}
+          aria-describedby={
+            identityConsentMissing
+              ? "ai-media-footer-consent-status"
+              : undefined
+          }
           onClick={() => void handleGenerate()}
         >
           <span aria-hidden="true">✦</span>
-          <strong>{t(kind === "image" ? "ai_generator_generate_image" : "ai_generator_generate_video")}</strong>
+          <strong>
+            {t(
+              kind === "image"
+                ? "ai_generator_generate_image"
+                : "ai_generator_generate_video"
+            )}
+          </strong>
         </button>
       </div>
-
     </div>
   );
 }

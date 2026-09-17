@@ -83,7 +83,7 @@ export async function generateInrAgentMedia(args: {
       : null;
   const videoMaxDurationSeconds = args.adminUnlimited
     ? 24
-    : (videoEntitlement?.maxDurationSeconds ?? 8);
+    : videoEntitlement?.maxDurationSeconds ?? 8;
   const mediaMix = resolveInrAgentMediaMix({
     kind: args.kind,
     theme: args.theme,
@@ -95,6 +95,7 @@ export async function generateInrAgentMedia(args: {
       `${args.accountId}:${args.theme}:${args.kind}:${args.idea}`,
   });
   const request: AiMediaGenerationRequest = {
+    inputMode: "legacy",
     requestId: `inr-agent:${randomUUID()}`,
     kind: args.kind,
     subjectSource: "custom",
@@ -154,8 +155,7 @@ export async function generateInrAgentMedia(args: {
       automation_key: "publish",
       theme: args.theme,
       duration_seconds: request.durationSeconds,
-      studio_media_preference_percent:
-        mediaMix.studioMediaPreferencePercent,
+      studio_media_preference_percent: mediaMix.studioMediaPreferencePercent,
       studio_media_preference_mode: mediaMix.mode,
       studio_media_preference_blocks: mediaMix.appliedStudioBlockIds,
     },
@@ -198,8 +198,7 @@ export async function generateInrAgentMedia(args: {
         model: generated.model,
         prompt_version: generated.promptVersion,
         prompt_sha256: generated.promptSha256,
-        studio_media_preference_percent:
-          mediaMix.studioMediaPreferencePercent,
+        studio_media_preference_percent: mediaMix.studioMediaPreferencePercent,
         studio_media_preference_mode: mediaMix.mode,
         studio_media_preference_blocks: mediaMix.appliedStudioBlockIds,
       },

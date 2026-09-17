@@ -9,43 +9,32 @@ import {
 
 const read = (relativePath: string) => readFileSync(relativePath, "utf8");
 
-test("le bloc 1 propose l'animation dès qu'une image vidéo est ajoutée", () => {
+test("toute vidéo du Studio essentiel demande une vraie scène animée sans interrupteur trompeur", () => {
   const generator = read("app/dashboard/_components/MediaGenerator.tsx");
   const hook = read("app/dashboard/_hooks/useMediaGeneration.ts");
   const styles = read("app/dashboard/_components/MediaGenerator.module.css");
 
-  assert.doesNotMatch(generator, /ANIMATABLE_IDENTITY_MODES/);
-  assert.match(
-    generator,
-    /const referenceAnimationAvailable =\s*kind === "video" && inspirationImages\.length > 0/,
-  );
-  assert.match(generator, /\{referenceAnimationAvailable \? \([\s\S]*?ai_generator_team_animation_label/);
-  assert.match(generator, /data-team-video-mode=\{teamVideoMode\}/);
-  assert.match(generator, /event\.target\.checked \? "cinematic" : "montage"/);
-  assert.match(generator, /teamVideoMode === "cinematic"[\s\S]*?ai_generator_team_animation_hint_cinematic/);
+  assert.doesNotMatch(generator, /ANIMATABLE_IDENTITY_MODES|teamAnimationToggle/);
+  assert.match(generator, /inputMode: "essential"/);
+  assert.match(generator, /teamVideoMode: kind === "video" \? "cinematic" : undefined/);
+  assert.match(generator, /ai_generator_essential_new_scene_video/);
+  assert.match(generator, /mediaSourceMode === "real" \? inspirationImages : \[\]/);
   assert.match(hook, /function hasAnimationSourceImage\(/);
   assert.match(hook, /return kind === "video" && Boolean\(images\?\.length\)/);
-  assert.match(styles, /\.teamAnimationToggle\s*\{/);
-  assert.match(
-    styles,
-    /@media \(max-width: 620px\)[\s\S]*?\.teamAnimationToggle\s*\{/,
-  );
+  assert.match(styles, /\.newSceneNotice,/);
 });
 
-test("les règles des photos restent dans le flux et ne passent sous aucun bandeau fixe", () => {
+test("les photos sont présentées comme personnages, décor et produit distincts", () => {
+  const generator = read("app/dashboard/_components/MediaGenerator.tsx");
   const styles = read("app/dashboard/_components/MediaGenerator.module.css");
-  const pickerRow = styles.match(/\.inspirationPickerRow\s*\{([^}]*)\}/)?.[1] || "";
-  const infoButton = styles.match(/\.inspirationInfoButton\s*\{([^}]*)\}/)?.[1] || "";
-  const infoBubble = styles.match(/\.inspirationInfoBubble\s*\{([^}]*)\}/)?.[1] || "";
 
-  assert.match(pickerRow, /position:\s*relative/);
-  assert.match(pickerRow, /display:\s*grid/);
-  assert.match(infoButton, /top:\s*22px/);
-  assert.doesNotMatch(infoButton, /top:\s*50%/);
-  assert.match(infoBubble, /position:\s*relative/);
-  assert.match(infoBubble, /width:\s*100%/);
-  assert.match(infoBubble, /box-sizing:\s*border-box/);
-  assert.doesNotMatch(infoBubble, /position:\s*absolute/);
+  assert.match(generator, /role: "character"/);
+  assert.match(generator, /role: "environment"/);
+  assert.match(generator, /role: "product"/);
+  assert.match(generator, /characterIndex: \(index \+ 1\) as 1 \| 2 \| 3/);
+  assert.match(generator, /image\.role === args\.role/);
+  assert.match(styles, /\.referenceSlots\s*\{/);
+  assert.match(styles, /\.referenceSlot\s*\{/);
 });
 
 test("le bloc 1 distingue la voix off des personnages parlants sans mélanger les deux", () => {
@@ -53,22 +42,19 @@ test("le bloc 1 distingue la voix off des personnages parlants sans mélanger le
   const hook = read("app/dashboard/_hooks/useMediaGeneration.ts");
   const styles = read("app/dashboard/_components/MediaGenerator.module.css");
 
-  assert.match(
-    generator,
-    /teamVideoMode === "cinematic"[\s\S]*?\(\["voiceover", "characters"\] as const\)\.map/,
-  );
+  assert.match(generator, /\(\["voiceover", "characters"\] as const\)\.map/);
   assert.match(generator, /const animatedCharactersSpeak =[\s\S]*?teamVideoSpeechMode === "characters"/);
-  assert.match(generator, /const effectiveWithNarration =[\s\S]*?!animatedCharactersSpeak && withNarration/);
+  assert.match(generator, /const effectiveWithNarration = kind === "video" && !animatedCharactersSpeak/);
   assert.match(generator, /withNarration: kind === "video" \? effectiveWithNarration : undefined/);
-  assert.match(generator, /teamVideoSpeechMode: referenceCinematicRequested[\s\S]*?teamVideoSpeechMode/);
-  assert.match(generator, /disabled=\{operationLocked \|\| animatedCharactersSpeak\}/);
-  assert.match(generator, /ai_generator_team_speech_narration_disabled_hint/);
-  assert.match(generator, /ai_generator_team_speech_gender_hint/);
+  assert.match(generator, /teamVideoSpeechMode: kind === "video" \? teamVideoSpeechMode : undefined/);
+  assert.match(generator, /teamVideoSpeechMode === "voiceover" \? \(/);
+  assert.match(generator, /styles\.characterSpeechNotice/);
+  assert.match(generator, /ai_generator_essential_character_speech_notice/);
   assert.match(hook, /teamVideoSpeechMode\?: MediaGenerationTeamVideoSpeechMode/);
-  assert.match(styles, /\.teamSpeechChoices\s*\{[\s\S]*?repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /\.soundChoices\s*\{[\s\S]*?repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(
     styles,
-    /@media \(max-width: 620px\)[\s\S]*?\.teamSpeechChoices\s*\{[^}]*grid-template-columns:\s*1fr/,
+    /@media \(max-width: 620px\)[\s\S]*?\.soundChoices\s*\{[^}]*grid-template-columns:\s*1fr/,
   );
 });
 
@@ -86,26 +72,18 @@ test("le consentement Google\/Veo est demandé à chaque génération et transmi
   assert.match(hook, /teamVideoVeoConsent:[\s\S]*?Boolean\(request\.teamVideoVeoConsent\)/);
 });
 
-test("les quatre en-têtes du studio gardent la même géométrie et le titre ne casse plus la grille", () => {
+test("les quatre cartes du studio gardent une grille 2×2 responsive", () => {
   const generator = read("app/dashboard/_components/MediaGenerator.tsx");
   const styles = read("app/dashboard/_components/MediaGenerator.module.css");
 
-  assert.equal((generator.match(/className=\{styles\.collapsibleHeader\}/g) || []).length, 4);
+  assert.equal((generator.match(/<header className=\{styles\.essentialCardHeader\}>/g) || []).length, 4);
   assert.match(
     styles,
-    /\.collapsibleToggle\s*\{[\s\S]*?height:\s*66px;[\s\S]*?grid-template-columns:\s*auto minmax\(145px, 1fr\) minmax\(0, 235px\) auto/,
+    /\.essentialGrid\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/,
   );
   assert.match(
     styles,
-    /\.collapsibleTitle strong\s*\{[\s\S]*?text-overflow:\s*ellipsis;[\s\S]*?white-space:\s*nowrap/,
-  );
-  assert.match(
-    styles,
-    /@media \(min-width: 1101px\)[\s\S]*?\.collapsibleToggle\s*\{[\s\S]*?height:\s*58px/,
-  );
-  assert.match(
-    styles,
-    /@media \(max-width: 620px\)[\s\S]*?\.collapsibleToggle\s*\{[\s\S]*?height:\s*78px/,
+    /@media \(max-width: 1100px\)[\s\S]*?\.essentialGrid\s*\{[\s\S]*?grid-template-columns:\s*1fr/,
   );
 });
 

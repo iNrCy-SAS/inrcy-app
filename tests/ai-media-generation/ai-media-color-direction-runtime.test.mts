@@ -184,8 +184,13 @@ for (const kind of ["image", "video"] as const) {
         assert.match(prompt, /La dernière image de référence est le logo officiel/);
         assert.match(prompt, /Respecter fidèlement sa forme, ses proportions, ses couleurs et son orthographe/);
       } else {
-        assert.match(prompt, /plans vidéo originaux avec 1 référence d’identité autorisée/);
+        assert.match(prompt, /plans vidéo originaux avec 1 référence de personnage autorisée/);
         assert.match(prompt, /Ne produire aucun logo ni pseudo-logo : l’habillage vidéo exact sera appliqué ensuite par iNrCy/);
+        assert.match(
+          prompt,
+          /véritable dessin animé 2D/,
+          "le style dessin animé reste une instruction vidéo explicite"
+        );
       }
     });
   }

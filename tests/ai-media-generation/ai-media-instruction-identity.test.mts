@@ -33,13 +33,16 @@ test("l'identité vidéo est consentie, auditée et indépendante du rendu", () 
   const route = read("app/api/media-generation/generate/route.ts");
   const server = read("lib/aiMediaGenerationServer.ts");
 
-  assert.match(generator, /VIDEO_CHARACTER_MODES/);
-  assert.match(generator, /professionalPhoto|required|characterReferenceMissing/);
-  assert.match(generator, /ai_generator_video_character_avatar_reference_required/);
+  assert.match(generator, /type StudioCharacterCount = 0 \| 1 \| 2 \| 3/);
+  assert.match(generator, /characterReferenceMissing/);
+  assert.match(generator, /renderReferenceSlot/);
+  assert.match(generator, /role: "character"/);
+  assert.match(generator, /role: "environment"/);
+  assert.match(generator, /role: "product"/);
   assert.match(generator, /setIdentityConsent\(false\)/);
   assert.match(generator, /const strictIdentityReferenceMode =/);
   assert.match(generator, /identityConsent: identityConsentRequired \? identityConsent : false/);
-  assert.match(generator, /\n\s*inspirationImages,\n/);
+  assert.match(generator, /inspirationImages: mediaSourceMode === "real" \? inspirationImages : \[\]/);
   assert.match(prompt, /getAiMediaIdentityDirection/);
   assert.doesNotMatch(prompt, /getAiMediaVideoIdentityDirection/);
   assert.match(prompt, /sans le remplacer par un visage générique/);

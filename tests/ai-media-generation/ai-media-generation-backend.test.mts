@@ -196,16 +196,90 @@ test("le contrat réduit les options au média demandé", () => {
   assert.throws(
     () =>
       normalizeAiMediaGenerationRequest({
-        requestId: "media-request-four-refs",
+        requestId: "media-request-six-refs",
         kind: "video",
         subjectSource: "profile",
-        inspirationImages: Array.from({ length: 4 }, () => ({
+        inspirationImages: Array.from({ length: 6 }, () => ({
           mimeType: "image/jpeg",
           data: inspirationData,
         })),
         source: "studio",
       }),
     AiMediaRequestValidationError
+  );
+
+  const essentialReferences = normalizeAiMediaGenerationRequest({
+    requestId: "media-essential-role-aware",
+    inputMode: "essential",
+    kind: "video",
+    subjectSource: "profile",
+    peopleMode: "team",
+    identityMode: "reference_team",
+    identityConsent: true,
+    teamVideoSpeechMode: "characters",
+    teamVideoVeoConsent: true,
+    inspirationImages: [
+      {
+        mimeType: "image/jpeg",
+        data: inspirationData,
+        role: "character",
+        characterIndex: 1,
+      },
+      {
+        mimeType: "image/png",
+        data: inspirationData,
+        role: "character",
+        characterIndex: 2,
+      },
+      { mimeType: "image/webp", data: inspirationData, role: "environment" },
+      { mimeType: "image/png", data: inspirationData, role: "product" },
+    ],
+    source: "studio",
+  });
+  assert.equal(essentialReferences.inputMode, "essential");
+  assert.equal(essentialReferences.inspirationImages.length, 4);
+  assert.deepEqual(
+    essentialReferences.inspirationImages.map((item) => item.role),
+    ["character", "character", "environment", "product"]
+  );
+  assert.deepEqual(
+    essentialReferences.inspirationImages
+      .filter((item) => item.role === "character")
+      .map((item) => item.characterIndex),
+    [1, 2]
+  );
+  assert.equal(essentialReferences.teamVideoMode, "cinematic");
+  assert.equal(essentialReferences.teamVideoSpeechMode, "characters");
+  assert.equal(essentialReferences.videoEngine, "veo");
+  assert.equal(essentialReferences.withNarration, false);
+
+  assert.throws(
+    () =>
+      normalizeAiMediaGenerationRequest({
+        requestId: "media-essential-duplicate-person",
+        inputMode: "essential",
+        kind: "image",
+        subjectSource: "profile",
+        peopleMode: "team",
+        identityMode: "reference_team",
+        identityConsent: true,
+        inspirationImages: [
+          {
+            mimeType: "image/jpeg",
+            data: inspirationData,
+            role: "character",
+            characterIndex: 1,
+          },
+          {
+            mimeType: "image/png",
+            data: inspirationData,
+            role: "character",
+            characterIndex: 1,
+          },
+        ],
+        source: "studio",
+      }),
+    /une seule photo distincte par personnage/
   );
   assert.throws(
     () =>
@@ -575,7 +649,7 @@ test("le prompt donne à GPT Image le sujet, l’ADN, l’identité autorisée e
   const dna = read("lib/aiMediaBusinessDna.ts");
   assert.match(
     source,
-    /AI_MEDIA_PROMPT_VERSION = "inrcy-media-v19-scene-color-direction"/
+    /AI_MEDIA_PROMPT_VERSION = "inrcy-media-v20-essential-role-aware"/
   );
   assert.match(source, /CONTRAT CRÉATIF PRIORITAIRE/);
   assert.match(source, /SUJET CENTRAL OBLIGATOIRE/);
@@ -590,7 +664,9 @@ test("le prompt donne à GPT Image le sujet, l’ADN, l’identité autorisée e
     source,
     /Couleurs de marque à utiliser uniquement comme accents dans la lumière, les matières et le décor/
   );
-  assert.match(source, /référence(?:s)? d’identité/);
+  assert.match(source, /référence(?:s)? de personnage/);
+  assert.match(source, /environmentReferences/);
+  assert.match(source, /productReferences/);
   assert.match(source, /logo officiel/);
   assert.match(source, /Aucune photo de Médiathèque/);
   assert.match(

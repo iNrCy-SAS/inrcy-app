@@ -107,8 +107,9 @@ test("les identités strictes restent sur GPT-Image-2, les références auto res
   assert.match(gateway, /identityMode: AiMediaIdentityMode/);
   assert.match(
     gateway,
-    /strictIdentityReferences[\s\S]*?args\.identityMode === "professional"[\s\S]*?args\.identityMode === "brand_avatar"[\s\S]*?args\.identityMode === "reference_team"/,
+    /const legacyStrictIdentity =[\s\S]*?args\.identityMode === "professional"[\s\S]*?args\.identityMode === "brand_avatar"[\s\S]*?args\.identityMode === "reference_team"/,
   );
+  assert.match(gateway, /characterReferenceCount > 0 && legacyStrictIdentity/);
   assert.match(
     gateway,
     /const model = strictIdentityReferences[\s\S]*?DEFAULT_IMAGE_MODEL[\s\S]*?: configuredModel/,
@@ -118,8 +119,8 @@ test("les identités strictes restent sur GPT-Image-2, les références auto res
     /inputFidelity/,
     "GPT-Image-2 refuse input_fidelity même lorsqu'une référence d'identité est fournie",
   );
-  assert.match(gateway, /des inspirations visuelles obligatoires/);
-  assert.match(gateway, /rendre cette influence perceptible/);
+  assert.match(gateway, /inspiration visuelle/);
+  assert.match(gateway, /Produire une nouvelle scène plein cadre/);
   assert.match(
     gateway,
     /strictIdentityReferences[\s\S]*?"ai_image_identity_not_generated"[\s\S]*?"ai_image_not_generated"/,
