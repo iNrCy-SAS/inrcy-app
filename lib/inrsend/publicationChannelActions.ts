@@ -59,6 +59,7 @@ import { validateXUrlFreeText } from "@/lib/xChannel";
 import { getInstagramPartialImagesWarning } from "@/lib/instagramPartialImagesWarning";
 import { getImagePublicationWarning } from "@/lib/multiImagePublicationWarning";
 import { refreshInrSendPublicationVideoUrl } from "@/lib/inrsend/publicationVideoStorage";
+import { removeCreatedPublicationImagePathsBestEffort } from "@/lib/inrsend/publicationImageStorageCleanup";
 const LINKEDIN_VERSION = "202603";
 const TIKTOK_INRSEND_EXTERNAL_ACTION_MESSAGE =
   "TikTok ne permet pas la modification ou la suppression réelle depuis iNrCy. Ouvrez TikTok pour gérer cette publication.";
@@ -191,6 +192,8 @@ type ImageSet = {
   editableAttachments?: EditableImageAttachment[];
   expectedImageCount?: number;
   preparationErrors?: Array<{ index: number; reason: string }>;
+  /** Newly uploaded by the current edit; never includes retained media. */
+  createdStoragePaths?: string[];
 };
 
 type PublicationMediaType = "images" | "video";
@@ -273,107 +276,154 @@ function errorMessage(error: unknown, fallback = ""): string {
   return String(record.message || record.error || record.error_description || fallback || "");
 }
 
+async function cleanupCreatedPublicationImagePaths(params: {
+  paths: readonly unknown[];
+  stage: "image_preparation" | "delivery_replace";
+  channel?: ChannelKey;
+}) {
+  const cleanup = await removeCreatedPublicationImagePathsBestEffort({
+    client: supabaseAdmin,
+    paths: params.paths,
+    bucket: "booster",
+  });
+  if (cleanup.error) {
+    log.warn("inrsend_image_storage_cleanup_failed", {
+      channel: params.channel,
+      stage: params.stage,
+      path_count: cleanup.attemptedPaths.length,
+      error: cleanup.error,
+    });
+  }
+}
+
 async function getGoogleBusinessPublishableUrl(path: string): Promise<string | null> {
   const publicUrl = String(supabaseAdmin.storage.from("booster").getPublicUrl(path)?.data?.publicUrl || "").trim();
   if (publicUrl && await canGoogleFetchImageUrl(publicUrl)) return publicUrl;
   return null;
 }
 
-async function uploadPublicationImages(userId: string, newImages: ImagePayload[]): Promise<ImageSet> {
+async function uploadPublicationImages(
+  userId: string,
+  newImages: ImagePayload[],
+  channel: ChannelKey,
+): Promise<ImageSet> {
   const uploadedUrls: string[] = [];
   const instagramPublishableUrls: string[] = [];
   const socialFeedPublishableUrls: string[] = [];
   const siteCardPublishableUrls: string[] = [];
   const gmbPublishableUrls: string[] = [];
   const editableAttachments: EditableImageAttachment[] = [];
+  const createdStoragePaths: string[] = [];
 
-  for (const img of newImages.slice(0, 5)) {
-    const parsed = dataUrlToBuffer(img.dataUrl);
-    if (!parsed) throw new Error(`Image invalide : ${img?.name || "image"}.`);
+  try {
+    for (const img of newImages.slice(0, 5)) {
+      const parsed = dataUrlToBuffer(img.dataUrl);
+      if (!parsed) throw new Error(`Image invalide : ${img?.name || "image"}.`);
 
-    const ext = (img.name || "image").split(".").pop() || "jpg";
-    const originalPath = `${userId}/${randomUUID()}.${ext}`;
-    const originalUpload = await supabaseAdmin.storage.from("booster").upload(originalPath, toExactStorageArrayBuffer(parsed.buffer), {
-      contentType: parsed.mime || img.type || "application/octet-stream",
-      upsert: false,
-    });
-    if (originalUpload.error) throw originalUpload.error;
+      const ext = (img.name || "image").split(".").pop() || "jpg";
+      const originalPath = `${userId}/${randomUUID()}.${ext}`;
+      const originalUpload = await supabaseAdmin.storage.from("booster").upload(originalPath, toExactStorageArrayBuffer(parsed.buffer), {
+        contentType: parsed.mime || img.type || "application/octet-stream",
+        upsert: false,
+      });
+      if (originalUpload.error) throw originalUpload.error;
+      createdStoragePaths.push(originalPath);
 
-    const originalPublic = supabaseAdmin.storage.from("booster").getPublicUrl(originalPath);
-    const originalUrl = String(originalPublic?.data?.publicUrl || "").trim();
-    if (!originalUrl) throw new Error(`URL publique introuvable pour ${img?.name || "image"}.`);
-    uploadedUrls.push(originalUrl);
-    const sourceOriginalUrl = String(img.originalPublicUrl || img.originalUrl || originalUrl || "").trim();
-    editableAttachments.push({
-      name: String(img.originalName || img.name || "image.jpg").trim() || "image.jpg",
-      type: String(img.originalType || img.type || parsed.mime || "image/jpeg").trim() || "image/jpeg",
-      url: originalUrl,
-      renderedUrl: originalUrl,
-      publicUrl: originalUrl,
-      originalUrl: sourceOriginalUrl || originalUrl,
-      originalPublicUrl: sourceOriginalUrl || originalUrl,
-      imageKey: String(img.imageKey || "").trim() || null,
-      transform: img.transform || null,
-      imageMeta: img.imageMeta || null,
-    });
+      const originalPublic = supabaseAdmin.storage.from("booster").getPublicUrl(originalPath);
+      const originalUrl = String(originalPublic?.data?.publicUrl || "").trim();
+      if (!originalUrl) throw new Error(`URL publique introuvable pour ${img?.name || "image"}.`);
+      uploadedUrls.push(originalUrl);
+      const sourceOriginalUrl = String(img.originalPublicUrl || img.originalUrl || originalUrl || "").trim();
+      editableAttachments.push({
+        name: String(img.originalName || img.name || "image.jpg").trim() || "image.jpg",
+        type: String(img.originalType || img.type || parsed.mime || "image/jpeg").trim() || "image/jpeg",
+        url: originalUrl,
+        renderedUrl: originalUrl,
+        publicUrl: originalUrl,
+        originalUrl: sourceOriginalUrl || originalUrl,
+        originalPublicUrl: sourceOriginalUrl || originalUrl,
+        imageKey: String(img.imageKey || "").trim() || null,
+        transform: img.transform || null,
+        imageMeta: img.imageMeta || null,
+      });
 
-    const instagramOptimized = await optimizeForInstagram(parsed.buffer);
-    const instagramPath = `${userId}/instagram/${randomUUID()}.${instagramOptimized.extension}`;
-    const instagramUpload = await supabaseAdmin.storage.from("booster").upload(instagramPath, toExactStorageArrayBuffer(instagramOptimized.buffer), {
-      contentType: instagramOptimized.mime,
-      upsert: false,
-    });
-    if (instagramUpload.error) throw instagramUpload.error;
-    const instagramUrl = String(
-      supabaseAdmin.storage.from("booster").getPublicUrl(instagramPath)?.data
-        ?.publicUrl || "",
-    ).trim();
-    if (!instagramUrl) throw new Error(`URL Instagram introuvable pour ${img?.name || "image"}.`);
-    instagramPublishableUrls.push(instagramUrl);
+      const instagramOptimized = await optimizeForInstagram(parsed.buffer);
+      const instagramPath = `${userId}/instagram/${randomUUID()}.${instagramOptimized.extension}`;
+      const instagramUpload = await supabaseAdmin.storage.from("booster").upload(instagramPath, toExactStorageArrayBuffer(instagramOptimized.buffer), {
+        contentType: instagramOptimized.mime,
+        upsert: false,
+      });
+      if (instagramUpload.error) throw instagramUpload.error;
+      createdStoragePaths.push(instagramPath);
+      const instagramUrl = String(
+        supabaseAdmin.storage.from("booster").getPublicUrl(instagramPath)?.data
+          ?.publicUrl || "",
+      ).trim();
+      if (!instagramUrl) throw new Error(`URL Instagram introuvable pour ${img?.name || "image"}.`);
+      instagramPublishableUrls.push(instagramUrl);
 
-    const socialOptimized = await optimizeForSocialFeed(parsed.buffer, {
-      nativeFirst: true,
-    });
-    const socialPath = `${userId}/social-feed/${randomUUID()}.${socialOptimized.extension}`;
-    const socialUpload = await supabaseAdmin.storage.from("booster").upload(socialPath, toExactStorageArrayBuffer(socialOptimized.buffer), {
-      contentType: socialOptimized.mime,
-      upsert: false,
-    });
-    if (socialUpload.error) throw socialUpload.error;
-    const socialUrl = String(
-      supabaseAdmin.storage.from("booster").getPublicUrl(socialPath)?.data
-        ?.publicUrl || "",
-    ).trim();
-    if (!socialUrl) throw new Error(`URL social introuvable pour ${img?.name || "image"}.`);
-    socialFeedPublishableUrls.push(socialUrl);
+      const socialOptimized = await optimizeForSocialFeed(parsed.buffer, {
+        nativeFirst: true,
+      });
+      const socialPath = `${userId}/social-feed/${randomUUID()}.${socialOptimized.extension}`;
+      const socialUpload = await supabaseAdmin.storage.from("booster").upload(socialPath, toExactStorageArrayBuffer(socialOptimized.buffer), {
+        contentType: socialOptimized.mime,
+        upsert: false,
+      });
+      if (socialUpload.error) throw socialUpload.error;
+      createdStoragePaths.push(socialPath);
+      const socialUrl = String(
+        supabaseAdmin.storage.from("booster").getPublicUrl(socialPath)?.data
+          ?.publicUrl || "",
+      ).trim();
+      if (!socialUrl) throw new Error(`URL social introuvable pour ${img?.name || "image"}.`);
+      socialFeedPublishableUrls.push(socialUrl);
 
-    const siteOptimized = await optimizeForSiteCard(parsed.buffer);
-    const sitePath = `${userId}/site-card/${randomUUID()}.${siteOptimized.extension}`;
-    const siteUpload = await supabaseAdmin.storage.from("booster").upload(sitePath, toExactStorageArrayBuffer(siteOptimized.buffer), {
-      contentType: siteOptimized.mime,
-      upsert: false,
-    });
-    if (siteUpload.error) throw siteUpload.error;
-    const siteUrl = String(
-      supabaseAdmin.storage.from("booster").getPublicUrl(sitePath)?.data
-        ?.publicUrl || "",
-    ).trim();
-    if (!siteUrl) throw new Error(`URL site introuvable pour ${img?.name || "image"}.`);
-    siteCardPublishableUrls.push(siteUrl);
+      const siteOptimized = await optimizeForSiteCard(parsed.buffer);
+      const sitePath = `${userId}/site-card/${randomUUID()}.${siteOptimized.extension}`;
+      const siteUpload = await supabaseAdmin.storage.from("booster").upload(sitePath, toExactStorageArrayBuffer(siteOptimized.buffer), {
+        contentType: siteOptimized.mime,
+        upsert: false,
+      });
+      if (siteUpload.error) throw siteUpload.error;
+      createdStoragePaths.push(sitePath);
+      const siteUrl = String(
+        supabaseAdmin.storage.from("booster").getPublicUrl(sitePath)?.data
+          ?.publicUrl || "",
+      ).trim();
+      if (!siteUrl) throw new Error(`URL site introuvable pour ${img?.name || "image"}.`);
+      siteCardPublishableUrls.push(siteUrl);
 
-    const gmbOptimized = await optimizeForGoogleBusiness(parsed.buffer);
-    const gmbPath = `${userId}/gmb/${randomUUID()}.${gmbOptimized.extension}`;
-    const gmbUpload = await supabaseAdmin.storage.from("booster").upload(gmbPath, toExactStorageArrayBuffer(gmbOptimized.buffer), {
-      contentType: gmbOptimized.mime,
-      upsert: false,
+      const gmbOptimized = await optimizeForGoogleBusiness(parsed.buffer);
+      const gmbPath = `${userId}/gmb/${randomUUID()}.${gmbOptimized.extension}`;
+      const gmbUpload = await supabaseAdmin.storage.from("booster").upload(gmbPath, toExactStorageArrayBuffer(gmbOptimized.buffer), {
+        contentType: gmbOptimized.mime,
+        upsert: false,
+      });
+      if (gmbUpload.error) throw gmbUpload.error;
+      createdStoragePaths.push(gmbPath);
+      const gmbUrl = await getGoogleBusinessPublishableUrl(gmbPath);
+      if (!gmbUrl) throw new Error(`URL Google Business introuvable pour ${img?.name || "image"}.`);
+      gmbPublishableUrls.push(gmbUrl);
+    }
+
+    return {
+      images: uploadedUrls,
+      instagramPublishableUrls,
+      socialFeedPublishableUrls,
+      siteCardPublishableUrls,
+      gmbPublishableUrls,
+      editableAttachments,
+      createdStoragePaths,
+    };
+  } catch (error) {
+    await cleanupCreatedPublicationImagePaths({
+      paths: createdStoragePaths,
+      stage: "image_preparation",
+      channel,
     });
-    if (gmbUpload.error) throw gmbUpload.error;
-    const gmbUrl = await getGoogleBusinessPublishableUrl(gmbPath);
-    if (!gmbUrl) throw new Error(`URL Google Business introuvable pour ${img?.name || "image"}.`);
-    gmbPublishableUrls.push(gmbUrl);
+    throw error;
   }
-
-  return { images: uploadedUrls, instagramPublishableUrls, socialFeedPublishableUrls, siteCardPublishableUrls, gmbPublishableUrls, editableAttachments };
 }
 
 async function uploadInstagramPublicationImagesBestEffort(
@@ -384,9 +434,11 @@ async function uploadInstagramPublicationImagesBestEffort(
   const instagramPublishableUrls: string[] = [];
   const editableAttachments: EditableImageAttachment[] = [];
   const preparationErrors: Array<{ index: number; reason: string }> = [];
+  const createdStoragePaths: string[] = [];
   const requestedImages = newImages.slice(0, 5);
 
   for (const [index, img] of requestedImages.entries()) {
+    const createdForImage: string[] = [];
     try {
       const parsed = dataUrlToBuffer(img.dataUrl);
       if (!parsed) throw new Error(`Image invalide : ${img?.name || "image"}.`);
@@ -405,6 +457,7 @@ async function uploadInstagramPublicationImagesBestEffort(
           },
         );
       if (originalUpload.error) throw originalUpload.error;
+      createdForImage.push(originalPath);
 
       const originalUrl = String(
         supabaseAdmin.storage.from("booster").getPublicUrl(originalPath)?.data
@@ -424,6 +477,7 @@ async function uploadInstagramPublicationImagesBestEffort(
           { contentType: optimized.mime, upsert: false },
         );
       if (instagramUpload.error) throw instagramUpload.error;
+      createdForImage.push(instagramPath);
 
       const instagramUrl = String(
         supabaseAdmin.storage.from("booster").getPublicUrl(instagramPath)?.data
@@ -455,7 +509,13 @@ async function uploadInstagramPublicationImagesBestEffort(
         transform: img.transform || null,
         imageMeta: img.imageMeta || null,
       });
+      createdStoragePaths.push(...createdForImage);
     } catch (error) {
+      await cleanupCreatedPublicationImagePaths({
+        paths: createdForImage,
+        stage: "image_preparation",
+        channel: "instagram",
+      });
       preparationErrors.push({
         index: index + 1,
         reason: errorMessage(error, "préparation Instagram impossible"),
@@ -472,6 +532,7 @@ async function uploadInstagramPublicationImagesBestEffort(
     editableAttachments,
     expectedImageCount: requestedImages.length,
     preparationErrors,
+    createdStoragePaths,
   };
 }
 
@@ -681,7 +742,7 @@ async function updatePublicationImages(params: {
   const uploadedSet = newImages.length
     ? channel === "instagram"
       ? await uploadInstagramPublicationImagesBestEffort(userId, newImages)
-      : await uploadPublicationImages(userId, newImages)
+      : await uploadPublicationImages(userId, newImages, channel)
     : emptyImageSet();
   return {
     images: [...baseImageSet.images, ...uploadedSet.images].slice(0, 5),
@@ -695,6 +756,7 @@ async function updatePublicationImages(params: {
       5,
     ),
     preparationErrors: uploadedSet.preparationErrors || [],
+    createdStoragePaths: uploadedSet.createdStoragePaths || [],
   };
 }
 
@@ -2798,6 +2860,7 @@ function buildCancelledPayload(params: {
 
 export function createPublicationChannelHandlers(channel: ChannelKey) {
   async function PATCH(req: Request, context: { params: Promise<{ publicationId: string }> }) {
+    let unpersistedCreatedStoragePaths: string[] = [];
     try {
       const { user, activeUserId, errorResponse } = await requireUser();
       if (errorResponse) return errorResponse;
@@ -2920,6 +2983,7 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
             newImages,
           })
         : null;
+      unpersistedCreatedStoragePaths = imageSet?.createdStoragePaths || [];
 
       const previousExternalId = String(body.externalId ?? channelResult.external_id ?? "").trim() || null;
       const replaceResult = await replaceChannelDelivery({
@@ -2934,6 +2998,10 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
         video,
         imageSet,
       });
+      // A successful delivery replacement can already reference these objects
+      // (for example an iNrCy site article). From this point onward, never
+      // remove them even if local payload persistence subsequently fails.
+      unpersistedCreatedStoragePaths = [];
 
       const nextPayload = buildUpdatedPayload({
         eventPayload: ctx.eventPayload,
@@ -2985,6 +3053,11 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
 
       return NextResponse.json({ ok: true, publication_id: publicationId, channel, external_id: replaceResult.externalId, payload: nextPayload });
     } catch (e: unknown) {
+      await cleanupCreatedPublicationImagePaths({
+        paths: unpersistedCreatedStoragePaths,
+        stage: "delivery_replace",
+        channel,
+      });
       captureApiException(req, e, {
         area: "booster",
         operation: `PATCH /api/inrsend/publications/:publicationId/${channel}`,

@@ -405,8 +405,8 @@ test("LinkedIn derives 75 MB from storage and streams every instructed part", as
   const split = size / 2;
   const sourceUrl = "https://storage.test/linkedin-75.mp4";
   const partUrls = [
-    "https://upload.linkedin.test/part-1",
-    "https://upload.linkedin.test/part-2",
+    "https://upload.linkedin.test/part-1?signature=private-part-1",
+    "https://upload.linkedin.test/part-2?signature=private-part-2",
   ];
   const downloadedRanges: string[] = [];
   const uploadedBodies: unknown[] = [];
@@ -495,6 +495,11 @@ test("LinkedIn derives 75 MB from storage and streams every instructed part", as
       "LinkedIn parts must receive source range streams directly",
     );
     assert.deepEqual(finalizedPartIds, ["part-etag-1", "part-etag-2"]);
+    const serializedDiagnostics = JSON.stringify(result.diagnostics);
+    assert.doesNotMatch(
+      serializedDiagnostics,
+      /private-part|upload\.linkedin\.test|storage\.test|uploadToken|uploadResponses|initJson|finalizeJson/,
+    );
   } finally {
     globalThis.fetch = previousFetch;
   }

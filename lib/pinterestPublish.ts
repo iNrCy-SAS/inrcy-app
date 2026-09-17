@@ -51,7 +51,6 @@ export type PinterestCreatePinResult = {
   prepared_image_count?: number;
   rejected_images?: Array<{
     index: number;
-    url: string;
     stage: "validation" | "download" | "render" | "upload";
     error: string;
   }>;

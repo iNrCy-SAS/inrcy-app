@@ -30,7 +30,6 @@ export type PinterestCarouselImagePreparation = {
   preparedCount: number;
   rejectedImages: Array<{
     index: number;
-    url: string;
     stage: "validation" | "download" | "render" | "upload";
     error: string;
   }>;
@@ -194,7 +193,6 @@ async function uploadPinterestCarouselImages(params: {
   imageUrls: string[];
   failures: Array<{
     index: number;
-    url: string;
     stage: "upload";
     error: string;
   }>;
@@ -244,7 +242,6 @@ async function uploadPinterestCarouselImages(params: {
   const imageUrls: string[] = [];
   const failures: Array<{
     index: number;
-    url: string;
     stage: "upload";
     error: string;
   }> = [];
@@ -255,7 +252,6 @@ async function uploadPinterestCarouselImages(params: {
     }
     failures.push({
       index: params.sourceIndexes?.[index] ?? index,
-      url: "",
       stage: "upload",
       error:
         result.reason instanceof Error
@@ -299,7 +295,6 @@ export async function preparePinterestCarouselImages(params: {
       if (entry.imageUrl) return true;
       rejectedImages.push({
         index: entry.index,
-        url: entry.rawUrl,
         stage: "validation",
         error: "Pinterest nécessite une image publique valide.",
       });
@@ -328,7 +323,6 @@ export async function preparePinterestCarouselImages(params: {
     } catch (error) {
       rejectedImages.push({
         index: candidate.index,
-        url: candidate.imageUrl,
         stage: "download",
         error:
           error instanceof Error
@@ -391,7 +385,6 @@ export async function preparePinterestCarouselImages(params: {
     } catch (error) {
       rejectedImages.push({
         index: image.index,
-        url: image.imageUrl,
         stage: "render",
         error:
           error instanceof Error
