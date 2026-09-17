@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
 import { enforceRateLimit, getClientIp } from "@/lib/rateLimit";
 import { resolveWidgetUserIdFromDomain, normalizeWidgetDomain } from "@/lib/widgets/domainRegistry";
+import { stabilizeEmbedActusArticleMedia } from "@/lib/embedActusMedia";
 
 export const runtime = "nodejs";
 
@@ -216,8 +217,12 @@ export async function GET(req: Request) {
 
     if (artErr) throw artErr;
 
+    const stableArticles = (articles || []).map((article) =>
+      stabilizeEmbedActusArticleMedia(article as Record<string, unknown>),
+    );
+
     return NextResponse.json(
-      { ok: true, domain, user_id: userId, articles: articles || [] },
+      { ok: true, domain, user_id: userId, articles: stableArticles },
       { status: 200, headers: headersOk }
     );
   } catch (e: unknown) {

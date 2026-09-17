@@ -144,6 +144,154 @@ export function buildStableEmbedActusMediaUrl(params: {
   return buildEmbedActusMediaUrl(reference.bucket, reference.storagePath);
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function parseRecord(value: unknown): Record<string, unknown> {
+  if (typeof value !== "string") return asRecord(value);
+  try {
+    return asRecord(JSON.parse(value));
+  } catch {
+    return {};
+  }
+}
+
+function parseImageUrls(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item || "").trim()).filter(Boolean);
+  }
+  if (typeof value !== "string") return [];
+
+  const raw = value.trim();
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return parsed.map((item) => String(item || "").trim()).filter(Boolean);
+    }
+  } catch {
+    // Legacy PostgreSQL array strings are handled below.
+  }
+  if (raw.startsWith("{") && raw.endsWith("}")) {
+    return raw
+      .slice(1, -1)
+      .split(",")
+      .map((item) => item.replace(/^\"+|\"+$/g, "").trim())
+      .filter(Boolean);
+  }
+  return [raw];
+}
+
+function stableOrOriginal(params: {
+  sourceUrl?: unknown;
+  bucket?: unknown;
+  storagePath?: unknown;
+}) {
+  const raw = String(params.sourceUrl || "").trim();
+  return buildStableEmbedActusMediaUrl(params) || raw;
+}
+
+/**
+ * Replaces expiring Supabase signed URLs returned by the legacy JSON widget
+ * with stable, application-signed media routes. External URLs are preserved.
+ */
+export function stabilizeEmbedActusArticleMedia(
+  articleValue: Record<string, unknown>,
+) {
+  const article = { ...articleValue };
+  const metadata = parseRecord(article.media_metadata);
+  const videoMetadata = asRecord(metadata.video);
+
+  article.images = parseImageUrls(article.images).map((sourceUrl) =>
+    stableOrOriginal({ sourceUrl }),
+  );
+
+  const videoSourceUrl = String(
+    article.video_url ||
+      videoMetadata.publicUrl ||
+      videoMetadata.public_url ||
+      videoMetadata.url ||
+      "",
+  ).trim();
+  const videoReference = extractEmbedActusStorageReference(videoSourceUrl);
+  const videoBucket = String(
+    videoMetadata.bucket ||
+      videoMetadata.bucketName ||
+      videoMetadata.bucket_name ||
+      videoReference?.bucket ||
+      "booster",
+  ).trim();
+  const videoStoragePath = String(
+    article.video_path ||
+      videoMetadata.storagePath ||
+      videoMetadata.storage_path ||
+      videoMetadata.path ||
+      videoReference?.storagePath ||
+      "",
+  ).trim();
+  const stableVideoUrl = stableOrOriginal({
+    sourceUrl: videoSourceUrl,
+    bucket: videoBucket,
+    storagePath: videoStoragePath,
+  });
+  if (videoSourceUrl || videoStoragePath) article.video_url = stableVideoUrl;
+
+  const thumbnailSourceUrl = String(
+    article.video_thumbnail_url ||
+      videoMetadata.thumbnailUrl ||
+      videoMetadata.thumbnail_url ||
+      "",
+  ).trim();
+  const thumbnailReference = extractEmbedActusStorageReference(
+    thumbnailSourceUrl,
+  );
+  const thumbnailBucket = String(
+    videoMetadata.thumbnailBucket ||
+      videoMetadata.thumbnail_bucket ||
+      videoMetadata.video_thumbnail_bucket ||
+      thumbnailReference?.bucket ||
+      videoBucket,
+  ).trim();
+  const thumbnailStoragePath = String(
+    videoMetadata.thumbnailStoragePath ||
+      videoMetadata.thumbnail_storage_path ||
+      videoMetadata.video_thumbnail_storage_path ||
+      thumbnailReference?.storagePath ||
+      "",
+  ).trim();
+  const stableThumbnailUrl = stableOrOriginal({
+    sourceUrl: thumbnailSourceUrl,
+    bucket: thumbnailBucket,
+    storagePath: thumbnailStoragePath,
+  });
+  if (thumbnailSourceUrl || thumbnailStoragePath) {
+    article.video_thumbnail_url = stableThumbnailUrl;
+  }
+
+  if (Object.keys(videoMetadata).length > 0) {
+    const stableVideoMetadata = { ...videoMetadata };
+    if (stableVideoUrl) {
+      if ("publicUrl" in stableVideoMetadata) stableVideoMetadata.publicUrl = stableVideoUrl;
+      if ("public_url" in stableVideoMetadata) stableVideoMetadata.public_url = stableVideoUrl;
+      if ("url" in stableVideoMetadata) stableVideoMetadata.url = stableVideoUrl;
+    }
+    if (stableThumbnailUrl) {
+      if ("thumbnailUrl" in stableVideoMetadata) {
+        stableVideoMetadata.thumbnailUrl = stableThumbnailUrl;
+      }
+      if ("thumbnail_url" in stableVideoMetadata) {
+        stableVideoMetadata.thumbnail_url = stableThumbnailUrl;
+      }
+    }
+    article.media_metadata = { ...metadata, video: stableVideoMetadata };
+  }
+
+  return article;
+}
+
 export function verifyEmbedActusMediaToken(
   bucketValue: unknown,
   pathValue: unknown,
