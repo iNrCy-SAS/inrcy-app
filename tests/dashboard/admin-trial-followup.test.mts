@@ -69,7 +69,22 @@ test("le cron alerte l'Admin sans relancer les abonnements déjà programmés", 
   assert.match(cron, /hasScheduledStripeSubscription\s*\?\s*null\s*:\s*adminTrialFollowupOffset/);
   assert.match(cron, /sendAdminTrialFollowupNotifications/);
   assert.match(writer, /insertNotificationOnce/);
+  assert.match(writer, /\.from\("profiles"\)/);
+  assert.match(writer, /\.eq\("role", "admin"\)/);
+  assert.match(writer, /\.from\("inrcy_account_members"\)/);
+  assert.match(writer, /\.order\("is_default", \{ ascending: false \}\)/);
+  assert.doesNotMatch(writer, /ADMIN_USER_IDS/);
   assert.match(writer, /INRCY_SUBSCRIPTION_ALERT_EMAIL/);
   assert.match(writer, /admin_email_sent_at/);
   assert.match(writer, /category: "action"/);
+});
+
+test("la RPC ignore un compte supprimé au lieu d'émettre une erreur 23503", () => {
+  const sql = read("ops/sql/2026-09-17_notification_recipient_guard.sql");
+  assert.match(sql, /from public\.inrcy_accounts as recipient/);
+  assert.match(sql, /where recipient\.id = v_recipient_id/);
+  assert.match(sql, /when foreign_key_violation then/);
+  assert.match(sql, /return null/);
+  assert.match(sql, /revoke all on function public\.inrcy_insert_notification_once\(jsonb\)/);
+  assert.match(sql, /grant execute on function public\.inrcy_insert_notification_once\(jsonb\)\s+to service_role/);
 });

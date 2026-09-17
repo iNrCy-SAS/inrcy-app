@@ -2,7 +2,6 @@ import "server-only";
 
 import { optionalEnv } from "@/lib/env";
 import { insertNotificationOnce } from "@/lib/notificationWriter";
-import { ADMIN_USER_IDS } from "@/lib/roles";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getInrcyLogoInlineAttachments } from "@/lib/txEmailAssets";
 import { sendMonitoringMail } from "@/lib/txMailer";
@@ -25,6 +24,13 @@ type AdminTrialFollowupInput = {
 type NotificationMarker = {
   id: string;
   meta: Record<string, unknown> | null;
+};
+
+type AdminAccountMembership = {
+  auth_user_id: string;
+  account_id: string;
+  is_default: boolean | null;
+  created_at: string | null;
 };
 
 function escapeHtml(value: string) {
@@ -51,11 +57,46 @@ function formatFrenchDate(value: string | null) {
   }).format(date);
 }
 
-async function loadNotificationMarker(adminUserId: string, dedupeKey: string) {
+async function loadAdminNotificationAccountIds() {
+  const { data: adminProfiles, error: profileError } = await supabaseAdmin
+    .from("profiles")
+    .select("user_id")
+    .eq("role", "admin");
+  if (profileError) throw profileError;
+
+  const adminAuthUserIds = Array.from(
+    new Set(
+      (adminProfiles || [])
+        .map((profile) => String(profile.user_id || "").trim())
+        .filter(Boolean),
+    ),
+  );
+  if (adminAuthUserIds.length === 0) return [];
+
+  const { data: memberships, error: membershipError } = await supabaseAdmin
+    .from("inrcy_account_members")
+    .select("auth_user_id,account_id,is_default,created_at")
+    .in("auth_user_id", adminAuthUserIds)
+    .order("is_default", { ascending: false })
+    .order("created_at", { ascending: true });
+  if (membershipError) throw membershipError;
+
+  const primaryAccountByAdmin = new Map<string, string>();
+  for (const membership of (memberships || []) as AdminAccountMembership[]) {
+    const authUserId = String(membership.auth_user_id || "").trim();
+    const accountId = String(membership.account_id || "").trim();
+    if (!authUserId || !accountId || primaryAccountByAdmin.has(authUserId)) continue;
+    primaryAccountByAdmin.set(authUserId, accountId);
+  }
+
+  return Array.from(new Set(primaryAccountByAdmin.values()));
+}
+
+async function loadNotificationMarker(adminAccountId: string, dedupeKey: string) {
   const { data, error } = await supabaseAdmin
     .from("notifications")
     .select("id,meta")
-    .eq("user_id", adminUserId)
+    .eq("user_id", adminAccountId)
     .eq("dedupe_key", dedupeKey)
     .maybeSingle();
   if (error) throw error;
@@ -71,10 +112,11 @@ export async function sendAdminTrialFollowupNotifications(input: AdminTrialFollo
   const name = displayName(input);
   const contactSummary = [input.phone, input.email].filter(Boolean).join(" · ") || "Coordonnées à compléter";
   let notificationsInserted = 0;
+  const adminAccountIds = await loadAdminNotificationAccountIds();
 
-  for (const adminUserId of ADMIN_USER_IDS) {
+  for (const adminAccountId of adminAccountIds) {
     const result = await insertNotificationOnce({
-      user_id: adminUserId,
+      user_id: adminAccountId,
       category: "action",
       kind: "admin_trial_followup_due",
       title: `Essai à relancer à J-${input.daysBeforeEnd} — ${name}`,
@@ -94,10 +136,10 @@ export async function sendAdminTrialFollowupNotifications(input: AdminTrialFollo
     if (result.inserted) notificationsInserted += 1;
   }
 
-  const primaryAdminId = ADMIN_USER_IDS[0];
-  if (!primaryAdminId) return { notificationsInserted, emailSent: false };
+  const primaryAdminAccountId = adminAccountIds[0];
+  if (!primaryAdminAccountId) return { notificationsInserted, emailSent: false };
 
-  const marker = await loadNotificationMarker(primaryAdminId, dedupeKey);
+  const marker = await loadNotificationMarker(primaryAdminAccountId, dedupeKey);
   const markerMeta = marker?.meta && typeof marker.meta === "object" ? marker.meta : {};
   if (!marker || markerMeta.admin_email_sent_at) {
     return { notificationsInserted, emailSent: false };
