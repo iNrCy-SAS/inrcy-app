@@ -56,6 +56,7 @@ import { isBubbleEnabled, type AppBubbleKey } from "@/lib/bubbleAccess";
 import { getXAccessToken } from "@/lib/xOAuth";
 import { deleteXPost } from "@/lib/xPublish";
 import { validateXUrlFreeText } from "@/lib/xChannel";
+import { refreshInrSendPublicationVideoUrl } from "@/lib/inrsend/publicationVideoStorage";
 const LINKEDIN_VERSION = "202603";
 const TIKTOK_INRSEND_EXTERNAL_ACTION_MESSAGE =
   "TikTok ne permet pas la modification ou la suppression réelle depuis iNrCy. Ouvrez TikTok pour gérer cette publication.";
@@ -197,6 +198,7 @@ type PersistedVideoAttachment = {
   duration: number | null;
   url: string;
   publicUrl: string;
+  bucket: string | null;
   storagePath: string | null;
   thumbnailUrl: string | null;
   thumbnailStoragePath?: string | null;
@@ -565,6 +567,16 @@ function normalizeVideoAttachment(input: unknown): PersistedVideoAttachment | nu
   const nested = asRecord(record.video);
   const src = Object.keys(nested).length ? { ...record, ...nested } as JsonRecord : record;
   const url = String(src.publicUrl || src.public_url || src.url || src.videoUrl || src.video_url || src.href || "").trim();
+  const bucket = String(
+    src.bucket ||
+      src.bucketName ||
+      src.bucket_name ||
+      src.storageBucket ||
+      src.storage_bucket ||
+      src.videoBucket ||
+      src.video_bucket ||
+      "",
+  ).trim();
   const storagePath = String(src.storagePath || src.storage_path || src.video_path || src.path || "").trim();
   if (!url && !storagePath) return null;
 
@@ -574,7 +586,6 @@ function normalizeVideoAttachment(input: unknown): PersistedVideoAttachment | nu
   const durationRaw = Number(src.duration ?? src.video_duration_seconds ?? src.durationSeconds ?? 0);
   const sizeRaw = Number(src.size ?? src.video_size ?? src.bytes ?? 0);
   const publicUrl = url || (storagePath && /^https?:\/\//i.test(storagePath) ? storagePath : "");
-  if (!publicUrl) return null;
 
   return {
     name: String(src.name || src.filename || src.fileName || src.video_name || "video-inrcy.mp4").trim() || "video-inrcy.mp4",
@@ -583,6 +594,7 @@ function normalizeVideoAttachment(input: unknown): PersistedVideoAttachment | nu
     duration: Number.isFinite(durationRaw) && durationRaw > 0 ? durationRaw : null,
     url: publicUrl,
     publicUrl,
+    bucket: bucket || null,
     storagePath: storagePath || null,
     thumbnailUrl: String(src.thumbnailUrl || src.thumbnail_url || src.video_thumbnail_url || "").trim() || null,
     thumbnailStoragePath: String(src.thumbnailStoragePath || src.thumbnail_storage_path || "").trim() || null,
@@ -2589,7 +2601,22 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
       const mediaType = normalizePublicationMediaType(body.mediaType || getEventPublicationMediaType(ctx.eventPayload, ctx.publication, channel));
       const requestedVideoSettings = asRecord(body.videoSettings);
       const incomingVideo = normalizeVideoAttachment(body.video || body.newVideo || body.retainedVideo);
-      const video = mediaType === "video" ? (incomingVideo || getPublicationVideo(ctx.eventPayload, ctx.publication, channel)) : null;
+      let video = mediaType === "video" ? (incomingVideo || getPublicationVideo(ctx.eventPayload, ctx.publication, channel)) : null;
+      if (video) {
+        const refreshedVideo = await refreshInrSendPublicationVideoUrl({
+          accountId: activeUserId,
+          bucket: video.bucket,
+          storagePath: video.storagePath,
+          currentUrl: video.publicUrl || video.url,
+        });
+        video = {
+          ...video,
+          url: refreshedVideo.url,
+          publicUrl: refreshedVideo.url,
+          bucket: refreshedVideo.bucket || video.bucket,
+          storagePath: refreshedVideo.storagePath || video.storagePath,
+        };
+      }
 
       const retainedImages = mediaType === "images"
         ? Array.isArray(body.retainedImages)
