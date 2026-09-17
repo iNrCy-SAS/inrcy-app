@@ -22,6 +22,7 @@ var INRCY_CONFIG = Object.freeze({
  * L'API iNrCy crée désormais le rappel immédiatement ; ce script est seulement
  * un filet de récupération et doit donc ménager strictement le quota Gmail.
  */
+// eslint-disable-next-line no-unused-vars, @typescript-eslint/no-unused-vars
 function installerAutomatisation() {
   var properties = PropertiesService.getScriptProperties();
   properties.deleteProperty(INRCY_CONFIG.cooldownProperty);
@@ -174,7 +175,7 @@ function synchroniserInscriptions() {
                   if (event.getTag("prospectUserId") === prospectUserId) {
                     return true;
                   }
-                } catch (tagError) {
+                } catch (_tagError) {
                   // CalendarApp peut masquer une propriété privée créée par API.
                 }
               }
@@ -295,7 +296,7 @@ function extraireDateInscription_(body) {
       INRCY_CONFIG.timeZone,
       "dd/MM/yyyy HH:mm:ss"
     );
-  } catch (error) {
+  } catch (_error) {
     return null;
   }
 }
@@ -309,7 +310,7 @@ function lireMessagesTraites_(properties) {
     return JSON.parse(
       properties.getProperty(INRCY_CONFIG.processedProperty) || "{}"
     );
-  } catch (error) {
+  } catch (_error) {
     return {};
   }
 }
