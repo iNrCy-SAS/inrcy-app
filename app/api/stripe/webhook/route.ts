@@ -8,6 +8,11 @@ import { stripeSubscriptionMonthlyTerms } from "@/lib/adminSubscriberStripe";
 import { stripeSubscriptionPeriodEndIso } from "@/lib/stripeSubscription";
 import { sendAdminSubscriptionAlertForUser } from "@/lib/subscriptionAdmin";
 import {
+  stripeWebhookNeedsReconciliation,
+  stripeWebhookReconciliationLastError,
+  type StripeWebhookReconciliationReason,
+} from "@/lib/stripeWebhookReconciliation";
+import {
   consistentStripeWebhookUserId,
   invoiceCustomerEmail,
   invoiceCustomerId,
@@ -272,7 +277,7 @@ async function getStripeSubscriptionStatus(subscriptionId?: string | null) {
 
 type StripeWebhookEventRow = {
   event_id: string;
-  status: "processing" | "completed" | "failed";
+  status: "processing" | "completed" | "failed" | "needs_reconciliation";
   attempts: number;
   last_received_at: string;
 };
@@ -340,6 +345,24 @@ async function completeStripeWebhookEvent(event: StripeEvent) {
   if (error) throw error;
 }
 
+async function markStripeWebhookNeedsReconciliation(
+  event: StripeEvent,
+  reason: StripeWebhookReconciliationReason,
+) {
+  const eventId = String(event.id || "").trim();
+  if (!eventId) return;
+  const { error } = await supabaseAdmin
+    .from("stripe_webhook_events")
+    .update({
+      status: "needs_reconciliation",
+      completed_at: null,
+      last_error: stripeWebhookReconciliationLastError(reason),
+      last_received_at: new Date().toISOString(),
+    })
+    .eq("event_id", eventId);
+  if (error) throw error;
+}
+
 async function failStripeWebhookEvent(event: StripeEvent, failure: unknown) {
   const eventId = String(event.id || "").trim();
   if (!eventId) return;
@@ -387,6 +410,7 @@ export async function POST(req: Request) {
     string,
     Promise<{ userId: string | null; email: string | null }>
   >();
+  let reconciliationReason: StripeWebhookReconciliationReason | null = null;
   const resolveSubscriptionRow = (
     userId?: string | null,
     customerId?: string | null,
@@ -409,6 +433,9 @@ export async function POST(req: Request) {
   ) => {
     const existingRow = await resolveSubscriptionRow(userId, customerId, subscriptionId, email);
     if (!existingRow?.user_id) {
+      if (stripeWebhookNeedsReconciliation(evt.type, false)) {
+        reconciliationReason ??= "local_subscription_not_found";
+      }
       const details = {
         eventId: typeof evt.id === "string" ? evt.id : null,
         eventType: String(evt.type || "unknown"),
@@ -890,6 +917,11 @@ export async function POST(req: Request) {
           }
         }
       }
+    }
+
+    if (reconciliationReason) {
+      await markStripeWebhookNeedsReconciliation(evt, reconciliationReason);
+      return NextResponse.json({ received: true, reconciliation: "required" });
     }
 
     await completeStripeWebhookEvent(evt);
