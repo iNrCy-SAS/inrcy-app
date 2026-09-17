@@ -38,6 +38,10 @@ import {
   parseAiGatewayJsonObject,
 } from "@/lib/aiGatewayResponse";
 import { assertAiJsonMatchesSchema } from "@/lib/aiJsonSchemaValidation";
+import {
+  normalizeAiJsonResponseBeforeValidation,
+  type AiJsonResponseNormalizer,
+} from "@/lib/aiJsonResponseNormalization";
 import { recordAiGatewayOperationCall } from "@/lib/aiGatewayOperationTelemetry";
 import {
   attachAiGenerationFallbackInfo,
@@ -102,6 +106,8 @@ type AiGenerateJsonBaseOptions = {
   deadlineAt?: number;
   /** Optional JSON Schema for reliable multi-provider structured output. */
   responseSchema?: AiJsonResponseSchema;
+  /** Optional business normalization applied after parsing and before final schema validation. */
+  normalizeResponseBeforeValidation?: AiJsonResponseNormalizer;
 };
 
 type AiGenerateJsonRouting =
@@ -632,10 +638,14 @@ async function executeAiJsonAttempt<T extends AiResponseJSON>(args: {
 
   try {
     const parsed = parseAiGatewayJsonObject<T>(contentText);
+    const normalized = normalizeAiJsonResponseBeforeValidation(
+      parsed,
+      opts.normalizeResponseBeforeValidation,
+    );
     if (opts.responseSchema) {
-      assertAiJsonMatchesSchema(parsed, opts.responseSchema.schema);
+      assertAiJsonMatchesSchema(normalized, opts.responseSchema.schema);
     }
-    return parsed;
+    return normalized as T;
   } catch (error) {
     console.error("[ai-generation] invalid structured output", {
       feature: opts.feature,

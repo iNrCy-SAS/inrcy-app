@@ -21,6 +21,7 @@ import {
   type BoosterStyle,
   type BoosterTheme,
 } from "@/lib/boosterPrompt";
+import { normalizeBoosterStructuredResponse } from "@/lib/boosterStructuredResponseNormalization";
 import { sanitizeGmbGeneratedPost } from "@/lib/googleBusinessCompliance";
 import { getAiEngineTemperature, getAiLanguageLabel } from "@/lib/aiWritingProfile";
 import { prepareMediaForSelectedWriter } from "@/lib/aiMediaUnderstanding";
@@ -1063,6 +1064,8 @@ async function generateVersions(args: {
     budget: args.budget,
     engine: args.generationProfile.preferences.engine,
     responseSchema: buildBoosterResponseSchema(args.channels),
+    normalizeResponseBeforeValidation: (output) =>
+      normalizeBoosterStructuredResponse(output, args.channels),
     system: compiledPrompt.system,
     input: compiledPrompt.input,
     images: args.imagesForAI,
