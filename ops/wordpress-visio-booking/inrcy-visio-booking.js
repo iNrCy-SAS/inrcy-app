@@ -13,6 +13,14 @@
   var bookingSessionId = "";
   var hasCompletedBooking = false;
   var DAYS_PER_PAGE = 6;
+  var BOOKING_TOKEN_STORAGE_KEY = "inrcy_visio_booking_token";
+  var BOOKING_COMPLETED_STORAGE_KEY = "inrcy_visio_booking_completed_until";
+  var BOOKING_COMPLETED_TTL_MS = 21 * 24 * 60 * 60 * 1000;
+  var ATTRIBUTION_QUERY_KEYS = [
+    "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term",
+    "campaign_id", "campaign_name", "adset_id", "adset_name", "ad_id", "ad_name",
+    "placement", "site_source_name", "fbclid", "gclid",
+  ];
 
   function escapeHtml(value) {
     return String(value == null ? "" : value)
@@ -70,21 +78,105 @@
     }).catch(function () {});
   }
 
+  function readSessionBookingToken() {
+    try {
+      return String(window.sessionStorage.getItem(BOOKING_TOKEN_STORAGE_KEY) || "");
+    } catch (error) {
+      return "";
+    }
+  }
+
+  function rememberSessionBookingToken(token) {
+    try {
+      window.sessionStorage.setItem(BOOKING_TOKEN_STORAGE_KEY, token);
+    } catch (error) {}
+  }
+
+  function forgetSessionBookingToken() {
+    currentToken = "";
+    try {
+      window.sessionStorage.removeItem(BOOKING_TOKEN_STORAGE_KEY);
+    } catch (error) {}
+  }
+
+  function bookingWasRecentlyCompleted() {
+    try {
+      var completedUntil = Number(window.localStorage.getItem(BOOKING_COMPLETED_STORAGE_KEY) || 0);
+      if (Number.isFinite(completedUntil) && completedUntil > Date.now()) return true;
+      window.localStorage.removeItem(BOOKING_COMPLETED_STORAGE_KEY);
+    } catch (error) {}
+    return false;
+  }
+
+  function rememberCompletedBooking() {
+    forgetSessionBookingToken();
+    try {
+      window.localStorage.setItem(
+        BOOKING_COMPLETED_STORAGE_KEY,
+        String(Date.now() + BOOKING_COMPLETED_TTL_MS)
+      );
+    } catch (error) {}
+  }
+
+  function signupForm() {
+    var expectedName = String(config.signupFormName || "").trim();
+    var forms = Array.prototype.slice.call(document.querySelectorAll("form"));
+    for (var index = 0; index < forms.length; index += 1) {
+      if (expectedName && forms[index].getAttribute("name") === expectedName) return forms[index];
+    }
+    return document.querySelector("form.elementor-form");
+  }
+
+  function scrollToSignupForm() {
+    var form = signupForm();
+    if (!form) return false;
+    form.scrollIntoView({ behavior: "smooth", block: "center" });
+    window.setTimeout(function () {
+      var firstField = form.querySelector('input:not([type="hidden"]):not([disabled]), select:not([disabled]), textarea:not([disabled])');
+      if (firstField && typeof firstField.focus === "function") firstField.focus({ preventScroll: true });
+    }, 450);
+    return true;
+  }
+
+  function signupDestination() {
+    var destination = new URL(config.signupUrl || "/inscription/?lang=fr", window.location.origin);
+    var currentParameters = new URLSearchParams(window.location.search);
+    ATTRIBUTION_QUERY_KEYS.forEach(function (key) {
+      var value = currentParameters.get(key);
+      if (value && !destination.searchParams.has(key)) destination.searchParams.set(key, value);
+    });
+    destination.hash = "inrcy-inscription";
+    return destination;
+  }
+
+  function goToSignup() {
+    var destination = signupDestination();
+    var currentPath = window.location.pathname.replace(/\/+$/, "") || "/";
+    var signupPath = destination.pathname.replace(/\/+$/, "") || "/";
+    if (currentPath === signupPath && scrollToSignupForm()) return;
+    window.location.assign(destination.toString());
+  }
+
   function removeReopenButton() {
     var existing = document.getElementById("inrcy-visio-reopen");
     if (existing) existing.remove();
   }
 
   function showReopenButton() {
-    if (!currentToken || hasCompletedBooking) return;
+    if (hasCompletedBooking) return;
     removeReopenButton();
     var button = document.createElement("button");
     button.id = "inrcy-visio-reopen";
     button.className = "inrcy-visio-reopen";
     button.type = "button";
-    button.innerHTML = '<span aria-hidden="true">📅</span><strong>Réserver ma mise en route</strong><small>30 à 45 min offertes</small>';
+    button.setAttribute("aria-label", "Réserver ma mise en route iNrCy offerte");
+    button.innerHTML = '<span aria-hidden="true">📅</span><strong>Réserver ma mise en route</strong><small>Offerte • 30 à 45 min</small>';
     button.addEventListener("click", function () {
-      openDialog(currentToken, "reopen");
+      if (currentToken) {
+        openDialog(currentToken, "reopen");
+        return;
+      }
+      goToSignup();
     });
     document.body.appendChild(button);
   }
@@ -155,6 +247,7 @@
     closeDialog("", true);
     removeReopenButton();
     currentToken = token;
+    rememberSessionBookingToken(token);
     bookingSurface = surface || "signup_success";
     bookingSessionId = randomUuid();
     hasCompletedBooking = false;
@@ -305,6 +398,9 @@
         showAvailability();
       })
       .catch(function (error) {
+        if (error && (error.code === "visio_booking_token_expired" || error.code === "visio_booking_token_invalid")) {
+          forgetSessionBookingToken();
+        }
         trackFunnel("availability_failed", 2, { errorCode: error && error.code });
         showError(error);
       });
@@ -323,6 +419,9 @@
         showConfirmation(payload.booking || {});
       })
       .catch(function (error) {
+        if (error && (error.code === "visio_booking_token_expired" || error.code === "visio_booking_token_invalid")) {
+          forgetSessionBookingToken();
+        }
         trackFunnel("booking_failed", 2, {
           errorCode: error && error.code,
           slotStart: selectedStart,
@@ -338,6 +437,7 @@
 
   function showConfirmation(booking) {
     hasCompletedBooking = true;
+    rememberCompletedBooking();
     removeReopenButton();
     var meetButton = booking.meetUrl
       ? '<a class="inrcy-visio-primary" href="' + escapeHtml(booking.meetUrl) + '" target="_blank" rel="noopener"><span>Ouvrir Google Meet</span><i aria-hidden="true">↗</i></a>'
@@ -427,5 +527,13 @@
     window.setTimeout(function () { openDialog(token, "email_link"); }, 80);
   }
 
+  hasCompletedBooking = bookingWasRecentlyCompleted();
+  if (!hasCompletedBooking) {
+    currentToken = readSessionBookingToken();
+    showReopenButton();
+  }
+  if (window.location.hash === "#inrcy-inscription") {
+    window.setTimeout(scrollToSignupForm, 120);
+  }
   openBookingLinkFromHash();
 })(window.jQuery);

@@ -330,6 +330,8 @@ test("la modale contient les deux choix et le parcours de confirmation", () => {
   assert.match(script, /booking_completed/);
   assert.match(plugin, /trackingUrl.*visio-booking\/event/);
   assert.match(plugin, /logoUrl.*logo-inrcy-transparent\.png/);
+  assert.match(plugin, /signupUrl.*home_url\('\/inscription\/'\)/);
+  assert.match(plugin, /signupFormName.*INRCY_VISIO_BOOKING_FORM_NAME/);
   assert.match(script, /inrcy-visio-brand[^\n]+<span>iNrCy<\/span>/);
   assert.match(script, /rendez-vous aura lieu avec <strong>un membre de l’équipe iNrCy<\/strong>/);
   assert.match(script, /Bien préparer votre rendez-vous/);
@@ -346,6 +348,26 @@ test("la modale contient les deux choix et le parcours de confirmation", () => {
     /@media \(max-width: 620px\)[\s\S]*?\.inrcy-visio-overlay\s*\{[\s\S]*?align-items:\s*center/,
   );
   assert.match(script, /submit_success\.inrcyVisioBooking/);
+});
+
+test("le bandeau de mise en route reste public sur tout le site et conserve le parcours agenda", () => {
+  const plugin = read("ops/wordpress-visio-booking/inrcy-visio-booking.php");
+  const script = read("ops/wordpress-visio-booking/inrcy-visio-booking.js");
+  const styles = read("ops/wordpress-visio-booking/inrcy-visio-booking.css");
+
+  assert.match(plugin, /add_action\('wp_enqueue_scripts', 'inrcy_visio_booking_enqueue_assets'/);
+  assert.doesNotMatch(plugin, /is_page\s*\(/);
+  assert.match(script, /showReopenButton\(\);/);
+  assert.match(script, /Offerte • 30 à 45 min/);
+  assert.match(script, /if \(currentToken\)[\s\S]*?openDialog\(currentToken, "reopen"\)/);
+  assert.match(script, /goToSignup\(\)/);
+  assert.match(script, /window\.location\.assign\(destination\.toString\(\)\)/);
+  assert.match(script, /sessionStorage\.setItem\(BOOKING_TOKEN_STORAGE_KEY, token\)/);
+  assert.match(script, /sessionStorage\.getItem\(BOOKING_TOKEN_STORAGE_KEY\)/);
+  assert.match(script, /rememberCompletedBooking\(\)/);
+  assert.match(script, /localStorage\.setItem\([\s\S]*BOOKING_COMPLETED_STORAGE_KEY/);
+  assert.match(script, /showConfirmation\(booking\)[\s\S]*rememberCompletedBooking\(\)/);
+  assert.match(styles, /\.inrcy-visio-reopen\s*\{[\s\S]*position:\s*fixed/);
 });
 
 test("le tunnel de réservation est suivi sans exposer les e-mails au navigateur", () => {
