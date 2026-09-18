@@ -23,6 +23,7 @@ import {
   publicationSettingsForInrAgentChannel,
 } from "@/lib/inrAgentPublicationPlacement";
 import { readInrAgentPinterestBoardSelection } from "@/lib/inrAgentPinterestBoard";
+import { normalizeTiktokPublicationSettings } from "@/app/api/booster/publish-now/publishNow.foundations";
 
 export const runtime = "nodejs";
 export const maxDuration = 90;
@@ -213,6 +214,9 @@ function publicationPayloadForChannels(
   if (!channels.includes("facebook")) {
     delete nextPublishPayload.facebookPublicationSettings;
     delete nextPublishPayload.facebookPublicationPlacement;
+  }
+  if (!channels.includes("tiktok")) {
+    delete nextPublishPayload.tiktokPublicationSettings;
   }
   return {
     ...payload,
@@ -701,9 +705,15 @@ function isManualEditorialPublicationAction(
 
 async function buildScheduledPayload(
   action: ReturnType<typeof rowToInrAgentAction>,
+  requestedTiktokPublicationSettings?: unknown,
 ) {
   const payload = action.payload || {};
   const nestedPublishPayload = asRecord(payload.publishPayload) || {};
+  const tiktokPublicationSettings = normalizeTiktokPublicationSettings(
+    requestedTiktokPublicationSettings ||
+      payload.tiktokPublicationSettings ||
+      nestedPublishPayload.tiktokPublicationSettings,
+  );
 
   if (isCampaignAgentAction(action)) {
     const accountId = cleanText(
@@ -933,6 +943,9 @@ async function buildScheduledPayload(
             : {}),
           ...(pinterestPublicationSettings
             ? { pinterestPublicationSettings }
+            : {}),
+          ...(tiktokPublicationSettings
+            ? { tiktokPublicationSettings }
             : {}),
           workflowTool: "booster",
           workflowAction: "publier",
@@ -1204,7 +1217,10 @@ async function scheduleAgentActionHandler(request: Request) {
   };
 
   try {
-    const scheduledPayload = await buildScheduledPayload(action);
+    const scheduledPayload = await buildScheduledPayload(
+      action,
+      body?.tiktokPublicationSettings,
+    );
     const timezone = cleanText(body?.timezone, 80) || "Europe/Paris";
     if (scheduledPayload.actionType !== "publication" && !scheduledAt) {
       return NextResponse.json(
@@ -1249,6 +1265,28 @@ async function scheduleAgentActionHandler(request: Request) {
         );
       }
 
+      const scheduledPublishPayload = asRecord(
+        scheduledPayload.payload.publishPayload,
+      ) || {};
+      const scheduledTiktokSettings = normalizeTiktokPublicationSettings(
+        scheduledPublishPayload.tiktokPublicationSettings,
+      );
+      if (
+        requestedSelections.some(
+          (selection) => selection.channel === "tiktok",
+        ) &&
+        (!scheduledTiktokSettings ||
+          scheduledTiktokSettings.musicUsageConfirmed !== true)
+      ) {
+        return NextResponse.json(
+          {
+            error: "Validez les paramètres TikTok avant programmation.",
+            code: "INR_AGENT_TIKTOK_SETTINGS_REQUIRED",
+          },
+          { status: 400 },
+        );
+      }
+
       const groupedSelections = Array.from(
         requestedSelections.reduce((groups, selection) => {
           const existing = groups.get(selection.scheduledAt) || [];
@@ -1258,9 +1296,6 @@ async function scheduleAgentActionHandler(request: Request) {
         }, new Map<string, BoosterChannel[]>()),
       );
 
-      const scheduledPublishPayload = asRecord(
-        scheduledPayload.payload.publishPayload,
-      ) || {};
       const scheduledMediaModes = asRecord(
         scheduledPublishPayload.mediaModeByChannel,
       ) || {};

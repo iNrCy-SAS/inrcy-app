@@ -59,6 +59,9 @@ import PublishAiConfigurationDrawer from "../booster/publier/components/PublishA
 import BoosterVideoFormatManager, {
   type BoosterVideoPreparationState,
 } from "../booster/publier/components/BoosterVideoFormatManager";
+import TiktokPublicationSettingsModal, {
+  type TiktokPublicationSettings,
+} from "../booster/publier/components/TiktokPublicationSettingsModal";
 import RichSiteContentEditor from "../booster/publier/components/RichSiteContentEditor";
 import MediaLibraryPickerModal, {
   type MediaLibraryPickerItem,
@@ -233,6 +236,15 @@ type AgentMediaOptimizerRequest = {
     | { kind: "library"; item: MediaOptimizerItem };
   destination: "publish" | "campaign";
 };
+
+type PendingAgentTiktokValidation =
+  | { kind: "run_now" }
+  | { kind: "confirm_existing_plan" }
+  | {
+      kind: "schedule";
+      selections: PublishScheduleSelection[];
+      immediateChannels: BoosterChannelKey[];
+    };
 import {
   AGENT_MEDIA_MAX_IMAGE_BYTES,
   AGENT_MEDIA_MAX_VIDEO_BYTES,
@@ -585,11 +597,15 @@ export default function AgentClient() {
   const [validationScheduleState, setValidationScheduleState] = useState<
     "idle" | "saving"
   >("idle");
+  const [tiktokSettingsOpen, setTiktokSettingsOpen] = useState(false);
+  const [pendingTiktokValidation, setPendingTiktokValidation] =
+    useState<PendingAgentTiktokValidation | null>(null);
   const [pendingImmediateAgentPublishAfterSchedule, setPendingImmediateAgentPublishAfterSchedule] =
     useState<{
       action: AgentPreparedAction;
       actionId: string;
       channels: BoosterChannelKey[];
+      tiktokPublicationSettings?: TiktokPublicationSettings | null;
     } | null>(null);
   const [selectedChannelByAction, setSelectedChannelByAction] = useState<
     Record<string, ChannelKey>
@@ -1181,6 +1197,24 @@ export default function AgentClient() {
         publishMediaActiveIndex,
       )
     : null;
+  const selectedPublicationUsesTiktok = Boolean(
+    isPublishView && preparedChannels.includes("tiktok"),
+  );
+  const tiktokPublishPreview = selectedPublicationUsesTiktok
+    ? extractChannelPreview(selectedPreparedAction!, "tiktok")
+    : null;
+  const tiktokPublishMediaPreview = selectedPublicationUsesTiktok
+    ? extractPublishMediaPreview(selectedPreparedAction, "tiktok")
+    : null;
+  const tiktokPublishMediaRecord = selectedPublicationUsesTiktok
+    ? getPublishMediaRecord(selectedPreparedAction, "tiktok")
+    : null;
+  const tiktokPublishVideoDurationSeconds =
+    Number(
+      tiktokPublishMediaRecord?.duration ||
+        tiktokPublishMediaRecord?.duration_seconds ||
+        0,
+    ) || null;
   const activeMetaPublicationChannel = isInrAgentMetaChannel(
     activePreviewChannel,
   )
@@ -4288,13 +4322,21 @@ export default function AgentClient() {
     await refreshScheduledActions(true);
   }
 
-  async function confirmRobotPlannedPublication() {
+  async function confirmRobotPlannedPublication(
+    tiktokPublicationSettings?: TiktokPublicationSettings | null,
+  ) {
     const action = selectedPreparedAction;
     if (
       !action ||
       !isRobotPlannedPublication(action) ||
       validationScheduleState === "saving"
     ) {
+      return;
+    }
+
+    if (selectedPublicationUsesTiktok && !tiktokPublicationSettings) {
+      setPendingTiktokValidation({ kind: "confirm_existing_plan" });
+      setTiktokSettingsOpen(true);
       return;
     }
 
@@ -4306,6 +4348,7 @@ export default function AgentClient() {
           actionId: action.id,
           confirmExistingPlan: true,
           timezone: agentSettings.timezone || "Europe/Paris",
+          ...(tiktokPublicationSettings ? { tiktokPublicationSettings } : {}),
         },
         i18nT("scheduled_action_success"),
       );
@@ -4423,11 +4466,26 @@ export default function AgentClient() {
   async function scheduleValidatedPublication(
     selections: PublishScheduleSelection[],
     immediateChannels: BoosterChannelKey[] = [],
+    tiktokPublicationSettings?: TiktokPublicationSettings | null,
   ) {
     if (!selectedPreparedAction || validationScheduleState === "saving") return;
     if (!selections.length) {
       showNotice(i18nT("schedule_channels_required"));
       return;
+    }
+
+    const tiktokWillRun =
+      selections.some((selection) => selection.channel === "tiktok") ||
+      immediateChannels.includes("tiktok");
+    if (tiktokWillRun && !tiktokPublicationSettings) {
+      setPendingTiktokValidation({
+        kind: "schedule",
+        selections,
+        immediateChannels,
+      });
+      setValidationScheduleOpen(false);
+      setTiktokSettingsOpen(true);
+      throw new Error("");
     }
 
     if (scheduledEditSession) {
@@ -4454,6 +4512,7 @@ export default function AgentClient() {
           actionId: selectedPreparedAction.id,
           scheduleSelections: selections,
           timezone: agentSettings.timezone || "Europe/Paris",
+          ...(tiktokPublicationSettings ? { tiktokPublicationSettings } : {}),
         },
         i18nT("scheduled_publication_success", { count: selections.length }),
         { closeSchedule: false, showSuccessNotice: false },
@@ -4472,9 +4531,11 @@ export default function AgentClient() {
               action: selectedPreparedAction,
               actionId: selectedPreparedAction.id,
               channels: immediateChannelsToPublish,
+              tiktokPublicationSettings,
             }
           : null,
       );
+
     } catch (error) {
       const message = i18nT("publication_schedule_failed");
       showNotice(message);
@@ -4510,6 +4571,75 @@ export default function AgentClient() {
     deleteScheduledEditAction,
     showNotice,
   });
+
+  function requestImmediateAgentPublication() {
+    if (selectedPublicationUsesTiktok) {
+      setValidationChoiceOpen(false);
+      setPendingTiktokValidation({ kind: "run_now" });
+      setTiktokSettingsOpen(true);
+      return;
+    }
+    void updateActionStatus("validated");
+  }
+
+  function closeAgentTiktokSettingsModal() {
+    const pending = pendingTiktokValidation;
+    setTiktokSettingsOpen(false);
+    setPendingTiktokValidation(null);
+    if (pending?.kind === "schedule") {
+      setValidationScheduleOpen(true);
+    } else if (pending?.kind === "run_now") {
+      setValidationChoiceOpen(true);
+    }
+  }
+
+  async function validateAgentTiktokSettings(
+    settings: TiktokPublicationSettings,
+  ) {
+    const pending = pendingTiktokValidation;
+    if (!pending) return;
+
+    setTiktokSettingsOpen(false);
+    setPendingTiktokValidation(null);
+
+    if (pending.kind === "run_now") {
+      await updateActionStatus("validated", {
+        tiktokPublicationSettings: settings,
+      });
+      return;
+    }
+
+    if (pending.kind === "confirm_existing_plan") {
+      await confirmRobotPlannedPublication(settings);
+      return;
+    }
+
+    const action = selectedPreparedAction;
+    await scheduleValidatedPublication(
+      pending.selections,
+      pending.immediateChannels,
+      settings,
+    );
+    setValidationScheduleOpen(false);
+    setValidationChoiceOpen(false);
+    setPendingImmediateAgentPublishAfterSchedule(null);
+    const scheduledChannels = new Set(
+      pending.selections.map((selection) => selection.channel),
+    );
+    const immediateChannels = Array.from(new Set(pending.immediateChannels)).filter(
+      (channel) => !scheduledChannels.has(channel),
+    );
+    if (action && immediateChannels.length) {
+      await executeImmediateAgentPublicationAfterSchedule(
+        {
+          action,
+          actionId: action.id,
+          channels: immediateChannels,
+          tiktokPublicationSettings: settings,
+        },
+      );
+    }
+  }
 
   async function performPublishChannelRegeneration(
     kind: "content" | "media",
@@ -7437,8 +7567,26 @@ export default function AgentClient() {
         scheduledEditSession={scheduledEditSession}
         mutationState={actionMutationState}
         onClose={() => setValidationChoiceOpen(false)}
-        onRunNow={() => void updateActionStatus("validated")}
+        onRunNow={requestImmediateAgentPublication}
         onSchedule={openValidationScheduleModal}
+      />
+
+      <TiktokPublicationSettingsModal
+        open={tiktokSettingsOpen}
+        styles={dashboardStyles}
+        isMobile={isMobileHeader}
+        mediaType={
+          tiktokPublishMediaPreview?.kind === "video" ? "video" : "images"
+        }
+        videoDurationSeconds={tiktokPublishVideoDurationSeconds}
+        previewTitle={tiktokPublishPreview?.title}
+        previewContent={tiktokPublishPreview?.body}
+        previewHashtags={tiktokPublishPreview?.hashtags}
+        previewMediaUrl={tiktokPublishMediaPreview?.url || null}
+        previewMediaName={tiktokPublishMediaPreview?.name}
+        previewMediaCount={tiktokPublishMediaPreview?.count || 0}
+        onCancel={closeAgentTiktokSettingsModal}
+        onValidate={(settings) => void validateAgentTiktokSettings(settings)}
       />
 
       {validationScheduleOpen &&

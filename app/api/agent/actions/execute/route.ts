@@ -27,6 +27,7 @@ import {
   publicationSettingsForInrAgentChannel,
 } from "@/lib/inrAgentPublicationPlacement";
 import { readInrAgentPinterestBoardSelection } from "@/lib/inrAgentPinterestBoard";
+import { normalizeTiktokPublicationSettings } from "@/app/api/booster/publish-now/publishNow.foundations";
 
 export const maxDuration = 180;
 export const runtime = "nodejs";
@@ -825,6 +826,7 @@ async function executeAgentActionHandler(request: Request) {
     actionId?: unknown;
     channels?: unknown;
     preserveActionStatus?: unknown;
+    tiktokPublicationSettings?: unknown;
   } | null;
   const actionId = cleanText(body?.actionId, 120);
   const requestedChannels = normalizeBoosterChannels(body?.channels);
@@ -918,11 +920,32 @@ async function executeAgentActionHandler(request: Request) {
   }
 
   const payload = action.payload || {};
+  const nestedPublishPayload = asRecord(payload.publishPayload) || {};
   const selectedChannels = hasChannelOverride
     ? requestedChannels
     : normalizeBoosterChannels(
         payload.selectedChannels || payload.channels || action.targetChannels,
       );
+  const tiktokPublicationSettings = selectedChannels.includes("tiktok")
+    ? normalizeTiktokPublicationSettings(
+        body?.tiktokPublicationSettings ||
+          payload.tiktokPublicationSettings ||
+          nestedPublishPayload.tiktokPublicationSettings,
+      )
+    : null;
+  if (
+    selectedChannels.includes("tiktok") &&
+    (!tiktokPublicationSettings ||
+      tiktokPublicationSettings.musicUsageConfirmed !== true)
+  ) {
+    return NextResponse.json(
+      {
+        error: "Validez les paramètres TikTok avant publication.",
+        code: "INR_AGENT_TIKTOK_SETTINGS_REQUIRED",
+      },
+      { status: 400 },
+    );
+  }
   const imagePayloads = await buildImagePayloadsFromAgentAction(
     payload,
     actionId,
@@ -1057,6 +1080,7 @@ async function executeAgentActionHandler(request: Request) {
         : {}),
       ...(facebookPublicationSettings ? { facebookPublicationSettings } : {}),
       ...(pinterestPublicationSettings ? { pinterestPublicationSettings } : {}),
+      ...(tiktokPublicationSettings ? { tiktokPublicationSettings } : {}),
       workflowTool: "booster",
       workflowAction: "publier",
       source: "inr_agent",

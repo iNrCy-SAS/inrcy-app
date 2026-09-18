@@ -13,6 +13,7 @@ import {
 } from "react";
 import type PublishExecutionResultModal from "../../_components/PublishExecutionResultModal";
 import type { ChannelKey as BoosterChannelKey } from "../../booster/publier/publishModal.shared";
+import type { TiktokPublicationSettings } from "../../booster/publier/components/TiktokPublicationSettingsModal";
 import type {
   ActionMutationIntent,
   ActionMutationState,
@@ -229,6 +230,7 @@ export function useAgentActionExecution({
     action: AgentPreparedAction;
     actionId: string;
     channels: BoosterChannelKey[];
+    tiktokPublicationSettings?: TiktokPublicationSettings | null;
   }) {
     if (!request.channels.length || actionMutationState === "saving") return;
     setActionMutationIntent("validated");
@@ -246,6 +248,9 @@ export function useAgentActionExecution({
           actionId: request.actionId,
           channels: request.channels,
           preserveActionStatus: true,
+          ...(request.tiktokPublicationSettings
+            ? { tiktokPublicationSettings: request.tiktokPublicationSettings }
+            : {}),
         }),
       });
       const payload = (await response.json().catch(() => null)) as {
@@ -438,7 +443,12 @@ export function useAgentActionExecution({
     }
   }
 
-  async function updateActionStatus(status: "validated" | "refused") {
+  async function updateActionStatus(
+    status: "validated" | "refused",
+    options: {
+      tiktokPublicationSettings?: TiktokPublicationSettings | null;
+    } = {},
+  ) {
     const actionToExecute = selectedPreparedAction;
     if (!actionToExecute || actionMutationState === "saving") return;
 
@@ -483,7 +493,13 @@ export function useAgentActionExecution({
       const response = await fetch(endpoint, {
         method: status === "validated" ? "POST" : "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ actionId: actionToExecute.id, status }),
+        body: JSON.stringify({
+          actionId: actionToExecute.id,
+          status,
+          ...(options.tiktokPublicationSettings
+            ? { tiktokPublicationSettings: options.tiktokPublicationSettings }
+            : {}),
+        }),
       });
       const payload = (await response.json().catch(() => null)) as {
         action?: AgentPreparedAction;
