@@ -67,6 +67,7 @@ import {
   type InrAgentEditorialMediaKind,
   type InrAgentEditorialSlot,
 } from "@/lib/inrAgentEditorialPlanning";
+import { inrAgentChannelToBoosterPublishChannel } from "@/lib/inrAgentPublishChannels";
 
 export const maxDuration = 800;
 export const runtime = "nodejs";
@@ -158,20 +159,6 @@ const PRO_MEDIA_BUCKET = "inrcy-pro-media";
 const MEDIA_REUSE_EXCLUSION_DAYS = 60;
 const RECENT_MEDIA_MEMORY_LIMIT = 80;
 const IMAGE_BANK_DIVERSIFICATION_RATE = 0.3;
-
-const agentToBoosterChannel: Partial<Record<InrAgentChannel, BoosterChannels>> =
-  {
-    site_inrcy: "inrcy_site",
-    site_web: "site_web",
-    inr_search: "inr_search",
-    gmb: "gmb",
-    facebook: "facebook",
-    instagram: "instagram",
-    linkedin: "linkedin",
-    tiktok: "tiktok",
-    youtube: "youtube_shorts",
-    pinterest: "pinterest",
-  };
 
 const boosterToAgentChannel: Record<BoosterChannels, string> = {
   inrcy_site: "site_inrcy",
@@ -1117,9 +1104,9 @@ async function selectConnectedChannels(args: {
   const inrSearchStatus = await getInrSearchPublicStatus(provisioned.inrSearch.slug);
 
   const isAllowedBoosterChannel = (
-    channel: BoosterChannels | undefined,
+    channel: BoosterChannels | null | undefined,
   ): channel is BoosterChannels => {
-    return channel !== undefined && allowedBoosterChannels.has(channel);
+    return channel != null && allowedBoosterChannels.has(channel);
   };
 
   const allowedAgentChannels: InrAgentChannel[] = [...args.automation.allowedChannels];
@@ -1145,7 +1132,7 @@ async function selectConnectedChannels(args: {
   }
 
   const allowedChannels = allowedAgentChannels
-    .map((channel) => agentToBoosterChannel[channel])
+    .map((channel) => inrAgentChannelToBoosterPublishChannel(channel))
     .filter(isAllowedBoosterChannel);
 
   const bubbleKeyByChannel: Record<BoosterChannels, AppBubbleKey> = {

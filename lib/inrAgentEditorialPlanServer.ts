@@ -14,8 +14,11 @@ import {
   automationSettingsToDbRow,
   sanitizeInrAgentAutomationSettings,
   type InrAgentAutomationSettings,
+  type InrAgentChannel,
   type InrAgentTone,
 } from "@/lib/inrAgentSettings";
+import { missingPreparedInrAgentPublishChannels } from "@/lib/inrAgentPublishChannels";
+import { deliverInrAgentValidationReadyEmail } from "@/lib/inrAgentValidationEmailDelivery";
 import { insertNotificationOnce } from "@/lib/notificationWriter";
 
 type SupabaseLike = any;
@@ -46,13 +49,14 @@ type EditorialActionRow = {
   validation_required?: boolean | null;
   execution_policy?: string | null;
   image_assets?: unknown[] | null;
+  target_channels?: unknown[] | null;
   payload: JsonRecord | null;
   metadata: JsonRecord | null;
   updated_at?: string | null;
 };
 
 const EDITORIAL_ACTION_SELECT =
-  "id,status,scheduled_for,validation_required,execution_policy,image_assets,payload,metadata,created_at,updated_at";
+  "id,status,scheduled_for,validation_required,execution_policy,target_channels,image_assets,payload,metadata,created_at,updated_at";
 const EDITORIAL_MUTABLE_STATUSES = new Set([
   "draft",
   "executing",
@@ -174,6 +178,19 @@ function isGeneratedEditorialRow(row: EditorialActionRow) {
     Boolean(cleanText(plan.generatedAt, 80)) ||
     (Array.isArray(row.image_assets) && row.image_assets.length > 0)
   );
+}
+
+function missingGeneratedEditorialChannels(
+  row: EditorialActionRow,
+  plannedChannels: readonly InrAgentChannel[],
+) {
+  if (!isGeneratedEditorialRow(row)) return [];
+  const payload = asRecord(row.payload);
+  const nested = asRecord(payload.publishPayload);
+  return missingPreparedInrAgentPublishChannels({
+    plannedChannels,
+    postByChannel: payload.postByChannel || nested.postByChannel,
+  });
 }
 
 function isMutableEditorialRow(row: EditorialActionRow) {
@@ -559,6 +576,7 @@ export async function reconcileInrAgentEditorialPlan(args: {
     args.automation.validationMode,
   );
   let requeued = 0;
+  let channelRepairs = 0;
   let validationWorkflowUpdated = 0;
   let reactivated = 0;
   let recoveredStaleGenerations = 0;
@@ -641,6 +659,66 @@ export async function reconcileInrAgentEditorialPlan(args: {
           .eq("user_id", args.userId)
           .eq("status", "executing");
         if (!error) recoveredStaleGenerations += 1;
+        continue;
+      }
+
+      const missingChannels = missingGeneratedEditorialChannels(
+        row,
+        slot.channels,
+      );
+      if (missingChannels.length) {
+        automaticSchedulesCancelled +=
+          await cancelAutomaticScheduledExecution({
+            supabase: args.supabase,
+            userId: args.userId,
+            row,
+            nowIso,
+            reason:
+              "Une publication iNr’Agent incomplète est régénérée avant validation.",
+          });
+        const editorialPlan = editorialPlanPayload(slot, args.timezone);
+        const { error } = await args.supabase
+          .from("inr_agent_actions")
+          .update({
+            title: "Publication iNr’Agent en préparation",
+            summary:
+              "iNr’Agent régénère ce contenu afin d’inclure tous les canaux configurés.",
+            preview_text:
+              "Le contenu est automatiquement réparé avant d’être reproposé à la validation.",
+            target_channels: slot.channels,
+            target_themes: [slot.theme],
+            image_assets: [],
+            payload: {
+              version: 1,
+              source: "inr_agent_editorial_plan",
+              editorialPlan,
+            },
+            validation_required: desiredValidationRequired,
+            execution_policy: desiredExecutionPolicy,
+            status: "draft",
+            prepared_at: nowIso,
+            validated_at: null,
+            refused_at: null,
+            last_error: null,
+            metadata: {
+              ...rowMetadata,
+              editorialPlan: true,
+              editorialState: "queued",
+              editorialAttempts: 0,
+              editorialNextRetryAt: null,
+              editorialLastError: null,
+              editorialChannelRepairAt: nowIso,
+              editorialChannelRepairMissing: missingChannels,
+              automationFrequency: args.automation.frequency,
+            },
+            updated_at: nowIso,
+          })
+          .eq("id", row.id)
+          .eq("user_id", args.userId);
+        if (!error) {
+          requeued += 1;
+          channelRepairs += 1;
+        }
         continue;
       }
 
@@ -776,6 +854,7 @@ export async function reconcileInrAgentEditorialPlan(args: {
     inserted: rowsToInsert.length,
     kept: Math.max(0, plan.length - rowsToInsert.length),
     requeued,
+    channelRepairs,
     reactivated,
     validationWorkflowUpdated,
     recoveredStaleGenerations,
@@ -850,13 +929,38 @@ export async function notifyReadyInrAgentEditorialBatch(args: {
     dedupe_key: `inr-agent-editorial-ready:${args.userId}:${batchSignature}`,
     meta: {
       source: "inr_agent_editorial_plan",
+      batchSignature,
       horizonDays,
       publicationCount: count,
       actionIds: awaitingValidation.map((row) => row.id),
     },
   });
+  let emailDelivery:
+    | Awaited<ReturnType<typeof deliverInrAgentValidationReadyEmail>>
+    | { status: "failed"; error: string };
+  try {
+    emailDelivery = await deliverInrAgentValidationReadyEmail({
+      supabase: args.supabase,
+      userId: args.userId,
+      batchSignature,
+      publicationCount: count,
+      horizonDays,
+      firstScheduledAt: awaitingValidation[0]?.scheduled_for || null,
+      lastScheduledAt:
+        awaitingValidation[awaitingValidation.length - 1]?.scheduled_for || null,
+    });
+  } catch (emailError) {
+    const message = errorMessage(emailError);
+    console.error("[inr-agent] validation email preparation failed", {
+      userId: args.userId,
+      batchSignature,
+      error: emailError,
+    });
+    emailDelivery = { status: "failed", error: message };
+  }
   return {
     status: result.inserted ? ("notified" as const) : ("already_notified" as const),
+    emailStatus: emailDelivery.status,
     awaitingValidation: count,
     remaining: 0,
   };

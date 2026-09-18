@@ -10,6 +10,10 @@ import {
   INR_AGENT_X_PUBLISH_MIGRATION_FLAG,
   sanitizeInrAgentSettings,
 } from "../../lib/inrAgentSettings.ts";
+import {
+  inrAgentChannelToBoosterPublishChannel,
+  missingPreparedInrAgentPublishChannels,
+} from "../../lib/inrAgentPublishChannels.ts";
 
 function read(relativePath: string) {
   return readFileSync(new URL(`../../${relativePath}`, import.meta.url), "utf8");
@@ -121,7 +125,32 @@ test("the preparation backend keeps hydrated X and uses current saved channels",
     agentPrepareApi,
     /const channels = availableChannels\.filter\(/,
   );
+  assert.equal(inrAgentChannelToBoosterPublishChannel("x"), "x");
+  assert.match(
+    agentPrepareApi,
+    /inrAgentChannelToBoosterPublishChannel\(channel\)/,
+  );
   assert.doesNotMatch(agentPrepareApi, /plannedBoosterChannels/);
+});
+
+test("prepared editorial publications self-detect a missing X version", () => {
+  assert.deepEqual(
+    missingPreparedInrAgentPublishChannels({
+      plannedChannels: ["facebook", "x"],
+      postByChannel: { facebook: { content: "Bonjour" } },
+    }),
+    ["x"],
+  );
+  assert.deepEqual(
+    missingPreparedInrAgentPublishChannels({
+      plannedChannels: ["facebook", "x"],
+      postByChannel: {
+        facebook: { content: "Bonjour" },
+        x: { content: "Bonjour X" },
+      },
+    }),
+    [],
+  );
 });
 
 test("the iNrAgent media editor enforces X's four-image limit", () => {
