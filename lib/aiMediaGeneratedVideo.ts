@@ -257,7 +257,8 @@ export async function composeOriginalAiVideo(args: {
   signal?: AbortSignal;
 }): Promise<NormalizedAiVideo> {
   args.signal?.throwIfAborted();
-  if (args.nativeAudioMode === "dialogue" && args.narration) {
+  const requestedNativeAudioMode = args.nativeAudioMode || "ambience";
+  if (requestedNativeAudioMode === "dialogue" && args.narration) {
     throw new Error("ai_original_video_dialogue_narration_conflict");
   }
   const clipDurationTotal = args.clips.reduce(
@@ -326,7 +327,12 @@ export async function composeOriginalAiVideo(args: {
     ) {
       throw new Error("ai_original_video_clip_contract_failed");
     }
-    const nativeAudioMode = args.nativeAudioMode || "ambience";
+    // Une piste Veo dite « ambiance » peut malgré le prompt contenir une voix
+    // résiduelle. Dès qu'une voix off iNrCy existe, couper toute la piste
+    // native garantit qu'aucune seconde voix ne puisse se superposer.
+    const nativeAudioMode = args.narration
+      ? "mute"
+      : requestedNativeAudioMode;
     const sourceHasNativeAudio = probes.every((probe) => probe.hasAudio);
     if (nativeAudioMode === "dialogue" && !sourceHasNativeAudio) {
       throw new Error("ai_original_video_native_dialogue_missing");

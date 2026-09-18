@@ -279,6 +279,11 @@ test("le montage audio préserve le dialogue natif sans jamais recoller un TTS s
   assert.match(composer, /args\.nativeAudioMode === "dialogue"[\s\S]*?"0\.035"/);
   assert.match(composer, /ai_original_video_dialogue_narration_conflict/);
   assert.match(composer, /ai_original_video_native_dialogue_missing/);
+  assert.match(
+    composer,
+    /const nativeAudioMode = args\.narration\s*\? "mute"\s*:\s*requestedNativeAudioMode/,
+    "une voix off coupe toujours l'audio natif Veo pour empêcher une seconde voix en fond",
+  );
   assert.match(server, /auditAiMediaNativeDialogueWithGoogle/);
   assert.match(server, /native_character_dialogue_qa_rejected_native_audio_muted/);
   assert.match(
@@ -300,6 +305,10 @@ test("le montage audio préserve le dialogue natif sans jamais recoller un TTS s
   assert.match(
     server,
     /nativeAudioMode: characterDialogueRequested[\s\S]*?\? "mute"/,
+  );
+  assert.match(
+    server,
+    /nativeAudioMode: nativeCharacterDialoguePreserved[\s\S]*?: narrationAudio[\s\S]*?\? "mute"[\s\S]*?: "ambience"/,
   );
   assert.match(server, /video_composition_silent_fallback/);
   assert.match(server, /nativeAudioMode: "mute"/);

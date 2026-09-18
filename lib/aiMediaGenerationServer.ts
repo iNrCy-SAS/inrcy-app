@@ -1267,6 +1267,8 @@ export async function generateAndSaveAiMedia(args: {
             ? "dialogue"
             : characterDialogueRequested
             ? "mute"
+            : narrationAudio
+            ? "mute"
             : "ambience",
           signal: args.signal,
         })
