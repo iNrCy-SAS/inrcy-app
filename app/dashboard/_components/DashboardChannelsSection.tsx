@@ -554,6 +554,7 @@ export default function DashboardChannelsSection({
                       <button
                         key={item.key}
                         type="button"
+                        data-channel-key={item.key}
                         className={[
                           styles.carouselIconBtn,
                           i === activeDot ? styles.carouselIconBtnActive : "",
@@ -575,17 +576,18 @@ export default function DashboardChannelsSection({
                         aria-pressed={i === activeDot}
                         title={item.name}
                       >
-                        <img
-                          className={styles.carouselIconImg}
-                          src={item.logoSrc}
-                          alt=""
-                          aria-hidden
-                          width={48}
-                          height={48}
-                          loading="eager"
-                          decoding="sync"
-                          fetchPriority="high"
-                        />
+                        <span className={styles.carouselIconViewport} aria-hidden="true">
+                          <img
+                            className={styles.carouselIconImg}
+                            src={item.logoSrc}
+                            alt=""
+                            width={48}
+                            height={48}
+                            loading="eager"
+                            decoding="sync"
+                            fetchPriority="high"
+                          />
+                        </span>
                       </button>
                     );
                   })}

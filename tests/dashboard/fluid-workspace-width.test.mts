@@ -90,6 +90,17 @@ test("mobile dashboard carousel keeps both arrows inside narrow viewports", () =
   assert.match(css, /width:\s*min\(100%, var\(--dash-channel-icon-size\)\)/);
 });
 
+test("mobile dashboard channel logos fill their circular controls without spilling", () => {
+  const section = read("app/dashboard/_components/DashboardChannelsSection.tsx");
+  const css = read("app/dashboard/dashboard.module.css");
+
+  assert.match(section, /data-channel-key=\{item\.key\}/);
+  assert.match(section, /className=\{styles\.carouselIconViewport\}/);
+  assert.match(css, /\.carouselIconViewport\s*\{[\s\S]*?overflow:\s*hidden/);
+  assert.match(css, /\.carouselIconBtn\s*\{[\s\S]*?padding:\s*0\s*!important/);
+  assert.match(css, /\.carouselIconBtn\[data-channel-key="gmb"\]\s+\.carouselIconImg\s*\{[\s\S]*?scale\(1\.3\)/);
+});
+
 test("shared workspace shells no longer impose a fixed desktop width", () => {
   const sharedHeader = read("app/dashboard/_components/DashboardWorkspaceHeader.tsx");
   const aiMemory = read("app/dashboard/settings/_components/AiMemoryContent.tsx");
