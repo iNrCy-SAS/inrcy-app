@@ -1175,16 +1175,6 @@ export async function generateAndSaveAiMedia(args: {
             })
           )
         : null;
-    if (
-      providerRequest.inputMode === "essential" &&
-      characterDialogueRequested &&
-      (characterDialogueProviderFallback || nativeDialogueQa?.status !== "passed")
-    ) {
-      narrationController.abort(
-        new Error("ai_media_character_dialogue_quality_unverified")
-      );
-      throw new Error("ai_media_character_dialogue_quality_unverified");
-    }
     const narrationJoinStartedAt = performance.now();
     const narrationResult = await waitForOptionalTaskWithinGrace({
       task: narrationTask,
@@ -1256,9 +1246,7 @@ export async function generateAndSaveAiMedia(args: {
     let nativeCharacterDialoguePreserved =
       characterDialogueRequested &&
       !characterDialogueProviderFallback &&
-      (providerRequest.inputMode === "essential"
-        ? nativeDialogueQa?.status === "passed"
-        : nativeDialogueQa?.status !== "rejected");
+      nativeDialogueQa?.status !== "rejected";
 
     const clips = videoGateway.clips.map((clip) => ({
       buffer: clip.buffer,
