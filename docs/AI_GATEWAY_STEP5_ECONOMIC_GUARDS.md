@@ -61,7 +61,9 @@ vidéo ne peut donc plus empêcher iNrAgent de préparer les contenus éditoriau
 Les publications éditoriales déjà arrêtées par une limite de sécurité IA sont
 remises automatiquement dans la file par le cron iNrAgent. Ces limites sont
 classées comme temporaires et disposent de reprises espacées, sans maintenir
-l'interface dans un faux état de chargement.
+l'interface dans un faux état de chargement. Les réponses HTTP 500 génériques
+restent elles aussi récupérables jusqu'à huit essais, afin qu'un message amont
+tronqué ne transforme pas une limite temporaire en échec définitif.
 
 Valeurs par défaut sans variable supplémentaire :
 

@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   inrAgentEditorialRetryDecision,
   isInrAgentEditorialQuotaLimitError,
-  shouldRecoverInrAgentEditorialQuotaFailure,
+  shouldRecoverInrAgentEditorialFailure,
 } from "../../lib/inrAgentEditorialRetryPolicy.ts";
 
 test("la limite de sécurité IA est traitée comme un quota temporaire", () => {
@@ -27,21 +27,46 @@ test("la limite de sécurité IA est traitée comme un quota temporaire", () => 
 
 test("un ancien échec terminal de quota est remis dans la file", () => {
   assert.equal(
-    shouldRecoverInrAgentEditorialQuotaFailure({
+    shouldRecoverInrAgentEditorialFailure({
       status: "failed",
       editorialState: "failed",
       attempts: 4,
       error:
         "La limite mensuelle de sécurité IA (appels) de ce compte est atteinte.",
+      retryReason: "quota",
     }),
     true,
   );
   assert.equal(
-    shouldRecoverInrAgentEditorialQuotaFailure({
+    shouldRecoverInrAgentEditorialFailure({
       status: "failed",
       editorialState: "failed",
       attempts: 4,
       error: "Le JSON généré est invalide.",
+      retryReason: "invalid_payload",
+    }),
+    false,
+  );
+});
+
+test("un échec 500 générique reste transitoire au-delà de quatre essais", () => {
+  assert.equal(
+    shouldRecoverInrAgentEditorialFailure({
+      status: "failed",
+      editorialState: "failed",
+      attempts: 4,
+      error: "Préparation éditoriale refusée (500).",
+      retryReason: "transient_error",
+    }),
+    true,
+  );
+  assert.equal(
+    shouldRecoverInrAgentEditorialFailure({
+      status: "failed",
+      editorialState: "failed",
+      attempts: 8,
+      error: "Préparation éditoriale refusée (500).",
+      retryReason: "transient_error",
     }),
     false,
   );

@@ -1,4 +1,4 @@
-export const INR_AGENT_EDITORIAL_MAX_TRANSIENT_ATTEMPTS = 4;
+export const INR_AGENT_EDITORIAL_MAX_TRANSIENT_ATTEMPTS = 8;
 export const INR_AGENT_EDITORIAL_MAX_QUOTA_ATTEMPTS = 12;
 export const INR_AGENT_EDITORIAL_TRANSIENT_RETRY_DELAY_MS = 15 * 60 * 1000;
 export const INR_AGENT_EDITORIAL_QUOTA_RETRY_DELAY_MS = 6 * 60 * 60 * 1000;
@@ -44,16 +44,23 @@ export function inrAgentEditorialRetryDecision(args: {
   } as const;
 }
 
-export function shouldRecoverInrAgentEditorialQuotaFailure(args: {
+export function shouldRecoverInrAgentEditorialFailure(args: {
   status: string;
   editorialState: string;
   attempts: number;
   error: unknown;
+  retryReason?: unknown;
 }) {
+  const quotaLimited = isInrAgentEditorialQuotaLimitError(args.error);
+  const retryReason = normalizedError(args.retryReason);
+  const transientFailure = retryReason === "transient_error";
+  const maxAttempts = quotaLimited || retryReason === "quota"
+    ? INR_AGENT_EDITORIAL_MAX_QUOTA_ATTEMPTS
+    : INR_AGENT_EDITORIAL_MAX_TRANSIENT_ATTEMPTS;
   return (
     args.status === "failed" &&
     args.editorialState === "failed" &&
-    Math.max(0, args.attempts) < INR_AGENT_EDITORIAL_MAX_QUOTA_ATTEMPTS &&
-    isInrAgentEditorialQuotaLimitError(args.error)
+    Math.max(0, args.attempts) < maxAttempts &&
+    (quotaLimited || retryReason === "quota" || transientFailure)
   );
 }

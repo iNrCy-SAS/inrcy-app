@@ -12,7 +12,7 @@ import {
 } from "@/lib/inrAgentEditorialPlanning";
 import {
   inrAgentEditorialRetryDecision,
-  shouldRecoverInrAgentEditorialQuotaFailure,
+  shouldRecoverInrAgentEditorialFailure,
 } from "@/lib/inrAgentEditorialRetryPolicy";
 import {
   automationSettingsToDbRow,
@@ -630,14 +630,15 @@ export async function reconcileInrAgentEditorialPlan(args: {
         0,
         Number(rowMetadata.editorialAttempts) || 0,
       );
-      const recoverableQuotaFailure =
-        shouldRecoverInrAgentEditorialQuotaFailure({
+      const recoverableEditorialFailure =
+        shouldRecoverInrAgentEditorialFailure({
           status: row.status,
           editorialState: cleanText(rowMetadata.editorialState, 40),
           attempts: editorialAttempts,
           error: rowMetadata.editorialLastError,
+          retryReason: rowMetadata.editorialRetryReason,
         });
-      if (recoverableQuotaFailure) {
+      if (recoverableEditorialFailure) {
         const { error } = await args.supabase
           .from("inr_agent_actions")
           .update({
@@ -648,7 +649,9 @@ export async function reconcileInrAgentEditorialPlan(args: {
               editorialState: "retry",
               editorialNextRetryAt: nowIso,
               editorialRecoveredAt: nowIso,
-              editorialRetryReason: "quota_limit_recovered",
+              editorialRetryReason:
+                cleanText(rowMetadata.editorialRetryReason, 80) ||
+                "transient_error",
             },
             updated_at: nowIso,
           })

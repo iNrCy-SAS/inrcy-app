@@ -92,10 +92,10 @@ test("le plan est durable, dédupliqué et protège les quotas lors d'un changem
   assert.match(server, /recoveredStaleGenerations/);
   assert.match(server, /editorialState: "queued"/);
   assert.match(server, /targetActionId: candidate\.id/);
-  assert.match(retryPolicy, /INR_AGENT_EDITORIAL_MAX_TRANSIENT_ATTEMPTS = 4/);
+  assert.match(retryPolicy, /INR_AGENT_EDITORIAL_MAX_TRANSIENT_ATTEMPTS = 8/);
   assert.match(retryPolicy, /INR_AGENT_EDITORIAL_MAX_QUOTA_ATTEMPTS = 12/);
   assert.match(retryPolicy, /INR_AGENT_EDITORIAL_QUOTA_RETRY_DELAY_MS/);
-  assert.match(server, /shouldRecoverInrAgentEditorialQuotaFailure/);
+  assert.match(server, /shouldRecoverInrAgentEditorialFailure/);
   assert.match(cron, /reconcileInrAgentEditorialPlan/);
   assert.match(cron, /prepareNextInrAgentEditorialSlot/);
   assert.match(settingsRoute, /EDITORIAL_PLAN_CHANGE_CONFIRMATION_REQUIRED/);
