@@ -3,7 +3,7 @@ import "server-only";
 import { decodeBusinessSector } from "@/lib/activitySectors";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
-  resolveProfessionalCompanyName,
+  resolveProfessionalCompanyNameFromProfile,
   sanitizeProfessionalIdentityText,
 } from "@/lib/professionalBusinessIdentity";
 
@@ -84,7 +84,7 @@ export async function loadInrSearchQuality(
   const profile = asRecord(profileRes.data);
   const business = asRecord(businessRes.data);
   const decodedSector = decodeBusinessSector(clean(business.sector, 300));
-  const companyName = resolveProfessionalCompanyName(
+  const companyName = resolveProfessionalCompanyNameFromProfile(
     profile.company_legal_name,
     config.pageTitle,
   );

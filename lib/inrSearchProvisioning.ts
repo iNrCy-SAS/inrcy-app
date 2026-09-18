@@ -7,7 +7,7 @@ import { buildInrSearchIndexingUrls, submitInrSearchUrlsToIndexNow } from "@/lib
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { asRecord } from "@/lib/tsSafe";
 import {
-  resolveProfessionalCompanyName,
+  resolveProfessionalCompanyNameFromProfile,
   sanitizeProfessionalIdentityText,
 } from "@/lib/professionalBusinessIdentity";
 
@@ -148,9 +148,8 @@ export async function ensureSystemManagedInrSearch(
   const business = asRecord(businessRes.data);
   const root = asRecord(asRecord(configData).settings);
   const current = asRecord(root.inrSearch);
-  const companyName = resolveProfessionalCompanyName(
-    profile.company_legal_name,
-    profile.company_name,
+  const companyName = resolveProfessionalCompanyNameFromProfile(
+    [profile.company_legal_name, profile.company_name],
   );
   const city = clean(profile.hq_city || profile.city, 120);
   const description = clean(sanitizeProfessionalIdentityText(

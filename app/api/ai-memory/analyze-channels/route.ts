@@ -48,7 +48,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { asRecord, asString } from "@/lib/tsSafe";
 import {
   INTERNAL_PRODUCT_COMPANY_NAMES,
-  resolveProfessionalCompanyName,
+  resolveProfessionalCompanyNameFromProfile,
   sanitizeProfessionalIdentityText,
   sanitizeProfessionalIdentityValue,
 } from "@/lib/professionalBusinessIdentity";
@@ -356,9 +356,8 @@ export async function POST(request: Request) {
 
     const business = asRecord(businessResult.data);
     const profile = asRecord(profileResult.data);
-    const companyName = resolveProfessionalCompanyName(
+    const companyName = resolveProfessionalCompanyNameFromProfile(
       profile.company_legal_name,
-      profile.company_name,
       business.company_legal_name,
       business.company_name,
       business.business_name,

@@ -6,6 +6,7 @@ import { resolve } from "node:path";
 import {
   isInternalProductIdentity,
   resolveProfessionalCompanyName,
+  resolveProfessionalCompanyNameFromProfile,
   sanitizeProfessionalIdentityText,
   sanitizeProfessionalIdentityValue,
 } from "../../lib/professionalBusinessIdentity.ts";
@@ -32,6 +33,25 @@ test("iNrCy products can never become the professional company fallback", () => 
     "Ouest Nettoyage Industriel & Express",
   );
   assert.equal(resolveProfessionalCompanyName("iNrCy", "iNr’Badge"), "");
+  assert.equal(
+    resolveProfessionalCompanyNameFromProfile("iNrCy", "Entreprise de secours"),
+    "iNrCy",
+  );
+  assert.equal(
+    resolveProfessionalCompanyNameFromProfile("", "iNr’Search", "Ouest Nettoyage"),
+    "Ouest Nettoyage",
+  );
+});
+
+test("the official iNrCy company profile remains a legitimate canonical identity", () => {
+  const company = resolveProfessionalCompanyNameFromProfile("iNrCy");
+  assert.equal(
+    sanitizeProfessionalIdentityText(
+      "iNrCy est une entreprise française spécialisée dans la visibilité.",
+      company,
+    ),
+    "iNrCy est une entreprise française spécialisée dans la visibilité.",
+  );
 });
 
 test("contaminated company statements are repaired with the canonical profile name", () => {

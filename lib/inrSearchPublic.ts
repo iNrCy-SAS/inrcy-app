@@ -18,7 +18,7 @@ import {
   type InrSearchStorageMediaCandidate,
 } from "@/lib/inrSearchStorageMediaResolver";
 import {
-  resolveProfessionalCompanyName,
+  resolveProfessionalCompanyNameFromProfile,
   sanitizeProfessionalIdentityText,
 } from "@/lib/professionalBusinessIdentity";
 
@@ -1205,7 +1205,7 @@ async function loadInrSearchPublicPageUncached(slug: string): Promise<InrSearchP
     integrations: Array.isArray(integrationsRes.data) ? integrationsRes.data : [],
   });
 
-  const companyName = resolveProfessionalCompanyName(
+  const companyName = resolveProfessionalCompanyNameFromProfile(
     clean(profile.company_legal_name, 180),
     clean(config.pageTitle, 180),
   ) || "Entreprise";
@@ -1442,7 +1442,7 @@ async function listPublishedInrSearchCompaniesUncached(): Promise<PublishedInrSe
       const profile = profiles.get(item.userId) || {};
       const business = businesses.get(item.userId) || {};
       const decodedSector = decodeBusinessSector(clean(business.sector, 300));
-      const companyName = resolveProfessionalCompanyName(
+      const companyName = resolveProfessionalCompanyNameFromProfile(
         clean(profile.company_legal_name, 180),
         clean(item.config.pageTitle, 180),
       ) || "Entreprise";

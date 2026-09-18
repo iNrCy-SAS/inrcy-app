@@ -17,7 +17,7 @@ import {
 import { normalizeAiMemory, type AiMemory } from "@/lib/aiMemory";
 import { decodeAiInstructionSections } from "@/lib/aiInstructionSections";
 import {
-  resolveProfessionalCompanyName,
+  resolveProfessionalCompanyNameFromProfile,
   sanitizeProfessionalIdentityText,
   sanitizeProfessionalIdentityValue,
 } from "@/lib/professionalBusinessIdentity";
@@ -500,12 +500,13 @@ export function buildNormalizedAiGenerationProfile(
   const instructionSections = decodeAiInstructionSections(
     firstValue(preferenceSources, ["ai_custom_instructions", "custom_instructions"]),
   );
-  const companyName = resolveProfessionalCompanyName(
-    profile.company_legal_name,
-    profile.companyLegalName,
-    profile.company_name,
-    profile.business_name,
-    profile.name,
+  const companyName = resolveProfessionalCompanyNameFromProfile(
+    [
+      profile.company_legal_name,
+      profile.companyLegalName,
+      profile.company_name,
+      profile.business_name,
+    ],
     business.company_legal_name,
     business.companyLegalName,
     business.company_name,

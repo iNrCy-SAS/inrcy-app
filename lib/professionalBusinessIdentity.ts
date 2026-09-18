@@ -57,6 +57,25 @@ export function resolveProfessionalCompanyName(...candidates: unknown[]) {
 }
 
 /**
+ * Le nom saisi dans « Mon profil » est la source d'identité souveraine.
+ * Il peut légitimement correspondre à la marque iNrCy pour le compte officiel ;
+ * seuls les replis issus des outils, contenus et analyses sont filtrés.
+ */
+export function resolveProfessionalCompanyNameFromProfile(
+  profileCandidates: unknown | readonly unknown[],
+  ...fallbackCandidates: unknown[]
+) {
+  const candidates = Array.isArray(profileCandidates)
+    ? profileCandidates
+    : [profileCandidates];
+  for (const candidate of candidates) {
+    const value = clean(candidate);
+    if (value) return value;
+  }
+  return resolveProfessionalCompanyName(...fallbackCandidates);
+}
+
+/**
  * Répare uniquement les usages où un produit iNrCy est grammaticalement pris
  * pour l'entreprise. Les mentions légitimes comme « utilise iNrCy » ou
  * « publier sur iNr’Search » restent intactes.
@@ -68,7 +87,9 @@ export function sanitizeProfessionalIdentityText(
   const input = String(value ?? "");
   if (!input) return "";
 
-  const canonicalName = resolveProfessionalCompanyName(companyName);
+  // L'appelant fournit ici le nom canonique déjà résolu depuis Mon profil.
+  // Ne pas le refiltrer : « iNrCy » est aussi le nom légitime du compte officiel.
+  const canonicalName = clean(companyName);
   const companySubject = canonicalName || "L’entreprise";
   const companyAfterPreposition = canonicalName || "cette entreprise";
   const prefix = String.raw`(^|[.!?]\s+|[\r\n]+|>\s*|[-–—•]\s+)`;

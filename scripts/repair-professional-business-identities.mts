@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import {
-  resolveProfessionalCompanyName,
+  resolveProfessionalCompanyNameFromProfile,
   sanitizeProfessionalIdentityText,
   sanitizeProfessionalIdentityValue,
 } from "../lib/professionalBusinessIdentity.ts";
@@ -82,7 +82,9 @@ const [profiles, businesses, memories] = await Promise.all([
 const companyNames = new Map<string, string>();
 for (const profile of profiles) {
   const userId = String(profile.user_id || "").trim();
-  const companyName = resolveProfessionalCompanyName(profile.company_legal_name);
+  const companyName = resolveProfessionalCompanyNameFromProfile(
+    profile.company_legal_name,
+  );
   if (userId && companyName) companyNames.set(userId, companyName);
 }
 

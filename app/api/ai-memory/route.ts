@@ -22,7 +22,7 @@ import { invalidateBoosterGenerationContext } from "@/lib/boosterGenerationConte
 import { getDashboardEditionForAccountId } from "@/lib/dashboardEditionServer";
 import { requireUser } from "@/lib/requireUser";
 import {
-  resolveProfessionalCompanyName,
+  resolveProfessionalCompanyNameFromProfile,
   sanitizeProfessionalIdentityText,
   sanitizeProfessionalIdentityValue,
 } from "@/lib/professionalBusinessIdentity";
@@ -134,7 +134,7 @@ export async function GET() {
     return jsonUserFacingError(profileResult.error, { status: 500 });
   }
 
-  const companyName = resolveProfessionalCompanyName(
+  const companyName = resolveProfessionalCompanyNameFromProfile(
     profileResult.data?.company_legal_name,
     businessResult.data?.company_legal_name,
     businessResult.data?.company_name,
@@ -254,7 +254,7 @@ export async function PUT(req: Request) {
   const vocabularyInput = hasVocabularyUpdate && input.vocabulary && typeof input.vocabulary === "object" && !Array.isArray(input.vocabulary)
     ? input.vocabulary as Record<string, unknown>
     : {};
-  const companyName = resolveProfessionalCompanyName(
+  const companyName = resolveProfessionalCompanyNameFromProfile(
     profileResult.data?.company_legal_name,
     currentBusinessResult.data?.company_legal_name,
     currentBusinessResult.data?.company_name,
