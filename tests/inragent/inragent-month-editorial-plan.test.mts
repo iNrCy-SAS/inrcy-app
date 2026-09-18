@@ -69,6 +69,7 @@ test("les thèmes éditoriaux enrichis traversent réglages, prompts et médias"
 
 test("le plan est durable, dédupliqué et protège les quotas lors d'un changement", () => {
   const server = read("lib/inrAgentEditorialPlanServer.ts");
+  const retryPolicy = read("lib/inrAgentEditorialRetryPolicy.ts");
   const settingsRoute = read("app/api/agent/settings/route.ts");
   const client = read("app/dashboard/agent/AgentClient.tsx");
   const cron = read("app/api/cron/inr-agent-editorial-plan/route.ts");
@@ -91,9 +92,10 @@ test("le plan est durable, dédupliqué et protège les quotas lors d'un changem
   assert.match(server, /recoveredStaleGenerations/);
   assert.match(server, /editorialState: "queued"/);
   assert.match(server, /targetActionId: candidate\.id/);
-  assert.match(server, /MAX_EDITORIAL_RETRIES = 4/);
-  assert.match(server, /MAX_QUOTA_RETRIES = 12/);
-  assert.match(server, /QUOTA_RETRY_DELAY_MS/);
+  assert.match(retryPolicy, /INR_AGENT_EDITORIAL_MAX_TRANSIENT_ATTEMPTS = 4/);
+  assert.match(retryPolicy, /INR_AGENT_EDITORIAL_MAX_QUOTA_ATTEMPTS = 12/);
+  assert.match(retryPolicy, /INR_AGENT_EDITORIAL_QUOTA_RETRY_DELAY_MS/);
+  assert.match(server, /shouldRecoverInrAgentEditorialQuotaFailure/);
   assert.match(cron, /reconcileInrAgentEditorialPlan/);
   assert.match(cron, /prepareNextInrAgentEditorialSlot/);
   assert.match(settingsRoute, /EDITORIAL_PLAN_CHANGE_CONFIRMATION_REQUIRED/);

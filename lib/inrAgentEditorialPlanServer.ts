@@ -11,6 +11,10 @@ import {
   type InrAgentEditorialSlot,
 } from "@/lib/inrAgentEditorialPlanning";
 import {
+  inrAgentEditorialRetryDecision,
+  shouldRecoverInrAgentEditorialQuotaFailure,
+} from "@/lib/inrAgentEditorialRetryPolicy";
+import {
   automationSettingsToDbRow,
   sanitizeInrAgentAutomationSettings,
   type InrAgentAutomationSettings,
@@ -65,10 +69,6 @@ const EDITORIAL_MUTABLE_STATUSES = new Set([
   "pending_validation",
   "pending",
 ]);
-const MAX_EDITORIAL_RETRIES = 4;
-const RETRY_DELAY_MS = 15 * 60 * 1000;
-const MAX_QUOTA_RETRIES = 12;
-const QUOTA_RETRY_DELAY_MS = 6 * 60 * 60 * 1000;
 const EDITORIAL_GENERATION_LEASE_MS = 20 * 60 * 1000;
 
 function asRecord(value: unknown): JsonRecord {
@@ -626,6 +626,38 @@ export async function reconcileInrAgentEditorialPlan(args: {
         if (!error) reactivated += 1;
         continue;
       }
+      const editorialAttempts = Math.max(
+        0,
+        Number(rowMetadata.editorialAttempts) || 0,
+      );
+      const recoverableQuotaFailure =
+        shouldRecoverInrAgentEditorialQuotaFailure({
+          status: row.status,
+          editorialState: cleanText(rowMetadata.editorialState, 40),
+          attempts: editorialAttempts,
+          error: rowMetadata.editorialLastError,
+        });
+      if (recoverableQuotaFailure) {
+        const { error } = await args.supabase
+          .from("inr_agent_actions")
+          .update({
+            status: "draft",
+            last_error: null,
+            metadata: {
+              ...rowMetadata,
+              editorialState: "retry",
+              editorialNextRetryAt: nowIso,
+              editorialRecoveredAt: nowIso,
+              editorialRetryReason: "quota_limit_recovered",
+            },
+            updated_at: nowIso,
+          })
+          .eq("id", row.id)
+          .eq("user_id", args.userId)
+          .eq("status", "failed");
+        if (!error) requeued += 1;
+        continue;
+      }
       const generationStartedAt = Date.parse(
         cleanText(
           rowMetadata.editorialLastAttemptAt || row.updated_at,
@@ -1049,17 +1081,12 @@ export async function prepareNextInrAgentEditorialSlot(args: {
     return { status: "prepared" as const, actionId: candidate.id };
   } catch (cause) {
     const message = errorMessage(cause);
-    const isQuotaLimited = /quota|rate.?limit|too many requests|\b429\b/i.test(
-      message,
-    );
-    const retry =
-      attempts < (isQuotaLimited ? MAX_QUOTA_RETRIES : MAX_EDITORIAL_RETRIES);
-    const retryAt = retry
-      ? new Date(
-          now.getTime() +
-            (isQuotaLimited ? QUOTA_RETRY_DELAY_MS : RETRY_DELAY_MS),
-        ).toISOString()
-      : null;
+    const retryDecision = inrAgentEditorialRetryDecision({
+      error: message,
+      attempts,
+      nowMs: now.getTime(),
+    });
+    const { retry, retryAt, quotaLimited: isQuotaLimited } = retryDecision;
     await args.supabase
       .from("inr_agent_actions")
       .update({

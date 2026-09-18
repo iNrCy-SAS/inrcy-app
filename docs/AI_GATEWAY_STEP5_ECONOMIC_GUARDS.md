@@ -58,6 +58,10 @@ Les fonctionnalités `agent.*` continuent d'être comptabilisées mais ne sont p
 bloquées par ce seul plafond : elles restent protégées par leurs budgets par
 opération et par les plafonds globaux d'appels et de tokens. Une consommation
 vidéo ne peut donc plus empêcher iNrAgent de préparer les contenus éditoriaux.
+Les publications éditoriales déjà arrêtées par une limite de sécurité IA sont
+remises automatiquement dans la file par le cron iNrAgent. Ces limites sont
+classées comme temporaires et disposent de reprises espacées, sans maintenir
+l'interface dans un faux état de chargement.
 
 Valeurs par défaut sans variable supplémentaire :
 
