@@ -96,6 +96,11 @@ export async function GET() {
 
   const creatorInfo = await fetchTiktokCreatorInfo(accessToken);
   const normalized = {
+    accountKey:
+      settingsResult.tiktok.openId ||
+      integration?.resource_id ||
+      asString(creatorInfo.creator_username) ||
+      asString(creatorInfo.username),
     username: settingsResult.tiktok.username || asString(creatorInfo.creator_username) || asString(creatorInfo.username),
     displayName: settingsResult.tiktok.displayName || asString(creatorInfo.creator_nickname) || asString(creatorInfo.display_name),
     avatarUrl: settingsResult.tiktok.avatarUrl || asString(creatorInfo.creator_avatar_url) || null,

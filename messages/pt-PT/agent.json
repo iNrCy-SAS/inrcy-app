@@ -732,5 +732,11 @@
   "publication_ideas_add": "Adicionar uma secção de ideias",
   "publication_ideas_limit_reached": "Máximo de 12 secções",
   "publication_ideas_hint": "As ideias orientam o tema. O iNrAgent respeita o seu ADN, canais e regras editoriais.",
-  "zoom_value_1d90c01c": "zoom {value0}×"
+  "zoom_value_1d90c01c": "zoom {value0}×",
+  "tiktok_session_active": "Definições TikTok guardadas para esta série",
+  "tiktok_session_consent_hint": "Cada clique em «Validar» confirma a publicação apresentada e a",
+  "tiktok_music_usage_confirmation": "Confirmação de utilização de música do TikTok",
+  "tiktok_session_change": "Alterar",
+  "tiktok_session_save": "Guardar definições",
+  "tiktok_session_checking": "A verificar o TikTok…"
 }

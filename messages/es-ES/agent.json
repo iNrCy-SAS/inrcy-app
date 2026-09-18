@@ -732,5 +732,11 @@
   "publication_ideas_add": "Añadir una sección de ideas",
   "publication_ideas_limit_reached": "Máximo de 12 secciones",
   "publication_ideas_hint": "Las ideas guían el tema. iNrAgent respeta tu ADN, canales y reglas editoriales.",
-  "zoom_value_1d90c01c": "ampliar {value0}×"
+  "zoom_value_1d90c01c": "ampliar {value0}×",
+  "tiktok_session_active": "Ajustes de TikTok guardados para esta serie",
+  "tiktok_session_consent_hint": "Cada clic en «Validar» confirma la publicación mostrada y la",
+  "tiktok_music_usage_confirmation": "Confirmación de uso de música de TikTok",
+  "tiktok_session_change": "Modificar",
+  "tiktok_session_save": "Guardar ajustes",
+  "tiktok_session_checking": "Comprobando TikTok…"
 }

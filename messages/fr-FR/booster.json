@@ -775,5 +775,7 @@
   "website_url_prefilled": "URL du site pré-remplie ({source})",
   "youtube_necessite_une_video_e82a0e29": "YouTube nécessite une vidéo.",
   "youtube_necessite_une_video_les_photos_be0f53d0": "YouTube nécessite une vidéo. Les photos seules ne peuvent pas être publiées sur YouTube.",
-  "zoom_value_1d90c01c": "zoom {value0}×"
+  "zoom_value_1d90c01c": "zoom {value0}×",
+  "tiktok_reuse_settings_session": "Utiliser ces réglages pour les prochaines publications TikTok de cette série",
+  "tiktok_reuse_settings_session_help": "La modale ne sera plus redemandée. Chaque publication restera validée séparément."
 }

@@ -775,5 +775,7 @@
   "requirement_validation_failed": "Verifica i requisiti di pubblicazione di questo canale.",
   "video_format_active_for_publication": "Formato video attivo per la pubblicazione",
   "video_format_selected_for_publication": "Formato video selezionato per la pubblicazione",
-  "video_format_selected_to_apply": "Formato video selezionato, pronto per essere applicato"
+  "video_format_selected_to_apply": "Formato video selezionato, pronto per essere applicato",
+  "tiktok_reuse_settings_session": "Usa queste impostazioni per i prossimi post TikTok della serie",
+  "tiktok_reuse_settings_session_help": "La finestra non verrà più mostrata. Ogni post sarà comunque convalidato separatamente."
 }

@@ -732,5 +732,11 @@
   "publication_ideas_add": "添加创意栏目",
   "publication_ideas_limit_reached": "最多 12 个栏目",
   "publication_ideas_hint": "创意决定主题；iNrAgent 仍会遵循您的企业 DNA、渠道和编辑规则。",
-  "zoom_value_1d90c01c": "缩放 {value0}×"
+  "zoom_value_1d90c01c": "缩放 {value0}×",
+  "tiktok_session_active": "本批次的 TikTok 设置已保存",
+  "tiktok_session_consent_hint": "每次点击“确认”即表示确认当前帖子以及",
+  "tiktok_music_usage_confirmation": "TikTok 音乐使用确认",
+  "tiktok_session_change": "修改",
+  "tiktok_session_save": "保存设置",
+  "tiktok_session_checking": "正在检查 TikTok…"
 }

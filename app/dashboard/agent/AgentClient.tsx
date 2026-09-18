@@ -61,6 +61,7 @@ import BoosterVideoFormatManager, {
 } from "../booster/publier/components/BoosterVideoFormatManager";
 import TiktokPublicationSettingsModal, {
   type TiktokPublicationSettings,
+  type TiktokPublicationValidationMeta,
 } from "../booster/publier/components/TiktokPublicationSettingsModal";
 import RichSiteContentEditor from "../booster/publier/components/RichSiteContentEditor";
 import MediaLibraryPickerModal, {
@@ -162,6 +163,12 @@ import {
   type InrAgentSettings,
 } from "@/lib/inrAgentSettings";
 import {
+  createInrAgentTiktokValidationSession,
+  resolveReusableInrAgentTiktokSettings,
+  type InrAgentTiktokCreatorInfo,
+  type InrAgentTiktokValidationSession,
+} from "@/lib/inrAgentTiktokValidationSession";
+import {
   inrAgentMonthlyDateCount,
   normalizeInrAgentMonthDays,
 } from "@/lib/inrAgentMonthSchedule";
@@ -241,6 +248,7 @@ type AgentMediaOptimizerRequest = {
 type PendingAgentTiktokValidation =
   | { kind: "run_now" }
   | { kind: "confirm_existing_plan" }
+  | { kind: "update_session" }
   | {
       kind: "schedule";
       selections: PublishScheduleSelection[];
@@ -605,6 +613,12 @@ export default function AgentClient() {
   const [tiktokSettingsOpen, setTiktokSettingsOpen] = useState(false);
   const [pendingTiktokValidation, setPendingTiktokValidation] =
     useState<PendingAgentTiktokValidation | null>(null);
+  const [tiktokValidationSession, setTiktokValidationSession] =
+    useState<InrAgentTiktokValidationSession | null>(null);
+  const [tiktokSessionCheckState, setTiktokSessionCheckState] = useState<
+    "idle" | "checking"
+  >("idle");
+  const tiktokSessionCheckInFlightRef = useRef(false);
   const [pendingImmediateAgentPublishAfterSchedule, setPendingImmediateAgentPublishAfterSchedule] =
     useState<{
       action: AgentPreparedAction;
@@ -1010,10 +1024,11 @@ export default function AgentClient() {
   const canNavigatePublications =
     selected.key === "publish" &&
     !scheduledEditSession &&
+    tiktokSessionCheckState !== "checking" &&
     publicationCarouselActions.length > 1;
 
   function movePublication(offset: number) {
-    if (!canNavigatePublications) return;
+    if (!canNavigatePublications || tiktokSessionCheckInFlightRef.current) return;
     const currentIndex = selectedPublicationIndex >= 0 ? selectedPublicationIndex : 0;
     const nextIndex =
       (currentIndex + offset + publicationCarouselActions.length) %
@@ -1228,6 +1243,8 @@ export default function AgentClient() {
   const tiktokPublishMediaPreview = selectedPublicationUsesTiktok
     ? extractPublishMediaPreview(selectedPreparedAction, "tiktok")
     : null;
+  const tiktokPublishMediaType: "video" | "images" =
+    tiktokPublishMediaPreview?.kind === "video" ? "video" : "images";
   const tiktokPublishMediaRecord = selectedPublicationUsesTiktok
     ? getPublishMediaRecord(selectedPreparedAction, "tiktok")
     : null;
@@ -1237,6 +1254,10 @@ export default function AgentClient() {
         tiktokPublishMediaRecord?.duration_seconds ||
         0,
     ) || null;
+  const hasActiveTiktokValidationSession = Boolean(
+    tiktokValidationSession &&
+      tiktokValidationSession.expiresAt > Date.now(),
+  );
   const activeMetaPublicationChannel = isInrAgentMetaChannel(
     activePreviewChannel,
   )
@@ -4340,6 +4361,85 @@ export default function AgentClient() {
     await refreshScheduledActions(true);
   }
 
+  async function readCurrentTiktokCreatorInfo() {
+    const response = await fetch("/api/integrations/tiktok/creator-info", {
+      credentials: "include",
+      cache: "no-store",
+    });
+    const payload = (await response.json().catch(() => null)) as {
+      ok?: boolean;
+      creatorInfo?: Record<string, unknown>;
+    } | null;
+    if (!response.ok || !payload?.ok || !payload.creatorInfo) return null;
+
+    const creatorInfo = asRecord(payload.creatorInfo);
+    if (!creatorInfo) return null;
+    const privacyLevelOptions = Array.isArray(
+      creatorInfo.privacyLevelOptions,
+    )
+      ? creatorInfo.privacyLevelOptions
+          .map((option) => String(option || "").trim())
+          .filter(Boolean)
+      : [];
+    const maxDuration = Number(creatorInfo.maxVideoDurationSeconds);
+
+    return {
+      accountKey: firstSafeString(
+        creatorInfo.accountKey,
+        creatorInfo.username,
+        creatorInfo.displayName,
+      ),
+      username: firstSafeString(creatorInfo.username),
+      displayName: firstSafeString(creatorInfo.displayName),
+      privacyLevelOptions,
+      commentDisabled: creatorInfo.commentDisabled === true,
+      duetDisabled: creatorInfo.duetDisabled === true,
+      stitchDisabled: creatorInfo.stitchDisabled === true,
+      maxVideoDurationSeconds:
+        Number.isFinite(maxDuration) && maxDuration > 0 ? maxDuration : null,
+    } satisfies InrAgentTiktokCreatorInfo;
+  }
+
+  async function resolveAgentTiktokSessionSettings() {
+    const session = tiktokValidationSession;
+    if (!session || tiktokSessionCheckInFlightRef.current) return null;
+
+    tiktokSessionCheckInFlightRef.current = true;
+    setTiktokSessionCheckState("checking");
+    try {
+      const creatorInfo = await readCurrentTiktokCreatorInfo();
+      if (!creatorInfo) {
+        setTiktokValidationSession(null);
+        return null;
+      }
+      const settings = resolveReusableInrAgentTiktokSettings({
+        session,
+        creatorInfo,
+        mediaType: tiktokPublishMediaType,
+        videoDurationSeconds: tiktokPublishVideoDurationSeconds,
+      });
+      if (!settings) setTiktokValidationSession(null);
+      return settings;
+    } catch {
+      setTiktokValidationSession(null);
+      return null;
+    } finally {
+      tiktokSessionCheckInFlightRef.current = false;
+      setTiktokSessionCheckState("idle");
+    }
+  }
+
+  function openAgentTiktokSettings(
+    pending: PendingAgentTiktokValidation,
+  ) {
+    setPendingTiktokValidation(pending);
+    setTiktokSettingsOpen(true);
+  }
+
+  function editAgentTiktokSessionSettings() {
+    openAgentTiktokSettings({ kind: "update_session" });
+  }
+
   async function confirmRobotPlannedPublication(
     tiktokPublicationSettings?: TiktokPublicationSettings | null,
   ) {
@@ -4353,8 +4453,13 @@ export default function AgentClient() {
     }
 
     if (selectedPublicationUsesTiktok && !tiktokPublicationSettings) {
-      setPendingTiktokValidation({ kind: "confirm_existing_plan" });
-      setTiktokSettingsOpen(true);
+      if (tiktokSessionCheckInFlightRef.current) return;
+      const reusableSettings = await resolveAgentTiktokSessionSettings();
+      if (reusableSettings) {
+        await confirmRobotPlannedPublication(reusableSettings);
+        return;
+      }
+      openAgentTiktokSettings({ kind: "confirm_existing_plan" });
       return;
     }
 
@@ -4495,14 +4600,18 @@ export default function AgentClient() {
     const tiktokWillRun =
       selections.some((selection) => selection.channel === "tiktok") ||
       immediateChannels.includes("tiktok");
-    if (tiktokWillRun && !tiktokPublicationSettings) {
-      setPendingTiktokValidation({
+    let effectiveTiktokSettings = tiktokPublicationSettings || null;
+    if (tiktokWillRun && !effectiveTiktokSettings) {
+      if (tiktokSessionCheckInFlightRef.current) return;
+      effectiveTiktokSettings = await resolveAgentTiktokSessionSettings();
+    }
+    if (tiktokWillRun && !effectiveTiktokSettings) {
+      openAgentTiktokSettings({
         kind: "schedule",
         selections,
         immediateChannels,
       });
       setValidationScheduleOpen(false);
-      setTiktokSettingsOpen(true);
       throw new Error("");
     }
 
@@ -4530,7 +4639,9 @@ export default function AgentClient() {
           actionId: selectedPreparedAction.id,
           scheduleSelections: selections,
           timezone: agentSettings.timezone || "Europe/Paris",
-          ...(tiktokPublicationSettings ? { tiktokPublicationSettings } : {}),
+          ...(effectiveTiktokSettings
+            ? { tiktokPublicationSettings: effectiveTiktokSettings }
+            : {}),
         },
         i18nT("scheduled_publication_success", { count: selections.length }),
         { closeSchedule: false, showSuccessNotice: false },
@@ -4549,7 +4660,7 @@ export default function AgentClient() {
               action: selectedPreparedAction,
               actionId: selectedPreparedAction.id,
               channels: immediateChannelsToPublish,
-              tiktokPublicationSettings,
+              tiktokPublicationSettings: effectiveTiktokSettings,
             }
           : null,
       );
@@ -4590,14 +4701,21 @@ export default function AgentClient() {
     showNotice,
   });
 
-  function requestImmediateAgentPublication() {
+  async function requestImmediateAgentPublication() {
     if (selectedPublicationUsesTiktok) {
+      if (tiktokSessionCheckInFlightRef.current) return;
       setValidationChoiceOpen(false);
-      setPendingTiktokValidation({ kind: "run_now" });
-      setTiktokSettingsOpen(true);
+      const reusableSettings = await resolveAgentTiktokSessionSettings();
+      if (reusableSettings) {
+        await updateActionStatus("validated", {
+          tiktokPublicationSettings: reusableSettings,
+        });
+        return;
+      }
+      openAgentTiktokSettings({ kind: "run_now" });
       return;
     }
-    void updateActionStatus("validated");
+    await updateActionStatus("validated");
   }
 
   function closeAgentTiktokSettingsModal() {
@@ -4613,12 +4731,23 @@ export default function AgentClient() {
 
   async function validateAgentTiktokSettings(
     settings: TiktokPublicationSettings,
+    meta: TiktokPublicationValidationMeta,
   ) {
     const pending = pendingTiktokValidation;
     if (!pending) return;
 
+    setTiktokValidationSession(
+      meta.rememberForSession
+        ? createInrAgentTiktokValidationSession({
+            settings,
+            creatorInfo: meta.creatorInfo,
+          })
+        : null,
+    );
     setTiktokSettingsOpen(false);
     setPendingTiktokValidation(null);
+
+    if (pending.kind === "update_session") return;
 
     if (pending.kind === "run_now") {
       await updateActionStatus("validated", {
@@ -6071,6 +6200,40 @@ export default function AgentClient() {
                 )}
               </div>
 
+              {isPublishView &&
+              selectedPublicationUsesTiktok &&
+              hasActiveTiktokValidationSession ? (
+                <div
+                  className={styles.tiktokSessionBanner}
+                  role="status"
+                  aria-live="polite"
+                >
+                  <span className={styles.tiktokSessionBadge} aria-hidden>
+                    ♪
+                  </span>
+                  <span className={styles.tiktokSessionCopy}>
+                    <strong>{i18nT("tiktok_session_active")}</strong>
+                    <small>
+                      {i18nT("tiktok_session_consent_hint")}{" "}
+                      <a
+                        href="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {i18nT("tiktok_music_usage_confirmation")}
+                      </a>
+                    </small>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={editAgentTiktokSessionSettings}
+                    disabled={tiktokSessionCheckState === "checking"}
+                  >
+                    {i18nT("tiktok_session_change")}
+                  </button>
+                </div>
+              ) : null}
+
               <div
                 className={`${styles.previewMeta} ${selected.key === "stats" ? styles.previewMetaStats : ""} ${isCampaignView ? styles.previewMetaCampaign : ""} ${isPublishView ? styles.previewMetaPublish : ""}`}
               >
@@ -6390,7 +6553,8 @@ export default function AgentClient() {
                     )}
                     <div className={styles.previewActions}>
                       {actionMutationState === "saving" ||
-                      validationScheduleState === "saving" ? (
+                      validationScheduleState === "saving" ||
+                      tiktokSessionCheckState === "checking" ? (
                         <button
                           type="button"
                           className={`${styles.actionProcessingButton} ${
@@ -6408,7 +6572,9 @@ export default function AgentClient() {
                           />
                           {scheduledEditSession
                             ? i18nT("enregistrement_e7d5f232")
-                            : actionMutationIntent === "refused"
+                            : tiktokSessionCheckState === "checking"
+                              ? i18nT("tiktok_session_checking")
+                              : actionMutationIntent === "refused"
                               ? i18nT("refus_en_cours_6be9a897")
                               : i18nT("validation_en_cours_25be85c2")}
                         </button>
@@ -6438,6 +6604,8 @@ export default function AgentClient() {
                                 canSchedulePreparedAction(selectedPreparedAction)
                               ) {
                                 setValidationChoiceOpen(true);
+                              } else if (isPublishView) {
+                                void requestImmediateAgentPublication();
                               } else {
                                 void updateActionStatus("validated");
                               }
@@ -7592,9 +7760,7 @@ export default function AgentClient() {
         open={tiktokSettingsOpen}
         styles={dashboardStyles}
         isMobile={isMobileHeader}
-        mediaType={
-          tiktokPublishMediaPreview?.kind === "video" ? "video" : "images"
-        }
+        mediaType={tiktokPublishMediaType}
         videoDurationSeconds={tiktokPublishVideoDurationSeconds}
         previewTitle={tiktokPublishPreview?.title}
         previewContent={tiktokPublishPreview?.body}
@@ -7602,8 +7768,16 @@ export default function AgentClient() {
         previewMediaUrl={tiktokPublishMediaPreview?.url || null}
         previewMediaName={tiktokPublishMediaPreview?.name}
         previewMediaCount={tiktokPublishMediaPreview?.count || 0}
+        allowSessionReuse
+        validateLabel={
+          pendingTiktokValidation?.kind === "update_session"
+            ? i18nT("tiktok_session_save")
+            : undefined
+        }
         onCancel={closeAgentTiktokSettingsModal}
-        onValidate={(settings) => void validateAgentTiktokSettings(settings)}
+        onValidate={(settings, meta) =>
+          void validateAgentTiktokSettings(settings, meta)
+        }
       />
 
       {validationScheduleOpen &&

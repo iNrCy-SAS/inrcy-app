@@ -732,5 +732,11 @@
   "publication_ideas_add": "เพิ่มหัวข้อไอเดีย",
   "publication_ideas_limit_reached": "สูงสุด 12 หัวข้อ",
   "publication_ideas_hint": "ไอเดียกำหนดหัวข้อ โดย iNrAgent ยังคงเคารพ DNA ช่องทาง และกฎด้านเนื้อหาของคุณ",
-  "zoom_value_1d90c01c": "ซูม {value0}×"
+  "zoom_value_1d90c01c": "ซูม {value0}×",
+  "tiktok_session_active": "บันทึกการตั้งค่า TikTok สำหรับชุดนี้แล้ว",
+  "tiktok_session_consent_hint": "การคลิก “ยืนยัน” แต่ละครั้งเป็นการยืนยันโพสต์ที่แสดงและ",
+  "tiktok_music_usage_confirmation": "การยืนยันการใช้เพลงของ TikTok",
+  "tiktok_session_change": "แก้ไข",
+  "tiktok_session_save": "บันทึกการตั้งค่า",
+  "tiktok_session_checking": "กำลังตรวจสอบ TikTok…"
 }

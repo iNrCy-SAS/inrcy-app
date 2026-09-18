@@ -732,5 +732,11 @@
   "publication_ideas_add": "Ideenrubrik hinzufügen",
   "publication_ideas_limit_reached": "Maximal 12 Rubriken",
   "publication_ideas_hint": "Die Ideen bestimmen das Thema. iNrAgent beachtet weiterhin Ihre DNA, Kanäle und redaktionellen Regeln.",
-  "zoom_value_1d90c01c": "Zoom {value0}×"
+  "zoom_value_1d90c01c": "Zoom {value0}×",
+  "tiktok_session_active": "TikTok-Einstellungen für diese Serie gespeichert",
+  "tiktok_session_consent_hint": "Jeder Klick auf „Bestätigen“ bestätigt den angezeigten Beitrag und die",
+  "tiktok_music_usage_confirmation": "TikTok-Bestätigung zur Musiknutzung",
+  "tiktok_session_change": "Ändern",
+  "tiktok_session_save": "Einstellungen speichern",
+  "tiktok_session_checking": "TikTok wird geprüft…"
 }

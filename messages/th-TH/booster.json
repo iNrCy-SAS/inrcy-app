@@ -775,5 +775,7 @@
   "requirement_validation_failed": "ตรวจสอบเงื่อนไขการเผยแพร่สำหรับช่องนี้",
   "video_format_active_for_publication": "รูปแบบวิดีโอที่ใช้งานสำหรับการเผยแพร่",
   "video_format_selected_for_publication": "รูปแบบวิดีโอที่เลือกสำหรับการเผยแพร่",
-  "video_format_selected_to_apply": "เลือกรูปแบบวิดีโอแล้ว พร้อมใช้งาน"
+  "video_format_selected_to_apply": "เลือกรูปแบบวิดีโอแล้ว พร้อมใช้งาน",
+  "tiktok_reuse_settings_session": "ใช้การตั้งค่านี้กับโพสต์ TikTok ถัดไปในชุดนี้",
+  "tiktok_reuse_settings_session_help": "หน้าต่างนี้จะไม่แสดงซ้ำ และแต่ละโพสต์ยังคงได้รับการยืนยันแยกกัน"
 }

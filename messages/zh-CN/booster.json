@@ -775,5 +775,7 @@
   "requirement_validation_failed": "检查该频道的发布条件。",
   "video_format_active_for_publication": "用于发布的活动视频格式",
   "video_format_selected_for_publication": "选择发布的视频格式",
-  "video_format_selected_to_apply": "视频格式已选择，准备应用"
+  "video_format_selected_to_apply": "视频格式已选择，准备应用",
+  "tiktok_reuse_settings_session": "将这些设置用于本批次后续的 TikTok 帖子",
+  "tiktok_reuse_settings_session_help": "此窗口不会再次显示，每条帖子仍会单独确认。"
 }

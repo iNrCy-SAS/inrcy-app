@@ -7,6 +7,7 @@ import {
   formatVideoDuration,
   validateVideoDurationForChannel,
 } from "@/lib/videoPublicationPolicy";
+import type { InrAgentTiktokCreatorInfo } from "@/lib/inrAgentTiktokValidationSession";
 
 export type TiktokPrivacyLevel =
   | "PUBLIC_TO_EVERYONE"
@@ -28,15 +29,13 @@ export type TiktokPublicationSettings = {
   musicUsageConfirmed: boolean;
 };
 
-type CreatorInfo = {
-  username: string;
-  displayName: string;
+type CreatorInfo = InrAgentTiktokCreatorInfo & {
   avatarUrl?: string | null;
-  privacyLevelOptions: string[];
-  commentDisabled: boolean;
-  duetDisabled: boolean;
-  stitchDisabled: boolean;
-  maxVideoDurationSeconds: number | null;
+};
+
+export type TiktokPublicationValidationMeta = {
+  rememberForSession: boolean;
+  creatorInfo: InrAgentTiktokCreatorInfo;
 };
 
 type PublishModalStyles = Readonly<Record<string, string>>;
@@ -53,8 +52,13 @@ type Props = {
   previewMediaUrl?: string | null;
   previewMediaName?: string;
   previewMediaCount?: number;
+  allowSessionReuse?: boolean;
+  validateLabel?: string;
   onCancel: () => void;
-  onValidate: (settings: TiktokPublicationSettings) => void;
+  onValidate: (
+    settings: TiktokPublicationSettings,
+    meta: TiktokPublicationValidationMeta,
+  ) => void;
   onExcludeAndContinue?: () => void;
 };
 
@@ -189,6 +193,8 @@ export default function TiktokPublicationSettingsModal({
   previewMediaUrl,
   previewMediaName,
   previewMediaCount,
+  allowSessionReuse = false,
+  validateLabel,
   onCancel,
   onValidate,
   onExcludeAndContinue,
@@ -205,6 +211,7 @@ export default function TiktokPublicationSettingsModal({
   const [aiContent, setAiContent] = useState(false);
   const [photoAutoMusic, setPhotoAutoMusic] = useState(false);
   const [musicUsageConfirmed, setMusicUsageConfirmed] = useState(false);
+  const [rememberForSession, setRememberForSession] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -220,6 +227,7 @@ export default function TiktokPublicationSettingsModal({
     setAiContent(false);
     setPhotoAutoMusic(false);
     setMusicUsageConfirmed(false);
+    setRememberForSession(allowSessionReuse);
 
     fetch("/api/integrations/tiktok/creator-info", { credentials: "include" }).then(readJson)
       .then((json) => {
@@ -237,7 +245,7 @@ export default function TiktokPublicationSettingsModal({
     return () => {
       active = false;
     };
-  }, [i18nT, open]);
+  }, [allowSessionReuse, i18nT, open]);
 
   const durationBlocker = useMemo(() => {
     if (!creatorInfo || mediaType !== "video") return "";
@@ -761,6 +769,38 @@ export default function TiktokPublicationSettingsModal({
                   .
                 </span>
               </label>
+              {allowSessionReuse ? (
+                <label
+                  style={{
+                    display: "flex",
+                    gap: 12,
+                    alignItems: "flex-start",
+                    marginLeft: isMobile ? 0 : 34,
+                    padding: "10px 12px",
+                    borderRadius: 12,
+                    border: "1px solid rgba(167,139,250,0.28)",
+                    background: "rgba(124,58,237,0.10)",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={rememberForSession}
+                    onChange={(event) =>
+                      setRememberForSession(event.target.checked)
+                    }
+                    style={{ marginTop: 3 }}
+                  />
+                  <span>
+                    <strong style={{ color: "#fff" }}>
+                      {i18nT("tiktok_reuse_settings_session")}
+                    </strong>
+                    <br />
+                    <small style={{ color: "rgba(255,255,255,0.68)" }}>
+                      {i18nT("tiktok_reuse_settings_session_help")}
+                    </small>
+                  </span>
+                </label>
+              ) : null}
             </section>
           </>
         ) : null}
@@ -800,20 +840,31 @@ export default function TiktokPublicationSettingsModal({
               opacity: !canValidate || loading ? 0.58 : 1,
             }}
             onClick={() => {
-              if (!canValidate || !commercialContent) return;
-              onValidate({
+              if (!canValidate || !commercialContent || !creatorInfo) return;
+              const settings = {
                 privacyLevel,
-                allowComments: allowComments && !creatorInfo?.commentDisabled,
-                allowDuo: mediaType === "video" ? allowDuo && !creatorInfo?.duetDisabled : false,
-                allowStitch: mediaType === "video" ? allowStitch && !creatorInfo?.stitchDisabled : false,
+                allowComments: allowComments && !creatorInfo.commentDisabled,
+                allowDuo:
+                  mediaType === "video"
+                    ? allowDuo && !creatorInfo.duetDisabled
+                    : false,
+                allowStitch:
+                  mediaType === "video"
+                    ? allowStitch && !creatorInfo.stitchDisabled
+                    : false,
                 commercialContent,
                 aiContent,
                 photoAutoMusic: mediaType === "images" ? photoAutoMusic : false,
                 musicUsageConfirmed,
+              } satisfies TiktokPublicationSettings;
+              onValidate(settings, {
+                rememberForSession: allowSessionReuse && rememberForSession,
+                creatorInfo,
               });
             }}
           >
-            {i18nT("valider_et_publier_sur_tiktok_7324f0cf")}{" "}</button>
+            {validateLabel ||
+              i18nT("valider_et_publier_sur_tiktok_7324f0cf")}{" "}</button>
         </div>
       </div>
     </div>

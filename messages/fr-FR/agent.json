@@ -732,5 +732,11 @@
   "publication_ideas_add": "Ajouter une rubrique d’idée",
   "publication_ideas_limit_reached": "12 rubriques maximum",
   "publication_ideas_hint": "Les idées guident le sujet. iNrAgent conserve votre ADN, vos canaux et vos règles éditoriales.",
-  "zoom_value_1d90c01c": "zoom {value0}×"
+  "zoom_value_1d90c01c": "zoom {value0}×",
+  "tiktok_session_active": "Réglages TikTok mémorisés pour cette série",
+  "tiktok_session_consent_hint": "Chaque clic sur « Valider » confirme l’envoi de la publication affichée et la",
+  "tiktok_music_usage_confirmation": "Confirmation d’utilisation de musique TikTok",
+  "tiktok_session_change": "Modifier",
+  "tiktok_session_save": "Enregistrer les réglages",
+  "tiktok_session_checking": "Vérification TikTok…"
 }

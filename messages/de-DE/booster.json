@@ -775,5 +775,7 @@
   "requirement_validation_failed": "Prüfe die Veröffentlichungsanforderungen dieses Kanals.",
   "video_format_active_for_publication": "Aktives Videoformat für die Veröffentlichung",
   "video_format_selected_for_publication": "Ausgewähltes Videoformat für die Veröffentlichung",
-  "video_format_selected_to_apply": "Videoformat ausgewählt und bereit zur Anwendung"
+  "video_format_selected_to_apply": "Videoformat ausgewählt und bereit zur Anwendung",
+  "tiktok_reuse_settings_session": "Diese Einstellungen für die nächsten TikTok-Beiträge dieser Serie verwenden",
+  "tiktok_reuse_settings_session_help": "Das Fenster wird nicht erneut angezeigt. Jeder Beitrag wird weiterhin einzeln bestätigt."
 }

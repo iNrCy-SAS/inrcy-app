@@ -13,11 +13,19 @@ const actionExecution = read(
 const executeRoute = read("app/api/agent/actions/execute/route.ts");
 const scheduleRoute = read("app/api/agent/actions/schedule/route.ts");
 
-test("iNrAgent requires the TikTok settings modal before immediate publication", () => {
+test("iNrAgent asks once, then reuses verified TikTok settings for immediate publications", () => {
   assert.match(agentClient, /<TiktokPublicationSettingsModal/);
   assert.match(
     agentClient,
-    /selectedPublicationUsesTiktok[\s\S]*?setPendingTiktokValidation\(\{ kind: "run_now" \}\)[\s\S]*?setTiktokSettingsOpen\(true\)/,
+    /selectedPublicationUsesTiktok[\s\S]*?resolveAgentTiktokSessionSettings\(\)[\s\S]*?openAgentTiktokSettings\(\{ kind: "run_now" \}\)/,
+  );
+  assert.match(
+    agentClient,
+    /allowSessionReuse[\s\S]*?validateAgentTiktokSettings\(settings, meta\)/,
+  );
+  assert.match(
+    agentClient,
+    /createInrAgentTiktokValidationSession\(\{[\s\S]*?creatorInfo: meta\.creatorInfo/,
   );
   assert.match(
     agentClient,
@@ -29,10 +37,10 @@ test("iNrAgent requires the TikTok settings modal before immediate publication",
   );
 });
 
-test("iNrAgent validates TikTok settings before creating a scheduled publication", () => {
+test("iNrAgent rechecks reusable TikTok settings before creating a scheduled publication", () => {
   assert.match(
     agentClient,
-    /selections\.some\(\(selection\) => selection\.channel === "tiktok"\)[\s\S]*?setPendingTiktokValidation\(\{[\s\S]*?kind: "schedule"/,
+    /selections\.some\(\(selection\) => selection\.channel === "tiktok"\)[\s\S]*?resolveAgentTiktokSessionSettings\(\)[\s\S]*?openAgentTiktokSettings\(\{[\s\S]*?kind: "schedule"/,
   );
   assert.match(
     agentClient,
@@ -59,4 +67,3 @@ test("the server rejects every iNrAgent TikTok execution without explicit consen
     /publishBody = \{[\s\S]*?tiktokPublicationSettings/,
   );
 });
-

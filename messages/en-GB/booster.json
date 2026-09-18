@@ -775,5 +775,7 @@
   "requirement_validation_failed": "Check this channel’s publication requirements.",
   "video_format_active_for_publication": "Video format active for publishing",
   "video_format_selected_for_publication": "Format selected for the post",
-  "video_format_selected_to_apply": "Video format selected, ready to apply"
+  "video_format_selected_to_apply": "Video format selected, ready to apply",
+  "tiktok_reuse_settings_session": "Use these settings for the next TikTok posts in this series",
+  "tiktok_reuse_settings_session_help": "The modal will not be shown again. Each post will still be approved separately."
 }

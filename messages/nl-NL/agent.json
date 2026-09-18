@@ -732,5 +732,11 @@
   "publication_ideas_add": "Ideerubriek toevoegen",
   "publication_ideas_limit_reached": "Maximaal 12 rubrieken",
   "publication_ideas_hint": "Ideeën sturen het onderwerp. iNrAgent volgt uw DNA, kanalen en redactieregels.",
-  "zoom_value_1d90c01c": "zoom {value0}×"
+  "zoom_value_1d90c01c": "zoom {value0}×",
+  "tiktok_session_active": "TikTok-instellingen voor deze reeks opgeslagen",
+  "tiktok_session_consent_hint": "Elke klik op ‘Goedkeuren’ bevestigt het getoonde bericht en de",
+  "tiktok_music_usage_confirmation": "TikTok-bevestiging voor muziekgebruik",
+  "tiktok_session_change": "Wijzigen",
+  "tiktok_session_save": "Instellingen opslaan",
+  "tiktok_session_checking": "TikTok controleren…"
 }
