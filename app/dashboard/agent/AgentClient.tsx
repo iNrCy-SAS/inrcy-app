@@ -266,6 +266,7 @@ import {
   toggleItem,
   firstSafeString,
   asRecord,
+  isInrAgentEditorialPreparationRunning,
 } from "./_lib/agent.utils";
 import {
   dataUrlToFile,
@@ -1404,18 +1405,12 @@ export default function AgentClient() {
     isPublishView &&
     (preparedChannelPreview?.title || preparedChannelPreview?.body),
   );
-  const editorialPreparationState = String(
-    selectedEditorialPlan?.state || "",
-  ).trim();
   const publishPreparationInProgress = Boolean(
     isPublishView &&
       (testNowKey === "publish" ||
         prepareProgress?.key === "publish" ||
         (prepareActionState === "saving" && selectedKey === "publish") ||
-        (selectedPreparedAction &&
-          ["queued", "generating", "retry"].includes(
-            editorialPreparationState,
-          ))),
+        isInrAgentEditorialPreparationRunning(selectedPreparedAction)),
   );
   const publishContentKind = isPublishView
     ? publishMediaOnly
@@ -1428,7 +1423,9 @@ export default function AgentClient() {
     selectedPreparedAction?.executionPolicy === "automatic_after_settings";
   const publishValidationLabel = !isPublishView || !selectedPreparedAction
     ? "—"
-    : selectedPublicationIsAutomatic
+    : selectedPreparedAction.status === "failed"
+      ? agentActionStatusLabel(selectedPreparedAction.status, runtimeT)
+      : selectedPublicationIsAutomatic
       ? agentActionStatusLabel(selectedPreparedAction.status, runtimeT)
       : selectedPublicationValidationState === "refused"
       ? i18nT("action_status_refused")

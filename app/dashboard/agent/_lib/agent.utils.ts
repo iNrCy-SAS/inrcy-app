@@ -27,6 +27,21 @@ export function asRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
+export function isInrAgentEditorialPreparationRunning(
+  action:
+    | {
+        status?: unknown;
+        payload?: Record<string, unknown> | null;
+      }
+    | null
+    | undefined,
+) {
+  return Boolean(
+    action?.status === "executing" &&
+      asRecord(action.payload?.editorialPlan),
+  );
+}
+
 export function jsonClone<T>(value: T): T {
   try {
     return JSON.parse(JSON.stringify(value)) as T;
