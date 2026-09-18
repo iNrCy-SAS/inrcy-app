@@ -500,6 +500,14 @@
   }
 }
 
+@media (min-width: 1101px) and (max-height: 839px) {
+  .body {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+}
+
 @media (max-width: 620px) {
   .layer {
     padding: 0;

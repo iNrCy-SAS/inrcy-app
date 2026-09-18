@@ -193,9 +193,33 @@ test("iNrSend shows the durable parent while processing and the terminal aggrega
 });
 
 test("iNrAgent refuses a silent partial publication when a selected channel lacks media", () => {
+  assert.match(agentScheduleRoute, /const autoDisabledChannels = selectedChannels\.filter/);
   assert.match(agentScheduleRoute, /const blockedChannels = selectedChannels\.filter/);
+  assert.match(agentScheduleRoute, /!autoDisabledChannels\.includes\(channel\)/);
   assert.match(agentScheduleRoute, /Programmation complète impossible : média requis/);
+  assert.match(agentExecuteRoute, /const autoDisabledChannels = selectedChannels\.filter/);
   assert.match(agentExecuteRoute, /const blockedChannels = selectedChannels\.filter/);
+  assert.match(agentExecuteRoute, /!autoDisabledChannels\.includes\(channel\)/);
   assert.match(agentExecuteRoute, /INR_AGENT_PUBLICATION_MEDIA_REQUIRED/);
   assert.match(agentExecuteRoute, /status: 409/);
+});
+
+test("iNrAgent disables YouTube automatically when the final publication media is an image", () => {
+  const prepareRoute = read("app/api/agent/actions/prepare-publish/route.ts");
+
+  assert.match(prepareRoute, /const youtubeDisabledForFinalImage =/);
+  assert.match(prepareRoute, /mediaKind !== "video" && channels\.includes\("youtube_shorts"\)/);
+  assert.match(
+    prepareRoute,
+    /channels = channels\.filter\(\(channel\) => channel !== "youtube_shorts"\)/,
+  );
+  assert.match(prepareRoute, /youtube_shorts_disabled_image_publication/);
+  assert.match(prepareRoute, /autoDisabledChannels,/);
+  assert.match(prepareRoute, /INR_AGENT_IMAGE_NO_COMPATIBLE_CHANNEL/);
+
+  for (const route of [agentScheduleRoute, agentExecuteRoute]) {
+    assert.match(route, /isVideoOnlyChannel\(channel\)/);
+    assert.match(route, /autoDisabledChannels/);
+    assert.match(route, /YouTube a été désactivé automatiquement/);
+  }
 });

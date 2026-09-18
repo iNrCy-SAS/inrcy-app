@@ -124,6 +124,16 @@ function setChannelValue(source: Record<string, unknown>, channel: PublishChanne
   return { ...source, [channel]: value };
 }
 
+function setChannelsValue(
+  source: Record<string, unknown>,
+  channels: PublishChannelKey[],
+  value: unknown,
+) {
+  const next = { ...source };
+  for (const channel of channels) next[channel] = value;
+  return next;
+}
+
 function currentChannelsForAction(action: ReturnType<typeof rowToInrAgentAction>) {
   const payload = action.payload || {};
   const nested = asRecord(payload.publishPayload) || {};
@@ -171,6 +181,17 @@ function regeneratedIdea(args: {
   ].filter(Boolean).join("\n\n");
 }
 
+function regeneratedMediaIdea(args: {
+  payload: Record<string, unknown>;
+  actionSummary: string;
+}) {
+  return [
+    cleanText(args.payload.idea || args.actionSummary, 1_500),
+    "RÉGÉNÉRATION GLOBALE DU MÉDIA DEMANDÉE POUR TOUTE LA PUBLICATION.",
+    "Crée un média vraiment différent, fidèle aux informations vérifiées de l’entreprise et utilisable comme source commune sur tous les canaux. Le texte, la date et les contenus éditoriaux existants ne doivent pas être modifiés.",
+  ].filter(Boolean).join("\n\n");
+}
+
 async function persistAction(args: {
   actionId: string;
   accountId: string;
@@ -178,24 +199,33 @@ async function persistAction(args: {
   previewText: string;
   editType: string;
   channel: PublishChannelKey;
+  appliedToChannels?: PublishChannelKey[];
+  imageAssets?: unknown[];
 }) {
   const now = new Date().toISOString();
+  const updateValues: Record<string, unknown> = {
+    payload: {
+      ...args.payload,
+      lastManualEdit: {
+        channel: args.channel,
+        ...(args.appliedToChannels?.length
+          ? { appliedToChannels: args.appliedToChannels }
+          : {}),
+        editedAt: now,
+        editType: args.editType,
+        source: "inrcy_ai_regeneration",
+      },
+    },
+    preview_text: args.previewText,
+    updated_at: now,
+    last_error: null,
+    ...(Array.isArray(args.imageAssets)
+      ? { image_assets: args.imageAssets }
+      : {}),
+  };
   const { data, error } = await supabaseAdmin
     .from("inr_agent_actions")
-    .update({
-      payload: {
-        ...args.payload,
-        lastManualEdit: {
-          channel: args.channel,
-          editedAt: now,
-          editType: args.editType,
-          source: "inrcy_ai_regeneration",
-        },
-      },
-      preview_text: args.previewText,
-      updated_at: now,
-      last_error: null,
-    })
+    .update(updateValues)
     .eq("id", args.actionId)
     .eq("user_id", args.accountId)
     .select(ACTION_SELECT)
@@ -247,7 +277,8 @@ export async function POST(request: Request) {
       { status: 409 },
     );
   }
-  if (!currentChannelsForAction(action).includes(channel)) {
+  const actionChannels = currentChannelsForAction(action);
+  if (!actionChannels.includes(channel)) {
     return NextResponse.json({ error: "Ce canal ne fait plus partie de cette publication." }, { status: 409 });
   }
 
@@ -348,14 +379,52 @@ export async function POST(request: Request) {
 
   const mediaModeByChannel = { ...(asRecord(payload.mediaModeByChannel) || asRecord(nested.mediaModeByChannel) || {}) };
   const videoByChannel = { ...(asRecord(payload.videoByChannel) || asRecord(nested.videoByChannel) || {}) };
-  const currentMode = cleanText(readPublishChannelValue(mediaModeByChannel, channel), 20);
+  const currentMode = cleanText(
+    readPublishChannelValue(mediaModeByChannel, channel),
+    20,
+  ).toLowerCase();
   const currentVideo = cleanPublishMedia(readPublishChannelValue(videoByChannel, channel));
+  const globalMediaType = cleanText(
+    payload.mediaType || nested.mediaType,
+    20,
+  ).toLowerCase();
+  const globalMedia = cleanPublishMedia(
+    payload.video ||
+      payload.videoAsset ||
+      payload.media ||
+      payload.mediaAsset ||
+      nested.video ||
+      nested.videoAsset ||
+      nested.media ||
+      nested.mediaAsset,
+  );
+  const hasVideoMode = actionChannels.some(
+    (targetChannel) =>
+      cleanText(
+        readPublishChannelValue(mediaModeByChannel, targetChannel),
+        20,
+      ).toLowerCase() === "video",
+  );
+  const hasChannelVideo = actionChannels.some(
+    (targetChannel) =>
+      cleanPublishMedia(readPublishChannelValue(videoByChannel, targetChannel))?.kind === "video",
+  );
   const mediaKind: "image" | "video" =
-    channel === "youtube_shorts" || currentMode === "video" || currentVideo?.kind === "video"
+    actionChannels.includes("youtube_shorts") ||
+    currentMode === "video" ||
+    currentVideo?.kind === "video" ||
+    globalMediaType === "video" ||
+    globalMedia?.kind === "video" ||
+    hasVideoMode ||
+    hasChannelVideo
       ? "video"
       : "image";
   const expectedCount =
     mediaKind === "image" ? INR_AGENT_IMAGES_PER_PUBLICATION : 1;
+  const mediaIdea = regeneratedMediaIdea({
+    payload,
+    actionSummary: action.summary,
+  });
 
   try {
     const [isAdmin, studioPreferences] = await Promise.all([
@@ -368,13 +437,13 @@ export async function POST(request: Request) {
         supabase: supabaseAdmin,
         accountId: activeUserId,
         actorAuthUserId: authUserId || activeUserId,
-        idea,
+        idea: mediaIdea,
         theme,
         kind: mediaKind,
         adminUnlimited: isAdmin,
         studioMediaPreferencePercent: 100,
         studioPreferences,
-        variantSeed: `${actionId}:${channel}:${mediaKind}:${index}:${randomUUID()}`,
+        variantSeed: `${actionId}:global:${mediaKind}:${index}:${randomUUID()}`,
       }));
     }
     const generatedMedia = results
@@ -385,7 +454,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error: quotaReached
-            ? "Quota média insuffisant pour régénérer ce canal. Aucun média de la publication n’a été remplacé."
+            ? "Quota média insuffisant pour régénérer cette publication. Aucun média n’a été remplacé."
             : "La nouvelle série média n’a pas pu être créée entièrement. Aucun média de la publication n’a été remplacé.",
           code: quotaReached ? "inr_agent_media_quota_reached" : "inr_agent_media_regeneration_incomplete",
           expectedCount,
@@ -402,20 +471,46 @@ export async function POST(request: Request) {
     const nextImages = mediaKind === "image" ? generatedMedia : [];
     const nextVideo = mediaKind === "video" ? generatedMedia[0] : null;
     const effectiveMedia = generatedMedia[0];
-    const nextImagesByChannel = setChannelValue(imagesByChannel, channel, nextImages);
-    const nextVideoByChannel = setChannelValue(videoByChannel, channel, nextVideo);
-    const nextMediaModeByChannel = setChannelValue(mediaModeByChannel, channel, nextMode);
-    const nextReadiness = setChannelValue(readinessByChannel, channel, buildPublishMediaReadiness(channel, effectiveMedia));
-    const nextAdaptation = setChannelValue(adaptationByChannel, channel, buildPublishMediaAdaptation(channel, effectiveMedia));
-    const nextPostByChannel = setChannelValue(postByChannel, channel, {
-      ...currentPost,
+    const nextImagesByChannel = setChannelsValue(imagesByChannel, actionChannels, nextImages);
+    const nextVideoByChannel = setChannelsValue(videoByChannel, actionChannels, nextVideo);
+    const nextMediaModeByChannel = setChannelsValue(mediaModeByChannel, actionChannels, nextMode);
+    const nextReadiness = { ...readinessByChannel };
+    const nextAdaptation = { ...adaptationByChannel };
+    const nextPostByChannel = { ...postByChannel };
+    for (const targetChannel of actionChannels) {
+      nextReadiness[targetChannel] = buildPublishMediaReadiness(
+        targetChannel,
+        effectiveMedia,
+      );
+      nextAdaptation[targetChannel] = buildPublishMediaAdaptation(
+        targetChannel,
+        effectiveMedia,
+      );
+      const targetPost = readPublishPost(postByChannel, targetChannel);
+      nextPostByChannel[targetChannel] = {
+        ...targetPost,
+        media: effectiveMedia,
+        mediaAsset: effectiveMedia,
+        mediaMode: nextMode,
+        image: mediaKind === "image" ? effectiveMedia : null,
+        imageAsset: mediaKind === "image" ? effectiveMedia : null,
+        imageUrl: mediaKind === "image" ? effectiveMedia.url : "",
+        video: mediaKind === "video" ? effectiveMedia : null,
+        videoAsset: mediaKind === "video" ? effectiveMedia : null,
+      };
+    }
+    const globalMediaPatch = {
       media: effectiveMedia,
       mediaAsset: effectiveMedia,
+      mediaAssets: generatedMedia,
+      mediaType: mediaKind,
       image: mediaKind === "image" ? effectiveMedia : null,
       imageAsset: mediaKind === "image" ? effectiveMedia : null,
+      images: nextImages,
       video: mediaKind === "video" ? effectiveMedia : null,
       videoAsset: mediaKind === "video" ? effectiveMedia : null,
-    });
+      image_assets: generatedMedia,
+    };
     const mapPatch = {
       postByChannel: nextPostByChannel,
       imagesByChannel: nextImagesByChannel,
@@ -426,29 +521,42 @@ export async function POST(request: Request) {
     };
     const nextPayload = {
       ...payload,
+      ...globalMediaPatch,
       ...mapPatch,
-      ...(Object.keys(nested).length ? { publishPayload: { ...nested, ...mapPatch } } : {}),
+      ...(Object.keys(nested).length
+        ? {
+            publishPayload: {
+              ...nested,
+              ...globalMediaPatch,
+              ...mapPatch,
+            },
+          }
+        : {}),
     };
     const nextAction = await persistAction({
       actionId,
       accountId: activeUserId,
       payload: nextPayload,
       previewText: action.previewText,
-      editType: "regenerate_publish_channel_media",
+      editType: "regenerate_publish_global_media",
       channel,
+      appliedToChannels: actionChannels,
+      imageAssets: generatedMedia,
     });
     return NextResponse.json({
       ok: true,
       regenerated: "media",
+      scope: "publication",
       mediaKind,
       mediaCount: expectedCount,
       channel,
+      channels: actionChannels,
       action: nextAction,
     });
   } catch (error) {
-    console.error("[inr-agent] channel media regeneration failed", {
+    console.error("[inr-agent] global media regeneration failed", {
       actionId,
-      channel,
+      channels: actionChannels,
       message: error instanceof Error ? error.message : String(error),
     });
     return NextResponse.json(

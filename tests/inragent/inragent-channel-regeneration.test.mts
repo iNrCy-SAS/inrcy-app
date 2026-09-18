@@ -47,22 +47,48 @@ test("iNrAgent regenerates the complete editorial panel for only the requested c
   assert.doesNotMatch(generatedCall, /mediaType:\s*"images"/);
 });
 
-test("media regeneration is atomic and keeps the one-media invariant", () => {
+test("media regeneration is atomic, generated once and applied to every publication channel", () => {
   const route = read("app/api/agent/actions/regenerate-channel/route.ts");
+  const mediaBranch = route.slice(route.indexOf("const mediaModeByChannel"));
 
   assert.match(route, /INR_AGENT_IMAGES_PER_PUBLICATION/);
+  assert.match(route, /const actionChannels = currentChannelsForAction\(action\)/);
   assert.match(
     route,
     /const expectedCount =\s*mediaKind === "image" \? INR_AGENT_IMAGES_PER_PUBLICATION : 1/,
   );
   assert.match(route, /for \(let index = 0; index < expectedCount; index \+= 1\)/);
+  assert.match(route, /variantSeed: `\$\{actionId\}:global:\$\{mediaKind\}/);
   assert.match(route, /if \(generatedMedia\.length !== expectedCount\)/);
   assert.match(route, /Aucun média de la publication n’a été remplacé/);
-  assert.match(route, /const nextImagesByChannel = setChannelValue\(imagesByChannel, channel, nextImages\)/);
-  assert.match(route, /const nextVideoByChannel = setChannelValue\(videoByChannel, channel, nextVideo\)/);
-  assert.match(route, /const nextMediaModeByChannel = setChannelValue\(mediaModeByChannel, channel, nextMode\)/);
+  assert.match(
+    mediaBranch,
+    /const nextImagesByChannel = setChannelsValue\(imagesByChannel, actionChannels, nextImages\)/,
+  );
+  assert.match(
+    mediaBranch,
+    /const nextVideoByChannel = setChannelsValue\(videoByChannel, actionChannels, nextVideo\)/,
+  );
+  assert.match(
+    mediaBranch,
+    /const nextMediaModeByChannel = setChannelsValue\(mediaModeByChannel, actionChannels, nextMode\)/,
+  );
+  assert.match(mediaBranch, /for \(const targetChannel of actionChannels\)/);
+  assert.match(mediaBranch, /nextPostByChannel\[targetChannel\] =/);
+  assert.match(mediaBranch, /nextReadiness\[targetChannel\] = buildPublishMediaReadiness/);
+  assert.match(mediaBranch, /nextAdaptation\[targetChannel\] = buildPublishMediaAdaptation/);
+  assert.match(mediaBranch, /const globalMediaPatch = \{/);
+  assert.match(mediaBranch, /mediaAssets: generatedMedia/);
+  assert.match(mediaBranch, /image_assets: generatedMedia/);
+  assert.match(mediaBranch, /imageAssets: generatedMedia/);
+  assert.match(mediaBranch, /appliedToChannels: actionChannels/);
   assert.match(route, /previewText: action\.previewText/);
-  assert.match(route, /editType: "regenerate_publish_channel_media"/);
+  assert.match(route, /editType: "regenerate_publish_global_media"/);
+  assert.match(route, /scope: "publication"/);
+  assert.doesNotMatch(
+    mediaBranch,
+    /setChannelValue\((?:imagesByChannel|videoByChannel|mediaModeByChannel), channel/,
+  );
 });
 
 test("the review UI exposes independent content and media regeneration controls", () => {
@@ -74,6 +100,9 @@ test("the review UI exposes independent content and media regeneration controls"
   assert.match(ui, /requestPublishChannelRegeneration\("media"\)/);
   assert.match(ui, /regenerate_content/);
   assert.match(ui, /regenerate_media/);
+  assert.match(ui, /i18nT\("regenerate_media_confirm"\)/);
+  assert.match(ui, /i18nT\("regenerate_media_success"\)/);
+  assert.match(ui, /i18nT\("agent_working_regenerating_media"\)/);
   assert.match(ui, /agent_working_regenerating/);
   assert.match(ui, /titre_et_texte_7f7b4e2a/);
   assert.match(ui, /publishTitleLoading/);
@@ -91,6 +120,28 @@ test("the review UI exposes independent content and media regeneration controls"
     styles,
     /\.agentCommandRailRobot \.robotWorkingSpinner[\s\S]*?width: 96px/,
   );
+
+  for (const locale of [
+    "fr-FR",
+    "en-GB",
+    "de-DE",
+    "es-ES",
+    "it-IT",
+    "nl-NL",
+    "pt-PT",
+    "th-TH",
+    "zh-CN",
+  ]) {
+    const messages = JSON.parse(read(`messages/${locale}/agent.json`)) as Record<string, string>;
+    for (const key of [
+      "regenerate_media_confirm",
+      "regenerate_media_success",
+      "agent_working_regenerating_media",
+    ]) {
+      assert.ok(messages[key]?.trim(), `${locale}.${key}`);
+      assert.doesNotMatch(messages[key], /\{channel\}/, `${locale}.${key}`);
+    }
+  }
 });
 
 test("scheduled and immediate execution preserve channel-specific regenerated videos", () => {

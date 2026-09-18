@@ -1097,6 +1097,11 @@
   cursor: pointer;
 }
 
+.modalClose:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
 .modalEyebrow {
   margin: 0 0 8px;
   color: #67e8f9;
@@ -3541,10 +3546,16 @@
     background 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
 
-.settingsPublishTabs button:hover:not([data-active="true"]) {
+.settingsPublishTabs button:hover:not([data-active="true"]):not(:disabled) {
   color: #f8fbff;
   border-color: rgba(148, 163, 255, 0.24);
   background: rgba(255, 255, 255, 0.06);
+}
+
+.settingsPublishTabs button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+  transform: none;
 }
 
 .settingsPublishTabs button[data-active="true"] {
@@ -3612,7 +3623,7 @@
   gap: 10px;
 }
 
-.publicationIdeasGrid label {
+.publicationIdeaCard {
   display: grid;
   gap: 7px;
   padding: 11px;
@@ -3621,7 +3632,7 @@
   background: radial-gradient(circle at 100% 0%, rgba(168, 85, 247, 0.12), transparent 38%), rgba(255, 255, 255, 0.045);
 }
 
-.publicationIdeasGrid label > span {
+.publicationIdeaCard > label {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -3630,16 +3641,22 @@
   font-size: 12px;
 }
 
-.publicationIdeasGrid label small {
+.publicationIdeaCard small {
   color: rgba(226, 242, 255, 0.48);
   font-weight: 750;
 }
 
+.publicationIdeaTextareaWrap {
+  position: relative;
+  min-width: 0;
+}
+
 .publicationIdeasGrid textarea {
+  box-sizing: border-box;
   width: 100%;
   min-height: 94px;
   resize: vertical;
-  padding: 10px 11px;
+  padding: 10px 58px 10px 11px;
   border: 1px solid rgba(148, 163, 255, 0.2);
   border-radius: 12px;
   outline: none;

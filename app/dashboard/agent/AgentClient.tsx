@@ -167,6 +167,7 @@ import {
 } from "@/lib/inrAgentMonthSchedule";
 import { isStandardAgentAutomationKey } from "@/lib/standardAgentPolicy";
 import { useDashboardEdition } from "../_components/DashboardEditionProvider";
+import MediaSubjectVoiceButton from "../_components/MediaSubjectVoiceButton";
 import styles from "./agent.module.css";
 import dashboardStyles from "../dashboard.module.css";
 import { useAgentResponsiveUi } from "./_hooks/useAgentResponsiveUi";
@@ -575,6 +576,9 @@ export default function AgentClient() {
   const [settingsPublishTab, setSettingsPublishTab] = useState<
     "settings" | "ideas"
   >("settings");
+  const [publicationIdeaVoiceIndex, setPublicationIdeaVoiceIndex] = useState<
+    number | null
+  >(null);
   const [agentConfirmDialog, setAgentConfirmDialog] =
     useState<AgentConfirmDialogState>(null);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -1078,6 +1082,22 @@ export default function AgentClient() {
   const settingsPublicationIdeaFieldCount = settingsConfig
     ? inrAgentPublicationIdeaFieldCount(settingsConfig.publicationIdeas)
     : 0;
+  const settingsPublicationIdeaVoiceBusy = publicationIdeaVoiceIndex !== null;
+  const updateSettingsPublicationIdea = (
+    index: number,
+    nextValue: string,
+  ) => {
+    if (!settingsConfig || settingsAutomation?.key !== "publish") return;
+    const publicationIdeas = Array.from(
+      { length: settingsPublicationIdeaFieldCount },
+      (_, ideaIndex) => settingsConfig.publicationIdeas[ideaIndex] || "",
+    );
+    publicationIdeas[index] = nextValue.slice(
+      0,
+      INR_AGENT_PUBLICATION_IDEA_MAX_LENGTH,
+    );
+    updateConfig("publish", { publicationIdeas });
+  };
   const settingsStudioMediaPreferenceStep = settingsConfig
     ? studioMediaPreferenceStep(settingsConfig.studioMediaPreferencePercent)
     : INR_AGENT_STUDIO_MEDIA_PREFERENCE_DEFAULT;
@@ -1103,6 +1123,7 @@ export default function AgentClient() {
 
   useEffect(() => {
     setSettingsPublishTab("settings");
+    setPublicationIdeaVoiceIndex(null);
   }, [settingsKey]);
   const settingsDisplayedChannels = useMemo(
     () => settingsAutomation?.availableChannels ?? [],
@@ -4682,12 +4703,11 @@ export default function AgentClient() {
       );
       if (kind === "media") setPublishMediaActiveIndex(0);
       showNotice(
-        i18nT(
-          kind === "content"
-            ? "regenerate_content_success"
-            : "regenerate_media_success",
-          { channel: agentChannelLabel(channel, runtimeT) },
-        ),
+        kind === "content"
+          ? i18nT("regenerate_content_success", {
+              channel: agentChannelLabel(channel, runtimeT),
+            })
+          : i18nT("regenerate_media_success"),
       );
     } catch (error) {
       showNotice(
@@ -4714,13 +4734,14 @@ export default function AgentClient() {
     const channel = activePreviewChannel;
     const channelLabel = agentChannelLabel(channel, runtimeT);
     openAgentConfirmDialog({
-      title: i18nT("regenerate_confirm_title", { channel: channelLabel }),
-      message: i18nT(
+      title:
         kind === "content"
-          ? "regenerate_content_confirm"
-          : "regenerate_media_confirm",
-        { channel: channelLabel },
-      ),
+          ? i18nT("regenerate_confirm_title", { channel: channelLabel })
+          : i18nT("regenerate_media"),
+      message:
+        kind === "content"
+          ? i18nT("regenerate_content_confirm", { channel: channelLabel })
+          : i18nT("regenerate_media_confirm"),
       confirmLabel: i18nT(
         kind === "content" ? "regenerate_content" : "regenerate_media",
       ),
@@ -4739,12 +4760,11 @@ export default function AgentClient() {
     Boolean(publishRegeneration) ||
     publishPreparationInProgress;
   const agentWorkingLabel = publishRegeneration
-    ? i18nT(
-        publishRegeneration.kind === "content"
-          ? "agent_working_regenerating_content"
-          : "agent_working_regenerating_media",
-        { channel: agentChannelLabel(publishRegeneration.channel, runtimeT) },
-      )
+    ? publishRegeneration.kind === "content"
+      ? i18nT("agent_working_regenerating_content", {
+          channel: agentChannelLabel(publishRegeneration.channel, runtimeT),
+        })
+      : i18nT("agent_working_regenerating_media")
     : prepareActionState === "saving" ||
         Boolean(testNowKey) ||
         publishPreparationInProgress
@@ -7781,7 +7801,9 @@ export default function AgentClient() {
         <div
           className={styles.modalBackdrop}
           role="presentation"
-          onClick={() => setSettingsKey(null)}
+          onClick={() => {
+            if (!settingsPublicationIdeaVoiceBusy) setSettingsKey(null);
+          }}
         >
           <section
             className={`${styles.settingsModal} ${styles.automationSettingsModal}`}
@@ -7822,6 +7844,7 @@ export default function AgentClient() {
                   <button
                     type="button"
                     data-active={settingsPublishTab === "settings"}
+                    disabled={settingsPublicationIdeaVoiceBusy}
                     aria-current={
                       settingsPublishTab === "settings" ? "page" : undefined
                     }
@@ -7832,6 +7855,7 @@ export default function AgentClient() {
                   <button
                     type="button"
                     data-active={settingsPublishTab === "ideas"}
+                    disabled={settingsPublicationIdeaVoiceBusy}
                     aria-current={
                       settingsPublishTab === "ideas" ? "page" : undefined
                     }
@@ -7862,7 +7886,10 @@ export default function AgentClient() {
                   <input
                     type="checkbox"
                     checked={settingsConfig.enabled}
-                    disabled={settingsNoConnectedChannelBlock}
+                    disabled={
+                      settingsNoConnectedChannelBlock ||
+                      settingsPublicationIdeaVoiceBusy
+                    }
                     aria-label={`${i18nT("statut_659499f3")} : ${
                       settingsConfig.enabled
                         ? i18nT("automatisation_activee_4636ff37")
@@ -7879,6 +7906,7 @@ export default function AgentClient() {
                 <button
                   type="button"
                   className={styles.modalClose}
+                  disabled={settingsPublicationIdeaVoiceBusy}
                   onClick={() => setSettingsKey(null)}
                   aria-label={i18nT("fermer_5ab4ec64")}
                   title={i18nT("fermer_5ab4ec64")}
@@ -8498,9 +8526,13 @@ export default function AgentClient() {
                     { length: settingsPublicationIdeaFieldCount },
                     (_, index) => {
                       const value = settingsConfig.publicationIdeas[index] || "";
+                      const inputId = `publication-idea-${index}`;
                       return (
-                        <label key={`publication-idea-${index}`}>
-                          <span>
+                        <div
+                          key={inputId}
+                          className={styles.publicationIdeaCard}
+                        >
+                          <label htmlFor={inputId}>
                             <strong>
                               {i18nT("publication_idea_label", {
                                 number: index + 1,
@@ -8509,26 +8541,53 @@ export default function AgentClient() {
                             <small>
                               {value.length}/{INR_AGENT_PUBLICATION_IDEA_MAX_LENGTH}
                             </small>
-                          </span>
-                          <textarea
-                            value={value}
-                            maxLength={INR_AGENT_PUBLICATION_IDEA_MAX_LENGTH}
-                            rows={4}
-                            placeholder={i18nT("publication_idea_placeholder")}
-                            onChange={(event) => {
-                              const publicationIdeas = Array.from(
-                                { length: settingsPublicationIdeaFieldCount },
-                                (_, ideaIndex) =>
-                                  settingsConfig.publicationIdeas[ideaIndex] || "",
-                              );
-                              publicationIdeas[index] = event.target.value.slice(
-                                0,
-                                INR_AGENT_PUBLICATION_IDEA_MAX_LENGTH,
-                              );
-                              updateConfig("publish", { publicationIdeas });
-                            }}
-                          />
-                        </label>
+                          </label>
+                          <div className={styles.publicationIdeaTextareaWrap}>
+                            <textarea
+                              id={inputId}
+                              value={value}
+                              maxLength={INR_AGENT_PUBLICATION_IDEA_MAX_LENGTH}
+                              rows={4}
+                              readOnly={settingsPublicationIdeaVoiceBusy}
+                              aria-busy={publicationIdeaVoiceIndex === index}
+                              placeholder={i18nT("publication_idea_placeholder")}
+                              onChange={(event) =>
+                                updateSettingsPublicationIdea(
+                                  index,
+                                  event.target.value,
+                                )
+                              }
+                            />
+                            <MediaSubjectVoiceButton
+                              purpose="subject"
+                              value={value}
+                              maxLength={INR_AGENT_PUBLICATION_IDEA_MAX_LENGTH}
+                              mergeMode="paragraph"
+                              contextLabel={i18nT("publication_idea_label", {
+                                number: index + 1,
+                              })}
+                              disabled={
+                                saveState === "saving" ||
+                                loadState === "loading" ||
+                                Boolean(testNowKey) ||
+                                (publicationIdeaVoiceIndex !== null &&
+                                  publicationIdeaVoiceIndex !== index)
+                              }
+                              onBusyChange={(busy) =>
+                                setPublicationIdeaVoiceIndex((current) =>
+                                  busy
+                                    ? index
+                                    : current === index
+                                      ? null
+                                      : current,
+                                )
+                              }
+                              onChange={(nextValue) =>
+                                updateSettingsPublicationIdea(index, nextValue)
+                              }
+                            />
+                          </div>
+                        </div>
                       );
                     },
                   )}
@@ -8537,8 +8596,9 @@ export default function AgentClient() {
                   type="button"
                   className={styles.publicationIdeasAddButton}
                   disabled={
+                    settingsPublicationIdeaVoiceBusy ||
                     settingsPublicationIdeaFieldCount >=
-                    INR_AGENT_PUBLICATION_IDEA_MAX_ITEMS
+                      INR_AGENT_PUBLICATION_IDEA_MAX_ITEMS
                   }
                   onClick={() =>
                     updateConfig("publish", {
@@ -8578,6 +8638,7 @@ export default function AgentClient() {
                     saveState === "saving" ||
                     loadState === "loading" ||
                     Boolean(testNowKey) ||
+                    settingsPublicationIdeaVoiceBusy ||
                     (settingsNoConnectedChannelBlock && settingsConfig.enabled)
                   }
                 >

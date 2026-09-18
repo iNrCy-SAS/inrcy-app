@@ -198,6 +198,40 @@ test("la fenêtre iNrStudio expose quatre cartes essentielles adaptatives", () =
   assert.match(generatorStyles, /@media \(max-width: 1100px\)[\s\S]*?\.essentialGrid\s*\{[\s\S]*?grid-template-columns:\s*1fr/);
 });
 
+test("iNrStudio garde toutes les consignes accessibles sur un PC compact", () => {
+  const generatorStyles = read("app/dashboard/_components/MediaGenerator.module.css");
+  const modalStyles = read(
+    "app/dashboard/_components/MediaGeneratorModal.module.css"
+  );
+  const compactGenerator = sourceSection(
+    generatorStyles,
+    "@media (min-width: 1101px) and (max-height: 839px)",
+    "@media (min-width: 1101px) and (max-height: 760px)"
+  );
+  const compactModal = sourceSection(
+    modalStyles,
+    "@media (min-width: 1101px) and (max-height: 839px)",
+    "@media (max-width: 620px)"
+  );
+
+  assert.match(
+    compactGenerator,
+    /\.generator\s*\{[\s\S]*?height:\s*auto;[\s\S]*?overflow:\s*visible;/
+  );
+  assert.match(
+    compactGenerator,
+    /\.essentialGrid\s*\{[\s\S]*?grid-template-rows:\s*auto auto;[\s\S]*?overflow:\s*visible;/
+  );
+  assert.match(
+    compactGenerator,
+    /\.essentialCard\s*\{[\s\S]*?height:\s*auto;[\s\S]*?overflow:\s*visible;/
+  );
+  assert.match(
+    compactModal,
+    /\.body\s*\{[\s\S]*?overflow-y:\s*auto;/
+  );
+});
+
 test("la revue vidéo reste entière dans l'aperçu et en plein écran mobile", () => {
   const generator = read("app/dashboard/_components/MediaGenerator.tsx");
   const generatorStyles = read("app/dashboard/_components/MediaGenerator.module.css");

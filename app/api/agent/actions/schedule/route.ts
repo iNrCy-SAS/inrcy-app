@@ -850,12 +850,22 @@ async function buildScheduledPayload(
       if (isImageRequiredChannel(channel)) return hasChannelImagePayload;
       return canPublishWithoutMedia(channel) || hasChannelImagePayload;
     });
+    const autoDisabledChannels = selectedChannels.filter(
+      (channel) =>
+        isVideoOnlyChannel(channel) && !publishChannels.includes(channel),
+    );
     const blockedChannels = selectedChannels.filter(
-      (channel) => !publishChannels.includes(channel),
+      (channel) =>
+        !publishChannels.includes(channel) &&
+        !autoDisabledChannels.includes(channel),
     );
     if (blockedChannels.length)
       throw new Error(
         `Programmation complète impossible : média requis pour ${blockedChannels.join(", ")}. Ajoutez le média attendu puis relancez.`,
+      );
+    if (!publishChannels.length && autoDisabledChannels.length)
+      throw new Error(
+        "YouTube a été désactivé automatiquement : une vidéo est obligatoire pour programmer sur ce canal. Activez un autre canal compatible avec les images.",
       );
     if (!publishChannels.length)
       throw new Error(
@@ -920,6 +930,7 @@ async function buildScheduledPayload(
         sourceActionId: action.id,
         publishPayload: {
           channels: publishChannels,
+          autoDisabledChannels,
           post: firstPost,
           postByChannel: normalizedPostByChannel,
           idea: cleanText(payload.idea || action.summary, 500),

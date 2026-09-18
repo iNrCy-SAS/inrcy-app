@@ -15,6 +15,10 @@ const agentClient = readFileSync(
   new URL("../../app/dashboard/agent/AgentClient.tsx", import.meta.url),
   "utf8",
 );
+const agentStyles = readFileSync(
+  new URL("../../app/dashboard/agent/agent.module.css", import.meta.url),
+  "utf8",
+);
 const preparePublishRoute = readFileSync(
   new URL(
     "../../app/api/agent/actions/prepare-publish/route.ts",
@@ -86,5 +90,41 @@ test("the UI adds fields progressively and the publication prompt consumes non-e
   assert.match(
     preparePublishRoute,
     /normalizeInrAgentPublicationIdeas\([\s\S]*?\)\.filter\(Boolean\)/,
+  );
+});
+
+test("every publication idea field reuses the shared application microphone", () => {
+  const ideasUiStart = agentClient.indexOf(
+    "className={styles.publicationIdeasGrid}",
+  );
+  const ideasUiEnd = agentClient.indexOf(
+    "className={styles.publicationIdeasAddButton}",
+    ideasUiStart,
+  );
+  assert.ok(ideasUiStart >= 0);
+  assert.ok(ideasUiEnd > ideasUiStart);
+  const ideasUi = agentClient.slice(ideasUiStart, ideasUiEnd);
+
+  assert.match(
+    agentClient,
+    /import MediaSubjectVoiceButton from "\.\.\/_components\/MediaSubjectVoiceButton"/,
+  );
+  assert.match(ideasUi, /className=\{styles\.publicationIdeaTextareaWrap\}/);
+  assert.match(ideasUi, /<MediaSubjectVoiceButton/);
+  assert.match(ideasUi, /purpose="subject"/);
+  assert.match(ideasUi, /mergeMode="paragraph"/);
+  assert.match(
+    ideasUi,
+    /maxLength=\{INR_AGENT_PUBLICATION_IDEA_MAX_LENGTH\}/,
+  );
+  assert.match(ideasUi, /onBusyChange=\{\(busy\)/);
+  assert.match(ideasUi, /readOnly=\{settingsPublicationIdeaVoiceBusy\}/);
+  assert.match(
+    agentStyles,
+    /\.publicationIdeaTextareaWrap\s*\{[\s\S]*?position:\s*relative/,
+  );
+  assert.match(
+    agentStyles,
+    /\.publicationIdeasGrid textarea\s*\{[\s\S]*?padding:\s*10px 58px 10px 11px/,
   );
 });

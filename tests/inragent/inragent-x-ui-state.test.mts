@@ -123,7 +123,7 @@ test("the preparation backend keeps hydrated X and uses current saved channels",
   );
   assert.match(
     agentPrepareApi,
-    /const channels = availableChannels\.filter\(/,
+    /let channels = availableChannels\.filter\(/,
   );
   assert.equal(inrAgentChannelToBoosterPublishChannel("x"), "x");
   assert.match(

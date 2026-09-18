@@ -1758,6 +1758,7 @@ function buildSummary(
   channels: BoosterChannels[],
   media: ImageBankAsset | null,
   mediaCount = media ? 1 : 0,
+  autoDisabledChannels: BoosterChannels[] = [],
 ) {
   const labels = channels
     .map((channel) => channelLabels[boosterToAgentChannel[channel]] || channel)
@@ -1774,7 +1775,10 @@ function buildSummary(
           ? " Vidéo ajoutée depuis la médiathèque du pro."
           : " Visuel ajouté depuis la médiathèque ou la banque d’images."
         : " Aucun média disponible : les canaux compatibles seront préparés en texte seul.";
-  return `Publication préparée pour ${labels}.${mediaSentence}`;
+  const disabledChannelSentence = autoDisabledChannels.includes("youtube_shorts")
+    ? " YouTube a été désactivé automatiquement : une vidéo est obligatoire sur ce canal."
+    : "";
+  return `Publication préparée pour ${labels}.${mediaSentence}${disabledChannelSentence}`;
 }
 
 export async function POST(request: Request) {
@@ -1885,7 +1889,14 @@ export async function POST(request: Request) {
   // Les canaux actifs sauvegardés au moment de la préparation sont la source
   // de vérité. Le plan éditorial fige la date, le thème et le type de média,
   // mais ne doit jamais réappliquer une ancienne liste de canaux.
-  const channels = availableChannels.filter(
+  const youtubeDisabledForPlannedImage = Boolean(
+    editorialTarget?.plan.mediaKind === "image" &&
+      availableChannels.includes("youtube_shorts"),
+  );
+  let autoDisabledChannels: BoosterChannels[] = youtubeDisabledForPlannedImage
+    ? ["youtube_shorts"]
+    : [];
+  let channels = availableChannels.filter(
     (channel) =>
       // Double sécurité : même si un ancien plan ou une donnée altérée remet
       // YouTube dans un créneau image, il ne traversera jamais la préparation.
@@ -1897,8 +1908,15 @@ export async function POST(request: Request) {
   if (!channels.length) {
     return NextResponse.json(
       {
-        error:
-          "Aucun canal Booster / Publier connecté et autorisé pour iNr’Agent.",
+        error: youtubeDisabledForPlannedImage
+          ? "YouTube a été désactivé automatiquement : une vidéo est obligatoire pour publier sur ce canal. Activez un autre canal compatible avec les images."
+          : "Aucun canal Booster / Publier connecté et autorisé pour iNr’Agent.",
+        ...(youtubeDisabledForPlannedImage
+          ? {
+              code: "INR_AGENT_IMAGE_NO_COMPATIBLE_CHANNEL",
+              autoDisabledChannels,
+            }
+          : {}),
       },
       { status: 400 },
     );
@@ -2161,6 +2179,9 @@ export async function POST(request: Request) {
       : false,
     warnings: [
       generationWarning,
+      youtubeDisabledForPlannedImage
+        ? "youtube_shorts_disabled_image_publication"
+        : "",
       media?.librarySource === "pro_media_library" &&
       media.source !== "ai_media_generation" &&
       media.matchLevel === "pro_library_owned_fallback"
@@ -2173,6 +2194,37 @@ export async function POST(request: Request) {
     ].filter(Boolean),
   };
   const mediaKind = media?.mediaType || media?.kind || "image";
+  const youtubeDisabledForFinalImage =
+    mediaKind !== "video" && channels.includes("youtube_shorts");
+  if (youtubeDisabledForFinalImage) {
+    channels = channels.filter((channel) => channel !== "youtube_shorts");
+    autoDisabledChannels = Array.from(
+      new Set<BoosterChannels>([
+        ...autoDisabledChannels,
+        "youtube_shorts",
+      ]),
+    );
+    if (
+      !mediaSelectionTrace.warnings.includes(
+        "youtube_shorts_disabled_image_publication",
+      )
+    ) {
+      mediaSelectionTrace.warnings.push(
+        "youtube_shorts_disabled_image_publication",
+      );
+    }
+  }
+  if (!channels.length) {
+    return NextResponse.json(
+      {
+        error:
+          "YouTube a été désactivé automatiquement : une vidéo est obligatoire pour publier sur ce canal. Activez un autre canal compatible avec les images.",
+        code: "INR_AGENT_IMAGE_NO_COMPATIBLE_CHANNEL",
+        autoDisabledChannels,
+      },
+      { status: 400 },
+    );
+  }
   const images = mediaAssets.filter(
     (asset) => (asset.mediaType || asset.kind || "image") === "image",
   );
@@ -2338,6 +2390,7 @@ export async function POST(request: Request) {
       },
       selectedChannels: channels,
       targetChannels,
+      autoDisabledChannels,
       media,
       mediaAsset: media,
       mediaAssets,
@@ -2380,7 +2433,12 @@ export async function POST(request: Request) {
         action_type: "publication",
         target_tool: "booster",
         title,
-        summary: buildSummary(channels, media, mediaAssets.length),
+        summary: buildSummary(
+          channels,
+          media,
+          mediaAssets.length,
+          autoDisabledChannels,
+        ),
         preview_text: previewText,
         target_channels: targetChannels,
         target_themes: [agentTheme],

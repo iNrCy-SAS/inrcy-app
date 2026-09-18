@@ -982,8 +982,14 @@ async function executeAgentActionHandler(request: Request) {
     return canPublishWithoutMedia(channel) || hasImagePayload;
   });
   const publishChannelSet = new Set<BoosterChannel>(publishChannels);
+  const autoDisabledChannels = selectedChannels.filter(
+    (channel) =>
+      isVideoOnlyChannel(channel) && !publishChannelSet.has(channel),
+  );
   const blockedChannels = selectedChannels.filter(
-    (channel) => !publishChannelSet.has(channel),
+    (channel) =>
+      !publishChannelSet.has(channel) &&
+      !autoDisabledChannels.includes(channel),
   );
 
   if (blockedChannels.length) {
@@ -994,6 +1000,18 @@ async function executeAgentActionHandler(request: Request) {
         blockedChannels,
       },
       { status: 409 },
+    );
+  }
+
+  if (!publishChannels.length && autoDisabledChannels.length) {
+    return NextResponse.json(
+      {
+        error:
+          "YouTube a été désactivé automatiquement : une vidéo est obligatoire pour publier sur ce canal. Activez un autre canal compatible avec les images.",
+        code: "INR_AGENT_IMAGE_NO_COMPATIBLE_CHANNEL",
+        autoDisabledChannels,
+      },
+      { status: 400 },
     );
   }
 
@@ -1085,6 +1103,7 @@ async function executeAgentActionHandler(request: Request) {
       workflowAction: "publier",
       source: "inr_agent",
       inrAgentActionId: actionId,
+      autoDisabledChannels,
       idempotencyKey: hasChannelOverride
         ? `inr_agent_action:${actionId}:publish_now:${publishChannels.join(",")}`
         : `inr_agent_action:${actionId}:publish_now`,
@@ -1130,6 +1149,7 @@ async function executeAgentActionHandler(request: Request) {
             skippedChannels: selectedChannels.filter(
               (channel) => !publishChannelSet.has(channel),
             ),
+            autoDisabledChannels,
             publicationId: publishPayload?.publication_id || null,
             historyEventId: publishPayload?.historyEventId || null,
             historyPersisted: publishPayload?.historyPersisted === true,
@@ -1166,6 +1186,7 @@ async function executeAgentActionHandler(request: Request) {
           skippedChannels: selectedChannels.filter(
             (channel) => !publishChannelSet.has(channel),
           ),
+          autoDisabledChannels,
           publicationId: publishPayload?.publication_id || null,
           historyEventId: publishPayload?.historyEventId || null,
           historyPersisted: publishPayload?.historyPersisted === true,
