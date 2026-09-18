@@ -2600,6 +2600,8 @@ export default function PublishModal({
     resetActiveChannelImages,
     applyCurrentCadrageToActiveChannelImages,
     moveChannelImage,
+    moveChannelImageTo,
+    applyChannelImageOrderToSelectedChannels,
     applyCurrentImageToSelectedChannels,
     openImageEditor,
     closeImageEditor,
@@ -2639,6 +2641,17 @@ export default function PublishModal({
     restorePublishScroll,
     syncPersistentWorkspaceImages: syncActiveImagesToPersistentWorkspace,
   });
+
+  const activeChannelDisplayImageKeys = useMemo(() => {
+    const selectedKeys = (
+      channelImageEditors[activeImageChannel]?.imageKeys || []
+    ).filter((key) => imageKeys.includes(key));
+    const selectedKeySet = new Set(selectedKeys);
+    return [
+      ...selectedKeys,
+      ...imageKeys.filter((key) => !selectedKeySet.has(key)),
+    ];
+  }, [activeImageChannel, channelImageEditors, imageKeys]);
 
   const selectedForGeneration = useMemo(() => {
     return CHANNEL_KEYS.filter((channel) => channels[channel] && connected[channel]);
@@ -7723,6 +7736,10 @@ export default function PublishModal({
               resetChannelImage={resetChannelImage}
               removeImage={removeImage}
               moveChannelImage={moveChannelImage}
+              moveChannelImageTo={moveChannelImageTo}
+              applyChannelImageOrderToAllChannels={
+                applyChannelImageOrderToSelectedChannels
+              }
             />
 
             <PublishPreviewPanel
@@ -7740,7 +7757,13 @@ export default function PublishModal({
 
           <ChannelImageAdapterModal
         open={!!(isImageEditorOpen && activeEditorImageKey)}
-        title={i18nT("adapter_image_value_c159004c", { value0: (imageKeys.indexOf(activeEditorImageKey || "") || 0) + 1 })}
+        title={i18nT("adapter_image_value_c159004c", {
+          value0:
+            Math.max(
+              0,
+              activeChannelDisplayImageKeys.indexOf(activeEditorImageKey || ""),
+            ) + 1,
+        })}
         subtitle={`${getLocalizedChannelLabel(activeImageChannel, runtimeT)} • ${getLocalizedImageDecisionLabel(activeEditorDecisionMode, runtimeT)}`}
         aspectRatio={previewAspectRatio}
         backgroundMode={activeBackgroundMode}
@@ -7855,7 +7878,7 @@ export default function PublishModal({
         }
         pillButtonStyle={pillBtn}
         pillButtonActiveStyle={pillBtnActive}
-        sidebarItems={imageKeys.map((key, index) => {
+        sidebarItems={activeChannelDisplayImageKeys.map((key, index) => {
           const included = (
             channelImageEditors[activeImageChannel]?.imageKeys || []
           ).includes(key);

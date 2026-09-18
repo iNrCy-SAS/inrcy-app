@@ -137,6 +137,12 @@ type PublishImagesPanelProps = {
     imageKey: string,
     direction: -1 | 1,
   ) => void;
+  moveChannelImageTo: (
+    channel: ChannelKey,
+    imageKey: string,
+    targetImageKey: string,
+  ) => void;
+  applyChannelImageOrderToAllChannels: (sourceChannel: ChannelKey) => void;
 };
 
 export default function PublishImagesPanel({
@@ -188,6 +194,8 @@ export default function PublishImagesPanel({
   resetChannelImage,
   removeImage,
   moveChannelImage,
+  moveChannelImageTo,
+  applyChannelImageOrderToAllChannels,
 }: PublishImagesPanelProps) {
   const i18nT = useTranslations("booster");
   const mediaT = useTranslations("media");
@@ -279,6 +287,24 @@ export default function PublishImagesPanel({
   );
   const activeMediaBlockers = activeMediaTab?.blockers || [];
   const activeImageEditor = channelImageEditors[activeImageChannel];
+  const selectedKeysForActiveChannel = (activeImageEditor?.imageKeys || []).filter(
+    (key) => imageKeys.includes(key),
+  );
+  const selectedKeySetForActiveChannel = new Set(
+    selectedKeysForActiveChannel,
+  );
+  const orderedImageKeys = [
+    ...selectedKeysForActiveChannel,
+    ...imageKeys.filter((key) => !selectedKeySetForActiveChannel.has(key)),
+  ];
+  const imageOrderDestinationCount = selectedChannels.filter(
+    (channel) =>
+      channel !== activeImageChannel &&
+      channelSupportsImages(channel) &&
+      (channelImageEditors[channel]?.imageKeys?.length || 0) > 1,
+  ).length;
+  const canApplyImageOrderToAllChannels =
+    selectedKeysForActiveChannel.length > 1 && imageOrderDestinationCount > 0;
   const activeXGifCount =
     activeImageChannel === "x"
       ? (activeImageEditor?.imageKeys || []).filter((key) => {
@@ -922,9 +948,7 @@ export default function PublishImagesPanel({
                 channelTitle={getLocalizedChannelLabel(activeImageChannel, runtimeT)}
                 formatLabel={i18nT("rendu_intelligent_par_image_f1db3463")}
                 aspectRatio={previewAspectRatio}
-                items={imageKeys.map((key, index) => {
-                  const selectedKeysForActiveChannel =
-                    channelImageEditors[activeImageChannel]?.imageKeys || [];
+                items={orderedImageKeys.map((key, index) => {
                   const included = selectedKeysForActiveChannel.includes(key);
                   const usedChannelCount = selectedChannels.filter((channel) =>
                     (channelImageEditors[channel]?.imageKeys || []).includes(key),
@@ -1038,7 +1062,7 @@ export default function PublishImagesPanel({
                       ? () => toggleChannelImage(activeImageChannel, key)
                       : undefined,
                     removeLabel: i18nT("retirer_de_ce_canal_76fbf864"),
-                    onRemoveEverywhere: () => removeImage(index),
+                    onRemoveEverywhere: () => removeImage(imageKeys.indexOf(key)),
                     removeEverywhereLabel: i18nT("supprimer_partout_dfb790c4"),
                     onMovePrevious:
                       included && selectedKeysForActiveChannel.indexOf(key) > 0
@@ -1051,6 +1075,15 @@ export default function PublishImagesPanel({
                         selectedKeysForActiveChannel.length - 1
                         ? () => moveChannelImage(activeImageChannel, key, 1)
                         : undefined,
+                    onMoveTo: included
+                      ? (targetImageKey: string) =>
+                          moveChannelImageTo(
+                            activeImageChannel,
+                            key,
+                            targetImageKey,
+                          )
+                      : undefined,
+                    dragLabel: i18nT("drag_image_to_reorder"),
                   };
                 })}
                 buttonClassName={styles.secondaryBtn}
@@ -1058,6 +1091,37 @@ export default function PublishImagesPanel({
                 pillButtonActiveStyle={pillBtnActive}
                 showTabs={false}
               />
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: 12,
+                  flexWrap: "wrap",
+                  marginTop: 12,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: "rgba(255,255,255,0.72)",
+                  }}
+                >
+                  {i18nT("apply_media_order_everywhere_hint")}
+                </div>
+                <button
+                  type="button"
+                  className={styles.secondaryBtn}
+                  onClick={() =>
+                    applyChannelImageOrderToAllChannels(activeImageChannel)
+                  }
+                  disabled={!canApplyImageOrderToAllChannels}
+                  title={i18nT("apply_media_order_everywhere_title")}
+                  style={{ marginLeft: "auto" }}
+                >
+                  {i18nT("apply_media_order_everywhere")}
+                </button>
+              </div>
             </>
           )}
         </div>

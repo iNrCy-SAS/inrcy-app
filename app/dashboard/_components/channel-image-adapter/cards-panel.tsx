@@ -27,6 +27,18 @@ export function ChannelImageAdapterCardsPanel({
 }: CardsPanelProps) {
   const i18nT = useTranslations("shell");
   const viewportWidth = useViewportWidth();
+  const [draggedImageKey, setDraggedImageKey] = React.useState<string | null>(null);
+  const [dragTargetImageKey, setDragTargetImageKey] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    setDraggedImageKey(null);
+    setDragTargetImageKey(null);
+  }, [activeChannel]);
+
+  const resetImageDrag = () => {
+    setDraggedImageKey(null);
+    setDragTargetImageKey(null);
+  };
 
   const isNarrow = viewportWidth <= 560;
   const cardColumnCount = isNarrow
@@ -141,24 +153,87 @@ export function ChannelImageAdapterCardsPanel({
         </div>
 
         {items.length ? (
-          <div style={{ display: "grid", gridTemplateColumns: cardGridTemplate, gap: 12, alignItems: "stretch", justifyContent: "start", minWidth: 0 }}>
+          <div role="list" style={{ display: "grid", gridTemplateColumns: cardGridTemplate, gap: 12, alignItems: "stretch", justifyContent: "start", minWidth: 0 }}>
             {items.map((item) => {
               const isDisabled = !!item.disabled && !item.included;
+              const canDrag = Boolean(item.onMoveTo) && !isDisabled;
+              const isDragTarget = dragTargetImageKey === item.key;
               return (
               <div
                 key={item.key}
+                role="listitem"
+                draggable={canDrag}
+                aria-grabbed={draggedImageKey === item.key}
+                onDragStart={(event) => {
+                  if (!canDrag) {
+                    event.preventDefault();
+                    return;
+                  }
+                  const origin = event.target;
+                  if (
+                    origin instanceof Element &&
+                    origin.closest("button, input, a, label")
+                  ) {
+                    event.preventDefault();
+                    return;
+                  }
+                  event.dataTransfer.effectAllowed = "move";
+                  event.dataTransfer.setData("text/plain", item.key);
+                  setDraggedImageKey(item.key);
+                  setDragTargetImageKey(null);
+                }}
+                onDragOver={(event) => {
+                  if (
+                    !canDrag ||
+                    !draggedImageKey ||
+                    draggedImageKey === item.key
+                  ) {
+                    return;
+                  }
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = "move";
+                  setDragTargetImageKey(item.key);
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  const sourceKey =
+                    event.dataTransfer.getData("text/plain") || draggedImageKey;
+                  const sourceItem = items.find(
+                    (candidate) => candidate.key === sourceKey,
+                  );
+                  if (
+                    sourceKey &&
+                    sourceKey !== item.key &&
+                    sourceItem?.onMoveTo &&
+                    canDrag
+                  ) {
+                    sourceItem.onMoveTo(item.key);
+                  }
+                  resetImageDrag();
+                }}
+                onDragEnd={resetImageDrag}
                 style={{
                   width: "100%",
                   maxWidth: "none",
                   minWidth: 0,
-                  border: "1px solid rgba(255,255,255,0.10)",
+                  border: isDragTarget
+                    ? "1px solid rgba(76,195,255,0.78)"
+                    : "1px solid rgba(255,255,255,0.10)",
                   borderRadius: 18,
                   padding: 10,
-                  background: item.included ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.025)",
+                  background: isDragTarget
+                    ? "rgba(76,195,255,0.12)"
+                    : item.included
+                      ? "rgba(255,255,255,0.05)"
+                      : "rgba(255,255,255,0.025)",
                   display: "grid",
                   gridTemplateRows: "auto auto auto 1fr",
                   gap: 8,
                   opacity: isDisabled ? 0.48 : 1,
+                  cursor: canDrag ? "grab" : undefined,
+                  transform: isDragTarget ? "translateY(-2px)" : undefined,
+                  transition:
+                    "border-color 140ms ease, background 140ms ease, transform 140ms ease",
                 }}
               >
                 <div style={{ position: "relative", borderRadius: 14, overflow: "hidden" }}>
@@ -166,7 +241,6 @@ export function ChannelImageAdapterCardsPanel({
                     image={{ previewUrl: item.previewUrl, transform: item.transform, preset: item.preset, imageMeta: item.imageMeta }}
                     aspectRatio={item.previewAspectRatio || aspectRatio}
                     fallbackMode={item.backgroundMode}
-                    fitLabel={item.fitLabel}
                   />
                 </div>
 
@@ -184,6 +258,20 @@ export function ChannelImageAdapterCardsPanel({
                   >
                     {item.title}
                   </span>
+                  {canDrag ? (
+                    <span
+                      aria-hidden="true"
+                      title={item.dragLabel}
+                      style={{
+                        flex: "0 0 auto",
+                        fontSize: 16,
+                        lineHeight: 1,
+                        opacity: 0.68,
+                      }}
+                    >
+                      ⠿
+                    </span>
+                  ) : null}
                   <span
                     style={{
                       flex: "0 0 auto",

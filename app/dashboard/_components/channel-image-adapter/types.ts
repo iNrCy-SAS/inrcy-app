@@ -75,6 +75,8 @@ export type CardItem = {
   onReset?: () => void;
   onMovePrevious?: () => void;
   onMoveNext?: () => void;
+  onMoveTo?: (targetImageKey: string) => void;
+  dragLabel?: string;
 };
 
 export type SidebarItem = {

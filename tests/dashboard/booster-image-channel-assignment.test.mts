@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
+  applyReferenceImageOrder,
   getImageChannelAction,
+  moveImageKeyToTarget,
   setImageKeysForChannel,
 } from "../../app/dashboard/booster/publier/imageChannelAssignment.ts";
 import {
@@ -80,6 +82,29 @@ test("one five-image pool supports independent ordered mappings per channel", ()
     fallback: fallbackEditor(),
   });
   assert.deepEqual(editors.D?.imageKeys, pool);
+});
+
+test("drag-and-drop moves a media to the target position", () => {
+  assert.deepEqual(
+    moveImageKeyToTarget(["A", "B", "C", "D"], "A", "C"),
+    ["B", "C", "A", "D"],
+  );
+  assert.deepEqual(
+    moveImageKeyToTarget(["A", "B", "C", "D"], "D", "B"),
+    ["A", "D", "B", "C"],
+  );
+});
+
+test("applying one channel order preserves every other channel subset", () => {
+  assert.deepEqual(
+    applyReferenceImageOrder(["C", "B", "A"], ["A", "C"]),
+    ["C", "A"],
+  );
+  assert.deepEqual(
+    applyReferenceImageOrder(["C", "A"], ["A", "B", "C", "D"]),
+    ["C", "A", "B", "D"],
+    "media intentionally absent from the source stays selected only on its target channel",
+  );
 });
 
 test("the channel action picks only without a pool and otherwise reuses it", () => {
@@ -273,6 +298,62 @@ test("block 4 exposes reuse and explicit local versus global deletion labels", (
     intentPanel,
     /i18nT\("supprimer_l_image_value_pour_tous_561091e2", \{ value0: index \+ 1 \}\)/,
   );
+});
+
+test("visible media order is the publish order and supports drag-and-drop", () => {
+  assert.match(imagesPanel, /const orderedImageKeys = \[/);
+  assert.match(imagesPanel, /items=\{orderedImageKeys\.map\(/);
+  assert.doesNotMatch(imagesPanel, /items=\{imageKeys\.map\(/);
+  assert.match(publishModal, /const activeChannelDisplayImageKeys = useMemo/);
+  assert.match(
+    publishModal,
+    /sidebarItems=\{activeChannelDisplayImageKeys\.map\(/,
+  );
+  assert.match(imagesPanel, /removeImage\(imageKeys\.indexOf\(key\)\)/);
+  assert.match(imagesPanel, /onMoveTo: included/);
+  assert.match(imagesPanel, /moveChannelImageTo\(/);
+
+  assert.match(cardPanel, /draggable=\{canDrag\}/);
+  assert.match(cardPanel, /onDragStart=/);
+  assert.match(cardPanel, /onDragOver=/);
+  assert.match(cardPanel, /onDrop=/);
+  assert.match(cardPanel, /sourceItem\.onMoveTo\(item\.key\)/);
+  assert.match(cardPanel, /item\.onMovePrevious/);
+  assert.match(cardPanel, /item\.onMoveNext/);
+  assert.doesNotMatch(cardPanel, /fitLabel=\{item\.fitLabel\}/);
+});
+
+test("one action applies the active media order without changing channel selections", () => {
+  const applyEverywhere = between(
+    imageController,
+    "const applyChannelImageOrderToSelectedChannels",
+    "const applyCurrentImageToSelectedChannels",
+  );
+  assert.match(applyEverywhere, /for \(const channel of selectedChannels\)/);
+  assert.match(applyEverywhere, /applyReferenceImageOrder\(/);
+  assert.match(applyEverywhere, /current\.imageKeys/);
+  assert.doesNotMatch(applyEverywhere, /imageKeys\.slice\(\)/);
+  assert.match(
+    imagesPanel,
+    /i18nT\("apply_media_order_everywhere"\)/,
+  );
+  assert.match(
+    publishModal,
+    /applyChannelImageOrderToAllChannels=\{[\s\S]{0,100}applyChannelImageOrderToSelectedChannels/,
+  );
+});
+
+test("prepared publication media keeps the exact channel order", () => {
+  const payloadBuilder = between(
+    imageController,
+    "const buildChannelImagesPayload",
+    "return {",
+  );
+  assert.match(
+    payloadBuilder,
+    /const imageKeysToRender = customizationScope\.imageKeys/,
+  );
+  assert.doesNotMatch(payloadBuilder, /imageKeysToRender\.sort/);
 });
 
 test("drafts and scheduled publications preserve channel imageKeys mappings", () => {

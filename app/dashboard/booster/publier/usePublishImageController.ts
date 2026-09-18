@@ -59,7 +59,11 @@ import {
   type ImageTransform,
   type PublicationMediaType,
 } from "./publishModal.shared";
-import { setImageKeysForChannel } from "./imageChannelAssignment";
+import {
+  applyReferenceImageOrder,
+  moveImageKeyToTarget,
+  setImageKeysForChannel,
+} from "./imageChannelAssignment";
 import { extendBoosterChannelImageSelectionForGlobalAdd } from "@/lib/boosterChannelImageSelection";
 
 function buildServerPreviewPlaceholder(file: Pick<File, "name">, placeholderLabel: string) {
@@ -1210,6 +1214,61 @@ export default function usePublishImageController({
     });
   };
 
+  const moveChannelImageTo = (
+    channel: ChannelKey,
+    imageKey: string,
+    targetImageKey: string,
+  ) => {
+    setChannelImageEditors((prev) => {
+      const current = prev[channel] || {
+        imageKeys: imageKeys.slice(),
+        transforms: {},
+      };
+      const nextKeys = moveImageKeyToTarget(
+        current.imageKeys,
+        imageKey,
+        targetImageKey,
+      );
+      if (nextKeys.every((key, index) => key === current.imageKeys[index])) {
+        return prev;
+      }
+      return {
+        ...prev,
+        [channel]: { ...current, imageKeys: nextKeys },
+      };
+    });
+  };
+
+  const applyChannelImageOrderToSelectedChannels = (
+    sourceChannel: ChannelKey,
+  ) => {
+    setChannelImageEditors((prev) => {
+      const sourceEditor = prev[sourceChannel];
+      if (!sourceEditor || sourceEditor.imageKeys.length < 2) return prev;
+
+      let changed = false;
+      const next = { ...prev };
+      for (const channel of selectedChannels) {
+        if (channel === sourceChannel || !channelSupportsImages(channel)) continue;
+        const current = prev[channel];
+        if (!current || current.imageKeys.length < 2) continue;
+
+        const nextKeys = applyReferenceImageOrder(
+          sourceEditor.imageKeys,
+          current.imageKeys,
+        );
+        if (nextKeys.every((key, index) => key === current.imageKeys[index])) {
+          continue;
+        }
+
+        next[channel] = { ...current, imageKeys: nextKeys };
+        changed = true;
+      }
+
+      return changed ? next : prev;
+    });
+  };
+
   const applyCurrentImageToSelectedChannels = () => {
     if (!activeEditorImageKey) return;
     setChannelImageEditors((prev) => {
@@ -1595,6 +1654,8 @@ export default function usePublishImageController({
     resetActiveChannelImages,
     applyCurrentCadrageToActiveChannelImages,
     moveChannelImage,
+    moveChannelImageTo,
+    applyChannelImageOrderToSelectedChannels,
     applyCurrentImageToSelectedChannels,
     openImageEditor,
     closeImageEditor,
