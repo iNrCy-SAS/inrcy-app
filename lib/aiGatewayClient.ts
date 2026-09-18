@@ -423,6 +423,7 @@ async function executeAiJsonAttempt<T extends AiResponseJSON>(args: {
       onAttempt: async (attempt) => {
         httpAttempts = Math.max(httpAttempts, attempt + 1);
         const reservation = await reserveAiGatewayAccountAttempt(opts.accountId, {
+          feature: opts.feature,
           estimatedInputTokens,
           reservedOutputTokens: args.policyMaxOutputTokens,
           estimatedCostMicroUsd,

@@ -236,6 +236,7 @@ async function withEconomicGuard<T>(args: {
 }) {
   const costMicroUsd = configuredCost(args.referenceImagesCount);
   const reservation = await reserveAiGatewayAccountAttempt(args.accountId, {
+    feature: "media.image",
     estimatedInputTokens: 0,
     reservedOutputTokens: 0,
     estimatedCostMicroUsd: costMicroUsd,

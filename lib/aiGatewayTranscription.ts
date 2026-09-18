@@ -162,6 +162,7 @@ export async function aiTranscribeMedia(args: {
         retryStatuses: [408, 500, 502, 503, 504],
         onAttempt: async (attempt) => {
           const reservation = await reserveAiGatewayAccountAttempt(args.accountId, {
+            feature: "booster.transcribe",
             reservedOutputTokens: 128,
             estimatedCostMicroUsd: 1,
           });

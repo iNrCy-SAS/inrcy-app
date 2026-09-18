@@ -10,6 +10,7 @@ import {
   isInrAgentScheduledMonthDay,
   normalizeInrAgentMonthDays,
 } from "@/lib/inrAgentMonthSchedule";
+import { inrAgentEditorialVideoCount } from "@/lib/inrAgentEditorialMediaPolicy";
 
 export const INR_AGENT_EDITORIAL_HORIZON_DAYS = 15;
 export const INR_AGENT_EDITORIAL_PLAN_VERSION = 1;
@@ -254,10 +255,9 @@ function plannedTheme(
 }
 
 function videoSlotKeys(slotKeys: string[]) {
-  // Sur un vrai mois éditorial, on garde au moins une vidéo dès quatre
-  // publications, puis environ 20 % du volume total.
-  const videoCount =
-    slotKeys.length >= 4 ? Math.max(1, Math.round(slotKeys.length * 0.2)) : 0;
+  // La vidéo reste exceptionnelle : aucune sur un planning court, puis environ
+  // 10 % du volume. Les calendriers exclusivement YouTube restent traités plus bas.
+  const videoCount = inrAgentEditorialVideoCount(slotKeys.length);
   return new Set(
     [...slotKeys]
       .sort(

@@ -170,6 +170,7 @@ async function transcribeAudioWithGoogle(args: {
 }): Promise<AiMediaNativeDialogueTranscript> {
   args.signal?.throwIfAborted();
   const reservation = await reserveAiGatewayAccountAttempt(args.accountId, {
+    feature: "media.video",
     estimatedInputTokens: 640,
     reservedOutputTokens: 128,
     estimatedCostMicroUsd: args.costMicroUsd,

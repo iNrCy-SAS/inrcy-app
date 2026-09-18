@@ -3,7 +3,10 @@ import "server-only";
 import { Redis } from "@upstash/redis";
 
 import { shouldBypassUpstashInCurrentEnv } from "@/lib/upstashMode";
-import type { AiGenerationFeature } from "@/lib/aiGatewayPolicy";
+import {
+  isAiGatewayAccountCostLimitEnforced,
+  type AiGenerationFeature,
+} from "@/lib/aiGatewayPolicy";
 import { estimateAiGatewayCostMicroUsd } from "@/lib/aiGatewayEconomics";
 
 export class AiGatewayGuardUnavailableError extends Error {
@@ -188,6 +191,7 @@ local estCost = tonumber(ARGV[3])
 local dayTtl = tonumber(ARGV[14])
 local monthTtl = tonumber(ARGV[15])
 local markerTtl = tonumber(ARGV[16])
+local enforceCostLimit = tonumber(ARGV[17]) == 1
 
 local function num(key) return tonumber(redis.call('GET', key) or '0') end
 local function ensureTtl(key, ttl)
@@ -208,7 +212,7 @@ local function check(base, attemptsLimit, callsLimit, inputLimit, outputLimit, c
   if calls + resCalls + 1 > callsLimit then return {0, windowIndex, 2} end
   if input + resInput + estInput > inputLimit then return {0, windowIndex, 3} end
   if output + resOutputNow + resOutput > outputLimit then return {0, windowIndex, 4} end
-  if cost + resCost + estCost > costLimit then return {0, windowIndex, 5} end
+  if enforceCostLimit and cost + resCost + estCost > costLimit then return {0, windowIndex, 5} end
   return {1, windowIndex, 0}
 end
 
@@ -328,7 +332,12 @@ function limitMessage(windowIndex: number, metricCode: number) {
  */
 export async function reserveAiGatewayAccountAttempt(
   accountIdRaw: unknown,
-  estimate: { estimatedInputTokens?: number; reservedOutputTokens?: number; estimatedCostMicroUsd?: number } = {},
+  estimate: {
+    feature?: AiGenerationFeature;
+    estimatedInputTokens?: number;
+    reservedOutputTokens?: number;
+    estimatedCostMicroUsd?: number;
+  } = {},
 ): Promise<AiGatewayAccountAttemptReservation | null> {
   const accountId = cleanId(accountIdRaw);
   if (!accountId) return null;
@@ -367,6 +376,7 @@ export async function reserveAiGatewayAccountAttempt(
         WINDOW_TTL_SECONDS.day,
         WINDOW_TTL_SECONDS.month,
         ATTEMPT_RESERVATION_TTL_SECONDS,
+        isAiGatewayAccountCostLimitEnforced(estimate.feature) ? 1 : 0,
       ],
     ) as Array<number | string>;
   } catch (error) {

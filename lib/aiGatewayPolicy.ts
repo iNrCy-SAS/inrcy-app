@@ -28,6 +28,18 @@ export type AiFeaturePolicy = {
   defaultOperationMaxDurationMs: number;
 };
 
+/**
+ * iNrAgent's editorial calls are inexpensive text operations and already have
+ * strict per-operation, call and token budgets. A costly image/video session
+ * must not consume the monetary fuse and then prevent iNrAgent from preparing
+ * the professional's publications. Media generations keep the monetary guard.
+ */
+export function isAiGatewayAccountCostLimitEnforced(
+  feature: AiGenerationFeature | undefined,
+): boolean {
+  return !feature?.startsWith("agent.");
+}
+
 const MB_AS_DATA_URL_CHARS = 1_450_000;
 
 const DEFAULT_ALLOWED_AI_GATEWAY_MODELS = [

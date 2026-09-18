@@ -53,6 +53,12 @@ Tous les appels `aiGenerateJSON` portent maintenant `accountId` correspondant à
 
 `lib/aiGatewayAccountGuard.ts` utilise Upstash pour compter les vraies tentatives HTTP et les tokens retournés.
 
+Le plafond monétaire quotidien reste appliqué aux générations média coûteuses.
+Les fonctionnalités `agent.*` continuent d'être comptabilisées mais ne sont pas
+bloquées par ce seul plafond : elles restent protégées par leurs budgets par
+opération et par les plafonds globaux d'appels et de tokens. Une consommation
+vidéo ne peut donc plus empêcher iNrAgent de préparer les contenus éditoriaux.
+
 Valeurs par défaut sans variable supplémentaire :
 
 - 300 tentatives Gateway / établissement / jour ;

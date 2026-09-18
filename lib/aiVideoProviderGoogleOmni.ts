@@ -706,6 +706,7 @@ export const googleOmniVideoProvider: AiVideoProvider = {
             sceneReservation = await reserveAiGatewayAccountAttempt(
               args.accountId,
               {
+                feature: "media.video",
                 estimatedInputTokens: 0,
                 reservedOutputTokens: 0,
                 estimatedCostMicroUsd: sceneCostMicroUsd,

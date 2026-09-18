@@ -226,6 +226,7 @@ export async function generateAiMediaNarrationAudio(args: {
     90_000
   );
   const reservation = await reserveAiGatewayAccountAttempt(args.accountId, {
+    feature: "media.video",
     estimatedInputTokens: 0,
     reservedOutputTokens: 0,
     estimatedCostMicroUsd: costMicroUsd,

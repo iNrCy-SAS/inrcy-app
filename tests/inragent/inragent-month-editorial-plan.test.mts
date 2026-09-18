@@ -2,6 +2,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import test from "node:test";
+import {
+  INR_AGENT_EDITORIAL_MIN_SLOTS_FOR_VIDEO,
+  INR_AGENT_EDITORIAL_VIDEO_RATIO,
+  inrAgentEditorialVideoCount,
+} from "../../lib/inrAgentEditorialMediaPolicy.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
 const read = (relativePath: string) =>
@@ -27,7 +32,7 @@ test("iNrAgent matérialise l'horizon choisi selon les créneaux et critères", 
   assert.match(planner, /automation\.allowedChannels/);
   assert.match(planner, /toneValue\(args\.tone\)/);
   assert.match(planner, /startingIndex \+ sequence/);
-  assert.match(planner, /Math\.round\(slotKeys\.length \* 0\.2\)/);
+  assert.match(planner, /inrAgentEditorialVideoCount\(slotKeys\.length\)/);
   assert.match(planner, /INR_AGENT_IMAGES_PER_PUBLICATION = 1 as const/);
   assert.match(planner, /imageCount: 0 \| 1/);
   assert.match(
@@ -148,6 +153,16 @@ test("la préparation limite iNrAgent à une image jusqu'à Booster et à l'agen
   assert.doesNotMatch(regenerate, /seconde image complémentaire/);
   assert.match(server, /lostImages \+= INR_AGENT_IMAGES_PER_PUBLICATION/);
   assert.match(messages, /une vidéo ou une seule image/);
+});
+
+test("les vidéos automatiques iNrAgent restent exceptionnelles", () => {
+  assert.equal(INR_AGENT_EDITORIAL_VIDEO_RATIO, 0.1);
+  assert.equal(INR_AGENT_EDITORIAL_MIN_SLOTS_FOR_VIDEO, 8);
+  assert.equal(inrAgentEditorialVideoCount(0), 0);
+  assert.equal(inrAgentEditorialVideoCount(7), 0);
+  assert.equal(inrAgentEditorialVideoCount(8), 1);
+  assert.equal(inrAgentEditorialVideoCount(13), 1);
+  assert.equal(inrAgentEditorialVideoCount(20), 2);
 });
 
 test("les médias iNrAgent sont adaptés sans rognage automatique", () => {
