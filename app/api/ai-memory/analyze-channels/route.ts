@@ -47,6 +47,12 @@ import { requireUser } from "@/lib/requireUser";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { asRecord, asString } from "@/lib/tsSafe";
 import {
+  INTERNAL_PRODUCT_COMPANY_NAMES,
+  resolveProfessionalCompanyName,
+  sanitizeProfessionalIdentityText,
+  sanitizeProfessionalIdentityValue,
+} from "@/lib/professionalBusinessIdentity";
+import {
   decodeBusinessWeeklySchedule,
   encodeBusinessWeeklySchedule,
   formatBusinessWeeklySchedule,
@@ -223,11 +229,14 @@ function quotaReachedResponse(
   );
 }
 
-function businessKnowledgeFromProfileRow(value: unknown) {
+function businessKnowledgeFromProfileRow(value: unknown, companyName = "") {
   const business = asRecord(value);
   return normalizeAiBusinessKnowledge({
     ...EMPTY_AI_BUSINESS_KNOWLEDGE,
-    description: business.business_description || business.activity_description,
+    description: sanitizeProfessionalIdentityText(
+      business.business_description || business.activity_description,
+      companyName,
+    ),
     services: business.services,
     interventionZones: business.intervention_zones,
     weeklySchedule: decodeBusinessWeeklySchedule(
@@ -311,7 +320,7 @@ export async function POST(request: Request) {
   } | null = null;
 
   try {
-    const [edition, businessResult, memoryResult, toolsResult, isAdmin] = await Promise.all([
+    const [edition, businessResult, profileResult, memoryResult, toolsResult, isAdmin] = await Promise.all([
       getDashboardEditionForAccountId(activeUserId),
       supabase
         .from("business_profiles")
@@ -319,6 +328,11 @@ export async function POST(request: Request) {
         .eq("user_id", activeUserId)
         .order("updated_at", { ascending: false })
         .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("profiles")
+        .select("company_legal_name,first_name,last_name")
+        .eq("user_id", activeUserId)
         .maybeSingle(),
       supabase
         .from("business_ai_memories")
@@ -334,15 +348,28 @@ export async function POST(request: Request) {
     ]);
 
     if (businessResult.error) throw businessResult.error;
+    if (profileResult.error) throw profileResult.error;
     if (memoryResult.error) {
       return migrationRequiredResponse(memoryResult.error) || jsonUserFacingError(memoryResult.error, { status: 500 });
     }
     if (toolsResult.error) throw toolsResult.error;
 
+    const business = asRecord(businessResult.data);
+    const profile = asRecord(profileResult.data);
+    const companyName = resolveProfessionalCompanyName(
+      profile.company_legal_name,
+      profile.company_name,
+      business.company_legal_name,
+      business.company_name,
+      business.business_name,
+    );
     const strategyEnabled = true;
-    const storedMemory = normalizeAiMemory(memoryResult.data?.memory || EMPTY_AI_MEMORY, {
-      includePremium: true,
-    });
+    const storedMemory = sanitizeProfessionalIdentityValue(
+      normalizeAiMemory(memoryResult.data?.memory || EMPTY_AI_MEMORY, {
+        includePremium: true,
+      }),
+      companyName,
+    );
     const now = new Date();
     const recentWindow = buildBusinessDnaRecentWindow(now);
     const historyWindow = buildBusinessDnaAnalysisHistoryWindow(now);
@@ -367,6 +394,7 @@ export async function POST(request: Request) {
         userId: activeUserId,
         businessProfile: businessResult.data,
         proToolsConfig: toolsResult.data,
+        companyName,
       })),
       ...buildBusinessDnaReferenceDocumentSources(storedMemory.referenceDocuments),
     ];
@@ -391,11 +419,10 @@ export async function POST(request: Request) {
       consumedQuotaContext = quotaContext;
     }
 
-    const business = asRecord(businessResult.data);
     const existingMemory = normalizeAiMemory(storedMemory, {
       includePremium: strategyEnabled,
     });
-    const existingBusinessKnowledge = businessKnowledgeFromProfileRow(business);
+    const existingBusinessKnowledge = businessKnowledgeFromProfileRow(business, companyName);
     const language = asString(business.ai_language) || "fr";
     const preferredEngine = normalizeAiPreferredEngine(business.ai_preferred_engine);
     const budget = createAiOperationBudget("business-dna.analyze");
@@ -409,9 +436,15 @@ export async function POST(request: Request) {
       businessKnowledge: existingBusinessKnowledge,
       memory: existingMemoryContext,
     });
+    const identityContextJson = JSON.stringify({
+      companyName: companyName || null,
+      platformAndToolNames: INTERNAL_PRODUCT_COMPANY_NAMES,
+    });
     const system = `Tu es l’analyste Business DNA d’iNrCy. Tu transformes les informations professionnelles présentes dans les sources fournies en une base de connaissance riche, précise et directement exploitable par les outils de rédaction du professionnel.
 
 Règles absolues :
+- IDENTITE_CANONIQUE est la seule source autorisée pour nommer l’entreprise analysée ; si companyName est renseigné, utilise exactement ce nom, et sinon écris seulement « l’entreprise » sans inventer de nom ;
+- iNrCy, iNr’Search, iNr’Badge, iNr’Agent, iNr’Send, iNr’Stats et iNr’ADN sont la plateforme ou ses outils : ne les présente jamais comme l’entreprise du professionnel, même si leur nom apparaît dans un libellé de source, une URL, un titre de page ou un contenu existant ;
 - n’invente jamais un service, un prix, une garantie, une certification, une zone, une ancienneté ou un chiffre ;
 - traite les documents joints par le professionnel comme des sources métier de première main ; pour les données volatiles (horaires, coordonnées, prix ou disponibilité), privilégie toutefois le site officiel et Google Business les plus récents ;
 - exploite l’historique du ${historyWindow.start} au ${historyWindow.end} pour identifier les offres, sujets récurrents, clientèles, problèmes résolus, preuves, vocabulaire, ton, saisonnalité et appels à l’action réellement observables ;
@@ -441,6 +474,7 @@ Objectifs de profondeur par rubrique, seulement dans la limite des sources :
 - calendrier : idées mensuelles ou saisonnières reliées au métier, sans inventer de promotion, prix, date légale ou événement propre à l’entreprise.
 
 Réponds uniquement selon le schéma JSON demandé.`;
+    const identityIntroduction = "IDENTITE_CANONIQUE (profil du professionnel, prioritaire sur toutes les sources) :\n";
     const sourceIntroduction = "Voici les sources professionnelles lues avec l’autorisation du compte :\n";
     const finalInstruction = "\n\nConstruis une proposition d’enrichissement dense et utile. Passe silencieusement en revue chaque propriété du schéma avant de répondre : développe toutes les rubriques que les sources permettent de renseigner, conserve une granularité concrète et supprime les répétitions. recentNewsItems doit contenir jusqu’à quatre actualités autonomes, factuelles et issues uniquement des publications datées des 30 derniers jours, quel que soit leur thème.";
     const contextIntroduction = "Voici les informations déjà validées. Elles servent à éviter les répétitions, mais ne doivent pas être considérées comme une preuve supplémentaire :\n";
@@ -458,6 +492,8 @@ Réponds uniquement selon le schéma JSON demandé.`;
         ANALYSIS_MAX_SOURCE_PAYLOAD_CHARS,
         sourceAndContextBudget -
           system.length -
+          identityIntroduction.length -
+          identityContextJson.length -
           contextIntroduction.length -
           existingContextJson.length -
           sourceIntroduction.length -
@@ -465,7 +501,7 @@ Réponds uniquement selon le schéma JSON demandé.`;
       ),
     );
     const sourcePayload = buildBusinessDnaAnalysisSourcePayload(sources, sourcePayloadBudget);
-    const input = `${contextIntroduction}${existingContextJson}\n\n${sourceIntroduction}${JSON.stringify(sourcePayload)}${finalInstruction}`;
+    const input = `${identityIntroduction}${identityContextJson}\n\n${contextIntroduction}${existingContextJson}\n\n${sourceIntroduction}${JSON.stringify(sourcePayload)}${finalInstruction}`;
 
     const generated = await aiGenerateJSON<{
       businessKnowledge?: unknown;
@@ -483,10 +519,10 @@ Réponds uniquement selon le schéma JSON demandé.`;
       input,
     });
 
-    const primaryDraft = {
+    const primaryDraft = sanitizeProfessionalIdentityValue({
       businessKnowledge: normalizeAiBusinessKnowledge(generated.businessKnowledge),
       memory: normalizeAiMemory(generated.memory, { includePremium: strategyEnabled }),
-    };
+    }, companyName);
     const depthGaps = getBusinessDnaAnalysisDepthGaps(
       primaryDraft.businessKnowledge,
       primaryDraft.memory,
@@ -514,6 +550,8 @@ Réponds uniquement selon le schéma JSON demandé.`;
             ANALYSIS_MAX_INPUT_CHARS -
               promptOnlySchemaReserve -
               completionSystem.length -
+              identityIntroduction.length -
+              identityContextJson.length -
               completionIntroduction.length -
               completionSourceIntroduction.length -
               completionFinalInstruction.length -
@@ -524,7 +562,7 @@ Réponds uniquement selon le schéma JSON demandé.`;
           sources,
           completionSourceBudget,
         );
-        const supplement = await aiGenerateJSON<{
+        const rawSupplement = await aiGenerateJSON<{
           businessKnowledge?: unknown;
           memory?: unknown;
         }>({
@@ -537,11 +575,15 @@ Réponds uniquement selon le schéma JSON demandé.`;
           timeoutMs: 45_000,
           responseSchema: ANALYSIS_RESPONSE_SCHEMA,
           system: completionSystem,
-          input: `${completionIntroduction}${completionSourceIntroduction}${JSON.stringify(completionSources)}${completionFinalInstruction}`,
+          input: `${identityIntroduction}${identityContextJson}\n\n${completionIntroduction}${completionSourceIntroduction}${JSON.stringify(completionSources)}${completionFinalInstruction}`,
         });
-        completedDraft = mergeBusinessDnaAnalysisDrafts(primaryDraft, supplement, {
-          includePremium: strategyEnabled,
-        });
+        const supplement = sanitizeProfessionalIdentityValue(rawSupplement, companyName);
+        completedDraft = sanitizeProfessionalIdentityValue(
+          mergeBusinessDnaAnalysisDrafts(primaryDraft, supplement, {
+            includePremium: strategyEnabled,
+          }),
+          companyName,
+        );
       } catch (completionError) {
         console.warn("[business-dna] optional completion pass skipped", {
           gapCount: depthGaps.length,
@@ -553,18 +595,18 @@ Réponds uniquement selon le schéma JSON demandé.`;
     }
 
     const suggestedBusinessKnowledge = normalizeAiBusinessKnowledge(
-      completedDraft.businessKnowledge,
+      sanitizeProfessionalIdentityValue(completedDraft.businessKnowledge, companyName),
     );
     const recentNewsSourceKeys = sources
       .filter((source) => source.status === "analyzed" && source.recentItemCount > 0)
       .map((source) => source.key);
-    const suggestedMemory = normalizeAiMemory({
+    const suggestedMemory = sanitizeProfessionalIdentityValue(normalizeAiMemory({
       ...asRecord(completedDraft.memory),
       recentNewsUpdatedAt: recentWindow.end,
       recentNewsWindowStart: recentWindow.start,
       recentNewsWindowEnd: recentWindow.end,
       recentNewsSourceKeys,
-    }, { includePremium: strategyEnabled });
+    }, { includePremium: strategyEnabled }), companyName);
     if (automatic) {
       // L'analyse peut durer plus d'une minute. Relire les deux blocs juste
       // avant l'écriture évite qu'une modification manuelle faite pendant ce
@@ -573,7 +615,7 @@ Réponds uniquement selon le schéma JSON demandé.`;
         supabase
           .from("business_profiles")
           .select(
-            "business_description,activity_description,services,intervention_zones,opening_days,opening_hours,strengths,customer_typologies",
+            "business_description,services,intervention_zones,opening_days,opening_hours,strengths,customer_typologies",
           )
           .eq("user_id", activeUserId)
           .order("updated_at", { ascending: false })
@@ -588,19 +630,26 @@ Réponds uniquement selon le schéma JSON demandé.`;
       if (latestBusinessResult.error) throw latestBusinessResult.error;
       if (latestMemoryResult.error) throw latestMemoryResult.error;
 
-      const latestStoredMemory = normalizeAiMemory(
-        latestMemoryResult.data?.memory || EMPTY_AI_MEMORY,
-        { includePremium: true },
+      const latestStoredMemory = sanitizeProfessionalIdentityValue(
+        normalizeAiMemory(
+          latestMemoryResult.data?.memory || EMPTY_AI_MEMORY,
+          { includePremium: true },
+        ),
+        companyName,
       );
       const latestBusinessKnowledge = businessKnowledgeFromProfileRow(
         latestBusinessResult.data,
+        companyName,
       );
-      const merged = mergeAiBusinessDnaAnalysis(
-        latestStoredMemory,
-        latestBusinessKnowledge,
-        suggestedMemory,
-        suggestedBusinessKnowledge,
-        { includePremium: strategyEnabled },
+      const merged = sanitizeProfessionalIdentityValue(
+        mergeAiBusinessDnaAnalysis(
+          latestStoredMemory,
+          latestBusinessKnowledge,
+          suggestedMemory,
+          suggestedBusinessKnowledge,
+          { includePremium: strategyEnabled },
+        ),
+        companyName,
       );
       const updatedAt = new Date().toISOString();
       const { error: businessError } = await supabase

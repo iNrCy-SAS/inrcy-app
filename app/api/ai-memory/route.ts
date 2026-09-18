@@ -22,6 +22,11 @@ import { invalidateBoosterGenerationContext } from "@/lib/boosterGenerationConte
 import { getDashboardEditionForAccountId } from "@/lib/dashboardEditionServer";
 import { requireUser } from "@/lib/requireUser";
 import {
+  resolveProfessionalCompanyName,
+  sanitizeProfessionalIdentityText,
+  sanitizeProfessionalIdentityValue,
+} from "@/lib/professionalBusinessIdentity";
+import {
   decodeBusinessWeeklySchedule,
   encodeBusinessWeeklySchedule,
   formatBusinessWeeklySchedule,
@@ -47,11 +52,15 @@ function migrationRequiredResponse(error: unknown) {
   );
 }
 
-function buildBusinessKnowledge(business: Record<string, unknown> | null | undefined, memory: AiMemory) {
+function buildBusinessKnowledge(
+  business: Record<string, unknown> | null | undefined,
+  memory: AiMemory,
+  companyName = "",
+) {
   if (!business) {
     return normalizeAiBusinessKnowledge({
       ...EMPTY_AI_BUSINESS_KNOWLEDGE,
-      description: memory.detailedDescription,
+      description: sanitizeProfessionalIdentityText(memory.detailedDescription, companyName),
       strengths: memory.differentiators,
     });
   }
@@ -67,9 +76,12 @@ function buildBusinessKnowledge(business: Record<string, unknown> | null | undef
 
   return normalizeAiBusinessKnowledge({
     description:
-      business.business_description ||
-      business.activity_description ||
-      memory.detailedDescription,
+      sanitizeProfessionalIdentityText(
+        business.business_description ||
+          business.activity_description ||
+          memory.detailedDescription,
+        companyName,
+      ),
     services: professionalProfile.business.services.length
       ? professionalProfile.business.services
       : defaultServices,
@@ -90,7 +102,7 @@ export async function GET() {
   const { supabase, activeUserId, errorResponse } = await requireUser();
   if (errorResponse) return errorResponse;
 
-  const [edition, memoryResult, businessResult] = await Promise.all([
+  const [edition, memoryResult, businessResult, profileResult] = await Promise.all([
     getDashboardEditionForAccountId(activeUserId),
     supabase
       .from("business_ai_memories")
@@ -104,6 +116,11 @@ export async function GET() {
       .order("updated_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    supabase
+      .from("profiles")
+      .select("company_legal_name")
+      .eq("user_id", activeUserId)
+      .maybeSingle(),
   ]);
 
   if (memoryResult.error) {
@@ -113,15 +130,31 @@ export async function GET() {
   if (businessResult.error) {
     return jsonUserFacingError(businessResult.error, { status: 500 });
   }
+  if (profileResult.error) {
+    return jsonUserFacingError(profileResult.error, { status: 500 });
+  }
 
-  const storedMemory = normalizeAiMemory(memoryResult.data?.memory || EMPTY_AI_MEMORY, {
-    includePremium: true,
-  });
+  const companyName = resolveProfessionalCompanyName(
+    profileResult.data?.company_legal_name,
+    businessResult.data?.company_legal_name,
+    businessResult.data?.company_name,
+    businessResult.data?.business_name,
+  );
+  const storedMemory = sanitizeProfessionalIdentityValue(
+    normalizeAiMemory(memoryResult.data?.memory || EMPTY_AI_MEMORY, {
+      includePremium: true,
+    }),
+    companyName,
+  );
   const professionalProfile = buildNormalizedAiGenerationProfile({
     business: businessResult.data,
   });
-  const businessKnowledge = buildBusinessKnowledge(businessResult.data, storedMemory);
-  const memory = normalizeAiMemory(
+  const businessKnowledge = buildBusinessKnowledge(
+    businessResult.data,
+    storedMemory,
+    companyName,
+  );
+  const memory = sanitizeProfessionalIdentityValue(normalizeAiMemory(
     {
       ...storedMemory,
       detailedDescription: businessKnowledge.description || storedMemory.detailedDescription,
@@ -130,7 +163,7 @@ export async function GET() {
         : storedMemory.differentiators,
     },
     { includePremium: true },
-  );
+  ), companyName);
 
   return NextResponse.json(
     {
@@ -186,7 +219,7 @@ export async function PUT(req: Request) {
     : {};
 
   const edition = await getDashboardEditionForAccountId(activeUserId);
-  const [currentMemoryResult, currentBusinessResult] = await Promise.all([
+  const [currentMemoryResult, currentBusinessResult, profileResult] = await Promise.all([
     supabase
       .from("business_ai_memories")
       .select("memory")
@@ -199,6 +232,11 @@ export async function PUT(req: Request) {
       .order("updated_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    supabase
+      .from("profiles")
+      .select("company_legal_name")
+      .eq("user_id", activeUserId)
+      .maybeSingle(),
   ]);
   if (currentMemoryResult.error) {
     return migrationRequiredResponse(currentMemoryResult.error) ||
@@ -207,20 +245,36 @@ export async function PUT(req: Request) {
   if (currentBusinessResult.error) {
     return jsonUserFacingError(currentBusinessResult.error, { status: 500 });
   }
+  if (profileResult.error) {
+    return jsonUserFacingError(profileResult.error, { status: 500 });
+  }
 
   const hasBusinessKnowledge = Object.prototype.hasOwnProperty.call(input, "businessKnowledge");
   const hasVocabularyUpdate = Object.prototype.hasOwnProperty.call(input, "vocabulary");
   const vocabularyInput = hasVocabularyUpdate && input.vocabulary && typeof input.vocabulary === "object" && !Array.isArray(input.vocabulary)
     ? input.vocabulary as Record<string, unknown>
     : {};
-  const currentMemory = normalizeAiMemory(currentMemoryResult.data?.memory, { includePremium: true });
+  const companyName = resolveProfessionalCompanyName(
+    profileResult.data?.company_legal_name,
+    currentBusinessResult.data?.company_legal_name,
+    currentBusinessResult.data?.company_name,
+    currentBusinessResult.data?.business_name,
+  );
+  const currentMemory = sanitizeProfessionalIdentityValue(
+    normalizeAiMemory(currentMemoryResult.data?.memory, { includePremium: true }),
+    companyName,
+  );
   let memory = hasVocabularyUpdate
     ? mergeAiMemoryUpdate(currentMemory, vocabularyInput, { includePremium: true })
     : mergeAiMemoryUpdate(currentMemory, input.memory ?? input, { includePremium: true });
-  const currentBusinessKnowledge = buildBusinessKnowledge(currentBusinessResult.data, currentMemory);
-  const businessKnowledge = hasBusinessKnowledge
+  const currentBusinessKnowledge = buildBusinessKnowledge(
+    currentBusinessResult.data,
+    currentMemory,
+    companyName,
+  );
+  const businessKnowledge = sanitizeProfessionalIdentityValue(hasBusinessKnowledge
     ? mergeAiBusinessKnowledgeUpdate(currentBusinessKnowledge, input.businessKnowledge)
-    : buildBusinessKnowledge(currentBusinessResult.data, memory);
+    : buildBusinessKnowledge(currentBusinessResult.data, memory, companyName), companyName);
 
   if (hasBusinessKnowledge) {
     // Une seule source visible : le texte et les forces édités dans l'espace ADN
@@ -230,6 +284,7 @@ export async function PUT(req: Request) {
       differentiators: businessKnowledge.strengths,
     }, { includePremium: true });
   }
+  memory = sanitizeProfessionalIdentityValue(memory, companyName);
 
   if (hasBusinessKnowledge) {
     const { error: businessError } = await supabase

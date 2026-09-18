@@ -22,6 +22,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { fetchTiktokUserInfo, refreshTiktokAccessToken } from "@/lib/tiktokOAuth";
 import { asRecord, asString } from "@/lib/tsSafe";
 import type { BusinessDnaBudgetSource } from "@/lib/businessDnaSourceBudget";
+import { sanitizeProfessionalIdentityText } from "@/lib/professionalBusinessIdentity";
 import {
   areAllBusinessDnaRequestsRejected,
   canCollectBusinessDnaSource,
@@ -1172,16 +1173,24 @@ async function collectInrcyPublications(
   };
 }
 
-function buildInrSearchContent(businessProfile: unknown, proToolsConfig: unknown) {
+function buildInrSearchContent(
+  businessProfile: unknown,
+  proToolsConfig: unknown,
+  companyName = "",
+) {
   const business = asRecord(businessProfile);
   const settings = asRecord(asRecord(proToolsConfig).settings);
   const inrSearch = asRecord(settings.inrSearch);
   return compactJson({
+    companyName: companyName || null,
     pageTitle: inrSearch.pageTitle,
     pageDescription: inrSearch.pageDescription,
     categories: inrSearch.categories,
     highlights: inrSearch.highlights,
-    description: business.business_description || business.activity_description,
+    description: sanitizeProfessionalIdentityText(
+      business.business_description || business.activity_description,
+      companyName,
+    ),
     services: business.services,
     interventionZones: business.intervention_zones,
     strengths: business.strengths,
@@ -1270,6 +1279,7 @@ export async function collectBusinessDnaChannelSources(args: {
   userId: string;
   businessProfile: unknown;
   proToolsConfig: unknown;
+  companyName?: string;
 }) {
   const now = new Date();
   const recentWindow = buildBusinessDnaRecentWindow(now);
@@ -1396,7 +1406,11 @@ export async function collectBusinessDnaChannelSources(args: {
       connected: states.inr_search.connected,
       url: states.inr_search.profile_url,
       collect: async () => ({
-        content: buildInrSearchContent(args.businessProfile, args.proToolsConfig),
+        content: buildInrSearchContent(
+          args.businessProfile,
+          args.proToolsConfig,
+          args.companyName,
+        ),
         itemCount: 1,
       }),
     }),

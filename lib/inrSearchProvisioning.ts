@@ -6,6 +6,10 @@ import { getInrSearchPublicPageCacheTag } from "@/lib/inrSearchPublic";
 import { buildInrSearchIndexingUrls, submitInrSearchUrlsToIndexNow } from "@/lib/inrSearchSeo";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { asRecord } from "@/lib/tsSafe";
+import {
+  resolveProfessionalCompanyName,
+  sanitizeProfessionalIdentityText,
+} from "@/lib/professionalBusinessIdentity";
 
 const DEFAULT_SECTIONS = {
   identity: true,
@@ -144,12 +148,15 @@ export async function ensureSystemManagedInrSearch(
   const business = asRecord(businessRes.data);
   const root = asRecord(asRecord(configData).settings);
   const current = asRecord(root.inrSearch);
-  const companyName = clean(profile.company_legal_name || profile.company_name, 160);
-  const city = clean(profile.hq_city || profile.city, 120);
-  const description = clean(
-    business.business_description || business.activity_description,
-    320,
+  const companyName = resolveProfessionalCompanyName(
+    profile.company_legal_name,
+    profile.company_name,
   );
+  const city = clean(profile.hq_city || profile.city, 120);
+  const description = clean(sanitizeProfessionalIdentityText(
+    business.business_description || business.activity_description,
+    companyName,
+  ), 320);
 
   const preservedSlug = normalizeSlug(current.publishedSlug || current.slug);
   let slug = preservedSlug || normalizeSlug([companyName, city].filter(Boolean).join("-"));

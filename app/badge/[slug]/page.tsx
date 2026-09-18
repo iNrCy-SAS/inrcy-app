@@ -15,6 +15,10 @@ import { getInrSearchPublicStatus } from "@/lib/inrSearchPublic";
 import { fetchPinterestUserAccount, getPinterestAccessToken } from "@/lib/pinterestOAuth";
 import { getDashboardEditionForAccountId } from "@/lib/dashboardEditionServer";
 import {
+  resolveProfessionalCompanyName,
+  sanitizeProfessionalIdentityText,
+} from "@/lib/professionalBusinessIdentity";
+import {
   canUseInrBadgeAppointments,
   effectiveInrBadgeShareSettings,
   resolveInrBadgePublicEmail,
@@ -350,14 +354,19 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
   const firstName = trim(profile.first_name);
   const lastName = trim(profile.last_name);
   const displayName = [firstName, lastName].filter(Boolean).join(" ");
-  const company = trim(profile.company_legal_name) || "Entreprise iNrCy";
+  const company = resolveProfessionalCompanyName(profile.company_legal_name)
+    || displayName
+    || "Entreprise";
   const phone = trim(profile.phone);
   const email = trim(profile.contact_email);
   const address = trim(profile.hq_address);
   const zip = trim(profile.hq_zip);
   const city = trim(profile.hq_city);
   const country = trim(profile.hq_country) || "France";
-  const description = trim(business.business_description);
+  const description = sanitizeProfessionalIdentityText(
+    trim(business.business_description),
+    company,
+  );
 
   const siteWebSettings = safeObj(toolSettings.site_web);
   const gmbSettings = safeObj(toolSettings.gmb);

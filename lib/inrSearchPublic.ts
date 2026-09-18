@@ -17,6 +17,10 @@ import {
   resolveInrSearchStorageMediaUrls,
   type InrSearchStorageMediaCandidate,
 } from "@/lib/inrSearchStorageMediaResolver";
+import {
+  resolveProfessionalCompanyName,
+  sanitizeProfessionalIdentityText,
+} from "@/lib/professionalBusinessIdentity";
 
 export type InrSearchSectionKey =
   | "identity"
@@ -1201,7 +1205,10 @@ async function loadInrSearchPublicPageUncached(slug: string): Promise<InrSearchP
     integrations: Array.isArray(integrationsRes.data) ? integrationsRes.data : [],
   });
 
-  const companyName = clean(profile.company_legal_name, 180) || clean(config.pageTitle, 180) || "Entreprise";
+  const companyName = resolveProfessionalCompanyName(
+    clean(profile.company_legal_name, 180),
+    clean(config.pageTitle, 180),
+  ) || "Entreprise";
   const contactName = [clean(profile.first_name, 80), clean(profile.last_name, 80)].filter(Boolean).join(" ");
   const phone = clean(profile.phone, 80);
   const email = clean(profile.contact_email, 180);
@@ -1241,9 +1248,12 @@ async function loadInrSearchPublicPageUncached(slug: string): Promise<InrSearchP
     business.opening_days,
     business.opening_hours,
   );
-  const description = clean(config.pageDescription, 500)
-    || clean(business.business_description || business.activity_description, 3000)
-    || `${companyName}${profession ? `, ${profession.toLowerCase()}` : ""}${city ? ` à ${city}` : ""}.`;
+  const description = sanitizeProfessionalIdentityText(
+    clean(config.pageDescription, 500)
+      || clean(business.business_description || business.activity_description, 3000)
+      || `${companyName}${profession ? `, ${profession.toLowerCase()}` : ""}${city ? ` à ${city}` : ""}.`,
+    companyName,
+  );
 
   const websiteUrl = normalizeExternalUrl(
     channelStates.site_inrcy.url
@@ -1333,7 +1343,7 @@ const loadInrSearchPublicPageCached = cache(async (slugValue: string) => {
   if (!slug) return null;
   const readCachedPage = unstable_cache(
     async () => loadInrSearchPublicPageRequestCached(slug),
-    ["inr-search-public-page-v4", slug],
+    ["inr-search-public-page-v5", slug],
     { revalidate: 300, tags: [getInrSearchPublicPageCacheTag(slug)] },
   );
   const cachedPage = await readCachedPage();
@@ -1432,10 +1442,16 @@ async function listPublishedInrSearchCompaniesUncached(): Promise<PublishedInrSe
       const profile = profiles.get(item.userId) || {};
       const business = businesses.get(item.userId) || {};
       const decodedSector = decodeBusinessSector(clean(business.sector, 300));
-      const companyName = clean(profile.company_legal_name, 180) || clean(item.config.pageTitle, 180) || "Entreprise";
-      const pageDescription = clean(item.config.pageDescription, 300)
-        || clean(business.business_description || business.activity_description, 300)
-        || `${companyName}${clean(profile.hq_city, 120) ? ` à ${clean(profile.hq_city, 120)}` : ""}.`;
+      const companyName = resolveProfessionalCompanyName(
+        clean(profile.company_legal_name, 180),
+        clean(item.config.pageTitle, 180),
+      ) || "Entreprise";
+      const pageDescription = sanitizeProfessionalIdentityText(
+        clean(item.config.pageDescription, 300)
+          || clean(business.business_description || business.activity_description, 300)
+          || `${companyName}${clean(profile.hq_city, 120) ? ` à ${clean(profile.hq_city, 120)}` : ""}.`,
+        companyName,
+      );
       const city = clean(profile.hq_city, 120);
       const geography = resolveFrenchGeography(profile.hq_zip, city);
       const department = clean(

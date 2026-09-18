@@ -16,6 +16,11 @@ import {
 } from "@/lib/aiContentLength";
 import { normalizeAiMemory, type AiMemory } from "@/lib/aiMemory";
 import { decodeAiInstructionSections } from "@/lib/aiInstructionSections";
+import {
+  resolveProfessionalCompanyName,
+  sanitizeProfessionalIdentityText,
+  sanitizeProfessionalIdentityValue,
+} from "@/lib/professionalBusinessIdentity";
 
 export type AiLanguageCode = "fr" | "en" | "es" | "it" | "de" | "nl" | "pt" | "th" | "zh";
 export type AiTone = "serious" | "warm" | "fun" | "premium" | "direct";
@@ -495,6 +500,34 @@ export function buildNormalizedAiGenerationProfile(
   const instructionSections = decodeAiInstructionSections(
     firstValue(preferenceSources, ["ai_custom_instructions", "custom_instructions"]),
   );
+  const companyName = resolveProfessionalCompanyName(
+    profile.company_legal_name,
+    profile.companyLegalName,
+    profile.company_name,
+    profile.business_name,
+    profile.name,
+    business.company_legal_name,
+    business.companyLegalName,
+    business.company_name,
+    business.business_name,
+    business.name,
+  );
+  const businessDescription = sanitizeProfessionalIdentityText(
+    firstValue(activitySources, [
+      "business_description",
+      "activity_description",
+      "company_description",
+      "description",
+    ]),
+    companyName,
+  );
+  const memory = sanitizeProfessionalIdentityValue(
+    normalizeAiMemory(
+      firstValue([business, profile], ["ai_memory", "memory"]),
+      { includePremium: true },
+    ),
+    companyName,
+  );
 
   return {
     kind: "inrcy.ai-generation-profile",
@@ -595,16 +628,7 @@ export function buildNormalizedAiGenerationProfile(
       forbiddenInstructions: instructionSections.forbiddenInstructions,
     },
     business: {
-      companyName: cleanText(
-        firstValue(identitySources, [
-          "company_legal_name",
-          "companyLegalName",
-          "company_name",
-          "business_name",
-          "name",
-        ]),
-        120,
-      ),
+      companyName,
       city: cleanText(
         firstValue(identitySources, ["hq_city", "hqCity", "city", "business_city"]),
         100,
@@ -627,15 +651,7 @@ export function buildNormalizedAiGenerationProfile(
       sectorLabel,
       professionCode,
       professionLabel,
-      description: cleanText(
-        firstValue(activitySources, [
-          "business_description",
-          "activity_description",
-          "company_description",
-          "description",
-        ]),
-        1200,
-      ),
+      description: cleanText(businessDescription, 1200),
       services: firstList(activitySources, ["services", "services_text"], 12),
       interventionZones: firstList(
         activitySources,
@@ -656,10 +672,7 @@ export function buildNormalizedAiGenerationProfile(
         8,
       ),
     },
-    memory: normalizeAiMemory(
-      firstValue([business, profile], ["ai_memory", "memory"]),
-      { includePremium: true },
-    ),
+    memory,
     request: {
       idea: cleanText(args.idea, 4000),
       theme: cleanText(args.theme, 120),

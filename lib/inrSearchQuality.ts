@@ -2,6 +2,10 @@ import "server-only";
 
 import { decodeBusinessSector } from "@/lib/activitySectors";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import {
+  resolveProfessionalCompanyName,
+  sanitizeProfessionalIdentityText,
+} from "@/lib/professionalBusinessIdentity";
 
 type QualityConfig = Record<string, unknown>;
 
@@ -80,11 +84,14 @@ export async function loadInrSearchQuality(
   const profile = asRecord(profileRes.data);
   const business = asRecord(businessRes.data);
   const decodedSector = decodeBusinessSector(clean(business.sector, 300));
-  const description = clean(
-    config.pageDescription || business.business_description || business.activity_description,
-    1000,
+  const companyName = resolveProfessionalCompanyName(
+    profile.company_legal_name,
+    config.pageTitle,
   );
-  const companyName = clean(profile.company_legal_name || config.pageTitle, 180);
+  const description = clean(sanitizeProfessionalIdentityText(
+    config.pageDescription || business.business_description || business.activity_description,
+    companyName,
+  ), 1000);
   const profession = clean(decodedSector.profession, 180);
   const hasContact = Boolean(clean(profile.phone, 80) || clean(profile.contact_email, 180));
   const hasLocation = Boolean(clean(profile.hq_city, 120) || clean(profile.hq_address, 240));
