@@ -31,8 +31,8 @@ test("le Studio essentiel ne transmet plus le raccord ni les anciens réglages d
 
 test("les sélecteurs essentiels restent sombres et la grille passe de 2×2 à une colonne", () => {
   assert.match(source, /className=\{styles\.studioSelect\}/);
-  assert.match(styles, /\.studioSelect\s*\{[\s\S]*?background-color:\s*#091735/);
-  assert.match(styles, /\.studioSelect option\s*\{[\s\S]*?background:\s*#091735/);
+  assert.match(styles, /\.studioSelect\s*\{[\s\S]*?background-color:\s*#10244a/);
+  assert.match(styles, /\.studioSelect option\s*\{[\s\S]*?background:\s*#10244a/);
   assert.match(styles, /\.essentialGrid\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(styles, /@media \(max-width: 1100px\)[\s\S]*?\.essentialGrid\s*\{[\s\S]*?grid-template-columns:\s*1fr/);
 });

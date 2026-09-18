@@ -1468,6 +1468,12 @@ export default function MediaGenerator({
               <div className={styles.customTextareaWrap}>
                 <textarea
                   value={customIdea}
+                  aria-invalid={customIdea.trim().length < 3}
+                  aria-describedby={
+                    customIdea.trim().length < 3
+                      ? "ai-media-custom-idea-alert"
+                      : undefined
+                  }
                   onChange={(event) => {
                     setCustomIdea(event.target.value);
                     if (actionError || error) clearTransientState();
@@ -1489,8 +1495,14 @@ export default function MediaGenerator({
                   }}
                 />
               </div>
-              {customIdea.trim().length > 0 && customIdea.trim().length < 3 ? (
-                <small>{t("ai_generator_custom_too_short")}</small>
+              {customIdea.trim().length < 3 ? (
+                <small
+                  id="ai-media-custom-idea-alert"
+                  className={styles.fieldAlert}
+                  role="alert"
+                >
+                  {t("ai_generator_custom_too_short")}
+                </small>
               ) : null}
             </label>
           ) : null}

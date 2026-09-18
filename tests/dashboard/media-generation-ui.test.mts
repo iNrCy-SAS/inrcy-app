@@ -193,7 +193,8 @@ test("la fenêtre iNrStudio expose quatre cartes essentielles adaptatives", () =
   assert.match(hook, /request\.inputMode === "essential"/);
 
   assert.match(generatorStyles, /\.essentialGrid\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
-  assert.match(generatorStyles, /\.studioSelect\s*\{[\s\S]*?background-color:\s*#091735/);
+  assert.match(generatorStyles, /\.studioSelect\s*\{[\s\S]*?background-color:\s*#10244a/);
+  assert.match(generatorStyles, /\.studioSelect\s*\{[\s\S]*?background-image:\s*url\(/);
   assert.match(generatorStyles, /@media \(max-width: 1100px\)[\s\S]*?\.essentialGrid\s*\{[\s\S]*?grid-template-columns:\s*1fr/);
 });
 
