@@ -729,6 +729,8 @@
   "publication_ideas_description": "Adicione os seus temas: o iNrAgent irá alterná-los nas próximas publicações.",
   "publication_idea_label": "Ideia {number}",
   "publication_idea_placeholder": "Ex. Apresentar o nosso último trabalho ou responder a uma pergunta de cliente…",
+  "publication_ideas_add": "Adicionar uma secção de ideias",
+  "publication_ideas_limit_reached": "Máximo de 12 secções",
   "publication_ideas_hint": "As ideias orientam o tema. O iNrAgent respeita o seu ADN, canais e regras editoriais.",
   "zoom_value_1d90c01c": "zoom {value0}×"
 }

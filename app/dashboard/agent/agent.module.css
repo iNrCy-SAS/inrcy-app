@@ -3655,6 +3655,66 @@
   box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
 }
 
+.publicationIdeasAddButton {
+  width: 100%;
+  min-height: 52px;
+  margin-top: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 1px dashed rgba(103, 232, 249, 0.48);
+  border-radius: 15px;
+  color: #dff9ff;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(34, 211, 238, 0.16), transparent 58%),
+    rgba(8, 145, 178, 0.08);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 850;
+  cursor: pointer;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.publicationIdeasAddButton > span {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(165, 243, 252, 0.42);
+  border-radius: 999px;
+  color: #fff;
+  background: linear-gradient(135deg, #0284c7, #7c3aed 62%, #db2777);
+  box-shadow: 0 5px 16px rgba(37, 99, 235, 0.24);
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.publicationIdeasAddButton:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: rgba(165, 243, 252, 0.78);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(34, 211, 238, 0.24), transparent 62%),
+    rgba(59, 130, 246, 0.12);
+  box-shadow: 0 10px 28px rgba(14, 165, 233, 0.1);
+}
+
+.publicationIdeasAddButton:focus-visible {
+  outline: 3px solid rgba(103, 232, 249, 0.72);
+  outline-offset: 2px;
+}
+
+.publicationIdeasAddButton:disabled {
+  cursor: default;
+  opacity: 0.58;
+}
+
 .publicationIdeasHint {
   margin-top: 10px !important;
 }

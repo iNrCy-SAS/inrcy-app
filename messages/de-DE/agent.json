@@ -729,6 +729,8 @@
   "publication_ideas_description": "Fügen Sie Themen hinzu: iNrAgent verteilt sie auf kommende Beiträge.",
   "publication_idea_label": "Idee {number}",
   "publication_idea_placeholder": "Z. B. unser letztes Projekt vorstellen oder eine Kundenfrage beantworten…",
+  "publication_ideas_add": "Ideenrubrik hinzufügen",
+  "publication_ideas_limit_reached": "Maximal 12 Rubriken",
   "publication_ideas_hint": "Die Ideen bestimmen das Thema. iNrAgent beachtet weiterhin Ihre DNA, Kanäle und redaktionellen Regeln.",
   "zoom_value_1d90c01c": "Zoom {value0}×"
 }

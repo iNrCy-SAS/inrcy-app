@@ -729,6 +729,8 @@
   "publication_ideas_description": "Voeg onderwerpen toe: iNrAgent verdeelt ze over komende berichten.",
   "publication_idea_label": "Idee {number}",
   "publication_idea_placeholder": "Bijv. ons laatste project tonen of een klantvraag beantwoorden…",
+  "publication_ideas_add": "Ideerubriek toevoegen",
+  "publication_ideas_limit_reached": "Maximaal 12 rubrieken",
   "publication_ideas_hint": "Ideeën sturen het onderwerp. iNrAgent volgt uw DNA, kanalen en redactieregels.",
   "zoom_value_1d90c01c": "zoom {value0}×"
 }

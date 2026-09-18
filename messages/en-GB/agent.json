@@ -729,6 +729,8 @@
   "publication_ideas_description": "Add your topics: iNrAgent will rotate them through upcoming posts.",
   "publication_idea_label": "Idea {number}",
   "publication_idea_placeholder": "E.g. Present our latest project or answer a customer question…",
+  "publication_ideas_add": "Add an idea section",
+  "publication_ideas_limit_reached": "12 sections maximum",
   "publication_ideas_hint": "Ideas guide the topic. iNrAgent still follows your DNA, channels and editorial rules.",
   "zoom_value_1d90c01c": "zoom {value0}×"
 }

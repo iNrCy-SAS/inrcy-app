@@ -152,6 +152,8 @@ import {
   INR_AGENT_STUDIO_MEDIA_PREFERENCE_STEPS,
   INR_AGENT_PUBLICATION_IDEA_MAX_ITEMS,
   INR_AGENT_PUBLICATION_IDEA_MAX_LENGTH,
+  appendInrAgentPublicationIdeaSlot,
+  inrAgentPublicationIdeaFieldCount,
   normalizeInrAgentStudioMediaPreferencePercent,
   sanitizeInrAgentSettings,
   type InrAgentSettings,
@@ -1057,6 +1059,9 @@ export default function AgentClient() {
     [agentConnectedChannels, selected],
   );
   const settingsConfig = settingsKey ? configs[settingsKey] : null;
+  const settingsPublicationIdeaFieldCount = settingsConfig
+    ? inrAgentPublicationIdeaFieldCount(settingsConfig.publicationIdeas)
+    : 0;
   const settingsStudioMediaPreferenceStep = settingsConfig
     ? studioMediaPreferenceStep(settingsConfig.studioMediaPreferencePercent)
     : INR_AGENT_STUDIO_MEDIA_PREFERENCE_DEFAULT;
@@ -8342,7 +8347,7 @@ export default function AgentClient() {
                 </header>
                 <div className={styles.publicationIdeasGrid}>
                   {Array.from(
-                    { length: INR_AGENT_PUBLICATION_IDEA_MAX_ITEMS },
+                    { length: settingsPublicationIdeaFieldCount },
                     (_, index) => {
                       const value = settingsConfig.publicationIdeas[index] || "";
                       return (
@@ -8364,7 +8369,7 @@ export default function AgentClient() {
                             placeholder={i18nT("publication_idea_placeholder")}
                             onChange={(event) => {
                               const publicationIdeas = Array.from(
-                                { length: INR_AGENT_PUBLICATION_IDEA_MAX_ITEMS },
+                                { length: settingsPublicationIdeaFieldCount },
                                 (_, ideaIndex) =>
                                   settingsConfig.publicationIdeas[ideaIndex] || "",
                               );
@@ -8380,6 +8385,27 @@ export default function AgentClient() {
                     },
                   )}
                 </div>
+                <button
+                  type="button"
+                  className={styles.publicationIdeasAddButton}
+                  disabled={
+                    settingsPublicationIdeaFieldCount >=
+                    INR_AGENT_PUBLICATION_IDEA_MAX_ITEMS
+                  }
+                  onClick={() =>
+                    updateConfig("publish", {
+                      publicationIdeas: appendInrAgentPublicationIdeaSlot(
+                        settingsConfig.publicationIdeas,
+                      ),
+                    })
+                  }
+                >
+                  <span aria-hidden="true">+</span>
+                  {settingsPublicationIdeaFieldCount >=
+                  INR_AGENT_PUBLICATION_IDEA_MAX_ITEMS
+                    ? i18nT("publication_ideas_limit_reached")
+                    : i18nT("publication_ideas_add")}
+                </button>
                 <p className={styles.publicationIdeasHint}>
                   {i18nT("publication_ideas_hint")}
                 </p>

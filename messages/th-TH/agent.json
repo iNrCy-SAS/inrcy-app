@@ -729,6 +729,8 @@
   "publication_ideas_description": "เพิ่มหัวข้อของคุณ แล้ว iNrAgent จะหมุนเวียนใช้ในโพสต์ถัดไป",
   "publication_idea_label": "ไอเดีย {number}",
   "publication_idea_placeholder": "เช่น นำเสนอผลงานล่าสุดหรือตอบคำถามของลูกค้า…",
+  "publication_ideas_add": "เพิ่มหัวข้อไอเดีย",
+  "publication_ideas_limit_reached": "สูงสุด 12 หัวข้อ",
   "publication_ideas_hint": "ไอเดียกำหนดหัวข้อ โดย iNrAgent ยังคงเคารพ DNA ช่องทาง และกฎด้านเนื้อหาของคุณ",
   "zoom_value_1d90c01c": "ซูม {value0}×"
 }

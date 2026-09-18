@@ -729,6 +729,8 @@
   "publication_ideas_description": "添加主题，iNrAgent 会在接下来的帖子中轮流使用。",
   "publication_idea_label": "创意 {number}",
   "publication_idea_placeholder": "例如：展示最新项目或回答客户常见问题……",
+  "publication_ideas_add": "添加创意栏目",
+  "publication_ideas_limit_reached": "最多 12 个栏目",
   "publication_ideas_hint": "创意决定主题；iNrAgent 仍会遵循您的企业 DNA、渠道和编辑规则。",
   "zoom_value_1d90c01c": "缩放 {value0}×"
 }

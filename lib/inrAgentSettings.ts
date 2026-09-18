@@ -87,7 +87,8 @@ export const INR_AGENT_STUDIO_MEDIA_PREFERENCE_STEPS = [
   100,
 ] as const;
 export const INR_AGENT_STUDIO_MEDIA_PREFERENCE_DEFAULT = 80;
-export const INR_AGENT_PUBLICATION_IDEA_MAX_ITEMS = 6;
+export const INR_AGENT_PUBLICATION_IDEA_INITIAL_ITEMS = 6;
+export const INR_AGENT_PUBLICATION_IDEA_MAX_ITEMS = 12;
 export const INR_AGENT_PUBLICATION_IDEA_MAX_LENGTH = 500;
 
 export function normalizeInrAgentPublicationIdeas(value: unknown): string[] {
@@ -100,6 +101,26 @@ export function normalizeInrAgentPublicationIdeas(value: unknown): string[] {
         .trim()
         .slice(0, INR_AGENT_PUBLICATION_IDEA_MAX_LENGTH),
     );
+}
+
+export function inrAgentPublicationIdeaFieldCount(value: unknown): number {
+  const normalizedLength = normalizeInrAgentPublicationIdeas(value).length;
+  return Math.min(
+    INR_AGENT_PUBLICATION_IDEA_MAX_ITEMS,
+    Math.max(INR_AGENT_PUBLICATION_IDEA_INITIAL_ITEMS, normalizedLength),
+  );
+}
+
+export function appendInrAgentPublicationIdeaSlot(value: unknown): string[] {
+  const normalized = normalizeInrAgentPublicationIdeas(value);
+  const visibleCount = inrAgentPublicationIdeaFieldCount(normalized);
+  if (visibleCount >= INR_AGENT_PUBLICATION_IDEA_MAX_ITEMS) {
+    return normalized;
+  }
+  return Array.from(
+    { length: visibleCount + 1 },
+    (_, index) => normalized[index] || "",
+  );
 }
 
 // Compat anciens composants / ancien vocabulaire V1.
