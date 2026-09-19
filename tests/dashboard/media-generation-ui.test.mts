@@ -130,18 +130,40 @@ test("une génération peut être arrêtée avec confirmation et propagation ser
   assert.match(route, /AI_MEDIA_GENERATION_CANCELLED/);
   assert.match(route, /signal: request\.signal/);
   assert.match(provider, /args\.signal\?\.addEventListener\("abort"/);
-  assert.match(omniProvider, /args\.generationArgs\.signal\?\.addEventListener\("abort"/);
+  assert.match(
+    omniProvider,
+    /args\.generationArgs\.signal\?\.addEventListener\("abort"/
+  );
   assert.match(composer, /signal: args\.signal/);
 });
 
 test("la fenêtre iNrStudio expose quatre cartes essentielles adaptatives", () => {
   const hook = read("app/dashboard/_hooks/useMediaGeneration.ts");
   const generator = read("app/dashboard/_components/MediaGenerator.tsx");
-  const generatorStyles = read("app/dashboard/_components/MediaGenerator.module.css");
+  const generatorStyles = read(
+    "app/dashboard/_components/MediaGenerator.module.css"
+  );
 
-  assert.equal((generator.match(/<header className=\{styles\.essentialCardHeader\}>/g) || []).length, 4);
+  assert.equal(
+    (
+      generator.match(/<header className=\{styles\.essentialCardHeader\}>/g) ||
+      []
+    ).length,
+    4
+  );
   assert.match(generator, /className=\{styles\.essentialGrid\}/);
-  assert.doesNotMatch(generator, /expandedStep|RememberPreferenceControl|footerEnginePicker/);
+  assert.doesNotMatch(generator, /expandedStep|footerEnginePicker/);
+  assert.equal(
+    (generator.match(/<RememberPreferenceControl/g) || []).length,
+    4
+  );
+  assert.match(generator, /handleRememberPreferenceGroup/);
+  assert.match(generator, /savePreferenceBlock\(1, checked, block1\)/);
+  assert.match(generator, /savePreferenceBlock\(2, checked, block2\)/);
+  assert.match(generator, /savePreferenceBlock\(3, checked, block3\)/);
+  assert.match(generator, /savePreferenceBlock\(4, checked, block4\)/);
+  assert.match(generator, /savePreferenceBlock\(5, checked, block5\)/);
+  assert.match(generator, /savePreferenceBlock\(6, checked, block6\)/);
   assert.match(generator, /ai_generator_essential_creation_title/);
   assert.match(generator, /ai_generator_essential_media_title/);
   assert.match(generator, /ai_generator_essential_message_title/);
@@ -149,8 +171,8 @@ test("la fenêtre iNrStudio expose quatre cartes essentielles adaptatives", () =
 
   const creationCard = sourceSection(
     generator,
-    'className={`${styles.essentialCard} ${styles.creationCard}`}',
-    'className={`${styles.essentialCard} ${styles.mediaCard}`}',
+    "className={`${styles.essentialCard} ${styles.creationCard}`}",
+    "className={`${styles.essentialCard} ${styles.mediaCard}`}"
   );
   assertOrdered(creationCard, [
     "ai_generator_essential_media_type",
@@ -165,8 +187,8 @@ test("la fenêtre iNrStudio expose quatre cartes essentielles adaptatives", () =
 
   const mediaCard = sourceSection(
     generator,
-    'className={`${styles.essentialCard} ${styles.mediaCard}`}',
-    'className={`${styles.essentialCard} ${styles.messageCard}`}',
+    "className={`${styles.essentialCard} ${styles.mediaCard}`}",
+    "className={`${styles.essentialCard} ${styles.messageCard}`}"
   );
   assert.match(mediaCard, /\(\["ai", "real"\] as const\)\.map/);
   assert.match(mediaCard, /\(\[0, 1, 2, 3\] as const\)\.map/);
@@ -185,21 +207,42 @@ test("la fenêtre iNrStudio expose quatre cartes essentielles adaptatives", () =
   const generation = sourceSection(
     generator,
     "const performGeneration",
-    "const handleGenerate",
+    "const handleGenerate"
   );
   assert.match(generation, /inputMode: "essential"/);
-  assert.match(generation, /inspirationImages: mediaSourceMode === "real" \? inspirationImages : \[\]/);
-  assert.doesNotMatch(generation, /typology\s*:|visualStyle\s*:|shotType\s*:|creativity\s*:|videoEngine\s*:|connectScenes\s*:/);
+  assert.match(
+    generation,
+    /inspirationImages: mediaSourceMode === "real" \? inspirationImages : \[\]/
+  );
+  assert.doesNotMatch(
+    generation,
+    /typology\s*:|visualStyle\s*:|shotType\s*:|creativity\s*:|videoEngine\s*:|connectScenes\s*:/
+  );
   assert.match(hook, /request\.inputMode === "essential"/);
 
-  assert.match(generatorStyles, /\.essentialGrid\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
-  assert.match(generatorStyles, /\.studioSelect\s*\{[\s\S]*?background-color:\s*#10244a/);
-  assert.match(generatorStyles, /\.studioSelect\s*\{[\s\S]*?background-image:\s*url\(/);
-  assert.match(generatorStyles, /@media \(max-width: 1100px\)[\s\S]*?\.essentialGrid\s*\{[\s\S]*?grid-template-columns:\s*1fr/);
+  assert.match(
+    generatorStyles,
+    /\.essentialGrid\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/
+  );
+  assert.match(
+    generatorStyles,
+    /\.studioSelect\s*\{[\s\S]*?background-color:\s*#10244a/
+  );
+  assert.match(
+    generatorStyles,
+    /\.studioSelect\s*\{[\s\S]*?background-image:\s*url\(/
+  );
+  assert.match(generatorStyles, /\.essentialCardHeader \.rememberPreference/);
+  assert.match(
+    generatorStyles,
+    /@media \(max-width: 1100px\)[\s\S]*?\.essentialGrid\s*\{[\s\S]*?grid-template-columns:\s*1fr/
+  );
 });
 
 test("iNrStudio garde toutes les consignes accessibles sur un PC compact", () => {
-  const generatorStyles = read("app/dashboard/_components/MediaGenerator.module.css");
+  const generatorStyles = read(
+    "app/dashboard/_components/MediaGenerator.module.css"
+  );
   const modalStyles = read(
     "app/dashboard/_components/MediaGeneratorModal.module.css"
   );
@@ -226,15 +269,14 @@ test("iNrStudio garde toutes les consignes accessibles sur un PC compact", () =>
     compactGenerator,
     /\.essentialCard\s*\{[\s\S]*?height:\s*auto;[\s\S]*?overflow:\s*visible;/
   );
-  assert.match(
-    compactModal,
-    /\.body\s*\{[\s\S]*?overflow-y:\s*auto;/
-  );
+  assert.match(compactModal, /\.body\s*\{[\s\S]*?overflow-y:\s*auto;/);
 });
 
 test("la revue vidéo reste entière dans l'aperçu et en plein écran mobile", () => {
   const generator = read("app/dashboard/_components/MediaGenerator.tsx");
-  const generatorStyles = read("app/dashboard/_components/MediaGenerator.module.css");
+  const generatorStyles = read(
+    "app/dashboard/_components/MediaGenerator.module.css"
+  );
 
   assert.match(generator, /resolveAiMediaPreviewFormat\(\{/);
   assert.match(generator, /fallback:\s*generationResult\.format/);
@@ -315,7 +357,7 @@ test("le Menu ouvre directement la même modale sans ancien grand studio", () =>
   assert.equal(
     dashboardFr.userMenu.mediaGenerator,
     "Générer un média",
-    "la marque iNr’Studio ne doit jamais renommer l’entrée du menu global",
+    "la marque iNr’Studio ne doit jamais renommer l’entrée du menu global"
   );
 });
 

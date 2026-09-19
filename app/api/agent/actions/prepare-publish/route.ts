@@ -68,6 +68,7 @@ import {
   type InrAgentEditorialMediaKind,
   type InrAgentEditorialSlot,
 } from "@/lib/inrAgentEditorialPlanning";
+import { inrAgentNextInstantMediaKind } from "@/lib/inrAgentEditorialMediaPolicy";
 import { inrAgentChannelToBoosterPublishChannel } from "@/lib/inrAgentPublishChannels";
 
 export const maxDuration = 800;
@@ -118,6 +119,13 @@ type RecentMediaUsage = {
   proMediaIds: Set<string>;
   imageBankIds: Set<string>;
   storageKeys: Set<string>;
+};
+
+type InstantMediaMixState = {
+  preparedPublications: number;
+  videoPublications: number;
+  mediaKind: "image" | "video";
+  historyAvailable: boolean;
 };
 
 type MediaSelectionAttempt = {
@@ -226,7 +234,11 @@ const channelLabels: Record<string, string> = {
   x: "X",
 };
 
-const siteChannels = new Set<BoosterChannels>(["inrcy_site", "site_web", "inr_search"]);
+const siteChannels = new Set<BoosterChannels>([
+  "inrcy_site",
+  "site_web",
+  "inr_search",
+]);
 const allowedBoosterChannels = new Set<BoosterChannels>([
   "inrcy_site",
   "site_web",
@@ -254,7 +266,7 @@ function channelRequiresVideo(channel: BoosterChannels) {
 
 function channelMediaReadiness(
   channel: BoosterChannels,
-  media: ImageBankAsset | null,
+  media: ImageBankAsset | null
 ) {
   const mediaKind = media?.mediaType || media?.kind || "image";
 
@@ -276,8 +288,8 @@ function channelMediaReadiness(
       channel === "instagram"
         ? "Instagram nécessite au moins 1 image ou 1 vidéo."
         : channel === "pinterest"
-          ? "Pinterest nécessite une image ou une vidéo."
-          : "TikTok nécessite au moins 1 photo ou 1 vidéo.";
+        ? "Pinterest nécessite une image ou une vidéo."
+        : "TikTok nécessite au moins 1 photo ou 1 vidéo.";
     return {
       ready: false,
       publishable: false,
@@ -317,7 +329,7 @@ function channelMediaReadiness(
 }
 
 function rowToAutomationSettings(
-  row: AutomationDbRow | null,
+  row: AutomationDbRow | null
 ): InrAgentAutomationSettings {
   return sanitizeInrAgentAutomationSettings("publish", {
     enabled: row?.enabled ?? undefined,
@@ -369,8 +381,8 @@ function cleanList(value: unknown, maxItems = 8, maxItemLength = 80) {
 
   return Array.from(
     new Set(
-      rawItems.map((item) => cleanText(item, maxItemLength)).filter(Boolean),
-    ),
+      rawItems.map((item) => cleanText(item, maxItemLength)).filter(Boolean)
+    )
   ).slice(0, maxItems);
 }
 
@@ -386,13 +398,16 @@ function normalizeAgentTone(value: unknown): InrAgentTone {
 }
 
 function normalizeEditorialPlan(
-  value: unknown,
+  value: unknown
 ): (InrAgentEditorialSlot & { timezone?: string; state?: string }) | null {
   const record = asRecord(value);
   const slotKey = cleanText(record.slotKey, 240);
   const scheduledFor = cleanText(record.scheduledFor, 80);
   const scheduledAt = Date.parse(scheduledFor);
-  const mediaKind = cleanText(record.mediaKind, 20) as InrAgentEditorialMediaKind;
+  const mediaKind = cleanText(
+    record.mediaKind,
+    20
+  ) as InrAgentEditorialMediaKind;
   const theme = cleanText(record.theme, 80) as InrAgentTheme;
   if (
     !slotKey ||
@@ -414,8 +429,7 @@ function normalizeEditorialPlan(
     mediaKind,
     // Les anciens plans pouvaient encore contenir imageCount: 2. La politique
     // courante s'applique au moment de la génération pour préserver le quota.
-    imageCount:
-      mediaKind === "image" ? INR_AGENT_IMAGES_PER_PUBLICATION : 0,
+    imageCount: mediaKind === "image" ? INR_AGENT_IMAGES_PER_PUBLICATION : 0,
     channels,
     scheduleSignature: cleanText(record.scheduleSignature, 2_000),
     criteriaSignature: cleanText(record.criteriaSignature, 2_000),
@@ -467,7 +481,7 @@ async function loadEditorialPreparationTarget(args: {
 function normalizeMediaLibrarySource(record: JsonRecord) {
   const raw = cleanText(
     record.librarySource || record.library_source || record.source || "",
-    80,
+    80
   );
   const bucket = cleanText(record.bucket || record.bucket_name || "", 100);
 
@@ -483,13 +497,13 @@ function normalizeMediaLibrarySource(record: JsonRecord) {
 function getMediaStoragePath(record: JsonRecord) {
   return cleanText(
     record.storagePath || record.storage_path || record.path || "",
-    300,
+    300
   );
 }
 
 function getMediaSourceKey(
   source: "pro_media_library" | "inrcy_image_bank" | null,
-  storagePath: string,
+  storagePath: string
 ) {
   return source && storagePath ? `${source}:${storagePath}` : "";
 }
@@ -540,7 +554,7 @@ function collectPayloadMediaUsage(usage: RecentMediaUsage, payload: unknown) {
 
 async function loadRecentMediaUsage(userId: string): Promise<RecentMediaUsage> {
   const cutoff = new Date(
-    Date.now() - MEDIA_REUSE_EXCLUSION_DAYS * 24 * 60 * 60 * 1000,
+    Date.now() - MEDIA_REUSE_EXCLUSION_DAYS * 24 * 60 * 60 * 1000
   ).toISOString();
   const usage: RecentMediaUsage = {
     cutoffIso: cutoff,
@@ -575,10 +589,63 @@ async function loadRecentMediaUsage(userId: string): Promise<RecentMediaUsage> {
   return usage;
 }
 
+async function loadInstantMediaMixState(
+  userId: string
+): Promise<InstantMediaMixState> {
+  const instantActionMetadata = {
+    preparedManually: true,
+    editorialPlan: false,
+  };
+  const totalQuery = supabaseAdmin
+    .from("inr_agent_actions")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("automation_key", "publish")
+    .contains("metadata", instantActionMetadata);
+  const videoQuery = supabaseAdmin
+    .from("inr_agent_actions")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("automation_key", "publish")
+    .contains("metadata", instantActionMetadata)
+    .contains("payload", { mediaType: "video" });
+  const [totalResult, videoResult] = await Promise.all([
+    totalQuery,
+    videoQuery,
+  ]);
+
+  if (totalResult.error || videoResult.error) {
+    console.warn("[inr-agent] instant media mix history unavailable", {
+      userId,
+      totalError: totalResult.error?.message,
+      videoError: videoResult.error?.message,
+    });
+    return {
+      preparedPublications: 0,
+      videoPublications: 0,
+      // Fail closed on quota cost: a history outage must never force a video.
+      mediaKind: "image",
+      historyAvailable: false,
+    };
+  }
+
+  const preparedPublications = Math.max(0, totalResult.count || 0);
+  const videoPublications = Math.max(0, videoResult.count || 0);
+  return {
+    preparedPublications,
+    videoPublications,
+    mediaKind: inrAgentNextInstantMediaKind({
+      preparedPublications,
+      videoPublications,
+    }),
+    historyAvailable: true,
+  };
+}
+
 function isRecentlyUsedMediaRow(
   row: any,
   source: "pro_media_library" | "inrcy_image_bank",
-  usage: RecentMediaUsage,
+  usage: RecentMediaUsage
 ) {
   const id = cleanText(row?.id, 120);
   const storagePath = cleanText(row?.storage_path, 300);
@@ -594,11 +661,11 @@ function isRecentlyUsedMediaRow(
 }
 
 function filterRecentlyUsedRows<
-  T extends { id?: unknown; storage_path?: unknown },
+  T extends { id?: unknown; storage_path?: unknown }
 >(
   rows: T[],
   source: "pro_media_library" | "inrcy_image_bank",
-  usage: RecentMediaUsage,
+  usage: RecentMediaUsage
 ) {
   return rows.filter((row) => !isRecentlyUsedMediaRow(row, source, usage));
 }
@@ -623,7 +690,7 @@ function recordMediaSelectionAttempt(
     genericSectorCandidates?: number;
     excludedNonGenericSectorCount?: number;
     selected: { id?: unknown; storage_path?: unknown } | null;
-  },
+  }
 ) {
   if (!attempts) return;
   const totalCandidates = params.rows.length;
@@ -638,7 +705,7 @@ function recordMediaSelectionAttempt(
     totalCandidates,
     excludedRecentlyUsed: Math.max(
       0,
-      (params.genericSectorCandidates ?? totalCandidates) - eligibleCandidates,
+      (params.genericSectorCandidates ?? totalCandidates) - eligibleCandidates
     ),
     eligibleCandidates,
     genericSectorCandidates: params.genericSectorCandidates,
@@ -666,42 +733,52 @@ function getRecentMediaTrace(usage: RecentMediaUsage) {
 
 function chooseTheme(
   allowedThemes: InrAgentTheme[],
-  recentPublications: BoosterRecentPublication[],
+  recentPublications: BoosterRecentPublication[]
 ): InrAgentTheme {
   const publishThemes = allowedThemes.filter((theme) =>
-    Boolean(agentThemeToBoosterTheme[theme]),
+    Boolean(agentThemeToBoosterTheme[theme])
   );
   if (!publishThemes.length) return "conseils";
   const patterns: Partial<Record<InrAgentTheme, RegExp>> = {
-    conseils: /\b(conseil|astuce|guide|recommand|comment|bon geste|erreur a eviter)\b/i,
-    realisations: /\b(realisation|chantier|projet|intervention|avant apres|resultat|coulisses)\b/i,
-    offres: /\b(offre|promotion|service|prestation|devis|reservation|decouvr|profitez)\b/i,
-    actualites: /\b(actualite|nouveaute|saison|evenement|information|agenda|lancement)\b/i,
-    coulisses: /\b(coulisse|equipe|atelier|quotidien|methode|savoir faire|organisation)\b/i,
-    temoignages: /\b(avis|temoignage|client|satisfaction|confiance|recommand)\b/i,
-    services: /\b(service|prestation|solution|accompagnement|expertise|metier)\b/i,
+    conseils:
+      /\b(conseil|astuce|guide|recommand|comment|bon geste|erreur a eviter)\b/i,
+    realisations:
+      /\b(realisation|chantier|projet|intervention|avant apres|resultat|coulisses)\b/i,
+    offres:
+      /\b(offre|promotion|service|prestation|devis|reservation|decouvr|profitez)\b/i,
+    actualites:
+      /\b(actualite|nouveaute|saison|evenement|information|agenda|lancement)\b/i,
+    coulisses:
+      /\b(coulisse|equipe|atelier|quotidien|methode|savoir faire|organisation)\b/i,
+    temoignages:
+      /\b(avis|temoignage|client|satisfaction|confiance|recommand)\b/i,
+    services:
+      /\b(service|prestation|solution|accompagnement|expertise|metier)\b/i,
     faq: /\b(question|reponse|faq|pourquoi|comment|combien|delai)\b/i,
-    recrutement: /\b(recrut|poste|candidat|emploi|equipe|embauche|rejoindre)\b/i,
+    recrutement:
+      /\b(recrut|poste|candidat|emploi|equipe|embauche|rejoindre)\b/i,
   };
-  const normalizedHistory = recentPublications.slice(0, 5).map((publication) =>
-    normalizeCatalogText(
-      [publication.title, publication.idea, publication.content]
-        .filter(Boolean)
-        .join(" "),
-    ),
-  );
+  const normalizedHistory = recentPublications
+    .slice(0, 5)
+    .map((publication) =>
+      normalizeCatalogText(
+        [publication.title, publication.idea, publication.content]
+          .filter(Boolean)
+          .join(" ")
+      )
+    );
   const scored = publishThemes.map((theme, themeIndex) => {
     const pattern = patterns[theme];
     const repetitionScore = normalizedHistory.reduce(
       (total, text, historyIndex) =>
         total + (pattern?.test(text) ? Math.max(1, 6 - historyIndex) : 0),
-      0,
+      0
     );
     return { theme, repetitionScore, themeIndex };
   });
   scored.sort(
     (a, b) =>
-      a.repetitionScore - b.repetitionScore || a.themeIndex - b.themeIndex,
+      a.repetitionScore - b.repetitionScore || a.themeIndex - b.themeIndex
   );
   return scored[0]?.theme || "conseils";
 }
@@ -779,7 +856,7 @@ function getBusinessProfession(business: JsonRecord | null) {
   const profession =
     rawProfessionCandidates
       .map((candidate) =>
-        resolveKnownJobValue(decoded.sectorCategory, candidate),
+        resolveKnownJobValue(decoded.sectorCategory, candidate)
       )
       .find(Boolean) || "";
 
@@ -805,21 +882,21 @@ function buildAgentIdea(args: {
   const { sector, professionLabel } = getBusinessProfession(args.business);
   const company = cleanText(
     args.profile?.company_legal_name || args.profile?.companyLegalName || "",
-    90,
+    90
   );
   const city = cleanText(
     args.profile?.hq_city || args.profile?.hqCity || "",
-    80,
+    80
   );
   const services = cleanList(
     args.business?.services || args.business?.services_text,
     5,
-    70,
+    70
   );
   const zones = cleanList(
     args.business?.intervention_zones || args.business?.intervention_zones_text,
     4,
-    70,
+    70
   );
   const themeLabel = themeLabels[args.theme] || "Conseil";
   const servicesText = services.length
@@ -833,46 +910,66 @@ function buildAgentIdea(args: {
   const recentTopics = args.recentPublications
     .slice(0, 3)
     .map((publication) =>
-      cleanText(publication.title || publication.idea || "", 90),
+      cleanText(publication.title || publication.idea || "", 90)
     )
     .filter(Boolean);
   const freshnessInstruction = recentTopics.length
-    ? ` Choisir un angle nettement différent de ces sujets récents : ${recentTopics.join(" ; ")}.`
+    ? ` Choisir un angle nettement différent de ces sujets récents : ${recentTopics.join(
+        " ; "
+      )}.`
     : "";
 
   if (args.theme === "realisations") {
-    return `Préparer une publication de type réalisation${companyText} : mettre en avant le sérieux, la méthode et le soin apporté par un professionnel ${professionLabel || sector}${servicesText}${cityText}${zonesText}, sans inventer de faux chantier ni de faux client.${freshnessInstruction}`;
+    return `Préparer une publication de type réalisation${companyText} : mettre en avant le sérieux, la méthode et le soin apporté par un professionnel ${
+      professionLabel || sector
+    }${servicesText}${cityText}${zonesText}, sans inventer de faux chantier ni de faux client.${freshnessInstruction}`;
   }
 
   if (args.theme === "offres") {
-    return `Préparer une publication commerciale douce${companyText} : valoriser une prestation utile d'un professionnel ${professionLabel || sector}${servicesText}${cityText}${zonesText}, avec un appel à l'action naturel, sans inventer de remise, de prix ou de promesse.${freshnessInstruction}`;
+    return `Préparer une publication commerciale douce${companyText} : valoriser une prestation utile d'un professionnel ${
+      professionLabel || sector
+    }${servicesText}${cityText}${zonesText}, avec un appel à l'action naturel, sans inventer de remise, de prix ou de promesse.${freshnessInstruction}`;
   }
 
   if (args.theme === "actualites") {
-    return `Préparer une publication d'actualité locale${companyText} pour un professionnel ${professionLabel || sector}${servicesText}${cityText}${zonesText} : parler d'un sujet utile ou saisonnier en lien avec l'activité, sans inventer d'événement précis.${freshnessInstruction}`;
+    return `Préparer une publication d'actualité locale${companyText} pour un professionnel ${
+      professionLabel || sector
+    }${servicesText}${cityText}${zonesText} : parler d'un sujet utile ou saisonnier en lien avec l'activité, sans inventer d'événement précis.${freshnessInstruction}`;
   }
 
   if (args.theme === "coulisses") {
-    return `Préparer une publication dans les coulisses${companyText} pour un professionnel ${professionLabel || sector}${servicesText}${cityText}${zonesText} : expliquer une méthode, une étape de travail, un geste métier ou l'organisation quotidienne de façon humaine et concrète, sans inventer d'équipe, de lieu, de matériel ni d'intervention.${freshnessInstruction}`;
+    return `Préparer une publication dans les coulisses${companyText} pour un professionnel ${
+      professionLabel || sector
+    }${servicesText}${cityText}${zonesText} : expliquer une méthode, une étape de travail, un geste métier ou l'organisation quotidienne de façon humaine et concrète, sans inventer d'équipe, de lieu, de matériel ni d'intervention.${freshnessInstruction}`;
   }
 
   if (args.theme === "temoignages") {
-    return `Préparer une publication de preuve sociale${companyText} pour un professionnel ${professionLabel || sector}${servicesText}${cityText}${zonesText} : valoriser la confiance et la satisfaction uniquement à partir des éléments vérifiables fournis. Ne jamais inventer de client, de citation, de note, de chiffre ni de témoignage ; si aucun avis précis n'est fourni, parler de l'importance des retours clients ou inviter naturellement à consulter ou partager un avis.${freshnessInstruction}`;
+    return `Préparer une publication de preuve sociale${companyText} pour un professionnel ${
+      professionLabel || sector
+    }${servicesText}${cityText}${zonesText} : valoriser la confiance et la satisfaction uniquement à partir des éléments vérifiables fournis. Ne jamais inventer de client, de citation, de note, de chiffre ni de témoignage ; si aucun avis précis n'est fourni, parler de l'importance des retours clients ou inviter naturellement à consulter ou partager un avis.${freshnessInstruction}`;
   }
 
   if (args.theme === "services") {
-    return `Préparer une publication de présentation de service${companyText} pour un professionnel ${professionLabel || sector}${servicesText}${cityText}${zonesText} : expliquer clairement un service réellement renseigné, son utilité et à qui il s'adresse, avec un appel à l'action naturel, sans inventer de prix, de délai, de garantie ni de promesse.${freshnessInstruction}`;
+    return `Préparer une publication de présentation de service${companyText} pour un professionnel ${
+      professionLabel || sector
+    }${servicesText}${cityText}${zonesText} : expliquer clairement un service réellement renseigné, son utilité et à qui il s'adresse, avec un appel à l'action naturel, sans inventer de prix, de délai, de garantie ni de promesse.${freshnessInstruction}`;
   }
 
   if (args.theme === "faq") {
-    return `Préparer une publication de type question fréquente${companyText} pour un professionnel ${professionLabel || sector}${servicesText}${cityText}${zonesText} : répondre simplement à une vraie question générale que les clients peuvent se poser sur ce métier, sans inventer de règle, de tarif, de délai ni de condition propre à l'entreprise.${freshnessInstruction}`;
+    return `Préparer une publication de type question fréquente${companyText} pour un professionnel ${
+      professionLabel || sector
+    }${servicesText}${cityText}${zonesText} : répondre simplement à une vraie question générale que les clients peuvent se poser sur ce métier, sans inventer de règle, de tarif, de délai ni de condition propre à l'entreprise.${freshnessInstruction}`;
   }
 
   if (args.theme === "recrutement") {
-    return `Préparer une publication autour du recrutement ou de la marque employeur${companyText} pour un professionnel ${professionLabel || sector}${servicesText}${cityText}${zonesText}. Ne jamais annoncer un poste, un contrat, un salaire, un avantage ou une embauche sans information explicite fournie ; à défaut, présenter les valeurs, les savoir-faire ou les métiers de l'entreprise sans faire croire qu'une offre est ouverte.${freshnessInstruction}`;
+    return `Préparer une publication autour du recrutement ou de la marque employeur${companyText} pour un professionnel ${
+      professionLabel || sector
+    }${servicesText}${cityText}${zonesText}. Ne jamais annoncer un poste, un contrat, un salaire, un avantage ou une embauche sans information explicite fournie ; à défaut, présenter les valeurs, les savoir-faire ou les métiers de l'entreprise sans faire croire qu'une offre est ouverte.${freshnessInstruction}`;
   }
 
-  return `Préparer une publication de conseil utile${companyText} pour un professionnel ${professionLabel || sector}${servicesText}${cityText}${zonesText} : donner une astuce simple, concrète et rassurante en lien avec le métier, sans inventer de détail non fourni.${freshnessInstruction}`;
+  return `Préparer une publication de conseil utile${companyText} pour un professionnel ${
+    professionLabel || sector
+  }${servicesText}${cityText}${zonesText} : donner une astuce simple, concrète et rassurante en lien avec le métier, sans inventer de détail non fourni.${freshnessInstruction}`;
 }
 
 function cleanHashtags(channel: BoosterChannels, input: unknown) {
@@ -883,16 +980,16 @@ function cleanHashtags(channel: BoosterChannels, input: unknown) {
     channel === "youtube_shorts"
       ? 8
       : channel === "pinterest"
-        ? 6
-        : channel === "linkedin"
-          ? 3
-          : 2;
+      ? 6
+      : channel === "linkedin"
+      ? 3
+      : 2;
   return Array.isArray(input)
     ? input
         .map((h) =>
           String(h || "")
             .trim()
-            .replace(/^#+/, ""),
+            .replace(/^#+/, "")
         )
         .filter(Boolean)
         .slice(0, limit)
@@ -903,20 +1000,24 @@ const AGENT_AI_IMAGE_MAX_BYTES = 8 * 1024 * 1024;
 const AGENT_AI_IMAGE_FETCH_TIMEOUT_MS = 12_000;
 
 async function prepareAgentSelectedImageForAI(
-  media: ImageBankAsset | null,
+  media: ImageBankAsset | null
 ): Promise<BoosterAiImage[]> {
   const mediaKind = media?.mediaType || media?.kind || "image";
   const sourceUrl = cleanText(media?.url, 4_000);
   const bucket = cleanText(media?.bucket, 120);
   const storagePath = cleanText(media?.storagePath, 1_000);
-  if (!media || mediaKind !== "image" || (!sourceUrl && !storagePath)) return [];
+  if (!media || mediaKind !== "image" || (!sourceUrl && !storagePath))
+    return [];
 
   if (/^data:image\//i.test(sourceUrl)) {
     return [{ dataUrl: sourceUrl, detail: "low" }];
   }
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), AGENT_AI_IMAGE_FETCH_TIMEOUT_MS);
+  const timer = setTimeout(
+    () => controller.abort(),
+    AGENT_AI_IMAGE_FETCH_TIMEOUT_MS
+  );
   try {
     let buffer: Buffer;
     let mimeType: string;
@@ -924,28 +1025,39 @@ async function prepareAgentSelectedImageForAI(
     if (bucket && storagePath) {
       const probe = await probeStorageObject(bucket, storagePath);
       if (probe !== "exists") throw new Error(`image_storage_${probe}`);
-      const download = await supabaseAdmin.storage.from(bucket).download(storagePath);
+      const download = await supabaseAdmin.storage
+        .from(bucket)
+        .download(storagePath);
       if (download.error || !download.data) {
         throw new Error(download.error?.message || "image_storage_download");
       }
       buffer = Buffer.from(await download.data.arrayBuffer());
-      mimeType = cleanText(
-        download.data.type || media.mimeType || "image/jpeg",
-        120,
-      ).split(";")[0] || "image/jpeg";
+      mimeType =
+        cleanText(
+          download.data.type || media.mimeType || "image/jpeg",
+          120
+        ).split(";")[0] || "image/jpeg";
     } else {
       const response = await fetch(sourceUrl, { signal: controller.signal });
       if (!response.ok) throw new Error(`image_download_${response.status}`);
 
-      const declaredLength = Number(response.headers.get("content-length") || 0);
-      if (Number.isFinite(declaredLength) && declaredLength > AGENT_AI_IMAGE_MAX_BYTES) {
+      const declaredLength = Number(
+        response.headers.get("content-length") || 0
+      );
+      if (
+        Number.isFinite(declaredLength) &&
+        declaredLength > AGENT_AI_IMAGE_MAX_BYTES
+      ) {
         throw new Error("image_too_large");
       }
 
-      mimeType = cleanText(
-        response.headers.get("content-type") || media.mimeType || "image/jpeg",
-        120,
-      ).split(";")[0] || "image/jpeg";
+      mimeType =
+        cleanText(
+          response.headers.get("content-type") ||
+            media.mimeType ||
+            "image/jpeg",
+          120
+        ).split(";")[0] || "image/jpeg";
       buffer = Buffer.from(await response.arrayBuffer());
     }
 
@@ -955,16 +1067,21 @@ async function prepareAgentSelectedImageForAI(
       throw new Error(buffer.length ? "image_too_large" : "image_empty");
     }
 
-    return [{
-      dataUrl: `data:${mimeType};base64,${buffer.toString("base64")}`,
-      detail: "low",
-    }];
+    return [
+      {
+        dataUrl: `data:${mimeType};base64,${buffer.toString("base64")}`,
+        detail: "low",
+      },
+    ];
   } catch (error) {
-    console.warn("[inr-agent] selected image unavailable for AI understanding", {
-      mediaId: media.id || undefined,
-      source: media.librarySource || media.source || undefined,
-      message: error instanceof Error ? error.message : String(error),
-    });
+    console.warn(
+      "[inr-agent] selected image unavailable for AI understanding",
+      {
+        mediaId: media.id || undefined,
+        source: media.librarySource || media.source || undefined,
+        message: error instanceof Error ? error.message : String(error),
+      }
+    );
     return [];
   } finally {
     clearTimeout(timer);
@@ -977,7 +1094,7 @@ function hasUsefulAgentMediaMetadata(media: ImageBankAsset | null) {
     cleanText(media.title, 160) ||
       cleanText(media.sector, 80) ||
       cleanText(media.job, 80) ||
-      cleanList(media.tags, 8, 60).length,
+      cleanList(media.tags, 8, 60).length
   );
 }
 
@@ -991,14 +1108,18 @@ function shouldUseFastAgentMediaContext(media: ImageBankAsset | null) {
   const knownInternalSource =
     source === "pro_media_library" || source === "inrcy_image_bank";
 
-  return mediaKind === "image" && knownInternalSource && hasUsefulAgentMediaMetadata(media);
+  return (
+    mediaKind === "image" &&
+    knownInternalSource &&
+    hasUsefulAgentMediaMetadata(media)
+  );
 }
 
 function buildAgentSelectedMediaContext(
   media: ImageBankAsset | null,
   aiImageAvailable: boolean,
   fastMetadataOnly = false,
-  videoPreparation: InrAgentCachedVideoPreparationResult | null = null,
+  videoPreparation: InrAgentCachedVideoPreparationResult | null = null
 ) {
   if (!media) return "";
   const mediaKind = media.mediaType || media.kind || "image";
@@ -1017,29 +1138,39 @@ function buildAgentSelectedMediaContext(
 
   return [
     `MÉDIA SÉLECTIONNÉ PAR iNr’Agent : ${mediaKind}.`,
-    metadata.length ? `Métadonnées internes factuelles : ${metadata.join(" | ")}.` : "",
+    metadata.length
+      ? `Métadonnées internes factuelles : ${metadata.join(" | ")}.`
+      : "",
     mediaKind === "image"
       ? fastMetadataOnly
         ? "Mode rapide iNr’Agent : l'image n'est pas transmise à l'analyse visuelle IA. Utilise uniquement la phrase libre et les métadonnées internes factuelles ; n'invente aucun détail visuel non fourni."
         : aiImageAvailable
-          ? "L'image est effectivement transmise à l'analyse IA : utilise uniquement les éléments raisonnablement visibles, sans inventer."
-          : "L'image n'a pas pu être chargée pour analyse visuelle : n'invente aucun détail visuel à partir du seul nom du fichier."
+        ? "L'image est effectivement transmise à l'analyse IA : utilise uniquement les éléments raisonnablement visibles, sans inventer."
+        : "L'image n'a pas pu être chargée pour analyse visuelle : n'invente aucun détail visuel à partir du seul nom du fichier."
       : videoPreparation?.frames.length
-        ? `Des captures de la vidéo sont transmises à l'analyse IA (${videoPreparation.frames.length} disponible${videoPreparation.frames.length > 1 ? "s" : ""}). Utilise uniquement les éléments raisonnablement visibles, sans inventer.`
-        : "Les captures de la vidéo sont indisponibles : n'invente aucune observation visuelle à partir du seul nom du fichier.",
+      ? `Des captures de la vidéo sont transmises à l'analyse IA (${
+          videoPreparation.frames.length
+        } disponible${
+          videoPreparation.frames.length > 1 ? "s" : ""
+        }). Utilise uniquement les éléments raisonnablement visibles, sans inventer.`
+      : "Les captures de la vidéo sont indisponibles : n'invente aucune observation visuelle à partir du seul nom du fichier.",
     mediaKind === "video" && transcript
       ? `Transcription audio détectée dans la vidéo :\n"""${transcript}"""\nLa phrase libre et le contexte métier restent prioritaires. Utilise la transcription uniquement comme contexte factuel complémentaire, sans inventer.`
       : mediaKind === "video"
-        ? "La transcription audio de la vidéo est indisponible. Continue sans bloquer la génération."
-        : "",
-  ].filter(Boolean).join("\n");
+      ? "La transcription audio de la vidéo est indisponible. Continue sans bloquer la génération."
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 function getVideoGenerationContextMode(
-  videoPreparation: InrAgentCachedVideoPreparationResult | null,
+  videoPreparation: InrAgentCachedVideoPreparationResult | null
 ) {
   const hasFrames = Boolean(videoPreparation?.frames.length);
-  const hasTranscript = Boolean(cleanLongContext(videoPreparation?.transcript, 1));
+  const hasTranscript = Boolean(
+    cleanLongContext(videoPreparation?.transcript, 1)
+  );
   if (hasFrames && hasTranscript) return "full" as const;
   if (hasFrames) return "visual_only" as const;
   if (hasTranscript) return "audio_only" as const;
@@ -1062,7 +1193,9 @@ async function generateBoosterPosts(args: {
   skipMediaVisionAnalysis?: boolean;
 }) {
   const editorialMemory = args.earlierEditorialAngles?.length
-    ? `\nMémoire du mois déjà préparée (ne répète ni ces angles ni leurs accroches) :\n${args.earlierEditorialAngles.join("\n")}`
+    ? `\nMémoire du mois déjà préparée (ne répète ni ces angles ni leurs accroches) :\n${args.earlierEditorialAngles.join(
+        "\n"
+      )}`
     : "";
   const xUrlInstruction = args.channels.includes("x")
     ? "\nRÈGLE ABSOLUE POUR X : n'écris aucun lien ni aucune URL dans le titre, le contenu, les hashtags ou le CTA. N'écris pas non plus de domaine nu, de lien raccourci ou d'adresse commençant par www. Invite à contacter l'entreprise sans ajouter de lien."
@@ -1102,20 +1235,25 @@ async function selectConnectedChannels(args: {
     getAppBubbleAccessMapForUser(args.supabase, args.userId),
     ensureSystemManagedInrSearch(args.supabase as any, args.userId),
   ]);
-  const inrSearchStatus = await getInrSearchPublicStatus(provisioned.inrSearch.slug);
+  const inrSearchStatus = await getInrSearchPublicStatus(
+    provisioned.inrSearch.slug
+  );
 
   const isAllowedBoosterChannel = (
-    channel: BoosterChannels | null | undefined,
+    channel: BoosterChannels | null | undefined
   ): channel is BoosterChannels => {
     return channel != null && allowedBoosterChannels.has(channel);
   };
 
-  const allowedAgentChannels: InrAgentChannel[] = [...args.automation.allowedChannels];
+  const allowedAgentChannels: InrAgentChannel[] = [
+    ...args.automation.allowedChannels,
+  ];
   if (
     states.pinterest.connected &&
     !states.pinterest.requiresUpdate &&
     !allowedAgentChannels.includes("pinterest") &&
-    args.automation.metadata?.[INR_AGENT_PINTEREST_PUBLISH_MIGRATION_FLAG] !== true
+    args.automation.metadata?.[INR_AGENT_PINTEREST_PUBLISH_MIGRATION_FLAG] !==
+      true
   ) {
     allowedAgentChannels.push("pinterest");
   }
@@ -1161,7 +1299,9 @@ async function selectConnectedChannels(args: {
     instagram: isOfficialPublicationChannelConnected(states.instagram),
     linkedin: isOfficialPublicationChannelConnected(states.linkedin),
     tiktok: isOfficialPublicationChannelConnected(states.tiktok),
-    youtube_shorts: isOfficialPublicationChannelConnected(states.youtube_shorts),
+    youtube_shorts: isOfficialPublicationChannelConnected(
+      states.youtube_shorts
+    ),
     pinterest:
       isOfficialPublicationChannelConnected(states.pinterest) &&
       Boolean(states.pinterest.default_board_id),
@@ -1169,12 +1309,12 @@ async function selectConnectedChannels(args: {
   };
 
   const uniqueChannels: BoosterChannels[] = Array.from(
-    new Set<BoosterChannels>(allowedChannels),
+    new Set<BoosterChannels>(allowedChannels)
   );
   return uniqueChannels.filter(
     (channel) =>
       isBubbleEnabled(bubbleAccess, bubbleKeyByChannel[channel]) &&
-      connected[channel],
+      connected[channel]
   );
 }
 
@@ -1182,7 +1322,7 @@ async function loadPublishAutomationSettings(userId: string) {
   const { data } = await supabaseAdmin
     .from("inr_agent_automation_settings")
     .select(
-      "enabled, frequency, day_of_week, time, validation_mode, allowed_channels, allowed_themes, use_image_bank, image_required, recipient_scope, source_strategy, last_prepared_at, last_executed_at, next_run_at, metadata",
+      "enabled, frequency, day_of_week, time, validation_mode, allowed_channels, allowed_themes, use_image_bank, image_required, recipient_scope, source_strategy, last_prepared_at, last_executed_at, next_run_at, metadata"
     )
     .eq("user_id", userId)
     .eq("automation_key", "publish")
@@ -1209,7 +1349,7 @@ async function loadEarlierEditorialAngles(args: {
   const { data } = await supabaseAdmin
     .from("inr_agent_actions")
     .select(
-      "id,title,preview_text,target_themes,scheduled_for,payload,metadata,status",
+      "id,title,preview_text,target_themes,scheduled_for,payload,metadata,status"
     )
     .eq("user_id", args.userId)
     .eq("automation_key", "publish")
@@ -1251,9 +1391,14 @@ async function resolveMediaGenerationActorAuthUserId(args: {
     .limit(20);
   const rows = Array.isArray(data) ? data : [];
   const owner = rows.find(
-    (row) => String(row?.role || "").trim().toLowerCase() === "owner",
+    (row) =>
+      String(row?.role || "")
+        .trim()
+        .toLowerCase() === "owner"
   );
-  const resolved = String(owner?.auth_user_id || rows[0]?.auth_user_id || "").trim();
+  const resolved = String(
+    owner?.auth_user_id || rows[0]?.auth_user_id || ""
+  ).trim();
   return resolved || args.requestAuthUserId || args.accountId;
 }
 
@@ -1275,8 +1420,10 @@ function generatedPickerItemToAgentMedia(args: {
     url:
       buildStorageContentUrl(
         String(args.item.bucket_name || PRO_MEDIA_BUCKET),
-        args.item.storage_path,
-      ) || args.item.signed_url || "",
+        args.item.storage_path
+      ) ||
+      args.item.signed_url ||
+      "",
     title: cleanText(args.item.title, 180),
     sector: profession.sector,
     job: profession.profession,
@@ -1305,19 +1452,19 @@ async function pickMediaFromProLibrary(args: {
   attempts?: MediaSelectionAttempt[];
 }): Promise<ImageBankAsset | null> {
   const { sector, profession, professionLabel } = getBusinessProfession(
-    args.business,
+    args.business
   );
   const searchTokens = Array.from(
     new Set(
       [profession, professionLabel, sector]
         .map((item) => cleanText(item, 80))
-        .filter(Boolean),
-    ),
+        .filter(Boolean)
+    )
   );
 
   async function sign(
     row: any,
-    matchLevel: "pro_library_business_match" | "pro_library_owned_fallback",
+    matchLevel: "pro_library_business_match" | "pro_library_owned_fallback"
   ): Promise<ImageBankAsset | null> {
     if (!row?.storage_path) return null;
     const bucket = cleanText(row.bucket_name, 80) || PRO_MEDIA_BUCKET;
@@ -1377,7 +1524,7 @@ async function pickMediaFromProLibrary(args: {
         const rows = filterRecentlyUsedRows(
           originalRows,
           "pro_media_library",
-          args.recentMediaUsage,
+          args.recentMediaUsage
         );
         const selected = pickRotatedCandidate(rows);
         recordMediaSelectionAttempt(args.attempts, {
@@ -1411,7 +1558,7 @@ async function pickMediaFromProLibrary(args: {
       const rows = filterRecentlyUsedRows(
         originalRows,
         "pro_media_library",
-        args.recentMediaUsage,
+        args.recentMediaUsage
       );
       const selected = pickRotatedCandidate(rows);
       recordMediaSelectionAttempt(args.attempts, {
@@ -1452,10 +1599,7 @@ function isGenericImageBankJob(row: any) {
     "autre",
   ]);
 
-  return (
-    genericMarkers.has(job) ||
-    tags.some((tag) => genericMarkers.has(tag))
-  );
+  return genericMarkers.has(job) || tags.some((tag) => genericMarkers.has(tag));
 }
 
 async function pickImageFromBank(args: {
@@ -1468,7 +1612,7 @@ async function pickImageFromBank(args: {
 
   async function sign(
     row: any,
-    matchLevel: "image_bank_job_exact" | "image_bank_sector_generic",
+    matchLevel: "image_bank_job_exact" | "image_bank_sector_generic"
   ): Promise<ImageBankAsset | null> {
     if (!row?.storage_path) return null;
     const storagePath = String(row.storage_path);
@@ -1519,7 +1663,7 @@ async function pickImageFromBank(args: {
       const rows = filterRecentlyUsedRows(
         originalRows,
         "inrcy_image_bank",
-        args.recentMediaUsage,
+        args.recentMediaUsage
       );
       const selected = pickRotatedCandidate(rows);
       recordMediaSelectionAttempt(args.attempts, {
@@ -1550,7 +1694,7 @@ async function pickImageFromBank(args: {
       const rows = filterRecentlyUsedRows(
         genericRows,
         "inrcy_image_bank",
-        args.recentMediaUsage,
+        args.recentMediaUsage
       );
       const selected = pickRotatedCandidate(rows);
       recordMediaSelectionAttempt(args.attempts, {
@@ -1564,7 +1708,7 @@ async function pickImageFromBank(args: {
         genericSectorCandidates: genericRows.length,
         excludedNonGenericSectorCount: Math.max(
           0,
-          originalRows.length - genericRows.length,
+          originalRows.length - genericRows.length
         ),
         selected,
       });
@@ -1640,7 +1784,7 @@ function buildMediaDiversificationTrace(params: {
       selected &&
         proMedia &&
         imageBankMedia &&
-        selected.librarySource === "inrcy_image_bank",
+        selected.librarySource === "inrcy_image_bank"
     ),
     roll,
     decisionReason,
@@ -1730,12 +1874,12 @@ function requiresManualValidation(validationMode: InrAgentValidationMode) {
 
 function hasUsefulContent(post: ChannelPost | undefined) {
   return Boolean(
-    post?.title?.trim() || post?.content?.trim() || post?.cta?.trim(),
+    post?.title?.trim() || post?.content?.trim() || post?.cta?.trim()
   );
 }
 
 function buildPreviewText(
-  versions: Partial<Record<BoosterChannels, ChannelPost>>,
+  versions: Partial<Record<BoosterChannels, ChannelPost>>
 ) {
   const preferredOrder: BoosterChannels[] = [
     "facebook",
@@ -1759,7 +1903,7 @@ function buildSummary(
   channels: BoosterChannels[],
   media: ImageBankAsset | null,
   mediaCount = media ? 1 : 0,
-  autoDisabledChannels: BoosterChannels[] = [],
+  autoDisabledChannels: BoosterChannels[] = []
 ) {
   const labels = channels
     .map((channel) => channelLabels[boosterToAgentChannel[channel]] || channel)
@@ -1769,14 +1913,16 @@ function buildSummary(
       ? media.mediaType === "video" || media.kind === "video"
         ? " Vidéo IA créée et ajoutée à la médiathèque."
         : mediaCount > 1
-          ? ` ${mediaCount} visuels IA complémentaires créés et ajoutés à la médiathèque.`
-          : " Visuel IA créé et ajouté à la médiathèque."
+        ? ` ${mediaCount} visuels IA complémentaires créés et ajoutés à la médiathèque.`
+        : " Visuel IA créé et ajouté à la médiathèque."
       : media
-        ? media.mediaType === "video" || media.kind === "video"
-          ? " Vidéo ajoutée depuis la médiathèque du pro."
-          : " Visuel ajouté depuis la médiathèque ou la banque d’images."
-        : " Aucun média disponible : les canaux compatibles seront préparés en texte seul.";
-  const disabledChannelSentence = autoDisabledChannels.includes("youtube_shorts")
+      ? media.mediaType === "video" || media.kind === "video"
+        ? " Vidéo ajoutée depuis la médiathèque du pro."
+        : " Visuel ajouté depuis la médiathèque ou la banque d’images."
+      : " Aucun média disponible : les canaux compatibles seront préparés en texte seul.";
+  const disabledChannelSentence = autoDisabledChannels.includes(
+    "youtube_shorts"
+  )
     ? " YouTube a été désactivé automatiquement : une vidéo est obligatoire sur ce canal."
     : "";
   return `Publication préparée pour ${labels}.${mediaSentence}${disabledChannelSentence}`;
@@ -1790,10 +1936,16 @@ export async function POST(request: Request) {
   let aiGenerationMs = 0;
   let persistenceMs = 0;
   let generationContextMs = 0;
-  let professionalContextSource: "hit" | "database" | "disabled" | "not_loaded" =
-    "not_loaded";
-  let publicationsContextSource: "hit" | "database" | "disabled" | "not_loaded" =
-    "not_loaded";
+  let professionalContextSource:
+    | "hit"
+    | "database"
+    | "disabled"
+    | "not_loaded" = "not_loaded";
+  let publicationsContextSource:
+    | "hit"
+    | "database"
+    | "disabled"
+    | "not_loaded" = "not_loaded";
   const context = await resolveInrAgentActionRequest(request);
   if (context.errorResponse) return context.errorResponse;
 
@@ -1808,10 +1960,12 @@ export async function POST(request: Request) {
   } catch (error) {
     return NextResponse.json(
       {
-        error: "Le créneau éditorial à préparer est invalide ou n’est plus disponible.",
-        code: error instanceof Error ? error.message : "editorial_target_invalid",
+        error:
+          "Le créneau éditorial à préparer est invalide ou n’est plus disponible.",
+        code:
+          error instanceof Error ? error.message : "editorial_target_invalid",
       },
-      { status: 409 },
+      { status: 409 }
     );
   }
   const actorUserId = await resolveMediaGenerationActorAuthUserId({
@@ -1839,7 +1993,7 @@ export async function POST(request: Request) {
   if (!automation.enabled) {
     return NextResponse.json(
       { error: "L’automatisation Publier est désactivée." },
-      { status: 400 },
+      { status: 400 }
     );
   }
 
@@ -1868,6 +2022,9 @@ export async function POST(request: Request) {
           accountId: userId,
         })
       : Promise.resolve(null);
+  const instantMediaMixPromise = editorialTarget
+    ? Promise.resolve(null)
+    : loadInstantMediaMixState(userId);
 
   const [
     availableChannels,
@@ -1875,51 +2032,56 @@ export async function POST(request: Request) {
     earlierEditorialAngles,
     ctaDefaults,
     studioMediaPreferences,
-  ] =
-    await Promise.all([
-      selectConnectedChannels({
-        supabase,
-        userId,
-        automation,
-      }),
-      generationContextPromise,
-      earlierEditorialAnglesPromise,
-      loadBoosterCtaDefaults({ supabase, userId }),
-      studioMediaPreferencesPromise,
-    ]);
+    instantMediaMix,
+  ] = await Promise.all([
+    selectConnectedChannels({
+      supabase,
+      userId,
+      automation,
+    }),
+    generationContextPromise,
+    earlierEditorialAnglesPromise,
+    loadBoosterCtaDefaults({ supabase, userId }),
+    studioMediaPreferencesPromise,
+    instantMediaMixPromise,
+  ]);
+  const plannedMediaKind = editorialTarget?.plan.mediaKind;
+  const automaticMediaKind =
+    plannedMediaKind === "image" ||
+    plannedMediaKind === "video" ||
+    plannedMediaKind === "existing"
+      ? plannedMediaKind
+      : instantMediaMix?.mediaKind || "image";
   // Les canaux actifs sauvegardés au moment de la préparation sont la source
   // de vérité. Le plan éditorial fige la date, le thème et le type de média,
   // mais ne doit jamais réappliquer une ancienne liste de canaux.
-  const youtubeDisabledForPlannedImage = Boolean(
-    editorialTarget?.plan.mediaKind === "image" &&
-      availableChannels.includes("youtube_shorts"),
+  const youtubeDisabledForImage = Boolean(
+    automaticMediaKind === "image" &&
+      availableChannels.includes("youtube_shorts")
   );
-  let autoDisabledChannels: BoosterChannels[] = youtubeDisabledForPlannedImage
+  let autoDisabledChannels: BoosterChannels[] = youtubeDisabledForImage
     ? ["youtube_shorts"]
     : [];
   let channels = availableChannels.filter(
     (channel) =>
-      // Double sécurité : même si un ancien plan ou une donnée altérée remet
-      // YouTube dans un créneau image, il ne traversera jamais la préparation.
-      !(
-        editorialTarget?.plan.mediaKind === "image" &&
-        channel === "youtube_shorts"
-      ),
+      // YouTube exige une vidéo. Une publication choisie en image conserve
+      // tous ses autres canaux et retire YouTube pour cette action seulement.
+      !(automaticMediaKind === "image" && channel === "youtube_shorts")
   );
   if (!channels.length) {
     return NextResponse.json(
       {
-        error: youtubeDisabledForPlannedImage
+        error: youtubeDisabledForImage
           ? "YouTube a été désactivé automatiquement : une vidéo est obligatoire pour publier sur ce canal. Activez un autre canal compatible avec les images."
           : "Aucun canal Booster / Publier connecté et autorisé pour iNr’Agent.",
-        ...(youtubeDisabledForPlannedImage
+        ...(youtubeDisabledForImage
           ? {
               code: "INR_AGENT_IMAGE_NO_COMPATIBLE_CHANNEL",
               autoDisabledChannels,
             }
           : {}),
       },
-      { status: 400 },
+      { status: 400 }
     );
   }
 
@@ -1940,13 +2102,13 @@ export async function POST(request: Request) {
     recentPublications,
   });
   const publicationIdeas = normalizeInrAgentPublicationIdeas(
-    automation.metadata?.publicationIdeas,
+    automation.metadata?.publicationIdeas
   ).filter(Boolean);
   const publicationIdea = publicationIdeas.length
     ? publicationIdeas[
         Math.max(
           0,
-          (editorialTarget?.plan.sequence || recentPublications.length + 1) - 1,
+          (editorialTarget?.plan.sequence || recentPublications.length + 1) - 1
         ) % publicationIdeas.length
       ]
     : "";
@@ -1956,9 +2118,12 @@ export async function POST(request: Request) {
   const idea = editorialTarget
     ? `${guidedIdea}\n\nPLAN ÉDITORIAL : publication ${editorialTarget.plan.sequence}/${editorialTarget.plan.totalSlots} du mois glissant, prévue le ${editorialTarget.plan.scheduledFor}. Choisis un angle concret distinct des autres publications du mois, tout en respectant strictement le thème et les informations vérifiées du profil.`
     : guidedIdea;
-  const requiresGeneratedVideo = channels.includes("youtube_shorts");
+  const requiresGeneratedVideo =
+    automaticMediaKind !== "image" && channels.includes("youtube_shorts");
   const prefersExistingVideo =
-    requiresGeneratedVideo || channels.includes("tiktok");
+    automaticMediaKind === "video" ||
+    (automaticMediaKind === "existing" &&
+      (requiresGeneratedVideo || channels.includes("tiktok")));
   const mediaSelectionStartedAt = Date.now();
   const recentMediaUsage = await loadRecentMediaUsage(userId);
   const diversifiedMediaSelection = automation.useImageBank
@@ -1991,20 +2156,21 @@ export async function POST(request: Request) {
   const shouldGenerateMedia =
     automation.preferredMediaSource === "ai_generation" ||
     !fallbackMedia ||
+    (automaticMediaKind !== "existing" &&
+      fallbackKind !== automaticMediaKind) ||
     (requiresGeneratedVideo && fallbackKind !== "video");
-  const plannedMediaKind = editorialTarget?.plan.mediaKind;
   const generatedKind =
-    plannedMediaKind === "image" || plannedMediaKind === "video"
-      ? plannedMediaKind
+    automaticMediaKind === "image" || automaticMediaKind === "video"
+      ? automaticMediaKind
       : requiresGeneratedVideo
-        ? "video"
-        : "image";
+      ? "video"
+      : "image";
   const requestedGenerationCount =
     shouldGenerateMedia && generatedKind === "image"
       ? INR_AGENT_IMAGES_PER_PUBLICATION
       : shouldGenerateMedia
-        ? 1
-        : 0;
+      ? 1
+      : 0;
   const generatedMediaResults: Array<
     Awaited<ReturnType<typeof generateInrAgentMedia>>
   > = [];
@@ -2024,11 +2190,10 @@ export async function POST(request: Request) {
         theme: agentTheme,
         kind: generatedKind,
         adminUnlimited: isAdmin,
-        studioMediaPreferencePercent:
-          automation.studioMediaPreferencePercent,
+        studioMediaPreferencePercent: automation.studioMediaPreferencePercent,
         studioPreferences: studioMediaPreferences,
         variantSeed: `${mediaVariantSeed}:${index}`,
-      }),
+      })
     );
   }
   const generatedMediaResult =
@@ -2038,20 +2203,18 @@ export async function POST(request: Request) {
   const generatedMediaAssets = generatedMediaResults.flatMap((result) =>
     result.item
       ? [generatedPickerItemToAgentMedia({ item: result.item, business })]
-      : [],
+      : []
   );
   const fallbackMatchesPlan =
-    !editorialTarget ||
-    plannedMediaKind === "existing" ||
-    plannedMediaKind === fallbackKind;
+    automaticMediaKind === "existing" || automaticMediaKind === fallbackKind;
   let media = generatedMediaResult?.item
     ? generatedPickerItemToAgentMedia({
         item: generatedMediaResult.item,
         business,
       })
     : fallbackMatchesPlan
-      ? fallbackMedia
-      : null;
+    ? fallbackMedia
+    : null;
 
   // Si une génération d'image ne peut pas satisfaire YouTube Shorts, on ne
   // remplace jamais une vidéo existante valide par cette image.
@@ -2066,8 +2229,8 @@ export async function POST(request: Request) {
   const mediaAssets: ImageBankAsset[] = generatedMediaAssets.length
     ? generatedMediaAssets
     : media
-      ? [media]
-      : [];
+    ? [media]
+    : [];
   if (
     editorialTarget &&
     automation.imageRequired &&
@@ -2082,23 +2245,31 @@ export async function POST(request: Request) {
         code: "editorial_media_required_unavailable",
         outcomes,
       },
-      { status: primaryOutcome === "quota_reached" ? 429 : 503 },
+      { status: primaryOutcome === "quota_reached" ? 429 : 503 }
     );
   }
   mediaSelectionMs = Date.now() - mediaSelectionStartedAt;
   const failedGeneratedMediaResult = generatedMediaResults.find(
-    (result) => result.outcome !== "generated",
+    (result) => result.outcome !== "generated"
   );
   const generationWarning = failedGeneratedMediaResult
     ? failedGeneratedMediaResult.outcome === "quota_reached"
       ? "ai_generation_quota_reached_existing_media_fallback_used"
       : failedGeneratedMediaResult.outcome !== "generated"
-        ? `ai_generation_${failedGeneratedMediaResult.outcome}_existing_media_fallback_used`
-        : ""
+      ? `ai_generation_${failedGeneratedMediaResult.outcome}_existing_media_fallback_used`
+      : ""
     : "";
   const mediaSelectionTrace = {
-    policyVersion: "media_selection_v7_monthly_editorial_mix",
+    policyVersion: "media_selection_v8_shared_editorial_instant_mix",
     editorialPlan: editorialTarget?.plan || null,
+    instantMediaMix: instantMediaMix
+      ? {
+          preparedPublications: instantMediaMix.preparedPublications,
+          videoPublications: instantMediaMix.videoPublications,
+          selectedKind: instantMediaMix.mediaKind,
+          historyAvailable: instantMediaMix.historyAvailable,
+        }
+      : null,
     triedSources: [
       ...(shouldGenerateMedia ? ["ai_media_generation"] : []),
       ...(automation.useImageBank
@@ -2121,8 +2292,8 @@ export async function POST(request: Request) {
           businessProfession.profession &&
           isValidJobForSector(
             businessProfession.sector,
-            businessProfession.profession,
-          ),
+            businessProfession.profession
+          )
       ),
     },
     diversification: diversifiedMediaSelection.diversificationTrace,
@@ -2141,8 +2312,9 @@ export async function POST(request: Request) {
           requestedCount: requestedGenerationCount,
           generatedCount: generatedMediaAssets.length,
           outcomes: generatedMediaResults.map((result) => result.outcome),
-          consumedSharedStudioQuota:
-            generatedMediaResults.some((result) => result.outcome === "generated"),
+          consumedSharedStudioQuota: generatedMediaResults.some(
+            (result) => result.outcome === "generated"
+          ),
         }
       : {
           attempted: false,
@@ -2167,20 +2339,20 @@ export async function POST(request: Request) {
     recentMediaPolicy: getRecentMediaTrace(recentMediaUsage),
     selectedWasRecentlyUsed:
       media && media.source !== "ai_media_generation"
-      ? isRecentlyUsedMediaRow(
-          {
-            id: media.id,
-            storage_path: media.storagePath,
-          },
-          media.librarySource === "pro_media_library"
-            ? "pro_media_library"
-            : "inrcy_image_bank",
-          recentMediaUsage,
-        )
-      : false,
+        ? isRecentlyUsedMediaRow(
+            {
+              id: media.id,
+              storage_path: media.storagePath,
+            },
+            media.librarySource === "pro_media_library"
+              ? "pro_media_library"
+              : "inrcy_image_bank",
+            recentMediaUsage
+          )
+        : false,
     warnings: [
       generationWarning,
-      youtubeDisabledForPlannedImage
+      youtubeDisabledForImage
         ? "youtube_shorts_disabled_image_publication"
         : "",
       media?.librarySource === "pro_media_library" &&
@@ -2200,18 +2372,15 @@ export async function POST(request: Request) {
   if (youtubeDisabledForFinalImage) {
     channels = channels.filter((channel) => channel !== "youtube_shorts");
     autoDisabledChannels = Array.from(
-      new Set<BoosterChannels>([
-        ...autoDisabledChannels,
-        "youtube_shorts",
-      ]),
+      new Set<BoosterChannels>([...autoDisabledChannels, "youtube_shorts"])
     );
     if (
       !mediaSelectionTrace.warnings.includes(
-        "youtube_shorts_disabled_image_publication",
+        "youtube_shorts_disabled_image_publication"
       )
     ) {
       mediaSelectionTrace.warnings.push(
-        "youtube_shorts_disabled_image_publication",
+        "youtube_shorts_disabled_image_publication"
       );
     }
   }
@@ -2223,16 +2392,16 @@ export async function POST(request: Request) {
         code: "INR_AGENT_IMAGE_NO_COMPATIBLE_CHANNEL",
         autoDisabledChannels,
       },
-      { status: 400 },
+      { status: 400 }
     );
   }
   const images = mediaAssets.filter(
-    (asset) => (asset.mediaType || asset.kind || "image") === "image",
+    (asset) => (asset.mediaType || asset.kind || "image") === "image"
   );
   const image = images[0] || null;
   const video =
     mediaAssets.find(
-      (asset) => (asset.mediaType || asset.kind || "image") === "video",
+      (asset) => (asset.mediaType || asset.kind || "image") === "video"
     ) || null;
 
   let quotaReservation: AiCreditReservation | null = null;
@@ -2285,14 +2454,14 @@ export async function POST(request: Request) {
   const imagesForAI = video
     ? videoPreparation?.frames || []
     : fastMetadataOnlyMedia
-      ? []
-      : await prepareAgentSelectedImageForAI(image);
+    ? []
+    : await prepareAgentSelectedImageForAI(image);
   imagePreparationMs = video ? 0 : Date.now() - imagePreparationStartedAt;
   const selectedMediaContext = buildAgentSelectedMediaContext(
     media,
     imagesForAI.length > 0,
     fastMetadataOnlyMedia,
-    videoPreparation,
+    videoPreparation
   );
   const videoGenerationContextMode = video
     ? getVideoGenerationContextMode(videoPreparation)
@@ -2326,18 +2495,18 @@ export async function POST(request: Request) {
   // la préparation du texte. Les canaux compatibles restent prêts en texte seul,
   // les canaux qui exigent un média sont marqués comme incomplets canal par canal.
   const mediaReadinessByChannel = Object.fromEntries(
-    channels.map((channel) => [channel, channelMediaReadiness(channel, media)]),
+    channels.map((channel) => [channel, channelMediaReadiness(channel, media)])
   );
   const mediaAdaptationByChannel = Object.fromEntries(
-    channels.map((channel) => [
-      channel,
-      channelMediaAdaptation(channel, media),
-    ]),
+    channels.map((channel) => [channel, channelMediaAdaptation(channel, media)])
   );
 
   try {
-    let versions: Awaited<ReturnType<typeof generateBoosterPosts>>["versions"] = {};
-    let recoveredChannels: Awaited<ReturnType<typeof generateBoosterPosts>>["recoveredChannels"] = [];
+    let versions: Awaited<ReturnType<typeof generateBoosterPosts>>["versions"] =
+      {};
+    let recoveredChannels: Awaited<
+      ReturnType<typeof generateBoosterPosts>
+    >["recoveredChannels"] = [];
     const aiGenerationStartedAt = Date.now();
     try {
       ({ versions, recoveredChannels } = await generateBoosterPosts({
@@ -2372,14 +2541,15 @@ export async function POST(request: Request) {
     const persistenceStartedAt = Date.now();
     const now = new Date().toISOString();
     const targetChannels = channels.map(
-      (channel) => boosterToAgentChannel[channel],
+      (channel) => boosterToAgentChannel[channel]
     );
     const targetBoosterChannelSet = new Set(channels);
     const editorialSkippedChannels = editorialTarget
       ? editorialTarget.plan.channels.filter((channel) => {
-          const boosterChannel = inrAgentChannelToBoosterPublishChannel(channel);
+          const boosterChannel =
+            inrAgentChannelToBoosterPublishChannel(channel);
           return Boolean(
-            boosterChannel && !targetBoosterChannelSet.has(boosterChannel),
+            boosterChannel && !targetBoosterChannelSet.has(boosterChannel)
           );
         })
       : [];
@@ -2422,8 +2592,8 @@ export async function POST(request: Request) {
             status: videoPreparation.status,
             frameCount: videoPreparation.frames.length,
             transcriptAvailable: Boolean(videoPreparation.transcript),
-            warningCodes: videoPreparation.warnings.map((warning) =>
-              warning.split(":", 1)[0],
+            warningCodes: videoPreparation.warnings.map(
+              (warning) => warning.split(":", 1)[0]
             ),
             cacheSource: videoPreparation.cache.source,
             persisted: videoPreparation.cache.persisted,
@@ -2447,63 +2617,63 @@ export async function POST(request: Request) {
     };
 
     const actionValues = {
-        user_id: userId,
-        automation_key: "publish",
-        action_type: "publication",
-        target_tool: "booster",
-        title,
-        summary: buildSummary(
-          channels,
-          media,
-          mediaAssets.length,
-          autoDisabledChannels,
+      user_id: userId,
+      automation_key: "publish",
+      action_type: "publication",
+      target_tool: "booster",
+      title,
+      summary: buildSummary(
+        channels,
+        media,
+        mediaAssets.length,
+        autoDisabledChannels
+      ),
+      preview_text: previewText,
+      target_channels: targetChannels,
+      target_themes: [agentTheme],
+      recipients: [],
+      image_assets: mediaAssets,
+      payload,
+      validation_required: requiresManualValidation(automation.validationMode),
+      execution_policy: getExecutionPolicy(automation.validationMode),
+      status: getInitialStatus(automation.validationMode),
+      scheduled_for: editorialTarget?.plan.scheduledFor || null,
+      prepared_at: now,
+      metadata: {
+        ...(editorialTarget?.metadata || {}),
+        automationFrequency: automation.frequency,
+        preparedManually: !isCron,
+        preparedByCron: isCron,
+        editorialPlan: Boolean(editorialTarget),
+        editorialPlanVersion: editorialTarget ? 1 : undefined,
+        editorialState: editorialTarget ? "ready" : undefined,
+        editorialGeneratedAt: editorialTarget ? now : undefined,
+        editorialNextRetryAt: editorialTarget ? null : undefined,
+        editorialLastError: editorialTarget ? null : undefined,
+        editorialPreparedChannels: editorialTarget ? targetChannels : undefined,
+        editorialSkippedChannels: editorialTarget
+          ? editorialSkippedChannels
+          : undefined,
+        editorialQuota: editorialTarget
+          ? {
+              scope: "inr_agent_editorial",
+              horizonDays: automation.planningHorizonDays,
+              credits: actionCredits,
+              sharedMonthlyQuota: true,
+              weeklyQuotaAffected: false,
+              idempotencyKey: editorialTarget.id,
+            }
+          : undefined,
+        // Les canaux récupérés le sont désormais exclusivement par une nouvelle passe IA.
+        // Aucun texte éditorial générique local n'est injecté.
+        aiRecoveredChannels: recoveredChannels.map(
+          (channel) => boosterToAgentChannel[channel]
         ),
-        preview_text: previewText,
-        target_channels: targetChannels,
-        target_themes: [agentTheme],
-        recipients: [],
-        image_assets: mediaAssets,
-        payload,
-        validation_required: requiresManualValidation(automation.validationMode),
-        execution_policy: getExecutionPolicy(automation.validationMode),
-        status: getInitialStatus(automation.validationMode),
-        scheduled_for: editorialTarget?.plan.scheduledFor || null,
-        prepared_at: now,
-        metadata: {
-          ...(editorialTarget?.metadata || {}),
-          automationFrequency: automation.frequency,
-          preparedManually: !isCron,
-          preparedByCron: isCron,
-          editorialPlan: Boolean(editorialTarget),
-          editorialPlanVersion: editorialTarget ? 1 : undefined,
-          editorialState: editorialTarget ? "ready" : undefined,
-          editorialGeneratedAt: editorialTarget ? now : undefined,
-          editorialNextRetryAt: editorialTarget ? null : undefined,
-          editorialLastError: editorialTarget ? null : undefined,
-          editorialPreparedChannels: editorialTarget ? targetChannels : undefined,
-          editorialSkippedChannels: editorialTarget
-            ? editorialSkippedChannels
-            : undefined,
-          editorialQuota: editorialTarget
-            ? {
-                scope: "inr_agent_editorial",
-                horizonDays: automation.planningHorizonDays,
-                credits: actionCredits,
-                sharedMonthlyQuota: true,
-                weeklyQuotaAffected: false,
-                idempotencyKey: editorialTarget.id,
-              }
-            : undefined,
-          // Les canaux récupérés le sont désormais exclusivement par une nouvelle passe IA.
-          // Aucun texte éditorial générique local n'est injecté.
-          aiRecoveredChannels: recoveredChannels.map(
-            (channel) => boosterToAgentChannel[channel],
-          ),
-          fallbackAppliedChannels: [],
-          mediaSelectionTrace,
-        },
-        updated_at: now,
-      };
+        fallbackAppliedChannels: [],
+        mediaSelectionTrace,
+      },
+      updated_at: now,
+    };
     const actionSelect =
       "id, automation_key, action_type, target_tool, title, summary, preview_text, target_channels, target_themes, recipients, image_assets, payload, validation_required, execution_policy, status, scheduled_for, prepared_at, validated_at, refused_at, completed_at, last_error, created_at, updated_at";
     let inserted: unknown = null;
@@ -2561,7 +2731,7 @@ export async function POST(request: Request) {
         {
           error: "Impossible d’enregistrer l’action préparée iNr’Agent.",
         },
-        { status: 500 },
+        { status: 500 }
       );
     }
 
@@ -2587,11 +2757,15 @@ export async function POST(request: Request) {
           .maybeSingle();
         const nextUsageCount =
           Number(
-            (usageRow as { usage_count?: unknown } | null)?.usage_count || 0,
+            (usageRow as { usage_count?: unknown } | null)?.usage_count || 0
           ) + 1;
         const usagePatch =
           imageTable === "pro_media_library"
-            ? { usage_count: nextUsageCount, last_used_at: now, updated_at: now }
+            ? {
+                usage_count: nextUsageCount,
+                last_used_at: now,
+                updated_at: now,
+              }
             : { usage_count: nextUsageCount, updated_at: now };
         await supabaseAdmin
           .from(imageTable)
@@ -2661,14 +2835,17 @@ export async function POST(request: Request) {
       totalMs: Date.now() - routeStartedAt,
       success: false,
       stage: "generate-or-persist",
-      message: error instanceof Error ? error.message : String(error || "Erreur inconnue"),
+      message:
+        error instanceof Error
+          ? error.message
+          : String(error || "Erreur inconnue"),
     });
     throw error;
   }
 }
 function channelMediaAdaptation(
   channel: BoosterChannels,
-  media: ImageBankAsset | null,
+  media: ImageBankAsset | null
 ) {
   const mediaKind = media?.mediaType || media?.kind || "none";
   const channelLabel = channelLabels[boosterToAgentChannel[channel]] || channel;

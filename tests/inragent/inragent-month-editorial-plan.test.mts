@@ -6,6 +6,7 @@ import {
   INR_AGENT_EDITORIAL_MIN_SLOTS_FOR_VIDEO,
   INR_AGENT_EDITORIAL_VIDEO_RATIO,
   inrAgentEditorialVideoCount,
+  inrAgentNextInstantMediaKind,
 } from "../../lib/inrAgentEditorialMediaPolicy.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
@@ -23,9 +24,18 @@ test("iNrAgent matérialise l'horizon choisi selon les créneaux et critères", 
   assert.match(settings, /enabled: false/);
   assert.match(settings, /planningHorizonDays: 15/);
   assert.match(config, /planningHorizonDays: 15/);
-  assert.match(client, /<option value=\{7\}>\{i18nT\("7_jours_a0f70b5c"\)\}<\/option>/);
-  assert.match(client, /<option value=\{15\}>\{i18nT\("15_jours_recommande_9f4bc5ad"\)\}<\/option>/);
-  assert.match(client, /<option value=\{30\}>\{i18nT\("1_mois_e5493c85"\)\}<\/option>/);
+  assert.match(
+    client,
+    /<option value=\{7\}>\{i18nT\("7_jours_a0f70b5c"\)\}<\/option>/
+  );
+  assert.match(
+    client,
+    /<option value=\{15\}>\{i18nT\("15_jours_recommande_9f4bc5ad"\)\}<\/option>/
+  );
+  assert.match(
+    client,
+    /<option value=\{30\}>\{i18nT\("1_mois_e5493c85"\)\}<\/option>/
+  );
   assert.match(planner, /normalizeScheduleSlots\(automation\)/);
   assert.match(planner, /normalizeInrAgentMonthDays/);
   assert.match(planner, /automation\.allowedThemes/);
@@ -37,10 +47,13 @@ test("iNrAgent matérialise l'horizon choisi selon les créneaux et critères", 
   assert.match(planner, /imageCount: 0 \| 1/);
   assert.match(
     planner,
-    /mediaKind === "image" \? INR_AGENT_IMAGES_PER_PUBLICATION : 0/,
+    /mediaKind === "image" \? INR_AGENT_IMAGES_PER_PUBLICATION : 0/
   );
   assert.doesNotMatch(planner, /plannedImageCount/);
-  assert.match(planner, /channels = channels\.filter\(\(channel\) => channel !== "youtube"\)/);
+  assert.match(
+    planner,
+    /channels = channels\.filter\(\(channel\) => channel !== "youtube"\)/
+  );
 });
 
 test("les thèmes éditoriaux enrichis traversent réglages, prompts et médias", () => {
@@ -57,9 +70,18 @@ test("les thèmes éditoriaux enrichis traversent réglages, prompts et médias"
     "recrutement",
   ]) {
     assert.ok(settings.includes(`"${theme}"`), `${theme} doit être autorisé`);
-    assert.ok(config.includes(`"${theme}"`), `${theme} doit être envoyé par l'interface`);
-    assert.ok(prepare.includes(`${theme}:`), `${theme} doit avoir un thème Booster`);
-    assert.ok(prepare.includes(`args.theme === "${theme}"`), `${theme} doit avoir une consigne sûre`);
+    assert.ok(
+      config.includes(`"${theme}"`),
+      `${theme} doit être envoyé par l'interface`
+    );
+    assert.ok(
+      prepare.includes(`${theme}:`),
+      `${theme} doit avoir un thème Booster`
+    );
+    assert.ok(
+      prepare.includes(`args.theme === "${theme}"`),
+      `${theme} doit avoir une consigne sûre`
+    );
   }
   assert.match(prepare, /Ne jamais inventer de client, de citation, de note/);
   assert.match(prepare, /Ne jamais annoncer un poste, un contrat, un salaire/);
@@ -122,14 +144,14 @@ test("le plan est durable, dédupliqué et protège les quotas lors d'un changem
 
 test("la préparation limite iNrAgent à une image jusqu'à Booster et à l'agenda", () => {
   const prepare = read("app/api/agent/actions/prepare-publish/route.ts");
-  const regenerate = read(
-    "app/api/agent/actions/regenerate-channel/route.ts",
-  );
+  const regenerate = read("app/api/agent/actions/regenerate-channel/route.ts");
   const server = read("lib/inrAgentEditorialPlanServer.ts");
   const messages = read("messages/fr-FR/agent.json");
   const schedule = read("app/api/agent/actions/schedule/route.ts");
   const preview = read("app/dashboard/agent/_lib/agent.publish-preview.ts");
-  const scheduleItems = read("app/dashboard/agent/_lib/agent.schedule-items.ts");
+  const scheduleItems = read(
+    "app/dashboard/agent/_lib/agent.schedule-items.ts"
+  );
   const client = read("app/dashboard/agent/AgentClient.tsx");
 
   assert.match(prepare, /requestedGenerationCount/);
@@ -167,6 +189,63 @@ test("les vidéos automatiques iNrAgent restent exceptionnelles", () => {
   assert.equal(inrAgentEditorialVideoCount(20), 2);
 });
 
+test("les publications instantanées rattrapent le ratio sans vidéos consécutives", () => {
+  assert.equal(
+    inrAgentNextInstantMediaKind({
+      preparedPublications: 0,
+      videoPublications: 0,
+    }),
+    "image"
+  );
+  assert.equal(
+    inrAgentNextInstantMediaKind({
+      preparedPublications: 7,
+      videoPublications: 0,
+    }),
+    "video"
+  );
+  assert.equal(
+    inrAgentNextInstantMediaKind({
+      preparedPublications: 8,
+      videoPublications: 1,
+    }),
+    "image"
+  );
+  assert.equal(
+    inrAgentNextInstantMediaKind({
+      preparedPublications: 2,
+      videoPublications: 2,
+    }),
+    "image"
+  );
+  assert.equal(
+    inrAgentNextInstantMediaKind({
+      preparedPublications: 14,
+      videoPublications: 1,
+    }),
+    "video"
+  );
+});
+
+test("le direct applique le mix partagé et bannit YouTube d'une image", () => {
+  const prepare = read("app/api/agent/actions/prepare-publish/route.ts");
+
+  assert.match(prepare, /loadInstantMediaMixState/);
+  assert.match(prepare, /inrAgentNextInstantMediaKind/);
+  assert.match(prepare, /preparedManually:\s*true/);
+  assert.match(prepare, /editorialPlan:\s*false/);
+  assert.match(prepare, /contains\("payload", \{ mediaType: "video" \}\)/);
+  assert.match(prepare, /automaticMediaKind === "image"/);
+  assert.match(
+    prepare,
+    /automaticMediaKind === "image" && channel === "youtube_shorts"/
+  );
+  assert.match(
+    prepare,
+    /automaticMediaKind === "existing" &&[\s\S]*?channels\.includes\("tiktok"\)/
+  );
+});
+
 test("les médias iNrAgent sont adaptés sans rognage automatique", () => {
   const normalizer = read("lib/aiMediaNormalizer.ts");
   const schedule = read("app/api/agent/actions/schedule/route.ts");
@@ -177,7 +256,10 @@ test("les médias iNrAgent sont adaptés sans rognage automatique", () => {
   assert.match(schedule, /automaticFit: "contain"/);
   assert.match(execute, /automaticFit: "contain"/);
   assert.match(client, /buttonClassName=\{dashboardStyles\.secondaryBtn\}/);
-  assert.match(client, /primaryButtonClassName=\{dashboardStyles\.primaryBtn\}/);
+  assert.match(
+    client,
+    /primaryButtonClassName=\{dashboardStyles\.primaryBtn\}/
+  );
 });
 
 test("le carrousel de publications conserve les actions éditoriales futures", () => {
@@ -195,17 +277,17 @@ test("le robot du cockpit PC reste entier et proportionnel", () => {
 
   assert.match(
     styles,
-    /\.automationGridStandard \.agentCommandRailRobot > img[\s\S]*?object-fit: contain !important;/,
+    /\.automationGridStandard \.agentCommandRailRobot > img[\s\S]*?object-fit: contain !important;/
   );
   assert.match(styles, /grid-template-rows: 306px repeat\(2, 68px\)/);
   assert.match(
     styles,
-    /\.automationGridStandard \.agentCommandRailRobot[\s\S]*?border: 1px solid rgba\(125, 211, 252, 0\.54\)/,
+    /\.automationGridStandard \.agentCommandRailRobot[\s\S]*?border: 1px solid rgba\(125, 211, 252, 0\.54\)/
   );
   assert.match(styles, /outline-offset: -7px/);
   assert.match(
     styles,
-    /\.automationGrid,[\s\S]*?background: transparent;[\s\S]*?box-shadow: none;/,
+    /\.automationGrid,[\s\S]*?background: transparent;[\s\S]*?box-shadow: none;/
   );
 });
 
@@ -216,9 +298,11 @@ test("la publication iNrAgent reste manuelle, notifiée et protégée en profond
   const prepare = read("app/api/agent/actions/prepare-publish/route.ts");
   const schedule = read("app/api/agent/actions/schedule/route.ts");
   const editorial = read("lib/inrAgentEditorialPlanServer.ts");
-  const scheduledCron = read("app/api/cron/inr-agent-scheduled-actions/route.ts");
+  const scheduledCron = read(
+    "app/api/cron/inr-agent-scheduled-actions/route.ts"
+  );
   const migration = read(
-    "ops/sql/2026-09-04_inr_agent_safe_editorial_workflow.sql",
+    "ops/sql/2026-09-04_inr_agent_safe_editorial_workflow.sql"
   );
 
   assert.doesNotMatch(settings, /^\s*"automatic_publish",?$/m);
@@ -230,7 +314,10 @@ test("la publication iNrAgent reste manuelle, notifiée et protégée en profond
   assert.match(prepare, /return true;/);
   assert.match(schedule, /resolveInrAgentActionRequest/);
   assert.match(schedule, /INR_AGENT_MANUAL_VALIDATION_REQUIRED/);
-  assert.doesNotMatch(editorial, /schedulePreparedAutomaticInrAgentPublications/);
+  assert.doesNotMatch(
+    editorial,
+    /schedulePreparedAutomaticInrAgentPublications/
+  );
   assert.match(editorial, /cancelAutomaticScheduledExecution/);
   assert.match(editorial, /notifyReadyInrAgentEditorialBatch/);
   assert.match(editorial, /inr_agent_editorial_batch_ready/);
@@ -242,7 +329,10 @@ test("la publication iNrAgent reste manuelle, notifiée et protégée en profond
   assert.match(migration, /inrcy_save_inr_agent_settings/);
   assert.match(migration, /status = 'cancelled'/);
   assert.match(migration, /validation_required is distinct from true/);
-  assert.match(migration, /execution_policy is distinct from 'manual_validation'/);
+  assert.match(
+    migration,
+    /execution_policy is distinct from 'manual_validation'/
+  );
   assert.match(migration, /else validated_at/);
 });
 
@@ -259,34 +349,40 @@ test("les CTA iNrAgent restent structurés et possèdent une destination réelle
   assert.match(ctaPreferences, /ctaPhone: phone/);
   assert.match(
     ctaPreferences,
-    /if \(!customUrl && args\.allowIncompleteInput !== true\) return emptyCta\(\);/,
+    /if \(!customUrl && args\.allowIncompleteInput !== true\) return emptyCta\(\);/
   );
   assert.match(ctaDefaults, /\.from\("profiles"\)[\s\S]*?\.select\("phone"\)/);
-  assert.match(ctaDefaults, /\.from\("inrcy_site_configs"\)[\s\S]*?\.select\("site_url"\)/);
+  assert.match(
+    ctaDefaults,
+    /\.from\("inrcy_site_configs"\)[\s\S]*?\.select\("site_url"\)/
+  );
   assert.match(prepare, /applySafePreferredCta\(\{/);
   assert.match(prepare, /preserveExplicit: false/);
   assert.match(prepare, /ctaPolicy: \{/);
   assert.match(execute, /record\.ctaMode \?\? record\.cta_mode/);
   assert.match(execute, /loadBoosterCtaDefaults\(\{ supabase, userId \}\)/);
   assert.match(execute, /applySafePreferredCta\(\{/);
-  assert.match(preview, /if \(ctaLabel && ctaPhone\) return `\$\{ctaLabel\} — \$\{ctaPhone\}`/);
+  assert.match(
+    preview,
+    /if \(ctaLabel && ctaPhone\) return `\$\{ctaLabel\} — \$\{ctaPhone\}`/
+  );
 });
 
 test("les réglages globaux et les automatisations sont enregistrés atomiquement", () => {
   const route = read("app/api/agent/settings/route.ts");
   const migration = read(
-    "ops/sql/2026-09-04_inr_agent_safe_editorial_workflow.sql",
+    "ops/sql/2026-09-04_inr_agent_safe_editorial_workflow.sql"
   );
 
   assert.match(route, /\.rpc\([\s\S]*?"inrcy_save_inr_agent_settings"/);
   assert.match(route, /INR_AGENT_SETTINGS_MIGRATION_REQUIRED/);
   assert.doesNotMatch(
     route,
-    /\.from\("inr_agent_settings"\)[\s\S]{0,120}\.upsert\(globalPayload/,
+    /\.from\("inr_agent_settings"\)[\s\S]{0,120}\.upsert\(globalPayload/
   );
   assert.doesNotMatch(
     route,
-    /\.from\("inr_agent_automation_settings"\)[\s\S]{0,120}\.upsert\(automationPayloads/,
+    /\.from\("inr_agent_automation_settings"\)[\s\S]{0,120}\.upsert\(automationPayloads/
   );
   assert.match(migration, /security definer/);
   assert.match(migration, /get diagnostics v_saved_automations = row_count/);
@@ -298,24 +394,24 @@ test("l'activation des réglages reste compacte dans le header", () => {
   const styles = read("app/dashboard/agent/agent.module.css");
   const settingsModal = client.slice(
     client.indexOf("{settingsAutomation && settingsConfig && ("),
-    client.indexOf("{publishMediaModal ? ("),
+    client.indexOf("{publishMediaModal ? (")
   );
 
   assert.match(
     settingsModal,
-    /<header[\s\S]{0,180}?className=\{styles\.settingsModalHeader\}/,
+    /<header[\s\S]{0,180}?className=\{styles\.settingsModalHeader\}/
   );
   assert.match(settingsModal, /className=\{styles\.settingsHeaderSwitch\}/);
   assert.match(
     settingsModal,
-    /disabled=\{\s*settingsNoConnectedChannelBlock \|\|\s*settingsPublicationIdeaVoiceBusy\s*\}/,
+    /disabled=\{\s*settingsNoConnectedChannelBlock \|\|\s*settingsPublicationIdeaVoiceBusy\s*\}/
   );
   assert.match(settingsModal, /className=\{styles\.modalClose\}/);
   assert.doesNotMatch(settingsModal, /className=\{styles\.switchLine\}/);
   assert.match(styles, /\.settingsModalHeaderActions[\s\S]*?display: flex;/);
   assert.match(
     styles,
-    /\.settingsModal:not\(\.helpModal\) \.settingsModalHeader \.modalClose[\s\S]*?position: static;/,
+    /\.settingsModal:not\(\.helpModal\) \.settingsModalHeader \.modalClose[\s\S]*?position: static;/
   );
 });
 
@@ -325,17 +421,56 @@ test("le cockpit mobile garde actions, robot, publication et commandes lisibles"
   const responsiveStyles = styles.slice(responsiveStart);
 
   assert.ok(responsiveStart >= 0, "la composition mobile finale doit exister");
-  assert.match(responsiveStyles, /\.agentCommandRailIdentity\s*\{[\s\S]*?display: none !important;/);
-  assert.match(responsiveStyles, /\.automationGrid,[\s\S]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\) !important;/);
-  assert.match(responsiveStyles, /\.robotCard:not\(\.scheduledEditCard\)[\s\S]*?height: 168px !important;/);
-  assert.match(responsiveStyles, /\.automationCard \.cardTitleShort\s*\{[\s\S]*?display: block !important;/);
-  assert.match(responsiveStyles, /\.automationCard \.settingsButtonLabel\s*\{[\s\S]*?display: none !important;/);
-  assert.match(responsiveStyles, /\.publishPostStack\s*\{[\s\S]*?grid-template-columns: minmax\(0, 1fr\) !important;/);
-  assert.match(responsiveStyles, /\.publishPostStack > \.publishPostCard,[\s\S]*?grid-column: 1 !important;[\s\S]*?grid-row: auto !important;/);
-  assert.match(responsiveStyles, /\.publishPostCard,[\s\S]*?grid-template-columns: minmax\(0, 1fr\) !important;/);
-  assert.match(responsiveStyles, /\.publishCtaStandalone\s*\{[\s\S]*?width: 100% !important;/);
-  assert.match(responsiveStyles, /\.channelScroller\s*\{[\s\S]*?flex-wrap: nowrap !important;/);
-  assert.match(responsiveStyles, /\.saveCampaignDraftButton svg,[\s\S]*?display: block !important;/);
-  assert.match(responsiveStyles, /button\[data-channel="linkedin"\] img\.channelLogoLinkedin[\s\S]*?width: 28px !important;[\s\S]*?transform: none !important;/);
-  assert.match(responsiveStyles, /button\[data-channel="gmb"\] img[\s\S]*?width: 24px !important;[\s\S]*?transform: scale\(1\.55\) !important;/);
+  assert.match(
+    responsiveStyles,
+    /\.agentCommandRailIdentity\s*\{[\s\S]*?display: none !important;/
+  );
+  assert.match(
+    responsiveStyles,
+    /\.automationGrid,[\s\S]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\) !important;/
+  );
+  assert.match(
+    responsiveStyles,
+    /\.robotCard:not\(\.scheduledEditCard\)[\s\S]*?height: 168px !important;/
+  );
+  assert.match(
+    responsiveStyles,
+    /\.automationCard \.cardTitleShort\s*\{[\s\S]*?display: block !important;/
+  );
+  assert.match(
+    responsiveStyles,
+    /\.automationCard \.settingsButtonLabel\s*\{[\s\S]*?display: none !important;/
+  );
+  assert.match(
+    responsiveStyles,
+    /\.publishPostStack\s*\{[\s\S]*?grid-template-columns: minmax\(0, 1fr\) !important;/
+  );
+  assert.match(
+    responsiveStyles,
+    /\.publishPostStack > \.publishPostCard,[\s\S]*?grid-column: 1 !important;[\s\S]*?grid-row: auto !important;/
+  );
+  assert.match(
+    responsiveStyles,
+    /\.publishPostCard,[\s\S]*?grid-template-columns: minmax\(0, 1fr\) !important;/
+  );
+  assert.match(
+    responsiveStyles,
+    /\.publishCtaStandalone\s*\{[\s\S]*?width: 100% !important;/
+  );
+  assert.match(
+    responsiveStyles,
+    /\.channelScroller\s*\{[\s\S]*?flex-wrap: nowrap !important;/
+  );
+  assert.match(
+    responsiveStyles,
+    /\.saveCampaignDraftButton svg,[\s\S]*?display: block !important;/
+  );
+  assert.match(
+    responsiveStyles,
+    /button\[data-channel="linkedin"\] img\.channelLogoLinkedin[\s\S]*?width: 28px !important;[\s\S]*?transform: none !important;/
+  );
+  assert.match(
+    responsiveStyles,
+    /button\[data-channel="gmb"\] img[\s\S]*?width: 24px !important;[\s\S]*?transform: scale\(1\.55\) !important;/
+  );
 });

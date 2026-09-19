@@ -23,6 +23,7 @@ import useMediaGeneration, {
   type MediaGenerationTeamVideoSpeechMode,
 } from "@/app/dashboard/_hooks/useMediaGeneration";
 import useAiMediaGeneratorPreferences from "@/app/dashboard/_hooks/useAiMediaGeneratorPreferences";
+import type { AiMediaGeneratorBlockDefaults } from "@/lib/aiMediaGenerationPreferences";
 import {
   AI_MEDIA_INSPIRATION_MAX_COUNT,
   AI_MEDIA_INSPIRATION_MAX_DIMENSION,
@@ -87,6 +88,43 @@ const INSPIRATION_IMAGE_ACCEPT = [
   ...INR_MEDIA_ALLOWED_IMAGE_MIME_TYPES,
   ...INR_MEDIA_ALLOWED_IMAGE_EXTENSIONS.map((extension) => `.${extension}`),
 ].join(",");
+
+type RememberPreferenceControlProps = {
+  checked: boolean;
+  disabled: boolean;
+  saving: boolean;
+  label: string;
+  savingLabel: string;
+  blockTitle: string;
+  onChange: (checked: boolean) => void;
+};
+
+function RememberPreferenceControl({
+  checked,
+  disabled,
+  saving,
+  label,
+  savingLabel,
+  blockTitle,
+  onChange,
+}: RememberPreferenceControlProps) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={`${label} — ${blockTitle}`}
+      className={styles.rememberPreference}
+      data-checked={checked ? "true" : "false"}
+      data-saving={saving ? "true" : "false"}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+    >
+      <span aria-hidden="true" />
+      <small>{saving ? savingLabel : label}</small>
+    </button>
+  );
+}
 
 function canvasBlob(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
   return new Promise((resolve, reject) => {
@@ -331,8 +369,11 @@ export default function MediaGenerator({
   const {
     preferences: savedPreferences,
     loaded: preferencesLoaded,
+    loading: preferencesLoading,
     error: preferencesError,
+    savingBlockIds,
     accountEpoch: preferencesAccountEpoch,
+    saveBlock: savePreferenceBlock,
   } = useAiMediaGeneratorPreferences();
 
   const [subjectSource, setSubjectSource] =
@@ -438,6 +479,24 @@ export default function MediaGenerator({
     const block5 = savedPreferences.blocks[5];
     if (block5.saved) {
       setTeamVideoSpeechMode(block5.defaults.teamVideoSpeechMode);
+      if (block5.defaults.identityMode === "reference_team") {
+        setMediaSourceMode("real");
+        setRealCharacterCount(
+          block5.defaults.peopleMode === "none"
+            ? 0
+            : block5.defaults.peopleMode === "team"
+            ? 2
+            : 1
+        );
+      } else if (block5.defaults.identityMode === "professional") {
+        setMediaSourceMode("real");
+        setRealCharacterCount(1);
+      } else if (block5.defaults.peopleMode === "none") {
+        setMediaSourceMode("real");
+        setRealCharacterCount(0);
+      } else {
+        setMediaSourceMode("ai");
+      }
     }
 
     if (block6.saved) {
@@ -711,6 +770,81 @@ export default function MediaGenerator({
   const removeTextKeyword = (keyword: string) => {
     setTextKeywords((current) => current.filter((value) => value !== keyword));
     if (actionError || error) clearTransientState();
+  };
+
+  const handleRememberPreferenceGroup = (
+    groupId: 1 | 2 | 3 | 4,
+    checked: boolean
+  ) => {
+    if (groupId === 1) {
+      const block1: AiMediaGeneratorBlockDefaults[1] = {
+        kind,
+        // Les consignes et le sujet libre restent volontairement ponctuels.
+        subjectSource:
+          subjectSource === "publication" ? "publication" : "profile",
+      };
+      const block2: AiMediaGeneratorBlockDefaults[2] = {
+        typology: savedPreferences.blocks[2].defaults.typology,
+        format,
+      };
+      const block4: AiMediaGeneratorBlockDefaults[4] = {
+        imageStyle,
+        shotType: savedPreferences.blocks[4].defaults.shotType,
+      };
+      void Promise.all([
+        savePreferenceBlock(1, checked, block1),
+        savePreferenceBlock(2, checked, block2),
+        savePreferenceBlock(4, checked, block4),
+      ]);
+      return;
+    }
+
+    if (groupId === 2) {
+      const block5: AiMediaGeneratorBlockDefaults[5] = {
+        peopleMode:
+          mediaSourceMode === "ai"
+            ? "auto"
+            : realCharacterCount === 0
+            ? "none"
+            : realCharacterCount === 1
+            ? "solo"
+            : "team",
+        identityMode:
+          mediaSourceMode === "ai"
+            ? "auto"
+            : realCharacterCount <= 1
+            ? realCharacterCount === 1
+              ? "professional"
+              : "auto"
+            : "reference_team",
+        teamVideoMode: "cinematic",
+        teamVideoSpeechMode,
+      };
+      void savePreferenceBlock(5, checked, block5);
+      return;
+    }
+
+    if (groupId === 3) {
+      const block3: AiMediaGeneratorBlockDefaults[3] = {
+        visualStyle: savedPreferences.blocks[3].defaults.visualStyle,
+        creativity: savedPreferences.blocks[3].defaults.creativity,
+        useBrandColors,
+        logoMode,
+      };
+      void savePreferenceBlock(3, checked, block3);
+      return;
+    }
+
+    const block6: AiMediaGeneratorBlockDefaults[6] = {
+      durationSeconds,
+      connectScenes: savedPreferences.blocks[6].defaults.connectScenes,
+      withText,
+      withMusic,
+      withNarration: teamVideoSpeechMode === "voiceover",
+      narrationVoice,
+      narrationVoiceVariant,
+    };
+    void savePreferenceBlock(6, checked, block6);
   };
 
   const performGeneration = async (veoConsentForAttempt: boolean) => {
@@ -1320,6 +1454,29 @@ export default function MediaGenerator({
               <h3>{t("ai_generator_essential_creation_title")}</h3>
               <p>{t("ai_generator_essential_creation_hint")}</p>
             </div>
+            <RememberPreferenceControl
+              checked={
+                savedPreferences.blocks[1].saved &&
+                savedPreferences.blocks[2].saved &&
+                savedPreferences.blocks[4].saved
+              }
+              disabled={
+                operationLocked ||
+                preferencesLoading ||
+                savingBlockIds.has(1) ||
+                savingBlockIds.has(2) ||
+                savingBlockIds.has(4)
+              }
+              saving={
+                savingBlockIds.has(1) ||
+                savingBlockIds.has(2) ||
+                savingBlockIds.has(4)
+              }
+              label={t("ai_generator_remember_settings")}
+              savingLabel={t("ai_generator_preferences_saving")}
+              blockTitle={t("ai_generator_essential_creation_title")}
+              onChange={(checked) => handleRememberPreferenceGroup(1, checked)}
+            />
           </header>
 
           <div
@@ -1553,6 +1710,17 @@ export default function MediaGenerator({
               <h3>{t("ai_generator_essential_media_title")}</h3>
               <p>{t("ai_generator_essential_media_hint")}</p>
             </div>
+            <RememberPreferenceControl
+              checked={savedPreferences.blocks[5].saved}
+              disabled={
+                operationLocked || preferencesLoading || savingBlockIds.has(5)
+              }
+              saving={savingBlockIds.has(5)}
+              label={t("ai_generator_remember_settings")}
+              savingLabel={t("ai_generator_preferences_saving")}
+              blockTitle={t("ai_generator_essential_media_title")}
+              onChange={(checked) => handleRememberPreferenceGroup(2, checked)}
+            />
           </header>
 
           <div
@@ -1665,6 +1833,17 @@ export default function MediaGenerator({
               <h3>{t("ai_generator_essential_message_title")}</h3>
               <p>{t("ai_generator_essential_message_hint")}</p>
             </div>
+            <RememberPreferenceControl
+              checked={savedPreferences.blocks[3].saved}
+              disabled={
+                operationLocked || preferencesLoading || savingBlockIds.has(3)
+              }
+              saving={savingBlockIds.has(3)}
+              label={t("ai_generator_remember_settings")}
+              savingLabel={t("ai_generator_preferences_saving")}
+              blockTitle={t("ai_generator_essential_message_title")}
+              onChange={(checked) => handleRememberPreferenceGroup(3, checked)}
+            />
           </header>
 
           <label
@@ -1810,6 +1989,17 @@ export default function MediaGenerator({
                 )}
               </p>
             </div>
+            <RememberPreferenceControl
+              checked={savedPreferences.blocks[6].saved}
+              disabled={
+                operationLocked || preferencesLoading || savingBlockIds.has(6)
+              }
+              saving={savingBlockIds.has(6)}
+              label={t("ai_generator_remember_settings")}
+              savingLabel={t("ai_generator_preferences_saving")}
+              blockTitle={t("ai_generator_essential_sound_title")}
+              onChange={(checked) => handleRememberPreferenceGroup(4, checked)}
+            />
           </header>
 
           {kind === "image" ? (

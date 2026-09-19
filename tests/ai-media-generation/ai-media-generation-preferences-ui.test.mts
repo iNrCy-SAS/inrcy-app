@@ -12,26 +12,41 @@ function sourceSection(source: string, startToken: string, endToken: string) {
   return source.slice(start, end);
 }
 
-test("les quatre cartes essentielles remplacent les anciens contrôles de mémorisation", () => {
+test("les quatre cartes essentielles retrouvent leur contrôle de mémorisation", () => {
   const generator = read("app/dashboard/_components/MediaGenerator.tsx");
   const styles = read("app/dashboard/_components/MediaGenerator.module.css");
 
-  assert.equal((generator.match(/<header className=\{styles\.essentialCardHeader\}>/g) || []).length, 4);
-  assert.doesNotMatch(generator, /RememberPreferenceControl|handleRememberPreference/);
-  assert.doesNotMatch(generator, /ai_generator_remember_settings/);
-  assert.match(styles, /\.essentialGrid\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.equal(
+    (
+      generator.match(/<header className=\{styles\.essentialCardHeader\}>/g) ||
+      []
+    ).length,
+    4
+  );
+  assert.equal(
+    (generator.match(/<RememberPreferenceControl/g) || []).length,
+    4
+  );
+  assert.match(generator, /handleRememberPreferenceGroup/);
+  assert.match(generator, /ai_generator_remember_settings/);
+  assert.match(styles, /\.essentialCardHeader \.rememberPreference/);
   assert.match(
     styles,
-    /@media \(max-width: 1100px\)[\s\S]*?\.essentialGrid\s*\{[\s\S]*?grid-template-columns:\s*1fr/,
+    /\.essentialGrid\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/
+  );
+  assert.match(
+    styles,
+    /@media \(max-width: 1100px\)[\s\S]*?\.essentialGrid\s*\{[\s\S]*?grid-template-columns:\s*1fr/
   );
 });
 
 test("le client charge sans cache, recharge au changement de compte et fusionne les PATCH concurrents", () => {
-  const hook = read(
-    "app/dashboard/_hooks/useAiMediaGeneratorPreferences.ts",
-  );
+  const hook = read("app/dashboard/_hooks/useAiMediaGeneratorPreferences.ts");
 
-  assert.match(hook, /const PREFERENCES_ENDPOINT = "\/api\/media-generation\/preferences"/);
+  assert.match(
+    hook,
+    /const PREFERENCES_ENDPOINT = "\/api\/media-generation\/preferences"/
+  );
   assert.match(hook, /method: "GET"[\s\S]*?cache: "no-store"/);
   assert.match(hook, /method: "PATCH"[\s\S]*?cache: "no-store"/);
   assert.match(hook, /credentials: "same-origin"/);
@@ -39,30 +54,58 @@ test("le client charge sans cache, recharge au changement de compte et fusionne 
   assert.match(hook, /requestEpoch !== accountEpochRef\.current/);
   assert.match(
     hook,
-    /blocks:\s*\{[\s\S]*?\.\.\.current\.blocks,[\s\S]*?\[blockId\]: nextPreferences\.blocks\[blockId\]/,
+    /blocks:\s*\{[\s\S]*?\.\.\.current\.blocks,[\s\S]*?\[blockId\]: nextPreferences\.blocks\[blockId\]/
   );
   assert.doesNotMatch(hook, /localStorage|sessionStorage/);
 });
 
 test("le Studio essentiel ne réécrit aucune préférence sensible ou ancien critère", () => {
   const generator = read("app/dashboard/_components/MediaGenerator.tsx");
+  const preferenceSave = sourceSection(
+    generator,
+    "const handleRememberPreferenceGroup",
+    "const performGeneration"
+  );
   const generation = sourceSection(
     generator,
     "const performGeneration",
-    "const handleGenerate",
+    "const handleGenerate"
   );
 
-  assert.doesNotMatch(generator, /patchPreferences|handleRememberPreference/);
-  for (const forbidden of ["typology", "visualStyle", "shotType", "creativity", "videoEngine", "connectScenes"]) {
+  assert.doesNotMatch(generator, /patchPreferences/);
+  for (const sensitive of [
+    "customIdea",
+    "aiInstruction",
+    "inspirationImages",
+    "textKeywords",
+    "identityConsent",
+  ]) {
+    assert.doesNotMatch(
+      preferenceSave,
+      new RegExp(`\\b${sensitive}\\b`),
+      `${sensitive} ne doit jamais être mémorisé`
+    );
+  }
+  for (const forbidden of [
+    "typology",
+    "visualStyle",
+    "shotType",
+    "creativity",
+    "videoEngine",
+    "connectScenes",
+  ]) {
     assert.doesNotMatch(
       generation,
       new RegExp(`\\b${forbidden}\\s*:`),
-      `${forbidden} ne doit plus être envoyé par le Studio essentiel`,
+      `${forbidden} ne doit plus être envoyé par le Studio essentiel`
     );
   }
   assert.match(generation, /inputMode: "essential"/);
   assert.match(generation, /aiInstruction: aiInstruction\.trim\(\)/);
-  assert.match(generation, /inspirationImages: mediaSourceMode === "real" \? inspirationImages : \[\]/);
+  assert.match(
+    generation,
+    /inspirationImages: mediaSourceMode === "real" \? inspirationImages : \[\]/
+  );
 });
 
 test("les neuf catalogues traduisent la mémorisation et les garanties d’identité", () => {
@@ -90,10 +133,9 @@ test("les neuf catalogues traduisent la mémorisation et les garanties d’ident
   ];
 
   for (const locale of locales) {
-    const messages = JSON.parse(read(`messages/${locale}/media.json`)) as Record<
-      string,
-      unknown
-    >;
+    const messages = JSON.parse(
+      read(`messages/${locale}/media.json`)
+    ) as Record<string, unknown>;
     for (const key of keys) {
       assert.equal(typeof messages[key], "string", `${locale}: ${key}`);
       assert.ok(String(messages[key]).trim().length > 1, `${locale}: ${key}`);
@@ -106,8 +148,17 @@ test("les neuf catalogues traduisent la mémorisation et les garanties d’ident
   >;
   assert.match(fr.ai_generator_video_character_consent_label, /majeure/i);
   assert.match(fr.ai_generator_video_character_consent_label, /autoris/i);
-  assert.match(fr.ai_generator_video_character_consent_label, /cette génération/i);
+  assert.match(
+    fr.ai_generator_video_character_consent_label,
+    /cette génération/i
+  );
   assert.match(fr.ai_generator_inspiration_rules_body, /vise à préserver/i);
-  assert.match(fr.ai_generator_inspiration_rules_body, /contrôler le résultat/i);
-  assert.match(fr.ai_generator_inspiration_rules_body, /aucune substitution silencieuse/i);
+  assert.match(
+    fr.ai_generator_inspiration_rules_body,
+    /contrôler le résultat/i
+  );
+  assert.match(
+    fr.ai_generator_inspiration_rules_body,
+    /aucune substitution silencieuse/i
+  );
 });

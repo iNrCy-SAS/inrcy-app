@@ -35,6 +35,8 @@
 .essentialCard {
   --card-accent: 50, 210, 246;
   --card-accent-alt: 119, 89, 238;
+  --section-rgb: var(--card-accent);
+  --section-rgb-secondary: var(--card-accent-alt);
   min-width: 0;
   display: grid;
   align-content: start;
@@ -103,6 +105,12 @@
 
 .essentialCardHeader > div {
   min-width: 0;
+  flex: 1 1 auto;
+}
+
+.essentialCardHeader .rememberPreference {
+  flex: 0 1 154px;
+  margin: 0 0 0 auto;
 }
 
 .essentialCardHeader h3,
