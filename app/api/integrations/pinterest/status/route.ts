@@ -42,7 +42,7 @@ export async function GET(request: Request) {
     ]);
     const integration = asRecord(integrationRaw);
     const connected = Boolean(
-      states.pinterest.connected && !states.pinterest.requiresUpdate,
+      states.pinterest.accountConnected && !states.pinterest.requiresUpdate,
     );
 
     // Par défaut cette route reste volontairement rapide et locale :

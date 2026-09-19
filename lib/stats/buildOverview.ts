@@ -658,7 +658,10 @@ export async function buildStatsOverview(args: {
     gsc: channelStates.site_inrcy.gsc,
   };
   sourcesStatus.youtube_shorts.connected = isStatsActiveConnection(channelStates.youtube_shorts);
-  sourcesStatus.pinterest.connected = isStatsActiveConnection(channelStates.pinterest);
+  sourcesStatus.pinterest.connected = isStatsActiveConnection({
+    ...channelStates.pinterest,
+    connected: channelStates.pinterest.accountConnected,
+  });
   sourcesStatus.x.connected = isStatsActiveConnection(channelStates.x);
 
   sourcesStatus.site_web.connected = {
@@ -927,7 +930,10 @@ export async function buildStatsOverview(args: {
 
   // Pinterest: analytics réelles lues en direct, sans persistance des données API Pinterest.
   try {
-    sourcesStatus.pinterest.connected = isStatsActiveConnection(channelStates.pinterest);
+    sourcesStatus.pinterest.connected = isStatsActiveConnection({
+      ...channelStates.pinterest,
+      connected: channelStates.pinterest.accountConnected,
+    });
     const includePinterest = includeAll || includeSet.has("pinterest");
     if (!includePinterest) {
       sourcesStatus.pinterest.metrics = null;

@@ -6,6 +6,7 @@ import {
   commitAiCredits,
   computeBoosterAiCredits,
   reserveAiCredits,
+  reserveInrAgentEditorialCredits,
   rollbackAiCredits,
   isAdminUserForAi,
   type AiCreditReservation,
@@ -2235,17 +2236,26 @@ export async function POST(request: Request) {
     ) || null;
 
   let quotaReservation: AiCreditReservation | null = null;
+  const actionCredits = computeBoosterAiCredits({
+    mediaType: mediaKind === "video" ? "video" : "images",
+    imagesForAI: image ? [image] : [],
+    videoForAI: video || undefined,
+  });
   if (!isAdmin) {
-    const quota = await reserveAiCredits({
-      supabase,
-      userId: quotaAccountId,
-      action: "booster",
-      credits: computeBoosterAiCredits({
-        mediaType: mediaKind === "video" ? "video" : "images",
-        imagesForAI: image ? [image] : [],
-        videoForAI: video || undefined,
-      }),
-    });
+    const quota = editorialTarget
+      ? await reserveInrAgentEditorialCredits({
+          supabase,
+          userId: quotaAccountId,
+          credits: actionCredits,
+          horizonDays: automation.planningHorizonDays,
+          idempotencyKey: editorialTarget.id,
+        })
+      : await reserveAiCredits({
+          supabase,
+          userId: quotaAccountId,
+          action: "booster",
+          credits: actionCredits,
+        });
     if (quota.errorResponse) return quota.errorResponse;
     quotaReservation = quota.reservation;
   }
@@ -2364,6 +2374,15 @@ export async function POST(request: Request) {
     const targetChannels = channels.map(
       (channel) => boosterToAgentChannel[channel],
     );
+    const targetBoosterChannelSet = new Set(channels);
+    const editorialSkippedChannels = editorialTarget
+      ? editorialTarget.plan.channels.filter((channel) => {
+          const boosterChannel = inrAgentChannelToBoosterPublishChannel(channel);
+          return Boolean(
+            boosterChannel && !targetBoosterChannelSet.has(boosterChannel),
+          );
+        })
+      : [];
     const previewText = buildPreviewText(versions);
     const title = `Publication ${themeLabels[agentTheme] || "iNr’Agent"} prête`;
     const readyEditorialPlan = editorialTarget
@@ -2461,6 +2480,20 @@ export async function POST(request: Request) {
           editorialGeneratedAt: editorialTarget ? now : undefined,
           editorialNextRetryAt: editorialTarget ? null : undefined,
           editorialLastError: editorialTarget ? null : undefined,
+          editorialPreparedChannels: editorialTarget ? targetChannels : undefined,
+          editorialSkippedChannels: editorialTarget
+            ? editorialSkippedChannels
+            : undefined,
+          editorialQuota: editorialTarget
+            ? {
+                scope: "inr_agent_editorial",
+                horizonDays: automation.planningHorizonDays,
+                credits: actionCredits,
+                sharedMonthlyQuota: true,
+                weeklyQuotaAffected: false,
+                idempotencyKey: editorialTarget.id,
+              }
+            : undefined,
           // Les canaux récupérés le sont désormais exclusivement par une nouvelle passe IA.
           // Aucun texte éditorial générique local n'est injecté.
           aiRecoveredChannels: recoveredChannels.map(

@@ -37,8 +37,38 @@ export function normalizeBoosterPublishChannel(
   );
 }
 
-export function missingPreparedInrAgentPublishChannels(args: {
-  plannedChannels: readonly InrAgentChannel[];
+function normalizeBoosterPublishChannels(values: readonly unknown[] | null | undefined) {
+  return Array.from(
+    new Set(
+      (values || [])
+        .map(normalizeBoosterPublishChannel)
+        .filter((channel): channel is BoosterChannels => Boolean(channel)),
+    ),
+  );
+}
+
+/**
+ * Once an editorial slot has been generated, only the channels that were
+ * actually publishable during that preparation may trigger a repair. A stale
+ * configured channel (for example Pinterest without a default board) must not
+ * erase a valid publication and enqueue it again on every cron pass.
+ */
+export function resolveInrAgentEditorialRepairChannels(args: {
+  plannedChannels: readonly unknown[];
+  preparedChannels?: readonly unknown[] | null;
+  targetChannels?: readonly unknown[] | null;
+}) {
+  const prepared = normalizeBoosterPublishChannels(args.preparedChannels);
+  if (prepared.length) return prepared;
+
+  const targets = normalizeBoosterPublishChannels(args.targetChannels);
+  if (targets.length) return targets;
+
+  return normalizeBoosterPublishChannels(args.plannedChannels);
+}
+
+export function missingPreparedInrAgentPublishChannels<T>(args: {
+  plannedChannels: readonly T[];
   postByChannel: unknown;
 }) {
   const posts =
@@ -54,7 +84,7 @@ export function missingPreparedInrAgentPublishChannels(args: {
   );
 
   return args.plannedChannels.filter((channel) => {
-    const boosterChannel = inrAgentChannelToBoosterPublishChannel(channel);
+    const boosterChannel = normalizeBoosterPublishChannel(channel);
     return Boolean(boosterChannel && !preparedChannels.has(boosterChannel));
   });
 }

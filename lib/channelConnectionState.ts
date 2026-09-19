@@ -456,13 +456,19 @@ export async function getChannelConnectionStates(
       pinterestStoredEnvironment !== getPinterestApiEnvironment(),
   );
   const pinterestOAuthConnected = Boolean((pinterestStatus === "connected" || pinterestStatus === "account_connected") && pinterestHasToken && !pinterestExpired);
-  const pinterestConnected = pinterestOAuthConnected && !pinterestEnvironmentMismatch;
+  const pinterestAccountConnected = pinterestOAuthConnected && !pinterestEnvironmentMismatch;
+  const pinterestDefaultBoardId = asString(pinterestSettings.defaultBoardId) || null;
+  const pinterestDefaultBoardName = asString(pinterestSettings.defaultBoardName) || null;
+  // Pinterest is publishable only after a destination board has been selected.
+  // Keep the OAuth state separately so Settings and Stats can still use the
+  // connected account while Booster and iNrAgent remain fail-closed.
+  const pinterestConnected = Boolean(
+    pinterestAccountConnected && pinterestDefaultBoardId,
+  );
   const pinterestConnectionStatus = pinterestExpired || pinterestEnvironmentMismatch
     ? "needs_update"
     : getConnectionDisplayStatus(pinterestConnected, "channel:pinterest", pinterestMeta);
   const pinterestRequiresUpdate = pinterestConnectionStatus === "needs_update";
-  const pinterestDefaultBoardId = asString(pinterestSettings.defaultBoardId) || null;
-  const pinterestDefaultBoardName = asString(pinterestSettings.defaultBoardName) || null;
 
   const x = latestIntegration(rows, "x", "x", "x");
   const xSettings = asRecord(settings.x);
@@ -631,7 +637,7 @@ export async function getChannelConnectionStates(
       channel_url: youtubeShorts.connected ? (youtubeShorts.channelUrl || null) : null,
     },
     pinterest: {
-      accountConnected: pinterestConnected,
+      accountConnected: pinterestAccountConnected,
       connected: pinterestConnected,
       expired: pinterestExpired,
       requiresUpdate: pinterestRequiresUpdate,

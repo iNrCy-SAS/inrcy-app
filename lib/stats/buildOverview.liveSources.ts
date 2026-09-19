@@ -109,7 +109,10 @@ export function createOverviewLiveSourceTools({
         metrics: null,
       },
       pinterest: {
-        connected: isStatsActiveConnection(states.pinterest),
+        connected: isStatsActiveConnection({
+          ...states.pinterest,
+          connected: states.pinterest.accountConnected,
+        }),
         metrics: null,
       },
     } satisfies LiveSourcesSnapshot;

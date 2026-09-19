@@ -399,7 +399,7 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
   const linkedinUrl = normalizeUrl(channelStates.linkedin.organization_url || channelStates.linkedin.profile_url || linkedinSettings.orgUrl || linkedinSettings.profileUrl || linkedinSettings.url);
   const xUrl = normalizeUrl(channelStates.x.profile_url);
   let pinterestUrl = normalizeUrl(channelStates.pinterest.profile_url || pinterestSettings.publicProfileUrl || pinterestSettings.profileUrl || pinterestSettings.url);
-  if (shareSettings.pinterest && channelStates.pinterest.connected && !pinterestUrl) {
+  if (shareSettings.pinterest && channelStates.pinterest.accountConnected && !pinterestUrl) {
     const pinterestAccessToken = await getPinterestAccessToken(userId).catch(() => "");
     if (pinterestAccessToken) {
       const pinterestAccount = await fetchPinterestUserAccount(pinterestAccessToken).catch(() => null);
@@ -425,7 +425,7 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
     instagram: Boolean(channelStates.instagram.connected && instagramUrl),
     linkedin: Boolean(channelStates.linkedin.connected && linkedinUrl),
     x: Boolean(channelStates.x.connected && xUrl),
-    pinterest: Boolean(channelStates.pinterest.connected && pinterestUrl),
+    pinterest: Boolean(channelStates.pinterest.accountConnected && pinterestUrl),
     tiktok: Boolean(channelStates.tiktok.connected && tiktokUrl),
     youtubeShorts: Boolean(channelStates.youtube_shorts.connected && youtubeShortsUrl),
   };

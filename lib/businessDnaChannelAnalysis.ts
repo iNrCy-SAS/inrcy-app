@@ -1394,7 +1394,7 @@ export async function collectBusinessDnaChannelSources(args: {
     executeSource({
       key: "pinterest",
       label: "Pinterest",
-      connected: states.pinterest.connected,
+      connected: states.pinterest.accountConnected,
       oauthProtected: true,
       requiresUpdate: states.pinterest.requiresUpdate,
       url: states.pinterest.profile_url,

@@ -21,7 +21,10 @@ import {
   type InrAgentChannel,
   type InrAgentTone,
 } from "@/lib/inrAgentSettings";
-import { missingPreparedInrAgentPublishChannels } from "@/lib/inrAgentPublishChannels";
+import {
+  missingPreparedInrAgentPublishChannels,
+  resolveInrAgentEditorialRepairChannels,
+} from "@/lib/inrAgentPublishChannels";
 import { deliverInrAgentValidationReadyEmail } from "@/lib/inrAgentValidationEmailDelivery";
 import { insertNotificationOnce } from "@/lib/notificationWriter";
 
@@ -187,8 +190,16 @@ function missingGeneratedEditorialChannels(
   if (!isGeneratedEditorialRow(row)) return [];
   const payload = asRecord(row.payload);
   const nested = asRecord(payload.publishPayload);
-  return missingPreparedInrAgentPublishChannels({
+  const metadata = asRecord(row.metadata);
+  const repairChannels = resolveInrAgentEditorialRepairChannels({
     plannedChannels,
+    preparedChannels: Array.isArray(metadata.editorialPreparedChannels)
+      ? metadata.editorialPreparedChannels
+      : null,
+    targetChannels: row.target_channels,
+  });
+  return missingPreparedInrAgentPublishChannels({
+    plannedChannels: repairChannels,
     postByChannel: payload.postByChannel || nested.postByChannel,
   });
 }

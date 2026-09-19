@@ -42,7 +42,7 @@ export async function GET(request: Request) {
 
     let pinterestLabel = "";
     let pinterestUrl = "";
-    if (states.pinterest.connected && !states.pinterest.requiresUpdate) {
+    if (states.pinterest.accountConnected && !states.pinterest.requiresUpdate) {
       const accessToken = await getPinterestAccessToken(activeUserId, request.url).catch(() => "");
       if (accessToken) {
         const account = await withTimeout(
@@ -70,7 +70,7 @@ export async function GET(request: Request) {
         linkedin: states.linkedin.connected ? clean(states.linkedin.organization_name || states.linkedin.display_name) : "",
         tiktok: states.tiktok.connected && tiktokUsername ? `@${tiktokUsername}` : "",
         youtube_shorts: states.youtube_shorts.connected ? clean(states.youtube_shorts.channel_name) : "",
-        pinterest: states.pinterest.connected ? pinterestLabel : "",
+        pinterest: states.pinterest.accountConnected ? pinterestLabel : "",
         x: states.x.connected ? (xUsername ? `@${xUsername}` : clean(states.x.display_name)) : "",
       },
       urls: {
