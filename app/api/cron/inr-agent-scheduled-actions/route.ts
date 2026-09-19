@@ -16,6 +16,8 @@ const SCHEDULED_ACTION_SELECT = "id,user_id,automation_key,action_type,target_to
 const STALE_RUNNING_MINUTES = 20;
 const MAX_EXECUTION_ATTEMPTS = 3;
 const RETRY_DELAY_MS = 5 * 60 * 1000;
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EDITORIAL_VALIDATION_EXPIRED_MESSAGE =
   "Validation non reçue avant l’échéance programmée.";
 
@@ -439,7 +441,10 @@ async function syncSourceActionOutcome(
     explicitSourceActionId || (row.source === "automatic" ? row.id : ""),
     120,
   );
-  if (!sourceActionId) return;
+  // Les actions reconstruites depuis une programmation utilisent un identifiant
+  // d'interface `scheduled-...`, qui n'est pas la clé UUID d'inr_agent_actions.
+  // Ne jamais l'envoyer à Postgres : la programmation reste la source durable.
+  if (!sourceActionId || !UUID_PATTERN.test(sourceActionId)) return;
   const now = new Date().toISOString();
   let actionUpdate: any = supabaseAdmin
     .from("inr_agent_actions")

@@ -175,6 +175,7 @@ test("cron and execute-now share the durable request and own their claims", () =
   assert.match(cronRoute, /entrusted: result\.entrusted === true/);
   assert.match(cronRoute, /\.eq\("status", "running"\)/);
   assert.match(cronRoute, /\.eq\("updated_at", row\.updated_at\)/);
+  assert.match(cronRoute, /!UUID_PATTERN\.test\(sourceActionId\)/);
 
   assert.match(executeNowRoute, /buildScheduledPublicationRequest\(row\)/);
   assert.match(executeNowRoute, /publishNowBooster\(/);
