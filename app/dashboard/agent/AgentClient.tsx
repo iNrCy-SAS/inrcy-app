@@ -356,6 +356,10 @@ import {
 } from "./_lib/agent.schedule";
 import { buildAgentScheduleItems } from "./_lib/agent.schedule-items";
 import {
+  hasPublicationSchedulePassed,
+  nextPublicationVisibilityRefreshDelay,
+} from "./_lib/agent.publication-visibility";
+import {
   agentActionStatusLabel,
   agentActionTypeLabel,
   agentAutomationSettingsTitle,
@@ -464,10 +468,14 @@ function publicationValidationState(
   return "pending";
 }
 
-function isPublicationCarouselAction(action: AgentPreparedAction) {
+function isPublicationCarouselAction(
+  action: AgentPreparedAction,
+  nowTimestamp: number,
+) {
   if (action.automationKey !== "publish" || action.actionType !== "publication") {
     return false;
   }
+  if (hasPublicationSchedulePassed(action, nowTimestamp)) return false;
   const editorialPlan = asRecord(action.payload?.editorialPlan);
   if (editorialPlan && action.status !== "cancelled") return true;
   if (isAgentActionAwaitingValidation(action)) return true;
@@ -571,6 +579,7 @@ export default function AgentClient() {
     refreshScheduledActions,
     showNotice,
   } = useAgentRuntimeData({ standardMode });
+  const [publicationVisibilityNow, setPublicationVisibilityNow] = useState(0);
   const { robotPanelOpen, setRobotPanelOpen, isMobileHeader } =
     useAgentResponsiveUi();
   const [selectedKey, setSelectedKey] = useState<AutomationKey>("publish");
@@ -795,6 +804,31 @@ export default function AgentClient() {
   });
 
   useEffect(() => {
+    let timeoutId: number | null = null;
+
+    const refreshPublicationVisibility = () => {
+      const nowTimestamp = Date.now();
+      setPublicationVisibilityNow(nowTimestamp);
+      const nextDelay = nextPublicationVisibilityRefreshDelay(
+        actions.filter(
+          (action) =>
+            action.automationKey === "publish" &&
+            action.actionType === "publication",
+        ),
+        nowTimestamp,
+      );
+      if (nextDelay !== null) {
+        timeoutId = window.setTimeout(refreshPublicationVisibility, nextDelay);
+      }
+    };
+
+    refreshPublicationVisibility();
+    return () => {
+      if (timeoutId !== null) window.clearTimeout(timeoutId);
+    };
+  }, [actions]);
+
+  useEffect(() => {
     if (!publishImageAdapterOpen || !publishImageAdapterStageRef.current)
       return;
     const node = publishImageAdapterStageRef.current;
@@ -909,7 +943,11 @@ export default function AgentClient() {
       (acc, action) => {
         if (
           action.automationKey &&
-          isAgentActionAwaitingValidation(action)
+          isAgentActionAwaitingValidation(action) &&
+          !(
+            action.automationKey === "publish" &&
+            hasPublicationSchedulePassed(action, publicationVisibilityNow)
+          )
         ) {
           acc[action.automationKey] += 1;
         }
@@ -917,7 +955,7 @@ export default function AgentClient() {
       },
       { publish: 0, grow: 0, loyalty: 0, stats: 0 },
     );
-  }, [actions]);
+  }, [actions, publicationVisibilityNow]);
 
   const {
     prepareActionState,
@@ -957,7 +995,9 @@ export default function AgentClient() {
   const publicationCarouselActions = useMemo(
     () =>
       actions
-        .filter(isPublicationCarouselAction)
+        .filter((action) =>
+          isPublicationCarouselAction(action, publicationVisibilityNow),
+        )
         .sort((left, right) => {
           const leftGroup = publicationActionSortGroup(left);
           const rightGroup = publicationActionSortGroup(right);
@@ -965,7 +1005,7 @@ export default function AgentClient() {
           const delta = publicationActionTime(left) - publicationActionTime(right);
           return leftGroup < 2 ? delta : -delta;
         }),
-    [actions],
+    [actions, publicationVisibilityNow],
   );
 
   const selectedPreparedActionFromActions = useMemo(() => {

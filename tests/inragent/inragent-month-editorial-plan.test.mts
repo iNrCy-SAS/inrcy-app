@@ -185,6 +185,8 @@ test("le carrousel de publications conserve les actions éditoriales futures", (
 
   assert.match(client, /function isPublicationCarouselAction/);
   assert.match(client, /asRecord\(action\.payload\?\.editorialPlan\)/);
+  assert.match(client, /hasPublicationSchedulePassed\(action, nowTimestamp\)/);
+  assert.match(client, /nextPublicationVisibilityRefreshDelay/);
   assert.match(client, /publicationActionSortGroup/);
 });
 
