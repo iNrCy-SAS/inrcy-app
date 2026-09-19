@@ -10,9 +10,9 @@ apres le rendu figurent dans `$record->get('fields')`.
 
 Avant publication dans Code Snippets :
 
-1. conserver le secret deja configure sur le site a la place de
-   `__INRCY_TRIAL_SIGNUP_TOKEN__`, ou definir `INRCY_TRIAL_SIGNUP_TOKEN` dans
-   `wp-config.php` ;
+1. definir `INRCY_TRIAL_SIGNUP_TOKEN` dans `wp-config.php` ; l'extrait echoue
+   volontairement si la constante est absente et ne contient aucun secret de
+   secours ;
 2. ne jamais enregistrer ce secret dans Git ;
 3. laisser l'extrait actif et execute partout ;
 4. purger le cache WordPress apres la mise a jour ;

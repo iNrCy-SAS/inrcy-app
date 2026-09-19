@@ -22,6 +22,8 @@ test("invitation and reset share a recoverable server-side password finalizer", 
   assert.match(route, /writeWithAdminFallback/);
   assert.match(route, /password_policy_mismatch/);
   assert.match(route, /continuation_available: true/);
+  assert.match(route, /if \(mode === "invite"\) \{[\s\S]*eventName: "CompleteRegistration"/);
+  assert.doesNotMatch(route, /if \(mode === "reset"\) \{[\s\S]*eventName: "CompleteRegistration"/);
   assert.doesNotMatch(route, /continuation: continuationPayload/);
   assert.doesNotMatch(route, /adminUpdateError && !adminPasswordRejected/);
   assert.match(route, /"Cache-Control": "no-store"/);

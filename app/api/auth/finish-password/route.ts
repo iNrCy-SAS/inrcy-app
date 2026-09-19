@@ -13,6 +13,7 @@ import { getClientIp, enforceRateLimit } from "@/lib/rateLimit";
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import { log } from "@/lib/observability/logger";
 import { evaluatePassword } from "@/lib/passwordPolicy";
+import { enqueueMetaConversionEvent } from "@/lib/metaConversionOutbox";
 import {
   getPasswordWriteDiagnostic,
   passwordWriteErrorCode,
@@ -517,6 +518,22 @@ export async function POST(req: NextRequest) {
           { onConflict: "user_id" },
         ),
     ]);
+
+    if (mode === "invite") {
+      await enqueueMetaConversionEvent({
+        userId,
+        eventName: "CompleteRegistration",
+        occurredAt: updatedAt,
+        source: "invite_password_created",
+      }).catch((error: unknown) => {
+        log.error("auth_complete_registration_enqueue_failed", {
+          route: "/api/auth/finish-password",
+          mode,
+          user_id: userId,
+          error_code: passwordWriteErrorCode(error),
+        });
+      });
+    }
 
     const response = clearContinuationCookie(json({
       ok: true,

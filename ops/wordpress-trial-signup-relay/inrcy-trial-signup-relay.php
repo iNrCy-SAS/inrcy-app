@@ -109,11 +109,16 @@ add_action('elementor_pro/forms/validation', function ($record, $ajax_handler) {
 
     inrcy_trial_signup_copy_attribution($fields, inrcy_trial_signup_posted_fields(), $body);
 
-    // Definir INRCY_TRIAL_SIGNUP_TOKEN dans wp-config.php ou remplacer ce
-    // marqueur uniquement dans Code Snippets. Ne jamais committer le secret.
+    // Le secret reste exclusivement dans wp-config.php. L'absence de constante
+    // bloque le relais au lieu d'autoriser un secret de secours dans l'extrait.
     $token = defined('INRCY_TRIAL_SIGNUP_TOKEN')
-        ? (string) INRCY_TRIAL_SIGNUP_TOKEN
-        : '__INRCY_TRIAL_SIGNUP_TOKEN__';
+        ? trim((string) INRCY_TRIAL_SIGNUP_TOKEN)
+        : '';
+    if ($token === '') {
+        error_log('[iNrCy trial signup] INRCY_TRIAL_SIGNUP_TOKEN is missing.');
+        $ajax_handler->add_error('email', "Impossible de demarrer l'essai pour le moment.");
+        return;
+    }
 
     $response = wp_remote_post(
         'https://app.inrcy.com/api/public/trial-signup?token=' . rawurlencode($token),

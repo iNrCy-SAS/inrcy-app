@@ -3,8 +3,11 @@ import assert from "node:assert/strict";
 
 import {
   consistentStripeWebhookUserId,
+  invoiceAmountPaidCents,
+  invoiceCurrency,
   invoiceCustomerEmail,
   invoiceCustomerId,
+  invoicePaidAtIso,
   invoiceSubscriptionId,
   invoiceUserIdentity,
   invoiceUserId,
@@ -71,6 +74,19 @@ test("accepte les objets Stripe developpes", () => {
   assert.equal(invoiceSubscriptionId({ subscription: { id: "sub_expanded" } }), "sub_expanded");
   assert.equal(invoiceCustomerId({ customer: { id: "cus_expanded", email: "client@example.com" } }), "cus_expanded");
   assert.equal(invoiceCustomerEmail({ customer: { id: "cus_expanded", email: "client@example.com" } }), "client@example.com");
+});
+
+test("normalise uniquement un paiement réellement encaissé pour Subscribe", () => {
+  const paidAt = 1_725_000_000;
+  assert.equal(invoiceAmountPaidCents({ amount_paid: 35900 }), 35900);
+  assert.equal(invoiceAmountPaidCents({ amount_paid: 0 }), 0);
+  assert.equal(invoiceAmountPaidCents({ amount_paid: -100 }), 0);
+  assert.equal(invoiceCurrency({ currency: "eur" }), "EUR");
+  assert.equal(invoiceCurrency({ currency: "invalid" }), "EUR");
+  assert.equal(
+    invoicePaidAtIso({ status_transitions: { paid_at: paidAt } }),
+    new Date(paidAt * 1000).toISOString(),
+  );
 });
 
 test("retrouve le user_id dans les metadonnees de facture ou d'abonnement", () => {

@@ -7,6 +7,7 @@ import { commercialPriceFromId } from "@/lib/billingCatalog";
 import { stripeSubscriptionMonthlyTerms } from "@/lib/adminSubscriberStripe";
 import { stripeSubscriptionPeriodEndIso } from "@/lib/stripeSubscription";
 import { sendAdminSubscriptionAlertForUser } from "@/lib/subscriptionAdmin";
+import { enqueueMetaConversionEvent } from "@/lib/metaConversionOutbox";
 import {
   stripeWebhookNeedsReconciliation,
   stripeWebhookReconciliationLastError,
@@ -14,8 +15,11 @@ import {
 } from "@/lib/stripeWebhookReconciliation";
 import {
   consistentStripeWebhookUserId,
+  invoiceAmountPaidCents,
+  invoiceCurrency,
   invoiceCustomerEmail,
   invoiceCustomerId,
+  invoicePaidAtIso,
   invoiceSubscriptionId,
   invoiceUserIdentity,
   paymentFailureStatus,
@@ -30,6 +34,7 @@ export const runtime = "nodejs";
 type StripeEvent = {
   id?: string;
   type?: string;
+  created?: number;
   data?: {
     object?: unknown;
     previous_attributes?: Record<string, unknown>;
@@ -899,9 +904,10 @@ export async function POST(req: Request) {
           const existingRow = await resolveSubscriptionRow(userId, customerId, subId, email);
           const stripeStatus = await getStripeSubscriptionStatus(subId);
           const targetStatus = paymentSuccessStatus(existingRow?.status, stripeStatus);
+          let resolvedUserId = existingRow?.user_id ?? null;
 
           if (targetStatus) {
-            await updateSubscriptionRow(
+            const updatedRow = await updateSubscriptionRow(
               userId,
               customerId,
               {
@@ -914,6 +920,20 @@ export async function POST(req: Request) {
               subId,
               email
             );
+            resolvedUserId = updatedRow?.user_id ?? resolvedUserId;
+          }
+
+          const amountPaidCents = invoiceAmountPaidCents(invoice);
+          if (resolvedUserId && amountPaidCents > 0) {
+            await enqueueMetaConversionEvent({
+              userId: resolvedUserId,
+              eventName: "Subscribe",
+              occurredAt: invoicePaidAtIso(invoice, evt.created),
+              source: `stripe_webhook_${type}`,
+              sourceEventId: stripeObjectId(invoice?.id) || evt.id || null,
+              valueCents: amountPaidCents,
+              currency: invoiceCurrency(invoice),
+            });
           }
         }
       }

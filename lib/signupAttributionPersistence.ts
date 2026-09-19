@@ -1,16 +1,21 @@
 import "server-only";
 
-import type { MetaCapiResult } from "@/lib/metaConversionsApi";
-import type { SignupAttributionSnapshot } from "@/lib/signupAttribution";
+import type {
+  MetaBrowserMatch,
+  SignupAttributionSnapshot,
+} from "@/lib/signupAttribution";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export async function persistSignupAttribution(input: {
   userId: string;
   attribution: SignupAttributionSnapshot;
-  capi: MetaCapiResult;
+  browserMatch: MetaBrowserMatch;
 }) {
-  const { attribution, capi } = input;
+  const { attribution, browserMatch } = input;
   const nowIso = new Date().toISOString();
+  const matchExpiresAt = attribution.marketingConsent
+    ? new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString()
+    : null;
   const { error } = await supabaseAdmin
     .from("signup_attributions")
     .upsert(
@@ -36,11 +41,18 @@ export async function persistSignupAttribution(input: {
         event_id: attribution.eventId,
         attribution_captured_at: attribution.capturedAt || null,
         marketing_consent: attribution.marketingConsent,
-        capi_status: capi.status,
-        capi_events_received: capi.eventsReceived,
-        capi_fbtrace_id: capi.fbtraceId || null,
-        capi_error: capi.error || null,
-        capi_test_event_code_used: capi.testEventCodeUsed,
+        meta_fbp: attribution.marketingConsent ? browserMatch.fbp || null : null,
+        meta_fbc: attribution.marketingConsent ? browserMatch.fbc || null : null,
+        meta_client_user_agent:
+          attribution.marketingConsent ? browserMatch.clientUserAgent || null : null,
+        meta_match_expires_at: matchExpiresAt,
+        meta_consent_recorded_at: attribution.marketingConsent ? nowIso : null,
+        meta_consent_source: attribution.marketingConsent ? "complianz_marketing" : null,
+        capi_status: attribution.marketingConsent ? "pending" : "skipped",
+        capi_events_received: null,
+        capi_fbtrace_id: null,
+        capi_error: attribution.marketingConsent ? null : "marketing_consent_missing",
+        capi_test_event_code_used: false,
         updated_at: nowIso,
       },
       { onConflict: "user_id" },

@@ -16,7 +16,12 @@ export type MetaCapiResult = {
   testEventCodeUsed: boolean;
 };
 
-type MetaLeadInput = {
+export type MetaConversionEventName = "Lead" | "CompleteRegistration" | "Subscribe";
+
+export type MetaConversionInput = {
+  eventName: MetaConversionEventName;
+  eventId: string;
+  occurredAt: string | Date | number;
   userId: string;
   email: string;
   phone: string;
@@ -24,7 +29,15 @@ type MetaLeadInput = {
   lastName: string;
   attribution: SignupAttributionSnapshot;
   browserMatch: MetaBrowserMatch;
+  eventSourceUrl?: string;
+  valueCents?: number | null;
+  currency?: string | null;
 };
+
+type MetaLeadInput = Omit<
+  MetaConversionInput,
+  "eventName" | "eventId" | "occurredAt" | "eventSourceUrl" | "valueCents" | "currency"
+>;
 
 function clean(value: unknown, maxLength: number) {
   return String(value ?? "").trim().slice(0, maxLength);
@@ -64,26 +77,42 @@ function readErrorMessage(payload: unknown, fallback: string) {
   return clean((error as { message?: unknown }).message, 500) || fallback;
 }
 
-function buildCustomData(attribution: SignupAttributionSnapshot) {
+function buildCustomData(input: MetaConversionInput) {
+  const eventDetails: Record<MetaConversionEventName, Record<string, string | number>> = {
+    Lead: {
+      content_name: "Inscription iNrCy",
+      content_category: "Essai gratuit 21 jours",
+      lead_type: "trial_signup",
+    },
+    CompleteRegistration: {
+      content_name: "Activation du compte iNrCy",
+      content_category: "Essai gratuit 21 jours",
+      registration_method: "email_invitation",
+    },
+    Subscribe: {
+      content_name: "Abonnement iNrCy",
+      content_category: "Abonnement",
+    },
+  };
+  const valueCents = Number(input.valueCents);
+  const currency = clean(input.currency || "EUR", 3).toUpperCase();
   const values: Record<string, string | number> = {
-    content_name: "Inscription iNrCy",
-    content_category: "Essai gratuit 21 jours",
-    lead_type: "trial_signup",
-    currency: "EUR",
-    value: 0,
+    ...eventDetails[input.eventName],
+    currency: /^[A-Z]{3}$/.test(currency) ? currency : "EUR",
+    value: Number.isFinite(valueCents) && valueCents >= 0 ? valueCents / 100 : 0,
   };
 
   const optionalValues: Record<string, string> = {
-    utm_source: attribution.utmSource,
-    utm_medium: attribution.utmMedium,
-    utm_campaign: attribution.utmCampaign,
-    utm_content: attribution.utmContent,
-    utm_term: attribution.utmTerm,
-    campaign_id: attribution.campaignId,
-    adset_id: attribution.adsetId,
-    ad_id: attribution.adId,
-    placement: attribution.placement,
-    site_source_name: attribution.siteSourceName,
+    utm_source: input.attribution.utmSource,
+    utm_medium: input.attribution.utmMedium,
+    utm_campaign: input.attribution.utmCampaign,
+    utm_content: input.attribution.utmContent,
+    utm_term: input.attribution.utmTerm,
+    campaign_id: input.attribution.campaignId,
+    adset_id: input.attribution.adsetId,
+    ad_id: input.attribution.adId,
+    placement: input.attribution.placement,
+    site_source_name: input.attribution.siteSourceName,
   };
 
   for (const [key, value] of Object.entries(optionalValues)) {
@@ -92,7 +121,18 @@ function buildCustomData(attribution: SignupAttributionSnapshot) {
   return values;
 }
 
-export async function sendMetaLeadConversion(input: MetaLeadInput): Promise<MetaCapiResult> {
+function eventTimestampSeconds(value: MetaConversionInput["occurredAt"]) {
+  const timestamp = value instanceof Date
+    ? value.getTime()
+    : typeof value === "number"
+      ? (value < 10_000_000_000 ? value * 1000 : value)
+      : new Date(value).getTime();
+  return Number.isFinite(timestamp)
+    ? Math.floor(timestamp / 1000)
+    : Math.floor(Date.now() / 1000);
+}
+
+export async function sendMetaConversion(input: MetaConversionInput): Promise<MetaCapiResult> {
   const pixelId = clean(process.env.META_PIXEL_ID, 80);
   const accessToken = clean(process.env.META_CONVERSIONS_API_ACCESS_TOKEN, 4096);
   const testEventCode = clean(process.env.META_CAPI_TEST_EVENT_CODE, 120);
@@ -109,9 +149,12 @@ export async function sendMetaLeadConversion(input: MetaLeadInput): Promise<Meta
     return skipped("marketing_consent_missing");
   }
   if (!pixelId || !accessToken) {
-    return skipped("meta_capi_not_configured");
+    return {
+      ...skipped("meta_capi_not_configured"),
+      status: "failed",
+    };
   }
-  if (!input.attribution.eventId) {
+  if (!input.eventId) {
     return skipped("event_id_missing");
   }
 
@@ -136,14 +179,17 @@ export async function sendMetaLeadConversion(input: MetaLeadInput): Promise<Meta
   const requestBody: Record<string, unknown> = {
     data: [
       {
-        event_name: "Lead",
-        event_time: Math.floor(Date.now() / 1000),
-        event_id: input.attribution.eventId,
+        event_name: input.eventName,
+        event_time: eventTimestampSeconds(input.occurredAt),
+        event_id: input.eventId,
         action_source: "website",
         event_source_url:
-          input.attribution.eventSourceUrl || input.attribution.landingPageUrl || "https://inrcy.com/inscription",
+          input.eventSourceUrl ||
+          input.attribution.eventSourceUrl ||
+          input.attribution.landingPageUrl ||
+          "https://inrcy.com/inscription",
         user_data: userData,
-        custom_data: buildCustomData(input.attribution),
+        custom_data: buildCustomData(input),
       },
     ],
   };
@@ -192,4 +238,15 @@ export async function sendMetaLeadConversion(input: MetaLeadInput): Promise<Meta
       testEventCodeUsed: Boolean(testEventCode),
     };
   }
+}
+
+export async function sendMetaLeadConversion(input: MetaLeadInput): Promise<MetaCapiResult> {
+  return sendMetaConversion({
+    ...input,
+    eventName: "Lead",
+    eventId: input.attribution.eventId,
+    occurredAt: input.attribution.capturedAt || new Date(),
+    valueCents: 0,
+    currency: "EUR",
+  });
 }

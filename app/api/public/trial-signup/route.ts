@@ -43,7 +43,10 @@ import {
   type MetaBrowserMatch,
   type SignupAttributionSnapshot,
 } from "@/lib/signupAttribution";
-import { sendMetaLeadConversion } from "@/lib/metaConversionsApi";
+import {
+  buildMetaConversionEventId,
+  processMetaConversionEvents,
+} from "@/lib/metaConversionOutbox";
 import { persistSignupAttribution } from "@/lib/signupAttributionPersistence";
 import {
   DEFAULT_APP_LOCALE,
@@ -617,26 +620,36 @@ export async function POST(req: Request) {
     stage = "trial_subscription";
     const { edition, trialDays, end } = await ensureTrialSubscription(userId, payload.email);
 
-    const capiResult = await sendMetaLeadConversion({
-      userId,
-      email: payload.email,
-      phone: payload.phone,
-      firstName: payload.firstName,
-      lastName: payload.lastName,
-      attribution: payload.attribution,
-      browserMatch: payload.browserMatch,
-    });
-
+    let attributionPersisted = false;
     await persistSignupAttribution({
       userId,
       attribution: payload.attribution,
-      capi: capiResult,
+      browserMatch: payload.browserMatch,
+    }).then(() => {
+      attributionPersisted = true;
     }).catch((error: unknown) => {
       console.error(
         "[trial-signup][attribution]",
         error instanceof Error ? error.message : "persistence_failed",
       );
     });
+
+    // The insert trigger creates the durable Lead event atomically with its
+    // consent record. Try it immediately; the cron worker owns every retry.
+    if (attributionPersisted) {
+      const leadEventId = buildMetaConversionEventId(
+        "Lead",
+        userId,
+        payload.attribution.eventId,
+      );
+      await processMetaConversionEvents({ eventId: leadEventId, limit: 1 })
+        .catch((error: unknown) => {
+          console.error(
+            "[trial-signup][meta-lead]",
+            error instanceof Error ? error.message : "delivery_deferred",
+          );
+        });
+    }
 
     // The operational reminder is created from the authoritative successful
     // signup, not from an email scan. Calendar availability must never make

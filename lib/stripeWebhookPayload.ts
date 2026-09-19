@@ -45,6 +45,37 @@ export function invoiceCustomerEmail(invoiceValue: unknown): string | null {
   return typeof customer?.email === "string" && customer.email.trim() ? customer.email.trim() : null;
 }
 
+export function invoiceAmountPaidCents(invoiceValue: unknown): number {
+  const invoice = asRecord(invoiceValue);
+  const amount = Number(invoice?.amount_paid);
+  return Number.isFinite(amount) && amount > 0 ? Math.round(amount) : 0;
+}
+
+export function invoiceCurrency(invoiceValue: unknown): string {
+  const invoice = asRecord(invoiceValue);
+  const currency = typeof invoice?.currency === "string"
+    ? invoice.currency.trim().toUpperCase()
+    : "";
+  return /^[A-Z]{3}$/.test(currency) ? currency : "EUR";
+}
+
+export function invoicePaidAtIso(invoiceValue: unknown, eventCreatedValue?: unknown): string {
+  const invoice = asRecord(invoiceValue);
+  const statusTransitions = asRecord(invoice?.status_transitions);
+  const candidates = [
+    statusTransitions?.paid_at,
+    invoice?.created,
+    eventCreatedValue,
+  ];
+  for (const candidate of candidates) {
+    const seconds = Number(candidate);
+    if (Number.isFinite(seconds) && seconds > 0) {
+      return new Date(seconds * 1000).toISOString();
+    }
+  }
+  return new Date().toISOString();
+}
+
 export function invoiceUserIdentity(invoiceValue: unknown): {
   userId: string | null;
   conflict: boolean;

@@ -67,7 +67,7 @@ test("l'attribution se relit depuis les métadonnées Auth immuables", () => {
   assert.equal(getSignupAttributionSourceLabel(restored), "Facebook · paid_social");
 });
 
-test("les identifiants navigateur Meta restent séparés des données persistées", () => {
+test("les identifiants navigateur Meta sont isolés, consentis et limités à 90 jours", () => {
   assert.deepEqual(
     createMetaBrowserMatch({
       fbp: "fb.1.123.abc",
@@ -81,17 +81,24 @@ test("les identifiants navigateur Meta restent séparés des données persistée
     },
   );
 
-  const sql = read("ops/sql/2026-08-29_signup_attribution_meta_capi.sql");
-  assert.doesNotMatch(sql, /\n\s*(?:fbp|fbc|fbclid|client_user_agent)\s+text/i);
+  const sql = read("supabase/migrations/20260919140000_meta_conversion_funnel_outbox.sql");
+  assert.match(sql, /meta_fbp text/i);
+  assert.match(sql, /meta_fbc text/i);
+  assert.match(sql, /meta_client_user_agent text/i);
+  assert.match(sql, /meta_match_expires_at timestamptz/i);
+  assert.match(sql, /signup_attributions_meta_match_consent_check/i);
+  assert.doesNotMatch(sql, /\n\s*fbclid\s+text/i);
   assert.match(sql, /references auth\.users\(id\) on delete cascade/i);
   assert.match(sql, /enable row level security/i);
+  assert.match(sql, /revoke all on table public\.signup_attributions from public, anon, authenticated/i);
 });
 
-test("le webhook enregistre l'attribution et envoie un Lead CAPI sans bloquer l'inscription", () => {
+test("le webhook enregistre l'attribution puis tente le Lead durable sans bloquer l'inscription", () => {
   const route = read("app/api/public/trial-signup/route.ts");
   assert.match(route, /\[SIGNUP_ATTRIBUTION_METADATA_KEY\]: payload\.attribution/);
-  assert.match(route, /sendMetaLeadConversion/);
   assert.match(route, /persistSignupAttribution/);
+  assert.match(route, /processMetaConversionEvents/);
+  assert.match(route, /buildMetaConversionEventId/);
   assert.match(route, /\.catch\(\(error: unknown\) =>/);
   assert.match(route, /meta_tracking_consent/);
   assert.match(route, /event_id/);
@@ -101,8 +108,9 @@ test("la CAPI partage un event_id avec le Pixel et ne confond pas l'IP WordPress
   const capi = read("lib/metaConversionsApi.ts");
   const wordpress = read("ops/wordpress-meta-attribution/inrcy-meta-attribution.js");
 
-  assert.match(capi, /event_name: "Lead"/);
-  assert.match(capi, /event_id: input\.attribution\.eventId/);
+  assert.match(capi, /"Lead" \| "CompleteRegistration" \| "Subscribe"/);
+  assert.match(capi, /event_name: input\.eventName/);
+  assert.match(capi, /event_id: input\.eventId/);
   assert.match(capi, /action_source: "website"/);
   assert.match(capi, /Authorization: `Bearer \$\{accessToken\}`/);
   assert.match(capi, /marketing_consent_missing/);
@@ -119,14 +127,35 @@ test("la CAPI partage un event_id avec le Pixel et ne confond pas l'IP WordPress
   assert.match(wordpress, /form\.addEventListener\("formdata"/);
 });
 
+test("les conversions qualité sont idempotentes, relançables et privées", () => {
+  const migration = read("supabase/migrations/20260919140000_meta_conversion_funnel_outbox.sql");
+  const worker = read("lib/metaConversionOutbox.ts");
+  const passwordRoute = read("app/api/auth/finish-password/route.ts");
+  const stripeRoute = read("app/api/stripe/webhook/route.ts");
+  const cron = read("app/api/cron/meta-conversions/route.ts");
+
+  assert.match(migration, /unique \(user_id, event_name\)/i);
+  assert.match(migration, /for update skip locked/i);
+  assert.match(migration, /'Lead', 'CompleteRegistration', 'Subscribe'/);
+  assert.match(migration, /revoke all on table public\.meta_conversion_events from public, anon, authenticated/i);
+  assert.match(migration, /grant execute on function public\.claim_meta_conversion_events/i);
+  assert.match(worker, /"retry_wait"/);
+  assert.match(worker, /purgeExpiredBrowserMatchData/);
+  assert.match(passwordRoute, /if \(mode === "invite"\) \{[\s\S]*eventName: "CompleteRegistration"/);
+  assert.match(stripeRoute, /amountPaidCents > 0/);
+  assert.match(stripeRoute, /eventName: "Subscribe"/);
+  assert.match(cron, /isAuthorizedCronRequest/);
+});
+
 test("le relais WordPress transmet explicitement toute l'attribution ajoutee au POST Elementor", () => {
   const relay = read("ops/wordpress-trial-signup-relay/inrcy-trial-signup-relay.php");
 
   assert.match(relay, /\$_POST\['form_fields'\]/);
   assert.match(relay, /inrcy_trial_signup_copy_attribution/);
   assert.match(relay, /inrcy_trial_signup_posted_fields\(\)/);
-  assert.match(relay, /'__INRCY_TRIAL_SIGNUP_TOKEN__'/);
-  assert.doesNotMatch(relay, /fkjfksvlgff/i);
+  assert.match(relay, /defined\('INRCY_TRIAL_SIGNUP_TOKEN'\)/);
+  assert.match(relay, /INRCY_TRIAL_SIGNUP_TOKEN is missing/);
+  assert.doesNotMatch(relay, /__INRCY_TRIAL_SIGNUP_TOKEN__/);
 
   for (const field of [
     "utm_source",

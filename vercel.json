@@ -10,6 +10,10 @@
       "schedule": "*/10 * * * *"
     },
     {
+      "path": "/api/cron/meta-conversions",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/cron/cleanup-stats-cache",
       "schedule": "0 */6 * * *"
     },
