@@ -1,0 +1,250 @@
+name: iOS App Store
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload_to_testflight:
+        description: Build a signed archive and upload it to TestFlight
+        required: true
+        type: boolean
+        default: false
+      build_number:
+        description: Optional positive integer (defaults to the GitHub run number)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-app-store-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify iOS project
+    runs-on: macos-26
+    timeout-minutes: 30
+    env:
+      CAPACITOR_RELEASE: "true"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run mobile tests
+        run: npm run test:mobile
+
+      - name: Sync Capacitor iOS project
+        run: npm run mobile:sync
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Resolve Swift packages
+        run: >-
+          xcodebuild
+          -resolvePackageDependencies
+          -project ios/App/App.xcodeproj
+          -scheme App
+
+      - name: Build unsigned simulator app
+        run: >-
+          xcodebuild
+          -project ios/App/App.xcodeproj
+          -scheme App
+          -configuration Debug
+          -destination 'generic/platform=iOS Simulator'
+          CODE_SIGNING_ALLOWED=NO
+          clean build
+
+  archive:
+    name: Archive and upload to TestFlight
+    if: ${{ inputs.upload_to_testflight == true }}
+    needs: verify
+    runs-on: macos-26
+    timeout-minutes: 45
+    env:
+      CAPACITOR_RELEASE: "true"
+      TEAM_ID: C5F54XF6NT
+      BUNDLE_ID: com.inrcy.app
+      REQUESTED_BUILD_NUMBER: ${{ inputs.build_number }}
+      APPLE_DISTRIBUTION_CERTIFICATE_BASE64: ${{ secrets.APPLE_DISTRIBUTION_CERTIFICATE_BASE64 }}
+      APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+      APPLE_PROVISIONING_PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Sync Capacitor iOS project
+        run: npm run mobile:sync
+
+      - name: Validate signing inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(
+            APPLE_DISTRIBUTION_CERTIFICATE_BASE64
+            APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD
+            APPLE_PROVISIONING_PROFILE_BASE64
+            APPLE_ID
+            APPLE_APP_SPECIFIC_PASSWORD
+          )
+          for name in "${required[@]}"; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "Missing required GitHub Actions secret: $name" >&2
+              exit 1
+            fi
+          done
+
+      - name: Install Apple signing assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          certificate_path="$RUNNER_TEMP/inrcy-distribution.p12"
+          profile_path="$RUNNER_TEMP/inrcy-app-store.mobileprovision"
+          profile_plist="$RUNNER_TEMP/inrcy-profile.plist"
+          keychain_path="$RUNNER_TEMP/inrcy-signing.keychain-db"
+          keychain_password="$(openssl rand -hex 24)"
+
+          printf '%s' "$APPLE_DISTRIBUTION_CERTIFICATE_BASE64" | base64 -D > "$certificate_path"
+          printf '%s' "$APPLE_PROVISIONING_PROFILE_BASE64" | base64 -D > "$profile_path"
+
+          security create-keychain -p "$keychain_password" "$keychain_path"
+          security set-keychain-settings -lut 21600 "$keychain_path"
+          security unlock-keychain -p "$keychain_password" "$keychain_path"
+          security import "$certificate_path" \
+            -P "$APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD" \
+            -A -t cert -f pkcs12 -k "$keychain_path"
+          security set-key-partition-list \
+            -S apple-tool:,apple: \
+            -s -k "$keychain_password" "$keychain_path"
+          security list-keychains -d user -s "$keychain_path"
+          security default-keychain -d user -s "$keychain_path"
+
+          security cms -D -i "$profile_path" > "$profile_plist"
+          profile_uuid="$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$profile_plist")"
+          profile_name="$(/usr/libexec/PlistBuddy -c 'Print :Name' "$profile_plist")"
+          profile_team_id="$(/usr/libexec/PlistBuddy -c 'Print :TeamIdentifier:0' "$profile_plist")"
+          profile_app_id="$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' "$profile_plist")"
+
+          if [[ "$profile_team_id" != "$TEAM_ID" ]]; then
+            echo "Provisioning profile belongs to team $profile_team_id, expected $TEAM_ID" >&2
+            exit 1
+          fi
+          case "$profile_app_id" in
+            "$TEAM_ID.$BUNDLE_ID"|"$TEAM_ID".*) ;;
+            *)
+              echo "Provisioning profile does not cover $BUNDLE_ID" >&2
+              exit 1
+              ;;
+          esac
+
+          installed_profile="$HOME/Library/MobileDevice/Provisioning Profiles/$profile_uuid.mobileprovision"
+          mkdir -p "$(dirname "$installed_profile")"
+          cp "$profile_path" "$installed_profile"
+
+          {
+            echo "KEYCHAIN_PATH=$keychain_path"
+            echo "KEYCHAIN_PASSWORD=$keychain_password"
+            echo "PROFILE_NAME=$profile_name"
+            echo "INSTALLED_PROFILE_PATH=$installed_profile"
+          } >> "$GITHUB_ENV"
+
+      - name: Archive signed app
+        shell: bash
+        run: |
+          set -euo pipefail
+          build_number="${REQUESTED_BUILD_NUMBER:-$GITHUB_RUN_NUMBER}"
+          if [[ ! "$build_number" =~ ^[1-9][0-9]*$ ]]; then
+            echo "build_number must be a positive integer" >&2
+            exit 1
+          fi
+
+          xcodebuild \
+            -resolvePackageDependencies \
+            -project ios/App/App.xcodeproj \
+            -scheme App
+
+          xcodebuild \
+            -project ios/App/App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/iNrCy.xcarchive" \
+            DEVELOPMENT_TEAM="$TEAM_ID" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY='Apple Distribution' \
+            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
+            CURRENT_PROJECT_VERSION="$build_number" \
+            OTHER_CODE_SIGN_FLAGS="--keychain $KEYCHAIN_PATH" \
+            clean archive
+
+      - name: Export IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          export_options="$RUNNER_TEMP/ExportOptions.plist"
+          export_dir="$RUNNER_TEMP/export"
+          cp ios/ExportOptions.plist "$export_options"
+          /usr/libexec/PlistBuddy -c 'Add :provisioningProfiles dict' "$export_options"
+          /usr/libexec/PlistBuddy \
+            -c "Add :provisioningProfiles:$BUNDLE_ID string $PROFILE_NAME" \
+            "$export_options"
+
+          xcodebuild \
+            -exportArchive \
+            -archivePath "$RUNNER_TEMP/iNrCy.xcarchive" \
+            -exportPath "$export_dir" \
+            -exportOptionsPlist "$export_options"
+
+          ipa_path="$(find "$export_dir" -maxdepth 1 -name '*.ipa' -print -quit)"
+          if [[ -z "$ipa_path" ]]; then
+            echo 'No IPA produced by xcodebuild' >&2
+            exit 1
+          fi
+          echo "IPA_PATH=$ipa_path" >> "$GITHUB_ENV"
+
+      - name: Upload signed IPA artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: inrcy-ios-${{ github.run_number }}
+          path: ${{ env.IPA_PATH }}
+          retention-days: 7
+
+      - name: Upload to TestFlight
+        run: >-
+          xcrun altool
+          --upload-app
+          --type ios
+          --file "$IPA_PATH"
+          --username "$APPLE_ID"
+          --password "$APPLE_APP_SPECIFIC_PASSWORD"
+
+      - name: Remove temporary signing assets
+        if: always()
+        shell: bash
+        run: |
+          security delete-keychain "$KEYCHAIN_PATH" 2>/dev/null || true
+          rm -f "${INSTALLED_PROFILE_PATH:-}"

@@ -83,6 +83,51 @@ export type NativeSubscriptionPurchaseResult = {
   productId: string;
 };
 
+export type NativeSubscriptionPriceLabels = Record<NativeBillingCycle, string>;
+
+export async function getNativeSubscriptionPriceLabels({
+  platform,
+  plan = "Standard",
+}: {
+  platform: Exclude<ClientBillingPlatform, "web">;
+  plan?: NativeSubscriptionPlan;
+}): Promise<NativeSubscriptionPriceLabels> {
+  const apiKey = revenueCatApiKey(platform);
+  if (!apiKey) throw new NativeBillingNotConfiguredError(platform);
+
+  const supabase = createClient();
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  if (authError || !authData.user) {
+    throw new Error("Les tarifs du magasin sont momentanément indisponibles.");
+  }
+
+  const billingCycles: NativeBillingCycle[] = ["monthly", "yearly"];
+  const productIds = billingCycles.map((billingCycle) => nativeProductIdFor(plan, billingCycle));
+  const revenueCat = await configureRevenueCat(platform, authData.user.id);
+
+  let productsResponse: Awaited<ReturnType<RevenueCatModule["Purchases"]["getProducts"]>>;
+  try {
+    productsResponse = await revenueCat.Purchases.getProducts({
+      productIdentifiers: productIds,
+    });
+  } catch (error) {
+    throw new Error(errorMessage(error) || "Les tarifs du magasin sont momentanément indisponibles.");
+  }
+
+  const labels = {} as Partial<NativeSubscriptionPriceLabels>;
+  for (const billingCycle of billingCycles) {
+    const productId = nativeProductIdFor(plan, billingCycle);
+    const product = productsResponse.products.find((candidate) => candidate.identifier === productId);
+    const priceString = String(product?.priceString || "").trim();
+    if (!priceString) {
+      throw new Error("Cette formule mobile n’est pas encore disponible.");
+    }
+    labels[billingCycle] = priceString;
+  }
+
+  return labels as NativeSubscriptionPriceLabels;
+}
+
 export async function startNativeSubscriptionPurchase({
   platform,
   plan = "Standard",

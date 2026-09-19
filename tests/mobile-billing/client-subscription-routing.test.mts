@@ -5,6 +5,7 @@ import {
   NativeBillingNotConfiguredError,
   billingProviderForPlatform,
   detectClientBillingPlatform,
+  loadStandardSubscriptionStorePrices,
   startStandardSubscriptionCheckout,
 } from "../../lib/clientSubscriptionBilling.ts";
 
@@ -38,6 +39,36 @@ test("detects Capacitor iOS and Android without changing normal web clients", ()
   assert.equal(detectClientBillingPlatform(runtime().value), "web");
   assert.equal(detectClientBillingPlatform(runtime("ios").value), "ios");
   assert.equal(detectClientBillingPlatform(runtime("android").value), "android");
+});
+
+test("keeps Stripe prices on the web without loading store products", async () => {
+  let nativeLoaderCalled = false;
+  const result = await loadStandardSubscriptionStorePrices({
+    runtime: runtime().value,
+    loadNativePrices: async () => {
+      nativeLoaderCalled = true;
+      return { monthly: "69,90 €", yearly: "749,99 €" };
+    },
+  });
+
+  assert.equal(result, null);
+  assert.equal(nativeLoaderCalled, false);
+});
+
+test("loads the localized Store prices for native clients", async () => {
+  const result = await loadStandardSubscriptionStorePrices({
+    runtime: runtime("ios").value,
+    loadNativePrices: async ({ platform, plan }) => {
+      assert.equal(platform, "ios");
+      assert.equal(plan, "Standard");
+      return { monthly: "69,90 €", yearly: "749,99 €" };
+    },
+  });
+
+  assert.deepEqual(result, {
+    platform: "ios",
+    labels: { monthly: "69,90 €", yearly: "749,99 €" },
+  });
 });
 
 test("preserves the current Stripe checkout on the web", async () => {

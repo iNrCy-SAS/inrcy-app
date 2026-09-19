@@ -11,7 +11,13 @@ import {
   standardSubscriptionOfferForAccountCreatedAt,
   type BillingCycle,
 } from "@/lib/subscriptionOffers";
-import { startStandardSubscriptionCheckout } from "@/lib/clientSubscriptionBilling";
+import {
+  detectClientBillingPlatform,
+  loadStandardSubscriptionStorePrices,
+  startStandardSubscriptionCheckout,
+  type ClientBillingPlatform,
+  type StandardSubscriptionStorePrices,
+} from "@/lib/clientSubscriptionBilling";
 import { openNativeSubscriptionManagement } from "@/lib/nativeBillingManagement";
 import SubscriptionInvoicesPanel from "./SubscriptionInvoicesPanel";
 
@@ -97,6 +103,9 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
   const [busyAction, setBusyAction] = useState<"checkout" | "portal" | "cancel" | "uncancel" | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [clientBillingPlatform, setClientBillingPlatform] = useState<ClientBillingPlatform | null>(null);
+  const [storePrices, setStorePrices] = useState<StandardSubscriptionStorePrices | null>(null);
+  const [storePriceError, setStorePriceError] = useState("");
 
   const loadSubscription = useCallback(async () => {
     const supabase = createClient();
@@ -127,6 +136,41 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
       active = false;
     };
   }, [loadSubscription]);
+
+  useEffect(() => {
+    let active = true;
+    const platform = detectClientBillingPlatform();
+    setClientBillingPlatform(platform);
+    setStorePrices(null);
+    setStorePriceError("");
+
+    if (platform === "web") {
+      return () => {
+        active = false;
+      };
+    }
+
+    void loadStandardSubscriptionStorePrices()
+      .then((prices) => {
+        if (!active) return;
+        if (!prices || prices.platform !== platform) {
+          throw new Error("Les tarifs du magasin sont momentanément indisponibles.");
+        }
+        setStorePrices(prices);
+      })
+      .catch((caught) => {
+        if (!active) return;
+        setStorePriceError(
+          caught instanceof Error
+            ? caught.message
+            : "Les tarifs du magasin sont momentanément indisponibles.",
+        );
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (checkoutState !== "success") return;
@@ -191,8 +235,21 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
       ? "standard_tax_exclusive_short"
       : "standard_tax_inclusive_short",
   );
-  const standardMonthlyLabel = `${formatEur(standardOffer.monthlyPriceEur, locale)} € ${standardTaxLabel} / ${i18nT("standard_per_month")}`;
-  const standardYearlyLabel = `${formatEur(standardOffer.yearlyPriceEur, locale)} € ${standardTaxLabel} / ${i18nT("standard_per_year")}`;
+  const isNativeBillingPlatform = clientBillingPlatform === "ios" || clientBillingPlatform === "android";
+  const matchingStorePrices =
+    isNativeBillingPlatform && storePrices?.platform === clientBillingPlatform ? storePrices : null;
+  const storePricesReady =
+    clientBillingPlatform === "web" || Boolean(matchingStorePrices);
+  const standardMonthlyLabel = clientBillingPlatform === "web"
+    ? `${formatEur(standardOffer.monthlyPriceEur, locale)} € ${standardTaxLabel} / ${i18nT("standard_per_month")}`
+    : matchingStorePrices
+      ? `${matchingStorePrices.labels.monthly} / ${i18nT("standard_per_month")}`
+      : "…";
+  const standardYearlyLabel = clientBillingPlatform === "web"
+    ? `${formatEur(standardOffer.yearlyPriceEur, locale)} € ${standardTaxLabel} / ${i18nT("standard_per_year")}`
+    : matchingStorePrices
+      ? `${matchingStorePrices.labels.yearly} / ${i18nT("standard_per_year")}`
+      : "…";
   const premiumMonthlyLabel = `${formatEur(premiumOffer.monthlyPriceEur, locale)} € ${premiumTaxLabel} / ${i18nT("standard_per_month")}`;
   const premiumYearlyLabel = `${formatEur(premiumOffer.yearlyPriceEur, locale)} € ${premiumTaxLabel} / ${i18nT("standard_per_year")}`;
 
@@ -352,6 +409,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
               <button
                 type="button"
                 onClick={() => setBillingCycle("monthly")}
+                disabled={!storePricesReady}
                 style={{
                   ...secondaryButton,
                   textAlign: "left",
@@ -365,6 +423,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
               <button
                 type="button"
                 onClick={() => setBillingCycle("yearly")}
+                disabled={!storePricesReady}
                 style={{
                   ...secondaryButton,
                   textAlign: "left",
@@ -373,19 +432,31 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
                 }}
               >
                 <strong>{standardYearlyLabel}</strong><br />
-                <span style={{ fontSize: 12, color: "#f3b0ff" }}>−{formatEur(standardOffer.annualSavingPercent, locale)} %</span>
+                {!isNativeBillingPlatform ? (
+                  <span style={{ fontSize: 12, color: "#f3b0ff" }}>−{formatEur(standardOffer.annualSavingPercent, locale)} %</span>
+                ) : null}
               </button>
             </div>
-            <button type="button" onClick={startCheckout} style={primaryButton} disabled={busyAction !== null}>
+            <button
+              type="button"
+              onClick={startCheckout}
+              style={primaryButton}
+              disabled={busyAction !== null || !storePricesReady}
+            >
               {busyAction === "checkout"
                 ? i18nT("ouverture_du_paiement_147e6d80")
                 : i18nT("standard_subscribe_price", {
                     price: billingCycle === "yearly" ? standardYearlyLabel : standardMonthlyLabel,
                   })}
             </button>
-            {standardOffer.taxBehavior === "exclusive" ? (
+            {clientBillingPlatform === "web" && standardOffer.taxBehavior === "exclusive" ? (
               <div style={{ fontSize: 11, opacity: 0.68, textAlign: "center" }}>
                 {i18nT("standard_taxes_checkout")}
+              </div>
+            ) : null}
+            {isNativeBillingPlatform && storePriceError ? (
+              <div style={{ fontSize: 11, color: "#ffb4c9", textAlign: "center" }}>
+                {storePriceError}
               </div>
             ) : null}
             <div style={{ fontSize: 11, opacity: 0.62, textAlign: "center" }}>

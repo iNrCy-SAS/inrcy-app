@@ -1,6 +1,11 @@
 import type { BillingCycle } from "./subscriptionOffers.ts";
 import { Capacitor } from "@capacitor/core";
-import { startNativeSubscriptionPurchase, type NativeSubscriptionPurchaseResult } from "./nativeBilling.ts";
+import {
+  getNativeSubscriptionPriceLabels,
+  startNativeSubscriptionPurchase,
+  type NativeSubscriptionPriceLabels,
+  type NativeSubscriptionPurchaseResult,
+} from "./nativeBilling.ts";
 
 export { NativeBillingNotConfiguredError } from "./nativeBilling.ts";
 
@@ -72,6 +77,27 @@ export function billingProviderForPlatform(
   if (platform === "ios") return "app_store";
   if (platform === "android") return "play_store";
   return "stripe";
+}
+
+export type StandardSubscriptionStorePrices = {
+  platform: Exclude<ClientBillingPlatform, "web">;
+  labels: NativeSubscriptionPriceLabels;
+};
+
+export async function loadStandardSubscriptionStorePrices({
+  runtime = currentBrowserRuntime(),
+  loadNativePrices = getNativeSubscriptionPriceLabels,
+}: {
+  runtime?: BrowserRuntime | null;
+  loadNativePrices?: typeof getNativeSubscriptionPriceLabels;
+} = {}): Promise<StandardSubscriptionStorePrices | null> {
+  const platform = detectClientBillingPlatform(runtime);
+  if (platform === "web") return null;
+
+  return {
+    platform,
+    labels: await loadNativePrices({ platform, plan: "Standard" }),
+  };
 }
 
 export async function startStandardSubscriptionCheckout({
