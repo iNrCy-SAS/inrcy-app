@@ -337,11 +337,17 @@ export function useAgentAutomationController({
     let completed = false;
 
     try {
-      const saved = await persistSettings({
-        closeModal: false,
-        showSuccess: false,
-      });
-      if (!saved) return;
+      // Les éclairs Publier / Propulser / Fidéliser sont des actions
+      // strictement ponctuelles : ils utilisent les réglages déjà enregistrés
+      // sans modifier ni recalculer le planning éditorial. Stats reste lancé
+      // depuis sa modale de réglages et doit donc sauvegarder avant l'envoi.
+      if (key === "stats") {
+        const saved = await persistSettings({
+          closeModal: false,
+          showSuccess: false,
+        });
+        if (!saved) return;
+      }
 
       if (key === "publish") {
         completed = await preparePublishAction();

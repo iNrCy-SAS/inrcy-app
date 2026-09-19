@@ -8,6 +8,9 @@ function read(relativePath: string) {
 
 const client = read("app/dashboard/agent/AgentClient.tsx");
 const styles = read("app/dashboard/agent/agent.module.css");
+const controller = read(
+  "app/dashboard/agent/_hooks/useAgentAutomationController.ts",
+);
 
 test("Publier, Propulser et Fidéliser proposent l'action instantanée à côté des réglages", () => {
   const cardsStart = client.indexOf("visibleAutomations.map((automation)");
@@ -54,6 +57,27 @@ test("les modales de réglages n'exécutent plus Publier ou les campagnes, mais 
   assert.match(
     styles,
     /\.settingsSaveAction \{[\s\S]*?width: auto !important[\s\S]*?height: 50px/,
+  );
+});
+
+test("les trois éclairs préparent une seule action sans sauvegarder ni recalculer le planning", () => {
+  const runStart = controller.indexOf("async function runAutomationNow");
+  const runEnd = controller.indexOf("function testAutomationNow", runStart);
+  const runFlow = controller.slice(runStart, runEnd);
+
+  assert.ok(runStart >= 0 && runEnd > runStart);
+  assert.match(
+    runFlow,
+    /if \(key === "stats"\) \{[\s\S]*?persistSettings\(/,
+  );
+  assert.doesNotMatch(
+    runFlow,
+    /try \{\s*const saved = await persistSettings\(/,
+  );
+  assert.match(runFlow, /key === "publish"[\s\S]*?preparePublishAction\(\)/);
+  assert.match(
+    runFlow,
+    /key === "grow" \|\| key === "loyalty"[\s\S]*?prepareCampaignAction\(key\)/,
   );
 });
 

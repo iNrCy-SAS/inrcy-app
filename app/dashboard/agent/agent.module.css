@@ -539,6 +539,7 @@
   inset: 0;
   width: auto;
   max-width: none;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -558,30 +559,38 @@
 }
 
 .robotWorkingBadge > span:last-child {
+  box-sizing: border-box;
+  width: 100%;
   min-width: 0;
   display: grid;
   justify-items: center;
   gap: 3px;
   max-width: 100%;
+  padding-inline: 4px;
 }
 
 .robotWorkingBadge strong,
 .robotWorkingBadge small {
+  display: block;
+  width: 100%;
+  max-width: 100%;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .robotWorkingBadge strong {
   font-size: 13px;
   font-weight: 900;
   letter-spacing: -0.01em;
+  line-height: 1.15;
 }
 
 .robotWorkingBadge small {
   color: rgba(224, 242, 254, 0.78);
   font-size: 9px;
   font-weight: 750;
+  line-height: 1.25;
 }
 
 .robotWorkingSpinner {
