@@ -3,6 +3,7 @@ import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import { requireUser } from "@/lib/requireUser";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { stripeGet } from "@/lib/stripeRest";
+import { invoiceSubscriptionId } from "@/lib/stripeWebhookPayload";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,7 +26,8 @@ type StripeInvoice = {
   period_end?: number | null;
   hosted_invoice_url?: string | null;
   invoice_pdf?: string | null;
-  subscription?: string | null;
+  subscription?: unknown;
+  parent?: unknown;
 };
 
 type StripeInvoiceList = {
@@ -100,7 +102,7 @@ export async function GET() {
     const query = new URLSearchParams({ customer: customerId, limit: "100" });
     const response = (await stripeGet(`/invoices?${query.toString()}`)) as StripeInvoiceList;
     const invoices = (response.data ?? [])
-      .filter((invoice) => invoice.subscription === subscriptionId)
+      .filter((invoice) => invoiceSubscriptionId(invoice) === subscriptionId)
       .map(publicInvoice)
       .filter((invoice): invoice is NonNullable<ReturnType<typeof publicInvoice>> => Boolean(invoice))
       .sort((left, right) => (right.created ?? 0) - (left.created ?? 0));

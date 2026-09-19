@@ -148,10 +148,10 @@ export default function SubscriptionInvoicesPanel() {
             <thead>
               <tr style={{ opacity: 0.78, textAlign: "left" }}>
                 <th style={{ padding: "8px 6px" }}>{i18nT("facture_stripe_numero_1f6a3c20")}</th>
-                <th style={{ padding: "8px 6px" }}>{i18nT("date_eb9a4bc1")}</th>
+                <th style={{ padding: "8px 6px" }}>{i18nT("facture_stripe_date_2c7a1e54")}</th>
                 <th style={{ padding: "8px 6px" }}>{i18nT("facture_stripe_periode_4c8e2a61")}</th>
-                <th style={{ padding: "8px 6px" }}>{i18nT("statut_659499f3")}</th>
-                <th style={{ padding: "8px 6px", textAlign: "right" }}>{i18nT("total_b25928c6")}</th>
+                <th style={{ padding: "8px 6px" }}>{i18nT("facture_stripe_statut_5d9b3c12")}</th>
+                <th style={{ padding: "8px 6px", textAlign: "right" }}>{i18nT("facture_stripe_total_8a4e6d20")}</th>
                 <th style={{ padding: "8px 6px" }} />
               </tr>
             </thead>
