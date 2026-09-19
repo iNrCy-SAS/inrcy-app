@@ -13,6 +13,11 @@ test("subscription invoices stay scoped to the authenticated Stripe subscription
   assert.match(route, /invoiceSubscriptionId\(invoice\) === subscriptionId/);
   assert.match(route, /Cache-Control": "private, no-store/);
   assert.doesNotMatch(route, /STRIPE_SECRET_KEY[^\n]*NextResponse/);
+  assert.ok(
+    route.indexOf('code: "STRIPE_SUBSCRIPTION_NOT_LINKED"') <
+      route.indexOf("if (!process.env.STRIPE_SECRET_KEY)"),
+    "unlinked accounts should receive an empty state without requiring Stripe credentials",
+  );
 });
 
 test("invoice UI references keys available in every settings catalogue", () => {
@@ -39,4 +44,21 @@ test("invoice UI references keys available in every settings catalogue", () => {
       assert.ok(catalogue[key].trim(), `${locale}: ${key} must not be empty`);
     }
   }
+});
+
+test("invoice section stays visible when no Stripe subscription is linked", () => {
+  const abonnementContent = read(
+    "app/dashboard/settings/_components/AbonnementContent.tsx",
+  );
+  const standardSubscriptionContent = read(
+    "app/dashboard/settings/_components/StandardSubscriptionContent.tsx",
+  );
+
+  assert.match(abonnementContent, /<SubscriptionInvoicesPanel \/>/);
+  assert.match(standardSubscriptionContent, /<SubscriptionInvoicesPanel \/>/);
+  assert.doesNotMatch(abonnementContent, /stripe_subscription_id \? <SubscriptionInvoicesPanel/);
+  assert.doesNotMatch(
+    standardSubscriptionContent,
+    /hasStripeSubscription \? <SubscriptionInvoicesPanel/,
+  );
 });

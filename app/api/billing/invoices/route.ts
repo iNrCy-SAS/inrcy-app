@@ -60,13 +60,6 @@ function publicInvoice(invoice: StripeInvoice) {
 
 export async function GET() {
   try {
-    if (!process.env.STRIPE_SECRET_KEY) {
-      return NextResponse.json(
-        { error: "La facturation Stripe n’est pas disponible pour le moment." },
-        { status: 503 },
-      );
-    }
-
     const { user, errorResponse } = await requireUser();
     if (errorResponse) return errorResponse;
 
@@ -96,6 +89,13 @@ export async function GET() {
       return NextResponse.json(
         { invoices: [], code: "STRIPE_SUBSCRIPTION_NOT_LINKED" },
         { headers: { "Cache-Control": "private, no-store" } },
+      );
+    }
+
+    if (!process.env.STRIPE_SECRET_KEY) {
+      return NextResponse.json(
+        { error: "La facturation Stripe n’est pas disponible pour le moment." },
+        { status: 503 },
       );
     }
 

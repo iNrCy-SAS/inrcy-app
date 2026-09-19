@@ -691,7 +691,7 @@ useEffect(() => {
           </div>
         ) : null}
 
-        {sub.stripe_subscription_id ? <SubscriptionInvoicesPanel /> : null}
+        <SubscriptionInvoicesPanel />
 
         {checkoutState === "success" ? (
           <p style={{ margin: "8px 0 0", opacity: 0.9, lineHeight: 1.5 }}>

@@ -438,7 +438,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
         {error ? <p style={{ color: "#ff9bbd", marginBottom: 0 }}>{error}</p> : null}
       </section>
 
-      {view.hasStripeSubscription ? <SubscriptionInvoicesPanel /> : null}
+      <SubscriptionInvoicesPanel />
 
       <section style={{
         padding: 18,
