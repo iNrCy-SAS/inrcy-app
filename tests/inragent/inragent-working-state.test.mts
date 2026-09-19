@@ -8,6 +8,17 @@ const styles = readFileSync(
   new URL("../../app/dashboard/agent/agent.module.css", import.meta.url),
   "utf8",
 );
+const client = readFileSync(
+  new URL("../../app/dashboard/agent/AgentClient.tsx", import.meta.url),
+  "utf8",
+);
+const controller = readFileSync(
+  new URL(
+    "../../app/dashboard/agent/_hooks/useAgentAutomationController.ts",
+    import.meta.url,
+  ),
+  "utf8",
+);
 
 const editorialAction = (status: string, state: string) => ({
   status,
@@ -55,5 +66,30 @@ test("le texte de travail reste contenu dans le cadre du robot", () => {
   assert.match(
     styles,
     /\.robotWorkingBadge strong,[\s\S]*?\.robotWorkingBadge small \{[\s\S]*?overflow-wrap: anywhere;[\s\S]*?white-space: normal;/,
+  );
+});
+
+test("la roulette affiche la progression estimée sans annoncer 100 % avant la réussite", () => {
+  assert.match(
+    client,
+    /className=\{styles\.robotWorkingProgress\}[\s\S]*?\{normalizedProgress\}%/,
+  );
+  assert.equal(
+    (client.match(/progress=\{prepareProgress\?\.percent\}/g) || []).length,
+    2,
+  );
+  assert.match(
+    styles,
+    /\.robotWorkingSpinner::before \{[\s\S]*?animation: agentWorkingSpin/,
+  );
+  assert.match(
+    styles,
+    /\.robotWorkingProgress \{[\s\S]*?font-variant-numeric: tabular-nums/,
+  );
+  assert.match(controller, /current\.percent >= 99/);
+  assert.match(controller, /Math\.min\(99, current\.percent \+ increment\)/);
+  assert.match(
+    controller,
+    /percent: completed \? 100 : Math\.min\(99, current\.percent\)/,
   );
 });

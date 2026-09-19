@@ -514,10 +514,17 @@ function publicationActionSortGroup(action: AgentPreparedAction) {
 function AgentWorkingIndicator({
   title,
   detail,
+  progress,
 }: {
   title: string;
   detail: string;
+  progress?: number | null;
 }) {
+  const normalizedProgress =
+    typeof progress === "number"
+      ? Math.min(100, Math.max(0, Math.round(progress)))
+      : null;
+
   return (
     <div
       className={styles.robotWorkingBadge}
@@ -525,7 +532,13 @@ function AgentWorkingIndicator({
       aria-live="polite"
       aria-atomic="true"
     >
-      <span className={styles.robotWorkingSpinner} aria-hidden />
+      <span className={styles.robotWorkingSpinner} aria-hidden>
+        {normalizedProgress !== null ? (
+          <b className={styles.robotWorkingProgress}>
+            {normalizedProgress}%
+          </b>
+        ) : null}
+      </span>
       <span>
         <strong>{title}</strong>
         <small>{detail}</small>
@@ -5276,6 +5289,7 @@ export default function AgentClient() {
                 <AgentWorkingIndicator
                   title={i18nT("agent_working_title")}
                   detail={agentWorkingLabel}
+                  progress={prepareProgress?.percent}
                 />
               ) : null}
             </div>
@@ -5480,6 +5494,7 @@ export default function AgentClient() {
                     <AgentWorkingIndicator
                       title={i18nT("agent_working_title")}
                       detail={agentWorkingLabel}
+                      progress={prepareProgress?.percent}
                     />
                   ) : null}
                 </div>

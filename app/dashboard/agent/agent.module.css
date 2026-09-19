@@ -598,12 +598,21 @@
   width: 72px;
   height: 72px;
   flex: 0 0 72px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  box-shadow: 0 0 30px rgba(56, 189, 248, 0.3),
+    inset 0 0 18px rgba(192, 132, 252, 0.14);
+}
+
+.robotWorkingSpinner::before {
+  content: "";
+  position: absolute;
+  inset: 0;
   border: 6px solid rgba(255, 255, 255, 0.14);
   border-top-color: #67e8f9;
   border-right-color: #c084fc;
   border-radius: 999px;
-  box-shadow: 0 0 30px rgba(56, 189, 248, 0.3),
-    inset 0 0 18px rgba(192, 132, 252, 0.14);
   animation: agentWorkingSpin 0.8s linear infinite;
 }
 
@@ -616,6 +625,18 @@
   border-left-color: #60a5fa;
   border-radius: inherit;
   animation: agentWorkingSpinReverse 1.15s linear infinite;
+}
+
+.robotWorkingProgress {
+  position: relative;
+  z-index: 2;
+  color: #f8fbff;
+  font-size: 16px;
+  font-weight: 950;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.05em;
+  line-height: 1;
+  text-shadow: 0 0 12px rgba(103, 232, 249, 0.72);
 }
 
 @keyframes agentWorkingSpin {
@@ -14295,6 +14316,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   }
 
   .robotWorkingSpinner,
+  .robotWorkingSpinner::before,
   .robotWorkingSpinner::after,
   .robotWorkingBadge,
   .publishRegenerateButton[data-busy="true"] span,
@@ -14321,13 +14343,20 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   width: 30px;
   height: 30px;
   flex-basis: 30px;
-  border-width: 3px;
   box-shadow: 0 0 16px rgba(56, 189, 248, 0.36);
+}
+
+.agentCommandRailRobot .robotWorkingSpinner::before {
+  border-width: 3px;
 }
 
 .agentCommandRailRobot .robotWorkingSpinner::after {
   inset: 4px;
   border-width: 2px;
+}
+
+.agentCommandRailRobot .robotWorkingProgress {
+  font-size: 8px;
 }
 
 @media (min-width: 1101px) {
@@ -14352,14 +14381,21 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     width: 96px;
     height: 96px;
     flex-basis: 96px;
-    border-width: 8px;
     box-shadow: 0 0 38px rgba(56, 189, 248, 0.4),
       inset 0 0 22px rgba(192, 132, 252, 0.18);
+  }
+
+  .agentCommandRailRobot .robotWorkingSpinner::before {
+    border-width: 8px;
   }
 
   .agentCommandRailRobot .robotWorkingSpinner::after {
     inset: 13px;
     border-width: 4px;
+  }
+
+  .agentCommandRailRobot .robotWorkingProgress {
+    font-size: 20px;
   }
 }
 

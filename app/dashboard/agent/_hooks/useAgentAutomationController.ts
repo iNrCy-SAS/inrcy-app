@@ -314,7 +314,7 @@ export function useAgentAutomationController({
       });
       progressTimer = window.setInterval(() => {
         setPrepareProgress((current) => {
-          if (!current || current.key !== progressKey || current.percent >= 97)
+          if (!current || current.key !== progressKey || current.percent >= 99)
             return current;
           const increment =
             current.percent < 22
@@ -324,7 +324,7 @@ export function useAgentAutomationController({
                 : current.percent < 78
                   ? 3
                   : 1;
-          const nextPercent = Math.min(97, current.percent + increment);
+          const nextPercent = Math.min(99, current.percent + increment);
           return {
             key: progressKey,
             label: prepareProgressLabel(progressKey, nextPercent),
@@ -369,7 +369,7 @@ export function useAgentAutomationController({
                 label: completed
                   ? i18nT("automation_progress_finalising")
                   : i18nT("automation_progress_stopped"),
-                percent: 100,
+                percent: completed ? 100 : Math.min(99, current.percent),
               }
             : current,
         );
