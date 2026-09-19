@@ -639,5 +639,20 @@
   "native_purchase_confirmed": "Compra confirmada. iNrCy sincroniza tu suscripción con la tienda.",
   "native_subscription_management_message": "Esta suscripción se gestiona en la tienda de tu teléfono.",
   "native_subscription_managed_by_store": "Su suscripción es administrada por {store}. Las renovaciones, formas de pago y cancelaciones se gestionan en la tienda.",
-  "tags_voice_help": "Por voz, separa cada elemento diciendo «coma»: «Punto fuerte 1, coma, Punto fuerte 2, coma, Punto fuerte 3»."
+  "tags_voice_help": "Por voz, separa cada elemento diciendo «coma»: «Punto fuerte 1, coma, Punto fuerte 2, coma, Punto fuerte 3».",
+  "factures_stripe_abonnement_titre_2d6f8a10": "Facturas de suscripción de Stripe",
+  "factures_stripe_abonnement_description_5a1c9e32": "Aquí encontrarás las facturas de tu suscripción. Seguirán disponibles en Stripe.",
+  "factures_stripe_chargement_0f7b3c21": "Cargando facturas…",
+  "factures_stripe_erreur_7e2a5c11": "Las facturas de suscripción no están disponibles temporalmente.",
+  "factures_stripe_reessayer_9c4e1a70": "Reintentar",
+  "factures_stripe_aucune_6b2d8f14": "No hay facturas de suscripción disponibles por ahora.",
+  "facture_stripe_numero_1f6a3c20": "N.º de factura",
+  "facture_stripe_periode_4c8e2a61": "Periodo",
+  "facture_stripe_statut_payee_8fb3a12e": "Pagada",
+  "facture_stripe_statut_ouverte_4a2d7c90": "Abierta",
+  "facture_stripe_statut_brouillon_6d1e9f42": "Borrador",
+  "facture_stripe_statut_annulee_3e7b5c18": "Anulada",
+  "facture_stripe_statut_irrecouvrable_1c9d4e70": "Incobrable",
+  "facture_stripe_voir_7a1d5c30": "Ver",
+  "facture_stripe_pdf_3e8b2a61": "PDF"
 }

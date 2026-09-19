@@ -639,5 +639,20 @@
   "native_purchase_confirmed": "购买已确认。 iNrCy 将您的订阅与商店同步。",
   "native_subscription_management_message": "此订阅在您的手机商店中管理。",
   "native_subscription_managed_by_store": "您的订阅由 {store} 管理。续订、付款方式和取消均在商店内管理。",
-  "tags_voice_help": "语音输入时，请说“逗号”来分隔每项，例如：“优势 1，逗号，优势 2，逗号，优势 3”。"
+  "tags_voice_help": "语音输入时，请说“逗号”来分隔每项，例如：“优势 1，逗号，优势 2，逗号，优势 3”。",
+  "factures_stripe_abonnement_titre_2d6f8a10": "Stripe 订阅发票",
+  "factures_stripe_abonnement_description_5a1c9e32": "在此查看您的订阅发票。发票仍可在 Stripe 中访问。",
+  "factures_stripe_chargement_0f7b3c21": "正在加载发票…",
+  "factures_stripe_erreur_7e2a5c11": "订阅发票暂时无法使用。",
+  "factures_stripe_reessayer_9c4e1a70": "重试",
+  "factures_stripe_aucune_6b2d8f14": "目前没有可用的订阅发票。",
+  "facture_stripe_numero_1f6a3c20": "发票编号",
+  "facture_stripe_periode_4c8e2a61": "期间",
+  "facture_stripe_statut_payee_8fb3a12e": "已支付",
+  "facture_stripe_statut_ouverte_4a2d7c90": "未结",
+  "facture_stripe_statut_brouillon_6d1e9f42": "草稿",
+  "facture_stripe_statut_annulee_3e7b5c18": "已作废",
+  "facture_stripe_statut_irrecouvrable_1c9d4e70": "无法收回",
+  "facture_stripe_voir_7a1d5c30": "查看",
+  "facture_stripe_pdf_3e8b2a61": "PDF"
 }

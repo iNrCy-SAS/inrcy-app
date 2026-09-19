@@ -639,5 +639,20 @@
   "native_purchase_confirmed": "Kauf bestätigt. iNrCy synchronisiert Ihr Abonnement mit dem Store.",
   "native_subscription_management_message": "Dieses Abonnement wird im Store Ihres Telefons verwaltet.",
   "native_subscription_managed_by_store": "Ihr Abonnement wird von {store} verwaltet. Verlängerungen, Zahlungsarten und Stornierungen werden im Shop verwaltet.",
-  "tags_voice_help": "Sagen Sie bei der Spracheingabe zwischen den Elementen „Komma“: „Stärke 1, Komma, Stärke 2, Komma, Stärke 3“."
+  "tags_voice_help": "Sagen Sie bei der Spracheingabe zwischen den Elementen „Komma“: „Stärke 1, Komma, Stärke 2, Komma, Stärke 3“.",
+  "factures_stripe_abonnement_titre_2d6f8a10": "Stripe-Abonnementrechnungen",
+  "factures_stripe_abonnement_description_5a1c9e32": "Hier finden Sie die Rechnungen Ihres Abonnements. Sie bleiben in Stripe verfügbar.",
+  "factures_stripe_chargement_0f7b3c21": "Rechnungen werden geladen…",
+  "factures_stripe_erreur_7e2a5c11": "Die Abonnementrechnungen sind vorübergehend nicht verfügbar.",
+  "factures_stripe_reessayer_9c4e1a70": "Erneut versuchen",
+  "factures_stripe_aucune_6b2d8f14": "Derzeit sind keine Abonnementrechnungen verfügbar.",
+  "facture_stripe_numero_1f6a3c20": "Rechnungsnr.",
+  "facture_stripe_periode_4c8e2a61": "Zeitraum",
+  "facture_stripe_statut_payee_8fb3a12e": "Bezahlt",
+  "facture_stripe_statut_ouverte_4a2d7c90": "Offen",
+  "facture_stripe_statut_brouillon_6d1e9f42": "Entwurf",
+  "facture_stripe_statut_annulee_3e7b5c18": "Storniert",
+  "facture_stripe_statut_irrecouvrable_1c9d4e70": "Uneinbringlich",
+  "facture_stripe_voir_7a1d5c30": "Ansehen",
+  "facture_stripe_pdf_3e8b2a61": "PDF"
 }

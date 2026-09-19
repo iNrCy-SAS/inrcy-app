@@ -639,5 +639,20 @@
   "vouvoiement_c5254349": "Vouvoiement",
   "youtube_558865a1": "YouTube",
   "zones_d_intervention_a4999f61": "Zones d’intervention",
-  "tags_voice_help": "En vocal, séparez chaque élément en disant « virgule » : « Force 1, virgule, Force 2, virgule, Force 3 »."
+  "tags_voice_help": "En vocal, séparez chaque élément en disant « virgule » : « Force 1, virgule, Force 2, virgule, Force 3 ».",
+  "factures_stripe_abonnement_titre_2d6f8a10": "Factures d’abonnement Stripe",
+  "factures_stripe_abonnement_description_5a1c9e32": "Retrouvez ici les factures générées par votre abonnement. Elles restent accessibles depuis Stripe.",
+  "factures_stripe_chargement_0f7b3c21": "Chargement des factures…",
+  "factures_stripe_erreur_7e2a5c11": "Les factures d’abonnement sont momentanément indisponibles.",
+  "factures_stripe_reessayer_9c4e1a70": "Réessayer",
+  "factures_stripe_aucune_6b2d8f14": "Aucune facture d’abonnement disponible pour le moment.",
+  "facture_stripe_numero_1f6a3c20": "N° facture",
+  "facture_stripe_periode_4c8e2a61": "Période",
+  "facture_stripe_statut_payee_8fb3a12e": "Payée",
+  "facture_stripe_statut_ouverte_4a2d7c90": "Ouverte",
+  "facture_stripe_statut_brouillon_6d1e9f42": "Brouillon",
+  "facture_stripe_statut_annulee_3e7b5c18": "Annulée",
+  "facture_stripe_statut_irrecouvrable_1c9d4e70": "Irrécouvrable",
+  "facture_stripe_voir_7a1d5c30": "Voir",
+  "facture_stripe_pdf_3e8b2a61": "PDF"
 }

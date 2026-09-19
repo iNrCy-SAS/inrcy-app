@@ -639,5 +639,20 @@
   "native_purchase_confirmed": "Purchase confirmed. iNrCy syncs your subscription with the store.",
   "native_subscription_management_message": "This subscription is managed in your phone's store.",
   "native_subscription_managed_by_store": "Your subscription is managed by {store}. Renewals, payment methods and cancellations are managed in the store.",
-  "tags_voice_help": "For voice input, separate each item by saying ‘comma’: ‘Strength 1, comma, Strength 2, comma, Strength 3’."
+  "tags_voice_help": "For voice input, separate each item by saying ‘comma’: ‘Strength 1, comma, Strength 2, comma, Strength 3’.",
+  "factures_stripe_abonnement_titre_2d6f8a10": "Stripe subscription invoices",
+  "factures_stripe_abonnement_description_5a1c9e32": "Find your subscription invoices here. They remain available in Stripe.",
+  "factures_stripe_chargement_0f7b3c21": "Loading invoices…",
+  "factures_stripe_erreur_7e2a5c11": "Subscription invoices are temporarily unavailable.",
+  "factures_stripe_reessayer_9c4e1a70": "Try again",
+  "factures_stripe_aucune_6b2d8f14": "No subscription invoices are available yet.",
+  "facture_stripe_numero_1f6a3c20": "Invoice no.",
+  "facture_stripe_periode_4c8e2a61": "Period",
+  "facture_stripe_statut_payee_8fb3a12e": "Paid",
+  "facture_stripe_statut_ouverte_4a2d7c90": "Open",
+  "facture_stripe_statut_brouillon_6d1e9f42": "Draft",
+  "facture_stripe_statut_annulee_3e7b5c18": "Voided",
+  "facture_stripe_statut_irrecouvrable_1c9d4e70": "Uncollectible",
+  "facture_stripe_voir_7a1d5c30": "View",
+  "facture_stripe_pdf_3e8b2a61": "PDF"
 }

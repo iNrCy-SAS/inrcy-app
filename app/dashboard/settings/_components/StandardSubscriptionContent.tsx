@@ -13,6 +13,7 @@ import {
 } from "@/lib/subscriptionOffers";
 import { startStandardSubscriptionCheckout } from "@/lib/clientSubscriptionBilling";
 import { openNativeSubscriptionManagement } from "@/lib/nativeBillingManagement";
+import SubscriptionInvoicesPanel from "./SubscriptionInvoicesPanel";
 
 type Props = {
   onOpenContact: () => void;
@@ -436,6 +437,8 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
         {message ? <p style={{ color: "#8ff7d0", marginBottom: 0 }}>{message}</p> : null}
         {error ? <p style={{ color: "#ff9bbd", marginBottom: 0 }}>{error}</p> : null}
       </section>
+
+      {view.hasStripeSubscription ? <SubscriptionInvoicesPanel /> : null}
 
       <section style={{
         padding: 18,

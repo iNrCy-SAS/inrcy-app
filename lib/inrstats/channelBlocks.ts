@@ -167,10 +167,10 @@ function mapChannelConnection(channel: DashboardChannelKey, states: ChannelState
     case 'gmb': {
       const state = states.gmb;
       return {
-        connected: state.accountConnected,
+        connected: state.connected,
         accountConnected: state.accountConnected,
         configured: state.configured,
-        statsConnected: state.accountConnected && !state.requiresUpdate,
+        statsConnected: state.connected && !state.requiresUpdate,
         expired: state.expired,
         requiresUpdate: state.requiresUpdate,
         connectionStatus: state.connection_status,
@@ -272,10 +272,10 @@ function mapChannelConnection(channel: DashboardChannelKey, states: ChannelState
     case 'pinterest': {
       const state = states.pinterest;
       return {
-        connected: state.connected,
+        connected: state.accountConnected,
         accountConnected: state.accountConnected,
         configured: Boolean(state.default_board_id || state.connected),
-        statsConnected: state.connected && !state.requiresUpdate,
+        statsConnected: state.accountConnected && !state.requiresUpdate,
         expired: state.expired,
         requiresUpdate: state.requiresUpdate,
         connectionStatus: state.connection_status,

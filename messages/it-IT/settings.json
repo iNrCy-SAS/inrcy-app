@@ -639,5 +639,20 @@
   "native_purchase_confirmed": "Acquisto confermato. iNrCy sincronizza il tuo abbonamento con lo store.",
   "native_subscription_management_message": "Questo abbonamento è gestito nello store del tuo telefono.",
   "native_subscription_managed_by_store": "Il tuo abbonamento è gestito da {store}. Nello store vengono gestiti rinnovi, modalità di pagamento e cancellazioni.",
-  "tags_voice_help": "Con la voce, separa ogni elemento dicendo «virgola»: «Punto di forza 1, virgola, Punto di forza 2, virgola, Punto di forza 3»."
+  "tags_voice_help": "Con la voce, separa ogni elemento dicendo «virgola»: «Punto di forza 1, virgola, Punto di forza 2, virgola, Punto di forza 3».",
+  "factures_stripe_abonnement_titre_2d6f8a10": "Fatture dell’abbonamento Stripe",
+  "factures_stripe_abonnement_description_5a1c9e32": "Trova qui le fatture del tuo abbonamento. Restano disponibili su Stripe.",
+  "factures_stripe_chargement_0f7b3c21": "Caricamento delle fatture…",
+  "factures_stripe_erreur_7e2a5c11": "Le fatture dell’abbonamento non sono temporaneamente disponibili.",
+  "factures_stripe_reessayer_9c4e1a70": "Riprova",
+  "factures_stripe_aucune_6b2d8f14": "Nessuna fattura dell’abbonamento disponibile al momento.",
+  "facture_stripe_numero_1f6a3c20": "N. fattura",
+  "facture_stripe_periode_4c8e2a61": "Periodo",
+  "facture_stripe_statut_payee_8fb3a12e": "Pagata",
+  "facture_stripe_statut_ouverte_4a2d7c90": "Aperta",
+  "facture_stripe_statut_brouillon_6d1e9f42": "Bozza",
+  "facture_stripe_statut_annulee_3e7b5c18": "Annullata",
+  "facture_stripe_statut_irrecouvrable_1c9d4e70": "Irricuperabile",
+  "facture_stripe_voir_7a1d5c30": "Visualizza",
+  "facture_stripe_pdf_3e8b2a61": "PDF"
 }

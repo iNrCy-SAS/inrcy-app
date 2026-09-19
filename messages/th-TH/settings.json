@@ -639,5 +639,20 @@
   "native_purchase_confirmed": "ยืนยันการซื้อแล้ว iNrCy ซิงค์การสมัครของคุณกับร้านค้า",
   "native_subscription_management_message": "การสมัครสมาชิกนี้ได้รับการจัดการในร้านค้าโทรศัพท์ของคุณ",
   "native_subscription_managed_by_store": "การสมัครของคุณได้รับการจัดการโดย {store} การต่ออายุ วิธีการชำระเงิน และการยกเลิกได้รับการจัดการในร้านค้า",
-  "tags_voice_help": "เมื่อป้อนด้วยเสียง ให้พูดว่า ‘จุลภาค’ ระหว่างแต่ละรายการ เช่น ‘จุดแข็ง 1 จุลภาค จุดแข็ง 2 จุลภาค จุดแข็ง 3’"
+  "tags_voice_help": "เมื่อป้อนด้วยเสียง ให้พูดว่า ‘จุลภาค’ ระหว่างแต่ละรายการ เช่น ‘จุดแข็ง 1 จุลภาค จุดแข็ง 2 จุลภาค จุดแข็ง 3’",
+  "factures_stripe_abonnement_titre_2d6f8a10": "ใบแจ้งหนี้การสมัครสมาชิก Stripe",
+  "factures_stripe_abonnement_description_5a1c9e32": "ดูใบแจ้งหนี้การสมัครสมาชิกของคุณได้ที่นี่ ใบแจ้งหนี้ยังคงอยู่ใน Stripe",
+  "factures_stripe_chargement_0f7b3c21": "กำลังโหลดใบแจ้งหนี้…",
+  "factures_stripe_erreur_7e2a5c11": "ใบแจ้งหนี้การสมัครสมาชิกไม่พร้อมใช้งานชั่วคราว",
+  "factures_stripe_reessayer_9c4e1a70": "ลองอีกครั้ง",
+  "factures_stripe_aucune_6b2d8f14": "ยังไม่มีใบแจ้งหนี้การสมัครสมาชิก",
+  "facture_stripe_numero_1f6a3c20": "เลขที่ใบแจ้งหนี้",
+  "facture_stripe_periode_4c8e2a61": "ช่วงเวลา",
+  "facture_stripe_statut_payee_8fb3a12e": "ชำระแล้ว",
+  "facture_stripe_statut_ouverte_4a2d7c90": "เปิดอยู่",
+  "facture_stripe_statut_brouillon_6d1e9f42": "ฉบับร่าง",
+  "facture_stripe_statut_annulee_3e7b5c18": "ยกเลิกแล้ว",
+  "facture_stripe_statut_irrecouvrable_1c9d4e70": "เรียกเก็บไม่ได้",
+  "facture_stripe_voir_7a1d5c30": "ดู",
+  "facture_stripe_pdf_3e8b2a61": "PDF"
 }

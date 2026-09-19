@@ -639,5 +639,20 @@
   "native_purchase_confirmed": "Aankoop bevestigd. iNrCy synchroniseert uw abonnement met de winkel.",
   "native_subscription_management_message": "Dit abonnement wordt beheerd in de winkel van uw telefoon.",
   "native_subscription_managed_by_store": "Uw abonnement wordt beheerd door {store}. Verlengingen, betaalmethoden en annuleringen worden beheerd in de winkel.",
-  "tags_voice_help": "Scheid bij spraakinvoer elk item door ‘komma’ te zeggen: ‘Sterkte 1, komma, Sterkte 2, komma, Sterkte 3’."
+  "tags_voice_help": "Scheid bij spraakinvoer elk item door ‘komma’ te zeggen: ‘Sterkte 1, komma, Sterkte 2, komma, Sterkte 3’.",
+  "factures_stripe_abonnement_titre_2d6f8a10": "Stripe-abonnementsfacturen",
+  "factures_stripe_abonnement_description_5a1c9e32": "Hier vindt u de facturen van uw abonnement. Ze blijven beschikbaar in Stripe.",
+  "factures_stripe_chargement_0f7b3c21": "Facturen laden…",
+  "factures_stripe_erreur_7e2a5c11": "Abonnementsfacturen zijn tijdelijk niet beschikbaar.",
+  "factures_stripe_reessayer_9c4e1a70": "Opnieuw proberen",
+  "factures_stripe_aucune_6b2d8f14": "Er zijn momenteel geen abonnementsfacturen beschikbaar.",
+  "facture_stripe_numero_1f6a3c20": "Factuurnr.",
+  "facture_stripe_periode_4c8e2a61": "Periode",
+  "facture_stripe_statut_payee_8fb3a12e": "Betaald",
+  "facture_stripe_statut_ouverte_4a2d7c90": "Openstaand",
+  "facture_stripe_statut_brouillon_6d1e9f42": "Concept",
+  "facture_stripe_statut_annulee_3e7b5c18": "Geannuleerd",
+  "facture_stripe_statut_irrecouvrable_1c9d4e70": "Oninbaar",
+  "facture_stripe_voir_7a1d5c30": "Bekijken",
+  "facture_stripe_pdf_3e8b2a61": "PDF"
 }

@@ -639,5 +639,20 @@
   "native_purchase_confirmed": "Compra confirmada. iNrCy sincroniza a sua assinatura com a loja.",
   "native_subscription_management_message": "Esta assinatura é gereda na loja do seu telefone.",
   "native_subscription_managed_by_store": "A sua assinatura é gereda por {store}. Renovações, formas de pagamento e cancelamentos são geredos na loja.",
-  "tags_voice_help": "Por voz, separe cada elemento dizendo «vírgula»: «Ponto forte 1, vírgula, Ponto forte 2, vírgula, Ponto forte 3»."
+  "tags_voice_help": "Por voz, separe cada elemento dizendo «vírgula»: «Ponto forte 1, vírgula, Ponto forte 2, vírgula, Ponto forte 3».",
+  "factures_stripe_abonnement_titre_2d6f8a10": "Faturas da subscrição Stripe",
+  "factures_stripe_abonnement_description_5a1c9e32": "Consulte aqui as faturas da sua subscrição. Continuam disponíveis no Stripe.",
+  "factures_stripe_chargement_0f7b3c21": "A carregar faturas…",
+  "factures_stripe_erreur_7e2a5c11": "As faturas da subscrição estão temporariamente indisponíveis.",
+  "factures_stripe_reessayer_9c4e1a70": "Tentar novamente",
+  "factures_stripe_aucune_6b2d8f14": "Não existem faturas da subscrição disponíveis neste momento.",
+  "facture_stripe_numero_1f6a3c20": "N.º da fatura",
+  "facture_stripe_periode_4c8e2a61": "Período",
+  "facture_stripe_statut_payee_8fb3a12e": "Paga",
+  "facture_stripe_statut_ouverte_4a2d7c90": "Aberta",
+  "facture_stripe_statut_brouillon_6d1e9f42": "Rascunho",
+  "facture_stripe_statut_annulee_3e7b5c18": "Anulada",
+  "facture_stripe_statut_irrecouvrable_1c9d4e70": "Incobrável",
+  "facture_stripe_voir_7a1d5c30": "Ver",
+  "facture_stripe_pdf_3e8b2a61": "PDF"
 }

@@ -15,6 +15,7 @@ import {
   STANDARD_SUBSCRIPTION_OFFER,
   STANDARD_SUBSCRIPTION_OFFER_V2,
 } from "@/lib/subscriptionOffers";
+import SubscriptionInvoicesPanel from "./SubscriptionInvoicesPanel";
 
 
 type InrcyPlan = "Trial" | "Standard" | "Premium" | "Starter" | "Accel" | "Speed";
@@ -689,6 +690,8 @@ useEffect(() => {
             </button>
           </div>
         ) : null}
+
+        {sub.stripe_subscription_id ? <SubscriptionInvoicesPanel /> : null}
 
         {checkoutState === "success" ? (
           <p style={{ margin: "8px 0 0", opacity: 0.9, lineHeight: 1.5 }}>
