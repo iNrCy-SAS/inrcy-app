@@ -364,9 +364,11 @@ export type AgentConfirmDialogState = {
   title: string;
   message: string;
   confirmLabel: string;
+  alternateLabel?: string;
   cancelLabel?: string;
   tone?: "warning" | "danger";
   onConfirm: () => void | Promise<void>;
+  onAlternate?: () => void | Promise<void>;
 } | null;
 
 export type ScheduledActionsResponse = {

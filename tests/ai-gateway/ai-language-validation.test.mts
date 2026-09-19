@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   detectLikelyAiLanguage,
   hasAiLanguageMismatch,
+  hasAiScriptContamination,
 } from "../../lib/aiLanguageValidation.ts";
 
 const samples = {
@@ -43,4 +44,18 @@ test("strong wrong-language output is rejected, including non-French mismatches"
 test("short or neutral text is not rejected aggressively", () => {
   assert.equal(hasAiLanguageMismatch("es", "Jardin Horizon — Arras"), false);
   assert.equal(hasAiLanguageMismatch("de", "Terrasse 20 m² — Michel"), false);
+});
+
+test("one foreign-script word is rejected inside an otherwise French publication", () => {
+  const contaminated =
+    "Découvrez nos conseils naturels pour retrouver votre équilibre สวัสดี au quotidien.";
+  assert.equal(hasAiScriptContamination("fr", contaminated), true);
+  assert.equal(hasAiLanguageMismatch("fr", contaminated), true);
+});
+
+test("expected scripts and Latin brand names remain accepted", () => {
+  assert.equal(hasAiScriptContamination("fr", "Conseils iNrCy à Arras"), false);
+  assert.equal(hasAiScriptContamination("th", "บริการ iNrCy Pro"), false);
+  assert.equal(hasAiScriptContamination("zh", "iNrCy 专业服务"), false);
+  assert.equal(hasAiScriptContamination("zh", "专业บริการ"), true);
 });

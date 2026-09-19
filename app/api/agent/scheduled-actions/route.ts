@@ -19,6 +19,8 @@ import {
   filterStandardAgentItems,
   isStandardAgentActionDescriptor,
 } from "@/lib/standardAgentPolicy";
+import { compactInrAgentScheduledPayload } from "@/lib/inrAgentScheduledPayload";
+import { buildAbsoluteStorageContentUrl } from "@/lib/storageContentUrl";
 
 export const runtime = "nodejs";
 
@@ -86,6 +88,20 @@ function isCampaignSchedule(row: ReturnType<typeof scheduledActionToDbRow>) {
   );
 }
 
+function scheduledActionForResponse(
+  row: Parameters<typeof rowToInrAgentScheduledAction>[0],
+  requestUrl: string,
+) {
+  const action = rowToInrAgentScheduledAction(row);
+  return {
+    ...action,
+    payload: compactInrAgentScheduledPayload(action.payload, {
+      storageUrl: (bucket, storagePath) =>
+        buildAbsoluteStorageContentUrl(bucket, storagePath, requestUrl),
+    }),
+  };
+}
+
 export async function GET(request: Request) {
   const { user, errorResponse, authUserId, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
@@ -132,7 +148,7 @@ export async function GET(request: Request) {
     }
     return NextResponse.json(
       {
-        scheduledAction: rowToInrAgentScheduledAction(exact.data),
+        scheduledAction: scheduledActionForResponse(exact.data, request.url),
         tableMissing: false,
         recoveredByRequestId: true,
         scheduleRequestId: requestId,
@@ -163,7 +179,9 @@ export async function GET(request: Request) {
       ? filterStandardAgentItems(data)
       : data
     : [];
-  const scheduledActions = visibleRows.map(rowToInrAgentScheduledAction);
+  const scheduledActions = visibleRows.map((row) =>
+    scheduledActionForResponse(row, request.url),
+  );
   return NextResponse.json({ scheduledActions, tableMissing: false });
 }
 
@@ -200,10 +218,16 @@ export async function POST(request: Request) {
     : "agent";
   const source: InrAgentScheduledActionSource = record?.source === "automatic" ? "automatic" : "manual";
 
-  const scheduledPayload = {
-    ...(asRecord(record?.payload) || {}),
-    ...(scheduleRequestId ? { scheduleRequestId } : {}),
-  };
+  const scheduledPayload = compactInrAgentScheduledPayload(
+    {
+      ...(asRecord(record?.payload) || {}),
+      ...(scheduleRequestId ? { scheduleRequestId } : {}),
+    },
+    {
+      storageUrl: (bucket, storagePath) =>
+        buildAbsoluteStorageContentUrl(bucket, storagePath, request.url),
+    },
+  );
   const row = scheduledActionToDbRow({
     userId: activeUserId,
     automationKey,
@@ -235,7 +259,7 @@ export async function POST(request: Request) {
         return premiumRequiredApiResponse();
       }
       return NextResponse.json({
-        scheduledAction: rowToInrAgentScheduledAction(existing.data),
+        scheduledAction: scheduledActionForResponse(existing.data, request.url),
         tableMissing: false,
         idempotent: true,
         scheduleRequestId,
@@ -310,7 +334,7 @@ export async function POST(request: Request) {
           return premiumRequiredApiResponse();
         }
         return NextResponse.json({
-          scheduledAction: rowToInrAgentScheduledAction(existing.data),
+          scheduledAction: scheduledActionForResponse(existing.data, request.url),
           tableMissing: false,
           idempotent: true,
           scheduleRequestId,
@@ -369,7 +393,7 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({
-    scheduledAction: rowToInrAgentScheduledAction(data),
+    scheduledAction: scheduledActionForResponse(data, request.url),
     tableMissing: false,
     idempotent: false,
     ...(scheduleRequestId ? { scheduleRequestId } : {}),

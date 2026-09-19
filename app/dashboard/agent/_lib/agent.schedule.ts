@@ -1,4 +1,5 @@
 import { INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT } from "@/lib/mediaRules";
+import { compactInrAgentScheduledPayload } from "@/lib/inrAgentScheduledPayload";
 import {
   inrAgentMonthlyDateCount,
   isInrAgentScheduledMonthDay,
@@ -481,7 +482,21 @@ export function updateScheduledEditPublishText(
     ctaPhone: string;
     hashtags: string;
   },
+  applyToChannels: ChannelKey[] = [],
 ): AgentPreparedAction {
+  const targetChannels = Array.from(new Set(applyToChannels));
+  if (targetChannels.length) {
+    const orderedChannels = [
+      ...targetChannels.filter((targetChannel) => targetChannel !== channel),
+      ...(targetChannels.includes(channel) ? [channel] : []),
+    ];
+    return orderedChannels.reduce(
+      (nextAction, targetChannel) =>
+        updateScheduledEditPublishText(nextAction, targetChannel, draft),
+      action,
+    );
+  }
+
   const displayKey = boosterDisplayKeyFromAgentChannel(channel);
   const payload = jsonClone(action.payload || {});
   const postByChannel = {
@@ -663,7 +678,27 @@ export function updateScheduledEditPublishMedia(
   media: Record<string, unknown> | null,
   requestedIndex = 0,
   mutation: PublishMediaMutation = media ? "replace" : "remove",
+  applyToChannels: ChannelKey[] = [],
 ): AgentPreparedAction {
+  const targetChannels = Array.from(new Set(applyToChannels));
+  if (targetChannels.length) {
+    const orderedChannels = [
+      ...targetChannels.filter((targetChannel) => targetChannel !== channel),
+      ...(targetChannels.includes(channel) ? [channel] : []),
+    ];
+    return orderedChannels.reduce(
+      (nextAction, targetChannel) =>
+        updateScheduledEditPublishMedia(
+          nextAction,
+          targetChannel,
+          media,
+          requestedIndex,
+          mutation,
+        ),
+      action,
+    );
+  }
+
   const displayKey = boosterDisplayKeyFromAgentChannel(channel);
   const payload = jsonClone(action.payload || {});
   const currentPublishPayload = asRecord(payload.publishPayload) || {};
@@ -1080,7 +1115,7 @@ export function scheduledEditUpdateFromAction(
       actionType: "publication",
       targetTool: "booster",
       channels,
-      payload: {
+      payload: compactInrAgentScheduledPayload({
         ...payload,
         kind: "manual_publish_schedule",
         publishPayload: nextPublishPayload,
@@ -1092,7 +1127,7 @@ export function scheduledEditUpdateFromAction(
           channelCount: channels.length,
           updatedFrom: "scheduled_edit",
         },
-      },
+      }),
     };
   }
 

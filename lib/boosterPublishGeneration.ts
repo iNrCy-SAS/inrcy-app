@@ -882,6 +882,7 @@ function buildLanguageRetryInstructions(languageCode: string, channels: BoosterC
     `ERREUR LANGUE À CORRIGER : les canaux suivants ont été détectés dans une autre langue que la langue configurée : ${channels.map((channel) => CHANNEL_LABELS[channel]).join(", ")}.`,
     `Regénère ces canaux exclusivement en ${languageLabel}.`,
     `Vérifie title, content et cta : chaque texte destiné au lecteur doit être en ${languageLabel}.`,
+    `N'insère aucun mot parasite écrit dans un alphabet incompatible avec ${languageLabel}, même isolé au milieu d'une phrase correcte.`,
     `Conserve uniquement les noms propres, marques, adresses, URLs, références techniques et hashtags de marque qui doivent rester tels quels.`,
   ].join("\n");
 }

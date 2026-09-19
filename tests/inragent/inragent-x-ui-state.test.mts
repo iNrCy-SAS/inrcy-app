@@ -66,7 +66,7 @@ test("the Agent UI maps X aliases, icon and Booster channel consistently", () =>
 
 test("iNrAgent keeps X URL-free without blocking the other publication channels", () => {
   assert.match(agentPrepareApi, /RÈGLE ABSOLUE POUR X[\s\S]*?aucun lien ni aucune URL/);
-  assert.match(agentActionsApi, /channel === "x"[\s\S]*?validateXUrlFreeText/);
+  assert.match(agentActionsApi, /targetChannels\.includes\("x"\)[\s\S]*?validateXUrlFreeText/);
   assert.match(agentActionsApi, /code:\s*xUrlValidation\.code/);
   assert.match(agentClient, /agentXPostContainsForbiddenUrl/);
   assert.match(agentClient, /blockers\.push\(X_FORBIDDEN_URL_ERROR\)/);

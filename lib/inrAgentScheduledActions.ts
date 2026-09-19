@@ -1,5 +1,6 @@
 import { INR_AGENT_AUTOMATION_KEYS, type InrAgentAutomationKey } from "@/lib/inrAgentSettings";
 import { INR_AGENT_ACTION_TYPES, INR_AGENT_TARGET_TOOLS, type InrAgentActionType, type InrAgentTargetTool } from "@/lib/inrAgentActions";
+import { compactInrAgentScheduledPayload } from "@/lib/inrAgentScheduledPayload";
 
 export const INR_AGENT_SCHEDULED_ACTION_SOURCES = ["manual", "automatic"] as const;
 export const INR_AGENT_SCHEDULED_ACTION_STATUSES = ["scheduled", "running", "done", "failed", "cancelled"] as const;
@@ -61,7 +62,9 @@ function sanitizeStringArray(input: unknown): string[] {
 
 function sanitizePayload(input: unknown): InrAgentScheduledActionPayload {
   if (!input || typeof input !== "object" || Array.isArray(input)) return {};
-  return input as InrAgentScheduledActionPayload;
+  return compactInrAgentScheduledPayload(
+    input as InrAgentScheduledActionPayload,
+  );
 }
 
 export function rowToInrAgentScheduledAction(row: DbInrAgentScheduledActionRow): InrAgentScheduledAction {
@@ -118,7 +121,10 @@ export function scheduledActionToDbRow(args: {
     scheduled_at: args.scheduledAt,
     timezone: args.timezone || "Europe/Paris",
     channels: Array.isArray(args.channels) ? args.channels : [],
-    payload: args.payload && typeof args.payload === "object" ? args.payload : {},
+    payload:
+      args.payload && typeof args.payload === "object"
+        ? compactInrAgentScheduledPayload(args.payload)
+        : {},
     status: "scheduled",
     updated_at: new Date().toISOString(),
   };

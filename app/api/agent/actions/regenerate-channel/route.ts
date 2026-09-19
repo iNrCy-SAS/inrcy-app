@@ -120,10 +120,6 @@ function generatedItemToAgentMedia(item: {
   });
 }
 
-function setChannelValue(source: Record<string, unknown>, channel: PublishChannelKey, value: unknown) {
-  return { ...source, [channel]: value };
-}
-
 function setChannelsValue(
   source: Record<string, unknown>,
   channels: PublishChannelKey[],
@@ -242,6 +238,8 @@ export async function POST(request: Request) {
   const actionId = cleanText(body?.actionId, 160);
   const channel = normalizeRequestedChannel(body?.channel);
   const kind = cleanText(body?.kind, 20);
+  const requestedScope =
+    body?.scope === "publication" ? "publication" : "channel";
   if (!actionId || !channel || !["content", "media"].includes(kind)) {
     return NextResponse.json({ error: "Demande de régénération invalide." }, { status: 400 });
   }
@@ -290,6 +288,18 @@ export async function POST(request: Request) {
   const idea = regeneratedIdea({ payload, actionSummary: action.summary, channel, currentPost });
 
   if (kind === "content") {
+    const contentTargetChannels =
+      requestedScope === "publication" ? actionChannels : [channel];
+    const contentIdea =
+      requestedScope === "publication"
+        ? [
+            cleanText(payload.idea || action.summary, 1_500),
+            "RÉGÉNÉRATION DU CONTENU DEMANDÉE POUR TOUS LES CANAUX DE LA PUBLICATION.",
+            "Crée pour chaque canal une proposition vraiment différente de l’ancienne, adaptée à ses usages et à ses limites techniques. Le titre, le texte, le CTA et les hashtags doivent former un ensemble cohérent. Ne modifie ni la date ni le média.",
+          ]
+            .filter(Boolean)
+            .join("\n\n")
+        : idea;
     let reservation: AiCreditReservation | null = null;
     try {
       const quota = await reserveAiCredits({
@@ -313,10 +323,10 @@ export async function POST(request: Request) {
           }),
         ]);
       const generated = await generateSharedBoosterPosts({
-        idea,
+        idea: contentIdea,
         theme: agentThemeToBoosterTheme[theme],
         style: "equilibre",
-        channels: [channel as BoosterChannels],
+        channels: contentTargetChannels as BoosterChannels[],
         profile,
         business,
         recentPublications,
@@ -324,29 +334,41 @@ export async function POST(request: Request) {
         aiFeature: "agent.publish",
         accountId: activeUserId,
         extraInstructions:
-          "Régénère uniquement le contenu éditorial de ce canal : titre, texte, CTA et hashtags. Les quatre éléments doivent être cohérents entre eux, complets, publiables, non tronqués et adaptés aux limites techniques du canal. Conserve les coordonnées structurées du CTA (mode, URL et téléphone) pour que le bouton reste fonctionnel. Ne modifie ni la date, ni le média, ni les autres canaux.",
+          requestedScope === "publication"
+            ? "Régénère le contenu éditorial de chacun des canaux demandés : titre, texte, CTA et hashtags. Chaque version doit être cohérente, complète, publiable, non tronquée et adaptée aux limites techniques de son canal. Conserve les coordonnées structurées des CTA pour que les boutons restent fonctionnels. Ne modifie ni la date ni le média."
+            : "Régénère uniquement le contenu éditorial de ce canal : titre, texte, CTA et hashtags. Les quatre éléments doivent être cohérents entre eux, complets, publiables, non tronqués et adaptés aux limites techniques du canal. Conserve les coordonnées structurées du CTA (mode, URL et téléphone) pour que le bouton reste fonctionnel. Ne modifie ni la date, ni le média, ni les autres canaux.",
       });
-      const rawPost = generated.versions[channel as BoosterChannels];
-      if (!rawPost) throw new Error("Le moteur n’a pas produit de nouveau contenu.");
-      const regeneratedPost = cleanBoosterPost(rawPost, action.summary);
-      const editorialPost = {
-        ...currentPost,
-        title: regeneratedPost.title,
-        subject: regeneratedPost.subject,
-        content: regeneratedPost.content,
-        text: regeneratedPost.text,
-        body: regeneratedPost.body,
-        cta: regeneratedPost.cta,
-        callToAction: regeneratedPost.callToAction,
-        hashtags: regeneratedPost.hashtags,
-      };
-      const nextContentPost = applySafePreferredCta({
-        channel: channel as BoosterChannels,
-        post: editorialPost,
-        defaults: ctaDefaults,
-        preserveExplicit: true,
-      });
-      const nextPostByChannel = setChannelValue(postByChannel, channel, nextContentPost);
+      const nextPostByChannel = { ...postByChannel };
+      for (const targetChannel of contentTargetChannels) {
+        const rawPost = generated.versions[targetChannel as BoosterChannels];
+        if (!rawPost) {
+          throw new Error(
+            "Le moteur n’a pas produit toutes les versions demandées. Aucun contenu n’a été remplacé.",
+          );
+        }
+        const regeneratedPost = cleanBoosterPost(rawPost, action.summary);
+        const targetCurrentPost = readPublishPost(
+          postByChannel,
+          targetChannel,
+        );
+        const editorialPost = {
+          ...targetCurrentPost,
+          title: regeneratedPost.title,
+          subject: regeneratedPost.subject,
+          content: regeneratedPost.content,
+          text: regeneratedPost.text,
+          body: regeneratedPost.body,
+          cta: regeneratedPost.cta,
+          callToAction: regeneratedPost.callToAction,
+          hashtags: regeneratedPost.hashtags,
+        };
+        nextPostByChannel[targetChannel] = applySafePreferredCta({
+          channel: targetChannel as BoosterChannels,
+          post: editorialPost,
+          defaults: ctaDefaults,
+          preserveExplicit: true,
+        });
+      }
       const nextNested = { ...nested, postByChannel: nextPostByChannel };
       const nextPayload = {
         ...payload,
@@ -358,11 +380,22 @@ export async function POST(request: Request) {
         accountId: activeUserId,
         payload: nextPayload,
         previewText: buildPublishPreviewTextFromPosts(nextPostByChannel, action.previewText),
-        editType: "regenerate_publish_channel_content",
+        editType:
+          requestedScope === "publication"
+            ? "regenerate_publish_global_content"
+            : "regenerate_publish_channel_content",
         channel,
+        appliedToChannels: contentTargetChannels,
       });
       await commitAiCredits(reservation);
-      return NextResponse.json({ ok: true, regenerated: "content", channel, action: nextAction });
+      return NextResponse.json({
+        ok: true,
+        regenerated: "content",
+        scope: requestedScope,
+        channel,
+        channels: contentTargetChannels,
+        action: nextAction,
+      });
     } catch (error) {
       await rollbackAiCredits(reservation);
       console.error("[inr-agent] channel content regeneration failed", {

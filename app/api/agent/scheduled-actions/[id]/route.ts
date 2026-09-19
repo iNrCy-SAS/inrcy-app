@@ -7,6 +7,8 @@ import {
   premiumRequiredApiResponse,
 } from "@/lib/dashboardEditionServer";
 import { isStandardAgentActionDescriptor } from "@/lib/standardAgentPolicy";
+import { compactInrAgentScheduledPayload } from "@/lib/inrAgentScheduledPayload";
+import { buildAbsoluteStorageContentUrl } from "@/lib/storageContentUrl";
 
 export const runtime = "nodejs";
 
@@ -48,8 +50,22 @@ function sanitizeText(value: unknown, fallback = "", maxLength = 180) {
   return (text || fallback).slice(0, maxLength);
 }
 
+function scheduledActionForResponse(
+  row: Parameters<typeof rowToInrAgentScheduledAction>[0],
+  requestUrl: string,
+) {
+  const action = rowToInrAgentScheduledAction(row);
+  return {
+    ...action,
+    payload: compactInrAgentScheduledPayload(action.payload, {
+      storageUrl: (bucket, storagePath) =>
+        buildAbsoluteStorageContentUrl(bucket, storagePath, requestUrl),
+    }),
+  };
+}
 
-export async function GET(_request: Request, ctx: { params: Promise<{ id: string }> }) {
+
+export async function GET(request: Request, ctx: { params: Promise<{ id: string }> }) {
   const { user, errorResponse, authUserId, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
   const standardMode =
@@ -75,7 +91,10 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
   if (standardMode && !isStandardAgentActionDescriptor(data)) {
     return premiumRequiredApiResponse();
   }
-  return NextResponse.json({ scheduledAction: rowToInrAgentScheduledAction(data), tableMissing: false });
+  return NextResponse.json({
+    scheduledAction: scheduledActionForResponse(data, request.url),
+    tableMissing: false,
+  });
 }
 
 export async function PATCH(request: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -122,7 +141,10 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     if (!payload) {
       return NextResponse.json({ error: "Payload invalide" }, { status: 400 });
     }
-    updates.payload = payload;
+    updates.payload = compactInrAgentScheduledPayload(payload, {
+      storageUrl: (bucket, storagePath) =>
+        buildAbsoluteStorageContentUrl(bucket, storagePath, request.url),
+    });
   }
   const contentChanged = Boolean(
     record &&
@@ -193,10 +215,13 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
   }
 
   if (!data) return NextResponse.json({ error: "Action programmée introuvable" }, { status: 404 });
-  return NextResponse.json({ scheduledAction: rowToInrAgentScheduledAction(data), tableMissing: false });
+  return NextResponse.json({
+    scheduledAction: scheduledActionForResponse(data, request.url),
+    tableMissing: false,
+  });
 }
 
-export async function DELETE(_request: Request, ctx: { params: Promise<{ id: string }> }) {
+export async function DELETE(request: Request, ctx: { params: Promise<{ id: string }> }) {
   const { user, errorResponse, authUserId, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
   const standardMode =
@@ -245,5 +270,9 @@ export async function DELETE(_request: Request, ctx: { params: Promise<{ id: str
   }
 
   if (!data) return NextResponse.json({ error: "Action programmée introuvable" }, { status: 404 });
-  return NextResponse.json({ scheduledAction: rowToInrAgentScheduledAction(data), cancelled: true, tableMissing: false });
+  return NextResponse.json({
+    scheduledAction: scheduledActionForResponse(data, request.url),
+    cancelled: true,
+    tableMissing: false,
+  });
 }

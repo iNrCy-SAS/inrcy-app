@@ -246,23 +246,25 @@ async function loadCachedChannelImageVariants(params: {
   const cache = new Map<string, ChannelImageVariantRow>();
   if (
     !params.accountId ||
-    !params.workspaceId ||
     !params.mediaIds.length ||
     !params.channels.length
   ) {
     return cache;
   }
-  const result = await supabaseAdmin
+  let query = supabaseAdmin
     .from("media_variants")
     .select(
       "id,media_id,channel,signature,bucket_name,storage_path,mime_type,size_bytes,width,height",
     )
     .eq("account_id", params.accountId)
-    .eq("workspace_id", params.workspaceId)
     .eq("purpose", "channel_publish")
     .eq("status", "ready")
     .in("media_id", params.mediaIds)
     .in("channel", params.channels);
+  query = params.workspaceId
+    ? query.eq("workspace_id", params.workspaceId)
+    : query.is("workspace_id", null);
+  const result = await query;
   if (result.error) throw result.error;
   for (const row of (result.data || []) as ChannelImageVariantRow[]) {
     if (!row.media_id || !row.channel || !row.signature) continue;
@@ -276,7 +278,7 @@ async function loadCachedChannelImageVariants(params: {
 
 async function persistChannelImageVariant(params: {
   accountId: string;
-  workspaceId: string;
+  workspaceId?: string;
   mediaId: string;
   channel: BoosterImageChannel;
   signature: string;
@@ -292,7 +294,10 @@ async function persistChannelImageVariant(params: {
 }) {
   const account = safeStorageSegment(params.accountId, "account");
   const media = safeStorageSegment(params.mediaId, "media");
-  const storagePath = `${account}/workspace-channel-images/${media}/${params.hash}.${params.extension}`;
+  const variantFolder = params.workspaceId
+    ? "workspace-channel-images"
+    : "agent-channel-images";
+  const storagePath = `${account}/${variantFolder}/${media}/${params.hash}.${params.extension}`;
   const uploaded = await supabaseAdmin.storage
     .from(CHANNEL_IMAGE_VARIANT_BUCKET)
     .upload(storagePath, toExactStorageArrayBuffer(params.output), {
@@ -306,7 +311,7 @@ async function persistChannelImageVariant(params: {
   const record = {
     account_id: params.accountId,
     media_id: params.mediaId,
-    workspace_id: params.workspaceId,
+    workspace_id: params.workspaceId || null,
     purpose: "channel_publish",
     channel: params.channel,
     signature: params.signature,
@@ -325,16 +330,18 @@ async function persistChannelImageVariant(params: {
     error_message: null,
     ready_at: readyAt,
   };
-  const existing = await supabaseAdmin
+  let existingQuery = supabaseAdmin
     .from("media_variants")
     .select("id")
     .eq("account_id", params.accountId)
     .eq("media_id", params.mediaId)
-    .eq("workspace_id", params.workspaceId)
     .eq("purpose", "channel_publish")
     .eq("channel", params.channel)
-    .eq("signature", params.signature)
-    .maybeSingle();
+    .eq("signature", params.signature);
+  existingQuery = params.workspaceId
+    ? existingQuery.eq("workspace_id", params.workspaceId)
+    : existingQuery.is("workspace_id", null);
+  const existing = await existingQuery.maybeSingle();
   if (existing.error) throw existing.error;
   const saved = existing.data?.id
     ? await supabaseAdmin
@@ -353,23 +360,62 @@ async function persistChannelImageVariant(params: {
         )
         .single();
   if (saved.error?.code === "23505") {
-    const winner = await supabaseAdmin
+    let winnerQuery = supabaseAdmin
       .from("media_variants")
       .select(
         "id,media_id,channel,signature,bucket_name,storage_path,mime_type,size_bytes,width,height",
       )
       .eq("account_id", params.accountId)
       .eq("media_id", params.mediaId)
-      .eq("workspace_id", params.workspaceId)
       .eq("purpose", "channel_publish")
       .eq("channel", params.channel)
-      .eq("signature", params.signature)
-      .single();
+      .eq("signature", params.signature);
+    winnerQuery = params.workspaceId
+      ? winnerQuery.eq("workspace_id", params.workspaceId)
+      : winnerQuery.is("workspace_id", null);
+    const winner = await winnerQuery.single();
     if (winner.error) throw winner.error;
     return winner.data as ChannelImageVariantRow;
   }
   if (saved.error) throw saved.error;
   return saved.data as ChannelImageVariantRow;
+}
+
+async function persistStandaloneChannelImageVariant(params: {
+  accountId: string;
+  imageKey: string;
+  channel: BoosterImageChannel;
+  hash: string;
+  output: Buffer;
+  mime: string;
+  extension: string;
+  name: string;
+}) {
+  const account = safeStorageSegment(params.accountId, "account");
+  const imageKey = safeStorageSegment(params.imageKey, "image");
+  const storagePath = `${account}/agent-channel-images/${imageKey}/${params.channel}/${params.hash}.${params.extension}`;
+  const uploaded = await supabaseAdmin.storage
+    .from(CHANNEL_IMAGE_VARIANT_BUCKET)
+    .upload(storagePath, toExactStorageArrayBuffer(params.output), {
+      contentType: params.mime,
+      cacheControl: "31536000",
+      upsert: true,
+    });
+  if (uploaded.error) throw uploaded.error;
+
+  const publicUrl =
+    supabaseAdmin.storage
+      .from(CHANNEL_IMAGE_VARIANT_BUCKET)
+      .getPublicUrl(storagePath).data.publicUrl || "";
+  return {
+    name: params.name,
+    type: params.mime,
+    bucket: CHANNEL_IMAGE_VARIANT_BUCKET,
+    storagePath,
+    publicUrl,
+    renderedUrl: publicUrl,
+    publicationReady: true,
+  } satisfies BoosterServerImagePayload;
 }
 
 function channelImagePayloadFromVariant(params: {
@@ -1045,7 +1091,7 @@ export async function prepareBoosterImagesByChannelOnServer(params: {
           transform: ServerImageTransform,
         ) => {
           const mediaId = String(entry.image.mediaId || "").trim();
-          if (!params.accountId || !params.workspaceId || !mediaId) return null;
+          if (!params.accountId || !mediaId) return null;
           const identity = getPreparedVariantIdentity(mode, transform);
           const cachedVariants = await getCachedVariants();
           const row = cachedVariants.get(
@@ -1082,7 +1128,7 @@ export async function prepareBoosterImagesByChannelOnServer(params: {
             variant.mode,
             variant.transform,
           );
-          if (params.accountId && params.workspaceId && mediaId) {
+          if (params.accountId && mediaId) {
             const cachedVariants = await getCachedVariants();
             const key = cachedVariantKey(mediaId, channel, signed.signature);
             let row = cachedVariants.get(key);
@@ -1115,6 +1161,22 @@ export async function prepareBoosterImagesByChannelOnServer(params: {
                 name: publicationName,
                 mediaId,
               }),
+              ...common,
+              transform: variant.transform,
+            };
+          }
+          if (params.accountId) {
+            return {
+              ...(await persistStandaloneChannelImageVariant({
+                accountId: params.accountId,
+                imageKey: entry.imageKey,
+                channel,
+                hash: signed.hash,
+                output: publicationVariant.output,
+                mime: publicationVariant.mime,
+                extension: publicationVariant.extension,
+                name: publicationName,
+              })),
               ...common,
               transform: variant.transform,
             };

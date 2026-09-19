@@ -58,6 +58,8 @@ type BoosterPost = {
 
 const ACTION_SELECT =
   "id, automation_key, action_type, target_tool, title, summary, preview_text, target_channels, target_themes, recipients, image_assets, payload, validation_required, execution_policy, status, scheduled_for, prepared_at, validated_at, refused_at, completed_at, last_error, created_at, updated_at";
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const executableStatuses = new Set([
   "prepared",
@@ -308,13 +310,70 @@ async function buildImagePayloadFromAgentAction(
   const media = mediaOverride || getAgentMediaRecord(payload);
   if (!media || isVideoMedia(media)) return null;
 
+  const imageMeta = asRecord(media.imageMeta) || {};
+  const sourceMetadata = asRecord(media.sourceMetadata) || {};
   const bucket =
-    cleanText(media.bucket || "inrcy-image-bank", 120) || "inrcy-image-bank";
+    cleanText(
+      media.bucket ||
+        media.bucketName ||
+        media.bucket_name ||
+        imageMeta.bucket ||
+        sourceMetadata.bucket ||
+        "inrcy-image-bank",
+      120,
+    ) || "inrcy-image-bank";
   const storagePath = cleanText(
-    media.storagePath || media.storage_path || media.path || "",
+    media.storagePath ||
+      media.storage_path ||
+      media.path ||
+      imageMeta.storagePath ||
+      imageMeta.storage_path ||
+      imageMeta.path ||
+      sourceMetadata.storagePath ||
+      sourceMetadata.storage_path ||
+      sourceMetadata.path ||
+      "",
     800,
   );
   const title = cleanText(media.title || media.name || "image-iNrAgent", 120);
+  const rawMediaId = cleanText(media.mediaId || media.id, 120);
+  const mediaId = UUID_PATTERN.test(rawMediaId) ? rawMediaId : "";
+
+  if (storagePath) {
+    const mime =
+      cleanText(media.mimeType || media.mime_type || media.type, 120) ||
+      mimeFromPath(storagePath);
+    const extension =
+      mime === "image/png" ? "png" : mime === "image/webp" ? "webp" : "jpg";
+    const durableUrl =
+      buildAbsoluteStorageContentUrl(bucket, storagePath) ||
+      cleanText(media.publicUrl || media.url || media.src, 2000);
+    return {
+      ...media,
+      ...(mediaId ? { mediaId } : {}),
+      name: cleanText(media.name, 180) || `${title}.${extension}`,
+      type: mime,
+      bucket,
+      storagePath,
+      publicUrl: durableUrl,
+      renderedUrl: durableUrl,
+      originalUrl: durableUrl,
+      originalPublicUrl: durableUrl,
+      originalStoragePath:
+        cleanText(media.originalStoragePath, 800) || storagePath,
+      originalName: cleanText(media.originalName, 180) || title,
+      originalType: cleanText(media.originalType, 120) || mime,
+      imageKey: cleanText(media.imageKey || media.id || actionId, 120),
+      imageMeta: {
+        ...imageMeta,
+        source: cleanText(media.source, 120) || "inr_agent",
+        bucket,
+        storagePath,
+        title,
+      },
+      publicationReady: true,
+    };
+  }
 
   const dataUrl = cleanText(media.dataUrl || media.data_url, 20_000_000);
   if (dataUrl.startsWith("data:image/")) {
@@ -324,46 +383,13 @@ async function buildImagePayloadFromAgentAction(
       "image/jpeg";
     return {
       ...media,
+      ...(mediaId ? { mediaId } : {}),
       name: cleanText(media.name, 180) || `${title}.jpg`,
       type: mime,
       dataUrl,
       originalName: cleanText(media.originalName, 180) || title,
       originalType: cleanText(media.originalType, 120) || mime,
       imageKey: cleanText(media.imageKey || media.id || actionId, 120),
-    };
-  }
-
-  if (storagePath) {
-    const download = await supabaseAdmin.storage
-      .from(bucket)
-      .download(storagePath);
-    if (download.error || !download.data) {
-      throw new Error(
-        download.error?.message || "Impossible de préparer l’image iNr’Agent.",
-      );
-    }
-
-    const buffer = Buffer.from(await download.data.arrayBuffer());
-    const mime =
-      download.data.type ||
-      cleanText(media.mimeType || media.mime_type || media.type, 120) ||
-      mimeFromPath(storagePath);
-    const extension =
-      mime === "image/png" ? "png" : mime === "image/webp" ? "webp" : "jpg";
-
-    return {
-      name: `${title || "image-iNrAgent"}.${extension}`,
-      type: mime,
-      dataUrl: `data:${mime};base64,${buffer.toString("base64")}`,
-      originalName: title || `image-iNrAgent-${actionId}`,
-      originalType: mime,
-      imageKey: cleanText(media.id || actionId, 120),
-      imageMeta: {
-        source: cleanText(media.source, 120) || "inr_agent",
-        bucket,
-        storagePath,
-        title,
-      },
     };
   }
 
@@ -374,6 +400,7 @@ async function buildImagePayloadFromAgentAction(
   if (!publicUrl) return null;
 
   return {
+    ...(mediaId ? { mediaId } : {}),
     name: `${title || "image-iNrAgent"}.jpg`,
     type:
       cleanText(media.mimeType || media.mime_type || media.type, 120) ||
@@ -1074,6 +1101,7 @@ async function executeAgentActionHandler(request: Request) {
     const preparedImages =
       activeMediaMode === "images" && imagePayloads.length
         ? await prepareBoosterImagesByChannelOnServer({
+            accountId: userId,
             channels: publishChannels,
             images: imagePayloads,
             automaticFit: "contain",

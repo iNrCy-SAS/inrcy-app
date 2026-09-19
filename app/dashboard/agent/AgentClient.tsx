@@ -776,6 +776,7 @@ export default function AgentClient() {
   const [publishRegeneration, setPublishRegeneration] = useState<{
     kind: "content" | "media";
     channel: ChannelKey;
+    scope: "channel" | "publication";
   } | null>(null);
 
   const {
@@ -2399,6 +2400,7 @@ export default function AgentClient() {
   async function savePublishMediaPatch(
     media: Record<string, unknown> | null,
     mutation: PublishMediaMutation = media ? "replace" : "remove",
+    options: { applyToAllChannels?: boolean } = {},
   ) {
     if (!selectedPreparedAction || !activePreviewChannel) return;
 
@@ -2410,6 +2412,7 @@ export default function AgentClient() {
           media,
           publishMediaActiveIndex,
           mutation,
+          options.applyToAllChannels ? preparedChannels : [],
         ),
       );
       return;
@@ -2426,12 +2429,16 @@ export default function AgentClient() {
         removeMedia: media === null,
         mediaOperation: mutation,
         mediaIndex: publishMediaActiveIndex,
+        applyToAllChannels: options.applyToAllChannels === true,
       }),
     });
-    const payload = (await response.json().catch(() => null)) as {
+    const payload = (await readAgentApiJson(
+      response,
+      i18nT("publish_media_update_failed"),
+    )) as {
       action?: AgentPreparedAction;
       error?: string;
-    } | null;
+    };
 
     if (!response.ok || !payload?.action) {
       throw new Error(payload?.error || i18nT("publish_media_update_failed"));
@@ -2803,6 +2810,41 @@ export default function AgentClient() {
     }
   }
 
+  async function applyCurrentPublishMediaEverywhere() {
+    if (
+      !currentPublishMediaRecord ||
+      !activePreviewChannel ||
+      preparedChannels.length < 2 ||
+      publishMediaUploadState === "saving"
+    ) {
+      return;
+    }
+    if (
+      publishMediaPreview?.kind === "image" &&
+      preparedChannels.includes("youtube")
+    ) {
+      showNotice(i18nT("youtube_requires_video"));
+      return;
+    }
+
+    setPublishMediaUploadState("saving");
+    setNotice(null);
+    try {
+      await savePublishMediaPatch(currentPublishMediaRecord, "replace", {
+        applyToAllChannels: true,
+      });
+      showNotice(i18nT("publish_media_applied_everywhere"));
+    } catch (error) {
+      showNotice(
+        error instanceof Error
+          ? error.message
+          : i18nT("publish_media_update_failed"),
+      );
+    } finally {
+      setPublishMediaUploadState("idle");
+    }
+  }
+
   function updatePublishCtaDraft(patch: Partial<typeof publishTextDraft>) {
     setPublishTextDraft((current) => ({ ...current, ...patch }));
   }
@@ -2836,7 +2878,9 @@ export default function AgentClient() {
     }));
   }
 
-  async function savePublishText() {
+  async function savePublishText(
+    options: { applyToAllChannels?: boolean } = {},
+  ) {
     if (!selectedPreparedAction || publishSaveState === "saving") return;
     const channel = publishTextDraft.channel;
     const body = publishTextDraft.body.trim();
@@ -2845,7 +2889,8 @@ export default function AgentClient() {
       return;
     }
     if (
-      channel === "x" &&
+      (channel === "x" ||
+        (options.applyToAllChannels && preparedChannels.includes("x"))) &&
       agentXPostContainsForbiddenUrl(publishTextDraft)
     ) {
       showNotice(X_FORBIDDEN_URL_ERROR);
@@ -2854,19 +2899,26 @@ export default function AgentClient() {
 
     if (scheduledEditSession) {
       updateScheduledEditAction((action) =>
-        updateScheduledEditPublishText(action, channel, {
-          title: publishTextDraft.title.trim(),
-          body,
-          cta: publishTextDraft.cta.trim(),
-          ctaMode: publishTextDraft.ctaMode,
-          ctaUrl: publishTextDraft.ctaUrl.trim(),
-          ctaPhone: publishTextDraft.ctaPhone.trim(),
-          hashtags: publishTextDraft.hashtags,
-        }),
+        updateScheduledEditPublishText(
+          action,
+          channel,
+          {
+            title: publishTextDraft.title.trim(),
+            body,
+            cta: publishTextDraft.cta.trim(),
+            ctaMode: publishTextDraft.ctaMode,
+            ctaUrl: publishTextDraft.ctaUrl.trim(),
+            ctaPhone: publishTextDraft.ctaPhone.trim(),
+            hashtags: publishTextDraft.hashtags,
+          },
+          options.applyToAllChannels ? preparedChannels : [],
+        ),
       );
       setPublishEditOpen(false);
       showNotice(
-        i18nT("texte_modifie_temporairement_valider_l_enregistr_97bc9fa5"),
+        options.applyToAllChannels
+          ? i18nT("publish_content_applied_everywhere")
+          : i18nT("texte_modifie_temporairement_valider_l_enregistr_97bc9fa5"),
       );
       return;
     }
@@ -2889,12 +2941,16 @@ export default function AgentClient() {
           ctaUrl: publishTextDraft.ctaUrl.trim(),
           ctaPhone: publishTextDraft.ctaPhone.trim(),
           hashtags: publishTextDraft.hashtags,
+          applyToAllChannels: options.applyToAllChannels === true,
         }),
       });
-      const payload = (await response.json().catch(() => null)) as {
+      const payload = (await readAgentApiJson(
+        response,
+        i18nT("modification_de_la_publication_impossible_e4568d66"),
+      )) as {
         action?: AgentPreparedAction;
         error?: string;
-      } | null;
+      };
 
       if (!response.ok || !payload?.action) {
         throw new Error(
@@ -2909,7 +2965,11 @@ export default function AgentClient() {
         ),
       );
       setPublishEditOpen(false);
-      showNotice(i18nT("publication_mise_a_jour_de5f8c83"));
+      showNotice(
+        options.applyToAllChannels
+          ? i18nT("publish_content_applied_everywhere")
+          : i18nT("publication_mise_a_jour_de5f8c83"),
+      );
     } catch (error) {
       showNotice(
         error instanceof Error && error.message
@@ -3617,6 +3677,13 @@ export default function AgentClient() {
     await dialog.onConfirm();
   }
 
+  async function confirmAgentDialogAlternate() {
+    const dialog = agentConfirmDialog;
+    if (!dialog?.onAlternate) return;
+    setAgentConfirmDialog(null);
+    await dialog.onAlternate();
+  }
+
   function exitScheduledEditSession(
     options: { silent?: boolean; force?: boolean; onAfterExit?: () => void } = {},
   ) {
@@ -3747,11 +3814,14 @@ export default function AgentClient() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    const payload = (await response.json().catch(() => null)) as {
+    const payload = (await readAgentApiJson(
+      response,
+      i18nT("schedule_update_failed"),
+    )) as {
       scheduledAction?: AgentScheduledAction;
       error?: string;
       tableMissing?: boolean;
-    } | null;
+    };
     if (!response.ok || !payload?.scheduledAction) {
       if (payload?.tableMissing) setScheduledActionsTableMissing(true);
       throw new Error(
@@ -3771,11 +3841,14 @@ export default function AgentClient() {
         ...body,
       }),
     });
-    const payload = (await response.json().catch(() => null)) as {
+    const payload = (await readAgentApiJson(
+      response,
+      i18nT("schedule_update_failed"),
+    )) as {
       scheduledAction?: AgentScheduledAction;
       error?: string;
       tableMissing?: boolean;
-    } | null;
+    };
     if (!response.ok || !payload?.scheduledAction) {
       if (payload?.tableMissing) setScheduledActionsTableMissing(true);
       throw new Error(
@@ -4315,13 +4388,16 @@ export default function AgentClient() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    const payload = (await response.json().catch(() => null)) as {
+    const payload = (await readAgentApiJson(
+      response,
+      i18nT("schedule_update_failed"),
+    )) as {
       action?: AgentPreparedAction;
       scheduledAction?: AgentScheduledAction | null;
       scheduledActions?: AgentScheduledAction[];
       error?: string;
       tableMissing?: boolean;
-    } | null;
+    };
 
     if (!response.ok) {
       if (payload?.tableMissing) setScheduledActionsTableMissing(true);
@@ -4666,7 +4742,10 @@ export default function AgentClient() {
       );
 
     } catch (error) {
-      const message = i18nT("publication_schedule_failed");
+      const message =
+        error instanceof Error && error.message.trim()
+          ? error.message
+          : i18nT("publication_schedule_failed");
       showNotice(message);
       throw new Error(message);
     } finally {
@@ -4791,6 +4870,7 @@ export default function AgentClient() {
   async function performPublishChannelRegeneration(
     kind: "content" | "media",
     channel: ChannelKey,
+    scope: "channel" | "publication" = "channel",
   ) {
     if (
       !selectedPreparedAction ||
@@ -4802,7 +4882,7 @@ export default function AgentClient() {
     }
 
     setNotice(null);
-    setPublishRegeneration({ kind, channel });
+    setPublishRegeneration({ kind, channel, scope });
     try {
       const response = await fetch("/api/agent/actions/regenerate-channel", {
         method: "POST",
@@ -4811,6 +4891,7 @@ export default function AgentClient() {
           actionId: selectedPreparedAction.id,
           channel: boosterChannelKeyFromAgentChannel(channel),
           kind,
+          scope,
         }),
       });
       const payload = (await response.json().catch(() => null)) as {
@@ -4830,9 +4911,11 @@ export default function AgentClient() {
       if (kind === "media") setPublishMediaActiveIndex(0);
       showNotice(
         kind === "content"
-          ? i18nT("regenerate_content_success", {
-              channel: agentChannelLabel(channel, runtimeT),
-            })
+          ? scope === "publication"
+            ? i18nT("regenerate_content_all_success")
+            : i18nT("regenerate_content_success", {
+                channel: agentChannelLabel(channel, runtimeT),
+              })
           : i18nT("regenerate_media_success"),
       );
     } catch (error) {
@@ -4859,6 +4942,25 @@ export default function AgentClient() {
     }
     const channel = activePreviewChannel;
     const channelLabel = agentChannelLabel(channel, runtimeT);
+    if (kind === "content" && preparedChannels.length > 1) {
+      openAgentConfirmDialog({
+        title: i18nT("regenerate_content_scope_title"),
+        message: i18nT("regenerate_content_scope_message", {
+          channel: channelLabel,
+        }),
+        confirmLabel: i18nT("regenerate_all_channels"),
+        alternateLabel: i18nT("regenerate_current_channel", {
+          channel: channelLabel,
+        }),
+        cancelLabel: i18nT("annuler_49ba3292"),
+        tone: "warning",
+        onConfirm: () =>
+          performPublishChannelRegeneration("content", channel, "publication"),
+        onAlternate: () =>
+          performPublishChannelRegeneration("content", channel, "channel"),
+      });
+      return;
+    }
     openAgentConfirmDialog({
       title:
         kind === "content"
@@ -4873,7 +4975,12 @@ export default function AgentClient() {
       ),
       cancelLabel: i18nT("annuler_49ba3292"),
       tone: "warning",
-      onConfirm: () => performPublishChannelRegeneration(kind, channel),
+      onConfirm: () =>
+        performPublishChannelRegeneration(
+          kind,
+          channel,
+          kind === "media" ? "publication" : "channel",
+        ),
     });
   }
 
@@ -4887,9 +4994,11 @@ export default function AgentClient() {
     publishPreparationInProgress;
   const agentWorkingLabel = publishRegeneration
     ? publishRegeneration.kind === "content"
-      ? i18nT("agent_working_regenerating_content", {
-          channel: agentChannelLabel(publishRegeneration.channel, runtimeT),
-        })
+      ? publishRegeneration.scope === "publication"
+        ? i18nT("agent_working_regenerating_all_content")
+        : i18nT("agent_working_regenerating_content", {
+            channel: agentChannelLabel(publishRegeneration.channel, runtimeT),
+          })
       : i18nT("agent_working_regenerating_media")
     : prepareActionState === "saving" ||
         Boolean(testNowKey) ||
@@ -4918,6 +5027,7 @@ export default function AgentClient() {
         }}
         onCloseConfirm={() => setAgentConfirmDialog(null)}
         onConfirm={() => void confirmAgentDialog()}
+        onAlternateConfirm={() => void confirmAgentDialogAlternate()}
       />
 
       <PublishAiConfigurationDrawer
@@ -6996,7 +7106,7 @@ export default function AgentClient() {
                 {i18nT("annuler_49ba3292")}{" "}</button>
               <button
                 type="button"
-                onClick={savePublishText}
+                onClick={() => void savePublishText()}
                 disabled={
                   publishSaveState === "saving" ||
                   publishTextDraftHasForbiddenXUrl
@@ -7005,6 +7115,20 @@ export default function AgentClient() {
                 {publishSaveState === "saving"
                   ? i18nT("enregistrement_9bf1058a")
                   : i18nT("enregistrer_f7c8bcd8")}
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  void savePublishText({ applyToAllChannels: true })
+                }
+                disabled={
+                  publishSaveState === "saving" ||
+                  publishTextDraftHasForbiddenXUrl ||
+                  preparedChannels.length < 2
+                }
+                title={i18nT("apply_content_everywhere_help")}
+              >
+                {i18nT("apply_content_everywhere")}
               </button>
             </div>
           </section>
@@ -7512,6 +7636,18 @@ export default function AgentClient() {
                 {publishMediaPreview?.count && publishMediaPreview.count > 1
                   ? i18nT("supprimer_cette_image_785aa49a")
                   : i18nT("supprimer_le_media_eb76b6ba")}
+              </button>
+              <button
+                type="button"
+                onClick={applyCurrentPublishMediaEverywhere}
+                disabled={
+                  publishMediaUploadState === "saving" ||
+                  !currentPublishMediaRecord ||
+                  preparedChannels.length < 2
+                }
+                title={i18nT("apply_media_everywhere_help")}
+              >
+                {i18nT("apply_media_everywhere")}
               </button>
             </div>
           </section>

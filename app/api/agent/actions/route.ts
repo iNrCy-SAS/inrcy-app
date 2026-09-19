@@ -1374,6 +1374,7 @@ export async function PATCH(request: Request) {
     removeMedia?: unknown;
     mediaOperation?: unknown;
     mediaIndex?: unknown;
+    applyToAllChannels?: unknown;
     scheduledFor?: unknown;
   } | null;
   const actionId =
@@ -2085,21 +2086,6 @@ export async function PATCH(request: Request) {
     const ctaPhone = cleanText(requestBody?.ctaPhone, 60);
     const hashtags = cleanPublishHashtags(requestBody?.hashtags);
 
-    if (channel === "x") {
-      const xUrlValidation = validateXUrlFreeText(
-        [title, content, cta, ctaUrl, hashtags.join(" ")].join("\n"),
-      );
-      if (!xUrlValidation.valid) {
-        return NextResponse.json(
-          {
-            error: xUrlValidation.error,
-            code: xUrlValidation.code,
-          },
-          { status: 400 },
-        );
-      }
-    }
-
     if (!content) {
       return NextResponse.json(
         { error: "Le contenu de la publication est obligatoire." },
@@ -2142,34 +2128,88 @@ export async function PATCH(request: Request) {
     }
 
     const currentPayload = currentAction.payload || {};
-    const currentPostByChannel = asRecord(currentPayload.postByChannel) || {};
-    const currentPost = readPublishPost(currentPostByChannel, channel);
-    const nextPost = {
-      ...currentPost,
-      title,
-      subject: title,
-      content,
-      text: content,
-      body: content,
-      cta,
-      callToAction: cta,
-      ctaMode,
-      ctaUrl,
-      ctaPhone,
-      hashtags,
-      editedByUser: true,
-      editedAt: new Date().toISOString(),
-    };
-    const nextPostByChannel = {
-      ...currentPostByChannel,
-      [channel]: nextPost,
-    };
+    const currentPublishPayload = asRecord(currentPayload.publishPayload) || {};
+    const currentPostByChannel =
+      asRecord(currentPayload.postByChannel) ||
+      asRecord(currentPublishPayload.postByChannel) ||
+      {};
+    const arrayValue = (value: unknown) =>
+      Array.isArray(value) ? value : [];
+    const actionChannels = normalizePublishChannels([
+      ...currentAction.targetChannels,
+      ...arrayValue(currentPayload.selectedChannels),
+      ...arrayValue(currentPayload.targetChannels),
+      ...arrayValue(currentPayload.channels),
+      ...arrayValue(currentPayload.boosterChannels),
+      ...arrayValue(currentPublishPayload.channels),
+      ...arrayValue(currentPublishPayload.selectedChannels),
+    ]);
+    if (actionChannels.length && !actionChannels.includes(channel)) {
+      return NextResponse.json(
+        { error: "Ce canal ne fait plus partie de cette publication." },
+        { status: 409 },
+      );
+    }
+
+    const applyToAllChannels = requestBody?.applyToAllChannels === true;
+    const targetChannels = applyToAllChannels
+      ? [channel, ...actionChannels.filter((item) => item !== channel)]
+      : [channel];
+    if (targetChannels.includes("x")) {
+      const xUrlValidation = validateXUrlFreeText(
+        [title, content, cta, ctaUrl, hashtags.join(" ")].join("\n"),
+      );
+      if (!xUrlValidation.valid) {
+        return NextResponse.json(
+          {
+            error: xUrlValidation.error,
+            code: xUrlValidation.code,
+          },
+          { status: 400 },
+        );
+      }
+    }
+
+    const editedAt = new Date().toISOString();
+    const nextPostByChannel = { ...currentPostByChannel };
+    for (const targetChannel of targetChannels) {
+      const currentPost = readPublishPost(
+        currentPostByChannel,
+        targetChannel,
+      );
+      nextPostByChannel[targetChannel] = {
+        ...currentPost,
+        title,
+        subject: title,
+        content,
+        text: content,
+        body: content,
+        cta,
+        callToAction: cta,
+        ctaMode,
+        ctaUrl,
+        ctaPhone,
+        hashtags,
+        editedByUser: true,
+        editedAt,
+      };
+    }
     const nextPayload = {
       ...currentPayload,
       postByChannel: nextPostByChannel,
+      ...(Object.keys(currentPublishPayload).length
+        ? {
+            publishPayload: {
+              ...currentPublishPayload,
+              postByChannel: nextPostByChannel,
+            },
+          }
+        : {}),
       lastManualEdit: {
         channel,
-        editedAt: nextPost.editedAt,
+        appliedToChannels: targetChannels,
+        scope: applyToAllChannels ? "publication" : "channel",
+        editedAt,
         editType: "publish_channel_text",
       },
     };
@@ -2294,18 +2334,52 @@ export async function PATCH(request: Request) {
       asRecord(currentPayload.mediaModeByChannel) ||
       asRecord(currentPublishPayload.mediaModeByChannel) ||
       {};
+    const currentVideoByChannel =
+      asRecord(currentPayload.videoByChannel) ||
+      asRecord(currentPublishPayload.videoByChannel) ||
+      {};
+    const currentVideoSettingsByChannel =
+      asRecord(currentPayload.videoSettingsByChannel) ||
+      asRecord(currentPublishPayload.videoSettingsByChannel) ||
+      {};
+    const currentVideoFormatByChannel =
+      asRecord(currentPayload.videoFormatByChannel) ||
+      asRecord(currentPublishPayload.videoFormatByChannel) ||
+      {};
+    const currentVideoAdaptationModeByChannel =
+      asRecord(currentPayload.videoAdaptationModeByChannel) ||
+      asRecord(currentPublishPayload.videoAdaptationModeByChannel) ||
+      {};
     const editedAt = new Date().toISOString();
-    const selectedChannelsSource = Array.isArray(currentPayload.selectedChannels)
-      ? currentPayload.selectedChannels
-      : Array.isArray(currentPublishPayload.selectedChannels)
-        ? currentPublishPayload.selectedChannels
-        : [];
-    const selectedChannels = selectedChannelsSource
-      .map((item) => cleanPublishChannel(item))
-      .filter((item): item is PublishChannelKey => Boolean(item));
-    const targetChannels = selectedChannels.length
-      ? selectedChannels
+    const arrayValue = (value: unknown) =>
+      Array.isArray(value) ? value : [];
+    const actionChannels = normalizePublishChannels([
+      ...currentAction.targetChannels,
+      ...arrayValue(currentPayload.selectedChannels),
+      ...arrayValue(currentPayload.targetChannels),
+      ...arrayValue(currentPayload.channels),
+      ...arrayValue(currentPayload.boosterChannels),
+      ...arrayValue(currentPublishPayload.channels),
+      ...arrayValue(currentPublishPayload.selectedChannels),
+    ]);
+    const applyToAllChannels = requestBody?.applyToAllChannels === true;
+    const targetChannels = applyToAllChannels
+      ? [channel, ...actionChannels.filter((item) => item !== channel)]
       : [channel];
+
+    if (
+      applyToAllChannels &&
+      media?.kind === "image" &&
+      targetChannels.includes("youtube_shorts")
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "YouTube exige une vidéo. Retirez YouTube ou choisissez une vidéo avant d’appliquer ce média partout.",
+        },
+        { status: 409 },
+      );
+    }
 
     const fallbackPayloadMedia = cleanPublishMedia(
       currentPayload.media ||
@@ -2369,6 +2443,12 @@ export async function PATCH(request: Request) {
     const nextPostByChannel = { ...currentPostByChannel };
     const nextImagesByChannel = { ...currentImagesByChannel };
     const nextMediaModeByChannel = { ...currentMediaModeByChannel };
+    const nextVideoByChannel = { ...currentVideoByChannel };
+    const nextVideoSettingsByChannel = { ...currentVideoSettingsByChannel };
+    const nextVideoFormatByChannel = { ...currentVideoFormatByChannel };
+    const nextVideoAdaptationModeByChannel = {
+      ...currentVideoAdaptationModeByChannel,
+    };
     const effectiveMediaByChannel = new Map<
       PublishChannelKey,
       ReturnType<typeof cleanPublishMedia>
@@ -2465,10 +2545,32 @@ export async function PATCH(request: Request) {
         }
         nextMode = "images";
         effectiveMedia = nextImages[0] || null;
+        nextVideoByChannel[targetChannel] = null;
+        delete nextVideoSettingsByChannel[targetChannel];
+        delete nextVideoFormatByChannel[targetChannel];
+        delete nextVideoAdaptationModeByChannel[targetChannel];
       } else if (media?.kind === "video") {
         nextImages = [];
         nextMode = "video";
         effectiveMedia = media;
+        nextVideoByChannel[targetChannel] = media;
+        const mediaSettingsByChannel = asRecord(media.videoSettingsByChannel);
+        const selectedSettings =
+          asRecord(mediaSettingsByChannel?.[targetChannel]) ||
+          asRecord(media.videoSettings);
+        if (selectedSettings) {
+          nextVideoSettingsByChannel[targetChannel] = selectedSettings;
+          const format = cleanText(selectedSettings.format, 40);
+          const adaptationMode = cleanText(
+            selectedSettings.adaptationMode ||
+              selectedSettings.adaptation_mode,
+            40,
+          );
+          if (format) nextVideoFormatByChannel[targetChannel] = format;
+          if (adaptationMode) {
+            nextVideoAdaptationModeByChannel[targetChannel] = adaptationMode;
+          }
+        }
       } else if (mediaOperation === "remove") {
         if (nextMode === "images" && currentImages.length) {
           const removeIndex = Math.min(mediaIndex, currentImages.length - 1);
@@ -2480,6 +2582,10 @@ export async function PATCH(request: Request) {
           nextMode = "none";
           effectiveMedia = null;
         }
+        nextVideoByChannel[targetChannel] = null;
+        delete nextVideoSettingsByChannel[targetChannel];
+        delete nextVideoFormatByChannel[targetChannel];
+        delete nextVideoAdaptationModeByChannel[targetChannel];
       }
 
       nextImagesByChannel[targetChannel] = nextImages;
@@ -2538,7 +2644,11 @@ export async function PATCH(request: Request) {
       ...currentPublishPayload,
       postByChannel: nextPostByChannel,
       imagesByChannel: nextImagesByChannel,
+      videoByChannel: nextVideoByChannel,
       mediaModeByChannel: nextMediaModeByChannel,
+      videoSettingsByChannel: nextVideoSettingsByChannel,
+      videoFormatByChannel: nextVideoFormatByChannel,
+      videoAdaptationModeByChannel: nextVideoAdaptationModeByChannel,
       media: primaryMedia,
       mediaAsset: primaryMedia,
       image: primaryMode === "images" ? primaryMedia : null,
@@ -2558,7 +2668,11 @@ export async function PATCH(request: Request) {
       videoAsset: primaryMode === "video" ? primaryMedia : null,
       postByChannel: nextPostByChannel,
       imagesByChannel: nextImagesByChannel,
+      videoByChannel: nextVideoByChannel,
       mediaModeByChannel: nextMediaModeByChannel,
+      videoSettingsByChannel: nextVideoSettingsByChannel,
+      videoFormatByChannel: nextVideoFormatByChannel,
+      videoAdaptationModeByChannel: nextVideoAdaptationModeByChannel,
       image_assets: actionImageAssets,
       mediaReadinessByChannel: nextReadiness,
       mediaAdaptationByChannel: nextAdaptation,
@@ -2568,6 +2682,7 @@ export async function PATCH(request: Request) {
       lastManualEdit: {
         channel,
         appliedToChannels: targetChannels,
+        scope: applyToAllChannels ? "publication" : "channel",
         editedAt,
         editType: "publish_channel_media",
         mediaOperation,

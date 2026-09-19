@@ -23,6 +23,7 @@ type AgentFeedbackModalsProps = {
   onOpenCampaignFolder: (folder: NonNullable<AgentCampaignLaunchNotice>["folder"]) => void;
   onCloseConfirm: () => void;
   onConfirm: () => void;
+  onAlternateConfirm: () => void;
 };
 
 export default function AgentFeedbackModals({
@@ -36,6 +37,7 @@ export default function AgentFeedbackModals({
   onOpenCampaignFolder,
   onCloseConfirm,
   onConfirm,
+  onAlternateConfirm,
 }: AgentFeedbackModalsProps) {
   const i18nT = useTranslations("agent");
   return (
@@ -134,6 +136,15 @@ export default function AgentFeedbackModals({
               <button type="button" className={styles.modalActionSecondaryButton} onClick={onCloseConfirm}>
                 {confirmDialog.cancelLabel || i18nT("annuler_49ba3292")}
               </button>
+              {confirmDialog.onAlternate && confirmDialog.alternateLabel ? (
+                <button
+                  type="button"
+                  className={styles.modalActionSecondaryButton}
+                  onClick={onAlternateConfirm}
+                >
+                  {confirmDialog.alternateLabel}
+                </button>
+              ) : null}
               <button
                 type="button"
                 className={styles.modalActionButton}

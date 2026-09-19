@@ -71,6 +71,54 @@ function countScriptCharacters(value: string, pattern: RegExp) {
   return value.match(pattern)?.length || 0;
 }
 
+const LETTER_PATTERN = /\p{L}/u;
+const LATIN_LETTER_PATTERN = /\p{Script=Latin}/u;
+const THAI_LETTER_PATTERN = /\p{Script=Thai}/u;
+const HAN_LETTER_PATTERN = /\p{Script=Han}/u;
+
+/**
+ * Rejects a foreign writing system even when it appears only once inside an
+ * otherwise valid text. Statistical language detection deliberately remains
+ * conservative for short copy, so this guard closes the specific gap where a
+ * stray Thai/Chinese/etc. word could survive inside a French publication.
+ *
+ * Latin characters stay accepted for Thai and Chinese output because URLs,
+ * product names and company names commonly contain them. For the seven Latin
+ * generation languages, every non-Latin letter is considered contamination.
+ */
+export function hasAiScriptContamination(
+  expectedLanguage: unknown,
+  value: unknown,
+): boolean {
+  const expected = getSupportedAiLanguageCode(expectedLanguage);
+  if (!expected) return false;
+
+  for (const character of String(value ?? "")) {
+    if (!LETTER_PATTERN.test(character)) continue;
+    if (expected === "th") {
+      if (
+        !THAI_LETTER_PATTERN.test(character) &&
+        !LATIN_LETTER_PATTERN.test(character)
+      ) {
+        return true;
+      }
+      continue;
+    }
+    if (expected === "zh") {
+      if (
+        !HAN_LETTER_PATTERN.test(character) &&
+        !LATIN_LETTER_PATTERN.test(character)
+      ) {
+        return true;
+      }
+      continue;
+    }
+    if (!LATIN_LETTER_PATTERN.test(character)) return true;
+  }
+
+  return false;
+}
+
 export function getSupportedAiLanguageCode(value: unknown): SupportedAiLanguageCode | null {
   const code = String(value ?? "").trim().toLocaleLowerCase() as SupportedAiLanguageCode;
   return SUPPORTED_LANGUAGES.has(code) ? code : null;
@@ -126,6 +174,7 @@ export function detectLikelyAiLanguage(value: unknown): {
 export function hasAiLanguageMismatch(expectedLanguage: unknown, value: unknown): boolean {
   const expected = getSupportedAiLanguageCode(expectedLanguage);
   if (!expected) return false;
+  if (hasAiScriptContamination(expected, value)) return true;
 
   const { scores, evidenceCount } = scoreTextLanguages(value);
   if (evidenceCount < 10) return false;

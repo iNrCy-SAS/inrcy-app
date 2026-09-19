@@ -6,7 +6,7 @@ import { resolve } from "node:path";
 const ROOT = resolve(import.meta.dirname, "../..");
 const read = (path: string) => readFileSync(resolve(ROOT, path), "utf8");
 
-test("iNrAgent regenerates the complete editorial panel for only the requested channel", () => {
+test("iNrAgent regenerates content for the selected channel or atomically for every channel", () => {
   const route = read("app/api/agent/actions/regenerate-channel/route.ts");
   const contentBranch = route.slice(
     route.indexOf('if (kind === "content")'),
@@ -18,8 +18,16 @@ test("iNrAgent regenerates the complete editorial panel for only the requested c
     /Régénère uniquement le contenu éditorial de ce canal : titre, texte, CTA et hashtags.*Ne modifie ni la date, ni le média, ni les autres canaux/,
   );
   assert.match(route, /Le titre, le texte, le CTA et les hashtags doivent former un ensemble cohérent/);
-  assert.match(contentBranch, /const nextContentPost = applySafePreferredCta\(\{/);
-  assert.match(contentBranch, /\.\.\.currentPost,/);
+  assert.match(route, /body\?\.scope === "publication" \? "publication" : "channel"/);
+  assert.match(
+    contentBranch,
+    /requestedScope === "publication" \? actionChannels : \[channel\]/,
+  );
+  assert.match(contentBranch, /channels: contentTargetChannels as BoosterChannels\[\]/);
+  assert.match(contentBranch, /for \(const targetChannel of contentTargetChannels\)/);
+  assert.match(contentBranch, /Le moteur n’a pas produit toutes les versions demandées/);
+  assert.match(contentBranch, /const targetCurrentPost = readPublishPost/);
+  assert.match(contentBranch, /\.\.\.targetCurrentPost,/);
   assert.match(contentBranch, /title: regeneratedPost\.title/);
   assert.match(contentBranch, /subject: regeneratedPost\.subject/);
   assert.match(contentBranch, /content: regeneratedPost\.content/);
@@ -30,21 +38,16 @@ test("iNrAgent regenerates the complete editorial panel for only the requested c
   assert.match(contentBranch, /hashtags: regeneratedPost\.hashtags/);
   assert.match(contentBranch, /applySafePreferredCta\(/);
   assert.match(contentBranch, /preserveExplicit: true/);
-  assert.match(
-    contentBranch,
-    /const nextPostByChannel = setChannelValue\(postByChannel, channel, nextContentPost\)/,
-  );
+  assert.match(contentBranch, /nextPostByChannel\[targetChannel\] = applySafePreferredCta/);
   assert.match(
     contentBranch,
     /previewText: buildPublishPreviewTextFromPosts\(nextPostByChannel, action\.previewText\)/,
   );
-  assert.match(contentBranch, /editType: "regenerate_publish_channel_content"/);
+  assert.match(contentBranch, /\? "regenerate_publish_global_content"[\s\S]*?: "regenerate_publish_channel_content"/);
+  assert.match(contentBranch, /editType:[\s\S]*?"regenerate_publish_global_content"/);
+  assert.match(contentBranch, /appliedToChannels: contentTargetChannels/);
   assert.doesNotMatch(contentBranch, /generateInrAgentMedia/);
-  const generatedCall = contentBranch.slice(
-    contentBranch.indexOf("const generated ="),
-    contentBranch.indexOf("const rawPost"),
-  );
-  assert.doesNotMatch(generatedCall, /mediaType:\s*"images"/);
+  assert.doesNotMatch(contentBranch, /setChannelValue/);
 });
 
 test("media regeneration is atomic, generated once and applied to every publication channel", () => {
@@ -98,6 +101,11 @@ test("the review UI exposes independent content and media regeneration controls"
   assert.match(ui, /fetch\("\/api\/agent\/actions\/regenerate-channel"/);
   assert.match(ui, /requestPublishChannelRegeneration\("content"\)/);
   assert.match(ui, /requestPublishChannelRegeneration\("media"\)/);
+  assert.match(ui, /regenerate_content_scope_title/);
+  assert.match(ui, /regenerate_current_channel/);
+  assert.match(ui, /regenerate_all_channels/);
+  assert.match(ui, /onAlternateConfirm/);
+  assert.match(ui, /scope === "publication"/);
   assert.match(ui, /regenerate_content/);
   assert.match(ui, /regenerate_media/);
   assert.match(ui, /i18nT\("regenerate_media_confirm"\)/);
@@ -137,9 +145,16 @@ test("the review UI exposes independent content and media regeneration controls"
       "regenerate_media_confirm",
       "regenerate_media_success",
       "agent_working_regenerating_media",
+      "regenerate_content_scope_title",
+      "regenerate_current_channel",
+      "regenerate_all_channels",
+      "regenerate_content_all_success",
+      "agent_working_regenerating_all_content",
     ]) {
       assert.ok(messages[key]?.trim(), `${locale}.${key}`);
-      assert.doesNotMatch(messages[key], /\{channel\}/, `${locale}.${key}`);
+      if (key !== "regenerate_current_channel") {
+        assert.doesNotMatch(messages[key], /\{channel\}/, `${locale}.${key}`);
+      }
     }
   }
 });
