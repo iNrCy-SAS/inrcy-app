@@ -438,8 +438,6 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
         {error ? <p style={{ color: "#ff9bbd", marginBottom: 0 }}>{error}</p> : null}
       </section>
 
-      <SubscriptionInvoicesPanel />
-
       <section style={{
         padding: 18,
         borderRadius: 18,
@@ -473,6 +471,8 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
         <p style={{ margin: "10px 0 0", textAlign: "center", fontSize: 11, opacity: 0.58 }}>
           {i18nT("le_passage_a_premium_necessite_une_2e3ad843")}{" "}</p>
       </section>
+
+      <SubscriptionInvoicesPanel />
     </div>
   );
 }

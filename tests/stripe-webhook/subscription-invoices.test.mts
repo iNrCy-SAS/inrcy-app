@@ -62,3 +62,30 @@ test("invoice section stays visible when no Stripe subscription is linked", () =
     /hasStripeSubscription \? <SubscriptionInvoicesPanel/,
   );
 });
+
+test("invoice section is the last standalone subscription block", () => {
+  const abonnementContent = read(
+    "app/dashboard/settings/_components/AbonnementContent.tsx",
+  );
+  const standardSubscriptionContent = read(
+    "app/dashboard/settings/_components/StandardSubscriptionContent.tsx",
+  );
+
+  assert.equal(
+    abonnementContent.match(/<SubscriptionInvoicesPanel \/>/g)?.length,
+    1,
+  );
+  assert.ok(
+    abonnementContent.indexOf("<SubscriptionInvoicesPanel />") >
+      abonnementContent.lastIndexOf("programmer_ma_resiliation_d074ca2d"),
+  );
+
+  assert.equal(
+    standardSubscriptionContent.match(/<SubscriptionInvoicesPanel \/>/g)?.length,
+    1,
+  );
+  assert.ok(
+    standardSubscriptionContent.indexOf("<SubscriptionInvoicesPanel />") >
+      standardSubscriptionContent.indexOf("nous_contacter_pour_premium_149750a6"),
+  );
+});

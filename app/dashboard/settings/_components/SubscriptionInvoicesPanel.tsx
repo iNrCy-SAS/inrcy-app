@@ -113,9 +113,8 @@ export default function SubscriptionInvoicesPanel() {
     <section
       aria-labelledby="subscription-invoices-title"
       style={{
-        marginTop: 12,
-        padding: 14,
-        borderRadius: 14,
+        padding: 18,
+        borderRadius: 18,
         border: "1px solid rgba(61, 222, 255, 0.18)",
         background: "rgba(0, 200, 255, 0.045)",
         display: "grid",
@@ -123,9 +122,9 @@ export default function SubscriptionInvoicesPanel() {
       }}
     >
       <div>
-        <h3 id="subscription-invoices-title" style={{ margin: 0, fontSize: 15 }}>
+        <h2 id="subscription-invoices-title" style={{ margin: 0, fontSize: 16 }}>
           {i18nT("factures_stripe_abonnement_titre_2d6f8a10")}
-        </h3>
+        </h2>
         <p style={{ margin: "6px 0 0", opacity: 0.78, lineHeight: 1.45, fontSize: 12 }}>
           {i18nT("factures_stripe_abonnement_description_5a1c9e32")}
         </p>

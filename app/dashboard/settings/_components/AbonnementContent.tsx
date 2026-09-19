@@ -691,8 +691,6 @@ useEffect(() => {
           </div>
         ) : null}
 
-        <SubscriptionInvoicesPanel />
-
         {checkoutState === "success" ? (
           <p style={{ margin: "8px 0 0", opacity: 0.9, lineHeight: 1.5 }}>
             {checkoutBilling === "yearly"
@@ -884,6 +882,8 @@ useEffect(() => {
           <p style={{ margin: "10px 0 0", opacity: 0.9, lineHeight: 1.35 }}>⚠️ {billingMsg}</p>
         ) : null}
       </div>
+
+      <SubscriptionInvoicesPanel />
     </div>
   );
 }
