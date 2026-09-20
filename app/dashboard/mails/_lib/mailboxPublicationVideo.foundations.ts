@@ -58,6 +58,15 @@ export function attachmentToVideoPayload(att: any): VideoPayload | null {
     sourceMetadata: (att?.sourceMetadata ||
       att?.source_metadata ||
       null) as BoosterVideoSourceMetadata | null,
+    bucket: String(
+      att?.bucket ||
+        att?.bucketName ||
+        att?.bucket_name ||
+        att?.storageBucket ||
+        att?.storage_bucket ||
+        "",
+    ),
+    mediaId: String(att?.mediaId || att?.media_id || "") || undefined,
     storagePath: String(att?.storagePath || att?.storage_path || ""),
     publicUrl: url,
     url,

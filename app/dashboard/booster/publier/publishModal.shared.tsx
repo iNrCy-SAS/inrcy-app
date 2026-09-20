@@ -2428,6 +2428,8 @@ export type VideoPayload = {
   lastModified?: number;
   duration?: number | null;
   sourceMetadata?: BoosterVideoSourceMetadata | null;
+  bucket?: string;
+  mediaId?: string;
   storagePath?: string;
   publicUrl?: string;
   url?: string;
@@ -2462,6 +2464,8 @@ export async function uploadBoosterVideo(
         lastModified: file.lastModified,
         duration: typeof options?.duration === "number" ? options.duration : null,
         sourceMetadata: options?.sourceMetadata || null,
+        bucket: result.bucket,
+        mediaId: result.mediaId || undefined,
         storagePath: result.storagePath,
         publicUrl: result.publicUrl || undefined,
         url: result.publicUrl || undefined,
@@ -2531,6 +2535,7 @@ export async function uploadBoosterVideo(
     lastModified: file.lastModified,
     duration: typeof options?.duration === "number" ? options.duration : null,
     sourceMetadata: options?.sourceMetadata || null,
+    bucket: "booster",
     storagePath,
     publicUrl,
     url: publicUrl,

@@ -63,6 +63,12 @@ export default defineConfig({
         env: {
           ...process.env,
           E2E_BYPASS_REQUIRED_SETUP: 'true',
+          // The downloaded production build runs with NODE_ENV=production.
+          // Keep its local browser suite isolated from the shared Upstash
+          // database so tests never mutate production counters or emit
+          // provider warnings when the external cache is unavailable.
+          KV_REST_API_URL: '',
+          KV_REST_API_TOKEN: '',
         },
       }
     : undefined,

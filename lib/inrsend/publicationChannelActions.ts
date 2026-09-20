@@ -59,6 +59,7 @@ import { validateXUrlFreeText } from "@/lib/xChannel";
 import { getInstagramPartialImagesWarning } from "@/lib/instagramPartialImagesWarning";
 import { getImagePublicationWarning } from "@/lib/multiImagePublicationWarning";
 import { refreshInrSendPublicationVideoUrl } from "@/lib/inrsend/publicationVideoStorage";
+import { reconcileInrSendVideoAttachment } from "@/lib/inrsend/publicationVideoAttachmentPolicy";
 import {
   createPublicationImageUseGuard,
   removeCreatedPublicationImagePathsBestEffort,
@@ -2951,7 +2952,14 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
       const mediaType = normalizePublicationMediaType(body.mediaType || getEventPublicationMediaType(ctx.eventPayload, ctx.publication, channel));
       const requestedVideoSettings = asRecord(body.videoSettings);
       const incomingVideo = normalizeVideoAttachment(body.video || body.newVideo || body.retainedVideo);
-      let video = mediaType === "video" ? (incomingVideo || getPublicationVideo(ctx.eventPayload, ctx.publication, channel)) : null;
+      const persistedVideo = getPublicationVideo(
+        ctx.eventPayload,
+        ctx.publication,
+        channel,
+      );
+      let video = mediaType === "video"
+        ? reconcileInrSendVideoAttachment(incomingVideo, persistedVideo)
+        : null;
       if (video) {
         const refreshedVideo = await refreshInrSendPublicationVideoUrl({
           accountId: activeUserId,
