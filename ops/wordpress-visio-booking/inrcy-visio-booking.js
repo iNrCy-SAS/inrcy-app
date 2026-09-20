@@ -81,7 +81,7 @@
   function readSessionBookingToken() {
     try {
       return String(window.sessionStorage.getItem(BOOKING_TOKEN_STORAGE_KEY) || "");
-    } catch (error) {
+    } catch {
       return "";
     }
   }
@@ -89,14 +89,14 @@
   function rememberSessionBookingToken(token) {
     try {
       window.sessionStorage.setItem(BOOKING_TOKEN_STORAGE_KEY, token);
-    } catch (error) {}
+    } catch {}
   }
 
   function forgetSessionBookingToken() {
     currentToken = "";
     try {
       window.sessionStorage.removeItem(BOOKING_TOKEN_STORAGE_KEY);
-    } catch (error) {}
+    } catch {}
   }
 
   function bookingWasRecentlyCompleted() {
@@ -104,7 +104,7 @@
       var completedUntil = Number(window.localStorage.getItem(BOOKING_COMPLETED_STORAGE_KEY) || 0);
       if (Number.isFinite(completedUntil) && completedUntil > Date.now()) return true;
       window.localStorage.removeItem(BOOKING_COMPLETED_STORAGE_KEY);
-    } catch (error) {}
+    } catch {}
     return false;
   }
 
@@ -115,7 +115,7 @@
         BOOKING_COMPLETED_STORAGE_KEY,
         String(Date.now() + BOOKING_COMPLETED_TTL_MS)
       );
-    } catch (error) {}
+    } catch {}
   }
 
   function signupForm() {

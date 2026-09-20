@@ -171,6 +171,8 @@ test("le Checkout reste Standard en libre-service et Premium reste accompagné",
   assert.match(checkout, /checkoutAttemptBucket/);
   assert.match(checkout, /15 \* 60 \* 1000/);
   assert.match(checkout, /sessionParams\.set\("client_reference_id", userId\)/);
+  assert.match(checkout, /async function updateSubscriptionOrThrow/);
+  assert.match(checkout, /if \(error\) throw error/);
   assert.match(managedSubscriptionUi, /i18nT\("les_forfaits_premium_et_founder_sont_374bb1ec"\)/);
   assert.doesNotMatch(managedSubscriptionUi, /CHECKOUT_OFFERS/);
 });
@@ -360,4 +362,17 @@ test("la migration reste atomique et conserve la colonne texte existante", () =>
   assert.match(migration, /add column if not exists billing_cycle text/);
   assert.match(migration, /billing_cycle in \('monthly', 'yearly'\)/);
   assert.match(migration, /testinrcy@gmail\.com/);
+});
+
+test("le schéma d'abonnement accepte les offres commerciales persistées par Stripe et RevenueCat", () => {
+  const migration = source(
+    "supabase/migrations/20260920121231_subscription_plan_commercial_values.sql",
+  );
+  const stripeWebhook = source("app/api/stripe/webhook/route.ts");
+  const nativeWebhook = source("app/api/billing/native/webhook/route.ts");
+
+  assert.match(migration, /alter type public\.subscription_plan add value if not exists 'Standard'/i);
+  assert.match(migration, /alter type public\.subscription_plan add value if not exists 'Premium'/i);
+  assert.match(stripeWebhook, /planFromPriceId/);
+  assert.match(nativeWebhook, /plan: match\.plan/);
 });

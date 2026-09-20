@@ -121,6 +121,42 @@ test("unknown or missing channel data still fails the mandatory final schema val
   );
 });
 
+test("a partial multi-channel response preserves valid posts and targets only missing channels for repair", () => {
+  const normalized = normalizeBoosterStructuredResponse(
+    {
+      versions: {
+        linkedin: {
+          title: "Conseil du jour",
+          content: "Une publication LinkedIn complète et directement exploitable.",
+          cta: "Découvrir",
+          hashtags: ["conseil"],
+        },
+      },
+    },
+    ["linkedin", "site_web"],
+  );
+
+  assert.deepEqual(normalized, {
+    versions: {
+      linkedin: {
+        title: "Conseil du jour",
+        content: "Une publication LinkedIn complète et directement exploitable.",
+        cta: "Découvrir",
+        hashtags: ["conseil"],
+      },
+      site_web: {
+        title: "",
+        content: "",
+        cta: "",
+        hashtags: [],
+      },
+    },
+  });
+  assert.doesNotThrow(() =>
+    assertAiJsonMatchesSchema(normalized, boosterSchema(["linkedin", "site_web"])),
+  );
+});
+
 test("the generic hook accepts only an object and never exposes a failing normalizer payload", () => {
   assert.deepEqual(
     normalizeAiJsonResponseBeforeValidation({ alias: "ok" }, () => ({ canonical: "ok" })),

@@ -157,8 +157,10 @@ function findChannelPost(
 
 /**
  * Convertit uniquement les variantes fournisseur connues vers le contrat
- * canonique Booster. Une chaîne manquante ou réellement illisible reste
- * absente : la validation JSON Schema qui suit doit alors refuser la sortie.
+ * canonique Booster. Une réponse groupée partielle conserve ses canaux valides
+ * et matérialise les canaux manquants avec un post vide : le contrôle qualité
+ * déclenche alors leur réparation ciblée. Une réponse entièrement illisible
+ * reste invalide et doit toujours être refusée par le JSON Schema.
  */
 export function normalizeBoosterStructuredResponse(
   output: JsonRecord,
@@ -180,6 +182,19 @@ export function normalizeBoosterStructuredResponse(
         versions[uniqueChannels[0]!] = directPost;
         break;
       }
+    }
+  }
+
+  const recoveredChannelCount = Object.keys(versions).length;
+  if (uniqueChannels.length > 1 && recoveredChannelCount > 0) {
+    for (const channel of uniqueChannels) {
+      if (versions[channel]) continue;
+      versions[channel] = {
+        title: "",
+        content: "",
+        cta: "",
+        hashtags: [],
+      } satisfies NormalizedStructuredPost;
     }
   }
 

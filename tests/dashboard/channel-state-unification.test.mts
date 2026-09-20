@@ -139,9 +139,9 @@ test("Dashboard and iNrStats continuously reconcile canonical state without stal
 test("iNrAgent uses the same official state and Bubble Access matrix as Booster", () => {
   const agent = read("app/api/agent/actions/prepare-publish/route.ts");
   assert.match(agent, /const bubbleKeyByChannel: Record<BoosterChannels, AppBubbleKey>/);
-  assert.match(agent, /isOfficialPublicationChannelConnected\(states\.site_inrcy\)/);
-  assert.match(agent, /isOfficialPublicationChannelConnected\(states\.gmb\)/);
-  assert.match(agent, /isOfficialPublicationChannelConnected\(states\.youtube_shorts\)/);
+  assert.match(agent, /isOfficialPublicationChannelConnected\(\s*states\.site_inrcy\s*\)/);
+  assert.match(agent, /isOfficialPublicationChannelConnected\(\s*states\.gmb\s*\)/);
+  assert.match(agent, /isOfficialPublicationChannelConnected\(\s*states\.youtube_shorts\s*\)/);
   assert.match(agent, /isBubbleEnabled\(bubbleAccess, bubbleKeyByChannel\[channel\]\)/);
 });
 

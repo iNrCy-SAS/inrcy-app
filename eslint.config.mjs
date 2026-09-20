@@ -17,6 +17,8 @@ export default defineConfig([
     "coverage/**",
     "playwright-report/**",
     "test-results/**",
+    "android/**/build/**",
+    "ios/**/build/**",
     "lib/vendor/**",
   ]),
 

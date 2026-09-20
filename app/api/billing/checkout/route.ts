@@ -58,6 +58,17 @@ function requestedStandardPlan(value: unknown): boolean {
   return normalized === "standard" || normalized === "inrcy standard" || normalized === "inrcy-standard";
 }
 
+async function updateSubscriptionOrThrow(
+  userId: string,
+  patch: Record<string, unknown>,
+) {
+  const { error } = await supabaseAdmin
+    .from("subscriptions")
+    .update(patch)
+    .eq("user_id", userId);
+  if (error) throw error;
+}
+
 async function findLiveStripeSubscription(customerId: string) {
   const query = new URLSearchParams({ customer: customerId, status: "all", limit: "100" });
   const response = (await stripeGet(`/subscriptions?${query.toString()}`)) as StripeSubscriptionList;
@@ -187,15 +198,12 @@ export async function POST(req: Request) {
     if (customerId) {
       const existingStripeSubscription = await findLiveStripeSubscription(customerId);
       if (existingStripeSubscription?.id) {
-        await supabaseAdmin
-          .from("subscriptions")
-        .update({
+        await updateSubscriptionOrThrow(userId, {
           stripe_subscription_id: existingStripeSubscription.id,
           billing_provider: "stripe",
           status: normalizeStatus(existingStripeSubscription.status),
-            updated_at: new Date().toISOString(),
-          })
-          .eq("user_id", userId);
+          updated_at: new Date().toISOString(),
+        });
 
         return NextResponse.json(
           {
@@ -217,15 +225,12 @@ export async function POST(req: Request) {
       customerId = typeof customer?.id === "string" ? customer.id : null;
       if (!customerId) throw new Error("Le compte de facturation n’a pas pu être créé.");
 
-      await supabaseAdmin
-        .from("subscriptions")
-        .update({
-          stripe_customer_id: customerId,
-          billing_provider: "stripe",
-          contact_email: email,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("user_id", userId);
+      await updateSubscriptionOrThrow(userId, {
+        stripe_customer_id: customerId,
+        billing_provider: "stripe",
+        contact_email: email,
+        updated_at: new Date().toISOString(),
+      });
     }
 
     const nowUnix = Math.floor(Date.now() / 1000);
@@ -253,14 +258,11 @@ export async function POST(req: Request) {
 
     if (trialIsStillOpen) {
       const effectiveTrialEndAt = new Date(effectiveTrialEndUnix! * 1000).toISOString();
-      await supabaseAdmin
-        .from("subscriptions")
-        .update({
-          trial_start_at: trialStartAt,
-          trial_end_at: effectiveTrialEndAt,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("user_id", userId);
+      await updateSubscriptionOrThrow(userId, {
+        trial_start_at: trialStartAt,
+        trial_end_at: effectiveTrialEndAt,
+        updated_at: new Date().toISOString(),
+      });
     }
 
     const appUrl = getAppUrl(req);
@@ -314,17 +316,14 @@ export async function POST(req: Request) {
       throw new Error("La page de paiement n’a pas pu être créée.");
     }
 
-    await supabaseAdmin
-      .from("subscriptions")
-      .update({
-        app_edition: "standard",
-        stripe_price_id: priceId,
-        billing_cycle: billingCycle,
-        scheduled_plan: "Standard",
-        contact_email: email,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("user_id", userId);
+    await updateSubscriptionOrThrow(userId, {
+      app_edition: "standard",
+      stripe_price_id: priceId,
+      billing_cycle: billingCycle,
+      scheduled_plan: "Standard",
+      contact_email: email,
+      updated_at: new Date().toISOString(),
+    });
 
     return NextResponse.json({ url: session.url });
   } catch (error: unknown) {
