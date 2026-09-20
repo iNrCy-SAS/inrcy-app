@@ -10,6 +10,7 @@ import {
   selectAiMediaDialogueLine,
 } from "@/lib/aiMediaDialogue";
 import { aiGenerateJSON } from "@/lib/aiGatewayClient";
+import { getAiEngineOption } from "@/lib/aiEnginePreference";
 import { hasAiLanguageMismatch } from "@/lib/aiLanguageValidation";
 import {
   buildAiLanguageInstruction,
@@ -320,7 +321,7 @@ export async function writeAiMediaHeadline(args: {
       feature: args.request.kind === "video" ? "media.video" : "media.image",
       accountId: args.accountId,
       model: String(
-        process.env.AI_MEDIA_COPY_MODEL || "openai/gpt-4o-mini"
+        process.env.AI_MEDIA_COPY_MODEL || getAiEngineOption("openai").model
       ).trim(),
       system: [
         "Tu es le directeur éditorial multilingue du studio média iNrCy.",

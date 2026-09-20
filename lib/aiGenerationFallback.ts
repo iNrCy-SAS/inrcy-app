@@ -42,7 +42,10 @@ export type AiGatewayFallbackRouting = {
 };
 
 const AI_FALLBACK_METADATA = Symbol.for("inrcy.ai-generation-fallback");
-const DEFAULT_OPENAI_DIRECT_MODEL = "gpt-4o-mini";
+const DEFAULT_OPENAI_DIRECT_MODEL = getAiEngineOption("openai").model.replace(
+  /^openai\//,
+  "",
+);
 
 function fallbackEngineForPrimary(primaryModel: string): AiPreferredEngine {
   return normalizeGatewayModelId(primaryModel).startsWith("openai/")
@@ -84,7 +87,12 @@ export function getOpenAiDirectFallbackCredential(): string {
 
 export function getOpenAiDirectFallbackModel(): string {
   const configured = cleanAiGatewayEnv(process.env.OPENAI_DIRECT_FALLBACK_MODEL);
-  const model = configured || DEFAULT_OPENAI_DIRECT_MODEL;
+  const normalized = normalizeGatewayModelId(
+    configured || DEFAULT_OPENAI_DIRECT_MODEL,
+  );
+  const model = normalized.startsWith("openai/")
+    ? normalized.slice("openai/".length)
+    : DEFAULT_OPENAI_DIRECT_MODEL;
   // Défense simple contre une URL ou une valeur inattendue injectée par erreur.
   return /^[a-zA-Z0-9._:-]+$/.test(model)
     ? model

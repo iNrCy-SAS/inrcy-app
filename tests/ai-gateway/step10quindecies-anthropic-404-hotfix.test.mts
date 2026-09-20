@@ -2,18 +2,16 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { getAiEngineOption } from "../../lib/aiEnginePreference.ts";
+import { getDefaultAllowedAiGatewayModels } from "../../lib/aiGatewayPolicy.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
 const read = (rel: string) => readFileSync(resolve(ROOT, rel), "utf8");
 
-test("Claude uses the current Haiku model supported by Vercel AI Gateway Responses", () => {
-  const engines = read("lib/aiEnginePreference.ts");
-  const policy = read("lib/aiGatewayPolicy.ts");
-
-  assert.match(engines, /anthropic\/claude-haiku-4\.5/);
-  assert.match(policy, /anthropic\/claude-haiku-4\.5/);
-  assert.doesNotMatch(engines, /anthropic\/claude-3\.5-haiku/);
-  assert.doesNotMatch(policy, /anthropic\/claude-3\.5-haiku/);
+test("Claude uses the current Sonnet model and the policy derives its allowlist from the engine registry", () => {
+  const model = getAiEngineOption("anthropic").model;
+  assert.equal(model, "anthropic/claude-sonnet-4.6");
+  assert.ok(getDefaultAllowedAiGatewayModels().has(model));
 });
 
 test("a full AI Gateway endpoint in env is normalized back to a base URL", () => {
@@ -23,6 +21,24 @@ test("a full AI Gateway endpoint in env is normalized back to a base URL", () =>
   assert.match(config, /replace\(\/\\\/responses\$\/i, ""\)/);
   assert.match(config, /responses\/responses/);
   assert.match(config, /chat\/completions\/responses/);
+});
+
+test("legacy Vercel model overrides migrate to the current brand model", () => {
+  const config = read("lib/aiGatewayConfig.ts");
+  const fallback = read("lib/aiGenerationFallback.ts");
+
+  for (const legacyModel of [
+    "openai/gpt-4o-mini",
+    "anthropic/claude-haiku-4.5",
+    "google/gemini-2.5-flash-lite",
+    "xai/grok-4.1-fast-non-reasoning",
+    "perplexity/sonar",
+    "deepseek/deepseek-v3.2",
+  ]) {
+    assert.match(config, new RegExp(legacyModel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+  assert.match(config, /LEGACY_GATEWAY_MODEL_MIGRATIONS\[normalized\.toLowerCase\(\)\]/);
+  assert.match(fallback, /normalizeGatewayModelId\([\s\S]*?configured \|\| DEFAULT_OPENAI_DIRECT_MODEL/);
 });
 
 test("provider error details are logged privately and 404 remains eligible for fallback", () => {

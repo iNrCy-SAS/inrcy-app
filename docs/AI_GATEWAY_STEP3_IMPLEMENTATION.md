@@ -17,10 +17,10 @@ Choix proposés :
 
 | Choix interface | Code Supabase | Modèle Gateway actuel |
 |---|---|---|
-| OpenAI — ChatGPT | `openai` | `openai/gpt-4o-mini` |
-| Anthropic — Claude | `anthropic` | `anthropic/claude-3.5-haiku` |
-| Google — Gemini | `google` | `google/gemini-2.5-flash-lite` |
-| xAI — Grok | `xai` | `xai/grok-4.1-fast-non-reasoning` |
+| OpenAI — ChatGPT | `openai` | `openai/gpt-5.6-luna` |
+| Anthropic — Claude | `anthropic` | `anthropic/claude-sonnet-4.6` |
+| Google — Gemini | `google` | `google/gemini-3-flash` |
+| xAI — Grok | `xai` | `spacexai/grok-4.1-fast-non-reasoning` |
 
 Le professionnel choisit un **moteur**, pas un identifiant technique. Le mapping moteur → modèle reste centralisé dans `lib/aiEnginePreference.ts`, ce qui permet de faire évoluer un modèle plus tard sans migrer les profils Supabase.
 
@@ -55,7 +55,7 @@ La couche neutre `lib/aiGatewayClient.ts` accepte désormais `engine`. La priori
 3. `AI_GATEWAY_VISION_MODEL` pour une requête image sans préférence
 4. `AI_GATEWAY_MODEL`
 5. anciens fallback `OPENAI_*`
-6. `gpt-4o-mini`
+6. `gpt-5.6-luna`
 
 Les flux suivants utilisent la préférence du compte :
 
@@ -83,7 +83,7 @@ Conserver :
 ```text
 AI_GATEWAY_API_KEY=...
 AI_GATEWAY_MODE=gateway
-AI_GATEWAY_MODEL=openai/gpt-4o-mini
+AI_GATEWAY_MODEL=openai/gpt-5.6-luna
 ```
 
 `AI_GATEWAY_MODEL` reste un fallback global. Dès qu'un compte possède une préférence, son moteur choisi est résolu avant cette variable.
@@ -106,5 +106,5 @@ Conserver également `OPENAI_API_KEY` pour la transcription audio brute.
 4. Générer un Booster sur plusieurs canaux.
 5. Vérifier dans AI Gateway Team Data que le modèle Anthropic apparaît.
 6. Refaire avec Gemini puis Grok.
-7. Revenir à ChatGPT et confirmer `openai/gpt-4o-mini`.
+7. Revenir à ChatGPT et confirmer `openai/gpt-5.6-luna`.
 8. Tester un compte secondaire / multicompte pour confirmer l'isolation de la préférence par `activeUserId`.

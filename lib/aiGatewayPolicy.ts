@@ -1,3 +1,5 @@
+import { AI_ENGINE_OPTIONS } from "./aiEnginePreference.ts";
+
 export type AiGenerationFeature =
   | "booster.publish"
   | "booster.media-understanding"
@@ -42,16 +44,11 @@ export function isAiGatewayAccountCostLimitEnforced(
 
 const MB_AS_DATA_URL_CHARS = 1_450_000;
 
-const DEFAULT_ALLOWED_AI_GATEWAY_MODELS = [
-  "openai/gpt-4o-mini",
-  "anthropic/claude-haiku-4.5",
-  "google/gemini-2.5-flash-lite",
-  "mistral/mistral-medium-3.5",
-  "xai/grok-4.1-fast-non-reasoning",
-  "perplexity/sonar",
-  "deepseek/deepseek-v3.2",
-  "meta/llama-4-maverick",
-] as const;
+// La liste de sécurité est dérivée du catalogue visible par les professionnels.
+// Un changement de modèle ne peut ainsi plus être oublié dans l'allowlist.
+const DEFAULT_ALLOWED_AI_GATEWAY_MODELS = AI_ENGINE_OPTIONS.map(
+  (option) => option.model,
+);
 
 const DEFAULT_ALLOWED_AI_GATEWAY_TRANSCRIPTION_MODELS = [
   "openai/gpt-4o-transcribe",

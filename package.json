@@ -44,7 +44,7 @@
     "qa:ai-gateway": "npm run audit:ai-gateway && npm run test:ai-gateway && npm run typecheck",
     "test:ai-media-generation": "node --test --experimental-strip-types tests/ai-media-generation/*.test.mts tests/media-generation/*.test.mts tests/dashboard/media-generation-ui.test.mts",
     "qa:ai-media-generation": "npm run test:ai-media-generation && npm run typecheck",
-    "verify:ai-gateway-catalog": "node scripts/verify-ai-gateway-catalog.mjs",
+    "verify:ai-gateway-catalog": "node --use-system-ca scripts/verify-ai-gateway-catalog.mjs",
     "qa:ai-gateway:live": "node scripts/qa-ai-gateway-live.mjs --mode=smoke",
     "qa:ai-gateway:final": "npm run audit:ai-gateway && npm run test:ai-gateway && npm run typecheck && npm run verify:ai-gateway-catalog",
     "qa:ai-gateway:matrix": "node scripts/qa-ai-gateway-live.mjs --mode=matrix",

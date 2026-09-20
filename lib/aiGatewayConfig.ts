@@ -1,8 +1,23 @@
 import "server-only";
 
+import { getAiEngineOption } from "@/lib/aiEnginePreference";
+
 const DEFAULT_GATEWAY_BASE_URL = "https://ai-gateway.vercel.sh/v1";
 const DEFAULT_GATEWAY_TRANSCRIPTION_URL = "https://ai-gateway.vercel.sh/v4/ai/transcription-model";
-const DEFAULT_GATEWAY_MODEL = "openai/gpt-4o-mini";
+const DEFAULT_GATEWAY_MODEL = getAiEngineOption("openai").model;
+
+// Compatibilité de déploiement : les anciennes variables Vercel peuvent rester
+// présentes pendant un changement de catalogue. Elles sont migrées vers le
+// modèle courant de la même marque avant le contrôle de l'allowlist.
+const LEGACY_GATEWAY_MODEL_MIGRATIONS: Readonly<Record<string, string>> = {
+  "openai/gpt-4o-mini": getAiEngineOption("openai").model,
+  "anthropic/claude-3.5-haiku": getAiEngineOption("anthropic").model,
+  "anthropic/claude-haiku-4.5": getAiEngineOption("anthropic").model,
+  "google/gemini-2.5-flash-lite": getAiEngineOption("google").model,
+  "xai/grok-4.1-fast-non-reasoning": getAiEngineOption("xai").model,
+  "perplexity/sonar": getAiEngineOption("perplexity").model,
+  "deepseek/deepseek-v3.2": getAiEngineOption("deepseek").model,
+};
 
 export function cleanAiGatewayEnv(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -38,5 +53,6 @@ export function getAiGatewayTranscriptionUrl(): string {
 export function normalizeGatewayModelId(value: unknown, defaultProvider = "openai"): string {
   const raw = cleanAiGatewayEnv(value);
   if (!raw) return DEFAULT_GATEWAY_MODEL;
-  return raw.includes("/") ? raw : `${defaultProvider}/${raw}`;
+  const normalized = raw.includes("/") ? raw : `${defaultProvider}/${raw}`;
+  return LEGACY_GATEWAY_MODEL_MIGRATIONS[normalized.toLowerCase()] || normalized;
 }

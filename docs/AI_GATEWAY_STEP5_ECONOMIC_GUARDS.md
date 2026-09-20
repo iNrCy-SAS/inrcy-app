@@ -10,13 +10,13 @@ Empêcher qu'une action utilisateur, un retry réseau, un moteur non prévu ou u
 
 Par défaut, seuls les 8 modèles reliés au sélecteur Configuration IA sont autorisés :
 
-- `openai/gpt-4o-mini`
-- `anthropic/claude-3.5-haiku`
-- `google/gemini-2.5-flash-lite`
+- `openai/gpt-5.6-luna`
+- `anthropic/claude-sonnet-4.6`
+- `google/gemini-3-flash`
 - `mistral/mistral-medium-3.5`
-- `xai/grok-4.1-fast-non-reasoning`
-- `perplexity/sonar`
-- `deepseek/deepseek-v3.2`
+- `spacexai/grok-4.1-fast-non-reasoning`
+- `perplexity/sonar-pro`
+- `deepseek/deepseek-v4-pro-0813`
 - `meta/llama-4-maverick`
 
 Une extension volontaire est possible avec `AI_GATEWAY_ALLOWED_MODELS`, liste séparée par virgules/espaces/points-virgules. Ne pas utiliser cette variable sans QA du modèle.
@@ -127,7 +127,7 @@ Dans Vercel > Project > Settings > Environment Variables, ajouter :
 - valeur vérifiée dans le catalogue Vercel le 21 juillet 2026 :
 
 ```json
-{"openai/gpt-4o-mini":{"inputUsdPerMillion":0.15,"outputUsdPerMillion":0.6},"mistral/mistral-medium-3.5":{"inputUsdPerMillion":1.5,"outputUsdPerMillion":7.5}}
+{"openai/gpt-5.6-luna":{"inputUsdPerMillion":0.2,"outputUsdPerMillion":1.2},"mistral/mistral-medium-3.5":{"inputUsdPerMillion":1.5,"outputUsdPerMillion":7.5}}
 ```
 
 Les clés sont en USD par million de tokens. Mettre à jour cette variable si le

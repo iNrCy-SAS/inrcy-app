@@ -27,8 +27,8 @@ test("Gateway fallback uses another provider and safe defaults", () => {
   assert.match(fallback, /AI_GATEWAY_OPENAI_PRIMARY_FALLBACK_MODEL/);
   assert.match(fallback, /expectedProviderPrefix/);
   const engines = read("lib/aiEnginePreference.ts");
-  assert.match(engines, /openai\/gpt-4o-mini/);
-  assert.match(engines, /google\/gemini-2\.5-flash-lite/);
+  assert.match(engines, /openai\/gpt-5\.6-luna/);
+  assert.match(engines, /google\/gemini-3-flash/);
 });
 
 test("economic and operation guard failures are never bypassed by fallback", () => {

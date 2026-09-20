@@ -38,7 +38,7 @@ export const AI_ENGINE_OPTIONS: readonly AiEngineOption[] = [
     description: "Polyvalent, rapide et très économique pour les contenus multicanaux.",
     naturalTendency: "Polyvalent, équilibré, clair et efficace.",
     bestFor: "Posts complets, contenus marketing locaux et adaptations multicanaux.",
-    model: "openai/gpt-4o-mini",
+    model: "openai/gpt-5.6-luna",
     supportsVision: true,
     jsonMode: "strict",
   },
@@ -49,7 +49,7 @@ export const AI_ENGINE_OPTIONS: readonly AiEngineOption[] = [
     description: "Écriture naturelle, nuancée et attentive au style.",
     naturalTendency: "Fluide, humain, nuancé et moins mécanique.",
     bestFor: "LinkedIn, storytelling, textes longs et contenus premium.",
-    model: "anthropic/claude-haiku-4.5",
+    model: "anthropic/claude-sonnet-4.6",
     supportsVision: true,
     jsonMode: "strict",
   },
@@ -60,7 +60,7 @@ export const AI_ENGINE_OPTIONS: readonly AiEngineOption[] = [
     description: "Rapide, multimodal et efficace sur les longs contextes.",
     naturalTendency: "Structuré, contextuel, informatif et organisé.",
     bestFor: "SEO, contenus explicatifs, articles et fiches détaillées.",
-    model: "google/gemini-2.5-flash-lite",
+    model: "google/gemini-3-flash",
     supportsVision: true,
     jsonMode: "strict",
   },
@@ -82,7 +82,7 @@ export const AI_ENGINE_OPTIONS: readonly AiEngineOption[] = [
     description: "Direct, rapide et créatif pour varier les approches éditoriales.",
     naturalTendency: "Plus vivant, punchy, créatif et moins lisse.",
     bestFor: "Réseaux sociaux, accroches fortes et contenus dynamiques.",
-    model: "xai/grok-4.1-fast-non-reasoning",
+    model: "spacexai/grok-4.1-fast-non-reasoning",
     supportsVision: true,
     jsonMode: "strict",
   },
@@ -93,7 +93,7 @@ export const AI_ENGINE_OPTIONS: readonly AiEngineOption[] = [
     description: "Recherche web intégrée et contenus ancrés dans des informations récentes.",
     naturalTendency: "Factuel, précis, informatif et orienté synthèse.",
     bestFor: "Contenus pédagogiques, veille, explications et résumés.",
-    model: "perplexity/sonar",
+    model: "perplexity/sonar-pro",
     supportsVision: true,
     jsonMode: "prompt-only",
   },
@@ -104,7 +104,7 @@ export const AI_ENGINE_OPTIONS: readonly AiEngineOption[] = [
     description: "Très bon rapport coût-performance pour les tâches de génération et d'instruction.",
     naturalTendency: "Logique, argumenté, démonstratif et structuré.",
     bestFor: "Conseils, argumentaires, contenus techniques et démonstrations.",
-    model: "deepseek/deepseek-v3.2",
+    model: "deepseek/deepseek-v4-pro-0813",
     supportsVision: false,
     jsonMode: "prompt-only",
   },
@@ -123,7 +123,9 @@ export const AI_ENGINE_OPTIONS: readonly AiEngineOption[] = [
 
 export const DEFAULT_AI_PREFERRED_ENGINE: AiPreferredEngine = "openai";
 
-export const DEFAULT_AI_VISION_FALLBACK_MODEL = "google/gemini-2.5-flash-lite";
+export const DEFAULT_AI_VISION_FALLBACK_MODEL =
+  AI_ENGINE_OPTIONS.find((option) => option.value === "google")?.model ||
+  "google/gemini-3-flash";
 
 export type AiEngineRequestRouting = {
   model: string;

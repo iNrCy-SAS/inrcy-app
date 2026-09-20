@@ -108,7 +108,7 @@ Pour la génération texte/vision :
 ```text
 AI_GATEWAY_API_KEY=...
 AI_GATEWAY_MODE=gateway
-AI_GATEWAY_MODEL=openai/gpt-4o-mini
+AI_GATEWAY_MODEL=openai/gpt-5.6-luna
 ```
 
 `AI_GATEWAY_VISION_MODEL` reste optionnel.

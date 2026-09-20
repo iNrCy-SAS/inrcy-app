@@ -8,6 +8,8 @@ import {
   normalizeGatewayModelId,
 } from "@/lib/aiGatewayConfig";
 import {
+  DEFAULT_AI_VISION_FALLBACK_MODEL,
+  getAiEngineOption,
   resolveAiEngineRequestRouting,
   type AiJsonMode,
   type AiPreferredEngine,
@@ -168,7 +170,9 @@ function resolveRequestedRouting(
     model:
       (hasImages ? cleanAiGatewayEnv(process.env.AI_GATEWAY_VISION_MODEL) : "") ||
       cleanAiGatewayEnv(process.env.AI_GATEWAY_MODEL) ||
-      "openai/gpt-4o-mini",
+      (hasImages
+        ? DEFAULT_AI_VISION_FALLBACK_MODEL
+        : getAiEngineOption("openai").model),
     jsonMode: "strict",
   };
 }

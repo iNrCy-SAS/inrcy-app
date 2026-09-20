@@ -38,6 +38,20 @@ test("the eight selectable engines map to provider/model Gateway identifiers", (
     assert.match(option.model, /^[a-z0-9-]+\/[a-z0-9.-]+$/i);
     assert.equal(getAiEngineOption(option.value).model, option.model);
   }
+
+  assert.deepEqual(
+    Object.fromEntries(AI_ENGINE_OPTIONS.map((option) => [option.value, option.model])),
+    {
+      openai: "openai/gpt-5.6-luna",
+      anthropic: "anthropic/claude-sonnet-4.6",
+      google: "google/gemini-3-flash",
+      mistral: "mistral/mistral-medium-3.5",
+      xai: "spacexai/grok-4.1-fast-non-reasoning",
+      perplexity: "perplexity/sonar-pro",
+      deepseek: "deepseek/deepseek-v4-pro-0813",
+      meta: "meta/llama-4-maverick",
+    },
+  );
 });
 
 test("vision capability is explicit so image flows never select a text-only model blindly", () => {
@@ -57,7 +71,7 @@ test("prompt-only JSON compatibility is explicit for engines with heterogeneous 
 
 test("DeepSeek keeps the selected author and requires a neutral vision prepass", () => {
   assert.deepEqual(resolveAiEngineRequestRouting("deepseek", false), {
-    model: "deepseek/deepseek-v3.2",
+    model: "deepseek/deepseek-v4-pro-0813",
     jsonMode: "prompt-only",
   });
   assert.throws(

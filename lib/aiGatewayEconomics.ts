@@ -51,7 +51,7 @@ function parseConfiguredPricingTable(): Record<string, Record<string, unknown>> 
 /**
  * Pricing is environment-driven because model/provider prices evolve.
  * Example:
- * AI_GATEWAY_MODEL_PRICING_JSON={"openai/gpt-4o-mini":{"inputUsdPerMillion":0.15,"outputUsdPerMillion":0.6}}
+ * AI_GATEWAY_MODEL_PRICING_JSON={"openai/gpt-5.6-luna":{"inputUsdPerMillion":0.2,"outputUsdPerMillion":1.2}}
  */
 export function getConfiguredAiGatewayModelPricing(model: string): ModelPricing | null {
   const parsed = parseConfiguredPricingTable();

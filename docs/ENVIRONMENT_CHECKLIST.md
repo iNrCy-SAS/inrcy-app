@@ -131,15 +131,15 @@ Limites optionnelles :
 - [ ] `AI_MEDIA_VEO_POLL_MS` seulement après calibration en Preview — `AI_MEDIA_OMNI_CONCURRENCY` (défaut 3) et `AI_MEDIA_VEO_CONCURRENCY` (défaut 2) s’appliquent seulement sans raccord ; `connectScenes` impose un plan à la fois
 - [ ] `AI_MEDIA_TTS_MODEL`, `AI_MEDIA_TTS_VOICE`, `AI_MEDIA_TTS_TIMEOUT_MS` et `AI_MEDIA_TTS_COST_MICRO_USD` seulement si les valeurs par défaut doivent être surchargées
 - [ ] `AI_GATEWAY_BASE_URL` seulement si surcharge volontaire
-- [ ] `AI_GATEWAY_FALLBACK_MODEL` (optionnel ; secours Gateway des moteurs non-OpenAI, défaut `openai/gpt-4o-mini`)
-- [ ] `AI_GATEWAY_OPENAI_PRIMARY_FALLBACK_MODEL` (optionnel ; secours Gateway lorsque ChatGPT est sélectionné, défaut `google/gemini-2.5-flash-lite`)
+- [ ] `AI_GATEWAY_FALLBACK_MODEL` (optionnel ; secours Gateway des moteurs non-OpenAI, défaut `openai/gpt-5.6-luna`)
+- [ ] `AI_GATEWAY_OPENAI_PRIMARY_FALLBACK_MODEL` (optionnel ; secours Gateway lorsque ChatGPT est sélectionné, défaut `google/gemini-3-flash`)
 - [ ] `AI_GATEWAY_TRANSCRIBE_MODEL` (optionnel, défaut `openai/gpt-4o-transcribe`)
 - [ ] `AI_GATEWAY_TRANSCRIBE_FALLBACK_MODEL` (optionnel, défaut `openai/whisper-1`)
 
 ### OpenAI direct — ultime secours indépendant
 
 - [ ] `OPENAI_API_KEY` — recommandé en Production ; utilisé une seule fois uniquement après échec du moteur choisi et du secours Gateway
-- [ ] `OPENAI_DIRECT_FALLBACK_MODEL` (optionnel, défaut `gpt-4o-mini`)
+- [ ] `OPENAI_DIRECT_FALLBACK_MODEL` (optionnel, défaut `gpt-5.6-luna`)
 
 La clé directe reste exclusivement côté serveur. Elle ne contourne jamais les quotas produit, les limites économiques, les requêtes invalides ni les délais de sécurité.
 

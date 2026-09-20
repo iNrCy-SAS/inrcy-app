@@ -8,6 +8,7 @@ import type { AiMediaGenerationRequest } from "@/lib/aiMediaGenerationContracts"
 import { buildAiMediaBusinessDnaPayload } from "@/lib/aiMediaBusinessDna";
 import { isAiMediaTechnicalCopyAllowed } from "./aiMediaTechnicalText.ts";
 import { aiGenerateJSON } from "@/lib/aiGatewayClient";
+import { getAiEngineOption } from "@/lib/aiEnginePreference";
 import { hasAiLanguageMismatch } from "@/lib/aiLanguageValidation";
 import { buildAiMediaNarrationFallback } from "@/lib/aiMediaLanguage";
 import {
@@ -173,7 +174,7 @@ export async function writeAiMediaNarration(args: {
       feature: "media.video",
       accountId: args.accountId,
       model: String(
-        process.env.AI_MEDIA_COPY_MODEL || "openai/gpt-4o-mini"
+        process.env.AI_MEDIA_COPY_MODEL || getAiEngineOption("openai").model
       ).trim(),
       system: [
         "Tu es le concepteur-rédacteur et scénariste voix off du studio iNrCy.",

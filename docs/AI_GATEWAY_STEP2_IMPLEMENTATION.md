@@ -19,7 +19,7 @@ Architecture obtenue :
 - ajout du point d’entrée neutre `aiGenerateJSON` ;
 - migration des 8 consommateurs JSON/vision ;
 - compatibilité `provider/model` pour AI Gateway ;
-- conversion automatique des anciens modèles OpenAI sans préfixe (`gpt-4o-mini` → `openai/gpt-4o-mini`) ;
+- conversion automatique des modèles OpenAI sans préfixe (`gpt-5.6-luna` → `openai/gpt-5.6-luna`) ;
 - authentification Gateway par `AI_GATEWAY_API_KEY` ou `VERCEL_OIDC_TOKEN` ;
 - mode de transition `AI_GATEWAY_MODE=auto|gateway|openai-direct` ;
 - correction du rapport Stats iNrAgent : plus de test bloquant spécifique à `OPENAI_API_KEY` ;
@@ -73,7 +73,7 @@ Option recommandée pour la première mise en production contrôlée :
 4. Dans le projet Vercel iNrCy → Settings → Environment Variables, ajouter :
    - `AI_GATEWAY_API_KEY` = la clé créée ;
    - `AI_GATEWAY_MODE` = `gateway` ;
-   - `AI_GATEWAY_MODEL` = modèle OpenAI actuel au format Gateway, par exemple `openai/gpt-4o-mini` ;
+   - `AI_GATEWAY_MODEL` = modèle OpenAI actuel au format Gateway, par exemple `openai/gpt-5.6-luna` ;
    - `AI_GATEWAY_VISION_MODEL` = modèle vision actuel au format Gateway si différent.
 5. Appliquer au minimum à Production et Preview selon la stratégie de test.
 6. Redéployer.
