@@ -173,6 +173,9 @@ test("account deletion is retry-safe and clears browser authentication state", (
   assert.match(deletionWorkflow, /scheduleSubscriptionCancellationForUser/);
   assert.match(deletionWorkflow, /deleteUserDataCategories/);
   assert.match(deletionUi, /\/api\/account\/deletion/);
+  assert.match(deletionUi, /action === "end_of_access"/);
+  assert.match(deletionUi, /action === "partial"/);
+  assert.match(deletionUi, /window\.confirm\(confirmationMessage\)/);
   assert.match(deletionUi, /purgeAllBrowserAccountCaches\(\)/);
   assert.match(deletionUi, /supabase\.auth\.signOut\(\{ scope: "local" \}\)/);
   assert.match(deletionUi, /window\.location\.replace\("\/login"\)/);

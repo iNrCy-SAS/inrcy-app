@@ -144,10 +144,17 @@ export default function DeletionRequestForm() {
     setMessage("");
     setNativeProvider(null);
 
-    if (action === "immediate") {
-      const confirmed = window.confirm(
-        "La suppression immédiate efface le compte et coupe l’accès maintenant. Les données supprimées ne pourront pas être récupérées. Continuer ?",
-      );
+    const confirmationMessage =
+      action === "immediate"
+        ? "La suppression immédiate efface le compte et coupe l’accès maintenant. Les données supprimées ne pourront pas être récupérées. Continuer ?"
+        : action === "end_of_access"
+          ? "La suppression sera programmée à la fin de votre accès. Votre compte restera actif jusqu’à l’échéance, puis ses données seront supprimées. Confirmer ?"
+          : action === "partial"
+            ? `Les ${partialCategories.length} catégorie(s) sélectionnée(s) seront supprimées définitivement, tandis que votre compte restera actif. Confirmer ?`
+            : null;
+
+    if (confirmationMessage) {
+      const confirmed = window.confirm(confirmationMessage);
       if (!confirmed) {
         setBusy(null);
         return;
