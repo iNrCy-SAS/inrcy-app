@@ -913,7 +913,7 @@ export async function generateAndSaveAiMedia(args: {
             try {
               // Google ne reçoit jamais les 2–3 portraits d'origine. La seule
               // référence transmise est l'image de groupe éphémère, assainie
-              // et composée auparavant par GPT-Image-2.
+              // et composée auparavant par le moteur GPT Image par défaut.
               return await generateProviderVideo(
                 {
                   ...providerRequest,

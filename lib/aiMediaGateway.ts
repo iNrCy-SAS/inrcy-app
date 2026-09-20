@@ -19,7 +19,7 @@ import type {
 } from "@/lib/aiMediaGenerationContracts";
 import { redactAiMediaSensitiveText } from "@/lib/aiMediaSensitiveText";
 
-const DEFAULT_IMAGE_MODEL = "openai/gpt-image-2";
+const DEFAULT_IMAGE_MODEL = "openai/gpt-image-2.5-flare";
 const DEFAULT_GOOGLE_IMAGE_MODEL = "gemini-3.1-flash-image";
 const DEFAULT_IMAGE_COST_MICRO_USD = 65_000;
 const DEFAULT_IMAGE_REFERENCE_COST_MICRO_USD = 20_000;

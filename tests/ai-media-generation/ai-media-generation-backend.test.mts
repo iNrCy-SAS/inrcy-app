@@ -930,7 +930,7 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
   const nextConfig = read("next.config.ts");
   const vercelConfig = read("vercel.json");
 
-  assert.match(gateway, /openai\/gpt-image-2/);
+  assert.match(gateway, /openai\/gpt-image-2\.5-flare/);
   assert.match(gateway, /AI_GATEWAY_IMAGE_MODEL/);
   assert.doesNotMatch(gateway, /AI_GATEWAY_VIDEO_MODEL|storyboard-v1/);
   assert.match(gateway, /size: args\.size \|\| "1024x1024"/);

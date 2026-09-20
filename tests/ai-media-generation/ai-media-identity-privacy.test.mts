@@ -101,7 +101,7 @@ test("le serveur assainit une seule fois puis transmet les mêmes références a
   assert.doesNotMatch(server, /prepareIdentityReferenceBuffers/);
 });
 
-test("les identités strictes restent sur GPT-Image-2, les références auto restent de simples inspirations", () => {
+test("les identités strictes restent sur le moteur image par défaut, les références auto restent de simples inspirations", () => {
   const gateway = read("lib/aiMediaGateway.ts");
 
   assert.match(gateway, /identityMode: AiMediaIdentityMode/);
@@ -117,7 +117,7 @@ test("les identités strictes restent sur GPT-Image-2, les références auto res
   assert.doesNotMatch(
     gateway,
     /inputFidelity/,
-    "GPT-Image-2 refuse input_fidelity même lorsqu'une référence d'identité est fournie",
+    "Le contrat Gateway reste indépendant d'une option input_fidelity propriétaire",
   );
   assert.match(gateway, /inspiration visuelle/);
   assert.match(gateway, /Produire une nouvelle scène plein cadre/);

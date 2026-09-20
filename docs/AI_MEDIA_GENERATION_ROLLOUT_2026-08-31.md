@@ -158,9 +158,9 @@ Les clés Gateway, Gemini et le service role restent exclusivement côté serveu
 - `AI_MEDIA_VEO_MODEL` — surcharge optionnelle, valeur par défaut `veo-3.1-fast-generate-preview`.
 - `AI_MEDIA_VEO_FALLBACK_MODELS` — chaîne de secours, valeur par défaut `veo-3.1-lite-generate-preview` ; une chaîne vide désactive explicitement le secours.
 
-Sans surcharge, le serveur utilise `openai/gpt-image-2` pour l’image, `gemini-omni-1.1-flash` pour les plans rapides, `veo-3.1-fast-generate-preview` pour le mode cinématographique et `gemini-3.1-flash-tts-preview` pour la voix off. Veo Standard n’est pas utilisé. Vérifier la tarification officielle des fournisseurs avant chaque promotion ; ne pas remplacer un modèle sans refaire les smokes de format, durée, coût et sécurité.
+Sans surcharge, le serveur utilise `openai/gpt-image-2.5-flare` pour l’image, `gemini-omni-1.1-flash` pour les plans rapides, `veo-3.1-fast-generate-preview` pour le mode cinématographique et `gemini-3.1-flash-tts-preview` pour la voix off. Veo Standard n’est pas utilisé. Vérifier la tarification officielle des fournisseurs avant chaque promotion ; ne pas remplacer un modèle sans refaire les smokes de format, durée, coût et sécurité.
 
-Le bucket privé et les URL signées protègent la médiathèque iNrCy, mais ne changent pas la politique de conservation du fournisseur IA. Au moment de ce lot, la fiche Gateway de GPT Image 2 n’annonce pas de Zero Data Retention. Valider le cadre contractuel et l’information fournie aux pros avant activation ; le registre iNrCy ne conserve volontairement que la version et l’empreinte SHA-256 du prompt compilé, pas son texte intégral.
+Le bucket privé et les URL signées protègent la médiathèque iNrCy, mais ne changent pas la politique de conservation du fournisseur IA. La fiche Gateway du moteur image par défaut n’annonce pas de Zero Data Retention. Valider le cadre contractuel et l’information fournie aux pros avant activation ; le registre iNrCy ne conserve volontairement que la version et l’empreinte SHA-256 du prompt compilé, pas son texte intégral.
 
 Les anciens noms `AI_MEDIA_IMAGE_MODEL` et `AI_MEDIA_VIDEO_MODEL` ne font pas partie du contrat de déploiement. Ne pas les créer dans Vercel.
 

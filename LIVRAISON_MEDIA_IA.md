@@ -13,7 +13,7 @@ Cette livraison transforme « Générer un média » en une fenêtre iNrCy uniqu
 
 ## Images originales
 
-- Le média final est créé par GPT Image 2 via Vercel AI Gateway.
+- Le média final est créé par GPT Image 2.5 Flare via Vercel AI Gateway.
 - Le modèle reçoit trois sources seulement : le sujet actuel, les faits vérifiés du Profil et le logo officiel de l’établissement actif.
 - Le logo est l’unique image de référence. Aucune photo de la Médiathèque, aucun ancien média et aucune photo de publication ne sont envoyés au modèle.
 - La palette est extraite du vrai logo et le prompt exige une intégration discrète, fidèle, non rognée et limitée à une seule occurrence.
