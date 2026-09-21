@@ -81,6 +81,7 @@ import {
   teamCalendarExternalAttendees,
   teamCalendarEventMeetUrl,
   teamCalendarMirrorContentSignature,
+  teamCalendarMirrorScheduleReconciliationDecision,
   teamCalendarReplicaReconciliationDecision,
   teamCalendarMirrorSourceKey,
   teamCalendarSourceGuestEmails,
@@ -1684,8 +1685,30 @@ export async function syncVisioTeamCalendarsToShared(input?: {
             // assigned internally to another team member.
             calendarId: member.calendarId,
           };
+          let reconciledSourceEvent = event;
+          if (existingMirror && event.id) {
+            const sourceFingerprint = teamMirrorFingerprint(event, mirrorMember);
+            const scheduleDecision =
+              teamCalendarMirrorScheduleReconciliationDecision({
+                source: event,
+                mirror: existingMirror,
+                storedSourceFingerprint:
+                  existingMirror.extendedProperties?.private?.sourceFingerprint,
+                currentSourceFingerprint: sourceFingerprint,
+                sourceIsOrganizer: eventOrganizerMatchesMember(event, member),
+              });
+            if (scheduleDecision === "mirror_changed") {
+              reconciledSourceEvent = await patchCalendarEventWithoutUpdates(
+                member.calendarId,
+                event.id,
+                { start: existingMirror.start, end: existingMirror.end },
+              );
+              Object.assign(event, reconciledSourceEvent);
+              result.updated += 1;
+            }
+          }
           const outcome = await upsertTeamMirrorEvent({
-            event,
+            event: reconciledSourceEvent,
             member: mirrorMember,
             existing: existingMirror,
           });

@@ -13,6 +13,7 @@ import {
   shouldMirrorTeamCalendarEvent,
   teamCalendarExternalAttendees,
   teamCalendarMirrorContentSignature,
+  teamCalendarMirrorScheduleReconciliationDecision,
   teamCalendarMirrorSourceKey,
   teamCalendarReplicaReconciliationDecision,
   type TeamCalendarEvent,
@@ -481,6 +482,73 @@ test("une réplique stable ne demande aucun accès Google supplémentaire", () =
     }),
     "repair",
     "une ancienne copie Google ne doit jamais restaurer l'ancienne date ou couleur",
+  );
+});
+
+test("un déplacement dans l’agenda partagé met à jour une source organisatrice inchangée", () => {
+  assert.equal(
+    teamCalendarMirrorScheduleReconciliationDecision({
+      source: sourceEvent(),
+      mirror: sourceEvent({
+        start: { dateTime: "2026-09-09T12:00:00.000Z" },
+        end: { dateTime: "2026-09-09T13:00:00.000Z" },
+      }),
+      storedSourceFingerprint: "source-v1",
+      currentSourceFingerprint: "source-v1",
+      sourceIsOrganizer: true,
+    }),
+    "mirror_changed",
+  );
+});
+
+test("une source modifiée en parallèle ne peut pas être restaurée par une ancienne copie", () => {
+  assert.equal(
+    teamCalendarMirrorScheduleReconciliationDecision({
+      source: sourceEvent({
+        start: { dateTime: "2026-09-10T08:00:00+02:00" },
+        end: { dateTime: "2026-09-10T09:00:00+02:00" },
+      }),
+      mirror: sourceEvent(),
+      storedSourceFingerprint: "source-v1",
+      currentSourceFingerprint: "source-v2",
+      sourceIsOrganizer: true,
+    }),
+    "source_wins",
+  );
+});
+
+test("une copie d’invitation externe ne déplace jamais l’événement de l’organisateur", () => {
+  assert.equal(
+    teamCalendarMirrorScheduleReconciliationDecision({
+      source: sourceEvent(),
+      mirror: sourceEvent({
+        start: { dateTime: "2026-09-09T12:00:00.000Z" },
+        end: { dateTime: "2026-09-09T13:00:00.000Z" },
+      }),
+      storedSourceFingerprint: "source-v1",
+      currentSourceFingerprint: "source-v1",
+      sourceIsOrganizer: false,
+    }),
+    "source_wins",
+  );
+});
+
+test("deux offsets représentant le même horaire restent stables", () => {
+  assert.equal(
+    teamCalendarMirrorScheduleReconciliationDecision({
+      source: sourceEvent({
+        start: { dateTime: "2026-09-08T11:00:00+02:00" },
+        end: { dateTime: "2026-09-08T12:00:00+02:00" },
+      }),
+      mirror: sourceEvent({
+        start: { dateTime: "2026-09-08T09:00:00.000Z" },
+        end: { dateTime: "2026-09-08T10:00:00.000Z" },
+      }),
+      storedSourceFingerprint: "source-v1",
+      currentSourceFingerprint: "source-v1",
+      sourceIsOrganizer: true,
+    }),
+    "stable",
   );
 });
 

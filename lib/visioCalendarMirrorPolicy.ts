@@ -74,6 +74,11 @@ export type TeamCalendarReplicaReconciliationDecision =
   | "repair"
   | "replica_changed";
 
+export type TeamCalendarMirrorScheduleReconciliationDecision =
+  | "stable"
+  | "mirror_changed"
+  | "source_wins";
+
 function normalized(value: unknown) {
   return String(value || "").trim().toLowerCase();
 }
@@ -406,6 +411,80 @@ export function teamCalendarReplicaReconciliationDecision(input: {
   return "repair";
 }
 
+function comparableCalendarDate(value: TeamCalendarDate | undefined) {
+  const dateTime = String(value?.dateTime || "").trim();
+  if (dateTime) {
+    // RFC3339 timestamps with an offset describe an absolute instant. Google
+    // can normalize the textual offset between two calendar copies, so compare
+    // their epoch value instead of the raw representation.
+    if (/(?:z|[+-]\d{2}:\d{2})$/i.test(dateTime)) {
+      const instant = Date.parse(dateTime);
+      if (Number.isFinite(instant)) return `instant:${instant}`;
+    }
+    return `datetime:${dateTime}:${String(value?.timeZone || "").trim()}`;
+  }
+  const date = String(value?.date || "").trim();
+  return date ? `date:${date}` : "";
+}
+
+function teamCalendarSchedulesMatch(
+  source: Pick<TeamCalendarEvent, "start" | "end">,
+  mirror: Pick<TeamCalendarEvent, "start" | "end">,
+) {
+  const sourceStart = comparableCalendarDate(source.start);
+  const sourceEnd = comparableCalendarDate(source.end);
+  const mirrorStart = comparableCalendarDate(mirror.start);
+  const mirrorEnd = comparableCalendarDate(mirror.end);
+  return Boolean(
+    sourceStart &&
+      sourceEnd &&
+      mirrorStart &&
+      mirrorEnd &&
+      sourceStart === mirrorStart &&
+      sourceEnd === mirrorEnd,
+  );
+}
+
+export function teamCalendarMirrorScheduleReconciliationDecision(input: {
+  source: Pick<TeamCalendarEvent, "start" | "end">;
+  mirror: Pick<TeamCalendarEvent, "start" | "end">;
+  storedSourceFingerprint?: string;
+  currentSourceFingerprint: string;
+  sourceIsOrganizer: boolean;
+}): TeamCalendarMirrorScheduleReconciliationDecision {
+  if (teamCalendarSchedulesMatch(input.source, input.mirror)) return "stable";
+
+  const sourceHasSchedule = Boolean(
+    comparableCalendarDate(input.source.start) &&
+      comparableCalendarDate(input.source.end),
+  );
+  const mirrorHasSchedule = Boolean(
+    comparableCalendarDate(input.mirror.start) &&
+      comparableCalendarDate(input.mirror.end),
+  );
+  const storedSourceFingerprint = String(
+    input.storedSourceFingerprint || "",
+  ).trim();
+  const currentSourceFingerprint = String(
+    input.currentSourceFingerprint || "",
+  ).trim();
+
+  // A shared copy can safely drive the organizer event only when it still
+  // points at the exact source snapshot from which it was generated. If the
+  // source changed in parallel (or this is a legacy copy without a base
+  // fingerprint), the source wins and the mirror is repaired instead.
+  if (
+    input.sourceIsOrganizer &&
+    sourceHasSchedule &&
+    mirrorHasSchedule &&
+    storedSourceFingerprint &&
+    storedSourceFingerprint === currentSourceFingerprint
+  ) {
+    return "mirror_changed";
+  }
+  return "source_wins";
+}
+
 export function hasAutomaticGoogleCalendarReminders(event: TeamCalendarEvent) {
   const reminders = event.reminders;
   return !reminders ||
@@ -437,7 +516,7 @@ export function buildTeamCalendarMirrorBody(input: TeamCalendarMirrorInput) {
       ]);
   const details = [
     `Responsable iNrCy : ${member.name}`,
-    "Vue synchronisée : modifiez le rendez-vous dans l’agenda du responsable.",
+    "Vue synchronisée : modifiez l’horaire ici ou dans l’agenda du responsable.",
     sourceDescription,
     meetUrl ? `Google Meet : ${meetUrl}` : "",
   ].filter(Boolean);
