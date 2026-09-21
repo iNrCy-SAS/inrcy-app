@@ -59,7 +59,9 @@ function channelMapFromConnectionStates(payload: unknown): ConnectedChannelMap {
     x: isUsable("x"),
     tiktok: isUsable("tiktok"),
     youtube: isUsable("youtube_shorts"),
-    pinterest: isUsable("pinterest"),
+    pinterest:
+      isUsable("pinterest") &&
+      Boolean((asRecord(states.pinterest) || {}).default_board_id),
     mails: isUsable("mails"),
   };
 }
@@ -119,7 +121,10 @@ function readCachedAgentConnectedChannels(): ConnectedChannelMap | null {
       ),
       tiktok: Boolean(state.tiktokConnected),
       youtube: Boolean(state.youtubeShortsConnected),
-      pinterest: Boolean(state.pinterestConnected),
+      // Never trust a dashboard cache for a destination-sensitive channel.
+      // The live /channel-states response below will turn Pinterest back on
+      // only when a valid default board is present.
+      pinterest: false,
       mails:
         Math.max(0, Math.round(Number(state.mailAccountsConnectedCount) || 0)) >
         0,
@@ -151,6 +156,7 @@ function readCachedAgentViewSnapshot(): CachedAgentViewSnapshot | null {
     const connectedChannels = sanitizeCachedConnectedChannels(
       parsed.connectedChannels,
     );
+    if (connectedChannels) connectedChannels.pinterest = false;
     const actions = Array.isArray(parsed.actions)
       ? parsed.actions.filter(isCachedPreparedAction).slice(0, 120)
       : undefined;

@@ -216,7 +216,14 @@ export function connectedChannelsForAutomation(
   automation: Automation,
   connectedChannels: ConnectedChannelMap | null,
 ): ChannelKey[] {
-  if (!connectedChannels) return automation.availableChannels;
+  if (!connectedChannels) {
+    // Pinterest is destination-sensitive: an OAuth account is not enough and
+    // a cached/unknown state cannot guarantee that a board exists. Keep it
+    // hidden until the live channel-state response confirms board readiness.
+    return automation.availableChannels.filter(
+      (channel) => channel !== "pinterest",
+    );
+  }
   return orderChannels(
     automation.availableChannels.filter((channel) =>
       Boolean(connectedChannels[channel]),

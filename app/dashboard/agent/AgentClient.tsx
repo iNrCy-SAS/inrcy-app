@@ -1196,8 +1196,13 @@ export default function AgentClient() {
     setPublicationIdeaVoiceIndex(null);
   }, [settingsKey]);
   const settingsDisplayedChannels = useMemo(
-    () => settingsAutomation?.availableChannels ?? [],
-    [settingsAutomation],
+    () =>
+      (settingsAutomation?.availableChannels ?? []).filter(
+        (channel) =>
+          channel !== "pinterest" ||
+          settingsAvailableChannels.includes("pinterest"),
+      ),
+    [settingsAutomation, settingsAvailableChannels],
   );
   const settingsNoConnectedChannelBlock = Boolean(
     settingsAutomation &&
@@ -5985,6 +5990,7 @@ export default function AgentClient() {
                                     {media.kind === "video" ? (
                                       <video
                                         src={media.url}
+                                        poster={media.posterUrl || undefined}
                                         muted
                                         playsInline
                                         preload="metadata"
@@ -6095,9 +6101,12 @@ export default function AgentClient() {
                                   <video
                                     key={publishMediaPreview.url}
                                     src={publishMediaPreview.url}
+                                    poster={
+                                      publishMediaPreview.posterUrl || undefined
+                                    }
                                     controls
                                     playsInline
-                                    preload="metadata"
+                                    preload="auto"
                                   />
                                 ) : publishMediaPreview.kind === "image" ? (
                                   <img
@@ -7412,9 +7421,12 @@ export default function AgentClient() {
                 {publishMediaPreview?.url ? (
                   publishMediaPreview.kind === "video" ? (
                     <video
+                      key={publishMediaPreview.url}
                       src={publishMediaPreview.url}
+                      poster={publishMediaPreview.posterUrl || undefined}
                       controls
-                      preload="metadata"
+                      playsInline
+                      preload="auto"
                     />
                   ) : (
                     <img
@@ -7481,7 +7493,13 @@ export default function AgentClient() {
                     aria-label={i18nT("afficher_l_image_value_sur_value_516cb86d", { value0: index + 1, value1: publishMediaPreview.items.length })}
                   >
                     {item.kind === "video" ? (
-                      <video src={item.url} muted preload="metadata" />
+                      <video
+                        src={item.url}
+                        poster={item.posterUrl || undefined}
+                        muted
+                        playsInline
+                        preload="metadata"
+                      />
                     ) : (
                       <img
                         src={item.url}

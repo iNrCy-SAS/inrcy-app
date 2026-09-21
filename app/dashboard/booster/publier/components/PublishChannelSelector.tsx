@@ -108,7 +108,16 @@ export default function PublishChannelSelector({
 }: PublishChannelSelectorProps) {
   const i18nT = useTranslations("booster");
   const channelKeys = BOOSTER_CHANNEL_ORDER;
-  const connectedChannelKeys = channelKeys.filter((key) => connected[key]);
+  // Pinterest cannot publish without a real destination board. Contrary to
+  // the other channels, showing it disabled would suggest that the OAuth
+  // account alone is enough, so keep it out of Booster until the board-ready
+  // connection state has been confirmed by the server.
+  const visibleChannelKeys = channelKeys.filter(
+    (key) => key !== "pinterest" || connected.pinterest,
+  );
+  const connectedChannelKeys = visibleChannelKeys.filter(
+    (key) => connected[key],
+  );
   const selectedConnectedCount = connectedChannelKeys.filter((key) => channels[key]).length;
   const hasConnectedChannels = connectedChannelKeys.length > 0;
   const allConnectedSelected = hasConnectedChannels && selectedConnectedCount === connectedChannelKeys.length;
@@ -200,18 +209,18 @@ export default function PublishChannelSelector({
           display: "grid",
           gridTemplateColumns: isMobile
             ? "repeat(2, minmax(0, 1fr))"
-            : `repeat(${channelKeys.length}, minmax(0, 1fr))`,
+            : `repeat(${visibleChannelKeys.length}, minmax(0, 1fr))`,
           gap: isMobile ? 8 : 6,
           alignItems: "stretch",
         }}
       >
-        {channelKeys.map((key, index) => {
+        {visibleChannelKeys.map((key, index) => {
           const info = getChannelDetailInfo(key);
           const isConnected = connected[key];
           const requiresReconnect = Boolean(info?.requiresReconnect);
           const isSelected = channels[key] && isConnected;
           const isInfoVisible = channelInfoOpen === key && !!info;
-          const isLastOddMobileItem = isMobile && index === channelKeys.length - 1 && channelKeys.length % 2 === 1;
+          const isLastOddMobileItem = isMobile && index === visibleChannelKeys.length - 1 && visibleChannelKeys.length % 2 === 1;
           const channelLabel = getLocalizedChannelLabel(key, (messageKey) => i18nT(messageKey as never));
 
           if (isMobile) {

@@ -984,7 +984,10 @@ export default function PublishModal({
     x: !!initialConnectedChannels?.x,
     tiktok: !!initialConnectedChannels?.tiktok,
     youtube_shorts: !!initialConnectedChannels?.youtube_shorts,
-    pinterest: !!initialConnectedChannels?.pinterest,
+    // A cached dashboard boolean cannot prove that the destination board
+    // still exists. Pinterest is enabled by the authoritative
+    // /api/booster/connected-channels refresh immediately after opening.
+    pinterest: false,
   });
 
   const [channels, setChannels] = useState<Record<ChannelKey, boolean>>(() =>

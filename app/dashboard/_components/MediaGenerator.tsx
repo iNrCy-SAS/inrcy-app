@@ -394,7 +394,7 @@ export default function MediaGenerator({
   const [mediaSourceMode, setMediaSourceMode] =
     useState<StudioMediaSourceMode>("ai");
   const [realCharacterCount, setRealCharacterCount] =
-    useState<StudioCharacterCount>(1);
+    useState<StudioCharacterCount>(0);
   const [useBrandColors, setUseBrandColors] = useState(true);
   const [logoMode, setLogoMode] = useState<MediaGenerationLogoMode>("discreet");
   const [durationSeconds, setDurationSeconds] =
@@ -438,7 +438,7 @@ export default function MediaGenerator({
     setTextKeywordDraft("");
     setInspirationImages([]);
     setMediaSourceMode("ai");
-    setRealCharacterCount(1);
+    setRealCharacterCount(0);
     setIdentityConsent(false);
     setTeamVideoVeoConsent(false);
     setTeamVideoConsentOpen(false);
@@ -691,7 +691,13 @@ export default function MediaGenerator({
 
   const selectMediaSourceMode = (mode: StudioMediaSourceMode) => {
     setMediaSourceMode(mode);
-    if (mode === "ai") setInspirationImages([]);
+    if (mode === "ai") {
+      setInspirationImages([]);
+    } else if (characterReferences.length === 0) {
+      // Un décor ou un produit peut être l'unique référence de la scène.
+      // Le Studio ne doit pas créer implicitement un personnage obligatoire.
+      setRealCharacterCount(0);
+    }
     resetReferenceConsent();
   };
 
@@ -716,9 +722,16 @@ export default function MediaGenerator({
           !(
             image.role === role &&
             (role !== "character" || image.characterIndex === characterIndex)
-          )
+        )
       )
     );
+    if (
+      role === "character" &&
+      characterReferences.length <= 1 &&
+      Boolean(environmentReference || productReference)
+    ) {
+      setRealCharacterCount(0);
+    }
     resetReferenceConsent();
   };
 
@@ -749,6 +762,11 @@ export default function MediaGenerator({
           next,
         ]).slice(0, MAX_INSPIRATION_IMAGES)
       );
+      if (role !== "character" && characterReferences.length === 0) {
+        // Une référence de décor/produit suffit : elle bascule explicitement
+        // la scène en mode « aucun personnage » et débloque la génération.
+        setRealCharacterCount(0);
+      }
       resetReferenceConsent();
     } catch (caught) {
       setActionError(

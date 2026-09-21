@@ -344,8 +344,25 @@ export function publishMediaItemFromRecord(
     record.mimeType,
     record.mime_type,
     record.contentType,
+    record.content_type,
+    record.kind,
+    record.mediaType,
+    record.media_type,
+    record.videoMime,
+    record.video_mime,
   );
   const kind = mediaKindFromHints(type, url);
+  const posterUrl =
+    kind === "video"
+      ? firstSafeString(
+          record.posterUrl,
+          record.poster_url,
+          record.thumbnailUrl,
+          record.thumbnail_url,
+          record.previewUrl,
+          record.preview_url,
+        )
+      : "";
   const rawName =
     firstSafeString(record.name, record.title, record.alt, record.filename) ||
     filenameFromUrl(url);
@@ -357,7 +374,7 @@ export function publishMediaItemFromRecord(
         ? "Vidéo iNr’Agent"
         : "Image iNr’Agent"
       : rawName;
-  return { record, name, url, kind };
+  return { record, name, url, kind, posterUrl };
 }
 
 export function publishChannelImages(
@@ -581,6 +598,7 @@ export function extractPublishMediaPreview(
       statusTone: invalidVideo || readinessBlocks ? "blocked" : "ready",
       url: selected.url,
       kind: selected.kind,
+      posterUrl: selected.posterUrl,
       note: invalidVideo
         ? "Ce canal exige une vidéo. Remplacez le média avant validation."
         : readinessBlocks

@@ -240,6 +240,29 @@ function normalizeBoards(value: unknown): PinterestBoard[] {
     : [];
 }
 
+function isPinterestBoardReady(settings: PinterestSettings) {
+  return Boolean(
+    settings.accountConnected &&
+      settings.defaultBoardId &&
+      settings.boards.some((board) => board.id === settings.defaultBoardId),
+  );
+}
+
+function withPinterestBoardReadiness(
+  settings: PinterestSettings,
+): PinterestSettings {
+  const connected = isPinterestBoardReady(settings);
+  return {
+    ...settings,
+    connected,
+    connectionStatus: settings.requiresUpdate
+      ? "needs_update"
+      : connected
+        ? "connected"
+        : "disconnected",
+  };
+}
+
 function mergeSettings(
   saved: PinterestSettings,
   status: any,
@@ -257,12 +280,11 @@ function mergeSettings(
   const profileUrl = hasProfileUrl
     ? String(status.profileUrl || publicProfileUrl || "")
     : String(publicProfileUrl || saved.profileUrl || "");
-  return {
+  return withPinterestBoardReadiness({
     ...saved,
-    connected: accountConnected,
     accountConnected,
     requiresUpdate,
-    connectionStatus: requiresUpdate ? "needs_update" : accountConnected ? "connected" : "disconnected",
+    connectionStatus: requiresUpdate ? "needs_update" : "disconnected",
     mode: accountConnected ? "oauth" : saved.mode,
     accountName: String(
       status.accountName || status.username || saved.accountName || "",
@@ -276,7 +298,7 @@ function mergeSettings(
     ).trim(),
     scopes: String(status.scopes || ""),
     expiresAt: String(status.expiresAt || "") || null,
-  };
+  });
 }
 
 function emitDashboardUpdate(settings: PinterestSettings) {
@@ -284,7 +306,8 @@ function emitDashboardUpdate(settings: PinterestSettings) {
   window.dispatchEvent(
     new CustomEvent("inrcy:pinterest-settings-updated", {
       detail: {
-        connected: settings.connected,
+        connected: isPinterestBoardReady(settings),
+        accountConnected: settings.accountConnected,
         requiresUpdate: settings.requiresUpdate,
         connectionStatus: settings.connectionStatus,
         profileUrl: settings.publicProfileUrl || settings.profileUrl,
@@ -400,7 +423,14 @@ export default function PinterestSettingsContent({ onUnsavedChange }: { onUnsave
         const liveBoards = normalizeBoards(json.boards);
         const boards = mergeLiveBoardsWithRecentMutations(liveBoards);
         const defaultBoardId = String(json.defaultBoardId || "").trim();
-        setSettings((current) => ({ ...current, boards, defaultBoardId }));
+        pendingDashboardUpdateRef.current = true;
+        setSettings((current) =>
+          withPinterestBoardReadiness({
+            ...current,
+            boards,
+            defaultBoardId,
+          }),
+        );
         if (successMessage) setNotice(successMessage);
         return boards;
       } catch (err) {
@@ -482,6 +512,7 @@ export default function PinterestSettingsContent({ onUnsavedChange }: { onUnsave
       }
 
       setNewBoardName("");
+      pendingDashboardUpdateRef.current = true;
       setSettings((current) => {
         const boards = createdBoard
           ? [
@@ -489,12 +520,12 @@ export default function PinterestSettingsContent({ onUnsavedChange }: { onUnsave
               ...current.boards.filter((item) => item.id !== createdBoard.id),
             ]
           : current.boards;
-        return {
+        return withPinterestBoardReadiness({
           ...current,
           boards,
           defaultBoardId:
             defaultBoardId || current.defaultBoardId || createdBoard?.id || "",
-        };
+        });
       });
       setNotice(i18nT("tableau_value_cree_sur_pinterest_7d83f856", { value0: name }));
     } catch (err) {
@@ -610,14 +641,17 @@ export default function PinterestSettingsContent({ onUnsavedChange }: { onUnsave
           setEditingBoardName("");
         }
         const nextDefaultBoardId = String(json?.defaultBoardId || "").trim();
-        setSettings((current) => ({
-          ...current,
-          boards: current.boards.filter((item) => item.id !== board.id),
-          defaultBoardId:
-            current.defaultBoardId === board.id
-              ? nextDefaultBoardId
-              : current.defaultBoardId,
-        }));
+        pendingDashboardUpdateRef.current = true;
+        setSettings((current) =>
+          withPinterestBoardReadiness({
+            ...current,
+            boards: current.boards.filter((item) => item.id !== board.id),
+            defaultBoardId:
+              current.defaultBoardId === board.id
+                ? nextDefaultBoardId
+                : current.defaultBoardId,
+          }),
+        );
         setNotice(i18nT("tableau_value_supprime_de_pinterest_bc6dcc3c", { value0: board.name }));
       } catch (err) {
         console.warn("[pinterest-settings] board delete failed", err);
@@ -649,7 +683,13 @@ export default function PinterestSettingsContent({ onUnsavedChange }: { onUnsave
       if (!response.ok || !json?.ok)
         throw new Error(String(json?.error || "Enregistrement impossible."));
       if (!mountedRef.current) return;
-      setSettings((current) => ({ ...current, defaultBoardId: board.id }));
+      pendingDashboardUpdateRef.current = true;
+      setSettings((current) =>
+        withPinterestBoardReadiness({
+          ...current,
+          defaultBoardId: board.id,
+        }),
+      );
       setNotice(i18nT("value_est_maintenant_le_tableau_par_309d14f4", { value0: board.name }));
     } catch (err) {
       console.warn("[pinterest-settings] default board failed", err);
@@ -742,6 +782,7 @@ export default function PinterestSettingsContent({ onUnsavedChange }: { onUnsave
   }, [settings]);
 
   const boardOptions = useMemo(() => settings.boards, [settings.boards]);
+  const pinterestBoardReady = isPinterestBoardReady(settings);
   const statusLabel =
     loading && !settings.accountConnected
       ? "Chargement..."
@@ -890,7 +931,18 @@ export default function PinterestSettingsContent({ onUnsavedChange }: { onUnsave
               >
                 {syncing ? "…" : "↻"}
               </button>
-              <ConnectionPill connected={settings.accountConnected} />
+              <ConnectionPill
+                connected={pinterestBoardReady}
+                label={
+                  syncing || loading
+                    ? "Synchronisation…"
+                    : pinterestBoardReady
+                      ? "Prêt"
+                      : boardOptions.length > 0
+                        ? "À sélectionner"
+                        : "À créer"
+                }
+              />
             </div>
           }
         >

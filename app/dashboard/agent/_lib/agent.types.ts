@@ -200,6 +200,7 @@ export type AgentPublishMediaItem = {
   name: string;
   url: string;
   kind: "image" | "video" | "file";
+  posterUrl?: string;
 };
 
 export type AgentPublishMediaPreview = {
@@ -209,6 +210,7 @@ export type AgentPublishMediaPreview = {
   statusTone: "ready" | "blocked" | "warning" | "neutral";
   url: string;
   kind: "image" | "video" | "file" | "none";
+  posterUrl?: string;
   note: string;
   items: AgentPublishMediaItem[];
   count: number;

@@ -195,7 +195,10 @@ export async function GET() {
         linkedin: channelEnabled.linkedin && isOfficialPublicationChannelConnected(states.linkedin),
         tiktok: channelEnabled.tiktok && isOfficialPublicationChannelConnected(states.tiktok),
         youtube_shorts: channelEnabled.youtube_shorts && isOfficialPublicationChannelConnected(states.youtube_shorts),
-        pinterest: channelEnabled.pinterest && isOfficialPublicationChannelConnected(states.pinterest),
+        pinterest:
+          channelEnabled.pinterest &&
+          isOfficialPublicationChannelConnected(states.pinterest) &&
+          Boolean(states.pinterest.default_board_id),
         x: channelEnabled.x && isOfficialPublicationChannelConnected(states.x),
       },
       channelDetails: {

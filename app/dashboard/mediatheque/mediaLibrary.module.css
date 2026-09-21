@@ -807,7 +807,11 @@
 .libraryCard{
   display:grid;
   grid-template-rows:auto auto minmax(0, 1fr);
-  overflow:hidden;
+  /* La liste est l'unique zone scrollable. `hidden` transformait aussi cette
+     carte en conteneur de défilement programmable : le focus d'une case plus
+     basse pouvait alors décaler toute la carte et masquer ses commandes. */
+  overflow:clip;
+  overscroll-behavior:none;
 }
 
 .cardHeader,
@@ -1478,8 +1482,11 @@
 
 .mediaList{
   min-height:0;
-  height:100%;
+  height:auto;
+  max-height:100%;
   overflow:auto;
+  overscroll-behavior:contain;
+  scrollbar-gutter:stable;
   display:grid;
   gap:8px;
   align-content:start;
